@@ -65,12 +65,24 @@ func (e *Emitter) requireCloneGlue(id types.TypeID) string {
 // emitCloneGlue emits every requested clone body, re-checking the set after
 // each pass because a body may request the glue of a nested composite. Same
 // fixpoint the drop glue uses, for the same reason.
+//
+// The per-element form is drained in the SAME loop rather than a pass of its
+// own: an element glue asks for the ordinary glue of a composite element, so a
+// second pass that ran after this one would emit calls to bodies the first pass
+// had already finished collecting.
 func (e *Emitter) emitCloneGlue() error {
 	done := make(map[types.TypeID]struct{})
+	doneElem := make(map[types.TypeID]struct{})
 	for {
 		progressed := false
 		for _, id := range takePendingGlue(e.cloneGlueNeeded, done) {
 			if err := e.emitCloneGlueBody(id); err != nil {
+				return err
+			}
+			progressed = true
+		}
+		for _, id := range takePendingGlue(e.cloneElemGlueNeeded, doneElem) {
+			if err := e.emitCloneElemGlueBody(id); err != nil {
 				return err
 			}
 			progressed = true

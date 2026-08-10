@@ -20,6 +20,15 @@ func (fe *funcEmitter) emitMagicIntrinsic(call *mir.CallInstr) (bool, error) {
 	case "__add", "__sub", "__mul", "__div", "__mod",
 		"__bit_and", "__bit_or", "__bit_xor", "__shl", "__shr",
 		"__eq", "__ne", "__lt", "__le", "__gt", "__ge":
+		if name == "__add" {
+			// Concatenation shares this symbol with addition and is not
+			// numeric, so it is claimed before the numeric test declines it
+			// and drops the call through to a direct call that cannot resolve
+			// an intrinsic (emit_magic_array.go).
+			if handled, err := fe.emitArrayConcatIntrinsic(call); handled {
+				return true, err
+			}
+		}
 		if !fe.canEmitMagicBinary(call) {
 			return false, nil
 		}
@@ -194,6 +203,20 @@ func (fe *funcEmitter) emitMagicBinaryIntrinsic(call *mir.CallInstr, name string
 	switch name {
 	case "__add", "__sub", "__mul", "__div", "__mod", "__bit_and", "__bit_or", "__bit_xor", "__shl", "__shr":
 		if ok {
+			// Overflow on a fixed width is a trap in this language, so the
+			// arithmetic that has a range to leave is emitted checked
+			// (emit_helpers_overflow.go). Everything else keeps its plain
+			// opcode below.
+			if binOp, opOK := magicBinaryOp(name); opOK {
+				checked, handled, chkErr := fe.emitCheckedIntArith(binOp, info, leftTy, leftVal, rightVal)
+				if chkErr != nil {
+					return chkErr
+				}
+				if handled {
+					tmp = checked
+					break
+				}
+			}
 			opcode := ""
 			switch name {
 			case "__add":

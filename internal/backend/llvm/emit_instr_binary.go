@@ -56,6 +56,23 @@ func (fe *funcEmitter) emitBinary(op *mir.BinaryOp) (val, ty string, err error) 
 		}
 		return fe.emitStringBinary(op)
 	}
+	if op.Op == ast.ExprBinaryAdd {
+		// `xs += ys` lowers to a BinaryOp where a bare `xs + ys` lowers to an
+		// `__add` call, so concatenation has to be recognised on both spellings
+		// or the trap below ("unsupported numeric op") would be the answer to
+		// whichever one the author happened to write.
+		elem, isConcat, concatErr := fe.arrayConcatElem(&op.Left, &op.Right)
+		if isConcat {
+			if concatErr != nil {
+				return "", "", concatErr
+			}
+			val, emitErr := fe.emitArrayConcatValue(&op.Left, &op.Right, elem)
+			if emitErr != nil {
+				return "", "", emitErr
+			}
+			return val, handleType, nil
+		}
+	}
 	leftVal, leftTy, err := fe.emitValueOperand(&op.Left)
 	if err != nil {
 		return "", "", err
@@ -99,6 +116,17 @@ func (fe *funcEmitter) emitBinary(op *mir.BinaryOp) (val, ty string, err error) 
 		ast.ExprBinaryBitAnd, ast.ExprBinaryBitOr, ast.ExprBinaryBitXor, ast.ExprBinaryShiftLeft, ast.ExprBinaryShiftRight:
 		info, ok := intInfo(fe.emitter.types, op.Left.Type)
 		if ok {
+			// This is the compound-assignment path — `x += y` lowers to a
+			// BinaryOp where a bare `x + y` lowers to a `__add` call — so it
+			// needs the same overflow trap the call path gets, or the trap
+			// would depend on which spelling the author used.
+			checked, handled, chkErr := fe.emitCheckedIntArith(op.Op, info, leftTy, leftVal, rightVal)
+			if chkErr != nil {
+				return "", "", chkErr
+			}
+			if handled {
+				return checked, leftTy, nil
+			}
 			var opcode string
 			switch op.Op {
 			case ast.ExprBinaryAdd:

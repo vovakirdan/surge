@@ -28,6 +28,14 @@ void rt_array_free_elems(void* array_header,
                          void (*drop_elem)(void*));
 // Debug observability for the deferred-reclamation float.
 uint64_t rt_array_debug_deferred_base_drops(void);
+// Joins two arrays into a third that owns its own buffer. `clone_elem`
+// duplicates one element slot (dst, src) for an element type that owns
+// heap; NULL means the bytes are the whole value and are moved as bytes.
+void* rt_array_concat(void* left_slot,
+                      void* right_slot,
+                      uint64_t elem_stride,
+                      uint64_t elem_align,
+                      void (*clone_elem)(void*, const void*));
 void* rt_array_slice(void* array_slot, void* r, uint64_t elem_stride);
 void* rt_array_slice_fixed(void* elems, void* r, uint64_t length, uint64_t elem_stride);
 void rt_array_sync_views(void* array_header);

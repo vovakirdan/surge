@@ -159,12 +159,17 @@ fn main() -> int {
 	if strings.Contains(body, "rt_bigint_from_literal") || strings.Contains(body, "rt_bigint_to_i64") {
 		t.Fatalf("fixed-width literal casts should not materialize BigInt in loop_fixed:\n%s", body)
 	}
-	for _, want := range []string{"store i64 10000", "store i64 1", "add i64", "icmp slt i64"} {
+	for _, want := range []string{"store i64 10000", "store i64 1", machineAddMarker, "icmp slt i64"} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected %q in loop_fixed IR:\n%s", want, body)
 		}
 	}
 }
+
+// machineAddMarker is what an int64 addition looks like once fixed-width
+// arithmetic traps on overflow: the sum and the overflow bit come out of one
+// checked intrinsic rather than a bare `add i64`.
+const machineAddMarker = "call {i64, i1} @llvm.sadd.with.overflow.i64("
 
 func TestEmitFixedWidthLiteralCastPreservesIntegerLiteralBases(t *testing.T) {
 	sourceCode := `fn base_literals() -> uint64 {
@@ -237,7 +242,11 @@ func findI64FunctionBodyContaining(t *testing.T, ir, needle string) string {
 
 	re := regexp.MustCompile(`(?s)define i64 @fn\.\d+\(\) \{.*?\n\}`)
 	for _, body := range re.FindAllString(ir, -1) {
-		if strings.Contains(body, needle) && strings.Contains(body, "add i64") {
+		// The marker for "this function does machine arithmetic" is the checked
+		// add, not a bare `add i64`: fixed-width addition traps on overflow, so
+		// it goes through the intrinsic that reports it. Either signedness
+		// counts — the point is that the width is machine, not arbitrary.
+		if strings.Contains(body, needle) && strings.Contains(body, "add.with.overflow.i64(") {
 			return body
 		}
 	}

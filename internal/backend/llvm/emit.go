@@ -78,8 +78,10 @@ type Emitter struct {
 	dropGlueNeeded     map[types.TypeID]struct{}
 	dropElemGlueNeeded map[types.TypeID]struct{}
 	// Recursive clone glue, the copy-side twin of the drop glue above
-	// (emit_clone_glue.go).
-	cloneGlueNeeded map[types.TypeID]struct{}
+	// (emit_clone_glue.go), and its per-element form for arrays
+	// (emit_clone_array.go).
+	cloneGlueNeeded     map[types.TypeID]struct{}
+	cloneElemGlueNeeded map[types.TypeID]struct{}
 	// Crossing states that ship with a drop obligation: the crossing
 	// body's FuncID doubles as the drop-fn id, and the dispatch routes
 	// it to the state struct's recursive glue (emit_async.go).
@@ -186,6 +188,7 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	e.ensureStringConst("false")
 	e.ensureStringConst("")
 	e.ensureStringConst("integer overflow")
+	e.ensureStringConst("division by zero")
 	e.ensureStringConst("unsigned overflow")
 	e.ensureStringConst("float overflow")
 	e.ensureStringConst("cannot convert negative int to uint")
