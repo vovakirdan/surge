@@ -1,15 +1,3 @@
-//go:build golden
-// +build golden
-
-// This runner executes compiled Surge programs and compares their real output
-// against the recorded .out, which is the whole point of RV2-DEBT-173. It sits
-// behind the `golden` build tag ONLY because a case in it is still red, and a
-// red case would block every commit through the `make check` hook.
-//
-// Still behind the tag: async_no_poll_alloc, whose recorded allocation budget is
-// seven months old and whose true value moves again once the O(await-sites^2)
-// suspension cost it exposed is addressed. The tag comes off with it.
-
 package vm_test
 
 import (
