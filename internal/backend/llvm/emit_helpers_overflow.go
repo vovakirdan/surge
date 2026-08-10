@@ -83,7 +83,7 @@ func (fe *funcEmitter) emitOverflowCheckedArith(
 	cont := fe.nextInlineBlock()
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", flag, fail, cont)
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", fail)
-	if err := fe.emitPanicNumeric("integer overflow"); err != nil {
+	if err := fe.emitPanicCoded("VM1101", "integer overflow"); err != nil {
 		return "", err
 	}
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", cont)
@@ -136,7 +136,7 @@ func (fe *funcEmitter) emitCheckedIntDivide(
 	cont := fe.nextInlineBlock()
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", unrepresentable, fail, cont)
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", fail)
-	if err := fe.emitPanicNumeric("integer overflow"); err != nil {
+	if err := fe.emitPanicCoded("VM1101", "integer overflow"); err != nil {
 		return "", err
 	}
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", cont)
@@ -153,7 +153,7 @@ func (fe *funcEmitter) emitDivisorZeroGuard(ty, rightVal string) error {
 	cont := fe.nextInlineBlock()
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", isZero, fail, cont)
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", fail)
-	if err := fe.emitPanicNumeric("division by zero"); err != nil {
+	if err := fe.emitPanicCoded("VM3203", "division by zero"); err != nil {
 		return err
 	}
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", cont)

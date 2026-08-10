@@ -189,6 +189,13 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	e.ensureStringConst("")
 	e.ensureStringConst("integer overflow")
 	e.ensureStringConst("division by zero")
+	// The panic codes a condition names for itself. They are constants like
+	// any other message, and they are here rather than beside their emit sites
+	// for the same reason the messages are: a string used from inside a
+	// function body has to exist before the body is written out.
+	e.ensureStringConst("VM1003")
+	e.ensureStringConst("VM1101")
+	e.ensureStringConst("VM3203")
 	e.ensureStringConst("unsigned overflow")
 	e.ensureStringConst("float overflow")
 	e.ensureStringConst("cannot convert negative int to uint")

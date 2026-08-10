@@ -72,6 +72,15 @@ void rt_panic(const uint8_t* ptr, uint64_t length);
  * location to give — which is every call from inside this runtime — and then no
  * location line is printed at all. rt_panic above is deliberately not one of
  * them: the VM answers the same panic without naming a location. */
+/* Reports under a code the caller names; rt_panic_numeric is this with
+ * "VM3202" bound, which is what a failed numeric conversion is. Every other
+ * condition names its own, so the two backends cannot disagree about it. */
+void rt_panic_code(const uint8_t* code,
+                   uint64_t code_length,
+                   const uint8_t* ptr,
+                   uint64_t length,
+                   const uint8_t* span,
+                   uint64_t span_length);
 void rt_panic_numeric(const uint8_t* ptr,
                       uint64_t length,
                       const uint8_t* span,

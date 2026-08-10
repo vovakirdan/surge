@@ -211,13 +211,29 @@ void rt_panic(const uint8_t* ptr, uint64_t length) {
     _exit(1);
 }
 
-void rt_panic_numeric(const uint8_t* ptr,
-                      uint64_t length,
-                      const uint8_t* span,
-                      uint64_t span_length) {
-    static const uint8_t prefix[] = "panic VM3202: ";
+// Reports a panic under a code the CALLER names.
+//
+// The code belongs to the condition, not to the reporter. rt_panic_numeric
+// below hardcodes VM3202 because that is what a failed numeric CONVERSION is,
+// and for a while every other emitter-side panic borrowed it: arithmetic
+// overflow, division by zero and a resize of an array view all announced
+// themselves as invalid numeric conversions, where the VM answers VM1101,
+// VM3203 and VM1003. Two backends disagreeing on the code for one condition is
+// the kind of difference a reader trusts and should not have to.
+void rt_panic_code(const uint8_t* code,
+                   uint64_t code_length,
+                   const uint8_t* ptr,
+                   uint64_t length,
+                   const uint8_t* span,
+                   uint64_t span_length) {
+    static const uint8_t prefix[] = "panic ";
+    static const uint8_t separator[] = ": ";
     static const uint8_t fallback[] = "invalid numeric conversion";
     rt_write_stderr(prefix, (uint64_t)(sizeof(prefix) - 1));
+    if (code != NULL && code_length > 0) {
+        rt_write_stderr(code, code_length);
+    }
+    rt_write_stderr(separator, (uint64_t)(sizeof(separator) - 1));
     if (ptr != NULL && length > 0) {
         rt_write_stderr(ptr, length);
         if (ptr[length - 1] != '\n') {
@@ -229,6 +245,14 @@ void rt_panic_numeric(const uint8_t* ptr,
     }
     rt_panic_write_span(span, span_length);
     _exit(1);
+}
+
+void rt_panic_numeric(const uint8_t* ptr,
+                      uint64_t length,
+                      const uint8_t* span,
+                      uint64_t span_length) {
+    static const uint8_t code[] = "VM3202";
+    rt_panic_code(code, (uint64_t)(sizeof(code) - 1), ptr, length, span, span_length);
 }
 
 void rt_panic_bounds(

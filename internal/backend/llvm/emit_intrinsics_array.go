@@ -126,7 +126,7 @@ func (fe *funcEmitter) emitArrayViewResizeGuard(head string) error {
 	cont := fe.nextInlineBlock()
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", isView, fail, cont)
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", fail)
-	if err := fe.emitPanicNumeric("array view is not resizable"); err != nil {
+	if err := fe.emitPanicCoded("VM1003", "array view is not resizable"); err != nil {
 		return err
 	}
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", cont)

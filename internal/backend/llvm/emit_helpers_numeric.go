@@ -29,6 +29,26 @@ func (fe *funcEmitter) emitPanicNumeric(msg string) error {
 	return nil
 }
 
+// emitPanicCoded raises a panic under the code the VM raises for the same
+// condition. emitPanicNumeric above is this with VM3202 bound, which is what a
+// failed numeric CONVERSION is; a condition that is something else has to say
+// so, or the two backends report one situation under two codes.
+func (fe *funcEmitter) emitPanicCoded(code, msg string) error {
+	codePtr, codeLen, err := fe.emitBytesConst(code)
+	if err != nil {
+		return err
+	}
+	ptr, dataLen, err := fe.emitBytesConst(msg)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(&fe.emitter.buf,
+		"  call void @rt_panic_code(ptr %s, i64 %d, ptr %s, i64 %d, %s)\n",
+		codePtr, codeLen, ptr, dataLen, fe.panicSpanArgs())
+	fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
+	return nil
+}
+
 func (fe *funcEmitter) emitCheckedBigIntToI64(val, msg string) (string, error) {
 	outPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", outPtr, alignWord)
