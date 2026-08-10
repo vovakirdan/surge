@@ -6,10 +6,10 @@
 // behind the `golden` build tag ONLY because a case in it is still red, and a
 // red case would block every commit through the `make check` hook.
 //
-// Still behind the tag: arrays_option_nested (a generic method whose receiver
-// type argument is itself an ArrayFixed has no authoritative instantiation) and
-// arrays_slice_view (range-slicing a fixed array in ordinary storage is
-// unimplemented in the VM). The tag comes off with them.
+// Still behind the tag: arrays_slice_view — range-slicing a fixed array in
+// ordinary storage is unimplemented in the VM, and the slice has to alias, so
+// there is nothing to dispatch on since the heap array handle went away. The tag
+// comes off with it.
 
 package vm_test
 

@@ -236,11 +236,46 @@ func (tc *typeChecker) arrayInfo(id types.TypeID) (elem types.TypeID, length uin
 	return types.NoTypeID, 0, false, false
 }
 
+// splitTopLevelSep splits s on sep, ignoring separators nested inside <>, []
+// or (). It keeps empty fields, unlike splitTopLevel, because a caller has to
+// tell `[T; ]` — a fixed array whose length is not yet known — from `[T]`, a
+// dynamic one, and dropping the empty field would make those two the same
+// string.
+func splitTopLevelSep(s string, sep rune) []string {
+	var parts []string
+	depth := 0
+	start := 0
+	for i, r := range s {
+		switch r {
+		case '<', '[', '(':
+			depth++
+		case '>', ']', ')':
+			if depth > 0 {
+				depth--
+			}
+		case sep:
+			if depth == 0 {
+				parts = append(parts, strings.TrimSpace(s[start:i]))
+				start = i + len(string(sep))
+			}
+		}
+	}
+	return append(parts, strings.TrimSpace(s[start:]))
+}
+
 func parseArrayKey(raw string) (elem, lengthKey string, length uint64, hasLen, ok bool) {
 	s := strings.TrimSpace(raw)
 	if len(s) >= 2 && s[0] == '[' && s[len(s)-1] == ']' {
 		content := strings.TrimSpace(s[1 : len(s)-1])
-		if parts := strings.Split(content, ";"); len(parts) == 2 {
+		// Split at the top level only. A nesting-blind split saw three fields in
+		// `[int; 2]; 2` — the content of `[[int; 2]; 2]` — took the count as
+		// wrong, and fell through to the dynamic-array answer below. That answer
+		// is what canonicalTypeKey turns into the bucket method lookup uses to
+		// choose between `extern<Array<T>>` and `extern<ArrayFixed<T, N>>`, so a
+		// nested fixed array was looked up as a dynamic one, matched a template
+		// with one type parameter where its receiver carries two, and the
+		// instantiation was dropped for disagreeing with itself.
+		if parts := splitTopLevelSep(content, ';'); len(parts) == 2 {
 			elem = strings.TrimSpace(parts[0])
 			lengthStr := strings.TrimSpace(parts[1])
 			lengthKey = lengthStr
@@ -261,7 +296,12 @@ func parseArrayKey(raw string) (elem, lengthKey string, length uint64, hasLen, o
 	}
 	if strings.HasPrefix(s, "ArrayFixed<") && strings.HasSuffix(s, ">") {
 		content := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(s, "ArrayFixed<"), ">"))
-		if parts := strings.Split(content, ","); len(parts) == 2 {
+		// Same blindness in the other spelling: `ArrayFixed<int,2>,2` has three
+		// comma-separated fields but two arguments. This one already reached the
+		// right FAMILY through the fallback below, which reports hasLen either
+		// way, so it did not misroute a lookup — it just named the wrong element
+		// type and lost the length.
+		if parts := splitTopLevelSep(content, ','); len(parts) == 2 {
 			elem = strings.TrimSpace(parts[0])
 			lengthStr := strings.TrimSpace(parts[1])
 			lengthKey = lengthStr

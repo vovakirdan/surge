@@ -425,11 +425,37 @@ func splitTypeArgs(s string) []string {
 	return out
 }
 
+// splitTopLevelSemis splits on `;` at nesting depth zero, keeping empty fields
+// so that `[T; ]` stays distinguishable from `[T]`. It is the same rule sema
+// applies in splitTopLevelSep; the two parsers must agree, because a disagreement
+// makes the editor and the compiler classify the same array differently.
+func splitTopLevelSemis(s string) []string {
+	var parts []string
+	depth := 0
+	start := 0
+	for i, r := range s {
+		switch r {
+		case '<', '(', '[', '{':
+			depth++
+		case '>', ')', ']', '}':
+			if depth > 0 {
+				depth--
+			}
+		case ';':
+			if depth == 0 {
+				parts = append(parts, strings.TrimSpace(s[start:i]))
+				start = i + 1
+			}
+		}
+	}
+	return append(parts, strings.TrimSpace(s[start:]))
+}
+
 func parseArrayKey(raw string) (elem, lengthKey string, hasLen, ok bool) {
 	s := strings.TrimSpace(raw)
 	if len(s) >= 2 && s[0] == '[' && s[len(s)-1] == ']' {
 		content := strings.TrimSpace(s[1 : len(s)-1])
-		if parts := strings.Split(content, ";"); len(parts) == 2 {
+		if parts := splitTopLevelSemis(content); len(parts) == 2 {
 			elem = strings.TrimSpace(parts[0])
 			lengthKey = strings.TrimSpace(parts[1])
 			hasLen = true
