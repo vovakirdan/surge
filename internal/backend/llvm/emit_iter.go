@@ -9,32 +9,36 @@ import (
 )
 
 const (
-	// A for-loop iterator is a heap struct whose leading word selects the
-	// body layout. Bit 0 is the kind tag; array cursors pack their source
-	// representation stride into the remaining bits. A bare Range<T> value
-	// and an array cursor can therefore both flow through iter_next typed only
-	// as Range<T> without forcing fixed and dynamic arrays to share a stride.
-	iterStructSize  = 32
-	iterStructAlign = 8
-	iterKindOffset  = 0
-	iterKindMask    = 1
-	iterKindRange   = 1
+	// Every Range<T> handle names an object that opens with runtime/native
+	// rt.h's SurgeRange header, and the byte at rangeKindOff says which of the
+	// two shapes follows it: `a..b` builds a pair of bounds, while
+	// `arr.__range()` and a loop over an array build a cursor over elements.
+	// The shared header is what lets one step routine serve both `iter_next`
+	// and an explicit `.next()`: the language type Range<T> covers both shapes,
+	// so only a runtime byte can tell a receiver apart. This mirrors the VM,
+	// where the two are RangeDescriptor and RangeArrayIter on one heap object.
+	rangeStartOff     = 0
+	rangeEndOff       = 8
+	rangeHasStartOff  = 16
+	rangeHasEndOff    = 17
+	rangeInclusiveOff = 18
+	rangeKindOff      = 19
 
-	// Array body (kind bit == 0; higher bits carry stride).
-	arrayIterDataOff   = 8
-	arrayIterIndexOff  = 16
-	arrayIterLengthOff = 24
+	rangeKindBounds    = 0
+	rangeKindArrayIter = 1
 
-	// Range body (kind == iterKindRange): a mutable cursor over int/uint
-	// bounds. current and end are tagged int/uint words; inclusive is 0/1.
-	rangeIterCurOff  = 8
-	rangeIterEndOff  = 16
-	rangeIterInclOff = 24
+	rangeBoundsSize = 24
+	rangeAlign      = 8
 
-	// SurgeRange source layout (runtime/native/rt.h).
-	surgeRangeStartOff     = 0
-	surgeRangeEndOff       = 8
-	surgeRangeInclusiveOff = 18
+	// Array cursor body. The data pointer and the element stride occupy the
+	// header's two bound slots, which stay unread while has_start and has_end
+	// are zero — so a cursor handed to a slice helper reads as an unbounded
+	// range instead of having its data pointer decoded as a bound.
+	arrayIterDataOff   = rangeStartOff
+	arrayIterStrideOff = rangeEndOff
+	arrayIterIndexOff  = 24
+	arrayIterLengthOff = 32
+	arrayIterSize      = 40
 )
 
 func (fe *funcEmitter) emitIterInit(init *mir.IterInit) (val, ty string, err error) {
@@ -56,53 +60,55 @@ func (fe *funcEmitter) emitIterInit(init *mir.IterInit) (val, ty string, err err
 	return "", "", fmt.Errorf("unsupported iter_init iterable type")
 }
 
-// emitRangeIterInit turns a Range<T> value into a mutable cursor over its
-// bounds. The bounds are copied out of the SurgeRange (int/uint are Copy, so
-// this shares the tagged word, not ownership); the source range keeps its own
-// drop. Only arbitrary-precision int/uint ranges (ptr-shaped bounds) take the
-// cursor path — any other element shape would need native stepping and is left
-// to the caller's existing handling.
+// emitRangeIterInit gives the loop a Range object of its own to step, so that
+// running the loop does not consume the range it was handed. Both shapes are
+// duplicated by the same code: the kind byte picks the size, and a shape is
+// wholly contained in the bytes that size covers. That is also what makes
+// `for x in arr.__range()` work — the loop copies whatever shape it is given
+// rather than reading a cursor as if it were a pair of bounds.
+//
+// The bounds themselves are shared, not cloned: int and uint are Copy, so the
+// copy names the same tagged words and owns nothing new.
 func (fe *funcEmitter) emitRangeIterInit(op *mir.Operand, rangeType types.TypeID) (val, ty string, err error) {
-	elemType, ok := rangeElemType(fe.emitter.types, rangeType)
-	if !ok {
+	if _, ok := rangeElemType(fe.emitter.types, rangeType); !ok {
 		return "", "", fmt.Errorf("range iter_init requires Range<T> type")
-	}
-	elemLLVM, err := fe.emitter.llvmValueType(elemType)
-	if err != nil {
-		return "", "", err
 	}
 	rangePtr, rangeTy, err := fe.emitValueOperand(op)
 	if err != nil {
 		return "", "", err
 	}
-	if rangeTy != "ptr" || elemLLVM != "ptr" {
-		// Non-bignum range element: keep the raw value; iter_next falls back to
-		// its array-shaped read (unchanged pre-existing behavior).
-		return rangePtr, "ptr", nil
+	if rangeTy != "ptr" {
+		return "", "", fmt.Errorf("range iter_init requires ptr, got %s", rangeTy)
 	}
-
-	startPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", startPtr, rangePtr, surgeRangeStartOff)
-	startVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", startVal, startPtr)
-	endSrc := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", endSrc, rangePtr, surgeRangeEndOff)
-	endVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", endVal, endSrc)
-	inclSrc := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", inclSrc, rangePtr, surgeRangeInclusiveOff)
-	inclByte := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i8, ptr %s\n", inclByte, inclSrc)
-	inclVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = zext i8 %s to i64\n", inclVal, inclByte)
-
+	size := fe.emitRangeObjectSize(rangePtr)
 	iterPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", iterPtr, iterStructSize, iterStructAlign)
-	fe.storeIterField(iterPtr, iterKindOffset, "i64", fmt.Sprintf("%d", iterKindRange))
-	fe.storeIterField(iterPtr, rangeIterCurOff, "ptr", startVal)
-	fe.storeIterField(iterPtr, rangeIterEndOff, "ptr", endVal)
-	fe.storeIterField(iterPtr, rangeIterInclOff, "i64", inclVal)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %s, i64 %d)\n", iterPtr, size, rangeAlign)
+	fmt.Fprintf(&fe.emitter.buf,
+		"  call void @llvm.memcpy.p0.p0.i64(ptr align %d %s, ptr align %d %s, i64 %s, i1 false)\n",
+		rangeAlign, iterPtr, rangeAlign, rangePtr, size)
 	return iterPtr, "ptr", nil
+}
+
+// emitRangeObjectSize reads how many bytes a Range object occupies out of its
+// own kind byte. Allocation and release both ask this, because the two shapes
+// are different sizes and the heap accounting in rt_alloc.c counts the size it
+// is told rather than measuring the block.
+func (fe *funcEmitter) emitRangeObjectSize(rangePtr string) string {
+	kind := fe.emitRangeKind(rangePtr)
+	isArrayIter := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq i8 %s, %d\n", isArrayIter, kind, rangeKindArrayIter)
+	size := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = select i1 %s, i64 %d, i64 %d\n", size, isArrayIter, arrayIterSize, rangeBoundsSize)
+	return size
+}
+
+// emitRangeKind loads the byte that says which shape a Range object is.
+func (fe *funcEmitter) emitRangeKind(rangePtr string) string {
+	kindPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", kindPtr, rangePtr, rangeKindOff)
+	kind := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load i8, ptr %s\n", kind, kindPtr)
+	return kind
 }
 
 // storeIterField writes one field of an iterator struct at the given offset.
@@ -110,6 +116,95 @@ func (fe *funcEmitter) storeIterField(base string, off int, ty, value string) {
 	ptr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", ptr, base, off)
 	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", ty, value, ptr)
+}
+
+// emitRangeNextIntrinsic emits an explicit `r.next()`. A `for` loop reaches the
+// same step through the iter_next instruction, but a written-out call is an
+// ordinary call to the `next` intrinsic, which is not a function any module
+// defines — left to the direct-call path it would be looked up and not found.
+//
+// The receiver arrives through a `&mut`, so the argument is the address of the
+// slot holding the Range handle, one indirection further out than iter_next's
+// by-value cursor: the handle is loaded out before stepping. Nothing is written
+// back, because the step mutates the object the handle names — which is exactly
+// how the caller's own range advances.
+func (fe *funcEmitter) emitRangeNextIntrinsic(call *mir.CallInstr) (bool, error) {
+	if call == nil || call.Callee.Kind != mir.CalleeSym {
+		return false, nil
+	}
+	name := call.Callee.Name
+	if name == "" {
+		name = fe.symbolName(call.Callee.Sym)
+	}
+	if stripGenericSuffix(name) != "next" {
+		return false, nil
+	}
+	if call.Callee.Sym.IsValid() && fe.emitter != nil && fe.emitter.mod != nil {
+		if _, ok := fe.emitter.mod.FuncBySym[call.Callee.Sym]; ok {
+			return false, nil
+		}
+	}
+	if len(call.Args) != 1 {
+		return true, fmt.Errorf("next requires 1 argument")
+	}
+	receiverType := operandValueType(fe.emitter.types, &call.Args[0])
+	if call.Args[0].Kind != mir.OperandConst {
+		if baseType, baseErr := fe.placeBaseType(call.Args[0].Place); baseErr == nil {
+			receiverType = baseType
+		}
+	}
+	if isRefType(fe.emitter.types, receiverType) {
+		if pointee, ok := derefType(fe.emitter.types, receiverType); ok {
+			receiverType = pointee
+		}
+	}
+	elemType, ok := rangeElemType(fe.emitter.types, receiverType)
+	if !ok {
+		return false, nil
+	}
+	rangePtr, err := fe.emitRangeReceiverPtr(&call.Args[0])
+	if err != nil {
+		return true, err
+	}
+	res, err := fe.emitRangeStep(rangePtr, elemType)
+	if err != nil {
+		return true, err
+	}
+	if !call.HasDst {
+		// The step already advanced the range; the answer is a value the caller
+		// asked nothing about, and it lives in a stack slot, so dropping it on
+		// the floor reclaims nothing and leaks nothing.
+		return true, nil
+	}
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
+	if err != nil {
+		return true, err
+	}
+	if !isStorageRun(dstTy) {
+		dstTy = handleType
+	}
+	fe.emitValueStore(dstTy, res, ptr, dstAlign)
+	return true, nil
+}
+
+// emitRangeReceiverPtr yields the Range handle a `.next()` receiver names. A
+// receiver reaches the call as a reference — the address of the slot, or a
+// `&mut Range<T>` parameter's own pointer — and one load through it is what the
+// VM's handleRangeNext does when it sees VKRef or VKRefMut.
+func (fe *funcEmitter) emitRangeReceiverPtr(op *mir.Operand) (string, error) {
+	val, ty, err := fe.emitValueOperand(op)
+	if err != nil {
+		return "", err
+	}
+	if ty != "ptr" {
+		return "", fmt.Errorf("next requires a ptr receiver, got %s", ty)
+	}
+	if !fe.operandIsRef(op, op.Type) {
+		return val, nil
+	}
+	handle := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, val)
+	return handle, nil
 }
 
 func (fe *funcEmitter) emitIterNext(next *mir.IterNext) (val, ty string, err error) {
@@ -128,55 +223,67 @@ func (fe *funcEmitter) emitIterNext(next *mir.IterNext) (val, ty string, err err
 	if !ok {
 		return "", "", fmt.Errorf("iter_next requires Range<T> type")
 	}
+	out, err := fe.emitRangeStep(iterVal, elemType)
+	if err != nil {
+		return "", "", err
+	}
+	return out, "ptr", nil
+}
+
+// emitRangeStep advances one Range object by one element and yields the
+// Option<T> that answers for it, dispatching on the object's kind byte. It is
+// the whole of `iter_next` and the whole of an explicit `.next()`: the VM
+// answers both from one handleRangeNext for the same reason, that the two are
+// the same question asked of the same object.
+//
+// The step mutates the object the handle names, never the handle, so a caller
+// that keeps a Range sees it advance without anything being written back to the
+// slot it holds.
+func (fe *funcEmitter) emitRangeStep(rangePtr string, elemType types.TypeID) (string, error) {
 	optType, ok := optionTypeForElem(fe.emitter.types, elemType)
 	if !ok {
-		return "", "", fmt.Errorf("missing Option<T> type for iter_next")
+		return "", fmt.Errorf("missing Option<T> type for a range step")
 	}
 	elemLLVM, err := fe.emitter.llvmValueType(elemType)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	someIndex, meta, err := fe.emitter.tagCaseMeta(optType, "Some", symbols.NoSymbolID)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	if len(meta.PayloadTypes) != 1 {
-		return "", "", fmt.Errorf("tag %q expects 1 payload value, got %d", meta.TagName, len(meta.PayloadTypes))
+		return "", fmt.Errorf("tag %q expects 1 payload value, got %d", meta.TagName, len(meta.PayloadTypes))
 	}
 	payloadType := meta.PayloadTypes[0]
 
+	// The slot that carries one arm's answer to the join. It goes to the entry
+	// block through emitAllocaAligned rather than being written here, because
+	// stepping is what a loop body does on every pass and an alloca in a loop
+	// body grows the frame once per iteration.
 	resPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", resPtr, alignPtr)
+	fe.emitAllocaAligned(resPtr, "ptr", alignPtr)
 
-	// Dispatch on the iterator's leading kind word: a range cursor steps its
-	// bounds; an array cursor walks its backing store.
-	kindPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", kindPtr, iterVal, iterKindOffset)
-	kindVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", kindVal, kindPtr)
-	kindTag := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = and i64 %s, %d\n", kindTag, kindVal, iterKindMask)
-	isRange := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq i64 %s, %d\n", isRange, kindTag, iterKindRange)
-	rangeBB := fe.nextInlineBlock()
+	kind := fe.emitRangeKind(rangePtr)
+	isArrayIter := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq i8 %s, %d\n", isArrayIter, kind, rangeKindArrayIter)
 	arrayBB := fe.nextInlineBlock()
+	boundsBB := fe.nextInlineBlock()
 	contBB := fe.nextInlineBlock()
-	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", isRange, rangeBB, arrayBB)
+	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", isArrayIter, arrayBB, boundsBB)
 
-	// --- range cursor ---
-	fmt.Fprintf(&fe.emitter.buf, "%s:\n", rangeBB)
-	if stepErr := fe.emitRangeIterStep(iterVal, elemType, optType, someIndex, payloadType, resPtr, contBB); stepErr != nil {
-		return "", "", stepErr
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", boundsBB)
+	if stepErr := fe.emitRangeBoundsStep(rangePtr, elemType, optType, someIndex, payloadType, resPtr, contBB); stepErr != nil {
+		return "", stepErr
 	}
 
-	// --- array cursor ---
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", arrayBB)
 	idxPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", idxPtr, iterVal, arrayIterIndexOff)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", idxPtr, rangePtr, arrayIterIndexOff)
 	idxVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", idxVal, idxPtr)
 	lenPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, iterVal, arrayIterLengthOff)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, rangePtr, arrayIterLengthOff)
 	lenVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", lenVal, lenPtr)
 
@@ -186,32 +293,36 @@ func (fe *funcEmitter) emitIterNext(next *mir.IterNext) (val, ty string, err err
 	nonEmptyBB := fe.nextInlineBlock()
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", done, emptyBB, nonEmptyBB)
 
+	// An exhausted cursor keeps answering nothing: its index stays put, so a
+	// second `.next()` reaches this arm again rather than reading past the end.
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", emptyBB)
 	nothingVal, err := fe.emitTagValue(optType, "nothing", symbols.NoSymbolID, nil)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", nothingVal, resPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", nonEmptyBB)
 	dataPtrPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", dataPtrPtr, iterVal, arrayIterDataOff)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", dataPtrPtr, rangePtr, arrayIterDataOff)
 	dataPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", dataPtr, dataPtrPtr)
+	stridePtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", stridePtr, rangePtr, arrayIterStrideOff)
 	strideVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = lshr i64 %s, 1\n", strideVal, kindVal)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", strideVal, stridePtr)
 	offset := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = mul i64 %s, %s\n", offset, idxVal, strideVal)
 	elemPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %s\n", elemPtr, dataPtr, offset)
 	_, elemAlign, err := fe.emitter.arrayElemStrideAlign(elemType)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	elemVal, elemOpTy, err := fe.emitStorageMemberLoad(elemLLVM, elemPtr, elemAlign)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	nextIdx := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = add i64 %s, 1\n", nextIdx, idxVal)
@@ -219,7 +330,7 @@ func (fe *funcEmitter) emitIterNext(next *mir.IterNext) (val, ty string, err err
 
 	someVal, err := fe.emitTagValueSinglePayload(optType, someIndex, payloadType, elemVal, elemOpTy, elemType)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", someVal, resPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
@@ -227,46 +338,79 @@ func (fe *funcEmitter) emitIterNext(next *mir.IterNext) (val, ty string, err err
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", contBB)
 	out := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", out, resPtr)
-	return out, "ptr", nil
+	return out, nil
 }
 
-// emitRangeIterStep emits the range-cursor body of iter_next: it compares the
-// current bound against the end (honoring inclusive), and on a hit yields the
-// current value and advances the cursor by one via the tagged int/uint runtime.
-func (fe *funcEmitter) emitRangeIterStep(iterVal string, elemType, optType types.TypeID, someIndex int, payloadType types.TypeID, resPtr, contBB string) error {
+// emitRangeBoundsStep emits the bounds-descriptor arm of a range step: it
+// compares the current bound against the end (honoring inclusive), and on a hit
+// yields the current value and advances the bound by one via the tagged int or
+// uint runtime.
+//
+// A range with no start begins at zero and records that it now has one, and a
+// range with no end never runs out — both are what the VM's
+// rangeDescriptorNextValue does, and the second is why the end comparison sits
+// behind a branch rather than a select: the comparison helper would be handed a
+// null bound on a range that never had one.
+func (fe *funcEmitter) emitRangeBoundsStep(rangePtr string, elemType, optType types.TypeID, someIndex int, payloadType types.TypeID, resPtr, contBB string) error {
 	cmpFn, addFn, oneFn := "rt_bigint_cmp", "rt_bigint_add", "rt_bigint_from_i64"
 	if isBigUintType(fe.emitter.types, elemType) {
 		cmpFn, addFn, oneFn = "rt_biguint_cmp", "rt_biguint_add", "rt_biguint_from_u64"
 	}
 
 	curPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", curPtr, iterVal, rangeIterCurOff)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", curPtr, rangePtr, rangeStartOff)
+	startVal := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", startVal, curPtr)
+	hasStartPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", hasStartPtr, rangePtr, rangeHasStartOff)
+	hasStart := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load i8, ptr %s\n", hasStart, hasStartPtr)
+	hasStartB := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp ne i8 %s, 0\n", hasStartB, hasStart)
+	zero := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @%s(i64 0)\n", zero, oneFn)
 	cur := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", cur, curPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = select i1 %s, ptr %s, ptr %s\n", cur, hasStartB, startVal, zero)
+	// Writing the defaulted start back before the end is consulted is what
+	// turns an open-ended range into a walked one, exactly as the VM does it.
+	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", cur, curPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  store i8 1, ptr %s\n", hasStartPtr)
+
+	hasEndPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", hasEndPtr, rangePtr, rangeHasEndOff)
+	hasEnd := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load i8, ptr %s\n", hasEnd, hasEndPtr)
+	hasEndB := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp ne i8 %s, 0\n", hasEndB, hasEnd)
+
+	boundedBB := fe.nextInlineBlock()
+	yieldBB := fe.nextInlineBlock()
+	doneBB := fe.nextInlineBlock()
+	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", hasEndB, boundedBB, yieldBB)
+
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", boundedBB)
 	endPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", endPtr, iterVal, rangeIterEndOff)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", endPtr, rangePtr, rangeEndOff)
 	end := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", end, endPtr)
 	inclPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", inclPtr, iterVal, rangeIterInclOff)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", inclPtr, rangePtr, rangeInclusiveOff)
 	incl := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", incl, inclPtr)
-
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load i8, ptr %s\n", incl, inclPtr)
 	cmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i32 @%s(ptr %s, ptr %s)\n", cmp, cmpFn, cur, end)
 	inclB := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp ne i64 %s, 0\n", inclB, incl)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp ne i8 %s, 0\n", inclB, incl)
 	leCmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp sle i32 %s, 0\n", leCmp, cmp)
 	ltCmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp slt i32 %s, 0\n", ltCmp, cmp)
 	has := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = select i1 %s, i1 %s, i1 %s\n", has, inclB, leCmp, ltCmp)
-
-	yieldBB := fe.nextInlineBlock()
-	doneBB := fe.nextInlineBlock()
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", has, yieldBB, doneBB)
 
+	// An exhausted range keeps answering nothing: the start it stopped at is
+	// still past the end, so asking again lands here again.
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", doneBB)
 	nothingVal, err := fe.emitTagValue(optType, "nothing", symbols.NoSymbolID, nil)
 	if err != nil {
@@ -290,11 +434,12 @@ func (fe *funcEmitter) emitRangeIterStep(iterVal string, elemType, optType types
 	return nil
 }
 
-func arrayIterKindWord(stride, fixedLength uint64, dynamic bool) (uint64, error) {
+func arrayIterStride(stride, fixedLength uint64, dynamic bool) (uint64, error) {
 	// A zero-length cursor never reaches element addressing, and a one-element
-	// cursor can only address offset zero. Encoding stride zero is exact for
+	// cursor can only address offset zero. Recording stride zero is exact for
 	// both. For length >= 2, a stride larger than MaxInt64 cannot survive the
-	// fixed layout's checked stride*length on a 64-bit target; keep the guard
+	// fixed layout's checked stride*length on a 64-bit target, and would not
+	// survive being named as a signed word here either; keep the guard
 	// defensive for malformed or incomplete layout registries.
 	if !dynamic && fixedLength <= 1 {
 		return 0, nil
@@ -302,7 +447,7 @@ func arrayIterKindWord(stride, fixedLength uint64, dynamic bool) (uint64, error)
 	if stride > (^uint64(0) >> 1) {
 		return 0, fmt.Errorf("array iterator stride is too large")
 	}
-	return stride << 1, nil
+	return stride, nil
 }
 
 func (fe *funcEmitter) emitArrayIterInit(op *mir.Operand, arrType types.TypeID, dynamic bool) (val, ty string, err error) {
@@ -333,7 +478,7 @@ func (fe *funcEmitter) emitArrayIterInit(op *mir.Operand, arrType types.TypeID, 
 			return "", "", fmt.Errorf("missing fixed array length for iter_init")
 		}
 	}
-	kindWord, err := arrayIterKindWord(stride, fixedLength, dynamic)
+	strideVal, err := arrayIterStride(stride, fixedLength, dynamic)
 	if err != nil {
 		return "", "", err
 	}
@@ -360,14 +505,18 @@ func (fe *funcEmitter) emitArrayIterInit(op *mir.Operand, arrType types.TypeID, 
 	}
 
 	iterPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", iterPtr, iterStructSize, iterStructAlign)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", iterPtr, arrayIterSize, rangeAlign)
 
-	// The cursor's leading word packs its dispatch tag in bit 0 and the
-	// source representation stride in the remaining bits. Range cursors use
-	// tag 1; array cursors use tag 0 and therefore preserve their fixed-vs-
-	// dynamic stride without growing the cursor allocation.
-	fe.storeIterField(iterPtr, iterKindOffset, "i64", fmt.Sprintf("%d", kindWord))
+	// The cursor opens with a descriptor header saying what it is and that it
+	// has no bounds. Both flags matter: they name the shape for the step
+	// routine, and they keep the slice helpers in the C runtime away from the
+	// data pointer and stride the cursor keeps in the two bound slots.
 	fe.storeIterField(iterPtr, arrayIterDataOff, "ptr", dataPtr)
+	fe.storeIterField(iterPtr, arrayIterStrideOff, "i64", fmt.Sprintf("%d", strideVal))
+	fe.storeIterField(iterPtr, rangeHasStartOff, "i8", "0")
+	fe.storeIterField(iterPtr, rangeHasEndOff, "i8", "0")
+	fe.storeIterField(iterPtr, rangeInclusiveOff, "i8", "0")
+	fe.storeIterField(iterPtr, rangeKindOff, "i8", fmt.Sprintf("%d", rangeKindArrayIter))
 	fe.storeIterField(iterPtr, arrayIterIndexOff, "i64", "0")
 	fe.storeIterField(iterPtr, arrayIterLengthOff, "i64", lenVal)
 
@@ -381,13 +530,15 @@ func (fe *funcEmitter) emitArrayIterInit(op *mir.Operand, arrType types.TypeID, 
 // handle, free it, null the slot so a stale read can never free twice
 // (rt_free itself is also null-safe).
 //
-// Cursor selects a FIXED-size free using the iterator's own runtime
-// layout (iterStructSize/iterStructAlign): the place's declared type is
-// a type-checking fiction (see the kind-word comment at the top of this
-// file) and must never be consulted for size/align here — for a bignum
-// element type it would describe Range<T>'s real fields, not this
-// opaque cursor's byte layout, and freeing by the wrong shape would
-// dereference garbage. Only the for-loop cursor ever sets Cursor=true.
+// Cursor asks the CURSOR ITSELF for its size, through the kind byte the
+// two Range shapes share (see the comment at the top of this file). The
+// place's declared type must never be consulted for size/align here:
+// Range<T> is a runtime handle type, so its layout is the pointer, not
+// the object the pointer names — and freeing by the wrong size
+// mis-reports the heap accounting rt_alloc.c keeps. Only the for-loop
+// cursor ever sets Cursor=true, and asking the object costs a branch
+// because a released slot is nulled and a second release must not read a
+// kind byte out of a null handle.
 //
 // The non-cursor case instead uses the place's OWN declared type's
 // layout: for a for-loop step, that type IS the concrete Option<T> the
@@ -401,7 +552,7 @@ func (fe *funcEmitter) emitInstrEnvelopeRelease(ins *mir.Instr) error {
 	if ins == nil {
 		return nil
 	}
-	size, align := uint64(iterStructSize), uint64(iterStructAlign)
+	var size, align uint64
 	if !ins.EnvelopeRelease.Cursor {
 		baseType, err := fe.placeBaseType(ins.EnvelopeRelease.Place)
 		if err != nil {
@@ -431,7 +582,20 @@ func (fe *funcEmitter) emitInstrEnvelopeRelease(ins *mir.Instr) error {
 	}
 	handle := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, ptr)
-	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_free(ptr %s, i64 %d, i64 %d)\n", handle, size, align)
+	if ins.EnvelopeRelease.Cursor {
+		live := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = icmp ne ptr %s, null\n", live, handle)
+		freeBB := fe.nextInlineBlock()
+		contBB := fe.nextInlineBlock()
+		fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", live, freeBB, contBB)
+		fmt.Fprintf(&fe.emitter.buf, "%s:\n", freeBB)
+		cursorSize := fe.emitRangeObjectSize(handle)
+		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_free(ptr %s, i64 %s, i64 %d)\n", handle, cursorSize, rangeAlign)
+		fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
+		fmt.Fprintf(&fe.emitter.buf, "%s:\n", contBB)
+	} else {
+		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_free(ptr %s, i64 %d, i64 %d)\n", handle, size, align)
+	}
 	fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", ptr)
 	return nil
 }

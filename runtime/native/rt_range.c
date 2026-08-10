@@ -3,8 +3,17 @@
 #include <stdalign.h>
 #include <stddef.h>
 
+// rt_alloc hands back uninitialized bytes, so every field a reader consults has
+// to be written here. kind is one of those readers' questions: an iteration step
+// asks it to tell a pair of bounds from an array cursor, and an unwritten byte
+// would answer at random.
 static SurgeRange* alloc_range(void) {
-    return (SurgeRange*)rt_alloc((uint64_t)sizeof(SurgeRange), (uint64_t)alignof(SurgeRange));
+    SurgeRange* r =
+        (SurgeRange*)rt_alloc((uint64_t)sizeof(SurgeRange), (uint64_t)alignof(SurgeRange));
+    if (r != NULL) {
+        r->kind = SURGE_RANGE_KIND_BOUNDS;
+    }
+    return r;
 }
 
 void* rt_range_int_new(void* start, void* end, bool inclusive) {

@@ -50,6 +50,9 @@ func (fe *funcEmitter) emitCall(ins *mir.Instr) error {
 	if handled, err := fe.emitRangeIntrinsic(call); handled {
 		return err
 	}
+	if handled, err := fe.emitRangeNextIntrinsic(call); handled {
+		return err
+	}
 	if handled, err := fe.emitArrayIntrinsic(call); handled {
 		return err
 	}

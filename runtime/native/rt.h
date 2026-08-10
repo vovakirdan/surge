@@ -127,13 +127,26 @@ bool rt_net_wait_accept(const void* listener);
 bool rt_net_wait_readable(const void* conn);
 bool rt_net_wait_writable(const void* conn);
 
+// Which shape a Range<T> object is. Both shapes are reached through the same
+// language type, so the byte is what tells an iteration step whether it is
+// looking at a pair of bounds or at a cursor walking an array's elements.
+#define SURGE_RANGE_KIND_BOUNDS 0
+#define SURGE_RANGE_KIND_ARRAY_ITER 1
+
 typedef struct SurgeRange {
     void* start;
     void* end;
     uint8_t has_start;
     uint8_t has_end;
     uint8_t inclusive;
-    uint8_t _pad[5];
+    // SURGE_RANGE_KIND_*. The constructors below build bounds; the compiler
+    // builds the array cursor for `arr.__range()` and for a loop over an array,
+    // reusing this header and keeping its two bound flags clear. The slice
+    // helpers in rt_array.c and rt_string.c consult those flags before they
+    // read start or end, so a cursor reaching one of them reads as an unbounded
+    // range rather than as a pair of bounds it never had.
+    uint8_t kind;
+    uint8_t _pad[4];
 } SurgeRange;
 
 void* rt_string_from_bytes(const uint8_t* ptr, uint64_t len);
