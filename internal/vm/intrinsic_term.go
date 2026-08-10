@@ -208,9 +208,8 @@ func (vm *VM) bytesFromArrayValue(val Value) ([]byte, *VMError) {
 		return nil, vmErr
 	}
 	out := make([]byte, view.length)
-	base := view.start
 	for i := range out {
-		b, vmErr := vm.valueToUint8(view.baseObj.Arr[base+i])
+		b, vmErr := vm.viewByteAt(view, i)
 		if vmErr != nil {
 			return nil, vmErr
 		}

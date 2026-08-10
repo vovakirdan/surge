@@ -162,6 +162,9 @@ func (h *Heap) Free(handle Handle) {
 		obj.ArrSliceStart = 0
 		obj.ArrSliceLen = 0
 		obj.ArrSliceCap = 0
+		// An arena base is owned by the frame or container it belongs to, so
+		// there is nothing to release — only the ref to forget.
+		obj.ArrSliceStorage = StorageRef{}
 	case OKMap:
 		for i := range obj.MapEntries {
 			h.releaseContainedValue(obj.MapEntries[i].Key)

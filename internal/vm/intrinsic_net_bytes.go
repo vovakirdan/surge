@@ -145,7 +145,7 @@ func (vm *VM) handleNetWriteBytes(frame *Frame, call *mir.CallInstr, writes *[]L
 	}
 	data := make([]byte, length)
 	for i := range length {
-		b, convErr := vm.valueToUint8(view.baseObj.Arr[view.start+offset+i])
+		b, convErr := vm.viewByteAt(view, offset+i)
 		if convErr != nil {
 			return convErr
 		}

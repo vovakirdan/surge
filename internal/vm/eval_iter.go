@@ -12,11 +12,40 @@ func (vm *VM) evalIterInit(frame *Frame, init *mir.IterInit) (Value, *VMError) {
 	if init == nil {
 		return Value{}, vm.eb.unimplemented("nil iter_init")
 	}
-	iterVal, vmErr := vm.evalOperand(frame, &init.Iterable)
+	// `for x in f` over a fixed array lowers to `iter_init copy L0`, and a copying
+	// operand DUPLICATES a composite into scratch. An iterator built over that
+	// duplicate would name an extent the deferred drop releases and the
+	// instruction-boundary rewind invalidates, so the very next iter_next would
+	// read a stale reference. Look at where the iterable lives instead, the same
+	// way a move-out field access does, and own nothing.
+	// Only a COMPOSITE needs this. Every other iterable is a handle, and a handle
+	// read this way carries no count for the caller — which the range arm below
+	// hands straight back as its own, so taking the uncounted path for it would
+	// under-count the iterator and free it early.
+	var (
+		iterVal     Value
+		vmErr       *VMError
+		ownsIterVal = true
+	)
+	if operandReadsAPlaceByValue(init.Iterable.Kind) {
+		loc, locErr := vm.EvalPlace(frame, init.Iterable.Place)
+		if locErr != nil {
+			return Value{}, locErr
+		}
+		peeked, peekErr := vm.loadLocationRaw(loc)
+		if peekErr != nil {
+			return Value{}, peekErr
+		}
+		if peeked.Kind == VKComposite {
+			iterVal, ownsIterVal = peeked, false
+		}
+	}
+	if iterVal.Kind == VKInvalid {
+		iterVal, vmErr = vm.evalOperand(frame, &init.Iterable)
+	}
 	if vmErr != nil {
 		return Value{}, vmErr
 	}
-	ownsIterVal := true
 	defer func() {
 		if ownsIterVal {
 			vm.dropValue(iterVal)
@@ -39,6 +68,22 @@ func (vm *VM) evalIterInit(frame *Frame, init *mir.IterInit) (Value, *VMError) {
 			return Value{}, vmErr
 		}
 		h := vm.Heap.AllocArrayIterRange(types.NoTypeID, view.baseHandle, view.start, view.length)
+		return MakeHandleRange(h, types.NoTypeID), nil
+	case VKComposite:
+		// A fixed array has no handle to iterate, so give it a slice header over
+		// its own extent and iterate that — the same move handleArrayRange makes,
+		// so `for x in f` and `f.__range()` end up on one path.
+		owner, ok := target.Storage()
+		if !ok {
+			return Value{}, vm.eb.typeMismatch("iterable", target.Kind.String())
+		}
+		base, vmErr := vm.arrayViewFromComposite(owner)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		sliceHandle := vm.Heap.AllocArraySliceStorage(types.NoTypeID, owner, 0, base.length)
+		h := vm.Heap.AllocArrayIterRange(types.NoTypeID, sliceHandle, 0, base.length)
+		vm.Heap.Release(sliceHandle)
 		return MakeHandleRange(h, types.NoTypeID), nil
 	case VKHandleRange:
 		if iterVal.Kind == VKHandleRange {
@@ -102,16 +147,16 @@ func (vm *VM) evalIterNext(frame *Frame, next *mir.IterNext) (Value, *VMError) {
 		if base == 0 {
 			return Value{}, vm.eb.makeError(PanicOutOfBounds, "range iterator missing base array")
 		}
-		baseObj := vm.Heap.Get(base)
-		if baseObj.Kind != OKArray {
-			return Value{}, vm.eb.typeMismatch("array", fmt.Sprintf("%v", baseObj.Kind))
+		baseView, vmErr := vm.arrayViewFromHandle(base)
+		if vmErr != nil {
+			return Value{}, vmErr
 		}
 		idx := obj.Range.ArrayStart + obj.Range.ArrayIndex
-		if idx < 0 || idx >= len(baseObj.Arr) {
+		if idx < 0 || idx >= baseView.length {
 			return Value{}, vm.eb.makeError(PanicOutOfBounds, "range iterator index out of bounds")
 		}
 
-		elem, vmErr := vm.cloneForShare(baseObj.Arr[idx])
+		elem, vmErr := vm.viewElemValue(vm.currentFrame(), baseView, idx)
 		if vmErr != nil {
 			return Value{}, vmErr
 		}

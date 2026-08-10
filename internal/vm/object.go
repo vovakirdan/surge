@@ -108,9 +108,15 @@ type Object struct {
 	ArrSliceStart int
 	ArrSliceLen   int
 	ArrSliceCap   int
-	MapIndex      map[mapKey]int
-	MapEntries    []mapEntry
-	Range         RangeObject
+	// ArrSliceStorage names the whole fixed array a slice is cut from when its
+	// elements live in an arena rather than in a base object. A fixed array is
+	// an extent in its owner's storage, so there is no handle to point at, and
+	// the two bases are told apart by which of these is set: ArrSliceBase for a
+	// heap array, ArrSliceStorage for an arena one, never both.
+	ArrSliceStorage StorageRef
+	MapIndex        map[mapKey]int
+	MapEntries      []mapEntry
+	Range           RangeObject
 
 	BigInt   bignum.BigInt
 	BigUint  bignum.BigUint

@@ -49,7 +49,14 @@ func TestVMIndexReturnsReferenceForArrayElement(t *testing.T) {
 	if vmErr != nil {
 		t.Fatalf("__index array slice failed: %v", vmErr)
 	}
-	if ref.Loc.Kind != LKArrayElem || ref.Loc.Handle != hSlice || ref.Loc.Index != 0 {
+	// An element of a slice is named through the BASE array at an absolute index,
+	// not through the slice header at a view-relative one. Both denote the same
+	// element and load the same value, and the two spellings used to coexist —
+	// index projection already produced this one while __index produced the other.
+	// They are one spelling now, because a fixed array's slice has no base object
+	// to name at all, so the header-relative form could not describe it and the
+	// choice had to be made rather than left to which path a caller took.
+	if ref.Loc.Kind != LKArrayElem || ref.Loc.Handle != hBase || ref.Loc.Index != 1 {
 		t.Fatalf("unexpected slice element location: %+v", ref.Loc)
 	}
 	value, vmErr = vmInstance.loadLocationRaw(ref.Loc)

@@ -40,7 +40,7 @@ func (vm *VM) evalArrayConcat(left, right Value) (Value, *VMError) {
 	}
 	elems := make([]Value, 0, leftView.length+rightView.length)
 	for i := range leftView.length {
-		v, vmErr := vm.cloneForShare(leftView.baseObj.Arr[leftView.start+i])
+		v, vmErr := vm.viewElemValue(vm.currentFrame(), leftView, i)
 		if vmErr != nil {
 			for _, el := range elems {
 				vm.dropValue(el)
@@ -50,7 +50,7 @@ func (vm *VM) evalArrayConcat(left, right Value) (Value, *VMError) {
 		elems = append(elems, v)
 	}
 	for i := range rightView.length {
-		v, vmErr := vm.cloneForShare(rightView.baseObj.Arr[rightView.start+i])
+		v, vmErr := vm.viewElemValue(vm.currentFrame(), rightView, i)
 		if vmErr != nil {
 			for _, el := range elems {
 				vm.dropValue(el)

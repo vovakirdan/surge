@@ -52,6 +52,14 @@ captures (not loan-tracked yet).
 
 - Nested arrays and multi-dimensional arrays are currently unreliable. Examples: `T[][]`, `T[N][M]`. Symptoms can include unexpected aliasing or incorrect copies. Prefer flattening (`T[N*M]` or `T[]`) with manual indexing.
 - In the VM backend today, slicing a dynamic array produces a view. Views are not resizable: `push`, `pop`, and `reserve` panic at runtime (see `docs/ABI_LAYOUT.md`).
+- A slice or a range over a FIXED array (`T[N]`) borrows the array itself rather
+  than copying it, so it must not outlive it. `fn f() -> int[] { let a: int[4] =
+  [...]; return a[[1..3]]; }` is accepted by the checker today and should not be:
+  the VM refuses the read afterwards with a stale-reference panic, and the native
+  backend reads freed memory instead. Keep such a slice inside the scope that owns
+  the array, or copy out of it before returning. Refusing the shape at compile
+  time is the fix; until then the two backends disagree about what happens, and
+  the VM is the one telling the truth.
 
 ## Concurrency / Runtime
 

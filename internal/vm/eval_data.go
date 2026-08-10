@@ -115,6 +115,13 @@ func (vm *VM) evalArrayIndex(obj, idx Value) (Value, *VMError) {
 		baseStart := view.start + start
 		length := end - start
 		capacity := view.length - start
+		if view.inArena() {
+			// Re-slicing a slice whose elements live in an arena. There is no
+			// base handle to name, and a capacity beyond the length would be a
+			// promise to grow that an arena slice cannot keep.
+			h := vm.Heap.AllocArraySliceStorage(types.NoTypeID, view.baseRef, baseStart, length)
+			return MakeHandleArray(h, types.NoTypeID), nil
+		}
 		h := vm.Heap.AllocArraySlice(types.NoTypeID, view.baseHandle, baseStart, length, capacity)
 		return MakeHandleArray(h, types.NoTypeID), nil
 	}
@@ -122,15 +129,16 @@ func (vm *VM) evalArrayIndex(obj, idx Value) (Value, *VMError) {
 	if vmErr != nil {
 		return Value{}, vmErr
 	}
-	baseIndex := view.start + index
-	val, vmErr := vm.cloneForShare(view.baseObj.Arr[baseIndex])
+	val, vmErr := vm.viewElemValue(vm.currentFrame(), view, index)
 	if vmErr != nil {
 		return Value{}, vmErr
 	}
 	if vm.Types != nil {
 		elemType, ok := vm.Types.ArrayInfo(vm.valueType(obj.TypeID))
-		if !ok && view.baseObj != nil {
-			elemType, ok = vm.Types.ArrayInfo(view.baseObj.TypeID)
+		// An arena view has no base object to ask, and needs none: readMember
+		// already returned the element under its own layout type.
+		if !ok && view.heapObj != nil {
+			elemType, ok = vm.Types.ArrayInfo(view.heapObj.TypeID)
 		}
 		if ok {
 			retagged, converted, vmErr := vm.retagUnionValue(val, elemType)
@@ -493,9 +501,35 @@ func (vm *VM) evalStorageIndex(owner StorageRef, idx Value) (Value, *VMError) {
 	if err != nil {
 		return Value{}, vm.eb.makeError(PanicUnimplemented, err.Error())
 	}
+	if idx.Kind == VKHandleRange {
+		return vm.sliceStorageArray(owner, len(members), idx)
+	}
 	index, vmErr := vm.arrayIndexFromValue(idx, len(members))
 	if vmErr != nil {
 		return Value{}, vmErr
 	}
 	return vm.readMember(vm.currentFrame(), owner, index)
+}
+
+// sliceStorageArray cuts a range out of a fixed array held in storage.
+//
+// Unlike the element read above this one does NOT copy: the language's own
+// declaration hands back a view, and `arrays_slice_view` writes through the
+// result and expects the base to change. The slice therefore names the array's
+// own extent, so a store through the slice lands in the bytes the base reads —
+// the ref IS the alias, and no extra indirection is needed to make it one.
+func (vm *VM) sliceStorageArray(owner StorageRef, length int, idx Value) (Value, *VMError) {
+	r, vmErr := vm.rangeFromValue(idx)
+	if vmErr != nil {
+		return Value{}, vmErr
+	}
+	start, end, vmErr := vm.rangeBounds(r, length)
+	if vmErr != nil {
+		return Value{}, vmErr
+	}
+	if start > end {
+		start = end
+	}
+	h := vm.Heap.AllocArraySliceStorage(types.NoTypeID, owner, start, end-start)
+	return MakeHandleArray(h, types.NoTypeID), nil
 }

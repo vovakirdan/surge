@@ -1,8 +1,6 @@
 package vm
 
 import (
-	"fortio.org/safecast"
-
 	"surge/internal/mir"
 	"surge/internal/types"
 )
@@ -184,11 +182,6 @@ func (vm *VM) handleArrayGetMut(frame *Frame, call *mir.CallInstr, writes *[]Loc
 	if vmErr != nil {
 		return vmErr
 	}
-	baseIdx := view.start + idx
-	idx32, err := safecast.Conv[int32](baseIdx)
-	if err != nil {
-		return vm.eb.invalidLocation("array index overflow")
-	}
 
 	elemType := types.NoTypeID
 	if vm.Types != nil && arrVal.TypeID != types.NoTypeID {
@@ -204,7 +197,11 @@ func (vm *VM) handleArrayGetMut(frame *Frame, call *mir.CallInstr, writes *[]Loc
 	if vm.Types != nil && elemType != types.NoTypeID {
 		refType = vm.Types.Intern(types.MakeReference(elemType, true))
 	}
-	ref := MakeRefMut(Location{Kind: LKArrayElem, Handle: view.baseHandle, Index: idx32}, refType)
+	elemLoc, vmErr := vm.viewElemLocation(view, idx, true)
+	if vmErr != nil {
+		return vmErr
+	}
+	ref := MakeRefMut(elemLoc, refType)
 
 	dstLocal := call.Dst.Local
 	if err := vm.writeLocal(frame, dstLocal, ref); err != nil {
@@ -341,7 +338,7 @@ func (vm *VM) handleByteArrayAppendRange(frame *Frame, call *mir.CallInstr, writ
 
 	data := make([]byte, length)
 	for i := range length {
-		b, convErr := vm.valueToUint8(srcView.baseObj.Arr[srcView.start+start+i])
+		b, convErr := vm.viewByteAt(srcView, start+i)
 		if convErr != nil {
 			return convErr
 		}
@@ -485,7 +482,7 @@ func (vm *VM) handleByteParseUint64Token(frame *Frame, call *mir.CallInstr, writ
 			next = uint64(end) //nolint:gosec // end is non-negative after uintValueToInt.
 			i := start
 			for i < end {
-				b, convErr := vm.valueToUint8(view.baseObj.Arr[view.start+i])
+				b, convErr := vm.viewByteAt(view, i)
 				if convErr != nil {
 					return convErr
 				}
@@ -543,7 +540,7 @@ func (vm *VM) parseUint64DigitsInByteView(view arrayView, start, end int) (value
 	sawDigit := false
 	i := start
 	for i < end {
-		b, vmErr := vm.valueToUint8(view.baseObj.Arr[view.start+i])
+		b, vmErr := vm.viewByteAt(view, i)
 		if vmErr != nil {
 			return 0, start, false, vmErr
 		}

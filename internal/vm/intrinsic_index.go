@@ -1,8 +1,6 @@
 package vm
 
 import (
-	"fortio.org/safecast"
-
 	"surge/internal/mir"
 	"surge/internal/types"
 )
@@ -58,11 +56,11 @@ func (vm *VM) handleIndex(frame *Frame, call *mir.CallInstr, writes *[]LocalWrit
 		if indexErr != nil {
 			return indexErr
 		}
-		index32, err := safecast.Conv[int32](index)
-		if err != nil {
-			return vm.eb.invalidLocation("array index overflow")
+		loc, locErr := vm.viewElemLocation(view, index, false)
+		if locErr != nil {
+			return locErr
 		}
-		res = MakeRef(Location{Kind: LKArrayElem, Handle: objVal.H, Index: index32}, dstType)
+		res = MakeRef(loc, dstType)
 	} else {
 		res, vmErr = vm.evalIndex(objVal, idxVal)
 		if vmErr != nil {
@@ -158,12 +156,11 @@ func (vm *VM) handleIndexSet(frame *Frame, call *mir.CallInstr, writes *[]LocalW
 		vm.dropValue(val)
 		return vmErr
 	}
-	idx32, err := safecast.Conv[int32](idx)
-	if err != nil {
+	loc, locErr := vm.viewElemLocation(view, idx, true)
+	if locErr != nil {
 		vm.dropValue(val)
-		return vm.eb.invalidLocation("array index overflow")
+		return locErr
 	}
-	loc := Location{Kind: LKArrayElem, Handle: objVal.H, Index: idx32, IsMut: true}
 	if vmErr := vm.storeLocation(loc, val); vmErr != nil {
 		vm.dropValue(val)
 		return vmErr

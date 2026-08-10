@@ -252,6 +252,8 @@ func (vm *VM) objectRefCount(obj *Object) int {
 			}
 		}
 	case OKArraySlice:
+		// An arena-backed slice owns no handle: its elements belong to whoever
+		// owns the arena.
 		if obj.ArrSliceBase != 0 {
 			count++
 		}

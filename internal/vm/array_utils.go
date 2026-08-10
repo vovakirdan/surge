@@ -6,12 +6,22 @@ import (
 	"fortio.org/safecast"
 )
 
+// arrayView names a run of elements without saying where they live. The two
+// bases are a heap array object, whose elements are whole Values in a Go slice,
+// and an arena extent, whose elements are layout-encoded bytes reached through
+// StorageRef. Every reader goes through the accessors below rather than reaching
+// for heapObj, because only one of the two is ever set.
 type arrayView struct {
 	baseHandle Handle
-	baseObj    *Object
+	heapObj    *Object
+	baseRef    StorageRef
 	start      int
 	length     int
 }
+
+// inArena reports whether this view's elements live in an arena rather than in
+// a heap array object.
+func (v arrayView) inArena() bool { return v.baseRef.Arena != nil }
 
 func (vm *VM) arrayViewFromHandle(handle Handle) (arrayView, *VMError) {
 	obj := vm.Heap.Get(handle)
@@ -22,7 +32,7 @@ func (vm *VM) arrayViewFromHandle(handle Handle) (arrayView, *VMError) {
 	case OKArray:
 		return arrayView{
 			baseHandle: handle,
-			baseObj:    obj,
+			heapObj:    obj,
 			start:      0,
 			length:     len(obj.Arr),
 		}, nil
@@ -33,9 +43,32 @@ func (vm *VM) arrayViewFromHandle(handle Handle) (arrayView, *VMError) {
 	}
 }
 
+// arrayViewFromComposite views a fixed array in ordinary storage as an array.
+// Its elements are the composite's members, so their count is the array's
+// length and the layout registry already knows their stride.
+func (vm *VM) arrayViewFromComposite(owner StorageRef) (arrayView, *VMError) {
+	members, err := vm.compositeMembers(owner.TypeID)
+	if err != nil {
+		return arrayView{}, vm.eb.makeError(PanicUnimplemented, err.Error())
+	}
+	return arrayView{baseRef: owner, start: 0, length: len(members)}, nil
+}
+
 func (vm *VM) arrayViewFromSlice(obj *Object) (arrayView, *VMError) {
 	if obj == nil || obj.Kind != OKArraySlice {
 		return arrayView{}, vm.eb.typeMismatch("array slice", "nil")
+	}
+	if obj.ArrSliceBase == 0 && obj.ArrSliceStorage.Arena != nil {
+		base, vmErr := vm.arrayViewFromComposite(obj.ArrSliceStorage)
+		if vmErr != nil {
+			return arrayView{}, vmErr
+		}
+		start, length := obj.ArrSliceStart, obj.ArrSliceLen
+		if start < 0 || length < 0 || start+length > base.length {
+			return arrayView{}, vm.eb.makeError(PanicOutOfBounds, "array slice out of bounds")
+		}
+		base.start, base.length = start, length
+		return base, nil
 	}
 	baseHandle := obj.ArrSliceBase
 	if baseHandle == 0 {
@@ -57,7 +90,7 @@ func (vm *VM) arrayViewFromSlice(obj *Object) (arrayView, *VMError) {
 		}
 		return arrayView{
 			baseHandle: baseHandle,
-			baseObj:    baseObj,
+			heapObj:    baseObj,
 			start:      start,
 			length:     length,
 		}, nil
@@ -71,13 +104,100 @@ func (vm *VM) arrayViewFromSlice(obj *Object) (arrayView, *VMError) {
 		}
 		return arrayView{
 			baseHandle: baseView.baseHandle,
-			baseObj:    baseView.baseObj,
+			heapObj:    baseView.heapObj,
+			baseRef:    baseView.baseRef,
 			start:      baseView.start + start,
 			length:     length,
 		}, nil
 	default:
 		return arrayView{}, vm.eb.typeMismatch("array", fmt.Sprintf("%v", baseObj.Kind))
 	}
+}
+
+// The five accessors below are the only places that know which of the two bases
+// a view has. Everything else asks them.
+
+// viewElemRef names element i's extent. Arena views only — a heap element is a
+// Value in a Go slice and has no extent.
+func (vm *VM) viewElemRef(view arrayView, i int) (StorageRef, *VMError) {
+	return vm.memberStorage(view.baseRef, view.start+i)
+}
+
+// viewElemLocation names element i as a place to read or write through.
+//
+// The heap case names the BASE handle and an absolute index rather than the
+// slice header and a view-relative one. Both denote the same element, because
+// every reader re-derives a view from whatever handle it is given, but naming
+// the base survives being captured into task state, where a slice header may
+// not.
+func (vm *VM) viewElemLocation(view arrayView, i int, isMut bool) (Location, *VMError) {
+	if view.inArena() {
+		ref, vmErr := vm.viewElemRef(view, i)
+		if vmErr != nil {
+			return Location{}, vmErr
+		}
+		return Location{Kind: LKStorage, Storage: ref, IsMut: isMut}, nil
+	}
+	index, err := safecast.Conv[int32](view.start + i)
+	if err != nil {
+		return Location{}, vm.eb.invalidLocation("array index overflow")
+	}
+	return Location{
+		Kind:   LKArrayElem,
+		Handle: view.baseHandle,
+		Index:  index,
+		IsMut:  isMut,
+	}, nil
+}
+
+// viewElemValue reads element i as an owned value the caller must release.
+func (vm *VM) viewElemValue(frame *Frame, view arrayView, i int) (Value, *VMError) {
+	if view.inArena() {
+		return vm.readMember(frame, view.baseRef, view.start+i)
+	}
+	return vm.cloneForShare(view.heapObj.Arr[view.start+i])
+}
+
+// viewElemPeek reads element i without taking a count on it.
+func (vm *VM) viewElemPeek(view arrayView, i int) (Value, *VMError) {
+	if view.inArena() {
+		ref, vmErr := vm.viewElemRef(view, i)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		return vm.peekStorage(ref)
+	}
+	return view.heapObj.Arr[view.start+i], nil
+}
+
+// viewElemStore writes element i, releasing whatever was there.
+func (vm *VM) viewElemStore(frame *Frame, view arrayView, i int, val Value) *VMError {
+	if view.inArena() {
+		ref, vmErr := vm.viewElemRef(view, i)
+		if vmErr != nil {
+			return vmErr
+		}
+		return vm.storeStorage(frame, ref, val)
+	}
+	adopted, vmErr := vm.adoptIntoContainer(view.heapObj, val)
+	if vmErr != nil {
+		return vmErr
+	}
+	baseIdx := view.start + i
+	vm.dropValue(view.heapObj.Arr[baseIdx])
+	view.heapObj.Arr[baseIdx] = adopted
+	return nil
+}
+
+// viewByteAt reads element i of a byte array. Its callers all take a `uint8[]`
+// argument, which since fixed arrays became composites can be a slice over an
+// arena rather than over a heap array.
+func (vm *VM) viewByteAt(view arrayView, i int) (byte, *VMError) {
+	elem, vmErr := vm.viewElemPeek(view, i)
+	if vmErr != nil {
+		return 0, vmErr
+	}
+	return vm.valueToUint8(elem)
 }
 
 func (vm *VM) arrayIndexFromValue(idx Value, length int) (int, *VMError) {

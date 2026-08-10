@@ -55,23 +55,21 @@ func (vm *VM) projectIndexLocation(frame *Frame, base Location, proj mir.PlacePr
 		return Location{}, vmErr
 	}
 
-	baseIdx := view.start + idx
-	idx32, err := safecast.Conv[int32](baseIdx)
-	if err != nil {
-		return Location{}, vm.eb.invalidLocation("index projection: index overflow")
-	}
-
-	byteOffset, vmErr := vm.arrayElemByteOffset(v.TypeID, baseIdx)
+	loc, vmErr := vm.viewElemLocation(view, idx, base.IsMut)
 	if vmErr != nil {
 		return Location{}, vmErr
 	}
-	return Location{
-		Kind:       LKArrayElem,
-		Handle:     view.baseHandle,
-		Index:      idx32,
-		ByteOffset: byteOffset,
-		IsMut:      base.IsMut,
-	}, nil
+	if loc.Kind == LKStorage {
+		// An arena element is named by its extent; a byte offset into a base
+		// object has no meaning for it.
+		return loc, nil
+	}
+	byteOffset, vmErr := vm.arrayElemByteOffset(v.TypeID, view.start+idx)
+	if vmErr != nil {
+		return Location{}, vmErr
+	}
+	loc.ByteOffset = byteOffset
+	return loc, nil
 }
 
 // arrayElemByteOffset returns the ABI byte offset of one element of an array type.
@@ -127,9 +125,14 @@ func (vm *VM) loadArrayElem(loc Location) (Value, *VMError) {
 	if loc.Index < 0 || idx < 0 || idx >= view.length {
 		return Value{}, vm.eb.arrayIndexOutOfRange(idx, view.length)
 	}
-	val := view.baseObj.Arr[view.start+idx]
-	if vm.Types != nil && view.baseObj != nil {
-		if elemType, ok := vm.Types.ArrayInfo(view.baseObj.TypeID); ok {
+	val, vmErr := vm.viewElemPeek(view, idx)
+	if vmErr != nil {
+		return Value{}, vmErr
+	}
+	// Only a heap base can be asked for the element type this way; an arena
+	// element already carries its own layout type, so there is nothing to retag.
+	if vm.Types != nil && view.heapObj != nil {
+		if elemType, ok := vm.Types.ArrayInfo(view.heapObj.TypeID); ok {
 			retagged, converted, vmErr := vm.retagUnionValue(val, elemType)
 			if vmErr != nil {
 				return Value{}, vmErr
@@ -159,8 +162,8 @@ func (vm *VM) storeArrayElem(loc Location, val Value) *VMError {
 	if loc.Index < 0 || idx < 0 || idx >= view.length {
 		return vm.eb.arrayIndexOutOfRange(idx, view.length)
 	}
-	if vm.Types != nil && view.baseObj != nil {
-		if elemType, ok := vm.Types.ArrayInfo(view.baseObj.TypeID); ok {
+	if vm.Types != nil && view.heapObj != nil {
+		if elemType, ok := vm.Types.ArrayInfo(view.heapObj.TypeID); ok {
 			retagged, converted, retagErr := vm.retagUnionValue(val, elemType)
 			if retagErr != nil {
 				return retagErr
@@ -170,14 +173,7 @@ func (vm *VM) storeArrayElem(loc Location, val Value) *VMError {
 			}
 		}
 	}
-	adopted, vmErr := vm.adoptIntoContainer(view.baseObj, val)
-	if vmErr != nil {
-		return vmErr
-	}
-	baseIdx := view.start + idx
-	vm.dropValue(view.baseObj.Arr[baseIdx])
-	view.baseObj.Arr[baseIdx] = adopted
-	return nil
+	return vm.viewElemStore(vm.currentFrame(), view, idx, val)
 }
 
 // loadMapElem reads one map entry value through a resolved location.

@@ -1,16 +1,3 @@
-//go:build golden
-// +build golden
-
-// This runner executes compiled Surge programs and compares their real output
-// against the recorded .out, which is the whole point of RV2-DEBT-173. It sits
-// behind the `golden` build tag ONLY because a case in it is still red, and a
-// red case would block every commit through the `make check` hook.
-//
-// Still behind the tag: arrays_slice_view — range-slicing a fixed array in
-// ordinary storage is unimplemented in the VM, and the slice has to alias, so
-// there is nothing to dispatch on since the heap array handle went away. The tag
-// comes off with it.
-
 package vm_test
 
 import (

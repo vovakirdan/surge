@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"surge/internal/mir"
+
+	"surge/internal/types"
 )
 
 func (vm *VM) handleArrayRange(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
@@ -25,7 +27,26 @@ func (vm *VM) handleArrayRange(frame *Frame, call *mir.CallInstr, writes *[]Loca
 		}
 		arrVal = v
 	}
-	if arrVal.Kind != VKHandleArray {
+	// A fixed array is a composite in ordinary storage and has no handle for the
+	// range to hold. Giving it a slice header over its own extent first means the
+	// range needs to know nothing about arenas: iterating `f` and iterating
+	// `f[[0..n]]` become the same code from here on.
+	var sliceHandle Handle
+	switch arrVal.Kind {
+	case VKHandleArray:
+	case VKComposite:
+		owner, ok := arrVal.Storage()
+		if !ok {
+			return vm.eb.typeMismatch("array", arrVal.Kind.String())
+		}
+		base, baseErr := vm.arrayViewFromComposite(owner)
+		if baseErr != nil {
+			return baseErr
+		}
+		sliceHandle = vm.Heap.AllocArraySliceStorage(types.NoTypeID, owner, 0, base.length)
+		defer vm.Heap.Release(sliceHandle)
+		arrVal = MakeHandleArray(sliceHandle, types.NoTypeID)
+	default:
 		return vm.eb.typeMismatch("array", arrVal.Kind.String())
 	}
 	view, vmErr := vm.arrayViewFromHandle(arrVal.H)
@@ -35,7 +56,14 @@ func (vm *VM) handleArrayRange(frame *Frame, call *mir.CallInstr, writes *[]Loca
 
 	dstLocal := call.Dst.Local
 	dstType := frame.Locals[dstLocal].TypeID
-	h := vm.Heap.AllocArrayIterRange(dstType, view.baseHandle, view.start, view.length)
+	rangeBase := view.baseHandle
+	if rangeBase == 0 {
+		// An arena-backed view has no base object; the range holds the slice
+		// header, whose own reference is dropped by the deferred release above
+		// once AllocArrayIterRange has taken its count.
+		rangeBase = arrVal.H
+	}
+	h := vm.Heap.AllocArrayIterRange(dstType, rangeBase, view.start, view.length)
 	val := MakeHandleRange(h, dstType)
 	if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
 		vm.Heap.Release(h)
@@ -100,16 +128,16 @@ func (vm *VM) handleRangeNext(frame *Frame, call *mir.CallInstr, writes *[]Local
 		if base == 0 {
 			return vm.eb.makeError(PanicOutOfBounds, "range iterator missing base array")
 		}
-		baseObj := vm.Heap.Get(base)
-		if baseObj.Kind != OKArray {
-			return vm.eb.typeMismatch("array", fmt.Sprintf("%v", baseObj.Kind))
+		baseView, vmErr := vm.arrayViewFromHandle(base)
+		if vmErr != nil {
+			return vmErr
 		}
 		idx := obj.Range.ArrayStart + obj.Range.ArrayIndex
-		if idx < 0 || idx >= len(baseObj.Arr) {
+		if idx < 0 || idx >= baseView.length {
 			return vm.eb.makeError(PanicOutOfBounds, "range iterator index out of bounds")
 		}
 
-		elem, vmErr := vm.cloneForShare(baseObj.Arr[idx])
+		elem, vmErr := vm.viewElemValue(frame, baseView, idx)
 		if vmErr != nil {
 			return vmErr
 		}

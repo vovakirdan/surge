@@ -95,8 +95,8 @@ func (vm *VM) writeBytesToPointer(ptrVal Value, data []byte) *VMError {
 		}
 		for i, b := range data {
 			idx := start + i
-			vm.dropValue(view.baseObj.Arr[idx])
-			view.baseObj.Arr[idx] = MakeInt(int64(b), elemType)
+			vm.dropValue(view.heapObj.Arr[idx])
+			view.heapObj.Arr[idx] = MakeInt(int64(b), elemType)
 		}
 		return nil
 	case LKStringBytes:

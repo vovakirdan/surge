@@ -370,6 +370,12 @@ func (c *taskStatePinCollector) visitHandle(handle Handle) *VMError {
 			}
 		}
 	case OKArraySlice:
+		// An arena-backed slice holds no handle, so visiting one would pin
+		// nothing and let the frame arena retire under a suspended task that is
+		// still holding the slice. Pin the extent itself instead.
+		if obj.ArrSliceBase == 0 && obj.ArrSliceStorage.Arena != nil {
+			return c.visitStorage(obj.ArrSliceStorage)
+		}
 		return c.visitHandle(obj.ArrSliceBase)
 	case OKMap:
 		for i := range obj.MapEntries {

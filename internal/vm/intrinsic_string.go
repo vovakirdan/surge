@@ -203,7 +203,7 @@ func (vm *VM) handleFromBytes(frame *Frame, call *mir.CallInstr, writes *[]Local
 	}
 	raw := make([]byte, view.length)
 	for i := range raw {
-		b, convErr := vm.valueToUint8(view.baseObj.Arr[view.start+i])
+		b, convErr := vm.viewByteAt(view, i)
 		if convErr != nil {
 			return convErr
 		}

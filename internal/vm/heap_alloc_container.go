@@ -82,6 +82,31 @@ func (h *Heap) AllocArraySlice(typeID types.TypeID, base Handle, start, length, 
 	return handle
 }
 
+// AllocArraySliceStorage allocates an array slice whose elements live in an
+// arena, which is where a fixed array's elements live.
+//
+// It retains nothing. A heap slice retains its base object because the base
+// outlives the slice only if someone holds it; an arena extent belongs to the
+// frame or the container that owns it, and a slice header has no say in that.
+// What keeps the read honest instead is the generation stamped in the ref: a
+// slice that outlives its frame is refused when it resolves, rather than
+// reading whatever moved in.
+//
+// The capacity equals the length because such a slice can never grow — every
+// growing operation goes through arrayOwnedFromValue, which already refuses an
+// OKArraySlice of any kind.
+func (h *Heap) AllocArraySliceStorage(typeID types.TypeID, base StorageRef, start, length int) Handle {
+	handle, obj := h.alloc(OKArraySlice, typeID)
+	obj.ArrSliceStorage = base
+	obj.ArrSliceStart = start
+	obj.ArrSliceLen = length
+	obj.ArrSliceCap = length
+	if h.vm != nil && h.vm.Trace != nil {
+		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
+	}
+	return handle
+}
+
 // AllocMap allocates a map object on the heap.
 func (h *Heap) AllocMap(typeID types.TypeID) Handle {
 	handle, obj := h.alloc(OKMap, typeID)
