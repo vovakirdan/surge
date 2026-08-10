@@ -114,6 +114,9 @@ void* rt_string_from_bytes(const uint8_t* ptr, uint64_t len);
 void rt_string_free(void* handle);
 void* rt_string_clone(void* handle);
 bool rt_utf8_valid(const uint8_t* ptr, uint64_t len);
+// A no-op here: this runtime has no rope, so every string is already one
+// contiguous run. See the definition for why it still exists.
+void rt_string_force_flatten(void* s);
 const uint8_t* rt_string_ptr(void* s);
 uint64_t rt_string_len(void* s);
 uint64_t rt_string_len_bytes(void* s);

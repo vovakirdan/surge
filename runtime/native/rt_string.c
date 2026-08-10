@@ -320,6 +320,23 @@ void* rt_string_clone(void* handle) {
     return rt_string_from_bytes(s->data, s->len_bytes);
 }
 
+// Force a string into one contiguous run of bytes.
+//
+// Here that is already true of every string and always has been: this runtime
+// has no rope. rt_string_concat allocates and copies, so a concatenation is
+// flat the moment it exists, and rt_string_ptr hands out str->data directly.
+// The operation exists because the VM DOES build ropes lazily, and a program
+// that wants to measure or hand out raw bytes has to be able to say so; asking
+// the same of a representation that is never anything else is satisfied by
+// doing nothing.
+//
+// It stays a real symbol rather than being dropped at the call site so the two
+// backends compile the same program, and so this stops being a no-op in one
+// place if a rope ever arrives here.
+void rt_string_force_flatten(void* s) {
+    (void)s;
+}
+
 const uint8_t* rt_string_ptr(void* s) {
     if (s == NULL) {
         return NULL;

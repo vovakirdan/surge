@@ -35,6 +35,7 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_carrier_liveness_request_shutdown", ret: "i1", params: nil},
 		{name: "rt_string_free", ret: "void", params: []string{"ptr"}},
 		{name: "rt_string_clone", ret: "ptr", params: []string{"ptr"}},
+		{name: "rt_string_force_flatten", ret: "void", params: []string{"ptr"}},
 		{name: "rt_array_slice", ret: "ptr", params: []string{"ptr", "ptr", "i64"}},
 		{name: "rt_array_slice_fixed", ret: "ptr", params: []string{"ptr", "ptr", "i64", "i64"}},
 		{name: "rt_array_sync_views", ret: "void", params: []string{"ptr"}},
