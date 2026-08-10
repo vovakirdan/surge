@@ -110,11 +110,50 @@ func (fe *funcEmitter) emitCloneValueIntrinsic(call *mir.CallInstr) (bool, error
 			fe.emitter.requireCloneGlue(resolveValueType(fe.emitter.types, dstType)), ptr, val)
 		return true, nil
 	}
-	if valTy == "ptr" && dstTy != "ptr" {
+	// A borrowed argument is read through before it is stored. Whether it IS
+	// borrowed is a question only the MIR can answer: `int`, `float` and every
+	// other handle-carried scalar is itself a pointer here, so `&int` and `int`
+	// are both `ptr` in the emitted text and comparing the two spellings hands
+	// the ADDRESS on where the value was asked for.
+	if !isRefType(fe.emitter.types, dstType) &&
+		(fe.operandIsReference(&call.Args[0]) || (valTy == "ptr" && dstTy != "ptr")) {
 		tmp := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s, align %d\n", tmp, dstTy, val, dstAlign)
 		val = tmp
 	}
+	// A counted scalar is shared, not copied, so the destination has to take a
+	// reference of its own. MIR wraps the result in `retain`/`drop`, which is a
+	// net zero on top of whatever this produces, so the one reference the
+	// destination goes on holding has to come from here.
+	if fe.emitter.types.IsRefCountedScalar(resolveValueType(fe.emitter.types, dstType)) {
+		fe.emitRetainValue(val, dstTy)
+	}
 	fe.emitValueStore(dstTy, val, ptr, dstAlign)
 	return true, nil
+}
+
+// operandIsReference reports whether the value this operand emits is an address
+// standing in for something else, rather than the thing itself. It asks the
+// operand — the address-taking kinds always are one, and any other kind is one
+// exactly when its own type is a reference — because the emitted LLVM type
+// cannot distinguish the two for a scalar that is carried in a pointer.
+func (fe *funcEmitter) operandIsReference(op *mir.Operand) bool {
+	if op == nil || fe == nil || fe.emitter == nil {
+		return false
+	}
+	switch op.Kind {
+	case mir.OperandAddrOf, mir.OperandAddrOfMut:
+		return true
+	case mir.OperandConst:
+		return false
+	}
+	typeID := op.Type
+	if typeID == types.NoTypeID {
+		baseType, err := fe.placeBaseType(op.Place)
+		if err != nil {
+			return false
+		}
+		typeID = baseType
+	}
+	return isRefType(fe.emitter.types, typeID)
 }
