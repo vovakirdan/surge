@@ -46,6 +46,7 @@ func (e *Emitter) emitFunction(f *mir.Func) error {
 		localAlloca: make(map[mir.LocalID]string, len(f.Locals)),
 		paramLocals: paramLocals,
 		lowered:     lowered,
+		span:        spanCursor{f: f},
 	}
 	for i := range f.Locals {
 		localID, idErr := safeLocalID(i)

@@ -2,6 +2,7 @@ package llvm
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"surge/internal/mir"
@@ -411,6 +412,18 @@ func (fe *funcEmitter) emitBytesViewIndex(viewPtr string, viewType types.TypeID,
 	return val, "i8", nil
 }
 
+// emitPanicBounds writes the out-of-range report together with the unreachable
+// that ends the cold block it sits in. It is one helper rather than four copies
+// of the same Fprintf because every one of them now has to carry the source
+// location as well, and a copy that forgot it would be a panic that silently
+// stopped saying where it happened.
+func (fe *funcEmitter) emitPanicBounds(kind int, index, length string) {
+	fmt.Fprintf(&fe.emitter.buf,
+		"  call void @rt_panic_bounds(i64 %d, i64 %s, i64 %s, %s)\n",
+		kind, index, length, fe.panicSpanArgs())
+	fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
+}
+
 func (fe *funcEmitter) emitBoundsCheckedIndex(kind int, idxVal, idxTy string, idxType types.TypeID, lenVal string, allowNegative bool, overflowLen string) (string, error) {
 	idx64, err := fe.emitIndexToI64(kind, idxVal, idxTy, idxType, overflowLen)
 	if err != nil {
@@ -436,8 +449,7 @@ func (fe *funcEmitter) emitBoundsCheckedIndex(kind int, idxVal, idxTy string, id
 	cont := fe.nextInlineBlock()
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", oob, fail, cont)
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", fail)
-	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_panic_bounds(i64 %d, i64 %s, i64 %s)\n", kind, adj, lenVal)
-	fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
+	fe.emitPanicBounds(kind, adj, lenVal)
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", cont)
 	return adj, nil
 }
@@ -454,8 +466,7 @@ func (fe *funcEmitter) emitIndexToI64(kind int, idxVal, idxTy string, idxType ty
 		badBB := fe.nextInlineBlock()
 		fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", okVal, okBB, badBB)
 		fmt.Fprintf(&fe.emitter.buf, "%s:\n", badBB)
-		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_panic_bounds(i64 %d, i64 %d, i64 %s)\n", kind, maxIndex, overflowLen)
-		fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
+		fe.emitPanicBounds(kind, strconv.FormatInt(maxIndex, 10), overflowLen)
 		fmt.Fprintf(&fe.emitter.buf, "%s:\n", okBB)
 		outVal := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s, align %d\n", outVal, outPtr, alignWord)
@@ -471,8 +482,7 @@ func (fe *funcEmitter) emitIndexToI64(kind int, idxVal, idxTy string, idxType ty
 		badBB := fe.nextInlineBlock()
 		fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", okVal, okBB, badBB)
 		fmt.Fprintf(&fe.emitter.buf, "%s:\n", badBB)
-		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_panic_bounds(i64 %d, i64 %d, i64 %s)\n", kind, maxIndex, overflowLen)
-		fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
+		fe.emitPanicBounds(kind, strconv.FormatInt(maxIndex, 10), overflowLen)
 		fmt.Fprintf(&fe.emitter.buf, "%s:\n", okBB)
 		outVal := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s, align %d\n", outVal, outPtr, alignWord)
@@ -482,8 +492,7 @@ func (fe *funcEmitter) emitIndexToI64(kind int, idxVal, idxTy string, idxType ty
 		contBB := fe.nextInlineBlock()
 		fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", tooHigh, limitBB, contBB)
 		fmt.Fprintf(&fe.emitter.buf, "%s:\n", limitBB)
-		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_panic_bounds(i64 %d, i64 %d, i64 %s)\n", kind, maxIndex, overflowLen)
-		fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
+		fe.emitPanicBounds(kind, strconv.FormatInt(maxIndex, 10), overflowLen)
 		fmt.Fprintf(&fe.emitter.buf, "%s:\n", contBB)
 		return outVal, nil
 	}

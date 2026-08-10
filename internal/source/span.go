@@ -4,6 +4,10 @@ import (
 	"fmt"
 )
 
+// NoSpanText is what a location reads as when the span names nothing: no file
+// set to resolve it against, or a span that was never filled in.
+const NoSpanText = "<no-span>"
+
 // Span represents a contiguous range of bytes within a source file.
 type Span struct {
 	File  FileID
@@ -123,4 +127,27 @@ func (s Span) ZeroideToEnd() Span {
 		Start: s.End,
 		End:   s.End,
 	}
+}
+
+// FormatSpan renders a span the way a runtime panic names its location —
+// "path:line:col" at the span's start, or NoSpanText when there is nothing to
+// name. Both backends report a panic's location through this one function, so
+// the line a program prints does not depend on which of them ran it: the VM
+// resolves the span as it panics, and the native backend resolves the same span
+// while it emits the panic call.
+func FormatSpan(span Span, files *FileSet) string {
+	if files == nil || (span.Start == 0 && span.End == 0) {
+		return NoSpanText
+	}
+	// Get and Resolve both index the file table directly, so a span carrying a
+	// FileID this set never loaded has to be turned away before it reaches them.
+	if !files.HasFile(span.File) {
+		return NoSpanText
+	}
+	file := files.Get(span.File)
+	if file == nil {
+		return NoSpanText
+	}
+	start, _ := files.Resolve(span)
+	return fmt.Sprintf("%s:%d:%d", file.Path, start.Line, start.Col)
 }

@@ -27,7 +27,7 @@ async fn straight_line(ch: far Channel<string>, stop: far Channel<int>) -> nothi
 	if len(crossing.RemoteOps) != 2 || crossing.RemoteOps[0].ReturnPlace == nil {
 		t.Fatalf("missing conditional-transfer MIR shape: %+v", crossing.RemoteOps)
 	}
-	ir, err := EmitModule(mod, result.Sema.TypeInterner, result.Symbols.Table)
+	ir, err := EmitModule(mod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
 	if err != nil {
 		t.Fatalf("emit LLVM IR: %v", err)
 	}

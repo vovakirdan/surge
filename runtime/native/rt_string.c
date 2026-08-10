@@ -291,7 +291,7 @@ void* rt_string_from_bytes(const uint8_t* ptr, uint64_t len) {
     size_t max_payload = SIZE_MAX - sizeof(SurgeString) - 1;
     if (bytes > (uint64_t)max_payload) {
         const char* msg = "string from_bytes length out of range";
-        rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg));
+        rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg), NULL, 0);
     }
     size_t total = sizeof(SurgeString) + (size_t)bytes + 1;
     SurgeString* s = (SurgeString*)rt_alloc((uint64_t)total, (uint64_t)alignof(SurgeString));
@@ -372,12 +372,12 @@ uint64_t rt_string_len_bytes(void* s) {
 
 uint32_t rt_string_index(void* s, int64_t index) {
     if (s == NULL) {
-        rt_panic_bounds(0, index, 0);
+        rt_panic_bounds(0, index, 0, NULL, 0);
         return 0;
     }
     const SurgeString* str = *(SurgeString**)s;
     if (str == NULL) {
-        rt_panic_bounds(0, index, 0);
+        rt_panic_bounds(0, index, 0, NULL, 0);
         return 0;
     }
     int64_t len = (int64_t)str->len_cp;
@@ -386,7 +386,7 @@ uint32_t rt_string_index(void* s, int64_t index) {
         idx += len;
     }
     if (idx < 0 || idx >= len) {
-        rt_panic_bounds(0, idx, len);
+        rt_panic_bounds(0, idx, len, NULL, 0);
     }
     uint64_t i = 0;
     uint64_t count = 0;
@@ -402,7 +402,7 @@ uint32_t rt_string_index(void* s, int64_t index) {
         i += advance;
         count++;
     }
-    rt_panic_bounds(0, idx, len);
+    rt_panic_bounds(0, idx, len, NULL, 0);
     return 0;
 }
 
@@ -470,7 +470,7 @@ void* rt_string_concat(void* a, void* b) {
     size_t max_payload = SIZE_MAX - sizeof(SurgeString) - 1;
     if (total_bytes > (uint64_t)max_payload) {
         const char* msg = "string concat length out of range";
-        rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg));
+        rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg), NULL, 0);
     }
     size_t total = sizeof(SurgeString) + (size_t)total_bytes + 1;
     SurgeString* out = (SurgeString*)rt_alloc((uint64_t)total, (uint64_t)alignof(SurgeString));
@@ -508,18 +508,18 @@ void* rt_string_repeat(void* s, int64_t count) {
     int64_t max_int = INT64_MAX;
     if ((uint64_t)count > (uint64_t)(max_int / (int64_t)unit_bytes)) {
         const char* msg = "string repeat length out of range";
-        rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg));
+        rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg), NULL, 0);
     }
     if ((uint64_t)count > (uint64_t)(max_int / (int64_t)unit_cp)) {
         const char* msg = "string repeat length out of range";
-        rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg));
+        rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg), NULL, 0);
     }
     uint64_t total_bytes = unit_bytes * (uint64_t)count;
     uint64_t total_cp = unit_cp * (uint64_t)count;
     size_t max_payload = SIZE_MAX - sizeof(SurgeString) - 1;
     if (total_bytes > (uint64_t)max_payload) {
         const char* msg = "string repeat length out of range";
-        rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg));
+        rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg), NULL, 0);
     }
     size_t total = sizeof(SurgeString) + (size_t)total_bytes + 1;
     SurgeString* out = (SurgeString*)rt_alloc((uint64_t)total, (uint64_t)alignof(SurgeString));

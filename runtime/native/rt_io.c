@@ -180,6 +180,23 @@ void rt_exit(int64_t code) {
     exit((int)code);
 }
 
+/* Writes the "at <file>:<line>:<col>" line that follows a panic message, in the
+ * same shape the VM writes it (internal/vm/panic.go, FormatWithFiles), so the
+ * two backends report one panic one way. A caller with no location to report
+ * passes NULL and this writes nothing, which keeps the runtime's own panics
+ * exactly as they were. */
+static void rt_panic_write_span(const uint8_t* span, uint64_t span_length) {
+    if (span == NULL || span_length == 0) {
+        return;
+    }
+    static const uint8_t prefix[] = "at ";
+    rt_write_stderr(prefix, (uint64_t)(sizeof(prefix) - 1));
+    rt_write_stderr(span, span_length);
+    if (span[span_length - 1] != '\n') {
+        rt_write_stderr((const uint8_t*)"\n", 1);
+    }
+}
+
 void rt_panic(const uint8_t* ptr, uint64_t length) {
     static const uint8_t prefix[] = "panic: ";
     rt_write_stderr(prefix, (uint64_t)(sizeof(prefix) - 1));
@@ -194,7 +211,10 @@ void rt_panic(const uint8_t* ptr, uint64_t length) {
     _exit(1);
 }
 
-void rt_panic_numeric(const uint8_t* ptr, uint64_t length) {
+void rt_panic_numeric(const uint8_t* ptr,
+                      uint64_t length,
+                      const uint8_t* span,
+                      uint64_t span_length) {
     static const uint8_t prefix[] = "panic VM3202: ";
     static const uint8_t fallback[] = "invalid numeric conversion";
     rt_write_stderr(prefix, (uint64_t)(sizeof(prefix) - 1));
@@ -207,10 +227,12 @@ void rt_panic_numeric(const uint8_t* ptr, uint64_t length) {
         rt_write_stderr(fallback, (uint64_t)(sizeof(fallback) - 1));
         rt_write_stderr((const uint8_t*)"\n", 1);
     }
+    rt_panic_write_span(span, span_length);
     _exit(1);
 }
 
-void rt_panic_bounds(uint64_t kind, int64_t index, int64_t length) {
+void rt_panic_bounds(
+    uint64_t kind, int64_t index, int64_t length, const uint8_t* span, uint64_t span_length) {
     const char* code = "VM1004";
     if (kind == 1) {
         code = "VM2105";
@@ -235,11 +257,13 @@ void rt_panic_bounds(uint64_t kind, int64_t index, int64_t length) {
     if (n < 0) {
         const uint8_t fallback[] = "panic VM1004: bounds check failed\n";
         rt_write_stderr(fallback, (uint64_t)(sizeof(fallback) - 1));
+        rt_panic_write_span(span, span_length);
         _exit(1);
     }
     if (n >= (int)sizeof(buf)) {
         n = (int)sizeof(buf) - 1;
     }
     rt_write_stderr((const uint8_t*)buf, (uint64_t)n);
+    rt_panic_write_span(span, span_length);
     _exit(1);
 }

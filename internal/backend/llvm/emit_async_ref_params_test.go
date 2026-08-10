@@ -25,7 +25,7 @@ fn main() -> int {
 
 	mirMod, result := lowerMIRFromSource(t, sourceCode)
 	fn := findMIRFunc(t, mirMod, "read_ref")
-	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
 	if err != nil {
 		t.Fatalf("emit LLVM IR: %v", err)
 	}
@@ -62,7 +62,7 @@ fn main() -> int {
 
 	mirMod, result := lowerMIRFromSource(t, sourceCode)
 	fn := findMIRFunc(t, mirMod, "bump")
-	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
 	if err != nil {
 		t.Fatalf("emit LLVM IR: %v", err)
 	}

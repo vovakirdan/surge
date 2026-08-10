@@ -45,7 +45,7 @@ SurgeArrayHeader* rt_array_unlink_view_locked(const SurgeArrayHeader* view,
 }
 
 static void array_panic(const char* msg) {
-    rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg));
+    rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg), NULL, 0);
 }
 
 static uint64_t array_grow_cap(uint64_t current, uint64_t min_cap) {

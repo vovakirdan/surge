@@ -37,7 +37,7 @@ fn main() -> int { return build(); }
 `
 	mirMod, result := lowerMIRFromSource(t, src)
 
-	first, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	first, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
 	if err != nil {
 		t.Fatalf("emit: %v", err)
 	}
@@ -50,7 +50,7 @@ fn main() -> int { return build(); }
 
 	const compilations = 24
 	for i := 1; i < compilations; i++ {
-		again, emitErr := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+		again, emitErr := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
 		if emitErr != nil {
 			t.Fatalf("emit %d: %v", i, emitErr)
 		}

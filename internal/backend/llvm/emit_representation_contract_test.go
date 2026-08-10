@@ -108,7 +108,7 @@ fn main() -> int {
 func emitRepresentationFixture(t *testing.T) (string, *mir.Module) {
 	t.Helper()
 	mirMod, result := lowerMIRFromSource(t, representationFixture)
-	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
 	if err != nil {
 		t.Fatalf("emit: %v", err)
 	}

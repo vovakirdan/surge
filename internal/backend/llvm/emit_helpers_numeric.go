@@ -23,7 +23,8 @@ func (fe *funcEmitter) emitPanicNumeric(msg string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_panic_numeric(ptr %s, i64 %d)\n", ptr, dataLen)
+	fmt.Fprintf(&fe.emitter.buf,
+		"  call void @rt_panic_numeric(ptr %s, i64 %d, %s)\n", ptr, dataLen, fe.panicSpanArgs())
 	fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
 	return nil
 }

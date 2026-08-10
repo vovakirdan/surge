@@ -42,7 +42,7 @@ fn main() -> int { return build(); }
 	// composite glue calls `rt_string_free` internally, so a module-wide search
 	// for it passes whatever the drop does — the first version of this test did
 	// exactly that and survived reverting the fix it was written for.
-	before, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	before, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
 	if err != nil {
 		t.Fatalf("emit before rewrite: %v", err)
 	}
@@ -56,7 +56,7 @@ fn main() -> int { return build(); }
 		t.Fatalf("no drop of `h` found to retarget")
 	}
 
-	after, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	after, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
 	if err != nil {
 		t.Fatalf("emit after rewrite: %v", err)
 	}
@@ -184,7 +184,7 @@ fn main() -> int { return build(); }
 		t.Fatalf("no local named `h` in the lowered function")
 	}
 
-	before, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	before, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
 	if err != nil {
 		t.Fatalf("emit before marking the drop shallow: %v", err)
 	}
@@ -196,7 +196,7 @@ fn main() -> int { return build(); }
 		t.Fatalf("no drop of `h` found to mark shallow")
 	}
 
-	after, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	after, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
 	if err != nil {
 		t.Fatalf("emit: %v", err)
 	}

@@ -28,7 +28,7 @@ async fn run(dst: Placement, n: int) -> far Task<int> {
 `
 
 	mirMod, result := lowerCrossingMIRFromSource(t, sourceCode, sema.CrossingLoweringSpawnOn)
-	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
 	if err != nil {
 		t.Fatalf("emit LLVM IR: %v", err)
 	}
@@ -102,7 +102,7 @@ async fn cancel_remote(t: far Task<int>) -> TaskResult<nothing> {
 		sema.CrossingLoweringFarTaskAwait,
 		sema.CrossingLoweringFarTaskCancel,
 	)
-	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
 	if err != nil {
 		t.Fatalf("emit LLVM IR: %v", err)
 	}
@@ -161,7 +161,7 @@ async fn forward_far_task_lease(t: far Task<int>) -> far Task<int> {
 `
 
 	mirMod, result := lowerCrossingMIRFromSource(t, sourceCode)
-	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
 	if err != nil {
 		t.Fatalf("emit LLVM IR: %v", err)
 	}

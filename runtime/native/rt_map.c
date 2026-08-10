@@ -37,7 +37,7 @@ enum {
 };
 
 static void map_panic(const char* msg) {
-    rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg));
+    rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg), NULL, 0);
 }
 
 static uint64_t map_round_up(uint64_t size, uint64_t align) {

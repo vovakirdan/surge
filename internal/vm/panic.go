@@ -106,19 +106,12 @@ func (p *VMError) FormatWithFiles(files *source.FileSet) string {
 	return sb.String()
 }
 
-// formatSpan formats a span as "file:line:col" or "<no-span>" if empty.
+// formatSpan formats a span as "file:line:col" or "<no-span>" if empty. The
+// rendering itself lives in the source package because the native backend
+// renders the same span into the binary it emits, and the two texts have to be
+// the same text.
 func formatSpan(span source.Span, files *source.FileSet) string {
-	if files == nil || (span.Start == 0 && span.End == 0) {
-		return "<no-span>"
-	}
-
-	file := files.Get(span.File)
-	if file == nil {
-		return "<no-span>"
-	}
-
-	start, _ := files.Resolve(span)
-	return fmt.Sprintf("%s:%d:%d", file.Path, start.Line, start.Col)
+	return source.FormatSpan(span, files)
 }
 
 // errorBuilder helps construct VMError values.

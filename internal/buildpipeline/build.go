@@ -143,7 +143,12 @@ func Build(ctx context.Context, req *BuildRequest) (BuildResult, error) {
 			return result, err
 		}
 		llPath := filepath.Join(tmpDir, "out.ll")
-		llvmIR, err := llvm.EmitModule(compileRes.MIR, compileRes.Diagnose.Sema.TypeInterner, compileRes.Diagnose.Symbols.Table)
+		llvmIR, err := llvm.EmitModule(
+			compileRes.MIR,
+			compileRes.Diagnose.Sema.TypeInterner,
+			compileRes.Diagnose.Symbols.Table,
+			compileRes.Diagnose.FileSet,
+		)
 		if err != nil {
 			err = fmt.Errorf("LLVM emit failed: %w", err)
 			emitStage(req.Progress, req.Files, StageBuild, StatusError, err, 0)

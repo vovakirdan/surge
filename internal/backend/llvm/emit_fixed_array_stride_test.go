@@ -194,8 +194,11 @@ fn main() -> int {
 	// identifies the function holding it. The assertion below is unchanged —
 	// what the test proves is the bounds check, not where the bytes live.
 	body := llvmFunctionContaining(t, ir, "alloca [56 x i8], align 8")
+	// The length is the third argument, and the report carries a source location
+	// after it, so the capture stops at the argument separator rather than at the
+	// end of the call.
 	bounds := regexp.MustCompile(
-		`@rt_panic_bounds\(i64 \d+, i64 [^,]+, i64 ([^)]+)\)`,
+		`@rt_panic_bounds\(i64 \d+, i64 [^,]+, i64 ([^,)]+)`,
 	).FindAllStringSubmatch(body, -1)
 	if len(bounds) < 2 {
 		t.Fatalf("expected a bounds check for both the store and the load, got %d:\n%s", len(bounds), body)

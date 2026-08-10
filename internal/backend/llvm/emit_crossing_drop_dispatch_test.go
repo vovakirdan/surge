@@ -28,7 +28,7 @@ async fn run(dst: Placement) -> far Task<int> {
 `
 
 	mirMod, result := lowerCrossingMIRFromSource(t, sourceCode, sema.CrossingLoweringSpawnOn)
-	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
 	if err != nil {
 		t.Fatalf("emit LLVM IR: %v", err)
 	}
@@ -95,7 +95,7 @@ async fn run(dst: Placement) -> far Task<string> {
 `
 
 	mirMod, result := lowerCrossingMIRFromSource(t, sourceCode, sema.CrossingLoweringSpawnOn)
-	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
 	if err != nil {
 		t.Fatalf("emit LLVM IR: %v", err)
 	}
@@ -144,7 +144,7 @@ async fn run(dst: Placement) -> int {
 `
 
 	mirMod, result := lowerCrossingMIRFromSource(t, sourceCode, sema.CrossingLoweringOnPlacement)
-	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
 	if err != nil {
 		t.Fatalf("emit LLVM IR: %v", err)
 	}

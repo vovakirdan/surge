@@ -11,6 +11,11 @@ func (fe *funcEmitter) emitInstr(ins *mir.Instr) error {
 	if ins == nil {
 		return nil
 	}
+	// Before anything is written, decide where this instruction came from: a
+	// bounds or conversion check emitted anywhere beneath here reports that
+	// location, exactly as the VM reports the frame span it sets at the same
+	// point (internal/vm/vm.go, setSpanForInstr).
+	fe.span.advance(ins)
 	switch ins.Kind {
 	case mir.InstrAssign:
 		return fe.emitAssign(ins)

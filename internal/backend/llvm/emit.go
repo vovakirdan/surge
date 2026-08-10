@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"surge/internal/mir"
+	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
@@ -51,17 +52,28 @@ type stringConst struct {
 
 // Emitter generates LLVM IR from MIR.
 type Emitter struct {
-	mod          *mir.Module
-	types        *types.Interner
-	syms         *symbols.Table
-	buf          strings.Builder
-	stringConsts map[string]*stringConst
-	fnRefs       map[mir.FuncID]struct{}
-	funcNames    map[mir.FuncID]string
-	funcSigs     map[mir.FuncID]funcSig
-	globalNames  map[mir.GlobalID]string
-	runtimeSigs  map[string]funcSig
-	paramCounts  map[mir.FuncID]int
+	mod   *mir.Module
+	types *types.Interner
+	syms  *symbols.Table
+	// files resolves a span into the "path:line:col" a panic prints. It is the
+	// compiler's own file set: the native backend has to name a location while
+	// it emits, because nothing at run time can look one up. Nil means the
+	// caller did not supply one, and then no panic carries a location.
+	files *source.FileSet
+	// spanConsts interns the rendered locations panics report, keyed by the
+	// rendered text so one file:line:col is one global. It is filled while
+	// functions are emitted and written out after them; see emit_span.go for
+	// why it is not the string-constant table above.
+	spanConsts     map[string]*stringConst
+	spanConstOrder []*stringConst
+	buf            strings.Builder
+	stringConsts   map[string]*stringConst
+	fnRefs         map[mir.FuncID]struct{}
+	funcNames      map[mir.FuncID]string
+	funcSigs       map[mir.FuncID]funcSig
+	globalNames    map[mir.GlobalID]string
+	runtimeSigs    map[string]funcSig
+	paramCounts    map[mir.FuncID]int
 	// Recursive drop glue generated on demand (emit_drop_glue.go).
 	dropGlueNeeded     map[types.TypeID]struct{}
 	dropElemGlueNeeded map[types.TypeID]struct{}
@@ -123,6 +135,9 @@ type funcEmitter struct {
 	addrOfTargets   map[mir.LocalID]addrOfTarget
 	paramLocals     []mir.LocalID
 	blockTerminated bool
+	// span is where the instruction currently being emitted came from, which is
+	// the location any panic emitted underneath it will name. See emit_span.go.
+	span spanCursor
 }
 
 // sretParamName is the hidden caller-owned destination a composite result is
@@ -138,12 +153,16 @@ const (
 	arrayDataOffset  = 16
 )
 
-// EmitModule converts a MIR module into an LLVM IR string.
-func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Table) (string, error) {
+// EmitModule converts a MIR module into an LLVM IR string. The file set is what
+// lets an emitted panic name its source location; passing nil emits panics that
+// report a message and no location.
+func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Table, files *source.FileSet) (string, error) {
 	e := &Emitter{
 		mod:          mod,
 		types:        typesIn,
 		syms:         symTable,
+		files:        files,
+		spanConsts:   make(map[string]*stringConst),
 		stringConsts: make(map[string]*stringConst),
 		fnRefs:       make(map[mir.FuncID]struct{}),
 		funcNames:    make(map[mir.FuncID]string),
@@ -305,6 +324,9 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	if err := e.emitDropGlue(); err != nil {
 		return "", err
 	}
+	// Last, because every pass above may have named a source location and this
+	// writes the ones that were actually named.
+	e.emitSpanConsts()
 	return e.buf.String(), nil
 }
 

@@ -88,9 +88,17 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_net_wait_readable", ret: "i1", params: []string{"ptr"}},
 		{name: "rt_net_wait_writable", ret: "i1", params: []string{"ptr"}},
 		{name: "rt_exit", ret: "void", params: []string{"i64"}},
+		// The two reporters the VM answers with a located panic take a trailing
+		// (ptr, i64) naming the source location, which the emitter fills in from
+		// the instruction it is lowering. A null pointer means "no location
+		// known" and prints nothing extra, which is what the runtime's own call
+		// sites pass. rt_panic is deliberately NOT among them: the VM's rt_panic
+		// intrinsic writes its message and exits without naming a location, so a
+		// native rt_panic that named one would disagree with the VM rather than
+		// agree with it.
 		{name: "rt_panic", ret: "void", params: []string{"ptr", "i64"}},
-		{name: "rt_panic_numeric", ret: "void", params: []string{"ptr", "i64"}},
-		{name: "rt_panic_bounds", ret: "void", params: []string{"i64", "i64", "i64"}},
+		{name: "rt_panic_numeric", ret: "void", params: []string{"ptr", "i64", "ptr", "i64"}},
+		{name: "rt_panic_bounds", ret: "void", params: []string{"i64", "i64", "i64", "ptr", "i64"}},
 		{name: "rt_monotonic_now", ret: "i64", params: nil},
 		{name: "rt_worker_count", ret: "i64", params: nil},
 		{name: "rt_heap_stats", ret: "ptr", params: nil},

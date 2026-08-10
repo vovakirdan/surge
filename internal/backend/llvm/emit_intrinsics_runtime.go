@@ -410,6 +410,9 @@ func (fe *funcEmitter) emitRtPanic(call *mir.CallInstr) error {
 	if err != nil {
 		return err
 	}
+	// No location: the VM's rt_panic intrinsic writes the message and exits
+	// without naming one, and the point of this work is that the two backends
+	// print the same text.
 	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_panic(ptr %s, i64 %s)\n", ptrVal, len64)
 	fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
 	return nil
@@ -431,7 +434,9 @@ func (fe *funcEmitter) emitRtPanicBounds(call *mir.CallInstr) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_panic_bounds(i64 %s, i64 %s, i64 %s)\n", kind64, idx64, len64)
+	fmt.Fprintf(&fe.emitter.buf,
+		"  call void @rt_panic_bounds(i64 %s, i64 %s, i64 %s, %s)\n",
+		kind64, idx64, len64, fe.panicSpanArgs())
 	fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
 	return nil
 }

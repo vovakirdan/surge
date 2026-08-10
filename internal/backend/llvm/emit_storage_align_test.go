@@ -77,7 +77,7 @@ var unattributedAlloca = regexp.MustCompile(`^\s*%\S+ = alloca [^,]+$`)
 // one access then disagree, and nothing reports it.
 func TestEmittedAllocasCarryAnAlignment(t *testing.T) {
 	mirMod, result := lowerMIRFromSource(t, alignmentFixture)
-	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
 	if err != nil {
 		t.Fatalf("emit: %v", err)
 	}

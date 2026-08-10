@@ -57,8 +57,19 @@ void* rt_term_read_event(void);
 void* rt_readline(void);
 void rt_exit(int64_t code);
 void rt_panic(const uint8_t* ptr, uint64_t length);
-void rt_panic_numeric(const uint8_t* ptr, uint64_t length);
-void rt_panic_bounds(uint64_t kind, int64_t index, int64_t length);
+/* These two reporters take the source location as a trailing (pointer, length)
+ * pair, which the compiler fills in from the instruction that raised the panic:
+ * a compiled binary has no frame to ask at run time, so the location has to be
+ * baked in where it is still known. A NULL pointer means the caller has no
+ * location to give — which is every call from inside this runtime — and then no
+ * location line is printed at all. rt_panic above is deliberately not one of
+ * them: the VM answers the same panic without naming a location. */
+void rt_panic_numeric(const uint8_t* ptr,
+                      uint64_t length,
+                      const uint8_t* span,
+                      uint64_t span_length);
+void rt_panic_bounds(
+    uint64_t kind, int64_t index, int64_t length, const uint8_t* span, uint64_t span_length);
 int64_t rt_monotonic_now(void);
 uint64_t rt_worker_count(void);
 void* rt_heap_stats(void);

@@ -38,7 +38,7 @@ fn main() -> int {
 `
 
 	mirMod, result := lowerMIRFromSource(t, sourceCode)
-	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
 	if err != nil {
 		t.Fatalf("emit LLVM IR: %v", err)
 	}
@@ -90,7 +90,7 @@ fn main() -> int {
 `
 
 	mirMod, result := lowerMIRFromSource(t, sourceCode)
-	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
 	if err != nil {
 		t.Fatalf("emit LLVM IR: %v", err)
 	}
@@ -118,7 +118,7 @@ fn main() -> int {
 `
 
 	mirMod, result := lowerMIRFromSource(t, sourceCode)
-	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table)
+	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
 	if err != nil {
 		t.Fatalf("emit LLVM IR: %v", err)
 	}
