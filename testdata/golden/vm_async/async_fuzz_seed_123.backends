@@ -1,0 +1,3 @@
+# --fuzz-scheduler and --fuzz-seed drive the VM's own scheduler and are refused
+# by any other backend, so this program can only be recorded against the VM.
+vm

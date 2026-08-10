@@ -176,28 +176,10 @@ jobs:
           set -o pipefail
           mkdir -p build/testdata/vm
           make golden-check 2>&1 | tee build/testdata/vm/golden-check.log
-      - name: Runtime regression (vm)
-        run: ./scripts/run_testdata.sh --backend vm --artifacts "$PWD/build/testdata"
-      - name: Testdata summary
-        if: always()
-        run: |
-          summary="build/testdata/vm/summary.env"
-          if [[ -f "$summary" ]]; then
-            source "$summary"
-            {
-              echo "Testdata (vm): total=${TOTAL} passed=${PASSED} failed=${FAILED} skipped=${SKIPPED}"
-              if [[ -f build/testdata/vm/failed_cases.txt ]]; then
-                echo ""
-                echo "Failed cases:"
-                cat build/testdata/vm/failed_cases.txt
-              fi
-              if [[ -f build/testdata/vm/skipped_cases.txt ]]; then
-                echo ""
-                echo "Skipped cases:"
-                cat build/testdata/vm/skipped_cases.txt
-              fi
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
+      - name: Corpus determinism
+        run: make golden-corpus-determinism
+      - name: Behavioural corpus (vm)
+        run: make behaviour-check
       - name: Upload testdata artifacts (vm)
         if: failure()
         uses: actions/upload-artifact@v4
@@ -218,35 +200,8 @@ jobs:
           cache: true
       - name: Install LLVM toolchain
         run: sudo apt-get update && sudo apt-get install -y clang llvm lld
-      - name: Runtime regression (llvm)
-        run: ./scripts/run_testdata.sh --backend llvm --artifacts "$PWD/build/testdata"
-      - name: Testdata summary
-        if: always()
-        run: |
-          summary="build/testdata/llvm/summary.env"
-          if [[ -f "$summary" ]]; then
-            source "$summary"
-            {
-              echo "Testdata (llvm): total=${TOTAL} passed=${PASSED} failed=${FAILED} skipped=${SKIPPED}"
-              if [[ -f build/testdata/llvm/failed_cases.txt ]]; then
-                echo ""
-                echo "Failed cases:"
-                cat build/testdata/llvm/failed_cases.txt
-              fi
-              if [[ -f build/testdata/llvm/skipped_cases.txt ]]; then
-                echo ""
-                echo "Skipped cases:"
-                cat build/testdata/llvm/skipped_cases.txt
-              fi
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
-      - name: Upload testdata artifacts (llvm)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: testdata-llvm-artifacts
-          path: |
-            build/testdata/llvm
+      - name: Behavioural corpus (vm + native)
+        run: make behaviour-check-all
 
   build-linux-amd64:
     name: Build linux/amd64

@@ -1,5 +1,5 @@
 .PHONY: build run test runtime-v2-check runtime-v2-abi-manifest-check runtime-v2-slot-control-check runtime-v2-ownership-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check runtime-v2-transport-contract-check runtime-v2-transport-check runtime-v2-carrier-check runtime-v2-carrier-bench runtime-v2-carrier-baseline-capture runtime-v2-carrier-bench-final vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
-.PHONY: golden golden-update golden-check stats
+.PHONY: golden golden-update golden-check golden-corpus-determinism behaviour-check behaviour-check-all stats
 .PHONY: c-check cfmt-check c-warnings ctidy cppcheck
 
 # ===== Variables =====
@@ -274,6 +274,32 @@ golden-update: build
 
 golden-check: build
 	@$(GO) run ./cmd/goldencheck check --runs 2 -- ./scripts/golden_update.sh
+
+# Two serialized regenerations must leave the corpus exactly as reviewed. Its
+# preflight refuses a corpus with uncommitted changes, because there is no
+# reviewed starting point to compare against, so this cannot live in the
+# pre-commit hook - a hook runs on precisely the state it refuses.
+golden-corpus-determinism:
+	@echo ">> Checking that two golden regenerations preserve the corpus (needs a committed testdata/golden)"
+	$(GO) test -tags golden ./internal/goldencheck -run TestGoldenUpdateDeterminism -count=1 --timeout 600s
+
+# The behavioural corpus: compile each recorded program, run it, and compare its
+# real output against the recorded .out. This is the only thing in the repository
+# that can observe a wrong runtime answer.
+#
+# `behaviour-check` is the VM lane and is what `make check` already runs as part
+# of `make test`; this target names it so it can be run alone.
+behaviour-check:
+	@echo ">> Running the behavioural corpus (vm)"
+	$(GO) test ./internal/vm -run 'Golden|Determinism' -count=1 --timeout 900s
+
+# `behaviour-check-all` adds the native lane. It costs about six seconds per
+# fixture against the VM lane's quarter-second, because clang compiles and links
+# the runtime for each one, so it is run at an important step rather than on
+# every commit. It FAILS rather than skips when the toolchain is missing.
+behaviour-check-all:
+	@echo ">> Running the behavioural corpus (vm + native)"
+	SURGE_BEHAVIOUR_BACKENDS=vm,llvm $(GO) test ./internal/vm -run 'Golden' -count=1 --timeout 3600s
 
 check:
 	@echo ">> Checking code"

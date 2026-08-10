@@ -7,4 +7,7 @@
 #                 Makefile go-test surface.
 gate runtime-v2-liveness-stress runtime-maintainers quarantined RV2-DEBT-027 recurrence bound; manual by design, run at fix-epoch cadence
 gate bench bench-owner performance benchmark target, not a correctness gate
-tag golden golden-maintainers run explicitly with go test -tags golden ./internal/goldencheck -run ^TestGoldenUpdateDeterminism$
+tag golden golden-maintainers run by make golden-corpus-determinism, which CI invokes; it needs a COMMITTED testdata/golden because Check compares two regenerations against a reviewed snapshot
+gate golden-corpus-determinism golden-maintainers cannot live in the pre-commit hook: its preflight refuses a corpus with uncommitted changes, which is precisely the state a hook runs on. CI invokes it after checkout
+gate behaviour-check runtime-maintainers names the VM behavioural lane so it can be run alone; the tests it selects already run inside make check through make test, so this target adds no coverage of its own
+gate behaviour-check-all runtime-maintainers the native lane costs ~6s per fixture against the VM lane's ~0.26s, so by owner ruling it runs at an important step and in CI rather than on every commit
