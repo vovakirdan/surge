@@ -194,9 +194,6 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
         panic_msg("async: missing current task");
         return 2;
     }
-    if (current_task_cancelled(ex)) {
-        return 0;
-    }
     if (target->kind == TASK_KIND_USER && task_status_load(target) == TASK_READY &&
         task_enqueued_load(target) != 0 && ready_take_current_local_tail(ex, target->id)) {
         poll_ready_child_inline(ex, current, target);
@@ -211,6 +208,20 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
         rt_task_poll_adopt_placement(ex, current, target);
         task_release_lane_aware(ex, target);
         return kind;
+    }
+    // A cancelled awaiter is answered AFTER the target has been asked, not
+    // before. Asking "am I cancelled?" first loses a result that was already
+    // sitting in the target: the awaiter unwinds without ever collecting it,
+    // and the arm that would have read it never runs. The VM has no such check
+    // in its poll at all (pollTask, internal/vm/async_runtime.go) - it delivers
+    // a DONE target unconditionally and lets the SUSPENSION carry the
+    // cancellation instead (execTermAsyncYield, internal/vm/vm_terminator.go).
+    //
+    // The check stays here rather than going away entirely because what it
+    // guards is the registration below: a cancelled task must not leave a join
+    // waiter behind, since it will never be woken to remove it.
+    if (current_task_cancelled(ex)) {
+        return 0;
     }
     if (target->kind != TASK_KIND_CHECKPOINT) {
         waker_key key = join_key(target->id);
