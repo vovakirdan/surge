@@ -266,6 +266,27 @@ func (tc *typeChecker) recordOneSidedDrops(site DropSite, plans map[symbols.Symb
 	}
 }
 
+// residualDropPlansFor is recordResidualDrops for a caller that cannot record
+// yet. A compare arm's obligations are known while that arm's moved-set is
+// still the current one, but they are not written until every arm has been
+// walked and the sets merged; asking then would answer for the union. So the
+// plans are read here, at the moment the question is still about this arm, and
+// handed to recordOneSidedDrops once the site is being written.
+func (tc *typeChecker) residualDropPlansFor(syms []symbols.SymbolID) map[symbols.SymbolID][]DropStep {
+	var plans map[symbols.SymbolID][]DropStep
+	for _, symID := range syms {
+		steps := tc.residualDropPlan(symID)
+		if len(steps) == 0 {
+			continue
+		}
+		if plans == nil {
+			plans = make(map[symbols.SymbolID][]DropStep, len(syms))
+		}
+		plans[symID] = steps
+	}
+	return plans
+}
+
 // recordResidualDrops stores the non-trivial plans for one obligation list.
 // Bindings that drop whole are absent, which is what makes the lookup's default
 // the ordinary drop.

@@ -33,6 +33,10 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 	// abandoned. It is collected per arm rather than per function because that
 	// is where it dies — see armPayloadDroppables.
 	armPayloadDrops := make([][]symbols.SymbolID, len(cmp.Arms))
+	// Read inside the arm loop, not in the recording loop below: a residual
+	// plan is a question about THIS arm's moved-set, and by the time the arms
+	// are merged the answer would be the union's.
+	armResidualPlans := make([]map[symbols.SymbolID][]DropStep, len(cmp.Arms))
 	// Asked once, of the subject, because it decides the same thing for every
 	// arm: a compare that only READS its union owns none of what it takes out.
 	subjectBorrowed := tc.compareSubjectIsBorrowed(cmp.Value, valueType)
@@ -137,6 +141,15 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 					mintingArms = append(mintingArms, arm.Result)
 				}
 			}
+			// A binding the arm still owes a drop for may have had a PART of
+			// it given away — `own x.name` out of a payload binding. Asking
+			// for the residual is what narrows the drop to what is left; every
+			// sibling obligation channel asks, and this one never did, so the
+			// arm kept a whole-binding drop and freed the moved field a second
+			// time. The VM survived that only because its move-out physically
+			// empties the slot, which made a wrong obligation look right on
+			// one backend.
+			armResidualPlans[i] = tc.residualDropPlansFor(armPayloadDrops[i])
 		}
 		tc.popDropScope()
 		movedArms[i] = tc.snapshotMovedPlaces()
@@ -207,6 +220,10 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 			tc.result.ArmDropsExpr = make(map[ast.ExprID][]symbols.SymbolID)
 		}
 		tc.result.ArmDropsExpr[cmp.Arms[i].Result] = drops
+		// The arm's own residuals go down first, so a one-sided plan for the
+		// same binding still wins: that one answers for a binding this arm
+		// kept whole and another arm gave away, which is a different question.
+		tc.recordOneSidedDrops(DropSite{Expr: cmp.Arms[i].Result}, armResidualPlans[i])
 		tc.recordOneSidedDrops(DropSite{Expr: cmp.Arms[i].Result}, plans)
 	}
 	if mergedMoves == nil {
