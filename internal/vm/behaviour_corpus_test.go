@@ -156,7 +156,24 @@ func runBehaviourCase(t *testing.T, root, surge, dir, absDir, name, backend stri
 	}
 	cmdArgs = append(cmdArgs, sgRel)
 
-	stdout, stderr, code := runSurge(t, root, surge, cmdArgs...)
+	// The native lane runs single-worker, and that is what makes this a PARITY
+	// comparison rather than a scheduler one. The VM is single-worker by
+	// construction, so holding the native side to one worker asks the two
+	// backends the same question: given this program, what answer. Left at the
+	// default the native lane runs on one worker per core and a recorded
+	// interleaving stops being a fact about the program — measured on this
+	// corpus, eight async fixtures match byte-for-byte at one worker and vary
+	// run to run at thirty-two, which made the lane's failure list churn
+	// without anything changing.
+	//
+	// It does not follow that multi-worker behaviour goes unchecked: it is
+	// checked by its own lane, which asserts what multiple workers actually
+	// promise. See TestBehaviourCorpusMT.
+	env := envWithStdlib(root)
+	if backend == "llvm" {
+		env = envForParity(root)
+	}
+	stdout, stderr, code := runSurgeEnv(t, root, surge, env, cmdArgs...)
 
 	if code != wantCode {
 		t.Fatalf("[%s] exit code: want %d, got %d\nstdout:\n%s\nstderr:\n%s", backend, wantCode, code, stdout, stderr)

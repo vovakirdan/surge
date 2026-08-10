@@ -1,0 +1,14 @@
+# This program asks rt_heap_stats() how many allocations one await made, and
+# the recorded 26 is a fact about the VM's object model, not about the language.
+# The native runtime allocates differently by construction - docs/RUNTIME.md says
+# so in as many words: "the native counters describe native allocation traffic
+# only". It produces 13 at one worker and 16 at thirty-two, which is the same
+# point made twice: the number is not portable across backends and is not even
+# portable across worker counts within one backend.
+#
+# Recorded against the VM only, therefore, rather than reblessed with a second
+# number that would freeze today's native allocation traffic as a promise.
+# Native allocation traffic is watched where it means something: the carrier
+# budgets and the control-lane counters, which measure it per operation against
+# a threshold rather than as one absolute count.
+vm

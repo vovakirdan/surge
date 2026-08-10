@@ -1,5 +1,5 @@
 .PHONY: build run test runtime-v2-check runtime-v2-abi-manifest-check runtime-v2-slot-control-check runtime-v2-ownership-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check runtime-v2-transport-contract-check runtime-v2-transport-check runtime-v2-carrier-check runtime-v2-carrier-bench runtime-v2-carrier-baseline-capture runtime-v2-carrier-bench-final vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
-.PHONY: golden golden-update golden-check golden-corpus-determinism behaviour-check behaviour-check-all stats
+.PHONY: golden golden-update golden-check golden-corpus-determinism behaviour-check behaviour-check-all behaviour-check-mt stats
 .PHONY: c-check cfmt-check c-warnings ctidy cppcheck
 
 # ===== Variables =====
@@ -300,6 +300,21 @@ behaviour-check:
 behaviour-check-all:
 	@echo ">> Running the behavioural corpus (vm + native)"
 	SURGE_BEHAVIOUR_BACKENDS=vm,llvm $(GO) test ./internal/vm -run 'Golden' -count=1 --timeout 3600s
+
+# `behaviour-check-mt` is the other half of the same question. The two lanes
+# above compare the backends with ONE worker, because that is the only
+# configuration in which "did the two backends agree" has a single right answer.
+# This one runs the async corpus on the native backend with SEVERAL workers and
+# asserts what several workers actually promise: that the program terminates,
+# exits with its recorded code, and reports no allocator or sanitizer failure.
+# It deliberately does not compare output text - ordering across workers is a
+# documented non-guarantee, so asserting it would be asserting a licence.
+#
+# Worker counts and repeats are configurable: SURGE_BEHAVIOUR_MT=2,4,8 and
+# SURGE_BEHAVIOUR_MT_REPEATS=5 for a longer sweep.
+behaviour-check-mt:
+	@echo ">> Running the async corpus on the native backend, multi-worker"
+	SURGE_BEHAVIOUR_MT=1 SURGE_BEHAVIOUR_BACKENDS=llvm $(GO) test ./internal/vm -run 'BehaviourCorpusMT' -count=1 --timeout 3600s
 
 check:
 	@echo ">> Checking code"

@@ -69,9 +69,18 @@ func TestVMDebuggerGolden(t *testing.T) {
 
 func runSurge(t *testing.T, root, surgeBin string, args ...string) (stdout, stderr string, exitCode int) {
 	t.Helper()
+	return runSurgeEnv(t, root, surgeBin, envWithStdlib(root), args...)
+}
+
+// runSurgeEnv is runSurge for a caller that has to say something about the
+// environment. The behavioural corpus needs it: comparing two backends means
+// holding the worker count still, since a multi-worker interleaving is not a
+// backend difference.
+func runSurgeEnv(t *testing.T, root, surgeBin string, env []string, args ...string) (stdout, stderr string, exitCode int) {
+	t.Helper()
 	cmd := exec.Command(surgeBin, args...)
 	cmd.Dir = root
-	cmd.Env = envWithStdlib(root)
+	cmd.Env = env
 	var outBuf, errBuf bytes.Buffer
 	cmd.Stdout = &outBuf
 	cmd.Stderr = &errBuf
