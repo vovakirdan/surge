@@ -40,9 +40,8 @@ fn __index_set:
     L0: &mut type#1520 [refmut] name=self
     L1: int [copy] name=index
     L2: int [copy] name=value
-    L3: int [copy] name=tmp_call1
   bb0:
-    L3 = call __index_set::<int>(addr_of_mut (*L0).values, copy L1, copy L2)
+    call __index_set::<int>(addr_of_mut (*L0).values, copy L1, copy L2)
     return
 
 fn __not:

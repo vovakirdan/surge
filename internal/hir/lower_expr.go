@@ -325,7 +325,15 @@ func (l *lowerer) lowerBinaryExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Ty
 					// authoritative mono lookup cannot drift to the assignment.
 					callSpan = left.Span
 				}
-				return l.magicCallExpr(callSpan, ty, symID, []*Expr{object, index, right})
+				// The call is typed by what `__index_set` returns, not by what
+				// the assignment assigned. The two differ - the method hands
+				// back nothing - and taking the assignment's type here is what
+				// gave the call a destination no callee ever writes.
+				callTy := ty
+				if resultTy, ok := l.calleeResultType(symID); ok {
+					callTy = resultTy
+				}
+				return l.magicCallExpr(callSpan, callTy, symID, []*Expr{object, index, right})
 			}
 		}
 	}

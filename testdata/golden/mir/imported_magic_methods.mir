@@ -34,30 +34,29 @@ fn main:
     L17: type#78 [owns_heap] name=tmp_arr12
     L18: type#1520 [owns_heap] name=tmp_struct13
     L19: int [copy] name=tmp_call14
-    L20: int [copy] name=tmp_call15
-    L21: bool [copy] name=tmp_call16
-    L22: int [copy] name=sum
-    L23: type#189 [owns_heap] name=__iter1
-    L24: type#189 [owns_heap] name=tmp_call17
-    L25: type#189 [owns_heap] name=tmp_iter18
-    L26: type#1535 [owns_heap] name=__next2
-    L27: type#1535 [owns_heap] name=tmp_next19
-    L28: bool [copy] name=tmp_tagtest20
-    L29: int [copy] name=v
-    L30: int [copy] name=tmp_payload21
-    L31: int [copy] name=tmp_call22
-    L32: bool [copy] name=tmp_call23
-    L33: int [copy] name=typed_sum
-    L34: type#189 [owns_heap] name=__iter3
-    L35: type#189 [owns_heap] name=tmp_call24
-    L36: type#189 [owns_heap] name=tmp_iter25
-    L37: type#1535 [owns_heap] name=__next4
-    L38: type#1535 [owns_heap] name=tmp_next26
-    L39: bool [copy] name=tmp_tagtest27
-    L40: int [copy] name=typed
-    L41: int [copy] name=tmp_payload28
-    L42: int [copy] name=tmp_call29
-    L43: bool [copy] name=tmp_call30
+    L20: bool [copy] name=tmp_call15
+    L21: int [copy] name=sum
+    L22: type#189 [owns_heap] name=__iter1
+    L23: type#189 [owns_heap] name=tmp_call16
+    L24: type#189 [owns_heap] name=tmp_iter17
+    L25: type#1535 [owns_heap] name=__next2
+    L26: type#1535 [owns_heap] name=tmp_next18
+    L27: bool [copy] name=tmp_tagtest19
+    L28: int [copy] name=v
+    L29: int [copy] name=tmp_payload20
+    L30: int [copy] name=tmp_call21
+    L31: bool [copy] name=tmp_call22
+    L32: int [copy] name=typed_sum
+    L33: type#189 [owns_heap] name=__iter3
+    L34: type#189 [owns_heap] name=tmp_call23
+    L35: type#189 [owns_heap] name=tmp_iter24
+    L36: type#1535 [owns_heap] name=__next4
+    L37: type#1535 [owns_heap] name=tmp_next25
+    L38: bool [copy] name=tmp_tagtest26
+    L39: int [copy] name=typed
+    L40: int [copy] name=tmp_payload27
+    L41: int [copy] name=tmp_call28
+    L42: bool [copy] name=tmp_call29
   bb0:
     L1 = struct_lit type#1518 {value=const "\"\""}
     L0 = move L1
@@ -107,10 +106,10 @@ fn main:
     L17 = array_lit [const 1, const 2, const 3]
     L18 = struct_lit type#1520 {values=move L17}
     L16 = move L18
-    L19 = call __index_set(addr_of_mut L16, const 1, const 9)
-    L20 = call __index(addr_of L16, const 1)
-    L21 = call __ne(copy L20, const 9)
-    if copy L21 then bb9 else bb10
+    call __index_set(addr_of_mut L16, const 1, const 9)
+    L19 = call __index(addr_of L16, const 1)
+    L20 = call __ne(copy L19, const 9)
+    if copy L20 then bb9 else bb10
   bb9:
     drop L16
     drop L9
@@ -119,31 +118,31 @@ fn main:
     drop L0
     return const 5
   bb10:
-    L22 = const 0
-    L24 = call __range(addr_of L16)
-    L25 = iter_init copy L24
-    L23 = move L25
+    L21 = const 0
+    L23 = call __range(addr_of L16)
+    L24 = iter_init copy L23
+    L22 = move L24
     goto bb11
   bb11:
     if const true then bb12 else bb13
   bb12:
-    L27 = iter_next copy L23
-    L26 = move L27
-    L28 = tag_test copy L26 is nothing
-    if copy L28 then bb14 else bb15
+    L26 = iter_next copy L22
+    L25 = move L26
+    L27 = tag_test copy L25 is nothing
+    if copy L27 then bb14 else bb15
   bb13:
-    release_cursor L23
-    L32 = call __ne(copy L22, const 13)
-    if copy L32 then bb16 else bb17
+    release_cursor L22
+    L31 = call __ne(copy L21, const 13)
+    if copy L31 then bb16 else bb17
   bb14:
-    release_box L26
+    release_box L25
     goto bb13
   bb15:
-    L30 = tag_payload_move copy L26.Some[0]
-    L29 = copy L30
-    release_box L26
-    L31 = call __add(copy L22, copy L29)
-    L22 = copy L31
+    L29 = tag_payload_move copy L25.Some[0]
+    L28 = copy L29
+    release_box L25
+    L30 = call __add(copy L21, copy L28)
+    L21 = copy L30
     goto bb11
   bb16:
     drop L16
@@ -153,31 +152,31 @@ fn main:
     drop L0
     return const 6
   bb17:
-    L33 = const 0
-    L35 = call __range(addr_of L16)
-    L36 = iter_init copy L35
-    L34 = move L36
+    L32 = const 0
+    L34 = call __range(addr_of L16)
+    L35 = iter_init copy L34
+    L33 = move L35
     goto bb18
   bb18:
     if const true then bb19 else bb20
   bb19:
-    L38 = iter_next copy L34
-    L37 = move L38
-    L39 = tag_test copy L37 is nothing
-    if copy L39 then bb21 else bb22
+    L37 = iter_next copy L33
+    L36 = move L37
+    L38 = tag_test copy L36 is nothing
+    if copy L38 then bb21 else bb22
   bb20:
-    release_cursor L34
-    L43 = call __ne(copy L33, const 13)
-    if copy L43 then bb23 else bb24
+    release_cursor L33
+    L42 = call __ne(copy L32, const 13)
+    if copy L42 then bb23 else bb24
   bb21:
-    release_box L37
+    release_box L36
     goto bb20
   bb22:
-    L41 = tag_payload_move copy L37.Some[0]
-    L40 = copy L41
-    release_box L37
-    L42 = call __add(copy L33, copy L40)
-    L33 = copy L42
+    L40 = tag_payload_move copy L36.Some[0]
+    L39 = copy L40
+    release_box L36
+    L41 = call __add(copy L32, copy L39)
+    L32 = copy L41
     goto bb18
   bb23:
     drop L16

@@ -130,6 +130,30 @@ func (l *lowerer) magicCallExpr(span source.Span, ty types.TypeID, symID symbols
 	}
 }
 
+// calleeResultType reads what a callee actually hands back, for the synthetic
+// calls whose surrounding expression is not the thing being called. An
+// index-set assignment is the case that needs it: the expression is typed by
+// what was assigned, while the `__index_set` it lowers to returns nothing, and
+// giving the call the expression's type asks a later stage for a destination
+// no callee ever writes.
+func (l *lowerer) calleeResultType(symID symbols.SymbolID) (types.TypeID, bool) {
+	if l == nil || !symID.IsValid() || l.symRes == nil || l.symRes.Table == nil {
+		return types.NoTypeID, false
+	}
+	if l.semaRes == nil || l.semaRes.TypeInterner == nil {
+		return types.NoTypeID, false
+	}
+	sym := l.symRes.Table.Symbols.Get(symID)
+	if sym == nil || sym.Type == types.NoTypeID {
+		return types.NoTypeID, false
+	}
+	fnInfo, ok := l.semaRes.TypeInterner.FnInfo(sym.Type)
+	if !ok || fnInfo.Result == types.NoTypeID {
+		return types.NoTypeID, false
+	}
+	return fnInfo.Result, true
+}
+
 func (l *lowerer) boolType() types.TypeID {
 	if l == nil || l.semaRes == nil || l.semaRes.TypeInterner == nil {
 		return types.NoTypeID
