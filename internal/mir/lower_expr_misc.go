@@ -206,12 +206,30 @@ func (l *funcLowerer) lowerAsyncExpr(e *hir.Expr, consume bool) (Operand, error)
 	if fl == nil {
 		return Operand{}, fmt.Errorf("mir: async: failed to fork lowerer")
 	}
-	fn, err := fl.lowerSyntheticFunc(asyncID, name, data.Body, payload, e.Span, true, data.Failfast)
+	captures, err := l.blockingCaptureInfo(data.Captures)
+	if err != nil {
+		return Operand{}, err
+	}
+	fn, err := fl.lowerSyntheticFunc(asyncID, name, data.Body, payload, e.Span, true, data.Failfast, captures)
 	if err != nil {
 		return Operand{}, err
 	}
 	if l.out != nil {
 		l.out.Funcs[asyncID] = fn
+	}
+
+	// One consuming read per capture, which is what the caller giving up
+	// ownership looks like here. The contract is STORE and not transfer-owned
+	// because the constructor keeps each capture in the state's start variant for
+	// the task's whole life, and STORE is the category that stays a sink for a
+	// refcounted scalar.
+	args := make([]Operand, 0, len(captures))
+	for _, cap := range captures {
+		arg, argErr := l.captureOperand(cap)
+		if argErr != nil {
+			return Operand{}, argErr
+		}
+		args = append(args, arg)
 	}
 
 	tmp := l.newTemp(e.Type, "async", e.Span)
@@ -224,6 +242,8 @@ func (l *funcLowerer) lowerAsyncExpr(e *hir.Expr, consume bool) (Operand, error)
 				Kind: CalleeValue,
 				Name: name,
 			},
+			Args:         args,
+			ArgContracts: storeArgContracts(len(args)),
 		},
 	})
 	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil

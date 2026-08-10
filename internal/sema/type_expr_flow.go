@@ -262,7 +262,52 @@ func (tc *typeChecker) typeExprAsync(id ast.ExprID, span source.Span) types.Type
 	if !ok || asyncData == nil {
 		return types.NoTypeID
 	}
-	return tc.taskBlockPayload(span, asyncData.Body, true)
+	// Three things have to happen together here, and any two of them without the
+	// third is a leak or a double free.
+	//
+	// The barrier comes first. The body becomes its own function, so its exits
+	// must stop at this boundary rather than at the enclosing one; without it the
+	// block's `return` keeps collecting the caller's droppables, which MIR
+	// discards today only because the captured symbols do not resolve to
+	// anything. They are about to resolve.
+	tc.pushDropScope(true)
+	// Then the body is given the obligation for what moves into it, BEFORE it is
+	// walked, so a `ret` inside sees the capture as a live one.
+	tc.registerAsyncBodyOwnership(asyncData.Body)
+	resultType := tc.taskBlockPayload(span, asyncData.Body, true)
+	tc.popDropScope()
+
+	captures := tc.collectBlockingCaptures(asyncData.Body)
+	tc.recordAsyncCaptures(id, captures)
+	// A borrow captured by a LOCAL async block is legal — parent and child share
+	// a shard (docs/RUNTIME_V2.md, "Structured Concurrency"), and `spawn f(&s)`
+	// already accepts exactly that. What is not legal is a borrow laundered
+	// through a binding, and the spawn scan is the rule that says so, so the
+	// block asks it the same question rather than inventing a narrower one.
+	//
+	// It is asked about the CAPTURES and not about the body. Scanning the body
+	// would also see bindings the block declares itself, and report a task
+	// container built and consumed entirely inside the block as escaping. What
+	// crosses into the block is the whole question.
+	//
+	// When `spawn` is typing this block it runs the scan over the same
+	// expression itself, and asking twice would report everything twice.
+	if id != tc.spawnOperand {
+		seen := make(map[symbols.SymbolID]struct{})
+		for _, cap := range captures {
+			tc.scanSpawn(cap.exprID, seen, false)
+		}
+	}
+	for _, cap := range captures {
+		// The caller stops owning what moves in, which is what pairs with the
+		// registration above. observeMove is Copy-gated internally, so it fires
+		// on exactly the move-only captures — a `@copy` value composite leaves
+		// the caller's binding alone and the body owns the clone instead. That
+		// disagreement between the two sets is correct; making them equal
+		// reintroduces one of the two failures.
+		tc.observeMove(cap.exprID, cap.span)
+	}
+	return resultType
 }
 
 func (tc *typeChecker) typeExprBlocking(id ast.ExprID, span source.Span) types.TypeID {

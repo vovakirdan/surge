@@ -442,12 +442,15 @@ func (CrossingData) exprData() {}
 type AsyncData struct {
 	Body     *Block
 	Failfast bool
+	// Captures are the enclosing scope's bindings the body reads. They become
+	// the by-value parameters of the synthetic function the block is lowered to.
+	Captures []CapturedBinding
 }
 
 func (AsyncData) exprData() {}
 
-// BlockingCapture describes a captured symbol in a blocking block.
-type BlockingCapture struct {
+// CapturedBinding describes a captured symbol in a blocking block.
+type CapturedBinding struct {
 	SymbolID symbols.SymbolID
 	Name     string
 }
@@ -455,7 +458,7 @@ type BlockingCapture struct {
 // BlockingData holds data for ExprBlocking.
 type BlockingData struct {
 	Body     *Block
-	Captures []BlockingCapture
+	Captures []CapturedBinding
 }
 
 func (BlockingData) exprData() {}

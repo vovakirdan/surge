@@ -160,7 +160,7 @@ func (l *lowerer) lowerSpawnExpr(expr *ast.Expr, ty types.TypeID) *Expr {
 }
 
 // lowerAsyncExpr lowers an async block expression.
-func (l *lowerer) lowerAsyncExpr(expr *ast.Expr, ty types.TypeID) *Expr {
+func (l *lowerer) lowerAsyncExpr(exprID ast.ExprID, expr *ast.Expr, ty types.TypeID) *Expr {
 	asyncData := l.builder.Exprs.Asyncs.Get(uint32(expr.Payload))
 	if asyncData == nil {
 		return nil
@@ -183,11 +183,18 @@ func (l *lowerer) lowerAsyncExpr(expr *ast.Expr, ty types.TypeID) *Expr {
 		}
 	}
 
+	var captures []CapturedBinding
+	if l.semaRes != nil && l.semaRes.AsyncCaptures != nil {
+		if caps, ok := l.semaRes.AsyncCaptures[exprID]; ok {
+			captures = l.blockingCaptureInfo(caps)
+		}
+	}
+
 	return &Expr{
 		Kind: ExprAsync,
 		Type: ty,
 		Span: expr.Span,
-		Data: AsyncData{Body: body, Failfast: failfast},
+		Data: AsyncData{Body: body, Failfast: failfast, Captures: captures},
 	}
 }
 
@@ -204,7 +211,7 @@ func (l *lowerer) lowerBlockingExpr(exprID ast.ExprID, expr *ast.Expr, ty types.
 	}
 	l.markTailReturn(body)
 
-	var captures []BlockingCapture
+	var captures []CapturedBinding
 	if l.semaRes != nil && l.semaRes.BlockingCaptures != nil {
 		if caps, ok := l.semaRes.BlockingCaptures[exprID]; ok {
 			captures = l.blockingCaptureInfo(caps)
@@ -268,11 +275,11 @@ func (l *lowerer) lowerBlockExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Typ
 	}
 }
 
-func (l *lowerer) blockingCaptureInfo(captures []symbols.SymbolID) []BlockingCapture {
+func (l *lowerer) blockingCaptureInfo(captures []symbols.SymbolID) []CapturedBinding {
 	if len(captures) == 0 {
 		return nil
 	}
-	out := make([]BlockingCapture, 0, len(captures))
+	out := make([]CapturedBinding, 0, len(captures))
 	for _, symID := range captures {
 		name := ""
 		if l.symRes != nil && l.symRes.Table != nil && l.symRes.Table.Symbols != nil && l.strings != nil {
@@ -280,7 +287,7 @@ func (l *lowerer) blockingCaptureInfo(captures []symbols.SymbolID) []BlockingCap
 				name = l.strings.MustLookup(sym.Name)
 			}
 		}
-		out = append(out, BlockingCapture{SymbolID: symID, Name: name})
+		out = append(out, CapturedBinding{SymbolID: symID, Name: name})
 	}
 	return out
 }

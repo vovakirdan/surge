@@ -28,6 +28,13 @@ func paramLocalSet(f *Func, symTable *symbols.Table) localSet {
 			}
 		}
 	}
+	// A synthetic async block has parameters but no symbol-table entries for
+	// them, so the name scan above finds nothing. ParamCount is the authority;
+	// leaning on __scope's index instead would make the packed set depend on
+	// where that local happened to land.
+	if f.ParamCount > paramCount {
+		paramCount = f.ParamCount
+	}
 	if f.ScopeLocal != NoLocalID {
 		scopeCount := int(f.ScopeLocal)
 		if scopeCount > paramCount {

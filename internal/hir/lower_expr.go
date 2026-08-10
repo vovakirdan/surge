@@ -202,7 +202,7 @@ func (l *lowerer) lowerExprCore(exprID ast.ExprID) *Expr {
 		return nil
 
 	case ast.ExprAsync:
-		return l.lowerAsyncExpr(expr, ty)
+		return l.lowerAsyncExpr(exprID, expr, ty)
 	case ast.ExprBlocking:
 		return l.lowerBlockingExpr(exprID, expr, ty)
 

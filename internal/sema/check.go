@@ -187,6 +187,7 @@ type Result struct {
 	BindingTypes               map[symbols.SymbolID]types.TypeID // Maps symbol IDs to their resolved types
 	ItemScopes                 map[ast.ItemID]symbols.ScopeID    // Maps items to their scopes (for HIR lowering)
 	BlockingCaptures           map[ast.ExprID][]symbols.SymbolID // Captures for blocking { ... } expressions
+	AsyncCaptures              map[ast.ExprID][]symbols.SymbolID // Captures for a local async { ... } block
 	FunctionEffects            map[symbols.SymbolID]FunctionEffect
 	// FarTaskAwaitSpans / FarTaskCancelSpans record `far Task<T>` await/cancel
 	// call sites (Block 3) so the backend guard can emit FUT7016 /
@@ -239,6 +240,7 @@ func Check(ctx context.Context, builder *ast.Builder, fileID ast.FileID, opts Op
 		IndexSymbols:                make(map[ast.ExprID]symbols.SymbolID),
 		IndexSetSymbols:             make(map[ast.ExprID]symbols.SymbolID),
 		BlockingCaptures:            make(map[ast.ExprID][]symbols.SymbolID),
+		AsyncCaptures:               make(map[ast.ExprID][]symbols.SymbolID),
 		FunctionEffects:             make(map[symbols.SymbolID]FunctionEffect),
 	}
 	if opts.Types != nil {

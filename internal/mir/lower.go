@@ -314,7 +314,7 @@ func (l *funcLowerer) lowerFunc(id FuncID, fn *hir.Func) (*Func, error) {
 	return l.f, nil
 }
 
-func (l *funcLowerer) lowerSyntheticFunc(id FuncID, name string, body *hir.Block, result types.TypeID, span source.Span, isAsync, failfast bool) (*Func, error) {
+func (l *funcLowerer) lowerSyntheticFunc(id FuncID, name string, body *hir.Block, result types.TypeID, span source.Span, isAsync, failfast bool, captures []blockingCaptureInfo) (*Func, error) {
 	if l == nil {
 		return nil, nil
 	}
@@ -327,6 +327,16 @@ func (l *funcLowerer) lowerSyntheticFunc(id FuncID, name string, body *hir.Block
 		Result:   result,
 		IsAsync:  isAsync,
 		Failfast: failfast,
+	}
+
+	// The captures are this function's parameters, and a parameter arrives in its
+	// own slot — there is nothing to unpack. Their locals must be ids 0..n-1,
+	// because the async transform packs exactly the leading ParamCount locals into
+	// the state's start variant; anything else and a suspended task's captures
+	// silently vanish.
+	l.f.ParamCount = len(captures)
+	for _, cap := range captures {
+		l.ensureLocal(cap.SymbolID, cap.Name, cap.Type, span)
 	}
 
 	entry := l.newBlock()

@@ -283,6 +283,29 @@ func (tc *typeChecker) registerCrossingBodyOwnership(body ast.StmtID) {
 	}
 }
 
+// registerAsyncBodyOwnership is registerCrossingBodyOwnership for a local async
+// block, and differs in exactly one predicate: there is no `own` requirement.
+//
+// A crossing capture must be an owned move because it travels to another shard.
+// A local async block's capture is a by-value PARAMETER of the synthetic function
+// the block becomes, so the question is the one a parameter already answers —
+// does passing it transfer ownership — and that is paramTransfersOwnership, the
+// same predicate registerDroppableParams uses.
+//
+// This is one half of a pair and is useless alone. The caller's binding is marked
+// moved in typeExprAsync; registering here without that marking makes both sides
+// drop, and marking there without registering here makes neither. RV2-DEBT-079
+// and RV2-DEBT-081 record the crossing's first attempt at this pairing turning
+// into an invalid read plus an invalid free for exactly that reason.
+func (tc *typeChecker) registerAsyncBodyOwnership(body ast.StmtID) {
+	for _, cap := range tc.collectBlockingCaptures(body) {
+		if !tc.paramTransfersOwnership(tc.bindingType(cap.symID)) {
+			continue
+		}
+		tc.registerDroppableBinding(cap.symID)
+	}
+}
+
 func (tc *typeChecker) isOwnType(id types.TypeID) bool {
 	if id == types.NoTypeID || tc.types == nil {
 		return false

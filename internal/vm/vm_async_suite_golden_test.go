@@ -1,15 +1,3 @@
-//go:build golden
-// +build golden
-
-// This runner executes compiled Surge programs and compares their real output
-// against the recorded .out, which is the whole point of RV2-DEBT-173. It sits
-// behind the `golden` build tag ONLY because a case in it is still red, and a
-// red case would block every commit through the `make check` hook.
-//
-// Still behind the tag: t22_select_wait_recv and t23_select_wait_timer, which need
-// a local async block to carry a capture list the way a blocking block already
-// does. The tag comes off with them.
-
 package vm_test
 
 import (

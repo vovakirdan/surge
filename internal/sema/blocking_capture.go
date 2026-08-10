@@ -270,6 +270,20 @@ func (tc *typeChecker) collectBlockingCaptures(stmtID ast.StmtID) []blockingCapt
 	return captures
 }
 
+func (tc *typeChecker) recordAsyncCaptures(exprID ast.ExprID, captures []blockingCapture) {
+	if tc == nil || tc.result == nil || tc.result.AsyncCaptures == nil || !exprID.IsValid() {
+		return
+	}
+	if len(captures) == 0 {
+		return
+	}
+	ids := make([]symbols.SymbolID, 0, len(captures))
+	for _, cap := range captures {
+		ids = append(ids, cap.symID)
+	}
+	tc.result.AsyncCaptures[exprID] = ids
+}
+
 func (tc *typeChecker) recordBlockingCaptures(exprID ast.ExprID, captures []blockingCapture) {
 	if tc == nil || tc.result == nil || tc.result.BlockingCaptures == nil || !exprID.IsValid() {
 		return

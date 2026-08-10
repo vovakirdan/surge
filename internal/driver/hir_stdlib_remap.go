@@ -371,6 +371,9 @@ func remapExpr(expr *hir.Expr, mapping map[symbols.SymbolID]symbols.SymbolID, st
 			return
 		}
 		remapBlock(data.Body, mapping, state)
+		for i := range data.Captures {
+			data.Captures[i].SymbolID = remapSymbol(data.Captures[i].SymbolID, mapping)
+		}
 		expr.Data = data
 	case hir.ExprBlocking:
 		data, ok := expr.Data.(hir.BlockingData)

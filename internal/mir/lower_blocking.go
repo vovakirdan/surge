@@ -66,7 +66,7 @@ func (l *funcLowerer) lowerBlockingExpr(e *hir.Expr, consume bool) (Operand, err
 	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
 }
 
-func (l *funcLowerer) blockingCaptureInfo(captures []hir.BlockingCapture) ([]blockingCaptureInfo, error) {
+func (l *funcLowerer) blockingCaptureInfo(captures []hir.CapturedBinding) ([]blockingCaptureInfo, error) {
 	if len(captures) == 0 {
 		return nil, nil
 	}

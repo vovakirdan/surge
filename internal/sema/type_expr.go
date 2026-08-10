@@ -192,7 +192,13 @@ func (tc *typeChecker) typeExprAssignLHS(id ast.ExprID) types.TypeID {
 }
 
 func (tc *typeChecker) typeSpawnExpr(exprID ast.ExprID, span source.Span, value ast.ExprID, local bool) types.TypeID {
+	// enforceSpawn below already scans this expression, including an async
+	// block's body. Marking it stops the block from asking for the same scan and
+	// reporting everything twice.
+	prevSpawnOperand := tc.spawnOperand
+	tc.spawnOperand = value
 	exprType := tc.typeExpr(value)
+	tc.spawnOperand = prevSpawnOperand
 	tc.observeMove(value, tc.exprSpan(value))
 	tc.enforceSpawn(value, local)
 
