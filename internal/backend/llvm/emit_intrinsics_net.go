@@ -170,7 +170,10 @@ func (fe *funcEmitter) emitNetWriteBytes(call *mir.CallInstr) error {
 	if err != nil {
 		return err
 	}
-	offset64, err := fe.emitUintOperandToI64(&call.Args[2], "net write length out of range")
+	// This operand is the offset, and calling it a length told the reader the
+	// wrong thing about which of the two arguments it had to look at. The VM
+	// names it the offset.
+	offset64, err := fe.emitUintOperandToI64(&call.Args[2], "net write offset out of range")
 	if err != nil {
 		return err
 	}

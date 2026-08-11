@@ -1,0 +1,5 @@
+panic VM3202: seek whence out of range
+at testdata/golden/vm_intrinsics/fs_seek_whence_panics.sg:10:21
+backtrace:
+  0: main at testdata/golden/vm_intrinsics/fs_seek_whence_panics.sg:10:21
+  1: __surge_start at <no-span>

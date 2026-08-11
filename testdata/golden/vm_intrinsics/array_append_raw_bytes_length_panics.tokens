@@ -1,0 +1,47 @@
+  1: At              "@" at 5:1-5:2 (leading: LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline)
+  2: Ident           "entrypoint" at 5:2-5:12
+  3: KwFn            "fn" at 6:1-6:3 (leading: Newline)
+  4: Ident           "main" at 6:4-6:8 (leading: Space)
+  5: LParen          "(" at 6:8-6:9
+  6: RParen          ")" at 6:9-6:10
+  7: Arrow           "->" at 6:11-6:13 (leading: Space)
+  8: Ident           "int" at 6:14-6:17 (leading: Space)
+  9: LBrace          "{" at 6:18-6:19 (leading: Space)
+ 10: KwLet           "let" at 7:5-7:8 (leading: Newline, Space)
+ 11: Ident           "s" at 7:9-7:10 (leading: Space)
+ 12: Assign          "=" at 7:11-7:12 (leading: Space)
+ 13: StringLit       "\"hi\"" at 7:13-7:17 (leading: Space)
+ 14: Semicolon       ";" at 7:17-7:18
+ 15: KwLet           "let" at 8:5-8:8 (leading: Newline, Space)
+ 16: KwMut           "mut" at 8:9-8:12 (leading: Space)
+ 17: Ident           "a" at 8:13-8:14 (leading: Space)
+ 18: Colon           ":" at 8:14-8:15
+ 19: Ident           "byte" at 8:16-8:20 (leading: Space)
+ 20: LBracket        "[" at 8:20-8:21
+ 21: RBracket        "]" at 8:21-8:22
+ 22: Assign          "=" at 8:23-8:24 (leading: Space)
+ 23: LBracket        "[" at 8:25-8:26 (leading: Space)
+ 24: RBracket        "]" at 8:26-8:27
+ 25: Semicolon       ";" at 8:27-8:28
+ 26: Ident           "rt_array_append_raw_bytes" at 9:5-9:30 (leading: Newline, Space)
+ 27: LParen          "(" at 9:30-9:31
+ 28: Amp             "&" at 9:31-9:32
+ 29: KwMut           "mut" at 9:32-9:35
+ 30: Ident           "a" at 9:36-9:37 (leading: Space)
+ 31: Comma           "," at 9:37-9:38
+ 32: Ident           "rt_string_ptr" at 9:39-9:52 (leading: Space)
+ 33: LParen          "(" at 9:52-9:53
+ 34: Amp             "&" at 9:53-9:54
+ 35: Ident           "s" at 9:54-9:55
+ 36: RParen          ")" at 9:55-9:56
+ 37: Comma           "," at 9:56-9:57
+ 38: IntLit          "18446744073709551615" at 9:58-9:78 (leading: Space)
+ 39: Colon           ":" at 9:78-9:79
+ 40: Ident           "uint64" at 9:79-9:85
+ 41: RParen          ")" at 9:85-9:86
+ 42: Semicolon       ";" at 9:86-9:87
+ 43: KwReturn        "return" at 10:5-10:11 (leading: Newline, Space)
+ 44: IntLit          "0" at 10:12-10:13 (leading: Space)
+ 45: Semicolon       ";" at 10:13-10:14
+ 46: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 47: EOF             at 12:1-12:1

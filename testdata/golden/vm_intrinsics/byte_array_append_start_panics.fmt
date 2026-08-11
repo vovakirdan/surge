@@ -1,0 +1,9 @@
+// The start operand does not fit in a signed word. Both backends refuse it
+// before the copy, and this fixture holds them to the same sentence.
+@entrypoint
+fn main() -> int {
+    let src: byte[] = [1:byte, 2:byte];
+    let mut dst: byte[] = [];
+    rt_byte_array_append_range(&mut dst, &src, 18446744073709551615:uint64, 0:uint64);
+    return 0;
+}

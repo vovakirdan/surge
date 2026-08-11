@@ -18,11 +18,14 @@ func (fe *funcEmitter) emitByteArrayAppendRange(call *mir.CallInstr) error {
 	if err != nil {
 		return err
 	}
-	start64, err := fe.emitUintOperandToI64(&call.Args[2], "byte range start out of range")
+	// The wording is the VM's wording, not a paraphrase of it. Both backends
+	// refuse the same operand here, and a reader comparing the two runs should
+	// see one sentence, not two that have to be recognised as the same report.
+	start64, err := fe.emitUintOperandToI64(&call.Args[2], "byte array append start out of range")
 	if err != nil {
 		return err
 	}
-	len64, err := fe.emitUintOperandToI64(&call.Args[3], "byte range length out of range")
+	len64, err := fe.emitUintOperandToI64(&call.Args[3], "byte array append length out of range")
 	if err != nil {
 		return err
 	}
@@ -38,7 +41,7 @@ func (fe *funcEmitter) emitByteArrayDropPrefix(call *mir.CallInstr) error {
 	if err != nil {
 		return err
 	}
-	count64, err := fe.emitUintOperandToI64(&call.Args[1], "byte drop count out of range")
+	count64, err := fe.emitUintOperandToI64(&call.Args[1], "byte array drop prefix count out of range")
 	if err != nil {
 		return err
 	}

@@ -1,0 +1,21 @@
+// The seek offset does not fit in a signed word. The file is opened for real,
+// because both backends check the handle before they look at the offset, so a
+// closed handle would test a different refusal. If the open fails the program
+// prints instead of panicking, and the recorded output stops matching -- the
+// fixture fails loudly rather than passing on the wrong path.
+@entrypoint
+fn main() -> int {
+    let path = "core/intrinsics.sg";
+    let opened = rt_fs_open(&path, FS_O::READ);
+    compare opened {
+        Success(file) => {
+            let _ = rt_fs_seek(&file, 99999999999999999999999999:int, SeekWhences::Start);
+            0:int;
+        }
+        err => {
+            print("open failed");
+            0:int;
+        }
+    };
+    return 0;
+}

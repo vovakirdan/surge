@@ -1,0 +1,9 @@
+// The length operand does not fit in a signed word. The start is in range, so
+// the report has to name the length and not the start.
+@entrypoint
+fn main() -> int {
+    let src: byte[] = [1:byte, 2:byte];
+    let mut dst: byte[] = [];
+    rt_byte_array_append_range(&mut dst, &src, 0:uint64, 18446744073709551615:uint64);
+    return 0;
+}

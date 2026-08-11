@@ -1,0 +1,7 @@
+// The prefix count does not fit in a signed word.
+@entrypoint
+fn main() -> int {
+    let mut a: byte[] = [1:byte, 2:byte];
+    rt_byte_array_drop_prefix(&mut a, 18446744073709551615:uint64);
+    return 0;
+}

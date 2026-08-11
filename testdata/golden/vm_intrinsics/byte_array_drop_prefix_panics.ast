@@ -1,0 +1,16 @@
+byte_array_drop_prefix_panics.sg (span: 2:1-8:1)
+└─ Item[0]: Fn (span: 2:1-7:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:18-7:2)
+         ├─ Stmt[0]: Let (span: 4:5-4:42)
+         │  ├─ Name: a
+         │  ├─ Mutable: true
+         │  ├─ Type: byte[]
+         │  └─ Value: expr#5: <ExprKind(8)>
+         ├─ Stmt[1]: Expr (span: 5:5-5:68)
+         │  └─ Expr: expr#11: rt_byte_array_drop_prefix(&mut a, 18446744073709551615 to uint64)
+         └─ Stmt[2]: Return (span: 6:5-6:14)
+            └─ Expr: expr#12: 0

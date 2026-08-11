@@ -1,0 +1,78 @@
+  1: At              "@" at 6:1-6:2 (leading: LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline)
+  2: Ident           "entrypoint" at 6:2-6:12
+  3: KwFn            "fn" at 7:1-7:3 (leading: Newline)
+  4: Ident           "main" at 7:4-7:8 (leading: Space)
+  5: LParen          "(" at 7:8-7:9
+  6: RParen          ")" at 7:9-7:10
+  7: Arrow           "->" at 7:11-7:13 (leading: Space)
+  8: Ident           "int" at 7:14-7:17 (leading: Space)
+  9: LBrace          "{" at 7:18-7:19 (leading: Space)
+ 10: KwLet           "let" at 8:5-8:8 (leading: Newline, Space)
+ 11: Ident           "path" at 8:9-8:13 (leading: Space)
+ 12: Assign          "=" at 8:14-8:15 (leading: Space)
+ 13: StringLit       "\"core/intrinsics.sg\"" at 8:16-8:36 (leading: Space)
+ 14: Semicolon       ";" at 8:36-8:37
+ 15: KwLet           "let" at 9:5-9:8 (leading: Newline, Space)
+ 16: Ident           "opened" at 9:9-9:15 (leading: Space)
+ 17: Assign          "=" at 9:16-9:17 (leading: Space)
+ 18: Ident           "rt_fs_open" at 9:18-9:28 (leading: Space)
+ 19: LParen          "(" at 9:28-9:29
+ 20: Amp             "&" at 9:29-9:30
+ 21: Ident           "path" at 9:30-9:34
+ 22: Comma           "," at 9:34-9:35
+ 23: Ident           "FS_O" at 9:36-9:40 (leading: Space)
+ 24: ColonColon      "::" at 9:40-9:42
+ 25: Ident           "READ" at 9:42-9:46
+ 26: RParen          ")" at 9:46-9:47
+ 27: Semicolon       ";" at 9:47-9:48
+ 28: KwCompare       "compare" at 10:5-10:12 (leading: Newline, Space)
+ 29: Ident           "opened" at 10:13-10:19 (leading: Space)
+ 30: LBrace          "{" at 10:20-10:21 (leading: Space)
+ 31: Ident           "Success" at 11:9-11:16 (leading: Newline, Space)
+ 32: LParen          "(" at 11:16-11:17
+ 33: Ident           "file" at 11:17-11:21
+ 34: RParen          ")" at 11:21-11:22
+ 35: FatArrow        "=>" at 11:23-11:25 (leading: Space)
+ 36: LBrace          "{" at 11:26-11:27 (leading: Space)
+ 37: KwLet           "let" at 12:13-12:16 (leading: Newline, Space)
+ 38: Underscore      "_" at 12:17-12:18 (leading: Space)
+ 39: Assign          "=" at 12:19-12:20 (leading: Space)
+ 40: Ident           "rt_fs_seek" at 12:21-12:31 (leading: Space)
+ 41: LParen          "(" at 12:31-12:32
+ 42: Amp             "&" at 12:32-12:33
+ 43: Ident           "file" at 12:33-12:37
+ 44: Comma           "," at 12:37-12:38
+ 45: IntLit          "99999999999999999999999999" at 12:39-12:65 (leading: Space)
+ 46: Colon           ":" at 12:65-12:66
+ 47: Ident           "int" at 12:66-12:69
+ 48: Comma           "," at 12:69-12:70
+ 49: Ident           "SeekWhences" at 12:71-12:82 (leading: Space)
+ 50: ColonColon      "::" at 12:82-12:84
+ 51: Ident           "Start" at 12:84-12:89
+ 52: RParen          ")" at 12:89-12:90
+ 53: Semicolon       ";" at 12:90-12:91
+ 54: IntLit          "0" at 13:13-13:14 (leading: Newline, Space)
+ 55: Colon           ":" at 13:14-13:15
+ 56: Ident           "int" at 13:15-13:18
+ 57: Semicolon       ";" at 13:18-13:19
+ 58: RBrace          "}" at 14:9-14:10 (leading: Newline, Space)
+ 59: Ident           "err" at 15:9-15:12 (leading: Newline, Space)
+ 60: FatArrow        "=>" at 15:13-15:15 (leading: Space)
+ 61: LBrace          "{" at 15:16-15:17 (leading: Space)
+ 62: Ident           "print" at 16:13-16:18 (leading: Newline, Space)
+ 63: LParen          "(" at 16:18-16:19
+ 64: StringLit       "\"open failed\"" at 16:19-16:32
+ 65: RParen          ")" at 16:32-16:33
+ 66: Semicolon       ";" at 16:33-16:34
+ 67: IntLit          "0" at 17:13-17:14 (leading: Newline, Space)
+ 68: Colon           ":" at 17:14-17:15
+ 69: Ident           "int" at 17:15-17:18
+ 70: Semicolon       ";" at 17:18-17:19
+ 71: RBrace          "}" at 18:9-18:10 (leading: Newline, Space)
+ 72: RBrace          "}" at 19:5-19:6 (leading: Newline, Space)
+ 73: Semicolon       ";" at 19:6-19:7
+ 74: KwReturn        "return" at 20:5-20:11 (leading: Newline, Space)
+ 75: IntLit          "0" at 20:12-20:13 (leading: Space)
+ 76: Semicolon       ";" at 20:13-20:14
+ 77: RBrace          "}" at 21:1-21:2 (leading: Newline)
+ 78: EOF             at 22:1-22:1

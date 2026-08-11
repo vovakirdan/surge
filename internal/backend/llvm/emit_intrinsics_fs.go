@@ -119,11 +119,14 @@ func (fe *funcEmitter) emitFsSeek(call *mir.CallInstr) error {
 	if err != nil {
 		return err
 	}
-	offset64, err := fe.emitIntOperandToI64(&call.Args[1], "fs seek offset out of range")
+	// No "fs " prefix: the VM names these two operands "seek offset" and "seek
+	// whence", and the prefix was the only thing that made the same refusal read
+	// as two different reports.
+	offset64, err := fe.emitIntOperandToI64(&call.Args[1], "seek offset out of range")
 	if err != nil {
 		return err
 	}
-	whence64, err := fe.emitIntOperandToI64(&call.Args[2], "fs seek whence out of range")
+	whence64, err := fe.emitIntOperandToI64(&call.Args[2], "seek whence out of range")
 	if err != nil {
 		return err
 	}

@@ -1,0 +1,11 @@
+// The append length does not fit in a signed word. The native runtime used to
+// carry this operand all the way into the growth path and report a capacity
+// nobody asked for; the refusal belongs to the argument, and both backends now
+// say so in the same words.
+@entrypoint
+fn main() -> int {
+    let s = "hi";
+    let mut a: byte[] = [];
+    rt_array_append_raw_bytes(&mut a, rt_string_ptr(&s), 18446744073709551615:uint64);
+    return 0;
+}

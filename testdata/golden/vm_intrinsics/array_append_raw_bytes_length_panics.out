@@ -1,0 +1,5 @@
+panic VM3202: array append length out of range
+at testdata/golden/vm_intrinsics/array_append_raw_bytes_length_panics.sg:9:58
+backtrace:
+  0: main at testdata/golden/vm_intrinsics/array_append_raw_bytes_length_panics.sg:9:58
+  1: __surge_start at <no-span>

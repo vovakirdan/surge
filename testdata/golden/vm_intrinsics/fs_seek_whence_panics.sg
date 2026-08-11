@@ -1,0 +1,19 @@
+// The seek whence does not fit in a signed word. SeekWhence is an alias for
+// int, so an out-of-range whence is a value the type system allows and the
+// backends have to refuse identically.
+@entrypoint
+fn main() -> int {
+    let path = "core/intrinsics.sg";
+    let opened = rt_fs_open(&path, FS_O::READ);
+    compare opened {
+        Success(file) => {
+            let _ = rt_fs_seek(&file, 0:int, 99999999999999999999999999:SeekWhence);
+            0:int;
+        }
+        err => {
+            print("open failed");
+            0:int;
+        }
+    };
+    return 0;
+}

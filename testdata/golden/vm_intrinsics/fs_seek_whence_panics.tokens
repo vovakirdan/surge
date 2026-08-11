@@ -1,0 +1,78 @@
+  1: At              "@" at 4:1-4:2 (leading: LineComment, Newline, LineComment, Newline, LineComment, Newline)
+  2: Ident           "entrypoint" at 4:2-4:12
+  3: KwFn            "fn" at 5:1-5:3 (leading: Newline)
+  4: Ident           "main" at 5:4-5:8 (leading: Space)
+  5: LParen          "(" at 5:8-5:9
+  6: RParen          ")" at 5:9-5:10
+  7: Arrow           "->" at 5:11-5:13 (leading: Space)
+  8: Ident           "int" at 5:14-5:17 (leading: Space)
+  9: LBrace          "{" at 5:18-5:19 (leading: Space)
+ 10: KwLet           "let" at 6:5-6:8 (leading: Newline, Space)
+ 11: Ident           "path" at 6:9-6:13 (leading: Space)
+ 12: Assign          "=" at 6:14-6:15 (leading: Space)
+ 13: StringLit       "\"core/intrinsics.sg\"" at 6:16-6:36 (leading: Space)
+ 14: Semicolon       ";" at 6:36-6:37
+ 15: KwLet           "let" at 7:5-7:8 (leading: Newline, Space)
+ 16: Ident           "opened" at 7:9-7:15 (leading: Space)
+ 17: Assign          "=" at 7:16-7:17 (leading: Space)
+ 18: Ident           "rt_fs_open" at 7:18-7:28 (leading: Space)
+ 19: LParen          "(" at 7:28-7:29
+ 20: Amp             "&" at 7:29-7:30
+ 21: Ident           "path" at 7:30-7:34
+ 22: Comma           "," at 7:34-7:35
+ 23: Ident           "FS_O" at 7:36-7:40 (leading: Space)
+ 24: ColonColon      "::" at 7:40-7:42
+ 25: Ident           "READ" at 7:42-7:46
+ 26: RParen          ")" at 7:46-7:47
+ 27: Semicolon       ";" at 7:47-7:48
+ 28: KwCompare       "compare" at 8:5-8:12 (leading: Newline, Space)
+ 29: Ident           "opened" at 8:13-8:19 (leading: Space)
+ 30: LBrace          "{" at 8:20-8:21 (leading: Space)
+ 31: Ident           "Success" at 9:9-9:16 (leading: Newline, Space)
+ 32: LParen          "(" at 9:16-9:17
+ 33: Ident           "file" at 9:17-9:21
+ 34: RParen          ")" at 9:21-9:22
+ 35: FatArrow        "=>" at 9:23-9:25 (leading: Space)
+ 36: LBrace          "{" at 9:26-9:27 (leading: Space)
+ 37: KwLet           "let" at 10:13-10:16 (leading: Newline, Space)
+ 38: Underscore      "_" at 10:17-10:18 (leading: Space)
+ 39: Assign          "=" at 10:19-10:20 (leading: Space)
+ 40: Ident           "rt_fs_seek" at 10:21-10:31 (leading: Space)
+ 41: LParen          "(" at 10:31-10:32
+ 42: Amp             "&" at 10:32-10:33
+ 43: Ident           "file" at 10:33-10:37
+ 44: Comma           "," at 10:37-10:38
+ 45: IntLit          "0" at 10:39-10:40 (leading: Space)
+ 46: Colon           ":" at 10:40-10:41
+ 47: Ident           "int" at 10:41-10:44
+ 48: Comma           "," at 10:44-10:45
+ 49: IntLit          "99999999999999999999999999" at 10:46-10:72 (leading: Space)
+ 50: Colon           ":" at 10:72-10:73
+ 51: Ident           "SeekWhence" at 10:73-10:83
+ 52: RParen          ")" at 10:83-10:84
+ 53: Semicolon       ";" at 10:84-10:85
+ 54: IntLit          "0" at 11:13-11:14 (leading: Newline, Space)
+ 55: Colon           ":" at 11:14-11:15
+ 56: Ident           "int" at 11:15-11:18
+ 57: Semicolon       ";" at 11:18-11:19
+ 58: RBrace          "}" at 12:9-12:10 (leading: Newline, Space)
+ 59: Ident           "err" at 13:9-13:12 (leading: Newline, Space)
+ 60: FatArrow        "=>" at 13:13-13:15 (leading: Space)
+ 61: LBrace          "{" at 13:16-13:17 (leading: Space)
+ 62: Ident           "print" at 14:13-14:18 (leading: Newline, Space)
+ 63: LParen          "(" at 14:18-14:19
+ 64: StringLit       "\"open failed\"" at 14:19-14:32
+ 65: RParen          ")" at 14:32-14:33
+ 66: Semicolon       ";" at 14:33-14:34
+ 67: IntLit          "0" at 15:13-15:14 (leading: Newline, Space)
+ 68: Colon           ":" at 15:14-15:15
+ 69: Ident           "int" at 15:15-15:18
+ 70: Semicolon       ";" at 15:18-15:19
+ 71: RBrace          "}" at 16:9-16:10 (leading: Newline, Space)
+ 72: RBrace          "}" at 17:5-17:6 (leading: Newline, Space)
+ 73: Semicolon       ";" at 17:6-17:7
+ 74: KwReturn        "return" at 18:5-18:11 (leading: Newline, Space)
+ 75: IntLit          "0" at 18:12-18:13 (leading: Space)
+ 76: Semicolon       ";" at 18:13-18:14
+ 77: RBrace          "}" at 19:1-19:2 (leading: Newline)
+ 78: EOF             at 20:1-20:1

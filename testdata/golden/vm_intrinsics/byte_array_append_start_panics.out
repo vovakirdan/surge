@@ -1,0 +1,5 @@
+panic VM3202: byte array append start out of range
+at testdata/golden/vm_intrinsics/byte_array_append_start_panics.sg:7:77
+backtrace:
+  0: main at testdata/golden/vm_intrinsics/byte_array_append_start_panics.sg:7:77
+  1: __surge_start at <no-span>

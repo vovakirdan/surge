@@ -1,0 +1,5 @@
+panic VM3202: byte array drop prefix count out of range
+at testdata/golden/vm_intrinsics/byte_array_drop_prefix_panics.sg:5:39
+backtrace:
+  0: main at testdata/golden/vm_intrinsics/byte_array_drop_prefix_panics.sg:5:39
+  1: __surge_start at <no-span>

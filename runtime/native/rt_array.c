@@ -334,6 +334,16 @@ void* rt_array_slice_fixed(void* elems, void* r, uint64_t length, uint64_t elem_
 }
 
 void rt_array_append_raw_bytes(void* array_slot, const uint8_t* src, uint64_t len) {
+    // The VM refuses a length it cannot hold in a signed word before it looks at
+    // the array at all, and names the operand. Without this the same call
+    // reached the growth path and reported a capacity it was never asked for, so
+    // one condition had two sentences. The check goes first for the same reason
+    // it is first in the VM: it is a fact about the argument, not about the
+    // array.
+    if (len > (uint64_t)INT64_MAX) {
+        array_panic("array append length out of range");
+        return;
+    }
     if (len == 0) {
         return;
     }
