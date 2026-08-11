@@ -1,0 +1,15 @@
+// An arbitrary-precision shift whose COUNT is larger than a 32-bit int.
+//
+// Pinned on the VM only, on purpose: the two backends disagree here today.
+// Native bounds the count by C's INT_MAX and panics; the VM bounds it by a
+// 64-bit int and answers. Recording the VM's answer stops that half drifting
+// while the disagreement is settled, and the .backends sidecar says out loud
+// that the other half is not being checked rather than letting a green lane
+// imply it.
+@entrypoint
+fn main() -> int {
+    let a: int = 12345;
+    let count: int = 100000000000;
+    print((a >> count) to string);
+    return 0;
+}

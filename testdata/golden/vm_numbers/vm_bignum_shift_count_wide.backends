@@ -1,0 +1,7 @@
+# vm only. The native backend bounds an arbitrary-precision shift count by C's
+# INT_MAX and panics VM1101 where the VM answers 0. That divergence is tracked
+# in the debt ledger; running this fixture on llvm would record the divergence
+# as expected behaviour, and running it as a parity check would turn the lane
+# red for a defect that is already written down. Delete this file when the two
+# backends agree, and the fixture becomes an ordinary parity check.
+vm

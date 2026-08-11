@@ -1,0 +1,21 @@
+vm_bignum_shift_count_wide.sg (span: 9:1-16:1)
+└─ Item[0]: Fn (span: 9:1-15:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 10:18-15:2)
+         ├─ Stmt[0]: Let (span: 11:5-11:24)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#1: 12345
+         ├─ Stmt[1]: Let (span: 12:5-12:35)
+         │  ├─ Name: count
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#2: 100000000000
+         ├─ Stmt[2]: Expr (span: 13:5-13:35)
+         │  └─ Expr: expr#9: print(((a >> count)) to string)
+         └─ Stmt[3]: Return (span: 14:5-14:14)
+            └─ Expr: expr#10: 0
