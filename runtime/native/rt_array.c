@@ -44,8 +44,40 @@ SurgeArrayHeader* rt_array_unlink_view_locked(const SurgeArrayHeader* view,
     return NULL;
 }
 
+// Raises under VM3202, which is what a failed numeric CONVERSION is. Every
+// array condition that reaches this one really is a size or a count that will
+// not fit; a condition that is something else names its own code below, or the
+// two backends report one situation under two codes.
+//
+// NULL span: a panic raised inside the runtime has no source location to give,
+// and the reporter prints no location line for one.
 static void array_panic(const char* msg) {
     rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg), NULL, 0);
+}
+
+// Resizing a view is a type error, not a conversion: the VM answers VM1003 for
+// it from arrayOwnedFromValue, and so does the emitter's own resize guard. The
+// runtime is the third place the same condition is raised and it was the last
+// one still calling itself a bad conversion.
+static void array_panic_view_not_resizable(void) {
+    static const char code[] = "VM1003";
+    static const char msg[] = "array view is not resizable";
+    rt_panic_code((const uint8_t*)code,
+                  (uint64_t)(sizeof(code) - 1),
+                  (const uint8_t*)msg,
+                  (uint64_t)(sizeof(msg) - 1),
+                  NULL,
+                  0);
+}
+
+// An index past the end is the bounds report, not a conversion. Routing it
+// through rt_panic_bounds rather than naming VM1004 by hand is what makes the
+// text the VM's text as well as the code: the VM answers these two conditions
+// with outOfBounds(index, length), which renders the same sentence.
+static void array_panic_out_of_bounds(uint64_t index, uint64_t length) {
+    int64_t idx = index > (uint64_t)INT64_MAX ? INT64_MAX : (int64_t)index;
+    int64_t len = length > (uint64_t)INT64_MAX ? INT64_MAX : (int64_t)length;
+    rt_panic_bounds(0, idx, len, NULL, 0);
 }
 
 static uint64_t array_grow_cap(uint64_t current, uint64_t min_cap) {
@@ -316,7 +348,7 @@ void rt_array_append_raw_bytes(void* array_slot, const uint8_t* src, uint64_t le
         return;
     }
     if (array_is_view(header)) {
-        array_panic("array view is not resizable");
+        array_panic_view_not_resizable();
         return;
     }
     if (len > UINT64_MAX - header->len) {
@@ -378,7 +410,11 @@ void rt_byte_array_append_range(void* dst_slot,
 
     const SurgeArrayHeader* src = (const SurgeArrayHeader*)src_array;
     if (start > src->len || len > src->len - start) {
-        array_panic("byte array append range out of range");
+        // The VM reports the END of the requested run against the source
+        // length, so this reports the end too rather than whichever half of
+        // the condition tripped.
+        uint64_t end = start > UINT64_MAX - len ? UINT64_MAX : start + len;
+        array_panic_out_of_bounds(end, src->len);
         return;
     }
     if (len == 0) {
@@ -406,11 +442,11 @@ void rt_byte_array_drop_prefix(void* array_slot, uint64_t count) {
         return;
     }
     if (array_is_view(header)) {
-        array_panic("array view is not resizable");
+        array_panic_view_not_resizable();
         return;
     }
     if (count > header->len) {
-        array_panic("byte array drop prefix out of range");
+        array_panic_out_of_bounds(count, header->len);
         return;
     }
     if (count == header->len) {
