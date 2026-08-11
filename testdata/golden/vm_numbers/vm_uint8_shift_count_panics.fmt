@@ -1,0 +1,10 @@
+// The count guard on the UNSIGNED lane. Its signed twin is
+// vm_int8_shift_count_panics; the two lanes reach the guard through different
+// code, and a width table that is right for one can be wrong for the other.
+@entrypoint
+fn main() -> int {
+    let a: uint8 = 1;
+    let b: uint8 = 8;
+    let _ = a << b;
+    return 0;
+}

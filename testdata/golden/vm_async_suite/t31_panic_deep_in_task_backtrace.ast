@@ -1,0 +1,58 @@
+t31_panic_deep_in_task_backtrace.sg (span: 10:1-37:1)
+├─ Item[0]: Fn (span: 10:1-12:2)
+│  ├─ Name: level3
+│  ├─ Params: (a: int[])
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 10:28-12:2)
+│        └─ Stmt[0]: Return (span: 11:5-11:17)
+│           └─ Expr: expr#3: a[9]
+├─ Item[1]: Fn (span: 14:1-16:2)
+│  ├─ Name: level2
+│  ├─ Params: (a: int[])
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 14:28-16:2)
+│        └─ Stmt[0]: Return (span: 15:5-15:22)
+│           └─ Expr: expr#6: level3(a)
+├─ Item[2]: Fn (span: 18:1-20:2)
+│  ├─ Name: level1
+│  ├─ Params: (a: int[])
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 18:28-20:2)
+│        └─ Stmt[0]: Return (span: 19:5-19:22)
+│           └─ Expr: expr#9: level2(a)
+├─ Item[3]: Fn (span: 22:1-24:2)
+│  ├─ Name: inner
+│  ├─ Params: (a: int[])
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 22:33-24:2)
+│        └─ Stmt[0]: Return (span: 23:5-23:22)
+│           └─ Expr: expr#12: level1(a)
+└─ Item[4]: Fn (span: 26:1-36:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 27:18-36:2)
+         ├─ Stmt[0]: Let (span: 28:5-28:31)
+         │  ├─ Name: xs
+         │  ├─ Mutable: false
+         │  ├─ Type: int[]
+         │  └─ Value: expr#16: <ExprKind(8)>
+         ├─ Stmt[1]: Let (span: 29:5-29:29)
+         │  ├─ Name: t
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#20: spawn inner(xs)
+         ├─ Stmt[2]: Let (span: 30:5-30:23)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#23: t.await()
+         ├─ Stmt[3]: Expr (span: 31:5-34:7)
+         │  └─ Expr: expr#37: compare r { 2 arms }
+         └─ Stmt[4]: Return (span: 35:5-35:14)
+            └─ Expr: expr#38: 0

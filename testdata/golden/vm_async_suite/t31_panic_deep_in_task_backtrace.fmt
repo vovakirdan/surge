@@ -1,0 +1,36 @@
+// A DEEP call chain inside a spawned task.
+//
+// t30_panic_in_task_backtrace beside this one has exactly two frames: the
+// function that panicked and the task's poll entry. Two frames cannot tell a
+// walk that stops at the task boundary apart from one that stops after one
+// frame, or from one that reads the boundary off a fixed offset. This fixture
+// puts three ordinary frames between the panic and the poll entry, so the walk
+// has to carry a real chain and then still end at `inner$poll` rather than
+// running on into the worker that happened to be polling it.
+fn level3(a: int[]) -> int {
+    return a[9];
+}
+
+fn level2(a: int[]) -> int {
+    return level3(a);
+}
+
+fn level1(a: int[]) -> int {
+    return level2(a);
+}
+
+async fn inner(a: int[]) -> int {
+    return level1(a);
+}
+
+@entrypoint
+fn main() -> int {
+    let xs: int[] = [1, 2, 3];
+    let t = spawn inner(xs);
+    let r = t.await();
+    compare r {
+        Success(v) => print(v to string);
+        Cancelled() => print("cancelled");
+    };
+    return 0;
+}

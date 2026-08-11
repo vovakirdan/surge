@@ -1,0 +1,24 @@
+string_index_out_of_bounds_panics.sg (span: 9:1-16:1)
+└─ Item[0]: Fn (span: 9:1-15:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 10:18-15:2)
+         ├─ Stmt[0]: Let (span: 11:5-11:27)
+         │  ├─ Name: s
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#1: "abc"
+         ├─ Stmt[1]: Let (span: 12:5-12:20)
+         │  ├─ Name: i
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#2: 7
+         ├─ Stmt[2]: Let (span: 13:5-13:18)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#5: s[i]
+         └─ Stmt[3]: Return (span: 14:5-14:14)
+            └─ Expr: expr#6: 0

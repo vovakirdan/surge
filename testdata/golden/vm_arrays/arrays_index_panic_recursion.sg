@@ -1,0 +1,21 @@
+// A panic reached through RECURSION, so the same function name appears in the
+// backtrace several times at three different call rows.
+//
+// arrays_index_panic_call_chain already walks four frames, but every one of
+// them is a different function, which a walker that keyed frames by function
+// - or that suppressed a repeat as a cycle - would still print correctly.
+// Recursion is the shape that tells those apart: the frames must all be there,
+// in order, and the two recursive rows must name the CALL site inside `down`
+// while the innermost row names the index expression.
+fn down(a: int[], n: int) -> int {
+    if n == 0 {
+        return a[9];
+    }
+    return down(a, n - 1);
+}
+
+@entrypoint
+fn main() -> int {
+    let xs: int[] = [1, 2, 3];
+    return down(xs, 2);
+}

@@ -1,0 +1,19 @@
+vm_int64_neg_overflow_panics.sg (span: 5:1-11:1)
+└─ Item[0]: Fn (span: 5:1-10:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 6:18-10:2)
+         ├─ Stmt[0]: Let (span: 7:5-7:41)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: int64
+         │  └─ Value: expr#2: -9223372036854775808
+         ├─ Stmt[1]: Let (span: 8:5-8:16)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#4: -a
+         └─ Stmt[2]: Return (span: 9:5-9:14)
+            └─ Expr: expr#5: 0

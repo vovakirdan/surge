@@ -1,0 +1,91 @@
+// The shift and negation edges that do NOT panic, at every width and both
+// signednesses. The panic fixtures beside this one pin where the guards fire;
+// this pins where they must stay silent, which is the half a too-eager guard
+// breaks. Three shapes carry most of the risk: a count of zero (the guard must
+// not treat "no shift" as a shift), a count of width-1 (the largest legal one,
+// one step from the count guard), and a right shift of a negative value (an
+// arithmetic shift keeps the sign; a logical one would answer a huge number).
+@entrypoint
+fn main() -> int {
+    // A count of zero is the identity at every width.
+    let z8: int8 = -128;
+    let zc8: int8 = 0;
+    print((z8 << zc8) to string);
+    print((z8 >> zc8) to string);
+
+    let zu64: uint64 = 18446744073709551615;
+    let zc64: uint64 = 0;
+    print((zu64 >> zc64) to string);
+
+    // The largest count that still fits: width-2 for a signed value (one more
+    // would set the sign bit and overflow), width-1 for an unsigned one.
+    let one8: int8 = 1;
+    let w8: int8 = 6;
+    print((one8 << w8) to string);
+
+    let one16: int16 = 1;
+    let w16: int16 = 14;
+    print((one16 << w16) to string);
+
+    let one32: int32 = 1;
+    let w32: int32 = 30;
+    print((one32 << w32) to string);
+
+    let one64: int64 = 1;
+    let w64: int64 = 62;
+    print((one64 << w64) to string);
+
+    let u8one: uint8 = 1;
+    let u8w: uint8 = 7;
+    print((u8one << u8w) to string);
+
+    let u16one: uint16 = 1;
+    let u16w: uint16 = 15;
+    print((u16one << u16w) to string);
+
+    let u32one: uint32 = 1;
+    let u32w: uint32 = 31;
+    print((u32one << u32w) to string);
+
+    let u64one: uint64 = 1;
+    let u64w: uint64 = 63;
+    print((u64one << u64w) to string);
+
+    // A right shift of a negative value keeps the sign.
+    let neg8: int8 = -8;
+    let two8: int8 = 2;
+    print((neg8 >> two8) to string);
+
+    let neg16: int16 = -32768;
+    let one16b: int16 = 1;
+    print((neg16 >> one16b) to string);
+
+    let neg32: int32 = -2147483648;
+    let one32b: int32 = 1;
+    print((neg32 >> one32b) to string);
+
+    let neg64: int64 = -9223372036854775808;
+    let one64b: int64 = 1;
+    print((neg64 >> one64b) to string);
+
+    // A right shift that runs the value out entirely.
+    let full8: int8 = -1;
+    let seven8: int8 = 7;
+    print((full8 >> seven8) to string);
+
+    // Negating MAX is legal at every width; negating MIN is the panic fixture.
+    let max8: int8 = 127;
+    print((-max8) to string);
+
+    let max16: int16 = 32767;
+    print((-max16) to string);
+
+    let max64: int64 = 9223372036854775807;
+    print((-max64) to string);
+
+    // Negating zero answers zero rather than a signed zero.
+    let zero32: int32 = 0;
+    print((-zero32) to string);
+
+    return 0;
+}

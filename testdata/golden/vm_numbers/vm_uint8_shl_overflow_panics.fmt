@@ -1,0 +1,11 @@
+// A left shift that overflows on the UNSIGNED lane. Its signed twin,
+// vm_int8_shl_overflow_panics, overflows by reaching the sign bit; an
+// unsigned value has no sign bit to reach, so the only thing that can catch
+// this one is the width check on the result.
+@entrypoint
+fn main() -> int {
+    let a: uint8 = 128;
+    let b: uint8 = 1;
+    let _ = a << b;
+    return 0;
+}

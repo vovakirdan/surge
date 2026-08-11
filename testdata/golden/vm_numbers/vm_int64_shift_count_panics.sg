@@ -1,0 +1,12 @@
+// The count guard at the WIDEST width. int8 already pins the guard's shape;
+// 64 is where it matters most, because a shift by the full register width is
+// the case a host instruction answers with an undefined result rather than a
+// wrapped one, so a missing guard here does not merely give a wrong number,
+// it gives a different wrong number per machine.
+@entrypoint
+fn main() -> int {
+    let a: int64 = 1;
+    let b: int64 = 64;
+    let _ = a << b;
+    return 0;
+}

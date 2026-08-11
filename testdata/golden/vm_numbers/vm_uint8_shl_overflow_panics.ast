@@ -1,0 +1,24 @@
+vm_uint8_shl_overflow_panics.sg (span: 5:1-12:1)
+└─ Item[0]: Fn (span: 5:1-11:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 6:18-11:2)
+         ├─ Stmt[0]: Let (span: 7:5-7:24)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: uint8
+         │  └─ Value: expr#1: 128
+         ├─ Stmt[1]: Let (span: 8:5-8:22)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: uint8
+         │  └─ Value: expr#2: 1
+         ├─ Stmt[2]: Let (span: 9:5-9:20)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#5: (a << b)
+         └─ Stmt[3]: Return (span: 10:5-10:14)
+            └─ Expr: expr#6: 0

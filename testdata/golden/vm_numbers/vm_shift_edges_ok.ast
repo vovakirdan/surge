@@ -1,0 +1,219 @@
+vm_shift_edges_ok.sg (span: 8:1-92:1)
+└─ Item[0]: Fn (span: 8:1-91:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 9:18-91:2)
+         ├─ Stmt[0]: Let (span: 11:5-11:25)
+         │  ├─ Name: z8
+         │  ├─ Mutable: false
+         │  ├─ Type: int8
+         │  └─ Value: expr#2: -128
+         ├─ Stmt[1]: Let (span: 12:5-12:23)
+         │  ├─ Name: zc8
+         │  ├─ Mutable: false
+         │  ├─ Type: int8
+         │  └─ Value: expr#3: 0
+         ├─ Stmt[2]: Expr (span: 13:5-13:34)
+         │  └─ Expr: expr#10: print(((z8 << zc8)) to string)
+         ├─ Stmt[3]: Expr (span: 14:5-14:34)
+         │  └─ Expr: expr#17: print(((z8 >> zc8)) to string)
+         ├─ Stmt[4]: Let (span: 16:5-16:45)
+         │  ├─ Name: zu64
+         │  ├─ Mutable: false
+         │  ├─ Type: uint64
+         │  └─ Value: expr#18: 18446744073709551615
+         ├─ Stmt[5]: Let (span: 17:5-17:26)
+         │  ├─ Name: zc64
+         │  ├─ Mutable: false
+         │  ├─ Type: uint64
+         │  └─ Value: expr#19: 0
+         ├─ Stmt[6]: Expr (span: 18:5-18:37)
+         │  └─ Expr: expr#26: print(((zu64 >> zc64)) to string)
+         ├─ Stmt[7]: Let (span: 22:5-22:24)
+         │  ├─ Name: one8
+         │  ├─ Mutable: false
+         │  ├─ Type: int8
+         │  └─ Value: expr#27: 1
+         ├─ Stmt[8]: Let (span: 23:5-23:22)
+         │  ├─ Name: w8
+         │  ├─ Mutable: false
+         │  ├─ Type: int8
+         │  └─ Value: expr#28: 6
+         ├─ Stmt[9]: Expr (span: 24:5-24:35)
+         │  └─ Expr: expr#35: print(((one8 << w8)) to string)
+         ├─ Stmt[10]: Let (span: 26:5-26:26)
+         │  ├─ Name: one16
+         │  ├─ Mutable: false
+         │  ├─ Type: int16
+         │  └─ Value: expr#36: 1
+         ├─ Stmt[11]: Let (span: 27:5-27:25)
+         │  ├─ Name: w16
+         │  ├─ Mutable: false
+         │  ├─ Type: int16
+         │  └─ Value: expr#37: 14
+         ├─ Stmt[12]: Expr (span: 28:5-28:37)
+         │  └─ Expr: expr#44: print(((one16 << w16)) to string)
+         ├─ Stmt[13]: Let (span: 30:5-30:26)
+         │  ├─ Name: one32
+         │  ├─ Mutable: false
+         │  ├─ Type: int32
+         │  └─ Value: expr#45: 1
+         ├─ Stmt[14]: Let (span: 31:5-31:25)
+         │  ├─ Name: w32
+         │  ├─ Mutable: false
+         │  ├─ Type: int32
+         │  └─ Value: expr#46: 30
+         ├─ Stmt[15]: Expr (span: 32:5-32:37)
+         │  └─ Expr: expr#53: print(((one32 << w32)) to string)
+         ├─ Stmt[16]: Let (span: 34:5-34:26)
+         │  ├─ Name: one64
+         │  ├─ Mutable: false
+         │  ├─ Type: int64
+         │  └─ Value: expr#54: 1
+         ├─ Stmt[17]: Let (span: 35:5-35:25)
+         │  ├─ Name: w64
+         │  ├─ Mutable: false
+         │  ├─ Type: int64
+         │  └─ Value: expr#55: 62
+         ├─ Stmt[18]: Expr (span: 36:5-36:37)
+         │  └─ Expr: expr#62: print(((one64 << w64)) to string)
+         ├─ Stmt[19]: Let (span: 38:5-38:26)
+         │  ├─ Name: u8one
+         │  ├─ Mutable: false
+         │  ├─ Type: uint8
+         │  └─ Value: expr#63: 1
+         ├─ Stmt[20]: Let (span: 39:5-39:24)
+         │  ├─ Name: u8w
+         │  ├─ Mutable: false
+         │  ├─ Type: uint8
+         │  └─ Value: expr#64: 7
+         ├─ Stmt[21]: Expr (span: 40:5-40:37)
+         │  └─ Expr: expr#71: print(((u8one << u8w)) to string)
+         ├─ Stmt[22]: Let (span: 42:5-42:28)
+         │  ├─ Name: u16one
+         │  ├─ Mutable: false
+         │  ├─ Type: uint16
+         │  └─ Value: expr#72: 1
+         ├─ Stmt[23]: Let (span: 43:5-43:27)
+         │  ├─ Name: u16w
+         │  ├─ Mutable: false
+         │  ├─ Type: uint16
+         │  └─ Value: expr#73: 15
+         ├─ Stmt[24]: Expr (span: 44:5-44:39)
+         │  └─ Expr: expr#80: print(((u16one << u16w)) to string)
+         ├─ Stmt[25]: Let (span: 46:5-46:28)
+         │  ├─ Name: u32one
+         │  ├─ Mutable: false
+         │  ├─ Type: uint32
+         │  └─ Value: expr#81: 1
+         ├─ Stmt[26]: Let (span: 47:5-47:27)
+         │  ├─ Name: u32w
+         │  ├─ Mutable: false
+         │  ├─ Type: uint32
+         │  └─ Value: expr#82: 31
+         ├─ Stmt[27]: Expr (span: 48:5-48:39)
+         │  └─ Expr: expr#89: print(((u32one << u32w)) to string)
+         ├─ Stmt[28]: Let (span: 50:5-50:28)
+         │  ├─ Name: u64one
+         │  ├─ Mutable: false
+         │  ├─ Type: uint64
+         │  └─ Value: expr#90: 1
+         ├─ Stmt[29]: Let (span: 51:5-51:27)
+         │  ├─ Name: u64w
+         │  ├─ Mutable: false
+         │  ├─ Type: uint64
+         │  └─ Value: expr#91: 63
+         ├─ Stmt[30]: Expr (span: 52:5-52:39)
+         │  └─ Expr: expr#98: print(((u64one << u64w)) to string)
+         ├─ Stmt[31]: Let (span: 55:5-55:25)
+         │  ├─ Name: neg8
+         │  ├─ Mutable: false
+         │  ├─ Type: int8
+         │  └─ Value: expr#100: -8
+         ├─ Stmt[32]: Let (span: 56:5-56:24)
+         │  ├─ Name: two8
+         │  ├─ Mutable: false
+         │  ├─ Type: int8
+         │  └─ Value: expr#101: 2
+         ├─ Stmt[33]: Expr (span: 57:5-57:37)
+         │  └─ Expr: expr#108: print(((neg8 >> two8)) to string)
+         ├─ Stmt[34]: Let (span: 59:5-59:31)
+         │  ├─ Name: neg16
+         │  ├─ Mutable: false
+         │  ├─ Type: int16
+         │  └─ Value: expr#110: -32768
+         ├─ Stmt[35]: Let (span: 60:5-60:27)
+         │  ├─ Name: one16b
+         │  ├─ Mutable: false
+         │  ├─ Type: int16
+         │  └─ Value: expr#111: 1
+         ├─ Stmt[36]: Expr (span: 61:5-61:40)
+         │  └─ Expr: expr#118: print(((neg16 >> one16b)) to string)
+         ├─ Stmt[37]: Let (span: 63:5-63:36)
+         │  ├─ Name: neg32
+         │  ├─ Mutable: false
+         │  ├─ Type: int32
+         │  └─ Value: expr#120: -2147483648
+         ├─ Stmt[38]: Let (span: 64:5-64:27)
+         │  ├─ Name: one32b
+         │  ├─ Mutable: false
+         │  ├─ Type: int32
+         │  └─ Value: expr#121: 1
+         ├─ Stmt[39]: Expr (span: 65:5-65:40)
+         │  └─ Expr: expr#128: print(((neg32 >> one32b)) to string)
+         ├─ Stmt[40]: Let (span: 67:5-67:45)
+         │  ├─ Name: neg64
+         │  ├─ Mutable: false
+         │  ├─ Type: int64
+         │  └─ Value: expr#130: -9223372036854775808
+         ├─ Stmt[41]: Let (span: 68:5-68:27)
+         │  ├─ Name: one64b
+         │  ├─ Mutable: false
+         │  ├─ Type: int64
+         │  └─ Value: expr#131: 1
+         ├─ Stmt[42]: Expr (span: 69:5-69:40)
+         │  └─ Expr: expr#138: print(((neg64 >> one64b)) to string)
+         ├─ Stmt[43]: Let (span: 72:5-72:26)
+         │  ├─ Name: full8
+         │  ├─ Mutable: false
+         │  ├─ Type: int8
+         │  └─ Value: expr#140: -1
+         ├─ Stmt[44]: Let (span: 73:5-73:26)
+         │  ├─ Name: seven8
+         │  ├─ Mutable: false
+         │  ├─ Type: int8
+         │  └─ Value: expr#141: 7
+         ├─ Stmt[45]: Expr (span: 74:5-74:40)
+         │  └─ Expr: expr#148: print(((full8 >> seven8)) to string)
+         ├─ Stmt[46]: Let (span: 77:5-77:26)
+         │  ├─ Name: max8
+         │  ├─ Mutable: false
+         │  ├─ Type: int8
+         │  └─ Value: expr#149: 127
+         ├─ Stmt[47]: Expr (span: 78:5-78:30)
+         │  └─ Expr: expr#155: print((-max8) to string)
+         ├─ Stmt[48]: Let (span: 80:5-80:30)
+         │  ├─ Name: max16
+         │  ├─ Mutable: false
+         │  ├─ Type: int16
+         │  └─ Value: expr#156: 32767
+         ├─ Stmt[49]: Expr (span: 81:5-81:31)
+         │  └─ Expr: expr#162: print((-max16) to string)
+         ├─ Stmt[50]: Let (span: 83:5-83:44)
+         │  ├─ Name: max64
+         │  ├─ Mutable: false
+         │  ├─ Type: int64
+         │  └─ Value: expr#163: 9223372036854775807
+         ├─ Stmt[51]: Expr (span: 84:5-84:31)
+         │  └─ Expr: expr#169: print((-max64) to string)
+         ├─ Stmt[52]: Let (span: 87:5-87:27)
+         │  ├─ Name: zero32
+         │  ├─ Mutable: false
+         │  ├─ Type: int32
+         │  └─ Value: expr#170: 0
+         ├─ Stmt[53]: Expr (span: 88:5-88:32)
+         │  └─ Expr: expr#176: print((-zero32) to string)
+         └─ Stmt[54]: Return (span: 90:5-90:14)
+            └─ Expr: expr#177: 0

@@ -58,19 +58,19 @@ func behaviouralBackends(t *testing.T) []string {
 	return backends
 }
 
-// behaviourCorpusOptions are the ways one fixture directory differs from
-// another. Everything else about running a recorded program is the same.
-type behaviourCorpusOptions struct {
-	// skipSuffixes names fixtures the directory does not run, by file-name
-	// suffix. A directory that records a program only for its frontend output
-	// uses this rather than being left out of the corpus entirely.
-	skipSuffixes []string
-}
+// A directory used to be able to sweep fixtures out of its own run by file-name
+// suffix. Nothing does any more, and the option is gone rather than left unused:
+// every fixture that carried a recorded answer under such a sweep turned out to
+// agree on both backends, so the sweeps were standing in for nothing while
+// silently taking each new fixture with them. A fixture that genuinely must not
+// run says so for itself, with a leading underscore, which is per-fixture and
+// visible in the directory listing. Reintroducing a sweep means teaching
+// internal/panicgate about it, which refuses a recorded answer nothing runs.
 
 // runBehaviourCorpus checks every recorded program in dir on every backend under
 // test, comparing real output against the recorded .out and the real exit code
 // against the recorded .code.
-func runBehaviourCorpus(t *testing.T, dir string, opts behaviourCorpusOptions) {
+func runBehaviourCorpus(t *testing.T, dir string) {
 	t.Helper()
 	root := repoRoot(t)
 	surge := buildSurgeBinary(t, root)
@@ -89,9 +89,6 @@ func runBehaviourCorpus(t *testing.T, dir string, opts behaviourCorpusOptions) {
 		// A leading underscore marks a fixture the corpus records but does not
 		// run — the convention the rest of testdata/golden already uses.
 		if strings.HasPrefix(ent.Name(), "_") {
-			continue
-		}
-		if hasAnySuffix(ent.Name(), opts.skipSuffixes) {
 			continue
 		}
 		name := strings.TrimSuffix(ent.Name(), ".sg")
@@ -114,15 +111,6 @@ func caseName(name, backend string, backends []string) string {
 		return name
 	}
 	return name + "/" + backend
-}
-
-func hasAnySuffix(name string, suffixes []string) bool {
-	for _, suffix := range suffixes {
-		if strings.HasSuffix(name, suffix) {
-			return true
-		}
-	}
-	return false
 }
 
 func runBehaviourCase(t *testing.T, root, surge, dir, absDir, name, backend string) {

@@ -1,0 +1,22 @@
+// A panic inside a METHOD, so the innermost frame is a function declared in an
+// extern block against a type rather than a free function.
+//
+// The two backtrace fixtures that came before this one both panic in free
+// functions. A method's frame reaches the walk by a different route - it is
+// found through the type, and it carries an implicit receiver - so the name in
+// the row is the first thing that can differ between the two backends here.
+// It is recorded as `fetch`, without the `Bag` that selected it, which is what
+// both backends print today.
+type Bag = { items: int[] }
+
+extern<Bag> {
+    pub fn fetch(self: &Bag, i: int) -> int {
+        return self.items[i];
+    }
+}
+
+@entrypoint
+fn main() -> int {
+    let b: Bag = Bag { items = [1, 2, 3] };
+    return b.fetch(9);
+}

@@ -1,0 +1,24 @@
+vm_int64_shift_count_panics.sg (span: 6:1-13:1)
+└─ Item[0]: Fn (span: 6:1-12:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:18-12:2)
+         ├─ Stmt[0]: Let (span: 8:5-8:22)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: int64
+         │  └─ Value: expr#1: 1
+         ├─ Stmt[1]: Let (span: 9:5-9:23)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: int64
+         │  └─ Value: expr#2: 64
+         ├─ Stmt[2]: Let (span: 10:5-10:20)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#5: (a << b)
+         └─ Stmt[3]: Return (span: 11:5-11:14)
+            └─ Expr: expr#6: 0

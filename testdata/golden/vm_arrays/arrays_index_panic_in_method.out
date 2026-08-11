@@ -1,0 +1,6 @@
+panic VM2105: array index 9 out of range for length 3
+at testdata/golden/vm_arrays/arrays_index_panic_in_method.sg:14:16
+backtrace:
+  0: fetch at testdata/golden/vm_arrays/arrays_index_panic_in_method.sg:14:16
+  1: main at testdata/golden/vm_arrays/arrays_index_panic_in_method.sg:21:12
+  2: __surge_start at <no-span>

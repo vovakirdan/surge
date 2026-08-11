@@ -1,0 +1,30 @@
+arrays_index_panic_in_method.sg (span: 10:1-23:1)
+├─ Item[0]: Type (span: 10:1-10:28)
+│  ├─ Name: Bag
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: items: int[]
+├─ Item[1]: Extern (span: 12:1-16:2)
+│  ├─ Target: Bag
+│  ├─ Members:
+│  │  └─ Fn[0]: fetch
+│  │     ├─ Params: (self: &Bag, i: int)
+│  │     ├─ Return: int
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 13:45-15:6)
+│  │        └─ Stmt[0]: Return (span: 14:9-14:30)
+│  │           └─ Expr: expr#4: self.items[i]
+└─ Item[2]: Fn (span: 18:1-22:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 19:18-22:2)
+         ├─ Stmt[0]: Let (span: 20:5-20:44)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: Bag
+         │  └─ Value: expr#10: <ExprKind(22)>
+         └─ Stmt[1]: Return (span: 21:5-21:23)
+            └─ Expr: expr#14: b.fetch(9)

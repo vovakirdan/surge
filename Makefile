@@ -1,4 +1,4 @@
-.PHONY: build run test runtime-v2-check runtime-v2-abi-manifest-check runtime-v2-slot-control-check runtime-v2-ownership-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check runtime-v2-transport-contract-check runtime-v2-transport-check runtime-v2-carrier-check runtime-v2-carrier-bench runtime-v2-carrier-baseline-capture runtime-v2-carrier-bench-final vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
+.PHONY: build run test runtime-v2-check runtime-v2-abi-manifest-check runtime-v2-slot-control-check runtime-v2-ownership-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check runtime-v2-panic-surface-check runtime-v2-transport-contract-check runtime-v2-transport-check runtime-v2-carrier-check runtime-v2-carrier-bench runtime-v2-carrier-baseline-capture runtime-v2-carrier-bench-final vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
 .PHONY: golden golden-update golden-check golden-corpus-determinism behaviour-check behaviour-check-all behaviour-check-mt stats
 .PHONY: c-check cfmt-check c-warnings ctidy cppcheck
 
@@ -114,6 +114,7 @@ runtime-v2-check:
 	$(MAKE) runtime-v2-lifecycle-check
 	$(MAKE) runtime-v2-perf-check
 	$(MAKE) runtime-v2-syncpoint-check
+	$(MAKE) runtime-v2-panic-surface-check
 	$(MAKE) runtime-v2-carrier-check
 	$(MAKE) runtime-v2-transport-check
 
@@ -181,6 +182,15 @@ runtime-v2-crossing-check:
 runtime-v2-syncpoint-check:
 	@echo ">> Running Runtime V2 sync-point proving-spike static gate"
 	./check_sync_points.sh
+
+# The panic-surface census. It enumerates every place the compiler and the C
+# runtime can raise a panic and refuses one that is neither reached by a
+# behavioural fixture on both backends nor excused by an owned row. The package
+# already rides `go test ./...`; it is named here as well because a gate nobody
+# can run alone is a gate nobody runs while fixing it.
+runtime-v2-panic-surface-check:
+	@echo ">> Running the panic-surface census gate"
+	$(GO) test ./internal/panicgate -run '^Test(PanicSitesAreCoveredOrExcused|EveryRecordedFixtureIsActuallyRun|PanicScanFindsTheKnownSurface|PanicReportersAreAllKnown|EmitterRaisesOnlyFromTheKnownPackage)$$' -count=1 --timeout 120s
 
 # The stable transport gate: park/wake spine acceptance, publication rows,
 # the crossing e2e verticals, race rows, and the negative matrix all run

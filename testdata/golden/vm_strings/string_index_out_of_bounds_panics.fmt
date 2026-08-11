@@ -1,0 +1,15 @@
+// Indexing a string past its end.
+//
+// This is the OTHER bounds report. The array fixtures record VM2105, "array
+// index N out of range for length M"; everything that is not an array - a
+// string, a bytes view - reports VM1004, "index N out of bounds for length M",
+// through the same reporter under a different kind. Nothing in the corpus
+// recorded the second wording, which left the kind argument free to be wrong
+// on one backend without anything noticing.
+@entrypoint
+fn main() -> int {
+    let s: string = "abc";
+    let i: int = 7;
+    let _ = s[i];
+    return 0;
+}

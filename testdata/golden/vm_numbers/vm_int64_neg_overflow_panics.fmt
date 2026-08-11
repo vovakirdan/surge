@@ -1,0 +1,10 @@
+// Negating the most negative int64. Its int8 twin is
+// vm_int8_neg_overflow_panics; this is the width where the check cannot be
+// done by widening, because there is no wider signed type to widen into, so
+// it is the width most likely to be answered by wrapping back to MIN.
+@entrypoint
+fn main() -> int {
+    let a: int64 = -9223372036854775808;
+    let _ = -a;
+    return 0;
+}

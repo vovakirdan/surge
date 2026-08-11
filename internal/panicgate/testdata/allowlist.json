@@ -1,0 +1,1553 @@
+{
+  "version": 1,
+  "groups": [
+    {
+      "id": "PG-INVARIANT",
+      "owner": "runtime",
+      "disposition": "unreachable_from_source",
+      "reason": "An invariant of the runtime's or the emitter's own bookkeeping: a task id that is not in the task table, a shard lock taken twice, a switch default over an id the emitter itself assigned. No Surge program can arrange these; a program that reached one would be evidence of a defect above it, not of the behaviour under test, so a fixture pinning the report would be pinning the wrong thing.",
+      "invalidated_when": "The condition becomes reachable from a Surge program - most plausibly because a runtime API is exposed to source, or a dispatch id starts coming from data rather than from the emitter."
+    },
+    {
+      "id": "PG-ALLOC-FAILURE",
+      "owner": "runtime",
+      "disposition": "unreachable_from_source",
+      "reason": "An allocation-failure guard. Reaching it needs the allocator to answer NULL, which the corpus cannot arrange: it runs real programs against the real allocator and has no fault injection. The guard is still the right code - the alternative is dereferencing NULL - it simply cannot be provoked from a .sg file.",
+      "invalidated_when": "The runtime grows a fault-injecting allocator, or a heap cap that a fixture can set low enough to fail an allocation deterministically."
+    },
+    {
+      "id": "PG-NULL-GUARD",
+      "owner": "runtime",
+      "disposition": "unreachable_from_source",
+      "reason": "A null-pointer guard, defence in depth. The emitter never passes NULL to these entry points, and the type system upstream of it does not admit a null array or string handle. The guard exists so that a future caller that got it wrong fails with a sentence instead of a segfault.",
+      "invalidated_when": "A caller outside the emitter can reach the entry point - an FFI surface, or a runtime API called from source - at which point NULL stops being impossible and the report becomes a real answer worth recording."
+    },
+    {
+      "id": "PG-SIZE-LIMIT",
+      "owner": "runtime",
+      "disposition": "unreachable_from_source",
+      "reason": "An arithmetic guard on a 64-bit length, capacity or stride. Reaching it needs a value near 2^63, which means either an allocation of that size - the machine refuses first - or a bignum with more limbs than the limit allows, which costs the same memory. The guard protects a multiplication that would otherwise wrap silently.",
+      "invalidated_when": "The limit stops being memory-sized: a configurable cap a fixture can lower, or a length that arrives from data rather than from an allocation the program already paid for."
+    },
+    {
+      "id": "PG-OPERAND-RANGE",
+      "owner": "backend/llvm",
+      "disposition": "shared_guard",
+      "reason": "An emitter guard on an operand the runtime ABI must receive as a 64-bit integer. Every one of these rows is the same helper - emitUintOperandToI64, emitIntOperandToI64, or the checked bignum narrowings under them - called with a different noun in its message. What differs between rows is the sentence, not the check, and the sentence is exactly what a wording drift would move; recording the sentence here is what makes such a move a reported finding rather than a silence.",
+      "invalidated_when": "A row's message stops being produced by the shared narrowing helper, or the helper stops being one implementation - at which point each caller is checking something of its own and wants its own fixture."
+    },
+    {
+      "id": "PG-CROSSING",
+      "owner": "runtime",
+      "disposition": "other_lane",
+      "reason": "A crossing failure report: a destination shard that is shut down, a transport queue that is full, a lease that was already released. Reaching one needs a multi-shard program in a particular failure state, which the behavioural corpus - one worker, one process, comparing output byte for byte - is the wrong instrument for. These paths are exercised by the transport and crossing gates instead, which can arrange the failure.",
+      "invalidated_when": "The behavioural corpus learns to run a multi-shard program, or a crossing failure becomes reachable in the single-worker configuration the corpus uses."
+    },
+    {
+      "id": "PG-COMPUTED",
+      "owner": "backend/llvm",
+      "disposition": "no_fixed_message",
+      "reason": "The raise has no message of its own to record: it forwards text the program supplied, or a buffer the runtime formats at the moment of failure. There is no string here for a fixture to match, so coverage has to be asserted about the caller rather than about this site. Recording the site keeps it in the census; it is the one class where the ledger cannot also check a wording.",
+      "invalidated_when": "The site starts naming a fixed condition, at which point it has a message and belongs under one of the other dispositions."
+    },
+    {
+      "id": "PG-UNFIXTURED",
+      "owner": "unassigned",
+      "disposition": "debt",
+      "reason": "Reachable from an ordinary Surge program, and no fixture reaches it. This is the backlog the gate exists to make visible, not an excuse: the right response to a row here is to write the fixture and delete the row, and the right response to a NEW panic site is never to add one. Every row here is a place where the two backends could already disagree and nothing would say so.",
+      "invalidated_when": "A fixture records the message on both backends - the gate then reports the row as redundant and it must be removed."
+    }
+  ],
+  "sites": [
+    {
+      "site": "internal/backend/llvm/emit_access.go::emitBytesViewIndex#1",
+      "message": "bytes view length out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_access.go::emitBytesViewLen#1",
+      "message": "bytes view length out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_async.go::emitAbandonedStateDropDispatch#1",
+      "message": "missing drop function",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "internal/backend/llvm/emit_async.go::emitBlockingDispatch#1",
+      "message": "missing blocking function",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "internal/backend/llvm/emit_async.go::emitInstrSelect#1",
+      "message": "timeout duration out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_async.go::emitInstrTimeout#1",
+      "message": "timeout duration out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_async.go::emitPollDispatch#1",
+      "message": "missing poll function",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "internal/backend/llvm/emit_async.go::emitPollDispatch#2",
+      "message": "missing drop function",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "internal/backend/llvm/emit_channel.go::emitChannelIntrinsic#1",
+      "message": "channel capacity out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_copy_result_glue.go::emitUncopyableResultBody#1",
+      "message": "a cloned task handle cannot be served a result holding a dynamic array",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing.go::emitSpawnOnCrossing#1",
+      "message": "spawn on remote publish requires an async task context",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing.go::emitSpawnOnCrossing#2",
+      "message": "spawn on destination is shut down",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing.go::emitSpawnOnCrossing#3",
+      "message": "spawn on remote publish queue is full",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing.go::emitSpawnOnCrossing#4",
+      "message": "spawn on remote publish was refused",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing.go::emitSpawnOnCrossing#5",
+      "message": "spawn on placement is not supported by this backend",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing.go::emitSpawnOnCrossing#6",
+      "message": "spawn on placement is invalid",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing.go::emitSpawnOnCrossing#7",
+      "message": "spawn on remote publish failed",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_anchored_on.go::emitAnchoredOnErrorBlocks#1",
+      "message": "anchored on requires an async task context and a channel anchor",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_anchored_on.go::emitAnchoredOnErrorBlocks#2",
+      "message": "anchored on destination shard is shut down",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_anchored_on.go::emitAnchoredOnErrorBlocks#3",
+      "message": "anchored on transport queue is full",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_anchored_on.go::emitAnchoredOnErrorBlocks#4",
+      "message": "anchored on execute request was refused",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_anchored_on.go::emitAnchoredOnErrorBlocks#5",
+      "message": "anchored channel is gone: the far channel was released before the block could run",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_anchored_on.go::emitAnchoredOnErrorBlocks#6",
+      "message": "anchored on execute request failed",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_channel_create.go::emitChannelCreateCrossing#1",
+      "message": "channel_on capacity out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_channel_create.go::emitChannelCreateCrossing#2",
+      "message": "channel_on placement is invalid",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_channel_create.go::emitChannelCreateCrossing#3",
+      "message": "channel_on destination shard is shut down",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_channel_create.go::emitChannelCreateCrossing#4",
+      "message": "channel_on transport queue is full",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_channel_create.go::emitChannelCreateCrossing#5",
+      "message": "channel_on create request was refused",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_channel_create.go::emitChannelCreateCrossing#6",
+      "message": "channel_on placement is not supported by this backend",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_channel_create.go::emitChannelCreateCrossing#7",
+      "message": "channel_on create request failed",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_far_task.go::emitFarTaskLifecycleErrorBlocks#1",
+      "message": "<computed>",
+      "group": "PG-COMPUTED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_far_task.go::emitFarTaskLifecycleErrorBlocks#2",
+      "message": "<computed>",
+      "group": "PG-COMPUTED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_far_task.go::emitFarTaskLifecycleErrorBlocks#3",
+      "message": "<computed>",
+      "group": "PG-COMPUTED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_far_task.go::emitFarTaskLifecycleErrorBlocks#4",
+      "message": "<computed>",
+      "group": "PG-COMPUTED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_far_task.go::emitFarTaskLifecycleErrorBlocks#5",
+      "message": "<computed>",
+      "group": "PG-COMPUTED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_far_task.go::emitFarTaskLifecycleErrorBlocks#6",
+      "message": "<computed>",
+      "group": "PG-COMPUTED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_far_task.go::emitFarTaskLifecycleErrorBlocks#7",
+      "message": "<computed>",
+      "group": "PG-COMPUTED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_immediate_on.go::emitImmediateOnErrorBlocks#1",
+      "message": "on crossing requires an async task context",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_immediate_on.go::emitImmediateOnErrorBlocks#2",
+      "message": "on destination shard is shut down",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_immediate_on.go::emitImmediateOnErrorBlocks#3",
+      "message": "on transport queue is full",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_immediate_on.go::emitImmediateOnErrorBlocks#4",
+      "message": "on execute request was refused",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_immediate_on.go::emitImmediateOnErrorBlocks#5",
+      "message": "on execute token is stale",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_immediate_on.go::emitImmediateOnErrorBlocks#6",
+      "message": "on placement is not supported by this backend",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_immediate_on.go::emitImmediateOnErrorBlocks#7",
+      "message": "on execute request failed",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_select.go::emitChannelSelectCrossing#1",
+      "message": "<computed>",
+      "group": "PG-COMPUTED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_select.go::emitChannelSelectCrossing#2",
+      "message": "remote select destination shard is shut down",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_select.go::emitChannelSelectCrossing#3",
+      "message": "remote select transport queue is full",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_select.go::emitChannelSelectCrossing#4",
+      "message": "remote select request was refused",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_select.go::emitChannelSelectCrossing#5",
+      "message": "remote select arm lease was already released; a released holder cannot select",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_select.go::emitChannelSelectCrossing#6",
+      "message": "remote select request failed",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_share.go::emitChannelShareCrossing#1",
+      "message": "share requires an async task context and a channel handle",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_share.go::emitChannelShareCrossing#2",
+      "message": "share destination shard is shut down",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_share.go::emitChannelShareCrossing#3",
+      "message": "share transport queue is full",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_share.go::emitChannelShareCrossing#4",
+      "message": "share request was refused",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_share.go::emitChannelShareCrossing#5",
+      "message": "share source lease was already released; a released holder cannot propagate access",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_crossing_share.go::emitChannelShareCrossing#6",
+      "message": "share request failed",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "internal/backend/llvm/emit_drop_glue.go::emitResultDropDispatch#1",
+      "message": "missing drop function",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "internal/backend/llvm/emit_helpers_numeric.go::emitCheckedBigFloatToF64#1",
+      "message": "float overflow",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_instr_binary.go::emitRepeatCountToI64#1",
+      "message": "string repeat count out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_instr_binary.go::emitRepeatCountToI64#2",
+      "message": "string repeat count out of range",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_instr_binary.go::emitRepeatCountToI64#3",
+      "message": "string repeat count out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_instr_binary.go::emitRepeatCountToI64#4",
+      "message": "string repeat count out of range",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_instr_binary.go::emitRepeatCountToI64#5",
+      "message": "string repeat count out of range",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_instr_binary.go::emitRepeatCountToI64#6",
+      "message": "string repeat count out of range",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_array.go::emitArrayReserve#1",
+      "message": "array capacity out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_array.go::emitArrayReserve#2",
+      "message": "array capacity out of range",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_array.go::emitArrayReserve#3",
+      "message": "array capacity out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_array.go::emitArrayReserve#4",
+      "message": "array capacity out of range",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_array.go::emitArrayReserve#5",
+      "message": "array capacity out of range",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_array.go::emitArrayReserve#6",
+      "message": "array capacity out of range",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_error.go::emitExitIntrinsic#1",
+      "message": "exit code out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_error.go::emitExitIntrinsic#2",
+      "message": "exit code out of range",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_error.go::emitExitIntrinsic#3",
+      "message": "exit code out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_error.go::emitExitIntrinsic#4",
+      "message": "exit code out of range",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_error.go::emitExitIntrinsic#5",
+      "message": "exit code out of range",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_error.go::emitExitIntrinsic#6",
+      "message": "exit code out of range",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_fs.go::emitFsOpen#1",
+      "message": "fs open flags out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_fs.go::emitFsRead#1",
+      "message": "fs read cap out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_fs.go::emitFsWrite#1",
+      "message": "fs write length out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_fs.go::emitFsWriteFile#1",
+      "message": "fs write length out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_fs.go::emitFsWriteFile#2",
+      "message": "fs open flags out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_net.go::emitNetConnect#1",
+      "message": "net connect port out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_net.go::emitNetListen#1",
+      "message": "net listen port out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_net.go::emitNetRead#1",
+      "message": "net read cap out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_net.go::emitNetReadBytes#1",
+      "message": "net read cap out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_net.go::emitNetWrite#1",
+      "message": "net write length out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_net.go::emitNetWriteBytes#1",
+      "message": "net write offset out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_net.go::emitNetWriteBytes#2",
+      "message": "net write length out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_numeric.go::emitBigNumericCast#10",
+      "message": "unsigned overflow",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_numeric.go::emitBigNumericCast#11",
+      "message": "unsigned overflow",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_numeric.go::emitBigNumericCast#2",
+      "message": "unsigned overflow",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_numeric.go::emitBigNumericCast#3",
+      "message": "float overflow",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_numeric.go::emitBigNumericCast#4",
+      "message": "cannot convert negative int to uint",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_numeric.go::emitBigNumericCast#9",
+      "message": "unsigned overflow",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtAlloc#1",
+      "message": "alloc size out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtAlloc#2",
+      "message": "alloc align out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtEntropyBytes#1",
+      "message": "entropy length out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtExit#1",
+      "message": "exit code out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtFree#1",
+      "message": "free size out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtFree#2",
+      "message": "free align out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtMemcpy#1",
+      "message": "memcpy length out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtMemmove#1",
+      "message": "memmove length out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtPanic#1",
+      "message": "panic message length out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtPanic#2",
+      "message": "<computed>",
+      "group": "PG-COMPUTED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtPanicBounds#1",
+      "message": "panic bounds kind out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtPanicBounds#2",
+      "message": "panic bounds index out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtPanicBounds#3",
+      "message": "panic bounds length out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtPanicBounds#4",
+      "message": "<computed>",
+      "group": "PG-COMPUTED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtRealloc#1",
+      "message": "old size out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtRealloc#2",
+      "message": "new size out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtRealloc#3",
+      "message": "realloc align out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtSleep#1",
+      "message": "sleep duration out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtStringFromBytes#1",
+      "message": "string length out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRuntimeIntrinsic#1",
+      "message": "stdout write length out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRuntimeIntrinsic#2",
+      "message": "stderr write length out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_placement.go::emitPlacementIntrinsic#1",
+      "message": "placement shard id out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "runtime/native/rt_array.c::array_alloc_view#1",
+      "message": "array allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_array.c::array_grow_cap#1",
+      "message": "array capacity out of range",
+      "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_array.c::array_register_view#1",
+      "message": "array allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_array.c::array_slice_bounds#1",
+      "message": "array length out of range",
+      "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_array.c::array_slice_bounds#2",
+      "message": "array slice offset out of range",
+      "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_array.c::rt_array_append_raw_bytes#2",
+      "message": "array append bytes received null pointer",
+      "group": "PG-NULL-GUARD"
+    },
+    {
+      "site": "runtime/native/rt_array.c::rt_array_append_raw_bytes#3",
+      "message": "array append bytes received null array",
+      "group": "PG-NULL-GUARD"
+    },
+    {
+      "site": "runtime/native/rt_array.c::rt_array_append_raw_bytes#4",
+      "message": "array length out of range",
+      "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_array.c::rt_array_append_raw_bytes#5",
+      "message": "array append bytes source range out of range",
+      "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_array.c::rt_array_append_raw_bytes#6",
+      "message": "array allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_array.c::rt_array_append_raw_bytes#7",
+      "message": "array append bytes received null data",
+      "group": "PG-NULL-GUARD"
+    },
+    {
+      "site": "runtime/native/rt_array.c::rt_array_slice#1",
+      "message": "array slice received null pointer",
+      "group": "PG-NULL-GUARD"
+    },
+    {
+      "site": "runtime/native/rt_array.c::rt_array_slice#2",
+      "message": "array slice received null array",
+      "group": "PG-NULL-GUARD"
+    },
+    {
+      "site": "runtime/native/rt_array.c::rt_array_slice#3",
+      "message": "array slice received null data",
+      "group": "PG-NULL-GUARD"
+    },
+    {
+      "site": "runtime/native/rt_array.c::rt_array_slice#4",
+      "message": "array slice offset out of range",
+      "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_array.c::rt_array_slice_fixed#1",
+      "message": "array slice received null pointer",
+      "group": "PG-NULL-GUARD"
+    },
+    {
+      "site": "runtime/native/rt_array.c::rt_byte_array_append_range#1",
+      "message": "byte array append range received null pointer",
+      "group": "PG-NULL-GUARD"
+    },
+    {
+      "site": "runtime/native/rt_array.c::rt_byte_array_append_range#2",
+      "message": "byte array append range received null data",
+      "group": "PG-NULL-GUARD"
+    },
+    {
+      "site": "runtime/native/rt_array.c::rt_byte_array_drop_prefix#1",
+      "message": "byte array drop prefix received null pointer",
+      "group": "PG-NULL-GUARD"
+    },
+    {
+      "site": "runtime/native/rt_array.c::rt_byte_array_drop_prefix#2",
+      "message": "byte array drop prefix received null array",
+      "group": "PG-NULL-GUARD"
+    },
+    {
+      "site": "runtime/native/rt_array.c::rt_byte_array_drop_prefix#3",
+      "message": "byte array drop prefix received null data",
+      "group": "PG-NULL-GUARD"
+    },
+    {
+      "site": "runtime/native/rt_array_concat.c::concat_copy_run#1",
+      "message": "array concat received null data",
+      "group": "PG-NULL-GUARD"
+    },
+    {
+      "site": "runtime/native/rt_array_concat.c::concat_source#1",
+      "message": "array concat received null pointer",
+      "group": "PG-NULL-GUARD"
+    },
+    {
+      "site": "runtime/native/rt_array_concat.c::concat_source#2",
+      "message": "array concat received null array",
+      "group": "PG-NULL-GUARD"
+    },
+    {
+      "site": "runtime/native/rt_array_concat.c::rt_array_concat#1",
+      "message": "array length out of range",
+      "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_array_concat.c::rt_array_concat#2",
+      "message": "array length out of range",
+      "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_array_concat.c::rt_array_concat#3",
+      "message": "array length out of range",
+      "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_array_concat.c::rt_array_concat#4",
+      "message": "array allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_array_concat.c::rt_array_concat#5",
+      "message": "array allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_blocking.c::rt_blocking_init#1",
+      "message": "async: blocking context allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_blocking.c::rt_blocking_init#2",
+      "message": "async: blocking worker allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_blocking.c::rt_blocking_init#3",
+      "message": "async: blocking worker start failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_blocking.c::rt_blocking_submit#1",
+      "message": "async: blocking task allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_blocking.c::rt_blocking_submit#2",
+      "message": "async: blocking job allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_channel.c::rt_channel_new#1",
+      "message": "async: channel allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_channel.c::rt_channel_recv#1",
+      "message": "async channel recv outside task",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_channel.c::rt_channel_recv#2",
+      "message": "async: missing current task",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_channel.c::rt_channel_send_inner#1",
+      "message": "async channel send outside task",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_channel.c::rt_channel_send_inner#2",
+      "message": "async: missing current task",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_channel.c::rt_channel_send_inner#3",
+      "message": "send on closed channel",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "runtime/native/rt_async_channel.c::rt_channel_send_inner#4",
+      "message": "send on closed channel",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "runtime/native/rt_async_compat.c::maybe_start_compensation_worker_locked#1",
+      "message": "async: compensation worker context allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_compat.c::maybe_start_compensation_worker_locked#2",
+      "message": "async: compensation worker start failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_compat.c::move_current_local_to_inject_locked#1",
+      "message": "async: inject queue overflow",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_compat.c::move_current_local_to_inject_locked#2",
+      "message": "async: inject queue allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_poll.c::poll_sleep_task#1",
+      "message": "async: sleep store allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_poll.c::poll_user_task#1",
+      "message": "async poll returned without terminator",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_poll.c::rt_async_return#1",
+      "message": "async_return outside poll",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_poll.c::rt_async_return_cancelled#1",
+      "message": "async_cancel outside poll",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_poll.c::rt_async_yield#1",
+      "message": "async_yield outside poll",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_poll.c::run_ready_one#1",
+      "message": "invalid task id",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_poll.c::run_ready_one#2",
+      "message": "async: unknown poll outcome",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_poll.c::run_ready_one#3",
+      "message": "async: unknown poll outcome",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_poll.c::run_until_done#1",
+      "message": "invalid task handle",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_poll.c::run_until_done#2",
+      "message": "invalid task id",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_poll.c::run_until_done#3",
+      "message": "async deadlock",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_scope.c::rt_scope_enter#1",
+      "message": "rt_scope_enter without current task",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_scope.c::rt_scope_enter#2",
+      "message": "async: scope allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_scope.c::rt_scope_exit#1",
+      "message": "async: scope exit with active children",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_scope.c::scope_cancel_children_controlled#1",
+      "message": "async: scope cancel snapshot allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_select.c::ensure_select_timers_cap#1",
+      "message": "async: select timer allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_select.c::rt_select_poll#1",
+      "message": "async select outside task",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_select.c::rt_select_poll#2",
+      "message": "async: missing current task",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_select.c::rt_select_poll#3",
+      "message": "send on closed channel",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "runtime/native/rt_async_select.c::rt_select_poll_tasks#1",
+      "message": "async select outside task",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_select.c::rt_select_poll_tasks#2",
+      "message": "async: missing current task",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_select.c::rt_timeout_poll#1",
+      "message": "async timeout outside task",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_select.c::rt_timeout_poll#2",
+      "message": "async: missing current task",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_state.c::ensure_child_cap#1",
+      "message": "async: child allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_state.c::ensure_scope_child_cap#1",
+      "message": "async: scope child allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_state.c::exec_init_once#1",
+      "message": "async: runtime skeleton initialization failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_state.c::exec_init_once#2",
+      "message": "async: heap accounting cell allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_state.c::exec_init_once#3",
+      "message": "async: remote task state initialization failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_state.c::exec_init_once#4",
+      "message": "async: far channel state initialization failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_state.c::exec_init_once#5",
+      "message": "async: local queue allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_state.c::exec_init_once#6",
+      "message": "async: scheduler initialization failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_state.c::rt_config_total_worker_threads#1",
+      "message": "async: worker count overflow",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_state.c::rt_double_poll_panic#1",
+      "message": "<computed>",
+      "group": "PG-COMPUTED"
+    },
+    {
+      "site": "runtime/native/rt_async_state.c::rt_scope_slot_store#1",
+      "message": "async: scope slot out of range",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_state.c::rt_scope_slot_store#2",
+      "message": "async: scope slot out of range",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_state.c::rt_start_workers#1",
+      "message": "async: worker count overflow",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_state.c::rt_start_workers#2",
+      "message": "async: worker allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_state.c::rt_start_workers#3",
+      "message": "async: io worker start failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_state.c::rt_start_workers#4",
+      "message": "async: worker context allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_state.c::rt_start_workers#5",
+      "message": "async: worker start failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_state.c::rt_task_slot_store#1",
+      "message": "async: task slot out of range",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_state.c::rt_task_slot_store#2",
+      "message": "async: task slot out of range",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_state.c::task_from_handle#1",
+      "message": "invalid task handle",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_task.c::__task_create#1",
+      "message": "async: task allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_task.c::__task_state#1",
+      "message": "async: __task_state without current task",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_task.c::rt_task_poll#1",
+      "message": "async poll outside task",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_task.c::rt_task_poll#2",
+      "message": "task cannot await itself",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_task.c::rt_task_poll#3",
+      "message": "async: missing current task",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_task.c::spawn_internal_task_locked#1",
+      "message": "async: task allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_waiter.c::add_waiter#1",
+      "message": "async: waiter allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_waiter.c::ensure_wait_keys_cap#1",
+      "message": "async: wait key allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_waiter.c::ensure_waiter_cap#1",
+      "message": "async: waiter allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_waiter.c::rt_executor_wake_net_waiters_for_key_on_owner#1",
+      "message": "async: net wake batch allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_bignum_api.c::rt_bigfloat_release#1",
+      "message": "bigfloat release below zero",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_bignum_api.c::rt_bigfloat_retain#1",
+      "message": "bigfloat reference count overflow",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_bignum_api.c::rt_bigfloat_to_biguint#1",
+      "message": "cannot convert negative float to uint",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "runtime/native/rt_bignum_api.c::rt_bigint_to_biguint#1",
+      "message": "cannot convert negative int to uint",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "runtime/native/rt_bignum_api.c::rt_bigint_to_biguint#2",
+      "message": "cannot convert negative int to uint",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "runtime/native/rt_bignum_api.c::rt_string_from_bigfloat#1",
+      "message": "numeric size limit exceeded",
+      "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_bignum_api.c::rt_string_from_bigint#1",
+      "message": "numeric size limit exceeded",
+      "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_bignum_api.c::rt_string_from_biguint#1",
+      "message": "numeric size limit exceeded",
+      "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_bignum_panic.c::bignum_panic_err#1",
+      "message": "numeric size limit exceeded",
+      "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_bignum_panic.c::bignum_panic_err#3",
+      "message": "unsigned underflow",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "runtime/native/rt_bignum_panic.c::bignum_panic_err#4",
+      "message": "negative shift",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "runtime/native/rt_bignum_panic.c::bignum_panic_err#5",
+      "message": "invalid numeric conversion",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "runtime/native/rt_channel_lane.h::channel_align_up#1",
+      "message": "async: channel allocation overflow",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_channel_lane.h::channel_alloc_size#1",
+      "message": "async: channel allocation overflow",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_channel_lane.h::channel_from_handle#1",
+      "message": "async: null channel handle",
+      "group": "PG-NULL-GUARD"
+    },
+    {
+      "site": "runtime/native/rt_channel_lane.h::channel_park_prepare_locked#1",
+      "message": "async: waiter allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_channel_sync.c::rt_channel_send_blocking#1",
+      "message": "send on closed channel",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "runtime/native/rt_channel_sync.c::rt_channel_try_recv_status_owner_locked#1",
+      "message": "async: channel try-recv with nowhere to put the value",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_far_channel_select.c::rt_anchored_channel_select#1",
+      "message": "anchored select outside a remote-select block body",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_far_channel_select.c::rt_anchored_channel_select#2",
+      "message": "anchored select arm table exceeds the arm cap",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_immediate_on_anchored.c::anchored_binding_or_die#1",
+      "message": "anchored channel operation outside an anchored block body",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_io.c::rt_readline#1",
+      "message": "readline allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_io.c::rt_readline#2",
+      "message": "readline allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_lane.c::rt_control_lock#1",
+      "message": "lane: control lock is not reentrant",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_lane.c::rt_control_lock#2",
+      "message": "lane: control lock requested while holding a shard lock",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_lane.c::rt_shard_lock#1",
+      "message": "lane: a second shard lock is forbidden",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_map.c::map_ensure_capacity#1",
+      "message": "map: null handle",
+      "group": "PG-NULL-GUARD"
+    },
+    {
+      "site": "runtime/native/rt_map.c::map_ensure_capacity#2",
+      "message": "map capacity overflow",
+      "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_map.c::map_ensure_capacity#3",
+      "message": "map allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_map.c::map_key_eq#1",
+      "message": "map: unsupported key kind",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_map.c::rt_map_contains#1",
+      "message": "map: null handle",
+      "group": "PG-NULL-GUARD"
+    },
+    {
+      "site": "runtime/native/rt_map.c::rt_map_get_ref#1",
+      "message": "map: null handle",
+      "group": "PG-NULL-GUARD"
+    },
+    {
+      "site": "runtime/native/rt_map.c::rt_map_insert#1",
+      "message": "map: null handle",
+      "group": "PG-NULL-GUARD"
+    },
+    {
+      "site": "runtime/native/rt_map.c::rt_map_insert#2",
+      "message": "map length overflow",
+      "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_map.c::rt_map_keys#1",
+      "message": "map: null handle",
+      "group": "PG-NULL-GUARD"
+    },
+    {
+      "site": "runtime/native/rt_map.c::rt_map_keys#2",
+      "message": "map keys element too large",
+      "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_map.c::rt_map_keys#3",
+      "message": "map keys stride overflow",
+      "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_map.c::rt_map_keys#4",
+      "message": "map keys size overflow",
+      "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_map.c::rt_map_keys#5",
+      "message": "map keys size overflow",
+      "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_map.c::rt_map_keys#6",
+      "message": "map keys allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_map.c::rt_map_keys#7",
+      "message": "map keys allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_map.c::rt_map_len#1",
+      "message": "map: null handle",
+      "group": "PG-NULL-GUARD"
+    },
+    {
+      "site": "runtime/native/rt_map.c::rt_map_new#1",
+      "message": "map: unsupported key kind",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_map.c::rt_map_new#2",
+      "message": "map allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_map.c::rt_map_remove#1",
+      "message": "map: null handle",
+      "group": "PG-NULL-GUARD"
+    },
+    {
+      "site": "runtime/native/rt_net.c::net_wait_current_task#1",
+      "message": "async net wait outside task",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_net_accept_group.c::rt_net_wait_accept#1",
+      "message": "async net wait outside task",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_ready_queue.c::pop_task_from_deque#1",
+      "message": "async: local queue overflow",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_ready_queue.c::pop_task_from_deque#2",
+      "message": "async: local queue allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_ready_queue.c::pop_task_from_deque#3",
+      "message": "async: local queue overflow",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_ready_queue.c::pop_task_from_deque#4",
+      "message": "async: local queue allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#1",
+      "message": "async: local queue overflow",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#2",
+      "message": "async: local queue allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#3",
+      "message": "async: inject queue overflow",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#4",
+      "message": "async: inject queue allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#5",
+      "message": "async: inject queue overflow",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#6",
+      "message": "async: inject queue allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_remote_spawn.c::rt_remote_spawn_drain_inbound_locked#1",
+      "message": "remote spawn: unsupported transport message kind",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_remote_spawn.c::rt_remote_spawn_fail_all_pending#1",
+      "message": "remote spawn: unknown transport message kind during shutdown",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_remote_task_deadlock.c::rt_remote_task_deadlock_check#1",
+      "message": "<computed>",
+      "group": "PG-COMPUTED"
+    },
+    {
+      "site": "runtime/native/rt_scheduler_placement.c::rt_debug_assert_no_parked_with_work#1",
+      "message": "async: parked-with-work invariant violated",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_scheduler_placement.c::rt_task_owner_shard#1",
+      "message": "async: invalid task owner shard",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_scope_table.c::ensure_scope_cap#1",
+      "message": "async: scope capacity overflow",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_scope_table.c::ensure_scope_segment_locked#1",
+      "message": "async: scope segment allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_string.c::rt_string_concat#1",
+      "message": "string concat length out of range",
+      "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_string.c::rt_string_from_bytes#1",
+      "message": "string from_bytes length out of range",
+      "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_string.c::rt_string_repeat#1",
+      "message": "string repeat length out of range",
+      "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_string.c::rt_string_repeat#2",
+      "message": "string repeat length out of range",
+      "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_string.c::rt_string_repeat#3",
+      "message": "string repeat length out of range",
+      "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_task_complete.c::apply_poll_outcome#1",
+      "message": "async: unknown poll outcome",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_task_complete.c::cancel_task#1",
+      "message": "async: cancel snapshot allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_task_park.c::wake_key_all_with_policy#1",
+      "message": "async: wake batch allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_task_table.c::ensure_segment_locked#1",
+      "message": "async: task segment allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_task_table.c::ensure_task_cap#1",
+      "message": "async: task capacity overflow",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_term.c::rt_term_read_event#1",
+      "message": "term_read_event allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_term.c::rt_term_size#1",
+      "message": "term_size allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_transport.c::rt_transport_enqueue#1",
+      "message": "transport: enqueue while holding another shard lock",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_transport.c::rt_transport_mark_shard_running#1",
+      "message": "transport: mark running while holding another shard lock",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_transport.c::rt_transport_prepare_shard_park#1",
+      "message": "transport: park while holding another shard lock",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_transport.c::rt_transport_try_drain_one#1",
+      "message": "transport: drain while holding another shard lock",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_transport_debug.c::rt_transport_debug_snapshot#1",
+      "message": "transport: debug snapshot while holding another shard lock",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_waiter_join_route.c::rt_waiter_collect_join_waiters#1",
+      "message": "async: wake batch allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_waiter_route.c::rt_waiter_migrate_join_waiters#1",
+      "message": "async: waiter allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_waiter_route.c::rt_waiter_publish_join_owner_and_migrate#1",
+      "message": "async: waiter allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    }
+  ]
+}

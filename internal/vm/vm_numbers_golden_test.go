@@ -13,5 +13,5 @@ import "testing"
 // now, and a fixture that genuinely must not run says so for itself, with the
 // leading underscore the corpus already understands.
 func TestVMNumbersGolden(t *testing.T) {
-	runBehaviourCorpus(t, "vm_numbers", behaviourCorpusOptions{})
+	runBehaviourCorpus(t, "vm_numbers")
 }

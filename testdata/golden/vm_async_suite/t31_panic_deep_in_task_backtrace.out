@@ -1,0 +1,7 @@
+panic VM2105: array index 9 out of range for length 3
+at testdata/golden/vm_async_suite/t31_panic_deep_in_task_backtrace.sg:11:12
+backtrace:
+  0: level3 at testdata/golden/vm_async_suite/t31_panic_deep_in_task_backtrace.sg:11:12
+  1: level2 at testdata/golden/vm_async_suite/t31_panic_deep_in_task_backtrace.sg:15:12
+  2: level1 at testdata/golden/vm_async_suite/t31_panic_deep_in_task_backtrace.sg:19:12
+  3: inner$poll at testdata/golden/vm_async_suite/t31_panic_deep_in_task_backtrace.sg:23:12

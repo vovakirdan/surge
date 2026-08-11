@@ -1,0 +1,5 @@
+panic VM1004: index 7 out of bounds for length 3
+at testdata/golden/vm_strings/string_index_out_of_bounds_panics.sg:13:13
+backtrace:
+  0: main at testdata/golden/vm_strings/string_index_out_of_bounds_panics.sg:13:13
+  1: __surge_start at <no-span>
