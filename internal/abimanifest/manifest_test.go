@@ -89,10 +89,17 @@ func TestManifestRejectsInvalidLLVMAttributePositionsAndTypes(t *testing.T) {
 	}
 }
 
+// TestManifestMemoryAttributesMatchCallbackEffects audits every parameter in the
+// manifest that promises LLVM the function only reads it or only writes it.
+//
+// It covers runtime functions as well as callbacks. It once covered only
+// callbacks, and the first runtime function with pointer parameters entered the
+// frozen manifest carrying a readonly and a writeonly nobody had checked against
+// what the function does — which, for that function, was nothing at all.
 func TestManifestMemoryAttributesMatchCallbackEffects(t *testing.T) {
 	manifest := loadTestManifest(t)
 	var readonly, writeonly []string
-	for _, callback := range manifest.Callbacks {
+	for _, callback := range slices.Concat(manifest.Callbacks, manifest.RuntimeFunctions) {
 		for _, parameter := range callback.Parameters {
 			key := callback.Name + "." + parameter.Name
 			if slices.Contains(parameter.Attributes, "readonly") {
@@ -126,11 +133,15 @@ func TestManifestMemoryAttributesMatchCallbackEffects(t *testing.T) {
 		"rt_value_move_init_fn.dst",
 		"rt_value_plan_cross_fn.out",
 	}
+	// Both lists are callbacks only, and that is the audited answer, not an
+	// omission: rt_value_copy_init_unbound_trap has the shape of
+	// rt_value_copy_init_fn but aborts without touching either pointer, so it
+	// carries neither attribute and appears in neither list.
 	if !slices.Equal(readonly, wantReadonly) {
-		t.Fatalf("readonly callback parameters require an effects audit: got %v, want %v", readonly, wantReadonly)
+		t.Fatalf("readonly parameters require an effects audit: got %v, want %v", readonly, wantReadonly)
 	}
 	if !slices.Equal(writeonly, wantWriteonly) {
-		t.Fatalf("writeonly callback parameters require an effects audit: got %v, want %v", writeonly, wantWriteonly)
+		t.Fatalf("writeonly parameters require an effects audit: got %v, want %v", writeonly, wantWriteonly)
 	}
 }
 

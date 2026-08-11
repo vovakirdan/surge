@@ -1294,6 +1294,53 @@
       "effects": [
         "returns_static_identity"
       ]
+    },
+    {
+      "name": "rt_value_copy_init_unbound_trap",
+      "semantics": "An aborting trap, not a copy. It is the named non-null value every descriptor that sets RT_VALUE_FLAG_COPY without a per-type copy binds into copy_init, so the flag and its callback slot agree and the slot's identity says the copy width is the descriptor's rt_value_layout.size. It is never dispatched: the frozen rt_value_copy_init_fn signature carries no width, so the copy is performed by the runtime helper that still holds the descriptor and that helper branches away from this symbol. Reaching this body means the slot was dispatched directly, without the width it needs; it copies nothing, writes the diagnosis to stderr and aborts the process rather than returning a destination its owner would publish as initialized.",
+      "result": {
+        "type": {
+          "kind": "void"
+        },
+        "ownership": "none",
+        "attributes": [],
+        "semantics": "It does not return. The only path that reaches this body is an internal error and it aborts."
+      },
+      "parameters": [
+        {
+          "name": "dst",
+          "type": {
+            "kind": "pointer",
+            "name": "void",
+            "const": false,
+            "nullable": false
+          },
+          "ownership": "destination_empty",
+          "attributes": [
+            "nonnull",
+            "nocapture"
+          ],
+          "semantics": "The destination the frozen callback contract obliges a caller to pass. This body never writes it, so it carries no writeonly."
+        },
+        {
+          "name": "src",
+          "type": {
+            "kind": "pointer",
+            "name": "void",
+            "const": true,
+            "nullable": false
+          },
+          "ownership": "borrowed_initialized",
+          "attributes": [
+            "nonnull",
+            "nocapture"
+          ],
+          "semantics": "The source the frozen callback contract obliges a caller to pass. This body never reads it, so it carries no readonly."
+        }
+      ],
+      "effects": [
+        "none"
+      ]
     }
   ]
 }

@@ -47,6 +47,8 @@ int harness_case_storage(void);
 int harness_case_zst(void);
 int harness_case_descriptor(void);
 int harness_case_identity(void);
+int harness_case_copy(void);
+int harness_case_copy_direct(void);
 
 #define REQUIRE(expression)                                                                        \
     do {                                                                                           \

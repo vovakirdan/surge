@@ -1,4 +1,4 @@
-.PHONY: build run test runtime-v2-check runtime-v2-abi-manifest-check runtime-v2-slot-control-check runtime-v2-ownership-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check runtime-v2-panic-surface-check runtime-v2-transport-contract-check runtime-v2-transport-check runtime-v2-carrier-check runtime-v2-carrier-bench runtime-v2-carrier-baseline-capture runtime-v2-carrier-bench-final vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
+.PHONY: build run test runtime-v2-check runtime-v2-abi-manifest-check runtime-v2-slot-control-check runtime-v2-ownership-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check runtime-v2-panic-surface-check runtime-v2-transport-contract-check runtime-v2-transport-check runtime-v2-carrier-check runtime-v2-carrier-sanitizer-check runtime-v2-carrier-bench runtime-v2-carrier-baseline-capture runtime-v2-carrier-bench-final vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
 .PHONY: golden golden-update golden-check golden-corpus-determinism behaviour-check behaviour-check-all behaviour-check-mt stats
 .PHONY: c-check cfmt-check c-warnings ctidy cppcheck
 
@@ -146,6 +146,70 @@ runtime-v2-carrier-check:
 	$(GO) test ./internal/carriergate -count=1
 	$(GO) test -race ./internal/vm -run '^TestRuntimeV2CarrierBench' -count=1 --timeout 120s
 
+# The mandatory carrier sanitizer gate (epic 23b section 12). It is a CLOSEOUT
+# gate and deliberately not part of `make check`: check is the pre-commit hook,
+# and this target costs minutes of valgrind. Its owned exemption from the
+# gate-integrity reachability rule is in internal/gatecheck/exemptions.txt.
+#
+# Availability comes FIRST and never skips: the preflight proves Valgrind,
+# ASan/UBSan and TSan are installed AND actually instrumenting on this host by
+# making each one catch a planted defect. A missing or inert tool fails here.
+#
+# Every row then runs through the script's `run` mode, which fails the target
+# on any `--- SKIP` or empty selection the row prints. Both rows below contain
+# a live skip-on-missing site today (a clang skip in the blocking lost-wake
+# proof, a valgrind skip in the strict census); this is what disables them.
+#
+# Every row also NAMES the tests it must execute, via --expect. Exit status
+# cannot tell a full row from one whose -run alternation has lost a member:
+# delete the two sanitizer tests below and `go test` still exits 0 on the
+# 0.00s survivor, leaving a mandatory sanitizer gate green with no sanitizer
+# execution at all. --expect fails the row unless every named test printed
+# `--- PASS:`. The lists are cross-checked against the live `go test -list`
+# selection by TestCarrierSanitizerMakefileTargetShape, which catches a declared
+# test that the row's own -run no longer selects.
+#
+# That cross-check alone would NOT catch a row narrowed in both fields at once,
+# because both fields are in this file and a shrunken row stays self-consistent.
+# The ratchet that does catch it is requiredSanitizerCoverage, in
+# internal/gatecheck/runtime_v2_carrier_sanitizer_check_test.go: the rows here
+# must together cover that list, so shrinking this gate means editing that file
+# too.
+#
+# Each `$(GO) test` row is spelled `bash scripts/...` and not `./scripts/...`
+# on purpose: internal/gatecheck parses every `$(GO) test` recipe line and
+# reads a `./`-prefixed field as a package name, so a `./`-spelled wrapper
+# would be handed to `go test -list` as if it were a package. (The preflight
+# line below carries no `$(GO) test` and is therefore never parsed, which is
+# why `./scripts/...` is fine there.)
+#
+# The rows are the carrier rows that carry sanitizer or valgrind coverage
+# today: the typed carrier slot API under ASan/UBSan and TSan, carrier
+# reclamation under valgrind, and the carrier bench bridge under the race
+# detector. The purely static carrier rows stay in runtime-v2-carrier-check,
+# which section 12 already runs twice. Wave D owner migrations add their rows
+# here as they land.
+#
+# Migration tripwire for whoever moves the runtime-v2-slot-control-check row
+# below through this wrapper. TestRuntimeV2SlotControlRequiredSanitizersFailClosed
+# (internal/vm/runtime_v2_slot_control_test.go) pins a LITERAL substring of this
+# Makefile: `SURGE_REQUIRE_SLOT_CONTROL_SANITIZERS=1`
+# immediately followed by a space and `$(GO) test`. The wrapper spelling used
+# by this target puts the script between them, so it does NOT satisfy that
+# assertion; the assertion passes today only because the slot-control row is
+# still spelled the old way. Migrate that row and it fails with
+# "runtime-v2-slot-control-check must require sanitizer support", which names
+# the wrong cause — relax the assertion in the same commit as the migration.
+# (The two fragments are deliberately quoted on separate lines here: written
+# out as one string, this comment alone would satisfy the assertion and the
+# tripwire would become a gate nothing can fail.)
+runtime-v2-carrier-sanitizer-check:
+	@echo ">> Running Runtime V2 carrier sanitizer gate"
+	@./scripts/runtime_v2_carrier_sanitizer_check.sh preflight
+	SURGE_REQUIRE_SLOT_CONTROL_SANITIZERS=1 bash scripts/runtime_v2_carrier_sanitizer_check.sh run --expect TestRuntimeV2SlotControlAddressAndUndefinedSanitizers,TestRuntimeV2SlotControlThreadSanitizer,TestRuntimeV2SlotControlRequiredSanitizersFailClosed -- $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2SlotControl(AddressAndUndefinedSanitizers|ThreadSanitizer|RequiredSanitizersFailClosed)$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 bash scripts/runtime_v2_carrier_sanitizer_check.sh run --expect TestRuntimeV2DropFarChannelHandleAndObjectValgrindZero,TestRuntimeV2CrossingStrictCensusValgrindBounded -- $(GO) test ./internal/vm -run '^TestRuntimeV2(DropFarChannelHandleAndObjectValgrindZero|CrossingStrictCensusValgrindBounded)$$' -count=1 -parallel=1 -p=1 -v --timeout 900s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 bash scripts/runtime_v2_carrier_sanitizer_check.sh run --expect TestRuntimeV2CarrierBenchBlockingRegisterThenVerify,TestRuntimeV2CarrierBenchCounterMatrix,TestRuntimeV2CarrierBenchBridgeHasNoHotPathEnvironmentLookup -- $(GO) test -race ./internal/vm -run '^TestRuntimeV2CarrierBench' -count=1 -parallel=1 -p=1 -v --timeout 300s
+
 runtime-v2-carrier-bench:
 	@echo ">> Running fail-closed Runtime V2 carrier benchmark"
 	PYTHONDONTWRITEBYTECODE=1 taskset -c 0,2 $(PYTHON) scripts/runtime_v2_carrier_bench.py --phase=final
@@ -159,7 +223,7 @@ runtime-v2-carrier-bench-final:
 
 runtime-v2-slot-control-check:
 	@echo ">> Running Runtime V2 owner-private slot-control gate"
-	SURGE_REQUIRE_SLOT_CONTROL_SANITIZERS=1 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2SlotControl(Protocol|AddressAndUndefinedSanitizers|ThreadSanitizer|IsOwnerPrivateAndCallbackFree|RequiredSanitizersFailClosed)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
+	SURGE_REQUIRE_SLOT_CONTROL_SANITIZERS=1 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2SlotControl(Protocol|AddressAndUndefinedSanitizers|ThreadSanitizer|IsOwnerPrivateAndCallbackFree|CopyInitTrapIsNamedAndUndispatched|RequiredSanitizersFailClosed)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
 
 runtime-v2-ownership-check:
 	@echo ">> Running Runtime V2 ownership corpus gate"

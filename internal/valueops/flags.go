@@ -63,9 +63,18 @@ type slotRule struct {
 	flag string // the manifest rt_value_flags enum name
 	slot string // the manifest rt_value_ops field name
 
-	// structural marks a slot the runtime satisfies generically, with no
-	// compiler-emitted symbol to populate.
-	structural bool
+	// runtimeSymbol names the runtime symbol that fills this slot for every
+	// entry, instead of a per-type compiler-emitted one. A non-empty value is
+	// what makes the slot structural: the descriptor writer binds this exact
+	// name, and the runtime carries it under the same frozen manifest whose
+	// hash the link sentinel checks. An empty value means the slot is filled
+	// per type or not at all.
+	//
+	// It is a name and not a claim of absence on purpose. "The runtime handles
+	// it" was once written here as a comment, and the runtime did not: the C
+	// side demands COPY imply a non-null copy_init, and no symbol existed to
+	// satisfy it.
+	runtimeSymbol string
 
 	// staged marks a slot this registry cannot carry an emitted symbol for at
 	// all. Setting such a bit is refused: an entry that claims the capability
@@ -74,15 +83,48 @@ type slotRule struct {
 	staged bool
 }
 
+// structural reports whether the runtime fills this slot for every entry.
+func (r slotRule) structural() bool { return r.runtimeSymbol != "" }
+
+// CopyInitUnboundTrap is the runtime symbol every descriptor that sets FlagCopy
+// binds into rt_value_ops.copy_init.
+//
+// It does not copy. It is an aborting trap whose two jobs are to make the slot
+// non-null, so the runtime's flag/callback biconditional holds, and to be loud
+// if anyone dispatches the slot: the frozen callback signature carries no width,
+// so the byte copy is performed by the runtime's rt_value_copy_init, which still
+// holds the descriptor whose rt_value_layout.size is that width.
+//
+// It is exported because the descriptor writer is the one that has to bind it,
+// and there is exactly one right name. The runtime declares it from the frozen
+// ABI manifest, so a runtime that does not carry it fails to link rather than
+// producing a descriptor the owner-private slot control refuses at run time.
+const CopyInitUnboundTrap = "rt_value_copy_init_unbound_trap"
+
 // slotRules is the whole flag-to-slot contract, in bit order. It is the only
 // place the contract is written down.
 var slotRules = [...]slotRule{
-	{bit: FlagCopy, flag: "RT_VALUE_FLAG_COPY", slot: "copy_init", structural: true},
+	{bit: FlagCopy, flag: "RT_VALUE_FLAG_COPY", slot: "copy_init", runtimeSymbol: CopyInitUnboundTrap},
 	{bit: FlagClonable, flag: "RT_VALUE_FLAG_CLONABLE", slot: "clone_init"},
 	{bit: FlagDroppable, flag: "RT_VALUE_FLAG_DROPPABLE", slot: "drop_in_place", staged: true},
 	{bit: FlagTraceable, flag: "RT_VALUE_FLAG_TRACEABLE", slot: "trace", staged: true},
 	{bit: FlagShardMovable, flag: "RT_VALUE_FLAG_SHARD_MOVABLE", slot: "cross_move_init", staged: true},
 	{bit: FlagCrossClonable, flag: "RT_VALUE_FLAG_CROSS_CLONABLE", slot: "cross_clone_init", staged: true},
+}
+
+// RuntimeFilledSlot answers which runtime symbol fills one flag bit's
+// rt_value_ops slot, for a descriptor writer deciding what to store there.
+//
+// The second result is false for a bit whose slot is filled per type (or not at
+// all), which is the question a writer actually has: "do I emit a symbol for
+// this, or bind the runtime's?".
+func RuntimeFilledSlot(bit Flags) (string, bool) {
+	for _, rule := range slotRules {
+		if rule.bit == bit && rule.structural() {
+			return rule.runtimeSymbol, true
+		}
+	}
+	return "", false
 }
 
 // knownFlags is the union of every bit this package understands. A bit outside

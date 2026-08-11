@@ -11,8 +11,8 @@ extern "C" {
 #endif
 
 #define SURGE_TYPED_CARRIER_ABI_VERSION UINT32_C(2)
-#define SURGE_TYPED_CARRIER_ABI_MANIFEST_HASH "5c95dc2f8fe5939fcd21ee528515403a3b5bc8c083fd002e3b40f968b9b389e6"
-#define SURGE_TYPED_CARRIER_ABI_SENTINEL __surge_runtime_abi_typed_carrier_v2_5c95dc2f8fe5939fcd21ee528515403a3b5bc8c083fd002e3b40f968b9b389e6
+#define SURGE_TYPED_CARRIER_ABI_MANIFEST_HASH "f30fcfb03b62d105dab0cd21d57a3dcc029b0e7ae10a337e966079033608650a"
+#define SURGE_TYPED_CARRIER_ABI_SENTINEL __surge_runtime_abi_typed_carrier_v2_f30fcfb03b62d105dab0cd21d57a3dcc029b0e7ae10a337e966079033608650a
 
 typedef uint64_t rt_value_flags;
 #define RT_VALUE_FLAG_COPY UINT64_C(1)
@@ -148,8 +148,9 @@ struct rt_typed_carrier_handle {
 };
 
 const uint8_t* rt_typed_carrier_abi_manifest_hash(void);
+void rt_value_copy_init_unbound_trap(void* dst, const void* src);
 extern const uint8_t rt_typed_carrier_abi_manifest_identity[];
-void __surge_runtime_abi_typed_carrier_v2_5c95dc2f8fe5939fcd21ee528515403a3b5bc8c083fd002e3b40f968b9b389e6(void);
+void __surge_runtime_abi_typed_carrier_v2_f30fcfb03b62d105dab0cd21d57a3dcc029b0e7ae10a337e966079033608650a(void);
 
 #ifdef __cplusplus
 }

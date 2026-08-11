@@ -5,8 +5,15 @@
 # kind = test  -> a test deliberately outside every gate selection.
 # kind = tag   -> a build-tag family with its own runner outside the
 #                 Makefile go-test surface.
+# kind = target-> a `make X` a runnable-gate document (an evidence contract or
+#                 the liveness probe catalogue) names on purpose before the
+#                 target exists. No row is live today: design documents that
+#                 describe a future release flow are out of the doc check's
+#                 scope, so nothing needs silencing. The kind stays documented
+#                 because the check's failure message points a reader here.
 gate runtime-v2-liveness-stress runtime-maintainers quarantined RV2-DEBT-027 recurrence bound; manual by design, run at fix-epoch cadence
 gate bench bench-owner performance benchmark target, not a correctness gate
+gate runtime-v2-carrier-sanitizer-check runtime-maintainers epic 23b section 12 closeout gate: it requires Valgrind plus a working ASan/UBSan and TSan and spends minutes under valgrind, so it cannot sit in the pre-commit hook. Run at wave milestones and at 23b closeout, where section 12 names it explicitly; an unavailable mandatory sanitizer gate blocks closeout and may not become tooling debt
 tag golden golden-maintainers run by make golden-corpus-determinism, which CI invokes; it needs a COMMITTED testdata/golden because Check compares two regenerations against a reviewed snapshot
 gate golden-corpus-determinism golden-maintainers cannot live in the pre-commit hook: its preflight refuses a corpus with uncommitted changes, which is precisely the state a hook runs on. CI invokes it after checkout
 gate behaviour-check runtime-maintainers names the VM behavioural lane so it can be run alone; the tests it selects already run inside make check through make test, so this target adds no coverage of its own

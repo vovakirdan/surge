@@ -3,16 +3,18 @@
 package vm_test
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"testing"
 )
 
 var slotControlModes = []string{
-	"read", "exclusive", "stale", "ordering", "storage", "zst", "descriptor", "identity",
+	"read", "exclusive", "stale", "ordering", "storage", "zst", "descriptor", "identity", "copy",
 }
 
 func TestRuntimeV2SlotControlProtocol(t *testing.T) {
@@ -55,9 +57,6 @@ func TestRuntimeV2SlotControlIsOwnerPrivateAndCallbackFree(t *testing.T) {
 		t.Fatal("SlotControl must not erase the concrete B2 descriptor identity")
 	}
 
-	callbackCall := regexp.MustCompile(
-		`(\.|->)\s*(move_init|copy_init|clone_init|drop_in_place|trace|plan_cross|cross_move_init|cross_clone_init)\s*\(`,
-	)
 	for _, name := range []string{
 		"rt_slot_control.h",
 		"rt_slot_control_internal.h",
@@ -69,9 +68,179 @@ func TestRuntimeV2SlotControlIsOwnerPrivateAndCallbackFree(t *testing.T) {
 		if strings.Contains(source, "pthread_") {
 			t.Fatalf("%s must not acquire a pthread lock", name)
 		}
-		if callback := callbackCall.FindString(source); callback != "" {
-			t.Fatalf("%s must not invoke ValueOps callbacks; found %q", name, callback)
+		// Scanning for `x->callback(` alone would miss `(*x->callback)(args)`
+		// and `fn f = x->callback; f(args)`, which are ordinary C and are how a
+		// callback gets invoked without ever spelling a call at the slot.
+		if reads := slotReadsBeyondNullChecks(source, allValueOpsSlots); len(reads) != 0 {
+			t.Fatalf("%s must not read ValueOps callback slots except to compare them "+
+				"against NULL; found %q", name, reads)
 		}
+	}
+}
+
+// allValueOpsSlots is every rt_value_ops callback field, as the owner-private
+// slot control may never invoke any of them.
+const allValueOpsSlots = `move_init|copy_init|clone_init|drop_in_place|trace|plan_cross|` +
+	`cross_move_init|cross_clone_init`
+
+// slotReadsBeyondNullChecks returns every read of one of `slots` in `source`
+// that is not a null comparison.
+//
+// It is stated as "what is allowed", not "what a call looks like". The only
+// legitimate reason for anything outside the runtime's own copy helper to touch
+// a callback slot is to check that the descriptor filled it, so the two null
+// comparisons and the generated ABI's field-size assertion are blanked out and
+// ANY remaining mention of a slot behind a `.` or `->` is reported: a call, a
+// dereferenced call, a hoist into a local, an address taken, a macro that
+// expands to any of those. The one shape that still escapes is dispatch that
+// never spells the field name, which is why this is a discipline scan and not a
+// proof.
+func slotReadsBeyondNullChecks(source, slots string) []string {
+	code := cCodeOnly(source)
+	nullCheck := regexp.MustCompile(`(\.|->)\s*(` + slots + `)\s*(==|!=)\s*NULL`)
+	// The generated ABI checks assert the field's size through a null-pointer
+	// cast; that is a compile-time type query, not a read.
+	abiSizeAssertion := regexp.MustCompile(`sizeof\(\(\(rt_value_ops\*\)0\)->(` + slots + `)\)`)
+	scrubbed := abiSizeAssertion.ReplaceAllString(nullCheck.ReplaceAllString(code, ""), "")
+	return regexp.MustCompile(`(\.|->)\s*(`+slots+`)\b`).FindAllString(scrubbed, -1)
+}
+
+// cCodeOnly strips C comments and string or character literals, so a discipline
+// scan reads code. Without it a comment that names the forbidden form, or a
+// _Static_assert message that quotes the field, is reported as a violation — and
+// the scan's own failure text becomes the thing that fails it.
+func cCodeOnly(source string) string {
+	var code strings.Builder
+	for index := 0; index < len(source); {
+		rest := source[index:]
+		switch {
+		case strings.HasPrefix(rest, "//"):
+			end := strings.IndexByte(rest, '\n')
+			if end < 0 {
+				return code.String()
+			}
+			index += end
+		case strings.HasPrefix(rest, "/*"):
+			end := strings.Index(rest[2:], "*/")
+			if end < 0 {
+				return code.String()
+			}
+			index += 2 + end + 2
+			code.WriteByte(' ')
+		case rest[0] == '"' || rest[0] == '\'':
+			quote := rest[0]
+			index++
+			for index < len(source) && source[index] != quote {
+				if source[index] == '\\' {
+					index++
+				}
+				index++
+			}
+			index++
+			code.WriteByte(' ')
+		default:
+			code.WriteByte(rest[0])
+			index++
+		}
+	}
+	return code.String()
+}
+
+// TestRuntimeV2SlotControlCopyInitTrapIsNamedAndUndispatched covers the half of
+// RT_VALUE_FLAG_COPY the harness modes cannot: the value that fills the slot is a
+// real declared runtime symbol, nothing in the runtime dispatches it, and
+// reaching it through the raw callback pointer is loud rather than a silent
+// zero-byte copy.
+//
+// The frozen rt_value_copy_init_fn signature carries no width, so no callback can
+// copy on its own; rt_value_copy_init performs the copy while still holding the
+// descriptor whose rt_value_layout.size is the width, and branches away from the
+// trap. That is a discipline, so it is scanned for rather than trusted.
+func TestRuntimeV2SlotControlCopyInitTrapIsNamedAndUndispatched(t *testing.T) {
+	root := repoRoot(t)
+
+	header := readSlotControlFile(t, filepath.Join(root, "runtime", "native", "rt_typed_carrier_abi.generated.h"))
+	if !strings.Contains(header, "void rt_value_copy_init_unbound_trap(void* dst, const void* src);") {
+		t.Fatal("the generated ABI header no longer declares rt_value_copy_init_unbound_trap; " +
+			"a descriptor that sets RT_VALUE_FLAG_COPY would have nothing to bind")
+	}
+	checks := readSlotControlFile(t, filepath.Join(root, "runtime", "native", "rt_typed_carrier_abi_checks.generated.h"))
+	if !strings.Contains(checks, "\"rt_value_copy_init_unbound_trap signature drift\"") {
+		t.Fatal("the generated ABI checks no longer pin rt_value_copy_init_unbound_trap's signature")
+	}
+
+	// Only the runtime's own copy helper may read the slot at all. Everywhere
+	// else the descriptor is in hand and rt_value_copy_init is the call.
+	entries, err := os.ReadDir(filepath.Join(root, "runtime", "native"))
+	if err != nil {
+		t.Fatalf("read runtime/native: %v", err)
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || name == "rt_value_ops.c" ||
+			(!strings.HasSuffix(name, ".c") && !strings.HasSuffix(name, ".h")) {
+			continue
+		}
+		source := readSlotControlFile(t, filepath.Join(root, "runtime", "native", name))
+		if reads := slotReadsBeyondNullChecks(source, "copy_init"); len(reads) != 0 {
+			t.Errorf("%s reads %q; the trap has no width and is not a copy, so copies go "+
+				"through rt_value_copy_init(operations, dst, src)", name, reads)
+		}
+	}
+
+	// The one exception is rt_value_ops.c, and it is pinned by TOTAL READS of
+	// the slot rather than by one call shape. Counting `->copy_init(` alone
+	// misses `(*operations->copy_init)(dst, src)`, which dispatches the trap
+	// through a plain function-pointer deref and would abort in production for
+	// every trap-bound Copy value; that evasion was demonstrated against the
+	// call-shape count this replaced. A read is a read whatever spelling reaches
+	// it, so the exception cannot grow in any spelling.
+	//
+	// The three reads today, all inside rt_value_copy_init's own decision:
+	// the identity compare in rt_value_copy_uses_runtime_width, the branch
+	// compare that separates a specialization from the trap, and the one
+	// dispatch of that specialization. `== NULL` guards do not count — the
+	// scanner strips them, because a null check is not a use.
+	helperReads := slotReadsBeyondNullChecks(
+		readSlotControlFile(t, filepath.Join(root, "runtime", "native", "rt_value_ops.c")),
+		"copy_init",
+	)
+	if len(helperReads) != 3 {
+		t.Errorf("rt_value_ops.c reads copy_init %d times %v, want exactly 3 "+
+			"(identity compare, specialization branch, and the one dispatch of a "+
+			"specialization); a new read is a new way for the trap to reach a caller",
+			len(helperReads), helperReads)
+	}
+
+	bin := buildRuntimeV2SlotControlHarness(t, "slot-control-copy-direct", nil, false)
+	// The child dies by SIGABRT on purpose; run it somewhere a core dump is
+	// discarded with the temporary directory instead of landing in the package.
+	direct := exec.Command(bin, "copy-direct")
+	direct.Dir = t.TempDir()
+	output, err := direct.CombinedOutput()
+	if err == nil {
+		t.Fatalf("a descriptorless dispatch of the trap returned instead of refusing:\n%s", output)
+	}
+	// A nonzero exit is not enough: the harness reports its own failure when the
+	// trap returns, so "the child failed" is true either way. The trap has to
+	// take the process down before its caller can publish a destination it never
+	// filled.
+	// Matched on the wait status, not on the message. os/exec renders SIGABRT as
+	// "signal: aborted" on Linux and "signal: abort trap" on Darwin, so a string
+	// match here would quietly make this gate Linux-only.
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("the descriptorless dispatch ended as %v, not by a signal:\n%s", err, output)
+	}
+	status, ok := exitErr.Sys().(syscall.WaitStatus)
+	if !ok || !status.Signaled() || status.Signal() != syscall.SIGABRT {
+		t.Fatalf("the descriptorless dispatch ended as %v, not by aborting:\n%s", err, output)
+	}
+	if strings.Contains(string(output), "returned from a descriptorless dispatch") {
+		t.Fatalf("the trap returned to its caller instead of aborting:\n%s", output)
+	}
+	if !strings.Contains(string(output), "rt_value_copy_init_unbound_trap was dispatched through") {
+		t.Fatalf("the descriptorless dispatch did not name itself:\n%s", output)
 	}
 }
 
@@ -140,9 +309,11 @@ func buildRuntimeV2SlotControlHarness(
 		filepath.Join(root, "internal", "vm", "testdata", "slot_control_edge_cases.c"),
 		filepath.Join(root, "internal", "vm", "testdata", "slot_control_descriptor_cases.c"),
 		filepath.Join(root, "internal", "vm", "testdata", "slot_control_identity_cases.c"),
+		filepath.Join(root, "internal", "vm", "testdata", "slot_control_copy_cases.c"),
 		filepath.Join(root, "runtime", "native", "rt_slot_control.c"),
 		filepath.Join(root, "runtime", "native", "rt_slot_claim.c"),
 		filepath.Join(root, "runtime", "native", "rt_slot_exclusive.c"),
+		filepath.Join(root, "runtime", "native", "rt_value_ops.c"),
 		"-o", bin,
 	)
 	cmd := exec.Command(clang, args...)

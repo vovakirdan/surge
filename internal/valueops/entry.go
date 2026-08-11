@@ -142,11 +142,17 @@ func (e *Entry) sharesWith(other *Entry) bool {
 // were two statements of one decision, and two implementations of one decision
 // drift apart.
 //
-// Two bits fall outside the symbol requirement for opposite reasons. COPY
-// requires nothing: copy_init is satisfied structurally by the runtime's generic
-// byte copy, so there is no compiler-emitted symbol to demand. The four staged
-// bits require a slot this registry has no field for, so setting them is refused
-// outright rather than accepted with a slot that would ship null.
+// Two bits fall outside the COMPILER-EMITTED symbol requirement for opposite
+// reasons. COPY's copy_init slot is filled by CopyInitUnboundTrap, a named
+// runtime symbol that does not copy: it exists to make the slot non-null, since
+// the runtime's owner-private slot control refuses a descriptor whose flag and
+// callback disagree, and to abort loudly if anyone dispatches the slot. The
+// bytes are moved by the runtime's own rt_value_copy_init, which still holds the
+// descriptor whose rt_value_layout.size is the width the callback signature does
+// not carry. So there is a symbol here — it just is not one this compiler
+// emitted, and it is not the thing that copies. The four staged bits require a
+// slot this registry has no field for, so setting them is refused outright
+// rather than accepted with a slot that would ship null.
 //
 // It fails closed, naming the type, the flag bit and the slot.
 func (e *Entry) checkSlots() error {
@@ -160,7 +166,7 @@ func (e *Entry) checkSlots() error {
 		if e.Flags&rule.bit == 0 {
 			continue
 		}
-		if rule.structural {
+		if rule.structural() {
 			continue
 		}
 		if rule.staged {

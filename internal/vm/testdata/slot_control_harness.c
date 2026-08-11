@@ -213,5 +213,12 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "identity") == 0) {
         return harness_case_identity();
     }
+    if (strcmp(argv[1], "copy") == 0) {
+        return harness_case_copy();
+    }
+    // Terminates the process on purpose; it is never in the passing mode list.
+    if (strcmp(argv[1], "copy-direct") == 0) {
+        return harness_case_copy_direct();
+    }
     return harness_fail("unknown mode", __FILE__, __LINE__);
 }

@@ -26,9 +26,11 @@ func TestSlotInvariantRefusesAClonableEntryWithNoEmittedCloneInit(t *testing.T) 
 }
 
 // TestSlotInvariantAcceptsCopyWithoutAnEmittedSymbol pins the structural
-// exemption: copy_init is satisfied by the runtime's generic byte copy, so no
-// compiler-emitted symbol exists for the invariant to demand. Without this the
-// invariant would fail for every Copy type on its first run.
+// exemption: copy_init is filled by the runtime's own CopyInitUnboundTrap, so no
+// compiler-emitted symbol exists for the invariant to demand. The slot is still
+// non-null in the descriptor, and the trap is not what copies — see
+// TestTheCopyInitTrapExistsInTheRuntimeAndDoesNotCopy, which is what stops this
+// exemption from meaning "nobody fills it" or "the filler copies".
 func TestSlotInvariantAcceptsCopyWithoutAnEmittedSymbol(t *testing.T) {
 	entry := Entry{Type: types.TypeID(12), Flags: FlagCopy}
 	if err := entry.checkSlots(); err != nil {

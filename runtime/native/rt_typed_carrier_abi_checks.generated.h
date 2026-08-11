@@ -177,6 +177,7 @@ _Static_assert(__builtin_types_compatible_p(rt_value_cross_clone_init_fn, rt_car
 _Static_assert(__builtin_types_compatible_p(rt_key_hash_fn, uint64_t (*)(const void*)), "rt_key_hash_fn signature drift");
 _Static_assert(__builtin_types_compatible_p(rt_key_equal_fn, uint8_t (*)(const void*, const void*)), "rt_key_equal_fn signature drift");
 _Static_assert(__builtin_types_compatible_p(__typeof__(&rt_typed_carrier_abi_manifest_hash), const uint8_t* (*)(void)), "rt_typed_carrier_abi_manifest_hash signature drift");
+_Static_assert(__builtin_types_compatible_p(__typeof__(&rt_value_copy_init_unbound_trap), void (*)(void*, const void*)), "rt_value_copy_init_unbound_trap signature drift");
 #endif
 
 #undef SURGE_ABI_MAX
