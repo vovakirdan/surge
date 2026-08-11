@@ -1,0 +1,5 @@
+panic VM2105: array index 9 out of range for length 3
+at testdata/golden/vm_async_suite/t30_panic_in_task_backtrace.sg:5:12
+backtrace:
+  0: boom at testdata/golden/vm_async_suite/t30_panic_in_task_backtrace.sg:5:12
+  1: inner$poll at testdata/golden/vm_async_suite/t30_panic_in_task_backtrace.sg:9:12

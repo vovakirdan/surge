@@ -1,0 +1,22 @@
+// A panic inside a spawned task. The backtrace must stop at the task's poll
+// entry rather than running on into the worker that happened to be polling it:
+// the VM's stack ends there, so the native walk has to end there too.
+fn boom(a: int[]) -> int {
+    return a[9];
+}
+
+async fn inner(a: int[]) -> int {
+    return boom(a);
+}
+
+@entrypoint
+fn main() -> int {
+    let xs: int[] = [1, 2, 3];
+    let t = spawn inner(xs);
+    let r = t.await();
+    compare r {
+        Success(v) => print(v to string);
+        Cancelled() => print("cancelled");
+    };
+    return 0;
+}

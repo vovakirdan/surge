@@ -87,6 +87,11 @@ void rt_panic_numeric(const uint8_t* ptr,
                       uint64_t span_length);
 void rt_panic_bounds(
     uint64_t kind, int64_t index, int64_t length, const uint8_t* span, uint64_t span_length);
+/* Prints the frames beneath the current one, in the shape the VM prints them.
+ * `site` is the location the emitter already knew for the innermost frame; a
+ * panic raised inside this runtime passes NULL and the innermost Surge frame's
+ * own row answers instead. Costs nothing until it is called. */
+void rt_panic_write_where(const uint8_t* site, uint64_t site_length);
 int64_t rt_monotonic_now(void);
 uint64_t rt_worker_count(void);
 void* rt_heap_stats(void);

@@ -65,6 +65,7 @@ func (e *Emitter) emitFunction(f *mir.Func) error {
 	}
 	fmt.Fprintf(&e.buf, "define %s @%s(%s) {\n", lowered.ret, name, strings.Join(paramNames, ", "))
 	fmt.Fprint(&e.buf, "entry:\n")
+	fe.emitTraceFuncMarker(f.Name)
 	e.buf.WriteString(fe.entryAllocas.String())
 	e.buf.WriteString(body)
 	fmt.Fprint(&e.buf, "}\n\n")

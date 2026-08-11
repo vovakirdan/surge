@@ -1,0 +1,38 @@
+arrays_index_panic_call_chain.sg (span: 5:1-22:1)
+├─ Item[0]: Fn (span: 5:1-7:2)
+│  ├─ Name: level3
+│  ├─ Params: (a: int[])
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 5:28-7:2)
+│        └─ Stmt[0]: Return (span: 6:5-6:17)
+│           └─ Expr: expr#3: a[9]
+├─ Item[1]: Fn (span: 9:1-11:2)
+│  ├─ Name: level2
+│  ├─ Params: (a: int[])
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 9:28-11:2)
+│        └─ Stmt[0]: Return (span: 10:5-10:22)
+│           └─ Expr: expr#6: level3(a)
+├─ Item[2]: Fn (span: 13:1-15:2)
+│  ├─ Name: level1
+│  ├─ Params: (a: int[])
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 13:28-15:2)
+│        └─ Stmt[0]: Return (span: 14:5-14:22)
+│           └─ Expr: expr#9: level2(a)
+└─ Item[3]: Fn (span: 17:1-21:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 18:18-21:2)
+         ├─ Stmt[0]: Let (span: 19:5-19:31)
+         │  ├─ Name: xs
+         │  ├─ Mutable: false
+         │  ├─ Type: int[]
+         │  └─ Value: expr#13: <ExprKind(8)>
+         └─ Stmt[1]: Return (span: 20:5-20:23)
+            └─ Expr: expr#16: level1(xs)

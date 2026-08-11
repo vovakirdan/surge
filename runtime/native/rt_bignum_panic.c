@@ -20,6 +20,10 @@ static void panic_with_code(int code, const char* msg) {
         n = (int)sizeof(buf) - 1;
     }
     rt_write_stderr((const uint8_t*)buf, (uint64_t)n);
+    /* No location of its own: a bignum operation is raised from inside this
+     * runtime and the emitter never handed it a span. The walk finds one at the
+     * innermost Surge frame, which is where the program actually divided. */
+    rt_panic_write_where(NULL, 0);
     _exit(1);
 }
 

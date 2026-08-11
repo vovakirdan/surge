@@ -16,6 +16,10 @@ func (fe *funcEmitter) emitInstr(ins *mir.Instr) error {
 	// location, exactly as the VM reports the frame span it sets at the same
 	// point (internal/vm/vm.go, setSpanForInstr).
 	fe.span.advance(ins)
+	// And record it for the backtrace, which asks the same question of an
+	// address rather than of an instruction. Only a CHANGE writes a row; see
+	// emit_trace_table.go.
+	fe.emitTraceLineMarker(fe.span.span)
 	switch ins.Kind {
 	case mir.InstrAssign:
 		return fe.emitAssign(ins)

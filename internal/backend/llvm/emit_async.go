@@ -40,6 +40,7 @@ func (e *Emitter) emitPollDispatch() error {
 
 	fmt.Fprintf(&e.buf, "define void @__surge_poll_call(i64 %%id) {\n")
 	fmt.Fprintf(&e.buf, "entry:\n")
+	e.emitTraceBoundaryMarker()
 	fmt.Fprintf(&e.buf, "  switch i64 %%id, label %%poll_default [\n")
 	for _, id := range pollIDs {
 		fmt.Fprintf(&e.buf, "    i64 %d, label %%poll.%d\n", id, id)
@@ -101,6 +102,7 @@ func (e *Emitter) emitPollDispatch() error {
 	sort.Slice(dropIDs, func(i, j int) bool { return dropIDs[i] < dropIDs[j] })
 	fmt.Fprintf(&e.buf, "define void @__surge_drop_call(i64 %%id, ptr %%state) {\n")
 	fmt.Fprintf(&e.buf, "entry:\n")
+	e.emitTraceBoundaryMarker()
 	fmt.Fprintf(&e.buf, "  switch i64 %%id, label %%drop_default [\n")
 	for _, id := range dropIDs {
 		fmt.Fprintf(&e.buf, "    i64 %d, label %%drop.%d\n", id, id)

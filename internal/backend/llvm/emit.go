@@ -133,10 +133,16 @@ type funcEmitter struct {
 	// entryAllocas collects every reservation this function makes, wherever in
 	// the body it was asked for, so they can all be placed in the entry block.
 	// See emitAllocaAligned for why that is both necessary and sound.
-	entryAllocas    strings.Builder
-	addrOfTargets   map[mir.LocalID]addrOfTarget
-	paramLocals     []mir.LocalID
-	blockTerminated bool
+	entryAllocas strings.Builder
+	// lastTraceSpan is the location the backtrace line map last recorded for
+	// this function, so a run of instructions from one statement emits one row
+	// rather than one per instruction. Reset at the function entry marker; see
+	// emit_trace_table.go.
+	lastTraceSpan    source.Span
+	lastTraceSpanSet bool
+	addrOfTargets    map[mir.LocalID]addrOfTarget
+	paramLocals      []mir.LocalID
+	blockTerminated  bool
 	// span is where the instruction currently being emitted came from, which is
 	// the location any panic emitted underneath it will name. See emit_span.go.
 	span spanCursor
@@ -334,9 +340,11 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	if err := e.emitDropGlue(); err != nil {
 		return "", err
 	}
+	e.emitTraceTextEnd()
 	// Last, because every pass above may have named a source location and this
 	// writes the ones that were actually named.
 	e.emitSpanConsts()
+	e.emitTraceStrings()
 	return e.buf.String(), nil
 }
 
