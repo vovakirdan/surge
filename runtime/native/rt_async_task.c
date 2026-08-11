@@ -325,12 +325,15 @@ static void poll_ready_child_inline(rt_executor* ex, rt_task* current, rt_task* 
     poll_outcome outcome = poll_task(ex, target);
     task_polling_exit(target);
 
+    // Publish before dropping the count: apply_poll_outcome is what enqueues
+    // this turn's successor, and an idle sample taken in between reads the
+    // executor as idle and jumps the virtual clock.
+    apply_poll_outcome(ex, target, outcome);
     rt_shard_lock(owner_shard);
     if (scheduler->running_count > 0) {
         scheduler->running_count--;
     }
     rt_shard_unlock(owner_shard);
-    apply_poll_outcome(ex, target, outcome);
     rt_set_current_task(current);
 }
 

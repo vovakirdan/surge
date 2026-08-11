@@ -45,10 +45,17 @@ int rt_run_ready_one_nowait_locked(rt_executor* ex) {
         task_polling_enter(task, POLL_SITE_NOWAIT_RUNNER_SYSTEM);
         poll_outcome outcome = poll_task(ex, task);
         task_polling_exit(task);
+        // running_count stays up across apply_poll_outcome: that call is what
+        // PUBLISHES this turn's successor work (mark_done -> join drain ->
+        // ready_push). Dropping the count first leaves a window in which the
+        // finished task is in no queue, its successor is not yet enqueued, and
+        // rt_sched_idle_sample_locked therefore reads the executor as idle -
+        // which is the predicate advance_time_to_next_timer uses to jump the
+        // virtual clock straight to the next deadline.
+        apply_poll_outcome(ex, task, outcome);
         rt_shard_lock(owner_shard);
         scheduler->running_count--;
         rt_shard_unlock(owner_shard);
-        apply_poll_outcome(ex, task, outcome);
         rt_set_current_task(NULL);
         return 1;
     }
@@ -60,10 +67,11 @@ int rt_run_ready_one_nowait_locked(rt_executor* ex) {
     RT_SYNC_POINT_IF(outcome.kind == POLL_PARKED, SP_PARK_BEFORE_WAITING);
     rt_control_lock(ex);
 
+    // Publish before dropping the count (see the system-task branch above).
+    apply_poll_outcome(ex, task, outcome);
     rt_shard_lock(owner_shard);
     scheduler->running_count--;
     rt_shard_unlock(owner_shard);
-    apply_poll_outcome(ex, task, outcome);
     rt_set_current_task(NULL);
     return 1;
 }
@@ -201,12 +209,15 @@ void* rt_worker_main(void* arg) {
         RT_SYNC_POINT_IF(task->kind == TASK_KIND_USER && outcome.kind == POLL_PARKED,
                          SP_PARK_BEFORE_WAITING);
 
+        // Publish this turn's successor work BEFORE this worker stops counting
+        // as busy; the reverse order lets an idle sample land in the gap and
+        // jump the virtual clock past a pending deadline.
+        apply_poll_outcome(ex, task, outcome);
         rt_shard_lock(shard);
         if (scheduler->running_count > 0) {
             scheduler->running_count--;
         }
         rt_shard_unlock(shard);
-        apply_poll_outcome(ex, task, outcome);
         rt_set_current_task(NULL);
     }
     rt_set_current_task(NULL);
