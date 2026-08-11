@@ -398,18 +398,6 @@ rt_waiter_completion rt_executor_wake_net_waiters_for_key_on_owner(rt_executor* 
     return result;
 }
 
-rt_waiter_completion rt_executor_wake_net_waiters_for_key(rt_executor* ex, waker_key key) {
-    return rt_executor_wake_net_waiters_for_key_on_owner(
-        ex, key, rt_net_owner_shard_for_key(ex, key, 0));
-}
-
-void ensure_waiter_cap(rt_executor* ex) {
-    rt_runtime_status status = rt_waiter_store_ensure_cap(rt_executor_waiter_store(ex));
-    if (status == RT_RUNTIME_STATUS_ALLOCATION_FAILED) {
-        panic_msg("async: waiter allocation failed");
-    }
-}
-
 static void ensure_wait_keys_cap(rt_task* task, size_t want) {
     if (task == NULL) {
         return;
@@ -540,8 +528,10 @@ void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
 void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
     // Registers under the store owner's shard lock (D2: the caller holds
     // either the control lock or nothing, never a shard lock). FIFO per key
-    // is consumed by pop_waiter. task_id is the caller's current task, so
-    // the deref and its owner read are stable without the control lane.
+    // is consumed by the owner lanes' own removal paths (channel candidate
+    // pop, join route remove/collect, net on-owner completion). task_id is the
+    // caller's current task, so the deref and its owner read are stable
+    // without the control lane.
     if (ex == NULL || !waker_valid(key)) {
         return;
     }
@@ -626,8 +616,8 @@ void add_wait_key(rt_executor* ex, rt_task* task, waker_key key) {
 // NOTES (MT iteration 2):
 // - prepare_park pre-registers waiters under ex->lock to avoid wake-before-park races for user
 // tasks.
-// - Channel waiters now share the executor waiters list (FIFO per key via pop_waiter), so wake is
-// O(n).
+// - Channel waiters live in the channel owner's shard store and are popped FIFO per key by
+// channel_pop_candidate_locked (rt_channel_lane.h), so wake is O(n) in that store.
 // - Documented primitives like Semaphore/Condition/Mutex/RwLock have no native runtime impl yet.
 void prepare_park(rt_executor* ex, rt_task* task, waker_key key, int already_added) {
     if (ex == NULL || task == NULL || !waker_valid(key)) {
@@ -643,94 +633,18 @@ void prepare_park(rt_executor* ex, rt_task* task, waker_key key, int already_add
     task->park_prepared = 1;
 }
 
-static int pop_waiter_from_locked_store(rt_executor* ex,
-                                        rt_waiter_store* store,
-                                        waker_key key,
-                                        uint64_t* out_id,
-                                        size_t* out_removed,
-                                        size_t* out_kept_same_key) {
-    size_t removed = 0;
-    size_t kept_same_key = 0;
-    int found = 0;
-    uint64_t found_id = 0;
-    if (store == NULL || !waker_valid(key)) {
-        if (out_removed != NULL) {
-            *out_removed = 0;
-        }
-        if (out_kept_same_key != NULL) {
-            *out_kept_same_key = 0;
-        }
-        return 0;
-    }
-    size_t out = 0;
-    for (size_t i = 0; i < store->len; i++) {
-        waiter w = store->entries[i];
-        if (w.key.kind == key.kind && w.key.id == key.id) {
-            // Stale-skip deref: legal while every pop_waiter caller holds the
-            // control lock; the channel peel (B2) must switch its callers to
-            // the candidate/validate pattern before dropping control.
-            const rt_task* task = get_task(ex, w.task_id);
-            if (task == NULL || task_status_load(task) == TASK_DONE ||
-                task_cancelled_load(task) != 0) {
-                removed++;
-                continue;
-            }
-            if (!found) {
-                found = 1;
-                found_id = w.task_id;
-                removed++;
-                continue;
-            }
-            kept_same_key++;
-        }
-        store->entries[out++] = w;
-    }
-    store->len = out;
-    if (found && out_id != NULL) {
-        *out_id = found_id;
-    }
-    if (out_removed != NULL) {
-        *out_removed = removed;
-    }
-    if (out_kept_same_key != NULL) {
-        *out_kept_same_key = kept_same_key;
-    }
-    return found;
-}
-
-int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id) {
-    // Caller holds ex->lock; stale/done/cancelled waiters are dropped while scanning.
-    if (key.kind == WAKER_JOIN) {
-        return rt_waiter_pop_join_waiter(ex, key, out_id);
-    }
-    uint32_t owner_shard_id = 0;
-    int net_key = waker_is_net(key);
-    if (net_key) {
-        owner_shard_id = rt_net_owner_shard_probe_locked(
-            ex, (int)key.id, tls_worker_ctx != NULL ? tls_worker_ctx->shard_id : 0);
-        if (owner_shard_id == UINT32_MAX) {
-            owner_shard_id = 0;
-        }
-    }
-    rt_waiter_store* store = net_key ? rt_executor_waiter_store_for_shard(ex, owner_shard_id)
-                                     : rt_waiter_store_for_key(ex, key);
-    if (store == NULL || !waker_valid(key) || store->len == 0) {
-        return 0;
-    }
-    rt_shard* store_shard = rt_waiter_key_shard(ex, key);
-    if (store_shard != NULL) {
-        rt_shard_lock(store_shard);
-    }
-    size_t removed = 0;
-    size_t kept_same_key = 0;
-    int found = pop_waiter_from_locked_store(ex, store, key, out_id, &removed, &kept_same_key);
-    net_waiters_removed(store, key, removed);
-    if (net_key) {
-        (void)fd_registry_bridge_net_detach_if_last_on_owner(
-            ex, key, owner_shard_id, removed, kept_same_key);
-    }
-    if (store_shard != NULL) {
-        rt_shard_unlock(store_shard);
-    }
-    return found;
-}
+// pop_waiter and its private compactor pop_waiter_from_locked_store lived
+// here. Both were deleted: the owner lanes each took over their own removal
+// (the channel lane pops candidates under the channel owner's lock, join goes
+// through the route helpers, net drains through the on-owner completion), and
+// nothing called pop_waiter any more. The remaining mutation points are
+// enumerated over rt_waiter_store in rt_waiter.h; do not reintroduce a generic
+// cross-key pop without adding it to that list.
+//
+// ensure_waiter_cap lived above ensure_wait_keys_cap and went the same way. It
+// grew shard 0's store (rt_executor_waiter_store) and panicked on allocation
+// failure, holding no lock of its own. Nothing called it: every insert grows
+// the store it is about to append to, under that store's lock, through
+// rt_waiter_store_ensure_cap. It was held up by the static pin in the waiter
+// boundary check, and its panic — which no live path could reach — by a row in
+// the panic ledger; both went with it.

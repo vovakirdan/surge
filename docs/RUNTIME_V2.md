@@ -85,9 +85,12 @@ Code evidence:
 - `runtime/native/rt_async_internal.h` has a single `rt_executor` with global
   `tasks`, `inject`, `local_queues`, `waiters`, net poll scratch buffers,
   condition variables, and one executor lock.
-- `runtime/native/rt_async_state.c` stores channel, join, timer, scope,
-  blocking, and net waiters in one FIFO list. `pop_waiter()` scans and compacts
-  the whole list for one key.
+- `runtime/native/rt_async_state.c` stored channel, join, timer, scope,
+  blocking, and net waiters in one FIFO list, and `pop_waiter()` scanned and
+  compacted the whole list for one key. Both are gone as of Wave D step D0:
+  waiters live in per-shard stores reached through `rt_waiter_store_for_key`,
+  and `pop_waiter` was deleted once nothing called it. The entry recording the
+  baseline is kept because the shard split below is the answer to it.
 - `runtime/native/rt_net.c` rebuilds the network poll set by scanning the
   global waiter list, deduplicating fds, calling `poll()`, and then completing
   matching waiters.
@@ -605,7 +608,7 @@ cancellation traffic.
 | --- | --- | --- |
 | Global executor lock | One lock owns tasks, queues, waiters, timers, net scratch, and shutdown. | Shard-local scheduler state; global state only for control plane. |
 | Global waiter list | All waiter kinds share one FIFO list. | Owner-local wait queues keyed by fd, channel, task, timer, or scope. |
-| O(n) wake and park | `pop_waiter()` scans and compacts the full waiter list. | O(1) or O(k) operations on the owner-local queue. |
+| O(n) wake and park | `pop_waiter()` scanned and compacted the full waiter list; it was deleted in Wave D step D0 after its last caller went away. | O(1) or O(k) operations on the owner-local queue. |
 | Net poll rebuild churn | Net polling rebuilds the fd set from global waiters. | Shard-local fd registry persists across poll cycles. |
 | Cross-worker wake churn | Non-worker wakes enter global inject; worker wakes can signal other workers. | Net readiness resumes the task on the owning shard. |
 | I/O thread as partial worker | The current patch drains ready inject tasks after net readiness. | A shard runs its own net-ready continuations or drains a net-woken queue only. |

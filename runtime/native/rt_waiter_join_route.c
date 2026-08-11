@@ -73,38 +73,18 @@ void rt_waiter_remove_join_waiter_generation(rt_executor* ex,
     unlock_join_waiter_route(route);
 }
 
-int rt_waiter_pop_join_waiter(rt_executor* ex, waker_key key, uint64_t* out_id) {
-    rt_join_waiter_route route = {0};
-    if (lock_join_waiter_route(ex, key, &route) != RT_RUNTIME_STATUS_OK) {
-        return 0;
-    }
-    size_t out = 0;
-    int found = 0;
-    uint64_t found_id = 0;
-    for (size_t i = 0; i < route.store->len; i++) {
-        waiter w = route.store->entries[i];
-        if (w.key.kind == key.kind && w.key.id == key.id) {
-            const rt_task* task = get_task(ex, w.task_id);
-            if (task == NULL || task_status_load(task) == TASK_DONE ||
-                task_cancelled_load(task) != 0) {
-                continue;
-            }
-            if (!found) {
-                found = 1;
-                found_id = w.task_id;
-                continue;
-            }
-        }
-        route.store->entries[out++] = w;
-    }
-    route.store->len = out;
-    unlock_join_waiter_route(route);
-    if (found && out_id != NULL) {
-        *out_id = found_id;
-    }
-    return found;
-}
-
+// A FIFO single-pop over this store stood here (rt_waiter_pop_join_waiter):
+// it took one live join waiter and dropped done/cancelled entries on the way.
+// It went out with pop_waiter — the join wake path drains a key whole through
+// the collect-all helper below, so nothing popped one join waiter at a time.
+// Both surviving mutators keep the route protocol above (resolve, lock,
+// revalidate under the lock); a reintroduced single-pop must do the same and
+// must be added to the mutation list in rt_waiter.h.
+//
+// Names of live helpers are deliberately not spelled out in this comment: the
+// join-route gate matches its needles as plain substrings of this file, so a
+// prose mention of one would satisfy the gate after the function itself was
+// gone.
 size_t rt_waiter_collect_join_waiters(rt_executor* ex,
                                       waker_key key,
                                       uint64_t** batch,

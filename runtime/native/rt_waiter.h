@@ -8,8 +8,10 @@
 // Waiter keys, entries, and stores. Stores are owned per the /9
 // dependency map: net keys by the fd owner shard, join keys by the task's
 // atomic join-owner route, timer/blocking keys by the parked-on task's owner
-// shard, scope keys by the control lane, and channel keys by the channel owner
-// (shard 0 until the migration).
+// shard, scope keys by the control lane, and channel keys by the shard in
+// rt_channel.owner_shard_id — the creating task's shard, or the bound target
+// shard for a transport-minted channel, and 0 only when a channel is created
+// outside task context.
 
 typedef struct rt_executor rt_executor;
 typedef struct rt_task rt_task;
@@ -55,6 +57,77 @@ typedef struct {
     size_t woken;
 } rt_waiter_completion;
 
+// WAITER-STORE MUTATION POINTS — the complete list, re-derived at f2641713.
+//
+// Every site that inserts, removes, re-arms or rewrites an entry is below.
+// Keep it complete: a partial enumeration is what let a re-arm branch be
+// mistaken for an append (double retain on every absorbed wake) and let a
+// symbol with no callers be counted as a live mutator. If you add a site,
+// add a row.
+//
+// Rows name a file and a function on purpose. Line numbers would be exact
+// today and quietly wrong after the next edit to any of these five files,
+// and no gate measures that rot; a function name a reader can grep for
+// survives it.
+//
+// INSERT — append one entry, always after rt_waiter_store_ensure_cap:
+//   rt_async_waiter.c  add_waiter, net arm: appends (key, task, hint,
+//       seq=0) to the fd owner's store, bumps net_len, attaches fd interest.
+//   rt_async_waiter.c  add_waiter, generic arm: appends (key, task, hint,
+//       seq=0) to the store rt_waiter_store_for_key routes to.
+//   rt_waiter_join_route.c  rt_waiter_add_join_waiter: appends a join entry
+//       under the route lock, after revalidating the route.
+//   rt_channel_lane.h  channel_park_prepare_locked, append arm: appends a
+//       channel entry stamped with a freshly bumped task->park_seq.
+//
+// RE-ARM — rewrite an entry in place, no length change:
+//   rt_channel_lane.h  channel_park_prepare_locked, dedupe arm: an absorbed
+//       wake or compat_cv wakeup re-enters the park with its entry never
+//       popped. This bumps task->park_seq and writes w->seq through the
+//       existing entry INSTEAD of appending. Reading this as an append is
+//       what would double-retain the registration on every absorbed wake.
+//
+// REMOVE — drop entries and compact:
+//   rt_async_waiter.c  remove_waiter_from_store_seq, the shared compactor
+//       behind remove_waiter and remove_waiter_generation: drops (key, task)
+//       entries, generation-qualified when seq!=0, counts same-key survivors
+//       and decrements net_len.
+//   rt_async_waiter.c  rt_executor_wake_net_waiters_for_key_on_owner: drains
+//       every entry of a net key into a wake batch, then detaches the fd
+//       interest under the same lock.
+//   rt_task_park.c  wake_key_all_with_policy, non-join arm: drains every
+//       entry of a scope/timer/blocking key into a wake batch.
+//   rt_waiter_join_route.c  rt_waiter_remove_join_waiter_generation: drops
+//       join entries matching (key, task) and, when seq!=0, that seq.
+//   rt_waiter_join_route.c  rt_waiter_collect_join_waiters: drains every
+//       entry of a join key into a wake batch.
+//   rt_channel_lane.h  channel_pop_candidate_locked: memmoves out the first
+//       FIFO entry for a channel key; the caller validates the candidate
+//       afterwards and drops it if the peer moved on.
+//
+// MOVE — remove from one shard's store and append to another's:
+//   rt_waiter_route.c  rt_waiter_migrate_join_waiters: drains join entries
+//       from the old owner and appends them to the new one, 16 at a time.
+//       Old publish order, kept for the RV2-DEBT-020 negative control.
+//   rt_waiter_route.c  rt_waiter_publish_join_owner_and_migrate: same
+//       drain/append, but publishes the join route under the source lock
+//       first. Only JOIN keys ever migrate.
+//
+// REALLOCATE — no entry semantics, but invalidates every waiter* into the
+// store, which is why the re-arm above writes through w only under the lock
+// and never across an ensure_cap:
+//   rt_async_waiter.c  rt_waiter_store_ensure_cap — the only one left. The
+//       wrapper ensure_waiter_cap was deleted with this list: it grew shard
+//       0's store on its own, took no lock, and had no callers. Every insert
+//       grows the store it is about to append to, under that store's lock.
+//
+// Channel keys never move. rt_channel.owner_shard_id is written only in
+// rt_channel_new (rt_async_channel.c) and by rt_channel_bind_owner_shard
+// (same file), whose one production caller is rt_far_channel_dispatch_create
+// (rt_far_channel.c) — it binds BETWEEN rt_channel_new and rt_far_channel_mint,
+// so the shard is fixed before the handle is minted and published and before
+// any task can park on it. Nothing rebinds it afterwards, and both migrators
+// above filter on join_key, so a channel entry never changes stores.
 typedef struct {
     waiter* entries;
     size_t len;
@@ -105,26 +178,22 @@ void rt_waiter_remove_join_waiter_generation(rt_executor* ex,
                                              waker_key key,
                                              uint64_t task_id,
                                              uint32_t seq);
-int rt_waiter_pop_join_waiter(rt_executor* ex, waker_key key, uint64_t* out_id);
 size_t rt_waiter_collect_join_waiters(rt_executor* ex,
                                       waker_key key,
                                       uint64_t** batch,
                                       size_t* batch_cap,
                                       const uint64_t* inline_batch);
-rt_waiter_completion rt_executor_wake_net_waiters_for_key(rt_executor* ex, waker_key key);
 rt_waiter_completion rt_executor_wake_net_waiters_for_key_on_owner(rt_executor* ex,
                                                                    waker_key key,
                                                                    uint32_t owner_shard_id);
 uint32_t rt_net_owner_shard_for_key(rt_executor* ex, waker_key key, uint32_t fallback_shard_id);
 uint32_t rt_net_owner_shard_probe_locked(rt_executor* ex, int fd, uint32_t hint_shard_id);
-void ensure_waiter_cap(rt_executor* ex);
 void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id);
 void remove_waiter_generation(rt_executor* ex, waker_key key, uint64_t task_id, uint32_t seq);
 void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id);
 void clear_wait_keys(rt_executor* ex, rt_task* task);
 void add_wait_key(rt_executor* ex, rt_task* task, waker_key key);
 void prepare_park(rt_executor* ex, rt_task* task, waker_key key, int already_added);
-int pop_waiter(rt_executor* ex, waker_key key, uint64_t* out_id);
 void rt_trace_collect_waiter_counts(const rt_executor* ex, rt_waiter_trace_counts* out);
 
 #endif

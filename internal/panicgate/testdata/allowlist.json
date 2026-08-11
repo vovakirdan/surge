@@ -1120,11 +1120,6 @@
       "group": "PG-ALLOC-FAILURE"
     },
     {
-      "site": "runtime/native/rt_async_waiter.c::ensure_waiter_cap#1",
-      "message": "async: waiter allocation failed",
-      "group": "PG-ALLOC-FAILURE"
-    },
-    {
       "site": "runtime/native/rt_async_waiter.c::rt_executor_wake_net_waiters_for_key_on_owner#1",
       "message": "async: net wake batch allocation failed",
       "group": "PG-ALLOC-FAILURE"

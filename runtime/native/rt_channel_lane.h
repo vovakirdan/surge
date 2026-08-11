@@ -89,10 +89,11 @@ static inline int channel_pop_candidate_locked(rt_shard* owner_shard, waker_key 
 // state for an unrelated park (observable as a foreign value surfacing from
 // a reused channel address). park_key holds the key from registration until
 // the wake leaf clears it — through the park commit, which resets only the
-// prepared flag — so key equality alone is the liveness test. Like
-// pop_waiter's stale-skip deref, the cross-lock read is benign: a mismatch
-// drops the candidate, and an exact match on this key means the peer still
-// parks (or re-parked) on this same channel, so delivery is due.
+// prepared flag — so key equality alone is the liveness test. The cross-lock
+// read is benign, and is the last survivor of the stale-skip deref the
+// now-deleted pop_waiter used: a mismatch drops the candidate, and an exact
+// match on this key means the peer still parks (or re-parked) on this same
+// channel, so delivery is due.
 static inline int channel_candidate_valid(const rt_task* peer, const waiter* w) {
     return peer != NULL && task_status_load(peer) != TASK_DONE && task_cancelled_load(peer) == 0 &&
            peer->park_key.kind == w->key.kind && peer->park_key.id == w->key.id &&

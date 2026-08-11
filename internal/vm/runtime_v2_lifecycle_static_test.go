@@ -74,9 +74,13 @@ void lifecycle_ctrl_site_api_shape(void) {
 }
 
 // G2 (S5-Q3, rule 2): join waiters route through the target task's atomic
-// join-owner shard id. Add/remove/pop must resolve the route, lock that shard,
+// join-owner shard id. Every mutator must resolve the route, lock that shard,
 // and re-read the route under the same lock before touching the store; this
-// keeps owner replacement from pairing an old store with a new lock.
+// keeps owner replacement from pairing an old store with a new lock. The
+// mutators are add, generation-qualified remove, and collect-all — the
+// single-pop rt_waiter_pop_join_waiter was deleted once nothing called it, so
+// it is no longer required here; a reintroduced pop must obey the same
+// protocol and be named again.
 func TestRuntimeV2LifecycleStaticJoinWaiterRoutesByTargetOwner(t *testing.T) {
 	routeSource := lifecycleReadNativeFile(t, "rt_waiter_route.c")
 	if !strings.Contains(routeSource, "case WAKER_JOIN:") {
@@ -90,9 +94,12 @@ func TestRuntimeV2LifecycleStaticJoinWaiterRoutesByTargetOwner(t *testing.T) {
 		"lock_join_waiter_route",
 		"rt_task_join_owner_shard_id_load(target)",
 		"rt_task_join_owner_shard_id_load(target) == route",
-		"rt_waiter_pop_join_waiter",
-		"rt_waiter_remove_join_waiter_generation",
-		"rt_waiter_collect_join_waiters",
+		// Definition-shaped on purpose: these needles are matched as plain
+		// substrings of the file, so a bare name would also be satisfied by
+		// a comment that merely mentions a helper that no longer exists.
+		"rt_waiter_add_join_waiter(rt_executor* ex,",
+		"rt_waiter_remove_join_waiter_generation(rt_executor* ex,",
+		"rt_waiter_collect_join_waiters(rt_executor* ex,",
 	} {
 		if !strings.Contains(waiterSource, needle) {
 			t.Fatalf("join waiter route protocol missing %q", needle)

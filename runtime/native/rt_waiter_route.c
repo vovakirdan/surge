@@ -9,8 +9,8 @@ static rt_shard* rt_task_join_waiter_shard(rt_executor* ex, uint64_t task_id) {
 
 // Owner resolution for non-net keys (dependency map section 5): join keys use
 // the task's atomic join-owner route, while timer and blocking keys carry the
-// parked-on task's id and use its scheduler owner shard. Join add/remove/pop
-// and collect-all wake operations must not call this helper as a split "store
+// parked-on task's id and use its scheduler owner shard. Join add/remove and
+// collect-all wake operations must not call this helper as a split "store
 // now, lock later" sequence: rt_async_waiter.c / rt_task_park.c delegate to the
 // join-route helpers, which resolve the join route, lock that shard, and
 // revalidate the route under the lock before touching the store. Scope keys
@@ -19,16 +19,18 @@ static rt_shard* rt_task_join_waiter_shard(rt_executor* ex, uint64_t task_id) {
 // rt_scope_enter, so both the join_all park and the child-done wake serialize
 // on that one shard's store lock; a freed/absent scope (monotonic, never-reused
 // ids) resolves to shard 0 via rt_scope_owner_shard, draining nothing. Channel
-// keys stay on the shard-0 compatibility store until the channel-owner
-// migration.
+// keys route to the channel's own owner shard, below — the migration already
+// happened, and this comment claimed shard 0 for it long after the arm below
+// stopped agreeing.
 rt_waiter_store* rt_waiter_store_for_key(rt_executor* ex, waker_key key) {
     if (ex == NULL || !waker_valid(key)) {
         return NULL;
     }
     if (waker_is_net(key)) {
-        // Defensive arm: the add/remove/pop paths resolve net keys through
-        // the fd-registry-aware helper in rt_async_waiter.c; only generic
-        // wake paths land here, and they never carry net keys today.
+        // Defensive arm: the add/remove and on-owner wake paths resolve net
+        // keys through the fd-registry-aware helper in rt_async_waiter.c;
+        // only generic wake paths land here, and they never carry net keys
+        // today.
         return rt_executor_waiter_store_for_shard(ex, rt_net_owner_shard_for_key(ex, key, 0));
     }
     switch ((waker_kind)key.kind) {
