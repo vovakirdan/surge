@@ -1,4 +1,5 @@
 #include "rt_async_internal.h"
+#include "rt_sync_point.h"
 
 // Per-shard sleep store (spike D7). The waiter store keeps
 // the park registration for timer keys; this store is the deadline index
@@ -158,13 +159,22 @@ size_t rt_sleep_fire_due_on_shard(rt_executor* ex, rt_shard* shard, uint64_t now
                rt_sleep_store_pop_due(store, now, &task_id)) {
             batch[batch_len++] = task_id;
         }
+        // Claimed under the SAME lock that popped them: a sleeper is out of
+        // the store from here until wake_task puts it in a ready queue, and in
+        // that gap nothing else in the shard mentions it. An idle sample
+        // landing here used to read the executor as empty and advance the
+        // virtual clock past the very deadline that just fired.
+        size_t claimed = RT_DEBT190_PUBLISHING(batch_len);
+        rt_sched_publishing_begin_locked(shard, claimed);
         rt_shard_unlock(shard);
         if (batch_len == 0) {
             return woken;
         }
+        RT_SYNC_POINT(SP_SLEEP_FIRED_BEFORE_WAKE);
         for (size_t i = 0; i < batch_len; i++) {
             wake_task(ex, batch[i], 1);
             woken++;
         }
+        rt_sched_publishing_end(shard, claimed);
     }
 }

@@ -458,6 +458,9 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "ready-requeue-wake-race") == 0) {
         return mode_ready_requeue_wake_race(ex);
     }
+    if (strcmp(argv[1], "sleep-fired-idle-sample") == 0) {
+        return mode_sleep_fired_idle_sample(ex);
+    }
 #endif
     return fail("unknown mode");
 }

@@ -89,7 +89,8 @@ func buildRuntimeV2LifecycleHarnessWithFlags(t *testing.T, name string, extraFla
 	binPath := filepath.Join(tmpDir, name)
 	source := lifecycleHarnessCommon + lifecycleHarnessCreateJoinModes + lifecycleHarnessHandleLifetimeModes +
 		lifecycleHarnessScopeAndShutdown + lifecycleHarnessPlacementAdoption + lifecycleHarnessScopeCrossOwner +
-		lifecycleHarnessSyncPointModes + lifecycleHarnessReadyRequeueModes + lifecycleHarnessMain
+		lifecycleHarnessSyncPointModes + lifecycleHarnessReadyRequeueModes +
+		lifecycleHarnessSleepPublishModes + lifecycleHarnessMain
 	if writeErr := os.WriteFile(harnessPath, []byte(source), 0o600); writeErr != nil {
 		t.Fatalf("write harness: %v", writeErr)
 	}

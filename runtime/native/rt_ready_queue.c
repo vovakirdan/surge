@@ -27,10 +27,44 @@ static int scheduler_runnable_is_empty(const rt_scheduler* scheduler) {
     return 1;
 }
 
+// Claim `count` items as in flight. Called with the shard lock already held —
+// the same critical section that took them out — because a batch that is
+// removed and only then counted has a window of exactly the shape this
+// counter exists to close.
+void rt_sched_publishing_begin_locked(rt_shard* shard, size_t count) {
+    if (shard == NULL || count == 0) {
+        return;
+    }
+    rt_scheduler* scheduler = rt_shard_scheduler(shard);
+    if (scheduler == NULL) {
+        return;
+    }
+    scheduler->publishing_count += (uint32_t)count;
+}
+
+// Release the claim once the batch has been republished. Takes the lock itself
+// rather than being called under it: republishing wakes tasks, and a wake takes
+// the target's owner lock, which may be this same mutex.
+void rt_sched_publishing_end(rt_shard* shard, size_t count) {
+    if (shard == NULL || count == 0) {
+        return;
+    }
+    rt_shard_lock(shard);
+    rt_scheduler* scheduler = rt_shard_scheduler(shard);
+    if (scheduler != NULL) {
+        if (scheduler->publishing_count >= (uint32_t)count) {
+            scheduler->publishing_count -= (uint32_t)count;
+        } else {
+            scheduler->publishing_count = 0;
+        }
+    }
+    rt_shard_unlock(shard);
+}
+
 // Locked idle sample for control-lane callers (io thread, N=1 runner):
-// reads each shard's queues and running count under that shard's lock, one
-// shard at a time. Cross-shard atomicity is not promised (spike D7); for
-// SURGE_SHARDS=1 the single-shard sample is exact.
+// reads each shard's queues, running count and in-flight batch under that
+// shard's lock, one shard at a time. Cross-shard atomicity is not promised
+// (spike D7); for SURGE_SHARDS=1 the single-shard sample is exact.
 int rt_sched_idle_sample_locked(rt_executor* ex) {
     rt_runtime* runtime = rt_executor_runtime(ex);
     size_t shard_count = rt_runtime_shard_count(runtime);
@@ -41,9 +75,14 @@ int rt_sched_idle_sample_locked(rt_executor* ex) {
         }
         rt_shard_lock(shard);
         const rt_scheduler* scheduler = rt_shard_scheduler_const(shard);
-        int busy = scheduler != NULL &&
-                   (scheduler->running_count > 0 || !scheduler_runnable_is_empty(scheduler) ||
-                    rt_transport_inbound_len_locked(shard) > 0);
+        // publishing_count is asked alongside the queues rather than instead of
+        // them: a batch in flight is work that is about to be in a queue, and
+        // an observer that reads only the queues concludes idle while it is in
+        // neither.
+        int busy =
+            scheduler != NULL &&
+            (scheduler->running_count > 0 || scheduler->publishing_count > 0 ||
+             !scheduler_runnable_is_empty(scheduler) || rt_transport_inbound_len_locked(shard) > 0);
         rt_shard_unlock(shard);
         if (busy) {
             return 0;

@@ -99,6 +99,23 @@ typedef struct {
     rt_worker_ctx* worker_ctxs;
     uint32_t worker_count;
     uint32_t running_count;
+    // Work this shard has taken OUT of one structure and not yet put into
+    // another (shard-lock-guarded, like running_count).
+    //
+    // Several paths collect under the shard lock and republish outside it —
+    // D5 collect-then-wake, which exists because waking takes the target's
+    // owner lock and that can be this same mutex. For the length of that gap
+    // a collected task is in no sleep store, no waiter store, no ready queue
+    // and no running_count, so every structure an observer knows how to read
+    // says the executor has nothing to do. It does; the work is in a local
+    // array on somebody's stack.
+    //
+    // That mattered because idleness is not only a report here: it is the
+    // predicate the virtual clock advances on, so a sample landing in the gap
+    // jumps time past a deadline that was already due. Counting the in-flight
+    // batch is what lets rt_sched_idle_sample_locked see work it cannot
+    // otherwise reach.
+    uint32_t publishing_count;
     // Wake tokens for the shard worker_cv (shard-lock-guarded): producers
     // bump before signaling, sleepers consume before waiting, so wakes that
     // race the control-to-shard sleep transition are never lost.
@@ -858,6 +875,11 @@ rt_shard* rt_task_owner_shard(rt_executor* ex, const rt_task* task);
 void rt_sched_wake_signal_shard_n(rt_shard* shard, uint32_t tokens);
 void rt_sched_wake_broadcast_all(rt_executor* ex);
 int rt_sched_idle_sample_locked(rt_executor* ex);
+// Collect-then-wake bookkeeping. `begin` is called with the shard lock HELD,
+// in the same critical section that removed the batch; `end` takes the lock
+// itself, after the batch has been republished. See rt_scheduler.publishing_count.
+void rt_sched_publishing_begin_locked(rt_shard* shard, size_t count);
+void rt_sched_publishing_end(rt_shard* shard, size_t count);
 void rt_sleep_store_init(rt_sleep_store* store);
 rt_runtime_status rt_sleep_store_add(rt_sleep_store* store, uint64_t deadline, uint64_t task_id);
 int rt_sleep_store_remove(rt_sleep_store* store, uint64_t task_id);

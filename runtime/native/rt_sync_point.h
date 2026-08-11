@@ -158,6 +158,13 @@ typedef enum rt_sync_point_id {
     // reservation, then prove the competing sender reached PARKED_CREDIT.
     RT_SYNC_POINT_SP_CARRIER_JUMBO_ADMITTED,
     RT_SYNC_POINT_SP_CARRIER_CREDIT_PARKED,
+    // rt_sleep_fire_due_on_shard: reached after the due batch has been popped
+    // out of the sleep store and the shard lock released, before the first
+    // wake puts any of it back. Holding a worker here is the whole of the
+    // RV2-DEBT-190 window: the fired sleeper is in no store, no queue and no
+    // running count, so an idle sample taken now sees an empty executor and
+    // the virtual clock advances past a deadline that has already come due.
+    RT_SYNC_POINT_SP_SLEEP_FIRED_BEFORE_WAKE,
     RT_SYNC_POINT_COUNT
 } rt_sync_point_id;
 
@@ -245,6 +252,19 @@ void rt_sync_point_open(void);
 #else
 #define RT_DEBT143_POST_REGISTER_TERMINAL(status)                                                  \
     ((status) == BLOCKING_JOB_DONE || (status) == BLOCKING_JOB_CANCELLED)
+#endif
+
+// RV2-DEBT-190 negative-control toggle. The fix counts a collect-then-wake
+// batch as in flight from the moment it leaves its structure until it is
+// republished, so an idle sample taken in that gap sees work rather than an
+// empty executor — which matters because idleness is what the virtual clock
+// advances on. Defining the negative control makes the claim inert, restoring
+// the state in which the batch is invisible, so the deterministic proof MUST
+// observe the executor reporting itself idle with a fired sleeper in hand.
+#ifdef RV2_DEBT_190_NEGATIVE_CONTROL
+#define RT_DEBT190_PUBLISHING(count) ((size_t)0)
+#else
+#define RT_DEBT190_PUBLISHING(count) (count)
 #endif
 
 #endif // RT_SYNC_POINT_H
