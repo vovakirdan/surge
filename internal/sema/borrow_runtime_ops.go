@@ -78,7 +78,24 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 			}
 		}
 	}
+	// Reading a heap-owning value through a SHARED reference hands the reader a
+	// second owner: `let b: string = *r` leaves `b` and whatever `r` points at
+	// both responsible for freeing one string. The VM survives it by retaining
+	// on every deref (eval_ops.go), manufacturing a reference nothing recorded;
+	// the native backend emits a bare load and frees the value twice.
+	//
+	// One position is exempt, and it is not an exception to the rule so much as
+	// a place the rule does not apply: a compare only INSPECTS its subject.
+	// `compare *arg { Payload(s) => out + s }` takes nothing out — measured
+	// clean on both backends under valgrind — and refusing it would stop the
+	// language compiling, since `core/format.sg` writes exactly that and every
+	// program is typed through it. What must still be refused there is an ARM
+	// that hands its payload outward, which is a different question asked at a
+	// different place: see rejectArmHandingOutBorrowedPayload.
 	if tc.isSharedRefDeref(expr) {
+		if !tc.observingCompareScrutinee {
+			tc.rejectMoveOutOfSharedBorrow(expr, span, exprType)
+		}
 		return
 	}
 	if tc.isRefReborrow(expr) {

@@ -1,0 +1,1 @@
+error SEM3197 testdata/golden/sema/invalid/ownership/move_out_of_shared_borrow_arm.sg:10:20 cannot hand `s` out of this arm: the compare only borrows the value it was matched against

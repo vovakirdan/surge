@@ -17,7 +17,14 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 	movedArms := make([]map[Place]source.Span, len(cmp.Arms))
 	armClosed := make([]bool, len(cmp.Arms))
 	valueType := tc.typeExpr(cmp.Value)
+	// A compare INSPECTS its subject; it does not take it. That is what makes
+	// `compare *arg { ... }` legitimate where `let b = *arg` is not, and the
+	// flag says so for exactly this one expression rather than for anything
+	// nested inside it. What an ARM does with a payload bound out of a borrowed
+	// subject is a separate question, asked below.
+	tc.observingCompareScrutinee = true
 	tc.observeMove(cmp.Value, tc.exprSpan(cmp.Value))
+	tc.observingCompareScrutinee = false
 	movedAfterValue := tc.snapshotMovedPlaces()
 	expectedCompare := tc.expectedTypeForExpr(id)
 	resultType := expectedCompare
@@ -81,6 +88,13 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 			tc.pushDiscardedExpr(arm.Result)
 		}
 		armResult := tc.typeExprWithExpected(arm.Result, expectedCompare)
+		// The other half of the shared-borrow rule. The scrutinee was allowed
+		// through because a compare only inspects its subject; an arm that
+		// ANSWERS with its own payload binding is where a borrowed value would
+		// escape, and that is refused here instead.
+		if subjectBorrowed {
+			tc.rejectArmHandingOutBorrowedPayload(arm.Result, armBindings, armResult)
+		}
 		// Asked BEFORE consuming, because consuming is what erases the evidence:
 		// an arm that FORWARDS a place was never a temp candidate, and one such
 		// arm is enough to leave the compare's value someone else's to release.

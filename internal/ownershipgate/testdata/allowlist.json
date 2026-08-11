@@ -499,48 +499,5 @@
       "group": "CF-005"
     }
   ],
-  "findings": [
-    {
-      "id": "OWN-001",
-      "match": {
-        "source": "testdata/golden/vm_rc/vm_rc_leak_panics.sg",
-        "function": "main",
-        "local_id": 9,
-        "local_name": "a_copy",
-        "consuming_kind": "projected_assign",
-        "consuming_position": "rhs",
-        "start_line": 8,
-        "start_column": 5,
-        "end_line": 8,
-        "end_column": 33,
-        "def_site": "bb0#9",
-        "consuming_site": "bb0#19"
-      },
-      "reason": "The fixture deliberately closes one half of a two-node reference-counted cycle so the VM leak detector has a positive panic case.",
-      "safe_because": "Only this exact assignment of a_copy into the cycle is allowed, and the fixture contract requires VM3302 with the intentionally leaked cycle instead of successful execution.",
-      "invalidated_when": "The fixture stops being the VM3302 cycle-leak positive control, its exact source/MIR site changes, or cyclic references gain a reclaiming ownership protocol.",
-      "debt": "RV2-DEBT-114"
-    },
-    {
-      "id": "OWN-002",
-      "match": {
-        "source": "testdata/golden/vm_rc/vm_rc_leak_panics.sg",
-        "function": "main",
-        "local_id": 12,
-        "local_name": "b_copy",
-        "consuming_kind": "projected_assign",
-        "consuming_position": "rhs",
-        "start_line": 11,
-        "start_column": 5,
-        "end_line": 11,
-        "end_column": 33,
-        "def_site": "bb0#13",
-        "consuming_site": "bb0#17"
-      },
-      "reason": "The fixture deliberately closes the other half of a two-node reference-counted cycle so the VM leak detector has a positive panic case.",
-      "safe_because": "Only this exact assignment of b_copy into the cycle is allowed, and the fixture contract requires VM3302 with the intentionally leaked cycle instead of successful execution.",
-      "invalidated_when": "The fixture stops being the VM3302 cycle-leak positive control, its exact source/MIR site changes, or cyclic references gain a reclaiming ownership protocol.",
-      "debt": "RV2-DEBT-114"
-    }
-  ]
+  "findings": []
 }

@@ -10,24 +10,44 @@ import (
 )
 
 const ownershipDevGateNegativeSource = `
-type NodeId = uint;
+tag Payload(string);
+tag Empty();
 
-type Node = {
-    next: NodeId?,
-    data: int,
+type Slot = Payload(string) | Empty();
+
+type Holder = { held: string }
+
+// A payload bound out of a BORROWED union and stored into a projection. The
+// binding names the union's own storage, so the store leaves two owners for one
+// string — a real alias, and one the compiler still accepts.
+//
+// It replaced a walk over NodeId? that did id = *n.next, which stopped
+// compiling when the shared-borrow rule landed: taking a heap-owning value out
+// of a & is refused outright now, at sema, which is the earlier stage and the
+// better place. That made the old program a compile error rather than a
+// report-only control, and a control the default build rejects cannot test what
+// the dev flag does to a build that succeeds.
+//
+// This shape survives for a reason worth stating rather than relying on: the
+// rule refuses a deref that PRODUCES a value and an arm that ANSWERS with its
+// payload, and this does neither — it stores the payload sideways. That is the
+// same defect one step further out, recorded as the residual on the rule's debt
+// row, and the control is honest about being an example of it.
+fn stash(slot: &Slot, out: &mut Holder) -> nothing {
+    compare *slot {
+        Payload(s) => { out.held = s; }
+        Empty() => { return nothing; }
+    };
+    return nothing;
 }
 
-fn walk(nodes: &Node[], start: NodeId?) -> nothing {
-    let mut id: NodeId? = start;
-    while true {
-        compare id {
-            Some(i) => {
-                let n: &Node = nodes[(i to int)];
-                id = *n.next;
-            }
-            nothing => { return nothing; }
-        };
-    }
+@entrypoint
+fn main() -> int {
+    let s: Slot = Payload("x");
+    let mut h: Holder = Holder { held = "" };
+    stash(&s, &mut h);
+    print(h.held.__clone());
+    return 0;
 }
 `
 

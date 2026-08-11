@@ -1,0 +1,2 @@
+error SEM3197 testdata/golden/sema/invalid/ownership/move_out_of_shared_borrow.sg:8:26 cannot take the `[Node]` out of `a_ref`: a shared reference only borrows what it points at
+error SEM3197 testdata/golden/sema/invalid/ownership/move_out_of_shared_borrow.sg:11:26 cannot take the `[Node]` out of `b_ref`: a shared reference only borrows what it points at

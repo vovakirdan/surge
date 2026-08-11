@@ -97,26 +97,32 @@ type typeChecker struct {
 	expectedType                types.TypeID
 	discardedExprs              []ast.ExprID
 	compareGuardBindings        [][]symbols.SymbolID
-	blockResultExprs            map[ast.ExprID][]ast.ExprID
-	arrayName                   source.StringID
-	arraySymbol                 symbols.SymbolID
-	arrayType                   types.TypeID
-	arrayFixedName              source.StringID
-	arrayFixedSymbol            symbols.SymbolID
-	arrayFixedType              types.TypeID
-	mapName                     source.StringID
-	mapSymbol                   symbols.SymbolID
-	mapType                     types.TypeID
-	fnConcurrencySummaries      map[symbols.SymbolID]*FnConcurrencySummary
-	lockOrderGraph              *LockOrderGraph // Global lock ordering for deadlock detection
-	taskTracker                 *TaskTracker    // Task tracking for structured concurrency
-	localTaskBindings           map[symbols.SymbolID]struct{}
-	taskContainers              map[Place]*taskContainerInfo
-	taskContainerLoops          []taskContainerLoop
-	addressOfOperands           map[ast.ExprID]struct{} // Tracks operands of & expressions (for @atomic validation)
-	arrayViewExprs              map[ast.ExprID]struct{}
-	arrayViewBindings           map[symbols.SymbolID]struct{}
-	assignmentLHSDepth          int
+	// Set only while the SCRUTINEE of a compare is being observed. Reading a
+	// heap-owning value through a shared reference is refused everywhere else
+	// because it makes a second owner; a compare only inspects its subject, so
+	// `compare *arg { ... }` takes nothing and is the one position that keeps
+	// accepting it. See observeMove and rejectMoveOutOfSharedBorrow.
+	observingCompareScrutinee bool
+	blockResultExprs          map[ast.ExprID][]ast.ExprID
+	arrayName                 source.StringID
+	arraySymbol               symbols.SymbolID
+	arrayType                 types.TypeID
+	arrayFixedName            source.StringID
+	arrayFixedSymbol          symbols.SymbolID
+	arrayFixedType            types.TypeID
+	mapName                   source.StringID
+	mapSymbol                 symbols.SymbolID
+	mapType                   types.TypeID
+	fnConcurrencySummaries    map[symbols.SymbolID]*FnConcurrencySummary
+	lockOrderGraph            *LockOrderGraph // Global lock ordering for deadlock detection
+	taskTracker               *TaskTracker    // Task tracking for structured concurrency
+	localTaskBindings         map[symbols.SymbolID]struct{}
+	taskContainers            map[Place]*taskContainerInfo
+	taskContainerLoops        []taskContainerLoop
+	addressOfOperands         map[ast.ExprID]struct{} // Tracks operands of & expressions (for @atomic validation)
+	arrayViewExprs            map[ast.ExprID]struct{}
+	arrayViewBindings         map[symbols.SymbolID]struct{}
+	assignmentLHSDepth        int
 	// placeBaseDepth counts how deep we are inside the BASE CHAIN of a
 	// projection being read. `o` in `o.label` is not a value read — only the
 	// projection is — so the use-after-move question is asked once, about the

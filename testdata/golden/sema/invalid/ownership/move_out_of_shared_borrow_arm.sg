@@ -1,0 +1,29 @@
+tag PStr(string);
+tag PNum(int);
+
+type Payload = PStr(string) | PNum(int);
+
+// The scrutinee is fine: a compare only inspects what it matches against.
+// The ARM is not: it answers with a payload the matched value still owns.
+fn hand_out(arg: &Payload) -> string {
+    return compare *arg {
+        PStr(s) => s;
+        PNum(n) => n to string;
+    };
+}
+
+// The same compare, reading its payload instead of giving it away, is accepted.
+fn read_only(out: string, arg: &Payload) -> string {
+    return compare *arg {
+        PStr(s) => out + s;
+        PNum(n) => out + (n to string);
+    };
+}
+
+@entrypoint
+fn main() -> int {
+    let p: Payload = PStr("payload");
+    print(hand_out(&p));
+    print(read_only("read:", &p));
+    return 0;
+}

@@ -340,6 +340,27 @@ const (
 	// carry their own file.
 	SemaStoreThroughSharedRef Code = 3187
 
+	// SemaMoveOutOfSharedBorrow rejects taking ownership of a heap-owning value
+	// that a shared reference only borrows — `let b: string = *r` where
+	// `r: &string`, and an arm that hands out a payload bound from a borrowed
+	// union.
+	//
+	// The two spellings are one condition: something ends up responsible for
+	// freeing a value whose real owner is elsewhere and is going to free it
+	// too. The VM survives it by retaining on every deref, manufacturing a
+	// reference the compiler never recorded; the native backend emits a bare
+	// load and the value is freed twice.
+	//
+	// It is NOT the partial-move rule (SemaPartialMoveNotEnumerable). Nothing
+	// is being taken out of an aggregate here and no residual has to be named:
+	// the whole pointee is read, and the objection is to the second owner, not
+	// to what would be left. Saying so under its own number is what lets the
+	// message name `r.__clone()`, which is the alternative that actually
+	// applies — the partial-move hint says to move the value at the place that
+	// owns it, and following it turns this error into a use-after-move whenever
+	// the owner is read again.
+	SemaMoveOutOfSharedBorrow Code = 3197
+
 	// Ошибки I/O
 
 	// IOLoadFileError indicates file load error.
@@ -592,6 +613,7 @@ var ( // todo расширить описания и использовать к
 		SemaSelectSendPayloadNotBinding:    "select send payload must be a whole owned binding",
 		SemaCompareGuardMovesBinding:       "compare-arm guard cannot move a value out of its own pattern binding",
 		SemaPartialMoveNotEnumerable:       "what would remain after this move cannot be named",
+		SemaMoveOutOfSharedBorrow:          "a shared reference only borrows this value, so it cannot be given away",
 		SemaPartialMoveNeedsOwn:            "taking a field out of a live value must be written `own`",
 		SemaPartialMoveFromTemporary:       "cannot take a field out of a value nothing holds",
 		SemaStoreThroughSharedRef:          "cannot write through a shared reference",

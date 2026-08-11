@@ -1,4 +1,4 @@
-vm_rc_leak_panics.sg (span: 1:1-17:1)
+move_out_of_shared_borrow.sg (span: 1:1-17:1)
 ├─ Item[0]: Type (span: 1:1-1:30)
 │  ├─ Name: Node
 │  ├─ Kind: Struct

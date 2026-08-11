@@ -12,31 +12,33 @@ import (
 )
 
 const ownershipBuildDevNegativeSource = `
-type NodeId = uint;
+tag Payload(string);
+tag Empty();
 
-type Node = {
-    next: NodeId?,
-    data: int,
-}
+type Slot = Payload(string) | Empty();
 
-fn walk(nodes: &Node[], start: NodeId?) -> nothing {
-    let mut id: NodeId? = start;
-    while true {
-        compare id {
-            Some(i) => {
-                let n: &Node = nodes[(i to int)];
-                id = *n.next;
-            }
-            nothing => { return nothing; }
-        };
-    }
+type Holder = { held: string }
+
+// A payload bound out of a BORROWED union and stored into a projection: two
+// owners for one string, accepted by the compiler and reported by the
+// report-only verifier. See the twin control in internal/buildpipeline for why
+// the previous walk over NodeId? had to be replaced — its id = *n.next is
+// a compile error now, and a control the default build rejects cannot test what
+// the dev flag does to a build that succeeds.
+fn stash(slot: &Slot, out: &mut Holder) -> nothing {
+    compare *slot {
+        Payload(s) => { out.held = s; }
+        Empty() => { return nothing; }
+    };
+    return nothing;
 }
 
 @entrypoint
 fn main() -> int {
-    let nodes: Node[] = [];
-    let start: NodeId? = nothing;
-    walk(&nodes, start);
+    let s: Slot = Payload("x");
+    let mut h: Holder = Holder { held = "" };
+    stash(&s, &mut h);
+    print(h.held.__clone());
     return 0;
 }
 `
