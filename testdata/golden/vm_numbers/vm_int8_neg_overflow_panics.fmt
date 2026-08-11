@@ -1,0 +1,6 @@
+@entrypoint
+fn main() -> int {
+    let a: int8 = -128;
+    let _ = -a;
+    return 0;
+}

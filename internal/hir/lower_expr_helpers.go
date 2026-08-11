@@ -98,6 +98,74 @@ func (l *lowerer) toCallExpr(span source.Span, value *Expr, target types.TypeID,
 	}
 }
 
+// foldNegatedIntLiteral turns `-<integer literal>` into the one literal it
+// names, and returns nil for anything that is not exactly that shape.
+//
+// The difference is not cosmetic. Sema validates `-128` against int8's range
+// and then types the WHOLE chain `int8` (materializeNumericLiteral →
+// setExprTypes over info.exprIDs), which leaves the inner `128` stamped with a
+// type that cannot hold it. The VM never notices, because its `__neg` intrinsic
+// negates a value kept in an untruncated int64; a backend that materialises the
+// constant at the type's own width reads that operand as -128 and then reports
+// the negation of it as an overflow, which is a panic for a program that is
+// perfectly in range.
+//
+// Folding here means no backend is ever handed the out-of-range magnitude. It
+// is also what lets `let a: int64 = -9223372036854775808` answer with itself
+// instead of with 0: that magnitude has no int64 to be parsed into either, so
+// the sign has to join the literal BEFORE it is parsed, not after.
+//
+// Only the builtin negation folds. A user-defined `__neg` over a numeric type
+// is a call the program asked for, and constant-folding it would silently skip
+// a body that might do something else entirely.
+func (l *lowerer) foldNegatedIntLiteral(exprID ast.ExprID, operand *Expr, ty types.TypeID, span source.Span) *Expr {
+	if operand == nil || operand.Kind != ExprLiteral {
+		return nil
+	}
+	lit, ok := operand.Data.(LiteralData)
+	if !ok || lit.Kind != LiteralInt || lit.Text == "" {
+		return nil
+	}
+	// FIXED-WIDTH signed integers only, and the boundary is load-bearing in both
+	// directions. A width is what makes a magnitude unrepresentable, so it is
+	// the only place the defect exists; and arbitrary-precision `int` carries
+	// its literals as text into the bignum runtime, whose parser takes a
+	// magnitude and rejects a leading sign outright — folding there turns a
+	// working `let a: int = -5` into `invalid int literal "-5"`.
+	if l.semaRes == nil || l.semaRes.TypeInterner == nil {
+		return nil
+	}
+	tt, found := l.semaRes.TypeInterner.Lookup(resolveAliasHIR(l.semaRes.TypeInterner, ty))
+	if !found || tt.Kind != types.KindInt || tt.Width == types.WidthAny {
+		return nil
+	}
+	if l.semaRes != nil && l.semaRes.MagicUnarySymbols != nil {
+		if symID, found := l.semaRes.MagicUnarySymbols[exprID]; found && symID.IsValid() && !l.isBuiltinSymbol(symID) {
+			return nil
+		}
+	}
+	// The sign is flipped in the TEXT rather than by negating the parsed value,
+	// which is what makes the int64 minimum reachable: `9223372036854775808`
+	// does not parse, so there is nothing to negate, while `-9223372036854775808`
+	// parses exactly. Flipping rather than prefixing also keeps `- -5` correct.
+	text := lit.Text
+	if text[0] == '-' {
+		text = text[1:]
+	} else {
+		text = "-" + text
+	}
+	value, ok := numlit.ParseInt64(text)
+	if !ok {
+		return nil
+	}
+	return &Expr{
+		Kind: ExprLiteral,
+		Type: ty,
+		Span: span,
+		Data: LiteralData{Kind: LiteralInt, Text: text, IntValue: value},
+	}
+}
+
 func (l *lowerer) isBuiltinSymbol(symID symbols.SymbolID) bool {
 	if l == nil || l.symRes == nil || l.symRes.Table == nil || l.symRes.Table.Symbols == nil || !symID.IsValid() {
 		return false

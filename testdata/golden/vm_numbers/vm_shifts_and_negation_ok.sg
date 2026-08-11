@@ -1,0 +1,28 @@
+@entrypoint
+fn main() -> int {
+    let a: int8 = 64;
+    let one: int8 = 1;
+    print((a >> one) to string);
+
+    let low: int8 = -128;
+    print(low to string);
+
+    let seed: int8 = 1;
+    let six: int8 = 6;
+    print((seed << six) to string);
+
+    let big: uint8 = 255;
+    let three: uint8 = 3;
+    print((big >> three) to string);
+
+    let wide: int64 = -9223372036854775808;
+    print(wide to string);
+
+    let mid: int16 = -32768;
+    print(mid to string);
+
+    let top: int32 = 2147483647;
+    print((-top) to string);
+
+    return 0;
+}

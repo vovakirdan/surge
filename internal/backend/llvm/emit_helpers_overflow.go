@@ -19,6 +19,12 @@ import (
 // own flag is why the check costs a branch rather than a widening: the wrap and
 // the fact that it wrapped come out of one instruction.
 //
+// Shifts and unary negation ask their own questions and are the reason this
+// file grew past add/sub/mul: a shift can lose a bit the way a multiply can,
+// and a count past the width has no defined answer in LLVM at all, while `-x`
+// has exactly one operand it cannot answer for. See emitCheckedIntShift and
+// emitCheckedIntNegate.
+//
 // Division needs different questions and gets them. Dividing by zero is a trap
 // in the VM and UNDEFINED in LLVM, so the zero is caught before the divide
 // reaches the machine. Signed MIN / -1 is the one quotient a two's-complement
@@ -37,7 +43,7 @@ import (
 // wrapping, and returns the value holding the result.
 //
 // handled is false for every operation and every width this does not own — a
-// bitwise op, a shift, a bool — leaving the caller's plain opcode in place.
+// bitwise and/or/xor, a bool — leaving the caller's plain opcode in place.
 func (fe *funcEmitter) emitCheckedIntArith(
 	op ast.ExprBinaryOp, info intMeta, ty, leftVal, rightVal string,
 ) (val string, handled bool, err error) {
@@ -56,9 +62,117 @@ func (fe *funcEmitter) emitCheckedIntArith(
 	case ast.ExprBinaryDiv, ast.ExprBinaryMod:
 		result, divErr := fe.emitCheckedIntDivide(op, info, ty, leftVal, rightVal)
 		return result, true, divErr
+	case ast.ExprBinaryShiftLeft, ast.ExprBinaryShiftRight:
+		result, shiftErr := fe.emitCheckedIntShift(op, info, ty, leftVal, rightVal)
+		return result, true, shiftErr
 	default:
 		return "", false, nil
 	}
+}
+
+// emitCheckedIntShift emits a shift that stops where the VM stops.
+//
+// Two questions, and only one of them is about losing a value.
+//
+// A COUNT outside [0, width) is undefined in LLVM: `shl i8 1, 9` is poison, not
+// zero. That is worse than disagreeing with the VM, because poison is not an
+// answer that can be compared with anything — it is free to be folded one way
+// here and another way after inlining. So the count is refused BEFORE the shift
+// is emitted, which is the only order in which a guard can still see a defined
+// value.
+//
+// A LEFT shift that pushes a significant bit off the top is defined and wrong:
+// the VM raises VM1101 the moment a bit is lost. The check is the round trip —
+// shift back and ask whether the value survived — rather than a comparison
+// against a per-width maximum, because the round trip is one shape for every
+// width and signedness, and the way back carries the signedness with it.
+//
+// A RIGHT shift needs only the count guard. Discarding low bits is what the
+// operation means and the VM agrees: `65:int8 >> 2` is 16 on both backends.
+func (fe *funcEmitter) emitCheckedIntShift(
+	op ast.ExprBinaryOp, info intMeta, ty, leftVal, rightVal string,
+) (string, error) {
+	if err := fe.emitShiftCountGuard(info, ty, rightVal); err != nil {
+		return "", err
+	}
+	// The way back from a left shift is arithmetic for a signed type, because
+	// the sign bit is one of the bits that has to survive.
+	back := "lshr"
+	if info.signed {
+		back = "ashr"
+	}
+	if op == ast.ExprBinaryShiftRight {
+		tmp := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = %s %s %s, %s\n", tmp, back, ty, leftVal, rightVal)
+		return tmp, nil
+	}
+	shifted := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = shl %s %s, %s\n", shifted, ty, leftVal, rightVal)
+	restored := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = %s %s %s, %s\n", restored, back, ty, shifted, rightVal)
+	lost := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp ne %s %s, %s\n", lost, ty, restored, leftVal)
+	fail := fe.nextInlineBlock()
+	cont := fe.nextInlineBlock()
+	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", lost, fail, cont)
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", fail)
+	if err := fe.emitPanicCoded("VM1101", "integer overflow"); err != nil {
+		return "", err
+	}
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", cont)
+	return shifted, nil
+}
+
+// emitShiftCountGuard refuses a shift count outside [0, width).
+//
+// ONE unsigned comparison answers both halves, for a signed count as well as an
+// unsigned one, and the reason is worth stating because the code reads as if it
+// forgot about negatives. A negative count has its high bit set, so read as
+// unsigned it is at least 2^(width-1) — 128 for an i8 — which is past every
+// width this backend emits. `icmp uge` therefore catches `-1` and `9` alike on
+// an i8, while `icmp sge` would let `-1` through as "less than 8".
+func (fe *funcEmitter) emitShiftCountGuard(info intMeta, ty, rightVal string) error {
+	outOfRange := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp uge %s %s, %d\n", outOfRange, ty, rightVal, info.bits)
+	fail := fe.nextInlineBlock()
+	cont := fe.nextInlineBlock()
+	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", outOfRange, fail, cont)
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", fail)
+	if err := fe.emitPanicCoded("VM1101", "integer overflow"); err != nil {
+		return err
+	}
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", cont)
+	return nil
+}
+
+// emitCheckedIntNegate emits `-x` as the subtraction it already was, and asks
+// the overflow bit the plain `sub` threw away.
+//
+// There is exactly one signed value whose negation does not fit in its own
+// width: MIN, whose magnitude is one past the largest positive. `sub i8 0, -128`
+// yields -128 — the wrong answer is the operand unchanged, which is the shape
+// hardest to notice in a program's output. The VM raises VM1101 for it
+// (evalUnaryMinus, internal/vm/eval_ops.go).
+//
+// handled is false for everything this does not own: an unsigned type, which
+// has no unary minus at all, and the arbitrary-precision widths, which the
+// caller has already routed to the bignum runtime.
+func (fe *funcEmitter) emitCheckedIntNegate(info intMeta, ty, val string) (negated string, handled bool, err error) {
+	if !info.signed || ty != fmt.Sprintf("i%d", info.bits) {
+		return "", false, nil
+	}
+	switch info.bits {
+	case 8, 16, 32, 64:
+	default:
+		return "", false, nil
+	}
+	// Negation IS a subtraction from zero, so it asks the same intrinsic the
+	// binary path asks rather than growing a second way to read an overflow bit.
+	result, err := fe.emitOverflowCheckedArith(ast.ExprBinarySub, info, ty, "0", val)
+	if err != nil {
+		return "", false, err
+	}
+	return result, true, nil
 }
 
 // emitOverflowCheckedArith runs add/sub/mul through the checked intrinsic and

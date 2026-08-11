@@ -393,6 +393,11 @@ func (l *lowerer) lowerUnaryExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Typ
 	if unaryData.Op == ast.ExprUnaryRef || unaryData.Op == ast.ExprUnaryRefMut {
 		operand = l.lowerPlaceExpr(unaryData.Operand)
 	}
+	if unaryData.Op == ast.ExprUnaryMinus {
+		if folded := l.foldNegatedIntLiteral(exprID, operand, ty, expr.Span); folded != nil {
+			return folded
+		}
+	}
 	// If sema resolved a magic method, lower to a call.
 	if l.semaRes != nil && l.semaRes.MagicUnarySymbols != nil {
 		if symID, ok := l.semaRes.MagicUnarySymbols[exprID]; ok && symID.IsValid() {

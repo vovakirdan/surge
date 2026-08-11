@@ -224,6 +224,13 @@ func (fe *funcEmitter) emitUnary(op *mir.UnaryOp) (val, ty string, err error) {
 		if !ok || !info.signed {
 			return "", "", fmt.Errorf("unsupported unary minus type")
 		}
+		checked, handled, chkErr := fe.emitCheckedIntNegate(info, ty, val)
+		if chkErr != nil {
+			return "", "", chkErr
+		}
+		if handled {
+			return checked, ty, nil
+		}
 		tmp := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = sub %s 0, %s\n", tmp, ty, val)
 		return tmp, ty, nil

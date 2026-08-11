@@ -1,0 +1,73 @@
+vm_shifts_and_negation_ok.sg (span: 1:1-29:1)
+└─ Item[0]: Fn (span: 1:1-28:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-28:2)
+         ├─ Stmt[0]: Let (span: 3:5-3:22)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: int8
+         │  └─ Value: expr#1: 64
+         ├─ Stmt[1]: Let (span: 4:5-4:23)
+         │  ├─ Name: one
+         │  ├─ Mutable: false
+         │  ├─ Type: int8
+         │  └─ Value: expr#2: 1
+         ├─ Stmt[2]: Expr (span: 5:5-5:33)
+         │  └─ Expr: expr#9: print(((a >> one)) to string)
+         ├─ Stmt[3]: Let (span: 7:5-7:26)
+         │  ├─ Name: low
+         │  ├─ Mutable: false
+         │  ├─ Type: int8
+         │  └─ Value: expr#11: -128
+         ├─ Stmt[4]: Expr (span: 8:5-8:26)
+         │  └─ Expr: expr#15: print(low to string)
+         ├─ Stmt[5]: Let (span: 10:5-10:24)
+         │  ├─ Name: seed
+         │  ├─ Mutable: false
+         │  ├─ Type: int8
+         │  └─ Value: expr#16: 1
+         ├─ Stmt[6]: Let (span: 11:5-11:23)
+         │  ├─ Name: six
+         │  ├─ Mutable: false
+         │  ├─ Type: int8
+         │  └─ Value: expr#17: 6
+         ├─ Stmt[7]: Expr (span: 12:5-12:36)
+         │  └─ Expr: expr#24: print(((seed << six)) to string)
+         ├─ Stmt[8]: Let (span: 14:5-14:26)
+         │  ├─ Name: big
+         │  ├─ Mutable: false
+         │  ├─ Type: uint8
+         │  └─ Value: expr#25: 255
+         ├─ Stmt[9]: Let (span: 15:5-15:26)
+         │  ├─ Name: three
+         │  ├─ Mutable: false
+         │  ├─ Type: uint8
+         │  └─ Value: expr#26: 3
+         ├─ Stmt[10]: Expr (span: 16:5-16:37)
+         │  └─ Expr: expr#33: print(((big >> three)) to string)
+         ├─ Stmt[11]: Let (span: 18:5-18:44)
+         │  ├─ Name: wide
+         │  ├─ Mutable: false
+         │  ├─ Type: int64
+         │  └─ Value: expr#35: -9223372036854775808
+         ├─ Stmt[12]: Expr (span: 19:5-19:27)
+         │  └─ Expr: expr#39: print(wide to string)
+         ├─ Stmt[13]: Let (span: 21:5-21:29)
+         │  ├─ Name: mid
+         │  ├─ Mutable: false
+         │  ├─ Type: int16
+         │  └─ Value: expr#41: -32768
+         ├─ Stmt[14]: Expr (span: 22:5-22:26)
+         │  └─ Expr: expr#45: print(mid to string)
+         ├─ Stmt[15]: Let (span: 24:5-24:33)
+         │  ├─ Name: top
+         │  ├─ Mutable: false
+         │  ├─ Type: int32
+         │  └─ Value: expr#46: 2147483647
+         ├─ Stmt[16]: Expr (span: 25:5-25:29)
+         │  └─ Expr: expr#52: print((-top) to string)
+         └─ Stmt[17]: Return (span: 27:5-27:14)
+            └─ Expr: expr#53: 0

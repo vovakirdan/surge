@@ -394,6 +394,18 @@ func (fe *funcEmitter) emitMagicUnaryIntrinsic(call *mir.CallInstr, name string)
 			if !info.signed {
 				return fmt.Errorf("unsupported unary minus type")
 			}
+			// `-x` written plainly arrives here as a `__neg` call, while `-x`
+			// inside a compound expression can reach emitUnary instead. Both
+			// spellings mean the same thing, so both ask for the overflow bit —
+			// otherwise the trap would depend on where the minus was written.
+			checked, handled, chkErr := fe.emitCheckedIntNegate(info, ty, val)
+			if chkErr != nil {
+				return chkErr
+			}
+			if handled {
+				tmp = checked
+				break
+			}
 			fmt.Fprintf(&fe.emitter.buf, "  %s = sub %s 0, %s\n", tmp, ty, val)
 			break
 		}
