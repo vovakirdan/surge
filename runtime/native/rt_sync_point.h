@@ -267,4 +267,22 @@ void rt_sync_point_open(void);
 #define RT_DEBT190_PUBLISHING(count) (count)
 #endif
 
+// RV2-DEBT-199 negative-control toggle. A far channel IS freed
+// (rt_far_channel.c release_entry -> rt_channel_free), so resolving a channel
+// waiter key by casting key.id back to rt_channel* and reading the object is a
+// use-after-free from the moment the reclaim lands — and the reader is the
+// ROUTING path itself (rt_waiter_route.c), reached by remove_waiter /
+// remove_waiter_generation / add_waiter / wake_key_all with a key those callers
+// merely carry. The fix stamps the channel's owner shard INTO the key at
+// construction time, where the channel is provably alive because the operation
+// building the key holds it, so routing reads the key and never the object.
+// Defining the negative control restores the dereference, which the
+// deterministic proof MUST observe as an ASan heap-use-after-free.
+#ifdef RV2_DEBT_199_NEGATIVE_CONTROL
+#define RT_DEBT199_CHANNEL_OWNER_SHARD(key)                                                        \
+    rt_channel_owner_shard_id((const rt_channel*)(uintptr_t)(key).id)
+#else
+#define RT_DEBT199_CHANNEL_OWNER_SHARD(key) ((key).owner_shard_id)
+#endif
+
 #endif // RT_SYNC_POINT_H

@@ -36,13 +36,23 @@ waker_key remote_spawn_reply_key(uint64_t id, uint32_t owner_shard_id) {
     return key;
 }
 
+// Channel keys carry the channel's owner shard, read HERE — the only place a
+// channel key is ever built, and a place every caller reaches while holding the
+// channel (send/recv/close/select all have it live in hand). Everything
+// downstream copies the key: task->park_key, task->wait_keys[], the wake path's
+// captured stale key, the store entries. That copy is what lets the routing
+// path resolve a channel key without dereferencing it, which matters because a
+// far channel IS freed under a carried key (RV2-DEBT-199). The shard is fixed
+// before any task can park (rt_waiter.h: rt_channel_bind_owner_shard runs
+// between rt_channel_new and the mint), so a key built at any later moment
+// stamps the same value.
 waker_key channel_send_key(const rt_channel* ch) {
-    waker_key key = {WAKER_CHAN_SEND, (uint64_t)(uintptr_t)ch, 0};
+    waker_key key = {WAKER_CHAN_SEND, (uint64_t)(uintptr_t)ch, rt_channel_owner_shard_id(ch)};
     return key;
 }
 
 waker_key channel_recv_key(const rt_channel* ch) {
-    waker_key key = {WAKER_CHAN_RECV, (uint64_t)(uintptr_t)ch, 0};
+    waker_key key = {WAKER_CHAN_RECV, (uint64_t)(uintptr_t)ch, rt_channel_owner_shard_id(ch)};
     return key;
 }
 

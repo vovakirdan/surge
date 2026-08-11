@@ -22,6 +22,16 @@ static rt_shard* rt_task_join_waiter_shard(rt_executor* ex, uint64_t task_id) {
 // keys route to the channel's own owner shard, below — the migration already
 // happened, and this comment claimed shard 0 for it long after the arm below
 // stopped agreeing.
+//
+// Channel keys resolve WITHOUT touching the channel (RV2-DEBT-199). The claim
+// that stood here — "channels are never freed" — was false: rt_far_channel.c's
+// release_entry calls rt_channel_free once the last lease and the last pin are
+// gone, and a channel-keyed waiter entry can outlive that (the wake path
+// captures a parked task's channel key, drops the owner shard lock, and only
+// then calls remove_waiter_generation; the woken task's own completion is what
+// unpins and frees). Both arms below therefore read the owner shard the key
+// CARRIES, stamped by channel_send_key / channel_recv_key while the channel was
+// alive; nothing here dereferences key.id.
 rt_waiter_store* rt_waiter_store_for_key(rt_executor* ex, waker_key key) {
     if (ex == NULL || !waker_valid(key)) {
         return NULL;
@@ -46,10 +56,7 @@ rt_waiter_store* rt_waiter_store_for_key(rt_executor* ex, waker_key key) {
             return rt_executor_waiter_store_for_shard(ex, key.owner_shard_id);
         case WAKER_CHAN_SEND:
         case WAKER_CHAN_RECV:
-            // Channel keys embed the channel pointer; channels are never
-            // freed and their owner never changes, so resolution is stable.
-            return rt_executor_waiter_store_for_shard(
-                ex, rt_channel_owner_shard_id((const rt_channel*)(uintptr_t)key.id));
+            return rt_executor_waiter_store_for_shard(ex, RT_DEBT199_CHANNEL_OWNER_SHARD(key));
         default:
             return rt_executor_waiter_store(ex);
     }
@@ -80,9 +87,7 @@ rt_shard* rt_waiter_key_shard(rt_executor* ex, waker_key key) {
             return rt_runtime_shard(rt_executor_runtime(ex), key.owner_shard_id);
         case WAKER_CHAN_SEND:
         case WAKER_CHAN_RECV:
-            return rt_runtime_shard(
-                rt_executor_runtime(ex),
-                rt_channel_owner_shard_id((const rt_channel*)(uintptr_t)key.id));
+            return rt_runtime_shard(rt_executor_runtime(ex), RT_DEBT199_CHANNEL_OWNER_SHARD(key));
         default:
             return rt_runtime_shard0(rt_executor_runtime(ex));
     }

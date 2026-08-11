@@ -128,6 +128,17 @@ typedef struct {
 // so the shard is fixed before the handle is minted and published and before
 // any task can park on it. Nothing rebinds it afterwards, and both migrators
 // above filter on join_key, so a channel entry never changes stores.
+//
+// A channel key OUTLIVES its channel (RV2-DEBT-199). A far channel is freed at
+// rt_far_channel.c's release_entry, and the deferred stale-key removal in
+// rt_task_park.c's wake_task_with_policy still holds the parked task's channel
+// key across the window in which the woken task completes, unpins the registry
+// entry and frees the object. Because the shard is fixed before any park (the
+// paragraph above), channel_send_key / channel_recv_key stamp it into the key's
+// owner_shard_id field and rt_waiter_route.c routes on that copy — a channel
+// key must therefore be treated as an OPAQUE identity, never as a pointer to
+// dereference. Entry MATCHING is unaffected: every comparison in this file's
+// mutation points tests kind and id only.
 typedef struct {
     waiter* entries;
     size_t len;

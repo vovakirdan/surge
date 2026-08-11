@@ -69,6 +69,8 @@ int main(int argc, char** argv) {
         return rtb_mode_anchored_leak_audit();
     if (strcmp(argv[1], "anchored-cross-producer-order") == 0)
         return rtb_mode_anchored_cross_producer_order();
+    if (strcmp(argv[1], "anchored-freed-channel-waiter") == 0)
+        return rtb_mode_anchored_freed_channel_waiter();
     if (strcmp(argv[1], "share-round-trip") == 0)
         return rtb_mode_share_round_trip();
     if (strcmp(argv[1], "share-release-independence") == 0)

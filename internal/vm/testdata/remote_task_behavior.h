@@ -223,6 +223,7 @@ void rtb_anchored_audit_poll_dispatch(uint64_t id);
 int rtb_mode_anchored_queue_full(void);
 int rtb_mode_anchored_leak_audit(void);
 int rtb_mode_anchored_cross_producer_order(void);
+int rtb_mode_anchored_freed_channel_waiter(void);
 
 int rtb_mode_channel_create(void);
 int rtb_mode_channel_kind_aliasing(void);
