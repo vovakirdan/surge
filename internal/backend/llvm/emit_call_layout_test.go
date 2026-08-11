@@ -3,6 +3,7 @@ package llvm
 import (
 	"testing"
 
+	"surge/internal/driver"
 	"surge/internal/mir"
 	"surge/internal/types"
 )
@@ -173,6 +174,15 @@ func assertSameABI(t *testing.T, fnName string, fromDefinition, fromType mir.Sur
 // stops there: the question is what the signatures say, not what was emitted.
 func prepareEmitterForTest(t *testing.T, src string) *Emitter {
 	t.Helper()
+	e, _ := prepareEmitterAndResultForTest(t, src)
+	return e
+}
+
+// prepareEmitterAndResultForTest hands back the semantic result beside the
+// emitter, for the tests that have to ask sema and the backend about ONE
+// compilation of one program.
+func prepareEmitterAndResultForTest(t *testing.T, src string) (*Emitter, *driver.DiagnoseResult) {
+	t.Helper()
 	mirMod, result := lowerMIRFromSource(t, src)
 	e := &Emitter{
 		mod:          mirMod,
@@ -194,5 +204,5 @@ func prepareEmitterForTest(t *testing.T, src string) *Emitter {
 	if err := e.prepareFunctions(); err != nil {
 		t.Fatalf("prepare functions: %v", err)
 	}
-	return e
+	return e, result
 }

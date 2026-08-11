@@ -88,6 +88,28 @@ func (c *CapabilityClassifier) components(id types.TypeID) []types.TypeID {
 	return nil
 }
 
+// Components publishes the same edge relation, for one type, to callers outside
+// this package.
+//
+// It exists so that an agreement test can walk the graph the verdicts were
+// computed over instead of a second graph of its own. Comparing what the
+// classifier REACHES against what another leg of the same question reaches is
+// only meaningful if both walks follow one relation; a private copy of the walk
+// would agree by construction on the day it was written and drift afterwards,
+// which is the failure such a test exists to catch.
+//
+// The id is resolved first, so an alias asks about the type it names.
+func (c *CapabilityClassifier) Components(id types.TypeID) []types.TypeID {
+	if c == nil {
+		return nil
+	}
+	resolved := c.resolve(id)
+	if resolved == types.NoTypeID {
+		return nil
+	}
+	return c.components(resolved)
+}
+
 // unionMemberTypes lists a union's member and tag payload types in declaration
 // order.
 func unionMemberTypes(in *types.Interner, id types.TypeID) []types.TypeID {

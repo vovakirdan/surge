@@ -331,6 +331,35 @@ func (e *Emitter) emitDropAt(g *glueTmp, ptr string, ty types.TypeID, align uint
 	e.emitDropHandle(word, ty)
 }
 
+// emitDropHandleRootAt reads the handle word out of the slot at `ptr` and
+// releases it — and does neither when there is nothing to release.
+//
+// The load and the decision to release live in ONE place on purpose. Loading
+// first and asking afterwards is not a wasted instruction, it is a wrong one:
+// the load is typed `ptr`, so it reads a machine word out of a slot whose type
+// may be narrower than a word. A `bool` root is one byte, and reading eight from
+// its slot reads seven bytes that belong to whatever is laid out next.
+//
+// The predicate is typeOwnsHeap, which is the same question emitMemberDropAt
+// asks before dropping a MEMBER, so a handle at a root and the same handle one
+// level down are decided by one rule. (emitMemberDropAt also asks
+// fieldDropIsExclusive; at a root it adds nothing, because every non-composite
+// family typeOwnsHeap admits — string, dynamic array, counted scalar — already
+// answers yes to it.)
+//
+// The load cannot move into emitDropHandle instead, which is where it would
+// otherwise belong: that function is given a WORD, and two of its callers have
+// no slot to load it from — a result the runtime holds arrives as the word
+// itself.
+func (e *Emitter) emitDropHandleRootAt(g *glueTmp, ptr string, ty types.TypeID, align uint64) {
+	if !e.typeOwnsHeap(ty) {
+		return
+	}
+	word := g.next()
+	fmt.Fprintf(&e.buf, "  %s = load ptr, ptr %s, align %d\n", word, ptr, align)
+	e.emitDropHandle(word, ty)
+}
+
 // emitDropGlue emits every needed glue function, processing to a
 // fixpoint (a glue body can require more glue).
 //
@@ -447,15 +476,20 @@ func (e *Emitter) arrayElemSlotAlign(elem types.TypeID) (uint64, error) {
 	return align, err
 }
 
-// emitDropGlueBody emits `@drop.typeN(ptr %p)` for a value composite: release
-// every owning field, element and active payload of the value whose storage is
-// at %p, and leave the storage alone.
+// emitDropGlueBody emits `@drop.typeN(ptr %p)`: release everything the value
+// whose storage is at %p owns, and leave the storage alone.
 //
 // The `rt_free` that used to close this body is gone with the box it freed. A
 // composite's storage is now a local's slot, a field of an enclosing composite
 // or an element of an array, and freeing any of those would be freeing memory
 // this value never owned. Null-safe, because the runtime's abandon paths reach
 // the same glue for a transport allocation that may not have been filled.
+//
+// %p is an ADDRESS in every shape, which is what the default arm below turns
+// on: a composite's bytes are at %p, and a handle's WORD is at %p. That is the
+// same contract emitDropAt states for a member, and it is why the arm loads
+// before it releases — calling a leaf helper on %p itself would hand the
+// allocator the address of the slot instead of the block the slot names.
 func (e *Emitter) emitDropGlueBody(id types.TypeID) error {
 	id = resolveValueType(e.types, id)
 	layoutInfo, err := e.layoutOf(id)
@@ -473,7 +507,33 @@ func (e *Emitter) emitDropGlueBody(id types.TypeID) error {
 	fmt.Fprintf(&e.buf, "body:\n")
 
 	g := &glueTmp{}
-	if elem, length, ok := arrayFixedInfo(e.types, id); ok {
+	if !e.types.IsValueComposite(id) {
+		// The default arm. A root that is not laid out inline is a HANDLE — a
+		// string, a dynamic array, a counted scalar — and its whole
+		// representation is the word in the slot at %p. The word is read out
+		// and released exactly the way a handle MEMBER of a composite already
+		// is (emitMemberDropAt), which is the same act one level up.
+		//
+		// Without this arm such a root got `entry -> ret void`: a body that
+		// satisfies every "droppable implies a drop function exists" check
+		// there is, and reclaims nothing. It is an arm here and not a guard at
+		// a binding site because a binding site fixes the one caller it is
+		// written for, while the next type to arrive arrives through whichever
+		// caller nobody thought about.
+		//
+		// The selector is IsValueComposite and NOT the type's kind, because the
+		// container handles — `Array<T>`, `Map<K, V>` and the opaque runtime
+		// resources — are nominal STRUCTS. Asking the kind sent every one of
+		// them into the struct arm, where walking their (absent) fields emitted
+		// nothing at all; a dynamic array root is precisely the case that
+		// exposed it.
+		//
+		// What the arm releases is exactly what typeOwnsHeap counts as owned,
+		// which is what keeps the walk and the emitted body from parting: a far
+		// handle's lease is deliberately not returned here, because the
+		// structural walk does not count it as heap this glue owns.
+		e.emitDropHandleRootAt(g, "%p", id, align)
+	} else if elem, length, ok := arrayFixedInfo(e.types, id); ok {
 		e.emitFixedArrayElemDrops(g, elem, "%p", align, int(length))
 	} else if tt, ok := e.types.Lookup(id); ok {
 		switch tt.Kind {
