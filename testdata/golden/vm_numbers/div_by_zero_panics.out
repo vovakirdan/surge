@@ -1,0 +1,5 @@
+panic VM3203: division by zero
+at testdata/golden/vm_numbers/div_by_zero_panics.sg:3:12
+backtrace:
+  0: main at testdata/golden/vm_numbers/div_by_zero_panics.sg:3:12
+  1: __surge_start at <no-span>
