@@ -1,4 +1,4 @@
-.PHONY: build run test runtime-v2-check runtime-v2-abi-manifest-check runtime-v2-slot-control-check runtime-v2-ownership-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check runtime-v2-panic-surface-check runtime-v2-transport-contract-check runtime-v2-transport-check runtime-v2-carrier-check runtime-v2-carrier-sanitizer-check runtime-v2-carrier-bench runtime-v2-carrier-baseline-capture runtime-v2-carrier-bench-final vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
+.PHONY: build run test runtime-v2-check runtime-v2-abi-manifest-check runtime-v2-slot-control-check runtime-v2-ownership-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check runtime-v2-panic-surface-check runtime-v2-transport-contract-check runtime-v2-transport-check runtime-v2-carrier-check runtime-v2-carrier-sanitizer-check runtime-v2-place-overwrite-check runtime-v2-carrier-bench runtime-v2-carrier-baseline-capture runtime-v2-carrier-bench-final vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
 .PHONY: golden golden-update golden-check golden-corpus-determinism behaviour-check behaviour-check-all behaviour-check-mt stats
 .PHONY: c-check cfmt-check c-warnings ctidy cppcheck
 
@@ -224,6 +224,22 @@ runtime-v2-carrier-bench-final:
 runtime-v2-slot-control-check:
 	@echo ">> Running Runtime V2 owner-private slot-control gate"
 	SURGE_REQUIRE_SLOT_CONTROL_SANITIZERS=1 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2SlotControl(Protocol|AddressAndUndefinedSanitizers|ThreadSanitizer|IsOwnerPrivateAndCallbackFree|CopyInitTrapIsNamedAndUndispatched|RequiredSanitizersFailClosed)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
+
+# The overwritten-value obligation, per place shape, on both lanes.
+#
+# RED ON NATIVE BY DESIGN, and that is why it is here rather than in `make
+# check`: a store over a struct field, a tuple element, a `&mut` target or an
+# array element does not free what it displaces on the native lane. The VM lane
+# is green, which is the evidence that the obligation is RECORDED and only the
+# native discharge is missing — both lanes run the same sema.
+#
+# The test carries a `runtime_v2_pending` build tag, so `go test ./...` (and
+# therefore `make check`, and therefore the pre-commit hook) does not see it and
+# a known-red gate stays committable. Delete the tag when the native lane goes
+# green, not before.
+runtime-v2-place-overwrite-check:
+	@echo ">> Running Runtime V2 overwritten-value obligation gate"
+	SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2PlaceOverwriteReleasesDisplacedValue$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 
 runtime-v2-ownership-check:
 	@echo ">> Running Runtime V2 ownership corpus gate"

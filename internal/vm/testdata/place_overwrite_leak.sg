@@ -1,0 +1,156 @@
+// The differential leak probe for the overwritten-value obligation
+// (RV2-DEBT-204 and its sibling row for non-element places).
+//
+// Assigning a heap-owning value over a place must free what it displaces.
+// Whole-binding assignment does. Whether any other place shape does — a struct
+// field, a nested field, a tuple element, a store through `&mut`, an array
+// element, a nested array element — is what this measures.
+//
+// METHOD, taken from the drop e2e fixtures rather than invented here:
+//
+//   * free_count deltas, NOT live_blocks. live_blocks is not comparable across
+//     backends — the same whole-binding loop leaves native flat and shows the
+//     VM growing by the iteration count even after the scope closes.
+//   * the probe's own cost is measured at runtime and subtracted, because
+//     `let x: HeapStats = rt_heap_stats()` allocates a snapshot box, copies it
+//     into the local and reclaims the box inside the window its own probe
+//     opened.
+//   * every shape is compared against a TWIN that is known correct — the
+//     whole-binding loop — instead of against a predicted constant. The loop
+//     machinery's own alloc/free noise cancels, and what is left is the
+//     per-iteration reclamation. This is also what makes one fixture work on
+//     both backends: the absolute counts differ (24 against 64 for the same
+//     twin), and only the WITHIN-backend difference carries meaning.
+//
+// The exit code is a BITMASK, one bit per shape, so a single run names every
+// leaking shape instead of hiding the rest behind the first. Zero means every
+// shape freed exactly what the twin freed.
+
+type Item = { name: string, id: int };
+type Holder = { inner: Item };
+
+fn probe_window_cost() -> uint {
+    let a: HeapStats = rt_heap_stats();
+    let b: HeapStats = rt_heap_stats();
+    return b.free_count - a.free_count;
+}
+
+fn mk(n: int) -> string {
+    return "displaced-value-long-enough-to-reach-the-heap-" + (n to string);
+}
+
+fn overwrite_through_ref(target: &mut string, n: int) -> nothing {
+    *target = mk(n);
+    return nothing;
+}
+
+@entrypoint
+fn main() -> int {
+    let cost: uint = probe_window_cost();
+    let mut failed: int = 0;
+
+    // The twin. Every shape below must free as much as this one does.
+    let mut whole: string = mk(0);
+    let t0: HeapStats = rt_heap_stats();
+    let mut ti: int = 0;
+    while ti < 8 {
+        whole = mk(ti + 1);
+        ti = ti + 1;
+    }
+    let t1: HeapStats = rt_heap_stats();
+    let twin: uint = t1.free_count - t0.free_count - cost;
+
+    // 1: a struct field.
+    {
+        let mut it: Item = Item { name = mk(0), id = 0 };
+        let a: HeapStats = rt_heap_stats();
+        let mut i: int = 0;
+        while i < 8 {
+            it.name = mk(i + 1);
+            i = i + 1;
+        }
+        let b: HeapStats = rt_heap_stats();
+        if b.free_count - a.free_count - cost < twin { failed = failed + 1; }
+    }
+
+    // 2: a field one level down.
+    {
+        let mut h: Holder = Holder { inner = Item { name = mk(0), id = 0 } };
+        let a: HeapStats = rt_heap_stats();
+        let mut i: int = 0;
+        while i < 8 {
+            h.inner.name = mk(i + 1);
+            i = i + 1;
+        }
+        let b: HeapStats = rt_heap_stats();
+        if b.free_count - a.free_count - cost < twin { failed = failed + 2; }
+    }
+
+    // 3: a tuple element.
+    {
+        let mut t: (string, int) = (mk(0), 0);
+        let a: HeapStats = rt_heap_stats();
+        let mut i: int = 0;
+        while i < 8 {
+            t.0 = mk(i + 1);
+            i = i + 1;
+        }
+        let b: HeapStats = rt_heap_stats();
+        if b.free_count - a.free_count - cost < twin { failed = failed + 4; }
+    }
+
+    // 4: a store through `&mut`, where the callee cannot see the owner.
+    {
+        let mut s: string = mk(0);
+        let a: HeapStats = rt_heap_stats();
+        let mut i: int = 0;
+        while i < 8 {
+            overwrite_through_ref(&mut s, i + 1);
+            i = i + 1;
+        }
+        let b: HeapStats = rt_heap_stats();
+        if b.free_count - a.free_count - cost < twin { failed = failed + 8; }
+    }
+
+    // 5: an array element — the shape RV2-DEBT-204 is named for.
+    {
+        let mut xs: string[] = [];
+        xs.push(mk(0));
+        let a: HeapStats = rt_heap_stats();
+        let mut i: int = 0;
+        while i < 8 {
+            xs[0] = mk(i + 1);
+            i = i + 1;
+        }
+        let b: HeapStats = rt_heap_stats();
+        if b.free_count - a.free_count - cost < twin { failed = failed + 16; }
+    }
+
+    // 6: an element one level down. Named separately because the element
+    // census regex used while scoping D1 cannot match a second subscript, so
+    // this shape is invisible to it.
+    {
+        let mut row: string[] = [];
+        row.push(mk(0));
+        let mut grid: string[][] = [];
+        grid.push(row);
+        let a: HeapStats = rt_heap_stats();
+        let mut i: int = 0;
+        while i < 8 {
+            grid[0][0] = mk(i + 1);
+            i = i + 1;
+        }
+        let b: HeapStats = rt_heap_stats();
+        if b.free_count - a.free_count - cost < twin { failed = failed + 32; }
+    }
+
+    // 7: the twin measured against itself, which is the probe's self-check.
+    // If the instrument stopped measuring — a broken rt_heap_stats, a loop the
+    // optimiser removed, a free_count that never moves — every shape above
+    // would compare equal and the whole fixture would read as a pass. This bit
+    // fires when the twin freed nothing at all, so a silent instrument is a
+    // failure rather than a clean sheet.
+    if twin == 0:uint { failed = failed + 64; }
+
+    return failed;
+}
