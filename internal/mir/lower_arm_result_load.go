@@ -6,6 +6,38 @@ import (
 	"surge/internal/types"
 )
 
+// lowerValueExpr lowers an expression the consumer wants as a VALUE, loading
+// through a reference when the expression produces one. It lives beside
+// loadInsideDropCarryingBlock because the two are one rule: WHERE that load
+// goes decides whether it reads live storage or freed storage.
+func (l *funcLowerer) lowerValueExpr(e *hir.Expr, consume bool) (Operand, error) {
+	if e == nil {
+		return l.constNothing(types.NoTypeID), nil
+	}
+	if l.types != nil && e.Type != types.NoTypeID {
+		if tt, ok := l.types.Lookup(resolveAlias(l.types, e.Type)); ok && tt.Kind == types.KindReference {
+			// A block that frees on its way out must be LOADED THROUGH BEFORE
+			// it frees, not after. Wrapping the deref around such a block reads
+			// the referent once the block has exited — and a compare arm exits
+			// by dropping the payload the reference points into.
+			if loaded := loadInsideDropCarryingBlock(e, tt.Elem); loaded != nil {
+				return l.lowerExpr(loaded, consume)
+			}
+			deref := &hir.Expr{
+				Kind: hir.ExprUnaryOp,
+				Type: tt.Elem,
+				Span: e.Span,
+				Data: hir.UnaryOpData{
+					Op:      ast.ExprUnaryDeref,
+					Operand: e,
+				},
+			}
+			return l.lowerExpr(deref, consume)
+		}
+	}
+	return l.lowerExpr(e, consume)
+}
+
 // loadInsideDropCarryingBlock rebuilds a drop-carrying block so its value is
 // LOADED before the drops run, and returns nil for anything else.
 //

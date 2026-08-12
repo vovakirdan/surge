@@ -6,7 +6,6 @@ import (
 
 	"fortio.org/safecast"
 
-	"surge/internal/ast"
 	"surge/internal/hir"
 	"surge/internal/numlit"
 	"surge/internal/source"
@@ -220,34 +219,6 @@ func (l *funcLowerer) unwrapReferenceType(id types.TypeID) types.TypeID {
 		return id
 	}
 	return tt.Elem
-}
-
-func (l *funcLowerer) lowerValueExpr(e *hir.Expr, consume bool) (Operand, error) {
-	if e == nil {
-		return l.constNothing(types.NoTypeID), nil
-	}
-	if l.types != nil && e.Type != types.NoTypeID {
-		if tt, ok := l.types.Lookup(resolveAlias(l.types, e.Type)); ok && tt.Kind == types.KindReference {
-			// A block that frees on its way out must be LOADED THROUGH BEFORE
-			// it frees, not after. Wrapping the deref around such a block reads
-			// the referent once the block has exited — and a compare arm exits
-			// by dropping the payload the reference points into.
-			if loaded := loadInsideDropCarryingBlock(e, tt.Elem); loaded != nil {
-				return l.lowerExpr(loaded, consume)
-			}
-			deref := &hir.Expr{
-				Kind: hir.ExprUnaryOp,
-				Type: tt.Elem,
-				Span: e.Span,
-				Data: hir.UnaryOpData{
-					Op:      ast.ExprUnaryDeref,
-					Operand: e,
-				},
-			}
-			return l.lowerExpr(deref, consume)
-		}
-	}
-	return l.lowerExpr(e, consume)
 }
 
 func (l *funcLowerer) lowerExprForType(e *hir.Expr, expected types.TypeID) (Operand, error) {
