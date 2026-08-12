@@ -162,6 +162,39 @@ func (tc *typeChecker) isAliasedBinding(symID symbols.SymbolID) bool {
 	return ok
 }
 
+// markNonOwningBinding records a binding that NEVER owns what it holds, for its
+// whole life — as opposed to an aliased binding, which merely holds someone
+// else's value until it is assigned a fresh one.
+//
+// The distinction is load-bearing and the alias set cannot carry it: assigning
+// a fresh value to an ordinary binding legitimately makes it an owner again, so
+// `recordReassignOldDrop` CLEARS the alias mark on the way past. A loop binding
+// is not like that. `for it in xs` binds a word-wise COPY of the element — the
+// container keeps ownership, the frame emits no drop for it — and assigning to
+// the copy does not move the container's storage anywhere. A binding that had
+// only the clearable mark would therefore be an owner again after its first
+// assignment, and the second assignment in the same body would free the
+// container's value.
+func (tc *typeChecker) markNonOwningBinding(symID symbols.SymbolID) {
+	if !symID.IsValid() {
+		return
+	}
+	if tc.nonOwningBindings == nil {
+		tc.nonOwningBindings = make(map[symbols.SymbolID]struct{})
+	}
+	tc.nonOwningBindings[symID] = struct{}{}
+}
+
+// isNonOwningBinding reports whether freeing through this binding would free
+// storage that belongs to something else.
+func (tc *typeChecker) isNonOwningBinding(symID symbols.SymbolID) bool {
+	if tc.nonOwningBindings == nil {
+		return false
+	}
+	_, ok := tc.nonOwningBindings[symID]
+	return ok
+}
+
 // isProjectionRead reports whether the expression reads THROUGH a place
 // (field access, element index, tuple index, deref): the resulting value
 // is interior state another owner keeps.
@@ -551,6 +584,12 @@ func (tc *typeChecker) recordReassignOldDrop(exprID ast.ExprID, symID symbols.Sy
 	if tc.isAliasedBinding(symID) {
 		return
 	}
+	// And a loop binding never owns what it holds, no matter how many times it
+	// has been assigned - see markNonOwningBinding for why the alias mark alone
+	// cannot answer this.
+	if tc.isNonOwningBinding(symID) {
+		return
+	}
 	if tc.bindingMovedPlace(symID) {
 		return
 	}
@@ -558,4 +597,65 @@ func (tc *typeChecker) recordReassignOldDrop(exprID ast.ExprID, symID symbols.Sy
 		tc.result.ReassignOldDrops = make(map[ast.ExprID]symbols.SymbolID)
 	}
 	tc.result.ReassignOldDrops[exprID] = symID
+}
+
+// recordPlaceOldDrop captures the overwritten-value drop for an assignment INTO
+// a place — a struct field, a field one level down, a tuple element, or a store
+// through `&mut`. recordReassignOldDrop is its whole-binding sibling.
+//
+// Recording here is what makes the native lane free what it displaces. The VM
+// already did, from inside its own store (`storeStorage` releases what it reads
+// out of the cell), and that second release is the one thing this record must
+// not collide with. It does not, because a projected drop RELEASES AND THEN
+// CLEARS: `execDropProjected` zeroes the member, `emitInstrDrop` nulls the slot.
+// By the time the store runs, what it would release a second time is gone.
+//
+// CALL THIS BEFORE revivePlace. Reviving deletes every moved place the target
+// covers, and that set is the only thing able to answer the question the
+// moved-place guard below asks.
+func (tc *typeChecker) recordPlaceOldDrop(exprID, left, right ast.ExprID, desc placeDescriptor, target Place) {
+	if !exprID.IsValid() || !left.IsValid() || tc.dropObligationsSuppressed() {
+		return
+	}
+	// An element assignment is not this path's business. `xs[i] = v` is
+	// rewritten into an `__index_set` call before the assignment's own data
+	// exists, so a record made here could never reach a backend — and the
+	// element release it would be asking for is already emitted at that store.
+	// Recording it anyway would be an obligation that silently evaporates, or
+	// a second release the day the rewrite moves.
+	for _, seg := range desc.Segments {
+		if seg.Kind == PlaceSegmentIndex {
+			return
+		}
+	}
+	placeType := tc.result.ExprTypes[left]
+	if !tc.isDroppableType(placeType) {
+		return
+	}
+	// The base holds a value that belongs to its container, so nothing under it
+	// is this scope's to free: `let b = outer.item; b.name = ...` would release
+	// a string `outer` still owns, and `for it in xs { it.name = ... }` would
+	// release one the array still owns and then frees itself.
+	if tc.isAliasedBinding(desc.Base) || tc.isNonOwningBinding(desc.Base) {
+		return
+	}
+	// OVERLAP, not equality. Freeing this place frees everything under it, so a
+	// member already given away would go a second time — `@drop o.inner;
+	// o.inner = Inner{...}` is the exact program that refuted the blind
+	// native-side release. Asking placeMoved instead would answer only for the
+	// place named and miss both `o.inner.deep` below it and `o` above it.
+	if _, _, moved := tc.movedPlaceCovering(target); moved {
+		return
+	}
+	// A projection read hands this place a value its container still owns. The
+	// OLD value is genuinely this place's to free, but telling the two apart
+	// needs a place-shaped alias set and there is only a binding-shaped one.
+	// Staying silent leaks exactly as much as today; freeing would free twice.
+	if tc.projectionReadAliasesItsSource(right, placeType) {
+		return
+	}
+	if tc.result.ReassignOldDrops == nil {
+		tc.result.ReassignOldDrops = make(map[ast.ExprID]symbols.SymbolID)
+	}
+	tc.result.ReassignOldDrops[exprID] = desc.Base
 }

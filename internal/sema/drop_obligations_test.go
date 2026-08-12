@@ -307,6 +307,140 @@ fn f() -> nothing {
 	}
 }
 
+// Assigning into a PLACE owes the same drop the whole binding owes. The VM
+// always discharged it from inside its own store; the native lane has no such
+// store-side release, so without the record it leaks — measured at 2,048 bytes
+// in 32 blocks over the four shapes below, eight iterations each.
+func TestAssignIntoPlaceRecordsOverwrittenValueDrop(t *testing.T) {
+	parseBag, semaBag, res := runSemaOnSnippetResult(t, `
+type Item = { name: string, id: int };
+type Holder = { inner: Item };
+
+fn through(target: &mut string) -> nothing {
+    *target = "new";
+    return nothing;
+}
+
+fn f() -> nothing {
+    let mut it: Item = Item { name = "old", id = 0 };
+    it.name = "new";
+
+    let mut h: Holder = Holder { inner = Item { name = "old", id = 0 } };
+    h.inner.name = "new";
+
+    let mut t: (string, int) = ("old", 0);
+    t.0 = "new";
+
+    let mut s: string = "old";
+    through(&mut s);
+}
+`)
+	requireNoSemaErrors(t, parseBag, semaBag)
+	if res == nil {
+		t.Fatal("no sema result")
+	}
+	// Four: the struct field, the field one level down, the tuple element and
+	// the `*target` store inside `through`. The `let` initializers are not
+	// assignments and own nothing yet, so they owe nothing.
+	if len(res.ReassignOldDrops) != 4 {
+		t.Fatalf("expected one old-drop record per place shape, got %d: %v",
+			len(res.ReassignOldDrops), res.ReassignOldDrops)
+	}
+}
+
+// The guard that makes the record safe, and the reason the blind native-side
+// release was refused: a place already given away must not be freed again by
+// the store that reinitializes it.
+func TestAssignIntoDroppedPlaceRecordsNoOverwrittenValueDrop(t *testing.T) {
+	parseBag, semaBag, res := runSemaOnSnippetResult(t, `
+type Item = { name: string, id: int };
+type Holder = { inner: Item };
+
+fn f() -> nothing {
+    let mut h: Holder = Holder { inner = Item { name = "old", id = 0 } };
+    @drop h.inner;
+    h.inner = Item { name = "new", id = 1 };
+}
+`)
+	requireNoSemaErrors(t, parseBag, semaBag)
+	if res == nil {
+		t.Fatal("no sema result")
+	}
+	if len(res.ReassignOldDrops) != 0 {
+		t.Fatalf("assigning over a dropped place must owe nothing, got %v", res.ReassignOldDrops)
+	}
+}
+
+// A loop binding is a word-wise COPY of the element and the container keeps
+// ownership, so neither the binding nor any place under it may be freed here.
+// Both spellings are checked because they reach the obligation by different
+// routes: the whole binding through recordReassignOldDrop (which was ALREADY an
+// invalid free before this guard existed) and the place through
+// recordPlaceOldDrop.
+func TestAssignToLoopBindingRecordsNoOverwrittenValueDrop(t *testing.T) {
+	parseBag, semaBag, res := runSemaOnSnippetResult(t, `
+type Item = { name: string, id: int };
+
+fn f(xs: Item[], strs: string[]) -> nothing {
+    for it in xs {
+        it.name = "new";
+    }
+    for s in strs {
+        s = "new";
+    }
+}
+`)
+	requireNoSemaErrors(t, parseBag, semaBag)
+	if res == nil {
+		t.Fatal("no sema result")
+	}
+	if len(res.ReassignOldDrops) != 0 {
+		t.Fatalf("freeing through a loop binding frees the container's value, got %v", res.ReassignOldDrops)
+	}
+}
+
+// The mark must survive assignment. An ordinary binding becomes an owner again
+// when it is given a fresh value, and recordReassignOldDrop CLEARS the alias
+// mark on the way past to say so — but a loop binding never owns, so a second
+// assignment in the same body must still record nothing.
+func TestSecondAssignToLoopBindingStillRecordsNothing(t *testing.T) {
+	parseBag, semaBag, res := runSemaOnSnippetResult(t, `
+fn f(strs: string[]) -> nothing {
+    for s in strs {
+        s = "first";
+        s = "second";
+    }
+}
+`)
+	requireNoSemaErrors(t, parseBag, semaBag)
+	if res == nil {
+		t.Fatal("no sema result")
+	}
+	if len(res.ReassignOldDrops) != 0 {
+		t.Fatalf("the second assignment to a loop binding recorded a drop: %v", res.ReassignOldDrops)
+	}
+}
+
+// An element assignment is a different path with a different discharge: it is
+// rewritten into an `__index_set` call, and the release lives at that store.
+// A record made here could never reach a backend, so making one would be an
+// obligation that silently evaporates.
+func TestAssignIntoElementRecordsNoOverwrittenValueDrop(t *testing.T) {
+	parseBag, semaBag, res := runSemaOnSnippetResult(t, `
+fn f() -> nothing {
+    let mut xs: string[] = ["old"];
+    xs[0] = "new";
+}
+`)
+	requireNoSemaErrors(t, parseBag, semaBag)
+	if res == nil {
+		t.Fatal("no sema result")
+	}
+	if len(res.ReassignOldDrops) != 0 {
+		t.Fatalf("an element assignment must not record here, got %v", res.ReassignOldDrops)
+	}
+}
+
 func TestBreakAndContinueRecordLoopScopedDrops(t *testing.T) {
 	parseBag, semaBag, res := runSemaOnSnippetResult(t, `
 fn eat3(s: string) -> nothing {

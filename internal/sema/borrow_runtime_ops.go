@@ -535,15 +535,22 @@ func (tc *typeChecker) handleAssignment(exprID ast.ExprID, op ast.ExprBinaryOp, 
 		// Assigning INTO a place reinitializes it. A field that was given away
 		// comes back, and with nothing else moved under the binding the whole
 		// value is readable again.
-		//
-		// The store's own drop obligation for the overwritten field is NOT
-		// recorded here: obligations are still binding-shaped, and a per-field
-		// one has no way to reach a backend that cannot drop a projection yet.
 		reviveTarget := desc
 		if !tc.isWriteThroughMutRef(desc) {
 			reviveTarget, _ = tc.expandPlaceDescriptor(desc)
 		}
 		if target := tc.canonicalPlace(reviveTarget); target.IsValid() {
+			// Recorded BEFORE the revive, which clears the moved set the
+			// record's own guard reads.
+			//
+			// Only a plain `=`. A compound assignment reaches here too, and its
+			// lowering never consults the overwritten-value drop, so a record
+			// made for one would be an obligation nothing discharges. Whether
+			// `s.f += x` leaks the value it displaces is a separate question
+			// from this one, and it gets a separate answer.
+			if op == ast.ExprBinaryAssign {
+				tc.recordPlaceOldDrop(exprID, left, right, desc, target)
+			}
 			if blockedBy, blockedSpan, revived := tc.revivePlace(target); !revived {
 				tc.reportAssignIntoMovedValue(target, blockedBy, span, blockedSpan)
 			}

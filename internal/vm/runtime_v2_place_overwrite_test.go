@@ -1,5 +1,3 @@
-//go:build runtime_v2_pending
-
 package vm_test
 
 import (
@@ -14,15 +12,17 @@ import (
 // runs testdata/place_overwrite_leak.sg, whose exit code is a bitmask naming
 // every shape that did not.
 //
-// IT IS RED ON NATIVE TODAY, ON PURPOSE. That is the defect the gate exists to
-// hold, and it is why the file carries a build tag: `make test` is a plain
-// `go test ./...`, so a tagged test stays out of it and out of `make check`,
-// and a deliberately-red gate can be committed without a red tree. It runs
-// from its own Makefile target instead.
+// It was RED on native and carried a build tag for exactly that reason: a
+// deliberately-red gate has to stay out of `make test` — a plain `go test ./...`
+// — or no commit can be made while it is red. Both lanes report zero now, so
+// the tag is gone and this runs on every `make check` and every commit, which
+// is where a regression in any of the six shapes gets caught earliest.
 //
-// The VM lane is green and is not a formality: it is the proof that the
-// obligation is RECORDED and only the native discharge is missing. Both lanes
-// run the same sema; if the record were absent, the VM would leak too.
+// The VM lane was green throughout and was never a formality. Both lanes run
+// the same sema, so a green VM against a red native lane says the shortfall is
+// in the DISCHARGE and not in the record — which is what sent the fix to sema
+// (the obligation was recorded for no place at all, and the VM merely happened
+// to release from inside its own store) instead of to the native emitter.
 
 type placeShape struct {
 	bit  int

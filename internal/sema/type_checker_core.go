@@ -139,6 +139,7 @@ type typeChecker struct {
 	tempTaken              map[ast.ExprID][][]PlaceSegment // paths moved OUT of a statement-end temporary, so its release can be narrowed to the remainder
 	choiceOwnsItsValue     map[ast.ExprID]struct{}         // control-flow expressions every branch of which produced a fresh owned value, so the result is theirs to release
 	aliasedBindings        map[symbols.SymbolID]struct{}   // bindings holding container-owned handles (never drop)
+	nonOwningBindings      map[symbols.SymbolID]struct{}   // bindings that never own what they hold, for life (loop bindings)
 	blockingDepth          int                             // nesting depth of `blocking { }` bodies (suspension illegal inside)
 	spawnOperand           ast.ExprID                      // the expression `spawn` is currently typing, so an async block can tell whether spawn will scan it
 	onCrossingStack        []onAnchorFrame                 // active `on dst { ... }` crossing frames

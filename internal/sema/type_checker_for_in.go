@@ -37,6 +37,15 @@ func (tc *typeChecker) walkForInStmt(id ast.StmtID, stmt *ast.Stmt) {
 		if symID := tc.stmtSymbols[id]; symID.IsValid() && elemType != types.NoTypeID {
 			tc.bindingTypes[symID] = elemType
 			loopSym = symID
+			// The loop binding does not own the element. It is bound by a
+			// word-wise copy of the iterator's payload - visible in MIR as
+			// `tag_payload_move copy` - and the frame emits no drop for it,
+			// because the container is still the owner. Anything that frees
+			// THROUGH this binding therefore frees the container's storage,
+			// which the container then frees again on its own reclamation.
+			// Measured: `for s in strs { s = mk(7); }` aborts natively with
+			// `free(): double free detected in tcache 2`.
+			tc.markNonOwningBinding(symID)
 		}
 	}
 

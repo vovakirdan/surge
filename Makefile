@@ -227,19 +227,23 @@ runtime-v2-slot-control-check:
 
 # The overwritten-value obligation, per place shape, on both lanes.
 #
-# RED ON NATIVE BY DESIGN, and that is why it is here rather than in `make
-# check`: a store over a struct field, a tuple element, a `&mut` target or an
-# array element does not free what it displaces on the native lane. The VM lane
-# is green, which is the evidence that the obligation is RECORDED and only the
-# native discharge is missing — both lanes run the same sema.
+# GREEN ON BOTH LANES. It was red on native by design — a store over a struct
+# field, a tuple element, a `&mut` target or an array element did not free what
+# it displaced there — and it carried a `runtime_v2_pending` build tag so that a
+# known-red gate stayed committable. Both lanes report zero now, the tag is
+# gone, and the tests therefore ALSO run inside `make check` and the pre-commit
+# hook. This target stays because it names the obligation and runs the gate
+# alone, verbosely, when that is what is being worked on.
 #
-# The test carries a `runtime_v2_pending` build tag, so `go test ./...` (and
-# therefore `make check`, and therefore the pre-commit hook) does not see it and
-# a known-red gate stays committable. Delete the tag when the native lane goes
-# green, not before.
+# The selection covers LoopBinding as well as PlaceOverwrite, and that is not
+# tidiness: the two are one defect family. Recording the obligation is only safe
+# where the place is actually owned, and a loop binding is a copy the container
+# still owns — freeing through it was an invalid free BEFORE this obligation
+# existed, for the whole-binding spelling. A selection naming only one of them
+# would let the other regress with the gate still green.
 runtime-v2-place-overwrite-check:
 	@echo ">> Running Runtime V2 overwritten-value obligation gate"
-	SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2PlaceOverwriteReleasesDisplacedValue$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
+	SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2(PlaceOverwrite|LoopBinding)' -count=1 -parallel=1 -p=1 -v --timeout 300s
 
 runtime-v2-ownership-check:
 	@echo ">> Running Runtime V2 ownership corpus gate"
