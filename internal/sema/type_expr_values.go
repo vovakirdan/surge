@@ -268,7 +268,15 @@ func (tc *typeChecker) typeExprArray(id ast.ExprID, span source.Span) types.Type
 	var elemType types.TypeID
 	for _, elem := range arr.Elements {
 		elemTy := tc.typeExpr(elem)
+		// The array takes ownership of the element, exactly as a struct
+		// literal takes ownership of a field: the temp candidate is consumed
+		// AND the binding-level move is observed. Only the first half was here,
+		// so `let a: string = ...; let xs = [a, ...]` left `a` readable and
+		// owning the same string the array now owned — two owners, no refcount
+		// on the native side to arbitrate between them, and a double free at
+		// scope exit (RV2-DEBT-209). The tuple literal below had the same gap.
 		tc.consumeTempCandidate(elem)
+		tc.observeMove(elem, tc.exprSpan(elem))
 		if tc.isTaskType(elemTy) {
 			tc.trackTaskPassedAsArg(elem)
 		}
@@ -391,7 +399,11 @@ func (tc *typeChecker) typeExprTuple(id ast.ExprID) types.TypeID {
 	allValid := true
 	for _, elem := range tuple.Elements {
 		elemType := tc.typeExpr(elem)
+		// Same ownership transfer as the array literal above and the struct
+		// literal in type_expr_struct.go: the aggregate owns the element, so
+		// the binding it came from must be dead afterwards (RV2-DEBT-209).
 		tc.consumeTempCandidate(elem)
+		tc.observeMove(elem, tc.exprSpan(elem))
 		if elemType == types.NoTypeID {
 			allValid = false
 		}
