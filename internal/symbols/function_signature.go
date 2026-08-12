@@ -2,6 +2,7 @@ package symbols
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"surge/internal/ast"
@@ -10,6 +11,27 @@ import (
 
 // TypeKey is a unique string representation of a type's structural identity.
 type TypeKey string
+
+// ArrayTypeKey spells an array type key from its element key and the syntax
+// node, in the `[T; N]` form the key parser already reads.
+//
+// A fixed array used to key as `[T]`, the dynamic spelling, because this was
+// the only place that saw `ast.TypeArray` and it ignored every length field the
+// node carries. That made `T[N]` and `T[]` the SAME signature key, so a fixed
+// array could not be declared apart from a slice — and the inferred spelling
+// did not merely fail to typecheck, it reached the backends with the two sides
+// disagreeing about the ABI (RV2-DEBT-203).
+//
+// A fixed length that is not const-folded still keys as `[T]`. That is the
+// residual, not an oversight: the length is an ExprID here and this layer has
+// no evaluator. It is narrower than the defect it replaces, because a
+// non-constant length cannot describe storage either.
+func ArrayTypeKey(elem string, arr *ast.TypeArray) string {
+	if arr != nil && arr.Kind != ast.ArraySlice && arr.HasConstLen {
+		return "[" + elem + "; " + strconv.FormatUint(arr.ConstLength, 10) + "]"
+	}
+	return "[" + elem + "]"
+}
 
 // FunctionSignature captures a simplified view of a function signature.
 type FunctionSignature struct {
@@ -140,7 +162,7 @@ func makeTypeKey(builder *ast.Builder, typeID ast.TypeID) TypeKey {
 		}
 	case ast.TypeExprArray:
 		if arr, ok := builder.Types.Array(typeID); ok {
-			return TypeKey("[" + string(makeTypeKey(builder, arr.Elem)) + "]")
+			return TypeKey(ArrayTypeKey(string(makeTypeKey(builder, arr.Elem)), arr))
 		}
 	case ast.TypeExprTuple:
 		if tup, ok := builder.Types.Tuple(typeID); ok {

@@ -1,0 +1,61 @@
+// A fixed array has to survive a function boundary, in every direction.
+//
+// It could not. Signature type keys spelled `T[N]` as `[T]`, the dynamic form,
+// so a fixed array and a slice were the SAME key. The annotated spelling was
+// refused outright; the inferred one compiled and then miscompiled, because the
+// two sides of the call disagreed about the ABI — the callee returned through
+// an sret pointer to inline storage while the caller had allocated one word for
+// it, and the result was read back as an array handle and freed as a heap
+// buffer. RV2-DEBT-203.
+//
+// `read_inferred` is the negative control and the reason this file exists: it
+// takes the value with no type annotation. Restore the dynamic spelling in the
+// key producers and this line is where it shows, because the annotated rows
+// below fail loudly at compile time while this one used to fail quietly at run
+// time — the VM on a stale storage reference, the native binary by exiting 255
+// with no output at all.
+
+type Item = { id: int, num: int };
+
+fn build() -> Item[2] {
+    return [Item { id = 11, num = 1 }, Item { id = 22, num = 2 }];
+}
+
+fn by_value(arr: Item[2]) -> int {
+    return arr[0].id + arr[1].id;
+}
+
+fn by_ref(arr: &Item[2]) -> int {
+    return arr[1].num;
+}
+
+fn bump_first(arr: &mut Item[2]) -> nothing {
+    arr[0].num = arr[0].num + 100;
+    return nothing;
+}
+
+// A slice of the same element type keeps its own signature. Before the fix this
+// declaration and `by_value` above collided on one key.
+fn slice_len(arr: &Item[]) -> int {
+    return len(arr) to int;
+}
+
+@entrypoint
+fn main() -> int {
+    let inferred = build();
+    print((inferred[0].id) to string);
+    print((inferred[1].id) to string);
+
+    let annotated: Item[2] = build();
+    print((by_value(annotated)) to string);
+
+    let mut owned = build();
+    print((by_ref(&owned)) to string);
+    bump_first(&mut owned);
+    print((owned[0].num) to string);
+
+    let dynamic: Item[] = [Item { id = 7, num = 7 }];
+    print((slice_len(&dynamic)) to string);
+
+    return 0;
+}

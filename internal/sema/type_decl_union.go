@@ -313,8 +313,11 @@ func typeKeyForTypeExpr(builder *ast.Builder, typeID ast.TypeID) symbols.TypeKey
 			return symbols.TypeKey(builder.StringsInterner.MustLookup(c.Value))
 		}
 	case ast.TypeExprArray:
+		// Same spelling as symbols.makeTypeKey, and deliberately routed through
+		// the same helper: this function never calls that one, so when the fixed
+		// length was added there it would silently not arrive here (RV2-DEBT-203).
 		if arr, ok := builder.Types.Array(typeID); ok && arr != nil {
-			return symbols.TypeKey("[" + string(typeKeyForTypeExpr(builder, arr.Elem)) + "]")
+			return symbols.TypeKey(symbols.ArrayTypeKey(string(typeKeyForTypeExpr(builder, arr.Elem)), arr))
 		}
 	case ast.TypeExprOptional:
 		if opt, ok := builder.Types.Optional(typeID); ok && opt != nil {

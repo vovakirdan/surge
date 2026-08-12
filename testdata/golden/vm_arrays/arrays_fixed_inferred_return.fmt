@@ -1,0 +1,39 @@
+// The QUIET half of RV2-DEBT-203, on its own so nothing can mask it.
+//
+// Its sibling `arrays_fixed_across_calls.sg` also annotates types, and an
+// annotation fails LOUDLY when signature keys lose a fixed array's length —
+// `cannot assign [Item] to [Item; 2]`, at compile time, before anything runs.
+// That masks the failure that actually mattered: with the length dropped, the
+// INFERRED spelling compiled and the two sides of the call disagreed about the
+// ABI. The callee returned through an sret pointer into inline storage while
+// the caller had allocated a single word to receive it, and the sixteen bytes
+// were then read back as an array handle and freed as a heap buffer.
+//
+// So this file annotates nothing. Break the key producers and it does not
+// refuse — it dies: the VM on a stale storage reference, and the native binary
+// by exiting 255 with an empty stdout and an empty stderr, which is the worst
+// shape this corpus can carry because a runner that only reads exit codes sees
+// a number and no reason.
+
+type Item = { id: int, num: int };
+
+fn build() -> Item[2] {
+    return [Item { id = 11, num = 1 }, Item { id = 22, num = 2 }];
+}
+
+// Nothing below states a fixed-array type. `build`'s own return annotation is
+// the only one in the file, and it is unavoidable — a function has to say what
+// it returns. Every USE is inferred, which is what keeps the failure quiet:
+// with no second spelling to compare against, nothing refuses, and the call
+// just lies about its ABI. Adding so much as one `let x: Item[2] = ...` here
+// would turn this file into a compile-time refusal and hide the very shape it
+// exists to catch.
+@entrypoint
+fn main() -> int {
+    let direct = build();
+    print((direct[0].id) to string);
+    print((direct[1].id) to string);
+    print((direct[1].num) to string);
+
+    return 0;
+}
