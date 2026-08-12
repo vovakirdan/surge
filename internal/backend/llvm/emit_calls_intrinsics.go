@@ -427,6 +427,50 @@ func (fe *funcEmitter) emitLenStore(dst mir.Place, dstType types.TypeID, lenVal 
 	return nil
 }
 
+// releaseDisplacedElement frees whatever an element slot is holding, just
+// before a store lands on it (RV2-DEBT-204).
+//
+// The VM has always done this — `viewElemStore` and `storeStorage` read the
+// previous value, write, and drop what they read — while both branches of
+// `emitIndexSet` ended in a bare store, so `xs[i] = v` leaked the displaced
+// element on the native lane only. `drop_elem.typeN` is the right primitive
+// rather than a new one: it exists to drop a single element slot given its
+// pointer, which is what `rt_array_free_elems` calls it for.
+//
+// ORDER. Callers must have fully evaluated the right-hand side before calling
+// this, and must store after it. Both branches below already evaluated `val`
+// first, so the sequence is the one the whole-binding path settled on: RHS
+// evaluated, displaced value freed, store lands.
+//
+// WHAT MAKES THIS SAFE IS NOT LOCAL, AND THAT IS WHY IT IS WRITTEN DOWN. A
+// release before a store double-frees if the same value can reach the store
+// from the slot being released, or if the slot was already emptied, or if some
+// OTHER binding still owns what the slot holds. All three are refused today,
+// and sema is what refuses them, not this function:
+//
+//	xs[0] = xs[0]  and  xs[0] = xs[1]
+//	    "cannot mutate 'xs'[?] while it is shared-borrowed"
+//	@drop xs[0]
+//	    "cannot take `xs[?]` out of `xs`: it names an element, and what would
+//	     be left cannot be listed"
+//	let a = ...; let xs = [a, ...]; ... a ...
+//	    "use of moved value 'a'" — RV2-DEBT-209, and the reason this release
+//	    could not land until that one did: the leak it removes was the only
+//	    thing keeping a second owner from freeing the same value.
+//
+// The first two are pinned by golden fixtures — element_self_assign_forbidden,
+// element_cross_assign_forbidden and element_move_out_forbidden under
+// testdata/golden/hir_borrow/invalid, recording SEM3019 and SEM3143 verbatim.
+// Relax any of these rules and something fails in the same commit that relaxes
+// it, rather than this becoming a double free nobody attributed.
+func (fe *funcEmitter) releaseDisplacedElement(elemPtr string, elemType types.TypeID) {
+	if !fe.emitter.typeOwnsHeap(elemType) {
+		return
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  call void @%s(ptr %s)\n",
+		fe.emitter.requireDropElemGlue(elemType), elemPtr)
+}
+
 func (fe *funcEmitter) emitIndexSet(call *mir.CallInstr) error {
 	if call == nil {
 		return nil
@@ -462,6 +506,7 @@ func (fe *funcEmitter) emitIndexSet(call *mir.CallInstr) error {
 		if alignErr != nil {
 			return alignErr
 		}
+		fe.releaseDisplacedElement(elemPtr, elemType)
 		fe.emitValueStore(elemLLVM, val, elemPtr, align)
 		return nil
 	}
@@ -489,6 +534,7 @@ func (fe *funcEmitter) emitIndexSet(call *mir.CallInstr) error {
 	if fixedAlignErr != nil {
 		return fixedAlignErr
 	}
+	fe.releaseDisplacedElement(elemPtr, fixedElemType)
 	fe.emitValueStore(elemLLVM, val, elemPtr, fixedAlign)
 	return nil
 }
