@@ -1,0 +1,45 @@
+compare_arm_element_read.sg (span: 14:1-30:1)
+└─ Item[0]: Fn (span: 14:1-29:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 15:18-29:2)
+         ├─ Stmt[0]: Let (span: 16:5-16:57)
+         │  ├─ Name: values
+         │  ├─ Mutable: true
+         │  ├─ Type: uint64[][]
+         │  └─ Value: expr#6: <ExprKind(8)>
+         ├─ Stmt[1]: Let (span: 17:5-17:89)
+         │  ├─ Name: bare
+         │  ├─ Mutable: false
+         │  ├─ Type: uint64
+         │  └─ Value: expr#19: compare values.pop() { 2 arms }
+         ├─ Stmt[2]: Let (span: 19:5-19:55)
+         │  ├─ Name: more
+         │  ├─ Mutable: true
+         │  ├─ Type: uint64[][]
+         │  └─ Value: expr#25: <ExprKind(8)>
+         ├─ Stmt[3]: Let (span: 20:5-20:100)
+         │  ├─ Name: summed
+         │  ├─ Mutable: false
+         │  ├─ Type: uint64
+         │  └─ Value: expr#42: compare more.pop() { 2 arms }
+         ├─ Stmt[4]: Let (span: 22:5-22:52)
+         │  ├─ Name: nested
+         │  ├─ Mutable: true
+         │  ├─ Type: uint64[][][]
+         │  └─ Value: expr#47: <ExprKind(8)>
+         ├─ Stmt[5]: Let (span: 23:5-23:92)
+         │  ├─ Name: deep
+         │  ├─ Mutable: false
+         │  ├─ Type: uint64
+         │  └─ Value: expr#62: compare nested.pop() { 2 arms }
+         ├─ Stmt[6]: Expr (span: 25:5-25:36)
+         │  └─ Expr: expr#68: print((bare to int) to string)
+         ├─ Stmt[7]: Expr (span: 26:5-26:38)
+         │  └─ Expr: expr#74: print((summed to int) to string)
+         ├─ Stmt[8]: Expr (span: 27:5-27:36)
+         │  └─ Expr: expr#80: print((deep to int) to string)
+         └─ Stmt[9]: Return (span: 28:5-28:14)
+            └─ Expr: expr#81: 0

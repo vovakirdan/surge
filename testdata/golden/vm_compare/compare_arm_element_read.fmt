@@ -1,0 +1,29 @@
+// An arm whose RESULT is a bare element read of the payload it owns.
+//
+// The arm frees the payload on its way out, and the read is a lazy one: an
+// indexed read stays a call returning `&T`, so the block yielded a pointer and
+// the load happened after the free. Natively that printed the contents of a
+// freed block and exited 0 — `Invalid read of size 8` under valgrind, against
+// storage `array_free_base_storage` had already returned.
+//
+// The three arms below differ only in what the read is wrapped in, and that is
+// the point: anything that CONSUMES the read forces it to happen early, so only
+// the bare one was ever wrong. A fixture that used arithmetic would have agreed
+// on both lanes while the defect was live.
+
+@entrypoint
+fn main() -> int {
+    let mut values: uint64[][] = [[6:uint64, 7:uint64]];
+    let bare: uint64 = compare values.pop() { Some(inner) => inner[0]; _ => 0:uint64; };
+
+    let mut more: uint64[][] = [[6:uint64, 7:uint64]];
+    let summed: uint64 = compare more.pop() { Some(inner) => inner[0] + inner[1]; _ => 0:uint64; };
+
+    let mut nested: uint64[][][] = [[[14:uint64]]];
+    let deep: uint64 = compare nested.pop() { Some(inner) => inner[0][0]; _ => 0:uint64; };
+
+    print((bare to int) to string);
+    print((summed to int) to string);
+    print((deep to int) to string);
+    return 0;
+}
