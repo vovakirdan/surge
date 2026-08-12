@@ -1,0 +1,1 @@
+error SEM3143 testdata/golden/hir_borrow/invalid/element_move_out_forbidden.sg:11:5 cannot take `xs[?]` out of `xs`: it names an element, and what would be left cannot be listed

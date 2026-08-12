@@ -1,0 +1,26 @@
+error SEM3019 testdata/golden/hir_borrow/invalid/element_self_assign_forbidden.sg:15:5 cannot mutate 'xs'[?] while it is shared-borrowed
+error SEM3015 testdata/golden/hir_borrow/invalid/element_self_assign_forbidden.sg:15:13 cannot assign &string to string
+
+== HIR ==
+module 
+
+fn t() -> nothing (id=1, sym=1453) {
+  let mut xs: type#82 = []: type#82
+  push((&mut xs), "\"value-long-enough-to-heap-allocate-here\""): nothing
+  (xs[0] = __index((& xs), 0)): string
+  drop xs
+  return
+}
+
+borrow edges:
+  _ (&mut) borrows L2906(xs) at 0:673-675 scope=S3
+  _ (&) borrows L2906(xs) at 0:737-739 scope=S3
+events:
+  borrow_start _ -> L2906(xs) at 0:673-675 scope=S3 note="B1"
+  borrow_end _ -> L2906(xs) at 0:673-675 scope=S3 note="temp_borrow B1"
+  borrow_start _ -> L2906(xs) at 0:737-739 scope=S3 note="B2"
+  write L2906(xs) at 0:729-742 scope=S3 note="issue=frozen borrow=B2"
+  borrow_end _ -> L2906(xs) scope=S3 note="scope_end B2"
+move plan:
+  L2906(xs): MoveForbidden (write blocked by frozen (B2))
+

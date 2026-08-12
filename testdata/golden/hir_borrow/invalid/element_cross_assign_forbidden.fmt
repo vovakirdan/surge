@@ -1,0 +1,10 @@
+// The sibling of element_self_assign_forbidden: the value comes from a
+// DIFFERENT element of the same container. The hazard is the same — the
+// container is mutably borrowed for the store while it is read for the value —
+// and so is the consequence for the release in emitIndexSet (RV2-DEBT-204).
+fn t() {
+    let mut xs: string[] = [];
+    xs.push("first-value-long-enough-to-allocate");
+    xs.push("second-value-long-enough-to-allocate");
+    xs[0] = xs[1];
+}

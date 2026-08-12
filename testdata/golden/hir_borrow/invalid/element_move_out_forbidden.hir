@@ -1,0 +1,24 @@
+error SEM3143 testdata/golden/hir_borrow/invalid/element_move_out_forbidden.sg:11:5 cannot take `xs[?]` out of `xs`: it names an element, and what would be left cannot be listed
+
+== HIR ==
+module 
+
+fn t() -> nothing (id=1, sym=1453) {
+  let mut xs: type#82 = []: type#82
+  push((&mut xs), "\"value-long-enough-to-heap-allocate-here\""): nothing
+  drop __index((& xs), 0): &string
+  drop xs
+  return
+}
+
+borrow edges:
+  _ (&mut) borrows L2906(xs) at 0:466-468 scope=S3
+  _ (&) borrows L2906(xs) at 0:528-530 scope=S3
+events:
+  borrow_start _ -> L2906(xs) at 0:466-468 scope=S3 note="B1"
+  borrow_end _ -> L2906(xs) at 0:466-468 scope=S3 note="temp_borrow B1"
+  borrow_start _ -> L2906(xs) at 0:528-530 scope=S3 note="B2"
+  borrow_end _ -> L2906(xs) scope=S3 note="scope_end B2"
+move plan:
+  L2906(xs): MoveNeedsDrop (non-copy (drop))
+

@@ -1,8 +1,8 @@
 {
   "version": 1,
   "golden_root": "testdata/golden",
-  "entry_count": 5075,
-  "corpus_sha256": "4f23d710cae00e22dd385b974c228f51aee00525519267c3597059a1f2157add",
+  "entry_count": 5093,
+  "corpus_sha256": "b3b5620bbaf67fe633325fb858b059778f48b07d1862ef769fa3ceb492dd0f3b",
   "diagnostic_zero": [
     "sema/invalid/attrs/deprecated_usage.sg",
     "sema/invalid/compare_arm_implicit_block_value_warn.sg",
@@ -45,6 +45,18 @@
     "sema/invalid/variadic_not_last.sg"
   ],
   "emit_failure": [
+    {
+      "phase": "hir_borrow",
+      "path": "hir_borrow/invalid/element_cross_assign_forbidden.sg"
+    },
+    {
+      "phase": "hir_borrow",
+      "path": "hir_borrow/invalid/element_move_out_forbidden.sg"
+    },
+    {
+      "phase": "hir_borrow",
+      "path": "hir_borrow/invalid/element_self_assign_forbidden.sg"
+    },
     {
       "phase": "hir_borrow",
       "path": "hir_borrow/invalid/move_forbidden_when_borrowed.sg"

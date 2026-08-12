@@ -1,0 +1,35 @@
+  1: KwFn            "fn" at 12:1-12:3 (leading: LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline)
+  2: Ident           "t" at 12:4-12:5 (leading: Space)
+  3: LParen          "(" at 12:5-12:6
+  4: RParen          ")" at 12:6-12:7
+  5: LBrace          "{" at 12:8-12:9 (leading: Space)
+  6: KwLet           "let" at 13:5-13:8 (leading: Newline, Space)
+  7: KwMut           "mut" at 13:9-13:12 (leading: Space)
+  8: Ident           "xs" at 13:13-13:15 (leading: Space)
+  9: Colon           ":" at 13:15-13:16
+ 10: Ident           "string" at 13:17-13:23 (leading: Space)
+ 11: LBracket        "[" at 13:23-13:24
+ 12: RBracket        "]" at 13:24-13:25
+ 13: Assign          "=" at 13:26-13:27 (leading: Space)
+ 14: LBracket        "[" at 13:28-13:29 (leading: Space)
+ 15: RBracket        "]" at 13:29-13:30
+ 16: Semicolon       ";" at 13:30-13:31
+ 17: Ident           "xs" at 14:5-14:7 (leading: Newline, Space)
+ 18: Dot             "." at 14:7-14:8
+ 19: Ident           "push" at 14:8-14:12
+ 20: LParen          "(" at 14:12-14:13
+ 21: StringLit       "\"value-long-enough-to-heap-allocate-here\"" at 14:13-14:54
+ 22: RParen          ")" at 14:54-14:55
+ 23: Semicolon       ";" at 14:55-14:56
+ 24: Ident           "xs" at 15:5-15:7 (leading: Newline, Space)
+ 25: LBracket        "[" at 15:7-15:8
+ 26: IntLit          "0" at 15:8-15:9
+ 27: RBracket        "]" at 15:9-15:10
+ 28: Assign          "=" at 15:11-15:12 (leading: Space)
+ 29: Ident           "xs" at 15:13-15:15 (leading: Space)
+ 30: LBracket        "[" at 15:15-15:16
+ 31: IntLit          "0" at 15:16-15:17
+ 32: RBracket        "]" at 15:17-15:18
+ 33: Semicolon       ";" at 15:18-15:19
+ 34: RBrace          "}" at 16:1-16:2 (leading: Newline)
+ 35: EOF             at 17:1-17:1

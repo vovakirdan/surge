@@ -1,0 +1,16 @@
+element_self_assign_forbidden.sg (span: 12:1-17:1)
+└─ Item[0]: Fn (span: 12:1-16:2)
+   ├─ Name: t
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 12:8-16:2)
+         ├─ Stmt[0]: Let (span: 13:5-13:31)
+         │  ├─ Name: xs
+         │  ├─ Mutable: true
+         │  ├─ Type: string[]
+         │  └─ Value: expr#1: <ExprKind(8)>
+         ├─ Stmt[1]: Expr (span: 14:5-14:56)
+         │  └─ Expr: expr#5: xs.push("value-long-enough-to-heap-allocate-here")
+         └─ Stmt[2]: Expr (span: 15:5-15:19)
+            └─ Expr: expr#12: (xs[0] = xs[0])

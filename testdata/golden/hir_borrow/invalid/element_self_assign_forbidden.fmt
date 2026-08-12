@@ -1,0 +1,16 @@
+// Pins the refusal the native element release depends on (RV2-DEBT-204).
+//
+// `emitIndexSet` now frees what an element slot holds before storing over it.
+// That is only sound while the value being stored cannot come FROM the slot
+// being released — otherwise the release frees the bytes the store is about to
+// write back, and the next drop frees them twice.
+//
+// Nothing local to the emitter enforces that. This does. If the borrow rule is
+// ever relaxed to admit a self-assignment through a container, this fixture
+// stops being refused, and the release in emitIndexSet needs a guard before
+// that relaxation lands.
+fn t() {
+    let mut xs: string[] = [];
+    xs.push("value-long-enough-to-heap-allocate-here");
+    xs[0] = xs[0];
+}

@@ -1,0 +1,15 @@
+element_move_out_forbidden.sg (span: 8:1-13:1)
+└─ Item[0]: Fn (span: 8:1-12:2)
+   ├─ Name: t
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 8:8-12:2)
+         ├─ Stmt[0]: Let (span: 9:5-9:31)
+         │  ├─ Name: xs
+         │  ├─ Mutable: true
+         │  ├─ Type: string[]
+         │  └─ Value: expr#1: <ExprKind(8)>
+         ├─ Stmt[1]: Expr (span: 10:5-10:56)
+         │  └─ Expr: expr#5: xs.push("value-long-enough-to-heap-allocate-here")
+         └─ Stmt[2]: Drop (span: 11:5-11:17)

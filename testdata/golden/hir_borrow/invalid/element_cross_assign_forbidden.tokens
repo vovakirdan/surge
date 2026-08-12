@@ -1,0 +1,42 @@
+  1: KwFn            "fn" at 5:1-5:3 (leading: LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline)
+  2: Ident           "t" at 5:4-5:5 (leading: Space)
+  3: LParen          "(" at 5:5-5:6
+  4: RParen          ")" at 5:6-5:7
+  5: LBrace          "{" at 5:8-5:9 (leading: Space)
+  6: KwLet           "let" at 6:5-6:8 (leading: Newline, Space)
+  7: KwMut           "mut" at 6:9-6:12 (leading: Space)
+  8: Ident           "xs" at 6:13-6:15 (leading: Space)
+  9: Colon           ":" at 6:15-6:16
+ 10: Ident           "string" at 6:17-6:23 (leading: Space)
+ 11: LBracket        "[" at 6:23-6:24
+ 12: RBracket        "]" at 6:24-6:25
+ 13: Assign          "=" at 6:26-6:27 (leading: Space)
+ 14: LBracket        "[" at 6:28-6:29 (leading: Space)
+ 15: RBracket        "]" at 6:29-6:30
+ 16: Semicolon       ";" at 6:30-6:31
+ 17: Ident           "xs" at 7:5-7:7 (leading: Newline, Space)
+ 18: Dot             "." at 7:7-7:8
+ 19: Ident           "push" at 7:8-7:12
+ 20: LParen          "(" at 7:12-7:13
+ 21: StringLit       "\"first-value-long-enough-to-allocate\"" at 7:13-7:50
+ 22: RParen          ")" at 7:50-7:51
+ 23: Semicolon       ";" at 7:51-7:52
+ 24: Ident           "xs" at 8:5-8:7 (leading: Newline, Space)
+ 25: Dot             "." at 8:7-8:8
+ 26: Ident           "push" at 8:8-8:12
+ 27: LParen          "(" at 8:12-8:13
+ 28: StringLit       "\"second-value-long-enough-to-allocate\"" at 8:13-8:51
+ 29: RParen          ")" at 8:51-8:52
+ 30: Semicolon       ";" at 8:52-8:53
+ 31: Ident           "xs" at 9:5-9:7 (leading: Newline, Space)
+ 32: LBracket        "[" at 9:7-9:8
+ 33: IntLit          "0" at 9:8-9:9
+ 34: RBracket        "]" at 9:9-9:10
+ 35: Assign          "=" at 9:11-9:12 (leading: Space)
+ 36: Ident           "xs" at 9:13-9:15 (leading: Space)
+ 37: LBracket        "[" at 9:15-9:16
+ 38: IntLit          "1" at 9:16-9:17
+ 39: RBracket        "]" at 9:17-9:18
+ 40: Semicolon       ";" at 9:18-9:19
+ 41: RBrace          "}" at 10:1-10:2 (leading: Newline)
+ 42: EOF             at 11:1-11:1

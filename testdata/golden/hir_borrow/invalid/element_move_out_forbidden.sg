@@ -1,0 +1,12 @@
+// The second refusal the native element release depends on (RV2-DEBT-204).
+//
+// If an element could be moved or dropped out on its own, the slot would be
+// empty and the release before the next store would free an already-freed
+// value. The partial-move rule refuses it because what would be left of the
+// container cannot be named — and that refusal is what makes the release safe,
+// not anything in the emitter.
+fn t() {
+    let mut xs: string[] = [];
+    xs.push("value-long-enough-to-heap-allocate-here");
+    @drop xs[0];
+}
