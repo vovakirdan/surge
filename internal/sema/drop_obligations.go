@@ -225,6 +225,25 @@ func (tc *typeChecker) projectionReadAliasesItsSource(expr ast.ExprID, ty types.
 	if !tc.isProjectionRead(expr) || tc.partialMoveRead(expr) {
 		return false
 	}
+	// A SLICE is not a read out of a container, it is a read that MINTS one:
+	// `array_alloc_view` allocates a fresh header whose data pointer aims into
+	// the source. The binding holding it is that header's only owner.
+	//
+	// `temp_drops.go` already says this, in these words and through this same
+	// predicate - "Only slice expressions MINT a value (an owned view header)"
+	// - which is why `consume(xs[[1..3]])` reclaims its header today while
+	// `let v = xs[[1..3]]` did not: the temp form asks that site, the bound form
+	// asks this one, and the two disagreed. Measured at 24 bytes per slice, on
+	// BOTH lanes and both array kinds, growing one block per operation.
+	//
+	// Freeing the header does not free what it points at. A view carries the
+	// `cap == SURGE_ARRAY_VIEW_CAP` sentinel, and `rt_array_free_elems` sends a
+	// view to `array_free_header` - the header alone - while
+	// `array_free_base_storage`, the only site that frees `data` and runs the
+	// per-element drops, is unreachable for it.
+	if tc.isArrayViewExpr(expr) {
+		return false
+	}
 	if tc.types != nil && tc.types.IsRefCountedScalar(tc.resolveAlias(ty)) {
 		return false
 	}

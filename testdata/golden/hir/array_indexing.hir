@@ -7,6 +7,7 @@ fn test() -> nothing (id=1, sym=1453) {
   let x: &int [&] = __index((& a), 1): &int
   let y: &int [&] = __index((& a), __neg(1)): &int
   let slice: type#78 = __index((& a), rt_range_int_new(1, 3, false)): type#78
+  drop slice
   drop a
   return
 }
