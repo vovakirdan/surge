@@ -1,0 +1,2 @@
+error SEM3198 testdata/golden/sema/invalid/ownership/fixed_array_view_escapes_return.sg:11:12 cannot return a slice of local 'xs': it is a fixed array, so the slice points at this call frame
+error SEM3198 testdata/golden/sema/invalid/ownership/fixed_array_view_escapes_return.sg:17:12 cannot return a slice of local 'ys': it is a fixed array, so the slice points at this call frame

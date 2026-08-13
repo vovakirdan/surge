@@ -3,6 +3,32 @@ set -euo pipefail
 
 readonly LIMIT=500
 
+# Files this gate deliberately does not size, each for a reason that outranks the
+# limit. Keep the list SHORT and keep the reason next to the entry: an exemption
+# with no stated reason is indistinguishable from one added to make a red gate
+# go away.
+#
+# internal/diag/codes.go — the single registry of diagnostic numbers. Splitting
+# it is what caused NINE numbers to be taken twice: a lane adding its own
+# companion file cannot see the numbers another lane is taking in a file that
+# does not exist on its branch. So the owner ruled that a code is declared here
+# and nowhere else, and that this gate makes room for the registry rather than
+# the registry making room for the gate. The hazard that motivated one-file-only
+# is now caught mechanically by internal/diag's uniqueness test, and the size
+# signal is not lost either — check_file_sizes.sh still rates this file on every
+# `make check`. What is exempted is only the growth VIOLATION, and only here.
+readonly -a SIZE_EXEMPT_PATHS=(
+    "internal/diag/codes.go"
+)
+
+size_exempt() {
+    local candidate=$1 exempt
+    for exempt in "${SIZE_EXEMPT_PATHS[@]}"; do
+        [[ "$candidate" == "$exempt" ]] && return 0
+    done
+    return 1
+}
+
 clear_repo_local_git_env() {
     local name
 
@@ -89,6 +115,13 @@ violation() {
     shift 2
     local shown
     printf -v shown '%q' "$path"
+    if size_exempt "$path"; then
+        # Reported, not counted. A silent exemption would let the file grow
+        # without anyone seeing it happen; this way the growth is still on the
+        # record of every run.
+        printf 'EXEMPT code=%s path=%s %s\n' "$code" "$shown" "$*" >&2
+        return
+    fi
     printf 'VIOLATION code=%s path=%s %s\n' "$code" "$shown" "$*" >&2
     violations=$((violations + 1))
 }

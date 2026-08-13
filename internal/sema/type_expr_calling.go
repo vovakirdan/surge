@@ -212,6 +212,7 @@ func (tc *typeChecker) typeExprIndex(id ast.ExprID, span source.Span) types.Type
 		}
 		if tc.isArrayRangeIndex(container, indexType) {
 			tc.markArrayViewExpr(id)
+			tc.recordFixedViewProvenance(id, idx.Target, container)
 		}
 		return resultType
 	case borrowInfo.expr.IsValid():
@@ -224,6 +225,7 @@ func (tc *typeChecker) typeExprIndex(id ast.ExprID, span source.Span) types.Type
 	}
 	if tc.isArrayRangeIndex(container, indexType) {
 		tc.markArrayViewExpr(id)
+		tc.recordFixedViewProvenance(id, idx.Target, container)
 	}
 	return resultType
 }

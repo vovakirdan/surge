@@ -361,6 +361,19 @@ const (
 	// the owner is read again.
 	SemaMoveOutOfSharedBorrow Code = 3197
 
+	// SemaFixedArrayViewEscapes rejects letting a slice of a FIXED array outlive
+	// the frame whose slot backs it.
+	//
+	// A dynamic array's slice may be returned: the runtime registers that view
+	// against the base header and defers the base's reclamation until every view
+	// is gone. A fixed array has no header to register against — its elements
+	// ARE the frame's storage — so the same slice is a bare pointer into a frame
+	// that is about to be reclaimed. The native lane reads it silently and
+	// returns whatever the slot now holds; the VM catches it at run time as a
+	// stale reference. Saying so here is what turns a wrong answer with a zero
+	// exit code into an error the author can act on.
+	SemaFixedArrayViewEscapes Code = 3198
+
 	// Ошибки I/O
 
 	// IOLoadFileError indicates file load error.
@@ -614,6 +627,7 @@ var ( // todo расширить описания и использовать к
 		SemaCompareGuardMovesBinding:       "compare-arm guard cannot move a value out of its own pattern binding",
 		SemaPartialMoveNotEnumerable:       "what would remain after this move cannot be named",
 		SemaMoveOutOfSharedBorrow:          "a shared reference only borrows this value, so it cannot be given away",
+		SemaFixedArrayViewEscapes:          "a slice of a fixed array points into this call frame, so it cannot outlive it",
 		SemaPartialMoveNeedsOwn:            "taking a field out of a live value must be written `own`",
 		SemaPartialMoveFromTemporary:       "cannot take a field out of a value nothing holds",
 		SemaStoreThroughSharedRef:          "cannot write through a shared reference",

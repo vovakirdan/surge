@@ -1,0 +1,166 @@
+  1: KwFn            "fn" at 7:1-7:3 (leading: LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline)
+  2: Ident           "through_ref" at 7:4-7:15 (leading: Space)
+  3: LParen          "(" at 7:15-7:16
+  4: Ident           "xs" at 7:16-7:18
+  5: Colon           ":" at 7:18-7:19
+  6: Amp             "&" at 7:20-7:21 (leading: Space)
+  7: Ident           "uint64" at 7:21-7:27
+  8: LBracket        "[" at 7:27-7:28
+  9: IntLit          "4" at 7:28-7:29
+ 10: RBracket        "]" at 7:29-7:30
+ 11: RParen          ")" at 7:30-7:31
+ 12: Arrow           "->" at 7:32-7:34 (leading: Space)
+ 13: Ident           "uint64" at 7:35-7:41 (leading: Space)
+ 14: LBracket        "[" at 7:41-7:42
+ 15: RBracket        "]" at 7:42-7:43
+ 16: LBrace          "{" at 7:44-7:45 (leading: Space)
+ 17: KwReturn        "return" at 8:5-8:11 (leading: Newline, Space)
+ 18: Ident           "xs" at 8:12-8:14 (leading: Space)
+ 19: LBracket        "[" at 8:14-8:15
+ 20: LBracket        "[" at 8:15-8:16
+ 21: IntLit          "1" at 8:16-8:17
+ 22: DotDot          ".." at 8:17-8:19
+ 23: IntLit          "3" at 8:19-8:20
+ 24: RBracket        "]" at 8:20-8:21
+ 25: RBracket        "]" at 8:21-8:22
+ 26: Semicolon       ";" at 8:22-8:23
+ 27: RBrace          "}" at 9:1-9:2 (leading: Newline)
+ 28: KwFn            "fn" at 11:1-11:3 (leading: Newline)
+ 29: Ident           "dynamic" at 11:4-11:11 (leading: Space)
+ 30: LParen          "(" at 11:11-11:12
+ 31: RParen          ")" at 11:12-11:13
+ 32: Arrow           "->" at 11:14-11:16 (leading: Space)
+ 33: Ident           "uint64" at 11:17-11:23 (leading: Space)
+ 34: LBracket        "[" at 11:23-11:24
+ 35: RBracket        "]" at 11:24-11:25
+ 36: LBrace          "{" at 11:26-11:27 (leading: Space)
+ 37: KwLet           "let" at 12:5-12:8 (leading: Newline, Space)
+ 38: KwMut           "mut" at 12:9-12:12 (leading: Space)
+ 39: Ident           "xs" at 12:13-12:15 (leading: Space)
+ 40: Colon           ":" at 12:15-12:16
+ 41: Ident           "uint64" at 12:17-12:23 (leading: Space)
+ 42: LBracket        "[" at 12:23-12:24
+ 43: RBracket        "]" at 12:24-12:25
+ 44: Assign          "=" at 12:26-12:27 (leading: Space)
+ 45: LBracket        "[" at 12:28-12:29 (leading: Space)
+ 46: IntLit          "11" at 12:29-12:31
+ 47: Colon           ":" at 12:31-12:32
+ 48: Ident           "uint64" at 12:32-12:38
+ 49: Comma           "," at 12:38-12:39
+ 50: IntLit          "22" at 12:40-12:42 (leading: Space)
+ 51: Colon           ":" at 12:42-12:43
+ 52: Ident           "uint64" at 12:43-12:49
+ 53: Comma           "," at 12:49-12:50
+ 54: IntLit          "33" at 12:51-12:53 (leading: Space)
+ 55: Colon           ":" at 12:53-12:54
+ 56: Ident           "uint64" at 12:54-12:60
+ 57: Comma           "," at 12:60-12:61
+ 58: IntLit          "44" at 12:62-12:64 (leading: Space)
+ 59: Colon           ":" at 12:64-12:65
+ 60: Ident           "uint64" at 12:65-12:71
+ 61: RBracket        "]" at 12:71-12:72
+ 62: Semicolon       ";" at 12:72-12:73
+ 63: KwReturn        "return" at 13:5-13:11 (leading: Newline, Space)
+ 64: Ident           "xs" at 13:12-13:14 (leading: Space)
+ 65: LBracket        "[" at 13:14-13:15
+ 66: LBracket        "[" at 13:15-13:16
+ 67: IntLit          "1" at 13:16-13:17
+ 68: DotDot          ".." at 13:17-13:19
+ 69: IntLit          "3" at 13:19-13:20
+ 70: RBracket        "]" at 13:20-13:21
+ 71: RBracket        "]" at 13:21-13:22
+ 72: Semicolon       ";" at 13:22-13:23
+ 73: RBrace          "}" at 14:1-14:2 (leading: Newline)
+ 74: At              "@" at 16:1-16:2 (leading: Newline)
+ 75: Ident           "entrypoint" at 16:2-16:12
+ 76: KwFn            "fn" at 17:1-17:3 (leading: Newline)
+ 77: Ident           "main" at 17:4-17:8 (leading: Space)
+ 78: LParen          "(" at 17:8-17:9
+ 79: RParen          ")" at 17:9-17:10
+ 80: Arrow           "->" at 17:11-17:13 (leading: Space)
+ 81: Ident           "int" at 17:14-17:17 (leading: Space)
+ 82: LBrace          "{" at 17:18-17:19 (leading: Space)
+ 83: KwLet           "let" at 18:5-18:8 (leading: Newline, Space)
+ 84: Ident           "xs" at 18:9-18:11 (leading: Space)
+ 85: Colon           ":" at 18:11-18:12
+ 86: Ident           "uint64" at 18:13-18:19 (leading: Space)
+ 87: LBracket        "[" at 18:19-18:20
+ 88: IntLit          "4" at 18:20-18:21
+ 89: RBracket        "]" at 18:21-18:22
+ 90: Assign          "=" at 18:23-18:24 (leading: Space)
+ 91: LBracket        "[" at 18:25-18:26 (leading: Space)
+ 92: IntLit          "11" at 18:26-18:28
+ 93: Colon           ":" at 18:28-18:29
+ 94: Ident           "uint64" at 18:29-18:35
+ 95: Comma           "," at 18:35-18:36
+ 96: IntLit          "22" at 18:37-18:39 (leading: Space)
+ 97: Colon           ":" at 18:39-18:40
+ 98: Ident           "uint64" at 18:40-18:46
+ 99: Comma           "," at 18:46-18:47
+100: IntLit          "33" at 18:48-18:50 (leading: Space)
+101: Colon           ":" at 18:50-18:51
+102: Ident           "uint64" at 18:51-18:57
+103: Comma           "," at 18:57-18:58
+104: IntLit          "44" at 18:59-18:61 (leading: Space)
+105: Colon           ":" at 18:61-18:62
+106: Ident           "uint64" at 18:62-18:68
+107: RBracket        "]" at 18:68-18:69
+108: Semicolon       ";" at 18:69-18:70
+109: KwLet           "let" at 19:5-19:8 (leading: Newline, Space)
+110: Ident           "local" at 19:9-19:14 (leading: Space)
+111: Assign          "=" at 19:15-19:16 (leading: Space)
+112: Ident           "xs" at 19:17-19:19 (leading: Space)
+113: LBracket        "[" at 19:19-19:20
+114: LBracket        "[" at 19:20-19:21
+115: IntLit          "1" at 19:21-19:22
+116: DotDot          ".." at 19:22-19:24
+117: IntLit          "3" at 19:24-19:25
+118: RBracket        "]" at 19:25-19:26
+119: RBracket        "]" at 19:26-19:27
+120: Semicolon       ";" at 19:27-19:28
+121: KwLet           "let" at 20:5-20:8 (leading: Newline, Space)
+122: Ident           "borrowed" at 20:9-20:17 (leading: Space)
+123: Assign          "=" at 20:18-20:19 (leading: Space)
+124: Ident           "through_ref" at 20:20-20:31 (leading: Space)
+125: LParen          "(" at 20:31-20:32
+126: Amp             "&" at 20:32-20:33
+127: Ident           "xs" at 20:33-20:35
+128: RParen          ")" at 20:35-20:36
+129: Semicolon       ";" at 20:36-20:37
+130: KwLet           "let" at 21:5-21:8 (leading: Newline, Space)
+131: Ident           "heap" at 21:9-21:13 (leading: Space)
+132: Assign          "=" at 21:14-21:15 (leading: Space)
+133: Ident           "dynamic" at 21:16-21:23 (leading: Space)
+134: LParen          "(" at 21:23-21:24
+135: RParen          ")" at 21:24-21:25
+136: Semicolon       ";" at 21:25-21:26
+137: KwReturn        "return" at 22:5-22:11 (leading: Newline, Space)
+138: LParen          "(" at 22:12-22:13 (leading: Space)
+139: Ident           "local" at 22:13-22:18
+140: LBracket        "[" at 22:18-22:19
+141: IntLit          "0" at 22:19-22:20
+142: RBracket        "]" at 22:20-22:21
+143: KwTo            "to" at 22:22-22:24 (leading: Space)
+144: Ident           "int" at 22:25-22:28 (leading: Space)
+145: RParen          ")" at 22:28-22:29
+146: Plus            "+" at 22:30-22:31 (leading: Space)
+147: LParen          "(" at 22:32-22:33 (leading: Space)
+148: Ident           "borrowed" at 22:33-22:41
+149: LBracket        "[" at 22:41-22:42
+150: IntLit          "0" at 22:42-22:43
+151: RBracket        "]" at 22:43-22:44
+152: KwTo            "to" at 22:45-22:47 (leading: Space)
+153: Ident           "int" at 22:48-22:51 (leading: Space)
+154: RParen          ")" at 22:51-22:52
+155: Plus            "+" at 22:53-22:54 (leading: Space)
+156: LParen          "(" at 22:55-22:56 (leading: Space)
+157: Ident           "heap" at 22:56-22:60
+158: LBracket        "[" at 22:60-22:61
+159: IntLit          "0" at 22:61-22:62
+160: RBracket        "]" at 22:62-22:63
+161: KwTo            "to" at 22:64-22:66 (leading: Space)
+162: Ident           "int" at 22:67-22:70 (leading: Space)
+163: RParen          ")" at 22:70-22:71
+164: Semicolon       ";" at 22:71-22:72
+165: RBrace          "}" at 23:1-23:2 (leading: Newline)
+166: EOF             at 24:1-24:1
