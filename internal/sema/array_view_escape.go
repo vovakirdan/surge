@@ -64,6 +64,15 @@ func (tc *typeChecker) fixedViewBaseOfExpr(expr ast.ExprID) symbols.SymbolID {
 	return desc.Base
 }
 
+// bindArrayView records both facts a `let` holding a slice establishes: that the
+// binding IS a view, and which array it points into. One call because the two
+// are one event — a binding that is a view without provenance is a binding the
+// escape rule cannot reason about.
+func (tc *typeChecker) bindArrayView(symID symbols.SymbolID, valueExpr ast.ExprID) {
+	tc.markArrayViewBinding(symID, tc.isArrayViewExpr(valueExpr))
+	tc.noteFixedViewBinding(symID, valueExpr)
+}
+
 // noteFixedViewBinding carries provenance from a slice expression to the
 // binding that holds it, so `let v = xs[[1..3]]; return v` is refused for the
 // same reason `return xs[[1..3]]` is.

@@ -60,8 +60,7 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 			tc.setBindingType(symID, valueType)
 		}
 		tc.updateItemBinding(id, letItem.Value)
-		tc.markArrayViewBinding(symID, tc.isArrayViewExpr(letItem.Value))
-		tc.noteFixedViewBinding(symID, letItem.Value)
+		tc.bindArrayView(symID, letItem.Value)
 	case ast.ItemConst:
 		symID := tc.typeSymbolForItem(id)
 		// Validate and record const item attributes
@@ -247,8 +246,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 						tc.setBindingType(symID, valueType)
 					}
 					tc.updateStmtBinding(id, letStmt.Value)
-					tc.markArrayViewBinding(symID, tc.isArrayViewExpr(letStmt.Value))
-					tc.noteFixedViewBinding(symID, letStmt.Value)
+					tc.bindArrayView(symID, letStmt.Value)
 					tc.markTaskContainerFromBinding(symID, letStmt.Value, valueType, tc.exprSpan(letStmt.Value))
 					// Track task binding for structured concurrency. `far Task<T>`
 					// (from `spawn on`) is affine and follows the same
