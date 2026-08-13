@@ -1,0 +1,42 @@
+arrays_fixed_tag_payload.sg (span: 15:1-34:1)
+├─ Item[0]: Type (span: 15:1-15:35)
+│  ├─ Name: Item
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: id: int
+│     └─ Field[1]: num: int
+├─ Item[1]: Tag (span: 17:1-17:19)
+│  ├─ Name: Pair
+│  ├─ Visibility: private
+│  └─ Payload: Item[2]
+├─ Item[2]: Type (span: 19:1-19:30)
+│  ├─ Name: Holder
+│  ├─ Kind: Union
+│  ├─ Visibility: private
+│  └─ Union:
+│     ├─ Member[0]: Pair
+│     └─ Member[1]: nothing
+├─ Item[3]: Fn (span: 21:1-23:2)
+│  ├─ Name: build
+│  ├─ Params: ()
+│  ├─ Return: Item[2]
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 21:23-23:2)
+│        └─ Stmt[0]: Return (span: 22:5-22:67)
+│           └─ Expr: expr#11: <ExprKind(8)>
+└─ Item[4]: Fn (span: 25:1-33:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 26:18-33:2)
+         ├─ Stmt[0]: Let (span: 27:5-27:35)
+         │  ├─ Name: h
+         │  ├─ Mutable: false
+         │  ├─ Type: Holder
+         │  └─ Value: expr#15: Pair(build())
+         ├─ Stmt[1]: Expr (span: 28:5-31:6)
+         │  └─ Expr: expr#34: compare h { 2 arms }
+         └─ Stmt[2]: Return (span: 32:5-32:14)
+            └─ Expr: expr#35: 0

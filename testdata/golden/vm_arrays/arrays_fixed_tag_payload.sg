@@ -1,0 +1,33 @@
+// A fixed array as a TAG PAYLOAD, which is the one shape that reaches sema's
+// own type-key producer.
+//
+// The length belongs in the key: `Item[2]` keys as `[Item; 2]`, not as `[Item]`.
+// There are TWO producers of that key — `symbols.makeTypeKey` and
+// `sema.typeKeyForTypeExpr` — and the second never calls the first, so a length
+// added to one does not arrive at the other. The two fixtures beside this one
+// exercise the symbols producer through a function signature; nothing in the
+// corpus reached the sema producer until this file, so half the fix sat unpinned.
+//
+// With the sema producer spelling the key as a slice, this program is refused
+// with "expected [Item], got [Item; 2]" — the tag's parameter and its argument
+// key differently for the same type.
+
+type Item = { id: int, num: int };
+
+tag Pair(Item[2]);
+
+type Holder = Pair | nothing;
+
+fn build() -> Item[2] {
+    return [Item { id = 11, num = 1 }, Item { id = 22, num = 2 }];
+}
+
+@entrypoint
+fn main() -> int {
+    let h: Holder = Pair(build());
+    compare h {
+        Pair(p) => { print((p[0].id) to string); };
+        _ => { print("none"); };
+    }
+    return 0;
+}
