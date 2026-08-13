@@ -6791,3 +6791,65 @@ pristine base tree for "was this red before me". And an acceptance test can pass
 vacuously: sema's snippet harness has no stdlib, so a test asserting "no
 diagnostic" is green for programs it never typed, and would stay green with the
 rule deleted.
+
+## 2026-08-13 — Wave D/D1 resumed: four owner rulings, and the first full gate baseline
+
+Opened with the four questions the previous handoff demanded, before any work.
+Three of them decided whether a language capability stays. All four are recorded
+in the rows themselves (`RV2-DEBT-212`, `213`, `214`, `215`); the summary is:
+`for-in` is READ-ONLY forever, the reference-typed `compare` arm is refused
+forever, `215/216` runs the bignum-bounds experiment before shipping
+`rt_range_free`, and `213` is parked WHOLE — including the triage.
+
+`213`'s reason is the part worth carrying: those targets are aimed at Runtime v1
+and need REWORK, not repair. Fixing them now is fixing what gets rewritten.
+
+### The branch was not where its name said
+
+`codex/runtime-net-scheduler-refactor` existed LOCALLY at `90a9b7ab` (3 August,
+184 commits back) while `origin/codex/runtime-net-scheduler-refactor` was
+`1d4d6813`, identical to the working tree. Checking it out naively would have
+rewound the tree by 184 commits. Fixed with `git branch -f` before checkout. A
+branch name is not a commit; compare against the remote before trusting it.
+
+### First full gate baseline, `1d4d6813`, 66 minutes, all 26 targets
+
+Enumerated from the Makefile and run SERIALLY — several targets rebuild
+`./surge`, and `runtime-v2-http-owner-check` is load-sensitive, so a parallel run
+would have measured the machine. Logs and exit codes are per target, captured on
+their own line rather than through `; echo $?`.
+
+GREEN and load-bearing for what comes next: `check`, `golden-check`,
+`behaviour-check-all`, `behaviour-check-mt`, `heap`, `place-overwrite`,
+`carrier-sanitizer`, `file-size`. The two behavioural lanes matter because the
+next two steps add REFUSALS, which can break programs that compile today.
+
+RED, and every failure text reproduces the ledger assertion-for-assertion rather
+than merely "the same gate is red": `fd-registry`, `net-handle`, `accept`,
+`ownership` (`213`), `transport` + `transport-contract` (`202`), `carrier`
+(`174`, both halves of its correction), and `runtime-v2-check` as their
+composite. `http-owner` failed in the suite and passed alone immediately
+afterwards — the load sensitivity `213` records, confirmed rather than assumed.
+
+`runtime-v2-check` is a COMPOSITE of 18 other targets, so a full sweep runs most
+of them twice. That is not waste — section 12 wants that target twice anyway, and
+the second run is a free reproducibility check — but it doubles the wall clock and
+should be planned for.
+
+### Two findings the baseline produced that no row had
+
+**The `internal/vm` failure set has a varying member.** Seventeen rows are
+deterministic and identical to what `213` records. The eighteenth is an MT slot
+whose IDENTITY changes between runs: `213` names `TestMTStructuredConcurrency`,
+and at `1d4d6813` that test passed while `TestMTCorrectnessHTTPServer` failed in
+its place, on a connection refused at minute 66 of continuous load. Both are in
+`mt_correctness_test.go`. At least two load-sensitive members, neither pinned.
+
+**Sentrux cannot currently serve as the Rule 3 gate**, filed as `RV2-DEBT-217`.
+`internal/.sentrux/baseline.json` did not exist, so the structural regression
+half could not run at all on the directory holding every compiler change — a gate
+that reads as present and measures nothing. Created by owner decision, with the
+caveat recorded in the row: taken retroactively 184 commits in, green by
+construction, never shown able to fail. Separately `sentrux check` is RED on both
+ENFORCED runtime scopes (`min_redundancy` 0.2408 and 0.2409 against 0.2450) and
+no row had said so.
