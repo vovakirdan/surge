@@ -6708,3 +6708,86 @@ in the diagnose pipeline and a rewrite-threshold crossing in the monomorphize
 spine — both repaired before acceptance (`512269bb`, `4745f5d1`). Wave C/D own the staged slots
 (drop_in_place, trace, cross ops, key hash/equal) and the migration of the
 staged capability bits into the ABI flags as those slots fill.
+
+## 2026-08-13 — Wave C and Wave D, written up 60 commits late
+
+This entry exists because the log stopped. The last one before it was
+`83802f13` on 2026-08-09, and sixty commits landed after it covering the rest of
+Wave C and all of Wave D so far. The rule this file serves — update before
+starting a workstream and again at closeout — was not followed, and the cost was
+not hypothetical: a session opening on 2026-08-12 read a handover note claiming
+"three pre-existing red gates" and inherited three rows marked Open whose fixes
+were already committed. Both statements were wrong, and this file is where they
+would have been checked.
+
+### What Wave C left, and how it was found
+
+Wave C's LLVM cutover broke every native async form and was repaired inside the
+wave. Its integrated tree then carried two crashes into Wave D, one of which —
+the far-channel copy-in — was fixed uncommitted and nearly lost.
+
+The wave's own lesson, worth more than its diffs: `make check` cannot see this
+class of work. It runs `go test ./...` with `SURGE_SKIP_TIMEOUT_TESTS=1` and a
+90s package timeout, so the behavioural corpus, the native lane, and every
+valgrind witness are outside it. Several changes shipped green through the
+pre-commit hook while the native lane was red.
+
+### Wave D — D0 closed, D1 still short of its own point
+
+D0 closed all nine of its blockers, including one found during the pass: the
+mandatory `runtime-v2-carrier-sanitizer-check` did not exist as a Makefile
+target at all, having been named mandatory in three documents and never run
+once. `make` exits 0 on any unknown target — the Makefile ends in a catch-all
+`%:` — so its absence read as a pass for as long as anyone had been looking.
+
+D0 also moved the ABI manifest hash and link sentinel to
+`f30fcfb03b62d105dab0cd21d57a3dcc029b0e7ae10a337e966079033608650a`: objects
+built before `b9f647c5` will not link against a runtime built after it.
+
+**D1 has not performed its migration.** `internal/vm/object.go` still declares
+`Arr []Value`, the field Wave A's census names as the target. Everything spent
+on D1 so far — thirteen ledger rows filed, seven closed — is pre-existing native
+defects found while SCOPING the flip. The plan named zero defects for D1. That
+is the single most useful fact for sizing D2 through D8: the plan's step list
+does not predict the cost, because the cost is dominated by what the plan cannot
+see.
+
+### The defects D1 uncovered, and the pattern joining three of them
+
+`RV2-DEBT-203` fixed-array signature keys spelled `T[N]` as `[T]` in two
+producers; the annotated form was refused and the INFERRED form miscompiled.
+`209` array and tuple literals aliased a named binding instead of moving it.
+`204` the native element store did not free what it displaced. `208` the same
+shortfall at every non-element place, fixed in sema rather than in the emitter
+because the VM ran the same sema and freed correctly, so the obligation was
+recorded for no place at all. `205` a compare arm whose result is a bare element
+read loaded through a pointer AFTER the arm freed the payload — a use-after-free
+that exits 0, not the wrong answer the row claimed. `206` a slice minted a view
+header nobody owned, and a fixed array's slice could outlive the frame that
+backs it; the leak was sema disagreeing with itself and the escape is now
+refused as SEM3198.
+
+Three of those are the same shape and it has now bitten this epic three times:
+**a leak was the only thing keeping a second owner from freeing what the first
+one would.** 204's release detonated 209. 208's first form detonated a
+loop-binding double free (`211`) that had already been live for the whole-binding
+spelling. Fixing a leak is a reason to go looking for the second owner, every
+time.
+
+### What the gates could not see, and now say
+
+Enumerating gate targets out of the Makefile rather than out of a handover found
+EIGHT red, not three; four had no ledger row and are now `RV2-DEBT-213`. Worse,
+`internal/vm` itself is red — twenty failures under
+`SURGE_SKIP_TIMEOUT_TESTS=0`, invisible to `make check`, two of them substantive
+and both present at `ab55197c`. `runtime-v2-file-size-check` gained an exemption
+list so a diagnostic code can be declared in `codes.go` where the owner ruled it
+must live; it prints `EXEMPT` rather than hiding the growth.
+
+Method notes earned, in the order they cost something: the file-size gate reads
+COMMITTED blobs, so it must be run AFTER committing — run before, it measures
+the base and passes for the wrong reason. `git archive <sha> | tar -x` gives a
+pristine base tree for "was this red before me". And an acceptance test can pass
+vacuously: sema's snippet harness has no stdlib, so a test asserting "no
+diagnostic" is green for programs it never typed, and would stay green with the
+rule deleted.

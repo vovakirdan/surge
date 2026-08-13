@@ -288,3 +288,62 @@ After the reviewed goldens are integrated, epic closeout requires two
 serialized `make golden-check` runs on the same tree with no intervening source
 edit, zero tracked/untracked/ignored/missing status after each run, and an
 unchanged reviewed content manifest.
+
+## Global Rule 13: A Fix Is Not Closed Until Something Fails Without It
+
+A defect is closed when the tree would notice it coming back — not when the
+program stops misbehaving. Owner rule, 2026-08-13, after an audit found fixes
+that had shipped with no test at all.
+
+**The obligation.** Every fix lands with a test, in the same commit, and that
+test MUST be demonstrated to FAIL against the tree without the fix. Reverting
+the fix in a scratch copy and watching the named test go red is the proof; a
+test written and observed only in its passing state proves nothing about what it
+pins. Say in the commit message which test it is and what it reported on the
+unfixed tree — the number, not the adjective: `2,048 bytes in 32 blocks`,
+`exit 255 with free(): double free detected`, `a slice leaks 2.00 blocks, want 1`.
+
+**Choose the level that can see the defect.** In descending order of preference,
+because each level catches more and costs more:
+
+- a unit test where the defect is a decision the compiler makes (a recorded
+  obligation, a refusal, a resolved key);
+- a golden fixture where the defect is an emitted artifact or a diagnostic —
+  `testdata/golden/sema/invalid/...` for a refusal, and its `valid/` twin for
+  what must STAY accepted;
+- a behavioural fixture under `testdata/golden/vm_*` where the defect is a wrong
+  ANSWER, since those run on both lanes;
+- a valgrind e2e in `internal/vm` where the defect is memory unsafety or a leak,
+  since an answer can be right by accident out of freed storage.
+
+Where the defect is only visible on one lane, say so in the test's comment and
+name why the other lane cannot witness it.
+
+**Wire it into a gate, and say which.** A test in the tree that no target runs
+is a test that will be deleted by someone tidying. If it belongs to a slow
+family, add it to the relevant `runtime-v2-*-check` row; if it is fast enough
+for `make check`, prefer that. When a gate's selection is a `-run` alternation,
+add the row rather than relying on a prefix — a selection that names one member
+of a defect family lets the others regress while staying green.
+
+**Two failure modes this rule exists to stop, both observed here.**
+
+An ACCEPTANCE test can pass vacuously. A test asserting "no diagnostic of kind
+X" is green whenever the program never reached the analysis — sema's snippet
+harness has no stdlib, so such a test stayed green while the rule under test was
+unreachable, and would have stayed green with the rule deleted. An acceptance
+test MUST also assert something positive that only a program which reached the
+analysis can satisfy.
+
+A gate can be green without running. A budget met by absent code, a harness that
+stopped compiling, a `-run` that selects nothing, a Makefile target that does not
+exist — `make` exits 0 on an unknown target. Before trusting a green gate for
+the first time, break its assertion deliberately and watch it fail.
+
+**What the rule does NOT claim.** A regression test pins the fix; it does not
+protect the fix from breaking something else. Both halves of this wave's worst
+defect were of the second kind: a correct release, added at the right place,
+detonated a double free elsewhere because a leak had been masking a second
+owner. Adding or moving a release is a reason to go looking for that second
+owner — with an adversarial review, a differential valgrind run, and the
+question "what else owned this" — and the regression test cannot ask it for you.
