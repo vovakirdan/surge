@@ -152,6 +152,27 @@ func TestExplicitMakeTargetProbeRejectsCatchAllFalseGreen(t *testing.T) {
 	}
 }
 
+// The probe asks "is this target explicitly defined", and it asks by making
+// make dump its database for a goal that does not exist. Those are two different
+// questions and the exit code answers the wrong one: since RV2-DEBT-200 narrowed
+// the catch-all, make REFUSES that dummy goal and exits non-zero after printing
+// everything the probe needs. Treating that as failure broke the live probe on
+// the repository's own Makefile.
+//
+// What must still be an error is a dump that never reached the file section,
+// because then make died before it knew anything - and an empty answer read as
+// "no such target" would be a false negative in a gate built to catch false
+// positives.
+func TestExplicitMakeTargetProbeErrorsWhenMakeCannotAnswer(t *testing.T) {
+	if _, err := exec.LookPath("make"); err != nil {
+		t.Skip("make is unavailable")
+	}
+	missing := filepath.Join(t.TempDir(), "Makefile")
+	if _, err := HasExplicitMakeTarget(missing, "check"); err == nil {
+		t.Fatal("probe returned an answer for a Makefile that does not exist")
+	}
+}
+
 func TestExplicitMakeTargetProbeOnRepositoryMakefile(t *testing.T) {
 	if _, err := exec.LookPath("make"); err != nil {
 		t.Skip("make is unavailable")

@@ -149,14 +149,39 @@ func HasExplicitMakeTarget(makefile, target string) (bool, error) {
 	if !makeTargetPattern.MatchString(target) {
 		return false, fmt.Errorf("invalid make target %q", target)
 	}
+	// Asked before make is, because make answers a MISSING makefile with a
+	// database that looks structurally complete - it prints an empty `# Files`
+	// section and fails on stderr - so the probe would report "no such target"
+	// for every target of a file it never read. A false negative in a gate built
+	// to catch false positives is the worst possible failure here.
+	if _, statErr := os.Stat(makefile); statErr != nil {
+		return false, fmt.Errorf("query make database: %w", statErr)
+	}
 	command := exec.Command("make", "-rRpn", "-f", filepath.Base(makefile), ":") // #nosec G204 -- target is not passed to make
 	command.Dir = filepath.Dir(makefile)
 	command.Env = []string{"LC_ALL=C", "PATH=" + os.Getenv("PATH")}
 	database, err := command.Output()
-	if err != nil {
+	// A NON-ZERO EXIT IS EXPECTED AND IRRELEVANT HERE. `:` is a goal that does
+	// not exist, chosen so make dumps its database without running anything.
+	// While the Makefile had an unconditional catch-all, every goal "succeeded"
+	// and this read as exit 0; narrowing that rule (RV2-DEBT-200) gave make back
+	// the ability to refuse `:` — which is the whole point of the change and
+	// broke this probe, because it was reading the exit code of a question it was
+	// not asking. make prints the database to stdout BEFORE failing on the goal,
+	// so the answer is in `database` either way. What must not be tolerated is an
+	// empty or truncated dump, which means make never got far enough to answer.
+	if err != nil && !makeDatabaseIsComplete(database) {
 		return false, fmt.Errorf("query make database: %w", err)
 	}
 	return makeDatabaseHasTarget(database, target), nil
+}
+
+// makeDatabaseIsComplete reports whether make got far enough to print the file
+// section its answer lives in. It is the difference between "make refused the
+// dummy goal after telling us everything" and "make died before it knew
+// anything", which the exit code alone cannot distinguish.
+func makeDatabaseIsComplete(database []byte) bool {
+	return bytes.Contains(database, []byte("\n# Files\n"))
 }
 
 func makeDatabaseHasTarget(database []byte, target string) bool {

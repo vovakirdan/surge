@@ -7253,3 +7253,53 @@ A hung test still hangs and is still caught, 210 seconds later. The alternative
 was gating the reclamation e2e tests out of `make check`, which would have taken
 valgrind witnesses out of the pre-commit hook to protect a number that asserts
 nothing.
+
+## 2026-08-14 — RV2-DEBT-200 closed: make can say no again
+
+`make` answered 0 to every unknown goal, so a gate that did not exist was
+indistinguishable from a gate that passed. The catch-all pattern rule at the end
+of the Makefile exists so `make run prog.sg` can pass trailing words to the
+program instead of make trying to build each of them; unconditional, it swallowed
+every typo and every absent target too. It is how
+`runtime-v2-carrier-sanitizer-check` stayed "green" in three documents while
+having no target at all.
+
+Defining it only when `run` is the FIRST goal fixes it completely rather than
+heuristically, because `run` is the only goal in the file that reads
+`MAKECMDGOALS`. Everything else gets its errors back.
+
+The comparison that matters is not "unknown targets now fail" but "`make run`
+behaves exactly as before": `make run version` prints the same line with the same
+exit code against both Makefiles, checked side by side rather than asserted.
+
+The pinning test sits next to `documented_make_targets_test.go` deliberately.
+That one asserts a target a document PROMISES exists; this one asserts make can
+still say NO. A promise checker is worth very little if the thing it checks
+against answers yes to everything — which is precisely the state this repository
+was in while both halves looked healthy.
+
+One caveat, unchanged and now written down: make parses a leading `--flag` after
+`run` as one of its own options and prints its help. That predates this row.
+
+### Closing 200 broke the probe that was built to catch 200's class
+
+`HasExplicitMakeTarget` dumps make's database by asking for a goal named `:`
+that deliberately does not exist, and treated a non-zero exit as failure. That
+worked only because the unconditional catch-all made `:` succeed. Narrowing the
+rule — the whole point of the row — made the probe error on the repository's own
+Makefile.
+
+It had been reading the exit code of a question it was not asking. make prints
+the entire database to stdout BEFORE failing on the goal, so the answer was
+always there; the exit code describes the goal, not the query.
+
+Pinning that turned up a second false answer in the same function. A MISSING
+makefile also produces a structurally complete database — an empty `# Files`
+section, with the error only on stderr — so the probe would have answered "no
+such target" for every target of a file it never read. That is a false NEGATIVE
+in a gate built to catch false positives, which is the worse direction. The
+makefile is stat'd before make is asked now.
+
+Worth generalising: a tool that reports "absent" and a tool that reports "I could
+not look" must not share an answer, and an exit code is usually reporting a third
+thing entirely.

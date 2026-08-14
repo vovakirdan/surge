@@ -676,6 +676,18 @@ completion-install-system: completion
 	@echo ">> Installed to /etc/bash_completion.d/surge"
 	@echo ">> Completion will be available after restarting terminal"
 
-# Prevent make from trying to build the command arguments as targets
+# `make run prog.sg --backend llvm` passes its trailing words to the program, and
+# make would otherwise try to BUILD each of them, so they need a rule that does
+# nothing. That rule used to be unconditional, and the cost was total: every
+# unknown goal matched it, so `make this-does-not-exist` exited 0 with no output
+# and a typo in a gate name was indistinguishable from a green gate. It is how
+# `runtime-v2-carrier-sanitizer-check` stayed "passing" in three documents while
+# having no target at all (RV2-DEBT-199, RV2-DEBT-200).
+#
+# Defining it only when `run` is the FIRST goal keeps the argument-swallowing
+# where it was needed and gives every other unknown name back to make, which
+# fails loudly. `run` is the only goal that reads MAKECMDGOALS.
+ifeq ($(firstword $(MAKECMDGOALS)),run)
 %:
 	@:
+endif
