@@ -6980,3 +6980,41 @@ be refused for what else is running. Two earlier `make check` runs in this same
 session reported 89.833s and 83.228s, so the margin has been thin for a while and
 nothing had said so. Worth a row of its own if it recurs; recorded here first
 because a single occurrence with a known cause is not yet a defect.
+
+## 2026-08-14 — RV2-DEBT-218 dated, and the measuring instrument was changing the answer
+
+The row asked to be DATED before being answered, on the reasoning that the shape
+was allowed by 206 three days earlier but the invalid read might be much older.
+It is much older.
+
+**Introduced at `0b677dad`, 2026-07-14** — `feat(compiler): statement-end
+temporaries free their owned values` — a month before the row was filed. Bisected
+over the 397 commits from `2c8e62e5` with a valgrind probe, then the boundary was
+re-tested directly instead of trusted: the parent `9259f22c` answers 55 and is
+clean, `0b677dad` reports the invalid read and segfaults. Both endpoints were
+validated first, including that the program at the "good" end actually RUNS and
+returns 55 rather than merely failing to report an error.
+
+### The correction, which is the part worth carrying
+
+The row says the escaping slice "prints the CORRECT answer 55". It does — **under
+valgrind**, which keeps the freed block mapped and intact so the read succeeds.
+Run bare at `b5199277`, three consecutive runs gave
+`total=-4273895566234763744`, `Segmentation fault` (139), and
+`total=86554757626546400`.
+
+So 218 is not a quiet cousin of 207 and 214, it is the same shape: a
+nondeterministic garbage answer that sometimes crashes.
+
+**That invalidates the stated reason 207 turned registration down.** 207's row
+argued that registering the cursor would only buy "a right answer over a silent
+read of freed storage", citing the slice — the form that IS registered — as
+evidence. The slice does not produce a right answer. The owner's ruling to refuse
+stands and is better supported than the row's reasoning claimed, but the reasoning
+itself was built on an artefact.
+
+**The general lesson: valgrind is not a passive observer of a use-after-free.**
+It changes whether the freed read succeeds. Any claim of the form "it prints the
+right answer AND valgrind reports an invalid read" needs the bare run before it
+is believed — the two halves were measured under different conditions and only
+one of them is how the program actually behaves.
