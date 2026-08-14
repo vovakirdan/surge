@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"surge/internal/buildpipeline"
+	"surge/internal/diag"
 	"surge/internal/sema"
 )
 
@@ -463,4 +464,43 @@ func assertOwnershipGateMissingFourthAxisDiagnostic(t *testing.T, output string)
 	if len(diagnostics) != 1 || !strings.Contains(diagnostics[0], wantError) {
 		t.Fatalf("overlay produced diagnostics beyond the exact missing-axis error: %v\noutput:\n%s", diagnostics, output)
 	}
+}
+
+// compileRuntimeV2SourceForDiagnostics compiles a program that is EXPECTED TO BE
+// REFUSED and returns how many times each diagnostic code fired.
+//
+// It exists because the harness above fatals on a build failure, which is right
+// for every test that needs a binary and useless for the ones whose subject is a
+// refusal. Those tests are not hypothetical: a rule that makes a shape
+// unexpressible retires the run-time witness that used to guard it, and the
+// witness should assert the refusal rather than be deleted.
+//
+// The count matters as much as the presence. A refusal that fires once for a
+// program containing two of the same mistake would leave the second one reaching
+// the machinery the test was written about.
+func compileRuntimeV2SourceForDiagnostics(t *testing.T, source string) map[diag.Code]int {
+	t.Helper()
+	root := repoRoot(t)
+	t.Setenv("SURGE_STDLIB", root)
+	dir := t.TempDir()
+	sourcePath := filepath.Join(dir, "refused.sg")
+	if err := os.WriteFile(sourcePath, []byte(source), 0o600); err != nil {
+		t.Fatalf("write refused source: %v", err)
+	}
+	result, err := buildpipeline.Compile(context.Background(), &buildpipeline.CompileRequest{
+		TargetPath:     sourcePath,
+		BaseDir:        root,
+		MaxDiagnostics: 200,
+	})
+	if err == nil {
+		t.Fatalf("expected the program to be refused, but it compiled")
+	}
+	if result.Diagnose == nil || result.Diagnose.Bag == nil {
+		t.Fatalf("compile failed without diagnostics: %v", err)
+	}
+	counts := make(map[diag.Code]int)
+	for _, d := range result.Diagnose.Bag.Items() {
+		counts[d.Code]++
+	}
+	return counts
 }

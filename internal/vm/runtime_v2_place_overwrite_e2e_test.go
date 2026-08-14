@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"surge/internal/diag"
 )
 
 // Reclamation witness for the overwritten-value obligation at a PLACE.
@@ -112,10 +114,17 @@ func TestRuntimeV2PlaceOverwriteReclamationValgrindZero(t *testing.T) {
 // leak was the only thing keeping the second owner from freeing what the first
 // one would.
 //
-// The residual 192-byte leak this program still has is a DIFFERENT defect and
-// is deliberately not asserted here: the value assigned to the copy is lost —
-// the array never sees it and nothing owns it. It is unchanged from base.
-// The assertion is memory safety: no invalid free, on either spelling.
+// THE PROGRAM BELOW NO LONGER COMPILES, and that is the stronger outcome.
+// RV2-DEBT-212's owner ruling made `for-in` read-only forever, so both
+// spellings are refused by sema as SEM3201 and the invalid free this test was
+// written to catch is unreachable from source rather than merely guarded
+// against. The test therefore asserts the REFUSAL: the guards in
+// recordReassignOldDrop and reinitializeAssignedPlace stay as defence for any
+// future producer of markNonOwningBinding, and the program that would exercise
+// them cannot be written.
+//
+// The residual 192-byte leak this program used to have — the value assigned to
+// the copy was lost, the array never saw it — went with the shape.
 const runtimeV2LoopBindingOverwriteSource = `
 type Item = { name: string, id: int };
 
@@ -146,18 +155,16 @@ fn main() -> int {
 }
 `
 
-func TestRuntimeV2LoopBindingOverwriteIsNotAnInvalidFree(t *testing.T) {
-	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2LoopBindingOverwriteSource, nil)
-	env := envWithStdlib(repoRoot(t))
-	stdout, stderr, exitCode := runBinaryUnderValgrind(t, outputPath, env, 120*time.Second)
-	if hasValgrindMemcheckError(stderr) {
-		t.Fatalf("freeing through a loop binding freed storage the container still owns\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
-	}
-	if exitCode != 0 {
-		t.Fatalf("loop-binding overwrite aborted (program exit=%d)\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
-	}
-	if !strings.Contains(stdout, "loop-binding-witness") {
-		t.Fatalf("loop-binding overwrite missing completion marker; stdout=%q", stdout)
+func TestRuntimeV2LoopBindingOverwriteIsRefused(t *testing.T) {
+	codes := compileRuntimeV2SourceForDiagnostics(t, runtimeV2LoopBindingOverwriteSource)
+	// TWICE: once for the place spelling and once for the whole binding. A rule
+	// that fired on one of the two would leave the other reaching the guards
+	// this test used to exercise at run time.
+	if got := codes[diag.SemaWriteToLoopBinding]; got != 2 {
+		t.Fatalf(
+			"expected both loop-binding stores to be refused as %s, got %d of them; all codes: %v",
+			diag.SemaWriteToLoopBinding.ID(), got, codes,
+		)
 	}
 }
 

@@ -7114,3 +7114,33 @@ four constants against the same numbers. Both halves are needed because a
 mismatch is not a compile error: `rt_alloc`/`rt_free` reconcile the size they are
 TOLD rather than measuring the block, so drift is silent heap-accounting
 corruption.
+
+### A gate I did not run at `b5199277` had been red ever since
+
+`runtime-v2-place-overwrite-check` went red with the REFUSALS commit and nobody
+noticed for two commits, because that commit was validated with `make check`,
+`golden-check` and both behavioural lanes but NOT with the runtime-v2 gate suite.
+`TestRuntimeV2LoopBindingOverwriteIsNotAnInvalidFree` compiles a program that
+assigns to a for-in binding — SEM3201 refuses it now, so the build fails and the
+test fails with it.
+
+That is the THIRD test that pinned RV2-DEBT-211 and had to change meaning; the
+other two were unit tests found by `make check` and converted in the same commit.
+This one was invisible to every gate that commit ran. **The baseline exists to be
+re-run, not merely to be taken:** all 26 targets were enumerated on 2026-08-13
+and I compared against the subset I happened to run.
+
+The same sweep caught a second expectation that legitimately changed:
+`runtime_v2_drop_scope_exit_e2e_test.go`'s "view-order window" asserted five
+frees and now sees six, because the slice call in it materialises a Range that
+is released at the sink. Adapted with the reason written next to the number.
+
+Converting the e2e was worth more than deleting it. `compileRuntimeV2SourceForDiagnostics`
+is new in `runtime_v2_crossing_source_build_test.go` because the existing harness
+fatals on a build failure — right for every test that needs a binary, useless for
+a test whose subject is a refusal. A rule that makes a shape unexpressible
+retires the run-time witness that guarded it, and the witness should assert the
+refusal rather than disappear: the guards in `recordReassignOldDrop` and
+`reinitializeAssignedPlace` still exist, and what changed is that no program can
+reach them. The count is asserted, not just the presence — a refusal firing once
+for a program with two of the same mistake would leave the second one live.

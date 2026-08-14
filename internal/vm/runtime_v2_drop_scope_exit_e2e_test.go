@@ -278,7 +278,11 @@ fn main() -> int {
     if r6 != 0 { return 16; }
     let r7: int = check_frees("reassign-suppressed window", &w6, &w7, 1:uint);
     if r7 != 0 { return 17; }
-    let r8: int = check_frees("view-order window", &w7, &w8, 5:uint);
+    // SIX, not five, since RV2-DEBT-215/216: the slice call above materialises
+    // a Range and moves it into the slice sink, and that range is now released
+    // at the call site. The window gained one free and no alloc, because the
+    // allocation was always there and only the reclamation is new.
+    let r8: int = check_frees("view-order window", &w7, &w8, 6:uint);
     if r8 != 0 { return 18; }
     if deferred_after != deferred_before {
         print("view dropped after its base: deferral counter moved");

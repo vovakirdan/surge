@@ -33,12 +33,12 @@
 ## 🧪 Test files
 
 - **Files:** 501
-- **Lines of code:** 106846
+- **Lines of code:** 106897
 
 ## 📈 Total volume (code + tests)
 
 - **Files:** 1503
-- **Lines of code:** 330720
+- **Lines of code:** 330771
 
 ## 📊 Percentage breakdown
 
