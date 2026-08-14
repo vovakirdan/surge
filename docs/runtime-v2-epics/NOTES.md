@@ -7303,3 +7303,49 @@ makefile is stat'd before make is asked now.
 Worth generalising: a tool that reports "absent" and a tool that reports "I could
 not look" must not share an answer, and an exit code is usually reporting a third
 thing entirely.
+
+## 2026-08-14 — the owner's question found a bigger defect than the one being discussed
+
+Asked to rule on RV2-DEBT-218, the owner asked what a refusal would COST: if an
+escaping slice is refused, can you clone the window and return the copy? Checking
+that answer measured the escaping slice one way it had never been measured — with
+its result BOUND before iterating — and it came back clean.
+
+**RV2-DEBT-218's invalid read was never about the slice.** Its reproducer
+consumed the result as `for it in build_slice()`, and THAT form is broken for an
+ordinary array with no slice anywhere in it:
+
+    fn build() -> int[] { let mut p: int[] = []; p.push(22); p.push(33); return p; }
+    for v in build() { ... }        // segfault
+    let got = build(); for v in got { ... }   // 55, valgrind-clean
+
+Filed as RV2-DEBT-221 and 218 corrected in place. With five elements the loop
+reports the right COUNT and the last three values while the first two come back
+as garbage, so the storage is freed before the loop reads it and the allocator
+has already reused the head of it.
+
+**RV2-DEBT-207 does NOT dissolve the same way, and that contrast is what makes
+the correction safe to act on.** An escaping Range cursor segfaults both bound and
+unbound, so the refusal shipped this morning stands on its own evidence. Had it
+gone the other way I would have shipped a rule against a shape that was never
+broken.
+
+The neighbouring shapes are already decided and only one is wrong:
+`build().__len()` is REFUSED ("cannot take reference to temporary value; bind it
+to a variable first"), `consume(build())` is correct because the callee owns what
+it was handed, and only `for-in` both accepts the temporary and fails to keep it
+alive.
+
+Invisible for the usual reason: `for x in <call>` appears exactly three times in
+the entire corpus, and all three are fixtures written today.
+
+### The lesson, and it is not a new one here
+
+Every measurement of 218 went through a form that is broken independently, and
+the row named the half that was easier to see. **Ask what ANSWERED the question,
+not what asked it**: the reproducer had two candidate causes in it and only one
+was tested by varying it. Varying the OTHER one — bind versus don't bind — took
+two minutes and reversed the conclusion.
+
+It also says something about where these get found. This one surfaced because
+somebody asked what a decision would cost, not because a gate went red.
