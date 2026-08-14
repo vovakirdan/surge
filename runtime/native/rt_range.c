@@ -16,6 +16,17 @@ static SurgeRange* alloc_range(void) {
     return r;
 }
 
+// See rt.h for why the bounds are not released here.
+void rt_range_free(void* handle) {
+    if (handle == NULL) {
+        return;
+    }
+    const SurgeRange* r = (const SurgeRange*)handle;
+    uint64_t size = r->kind == SURGE_RANGE_KIND_ARRAY_ITER ? (uint64_t)sizeof(SurgeRangeArrayIter)
+                                                           : (uint64_t)sizeof(SurgeRange);
+    rt_free((uint8_t*)handle, size, (uint64_t)alignof(SurgeRange));
+}
+
 void* rt_range_int_new(void* start, void* end, bool inclusive) {
     SurgeRange* r = alloc_range();
     if (r == NULL) {

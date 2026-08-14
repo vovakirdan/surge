@@ -89,6 +89,21 @@ func (fe *funcEmitter) emitRangeIterInit(op *mir.Operand, rangeType types.TypeID
 	return iterPtr, "ptr", nil
 }
 
+// emitRangeObjectFree releases ONE Range object.
+//
+// Four callers want exactly this and there used to be one caller and three
+// leaks: the for-loop cursor's envelope release, the drop of a Range VALUE a
+// binding owns, the release of a range moved into a runtime slice sink, and a
+// Range member released by generated drop glue.
+//
+// The sizing and the null guard live in `rt_range_free` rather than here
+// because the glue emitter cannot branch - it writes straight-line calls with
+// no block of its own - and because a helper that four sites call should not be
+// four copies of a select. See rt.h for why the BOUNDS are not released.
+func (fe *funcEmitter) emitRangeObjectFree(handle string) {
+	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_range_free(ptr %s)\n", handle)
+}
+
 // emitRangeObjectSize reads how many bytes a Range object occupies out of its
 // own kind byte. Allocation and release both ask this, because the two shapes
 // are different sizes and the heap accounting in rt_alloc.c counts the size it
@@ -583,16 +598,7 @@ func (fe *funcEmitter) emitInstrEnvelopeRelease(ins *mir.Instr) error {
 	handle := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, ptr)
 	if ins.EnvelopeRelease.Cursor {
-		live := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = icmp ne ptr %s, null\n", live, handle)
-		freeBB := fe.nextInlineBlock()
-		contBB := fe.nextInlineBlock()
-		fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", live, freeBB, contBB)
-		fmt.Fprintf(&fe.emitter.buf, "%s:\n", freeBB)
-		cursorSize := fe.emitRangeObjectSize(handle)
-		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_free(ptr %s, i64 %s, i64 %d)\n", handle, cursorSize, rangeAlign)
-		fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
-		fmt.Fprintf(&fe.emitter.buf, "%s:\n", contBB)
+		fe.emitRangeObjectFree(handle)
 	} else {
 		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_free(ptr %s, i64 %d, i64 %d)\n", handle, size, align)
 	}

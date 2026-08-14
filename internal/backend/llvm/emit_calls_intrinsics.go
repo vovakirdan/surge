@@ -236,6 +236,7 @@ func (fe *funcEmitter) emitIndexGet(call *mir.CallInstr) error {
 			}
 			tmp := fe.nextTemp()
 			fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_string_slice(ptr %s, ptr %s)\n", tmp, strArg, rangeVal)
+			fe.emitRangeObjectFree(rangeVal)
 			ptr, dstTy, dstAlign, placeErr := fe.emitPlaceStorage(call.Dst)
 			if placeErr != nil {
 				return placeErr

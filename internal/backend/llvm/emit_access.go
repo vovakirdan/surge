@@ -127,6 +127,7 @@ func (fe *funcEmitter) emitIndexAccess(idx *mir.IndexAccess) (val, ty string, er
 			}
 			tmp := fe.nextTemp()
 			fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_string_slice(ptr %s, ptr %s)\n", tmp, handlePtr, rangeVal)
+			fe.emitRangeObjectFree(rangeVal)
 			return tmp, "ptr", nil
 		}
 		idxVal, idxTy, err := fe.emitValueOperand(&idx.Index)
@@ -251,6 +252,7 @@ func (fe *funcEmitter) emitArraySlice(handlePtr, rangeVal string, elemType types
 	}
 	tmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_array_slice(ptr %s, ptr %s, i64 %d)\n", tmp, handlePtr, rangeVal, stride)
+	fe.emitRangeObjectFree(rangeVal)
 	return tmp, nil
 }
 
@@ -264,6 +266,7 @@ func (fe *funcEmitter) emitArrayFixedSlice(elemsPtr, rangeVal string, elemType t
 	}
 	tmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_array_slice_fixed(ptr %s, ptr %s, i64 %d, i64 %d)\n", tmp, elemsPtr, rangeVal, length, stride)
+	fe.emitRangeObjectFree(rangeVal)
 	return tmp, nil
 }
 

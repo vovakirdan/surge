@@ -7018,3 +7018,99 @@ It changes whether the freed read succeeds. Any claim of the form "it prints the
 right answer AND valgrind reports an invalid read" needs the bare run before it
 is believed — the two halves were measured under different conditions and only
 one of them is how the program actually behaves.
+
+## 2026-08-14 — RV2-DEBT-215/216 closed, and the mandated experiment answered a different question
+
+### The experiment the owner insisted on, and what it actually found
+
+The ruling was: settle the BIG-bounds question with one valgrind experiment
+BEFORE shipping any bound release, and do NOT ship release-without-bounds on the
+argument that it is already strict zero for fixnum-bounded programs. Run in all
+three parts (let-bound, for-in'd, moved into a slice sink), with bounds at 2^62
+so they fall outside the fixnum inline range:
+
+- the bound boxes are reported **INDIRECTLY lost through the range** — 256 bytes
+  in 16 blocks over eight iterations, on top of the range's own 192. Indirect is
+  valgrind saying the range holds the last pointer to them;
+- the double-release the row feared is NOT the blocker. `let c = r` and a
+  by-value parameter pass produce exactly ONE heap range (24 direct bytes in 1
+  block), so a bound release would fire once;
+- **the blocker is that bound release is not expressible.** A heap bignum int has
+  no exported lifecycle: `bi_free` is a `static inline` in
+  `rt_bignum_internal.h`, undeclared in `rt.h`, and `IsRefCountedScalar` answers
+  true only for `float`. There is nothing `rt_range_free` could legally call.
+
+So the answer is the same shipping decision the owner refused to take on the
+old argument, reached by a different and much stronger one: it is RV2-DEBT-035's
+residual, and 035 says so in its own words. The bound bytes move from
+INDIRECTLY to DEFINITELY lost — the same bytes reclassified, not a new leak.
+
+The experiment also produced a lane fact nothing had recorded: **the VM DOES
+release bounds** (`internal/vm/heap.go:198-209` releases `Range.Start`/`End` for
+a bounds range and `Range.ArrayBase` for a cursor), so this is a lane
+disagreement and not only a leak. The native cursor holds a raw element-data
+pointer it never retained, so there is nothing there for it to release.
+
+### The rows undercounted the shapes, and enumerating KINDS is what found the rest
+
+215 named two shapes and 216 named one. Enumerating kinds of Range consumption —
+literal into a slice, bound range into a slice, bound range for-in'd, cursor
+for-in'd, by-value parameter, string slice in both spellings, fixed-array slice,
+returned range, unused range, struct member — found two more that leaked:
+
+- **a Range held by a STRUCT MEMBER.** `typeOwnsHeapRec` answered "owns no heap"
+  for a struct whose only heap member was a range, so it got no drop glue at all.
+  No drop instruction reaches a member; only generated glue does.
+- **the by-value `Range<T>` parameter is live in the stdlib**, not theoretical:
+  `core/array.sg:78 pub fn from_range(r: Range<T>)`.
+
+The same enumeration turned up a leak that was not a Range at all: a sliced
+STRING's result is never freed, 76 bytes in 4 blocks, pre-existing at
+`92d38194`. Filed as RV2-DEBT-219, and it is the same shape RV2-DEBT-206 closed
+for arrays — a slice MINTS a value and the binding holding it owns it — which
+nobody had looked for in strings.
+
+### The fix went where the rows did not expect, twice
+
+**216's budget trap never had to be paid.** The row warned that `rt_string.c` is
+over the size limit so any added line trips LEGACY_GROWTH, and offered freeing at
+the LLVM call sites *for the string sink only*. Taken for ALL FOUR sites instead
+— there are four, not the three the row named; `emit_calls_intrinsics.go` carries
+a second string-slice site — and it is better everywhere: not one line added to
+`rt_array.c` or `rt_string.c`, the sinks keep reading a `const SurgeRange*`, and
+ownership stays where the decision to move the range was made. It is also what
+the VM does, so the lanes now agree by construction.
+
+**215's `rt_range_free` was written in C after all, and the reason is the glue.**
+The first implementation sized the block in LLVM, reusing `emitRangeObjectSize`'s
+kind-byte select, and it worked for the drop arm and the sinks. It could not
+serve the drop GLUE: the glue emitter writes straight-line calls with no block of
+its own, so it cannot emit a null guard. One C function with the sizing inside it
+serves all four sites and leaves simpler IR everywhere.
+
+That put the cursor's 40-byte layout on the C side for the first time, as
+`SurgeRangeArrayIter` with four `_Static_assert`s against the emitter's
+constants. C already depended on that layout — the slice helpers read `kind`,
+`has_start` and `has_end` out of a cursor — but only Go described it.
+
+### Method notes
+
+- **A move is what makes freeing at a call site safe, and the language says so.**
+  `xs[h.r]` is refused with "taking `h.r` out of `h` empties it, so write
+  `own h.r`", so no caller still owns a range a sink was handed. Verified rather
+  than assumed, and it is the whole safety argument for the 216 design.
+- **The subagent maps raced the edits and their "refutations" were staleness.**
+  Three verifiers reported the tree contradicting the map; two of the three were
+  reading a working tree the lead was editing between the map and the verify.
+  Their genuine findings were the ones about files nobody was touching. A
+  read-only map of a tree under active edit needs a pinned commit, not a branch.
+
+One correction made to this work while writing it down: the first version of the
+`rt.h` comment claimed the `_Static_assert`s "fail loudly if the emitter's
+constants and this struct ever drift apart". They cannot — a C compiler cannot
+see a Go constant, so they catch drift on the C side only. The other side is now
+pinned by `internal/backend/llvm/range_layout_test.go`, holding the emitter's
+four constants against the same numbers. Both halves are needed because a
+mismatch is not a compile error: `rt_alloc`/`rt_free` reconcile the size they are
+TOLD rather than measuring the block, so drift is silent heap-accounting
+corruption.

@@ -245,6 +245,7 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_range_int_from_start", ret: "ptr", params: []string{"ptr", "i1"}},
 		{name: "rt_range_int_to_end", ret: "ptr", params: []string{"ptr", "i1"}},
 		{name: "rt_range_int_full", ret: "ptr", params: []string{"i1"}},
+		{name: "rt_range_free", ret: "void", params: []string{"ptr"}},
 	}
 	decls = append(decls, typedCarrierRuntimeDecls()...)
 	decls = append(decls, checkedArithDecls()...)

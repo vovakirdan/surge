@@ -63,6 +63,13 @@ func (e *Emitter) typeOwnsHeapRec(id types.TypeID, seen map[types.TypeID]struct{
 	if isStringLike(e.types, id) {
 		return true
 	}
+	// A Range is a heap object with no refcount, exactly like the two above, and
+	// it was missing here rather than excluded: a struct whose only heap member
+	// was a Range answered NO, so it got no glue at all and the range leaked
+	// with nothing to notice.
+	if _, isRange := rangeElemType(e.types, id); isRange {
+		return true
+	}
 	// A value composite used to answer YES here whatever its fields held,
 	// because it owned its box and something had to free it — which is why a
 	// struct of plain scalars carried a drop obligation at all. It owns no box
@@ -306,6 +313,10 @@ func (e *Emitter) emitDropHandle(val string, ty types.TypeID) {
 	}
 	if elem, dynamic, isArray := arrayElemType(e.types, ty); isArray && dynamic {
 		e.emitDropDynArray(val, elem)
+		return
+	}
+	if _, isRange := rangeElemType(e.types, ty); isRange {
+		fmt.Fprintf(&e.buf, "  call void @rt_range_free(ptr %s)\n", val)
 	}
 }
 

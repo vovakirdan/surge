@@ -154,6 +154,46 @@ typedef struct SurgeRange {
     uint8_t _pad[4];
 } SurgeRange;
 
+// The array cursor, spelled out on this side because C already depends on it:
+// the slice helpers read `kind`, `has_start` and `has_end` out of a cursor, so
+// the two shapes were already sharing a layout that only the LLVM emitter
+// described. Writing it here lets `rt_range_free` size a cursor with `sizeof`
+// instead of a literal.
+//
+// The assertions below catch drift on THIS side only - a C compiler cannot see
+// a Go constant. The other side is pinned by
+// `internal/backend/llvm/range_layout_test.go`, which holds the emitter's
+// constants against the same numbers. Both halves are needed: a mismatch is not
+// a compile error but a heap-accounting corruption, because rt_alloc and rt_free
+// reconcile the size they are told rather than measuring the block.
+typedef struct SurgeRangeArrayIter {
+    SurgeRange header; // start = element data, end = element stride
+    uint64_t index;
+    uint64_t length;
+} SurgeRangeArrayIter;
+
+_Static_assert(sizeof(SurgeRange) == 24,
+               "SurgeRange must stay 24 bytes: the emitter allocates that");
+_Static_assert(sizeof(SurgeRangeArrayIter) == 40,
+               "the array cursor must stay 40 bytes: the emitter allocates that");
+_Static_assert(offsetof(SurgeRangeArrayIter, index) == 24,
+               "cursor index offset must match the emitter");
+_Static_assert(offsetof(SurgeRangeArrayIter, length) == 32,
+               "cursor length offset must match the emitter");
+
+// Reclaims ONE Range object, of either shape, sizing it off its own kind byte.
+// Null-safe: a released slot is nulled and a second release must not read a
+// kind byte out of nothing.
+//
+// It does NOT release the bounds. `start`/`end` are words that are either
+// fixnum-tagged integers, which own nothing, or heap bignums, which have no
+// exported lifecycle in this runtime at all - `bi_free` is a static inline in
+// rt_bignum_internal.h and only `float` is reference counted. There is nothing
+// this function could legally call, so a bignum-bounded range still leaks its
+// two bound boxes and that belongs to the bignum-lifecycle debt rather than
+// here.
+void rt_range_free(void* handle);
+
 void* rt_string_from_bytes(const uint8_t* ptr, uint64_t len);
 // Drop-emission reclamation: frees one owned string (unconditional; every
 // string value is a single heap allocation).

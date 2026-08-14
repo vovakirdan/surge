@@ -106,7 +106,13 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 	isFarChan := isFarChannelType(typesIn, baseType)
 	elemType, dynamic, isArray := arrayElemType(typesIn, baseType)
 	dynArray := isArray && dynamic
-	if !isRefCounted && !isString && !dynArray && !isFarChan {
+	// A `Range` is a handle to a heap object exactly as the four above are, and
+	// it was missing from this list rather than deliberately excluded: MIR emits
+	// `drop` for `let r = 1..3`, the early return below swallowed it, and every
+	// range a program materialised leaked. The for-loop cursor never did, because
+	// its envelope release frees the same object through the same helper.
+	_, isRange := rangeElemType(typesIn, baseType)
+	if !isRefCounted && !isString && !dynArray && !isFarChan && !isRange {
 		return nil
 	}
 	ptr, ptrTy, align, err := fe.emitPlaceStorage(ins.Drop.Place)
@@ -130,6 +136,8 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_far_channel_handle_drop(ptr %s)\n", handle)
 	case dynArray:
 		fe.emitter.emitDropDynArray(handle, elemType)
+	case isRange:
+		fe.emitRangeObjectFree(handle)
 	}
 	fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s, align %d\n", ptr, align)
 	return nil
