@@ -531,7 +531,7 @@ func (tc *typeChecker) handleAssignment(exprID ast.ExprID, op ast.ExprBinaryOp, 
 			tc.clearAliasedBinding(desc.Base)
 		}
 	} else if desc.Base.IsValid() {
-		tc.reinitializeAssignedPlace(exprID, op, left, right, desc, span)
+		tc.reinitializeAssignedPlace(exprID, left, right, desc, span)
 	}
 
 	// Check if this is a write through a mutable reference binding (*r = value).

@@ -7144,3 +7144,54 @@ refusal rather than disappear: the guards in `recordReassignOldDrop` and
 `reinitializeAssignedPlace` still exist, and what changed is that no program can
 reach them. The count is asserted, not just the presence — a refusal firing once
 for a program with two of the same mistake would leave the second one live.
+
+## 2026-08-14 — RV2-DEBT-210 closed, and the row had the gate in the wrong file
+
+Compound assignment now frees what it displaces, at every target that owns heap.
+
+### What the row got wrong, and why it did not matter to its conclusion
+
+The row said the whole-binding form was gated in sema. It was not: `handleAssignment`'s
+whole-binding branch has no operator test, so `ReassignOldDrops` already held it.
+The suppressing gate was in HIR (`internal/hir/lower_expr.go:347`), and the sema
+gate (`assign_place_reinit.go:41`) covered only the PLACE form. The row's
+conclusion — that removing a gate changes nothing because the lowering never
+consulted the flag — is what made both gates harmless, and it survives the
+correction unchanged.
+
+### The drop's POSITION is the whole fix
+
+Between the binary operation and the store. Not before: the compound form reads
+its target first, and for a string the backend hands the callee the ADDRESS OF
+THE SLOT rather than a loaded handle, so an early drop is a use-after-free the
+runtime performs on itself. `materializeBeforeOverwrite`, which the plain `=`
+needs, buys nothing here — the store's source is a fresh temp and can never be
+the destination, which is the only thing that function prevents.
+
+`u += u` is in the fixture for exactly that reason. It is the compound analogue
+of `x = x`, the program that forced `materializeBeforeOverwrite` onto `=`, and a
+fixture is cheaper than trusting the sentence above.
+
+### The census was short by one shape and long by another
+
+`xs += ys` is a FIFTH path with its own array-concat branch in the backend, and
+it leaked one array header plus its data per operation. It was found by an
+adversarial verifier reading the map, not by the map. And `xs[0] += "x"` does
+not exist: the compiler refuses it with "operator += changes type from &string
+to string", so the element target the row worried about was never reachable.
+
+SEM3201 had already taken two shapes off this row's surface between filing and
+fixing — a compound store to a for-in binding is refused before any bookkeeping.
+
+### The same wall, twice in one day
+
+A compound assignment whose target is a heap bignum `int`/`uint` still leaks, and
+for the same reason a Range cannot release its bounds: `emitInstrDrop` has no arm
+for a big int and the runtime exports no lifecycle for one. Two unrelated fixes
+reached RV2-DEBT-035 from different directions in a single session, which is a
+better argument for taking that row than either would have been alone.
+
+The residual was measured on both sides rather than argued: `b += <2^62>` eight
+times reports `358 allocs, 341 frees, 296 bytes in 17 blocks` IDENTICALLY at
+`92d38194` and after the fix, with no invalid access at all — the three "errors"
+valgrind counts there are the three leak records, not memory faults.

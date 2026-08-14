@@ -90,6 +90,19 @@ func (l *funcLowerer) lowerCompoundAssignExpr(e *hir.Expr, data hir.BinaryOpData
 		},
 	})
 	tmpOp := l.placeOperand(Place{Local: tmp}, resultTy, true)
+	if data.DropOverwritten {
+		// HERE and nowhere else. The compound form READS its target before it
+		// writes it, and for a string the backend hands the callee the ADDRESS
+		// OF THE SLOT rather than a loaded handle - so a drop placed before the
+		// operation above is not an ordering nit, it is a use-after-free the
+		// runtime performs itself. After the operation the old value is dead:
+		// the result is in `tmp`, which no longer names `dst`.
+		//
+		// `materializeBeforeOverwrite` is what the plain `=` needs and this does
+		// not: there the store's source can BE the destination (`x = x`), while
+		// here it is always a fresh temp, so there is nothing left to pin.
+		l.emit(&Instr{Kind: InstrDrop, Drop: DropInstr{Place: dst}})
+	}
 	l.emit(&Instr{
 		Kind: InstrAssign,
 		Assign: AssignInstr{

@@ -344,7 +344,13 @@ func (l *lowerer) lowerBinaryExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Ty
 		Right: right,
 	}
 	if l.semaRes != nil && l.semaRes.ReassignOldDrops != nil {
-		if _, ok := l.semaRes.ReassignOldDrops[exprID]; ok && binData.Op == ast.ExprBinaryAssign {
+		// Sema records the obligation for a COMPOUND assignment too - the
+		// whole-binding branch of handleAssignment has no operator test - and
+		// this used to throw that record away, because at the time
+		// lowerCompoundAssignExpr had nowhere to discharge it. It does now, so
+		// the flag is carried for both spellings and `s += "x"` stops leaking
+		// the string it displaces.
+		if _, ok := l.semaRes.ReassignOldDrops[exprID]; ok {
 			data.DropOverwritten = true
 		}
 	}

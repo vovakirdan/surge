@@ -21,7 +21,6 @@ import (
 // followed by `o.inner = Inner{...}` frees the same storage twice.
 func (tc *typeChecker) reinitializeAssignedPlace(
 	exprID ast.ExprID,
-	op ast.ExprBinaryOp,
 	left, right ast.ExprID,
 	desc placeDescriptor,
 	span source.Span,
@@ -34,13 +33,13 @@ func (tc *typeChecker) reinitializeAssignedPlace(
 	if !target.IsValid() {
 		return
 	}
-	// Only a plain `=`. A compound assignment reaches here too, and its lowering
-	// never consults the overwritten-value drop, so a record made for one would
-	// be an obligation nothing discharges. Whether `s.f += x` leaks the value it
-	// displaces is a separate question with a separate answer.
-	if op == ast.ExprBinaryAssign {
-		tc.recordPlaceOldDrop(exprID, left, right, desc, target)
-	}
+	// A compound assignment reaches here too and is recorded the same way. It
+	// used to be gated out because its lowering never consulted the
+	// overwritten-value drop, so the record would have been an obligation
+	// nothing discharges; `lowerCompoundAssignExpr` discharges it now, between
+	// the binary operation that still READS the old value and the store that
+	// makes it unreachable.
+	tc.recordPlaceOldDrop(exprID, left, right, desc, target)
 	if blockedBy, blockedSpan, revived := tc.revivePlace(target); !revived {
 		tc.reportAssignIntoMovedValue(target, blockedBy, span, blockedSpan)
 	}
