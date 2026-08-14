@@ -513,8 +513,7 @@ func (tc *typeChecker) handleAssignment(exprID ast.ExprID, op ast.ExprBinaryOp, 
 	// drop to record and no place to revive, and expanding it first would
 	// report the referent's borrow conflicting with itself rather than naming
 	// the reference that cannot carry the write.
-	if tc.storesThroughSharedRef(desc) {
-		tc.reportStoreThroughSharedRef(desc, span)
+	if tc.refuseDisallowedStore(desc, span) {
 		return
 	}
 	if desc.Base.IsValid() && len(desc.Segments) == 0 {

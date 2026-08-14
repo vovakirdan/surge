@@ -1,0 +1,21 @@
+// The compare OWNS the value it matched here - `values.pop()` is a temporary -
+// so `inner` is the arm's to release, and `&inner[0]` points into what that
+// release frees. Measured on both sides of RV2-DEBT-205's fix and unchanged by
+// it: the native lane printed a different garbage number each time and exited 0,
+// while the VM printed 8.
+//
+// Lowering was measured and is the wrong kind of answer: pushing a load inside
+// the arm turns the declared `&uint64` into a value and produces invalid LLVM IR.
+@entrypoint
+fn main() -> int {
+    let mut values: uint64[][] = [];
+    let mut row: uint64[] = [];
+    row.push(8:uint64);
+    values.push(row);
+    let zero: uint64 = 0:uint64;
+    let got: &uint64 = compare values.pop() {
+        Some(inner) => &inner[0];
+        _ => &zero;
+    };
+    return (*got) to int;
+}

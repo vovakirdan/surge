@@ -1,0 +1,2 @@
+error SEM3199 testdata/golden/sema/invalid/ownership/range_cursor_escapes_return.sg:16:12 cannot return a range over local 'out': the cursor walks storage this call frame frees
+error SEM3199 testdata/golden/sema/invalid/ownership/range_cursor_escapes_return.sg:23:12 cannot return a range over local 'out': the cursor walks storage this call frame frees

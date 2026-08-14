@@ -27,6 +27,25 @@ func runSemaOnSnippetResult(t *testing.T, src string) (*diag.Bag, *diag.Bag, *Re
 	return parseBag, semaBag, &res
 }
 
+// requireSemaCodeCount asserts that a rule fired exactly as often as the
+// program asks it to, and that nothing ELSE was reported. The count matters as
+// much as the presence: a refusal that fires once for two mistakes is a rule
+// that stops applying after the first one.
+func requireSemaCodeCount(t *testing.T, semaBag *diag.Bag, code diag.Code, want int) {
+	t.Helper()
+	got := 0
+	for _, d := range semaBag.Items() {
+		if d.Code == code {
+			got++
+			continue
+		}
+		t.Fatalf("unexpected diagnostic beside %s: %s", code.ID(), diagnosticsSummary(semaBag))
+	}
+	if got != want {
+		t.Fatalf("%s fired %d times, want %d: %s", code.ID(), got, want, diagnosticsSummary(semaBag))
+	}
+}
+
 func requireNoSemaErrors(t *testing.T, parseBag, semaBag *diag.Bag) {
 	t.Helper()
 	if parseBag.HasErrors() {
@@ -377,8 +396,15 @@ fn f() -> nothing {
 // routes: the whole binding through recordReassignOldDrop (which was ALREADY an
 // invalid free before this guard existed) and the place through
 // recordPlaceOldDrop.
-func TestAssignToLoopBindingRecordsNoOverwrittenValueDrop(t *testing.T) {
-	parseBag, semaBag, res := runSemaOnSnippetResult(t, `
+//
+// THE SHAPE IS NOW REFUSED OUTRIGHT (SEM3201, `for-in` is read-only by owner
+// ruling), which is a stronger statement than "records no drop": no program can
+// reach the obligation at all. The test therefore asserts the refusal — the
+// guards in recordReassignOldDrop and reinitializeAssignedPlace stay as defence
+// for any future producer of markNonOwningBinding, and the recorded-nothing
+// half is still checked below, on the result the refused walk leaves behind.
+func TestAssignToLoopBindingIsRefused(t *testing.T) {
+	_, semaBag, res := runSemaOnSnippetResult(t, `
 type Item = { name: string, id: int };
 
 fn f(xs: Item[], strs: string[]) -> nothing {
@@ -390,7 +416,7 @@ fn f(xs: Item[], strs: string[]) -> nothing {
     }
 }
 `)
-	requireNoSemaErrors(t, parseBag, semaBag)
+	requireSemaCodeCount(t, semaBag, diag.SemaWriteToLoopBinding, 2)
 	if res == nil {
 		t.Fatal("no sema result")
 	}
@@ -403,8 +429,12 @@ fn f(xs: Item[], strs: string[]) -> nothing {
 // when it is given a fresh value, and recordReassignOldDrop CLEARS the alias
 // mark on the way past to say so — but a loop binding never owns, so a second
 // assignment in the same body must still record nothing.
-func TestSecondAssignToLoopBindingStillRecordsNothing(t *testing.T) {
-	parseBag, semaBag, res := runSemaOnSnippetResult(t, `
+//
+// Refusing the shape did not make this redundant, it made it cheap to state:
+// BOTH stores have to be reported. A refusal that fired once and then let the
+// binding become an ordinary owner would be the same bug wearing a diagnostic.
+func TestSecondAssignToLoopBindingIsAlsoRefused(t *testing.T) {
+	_, semaBag, res := runSemaOnSnippetResult(t, `
 fn f(strs: string[]) -> nothing {
     for s in strs {
         s = "first";
@@ -412,7 +442,7 @@ fn f(strs: string[]) -> nothing {
     }
 }
 `)
-	requireNoSemaErrors(t, parseBag, semaBag)
+	requireSemaCodeCount(t, semaBag, diag.SemaWriteToLoopBinding, 2)
 	if res == nil {
 		t.Fatal("no sema result")
 	}

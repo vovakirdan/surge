@@ -1,0 +1,39 @@
+arm_reference_into_borrowed_payload.sg (span: 6:1-22:1)
+├─ Item[0]: Fn (span: 6:1-12:2)
+│  ├─ Name: first_or
+│  ├─ Params: (opt: &Option<uint64[]>, fallback: &uint64)
+│  ├─ Return: uint64
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 6:66-12:2)
+│        ├─ Stmt[0]: Let (span: 7:5-10:7)
+│        │  ├─ Name: got
+│        │  ├─ Mutable: false
+│        │  ├─ Type: &uint64
+│        │  └─ Value: expr#12: compare *opt { 2 arms }
+│        └─ Stmt[1]: Return (span: 11:5-11:17)
+│           └─ Expr: expr#14: *got
+└─ Item[1]: Fn (span: 14:1-21:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 15:18-21:2)
+         ├─ Stmt[0]: Let (span: 16:5-16:32)
+         │  ├─ Name: row
+         │  ├─ Mutable: true
+         │  ├─ Type: uint64[]
+         │  └─ Value: expr#15: <ExprKind(8)>
+         ├─ Stmt[1]: Expr (span: 17:5-17:24)
+         │  └─ Expr: expr#20: row.push(8 to uint64)
+         ├─ Stmt[2]: Let (span: 18:5-18:44)
+         │  ├─ Name: held
+         │  ├─ Mutable: false
+         │  ├─ Type: Option<uint64[]>
+         │  └─ Value: expr#23: Some(row)
+         ├─ Stmt[3]: Let (span: 19:5-19:33)
+         │  ├─ Name: zero
+         │  ├─ Mutable: false
+         │  ├─ Type: uint64
+         │  └─ Value: expr#25: 0 to uint64
+         └─ Stmt[4]: Return (span: 20:5-20:44)
+            └─ Expr: expr#33: (first_or(&held, &zero)) to int

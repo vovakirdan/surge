@@ -1,0 +1,21 @@
+// The half the rule must NOT touch, and the reason it needs its own fixture:
+// the predicate is "this arm frees the payload", not "a reference leaves an
+// arm". When the compare only BORROWS its subject, the payload belongs to an
+// owner that outlives the compare, so a reference into it is legal - and this
+// is the common spelling, not an exotic one.
+fn first_or(opt: &Option<uint64[]>, fallback: &uint64) -> uint64 {
+    let got: &uint64 = compare *opt {
+        Some(inner) => &inner[0];
+        _ => fallback;
+    };
+    return *got;
+}
+
+@entrypoint
+fn main() -> int {
+    let mut row: uint64[] = [];
+    row.push(8:uint64);
+    let held: Option<uint64[]> = Some(row);
+    let zero: uint64 = 0:uint64;
+    return (first_or(&held, &zero)) to int;
+}

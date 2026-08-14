@@ -374,6 +374,46 @@ const (
 	// exit code into an error the author can act on.
 	SemaFixedArrayViewEscapes Code = 3198
 
+	// SemaRangeCursorEscapes rejects letting a `Range` cursor outlive the frame
+	// that owns the array it walks.
+	//
+	// `xs.__range()` yields a cursor over the elements, not a copy of them, so
+	// returning one hands the caller a pointer into storage the callee reclaims
+	// on its way out. Measured: the native lane prints a garbage
+	// arbitrary-precision integer and segfaults, while the VM prints the right
+	// answer. Registering the cursor against the base header was measured too and
+	// does not fix it — the registered form still reads freed storage during
+	// teardown — so the shape is refused rather than lowered.
+	SemaRangeCursorEscapes Code = 3199
+
+	// SemaArmReferenceIntoFreedPayload rejects an arm that answers with a
+	// reference into a payload the arm itself frees.
+	//
+	// When the compare OWNS the value it matched, the payload binding is the
+	// arm's to release, so a reference into it points at freed storage before the
+	// caller ever reads it. Measured: the native lane prints whatever the freed
+	// block now holds and exits 0, while the VM prints the right answer. A
+	// reference into a payload stays legal when the subject is only BORROWED,
+	// because then the owner keeps it alive past the compare.
+	SemaArmReferenceIntoFreedPayload Code = 3200
+
+	// SemaWriteToLoopBinding rejects assigning through a `for-in` binding.
+	//
+	// The binding is a word-wise copy of an element the container still owns, so
+	// the store is lost and whatever it assigned leaks. `for-in` is read-only in
+	// this language by decision, not by omission: the message must not suggest a
+	// write-through form is coming. Mutation goes through `xs[i] = v`.
+	SemaWriteToLoopBinding Code = 3201
+
+	// SemaMutableIterable rejects `&mut` in the ITERABLE position of a `for-in`.
+	//
+	// The language accepts that request for mutability today and then ignores it:
+	// `for h in &mut hs` measures byte-identically to the plain form, write lost
+	// and value leaked. Accepting a request that cannot be honoured is the one
+	// disposition that is definitely wrong. The test is on the `&mut` SYNTAX, so
+	// iterating a `&mut T[]` PARAMETER stays legal.
+	SemaMutableIterable Code = 3202
+
 	// Ошибки I/O
 
 	// IOLoadFileError indicates file load error.
@@ -628,6 +668,10 @@ var ( // todo расширить описания и использовать к
 		SemaPartialMoveNotEnumerable:       "what would remain after this move cannot be named",
 		SemaMoveOutOfSharedBorrow:          "a shared reference only borrows this value, so it cannot be given away",
 		SemaFixedArrayViewEscapes:          "a slice of a fixed array points into this call frame, so it cannot outlive it",
+		SemaRangeCursorEscapes:             "a range cursors an array's elements, so it cannot outlive the frame that owns them",
+		SemaArmReferenceIntoFreedPayload:   "a compare arm cannot answer with a reference into a payload it frees",
+		SemaWriteToLoopBinding:             "a for-in binding is a copy of the element, so writing to it changes nothing",
+		SemaMutableIterable:                "a for-in loop only reads what it iterates, so `&mut` cannot be honoured here",
 		SemaPartialMoveNeedsOwn:            "taking a field out of a live value must be written `own`",
 		SemaPartialMoveFromTemporary:       "cannot take a field out of a value nothing holds",
 		SemaStoreThroughSharedRef:          "cannot write through a shared reference",

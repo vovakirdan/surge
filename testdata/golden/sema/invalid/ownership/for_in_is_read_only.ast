@@ -1,0 +1,74 @@
+for_in_is_read_only.sg (span: 13:1-43:1)
+├─ Item[0]: Type (span: 13:1-13:32)
+│  ├─ Name: Holder
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: name: string
+└─ Item[1]: Fn (span: 15:1-42:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 16:18-42:2)
+         ├─ Stmt[0]: Let (span: 17:5-17:33)
+         │  ├─ Name: strs
+         │  ├─ Mutable: true
+         │  ├─ Type: string[]
+         │  └─ Value: expr#1: <ExprKind(8)>
+         ├─ Stmt[1]: Expr (span: 18:5-18:20)
+         │  └─ Expr: expr#5: strs.push("a")
+         ├─ Stmt[2]: ForIn (span: 19:5-21:6)
+         │  ├─ Pattern: s
+         │  ├─ Iterable: expr#6: strs
+         │  └─ Body:
+Block (span: 19:19-21:6)
+         │     └─ Stmt[0]: Expr (span: 20:9-20:17)
+         │        └─ Expr: expr#9: (s = "b")
+         ├─ Stmt[3]: Let (span: 23:5-23:31)
+         │  ├─ Name: xs
+         │  ├─ Mutable: true
+         │  ├─ Type: Holder[]
+         │  └─ Value: expr#10: <ExprKind(8)>
+         ├─ Stmt[4]: Expr (span: 24:5-24:36)
+         │  └─ Expr: expr#16: xs.push(<ExprKind(22)>)
+         ├─ Stmt[5]: ForIn (span: 25:5-27:6)
+         │  ├─ Pattern: it
+         │  ├─ Iterable: expr#17: xs
+         │  └─ Body:
+Block (span: 25:18-27:6)
+         │     └─ Stmt[0]: Expr (span: 26:9-26:23)
+         │        └─ Expr: expr#21: (it.name = "d")
+         ├─ Stmt[6]: Let (span: 29:5-29:31)
+         │  ├─ Name: hs
+         │  ├─ Mutable: true
+         │  ├─ Type: Holder[]
+         │  └─ Value: expr#22: <ExprKind(8)>
+         ├─ Stmt[7]: Expr (span: 30:5-30:36)
+         │  └─ Expr: expr#28: hs.push(<ExprKind(22)>)
+         ├─ Stmt[8]: ForIn (span: 31:5-36:6)
+         │  ├─ Pattern: h
+         │  ├─ Iterable: expr#30: &mut hs
+         │  └─ Body:
+Block (span: 31:22-36:6)
+         │     ├─ Stmt[0]: Let (span: 32:9-32:32)
+         │     │  ├─ Name: n
+         │     │  ├─ Mutable: false
+         │     │  ├─ Type: <inferred>
+         │     │  └─ Value: expr#34: h.name.__len()
+         │     └─ Stmt[1]: If (span: 33:9-35:10)
+         │        ├─ Cond: expr#37: (n == 0)
+         │        ├─ Then:
+Block (span: 33:19-35:10)
+         │        │  └─ Stmt[0]: Return (span: 34:13-34:22)
+         │        │     └─ Expr: expr#38: 1
+         │        └─ Else: <none>
+         ├─ Stmt[9]: ForIn (span: 38:5-40:6)
+         │  ├─ Pattern: i
+         │  ├─ Iterable: expr#41: (0 .. 10)
+         │  └─ Body:
+Block (span: 38:20-40:6)
+         │     └─ Stmt[0]: Expr (span: 39:9-39:15)
+         │        └─ Expr: expr#44: (i = 5)
+         └─ Stmt[10]: Return (span: 41:5-41:14)
+            └─ Expr: expr#45: 0

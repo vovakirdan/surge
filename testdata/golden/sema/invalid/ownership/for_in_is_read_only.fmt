@@ -1,0 +1,42 @@
+// `for-in` is read-only, by decision rather than by omission, and all four
+// spellings that ask it to write are refused here.
+//
+// The first three were measured leaking one block per iteration with the
+// container unchanged: the loop binding is a word-wise copy the container still
+// owns, so the store is lost and nothing owns what it assigned. `&mut` in the
+// iterable position measured BYTE-IDENTICALLY to the plain form - the language
+// accepts that request for mutability and then ignores it.
+//
+// The Copy case is here on purpose too. `for i in 0..10 { i = 5 }` leaks
+// nothing, but it is the same lie about what the loop binding is, and the
+// refusal is uniform rather than typed on whether the element owns heap.
+type Holder = { name: string };
+
+@entrypoint
+fn main() -> int {
+    let mut strs: string[] = [];
+    strs.push("a");
+    for s in strs {
+        s = "b";
+    }
+
+    let mut xs: Holder[] = [];
+    xs.push(Holder { name = "c" });
+    for it in xs {
+        it.name = "d";
+    }
+
+    let mut hs: Holder[] = [];
+    hs.push(Holder { name = "e" });
+    for h in &mut hs {
+        let n = h.name.__len();
+        if n == 0 {
+            return 1;
+        }
+    }
+
+    for i in 0..10 {
+        i = 5;
+    }
+    return 0;
+}

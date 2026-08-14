@@ -1,0 +1,33 @@
+arm_reference_into_freed_payload.sg (span: 9:1-22:1)
+└─ Item[0]: Fn (span: 9:1-21:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 10:18-21:2)
+         ├─ Stmt[0]: Let (span: 11:5-11:37)
+         │  ├─ Name: values
+         │  ├─ Mutable: true
+         │  ├─ Type: uint64[][]
+         │  └─ Value: expr#1: <ExprKind(8)>
+         ├─ Stmt[1]: Let (span: 12:5-12:32)
+         │  ├─ Name: row
+         │  ├─ Mutable: true
+         │  ├─ Type: uint64[]
+         │  └─ Value: expr#2: <ExprKind(8)>
+         ├─ Stmt[2]: Expr (span: 13:5-13:24)
+         │  └─ Expr: expr#7: row.push(8 to uint64)
+         ├─ Stmt[3]: Expr (span: 14:5-14:22)
+         │  └─ Expr: expr#11: values.push(row)
+         ├─ Stmt[4]: Let (span: 15:5-15:33)
+         │  ├─ Name: zero
+         │  ├─ Mutable: false
+         │  ├─ Type: uint64
+         │  └─ Value: expr#13: 0 to uint64
+         ├─ Stmt[5]: Let (span: 16:5-19:7)
+         │  ├─ Name: got
+         │  ├─ Mutable: false
+         │  ├─ Type: &uint64
+         │  └─ Value: expr#27: compare values.pop() { 2 arms }
+         └─ Stmt[6]: Return (span: 20:5-20:26)
+            └─ Expr: expr#31: (*got) to int

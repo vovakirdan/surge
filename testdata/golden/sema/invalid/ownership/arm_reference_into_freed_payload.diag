@@ -1,0 +1,1 @@
+error SEM3200 testdata/golden/sema/invalid/ownership/arm_reference_into_freed_payload.sg:17:24 cannot answer with a reference into `inner`: this arm frees it when it ends

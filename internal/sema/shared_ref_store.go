@@ -25,6 +25,26 @@ import (
 // and the program keeps running with the wrong answer. Two backends disagreeing
 // about what a program means is the failure this refusal removes.
 
+// refuseDisallowedStore asks whether the language permits this write AT ALL,
+// and reports it when it does not.
+//
+// Both refusals it gathers have to be asked here, before any of handleAssignment's
+// bookkeeping and before the place is expanded through its borrow: a write the
+// language does not allow has no drop to record and no place to revive, and
+// expanding it first reports the referent's borrow conflicting with itself
+// rather than naming what actually cannot carry the write.
+//
+// The two are the same shape asked of two things — a place reached through a
+// shared reference belongs to whoever lent it, and a `for` loop binding is a
+// copy the container still owns.
+func (tc *typeChecker) refuseDisallowedStore(desc placeDescriptor, span source.Span) bool {
+	if tc.storesThroughSharedRef(desc) {
+		tc.reportStoreThroughSharedRef(desc, span)
+		return true
+	}
+	return tc.rejectWriteToLoopBinding(desc, span)
+}
+
 // storesThroughSharedRef reports whether writing to this place would write
 // through a shared reference.
 //

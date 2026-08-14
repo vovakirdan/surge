@@ -1,0 +1,22 @@
+// The shape the `&mut`-iterable refusal must NOT touch, and the reason it is a
+// fixture rather than a comment: the predicate is the `&mut expr` SYNTAX at the
+// loop, not "the iterable has reference type". A parameter the CALLER made
+// mutable is passed by name here, so the loop asks for nothing it cannot have -
+// it still only reads - and refusing it would take a working shape away.
+type Item = { n: int };
+
+fn total(xs: &mut Item[]) -> int {
+    let mut sum: int = 0;
+    for it in xs {
+        sum = sum + it.n;
+    }
+    return sum;
+}
+
+@entrypoint
+fn main() -> int {
+    let mut xs: Item[] = [];
+    xs.push(Item { n = 11 });
+    xs.push(Item { n = 22 });
+    return total(&mut xs);
+}

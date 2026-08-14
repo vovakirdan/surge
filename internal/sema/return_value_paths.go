@@ -81,6 +81,7 @@ func (tc *typeChecker) applyReturnPathChecks(expr ast.ExprID) {
 		}
 		tc.checkBorrowEscapeOnReturn(candidate, candidateType, candidateSpan)
 		tc.checkFixedArrayViewEscapeOnReturn(candidate, candidateSpan)
+		tc.checkRangeCursorEscapeOnReturn(candidate, candidateSpan)
 		tc.checkTaskBorrowEscapeOnReturn(candidate, candidateType, candidateSpan)
 		tc.checkTaskContainerEscape(candidate, candidateType, candidateSpan)
 		tc.trackTaskReturn(candidate)

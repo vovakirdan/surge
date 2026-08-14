@@ -1,0 +1,36 @@
+// `xs.__range()` yields a CURSOR over the elements, not a copy of them, so a
+// range that leaves the frame owning the array points into storage that frame
+// frees on its way out. Measured before this rule existed: the native lane
+// printed a garbage arbitrary-precision integer and then segfaulted, while the
+// VM printed the right answer.
+//
+// Both spellings are here because they reach the rule by different routes: the
+// bare cursor through the expression, the bound one through the binding that
+// carries its provenance.
+type Item = { n: int };
+
+fn bare() -> Range<Item> {
+    let mut out: Item[] = [];
+    out.push(Item { n = 11 });
+    out.push(Item { n = 22 });
+    return out.__range();
+}
+
+fn bound() -> Range<Item> {
+    let mut out: Item[] = [];
+    out.push(Item { n = 33 });
+    let cursor = out.__range();
+    return cursor;
+}
+
+@entrypoint
+fn main() -> int {
+    let mut total: int = 0;
+    for it in bare() {
+        total = total + it.n;
+    }
+    for it in bound() {
+        total = total + it.n;
+    }
+    return total;
+}

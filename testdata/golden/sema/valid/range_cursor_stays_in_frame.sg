@@ -1,0 +1,34 @@
+// The shapes the cursor rule must NOT touch, both MEASURED CLEAN under valgrind
+// before the rule was written.
+//
+// A cursor that stays in the frame owning the array reads storage that is still
+// alive - refusing it would remove iteration itself. A cursor over a REFERENCE
+// PARAMETER may be returned: that array is the caller's and outlives this frame,
+// which is the same exemption the borrow and fixed-view rules already make.
+type Item = { n: int };
+
+fn through_ref(xs: &Item[]) -> Range<Item> {
+    return xs.__range();
+}
+
+fn in_frame() -> int {
+    let mut out: Item[] = [];
+    out.push(Item { n = 11 });
+    out.push(Item { n = 22 });
+    let mut total: int = 0;
+    for it in out.__range() {
+        total = total + it.n;
+    }
+    return total;
+}
+
+@entrypoint
+fn main() -> int {
+    let mut xs: Item[] = [];
+    xs.push(Item { n = 33 });
+    let mut total = in_frame();
+    for it in through_ref(&xs) {
+        total = total + it.n;
+    }
+    return total;
+}

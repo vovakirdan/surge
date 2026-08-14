@@ -1,0 +1,44 @@
+for_in_over_mut_ref_param.sg (span: 6:1-23:1)
+├─ Item[0]: Type (span: 6:1-6:24)
+│  ├─ Name: Item
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: n: int
+├─ Item[1]: Fn (span: 8:1-14:2)
+│  ├─ Name: total
+│  ├─ Params: (xs: &mut Item[])
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 8:34-14:2)
+│        ├─ Stmt[0]: Let (span: 9:5-9:26)
+│        │  ├─ Name: sum
+│        │  ├─ Mutable: true
+│        │  ├─ Type: int
+│        │  └─ Value: expr#1: 0
+│        ├─ Stmt[1]: ForIn (span: 10:5-12:6)
+│        │  ├─ Pattern: it
+│        │  ├─ Iterable: expr#2: xs
+│        │  └─ Body:
+Block (span: 10:18-12:6)
+│        │     └─ Stmt[0]: Expr (span: 11:9-11:26)
+│        │        └─ Expr: expr#8: (sum = ((sum + it.n)))
+│        └─ Stmt[2]: Return (span: 13:5-13:16)
+│           └─ Expr: expr#9: sum
+└─ Item[2]: Fn (span: 16:1-22:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 17:18-22:2)
+         ├─ Stmt[0]: Let (span: 18:5-18:29)
+         │  ├─ Name: xs
+         │  ├─ Mutable: true
+         │  ├─ Type: Item[]
+         │  └─ Value: expr#10: <ExprKind(8)>
+         ├─ Stmt[1]: Expr (span: 19:5-19:30)
+         │  └─ Expr: expr#16: xs.push(<ExprKind(22)>)
+         ├─ Stmt[2]: Expr (span: 20:5-20:30)
+         │  └─ Expr: expr#22: xs.push(<ExprKind(22)>)
+         └─ Stmt[3]: Return (span: 21:5-21:27)
+            └─ Expr: expr#26: total(&mut xs)

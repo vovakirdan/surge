@@ -19,6 +19,8 @@ func (tc *typeChecker) walkForInStmt(id ast.StmtID, stmt *ast.Stmt) {
 	scope := tc.scopeForStmt(id)
 	pushed := tc.pushScope(scope)
 
+	tc.rejectMutableIterable(forIn.Iterable)
+
 	iterableType := tc.typeExpr(forIn.Iterable)
 	var containerPlace Place
 	containerTracked := tc.isTaskContainerType(iterableType)

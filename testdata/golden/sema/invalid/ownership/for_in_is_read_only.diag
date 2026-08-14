@@ -1,0 +1,4 @@
+error SEM3201 testdata/golden/sema/invalid/ownership/for_in_is_read_only.sg:20:9 cannot assign through `s`: a `for` loop binding is read-only
+error SEM3201 testdata/golden/sema/invalid/ownership/for_in_is_read_only.sg:26:9 cannot assign through `it`: a `for` loop binding is read-only
+error SEM3202 testdata/golden/sema/invalid/ownership/for_in_is_read_only.sg:31:14 cannot iterate over `&mut`: `for` loops only read what they iterate
+error SEM3201 testdata/golden/sema/invalid/ownership/for_in_is_read_only.sg:39:9 cannot assign through `i`: a `for` loop binding is read-only

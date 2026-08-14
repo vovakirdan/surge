@@ -64,13 +64,15 @@ func (tc *typeChecker) fixedViewBaseOfExpr(expr ast.ExprID) symbols.SymbolID {
 	return desc.Base
 }
 
-// bindArrayView records both facts a `let` holding a slice establishes: that the
-// binding IS a view, and which array it points into. One call because the two
-// are one event — a binding that is a view without provenance is a binding the
-// escape rule cannot reason about.
+// bindArrayView records what a `let` bound to an array-derived value
+// establishes: that the binding IS a view, which array a fixed view points
+// into, and which array a `__range()` cursor walks. One call because they are
+// one event — a binding that is a view or a cursor without provenance is a
+// binding the escape rules cannot reason about.
 func (tc *typeChecker) bindArrayView(symID symbols.SymbolID, valueExpr ast.ExprID) {
 	tc.markArrayViewBinding(symID, tc.isArrayViewExpr(valueExpr))
 	tc.noteFixedViewBinding(symID, valueExpr)
+	tc.bindRangeCursor(symID, valueExpr)
 }
 
 // noteFixedViewBinding carries provenance from a slice expression to the
@@ -111,17 +113,8 @@ func (tc *typeChecker) checkFixedArrayViewEscapeOnReturn(expr ast.ExprID, span s
 	if sym == nil {
 		return
 	}
-	var storage string
-	switch sym.Kind {
-	case symbols.SymbolLet:
-		storage = "local"
-	case symbols.SymbolParam:
-		if tc.isReferenceType(tc.bindingType(base)) {
-			// The referent is the caller's; the view outlives this frame safely.
-			return
-		}
-		storage = "by-value parameter"
-	default:
+	storage, ok := tc.frameLocalStorageLabel(base)
+	if !ok {
 		return
 	}
 	name := tc.lookupName(sym.Name)

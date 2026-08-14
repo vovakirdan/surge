@@ -124,6 +124,8 @@ type typeChecker struct {
 	arrayViewBindings         map[symbols.SymbolID]struct{}
 	fixedViewExprBase         map[ast.ExprID]symbols.SymbolID       // slice expr -> the FIXED array it points into
 	fixedViewBindingBase      map[symbols.SymbolID]symbols.SymbolID // binding holding such a slice -> same
+	rangeCursorExprBase       map[ast.ExprID]symbols.SymbolID       // __range() call -> the array its cursor walks
+	rangeCursorBindingBase    map[symbols.SymbolID]symbols.SymbolID // binding holding such a cursor -> same
 	assignmentLHSDepth        int
 	// placeBaseDepth counts how deep we are inside the BASE CHAIN of a
 	// projection being read. `o` in `o.label` is not a value read — only the
@@ -297,6 +299,8 @@ func (tc *typeChecker) run() {
 	tc.arrayViewBindings = make(map[symbols.SymbolID]struct{})
 	tc.fixedViewExprBase = make(map[ast.ExprID]symbols.SymbolID)
 	tc.fixedViewBindingBase = make(map[symbols.SymbolID]symbols.SymbolID)
+	tc.rangeCursorExprBase = make(map[ast.ExprID]symbols.SymbolID)
+	tc.rangeCursorBindingBase = make(map[symbols.SymbolID]symbols.SymbolID)
 	tc.movedPlaces = make(map[Place]source.Span)
 	tc.taskContainers = make(map[Place]*taskContainerInfo)
 	tc.directFunctionCrossing = make(map[symbols.SymbolID]struct{})

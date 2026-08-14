@@ -1,0 +1,71 @@
+range_cursor_escapes_return.sg (span: 10:1-37:1)
+├─ Item[0]: Type (span: 10:1-10:24)
+│  ├─ Name: Item
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: n: int
+├─ Item[1]: Fn (span: 12:1-17:2)
+│  ├─ Name: bare
+│  ├─ Params: ()
+│  ├─ Return: Range<Item>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 12:26-17:2)
+│        ├─ Stmt[0]: Let (span: 13:5-13:30)
+│        │  ├─ Name: out
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Item[]
+│        │  └─ Value: expr#1: <ExprKind(8)>
+│        ├─ Stmt[1]: Expr (span: 14:5-14:31)
+│        │  └─ Expr: expr#7: out.push(<ExprKind(22)>)
+│        ├─ Stmt[2]: Expr (span: 15:5-15:31)
+│        │  └─ Expr: expr#13: out.push(<ExprKind(22)>)
+│        └─ Stmt[3]: Return (span: 16:5-16:26)
+│           └─ Expr: expr#16: out.__range()
+├─ Item[2]: Fn (span: 19:1-24:2)
+│  ├─ Name: bound
+│  ├─ Params: ()
+│  ├─ Return: Range<Item>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 19:27-24:2)
+│        ├─ Stmt[0]: Let (span: 20:5-20:30)
+│        │  ├─ Name: out
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Item[]
+│        │  └─ Value: expr#17: <ExprKind(8)>
+│        ├─ Stmt[1]: Expr (span: 21:5-21:31)
+│        │  └─ Expr: expr#23: out.push(<ExprKind(22)>)
+│        ├─ Stmt[2]: Let (span: 22:5-22:32)
+│        │  ├─ Name: cursor
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#26: out.__range()
+│        └─ Stmt[3]: Return (span: 23:5-23:19)
+│           └─ Expr: expr#27: cursor
+└─ Item[3]: Fn (span: 26:1-36:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 27:18-36:2)
+         ├─ Stmt[0]: Let (span: 28:5-28:28)
+         │  ├─ Name: total
+         │  ├─ Mutable: true
+         │  ├─ Type: int
+         │  └─ Value: expr#28: 0
+         ├─ Stmt[1]: ForIn (span: 29:5-31:6)
+         │  ├─ Pattern: it
+         │  ├─ Iterable: expr#30: bare()
+         │  └─ Body:
+Block (span: 29:22-31:6)
+         │     └─ Stmt[0]: Expr (span: 30:9-30:30)
+         │        └─ Expr: expr#36: (total = ((total + it.n)))
+         ├─ Stmt[2]: ForIn (span: 32:5-34:6)
+         │  ├─ Pattern: it
+         │  ├─ Iterable: expr#38: bound()
+         │  └─ Body:
+Block (span: 32:23-34:6)
+         │     └─ Stmt[0]: Expr (span: 33:9-33:30)
+         │        └─ Expr: expr#44: (total = ((total + it.n)))
+         └─ Stmt[3]: Return (span: 35:5-35:18)
+            └─ Expr: expr#45: total

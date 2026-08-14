@@ -175,6 +175,10 @@ func (tc *typeChecker) isAliasedBinding(symID symbols.SymbolID) bool {
 // only the clearable mark would therefore be an owner again after its first
 // assignment, and the second assignment in the same body would free the
 // container's value.
+// markNonOwningBinding has exactly ONE caller, the for-in walker, and SEM3201's
+// headline depends on that: it tells the author their `for` loop binding is
+// read-only. A second producer would make that sentence a lie about a binding
+// no loop introduced, so a new call here needs the diagnostic reworded first.
 func (tc *typeChecker) markNonOwningBinding(symID symbols.SymbolID) {
 	if !symID.IsValid() {
 		return

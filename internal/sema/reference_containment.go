@@ -40,39 +40,16 @@ func (tc *typeChecker) checkBorrowEscapeOnReturn(expr ast.ExprID, ty types.TypeI
 	if tc.borrow == nil || !tc.isReferenceType(ty) {
 		return
 	}
-	inner := tc.unwrapGroupExpr(expr)
-	bid := tc.borrow.ExprBorrow(inner)
-	if bid == NoBorrowID {
-		if symID := tc.symbolForExpr(inner); symID.IsValid() && tc.bindingBorrow != nil {
-			bid = tc.bindingBorrow[symID]
-		}
-	}
-	if bid == NoBorrowID {
-		bid = tc.inheritedBorrowForExpr(inner)
-	}
-	if bid == NoBorrowID {
+	base := tc.loanRootBase(expr)
+	if !base.IsValid() {
 		return
 	}
-	info := tc.borrow.Info(bid)
-	if info == nil || !info.Place.Base.IsValid() {
-		return
-	}
-	sym := tc.symbolFromID(info.Place.Base)
+	sym := tc.symbolFromID(base)
 	if sym == nil {
 		return
 	}
-	var storage string
-	switch sym.Kind {
-	case symbols.SymbolLet:
-		storage = "local"
-	case symbols.SymbolParam:
-		// A reference parameter's target lives in the caller; only an
-		// owned (by-value) parameter dies with this frame.
-		if tc.isReferenceType(tc.bindingType(info.Place.Base)) {
-			return
-		}
-		storage = "by-value parameter"
-	default:
+	storage, ok := tc.frameLocalStorageLabel(base)
+	if !ok {
 		return
 	}
 	name := tc.lookupName(sym.Name)
@@ -227,21 +204,73 @@ func (tc *typeChecker) borrowedFrameLocalBase(argExpr ast.ExprID) symbols.Symbol
 	return symbols.NoSymbolID
 }
 
-// isFrameLocalStorage reports whether the symbol's storage dies with the
-// current call frame: a local binding, or an owned (by-value) parameter.
-func (tc *typeChecker) isFrameLocalStorage(base symbols.SymbolID) bool {
+// loanRootBase walks a reference expression back to the binding its loan roots
+// in, or returns invalid when the table cannot say.
+//
+// The three lookups are one question asked of three tables, in the order that
+// answers most programs first: the borrow the expression itself minted, the one
+// a reference BINDING carries, and the one inherited from a call result. Every
+// rule that asks "where does this reference actually point" wants all three, so
+// the walk lives here rather than being copied per rule.
+func (tc *typeChecker) loanRootBase(expr ast.ExprID) symbols.SymbolID {
+	if tc.borrow == nil {
+		return symbols.NoSymbolID
+	}
+	inner := tc.unwrapGroupExpr(expr)
+	bid := tc.borrow.ExprBorrow(inner)
+	if bid == NoBorrowID {
+		if symID := tc.symbolForExpr(inner); symID.IsValid() && tc.bindingBorrow != nil {
+			bid = tc.bindingBorrow[symID]
+		}
+	}
+	if bid == NoBorrowID {
+		bid = tc.inheritedBorrowForExpr(inner)
+	}
+	if bid == NoBorrowID {
+		return symbols.NoSymbolID
+	}
+	info := tc.borrow.Info(bid)
+	if info == nil || !info.Place.Base.IsValid() {
+		return symbols.NoSymbolID
+	}
+	return info.Place.Base
+}
+
+// frameLocalStorageLabel answers the one question every escape rule in this
+// package asks — does this symbol's storage die when the function returns — and
+// names the storage in the words the diagnostics use.
+//
+// The answer is the same whatever is escaping: a reference, a slice of a fixed
+// array, or a cursor over one. Each of those refusals is the same rule read
+// through a different representation, so the question is asked in one place and
+// the representation-specific part stays in the caller.
+//
+// A REFERENCE parameter is the case worth stating: its target lives in the
+// caller and outlives this frame, so `fn f(xs: &int[4]) -> int[] { xs[[1..3]] }`
+// is correct today and must stay allowed.
+func (tc *typeChecker) frameLocalStorageLabel(base symbols.SymbolID) (string, bool) {
 	sym := tc.symbolFromID(base)
 	if sym == nil {
-		return false
+		return "", false
 	}
 	switch sym.Kind {
 	case symbols.SymbolLet:
-		return true
+		return "local", true
 	case symbols.SymbolParam:
-		return !tc.isReferenceType(tc.bindingType(base))
+		if tc.isReferenceType(tc.bindingType(base)) {
+			return "", false
+		}
+		return "by-value parameter", true
 	default:
-		return false
+		return "", false
 	}
+}
+
+// isFrameLocalStorage reports whether the symbol's storage dies with the
+// current call frame: a local binding, or an owned (by-value) parameter.
+func (tc *typeChecker) isFrameLocalStorage(base symbols.SymbolID) bool {
+	_, ok := tc.frameLocalStorageLabel(base)
+	return ok
 }
 
 func (tc *typeChecker) reportRefInAggregate(label, elemLabel string, span source.Span, container string) {

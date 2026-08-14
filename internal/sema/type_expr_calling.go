@@ -163,6 +163,9 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 			if !receiverIsType {
 				tc.checkArrayViewResizeMethod(member.Target, methodName, receiverType, span)
 				tc.markArrayViewMethodCall(id, methodName, receiverType, argTypes)
+				if methodName == "__range" {
+					tc.recordRangeCursorProvenance(id, member.Target, receiverType)
+				}
 			}
 			return resultType
 		}

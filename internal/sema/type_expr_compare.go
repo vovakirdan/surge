@@ -121,14 +121,13 @@ func (tc *typeChecker) registerComparePayloadDroppables(
 	subjectBorrowed bool,
 	tupleElementsBorrowed bool,
 ) {
-	if tupleElementsBorrowed {
-		return
-	}
 	for _, symID := range bindings {
-		if subjectBorrowed && !tc.payloadTakesItsOwnReference(symID) {
-			continue
+		// The decision is armFreesPayloadBinding's rather than this loop's,
+		// because a second rule asks the same question of a REFERENCE out of
+		// the arm and the two must not drift apart.
+		if tc.armFreesPayloadBinding(symID, subjectBorrowed, tupleElementsBorrowed) {
+			tc.registerDroppableBinding(symID)
 		}
-		tc.registerDroppableBinding(symID)
 	}
 }
 

@@ -68,11 +68,8 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		// the result moved out is already recorded when the obligations are read.
 		tc.pushDropScope(false)
 		tc.inferComparePatternTypes(arm.Pattern, armSubject, &armBindings)
-		tc.registerComparePayloadDroppables(
-			armBindings,
-			subjectBorrowed,
-			tc.compareTupleElementsAreBorrowed(cmp.Value, arm.Pattern, armSubject),
-		)
+		tupleElementsBorrowed := tc.compareTupleElementsAreBorrowed(cmp.Value, arm.Pattern, armSubject)
+		tc.registerComparePayloadDroppables(armBindings, subjectBorrowed, tupleElementsBorrowed)
 		if arm.Guard.IsValid() {
 			// A guard runs BEFORE this arm commits (payload extraction
 			// already ran, but a failed guard falls through to the next
@@ -95,6 +92,12 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		if subjectBorrowed {
 			tc.rejectArmHandingOutBorrowedPayload(arm.Result, armBindings, armResult)
 		}
+		// The same question asked of a REFERENCE rather than of the payload
+		// itself, and it is the OWNED case that is wrong: a reference into a
+		// payload this arm releases dangles, while one into a payload the owner
+		// keeps is legal. See rejectArmReferenceIntoFreedPayload.
+		tc.rejectArmReferenceIntoFreedPayload(
+			arm.Result, armBindings, armResult, subjectBorrowed, tupleElementsBorrowed)
 		// Asked BEFORE consuming, because consuming is what erases the evidence:
 		// an arm that FORWARDS a place was never a temp candidate, and one such
 		// arm is enough to leave the compare's value someone else's to release.
