@@ -5,6 +5,7 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/fix"
 	"surge/internal/source"
 )
 
@@ -97,5 +98,17 @@ func (tc *typeChecker) rejectMutableIterable(iterable ast.ExprID) {
 		"the loop binding is a copy of each element whatever the iterable is, so this `&mut` is accepted and then ignored - the write lands in the copy")
 	b.WithNote(span,
 		"hint: drop the `&mut` to iterate, and write to the container itself - `xs[i] = v` - where you need to change an element")
+	// The only one of these refusals with a real single-span edit behind it, so
+	// it is the only one that offers a fix. Deleting the `&mut` leaves a loop
+	// that compiles and behaves identically - measured byte-identically, which
+	// is the whole argument for refusing the spelling - while the other three
+	// refusals need a result type, a signature or a restructured loop to change
+	// with them.
+	operandSpan := tc.exprSpan(unary.Operand)
+	if operandSpan.File == span.File && operandSpan.Start > span.Start {
+		b.WithFixSuggestion(fix.DeleteSpans(
+			"drop the `&mut`: the loop reads either way",
+			[]source.Span{{File: span.File, Start: span.Start, End: operandSpan.Start}}))
+	}
 	b.Emit()
 }

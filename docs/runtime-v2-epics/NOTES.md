@@ -6853,3 +6853,130 @@ caveat recorded in the row: taken retroactively 184 commits in, green by
 construction, never shown able to fail. Separately `sentrux check` is RED on both
 ENFORCED runtime scopes (`min_redundancy` 0.2408 and 0.2409 against 0.2450) and
 no row had said so.
+
+## 2026-08-14 — the three ruled refusals shipped: 207, 212, 214
+
+All three rulings from 2026-08-13 are implemented at `b5199277`, and they turned
+out to be ONE rule about storage read through three representations, exactly as
+the owner's "reuse the predicate" instruction implied.
+
+### The reuse was real, and it shrank two files that were over the limit
+
+`frameLocalStorageLabel` answers "does this symbol's storage die when the
+function returns" once, in the words the diagnostics print. Two rules had a
+byte-identical `switch sym.Kind` and a third, `isFrameLocalStorage`, spelled the
+same thing without the label. `loanRootBase` is the second extraction: the
+three-table walk from a reference back to the binding its loan roots in.
+
+`refuseDisallowedStore` is the third. The `for-in` refusal wanted to sit exactly
+where `storesThroughSharedRef` already sat — before any bookkeeping, before the
+place is expanded through its borrow — so instead of a second `if` in a legacy
+file, the two became one question: does the language permit this store at all.
+
+That mattered mechanically, not only aesthetically. `borrow_runtime_ops.go`
+(587 effective) and `type_expr_compare.go` (662) are both over the 500 limit, so
+ANY effective-line growth trips `LEGACY_GROWTH`. Both ended SMALLER — 586 and
+658 — because each rule's own code went into its own new file and only the call
+remained. Worth internalising: in this repo, a legacy file is a reason to
+extract rather than a reason to negotiate the gate.
+
+### The accepting fixture is the one that decides a predicate is right
+
+Each of the three refusals ships with a pair, and in every case the valid half
+was the hard one:
+
+- a `Range` cursor over a `&Item[]` REFERENCE PARAMETER, returned, is correct
+  and must stay legal — it falls out of `frameLocalStorageLabel` rather than
+  being special-cased;
+- `&inner[0]` over a BORROWED scrutinee is legal and common, so the SEM3200
+  predicate is `armFreesPayloadBinding` and NOT "a reference left an arm";
+- `fn total(xs: &mut Item[]) { for it in xs { ... } }` compiles today, so
+  SEM3202 tests the `&mut` SYNTAX in the iterable position and not the type.
+
+All three valid fixtures RUN and agree on both lanes (66, 8, 33) rather than
+merely reporting nothing — the vacuous-acceptance trap this project has already
+paid for once.
+
+### Negative controls, and what they sharpened
+
+All three invalid fixtures were compiled at `92d38194` in a `git archive` tree
+and reported NOTHING, so all three go red on revert. Running them there also
+re-derived the defects independently: 207's VM returns 66 while the native lane
+fails outright, and 214 on the native lane returned **22, 45, 97, 38 across four
+runs** against 8 every time on the VM. The row had two samples and read as "a
+wrong answer"; four make it what it is, a nondeterministic read of freed storage.
+
+### The commit could not be split, and the reason is worth keeping
+
+The plan called for one commit per rule. The pre-commit hook runs `make check` on
+the WORKING TREE, and the linter fails on an unused function, so a tree holding
+rule N's helper without rule N's call site cannot be committed at all. Splitting
+by file was impossible anyway: `internal/diag/codes.go` is the single registry by
+owner ruling, so all four codes live in one file and one hunk-split would be
+needed per commit. The refactor's behaviour-neutrality is therefore evidenced by
+measurement rather than by isolation — `make behaviour-check-all` green on both
+lanes at exactly that tree, plus `golden-check` finding no corpus diff — and the
+commit message carries the structure the commits would have.
+
+### Two tests changed meaning rather than being deleted
+
+`TestAssignToLoopBinding*` pinned RV2-DEBT-211 by asserting that assigning to a
+loop binding records no drop. The shape is now refused, so the assertion became
+unreachable. They assert the refusal instead, and they assert it TWICE per
+program: a rule that fires once and then lets the binding become an ordinary
+owner would be the same bug wearing a diagnostic.
+
+### Gate results at `b5199277`
+
+Green: `make check` (the pre-commit hook, so this was mandatory), `golden-check`,
+`runtime-v2-file-size-check EPIC_BASE=f2641713` at 69 files and 0 violations,
+`behaviour-check-all` at 702s on BOTH lanes, and `behaviour-check-mt` at 242s.
+The two behavioural lanes and MT were run because these three changes are
+REFUSALS, which can only break programs that compile today; the file-size gate
+was run after committing, because it reads committed blobs and passes for the
+wrong reason before.
+
+The full 26-target baseline was NOT re-run and did not need to be: it was taken
+at `1d4d6813` on 2026-08-13, and `git diff --name-only 1d4d6813..92d38194`
+returns three files - two documents and `.sentrux/baseline.json` - with ZERO
+`.go`/`.c`/`.h` among them, so the baseline carries forward verbatim. Recording
+the reasoning rather than the conclusion: a baseline is reusable exactly as far
+as the diff that separates it from HEAD.
+
+`TestLLVMParity/random_pcg32` fails at HEAD and fails IDENTICALLY at `92d38194`
+in a `git archive` tree - a bignum/division disagreement in
+`stdlib/random/random.sg` reached through `wrap_u64_shift_left`. It is part of
+the pre-existing `internal/vm` red set that `213` parks, and `make check` cannot
+see it because `SURGE_SKIP_TIMEOUT_TESTS=1` skips it.
+
+### The one quick fix, and why only one
+
+RV2-DEBT-212's `&mut` half is the only one of these four refusals where the
+author has a single-span edit available: deleting `&mut` leaves a loop that
+compiles and behaves identically, which is the very argument for refusing the
+spelling. SEM3202 therefore ships a `surge fix`. The other three need a result
+type, a signature, or a restructured loop to change with them, so they offer
+notes and a hint instead - the same disposition SEM3198 already took.
+
+No golden fixture captures fixes: the corpus records `.diag`, so a fix that
+stopped being offered would not move a single byte. It is pinned by a unit test
+instead, which asserts the edit DELETES and covers exactly the five bytes of
+`&mut ` - and it was shown failing with the suggestion removed.
+
+### `make check` failed once here for a reason no commit could fix
+
+The docs commit's pre-commit hook failed with `internal/vm` timing out at
+90.012s against the target's 90s package budget - `TestVMEntrypointStdinInt` was
+merely the test holding the clock when the alarm went off, not the cause.
+
+Measured rather than assumed: the package runs in **78.99s at HEAD and 78.58s at
+`92d38194`**, so the six fixtures added here cost 0.4s and the budget has about
+eleven seconds of headroom on a quiet machine. The failing run happened while the
+MT lane's tail and a second build tree were still on the CPU.
+
+This makes the PRE-COMMIT HOOK load-sensitive, which is a sharper statement than
+the one `213` already records about `runtime-v2-http-owner-check`: a commit can
+be refused for what else is running. Two earlier `make check` runs in this same
+session reported 89.833s and 83.228s, so the margin has been thin for a while and
+nothing had said so. Worth a row of its own if it recurs; recorded here first
+because a single occurrence with a known cause is not yet a defect.
