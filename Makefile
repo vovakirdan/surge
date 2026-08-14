@@ -80,9 +80,17 @@ sec:
 	$(GOSEC) ./...
 
 # ===== Test =====
+# The per-package timeout is a HANG DETECTOR, not a budget: it exists so a test
+# that never returns cannot block the pre-commit hook forever, and it measures
+# nothing about the code. It was 90s while `internal/vm` legitimately takes ~80s,
+# which left about ten seconds of headroom and made the hook fail whenever
+# anything else was running on the machine - three times on 2026-08-14 alone, at
+# 90.012s each, on commits that had nothing to do with it. Raising it does not
+# weaken an assertion; a hung test still hangs and is still caught, 210 seconds
+# later. See RV2-DEBT-220 for the measurements.
 test:
 	@echo ">> Running tests"
-	SURGE_SKIP_TIMEOUT_TESTS=$(SURGE_SKIP_TIMEOUT_TESTS) $(GO) test ./... --timeout 90s
+	SURGE_SKIP_TIMEOUT_TESTS=$(SURGE_SKIP_TIMEOUT_TESTS) $(GO) test ./... --timeout 300s
 
 .PHONY: runtime-v2-file-size-check
 runtime-v2-file-size-check:

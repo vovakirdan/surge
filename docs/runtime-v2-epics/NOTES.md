@@ -7195,3 +7195,61 @@ The residual was measured on both sides rather than argued: `b += <2^62>` eight
 times reports `358 allocs, 341 frees, 296 bytes in 17 blocks` IDENTICALLY at
 `92d38194` and after the fix, with no invalid access at all — the three "errors"
 valgrind counts there are the three leak records, not memory faults.
+
+## 2026-08-14 — RV2-DEBT-219 closed on the day it was filed, and 206's asymmetry did not hold
+
+The string-slice result leak is the same defect RV2-DEBT-206 closed for arrays,
+in the same predicate, and it had never been looked for in strings:
+`projectionReadAliasesItsSource` knew that an ARRAY slice mints a value, so a
+string slice fell through to "the container still owns it".
+
+**Copying 206's fix shape would have left half of it live.** For an array, the
+two sites that ask this question DISAGREED - `temp_drops.go` said a slice mints,
+sema said it aliases - so only the bound form leaked and the temporary form was
+already correct. For a STRING both sites asked the same `isArrayViewExpr` and
+both were wrong, so `s[[3..5]].__len()` leaked as well. The asymmetry was a fact
+about one defect, not a property of the machinery.
+
+`mintsOwnedValue` now answers for both sites, which is what stops that class of
+disagreement rather than fixing this instance of it. `isStringSliceExpr` factors
+out a shape test `observeMove` already carried inline.
+
+### Attribution beat aggregation
+
+The first measurement put three forms in one program and reported 8 leaked
+blocks for 12 slice operations. That number alone says "something leaks"; what
+made it actionable was that 8 of 12 is TWO of the three forms, which named the
+callee-owned temporary as already-correct (its parameter owns the value) and
+sent the fix to the other two. A single-form program would have been green or
+red without saying which site to touch.
+
+### The census is about double frees, not leaks
+
+Nine kinds, and the ones that earn their place are the ones that could free
+TWICE now that the binding owns something: bound-then-moved, bound-then-borrowed,
+slice of a slice, returned from a function that borrowed its source, and
+reassigned over. A leak shows up in the numbers; a double free shows up as a
+memcheck error, which the gate checks first. An element read is in there for the
+opposite reason - it mints nothing, and a drop recorded for it would free a
+character the string still owns.
+
+### The pre-commit hook was failing on load, and it was not the commits' fault
+
+`make check` died three times on 2026-08-14 at exactly `90.012s`, on three
+unrelated commits, always while something else was running on the machine. The
+test named in each panic was whichever one held the clock when the alarm went
+off — `TestVMEntrypointStdinInt` once, `TestVMCallDefaultUintCast` another time —
+which reads like a flaky test and is not one.
+
+Measured rather than assumed: `internal/vm` runs in **79.97s at HEAD and 79.33s
+at `92d38194`**, so the three reclamation e2e tests added today cost 0.6s
+together. They run alongside the rest of the package, not after it. The budget
+was already ten seconds from the edge before any of this work.
+
+Raised to 300s, filed as RV2-DEBT-220, and the distinction is worth stating
+because this repository is otherwise strict about not moving numbers to make red
+go green: **that timeout measures nothing about the code.** It is a hang detector.
+A hung test still hangs and is still caught, 210 seconds later. The alternative
+was gating the reclamation e2e tests out of `make check`, which would have taken
+valgrind witnesses out of the pre-commit hook to protect a number that asserts
+nothing.

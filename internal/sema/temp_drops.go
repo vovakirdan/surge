@@ -338,9 +338,12 @@ func (tc *typeChecker) noteTempCandidate(exprID ast.ExprID, kind ast.ExprKind, t
 			_, producer = tc.result.MagicUnarySymbols[exprID]
 		}
 	case ast.ExprIndex:
-		// Only slice expressions MINT a value (an owned view header);
-		// element reads stay owned by the array.
-		producer = tc.isArrayViewExpr(exprID)
+		// Only slice expressions MINT a value - an owned view header for an
+		// array, a whole new string for a string - while element reads stay
+		// owned by the container. See mintsOwnedValue: the bound form asks the
+		// same question one predicate away, and the two answering differently
+		// is what leaked an array view header and then a sliced string.
+		producer = tc.mintsOwnedValue(exprID)
 	}
 	if !producer {
 		return

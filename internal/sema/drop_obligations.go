@@ -245,7 +245,12 @@ func (tc *typeChecker) projectionReadAliasesItsSource(expr ast.ExprID, ty types.
 	// view to `array_free_header` - the header alone - while
 	// `array_free_base_storage`, the only site that frees `data` and runs the
 	// per-element drops, is unreachable for it.
-	if tc.isArrayViewExpr(expr) {
+	// A STRING slice mints too, and for the plainer reason: `rt_string_slice`
+	// builds a whole new string with `rt_string_from_bytes` rather than pointing
+	// into the source. Nothing owned it - `let t = s[[1..3]]` leaked 76 bytes in
+	// 4 blocks over four slices, on both lanes - because this predicate only
+	// knew about the array kind. See mintsOwnedValue.
+	if tc.mintsOwnedValue(expr) {
 		return false
 	}
 	if tc.types != nil && tc.types.IsRefCountedScalar(tc.resolveAlias(ty)) {
