@@ -7405,3 +7405,22 @@ The hoist fires only for an owned temporary, and the corpus contains none — th
 same census that said `for x in <call>` appears three times in the tree and all
 three are fixtures written today. Narrow by construction, and the e2e test is
 the only thing covering the new path.
+
+### And closing 221 closed 218 outright
+
+RV2-DEBT-218 had no defect of its own. Every symptom it recorded — the invalid
+read, the segfault, the garbage answer — belonged to the for-in temporary, and
+fixing that fixed this. Re-measured on the row's own shape and on a wider census
+(both consumption forms, int elements, struct elements carrying heap strings, and
+a slice of a slice): 194 allocs, 194 frees, zero memcheck errors, the same answer
+on three consecutive bare runs.
+
+**No language capability had to be removed.** The decision the row was holding —
+refuse an escaping dynamic-array view, as one predicate with RV2-DEBT-207 — is
+moot: returning a view over a locally built dynamic array stays legal and is now
+actually safe. Had the ruling been taken when it was asked for, a working shape
+would have been refused forever on the evidence of a different bug.
+
+That is the whole argument for [[rederiving-means-varying-one-condition]] in one
+sentence, and it is worth noticing that the thing which prevented it was not a
+gate, a review or a test. It was the owner asking what the decision would cost.
