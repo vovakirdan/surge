@@ -7424,3 +7424,23 @@ would have been refused forever on the evidence of a different bug.
 That is the whole argument for [[rederiving-means-varying-one-condition]] in one
 sentence, and it is worth noticing that the thing which prevented it was not a
 gate, a review or a test. It was the owner asking what the decision would cost.
+
+### The array-copy gap, filed and parked
+
+Found while checking what a refusal of RV2-DEBT-218 would have cost the author:
+an array whose element type is neither `@copy` nor `__clone`-bearing cannot be
+copied at all. `.__clone()` and `clone()` both refuse it, and the manual route
+refuses one level down — `push` takes ownership, an element read is a borrow.
+`Array::extend` has the same floor, since its body is `self.push(clone(other[i]))`.
+
+Filed as RV2-DEBT-222 and parked by the owner the same day: it is long design
+work about `__clone` on generic containers.
+
+It blocks nothing in the epic, and that was checked rather than assumed. Wave D
+steps D1–D8 migrate storage OWNERS — element buffers, map entries, channel
+mailboxes, task results, select staging, async frames — and none of them copies
+an array. The whole corpus contains two `.extend` calls, both in golden fixtures
+with copyable elements. It limits what an author can write, not what the epic can
+finish, and closing 218 removed the urgency it was found under: returning a view
+over a locally built dynamic array is legal and safe, so copying is no longer the
+only way out.
