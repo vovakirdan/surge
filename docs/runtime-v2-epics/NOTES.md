@@ -7349,3 +7349,59 @@ two minutes and reversed the conclusion.
 
 It also says something about where these get found. This one surfaced because
 somebody asked what a decision would cost, not because a gate went red.
+
+## 2026-08-14 — RV2-DEBT-221 closed: a for-in now keeps its iterable alive
+
+The suspect named when the row was filed was right about the file and wrong
+about the mechanism. It is not a per-iteration flush. `normalizeIterFor` turns
+`for v in <expr>` into `let __iter = iter_init(<expr>)` followed by a `while`,
+and the statement-end machinery frees the iterable at the end of THAT LET — one
+statement before the loop that reads through the cursor it just made. MIR said it
+in three lines of the entry block:
+
+    L2 = call build()
+    L4 = iter_init copy L3
+    drop L3
+
+### The fix is the spelling that already worked
+
+Binding the value first is what an author writes by hand when the direct form
+misbehaves, and it is what measures clean. So the normalization does it:
+
+    let __src  = build()
+    let __iter = iter_init(__src)
+    while true { ... }
+    release_cursor __iter
+    drop __src
+
+That puts the iterable's release exactly where the CURSOR's release already was
+— after the loop, and before every return that escapes it — so the change reuses
+`injectIterCursorReleaseBeforeReturns` instead of inventing a second placement.
+The cursor is released first, because it points into the value; freeing storage
+before the thing pointing at it is the very ordering error being fixed.
+
+Only an unconditional whole-value temporary is hoisted. A residual plan (fields
+already taken out of it) or a guarded one (a choice expression owning on some
+paths and forwarding a place on others) describes a release a plain drop would
+get wrong, and a wrong free is worse than the leak that not hoisting leaves —
+the direction `iterCursorReleaseIsSafe` next door already errs in.
+
+### What the census was for
+
+Nine kinds of iterable, and the entry that earns its place is a PLAIN BINDING
+iterated TWICE. The fix binds the iterable to a synthetic name and drops it, so
+the question it must answer is not "does the defect go away" but "does it now
+free something the program still owns". If the loop ever took ownership of `xs`,
+the second pass would read freed storage.
+
+Before: 11 memcheck errors in 4 contexts, and either a segfault or the answer
+`11299214484580899258`. After: `143`, 50 allocs and 50 frees, zero errors. The
+allocation counts are identical on both sides, which is what says this was never
+a leak and always a use-after-free.
+
+### Regenerating the whole golden corpus moved zero fixtures
+
+The hoist fires only for an owned temporary, and the corpus contains none — the
+same census that said `for x in <call>` appears three times in the tree and all
+three are fixtures written today. Narrow by construction, and the e2e test is
+the only thing covering the new path.

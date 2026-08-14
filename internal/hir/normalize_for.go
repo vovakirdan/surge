@@ -319,6 +319,7 @@ func normalizeIterFor(ctx *normCtx, span source.Span, data ForData) ([]Stmt, err
 	iterTy := iterRangeType(ctx, elemTy)
 	nextTy := iterNextType(ctx, elemTy)
 
+	hoist, iterableRef := hoistIterableTemporary(ctx, data.Iterable, span)
 	iterSym, iterName := ctx.newTemp("iter")
 	iterLet := Stmt{
 		Kind: StmtLet,
@@ -327,7 +328,7 @@ func normalizeIterFor(ctx *normCtx, span source.Span, data ForData) ([]Stmt, err
 			Name:      iterName,
 			SymbolID:  iterSym,
 			Type:      iterTy,
-			Value:     &Expr{Kind: ExprIterInit, Type: iterTy, Span: span, Data: IterInitData{Iterable: data.Iterable}},
+			Value:     &Expr{Kind: ExprIterInit, Type: iterTy, Span: span, Data: IterInitData{Iterable: iterableRef}},
 			IsMut:     true,
 			IsConst:   false,
 			Ownership: ctx.inferOwnership(iterTy),
@@ -431,6 +432,7 @@ func normalizeIterFor(ctx *normCtx, span source.Span, data ForData) ([]Stmt, err
 		}
 		injectIterCursorReleaseBeforeReturns(data.Body, cursorRelease)
 	}
+	hoist.injectBeforeReturns(data.Body)
 
 	prefix := make([]Stmt, 0, 4)
 	prefix = append(prefix, nextLet, breakIfNothing)
@@ -449,12 +451,7 @@ func normalizeIterFor(ctx *normCtx, span source.Span, data ForData) ([]Stmt, err
 		},
 	}
 
-	outer := &Block{Span: span}
-	outer.Stmts = append(outer.Stmts, iterLet, whileStmt)
-	if hasCursorRelease {
-		outer.Stmts = append(outer.Stmts, cursorRelease)
-	}
-	return []Stmt{{Kind: StmtBlock, Span: span, Data: BlockStmtData{Block: outer}}}, nil
+	return iterForBlock(span, hoist, iterLet, whileStmt, cursorRelease, hasCursorRelease), nil
 }
 
 func iterRangeType(ctx *normCtx, elem types.TypeID) types.TypeID {

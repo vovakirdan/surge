@@ -1,6 +1,7 @@
 package hir
 
 import (
+	"surge/internal/source"
 	"surge/internal/types"
 )
 
@@ -363,4 +364,101 @@ func injectIterCursorReleaseInExpr(e *Expr, release Stmt) {
 		}
 		injectIterCursorReleaseBeforeReturns(data.Block, release)
 	}
+}
+
+// iterableHoist carries the decision to give the loop's ITERABLE a binding of
+// its own, plus the release that binding then needs.
+type iterableHoist struct {
+	let  *Stmt
+	drop Stmt
+	live bool
+}
+
+// hoistIterableTemporary decides whether `for v in <expr>` needs its iterable
+// bound to a name for the duration of the loop, and builds that binding. It
+// returns the expression `iter_init` should read.
+//
+// WHY IT IS NEEDED AT ALL. `for v in build()` evaluates something nobody names,
+// and the statement-end machinery frees it at the end of the
+// `let __iter = iter_init(...)` statement this normalization builds — which is
+// BEFORE the loop that reads through the cursor it just made. MIR showed it
+// plainly: `drop L3` sat in the entry block, two instructions after
+// `iter_init`. The loop then read freed storage, and with five elements the
+// first two values came back as garbage while the count and the tail were right
+// (RV2-DEBT-221). No slice or view is involved — an ordinary array returned by
+// an ordinary function does it.
+//
+// The fix is the transformation an author writes by hand, and which measures
+// clean: bind the value first, iterate the binding. That moves the release to
+// where the CURSOR's release already is — after the loop, and before every
+// return that escapes it — which is why this lives beside that plumbing and
+// reuses it rather than inventing a second placement.
+//
+// ONLY AN UNCONDITIONAL, WHOLE-VALUE TEMPORARY IS HOISTED. A residual plan
+// (fields already taken out of it) or a guarded one (a choice expression that
+// owns on some paths and forwards a place on others) describes a release this
+// plain drop would get wrong, and a wrong free is worse than the leak that not
+// hoisting leaves behind. That is the direction iterCursorReleaseIsSafe errs
+// in, for the same reason.
+func hoistIterableTemporary(ctx *normCtx, iterable *Expr, span source.Span) (iterableHoist, *Expr) {
+	if ctx == nil || iterable == nil || iterable.Kind != ExprOwnedTemp {
+		return iterableHoist{}, iterable
+	}
+	data, ok := iterable.Data.(OwnedTempData)
+	if !ok || data.Inner == nil || len(data.Steps) > 0 || data.Guarded {
+		return iterableHoist{}, iterable
+	}
+	ty := data.Inner.Type
+	if ty == types.NoTypeID {
+		return iterableHoist{}, iterable
+	}
+	sym, name := ctx.newTemp("src")
+	hoist := iterableHoist{
+		let: &Stmt{Kind: StmtLet, Span: span, Data: LetData{
+			Name:      name,
+			SymbolID:  sym,
+			Type:      ty,
+			Value:     data.Inner,
+			Ownership: ctx.inferOwnership(ty),
+		}},
+		drop: Stmt{Kind: StmtDrop, Span: span, Data: DropData{Value: ctx.varRef(name, sym, ty, span)}},
+		live: true,
+	}
+	return hoist, ctx.varRef(name, sym, ty, span)
+}
+
+// injectBeforeReturns gives the hoisted binding the treatment the cursor
+// already gets: a release before every return that escapes the loop.
+//
+// Call it AFTER the cursor's own injection. The cursor points INTO this value,
+// so it has to be released first, and freeing storage before the thing pointing
+// at it is the very ordering error this change exists to fix.
+func (h iterableHoist) injectBeforeReturns(body *Block) {
+	if !h.live {
+		return
+	}
+	injectIterCursorReleaseBeforeReturns(body, h.drop)
+}
+
+// iterForBlock assembles the normalized loop: the hoisted iterable when there is
+// one, the cursor, the loop itself, and the releases in reverse order of
+// acquisition.
+func iterForBlock(
+	span source.Span,
+	h iterableHoist,
+	iterLet, whileStmt, cursorRelease Stmt,
+	hasCursorRelease bool,
+) []Stmt {
+	outer := &Block{Span: span}
+	if h.live {
+		outer.Stmts = append(outer.Stmts, *h.let)
+	}
+	outer.Stmts = append(outer.Stmts, iterLet, whileStmt)
+	if hasCursorRelease {
+		outer.Stmts = append(outer.Stmts, cursorRelease)
+	}
+	if h.live {
+		outer.Stmts = append(outer.Stmts, h.drop)
+	}
+	return []Stmt{{Kind: StmtBlock, Span: span, Data: BlockStmtData{Block: outer}}}
 }
