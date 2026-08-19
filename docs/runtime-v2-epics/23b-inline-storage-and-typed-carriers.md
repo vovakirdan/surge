@@ -718,7 +718,7 @@ twice consecutively without rerun or hidden retry before closeout.
 At minimum record:
 
 ```bash
-EPIC_BASE="<recorded-base>"
+EPIC_BASE="7df10725e001ddf915d536aa58f880bd7e04aafd"  # the commit that added this document; also legacy_carriers.json base_commit
 git merge-base --is-ancestor "$EPIC_BASE" HEAD
 git diff --check "$EPIC_BASE"..HEAD
 make c-check
@@ -751,7 +751,7 @@ Also required:
   serializes one `session_start`/final scan/`health`/`check_rules`/`session_end`
   pair per enforced scope on the integrated tree; parallel workers do not keep
   overlapping active Sentrux sessions;
-- `make runtime-v2-file-size-check EPIC_BASE=<recorded-base>`, which evaluates
+- `make runtime-v2-file-size-check EPIC_BASE=7df10725e001ddf915d536aa58f880bd7e04aafd`, which evaluates
   the committed diff even on a clean tree: every new production file and every
   file with added+deleted effective LOC >=50% of its base effective LOC must be
   <=500 effective lines; an existing >500-line file below that rewrite threshold

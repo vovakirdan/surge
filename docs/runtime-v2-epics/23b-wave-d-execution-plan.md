@@ -234,7 +234,7 @@ The §12 command list in full, on the integrated tree, plus:
   D0 exit and again at wave close — not the VM lane alone;
 - `make runtime-v2-carrier-sanitizer-check` (which exists as of D0.5);
 - every sync point recorded as a positive AND a negative control;
-- `make runtime-v2-file-size-check EPIC_BASE=<recorded-base>`.
+- `make runtime-v2-file-size-check EPIC_BASE=7df10725e001ddf915d536aa58f880bd7e04aafd`.
 
 Never append `; echo $?` to a lane invocation. It makes the harness report exit
 0 while a failure sits in the log; it has bitten this epic twice.
