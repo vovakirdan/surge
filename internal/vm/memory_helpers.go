@@ -94,9 +94,13 @@ func (vm *VM) writeBytesToPointer(ptrVal Value, data []byte) *VMError {
 			}
 		}
 		for i, b := range data {
-			idx := start + i
-			vm.dropValue(view.heapObj.Arr[idx])
-			view.heapObj.Arr[idx] = MakeInt(int64(b), elemType)
+			// Through the view's own writer, so the element's cell encoding
+			// comes from the array's element type rather than from the pointer
+			// the caller happened to arrive with.
+			if vmErr := vm.viewElemStore(vm.currentFrame(), view, start+i-view.start,
+				MakeInt(int64(b), elemType)); vmErr != nil {
+				return vmErr
+			}
 		}
 		return nil
 	case LKStringBytes:

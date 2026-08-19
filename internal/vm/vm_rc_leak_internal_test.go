@@ -26,10 +26,14 @@ import (
 // leave something alive.
 func TestVMRCLeakDetectionPanics(t *testing.T) {
 	requireVMBackend(t)
-	vmInstance := New(nil, NewTestRuntime(nil, ""), nil, types.NewInterner(), nil)
+	typesInterner := types.NewInterner()
+	builtins := typesInterner.Builtins()
+	arrType := typesInterner.Intern(types.MakeArray(builtins.Int, types.ArrayDynamicLength))
+	vmInstance := New(withElementLayouts(t, typesInterner, builtins.Int, arrType),
+		NewTestRuntime(nil, ""), nil, typesInterner, nil)
 	vmInstance.Heap.AllocString(types.NoTypeID, "leak")
 	vmInstance.Heap.AllocBigInt(types.NoTypeID, bignum.IntFromInt64(1))
-	vmInstance.Heap.AllocArray(types.NoTypeID, nil)
+	vmInstance.Heap.AllocArray(arrType, nil)
 
 	defer func() {
 		if r := recover(); r != nil {

@@ -208,9 +208,12 @@ func (vm *VM) rewindScratch(s *scratch, mark scratchMark) error {
 					}
 					continue
 				}
-				if err := vm.storageDrop(elemRef); err != nil && first == nil {
-					first = fmt.Errorf("storage: element %d of a run of type#%d could not be released: %w",
-						e-1, entry.typeID, err)
+				// dropMember and not storageDrop: an element can be any cell
+				// kind, and storageDrop walks members, which a handle or an
+				// integer does not have.
+				if vmErr := vm.dropMember(elemRef); vmErr != nil && first == nil {
+					first = fmt.Errorf("storage: element %d of a run of type#%d could not be released: %s",
+						e-1, entry.typeID, vmErr.Message)
 				}
 			}
 			continue

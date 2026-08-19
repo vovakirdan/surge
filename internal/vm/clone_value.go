@@ -67,11 +67,31 @@ func (vm *VM) cloneValueComposite(v Value) (Value, *VMError) {
 	// still owns.
 	switch obj.Kind {
 	case OKArray:
-		elems, vmErr := vm.cloneMembers(obj.Arr)
+		// Read every LIVE element out of the run and clone it. The elements are
+		// taken through the descriptor rather than from a list, so the clone
+		// sees exactly the array's own length and not the stale tail a prefix
+		// shift leaves behind.
+		frame := vm.currentFrame()
+		elems := make([]Value, 0, obj.ArrLen)
+		for i := range obj.ArrLen {
+			ref, vmErr := vm.runElemSlot(obj, i)
+			if vmErr != nil {
+				dropEach(vm, elems)
+				return Value{}, vmErr
+			}
+			elem, vmErr := vm.readStorageValue(frame, ref)
+			if vmErr != nil {
+				dropEach(vm, elems)
+				return Value{}, vmErr
+			}
+			elems = append(elems, elem)
+		}
+		cloned, vmErr := vm.cloneMembers(elems)
+		dropEach(vm, elems)
 		if vmErr != nil {
 			return Value{}, vmErr
 		}
-		return MakeHandleArray(vm.Heap.AllocArray(obj.TypeID, elems), v.TypeID), nil
+		return MakeHandleArray(vm.Heap.AllocArray(obj.TypeID, cloned), v.TypeID), nil
 
 	default:
 		// The type says value composite and the object says otherwise. Rather
@@ -110,4 +130,12 @@ func (vm *VM) isValueCompositeType(ty types.TypeID) bool {
 		return false
 	}
 	return vm.Types.IsValueComposite(ty)
+}
+
+// dropEach releases a partial list of values a failed walk has already built.
+// A half-read run owns real references, and abandoning it would leak them.
+func dropEach(vm *VM, vals []Value) {
+	for i := range vals {
+		vm.dropValue(vals[i])
+	}
 }

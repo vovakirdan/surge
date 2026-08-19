@@ -233,10 +233,21 @@ func (vm *VM) readMember(frame *Frame, owner StorageRef, index int) (Value, *VME
 	if vmErr != nil {
 		return Value{}, vmErr
 	}
-	if vm.storageCellKind(member.TypeID) == cellComposite {
-		return vm.duplicateComposite(frame, MakeComposite(member))
+	return vm.readStorageValue(frame, member)
+}
+
+// readStorageValue reads one extent as an owned value the caller must release.
+//
+// It is separate from readMember because a member is not the only thing that
+// has an extent: an element of a run is addressed by arithmetic rather than by
+// a member list, and both owe the same thing once the extent is named. Keeping
+// the tail in one place is what stops a run's elements and a composite's
+// members from disagreeing about when a read counts a second holder.
+func (vm *VM) readStorageValue(frame *Frame, ref StorageRef) (Value, *VMError) {
+	if vm.storageCellKind(ref.TypeID) == cellComposite {
+		return vm.duplicateComposite(frame, MakeComposite(ref))
 	}
-	return vm.loadStorage(member)
+	return vm.loadStorage(ref)
 }
 
 // peekMember decodes one member WITHOUT counting a second holder.

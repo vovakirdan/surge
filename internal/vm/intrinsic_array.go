@@ -29,17 +29,13 @@ func (vm *VM) handleArrayReserve(frame *Frame, call *mir.CallInstr, writes *[]Lo
 	if vmErr != nil {
 		return vmErr
 	}
-	if newCap <= cap(arrObj.Arr) {
+	if newCap <= arrObj.ArrCap {
 		return nil
 	}
-	if newCap < len(arrObj.Arr) {
-		newCap = len(arrObj.Arr)
+	if newCap < arrObj.ArrLen {
+		newCap = arrObj.ArrLen
 	}
-	grown := growArrayCapacity(cap(arrObj.Arr), newCap)
-	newArr := make([]Value, len(arrObj.Arr), grown)
-	copy(newArr, arrObj.Arr)
-	arrObj.Arr = newArr
-	return nil
+	return vm.growArrayRun(arrObj, newCap)
 }
 
 func (vm *VM) handleArrayPush(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
@@ -63,22 +59,20 @@ func (vm *VM) handleArrayPush(frame *Frame, call *mir.CallInstr, writes *[]Local
 		return vmErr
 	}
 
-	if len(arrObj.Arr) == cap(arrObj.Arr) {
-		grown := growArrayCapacity(cap(arrObj.Arr), len(arrObj.Arr)+1)
-		newArr := make([]Value, len(arrObj.Arr), grown)
-		copy(newArr, arrObj.Arr)
-		arrObj.Arr = newArr
+	if arrObj.ArrLen == arrObj.ArrCap {
+		if vmErr := vm.growArrayRun(arrObj, arrObj.ArrLen+1); vmErr != nil {
+			vm.dropValue(pushVal)
+			return vmErr
+		}
 	}
-
-	adopted, vmErr := vm.adoptIntoContainer(arrObj, pushVal)
-	if vmErr != nil {
+	// INITIALISE rather than store: the slot at the length holds nothing, and
+	// a store there would release bytes a previous pop already moved out.
+	idx := arrObj.ArrLen
+	if vmErr := vm.initRunElem(frame, arrObj, idx, pushVal); vmErr != nil {
 		vm.dropValue(pushVal)
 		return vmErr
 	}
-	idx := len(arrObj.Arr)
-	arrObj.Arr = arrObj.Arr[:idx+1]
-	arrObj.Arr[idx] = adopted
-	return nil
+	return vm.setArrayLen(arrObj, idx+1)
 }
 
 func (vm *VM) handleArrayPop(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
@@ -96,7 +90,7 @@ func (vm *VM) handleArrayPop(frame *Frame, call *mir.CallInstr, writes *[]LocalW
 		return vmErr
 	}
 
-	if len(arrObj.Arr) == 0 {
+	if arrObj.ArrLen == 0 {
 		if !call.HasDst {
 			return nil
 		}
@@ -115,10 +109,15 @@ func (vm *VM) handleArrayPop(frame *Frame, call *mir.CallInstr, writes *[]LocalW
 		return nil
 	}
 
-	lastIdx := len(arrObj.Arr) - 1
-	elem := arrObj.Arr[lastIdx]
-	arrObj.Arr[lastIdx] = Value{}
-	arrObj.Arr = arrObj.Arr[:lastIdx]
+	lastIdx := arrObj.ArrLen - 1
+	elem, vmErr := vm.takeRunElem(frame, arrObj, lastIdx)
+	if vmErr != nil {
+		return vmErr
+	}
+	if lenErr := vm.setArrayLen(arrObj, lastIdx); lenErr != nil {
+		vm.dropValue(elem)
+		return lenErr
+	}
 
 	if !call.HasDst {
 		vm.dropValue(elem)
@@ -257,28 +256,7 @@ func (vm *VM) handleArrayAppendRawBytes(frame *Frame, call *mir.CallInstr, write
 		return vmErr
 	}
 
-	oldLen := len(arrObj.Arr)
-	newLen := oldLen + len(data)
-	if newLen < oldLen {
-		return vm.eb.invalidNumericConversion("array length out of range")
-	}
-	if newLen > cap(arrObj.Arr) {
-		grown := growArrayCapacity(cap(arrObj.Arr), newLen)
-		next := make([]Value, newLen, grown)
-		copy(next, arrObj.Arr)
-		arrObj.Arr = next
-	} else {
-		arrObj.Arr = arrObj.Arr[:newLen]
-	}
-
-	elemType := types.NoTypeID
-	if vm.Types != nil {
-		elemType = vm.Types.Builtins().Uint8
-	}
-	for i, b := range data {
-		arrObj.Arr[oldLen+i] = MakeInt(int64(b), elemType)
-	}
-	return nil
+	return vm.appendRunBytes(frame, arrObj, data)
 }
 
 func (vm *VM) handleByteArrayAppendRange(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
@@ -349,28 +327,7 @@ func (vm *VM) handleByteArrayAppendRange(frame *Frame, call *mir.CallInstr, writ
 	if vmErr != nil {
 		return vmErr
 	}
-	oldLen := len(dstObj.Arr)
-	newLen := oldLen + length
-	if newLen < oldLen {
-		return vm.eb.invalidNumericConversion("array length out of range")
-	}
-	if newLen > cap(dstObj.Arr) {
-		grown := growArrayCapacity(cap(dstObj.Arr), newLen)
-		next := make([]Value, newLen, grown)
-		copy(next, dstObj.Arr)
-		dstObj.Arr = next
-	} else {
-		dstObj.Arr = dstObj.Arr[:newLen]
-	}
-
-	elemType := types.NoTypeID
-	if vm.Types != nil {
-		elemType = vm.Types.Builtins().Uint8
-	}
-	for i, b := range data {
-		dstObj.Arr[oldLen+i] = MakeInt(int64(b), elemType)
-	}
-	return nil
+	return vm.appendRunBytes(frame, dstObj, data)
 }
 
 func (vm *VM) handleByteArrayDropPrefix(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
@@ -400,26 +357,7 @@ func (vm *VM) handleByteArrayDropPrefix(frame *Frame, call *mir.CallInstr, write
 	if vmErr != nil {
 		return vmErr
 	}
-	if count > len(arrObj.Arr) {
-		return vm.eb.outOfBounds(count, len(arrObj.Arr))
-	}
-	for i := range count {
-		vm.dropValue(arrObj.Arr[i])
-		arrObj.Arr[i] = Value{}
-	}
-	if count == len(arrObj.Arr) {
-		arrObj.Arr = arrObj.Arr[:0]
-		return nil
-	}
-	newLen := len(arrObj.Arr) - count
-	for i := range newLen {
-		arrObj.Arr[i] = arrObj.Arr[count+i]
-	}
-	for i := newLen; i < len(arrObj.Arr); i++ {
-		arrObj.Arr[i] = Value{}
-	}
-	arrObj.Arr = arrObj.Arr[:newLen]
-	return nil
+	return vm.dropRunPrefix(arrObj, count)
 }
 
 func (vm *VM) handleByteParseUint64Token(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {

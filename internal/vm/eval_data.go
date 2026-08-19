@@ -30,8 +30,18 @@ func (vm *VM) evalArrayLit(frame *Frame, lit *mir.ArrayLit, dstType types.TypeID
 		return vm.buildStruct(frame, dstType, elems)
 	}
 
-	h := vm.Heap.AllocArray(types.NoTypeID, elems)
-	return MakeHandleArray(h, types.NoTypeID), nil
+	// The destination's type is the array's type, for the same reason it is the
+	// tuple's. Throwing it away here is what left every literal-built array
+	// untyped, and an untyped array cannot answer for its own elements: the
+	// element size had to be guessed from whatever the FIRST element happened to
+	// be, through a resolution that unwraps `&` and `own` alike, and the union
+	// retag on the read path is keyed on an array type that was never there.
+	if dstType == types.NoTypeID {
+		return Value{}, vm.eb.makeError(PanicTypeMismatch,
+			"an array literal has no type of its own and its destination declares none")
+	}
+	h := vm.Heap.AllocArray(dstType, elems)
+	return MakeHandleArray(h, dstType), nil
 }
 
 // evalTupleLit builds a tuple into its own extent.

@@ -35,7 +35,12 @@ func TestCollectTaskStatePinsRejectsMovedLocal(t *testing.T) {
 }
 
 func TestCollectTaskStatePinsRollbackKeepsDetachedLocalAlive(t *testing.T) {
-	vm := New(nil, nil, nil, nil, nil)
+	typesInterner := types.NewInterner()
+	builtins := typesInterner.Builtins()
+	refType := typesInterner.Intern(types.MakeReference(builtins.Int, false))
+	stateType := typesInterner.Intern(types.MakeArray(refType, types.ArrayDynamicLength))
+	vm := New(withElementLayouts(t, typesInterner, builtins.Int, refType, stateType),
+		nil, nil, typesInterner, nil)
 	frame := &Frame{
 		Locals: []LocalSlot{
 			{
@@ -51,12 +56,12 @@ func TestCollectTaskStatePinsRollbackKeepsDetachedLocalAlive(t *testing.T) {
 			},
 		},
 	}
-	stateHandle := vm.Heap.AllocArray(types.NoTypeID, []Value{
-		MakeRef(Location{Kind: LKLocal, FrameRef: frame, Local: 0}, types.NoTypeID),
-		MakeRef(Location{Kind: LKLocal, FrameRef: frame, Local: 1}, types.NoTypeID),
+	stateHandle := vm.Heap.AllocArray(stateType, []Value{
+		MakeRef(Location{Kind: LKLocal, FrameRef: frame, Local: 0}, refType),
+		MakeRef(Location{Kind: LKLocal, FrameRef: frame, Local: 1}, refType),
 	})
 
-	_, vmErr := vm.collectTaskStatePins(MakeHandleArray(stateHandle, types.NoTypeID))
+	_, vmErr := vm.collectTaskStatePins(MakeHandleArray(stateHandle, stateType))
 	if vmErr == nil {
 		t.Fatal("expected moved local error")
 	}

@@ -364,7 +364,18 @@ func (c *taskStatePinCollector) visitHandle(handle Handle) *VMError {
 		}
 		return c.visitHandle(obj.StrSliceBase)
 	case OKArray:
-		for _, elem := range obj.Arr {
+		// Every LIVE element, decoded from its slot. The dead tail holds stale
+		// bytes a prefix shift left behind and pinning those would keep alive
+		// what nothing can reach.
+		for i := range obj.ArrLen {
+			ref, vmErr := c.vm.runElemSlot(obj, i)
+			if vmErr != nil {
+				return vmErr
+			}
+			elem, vmErr := c.vm.peekStorage(ref)
+			if vmErr != nil {
+				return vmErr
+			}
 			if vmErr := c.visitValue(elem); vmErr != nil {
 				return vmErr
 			}

@@ -99,7 +99,7 @@ func (vm *VM) heapObjectBytes(obj *Object) (uint64, error) {
 		if err != nil {
 			return 0, err
 		}
-		return checkedHeapMul(safeUint64FromInt(len(obj.Arr)), elemSize, "array length * element size")
+		return checkedHeapMul(safeUint64FromInt(obj.ArrLen), elemSize, "array length * element size")
 	case OKArraySlice:
 		return 0, nil
 	case OKMap:
@@ -155,34 +155,28 @@ func (vm *VM) arrayElemSize(obj *Object) (uint64, error) {
 	if obj == nil {
 		return 0, nil
 	}
-	if obj.TypeID != types.NoTypeID {
-		if vm == nil || vm.Layouts == nil || vm.Types == nil {
-			return 0, fmt.Errorf("typed array requires finalized layout registry and type interner")
-		}
-		elemType := vm.arrayElemType(obj)
-		if elemType == types.NoTypeID {
-			return 0, fmt.Errorf("typed array %s has no element metadata", types.Label(vm.Types, obj.TypeID))
-		}
-		size, err := vm.Layouts.SizeOf(elemType)
-		if err != nil {
-			return 0, fmt.Errorf("array element layout: %w", err)
-		}
-		return size, nil
+	// The DESCRIPTOR answers. It used to be asked of the first element that
+	// happened to carry a type, through a resolution that unwraps `&` and `own`
+	// alike — so an array of references reported the size of a referent, and an
+	// array whose first slots were untyped reported a later slot's answer for
+	// all of them. An element cannot answer a question about its container.
+	if obj.TypeID == types.NoTypeID && obj.ArrElemType == types.NoTypeID {
+		return 0, nil
 	}
-	for i := range obj.Arr {
-		if obj.Arr[i].TypeID == types.NoTypeID {
-			continue
-		}
-		if vm == nil || vm.Layouts == nil {
-			return 0, fmt.Errorf("array element requires finalized layout registry")
-		}
-		size, err := vm.Layouts.SizeOf(vm.valueType(obj.Arr[i].TypeID))
-		if err != nil {
-			return 0, fmt.Errorf("array element layout: %w", err)
-		}
-		return size, nil
+	// A TYPED array fails closed. Answering zero for one whose layout cannot be
+	// resolved would be accounting that reports a number without measuring
+	// anything, which is worse than refusing.
+	if vm == nil || vm.Layouts == nil || vm.Types == nil {
+		return 0, fmt.Errorf("typed array requires finalized layout registry and type interner")
 	}
-	return 0, nil
+	if obj.ArrElemType == types.NoTypeID {
+		return 0, fmt.Errorf("typed array %s has no element metadata", types.Label(vm.Types, obj.TypeID))
+	}
+	size, err := vm.Layouts.SizeOf(obj.ArrElemType)
+	if err != nil {
+		return 0, fmt.Errorf("array element layout: %w", err)
+	}
+	return size, nil
 }
 
 func checkedHeapAdd(a, b uint64, operation string) (uint64, error) {
@@ -197,36 +191,6 @@ func checkedHeapMul(a, b uint64, operation string) (uint64, error) {
 		return 0, fmt.Errorf("heap accounting overflow: %s", operation)
 	}
 	return a * b, nil
-}
-
-func (vm *VM) arrayElemType(obj *Object) types.TypeID {
-	if vm == nil || vm.Types == nil || obj == nil || obj.TypeID == types.NoTypeID {
-		return types.NoTypeID
-	}
-	tt, ok := vm.Types.Lookup(obj.TypeID)
-	if !ok {
-		return types.NoTypeID
-	}
-	switch tt.Kind {
-	case types.KindArray:
-		return tt.Elem
-	case types.KindStruct:
-		info, ok := vm.Types.StructInfo(obj.TypeID)
-		if !ok || info == nil {
-			return types.NoTypeID
-		}
-		name, ok := lookupName(vm.Types.Strings, info.Name)
-		if !ok || name != "Array" {
-			return types.NoTypeID
-		}
-		args := vm.Types.StructArgs(obj.TypeID)
-		if len(args) == 1 {
-			return args[0]
-		}
-		return types.NoTypeID
-	default:
-		return types.NoTypeID
-	}
 }
 
 func (vm *VM) objectRefCount(obj *Object) int {
@@ -246,7 +210,15 @@ func (vm *VM) objectRefCount(obj *Object) int {
 			count++
 		}
 	case OKArray:
-		for _, v := range obj.Arr {
+		for i := range obj.ArrLen {
+			ref, vmErr := vm.runElemSlot(obj, i)
+			if vmErr != nil {
+				continue
+			}
+			v, vmErr := vm.peekStorage(ref)
+			if vmErr != nil {
+				continue
+			}
 			if v.IsHeap() && v.H != 0 {
 				count++
 			}
@@ -306,7 +278,7 @@ func (vm *VM) objectSummary(obj *Object) string {
 		}
 		return fmt.Sprintf("string(rc=%d,len_cp=%d,len_bytes=%d,repr=%s,preview=%q)", rc, lenCP, lenBytes, repr, preview)
 	case OKArray:
-		return fmt.Sprintf("array(rc=%d,len=%d,cap=%d)", rc, len(obj.Arr), cap(obj.Arr))
+		return fmt.Sprintf("array(rc=%d,len=%d,cap=%d)", rc, obj.ArrLen, obj.ArrCap)
 	case OKArraySlice:
 		return fmt.Sprintf("array_view(rc=%d,len=%d,cap=%d,start=%d)", rc, obj.ArrSliceLen, obj.ArrSliceCap, obj.ArrSliceStart)
 	case OKMap:

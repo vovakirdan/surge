@@ -24,6 +24,7 @@ type storageFixture struct {
 	i64    types.TypeID
 	text   types.TypeID
 	anyInt types.TypeID
+	refI64 types.TypeID
 	wrap   symbols.SymbolID
 	bare   symbols.SymbolID
 }
@@ -59,8 +60,10 @@ func newStorageFixture(t *testing.T) *storageFixture {
 		{Kind: types.UnionMemberTag, TagName: interner.Strings.Intern("Bare")},
 	})
 
+	refI64 := interner.Intern(types.MakeReference(i64, false))
+
 	engine := layout.New(layout.X86_64LinuxGNU(), interner)
-	registry, err := layout.FinalizeRegistry(engine, []types.TypeID{i64, unsized, text, leaf, node, choice})
+	registry, err := layout.FinalizeRegistry(engine, []types.TypeID{i64, unsized, text, leaf, node, choice, refI64})
 	if err != nil {
 		t.Fatalf("freezing the fixture layouts must succeed: %v", err)
 	}
@@ -85,7 +88,7 @@ func newStorageFixture(t *testing.T) *storageFixture {
 	return &storageFixture{
 		vm: machine, arena: newArena(&plan, 1), plan: plan,
 		leaf: leaf, node: node, choice: choice, wrap: fixtureWrapSym, bare: fixtureBareSym,
-		i64: i64, text: text, anyInt: unsized,
+		i64: i64, text: text, anyInt: unsized, refI64: refI64,
 	}
 }
 

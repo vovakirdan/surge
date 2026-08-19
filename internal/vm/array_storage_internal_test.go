@@ -356,3 +356,94 @@ func TestElementRunGrowthStaysWithinDoubling(t *testing.T) {
 		}
 	}
 }
+
+// The layer the census cannot reach: a dynamic array's elements select exact
+// layout-owned storage, and the element's TYPE is the array's answer.
+//
+// Removing `Arr []Value` retires a census row, and a retired row proves only
+// that the old spelling is gone. It cannot fail if the storage comes back under
+// another name, and it says nothing at all about the question that actually
+// matters here — whether an element is addressed through the array's declared
+// element type or through whatever the element happens to hold. That is the
+// question this asserts, and it is the one whose wrong answer let a `*T` read
+// back as a `&T`.
+func TestDynamicArrayElementsSelectExactLayoutStorage(t *testing.T) {
+	f := newStorageFixture(t)
+
+	rows := []struct {
+		name string
+		elem types.TypeID
+	}{
+		{"scalar", f.i64},
+		{"handle", f.text},
+		{"composite", f.node},
+		// A union is a sharp row: an element built from one arm carries that
+		// arm's own type, and the slot must still be addressed as the declared
+		// union.
+		{"union", f.choice},
+		// The sharpest row, and the one the first version of this test was
+		// missing. Every other element type here survives `valueType`
+		// unchanged, so a slot that resolved its type through it would still
+		// pass. A reference does not: valueType unwraps `&` and `own` alike,
+		// which is what once made a reference cell unreachable and handed
+		// every reference member its referent's encoding.
+		{"reference", f.refI64},
+	}
+
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			arrayType := f.vm.Types.Intern(types.MakeArray(row.elem, types.ArrayDynamicLength))
+			handle := f.vm.Heap.AllocArray(arrayType, nil)
+			obj := f.vm.Heap.Get(handle)
+			if obj == nil || obj.Kind != OKArray {
+				t.Fatalf("allocating an array must give an array object, got %v", obj)
+			}
+			defer f.vm.Heap.Release(handle)
+
+			if obj.ArrElems.Arena == nil {
+				t.Fatal("a dynamic array's elements must live in storage the array owns, " +
+					"and this one has no arena at all")
+			}
+			if obj.ArrElemType != row.elem {
+				t.Fatalf("the array's element type reads %d, want %d — the descriptor is the "+
+					"only thing allowed to answer for an element", obj.ArrElemType, row.elem)
+			}
+
+			if vmErr := f.vm.growArrayRun(obj, 2); vmErr != nil {
+				t.Fatalf("growing the run must succeed: %v", vmErr)
+			}
+			ref, vmErr := f.vm.runElemSlot(obj, 1)
+			if vmErr != nil {
+				t.Fatalf("addressing a slot must succeed: %v", vmErr)
+			}
+			if ref.Arena != obj.ArrElems.Arena {
+				t.Fatal("an element must be addressed inside the array's own storage")
+			}
+			if ref.TypeID != row.elem {
+				t.Fatalf("an element slot is typed %d, want %d — an element addressed as "+
+					"anything but the declared element type can be written as one thing and "+
+					"read back as another", ref.TypeID, row.elem)
+			}
+			// The slot is exact: one stride apart from its neighbour, never a
+			// pointer-sized cell standing in for whatever it holds.
+			//
+			// The expected stride comes from the layout REGISTRY and not from
+			// runStride. Asking the same helper the code under test asks makes
+			// the comparison a tautology — the first version of this row did
+			// exactly that, and passed with the stride deliberately broken.
+			facts, err := f.vm.Layouts.Require(row.elem)
+			if err != nil {
+				t.Fatalf("an element layout must be frozen: %v", err)
+			}
+			stride := facts.Stride
+			first, vmErr := f.vm.runElemSlot(obj, 0)
+			if vmErr != nil {
+				t.Fatalf("addressing the first slot must succeed: %v", vmErr)
+			}
+			if got := ref.Offset - first.Offset; got != stride {
+				t.Fatalf("consecutive elements are %d bytes apart, want the layout stride %d",
+					got, stride)
+			}
+		})
+	}
+}

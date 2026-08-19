@@ -10,10 +10,11 @@ func TestVMIndexReturnsReferenceForArrayElement(t *testing.T) {
 	requireVMBackend(t)
 	typesInterner := types.NewInterner()
 	builtins := typesInterner.Builtins()
-	vmInstance := New(nil, NewTestRuntime(nil, ""), nil, typesInterner, nil)
-
 	arrType := typesInterner.Intern(types.MakeArray(builtins.Int, types.ArrayDynamicLength))
 	refType := typesInterner.Intern(types.MakeReference(builtins.Int, false))
+	vmInstance := New(withElementLayouts(t, typesInterner, builtins.Int, arrType),
+		NewTestRuntime(nil, ""), nil, typesInterner, nil)
+
 	hBase := vmInstance.Heap.AllocArray(arrType, []Value{
 		MakeInt(10, builtins.Int),
 		MakeInt(20, builtins.Int),

@@ -48,9 +48,26 @@ func (h *Heap) AllocArrayIterRange(typeID types.TypeID, base Handle, start, leng
 // owns, since the array outlives the activation that built it.
 func (h *Heap) AllocArray(typeID types.TypeID, elems []Value) Handle {
 	handle, obj := h.alloc(OKArray, typeID)
-	obj.Arr = append([]Value(nil), elems...)
 	if h.vm != nil {
-		if vmErr := h.vm.adoptAllIntoContainer(obj, obj.Arr); vmErr != nil {
+		elem, ok := h.vm.arrayRunElemType(typeID)
+		if !ok {
+			// An array whose element type is unknown cannot reserve a run: the
+			// stride, the alignment and the cell kind all come from it, and
+			// guessing any of them from what the first element happens to hold
+			// is the thing the run exists to stop.
+			h.panic(PanicTypeMismatch,
+				"an array must know its element type before it can hold anything")
+		}
+		if vmErr := h.vm.reserveArrayRun(obj, elem, len(elems)); vmErr != nil {
+			h.panic(vmErr.Code, vmErr.Message)
+		}
+		frame := h.vm.currentFrame()
+		for i := range elems {
+			if vmErr := h.vm.initRunElem(frame, obj, i, elems[i]); vmErr != nil {
+				h.panic(vmErr.Code, vmErr.Message)
+			}
+		}
+		if vmErr := h.vm.setArrayLen(obj, len(elems)); vmErr != nil {
 			h.panic(vmErr.Code, vmErr.Message)
 		}
 	}

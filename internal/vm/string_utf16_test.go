@@ -47,7 +47,10 @@ func TestStringUTF16ConstructorParity(t *testing.T) {
 	requireVMBackend(t)
 	typesInterner := types.NewInterner()
 	builtins := typesInterner.Builtins()
-	vmInstance := New(nil, NewTestRuntime(nil, ""), nil, typesInterner, nil)
+	arr16Type := typesInterner.Intern(types.MakeArray(builtins.Uint16, types.ArrayDynamicLength))
+	arr8Type := typesInterner.Intern(types.MakeArray(builtins.Uint8, types.ArrayDynamicLength))
+	vmInstance := New(withElementLayouts(t, typesInterner, builtins.Uint16, builtins.Uint8, arr16Type, arr8Type),
+		NewTestRuntime(nil, ""), nil, typesInterner, nil)
 
 	utf16Units := []uint16{0x0041, 0xD83D, 0xDE42}
 	utf8Bytes := []byte("A🙂")
@@ -56,7 +59,7 @@ func TestStringUTF16ConstructorParity(t *testing.T) {
 	for i, u := range utf16Units {
 		elems16[i] = MakeInt(int64(u), builtins.Uint16)
 	}
-	arrH16 := vmInstance.Heap.AllocArray(types.NoTypeID, elems16)
+	arrH16 := vmInstance.Heap.AllocArray(arr16Type, elems16)
 	ptr16Type := typesInterner.Intern(types.MakePointer(builtins.Uint16))
 	ptr16 := MakePtr(Location{Kind: LKArrayElem, Handle: arrH16, Index: 0}, ptr16Type)
 	len16 := MakeInt(int64(len(utf16Units)), builtins.Uint)
@@ -65,7 +68,7 @@ func TestStringUTF16ConstructorParity(t *testing.T) {
 	for i, b := range utf8Bytes {
 		elems8[i] = MakeInt(int64(b), builtins.Uint8)
 	}
-	arrH8 := vmInstance.Heap.AllocArray(types.NoTypeID, elems8)
+	arrH8 := vmInstance.Heap.AllocArray(arr8Type, elems8)
 	ptr8Type := typesInterner.Intern(types.MakePointer(builtins.Uint8))
 	ptr8 := MakePtr(Location{Kind: LKArrayElem, Handle: arrH8, Index: 0}, ptr8Type)
 	len8 := MakeInt(int64(len(utf8Bytes)), builtins.Uint)

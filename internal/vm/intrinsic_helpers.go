@@ -51,10 +51,9 @@ func (vm *VM) readBytesFromPointer(ptrVal Value, n int) ([]byte, *VMError) {
 		if start < 0 || end < start || end > view.length {
 			return nil, vm.eb.outOfBounds(end, view.length)
 		}
-		baseStart := view.start + start
 		out := make([]byte, n)
 		for i := range n {
-			b, vmErr := vm.valueToUint8(view.heapObj.Arr[baseStart+i])
+			b, vmErr := vm.viewByteAt(view, start+i)
 			if vmErr != nil {
 				return nil, vmErr
 			}
@@ -106,10 +105,13 @@ func (vm *VM) readUint16sFromPointer(ptrVal Value, n int) ([]uint16, *VMError) {
 		if start < 0 || end < start || end > view.length {
 			return nil, vm.eb.outOfBounds(end, view.length)
 		}
-		baseStart := view.start + start
 		out := make([]uint16, n)
 		for i := range n {
-			u, vmErr := vm.valueToUint16(view.heapObj.Arr[baseStart+i])
+			elem, vmErr := vm.viewElemPeek(view, start+i)
+			if vmErr != nil {
+				return nil, vmErr
+			}
+			u, vmErr := vm.valueToUint16(elem)
 			if vmErr != nil {
 				return nil, vmErr
 			}

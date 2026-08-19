@@ -103,7 +103,16 @@ type Object struct {
 	StrSliceBase  Handle
 	StrSliceStart int
 	StrSliceLen   int
-	Arr           []Value
+	// A dynamic array's elements are ONE run of exact element slots in the
+	// storage this object owns, described by these four fields together.
+	// ArrElemType is the only source of stride, alignment and cell kind: no
+	// caller passes an element type in, and no element is asked what it
+	// happens to hold. Slots in [ArrLen, ArrCap) are dead — a pop moves the
+	// bytes out — so a push initialises its slot and never replaces it.
+	ArrElems      StorageRef
+	ArrElemType   types.TypeID
+	ArrLen        int
+	ArrCap        int
 	ArrSliceBase  Handle
 	ArrSliceStart int
 	ArrSliceLen   int

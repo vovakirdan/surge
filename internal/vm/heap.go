@@ -149,10 +149,12 @@ func (h *Heap) Free(handle Handle) {
 
 	switch obj.Kind {
 	case OKArray:
-		for _, v := range obj.Arr {
-			h.releaseContainedValue(v)
-		}
-		obj.Arr = nil
+		// The elements are a run in this object's own storage, and the arena is
+		// what owns them: releasing the storage drops every live element once.
+		// Walking the elements here as well would release each of them twice.
+		obj.ArrElems = StorageRef{}
+		obj.ArrLen = 0
+		obj.ArrCap = 0
 		h.releaseOwnStorage(obj)
 	case OKArraySlice:
 		if obj.ArrSliceBase != 0 {

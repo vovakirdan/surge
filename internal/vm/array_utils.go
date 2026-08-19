@@ -34,7 +34,7 @@ func (vm *VM) arrayViewFromHandle(handle Handle) (arrayView, *VMError) {
 			baseHandle: handle,
 			heapObj:    obj,
 			start:      0,
-			length:     len(obj.Arr),
+			length:     obj.ArrLen,
 		}, nil
 	case OKArraySlice:
 		return vm.arrayViewFromSlice(obj)
@@ -85,7 +85,7 @@ func (vm *VM) arrayViewFromSlice(obj *Object) (arrayView, *VMError) {
 	}
 	switch baseObj.Kind {
 	case OKArray:
-		if start+length > len(baseObj.Arr) {
+		if start+length > baseObj.ArrLen {
 			return arrayView{}, vm.eb.makeError(PanicOutOfBounds, "array slice out of bounds")
 		}
 		return arrayView{
@@ -117,10 +117,26 @@ func (vm *VM) arrayViewFromSlice(obj *Object) (arrayView, *VMError) {
 // The five accessors below are the only places that know which of the two bases
 // a view has. Everything else asks them.
 
-// viewElemRef names element i's extent. Arena views only — a heap element is a
-// Value in a Go slice and has no extent.
+// viewElemRef names element i's extent.
+//
+// Both bases answer now. A fixed array in ordinary storage is a composite whose
+// members ARE its elements, so it is projected through its member list; a heap
+// array's elements are a run, addressed by arithmetic off the descriptor. What
+// the two share is the thing that matters to every caller above: an element is
+// an extent, and there is exactly one way to read or write one.
 func (vm *VM) viewElemRef(view arrayView, i int) (StorageRef, *VMError) {
-	return vm.memberStorage(view.baseRef, view.start+i)
+	if view.inArena() {
+		return vm.memberStorage(view.baseRef, view.start+i)
+	}
+	obj := view.heapObj
+	if obj == nil {
+		return StorageRef{}, vm.eb.makeError(PanicOutOfBounds, "array view has no base")
+	}
+	ref, err := vm.runElemRef(obj.ArrElems, obj.ArrElemType, view.start+i)
+	if err != nil {
+		return StorageRef{}, vm.eb.makeError(PanicUnimplemented, err.Error())
+	}
+	return ref, nil
 }
 
 // viewElemLocation names element i as a place to read or write through.
@@ -152,41 +168,34 @@ func (vm *VM) viewElemLocation(view arrayView, i int, isMut bool) (Location, *VM
 
 // viewElemValue reads element i as an owned value the caller must release.
 func (vm *VM) viewElemValue(frame *Frame, view arrayView, i int) (Value, *VMError) {
-	if view.inArena() {
-		return vm.readMember(frame, view.baseRef, view.start+i)
+	ref, vmErr := vm.viewElemRef(view, i)
+	if vmErr != nil {
+		return Value{}, vmErr
 	}
-	return vm.cloneForShare(view.heapObj.Arr[view.start+i])
+	return vm.readStorageValue(frame, ref)
 }
 
 // viewElemPeek reads element i without taking a count on it.
 func (vm *VM) viewElemPeek(view arrayView, i int) (Value, *VMError) {
-	if view.inArena() {
-		ref, vmErr := vm.viewElemRef(view, i)
-		if vmErr != nil {
-			return Value{}, vmErr
-		}
-		return vm.peekStorage(ref)
+	ref, vmErr := vm.viewElemRef(view, i)
+	if vmErr != nil {
+		return Value{}, vmErr
 	}
-	return view.heapObj.Arr[view.start+i], nil
+	return vm.peekStorage(ref)
 }
 
 // viewElemStore writes element i, releasing whatever was there.
+//
+// This is a REPLACE at both bases now: the slot is initialised, so what it held
+// is the store's to release. A slot past the length is not reachable here — an
+// index is bounds-checked against the view before it gets this far — which is
+// what keeps the dead tail out of a path that would drop it.
 func (vm *VM) viewElemStore(frame *Frame, view arrayView, i int, val Value) *VMError {
-	if view.inArena() {
-		ref, vmErr := vm.viewElemRef(view, i)
-		if vmErr != nil {
-			return vmErr
-		}
-		return vm.storeStorage(frame, ref, val)
-	}
-	adopted, vmErr := vm.adoptIntoContainer(view.heapObj, val)
+	ref, vmErr := vm.viewElemRef(view, i)
 	if vmErr != nil {
 		return vmErr
 	}
-	baseIdx := view.start + i
-	vm.dropValue(view.heapObj.Arr[baseIdx])
-	view.heapObj.Arr[baseIdx] = adopted
-	return nil
+	return vm.storeStorage(frame, ref, val)
 }
 
 // viewByteAt reads element i of a byte array. Its callers all take a `uint8[]`
@@ -273,17 +282,4 @@ func (vm *VM) arrayOwnedFromValue(val Value) (*Object, *VMError) {
 	default:
 		return nil, vm.eb.typeMismatch("array", fmt.Sprintf("%v", obj.Kind))
 	}
-}
-
-func growArrayCapacity(current, minCap int) int {
-	if minCap <= current {
-		return current
-	}
-	if current < 1 {
-		current = 1
-	}
-	for current < minCap {
-		current *= 2
-	}
-	return current
 }

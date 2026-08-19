@@ -149,8 +149,8 @@ func (vm *VM) heapDumpRecord(obj *Object) (heapDumpRecord, error) {
 		rec.repr = rec.kind
 	case OKArray:
 		rec.kind = "array"
-		rec.arrLen = len(obj.Arr)
-		rec.arrCap = cap(obj.Arr)
+		rec.arrLen = obj.ArrLen
+		rec.arrCap = obj.ArrCap
 	case OKArraySlice:
 		rec.kind = "view"
 		rec.arrLen = obj.ArrSliceLen

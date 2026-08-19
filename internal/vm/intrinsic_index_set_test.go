@@ -10,9 +10,10 @@ func TestVMIndexSetArrayAndSlice(t *testing.T) {
 	requireVMBackend(t)
 	typesInterner := types.NewInterner()
 	builtins := typesInterner.Builtins()
-	vmInstance := New(nil, NewTestRuntime(nil, ""), nil, typesInterner, nil)
-
 	arrType := typesInterner.Intern(types.MakeArray(builtins.Int, types.ArrayDynamicLength))
+	vmInstance := New(withElementLayouts(t, typesInterner, builtins.Int, arrType),
+		NewTestRuntime(nil, ""), nil, typesInterner, nil)
+
 	elems := []Value{
 		MakeInt(1, builtins.Int),
 		MakeInt(2, builtins.Int),
@@ -33,7 +34,7 @@ func TestVMIndexSetArrayAndSlice(t *testing.T) {
 	if obj == nil || obj.Kind != OKArray {
 		t.Fatalf("expected array object, got %v", obj)
 	}
-	if got := obj.Arr[1]; got.Kind != VKInt || got.Int != 42 {
+	if got := elemOf(t, vmInstance, obj, 1); got.Kind != VKInt || got.Int != 42 {
 		t.Fatalf("array index 1 mismatch: %+v", got)
 	}
 
@@ -44,7 +45,7 @@ func TestVMIndexSetArrayAndSlice(t *testing.T) {
 	}, types.NoTypeID); vmErr != nil {
 		t.Fatalf("__index_set negative index failed: %v", vmErr)
 	}
-	if got := obj.Arr[2]; got.Kind != VKInt || got.Int != 7 {
+	if got := elemOf(t, vmInstance, obj, 2); got.Kind != VKInt || got.Int != 7 {
 		t.Fatalf("array index -1 mismatch: %+v", got)
 	}
 
@@ -57,7 +58,23 @@ func TestVMIndexSetArrayAndSlice(t *testing.T) {
 	}, types.NoTypeID); vmErr != nil {
 		t.Fatalf("__index_set slice failed: %v", vmErr)
 	}
-	if got := obj.Arr[1]; got.Kind != VKInt || got.Int != 99 {
+	if got := elemOf(t, vmInstance, obj, 1); got.Kind != VKInt || got.Int != 99 {
 		t.Fatalf("slice index 0 mismatch: %+v", got)
 	}
+}
+
+// elemOf reads one element of an array object's run, uncounted. The elements
+// are no longer a list to index, so a test that wants to look at one asks the
+// run the same way the interpreter does.
+func elemOf(t *testing.T, machine *VM, obj *Object, index int) Value {
+	t.Helper()
+	ref, vmErr := machine.runElemSlot(obj, index)
+	if vmErr != nil {
+		t.Fatalf("addressing element %d must succeed: %v", index, vmErr)
+	}
+	value, vmErr := machine.peekStorage(ref)
+	if vmErr != nil {
+		t.Fatalf("reading element %d must succeed: %v", index, vmErr)
+	}
+	return value
 }

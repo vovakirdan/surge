@@ -53,18 +53,6 @@ func (vm *VM) adoptIntoContainer(obj *Object, val Value) (Value, *VMError) {
 	return MakeComposite(dst), nil
 }
 
-// adoptAllIntoContainer adopts a whole run of values in place.
-func (vm *VM) adoptAllIntoContainer(obj *Object, vals []Value) *VMError {
-	for i := range vals {
-		adopted, vmErr := vm.adoptIntoContainer(obj, vals[i])
-		if vmErr != nil {
-			return vmErr
-		}
-		vals[i] = adopted
-	}
-	return nil
-}
-
 // releaseContainerStorage drops everything a container's arena still holds and
 // invalidates every reference into it.
 //
