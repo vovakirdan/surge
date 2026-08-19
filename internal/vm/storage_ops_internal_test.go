@@ -21,6 +21,9 @@ type storageFixture struct {
 	leaf   types.TypeID
 	node   types.TypeID
 	choice types.TypeID
+	i64    types.TypeID
+	text   types.TypeID
+	anyInt types.TypeID
 	wrap   symbols.SymbolID
 	bare   symbols.SymbolID
 }
@@ -82,6 +85,7 @@ func newStorageFixture(t *testing.T) *storageFixture {
 	return &storageFixture{
 		vm: machine, arena: newArena(&plan, 1), plan: plan,
 		leaf: leaf, node: node, choice: choice, wrap: fixtureWrapSym, bare: fixtureBareSym,
+		i64: i64, text: text, anyInt: unsized,
 	}
 }
 

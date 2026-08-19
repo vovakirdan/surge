@@ -37,11 +37,19 @@ type scratch struct {
 // scratchEntry remembers one extent so a rewind knows what it still owes. A
 // dead entry is one whose value was moved out; its bytes are still reserved
 // until the rewind, because rewinding is by mark and not by extent.
+//
+// An entry with a nonzero stride is an element RUN rather than a single value:
+// it holds `count` values of `typeID` laid end to end, and a rewind owes a drop
+// for each of them. `count` tracks the run's LENGTH and never its capacity —
+// the slots past the length hold nothing, and dropping them would drop what a
+// pop already moved out.
 type scratchEntry struct {
 	offset uint64
 	size   uint64
 	typeID types.TypeID
 	live   bool
+	count  uint64
+	stride uint64
 }
 
 // scratchMark names a point in scratch to rewind back to.
@@ -187,6 +195,25 @@ func (vm *VM) rewindScratch(s *scratch, mark scratchMark) error {
 			if ref.Align == 0 {
 				ref.Align = 1
 			}
+		}
+		if entry.stride != 0 {
+			// An element run owes one drop per LIVE element, walked from the
+			// far end so a drop that reads a neighbour still sees it.
+			for e := entry.count; e > 0; e-- {
+				elemRef, refErr := vm.runElemRefAt(ref, entry.typeID, e-1)
+				if refErr != nil {
+					if first == nil {
+						first = fmt.Errorf("storage: element %d of a run of type#%d could not be addressed: %w",
+							e-1, entry.typeID, refErr)
+					}
+					continue
+				}
+				if err := vm.storageDrop(elemRef); err != nil && first == nil {
+					first = fmt.Errorf("storage: element %d of a run of type#%d could not be released: %w",
+						e-1, entry.typeID, err)
+				}
+			}
+			continue
 		}
 		if err := vm.storageDrop(ref); err != nil && first == nil {
 			first = fmt.Errorf("storage: a temporary of type#%d could not be released: %w", entry.typeID, err)
