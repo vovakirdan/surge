@@ -121,17 +121,13 @@ func (vm *VM) dropAsyncTasks() {
 		} else if v, ok := task.State.(Value); ok {
 			vm.dropValue(v)
 		}
-		if v, ok := task.ResultValue.(Value); ok {
-			vm.dropValue(v)
-		}
+		vm.dropValue(task.ResultValue)
 		// A resume value still on a task at shutdown is a payload that was
 		// delivered and never read.
-		if v, ok := task.ResumeValue.(Value); ok {
-			vm.transportRelease(v)
-		}
+		vm.transportRelease(task.ResumeValue)
 		task.State = nil
-		task.ResultValue = nil
-		task.ResumeValue = nil
+		task.ResultValue = Value{}
+		task.ResumeValue = Value{}
 	}
 	// Drop-without-receive: values still in a channel buffer, or in a parked
 	// sender's queue entry, when the program ends. The receive that would have
@@ -139,9 +135,7 @@ func (vm *VM) dropAsyncTasks() {
 	// only one, because the drain takes them out of the runtime's hold in the
 	// same step it hands them here.
 	for _, payload := range drained.ChannelPayloads {
-		if v, ok := payload.(Value); ok {
-			vm.transportRelease(v)
-		}
+		vm.transportRelease(payload)
 	}
 }
 

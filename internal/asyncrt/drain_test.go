@@ -6,7 +6,7 @@ import (
 )
 
 func TestDrainTasksCollectsPendingChannelPayloads(t *testing.T) {
-	exec := NewExecutor(Config{Deterministic: true})
+	exec := NewExecutor[string](Config{Deterministic: true})
 
 	bufferedID := exec.ChanNew(1)
 	if ok := exec.ChanTrySend(bufferedID, "buffered"); !ok {
@@ -34,10 +34,7 @@ func TestDrainTasksCollectsPendingChannelPayloads(t *testing.T) {
 	}
 	gotPayloads := make([]string, 0, len(drained.ChannelPayloads))
 	for _, payload := range drained.ChannelPayloads {
-		value, ok := payload.(string)
-		if !ok {
-			t.Fatalf("expected string payload, got %T", payload)
-		}
+		value := payload
 		gotPayloads = append(gotPayloads, value)
 	}
 	slices.Sort(gotPayloads)

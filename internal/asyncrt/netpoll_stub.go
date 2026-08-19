@@ -2,6 +2,6 @@
 
 package asyncrt
 
-func (e *Executor) netPoll(timeoutMs int64) bool {
+func (e *Executor[P]) netPoll(timeoutMs int64) bool {
 	return false
 }

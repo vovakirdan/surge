@@ -5,7 +5,7 @@ import "math/rand"
 
 // Executor runs async tasks on a single thread with a deterministic FIFO scheduler by default.
 // Fuzz scheduling is supported for reproducible interleavings.
-type Executor struct {
+type Executor[P Payload] struct {
 	cfg          Config
 	nextID       TaskID
 	nextScopeID  ScopeID
@@ -16,9 +16,9 @@ type Executor struct {
 	clock        Clock
 	ready        []TaskID
 	readySet     map[TaskID]struct{}
-	tasks        map[TaskID]*Task
+	tasks        map[TaskID]*Task[P]
 	scopes       map[ScopeID]*Scope
-	channels     map[ChannelID]*Channel
+	channels     map[ChannelID]*Channel[P]
 	timers       timerHeap
 	timerByID    map[TimerID]*Timer
 	waiters      map[WakerKey][]Waiter
@@ -86,14 +86,14 @@ const (
 )
 
 // Task stores executor-visible task state.
-type Task struct {
+type Task[P Payload] struct {
 	ID               TaskID
 	PollFuncID       int64
-	State            any
+	State            TaskState
 	ResultKind       TaskResultKind
-	ResultValue      any
+	ResultValue      P
 	ResumeKind       ResumeKind
-	ResumeValue      any
+	ResumeValue      P
 	Status           TaskStatus
 	Kind             TaskKind
 	Cancelled        bool
@@ -107,9 +107,9 @@ type Task struct {
 }
 
 // DrainedTasks contains executor-owned payloads that must be released by the caller.
-type DrainedTasks struct {
-	Tasks           []*Task
-	ChannelPayloads []any
+type DrainedTasks[P Payload] struct {
+	Tasks           []*Task[P]
+	ChannelPayloads []P
 }
 
 // Config configures executor scheduling behavior.
@@ -122,21 +122,21 @@ type Config struct {
 }
 
 // NewExecutor constructs an executor with the provided configuration.
-func NewExecutor(cfg Config) *Executor {
-	exec := &Executor{
+func NewExecutor[P Payload](cfg Config) *Executor[P] {
+	exec := &Executor[P]{
 		cfg:         cfg,
 		nextID:      1,
 		nextScopeID: 1,
 		nextChanID:  1,
 		nextTimerID: 1,
 		readySet:    make(map[TaskID]struct{}),
-		tasks:       make(map[TaskID]*Task),
+		tasks:       make(map[TaskID]*Task[P]),
 		scopes:      make(map[ScopeID]*Scope),
 	}
 	if cfg.Clock != nil {
 		exec.clock = cfg.Clock
 	} else {
-		exec.clock = &VirtualClock{ex: exec}
+		exec.clock = &VirtualClock[P]{ex: exec}
 	}
 	if cfg.Fuzz {
 		seed := cfg.Seed
@@ -149,7 +149,7 @@ func NewExecutor(cfg Config) *Executor {
 }
 
 // Current returns the ID of the task being polled.
-func (e *Executor) Current() TaskID {
+func (e *Executor[P]) Current() TaskID {
 	if e == nil {
 		return 0
 	}
@@ -157,7 +157,7 @@ func (e *Executor) Current() TaskID {
 }
 
 // SetCurrent sets the currently running task ID.
-func (e *Executor) SetCurrent(id TaskID) {
+func (e *Executor[P]) SetCurrent(id TaskID) {
 	if e == nil {
 		return
 	}
@@ -165,7 +165,7 @@ func (e *Executor) SetCurrent(id TaskID) {
 }
 
 // Task returns a task by ID.
-func (e *Executor) Task(id TaskID) *Task {
+func (e *Executor[P]) Task(id TaskID) *Task[P] {
 	if e == nil {
 		return nil
 	}
@@ -173,7 +173,7 @@ func (e *Executor) Task(id TaskID) *Task {
 }
 
 // Spawn registers a task and enqueues it for execution.
-func (e *Executor) Spawn(pollFuncID int64, state any) TaskID {
+func (e *Executor[P]) Spawn(pollFuncID int64, state TaskState) TaskID {
 	if e == nil {
 		return 0
 	}
@@ -183,7 +183,7 @@ func (e *Executor) Spawn(pollFuncID int64, state any) TaskID {
 	id := e.nextID
 	e.nextID++
 
-	task := &Task{
+	task := &Task[P]{
 		ID:         id,
 		PollFuncID: pollFuncID,
 		State:      state,
@@ -191,7 +191,7 @@ func (e *Executor) Spawn(pollFuncID int64, state any) TaskID {
 		Kind:       TaskKindUser,
 	}
 	if e.tasks == nil {
-		e.tasks = make(map[TaskID]*Task)
+		e.tasks = make(map[TaskID]*Task[P])
 	}
 	e.tasks[id] = task
 	if e.current != 0 {
@@ -203,7 +203,7 @@ func (e *Executor) Spawn(pollFuncID int64, state any) TaskID {
 	return id
 }
 
-func (e *Executor) spawnBuiltin(kind TaskKind, state any, attach bool) TaskID {
+func (e *Executor[P]) spawnBuiltin(kind TaskKind, state TaskState, attach bool) TaskID {
 	if e == nil {
 		return 0
 	}
@@ -213,14 +213,14 @@ func (e *Executor) spawnBuiltin(kind TaskKind, state any, attach bool) TaskID {
 	id := e.nextID
 	e.nextID++
 
-	task := &Task{
+	task := &Task[P]{
 		ID:     id,
 		State:  state,
 		Status: TaskReady,
 		Kind:   kind,
 	}
 	if e.tasks == nil {
-		e.tasks = make(map[TaskID]*Task)
+		e.tasks = make(map[TaskID]*Task[P])
 	}
 	e.tasks[id] = task
 	if attach && e.current != 0 {
@@ -233,7 +233,7 @@ func (e *Executor) spawnBuiltin(kind TaskKind, state any, attach bool) TaskID {
 }
 
 // SpawnCheckpoint registers a checkpoint task and enqueues it.
-func (e *Executor) SpawnCheckpoint() TaskID {
+func (e *Executor[P]) SpawnCheckpoint() TaskID {
 	if e == nil {
 		return 0
 	}
@@ -243,13 +243,13 @@ func (e *Executor) SpawnCheckpoint() TaskID {
 	id := e.nextID
 	e.nextID++
 
-	task := &Task{
+	task := &Task[P]{
 		ID:     id,
 		Status: TaskReady,
 		Kind:   TaskKindCheckpoint,
 	}
 	if e.tasks == nil {
-		e.tasks = make(map[TaskID]*Task)
+		e.tasks = make(map[TaskID]*Task[P])
 	}
 	e.tasks[id] = task
 	e.enqueue(id)
@@ -257,7 +257,7 @@ func (e *Executor) SpawnCheckpoint() TaskID {
 }
 
 // CheckpointPolled reports whether a checkpoint task has yielded once.
-func (t *Task) CheckpointPolled() bool {
+func (t *Task[P]) CheckpointPolled() bool {
 	if t == nil {
 		return false
 	}
@@ -265,7 +265,7 @@ func (t *Task) CheckpointPolled() bool {
 }
 
 // MarkCheckpointPolled marks a checkpoint task as having yielded once.
-func (t *Task) MarkCheckpointPolled() {
+func (t *Task[P]) MarkCheckpointPolled() {
 	if t == nil {
 		return
 	}
@@ -273,7 +273,7 @@ func (t *Task) MarkCheckpointPolled() {
 }
 
 // NextReady returns the next ready task according to scheduler policy.
-func (e *Executor) NextReady() (TaskID, bool) {
+func (e *Executor[P]) NextReady() (TaskID, bool) {
 	if e == nil {
 		return 0, false
 	}
@@ -338,7 +338,7 @@ func (e *Executor) NextReady() (TaskID, bool) {
 	return 0, false
 }
 
-func (e *Executor) hasNetWaiters() bool {
+func (e *Executor[P]) hasNetWaiters() bool {
 	if e == nil || len(e.waiters) == 0 {
 		return false
 	}
@@ -353,7 +353,7 @@ func (e *Executor) hasNetWaiters() bool {
 }
 
 // Wake enqueues a task if it is not done.
-func (e *Executor) Wake(id TaskID) {
+func (e *Executor[P]) Wake(id TaskID) {
 	if e == nil {
 		return
 	}
@@ -369,7 +369,7 @@ func (e *Executor) Wake(id TaskID) {
 }
 
 // Yield requeues a task after it voluntarily yielded.
-func (e *Executor) Yield(id TaskID) {
+func (e *Executor[P]) Yield(id TaskID) {
 	if e == nil {
 		return
 	}
@@ -381,7 +381,7 @@ func (e *Executor) Yield(id TaskID) {
 }
 
 // ParkCurrent moves the current task into a wait queue for the key.
-func (e *Executor) ParkCurrent(key WakerKey) {
+func (e *Executor[P]) ParkCurrent(key WakerKey) {
 	if e == nil || !key.IsValid() {
 		return
 	}
@@ -392,7 +392,7 @@ func (e *Executor) ParkCurrent(key WakerKey) {
 }
 
 // WakeKeyOne wakes the oldest task waiting on a key.
-func (e *Executor) WakeKeyOne(key WakerKey) {
+func (e *Executor[P]) WakeKeyOne(key WakerKey) {
 	if e == nil || !key.IsValid() {
 		return
 	}
@@ -412,7 +412,7 @@ func (e *Executor) WakeKeyOne(key WakerKey) {
 }
 
 // WakeKeyAll wakes all tasks waiting on a key.
-func (e *Executor) WakeKeyAll(key WakerKey) {
+func (e *Executor[P]) WakeKeyAll(key WakerKey) {
 	if e == nil || !key.IsValid() {
 		return
 	}
@@ -428,7 +428,7 @@ func (e *Executor) WakeKeyAll(key WakerKey) {
 }
 
 // MarkDone marks a task as completed and wakes join waiters.
-func (e *Executor) MarkDone(id TaskID, kind TaskResultKind, result any) {
+func (e *Executor[P]) MarkDone(id TaskID, kind TaskResultKind, result P) {
 	if e == nil {
 		return
 	}
@@ -457,14 +457,14 @@ func (e *Executor) MarkDone(id TaskID, kind TaskResultKind, result any) {
 }
 
 // Cancel marks a task (and its descendants) as cancelled.
-func (e *Executor) Cancel(id TaskID) {
+func (e *Executor[P]) Cancel(id TaskID) {
 	if e == nil {
 		return
 	}
 	e.cancelRecursive(id)
 }
 
-func (e *Executor) cancelRecursive(id TaskID) {
+func (e *Executor[P]) cancelRecursive(id TaskID) {
 	if e == nil {
 		return
 	}
@@ -483,7 +483,7 @@ func (e *Executor) cancelRecursive(id TaskID) {
 	}
 }
 
-func (e *Executor) enqueue(id TaskID) {
+func (e *Executor[P]) enqueue(id TaskID) {
 	if e == nil {
 		return
 	}
@@ -500,7 +500,7 @@ func (e *Executor) enqueue(id TaskID) {
 	}
 }
 
-func (e *Executor) parkTask(id TaskID, key WakerKey) {
+func (e *Executor[P]) parkTask(id TaskID, key WakerKey) {
 	if e == nil || !key.IsValid() {
 		return
 	}
@@ -526,7 +526,7 @@ func (e *Executor) parkTask(id TaskID, key WakerKey) {
 	task.Status = TaskWaiting
 }
 
-func (e *Executor) removeWaiter(key WakerKey, id TaskID) {
+func (e *Executor[P]) removeWaiter(key WakerKey, id TaskID) {
 	if e == nil {
 		return
 	}
@@ -551,9 +551,9 @@ func (e *Executor) removeWaiter(key WakerKey, id TaskID) {
 }
 
 // DrainTasks returns all tasks plus pending channel payloads and resets executor queues.
-func (e *Executor) DrainTasks() DrainedTasks {
+func (e *Executor[P]) DrainTasks() DrainedTasks[P] {
 	if e == nil {
-		return DrainedTasks{}
+		return DrainedTasks[P]{}
 	}
 	channelPayloads := e.drainChannelPayloads()
 	if len(e.tasks) == 0 {
@@ -586,13 +586,13 @@ func (e *Executor) DrainTasks() DrainedTasks {
 		e.nextSelectID = 1
 		e.nowMs = 0
 		e.current = 0
-		return DrainedTasks{ChannelPayloads: channelPayloads}
+		return DrainedTasks[P]{ChannelPayloads: channelPayloads}
 	}
-	tasks := make([]*Task, 0, len(e.tasks))
+	tasks := make([]*Task[P], 0, len(e.tasks))
 	for _, task := range e.tasks {
 		tasks = append(tasks, task)
 	}
-	e.tasks = make(map[TaskID]*Task)
+	e.tasks = make(map[TaskID]*Task[P])
 	if e.scopes != nil {
 		clear(e.scopes)
 	}
@@ -621,17 +621,17 @@ func (e *Executor) DrainTasks() DrainedTasks {
 	e.nextTimerID = 1
 	e.nowMs = 0
 	e.current = 0
-	return DrainedTasks{
+	return DrainedTasks[P]{
 		Tasks:           tasks,
 		ChannelPayloads: channelPayloads,
 	}
 }
 
-func (e *Executor) drainChannelPayloads() []any {
+func (e *Executor[P]) drainChannelPayloads() []P {
 	if e == nil || len(e.channels) == 0 {
 		return nil
 	}
-	payloads := make([]any, 0)
+	payloads := make([]P, 0)
 	for _, ch := range e.channels {
 		if ch == nil {
 			continue
@@ -646,7 +646,7 @@ func (e *Executor) drainChannelPayloads() []any {
 			if waiter.hasValue {
 				payloads = append(payloads, waiter.value)
 			}
-			waiter.value = nil
+			waiter.value = zeroPayload[P]()
 			waiter.hasValue = false
 		}
 		ch.sendq = nil

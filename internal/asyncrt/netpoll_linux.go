@@ -11,7 +11,7 @@ type netPollEntry struct {
 	writeKeys []WakerKey
 }
 
-func (e *Executor) netPoll(timeoutMs int64) bool {
+func (e *Executor[P]) netPoll(timeoutMs int64) bool {
 	if e == nil || len(e.waiters) == 0 {
 		return false
 	}

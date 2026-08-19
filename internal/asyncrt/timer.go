@@ -49,7 +49,7 @@ func (h *timerHeap) Pop() any {
 }
 
 // TimerScheduleAfter schedules a timer for the current clock time + delayMs.
-func (e *Executor) TimerScheduleAfter(taskID TaskID, delayMs uint64) TimerID {
+func (e *Executor[P]) TimerScheduleAfter(taskID TaskID, delayMs uint64) TimerID {
 	if e == nil {
 		return 0
 	}
@@ -82,7 +82,7 @@ func (e *Executor) TimerScheduleAfter(taskID TaskID, delayMs uint64) TimerID {
 }
 
 // TimerCancel marks a timer as cancelled and removes it from lookup maps.
-func (e *Executor) TimerCancel(id TimerID) {
+func (e *Executor[P]) TimerCancel(id TimerID) {
 	if e == nil || id == 0 {
 		return
 	}
@@ -95,7 +95,7 @@ func (e *Executor) TimerCancel(id TimerID) {
 }
 
 // TimerActive reports whether a timer is still pending.
-func (e *Executor) TimerActive(id TimerID) bool {
+func (e *Executor[P]) TimerActive(id TimerID) bool {
 	if e == nil || id == 0 {
 		return false
 	}
@@ -104,7 +104,7 @@ func (e *Executor) TimerActive(id TimerID) bool {
 }
 
 // TickVirtual advances virtual time by 1ms and fires any due timers.
-func (e *Executor) TickVirtual() {
+func (e *Executor[P]) TickVirtual() {
 	if e == nil || e.cfg.TimerMode != TimerModeVirtual {
 		return
 	}
@@ -117,7 +117,7 @@ func (e *Executor) TickVirtual() {
 	e.fireDueTimers()
 }
 
-func (e *Executor) fireDueTimers() {
+func (e *Executor[P]) fireDueTimers() {
 	if e == nil {
 		return
 	}
@@ -139,7 +139,7 @@ func (e *Executor) fireDueTimers() {
 	}
 }
 
-func (e *Executor) nextTimerDeadline() (uint64, bool) {
+func (e *Executor[P]) nextTimerDeadline() (uint64, bool) {
 	if e == nil {
 		return 0, false
 	}
@@ -158,7 +158,7 @@ func (e *Executor) nextTimerDeadline() (uint64, bool) {
 	return 0, false
 }
 
-func (e *Executor) advanceTimeToNextTimer() bool {
+func (e *Executor[P]) advanceTimeToNextTimer() bool {
 	if e == nil {
 		return false
 	}
@@ -205,7 +205,7 @@ func (e *Executor) advanceTimeToNextTimer() bool {
 	}
 }
 
-func (e *Executor) fireTimer(timer *Timer) {
+func (e *Executor[P]) fireTimer(timer *Timer) {
 	if e == nil || timer == nil {
 		return
 	}

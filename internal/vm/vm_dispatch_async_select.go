@@ -163,9 +163,7 @@ func (vm *VM) execInstrSelect(frame *Frame, instr *mir.Instr, writes []LocalWrit
 		case mir.SelectArmChanRecv:
 			val, ok := exec.ChanTryRecv(selectedChanID)
 			if ok {
-				if v, isVal := val.(Value); isVal {
-					vm.dropValue(v)
-				}
+				vm.dropValue(val)
 			}
 		case mir.SelectArmChanSend:
 			if exec.ChanIsClosed(selectedChanID) {

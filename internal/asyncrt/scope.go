@@ -31,7 +31,7 @@ type Scope struct {
 }
 
 // EnterScope registers a new scope owned by the given task.
-func (e *Executor) EnterScope(owner TaskID, failfast bool) ScopeID {
+func (e *Executor[P]) EnterScope(owner TaskID, failfast bool) ScopeID {
 	if e == nil {
 		return 0
 	}
@@ -56,7 +56,7 @@ func (e *Executor) EnterScope(owner TaskID, failfast bool) ScopeID {
 }
 
 // ExitScope validates that all children completed and removes the scope.
-func (e *Executor) ExitScope(scopeID ScopeID) {
+func (e *Executor[P]) ExitScope(scopeID ScopeID) {
 	if e == nil || scopeID == 0 {
 		return
 	}
@@ -78,7 +78,7 @@ func (e *Executor) ExitScope(scopeID ScopeID) {
 }
 
 // RegisterChild records a child task in the scope.
-func (e *Executor) RegisterChild(scopeID ScopeID, child TaskID) {
+func (e *Executor[P]) RegisterChild(scopeID ScopeID, child TaskID) {
 	if e == nil || scopeID == 0 {
 		return
 	}
@@ -106,7 +106,7 @@ func (e *Executor) RegisterChild(scopeID ScopeID, child TaskID) {
 }
 
 // CancelAllChildren cancels all children in task order.
-func (e *Executor) CancelAllChildren(scopeID ScopeID) {
+func (e *Executor[P]) CancelAllChildren(scopeID ScopeID) {
 	if e == nil || scopeID == 0 {
 		return
 	}
@@ -123,7 +123,7 @@ func (e *Executor) CancelAllChildren(scopeID ScopeID) {
 // JoinAllChildrenBlocking advances join-all in task order.
 // Returns done=false with the first pending child to wait on, or done=true
 // when all children are complete, along with the failfast outcome.
-func (e *Executor) JoinAllChildrenBlocking(scopeID ScopeID) (done bool, pending TaskID, failfast bool) {
+func (e *Executor[P]) JoinAllChildrenBlocking(scopeID ScopeID) (done bool, pending TaskID, failfast bool) {
 	if e == nil || scopeID == 0 {
 		return true, 0, false
 	}
@@ -138,7 +138,7 @@ func (e *Executor) JoinAllChildrenBlocking(scopeID ScopeID) (done bool, pending 
 	return true, 0, scope.FailfastTriggered
 }
 
-func (e *Executor) compactScopeChildren(scope *Scope) {
+func (e *Executor[P]) compactScopeChildren(scope *Scope) {
 	if e == nil || scope == nil || len(scope.Children) == 0 {
 		return
 	}
@@ -155,7 +155,7 @@ func (e *Executor) compactScopeChildren(scope *Scope) {
 	})
 }
 
-func (e *Executor) unregisterScopeChild(task *Task) {
+func (e *Executor[P]) unregisterScopeChild(task *Task[P]) {
 	if e == nil || task == nil {
 		return
 	}

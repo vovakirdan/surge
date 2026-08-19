@@ -142,13 +142,9 @@ func (vm *VM) handleChannelRecv(frame *Frame, call *mir.CallInstr, writes *[]Loc
 		}
 		valAny, ok := exec.ChanRecvOrPark(chID)
 		if ok {
-			v, ok := valAny.(Value)
-			if !ok {
-				return vm.eb.makeError(PanicTypeMismatch, "invalid channel recv value")
-			}
-			doneVal, vmErr := vm.makeOptionSome(dstType, v)
+			doneVal, vmErr := vm.makeOptionSome(dstType, valAny)
 			if vmErr != nil {
-				vm.dropValue(v)
+				vm.dropValue(valAny)
 				return vmErr
 			}
 			if vmErr := vm.writeLocal(frame, dstLocal, doneVal); vmErr != nil {
@@ -267,13 +263,9 @@ func (vm *VM) handleChannelTryRecv(frame *Frame, call *mir.CallInstr, writes *[]
 	dstType := frame.Locals[dstLocal].TypeID
 	var res Value
 	if ok {
-		v, ok := valAny.(Value)
-		if !ok {
-			return vm.eb.makeError(PanicTypeMismatch, "invalid channel recv value")
-		}
-		res, vmErr = vm.makeOptionSome(dstType, v)
+		res, vmErr = vm.makeOptionSome(dstType, valAny)
 		if vmErr != nil {
-			vm.dropValue(v)
+			vm.dropValue(valAny)
 			return vmErr
 		}
 	} else {

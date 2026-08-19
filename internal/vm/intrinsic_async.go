@@ -181,11 +181,7 @@ func (vm *VM) handleTimeout(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 			var result Value
 			switch timeoutTask.ResultKind {
 			case asyncrt.TaskResultSuccess:
-				val, ok := timeoutTask.ResultValue.(Value)
-				if !ok {
-					return vm.eb.makeError(PanicTypeMismatch, "invalid timeout result type")
-				}
-				result, vmErr = vm.cloneForShare(val)
+				result, vmErr = vm.cloneForShare(timeoutTask.ResultValue)
 				if vmErr != nil {
 					return vmErr
 				}

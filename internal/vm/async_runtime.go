@@ -22,7 +22,7 @@ type userTaskState struct {
 	pins  taskStatePins
 }
 
-func (vm *VM) ensureExecutor() *asyncrt.Executor {
+func (vm *VM) ensureExecutor() *asyncrt.Executor[Value] {
 	if vm == nil {
 		return nil
 	}
@@ -32,14 +32,14 @@ func (vm *VM) ensureExecutor() *asyncrt.Executor {
 			cfg.Deterministic = true
 		}
 		if cfg.TimerMode == asyncrt.TimerModeReal && cfg.Clock == nil {
-			cfg.Clock = &asyncrt.RealClock{NowFunc: vm.monotonicNowMs}
+			cfg.Clock = &asyncrt.RealClock[Value]{NowFunc: vm.monotonicNowMs}
 		}
-		vm.Async = asyncrt.NewExecutor(cfg)
+		vm.Async = asyncrt.NewExecutor[Value](cfg)
 	}
 	return vm.Async
 }
 
-func (vm *VM) ensureUserTaskState(task *asyncrt.Task) *userTaskState {
+func (vm *VM) ensureUserTaskState(task *asyncrt.Task[Value]) *userTaskState {
 	if task == nil {
 		return nil
 	}
@@ -217,17 +217,13 @@ func (vm *VM) isChannelType(typeID types.TypeID) bool {
 	return ok && name == "Channel"
 }
 
-func (vm *VM) taskResultFromTask(task *asyncrt.Task, resultType types.TypeID) (Value, *VMError) {
+func (vm *VM) taskResultFromTask(task *asyncrt.Task[Value], resultType types.TypeID) (Value, *VMError) {
 	if task == nil {
 		return Value{}, vm.eb.makeError(PanicUnimplemented, "missing task result")
 	}
 	switch task.ResultKind {
 	case asyncrt.TaskResultSuccess:
-		res, ok := task.ResultValue.(Value)
-		if !ok {
-			return Value{}, vm.eb.makeError(PanicTypeMismatch, "invalid task result type")
-		}
-		return vm.taskResultValue(resultType, asyncrt.TaskResultSuccess, res)
+		return vm.taskResultValue(resultType, asyncrt.TaskResultSuccess, task.ResultValue)
 	case asyncrt.TaskResultCancelled:
 		return vm.taskResultValue(resultType, asyncrt.TaskResultCancelled, Value{})
 	default:
@@ -278,30 +274,30 @@ func (vm *VM) taskResultValue(resultType types.TypeID, kind asyncrt.TaskResultKi
 	}
 }
 
-func (vm *VM) pollTask(task *asyncrt.Task) (asyncrt.PollOutcome, *VMError) {
+func (vm *VM) pollTask(task *asyncrt.Task[Value]) (asyncrt.PollOutcome[Value], *VMError) {
 	if vm == nil {
-		return asyncrt.PollOutcome{}, nil
+		return asyncrt.PollOutcome[Value]{}, nil
 	}
 	if task == nil {
-		return asyncrt.PollOutcome{}, vm.eb.makeError(PanicUnimplemented, "missing task")
+		return asyncrt.PollOutcome[Value]{}, vm.eb.makeError(PanicUnimplemented, "missing task")
 	}
 	if task.Status == asyncrt.TaskDone {
 		kind := asyncrt.PollDoneSuccess
 		if task.ResultKind == asyncrt.TaskResultCancelled {
 			kind = asyncrt.PollDoneCancelled
 		}
-		return asyncrt.PollOutcome{Kind: kind, Value: task.ResultValue}, nil
+		return asyncrt.PollOutcome[Value]{Kind: kind, Value: task.ResultValue}, nil
 	}
 	switch task.Kind {
 	case asyncrt.TaskKindCheckpoint:
 		if task.Cancelled {
-			return asyncrt.PollOutcome{Kind: asyncrt.PollDoneCancelled}, nil
+			return asyncrt.PollOutcome[Value]{Kind: asyncrt.PollDoneCancelled}, nil
 		}
 		if task.CheckpointPolled() {
-			return asyncrt.PollOutcome{Kind: asyncrt.PollDoneSuccess, Value: MakeNothing()}, nil
+			return asyncrt.PollOutcome[Value]{Kind: asyncrt.PollDoneSuccess, Value: MakeNothing()}, nil
 		}
 		task.MarkCheckpointPolled()
-		return asyncrt.PollOutcome{Kind: asyncrt.PollYielded}, nil
+		return asyncrt.PollOutcome[Value]{Kind: asyncrt.PollYielded}, nil
 	case asyncrt.TaskKindSleep:
 		return vm.pollSleepTask(task)
 	case asyncrt.TaskKindTimeout:
@@ -309,7 +305,7 @@ func (vm *VM) pollTask(task *asyncrt.Task) (asyncrt.PollOutcome, *VMError) {
 	default:
 		outcome, vmErr := vm.pollUserTask(task)
 		if vmErr != nil {
-			return asyncrt.PollOutcome{}, vmErr
+			return asyncrt.PollOutcome[Value]{}, vmErr
 		}
 		if outcome.Kind == asyncrt.PollDoneSuccess || outcome.Kind == asyncrt.PollDoneCancelled {
 			vm.releaseTaskState(task)
@@ -318,24 +314,24 @@ func (vm *VM) pollTask(task *asyncrt.Task) (asyncrt.PollOutcome, *VMError) {
 	}
 }
 
-func (vm *VM) pollUserTask(task *asyncrt.Task) (outcome asyncrt.PollOutcome, vmErr *VMError) {
+func (vm *VM) pollUserTask(task *asyncrt.Task[Value]) (outcome asyncrt.PollOutcome[Value], vmErr *VMError) {
 	if vm == nil {
-		return asyncrt.PollOutcome{}, nil
+		return asyncrt.PollOutcome[Value]{}, nil
 	}
 	if task == nil {
-		return asyncrt.PollOutcome{}, vm.eb.makeError(PanicUnimplemented, "missing task")
+		return asyncrt.PollOutcome[Value]{}, vm.eb.makeError(PanicUnimplemented, "missing task")
 	}
 	if vm.M == nil {
-		return asyncrt.PollOutcome{}, vm.eb.makeError(PanicUnimplemented, "missing module")
+		return asyncrt.PollOutcome[Value]{}, vm.eb.makeError(PanicUnimplemented, "missing module")
 	}
 	fn := vm.M.Funcs[mir.FuncID(task.PollFuncID)] //nolint:gosec // PollFuncID is bounded by module
 	if fn == nil {
-		return asyncrt.PollOutcome{}, vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("missing poll function %d", task.PollFuncID))
+		return asyncrt.PollOutcome[Value]{}, vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("missing poll function %d", task.PollFuncID))
 	}
 	state := vm.ensureUserTaskState(task)
 	outcome, stateOut, statePins, vmErr := vm.runPoll(fn)
 	if vmErr != nil {
-		return asyncrt.PollOutcome{}, vmErr
+		return asyncrt.PollOutcome[Value]{}, vmErr
 	}
 	if stateOut.Kind == VKInvalid {
 		stateOut = Value{}
@@ -373,7 +369,7 @@ func (vm *VM) runReadyOne() (bool, *VMError) {
 	case asyncrt.PollDoneSuccess:
 		exec.MarkDone(id, asyncrt.TaskResultSuccess, outcome.Value)
 	case asyncrt.PollDoneCancelled:
-		exec.MarkDone(id, asyncrt.TaskResultCancelled, nil)
+		exec.MarkDone(id, asyncrt.TaskResultCancelled, Value{})
 	case asyncrt.PollYielded:
 		exec.Yield(id)
 		exec.TickVirtual()
@@ -425,7 +421,7 @@ func (vm *VM) runUntilDone(id asyncrt.TaskID, resultType types.TypeID) (Value, *
 	}
 }
 
-func (vm *VM) releaseTaskState(task *asyncrt.Task) {
+func (vm *VM) releaseTaskState(task *asyncrt.Task[Value]) {
 	if vm == nil || task == nil {
 		return
 	}
@@ -445,12 +441,12 @@ func (vm *VM) releaseTaskState(task *asyncrt.Task) {
 	task.State = nil
 }
 
-func (vm *VM) runPoll(fn *mir.Func) (outcome asyncrt.PollOutcome, stateOut Value, statePins taskStatePins, vmErr *VMError) {
+func (vm *VM) runPoll(fn *mir.Func) (outcome asyncrt.PollOutcome[Value], stateOut Value, statePins taskStatePins, vmErr *VMError) {
 	if vm == nil {
-		return asyncrt.PollOutcome{}, Value{}, taskStatePins{}, nil
+		return asyncrt.PollOutcome[Value]{}, Value{}, taskStatePins{}, nil
 	}
 	if fn == nil {
-		return asyncrt.PollOutcome{}, Value{}, taskStatePins{}, vm.eb.makeError(PanicUnimplemented, "missing poll function")
+		return asyncrt.PollOutcome[Value]{}, Value{}, taskStatePins{}, vm.eb.makeError(PanicUnimplemented, "missing poll function")
 	}
 	savedStack := vm.Stack
 	savedHalted := vm.Halted
@@ -484,7 +480,7 @@ func (vm *VM) runPoll(fn *mir.Func) (outcome asyncrt.PollOutcome, stateOut Value
 			vm.asyncCapture = savedAsync
 			vm.asyncPendingParkKey = savedPendingParkKey
 			vm.deferredShutdown = savedDeferredShutdown
-			return asyncrt.PollOutcome{}, Value{}, taskStatePins{}, vmErr
+			return asyncrt.PollOutcome[Value]{}, Value{}, taskStatePins{}, vmErr
 		}
 		if exit.set {
 			break
@@ -506,16 +502,16 @@ func (vm *VM) runPoll(fn *mir.Func) (outcome asyncrt.PollOutcome, stateOut Value
 			vm.Halted = true
 			vm.deferredShutdown.active = true
 			vm.deferredShutdown.checkLeaks = checkLeaks
-			return asyncrt.PollOutcome{}, Value{}, taskStatePins{}, nil
+			return asyncrt.PollOutcome[Value]{}, Value{}, taskStatePins{}, nil
 		}
 		vm.finishShutdown(checkLeaks)
-		return asyncrt.PollOutcome{}, Value{}, taskStatePins{}, nil
+		return asyncrt.PollOutcome[Value]{}, Value{}, taskStatePins{}, nil
 	}
 
 	if !exit.set {
-		return asyncrt.PollOutcome{}, Value{}, taskStatePins{}, vm.eb.makeError(PanicUnimplemented, "poll function exited without async terminator")
+		return asyncrt.PollOutcome[Value]{}, Value{}, taskStatePins{}, vm.eb.makeError(PanicUnimplemented, "poll function exited without async terminator")
 	}
 
-	outcome = asyncrt.PollOutcome{Kind: exit.kind, Value: exit.value, ParkKey: exit.parkKey}
+	outcome = asyncrt.PollOutcome[Value]{Kind: exit.kind, Value: exit.value, ParkKey: exit.parkKey}
 	return outcome, exit.state, exit.pins, nil
 }

@@ -32,7 +32,7 @@ type VM struct {
 	heapCounters  heapCounters
 	layouts       *layoutCache
 	tagLayouts    *TagLayouts
-	Async         *asyncrt.Executor
+	Async         *asyncrt.Executor[Value]
 	AsyncConfig   asyncrt.Config
 	ExitCode      int
 	Halted        bool

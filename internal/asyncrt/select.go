@@ -12,7 +12,7 @@ type selectSub struct {
 }
 
 // SelectNew allocates a new select registration for the task.
-func (e *Executor) SelectNew(taskID TaskID) SelectID {
+func (e *Executor[P]) SelectNew(taskID TaskID) SelectID {
 	if e == nil {
 		return 0
 	}
@@ -32,7 +32,7 @@ func (e *Executor) SelectNew(taskID TaskID) SelectID {
 }
 
 // SelectTimer returns the timer ID for an arm, if any.
-func (e *Executor) SelectTimer(id SelectID, arm int) TimerID {
+func (e *Executor[P]) SelectTimer(id SelectID, arm int) TimerID {
 	if e == nil {
 		return 0
 	}
@@ -44,7 +44,7 @@ func (e *Executor) SelectTimer(id SelectID, arm int) TimerID {
 }
 
 // SelectSetTimer records a timer ID for an arm.
-func (e *Executor) SelectSetTimer(id SelectID, arm int, timerID TimerID) {
+func (e *Executor[P]) SelectSetTimer(id SelectID, arm int, timerID TimerID) {
 	if e == nil || id == 0 {
 		return
 	}
@@ -59,7 +59,7 @@ func (e *Executor) SelectSetTimer(id SelectID, arm int, timerID TimerID) {
 }
 
 // SelectSubscribeKey registers a select waiter on a key.
-func (e *Executor) SelectSubscribeKey(id SelectID, key WakerKey) {
+func (e *Executor[P]) SelectSubscribeKey(id SelectID, key WakerKey) {
 	if e == nil || id == 0 || !key.IsValid() {
 		return
 	}
@@ -75,7 +75,7 @@ func (e *Executor) SelectSubscribeKey(id SelectID, key WakerKey) {
 }
 
 // SelectSubscribeRecv registers a select waiter for channel recv readiness.
-func (e *Executor) SelectSubscribeRecv(id SelectID, channelID ChannelID) {
+func (e *Executor[P]) SelectSubscribeRecv(id SelectID, channelID ChannelID) {
 	if e == nil || id == 0 {
 		return
 	}
@@ -92,7 +92,7 @@ func (e *Executor) SelectSubscribeRecv(id SelectID, channelID ChannelID) {
 }
 
 // SelectSubscribeSend registers a select waiter for channel send readiness.
-func (e *Executor) SelectSubscribeSend(id SelectID, channelID ChannelID) {
+func (e *Executor[P]) SelectSubscribeSend(id SelectID, channelID ChannelID) {
 	if e == nil || id == 0 {
 		return
 	}
@@ -109,7 +109,7 @@ func (e *Executor) SelectSubscribeSend(id SelectID, channelID ChannelID) {
 }
 
 // SelectClearWaiters removes select waiters for a select ID but keeps timers.
-func (e *Executor) SelectClearWaiters(id SelectID) {
+func (e *Executor[P]) SelectClearWaiters(id SelectID) {
 	if e == nil || id == 0 {
 		return
 	}
@@ -136,7 +136,7 @@ func (e *Executor) SelectClearWaiters(id SelectID) {
 }
 
 // SelectClear removes all waiters and timers for a select ID.
-func (e *Executor) SelectClear(id SelectID) {
+func (e *Executor[P]) SelectClear(id SelectID) {
 	if e == nil || id == 0 {
 		return
 	}
@@ -151,7 +151,7 @@ func (e *Executor) SelectClear(id SelectID) {
 	delete(e.selectSubs, id)
 }
 
-func (e *Executor) removeSelectWaiters(key WakerKey, selectID SelectID) {
+func (e *Executor[P]) removeSelectWaiters(key WakerKey, selectID SelectID) {
 	if e == nil || !key.IsValid() {
 		return
 	}

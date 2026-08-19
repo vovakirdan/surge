@@ -24,12 +24,12 @@ type Clock interface {
 }
 
 // VirtualClock advances executor time without blocking.
-type VirtualClock struct {
-	ex *Executor
+type VirtualClock[P Payload] struct {
+	ex *Executor[P]
 }
 
 // NowMs returns the current virtual time.
-func (c *VirtualClock) NowMs() uint64 {
+func (c *VirtualClock[P]) NowMs() uint64 {
 	if c == nil || c.ex == nil {
 		return 0
 	}
@@ -37,7 +37,7 @@ func (c *VirtualClock) NowMs() uint64 {
 }
 
 // SleepUntilMs advances virtual time to the deadline.
-func (c *VirtualClock) SleepUntilMs(deadlineMs uint64) {
+func (c *VirtualClock[P]) SleepUntilMs(deadlineMs uint64) {
 	if c == nil || c.ex == nil {
 		return
 	}
@@ -46,12 +46,12 @@ func (c *VirtualClock) SleepUntilMs(deadlineMs uint64) {
 
 // RealClock blocks the OS thread until the requested deadline.
 // It relies on NowFunc for monotonic time.
-type RealClock struct {
+type RealClock[P Payload] struct {
 	NowFunc func() uint64
 }
 
 // NowMs returns the current real time.
-func (c *RealClock) NowMs() uint64 {
+func (c *RealClock[P]) NowMs() uint64 {
 	if c == nil || c.NowFunc == nil {
 		return 0
 	}
@@ -59,7 +59,7 @@ func (c *RealClock) NowMs() uint64 {
 }
 
 // SleepUntilMs blocks until the deadline.
-func (c *RealClock) SleepUntilMs(deadlineMs uint64) {
+func (c *RealClock[P]) SleepUntilMs(deadlineMs uint64) {
 	if c == nil {
 		return
 	}

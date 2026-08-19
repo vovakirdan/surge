@@ -6,7 +6,7 @@ import (
 )
 
 func TestScopeExitPanicsOnLiveChildren(t *testing.T) {
-	exec := NewExecutor(Config{Deterministic: true})
+	exec := NewExecutor[string](Config{Deterministic: true})
 	owner := exec.Spawn(1, nil)
 	scopeID := exec.EnterScope(owner, false)
 	child := exec.Spawn(2, nil)
@@ -38,7 +38,7 @@ func TestScopeExitPanicsOnLiveChildren(t *testing.T) {
 }
 
 func TestScopeDropsCompletedChildrenImmediately(t *testing.T) {
-	exec := NewExecutor(Config{Deterministic: true})
+	exec := NewExecutor[string](Config{Deterministic: true})
 	owner := exec.Spawn(1, nil)
 	scopeID := exec.EnterScope(owner, false)
 
@@ -64,7 +64,7 @@ func TestScopeDropsCompletedChildrenImmediately(t *testing.T) {
 		t.Fatalf("expected active child registration metadata, got %+v", activeTask)
 	}
 
-	exec.MarkDone(active, TaskResultSuccess, nil)
+	exec.MarkDone(active, TaskResultSuccess, "")
 	if len(scope.Children) != 0 {
 		t.Fatalf("expected completed child to be pruned, got %v", scope.Children)
 	}
@@ -73,7 +73,7 @@ func TestScopeDropsCompletedChildrenImmediately(t *testing.T) {
 	}
 
 	completed := exec.Spawn(3, nil)
-	exec.MarkDone(completed, TaskResultSuccess, nil)
+	exec.MarkDone(completed, TaskResultSuccess, "")
 	exec.RegisterChild(scopeID, completed)
 	completedTask := exec.tasks[completed]
 	if completedTask == nil {
@@ -93,7 +93,7 @@ func TestScopeDropsCompletedChildrenImmediately(t *testing.T) {
 }
 
 func TestScopeRegisterCancelledChildTriggersFailfast(t *testing.T) {
-	exec := NewExecutor(Config{Deterministic: true})
+	exec := NewExecutor[string](Config{Deterministic: true})
 	owner := exec.Spawn(1, nil)
 	scopeID := exec.EnterScope(owner, true)
 
@@ -101,7 +101,7 @@ func TestScopeRegisterCancelledChildTriggersFailfast(t *testing.T) {
 	exec.RegisterChild(scopeID, active)
 
 	cancelled := exec.Spawn(3, nil)
-	exec.MarkDone(cancelled, TaskResultCancelled, nil)
+	exec.MarkDone(cancelled, TaskResultCancelled, "")
 	exec.RegisterChild(scopeID, cancelled)
 
 	scope := exec.scopes[scopeID]

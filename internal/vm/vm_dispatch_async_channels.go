@@ -26,11 +26,9 @@ func (vm *VM) execInstrChanSend(frame *Frame, instr *mir.Instr, writes []LocalWr
 	if task.Cancelled {
 		// A resume value on a cancelled task is a handover that will not
 		// happen: the receive it was delivered for never runs.
-		if v, ok := task.ResumeValue.(Value); ok {
-			vm.transportRelease(v)
-		}
+		vm.transportRelease(task.ResumeValue)
 		task.ResumeKind = asyncrt.ResumeNone
-		task.ResumeValue = nil
+		task.ResumeValue = Value{}
 		res.doJump = true
 		res.jumpBB = instr.ChanSend.PendBB
 		return res, nil
@@ -39,17 +37,15 @@ func (vm *VM) execInstrChanSend(frame *Frame, instr *mir.Instr, writes []LocalWr
 	switch task.ResumeKind {
 	case asyncrt.ResumeChanSendAck:
 		task.ResumeKind = asyncrt.ResumeNone
-		task.ResumeValue = nil
+		task.ResumeValue = Value{}
 		res.doJump = true
 		res.jumpBB = instr.ChanSend.ReadyBB
 		return res, nil
 	case asyncrt.ResumeChanSendClosed:
 		resumeVal := task.ResumeValue
 		task.ResumeKind = asyncrt.ResumeNone
-		task.ResumeValue = nil
-		if v, ok := resumeVal.(Value); ok {
-			vm.transportRelease(v)
-		}
+		task.ResumeValue = Value{}
+		vm.transportRelease(resumeVal)
 		return res, vm.eb.makeError(PanicInvalidHandle, "send on closed channel")
 	}
 
@@ -121,11 +117,9 @@ func (vm *VM) execInstrChanRecv(frame *Frame, instr *mir.Instr, writes []LocalWr
 		// that would have consumed it never runs, so this is where it is
 		// released — exactly once, and not again by the shutdown drain, which
 		// clears the resume value below.
-		if v, ok := task.ResumeValue.(Value); ok {
-			vm.transportRelease(v)
-		}
+		vm.transportRelease(task.ResumeValue)
 		task.ResumeKind = asyncrt.ResumeNone
-		task.ResumeValue = nil
+		task.ResumeValue = Value{}
 		res.doJump = true
 		res.jumpBB = instr.ChanRecv.PendBB
 		return res, nil
@@ -171,11 +165,8 @@ func (vm *VM) execInstrChanRecv(frame *Frame, instr *mir.Instr, writes []LocalWr
 	case asyncrt.ResumeChanRecvValue:
 		resumeVal := task.ResumeValue
 		task.ResumeKind = asyncrt.ResumeNone
-		task.ResumeValue = nil
-		v, ok := resumeVal.(Value)
-		if !ok {
-			return res, vm.eb.makeError(PanicTypeMismatch, "invalid channel recv resume value")
-		}
+		task.ResumeValue = Value{}
+		v := resumeVal
 		// COPY OUT: the payload becomes this frame's, and the transport's copy
 		// is given up in the same step.
 		v, vmErr := vm.transportCopyOut(frame, v)
@@ -195,7 +186,7 @@ func (vm *VM) execInstrChanRecv(frame *Frame, instr *mir.Instr, writes []LocalWr
 		return storeResult(doneVal)
 	case asyncrt.ResumeChanRecvClosed:
 		task.ResumeKind = asyncrt.ResumeNone
-		task.ResumeValue = nil
+		task.ResumeValue = Value{}
 		dstType, vmErr := vm.joinResultType(frame, instr.ChanRecv.Dst)
 		if vmErr != nil {
 			return res, vmErr
@@ -219,10 +210,7 @@ func (vm *VM) execInstrChanRecv(frame *Frame, instr *mir.Instr, writes []LocalWr
 
 	valAny, ok := exec.ChanRecvOrPark(chID)
 	if ok {
-		v, ok := valAny.(Value)
-		if !ok {
-			return res, vm.eb.makeError(PanicTypeMismatch, "invalid channel recv value")
-		}
+		v := valAny
 		v, vmErr = vm.transportCopyOut(frame, v)
 		if vmErr != nil {
 			return res, vmErr

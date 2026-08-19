@@ -85,7 +85,7 @@ func TestCollectTaskStatePinsRollbackKeepsDetachedLocalAlive(t *testing.T) {
 
 func TestDropAsyncTasksDropsWrappedUserTaskPayloads(t *testing.T) {
 	vm := New(nil, nil, nil, nil, nil)
-	vm.Async = asyncrt.NewExecutor(asyncrt.Config{Deterministic: true})
+	vm.Async = asyncrt.NewExecutor[Value](asyncrt.Config{Deterministic: true})
 
 	stateHandle := vm.Heap.AllocString(types.NoTypeID, "state")
 	resultHandle := vm.Heap.AllocString(types.NoTypeID, "result")

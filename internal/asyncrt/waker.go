@@ -106,8 +106,8 @@ const (
 )
 
 // PollOutcome describes the outcome of polling a task once.
-type PollOutcome struct {
+type PollOutcome[P Payload] struct {
 	Kind    PollOutcomeKind
-	Value   any
+	Value   P
 	ParkKey WakerKey
 }
