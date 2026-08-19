@@ -210,6 +210,42 @@ index), and VM remove IS swap-with-last (`intrinsic_map.go:421-431`). So
 was swapped into and drops `c`'s live value. The VM is immune to ADDRESS
 invalidation, not INDEX invalidation. D2 owns this; it is not native-only.
 
+### D3's native half is Wave B's FIRST production adopter
+
+Measured 2026-08-19 while closing D3's VM half. The scope divides cleanly and
+the division matters, because the census makes D3 look twice its size:
+
+| File | Census rows | Step |
+| --- | --- | --- |
+| `runtime/native/rt_async_channel.c` | 37 | D3 |
+| `runtime/native/rt_channel_sync.c` | 21 | D3 |
+| `runtime/native/rt_channel_lane.h` | 11 | D3 |
+| `internal/backend/llvm/emit_channel.go` | 9 | D3 |
+| `runtime/native/rt_far_channel.c` / `.h` | 13 | D3, remote half |
+| `runtime/native/rt_far_channel_select.c` | 57 | **D5**, not D3 |
+
+So D3's local core is ~78 rows, comparable to D1's 69 — not the 158 a search
+for "channel" returns.
+
+**The fact that shapes the work: `rt_slot_control` has no production consumer.**
+Every caller of `rt_slot_control_init` / `rt_slot_publish_initial_locked` today
+is a test harness under `internal/vm/testdata/`. Wave B is described as "an
+integration dependency for all erased runtime owners" and D3 is where that
+dependency is first paid, so the step is a first-of-kind integration rather
+than a mechanical retyping.
+
+Two constraints meet in it and they are the design, not a detail:
+
+- the channel buffer is a RING (`buf_head` + `buf_len`), while slot control is
+  per-slot with generations and an explicit lifecycle;
+- §8 P2 forbids any generated or user operation under the owner lock, and a
+  send runs under exactly that lock. The claim/publish split
+  (`rt_slot_claim_exclusive_locked` / `rt_slot_publish_initial_locked`) exists
+  for this, and D3 is what proves it fits.
+
+Per §5 this lands whole: there is no adapter milestone, so a typed buffer
+behind a `value_bits` API is not an intermediate state this plan allows.
+
 ### D8 is a deletion step, not a migration
 
 Both helper sets are deleted rather than deprecated, and the transport
