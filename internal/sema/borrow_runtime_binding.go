@@ -110,7 +110,10 @@ func (tc *typeChecker) inheritedBorrowForCall(expr ast.ExprID) BorrowID {
 		return NoBorrowID
 	}
 	call, ok := tc.builder.Exprs.Call(expr)
-	if !ok || call == nil || !tc.isReferenceType(tc.result.ExprTypes[expr]) {
+	if !ok || call == nil {
+		return NoBorrowID
+	}
+	if _, carries := tc.carriedReferenceType(tc.result.ExprTypes[expr]); !carries {
 		return NoBorrowID
 	}
 
@@ -162,14 +165,15 @@ func (tc *typeChecker) inheritedBorrowForCall(expr ast.ExprID) BorrowID {
 }
 
 func (tc *typeChecker) refResultCanAliasParam(resultType types.TypeID, param symbols.TypeKey) bool {
-	if !tc.isReferenceType(resultType) {
+	carried, carries := tc.carriedReferenceType(resultType)
+	if !carries {
 		return false
 	}
 	paramStr := strings.TrimSpace(string(param))
 	if !strings.HasPrefix(paramStr, "&") {
 		return false
 	}
-	if !tc.isMutRefType(resultType) {
+	if !tc.isMutRefType(carried) {
 		return true
 	}
 	return strings.HasPrefix(paramStr, "&mut ")
@@ -217,4 +221,55 @@ func (tc *typeChecker) ensureMutablePlace(place Place, span source.Span) bool {
 		return false
 	}
 	return true
+}
+
+// carriedReferenceType answers the reference a value of this type hands out.
+//
+// A borrow that a call returns has to be tracked against the receiver it came
+// from, and the question that decides it is not "is the RESULT spelled as a
+// reference" — it is "does the result CARRY one". `Map::get_mut` returns
+// `Option<&mut V>`, so the spelling says union and the value says borrow, and
+// asking the spelling let a caller hold a live element borrow while removing
+// the entry under it. Both lanes then wrote into whichever entry the removal
+// swapped into that slot, silently and with no diagnostic.
+//
+// This is the same shape as a member alignment taken from the member's own
+// type: the answer belongs to what the value carries, not to how it is
+// written. The walk is recursive because `Option<Option<&T>>` is expressible,
+// and guarded because a union may name itself.
+func (tc *typeChecker) carriedReferenceType(id types.TypeID) (types.TypeID, bool) {
+	return tc.carriedReferenceTypeSeen(id, nil)
+}
+
+func (tc *typeChecker) carriedReferenceTypeSeen(id types.TypeID, seen map[types.TypeID]struct{}) (types.TypeID, bool) {
+	if id == types.NoTypeID || tc.types == nil {
+		return types.NoTypeID, false
+	}
+	resolved := tc.resolveAlias(id)
+	if tc.isReferenceType(resolved) {
+		return resolved, true
+	}
+	if _, visited := seen[resolved]; visited {
+		return types.NoTypeID, false
+	}
+	info, ok := tc.types.UnionInfo(resolved)
+	if !ok || info == nil {
+		return types.NoTypeID, false
+	}
+	if seen == nil {
+		seen = make(map[types.TypeID]struct{}, 2)
+	}
+	seen[resolved] = struct{}{}
+	for i := range info.Members {
+		member := &info.Members[i]
+		if inner, found := tc.carriedReferenceTypeSeen(member.Type, seen); found {
+			return inner, true
+		}
+		for _, arg := range member.TagArgs {
+			if inner, found := tc.carriedReferenceTypeSeen(arg, seen); found {
+				return inner, true
+			}
+		}
+	}
+	return types.NoTypeID, false
 }

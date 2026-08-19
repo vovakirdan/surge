@@ -1,10 +1,15 @@
 @entrypoint
 fn main() -> int {
     let mut m = { "x" => 1 };
-    let v = m.get_mut(&"x");
-    compare v {
-        Some(p) => { *p = *p + 1; }
-        _ => {}
+    // The element borrow is scoped, because it keeps the map exclusively
+    // borrowed for as long as it is reachable — the same rule an array element
+    // borrow already obeys. Reading the map back while it is live is refused.
+    {
+        let v = m.get_mut(&"x");
+        compare v {
+            Some(p) => { *p = *p + 1; }
+            _ => {}
+        }
     }
     print((m["x"]) to string);
     return 0;

@@ -1,0 +1,1 @@
+error SEM3018 testdata/golden/sema/invalid/map_element_borrow_across_remove/only.sg:21:13 cannot take mutable borrow of 'm' while another mutable borrow is active

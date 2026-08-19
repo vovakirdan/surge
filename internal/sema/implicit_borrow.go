@@ -128,7 +128,12 @@ func (tc *typeChecker) dropImplicitBorrowForRefParam(expr ast.ExprID, param symb
 	if tc.isReferenceType(actual) && !tc.isBorrowExpr(expr) {
 		return
 	}
-	if tc.isReferenceType(result) {
+	// The receiver's borrow outlives the call when the RESULT carries a
+	// reference back out of it — not merely when the result is spelled as one.
+	// `Map::get_mut` hands out `Option<&mut V>`, so asking the spelling ended
+	// the borrow at the call and let the caller remove the entry its own live
+	// borrow pointed at.
+	if _, carries := tc.carriedReferenceType(result); carries {
 		return
 	}
 	tc.dropBorrowForExpr(expr, span, "temp_borrow")

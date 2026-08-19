@@ -1,0 +1,28 @@
+// Removing an entry while a borrow of one of its elements is live.
+//
+// The VM's map removal is swap-with-last and its element borrows are named by
+// POSITION, so the borrow that pointed at the removed entry ends up pointing at
+// whichever entry was moved into that slot. Writing through it then drops that
+// entry's live value and overwrites it — on BOTH lanes, with the right-looking
+// answer for every key except the one that was corrupted.
+//
+// The shape is refused rather than made to survive, so the two lanes give the
+// same answer and neither has to keep a stale address or a stale index alive.
+
+@entrypoint
+fn main() -> int {
+    let mut m: Map<int, int> = Map::<int, int>.new();
+    let _ = m.insert(1, 10);
+    let _ = m.insert(2, 20);
+    let _ = m.insert(3, 30);
+
+    let k2: int = 2;
+    let held: Option<&mut int> = m.get_mut(&k2);
+    let _ = m.remove(&k2);
+
+    compare held {
+        Some(p) => { *p = 99; };
+        nothing => {};
+    }
+    return 0;
+}
