@@ -447,3 +447,94 @@ func TestDynamicArrayElementsSelectExactLayoutStorage(t *testing.T) {
 		})
 	}
 }
+
+// A map's entries select exact layout-owned storage on BOTH sides.
+//
+// The two runs are indexed together, so the property that matters is not just
+// that each side is typed — it is that the key half and the value half agree on
+// which entry a position names. A map whose runs drifted apart would read one
+// entry's key beside another entry's value, and every lookup would still find
+// something.
+func TestMapEntriesSelectExactLayoutStorageOnBothSides(t *testing.T) {
+	f := newStorageFixture(t)
+
+	rows := []struct {
+		name string
+		key  types.TypeID
+		val  types.TypeID
+	}{
+		{"scalar to scalar", f.i64, f.i64},
+		{"scalar to composite", f.i64, f.node},
+		{"handle to union", f.text, f.choice},
+		// Different widths on the two sides, so a position computed with one
+		// stride and applied to the other lands off the slot rather than on a
+		// neighbour that happens to line up.
+		{"narrow key, wide value", f.i64, f.node},
+	}
+
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			// The runs are reserved directly rather than through a nominal
+			// `Map<K, V>`: what is under test is the STORAGE, and routing it
+			// through the type registry would make the row depend on generic
+			// instantiation rather than on the property it names.
+			obj := &Object{HeapHeader: HeapHeader{Kind: OKMap}}
+			if vmErr := f.vm.reserveMapRuns(obj, row.key, row.val, 0); vmErr != nil {
+				t.Fatalf("reserving entry storage must succeed: %v", vmErr)
+			}
+
+			if obj.MapKeys.Arena == nil || obj.MapVals.Arena == nil {
+				t.Fatal("a map's entries must live in storage the map owns")
+			}
+			if obj.MapKeyType != row.key || obj.MapValType != row.val {
+				t.Fatalf("the map's entry types read (%d, %d), want (%d, %d)",
+					obj.MapKeyType, obj.MapValType, row.key, row.val)
+			}
+			if obj.MapKeys.Offset == obj.MapVals.Offset {
+				t.Fatal("the key run and the value run share an offset, so retiring or " +
+					"resizing one of them cannot be told from the other")
+			}
+
+			if vmErr := f.vm.growMapRuns(obj, 3); vmErr != nil {
+				t.Fatalf("growing the entry storage must succeed: %v", vmErr)
+			}
+			keyFacts, err := f.vm.Layouts.Require(row.key)
+			if err != nil {
+				t.Fatalf("the key layout must be frozen: %v", err)
+			}
+			valFacts, err := f.vm.Layouts.Require(row.val)
+			if err != nil {
+				t.Fatalf("the value layout must be frozen: %v", err)
+			}
+
+			for i := range 3 {
+				keyRef, vmErr := f.vm.mapKeySlot(obj, i)
+				if vmErr != nil {
+					t.Fatalf("addressing key %d must succeed: %v", i, vmErr)
+				}
+				valRef, vmErr := f.vm.mapValSlot(obj, i)
+				if vmErr != nil {
+					t.Fatalf("addressing value %d must succeed: %v", i, vmErr)
+				}
+				if keyRef.TypeID != row.key {
+					t.Fatalf("key slot %d is typed %d, want the map's key type %d",
+						i, keyRef.TypeID, row.key)
+				}
+				if valRef.TypeID != row.val {
+					t.Fatalf("value slot %d is typed %d, want the map's value type %d",
+						i, valRef.TypeID, row.val)
+				}
+				// Each side walks by ITS OWN stride, taken from the registry
+				// rather than from the helper under test.
+				wantKeyOff := obj.MapKeys.Offset + uint64(i)*keyFacts.Stride
+				wantValOff := obj.MapVals.Offset + uint64(i)*valFacts.Stride
+				if keyRef.Offset != wantKeyOff {
+					t.Fatalf("key slot %d sits at %d, want %d", i, keyRef.Offset, wantKeyOff)
+				}
+				if valRef.Offset != wantValOff {
+					t.Fatalf("value slot %d sits at %d, want %d", i, valRef.Offset, wantValOff)
+				}
+			}
+		})
+	}
+}

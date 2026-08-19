@@ -53,7 +53,7 @@ func (vm *VM) handleMapLen(frame *Frame, call *mir.CallInstr, writes *[]LocalWri
 	}
 	dstLocal := call.Dst.Local
 	dstType := frame.Locals[dstLocal].TypeID
-	u64, err := safecast.Conv[uint64](len(obj.MapEntries))
+	u64, err := safecast.Conv[uint64](obj.MapLen)
 	if err != nil {
 		return vm.eb.invalidNumericConversion("map length out of range")
 	}
@@ -306,18 +306,24 @@ func (vm *VM) handleMapInsert(frame *Frame, call *mir.CallInstr, writes *[]Local
 		}
 	}
 	// The map keeps what it is given for as long as it lives, which is longer
-	// than the activation that built it, so a composite value moves into storage
-	// the map owns before either branch below stores it.
-	valArg, vmErr = vm.adoptIntoContainer(obj, valArg)
-	if vmErr != nil {
-		vm.dropValue(keyVal)
-		return vmErr
-	}
+	// than the activation that built it. The run's own writers move a composite
+	// into the map's storage, so nothing is adopted ahead of them here: adopting
+	// first would copy the value into the arena and then move it again.
 
 	if idx, ok := obj.MapIndex[key]; ok {
-		entry := &obj.MapEntries[idx]
-		oldVal := entry.Value
-		entry.Value = valArg
+		// Replacing: take the old value OUT so it can be handed back, then
+		// initialise the slot that take left empty.
+		oldVal, takeErr := vm.takeRunSlot(frame, obj.MapVals, obj.MapValType, idx)
+		if takeErr != nil {
+			vm.dropValue(keyVal)
+			vm.dropValue(valArg)
+			return takeErr
+		}
+		if initErr := vm.initRunSlot(frame, obj.MapVals, obj.MapValType, idx, valArg); initErr != nil {
+			vm.dropValue(keyVal)
+			vm.dropValue(oldVal)
+			return initErr
+		}
 		vm.dropValue(keyVal)
 		if !call.HasDst {
 			vm.dropValue(oldVal)
@@ -344,8 +350,23 @@ func (vm *VM) handleMapInsert(frame *Frame, call *mir.CallInstr, writes *[]Local
 		return nil
 	}
 
-	obj.MapEntries = append(obj.MapEntries, mapEntry{Key: keyVal, Value: valArg})
-	obj.MapIndex[key] = len(obj.MapEntries) - 1
+	if obj.MapLen == obj.MapCap {
+		if growErr := vm.growMapRuns(obj, obj.MapLen+1); growErr != nil {
+			vm.dropValue(keyVal)
+			vm.dropValue(valArg)
+			return growErr
+		}
+	}
+	at := obj.MapLen
+	if initErr := vm.initMapEntry(frame, obj, at, keyVal, valArg); initErr != nil {
+		vm.dropValue(keyVal)
+		vm.dropValue(valArg)
+		return initErr
+	}
+	if lenErr := vm.setMapLen(obj, at+1); lenErr != nil {
+		return lenErr
+	}
+	obj.MapIndex[key] = at
 
 	if !call.HasDst {
 		return nil
@@ -418,31 +439,57 @@ func (vm *VM) handleMapRemove(frame *Frame, call *mir.CallInstr, writes *[]Local
 		return nil
 	}
 
-	entry := obj.MapEntries[idx]
-	lastIdx := len(obj.MapEntries) - 1
+	// Take the entry OUT first, which empties both of its slots, and only then
+	// move the last entry down onto them. Copying onto slots that still held a
+	// value would overwrite what nothing has released.
+	removedKey, removedVal, takeErr := vm.takeMapEntry(frame, obj, idx)
+	if takeErr != nil {
+		return takeErr
+	}
+	lastIdx := obj.MapLen - 1
 	if idx != lastIdx {
-		swap := obj.MapEntries[lastIdx]
-		obj.MapEntries[idx] = swap
-		swapKey, _, swapErr := vm.mapKeyFromValue(swap.Key, keyType)
+		swapKeyRef, refErr := vm.mapKeySlot(obj, lastIdx)
+		if refErr != nil {
+			vm.dropValue(removedKey)
+			vm.dropValue(removedVal)
+			return refErr
+		}
+		swapKeyVal, peekErr := vm.peekStorage(swapKeyRef)
+		if peekErr != nil {
+			vm.dropValue(removedKey)
+			vm.dropValue(removedVal)
+			return peekErr
+		}
+		swapKey, _, swapErr := vm.mapKeyFromValue(swapKeyVal, keyType)
 		if swapErr != nil {
+			vm.dropValue(removedKey)
+			vm.dropValue(removedVal)
 			return swapErr
+		}
+		if copyErr := vm.copyMapEntry(obj, idx, lastIdx); copyErr != nil {
+			vm.dropValue(removedKey)
+			vm.dropValue(removedVal)
+			return copyErr
 		}
 		obj.MapIndex[swapKey] = idx
 	}
-	obj.MapEntries[lastIdx] = mapEntry{}
-	obj.MapEntries = obj.MapEntries[:lastIdx]
+	if lenErr := vm.setMapLen(obj, lastIdx); lenErr != nil {
+		vm.dropValue(removedKey)
+		vm.dropValue(removedVal)
+		return lenErr
+	}
 	delete(obj.MapIndex, key)
 
-	vm.dropValue(entry.Key)
+	vm.dropValue(removedKey)
 	if !call.HasDst {
-		vm.dropValue(entry.Value)
+		vm.dropValue(removedVal)
 		return nil
 	}
 	dstLocal := call.Dst.Local
 	dstType := frame.Locals[dstLocal].TypeID
-	res, vmErr := vm.makeOptionSome(dstType, entry.Value)
+	res, vmErr := vm.makeOptionSome(dstType, removedVal)
 	if vmErr != nil {
-		vm.dropValue(entry.Value)
+		vm.dropValue(removedVal)
 		return vmErr
 	}
 	if vmErr := vm.writeLocal(frame, dstLocal, res); vmErr != nil {
@@ -478,9 +525,16 @@ func (vm *VM) handleMapKeys(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 
 	dstLocal := call.Dst.Local
 	dstType := frame.Locals[dstLocal].TypeID
-	elems := make([]Value, len(obj.MapEntries))
-	for i := range obj.MapEntries {
-		cloned, cloneErr := vm.cloneForShare(obj.MapEntries[i].Key)
+	elems := make([]Value, obj.MapLen)
+	for i := range obj.MapLen {
+		keyRef, refErr := vm.mapKeySlot(obj, i)
+		if refErr != nil {
+			for j := range i {
+				vm.dropValue(elems[j])
+			}
+			return refErr
+		}
+		cloned, cloneErr := vm.readStorageValue(frame, keyRef)
 		if cloneErr != nil {
 			for j := range i {
 				vm.dropValue(elems[j])

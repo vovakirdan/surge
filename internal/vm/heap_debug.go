@@ -125,7 +125,7 @@ func (vm *VM) heapObjectBytes(obj *Object) (uint64, error) {
 		if err != nil {
 			return 0, err
 		}
-		return checkedHeapMul(safeUint64FromInt(len(obj.MapEntries)), entrySize, "map length * entry size")
+		return checkedHeapMul(safeUint64FromInt(obj.MapLen), entrySize, "map length * entry size")
 	case OKResource:
 		return vm.typedObjectSize(obj)
 	case OKRange:
@@ -230,12 +230,19 @@ func (vm *VM) objectRefCount(obj *Object) int {
 			count++
 		}
 	case OKMap:
-		for i := range obj.MapEntries {
-			if obj.MapEntries[i].Key.IsHeap() && obj.MapEntries[i].Key.H != 0 {
-				count++
-			}
-			if obj.MapEntries[i].Value.IsHeap() && obj.MapEntries[i].Value.H != 0 {
-				count++
+		for i := range obj.MapLen {
+			for _, ref := range []func(*Object, int) (StorageRef, *VMError){vm.mapKeySlot, vm.mapValSlot} {
+				slot, vmErr := ref(obj, i)
+				if vmErr != nil {
+					continue
+				}
+				v, vmErr := vm.peekStorage(slot)
+				if vmErr != nil {
+					continue
+				}
+				if v.IsHeap() && v.H != 0 {
+					count++
+				}
 			}
 		}
 	case OKRange:
@@ -282,7 +289,7 @@ func (vm *VM) objectSummary(obj *Object) string {
 	case OKArraySlice:
 		return fmt.Sprintf("array_view(rc=%d,len=%d,cap=%d,start=%d)", rc, obj.ArrSliceLen, obj.ArrSliceCap, obj.ArrSliceStart)
 	case OKMap:
-		return fmt.Sprintf("map(rc=%d,len=%d,type=%s)", rc, len(obj.MapEntries), typeLabel(vm.Types, obj.TypeID))
+		return fmt.Sprintf("map(rc=%d,len=%d,type=%s)", rc, obj.MapLen, typeLabel(vm.Types, obj.TypeID))
 	case OKResource:
 		return fmt.Sprintf("resource(rc=%d,type=%s)", rc, typeLabel(vm.Types, obj.TypeID))
 	case OKRange:

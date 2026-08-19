@@ -186,10 +186,20 @@ func (vm *VM) loadMapElem(loc Location) (Value, *VMError) {
 		return Value{}, vm.eb.invalidLocation(fmt.Sprintf("expected map handle, got %v", obj.Kind))
 	}
 	idx := int(loc.Index)
-	if loc.Index < 0 || idx < 0 || idx >= len(obj.MapEntries) {
-		return Value{}, vm.eb.outOfBounds(idx, len(obj.MapEntries))
+	if loc.Index < 0 || idx < 0 || idx >= obj.MapLen {
+		return Value{}, vm.eb.outOfBounds(idx, obj.MapLen)
 	}
-	val := obj.MapEntries[idx].Value
+	ref, vmErr := vm.mapValSlot(obj, idx)
+	if vmErr != nil {
+		return Value{}, vmErr
+	}
+	// A PEEK, exactly as the array element load is. A load through a location
+	// hands back what the container still owns, so counting a second holder
+	// here would leave a count nobody lowers.
+	val, vmErr := vm.peekStorage(ref)
+	if vmErr != nil {
+		return Value{}, vmErr
+	}
 	if vm.Types != nil {
 		if _, valueType, ok := vm.Types.MapInfo(obj.TypeID); ok {
 			retagged, converted, vmErr := vm.retagUnionValue(val, valueType)
@@ -214,8 +224,8 @@ func (vm *VM) storeMapElem(loc Location, val Value) *VMError {
 		return vm.eb.invalidLocation(fmt.Sprintf("expected map handle, got %v", obj.Kind))
 	}
 	idx := int(loc.Index)
-	if loc.Index < 0 || idx < 0 || idx >= len(obj.MapEntries) {
-		return vm.eb.outOfBounds(idx, len(obj.MapEntries))
+	if loc.Index < 0 || idx < 0 || idx >= obj.MapLen {
+		return vm.eb.outOfBounds(idx, obj.MapLen)
 	}
 	if vm.Types != nil {
 		if _, valueType, ok := vm.Types.MapInfo(obj.TypeID); ok {
@@ -228,16 +238,11 @@ func (vm *VM) storeMapElem(loc Location, val Value) *VMError {
 			}
 		}
 	}
-	// The map outlives this activation, so what it keeps has to be its own —
-	// the same obligation the insert intrinsic has, owed here too because a
-	// store through an element location reaches the entry list directly.
-	adopted, adoptErr := vm.adoptIntoContainer(obj, val)
-	if adoptErr != nil {
-		return adoptErr
-	}
-	vm.dropValue(obj.MapEntries[idx].Value)
-	obj.MapEntries[idx].Value = adopted
-	return nil
+	// The map outlives this activation, so what it keeps has to be its own.
+	// A store into an initialised value slot RELEASES what it held, which is
+	// the whole of that obligation now that the entry is storage rather than a
+	// list holding somebody else's value.
+	return vm.replaceMapValue(vm.currentFrame(), obj, idx, val)
 }
 
 // projectStorageIndex names one element of a fixed array held in storage.

@@ -168,11 +168,13 @@ func (h *Heap) Free(handle Handle) {
 		// there is nothing to release — only the ref to forget.
 		obj.ArrSliceStorage = StorageRef{}
 	case OKMap:
-		for i := range obj.MapEntries {
-			h.releaseContainedValue(obj.MapEntries[i].Key)
-			h.releaseContainedValue(obj.MapEntries[i].Value)
-		}
-		obj.MapEntries = nil
+		// The entries are two runs in this object's own storage, and the arena
+		// owns them: releasing the storage drops every live key and value
+		// once. Walking them here as well would release each of them twice.
+		obj.MapKeys = StorageRef{}
+		obj.MapVals = StorageRef{}
+		obj.MapLen = 0
+		obj.MapCap = 0
 		obj.MapIndex = nil
 		h.releaseOwnStorage(obj)
 	case OKString:

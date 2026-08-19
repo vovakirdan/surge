@@ -128,6 +128,20 @@ func (h *Heap) AllocArraySliceStorage(typeID types.TypeID, base StorageRef, star
 func (h *Heap) AllocMap(typeID types.TypeID) Handle {
 	handle, obj := h.alloc(OKMap, typeID)
 	obj.MapIndex = make(map[mapKey]int)
+	if h.vm != nil {
+		keyType, valType := h.vm.mapValueTypes(typeID)
+		if keyType == types.NoTypeID || valType == types.NoTypeID {
+			// The key and value types are the only source of stride, alignment
+			// and cell kind for the two runs. A map that does not know them
+			// cannot reserve storage, and guessing from the first entry is the
+			// thing the runs exist to stop.
+			h.panic(PanicTypeMismatch,
+				"a map must know its key and value types before it can hold anything")
+		}
+		if vmErr := h.vm.reserveMapRuns(obj, keyType, valType, 0); vmErr != nil {
+			h.panic(vmErr.Code, vmErr.Message)
+		}
+	}
 	if h.vm != nil && h.vm.Trace != nil {
 		h.vm.Trace.TraceHeapAlloc(obj.Kind, handle, obj)
 	}

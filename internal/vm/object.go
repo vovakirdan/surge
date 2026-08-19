@@ -123,9 +123,18 @@ type Object struct {
 	// the two bases are told apart by which of these is set: ArrSliceBase for a
 	// heap array, ArrSliceStorage for an arena one, never both.
 	ArrSliceStorage StorageRef
-	MapIndex        map[mapKey]int
-	MapEntries      []mapEntry
-	Range           RangeObject
+	// A map's keys and values are TWO runs of exact slots in the storage this
+	// object owns, indexed together: entry `i` is key slot `i` and value slot
+	// `i`. MapIndex stays a lookup from a derived key to that position — it
+	// carries no language value and owns nothing.
+	MapIndex   map[mapKey]int
+	MapKeys    StorageRef
+	MapVals    StorageRef
+	MapKeyType types.TypeID
+	MapValType types.TypeID
+	MapLen     int
+	MapCap     int
+	Range      RangeObject
 
 	BigInt   bignum.BigInt
 	BigUint  bignum.BigUint

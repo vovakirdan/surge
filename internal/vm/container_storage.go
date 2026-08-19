@@ -16,43 +16,6 @@ package vm
 // reclamation rule with no way to free one extent twice, which is the same
 // trade scratch makes and the right one while the representation is settling.
 
-// adoptIntoContainer moves a value into storage the CONTAINER owns, and answers
-// with the value as the container will hold it.
-//
-// Anything that is not a composite is already independent of any activation —
-// a handle governs its own lifetime — and is handed straight back. A composite
-// is copied into the container's arena and the source is given up in the same
-// step, for the same reason a store into a slot is one step: between a copy that
-// has happened and a release that has not, one value has two owners.
-func (vm *VM) adoptIntoContainer(obj *Object, val Value) (Value, *VMError) {
-	if obj == nil || val.Kind != VKComposite {
-		return val, nil
-	}
-	ref, ok := val.Storage()
-	if !ok {
-		return val, nil
-	}
-	if obj.storage == nil {
-		obj.storage = newScratch()
-	}
-	if obj.storage.arena == ref.Arena {
-		// Already the container's own: adopting again would copy an extent onto
-		// a fresh one and drop the original, which is a move to nowhere.
-		return val, nil
-	}
-	dst, err := vm.reserveScratch(obj.storage, ref.TypeID)
-	if err != nil {
-		return Value{}, vm.eb.makeError(PanicUnimplemented, err.Error())
-	}
-	if err := vm.storageZero(dst); err != nil {
-		return Value{}, vm.eb.makeError(PanicUnimplemented, err.Error())
-	}
-	if vmErr := vm.moveComposite(vm.currentFrame(), dst, val, false); vmErr != nil {
-		return Value{}, vmErr
-	}
-	return MakeComposite(dst), nil
-}
-
 // releaseContainerStorage drops everything a container's arena still holds and
 // invalidates every reference into it.
 //

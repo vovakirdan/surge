@@ -16,8 +16,3 @@ type mapKey struct {
 	u64  uint64
 	str  string
 }
-
-type mapEntry struct {
-	Key   Value
-	Value Value
-}

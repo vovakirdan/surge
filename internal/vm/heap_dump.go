@@ -158,7 +158,7 @@ func (vm *VM) heapDumpRecord(obj *Object) (heapDumpRecord, error) {
 		rec.arrStart = obj.ArrSliceStart
 	case OKMap:
 		rec.kind = "map"
-		rec.mapLen = len(obj.MapEntries)
+		rec.mapLen = obj.MapLen
 	case OKResource:
 		rec.kind = "resource"
 	case OKRange:

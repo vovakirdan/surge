@@ -389,11 +389,27 @@ func (c *taskStatePinCollector) visitHandle(handle Handle) *VMError {
 		}
 		return c.visitHandle(obj.ArrSliceBase)
 	case OKMap:
-		for i := range obj.MapEntries {
-			if vmErr := c.visitValue(obj.MapEntries[i].Key); vmErr != nil {
+		for i := range obj.MapLen {
+			keyRef, vmErr := c.vm.mapKeySlot(obj, i)
+			if vmErr != nil {
 				return vmErr
 			}
-			if vmErr := c.visitValue(obj.MapEntries[i].Value); vmErr != nil {
+			key, vmErr := c.vm.peekStorage(keyRef)
+			if vmErr != nil {
+				return vmErr
+			}
+			valRef, vmErr := c.vm.mapValSlot(obj, i)
+			if vmErr != nil {
+				return vmErr
+			}
+			val, vmErr := c.vm.peekStorage(valRef)
+			if vmErr != nil {
+				return vmErr
+			}
+			if vmErr := c.visitValue(key); vmErr != nil {
+				return vmErr
+			}
+			if vmErr := c.visitValue(val); vmErr != nil {
 				return vmErr
 			}
 		}

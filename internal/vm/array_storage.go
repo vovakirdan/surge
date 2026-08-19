@@ -87,7 +87,19 @@ func (vm *VM) reserveRun(s *scratch, elem types.TypeID, count uint64) (StorageRe
 	if !ok {
 		return StorageRef{}, fmt.Errorf("storage: an element run of %d values of type#%d overflows", count, elem)
 	}
-	end, ok := addChecked(offset, span)
+	// A run of nothing still takes a byte, so that no two live extents can
+	// share an offset. `release` and the length bookkeeping both find an extent
+	// BY offset and rely on the invariant scratch already documents — extents
+	// cannot overlap, because a reservation moves the high-water mark past the
+	// previous one. A zero-length run moves it by zero and breaks exactly that,
+	// which let a retirement find the run that replaced it instead of the one
+	// it meant. One byte per empty run is the price of the invariant holding by
+	// construction rather than by everyone remembering the order to call in.
+	reserved := span
+	if reserved == 0 {
+		reserved = 1
+	}
+	end, ok := addChecked(offset, reserved)
 	if !ok {
 		return StorageRef{}, fmt.Errorf("storage: an element run of type#%d overflows its container's storage", elem)
 	}
@@ -236,23 +248,96 @@ func (vm *VM) arrayRunElemType(arrayType types.TypeID) (types.TypeID, bool) {
 // slot a pop vacated is the case that makes this more than a technicality: its
 // bytes still look like a value, and replacing there frees what the pop took.
 func (vm *VM) initRunElem(frame *Frame, obj *Object, index int, val Value) *VMError {
-	ref, vmErr := vm.runElemSlot(obj, index)
-	if vmErr != nil {
-		return vmErr
+	if index < 0 || index >= obj.ArrCap {
+		return vm.eb.outOfBounds(index, obj.ArrCap)
 	}
-	if err := vm.storageZero(ref); err != nil {
-		return vm.eb.makeError(PanicUnimplemented, err.Error())
-	}
-	if vm.storageCellKind(obj.ArrElemType) == cellComposite {
-		return vm.moveComposite(frame, ref, val, false)
-	}
-	member, err := vm.runElemMember(obj.ArrElemType)
+	return vm.initRunSlot(frame, obj.ArrElems, obj.ArrElemType, index, val)
+}
+
+// initRunSlot writes a value into a run slot that holds NOTHING, whichever run
+// it belongs to. An array's elements and a map's keys and values all owe the
+// same thing here, so they ask the same code.
+func (vm *VM) initRunSlot(frame *Frame, base StorageRef, elem types.TypeID, index int, val Value) *VMError {
+	ref, err := vm.runElemRef(base, elem, index)
 	if err != nil {
 		return vm.eb.makeError(PanicUnimplemented, err.Error())
 	}
-	if err := vm.storageWriteCell(ref, member, val); err != nil {
+	if zeroErr := vm.storageZero(ref); zeroErr != nil {
+		return vm.eb.makeError(PanicUnimplemented, zeroErr.Error())
+	}
+	if vm.storageCellKind(elem) == cellComposite {
+		return vm.moveComposite(frame, ref, val, false)
+	}
+	member, memberErr := vm.runElemMember(elem)
+	if memberErr != nil {
+		return vm.eb.makeError(PanicUnimplemented, memberErr.Error())
+	}
+	if writeErr := vm.storageWriteCell(ref, member, val); writeErr != nil {
+		return vm.eb.makeError(PanicUnimplemented, writeErr.Error())
+	}
+	return nil
+}
+
+// takeRunSlot moves one slot's value OUT and leaves the slot zeroed.
+func (vm *VM) takeRunSlot(frame *Frame, base StorageRef, elem types.TypeID, index int) (Value, *VMError) {
+	ref, err := vm.runElemRef(base, elem, index)
+	if err != nil {
+		return Value{}, vm.eb.makeError(PanicUnimplemented, err.Error())
+	}
+	if vm.storageCellKind(elem) == cellComposite {
+		dst, buildErr := vm.buildComposite(frame, elem)
+		if buildErr != nil {
+			return Value{}, buildErr
+		}
+		if moveErr := vm.moveComposite(frame, dst, MakeComposite(ref), false); moveErr != nil {
+			return Value{}, moveErr
+		}
+		return MakeComposite(dst), nil
+	}
+	member, memberErr := vm.runElemMember(elem)
+	if memberErr != nil {
+		return Value{}, vm.eb.makeError(PanicUnimplemented, memberErr.Error())
+	}
+	val, readErr := vm.storageReadCell(ref, member)
+	if readErr != nil {
+		return Value{}, vm.eb.makeError(PanicRCUseAfterFree, readErr.Error())
+	}
+	if zeroErr := vm.storageZero(ref); zeroErr != nil {
+		return Value{}, vm.eb.makeError(PanicUnimplemented, zeroErr.Error())
+	}
+	return val, nil
+}
+
+// copyRunSlot moves one slot onto another as raw bytes, releasing nothing.
+//
+// It is the move a compaction performs: the destination has already been
+// emptied and the source is about to become dead, so a walk that released
+// either of them would be freeing what the other now owns.
+func (vm *VM) copyRunSlot(base StorageRef, elem types.TypeID, to, from int) *VMError {
+	if to == from {
+		return nil
+	}
+	stride, err := vm.runStride(elem)
+	if err != nil {
 		return vm.eb.makeError(PanicUnimplemented, err.Error())
 	}
+	src, err := vm.runElemRef(base, elem, from)
+	if err != nil {
+		return vm.eb.makeError(PanicUnimplemented, err.Error())
+	}
+	dst, err := vm.runElemRef(base, elem, to)
+	if err != nil {
+		return vm.eb.makeError(PanicUnimplemented, err.Error())
+	}
+	fromBytes, err := src.resolve(stride)
+	if err != nil {
+		return vm.eb.makeError(PanicUnimplemented, err.Error())
+	}
+	toBytes, err := dst.resolve(stride)
+	if err != nil {
+		return vm.eb.makeError(PanicUnimplemented, err.Error())
+	}
+	copy(toBytes, fromBytes)
 	return nil
 }
 
@@ -368,34 +453,10 @@ func (vm *VM) growArrayRun(obj *Object, minCap int) *VMError {
 // it. A take does neither: the value leaves with exactly the ownership the slot
 // had, which is what `pop` means.
 func (vm *VM) takeRunElem(frame *Frame, obj *Object, index int) (Value, *VMError) {
-	ref, vmErr := vm.runElemSlot(obj, index)
-	if vmErr != nil {
-		return Value{}, vmErr
+	if index < 0 || index >= obj.ArrCap {
+		return Value{}, vm.eb.outOfBounds(index, obj.ArrCap)
 	}
-	if vm.storageCellKind(obj.ArrElemType) == cellComposite {
-		// Build the destination in the caller's activation and move the bytes
-		// into it, which drops nothing and leaves the slot zeroed.
-		dst, buildErr := vm.buildComposite(frame, obj.ArrElemType)
-		if buildErr != nil {
-			return Value{}, buildErr
-		}
-		if moveErr := vm.moveComposite(frame, dst, MakeComposite(ref), false); moveErr != nil {
-			return Value{}, moveErr
-		}
-		return MakeComposite(dst), nil
-	}
-	member, err := vm.runElemMember(obj.ArrElemType)
-	if err != nil {
-		return Value{}, vm.eb.makeError(PanicUnimplemented, err.Error())
-	}
-	val, readErr := vm.storageReadCell(ref, member)
-	if readErr != nil {
-		return Value{}, vm.eb.makeError(PanicRCUseAfterFree, readErr.Error())
-	}
-	if zeroErr := vm.storageZero(ref); zeroErr != nil {
-		return Value{}, vm.eb.makeError(PanicUnimplemented, zeroErr.Error())
-	}
-	return val, nil
+	return vm.takeRunSlot(frame, obj.ArrElems, obj.ArrElemType, index)
 }
 
 // appendRunBytes appends raw bytes as elements.
