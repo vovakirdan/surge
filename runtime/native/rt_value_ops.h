@@ -44,6 +44,27 @@ void rt_value_copy_init(const rt_value_ops* operations, void* dst, const void* s
 // rather than refusing, so a caller can ask before it knows.
 int rt_value_copy_uses_runtime_width(const rt_value_ops* operations);
 
+// Transfers one obligation from `src` into the empty `dst`.
+//
+// `move_init` is always present, so unlike a copy there is no flag to consult
+// and no width to supply: the callback carries the whole transfer. What this
+// adds is the lane check. Every rt_value_ops operation must run OUTSIDE the
+// owner lock, and until now nothing enforced that — the requirement lived in a
+// comment while the only dispatch helper was for copies. A caller that reaches
+// here holding control or a shard is refused rather than dispatched, because a
+// generated callback under a runtime lock is the failure the epic's §8 P2 names
+// and it is not one a later check can see.
+void rt_value_move_init_detached(const rt_value_ops* operations, void* dst, void* src);
+
+// Destroys the one obligation `value` holds.
+//
+// A descriptor whose RT_VALUE_FLAG_DROPPABLE is clear has NO obligation, and
+// this returns without dispatching — that is the flag's meaning rather than a
+// swallowed error, and the manifest's own biconditional ("present exactly when
+// the flag is set") is what makes the two readings the same. Everything else is
+// the move helper's contract: fail closed on a lock, dispatch otherwise.
+void rt_value_drop_in_place_detached(const rt_value_ops* operations, void* value);
+
 #ifdef __cplusplus
 }
 #endif

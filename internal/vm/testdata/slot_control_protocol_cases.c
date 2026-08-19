@@ -277,5 +277,37 @@ int harness_case_stale(void) {
     REQUIRE(rt_slot_retire_read_locked(&source, &token) == RT_SLOT_CONTROL_INVALID_TOKEN);
     REQUIRE(pthread_mutex_unlock(&harness_owner_lock) == 0);
     REQUIRE(harness_callback_error == 0 && harness_callback_calls == 1);
+
+    // The EXCLUSIVE claim had no stale row until now, and it is the one an
+    // owner uses to move or to drop. A read claim refusing a recycled
+    // generation says nothing about the path that transfers ownership: an
+    // exclusive claim that admitted a stale generation would hand a mover the
+    // slot a different value now occupies.
+    //
+    // The refusal must also be a REFUSAL rather than a failed attempt — no
+    // callback may have run — because a move whose claim was refused has not
+    // taken anything, and a source it had already emptied would be a value with
+    // no owner at all.
+    harness_reset_callbacks();
+    rt_claim_token recycled_token;
+    REQUIRE(pthread_mutex_lock(&harness_owner_lock) == 0);
+    rt_slot_control_status recycled = rt_slot_claim_exclusive_locked(
+        &source, NULL, RT_SLOT_CLAIM_DROP, 2, 0, &recycled_token);
+    REQUIRE(pthread_mutex_unlock(&harness_owner_lock) == 0);
+    REQUIRE(recycled == RT_SLOT_CONTROL_STALE);
+    REQUIRE(harness_callback_calls == 0 && harness_callback_error == 0);
+
+    // And the same claim at the generation the slot really carries is admitted,
+    // so the row above refuses the staleness rather than the operation.
+    rt_claim_token live_token;
+    REQUIRE(pthread_mutex_lock(&harness_owner_lock) == 0);
+    REQUIRE(rt_slot_claim_exclusive_locked(
+                &source, NULL, RT_SLOT_CLAIM_DROP, 1, 0, &live_token) == RT_SLOT_CONTROL_OK);
+    REQUIRE(pthread_mutex_unlock(&harness_owner_lock) == 0);
+    harness_value_ops.drop_in_place(&source_value);
+    REQUIRE(pthread_mutex_lock(&harness_owner_lock) == 0);
+    REQUIRE(rt_slot_commit_drop_locked(&source, &live_token) == RT_SLOT_CONTROL_OK);
+    REQUIRE(pthread_mutex_unlock(&harness_owner_lock) == 0);
+    REQUIRE(harness_callback_error == 0 && harness_callback_calls == 1);
     return 0;
 }

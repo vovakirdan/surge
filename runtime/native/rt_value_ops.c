@@ -72,3 +72,79 @@ void rt_value_copy_init(const rt_value_ops* operations, void* dst, const void* s
     // pointers is exactly what a zero-sized value's initialization is.
     memcpy(dst, src, operations->layout.size);
 }
+
+// The lane predicates are declared WEAK rather than included, because this file
+// is the descriptor layer and the lane record belongs to the executor. Pulling
+// rt_async_internal.h in here would make every link that wants a typed copy
+// drag the scheduler with it, and the slot-control harness — which links the
+// descriptor layer alone — would stop linking at all.
+//
+// An absent symbol is not a skipped check. It means no executor is linked into
+// this program, so there is no owner lock for a callback to run under and the
+// property is vacuous rather than unverified. A PRESENT symbol answering
+// "locked" is the violation, and it aborts.
+extern int rt_lane_holds_control(void) __attribute__((weak));
+extern int rt_lane_holds_any_shard(void) __attribute__((weak));
+
+// The lane refusal the header promises, shared by both detached helpers.
+//
+// It is fail-CLOSED where the question can be asked at all. A generated
+// callback invoked under the owner lock can call back into the runtime,
+// allocate, or run user code, and the resulting deadlock or reentry surfaces
+// far from here — so the refusal happens at the dispatch rather than being left
+// to a reviewer to notice.
+static void rt_value_refuse_if_locked(const char* operation) {
+    int control = rt_lane_holds_control != NULL && rt_lane_holds_control();
+    int shard = rt_lane_holds_any_shard != NULL && rt_lane_holds_any_shard();
+    if (control || shard) {
+        fprintf(stderr,
+                "rt_value_ops: %s was dispatched while a runtime lock is held; every "
+                "generated operation runs detached from the owner lock\n",
+                operation);
+        abort();
+    }
+}
+
+static _Noreturn void rt_value_dispatch_refuse(const char* operation, const char* reason) {
+    fprintf(stderr, "rt_value_ops: %s %s\n", operation, reason);
+    abort();
+}
+
+void rt_value_move_init_detached(const rt_value_ops* operations, void* dst, void* src) {
+    if (operations == NULL) {
+        rt_value_dispatch_refuse("rt_value_move_init_detached", "needs a descriptor");
+    }
+    if (operations->move_init == NULL) {
+        rt_value_dispatch_refuse("rt_value_move_init_detached",
+                                 "needs a descriptor whose move_init slot is bound; the "
+                                 "manifest declares it always present");
+    }
+    if (dst == NULL || src == NULL) {
+        rt_value_dispatch_refuse("rt_value_move_init_detached",
+                                 "needs non-null destination and source storage");
+    }
+    rt_value_refuse_if_locked("rt_value_move_init_detached");
+    operations->move_init(dst, src);
+}
+
+void rt_value_drop_in_place_detached(const rt_value_ops* operations, void* value) {
+    if (operations == NULL) {
+        rt_value_dispatch_refuse("rt_value_drop_in_place_detached", "needs a descriptor");
+    }
+    if ((operations->layout.flags & RT_VALUE_FLAG_DROPPABLE) == 0) {
+        // No obligation exists. The biconditional makes this the same statement
+        // as "drop_in_place is null", so there is nothing to dispatch and
+        // nothing to refuse.
+        return;
+    }
+    if (operations->drop_in_place == NULL) {
+        rt_value_dispatch_refuse("rt_value_drop_in_place_detached",
+                                 "has RT_VALUE_FLAG_DROPPABLE set with an unbound "
+                                 "drop_in_place slot, so the obligation names no destructor");
+    }
+    if (value == NULL) {
+        rt_value_dispatch_refuse("rt_value_drop_in_place_detached", "needs non-null storage");
+    }
+    rt_value_refuse_if_locked("rt_value_drop_in_place_detached");
+    operations->drop_in_place(value);
+}

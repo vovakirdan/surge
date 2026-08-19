@@ -135,6 +135,23 @@ rt_slot_control_status rt_slot_begin_generation_locked(rt_slot_control* control,
                                                        size_t storage_size,
                                                        size_t storage_alignment);
 
+// A CLAIM's refusals are OUTCOMES, not defects, and this is the half the
+// header used to leave unsaid — it classified the commits below and stopped.
+//
+// A claim takes the generation the caller last observed. Between that
+// observation and the claim the slot can be recycled, emptied or taken by
+// somebody else, so RT_SLOT_CONTROL_STALE, RT_SLOT_CONTROL_INVALID_STATE and
+// RT_SLOT_CONTROL_BUSY all describe a slot the caller's snapshot no longer
+// describes. Every one of them is a lost race the caller must handle — by
+// re-reading and retrying, or by abandoning the operation — and none of them
+// may be treated as an internal error.
+//
+// The distinction matters because the two halves have opposite handling. A
+// refused claim has taken NOTHING: no callback ran, no ownership moved, and the
+// caller still owns whatever it was about to move. A failed COMMIT, by
+// contrast, arrives after the callback has already run and is therefore
+// terminal. Reading a refused claim as a defect turns an ordinary race into a
+// crash; reading a failed commit as a race leaves a value with no owner.
 rt_slot_control_status rt_slot_claim_read_locked(rt_slot_control* source,
                                                  rt_slot_control* destination,
                                                  rt_slot_claim_kind kind,

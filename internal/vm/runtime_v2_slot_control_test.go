@@ -385,3 +385,54 @@ func readSlotControlFile(t *testing.T, path string) string {
 	}
 	return string(contents)
 }
+
+// The move and drop slots get the discipline the copy slot already has.
+//
+// Until D3 the runtime had exactly one dispatch helper, for copies, and the
+// requirement that every generated operation run detached from the owner lock
+// lived in a comment with nothing enforcing it. A move or a drop dispatched
+// straight through the descriptor takes that comment's word for it, and the
+// failure it produces — a generated callback reentering the runtime under a
+// lock it does not know is held — surfaces nowhere near the call.
+//
+// So the rule is the copy rule: the descriptor is in hand at every call site,
+// and the helper is the only thing that reads the slot.
+func TestRuntimeV2SlotControlMoveAndDropDispatchThroughTheDetachedHelpers(t *testing.T) {
+	root := repoRoot(t)
+
+	entries, err := os.ReadDir(filepath.Join(root, "runtime", "native"))
+	if err != nil {
+		t.Fatalf("read runtime/native: %v", err)
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || name == "rt_value_ops.c" ||
+			(!strings.HasSuffix(name, ".c") && !strings.HasSuffix(name, ".h")) {
+			continue
+		}
+		source := readSlotControlFile(t, filepath.Join(root, "runtime", "native", name))
+		if reads := slotReadsBeyondNullChecks(source, "move_init|drop_in_place"); len(reads) != 0 {
+			t.Errorf("%s reads %q; a generated operation runs detached from the owner lock, "+
+				"so moves go through rt_value_move_init_detached and drops through "+
+				"rt_value_drop_in_place_detached", name, reads)
+		}
+	}
+
+	// Inside the helper file the slots are pinned by TOTAL reads rather than by
+	// call shape, for the reason the copy pin already records: counting
+	// `->move_init(` alone misses `(*operations->move_init)(dst, src)`, which
+	// dispatches through a plain deref and evades a shape count.
+	//
+	// One read each, and both are the dispatch itself. The lane refusal reads
+	// no slot — it asks the lane, not the descriptor — which is what keeps the
+	// count at one rather than two.
+	helper := readSlotControlFile(t, filepath.Join(root, "runtime", "native", "rt_value_ops.c"))
+	for _, slot := range []string{"move_init", "drop_in_place"} {
+		reads := slotReadsBeyondNullChecks(helper, slot)
+		if len(reads) != 1 {
+			t.Errorf("rt_value_ops.c reads %s %d times %v, want exactly 1 (the dispatch); "+
+				"a new read is a new way for the callback to reach a caller that holds a lock",
+				slot, len(reads), reads)
+		}
+	}
+}
