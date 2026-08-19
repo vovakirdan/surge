@@ -190,7 +190,7 @@ dispatch path in the same commit.
 | D2 | Map key/value entries — insert, rehash, replace, remove, failed insert, teardown | D1 (element storage first) |
 | D3 | Buffered/unbuffered channel send/receive and waiter mailboxes | D0.7 (the waiter fix is a precondition, not a parallel task) |
 | D4 | Task canonical result/resume and cloned result entitlements | D0; may run beside D3 only once their production files do not overlap |
-| D5 | Local `select` staging and losing-arm cleanup | D3 |
+| D5 | REMOTE select only — `rt_far_channel_select.c`. Local `select` moved into D3 by the 2026-08-19 ruling below | D3 |
 | D6 | Blocking captures/results and every cancellation timing | D3, D4 |
 | D7 | Async frames, captures, polling, wake, normal/shutdown drains | D4 |
 | D8 | RV2-DEBT-151 retirement — local **and** FAR **and** CROSSING (ruling 8) | D1–D7 |
@@ -209,6 +209,41 @@ index), and VM remove IS swap-with-last (`intrinsic_map.go:421-431`). So
 `let p = m.get_mut(&"b"); m.remove(&"b"); *p = 99` writes into the slot `"c"`
 was swapped into and drops `c`'s live value. The VM is immune to ADDRESS
 invalidation, not INDEX invalidation. D2 owns this; it is not native-only.
+
+### D3 absorbs LOCAL select — owner ruling 2026-08-19
+
+`rt_async_select.c` takes control at `:244`, calls both channel cores inside it
+(`rt_channel_try_recv_status_locked` at `:333`,
+`rt_channel_try_send_status_locked` at `:345`), releases at `:401` and carries a
+raw `taken_payload` across the release. Changing the cores' signatures breaks
+select, and §5 forbids an adapter, so the two cannot land apart.
+
+**Local select is therefore rewritten inside D3's commit.**
+`rt_far_channel_select.c` — 57 census rows — stays D5. The file is 485 effective
+against a 500 ceiling, so the arm scan is extracted in the same commit.
+
+Three further rulings taken with it:
+
+- **§8 P2 is already broken and D3 fixes it.** `mark_done` holds control from
+  `rt_task_complete.c:200` to `:263` and reaches `rt_channel_free` through
+  `rt_remote_task_completion.c:54` → `rt_far_channel.c:194` → `:197` → `:224`;
+  `unlock_then_reclaim` releases only the far-channel mutex, so the compiled
+  glue at `rt_async_channel.c:69` runs under control TODAY. D3 hoists the
+  reclaim out and makes `rt_channel_free` assert, fail-closed, that neither
+  control nor a shard is held — which puts `rt_task_complete.c` and
+  `rt_remote_task_completion.c` in D3's scope.
+- **Descriptors come from the BACKEND.** `internal/valueops` cannot express
+  `drop_in_place` — `FlagDroppable` is `staged: true`
+  (`internal/valueops/flags.go:109`) — so D3 emits `rt_value_ops` from the
+  layout registry and the valueops route becomes its own row.
+- **D3 closes both Wave B gaps itself**: the missing detached dispatch helpers
+  for `move_init` and `drop_in_place` (only `rt_value_copy_init` exists,
+  `rt_value_ops.h:39`), and the missing sentence classifying a `STALE` returned
+  by a CLAIM rather than a commit (`rt_slot_control.h:170-172`).
+
+`Channel<nothing>` is NOT an open question: it works today on both lanes and
+backs `Mutex`, `Condition` and `Semaphore` (`core/sync.sg:15,53,94`), so
+zero-sized payload handling is a requirement of the step.
 
 ### D3's native half is Wave B's FIRST production adopter
 
