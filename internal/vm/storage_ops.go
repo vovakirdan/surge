@@ -36,7 +36,45 @@ func (vm *VM) storageSizeOf(typeID types.TypeID) (uint64, error) {
 // memberRef projects one member of a composite, keeping the owner identity and
 // the generation of the value it comes from.
 func (r StorageRef) memberRef(member storageMember) (StorageRef, error) {
-	return r.field(member.Offset, member.TypeID, member.Align)
+	return r.field(member.Offset, member.TypeID, memberAccessAlign(r.Align, member.Offset, member.Align))
+}
+
+// memberAccessAlign is the alignment one member access may REQUIRE.
+//
+// A member's alignment is the container's business, not the member type's —
+// the same rule compositeMembers states for a struct field, applied where every
+// member projection passes rather than in one shape's member list. `@packed`
+// removes the padding, so a wide member lands at an offset its own alignment
+// does not divide; requiring the member type's alignment there refuses a
+// program the language accepts.
+//
+// A struct field reaches this already correct, because FieldAligns records the
+// container's answer per field. A fixed array element does not: an array's
+// layout carries no per-element alignments to record one in, so the element
+// arrives claiming its own natural alignment and only the base reference knows
+// the offset it actually landed on.
+//
+// The answer is the largest power of two dividing the member's offset, capped
+// both by what the base address guarantees and by what the member type needs —
+// never more than the address can honour, and never more than the access wants.
+func memberAccessAlign(baseAlign, offset, memberAlign uint64) uint64 {
+	if memberAlign == 0 {
+		memberAlign = 1
+	}
+	if baseAlign == 0 {
+		baseAlign = 1
+	}
+	guaranteed := baseAlign
+	if offset != 0 {
+		// The largest power of two dividing the offset.
+		if divides := offset & (^offset + 1); divides < guaranteed {
+			guaranteed = divides
+		}
+	}
+	if guaranteed < memberAlign {
+		return guaranteed
+	}
+	return memberAlign
 }
 
 // storageZero clears a value's whole extent, including its padding and any

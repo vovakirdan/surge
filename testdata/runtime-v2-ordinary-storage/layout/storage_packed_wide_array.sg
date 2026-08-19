@@ -1,0 +1,77 @@
+// A WIDE fixed array inside a PACKED container: the element offset is a
+// container fact, and neither lane may answer it from the element's own type.
+//
+// This is one condition away from `storage_packed_field`, which puts PACKED
+// values in a fixed array inside an UNPACKED struct. There the element's own
+// alignment is 1 and every element offset divides it, so a lane that answers
+// from the element type gets the right number by accident. Here the array
+// lands at offset 1 and its elements are int64, whose natural alignment is 8 —
+// so the two answers differ, and the lanes disagreed:
+//
+//   the VM refused the program its own sema accepts, and the native lane
+//   claimed an 8-byte-aligned access to a 1-aligned address.
+//
+// The element's alignment is the largest power of two dividing the element
+// stride, capped by what the array's own reference guarantees. Read and write
+// every element, take a borrow of one, and check the neighbours and the narrow
+// field the array is packed against.
+
+@packed type Packed = {
+    flag: bool,
+    cells: int64[3],
+    tail: bool,
+};
+
+fn sum_cells(p: &Packed) -> int64 {
+    return p.cells[0] + p.cells[1] + p.cells[2];
+}
+
+fn build() -> Packed {
+    return Packed {
+        flag = true,
+        cells = [10:int64, 20:int64, 30:int64],
+        tail = true,
+    };
+}
+
+@entrypoint
+fn main() -> int {
+    // 1. construct a packed container holding a wide array, and read it back
+    let mut p = build();
+    if p.cells[0] != 10:int64 || p.cells[1] != 20:int64 || p.cells[2] != 30:int64 {
+        print("packed wide array element read is wrong");
+        return 1;
+    }
+
+    // 2. write through an element place
+    p.cells[1] = 55:int64;
+    if p.cells[1] != 55:int64 {
+        print("packed wide array element write is wrong");
+        return 2;
+    }
+    if p.cells[0] != 10:int64 || p.cells[2] != 30:int64 {
+        print("packed wide array element write reached a neighbour");
+        return 3;
+    }
+    if !p.flag || !p.tail {
+        print("packed wide array write reached a narrow field");
+        return 4;
+    }
+
+    // 3. the same elements reached through a borrow of the container
+    if sum_cells(&p) != 95:int64 {
+        print("borrowed packed wide array is wrong");
+        return 5;
+    }
+
+    // 4. every element written, so no element is right only because it is first
+    p.cells[0] = 1:int64;
+    p.cells[2] = 3:int64;
+    if p.cells[0] != 1:int64 || p.cells[1] != 55:int64 || p.cells[2] != 3:int64 {
+        print("packed wide array full rewrite is wrong");
+        return 6;
+    }
+
+    print("packed wide array ok");
+    return 0;
+}

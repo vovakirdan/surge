@@ -61,6 +61,7 @@ func ordinaryStorageFixtures() []ordinaryStorageFixture {
 		{name: "storage_partial_init", dir: "ops", want: "partial init ok"},
 
 		{name: "storage_packed_field", dir: "layout", want: "packed field ok"},
+		{name: "storage_packed_wide_array", dir: "layout", want: "packed wide array ok"},
 		{name: "storage_over_aligned", dir: "layout", want: "over aligned ok"},
 		{name: "storage_padding_union", dir: "layout", want: "padding union ok"},
 		{name: "storage_zero_sized", dir: "layout", want: "zero sized ok"},
