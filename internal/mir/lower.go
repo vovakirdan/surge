@@ -157,13 +157,10 @@ func LowerModuleWithOptions(mm *mono.MonoModule, semaRes *sema.Result, opts Lowe
 	}
 
 	if mm.Source != nil {
-		tagLayouts, tagNames, unionCases := buildTagLayouts(out, mm.Source, typesIn)
+		tagLayouts, tagNames := buildTagLayouts(out, mm.Source, typesIn)
 		tagAliases := buildTagAliases(mm)
 		if len(tagLayouts) != 0 || len(tagNames) != 0 || len(tagAliases) != 0 {
 			out.Meta.TagLayouts = tagLayouts
-			if len(unionCases) != 0 {
-				out.Meta.UnionCases = unionCases
-			}
 			if len(tagNames) != 0 {
 				out.Meta.TagNames = tagNames
 			}

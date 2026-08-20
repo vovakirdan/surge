@@ -104,19 +104,12 @@ func (e *Emitter) typeOwnsHeapRec(id types.TypeID, seen map[types.TypeID]struct{
 		}
 		return false
 	case types.KindUnion:
-		// The FULL membership, not the flattened tag view. A bare type member
-		// carries its own type and owns whatever that type owns; reading the tag
-		// view here made such a member invisible and its contents leaked
-		// (RV2-DEBT-233).
-		cases, _, err := e.unionCases(id)
+		cases, err := e.tagCases(id)
 		if err != nil {
-			// Fail CLOSED. A union whose membership cannot be established may
-			// own heap, and answering "no" is how the leak happened: a union of
-			// only bare members has no tag-layout entry at all.
-			return true
+			return false
 		}
-		for index := range cases {
-			for _, pt := range cases[index].PayloadTypes {
+		for _, c := range cases {
+			for _, pt := range c.PayloadTypes {
 				if e.typeOwnsHeapRec(pt, seen) {
 					return true
 				}
@@ -602,12 +595,7 @@ func requireAggregateFieldOffsets(typesIn *types.Interner, facts *layout.Physica
 // were never written, and reading them as payloads would release whatever
 // happened to be there.
 func (e *Emitter) emitUnionPayloadDrops(g *glueTmp, id types.TypeID, facts *layout.PhysicalFacts, baseAlign uint64) error {
-	// The FULL membership, in the enumeration the layout is indexed by. The
-	// flattened tag view cannot serve here for two reasons: a bare member has no
-	// entry in it at all, so whatever it owns was never dropped, and its index
-	// is not the physical one, so feeding it to facts.UnionCase either selects
-	// the wrong arm or runs off the end.
-	cases, _, err := e.unionCases(id)
+	cases, err := e.tagCases(id)
 	if err != nil {
 		return err
 	}
@@ -619,8 +607,7 @@ func (e *Emitter) emitUnionPayloadDrops(g *glueTmp, id types.TypeID, facts *layo
 		payloadTys    []types.TypeID
 	}
 	var droppable []dropCase
-	for index := range cases {
-		c := &cases[index]
+	for ci, c := range cases {
 		if len(c.PayloadTypes) == 0 {
 			continue
 		}
@@ -634,9 +621,6 @@ func (e *Emitter) emitUnionPayloadDrops(g *glueTmp, id types.TypeID, facts *layo
 		if !anyOwns {
 			continue
 		}
-		// The case's own index, which is also the discriminant the writer
-		// stored — the two are the same number by construction now.
-		ci := c.PhysicalCaseIndex
 		caseLayout, ok := facts.UnionCase(ci)
 		if !ok {
 			return fmt.Errorf("missing finalized union case %d for type#%d", ci, id)

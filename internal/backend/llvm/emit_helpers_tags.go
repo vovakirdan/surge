@@ -48,39 +48,6 @@ func (e *Emitter) tagCases(id types.TypeID) ([]mir.TagCaseMeta, error) {
 	return cases, nil
 }
 
-// unionCases returns a union's FULL direct membership together with the frozen
-// layout facts, refusing when the two enumerations disagree about how many cases
-// exist.
-//
-// It is the only sanctioned way to walk a union's members. tagCases returns the
-// flattened tag view, which is a different thing: it hoists a nested union's
-// tags and deduplicates, so it can be longer than the membership and is not
-// injective. An index from there must never reach PhysicalFacts.UnionCase.
-//
-// It fails CLOSED, unlike its predecessor. typeOwnsHeapRec used to answer "owns
-// no heap" whenever tagCases errored, and a union of only bare members has no
-// tag-layout entry at all — so `int | string` silently answered no.
-func (e *Emitter) unionCases(id types.TypeID) ([]mir.UnionCaseMeta, layout.PhysicalFacts, error) {
-	if e == nil || e.mod == nil || e.mod.Meta == nil || len(e.mod.Meta.UnionCases) == 0 {
-		return nil, layout.PhysicalFacts{}, fmt.Errorf("missing union membership metadata")
-	}
-	resolved := resolveValueType(e.types, id)
-	cases, ok := e.mod.Meta.UnionCases[resolved]
-	if !ok {
-		return nil, layout.PhysicalFacts{}, fmt.Errorf("missing union membership for type#%d", resolved)
-	}
-	facts, err := e.layoutOf(resolved)
-	if err != nil {
-		return nil, layout.PhysicalFacts{}, err
-	}
-	if physical := facts.UnionCases(); len(physical) != len(cases) {
-		return nil, layout.PhysicalFacts{}, fmt.Errorf(
-			"union type#%d has %d members and %d physical cases; the two enumerations disagree",
-			resolved, len(cases), len(physical))
-	}
-	return cases, facts, nil
-}
-
 func (e *Emitter) canonicalTagSym(sym symbols.SymbolID) symbols.SymbolID {
 	if !sym.IsValid() || e == nil || e.mod == nil || e.mod.Meta == nil || len(e.mod.Meta.TagAliases) == 0 {
 		return sym
