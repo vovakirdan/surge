@@ -210,6 +210,64 @@ index), and VM remove IS swap-with-last (`intrinsic_map.go:421-431`). So
 was swapped into and drops `c`'s live value. The VM is immune to ADDRESS
 invalidation, not INDEX invalidation. D2 owns this; it is not native-only.
 
+### D3 IS BLOCKED — owner ruling 2026-08-20
+
+D3 was opened, its code read, and the step stopped before any line was written.
+The reason is not that the step is large. **Its entry condition was never met.**
+
+Wave B items 3 and 5 require the compiler to GENERATE the concrete
+move/copy/clone/drop/trace/cross operations and the read-only cross plans, and
+the wave is declared an integration dependency that "must land before parallel
+owner migrations branch from it". P2's entry condition names the shared Wave B
+owner/slot API as integrated. Measured 2026-08-20: `internal/backend/llvm/`
+emits no `rt_value_ops` constructor whatsoever - the single mention is the
+record's SHAPE in `typed_carrier_v2.generated.go` - while
+`rt_slot_operations_preflight` refuses any descriptor whose `move_init` or
+`plan_cross` is null (`rt_slot_control.c:44`). No typed owner is reachable from
+here.
+
+**Order of work is therefore: close the Wave B generation gap first, then P2.**
+
+Three contracts were added ahead of the code, because without them the
+implementation is a choice among bad options rather than a target:
+
+- **The mailbox carries control only.** `resume_bits`, `taken_payload` and any
+  other word that a payload actually travels through are removed as storage. A
+  task keeps a resume SLOT - typed - and the scheduler carries only "a value of
+  this generation is ready". The ownership path is: sender staging slot → ring
+  slot (buffered) or rendezvous slot (unbuffered) → receiver resume slot; and
+  for select, channel slot → the select operation's own typed staging → result
+  destination. This dissolves the abort the fail-closed lane predicate would
+  otherwise produce, not by unlocking around the old algorithm but by replacing
+  the algorithm with claim → unlock → value op → commit.
+  NOTE, measured: the payload lives in FOUR places today, not three. A parked
+  SENDER also holds its value in its own `resume_bits`, and the receiver takes
+  it straight from there (`rt_channel_sync.c`, `*out_bits =
+  sender->resume_bits`), so the sender needs a staging slot too.
+- **Channel lifetime is reference counted.** `Channel<T>` stays `@copy` at the
+  surface; the runtime object gets deterministic retain/release, and the last
+  release drops the payloads it still owns. `close` is NOT `destroy`: a closed
+  channel is still drained, because `recv` yields `nothing` only when closed AND
+  empty - which is what the implementation already does
+  (`if (ch->closed) return 2;` runs last, after the buffer and after the parked
+  sender). Written into `RUNTIME_V2.md` §7, which had been silent on channel
+  lifetime entirely.
+- **A slot is not a control block.** One descriptor per homogeneous owner; a
+  one-byte `rt_slot_header` per element. A per-element `rt_slot_control` (144
+  bytes measured) is a representation choice this design refuses, and a
+  zero-sized payload keeps its lifecycle with no storage at all.
+
+Two things are explicitly NOT D3's to fix, and neither may be repaired silently
+inside it: `rt_slot_operations_preflight` demanding cross capability from a
+purely local owner, and `Channel<T>::new` having no native backend case at all
+(`emitChannelIntrinsic` knows only `make_channel`, `close`, `send`, `recv`,
+`try_send`, `try_recv`).
+
+The scope findings below stand and feed the eventual step: the census under-
+scopes by roughly 41 rows, section 8 P2 is violated on at least four routes
+rather than the one named, and the "485 effective against a 500 ceiling" belongs
+to `rt_async_select.c` (measured 484), not to `rt_far_channel_select.c` (348).
+
 ### D3 absorbs LOCAL select — owner ruling 2026-08-19
 
 `rt_async_select.c` takes control at `:244`, calls both channel cores inside it

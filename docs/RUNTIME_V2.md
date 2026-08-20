@@ -333,6 +333,41 @@ boundary — two callers selecting over the same channels observe an owner-lane
 order, not their submission order. Timeout and default arms are evaluated on
 the caller's side in every lowering.
 
+**Channel lifetime.** `Channel<T>` is a copyable handle at the language surface
+and stays one. The runtime object behind it is shared and deterministically
+reference counted: copying a handle retains, dropping a copy releases, and the
+last release destroys the object. Destruction drops every payload the channel
+still owns, so a channel is not a place values go to be forgotten.
+
+`Copy` does not mean "memcpy and never drop" under the typed-carrier model. A
+descriptor separates `copy_init` from `drop_in_place`, so a handle may stay one
+machine word while its copy and drop carry work.
+
+Two reference kinds are distinguished. User handle references are the copies a
+program holds. Internal pins are held by a registered waiter, a select
+subscription, or a claimed detached operation. Both keep the object alive, which
+is what makes it impossible to free a channel while a generated callback is
+still running outside the owner lock.
+
+**`close` is not `destroy`.** Closing forbids further sends, settles parked
+senders, and wakes receivers. It does NOT discard values already published into
+the buffer: `recv` yields `nothing` only when the channel is closed AND empty,
+so a closed channel is still drained by its receivers. Destruction is what the
+last release performs, and only there do the remaining initialized payloads get
+dropped. Teardown order is: under the owner lock mark the object dying, detach
+its initialized slots, invalidate generations; release the lock; run
+`drop_in_place` on the detached values; free the storage. No destructor and no
+user operation runs under the channel lock.
+
+**The scheduler mailbox carries control only.** A resumed task learns that a
+value is ready for it and which generation the slot belongs to; the value itself
+never travels as a scheduler word. Every payload lives in typed storage: a
+sending task stages into its own slot, the channel owns ring slots and one
+rendezvous slot, a receiving task owns a typed resume slot, and a `select`
+operation owns its own staging slot. This is the same rule as the typed-carrier
+paragraph in the ownership section above, stated for the one path that most
+invites an exception - the direct same-shard handoff.
+
 The pre-Epic-23b implementation still contains a sync-channel compatibility
 fallback. It is current-state debt, not target architecture: Epic 23b deletes
 that carrier path rather than preserving it behind an adapter. Hot code uses
@@ -623,6 +658,8 @@ cancellation traffic.
 | Remote select | Selecting over remote channels creates multi-shard subscriptions and cancellation. | Local select is fast; remote select is denied the fast path and lowered to a slow coordinator. |
 | Cross-shard cancellation staleness | A child can complete while cancel is in flight, or storage can be reused. | Distributed scope cancel and completion messages carry generation tokens; stale messages are ignored. |
 | Load skew | Work stealing can hide skew but conflicts with fd ownership on the connection path. | CPU skew uses Tier 2 stealing; I/O skew uses migration and control-plane rebalancing. |
+| Channel lifetime | A local channel is never freed - `rt_channel_free` has one production caller, and a local `Channel<T>` matches no drop predicate - so the object and every buffered value leak by construction. | The runtime object is deterministically reference counted behind the copyable handle; the last release drops the payloads it still owns and frees the storage. |
+| Payload in the scheduler mailbox | A same-shard handoff writes the value into the receiving task's `resume_bits`, and a parked sender holds its value in its own, so a payload can live in four places and none of them is typed. | The mailbox carries control only; every payload lives in a typed slot owned by the sender, the channel, the receiver, or the select operation. |
 | Cross-shard structured concurrency | If children spread by default, join/cancel become broadcasts. | Spawn is local by default; distributed work is explicit. |
 
 ## Refactor Policy

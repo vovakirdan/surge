@@ -204,6 +204,46 @@ protocol-passed endpoint-RED report.
 This wave is an integration dependency for all erased runtime owners. It must
 land before parallel owner migrations branch from it.
 
+**Status correction, owner ruling 2026-08-20.** Items 3 and 5 say GENERATE, and
+nothing generates. `internal/backend/llvm/` mentions `rt_value_ops` exactly once
+- as the shape of the record, in `typed_carrier_v2.generated.go` - and emits no
+descriptor constructor at all; the only constructions in the tree are the
+runtime's own and the harnesses under `internal/vm/testdata/`. Since
+`rt_slot_operations_preflight` requires `move_init` AND `plan_cross` to be
+non-null unconditionally (`rt_slot_control.c:44`), no owner can be migrated
+until those two exist for real types. Wave B is therefore NOT closed, and any
+owner migration that begins before it is building on an entry condition that
+was never met.
+
+#### What a slot costs, and what it must not cost
+
+A descriptor is per HOMOGENEOUS OWNER, not per element: one `rt_value_ops` for a
+whole channel, array or map region. Per-element lifecycle metadata is the
+one-byte `rt_slot_header`, not a copy of the owner's control block. An owner
+that gives every element a full `rt_slot_control` (144 bytes measured on LP64)
+has chosen a representation, not obeyed this design: a 64-slot
+`Channel<nothing>` would cost 9 KB of control for 0 bytes of payload, which is
+refused here explicitly.
+
+Zero-sized payloads keep a real lifecycle and no storage. `size == 0` means the
+payload occupies nothing; a fabricated filler byte is forbidden. Where an owner
+is a FIFO of zero-sized values, occupancy is already encoded by its own
+head/tail/count plus outstanding claims, so per-element lifecycle records are
+not required at all and the memory cost is O(1) in capacity. This matters
+because `Mutex`, `Condition` and `Semaphore` are all built on
+`Channel<nothing>` (`core/sync.sg:5,42,80`): the cheapest primitives in the
+language must not be the ones that pay for typing.
+
+#### One destination contract, not one per owner
+
+Channel code must not learn about tasks or select arms. The transfer boundary is
+a typed destination plus a generation plus a slot claim: an owner moves out of
+its own typed slot into a destination that satisfies that contract, and what
+stands behind the destination - an ordinary receive, a select operation, a
+remote reply - is not the owner's business. Reintroducing
+`channel_deliver_same_shard_locked(..., resume_bits, ...)` with `void*` in place
+of `uint64_t` satisfies the absence gate's letter and none of its purpose.
+
 ### Wave C — ordinary storage (parallel backend workstreams)
 
 LLVM workstream:
