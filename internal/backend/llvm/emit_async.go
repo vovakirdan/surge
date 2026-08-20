@@ -682,6 +682,51 @@ func (fe *funcEmitter) emitTermAsyncYield(term *mir.Terminator) error {
 	return nil
 }
 
+// widenAsyncReturnBareMember materialises a bare union member into the async
+// body's declared result union.
+//
+// It answers false for everything else, including the ordinary case where the
+// value already IS the union, so the caller can use it unconditionally.
+func (fe *funcEmitter) widenAsyncReturnBareMember(val, valTy string, valueType types.TypeID) (storage, storageLLVM string, unionType types.TypeID, widened bool, err error) {
+	if fe == nil || fe.f == nil || valueType == types.NoTypeID {
+		return "", "", types.NoTypeID, false, nil
+	}
+	result := resolveValueType(fe.emitter.types, fe.f.Result)
+	if result == types.NoTypeID || !isUnionType(fe.emitter.types, result) {
+		return "", "", types.NoTypeID, false, nil
+	}
+	if resolveValueType(fe.emitter.types, valueType) == result {
+		return "", "", types.NoTypeID, false, nil
+	}
+	if _, ok := fe.emitter.unionMemberFor(result, valueType); !ok {
+		return "", "", types.NoTypeID, false, nil
+	}
+	mem, err := fe.emitValueStorage(result)
+	if err != nil {
+		return "", "", types.NoTypeID, false, err
+	}
+	facts, err := fe.emitter.layoutOf(result)
+	if err != nil {
+		return "", "", types.NoTypeID, false, err
+	}
+	align := facts.Align
+	if align == 0 {
+		align = 1
+	}
+	materialised, err := fe.emitUnionMaterialiseBareMember(mem, align, result, val, valTy, valueType)
+	if err != nil {
+		return "", "", types.NoTypeID, false, err
+	}
+	if !materialised {
+		return "", "", types.NoTypeID, false, nil
+	}
+	resultLLVM, err := fe.emitter.llvmType(result)
+	if err != nil {
+		return "", "", types.NoTypeID, false, err
+	}
+	return mem, resultLLVM, result, true, nil
+}
+
 func (fe *funcEmitter) emitTermAsyncReturn(term *mir.Terminator) error {
 	if term == nil {
 		return nil
@@ -704,6 +749,16 @@ func (fe *funcEmitter) emitTermAsyncReturn(term *mir.Terminator) error {
 			if baseType, baseErr := fe.placeBaseType(term.AsyncReturn.Value.Place); baseErr == nil {
 				valueType = baseType
 			}
+		}
+		// A bare member returned from an async body is still a member of the
+		// result union, and it has to be widened HERE. The sibling arm that
+		// returns a tag arrives as a cast to the union; the bare arm arrives
+		// as the member itself, so without this the reader is handed a member
+		// where it expects a union and reads the payload at the wrong offset.
+		if widened, widenedTy, widenedType, ok, wErr := fe.widenAsyncReturnBareMember(val, valTy, valueType); wErr != nil {
+			return wErr
+		} else if ok {
+			val, valTy, valueType = widened, widenedTy, widenedType
 		}
 		bits, err := fe.emitAsyncReturnBits(val, valTy, valueType)
 		if err != nil {
