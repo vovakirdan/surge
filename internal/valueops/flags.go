@@ -278,6 +278,14 @@ func SlotFiller(slot string, flags Flags) (Filler, error) {
 		if rule.slot != slot {
 			continue
 		}
+		// Presence first. A capability slot whose bit is clear is ABSENT, and an
+		// absent slot ships null whatever its filler would have been — the
+		// runtime's biconditional is "callback non-null exactly when the bit is
+		// set", so answering with copy_init's trap for a non-Copy descriptor
+		// would build one the preflight refuses.
+		if rule.when == capabilitySlot && flags&rule.bit == 0 {
+			return Filler{Kind: FillNone}, nil
+		}
 		policy := rule.fillFor(flags)
 		symbol, shared := rule.sharedSymbol(policy)
 		if shared && symbol == "" {

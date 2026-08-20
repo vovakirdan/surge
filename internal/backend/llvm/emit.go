@@ -341,6 +341,9 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	if err := e.emitDropGlue(); err != nil {
 		return "", err
 	}
+	// After the glue passes, because a descriptor points at bodies they may have
+	// defined, and before the tail tables, which close the module.
+	e.emitValueOpsDescriptors()
 	e.emitTraceTextEnd()
 	// Last, because every pass above may have named a source location and this
 	// writes the ones that were actually named.

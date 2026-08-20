@@ -425,3 +425,41 @@ func TestMoveInitIsMandatoryAndBackendNamed(t *testing.T) {
 		t.Errorf("an entry with no flags was refused: %v", err)
 	}
 }
+
+// TestSlotFillerRespectsPresenceBeforeFill pins the axis order.
+//
+// A capability slot whose bit is clear is ABSENT, and an absent slot ships null
+// whatever filler its row names. Answering with the filler regardless — which
+// the first version of SlotFiller did — hands a non-Copy descriptor copy_init's
+// trap, and the runtime refuses that descriptor for breaking the biconditional
+// "callback non-null exactly when the bit is set". The defect was invisible to
+// the table tests, because the table was right and only the query was wrong.
+func TestSlotFillerRespectsPresenceBeforeFill(t *testing.T) {
+	cases := []struct {
+		slot  string
+		flags Flags
+		want  FillKind
+	}{
+		{"copy_init", 0, FillNone},
+		{"copy_init", FlagCopy, FillRuntimeSymbol},
+		{"clone_init", 0, FillNone},
+		{"clone_init", FlagClonable, FillRegistryNamedBody},
+		{"drop_in_place", 0, FillNone},
+		// Mandatory slots ignore the flags entirely.
+		{"move_init", 0, FillBackendDerivedBody},
+		{"plan_cross", 0, FillModuleStub},
+	}
+	for _, tc := range cases {
+		got, err := SlotFiller(tc.slot, tc.flags)
+		if err != nil {
+			t.Errorf("SlotFiller(%q, %v): %v", tc.slot, tc.flags, err)
+			continue
+		}
+		if got.Kind != tc.want {
+			t.Errorf("SlotFiller(%q, %v).Kind = %d, want %d", tc.slot, tc.flags, got.Kind, tc.want)
+		}
+		if got.Kind == FillNone && got.Symbol != "" {
+			t.Errorf("SlotFiller(%q, %v) is absent yet names %q", tc.slot, tc.flags, got.Symbol)
+		}
+	}
+}
