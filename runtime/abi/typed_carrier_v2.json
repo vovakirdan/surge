@@ -406,7 +406,7 @@
             "name": "rt_value_plan_cross_fn",
             "nullable": false
           },
-          "semantics": "Always-present read-only crossing preflight."
+          "semantics": "Mandatory slot: always present, unlike the capability-gated callbacks. Only STRUCTURALLY unconditional, though - its callable domain is decided by the cross capability flags, and a descriptor with neither RT_VALUE_FLAG_SHARD_MOVABLE nor RT_VALUE_FLAG_CROSS_CLONABLE fills this slot with an invariant-failure stub whose invocation is a protocol violation rather than a recoverable refusal. Contrast move_init, which is semantically unconditional because every initialized value can transfer ownership into an empty destination."
         },
         {
           "name": "cross_move_init",

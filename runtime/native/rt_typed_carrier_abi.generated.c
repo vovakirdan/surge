@@ -21,7 +21,7 @@
 #define SURGE_ABI_RETAIN
 #endif
 
-const uint8_t rt_typed_carrier_abi_manifest_identity[] = "f30fcfb03b62d105dab0cd21d57a3dcc029b0e7ae10a337e966079033608650a";
+const uint8_t rt_typed_carrier_abi_manifest_identity[] = "9653d77321b7a2d50226ef27abbb65c9a5061703d81239eb4d1e966909ce4562";
 
 const uint8_t* rt_typed_carrier_abi_manifest_hash(void) {
     return rt_typed_carrier_abi_manifest_identity;
@@ -30,7 +30,7 @@ const uint8_t* rt_typed_carrier_abi_manifest_hash(void) {
 static volatile uint8_t rt_typed_carrier_abi_retention_anchor;
 
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
-SURGE_ABI_USED SURGE_ABI_RETAIN SURGE_ABI_NOINLINE SURGE_ABI_VISIBLE void __surge_runtime_abi_typed_carrier_v2_f30fcfb03b62d105dab0cd21d57a3dcc029b0e7ae10a337e966079033608650a(
+SURGE_ABI_USED SURGE_ABI_RETAIN SURGE_ABI_NOINLINE SURGE_ABI_VISIBLE void __surge_runtime_abi_typed_carrier_v2_9653d77321b7a2d50226ef27abbb65c9a5061703d81239eb4d1e966909ce4562(
     void) {
     (void)rt_typed_carrier_abi_retention_anchor;
 }

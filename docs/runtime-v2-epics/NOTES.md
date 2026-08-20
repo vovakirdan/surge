@@ -7505,3 +7505,18 @@ generated and `plan_cross` bound to the shared trap.
 **Citation drift corrected here:** the unconditional pair is
 `rt_slot_control.c:42`; `:44` is the middle of the COPY biconditional and had
 been cited wrongly in four documents.
+
+**The manifest text was corrected, and it moved the ABI identity.** Owner ruling
+2026-08-20: the price is worth paying, because the sentence that produced the
+wrong reading was in the machine contract itself. `plan_cross` now reads
+"Mandatory slot: always present, unlike the capability-gated callbacks. Only
+STRUCTURALLY unconditional, though - its callable domain is decided by the cross
+capability flags…", contrasting `move_init` explicitly. Because `CanonicalBytes`
+marshals the whole manifest including every `semantics` string, the hash and the
+mandatory link sentinel moved with it:
+`f30fcfb03b62d105dab0cd21d57a3dcc029b0e7ae10a337e966079033608650a` ->
+`9653d77321b7a2d50226ef27abbb65c9a5061703d81239eb4d1e966909ce4562`. Six
+generated views were rewritten. **Objects built before this commit will not link
+against a runtime built after it** - the same consequence D0 had when it last
+moved this hash, and the reason the earlier D0 note above still names the old
+value: that note records what was true then, not now.

@@ -11,8 +11,8 @@ extern "C" {
 #endif
 
 #define SURGE_TYPED_CARRIER_ABI_VERSION UINT32_C(2)
-#define SURGE_TYPED_CARRIER_ABI_MANIFEST_HASH "f30fcfb03b62d105dab0cd21d57a3dcc029b0e7ae10a337e966079033608650a"
-#define SURGE_TYPED_CARRIER_ABI_SENTINEL __surge_runtime_abi_typed_carrier_v2_f30fcfb03b62d105dab0cd21d57a3dcc029b0e7ae10a337e966079033608650a
+#define SURGE_TYPED_CARRIER_ABI_MANIFEST_HASH "9653d77321b7a2d50226ef27abbb65c9a5061703d81239eb4d1e966909ce4562"
+#define SURGE_TYPED_CARRIER_ABI_SENTINEL __surge_runtime_abi_typed_carrier_v2_9653d77321b7a2d50226ef27abbb65c9a5061703d81239eb4d1e966909ce4562
 
 typedef uint64_t rt_value_flags;
 #define RT_VALUE_FLAG_COPY UINT64_C(1)
@@ -154,7 +154,7 @@ extern const uint8_t rt_typed_carrier_abi_manifest_identity[];
 // The sentinel is deliberately in the reserved identifier space. It is the
 // implementation's own ABI marker, and a name a Surge program could also
 // define would prove nothing about which runtime got linked.
-void __surge_runtime_abi_typed_carrier_v2_f30fcfb03b62d105dab0cd21d57a3dcc029b0e7ae10a337e966079033608650a(void);
+void __surge_runtime_abi_typed_carrier_v2_9653d77321b7a2d50226ef27abbb65c9a5061703d81239eb4d1e966909ce4562(void);
 // NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 
 #ifdef __cplusplus
