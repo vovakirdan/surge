@@ -267,6 +267,25 @@ void rt_sync_point_open(void);
 #define RT_DEBT190_PUBLISHING(count) (count)
 #endif
 
+// RV2-DEBT-201 negative-control toggle. park_current's FIRST abort branch
+// (the wake token was already set when the park began) fires BEFORE
+// add_waiter, so the only registration in flight is the one
+// channel_park_prepare_locked appended — and that one carries a NONZERO park
+// generation. The fix reads that generation before park_requeue_locked
+// requeues the task (which clears park_key and park_prepared but not
+// park_seq) and retires the entry after the owner lock is released, exactly
+// as the post-commit abort below it already does. Defining the negative
+// control zeroes the generation, which makes the retirement inert on THIS
+// branch only, so the deterministic proof MUST observe the registration
+// outliving the task that owned it.
+#ifdef RV2_DEBT_201_NEGATIVE_CONTROL
+#define RT_DEBT201_ABORT_SEQ(task, key) ((uint32_t)0)
+#else
+#define RT_DEBT201_ABORT_SEQ(task, key)                                                            \
+    (((key).kind == WAKER_CHAN_SEND || (key).kind == WAKER_CHAN_RECV) ? (task)->park_seq           \
+                                                                      : (uint32_t)0)
+#endif
+
 // RV2-DEBT-199 negative-control toggle. A far channel IS freed
 // (rt_far_channel.c release_entry -> rt_channel_free), so resolving a channel
 // waiter key by casting key.id back to rt_channel* and reading the object is a

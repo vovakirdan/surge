@@ -270,9 +270,37 @@ void park_current(rt_executor* ex, waker_key key) {
     rt_trace_park_attempt();
     rt_shard* owner_shard = rt_task_owner_shard(ex, task);
     if (task_wake_token_exchange(task, 0) != 0) {
+        // This park aborts BEFORE the add_waiter below, so the only
+        // registration in flight is the one channel_park_prepare_locked
+        // (rt_channel_lane.h) appended while it held the channel owner's lock
+        // - and that entry carries this park's generation, stamped nonzero.
+        // park_requeue_locked clears park_key and park_prepared but not
+        // park_seq, so read the generation here, on the parking task's own
+        // thread, before the requeue can hand the task to another worker.
+        // Without this the entry outlives the park: on the unwinding paths
+        // nothing re-prepares that key after the requeue, and mark_done then
+        // finds a cleared park_key and has nothing to remove (RV2-DEBT-201).
+        uint32_t abort_seq = RT_DEBT201_ABORT_SEQ(task, key);
         rt_shard_lock(owner_shard);
         park_requeue_locked(ex, owner_shard, task, key);
         rt_shard_unlock(owner_shard);
+        // After the owner lock is released (never two shard locks), and only
+        // for a NONZERO generation. Zero would be an UNQUALIFIED sweep -
+        // remove_waiter_from_store_seq treats seq 0 as "match any" - and the
+        // prepare_park registrations that also reach this branch (join, scope,
+        // remote reply keys) all sit at seq 0, so sweeping them here would be
+        // the RV2-DEBT-046 lost-wake shape documented above. A generation-
+        // qualified removal cannot eat a fresh registration either: the
+        // requeued task can only re-register at a LATER generation.
+        // cppcheck-suppress knownConditionTrueFalse
+        // Always false in ONE configuration only: the RV2_DEBT_201 negative
+        // control defines RT_DEBT201_ABORT_SEQ to a literal zero, which is how
+        // it makes this retirement inert. cppcheck enumerates that
+        // configuration alongside the real one, where the macro yields
+        // task->park_seq for a channel key.
+        if (abort_seq != 0) {
+            remove_waiter_generation(ex, key, task->id, abort_seq);
+        }
         return;
     }
     // Register-then-commit (D5): the registration may fire from here on; the

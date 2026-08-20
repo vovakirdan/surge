@@ -65,6 +65,17 @@ func buildRuntimeV2LifecycleHarnessDebt046(t *testing.T, negativeControl bool) s
 	return buildRuntimeV2LifecycleHarnessWithFlags(t, name, flags)
 }
 
+func buildRuntimeV2LifecycleHarnessDebt201(t *testing.T, negativeControl bool) string {
+	t.Helper()
+	name := "lifecycle_harness_debt201"
+	flags := []string{"-DRT_TEST_SYNC_POINTS"}
+	if negativeControl {
+		name += "_negative"
+		flags = append(flags, "-DRV2_DEBT_201_NEGATIVE_CONTROL")
+	}
+	return buildRuntimeV2LifecycleHarnessWithFlags(t, name, flags)
+}
+
 func buildRuntimeV2LifecycleHarnessDebt022(t *testing.T, negativeControl bool) string {
 	t.Helper()
 	name := "lifecycle_harness_debt022"
@@ -90,7 +101,7 @@ func buildRuntimeV2LifecycleHarnessWithFlags(t *testing.T, name string, extraFla
 	source := lifecycleHarnessCommon + lifecycleHarnessCreateJoinModes + lifecycleHarnessHandleLifetimeModes +
 		lifecycleHarnessScopeAndShutdown + lifecycleHarnessPlacementAdoption + lifecycleHarnessScopeCrossOwner +
 		lifecycleHarnessSyncPointModes + lifecycleHarnessReadyRequeueModes +
-		lifecycleHarnessSleepPublishModes + lifecycleHarnessMain
+		lifecycleHarnessSleepPublishModes + lifecycleHarnessParkAbortModes + lifecycleHarnessMain
 	if writeErr := os.WriteFile(harnessPath, []byte(source), 0o600); writeErr != nil {
 		t.Fatalf("write harness: %v", writeErr)
 	}
