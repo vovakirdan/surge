@@ -414,6 +414,25 @@ const (
 	// iterating a `&mut T[]` PARAMETER stays legal.
 	SemaMutableIterable Code = 3202
 
+	// SemaArmTagNotAUnionCase rejects a compare arm whose tag is not a case of
+	// the union being matched.
+	//
+	// A union-typed member of a union is NESTED: the inner union sits whole,
+	// with its own tag, inside the outer one, so the inner union's tags are
+	// cases of IT and not of the outer. Sema accepted such a hoisted tag anyway
+	// and the back ends then refused the same program — `missing finalized union
+	// case 2` out of LLVM, or `local L5 (v): unknown type` out of MIR validation
+	// when nothing typed the payload binding at all. Which of the two arrived
+	// depended on ARM ORDER, because a preceding arm that consumed the outer tag
+	// left the nested member alone and narrowing then re-read the arm against
+	// the inner union.
+	//
+	// The predicate is asked of the union the compare NAMES, never of the
+	// narrowed subject, so the answer cannot depend on the arms before it. A
+	// named binding is not a tag pattern and stays legal: that is how
+	// `Erring<T, E>`'s bare `E` member is still caught by `err`.
+	SemaArmTagNotAUnionCase Code = 3203
+
 	// Ошибки I/O
 
 	// IOLoadFileError indicates file load error.
@@ -672,6 +691,7 @@ var ( // todo расширить описания и использовать к
 		SemaArmReferenceIntoFreedPayload:   "a compare arm cannot answer with a reference into a payload it frees",
 		SemaWriteToLoopBinding:             "a for-in binding is a copy of the element, so writing to it changes nothing",
 		SemaMutableIterable:                "a for-in loop only reads what it iterates, so `&mut` cannot be honoured here",
+		SemaArmTagNotAUnionCase:            "this tag is not a case of the union being matched",
 		SemaPartialMoveNeedsOwn:            "taking a field out of a live value must be written `own`",
 		SemaPartialMoveFromTemporary:       "cannot take a field out of a value nothing holds",
 		SemaStoreThroughSharedRef:          "cannot write through a shared reference",

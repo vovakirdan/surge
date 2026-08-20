@@ -62,6 +62,11 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		if narrowed := tc.narrowCompareSubjectType(valueType, remainingMembers); narrowed != types.NoTypeID {
 			armSubject = narrowed
 		}
+		// Asked of valueType rather than armSubject, and BEFORE the pattern is
+		// typed: narrowing is what let a hoisted tag re-read itself against a
+		// nested member's union, so the same arm was well-typed or untyped
+		// depending only on which arm came first. See rejectArmTagNotAUnionCase.
+		tc.rejectArmTagNotAUnionCase(arm, valueType)
 		var armBindings []symbols.SymbolID
 		// The scope opens BEFORE the pattern is typed so the bindings it
 		// introduces land in it, and closes after the arm's result so anything
