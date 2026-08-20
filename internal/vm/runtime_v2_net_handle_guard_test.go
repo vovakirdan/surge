@@ -292,9 +292,20 @@ func TestRuntimeV2NetHandleGuardStaticShape(t *testing.T) {
 	if !ok {
 		t.Fatal("net_make_success_handle not found")
 	}
-	for _, needle := range []string{"sizeof(uint64_t)", "net_make_success_ptr(handle)", "rt_free("} {
+	// The handle word lives IN the success payload, not in a box the payload
+	// points at. rt_net_handles.h says the public handle is "never an OS fd and
+	// never a pointer"; publishing a box address made it exactly a pointer, so
+	// every by-value entrypoint canonicalised an address where it expects a
+	// small id and answered NotConnected — which is why close became a silent
+	// no-op that leaked an fd per served request.
+	for _, needle := range []string{"memcpy(mem + payload_offset, &handle_id, sizeof(handle_id))"} {
 		if !strings.Contains(handleResult, needle) {
-			t.Fatalf("handle result must own an independent one-word box; missing %q", needle)
+			t.Fatalf("the handle id must be written into the payload itself; missing %q", needle)
+		}
+	}
+	for _, forbidden := range []string{"net_make_success_ptr(handle)", "uint64_t* handle ="} {
+		if strings.Contains(handleResult, forbidden) {
+			t.Fatalf("the handle result still allocates a separate box (%q); the payload must hold the id", forbidden)
 		}
 	}
 	lifecycle := read("runtime/native/rt_net_lifecycle.c")
@@ -476,21 +487,30 @@ static int run_failure(uint64_t fail_at, uint64_t want_allocs, uint64_t want_fre
 }
 
 int main(void) {
+    // ONE allocation to fail, and nothing to roll back when it does. The second
+    // arm used to assert the rollback of a separate handle box: fail the second
+    // allocation, expect two attempts and one free. There is no second
+    // allocation now, because the id lives in the payload the first one
+    // returned — so the rollback it tested no longer has anything to undo, and
+    // asserting it would pin the representation this change removes.
     if (run_failure(1, 1, 0) != 0) return 1;
-    if (run_failure(2, 2, 1) != 0) return 2;
 
     alloc_calls = 0;
     free_calls = 0;
     fail_on_alloc = 0;
     void* result = net_make_success_handle(UINT64_C(0x123456789abcdef0));
-    if (result == NULL || alloc_calls != 2 || free_calls != 0) return 3;
+    // ONE allocation: the tagged result itself. A second would be the box this
+    // representation exists to remove.
+    if (result == NULL || alloc_calls != 1 || free_calls != 0) return 3;
     size_t offset = rt_tag_payload_offset(_Alignof(void*));
-    void* handle = NULL;
-    memcpy(&handle, (uint8_t*)result + offset, sizeof(handle));
-    if (handle == NULL || *(uint64_t*)handle != UINT64_C(0x123456789abcdef0)) return 4;
-    rt_free((uint8_t*)handle, sizeof(uint64_t), _Alignof(uint64_t));
+    // The payload IS the id, read directly rather than dereferenced.
+    uint64_t published = 0;
+    memcpy(&published, (uint8_t*)result + offset, sizeof(published));
+    if (published != UINT64_C(0x123456789abcdef0)) return 4;
     rt_free((uint8_t*)result, 1, _Alignof(void*));
-    if (free_calls != 2) return 5;
+    // ONE free, matching the one allocation. It was two while the box existed:
+    // the payload and the box it pointed at.
+    if (free_calls != 1) return 5;
     return 0;
 }
 `

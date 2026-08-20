@@ -326,7 +326,7 @@ runtime-v2-waiter-check:
 
 runtime-v2-fd-registry-check:
 	@echo ">> Running Runtime V2 fd registry liveness gate"
-	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2FDRegistry(RepeatedReadinessSingleFD|ReadWriteInterestSharesFDRow|DuplicateReadWaitersBothComplete|ClosedFDFailsFast|StaticShape|StaticBoundary|GenerationStaleSnapshotProof|CloseWakePollNotificationProof|ShutdownDrainStaticContract|ShutdownDrainBehavior|CancelledDuplicateReadWaiterPreservesLiveAndReregister|CancelledReadInterestPreservesWriteInterest|CloseWakesParkedAcceptWaiter|CloseWakesParkedReadWaiter|WakeFDObservedForInterestAddedDuringPoll|CancelledInterestWakesPoller)$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2FDRegistry(RepeatedReadinessSingleFD|ReadWriteInterestSharesFDRow|DuplicateReadWaitersBothComplete|ClosedFDFailsFast|StaticShape|StaticBoundary|GenerationStaleSnapshotProof|CloseWakePollNotificationProof|ShutdownDrainStaticContract|ShutdownDrainBehavior|CancelledDuplicateReadWaiterPreservesLiveAndReregister|CancelledReadInterestPreservesWriteInterest|CloseWakesParkedAcceptWaiter|CloseWakesParkedReadWaiter|WakeFDObservedForInterestAddedDuringPoll|CancelledInterestWakesPoller|HandleWordPublishedInline)$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
 
 runtime-v2-net-handle-check:
 	@echo ">> Running Runtime V2 net-handle guard gate"

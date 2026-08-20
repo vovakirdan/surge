@@ -295,3 +295,98 @@ func TestRuntimeV2FDRegistryCloseWakesParkedReadWaiter(t *testing.T) {
 	stderr := srv.waitExitZero(10 * time.Second)
 	requireNoFDRegistryDebugMismatch(t, stderr)
 }
+
+// TestRuntimeV2FDRegistryHandleWordPublishedInline pins the shape that makes
+// close reachable at all. A Surge composite is a run of bytes that lives where
+// it was declared, so the success payload slot of NetResult<TcpConn> IS the one
+// word TcpConn exposes as __opaque, and rt_net_handles.h says that word is a
+// handle id and "never a pointer". If net_make_success_handle publishes the
+// address of a side box instead, every by-value entrypoint -- close_conn and
+// close_listener are the only two -- reads that address where the handle table
+// expects a small id, misses, and answers NET_ERR_NOT_CONNECTED without
+// touching the fd. Close then becomes a silent no-op that leaks a descriptor
+// per served request, which is why this is an fd-registry liveness gate and not
+// only a handle-ABI one.
+func TestRuntimeV2FDRegistryHandleWordPublishedInline(t *testing.T) {
+	const source = `
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "rt.h"
+
+static uint64_t alloc_calls;
+static uint64_t free_calls;
+
+void* rt_alloc(uint64_t size, uint64_t align) {
+    (void)align;
+    alloc_calls++;
+    return malloc((size_t)(size == 0 ? 1 : size));
+}
+
+void rt_free(uint8_t* ptr, uint64_t size, uint64_t align) {
+    (void)size;
+    (void)align;
+    if (ptr != NULL) free_calls++;
+    free(ptr);
+}
+
+size_t rt_tag_payload_offset(size_t payload_align) {
+    size_t header = sizeof(uint32_t);
+    return (header + payload_align - 1U) & ~(payload_align - 1U);
+}
+
+void* rt_tag_alloc(uint32_t tag, size_t payload_align, size_t payload_size) {
+    size_t offset = rt_tag_payload_offset(payload_align);
+    uint8_t* out = (uint8_t*)rt_alloc(offset + payload_size, payload_align);
+    if (out != NULL) memcpy(out, &tag, sizeof(tag));
+    return out;
+}
+
+void* rt_string_from_bytes(const uint8_t* ptr, uint64_t len) {
+    (void)ptr;
+    (void)len;
+    return NULL;
+}
+
+void* rt_biguint_from_u64(uint64_t value) {
+    (void)value;
+    return NULL;
+}
+
+const uint8_t* rt_string_ptr(void* value) {
+    (void)value;
+    return NULL;
+}
+
+uint64_t rt_string_len_bytes(void* value) {
+    (void)value;
+    return 0;
+}
+
+#include "rt_net_result.c"
+
+int main(void) {
+    const uint64_t id = UINT64_C(0x123456789abcdef0);
+    alloc_calls = 0;
+    free_calls = 0;
+    void* result = net_make_success_handle(id);
+    if (result == NULL) return 1;
+    size_t offset = rt_tag_payload_offset(_Alignof(void*));
+    uint64_t word = 0;
+    memcpy(&word, (uint8_t*)result + offset, sizeof(word));
+    // The payload slot is the struct's own storage: its first word must be the
+    // handle id itself, never the address of a box holding it.
+    if (word != id) return 2;
+    // Exactly one allocation, the tag box. A second one would be a box no
+    // language-side drop owns, so it would leak once per published handle.
+    if (alloc_calls != 1) return 3;
+    if (free_calls != 0) return 4;
+    rt_free((uint8_t*)result, 1, _Alignof(void*));
+    if (free_calls != 1) return 5;
+    return 0;
+}
+`
+	runFDRegistryBehaviorCheck(t, "net handle word published inline", source)
+}

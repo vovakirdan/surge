@@ -75,11 +75,17 @@ static int net_prepare_conn_fd(int fd, uint64_t* out_code) {
     return net_set_nonblocking(fd, out_code);
 }
 
+// Owned and borrowed net handles arrive the same way: a pointer to the eight
+// bytes of storage the Surge struct occupies, whose first word is the handle
+// id. A borrow is NOT a pointer to a pointer -- a composite is its own storage,
+// so `&TcpConn` addresses that storage directly, exactly as an owned operand
+// does. Both shapes therefore read the word in place and resolve it through the
+// handle table.
 static const NetListener* net_listener_from_borrowed(const void* listener) {
     if (listener == NULL) {
         return NULL;
     }
-    return rt_net_listener_canonical_const(*(const NetListener* const*)listener);
+    return rt_net_listener_canonical_const((const NetListener*)listener);
 }
 
 static NetListener* net_listener_from_value(void* listener) {
@@ -93,14 +99,14 @@ static NetListener* net_listener_from_borrowed_mut(const void* listener) {
     if (listener == NULL) {
         return NULL;
     }
-    return rt_net_listener_canonical(*(NetListener* const*)listener);
+    return rt_net_listener_canonical((const NetListener*)listener);
 }
 
 static const NetConn* net_conn_from_borrowed(const void* conn) {
     if (conn == NULL) {
         return NULL;
     }
-    return rt_net_conn_canonical_const(*(const NetConn* const*)conn);
+    return rt_net_conn_canonical_const((const NetConn*)conn);
 }
 
 static NetConn* net_conn_from_value(void* conn) {

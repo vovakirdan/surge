@@ -92,17 +92,26 @@ void* net_make_success_ptr(void* payload) {
     return mem;
 }
 
+// Publish the handle word INTO the success payload, not a pointer to a box
+// holding it. A Surge composite is a run of bytes that lives where it was
+// declared, so the payload slot of NetResult<TcpConn>/<TcpListener> IS the one
+// word those structs expose as `__opaque`. Handing back a pointer would make
+// `__opaque` an address -- which rt_net_handles.h forbids in as many words and
+// which the handle table cannot resolve, so every by-value entrypoint would
+// read an address where it expects a small id and answer NotConnected.
 void* net_make_success_handle(uint64_t handle_id) {
-    uint64_t* handle = (uint64_t*)rt_alloc((uint64_t)sizeof(uint64_t), (uint64_t)alignof(uint64_t));
-    if (handle == NULL) {
+    size_t payload_align = alignof(void*);
+    size_t payload_size = sizeof(NetError);
+    if (payload_size < sizeof(handle_id)) {
+        payload_size = sizeof(handle_id);
+    }
+    size_t payload_offset = rt_tag_payload_offset(payload_align);
+    uint8_t* mem = (uint8_t*)rt_tag_alloc(0, payload_align, payload_size);
+    if (mem == NULL) {
         return NULL;
     }
-    *handle = handle_id;
-    void* out = net_make_success_ptr(handle);
-    if (out == NULL) {
-        rt_free((uint8_t*)handle, (uint64_t)sizeof(uint64_t), (uint64_t)alignof(uint64_t));
-    }
-    return out;
+    memcpy(mem + payload_offset, &handle_id, sizeof(handle_id));
+    return mem;
 }
 
 void* net_make_success_nothing(void) {

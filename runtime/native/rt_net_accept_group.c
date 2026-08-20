@@ -5,18 +5,20 @@
 #include <poll.h>
 #include <string.h>
 
+// A borrowed listener addresses the Surge struct's own storage, whose first
+// word is the handle id; see the matching note in rt_net.c.
 static const NetListener* net_listener_from_borrowed(const void* listener) {
     if (listener == NULL) {
         return NULL;
     }
-    return rt_net_listener_canonical_const(*(const NetListener* const*)listener);
+    return rt_net_listener_canonical_const((const NetListener*)listener);
 }
 
 static NetListener* net_listener_from_borrowed_mut_group(const void* listener) {
     if (listener == NULL) {
         return NULL;
     }
-    return rt_net_listener_canonical(*(NetListener* const*)listener);
+    return rt_net_listener_canonical((const NetListener*)listener);
 }
 
 int rt_net_register_open_fd_on_owner(rt_executor* ex, uint32_t owner_shard_id, int fd) {
