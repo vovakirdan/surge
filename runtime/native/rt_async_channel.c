@@ -87,7 +87,7 @@ void rt_channel_free(void* channel) {
 // caller only has to still hold the channel. A Copy/inert element type carries
 // no drop id and this costs a load and a branch.
 void rt_channel_release_payload(void* channel, uint64_t payload) {
-    rt_channel* ch = channel_from_handle(channel);
+    const rt_channel* ch = channel_from_handle(channel);
     if (ch == NULL || ch->payload_drop_fn_id == 0) {
         return;
     }

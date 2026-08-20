@@ -361,7 +361,7 @@ rt_remote_task_status rt_far_channel_handle_alloc(rt_far_task_handle** out) {
 // (heap reclamation is task/heap-cell level); this is the single call the
 // drop machinery wires to when it lands, and teardown paths may call it
 // directly. Stale entries (already released/teardown) are tolerated.
-void rt_far_channel_handle_drop(const rt_far_task_handle* handle) {
+void rt_far_channel_handle_drop(rt_far_task_handle* handle) {
     if (handle == NULL || handle->kind != RT_FAR_HANDLE_KIND_CHANNEL) {
         return;
     }
@@ -372,12 +372,17 @@ void rt_far_channel_handle_drop(const rt_far_task_handle* handle) {
     rt_far_channel_handle_free(handle);
 }
 
-void rt_far_channel_handle_free(const rt_far_task_handle* handle) {
+// Takes a MUTABLE handle: freeing is not a const operation, and the cast that
+// used to launder the const away here went pointer -> void* -> uintptr_t, which
+// is the shape clang-tidy flags as bugprone-casting-through-void. The rest of
+// the far-channel API keeps its const handles, because resolve/release/pin/unpin
+// genuinely do not modify the token; only alloc and free own it, and alloc
+// already hands one back mutable.
+void rt_far_channel_handle_free(rt_far_task_handle* handle) {
     if (handle == NULL) {
         return;
     }
-    rt_free(
-        (uint8_t*)(uintptr_t)(const void*)handle, sizeof(*handle), _Alignof(rt_far_task_handle));
+    rt_free((uint8_t*)handle, sizeof(*handle), _Alignof(rt_far_task_handle));
 }
 
 // Caller-side create: execute/reply discipline with a caller-allocated
