@@ -193,37 +193,45 @@ func (fe *funcEmitter) emitPlaceStorage(place mir.Place) (ptr, ty string, align 
 				return "", "", 0, err
 			}
 			handlePtr := curPtr
+			handleAlign := curAlign
 			if curIsValue {
+				// The spill slot is reserved right here, so its alignment is
+				// what this emission just wrote and not what curPtr had.
 				handlePtr = fe.emitHandleAddr(curPtr)
+				handleAlign = alignPtr
 			}
 			if dynamic {
-				elemPtr, elemLLVM, err := fe.emitArrayElemPtr(handlePtr, idxVal, idxLLVM, fe.f.Locals[idxLocal].Type, elemType)
+				// HANDLE-BACKED. The walk arrives at a slot holding the array
+				// handle; the elements are in the runtime's buffer that handle
+				// names. What this walk has folded so far describes the SLOT,
+				// not the buffer, so it stops here on purpose.
+				elemPtr, elemLLVM, elemAlign, err := fe.emitArrayElemPtr(handlePtr, idxVal, idxLLVM, fe.f.Locals[idxLocal].Type, elemType)
 				if err != nil {
 					return "", "", 0, err
 				}
 				curPtr = elemPtr
 				curType = elemType
 				curLLVMType = elemLLVM
-				_, curAlign, err = fe.emitter.arrayElemStrideAlign(elemType)
-				if err != nil {
-					return "", "", 0, err
-				}
+				curAlign = elemAlign
 			} else {
+				// INLINE-FIXED-ARRAY-REACHABLE. The array's bytes are the
+				// container's bytes, so the walk's own answer keeps travelling
+				// through the index exactly as it travels through a field.
+				// Re-deriving from the element type here is what let
+				// `o.cells[1].b = ...` inside a `@packed` container claim
+				// align 8 against an address that is odd for every index.
 				fixedElem, fixedLen, ok := arrayFixedInfo(fe.emitter.types, curType)
 				if !ok {
 					return "", "", 0, fmt.Errorf("index projection on non-array type")
 				}
-				elemPtr, elemLLVM, err := fe.emitArrayFixedElemPtr(handlePtr, idxVal, idxLLVM, fe.f.Locals[idxLocal].Type, fixedElem, fixedLen)
+				elemPtr, elemLLVM, elemAlign, err := fe.emitArrayFixedElemPtr(handlePtr, handleAlign, idxVal, idxLLVM, fe.f.Locals[idxLocal].Type, fixedElem, fixedLen)
 				if err != nil {
 					return "", "", 0, err
 				}
 				curPtr = elemPtr
 				curType = fixedElem
 				curLLVMType = elemLLVM
-				_, curAlign, err = fe.emitter.arrayElemStrideAlign(fixedElem)
-				if err != nil {
-					return "", "", 0, err
-				}
+				curAlign = elemAlign
 			}
 			curIsValue = false
 			curStorageLocal = mir.NoLocalID

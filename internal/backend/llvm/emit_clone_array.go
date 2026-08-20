@@ -49,7 +49,11 @@ func (e *Emitter) requireCloneElemGlue(id types.TypeID) string {
 // inside the same allocation on both ends.
 func (e *Emitter) emitCloneElemGlueBody(id types.TypeID) error {
 	id = resolveValueType(e.types, id)
-	stride, align, err := e.arrayElemStrideAlign(id)
+	// OPAQUE BASE: the glue is `@clone_elem.typeN(ptr %dst, ptr %src)` and
+	// neither pointer says what it is aligned to. It is reached for a fixed
+	// array's elements as well as a dynamic one's, so a `@packed` container's
+	// element can arrive here — see opaqueBaseElemStrideAlign.
+	stride, align, err := e.opaqueBaseElemStrideAlign(id)
 	if err != nil {
 		return err
 	}

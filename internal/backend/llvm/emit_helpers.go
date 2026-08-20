@@ -92,9 +92,20 @@ func (fe *funcEmitter) operandIsRef(op *mir.Operand, opType types.TypeID) bool {
 	return isRefType(fe.emitter.types, opType)
 }
 
+// emitHandleOperandPtr addresses the storage an operand names, discarding what
+// that address is aligned to. Use emitHandleOperandStorage at any site that
+// indexes into a FIXED array through the address, because a fixed array's
+// elements are only as aligned as the array itself is.
 func (fe *funcEmitter) emitHandleOperandPtr(op *mir.Operand) (string, error) {
+	ptr, _, err := fe.emitHandleOperandStorage(op)
+	return ptr, err
+}
+
+// emitHandleOperandStorage addresses the storage an operand names and reports
+// what that address is really aligned to.
+func (fe *funcEmitter) emitHandleOperandStorage(op *mir.Operand) (ptr string, align uint64, err error) {
 	if op == nil {
-		return "", fmt.Errorf("nil operand")
+		return "", 0, fmt.Errorf("nil operand")
 	}
 	opType := op.Type
 	if op.Kind == mir.OperandCopy || op.Kind == mir.OperandCopyValue || op.Kind == mir.OperandMove {
@@ -113,48 +124,81 @@ func (fe *funcEmitter) emitHandleOperandPtr(op *mir.Operand) (string, error) {
 		// the view itself. Spilling a loaded word into a fresh slot would
 		// hand back the address of the view's first field instead.
 		if fe.operandIsRef(op, opType) {
-			val, ty, err := fe.emitOperand(op)
-			if err != nil {
-				return "", err
-			}
-			if ty != "ptr" {
-				return "", fmt.Errorf("expected ptr to a bytes view, got %s", ty)
-			}
-			return val, nil
+			return fe.emitRefOperandStorage(op, baseType, "ptr to a bytes view")
 		}
-		return fe.emitOperandAddr(op)
+		return fe.emitOperandStorage(op)
 	}
 	if fe.isArrayOrMapType(baseType) || isStringLike(fe.emitter.types, baseType) {
 		if fe.operandIsRef(op, opType) {
-			val, ty, err := fe.emitOperand(op)
-			if err != nil {
-				return "", err
-			}
-			if ty != "ptr" {
-				return "", fmt.Errorf("expected ptr handle, got %s", ty)
-			}
-			return val, nil
+			return fe.emitRefOperandStorage(op, baseType, "ptr handle")
 		}
-		if ptr, err := fe.emitOperandAddr(op); err == nil {
-			return ptr, nil
+		if ptr, align, err := fe.emitOperandStorage(op); err == nil {
+			return ptr, align, nil
 		}
 		val, ty, err := fe.emitOperand(op)
 		if err != nil {
-			return "", err
+			return "", 0, err
 		}
 		if ty != "ptr" {
-			return "", fmt.Errorf("expected ptr handle, got %s", ty)
+			return "", 0, fmt.Errorf("expected ptr handle, got %s", ty)
 		}
-		return fe.emitHandleAddr(val), nil
+		// emitHandleAddr reserves the spill slot, so its alignment is a fact
+		// this emission just wrote, not one inferred from a type.
+		return fe.emitHandleAddr(val), alignPtr, nil
+	}
+	return fe.emitRefOperandStorage(op, baseType, "ptr handle")
+}
+
+// emitRefOperandStorage addresses what a reference-shaped operand points at,
+// and reports what that address is aligned to.
+//
+// The two shapes part company on where the address comes from. `&place` is not
+// a pointer read out of anywhere: it IS the place walk, so the walk's own
+// folded answer describes it exactly — and that is the difference between
+// `p.cells[i] = v` inside a `@packed` container claiming align 1 and claiming
+// the element type's 8. A reference VALUE — a ref-typed local, a parameter —
+// has no walk behind it here and falls back on its pointee type.
+func (fe *funcEmitter) emitRefOperandStorage(op *mir.Operand, baseType types.TypeID, want string) (ptr string, align uint64, err error) {
+	if op != nil && (op.Kind == mir.OperandAddrOf || op.Kind == mir.OperandAddrOfMut) {
+		placePtr, _, placeAlign, placeErr := fe.emitPlaceStorage(op.Place)
+		if placeErr != nil {
+			return "", 0, placeErr
+		}
+		return placePtr, placeAlign, nil
 	}
 	val, ty, err := fe.emitOperand(op)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	if ty != "ptr" {
-		return "", fmt.Errorf("expected ptr handle, got %s", ty)
+		return "", 0, fmt.Errorf("expected %s, got %s", want, ty)
 	}
-	return val, nil
+	return val, fe.borrowedValueAlign(baseType), nil
+}
+
+// borrowedValueAlign is what a pointer that arrived as a VALUE — a borrow, a
+// handle, a runtime word — points at.
+//
+// A borrow points at a whole value, so the pointee is aligned to that value's
+// own alignment; this is the same reading emitPlaceStorage takes at a deref,
+// and it is written once here so the two cannot drift. A borrow of a `@packed`
+// member is the one shape it does not describe, and whether the language hands
+// one out is an open question rather than something this function may assume
+// away — see RV2-DEBT-226's borrow finding. A type whose alignment cannot be
+// read answers 1, which under-claims and is always safe.
+func (fe *funcEmitter) borrowedValueAlign(baseType types.TypeID) uint64 {
+	if fe == nil || fe.emitter == nil {
+		return 1
+	}
+	llvmTy, err := fe.emitter.llvmValueType(baseType)
+	if err != nil {
+		return 1
+	}
+	align, err := fe.emitter.storageAlignOf(baseType, llvmTy)
+	if err != nil || align == 0 {
+		return 1
+	}
+	return align
 }
 
 func (fe *funcEmitter) isArrayOrMapType(id types.TypeID) bool {

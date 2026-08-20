@@ -93,7 +93,9 @@ func (fe *funcEmitter) arrayConcatElem(left, right *mir.Operand) (elem types.Typ
 // heap gets clone glue; one whose bits are the whole value gets a null function
 // pointer and the runtime moves its bytes.
 func (fe *funcEmitter) emitArrayConcatValue(left, right *mir.Operand, elem types.TypeID) (string, error) {
-	stride, elemAlign, err := fe.emitter.arrayElemStrideAlign(elem)
+	// HANDLE-BACKED by construction: arrayConcatElem refuses a fixed array
+	// outright, so both operands are handles over runtime-owned buffers.
+	stride, elemAlign, err := fe.emitter.handleArrayElemStrideAlign(elem)
 	if err != nil {
 		return "", err
 	}

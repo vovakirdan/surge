@@ -35,14 +35,19 @@ const (
 	alignWord = 8
 )
 
-// emitAlloca reserves storage for one value of an LLVM type.
-func (fe *funcEmitter) emitAlloca(name, llvmTy string) error {
+// emitAlloca reserves storage for one value of an LLVM type, and reports what
+// it reserved it at.
+//
+// The alignment is returned rather than left to be looked up again, because a
+// caller that hands this address on needs the alignment of the ADDRESS and a
+// second derivation of it is a second answer waiting to disagree with this one.
+func (fe *funcEmitter) emitAlloca(name, llvmTy string) (uint64, error) {
 	align, err := naturalAlign(llvmTy)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	fe.emitAllocaAligned(name, llvmTy, align)
-	return nil
+	return align, nil
 }
 
 // emitAllocaAligned reserves storage whose alignment the caller already read

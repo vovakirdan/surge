@@ -79,7 +79,9 @@ func (fe *funcEmitter) emitArrayPop(call *mir.CallInstr) error {
 	elemPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %s\n", elemPtr, dataPtr, offset)
 	if call.HasDst {
-		_, elemAlign, err := fe.emitter.arrayElemStrideAlign(elemType)
+		// HANDLE-BACKED: arrayElemLayout above refused anything but a dynamic
+		// array, and this reads out of the buffer the header points at.
+		_, elemAlign, err := fe.emitter.handleArrayElemStrideAlign(elemType)
 		if err != nil {
 			return err
 		}
@@ -134,7 +136,7 @@ func (fe *funcEmitter) emitArrayGetMut(call *mir.CallInstr) error {
 		}
 	}
 
-	arrArg, err := fe.emitHandleOperandPtr(&call.Args[0])
+	arrArg, arrAlign, err := fe.emitHandleOperandStorage(&call.Args[0])
 	if err != nil {
 		return err
 	}
@@ -145,12 +147,18 @@ func (fe *funcEmitter) emitArrayGetMut(call *mir.CallInstr) error {
 
 	var elemPtr string
 	if fixedElemType, fixedLen, fixedOK := arrayFixedInfo(fe.emitter.types, containerType); fixedOK {
-		elemPtr, _, err = fe.emitArrayFixedElemPtr(arrArg, idxVal, idxTy, call.Args[1].Type, fixedElemType, fixedLen)
+		// INLINE-FIXED-ARRAY-REACHABLE, and this one hands the address OUT as
+		// a `&mut` rather than reading or writing through it here. The base's
+		// alignment is threaded so the address is built the same way as
+		// everywhere else, but what the eventual access through that borrow may
+		// claim is the open borrow question, not something this site settles.
+		elemPtr, _, _, err = fe.emitArrayFixedElemPtr(arrArg, arrAlign, idxVal, idxTy, call.Args[1].Type, fixedElemType, fixedLen)
 		if err != nil {
 			return err
 		}
 	} else if elemType, dynamic, ok := arrayElemType(fe.emitter.types, containerType); ok && dynamic {
-		elemPtr, _, err = fe.emitArrayElemPtr(arrArg, idxVal, idxTy, call.Args[1].Type, elemType)
+		// HANDLE-BACKED.
+		elemPtr, _, _, err = fe.emitArrayElemPtr(arrArg, idxVal, idxTy, call.Args[1].Type, elemType)
 		if err != nil {
 			return err
 		}

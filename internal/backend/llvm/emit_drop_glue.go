@@ -481,9 +481,14 @@ func (e *Emitter) emitDropElemGlueBody(id types.TypeID) {
 	fmt.Fprintf(&e.buf, "  ret void\n}\n")
 }
 
-// arrayElemSlotAlign is the alignment one element slot guarantees.
+// arrayElemSlotAlign is the alignment one element slot is ASSUMED to guarantee
+// inside `@drop_elem.typeN(ptr %slot)`.
+//
+// OPAQUE BASE: the glue's only input is a bare pointer, and it is reached for a
+// fixed array's elements as well as a dynamic one's — see
+// opaqueBaseElemStrideAlign.
 func (e *Emitter) arrayElemSlotAlign(elem types.TypeID) (uint64, error) {
-	_, align, err := e.arrayElemStrideAlign(elem)
+	_, align, err := e.opaqueBaseElemStrideAlign(elem)
 	return align, err
 }
 

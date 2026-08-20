@@ -217,32 +217,50 @@ func (fe *funcEmitter) emitValueOperand(op *mir.Operand) (val, ty string, err er
 	}
 }
 
+// emitOperandAddr addresses an operand's storage, discarding what that address
+// is aligned to. Use emitOperandStorage at any site that reads or writes
+// through the address, or that indexes into it.
 func (fe *funcEmitter) emitOperandAddr(op *mir.Operand) (string, error) {
+	ptr, _, err := fe.emitOperandStorage(op)
+	return ptr, err
+}
+
+// emitOperandStorage addresses an operand's storage and reports what that
+// address is really aligned to.
+//
+// This is emitPlaceStorage's answer carried one level out. An operand naming a
+// place is a place, and a `@packed` member reached through one is at an offset
+// its own type does not divide just the same — so a site that goes on to index
+// or dereference the address needs the walk's answer, not the type's.
+func (fe *funcEmitter) emitOperandStorage(op *mir.Operand) (ptr string, align uint64, err error) {
 	if op == nil {
-		return "", fmt.Errorf("nil operand")
+		return "", 0, fmt.Errorf("nil operand")
 	}
 	switch op.Kind {
 	case mir.OperandAddrOf, mir.OperandAddrOfMut, mir.OperandCopy, mir.OperandCopyValue, mir.OperandRetain, mir.OperandMove:
-		ptr, _, err := fe.emitPlacePtr(op.Place)
+		ptr, _, align, err := fe.emitPlaceStorage(op.Place)
 		if err != nil {
-			return "", err
+			return "", 0, err
 		}
-		return ptr, nil
+		return ptr, align, nil
 	case mir.OperandConst:
 		val, ty, err := fe.emitConst(&op.Const)
 		if err != nil {
-			return "", err
+			return "", 0, err
 		}
+		// The slot is reserved right here, so its alignment is the one this
+		// emission just chose rather than one inferred from the type again.
 		ptr := fe.nextTemp()
-		if err := fe.emitAlloca(ptr, ty); err != nil {
-			return "", err
+		align, err := fe.emitAlloca(ptr, ty)
+		if err != nil {
+			return "", 0, err
 		}
 		if err := fe.emitStore(ty, val, ptr); err != nil {
-			return "", err
+			return "", 0, err
 		}
-		return ptr, nil
+		return ptr, align, nil
 	default:
-		return "", fmt.Errorf("unsupported operand kind %v", op.Kind)
+		return "", 0, fmt.Errorf("unsupported operand kind %v", op.Kind)
 	}
 }
 

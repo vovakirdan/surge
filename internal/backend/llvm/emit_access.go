@@ -71,13 +71,19 @@ func (fe *funcEmitter) emitIndexAccess(idx *mir.IndexAccess) (val, ty string, er
 	}
 	if elemType, length, ok := arrayFixedInfo(fe.emitter.types, objType); ok {
 		var (
-			objAddr  string
-			idxVal   string
-			idxTy    string
-			elemPtr  string
-			elemLLVM string
+			objAddr   string
+			objAlign  uint64
+			idxVal    string
+			idxTy     string
+			elemPtr   string
+			elemLLVM  string
+			elemAlign uint64
 		)
-		objAddr, errEmit = fe.emitHandleOperandPtr(&idx.Object)
+		// INLINE-FIXED-ARRAY-REACHABLE. The array is a member of whatever the
+		// operand names, so a `@packed` container puts it at an offset its
+		// element type does not divide, and the walk's answer is the only one
+		// that describes the address.
+		objAddr, objAlign, errEmit = fe.emitHandleOperandStorage(&idx.Object)
 		if errEmit != nil {
 			return "", "", errEmit
 		}
@@ -96,11 +102,7 @@ func (fe *funcEmitter) emitIndexAccess(idx *mir.IndexAccess) (val, ty string, er
 		if errEmit != nil {
 			return "", "", errEmit
 		}
-		elemPtr, elemLLVM, errEmit = fe.emitArrayFixedElemPtr(objAddr, idxVal, idxTy, idx.Index.Type, elemType, length)
-		if errEmit != nil {
-			return "", "", errEmit
-		}
-		_, elemAlign, errEmit := fe.emitter.arrayElemStrideAlign(elemType)
+		elemPtr, elemLLVM, elemAlign, errEmit = fe.emitArrayFixedElemPtr(objAddr, objAlign, idxVal, idxTy, idx.Index.Type, elemType, length)
 		if errEmit != nil {
 			return "", "", errEmit
 		}
@@ -185,11 +187,10 @@ func (fe *funcEmitter) emitIndexAccess(idx *mir.IndexAccess) (val, ty string, er
 		if err != nil {
 			return "", "", err
 		}
-		elemPtr, elemLLVM, err := fe.emitArrayElemPtr(handlePtr, idxVal, idxTy, idx.Index.Type, elemType)
-		if err != nil {
-			return "", "", err
-		}
-		_, elemAlign, err := fe.emitter.arrayElemStrideAlign(elemType)
+		// HANDLE-BACKED. The elements are in the runtime's buffer, reached
+		// through the array header, so nothing the container guarantees
+		// reaches them and emitArrayElemPtr answers from the element type.
+		elemPtr, elemLLVM, elemAlign, err := fe.emitArrayElemPtr(handlePtr, idxVal, idxTy, idx.Index.Type, elemType)
 		if err != nil {
 			return "", "", err
 		}
@@ -227,22 +228,128 @@ func (e *Emitter) arrayElemStride(elemType types.TypeID) (uint64, error) {
 	return stride, nil
 }
 
-// arrayElemStrideAlign is the stride an element buffer is walked by together
-// with the alignment it is allocated and accessed at.
-func (e *Emitter) arrayElemStrideAlign(elemType types.TypeID) (stride, align uint64, err error) {
+// There is no single "array element alignment", and the two functions below
+// exist so that no site can ask for one.
+//
+// Where an array's elements live decides who gets to answer. A DYNAMIC array's
+// elements sit in a buffer the runtime allocated for them and reached through
+// the array header, so the element type is the authority. A FIXED array's
+// elements sit INLINE in whatever holds the array, so the container is — and a
+// `@packed` container places the array at an offset its element type does not
+// divide. One function answering both questions is how an access to a packed
+// container's element came to claim its element type's alignment against an
+// address that is odd for every index (RV2-DEBT-226).
+//
+// Splitting the name is what turns the classification into a compile error: a
+// site cannot reach an element without saying which storage it is reaching
+// into, and the inline one cannot be called at all without producing the base
+// address's alignment to fold against.
+
+// handleArrayElemStrideAlign is the stride a DYNAMIC array's element buffer is
+// walked by, together with the alignment its elements are allocated and
+// accessed at.
+//
+// The buffer is the runtime's, allocated at the element type's own alignment,
+// and it is reached by loading a data pointer out of the array header. Nothing
+// about the container the HANDLE sits in reaches it: a handle stored inside a
+// `@packed` struct is itself at an odd offset while the buffer it names is
+// still aligned. So the element type is the right authority here, and deriving
+// the alignment from it is correct rather than merely convenient.
+func (e *Emitter) handleArrayElemStrideAlign(elemType types.TypeID) (stride, align uint64, err error) {
 	stride, err = e.arrayElemStride(elemType)
 	if err != nil {
 		return 0, 0, err
 	}
-	elemLLVM, err := e.llvmValueType(elemType)
-	if err != nil {
-		return 0, 0, err
-	}
-	align, err = e.storageAlignOf(elemType, elemLLVM)
+	align, err = e.arrayElemNaturalAlign(elemType)
 	if err != nil {
 		return 0, 0, err
 	}
 	return stride, align, nil
+}
+
+// inlineArrayElemStrideAlign is the stride a FIXED array is walked by, together
+// with the alignment its elements may actually claim given what the array's own
+// address is aligned to.
+//
+// A fixed array carries no header and no buffer of its own: it lives inline in
+// whatever holds it, so its elements inherit that container's placement.
+// Element i sits at base + i*stride, and one claim has to hold for EVERY index
+// at once — element 0 sits exactly on the base, and the last one sits
+// (len-1)*stride past it. The alignment every such address shares is the
+// largest power of two dividing the stride, capped by what the base guarantees.
+//
+// baseAlign is what the ARRAY's own address is aligned to. It is a parameter
+// because it is a property of the ADDRESS, and no type can be asked for it. The
+// element type still caps the answer from the other side: an access never needs
+// more alignment than its type needs, and taking the smaller of the two keeps
+// this a narrowing of what may be claimed and never a widening.
+func (e *Emitter) inlineArrayElemStrideAlign(baseAlign uint64, elemType types.TypeID) (stride, align uint64, err error) {
+	stride, err = e.arrayElemStride(elemType)
+	if err != nil {
+		return 0, 0, err
+	}
+	natural, err := e.arrayElemNaturalAlign(elemType)
+	if err != nil {
+		return 0, 0, err
+	}
+	// A zero stride puts every element on the base itself, so the base's own
+	// alignment is what they all share; memberAccessAlign reads offset 0 that
+	// way already.
+	align = memberAccessAlign(baseAlign, stride)
+	// A natural alignment of 0 means the registry had none to give, not that
+	// the address guarantees nothing; narrowing to it would produce `align 0`,
+	// which is not an alignment LLVM accepts.
+	if natural > 0 && natural < align {
+		align = natural
+	}
+	return stride, align, nil
+}
+
+// opaqueBaseElemStrideAlign is the stride and alignment for elements reached
+// through an address whose provenance this emission cannot see: a per-type
+// glue's `ptr` parameter, or a data word read back out of a runtime cursor
+// descriptor. Neither carries what it is aligned to, so this ASSUMES the base
+// is placed at what the element type wants.
+//
+// The assumption is not established, and the name says so rather than letting a
+// neutral-sounding call hide it. Both shapes it covers are open questions on
+// RV2-DEBT-226: whether per-type drop/clone glue may assume its own alignment,
+// and what an array cursor over a fixed array inside a `@packed` container may
+// claim. Answering either means giving the descriptor or the glue signature an
+// alignment to carry, which is a change to a runtime contract rather than to
+// this file.
+func (e *Emitter) opaqueBaseElemStrideAlign(elemType types.TypeID) (stride, align uint64, err error) {
+	stride, err = e.arrayElemStride(elemType)
+	if err != nil {
+		return 0, 0, err
+	}
+	align, err = e.arrayElemNaturalAlign(elemType)
+	if err != nil {
+		return 0, 0, err
+	}
+	return stride, align, nil
+}
+
+// arrayElemNaturalAlign is the alignment an element of this type is placed at
+// when nothing else constrains it. It is only ever half of an answer: see the
+// functions above for which half.
+//
+// A type the registry has no alignment for answers 1 rather than 0, because 0
+// is not an alignment: every address is 1-aligned, so it is the claim that
+// promises nothing and is therefore always true.
+func (e *Emitter) arrayElemNaturalAlign(elemType types.TypeID) (uint64, error) {
+	elemLLVM, err := e.llvmValueType(elemType)
+	if err != nil {
+		return 0, err
+	}
+	align, err := e.storageAlignOf(elemType, elemLLVM)
+	if err != nil {
+		return 0, err
+	}
+	if align == 0 {
+		return 1, nil
+	}
+	return align, nil
 }
 
 func (fe *funcEmitter) emitArraySlice(handlePtr, rangeVal string, elemType types.TypeID) (string, error) {
@@ -287,7 +394,15 @@ func (fe *funcEmitter) emitArrayLen(handlePtr string) string {
 	return lenVal
 }
 
-func (fe *funcEmitter) emitArrayElemPtr(handlePtr, idxVal, idxTy string, idxType, elemType types.TypeID) (ptr, ty string, err error) {
+// emitArrayElemPtr addresses one element of a DYNAMIC array and reports what
+// that address is aligned to.
+//
+// The alignment comes back from here rather than being looked up again by the
+// caller so that the emitter that MADE the address is the one that says what it
+// is aligned to. `handlePtr` addresses the slot holding the array handle, and
+// what that slot is aligned to is not what the element buffer is aligned to —
+// so nothing about it is threaded in.
+func (fe *funcEmitter) emitArrayElemPtr(handlePtr, idxVal, idxTy string, idxType, elemType types.TypeID) (ptr, ty string, align uint64, err error) {
 	handle := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s, align %d\n", handle, handlePtr, alignPtr)
 	lenPtr := fe.nextTemp()
@@ -297,7 +412,7 @@ func (fe *funcEmitter) emitArrayElemPtr(handlePtr, idxVal, idxTy string, idxType
 
 	adjIdx, err := fe.emitBoundsCheckedIndex(1, idxVal, idxTy, idxType, lenVal, true, lenVal)
 	if err != nil {
-		return "", "", err
+		return "", "", 0, err
 	}
 
 	dataPtrPtr := fe.nextTemp()
@@ -307,45 +422,54 @@ func (fe *funcEmitter) emitArrayElemPtr(handlePtr, idxVal, idxTy string, idxType
 
 	elemLLVM, err := fe.emitter.llvmValueType(elemType)
 	if err != nil {
-		return "", "", err
+		return "", "", 0, err
 	}
-	stride, err := fe.emitter.arrayElemStride(elemType)
+	stride, elemAlign, err := fe.emitter.handleArrayElemStrideAlign(elemType)
 	if err != nil {
-		return "", "", err
+		return "", "", 0, err
 	}
 	off := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = mul i64 %s, %d\n", off, adjIdx, stride)
 	elemPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %s\n", elemPtr, dataPtr, off)
-	return elemPtr, elemLLVM, nil
+	return elemPtr, elemLLVM, elemAlign, nil
 }
 
-// emitArrayFixedElemPtr addresses one element of a fixed array.
+// emitArrayFixedElemPtr addresses one element of a FIXED array and reports what
+// that address is aligned to.
 //
 // `arrayPtr` is the array's own storage. A fixed array lives inline, like every
 // other value composite: there is no buffer somewhere else and so no handle to
 // load first, and the element's address is the array's plus a stride offset.
-func (fe *funcEmitter) emitArrayFixedElemPtr(arrayPtr, idxVal, idxTy string, idxType, elemType types.TypeID, length uint32) (ptr, ty string, err error) {
+//
+// `baseAlign` is what `arrayPtr` is aligned to, and every caller must produce
+// it. That is the point of the parameter: the element's address is the base's
+// plus a multiple of the stride, so it can be no better aligned than the base
+// — and inside a `@packed` container the base is deliberately at an offset the
+// element type does not divide. A caller that could reach this without stating
+// the base's alignment is a caller that would answer from the element type
+// again, which is the whole of RV2-DEBT-226.
+func (fe *funcEmitter) emitArrayFixedElemPtr(arrayPtr string, baseAlign uint64, idxVal, idxTy string, idxType, elemType types.TypeID, length uint32) (ptr, ty string, align uint64, err error) {
 	lenVal := fmt.Sprintf("%d", length)
 
 	adjIdx, err := fe.emitBoundsCheckedIndex(1, idxVal, idxTy, idxType, lenVal, true, lenVal)
 	if err != nil {
-		return "", "", err
+		return "", "", 0, err
 	}
 
 	elemLLVM, err := fe.emitter.llvmValueType(elemType)
 	if err != nil {
-		return "", "", err
+		return "", "", 0, err
 	}
-	stride, err := fe.emitter.arrayElemStride(elemType)
+	stride, elemAlign, err := fe.emitter.inlineArrayElemStrideAlign(baseAlign, elemType)
 	if err != nil {
-		return "", "", err
+		return "", "", 0, err
 	}
 	off := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = mul i64 %s, %d\n", off, adjIdx, stride)
 	elemPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %s\n", elemPtr, arrayPtr, off)
-	return elemPtr, elemLLVM, nil
+	return elemPtr, elemLLVM, elemAlign, nil
 }
 
 // viewPtr addresses the view's own fields, not a slot holding a pointer to

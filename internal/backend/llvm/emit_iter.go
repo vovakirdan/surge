@@ -331,7 +331,12 @@ func (fe *funcEmitter) emitRangeStep(rangePtr string, elemType types.TypeID) (st
 	fmt.Fprintf(&fe.emitter.buf, "  %s = mul i64 %s, %s\n", offset, idxVal, strideVal)
 	elemPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %s\n", elemPtr, dataPtr, offset)
-	_, elemAlign, err := fe.emitter.arrayElemStrideAlign(elemType)
+	// OPAQUE BASE: the element address is built from a data word read out of
+	// the cursor descriptor, which carries a length and a stride but no
+	// alignment. For a fixed array that word is the array's own address, so a
+	// `@packed` container's array reaches here — see
+	// opaqueBaseElemStrideAlign.
+	_, elemAlign, err := fe.emitter.opaqueBaseElemStrideAlign(elemType)
 	if err != nil {
 		return "", err
 	}

@@ -125,7 +125,7 @@ func TestFixedCompositeArrayStoragePathsUseCanonicalStride(t *testing.T) {
 	emitter.buf.Reset()
 	fe.tmpID = 0
 	fe.inlineBlock = 0
-	if _, _, err = fe.emitArrayFixedElemPtr("%slot", "%idx", "i64", emitter.types.Builtins().Int, item, 2); err != nil {
+	if _, _, _, err = fe.emitArrayFixedElemPtr("%slot", 8, "%idx", "i64", emitter.types.Builtins().Int, item, 2); err != nil {
 		t.Fatalf("emit fixed element pointer: %v", err)
 	}
 	indexIR := emitter.buf.String()

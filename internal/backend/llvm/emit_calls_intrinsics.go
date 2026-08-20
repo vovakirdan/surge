@@ -291,7 +291,9 @@ func (fe *funcEmitter) emitIndexGet(call *mir.CallInstr) error {
 		fe.emitValueStore(dstTy, val, ptr, dstAlign)
 		return nil
 	case fixedOK:
-		arrArg, err := fe.emitHandleOperandPtr(&call.Args[0])
+		// INLINE-FIXED-ARRAY-REACHABLE. Reading `p.cells[i]` out of a
+		// `@packed` container reaches the same odd address the write does.
+		arrArg, arrAlign, err := fe.emitHandleOperandStorage(&call.Args[0])
 		if err != nil {
 			return err
 		}
@@ -319,7 +321,7 @@ func (fe *funcEmitter) emitIndexGet(call *mir.CallInstr) error {
 		if err != nil {
 			return err
 		}
-		elemPtr, elemLLVM, err := fe.emitArrayFixedElemPtr(arrArg, idxVal, idxTy, call.Args[1].Type, fixedElemType, fixedLen)
+		elemPtr, elemLLVM, elemAlign, err := fe.emitArrayFixedElemPtr(arrArg, arrAlign, idxVal, idxTy, call.Args[1].Type, fixedElemType, fixedLen)
 		if err != nil {
 			return err
 		}
@@ -329,10 +331,17 @@ func (fe *funcEmitter) emitIndexGet(call *mir.CallInstr) error {
 			val = elemPtr
 			ty = "ptr"
 		} else {
-			tmp := fe.nextTemp()
-			fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", tmp, elemLLVM, elemPtr)
-			val = tmp
-			ty = elemLLVM
+			// The load states the alignment the element's address really has.
+			// It used to state none at all, which is the same promise made by
+			// omission: an unattributed `load i64` takes the preferred
+			// alignment of i64, and inside a `@packed` container the address
+			// never has it.
+			loaded, loadedTy, loadErr := fe.emitStorageMemberLoad(elemLLVM, elemPtr, elemAlign)
+			if loadErr != nil {
+				return loadErr
+			}
+			val = loaded
+			ty = loadedTy
 		}
 		ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 		if err != nil {
@@ -376,7 +385,10 @@ func (fe *funcEmitter) emitIndexGet(call *mir.CallInstr) error {
 		if err != nil {
 			return err
 		}
-		elemPtr, elemLLVM, err := fe.emitArrayElemPtr(arrArg, idxVal, idxTy, call.Args[1].Type, elemType)
+		// HANDLE-BACKED: the elements are the runtime's buffer, reached
+		// through the header, so emitArrayElemPtr answers from the element
+		// type and the slot the handle sits in has no say.
+		elemPtr, elemLLVM, elemAlign, err := fe.emitArrayElemPtr(arrArg, idxVal, idxTy, call.Args[1].Type, elemType)
 		if err != nil {
 			return err
 		}
@@ -386,10 +398,12 @@ func (fe *funcEmitter) emitIndexGet(call *mir.CallInstr) error {
 			val = elemPtr
 			ty = "ptr"
 		} else {
-			tmp := fe.nextTemp()
-			fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", tmp, elemLLVM, elemPtr)
-			val = tmp
-			ty = elemLLVM
+			loaded, loadedTy, loadErr := fe.emitStorageMemberLoad(elemLLVM, elemPtr, elemAlign)
+			if loadErr != nil {
+				return loadErr
+			}
+			val = loaded
+			ty = loadedTy
 		}
 		ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 		if err != nil {
@@ -495,7 +509,8 @@ func (fe *funcEmitter) emitIndexSet(call *mir.CallInstr) error {
 		if err != nil {
 			return err
 		}
-		elemPtr, elemLLVM, err := fe.emitArrayElemPtr(arrArg, idxVal, idxTy, call.Args[1].Type, elemType)
+		// HANDLE-BACKED: see the read path above.
+		elemPtr, elemLLVM, elemAlign, err := fe.emitArrayElemPtr(arrArg, idxVal, idxTy, call.Args[1].Type, elemType)
 		if err != nil {
 			return err
 		}
@@ -503,19 +518,20 @@ func (fe *funcEmitter) emitIndexSet(call *mir.CallInstr) error {
 		if err != nil {
 			return err
 		}
-		align, alignErr := fe.emitter.storageAlignOf(elemType, elemLLVM)
-		if alignErr != nil {
-			return alignErr
-		}
 		fe.releaseDisplacedElement(elemPtr, elemType)
-		fe.emitValueStore(elemLLVM, val, elemPtr, align)
+		fe.emitValueStore(elemLLVM, val, elemPtr, elemAlign)
 		return nil
 	}
 	fixedElemType, fixedLen, fixedOK := arrayFixedInfo(fe.emitter.types, containerType)
 	if !fixedOK {
 		return fmt.Errorf("unsupported __index_set target")
 	}
-	arrArg, err := fe.emitHandleOperandPtr(&call.Args[0])
+	// INLINE-FIXED-ARRAY-REACHABLE, and this is the site RV2-DEBT-226 quotes:
+	// `p.cells[1] = 55:int64` inside a `@packed` container lowers to
+	// `__index_set` and lands here. The store used to take its alignment from
+	// the ELEMENT TYPE, so it claimed align 8 against an address congruent to
+	// 1 mod 8 for every index. The array's own address is what bounds it.
+	arrArg, arrAlign, err := fe.emitHandleOperandStorage(&call.Args[0])
 	if err != nil {
 		return err
 	}
@@ -523,7 +539,7 @@ func (fe *funcEmitter) emitIndexSet(call *mir.CallInstr) error {
 	if err != nil {
 		return err
 	}
-	elemPtr, elemLLVM, err := fe.emitArrayFixedElemPtr(arrArg, idxVal, idxTy, call.Args[1].Type, fixedElemType, fixedLen)
+	elemPtr, elemLLVM, elemAlign, err := fe.emitArrayFixedElemPtr(arrArg, arrAlign, idxVal, idxTy, call.Args[1].Type, fixedElemType, fixedLen)
 	if err != nil {
 		return err
 	}
@@ -531,11 +547,7 @@ func (fe *funcEmitter) emitIndexSet(call *mir.CallInstr) error {
 	if err != nil {
 		return err
 	}
-	fixedAlign, fixedAlignErr := fe.emitter.storageAlignOf(fixedElemType, elemLLVM)
-	if fixedAlignErr != nil {
-		return fixedAlignErr
-	}
 	fe.releaseDisplacedElement(elemPtr, fixedElemType)
-	fe.emitValueStore(elemLLVM, val, elemPtr, fixedAlign)
+	fe.emitValueStore(elemLLVM, val, elemPtr, elemAlign)
 	return nil
 }

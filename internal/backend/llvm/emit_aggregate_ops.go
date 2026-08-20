@@ -154,18 +154,31 @@ func (fe *funcEmitter) emitStorageCopy(dst, src string, size, align uint64) {
 // makes every site that materializes one say so, instead of one site quietly
 // producing storage whose owner cannot outlive it.
 func (fe *funcEmitter) emitStorageAlloca(id types.TypeID) (string, error) {
+	ptr, _, err := fe.emitStorageAllocaAligned(id)
+	return ptr, err
+}
+
+// emitStorageAllocaAligned reserves the same storage and reports what it
+// reserved it at.
+//
+// The alignment comes back from the emission that CHOSE it rather than being
+// looked up from the type a second time. A caller that goes on to index into
+// this storage needs the alignment of the address, and two independent
+// derivations of one address's alignment are exactly the split brain
+// RV2-DEBT-226 is about.
+func (fe *funcEmitter) emitStorageAllocaAligned(id types.TypeID) (ptr string, align uint64, err error) {
 	if !fe.emitter.hasInlineStorage(id) {
-		return "", fmt.Errorf(
+		return "", 0, fmt.Errorf(
 			"type#%d does not live in inline storage; reserve it where its owner does",
 			id)
 	}
 	facts, err := fe.emitter.storageFactsOf(id)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
-	ptr := fe.nextTemp()
-	fe.emitAllocaAligned(ptr, storageTypeForSize(facts.Size), facts.Align)
-	return ptr, nil
+	slot := fe.nextTemp()
+	fe.emitAllocaAligned(slot, storageTypeForSize(facts.Size), facts.Align)
+	return slot, facts.Align, nil
 }
 
 // emitRuntimeOwnedStorage reserves storage for a value whose owner outlives the

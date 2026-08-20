@@ -69,7 +69,10 @@ func (fe *funcEmitter) arrayElemLayout(op *mir.Operand) (elemType types.TypeID, 
 	// spelling how big it is asks the wrong authority a question it cannot
 	// answer — which is how a 64-byte payload reached a helper that knows only
 	// machine words.
-	elemStride, elemAlign, err := fe.emitter.arrayElemStrideAlign(elemType)
+	// HANDLE-BACKED by construction: this helper refuses anything but a
+	// dynamic array a few lines up, so its elements are always the runtime's
+	// buffer and never a container's inline bytes.
+	elemStride, elemAlign, err := fe.emitter.handleArrayElemStrideAlign(elemType)
 	if err != nil {
 		return types.NoTypeID, "", 0, 0, err
 	}

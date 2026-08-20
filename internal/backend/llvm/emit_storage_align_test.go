@@ -106,6 +106,13 @@ func TestEmittedAllocasCarryAnAlignment(t *testing.T) {
 var ordinaryStorageEmitters = []string{
 	"emit_access.go",
 	"emit_call_site.go",
+	// Indexing is an ordinary read and an ordinary write. `a[i]` and
+	// `a[i] = v` lower to the `__index` and `__index_set` intrinsics, so the
+	// load and the store that move a Surge value in and out of an array
+	// element are emitted here — and one of them stated no alignment at all
+	// until RV2-DEBT-226, which promises the element type's preferred
+	// alignment by omission at an address a `@packed` container makes odd.
+	"emit_calls_intrinsics.go",
 	"emit_func.go",
 	"emit_globals.go",
 	"emit_helpers_place.go",

@@ -173,7 +173,10 @@ func (fe *funcEmitter) emitArrayLit(lit *mir.ArrayLit, dstType types.TypeID) (va
 	if err != nil {
 		return "", "", err
 	}
-	stride, elemAlign, err := fe.emitter.arrayElemStrideAlign(elemType)
+	// HANDLE-BACKED: only the dynamic arm below uses these, and there the
+	// element buffer is one this emission is about to ask rt_alloc for at
+	// exactly this alignment.
+	stride, elemAlign, err := fe.emitter.handleArrayElemStrideAlign(elemType)
 	if err != nil {
 		return "", "", err
 	}
@@ -239,7 +242,14 @@ func (fe *funcEmitter) emitArrayLit(lit *mir.ArrayLit, dstType types.TypeID) (va
 	if length != int(fixedLen) {
 		return "", "", fmt.Errorf("array literal length mismatch")
 	}
-	mem, err := fe.emitStorageAlloca(dstType)
+	// INLINE-FIXED-ARRAY-REACHABLE. The literal's elements are written into
+	// inline storage, so their alignment is bounded by what that storage is
+	// aligned to — and here that base is a slot this emission just reserved,
+	// so its alignment is a fact rather than an inference. A literal is never
+	// built directly into a `@packed` member today; it is built here and moved
+	// in. Threading the base anyway is what keeps that true by construction
+	// instead of by memory.
+	mem, memAlign, err := fe.emitStorageAllocaAligned(dstType)
 	if err != nil {
 		return "", "", err
 	}
@@ -251,7 +261,7 @@ func (fe *funcEmitter) emitArrayLit(lit *mir.ArrayLit, dstType types.TypeID) (va
 	if err != nil {
 		return "", "", err
 	}
-	stride, elemAlign, err = fe.emitter.arrayElemStrideAlign(elemType)
+	stride, elemAlign, err = fe.emitter.inlineArrayElemStrideAlign(memAlign, elemType)
 	if err != nil {
 		return "", "", err
 	}

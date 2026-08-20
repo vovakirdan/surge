@@ -10,7 +10,9 @@ import (
 // `elem`. Copyable elements use the leaf rt_array_free; droppable
 // elements route through rt_array_free_elems with a per-element drop fn.
 func (e *Emitter) emitDropDynArray(val string, elem types.TypeID) {
-	stride, elemAlign, err := e.arrayElemStrideAlign(elem)
+	// HANDLE-BACKED: `val` is a dynamic array handle, and the buffer the
+	// runtime frees is the buffer the runtime allocated at this alignment.
+	stride, elemAlign, err := e.handleArrayElemStrideAlign(elem)
 	if err != nil {
 		return
 	}
