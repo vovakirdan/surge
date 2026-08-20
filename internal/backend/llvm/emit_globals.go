@@ -80,6 +80,12 @@ func (e *Emitter) reachableFuncs() map[mir.FuncID]struct{} {
 			roots = append(roots, id)
 		}
 	}
+	// A value descriptor binds a type's clone, and binding is a reference: the
+	// runtime may call it for a value no source line clones. Without this the
+	// descriptor would name a function the module never defines, which links
+	// only by luck — a defect the descriptor agreement test caught the first
+	// time a clonable type reached this path.
+	roots = append(roots, e.descriptorReferencedFuncs()...)
 	if len(roots) == 0 {
 		for _, id := range e.mod.SortedFuncIDs() {
 			reachable[id] = struct{}{}

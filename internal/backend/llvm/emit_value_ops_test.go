@@ -246,3 +246,109 @@ func TestNonCopyDescriptorLeavesCopyInitNull(t *testing.T) {
 			sawCopy, sawNonCopy)
 	}
 }
+
+// clonableProbeProgram carries a type whose clone is a real monomorphized
+// function, so clone_init has a symbol the registry knows and the backend must
+// resolve to a name.
+const clonableProbeProgram = `
+pub type Box = { value: string };
+
+extern<Box> {
+    pub fn __clone(self: &Box) -> Box {
+        return Box { value = self.value.__clone() };
+    }
+}
+
+@entrypoint
+fn main() -> int {
+    let b = Box { value = "x" };
+    let c = b.__clone();
+    return 0;
+}
+`
+
+// TestEveryRegistryEntryGetsADescriptor is the coverage claim, and it is the one
+// that would notice the writer quietly skipping work.
+//
+// Before clone_init was bound, a clonable type was skipped entirely: the slot
+// wanted a symbol the registry carried and the backend could not name. Skipping
+// is honest but it is not coverage, and a proof that only checks what WAS
+// emitted cannot tell the two apart.
+func TestEveryRegistryEntryGetsADescriptor(t *testing.T) {
+	mirMod, result := lowerMIRFromSource(t, clonableProbeProgram)
+	if mirMod.Meta == nil || mirMod.Meta.Operations == nil {
+		t.Fatal("no operation registry was published")
+	}
+	registry := mirMod.Meta.Operations
+	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
+	if err != nil {
+		t.Fatalf("emit: %v", err)
+	}
+	emitted := parseEmittedDescriptors(t, ir)
+
+	clonable := 0
+	for _, id := range registry.TypeIDs() {
+		entry, err := registry.Value(id)
+		if err != nil {
+			continue
+		}
+		if entry.Flags&valueops.FlagClonable != 0 {
+			clonable++
+		}
+		if _, ok := emitted[id]; !ok {
+			t.Errorf("type#%d (flags %s) has no descriptor", id, entry.Flags)
+		}
+	}
+	if clonable == 0 {
+		t.Fatal("the probe carried no clonable type, so it proves nothing about clone_init")
+	}
+	if len(emitted) != registry.Len() {
+		t.Errorf("emitted %d descriptors for %d registry entries", len(emitted), registry.Len())
+	}
+}
+
+// TestClonableDescriptorBindsItsMonomorphizedClone pins the biconditional from
+// the emitter's side for the one slot whose symbol comes from the registry
+// rather than from the backend.
+func TestClonableDescriptorBindsItsMonomorphizedClone(t *testing.T) {
+	mirMod, result := lowerMIRFromSource(t, clonableProbeProgram)
+	if mirMod.Meta == nil || mirMod.Meta.Operations == nil {
+		t.Fatal("no operation registry was published")
+	}
+	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
+	if err != nil {
+		t.Fatalf("emit: %v", err)
+	}
+	emitted := parseEmittedDescriptors(t, ir)
+
+	checked := 0
+	for id, got := range emitted {
+		entry, err := mirMod.Meta.Operations.Value(id)
+		if err != nil {
+			continue
+		}
+		cloneInit := got.operands[2] // move_init, copy_init, clone_init, ...
+		if entry.Flags&valueops.FlagClonable == 0 {
+			if cloneInit != "ptr null" {
+				t.Errorf("type#%d is not clonable yet binds clone_init %s", id, cloneInit)
+			}
+			continue
+		}
+		checked++
+		if cloneInit == "ptr null" {
+			t.Errorf("type#%d is clonable yet ships a null clone_init", id)
+			continue
+		}
+		// The bound name must be a function this module actually defines.
+		if !strings.Contains(ir, "define "+strings.TrimPrefix(cloneInit, "ptr ")+"(") &&
+			!strings.Contains(ir, "define void "+strings.TrimPrefix(cloneInit, "ptr ")+"(") {
+			defined := strings.Contains(ir, strings.TrimPrefix(cloneInit, "ptr ")+"(")
+			if !defined {
+				t.Errorf("type#%d binds clone_init %s, which this module does not define", id, cloneInit)
+			}
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no clonable descriptor was examined")
+	}
+}

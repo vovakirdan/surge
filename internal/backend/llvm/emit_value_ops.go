@@ -100,7 +100,14 @@ func (e *Emitter) valueOpsEmittable(entry *valueops.Entry) bool {
 			return false
 		}
 		if filler.Kind == valueops.FillRegistryNamedBody {
-			return false
+			// The registry carries the symbol; the backend must be able to name
+			// the function it became. A monomorphized clone whose instance is
+			// absent from this module cannot be bound, and a descriptor that
+			// claimed the capability with a null callback is the flag/callback
+			// disagreement the runtime refuses.
+			if e.registryNamedSymbol(entry, slot) == "" {
+				return false
+			}
 		}
 	}
 	return true
@@ -192,6 +199,11 @@ func (e *Emitter) valueOpsOperand(entry *valueops.Entry, slot string, filler val
 		// filled nowhere. Reaching here means a bit was un-staged without giving
 		// this writer the body it now needs.
 		return "ptr null"
+	case valueops.FillRegistryNamedBody:
+		if name := e.registryNamedSymbol(entry, slot); name != "" {
+			return "ptr @" + name
+		}
+		return "ptr null"
 	case valueops.FillNone:
 		return "ptr null"
 	default:
@@ -218,3 +230,51 @@ func emitModuleWithDescriptorDefect(
 // package variable rather than a parameter because EmitModule's signature is the
 // backend's public entry point and a test-only argument does not belong in it.
 var emitDescriptorDefect = defectNone
+
+// registryNamedSymbol resolves the LLVM name of a per-type body the REGISTRY
+// carries, as opposed to one the backend derives.
+//
+// Today that is clone_init alone: mir resolved the monomorphized instance and
+// stored its symbol, and this maps that symbol to the function this module
+// emits. It returns "" when the instance is not in this module, which is a
+// reason to skip the descriptor rather than to ship a null against a set bit.
+func (e *Emitter) registryNamedSymbol(entry *valueops.Entry, slot string) string {
+	if slot != "clone_init" {
+		return ""
+	}
+	if e == nil || e.mod == nil || !entry.CloneInit.IsValid() {
+		return ""
+	}
+	id, ok := e.mod.FuncBySym[entry.CloneInit]
+	if !ok {
+		return ""
+	}
+	name, ok := e.funcNames[id]
+	if !ok {
+		return ""
+	}
+	return name
+}
+
+// descriptorReferencedFuncs lists the functions a descriptor will bind, so
+// reachability treats a descriptor as the reference it is.
+//
+// The emitted constant is a use: a type whose clone no source line calls still
+// has a clone the runtime may reach through its descriptor. Leaving these out of
+// the root set produced a descriptor naming an undefined symbol.
+func (e *Emitter) descriptorReferencedFuncs() []mir.FuncID {
+	if e == nil || e.mod == nil || e.mod.Meta == nil || e.mod.Meta.Operations == nil {
+		return nil
+	}
+	var roots []mir.FuncID
+	for _, id := range e.mod.Meta.Operations.TypeIDs() {
+		entry, err := e.mod.Meta.Operations.Value(id)
+		if err != nil || !entry.CloneInit.IsValid() {
+			continue
+		}
+		if funcID, ok := e.mod.FuncBySym[entry.CloneInit]; ok {
+			roots = append(roots, funcID)
+		}
+	}
+	return roots
+}
