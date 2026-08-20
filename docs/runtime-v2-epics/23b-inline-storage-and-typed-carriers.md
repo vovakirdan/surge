@@ -210,7 +210,7 @@ nothing generates. `internal/backend/llvm/` mentions `rt_value_ops` exactly once
 descriptor constructor at all; the only constructions in the tree are the
 runtime's own and the harnesses under `internal/vm/testdata/`. Since
 `rt_slot_operations_preflight` requires `move_init` AND `plan_cross` to be
-non-null unconditionally (`rt_slot_control.c:44`), no owner can be migrated
+non-null unconditionally (`rt_slot_control.c:42`), no owner can be migrated
 until those two exist for real types. Wave B is therefore NOT closed, and any
 owner migration that begins before it is building on an entry condition that
 was never met.

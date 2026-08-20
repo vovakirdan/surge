@@ -40,7 +40,7 @@ to this plan, not proposals inside it.
 | 4 | D1 pre-splits are uncommittable — `findingKey` carries `Path`, and `TestLiveCarrierRatchetAgainstRepository` (`base_test.go:74`) has no build tag, so it runs inside `make check` → pre-commit hook | **Do not split the files at all.** `findingKey` keeps `Path` |
 | 5 | Proposed fix ran `rt_channel_free` under the owner shard lock while `rt_channel_close` kept dereferencing `ch` | Folded into ruling 3 — the reproduction decides the shape |
 | 6 | Retirement enumeration wrong both ways: `pop_waiter` is dead code (declared `rt_waiter.h:127`, defined `rt_async_waiter.c:701`, **zero callers**); channel keys never move; the re-arm branch was missing from the list | Folded into ruling 3; the dead symbol goes in its own commit first |
-| 7 | `copy_init` — `valueops/flags.go:80` marks it `structural: true` and `entry.go:145-147` says the runtime's generic byte copy satisfies it, while `rt_slot_control.c:44` demands `COPY ⟺ copy_init != NULL` and **no such symbol exists** | **Add the generic byte-copy symbol to the runtime** and bind it. The C-side check stays strict |
+| 7 | `copy_init` — `valueops/flags.go:80` marks it `structural: true` and `entry.go:145-147` says the runtime's generic byte copy satisfies it, while `rt_slot_control.c:42` demands `COPY ⟺ copy_init != NULL` and **no such symbol exists** | **Add the generic byte-copy symbol to the runtime** and bind it. The C-side check stays strict |
 | 8 | RV2-DEBT-151 cannot retire as the old plan scoped it — `DEBT.md:138` says in bold the helpers cover FAR and CROSSING too | **Honour DEBT.md**: the whole row retires inside Wave D, no split by locality |
 
 ### Blocker 9, found during this pass — the sanitizer gate does not exist
@@ -122,7 +122,7 @@ Entry: none.
 
 Add the runtime's generic byte-copy `rt_value_copy_init_fn` driven by
 `rt_value_layout`, and bind it wherever a descriptor sets `RT_VALUE_FLAG_COPY`.
-`rt_slot_control.c:44` keeps demanding `copy_init != NULL`; `valueops`'
+`rt_slot_control.c:42` keeps demanding `copy_init != NULL`; `valueops`'
 `structural: true` comment becomes true instead of aspirational.
 
 Negative control: a descriptor that sets COPY with a null `copy_init` is
@@ -223,7 +223,7 @@ owner/slot API as integrated. Measured 2026-08-20: `internal/backend/llvm/`
 emits no `rt_value_ops` constructor whatsoever - the single mention is the
 record's SHAPE in `typed_carrier_v2.generated.go` - while
 `rt_slot_operations_preflight` refuses any descriptor whose `move_init` or
-`plan_cross` is null (`rt_slot_control.c:44`). No typed owner is reachable from
+`plan_cross` is null (`rt_slot_control.c:42`). No typed owner is reachable from
 here.
 
 **Order of work is therefore: close the Wave B generation gap first, then P2.**
