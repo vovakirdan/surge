@@ -84,6 +84,42 @@ func ensureTagLayout(m *Module, typesIn *types.Interner, tagSymByName map[string
 	if !ok || info == nil {
 		return fmt.Errorf("mir: async: missing union info for type#%d", unionType)
 	}
+	// The full membership, alongside the tag view. Both are recorded here
+	// because this path mints unions the main lowering never sees, and a
+	// consumer that asks what a union CONTAINS must not be answered with a
+	// tag-only list — that omission is what let a bare member's contents leak.
+	members := make([]UnionCaseMeta, 0, len(info.Members))
+	for index := range info.Members {
+		member := &info.Members[index]
+		meta := UnionCaseMeta{PhysicalCaseIndex: index, BareType: types.NoTypeID}
+		switch member.Kind {
+		case types.UnionMemberTag:
+			if typesIn.Strings == nil {
+				return fmt.Errorf("mir: async: missing strings for tag layout")
+			}
+			meta.Kind = UnionCaseTag
+			meta.Name = typesIn.Strings.MustLookup(member.TagName)
+			meta.TagSym = tagSymByName[meta.Name]
+			meta.PayloadTypes = make([]types.TypeID, len(member.TagArgs))
+			copy(meta.PayloadTypes, member.TagArgs)
+		case types.UnionMemberNothing:
+			meta.Kind = UnionCaseNothing
+			meta.Name = "nothing"
+		case types.UnionMemberType:
+			meta.Kind = UnionCaseBareType
+			meta.Name = fmt.Sprintf("type#%d", member.Type)
+			meta.BareType = member.Type
+			meta.PayloadTypes = []types.TypeID{member.Type}
+		default:
+			return fmt.Errorf("mir: async: ununion member kind %d for type#%d", member.Kind, unionType)
+		}
+		members = append(members, meta)
+	}
+	if m.Meta.UnionCases == nil {
+		m.Meta.UnionCases = make(map[types.TypeID][]UnionCaseMeta)
+	}
+	m.Meta.UnionCases[unionType] = members
+
 	cases := make([]TagCaseMeta, 0, len(info.Members))
 	for _, member := range info.Members {
 		switch member.Kind {
