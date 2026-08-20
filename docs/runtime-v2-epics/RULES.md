@@ -111,7 +111,29 @@ must include:
 git diff --check
 make c-check
 make cppcheck
+make ctidy
 make check
+```
+
+**A C change must PASS these, not merely be accompanied by a note saying they
+were run.** Owner ruling 2026-08-20. This rule already named `make cppcheck` and
+was violated for months, and the mechanism of the violation was in its own
+wording: it asked for the checks to be RECORDED, and a report that is never
+written refuses nothing. A rule that asks for a report is not a gate.
+
+Enforcement is therefore in the pre-commit hook, not in this sentence. When a
+commit stages any `*.c` or `*.h`, `scripts/pre-commit` runs
+`make c-check-changed` over exactly those files: a strict-warning syntax pass,
+`cppcheck`, and `clang-tidy`. The list is narrowed to the staged files because
+the whole-tree targets are red on a backlog this rule did not cause
+(`RV2-DEBT-228`) — an edit answers for itself, and generated sources
+(`*.generated.[ch]`) are excluded because the reserved identifier clang-tidy
+objects to there is the ABI proof's requirement.
+
+Running it by hand on a specific set:
+
+```bash
+make c-check-changed C_CHANGED="runtime/native/rt_async_channel.c"
 ```
 
 Runtime and VM liveness checks must use exact focused probes from

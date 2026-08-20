@@ -7,6 +7,18 @@ stats_file="$repo_root/STATS.md"
 
 cd "$repo_root"
 
+# A C edit must PASS the C static checks, not merely be accompanied by a note
+# saying they were run — RULES.md Global Rule 6, made enforceable 2026-08-20.
+# Narrowed to the staged files: the whole-tree targets are red on a backlog
+# (RV2-DEBT-228) that this commit did not create. Runs first because it is the
+# faster refusal.
+mapfile -t c_files < <(git diff --cached --name-only --diff-filter=ACM -- '*.c' '*.h' \
+	| grep -v '\.generated\.' || true)
+if [[ ${#c_files[@]} -gt 0 ]]; then
+	echo ">> pre-commit: ${#c_files[@]} C file(s) staged, running C static checks on them"
+	make c-check-changed C_CHANGED="${c_files[*]}"
+fi
+
 echo ">> pre-commit: running make check"
 make check
 

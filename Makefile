@@ -1,6 +1,6 @@
 .PHONY: build run test runtime-v2-check runtime-v2-abi-manifest-check runtime-v2-slot-control-check runtime-v2-ownership-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check runtime-v2-panic-surface-check runtime-v2-transport-contract-check runtime-v2-transport-check runtime-v2-carrier-check runtime-v2-carrier-sanitizer-check runtime-v2-place-overwrite-check runtime-v2-carrier-bench runtime-v2-carrier-baseline-capture runtime-v2-carrier-bench-final vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
 .PHONY: golden golden-update golden-check golden-corpus-determinism behaviour-check behaviour-check-all behaviour-check-mt stats
-.PHONY: c-check cfmt-check c-warnings ctidy cppcheck
+.PHONY: c-check cfmt-check c-warnings ctidy cppcheck c-check-changed
 
 # ===== Variables =====
 GO ?= go
@@ -540,6 +540,61 @@ cppcheck:
 		$(C_INCLUDES) \
 		$(C_SOURCES) || exit 1
 	@echo ">> cppcheck OK"
+
+# C checks narrowed to a named list of files (C_CHANGED). This exists so the
+# pre-commit hook can hold a C edit to cppcheck and clang-tidy, which Global
+# Rule 6 has always required and which nothing enforced: the rule asked for the
+# checks to be RECORDED, and a report can simply go unwritten.
+#
+# The list is narrowed on purpose. Whole-tree `make cppcheck` and `make ctidy`
+# are red today on accumulated findings (RV2-DEBT-228), most of them against a
+# GENERATED ABI header whose reserved identifier is the proof's requirement, so
+# a whole-tree gate in the hook would refuse every C commit rather than the
+# wrong ones. An edit answers for itself; the backlog is a separate row.
+#
+# clang-tidy findings are filtered by the PATH THEY POINT AT, not by the file
+# handed to it: `.clang-tidy` sets HeaderFilterRegex to all of runtime/native,
+# so the generated ABI header reports through every file that includes it, and
+# clang-tidy 18 has no ExcludeHeaderFilterRegex to say otherwise.
+.PHONY: c-check-changed
+c-check-changed:
+	@if [ -z "$(C_CHANGED)" ]; then \
+		echo ">> No changed C files to check"; \
+		exit 0; \
+	fi
+	@files=""; \
+	for f in $(C_CHANGED); do \
+		case "$$f" in *.generated.c|*.generated.h) continue;; esac; \
+		[ -f "$$f" ] && files="$$files $$f"; \
+	done; \
+	if [ -z "$$files" ]; then \
+		echo ">> No checkable C files after filtering generated sources"; \
+		exit 0; \
+	fi; \
+	echo ">> Checking changed C files:$$files"; \
+	failed=0; \
+	for f in $$files; do \
+		if ! $(CC) $(C_STD) $(C_WARN_FLAGS) $(C_INCLUDES) -fsyntax-only -x c "$$f"; then \
+			echo "strict-warning compile failed for $$f"; failed=1; \
+		fi; \
+	done; \
+	if ! cppcheck --enable=warning,style,performance,portability --error-exitcode=1 \
+		--suppress=missingIncludeSystem --suppress=unusedFunction --std=c11 \
+		$(C_INCLUDES) $$files; then \
+		echo "cppcheck failed on changed files"; failed=1; \
+	fi; \
+	for f in $$files; do \
+		output=$$(clang-tidy "$$f" --config-file=.clang-tidy -- $(C_STD) $(C_INCLUDES) 2>&1); \
+		issues=$$(echo "$$output" | grep -E "(error|warning):" | grep -v '\.generated\.' || true); \
+		if [ -n "$$issues" ]; then \
+			echo "clang-tidy found issues in $$f:"; echo "$$output"; failed=1; \
+		fi; \
+	done; \
+	if [ $$failed -eq 1 ]; then \
+		echo "Changed-C checks FAILED"; \
+		exit 1; \
+	fi; \
+	echo ">> Changed-C checks OK"
 
 # Run all C code checks
 c-check: cfmt-check c-warnings
