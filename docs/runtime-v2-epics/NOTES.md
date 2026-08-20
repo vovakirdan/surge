@@ -7444,3 +7444,64 @@ with copyable elements. It limits what an author can write, not what the epic ca
 finish, and closing 218 removed the urgency it was found under: returning a view
 over a locally built dynamic array is legal and safe, so copying is no longer the
 only way out.
+
+## 2026-08-20 — why `plan_cross` is a mandatory slot, and why nobody can say
+
+RV2-DEBT-232 asked whether `rt_slot_operations_preflight` demanding a non-null
+`plan_cross` from a purely local owner is deliberate or an over-strict artefact.
+The answer is neither of those, and the row's own hypothesis — that `plan_cross`
+is read-only and total, hence a universal preflight every type can answer — is
+refuted rather than merely unproven. The finding is recorded here because it is
+history, not contract; the normative rule it produced lives beside `ValueOps<T>`
+in `23-storage-model-and-typed-carrier-abi.md`.
+
+**The declaration is authored and older than the check.** The manifest marks
+`plan_cross` `"nullable": false` with "Always-present read-only crossing
+preflight", wording it shares only with `move_init`, and the field table is
+byte-identical at the freeze commit `0db416cc` (2026-08-04) — a day before
+`rt_slot_control.c` existed (`dbf536f3`) and before the check landed
+(`8512f4c1`). Nullability is not a default: `internal/abimanifest/validate.go`
+refuses a callback type that omits it. Someone typed `false`.
+
+**The rule behind the field table is mechanical.** Six capability bits each NAME
+one slot — `_COPY`→copy_init, `_CLONABLE`→clone_init, `_DROPPABLE`→drop_in_place,
+`_TRACEABLE`→trace, `_SHARD_MOVABLE`→cross_move_init, `_CROSS_CLONABLE`→
+cross_clone_init — exactly one-to-one with the six nullable callbacks.
+`move_init` and `plan_cross` are non-null for one reason: no bit names them.
+The only recorded stretch of reasoning behaves precisely as that rule predicts:
+`NOTES.md:6410-6412` argues mandatory move, argues flag-gated drop, and is
+silent on `plan_cross`.
+
+**What refutes the "universal preflight" reading.** `rt_value_plan_cross_fn`
+takes `mode: rt_cross_mode`, whose only two values name apply callbacks that
+exist solely under the cross flags. A type with neither flag has no legal
+`mode`: the function is not total there, it is vacuous. And no
+`rt_carrier_status` value means "this type cannot cross".
+
+**"The check mirrors the manifest" overstates the manifest's reach.** `nullable`
+on a callback field is machine-inert everywhere else — the C renderer never
+reads it, the generated header contains zero `nonnull`, and the checks header
+has 154 `_Static_assert`s and no NULL test. Nine fields are `nullable: false`
+and exactly two are null-checked anywhere in the tree, both inside this one
+preflight; `rt_key_ops.hash`/`equal` are not, in a record that EMBEDS
+`rt_value_ops`. Enforcement was its own act, and it converted two of nine.
+
+**The cost premise that came with the row was wrong.** The feared multiplier on
+Wave B is 1, not N: every descriptor Wave B can emit today is non-crossing by
+construction, because `Entry.checkSlots` refuses any entry setting a staged bit
+and ShardMovable/CrossClonable/Droppable/Traceable are all staged. So all of
+them want the same stub, and the compiler already ships the mechanism for one
+symbol filling a slot across every descriptor (`slotRule.runtimeSymbol` /
+`RuntimeFilledSlot`, instantiated as `rt_value_copy_init_unbound_trap`).
+
+**The structural defect this uncovered is worth more than the question.**
+`slotRules` is indexed by flag, which encodes "a slot exists iff a capability
+bit names it" — and that is why BOTH unconditional slots fell out of the
+registry: `valueops.Entry` has no field for `move_init` either. The model owed
+is applicability — `unconditional | capability(flag)` — after which both
+mandatory slots appear from one structural edit, with `move_init` per-type
+generated and `plan_cross` bound to the shared trap.
+
+**Citation drift corrected here:** the unconditional pair is
+`rt_slot_control.c:42`; `:44` is the middle of the COPY biconditional and had
+been cited wrongly in four documents.

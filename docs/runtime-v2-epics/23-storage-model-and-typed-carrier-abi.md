@@ -167,6 +167,40 @@ arbitrary `__clone`. A non-Copy value crosses by ownership move; if source code
 explicitly calls `__clone`, that ordinary clone completes and is charged to the
 source owner before the resulting value enters the crossing by move.
 
+**Mandatory slots versus capability-gated slots.** `ValueOps` has a uniform
+descriptor shape. `move_init` and `plan_cross` are mandatory descriptor slots;
+the remaining operation slots are gated by their corresponding capability flags.
+Mandatory presence of `plan_cross` does not imply that every type is
+cross-capable. A `plan_cross` call is valid only when the requested mode is
+admitted by the descriptor's cross capability. Descriptors with no cross
+capability populate the mandatory slot with an invariant-failure stub; invoking
+it is a compiler/runtime protocol violation, not a recoverable refusal. The
+historical rationale for making this slot non-null was not recorded.
+
+The two mandatory slots are mandatory for DIFFERENT reasons, and conflating them
+is the mistake this paragraph exists to prevent. `move_init` is semantically
+unconditional: every initialized `T` can transfer its ownership into an empty
+destination. `plan_cross` is only structurally unconditional: its function-
+pointer slot is always present, while its callable domain is determined by the
+cross capability flags.
+
+That difference decides what a descriptor writer emits. `move_init` gets a real
+per-type body. `plan_cross` for a type with neither `SHARD_MOVABLE` nor
+`CROSS_CLONABLE` gets a shared stub that does not return: the mode enumeration
+admits only move and clone, both of which name apply callbacks such a type does
+not have, so there is no legal call to answer. It is not given a status, because
+a status would say the call was legal and merely refused. No
+`rt_carrier_status` value means "this type cannot cross", and none should be
+added to make one: the recoverable statuses are outcomes of a LEGAL
+`plan_cross`, while a call on a descriptor whose own flags exclude both modes is
+a protocol violation by the caller.
+
+Admission and capability are separate layers, and slot preflight is the first
+one only. It checks that a descriptor is structurally coherent - mandatory
+pointers present, capability-gated pointers matching their bits. It does not
+answer whether a `T` may cross a shard, and it must not be split into local and
+crossing variants to try.
+
 `CrossPlan` is a self-contained POD value, not an owned heap object. Apart from
 its process-static `ValueOps` pointer it contains only scalar layout and budget
 facts; it never borrows instance-dependent sidecar arrays and has no capacity,
