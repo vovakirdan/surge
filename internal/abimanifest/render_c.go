@@ -49,7 +49,10 @@ func renderCHeader(manifest *Manifest, hash string) []byte {
 		out.WriteString(");\n")
 	}
 	fmt.Fprintf(&out, "extern const uint8_t rt_typed_carrier_abi_manifest_identity[];\n")
-	fmt.Fprintf(&out, "void %s%s(void);\n\n", manifest.SentinelPrefix, hash)
+	out.WriteString("// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)\n")
+	out.WriteString("// The sentinel is deliberately in the reserved identifier space. It is the\n// implementation's own ABI marker, and a name a Surge program could also\n// define would prove nothing about which runtime got linked.\n")
+	fmt.Fprintf(&out, "void %s%s(void);\n", manifest.SentinelPrefix, hash)
+	out.WriteString("// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)\n\n")
 	out.WriteString("#ifdef __cplusplus\n}\n#endif\n\n")
 	out.WriteString("#endif\n// clang-format on\n")
 	return []byte(out.String())
@@ -109,14 +112,23 @@ func renderCSource(manifest *Manifest, hash string) []byte {
 	out.WriteString("\nconst uint8_t* rt_typed_carrier_abi_manifest_hash(void) {\n")
 	out.WriteString("    return rt_typed_carrier_abi_manifest_identity;\n}\n\n")
 	out.WriteString("static volatile uint8_t rt_typed_carrier_abi_retention_anchor;\n\n")
+	out.WriteString("// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)\n")
 	fmt.Fprintf(&out, "SURGE_ABI_USED SURGE_ABI_RETAIN SURGE_ABI_NOINLINE SURGE_ABI_VISIBLE void %s%s(\n", manifest.SentinelPrefix, hash)
-	out.WriteString("    void) {\n    (void)rt_typed_carrier_abi_retention_anchor;\n}\n\n")
+	out.WriteString("    void) {\n    (void)rt_typed_carrier_abi_retention_anchor;\n}\n")
+	out.WriteString("// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)\n\n")
 	out.WriteString("#undef SURGE_ABI_RETAIN\n#undef SURGE_ABI_VISIBLE\n#undef SURGE_ABI_NOINLINE\n#undef SURGE_ABI_USED\n")
 	out.WriteString("// clang-format on\n")
 	return []byte(out.String())
 }
 
 func writeCRecordChecks(out *strings.Builder, record Record) {
+	// A field whose type is a pointer-to-aggregate makes clang-tidy read
+	// `sizeof(((T*)0)->field)` as the sizeof-a-pointer mistake. Here the two
+	// sides are deliberately both pointer sizes: the assert exists to catch the
+	// field's type DRIFTING away from the ABI's, which is the one comparison
+	// that has to be written this way.
+	out.WriteString("// NOLINTBEGIN(bugprone-sizeof-expression)\n")
+	defer out.WriteString("// NOLINTEND(bugprone-sizeof-expression)\n")
 	maxAlign := "1u"
 	for index, field := range record.Fields {
 		fieldType := cType(field.Type)

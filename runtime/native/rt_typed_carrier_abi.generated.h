@@ -150,7 +150,12 @@ struct rt_typed_carrier_handle {
 const uint8_t* rt_typed_carrier_abi_manifest_hash(void);
 void rt_value_copy_init_unbound_trap(void* dst, const void* src);
 extern const uint8_t rt_typed_carrier_abi_manifest_identity[];
+// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+// The sentinel is deliberately in the reserved identifier space. It is the
+// implementation's own ABI marker, and a name a Surge program could also
+// define would prove nothing about which runtime got linked.
 void __surge_runtime_abi_typed_carrier_v2_f30fcfb03b62d105dab0cd21d57a3dcc029b0e7ae10a337e966079033608650a(void);
+// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 
 #ifdef __cplusplus
 }

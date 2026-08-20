@@ -36,6 +36,7 @@ _Static_assert(sizeof(rt_cross_mode) == sizeof(uint8_t), "rt_cross_mode width dr
 _Static_assert(RT_CROSS_MOVE == UINT8_C(0), "RT_CROSS_MOVE value drift");
 _Static_assert(RT_CROSS_CLONE == UINT8_C(1), "RT_CROSS_CLONE value drift");
 
+// NOLINTBEGIN(bugprone-sizeof-expression)
 _Static_assert(sizeof(((rt_value_layout*)0)->size) == sizeof(size_t), "rt_value_layout.size type drift");
 _Static_assert(offsetof(rt_value_layout, size) == 0u, "rt_value_layout.size offset drift");
 _Static_assert(sizeof(((rt_value_layout*)0)->align) == sizeof(size_t), "rt_value_layout.align type drift");
@@ -47,6 +48,8 @@ _Static_assert(offsetof(rt_value_layout, flags) == SURGE_ABI_ALIGN_UP(offsetof(r
 _Static_assert(_Alignof(rt_value_layout) == SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(1u, _Alignof(size_t)), _Alignof(size_t)), _Alignof(size_t)), _Alignof(rt_value_flags)), "rt_value_layout alignment drift");
 _Static_assert(sizeof(rt_value_layout) == SURGE_ABI_ALIGN_UP(offsetof(rt_value_layout, flags) + sizeof(((rt_value_layout*)0)->flags), _Alignof(rt_value_layout)), "rt_value_layout size drift");
 
+// NOLINTEND(bugprone-sizeof-expression)
+// NOLINTBEGIN(bugprone-sizeof-expression)
 _Static_assert(sizeof(((rt_cross_allocation*)0)->storage) == sizeof(void*), "rt_cross_allocation.storage type drift");
 _Static_assert(offsetof(rt_cross_allocation, storage) == 0u, "rt_cross_allocation.storage offset drift");
 _Static_assert(sizeof(((rt_cross_allocation*)0)->size) == sizeof(size_t), "rt_cross_allocation.size type drift");
@@ -56,6 +59,8 @@ _Static_assert(offsetof(rt_cross_allocation, align) == SURGE_ABI_ALIGN_UP(offset
 _Static_assert(_Alignof(rt_cross_allocation) == SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(1u, _Alignof(void*)), _Alignof(size_t)), _Alignof(size_t)), "rt_cross_allocation alignment drift");
 _Static_assert(sizeof(rt_cross_allocation) == SURGE_ABI_ALIGN_UP(offsetof(rt_cross_allocation, align) + sizeof(((rt_cross_allocation*)0)->align), _Alignof(rt_cross_allocation)), "rt_cross_allocation size drift");
 
+// NOLINTEND(bugprone-sizeof-expression)
+// NOLINTBEGIN(bugprone-sizeof-expression)
 _Static_assert(sizeof(((rt_trace_visitor*)0)->context) == sizeof(void*), "rt_trace_visitor.context type drift");
 _Static_assert(offsetof(rt_trace_visitor, context) == 0u, "rt_trace_visitor.context offset drift");
 _Static_assert(sizeof(((rt_trace_visitor*)0)->visit) == sizeof(rt_trace_visit_fn), "rt_trace_visitor.visit type drift");
@@ -63,6 +68,8 @@ _Static_assert(offsetof(rt_trace_visitor, visit) == SURGE_ABI_ALIGN_UP(offsetof(
 _Static_assert(_Alignof(rt_trace_visitor) == SURGE_ABI_MAX(SURGE_ABI_MAX(1u, _Alignof(void*)), _Alignof(rt_trace_visit_fn)), "rt_trace_visitor alignment drift");
 _Static_assert(sizeof(rt_trace_visitor) == SURGE_ABI_ALIGN_UP(offsetof(rt_trace_visitor, visit) + sizeof(((rt_trace_visitor*)0)->visit), _Alignof(rt_trace_visitor)), "rt_trace_visitor size drift");
 
+// NOLINTEND(bugprone-sizeof-expression)
+// NOLINTBEGIN(bugprone-sizeof-expression)
 _Static_assert(sizeof(((rt_cross_allocator*)0)->context) == sizeof(void*), "rt_cross_allocator.context type drift");
 _Static_assert(offsetof(rt_cross_allocator, context) == 0u, "rt_cross_allocator.context offset drift");
 _Static_assert(sizeof(((rt_cross_allocator*)0)->allocate) == sizeof(rt_cross_alloc_fn), "rt_cross_allocator.allocate type drift");
@@ -74,6 +81,8 @@ _Static_assert(offsetof(rt_cross_allocator, remaining_allocations) == SURGE_ABI_
 _Static_assert(_Alignof(rt_cross_allocator) == SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(1u, _Alignof(void*)), _Alignof(rt_cross_alloc_fn)), _Alignof(size_t)), _Alignof(size_t)), "rt_cross_allocator alignment drift");
 _Static_assert(sizeof(rt_cross_allocator) == SURGE_ABI_ALIGN_UP(offsetof(rt_cross_allocator, remaining_allocations) + sizeof(((rt_cross_allocator*)0)->remaining_allocations), _Alignof(rt_cross_allocator)), "rt_cross_allocator size drift");
 
+// NOLINTEND(bugprone-sizeof-expression)
+// NOLINTBEGIN(bugprone-sizeof-expression)
 _Static_assert(sizeof(((rt_cross_plan*)0)->ops) == sizeof(const rt_value_ops*), "rt_cross_plan.ops type drift");
 _Static_assert(offsetof(rt_cross_plan, ops) == 0u, "rt_cross_plan.ops offset drift");
 _Static_assert(sizeof(((rt_cross_plan*)0)->mode) == sizeof(rt_cross_mode), "rt_cross_plan.mode type drift");
@@ -95,6 +104,8 @@ _Static_assert(offsetof(rt_cross_plan, sidecar_count) == SURGE_ABI_ALIGN_UP(offs
 _Static_assert(_Alignof(rt_cross_plan) == SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(1u, _Alignof(const rt_value_ops*)), _Alignof(rt_cross_mode)), _Alignof(size_t)), _Alignof(size_t)), _Alignof(size_t)), _Alignof(size_t)), _Alignof(size_t)), _Alignof(size_t)), _Alignof(size_t)), "rt_cross_plan alignment drift");
 _Static_assert(sizeof(rt_cross_plan) == SURGE_ABI_ALIGN_UP(offsetof(rt_cross_plan, sidecar_count) + sizeof(((rt_cross_plan*)0)->sidecar_count), _Alignof(rt_cross_plan)), "rt_cross_plan size drift");
 
+// NOLINTEND(bugprone-sizeof-expression)
+// NOLINTBEGIN(bugprone-sizeof-expression)
 _Static_assert(sizeof(((rt_value_ops*)0)->layout) == sizeof(rt_value_layout), "rt_value_ops.layout type drift");
 _Static_assert(offsetof(rt_value_ops, layout) == 0u, "rt_value_ops.layout offset drift");
 _Static_assert(sizeof(((rt_value_ops*)0)->move_init) == sizeof(rt_value_move_init_fn), "rt_value_ops.move_init type drift");
@@ -116,6 +127,8 @@ _Static_assert(offsetof(rt_value_ops, cross_clone_init) == SURGE_ABI_ALIGN_UP(of
 _Static_assert(_Alignof(rt_value_ops) == SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(1u, _Alignof(rt_value_layout)), _Alignof(rt_value_move_init_fn)), _Alignof(rt_value_copy_init_fn)), _Alignof(rt_value_clone_init_fn)), _Alignof(rt_value_drop_in_place_fn)), _Alignof(rt_value_trace_fn)), _Alignof(rt_value_plan_cross_fn)), _Alignof(rt_value_cross_move_init_fn)), _Alignof(rt_value_cross_clone_init_fn)), "rt_value_ops alignment drift");
 _Static_assert(sizeof(rt_value_ops) == SURGE_ABI_ALIGN_UP(offsetof(rt_value_ops, cross_clone_init) + sizeof(((rt_value_ops*)0)->cross_clone_init), _Alignof(rt_value_ops)), "rt_value_ops size drift");
 
+// NOLINTEND(bugprone-sizeof-expression)
+// NOLINTBEGIN(bugprone-sizeof-expression)
 _Static_assert(sizeof(((rt_key_ops*)0)->value) == sizeof(rt_value_ops), "rt_key_ops.value type drift");
 _Static_assert(offsetof(rt_key_ops, value) == 0u, "rt_key_ops.value offset drift");
 _Static_assert(sizeof(((rt_key_ops*)0)->hash) == sizeof(rt_key_hash_fn), "rt_key_ops.hash type drift");
@@ -125,11 +138,15 @@ _Static_assert(offsetof(rt_key_ops, equal) == SURGE_ABI_ALIGN_UP(offsetof(rt_key
 _Static_assert(_Alignof(rt_key_ops) == SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(1u, _Alignof(rt_value_ops)), _Alignof(rt_key_hash_fn)), _Alignof(rt_key_equal_fn)), "rt_key_ops alignment drift");
 _Static_assert(sizeof(rt_key_ops) == SURGE_ABI_ALIGN_UP(offsetof(rt_key_ops, equal) + sizeof(((rt_key_ops*)0)->equal), _Alignof(rt_key_ops)), "rt_key_ops size drift");
 
+// NOLINTEND(bugprone-sizeof-expression)
+// NOLINTBEGIN(bugprone-sizeof-expression)
 _Static_assert(sizeof(((rt_slot_header*)0)->state) == sizeof(rt_slot_state), "rt_slot_header.state type drift");
 _Static_assert(offsetof(rt_slot_header, state) == 0u, "rt_slot_header.state offset drift");
 _Static_assert(_Alignof(rt_slot_header) == SURGE_ABI_MAX(1u, _Alignof(rt_slot_state)), "rt_slot_header alignment drift");
 _Static_assert(sizeof(rt_slot_header) == SURGE_ABI_ALIGN_UP(offsetof(rt_slot_header, state) + sizeof(((rt_slot_header*)0)->state), _Alignof(rt_slot_header)), "rt_slot_header size drift");
 
+// NOLINTEND(bugprone-sizeof-expression)
+// NOLINTBEGIN(bugprone-sizeof-expression)
 _Static_assert(sizeof(((rt_descriptor_table_entry*)0)->ops) == sizeof(const rt_value_ops*), "rt_descriptor_table_entry.ops type drift");
 _Static_assert(offsetof(rt_descriptor_table_entry, ops) == 0u, "rt_descriptor_table_entry.ops offset drift");
 _Static_assert(sizeof(((rt_descriptor_table_entry*)0)->payload_offset) == sizeof(size_t), "rt_descriptor_table_entry.payload_offset type drift");
@@ -139,6 +156,8 @@ _Static_assert(offsetof(rt_descriptor_table_entry, payload_align) == SURGE_ABI_A
 _Static_assert(_Alignof(rt_descriptor_table_entry) == SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(1u, _Alignof(const rt_value_ops*)), _Alignof(size_t)), _Alignof(size_t)), "rt_descriptor_table_entry alignment drift");
 _Static_assert(sizeof(rt_descriptor_table_entry) == SURGE_ABI_ALIGN_UP(offsetof(rt_descriptor_table_entry, payload_align) + sizeof(((rt_descriptor_table_entry*)0)->payload_align), _Alignof(rt_descriptor_table_entry)), "rt_descriptor_table_entry size drift");
 
+// NOLINTEND(bugprone-sizeof-expression)
+// NOLINTBEGIN(bugprone-sizeof-expression)
 _Static_assert(sizeof(((rt_envelope_header*)0)->ops) == sizeof(const rt_value_ops*), "rt_envelope_header.ops type drift");
 _Static_assert(offsetof(rt_envelope_header, ops) == 0u, "rt_envelope_header.ops offset drift");
 _Static_assert(sizeof(((rt_envelope_header*)0)->total_bytes) == sizeof(size_t), "rt_envelope_header.total_bytes type drift");
@@ -158,11 +177,14 @@ _Static_assert(offsetof(rt_envelope_header, slot) == SURGE_ABI_ALIGN_UP(offsetof
 _Static_assert(_Alignof(rt_envelope_header) == SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(SURGE_ABI_MAX(1u, _Alignof(const rt_value_ops*)), _Alignof(size_t)), _Alignof(size_t)), _Alignof(size_t)), _Alignof(size_t)), _Alignof(uint64_t)), _Alignof(uint32_t)), _Alignof(rt_slot_header)), "rt_envelope_header alignment drift");
 _Static_assert(sizeof(rt_envelope_header) == SURGE_ABI_ALIGN_UP(offsetof(rt_envelope_header, slot) + sizeof(((rt_envelope_header*)0)->slot), _Alignof(rt_envelope_header)), "rt_envelope_header size drift");
 
+// NOLINTEND(bugprone-sizeof-expression)
+// NOLINTBEGIN(bugprone-sizeof-expression)
 _Static_assert(sizeof(((rt_typed_carrier_handle*)0)->opaque) == sizeof(uintptr_t), "rt_typed_carrier_handle.opaque type drift");
 _Static_assert(offsetof(rt_typed_carrier_handle, opaque) == 0u, "rt_typed_carrier_handle.opaque offset drift");
 _Static_assert(_Alignof(rt_typed_carrier_handle) == SURGE_ABI_MAX(1u, _Alignof(uintptr_t)), "rt_typed_carrier_handle alignment drift");
 _Static_assert(sizeof(rt_typed_carrier_handle) == SURGE_ABI_ALIGN_UP(offsetof(rt_typed_carrier_handle, opaque) + sizeof(((rt_typed_carrier_handle*)0)->opaque), _Alignof(rt_typed_carrier_handle)), "rt_typed_carrier_handle size drift");
 
+// NOLINTEND(bugprone-sizeof-expression)
 #if defined(__GNUC__) || defined(__clang__)
 _Static_assert(__builtin_types_compatible_p(rt_trace_visit_fn, void (*)(void*, const void*)), "rt_trace_visit_fn signature drift");
 _Static_assert(__builtin_types_compatible_p(rt_cross_alloc_fn, rt_carrier_status (*)(void*, size_t, size_t, rt_cross_allocation*)), "rt_cross_alloc_fn signature drift");

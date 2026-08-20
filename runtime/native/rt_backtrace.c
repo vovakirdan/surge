@@ -41,6 +41,14 @@ typedef struct {
 /* Section bounds the linker synthesises, and the string table the emitter
  * writes. All weak: a module that emitted nothing still has to link, and the
  * answer then is "no backtrace", not a missing symbol. */
+/* NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+ * These names are NOT ours to choose. The linker synthesises __start_SECTION
+ * and __stop_SECTION for every section a program defines, so spelling them any
+ * other way does not name the bounds of anything. __surge_trace_text_end is
+ * ours (emit_trace_table.go writes it), and it stays in the reserved space
+ * deliberately: reserved names belong to the IMPLEMENTATION, and a language
+ * runtime is the implementation — that is what keeps it from colliding with a
+ * symbol a Surge program defines. */
 extern const surge_trace_row __start_surge_fn_map[] __attribute__((weak));
 extern const surge_trace_row __stop_surge_fn_map[] __attribute__((weak));
 extern const surge_trace_row __start_surge_line_map[] __attribute__((weak));
@@ -53,12 +61,13 @@ extern const uint64_t surge_trace_string_count __attribute__((weak));
  * Surge function. Three frames of the panic path printed under a Surge name
  * before this bound existed. */
 extern void __surge_trace_text_end(void) __attribute__((weak));
+/* NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp) */
 
 static uintptr_t trace_row_addr(const surge_trace_row* row) {
     /* The offset is signed and the base is not, so the add is done in the
      * unsigned type deliberately: wrap-around is the defined behaviour that
      * makes a negative offset walk backwards. */
-    return (uintptr_t)(const void*)&row->rel + (uintptr_t)(intptr_t)row->rel;
+    return (uintptr_t)&row->rel + (uintptr_t)(intptr_t)row->rel;
 }
 
 /* The last row at or before `pc`, or NULL when the tables place `pc` outside
@@ -87,6 +96,13 @@ static const surge_trace_row* trace_lookup(const surge_trace_row* start,
 }
 
 static int trace_string(uint32_t index, const uint8_t** out_ptr, uint64_t* out_len) {
+    /* Both are WEAK: when the emitter wrote no string table the symbols are
+     * absent and their addresses are genuinely 0. cppcheck reads these as an
+     * array and an address-of, which "can never be null" for ordinary symbols —
+     * true, and not true of weak ones, which is the whole point of declaring
+     * them weak. Removing the checks would fault on any module that emitted
+     * nothing. */
+    /* cppcheck-suppress[knownConditionTrueFalse,knownConditionTrueFalse] */
     if (surge_trace_strings == NULL || &surge_trace_string_count == NULL) {
         return 0;
     }
@@ -157,6 +173,9 @@ void rt_panic_write_where(const uint8_t* site, uint64_t site_length) {
         uintptr_t lookup = (i == 0 || pc == 0) ? pc : pc - 1;
 
         const surge_trace_row* fn = NULL;
+        /* Weak again: a module with no Surge text has no end marker, and then
+         * every pc is inside the (empty) range rather than outside it. */
+        /* cppcheck-suppress knownConditionTrueFalse */
         if (&__surge_trace_text_end == NULL || lookup < (uintptr_t)&__surge_trace_text_end) {
             fn = trace_lookup(__start_surge_fn_map, __stop_surge_fn_map, lookup, 0);
         }

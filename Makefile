@@ -534,6 +534,7 @@ cppcheck:
 	fi
 	@cppcheck --enable=warning,style,performance,portability \
 		--error-exitcode=1 \
+		--inline-suppr \
 		--suppress=missingIncludeSystem \
 		--suppress=unusedFunction \
 		--std=c11 \
@@ -579,6 +580,7 @@ c-check-changed:
 		fi; \
 	done; \
 	if ! cppcheck --enable=warning,style,performance,portability --error-exitcode=1 \
+		--inline-suppr \
 		--suppress=missingIncludeSystem --suppress=unusedFunction --std=c11 \
 		$(C_INCLUDES) $$files; then \
 		echo "cppcheck failed on changed files"; failed=1; \

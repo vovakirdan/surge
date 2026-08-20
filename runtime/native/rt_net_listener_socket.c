@@ -92,7 +92,11 @@ int rt_net_create_listener_socket(const struct in_addr* ip,
         return -1;
     }
     if (bound_port != NULL && *bound_port == 0) {
-        struct sockaddr_in actual;
+        // Zeroed rather than left to getsockname alone: the analyser cannot see
+        // that the kernel fills this on success, and a listener bind happens
+        // once, so the sixteen bytes cost nothing and the read is defined even
+        // if a platform ever fills the struct only partially.
+        struct sockaddr_in actual = {0};
         socklen_t actual_len = (socklen_t)sizeof(actual);
         if (getsockname(fd, (struct sockaddr*)&actual, &actual_len) != 0) {
             rt_net_listener_socket_error(out_errno);

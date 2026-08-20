@@ -1,5 +1,6 @@
 #include "rt_remote_task_internal.h"
 
+#include <stdbool.h>
 #include <string.h>
 
 rt_far_task_lease* rt_far_task_lease_find_locked(rt_remote_task_state* state,
@@ -110,6 +111,18 @@ void rt_far_task_handle_free(const rt_far_task_handle* handle) {
     rt_far_task_lease_drop_ref(lease);
 }
 
+// A failed compare_exchange OVERWRITES `expected` with the value it actually
+// found, so a second attempt from a different state cannot reuse the variable
+// without resetting it. That reset used to live in a comma expression inside
+// the `if` condition, which reads as a typo and which clang-tidy flags as
+// bugprone-assignment-in-if-condition. Naming the transition says the same
+// thing and each call gets its own `expected`.
+static bool lease_state_transition(rt_far_task_lease* lease, uint8_t from, uint8_t to) {
+    uint8_t expected = from;
+    return atomic_compare_exchange_strong_explicit(
+        &lease->state, &expected, to, memory_order_acq_rel, memory_order_acquire);
+}
+
 void rt_far_task_begin_transfer(const rt_far_task_handle* handle) {
     rt_remote_task_state* state = rt_remote_task_state_get(ensure_exec());
     if (state == NULL || handle == NULL) {
@@ -117,13 +130,8 @@ void rt_far_task_begin_transfer(const rt_far_task_handle* handle) {
     }
     pthread_mutex_lock(&state->lock);
     rt_far_task_lease* lease = rt_far_task_lease_find_locked(state, handle);
-    uint8_t expected = RT_FAR_TASK_LEASE_OPEN;
     if (lease != NULL && lease->holder == rt_current_task() &&
-        atomic_compare_exchange_strong_explicit(&lease->state,
-                                                &expected,
-                                                RT_FAR_TASK_LEASE_TRANSFERRING,
-                                                memory_order_acq_rel,
-                                                memory_order_acquire)) {
+        lease_state_transition(lease, RT_FAR_TASK_LEASE_OPEN, RT_FAR_TASK_LEASE_TRANSFERRING)) {
         lease->holder = NULL;
         (void)atomic_fetch_add_explicit(&lease->refs, 1, memory_order_relaxed);
     }
@@ -174,19 +182,14 @@ void rt_far_task_prepare_return(const rt_far_task_handle* handle) {
     }
     pthread_mutex_lock(&state->lock);
     rt_far_task_lease* lease = rt_far_task_lease_find_locked(state, handle);
-    uint8_t expected = RT_FAR_TASK_LEASE_OPEN;
-    if (lease != NULL && ((lease->holder == producer &&
-                           atomic_compare_exchange_strong_explicit(&lease->state,
-                                                                   &expected,
-                                                                   RT_FAR_TASK_LEASE_RETURNING,
-                                                                   memory_order_acq_rel,
-                                                                   memory_order_acquire)) ||
-                          (expected = RT_FAR_TASK_LEASE_TRANSFERRING,
-                           atomic_compare_exchange_strong_explicit(&lease->state,
-                                                                   &expected,
-                                                                   RT_FAR_TASK_LEASE_RETURNING,
-                                                                   memory_order_acq_rel,
-                                                                   memory_order_acquire)))) {
+    // Either the producer still holds an OPEN lease, or the lease was handed to
+    // it and sits at TRANSFERRING. Both become RETURNING; the second attempt
+    // runs only if the first did not take it.
+    if (lease != NULL &&
+        ((lease->holder == producer &&
+          lease_state_transition(lease, RT_FAR_TASK_LEASE_OPEN, RT_FAR_TASK_LEASE_RETURNING)) ||
+         lease_state_transition(
+             lease, RT_FAR_TASK_LEASE_TRANSFERRING, RT_FAR_TASK_LEASE_RETURNING))) {
         lease->holder = NULL;
         lease->result_owner = producer;
         atomic_store_explicit(&producer->far_task_result_lease, lease, memory_order_release);
