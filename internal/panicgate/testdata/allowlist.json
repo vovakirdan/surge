@@ -465,6 +465,51 @@
       "group": "PG-OPERAND-RANGE"
     },
     {
+      "site": "internal/backend/llvm/emit_intrinsics_memory.go::emitRtAlloc#1",
+      "message": "alloc size out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_memory.go::emitRtAlloc#2",
+      "message": "alloc align out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_memory.go::emitRtFree#1",
+      "message": "free size out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_memory.go::emitRtFree#2",
+      "message": "free align out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_memory.go::emitRtMemcpy#1",
+      "message": "memcpy length out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_memory.go::emitRtMemmove#1",
+      "message": "memmove length out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_memory.go::emitRtRealloc#1",
+      "message": "old size out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_memory.go::emitRtRealloc#2",
+      "message": "new size out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_intrinsics_memory.go::emitRtRealloc#3",
+      "message": "realloc align out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
       "site": "internal/backend/llvm/emit_intrinsics_net.go::emitNetConnect#1",
       "message": "net connect port out of range",
       "group": "PG-OPERAND-RANGE"
@@ -530,16 +575,6 @@
       "group": "PG-OPERAND-RANGE"
     },
     {
-      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtAlloc#1",
-      "message": "alloc size out of range",
-      "group": "PG-OPERAND-RANGE"
-    },
-    {
-      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtAlloc#2",
-      "message": "alloc align out of range",
-      "group": "PG-OPERAND-RANGE"
-    },
-    {
       "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtEntropyBytes#1",
       "message": "entropy length out of range",
       "group": "PG-OPERAND-RANGE"
@@ -547,26 +582,6 @@
     {
       "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtExit#1",
       "message": "exit code out of range",
-      "group": "PG-OPERAND-RANGE"
-    },
-    {
-      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtFree#1",
-      "message": "free size out of range",
-      "group": "PG-OPERAND-RANGE"
-    },
-    {
-      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtFree#2",
-      "message": "free align out of range",
-      "group": "PG-OPERAND-RANGE"
-    },
-    {
-      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtMemcpy#1",
-      "message": "memcpy length out of range",
-      "group": "PG-OPERAND-RANGE"
-    },
-    {
-      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtMemmove#1",
-      "message": "memmove length out of range",
       "group": "PG-OPERAND-RANGE"
     },
     {
@@ -598,21 +613,6 @@
       "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtPanicBounds#4",
       "message": "<computed>",
       "group": "PG-COMPUTED"
-    },
-    {
-      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtRealloc#1",
-      "message": "old size out of range",
-      "group": "PG-OPERAND-RANGE"
-    },
-    {
-      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtRealloc#2",
-      "message": "new size out of range",
-      "group": "PG-OPERAND-RANGE"
-    },
-    {
-      "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtRealloc#3",
-      "message": "realloc align out of range",
-      "group": "PG-OPERAND-RANGE"
     },
     {
       "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtSleep#1",
