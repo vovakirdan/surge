@@ -53,16 +53,26 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 	castID := fe.inlineBlock
 	fe.inlineBlock++
 	fmt.Fprintf(&fe.emitter.buf, "  switch i32 %s, label %%%s [", tagVal, def)
-	for i := range srcCases {
-		fmt.Fprintf(&fe.emitter.buf, " i32 %d, label %%tagcast%d.%d", i, castID, i)
+	srcDirect := make([]int, len(srcCases))
+	for i, srcCase := range srcCases {
+		idx, err := fe.emitter.directCaseIndexFor(srcResolved, srcCase.TagName, srcCase.TagSym)
+		if err != nil {
+			return "", "", err
+		}
+		srcDirect[i] = idx
+		fmt.Fprintf(&fe.emitter.buf, " i32 %d, label %%tagcast%d.%d", idx, castID, i)
 	}
 	fmt.Fprintf(&fe.emitter.buf, " ]\n")
 	for i, srcCase := range srcCases {
 		fmt.Fprintf(&fe.emitter.buf, "tagcast%d.%d:\n", castID, i)
-		dstIdx, dstCase, ok := matchTagCase(dstCases, srcCase)
+		dstCase, ok := matchTagCase(dstCases, srcCase)
 		if !ok {
 			fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
 			continue
+		}
+		dstIdx, err := fe.emitter.directCaseIndexFor(dstResolved, dstCase.TagName, dstCase.TagSym)
+		if err != nil {
+			return "", "", err
 		}
 		if len(srcCase.PayloadTypes) != len(dstCase.PayloadTypes) {
 			return "", "", fmt.Errorf("union cast payload mismatch for tag %q", srcCase.TagName)
@@ -70,13 +80,13 @@ func (fe *funcEmitter) emitUnionCast(val string, srcType, dstType types.TypeID) 
 		payloadVals := make([]string, 0, len(srcCase.PayloadTypes))
 		payloadLLVM := make([]string, 0, len(srcCase.PayloadTypes))
 		if len(srcCase.PayloadTypes) > 0 {
-			srcCaseLayout, ok := srcLayout.UnionCase(i)
+			srcCaseLayout, ok := srcLayout.UnionCase(srcDirect[i])
 			if !ok {
-				return "", "", fmt.Errorf("missing finalized union case %d for type#%d", i, srcResolved)
+				return "", "", fmt.Errorf("missing finalized union case %d for type#%d", srcDirect[i], srcResolved)
 			}
 			offsets := srcCaseLayout.FieldOffsets()
 			if len(offsets) != len(srcCase.PayloadTypes) {
-				return "", "", fmt.Errorf("finalized union case %d for type#%d has %d payload offsets, want %d", i, srcResolved, len(offsets), len(srcCase.PayloadTypes))
+				return "", "", fmt.Errorf("finalized union case %d for type#%d has %d payload offsets, want %d", srcDirect[i], srcResolved, len(offsets), len(srcCase.PayloadTypes))
 			}
 			for j, payloadType := range srcCase.PayloadTypes {
 				srcPayload := resolveValueType(fe.emitter.types, payloadType)
@@ -169,22 +179,29 @@ func (fe *funcEmitter) emitNothingPayloadValue(dstType types.TypeID) (value, llv
 	return ptr, handleType, true, nil
 }
 
-func matchTagCase(cases []mir.TagCaseMeta, src mir.TagCaseMeta) (int, mir.TagCaseMeta, bool) {
+// matchTagCase finds the destination arm that corresponds to a source arm, by
+// identity rather than by position.
+//
+// It deliberately does NOT return where it found it. The position in a
+// flattened tag list is not a discriminant, and handing one back invited a
+// caller to use it as one; the number comes from directCaseIndexFor, which
+// reads the membership.
+func matchTagCase(cases []mir.TagCaseMeta, src mir.TagCaseMeta) (mir.TagCaseMeta, bool) {
 	if src.TagSym.IsValid() {
-		for i, c := range cases {
+		for _, c := range cases {
 			if c.TagSym == src.TagSym {
-				return i, c, true
+				return c, true
 			}
 		}
 	}
 	if src.TagName != "" {
-		for i, c := range cases {
+		for _, c := range cases {
 			if c.TagName == src.TagName {
-				return i, c, true
+				return c, true
 			}
 		}
 	}
-	return -1, mir.TagCaseMeta{}, false
+	return mir.TagCaseMeta{}, false
 }
 
 // emitTagValueIntoStorage writes one tag and its payloads into storage the

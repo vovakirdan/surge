@@ -12,12 +12,85 @@ import (
 	"surge/internal/types"
 )
 
-func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (tagLayouts map[types.TypeID][]TagCaseMeta, tagNames map[symbols.SymbolID]string) {
+// buildUnionCases records the FULL direct membership of every union the module
+// mentions, in UnionInfo.Members order.
+//
+// It shares nothing with buildTagLayouts on purpose. That one flattens nested
+// unions into the outer tag list and deduplicates by name, which is right for a
+// tag switch and wrong for anything asking what a union contains — so the two
+// answers must come from two functions rather than from one with a flag.
+//
+// The index recorded here is the index the physical layout uses, because both
+// are positions in the same slice: the layout engine walks info.Members and
+// stamps case i from payloads[i].
+func buildUnionCases(
+	typeIDs map[types.TypeID]struct{},
+	typesIn *types.Interner,
+	tagSymByName map[source.StringID]symbols.SymbolID,
+) map[types.TypeID][]UnionCaseMeta {
+	if typesIn == nil || typesIn.Strings == nil || len(typeIDs) == 0 {
+		return nil
+	}
+	out := make(map[types.TypeID][]UnionCaseMeta)
+	for typeID := range typeIDs {
+		tt, ok := typesIn.Lookup(typeID)
+		if !ok || tt.Kind != types.KindUnion {
+			continue
+		}
+		info, ok := typesIn.UnionInfo(typeID)
+		if !ok || info == nil || len(info.Members) == 0 {
+			continue
+		}
+		cases := make([]UnionCaseMeta, 0, len(info.Members))
+		for index := range info.Members {
+			member := &info.Members[index]
+			meta := UnionCaseMeta{PhysicalCaseIndex: index, BareType: types.NoTypeID}
+			switch member.Kind {
+			case types.UnionMemberTag:
+				meta.Kind = UnionCaseTag
+				meta.Name = typesIn.Strings.MustLookup(member.TagName)
+				meta.TagSym = tagSymByName[member.TagName]
+				meta.PayloadTypes = make([]types.TypeID, len(member.TagArgs))
+				for i := range member.TagArgs {
+					meta.PayloadTypes[i] = canonicalType(typesIn, member.TagArgs[i])
+				}
+			case types.UnionMemberNothing:
+				meta.Kind = UnionCaseNothing
+				meta.Name = "nothing"
+			case types.UnionMemberType:
+				memberType := canonicalType(typesIn, member.Type)
+				if memberType == types.NoTypeID {
+					continue
+				}
+				meta.Kind = UnionCaseBareType
+				meta.Name = fmt.Sprintf("type#%d", memberType)
+				meta.BareType = memberType
+				meta.PayloadTypes = []types.TypeID{memberType}
+			default:
+				continue
+			}
+			cases = append(cases, meta)
+		}
+		// A case dropped above would silently shift every later index away from
+		// the layout's, so refuse the whole union rather than record a list that
+		// looks complete and is not.
+		if len(cases) != len(info.Members) {
+			continue
+		}
+		out[typeID] = cases
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (tagLayouts map[types.TypeID][]TagCaseMeta, tagNames map[symbols.SymbolID]string, unionCases map[types.TypeID][]UnionCaseMeta) {
 	if m == nil || src == nil || typesIn == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	if src.Symbols == nil || src.Symbols.Table == nil || src.Symbols.Table.Strings == nil || src.Symbols.Table.Symbols == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	tagSymByName := make(map[source.StringID]symbols.SymbolID)
 	tagNamesBySym := make(map[symbols.SymbolID]string)
@@ -375,7 +448,8 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (tagLa
 	if len(tagNamesBySym) == 0 {
 		tagNamesBySym = nil
 	}
-	return layouts, tagNamesBySym
+	// The full membership comes from the same type set, from its own walk.
+	return layouts, tagNamesBySym, buildUnionCases(typeIDs, typesIn, tagSymByName)
 }
 
 func buildTagAliases(mm *mono.MonoModule) map[symbols.SymbolID]symbols.SymbolID {

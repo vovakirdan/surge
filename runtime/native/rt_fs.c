@@ -142,15 +142,25 @@ static void fs_release_dir_entries(DirEntry* entries, size_t count) {
     }
 }
 
+// The error arm of FsResult<T> is the union's bare member, so it carries a
+// discriminant like every other case and its bytes sit at that case's payload
+// offset. Returning an untagged FsError* left the union with no discriminant
+// at all -- see the note on net_make_error for what the caller then read.
+#define FS_RESULT_ERROR_CASE 1u
+
 static void* fs_make_error(uint64_t code) {
-    FsError* err = (FsError*)rt_alloc((uint64_t)sizeof(FsError), (uint64_t)alignof(FsError));
-    if (err == NULL) {
+    size_t payload_align = alignof(FsError);
+    size_t payload_offset = rt_tag_payload_offset(payload_align);
+    uint8_t* mem = (uint8_t*)rt_tag_alloc(FS_RESULT_ERROR_CASE, payload_align, sizeof(FsError));
+    if (mem == NULL) {
         return NULL;
     }
+    FsError err;
     const char* msg = fs_error_message(code);
-    err->message = rt_string_from_bytes((const uint8_t*)msg, (uint64_t)strlen(msg));
-    err->code = rt_biguint_from_u64(code);
-    return (void*)err;
+    err.message = rt_string_from_bytes((const uint8_t*)msg, (uint64_t)strlen(msg));
+    err.code = rt_biguint_from_u64(code);
+    memcpy(mem + payload_offset, &err, sizeof(err));
+    return (void*)mem;
 }
 
 static void* fs_make_success_ptr(void* payload) {

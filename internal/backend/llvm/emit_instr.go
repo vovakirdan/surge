@@ -187,7 +187,19 @@ func (fe *funcEmitter) emitAssign(ins *mir.Instr) error {
 	if err != nil {
 		return err
 	}
-	return fe.storeIntoPlace(ins.Assign.Dst, val, ty)
+	return fe.storeIntoPlaceTyped(ins.Assign.Dst, val, ty, rvalueSemanticType(&ins.Assign.Src))
+}
+
+// rvalueSemanticType reports the Surge type a produced value has, where the
+// rvalue carries one. It answers NoTypeID rather than guessing.
+func rvalueSemanticType(rv *mir.RValue) types.TypeID {
+	if rv == nil {
+		return types.NoTypeID
+	}
+	if rv.Kind == mir.RValueUse {
+		return rv.Use.Type
+	}
+	return types.NoTypeID
 }
 
 // storeIntoPlace writes a produced value into a destination place.
@@ -201,9 +213,46 @@ func (fe *funcEmitter) emitAssign(ins *mir.Instr) error {
 // The destination's spelling wins when the two disagree, because the
 // destination is the storage that must end up holding a well-formed value.
 func (fe *funcEmitter) storeIntoPlace(place mir.Place, val, valTy string) error {
+	return fe.storeIntoPlaceTyped(place, val, valTy, types.NoTypeID)
+}
+
+// storeIntoPlaceTyped is storeIntoPlace with the value's SEMANTIC type, which
+// the spellings above cannot carry.
+//
+// It exists for one case the spellings get wrong: a value whose type is a BARE
+// member of a union destination. Both are composites, so the destination's
+// spelling wins and the whole union is memcpy'd out of the member — which for a
+// handle means copying the union's size out of the pointee and never storing
+// the handle at all. A union has to be MATERIALISED there: discriminant first,
+// then the member's value at that case's offset.
+func (fe *funcEmitter) storeIntoPlaceTyped(place mir.Place, val, valTy string, valueType types.TypeID) error {
 	ptr, dstTy, align, err := fe.emitPlaceStorage(place)
 	if err != nil {
 		return err
+	}
+	if valueType != types.NoTypeID {
+		dstType, terr := fe.placeBaseType(place)
+		if terr == nil && dstType != types.NoTypeID {
+			materialised, merr := fe.emitUnionMaterialiseBareMember(
+				ptr, align, dstType, val, valTy, valueType)
+			if merr != nil {
+				return merr
+			}
+			if materialised {
+				return nil
+			}
+			// The other direction: a union read back into one of its bare
+			// members, which is what a compare arm's binding is. MIR spells
+			// both as a plain move, so the narrowing has to happen here too.
+			narrowed, narrowTy, ok, nerr := fe.emitUnionNarrowToBareMember(
+				val, align, valueType, dstType)
+			if nerr != nil {
+				return nerr
+			}
+			if ok {
+				val, valTy = narrowed, narrowTy
+			}
+		}
 	}
 	if dstTy != valTy {
 		valTy = dstTy

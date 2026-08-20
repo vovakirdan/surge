@@ -48,6 +48,39 @@ func (e *Emitter) tagCases(id types.TypeID) ([]mir.TagCaseMeta, error) {
 	return cases, nil
 }
 
+// unionCases returns a union's FULL direct membership together with the frozen
+// layout facts, refusing when the two enumerations disagree about how many cases
+// exist.
+//
+// It is the only sanctioned way to walk a union's members. tagCases returns the
+// flattened tag view, which is a different thing: it hoists a nested union's
+// tags and deduplicates, so it can be longer than the membership and is not
+// injective. An index from there must never reach PhysicalFacts.UnionCase.
+//
+// It fails CLOSED, unlike its predecessor. typeOwnsHeapRec used to answer "owns
+// no heap" whenever tagCases errored, and a union of only bare members has no
+// tag-layout entry at all — so `int | string` silently answered no.
+func (e *Emitter) unionCases(id types.TypeID) ([]mir.UnionCaseMeta, layout.PhysicalFacts, error) {
+	if e == nil || e.mod == nil || e.mod.Meta == nil || len(e.mod.Meta.UnionCases) == 0 {
+		return nil, layout.PhysicalFacts{}, fmt.Errorf("missing union membership metadata")
+	}
+	resolved := resolveValueType(e.types, id)
+	cases, ok := e.mod.Meta.UnionCases[resolved]
+	if !ok {
+		return nil, layout.PhysicalFacts{}, fmt.Errorf("missing union membership for type#%d", resolved)
+	}
+	facts, err := e.layoutOf(resolved)
+	if err != nil {
+		return nil, layout.PhysicalFacts{}, err
+	}
+	if physical := facts.UnionCases(); len(physical) != len(cases) {
+		return nil, layout.PhysicalFacts{}, fmt.Errorf(
+			"union type#%d has %d members and %d physical cases; the two enumerations disagree",
+			resolved, len(cases), len(physical))
+	}
+	return cases, facts, nil
+}
+
 func (e *Emitter) canonicalTagSym(sym symbols.SymbolID) symbols.SymbolID {
 	if !sym.IsValid() || e == nil || e.mod == nil || e.mod.Meta == nil || len(e.mod.Meta.TagAliases) == 0 {
 		return sym
@@ -58,6 +91,51 @@ func (e *Emitter) canonicalTagSym(sym symbols.SymbolID) symbols.SymbolID {
 	return sym
 }
 
+// tagCaseMeta answers which case an arm is, and the index it answers with is
+// the DIRECT one: the arm's position in types.UnionInfo.Members.
+//
+// This is the single place a discriminant number is decided. Everything that
+// writes a tag, compares a tag, or asks the layout where a payload sits takes
+// its number from here, so there is exactly one answer in the program and no
+// second derivation to disagree with it.
+//
+// It used to answer with the position in the FLATTENED tag view, which is a
+// different number the moment a union mixes kinds -- for `string | nothing`
+// the flat view holds only `nothing`, at 0, while `nothing` is member 1. The
+// tag metadata still comes from the flat view, because that is where a tag's
+// payload types are recorded; only the INDEX now comes from the membership.
+// directCaseIndexFor finds an arm's position in the union's membership.
+//
+// It fails rather than guessing. A tag that the flattened view knows and the
+// membership does not is a hoisted tag -- it belongs to a NESTED union, and
+// the outer union has no case for it. Answering with any number there would
+// be answering a question about the inner union with an index into the outer
+// one, which is how a payload comes to be read at the wrong offset.
+func (e *Emitter) directCaseIndexFor(id types.TypeID, tagName string, tagSym symbols.SymbolID) (int, error) {
+	cases, _, err := e.unionCases(id)
+	if err != nil {
+		return -1, err
+	}
+	tagSym = e.canonicalTagSym(tagSym)
+	if tagSym.IsValid() {
+		for _, c := range cases {
+			if c.Kind == mir.UnionCaseTag && e.canonicalTagSym(c.TagSym) == tagSym {
+				return c.PhysicalCaseIndex, nil
+			}
+		}
+	}
+	if tagName != "" {
+		for _, c := range cases {
+			if c.Name == tagName {
+				return c.PhysicalCaseIndex, nil
+			}
+		}
+	}
+	return -1, fmt.Errorf(
+		"tag %q is not a member of union type#%d; a hoisted tag has no case in the union that hoisted it",
+		tagName, resolveValueType(e.types, id))
+}
+
 func (e *Emitter) tagCaseMeta(id types.TypeID, tagName string, tagSym symbols.SymbolID) (int, mir.TagCaseMeta, error) {
 	cases, err := e.tagCases(id)
 	if err != nil {
@@ -65,16 +143,24 @@ func (e *Emitter) tagCaseMeta(id types.TypeID, tagName string, tagSym symbols.Sy
 	}
 	tagSym = e.canonicalTagSym(tagSym)
 	if tagSym.IsValid() {
-		for i, c := range cases {
+		for _, c := range cases {
 			if c.TagSym == tagSym {
-				return i, c, nil
+				idx, err := e.directCaseIndexFor(id, c.TagName, c.TagSym)
+				if err != nil {
+					return -1, mir.TagCaseMeta{}, err
+				}
+				return idx, c, nil
 			}
 		}
 	}
 	if tagName != "" {
-		for i, c := range cases {
+		for _, c := range cases {
 			if c.TagName == tagName {
-				return i, c, nil
+				idx, err := e.directCaseIndexFor(id, c.TagName, c.TagSym)
+				if err != nil {
+					return -1, mir.TagCaseMeta{}, err
+				}
+				return idx, c, nil
 			}
 		}
 	}

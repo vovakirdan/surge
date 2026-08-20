@@ -227,7 +227,7 @@ func (e *Emitter) emitFixedArrayElemClones(g *glueTmp, elem types.TypeID, baseAl
 // memcpy — and fixes up only the ACTIVE arm's payload. Walking every arm would
 // read payload bytes that were never written for the arms that are not live.
 func (e *Emitter) emitUnionPayloadClones(g *glueTmp, id types.TypeID, facts *layout.PhysicalFacts, baseAlign uint64) error {
-	cases, err := e.tagCases(id)
+	cases, _, err := e.unionCases(id)
 	if err != nil {
 		return err
 	}
@@ -238,10 +238,11 @@ func (e *Emitter) emitUnionPayloadClones(g *glueTmp, id types.TypeID, facts *lay
 		payloadTys    []types.TypeID
 	}
 	var needsFixup []cloneCase
-	for ci, c := range cases {
+	for _, c := range cases {
 		if len(c.PayloadTypes) == 0 {
 			continue
 		}
+		ci := c.PhysicalCaseIndex
 		needsWork := false
 		for _, pt := range c.PayloadTypes {
 			if e.memberNeedsCloneFixup(resolveValueType(e.types, pt)) {
@@ -387,7 +388,10 @@ func (e *Emitter) canDuplicateValueRec(id types.TypeID, seen map[types.TypeID]st
 			}
 		}
 	case types.KindUnion:
-		cases, err := e.tagCases(id)
+		// Membership, not the flattened tag view: a bare member carries a
+		// payload type like any other case, and asking the flat view about it
+		// answers "nothing to duplicate" for a union that has plenty.
+		cases, _, err := e.unionCases(id)
 		if err != nil {
 			return false
 		}

@@ -66,15 +66,30 @@ uint64_t net_error_code_from_errno(int err) {
     }
 }
 
+// The error arm of NetResult<T> is the union's BARE member, and a bare member
+// is a member: it carries the discriminant its case has, and its bytes live at
+// that case's payload offset.
+//
+// This used to hand back an untagged NetError* -- no discriminant anywhere --
+// and the caller read the union's size out of a NetError-sized allocation. The
+// discriminant it found there was the low half of the `message` pointer, so
+// which arm the union appeared to be depended on where malloc happened to put
+// the string.
+#define NET_RESULT_ERROR_CASE 1u
+
 void* net_make_error(uint64_t code) {
-    NetError* err = (NetError*)rt_alloc((uint64_t)sizeof(NetError), (uint64_t)alignof(NetError));
-    if (err == NULL) {
+    size_t payload_align = alignof(NetError);
+    size_t payload_offset = rt_tag_payload_offset(payload_align);
+    uint8_t* mem = (uint8_t*)rt_tag_alloc(NET_RESULT_ERROR_CASE, payload_align, sizeof(NetError));
+    if (mem == NULL) {
         return NULL;
     }
+    NetError err;
     const char* msg = net_error_message(code);
-    err->message = rt_string_from_bytes((const uint8_t*)msg, (uint64_t)strlen(msg));
-    err->code = rt_biguint_from_u64(code);
-    return (void*)err;
+    err.message = rt_string_from_bytes((const uint8_t*)msg, (uint64_t)strlen(msg));
+    err.code = rt_biguint_from_u64(code);
+    memcpy(mem + payload_offset, &err, sizeof(err));
+    return (void*)mem;
 }
 
 void* net_make_success_ptr(void* payload) {

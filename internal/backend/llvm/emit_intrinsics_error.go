@@ -31,6 +31,25 @@ func (fe *funcEmitter) emitExitIntrinsic(call *mir.CallInstr) (bool, error) {
 		if tt, ok := fe.emitter.types.Lookup(resolveAliasAndOwn(fe.emitter.types, argType)); ok && tt.Kind == types.KindUnion {
 			if unionErr, uErr := fe.erringErrorType(argType); uErr == nil {
 				errType = unionErr
+				// The error is the union's bare member, so it lives at that
+				// case's payload offset -- not at the union's base, where the
+				// discriminant is. Reading fields straight off the base read
+				// the tag as the first field.
+				facts, fErr := fe.emitter.layoutOf(resolveValueType(fe.emitter.types, argType))
+				if fErr != nil {
+					return true, fErr
+				}
+				align := facts.Align
+				if align == 0 {
+					align = 1
+				}
+				narrowed, _, ok, nErr := fe.emitUnionNarrowToBareMember(argVal, align, argType, errType)
+				if nErr != nil {
+					return true, nErr
+				}
+				if ok {
+					argVal = narrowed
+				}
 			}
 		}
 	}

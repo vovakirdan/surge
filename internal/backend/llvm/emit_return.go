@@ -9,6 +9,46 @@ import (
 )
 
 // emitUnionReturn assumes fe/emitter/types are non-nil; callers enforce that invariant.
+// emitBareMemberReturn widens a bare member into the union it is being
+// returned as.
+//
+// It exists because a bare member used to be returned AS ITSELF: the value
+// went back unchanged, labelled with the union's LLVM type, and no
+// discriminant was written anywhere. The caller then copied the union's size
+// out of storage only big enough for the member -- for Erring<int,Error> that
+// is 24 bytes read out of a 16-byte allocation, and the discriminant it read
+// was the low half of a pointer.
+//
+// A bare member is a member. It gets a discriminant like every other case,
+// and its value goes at its case's payload offset.
+func (fe *funcEmitter) emitBareMemberReturn(unionType types.TypeID, val, valTy string, valueType types.TypeID) (storage, storageLLVM string, widened bool, err error) {
+	unionType = resolveValueType(fe.emitter.types, unionType)
+	mem, err := fe.emitValueStorage(unionType)
+	if err != nil {
+		return "", "", false, err
+	}
+	facts, err := fe.emitter.layoutOf(unionType)
+	if err != nil {
+		return "", "", false, err
+	}
+	align := facts.Align
+	if align == 0 {
+		align = 1
+	}
+	materialised, err := fe.emitUnionMaterialiseBareMember(mem, align, unionType, val, valTy, valueType)
+	if err != nil {
+		return "", "", false, err
+	}
+	if !materialised {
+		return "", "", false, nil
+	}
+	unionLLVM, err := fe.emitter.llvmType(unionType)
+	if err != nil {
+		return "", "", false, err
+	}
+	return mem, unionLLVM, true, nil
+}
+
 func (fe *funcEmitter) emitUnionReturn(val, valTy string, op *mir.Operand, expected types.TypeID) (outVal, outTy string, err error) {
 	expected = resolveAliasAndOwn(fe.emitter.types, expected)
 	if !isUnionType(fe.emitter.types, expected) {
@@ -46,6 +86,13 @@ func (fe *funcEmitter) emitUnionReturn(val, valTy string, op *mir.Operand, expec
 				}
 				memberType := resolveValueType(fe.emitter.types, member.Type)
 				if memberType == opType {
+					mem, memTy, done, merr := fe.emitBareMemberReturn(expected, val, valTy, opType)
+					if merr != nil {
+						return "", "", merr
+					}
+					if done {
+						return mem, memTy, nil
+					}
 					if valTy != expectedLLVM {
 						return "", "", fmt.Errorf("return type mismatch: expected %s, got %s", expectedLLVM, valTy)
 					}
@@ -79,6 +126,13 @@ func (fe *funcEmitter) emitUnionReturn(val, valTy string, op *mir.Operand, expec
 			switch member.Kind {
 			case types.UnionMemberType:
 				if resolveAliasAndOwn(fe.emitter.types, member.Type) == opType {
+					mem, memTy, done, merr := fe.emitBareMemberReturn(expected, val, valTy, opType)
+					if merr != nil {
+						return "", "", merr
+					}
+					if done {
+						return mem, memTy, nil
+					}
 					if valTy != expectedLLVM {
 						return "", "", fmt.Errorf("return type mismatch: expected %s, got %s", expectedLLVM, valTy)
 					}
@@ -158,7 +212,7 @@ func (fe *funcEmitter) unionTagsSubset(srcType, dstType types.TypeID) (bool, err
 		return false, err
 	}
 	for _, srcCase := range srcCases {
-		if _, _, ok := matchTagCase(dstCases, srcCase); !ok {
+		if _, ok := matchTagCase(dstCases, srcCase); !ok {
 			return false, nil
 		}
 	}

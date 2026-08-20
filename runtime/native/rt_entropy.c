@@ -46,16 +46,25 @@ static const char* entropy_error_message(uint64_t code) {
     }
 }
 
+// The error arm is the union's bare member; it carries a discriminant and its
+// bytes sit at that case's payload offset. See net_make_error for the note on
+// what an untagged return left the caller reading.
+#define ENTROPY_RESULT_ERROR_CASE 1u
+
 static void* entropy_make_error(uint64_t code) {
-    EntropyError* err =
-        (EntropyError*)rt_alloc((uint64_t)sizeof(EntropyError), (uint64_t)alignof(EntropyError));
-    if (err == NULL) {
+    size_t payload_align = alignof(EntropyError);
+    size_t payload_offset = rt_tag_payload_offset(payload_align);
+    uint8_t* mem =
+        (uint8_t*)rt_tag_alloc(ENTROPY_RESULT_ERROR_CASE, payload_align, sizeof(EntropyError));
+    if (mem == NULL) {
         return NULL;
     }
+    EntropyError err;
     const char* msg = entropy_error_message(code);
-    err->message = rt_string_from_bytes((const uint8_t*)msg, (uint64_t)strlen(msg));
-    err->code = rt_biguint_from_u64(code);
-    return (void*)err;
+    err.message = rt_string_from_bytes((const uint8_t*)msg, (uint64_t)strlen(msg));
+    err.code = rt_biguint_from_u64(code);
+    memcpy(mem + payload_offset, &err, sizeof(err));
+    return (void*)mem;
 }
 
 static void* entropy_make_success_bytes(const uint8_t* bytes, uint64_t len) {
