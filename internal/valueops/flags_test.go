@@ -36,10 +36,19 @@ func manifestValueFlags(t *testing.T) map[string]uint64 {
 // slot presence here would assert something the registry does not yet claim.
 func TestFlagsMirrorTheFrozenManifestValues(t *testing.T) {
 	manifest := manifestValueFlags(t)
-	if len(manifest) != len(slotRules) {
-		t.Fatalf("manifest has %d rt_value_flags values, package mirrors %d", len(manifest), len(slotRules))
-	}
+	// Capability rows only: the two mandatory rows mirror no bit, and their
+	// agreement with the manifest is pinned by TestEveryManifestValueOpsSlotHasARule
+	// against the rt_value_ops RECORD instead.
+	var capabilityRules []slotRule
 	for _, rule := range slotRules {
+		if rule.when == capabilitySlot {
+			capabilityRules = append(capabilityRules, rule)
+		}
+	}
+	if len(manifest) != len(capabilityRules) {
+		t.Fatalf("manifest has %d rt_value_flags values, package mirrors %d", len(manifest), len(capabilityRules))
+	}
+	for _, rule := range capabilityRules {
 		want, ok := manifest[rule.flag]
 		if !ok {
 			t.Errorf("package mirrors %s, which the manifest does not define", rule.flag)
@@ -49,8 +58,8 @@ func TestFlagsMirrorTheFrozenManifestValues(t *testing.T) {
 			t.Errorf("%s = %d, manifest says %d", rule.flag, rule.bit, want)
 		}
 	}
-	mirrored := make(map[string]bool, len(slotRules))
-	for _, rule := range slotRules {
+	mirrored := make(map[string]bool, len(capabilityRules))
+	for _, rule := range capabilityRules {
 		mirrored[rule.flag] = true
 	}
 	for name := range manifest {
@@ -64,12 +73,18 @@ func TestFlagsMirrorTheFrozenManifestValues(t *testing.T) {
 // slot-rule table drifting apart, since the table is what the invariant reads.
 func TestFlagConstantsMatchTheirRuleTable(t *testing.T) {
 	want := []Flags{FlagCopy, FlagClonable, FlagDroppable, FlagTraceable, FlagShardMovable, FlagCrossClonable}
-	if len(want) != len(slotRules) {
-		t.Fatalf("%d constants, %d rules", len(want), len(slotRules))
+	var got []Flags
+	for _, rule := range slotRules {
+		if rule.when == capabilitySlot {
+			got = append(got, rule.bit)
+		}
+	}
+	if len(want) != len(got) {
+		t.Fatalf("%d constants, %d capability rules", len(want), len(got))
 	}
 	for i, bit := range want {
-		if slotRules[i].bit != bit {
-			t.Errorf("rule %d covers %d, want %d", i, slotRules[i].bit, bit)
+		if got[i] != bit {
+			t.Errorf("capability rule %d covers %d, want %d", i, got[i], bit)
 		}
 	}
 }
@@ -81,11 +96,28 @@ func TestFlagConstantsMatchTheirRuleTable(t *testing.T) {
 // satisfied by a runtime symbol that did not exist.
 func TestEverySlotRuleStatesExactlyOneWayToFillItsSlot(t *testing.T) {
 	for _, rule := range slotRules {
-		if rule.structural() && rule.staged {
-			t.Errorf("%s is both filled by %s and staged", rule.flag, rule.runtimeSymbol)
+		if rule.fill == 0 {
+			t.Errorf("rt_value_ops.%s states no fill policy", rule.slot)
+			continue
 		}
-		if !rule.structural() && !rule.staged && rule.bit != FlagClonable {
-			t.Errorf("%s is neither runtime-filled nor staged, and no emitted slot backs it", rule.flag)
+		// A shared filler must name its symbol, and only a shared filler may.
+		for _, policy := range []fillPolicy{rule.fill, rule.otherwise} {
+			symbol, shared := rule.sharedSymbol(policy)
+			if shared && symbol == "" {
+				t.Errorf("rt_value_ops.%s is filled by a shared symbol it does not name", rule.slot)
+			}
+		}
+		if rule.runtimeSymbol != "" && rule.moduleSymbol != "" {
+			t.Errorf("rt_value_ops.%s names both a runtime and a module symbol", rule.slot)
+		}
+		// A mandatory slot filled nowhere would ship the null the runtime
+		// refuses, so that combination must stay unrepresentable.
+		if rule.when == unconditionalSlot && rule.fillFor(0) == filledNowhere {
+			t.Errorf("rt_value_ops.%s is mandatory and filled nowhere", rule.slot)
+		}
+		// A gate is meaningless without a second policy to choose, and vice versa.
+		if (rule.gate == 0) != (rule.otherwise == 0) {
+			t.Errorf("rt_value_ops.%s has a gate without an alternative, or the reverse", rule.slot)
 		}
 	}
 }
@@ -95,16 +127,28 @@ func TestEverySlotRuleStatesExactlyOneWayToFillItsSlot(t *testing.T) {
 // staged, and a writer that bound a runtime symbol for one of them would be
 // shipping a descriptor nothing implements.
 func TestRuntimeFilledSlotNamesOnlyCopy(t *testing.T) {
-	symbol, ok := RuntimeFilledSlot(FlagCopy)
-	if !ok {
-		t.Fatal("RT_VALUE_FLAG_COPY has no runtime-filled slot; copy_init would ship null")
+	filler, err := SlotFiller("copy_init", FlagCopy)
+	if err != nil {
+		t.Fatalf("copy_init has no filler: %v", err)
 	}
-	if symbol != CopyInitUnboundTrap {
-		t.Fatalf("copy_init is filled by %q, want %q", symbol, CopyInitUnboundTrap)
+	if filler.Kind != FillRuntimeSymbol || filler.Symbol != CopyInitUnboundTrap {
+		t.Fatalf("copy_init = %+v, want the runtime trap %s", filler, CopyInitUnboundTrap)
 	}
-	for _, bit := range []Flags{FlagClonable, FlagDroppable, FlagTraceable, FlagShardMovable, FlagCrossClonable} {
-		if name, filled := RuntimeFilledSlot(bit); filled {
-			t.Errorf("%s claims the runtime fills its slot with %q", Flags(bit), name)
+	// Exactly one slot may be filled by a RUNTIME symbol. plan_cross is filled
+	// by a shared symbol too, but a module-local one: nothing links against it
+	// and it is absent from the manifest, which is the whole point of keeping
+	// the two kinds apart.
+	for slot := range manifestValueOpsSlots(t) {
+		if slot == "copy_init" {
+			continue
+		}
+		other, err := SlotFiller(slot, ^Flags(0)&knownFlags())
+		if err != nil {
+			t.Errorf("SlotFiller(%q) failed: %v", slot, err)
+			continue
+		}
+		if other.Kind == FillRuntimeSymbol {
+			t.Errorf("%s claims the runtime fills its slot with %q", slot, other.Symbol)
 		}
 	}
 }
@@ -230,5 +274,154 @@ func TestFlagsStringIsStableAndNamesUnknownBits(t *testing.T) {
 				t.Fatalf("String() = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+// manifestValueOpsSlots returns the rt_value_ops callback fields from the frozen
+// manifest view, mapped to their declared nullability.
+//
+// It reads Records, which nothing in this package read before. That absence is
+// why the two mandatory slots could go missing: the only manifest agreement the
+// package had was over rt_value_flags, an enum that names six capabilities and
+// no slots at all, so a slot no bit named was invisible by construction.
+func manifestValueOpsSlots(t *testing.T) map[string]string {
+	t.Helper()
+	for _, record := range abimanifest.GeneratedSchema.Records {
+		if record.Name != "rt_value_ops" {
+			continue
+		}
+		out := make(map[string]string, len(record.Fields))
+		for _, field := range record.Fields {
+			if !strings.HasPrefix(field.Type, "callback:") {
+				continue // layout is not a callback slot
+			}
+			switch {
+			case strings.HasSuffix(field.Type, ":nonnull"):
+				out[field.Name] = "nonnull"
+			case strings.HasSuffix(field.Type, ":nullable"):
+				out[field.Name] = "nullable"
+			default:
+				t.Fatalf("rt_value_ops.%s declares neither nonnull nor nullable: %s", field.Name, field.Type)
+			}
+		}
+		return out
+	}
+	t.Fatal("generated manifest has no rt_value_ops record")
+	return nil
+}
+
+// TestEveryManifestValueOpsSlotHasARule pins the slot table against the frozen
+// manifest RECORD, in both directions and on both axes.
+//
+// This is the assertion whose absence let move_init and plan_cross have no rows
+// for the life of the epic. A table keyed by capability bit cannot represent a
+// slot no bit names, and nothing compared the table to the record that does name
+// them — so the gap read as completeness.
+func TestEveryManifestValueOpsSlotHasARule(t *testing.T) {
+	manifest := manifestValueOpsSlots(t)
+	flagValues := manifestValueFlags(t)
+
+	byName := make(map[string]slotRule, len(slotRules))
+	for _, rule := range slotRules {
+		if _, duplicate := byName[rule.slot]; duplicate {
+			t.Errorf("two rules cover rt_value_ops.%s", rule.slot)
+		}
+		byName[rule.slot] = rule
+	}
+
+	for slot, nullability := range manifest {
+		rule, ok := byName[slot]
+		if !ok {
+			t.Errorf("manifest rt_value_ops requires %s, which the package mirrors no rule for", slot)
+			continue
+		}
+		switch nullability {
+		case "nonnull":
+			if rule.when != unconditionalSlot {
+				t.Errorf("%s is non-null in the manifest but its rule is not unconditional", slot)
+			}
+		case "nullable":
+			if rule.when != capabilitySlot {
+				t.Errorf("%s is nullable in the manifest but its rule is unconditional", slot)
+				continue
+			}
+			want, defined := flagValues[rule.flag]
+			if !defined {
+				t.Errorf("%s is gated on %s, which the manifest does not define", slot, rule.flag)
+				continue
+			}
+			if uint64(rule.bit) != want {
+				t.Errorf("%s is gated on %s = %d, manifest says %d", slot, rule.flag, rule.bit, want)
+			}
+		}
+	}
+
+	for _, rule := range slotRules {
+		if _, ok := manifest[rule.slot]; !ok {
+			t.Errorf("package mirrors a rule for %s, which rt_value_ops does not declare", rule.slot)
+		}
+	}
+}
+
+// TestSlotFillerAnswersForEveryManifestSlot stops a row from existing and being
+// read by nothing, and pins the failure mode its bit-keyed predecessor had: a
+// query it could not express returned a wrong answer instead of an error.
+func TestSlotFillerAnswersForEveryManifestSlot(t *testing.T) {
+	for slot := range manifestValueOpsSlots(t) {
+		if _, err := SlotFiller(slot, 0); err != nil {
+			t.Errorf("SlotFiller(%q) failed: %v", slot, err)
+		}
+	}
+	if _, err := SlotFiller("no_such_slot", 0); err == nil {
+		t.Error("SlotFiller accepted a slot name no rule covers")
+	}
+}
+
+// TestPlanCrossFallsBackToTheModuleStubForEveryDescriptorThisWaveCanHold ties
+// the plan_cross fallback to the staging of the cross bits mechanically, so the
+// wave that un-stages either one cannot ship a stub-filled plan_cross for a type
+// that really can cross.
+func TestPlanCrossFallsBackToTheModuleStubForEveryDescriptorThisWaveCanHold(t *testing.T) {
+	filler, err := SlotFiller("plan_cross", 0)
+	if err != nil {
+		t.Fatalf("plan_cross has no filler: %v", err)
+	}
+	if filler.Kind != FillModuleStub || filler.Symbol != PlanCrossUnavailableStub {
+		t.Fatalf("plan_cross without cross flags = %+v, want the module stub %s", filler, PlanCrossUnavailableStub)
+	}
+
+	for _, bit := range []Flags{FlagShardMovable, FlagCrossClonable} {
+		crossing, err := SlotFiller("plan_cross", bit)
+		if err != nil {
+			t.Fatalf("plan_cross with %v has no filler: %v", bit, err)
+		}
+		if crossing.Kind != FillBackendDerivedBody {
+			t.Errorf("plan_cross with a cross bit = %+v, want a real per-type body", crossing)
+		}
+		entry := Entry{Type: 1, Flags: bit}
+		if err := entry.checkSlots(); err == nil {
+			t.Errorf("checkSlots accepted %v while its slot is filled nowhere", bit)
+		}
+	}
+}
+
+// TestMoveInitIsMandatoryAndBackendNamed states the difference the two mandatory
+// slots must keep. move_init is semantically unconditional, so it always has a
+// real body; plan_cross is only structurally unconditional. Collapsing them
+// would put this registry back in the business of naming something it cannot
+// see, which is copy_init's original failure in a new coat.
+func TestMoveInitIsMandatoryAndBackendNamed(t *testing.T) {
+	filler, err := SlotFiller("move_init", 0)
+	if err != nil {
+		t.Fatalf("move_init has no filler: %v", err)
+	}
+	if filler.Kind != FillBackendDerivedBody {
+		t.Fatalf("move_init = %+v, want a per-type body the backend names", filler)
+	}
+	if filler.Symbol != "" {
+		t.Errorf("move_init names symbol %q; a per-type body has no shared name", filler.Symbol)
+	}
+	if err := (&Entry{Type: 1}).checkSlots(); err != nil {
+		t.Errorf("an entry with no flags was refused: %v", err)
 	}
 }

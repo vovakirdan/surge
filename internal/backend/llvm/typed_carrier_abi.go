@@ -3,6 +3,7 @@ package llvm
 import (
 	"fmt"
 	"strings"
+	"surge/internal/valueops"
 )
 
 func typedCarrierRuntimeDecls() []builtinDecl {
@@ -35,11 +36,35 @@ func emitTypedCarrierABI(out *strings.Builder) {
 		fmt.Fprintf(out, "%%struct.%s = type { %s }\n", record.name, strings.Join(fields, ", "))
 	}
 	out.WriteString("\n")
-	fmt.Fprintf(out, "@llvm.used = appending global [2 x ptr] [ptr @%s, ptr @__surge_require_typed_carrier_abi], section \"llvm.metadata\"\n", typedCarrierSentinelSymbol)
+	fmt.Fprintf(out, "@llvm.used = appending global [3 x ptr] [ptr @%s, ptr @__surge_require_typed_carrier_abi, ptr @%s], section \"llvm.metadata\"\n",
+		typedCarrierSentinelSymbol, valueops.PlanCrossUnavailableStub)
 	out.WriteString("@llvm.global_ctors = appending global [1 x { i32, ptr, ptr }] [{ i32, ptr, ptr } { i32 0, ptr @__surge_require_typed_carrier_abi, ptr null }]\n\n")
 	out.WriteString("define internal void @__surge_require_typed_carrier_abi() noinline {\nentry:\n")
 	fmt.Fprintf(out, "  call void @%s()\n", typedCarrierSentinelSymbol)
 	out.WriteString("  ret void\n}\n\n")
+	emitPlanCrossUnavailableStub(out)
+}
+
+// emitPlanCrossUnavailableStub defines the module-local symbol every descriptor
+// without a crossing capability binds into rt_value_ops.plan_cross.
+//
+// It does not return a status, and that is the point. A descriptor whose own
+// flags admit neither cross mode has no legal `mode` argument, so reaching this
+// body means the caller chose an operation the descriptor excludes — a protocol
+// violation, not an outcome. Returning any rt_carrier_status would assert the
+// call was legal and merely declined, and none of the seven values means "this
+// type cannot cross" anyway.
+//
+// It is module-local rather than a runtime symbol because the runtime may never
+// call it: declaring it in the frozen manifest would extend the ABI, move the
+// hash and the link sentinel, and buy no capability. It is kept in llvm.used so
+// that being unreferenced — which it is until descriptors are emitted — does not
+// let it be dropped before the slot rule that names it can be honoured.
+func emitPlanCrossUnavailableStub(out *strings.Builder) {
+	fmt.Fprintf(out, "define internal zeroext i32 @%s(ptr %%src, i8 zeroext %%mode, ptr %%out) noinline {\nentry:\n",
+		valueops.PlanCrossUnavailableStub)
+	out.WriteString("  call void @llvm.trap()\n")
+	out.WriteString("  unreachable\n}\n\n")
 }
 
 func resolveTypedCarrierLLVMType(ty string) string {

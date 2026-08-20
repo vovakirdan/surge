@@ -79,10 +79,18 @@ func (e *Evidence) equal(other *Evidence) bool {
 
 // Entry is the frozen operation plan for one exact semantic type.
 //
-// Fields absent from this struct are absent on purpose. drop_in_place, trace,
-// cross_move_init and cross_clone_init arrive with the wave that can emit them;
-// until then there is no field to hold a placeholder, so no reader can be told
-// a slot exists when it does not.
+// Fields absent from this struct are absent on purpose, and for two different
+// reasons. drop_in_place, trace, cross_move_init and cross_clone_init arrive
+// with the wave that can emit them; until then there is no field to hold a
+// placeholder, so no reader can be told a slot exists when it does not.
+//
+// move_init and plan_cross are absent for the opposite reason: they are
+// MANDATORY, and neither is this registry's to name. The backend derives a
+// move body's name from the type id, the way it already names drop glue, and
+// plan_cross resolves to a module-local symbol the backend defines. A field
+// here would put the package back in the business of naming something it
+// cannot see — which is exactly how copy_init came to be described as filled
+// by a runtime symbol that did not exist.
 type Entry struct {
 	// Type is the EXACT semantic type id, never a layout-canonical one.
 	Type types.TypeID
@@ -162,23 +170,42 @@ func (e *Entry) checkSlots() error {
 			e.Type, formatHex(uint64(unknown)),
 		)
 	}
-	for _, rule := range slotRules {
-		if e.Flags&rule.bit == 0 {
+	for index := range slotRules {
+		rule := &slotRules[index]
+		// A capability slot is only required when its bit is set. An
+		// unconditional one is required always, which is why the guard names the
+		// applicability rather than testing the bit: `e.Flags&0 == 0` would skip
+		// every mandatory row silently, which is how both of them went missing.
+		if rule.when == capabilitySlot && e.Flags&rule.bit == 0 {
 			continue
 		}
-		if rule.structural() {
+		switch rule.fillFor(e.Flags) {
+		case filledByRuntimeSymbol, filledByModuleStub:
+			// One shared symbol fills the slot for every descriptor this policy
+			// applies to. The table carries the name; nothing per-entry is owed.
 			continue
-		}
-		if rule.staged {
+		case filledByBackendDerivedBody:
+			// The backend generates the body and names it from the type id, so
+			// this registry holds no symbol to check. Refusing here would demand
+			// a name the package cannot see.
+			continue
+		case filledByRegistryNamedBody:
+			if e.emittedSlot(rule.slot) == symbols.NoSymbolID {
+				return fmt.Errorf(
+					"valueops: type#%d sets %s but its %s slot has no emitted symbol",
+					e.Type, rule.flag, rule.slot,
+				)
+			}
+		case filledNowhere:
+			if rule.when == unconditionalSlot {
+				return fmt.Errorf(
+					"valueops: type#%d needs its mandatory %s slot, which nothing fills",
+					e.Type, rule.slot,
+				)
+			}
 			return fmt.Errorf(
 				"valueops: type#%d sets %s but this registry cannot carry its %s slot; "+
 					"record the verdict in Capabilities until the slot can be emitted",
-				e.Type, rule.flag, rule.slot,
-			)
-		}
-		if e.emittedSlot(rule.bit) == symbols.NoSymbolID {
-			return fmt.Errorf(
-				"valueops: type#%d sets %s but its %s slot has no emitted symbol",
 				e.Type, rule.flag, rule.slot,
 			)
 		}
@@ -186,11 +213,11 @@ func (e *Entry) checkSlots() error {
 	return nil
 }
 
-// emittedSlot returns the emitted symbol backing one flag bit's slot. Only
-// clone_init is representable in this wave; every other non-structural slot is
-// marked staged in slotRules and never reaches this lookup.
-func (e *Entry) emittedSlot(bit Flags) symbols.SymbolID {
-	if bit == FlagClonable {
+// emittedSlot returns the emitted symbol this registry carries for one slot.
+// Only clone_init is representable in this wave; it is keyed by slot name
+// because that is the row identity, and two rows have no bit to key on.
+func (e *Entry) emittedSlot(slot string) symbols.SymbolID {
+	if slot == "clone_init" {
 		return e.CloneInit
 	}
 	return symbols.NoSymbolID

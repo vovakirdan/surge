@@ -2,6 +2,7 @@ package llvm
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,6 +13,7 @@ import (
 	"testing"
 
 	"surge/internal/abimanifest"
+	"surge/internal/valueops"
 )
 
 const requireTypedCarrierABIToolsEnv = "SURGE_REQUIRE_TYPED_CARRIER_ABI_TOOLS"
@@ -50,10 +52,14 @@ func TestTypedCarrierRequirementIRIsStrongAndExact(t *testing.T) {
 	emitTypedCarrierABI(&ir)
 	text := ir.String()
 	for _, required := range []string{
-		"@llvm.used = appending global [2 x ptr]",
+		// Three anchors, not two: the sentinel, the constructor that calls it,
+		// and the plan_cross stub, which is unreferenced until descriptors are
+		// emitted and would otherwise be dropped before anything can bind it.
+		"@llvm.used = appending global [3 x ptr]",
 		"@llvm.global_ctors = appending global",
 		"define internal void @__surge_require_typed_carrier_abi() noinline",
 		"call void @" + typedCarrierSentinelSymbol + "()",
+		"ptr @" + valueops.PlanCrossUnavailableStub,
 	} {
 		if !strings.Contains(text, required) {
 			t.Fatalf("strong ABI requirement missing %q:\n%s", required, text)
@@ -243,4 +249,73 @@ func llvmTestRepoRoot(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return root
+}
+
+// TestPlanCrossUnavailableStubIsEmittedAndDoesNotReturn reads the stub's BODY,
+// not its definition line.
+//
+// A test that only grepped for the definition would pass identically for a body
+// that returned a status — which is the one thing this symbol must never do. A
+// descriptor whose flags admit neither cross mode has no legal argument to
+// answer, so reaching the body is a protocol violation, and a returned status
+// would claim the call was legal and merely refused.
+func TestPlanCrossUnavailableStubIsEmittedAndDoesNotReturn(t *testing.T) {
+	var out strings.Builder
+	emitTypedCarrierABI(&out)
+	ir := out.String()
+
+	marker := "define internal zeroext i32 @" + valueops.PlanCrossUnavailableStub
+	start := strings.Index(ir, marker)
+	if start < 0 {
+		t.Fatalf("the module does not define %s; the slot rule names a symbol nothing provides",
+			valueops.PlanCrossUnavailableStub)
+	}
+	end := strings.Index(ir[start:], "\n}\n")
+	if end < 0 {
+		t.Fatal("the stub definition is unterminated")
+	}
+	body := ir[start : start+end]
+
+	if !strings.Contains(body, "call void @llvm.trap()") {
+		t.Errorf("the stub body does not trap:\n%s", body)
+	}
+	if !strings.Contains(body, "unreachable") {
+		t.Errorf("the stub body does not end unreachable:\n%s", body)
+	}
+	if strings.Contains(body, "ret ") {
+		t.Errorf("the stub RETURNS, which would assert the call was legal:\n%s", body)
+	}
+	if !strings.Contains(ir, "ptr @"+valueops.PlanCrossUnavailableStub+"]") {
+		t.Error("the stub is absent from llvm.used and may be dropped before any descriptor binds it")
+	}
+}
+
+// TestPlanCrossUnavailableStubIsNotARuntimeSymbol pins the distinction the fill
+// axis exists for. copy_init's shared filler is an exported runtime symbol the
+// manifest declares, so the link fails without it; this one is module-local, and
+// adding it to the manifest would move the ABI hash for a symbol the runtime may
+// never call. An untested distinction is a comment.
+func TestPlanCrossUnavailableStubIsNotARuntimeSymbol(t *testing.T) {
+	root := llvmTestRepoRoot(t)
+	raw, err := os.ReadFile(filepath.Join(root, "runtime", "abi", "typed_carrier_v2.json"))
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	var manifest struct {
+		RuntimeFunctions []struct {
+			Name string `json:"name"`
+		} `json:"runtime_functions"`
+	}
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatalf("parse manifest: %v", err)
+	}
+	for _, fn := range manifest.RuntimeFunctions {
+		if fn.Name == valueops.PlanCrossUnavailableStub {
+			t.Fatalf("%s is declared in runtime_functions; a module-local stub must not be part of the ABI",
+				valueops.PlanCrossUnavailableStub)
+		}
+	}
+	if len(manifest.RuntimeFunctions) == 0 {
+		t.Fatal("manifest declares no runtime functions; the check above proved nothing")
+	}
 }
