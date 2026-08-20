@@ -934,25 +934,44 @@ static rt_remote_task_pending* wait_select_pending_shared(select_exec_state* st,
 // driver runs outside any task, so the task-context channel API
 // (rt_channel_recv/rt_channel_try_send) is unavailable; the control-locked
 // status wrappers used by the select slow lane work from any thread.
-static int channel_recv_once(rt_executor* ex, void* channel, uint64_t want_bits) {
+//
+// A probe never wants the value, and must still TAKE it. The try-recv core
+// refuses a null sink on purpose (rt_channel_sync.c): popping a buffered entry
+// and acking a parked sender are both irreversible, so a caller with no sink
+// is not asking a question, it is destroying the answer where nobody can see.
+// Every probe therefore receives into a real sink and hands whatever came out
+// to rt_channel_release_payload -- the runtime's own way to destroy a value
+// that will never reach a receiver -- after the control lock is released,
+// because compiled drop glue must not run under a runtime lock.
+//
+// Releasing does not move the census these rows assert: every channel they
+// mint goes through mint_anchor/mint_channel_anchor, which call
+// rt_channel_new(capacity, 0), and rt_channel_release_payload returns without
+// calling drop glue when the channel's payload drop id is 0. payload_drop_calls
+// counts only DROP_SELECT_PAYLOAD, which is the SELECT arm's own drop id and
+// never the channel's, so the probe contributes nothing to it either way.
+static uint8_t channel_probe_take(rt_executor* ex, void* channel, uint64_t* out_bits) {
+    *out_bits = 0;
     rt_control_lock(ex);
-    uint64_t bits = 0;
-    uint8_t status = rt_channel_try_recv_status_locked(ex, channel, &bits);
+    uint8_t status = rt_channel_try_recv_status_locked(ex, channel, out_bits);
     rt_control_unlock(ex);
-    if (status != 1 || bits != want_bits) {
+    if (status == 1) {
+        rt_channel_release_payload(channel, *out_bits);
+    }
+    return status;
+}
+
+static int channel_recv_once(rt_executor* ex, void* channel, uint64_t want_bits) {
+    uint64_t bits = 0;
+    if (channel_probe_take(ex, channel, &bits) != 1 || bits != want_bits) {
         return 0;
     }
-    rt_control_lock(ex);
-    uint8_t empty_status = rt_channel_try_recv_status_locked(ex, channel, NULL);
-    rt_control_unlock(ex);
-    return empty_status == 0;
+    return channel_probe_take(ex, channel, &bits) == 0;
 }
 
 static int channel_is_empty(rt_executor* ex, void* channel) {
-    rt_control_lock(ex);
-    uint8_t status = rt_channel_try_recv_status_locked(ex, channel, NULL);
-    rt_control_unlock(ex);
-    return status == 0;
+    uint64_t bits = 0;
+    return channel_probe_take(ex, channel, &bits) == 0;
 }
 
 static rt_remote_spawn_pending* wait_pending_shared(remote_publish_state* st, uint32_t attempts) {
