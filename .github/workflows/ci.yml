@@ -141,16 +141,25 @@ jobs:
           for f in *.c; do
             clang -std=c11 -I. $CFLAGS -c "$f" -o "/tmp/${f%.c}.o" || exit 1
           done
+      # Both commands used to end in `|| true`, which hid the fact that the
+      # second one could never have PASSED either: cgo was compiled with the
+      # sanitizers while the link was not, so every package that links the C
+      # runtime died on `undefined reference to __asan_report_load_n`. Adding
+      # CGO_LDFLAGS moved the failure to the UBSan runtime, which Go's internal
+      # linker does not pull in, so the link has to be external. With both, the
+      # step builds and actually runs.
       - name: Run tests with sanitizers
         env:
           SURGE_BACKEND: llvm
         run: |
-          # Build surge with sanitized runtime
           export CC=clang
           export CGO_CFLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -O1 -g"
-          go test ./internal/backend/llvm/... -timeout 60s || true
-          # Run a subset of testdata to verify runtime works
-          go test ./... -run TestRuntime -timeout 60s || true
+          export CGO_LDFLAGS="-fsanitize=address,undefined"
+          SAN_LDFLAGS='-linkmode=external -extldflags=-fsanitize=address,undefined'
+          go test -ldflags="$SAN_LDFLAGS" ./internal/backend/llvm/... -timeout 300s
+          # Sanitized runs are several times slower than plain ones, so the
+          # budget is not the plain-run budget.
+          go test -ldflags="$SAN_LDFLAGS" ./... -run TestRuntime -timeout 600s
 
   loc-cap:
     name: LOC cap
