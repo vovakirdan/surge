@@ -23,10 +23,22 @@ import (
 // runs and kill-to-reap at 158ms over 1339 signal deliveries. A 5s bound leaves
 // margins of only 15x and 32x under that load, thin enough that it has run out
 // in a pre-commit run and failed a commit that had nothing to do with this
-// test. 60s carries 184x and 380x, and all three subtests can each burn the
-// whole guard and still finish inside the 300s package timeout, so a real hang
-// is still reported as this test failing rather than as the package dying.
-const signalDeadlockGuard = 60 * time.Second
+// test.
+//
+// Re-measured independently 2026-08-21 at 03cba4d8, 32 spinners plus a full
+// tagged `internal/vm` run alongside (load average 20.6): 40 consecutive runs,
+// 120 subtest executions, zero failures, slowest subtest 0.19s end to end.
+// Two measurements on different loads agreeing on the same order of magnitude
+// is why the bound is set against a peak rather than against an average.
+//
+// THE BUDGET ARITHMETIC, because the previous note got it wrong: each subtest
+// carries TWO of these bounds, not one - waitForMarker below, then the
+// post-kill guard - so the worst case is 3 x 2 x the bound. At 60s that was
+// 360s against a 300s package timeout (Makefile:93), i.e. a hang would have
+// killed the package before this test could name itself, which is the opposite
+// of what the bound is for. At 45s the worst case is 270s and the property
+// holds. The margin is still 236x over the slowest subtest measured.
+const signalDeadlockGuard = 45 * time.Second
 
 func TestGoldenScriptSignalAfterInstallRestoresLiveCorpus(t *testing.T) {
 	fixture := newScriptFixture(t, "valid.sg")
