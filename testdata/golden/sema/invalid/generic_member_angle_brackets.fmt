@@ -1,0 +1,9 @@
+// scenario: generic arguments without the turbofish before `::` — Channel<int>::new(2)
+// The `::` tail has no legal reading, so the parser reports the mistake once and
+// carries on as though `::<` had been written: no cascade follows.
+@entrypoint
+fn main() -> int {
+    let ch = Channel<int>::new(2:uint);
+    ch.send(7);
+    return 0;
+}

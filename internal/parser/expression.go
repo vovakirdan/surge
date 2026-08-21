@@ -7,7 +7,6 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/diag"
-	"surge/internal/fix"
 	"surge/internal/source"
 	"surge/internal/token"
 	"surge/internal/trace"
@@ -297,14 +296,20 @@ func (p *Parser) parsePostfixExpr() (ast.ExprID, bool) {
 				Detail: fmt.Sprintf("iterations=%d", iterations),
 			})
 		}
-		if ok, ltTok := p.looksLikeBareGenericCall(expr); ok {
-			calleeSpan := p.arenas.Exprs.Get(expr).Span
-			builder := diag.ReportError(p.opts.Reporter, diag.SynUnexpectedToken, ltTok.Span, "generic type arguments must use '::<' syntax")
-			if builder != nil && calleeSpan != (source.Span{}) {
-				builder.WithFixSuggestion(fix.InsertText("insert '::' for generic call", calleeSpan.ZeroideToEnd().ZeroideToStart(), "::", "", fix.Preferred()))
-				builder.Emit()
+		if tail, ltTok := p.looksLikeBareGenericArgs(expr); tail != bareGenericNone {
+			p.reportBareGenericArgs(p.arenas.Exprs.Get(expr).Span, ltTok)
+			if tail != bareGenericPath {
+				return expr, true
 			}
-			return expr, true
+			// `Object<T>::f(...)` has no other reading, so carry on as though
+			// the turbofish had been written: the caller gets the AST it meant
+			// instead of a cascade about an expression that never parsed.
+			typeArgs, ok := p.parseTypeArgs()
+			if !ok {
+				return ast.NoExprID, false
+			}
+			pendingTypeArgs = typeArgs
+			continue
 		}
 		switch p.lx.Peek().Kind {
 		case token.ColonColon:
@@ -442,75 +447,6 @@ func (p *Parser) parsePostfixExpr() (ast.ExprID, bool) {
 			}
 			return expr, true
 		}
-	}
-}
-
-func (p *Parser) looksLikeBareGenericCall(expr ast.ExprID) (bool, token.Token) {
-	if expr == ast.NoExprID || p.lx.Peek().Kind != token.Lt || p.fs == nil {
-		return false, token.Token{}
-	}
-	node := p.arenas.Exprs.Get(expr)
-	if node == nil || (node.Kind != ast.ExprIdent && node.Kind != ast.ExprMember) {
-		return false, token.Token{}
-	}
-	ltTok := p.lx.Peek()
-	file := p.fs.Get(ltTok.Span.File)
-	if file == nil {
-		return false, ltTok
-	}
-	data := file.Content
-	if int(ltTok.Span.End) >= len(data) {
-		return false, ltTok
-	}
-	i := int(ltTok.Span.End)
-	// skip whitespace
-	for i < len(data) {
-		if data[i] != ' ' && data[i] != '\t' && data[i] != '\n' && data[i] != '\r' {
-			break
-		}
-		i++
-	}
-	if i >= len(data) {
-		return false, ltTok
-	}
-	if !isTypeStartByte(data[i]) {
-		return false, ltTok
-	}
-	foundGt := false
-	for i < len(data) {
-		switch data[i] {
-		case '>':
-			foundGt = true
-			i++
-			goto afterGt
-		case ';', '\n', '\r', ')', '{':
-			return false, ltTok
-		}
-		i++
-	}
-afterGt:
-	if !foundGt {
-		return false, ltTok
-	}
-	for i < len(data) && (data[i] == ' ' || data[i] == '\t' || data[i] == '\n' || data[i] == '\r') {
-		i++
-	}
-	if i < len(data) && data[i] == '(' {
-		return true, ltTok
-	}
-	return false, ltTok
-}
-
-func isTypeStartByte(b byte) bool {
-	switch {
-	case b >= 'a' && b <= 'z':
-		return true
-	case b >= 'A' && b <= 'Z':
-		return true
-	case b == '_', b == '&', b == '*', b == '(':
-		return true
-	default:
-		return false
 	}
 }
 

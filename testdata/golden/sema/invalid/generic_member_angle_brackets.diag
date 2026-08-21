@@ -1,0 +1,1 @@
+error SYN2208 testdata/golden/sema/invalid/generic_member_angle_brackets.sg:6:21 generic type arguments must use '::<' syntax

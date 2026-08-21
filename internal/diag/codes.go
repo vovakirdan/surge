@@ -86,6 +86,11 @@ const (
 	SynUnexpectedModifier Code = 2205
 	SynInvalidTupleIndex  Code = 2206
 	SynVariadicMustBeLast Code = 2207
+	// SynGenericArgsNeedTurbofish rejects generic arguments written without
+	// `::` in a call — `Object<T>(...)` and `Object<T>::f(...)`. One code for
+	// both spellings: they are the same mistake, and `<` reads as the
+	// less-than operator in either of them.
+	SynGenericArgsNeedTurbofish Code = 2208
 
 	// Семантические (резервируем)
 
@@ -541,6 +546,7 @@ var ( // todo расширить описания и использовать к
 		SynUnexpectedModifier:              "Unexpected modifier",
 		SynInvalidTupleIndex:               "Invalid tuple index",
 		SynVariadicMustBeLast:              "Variadic parameter must be last",
+		SynGenericArgsNeedTurbofish:        "Generic type arguments must use turbofish '::<'",
 		SemaInfo:                           "Semantic information",
 		SemaError:                          "Semantic error",
 		SemaDuplicateSymbol:                "Duplicate symbol",

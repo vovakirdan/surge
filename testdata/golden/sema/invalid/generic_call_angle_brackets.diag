@@ -1,2 +1,2 @@
-error SYN2001 testdata/golden/sema/invalid/generic_call_angle_brackets.sg:7:20 generic type arguments must use '::<' syntax
+error SYN2208 testdata/golden/sema/invalid/generic_call_angle_brackets.sg:7:20 generic type arguments must use '::<' syntax
 error SEM3015 testdata/golden/sema/invalid/generic_call_angle_brackets.sg:7:21 type int cannot be used as a value

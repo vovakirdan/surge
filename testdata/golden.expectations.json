@@ -1,8 +1,8 @@
 {
   "version": 1,
   "golden_root": "testdata/golden",
-  "entry_count": 5162,
-  "corpus_sha256": "74a5e081ab04ffd0781f6d6862c4fa9620638408ddf540f548bc9d92612f5570",
+  "entry_count": 5167,
+  "corpus_sha256": "aed1145cde85af6290bf3766169be8f99b69f003726298dac18a94ffd405caff",
   "diagnostic_zero": [
     "sema/invalid/attrs/deprecated_usage.sg",
     "sema/invalid/compare_arm_implicit_block_value_warn.sg",
@@ -39,6 +39,7 @@
     "sema/invalid/enum_missing_body.sg",
     "sema/invalid/enum_missing_equals.sg",
     "sema/invalid/generic_call_angle_brackets.sg",
+    "sema/invalid/generic_member_angle_brackets.sg",
     "sema/invalid/macro_not_supported.sg",
     "sema/invalid/pragma_invalid_position.sg",
     "sema/invalid/returning_anonymous_record.sg",
