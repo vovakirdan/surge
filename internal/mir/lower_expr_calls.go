@@ -532,6 +532,7 @@ func (l *funcLowerer) lowerCallExpr(e *hir.Expr, consume bool) (Operand, error) 
 	if !l.calleeIsUserFunc(data.SymbolID) {
 		applyStoringIntrinsicContracts(callee.Name, contracts)
 		l.applyChannelSendContracts(callee.Name, args, contracts)
+		retainStoredRefCountedArgs(l, args, contracts)
 	}
 
 	if e.Type == types.NoTypeID || l.isNothingType(e.Type) {

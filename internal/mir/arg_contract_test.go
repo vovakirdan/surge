@@ -212,3 +212,69 @@ fn main() -> int {
 		}
 	}
 }
+
+// TestAStoredRefCountedScalarIsRetainedNotCopied pins the connection between a
+// position's CONTRACT and its OPERAND, which existed only in prose.
+//
+// A reference-counted scalar is Copy at the surface, so a call reads it with
+// the ordinary rule, and that rule produces a bare Copy at a call site because
+// most callees borrow: a `float` handed to an arithmetic entry point must NOT
+// be retained. But a STORE position is a sink -- the container outlives the
+// call and releases the value later -- so the caller's own binding and the
+// container would release one block twice.
+//
+// Measured on Channel<float> before the fix, both halves of the same defect:
+// with the sender's binding still live the program printed the right answer and
+// then SEGFAULTED on the second release; with the sender a temporary, the
+// channel kept a freed block and the program printed a WRONG ANSWER (`small`
+// for 1.5 > 1.0) and exited 0.
+func TestAStoredRefCountedScalarIsRetainedNotCopied(t *testing.T) {
+	compiled := compileCrossingMIR(t, crossingMIRPrelude+`
+extern<Channel<T>> {
+    @intrinsic fn send(self: &Channel<T>, value: T) -> nothing;
+}
+
+fn main(ch: &Channel<float>) -> int {
+    let kept = 1.5;
+    ch.send(kept);
+    return 0;
+}`, nil)
+
+	call := findCall(t, compiled.mod, "send")
+	if len(call.Args) != 2 || len(call.ArgContracts) != 2 {
+		t.Fatalf("send has %d args / %d contracts, want 2 / 2", len(call.Args), len(call.ArgContracts))
+	}
+	if call.ArgContracts[1] != mir.ArgContractStore {
+		t.Fatalf("send contracts = %s, want the value position to be a store", contractNames(call.ArgContracts))
+	}
+	if call.Args[1].Kind != mir.OperandRetain {
+		t.Fatalf(
+			"the stored float is passed as %v, so nothing bumps its count: the channel and the "+
+				"caller's binding would each release the same block",
+			call.Args[1].Kind,
+		)
+	}
+}
+
+// TestABorrowedRefCountedScalarIsNotRetained is the other half, and it is what
+// keeps the fix from being "retain everything". An ordinary function's by-value
+// parameter does not outlive the call, so bumping the count there would leak on
+// every arithmetic call in the language.
+func TestABorrowedRefCountedScalarIsNotRetained(t *testing.T) {
+	compiled := compileCrossingMIR(t, crossingMIRPrelude+`
+fn takes(v: float) -> nothing { return nothing; }
+
+fn main() -> int {
+    let kept = 1.5;
+    takes(kept);
+    return 0;
+}`, nil)
+
+	call := findCall(t, compiled.mod, "takes")
+	if len(call.Args) != 1 {
+		t.Fatalf("takes has %d args, want 1", len(call.Args))
+	}
+	if call.Args[0].Kind == mir.OperandRetain {
+		t.Fatal("a borrowed float was retained; the count would never come back down")
+	}
+}

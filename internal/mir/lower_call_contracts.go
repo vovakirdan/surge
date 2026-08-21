@@ -138,3 +138,39 @@ func (l *funcLowerer) applyChannelSendContracts(name string, args []Operand, con
 	}
 	contracts[1] = ArgContractStore
 }
+
+// retainStoredRefCountedArgs gives a stored reference-counted scalar its own
+// reference, which is what ArgContractStore already says it is owed.
+//
+// The contract and the operand answer two different questions and were only
+// ever connected in prose. A by-value argument is read with the ordinary
+// consuming rule, and for a reference-counted scalar that rule produces
+// OperandRetain — but only where the read itself is a consuming one. At a call
+// it is not: the callee is usually a borrower, and a `float` handed to an
+// arithmetic entry point must NOT be retained. So the operand comes out as a
+// bare Copy, and for the positions that are sinks the count is never bumped.
+//
+// The result is a value the container will later release and the caller also
+// releases, on a type that is Copy at the surface and therefore leaves the
+// source usable and dropped. Measured on `Channel<float>`: with the sender's
+// binding still live the program prints the right answer and then segfaults on
+// the second release; with the sender a temporary, the channel keeps a freed
+// block and the program prints a WRONG ANSWER and exits 0.
+//
+// This runs after the contract tables because a sink is a sink whatever the
+// callee's own parameters say, and it can only ever upgrade Copy to Retain:
+// a moved or borrowed position is left exactly as classified.
+func retainStoredRefCountedArgs(l *funcLowerer, args []Operand, contracts []ArgContract) {
+	if l == nil {
+		return
+	}
+	for i := range args {
+		if i >= len(contracts) || contracts[i] != ArgContractStore {
+			continue
+		}
+		if args[i].Kind != OperandCopy || !l.isRefCountedScalar(args[i].Type) {
+			continue
+		}
+		args[i].Kind = OperandRetain
+	}
+}

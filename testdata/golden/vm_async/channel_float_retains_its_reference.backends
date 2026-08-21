@@ -1,0 +1,5 @@
+# The VM lane refuses this program with VM3301 use-after-free on the value taken
+# out of the channel, and did so before this fixture existed -- see the DEBT row
+# opened alongside it. The defect being pinned here is the native lane's, where
+# the same program segfaulted and printed a wrong answer.
+llvm
