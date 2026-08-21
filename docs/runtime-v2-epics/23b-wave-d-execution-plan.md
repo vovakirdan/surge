@@ -210,7 +210,32 @@ index), and VM remove IS swap-with-last (`intrinsic_map.go:421-431`). So
 was swapped into and drops `c`'s live value. The VM is immune to ADDRESS
 invalidation, not INDEX invalidation. D2 owns this; it is not native-only.
 
-### D3 IS BLOCKED — owner ruling 2026-08-20
+### D3 IS UNBLOCKED — owner ruling 2026-08-21
+
+The block below is kept as the record of why the step stopped, and of what had
+to be true before it could start. Both conditions are now met, so it no longer
+holds:
+
+- **The generation gap is closed.** The sentence that follows — "emits no
+  `rt_value_ops` constructor whatsoever" — was true on 2026-08-20 and is false
+  now. The backend emits a descriptor per registry type with a per-type
+  `move_init`, the real `rt_slot_control_init` admits them, and the mandatory
+  `plan_cross` is filled by a module-local trap proven terminal by calling it
+  (RV2-DEBT-230, RV2-DEBT-232).
+- **The drop the ring drain needs is in the descriptor.** RV2-DEBT-227 un-staged
+  DROPPABLE, and a descriptor now carries a real `drop_in_place`. The number
+  `rt_channel_new` receives is the ELEMENT's type id, not the channel's, so what
+  D3 replaces is the numeric dispatch over an element the descriptor already
+  describes. Reclaiming the channel VALUE is RV2-DEBT-155 and is not a
+  precondition for this step — that one waits on the channel becoming an RC
+  handle, which is a language-surface decision of its own.
+
+What remains staged, and what D3 therefore may not assume: `trace`,
+`cross_move_init` and `cross_clone_init` are still filled nowhere, and carriers
+whose leaf this backend cannot reclaim — far leases and opaque runtime resources
+— get no descriptor at all rather than a drop bit over an empty body.
+
+### The original ruling, kept as the record — owner ruling 2026-08-20
 
 D3 was opened, its code read, and the step stopped before any line was written.
 The reason is not that the step is large. **Its entry condition was never met.**
