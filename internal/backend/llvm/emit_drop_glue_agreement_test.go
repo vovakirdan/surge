@@ -167,20 +167,7 @@ func TestDropGlueReachesTheLeavesSemaSaysAreThere(t *testing.T) {
 			typeName: "Holder",
 			families: []string{leafString, leafElementBuffer, leafCountedScalar},
 		},
-		{
-			typeName:     "ArrayFixed<string, const 2, 2>",
-			families:     []string{leafString},
-			semaDiverges: []string{},
-			note: "sema's component relation has no edge for the NOMINAL fixed-array spelling. " +
-				"`components` (internal/sema/capability_type_graph.go) reads the structural " +
-				"`KindArray` and the handle payloads, and a source-level `string[2]` is neither: " +
-				"it interns as the nominal struct `ArrayFixed&lt;string, const 2, 2&gt;` with no fields, " +
-				"so the walk finds nothing inside and every axis answers about an empty type. " +
-				"The classifier already knows the spelling exists — `isNominalArray` reads it for " +
-				"the shard axis — so this is a missing edge, not a decision. The backend is right " +
-				"here and reclaims both elements. When the edge is added this row starts agreeing " +
-				"and the divergence must be deleted, not re-recorded",
-		},
+		{typeName: "ArrayFixed<string, const 2, 2>", families: []string{leafString}},
 	}
 
 	e, result := prepareEmitterAndResultForTest(t, dropGlueAgreementSource)

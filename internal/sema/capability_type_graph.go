@@ -67,6 +67,18 @@ func (c *CapabilityClassifier) components(id types.TypeID) []types.TypeID {
 	if kind, payloads := c.handleKind(id); kind != handleNone {
 		return c.resolveAll(payloads)
 	}
+	// A nominal array is a struct with no fields, so the struct arm below would
+	// answer about an empty type and every axis would call it inert. The
+	// spelling is not a different kind of value from the structural one -- it is
+	// the same elements written another way -- and the classifier already reads
+	// it a few lines up for the shard axis, which is what makes this a missing
+	// edge rather than a decision.
+	if elem, ok := c.types.ArrayInfo(id); ok {
+		return c.resolveAll([]types.TypeID{elem})
+	}
+	if elem, _, ok := c.types.ArrayFixedInfo(id); ok {
+		return c.resolveAll([]types.TypeID{elem})
+	}
 	switch tt.Kind {
 	case types.KindStruct:
 		fields := c.types.StructFields(id)
