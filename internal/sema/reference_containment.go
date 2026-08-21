@@ -298,3 +298,24 @@ func (tc *typeChecker) reportRefInAggregate(label, elemLabel string, span source
 		elemLabel, label))
 	b.Emit()
 }
+
+// instantiateTypeRejectingChannelPayloadRef instantiates a generic type and
+// enforces the containment rule on a channel's payload.
+//
+// A channel payload crosses task boundaries; a borrow must not. The rule
+// belongs to the TYPE, so it has to hold however that type was written — as an
+// annotation, or as the receiver of `Channel::<T>::new`. It used to be reached
+// only through the annotation path, which was enough while the free
+// `make_channel::<T>` helper carried construction and instantiated the type as
+// a function's type argument on the way. The helper is gone, so the rule lives
+// where the type is made instead.
+func (tc *typeChecker) instantiateTypeRejectingChannelPayloadRef(
+	symID symbols.SymbolID, typeArgs []types.TypeID, site source.Span,
+) types.TypeID {
+	instantiated := tc.instantiateType(symID, typeArgs, site, "type")
+	payload := tc.channelPayloadType(instantiated)
+	if payload != types.NoTypeID && tc.rejectRefInAggregate(payload, site, "channel payload") {
+		return types.NoTypeID
+	}
+	return instantiated
+}

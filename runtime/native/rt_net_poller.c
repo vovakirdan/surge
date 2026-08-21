@@ -164,6 +164,29 @@ int rt_net_has_waiters_on_shard(const rt_executor* ex, uint32_t owner_shard_id) 
     return 0;
 }
 
+// Whole-runtime form of the same question, for the clock lane: a task parked
+// on a socket can still be made runnable by the outside world, so the clock
+// must ask about every shard, not the one the caller happens to hold. Each
+// answer is read under that shard's lock -- the same order the idle sample
+// beside it uses -- so a registration in flight is never read as absent.
+int rt_net_has_waiters_any_shard(rt_executor* ex) {
+    rt_runtime* runtime = rt_executor_runtime(ex);
+    size_t shard_count = rt_runtime_shard_count(runtime);
+    for (size_t i = 0; i < shard_count; i++) {
+        rt_shard* shard = rt_runtime_shard(runtime, i);
+        if (shard == NULL) {
+            continue;
+        }
+        rt_shard_lock(shard);
+        int has_waiters = rt_net_has_waiters_on_shard(ex, (uint32_t)i);
+        rt_shard_unlock(shard);
+        if (has_waiters) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 int rt_net_begin_poll_on_shard(rt_executor* ex, uint32_t owner_shard_id) {
     rt_shard* shard = rt_runtime_shard(rt_executor_runtime(ex), owner_shard_id);
     if (shard == NULL) {

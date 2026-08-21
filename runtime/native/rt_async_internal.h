@@ -399,6 +399,12 @@ struct rt_executor {
     // Virtual clock (D7): relaxed atomic counter; ticks are fetch_add, idle
     // jumps go through rt_clock_advance_to (monotonic CAS).
     _Atomic uint64_t now_ms;
+    // Virtual milliseconds handed out that no wall-clock wait paid for: yield
+    // ticks, and idle jumps taken while nothing outside the process could make
+    // a task runnable. now_ms <= monotonic_ms + this is an invariant, so the
+    // wall bound below can refuse to move the clock FORWARD but can never
+    // strand a deadline that is already due.
+    _Atomic uint64_t clock_free_ms;
     rt_runtime* runtime;
     // Embedded (not a swappable pointer): the segmented table's directory is
     // fixed-size and never reallocated, so there is nothing to atomically
@@ -890,6 +896,8 @@ void rt_sleep_store_destroy(rt_sleep_store* store);
 uint64_t rt_clock_now(const rt_executor* ex);
 uint64_t rt_clock_tick(rt_executor* ex);
 int rt_clock_advance_to(rt_executor* ex, uint64_t target);
+uint64_t rt_clock_deadline_base(rt_executor* ex);
+int rt_clock_advance_to_next_deadline(rt_executor* ex);
 size_t rt_sleep_fire_due_on_shard(rt_executor* ex, rt_shard* shard, uint64_t now);
 int rt_task_can_steal_from_shard(const rt_task* task, uint32_t shard_id);
 int rt_task_can_steal_from_shard_or_trace_denied(const rt_task* task, uint32_t shard_id);

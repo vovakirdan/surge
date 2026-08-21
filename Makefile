@@ -324,6 +324,7 @@ runtime-v2-waiter-check:
 	$(GO) test ./internal/vm -run '^TestRuntimeV2WaiterHelperStaticBoundary$$' -count=1 -v --timeout 30s
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2(CancelledRecvWaiterDoesNotConsumeNextWake|CancelledSendWaiterDoesNotConsumeNextRecv|ChannelCloseWakesRecvWaiters|ChannelCloseWakesSendWaiters|SelectTimeoutCleansLosingChannelWaiter|CancelledSelectCleansWaitKeysAndTimers|CancelledJoinWaiterDoesNotConsumeTaskCompletionWake|FailfastScopeCancellationWakesOwner|BlockingCompletionWakesAwaiter|CancelledBlockingWaiterDoesNotConsumeCompletionWake|OwnerLocalWaiterSkeletonStaticShape|OwnerLocalTraceAggregatesShardWaiters|OwnerLocalNetWaiterBehavior|NetWaiterTraceContract)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
 	SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2FreedChannelWaiterRouting$$' -count=1 -parallel=1 -p=1 -v --timeout 900s
+	SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2(TimeoutOverNetWaitSurvivesItsWallBudget|SleepWithoutNetWaiterStillAdvancesInstantly)$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 
 runtime-v2-fd-registry-check:
 	@echo ">> Running Runtime V2 fd registry liveness gate"

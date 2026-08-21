@@ -22,6 +22,7 @@ typedef struct rt_shard rt_shard;
 int rt_net_poll_wake_init(rt_shard* shard);
 void rt_net_poll_wake_drain(rt_shard* shard);
 int rt_net_has_waiters_on_shard(const rt_executor* ex, uint32_t owner_shard_id);
+int rt_net_has_waiters_any_shard(rt_executor* ex);
 int rt_net_begin_poll_on_shard(rt_executor* ex, uint32_t owner_shard_id);
 int rt_net_poll_waiters_owned_on_shard(rt_executor* ex, uint32_t owner_shard_id, int timeout_ms);
 int poll_net_waiters_on_shard(rt_executor* ex, uint32_t owner_shard_id, int timeout_ms);

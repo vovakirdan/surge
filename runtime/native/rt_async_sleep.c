@@ -1,4 +1,5 @@
 #include "rt_async_internal.h"
+#include "rt_async_net_poll.h"
 #include "rt_sync_point.h"
 
 // Per-shard sleep store (spike D7). The waiter store keeps
@@ -121,7 +122,83 @@ uint64_t rt_clock_tick(rt_executor* ex) {
     if (ex == NULL) {
         return 0;
     }
-    return atomic_fetch_add_explicit(&ex->now_ms, 1, memory_order_relaxed) + 1;
+    uint64_t ticked = atomic_fetch_add_explicit(&ex->now_ms, 1, memory_order_relaxed) + 1;
+    // A yielded poll is still worth one virtual millisecond nobody waited for,
+    // so the ceiling rises with it: ticks move the clock and its bound by the
+    // same step and therefore can neither expire a budget early nor stall one.
+    atomic_fetch_add_explicit(&ex->clock_free_ms, 1, memory_order_relaxed);
+    return ticked;
+}
+
+// The wall ceiling: real elapsed milliseconds plus every virtual millisecond
+// the runtime granted itself for free. Returns UINT64_MAX when the monotonic
+// clock is unavailable, which leaves the pre-bound behaviour in place rather
+// than stalling a runtime that cannot measure the wall.
+static uint64_t clock_wall_ceiling(const rt_executor* ex) {
+    int64_t real_ns = rt_monotonic_now();
+    if (real_ns <= 0) {
+        return UINT64_MAX;
+    }
+    uint64_t free_ms = atomic_load_explicit(&ex->clock_free_ms, memory_order_relaxed);
+    return (uint64_t)(real_ns / 1000000) + free_ms;
+}
+
+// The clock may outrun the wall only while nothing outside the process can
+// make a task runnable. A task parked on a socket is not "nothing left to
+// do": jumping the clock past its timeout is how a sixty-second budget used
+// to expire in six milliseconds. Shutdown is exempt -- teardown wants every
+// pending timer to fire at once, and nothing is waiting for the wall then.
+static int clock_wall_bound_active(rt_executor* ex) {
+    return atomic_load_explicit(&ex->shutdown, memory_order_relaxed) == 0 &&
+           rt_net_has_waiters_any_shard(ex);
+}
+
+// Where a freshly armed deadline counts from: the clock, caught up to the
+// wall first. The clock stands still for as long as the runtime is parked
+// with no timer armed -- a server waiting for its first connection -- and a
+// budget armed against that stale reading is payable out of wall time that
+// already passed. The catch-up is unconditional because whether a socket
+// waiter is registered AT THIS INSTANT is a race: a timeout is armed just
+// before the task it guards parks on the socket. It costs nothing when the
+// clock is already ahead of the wall, which is the ordinary case.
+uint64_t rt_clock_deadline_base(rt_executor* ex) {
+    if (ex == NULL) {
+        return 0;
+    }
+    uint64_t ceiling = clock_wall_ceiling(ex);
+    if (ceiling != UINT64_MAX) {
+        (void)rt_clock_advance_to(ex, ceiling);
+    }
+    return rt_clock_now(ex);
+}
+
+// The one place virtual time is created out of nothing. Returns 0 when the
+// deadline has not been paid for yet -- the caller then goes back to its own
+// bounded wait (a poll slice or a 50ms condvar slice), the wall keeps moving,
+// and the same question is asked again a few milliseconds later.
+int rt_clock_advance_to_next_deadline(rt_executor* ex) {
+    uint64_t next_deadline = 0;
+    if (ex == NULL || !rt_next_sleep_deadline(ex, &next_deadline)) {
+        return 0;
+    }
+    uint64_t now = rt_clock_now(ex);
+    if (next_deadline > now) {
+        uint64_t ceiling = clock_wall_ceiling(ex);
+        if (clock_wall_bound_active(ex)) {
+            if (ceiling < next_deadline) {
+                // Take the part the wall has already paid for. Every caller
+                // sizes its next wait as (deadline - now), so a clock left
+                // standing here would ask for the whole budget a second time.
+                (void)rt_clock_advance_to(ex, ceiling);
+                return 0;
+            }
+        } else if (next_deadline > ceiling) {
+            atomic_fetch_add_explicit(
+                &ex->clock_free_ms, next_deadline - ceiling, memory_order_relaxed);
+        }
+    }
+    (void)rt_clock_advance_to(ex, next_deadline);
+    return 1;
 }
 
 // Monotonic idle advance: never moves the clock backward even if the caller

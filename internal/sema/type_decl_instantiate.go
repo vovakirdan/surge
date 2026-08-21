@@ -537,16 +537,5 @@ func (tc *typeChecker) instantiateGenericType(baseType types.TypeID, typeArgs []
 	}
 
 	// Instantiate the type with the given type args
-	instantiated := tc.instantiateType(symID, typeArgs, site, "type")
-	// A channel payload crosses task boundaries; a borrow must not. The rule
-	// belongs to the TYPE, so it has to hold however that type was written —
-	// as an annotation, or as the receiver of `Channel::<T>::new`. It used to
-	// be reached only through the annotation path, which was enough while the
-	// free `make_channel::<T>` helper carried construction; the helper is gone.
-	if payload := tc.channelPayloadType(instantiated); payload != types.NoTypeID {
-		if tc.rejectRefInAggregate(payload, site, "channel payload") {
-			return types.NoTypeID
-		}
-	}
-	return instantiated
+	return tc.instantiateTypeRejectingChannelPayloadRef(symID, typeArgs, site)
 }

@@ -188,6 +188,7 @@ static void exec_init_once(void) {
         panic_msg("async: scheduler initialization failed");
     }
     channel_wake_force_inject = rt_env_channel_wake_force_inject();
+    (void)rt_monotonic_now(); // start the wall measurement with the executor
     // The blocking pool must exist before any worker can reach an idle-park
     // edge: the park-edge deadlock scan locks blocking_lock, so the pool's
     // primitives have to be initialized before the worker threads start
@@ -495,11 +496,12 @@ int advance_time_to_next_timer(rt_executor* ex) {
     if (ex == NULL) {
         return 0;
     }
-    uint64_t next_deadline = 0;
-    if (!rt_next_sleep_deadline(ex, &next_deadline)) {
+    // Wall-bounded: refuses while a socket waiter is registered and the wall
+    // has not reached the deadline yet, so the caller waits instead of
+    // inventing the time.
+    if (!rt_clock_advance_to_next_deadline(ex)) {
         return 0;
     }
-    (void)rt_clock_advance_to(ex, next_deadline);
     uint64_t now = rt_clock_now(ex);
     rt_runtime* runtime = rt_executor_runtime(ex);
     size_t shard_count = rt_runtime_shard_count(runtime);

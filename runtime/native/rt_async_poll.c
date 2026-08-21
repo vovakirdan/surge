@@ -34,7 +34,7 @@ static poll_outcome poll_sleep_task(rt_executor* ex, rt_task* task) {
         return out;
     }
     if (!task->sleep_armed) {
-        task->sleep_deadline = rt_clock_now(ex) + task->sleep_delay;
+        task->sleep_deadline = rt_clock_deadline_base(ex) + task->sleep_delay;
         task->sleep_armed = 1;
         // Arm once: the owner shard's sleep store is the deadline index the
         // tick/advance paths pop; the timer-key waiter entry is the park.
