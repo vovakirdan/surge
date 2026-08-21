@@ -1,0 +1,41 @@
+expr_turbofish_call.sg (span: 7:1-27:1)
+├─ Item[0]: Fn (span: 7:1-9:2)
+│  ├─ Name: identity
+│  ├─ Generics: <T>
+│  ├─ Params: (value: T)
+│  ├─ Return: T
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 7:31-9:2)
+│        └─ Stmt[0]: Return (span: 8:5-8:18)
+│           └─ Expr: expr#1: value
+└─ Item[1]: Fn (span: 11:1-26:2)
+   ├─ Name: call_shapes
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 11:18-26:2)
+         ├─ Stmt[0]: Let (span: 13:5-13:37)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#4: identity(1)
+         ├─ Stmt[1]: Let (span: 16:5-16:51)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: int[]
+         │  └─ Value: expr#9: Array.with_len(3 to uint)
+         ├─ Stmt[2]: Let (span: 19:5-19:50)
+         │  ├─ Name: c
+         │  ├─ Mutable: false
+         │  ├─ Type: int[]
+         │  └─ Value: expr#14: Array.with_len(2 to uint)
+         ├─ Stmt[3]: Let (span: 22:5-22:59)
+         │  ├─ Name: d
+         │  ├─ Mutable: false
+         │  ├─ Type: own Channel<int>
+         │  └─ Value: expr#19: Channel.new(1 to uint)
+         └─ Stmt[4]: Let (span: 25:5-25:72)
+            ├─ Name: e
+            ├─ Mutable: false
+            ├─ Type: ArrayFixed<int, 3>
+            └─ Value: expr#24: ArrayFixed.with_len(3 to uint)

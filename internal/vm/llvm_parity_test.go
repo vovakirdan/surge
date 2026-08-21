@@ -48,6 +48,7 @@ func TestLLVMParity(t *testing.T) {
 		{name: "tagged_switch", file: "tagged_switch.sg"},
 		{name: "nested_ref_field", file: "nested_ref_field.sg"},
 		{name: "option_tag_cast", file: "option_tag_cast.sg"},
+		{name: "channel_new_turbofish", file: "channel_new_turbofish.sg"},
 		{name: "select_channel", file: "select_channel.sg"},
 		{name: "select_timeout", file: "select_timeout.sg"},
 		{name: "unicode_len", file: "unicode_len.sg"},

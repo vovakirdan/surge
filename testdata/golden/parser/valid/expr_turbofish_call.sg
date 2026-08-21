@@ -1,0 +1,26 @@
+// Parser test: turbofish is the only spelling for type arguments in a CALL.
+// `Object<T>::f()` does not parse — the `<` is read as the less-than operator —
+// so every generic call below writes `::<`. The sibling fixtures
+// generic_call_angle_brackets.sg and generic_member_angle_brackets.sg pin the
+// rejected spellings.
+
+fn identity<T>(value: T) -> T {
+    return value;
+}
+
+fn call_shapes() {
+    // Free generic function.
+    let a: int = identity::<int>(1);
+
+    // Static method on a generic type, `::` form.
+    let b: int[] = Array::<int>::with_len(3:uint);
+
+    // Static method on a generic type, `.` form.
+    let c: int[] = Array::<int>.with_len(2:uint);
+
+    // Intrinsic constructor: the canonical channel spelling.
+    let d: own Channel<int> = Channel::<int>::new(1:uint);
+
+    // Several type arguments.
+    let e: ArrayFixed<int, 3> = ArrayFixed::<int, 3>::with_len(3:uint);
+}

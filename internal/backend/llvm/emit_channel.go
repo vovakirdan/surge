@@ -37,49 +37,6 @@ func isChannelType(typesIn *types.Interner, typeID types.TypeID) bool {
 	}
 }
 
-// isFarChannelType reports whether typeID is `far Channel<T>` (any
-// wrapping of &/own/* around the far qualifier is stripped by
-// resolveValueType first, matching isChannelType's own unwrap). Used to
-// route a far-channel-typed binding's scope-exit drop to the runtime's
-// far-handle release instead of the ordinary local-channel leaf path,
-// which isFarChannelType-gated callers never reach: resolveValueType
-// stops at a KindFar node (it does not unwrap the far qualifier itself,
-// only Alias/Own/Reference/Pointer), so a local Channel<T> and a far
-// Channel<T> are never confused here.
-func isFarChannelType(typesIn *types.Interner, typeID types.TypeID) bool {
-	if typesIn == nil || typeID == types.NoTypeID {
-		return false
-	}
-	typeID = resolveValueType(typesIn, typeID)
-	tt, ok := typesIn.Lookup(typeID)
-	if !ok || tt.Kind != types.KindFar {
-		return false
-	}
-	return isChannelType(typesIn, tt.Elem)
-}
-
-// channelElemType extracts T from Channel<T> (any wrapping the resolved
-// struct/alias node itself does not already strip — callers pass a
-// resolveValueType'd id), mirroring sema's channelPayloadType.
-func channelElemType(typesIn *types.Interner, channelType types.TypeID) types.TypeID {
-	if typesIn == nil || channelType == types.NoTypeID {
-		return types.NoTypeID
-	}
-	if info, ok := typesIn.StructInfo(channelType); ok && info != nil && typesIn.Strings != nil {
-		if name, nameOK := typesIn.Strings.Lookup(info.Name); nameOK && name == "Channel" {
-			if args := typesIn.StructArgs(channelType); len(args) == 1 {
-				return args[0]
-			}
-		}
-	}
-	if info, ok := typesIn.AliasInfo(channelType); ok && info != nil && typesIn.Strings != nil {
-		if name, nameOK := typesIn.Strings.Lookup(info.Name); nameOK && name == "Channel" && len(info.TypeArgs) == 1 {
-			return info.TypeArgs[0]
-		}
-	}
-	return types.NoTypeID
-}
-
 // channelPayloadDropID resolves the drop-fn id a channel of element type T
 // needs for its buffered/mailbox payload reclamation: 0 for Copy/inert T
 // (never dispatched), matching the same gate 053a's task-result drop-fn id
@@ -125,9 +82,17 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 	}
 	base := stripGenericSuffix(name)
 	switch base {
-	case "make_channel":
+	case "make_channel", "new":
+		// `new` is a shared name: RwLock declares its own intrinsic `new`, and
+		// Mutex, Condition, Semaphore and Barrier declare ordinary `new`
+		// functions that pass through this same dispatcher. The destination
+		// type is what separates them, exactly as it does in the VM
+		// (internal/vm/intrinsic_channel.go).
+		if base == "new" && !fe.callDstIsChannel(call) {
+			return false, nil
+		}
 		if len(call.Args) != 1 {
-			return true, fmt.Errorf("make_channel expects 1 argument")
+			return true, fmt.Errorf("channel constructor expects 1 argument")
 		}
 		cap64, err := fe.emitUintOperandToI64(&call.Args[0], "channel capacity out of range")
 		if err != nil {
