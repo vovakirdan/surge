@@ -105,11 +105,14 @@ struct rt_remote_task_pending {
     // any still-pending entry (rt_remote_task_wait.c) must never touch this
     // field, or the free path could wrongly skip-or-drop the wrong arm.
     uint64_t select_committed_index;
-    // Channel-create only: drop obligation for the channel's own element
-    // type (0 for Copy/inert elements, never dispatched), threaded from the
-    // channel_on::<T> crossing lowering site to rt_channel_new on the
-    // owner shard.
-    uint64_t payload_drop_fn_id;
+    // Channel-create only: the TYPE ID of the channel's own element, threaded
+    // from the channel_on::<T> crossing lowering site to rt_channel_new on the
+    // owner shard, which turns it back into a descriptor there.
+    //
+    // An id and not a pointer, because this is the one channel constructor
+    // whose argument crosses a boundary: a descriptor's address means nothing
+    // on the far side, and an id means the same thing on both.
+    uint64_t element_type_id;
     uint64_t result_bits;
     // Drop obligation for a landed, heap-carried AWAIT reply the caller
     // never consumed. Threaded from the far Task<T> await/cancel

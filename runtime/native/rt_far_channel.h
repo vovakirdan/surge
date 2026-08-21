@@ -59,7 +59,7 @@ void rt_far_channel_handle_free(rt_far_task_handle* handle);
 void rt_far_channel_handle_drop(rt_far_task_handle* handle);
 rt_remote_task_status rt_far_channel_create(uint64_t placement,
                                             uint64_t capacity,
-                                            uint64_t payload_drop_fn_id,
+                                            uint64_t element_type_id,
                                             rt_remote_task_pending** pending,
                                             rt_far_task_handle* out_handle,
                                             uint8_t* out_kind,

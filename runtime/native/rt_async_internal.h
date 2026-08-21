@@ -926,7 +926,7 @@ void task_add_ref(rt_task* task);
 void task_release(rt_executor* ex, rt_task* task);
 void task_release_lane_aware(rt_executor* ex, rt_task* task);
 
-void* rt_channel_new(uint64_t capacity, uint64_t payload_drop_fn_id);
+void* rt_channel_new(uint64_t capacity, uint64_t element_type_id);
 bool rt_channel_send(void* channel, uint64_t value_bits);
 bool rt_channel_send_yield(void* channel, uint64_t value_bits);
 uint8_t rt_channel_recv(void* channel, uint64_t* out_bits);

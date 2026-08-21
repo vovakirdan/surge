@@ -1715,6 +1715,17 @@
         {
           "finding": {
             "category": "native-payload-bits",
+            "path": "runtime/native/rt_async_channel.c",
+            "token": "resume_bits",
+            "evidence": "channel_reclaim_element(ch, \u0026task-\u003eresume_bits);",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d",
+          "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "native-payload-bits",
             "path": "runtime/native/rt_remote_task_result.c",
             "token": "result_bits",
             "evidence": "(void*)(uintptr_t)producer-\u003eresult_bits);",
@@ -3679,6 +3690,17 @@
           },
           "retired_by": "wave-d-descriptor-emission",
           "tracked_as": "RV2-DEBT-164"
+        },
+        {
+          "finding": {
+            "category": "numeric-drop-dispatch",
+            "path": "internal/backend/llvm/emit_channel.go",
+            "token": "registerCrossingDropResult",
+            "evidence": "fe.emitter.registerCrossingDropResult(elem)",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d",
+          "tracked_as": "RV2-DEBT-151"
         },
         {
           "finding": {

@@ -1,5 +1,7 @@
 #include "rt_channel_lane.h"
 
+#include "rt_value_ops.h"
+
 // Async channel fast lanes (peel B2): send and recv run on the channel
 // owner's shard lane; see rt_channel_lane.h for the shared protocol.
 
@@ -30,7 +32,37 @@ static int prepare_channel_send_yield(rt_task* task) {
     return 1;
 }
 
-void* rt_channel_new(uint64_t capacity, uint64_t payload_drop_fn_id) {
+// The lookup is emitted by the compiler, so a C stand that links this file
+// without compiled Surge code has no definition for it. Weak rather than
+// required: such a stand builds channels of inert elements, and a null
+// descriptor is exactly the right answer for those.
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+extern const rt_value_ops* __surge_value_ops_for(uint64_t type_id) __attribute__((weak));
+
+static const rt_value_ops* channel_element_ops(uint64_t element_type_id) {
+    if (element_type_id == 0 || __surge_value_ops_for == NULL) {
+        return NULL;
+    }
+    return __surge_value_ops_for(element_type_id);
+}
+
+// Reclaims one element from storage the channel owns.
+//
+// A null descriptor is not "nothing to do" -- the detached helper refuses one
+// on purpose, because "no descriptor" and "no obligation" are different
+// statements and only the second is something it can act on. The difference is
+// known HERE: a channel whose element the program emitted no descriptor for is
+// holding an inert element, and inert elements are exactly what the old zero
+// drop-fn id used to mean. So the absence is answered here rather than being
+// passed down as a question the helper would be right to reject.
+static void channel_reclaim_element(const rt_channel* ch, void* storage) {
+    if (ch == NULL || ch->ops == NULL) {
+        return;
+    }
+    rt_value_drop_in_place_detached(ch->ops, storage);
+}
+
+void* rt_channel_new(uint64_t capacity, uint64_t element_type_id) {
     uint64_t bytes = channel_alloc_size(capacity);
     rt_channel* ch = (rt_channel*)rt_alloc(bytes, _Alignof(rt_channel));
     if (ch == NULL) {
@@ -39,7 +71,7 @@ void* rt_channel_new(uint64_t capacity, uint64_t payload_drop_fn_id) {
     }
     memset(ch, 0, sizeof(rt_channel));
     ch->capacity = capacity;
-    ch->payload_drop_fn_id = payload_drop_fn_id;
+    ch->ops = channel_element_ops(element_type_id);
     const rt_task* creator = rt_current_task();
     ch->owner_shard_id =
         creator != NULL && creator->owner_shard_valid != 0 ? creator->owner_shard_id : 0;
@@ -56,8 +88,8 @@ void* rt_channel_new(uint64_t capacity, uint64_t payload_drop_fn_id) {
 // capacity, the same way emitTagValueFromValues-style leaf frees elsewhere
 // in the runtime recompute their own allocation size. See rt.h for the
 // caller-responsibility contract (no other live holder). Drains every
-// still-buffered entry through payload_drop_fn_id first (a no-op walk when
-// it's 0, the Copy/inert case): the only caller today, release_entry
+// still-buffered entry through the element's descriptor first (a no-op walk
+// for an inert element, which has none): the only caller today, release_entry
 // (rt_far_channel.c), only reaches this after confirming no lease or pin
 // can resolve the channel anymore, so the buffer is quiescent here without
 // this function taking any lock of its own.
@@ -128,11 +160,9 @@ void rt_channel_free(void* channel) {
     if (rt_lane_holds_control() || rt_lane_holds_any_shard()) {
         panic_msg("async: channel reclaim ran while a scheduler lock was held");
     }
-    if (ch->payload_drop_fn_id != 0) {
-        for (size_t i = 0; i < ch->buf_len; i++) {
-            size_t idx = (ch->buf_head + i) % ch->capacity;
-            __surge_drop_result_call(ch->payload_drop_fn_id, (void*)ch->buf[idx]);
-        }
+    for (size_t i = 0; i < ch->buf_len; i++) {
+        size_t idx = (ch->buf_head + i) % ch->capacity;
+        channel_reclaim_element(ch, &ch->buf[idx]);
     }
     uint64_t bytes = channel_alloc_size(ch->capacity);
     rt_async_debug_printf(
@@ -153,10 +183,12 @@ void rt_channel_free(void* channel) {
 // no drop id and this costs a load and a branch.
 void rt_channel_release_payload(void* channel, uint64_t payload) {
     const rt_channel* ch = channel_from_handle(channel);
-    if (ch == NULL || ch->payload_drop_fn_id == 0) {
+    if (ch == NULL) {
         return;
     }
-    __surge_drop_result_call(ch->payload_drop_fn_id, (void*)payload);
+    // The descriptor loads through the address it is given, so the bits are
+    // reclaimed from where they sit rather than being passed as a value.
+    channel_reclaim_element(ch, &payload);
 }
 
 static bool rt_channel_send_inner(void* channel, uint64_t value_bits, int yield_after_handoff) {
@@ -290,8 +322,8 @@ uint8_t rt_channel_recv(void* channel, uint64_t* out_bits) {
         // flight. That delivery bypassed this task's own compiled suspend
         // state entirely (RV2-DEBT-059's abandoned-state mechanism never
         // sees it), so this is the only place left to reclaim it.
-        if (task->resume_kind == RESUME_CHAN_RECV_VALUE && ch->payload_drop_fn_id != 0) {
-            __surge_drop_result_call(ch->payload_drop_fn_id, (void*)task->resume_bits);
+        if (task->resume_kind == RESUME_CHAN_RECV_VALUE) {
+            channel_reclaim_element(ch, &task->resume_bits);
         }
         task->resume_kind = RESUME_NONE;
         task->resume_bits = 0;

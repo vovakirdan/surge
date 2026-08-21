@@ -37,17 +37,32 @@ func isChannelType(typesIn *types.Interner, typeID types.TypeID) bool {
 	}
 }
 
-// channelPayloadDropID resolves the drop-fn id a channel of element type T
-// needs for its buffered/mailbox payload reclamation: 0 for Copy/inert T
-// (never dispatched), matching the same gate 053a's task-result drop-fn id
-// uses (a raw uint64_t bits value that may or may not be a real pointer,
-// not an unconditionally-boxed envelope the way an async suspend state is).
-func (fe *funcEmitter) channelPayloadDropID(channelDstType types.TypeID) types.TypeID {
+// channelElementTypeID resolves what a channel of element type T is told about
+// its element: T's own type id, which the runtime turns back into a descriptor
+// through __surge_value_ops_for.
+//
+// It is an id rather than a descriptor pointer because of the one caller that
+// cannot use a pointer: a far channel is created from a request that crossed a
+// boundary, where a process-static address means nothing and an id means the
+// same thing on both sides. Passing the id everywhere keeps that path and this
+// one saying the same thing.
+//
+// The id is unconditional, unlike the drop-fn id it replaces, which was zero
+// for a Copy/inert element. The runtime needs to know what it holds whether or
+// not that thing has to be destroyed, and a descriptor answers both questions;
+// a type the backend emitted no descriptor for still resolves to null there,
+// which is the same no-op the zero used to produce.
+func (fe *funcEmitter) channelElementTypeID(channelDstType types.TypeID) types.TypeID {
 	elem := channelElemType(fe.emitter.types, resolveValueType(fe.emitter.types, channelDstType))
-	if elem == types.NoTypeID || !fe.emitter.payloadNeedsRuntimeRelease(elem) {
+	if elem == types.NoTypeID {
 		return types.NoTypeID
 	}
-	return fe.emitter.registerCrossingDropResult(elem)
+	if fe.emitter.payloadNeedsRuntimeRelease(elem) {
+		// Registering keeps the crossing drop dispatch able to name this type,
+		// which the far select arms still use.
+		fe.emitter.registerCrossingDropResult(elem)
+	}
+	return elem
 }
 
 func (fe *funcEmitter) emitChannelHandle(op *mir.Operand) (string, error) {
@@ -98,16 +113,16 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 		if err != nil {
 			return true, err
 		}
-		dropID := types.TypeID(0)
+		elementTypeID := types.TypeID(0)
 		if call.HasDst {
 			dstType, err := fe.placeBaseType(call.Dst)
 			if err != nil {
 				return true, err
 			}
-			dropID = fe.channelPayloadDropID(dstType)
+			elementTypeID = fe.channelElementTypeID(dstType)
 		}
 		tmp := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_channel_new(i64 %s, i64 %d)\n", tmp, cap64, dropID)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_channel_new(i64 %s, i64 %d)\n", tmp, cap64, elementTypeID)
 		if call.HasDst {
 			ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 			if err != nil {

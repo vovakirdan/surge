@@ -132,3 +132,46 @@ func emittedDefinition(ir string, name string) string {
 	}
 	return ir[start : start+end+3]
 }
+
+// TestAChannelIsToldItsElementTypeEvenWhenNothingHasToBeDestroyed pins the half
+// of the storage flip that is visible from here.
+//
+// The constructor used to take a DROP-FN id, which was zero whenever the
+// element had nothing to reclaim -- so a channel of int was told nothing at all
+// about what it holds. The runtime now needs the element's layout whether or
+// not that element has to be destroyed, so the argument is the element's TYPE
+// id, and it is unconditional. A zero would mean "no descriptor", which for a
+// type the program actually stores is a lie the runtime cannot detect.
+func TestAChannelIsToldItsElementTypeEvenWhenNothingHasToBeDestroyed(t *testing.T) {
+	mirMod, result := lowerMIRFromSource(t, valueOpsLookupSource)
+	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
+	if err != nil {
+		t.Fatalf("emit: %v", err)
+	}
+
+	constructions := 0
+	for _, line := range strings.Split(ir, "\n") {
+		index := strings.Index(line, "@rt_channel_new(i64 ")
+		if index < 0 {
+			continue
+		}
+		constructions++
+		rest := line[index:]
+		comma := strings.LastIndex(rest, ", i64 ")
+		if comma < 0 {
+			t.Fatalf("unreadable construction: %s", line)
+		}
+		argument := strings.TrimSuffix(strings.TrimSpace(rest[comma+len(", i64 "):]), ")")
+		if argument == "0" {
+			t.Errorf(
+				"a channel was constructed with element type id 0, so the runtime cannot ask what it holds: %s",
+				strings.TrimSpace(line),
+			)
+		}
+	}
+	// The corpus builds four channels; a fixture that stopped building them
+	// would leave this asserting about nothing.
+	if constructions < 4 {
+		t.Fatalf("only %d channel constructions were seen, expected the corpus's four", constructions)
+	}
+}
