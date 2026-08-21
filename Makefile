@@ -312,6 +312,8 @@ runtime-v2-heap-check:
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2Drop(LeafReclamation|ScopeExit|FieldAliasDoesNotDoubleFree|ArmSynthesis|Composite|SelectSendArm|UnionCastReclamation)$$|^TestRuntimeV2(FarSelectCancelNonCopySendArm|LocalSelectCancelNonCopySendArm)$$|^TestRuntimeV2CrossingHeapCaptureCensusBalanced$$|^TestRuntimeV2CrossingStrictCensusBalanced$$|^TestRuntimeV2IterProtocolReclamationCensusBalanced$$|^TestRuntimeV2CompareScrutineeReleaseCensusBalanced$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 	@echo ">> Running Runtime V2 strict-census valgrind gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2CrossingStrictCensusValgrindBounded$$|^TestRuntimeV2DropFarChannelHandleAndObjectValgrindZero$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
+	@echo ">> Running Runtime V2 channel payload reclamation gate"
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2SelectReleasesA(String|Composite)PayloadExactlyOnce$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 	@echo ">> Running Runtime V2 array-view reclamation gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2ArrayViewHeaderReclaimedPerSlice$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 	@echo ">> Running Runtime V2 fixnum inline-int gate"
