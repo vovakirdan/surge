@@ -1,6 +1,7 @@
 #ifndef SURGE_RUNTIME_NATIVE_RT_ASYNC_INTERNAL_H
 #define SURGE_RUNTIME_NATIVE_RT_ASYNC_INTERNAL_H
 #include "rt.h"
+#include "rt_async_trace.h"
 #include "rt_heap_accounting.h"
 #include "rt_placement.h"
 #include "rt_runtime_config.h"
@@ -946,11 +947,6 @@ uint64_t rt_net_wake_poll_on_shard(rt_executor* ex, uint32_t owner_shard_id);
 uint64_t rt_net_wake_poll_all_shards(rt_executor* ex);
 uint64_t
 rt_net_wake_poll_for_task_wait_keys(rt_executor* ex, const rt_task* task, waker_key fallback_key);
-void rt_net_trace_dump(const char* reason);
-void rt_trace_sched_tier1_steal_denied(void);
-void rt_trace_sched_connection_owner_placed(void);
-void rt_trace_sched_connection_owner_run(uint32_t owner_shard_id, uint32_t worker_shard_id);
-void rt_trace_drain_signal_dump(void);
 int run_ready_one(rt_executor* ex);
 int rt_run_ready_one_nowait_locked(rt_executor* ex);
 void* rt_worker_main(void* arg);
