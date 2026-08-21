@@ -63,7 +63,7 @@ func (e *Emitter) requireValueOpsDropBodies() {
 	registry := e.mod.Meta.Operations
 	for _, id := range registry.TypeIDs() {
 		entry, err := registry.Value(id)
-		if err != nil || entry.Flags&valueops.FlagDroppable == 0 {
+		if err != nil || e.backedFlags(&entry)&valueops.FlagDroppable == 0 {
 			continue
 		}
 		if !e.valueOpsEmittable(&entry) {
@@ -115,22 +115,11 @@ func (e *Emitter) emitValueOpsDescriptors() {
 // emitting a descriptor with a null clone_init while the flag is set would ship
 // exactly the flag/callback disagreement the runtime refuses.
 func (e *Emitter) valueOpsEmittable(entry *valueops.Entry) bool {
+	flags := e.backedFlags(entry)
 	for _, slot := range valueOpsSlotOrder {
-		filler, err := valueops.SlotFiller(slot, entry.Flags)
+		filler, err := valueops.SlotFiller(slot, flags)
 		if err != nil {
 			return false
-		}
-		if slot == "drop_in_place" && filler.Kind == valueops.FillBackendDerivedBody {
-			// The bit means the manifest's sentence: drop_in_place is present
-			// AND has work to do. The registry's verdict is about the carrier's
-			// obligation, and for a leaf family this backend cannot reclaim --
-			// a far lease, an opaque runtime resource -- the two answers differ.
-			// Skipping the descriptor is the only honest option left: a set bit
-			// over a body that frees nothing passes the runtime's preflight and
-			// then leaks in silence, which nothing downstream can catch.
-			if !e.typeOwnsHeap(entry.Type) {
-				return false
-			}
 		}
 		if filler.Kind == valueops.FillRegistryNamedBody {
 			// The registry carries the symbol; the backend must be able to name
@@ -167,6 +156,28 @@ func (e *Emitter) emitMoveInitBody(entry *valueops.Entry) {
 	e.buf.WriteString("  ret void\n}\n\n")
 }
 
+// backedFlags is what the descriptor may claim, as opposed to what the registry
+// verdict says.
+//
+// They differ for one family and one reason: the classifier states a carrier's
+// drop OBLIGATION, while DROPPABLE means what the manifest says it means --
+// drop_in_place is present and has work to do. For an opaque runtime resource
+// (a channel, a task handle) the obligation is real and this backend has no
+// reclamation for the leaf, so the bit comes off and the descriptor ships
+// without it. That is not a weaker claim than the truth: it is the truth the
+// channel already implements, where such an element's drop id is zero.
+//
+// The alternative -- withholding the descriptor entirely -- was what this
+// emitter did until the typed constructor needed a descriptor for layout and
+// move as well, which are the halves this backend does know how to write.
+func (e *Emitter) backedFlags(entry *valueops.Entry) valueops.Flags {
+	flags := entry.Flags
+	if flags&valueops.FlagDroppable != 0 && !e.typeOwnsHeap(entry.Type) {
+		flags &^= valueops.FlagDroppable
+	}
+	return flags
+}
+
 // emitValueOpsConstant writes one descriptor.
 //
 // Every pointer operand is resolved through the registry's slot table rather
@@ -174,9 +185,10 @@ func (e *Emitter) emitMoveInitBody(entry *valueops.Entry) {
 // which symbol is how the two sides drift, and the table is the only place the
 // contract is written down.
 func (e *Emitter) emitValueOpsConstant(entry *valueops.Entry) {
+	flags := e.backedFlags(entry)
 	operands := make([]string, 0, len(valueOpsSlotOrder))
 	for _, slot := range valueOpsSlotOrder {
-		filler, err := valueops.SlotFiller(slot, entry.Flags)
+		filler, err := valueops.SlotFiller(slot, flags)
 		if err != nil {
 			return
 		}
@@ -192,7 +204,7 @@ func (e *Emitter) emitValueOpsConstant(entry *valueops.Entry) {
 	}
 	fmt.Fprintf(&e.buf,
 		"@%s = constant %%struct.rt_value_ops { %%struct.rt_value_layout { i64 %d, i64 %d, i64 %d, i64 %d }",
-		valueOpsSymbol(entry.Type), entry.Facts.Size, align, stride, uint64(entry.Flags))
+		valueOpsSymbol(entry.Type), entry.Facts.Size, align, stride, uint64(flags))
 	for _, operand := range operands {
 		fmt.Fprintf(&e.buf, ", %s", operand)
 	}

@@ -32,8 +32,17 @@ import (
 //
 // A name leaves this list the day its reclamation is emitted, and the test then
 // fails until the row is deleted — the intended amount of noise for a carrier
-// family becoming real. The descriptor writer skips exactly these, so a listed
-// name is also a promise that no descriptor claims a drop it cannot perform.
+// family becoming real.
+//
+// What a listed name promises is narrow and worth stating exactly: the
+// descriptor is still WRITTEN — a channel of channels needs its element's
+// layout and move_init to exist at all — and what comes off is the DROPPABLE
+// bit, leaving drop_in_place null. The ABI allows exactly that: capability
+// slots are independent, and only move_init and plan_cross are mandatory. So
+// the descriptor states today's truth, where such an element's drop id is zero.
+// It does NOT make these carriers reclaimable: RV2-DEBT-155 is still open, and
+// a future owner obliged to destroy such an element needs real release glue
+// rather than this null.
 const dropGluePrefix = "drop.type"
 
 var knownDroppableDivergences = map[string]string{
@@ -96,12 +105,14 @@ func TestTheDroppableBitAgreesWithTheBackendThatHasToBackIt(t *testing.T) {
 			continue
 		}
 		seenDivergences[name] = struct{}{}
-		// A recorded divergence must never reach a descriptor: a set bit over a
-		// body that frees nothing passes the runtime's preflight and then leaks
-		// in silence, which is the one failure nothing downstream can catch.
-		if registrySays && e.valueOpsEmittable(&entry) {
+		// The descriptor is written, and the bit is what must not survive: a set
+		// flag over a body that frees nothing passes the runtime's preflight and
+		// then leaks in silence, which is the one failure nothing downstream can
+		// catch.
+		if registrySays && e.backedFlags(&entry)&valueops.FlagDroppable != 0 {
 			t.Errorf(
-				"type#%d (%s) diverges and yet is emittable: a descriptor would claim a drop this backend cannot perform",
+				"type#%d (%s) diverges and yet its descriptor still claims DROPPABLE: "+
+					"the bit would promise a drop this backend cannot perform",
 				id, name,
 			)
 		}
@@ -175,4 +186,66 @@ func TestAnEmittedDescriptorCarriesARealDropBody(t *testing.T) {
 			descriptors,
 		)
 	}
+}
+
+// TestAnOpaqueResourceElementGetsALayoutDescriptorWithNoDropClaim is the
+// acceptance the owner named for this rule.
+//
+// A channel of channels is legal today and must stay legal: the typed
+// constructor needs its element's layout and move_init, which this backend can
+// write, while the drop it cannot perform stays absent rather than being faked.
+// Nothing about this makes such an element reclaimable — that is RV2-DEBT-155,
+// and a null callback here must not be mistaken for it being handled.
+func TestAnOpaqueResourceElementGetsALayoutDescriptorWithNoDropClaim(t *testing.T) {
+	const source = `
+@entrypoint
+fn main() -> int {
+    let inner = Channel::<int>::new(1:uint);
+    let outer = Channel::<Channel<int>>::new(1:uint);
+    outer.send(inner);
+    return 0;
+}
+`
+	mirMod, result := lowerMIRFromSource(t, source)
+	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
+	if err != nil {
+		t.Fatalf("a channel of channels must still compile: %v", err)
+	}
+
+	registry := mirMod.Meta.Operations
+	if registry == nil {
+		t.Fatal("no operation registry was published")
+	}
+	checked := 0
+	for _, id := range registry.TypeIDs() {
+		if !strings.HasPrefix(types.Label(result.Sema.TypeInterner, id), "Channel<") {
+			continue
+		}
+		checked++
+		line := descriptorLineFor(ir, id)
+		if line == "" {
+			t.Errorf("type#%d (%s) got no descriptor: the typed constructor would have nothing to pass",
+				id, types.Label(result.Sema.TypeInterner, id))
+			continue
+		}
+		if !strings.Contains(line, "@"+moveInitName(id)) {
+			t.Errorf("type#%d carries no move_init, which is mandatory: %s", id, line)
+		}
+		if strings.Contains(line, "@drop.type") {
+			t.Errorf("type#%d claims a drop this backend cannot perform: %s", id, line)
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no channel type was reached, so the rule was not measured")
+	}
+}
+
+func descriptorLineFor(ir string, id types.TypeID) string {
+	prefix := "@" + valueOpsSymbol(id) + " = "
+	for _, line := range strings.Split(ir, "\n") {
+		if strings.HasPrefix(line, prefix) {
+			return line
+		}
+	}
+	return ""
 }
