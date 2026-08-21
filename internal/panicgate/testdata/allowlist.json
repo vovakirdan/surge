@@ -970,22 +970,22 @@
       "group": "PG-UNFIXTURED"
     },
     {
-      "site": "runtime/native/rt_async_select.c::rt_select_poll_tasks#1",
-      "message": "async select outside task",
-      "group": "PG-INVARIANT"
-    },
-    {
-      "site": "runtime/native/rt_async_select.c::rt_select_poll_tasks#2",
-      "message": "async: missing current task",
-      "group": "PG-INVARIANT"
-    },
-    {
       "site": "runtime/native/rt_async_select.c::rt_timeout_poll#1",
       "message": "async timeout outside task",
       "group": "PG-INVARIANT"
     },
     {
       "site": "runtime/native/rt_async_select.c::rt_timeout_poll#2",
+      "message": "async: missing current task",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_select_tasks.c::rt_select_poll_tasks#1",
+      "message": "async select outside task",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_select_tasks.c::rt_select_poll_tasks#2",
       "message": "async: missing current task",
       "group": "PG-INVARIANT"
     },
