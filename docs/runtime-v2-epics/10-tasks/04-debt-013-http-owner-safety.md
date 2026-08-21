@@ -68,7 +68,7 @@ idle/accept timeout, not as a test harness readiness primitive.
 ## Proof
 
 - `TestRuntimeV2HTTPOwnerLocalStaticShape`
-  - rejects `Channel<int>`, `make_channel::<int>`, `conn.__opaque`,
+  - rejects `Channel<int>`, `Channel::<int>::new`, `conn.__opaque`,
     `TcpConn = { __opaque`, and `spawn net.*` in the HTTP owner path;
   - requires `serve_accept_worker`, copied listener handles, and local accept
     workers.

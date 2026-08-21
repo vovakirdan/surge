@@ -11,7 +11,6 @@ pub type byte = uint8;
 // I/O primitives
 @intrinsic fn rt_write_stdout(ptr: *byte, length: uint) -> uint;
 @intrinsic fn rt_write_stderr(ptr: *byte, length: uint) -> uint;
-@intrinsic fn rt_read_stdin(buf: *byte, max_len: uint) -> uint;
 @intrinsic fn rt_panic_bounds(kind: uint, index: int, length: int) -> nothing;
 
 // Filesystem intrinsics
@@ -258,9 +257,6 @@ extern<Channel<T>> {
     // Close the channel - no more values can be sent
     @intrinsic pub fn close(self: &Channel<T>) -> nothing;
 }
-
-@intrinsic
-fn make_channel<T>(capacity: uint) -> own Channel<T>;
 
 pub contract Bounded<T> {
     fn __min_value() -> T;

@@ -33,7 +33,7 @@ func TestLLVMNativeBufferedChannelAllocatesSingleBlock(t *testing.T) {
 	ensureLLVMToolchain(t)
 
 	// The public LLVM path includes fixed HeapStats/native wrapper allocations around
-	// make_channel. The native buffer is co-allocated into the rt_channel block
+	// the channel constructor. The native buffer is co-allocated into the rt_channel block
 	// (rt_channel_new makes exactly one rt_alloc, sizing it for the ring buffer),
 	// so a buffered channel adds ZERO extra allocation BLOCKS over an unbuffered
 	// one — only the size of that single block grows. The functional half below
@@ -54,12 +54,12 @@ fn main() -> int {
     // an in-range literal to an inline word, so 1:uint no longer allocates
     // and the accounting difference collapses to zero — which is what "single
     // block" meant all along.
-    let warm0 = make_channel::<int>(0:uint);
-    let warm1 = make_channel::<int>(1:uint);
+    let warm0 = Channel::<int>::new(0:uint);
+    let warm1 = Channel::<int>::new(1:uint);
     let s0: HeapStats = rt_heap_stats();
-    let ch0 = make_channel::<int>(0:uint);
+    let ch0 = Channel::<int>::new(0:uint);
     let s1: HeapStats = rt_heap_stats();
-    let ch1 = make_channel::<int>(1:uint);
+    let ch1 = Channel::<int>::new(1:uint);
     let s2: HeapStats = rt_heap_stats();
     let unbuffered_delta = s1.alloc_count - s0.alloc_count;
     let buffered_delta = s2.alloc_count - s1.alloc_count;

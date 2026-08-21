@@ -314,15 +314,14 @@ let r = race {
 `Channel<T>` — это типизированный FIFO дескриптор (копируемый):
 
 ```sg
-let ch = make_channel::<int>(16);
+let ch = Channel::<int>::new(16:uint);
 ch.send(42);
 let v = ch.recv();
 ```
 
 API (core intrinsics):
 
-- `make_channel<T>(capacity: uint) -> own Channel<T>`
-- `Channel<T>::new(capacity: uint) -> own Channel<T>`
+- `Channel::<T>::new(capacity: uint) -> own Channel<T>`
 - `send(self: &Channel<T>, value: own T) -> nothing` (может ожидать)
 - `recv(self: &Channel<T>) -> Option<T>` (может ожидать)
 - `try_send(self: &Channel<T>, value: own T) -> bool`

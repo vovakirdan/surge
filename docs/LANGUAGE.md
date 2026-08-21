@@ -1728,8 +1728,7 @@ Implicit `Some(...)`/`Success(...)` injection happens only in specific contexts 
 
 `Channel<T>` is a typed FIFO provided by core intrinsics. Core ops:
 
-* `make_channel<T>(capacity: uint) -> own Channel<T>` (helper)
-* `Channel<T>::new(capacity: uint) -> own Channel<T>`
+* `Channel::<T>::new(capacity: uint) -> own Channel<T>`
 * `send(self: &Channel<T>, value: own T)` — may wait (parks the task) until the channel has capacity
 * `recv(self: &Channel<T>) -> Option<T>` — may wait (parks the task) until a value is available
 * `try_send(self: &Channel<T>, value: own T) -> bool` — non-blocking send
@@ -2367,7 +2366,7 @@ fn demo_option() {
 
 ```sg
 // Channels (blocking + try)
-let ch = make_channel::<int>(0);
+let ch = Channel::<int>::new(0:uint);
 // sender omitted; assume a producer exists
 let v = ch.recv();          // Option<int>
 compare ch.try_recv() {

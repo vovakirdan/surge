@@ -28,7 +28,7 @@ async fn run(
 fn main(probe: string) -> int {
     if probe != "channel-buffered-composite" { return 92; }
     let ch: own Channel<bench.Payload64> =
-        make_channel::<bench.Payload64>(1:uint);
+        Channel::<bench.Payload64>::new(1:uint);
     let mut samples: int64[64] = default::<int64[64]>();
     let _: uint64 = bench.allocation_observer();
     let c0: uint64 = bench.allocation_observer();

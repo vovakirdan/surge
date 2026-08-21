@@ -108,7 +108,7 @@ fn build() -> int {
 // operation inside an accepted remote context, and the leg needs the far TYPE
 // to exist with a frozen layout, not a remote call.
 fn carriers() -> int {
-	let ch: own Channel<int> = make_channel::<int>(1);
+	let ch: own Channel<int> = Channel::<int>::new(1:uint);
 	ch.close();
 	return 0;
 }

@@ -1,8 +1,8 @@
 @entrypoint
 fn main() -> int {
     let _ = (async {
-        let ch1 = make_channel::<int>(1);
-        let ch2 = make_channel::<int>(1);
+        let ch1 = Channel::<int>::new(1:uint);
+        let ch2 = Channel::<int>::new(1:uint);
         ch1.send(1);
         ch2.send(2);
 

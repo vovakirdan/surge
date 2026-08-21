@@ -550,7 +550,7 @@ async fn consumer(ch: &Channel<int>) {
 
 @entrypoint
 fn main() {
-    let ch = make_channel::<int>(2:uint);
+    let ch = Channel::<int>::new(2:uint);
 
     let p = spawn producer(&ch);
     let c = spawn consumer(&ch);
@@ -581,7 +581,7 @@ async fn parse_and_send(ch: &Channel<int>, text: string) {
 
 @entrypoint("argv")
 fn main(values: string[]) {
-    let ch = make_channel::<int>(4:uint);
+    let ch = Channel::<int>::new(4:uint);
     let consumer = spawn async {
         let mut sum: int = 0;
         while true {

@@ -134,7 +134,7 @@ async fn echo_loop(requests: Channel<Message>) -> nothing {
 }
 
 fn apply_sync_new_reply(requests: &Channel<Message>, value: int) -> int {
-    let reply = make_channel::<int>(1:uint);
+    let reply = Channel::<int>::new(1:uint);
     let request: Message = Apply(value, reply);
     requests.send(own request);
     return compare reply.recv() {
@@ -144,8 +144,8 @@ fn apply_sync_new_reply(requests: &Channel<Message>, value: int) -> int {
 }
 
 async fn bench_channel_ping_pong(iterations: int) -> nothing {
-    let ping_ch = make_channel::<int>(0:uint);
-    let pong_ch = make_channel::<int>(0:uint);
+    let ping_ch = Channel::<int>::new(0:uint);
+    let pong_ch = Channel::<int>::new(0:uint);
     let ping_out = ping_ch;
     let ping_in = pong_ch;
     let pong_in = ping_ch;
@@ -185,8 +185,8 @@ async fn bench_channel_ping_pong(iterations: int) -> nothing {
 }
 
 async fn bench_channel_reused_reply(iterations: int) -> nothing {
-    let requests = make_channel::<Message>(64:uint);
-    let reply = make_channel::<int>(1:uint);
+    let requests = Channel::<Message>::new(64:uint);
+    let reply = Channel::<int>::new(1:uint);
     let task = spawn echo_loop(requests);
     let start = time.monotonic_now();
     let mut i: int = 0;
@@ -208,12 +208,12 @@ async fn bench_channel_reused_reply(iterations: int) -> nothing {
 }
 
 async fn bench_channel_new_reply(iterations: int) -> nothing {
-    let requests = make_channel::<Message>(64:uint);
+    let requests = Channel::<Message>::new(64:uint);
     let task = spawn echo_loop(requests);
     let start = time.monotonic_now();
     let mut i: int = 0;
     while i < iterations {
-        let reply = make_channel::<int>(1:uint);
+        let reply = Channel::<int>::new(1:uint);
         let request: Message = Apply(i, reply);
         requests.send(own request);
         compare reply.recv() {
@@ -231,7 +231,7 @@ async fn bench_channel_new_reply(iterations: int) -> nothing {
 }
 
 async fn bench_channel_sync_new_reply(iterations: int) -> nothing {
-    let requests = make_channel::<Message>(64:uint);
+    let requests = Channel::<Message>::new(64:uint);
     let task = spawn echo_loop(requests);
     let start = time.monotonic_now();
     let mut total = 0;

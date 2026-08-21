@@ -5,28 +5,28 @@ select_send_move_across_loop_backedge.sg (span: 1:1-14:1)
    ├─ Return: nothing
    └─ Body:
       └─ Stmt[0]: Block (span: 1:28-13:2)
-         ├─ Stmt[0]: Let (span: 2:5-2:40)
+         ├─ Stmt[0]: Let (span: 2:5-2:45)
          │  ├─ Name: ch
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#3: make_channel(1)
-         ├─ Stmt[1]: Let (span: 3:5-3:39)
+         │  └─ Value: expr#5: Channel.new(1 to uint)
+         ├─ Stmt[1]: Let (span: 3:5-3:44)
          │  ├─ Name: stop
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#6: make_channel(1)
+         │  └─ Value: expr#10: Channel.new(1 to uint)
          ├─ Stmt[2]: Let (span: 4:5-4:26)
          │  ├─ Name: job
          │  ├─ Mutable: true
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#7: "job-"
+         │  └─ Value: expr#11: "job-"
          ├─ Stmt[3]: Expr (span: 5:5-5:27)
-         │  └─ Expr: expr#12: (job = ((job + "payload")))
+         │  └─ Expr: expr#16: (job = ((job + "payload")))
          ├─ Stmt[4]: While (span: 6:5-11:6)
-         │  ├─ Cond: expr#13: true
+         │  ├─ Cond: expr#17: true
          │  └─ Body:
 Block (span: 6:16-11:6)
          │     └─ Stmt[0]: Expr (span: 7:9-10:11)
-         │        └─ Expr: expr#24: <ExprKind(20)>
+         │        └─ Expr: expr#28: <ExprKind(20)>
          └─ Stmt[5]: Expr (span: 12:5-12:21)
-            └─ Expr: expr#27: print("sent\n")
+            └─ Expr: expr#31: print("sent\n")

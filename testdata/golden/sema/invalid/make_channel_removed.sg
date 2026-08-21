@@ -1,0 +1,10 @@
+// scenario: the free `make_channel` helper is gone; `Channel::<T>::new` is the
+// only constructor. A program still written against the old name gets the
+// ordinary unresolved-name pair, not a deprecation: the declaration no longer
+// exists, so nothing special is owed to it.
+@entrypoint
+fn main() -> int {
+    let ch = make_channel::<int>(1:uint);
+    ch.send(7);
+    return 0;
+}

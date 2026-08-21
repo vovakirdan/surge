@@ -23,8 +23,8 @@ fn build(prefix: string) -> string {
 }
 
 async fn parked() -> int {
-    let send_ch = make_channel::<string>(0);
-    let stop_ch = make_channel::<int>(0);
+    let send_ch = Channel::<string>::new(0:uint);
+    let stop_ch = Channel::<int>::new(0:uint);
     let job: string = build("local-cancel-");
     print("local-select-cancel-entered");
     let winner: int = select {
@@ -67,8 +67,8 @@ fn main() -> int {
 // this test owns: the non-Copy program may add zero lost bytes or blocks.
 const runtimeV2LocalSelectCancelCopyControlSource = `
 async fn parked() -> int {
-    let send_ch = make_channel::<int>(0);
-    let stop_ch = make_channel::<int>(0);
+    let send_ch = Channel::<int>::new(0:uint);
+    let stop_ch = Channel::<int>::new(0:uint);
     print("local-select-cancel-control-entered");
     let winner: int = select {
         send_ch.send(7) => 1;

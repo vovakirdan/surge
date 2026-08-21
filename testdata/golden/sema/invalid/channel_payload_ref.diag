@@ -1,4 +1,4 @@
-error SEM3138 testdata/golden/sema/invalid/channel_payload_ref.sg:1:1 a channel payload cannot hold a reference (&string)
 error SEM3138 testdata/golden/sema/invalid/channel_payload_ref.sg:1:30 a channel payload cannot hold a reference (&string)
 error SEM3005 testdata/golden/sema/invalid/channel_payload_ref.sg:3:5 unknown has no method send
 error SEM3005 testdata/golden/sema/invalid/channel_payload_ref.sg:4:5 unknown has no method close
+error SEM3138 testdata/golden/sema/invalid/channel_payload_ref.sg:8:14 a channel payload cannot hold a reference (&string)

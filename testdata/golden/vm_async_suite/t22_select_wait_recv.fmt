@@ -1,7 +1,7 @@
 @entrypoint
 fn main() -> int {
     let r = (async {
-        let ch = make_channel::<int>(0);
+        let ch = Channel::<int>::new(0:uint);
         let prod = spawn async {
             sleep(5).await();
             ch.send(7);

@@ -2,7 +2,7 @@
 == HIR ==
 module 
 
-fn test() -> nothing (id=1, sym=1453) {
+fn test() -> nothing (id=1, sym=1449) {
   let a: type#78 = [1, 2, 3, 4]: type#78
   let x: &int [&] = __index((& a), 1): &int
   let y: &int [&] = __index((& a), __neg(1)): &int

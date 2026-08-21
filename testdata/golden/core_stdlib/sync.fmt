@@ -12,7 +12,7 @@ async fn mutex_lock_task(mtx: Mutex) -> nothing {
 
 extern<Mutex> {
     pub fn new() -> Mutex {
-        let gate = make_channel::<nothing>(1);
+        let gate = Channel::<nothing>::new(1:uint);
         gate.try_send(nothing);
         return { gate = gate };
     }
@@ -50,7 +50,7 @@ async fn condition_wait_task(cond: Condition, mutex: Mutex) -> nothing {
 
 extern<Condition> {
     pub fn new() -> Condition {
-        let queue = make_channel::<nothing>(64:uint);
+        let queue = Channel::<nothing>::new(64:uint);
         return { queue = queue };
     }
 
@@ -91,7 +91,7 @@ extern<Semaphore> {
         if cap == 0:uint {
             cap = 1:uint;
         }
-        let permits = make_channel::<nothing>(cap);
+        let permits = Channel::<nothing>::new(cap);
         let mut i: uint = 0:uint;
         while i < count {
             permits.try_send(nothing);
@@ -141,7 +141,7 @@ async fn barrier_arrive_task(barrier: Barrier) -> nothing {
     let mut st: BarrierState = BarrierState {
         count = 0:uint,
         gen = 0:uint,
-        gate = make_channel::<uint>(barrier.parties)
+        gate = Channel::<uint>::new(barrier.parties)
     };
     let st_opt = barrier.state.recv();
     compare st_opt {
@@ -158,7 +158,7 @@ async fn barrier_arrive_task(barrier: Barrier) -> nothing {
     if st.count == barrier.parties {
         st.count = 0:uint;
         st.gen = st.gen + 1:uint;
-        st.gate = make_channel::<uint>(barrier.parties);
+        st.gate = Channel::<uint>::new(barrier.parties);
         barrier.state.send(st);
         let mut i: uint = 0:uint;
         while i < (barrier.parties - 1:uint) {
@@ -175,8 +175,8 @@ async fn barrier_arrive_task(barrier: Barrier) -> nothing {
 
 extern<Barrier> {
     pub fn new(parties: uint) -> Barrier {
-        let state: Channel<BarrierState> = make_channel::<BarrierState>(1);
-        let gate: Channel<uint> = make_channel::<uint>(parties);
+        let state: Channel<BarrierState> = Channel::<BarrierState>::new(1:uint);
+        let gate: Channel<uint> = Channel::<uint>::new(parties);
         let init: BarrierState = BarrierState { count = 0:uint, gen = 0:uint, gate = gate };
         state.try_send(init);
         return { parties = parties, state = state };

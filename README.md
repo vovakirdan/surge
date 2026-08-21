@@ -427,7 +427,7 @@ async fn collect_success(ch: &Channel<Erring<string, Error>>) -> Success<string>
 }
 
 async fn pipeline(endpoints: Endpoint[]) -> Success<string>[] {
-    let ch = make_channel::<Erring<string, Error>>(10:uint);
+    let ch = Channel::<Erring<string, Error>>::new(10:uint);
     let consumer = spawn collect_success(&ch);
 
     // Producer: spawn fetchers

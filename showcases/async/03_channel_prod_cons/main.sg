@@ -18,7 +18,7 @@ async fn consumer(ch: &Channel<int>) -> int {
 
 @entrypoint
 fn main() {
-    let ch = make_channel::<int>(16:uint);
+    let ch = Channel::<int>::new(16:uint);
 
     let p = spawn producer(&ch, 100);
     let c = spawn consumer(&ch);

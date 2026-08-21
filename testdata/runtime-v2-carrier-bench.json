@@ -204,19 +204,19 @@
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/channel-buffered-composite/main.sg",
-      "sha256": "fde79cc8532109bb7bc529bf5017910a27cb08fc0e7e05a99e99ffd994a0b87c"
+      "sha256": "fde2f2936fc34e9cf94591feec936b77c75155efc6247ba6148ae0bedc11db11"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/channel-buffered-scalar/main.sg",
-      "sha256": "ea9d9449e70dbe42cf0347ae88e8e5bc2073dc2c3bfe1216c077e12419334e9e"
+      "sha256": "3d8961cd0dd2e3f72d778e1284fc0f874ac9f5022af66e1c219627b61654a38b"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/channel-unbuffered-composite/main.sg",
-      "sha256": "f9cff9f3829f07332bf047db524eae0cb104cbf73f0e0eeed2f87b45277e3927"
+      "sha256": "46b4b787c9ff77b193f0f84413feb342d0a04dfbbb338f5389c5f749e3bb171b"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/channel-unbuffered-scalar/main.sg",
-      "sha256": "4aa753fa3e5b07e36bbc9b8fee9e567c71703eff124b28f8d45bd88a6a31de09"
+      "sha256": "7cac404afb3a14af2554318b31791ff9da91d3cc52ad85e9f31ae4a318ebbd8c"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/far-composite/main.sg",
@@ -256,11 +256,11 @@
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/select-send-composite/main.sg",
-      "sha256": "e8213dd6498c37cce39a6d0c190127b1c2403e144d39a13b2a1a3845bb5dc57d"
+      "sha256": "a2bea899d994a2a7a5cf9e989da0686fc9dee3848f835485e8fb53651b061549"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/select-send-scalar/main.sg",
-      "sha256": "ca0a9ad9f9277741dd6918d7dad2aa799e8f0896017337fe4f0cd64171b2699f"
+      "sha256": "16cbc4e982e4132213ee48b30b799ed169de04984dac6005d14e539f13cb376d"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/shared/support.sg",

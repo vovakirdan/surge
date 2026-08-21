@@ -112,7 +112,7 @@ async fn main_async() -> int {
     let workers = 8;
     let rounds = 500;
     let total = workers * rounds;
-    let gate = make_channel::<int>(0);
+    let gate = Channel::<int>::new(0:uint);
 
     let sink_task = spawn drain(gate, total);
     let mut tasks: Task<int>[] = Array::<Task<int>>::with_len(workers to uint);
@@ -149,7 +149,7 @@ async fn main_async() -> int {
     let rounds_race = 500;
     let mut j = 0;
     while j < rounds_race {
-        let ch = make_channel::<int>(0);
+        let ch = Channel::<int>::new(0:uint);
         let recv_task = spawn recv_once(ch);
         let send_task = spawn send_once(ch, j);
         let r1 = recv_task.await();
@@ -170,7 +170,7 @@ async fn main_async() -> int {
 
     let mut k = 0;
     while k < rounds_race {
-        let ch = make_channel::<int>(0);
+        let ch = Channel::<int>::new(0:uint);
         let recv_task = spawn recv_once(ch);
         let send_task = spawn send_after(ch, k);
         let r1 = recv_task.await();
@@ -275,7 +275,7 @@ async fn main_async() -> int {
     }
 
     let pres = (async {
-        let done = make_channel::<int>(8);
+        let done = Channel::<int>::new(8:uint);
         let mut i = 0;
         while i < 4 {
             let c = done;
@@ -285,7 +285,7 @@ async fn main_async() -> int {
         }
         return done;
     }).await();
-    let mut done_ch = make_channel::<int>(0);
+    let mut done_ch = Channel::<int>::new(0:uint);
     let parent_ok = compare pres {
         Success(v) => {
             done_ch = v;
@@ -407,7 +407,7 @@ async fn main_async() -> int {
     }
 
     let join_res = async {
-        let ch = make_channel::<int>(0);
+        let ch = Channel::<int>::new(0:uint);
         let worker = spawn worker_recv(ch);
         let worker_clone = worker.clone();
         let joiner = spawn join_worker(worker_clone);
@@ -544,7 +544,7 @@ async fn main_async() -> int {
     let blocker = blocking {
         return busy_loop(spin_iters);
     };
-    let started = make_channel::<int>(1);
+    let started = Channel::<int>::new(1:uint);
     let st = started;
     let waiter = spawn cancel_waiter(st, cancel_iters);
     let s = started.recv();
@@ -1000,7 +1000,7 @@ tag Request(Channel<string>);
 type RequestMsg = Request(Channel<string>);
 
 fn manager_apply(requests: &Channel<RequestMsg>) -> string {
-    let reply = make_channel::<string>(1:uint);
+    let reply = Channel::<string>::new(1:uint);
     let request: RequestMsg = Request(reply);
     requests.send(own request);
 
@@ -1088,8 +1088,8 @@ async fn serve_worker(clients: Channel<int>, requests: Channel<RequestMsg>) -> n
 }
 
 async fn serve_one(listener: TcpListener) -> int {
-    let clients = make_channel::<int>(1:uint);
-    let requests = make_channel::<RequestMsg>(1:uint);
+    let clients = Channel::<int>::new(1:uint);
+    let requests = Channel::<RequestMsg>::new(1:uint);
     let manager_requests = requests;
     let manager_task = spawn manager_run(manager_requests);
     let worker_clients = clients;

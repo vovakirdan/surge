@@ -28,7 +28,7 @@ async fn read_after_wait(x: &int) -> int {
 }
 
 async fn run() -> int {
-    let ch = make_channel::<int>(8:uint);
+    let ch = Channel::<int>::new(8:uint);
     let mut chans: Channel<int>[] = [];
     chans.push(ch);
     let router: Router = Router { chans = chans };

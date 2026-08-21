@@ -46,22 +46,24 @@
  46: KwLet           "let" at 8:5-8:8 (leading: Newline, Space)
  47: Ident           "ch" at 8:9-8:11 (leading: Space)
  48: Assign          "=" at 8:12-8:13 (leading: Space)
- 49: Ident           "make_channel" at 8:14-8:26 (leading: Space)
- 50: ColonColon      "::" at 8:26-8:28
- 51: Lt              "<" at 8:28-8:29
- 52: Amp             "&" at 8:29-8:30
- 53: Ident           "string" at 8:30-8:36
- 54: Gt              ">" at 8:36-8:37
- 55: LParen          "(" at 8:37-8:38
- 56: IntLit          "4" at 8:38-8:39
- 57: Colon           ":" at 8:39-8:40
- 58: Ident           "uint" at 8:40-8:44
- 59: RParen          ")" at 8:44-8:45
- 60: Semicolon       ";" at 8:45-8:46
- 61: Ident           "print" at 9:5-9:10 (leading: Newline, Space)
- 62: LParen          "(" at 9:10-9:11
- 63: StringLit       "\"made\"" at 9:11-9:17
- 64: RParen          ")" at 9:17-9:18
- 65: Semicolon       ";" at 9:18-9:19
- 66: RBrace          "}" at 10:1-10:2 (leading: Newline)
- 67: EOF             at 11:1-11:1
+ 49: Ident           "Channel" at 8:14-8:21 (leading: Space)
+ 50: ColonColon      "::" at 8:21-8:23
+ 51: Lt              "<" at 8:23-8:24
+ 52: Amp             "&" at 8:24-8:25
+ 53: Ident           "string" at 8:25-8:31
+ 54: Gt              ">" at 8:31-8:32
+ 55: ColonColon      "::" at 8:32-8:34
+ 56: Ident           "new" at 8:34-8:37
+ 57: LParen          "(" at 8:37-8:38
+ 58: IntLit          "4" at 8:38-8:39
+ 59: Colon           ":" at 8:39-8:40
+ 60: Ident           "uint" at 8:40-8:44
+ 61: RParen          ")" at 8:44-8:45
+ 62: Semicolon       ";" at 8:45-8:46
+ 63: Ident           "print" at 9:5-9:10 (leading: Newline, Space)
+ 64: LParen          "(" at 9:10-9:11
+ 65: StringLit       "\"made\"" at 9:11-9:17
+ 66: RParen          ")" at 9:17-9:18
+ 67: Semicolon       ";" at 9:18-9:19
+ 68: RBrace          "}" at 10:1-10:2 (leading: Newline)
+ 69: EOF             at 11:1-11:1

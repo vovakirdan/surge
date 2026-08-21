@@ -36,7 +36,7 @@ async fn send_all(
 fn main(probe: string) -> int {
     if probe != "channel-unbuffered-composite" { return 92; }
     let ch: own Channel<bench.Payload64> =
-        make_channel::<bench.Payload64>(0:uint);
+        Channel::<bench.Payload64>::new(0:uint);
     let sender_ch: own Channel<bench.Payload64> = ch;
     let receiver_ch: own Channel<bench.Payload64> = ch;
     let receiver: Task<uint64> = spawn receive(receiver_ch);

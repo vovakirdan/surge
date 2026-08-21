@@ -58,7 +58,7 @@ func TestVMRtExitDropsBufferedChannelPayloads(t *testing.T) {
 
 @entrypoint
 fn main() -> int {
-    let ch: own Channel<string> = make_channel::<string>(1);
+    let ch: own Channel<string> = Channel::<string>::new(1:uint);
     ch.send(own "hello");
     let task: Task<nothing> = spawn child();
     compare task.await() {
@@ -84,7 +84,7 @@ func TestVMPanicDropsBufferedChannelPayloads(t *testing.T) {
 
 @entrypoint
 fn main() -> int {
-    let ch: own Channel<string> = make_channel::<string>(1);
+    let ch: own Channel<string> = Channel::<string>::new(1:uint);
     ch.send(own "boom");
     let task: Task<nothing> = spawn child();
     compare task.await() {

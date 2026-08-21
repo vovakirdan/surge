@@ -82,7 +82,7 @@ async fn barrier_worker_twice(barrier: Barrier, done: own Channel<int>, id: int)
 }
 
 async fn barrier_cancel_test(barrier: Barrier) -> int {
-    let bdone = make_channel::<int>(1);
+    let bdone = Channel::<int>::new(1:uint);
     let bt = spawn barrier_worker(barrier, bdone, 1);
     let cancel_probe = timeout(bt.clone(), 50:uint);
     let probe_ok = compare cancel_probe {
@@ -117,7 +117,7 @@ async fn main_async() -> int {
     let consumers = 4;
     let per = 500;
     let total = producers * per;
-    let ch = make_channel::<int>(0);
+    let ch = Channel::<int>::new(0:uint);
 
     let mut prod_tasks: Task<int>[] = Array::<Task<int>>::with_len(producers to uint);
     let mut cons_tasks: Task<CountSum>[] = Array::<Task<CountSum>>::with_len(consumers to uint);
@@ -182,7 +182,7 @@ async fn main_async() -> int {
     }
 
     print("stage: recv cancel");
-    let recv_ch = make_channel::<int>(0);
+    let recv_ch = Channel::<int>::new(0:uint);
     let recv_task = spawn wait_recv(recv_ch);
     checkpoint().await();
     checkpoint().await();
@@ -197,7 +197,7 @@ async fn main_async() -> int {
     }
 
     print("stage: send cancel");
-    let send_ch = make_channel::<int>(0);
+    let send_ch = Channel::<int>::new(0:uint);
     let send_task = spawn wait_send(send_ch);
     checkpoint().await();
     checkpoint().await();
@@ -213,7 +213,7 @@ async fn main_async() -> int {
 
     print("stage: semaphore");
     let sem = Semaphore.new(2:uint);
-    let done = make_channel::<int>(8);
+    let done = Channel::<int>::new(8:uint);
     let sem_total: int = 6;
     let mut sem_tasks: Task<int>[] = Array::<Task<int>>::with_len(sem_total to uint);
     let mut sidx: int = 0;
@@ -262,7 +262,7 @@ async fn main_async() -> int {
 
     print("stage: semaphore cancel");
     let mut sem0 = Semaphore.new(0:uint);
-    let done0 = make_channel::<int>(2);
+    let done0 = Channel::<int>::new(2:uint);
     let d0 = done0;
     let t1 = spawn sem_worker(sem0, d0, 1);
     checkpoint().await();
@@ -303,7 +303,7 @@ async fn main_async() -> int {
     print("stage: cond notify_one");
     let cond1 = Condition.new();
     let mtx1 = Mutex.new();
-    let cdone1 = make_channel::<int>(1);
+    let cdone1 = Channel::<int>::new(1:uint);
     let cd1 = cdone1;
     let ct1 = spawn cond_waiter(cond1, mtx1, cd1, 1);
     checkpoint().await();
@@ -333,7 +333,7 @@ async fn main_async() -> int {
     print("stage: cond notify_all");
     let cond2 = Condition.new();
     let mtx2 = Mutex.new();
-    let cdone2 = make_channel::<int>(4);
+    let cdone2 = Channel::<int>::new(4:uint);
     let mut ctasks: Task<int>[] = Array::<Task<int>>::with_len(3:uint);
     let mut cidx: int = 0;
     while cidx < 3 {
@@ -378,7 +378,7 @@ async fn main_async() -> int {
     print("stage: cond cancel");
     let cond3 = Condition.new();
     let mtx3 = Mutex.new();
-    let cdone3 = make_channel::<int>(1);
+    let cdone3 = Channel::<int>::new(1:uint);
     let cd3 = cdone3;
     let ct2 = spawn cond_waiter(cond3, mtx3, cd3, 1);
     checkpoint().await();
@@ -423,7 +423,7 @@ async fn main_async() -> int {
 
     print("stage: barrier");
     let barrier1 = Barrier.new(4:uint);
-    let bdone1 = make_channel::<int>(4);
+    let bdone1 = Channel::<int>::new(4:uint);
     let mut btasks: Task<int>[] = Array::<Task<int>>::with_len(4:uint);
     let mut b = 0;
     while b < 4 {
@@ -464,7 +464,7 @@ async fn main_async() -> int {
 
     print("stage: barrier twice");
     let barrier2 = Barrier.new(3:uint);
-    let bdone2 = make_channel::<int>(3);
+    let bdone2 = Channel::<int>::new(3:uint);
     let mut btasks2: Task<int>[] = Array::<Task<int>>::with_len(3:uint);
     let mut k = 0;
     while k < 3 {

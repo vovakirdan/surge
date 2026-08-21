@@ -15,7 +15,7 @@ async fn closer(ch: own Channel<int>) -> int {
 
 @entrypoint
 fn main() -> int {
-    let ch = make_channel::<int>(0);
+    let ch = Channel::<int>::new(0:uint);
 
     let recv_ch = ch;
     let close_ch = ch;

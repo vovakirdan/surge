@@ -2,7 +2,7 @@
 
 @entrypoint
 fn main() -> int {
-    let ch: own Channel<TcpConn> = make_channel::<TcpConn>(1:uint);
+    let ch: own Channel<TcpConn> = Channel::<TcpConn>::new(1:uint);
     let conn: TcpConn = TcpConn::new();
     ch.send(conn);
     return 0;

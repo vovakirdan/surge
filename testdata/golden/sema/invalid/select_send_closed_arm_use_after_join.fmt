@@ -1,6 +1,6 @@
 async fn pump() -> int {
-    let ch = make_channel::<string>(1);
-    let rx = make_channel::<int>(1);
+    let ch = Channel::<string>::new(1:uint);
+    let rx = Channel::<int>::new(1:uint);
     let mut s = "seed-";
     s = s + "x";
     let v = select {

@@ -4,7 +4,7 @@ error SEM3015 testdata/golden/hir_borrow/invalid/element_cross_assign_forbidden.
 == HIR ==
 module 
 
-fn t() -> nothing (id=1, sym=1453) {
+fn t() -> nothing (id=1, sym=1449) {
   let mut xs: type#82 = []: type#82
   push((&mut xs), "\"first-value-long-enough-to-allocate\""): nothing
   push((&mut xs), "\"second-value-long-enough-to-allocate\""): nothing
@@ -14,17 +14,17 @@ fn t() -> nothing (id=1, sym=1453) {
 }
 
 borrow edges:
-  _ (&mut) borrows L2906(xs) at 0:350-352 scope=S3
-  _ (&mut) borrows L2906(xs) at 0:402-404 scope=S3
-  _ (&) borrows L2906(xs) at 0:463-465 scope=S3
+  _ (&mut) borrows L2898(xs) at 0:350-352 scope=S3
+  _ (&mut) borrows L2898(xs) at 0:402-404 scope=S3
+  _ (&) borrows L2898(xs) at 0:463-465 scope=S3
 events:
-  borrow_start _ -> L2906(xs) at 0:350-352 scope=S3 note="B1"
-  borrow_end _ -> L2906(xs) at 0:350-352 scope=S3 note="temp_borrow B1"
-  borrow_start _ -> L2906(xs) at 0:402-404 scope=S3 note="B2"
-  borrow_end _ -> L2906(xs) at 0:402-404 scope=S3 note="temp_borrow B2"
-  borrow_start _ -> L2906(xs) at 0:463-465 scope=S3 note="B3"
-  write L2906(xs) at 0:455-468 scope=S3 note="issue=frozen borrow=B3"
-  borrow_end _ -> L2906(xs) scope=S3 note="scope_end B3"
+  borrow_start _ -> L2898(xs) at 0:350-352 scope=S3 note="B1"
+  borrow_end _ -> L2898(xs) at 0:350-352 scope=S3 note="temp_borrow B1"
+  borrow_start _ -> L2898(xs) at 0:402-404 scope=S3 note="B2"
+  borrow_end _ -> L2898(xs) at 0:402-404 scope=S3 note="temp_borrow B2"
+  borrow_start _ -> L2898(xs) at 0:463-465 scope=S3 note="B3"
+  write L2898(xs) at 0:455-468 scope=S3 note="issue=frozen borrow=B3"
+  borrow_end _ -> L2898(xs) scope=S3 note="scope_end B3"
 move plan:
-  L2906(xs): MoveForbidden (write blocked by frozen (B3))
+  L2898(xs): MoveForbidden (write blocked by frozen (B3))
 

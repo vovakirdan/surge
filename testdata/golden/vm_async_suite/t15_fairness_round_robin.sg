@@ -10,7 +10,7 @@ async fn worker(ch: own Channel<int>, id: int) -> int {
 
 @entrypoint
 fn main() -> int {
-    let ch = make_channel::<int>(0);
+    let ch = Channel::<int>::new(0:uint);
 
     let ch0 = ch;
     let ch1 = ch;

@@ -39,8 +39,8 @@ async fn run(
 @entrypoint("argv")
 fn main(probe: string) -> int {
     if probe != "select-send-scalar" { return 92; }
-    let win: own Channel<uint64> = make_channel::<uint64>(1:uint);
-    let lose: own Channel<uint64> = make_channel::<uint64>(1:uint);
+    let win: own Channel<uint64> = Channel::<uint64>::new(1:uint);
+    let lose: own Channel<uint64> = Channel::<uint64>::new(1:uint);
     lose.send(1000:uint64);
     let mut samples: int64[64] = default::<int64[64]>();
     let _: uint64 = bench.allocation_observer();

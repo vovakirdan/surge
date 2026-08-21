@@ -27,8 +27,6 @@ This document lists all the intrinsics available in the Surge language, grouped 
     *   Writes raw bytes to the standard output.
 *   `@intrinsic fn rt_write_stderr(ptr: *byte, length: uint) -> uint`
     *   Writes raw bytes to the standard error.
-*   `@intrinsic fn rt_read_stdin(buf: *byte, max_len: uint) -> uint`
-    *   Reads raw bytes from the standard input.
 *   `@intrinsic pub fn readline() -> string`
     *   Reads a single line of text from standard input.
 *   `@intrinsic pub fn rt_stdin_read_all() -> string`
@@ -190,8 +188,6 @@ This document lists all the intrinsics available in the Surge language, grouped 
     *   Cancels the task.
 *   `extern<Task<T>> @intrinsic pub fn await(self: own Task<T>) -> TaskResult<T>`
     *   Awaits the completion of a task.
-*   `@intrinsic fn make_channel<T>(capacity: uint) -> own Channel<T>`
-    *   Creates a new channel.
 *   `extern<Channel<T>> @intrinsic pub fn new(capacity: uint) -> own Channel<T>`
     *   Creates a new channel with the specified capacity.
 *   `extern<Channel<T>> @intrinsic pub fn send(self: &Channel<T>, value: own T) -> nothing`

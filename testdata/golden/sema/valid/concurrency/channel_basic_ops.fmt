@@ -2,20 +2,20 @@
 // This validates that methods on generic extern types work correctly
 
 fn test_channel_send_recv() {
-    let ch: own Channel<int> = make_channel::<int>(10);
+    let ch: own Channel<int> = Channel::<int>::new(10:uint);
     ch.send(42);
     let v: int? = ch.recv();
     ch.close();
 }
 
 fn test_channel_try_ops() {
-    let ch: own Channel<int> = make_channel::<int>(1);
+    let ch: own Channel<int> = Channel::<int>::new(1:uint);
     let sent: bool = ch.try_send(42);
     let received: int? = ch.try_recv();
 }
 
 fn test_channel_string() {
-    let ch: own Channel<string> = make_channel::<string>(5);
+    let ch: own Channel<string> = Channel::<string>::new(5:uint);
     ch.send(own "hello");
     let msg: string? = ch.recv();
     ch.close();

@@ -435,7 +435,7 @@ pub async fn serve(addr: string, port: uint, cfg: ServerConfig, handler: Handler
     compare listen_res {
         Success(listener) => {
             let worker_count: uint = pick_worker_count(&cfg);
-            let stop = make_channel::<uint>(worker_count);
+            let stop = Channel::<uint>::new(worker_count);
             let mut workers: Task<nothing>[] = [];
             workers.reserve(worker_count);
             let mut worker_idx: uint = 0:uint;

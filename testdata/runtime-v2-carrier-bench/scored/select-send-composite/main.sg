@@ -40,9 +40,9 @@ async fn run(
 fn main(probe: string) -> int {
     if probe != "select-send-composite" { return 92; }
     let win: own Channel<bench.Payload64> =
-        make_channel::<bench.Payload64>(1:uint);
+        Channel::<bench.Payload64>::new(1:uint);
     let lose: own Channel<bench.Payload64> =
-        make_channel::<bench.Payload64>(1:uint);
+        Channel::<bench.Payload64>::new(1:uint);
     let prefill: bench.Payload64 = bench.payload64(1000:uint64);
     lose.send(own prefill);
     let mut samples: int64[64] = default::<int64[64]>();

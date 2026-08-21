@@ -178,8 +178,8 @@ async fn serve_direct(conn: TcpConn) -> int {
 }
 
 async fn serve_manager(conn: TcpConn) -> int {
-    let requests = make_channel::<ManagerMsg>(64:uint);
-    let reply = make_channel::<byte[]>(1:uint);
+    let requests = Channel::<ManagerMsg>::new(64:uint);
+    let reply = Channel::<byte[]>::new(1:uint);
     let manager = spawn manager_loop(requests);
     let mut served: int = 0;
     while true {

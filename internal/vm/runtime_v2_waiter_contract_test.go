@@ -22,7 +22,7 @@ func TestRuntimeV2CancelledRecvWaiterDoesNotConsumeNextWake(t *testing.T) {
 @entrypoint
 fn main() -> int {
     let r = (async {
-        let ch = make_channel::<int>(0);
+        let ch = Channel::<int>::new(0:uint);
         let first_ch = ch;
         let second_ch = ch;
         let first = spawn wait_recv(first_ch);
@@ -77,7 +77,7 @@ func TestRuntimeV2CancelledSendWaiterDoesNotConsumeNextRecv(t *testing.T) {
 @entrypoint
 fn main() -> int {
     let r = (async {
-        let ch = make_channel::<int>(0);
+        let ch = Channel::<int>::new(0:uint);
         let first_ch = ch;
         let second_ch = ch;
         let first = spawn wait_send(first_ch, 11);
@@ -143,7 +143,7 @@ func TestRuntimeV2ChannelCloseWakesRecvWaiters(t *testing.T) {
 @entrypoint
 fn main() -> int {
     let r = (async {
-        let ch = make_channel::<int>(0);
+        let ch = Channel::<int>::new(0:uint);
         let first_ch = ch;
         let second_ch = ch;
         let first = spawn wait_recv(first_ch);
@@ -192,7 +192,7 @@ func TestRuntimeV2ChannelCloseWakesSendWaiters(t *testing.T) {
 @entrypoint
 fn main() -> int {
     let r = (async {
-        let ch = make_channel::<int>(0);
+        let ch = Channel::<int>::new(0:uint);
         let send_ch = ch;
         let sender = spawn wait_send(send_ch);
         checkpoint().await();
@@ -245,7 +245,7 @@ func TestRuntimeV2SelectTimeoutCleansLosingChannelWaiter(t *testing.T) {
 @entrypoint
 fn main() -> int {
     let r = (async {
-        let ch = make_channel::<int>(0);
+        let ch = Channel::<int>::new(0:uint);
         let task_ch = ch;
         let waiter = spawn timeout_then_recv(task_ch);
 
@@ -297,7 +297,7 @@ async fn recv_once(ch: own Channel<int>) -> int {
 @entrypoint
 fn main() -> int {
     let r = (async {
-        let ch = make_channel::<int>(0);
+        let ch = Channel::<int>::new(0:uint);
         let select_ch = ch;
         let waiter = spawn select_recv_or_sleep(select_ch);
         checkpoint().await();

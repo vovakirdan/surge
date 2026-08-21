@@ -1,6 +1,6 @@
 @entrypoint
 fn main() -> int {
-    let ch0 = make_channel::<int>(0);
+    let ch0 = Channel::<int>::new(0:uint);
     let r0 = ch0.try_recv();
     compare r0 {
         Some(x) => print("r0=" + (x to string));
@@ -13,7 +13,7 @@ fn main() -> int {
         print("s0=false");
     }
 
-    let ch1 = make_channel::<int>(1);
+    let ch1 = Channel::<int>::new(1:uint);
     let s1a = ch1.try_send(10);
     if s1a {
         print("s1a=true");

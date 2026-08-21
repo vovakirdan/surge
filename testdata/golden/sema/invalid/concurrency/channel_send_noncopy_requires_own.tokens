@@ -25,37 +25,39 @@
  25: Ident           "Item" at 7:25-7:29
  26: Gt              ">" at 7:29-7:30
  27: Assign          "=" at 7:31-7:32 (leading: Space)
- 28: Ident           "make_channel" at 7:33-7:45 (leading: Space)
- 29: ColonColon      "::" at 7:45-7:47
- 30: Lt              "<" at 7:47-7:48
- 31: Ident           "Item" at 7:48-7:52
- 32: Gt              ">" at 7:52-7:53
- 33: LParen          "(" at 7:53-7:54
- 34: IntLit          "1" at 7:54-7:55
- 35: Colon           ":" at 7:55-7:56
- 36: Ident           "uint" at 7:56-7:60
- 37: RParen          ")" at 7:60-7:61
- 38: Semicolon       ";" at 7:61-7:62
- 39: KwLet           "let" at 8:5-8:8 (leading: Newline, Space)
- 40: Ident           "item" at 8:9-8:13 (leading: Space)
- 41: Colon           ":" at 8:13-8:14
- 42: Ident           "Item" at 8:15-8:19 (leading: Space)
- 43: Assign          "=" at 8:20-8:21 (leading: Space)
- 44: LBrace          "{" at 8:22-8:23 (leading: Space)
- 45: Ident           "value" at 8:24-8:29 (leading: Space)
- 46: Assign          "=" at 8:30-8:31 (leading: Space)
- 47: IntLit          "1" at 8:32-8:33 (leading: Space)
- 48: RBrace          "}" at 8:34-8:35 (leading: Space)
- 49: Semicolon       ";" at 8:35-8:36
- 50: Ident           "ch" at 9:5-9:7 (leading: Newline, Space)
- 51: Dot             "." at 9:7-9:8
- 52: Ident           "send" at 9:8-9:12
- 53: LParen          "(" at 9:12-9:13
- 54: Ident           "item" at 9:13-9:17
- 55: RParen          ")" at 9:17-9:18
- 56: Semicolon       ";" at 9:18-9:19
- 57: KwReturn        "return" at 10:5-10:11 (leading: Newline, Space)
- 58: IntLit          "0" at 10:12-10:13 (leading: Space)
- 59: Semicolon       ";" at 10:13-10:14
- 60: RBrace          "}" at 11:1-11:2 (leading: Newline)
- 61: EOF             at 12:1-12:1
+ 28: Ident           "Channel" at 7:33-7:40 (leading: Space)
+ 29: ColonColon      "::" at 7:40-7:42
+ 30: Lt              "<" at 7:42-7:43
+ 31: Ident           "Item" at 7:43-7:47
+ 32: Gt              ">" at 7:47-7:48
+ 33: ColonColon      "::" at 7:48-7:50
+ 34: Ident           "new" at 7:50-7:53
+ 35: LParen          "(" at 7:53-7:54
+ 36: IntLit          "1" at 7:54-7:55
+ 37: Colon           ":" at 7:55-7:56
+ 38: Ident           "uint" at 7:56-7:60
+ 39: RParen          ")" at 7:60-7:61
+ 40: Semicolon       ";" at 7:61-7:62
+ 41: KwLet           "let" at 8:5-8:8 (leading: Newline, Space)
+ 42: Ident           "item" at 8:9-8:13 (leading: Space)
+ 43: Colon           ":" at 8:13-8:14
+ 44: Ident           "Item" at 8:15-8:19 (leading: Space)
+ 45: Assign          "=" at 8:20-8:21 (leading: Space)
+ 46: LBrace          "{" at 8:22-8:23 (leading: Space)
+ 47: Ident           "value" at 8:24-8:29 (leading: Space)
+ 48: Assign          "=" at 8:30-8:31 (leading: Space)
+ 49: IntLit          "1" at 8:32-8:33 (leading: Space)
+ 50: RBrace          "}" at 8:34-8:35 (leading: Space)
+ 51: Semicolon       ";" at 8:35-8:36
+ 52: Ident           "ch" at 9:5-9:7 (leading: Newline, Space)
+ 53: Dot             "." at 9:7-9:8
+ 54: Ident           "send" at 9:8-9:12
+ 55: LParen          "(" at 9:12-9:13
+ 56: Ident           "item" at 9:13-9:17
+ 57: RParen          ")" at 9:17-9:18
+ 58: Semicolon       ";" at 9:18-9:19
+ 59: KwReturn        "return" at 10:5-10:11 (leading: Newline, Space)
+ 60: IntLit          "0" at 10:12-10:13 (leading: Space)
+ 61: Semicolon       ";" at 10:13-10:14
+ 62: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 63: EOF             at 12:1-12:1

@@ -5,6 +5,6 @@ async fn sender(ch: &Channel<&string>) -> nothing {
 }
 
 fn main() {
-    let ch = make_channel::<&string>(4:uint);
+    let ch = Channel::<&string>::new(4:uint);
     print("made");
 }

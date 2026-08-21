@@ -1,0 +1,3 @@
+error SEM3005 testdata/golden/sema/invalid/make_channel_removed.sg:7:14 cannot resolve 'make_channel'
+error SEM3046 testdata/golden/sema/invalid/make_channel_removed.sg:7:14 no matching overload for make_channel
+error SEM3005 testdata/golden/sema/invalid/make_channel_removed.sg:8:5 unknown has no method send

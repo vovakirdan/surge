@@ -46,10 +46,6 @@ func (vm *VM) handleChannelNew(frame *Frame, call *mir.CallInstr, writes *[]Loca
 	return nil
 }
 
-func (vm *VM) handleMakeChannel(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
-	return vm.handleChannelNew(frame, call, writes)
-}
-
 func (vm *VM) handleChannelSend(frame *Frame, call *mir.CallInstr) *VMError {
 	if call == nil {
 		return vm.eb.makeError(PanicTypeMismatch, "send requires a call")

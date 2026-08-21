@@ -82,13 +82,13 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 	}
 	base := stripGenericSuffix(name)
 	switch base {
-	case "make_channel", "new":
+	case "new":
 		// `new` is a shared name: RwLock declares its own intrinsic `new`, and
 		// Mutex, Condition, Semaphore and Barrier declare ordinary `new`
 		// functions that pass through this same dispatcher. The destination
 		// type is what separates them, exactly as it does in the VM
 		// (internal/vm/intrinsic_channel.go).
-		if base == "new" && !fe.callDstIsChannel(call) {
+		if !fe.callDstIsChannel(call) {
 			return false, nil
 		}
 		if len(call.Args) != 1 {

@@ -75,7 +75,7 @@ func TestRuntimeV2HTTPOwnerLocalStaticShape(t *testing.T) {
 	combinedSource := serverSource + "\n" + acceptSource
 	forbidden := []string{
 		"Channel<int>",
-		"make_channel::<int>",
+		"Channel::<int>::new",
 		"conn.__opaque",
 		"TcpConn = { __opaque",
 		"serve_worker(",

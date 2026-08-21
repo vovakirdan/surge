@@ -1,6 +1,6 @@
 async fn pump() -> nothing {
-    let ch = make_channel::<string>(1);
-    let stop = make_channel::<int>(1);
+    let ch = Channel::<string>::new(1:uint);
+    let stop = Channel::<int>::new(1:uint);
     let mut job = "job-";
     job = job + "payload";
     while true {

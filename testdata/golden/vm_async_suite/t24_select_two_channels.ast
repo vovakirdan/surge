@@ -9,6 +9,6 @@ t24_select_two_channels.sg (span: 1:1-25:1)
          │  ├─ Name: _
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#54: (async { 9 stmt(s) }).await()
+         │  └─ Value: expr#58: (async { 9 stmt(s) }).await()
          └─ Stmt[1]: Return (span: 23:5-23:14)
-            └─ Expr: expr#55: 0
+            └─ Expr: expr#59: 0

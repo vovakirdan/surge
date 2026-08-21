@@ -141,63 +141,67 @@
 141: KwLet           "let" at 24:5-24:8 (leading: Newline, Space)
 142: Ident           "ch" at 24:9-24:11 (leading: Space)
 143: Assign          "=" at 24:12-24:13 (leading: Space)
-144: Ident           "make_channel" at 24:14-24:26 (leading: Space)
-145: ColonColon      "::" at 24:26-24:28
-146: Lt              "<" at 24:28-24:29
-147: Ident           "int" at 24:29-24:32
-148: Gt              ">" at 24:32-24:33
-149: LParen          "(" at 24:33-24:34
-150: IntLit          "1" at 24:34-24:35
-151: RParen          ")" at 24:35-24:36
-152: Semicolon       ";" at 24:36-24:37
-153: KwLet           "let" at 26:5-26:8 (leading: Newline, Space)
-154: Ident           "sender_ch" at 26:9-26:18 (leading: Space)
-155: Assign          "=" at 26:19-26:20 (leading: Space)
-156: Ident           "ch" at 26:21-26:23 (leading: Space)
-157: Semicolon       ";" at 26:23-26:24
-158: KwLet           "let" at 27:5-27:8 (leading: Newline, Space)
-159: Ident           "recv_ch" at 27:9-27:16 (leading: Space)
-160: Assign          "=" at 27:17-27:18 (leading: Space)
-161: Ident           "ch" at 27:19-27:21 (leading: Space)
-162: Semicolon       ";" at 27:21-27:22
-163: KwLet           "let" at 28:5-28:8 (leading: Newline, Space)
-164: Ident           "sender_task" at 28:9-28:20 (leading: Space)
-165: Assign          "=" at 28:21-28:22 (leading: Space)
-166: KwSpawn         "spawn" at 28:23-28:28 (leading: Space)
-167: Ident           "sender" at 28:29-28:35 (leading: Space)
-168: LParen          "(" at 28:35-28:36
-169: Ident           "sender_ch" at 28:36-28:45
-170: RParen          ")" at 28:45-28:46
-171: Semicolon       ";" at 28:46-28:47
-172: KwLet           "let" at 29:5-29:8 (leading: Newline, Space)
-173: Ident           "receiver_task" at 29:9-29:22 (leading: Space)
-174: Assign          "=" at 29:23-29:24 (leading: Space)
-175: KwSpawn         "spawn" at 29:25-29:30 (leading: Space)
-176: Ident           "receiver" at 29:31-29:39 (leading: Space)
-177: LParen          "(" at 29:39-29:40
-178: Ident           "recv_ch" at 29:40-29:47
-179: RParen          ")" at 29:47-29:48
-180: Semicolon       ";" at 29:48-29:49
-181: KwLet           "let" at 31:5-31:8 (leading: Newline, Space)
-182: Underscore      "_" at 31:9-31:10 (leading: Space)
-183: Assign          "=" at 31:11-31:12 (leading: Space)
-184: Ident           "sender_task" at 31:13-31:24 (leading: Space)
-185: Dot             "." at 31:24-31:25
-186: Ident           "await" at 31:25-31:30
-187: LParen          "(" at 31:30-31:31
-188: RParen          ")" at 31:31-31:32
-189: Semicolon       ";" at 31:32-31:33
-190: KwLet           "let" at 32:5-32:8 (leading: Newline, Space)
-191: Underscore      "_" at 32:9-32:10 (leading: Space)
-192: Assign          "=" at 32:11-32:12 (leading: Space)
-193: Ident           "receiver_task" at 32:13-32:26 (leading: Space)
-194: Dot             "." at 32:26-32:27
-195: Ident           "await" at 32:27-32:32
-196: LParen          "(" at 32:32-32:33
-197: RParen          ")" at 32:33-32:34
-198: Semicolon       ";" at 32:34-32:35
-199: KwReturn        "return" at 33:5-33:11 (leading: Newline, Space)
-200: IntLit          "0" at 33:12-33:13 (leading: Space)
-201: Semicolon       ";" at 33:13-33:14
-202: RBrace          "}" at 34:1-34:2 (leading: Newline)
-203: EOF             at 35:1-35:1
+144: Ident           "Channel" at 24:14-24:21 (leading: Space)
+145: ColonColon      "::" at 24:21-24:23
+146: Lt              "<" at 24:23-24:24
+147: Ident           "int" at 24:24-24:27
+148: Gt              ">" at 24:27-24:28
+149: ColonColon      "::" at 24:28-24:30
+150: Ident           "new" at 24:30-24:33
+151: LParen          "(" at 24:33-24:34
+152: IntLit          "1" at 24:34-24:35
+153: Colon           ":" at 24:35-24:36
+154: Ident           "uint" at 24:36-24:40
+155: RParen          ")" at 24:40-24:41
+156: Semicolon       ";" at 24:41-24:42
+157: KwLet           "let" at 26:5-26:8 (leading: Newline, Space)
+158: Ident           "sender_ch" at 26:9-26:18 (leading: Space)
+159: Assign          "=" at 26:19-26:20 (leading: Space)
+160: Ident           "ch" at 26:21-26:23 (leading: Space)
+161: Semicolon       ";" at 26:23-26:24
+162: KwLet           "let" at 27:5-27:8 (leading: Newline, Space)
+163: Ident           "recv_ch" at 27:9-27:16 (leading: Space)
+164: Assign          "=" at 27:17-27:18 (leading: Space)
+165: Ident           "ch" at 27:19-27:21 (leading: Space)
+166: Semicolon       ";" at 27:21-27:22
+167: KwLet           "let" at 28:5-28:8 (leading: Newline, Space)
+168: Ident           "sender_task" at 28:9-28:20 (leading: Space)
+169: Assign          "=" at 28:21-28:22 (leading: Space)
+170: KwSpawn         "spawn" at 28:23-28:28 (leading: Space)
+171: Ident           "sender" at 28:29-28:35 (leading: Space)
+172: LParen          "(" at 28:35-28:36
+173: Ident           "sender_ch" at 28:36-28:45
+174: RParen          ")" at 28:45-28:46
+175: Semicolon       ";" at 28:46-28:47
+176: KwLet           "let" at 29:5-29:8 (leading: Newline, Space)
+177: Ident           "receiver_task" at 29:9-29:22 (leading: Space)
+178: Assign          "=" at 29:23-29:24 (leading: Space)
+179: KwSpawn         "spawn" at 29:25-29:30 (leading: Space)
+180: Ident           "receiver" at 29:31-29:39 (leading: Space)
+181: LParen          "(" at 29:39-29:40
+182: Ident           "recv_ch" at 29:40-29:47
+183: RParen          ")" at 29:47-29:48
+184: Semicolon       ";" at 29:48-29:49
+185: KwLet           "let" at 31:5-31:8 (leading: Newline, Space)
+186: Underscore      "_" at 31:9-31:10 (leading: Space)
+187: Assign          "=" at 31:11-31:12 (leading: Space)
+188: Ident           "sender_task" at 31:13-31:24 (leading: Space)
+189: Dot             "." at 31:24-31:25
+190: Ident           "await" at 31:25-31:30
+191: LParen          "(" at 31:30-31:31
+192: RParen          ")" at 31:31-31:32
+193: Semicolon       ";" at 31:32-31:33
+194: KwLet           "let" at 32:5-32:8 (leading: Newline, Space)
+195: Underscore      "_" at 32:9-32:10 (leading: Space)
+196: Assign          "=" at 32:11-32:12 (leading: Space)
+197: Ident           "receiver_task" at 32:13-32:26 (leading: Space)
+198: Dot             "." at 32:26-32:27
+199: Ident           "await" at 32:27-32:32
+200: LParen          "(" at 32:32-32:33
+201: RParen          ")" at 32:33-32:34
+202: Semicolon       ";" at 32:34-32:35
+203: KwReturn        "return" at 33:5-33:11 (leading: Newline, Space)
+204: IntLit          "0" at 33:12-33:13 (leading: Space)
+205: Semicolon       ";" at 33:13-33:14
+206: RBrace          "}" at 34:1-34:2 (leading: Newline)
+207: EOF             at 35:1-35:1

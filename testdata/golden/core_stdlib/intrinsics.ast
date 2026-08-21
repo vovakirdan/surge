@@ -1,4 +1,4 @@
-intrinsics.sg (span: 1:1-898:1)
+intrinsics.sg (span: 1:1-894:1)
 ├─ Item[0]: Type (span: 3:1-3:23)
 │  ├─ Name: byte
 │  ├─ Kind: Alias
@@ -39,33 +39,28 @@ intrinsics.sg (span: 1:1-898:1)
 │  ├─ Params: (ptr: *byte, length: uint)
 │  ├─ Return: uint
 │  └─ Body: <none>
-├─ Item[8]: Fn (span: 14:1-14:64)
-│  ├─ Name: rt_read_stdin
-│  ├─ Params: (buf: *byte, max_len: uint)
-│  ├─ Return: uint
-│  └─ Body: <none>
-├─ Item[9]: Fn (span: 15:1-15:79)
+├─ Item[8]: Fn (span: 14:1-14:79)
 │  ├─ Name: rt_panic_bounds
 │  ├─ Params: (kind: uint, index: int, length: int)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[10]: Type (span: 21:1-21:52)
+├─ Item[9]: Type (span: 20:1-20:52)
 │  ├─ Name: FsError
 │  ├─ Kind: Struct
 │  ├─ Visibility: public
 │  └─ Struct:
 │     ├─ Field[0]: message: string
 │     └─ Field[1]: code: uint
-├─ Item[11]: Type (span: 23:1-23:27)
+├─ Item[10]: Type (span: 22:1-22:27)
 │  ├─ Name: FileType
 │  ├─ Kind: Alias
 │  ├─ Visibility: public
 │  └─ Target: uint8
-├─ Item[12]: Type (span: 24:1-24:61)
+├─ Item[11]: Type (span: 23:1-23:61)
 │  ├─ Name: FileTypes
 │  ├─ Kind: TypeDeclKind(3)
 │  └─ Visibility: public
-├─ Item[13]: Type (span: 26:1-30:3)
+├─ Item[12]: Type (span: 25:1-29:3)
 │  ├─ Name: Metadata
 │  ├─ Kind: Struct
 │  ├─ Visibility: public
@@ -73,7 +68,7 @@ intrinsics.sg (span: 1:1-898:1)
 │     ├─ Field[0]: size: uint
 │     ├─ Field[1]: file_type: FileType
 │     └─ Field[2]: readonly: bool
-├─ Item[14]: Type (span: 32:1-36:3)
+├─ Item[13]: Type (span: 31:1-35:3)
 │  ├─ Name: DirEntry
 │  ├─ Kind: Struct
 │  ├─ Visibility: public
@@ -81,372 +76,372 @@ intrinsics.sg (span: 1:1-898:1)
 │     ├─ Field[0]: name: string
 │     ├─ Field[1]: path: string
 │     └─ Field[2]: file_type: FileType
-├─ Item[15]: Type (span: 38:1-42:3)
+├─ Item[14]: Type (span: 37:1-41:3)
 │  ├─ Name: File
 │  ├─ Kind: Struct
 │  ├─ Visibility: public
 │  ├─ Attributes: @nosend, @intrinsic
 │  └─ Struct:
 │     └─ Field[0]: __opaque: int
-├─ Item[16]: Type (span: 44:1-44:31)
+├─ Item[15]: Type (span: 43:1-43:31)
 │  ├─ Name: FsOpenFlags
 │  ├─ Kind: Alias
 │  ├─ Visibility: public
 │  └─ Target: uint32
-├─ Item[17]: Type (span: 45:1-45:89)
+├─ Item[16]: Type (span: 44:1-44:89)
 │  ├─ Name: FS_O
 │  ├─ Kind: TypeDeclKind(3)
 │  └─ Visibility: public
-├─ Item[18]: Type (span: 47:1-47:27)
+├─ Item[17]: Type (span: 46:1-46:27)
 │  ├─ Name: SeekWhence
 │  ├─ Kind: Alias
 │  ├─ Visibility: public
 │  └─ Target: int
-├─ Item[19]: Type (span: 48:1-48:59)
+├─ Item[18]: Type (span: 47:1-47:59)
 │  ├─ Name: SeekWhences
 │  ├─ Kind: TypeDeclKind(3)
 │  └─ Visibility: public
-├─ Item[20]: Fn (span: 50:1-50:54)
+├─ Item[19]: Fn (span: 49:1-49:54)
 │  ├─ Name: rt_fs_cwd
 │  ├─ Params: ()
 │  ├─ Return: Erring<string, FsError>
 │  └─ Body: <none>
-├─ Item[21]: Fn (span: 52:1-52:74)
+├─ Item[20]: Fn (span: 51:1-51:74)
 │  ├─ Name: rt_fs_metadata
 │  ├─ Params: (path: &string)
 │  ├─ Return: Erring<Metadata, FsError>
 │  └─ Body: <none>
-├─ Item[22]: Fn (span: 53:1-53:76)
+├─ Item[21]: Fn (span: 52:1-52:76)
 │  ├─ Name: rt_fs_read_dir
 │  ├─ Params: (path: &string)
 │  ├─ Return: Erring<DirEntry[], FsError>
 │  └─ Body: <none>
-├─ Item[23]: Fn (span: 55:1-55:87)
+├─ Item[22]: Fn (span: 54:1-54:87)
 │  ├─ Name: rt_fs_mkdir
 │  ├─ Params: (path: &string, recursive: bool)
 │  ├─ Return: Erring<nothing, FsError>
 │  └─ Body: <none>
-├─ Item[24]: Fn (span: 56:1-56:76)
+├─ Item[23]: Fn (span: 55:1-55:76)
 │  ├─ Name: rt_fs_remove_file
 │  ├─ Params: (path: &string)
 │  ├─ Return: Erring<nothing, FsError>
 │  └─ Body: <none>
-├─ Item[25]: Fn (span: 57:1-57:92)
+├─ Item[24]: Fn (span: 56:1-56:92)
 │  ├─ Name: rt_fs_remove_dir
 │  ├─ Params: (path: &string, recursive: bool)
 │  ├─ Return: Erring<nothing, FsError>
 │  └─ Body: <none>
-├─ Item[26]: Fn (span: 59:1-59:86)
+├─ Item[25]: Fn (span: 58:1-58:86)
 │  ├─ Name: rt_fs_open
 │  ├─ Params: (path: &string, flags: FsOpenFlags)
 │  ├─ Return: Erring<File, FsError>
 │  └─ Body: <none>
-├─ Item[27]: Fn (span: 60:1-60:71)
+├─ Item[26]: Fn (span: 59:1-59:71)
 │  ├─ Name: rt_fs_close
 │  ├─ Params: (file: own File)
 │  ├─ Return: Erring<nothing, FsError>
 │  └─ Body: <none>
-├─ Item[28]: Fn (span: 61:1-61:87)
+├─ Item[27]: Fn (span: 60:1-60:87)
 │  ├─ Name: rt_fs_read
 │  ├─ Params: (file: &File, buf: *byte, cap: uint)
 │  ├─ Return: Erring<uint, FsError>
 │  └─ Body: <none>
-├─ Item[29]: Fn (span: 62:1-62:91)
+├─ Item[28]: Fn (span: 61:1-61:91)
 │  ├─ Name: rt_fs_write
 │  ├─ Params: (file: &File, buf: *byte, length: uint)
 │  ├─ Return: Erring<uint, FsError>
 │  └─ Body: <none>
-├─ Item[30]: Fn (span: 63:1-63:97)
+├─ Item[29]: Fn (span: 62:1-62:97)
 │  ├─ Name: rt_fs_seek
 │  ├─ Params: (file: &File, offset: int, whence: SeekWhence)
 │  ├─ Return: Erring<uint, FsError>
 │  └─ Body: <none>
-├─ Item[31]: Fn (span: 64:1-64:68)
+├─ Item[30]: Fn (span: 63:1-63:68)
 │  ├─ Name: rt_fs_flush
 │  ├─ Params: (file: &File)
 │  ├─ Return: Erring<nothing, FsError>
 │  └─ Body: <none>
-├─ Item[32]: Fn (span: 66:1-66:73)
+├─ Item[31]: Fn (span: 65:1-65:73)
 │  ├─ Name: rt_fs_read_file
 │  ├─ Params: (path: &string)
 │  ├─ Return: Erring<byte[], FsError>
 │  └─ Body: <none>
-├─ Item[33]: Fn (span: 67:1-67:122)
+├─ Item[32]: Fn (span: 66:1-66:122)
 │  ├─ Name: rt_fs_write_file
 │  ├─ Params: (path: &string, data: *byte, length: uint, flags: FsOpenFlags)
 │  ├─ Return: Erring<nothing, FsError>
 │  └─ Body: <none>
-├─ Item[34]: Fn (span: 69:1-69:71)
+├─ Item[33]: Fn (span: 68:1-68:71)
 │  ├─ Name: rt_fs_file_name
 │  ├─ Params: (file: &File)
 │  ├─ Return: Erring<string, FsError>
 │  └─ Body: <none>
-├─ Item[35]: Fn (span: 70:1-70:73)
+├─ Item[34]: Fn (span: 69:1-69:73)
 │  ├─ Name: rt_fs_file_type
 │  ├─ Params: (file: &File)
 │  ├─ Return: Erring<FileType, FsError>
 │  └─ Body: <none>
-├─ Item[36]: Fn (span: 71:1-71:77)
+├─ Item[35]: Fn (span: 70:1-70:77)
 │  ├─ Name: rt_fs_file_metadata
 │  ├─ Params: (file: &File)
 │  ├─ Return: Erring<Metadata, FsError>
 │  └─ Body: <none>
-├─ Item[37]: Type (span: 77:1-80:3)
+├─ Item[36]: Type (span: 76:1-79:3)
 │  ├─ Name: TcpListener
 │  ├─ Kind: Struct
 │  ├─ Visibility: public
 │  ├─ Attributes: @intrinsic, @nosend, @shard_pinned
 │  └─ Struct:
 │     └─ Field[0]: __opaque: int
-├─ Item[38]: Type (span: 82:1-85:3)
+├─ Item[37]: Type (span: 81:1-84:3)
 │  ├─ Name: TcpConn
 │  ├─ Kind: Struct
 │  ├─ Visibility: public
 │  ├─ Attributes: @intrinsic, @nosend, @shard_pinned
 │  └─ Struct:
 │     └─ Field[0]: __opaque: int
-├─ Item[39]: Type (span: 87:1-87:53)
+├─ Item[38]: Type (span: 86:1-86:53)
 │  ├─ Name: NetError
 │  ├─ Kind: Struct
 │  ├─ Visibility: public
 │  └─ Struct:
 │     ├─ Field[0]: message: string
 │     └─ Field[1]: code: uint
-├─ Item[40]: Type (span: 88:1-88:45)
+├─ Item[39]: Type (span: 87:1-87:45)
 │  ├─ Name: NetResult
 │  ├─ Kind: Alias
 │  ├─ Visibility: public
 │  ├─ Generics: <T>
 │  └─ Target: Erring<T, NetError>
-├─ Item[41]: Fn (span: 90:1-90:82)
+├─ Item[40]: Fn (span: 89:1-89:82)
 │  ├─ Name: rt_net_listen
 │  ├─ Params: (addr: &string, port: uint)
 │  ├─ Return: NetResult<TcpListener>
 │  └─ Body: <none>
-├─ Item[42]: Fn (span: 91:1-91:79)
+├─ Item[41]: Fn (span: 90:1-90:79)
 │  ├─ Name: rt_net_connect
 │  ├─ Params: (addr: &string, port: uint)
 │  ├─ Return: NetResult<TcpConn>
 │  └─ Body: <none>
-├─ Item[43]: Fn (span: 92:1-92:79)
+├─ Item[42]: Fn (span: 91:1-91:79)
 │  ├─ Name: rt_net_close_listener
 │  ├─ Params: (l: own TcpListener)
 │  ├─ Return: NetResult<nothing>
 │  └─ Body: <none>
-├─ Item[44]: Fn (span: 93:1-93:71)
+├─ Item[43]: Fn (span: 92:1-92:71)
 │  ├─ Name: rt_net_close_conn
 │  ├─ Params: (c: own TcpConn)
 │  ├─ Return: NetResult<nothing>
 │  └─ Body: <none>
-├─ Item[45]: Fn (span: 95:1-95:68)
+├─ Item[44]: Fn (span: 94:1-94:68)
 │  ├─ Name: rt_net_accept
 │  ├─ Params: (l: &TcpListener)
 │  ├─ Return: NetResult<TcpConn>
 │  └─ Body: <none>
-├─ Item[46]: Fn (span: 96:1-96:82)
+├─ Item[45]: Fn (span: 95:1-95:82)
 │  ├─ Name: rt_net_read
 │  ├─ Params: (c: &TcpConn, buf: *byte, cap: uint)
 │  ├─ Return: NetResult<uint>
 │  └─ Body: <none>
-├─ Item[47]: Fn (span: 97:1-97:86)
+├─ Item[46]: Fn (span: 96:1-96:86)
 │  ├─ Name: rt_net_write
 │  ├─ Params: (c: &TcpConn, buf: *byte, length: uint)
 │  ├─ Return: NetResult<uint>
 │  └─ Body: <none>
-├─ Item[48]: Fn (span: 98:1-98:78)
+├─ Item[47]: Fn (span: 97:1-97:78)
 │  ├─ Name: rt_net_read_bytes
 │  ├─ Params: (c: &TcpConn, cap: uint)
 │  ├─ Return: NetResult<byte[]>
 │  └─ Body: <none>
-├─ Item[49]: Fn (span: 99:1-99:109)
+├─ Item[48]: Fn (span: 98:1-98:109)
 │  ├─ Name: rt_net_write_bytes
 │  ├─ Params: (c: &TcpConn, data: &byte[], offset: uint, length: uint)
 │  ├─ Return: NetResult<uint>
 │  └─ Body: <none>
-├─ Item[50]: Fn (span: 101:1-101:62)
+├─ Item[49]: Fn (span: 100:1-100:62)
 │  ├─ Name: rt_net_wait_accept
 │  ├─ Params: (l: &TcpListener)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[51]: Fn (span: 102:1-102:60)
+├─ Item[50]: Fn (span: 101:1-101:60)
 │  ├─ Name: rt_net_wait_readable
 │  ├─ Params: (c: &TcpConn)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[52]: Fn (span: 103:1-103:60)
+├─ Item[51]: Fn (span: 102:1-102:60)
 │  ├─ Name: rt_net_wait_writable
 │  ├─ Params: (c: &TcpConn)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[53]: Extern (span: 105:1-109:2)
+├─ Item[52]: Extern (span: 104:1-108:2)
 │  ├─ Target: TcpConn
 │  ├─ Members:
 │  │  └─ Fn[0]: new
 │  │     ├─ Params: ()
 │  │     ├─ Return: TcpConn
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 106:29-108:6)
-│  │        └─ Stmt[0]: Return (span: 107:9-107:32)
+│  │        Stmt[0]: Block (span: 105:29-107:6)
+│  │        └─ Stmt[0]: Return (span: 106:9-106:32)
 │  │           └─ Expr: expr#8: <ExprKind(22)>
-├─ Item[54]: Fn (span: 112:1-112:50)
+├─ Item[53]: Fn (span: 111:1-111:50)
 │  ├─ Name: rt_string_ptr
 │  ├─ Params: (s: &string)
 │  ├─ Return: *byte
 │  └─ Body: <none>
-├─ Item[55]: Fn (span: 114:1-114:49)
+├─ Item[54]: Fn (span: 113:1-113:49)
 │  ├─ Name: rt_string_len
 │  ├─ Params: (s: &string)
 │  ├─ Return: uint
 │  └─ Body: <none>
-├─ Item[56]: Fn (span: 115:1-115:55)
+├─ Item[55]: Fn (span: 114:1-114:55)
 │  ├─ Name: rt_string_len_bytes
 │  ├─ Params: (s: &string)
 │  ├─ Return: uint
 │  └─ Body: <none>
-├─ Item[57]: Fn (span: 116:1-116:72)
+├─ Item[56]: Fn (span: 115:1-115:72)
 │  ├─ Name: rt_string_from_bytes
 │  ├─ Params: (ptr: *byte, length: uint)
 │  ├─ Return: string
 │  └─ Body: <none>
-├─ Item[58]: Fn (span: 117:1-117:74)
+├─ Item[57]: Fn (span: 116:1-116:74)
 │  ├─ Name: rt_string_from_utf16
 │  ├─ Params: (ptr: *uint16, length: uint)
 │  ├─ Return: string
 │  └─ Body: <none>
-├─ Item[59]: Fn (span: 118:1-118:65)
+├─ Item[58]: Fn (span: 117:1-117:65)
 │  ├─ Name: rt_string_index
 │  ├─ Params: (s: &string, index: int)
 │  ├─ Return: uint32
 │  └─ Body: <none>
-├─ Item[60]: Fn (span: 119:1-119:68)
+├─ Item[59]: Fn (span: 118:1-118:68)
 │  ├─ Name: rt_string_slice
 │  ├─ Params: (s: &string, r: Range<int>)
 │  ├─ Return: string
 │  └─ Body: <none>
-├─ Item[61]: Fn (span: 120:1-120:66)
+├─ Item[60]: Fn (span: 119:1-119:66)
 │  ├─ Name: rt_string_concat
 │  ├─ Params: (a: &string, b: &string)
 │  ├─ Return: string
 │  └─ Body: <none>
-├─ Item[62]: Fn (span: 121:1-121:60)
+├─ Item[61]: Fn (span: 120:1-120:60)
 │  ├─ Name: rt_string_eq
 │  ├─ Params: (a: &string, b: &string)
 │  ├─ Return: bool
 │  └─ Body: <none>
-├─ Item[63]: Fn (span: 122:1-122:61)
+├─ Item[62]: Fn (span: 121:1-121:61)
 │  ├─ Name: rt_string_bytes_view
 │  ├─ Params: (s: &string)
 │  ├─ Return: BytesView
 │  └─ Body: <none>
-├─ Item[64]: Fn (span: 124:1-124:62)
+├─ Item[63]: Fn (span: 123:1-123:62)
 │  ├─ Name: rt_string_force_flatten
 │  ├─ Params: (s: &string)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[65]: Fn (span: 127:1-127:79)
+├─ Item[64]: Fn (span: 126:1-126:79)
 │  ├─ Name: rt_array_reserve
 │  ├─ Generics: <T>
 │  ├─ Params: (a: &mut Array<T>, new_cap: uint)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[66]: Fn (span: 128:1-128:71)
+├─ Item[65]: Fn (span: 127:1-127:71)
 │  ├─ Name: rt_array_push
 │  ├─ Generics: <T>
 │  ├─ Params: (a: &mut Array<T>, value: T)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[67]: Fn (span: 129:1-129:62)
+├─ Item[66]: Fn (span: 128:1-128:62)
 │  ├─ Name: rt_array_pop
 │  ├─ Generics: <T>
 │  ├─ Params: (a: &mut Array<T>)
 │  ├─ Return: Option<T>
 │  └─ Body: <none>
-├─ Item[68]: Fn (span: 130:1-130:75)
+├─ Item[67]: Fn (span: 129:1-129:75)
 │  ├─ Name: rt_array_get_mut
 │  ├─ Generics: <T>
 │  ├─ Params: (a: &mut Array<T>, index: int)
 │  ├─ Return: &mut T
 │  └─ Body: <none>
-├─ Item[69]: Fn (span: 131:1-131:106)
+├─ Item[68]: Fn (span: 130:1-130:106)
 │  ├─ Name: rt_array_get_mut
 │  ├─ Generics: <T, N>
 │  ├─ Params: (a: &mut ArrayFixed<T, N>, index: int)
 │  ├─ Return: &mut T
 │  └─ Body: <none>
-├─ Item[70]: Fn (span: 132:1-132:96)
+├─ Item[69]: Fn (span: 131:1-131:96)
 │  ├─ Name: rt_array_append_raw_bytes
 │  ├─ Params: (a: &mut byte[], ptr: *byte, length: uint64)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[71]: Fn (span: 133:1-133:116)
+├─ Item[70]: Fn (span: 132:1-132:116)
 │  ├─ Name: rt_byte_array_append_range
 │  ├─ Params: (dst: &mut byte[], src: &byte[], start: uint64, length: uint64)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[72]: Fn (span: 134:1-134:83)
+├─ Item[71]: Fn (span: 133:1-133:83)
 │  ├─ Name: rt_byte_array_drop_prefix
 │  ├─ Params: (a: &mut byte[], count: uint64)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[73]: Fn (span: 135:1-135:132)
+├─ Item[72]: Fn (span: 134:1-134:132)
 │  ├─ Name: rt_byte_parse_uint64_token
 │  ├─ Params: (data: &byte[], start: uint64, end: uint64, value: &mut uint64, next: &mut uint64)
 │  ├─ Return: bool
 │  └─ Body: <none>
-├─ Item[74]: Fn (span: 138:1-138:47)
+├─ Item[73]: Fn (span: 137:1-137:47)
 │  ├─ Name: rt_map_new
 │  ├─ Generics: <K, V>
 │  ├─ Params: ()
 │  ├─ Return: Map<K, V>
 │  └─ Body: <none>
-├─ Item[75]: Fn (span: 139:1-139:55)
+├─ Item[74]: Fn (span: 138:1-138:55)
 │  ├─ Name: rt_map_len
 │  ├─ Generics: <K, V>
 │  ├─ Params: (m: &Map<K, V>)
 │  ├─ Return: uint
 │  └─ Body: <none>
-├─ Item[76]: Fn (span: 140:1-140:69)
+├─ Item[75]: Fn (span: 139:1-139:69)
 │  ├─ Name: rt_map_contains
 │  ├─ Generics: <K, V>
 │  ├─ Params: (m: &Map<K, V>, key: &K)
 │  ├─ Return: bool
 │  └─ Body: <none>
-├─ Item[77]: Fn (span: 141:1-141:74)
+├─ Item[76]: Fn (span: 140:1-140:74)
 │  ├─ Name: rt_map_get_ref
 │  ├─ Generics: <K, V>
 │  ├─ Params: (m: &Map<K, V>, key: &K)
 │  ├─ Return: Option<&V>
 │  └─ Body: <none>
-├─ Item[78]: Fn (span: 142:1-142:82)
+├─ Item[77]: Fn (span: 141:1-141:82)
 │  ├─ Name: rt_map_get_mut
 │  ├─ Generics: <K, V>
 │  ├─ Params: (m: &mut Map<K, V>, key: &K)
 │  ├─ Return: Option<&mut V>
 │  └─ Body: <none>
-├─ Item[79]: Fn (span: 143:1-143:85)
+├─ Item[78]: Fn (span: 142:1-142:85)
 │  ├─ Name: rt_map_insert
 │  ├─ Generics: <K, V>
 │  ├─ Params: (m: &mut Map<K, V>, key: K, value: V)
 │  ├─ Return: Option<V>
 │  └─ Body: <none>
-├─ Item[80]: Fn (span: 144:1-144:76)
+├─ Item[79]: Fn (span: 143:1-143:76)
 │  ├─ Name: rt_map_remove
 │  ├─ Generics: <K, V>
 │  ├─ Params: (m: &mut Map<K, V>, key: &K)
 │  ├─ Return: Option<V>
 │  └─ Body: <none>
-├─ Item[81]: Fn (span: 145:1-145:55)
+├─ Item[80]: Fn (span: 144:1-144:55)
 │  ├─ Name: rt_map_keys
 │  ├─ Generics: <K, V>
 │  ├─ Params: (m: &Map<K, V>)
 │  ├─ Return: K[]
 │  └─ Body: <none>
-├─ Item[82]: Fn (span: 148:1-149:29)
+├─ Item[81]: Fn (span: 147:1-148:29)
 │  ├─ Name: readline
 │  ├─ Params: ()
 │  ├─ Return: string
 │  └─ Body: <none>
-├─ Item[83]: Type (span: 151:1-154:3)
+├─ Item[82]: Type (span: 150:1-153:3)
 │  ├─ Name: Range
 │  ├─ Kind: Struct
 │  ├─ Visibility: public
@@ -454,34 +449,34 @@ intrinsics.sg (span: 1:1-898:1)
 │  ├─ Attributes: @intrinsic
 │  └─ Struct:
 │     └─ Field[0]: __state: *byte
-├─ Item[84]: Fn (span: 157:1-157:89)
+├─ Item[83]: Fn (span: 156:1-156:89)
 │  ├─ Name: rt_range_int_new
 │  ├─ Params: (start: int, end: int, inclusive: bool)
 │  ├─ Return: Range<int>
 │  └─ Body: <none>
-├─ Item[85]: Fn (span: 158:1-158:86)
+├─ Item[84]: Fn (span: 157:1-157:86)
 │  ├─ Name: rt_range_int_from_start
 │  ├─ Params: (start: int, inclusive: bool)
 │  ├─ Return: Range<int>
 │  └─ Body: <none>
-├─ Item[86]: Fn (span: 159:1-159:80)
+├─ Item[85]: Fn (span: 158:1-158:80)
 │  ├─ Name: rt_range_int_to_end
 │  ├─ Params: (end: int, inclusive: bool)
 │  ├─ Return: Range<int>
 │  └─ Body: <none>
-├─ Item[87]: Fn (span: 160:1-160:68)
+├─ Item[86]: Fn (span: 159:1-159:68)
 │  ├─ Name: rt_range_int_full
 │  ├─ Params: (inclusive: bool)
 │  ├─ Return: Range<int>
 │  └─ Body: <none>
-├─ Item[88]: Extern (span: 162:1-164:2)
+├─ Item[87]: Extern (span: 161:1-163:2)
 │  ├─ Target: Range<T>
 │  ├─ Members:
 │  │  └─ Fn[0]: next
 │  │     ├─ Params: (self: &mut Range<T>)
 │  │     ├─ Return: Option<T>
 │  │     └─ Attributes: @intrinsic
-├─ Item[89]: Type (span: 166:1-173:3)
+├─ Item[88]: Type (span: 165:1-172:3)
 │  ├─ Name: HeapStats
 │  ├─ Kind: Struct
 │  ├─ Visibility: public
@@ -492,22 +487,22 @@ intrinsics.sg (span: 1:1-898:1)
 │     ├─ Field[3]: live_bytes: uint
 │     ├─ Field[4]: rc_increments: uint
 │     └─ Field[5]: rc_decrements: uint
-├─ Item[90]: Fn (span: 179:1-179:48)
+├─ Item[89]: Fn (span: 178:1-178:48)
 │  ├─ Name: rt_heap_stats
 │  ├─ Params: ()
 │  ├─ Return: HeapStats
 │  └─ Body: <none>
-├─ Item[91]: Fn (span: 181:1-181:44)
+├─ Item[90]: Fn (span: 180:1-180:44)
 │  ├─ Name: rt_heap_dump
 │  ├─ Params: ()
 │  ├─ Return: string
 │  └─ Body: <none>
-├─ Item[92]: Fn (span: 183:1-183:45)
+├─ Item[91]: Fn (span: 182:1-182:45)
 │  ├─ Name: rt_worker_count
 │  ├─ Params: ()
 │  ├─ Return: uint
 │  └─ Body: <none>
-├─ Item[93]: Type (span: 185:1-188:3)
+├─ Item[92]: Type (span: 184:1-187:3)
 │  ├─ Name: Task
 │  ├─ Kind: Struct
 │  ├─ Visibility: public
@@ -515,10 +510,10 @@ intrinsics.sg (span: 1:1-898:1)
 │  ├─ Attributes: @intrinsic
 │  └─ Struct:
 │     └─ Field[0]: __opaque: int
-├─ Item[94]: Tag (span: 190:1-190:21)
+├─ Item[93]: Tag (span: 189:1-189:21)
 │  ├─ Name: Cancelled
 │  └─ Visibility: public
-├─ Item[95]: Type (span: 191:1-191:49)
+├─ Item[94]: Type (span: 190:1-190:49)
 │  ├─ Name: TaskResult
 │  ├─ Kind: Union
 │  ├─ Visibility: public
@@ -526,58 +521,58 @@ intrinsics.sg (span: 1:1-898:1)
 │  └─ Union:
 │     ├─ Member[0]: Success(T)
 │     └─ Member[1]: Cancelled
-├─ Item[96]: Type (span: 198:1-201:3)
+├─ Item[95]: Type (span: 197:1-200:3)
 │  ├─ Name: Placement
 │  ├─ Kind: Struct
 │  ├─ Visibility: public
 │  ├─ Attributes: @intrinsic, @copy
 │  └─ Struct:
 │     └─ Field[0]: __opaque: int
-├─ Item[97]: Type (span: 203:1-203:27)
+├─ Item[96]: Type (span: 202:1-202:27)
 │  ├─ Name: ShardId
 │  ├─ Kind: Alias
 │  ├─ Visibility: public
 │  └─ Target: uint32
-├─ Item[98]: Unknown(2) (span: 205:1-205:38)
-├─ Item[99]: Unknown(2) (span: 206:1-206:45)
-├─ Item[100]: Fn (span: 208:1-208:51)
+├─ Item[97]: Unknown(2) (span: 204:1-204:38)
+├─ Item[98]: Unknown(2) (span: 205:1-205:45)
+├─ Item[99]: Fn (span: 207:1-207:51)
 │  ├─ Name: shard
 │  ├─ Params: (id: ShardId)
 │  ├─ Return: Placement
 │  └─ Body: <none>
-├─ Item[101]: Fn (span: 214:1-214:83)
+├─ Item[100]: Fn (span: 213:1-213:83)
 │  ├─ Name: channel_on
 │  ├─ Generics: <T>
 │  ├─ Params: (dst: Placement, capacity: uint)
 │  ├─ Return: far Channel<T>
 │  └─ Body: <none>
-├─ Item[102]: Fn (span: 216:1-216:54)
+├─ Item[101]: Fn (span: 215:1-215:54)
 │  ├─ Name: rt_scope_enter
 │  ├─ Params: (failfast: bool)
 │  ├─ Return: uint
 │  └─ Body: <none>
-├─ Item[103]: Fn (span: 217:1-217:82)
+├─ Item[102]: Fn (span: 216:1-216:82)
 │  ├─ Name: rt_scope_register_child
 │  ├─ Generics: <T>
 │  ├─ Params: (scope: uint, child: Task<T>)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[104]: Fn (span: 218:1-218:59)
+├─ Item[103]: Fn (span: 217:1-217:59)
 │  ├─ Name: rt_scope_cancel_all
 │  ├─ Params: (scope: uint)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[105]: Fn (span: 219:1-219:54)
+├─ Item[104]: Fn (span: 218:1-218:54)
 │  ├─ Name: rt_scope_join_all
 │  ├─ Params: (scope: uint)
 │  ├─ Return: bool
 │  └─ Body: <none>
-├─ Item[106]: Fn (span: 220:1-220:53)
+├─ Item[105]: Fn (span: 219:1-219:53)
 │  ├─ Name: rt_scope_exit
 │  ├─ Params: (scope: uint)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[107]: Extern (span: 222:1-226:2)
+├─ Item[106]: Extern (span: 221:1-225:2)
 │  ├─ Target: Task<T>
 │  ├─ Members:
 │  │  ├─ Fn[0]: clone
@@ -592,23 +587,23 @@ intrinsics.sg (span: 1:1-898:1)
 │  │     ├─ Params: (self: own Task<T>)
 │  │     ├─ Return: TaskResult<T>
 │  │     └─ Attributes: @intrinsic
-├─ Item[108]: Fn (span: 230:1-231:38)
+├─ Item[107]: Fn (span: 229:1-230:38)
 │  ├─ Name: checkpoint
 │  ├─ Params: ()
 │  ├─ Return: Task<nothing>
 │  └─ Body: <none>
-├─ Item[109]: Fn (span: 234:1-234:52)
+├─ Item[108]: Fn (span: 233:1-233:52)
 │  ├─ Name: sleep
 │  ├─ Params: (ms: uint)
 │  ├─ Return: Task<nothing>
 │  └─ Body: <none>
-├─ Item[110]: Fn (span: 238:1-238:69)
+├─ Item[109]: Fn (span: 237:1-237:69)
 │  ├─ Name: timeout
 │  ├─ Generics: <T>
 │  ├─ Params: (t: Task<T>, ms: uint)
 │  ├─ Return: TaskResult<T>
 │  └─ Body: <none>
-├─ Item[111]: Type (span: 241:1-245:3)
+├─ Item[110]: Type (span: 240:1-244:3)
 │  ├─ Name: Channel
 │  ├─ Kind: Struct
 │  ├─ Visibility: public
@@ -616,7 +611,7 @@ intrinsics.sg (span: 1:1-898:1)
 │  ├─ Attributes: @copy, @intrinsic
 │  └─ Struct:
 │     └─ Field[0]: __opaque: *byte
-├─ Item[112]: Extern (span: 247:1-260:2)
+├─ Item[111]: Extern (span: 246:1-259:2)
 │  ├─ Target: Channel<T>
 │  ├─ Members:
 │  │  ├─ Fn[0]: new
@@ -643,34 +638,28 @@ intrinsics.sg (span: 1:1-898:1)
 │  │     ├─ Params: (self: &Channel<T>)
 │  │     ├─ Return: nothing
 │  │     └─ Attributes: @intrinsic
-├─ Item[113]: Fn (span: 262:1-263:54)
-│  ├─ Name: make_channel
-│  ├─ Generics: <T>
-│  ├─ Params: (capacity: uint)
-│  ├─ Return: own Channel<T>
-│  └─ Body: <none>
-├─ Item[114]: Contract (span: 265:1-268:2)
-├─ Item[115]: Contract (span: 270:1-272:2)
-├─ Item[116]: Contract (span: 274:1-276:2)
-├─ Item[117]: Fn (span: 278:1-280:2)
+├─ Item[112]: Contract (span: 261:1-264:2)
+├─ Item[113]: Contract (span: 266:1-268:2)
+├─ Item[114]: Contract (span: 270:1-272:2)
+├─ Item[115]: Fn (span: 274:1-276:2)
 │  ├─ Name: max_value
+│  ├─ Generics: <T>
+│  ├─ Params: ()
+│  ├─ Return: T
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 274:40-276:2)
+│        └─ Stmt[0]: Return (span: 275:5-275:28)
+│           └─ Expr: expr#11: T.__max_value()
+├─ Item[116]: Fn (span: 278:1-280:2)
+│  ├─ Name: min_value
 │  ├─ Generics: <T>
 │  ├─ Params: ()
 │  ├─ Return: T
 │  └─ Body:
 │     └─ Stmt[0]: Block (span: 278:40-280:2)
 │        └─ Stmt[0]: Return (span: 279:5-279:28)
-│           └─ Expr: expr#11: T.__max_value()
-├─ Item[118]: Fn (span: 282:1-284:2)
-│  ├─ Name: min_value
-│  ├─ Generics: <T>
-│  ├─ Params: ()
-│  ├─ Return: T
-│  └─ Body:
-│     └─ Stmt[0]: Block (span: 282:40-284:2)
-│        └─ Stmt[0]: Return (span: 283:5-283:28)
 │           └─ Expr: expr#14: T.__min_value()
-├─ Item[119]: Extern (span: 286:1-325:2)
+├─ Item[117]: Extern (span: 282:1-321:2)
 │  ├─ Target: int
 │  ├─ Members:
 │  │  ├─ Fn[0]: __add
@@ -758,8 +747,8 @@ intrinsics.sg (span: 1:1-898:1)
 │  │  │  ├─ Return: string
 │  │  │  ├─ Attributes: @overload
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 307:60-309:6)
-│  │  │     └─ Stmt[0]: Return (span: 308:9-308:34)
+│  │  │     Stmt[0]: Block (span: 303:60-305:6)
+│  │  │     └─ Stmt[0]: Return (span: 304:9-304:34)
 │  │  │        └─ Expr: expr#18: (*self) to string
 │  │  ├─ Fn[21]: __to
 │  │  │  ├─ Params: (self: int, target: float)
@@ -817,7 +806,7 @@ intrinsics.sg (span: 1:1-898:1)
 │  │     ├─ Params: (s: &string)
 │  │     ├─ Return: Erring<int, Error>
 │  │     └─ Attributes: @intrinsic
-├─ Item[120]: Extern (span: 327:1-365:2)
+├─ Item[118]: Extern (span: 323:1-361:2)
 │  ├─ Target: uint
 │  ├─ Members:
 │  │  ├─ Fn[0]: __add
@@ -901,8 +890,8 @@ intrinsics.sg (span: 1:1-898:1)
 │  │  │  ├─ Return: string
 │  │  │  ├─ Attributes: @overload
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 347:61-349:6)
-│  │  │     └─ Stmt[0]: Return (span: 348:9-348:34)
+│  │  │     Stmt[0]: Block (span: 343:61-345:6)
+│  │  │     └─ Stmt[0]: Return (span: 344:9-344:34)
 │  │  │        └─ Expr: expr#22: (*self) to string
 │  │  ├─ Fn[20]: __to
 │  │  │  ├─ Params: (self: uint, target: int)
@@ -960,22 +949,22 @@ intrinsics.sg (span: 1:1-898:1)
 │  │     ├─ Params: (s: &string)
 │  │     ├─ Return: Erring<uint, Error>
 │  │     └─ Attributes: @intrinsic
-├─ Item[121]: Extern (span: 367:1-394:2)
+├─ Item[119]: Extern (span: 363:1-390:2)
 │  ├─ Target: int8
 │  ├─ Members:
 │  │  ├─ Fn[0]: __min_value
 │  │  │  ├─ Params: ()
 │  │  │  ├─ Return: int8
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 368:34-368:57)
-│  │  │     └─ Stmt[0]: Return (span: 368:36-368:55)
+│  │  │     Stmt[0]: Block (span: 364:34-364:57)
+│  │  │     └─ Stmt[0]: Return (span: 364:36-364:55)
 │  │  │        └─ Expr: expr#26: (-128) to int8
 │  │  ├─ Fn[1]: __max_value
 │  │  │  ├─ Params: ()
 │  │  │  ├─ Return: int8
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 369:34-369:56)
-│  │  │     └─ Stmt[0]: Return (span: 369:36-369:54)
+│  │  │     Stmt[0]: Block (span: 365:34-365:56)
+│  │  │     └─ Stmt[0]: Return (span: 365:36-365:54)
 │  │  │        └─ Expr: expr#29: (127) to int8
 │  │  ├─ Fn[2]: __add
 │  │  │  ├─ Params: (self: int8, other: int8)
@@ -1073,22 +1062,22 @@ intrinsics.sg (span: 1:1-898:1)
 │  │     ├─ Params: (s: &string)
 │  │     ├─ Return: Erring<int8, Error>
 │  │     └─ Attributes: @intrinsic
-├─ Item[122]: Extern (span: 396:1-423:2)
+├─ Item[120]: Extern (span: 392:1-419:2)
 │  ├─ Target: int16
 │  ├─ Members:
 │  │  ├─ Fn[0]: __min_value
 │  │  │  ├─ Params: ()
 │  │  │  ├─ Return: int16
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 397:35-397:62)
-│  │  │     └─ Stmt[0]: Return (span: 397:37-397:60)
+│  │  │     Stmt[0]: Block (span: 393:35-393:62)
+│  │  │     └─ Stmt[0]: Return (span: 393:37-393:60)
 │  │  │        └─ Expr: expr#33: (-32_768) to int16
 │  │  ├─ Fn[1]: __max_value
 │  │  │  ├─ Params: ()
 │  │  │  ├─ Return: int16
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 398:35-398:61)
-│  │  │     └─ Stmt[0]: Return (span: 398:37-398:59)
+│  │  │     Stmt[0]: Block (span: 394:35-394:61)
+│  │  │     └─ Stmt[0]: Return (span: 394:37-394:59)
 │  │  │        └─ Expr: expr#36: (32_767) to int16
 │  │  ├─ Fn[2]: __add
 │  │  │  ├─ Params: (self: int16, other: int16)
@@ -1186,22 +1175,22 @@ intrinsics.sg (span: 1:1-898:1)
 │  │     ├─ Params: (s: &string)
 │  │     ├─ Return: Erring<int16, Error>
 │  │     └─ Attributes: @intrinsic
-├─ Item[123]: Extern (span: 425:1-452:2)
+├─ Item[121]: Extern (span: 421:1-448:2)
 │  ├─ Target: int32
 │  ├─ Members:
 │  │  ├─ Fn[0]: __min_value
 │  │  │  ├─ Params: ()
 │  │  │  ├─ Return: int32
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 426:35-426:69)
-│  │  │     └─ Stmt[0]: Return (span: 426:37-426:67)
+│  │  │     Stmt[0]: Block (span: 422:35-422:69)
+│  │  │     └─ Stmt[0]: Return (span: 422:37-422:67)
 │  │  │        └─ Expr: expr#40: (-2_147_483_648) to int32
 │  │  ├─ Fn[1]: __max_value
 │  │  │  ├─ Params: ()
 │  │  │  ├─ Return: int32
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 427:35-427:68)
-│  │  │     └─ Stmt[0]: Return (span: 427:37-427:66)
+│  │  │     Stmt[0]: Block (span: 423:35-423:68)
+│  │  │     └─ Stmt[0]: Return (span: 423:37-423:66)
 │  │  │        └─ Expr: expr#43: (2_147_483_647) to int32
 │  │  ├─ Fn[2]: __add
 │  │  │  ├─ Params: (self: int32, other: int32)
@@ -1299,22 +1288,22 @@ intrinsics.sg (span: 1:1-898:1)
 │  │     ├─ Params: (s: &string)
 │  │     ├─ Return: Erring<int32, Error>
 │  │     └─ Attributes: @intrinsic
-├─ Item[124]: Extern (span: 454:1-481:2)
+├─ Item[122]: Extern (span: 450:1-477:2)
 │  ├─ Target: int64
 │  ├─ Members:
 │  │  ├─ Fn[0]: __min_value
 │  │  │  ├─ Params: ()
 │  │  │  ├─ Return: int64
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 455:35-455:81)
-│  │  │     └─ Stmt[0]: Return (span: 455:37-455:79)
+│  │  │     Stmt[0]: Block (span: 451:35-451:81)
+│  │  │     └─ Stmt[0]: Return (span: 451:37-451:79)
 │  │  │        └─ Expr: expr#47: (-9_223_372_036_854_775_808) to int64
 │  │  ├─ Fn[1]: __max_value
 │  │  │  ├─ Params: ()
 │  │  │  ├─ Return: int64
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 456:35-456:80)
-│  │  │     └─ Stmt[0]: Return (span: 456:37-456:78)
+│  │  │     Stmt[0]: Block (span: 452:35-452:80)
+│  │  │     └─ Stmt[0]: Return (span: 452:37-452:78)
 │  │  │        └─ Expr: expr#50: (9_223_372_036_854_775_807) to int64
 │  │  ├─ Fn[2]: __add
 │  │  │  ├─ Params: (self: int64, other: int64)
@@ -1412,22 +1401,22 @@ intrinsics.sg (span: 1:1-898:1)
 │  │     ├─ Params: (s: &string)
 │  │     ├─ Return: Erring<int64, Error>
 │  │     └─ Attributes: @intrinsic
-├─ Item[125]: Extern (span: 483:1-509:2)
+├─ Item[123]: Extern (span: 479:1-505:2)
 │  ├─ Target: uint8
 │  ├─ Members:
 │  │  ├─ Fn[0]: __min_value
 │  │  │  ├─ Params: ()
 │  │  │  ├─ Return: uint8
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 484:35-484:56)
-│  │  │     └─ Stmt[0]: Return (span: 484:37-484:54)
+│  │  │     Stmt[0]: Block (span: 480:35-480:56)
+│  │  │     └─ Stmt[0]: Return (span: 480:37-480:54)
 │  │  │        └─ Expr: expr#53: (0) to uint8
 │  │  ├─ Fn[1]: __max_value
 │  │  │  ├─ Params: ()
 │  │  │  ├─ Return: uint8
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 485:35-485:58)
-│  │  │     └─ Stmt[0]: Return (span: 485:37-485:56)
+│  │  │     Stmt[0]: Block (span: 481:35-481:58)
+│  │  │     └─ Stmt[0]: Return (span: 481:37-481:56)
 │  │  │        └─ Expr: expr#56: (255) to uint8
 │  │  ├─ Fn[2]: __add
 │  │  │  ├─ Params: (self: uint8, other: uint8)
@@ -1521,22 +1510,22 @@ intrinsics.sg (span: 1:1-898:1)
 │  │     ├─ Params: (s: &string)
 │  │     ├─ Return: Erring<uint8, Error>
 │  │     └─ Attributes: @intrinsic
-├─ Item[126]: Extern (span: 511:1-537:2)
+├─ Item[124]: Extern (span: 507:1-533:2)
 │  ├─ Target: uint16
 │  ├─ Members:
 │  │  ├─ Fn[0]: __min_value
 │  │  │  ├─ Params: ()
 │  │  │  ├─ Return: uint16
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 512:36-512:58)
-│  │  │     └─ Stmt[0]: Return (span: 512:38-512:56)
+│  │  │     Stmt[0]: Block (span: 508:36-508:58)
+│  │  │     └─ Stmt[0]: Return (span: 508:38-508:56)
 │  │  │        └─ Expr: expr#59: (0) to uint16
 │  │  ├─ Fn[1]: __max_value
 │  │  │  ├─ Params: ()
 │  │  │  ├─ Return: uint16
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 513:36-513:63)
-│  │  │     └─ Stmt[0]: Return (span: 513:38-513:61)
+│  │  │     Stmt[0]: Block (span: 509:36-509:63)
+│  │  │     └─ Stmt[0]: Return (span: 509:38-509:61)
 │  │  │        └─ Expr: expr#62: (65_535) to uint16
 │  │  ├─ Fn[2]: __add
 │  │  │  ├─ Params: (self: uint16, other: uint16)
@@ -1630,22 +1619,22 @@ intrinsics.sg (span: 1:1-898:1)
 │  │     ├─ Params: (s: &string)
 │  │     ├─ Return: Erring<uint16, Error>
 │  │     └─ Attributes: @intrinsic
-├─ Item[127]: Extern (span: 539:1-565:2)
+├─ Item[125]: Extern (span: 535:1-561:2)
 │  ├─ Target: uint32
 │  ├─ Members:
 │  │  ├─ Fn[0]: __min_value
 │  │  │  ├─ Params: ()
 │  │  │  ├─ Return: uint32
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 540:36-540:58)
-│  │  │     └─ Stmt[0]: Return (span: 540:38-540:56)
+│  │  │     Stmt[0]: Block (span: 536:36-536:58)
+│  │  │     └─ Stmt[0]: Return (span: 536:38-536:56)
 │  │  │        └─ Expr: expr#65: (0) to uint32
 │  │  ├─ Fn[1]: __max_value
 │  │  │  ├─ Params: ()
 │  │  │  ├─ Return: uint32
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 541:36-541:70)
-│  │  │     └─ Stmt[0]: Return (span: 541:38-541:68)
+│  │  │     Stmt[0]: Block (span: 537:36-537:70)
+│  │  │     └─ Stmt[0]: Return (span: 537:38-537:68)
 │  │  │        └─ Expr: expr#68: (4_294_967_295) to uint32
 │  │  ├─ Fn[2]: __add
 │  │  │  ├─ Params: (self: uint32, other: uint32)
@@ -1739,22 +1728,22 @@ intrinsics.sg (span: 1:1-898:1)
 │  │     ├─ Params: (s: &string)
 │  │     ├─ Return: Erring<uint32, Error>
 │  │     └─ Attributes: @intrinsic
-├─ Item[128]: Extern (span: 567:1-593:2)
+├─ Item[126]: Extern (span: 563:1-589:2)
 │  ├─ Target: uint64
 │  ├─ Members:
 │  │  ├─ Fn[0]: __min_value
 │  │  │  ├─ Params: ()
 │  │  │  ├─ Return: uint64
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 568:36-568:58)
-│  │  │     └─ Stmt[0]: Return (span: 568:38-568:56)
+│  │  │     Stmt[0]: Block (span: 564:36-564:58)
+│  │  │     └─ Stmt[0]: Return (span: 564:38-564:56)
 │  │  │        └─ Expr: expr#71: (0) to uint64
 │  │  ├─ Fn[1]: __max_value
 │  │  │  ├─ Params: ()
 │  │  │  ├─ Return: uint64
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 569:36-569:83)
-│  │  │     └─ Stmt[0]: Return (span: 569:38-569:81)
+│  │  │     Stmt[0]: Block (span: 565:36-565:83)
+│  │  │     └─ Stmt[0]: Return (span: 565:38-565:81)
 │  │  │        └─ Expr: expr#74: (18_446_744_073_709_551_615) to uint64
 │  │  ├─ Fn[2]: __add
 │  │  │  ├─ Params: (self: uint64, other: uint64)
@@ -1848,22 +1837,22 @@ intrinsics.sg (span: 1:1-898:1)
 │  │     ├─ Params: (s: &string)
 │  │     ├─ Return: Erring<uint64, Error>
 │  │     └─ Attributes: @intrinsic
-├─ Item[129]: Extern (span: 595:1-616:2)
+├─ Item[127]: Extern (span: 591:1-612:2)
 │  ├─ Target: float16
 │  ├─ Members:
 │  │  ├─ Fn[0]: __min_value
 │  │  │  ├─ Params: ()
 │  │  │  ├─ Return: float16
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 596:37-596:67)
-│  │  │     └─ Stmt[0]: Return (span: 596:39-596:65)
+│  │  │     Stmt[0]: Block (span: 592:37-592:67)
+│  │  │     └─ Stmt[0]: Return (span: 592:39-592:65)
 │  │  │        └─ Expr: expr#78: (-65504.0) to float16
 │  │  ├─ Fn[1]: __max_value
 │  │  │  ├─ Params: ()
 │  │  │  ├─ Return: float16
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 597:37-597:66)
-│  │  │     └─ Stmt[0]: Return (span: 597:39-597:64)
+│  │  │     Stmt[0]: Block (span: 593:37-593:66)
+│  │  │     └─ Stmt[0]: Return (span: 593:39-593:64)
 │  │  │        └─ Expr: expr#81: (65504.0) to float16
 │  │  ├─ Fn[2]: __add
 │  │  │  ├─ Params: (self: float16, other: float16)
@@ -1937,22 +1926,22 @@ intrinsics.sg (span: 1:1-898:1)
 │  │     ├─ Params: (s: &string)
 │  │     ├─ Return: Erring<float16, Error>
 │  │     └─ Attributes: @intrinsic
-├─ Item[130]: Extern (span: 618:1-639:2)
+├─ Item[128]: Extern (span: 614:1-635:2)
 │  ├─ Target: float32
 │  ├─ Members:
 │  │  ├─ Fn[0]: __min_value
 │  │  │  ├─ Params: ()
 │  │  │  ├─ Return: float32
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 619:37-619:86)
-│  │  │     └─ Stmt[0]: Return (span: 619:39-619:84)
+│  │  │     Stmt[0]: Block (span: 615:37-615:86)
+│  │  │     └─ Stmt[0]: Return (span: 615:39-615:84)
 │  │  │        └─ Expr: expr#85: (-3.402_823_466_385_2886e+38) to float32
 │  │  ├─ Fn[1]: __max_value
 │  │  │  ├─ Params: ()
 │  │  │  ├─ Return: float32
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 620:37-620:85)
-│  │  │     └─ Stmt[0]: Return (span: 620:39-620:83)
+│  │  │     Stmt[0]: Block (span: 616:37-616:85)
+│  │  │     └─ Stmt[0]: Return (span: 616:39-616:83)
 │  │  │        └─ Expr: expr#88: (3.402_823_466_385_2886e+38) to float32
 │  │  ├─ Fn[2]: __add
 │  │  │  ├─ Params: (self: float32, other: float32)
@@ -2026,22 +2015,22 @@ intrinsics.sg (span: 1:1-898:1)
 │  │     ├─ Params: (s: &string)
 │  │     ├─ Return: Erring<float32, Error>
 │  │     └─ Attributes: @intrinsic
-├─ Item[131]: Extern (span: 641:1-662:2)
+├─ Item[129]: Extern (span: 637:1-658:2)
 │  ├─ Target: float64
 │  ├─ Members:
 │  │  ├─ Fn[0]: __min_value
 │  │  │  ├─ Params: ()
 │  │  │  ├─ Return: float64
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 642:37-642:87)
-│  │  │     └─ Stmt[0]: Return (span: 642:39-642:85)
+│  │  │     Stmt[0]: Block (span: 638:37-638:87)
+│  │  │     └─ Stmt[0]: Return (span: 638:39-638:85)
 │  │  │        └─ Expr: expr#92: (-1.797_693_134_862_3157e+308) to float64
 │  │  ├─ Fn[1]: __max_value
 │  │  │  ├─ Params: ()
 │  │  │  ├─ Return: float64
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 643:37-643:86)
-│  │  │     └─ Stmt[0]: Return (span: 643:39-643:84)
+│  │  │     Stmt[0]: Block (span: 639:37-639:86)
+│  │  │     └─ Stmt[0]: Return (span: 639:39-639:84)
 │  │  │        └─ Expr: expr#95: (1.797_693_134_862_3157e+308) to float64
 │  │  ├─ Fn[2]: __add
 │  │  │  ├─ Params: (self: float64, other: float64)
@@ -2115,7 +2104,7 @@ intrinsics.sg (span: 1:1-898:1)
 │  │     ├─ Params: (s: &string)
 │  │     ├─ Return: Erring<float64, Error>
 │  │     └─ Attributes: @intrinsic
-├─ Item[132]: Extern (span: 664:1-698:2)
+├─ Item[130]: Extern (span: 660:1-694:2)
 │  ├─ Target: float
 │  ├─ Members:
 │  │  ├─ Fn[0]: __add
@@ -2183,8 +2172,8 @@ intrinsics.sg (span: 1:1-898:1)
 │  │  │  ├─ Return: string
 │  │  │  ├─ Attributes: @overload
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 680:62-682:6)
-│  │  │     └─ Stmt[0]: Return (span: 681:9-681:34)
+│  │  │     Stmt[0]: Block (span: 676:62-678:6)
+│  │  │     └─ Stmt[0]: Return (span: 677:9-677:34)
 │  │  │        └─ Expr: expr#99: (*self) to string
 │  │  ├─ Fn[16]: __to
 │  │  │  ├─ Params: (self: float, target: int)
@@ -2242,7 +2231,7 @@ intrinsics.sg (span: 1:1-898:1)
 │  │     ├─ Params: (s: &string)
 │  │     ├─ Return: Erring<float, Error>
 │  │     └─ Attributes: @intrinsic
-├─ Item[133]: Extern (span: 700:1-724:2)
+├─ Item[131]: Extern (span: 696:1-720:2)
 │  ├─ Target: string
 │  ├─ Members:
 │  │  ├─ Fn[0]: __add
@@ -2258,8 +2247,8 @@ intrinsics.sg (span: 1:1-898:1)
 │  │  │  ├─ Return: string
 │  │  │  ├─ Attributes: @overload
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 703:66-705:6)
-│  │  │     └─ Stmt[0]: Return (span: 704:9-704:38)
+│  │  │     Stmt[0]: Block (span: 699:66-701:6)
+│  │  │     └─ Stmt[0]: Return (span: 700:9-700:38)
 │  │  │        └─ Expr: expr#104: (self * (other to int))
 │  │  ├─ Fn[3]: __eq
 │  │  │  ├─ Params: (self: &string, other: &string)
@@ -2286,23 +2275,23 @@ intrinsics.sg (span: 1:1-898:1)
 │  │  │  ├─ Return: string
 │  │  │  ├─ Attributes: @overload
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 711:63-713:6)
-│  │  │     └─ Stmt[0]: Return (span: 712:9-712:31)
+│  │  │     Stmt[0]: Block (span: 707:63-709:6)
+│  │  │     └─ Stmt[0]: Return (span: 708:9-708:31)
 │  │  │        └─ Expr: expr#107: self.__clone()
 │  │  ├─ Fn[9]: __to
 │  │  │  ├─ Params: (self: &string, _: byte[])
 │  │  │  ├─ Return: byte[]
 │  │  │  ├─ Attributes: @overload
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 715:53-719:6)
-│  │  │     ├─ Stmt[0]: Let (span: 716:9-716:34)
+│  │  │     Stmt[0]: Block (span: 711:53-715:6)
+│  │  │     ├─ Stmt[0]: Let (span: 712:9-712:34)
 │  │  │     │  ├─ Name: out
 │  │  │     │  ├─ Mutable: true
 │  │  │     │  ├─ Type: byte[]
 │  │  │     │  └─ Value: expr#108: <ExprKind(8)>
-│  │  │     ├─ Stmt[1]: Expr (span: 717:9-717:103)
+│  │  │     ├─ Stmt[1]: Expr (span: 713:9-713:103)
 │  │  │     │  └─ Expr: expr#119: rt_array_append_raw_bytes(&mut out, rt_string_ptr(self), rt_string_len_bytes(self) to uint64)
-│  │  │     └─ Stmt[2]: Return (span: 718:9-718:20)
+│  │  │     └─ Stmt[2]: Return (span: 714:9-714:20)
 │  │  │        └─ Expr: expr#120: out
 │  │  ├─ Fn[10]: __len
 │  │  │  ├─ Params: (self: &string)
@@ -2320,7 +2309,7 @@ intrinsics.sg (span: 1:1-898:1)
 │  │     ├─ Params: (self: &string, index: Range<int>)
 │  │     ├─ Return: string
 │  │     └─ Attributes: @intrinsic, @overload
-├─ Item[134]: Type (span: 726:1-735:3)
+├─ Item[132]: Type (span: 722:1-731:3)
 │  ├─ Name: BytesView
 │  ├─ Kind: Struct
 │  ├─ Visibility: public
@@ -2329,7 +2318,7 @@ intrinsics.sg (span: 1:1-898:1)
 │     ├─ Field[0]: owner: *byte
 │     ├─ Field[1]: ptr: *byte
 │     └─ Field[2]: len: uint
-├─ Item[135]: Extern (span: 737:1-741:2)
+├─ Item[133]: Extern (span: 733:1-737:2)
 │  ├─ Target: BytesView
 │  ├─ Members:
 │  │  ├─ Fn[0]: __len
@@ -2344,7 +2333,7 @@ intrinsics.sg (span: 1:1-898:1)
 │  │     ├─ Params: (self: &BytesView, index: int64)
 │  │     ├─ Return: uint8
 │  │     └─ Attributes: @intrinsic, @overload
-├─ Item[136]: Extern (span: 743:1-754:2)
+├─ Item[134]: Extern (span: 739:1-750:2)
 │  ├─ Target: bool
 │  ├─ Members:
 │  │  ├─ Fn[0]: __eq
@@ -2368,8 +2357,8 @@ intrinsics.sg (span: 1:1-898:1)
 │  │  │  ├─ Return: string
 │  │  │  ├─ Attributes: @overload
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 748:61-750:6)
-│  │  │     └─ Stmt[0]: Return (span: 749:9-749:34)
+│  │  │     Stmt[0]: Block (span: 744:61-746:6)
+│  │  │     └─ Stmt[0]: Return (span: 745:9-745:34)
 │  │  │        └─ Expr: expr#124: (*self) to string
 │  │  ├─ Fn[5]: __to
 │  │  │  ├─ Params: (self: bool, target: int)
@@ -2379,7 +2368,7 @@ intrinsics.sg (span: 1:1-898:1)
 │  │     ├─ Params: (s: &string)
 │  │     ├─ Return: Erring<bool, Error>
 │  │     └─ Attributes: @intrinsic
-├─ Item[137]: Extern (span: 756:1-763:2)
+├─ Item[135]: Extern (span: 752:1-759:2)
 │  ├─ Target: Array<T>
 │  ├─ Members:
 │  │  ├─ Fn[0]: __add
@@ -2406,7 +2395,7 @@ intrinsics.sg (span: 1:1-898:1)
 │  │     ├─ Params: (self: &Array<T>)
 │  │     ├─ Return: uint
 │  │     └─ Attributes: @intrinsic
-├─ Item[138]: Extern (span: 765:1-772:2)
+├─ Item[136]: Extern (span: 761:1-768:2)
 │  ├─ Target: ArrayFixed<T, N>
 │  ├─ Members:
 │  │  ├─ Fn[0]: __add
@@ -2433,62 +2422,62 @@ intrinsics.sg (span: 1:1-898:1)
 │  │     ├─ Params: (self: &ArrayFixed<T, N>)
 │  │     ├─ Return: uint
 │  │     └─ Attributes: @intrinsic
-├─ Item[139]: Fn (span: 774:1-775:26)
+├─ Item[137]: Fn (span: 770:1-771:26)
 │  ├─ Name: default
 │  ├─ Generics: <T>
 │  ├─ Params: ()
 │  ├─ Return: T
 │  └─ Body: <none>
-├─ Item[140]: Fn (span: 777:1-778:29)
+├─ Item[138]: Fn (span: 773:1-774:29)
 │  ├─ Name: size_of
 │  ├─ Generics: <T>
 │  ├─ Params: ()
 │  ├─ Return: uint
 │  └─ Body: <none>
-├─ Item[141]: Fn (span: 780:1-781:30)
+├─ Item[139]: Fn (span: 776:1-777:30)
 │  ├─ Name: align_of
 │  ├─ Generics: <T>
 │  ├─ Params: ()
 │  ├─ Return: uint
 │  └─ Body: <none>
-├─ Item[142]: Contract (span: 783:1-786:2)
-├─ Item[143]: Fn (span: 788:1-789:44)
+├─ Item[140]: Contract (span: 779:1-782:2)
+├─ Item[141]: Fn (span: 784:1-785:44)
 │  ├─ Name: exit
 │  ├─ Generics: <E>
 │  ├─ Params: (e: E)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[144]: Fn (span: 791:1-792:54)
+├─ Item[142]: Fn (span: 787:1-788:54)
 │  ├─ Name: rt_panic
 │  ├─ Params: (ptr: *byte, length: uint)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[145]: Fn (span: 794:1-798:2)
+├─ Item[143]: Fn (span: 790:1-794:2)
 │  ├─ Name: panic
 │  ├─ Params: (msg: string)
 │  ├─ Return: nothing
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 794:38-798:2)
-│        ├─ Stmt[0]: Let (span: 795:5-795:35)
+│     └─ Stmt[0]: Block (span: 790:38-794:2)
+│        ├─ Stmt[0]: Let (span: 791:5-791:35)
 │        │  ├─ Name: ptr
 │        │  ├─ Mutable: false
 │        │  ├─ Type: <inferred>
 │        │  └─ Value: expr#128: rt_string_ptr(&msg)
-│        ├─ Stmt[1]: Let (span: 796:5-796:44)
+│        ├─ Stmt[1]: Let (span: 792:5-792:44)
 │        │  ├─ Name: length
 │        │  ├─ Mutable: false
 │        │  ├─ Type: <inferred>
 │        │  └─ Value: expr#132: rt_string_len_bytes(&msg)
-│        └─ Stmt[2]: Expr (span: 797:5-797:27)
+│        └─ Stmt[2]: Expr (span: 793:5-793:27)
 │           └─ Expr: expr#136: rt_panic(ptr, length)
-├─ Item[146]: Type (span: 800:1-803:3)
+├─ Item[144]: Type (span: 796:1-799:3)
 │  ├─ Name: RwLock
 │  ├─ Kind: Struct
 │  ├─ Visibility: public
 │  ├─ Attributes: @intrinsic
 │  └─ Struct:
 │     └─ Field[0]: __opaque: *byte
-├─ Item[147]: Extern (span: 805:1-813:2)
+├─ Item[145]: Extern (span: 801:1-809:2)
 │  ├─ Target: RwLock
 │  ├─ Members:
 │  │  ├─ Fn[0]: new
@@ -2519,97 +2508,97 @@ intrinsics.sg (span: 1:1-898:1)
 │  │     ├─ Params: (self: &mut RwLock)
 │  │     ├─ Return: bool
 │  │     └─ Attributes: @intrinsic
-├─ Item[148]: Fn (span: 821:1-822:38)
+├─ Item[146]: Fn (span: 817:1-818:38)
 │  ├─ Name: atomic_load
 │  ├─ Params: (ptr: &int)
 │  ├─ Return: int
 │  └─ Body: <none>
-├─ Item[149]: Fn (span: 824:1-826:40)
+├─ Item[147]: Fn (span: 820:1-822:40)
 │  ├─ Name: atomic_load
 │  ├─ Params: (ptr: &uint)
 │  ├─ Return: uint
 │  └─ Body: <none>
-├─ Item[150]: Fn (span: 828:1-830:40)
+├─ Item[148]: Fn (span: 824:1-826:40)
 │  ├─ Name: atomic_load
 │  ├─ Params: (ptr: &bool)
 │  ├─ Return: bool
 │  └─ Body: <none>
-├─ Item[151]: Fn (span: 833:1-834:59)
+├─ Item[149]: Fn (span: 829:1-830:59)
 │  ├─ Name: atomic_store
 │  ├─ Params: (ptr: &mut int, value: int)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[152]: Fn (span: 836:1-838:61)
+├─ Item[150]: Fn (span: 832:1-834:61)
 │  ├─ Name: atomic_store
 │  ├─ Params: (ptr: &mut uint, value: uint)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[153]: Fn (span: 840:1-842:61)
+├─ Item[151]: Fn (span: 836:1-838:61)
 │  ├─ Name: atomic_store
 │  ├─ Params: (ptr: &mut bool, value: bool)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[154]: Fn (span: 845:1-846:60)
+├─ Item[152]: Fn (span: 841:1-842:60)
 │  ├─ Name: atomic_exchange
 │  ├─ Params: (ptr: &mut int, new_val: int)
 │  ├─ Return: int
 │  └─ Body: <none>
-├─ Item[155]: Fn (span: 848:1-850:63)
+├─ Item[153]: Fn (span: 844:1-846:63)
 │  ├─ Name: atomic_exchange
 │  ├─ Params: (ptr: &mut uint, new_val: uint)
 │  ├─ Return: uint
 │  └─ Body: <none>
-├─ Item[156]: Fn (span: 852:1-854:63)
+├─ Item[154]: Fn (span: 848:1-850:63)
 │  ├─ Name: atomic_exchange
 │  ├─ Params: (ptr: &mut bool, new_val: bool)
 │  ├─ Return: bool
 │  └─ Body: <none>
-├─ Item[157]: Fn (span: 858:1-859:84)
+├─ Item[155]: Fn (span: 854:1-855:84)
 │  ├─ Name: atomic_compare_exchange
 │  ├─ Params: (ptr: &mut int, expected: int, desired: int)
 │  ├─ Return: bool
 │  └─ Body: <none>
-├─ Item[158]: Fn (span: 861:1-863:87)
+├─ Item[156]: Fn (span: 857:1-859:87)
 │  ├─ Name: atomic_compare_exchange
 │  ├─ Params: (ptr: &mut uint, expected: uint, desired: uint)
 │  ├─ Return: bool
 │  └─ Body: <none>
-├─ Item[159]: Fn (span: 865:1-867:87)
+├─ Item[157]: Fn (span: 861:1-863:87)
 │  ├─ Name: atomic_compare_exchange
 │  ├─ Params: (ptr: &mut bool, expected: bool, desired: bool)
 │  ├─ Return: bool
 │  └─ Body: <none>
-├─ Item[160]: Fn (span: 870:1-871:59)
+├─ Item[158]: Fn (span: 866:1-867:59)
 │  ├─ Name: atomic_fetch_add
 │  ├─ Params: (ptr: &mut int, delta: int)
 │  ├─ Return: int
 │  └─ Body: <none>
-├─ Item[161]: Fn (span: 873:1-875:62)
+├─ Item[159]: Fn (span: 869:1-871:62)
 │  ├─ Name: atomic_fetch_add
 │  ├─ Params: (ptr: &mut uint, delta: uint)
 │  ├─ Return: uint
 │  └─ Body: <none>
-├─ Item[162]: Fn (span: 878:1-879:59)
+├─ Item[160]: Fn (span: 874:1-875:59)
 │  ├─ Name: atomic_fetch_sub
 │  ├─ Params: (ptr: &mut int, delta: int)
 │  ├─ Return: int
 │  └─ Body: <none>
-├─ Item[163]: Fn (span: 881:1-883:62)
+├─ Item[161]: Fn (span: 877:1-879:62)
 │  ├─ Name: atomic_fetch_sub
 │  ├─ Params: (ptr: &mut uint, delta: uint)
 │  ├─ Return: uint
 │  └─ Body: <none>
-├─ Item[164]: Fn (span: 888:1-889:30)
+├─ Item[162]: Fn (span: 884:1-885:30)
 │  ├─ Name: rt_argv
 │  ├─ Params: ()
 │  ├─ Return: string[]
 │  └─ Body: <none>
-├─ Item[165]: Fn (span: 892:1-893:38)
+├─ Item[163]: Fn (span: 888:1-889:38)
 │  ├─ Name: rt_stdin_read_all
 │  ├─ Params: ()
 │  ├─ Return: string
 │  └─ Body: <none>
-└─ Item[166]: Fn (span: 896:1-897:38)
+└─ Item[164]: Fn (span: 892:1-893:38)
    ├─ Name: rt_exit
    ├─ Params: (code: int)
    ├─ Return: nothing

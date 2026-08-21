@@ -20,7 +20,7 @@ async fn receiver(ch: own Channel<int>) -> int {
 
 @entrypoint
 fn main() -> int {
-    let ch = make_channel::<int>(1);
+    let ch = Channel::<int>::new(1:uint);
 
     let sender_ch = ch;
     let recv_ch = ch;

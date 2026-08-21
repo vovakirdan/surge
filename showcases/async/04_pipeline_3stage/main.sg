@@ -25,8 +25,8 @@ async fn sum(inp: &Channel<int>) -> int {
 
 @entrypoint
 fn main() {
-    let ch1 = make_channel::<int>(32:uint);
-    let ch2 = make_channel::<int>(32:uint);
+    let ch1 = Channel::<int>::new(32:uint);
+    let ch2 = Channel::<int>::new(32:uint);
 
     let t1 = spawn gen(&ch1);
     let t2 = spawn square(&ch1, &ch2);

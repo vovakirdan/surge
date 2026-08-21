@@ -370,7 +370,7 @@ async fn run() -> int {
     let spinners: int = spinners_u to int;
     let iters: int = 1000;
     let target: int = spinners * iters;
-    let progress = make_channel::<nothing>(0);
+    let progress = Channel::<nothing>::new(0:uint);
 
     let sink_task = spawn sink(progress, target);
     checkpoint().await();
@@ -473,8 +473,8 @@ async fn run() -> int {
         return 3;
     }
     let count: int = 64;
-    let ch = make_channel::<nothing>(0:uint);
-    let ready = make_channel::<nothing>(0:uint);
+    let ch = Channel::<nothing>::new(0:uint);
+    let ready = Channel::<nothing>::new(0:uint);
     let recv_ch = ch;
     let recv_ready = ready;
     let recv_task = spawn receiver(recv_ch, recv_ready, count);
@@ -651,7 +651,7 @@ async fn run() -> int {
     if rt_worker_count() <= 1:uint {
         return 4;
     }
-    let ch = make_channel::<nothing>(0:uint);
+    let ch = Channel::<nothing>::new(0:uint);
     let send_ch = ch;
     let recv_ch = ch;
     let send_task = spawn sender(send_ch);
@@ -747,7 +747,7 @@ async fn run() -> int {
     if rt_worker_count() <= 1:uint {
         return 6;
     }
-    let ch = make_channel::<int>(1:uint);
+    let ch = Channel::<int>::new(1:uint);
     ch.send(100);
     let send_ch = ch;
     let recv_ch = ch;
@@ -814,7 +814,7 @@ fn main() -> int {
     if rt_worker_count() <= 1:uint {
         return 90;
     }
-    let ch = make_channel::<int>(1:uint);
+    let ch = Channel::<int>::new(1:uint);
     ch.send(1);
     let send_ch = ch;
     let task = spawn sender(send_ch);
@@ -944,7 +944,7 @@ fn main() -> int {
     let consumers = 4;
     let per = 2000;
     let total = producers * per;
-    let ch = make_channel::<int>(0);
+    let ch = Channel::<int>::new(0:uint);
 
     let mut prod_tasks: Task<int>[] = Array::<Task<int>>::with_len(producers to uint);
     let mut cons_tasks: Task<int>[] = Array::<Task<int>>::with_len(consumers to uint);
@@ -1009,7 +1009,7 @@ fn main() -> int {
         return 4;
     }
 
-    let recv_ch = make_channel::<int>(0);
+    let recv_ch = Channel::<int>::new(0:uint);
     let recv_task = spawn wait_recv(recv_ch);
     checkpoint().await();
     checkpoint().await();
@@ -1023,7 +1023,7 @@ fn main() -> int {
         return 5;
     }
 
-    let send_ch = make_channel::<int>(0);
+    let send_ch = Channel::<int>::new(0:uint);
     let send_task = spawn wait_send(send_ch);
     checkpoint().await();
     checkpoint().await();
@@ -1041,8 +1041,8 @@ fn main() -> int {
     let iter = 2000;
     let mut round = 0;
     while round < rounds {
-        let ping_ch = make_channel::<int>(0);
-        let pong_ch = make_channel::<int>(0);
+        let ping_ch = Channel::<int>::new(0:uint);
+        let pong_ch = Channel::<int>::new(0:uint);
         let ping_out = ping_ch;
         let ping_in = pong_ch;
         let pong_out = pong_ch;
@@ -1105,7 +1105,7 @@ func TestMTBlockingChannelHelpersDoNotParkWorkers(t *testing.T) {
 type Message = Request(Channel<int>);
 
 fn apply(requests: &Channel<Message>) -> int {
-    let reply = make_channel::<int>(0:uint);
+    let reply = Channel::<int>::new(0:uint);
     let request: Message = Request(reply);
     requests.send(own request);
     return compare reply.recv() {
@@ -1154,7 +1154,7 @@ fn main() -> int {
     let clients = 8;
     let rounds = 25;
     let expected = clients * rounds;
-    let requests = make_channel::<Message>(0:uint);
+    let requests = Channel::<Message>::new(0:uint);
     let manager_requests = requests;
     let manager_task = spawn manager(manager_requests, expected);
     let mut tasks: Task<int>[] = Array::<Task<int>>::with_len(clients to uint);
@@ -1258,7 +1258,7 @@ fn main() -> int {
         return 90;
     }
 
-    let ch = make_channel::<int>(0:uint);
+    let ch = Channel::<int>::new(0:uint);
     let recv_ch = ch;
     let send_ch = ch;
     let recv_task = spawn receiver(recv_ch);
@@ -1304,7 +1304,7 @@ func TestMTBlockingChannelHelpersDrainReadyWorkAtCompensationLimit(t *testing.T)
 type Message = Request(Channel<int>);
 
 fn apply(requests: &Channel<Message>) -> int {
-    let reply = make_channel::<int>(0:uint);
+    let reply = Channel::<int>::new(0:uint);
     let request: Message = Request(reply);
     requests.send(own request);
     return compare reply.recv() {
@@ -1362,7 +1362,7 @@ fn main() -> int {
 
     let mut manager_idx = 0;
     while manager_idx < manager_count {
-        let requests = make_channel::<Message>(0:uint);
+        let requests = Channel::<Message>::new(0:uint);
         let manager_requests = requests;
         managers.push(spawn manager(manager_requests, expected_per_manager));
         let mut client_idx = 0;

@@ -15,13 +15,13 @@ channel_send_noncopy_requires_own.sg (span: 3:1-12:1)
          │  ├─ Name: ch
          │  ├─ Mutable: false
          │  ├─ Type: own Channel<Item>
-         │  └─ Value: expr#4: make_channel(1 to uint)
+         │  └─ Value: expr#5: Channel.new(1 to uint)
          ├─ Stmt[1]: Let (span: 8:5-8:36)
          │  ├─ Name: item
          │  ├─ Mutable: false
          │  ├─ Type: Item
-         │  └─ Value: expr#7: <ExprKind(22)>
+         │  └─ Value: expr#8: <ExprKind(22)>
          ├─ Stmt[2]: Expr (span: 9:5-9:19)
-         │  └─ Expr: expr#11: ch.send(item)
+         │  └─ Expr: expr#12: ch.send(item)
          └─ Stmt[3]: Return (span: 10:5-10:14)
-            └─ Expr: expr#12: 0
+            └─ Expr: expr#13: 0

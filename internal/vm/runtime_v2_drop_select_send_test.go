@@ -60,8 +60,8 @@ fn check_frees(win: string, before: &HeapStats, after: &HeapStats, want: uint) -
 async fn run() -> int {
     // Winner path: the send arm is immediately ready and wins; the
     // delivered payload is freed exactly once, by the receiver's drop.
-    let ch = make_channel::<string>(1);
-    let rx = make_channel::<int>(1);
+    let ch = Channel::<string>::new(1:uint);
+    let rx = Channel::<int>::new(1:uint);
     let s = build("w-");
     let a0: HeapStats = rt_heap_stats();
     let v = select {
@@ -90,8 +90,8 @@ async fn run() -> int {
 
     // Loser path: the send arm cannot proceed (channel full) and the
     // recv arm wins; the payload is reclaimed inside the winning arm.
-    let ch2 = make_channel::<string>(1);
-    let rx2 = make_channel::<int>(1);
+    let ch2 = Channel::<string>::new(1:uint);
+    let rx2 = Channel::<int>::new(1:uint);
     let blocker = build("b-");
     ch2.send(own blocker);
     rx2.send(7);

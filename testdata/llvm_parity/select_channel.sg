@@ -10,14 +10,14 @@ async fn recv_once(ch: own Channel<int>) -> int {
 @entrypoint
 fn main() -> int {
     let r = (async {
-        let ch = make_channel::<int>(1);
+        let ch = Channel::<int>::new(1:uint);
         ch.send(7);
         let v1 = select {
             ch.recv() => 1;
             default => 0;
         };
 
-        let ch2 = make_channel::<int>(0);
+        let ch2 = Channel::<int>::new(0:uint);
         let recv_ch = ch2;
         let send_ch = ch2;
         let recv = spawn recv_once(recv_ch);

@@ -34,7 +34,7 @@ async fn send_all(
 @entrypoint("argv")
 fn main(probe: string) -> int {
     if probe != "channel-unbuffered-scalar" { return 92; }
-    let ch: own Channel<uint64> = make_channel::<uint64>(0:uint);
+    let ch: own Channel<uint64> = Channel::<uint64>::new(0:uint);
     let sender_ch: own Channel<uint64> = ch;
     let receiver_ch: own Channel<uint64> = ch;
     let receiver: Task<uint64> = spawn receive(receiver_ch);
