@@ -216,6 +216,9 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "copy") == 0) {
         return harness_case_copy();
     }
+    if (strcmp(argv[1], "fifo") == 0) {
+        return harness_case_fifo();
+    }
     // Terminates the process on purpose; it is never in the passing mode list.
     if (strcmp(argv[1], "copy-direct") == 0) {
         return harness_case_copy_direct();

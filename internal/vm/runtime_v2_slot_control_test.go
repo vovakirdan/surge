@@ -15,6 +15,7 @@ import (
 
 var slotControlModes = []string{
 	"read", "exclusive", "stale", "ordering", "storage", "zst", "descriptor", "identity", "copy",
+	"fifo",
 }
 
 func TestRuntimeV2SlotControlProtocol(t *testing.T) {
@@ -310,10 +311,12 @@ func buildRuntimeV2SlotControlHarness(
 		filepath.Join(root, "internal", "vm", "testdata", "slot_control_descriptor_cases.c"),
 		filepath.Join(root, "internal", "vm", "testdata", "slot_control_identity_cases.c"),
 		filepath.Join(root, "internal", "vm", "testdata", "slot_control_copy_cases.c"),
+		filepath.Join(root, "internal", "vm", "testdata", "slot_control_fifo_cases.c"),
 		filepath.Join(root, "runtime", "native", "rt_slot_control.c"),
 		filepath.Join(root, "runtime", "native", "rt_slot_claim.c"),
 		filepath.Join(root, "runtime", "native", "rt_slot_exclusive.c"),
 		filepath.Join(root, "runtime", "native", "rt_value_ops.c"),
+		filepath.Join(root, "runtime", "native", "rt_typed_fifo.c"),
 		"-o", bin,
 	)
 	cmd := exec.Command(clang, args...)

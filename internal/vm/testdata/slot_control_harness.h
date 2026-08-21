@@ -49,6 +49,7 @@ int harness_case_descriptor(void);
 int harness_case_identity(void);
 int harness_case_copy(void);
 int harness_case_copy_direct(void);
+int harness_case_fifo(void);
 
 #define REQUIRE(expression)                                                                        \
     do {                                                                                           \
