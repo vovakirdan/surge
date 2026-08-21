@@ -318,7 +318,7 @@ func TestDumpStatesTheStaging(t *testing.T) {
 		StagingNotice,
 		"abi-true bits only",
 		"flags=copy|clonable",
-		"caps=droppable,traceable,!shard_movable,cross_clonable",
+		"caps=traceable,!shard_movable,cross_clonable",
 		"clone_init=sym#42",
 		"key type#80 hash=none equal=none",
 		"alias type#81 -> type#80",

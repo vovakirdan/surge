@@ -120,10 +120,14 @@ func TestCompilePublishesAClonableTypeNamingItsEmittedCloneInit(t *testing.T) {
 	}
 }
 
-// TestCompilePublishesStagedCapabilitiesWithTheirEvidence pins that the four
-// verdicts the ABI cannot carry yet are still ANSWERED, and answered with a
-// reason. A registry that recorded them as bare false would be indistinguishable
-// from one that never asked.
+// TestCompilePublishesStagedCapabilitiesWithTheirEvidence pins that the verdicts
+// the ABI cannot carry yet are still ANSWERED, and answered with a reason. A
+// registry that recorded them as bare false would be indistinguishable from one
+// that never asked.
+//
+// Droppable is on the other side of that line now: it rides in Flags, and its
+// evidence is still required, because a bit whose reason went missing is a bit
+// nobody can argue with.
 func TestCompilePublishesStagedCapabilitiesWithTheirEvidence(t *testing.T) {
 	result := compileOperationProbe(t)
 	typesIn := result.Diagnose.Sema.TypeInterner
@@ -141,7 +145,7 @@ func TestCompilePublishesStagedCapabilitiesWithTheirEvidence(t *testing.T) {
 			t.Errorf("the %s verdict was published with no evidence", name)
 		}
 	}
-	if entry.Flags&(valueops.FlagDroppable|valueops.FlagTraceable|
+	if entry.Flags&(valueops.FlagTraceable|
 		valueops.FlagShardMovable|valueops.FlagCrossClonable) != 0 {
 		t.Fatalf("a staged verdict reached the ABI flag set: %s", entry.Flags)
 	}

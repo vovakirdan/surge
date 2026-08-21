@@ -19,12 +19,19 @@ import (
 // against the generated manifest view.
 //
 // STAGING. Only the bits the compiler can currently back with a real runtime
-// slot may be set here: Copy and Clonable. The remaining four verdicts are
-// recorded on Capabilities instead, which is explicitly not ABI. A later wave
-// migrates a verdict from Capabilities into Flags only when it can fill that
-// bit's rt_value_ops slot, and the slot invariant below refuses the migration
-// until it can. That makes the half-migrated descriptor unrepresentable rather
-// than merely discouraged.
+// slot may be set here: Copy, Clonable and Droppable. The remaining three
+// verdicts are recorded on Capabilities instead, which is explicitly not ABI. A
+// later wave migrates a verdict from Capabilities into Flags only when it can
+// fill that bit's rt_value_ops slot, and the slot invariant below refuses the
+// migration until it can. That makes the half-migrated descriptor
+// unrepresentable rather than merely discouraged.
+//
+// Droppable migrated once the backend could name a drop body for the type, the
+// way it already names one for glue. The bit means what the manifest says it
+// means -- drop_in_place is present AND has work to do -- so a carrier whose
+// leaf the backend cannot reclaim does not get the bit and does not get a
+// descriptor either: a set bit over a body that frees nothing is the one shape
+// nothing downstream can catch.
 type Flags uint64
 
 const (
@@ -52,8 +59,8 @@ const (
 // StagingNotice is the sentence Dump prints so that every reader of a dump, and
 // every reader of a hash mismatch, is told which bits this registry can carry
 // before they reach the entries.
-const StagingNotice = "flags carry abi-true bits only (copy, clonable); " +
-	"droppable, traceable, shard_movable and cross_clonable are recorded as " +
+const StagingNotice = "flags carry abi-true bits only (copy, clonable, droppable); " +
+	"traceable, shard_movable and cross_clonable are recorded as " +
 	"non-abi capabilities and become flags only once their rt_value_ops slots are filled"
 
 // applicability says WHEN the frozen manifest requires a slot to be non-null.
@@ -206,7 +213,7 @@ var slotRules = [...]slotRule{
 	{slot: "clone_init", when: capabilitySlot, bit: FlagClonable, flag: "RT_VALUE_FLAG_CLONABLE",
 		fill: filledByRegistryNamedBody},
 	{slot: "drop_in_place", when: capabilitySlot, bit: FlagDroppable, flag: "RT_VALUE_FLAG_DROPPABLE",
-		fill: filledNowhere},
+		fill: filledByBackendDerivedBody},
 	{slot: "trace", when: capabilitySlot, bit: FlagTraceable, flag: "RT_VALUE_FLAG_TRACEABLE",
 		fill: filledNowhere},
 	{slot: "cross_move_init", when: capabilitySlot, bit: FlagShardMovable, flag: "RT_VALUE_FLAG_SHARD_MOVABLE",

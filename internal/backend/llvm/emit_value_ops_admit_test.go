@@ -86,13 +86,21 @@ func admitEmittedDescriptor(t *testing.T, defect descriptorDefect) int {
 	if err := os.WriteFile(irPath, []byte(sliceDescriptorIR(t, ir)), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	// A drop body reaches the runtime's reclamation for whatever leaf it owns.
+	// Preflight never calls one, so the probe defines them empty rather than
+	// linking the reclamation half of the runtime: what is being proven is that
+	// the descriptor is ADMITTED, not what its drop does when dispatched.
+	var stubs strings.Builder
+	for _, symbol := range dropBodyRuntimeCallees(ir) {
+		fmt.Fprintf(&stubs, "void %s(void* unused) { (void)unused; }\n", symbol)
+	}
 	probeSrc := fmt.Sprintf(`#include "rt_slot_control.h"
 #include <stdalign.h>
 #include <stdint.h>
 #include <stdio.h>
 
 extern const rt_value_ops __surge_value_ops_type%d;
-
+%s
 int main(void) {
     const rt_value_ops* ops = &__surge_value_ops_type%d;
     alignas(64) static unsigned char storage[256];
@@ -106,7 +114,7 @@ int main(void) {
     }
     return 0;
 }
-`, probeID, probeID)
+`, probeID, stubs.String(), probeID)
 	probePath := filepath.Join(temp, "probe.c")
 	if err := os.WriteFile(probePath, []byte(probeSrc), 0o600); err != nil {
 		t.Fatal(err)
@@ -137,6 +145,38 @@ int main(void) {
 // sliceDescriptorIR keeps the emitted struct declarations, move bodies, the
 // plan_cross stub and the descriptor constants, and adds only the declarations
 // LLVM needs for the intrinsics those bodies call.
+// dropBodyRuntimeCallees lists the runtime functions the sliced drop bodies
+// call, so the slice can declare exactly those and no more.
+func dropBodyRuntimeCallees(ir string) []string {
+	seen := map[string]struct{}{}
+	var out []string
+	inBody := false
+	for _, line := range strings.Split(ir, "\n") {
+		switch {
+		case strings.HasPrefix(line, "define void @drop.type"),
+			strings.HasPrefix(line, "define void @drop_elem.type"):
+			inBody = true
+		case line == "}":
+			inBody = false
+		case inBody:
+			index := strings.Index(line, "call void @rt_")
+			if index < 0 {
+				continue
+			}
+			name := line[index+len("call void @"):]
+			if cut := strings.IndexAny(name, "( "); cut >= 0 {
+				name = name[:cut]
+			}
+			if _, done := seen[name]; done || name == "" {
+				continue
+			}
+			seen[name] = struct{}{}
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
 func sliceDescriptorIR(t *testing.T, ir string) string {
 	t.Helper()
 	var out strings.Builder
@@ -148,6 +188,8 @@ func sliceDescriptorIR(t *testing.T, ir string) string {
 			strings.HasPrefix(line, "@__surge_value_ops_type"):
 			out.WriteString(line + "\n")
 		case strings.HasPrefix(line, "define void @move_init.type"),
+			strings.HasPrefix(line, "define void @drop.type"),
+			strings.HasPrefix(line, "define void @drop_elem.type"),
 			strings.HasPrefix(line, "define internal zeroext i32 @__surge_value_plan_cross_unavailable"):
 			for ; index < len(lines); index++ {
 				out.WriteString(lines[index] + "\n")
@@ -160,5 +202,11 @@ func sliceDescriptorIR(t *testing.T, ir string) string {
 	out.WriteString("declare void @llvm.memcpy.p0.p0.i64(ptr, ptr, i64, i1)\n")
 	out.WriteString("declare void @llvm.trap()\n")
 	out.WriteString("declare void @rt_value_copy_init_unbound_trap(ptr, ptr)\n")
+	// Declared here so the module verifies, defined empty by the probe so the
+	// link resolves: preflight never dispatches a drop, so what its body would
+	// have called is not part of this claim.
+	for _, symbol := range dropBodyRuntimeCallees(ir) {
+		out.WriteString("declare void @" + symbol + "(ptr)\n")
+	}
 	return out.String()
 }

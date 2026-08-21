@@ -109,13 +109,19 @@ func dispatchPlanCrossStub(t *testing.T, defect descriptorDefect) (string, bool,
 	// The dispatch goes through the descriptor's own slot rather than calling
 	// the symbol by name: what is being proven is that the SLOT a real
 	// descriptor carries is terminal, not that some function somewhere traps.
+	// Same reason as the admit probe: a sliced drop body names its reclamation,
+	// which this claim never dispatches.
+	var stubs strings.Builder
+	for _, symbol := range dropBodyRuntimeCallees(ir) {
+		fmt.Fprintf(&stubs, "void %s(void* unused) { (void)unused; }\n", symbol)
+	}
 	probeSrc := fmt.Sprintf(`#include "rt_slot_control.h"
 #include <stdalign.h>
 #include <stdint.h>
 #include <stdio.h>
 
 extern const rt_value_ops __surge_value_ops_type%d;
-
+%s
 int main(void) {
     const rt_value_ops* ops = &__surge_value_ops_type%d;
     alignas(64) static unsigned char storage[256];
@@ -133,7 +139,7 @@ int main(void) {
     fflush(stderr);
     return 0;
 }
-`, probeID, probeID)
+`, probeID, stubs.String(), probeID)
 	probePath := filepath.Join(temp, "probe.c")
 	if err := os.WriteFile(probePath, []byte(probeSrc), 0o600); err != nil {
 		t.Fatal(err)

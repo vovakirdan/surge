@@ -119,7 +119,15 @@ func TestEmittedValueOpsDescriptorsAgreeWithTheOperationRegistry(t *testing.T) {
 			case valueops.FillRuntimeSymbol, valueops.FillModuleStub:
 				want = "ptr @" + filler.Symbol
 			case valueops.FillBackendDerivedBody:
+				// Two slots are backend-derived, and they are named in two
+				// namespaces on purpose: move_init on the exact type, the drop
+				// body on the resolved one, because that is where glue bodies
+				// live. Asserting one name for both would be asserting the
+				// namespaces are the same, which they are not.
 				want = "ptr @" + moveInitName(id)
+				if slot == "drop_in_place" {
+					want = "ptr @" + dropGlueName(resolveValueType(result.Sema.TypeInterner, id))
+				}
 			}
 			if got.operands[index] != want {
 				t.Errorf("type#%d slot %s = %q, want %q", id, slot, got.operands[index], want)

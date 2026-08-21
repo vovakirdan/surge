@@ -21,8 +21,6 @@ import (
 // Each verdict's evidence lives in the entry's Evidence record, so every reason
 // string has exactly one home.
 type Capabilities struct {
-	// Droppable is the carrier-drop verdict destined for RT_VALUE_FLAG_DROPPABLE.
-	Droppable bool
 	// Traceable is the root-visiting verdict destined for RT_VALUE_FLAG_TRACEABLE.
 	Traceable bool
 	// ShardMovable is the owned-move crossing verdict destined for
@@ -158,8 +156,11 @@ func (e *Entry) sharesWith(other *Entry) bool {
 // bytes are moved by the runtime's own rt_value_copy_init, which still holds the
 // descriptor whose rt_value_layout.size is the width the callback signature does
 // not carry. So there is a symbol here — it just is not one this compiler
-// emitted, and it is not the thing that copies. The four staged bits require a
-// slot this registry has no field for, so setting them is refused outright
+// emitted, and it is not the thing that copies. DROPPABLE's drop_in_place is
+// the other: the backend names that body from the type id, the way it already
+// names drop glue, so this registry holds no field for it either — it records
+// the verdict and lets the writer supply the name. The three still-staged bits
+// require a slot nothing can fill yet, so setting them is refused outright
 // rather than accepted with a slot that would ship null.
 //
 // It fails closed, naming the type, the flag bit and the slot.

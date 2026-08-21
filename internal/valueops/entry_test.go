@@ -48,7 +48,6 @@ func TestSlotInvariantRefusesStagedFlagBits(t *testing.T) {
 		flag string
 		slot string
 	}{
-		{bit: FlagDroppable, flag: "RT_VALUE_FLAG_DROPPABLE", slot: "drop_in_place"},
 		{bit: FlagTraceable, flag: "RT_VALUE_FLAG_TRACEABLE", slot: "trace"},
 		{bit: FlagShardMovable, flag: "RT_VALUE_FLAG_SHARD_MOVABLE", slot: "cross_move_init"},
 		{bit: FlagCrossClonable, flag: "RT_VALUE_FLAG_CROSS_CLONABLE", slot: "cross_clone_init"},
@@ -70,11 +69,28 @@ func TestSlotInvariantRefusesStagedFlagBits(t *testing.T) {
 	}
 }
 
+// TestSlotInvariantAcceptsDroppableWithoutARegistrySymbol is the migration this
+// staging existed for. Droppable is an ABI bit now, and the registry accepts it
+// while holding no field for its slot: the backend names that body from the type
+// id, the way it already names drop glue, so demanding a symbol here would
+// demand the wrong thing.
+func TestSlotInvariantAcceptsDroppableWithoutARegistrySymbol(t *testing.T) {
+	entry := testEntry(types.TypeID(14))
+	entry.Flags |= FlagDroppable
+
+	if err := entry.checkSlots(); err != nil {
+		t.Fatalf("checkSlots refused a droppable entry the backend fills: %v", err)
+	}
+	if entry.emittedSlot("drop_in_place") != symbols.NoSymbolID {
+		t.Fatal("drop_in_place must not be registry-named: the backend derives it")
+	}
+}
+
 // TestSlotInvariantAcceptsStagedVerdictsInCapabilities is the other half of the
-// staging: the verdicts themselves are recorded, just not as ABI bits.
+// staging: the verdicts still staged are recorded, just not as ABI bits.
 func TestSlotInvariantAcceptsStagedVerdictsInCapabilities(t *testing.T) {
 	entry := testEntry(types.TypeID(14))
-	entry.Capabilities = Capabilities{Droppable: true, Traceable: true, ShardMovable: true, CrossClonable: true}
+	entry.Capabilities = Capabilities{Traceable: true, ShardMovable: true, CrossClonable: true}
 	if err := entry.checkSlots(); err != nil {
 		t.Fatalf("checkSlots refused staged verdicts held in Capabilities: %v", err)
 	}
@@ -118,7 +134,7 @@ func TestSharesWithComparesEveryFieldButType(t *testing.T) {
 		{"facts size", func(e *Entry) { e.Facts = scalarFacts(32, 8) }},
 		{"facts field offsets", func(e *Entry) { e.Facts = realStructFacts(t, "Pair", 2) }},
 		{"flags", func(e *Entry) { e.Flags = FlagClonable }},
-		{"capability droppable", func(e *Entry) { e.Capabilities.Droppable = false }},
+		{"flag droppable", func(e *Entry) { e.Flags |= FlagDroppable }},
 		{"capability traceable", func(e *Entry) { e.Capabilities.Traceable = false }},
 		{"capability shard movable", func(e *Entry) { e.Capabilities.ShardMovable = true }},
 		{"capability cross clonable", func(e *Entry) { e.Capabilities.CrossClonable = false }},

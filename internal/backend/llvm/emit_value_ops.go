@@ -52,6 +52,27 @@ var valueOpsSlotOrder = [...]string{
 	"cross_clone_init",
 }
 
+// requireValueOpsDropBodies asks for the drop body every emittable descriptor
+// will point at, and it has to run BEFORE the glue pass, because that pass
+// closes its own demand: a body first asked for while descriptors are being
+// written would be named and never defined.
+func (e *Emitter) requireValueOpsDropBodies() {
+	if e == nil || e.mod == nil || e.mod.Meta == nil || e.mod.Meta.Operations == nil {
+		return
+	}
+	registry := e.mod.Meta.Operations
+	for _, id := range registry.TypeIDs() {
+		entry, err := registry.Value(id)
+		if err != nil || entry.Flags&valueops.FlagDroppable == 0 {
+			continue
+		}
+		if !e.valueOpsEmittable(&entry) {
+			continue
+		}
+		e.requireDropGlue(entry.Type)
+	}
+}
+
 // emitValueOpsDescriptors writes every descriptor the registry can back.
 //
 // It runs after the glue passes, in the tail slot this file reserves for a pass
@@ -98,6 +119,18 @@ func (e *Emitter) valueOpsEmittable(entry *valueops.Entry) bool {
 		filler, err := valueops.SlotFiller(slot, entry.Flags)
 		if err != nil {
 			return false
+		}
+		if slot == "drop_in_place" && filler.Kind == valueops.FillBackendDerivedBody {
+			// The bit means the manifest's sentence: drop_in_place is present
+			// AND has work to do. The registry's verdict is about the carrier's
+			// obligation, and for a leaf family this backend cannot reclaim --
+			// a far lease, an opaque runtime resource -- the two answers differ.
+			// Skipping the descriptor is the only honest option left: a set bit
+			// over a body that frees nothing passes the runtime's preflight and
+			// then leaks in silence, which nothing downstream can catch.
+			if !e.typeOwnsHeap(entry.Type) {
+				return false
+			}
 		}
 		if filler.Kind == valueops.FillRegistryNamedBody {
 			// The registry carries the symbol; the backend must be able to name
@@ -198,6 +231,14 @@ func (e *Emitter) valueOpsOperand(entry *valueops.Entry, slot string, filler val
 	case valueops.FillBackendDerivedBody:
 		if slot == "move_init" {
 			return "ptr @" + moveInitName(entry.Type)
+		}
+		if slot == "drop_in_place" {
+			// Named on the RESOLVED type, because that is the namespace glue
+			// bodies live in: requireDropGlue resolves on the way in and
+			// emitDropGlueBody resolves again before printing its own name.
+			// The descriptor stays keyed on the exact type, the way move_init
+			// is -- the two namespaces meet here rather than being merged.
+			return "ptr @" + dropGlueName(resolveValueType(e.types, entry.Type))
 		}
 		// The only other backend-derived body is plan_cross for a type that can
 		// cross, and no such descriptor is reachable while both cross bits are

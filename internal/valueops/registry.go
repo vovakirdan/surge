@@ -345,7 +345,6 @@ func formatCapabilities(c Capabilities) string {
 		}
 		out = append(out, name...)
 	}
-	appendVerdict("droppable", c.Droppable)
 	appendVerdict("traceable", c.Traceable)
 	appendVerdict("shard_movable", c.ShardMovable)
 	appendVerdict("cross_clonable", c.CrossClonable)

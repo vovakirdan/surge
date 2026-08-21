@@ -155,12 +155,18 @@ func (in *OperationPlanInput) entryFor(
 	if capability.Copy {
 		flags |= valueops.FlagCopy
 	}
+	// Droppable is an ABI bit now, not a capability: the backend names the drop
+	// body from the type id. The verdict still has exactly one source -- this
+	// classifier -- which is what keeps the registry and the emitter from
+	// answering the same question twice.
+	if capability.CarrierDroppable {
+		flags |= valueops.FlagDroppable
+	}
 	return valueops.Entry{
 		Type:  id,
 		Facts: facts,
 		Flags: flags,
 		Capabilities: valueops.Capabilities{
-			Droppable:     capability.CarrierDroppable,
 			Traceable:     capability.Traceable,
 			ShardMovable:  capability.ShardMovable,
 			CrossClonable: capability.CrossClonable,

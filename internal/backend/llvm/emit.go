@@ -338,6 +338,9 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	if err := e.emitCloneGlue(); err != nil {
 		return "", err
 	}
+	// Descriptors point at drop bodies, so their demand is declared before the
+	// pass that closes it.
+	e.requireValueOpsDropBodies()
 	if err := e.emitDropGlue(); err != nil {
 		return "", err
 	}
