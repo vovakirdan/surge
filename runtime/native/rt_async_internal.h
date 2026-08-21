@@ -936,17 +936,10 @@ rt_runtime_status rt_executor_drain_shutdown_net_waiters(rt_executor* ex);
 
 poll_outcome poll_task(rt_executor* ex, rt_task* task);
 poll_outcome poll_blocking_task(rt_executor* ex, rt_task* task);
-int rt_net_poll_wake_init(rt_shard* shard);
 void rt_net_poll_wake_close(rt_net_poll_wake* wake);
-void rt_net_poll_wake_drain(rt_shard* shard);
-int rt_net_has_waiters_on_shard(const rt_executor* ex, uint32_t owner_shard_id);
-int rt_net_begin_poll_on_shard(rt_executor* ex, uint32_t owner_shard_id);
-int rt_net_poll_waiters_owned_on_shard(rt_executor* ex, uint32_t owner_shard_id, int timeout_ms);
-int poll_net_waiters_on_shard(rt_executor* ex, uint32_t owner_shard_id, int timeout_ms);
-uint64_t rt_net_wake_poll_on_shard(rt_executor* ex, uint32_t owner_shard_id);
-uint64_t rt_net_wake_poll_all_shards(rt_executor* ex);
 uint64_t
 rt_net_wake_poll_for_task_wait_keys(rt_executor* ex, const rt_task* task, waker_key fallback_key);
+#include "rt_async_net_poll.h"
 int run_ready_one(rt_executor* ex);
 int rt_run_ready_one_nowait_locked(rt_executor* ex);
 void* rt_worker_main(void* arg);

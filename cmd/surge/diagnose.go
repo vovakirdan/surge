@@ -11,7 +11,6 @@ import (
 	"surge/internal/diag"
 	"surge/internal/diagfmt"
 	"surge/internal/directive"
-	"surge/internal/driver"
 	driverdiag "surge/internal/driver/diagnose"
 	"surge/internal/hir"
 	"surge/internal/layout"
@@ -191,43 +190,14 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Конвертируем строку стадии в тип
-	var stage driver.DiagnoseStage
-	switch stagesStr {
-	case "tokenize":
-		stage = driver.DiagnoseStageTokenize
-	case "syntax":
-		stage = driver.DiagnoseStageSyntax
-	case "sema":
-		stage = driver.DiagnoseStageSema
-	case "all":
-		stage = driver.DiagnoseStageAll
-	default:
-		return fmt.Errorf("unknown stages value: %s", stagesStr)
-	}
-	if emitInstantiations && stage != driver.DiagnoseStageSema && stage != driver.DiagnoseStageAll {
-		return fmt.Errorf("--emit-instantiations requires --stages sema|all")
-	}
-	if emitMono && stage != driver.DiagnoseStageSema && stage != driver.DiagnoseStageAll {
-		return fmt.Errorf("--emit-mono requires --stages sema|all")
-	}
-	if emitMIR && stage != driver.DiagnoseStageSema && stage != driver.DiagnoseStageAll {
-		return fmt.Errorf("--emit-mir requires --stages sema|all")
+	stage, err := resolveDiagnoseStage(stagesStr, emitInstantiations, emitMono, emitMIR)
+	if err != nil {
+		return err
 	}
 
-	// Конвертируем строку режима директив в тип
-	var directiveMode parser.DirectiveMode
-	switch directivesStr {
-	case "off":
-		directiveMode = parser.DirectiveModeOff
-	case "collect":
-		directiveMode = parser.DirectiveModeCollect
-	case "gen":
-		directiveMode = parser.DirectiveModeGen
-	case "run":
-		directiveMode = parser.DirectiveModeRun
-	default:
-		return fmt.Errorf("unknown directives value: %s", directivesStr)
+	directiveMode, err := resolveDirectiveMode(directivesStr)
+	if err != nil {
+		return err
 	}
 
 	// Создаём опции диагностики
