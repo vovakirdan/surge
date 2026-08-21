@@ -331,7 +331,7 @@ void rt_async_yield(void* state, uint64_t state_drop_fn_id);
 void rt_async_return(void* state, uint64_t bits);
 void rt_async_return_cancelled(void* state, uint64_t state_drop_fn_id);
 
-void* rt_channel_new(uint64_t capacity, uint64_t element_type_id);
+void* rt_channel_new(uint64_t capacity, uint64_t payload_drop_fn_id);
 bool rt_channel_send(void* channel, uint64_t value_bits);
 bool rt_channel_send_yield(void* channel, uint64_t value_bits);
 uint8_t rt_channel_recv(void* channel, uint64_t* out_bits);
@@ -342,7 +342,7 @@ bool rt_channel_try_recv(void* channel, uint64_t* out_bits);
 void rt_channel_close(void* channel);
 // Reclaims a channel object's memory (header + inline buffer, one
 // allocation), draining every still-buffered entry through the channel's
-// own element descriptor first (a no-op for Copy/inert elements). Callers
+// own payload_drop_fn_id first (a no-op for Copy/inert elements). Callers
 // must already know no other holder can reach this channel — never call
 // this on a channel another live handle can still resolve.
 void rt_channel_free(void* channel);
