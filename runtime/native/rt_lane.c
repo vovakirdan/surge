@@ -61,12 +61,33 @@ void rt_control_lock(rt_executor* ex) {
     rt_trace_control_lock_acquired();
 }
 
+// Work that may not run while this lane holds a scheduler lock.
+//
+// The lane knows only that such work exists, never what it is: the queue lives
+// with whoever defers, and this file stays free of allocation so the minimal
+// C stands that link only the lane keep linking. The symbol is weak for the
+// same reason -- a stand without the channel lane resolves it to null and asks
+// nothing of it.
+extern void rt_channel_reclaim_drain(void) __attribute__((weak));
+
+static void lane_run_deferred(void) {
+    if (rt_channel_reclaim_drain != NULL) {
+        rt_channel_reclaim_drain();
+    }
+}
+
 void rt_control_unlock(rt_executor* ex) {
     if (ex == NULL) {
         return;
     }
     lane_state.holds_control = 0;
     pthread_mutex_unlock(&ex->lock);
+    // Work that had to wait for the lane to be free runs here, at the point
+    // the lane actually becomes free -- not at the call site that happened to
+    // request it, which cannot know whether an outer frame still holds a lock.
+    if (!rt_lane_holds_any_shard()) {
+        lane_run_deferred();
+    }
 }
 
 void rt_shard_lock(rt_shard* shard) {
@@ -87,6 +108,11 @@ void rt_shard_unlock(rt_shard* shard) {
     }
     lane_state.shard_id_plus_one = 0;
     pthread_mutex_unlock(&shard->lock);
+    // Same rule as the control lane: work deferred under this shard runs once
+    // the lane holds nothing at all.
+    if (!rt_lane_holds_control()) {
+        lane_run_deferred();
+    }
 }
 
 rt_runtime_status rt_shard_sync_init(rt_shard* shard) {

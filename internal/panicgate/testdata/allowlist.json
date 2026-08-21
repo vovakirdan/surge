@@ -810,6 +810,16 @@
       "group": "PG-ALLOC-FAILURE"
     },
     {
+      "site": "runtime/native/rt_async_channel.c::rt_channel_free#1",
+      "message": "async: channel reclaim ran while a scheduler lock was held",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_channel.c::rt_channel_free_when_unlocked#1",
+      "message": "async: channel reclaim queue allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
       "site": "runtime/native/rt_async_channel.c::rt_channel_new#1",
       "message": "async: channel allocation failed",
       "group": "PG-ALLOC-FAILURE"

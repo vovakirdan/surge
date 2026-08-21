@@ -221,7 +221,9 @@ static void release_entry(rt_far_channel_state* state, rt_far_channel_entry* ent
     // function unlinked it above, under the same lock every resolve/pin
     // takes) -- so the owner-side channel object has exactly one path
     // left to it, this one, and frees exactly once.
-    rt_channel_free(entry->channel);
+    // Deferred when a scheduler lock is held: the drain inside runs an
+    // element's drop, which must not execute with control or a shard held.
+    rt_channel_free_when_unlocked(entry->channel);
     rt_free((uint8_t*)entry, sizeof(*entry), _Alignof(rt_far_channel_entry));
 }
 

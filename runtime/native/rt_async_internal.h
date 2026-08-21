@@ -934,6 +934,8 @@ bool rt_channel_try_send(void* channel, uint64_t value_bits);
 bool rt_channel_try_recv(void* channel, uint64_t* out_bits);
 void rt_channel_close(void* channel);
 void rt_channel_free(void* channel);
+void rt_channel_free_when_unlocked(void* channel);
+void rt_channel_reclaim_drain(void);
 
 int current_task_cancelled(rt_executor* ex);
 void cancel_task(rt_executor* ex, uint64_t id);

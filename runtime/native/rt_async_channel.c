@@ -61,8 +61,73 @@ void* rt_channel_new(uint64_t capacity, uint64_t payload_drop_fn_id) {
 // (rt_far_channel.c), only reaches this after confirming no lease or pin
 // can resolve the channel anymore, so the buffer is quiescent here without
 // this function taking any lock of its own.
+// rt_channel_free_when_unlocked reclaims now if this lane holds no scheduler
+// lock, and otherwise hands the channel to the lane's deferred work.
+//
+// Callers reach this holding control because completion bookkeeping runs
+// there: mark_done takes the control lane, and a far-channel unpin that drops
+// the last pin reclaims from inside it. Draining the buffer under that lock
+// runs an element's drop with the scheduler held, which the typed flip turns
+// from a latent rule into a deadlock.
+typedef struct {
+    void** items;
+    size_t len;
+    size_t cap;
+} rt_channel_reclaim_queue;
+
+static _Thread_local rt_channel_reclaim_queue channel_reclaim_queue;
+
+void rt_channel_free_when_unlocked(void* channel) {
+    if (channel == NULL) {
+        return;
+    }
+    if (!rt_lane_holds_control() && !rt_lane_holds_any_shard()) {
+        rt_channel_free(channel);
+        return;
+    }
+    rt_channel_reclaim_queue* queue = &channel_reclaim_queue;
+    if (queue->len == queue->cap) {
+        size_t next_cap = queue->cap == 0 ? 4 : queue->cap * 2;
+        void** grown = (void**)rt_alloc(next_cap * sizeof(void*), _Alignof(void*));
+        if (grown == NULL) {
+            // Dropping the pointer would leak the channel silently, which is
+            // worse than the rule this queue exists to keep.
+            panic_msg("async: channel reclaim queue allocation failed");
+            return;
+        }
+        for (size_t i = 0; i < queue->len; i++) {
+            grown[i] = queue->items[i];
+        }
+        if (queue->items != NULL) {
+            rt_free((uint8_t*)queue->items, queue->cap * sizeof(void*), _Alignof(void*));
+        }
+        queue->items = grown;
+        queue->cap = next_cap;
+    }
+    queue->items[queue->len++] = channel;
+}
+
+// rt_channel_reclaim_drain is called by the lane at the moment it releases its
+// last scheduler lock, so by construction nothing is held here.
+void rt_channel_reclaim_drain(void) {
+    rt_channel_reclaim_queue* queue = &channel_reclaim_queue;
+    while (queue->len > 0) {
+        void* channel = queue->items[--queue->len];
+        rt_channel_free(channel);
+    }
+}
+
 void rt_channel_free(void* channel) {
     rt_channel* ch = channel_from_handle(channel);
+    // The drain below runs USER code -- an element's drop -- so no scheduler
+    // lock may be held here. Today that means the numeric dispatch; after the
+    // typed flip it is the element's drop_in_place, and a drop that reenters
+    // the runtime while control is held would deadlock rather than misbehave
+    // visibly. Fail closed, naming the lane, instead of leaving the rule to
+    // whoever reads the caller contract in rt.h.
+    if (rt_lane_holds_control() || rt_lane_holds_any_shard()) {
+        panic_msg("async: channel reclaim ran while a scheduler lock was held");
+    }
     if (ch->payload_drop_fn_id != 0) {
         for (size_t i = 0; i < ch->buf_len; i++) {
             size_t idx = (ch->buf_head + i) % ch->capacity;
