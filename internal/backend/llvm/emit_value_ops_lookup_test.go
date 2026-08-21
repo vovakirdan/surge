@@ -117,18 +117,29 @@ func TestAnUnknownTypeIDAnswersNullRatherThanPanicking(t *testing.T) {
 
 // emittedDefinition returns the text of one emitted definition, so a test can
 // assert about that function without matching lines from its neighbours.
+//
+// It anchors on "define", because a name appears at its CALL sites too -- and
+// for anything reached through a dispatch switch, the call comes first in the
+// module.
 func emittedDefinition(ir string, name string) string {
 	marker := "@" + name + "("
-	start := strings.Index(ir, marker)
-	if start < 0 {
-		return ""
+	for offset := 0; ; {
+		index := strings.Index(ir[offset:], marker)
+		if index < 0 {
+			return ""
+		}
+		start := offset + index
+		for start > 0 && ir[start-1] != '\n' {
+			start--
+		}
+		if !strings.HasPrefix(ir[start:], "define ") {
+			offset += index + len(marker)
+			continue
+		}
+		end := strings.Index(ir[start:], "\n}\n")
+		if end < 0 {
+			return ir[start:]
+		}
+		return ir[start : start+end+3]
 	}
-	for start > 0 && ir[start-1] != '\n' {
-		start--
-	}
-	end := strings.Index(ir[start:], "\n}\n")
-	if end < 0 {
-		return ir[start:]
-	}
-	return ir[start : start+end+3]
 }
