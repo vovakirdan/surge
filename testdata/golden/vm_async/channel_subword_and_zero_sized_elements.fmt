@@ -1,0 +1,50 @@
+// Two element widths a machine-word ring cannot distinguish, and a typed ring
+// must: `bool` is one byte with a stride of one, and `nothing` occupies no bytes
+// at all while still having a lifecycle.
+//
+// Today both are padded into eight bytes per cell, so a Channel<nothing> of
+// capacity N pays 8N bytes for values that have none -- and Mutex, Condition
+// and Semaphore are all built on Channel<nothing>, which makes it the cheapest
+// primitive in the language paying the most for typing. The arithmetic that
+// sizes the ring becomes stride-driven when the storage is typed, and a stride
+// of 0 or 1 is exactly where that arithmetic can go wrong: a zero stride
+// divides, a one-byte stride packs where the reader still steps by eight.
+//
+// This row does not measure the geometry -- it measures that the values survive
+// it, on both lanes, which is what a stride change must not disturb.
+@entrypoint
+fn main() -> int {
+    let flags = Channel::<bool>::new(4:uint);
+    flags.send(true);
+    flags.send(false);
+    flags.send(true);
+    let a = flags.recv();
+    compare a {
+        Some(x) => { if x { print("a=true"); } else { print("a=false"); } }
+        nothing => print("a=none");
+    }
+    let b = flags.recv();
+    compare b {
+        Some(y) => { if y { print("b=true"); } else { print("b=false"); } }
+        nothing => print("b=none");
+    }
+    let c = flags.recv();
+    compare c {
+        Some(z) => { if z { print("c=true"); } else { print("c=false"); } }
+        nothing => print("c=none");
+    }
+
+    // A zero-sized element still has a lifecycle: it is sent, it is received,
+    // and the receive can tell "a value arrived" from "the channel is closed".
+    let ticks = Channel::<nothing>::new(2:uint);
+    ticks.send(nothing);
+    ticks.send(nothing);
+    let first = ticks.recv();
+    compare first { Some(_) => print("tick"); nothing => print("no-tick"); }
+    let second = ticks.recv();
+    compare second { Some(_) => print("tick"); nothing => print("no-tick"); }
+    ticks.close();
+    let after = ticks.recv();
+    compare after { Some(_) => print("tick"); nothing => print("closed"); }
+    return 0;
+}

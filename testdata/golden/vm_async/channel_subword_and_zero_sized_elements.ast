@@ -1,0 +1,73 @@
+channel_subword_and_zero_sized_elements.sg (span: 15:1-51:1)
+└─ Item[0]: Fn (span: 15:1-50:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 16:18-50:2)
+         ├─ Stmt[0]: Let (span: 17:5-17:46)
+         │  ├─ Name: flags
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#5: Channel.new(4 to uint)
+         ├─ Stmt[1]: Expr (span: 18:5-18:22)
+         │  └─ Expr: expr#9: flags.send(true)
+         ├─ Stmt[2]: Expr (span: 19:5-19:23)
+         │  └─ Expr: expr#13: flags.send(false)
+         ├─ Stmt[3]: Expr (span: 20:5-20:22)
+         │  └─ Expr: expr#17: flags.send(true)
+         ├─ Stmt[4]: Let (span: 21:5-21:26)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#20: flags.recv()
+         ├─ Stmt[5]: Expr (span: 22:5-25:6)
+         │  └─ Expr: expr#37: compare a { 2 arms }
+         ├─ Stmt[6]: Let (span: 26:5-26:26)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#40: flags.recv()
+         ├─ Stmt[7]: Expr (span: 27:5-30:6)
+         │  └─ Expr: expr#57: compare b { 2 arms }
+         ├─ Stmt[8]: Let (span: 31:5-31:26)
+         │  ├─ Name: c
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#60: flags.recv()
+         ├─ Stmt[9]: Expr (span: 32:5-35:6)
+         │  └─ Expr: expr#77: compare c { 2 arms }
+         ├─ Stmt[10]: Let (span: 39:5-39:49)
+         │  ├─ Name: ticks
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#82: Channel.new(2 to uint)
+         ├─ Stmt[11]: Expr (span: 40:5-40:25)
+         │  └─ Expr: expr#86: ticks.send(nothing)
+         ├─ Stmt[12]: Expr (span: 41:5-41:25)
+         │  └─ Expr: expr#90: ticks.send(nothing)
+         ├─ Stmt[13]: Let (span: 42:5-42:30)
+         │  ├─ Name: first
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#93: ticks.recv()
+         ├─ Stmt[14]: Expr (span: 43:5-43:77)
+         │  └─ Expr: expr#105: compare first { 2 arms }
+         ├─ Stmt[15]: Let (span: 44:5-44:31)
+         │  ├─ Name: second
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#108: ticks.recv()
+         ├─ Stmt[16]: Expr (span: 45:5-45:78)
+         │  └─ Expr: expr#120: compare second { 2 arms }
+         ├─ Stmt[17]: Expr (span: 46:5-46:19)
+         │  └─ Expr: expr#123: ticks.close()
+         ├─ Stmt[18]: Let (span: 47:5-47:30)
+         │  ├─ Name: after
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#126: ticks.recv()
+         ├─ Stmt[19]: Expr (span: 48:5-48:76)
+         │  └─ Expr: expr#138: compare after { 2 arms }
+         └─ Stmt[20]: Return (span: 49:5-49:14)
+            └─ Expr: expr#139: 0
