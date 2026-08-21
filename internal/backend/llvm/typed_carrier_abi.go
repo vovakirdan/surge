@@ -63,6 +63,13 @@ func emitTypedCarrierABI(out *strings.Builder) {
 func emitPlanCrossUnavailableStub(out *strings.Builder) {
 	fmt.Fprintf(out, "define internal zeroext i32 @%s(ptr %%src, i8 zeroext %%mode, ptr %%out) noinline {\nentry:\n",
 		valueops.PlanCrossUnavailableStub)
+	if emitDescriptorDefect == defectReturningPlanCrossStub {
+		// The negative control for the stub's terminality: a body that hands
+		// back a status instead of trapping. It travels the ordinary emission
+		// path so the test that catches it is testing the real writer.
+		out.WriteString("  ret i32 0\n}\n\n")
+		return
+	}
 	out.WriteString("  call void @llvm.trap()\n")
 	out.WriteString("  unreachable\n}\n\n")
 }

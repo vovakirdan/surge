@@ -143,6 +143,7 @@ runtime-v2-abi-manifest-check:
 	$(GO) run ./cmd/abi-manifest-gen -check
 	SURGE_REQUIRE_TYPED_CARRIER_ABI_TOOLS=1 $(GO) test ./internal/abimanifest -count=1 --timeout 60s
 	SURGE_REQUIRE_TYPED_CARRIER_ABI_TOOLS=1 $(GO) test ./internal/backend/llvm -run '^TestTypedCarrier' -count=1 --timeout 120s
+	SURGE_REQUIRE_TYPED_CARRIER_ABI_TOOLS=1 $(GO) test ./internal/backend/llvm -run '^Test(PlanCrossUnavailableStub|AReturningPlanCrossStub|EmittedValueOpsDescriptor|ADefectiveDescriptor)' -count=1 --timeout 120s
 	$(GO) test ./internal/buildpipeline -run '^Test(TypedCarrier|DiscoverRuntimeABIHash)' -count=1 --timeout 60s
 	$(GO) test ./internal/vm -run '^TestRuntimeV2TypedCarrier' -count=1 --timeout 60s
 	$(CC) $(C_STD) $(C_WARN_FLAGS) $(C_INCLUDES) -fsyntax-only runtime/native/rt_typed_carrier_abi.generated.c

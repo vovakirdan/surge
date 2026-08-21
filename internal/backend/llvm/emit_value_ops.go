@@ -180,6 +180,11 @@ const (
 	// defectOverStride breaks the layout arithmetic instead of a slot, so the
 	// proof cannot pass by checking pointers alone.
 	defectOverStride
+	// defectReturningPlanCrossStub makes the plan_cross stub RETURN a status
+	// rather than trap. It is the control for the stub's terminality: a trap
+	// that returns is not a trap, and a test that cannot see the difference is
+	// not proving anything.
+	defectReturningPlanCrossStub
 )
 
 // valueOpsOperand renders one slot of the descriptor.
