@@ -278,8 +278,20 @@ static int park_case_drain_frees_every_value_once(void) {
     return 0;
 }
 
-// One typed transfer at a time, and a park cannot end underneath one.
-static int park_case_one_transfer_at_a_time(void) {
+// Slots are INDEPENDENT, and a park cannot end underneath its own transfer.
+//
+// This case asserted the opposite until a multi-shard channel test refuted it.
+// The first design carried one reservation for the whole pool, borrowed from
+// the queue next door where exactly one typed transfer is in flight at a time.
+// That reasoning does not survive the difference between the two owners: a
+// queue has one ring whose cells are taken in order, while a pool gives every
+// parked task a slot of its own. Serialising across slots made a delivery to
+// one task fail because an unrelated task was mid-transfer on another, which
+// surfaced as `delivered channel value was not in its slot` under three shards.
+//
+// What must still be serialised is one SLOT against itself, and that is what
+// the second half below measures.
+static int park_case_slots_are_independent(void) {
     size_t size = 0;
     void* storage = park_alloc_storage(2, &size);
     REQUIRE(storage != NULL);
@@ -295,18 +307,20 @@ static int park_case_one_transfer_at_a_time(void) {
     void* address = NULL;
     REQUIRE(rt_park_pool_reserve_deliver_locked(&pool, &first, &address) == RT_SLOT_CONTROL_OK);
     REQUIRE(address != NULL);
-    // A different slot's transfer waits its turn -- BUSY is a lost race, and the
-    // caller retries.
-    void* blocked = NULL;
-    REQUIRE(rt_park_pool_reserve_deliver_locked(&pool, &second, &blocked) == RT_SLOT_CONTROL_BUSY);
-    REQUIRE(blocked == NULL);
+    // A DIFFERENT slot proceeds: two parked tasks have nothing to serialise.
+    void* other = NULL;
+    REQUIRE(rt_park_pool_reserve_deliver_locked(&pool, &second, &other) == RT_SLOT_CONTROL_OK);
+    REQUIRE(other != NULL && other != address);
+    // The SAME slot, twice, is the race that must be refused.
+    void* again = NULL;
+    REQUIRE(rt_park_pool_reserve_deliver_locked(&pool, &first, &again) == RT_SLOT_CONTROL_BUSY);
+    REQUIRE(again == NULL);
     // Ending the park mid-transfer would free bytes the deliverer is writing.
     REQUIRE(rt_park_pool_release(&pool, &first) == RT_SLOT_CONTROL_BUSY);
-    // A commit for a slot that is not the one in flight is refused too.
-    REQUIRE(rt_park_pool_commit_deliver_locked(&pool, &second) == RT_SLOT_CONTROL_INVALID_STATE);
 
     // Abandoning frees the transfer and leaves the slot empty.
     REQUIRE(rt_park_pool_abandon_deliver_locked(&pool, &first) == RT_SLOT_CONTROL_OK);
+    REQUIRE(rt_park_pool_abandon_deliver_locked(&pool, &second) == RT_SLOT_CONTROL_OK);
     REQUIRE(park_deliver(&pool, &second, 8));
     REQUIRE(rt_park_pool_release(&pool, &first) == RT_SLOT_CONTROL_OK);
     REQUIRE(park_drop_calls == 0);
@@ -359,7 +373,7 @@ int harness_case_park(void) {
     if (status != 0) {
         return status;
     }
-    status = park_case_one_transfer_at_a_time();
+    status = park_case_slots_are_independent();
     if (status != 0) {
         return status;
     }

@@ -23,7 +23,7 @@ static void poll_anchored_send(rtb_anchored_state* state) {
     atomic_store_explicit(&state->body_ran, 1, memory_order_release);
     // A false send means "parked on capacity": yield and re-enter; the
     // re-poll consumes the handoff ack and returns true.
-    if (!rt_channel_send(channel, state->value)) {
+    if (!rt_channel_send(channel, &(uint64_t){state->value})) {
         rt_async_yield(state, 0);
     }
     rt_async_return(state, 1);
@@ -77,7 +77,7 @@ static void poll_anchored_pinned_send(rtb_anchored_state* state) {
     if (rt_remote_task_anchored_channel_current() != state->channel) {
         rt_async_return(state, 0);
     }
-    if (!rt_channel_send(state->channel, state->value)) {
+    if (!rt_channel_send(state->channel, &(uint64_t){state->value})) {
         rt_async_yield(state, 0);
     }
     rt_async_return(state, 1);
@@ -91,7 +91,7 @@ static void poll_anchored_helper_send(rtb_anchored_state* state) {
         rt_async_return_cancelled(state, 0);
     }
     atomic_store_explicit(&state->body_ran, 1, memory_order_release);
-    rt_anchored_channel_send(state->value);
+    rt_anchored_channel_send(&(uint64_t){state->value});
     rt_async_return(state, 1);
 }
 

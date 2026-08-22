@@ -148,3 +148,50 @@ void rt_value_drop_in_place_detached(const rt_value_ops* operations, void* value
     rt_value_refuse_if_locked("rt_value_drop_in_place_detached");
     operations->drop_in_place(value);
 }
+
+static void rt_value_opaque_word_move(void* destination, void* source) {
+    memcpy(destination, source, sizeof(uint64_t));
+    *(uint64_t*)source = 0;
+}
+
+static rt_carrier_status
+rt_value_opaque_word_plan(const void* source, rt_cross_mode mode, rt_cross_plan* out) {
+    (void)source;
+    (void)mode;
+    (void)out;
+    return RT_CARRIER_STATUS_INVALID_STATE;
+}
+
+// The descriptor for a carrier whose element is an opaque machine word.
+//
+// It lives HERE rather than beside the channel for the same reason this file is
+// the one place exempt from the slot-dispatch scan: naming a slot is how a
+// descriptor is BUILT, and a scan that cannot tell construction from dispatch
+// would have to be weakened to allow it. Keeping every hand-written descriptor
+// in the descriptor file keeps that scan strict everywhere else.
+//
+// This is what a FAR channel actually holds today: a payload that crossed the
+// boundary arrived as a word, and crossing has no descriptor support yet, so
+// there is nothing wider it could be. It is also what a C stand builds when it
+// exercises the scheduler with no compiled Surge code to supply descriptors.
+//
+// It claims no capability beyond the two the ABI makes mandatory: the move is a
+// word copy that empties its source, and plan_cross refuses. Nothing here can
+// be mistaken for an element that owns something.
+const rt_value_ops* rt_channel_opaque_word_ops(void) {
+    static const rt_value_ops ops = {
+        .layout = {.size = sizeof(uint64_t),
+                   .align = _Alignof(uint64_t),
+                   .stride = sizeof(uint64_t),
+                   .flags = 0},
+        .move_init = rt_value_opaque_word_move,
+        .copy_init = NULL,
+        .clone_init = NULL,
+        .drop_in_place = NULL,
+        .trace = NULL,
+        .plan_cross = rt_value_opaque_word_plan,
+        .cross_move_init = NULL,
+        .cross_clone_init = NULL,
+    };
+    return &ops;
+}

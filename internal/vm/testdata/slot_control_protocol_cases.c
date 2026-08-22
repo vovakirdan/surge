@@ -291,8 +291,8 @@ int harness_case_stale(void) {
     harness_reset_callbacks();
     rt_claim_token recycled_token;
     REQUIRE(pthread_mutex_lock(&harness_owner_lock) == 0);
-    rt_slot_control_status recycled = rt_slot_claim_exclusive_locked(
-        &source, NULL, RT_SLOT_CLAIM_DROP, 2, 0, &recycled_token);
+    rt_slot_control_status recycled =
+        rt_slot_claim_exclusive_locked(&source, NULL, RT_SLOT_CLAIM_DROP, 2, 0, &recycled_token);
     REQUIRE(pthread_mutex_unlock(&harness_owner_lock) == 0);
     REQUIRE(recycled == RT_SLOT_CONTROL_STALE);
     REQUIRE(harness_callback_calls == 0 && harness_callback_error == 0);
@@ -301,8 +301,8 @@ int harness_case_stale(void) {
     // so the row above refuses the staleness rather than the operation.
     rt_claim_token live_token;
     REQUIRE(pthread_mutex_lock(&harness_owner_lock) == 0);
-    REQUIRE(rt_slot_claim_exclusive_locked(
-                &source, NULL, RT_SLOT_CLAIM_DROP, 1, 0, &live_token) == RT_SLOT_CONTROL_OK);
+    REQUIRE(rt_slot_claim_exclusive_locked(&source, NULL, RT_SLOT_CLAIM_DROP, 1, 0, &live_token) ==
+            RT_SLOT_CONTROL_OK);
     REQUIRE(pthread_mutex_unlock(&harness_owner_lock) == 0);
     harness_value_ops.drop_in_place(&source_value);
     REQUIRE(pthread_mutex_lock(&harness_owner_lock) == 0);

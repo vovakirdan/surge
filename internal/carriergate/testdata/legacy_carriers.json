@@ -3683,6 +3683,17 @@
         {
           "finding": {
             "category": "numeric-drop-dispatch",
+            "path": "internal/backend/llvm/emit_channel.go",
+            "token": "registerCrossingDropResult",
+            "evidence": "fe.emitter.registerCrossingDropResult(elem)",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d5",
+          "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "numeric-drop-dispatch",
             "path": "internal/backend/llvm/emit_intrinsics_clone.go",
             "token": "registerCrossingDropResult",
             "evidence": "return \"@\" + name, fe.emitter.registerCrossingDropResult(payload), nil",
@@ -3697,39 +3708,6 @@
             "path": "runtime/native/rt.h",
             "token": "result_drop_fn_id",
             "evidence": "void* rt_task_clone(void* task, rt_result_copy_fn copy_result, uint64_t result_drop_fn_id);",
-            "ordinal": 1
-          },
-          "retired_by": "wave-d-descriptor-emission",
-          "tracked_as": "RV2-DEBT-164"
-        },
-        {
-          "finding": {
-            "category": "numeric-drop-dispatch",
-            "path": "runtime/native/rt_async_channel.c",
-            "token": "__surge_drop_result_call",
-            "evidence": "__surge_drop_result_call(ch-\u003epayload_drop_fn_id, (void*)payload);",
-            "ordinal": 1
-          },
-          "retired_by": "wave-d-descriptor-emission",
-          "tracked_as": "RV2-DEBT-164"
-        },
-        {
-          "finding": {
-            "category": "numeric-drop-dispatch",
-            "path": "runtime/native/rt_async_channel.c",
-            "token": "payload_drop_fn_id",
-            "evidence": "__surge_drop_result_call(ch-\u003epayload_drop_fn_id, (void*)payload);",
-            "ordinal": 1
-          },
-          "retired_by": "wave-d-descriptor-emission",
-          "tracked_as": "RV2-DEBT-164"
-        },
-        {
-          "finding": {
-            "category": "numeric-drop-dispatch",
-            "path": "runtime/native/rt_async_channel.c",
-            "token": "payload_drop_fn_id",
-            "evidence": "if (ch == NULL || ch-\u003epayload_drop_fn_id == 0) {",
             "ordinal": 1
           },
           "retired_by": "wave-d-descriptor-emission",
@@ -3778,6 +3756,28 @@
           },
           "retired_by": "wave-d-descriptor-emission",
           "tracked_as": "RV2-DEBT-164"
+        },
+        {
+          "finding": {
+            "category": "numeric-drop-dispatch",
+            "path": "runtime/native/rt_far_channel.c",
+            "token": "payload_drop_fn_id",
+            "evidence": "const rt_value_ops* element_ops = rt_channel_element_ops_for(pending-\u003epayload_drop_fn_id);",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d5",
+          "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "numeric-drop-dispatch",
+            "path": "runtime/native/rt_far_channel.c",
+            "token": "payload_drop_fn_id",
+            "evidence": "rt_channel_new(pending-\u003ebody_poll_fn_id, element_ops, pending-\u003epayload_drop_fn_id);",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d5",
+          "tracked_as": "RV2-DEBT-151"
         }
       ]
     },

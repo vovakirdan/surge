@@ -43,6 +43,16 @@ typedef struct {
     uint64_t generation;
     uint32_t next_free;
     uint8_t live;
+    // Reservation state is PER SLOT, not per pool.
+    //
+    // A first draft put one reservation on the whole pool, reasoning from the
+    // queue next door where exactly one typed transfer is in flight. That
+    // reasoning does not carry: a queue has one ring and its cells are taken in
+    // order, while a pool hands every parked task a slot of its OWN, and two
+    // tasks on different slots have nothing to serialise. The multi-shard
+    // channel test found it immediately -- a delivery to one task refused
+    // because an unrelated task was mid-transfer on another slot.
+    uint8_t reserved;
 } rt_park_slot;
 
 struct rt_park_pool {
@@ -55,10 +65,6 @@ struct rt_park_pool {
     uint64_t live;
     uint64_t next_generation;
     uint32_t first_free;
-    // One typed transfer at a time, exactly as the queue does it.
-    uint64_t reserved_index;
-    uint64_t reserved_generation;
-    int reserved;
 };
 
 size_t rt_park_pool_alloc_size(const rt_value_ops* operations, uint64_t capacity);

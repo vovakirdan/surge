@@ -393,7 +393,7 @@ static int run_far_select_recv_winner_handback(void) {
     void* send_channel = mint_channel_anchor(ex, dst, 0, &send_anchor);
     void* recv_channel = mint_channel_anchor(ex, dst, 1, &recv_anchor);
     if (send_channel == NULL || recv_channel == NULL) return fail("handback mint failed");
-    rt_channel_send_blocking(recv_channel, 303);
+    rt_channel_send_blocking(recv_channel, &(uint64_t){303});
 
     select_exec_state st;
     memset(&st, 0, sizeof(st));

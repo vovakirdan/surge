@@ -178,7 +178,7 @@ static int run_immediate_redelivery(int redeliver_reply) {
 // if the anchored path leaked no pin, the release is the final one and the
 // entry reclaims immediately.
 static int mint_anchor(rt_executor* ex, uint32_t owner_shard_id, rt_far_task_handle* out) {
-    void* channel = rt_channel_new(0, 0);
+    void* channel = rt_channel_new(0, rt_channel_opaque_word_ops(), 0);
     if (channel == NULL) {
         return 0;
     }
@@ -194,7 +194,7 @@ static void* mint_channel_anchor(rt_executor* ex,
                                  uint32_t owner_shard_id,
                                  uint64_t capacity,
                                  rt_far_task_handle* out) {
-    void* channel = rt_channel_new(capacity, 0);
+    void* channel = rt_channel_new(capacity, rt_channel_opaque_word_ops(), 0);
     if (channel == NULL) {
         return NULL;
     }

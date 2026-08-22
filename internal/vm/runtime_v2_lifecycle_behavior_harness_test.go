@@ -432,7 +432,7 @@ static _Atomic(void*) g_park_forever_chan;
 // that uses POLL_PARK_FOREVER, so there is no create-time race between
 // concurrent park_forever instances.
 static void poll_make_park_forever_chan(void) {
-    atomic_store_explicit(&g_park_forever_chan, rt_channel_new(0, 0), memory_order_release);
+    atomic_store_explicit(&g_park_forever_chan, rt_channel_new(0, rt_channel_opaque_word_ops(), 0), memory_order_release);
     rt_async_return(NULL, 0);
 }
 

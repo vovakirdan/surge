@@ -197,19 +197,27 @@ func TestRuntimeV2SlotControlCopyInitTrapIsNamedAndUndispatched(t *testing.T) {
 	// call-shape count this replaced. A read is a read whatever spelling reaches
 	// it, so the exception cannot grow in any spelling.
 	//
-	// The three reads today, all inside rt_value_copy_init's own decision:
-	// the identity compare in rt_value_copy_uses_runtime_width, the branch
-	// compare that separates a specialization from the trap, and the one
-	// dispatch of that specialization. `== NULL` guards do not count — the
-	// scanner strips them, because a null check is not a use.
+	// The three reads inside rt_value_copy_init's own decision: the identity
+	// compare in rt_value_copy_uses_runtime_width, the branch compare that
+	// separates a specialization from the trap, and the one dispatch of that
+	// specialization. `== NULL` guards do not count — the scanner strips them,
+	// because a null check is not a use.
+	//
+	// The fourth is not a read at all: this file now DEFINES a descriptor of
+	// its own — the opaque-word carrier a far channel holds and a C stand
+	// builds — and naming a slot is how a descriptor is built. It is written
+	// here rather than beside its caller precisely so that the scan stays at
+	// zero everywhere else; a hand-written descriptor in any other file would
+	// have to weaken the rule instead of being covered by this one count.
 	helperReads := slotReadsBeyondNullChecks(
 		readSlotControlFile(t, filepath.Join(root, "runtime", "native", "rt_value_ops.c")),
 		"copy_init",
 	)
-	if len(helperReads) != 3 {
-		t.Errorf("rt_value_ops.c reads copy_init %d times %v, want exactly 3 "+
-			"(identity compare, specialization branch, and the one dispatch of a "+
-			"specialization); a new read is a new way for the trap to reach a caller",
+	if len(helperReads) != 4 {
+		t.Errorf("rt_value_ops.c reads copy_init %d times %v, want exactly 4 "+
+			"(identity compare, specialization branch, the one dispatch of a "+
+			"specialization, and the opaque-word descriptor's own definition); "+
+			"a new read is a new way for the trap to reach a caller",
 			len(helperReads), helperReads)
 	}
 
@@ -434,9 +442,10 @@ func TestRuntimeV2SlotControlMoveAndDropDispatchThroughTheDetachedHelpers(t *tes
 	helper := readSlotControlFile(t, filepath.Join(root, "runtime", "native", "rt_value_ops.c"))
 	for _, slot := range []string{"move_init", "drop_in_place"} {
 		reads := slotReadsBeyondNullChecks(helper, slot)
-		if len(reads) != 1 {
-			t.Errorf("rt_value_ops.c reads %s %d times %v, want exactly 1 (the dispatch); "+
-				"a new read is a new way for the callback to reach a caller that holds a lock",
+		if len(reads) != 2 {
+			t.Errorf("rt_value_ops.c reads %s %d times %v, want exactly 2 (the dispatch, and "+
+				"the opaque-word descriptor's own definition); a new read is a new way for the "+
+				"callback to reach a caller that holds a lock",
 				slot, len(reads), reads)
 		}
 	}

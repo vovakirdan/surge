@@ -140,7 +140,16 @@ func TestRuntimeV2LocalSelectCancelNonCopySendArm(t *testing.T) {
 		// dedicated release for nested local Channel<T> handles. The two
 		// never-ready channels therefore leave this exact pre-existing baseline;
 		// it is held visible here instead of being fixed in the ownership epic.
-		const controlBaselineBytes = 96
+		//
+		// The BLOCK COUNT is the invariant and it is unchanged: two channels,
+		// two blocks. The byte figure moved from 96 to 1344 when the channel
+		// gained typed storage -- a channel is now its header plus a ring at
+		// the element's own stride plus a pool of park slots, where before it
+		// was a header and a word per cell. Nothing new leaks; the same two
+		// objects are simply bigger. Which is also why the number is written
+		// here rather than derived: it is a fact about a leak that RV2-DEBT-155
+		// owns, and it should change loudly when that leak is fixed.
+		const controlBaselineBytes = 1344
 		const controlBaselineBlocks = 2
 		if controlBytesLost != controlBaselineBytes || controlBlocksLost != controlBaselineBlocks {
 			t.Fatalf(

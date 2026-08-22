@@ -3,6 +3,7 @@
 #include "rt.h"
 #include "rt_async_trace.h"
 #include "rt_heap_accounting.h"
+#include "rt_park_pool.h"
 #include "rt_placement.h"
 #include "rt_runtime_config.h"
 #include "rt_transport.h"
@@ -283,7 +284,14 @@ typedef struct rt_task {
     uint8_t scope_registered;
     uint8_t cancel_pending;
     atomic_u32 handle_refs;
-    uint64_t resume_bits;
+    // Where a channel value delivered to this task is waiting.
+    //
+    // A capability token -- owner, index, generation -- and not the value: the
+    // scheduler mailbox carries control only, and three integers is what that
+    // means concretely. The storage the token names belongs to the CHANNEL,
+    // because this task's poll function can leave by longjmp and a value it
+    // owned across the park would be lost with nobody left to free it.
+    rt_park_token resume_slot;
     uint64_t sleep_delay;
     uint64_t sleep_deadline;
     uint64_t scope_id;
@@ -824,17 +832,10 @@ int rt_scope_table_segment_missing(rt_executor* ex, uint64_t id);
 void ensure_child_cap(rt_task* task, size_t want);
 void ensure_scope_child_cap(rt_scope* scope, size_t want);
 
-uint8_t rt_channel_try_recv_status_locked(rt_executor* ex, void* channel, uint64_t* out_bits);
-uint8_t rt_channel_try_recv_status_owner_locked(rt_executor* ex,
-                                                rt_shard* ch_shard,
-                                                rt_channel* ch,
-                                                uint64_t* out_bits);
-uint8_t rt_channel_try_send_status_owner_locked(rt_executor* ex,
-                                                rt_shard* ch_shard,
-                                                rt_channel* ch,
-                                                uint64_t value_bits);
-uint8_t rt_channel_try_send_status_locked(rt_executor* ex, void* channel, uint64_t value_bits);
-void rt_channel_release_payload(void* channel, uint64_t payload);
+// The owner-locked channel cores are declared in rt_channel_lane.h, where the
+// claim types they speak in are defined. They cannot be declared here: this
+// header is what that one includes.
+void rt_channel_release_payload(void* channel, void* storage);
 void clear_select_timers(rt_executor* ex, rt_task* task);
 void ready_push(rt_executor* ex, uint64_t id);
 int ready_push_task_locked(const rt_executor* ex,
@@ -926,12 +927,18 @@ void task_add_ref(rt_task* task);
 void task_release(rt_executor* ex, rt_task* task);
 void task_release_lane_aware(rt_executor* ex, rt_task* task);
 
-void* rt_channel_new(uint64_t capacity, uint64_t payload_drop_fn_id);
-bool rt_channel_send(void* channel, uint64_t value_bits);
-bool rt_channel_send_yield(void* channel, uint64_t value_bits);
-uint8_t rt_channel_recv(void* channel, uint64_t* out_bits);
-bool rt_channel_try_send(void* channel, uint64_t value_bits);
-bool rt_channel_try_recv(void* channel, uint64_t* out_bits);
+void* rt_channel_new(uint64_t capacity, const rt_value_ops* ops, uint64_t element_type_id);
+// Turns an element TYPE ID back into its descriptor. The far create path is
+// the caller this exists for: a payload type crosses the boundary as a number.
+const rt_value_ops* rt_channel_element_ops_for(uint64_t element_type_id);
+// The descriptor for a channel of opaque machine words: what a far channel
+// holds today, and what a C stand uses when no compiled code supplies one.
+const rt_value_ops* rt_channel_opaque_word_ops(void);
+bool rt_channel_send(void* channel, void* src);
+bool rt_channel_send_yield(void* channel, void* src);
+uint8_t rt_channel_recv(void* channel, void* dst);
+bool rt_channel_try_send(void* channel, void* src);
+bool rt_channel_try_recv(void* channel, void* dst);
 void rt_channel_close(void* channel);
 void rt_channel_free(void* channel);
 void rt_channel_free_when_unlocked(void* channel);

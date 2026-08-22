@@ -6,7 +6,6 @@ import (
 	"surge/internal/mir"
 	"surge/internal/sema"
 	"surge/internal/symbols"
-	"surge/internal/types"
 )
 
 // emitAnchoredOnCrossing lowers `on ch { ... }` to the anchored immediate
@@ -188,21 +187,11 @@ func (fe *funcEmitter) emitAnchoredChannelSend(call *mir.CallInstr) (bool, error
 	if len(call.Args) != 1 {
 		return true, fmt.Errorf("rt_anchored_channel_send expects 1 argument, got %d", len(call.Args))
 	}
-	val, valTy, err := fe.emitValueOperand(&call.Args[0])
+	srcPtr, err := fe.emitChannelValueAddress(&call.Args[0])
 	if err != nil {
 		return true, err
 	}
-	valueType := operandValueType(fe.emitter.types, &call.Args[0])
-	if valueType == types.NoTypeID && call.Args[0].Kind != mir.OperandConst {
-		if baseType, baseErr := fe.placeBaseType(call.Args[0].Place); baseErr == nil {
-			valueType = baseType
-		}
-	}
-	bitsVal, err := fe.emitValueToI64(val, valTy, valueType)
-	if err != nil {
-		return true, err
-	}
-	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_anchored_channel_send(i64 %s)\n", bitsVal)
+	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_anchored_channel_send(ptr %s)\n", srcPtr)
 	return true, nil
 }
 
@@ -211,11 +200,10 @@ func (fe *funcEmitter) emitAnchoredChannelSend(call *mir.CallInstr) (bool, error
 // body re-enters from the top), so the emit is straight-line: 1 delivers a
 // value, anything else is the closed outcome.
 func (fe *funcEmitter) emitAnchoredChanRecv(ins *mir.Instr) error {
-	bitsPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
-	statusVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call i8 @rt_anchored_channel_recv(ptr %s)\n", statusVal, bitsPtr)
-
+	// The element type comes from the DESTINATION here, not from the channel
+	// operand: an anchored receive has no channel operand at all -- the channel
+	// comes from the binding the anchored body was entered with -- so the only
+	// place the element is named is the Option this receive fills.
 	dstType, err := fe.placeBaseType(ins.ChanRecv.Dst)
 	if err != nil {
 		return err
@@ -229,6 +217,13 @@ func (fe *funcEmitter) emitAnchoredChanRecv(ins *mir.Instr) error {
 	}
 	payloadType := someMeta.PayloadTypes[0]
 
+	payloadPtr, payloadStorageTy, err := fe.emitChannelPayloadSlot(payloadType)
+	if err != nil {
+		return err
+	}
+	statusVal := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call i8 @rt_anchored_channel_recv(ptr %s)\n", statusVal, payloadPtr)
+
 	valueBB := fe.nextInlineBlock()
 	closedBB := fe.nextInlineBlock()
 	joinBB := fe.nextInlineBlock()
@@ -237,9 +232,7 @@ func (fe *funcEmitter) emitAnchoredChanRecv(ins *mir.Instr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", hasValue, valueBB, closedBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", valueBB)
-	bitsVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", bitsVal, bitsPtr)
-	payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)
+	payloadVal, payloadTy, err := fe.emitChannelPayloadValue(payloadType, payloadStorageTy, payloadPtr)
 	if err != nil {
 		return err
 	}

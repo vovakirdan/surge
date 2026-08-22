@@ -153,7 +153,7 @@ static void poll_sender(void) {
             rt_channel_close(ch);
             rt_async_return(NULL, 0);
         }
-        if (!rt_channel_send(ch, (uint64_t)sent + 1)) {
+        if (!rt_channel_send(ch, &(uint64_t){(uint64_t)sent + 1})) {
             rt_async_yield(NULL, 0);
         }
         atomic_fetch_add_explicit(&g_send_count, 1, memory_order_acq_rel);
@@ -181,7 +181,7 @@ static void poll_receiver_fifo(void) {
 
 static void poll_make_chan_a(void) {
     atomic_store_explicit(
-        &g_chan_a, rt_channel_new(LOCK_SPLIT_CHAN_CAP, 0), memory_order_release);
+        &g_chan_a, rt_channel_new(LOCK_SPLIT_CHAN_CAP, rt_channel_opaque_word_ops(), 0), memory_order_release);
     rt_async_return(NULL, 0);
 }
 
@@ -563,7 +563,7 @@ static int mode_timeout_across_owners(rt_executor* ex) {
 }
 
 static int mode_shutdown_liveness(rt_executor* ex) {
-    atomic_store_explicit(&g_chan_a, rt_channel_new(0, 0), memory_order_release);
+    atomic_store_explicit(&g_chan_a, rt_channel_new(0, rt_channel_opaque_word_ops(), 0), memory_order_release);
     rt_task* gates[3];
     for (uint32_t i = 0; i < 3; i++) {
         gates[i] = spawn_pinned(ex, POLL_PARK_RECV, i);

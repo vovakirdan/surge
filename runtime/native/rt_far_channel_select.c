@@ -426,7 +426,14 @@ uint64_t rt_anchored_channel_select(void) {
     }
     uint8_t kinds[RT_FAR_CHANNEL_SELECT_MAX_ARMS];
     void* handles[RT_FAR_CHANNEL_SELECT_MAX_ARMS];
+    // The far arm table still carries its payload as a word: this lane is D5,
+    // and a value that crossed the boundary arrived as one. What the typed
+    // select needs is an ADDRESS, so it is given the address of that word --
+    // correct for exactly the elements a far channel can carry today, whose
+    // representation IS the word. A wider element cannot reach here at all:
+    // crossing has no descriptor support yet, so plan_cross is the trap.
     uint64_t values[RT_FAR_CHANNEL_SELECT_MAX_ARMS];
+    void* value_addrs[RT_FAR_CHANNEL_SELECT_MAX_ARMS];
     if (count > RT_FAR_CHANNEL_SELECT_MAX_ARMS) {
         panic_msg("anchored select arm table exceeds the arm cap");
         return 0;
@@ -435,8 +442,9 @@ uint64_t rt_anchored_channel_select(void) {
         kinds[i] = arms[i].kind;
         handles[i] = arms[i].channel;
         values[i] = arms[i].send_bits;
+        value_addrs[i] = &values[i];
     }
-    int64_t winner = rt_select_poll(count, kinds, handles, values, NULL, -1);
+    int64_t winner = rt_select_poll(count, kinds, handles, value_addrs, NULL, -1);
     if (winner < 0) {
         rt_async_yield(state, 0);
     }

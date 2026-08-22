@@ -324,21 +324,22 @@ int64_t rt_select_poll_tasks(uint64_t count, void** tasks, int64_t default_index
 int64_t rt_select_poll(uint64_t count,
                        const uint8_t* kinds,
                        void** handles,
-                       const uint64_t* values,
+                       void* const* values,
                        const uint64_t* ms,
                        int64_t default_index);
 void rt_async_yield(void* state, uint64_t state_drop_fn_id);
 void rt_async_return(void* state, uint64_t bits);
 void rt_async_return_cancelled(void* state, uint64_t state_drop_fn_id);
 
-void* rt_channel_new(uint64_t capacity, uint64_t payload_drop_fn_id);
-bool rt_channel_send(void* channel, uint64_t value_bits);
-bool rt_channel_send_yield(void* channel, uint64_t value_bits);
-uint8_t rt_channel_recv(void* channel, uint64_t* out_bits);
-void rt_channel_send_blocking(void* channel, uint64_t value_bits);
-uint8_t rt_channel_recv_blocking(void* channel, uint64_t* out_bits);
-bool rt_channel_try_send(void* channel, uint64_t value_bits);
-bool rt_channel_try_recv(void* channel, uint64_t* out_bits);
+void* rt_channel_new(uint64_t capacity, const rt_value_ops* ops, uint64_t element_type_id);
+const rt_value_ops* rt_channel_opaque_word_ops(void);
+bool rt_channel_send(void* channel, void* src);
+bool rt_channel_send_yield(void* channel, void* src);
+uint8_t rt_channel_recv(void* channel, void* dst);
+void rt_channel_send_blocking(void* channel, void* src);
+uint8_t rt_channel_recv_blocking(void* channel, void* dst);
+bool rt_channel_try_send(void* channel, void* src);
+bool rt_channel_try_recv(void* channel, void* dst);
 void rt_channel_close(void* channel);
 // Reclaims a channel object's memory (header + inline buffer, one
 // allocation), draining every still-buffered entry through the channel's

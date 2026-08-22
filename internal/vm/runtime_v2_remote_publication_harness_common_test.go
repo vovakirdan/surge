@@ -323,19 +323,24 @@ static rt_remote_task_pending* wait_select_pending_shared(select_exec_state* st,
 //
 // Releasing does not move the census these rows assert: every channel they
 // mint goes through mint_anchor/mint_channel_anchor, which call
-// rt_channel_new(capacity, 0), and rt_channel_release_payload returns without
-// calling drop glue when the channel's payload drop id is 0. payload_drop_calls
-// counts only DROP_SELECT_PAYLOAD, which is the SELECT arm's own drop id and
-// never the channel's, so the probe contributes nothing to it either way.
+// rt_channel_new(capacity, rt_channel_opaque_word_ops(), 0); that descriptor
+// claims no drop, so the release below runs nothing. payload_drop_calls counts
+// only DROP_SELECT_PAYLOAD, which is the SELECT arm's own drop id and never the
+// channel's, so the probe contributes nothing to it either way.
+//
+// The probe goes through the PUBLIC entry point now. It used to hold the
+// control lock across a claim of its own, which a typed take cannot do: the
+// element's move runs between the claim and the commit, and no generated
+// operation may run under a runtime lock. rt_channel_try_recv performs that
+// whole sequence, taking and releasing the channel's own lock as it goes.
 static uint8_t channel_probe_take(rt_executor* ex, void* channel, uint64_t* out_bits) {
+    (void)ex;
     *out_bits = 0;
-    rt_control_lock(ex);
-    uint8_t status = rt_channel_try_recv_status_locked(ex, channel, out_bits);
-    rt_control_unlock(ex);
-    if (status == 1) {
-        rt_channel_release_payload(channel, *out_bits);
+    if (!rt_channel_try_recv(channel, out_bits)) {
+        return 0;
     }
-    return status;
+    rt_channel_release_payload(channel, out_bits);
+    return 1;
 }
 
 static int channel_recv_once(rt_executor* ex, void* channel, uint64_t want_bits) {

@@ -186,7 +186,8 @@ int rtb_mode_caller_abandon_filters_by_op_and_caller(void) {
         return rtb_fail("caller-abandon-filter: a different caller's pending was touched");
     }
     if (other_op->caller_task_id != caller_a->id) {
-        return rtb_fail("caller-abandon-filter: an EXECUTE-op pending was touched by the AWAIT/CANCEL sweep");
+        return rtb_fail(
+            "caller-abandon-filter: an EXECUTE-op pending was touched by the AWAIT/CANCEL sweep");
     }
     rt_remote_task_pending_release(other_caller);
     rt_remote_task_pending_release(other_op);

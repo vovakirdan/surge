@@ -550,7 +550,7 @@ static int mode_debt022_parked_target(rt_executor* ex) {
     }
 
     void* ch = atomic_load_explicit(&g_park_forever_chan, memory_order_acquire);
-    rt_channel_send_blocking(ch, 99);
+    rt_channel_send_blocking(ch, &(uint64_t){99});
     if (!wait_u32_at_least(&g_debt022_awaiter_done, 1, 4000)) {
         (void)rt_executor_request_shutdown(ex);
         pthread_join(awaiter, NULL);

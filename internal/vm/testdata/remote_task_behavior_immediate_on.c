@@ -118,7 +118,8 @@ int rtb_mode_immediate_stale(void) {
     rt_runtime* runtime = rt_executor_runtime(ex);
     rtb_child_state child;
     memset(&child, 0, sizeof(child));
-    rt_far_task_handle route = {.task_id = 0, .generation = 0, .owner_shard_id = 1, .kind = RT_FAR_HANDLE_KIND_TASK};
+    rt_far_task_handle route = {
+        .task_id = 0, .generation = 0, .owner_shard_id = 1, .kind = RT_FAR_HANDLE_KIND_TASK};
     rt_remote_task_pending* bad =
         rt_remote_task_pending_new(ex, &route, 0, RT_REMOTE_TASK_OP_EXECUTE, 1);
     if (bad == NULL) {

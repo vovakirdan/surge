@@ -24,7 +24,13 @@ typedef struct {
     size_t headers_offset;
     size_t payloads_offset;
     size_t total;
+    // The BLOCK's alignment, which is the wider of the element's and the slot
+    // record's, and the ELEMENT's own, which is what the payload area and the
+    // control are aligned to. They differ for a zero-sized element, where the
+    // block still needs eight and the payload needs one -- handing the control
+    // the block's figure there refuses a correctly laid out pool.
     size_t align;
+    size_t element_align;
     int valid;
 } rt_park_pool_layout;
 
@@ -69,6 +75,7 @@ static rt_park_pool_layout rt_park_pool_plan(const rt_value_ops* operations, uin
 
     plan.total = offset;
     plan.align = align;
+    plan.element_align = element_align;
     plan.valid = 1;
     return plan;
 }
@@ -112,12 +119,12 @@ rt_slot_control_status rt_park_pool_init(rt_park_pool* pool,
     // Generation 0 means "no park", so a zeroed token can never name a live slot.
     pool->next_generation = 1;
     pool->first_free = 0;
-    pool->reserved = 0;
 
     for (uint64_t index = 0; index < capacity; index++) {
         pool->headers[index].state = RT_SLOT_EMPTY;
         pool->slots[index].generation = 0;
         pool->slots[index].live = 0;
+        pool->slots[index].reserved = 0;
         pool->slots[index].next_free =
             index + 1 < capacity ? (uint32_t)(index + 1) : RT_PARK_POOL_NO_FREE;
     }
@@ -128,7 +135,7 @@ rt_slot_control_status rt_park_pool_init(rt_park_pool* pool,
                                 1,
                                 (uintptr_t)pool->payloads,
                                 operations->layout.size,
-                                plan.align);
+                                plan.element_align);
 }
 
 uint64_t rt_park_pool_live(const rt_park_pool* pool) {
@@ -164,6 +171,7 @@ rt_slot_control_status rt_park_pool_acquire_locked(rt_park_pool* pool, rt_park_t
     slot->next_free = RT_PARK_POOL_NO_FREE;
     slot->generation = pool->next_generation++;
     slot->live = 1;
+    slot->reserved = 0;
     pool->live++;
 
     out->owner = pool;
@@ -185,29 +193,27 @@ static rt_slot_control_status rt_park_pool_check_transfer(const rt_park_pool* po
     if (!rt_park_pool_token_is_live(pool, token)) {
         return RT_SLOT_CONTROL_STALE;
     }
+    const rt_park_slot* slot = &pool->slots[token->index];
     if (expect_reserved) {
-        if (!pool->reserved || pool->reserved_index != token->index ||
-            pool->reserved_generation != token->generation) {
+        if (!slot->reserved) {
             return RT_SLOT_CONTROL_INVALID_STATE;
         }
         return RT_SLOT_CONTROL_OK;
     }
-    if (pool->reserved) {
+    if (slot->reserved) {
+        // This slot is mid-transfer. A slot belongs to one park, so the only
+        // caller that can see this is one racing itself.
         return RT_SLOT_CONTROL_BUSY;
     }
     return RT_SLOT_CONTROL_OK;
 }
 
 static void rt_park_pool_hold(rt_park_pool* pool, const rt_park_token* token) {
-    pool->reserved = 1;
-    pool->reserved_index = token->index;
-    pool->reserved_generation = token->generation;
+    pool->slots[token->index].reserved = 1;
 }
 
-static void rt_park_pool_clear_reservation(rt_park_pool* pool) {
-    pool->reserved = 0;
-    pool->reserved_index = 0;
-    pool->reserved_generation = 0;
+static void rt_park_pool_clear_reservation(rt_park_pool* pool, const rt_park_token* token) {
+    pool->slots[token->index].reserved = 0;
 }
 
 rt_slot_control_status rt_park_pool_reserve_deliver_locked(rt_park_pool* pool,
@@ -239,7 +245,7 @@ rt_slot_control_status rt_park_pool_commit_deliver_locked(rt_park_pool* pool,
         return RT_SLOT_CONTROL_INVARIANT;
     }
     pool->headers[token->index].state = RT_SLOT_INITIALIZED;
-    rt_park_pool_clear_reservation(pool);
+    rt_park_pool_clear_reservation(pool, token);
     return RT_SLOT_CONTROL_OK;
 }
 
@@ -252,7 +258,7 @@ rt_slot_control_status rt_park_pool_abandon_deliver_locked(rt_park_pool* pool,
     if (pool->headers[token->index].state != RT_SLOT_EMPTY) {
         return RT_SLOT_CONTROL_INVARIANT;
     }
-    rt_park_pool_clear_reservation(pool);
+    rt_park_pool_clear_reservation(pool, token);
     return RT_SLOT_CONTROL_OK;
 }
 
@@ -286,7 +292,7 @@ rt_slot_control_status rt_park_pool_commit_take_locked(rt_park_pool* pool,
         return RT_SLOT_CONTROL_INVARIANT;
     }
     pool->headers[token->index].state = RT_SLOT_EMPTY;
-    rt_park_pool_clear_reservation(pool);
+    rt_park_pool_clear_reservation(pool, token);
     return RT_SLOT_CONTROL_OK;
 }
 
@@ -350,7 +356,7 @@ rt_slot_control_status rt_park_pool_release(rt_park_pool* pool, const rt_park_to
     if (!rt_park_pool_token_is_live(pool, token)) {
         return RT_SLOT_CONTROL_STALE;
     }
-    if (pool->reserved && pool->reserved_index == token->index) {
+    if (pool->slots[token->index].reserved) {
         // A transfer is mid-flight on this very slot; ending the park now would
         // free bytes the other half is still writing.
         return RT_SLOT_CONTROL_BUSY;
@@ -374,5 +380,4 @@ void rt_park_pool_drain(rt_park_pool* pool) {
             rt_park_pool_return_slot(pool, index);
         }
     }
-    rt_park_pool_clear_reservation(pool);
 }

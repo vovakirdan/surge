@@ -37,17 +37,30 @@ func isChannelType(typesIn *types.Interner, typeID types.TypeID) bool {
 	}
 }
 
-// channelPayloadDropID resolves the drop-fn id a channel of element type T
-// needs for its buffered/mailbox payload reclamation: 0 for Copy/inert T
-// (never dispatched), matching the same gate 053a's task-result drop-fn id
-// uses (a raw uint64_t bits value that may or may not be a real pointer,
-// not an unconditionally-boxed envelope the way an async suspend state is).
-func (fe *funcEmitter) channelPayloadDropID(channelDstType types.TypeID) types.TypeID {
+// channelElementTypeID resolves what a channel is told about its element: the
+// element's own type id, unconditionally.
+//
+// It is an id AND a descriptor pointer at the call, because the two answer
+// different callers. In-process the pointer is what the channel keeps. A FAR
+// channel is built on the other side of a boundary from a request that carried
+// a number, so the id is what survives, and the far path turns it back into a
+// descriptor with __surge_value_ops_for.
+//
+// Unlike the drop-fn id it replaces, this is never zero for a real element: the
+// runtime needs the element's LAYOUT whether or not that element has to be
+// destroyed, and a channel that does not know its element's stride cannot size
+// a cell at all.
+func (fe *funcEmitter) channelElementTypeID(channelDstType types.TypeID) types.TypeID {
 	elem := channelElemType(fe.emitter.types, resolveValueType(fe.emitter.types, channelDstType))
-	if elem == types.NoTypeID || !fe.emitter.payloadNeedsRuntimeRelease(elem) {
+	if elem == types.NoTypeID {
 		return types.NoTypeID
 	}
-	return fe.emitter.registerCrossingDropResult(elem)
+	if fe.emitter.payloadNeedsRuntimeRelease(elem) {
+		// Keeps the crossing drop dispatch able to name this type, which the
+		// far select arms still use until D5.
+		fe.emitter.registerCrossingDropResult(elem)
+	}
+	return elem
 }
 
 func (fe *funcEmitter) emitChannelHandle(op *mir.Operand) (string, error) {
@@ -98,16 +111,21 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 		if err != nil {
 			return true, err
 		}
-		dropID := types.TypeID(0)
+		elementTypeID := types.TypeID(0)
 		if call.HasDst {
 			dstType, err := fe.placeBaseType(call.Dst)
 			if err != nil {
 				return true, err
 			}
-			dropID = fe.channelPayloadDropID(dstType)
+			elementTypeID = fe.channelElementTypeID(dstType)
+		}
+		descriptor := "null"
+		if elementTypeID != types.NoTypeID {
+			descriptor = "@" + valueOpsSymbol(elementTypeID)
 		}
 		tmp := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_channel_new(i64 %s, i64 %d)\n", tmp, cap64, dropID)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_channel_new(i64 %s, ptr %s, i64 %d)\n",
+			tmp, cap64, descriptor, elementTypeID)
 		if call.HasDst {
 			ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 			if err != nil {
@@ -153,11 +171,14 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 				valueType = baseType
 			}
 		}
-		bitsVal, err := fe.emitValueToI64(val, valTy, valueType)
+		_ = val
+		_ = valTy
+		_ = valueType
+		srcPtr, err := fe.emitChannelValueAddress(&call.Args[1])
 		if err != nil {
 			return true, err
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_channel_send_blocking(ptr %s, i64 %s)\n", chVal, bitsVal)
+		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_channel_send_blocking(ptr %s, ptr %s)\n", chVal, srcPtr)
 		return true, nil
 	case "recv":
 		if len(call.Args) != 1 {
@@ -170,15 +191,23 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 		if err != nil {
 			return true, err
 		}
-		bitsPtr := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
-		kindVal := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = call i8 @rt_channel_recv_blocking(ptr %s, ptr %s)\n", kindVal, chVal, bitsPtr)
+		recvDstType := types.NoTypeID
 		if call.HasDst {
-			dstType, err := fe.placeBaseType(call.Dst)
-			if err != nil {
-				return true, err
+			var dstErr error
+			recvDstType, dstErr = fe.placeBaseType(call.Dst)
+			if dstErr != nil {
+				return true, dstErr
 			}
+		}
+		recvPayloadType := fe.channelElementTypeOf(&call.Args[0])
+		payloadPtr, payloadStorageTy, err := fe.emitChannelPayloadSlot(recvPayloadType)
+		if err != nil {
+			return true, err
+		}
+		kindVal := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call i8 @rt_channel_recv_blocking(ptr %s, ptr %s)\n", kindVal, chVal, payloadPtr)
+		if call.HasDst {
+			dstType := recvDstType
 			someIdx, someMeta, err := fe.emitter.tagCaseMeta(dstType, "Some", symbols.NoSymbolID)
 			if err != nil {
 				return true, err
@@ -197,9 +226,7 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 			fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", hasValue, readyBB, noneBB)
 
 			fmt.Fprintf(&fe.emitter.buf, "%s:\n", readyBB)
-			bitsVal := fe.nextTemp()
-			fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", bitsVal, bitsPtr)
-			payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)
+			payloadVal, payloadTy, err := fe.emitChannelPayloadValue(payloadType, payloadStorageTy, payloadPtr)
 			if err != nil {
 				return true, err
 			}
@@ -252,12 +279,15 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 				valueType = baseType
 			}
 		}
-		bitsVal, err := fe.emitValueToI64(val, valTy, valueType)
+		_ = val
+		_ = valTy
+		_ = valueType
+		srcPtr, err := fe.emitChannelValueAddress(&call.Args[1])
 		if err != nil {
 			return true, err
 		}
 		okVal := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_channel_try_send(ptr %s, i64 %s)\n", okVal, chVal, bitsVal)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_channel_try_send(ptr %s, ptr %s)\n", okVal, chVal, srcPtr)
 		if call.HasDst {
 			ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 			if err != nil {
@@ -280,10 +310,12 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 		if err != nil {
 			return true, err
 		}
-		bitsPtr := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
+		payloadPtr, payloadStorageTy, err := fe.emitChannelPayloadSlot(fe.channelElementTypeOf(&call.Args[0]))
+		if err != nil {
+			return true, err
+		}
 		okVal := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_channel_try_recv(ptr %s, ptr %s)\n", okVal, chVal, bitsPtr)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_channel_try_recv(ptr %s, ptr %s)\n", okVal, chVal, payloadPtr)
 		if call.HasDst {
 			dstType, err := fe.placeBaseType(call.Dst)
 			if err != nil {
@@ -305,9 +337,7 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 			fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", okVal, readyBB, noneBB)
 
 			fmt.Fprintf(&fe.emitter.buf, "%s:\n", readyBB)
-			bitsVal := fe.nextTemp()
-			fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", bitsVal, bitsPtr)
-			payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)
+			payloadVal, payloadTy, err := fe.emitChannelPayloadValue(payloadType, payloadStorageTy, payloadPtr)
 			if err != nil {
 				return true, err
 			}
@@ -362,7 +392,10 @@ func (fe *funcEmitter) emitInstrChanSend(ins *mir.Instr) error {
 			valueType = baseType
 		}
 	}
-	bitsVal, err := fe.emitValueToI64(val, valTy, valueType)
+	_ = val
+	_ = valTy
+	_ = valueType
+	srcPtr, err := fe.emitChannelValueAddress(&ins.ChanSend.Value)
 	if err != nil {
 		return err
 	}
@@ -371,7 +404,7 @@ func (fe *funcEmitter) emitInstrChanSend(ins *mir.Instr) error {
 		callee = "rt_channel_send_yield"
 	}
 	okVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @%s(ptr %s, i64 %s)\n", okVal, callee, chVal, bitsVal)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @%s(ptr %s, ptr %s)\n", okVal, callee, chVal, srcPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%bb%d, label %%bb%d\n", okVal, ins.ChanSend.ReadyBB, ins.ChanSend.PendBB)
 	fe.blockTerminated = true
 	return nil
@@ -388,10 +421,12 @@ func (fe *funcEmitter) emitInstrChanRecv(ins *mir.Instr) error {
 	if err != nil {
 		return err
 	}
-	bitsPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
+	payloadPtr, payloadStorageTy, err := fe.emitChannelPayloadSlot(fe.channelElementTypeOf(&ins.ChanRecv.Channel))
+	if err != nil {
+		return err
+	}
 	kindVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call i8 @rt_channel_recv(ptr %s, ptr %s)\n", kindVal, chVal, bitsPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call i8 @rt_channel_recv(ptr %s, ptr %s)\n", kindVal, chVal, payloadPtr)
 	pendingCond := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq i8 %s, 0\n", pendingCond, kindVal)
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%bb%d, label %%bb.inline.chan_recv_done%d\n", pendingCond, ins.ChanRecv.PendBB, fe.inlineBlock)
@@ -419,9 +454,7 @@ func (fe *funcEmitter) emitInstrChanRecv(ins *mir.Instr) error {
 	payloadType := someMeta.PayloadTypes[0]
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", valueBB)
-	bitsVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", bitsVal, bitsPtr)
-	payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)
+	payloadVal, payloadTy, err := fe.emitChannelPayloadValue(payloadType, payloadStorageTy, payloadPtr)
 	if err != nil {
 		return err
 	}

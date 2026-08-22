@@ -73,7 +73,7 @@ int rtb_mode_select_ready_first(void) {
     if (raw_b == NULL) {
         return rtb_fail("ready-first resolve failed");
     }
-    rt_channel_send_blocking(raw_b, 33);
+    rt_channel_send_blocking(raw_b, &(uint64_t){33});
 
     rtb_select_state state;
     memset(&state, 0, sizeof(state));
@@ -165,7 +165,7 @@ int rtb_mode_select_park_then_send(void) {
     if (raw_a == NULL) {
         return rtb_fail("park-then-send resolve failed");
     }
-    rt_channel_send_blocking(raw_a, 42);
+    rt_channel_send_blocking(raw_a, &(uint64_t){42});
 
     uint8_t kind = 0;
     uint64_t bits = 0;
@@ -203,8 +203,8 @@ int rtb_mode_select_tie_break(void) {
     if (raw_a == NULL || raw_b == NULL) {
         return rtb_fail("tie-break resolve failed");
     }
-    rt_channel_send_blocking(raw_a, 7);
-    rt_channel_send_blocking(raw_b, 9);
+    rt_channel_send_blocking(raw_a, &(uint64_t){7});
+    rt_channel_send_blocking(raw_b, &(uint64_t){9});
 
     rtb_select_state state;
     memset(&state, 0, sizeof(state));
@@ -456,7 +456,7 @@ int rtb_mode_select_cancel_vs_send(void) {
     if (raw_a == NULL) {
         return rtb_fail("cancel-vs-send resolve failed");
     }
-    rt_channel_send_blocking(raw_a, 42);
+    rt_channel_send_blocking(raw_a, &(uint64_t){42});
     rt_task_cancel(caller);
     uint8_t kind = 0;
     uint64_t bits = 0;
@@ -509,7 +509,7 @@ int rtb_mode_select_retry_single_body(void) {
     if (raw_a == NULL) {
         return rtb_fail("retry resolve failed");
     }
-    rt_channel_send_blocking(raw_a, 42);
+    rt_channel_send_blocking(raw_a, &(uint64_t){42});
     uint8_t kind = 0;
     uint64_t bits = 0;
     (void)rtb_await(caller, &kind, &bits);

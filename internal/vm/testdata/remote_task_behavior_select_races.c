@@ -87,7 +87,7 @@ int rtb_mode_select_stale_wake(void) {
     if (raw_a == NULL) {
         return rtb_fail("stale-wake resolve failed");
     }
-    rt_channel_send_blocking(raw_a, 42);
+    rt_channel_send_blocking(raw_a, &(uint64_t){42});
     uint8_t kind = 0;
     uint64_t bits = 0;
     (void)rtb_await(caller, &kind, &bits);
@@ -139,7 +139,7 @@ int rtb_mode_select_release_while_parked(void) {
     if (rt_far_channel_debug_live_count(ex) == 0) {
         return rtb_fail("release-while-parked reclaimed pinned entries early");
     }
-    rt_channel_send_blocking(raw_a, 42);
+    rt_channel_send_blocking(raw_a, &(uint64_t){42});
     uint8_t kind = 0;
     uint64_t bits = 0;
     (void)rtb_await(caller, &kind, &bits);
@@ -192,7 +192,7 @@ int rtb_mode_select_sibling_isolation(void) {
     if (raw_a == NULL) {
         return rtb_fail("sibling resolve failed");
     }
-    rt_channel_send_blocking(raw_a, 42);
+    rt_channel_send_blocking(raw_a, &(uint64_t){42});
     rt_task* first_task = (rt_task*)first_caller;
     rt_task* second_task = (rt_task*)second_caller;
     int first_done = 0;
@@ -343,7 +343,7 @@ int rtb_mode_select_no_deadlock_when_runnable(void) {
     if (raw_a == NULL) {
         return rtb_fail("select-runnable resolve failed");
     }
-    rt_channel_send_blocking(raw_a, 42);
+    rt_channel_send_blocking(raw_a, &(uint64_t){42});
     uint8_t kind = 0;
     uint64_t bits = 0;
     (void)rtb_await(caller, &kind, &bits);

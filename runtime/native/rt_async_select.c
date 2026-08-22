@@ -1,5 +1,7 @@
-#include "rt_async_internal.h"
+#include "rt_channel_lane.h"
 #include "rt_remote_task.h"
+
+#include <stddef.h>
 
 // Select and timeout arms. Registration is control-serialized (spike D12):
 // these paths register one task under several key owners, so they stay on
@@ -138,7 +140,7 @@ uint8_t rt_timeout_poll(void* task, uint64_t ms, uint64_t* out_bits) {
 int64_t rt_select_poll(uint64_t count,
                        const uint8_t* kinds,
                        void** handles,
-                       const uint64_t* values,
+                       void* const* values,
                        const uint64_t* ms,
                        int64_t default_index) {
     rt_executor* ex = ensure_exec();
@@ -200,8 +202,15 @@ int64_t rt_select_poll(uint64_t count,
     // SELECT_CHAN_RECV scan below). Only ever set on the iteration that also
     // sets `selected`, and the scan stops there, so at most one arm's value is
     // ever in hand.
+    //
+    // The operation stages it in storage of its OWN, sized and aligned for the
+    // element: an arm binds nothing, so the value has no destination, and the
+    // storage model puts the staging on the operation rather than letting a
+    // payload ride a scheduler word. The buffer is deliberately a local: the
+    // scan takes at most one value, and it is destroyed before this frame
+    // returns.
     void* taken_channel = NULL;
-    uint64_t taken_payload = 0;
+    _Alignas(max_align_t) unsigned char taken_storage[RT_SELECT_STAGING_BYTES];
 
     for (uint64_t i = 0; i < count; i++) {
         uint8_t kind = kinds != NULL ? kinds[i] : SELECT_TASK;
@@ -233,11 +242,24 @@ int64_t rt_select_poll(uint64_t count,
                 // nobody can see, and destroy it below once the control lock
                 // is released — compiled drop glue must not run under a
                 // runtime lock.
-                uint64_t received = 0;
-                uint8_t status = rt_channel_try_recv_status_locked(ex, handle, &received);
+                const rt_value_ops* arm_ops = rt_channel_element_ops(handle);
+                if (arm_ops != NULL && arm_ops->layout.size > sizeof(taken_storage)) {
+                    rt_control_unlock(ex);
+                    panic_msg("select: channel element is wider than the operation's staging");
+                    return -1;
+                }
+                // Claim under control, move with control RELEASED, finish with
+                // it held again. The claim is what makes the release safe: the
+                // cell or slot the take named cannot be reused while the
+                // reservation stands.
+                rt_channel_take take;
+                uint8_t status = rt_channel_claim_recv_locked(ex, handle, &take);
                 if (status == 1) {
+                    rt_control_unlock(ex);
+                    rt_value_move_init_detached(arm_ops, taken_storage, take.address);
+                    rt_control_lock(ex);
+                    rt_channel_finish_recv_locked(ex, handle, &take);
                     taken_channel = handle;
-                    taken_payload = received;
                 }
                 if (status == 1 || status == 2) {
                     selected = (int64_t)i;
@@ -245,8 +267,16 @@ int64_t rt_select_poll(uint64_t count,
                 break;
             }
             case SELECT_CHAN_SEND: {
-                uint64_t value_bits = values != NULL ? values[i] : 0;
-                uint8_t status = rt_channel_try_send_status_locked(ex, handle, value_bits);
+                void* value_src = values != NULL ? values[i] : NULL;
+                rt_channel_put put;
+                uint8_t status = rt_channel_claim_send_locked(ex, handle, &put);
+                if (status == 1) {
+                    rt_control_unlock(ex);
+                    rt_value_move_init_detached(
+                        rt_channel_element_ops(handle), put.address, value_src);
+                    rt_control_lock(ex);
+                    rt_channel_finish_send_locked(ex, handle, &put);
+                }
                 if (status == 1) {
                     selected = (int64_t)i;
                 } else if (status == 2) {
@@ -304,7 +334,7 @@ int64_t rt_select_poll(uint64_t count,
         pending_key = waker_none();
         rt_control_unlock(ex);
         if (taken_channel != NULL) {
-            rt_channel_release_payload(taken_channel, taken_payload);
+            rt_channel_release_payload(taken_channel, taken_storage);
         }
         return selected;
     }

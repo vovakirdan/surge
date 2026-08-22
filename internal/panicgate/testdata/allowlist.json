@@ -211,37 +211,37 @@
     },
     {
       "site": "internal/backend/llvm/emit_crossing_far_task.go::emitFarTaskLifecycleErrorBlocks#1",
-      "message": "<computed>",
+      "message": "\u003ccomputed\u003e",
       "group": "PG-COMPUTED"
     },
     {
       "site": "internal/backend/llvm/emit_crossing_far_task.go::emitFarTaskLifecycleErrorBlocks#2",
-      "message": "<computed>",
+      "message": "\u003ccomputed\u003e",
       "group": "PG-COMPUTED"
     },
     {
       "site": "internal/backend/llvm/emit_crossing_far_task.go::emitFarTaskLifecycleErrorBlocks#3",
-      "message": "<computed>",
+      "message": "\u003ccomputed\u003e",
       "group": "PG-COMPUTED"
     },
     {
       "site": "internal/backend/llvm/emit_crossing_far_task.go::emitFarTaskLifecycleErrorBlocks#4",
-      "message": "<computed>",
+      "message": "\u003ccomputed\u003e",
       "group": "PG-COMPUTED"
     },
     {
       "site": "internal/backend/llvm/emit_crossing_far_task.go::emitFarTaskLifecycleErrorBlocks#5",
-      "message": "<computed>",
+      "message": "\u003ccomputed\u003e",
       "group": "PG-COMPUTED"
     },
     {
       "site": "internal/backend/llvm/emit_crossing_far_task.go::emitFarTaskLifecycleErrorBlocks#6",
-      "message": "<computed>",
+      "message": "\u003ccomputed\u003e",
       "group": "PG-COMPUTED"
     },
     {
       "site": "internal/backend/llvm/emit_crossing_far_task.go::emitFarTaskLifecycleErrorBlocks#7",
-      "message": "<computed>",
+      "message": "\u003ccomputed\u003e",
       "group": "PG-COMPUTED"
     },
     {
@@ -281,7 +281,7 @@
     },
     {
       "site": "internal/backend/llvm/emit_crossing_select.go::emitChannelSelectCrossing#1",
-      "message": "<computed>",
+      "message": "\u003ccomputed\u003e",
       "group": "PG-COMPUTED"
     },
     {
@@ -591,7 +591,7 @@
     },
     {
       "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtPanic#2",
-      "message": "<computed>",
+      "message": "\u003ccomputed\u003e",
       "group": "PG-COMPUTED"
     },
     {
@@ -611,7 +611,7 @@
     },
     {
       "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtPanicBounds#4",
-      "message": "<computed>",
+      "message": "\u003ccomputed\u003e",
       "group": "PG-COMPUTED"
     },
     {
@@ -810,6 +810,11 @@
       "group": "PG-ALLOC-FAILURE"
     },
     {
+      "site": "runtime/native/rt_async_channel.c::channel_stage_locked#1",
+      "message": "async: staged channel value could not be published",
+      "group": "PG-INVARIANT"
+    },
+    {
       "site": "runtime/native/rt_async_channel.c::rt_channel_free#1",
       "message": "async: channel reclaim ran while a scheduler lock was held",
       "group": "PG-INVARIANT"
@@ -821,8 +826,23 @@
     },
     {
       "site": "runtime/native/rt_async_channel.c::rt_channel_new#1",
+      "message": "async: channel needs its element descriptor",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_channel.c::rt_channel_new#2",
       "message": "async: channel allocation failed",
       "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_channel.c::rt_channel_new#3",
+      "message": "async: channel ring layout refused",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_channel.c::rt_channel_new#4",
+      "message": "async: channel park pool layout refused",
+      "group": "PG-INVARIANT"
     },
     {
       "site": "runtime/native/rt_async_channel.c::rt_channel_recv#1",
@@ -832,6 +852,21 @@
     {
       "site": "runtime/native/rt_async_channel.c::rt_channel_recv#2",
       "message": "async: missing current task",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_channel.c::rt_channel_recv#3",
+      "message": "async: delivered channel value was not in its slot",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_channel.c::rt_channel_recv#4",
+      "message": "async: buffered channel value could not be retired",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_channel.c::rt_channel_recv#5",
+      "message": "async: foreign parked sender had no staged value",
       "group": "PG-INVARIANT"
     },
     {
@@ -853,6 +888,11 @@
       "site": "runtime/native/rt_async_channel.c::rt_channel_send_inner#4",
       "message": "send on closed channel",
       "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "runtime/native/rt_async_channel.c::rt_channel_send_inner#5",
+      "message": "async: buffered channel value could not be published",
+      "group": "PG-INVARIANT"
     },
     {
       "site": "runtime/native/rt_async_compat.c::maybe_start_compensation_worker_locked#1",
@@ -966,6 +1006,11 @@
     },
     {
       "site": "runtime/native/rt_async_select.c::rt_select_poll#3",
+      "message": "select: channel element is wider than the operation's staging",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "runtime/native/rt_async_select.c::rt_select_poll#4",
       "message": "send on closed channel",
       "group": "PG-UNFIXTURED"
     },
@@ -1036,7 +1081,7 @@
     },
     {
       "site": "runtime/native/rt_async_state.c::rt_double_poll_panic#1",
-      "message": "<computed>",
+      "message": "\u003ccomputed\u003e",
       "group": "PG-COMPUTED"
     },
     {
@@ -1205,6 +1250,16 @@
       "group": "PG-INVARIANT"
     },
     {
+      "site": "runtime/native/rt_channel_lane.h::channel_alloc_size#2",
+      "message": "async: channel allocation overflow",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_channel_lane.h::channel_alloc_size#3",
+      "message": "async: channel allocation overflow",
+      "group": "PG-INVARIANT"
+    },
+    {
       "site": "runtime/native/rt_channel_lane.h::channel_from_handle#1",
       "message": "async: null channel handle",
       "group": "PG-NULL-GUARD"
@@ -1215,6 +1270,26 @@
       "group": "PG-ALLOC-FAILURE"
     },
     {
+      "site": "runtime/native/rt_channel_lane.h::channel_stage_into_ring_locked#1",
+      "message": "async: buffered channel value could not be published",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_channel_sync.c::rt_channel_finish_put_owner_locked#1",
+      "message": "async: buffered channel value could not be published",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_channel_sync.c::rt_channel_finish_put_owner_locked#2",
+      "message": "async: staged channel value could not be published",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_channel_sync.c::rt_channel_finish_take_owner_locked#1",
+      "message": "async: buffered channel value could not be retired",
+      "group": "PG-INVARIANT"
+    },
+    {
       "site": "runtime/native/rt_channel_sync.c::rt_channel_send_blocking#1",
       "message": "send on closed channel",
       "group": "PG-UNFIXTURED"
@@ -1222,6 +1297,11 @@
     {
       "site": "runtime/native/rt_channel_sync.c::rt_channel_try_recv_status_owner_locked#1",
       "message": "async: channel try-recv with nowhere to put the value",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_channel_sync.c::rt_channel_try_send_status_owner_locked#1",
+      "message": "async: channel try-send with nowhere to take the value from",
       "group": "PG-INVARIANT"
     },
     {
@@ -1431,7 +1511,7 @@
     },
     {
       "site": "runtime/native/rt_remote_task_deadlock.c::rt_remote_task_deadlock_check#1",
-      "message": "<computed>",
+      "message": "\u003ccomputed\u003e",
       "group": "PG-COMPUTED"
     },
     {

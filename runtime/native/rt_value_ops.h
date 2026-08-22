@@ -65,6 +65,10 @@ void rt_value_move_init_detached(const rt_value_ops* operations, void* dst, void
 // the move helper's contract: fail closed on a lock, dispatch otherwise.
 void rt_value_drop_in_place_detached(const rt_value_ops* operations, void* value);
 
+// The descriptor for an opaque machine word: what a far channel holds today,
+// and what a C stand uses when no compiled code supplies one.
+const rt_value_ops* rt_channel_opaque_word_ops(void);
+
 #ifdef __cplusplus
 }
 #endif

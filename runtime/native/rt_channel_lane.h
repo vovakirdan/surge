@@ -3,6 +3,10 @@
 
 #include "rt_async_internal.h"
 
+#include "rt_park_pool.h"
+#include "rt_typed_fifo.h"
+#include "rt_value_ops.h"
+
 // Private channel-lane header shared by rt_async_channel.c (async fast
 // lanes) and rt_channel_sync.c (try/compat/blocking/close lanes). The
 // struct and helpers are static inline so each lane compiles the exact
@@ -15,18 +19,25 @@ struct rt_channel {
     // owner's store and never move.
     uint32_t owner_shard_id;
     uint8_t closed;
-    uint64_t* buf;
-    size_t buf_len;
-    size_t buf_head;
-    // Drop obligation for a heap-carried element type (0 for Copy/inert
-    // elements, never dispatched). Every buffered uint64_t is that element's
-    // raw pointer bits for a non-copy element; rt_channel_free drains the
-    // live entries through this before freeing the block, and
-    // rt_channel_recv uses it to reclaim a value a sender already delivered
-    // into a receiver's resume mailbox if that receiver is cancelled before
-    // consuming it (the mailbox write bypasses the receiver's own compiled
-    // suspend-state entirely, so nothing else owns it).
-    uint64_t payload_drop_fn_id;
+    // The element's descriptor, and its type id.
+    //
+    // ONE descriptor for the whole channel, per the storage model: a slot
+    // carries payload and a one-byte lifecycle state, never a copy of the
+    // owner's callback metadata. The id rides along because it is the only
+    // thing that survives a boundary -- a far channel is created from a
+    // request whose payload type arrived as a number, and the local side
+    // turns it back into this pointer.
+    const rt_value_ops* ops;
+    uint64_t element_type_id;
+    // The buffer, at the element's own stride: no word padding, and nothing
+    // for an element that occupies no bytes.
+    rt_typed_fifo ring;
+    // Staging the CHANNEL owns, not the tasks. A parked task's poll function
+    // can leave by longjmp, so a value staged in the task itself would be
+    // lost with nobody left to free it; the channel outlives every park on
+    // it. A task carries a capability token naming its slot, which is what
+    // keeps the scheduler mailbox carrying control only.
+    rt_park_pool parks;
 };
 
 // Channel lane (peel B2): a channel's buffer and its two waiter keys live
@@ -139,7 +150,7 @@ static inline int channel_deliver_same_shard_locked(rt_executor* ex,
                                                     rt_shard* owner_shard,
                                                     const waiter* w,
                                                     uint8_t resume_kind_value,
-                                                    uint64_t resume_bits,
+                                                    rt_park_token resume_slot,
                                                     int signal_ready,
                                                     int* out_pushed) {
     rt_task* peer = get_task(ex, w->task_id);
@@ -147,7 +158,15 @@ static inline int channel_deliver_same_shard_locked(rt_executor* ex,
         return 0;
     }
     peer->resume_kind = resume_kind_value;
-    peer->resume_bits = resume_bits;
+    // RESUME_NONE means "wake up and look again", not "here is a value", so it
+    // must leave the peer's token alone. A parked SENDER keeps its staged value
+    // in a slot named by that token; overwriting it here strands the value and
+    // the sender waits for an ack that can never come. The word-shaped version
+    // could clear the field safely because the value lived in the sender's own
+    // frame -- it does not any more.
+    if (resume_kind_value != RESUME_NONE) {
+        peer->resume_slot = resume_slot;
+    }
     int pushed = wake_task_on_shard_locked(
         ex, owner_shard, peer, channel_wake_force_inject_enabled(), 0, signal_ready, NULL);
     if (out_pushed != NULL) {
@@ -161,7 +180,7 @@ static inline int channel_deliver_same_shard_locked(rt_executor* ex,
 static inline int channel_deliver_foreign(rt_executor* ex,
                                           const waiter* w,
                                           uint8_t resume_kind_value,
-                                          uint64_t resume_bits) {
+                                          rt_park_token resume_slot) {
     int need_control = !rt_lane_holds_control();
     if (need_control) {
         rt_control_lock(ex);
@@ -174,7 +193,9 @@ static inline int channel_deliver_foreign(rt_executor* ex,
         int pushed = 0;
         if (channel_candidate_valid(peer, w)) {
             peer->resume_kind = resume_kind_value;
-            peer->resume_bits = resume_bits;
+            if (resume_kind_value != RESUME_NONE) {
+                peer->resume_slot = resume_slot;
+            }
             pushed = wake_task_on_shard_locked(ex, peer_shard, peer, 1, 0, 1, NULL);
             live = 1;
         }
@@ -247,20 +268,65 @@ static inline uint64_t channel_align_up(uint64_t size, uint64_t align) {
     return size + add;
 }
 
-static inline uint64_t channel_buffer_offset(void) {
+// How many tasks may stage a value in this channel at once.
+//
+// A park slot is what a sender's value lives in while the sender is parked,
+// and what a delivery is written into for a receiver that has not woken yet.
+// Neither count is bounded by the language -- any number of tasks may pile up
+// on one channel -- so the pool is a fast path with a defined fallback rather
+// than a guarantee: a sender that finds no slot parks holding its own value
+// and retries when woken, which is the loop's existing behaviour and costs
+// only a retry.
+static inline uint64_t channel_park_capacity(uint64_t capacity) {
+    // CONSTANT, not a function of capacity, and that is a correction made
+    // against a measurement rather than a guess. Sizing this pool from the
+    // buffer made a Channel<nothing> cost eighteen bytes per cell -- worse
+    // than the eight-byte word ring it replaces -- because every cell bought
+    // a park slot no task was ever going to use. The storage model asks for
+    // O(1) in capacity here for exactly this reason: Mutex, Condition and
+    // Semaphore are Channel<nothing>, and they must not pay for typing.
+    //
+    // What this bounds is how many tasks can stage AT ONCE, which is a
+    // property of the program's concurrency, not of the buffer's size. Running
+    // out is a defined fallback, not a failure: a sender parks holding its own
+    // value and retries when woken.
+    (void)capacity;
+    return 8;
+}
+
+static inline uint64_t channel_ring_offset(void) {
     return channel_align_up((uint64_t)sizeof(rt_channel), (uint64_t) _Alignof(uint64_t));
 }
 
-static inline uint64_t channel_alloc_size(uint64_t capacity) {
-    if (capacity == 0) {
-        return (uint64_t)sizeof(rt_channel);
-    }
-    uint64_t offset = channel_buffer_offset();
-    if (capacity > (UINT64_MAX - offset) / (uint64_t)sizeof(uint64_t)) {
+// One allocation for the whole owner: header, then the ring at the element's
+// stride, then the park pool. A zero-sized element contributes no ring bytes
+// at all, which is the point -- Mutex, Condition and Semaphore are all built
+// on Channel<nothing>.
+static inline uint64_t channel_alloc_size(const rt_value_ops* ops, uint64_t capacity) {
+    uint64_t offset = channel_ring_offset();
+    size_t ring = rt_typed_fifo_alloc_size(ops, capacity);
+    size_t parks = rt_park_pool_alloc_size(ops, channel_park_capacity(capacity));
+    if (ops != NULL && (ring == 0 || parks == 0)) {
         panic_msg("async: channel allocation overflow");
         return 0;
     }
-    return offset + capacity * (uint64_t)sizeof(uint64_t);
+    uint64_t total = offset;
+    uint64_t align = (uint64_t) _Alignof(uint64_t);
+    if (ops != NULL && ops->layout.align > align) {
+        align = (uint64_t)ops->layout.align;
+    }
+    total = channel_align_up(total, align);
+    if ((uint64_t)ring > UINT64_MAX - total) {
+        panic_msg("async: channel allocation overflow");
+        return 0;
+    }
+    total += (uint64_t)ring;
+    total = channel_align_up(total, align);
+    if ((uint64_t)parks > UINT64_MAX - total) {
+        panic_msg("async: channel allocation overflow");
+        return 0;
+    }
+    return total + (uint64_t)parks;
 }
 
 static inline rt_channel* channel_from_handle(void* handle) {
@@ -271,26 +337,115 @@ static inline rt_channel* channel_from_handle(void* handle) {
     return (rt_channel*)handle;
 }
 
-static inline int buf_push(rt_channel* ch, uint64_t value_bits) {
-    if (ch == NULL || ch->capacity == 0 || ch->buf_len >= ch->capacity || ch->buf == NULL) {
+// The element descriptor a caller outside this header needs to size storage.
+static inline const rt_value_ops* rt_channel_element_ops(void* handle) {
+    const rt_channel* ch = handle == NULL ? NULL : (const rt_channel*)handle;
+    return ch == NULL ? NULL : ch->ops;
+}
+
+static inline uint64_t channel_buffered(const rt_channel* ch) {
+    return ch == NULL ? 0 : rt_typed_fifo_len(&ch->ring);
+}
+
+// What a receive found, described rather than performed.
+//
+// The owner-locked cores cannot move the value themselves: a move runs the
+// element's generated move_init, and no generated operation may run under a
+// runtime owner lock. So they CLAIM under the lock and hand back where the
+// value is; the caller releases the lock, moves, and then commits. That split
+// is the whole reason these functions changed shape rather than just changing
+// types.
+// How wide an element a select can stage in its own frame. A channel of a
+// wider element refuses rather than silently truncating: the operation owns
+// this storage, and growing it is a decision with a stack cost, not an
+// accident.
+#define RT_SELECT_STAGING_BYTES 128
+
+typedef enum {
+    RT_CHANNEL_TAKE_NONE = 0,
+    RT_CHANNEL_TAKE_FROM_RING = 1,
+    RT_CHANNEL_TAKE_FROM_SENDER = 2,
+} rt_channel_take_kind;
+
+typedef struct {
+    rt_channel_take_kind kind;
+    // Where the value is right now. Valid for both take kinds.
+    void* address;
+    rt_typed_fifo_ticket ticket;
+    rt_park_token slot;
+    // A sender whose value this claim took, to be acked once the move is done.
+    uint64_t sender_task_id;
+} rt_channel_take;
+
+// Moves a staged value out of its park slot and into the ring, again with the
+// lock released across the move. Used when a send finds room in the buffer
+// rather than a waiting receiver.
+static inline int
+channel_stage_into_ring_locked(rt_shard* ch_shard, rt_channel* ch, const rt_park_token* staged) {
+    rt_typed_fifo_ticket ticket;
+    if (rt_typed_fifo_reserve_push_locked(&ch->ring, &ticket) != RT_SLOT_CONTROL_OK) {
         return 0;
     }
-    size_t idx = (ch->buf_head + ch->buf_len) % ch->capacity;
-    ch->buf[idx] = value_bits;
-    ch->buf_len++;
+    void* from = NULL;
+    if (rt_park_pool_reserve_take_locked(&ch->parks, staged, &from) != RT_SLOT_CONTROL_OK) {
+        (void)rt_typed_fifo_abandon_push_locked(&ch->ring, &ticket);
+        return 0;
+    }
+    rt_shard_unlock(ch_shard);
+    rt_value_move_init_detached(ch->ops, ticket.address, from);
+    rt_shard_lock(ch_shard);
+    (void)rt_park_pool_commit_take_locked(&ch->parks, staged);
+    if (rt_typed_fifo_commit_push_locked(&ch->ring, &ticket) != RT_SLOT_CONTROL_OK) {
+        panic_msg("async: buffered channel value could not be published");
+        return 0;
+    }
     return 1;
 }
 
-static inline int buf_pop(rt_channel* ch, uint64_t* out_bits) {
-    if (ch == NULL || ch->buf_len == 0 || ch->buf == NULL) {
-        return 0;
-    }
-    if (out_bits != NULL) {
-        *out_bits = ch->buf[ch->buf_head];
-    }
-    ch->buf_head = (ch->buf_head + 1) % ch->capacity;
-    ch->buf_len--;
-    return 1;
-}
+// The mirror image, for a send: where to put the value, claimed under the lock
+// and filled by the caller once the lock is released.
+typedef enum {
+    RT_CHANNEL_PUT_NONE = 0,
+    RT_CHANNEL_PUT_INTO_RING = 1,
+    RT_CHANNEL_PUT_INTO_PARK = 2,
+} rt_channel_put_kind;
+
+typedef struct {
+    rt_channel_put_kind kind;
+    void* address;
+    rt_typed_fifo_ticket ticket;
+    rt_park_token slot;
+    // The receiver this put is destined for, woken once the value is in place.
+    waiter candidate;
+    int has_candidate;
+} rt_channel_put;
+
+// The owner-locked cores: they CLAIM under the caller's lock and describe what
+// they found, because moving the value runs generated code that must not run
+// under a runtime owner lock. The caller releases, moves, reacquires, and
+// finishes.
+uint8_t rt_channel_try_recv_status_owner_locked(rt_executor* ex,
+                                                rt_shard* ch_shard,
+                                                rt_channel* ch,
+                                                rt_channel_take* out_take);
+void rt_channel_finish_take_owner_locked(rt_executor* ex,
+                                         rt_shard* ch_shard,
+                                         rt_channel* ch,
+                                         const rt_channel_take* take);
+uint8_t rt_channel_try_send_status_owner_locked(rt_executor* ex,
+                                                rt_shard* ch_shard,
+                                                rt_channel* ch,
+                                                rt_channel_put* out_put);
+
+// The control-lane pair: claim with control held, move with it released,
+// finish with it held again.
+uint8_t rt_channel_claim_recv_locked(rt_executor* ex, void* channel, rt_channel_take* out_take);
+void rt_channel_finish_recv_locked(rt_executor* ex, void* channel, const rt_channel_take* take);
+uint8_t rt_channel_claim_send_locked(rt_executor* ex, void* channel, rt_channel_put* out_put);
+void rt_channel_finish_send_locked(rt_executor* ex, void* channel, rt_channel_put* put);
+void rt_channel_finish_put_owner_locked(rt_executor* ex,
+                                        rt_shard* ch_shard,
+                                        rt_channel* ch,
+                                        rt_channel_put* put);
 
 #endif

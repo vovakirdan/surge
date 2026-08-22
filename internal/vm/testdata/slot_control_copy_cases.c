@@ -184,7 +184,6 @@ int harness_case_copy_direct(void) {
 
     operations.copy_init(&destination_value, &source_value);
 
-    return harness_fail("the unbound-dispatch trap returned from a descriptorless dispatch",
-                        __FILE__,
-                        __LINE__);
+    return harness_fail(
+        "the unbound-dispatch trap returned from a descriptorless dispatch", __FILE__, __LINE__);
 }

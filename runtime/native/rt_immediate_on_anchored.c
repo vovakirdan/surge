@@ -122,7 +122,7 @@ static void anchored_binding_or_die(void** out_channel, void** out_state) {
 // here deliberately leaves that stash untouched for anchored bodies; wiring
 // a real id needs the anchored body's own per-suspend-point drop-fn id
 // threaded through the binding lookup, not yet done.
-void rt_anchored_channel_send(uint64_t value_bits) {
+void rt_anchored_channel_send(void* src) {
     rt_executor* ex = ensure_exec();
     void* channel = NULL;
     void* state = NULL;
@@ -130,14 +130,14 @@ void rt_anchored_channel_send(uint64_t value_bits) {
     if (current_task_cancelled(ex)) {
         rt_async_return_cancelled(state, 0);
     }
-    if (!rt_channel_send(channel, value_bits)) {
+    if (!rt_channel_send(channel, src)) {
         rt_async_yield(state, 0);
     }
 }
 
-// Returns the local recv outcome: 1 delivers a value through out_bits, 2 is
+// Returns the local recv outcome: 1 delivers a value through dst, 2 is
 // the closed outcome. The parked case never returns (yield re-enters).
-uint8_t rt_anchored_channel_recv(uint64_t* out_bits) {
+uint8_t rt_anchored_channel_recv(void* dst) {
     rt_executor* ex = ensure_exec();
     void* channel = NULL;
     void* state = NULL;
@@ -145,7 +145,7 @@ uint8_t rt_anchored_channel_recv(uint64_t* out_bits) {
     if (current_task_cancelled(ex)) {
         rt_async_return_cancelled(state, 0);
     }
-    uint8_t status = rt_channel_recv(channel, out_bits);
+    uint8_t status = rt_channel_recv(channel, dst);
     if (status == 0) {
         rt_async_yield(state, 0);
     }

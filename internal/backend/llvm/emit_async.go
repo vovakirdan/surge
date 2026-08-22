@@ -562,26 +562,18 @@ func (fe *funcEmitter) emitInstrSelect(ins *mir.Instr) error {
 			fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", handlePtr)
 		}
 
+		// The arm table carries ADDRESSES now, not words: a send arm's value
+		// stays where the caller has it and the runtime moves from there.
 		valuePtr := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds [%d x i64], ptr %s, i64 0, i64 %d\n", valuePtr, armCount, valuesPtr, i)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds [%d x ptr], ptr %s, i64 0, i64 %d\n", valuePtr, armCount, valuesPtr, i)
 		if arm.Kind == mir.SelectArmChanSend {
-			val, valTy, err := fe.emitValueOperand(&arm.Value)
+			srcPtr, err := fe.emitChannelValueAddress(&arm.Value)
 			if err != nil {
 				return err
 			}
-			valueType := operandValueType(fe.emitter.types, &arm.Value)
-			if valueType == types.NoTypeID && arm.Value.Kind != mir.OperandConst {
-				if baseType, baseErr := fe.placeBaseType(arm.Value.Place); baseErr == nil {
-					valueType = baseType
-				}
-			}
-			bitsVal, err := fe.emitValueToI64(val, valTy, valueType)
-			if err != nil {
-				return err
-			}
-			fmt.Fprintf(&fe.emitter.buf, "  store i64 %s, ptr %s\n", bitsVal, valuePtr)
+			fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", srcPtr, valuePtr)
 		} else {
-			fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s\n", valuePtr)
+			fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", valuePtr)
 		}
 
 		msElemPtr := fe.nextTemp()
@@ -602,7 +594,7 @@ func (fe *funcEmitter) emitInstrSelect(ins *mir.Instr) error {
 	handlesBase := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds [%d x ptr], ptr %s, i64 0, i64 0\n", handlesBase, armCount, handlesPtr)
 	valuesBase := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds [%d x i64], ptr %s, i64 0, i64 0\n", valuesBase, armCount, valuesPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds [%d x ptr], ptr %s, i64 0, i64 0\n", valuesBase, armCount, valuesPtr)
 	msBase := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds [%d x i64], ptr %s, i64 0, i64 0\n", msBase, armCount, msPtr)
 	idxVal := fe.nextTemp()
