@@ -56,10 +56,10 @@ bool rt_channel_try_recv(void* channel, void* dst) {
     }
     rt_shard_lock(ch_shard);
     rt_channel_finish_take_owner_locked(ex, ch_shard, ch, &take);
-    rt_shard_unlock(ch_shard);
     if (take.kind == RT_CHANNEL_TAKE_FROM_SENDER) {
-        (void)rt_park_pool_release(&ch->parks, &take.slot);
+        channel_end_park_locked(ch_shard, ch, &take.slot);
     }
+    rt_shard_unlock(ch_shard);
     return 1;
 }
 
@@ -170,13 +170,20 @@ void rt_channel_finish_take_owner_locked(rt_executor* ex,
             if (!channel_candidate_valid(sender, &cand)) {
                 continue;
             }
+            // Moving the sender's value into the freed cell runs the
+            // element's move, and this core is ALSO reached from the
+            // control-lane wrappers (select, and a blocking helper called
+            // outside a task). A generated operation may not run with control
+            // held, and releasing the channel shard does not release control,
+            // so where control is held the sender is woken to place its own
+            // value instead of having it moved for it.
             rt_park_token sender_slot = sender->resume_slot;
-            if (!rt_park_pool_token_is_live(&ch->parks, &sender_slot) ||
+            if (rt_lane_holds_control() || !rt_park_pool_token_is_live(&ch->parks, &sender_slot) ||
                 !channel_stage_into_ring_locked(ex, ch_shard, ch, &sender_slot)) {
-                // Parked with nothing staged, or the buffer refused: wake it to
-                // retry rather than leaving it asleep, and leave it UNACKED --
-                // nothing of its was delivered, and an ack would tell it
-                // otherwise.
+                // Parked with nothing staged, the buffer refused, or the move
+                // has nowhere legal to run: wake it to retry rather than
+                // leaving it asleep, and leave it UNACKED -- nothing of its was
+                // delivered, and an ack would tell it otherwise.
                 (void)wake_task_on_shard_locked(
                     ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
                 continue;
@@ -185,9 +192,7 @@ void rt_channel_finish_take_owner_locked(rt_executor* ex,
             sender->resume_slot = (rt_park_token){0};
             (void)wake_task_on_shard_locked(
                 ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
-            rt_shard_unlock(ch_shard);
-            (void)rt_park_pool_release(&ch->parks, &sender_slot);
-            rt_shard_lock(ch_shard);
+            channel_end_park_locked(ch_shard, ch, &sender_slot);
             break;
         }
         return;
@@ -240,7 +245,7 @@ uint8_t rt_channel_try_send_status_owner_locked(rt_executor* ex,
         void* address = NULL;
         if (rt_park_pool_reserve_deliver_locked(&ch->parks, &slot, &address) !=
             RT_SLOT_CONTROL_OK) {
-            (void)rt_park_pool_release(&ch->parks, &slot);
+            channel_end_park_locked(ch_shard, ch, &slot);
             channel_wake_only(ex, ch_shard, &cand);
             break;
         }
@@ -289,16 +294,12 @@ void rt_channel_finish_put_owner_locked(rt_executor* ex,
     if (!channel_deliver_same_shard_locked(
             ex, ch_shard, &put->candidate, RESUME_CHAN_RECV_VALUE, put->slot, 1, &pushed)) {
         // The receiver died while we moved. The value belongs to the channel,
-        // so put it in the buffer if there is room and destroy it otherwise.
-        if (!channel_stage_into_ring_locked(ex, ch_shard, ch, &put->slot)) {
-            rt_shard_unlock(ch_shard);
-            (void)rt_park_pool_release(&ch->parks, &put->slot);
-            rt_shard_lock(ch_shard);
-            return;
-        }
-        rt_shard_unlock(ch_shard);
-        (void)rt_park_pool_release(&ch->parks, &put->slot);
-        rt_shard_lock(ch_shard);
+        // so put it in the buffer if there is room, and end the park either way:
+        // a successful stage leaves the slot empty and ending it just hands
+        // the slot back, while a refused one leaves the value there and ending
+        // the park is what destroys it.
+        (void)channel_stage_into_ring_locked(ex, ch_shard, ch, &put->slot);
+        channel_end_park_locked(ch_shard, ch, &put->slot);
         return;
     }
     if (!pushed) {
@@ -335,10 +336,10 @@ void rt_channel_finish_recv_locked(rt_executor* ex, void* channel, const rt_chan
     rt_shard* ch_shard = channel_owner_shard(ex, ch);
     rt_shard_lock(ch_shard);
     rt_channel_finish_take_owner_locked(ex, ch_shard, ch, take);
-    rt_shard_unlock(ch_shard);
     if (take->kind == RT_CHANNEL_TAKE_FROM_SENDER) {
-        (void)rt_park_pool_release(&ch->parks, &take->slot);
+        channel_end_park_locked(ch_shard, ch, &take->slot);
     }
+    rt_shard_unlock(ch_shard);
 }
 
 uint8_t rt_channel_claim_send_locked(rt_executor* ex, void* channel, rt_channel_put* out_put) {

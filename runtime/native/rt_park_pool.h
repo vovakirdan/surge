@@ -109,9 +109,30 @@ rt_slot_control_status rt_park_pool_reserve_take_locked(rt_park_pool* pool,
 rt_slot_control_status rt_park_pool_commit_take_locked(rt_park_pool* pool,
                                                        const rt_park_token* token);
 
-// Ends the park. Any value still sitting in the slot is destroyed, so this runs
-// an element drop and must be called with no owner lock held. Releasing an
-// already-released slot is refused rather than freeing a successor's value.
+// Begins ending a park, with the owner's lock held: refuses a stale token or a
+// slot with a transfer in flight, marks the slot so nothing else may act on it,
+// retires the value's lifecycle through the control, and hands back the bytes
+// to destroy -- NULL when the slot is already empty, which is the ordinary case
+// for a park whose value was delivered.
+//
+// The whole slot-control cycle happens HERE, before the callback, exactly as it
+// did when a release was one call: the header is cleared first so a re-entrant
+// caller cannot find the same value to destroy twice. What the caller gets is
+// bytes nobody else can reach -- the slot is reserved and still live, so it is
+// neither deliverable nor acquirable -- and it destroys them with the lock
+// RELEASED, then calls finish.
+rt_slot_control_status
+rt_park_pool_begin_release_locked(rt_park_pool* pool, const rt_park_token* token, void** out_value);
+
+// Ends the park the matching begin started: returns the slot to the free list.
+// Owner's lock held.
+rt_slot_control_status rt_park_pool_finish_release_locked(rt_park_pool* pool,
+                                                          const rt_park_token* token);
+
+// Both halves at once, for an owner nothing else can touch: the unit stand, and
+// a quiescent teardown. A LIVE channel uses the pair above, because this one
+// runs the drop and the free-list write in the same breath and only one of
+// those may hold the owner's lock.
 rt_slot_control_status rt_park_pool_release(rt_park_pool* pool, const rt_park_token* token);
 
 // Destroys every value still held and ends every park. Runs element drops, so

@@ -8,6 +8,7 @@
 
 #include <stdatomic.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -31,6 +32,7 @@ enum {
     POLL_OWNED_MAKER = 9301,
     POLL_OWNED_SENDER = 9302,
     POLL_OWNED_RECEIVER = 9303,
+    POLL_OWNED_ONE_SEND = 9304,
 };
 
 #define OWNED_SENDERS 10u
@@ -38,9 +40,21 @@ enum {
 #define OWNED_TOTAL (OWNED_SENDERS * OWNED_PER_SENDER)
 #define OWNED_CAPACITY 2u
 
+// Which buffer the maker builds. Buffered and unbuffered are different
+// rendezvous paths through the same storage, and only one of them can be the
+// default, so the mode says which.
+static _Atomic uint64_t g_owned_capacity = OWNED_CAPACITY;
+
+// The element owns a heap allocation, which is what makes "moved or dropped
+// exactly once" a question a sanitizer can answer: a value delivered twice
+// frees the same block twice, and one destroyed instead of delivered shows up
+// in the drop census below.
 typedef struct {
     uint64_t marker;
+    char* text;
 } owned_element;
+
+#define OWNED_TEXT_BYTES 24
 
 // The entry point's argv, which this stand has none of and rt_io.c requires.
 int rt_argc = 0;
@@ -59,13 +73,30 @@ static void owned_move(void* destination, void* source) {
     owned_element* to = (owned_element*)destination;
     owned_element* from = (owned_element*)source;
     to->marker = from->marker;
-    // A move CONSUMES its source; a second read of it must not find a value.
+    to->text = from->text;
+    // A move CONSUMES its source: the obligation is the destination's now, and
+    // a second read of the source must not find one.
     from->marker = 0;
+    from->text = NULL;
 }
 
 static void owned_drop(void* value) {
+    owned_element* typed = (owned_element*)value;
+    free(typed->text);
+    typed->text = NULL;
+    typed->marker = 0;
     atomic_fetch_add_explicit(&g_owned_drops, 1, memory_order_acq_rel);
-    ((owned_element*)value)->marker = 0;
+}
+
+// Builds one value with its obligation attached.
+static int owned_make(owned_element* out, uint64_t marker) {
+    out->marker = marker;
+    out->text = (char*)malloc(OWNED_TEXT_BYTES);
+    if (out->text == NULL) {
+        return 0;
+    }
+    snprintf(out->text, OWNED_TEXT_BYTES, "%llu", (unsigned long long)marker);
+    return 1;
 }
 
 static rt_carrier_status
@@ -122,7 +153,10 @@ static uint32_t owned_sender_index(void) {
 
 static void poll_owned_maker(void) {
     atomic_store_explicit(
-        &g_owned_chan, rt_channel_new(OWNED_CAPACITY, &owned_ops, 0), memory_order_release);
+        &g_owned_chan,
+        rt_channel_new(
+            atomic_load_explicit(&g_owned_capacity, memory_order_acquire), &owned_ops, 0),
+        memory_order_release);
     rt_async_return(NULL, 0);
 }
 
@@ -140,18 +174,42 @@ static void poll_owned_sender(void) {
         // Rebuilt from the progress counter on every entry, exactly as a
         // compiled sender's value is re-presented from its async frame when a
         // parked send is re-polled.
-        owned_element value = {.marker = (uint64_t)index * OWNED_PER_SENDER + done + 1u};
+        owned_element value;
+        if (!owned_make(&value, (uint64_t)index * OWNED_PER_SENDER + done + 1u)) {
+            rt_async_return(NULL, 0);
+        }
         if (!rt_channel_send(channel, &value)) {
+            // The send did not complete: the value is still this task's, and
+            // the next poll rebuilds it from the progress counter. Release the
+            // obligation this attempt made so the retry's is the only one.
+            free(value.text);
             rt_async_yield(NULL, 0);
         }
         atomic_fetch_add_explicit(&g_owned_progress[index], 1, memory_order_acq_rel);
     }
 }
 
+// Sends exactly one value and returns. With no receiver and no buffer the send
+// parks, and the value it is holding is staged in a slot the channel owns --
+// which is the state the cancellation row is about.
+static void poll_owned_one_send(void) {
+    void* channel = atomic_load_explicit(&g_owned_chan, memory_order_acquire);
+    owned_element value;
+    if (channel == NULL || !owned_make(&value, 1)) {
+        rt_async_return(NULL, 0);
+    }
+    if (!rt_channel_send(channel, &value)) {
+        free(value.text);
+        rt_async_yield(NULL, 0);
+    }
+    atomic_fetch_add_explicit(&g_owned_progress[0], 1, memory_order_acq_rel);
+    rt_async_return(NULL, 1);
+}
+
 static void poll_owned_receiver(void) {
     void* channel = atomic_load_explicit(&g_owned_chan, memory_order_acquire);
     for (;;) {
-        owned_element got = {.marker = 0};
+        owned_element got = {.marker = 0, .text = NULL};
         uint8_t status = rt_channel_recv(channel, &got);
         if (status == 0) {
             rt_async_yield(NULL, 0);
@@ -160,11 +218,18 @@ static void poll_owned_receiver(void) {
             atomic_store_explicit(&g_owned_closed, 1, memory_order_release);
             rt_async_return(NULL, 1);
         }
-        if (got.marker == 0 || got.marker > OWNED_TOTAL) {
+        char expected[OWNED_TEXT_BYTES];
+        snprintf(expected, sizeof(expected), "%llu", (unsigned long long)got.marker);
+        if (got.marker == 0 || got.marker > OWNED_TOTAL || got.text == NULL ||
+            strcmp(got.text, expected) != 0) {
             atomic_fetch_add_explicit(&g_owned_bad_markers, 1, memory_order_acq_rel);
         } else {
             atomic_fetch_add_explicit(&g_owned_seen[got.marker], 1, memory_order_acq_rel);
         }
+        // The receiver owns what arrived, so it is the one that ends the
+        // obligation; a value the RUNTIME destroys instead is counted by the
+        // drop census and is a different outcome entirely.
+        free(got.text);
         atomic_fetch_add_explicit(&g_owned_received, 1, memory_order_acq_rel);
     }
 }
@@ -179,6 +244,9 @@ void __surge_poll_call(uint64_t id) {
             break;
         case POLL_OWNED_RECEIVER:
             poll_owned_receiver();
+            break;
+        case POLL_OWNED_ONE_SEND:
+            poll_owned_one_send();
             break;
         default:
             break;
@@ -338,6 +406,14 @@ static int mode_owned_element(rt_executor* ex) {
         (void)rt_executor_request_shutdown(ex);
         return owned_fail("the receiver never finished");
     }
+    (void)rt_executor_request_shutdown(ex);
+    // Every task that could touch it has finished, so the stand ends the
+    // channel it made. The census is taken AFTER that drain: a value stranded
+    // in a cell or in a park slot is destroyed there or nowhere, and counting
+    // before it would call a stranded value delivered.
+    rt_channel_free(atomic_load_explicit(&g_owned_chan, memory_order_acquire));
+    atomic_store_explicit(&g_owned_chan, NULL, memory_order_release);
+
     uint32_t received = atomic_load_explicit(&g_owned_received, memory_order_acquire);
     uint32_t bad = atomic_load_explicit(&g_owned_bad_markers, memory_order_acquire);
     uint32_t drops = atomic_load_explicit(&g_owned_drops, memory_order_acquire);
@@ -358,7 +434,6 @@ static int mode_owned_element(rt_executor* ex) {
            missing,
            duplicated,
            (unsigned)atomic_load_explicit(&g_owned_closed, memory_order_acquire));
-    (void)rt_executor_request_shutdown(ex);
     if (bad != 0) {
         return owned_fail("a value arrived out of storage that had been moved from");
     }
@@ -374,6 +449,49 @@ static int mode_owned_element(rt_executor* ex) {
     return 0;
 }
 
+// A sender parked with its value staged, then cancelled. Nothing delivers that
+// value and nothing else owns it, so the CHANNEL's own drain is what destroys
+// it -- exactly once, when the channel is reclaimed. Under a sanitizer this
+// row is also where a second destruction would surface.
+static int mode_owned_cancelled_sender(rt_executor* ex) {
+    atomic_store_explicit(&g_owned_capacity, 0, memory_order_release);
+    const rt_task* maker = owned_spawn(ex, POLL_OWNED_MAKER, 2);
+    if (maker == NULL || !owned_wait_status(maker, TASK_DONE, 4000)) {
+        return owned_fail("channel maker failed");
+    }
+    void* channel = atomic_load_explicit(&g_owned_chan, memory_order_acquire);
+    if (channel == NULL) {
+        return owned_fail("channel was not created");
+    }
+    rt_task* sender = owned_spawn(ex, POLL_OWNED_ONE_SEND, 1);
+    if (sender == NULL) {
+        return owned_fail("sender allocation failed");
+    }
+    if (!owned_wait_status(sender, TASK_WAITING, 8000)) {
+        (void)rt_executor_request_shutdown(ex);
+        return owned_fail("the sender never parked on the channel");
+    }
+    rt_task_cancel(sender);
+    if (!owned_wait_status(sender, TASK_DONE, 8000)) {
+        (void)rt_executor_request_shutdown(ex);
+        return owned_fail("the cancelled sender never finished");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    // The channel outlives every park on it, so this is what ends the value.
+    rt_channel_free(channel);
+    atomic_store_explicit(&g_owned_chan, NULL, memory_order_release);
+    unsigned drops = (unsigned)atomic_load_explicit(&g_owned_drops, memory_order_acquire);
+    unsigned received = (unsigned)atomic_load_explicit(&g_owned_received, memory_order_acquire);
+    printf("cancelled sender: drops=%u received=%u\n", drops, received);
+    if (received != 0) {
+        return owned_fail("a cancelled send delivered its value anyway");
+    }
+    if (drops != 1) {
+        return owned_fail("a cancelled sender's staged value was not destroyed exactly once");
+    }
+    return 0;
+}
+
 int main(int argc, char** argv) {
     if (argc != 2) {
         return owned_fail("usage: channel_owned_element <mode>");
@@ -384,6 +502,13 @@ int main(int argc, char** argv) {
     }
     if (strcmp(argv[1], "owned-element") == 0) {
         return mode_owned_element(ex);
+    }
+    if (strcmp(argv[1], "owned-unbuffered") == 0) {
+        atomic_store_explicit(&g_owned_capacity, 0, memory_order_release);
+        return mode_owned_element(ex);
+    }
+    if (strcmp(argv[1], "owned-cancelled-sender") == 0) {
+        return mode_owned_cancelled_sender(ex);
     }
     return owned_fail("unknown mode");
 }

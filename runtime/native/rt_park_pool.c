@@ -349,6 +349,87 @@ static void rt_park_pool_return_slot(rt_park_pool* pool, uint64_t index) {
     pool->live--;
 }
 
+// The locked half of a destruction: bind the control onto this cell, run the
+// whole claim/commit cycle, and hand back the bytes for the caller to destroy.
+// Split out of rt_park_pool_destroy_slot so the CALLBACK -- the only part that
+// may not run under the owner lock -- can happen outside it.
+//
+// The header is cleared before the callback for the reason it always was: a
+// re-entrant caller must not find the same value to destroy a second time. The
+// bytes stay exclusively the caller's meanwhile, because the slot is reserved
+// and still live: nothing can deliver into it, take from it, or acquire it.
+static void* rt_park_pool_detach_value_locked(rt_park_pool* pool, uint64_t index) {
+    if (pool->headers[index].state != RT_SLOT_INITIALIZED) {
+        return NULL;
+    }
+    void* cell = rt_park_pool_cell(pool, index);
+    size_t size = pool->operations->layout.size;
+    size_t align = pool->operations->layout.align;
+    if (align == 0) {
+        align = 1;
+    }
+    if (rt_slot_control_init(&pool->control,
+                             (uint64_t)(uintptr_t)pool,
+                             pool->operations,
+                             1,
+                             (uintptr_t)cell,
+                             size,
+                             align) != RT_SLOT_CONTROL_OK) {
+        return NULL;
+    }
+    uint64_t generation = pool->control.generation;
+    rt_claim_token claim;
+    if (rt_slot_publish_initial_locked(&pool->control, generation) != RT_SLOT_CONTROL_OK ||
+        rt_slot_claim_exclusive_locked(
+            &pool->control, NULL, RT_SLOT_CLAIM_DROP, generation, 0, &claim) !=
+            RT_SLOT_CONTROL_OK) {
+        return NULL;
+    }
+    pool->headers[index].state = RT_SLOT_DROPPED;
+    rt_slot_commit_drop_locked(&pool->control, &claim);
+    pool->headers[index].state = RT_SLOT_EMPTY;
+    return cell;
+}
+
+rt_slot_control_status rt_park_pool_begin_release_locked(rt_park_pool* pool,
+                                                         const rt_park_token* token,
+                                                         void** out_value) {
+    if (out_value != NULL) {
+        *out_value = NULL;
+    }
+    if (pool == NULL || token == NULL) {
+        return RT_SLOT_CONTROL_INVALID_ARGUMENT;
+    }
+    if (!rt_park_pool_token_is_live(pool, token)) {
+        return RT_SLOT_CONTROL_STALE;
+    }
+    rt_park_slot* slot = &pool->slots[token->index];
+    if (slot->reserved) {
+        // A transfer is mid-flight on this very slot; ending the park now would
+        // free bytes the other half is still writing.
+        return RT_SLOT_CONTROL_BUSY;
+    }
+    slot->reserved = 1;
+    void* value = rt_park_pool_detach_value_locked(pool, token->index);
+    if (value != NULL && out_value != NULL) {
+        *out_value = value;
+    }
+    return RT_SLOT_CONTROL_OK;
+}
+
+rt_slot_control_status rt_park_pool_finish_release_locked(rt_park_pool* pool,
+                                                          const rt_park_token* token) {
+    if (pool == NULL || token == NULL) {
+        return RT_SLOT_CONTROL_INVALID_ARGUMENT;
+    }
+    if (!rt_park_pool_token_is_live(pool, token) || !pool->slots[token->index].reserved) {
+        return RT_SLOT_CONTROL_INVALID_STATE;
+    }
+    pool->slots[token->index].reserved = 0;
+    rt_park_pool_return_slot(pool, token->index);
+    return RT_SLOT_CONTROL_OK;
+}
+
 rt_slot_control_status rt_park_pool_release(rt_park_pool* pool, const rt_park_token* token) {
     if (pool == NULL || token == NULL) {
         return RT_SLOT_CONTROL_INVALID_ARGUMENT;

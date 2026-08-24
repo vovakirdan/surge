@@ -223,7 +223,7 @@ static int channel_stage_locked(
     void* address = NULL;
     if (rt_park_pool_reserve_deliver_locked(&ch->parks, out_token, &address) !=
         RT_SLOT_CONTROL_OK) {
-        (void)rt_park_pool_release(&ch->parks, out_token);
+        channel_end_park_locked(ch_shard, ch, out_token);
         return 0;
     }
     rt_shard_unlock(ch_shard);
@@ -335,12 +335,10 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
                     // there is room and destroy it otherwise -- never strand
                     // it, and never hand it to a task that is gone.
                     if (!channel_stage_into_ring_locked(ex, ch_shard, ch, &staged)) {
-                        rt_shard_unlock(ch_shard);
-                        (void)rt_park_pool_release(&ch->parks, &staged);
-                        rt_shard_lock(ch_shard);
+                        channel_end_park_locked(ch_shard, ch, &staged);
                     } else {
+                        channel_end_park_locked(ch_shard, ch, &staged);
                         rt_shard_unlock(ch_shard);
-                        (void)rt_park_pool_release(&ch->parks, &staged);
                         return 1;
                     }
                     rt_shard_unlock(ch_shard);
@@ -357,12 +355,12 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
             if (!channel_deliver_foreign(ex, &cand, RESUME_CHAN_RECV_VALUE, staged)) {
                 rt_shard_lock(ch_shard);
                 if (channel_stage_into_ring_locked(ex, ch_shard, ch, &staged)) {
+                    channel_end_park_locked(ch_shard, ch, &staged);
                     rt_shard_unlock(ch_shard);
-                    (void)rt_park_pool_release(&ch->parks, &staged);
                     return 1;
                 }
+                channel_end_park_locked(ch_shard, ch, &staged);
                 rt_shard_unlock(ch_shard);
-                (void)rt_park_pool_release(&ch->parks, &staged);
                 continue;
             }
             if (yield_after_handoff && prepare_channel_send_yield(task)) {
@@ -377,8 +375,8 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
             // by parking with the slot still held.
             if (channel_stage_into_ring_locked(ex, ch_shard, ch, &staged)) {
                 task->resume_slot = (rt_park_token){0};
+                channel_end_park_locked(ch_shard, ch, &staged);
                 rt_shard_unlock(ch_shard);
-                (void)rt_park_pool_release(&ch->parks, &staged);
                 return 1;
             }
         } else if (ch->capacity > 0 && channel_buffered(ch) < ch->capacity) {
@@ -476,7 +474,10 @@ uint8_t rt_channel_recv(void* channel, void* dst) {
         // state entirely (RV2-DEBT-059's abandoned-state mechanism never
         // sees it), so this is the only place left to reclaim it.
         if (task->resume_kind == RESUME_CHAN_RECV_VALUE) {
-            (void)rt_park_pool_release(&ch->parks, &task->resume_slot);
+            rt_shard* ch_shard = channel_owner_shard(ex, ch);
+            rt_shard_lock(ch_shard);
+            channel_end_park_locked(ch_shard, ch, &task->resume_slot);
+            rt_shard_unlock(ch_shard);
         }
         task->resume_kind = RESUME_NONE;
         task->resume_slot = (rt_park_token){0};
@@ -516,8 +517,8 @@ uint8_t rt_channel_recv(void* channel, void* dst) {
                 }
                 rt_shard_lock(ch_shard);
                 (void)rt_park_pool_commit_take_locked(&ch->parks, &slot);
+                channel_end_park_locked(ch_shard, ch, &slot);
                 rt_shard_unlock(ch_shard);
-                (void)rt_park_pool_release(&ch->parks, &slot);
                 return 1;
             }
             return 2;
@@ -594,9 +595,7 @@ uint8_t rt_channel_recv(void* channel, void* dst) {
                     // while RUNNING, so no compat fallback is needed.
                     (void)wake_task_on_shard_locked(
                         ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
-                    rt_shard_unlock(ch_shard);
-                    (void)rt_park_pool_release(&ch->parks, &sender_slot);
-                    rt_shard_lock(ch_shard);
+                    channel_end_park_locked(ch_shard, ch, &sender_slot);
                     break;
                 }
                 rt_shard_unlock(ch_shard);
@@ -644,8 +643,8 @@ uint8_t rt_channel_recv(void* channel, void* dst) {
                 (void)rt_park_pool_commit_take_locked(&ch->parks, &sender_slot);
                 int pushed = wake_task_on_shard_locked(
                     ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
+                channel_end_park_locked(ch_shard, ch, &sender_slot);
                 rt_shard_unlock(ch_shard);
-                (void)rt_park_pool_release(&ch->parks, &sender_slot);
                 channel_compat_broadcast_if_needed(ex, pushed);
                 return 1;
             }
@@ -672,8 +671,8 @@ uint8_t rt_channel_recv(void* channel, void* dst) {
             }
             rt_shard_lock(ch_shard);
             (void)rt_park_pool_commit_take_locked(&ch->parks, &sender_slot);
+            channel_end_park_locked(ch_shard, ch, &sender_slot);
             rt_shard_unlock(ch_shard);
-            (void)rt_park_pool_release(&ch->parks, &sender_slot);
             return 1;
         }
         if (ch->closed) {

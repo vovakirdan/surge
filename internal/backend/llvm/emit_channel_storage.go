@@ -60,6 +60,19 @@ func (fe *funcEmitter) emitChannelPayloadSlot(payloadType types.TypeID) (ptr, st
 		storageTy = "i8"
 	}
 	ptr = fe.nextTemp()
+	if isStorageRun(storageTy) {
+		// A byte run says how many bytes and never how they must be placed, so
+		// its alignment comes from the layout registry rather than from its
+		// spelling. Taking the default here would give a composite element
+		// align 1 and hand the runtime a slot the element's own move may not
+		// write to.
+		layoutInfo, layoutErr := fe.emitter.layoutOf(payloadType)
+		if layoutErr != nil {
+			return "", "", fmt.Errorf("channel payload storage: %w", layoutErr)
+		}
+		fe.emitAllocaAligned(ptr, storageTy, layoutInfo.Align)
+		return ptr, storageTy, nil
+	}
 	if _, err := fe.emitAlloca(ptr, storageTy); err != nil {
 		return "", "", err
 	}

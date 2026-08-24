@@ -469,6 +469,29 @@ typedef struct {
     uint64_t sender_task_id;
 } rt_channel_take;
 
+// Ends a park and destroys whatever its slot still holds.
+//
+// Enter and leave with the channel's lock held; it is released only across the
+// element's drop, which is the one part that may not run under it. The slot's
+// bookkeeping -- the free list, the live count, the generation -- stays under
+// the lock throughout, which is what the split in rt_park_pool exists for.
+//
+// The ordinary case has nothing to destroy: a park whose value was delivered
+// leaves an empty slot, and this just hands it back.
+static inline void
+channel_end_park_locked(rt_shard* ch_shard, rt_channel* ch, const rt_park_token* token) {
+    void* value = NULL;
+    if (rt_park_pool_begin_release_locked(&ch->parks, token, &value) != RT_SLOT_CONTROL_OK) {
+        return;
+    }
+    if (value != NULL) {
+        rt_shard_unlock(ch_shard);
+        rt_value_drop_in_place_detached(ch->ops, value);
+        rt_shard_lock(ch_shard);
+    }
+    (void)rt_park_pool_finish_release_locked(&ch->parks, token);
+}
+
 // Moves a staged value out of its park slot and into the ring, again with the
 // lock released across the move. Used when a send finds room in the buffer
 // rather than a waiting receiver.
