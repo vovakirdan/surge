@@ -210,7 +210,49 @@ index), and VM remove IS swap-with-last (`intrinsic_map.go:421-431`). So
 was swapped into and drops `c`'s live value. The VM is immune to ADDRESS
 invalidation, not INDEX invalidation. D2 owns this; it is not native-only.
 
-### D3 IS UNBLOCKED — owner ruling 2026-08-21
+### D3 IS CLOSED — 2026-08-24
+
+The step landed as `0a3c1882` (the storage flip, parked red) plus four commits
+that finished it: `c3780ba5` (FIFO admission and the staged slot's single
+owner), `fbde5c51` (a legacy file kept at its size), `2fe5fb7b` (the park pool's
+bookkeeping under the owner's lock, the emitter's alignment for a composite
+element, and the sanitizer rows), `24f0988f` (the changed-C scan builds a stand
+the way its harness does).
+
+WHAT IT CARRIES NOW. `rt_channel` holds one `const rt_value_ops*` plus the
+element's type id, a `rt_typed_fifo` ring at the element's own stride and a
+`rt_park_pool`, in one allocation. Every entry point takes storage rather than a
+word. `rt_task.resume_bits` is gone; a task carries a park token. Local select
+stages into storage of its own. The box on the channel boundary is gone,
+`Channel<nothing>` costs one byte per cell, and the word-shaped carriers that
+remain belong to far (D5), task result (D4), blocking (D6) and map.
+
+P2 CLOSES WITH IT. Its four success criteria, and what answers each:
+
+- exact alignment and one channel-level descriptor — `rt_channel.ops`, and
+  `emitChannelPayloadSlot` reading a byte run's alignment from the layout
+  registry rather than from its spelling;
+- no per-element box — measured: `rt_alloc(16,8)` + memcpy + ptrtoint became
+  `rt_channel_send_blocking(ptr %ch, ptr %l5)`;
+- generated clone/drop outside the channel lock — `rt_value_*_detached` fails
+  closed on a held lane, and it caught two violations during the step;
+- every outcome moves or drops once under Valgrind/ASan/TSan —
+  `TestRuntimeV2ChannelOwnedElement*` drives a heap-owning element through
+  buffered, unbuffered, parked sender and receiver, a full buffer, close and a
+  cancelled sender, plain and under ASan+UBSan and TSan, wired into
+  `runtime-v2-carrier-sanitizer-check`; the heap gate's valgrind rows cover the
+  select payload paths.
+
+EVIDENCE ON THE INTEGRATED TREE. 19 of 21 `runtime-v2-*` gates green;
+`ownership-check` and `carrier-check` red with failure text byte-identical to
+the base commit (24 issues and `blocking-scalar: 213 != 278` respectively) and
+sanctioned. `make check` 0, `make golden-check` 0 with no corpus drift,
+`make behaviour-check-mt` 0, `make behaviour-check-all` red on
+`string_from_bytes_invalid_utf8/llvm` alone, which fails identically at the
+base. The tagged `internal/vm` suite: 12 failures here and 12 at the base, the
+sets differing by one load-flaky row each way.
+
+### The record of why it was blocked — owner ruling 2026-08-21
 
 The block below is kept as the record of why the step stopped, and of what had
 to be true before it could start. Both conditions are now met, so it no longer
