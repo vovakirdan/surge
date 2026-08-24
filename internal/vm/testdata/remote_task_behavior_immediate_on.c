@@ -5,7 +5,7 @@
 
 // Immediate `on placement` execute/reply behavior rows.
 
-static int rtb_await_exec(rtb_execute_state* state, void* task) {
+static int rtb_await_exec(const rtb_execute_state* state, void* task) {
     uint8_t kind = 0;
     uint64_t bits = 0;
     (void)rtb_await(task, &kind, &bits);
@@ -247,7 +247,7 @@ int rtb_mode_shutdown(void) {
     memset(&child, 0, sizeof(child));
     rtb_execute_state state;
     void* task = rtb_start_exec(&state, rt_placement_shard(1), &child);
-    rt_remote_task_pending* pending = NULL;
+    const rt_remote_task_pending* pending = NULL;
     for (uint32_t i = 0; i < 5000 && pending == NULL; i++) {
         pending = atomic_load_explicit(&state.visible_pending, memory_order_acquire);
         rtb_sleep_us(1000);

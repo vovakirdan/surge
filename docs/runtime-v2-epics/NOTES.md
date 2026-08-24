@@ -7576,3 +7576,60 @@ senders against eight park slots, an element whose move empties its source and
 whose drop is counted — is 24/24 green with `received=200 bad=0 drops=0
 missing=0 duplicated=0 closed=1`, and on the unfixed tree it reports
 `received=180 … missing=20` and `stuck sender=2 status=2`: five of six runs red.
+
+## 2026-08-24 (later) — what the gates could not see, and the row that now does
+
+Three more defects, none of them visible to any gate that was green. The tagged
+`internal/vm` suite found two and ThreadSanitizer found the third, which is the
+whole argument for running both against a representation change rather than
+trusting `make check` plus the behaviour lanes.
+
+**A move ran with control held.** `rt_channel_finish_take_owner_locked` refills
+the buffer from a parked sender, and the refill MOVES that sender's value. The
+core is also reached from the control-lane wrappers, where releasing the channel
+shard does not release control, so the fail-closed helper aborted the process:
+`rt_value_move_init_detached was dispatched while a runtime lock is held`. Where
+control is held the sender is now woken to place its own value. Measured:
+`TestMTBufferedBlockingRecvRefillWakesSender` exit=-1 → ok 3/3.
+
+**A composite element's receive slot took its alignment from its spelling.**
+`[24 x i8]` says how many bytes and never how they must be placed, and
+`emitChannelPayloadSlot` asked `emitAlloca`, which refuses a byte run for
+exactly that reason. Three MT rows could not COMPILE. The slot now reads the
+alignment from the layout registry.
+
+**The park pool wrote its free list without the lock.** `rt_park_pool_release`
+runs the element's drop, so callers released the owner lock around it — and it
+also unlinked the slot, decremented `live` and rewrote `first_free`, which every
+other entry point touches under that lock. TSan named it on the first run:
+`rt_park_pool_return_slot` racing `rt_park_pool_acquire_locked`. The release is
+now begin/finish, the split the typed FIFO already used, and
+`channel_end_park_locked` spells the cycle once for all seventeen call sites.
+Measured: 3 data races → 0, and the TSan rows fell from 91 s each to 1 s.
+
+**The instrument that found the third one is now a gate row.** The owned-element
+stand carries an element that OWNS a heap block — its move empties the source,
+its drop frees the block and is counted, the receiver frees what it was handed —
+and it runs plain, under ASan+UBSan, and under TSan, wired into
+`runtime-v2-carrier-sanitizer-check`. Two rows were added beside the buffered
+one: an unbuffered channel, and a sender cancelled while its value is staged.
+
+That cancellation row is the instrument RV2-DEBT-245 asked for by name. It reads
+a staged value's fate from inside the program (`drops=1 received=0`) rather than
+from a leak summary whose noise exceeded the payload, and it reaches the drain
+inside `rt_channel_free`, which no compiled program calls. What it does NOT do
+is cover the row's seven element classes; the debt stays open for that.
+
+**A first draft of the release split put the claim token IN the pool**, which
+grew every channel by 96 bytes and moved the RV2-DEBT-062 leak baseline from
+1344 to 1536. Running the whole claim/commit cycle under the lock — the callback
+is the only part that may not be — removed the need for it: the pool is 208
+bytes again, and the baseline is 1344 again. The lesson is small and general: a
+split protocol does not have to carry state across its halves if the half that
+must be exclusive can finish while the lock is still held.
+
+**One flake worth naming:** `TestRuntimeV2SelectReleasesAStringPayloadExactlyOnce`
+failed once with `-0.25 allocations per take (4 takes left 81 outstanding, 8
+takes left 80)` and then passed 4 of 4 on re-run. The census reads one allocation
+FEWER with more takes, which is noise rather than a leak, but the row asserts an
+exact slope and will keep tripping on it.

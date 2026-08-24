@@ -37,6 +37,12 @@ C_WARN_FLAGS := -Wall -Wextra -Wpedantic -Werror \
 
 C_STD := -std=c11
 C_INCLUDES := -I$(C_RUNTIME_DIR)
+# What a TEST STAND is compiled with by the harness that owns it: the sync-point
+# API lives behind RT_TEST_SYNC_POINTS, and the shared stand headers live beside
+# the stands. The changed-file scan has to build a file the way its builder
+# does, or it reports a stand that compiles fine as broken -- which is what it
+# did, and why a C change once landed with --no-verify.
+C_STAND_FLAGS := -DRT_TEST_SYNC_POINTS -I$(CURDIR)/internal/vm/testdata
 
 # ===== OS Detection =====
 # Определение операционной системы
@@ -580,18 +586,18 @@ c-check-changed:
 	echo ">> Checking changed C files:$$files"; \
 	failed=0; \
 	for f in $$files; do \
-		if ! $(CC) $(C_STD) $(C_WARN_FLAGS) $(C_INCLUDES) -fsyntax-only -x c "$$f"; then \
+		if ! $(CC) $(C_STD) $(C_WARN_FLAGS) $(C_INCLUDES) $(C_STAND_FLAGS) -fsyntax-only -x c "$$f"; then \
 			echo "strict-warning compile failed for $$f"; failed=1; \
 		fi; \
 	done; \
 	if ! cppcheck --enable=warning,style,performance,portability --error-exitcode=1 \
 		--inline-suppr \
 		--suppress=missingIncludeSystem --suppress=unusedFunction --std=c11 \
-		$(C_INCLUDES) $$files; then \
+		$(C_INCLUDES) $(C_STAND_FLAGS) $$files; then \
 		echo "cppcheck failed on changed files"; failed=1; \
 	fi; \
 	for f in $$files; do \
-		output=$$(clang-tidy "$$f" --config-file=.clang-tidy -- $(C_STD) $(C_INCLUDES) 2>&1); \
+		output=$$(clang-tidy "$$f" --config-file=.clang-tidy -- $(C_STD) $(C_INCLUDES) $(C_STAND_FLAGS) 2>&1); \
 		issues=$$(echo "$$output" | grep -E "(error|warning):" | grep -v '\.generated\.' || true); \
 		if [ -n "$$issues" ]; then \
 			echo "clang-tidy found issues in $$f:"; echo "$$output"; failed=1; \
