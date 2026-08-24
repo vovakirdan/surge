@@ -3762,7 +3762,7 @@
             "category": "numeric-drop-dispatch",
             "path": "runtime/native/rt_far_channel.c",
             "token": "payload_drop_fn_id",
-            "evidence": "const rt_value_ops* element_ops = rt_channel_element_ops_for(pending-\u003epayload_drop_fn_id);",
+            "evidence": "const rt_value_ops* ops = rt_channel_element_ops_for(pending-\u003epayload_drop_fn_id);",
             "ordinal": 1
           },
           "retired_by": "wave-d-d5",
@@ -3773,7 +3773,7 @@
             "category": "numeric-drop-dispatch",
             "path": "runtime/native/rt_far_channel.c",
             "token": "payload_drop_fn_id",
-            "evidence": "rt_channel_new(pending-\u003ebody_poll_fn_id, element_ops, pending-\u003epayload_drop_fn_id);",
+            "evidence": "void* channel = rt_channel_new(pending-\u003ebody_poll_fn_id, ops, pending-\u003epayload_drop_fn_id);",
             "ordinal": 1
           },
           "retired_by": "wave-d-d5",

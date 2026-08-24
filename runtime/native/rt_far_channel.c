@@ -509,9 +509,8 @@ void rt_far_channel_dispatch_create(rt_executor* ex, const rt_transport_msg* msg
     }
     // The payload type arrived as a number, which is the only form that
     // survives the boundary; the descriptor is looked up on this side.
-    const rt_value_ops* element_ops = rt_channel_element_ops_for(pending->payload_drop_fn_id);
-    void* channel =
-        rt_channel_new(pending->body_poll_fn_id, element_ops, pending->payload_drop_fn_id);
+    const rt_value_ops* ops = rt_channel_element_ops_for(pending->payload_drop_fn_id);
+    void* channel = rt_channel_new(pending->body_poll_fn_id, ops, pending->payload_drop_fn_id);
     if (channel != NULL) {
         rt_channel_bind_owner_shard(channel, msg->target_shard_id);
     }
