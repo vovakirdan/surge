@@ -7520,3 +7520,59 @@ generated views were rewritten. **Objects built before this commit will not link
 against a runtime built after it** - the same consequence D0 had when it last
 moved this hash, and the reason the earlier D0 note above still names the old
 value: that note records what was true then, not now.
+
+## 2026-08-24 — the typed channel's FIFO admission, and four defects it took
+
+The typed-storage flip (branch `wip/d3-typed-channel-storage`) left one gate red
+and, when that was chased, three more defects behind it. All four are the same
+shape: a decision that was correct while the buffer was a plain word array, and
+is not correct now that a transfer through it takes two steps.
+
+**Measured before, at `0a3c1882`:** `make runtime-v2-lock-check` exit 2,
+`TestRuntimeV2LockSplitCrossShardChannelFifoAndClose/shards-3` failing 4 of 4
+runs with `channel FIFO order violated`. The received sequence, dumped from an
+instrumented harness, was `… 101 106 102 103 104 105 107 …`: exactly one value
+overtaking a full buffer of four. `make runtime-v2-heap-check` (exit 0, 191 s)
+and `make runtime-v2-transport-check` (exit 0, 124 s) were GREEN on that same
+tree — the WIP commit message lists them as red, and re-measurement on a clean
+tree says otherwise.
+
+**1. A refusal is not an emptiness.** `rt_typed_fifo` allows ONE transfer at a
+time, so `reserve_pop` answers BUSY while another task is mid-move. Both the
+receiver's park decision and the sender's buffer decision read that refusal as
+"nothing here" / "no room". A receiver therefore parked with four values in the
+buffer, and the next sender — which looks for a parked receiver BEFORE it looks
+at the buffer — handed it a newer value directly. Fix: BUSY is answered by
+yielding and looking again, never by parking (a buffered send that fits must not
+block); and a rendezvous is admitted only while `rt_typed_fifo_nothing_queued_locked`
+holds, which is empty AND quiet, because a value in flight already has its place
+in the queue.
+
+**2. A push into the buffer must wake a parked receiver.** Once a value can go
+into a cell rather than into a receiver's resume slot, nothing consumes that
+receiver's registration, and no other path will call on it.
+
+**3. A re-entering send re-read storage it had already moved out of.** The park
+path knew to keep its staged slot; the paths BEFORE it did not, so a sender woken
+to retry staged `src` a second time. For an owned element that is one heap value
+with two owners. Fix: the staged slot is the value's only home from the moment it
+exists, and every path sends from it.
+
+**4. A popped candidate must be delivered to or woken, never dropped.** Three
+places popped a peer's registration and then took a branch that did neither: the
+receiver's refill when the buffer refused the transfer, and both slot-shortage
+exits of the try-send core. The pop CONSUMES the registration, so the peer sleeps
+until the process ends. Found from a per-task event ring: `prepare(1) park(1)
+committed(1) popped(1)` and then nothing at all.
+
+**And an ack is not a wake.** A sender parked holding its own value — the pool
+was full when it parked — was woken with `RESUME_CHAN_SEND_ACK`, which its next
+poll reads as "your send completed". The value was never delivered and never
+sent again. Now such a sender is woken unacked.
+
+**Measured after:** lock gate exit 0; the FIFO row 20/20 green at both shard
+counts. The new row `TestRuntimeV2ChannelOwnedElementArrivesExactlyOnce` — ten
+senders against eight park slots, an element whose move empties its source and
+whose drop is counted — is 24/24 green with `received=200 bad=0 drops=0
+missing=0 duplicated=0 closed=1`, and on the unfixed tree it reports
+`received=180 … missing=20` and `stuck sender=2 status=2`: five of six runs red.

@@ -84,10 +84,17 @@ uint8_t rt_channel_try_recv_status_owner_locked(rt_executor* ex,
         return 0;
     }
     *out_take = (rt_channel_take){0};
-    if (rt_typed_fifo_reserve_pop_locked(&ch->ring, &out_take->ticket) == RT_SLOT_CONTROL_OK) {
+    rt_slot_control_status claimed = rt_typed_fifo_reserve_pop_locked(&ch->ring, &out_take->ticket);
+    if (claimed == RT_SLOT_CONTROL_OK) {
         out_take->kind = RT_CHANNEL_TAKE_FROM_RING;
         out_take->address = out_take->ticket.address;
         return 1;
+    }
+    if (claimed == RT_SLOT_CONTROL_BUSY) {
+        // The buffer holds an older value than any parked sender's, and its
+        // single transfer is in flight, so the answer right now is "not ready"
+        // -- taking from a sender here would deliver the newer value first.
+        return 0;
     }
     waiter cand;
     while (channel_pop_candidate_locked(ch_shard, channel_send_key(ch), &cand)) {
@@ -103,6 +110,11 @@ uint8_t rt_channel_try_recv_status_owner_locked(rt_executor* ex,
             rt_park_token slot = sender->resume_slot;
             void* from = NULL;
             if (rt_park_pool_reserve_take_locked(&ch->parks, &slot, &from) != RT_SLOT_CONTROL_OK) {
+                // Parked holding its own value. Its registration has just been
+                // consumed by the pop, so nothing else will wake it: wake it
+                // here, unacked, to retry.
+                (void)wake_task_on_shard_locked(
+                    ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
                 continue;
             }
             sender->resume_kind = RESUME_CHAN_SEND_ACK;
@@ -160,10 +172,11 @@ void rt_channel_finish_take_owner_locked(rt_executor* ex,
             }
             rt_park_token sender_slot = sender->resume_slot;
             if (!rt_park_pool_token_is_live(&ch->parks, &sender_slot) ||
-                !channel_stage_into_ring_locked(ch_shard, ch, &sender_slot)) {
-                // Parked with nothing staged, or the ring refused: wake it to
-                // retry rather than leaving it asleep.
-                sender->resume_kind = RESUME_CHAN_SEND_ACK;
+                !channel_stage_into_ring_locked(ex, ch_shard, ch, &sender_slot)) {
+                // Parked with nothing staged, or the buffer refused: wake it to
+                // retry rather than leaving it asleep, and leave it UNACKED --
+                // nothing of its was delivered, and an ack would tell it
+                // otherwise.
                 (void)wake_task_on_shard_locked(
                     ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
                 continue;
@@ -204,7 +217,10 @@ uint8_t rt_channel_try_send_status_owner_locked(rt_executor* ex,
         return 2;
     }
     waiter cand;
-    while (channel_pop_candidate_locked(ch_shard, channel_recv_key(ch), &cand)) {
+    // Rendezvous only while the buffer has nothing older to hand over first;
+    // see channel_nothing_queued. With a queue standing, this send joins it.
+    while (channel_nothing_queued(ch) &&
+           channel_pop_candidate_locked(ch_shard, channel_recv_key(ch), &cand)) {
         if (cand.seq == 0) {
             channel_wake_only(ex, ch_shard, &cand);
             continue;
@@ -215,12 +231,17 @@ uint8_t rt_channel_try_send_status_owner_locked(rt_executor* ex,
         // bytes the move is writing.
         rt_park_token slot;
         if (rt_park_pool_acquire_locked(&ch->parks, &slot) != RT_SLOT_CONTROL_OK) {
+            // Nowhere to stage the value for this receiver. Its registration
+            // is already consumed by the pop, so wake it to re-register
+            // instead of leaving it parked on a channel that has forgotten it.
+            channel_wake_only(ex, ch_shard, &cand);
             break;
         }
         void* address = NULL;
         if (rt_park_pool_reserve_deliver_locked(&ch->parks, &slot, &address) !=
             RT_SLOT_CONTROL_OK) {
             (void)rt_park_pool_release(&ch->parks, &slot);
+            channel_wake_only(ex, ch_shard, &cand);
             break;
         }
         out_put->kind = RT_CHANNEL_PUT_INTO_PARK;
@@ -252,7 +273,9 @@ void rt_channel_finish_put_owner_locked(rt_executor* ex,
     if (put->kind == RT_CHANNEL_PUT_INTO_RING) {
         if (rt_typed_fifo_commit_push_locked(&ch->ring, &put->ticket) != RT_SLOT_CONTROL_OK) {
             panic_msg("async: buffered channel value could not be published");
+            return;
         }
+        channel_wake_parked_receiver_locked(ex, ch_shard, ch);
         return;
     }
     if (put->kind != RT_CHANNEL_PUT_INTO_PARK) {
@@ -267,7 +290,7 @@ void rt_channel_finish_put_owner_locked(rt_executor* ex,
             ex, ch_shard, &put->candidate, RESUME_CHAN_RECV_VALUE, put->slot, 1, &pushed)) {
         // The receiver died while we moved. The value belongs to the channel,
         // so put it in the buffer if there is room and destroy it otherwise.
-        if (!channel_stage_into_ring_locked(ch_shard, ch, &put->slot)) {
+        if (!channel_stage_into_ring_locked(ex, ch_shard, ch, &put->slot)) {
             rt_shard_unlock(ch_shard);
             (void)rt_park_pool_release(&ch->parks, &put->slot);
             rt_shard_lock(ch_shard);

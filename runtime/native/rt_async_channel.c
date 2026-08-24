@@ -285,15 +285,27 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
             panic_msg("send on closed channel");
             return 1;
         }
+        // Where this send's value IS. A park that did not complete moved it
+        // into a slot the CHANNEL owns, and that move consumed `src`: reading
+        // `src` a second time would give one heap value two owners. So once a
+        // slot exists, every path below sends from the slot and never from the
+        // husk `src` has become.
+        rt_park_token staged = task->resume_slot;
+        int staged_live = rt_park_pool_token_is_live(&ch->parks, &staged);
         waiter cand;
-        if (channel_pop_candidate_locked(ch_shard, recv_key, &cand)) {
+        // A rendezvous jumps the queue by construction, so it is legal only
+        // when there is no queue: a value handed to a parked receiver while
+        // older values sit in the buffer arrives before them. That is not a
+        // race between locks -- it is what a candidate-first order means once
+        // a receiver can park with a full buffer, which it can, because the
+        // buffer refuses a pop while its single transfer is in flight.
+        if (channel_nothing_queued(ch) && channel_pop_candidate_locked(ch_shard, recv_key, &cand)) {
             if (cand.seq == 0) {
                 channel_wake_only(ex, ch_shard, &cand);
                 rt_shard_unlock(ch_shard);
                 continue;
             }
-            rt_park_token staged;
-            if (!channel_stage_locked(ex, ch_shard, ch, src, &staged)) {
+            if (!staged_live && !channel_stage_locked(ex, ch_shard, ch, src, &staged)) {
                 // No slot to stage into. The candidate has already been POPPED,
                 // so dropping it here would strand a receiver that is still
                 // parked -- which showed up as a violated FIFO order rather
@@ -303,6 +315,10 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
                 rt_shard_unlock(ch_shard);
                 continue;
             }
+            // The slot belongs to the handover from here: every path below
+            // delivers it, moves it into the buffer, or destroys it, so this
+            // task must stop naming it before any of them runs.
+            task->resume_slot = (rt_park_token){0};
             if (cand.owner_hint == ch->owner_shard_id) {
                 int no_signal = yield_after_handoff && same_shard_worker;
                 int pushed = 0;
@@ -318,7 +334,7 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
                     // slot this channel owns, so give it to the buffer if
                     // there is room and destroy it otherwise -- never strand
                     // it, and never hand it to a task that is gone.
-                    if (!channel_stage_into_ring_locked(ch_shard, ch, &staged)) {
+                    if (!channel_stage_into_ring_locked(ex, ch_shard, ch, &staged)) {
                         rt_shard_unlock(ch_shard);
                         (void)rt_park_pool_release(&ch->parks, &staged);
                         rt_shard_lock(ch_shard);
@@ -340,7 +356,7 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
             rt_shard_unlock(ch_shard);
             if (!channel_deliver_foreign(ex, &cand, RESUME_CHAN_RECV_VALUE, staged)) {
                 rt_shard_lock(ch_shard);
-                if (channel_stage_into_ring_locked(ch_shard, ch, &staged)) {
+                if (channel_stage_into_ring_locked(ex, ch_shard, ch, &staged)) {
                     rt_shard_unlock(ch_shard);
                     (void)rt_park_pool_release(&ch->parks, &staged);
                     return 1;
@@ -354,9 +370,30 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
             }
             return 1;
         }
-        if (ch->capacity > 0 && channel_buffered(ch) < ch->capacity) {
+        if (ch->capacity > 0 && channel_buffered(ch) < ch->capacity && staged_live) {
+            // The value is in a slot already: move it from there into the
+            // buffer. A refusal here means the buffer's single transfer is in
+            // flight, or a receiver is taking this very value -- both resolve
+            // by parking with the slot still held.
+            if (channel_stage_into_ring_locked(ex, ch_shard, ch, &staged)) {
+                task->resume_slot = (rt_park_token){0};
+                rt_shard_unlock(ch_shard);
+                (void)rt_park_pool_release(&ch->parks, &staged);
+                return 1;
+            }
+        } else if (ch->capacity > 0 && channel_buffered(ch) < ch->capacity) {
             rt_typed_fifo_ticket ticket;
-            if (rt_typed_fifo_reserve_push_locked(&ch->ring, &ticket) == RT_SLOT_CONTROL_OK) {
+            rt_slot_control_status reserved = rt_typed_fifo_reserve_push_locked(&ch->ring, &ticket);
+            if (reserved == RT_SLOT_CONTROL_BUSY) {
+                // The buffer has room; what it does not have at this instant is
+                // its single transfer, held by another task's move. Parking
+                // would block a send the buffer can take -- and a buffered send
+                // that fits must not block -- so come back and look again.
+                rt_shard_unlock(ch_shard);
+                pending_key = waker_none();
+                return 0;
+            }
+            if (reserved == RT_SLOT_CONTROL_OK) {
                 rt_shard_unlock(ch_shard);
                 rt_value_move_init_detached(ch->ops, ticket.address, src);
                 rt_shard_lock(ch_shard);
@@ -365,6 +402,7 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
                     panic_msg("async: buffered channel value could not be published");
                     return 1;
                 }
+                channel_wake_parked_receiver_locked(ex, ch_shard, ch);
                 rt_shard_unlock(ch_shard);
                 return 1;
             }
@@ -373,24 +411,31 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
         // mailbox did, and it is exactly what a longjmp out of this poll would
         // lose. Stage into a slot the CHANNEL owns first, and park holding
         // only the token: a receiver refilling the ring later moves it out of
-        // there, and a cancellation destroys it through the pool's drain.
-        // Re-entering after a park that did not complete: the value is ALREADY
-        // in a slot, and staging it again would strand the first one. That is
-        // not hypothetical -- it exhausted the pool within a few rounds, after
-        // which every sender parked with nothing staged and the whole channel
-        // stopped moving.
+        // there, and a cancellation destroys it through the pool's drain. A
+        // re-entry that already owns a slot keeps it -- staging again would
+        // strand the first one, and there is nothing left in `src` to stage.
         //
         // Every park slot may also be taken outright. Park ANYWAY with nothing
         // staged: the sender still owns its value, and a receiver that pops it
         // finds no slot and wakes it to retry. Returning without parking was
         // the first version of this, and it hung for the plainer reason that
         // nothing was registered to wake.
-        rt_park_token staged_for_park = task->resume_slot;
-        if (!rt_park_pool_token_is_live(&ch->parks, &staged_for_park)) {
-            staged_for_park = (rt_park_token){0};
-            (void)channel_stage_locked(ex, ch_shard, ch, src, &staged_for_park);
+        if (!staged_live) {
+            staged = (rt_park_token){0};
+            if (channel_stage_locked(ex, ch_shard, ch, src, &staged)) {
+                // Staging released the lock across the move, and a receiver
+                // may have parked inside that window -- it would have found no
+                // value and no registration from us, because ours comes after.
+                // Both parked is a deadlock, so look again before parking. The
+                // value is in a slot now, so the next pass reaches the park
+                // with the lock held continuously since its last look at the
+                // waiter store, and this window cannot open twice.
+                task->resume_slot = staged;
+                rt_shard_unlock(ch_shard);
+                continue;
+            }
         }
-        task->resume_slot = staged_for_park;
+        task->resume_slot = staged;
         waker_key send_key = channel_send_key(ch);
         channel_park_prepare_locked(ch_shard, task, send_key);
         rt_shard_unlock(ch_shard);
@@ -481,7 +526,17 @@ uint8_t rt_channel_recv(void* channel, void* dst) {
         rt_shard_unlock(own_shard);
         rt_shard_lock(ch_shard);
         rt_typed_fifo_ticket popped;
-        if (rt_typed_fifo_reserve_pop_locked(&ch->ring, &popped) == RT_SLOT_CONTROL_OK) {
+        rt_slot_control_status claimed = rt_typed_fifo_reserve_pop_locked(&ch->ring, &popped);
+        if (claimed == RT_SLOT_CONTROL_BUSY) {
+            // A value IS queued for us; another task holds the buffer's single
+            // transfer for an instant. Parking here would sleep on a value that
+            // is already ours, and a close arriving first would then report an
+            // empty channel and lose it. Come back and look again.
+            rt_shard_unlock(ch_shard);
+            pending_key = waker_none();
+            return 0;
+        }
+        if (claimed == RT_SLOT_CONTROL_OK) {
             rt_shard_unlock(ch_shard);
             if (dst != NULL) {
                 rt_value_move_init_detached(ch->ops, dst, popped.address);
@@ -511,25 +566,37 @@ uint8_t rt_channel_recv(void* channel, void* dst) {
                     }
                     rt_park_token sender_slot = sender->resume_slot;
                     if (!rt_park_pool_token_is_live(&ch->parks, &sender_slot)) {
-                        // Parked without staging, because the pool was full.
-                        // Wake it and let it retry; its value is still its own.
-                        sender->resume_kind = RESUME_CHAN_SEND_ACK;
+                        // Parked holding its own value, because the pool was
+                        // full when it parked. Wake it to retry -- and do NOT
+                        // ack it: an ack says "your send completed", and this
+                        // one delivered nothing, so the value would be dropped
+                        // by a sender that believed it had been sent.
                         (void)wake_task_on_shard_locked(
                             ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
                         continue;
                     }
-                    if (channel_stage_into_ring_locked(ch_shard, ch, &sender_slot)) {
-                        sender->resume_kind = RESUME_CHAN_SEND_ACK;
-                        sender->resume_slot = (rt_park_token){0};
-                        // A parked sender has a waiter entry, so the leaf
-                        // enqueues it; compat senders never park entries
-                        // while RUNNING, so no compat fallback is needed.
+                    if (!channel_stage_into_ring_locked(ex, ch_shard, ch, &sender_slot)) {
+                        // The buffer refused: its single transfer is in
+                        // flight, or a receiver is taking this very value.
+                        // This sender's registration was consumed by the pop
+                        // above, so nothing else will ever call on it -- wake
+                        // it, unacked, to place its own value. Leaving it here
+                        // is a task parked forever on a channel that has
+                        // forgotten it, which is exactly how this was found.
                         (void)wake_task_on_shard_locked(
                             ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
-                        rt_shard_unlock(ch_shard);
-                        (void)rt_park_pool_release(&ch->parks, &sender_slot);
-                        rt_shard_lock(ch_shard);
+                        break;
                     }
+                    sender->resume_kind = RESUME_CHAN_SEND_ACK;
+                    sender->resume_slot = (rt_park_token){0};
+                    // A parked sender has a waiter entry, so the leaf
+                    // enqueues it; compat senders never park entries
+                    // while RUNNING, so no compat fallback is needed.
+                    (void)wake_task_on_shard_locked(
+                        ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
+                    rt_shard_unlock(ch_shard);
+                    (void)rt_park_pool_release(&ch->parks, &sender_slot);
+                    rt_shard_lock(ch_shard);
                     break;
                 }
                 rt_shard_unlock(ch_shard);
@@ -557,9 +624,9 @@ uint8_t rt_channel_recv(void* channel, void* dst) {
                 if (rt_park_pool_reserve_take_locked(&ch->parks, &sender_slot, &from) !=
                     RT_SLOT_CONTROL_OK) {
                     // The sender parked without staging (a full pool), so there
-                    // is nothing here to receive. Wake it to retry and keep
-                    // looking; this is a condition, not a broken invariant.
-                    sender->resume_kind = RESUME_CHAN_SEND_ACK;
+                    // is nothing here to receive. Wake it to retry, unacked --
+                    // it still owns its value; this is a condition, not a
+                    // broken invariant.
                     (void)wake_task_on_shard_locked(
                         ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
                     rt_shard_unlock(ch_shard);
@@ -582,43 +649,15 @@ uint8_t rt_channel_recv(void* channel, void* dst) {
                 channel_compat_broadcast_if_needed(ex, pushed);
                 return 1;
             }
-            rt_shard_unlock(ch_shard);
-            // Foreign parked sender: read its value and ack under its
-            // owner's lock (direct handoff, no buffer interplay).
-            int need_control = !rt_lane_holds_control();
-            if (need_control) {
-                rt_control_lock(ex);
-            }
-            int live = 0;
-            rt_park_token sender_slot = (rt_park_token){0};
-            rt_task* sender = get_task(ex, cand.task_id);
-            if (channel_candidate_valid(sender, &cand)) {
-                rt_shard* sender_shard = rt_task_owner_shard(ex, sender);
-                rt_shard_lock(sender_shard);
-                int pushed = 0;
-                if (channel_candidate_valid(sender, &cand)) {
-                    // The staged value lives in the CHANNEL's pool, not in the
-                    // sender, so a foreign sender's value never travels
-                    // outside a lock: only its token is read here.
-                    sender_slot = sender->resume_slot;
-                    sender->resume_kind = RESUME_CHAN_SEND_ACK;
-                    sender->resume_slot = (rt_park_token){0};
-                    pushed = wake_task_on_shard_locked(ex, sender_shard, sender, 1, 0, 1, NULL);
-                    live = 1;
-                }
-                rt_shard_unlock(sender_shard);
-                if (live) {
-                    channel_compat_broadcast_if_needed(ex, pushed);
-                }
-            }
-            if (need_control) {
-                rt_control_unlock(ex);
-            }
-            if (!live) {
+            // Foreign parked sender: its value is in this channel's pool, so
+            // only the token crosses the lock boundary.
+            rt_park_token sender_slot;
+            if (!channel_claim_foreign_sender_locked(ex, ch_shard, ch, &cand, &sender_slot)) {
+                // Gone, or parked holding its own value and woken to retry.
+                rt_shard_unlock(ch_shard);
                 continue;
             }
             void* from = NULL;
-            rt_shard_lock(ch_shard);
             rt_slot_control_status taken =
                 rt_park_pool_reserve_take_locked(&ch->parks, &sender_slot, &from);
             rt_shard_unlock(ch_shard);

@@ -148,6 +148,13 @@ uint64_t rt_typed_fifo_len(const rt_typed_fifo* fifo) {
     return fifo == NULL ? 0 : fifo->len;
 }
 
+int rt_typed_fifo_nothing_queued_locked(const rt_typed_fifo* fifo) {
+    if (fifo == NULL) {
+        return 1;
+    }
+    return fifo->len == 0 && fifo->reserved == 0;
+}
+
 uint64_t rt_typed_fifo_capacity(const rt_typed_fifo* fifo) {
     return fifo == NULL ? 0 : fifo->capacity;
 }

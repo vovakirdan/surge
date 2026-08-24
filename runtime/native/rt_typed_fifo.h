@@ -81,6 +81,14 @@ rt_slot_control_status rt_typed_fifo_init(rt_typed_fifo* fifo,
 uint64_t rt_typed_fifo_len(const rt_typed_fifo* fifo);
 uint64_t rt_typed_fifo_capacity(const rt_typed_fifo* fifo);
 
+// True when nothing is queued and nothing is on its way in: no cell holds a
+// value and no transfer is outstanding. Handing a value straight to a waiting
+// receiver instead of queueing it keeps FIFO order only while this holds. A
+// value in flight has already taken its place at the tail, ahead of anything
+// handed over now, and `len` does not count it -- a push counts at its commit,
+// not at its reservation -- so the length alone answers the wrong question.
+int rt_typed_fifo_nothing_queued_locked(const rt_typed_fifo* fifo);
+
 // Reserves the tail cell for a value about to arrive. Returns BUSY when a
 // reservation is already outstanding, INVALID_STATE when the queue is full.
 rt_slot_control_status rt_typed_fifo_reserve_push_locked(rt_typed_fifo* fifo,

@@ -350,7 +350,7 @@ runtime-v2-accept-check:
 runtime-v2-lock-check:
 	@echo ">> Running Runtime V2 lock split gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2LockSplit(LaneAPIShape|ShardSyncShape|WorkerLoopShardLane|NoAmbiguousGlobalLock|ClockAndSleepStoreShape|NoWholeTableSleepScan|ChannelOwnerShape|GlobalCondvarRetirement)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
-	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2LockSplit(CrossShardJoin|CrossShardCancel|CrossShardChannelFifoAndClose|ChannelCloseWakesParkedReceiver|SelectAcrossOwners|TimeoutAcrossOwners|SleepIdleAdvanceMultiShard|BlockingCompletionCrossShard|ShutdownWakesAllLanes)$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2LockSplit(CrossShardJoin|CrossShardCancel|CrossShardChannelFifoAndClose|ChannelCloseWakesParkedReceiver|SelectAcrossOwners|TimeoutAcrossOwners|SleepIdleAdvanceMultiShard|BlockingCompletionCrossShard|ShutdownWakesAllLanes)$$|^TestRuntimeV2ChannelOwnedElementArrivesExactlyOnce$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 
 # Manual liveness stress (quarantined; owner: runtime maintainers). Bounds
 # the RV2-DEBT-027 double-poll recurrence: 50 in-suite repetitions of the

@@ -78,6 +78,13 @@ static inline rt_shard* channel_owner_shard(rt_executor* ex, const rt_channel* c
 }
 
 // Caller holds the channel owner's lock; FIFO per key.
+//
+// THE RULE FOR EVERY CALLER: a popped candidate is either delivered to or
+// woken, never simply dropped. The pop CONSUMES the peer's registration, and a
+// parked task whose registration is gone is a task the channel can no longer
+// call on -- it sleeps until the process ends. The one exception is a
+// candidate that fails channel_candidate_valid, which means the peer is no
+// longer parked on this key and has a live registration elsewhere.
 static inline int channel_pop_candidate_locked(rt_shard* owner_shard, waker_key key, waiter* out) {
     rt_waiter_store* store = &owner_shard->waiter_store;
     for (size_t i = 0; i < store->len; i++) {
@@ -210,6 +217,63 @@ static inline int channel_deliver_foreign(rt_executor* ex,
     return live;
 }
 
+// Claims a foreign parked sender's staged value for this channel's own use.
+//
+// Only the TOKEN crosses a lock boundary: the value itself sits in the
+// channel's pool, so it never travels between owners. The token is read and
+// the ack is written under the sender's own owner lock, which is the lock that
+// answers for its mailbox; the caller then moves the value under the channel's
+// lock, which is the lock that answers for the pool.
+//
+// Returns 0 when the sender is gone, or when it parked holding its own value
+// because the pool was full. That sender is WOKEN rather than acked: an ack
+// says "your send completed", and a send that never handed a value anywhere
+// has not completed -- telling it otherwise loses the value silently.
+//
+// Enters and leaves with the channel shard locked; releases it in between,
+// because control nests outside a shard lock and a peer's owner must be taken
+// through it.
+static inline int channel_claim_foreign_sender_locked(
+    rt_executor* ex, rt_shard* ch_shard, rt_channel* ch, const waiter* w, rt_park_token* out_slot) {
+    *out_slot = (rt_park_token){0};
+    rt_shard_unlock(ch_shard);
+    int need_control = !rt_lane_holds_control();
+    if (need_control) {
+        rt_control_lock(ex);
+    }
+    int claimed = 0;
+    rt_task* sender = get_task(ex, w->task_id);
+    if (channel_candidate_valid(sender, w)) {
+        rt_shard* sender_shard = rt_task_owner_shard(ex, sender);
+        rt_shard_lock(sender_shard);
+        int live = 0;
+        int pushed = 0;
+        if (channel_candidate_valid(sender, w)) {
+            live = 1;
+            rt_park_token slot = sender->resume_slot;
+            // Nobody else can be taking this sender's value: the waiter entry
+            // that names it was popped by this caller, and a take starts from
+            // that entry.
+            if (rt_park_pool_token_is_live(&ch->parks, &slot)) {
+                *out_slot = slot;
+                sender->resume_slot = (rt_park_token){0};
+                sender->resume_kind = RESUME_CHAN_SEND_ACK;
+                claimed = 1;
+            }
+            pushed = wake_task_on_shard_locked(ex, sender_shard, sender, 1, 0, 1, NULL);
+        }
+        rt_shard_unlock(sender_shard);
+        if (live) {
+            channel_compat_broadcast_if_needed(ex, pushed);
+        }
+    }
+    if (need_control) {
+        rt_control_unlock(ex);
+    }
+    rt_shard_lock(ch_shard);
+    return claimed;
+}
+
 // Registers the current task on a channel key while the channel owner's
 // lock is held (add_waiter would self-deadlock on the same shard). The
 // park itself commits later through the wake_token dance.
@@ -338,13 +402,41 @@ static inline rt_channel* channel_from_handle(void* handle) {
 }
 
 // The element descriptor a caller outside this header needs to size storage.
-static inline const rt_value_ops* rt_channel_element_ops(void* handle) {
+static inline const rt_value_ops* rt_channel_element_ops(const void* handle) {
     const rt_channel* ch = handle == NULL ? NULL : (const rt_channel*)handle;
     return ch == NULL ? NULL : ch->ops;
 }
 
 static inline uint64_t channel_buffered(const rt_channel* ch) {
     return ch == NULL ? 0 : rt_typed_fifo_len(&ch->ring);
+}
+
+// The admission test for a rendezvous. A receiver may be handed a value
+// directly only while the buffer has nothing older to give it first, and
+// "older" includes a value whose transfer into the buffer is still in flight.
+static inline int channel_nothing_queued(const rt_channel* ch) {
+    return ch == NULL || rt_typed_fifo_nothing_queued_locked(&ch->ring);
+}
+
+// A value has just entered the buffer, so a receiver that parked while the
+// buffer was empty has to be told to come back for it. Nothing else will tell
+// it: the value went into a cell rather than into that receiver's resume slot,
+// so no delivery consumed its registration. It is WOKEN rather than handed the
+// value, because the value it must take is the queue's head and this one may
+// not be it.
+static inline void
+channel_wake_parked_receiver_locked(rt_executor* ex, rt_shard* ch_shard, const rt_channel* ch) {
+    waiter cand;
+    while (channel_pop_candidate_locked(ch_shard, channel_recv_key(ch), &cand)) {
+        const rt_task* peer = get_task(ex, cand.task_id);
+        if (peer == NULL || task_status_load(peer) == TASK_DONE) {
+            // A registration whose task is gone wakes nobody; keep looking, or
+            // the value sits in the buffer with a live receiver still asleep.
+            continue;
+        }
+        channel_wake_only(ex, ch_shard, &cand);
+        return;
+    }
 }
 
 // What a receive found, described rather than performed.
@@ -380,8 +472,10 @@ typedef struct {
 // Moves a staged value out of its park slot and into the ring, again with the
 // lock released across the move. Used when a send finds room in the buffer
 // rather than a waiting receiver.
-static inline int
-channel_stage_into_ring_locked(rt_shard* ch_shard, rt_channel* ch, const rt_park_token* staged) {
+static inline int channel_stage_into_ring_locked(rt_executor* ex,
+                                                 rt_shard* ch_shard,
+                                                 rt_channel* ch,
+                                                 const rt_park_token* staged) {
     rt_typed_fifo_ticket ticket;
     if (rt_typed_fifo_reserve_push_locked(&ch->ring, &ticket) != RT_SLOT_CONTROL_OK) {
         return 0;
@@ -399,6 +493,7 @@ channel_stage_into_ring_locked(rt_shard* ch_shard, rt_channel* ch, const rt_park
         panic_msg("async: buffered channel value could not be published");
         return 0;
     }
+    channel_wake_parked_receiver_locked(ex, ch_shard, ch);
     return 1;
 }
 
