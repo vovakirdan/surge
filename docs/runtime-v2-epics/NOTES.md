@@ -7633,3 +7633,47 @@ failed once with `-0.25 allocations per take (4 takes left 81 outstanding, 8
 takes left 80)` and then passed 4 of 4 on re-run. The census reads one allocation
 FEWER with more takes, which is noise rather than a leak, but the row asserts an
 exact slope and will keep tripping on it.
+
+## 2026-08-24 — D4 opened: what the task's result is today, and what it becomes
+
+Measured before any edit, at `9095014f`.
+
+**What carries a result now.** `rt_task` holds `uint64_t result_bits`, a
+numeric `result_drop_fn_id`, and an `rt_result_copy_fn result_copy_fn` that a
+cloned handle installs. A composite result is BOXED: the emitter writes a
+pointer into the word (`emitI64ToValue` on the await path,
+`internal/backend/llvm/emit_async.go:284`), the numeric id names its drop, and a
+second asker is served by copying the box. That is the same word-shaped ABI D3
+removed from the channel, in the shape the task wears it.
+
+**Surface.** `mark_done` has 6 call sites; `rt_async_return` is called from 20
+files including every C stand; `rt_task_await` / `rt_task_poll` / `rt_task_clone`
+are declared in `rt.h`, so the emitter and every stand move with them. The
+remote half (`rt_remote_task_pending.c`, 9 mentions) carries its own copy of the
+word and belongs to Wave E, but it reads the same fields.
+
+**The design is already written**: `23-storage-model-and-typed-carrier-abi.md`
+§10 — one canonical exact-sized result slot with its `ValueOps<T>`, an
+entitlement per handle, a reserved final move waiter, clone readers, and a
+generation. It is larger than one commit can carry.
+
+**Split, and why it does not need an adapter.** §5 forbids an adapter milestone
+INSIDE an owner migration, so the storage flip lands whole:
+
+- **D4a** — the canonical typed result slot. `result_bits`,
+  `result_drop_fn_id` and `result_copy_fn` are deleted; the task carries
+  `const rt_value_ops*` plus storage it owns, and every entry point takes an
+  address. Extra askers are served by the descriptor's `clone_init`/`copy_init`
+  instead of by an installed function pointer. Today's OBSERVABLE semantics are
+  unchanged: each asker still receives an independent value.
+- **D4b** — the entitlement state machine §10 describes: reserved move waiter,
+  `claimed_clone_readers`, generations, and the exactly-`E-1` duplication
+  contract. That is a policy refinement over a storage shape that already
+  exists, not an adapter over one that does not.
+
+**The cost question D4a has to answer, because today's word is free for a
+scalar.** `Task<int>` stores its result in the word with no allocation, while a
+composite pays a box. An exact-sized slot that always allocates would make the
+cheap case worse. The answer is the one the storage model already gives for
+inline storage: the slot is sized by the descriptor, and small results live in a
+byte run inside `rt_task` rather than in an allocation of their own.
