@@ -7833,3 +7833,59 @@ byte-identical to the base commit (`blocking-scalar: 213 != 278` and 24 issues),
 both sanctioned. `make behaviour-check-mt` 0; `make behaviour-check-all` red on
 `string_from_bytes_invalid_utf8/llvm` alone, which segfaults identically at the
 base.
+
+## 2026-08-25 — D5: a remote select's arm owns its payload
+
+A remote select shipped each SEND arm's payload as a machine word beside a
+numeric drop id. Two fields for one value, and they could disagree: the id said
+how to destroy it, the word said nothing about how to move it or how wide it
+was. Anything wider than a word had to be boxed to travel at all.
+
+Each arm now owns an `rt_value_cell`, which is D4a's task-result slot extracted:
+one descriptor, storage sized from it, and a lifecycle of EMPTY -> INITIALIZED
+-> MOVED or DROPPED. The two owners needed the same thing for the same reason,
+which is what makes it one type rather than two that drift.
+
+That is also what the model already said a select is. RUNTIME_V2.md's ownership
+section: *"every payload lives in a typed slot owned by the sender, the channel,
+the receiver, or the select operation"* — and *"a `select` operation owns its own
+staging slot"*. This step is that sentence, implemented.
+
+**The value moves three times and is copied never.** Out of the caller's storage
+when the select arms; out of the arm's cell into the channel when that arm wins;
+back into the caller's storage when it loses. The addresses for the first and
+the last are the caller's LIVE storage on the poll that asks — the pending keeps
+neither, for the same reason D4a's destination is passed only on the terminal
+retry: a park between polls would leave a stored address naming a frame that is
+gone. The retry pass rebuilds them from the MIR place each time.
+
+**The cell answers what the committed index answered from outside.** A value
+already moved out leaves its cell MOVED, so the pending's cleanup disposes every
+arm and destroys exactly what is still owned. `select_committed_index` stays as
+the record of WHICH arm won; it is no longer also the record of which payload
+still exists.
+
+**The reply is typed with it.** The winner index is an integer and it now
+travels the way every other result does: the reply names the selector body's
+result cell and the caller moves the value out of it.
+`rt_task_result_take_word`, which D4a left for this one caller, is gone.
+
+**Where the element type comes from.** The arm's descriptor is named by the
+CHANNEL's element type, not by the operand's. Asking the operand would let a
+literal's own type size a cell the channel's element does not fit — the
+storage-flip defect shape ("something asked a TYPE for an answer only its
+container can give") in one line.
+
+**Measured.** `far-select-wide-payload` sends a payload TWO WORDS wide through a
+select arm and reads both words back out of the channel intact, with the
+caller's storage emptied by the staging move and no drop run on the way. The row
+cannot exist against the previous representation: its arm field was a
+`uint64_t`. `TestRuntimeV2FarSelectNonCopySendArm/valgrind` still reports strict
+zero on a `far Channel<string>` whose losing SEND payload is handed back.
+
+**A gate that only speaks after the commit.** `runtime-v2-file-size-check`
+measures COMMITTED blobs, so D4a's four-line growth of
+`runtime_v2_lock_split_harness_test.go` past its legacy ceiling was invisible
+until D4a was committed. It is shrunk back here. A pre-commit run cannot see
+this class of violation at all — worth knowing before trusting a green
+pre-commit as the whole answer.

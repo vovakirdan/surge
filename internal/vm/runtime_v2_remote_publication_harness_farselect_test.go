@@ -19,7 +19,7 @@ static int run_far_select_cancel_vs_commit(void) {
     st.anchor_ptrs[0] = &st.anchors[0];
     st.kinds[0] = SELECT_CHAN_SEND;
     st.send_bits[0] = 42;
-    st.send_drop_ids[0] = DROP_SELECT_PAYLOAD;
+    st.send_type_ids[0] = DROP_SELECT_PAYLOAD;
     st.count = 1;
     st.droppable = 1;
     int state_marker = 0;
@@ -89,7 +89,7 @@ static int run_far_select_cancel_before_dispatch(void) {
     st.anchor_ptrs[0] = &st.anchors[0];
     st.kinds[0] = SELECT_CHAN_SEND;
     st.send_bits[0] = 55;
-    st.send_drop_ids[0] = DROP_SELECT_PAYLOAD;
+    st.send_type_ids[0] = DROP_SELECT_PAYLOAD;
     st.count = 1;
     st.droppable = 1;
     int state_marker = 0;
@@ -153,7 +153,7 @@ static int run_far_select_double_cancel(void) {
     st.anchor_ptrs[0] = &st.anchors[0];
     st.kinds[0] = SELECT_CHAN_SEND;
     st.send_bits[0] = 91;
-    st.send_drop_ids[0] = DROP_SELECT_PAYLOAD;
+    st.send_type_ids[0] = DROP_SELECT_PAYLOAD;
     st.count = 1;
     st.droppable = 1;
     int state_marker = 0;
@@ -241,8 +241,8 @@ static int run_far_select_refusal_after_shipped(void) {
     st.kinds[1] = SELECT_CHAN_SEND;
     st.send_bits[0] = 12;
     st.send_bits[1] = 34;
-    st.send_drop_ids[0] = DROP_SELECT_PAYLOAD;
-    st.send_drop_ids[1] = DROP_SELECT_PAYLOAD;
+    st.send_type_ids[0] = DROP_SELECT_PAYLOAD;
+    st.send_type_ids[1] = DROP_SELECT_PAYLOAD;
     st.count = 2;
     st.droppable = 1;
     int state_marker = 0;
@@ -299,8 +299,8 @@ static int run_far_select_initial_owner_mismatch(void) {
     st.kinds[1] = SELECT_CHAN_SEND;
     st.send_bits[0] = 101;
     st.send_bits[1] = 202;
-    st.send_drop_ids[0] = DROP_SELECT_PAYLOAD;
-    st.send_drop_ids[1] = DROP_SELECT_PAYLOAD;
+    st.send_type_ids[0] = DROP_SELECT_PAYLOAD;
+    st.send_type_ids[1] = DROP_SELECT_PAYLOAD;
     st.count = 2;
 
     if (!await_select(&st)) return fail("owner-mismatch await failed");
@@ -330,7 +330,7 @@ static int run_far_select_initial_null_anchors(void) {
 	st.null_anchor_array = 1;
 	st.kinds[0] = SELECT_CHAN_SEND;
 	st.send_bits[0] = 303;
-	st.send_drop_ids[0] = DROP_SELECT_PAYLOAD;
+	st.send_type_ids[0] = DROP_SELECT_PAYLOAD;
 	st.count = 1;
 
 	if (!await_select(&st)) return fail("null-anchor select await failed");
@@ -361,7 +361,7 @@ static int run_far_select_enqueue_refusal(void) {
     st.anchor_ptrs[0] = &st.anchors[0];
     st.kinds[0] = SELECT_CHAN_SEND;
     st.send_bits[0] = 505;
-    st.send_drop_ids[0] = DROP_SELECT_PAYLOAD;
+    st.send_type_ids[0] = DROP_SELECT_PAYLOAD;
     st.count = 1;
     st.fill_queue = 1;
 
@@ -377,6 +377,67 @@ static int run_far_select_enqueue_refusal(void) {
     }
     if (rt_far_channel_release(ex, &anchor) != RT_REMOTE_TASK_STATUS_OK) {
         return fail("enqueue-refusal lease release failed");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+// A SEND arm whose payload is WIDER than a machine word: two words, moved
+// through the select and out the other side intact.
+//
+// This row exists because of what the arm table used to be. A payload rode in
+// a uint64_t beside a numeric drop id, so a value this wide could not travel
+// at all without being boxed first -- and the box is the representation this
+// step removes. The arm owns a typed cell now, sized by the element's own
+// descriptor, so the value moves once on the way in and once on the way out
+// and is never copied into a pointer-shaped hole.
+//
+// Both halves are asserted, because a cell that can be written and not read
+// passes every test that does not round-trip: the words arrive in the
+// channel EXACTLY as sent, and the payload is not destroyed on the way (the
+// winner's value became the channel's, and destroying it would be the double
+// ownership this whole layer exists to prevent).
+static int run_far_select_wide_payload(void) {
+    rt_executor* ex = ensure_exec();
+    uint32_t dst = pin_shard(ex, 1);
+    rt_far_task_handle anchor = {0};
+    void* channel = mint_channel_anchor_typed(ex, dst, 1, WIDE_SELECT_PAYLOAD, &anchor);
+    if (channel == NULL) return fail("wide select channel mint failed");
+
+    select_exec_state st;
+    memset(&st, 0, sizeof(st));
+    st.anchors[0] = anchor;
+    st.anchor_ptrs[0] = &st.anchors[0];
+    st.kinds[0] = SELECT_CHAN_SEND;
+    st.send_type_ids[0] = WIDE_SELECT_PAYLOAD;
+    st.wide_send[0] = 0x1122334455667788ULL;
+    st.wide_send[1] = 0x99AABBCCDDEEFF00ULL;
+    st.wide_arm = 1;
+    st.count = 1;
+
+    if (!await_select(&st)) return fail("wide payload await failed");
+    if (st.status != RT_REMOTE_TASK_STATUS_OK || st.out_kind != 1 || st.out_bits != 0) {
+        return fail("wide payload row must commit its only SEND arm");
+    }
+    if (atomic_load_explicit(&payload_drop_calls, memory_order_acquire) != 0) {
+        return fail("a committed wide payload belongs to its channel, not to a drop");
+    }
+    if (st.wide_send[0] != 0 || st.wide_send[1] != 0) {
+        return fail("staging must EMPTY the caller's storage, not copy out of it");
+    }
+    uint64_t received[2] = {0, 0};
+    if (!rt_channel_try_recv(channel, received)) {
+        return fail("wide payload never reached the channel");
+    }
+    if (received[0] != 0x1122334455667788ULL || received[1] != 0x99AABBCCDDEEFF00ULL) {
+        return fail("wide payload did not arrive intact");
+    }
+    rt_value_drop_in_place_detached(__surge_value_ops_for(WIDE_SELECT_PAYLOAD), received);
+    if (atomic_load_explicit(&payload_drop_calls, memory_order_acquire) != 1) {
+        return fail("the received wide payload must be destroyed exactly once");
+    }
+    if (rt_far_channel_release(ex, &anchor) != RT_REMOTE_TASK_STATUS_OK) {
+        return fail("wide payload lease release failed");
     }
     (void)rt_executor_request_shutdown(ex);
     return 0;
@@ -404,7 +465,7 @@ static int run_far_select_recv_winner_handback(void) {
     st.kinds[0] = SELECT_CHAN_SEND;
     st.kinds[1] = SELECT_CHAN_RECV;
     st.send_bits[0] = 404;
-    st.send_drop_ids[0] = DROP_SELECT_PAYLOAD;
+    st.send_type_ids[0] = DROP_SELECT_PAYLOAD;
     st.count = 2;
 
     if (!await_select(&st)) return fail("handback await failed");
@@ -417,7 +478,9 @@ static int run_far_select_recv_winner_handback(void) {
     if (st.send_bits[0] != 404) {
         return fail("losing SEND payload was not returned to caller buffer");
     }
-    __surge_drop_result_call(DROP_SELECT_PAYLOAD, (void*)st.send_bits[0]);
+    // What compiled code does with a returned loser: destroy it through the
+    // descriptor its type names, in the storage it was returned to.
+    rt_value_drop_in_place_detached(__surge_value_ops_for(DROP_SELECT_PAYLOAD), &st.send_bits[0]);
     if (atomic_load_explicit(&payload_drop_calls, memory_order_acquire) != 1) {
         return fail("compiled losing-arm drop must consume returned payload once");
     }
@@ -490,6 +553,9 @@ int main(int argc, char** argv) {
     }
     if (strcmp(argv[1], "far-select-recv-winner-handback") == 0) {
         return run_far_select_recv_winner_handback();
+    }
+    if (strcmp(argv[1], "far-select-wide-payload") == 0) {
+        return run_far_select_wide_payload();
     }
     return fail("unknown mode");
 }

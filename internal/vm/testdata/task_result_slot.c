@@ -1,7 +1,7 @@
 // The one canonical result slot a task owns, exercised on its own before any
 // task uses one. It links the whole runtime because the slot allocates through
 // it -- the point of the wide-result row is that the allocation is REAL.
-#include "rt_task_result.h"
+#include "rt_value_cell.h"
 
 #include "rt_async_internal.h"
 
@@ -115,73 +115,73 @@ static int task_result_cases(void) {
     task_result_last_dropped = 0;
 
     // A task with no result value: bound, inert, and safe to dispose.
-    rt_task_result none;
-    REQUIRE(rt_task_result_bind(&none, NULL) == RT_SLOT_CONTROL_OK);
-    REQUIRE(rt_task_result_publish_storage(&none) == NULL);
-    REQUIRE(!rt_task_result_is_ready(&none));
-    rt_task_result_dispose(&none);
+    rt_value_cell none;
+    REQUIRE(rt_value_cell_bind(&none, NULL) == RT_SLOT_CONTROL_OK);
+    REQUIRE(rt_value_cell_publish_storage(&none) == NULL);
+    REQUIRE(!rt_value_cell_is_ready(&none));
+    rt_value_cell_dispose(&none);
 
     // A narrow result lives in the task's own bytes -- no allocation is what
     // makes this slot no worse than the machine word it replaces.
-    rt_task_result narrow;
-    REQUIRE(rt_task_result_bind(&narrow, &narrow_ops) == RT_SLOT_CONTROL_OK);
-    REQUIRE(rt_task_result_publish_storage(&narrow) == (void*)narrow.inline_storage);
+    rt_value_cell narrow;
+    REQUIRE(rt_value_cell_bind(&narrow, &narrow_ops) == RT_SLOT_CONTROL_OK);
+    REQUIRE(rt_value_cell_publish_storage(&narrow) == (void*)narrow.inline_storage);
     narrow_result produced = {.marker = 7};
-    narrow_ops.move_init(rt_task_result_publish_storage(&narrow), &produced);
+    narrow_ops.move_init(rt_value_cell_publish_storage(&narrow), &produced);
     REQUIRE(produced.marker == 0);
-    REQUIRE(rt_task_result_commit(&narrow) == RT_SLOT_CONTROL_OK);
-    REQUIRE(rt_task_result_is_ready(&narrow));
+    REQUIRE(rt_value_cell_commit(&narrow) == RT_SLOT_CONTROL_OK);
+    REQUIRE(rt_value_cell_is_ready(&narrow));
 
     // A task completes once: a second publication is refused rather than
     // overwriting a value someone may already be reading.
-    REQUIRE(rt_task_result_publish_storage(&narrow) == NULL);
-    REQUIRE(rt_task_result_commit(&narrow) == RT_SLOT_CONTROL_INVALID_STATE);
+    REQUIRE(rt_value_cell_publish_storage(&narrow) == NULL);
+    REQUIRE(rt_value_cell_commit(&narrow) == RT_SLOT_CONTROL_INVALID_STATE);
 
     // Reading it out leaves the slot with no obligation, so disposing after a
     // move destroys nothing.
     narrow_result taken = {.marker = 0};
-    narrow_ops.move_init(&taken, rt_task_result_value(&narrow));
+    narrow_ops.move_init(&taken, rt_value_cell_value(&narrow));
     REQUIRE(taken.marker == 7);
-    REQUIRE(rt_task_result_commit_move(&narrow) == RT_SLOT_CONTROL_OK);
-    REQUIRE(!rt_task_result_is_ready(&narrow));
-    REQUIRE(rt_task_result_commit_move(&narrow) == RT_SLOT_CONTROL_INVALID_STATE);
-    rt_task_result_dispose(&narrow);
+    REQUIRE(rt_value_cell_commit_move(&narrow) == RT_SLOT_CONTROL_OK);
+    REQUIRE(!rt_value_cell_is_ready(&narrow));
+    REQUIRE(rt_value_cell_commit_move(&narrow) == RT_SLOT_CONTROL_INVALID_STATE);
+    rt_value_cell_dispose(&narrow);
     REQUIRE(task_result_drops == 0);
 
     // A result nobody took is destroyed exactly once, by the slot.
-    rt_task_result untaken;
-    REQUIRE(rt_task_result_bind(&untaken, &narrow_ops) == RT_SLOT_CONTROL_OK);
+    rt_value_cell untaken;
+    REQUIRE(rt_value_cell_bind(&untaken, &narrow_ops) == RT_SLOT_CONTROL_OK);
     narrow_result abandoned = {.marker = 11};
-    narrow_ops.move_init(rt_task_result_publish_storage(&untaken), &abandoned);
-    REQUIRE(rt_task_result_commit(&untaken) == RT_SLOT_CONTROL_OK);
-    rt_task_result_dispose(&untaken);
+    narrow_ops.move_init(rt_value_cell_publish_storage(&untaken), &abandoned);
+    REQUIRE(rt_value_cell_commit(&untaken) == RT_SLOT_CONTROL_OK);
+    rt_value_cell_dispose(&untaken);
     REQUIRE(task_result_drops == 1);
     REQUIRE(task_result_last_dropped == 11);
-    rt_task_result_dispose(&untaken);
+    rt_value_cell_dispose(&untaken);
     REQUIRE(task_result_drops == 1);
 
     // A wide result takes one block, which is what the box it replaces cost.
-    rt_task_result wide;
-    REQUIRE(rt_task_result_bind(&wide, &wide_ops) == RT_SLOT_CONTROL_OK);
-    REQUIRE(rt_task_result_publish_storage(&wide) != (void*)wide.inline_storage);
+    rt_value_cell wide;
+    REQUIRE(rt_value_cell_bind(&wide, &wide_ops) == RT_SLOT_CONTROL_OK);
+    REQUIRE(rt_value_cell_publish_storage(&wide) != (void*)wide.inline_storage);
     REQUIRE(wide.owns_block == 1);
     wide_result produced_wide;
     memset(&produced_wide, 0, sizeof(produced_wide));
     produced_wide.marker = 13;
-    wide_ops.move_init(rt_task_result_publish_storage(&wide), &produced_wide);
-    REQUIRE(rt_task_result_commit(&wide) == RT_SLOT_CONTROL_OK);
-    rt_task_result_dispose(&wide);
+    wide_ops.move_init(rt_value_cell_publish_storage(&wide), &produced_wide);
+    REQUIRE(rt_value_cell_commit(&wide) == RT_SLOT_CONTROL_OK);
+    rt_value_cell_dispose(&wide);
     REQUIRE(task_result_drops == 2);
     REQUIRE(task_result_last_dropped == 13);
 
     // A zero-sized result has no bytes and still has a lifecycle.
-    rt_task_result zero;
-    REQUIRE(rt_task_result_bind(&zero, &zero_sized_ops) == RT_SLOT_CONTROL_OK);
-    REQUIRE(rt_task_result_publish_storage(&zero) != NULL);
+    rt_value_cell zero;
+    REQUIRE(rt_value_cell_bind(&zero, &zero_sized_ops) == RT_SLOT_CONTROL_OK);
+    REQUIRE(rt_value_cell_publish_storage(&zero) != NULL);
     REQUIRE(zero.owns_block == 0);
-    REQUIRE(rt_task_result_commit(&zero) == RT_SLOT_CONTROL_OK);
-    REQUIRE(rt_task_result_is_ready(&zero));
-    rt_task_result_dispose(&zero);
+    REQUIRE(rt_value_cell_commit(&zero) == RT_SLOT_CONTROL_OK);
+    REQUIRE(rt_value_cell_is_ready(&zero));
+    rt_value_cell_dispose(&zero);
     REQUIRE(task_result_drops == 2);
     printf("task result slot: drops=%d\n", task_result_drops);
     return 0;

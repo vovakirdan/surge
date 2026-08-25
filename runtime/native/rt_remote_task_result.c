@@ -100,18 +100,18 @@ uint8_t rt_far_task_take_result(rt_task* producer, rt_task* holder, void* out_ds
     // The far path is deliberately excluded from the first two: a result that
     // came back from another shard is carried in a lease exactly one holder may
     // adopt, and that lease is its own answer to "who gets this".
-    if (!result_is_far_carried(producer) && rt_task_result_is_ready(&producer->result)) {
+    if (!result_is_far_carried(producer) && rt_value_cell_is_ready(&producer->result)) {
         const rt_value_ops* operations = producer->result.operations;
         if (producer->result_shared && producer->result_duplicate != NULL) {
             if (out_dst != NULL) {
                 rt_value_duplicate_detached(
-                    producer->result_duplicate, out_dst, rt_task_result_value(&producer->result));
+                    producer->result_duplicate, out_dst, rt_value_cell_value(&producer->result));
             }
             return kind;
         }
         if ((operations->layout.flags & RT_VALUE_FLAG_DROPPABLE) == 0) {
             if (out_dst != NULL) {
-                rt_task_result_copy_value(&producer->result, out_dst);
+                rt_value_cell_copy_value(&producer->result, out_dst);
             }
             return kind;
         }
@@ -134,13 +134,13 @@ uint8_t rt_far_task_take_result(rt_task* producer, rt_task* holder, void* out_ds
     if (!rt_far_task_adopt_result(producer, holder)) {
         return 2;
     }
-    void* value = rt_task_result_value(&producer->result);
+    void* value = rt_value_cell_value(&producer->result);
     if (value == NULL) {
         // Nothing left to hand over: either this task published no value, or an
         // earlier asker moved the only one out. Both answer "gone" rather than
         // Success, because Success here would promise a payload that the
         // caller's storage does not hold.
-        return rt_task_result_was_taken(&producer->result) ? 2 : kind;
+        return rt_value_cell_was_taken(&producer->result) ? 2 : kind;
     }
     // The single asker MOVES it out, which is what leaves the slot with nothing
     // to destroy: the obligation is the caller's from here.
@@ -149,13 +149,13 @@ uint8_t rt_far_task_take_result(rt_task* producer, rt_task* holder, void* out_ds
     } else {
         rt_value_drop_in_place_detached(producer->result.operations, value);
     }
-    (void)rt_task_result_commit_move(&producer->result);
+    (void)rt_value_cell_commit_move(&producer->result);
     return kind;
 }
 
 rt_result_source rt_remote_task_pin_result(rt_task* task) {
     rt_result_source source = {0, 0, 0, 0};
-    if (task == NULL || !rt_task_result_is_ready(&task->result)) {
+    if (task == NULL || !rt_value_cell_is_ready(&task->result)) {
         // Nothing to name. A cancelled outcome and a task with no result value
         // both land here, and both are answers rather than failures.
         return source;
@@ -166,7 +166,7 @@ rt_result_source rt_remote_task_pin_result(rt_task* task) {
     task_add_ref(task);
     source.task_id = task->id;
     source.task_generation = task->generation;
-    source.result_generation = rt_task_result_generation(&task->result);
+    source.result_generation = rt_value_cell_generation(&task->result);
     source.owner_shard_id = task->owner_shard_valid != 0 ? task->owner_shard_id : 0;
     return source;
 }
@@ -194,13 +194,13 @@ int rt_remote_task_take_result_source(rt_executor* ex,
     }
     int taken = 0;
     if (rt_task_result_matches(&task->result, source)) {
-        void* value = rt_task_result_value(&task->result);
+        void* value = rt_value_cell_value(&task->result);
         if (out_dst != NULL) {
             rt_value_move_init_detached(task->result.operations, out_dst, value);
         } else {
             rt_value_drop_in_place_detached(task->result.operations, value);
         }
-        (void)rt_task_result_commit_move(&task->result);
+        (void)rt_value_cell_commit_move(&task->result);
         taken = 1;
     }
     task_release_lane_aware(ex, task);

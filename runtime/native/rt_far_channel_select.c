@@ -2,6 +2,7 @@
 #include "rt_remote_spawn_internal.h"
 #include "rt_remote_task_internal.h"
 #include "rt_sync_point.h"
+#include "rt_value_ops.h"
 
 #include <string.h>
 
@@ -41,52 +42,62 @@ static void select_drop_unshipped_state(uint64_t state_drop_fn_id, void* state) 
     }
 }
 
-// A winner reply hands each non-committed SEND payload BACK to compiled code:
-// copy its bits into the caller's retry buffer, then clear the pending's drop
-// obligation. The backend restores those bits into the explicit MIR
-// ReturnPlace before entering the winning arm, where ordinary ownership drop
-// synthesis reclaims every losing payload. The committed arm is already owned
-// by its channel and is therefore returned as zero. If the pending's free path
-// also dropped a returned loser, both owners would fire on the normal path.
+// A winner reply hands each losing SEND payload BACK to compiled code: the
+// value MOVES out of the arm's cell into the caller's storage for that arm, and
+// the cell is left MOVED so nothing destroys it twice. The backend restores it
+// into the explicit MIR ReturnPlace before entering the winning arm, where
+// ordinary ownership drop synthesis reclaims it. The committed arm is skipped:
+// the destination's select already moved its value into the channel.
 //
-// This is where select DIVERGES from the result obligation's clear in
-// rt_remote_task_api.c's finish_retry, which clears unconditionally. That
-// is safe there because a non-success reply leaves result_bits at 0, so
-// there is nothing to take. An arm payload is the opposite: it stays fully
-// alive on a Cancelled reply, and the compiled cancelled path re-enters the
-// pend edge instead of running any arm block
-// (internal/backend/llvm/emit_crossing_select.go), so nothing caller-side
-// would ever reclaim it. The clear is therefore gated on a genuine winner
-// reply; every other outcome — cancelled, failed, or a teardown that never
-// reaches the caller at all — leaves the obligation with the free path.
+// This is where select DIVERGES from the result handover in
+// rt_remote_task_api.c's finish_retry, which runs unconditionally. That is safe
+// there because a non-success reply names no result, so there is nothing to
+// take. An arm payload is the opposite: it stays fully alive on a Cancelled
+// reply, and the compiled cancelled path re-enters the pend edge instead of
+// running any arm block (internal/backend/llvm/emit_crossing_select.go), so
+// nothing caller-side would ever reclaim it. The handback is therefore gated on
+// a genuine winner reply; every other outcome -- cancelled, failed, or a
+// teardown that never reaches the caller at all -- leaves the value in its cell
+// for the pending's cleanup to destroy.
 //
-// The caller still holds its own pending ref here, so the free path cannot
-// be running concurrently with this write. The lock is taken anyway, to stay
-// symmetric with record_select_commit, which writes the neighbouring
-// select_committed_index under it — one writer arguing from a liveness
-// invariant and the other from a lock is the kind of asymmetry that decays.
+// `out_values` is the caller's live storage on THIS poll and is read nowhere
+// else: the pending does not keep it, because a park between polls would leave
+// it holding an address of a frame that is gone.
+//
+// The committed index is read under the state lock, symmetric with
+// record_select_commit which writes it; the moves themselves run with the lock
+// released, because a move is generated code (§8 P2). The caller still holds
+// its own pending ref, so the free path cannot be running against these cells
+// concurrently.
 static int
-select_return_arms(rt_remote_task_pending* pending, uint64_t* out_send_bits, uint64_t out_count) {
+select_return_arms(rt_remote_task_pending* pending, void* const* out_values, uint64_t out_count) {
     rt_remote_task_state* state =
         pending != NULL ? rt_remote_task_state_get(pending->executor) : NULL;
-    if (pending == NULL || pending->select_arms == NULL || state == NULL || out_send_bits == NULL ||
+    if (pending == NULL || pending->select_arms == NULL || state == NULL || out_values == NULL ||
         out_count != pending->select_count) {
         return 0;
     }
     pthread_mutex_lock(&state->lock);
+    uint64_t committed = pending->select_committed_index;
+    pthread_mutex_unlock(&state->lock);
     for (uint64_t i = 0; i < pending->select_count; i++) {
         rt_far_channel_select_arm* arm = &pending->select_arms[i];
-        out_send_bits[i] = arm->kind == SELECT_CHAN_SEND && i != pending->select_committed_index
-                               ? arm->send_bits
-                               : 0;
-        pending->select_arms[i].payload_drop_fn_id = 0;
+        if (arm->kind != SELECT_CHAN_SEND || i == committed) {
+            continue;
+        }
+        void* destination = out_values[i];
+        void* value = rt_value_cell_value(&arm->payload);
+        if (destination == NULL || value == NULL) {
+            continue;
+        }
+        rt_value_move_init_detached(arm->payload.operations, destination, value);
+        (void)rt_value_cell_commit_move(&arm->payload);
     }
-    pthread_mutex_unlock(&state->lock);
     return 1;
 }
 
 static rt_remote_task_status select_finish_retry(rt_remote_task_pending** slot,
-                                                 uint64_t* out_send_bits,
+                                                 void* const* out_values,
                                                  uint64_t out_count,
                                                  uint8_t* out_kind,
                                                  uint64_t* out_bits) {
@@ -94,10 +105,11 @@ static rt_remote_task_status select_finish_retry(rt_remote_task_pending** slot,
     if (*slot != NULL &&
         rt_remote_task_pending_snapshot(*slot, &kind, NULL) == RT_REMOTE_TASK_STATUS_OK &&
         kind == RT_REMOTE_TASK_REPLY_KIND_SUCCESS) {
-        if (!select_return_arms(*slot, out_send_bits, out_count)) {
+        if (!select_return_arms(*slot, out_values, out_count)) {
             // A success without storage for the returned losing payloads
-            // cannot be exposed to compiled arm dispatch. Leave every drop
-            // obligation on the pending, consume it, and fail closed.
+            // cannot be exposed to compiled arm dispatch. Leave every value in
+            // its cell for the cleanup to destroy, consume the pending, and
+            // fail closed.
             (void)rt_immediate_on_finish_retry(slot, out_kind, out_bits);
             return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
         }
@@ -105,24 +117,29 @@ static rt_remote_task_status select_finish_retry(rt_remote_task_pending** slot,
     return rt_immediate_on_finish_retry(slot, out_kind, out_bits);
 }
 
+// A select that never armed still owns every SEND payload the caller handed
+// it, in the caller's own storage: nothing was staged, so each is destroyed
+// where it stands, through its own descriptor.
 static void select_drop_input_payloads(const uint8_t* kinds,
-                                       const uint64_t* send_bits,
-                                       const uint64_t* send_drop_fn_ids,
+                                       void* const* send_values,
+                                       const uint64_t* payload_type_ids,
                                        uint64_t count) {
-    if (kinds == NULL || send_bits == NULL || send_drop_fn_ids == NULL) {
+    if (kinds == NULL || send_values == NULL || payload_type_ids == NULL) {
         return;
     }
     for (uint64_t i = 0; i < count; i++) {
-        if (kinds[i] == SELECT_CHAN_SEND && send_drop_fn_ids[i] != 0) {
-            __surge_drop_result_call(send_drop_fn_ids[i], (void*)send_bits[i]);
+        if (kinds[i] != SELECT_CHAN_SEND || send_values[i] == NULL) {
+            continue;
         }
+        rt_value_drop_in_place_detached(rt_channel_element_ops_for(payload_type_ids[i]),
+                                        send_values[i]);
     }
 }
 
 rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anchors,
                                             const uint8_t* kinds,
-                                            uint64_t* send_bits,
-                                            const uint64_t* send_drop_fn_ids,
+                                            void* const* send_values,
+                                            const uint64_t* payload_type_ids,
                                             uint64_t count,
                                             uint64_t state_drop_fn_id,
                                             int64_t poll_fn_id,
@@ -139,13 +156,13 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anc
         rt_remote_task_status status =
             rt_remote_task_pending_snapshot(*pending, out_kind, out_bits);
         if (status != RT_REMOTE_TASK_STATUS_PENDING) {
-            return select_finish_retry(pending, send_bits, count, out_kind, out_bits);
+            return select_finish_retry(pending, send_values, count, out_kind, out_bits);
         }
         if (task_cancelled_load(current) != 0) {
             rt_immediate_on_cancel_inflight(ex, *pending);
         }
         if (rt_remote_task_prepare_reply_wait(ex, current, *pending) != 0) {
-            return select_finish_retry(pending, send_bits, count, out_kind, out_bits);
+            return select_finish_retry(pending, send_values, count, out_kind, out_bits);
         }
         return RT_REMOTE_TASK_STATUS_PENDING;
     }
@@ -155,7 +172,7 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anc
         // cap the walk at the ABI arm limit so a malformed count cannot make
         // failure cleanup read beyond the caller-provided arrays.
         if (count > 0 && count <= RT_FAR_CHANNEL_SELECT_MAX_ARMS) {
-            select_drop_input_payloads(kinds, send_bits, send_drop_fn_ids, count);
+            select_drop_input_payloads(kinds, send_values, payload_type_ids, count);
         }
         select_drop_unshipped_state(state_drop_fn_id, state);
         return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
@@ -163,12 +180,12 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anc
     for (uint64_t i = 0; i < count; i++) {
         if (anchors[i] == NULL || anchors[i]->kind != RT_FAR_HANDLE_KIND_CHANNEL ||
             anchors[i]->owner_shard_id != anchors[0]->owner_shard_id) {
-            select_drop_input_payloads(kinds, send_bits, send_drop_fn_ids, count);
+            select_drop_input_payloads(kinds, send_values, payload_type_ids, count);
             select_drop_unshipped_state(state_drop_fn_id, state);
             return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
         }
         if (kinds[i] != SELECT_CHAN_RECV && kinds[i] != SELECT_CHAN_SEND) {
-            select_drop_input_payloads(kinds, send_bits, send_drop_fn_ids, count);
+            select_drop_input_payloads(kinds, send_values, payload_type_ids, count);
             select_drop_unshipped_state(state_drop_fn_id, state);
             return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
         }
@@ -176,44 +193,76 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anc
     rt_runtime* runtime = rt_executor_runtime(ex);
     rt_shard* destination = rt_runtime_shard(runtime, anchors[0]->owner_shard_id);
     if (destination == NULL) {
-        select_drop_input_payloads(kinds, send_bits, send_drop_fn_ids, count);
+        select_drop_input_payloads(kinds, send_values, payload_type_ids, count);
         select_drop_unshipped_state(state_drop_fn_id, state);
         return RT_REMOTE_TASK_STATUS_STALE_TOKEN;
     }
     if (atomic_load_explicit(&ex->shutdown, memory_order_acquire) != 0 ||
         atomic_load_explicit(&destination->transport.park_state, memory_order_acquire) ==
             RT_TRANSPORT_SHARD_SHUTDOWN) {
-        select_drop_input_payloads(kinds, send_bits, send_drop_fn_ids, count);
+        select_drop_input_payloads(kinds, send_values, payload_type_ids, count);
         select_drop_unshipped_state(state_drop_fn_id, state);
         return RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN;
     }
     rt_far_channel_select_arm* arms = (rt_far_channel_select_arm*)rt_alloc(
         count * sizeof(rt_far_channel_select_arm), _Alignof(rt_far_channel_select_arm));
     if (arms == NULL) {
-        select_drop_input_payloads(kinds, send_bits, send_drop_fn_ids, count);
+        select_drop_input_payloads(kinds, send_values, payload_type_ids, count);
         select_drop_unshipped_state(state_drop_fn_id, state);
         return RT_REMOTE_TASK_STATUS_REFUSED;
     }
     memset(arms, 0, count * sizeof(rt_far_channel_select_arm));
-    for (uint64_t i = 0; i < count; i++) {
-        arms[i].anchor = *anchors[i];
-        arms[i].kind = kinds[i];
-        arms[i].send_bits = send_bits != NULL ? send_bits[i] : 0;
-        arms[i].payload_drop_fn_id = send_drop_fn_ids != NULL ? send_drop_fn_ids[i] : 0;
+    // Staging: each SEND payload MOVES out of the caller's storage into its
+    // arm's cell, which is what makes the arm table the value's one owner from
+    // here on. A staging that cannot reserve its storage leaves the value where
+    // it is -- still the caller's, still reclaimed by the failure path below --
+    // rather than half-taking it.
+    uint64_t staged = 0;
+    for (; staged < count; staged++) {
+        arms[staged].anchor = *anchors[staged];
+        arms[staged].kind = kinds[staged];
+        if (kinds[staged] != SELECT_CHAN_SEND) {
+            continue;
+        }
+        const uint64_t type_id = payload_type_ids != NULL ? payload_type_ids[staged] : 0;
+        void* source = send_values != NULL ? send_values[staged] : NULL;
+        void* cell_storage = NULL;
+        if (rt_value_cell_bind(&arms[staged].payload, rt_channel_element_ops_for(type_id)) ==
+            RT_SLOT_CONTROL_OK) {
+            cell_storage = rt_value_cell_publish_storage(&arms[staged].payload);
+        }
+        if (cell_storage == NULL || source == NULL) {
+            break;
+        }
+        rt_value_move_init_detached(arms[staged].payload.operations, cell_storage, source);
+        (void)rt_value_cell_commit(&arms[staged].payload);
+    }
+    if (staged != count) {
+        // One arm could not be staged. What was already staged lives in its
+        // cell and is destroyed by the same loop the no-pending path below
+        // runs; what was NOT staged is still the caller's, so it is destroyed
+        // where it stands. Every payload is reclaimed exactly once no matter
+        // where the walk stopped.
+        select_drop_input_payloads(
+            kinds + staged, send_values + staged, payload_type_ids + staged, count - staged);
     }
     rt_far_task_handle route = {.task_id = 0,
                                 .generation = 0,
                                 .owner_shard_id = anchors[0]->owner_shard_id,
                                 .kind = RT_FAR_HANDLE_KIND_TASK};
-    rt_remote_task_pending* request = rt_remote_task_pending_new(
-        ex, &route, rt_immediate_on_source_shard(current), RT_REMOTE_TASK_OP_CHANNEL_SELECT, 1);
+    rt_remote_task_pending* request =
+        staged != count ? NULL
+                        : rt_remote_task_pending_new(ex,
+                                                     &route,
+                                                     rt_immediate_on_source_shard(current),
+                                                     RT_REMOTE_TASK_OP_CHANNEL_SELECT,
+                                                     1);
     if (request == NULL) {
-        // No pending was ever created, so nothing committed: every SEND
-        // arm's payload (if heap-carried) is still fully owned right here.
+        // Nothing was ever handed to a pending -- either staging stopped short
+        // or the pending itself could not be allocated -- so every staged
+        // payload is still fully owned right here, in its own cell.
         for (uint64_t i = 0; i < count; i++) {
-            if (arms[i].payload_drop_fn_id != 0) {
-                __surge_drop_result_call(arms[i].payload_drop_fn_id, (void*)arms[i].send_bits);
-            }
+            rt_value_cell_dispose(&arms[i].payload);
         }
         rt_free((uint8_t*)arms,
                 count * sizeof(rt_far_channel_select_arm),
@@ -433,13 +482,11 @@ uint64_t rt_anchored_channel_select(void) {
     }
     uint8_t kinds[RT_FAR_CHANNEL_SELECT_MAX_ARMS];
     void* handles[RT_FAR_CHANNEL_SELECT_MAX_ARMS];
-    // The far arm table still carries its payload as a word: this lane is D5,
-    // and a value that crossed the boundary arrived as one. What the typed
-    // select needs is an ADDRESS, so it is given the address of that word --
-    // correct for exactly the elements a far channel can carry today, whose
-    // representation IS the word. A wider element cannot reach here at all:
-    // crossing has no descriptor support yet, so plan_cross is the trap.
-    uint64_t values[RT_FAR_CHANNEL_SELECT_MAX_ARMS];
+    // The local select takes each SEND arm's value BY ADDRESS and moves it into
+    // the channel, so what it is given is the arm cell's own storage. No copy
+    // of the value is made on the way in: the cell staged it once, on the
+    // caller's side, and the winner's move out of that same storage is what
+    // ends the arm's ownership of it.
     void* value_addrs[RT_FAR_CHANNEL_SELECT_MAX_ARMS];
     if (count > RT_FAR_CHANNEL_SELECT_MAX_ARMS) {
         panic_msg("anchored select arm table exceeds the arm cap");
@@ -448,8 +495,7 @@ uint64_t rt_anchored_channel_select(void) {
     for (uint64_t i = 0; i < count; i++) {
         kinds[i] = arms[i].kind;
         handles[i] = arms[i].channel;
-        values[i] = arms[i].send_bits;
-        value_addrs[i] = &values[i];
+        value_addrs[i] = rt_value_cell_value(&arms[i].payload);
     }
     int64_t winner = rt_select_poll(count, kinds, handles, value_addrs, NULL, -1);
     if (winner < 0) {
@@ -460,6 +506,13 @@ uint64_t rt_anchored_channel_select(void) {
     // sits strictly after that commit and before the value reaches the
     // caller's async-return/reply (Epic 20 Task 7 row 2).
     RT_SYNC_POINT(SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY);
+    // The winner's value left its cell the moment the local select committed:
+    // it was moved into the channel out of the cell's own storage. Marking the
+    // cell MOVED is what tells every later reader -- the handback, the
+    // pending's cleanup -- that this one is already somebody else's.
+    if (arms[winner].kind == SELECT_CHAN_SEND) {
+        (void)rt_value_cell_commit_move(&arms[winner].payload);
+    }
     // The commit is final the moment rt_select_poll returns a non-negative
     // winner (see above); record it so a teardown that reaches the pending
     // before this reply lands knows exactly which SEND arm's payload was

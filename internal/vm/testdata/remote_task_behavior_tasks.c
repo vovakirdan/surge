@@ -30,6 +30,14 @@ uint64_t* rtb_word(uint64_t value) {
     return &slot;
 }
 
+void rtb_select_bind_addrs(void* addrs[], uint64_t bits[], const uint8_t kinds[], uint64_t count) {
+    // `bits` is not const: what these addresses are FOR is a move that empties
+    // the storage they name, and one that moves a losing payload back into it.
+    for (uint64_t i = 0; i < count; i++) {
+        addrs[i] = kinds[i] == SELECT_CHAN_SEND ? (void*)&bits[i] : NULL;
+    }
+}
+
 void rtb_sleep_us(unsigned long micros) {
     struct timespec ts = {
         .tv_sec = (time_t)(micros / 1000000UL),

@@ -95,6 +95,11 @@ void rtb_sleep_us(unsigned long micros);
 // these entry points need: every one of them MOVES the value out before it
 // returns.
 uint64_t* rtb_word(uint64_t value);
+
+// Fills `addrs` from `bits`: a SEND arm points at its own word, a RECV arm at
+// nothing. Called before every select so the addresses name THIS poll's
+// storage rather than an earlier one's.
+void rtb_select_bind_addrs(void* addrs[], uint64_t bits[], const uint8_t kinds[], uint64_t count);
 int rtb_wait_u32(_Atomic uint32_t* value, uint32_t expected, uint32_t attempts);
 int rtb_wait_task_done(rt_executor* ex, uint64_t task_id, uint32_t attempts);
 void rtb_wake(rt_executor* ex, uint64_t task_id);
@@ -154,6 +159,10 @@ typedef struct rtb_select_state {
     const rt_far_task_handle* anchors[RT_FAR_CHANNEL_SELECT_MAX_ARMS];
     uint8_t kinds[RT_FAR_CHANNEL_SELECT_MAX_ARMS];
     uint64_t bits[RT_FAR_CHANNEL_SELECT_MAX_ARMS];
+    // One address per arm, pointing into `bits`: the select takes a SEND
+    // payload by address now, moves it out of the caller's storage when the
+    // arms are staged, and moves a losing one back into it.
+    void* addrs[RT_FAR_CHANNEL_SELECT_MAX_ARMS];
     uint64_t count;
     _Atomic(rt_remote_task_pending*) visible_pending;
     rt_remote_task_status status;

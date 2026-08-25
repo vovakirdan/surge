@@ -6,8 +6,8 @@
 #include "rt_park_pool.h"
 #include "rt_placement.h"
 #include "rt_runtime_config.h"
-#include "rt_task_result.h"
 #include "rt_transport.h"
+#include "rt_value_cell.h"
 #include "rt_waiter.h"
 #include <pthread.h>
 #include <setjmp.h>
@@ -233,7 +233,7 @@ typedef struct rt_task {
     // result that needs no duplication or has none. See rt.h's rt_task_clone.
     rt_value_clone_init_fn result_duplicate;
     // The one canonical result this task owns, at the width its type asks for.
-    // See rt_task_result.h: the task outlives every handle that can ask for it,
+    // See rt_value_cell.h: the task outlives every handle that can ask for it,
     // a small result lives in the task's own bytes, and a wider one takes the
     // single block the box it replaces already cost.
     //
@@ -241,7 +241,7 @@ typedef struct rt_task {
     // representation: the transport is in-process, so a reply carries a
     // capability naming this slot and the awaiting side moves the value
     // straight out of it. Nothing is boxed to fit a word on the way.
-    rt_task_result result;
+    rt_value_cell result;
     // A suspend-point or scope-join state box abandoned by a cancellation
     // that completes the task without ever resuming compiled code (the
     // ordinary path frees the INCOMING resumed state box at the START of

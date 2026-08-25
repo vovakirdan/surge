@@ -3,6 +3,7 @@
 
 #include "rt_async_internal.h"
 #include "rt_remote_task.h"
+#include "rt_task_result.h"
 
 typedef struct rt_far_task_lease rt_far_task_lease;
 typedef struct rt_remote_task_state rt_remote_task_state;
@@ -24,14 +25,19 @@ typedef enum rt_remote_task_op {
 typedef struct rt_far_channel_select_arm {
     rt_far_task_handle anchor;
     void* channel;
-    uint64_t send_bits;
-    // Drop obligation for a heap-carried SEND arm's payload (0 for Copy/
-    // inert elements or RECV arms, never dispatched). Per-arm, not
-    // per-pending: a select's arms may span channels of different element
-    // types. Dropped for every SEND arm except the one
-    // rt_remote_task_pending.select_committed_index names, at whichever
-    // free site reclaims the pending.
-    uint64_t payload_drop_fn_id;
+    // A SEND arm's payload, at its own type, staged out of the caller's
+    // storage when the select was armed. Empty for a RECV arm.
+    //
+    // The cell is per-arm and not per-pending because a select's arms may span
+    // channels of different element types, and it holds the value rather than
+    // a word plus a numeric drop id because those two could disagree: one
+    // descriptor says how this value moves AND how it is destroyed.
+    //
+    // It stays the arm's until exactly one thing happens to it: the
+    // destination's select MOVES it into the channel (the arm
+    // rt_remote_task_pending.select_committed_index names), the caller takes
+    // it back on the terminal retry, or the pending's own cleanup destroys it.
+    rt_value_cell payload;
     uint8_t kind;
 } rt_far_channel_select_arm;
 

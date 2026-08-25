@@ -32,7 +32,7 @@ void* __task_create( // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dc
         return NULL;
     }
     memset(task, 0, sizeof(rt_task));
-    if (rt_task_result_bind(&task->result, result_ops) != RT_SLOT_CONTROL_OK) {
+    if (rt_value_cell_bind(&task->result, result_ops) != RT_SLOT_CONTROL_OK) {
         rt_free((uint8_t*)task, sizeof(rt_task), _Alignof(rt_task));
         panic_msg("async: a task's result storage could not be reserved");
         return NULL;

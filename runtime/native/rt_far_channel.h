@@ -26,12 +26,22 @@ rt_remote_task_status rt_far_channel_share(const rt_far_task_handle* source,
                                            uint64_t* out_bits);
 void rt_far_channel_dispatch_share(rt_executor* ex, const rt_transport_msg* msg);
 // Caller-side remote select (execute/reply discipline; destination = the
-// arms' shared owner shard; reply bits = the winner index) and its
+// arms' shared owner shard; the reply names the winner index) and its
 // owner-side dispatch.
+//
+// `send_values` is one address per arm, and it is the caller's LIVE storage on
+// the current poll: the arming call MOVES each SEND payload out of it into the
+// arm's cell, and the terminal retry call moves every losing payload back into
+// it. No call in between reads it, and the runtime never keeps it -- a park
+// would leave a stored address naming a frame that is gone.
+//
+// `payload_type_ids` names each SEND arm's element type, which is how the
+// runtime finds the descriptor that moves and destroys that payload. A RECV
+// arm's entries in both arrays are ignored.
 rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anchors,
                                             const uint8_t* kinds,
-                                            uint64_t* send_bits,
-                                            const uint64_t* send_drop_fn_ids,
+                                            void* const* send_values,
+                                            const uint64_t* payload_type_ids,
                                             uint64_t count,
                                             uint64_t state_drop_fn_id,
                                             int64_t poll_fn_id,

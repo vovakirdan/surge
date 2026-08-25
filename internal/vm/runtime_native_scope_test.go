@@ -117,7 +117,7 @@ static rt_task* alloc_task(rt_executor* ex, uint64_t id) {
     // A stand's task answers with a machine word, which is exactly what the
     // opaque-word descriptor describes: the result slot carries it the same way
     // it carries a compiled type's value.
-    (void)rt_task_result_bind(&task->result, rt_channel_opaque_word_ops());
+    (void)rt_value_cell_bind(&task->result, rt_channel_opaque_word_ops());
     task->id = id;
     task->kind = TASK_KIND_USER;
     task_status_store(task, TASK_READY);

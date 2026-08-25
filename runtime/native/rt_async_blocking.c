@@ -227,11 +227,11 @@ observe_terminal:
         // A blocking job still answers with a machine word, which is D6's to
         // retype. The task's slot carries it as the opaque word it is, so the
         // completion path has one shape rather than two.
-        void* destination = rt_task_result_publish_storage(&task->result);
+        void* destination = rt_value_cell_publish_storage(&task->result);
         if (destination != NULL) {
             uint64_t bits = job->result_bits;
             rt_value_move_init_detached(task->result.operations, destination, &bits);
-            (void)rt_task_result_commit(&task->result);
+            (void)rt_value_cell_commit(&task->result);
         }
         blocking_job_release(job);
         task->state = NULL;
@@ -281,7 +281,7 @@ void* rt_blocking_submit(uint64_t fn_id, void* state, uint64_t state_size, uint6
     // A blocking job answers with a machine word, and the opaque-word
     // descriptor is what carries one. D6 retypes this along with the rest of
     // the blocking lane; until then the slot holds the word the job returns.
-    (void)rt_task_result_bind(&task->result, rt_channel_opaque_word_ops());
+    (void)rt_value_cell_bind(&task->result, rt_channel_opaque_word_ops());
     task->id = id;
     task->generation = id;
     task->poll_fn_id = -1;

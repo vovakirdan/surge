@@ -347,7 +347,7 @@ void rt_async_return(void* state, void* src) {
     if (src != NULL) {
         rt_task* current = rt_current_task();
         void* destination =
-            current == NULL ? NULL : rt_task_result_publish_storage(&current->result);
+            current == NULL ? NULL : rt_value_cell_publish_storage(&current->result);
         if (destination == NULL) {
             // Either this task was created without a result to hold, or it has
             // already published one. Both are defects in the caller: a task
@@ -357,7 +357,7 @@ void rt_async_return(void* state, void* src) {
             return;
         }
         rt_value_move_init_detached(current->result.operations, destination, src);
-        if (rt_task_result_commit(&current->result) != RT_SLOT_CONTROL_OK) {
+        if (rt_value_cell_commit(&current->result) != RT_SLOT_CONTROL_OK) {
             panic_msg("async: a task's result could not be published");
             return;
         }

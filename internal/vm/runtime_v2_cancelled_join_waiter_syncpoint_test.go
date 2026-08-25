@@ -188,7 +188,7 @@ static rt_task* alloc_task_locked(rt_executor* ex, int64_t poll_fn_id, void* sta
     // A stand's task answers with a machine word, which is exactly what the
     // opaque-word descriptor describes: the result slot carries it the same way
     // it carries a compiled type's value.
-    (void)rt_task_result_bind(&task->result, rt_channel_opaque_word_ops());
+    (void)rt_value_cell_bind(&task->result, rt_channel_opaque_word_ops());
     task->id = id;
     task->generation = id;
     task->poll_fn_id = poll_fn_id;

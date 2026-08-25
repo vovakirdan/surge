@@ -36,6 +36,9 @@ typedef struct rtb_drop_state {
     const rt_far_task_handle* anchors[2];
     uint8_t kinds[2];
     uint64_t bits[2];
+    // One address per arm, pointing into `bits`: a SEND payload travels by
+    // address now, moved out of the caller's storage and back into it.
+    void* addrs[2];
     uint64_t shipped_mark;
     rt_remote_task_status status;
     uint8_t result_kind;
@@ -112,9 +115,10 @@ static void poll_rtb_drop_anchored(rtb_drop_state* state) {
 }
 
 static void poll_rtb_drop_select(rtb_drop_state* state) {
+    rtb_select_bind_addrs(state->addrs, state->bits, state->kinds, 2);
     state->status = rt_far_channel_select(state->anchors,
                                           state->kinds,
-                                          state->bits,
+                                          state->addrs,
                                           NULL,
                                           2,
                                           RTB_DROP_MARK_ID,
@@ -437,15 +441,15 @@ static const rt_value_ops rtb_result_block_ops = {
 
 // Publishes one heap block as the task's canonical result.
 static int rtb_publish_result_block(rt_task* task, void* block) {
-    if (rt_task_result_bind(&task->result, &rtb_result_block_ops) != RT_SLOT_CONTROL_OK) {
+    if (rt_value_cell_bind(&task->result, &rtb_result_block_ops) != RT_SLOT_CONTROL_OK) {
         return 0;
     }
-    void* destination = rt_task_result_publish_storage(&task->result);
+    void* destination = rt_value_cell_publish_storage(&task->result);
     if (destination == NULL) {
         return 0;
     }
     *(void**)destination = block;
-    return rt_task_result_commit(&task->result) == RT_SLOT_CONTROL_OK;
+    return rt_value_cell_commit(&task->result) == RT_SLOT_CONTROL_OK;
 }
 
 static void rtb_result_drop_reset(void) {
@@ -505,13 +509,13 @@ int rtb_mode_result_copy_inert(void) {
     // Inert Copy bits (fixnum-shaped), not a heap pointer: the opaque-word
     // descriptor carries them and owns nothing, which is what "no obligation"
     // is now spelled as.
-    (void)rt_task_result_bind(&task->result, rt_channel_opaque_word_ops());
-    void* inert = rt_task_result_publish_storage(&task->result);
+    (void)rt_value_cell_bind(&task->result, rt_channel_opaque_word_ops());
+    void* inert = rt_value_cell_publish_storage(&task->result);
     if (inert == NULL) {
         return rtb_fail("result-copy-inert: result publication failed");
     }
     *(uint64_t*)inert = 42;
-    (void)rt_task_result_commit(&task->result);
+    (void)rt_value_cell_commit(&task->result);
     task_status_store(task, TASK_DONE);
     task_release_lane_aware(ex, task);
     if (atomic_load_explicit(&rtb_result_drop_calls, memory_order_acquire) != 0) {
@@ -544,8 +548,8 @@ int rtb_mode_result_consumed_no_double_drop(void) {
     // Simulate the compiled consume path: the value MOVES to the caller, which
     // leaves the slot with nothing to destroy, and the caller frees it.
     void* taken = NULL;
-    rtb_result_block_move((void*)&taken, rt_task_result_value(&task->result));
-    (void)rt_task_result_commit_move(&task->result);
+    rtb_result_block_move((void*)&taken, rt_value_cell_value(&task->result));
+    (void)rt_value_cell_commit_move(&task->result);
     rt_free((uint8_t*)taken, RTB_RESULT_BLOCK_SIZE, RTB_RESULT_BLOCK_ALIGN);
     task_release_lane_aware(ex, task);
     if (atomic_load_explicit(&rtb_result_drop_calls, memory_order_acquire) != 0) {

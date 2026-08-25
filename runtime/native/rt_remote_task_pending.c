@@ -136,18 +136,15 @@ void rt_remote_task_pending_release(rt_remote_task_pending* pending) {
             pending->result_source = (rt_result_source){0, 0, 0, 0};
         }
         if (pending->select_arms != NULL) {
-            // Every SEND arm's payload is still owned here except the one
-            // select_committed_index names (already delivered/consumed via
-            // the winner path); RECV arms and the committed index itself
-            // carry no drop obligation of their own.
+            // Every SEND arm's payload is still owned here except the ones
+            // already moved out: the winner, which the destination's select
+            // took, and any the terminal retry handed back. Each of those left
+            // its cell MOVED, so disposing every cell destroys exactly what is
+            // still owned and nothing else -- the arm's own state answers the
+            // question that select_committed_index used to have to answer from
+            // outside.
             for (uint64_t i = 0; i < pending->select_count; i++) {
-                if (i == pending->select_committed_index) {
-                    continue;
-                }
-                rt_far_channel_select_arm* arm = &pending->select_arms[i];
-                if (arm->payload_drop_fn_id != 0) {
-                    __surge_drop_result_call(arm->payload_drop_fn_id, (void*)arm->send_bits);
-                }
+                rt_value_cell_dispose(&pending->select_arms[i].payload);
             }
             rt_free((uint8_t*)pending->select_arms,
                     pending->select_count * sizeof(rt_far_channel_select_arm),

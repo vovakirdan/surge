@@ -11,9 +11,10 @@
 // (the probe consumes without surfacing the value).
 
 static void poll_rtb_select_caller(rtb_select_state* state) {
+    rtb_select_bind_addrs(state->addrs, state->bits, state->kinds, state->count);
     state->status = rt_far_channel_select(state->anchors,
                                           state->kinds,
-                                          state->bits,
+                                          state->addrs,
                                           NULL,
                                           state->count,
                                           0,

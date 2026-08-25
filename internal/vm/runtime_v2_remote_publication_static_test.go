@@ -119,8 +119,11 @@ func TestRuntimeV2FarSelectInitialFailurePayloadOwnershipStaticContract(t *testi
 		t.Fatal("could not isolate far-select pending-allocation failure path")
 	}
 	requestFail := source[requestFailStart:requestFailEnd]
-	if strings.Count(requestFail, "__surge_drop_result_call(") != 1 {
-		t.Fatal("pending-allocation failure must have exactly one payload-drop loop")
+	// The staged payloads are the arms' now, each in its own cell, so the one
+	// cleanup this path may run is the cells' own dispose. A second drop of the
+	// caller's storage would be destroying a value that has already moved.
+	if strings.Count(requestFail, "rt_value_cell_dispose(") != 1 {
+		t.Fatal("pending-allocation failure must have exactly one payload-dispose loop")
 	}
 	if strings.Contains(requestFail, "select_drop_input_payloads(") {
 		t.Fatal("pending-allocation failure must not also run the pre-arm payload cleanup")
@@ -141,7 +144,7 @@ func TestRuntimeV2FarSelectInitialFailurePayloadOwnershipStaticContract(t *testi
 		}
 	}
 	if strings.Contains(enqueueFail, "select_drop_input_payloads(") ||
-		strings.Contains(enqueueFail, "__surge_drop_result_call(") {
+		strings.Contains(enqueueFail, "rt_value_cell_dispose(") {
 		t.Fatal("initial-enqueue failure must release only through the pending, not a second direct payload drop")
 	}
 }

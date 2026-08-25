@@ -66,15 +66,19 @@ void rt_remote_task_reply_owner_done(rt_executor* ex,
                                                    RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY);
     } else if (pending->op == RT_REMOTE_TASK_OP_CHANNEL_SELECT) {
         rt_far_channel_select_unpin_arms(ex, pending, pending->select_count);
-        // Remote select still answers with a machine word -- which arm won --
-        // and D5 is the step that retypes it. Taking it out of the slot keeps
-        // one storage shape for every task while that reply keeps its own.
-        rt_remote_task_reply_or_finish(ex,
-                                       pending,
-                                       RT_REMOTE_TASK_STATUS_OK,
-                                       rt_remote_task_result_kind(task),
-                                       rt_task_result_take_word(&task->result),
-                                       RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY);
+        // The winner index is an integer, and it still travels the way every
+        // other result does: the reply NAMES the selector body's result cell
+        // and the caller moves the value out of it. One shape for every reply
+        // is the point -- a value being narrow is not a reason to carry it
+        // differently.
+        rt_result_source select_source = rt_remote_task_pin_result(task);
+        rt_remote_task_reply_or_finish_with_result(ex,
+                                                   pending,
+                                                   RT_REMOTE_TASK_STATUS_OK,
+                                                   rt_remote_task_result_kind(task),
+                                                   0,
+                                                   &select_source,
+                                                   RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY);
     }
     task_release_lane_aware(ex, task);
 }

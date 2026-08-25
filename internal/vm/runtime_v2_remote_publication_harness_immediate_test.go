@@ -190,6 +190,26 @@ static int mint_anchor(rt_executor* ex, uint32_t owner_shard_id, rt_far_task_han
 // rows drive/observe the channel directly from the driver thread to prove
 // exactly-once delivery) and takes a capacity so a SEND arm can commit
 // deterministically against a buffered channel with room.
+// The typed form: a channel whose element is whatever descriptor the given
+// type id names. mint_channel_anchor is the word-shaped case of it, which is
+// what every row that does not care about element width still wants.
+static void* mint_channel_anchor_typed(rt_executor* ex,
+                                       uint32_t owner_shard_id,
+                                       uint64_t capacity,
+                                       uint64_t element_type_id,
+                                       rt_far_task_handle* out) {
+    void* channel = rt_channel_new(
+        capacity, rt_channel_element_ops_for(element_type_id), element_type_id);
+    if (channel == NULL) {
+        return NULL;
+    }
+    rt_channel_bind_owner_shard(channel, owner_shard_id);
+    if (rt_far_channel_mint(ex, channel, owner_shard_id, out) != RT_REMOTE_TASK_STATUS_OK) {
+        return NULL;
+    }
+    return channel;
+}
+
 static void* mint_channel_anchor(rt_executor* ex,
                                  uint32_t owner_shard_id,
                                  uint64_t capacity,

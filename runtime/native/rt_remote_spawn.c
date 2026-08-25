@@ -258,7 +258,7 @@ rt_remote_spawn_status rt_remote_spawn_create_body_task(rt_executor* ex,
     // body that produces no value publishes none, so an empty slot describing a
     // word costs nothing and keeps one shape for every body.
     const rt_value_ops* result_ops = rt_channel_element_ops_for(result_type_id);
-    if (rt_task_result_bind(&task->result, result_ops) != RT_SLOT_CONTROL_OK) {
+    if (rt_value_cell_bind(&task->result, result_ops) != RT_SLOT_CONTROL_OK) {
         rt_free((uint8_t*)task, sizeof(*task), _Alignof(rt_task));
         return RT_REMOTE_SPAWN_STATUS_REFUSED;
     }

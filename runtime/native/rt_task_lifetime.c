@@ -49,7 +49,7 @@ static void free_task(rt_executor* ex, rt_task* task) {
     // last-resort discharge: if a future caller ever reaches the structural
     // free with a live result under a lock, the detached-dispatch guard aborts
     // here loudly instead of running a drop under the lock quietly.
-    rt_task_result_dispose(&task->result);
+    rt_value_cell_dispose(&task->result);
     rt_task_slot_store(ex, task->id, NULL);
     rt_free((uint8_t*)task, sizeof(rt_task), _Alignof(rt_task));
 }
@@ -64,7 +64,7 @@ static void free_task(rt_executor* ex, rt_task* task) {
 // So the result is destroyed first with nothing held, and only then is control
 // taken for the structural free.
 static void reclaim_task(rt_executor* ex, rt_task* task) {
-    rt_task_result_dispose(&task->result);
+    rt_value_cell_dispose(&task->result);
     int need_control = !rt_lane_holds_control();
     if (need_control) {
         rt_control_lock(ex);

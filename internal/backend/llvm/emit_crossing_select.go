@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"surge/internal/mir"
-	"surge/internal/types"
 )
 
 // emitChannelSelectCrossing lowers a remote select: build the arm tables
@@ -42,15 +41,20 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 	statusSlot := fe.nextTemp()
 	anchorsPtr := fe.nextTemp()
 	armKindsPtr := fe.nextTemp()
-	armBitsPtr := fe.nextTemp()
-	armDropIDsPtr := fe.nextTemp()
+	// One ADDRESS per arm rather than one word: the runtime moves a SEND
+	// payload out of the caller's own storage when the select arms, and moves a
+	// losing one back into it on the terminal retry. The word this replaces
+	// could only carry a pointer, which is why a payload wider than one had to
+	// be boxed to travel at all.
+	armValuesPtr := fe.nextTemp()
+	armTypeIDsPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i8, align %d\n", kindPtr, 1)
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i32, align %d\n", statusSlot, 4)
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x ptr], align %d\n", anchorsPtr, armCount, alignPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i8], align %d\n", armKindsPtr, armCount, 1)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i64], align %d\n", armBitsPtr, armCount, alignWord)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i64], align %d\n", armDropIDsPtr, armCount, alignWord)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x ptr], align %d\n", armValuesPtr, armCount, alignPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i64], align %d\n", armTypeIDsPtr, armCount, alignWord)
 
 	// The arm tables are built ONCE, on the true first attempt. A resumed
 	// retry re-enters this same block, and rt_far_channel_select's own retry
@@ -108,33 +112,39 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 		}
 		fmt.Fprintf(&fe.emitter.buf, "  store i8 %d, ptr %s\n", armKind, kindSlot)
 
-		bitsSlot := fe.nextTemp()
+		valueSlot := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf,
+			"  %s = getelementptr inbounds [%d x ptr], ptr %s, i64 0, i64 %d\n",
+			valueSlot, armCount, armValuesPtr, i)
+		typeIDSlot := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf,
 			"  %s = getelementptr inbounds [%d x i64], ptr %s, i64 0, i64 %d\n",
-			bitsSlot, armCount, armBitsPtr, i)
-		dropIDSlot := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf,
-			"  %s = getelementptr inbounds [%d x i64], ptr %s, i64 0, i64 %d\n",
-			dropIDSlot, armCount, armDropIDsPtr, i)
+			typeIDSlot, armCount, armTypeIDsPtr, i)
 		if op.Method == "send" {
-			val, valTy, valErr := fe.emitValueOperand(&op.Value)
-			if valErr != nil {
-				return valErr
+			// Where the payload ALREADY is. A place operand has an address of
+			// its own and the runtime moves straight out of it; a constant gets
+			// staging storage here, which the move empties exactly as it would
+			// empty a binding.
+			addr, addrErr := fe.emitChannelValueAddress(&op.Value)
+			if addrErr != nil {
+				return addrErr
 			}
-			valueType := operandValueType(fe.emitter.types, &op.Value)
-			bitsVal, bitsErr := fe.emitValueToI64(val, valTy, valueType)
-			if bitsErr != nil {
-				return bitsErr
-			}
-			fmt.Fprintf(&fe.emitter.buf, "  store i64 %s, ptr %s\n", bitsVal, bitsSlot)
-			dropID := types.TypeID(0)
-			if fe.emitter.payloadNeedsRuntimeRelease(valueType) {
-				dropID = fe.emitter.registerCrossingDropResult(valueType)
-			}
-			fmt.Fprintf(&fe.emitter.buf, "  store i64 %d, ptr %s\n", dropID, dropIDSlot)
+			fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", addr, valueSlot)
+			// The element's TYPE, not a drop id: it names the descriptor that
+			// moves this payload and destroys it, and it is passed for every
+			// SEND arm rather than only for the ones that own heap, because a
+			// descriptor is how the runtime knows the WIDTH as well.
+			//
+			// It comes from the CHANNEL, not from the value: the cell this
+			// stages into is an element of that channel, and only the channel
+			// can say how wide an element is. Asking the operand would let a
+			// literal's own type size a cell the channel's element does not
+			// fit -- the storage-flip defect shape, in one line.
+			elementType := resolveValueType(fe.emitter.types, fe.channelElementTypeOf(&op.Receiver))
+			fmt.Fprintf(&fe.emitter.buf, "  store i64 %d, ptr %s\n", elementType, typeIDSlot)
 		} else {
-			fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s\n", bitsSlot)
-			fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s\n", dropIDSlot)
+			fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", valueSlot)
+			fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s\n", typeIDSlot)
 		}
 	}
 	anchorsBase := fe.nextTemp()
@@ -145,14 +155,14 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 	fmt.Fprintf(&fe.emitter.buf,
 		"  %s = getelementptr inbounds [%d x i8], ptr %s, i64 0, i64 0\n",
 		kindsBase, armCount, armKindsPtr)
-	bitsBase := fe.nextTemp()
+	valuesBase := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf,
+		"  %s = getelementptr inbounds [%d x ptr], ptr %s, i64 0, i64 0\n",
+		valuesBase, armCount, armValuesPtr)
+	typeIDsBase := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
 		"  %s = getelementptr inbounds [%d x i64], ptr %s, i64 0, i64 0\n",
-		bitsBase, armCount, armBitsPtr)
-	dropIDsBase := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf,
-		"  %s = getelementptr inbounds [%d x i64], ptr %s, i64 0, i64 0\n",
-		dropIDsBase, armCount, armDropIDsPtr)
+		typeIDsBase, armCount, armTypeIDsPtr)
 
 	initStatus := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
@@ -161,8 +171,8 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 		initStatus,
 		anchorsBase,
 		kindsBase,
-		bitsBase,
-		dropIDsBase,
+		valuesBase,
+		typeIDsBase,
 		armCount,
 		ins.BodyFuncID,
 		pendingPtr,
@@ -171,20 +181,29 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  store i32 %s, ptr %s\n", initStatus, statusSlot)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", statusBB)
 
-	// Retry: the pending already owns the shipped arm table (payloads
-	// included), so every arm-describing argument is passed inert — matching
-	// the C retry branch, which reads none of them.
+	// Retry: the pending already owns the staged payloads, so every other
+	// arm-describing argument is passed inert — matching the C retry branch,
+	// which reads none of them.
+	//
+	// The value array is the exception and it is rebuilt HERE rather than
+	// carried over, because this block is re-entered on a fresh poll: the
+	// addresses the arming call staged from belonged to that poll's frame, and
+	// what a losing payload must be moved back into is THIS poll's storage for
+	// the same MIR place.
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", retryBB)
-	retryBitsBase := fe.nextTemp()
+	if addrErr := fe.emitChannelSelectReturnAddresses(ins, armValuesPtr); addrErr != nil {
+		return addrErr
+	}
+	retryValuesBase := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
-		"  %s = getelementptr inbounds [%d x i64], ptr %s, i64 0, i64 0\n",
-		retryBitsBase, armCount, armBitsPtr)
+		"  %s = getelementptr inbounds [%d x ptr], ptr %s, i64 0, i64 0\n",
+		retryValuesBase, armCount, armValuesPtr)
 	retryStatus := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
 		"  %s = call i32 @rt_far_channel_select(ptr null, ptr null, ptr %s, ptr null, i64 %d, i64 0, "+
 			"i64 0, ptr null, ptr %s, ptr %s, ptr %s)\n",
 		retryStatus,
-		retryBitsBase,
+		retryValuesBase,
 		armCount,
 		pendingPtr,
 		kindPtr,
@@ -231,9 +250,10 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", winnerBB)
 	winnerBits := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", winnerBits, bitsPtr)
-	if handbackErr := fe.emitChannelSelectHandback(ins, armBitsPtr, winnerBits); handbackErr != nil {
-		return handbackErr
-	}
+	// No handback to emit: every losing payload was MOVED back into its own MIR
+	// place by the call above, which is the place sema's losing-arm drops
+	// already name. The winner's place was emptied by the staging move and
+	// stays empty, so nothing there is dropped twice.
 	dstType, err := fe.placeBaseType(ins.Dst)
 	if err != nil {
 		return err
@@ -287,16 +307,21 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 	return fe.emitPanicBlock(defaultBB, "remote select request failed")
 }
 
-// emitChannelSelectHandback materializes the MIR ReturnPlace definitions on a
-// genuine winner reply. The runtime has already copied every non-committed
-// SEND payload back into armBits and relinquished the pending's drop
-// obligations. A committed SEND stays with its channel and is deliberately
-// skipped; all other returned roots are restored before ReadyBB so sema's
-// ordinary losing-arm drops see exactly the owners MIR promises.
-func (fe *funcEmitter) emitChannelSelectHandback(
+// emitChannelSelectReturnAddresses fills the arm value table with WHERE each
+// losing SEND payload must be moved back to.
+//
+// It is the retry half of the same array the arming call staged from, and it
+// exists as its own pass because the two run in different polls: the arming
+// call read the caller's storage on the poll that armed the select, and this
+// names the storage for the SAME MIR place on the poll that finishes it. The
+// runtime keeps neither address, so nothing here can outlive its frame.
+//
+// The shape is checked rather than assumed: MIR promises a SEND arm's return
+// place is the very local the payload moved out of, and a lowering that
+// silently disagreed would restore a value into storage nobody drops.
+func (fe *funcEmitter) emitChannelSelectReturnAddresses(
 	ins *mir.CrossingInstr,
-	armBitsPtr string,
-	winnerBits string,
+	armValuesPtr string,
 ) error {
 	if ins == nil {
 		return nil
@@ -304,46 +329,28 @@ func (fe *funcEmitter) emitChannelSelectHandback(
 	armCount := len(ins.RemoteOps)
 	for i := range ins.RemoteOps {
 		op := &ins.RemoteOps[i]
-		if op.ReturnPlace == nil {
+		valueSlot := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf,
+			"  %s = getelementptr inbounds [%d x ptr], ptr %s, i64 0, i64 %d\n",
+			valueSlot, armCount, armValuesPtr, i)
+		if op.Method != "send" || op.ReturnPlace == nil {
+			// A RECV arm, or a SEND whose payload MIR gives no place to return
+			// to. Either way there is nowhere to move a loser back into, and
+			// the runtime destroys it in its own cell instead.
+			fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", valueSlot)
 			continue
 		}
-		if op.Method != "send" || op.Value.Kind != mir.OperandMove ||
+		if op.Value.Kind != mir.OperandMove ||
 			op.ReturnPlace.Kind != mir.PlaceLocal || len(op.ReturnPlace.Proj) != 0 ||
 			op.Value.Place.Kind != mir.PlaceLocal || len(op.Value.Place.Proj) != 0 ||
 			op.Value.Place.Local != op.ReturnPlace.Local {
 			return fmt.Errorf("channel_select return place %d is not an exact SEND MOVE", i)
 		}
-		restoreBB := fe.nextInlineBlock()
-		nextBB := fe.nextInlineBlock()
-		committed := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq i64 %s, %d\n", committed, winnerBits, i)
-		fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", committed, nextBB, restoreBB)
-
-		fmt.Fprintf(&fe.emitter.buf, "%s:\n", restoreBB)
-		bitsSlot := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf,
-			"  %s = getelementptr inbounds [%d x i64], ptr %s, i64 0, i64 %d\n",
-			bitsSlot, armCount, armBitsPtr, i)
-		returnedBits := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", returnedBits, bitsSlot)
-		placeType, err := fe.placeBaseType(*op.ReturnPlace)
+		placePtr, _, _, err := fe.emitPlaceStorage(*op.ReturnPlace)
 		if err != nil {
 			return err
 		}
-		returned, returnedTy, err := fe.emitI64ToValue(returnedBits, placeType)
-		if err != nil {
-			return err
-		}
-		placePtr, placeTy, placeAlign, err := fe.emitPlaceStorage(*op.ReturnPlace)
-		if err != nil {
-			return err
-		}
-		if placeTy != returnedTy {
-			return fmt.Errorf("channel_select return place %d lowers as %s, returned %s", i, placeTy, returnedTy)
-		}
-		fe.emitValueStore(placeTy, returned, placePtr, placeAlign)
-		fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", nextBB)
-		fmt.Fprintf(&fe.emitter.buf, "%s:\n", nextBB)
+		fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", placePtr, valueSlot)
 	}
 	return nil
 }

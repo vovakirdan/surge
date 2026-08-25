@@ -38,7 +38,7 @@ rt_remote_spawn_status (*check_handle_alloc)(rt_far_task_handle**) =
 rt_runtime_status (*check_remote_task_state_destroy)(rt_executor*) =
     rt_remote_task_state_destroy;
 rt_remote_task_status (*check_far_channel_select)(const rt_far_task_handle* const*,
-    const uint8_t*, uint64_t*, const uint64_t*, uint64_t, uint64_t, int64_t, void*,
+    const uint8_t*, void* const*, const uint64_t*, uint64_t, uint64_t, int64_t, void*,
     rt_remote_task_pending**, uint8_t*, uint64_t*) = rt_far_channel_select;
 
 _Static_assert(RT_REMOTE_SPAWN_STATUS_OK == 0, "OK status must stay zero");
@@ -376,6 +376,11 @@ func TestRuntimeV2RemoteSelectAbandonEdges(t *testing.T) {
 		{
 			name: "recv-winner-returns-losing-payload",
 			mode: "far-select-recv-winner-handback",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1"),
+		},
+		{
+			name: "send-arm-carries-a-payload-wider-than-a-word",
+			mode: "far-select-wide-payload",
 			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1"),
 		},
 	}

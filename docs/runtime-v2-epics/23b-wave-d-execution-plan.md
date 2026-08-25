@@ -190,7 +190,7 @@ dispatch path in the same commit.
 | D2 | Map key/value entries — insert, rehash, replace, remove, failed insert, teardown | D1 (element storage first) |
 | D3 | Buffered/unbuffered channel send/receive and waiter mailboxes | D0.7 (the waiter fix is a precondition, not a parallel task) |
 | D4 | Task canonical result/resume and cloned result entitlements. **D4a (typed result slot, near and far) CLOSED 2026-08-25**; D4b (entitlements) open | D0; may run beside D3 only once their production files do not overlap |
-| D5 | REMOTE select only — `rt_far_channel_select.c`. Local `select` moved into D3 by the 2026-08-19 ruling below | D3 |
+| D5 | REMOTE select only — `rt_far_channel_select.c`. Local `select` moved into D3 by the 2026-08-19 ruling below. **CLOSED 2026-08-25** | D3 |
 | D6 | Blocking captures/results and every cancellation timing | D3, D4 |
 | D7 | Async frames, captures, polling, wake, normal/shutdown drains | D4 |
 | D8 | RV2-DEBT-151 retirement — local **and** FAR **and** CROSSING (ruling 8) | D1–D7 |
