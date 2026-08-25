@@ -21,33 +21,40 @@ typedef enum rt_remote_task_status {
     RT_REMOTE_TASK_STATUS_UNSUPPORTED_PLACEMENT = 8,
 } rt_remote_task_status;
 
+// `out_dst` is the caller's storage for the result, sized from the result's own
+// type, and it is READ ONLY on the terminal call: every earlier call answers
+// PENDING and must not be given an address that a park would outlive. The value
+// itself never becomes a machine word -- the reply names the producer's slot
+// and this moves it out.
 rt_remote_task_status rt_far_task_await(const rt_far_task_handle* handle,
                                         uint64_t result_drop_fn_id,
                                         rt_remote_task_pending** pending,
                                         uint8_t* out_kind,
-                                        uint64_t* out_bits);
+                                        void* out_dst);
 rt_remote_task_status rt_far_task_cancel(const rt_far_task_handle* handle,
                                          uint64_t result_drop_fn_id,
                                          rt_remote_task_pending** pending,
                                          uint8_t* out_kind,
-                                         uint64_t* out_bits);
+                                         void* out_dst);
 rt_remote_task_status rt_far_task_release(const rt_far_task_handle* handle);
 // Immediate `on placement` execute/reply: one request, one reply, one
 // request-scoped cancellation token, no publicly observable far Task handle.
 rt_remote_task_status rt_immediate_on_execute_anchored(const rt_far_task_handle* anchor,
                                                        uint64_t state_drop_fn_id,
+                                                       uint64_t result_type_id,
                                                        int64_t poll_fn_id,
                                                        void* state,
                                                        rt_remote_task_pending** pending,
                                                        uint8_t* out_kind,
-                                                       uint64_t* out_bits);
+                                                       void* out_dst);
 rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
                                               uint64_t state_drop_fn_id,
+                                              uint64_t result_type_id,
                                               int64_t poll_fn_id,
                                               void* state,
                                               rt_remote_task_pending** pending,
                                               uint8_t* out_kind,
-                                              uint64_t* out_bits);
+                                              void* out_dst);
 rt_remote_spawn_status rt_far_task_handle_alloc(rt_far_task_handle** out_handle);
 void rt_far_task_handle_free(const rt_far_task_handle* handle);
 void rt_far_task_begin_transfer(const rt_far_task_handle* handle);
@@ -55,7 +62,10 @@ void rt_far_task_finish_transfer(const rt_far_task_handle* handle, void* child_t
 void rt_far_task_prepare_return(const rt_far_task_handle* handle);
 void rt_far_task_release_owned(rt_executor* ex, const rt_task* holder);
 void rt_far_task_release_all(rt_executor* ex);
-uint8_t rt_far_task_take_result(rt_task* producer, rt_task* holder, uint64_t* out_bits);
+// Serves this task's result to one asker: an independent value when more than
+// one handle can still ask, and a move when this is the only one. The value is
+// written into `out_dst`, which the caller sized from the result's own type.
+uint8_t rt_far_task_take_result(rt_task* producer, rt_task* holder, void* out_dst);
 void rt_far_task_release_result(rt_executor* ex, rt_task* producer);
 
 rt_runtime_status rt_remote_task_state_init(rt_executor* ex);

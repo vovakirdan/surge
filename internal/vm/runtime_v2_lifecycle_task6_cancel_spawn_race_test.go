@@ -188,6 +188,10 @@ static rt_task* race_alloc_ready_task(rt_executor* ex, int64_t poll_fn_id) {
         return NULL;
     }
     memset(task, 0, sizeof(*task));
+    // A stand's task answers with a machine word, which is exactly what the
+    // opaque-word descriptor describes: the result slot carries it the same way
+    // it carries a compiled type's value.
+    (void)rt_task_result_bind(&task->result, rt_channel_opaque_word_ops());
     task->id = id;
     task->poll_fn_id = poll_fn_id;
     task->kind = TASK_KIND_USER;
@@ -214,7 +218,7 @@ static rt_task* race_spawn_top_level(rt_executor* ex, int64_t poll_fn_id, uint32
 }
 
 static void poll_race_child(void) {
-    rt_async_return(NULL, 0);
+    rt_async_return(NULL, &(uint64_t){0});
 }
 
 // Spawns children of itself via __task_create (rt_current_task() is the
@@ -229,14 +233,14 @@ static void poll_race_parent(void) {
     if (st == NULL) {
         st = (race_parent_state*)malloc(sizeof(race_parent_state));
         if (st == NULL) {
-            rt_async_return(NULL, 0);
+            rt_async_return(NULL, &(uint64_t){0});
             return;
         }
         st->spawned = 0;
     }
     if (st->spawned < RACE_CHILDREN_PER_PARENT) {
         for (int i = 0; i < 3 && st->spawned < RACE_CHILDREN_PER_PARENT; i++) {
-            (void)__task_create(POLL_RACE_CHILD, NULL);
+            (void)__task_create(POLL_RACE_CHILD, NULL, rt_channel_opaque_word_ops());
             st->spawned++;
             atomic_fetch_add_explicit(&g_race_children_total, 1, memory_order_relaxed);
         }
@@ -244,7 +248,7 @@ static void poll_race_parent(void) {
         return;
     }
     free(st);
-    rt_async_return(NULL, 1);
+    rt_async_return(NULL, &(uint64_t){1});
 }
 
 static void* race_canceller_main(void* arg) {
@@ -289,7 +293,7 @@ void __surge_poll_call(uint64_t id) {
         default:
             break;
     }
-    rt_async_return(NULL, 0);
+    rt_async_return(NULL, &(uint64_t){0});
 }
 
 static int mode_cancel_spawn_race(rt_executor* ex) {

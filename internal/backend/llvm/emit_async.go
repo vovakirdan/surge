@@ -255,14 +255,7 @@ func (fe *funcEmitter) emitInstrAwait(ins *mir.Instr) error {
 		return fmt.Errorf("await expects Task pointer: %w", err)
 	}
 	kindPtr := fe.nextTemp()
-	bitsPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i8, align %d\n", kindPtr, 1)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
-	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_task_await(ptr %s, ptr %s, ptr %s)\n", val, kindPtr, bitsPtr)
-	kindVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i8, ptr %s\n", kindVal, kindPtr)
-	bitsVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", bitsVal, bitsPtr)
 
 	resultType, err := fe.placeBaseType(ins.Await.Dst)
 	if err != nil {
@@ -272,6 +265,17 @@ func (fe *funcEmitter) emitInstrAwait(ins *mir.Instr) error {
 	if err != nil {
 		return err
 	}
+	// The awaited value is moved into storage this frame owns, at the payload's
+	// own width. The word this replaces could only carry a pointer, so anything
+	// wider had to be boxed by the producer and adopted here.
+	payloadPtr, payloadStorageTy, err := fe.emitTaskPayloadSlot(payloadType)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_task_await(ptr %s, ptr %s, ptr %s)\n",
+		val, kindPtr, payloadPtr)
+	kindVal := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load i8, ptr %s\n", kindVal, kindPtr)
 	resultPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", resultPtr, alignPtr)
 	successBB := fe.nextInlineBlock()
@@ -282,7 +286,7 @@ func (fe *funcEmitter) emitInstrAwait(ins *mir.Instr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", isSuccess, successBB, cancelBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", successBB)
-	payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)
+	payloadVal, payloadTy, err := fe.emitTaskPayloadValue(payloadType, payloadStorageTy, payloadPtr)
 	if err != nil {
 		return err
 	}
@@ -323,10 +327,23 @@ func (fe *funcEmitter) emitInstrPoll(ins *mir.Instr) error {
 	if err != nil {
 		return fmt.Errorf("poll expects Task pointer: %w", err)
 	}
-	bitsPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
+	resultTypeForSlot, err := fe.placeBaseType(ins.Poll.Dst)
+	if err != nil {
+		return err
+	}
+	_, pollPayloadType, err := fe.taskResultInfo(resultTypeForSlot)
+	if err != nil {
+		return err
+	}
+	// Sized for the payload rather than for a machine word: see
+	// emitTaskPayloadSlot.
+	payloadPtr, payloadStorageTy, err := fe.emitTaskPayloadSlot(pollPayloadType)
+	if err != nil {
+		return err
+	}
 	kindVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call i8 @rt_task_poll(ptr %s, ptr %s)\n", kindVal, val, bitsPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call i8 @rt_task_poll(ptr %s, ptr %s)\n",
+		kindVal, val, payloadPtr)
 	pendingCond := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq i8 %s, 0\n", pendingCond, kindVal)
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%bb%d, label %%bb.inline.poll_done%d\n", pendingCond, ins.Poll.PendBB, fe.inlineBlock)
@@ -350,9 +367,7 @@ func (fe *funcEmitter) emitInstrPoll(ins *mir.Instr) error {
 	}
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", successBB)
-	bitsVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", bitsVal, bitsPtr)
-	payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)
+	payloadVal, payloadTy, err := fe.emitTaskPayloadValue(payloadType, payloadStorageTy, payloadPtr)
 	if err != nil {
 		return err
 	}
@@ -439,10 +454,24 @@ func (fe *funcEmitter) emitInstrTimeout(ins *mir.Instr) error {
 	if err != nil {
 		return err
 	}
-	bitsPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
+	timeoutResultType, err := fe.placeBaseType(ins.Timeout.Dst)
+	if err != nil {
+		return err
+	}
+	_, timeoutPayloadType, err := fe.taskResultInfo(timeoutResultType)
+	if err != nil {
+		return err
+	}
+	// Sized for the payload rather than for a machine word: see
+	// emitTaskPayloadSlot. A timeout poll takes the SAME result out of the
+	// SAME slot an await does, so it cannot be the one surface that still
+	// asks for a word.
+	payloadPtr, payloadStorageTy, err := fe.emitTaskPayloadSlot(timeoutPayloadType)
+	if err != nil {
+		return err
+	}
 	kindVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call i8 @rt_timeout_poll(ptr %s, i64 %s, ptr %s)\n", kindVal, val, ms64, bitsPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call i8 @rt_timeout_poll(ptr %s, i64 %s, ptr %s)\n", kindVal, val, ms64, payloadPtr)
 	pendingCond := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq i8 %s, 0\n", pendingCond, kindVal)
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%bb%d, label %%bb.inline.timeout_done%d\n", pendingCond, ins.Timeout.PendBB, fe.inlineBlock)
@@ -456,19 +485,14 @@ func (fe *funcEmitter) emitInstrTimeout(ins *mir.Instr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq i8 %s, 1\n", successCond, kindVal)
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", successCond, successBB, cancelBB)
 
-	resultType, err := fe.placeBaseType(ins.Timeout.Dst)
-	if err != nil {
-		return err
-	}
+	resultType := timeoutResultType
 	successIdx, payloadType, err := fe.taskResultInfo(resultType)
 	if err != nil {
 		return err
 	}
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", successBB)
-	bitsVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", bitsVal, bitsPtr)
-	payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)
+	payloadVal, payloadTy, err := fe.emitTaskPayloadValue(payloadType, payloadStorageTy, payloadPtr)
 	if err != nil {
 		return err
 	}
@@ -679,90 +703,6 @@ func (fe *funcEmitter) emitTermAsyncYield(term *mir.Terminator) error {
 //
 // It answers false for everything else, including the ordinary case where the
 // value already IS the union, so the caller can use it unconditionally.
-func (fe *funcEmitter) widenAsyncReturnBareMember(val, valTy string, valueType types.TypeID) (storage, storageLLVM string, unionType types.TypeID, widened bool, err error) {
-	if fe == nil || fe.f == nil || valueType == types.NoTypeID {
-		return "", "", types.NoTypeID, false, nil
-	}
-	result := resolveValueType(fe.emitter.types, fe.f.Result)
-	if result == types.NoTypeID || !isUnionType(fe.emitter.types, result) {
-		return "", "", types.NoTypeID, false, nil
-	}
-	if resolveValueType(fe.emitter.types, valueType) == result {
-		return "", "", types.NoTypeID, false, nil
-	}
-	if _, ok := fe.emitter.unionMemberFor(result, valueType); !ok {
-		return "", "", types.NoTypeID, false, nil
-	}
-	mem, err := fe.emitValueStorage(result)
-	if err != nil {
-		return "", "", types.NoTypeID, false, err
-	}
-	facts, err := fe.emitter.layoutOf(result)
-	if err != nil {
-		return "", "", types.NoTypeID, false, err
-	}
-	align := facts.Align
-	if align == 0 {
-		align = 1
-	}
-	materialised, err := fe.emitUnionMaterialiseBareMember(mem, align, result, val, valTy, valueType)
-	if err != nil {
-		return "", "", types.NoTypeID, false, err
-	}
-	if !materialised {
-		return "", "", types.NoTypeID, false, nil
-	}
-	resultLLVM, err := fe.emitter.llvmType(result)
-	if err != nil {
-		return "", "", types.NoTypeID, false, err
-	}
-	return mem, resultLLVM, result, true, nil
-}
-
-func (fe *funcEmitter) emitTermAsyncReturn(term *mir.Terminator) error {
-	if term == nil {
-		return nil
-	}
-	stateVal, stateTy, err := fe.emitValueOperand(&term.AsyncReturn.State)
-	if err != nil {
-		return err
-	}
-	if stateTy != "ptr" {
-		return fmt.Errorf("async_return expects state pointer, got %s", stateTy)
-	}
-	bitsVal := "0"
-	if term.AsyncReturn.HasValue {
-		val, valTy, err := fe.emitValueOperand(&term.AsyncReturn.Value)
-		if err != nil {
-			return err
-		}
-		valueType := operandValueType(fe.emitter.types, &term.AsyncReturn.Value)
-		if valueType == types.NoTypeID && term.AsyncReturn.Value.Kind != mir.OperandConst {
-			if baseType, baseErr := fe.placeBaseType(term.AsyncReturn.Value.Place); baseErr == nil {
-				valueType = baseType
-			}
-		}
-		// A bare member returned from an async body is still a member of the
-		// result union, and it has to be widened HERE. The sibling arm that
-		// returns a tag arrives as a cast to the union; the bare arm arrives
-		// as the member itself, so without this the reader is handed a member
-		// where it expects a union and reads the payload at the wrong offset.
-		if widened, widenedTy, widenedType, ok, wErr := fe.widenAsyncReturnBareMember(val, valTy, valueType); wErr != nil {
-			return wErr
-		} else if ok {
-			val, valTy, valueType = widened, widenedTy, widenedType
-		}
-		bits, err := fe.emitAsyncReturnBits(val, valTy, valueType)
-		if err != nil {
-			return err
-		}
-		bitsVal = bits
-	}
-	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_async_return(ptr %s, i64 %s)\n", stateVal, bitsVal)
-	fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
-	return nil
-}
-
 func (fe *funcEmitter) emitTermAsyncReturnCancelled(term *mir.Terminator) error {
 	if term == nil {
 		return nil

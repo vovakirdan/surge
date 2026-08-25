@@ -6,6 +6,7 @@ import (
 	"surge/internal/mir"
 	"surge/internal/sema"
 	"surge/internal/symbols"
+	"surge/internal/types"
 )
 
 // emitAnchoredOnCrossing lowers `on ch { ... }` to the anchored immediate
@@ -35,11 +36,32 @@ func (fe *funcEmitter) emitAnchoredOnCrossing(ins *mir.CrossingInstr) error {
 	}
 
 	kindPtr := fe.nextTemp()
-	bitsPtr := fe.nextTemp()
 	statusSlot := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i8, align %d\n", kindPtr, 1)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i32, align %d\n", statusSlot, 4)
+	// Storage for the crossing's result, at the payload's own width. The
+	// runtime reads it only on the terminal call; see emitTaskPayloadSlot.
+	crossingResultType := ins.ResultType
+	if crossingResultType == types.NoTypeID {
+		crossingResultType, err = fe.placeBaseType(ins.Dst)
+		if err != nil {
+			return err
+		}
+	}
+	_, crossingPayloadType, err := fe.taskResultInfo(crossingResultType)
+	if err != nil {
+		return err
+	}
+	payloadPtr, payloadStorageTy, err := fe.emitTaskPayloadSlot(crossingPayloadType)
+	if err != nil {
+		return err
+	}
+	// The body's result type as a number, for the destination shard to turn
+	// back into a descriptor: a crossing carries no pointers.
+	resultTypeID, err := fe.crossingResultTypeID(crossingPayloadType)
+	if err != nil {
+		return err
+	}
 
 	pendingVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", pendingVal, pendingPtr)
@@ -80,27 +102,28 @@ func (fe *funcEmitter) emitAnchoredOnCrossing(ins *mir.CrossingInstr) error {
 	}
 	initStatus := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
-		"  %s = call i32 @rt_immediate_on_execute_anchored(ptr %s, i64 %d, i64 %d, ptr %s, ptr %s, ptr %s, ptr %s)\n",
+		"  %s = call i32 @rt_immediate_on_execute_anchored(ptr %s, i64 %d, i64 %d, i64 %d, ptr %s, ptr %s, ptr %s, ptr %s)\n",
 		initStatus,
 		anchorVal,
 		stateDropID,
+		resultTypeID,
 		ins.BodyFuncID,
 		stateVal,
 		pendingPtr,
 		kindPtr,
-		bitsPtr)
+		payloadPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  store i32 %s, ptr %s\n", initStatus, statusSlot)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", statusBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", retryBB)
 	retryStatus := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
-		"  %s = call i32 @rt_immediate_on_execute_anchored(ptr null, i64 0, i64 %d, ptr null, ptr %s, ptr %s, ptr %s)\n",
+		"  %s = call i32 @rt_immediate_on_execute_anchored(ptr null, i64 0, i64 0, i64 %d, ptr null, ptr %s, ptr %s, ptr %s)\n",
 		retryStatus,
 		ins.BodyFuncID,
 		pendingPtr,
 		kindPtr,
-		bitsPtr)
+		payloadPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  store i32 %s, ptr %s\n", retryStatus, statusSlot)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", statusBB)
 
@@ -120,7 +143,7 @@ func (fe *funcEmitter) emitAnchoredOnCrossing(ins *mir.CrossingInstr) error {
 	resultBB := fe.nextInlineBlock()
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", isOK, resultBB, errBB)
 
-	if err := fe.emitFarTaskLifecycleResult(ins, resultBB, kindPtr, bitsPtr); err != nil {
+	if err := fe.emitFarTaskLifecycleResult(ins, resultBB, kindPtr, payloadPtr, payloadStorageTy); err != nil {
 		return err
 	}
 	if err := fe.emitAnchoredOnErrorBlocks(errBB, statusVal); err != nil {

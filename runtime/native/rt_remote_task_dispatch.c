@@ -21,16 +21,20 @@ enqueue_reply(rt_executor* ex, rt_remote_task_pending* pending, rt_transport_msg
     return rt_remote_task_transport_status(rt_remote_spawn_enqueue_with_drain(ex, source, &reply));
 }
 
-void rt_remote_task_reply_or_finish(rt_executor* ex,
-                                    rt_remote_task_pending* pending,
-                                    rt_remote_task_status status,
-                                    uint8_t result_kind,
-                                    uint64_t result_bits,
-                                    rt_transport_msg_kind reply_kind) {
+void rt_remote_task_reply_or_finish_with_result(rt_executor* ex,
+                                                rt_remote_task_pending* pending,
+                                                rt_remote_task_status status,
+                                                uint8_t result_kind,
+                                                uint64_t result_bits,
+                                                const rt_result_source* result_source,
+                                                rt_transport_msg_kind reply_kind) {
     if (pending == NULL) {
+        // Nobody to answer, so a capability minted for this reply would pin a
+        // task forever. Release it here rather than leaking the pin.
+        rt_remote_task_release_result_source(ex, result_source);
         return;
     }
-    rt_remote_task_pending_set_reply(pending, status, result_kind, result_bits);
+    rt_remote_task_pending_set_reply(pending, status, result_kind, result_bits, result_source);
     if (status == RT_REMOTE_TASK_STATUS_OK) {
         rt_remote_task_status enqueue_status = enqueue_reply(ex, pending, reply_kind);
         if (enqueue_status == RT_REMOTE_TASK_STATUS_OK) {
@@ -38,8 +42,20 @@ void rt_remote_task_reply_or_finish(rt_executor* ex,
         }
         status = enqueue_status;
     }
-    rt_remote_task_pending_finish(ex, pending, status, result_kind, result_bits);
+    // The reply never reached its caller. Finishing with the capability still
+    // set keeps the pin accounted for: whoever releases the pending releases it.
+    rt_remote_task_pending_finish(ex, pending, status, result_kind, result_bits, result_source);
     rt_remote_task_pending_release(pending);
+}
+
+void rt_remote_task_reply_or_finish(rt_executor* ex,
+                                    rt_remote_task_pending* pending,
+                                    rt_remote_task_status status,
+                                    uint8_t result_kind,
+                                    uint64_t result_bits,
+                                    rt_transport_msg_kind reply_kind) {
+    rt_remote_task_reply_or_finish_with_result(
+        ex, pending, status, result_kind, result_bits, NULL, reply_kind);
 }
 
 static int request_matches(const rt_transport_msg* msg, const rt_remote_task_pending* pending) {
@@ -176,19 +192,21 @@ static void dispatch_request(rt_executor* ex, const rt_transport_msg* msg, rt_re
         return;
     }
     if (task_status_load(task) == TASK_DONE) {
-        uint64_t bits = op == RT_REMOTE_TASK_OP_AWAIT ? task->result_bits : 0;
+        // An AWAIT answers by NAMING the result, and the pin that comes with
+        // the capability is what keeps the producer's slot alive until the
+        // caller moves the value out of it (RV2-DEBT-053a). A CANCEL carries
+        // no value and mints nothing.
+        rt_result_source source = {0, 0, 0, 0};
         if (op == RT_REMOTE_TASK_OP_AWAIT) {
-            // Result ownership transfers to the caller with this reply; drop
-            // the owner-side obligation so free_task does not double-free
-            // (RV2-DEBT-053a).
-            task->result_drop_fn_id = 0;
+            source = rt_remote_task_pin_result(task);
         }
-        rt_remote_task_reply_or_finish(ex,
-                                       pending,
-                                       RT_REMOTE_TASK_STATUS_OK,
-                                       rt_remote_task_result_kind(task),
-                                       bits,
-                                       reply_kind);
+        rt_remote_task_reply_or_finish_with_result(ex,
+                                                   pending,
+                                                   RT_REMOTE_TASK_STATUS_OK,
+                                                   rt_remote_task_result_kind(task),
+                                                   0,
+                                                   &source,
+                                                   reply_kind);
         task_release_lane_aware(ex, task);
         return;
     }
@@ -237,7 +255,8 @@ static void dispatch_reply(rt_executor* ex, const rt_transport_msg* msg) {
                                   pending,
                                   (rt_remote_task_status)pending->reply_status,
                                   pending->result_kind,
-                                  pending->result_bits);
+                                  pending->result_bits,
+                                  &pending->result_source);
     // Consume (unlink + release): an orphaned reply — the caller already
     // resumed through the cancel path and dropped its reference — must not
     // leave a freed pending linked in the list.

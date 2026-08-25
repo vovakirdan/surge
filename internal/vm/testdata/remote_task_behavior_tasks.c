@@ -1,3 +1,5 @@
+// nanosleep, which this stand uses to wait on task status from the outside.
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 #define _POSIX_C_SOURCE 199309L
 #include "remote_task_behavior.h"
 
@@ -22,6 +24,12 @@ int rtb_fail(const char* message) {
     return 1;
 }
 
+uint64_t* rtb_word(uint64_t value) {
+    static _Thread_local uint64_t slot;
+    slot = value;
+    return &slot;
+}
+
 void rtb_sleep_us(unsigned long micros) {
     struct timespec ts = {
         .tv_sec = (time_t)(micros / 1000000UL),
@@ -43,7 +51,7 @@ int rtb_wait_u32(_Atomic uint32_t* value, uint32_t expected, uint32_t attempts) 
 
 int rtb_wait_task_done(rt_executor* ex, uint64_t task_id, uint32_t attempts) {
     for (uint32_t i = 0; i < attempts; i++) {
-        rt_task* task = get_task(ex, task_id);
+        const rt_task* task = get_task(ex, task_id);
         if (task != NULL && task_status_load(task) == TASK_DONE) {
             return 1;
         }
@@ -81,7 +89,7 @@ static void poll_child(rtb_child_state* child) {
     }
     if (atomic_load_explicit(&child->gate, memory_order_acquire) != 0) {
         atomic_store_explicit(&child->done, 1, memory_order_release);
-        rt_async_return(child, 91);
+        rt_async_return(child, rtb_word(91));
     }
     rt_async_yield(child, 0);
 }
@@ -90,7 +98,7 @@ static void poll_publisher(rtb_publish_state* state) {
     if (state->handle == NULL) {
         state->status = rt_far_task_handle_alloc(&state->handle);
         if (state->status != RT_REMOTE_SPAWN_STATUS_OK) {
-            rt_async_return(state, (uint64_t)state->status);
+            rt_async_return(state, rtb_word((uint64_t)state->status));
         }
     }
     state->status = rt_remote_spawn_publish(state->destination,
@@ -109,9 +117,9 @@ static void poll_publisher(rtb_publish_state* state) {
     }
     if (state->status == RT_REMOTE_SPAWN_STATUS_OK && state->return_handle != 0) {
         rt_far_task_prepare_return(state->handle);
-        rt_async_return(state, (uint64_t)(uintptr_t)state->handle);
+        rt_async_return(state, rtb_word((uint64_t)(uintptr_t)state->handle));
     }
-    rt_async_return(state, (uint64_t)state->status);
+    rt_async_return(state, rtb_word((uint64_t)state->status));
 }
 
 static void poll_lifecycle(rtb_lifecycle_state* state) {
@@ -141,13 +149,14 @@ static void poll_lifecycle(rtb_lifecycle_state* state) {
     }
     state->result_kind = kind;
     state->result_bits = bits;
-    rt_async_return(state, (uint64_t)state->status);
+    rt_async_return(state, rtb_word((uint64_t)state->status));
 }
 
 static void poll_rtb_execute(rtb_execute_state* state) {
     uint8_t kind = 0;
     uint64_t bits = 0;
     state->status = rt_immediate_on_execute(state->placement,
+                                            0,
                                             0,
                                             (int64_t)state->body_poll_id,
                                             state->body_state,
@@ -160,7 +169,7 @@ static void poll_rtb_execute(rtb_execute_state* state) {
     }
     state->result_kind = kind;
     state->result_bits = bits;
-    rt_async_return(state, (uint64_t)state->status);
+    rt_async_return(state, rtb_word((uint64_t)state->status));
 }
 
 static void poll_rtb_channel_create(rtb_create_state* state) {
@@ -171,14 +180,14 @@ static void poll_rtb_channel_create(rtb_create_state* state) {
     if (state->status == RT_REMOTE_TASK_STATUS_PENDING) {
         rt_async_yield(state, 0);
     }
-    rt_async_return(state, (uint64_t)state->status);
+    rt_async_return(state, rtb_word((uint64_t)state->status));
 }
 
 void* rtb_start_channel_create(rtb_create_state* state, uint64_t placement, uint64_t capacity) {
     memset(state, 0, sizeof(*state));
     state->placement = placement;
     state->capacity = capacity;
-    return __task_create(POLL_RTB_CHANNEL_CREATE, state);
+    return __task_create(POLL_RTB_CHANNEL_CREATE, state, rt_channel_opaque_word_ops());
 }
 
 // Drop-dispatch stub with a census: the migration rows install nonzero
@@ -242,7 +251,7 @@ void __surge_poll_call(uint64_t id) {
     if (id == POLL_RTB_EXECUTE) {
         poll_rtb_execute((rtb_execute_state*)__task_state());
     }
-    rt_async_return(NULL, 0);
+    rt_async_return(NULL, rtb_word(0));
 }
 
 int rtb_await(void* task, uint8_t* kind, uint64_t* bits) {
@@ -261,7 +270,7 @@ rt_far_task_handle* rtb_publish_poll(uint64_t poll_id, void* task_state, uint32_
     state.poll_id = poll_id;
     state.destination = destination;
     state.return_handle = 1;
-    void* task = __task_create(POLL_RTB_PUBLISHER, &state);
+    void* task = __task_create(POLL_RTB_PUBLISHER, &state, rt_channel_opaque_word_ops());
     uint8_t kind = 0;
     uint64_t bits = 0;
     if (!rtb_await(task, &kind, &bits) || state.status != RT_REMOTE_SPAWN_STATUS_OK) {
@@ -275,7 +284,7 @@ void* rtb_start_lifecycle(rtb_lifecycle_state* state, rt_far_task_handle* handle
     state->handle = handle;
     state->cancel = cancel != 0;
     rt_far_task_begin_transfer(handle);
-    void* task = __task_create(POLL_RTB_LIFECYCLE, state);
+    void* task = __task_create(POLL_RTB_LIFECYCLE, state, rt_channel_opaque_word_ops());
     rt_far_task_finish_transfer(handle, task);
     return task;
 }

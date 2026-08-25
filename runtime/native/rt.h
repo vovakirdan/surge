@@ -300,26 +300,41 @@ void* rt_biguint_to_bigfloat(const void* a);
 void* rt_bigfloat_to_bigint(const void* a);
 void* rt_bigfloat_to_biguint(const void* a);
 
+// Creates a task, with the descriptor for the result it will produce. A NULL
+// descriptor is a task with no result value, which is a shape and not an
+// omission: the slot stays empty and rt_async_return refuses to publish into
+// it. Everything else about the result -- how wide it is, how it is destroyed,
+// how an independent copy of one is made -- the descriptor already knows.
 // NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
-void* __task_create(uint64_t poll_fn_id, void* state);
+void* __task_create(uint64_t poll_fn_id, void* state, const rt_value_ops* result_ops);
 // NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 void* __task_state(void);
 void rt_task_wake(void* task);
-uint8_t rt_task_poll(void* task, uint64_t* out_bits);
-void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits);
+// The result is moved into `out_dst`, which the caller sizes from the result's
+// own type. Nothing is boxed to fit a machine word on the way, which is what
+// these two carried before.
+uint8_t rt_task_poll(void* task, void* out_dst);
+void rt_task_await(void* task, uint8_t* out_kind, void* out_dst);
 void rt_task_cancel(void* task);
-// Builds a second, independently owned value out of a task result the task is
-// still holding, and answers with its bits. Generated per result type, because
-// what an independent copy costs is what the type owns.
-typedef void* (*rt_result_copy_fn)(void*);
-// `copy_result` and `result_drop_fn_id` describe how the task must serve a
-// result now that more than one handle can ask for it: the copy every asker
-// gets, and the release of the one original the task keeps. Both are 0/NULL for
-// a result whose bits own nothing and travel in nothing, which any number of
-// askers can simply read again.
-void* rt_task_clone(void* task, rt_result_copy_fn copy_result, uint64_t result_drop_fn_id);
+// A second handle on the same task, and therefore a second asker for the same
+// result. It takes no description of how to serve one: the result's descriptor
+// says how a value of that type is duplicated and destroyed, and the task holds
+// it. What a clone changes is how MANY askers there can be, which is the task's
+// own bookkeeping.
+// `duplicate` is how a SECOND asker is served: the per-type duplication for the
+// result this handle can now be asked for twice, or NULL when the type needs
+// none (a result that owns nothing is served by copying its bytes) or has none
+// (a buffer the runtime cannot duplicate, which refuses a second asker).
+//
+// It rides with the clone rather than with the descriptor because the CLONE is
+// the operation that took the obligation on: an un-cloned task is asked once
+// and moves its result out. What may duplicate a value, and for whom, is the
+// entitlement question D4b answers.
+void* rt_task_clone(void* task, rt_value_clone_init_fn duplicate);
 void* rt_blocking_submit(uint64_t fn_id, void* state, uint64_t state_size, uint64_t state_align);
-uint8_t rt_timeout_poll(void* task, uint64_t ms, uint64_t* out_bits);
+// `out_dst` is the caller's storage for the result, sized from its own type:
+// a timeout poll takes the value out of the same slot an await does.
+uint8_t rt_timeout_poll(void* task, uint64_t ms, void* out_dst);
 int64_t rt_select_poll_tasks(uint64_t count, void** tasks, int64_t default_index);
 int64_t rt_select_poll(uint64_t count,
                        const uint8_t* kinds,
@@ -328,7 +343,9 @@ int64_t rt_select_poll(uint64_t count,
                        const uint64_t* ms,
                        int64_t default_index);
 void rt_async_yield(void* state, uint64_t state_drop_fn_id);
-void rt_async_return(void* state, uint64_t bits);
+// Completes the current task, moving the value at `src` into the task's own
+// result slot. NULL src is a task that produces no value.
+void rt_async_return(void* state, void* src);
 void rt_async_return_cancelled(void* state, uint64_t state_drop_fn_id);
 
 void* rt_channel_new(uint64_t capacity, const rt_value_ops* ops, uint64_t element_type_id);

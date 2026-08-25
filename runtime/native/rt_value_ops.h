@@ -56,6 +56,27 @@ int rt_value_copy_uses_runtime_width(const rt_value_ops* operations);
 // and it is not one a later check can see.
 void rt_value_move_init_detached(const rt_value_ops* operations, void* dst, void* src);
 
+// Builds an independent value in the empty `dst` out of the initialized `src`,
+// which stays owned by its holder.
+//
+// This is the one that can run USER code -- a `__clone` body -- so the lane
+// check matters most here: a clone under a runtime lock is the failure §8 P2
+// names, and a user body is exactly the code most likely to reenter the
+// runtime and deadlock rather than misbehave visibly. A descriptor whose
+// RT_VALUE_FLAG_CLONABLE is clear has no clone to dispatch, and reaching here
+// with one is the flag/callback disagreement the manifest forbids, so it fails
+// closed rather than leaving `dst` uninitialized for its owner to publish.
+void rt_value_clone_init_detached(const rt_value_ops* operations, void* dst, const void* src);
+
+// Dispatches a duplication that a CALL SITE supplied rather than a descriptor,
+// under the same rule: no runtime lock may be held while generated code runs.
+//
+// It exists because one duplication is not the value's own property but the
+// obligation of an operation performed on it -- cloning a task handle takes on
+// serving a second asker, and the body that serves them is chosen there. The
+// refusal is the same one, because the reason is the same one.
+void rt_value_duplicate_detached(rt_value_clone_init_fn duplicate, void* dst, const void* src);
+
 // Destroys the one obligation `value` holds.
 //
 // A descriptor whose RT_VALUE_FLAG_DROPPABLE is clear has NO obligation, and

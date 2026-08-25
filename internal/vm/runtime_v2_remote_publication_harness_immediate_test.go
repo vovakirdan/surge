@@ -51,7 +51,7 @@ static int run_immediate_cancel(rt_sync_point_id window, int expect_body) {
     st.placement = rt_placement_shard(pin_shard(ex, 1));
     st.droppable = 1;
     drop_expected_state = &child;
-    void* caller = __task_create(POLL_IMMEDIATE_CALLER, &st);
+    void* caller = __task_create(POLL_IMMEDIATE_CALLER, &st, rt_channel_opaque_word_ops());
     if (caller == NULL) return fail("immediate caller create failed");
     if (!wait_reached(window, 5000)) return fail("immediate window was never reached");
     rt_task_cancel(caller);
@@ -100,7 +100,7 @@ static int run_immediate_redelivery(int redeliver_reply) {
     st.placement = rt_placement_shard(dst);
     st.droppable = 1;
     drop_expected_state = &child;
-    void* caller = __task_create(POLL_IMMEDIATE_CALLER, &st);
+    void* caller = __task_create(POLL_IMMEDIATE_CALLER, &st, rt_channel_opaque_word_ops());
     if (caller == NULL) return fail("immediate caller create failed");
     if (!wait_reached(RT_SYNC_POINT_SP_IMMEDIATE_ON_BEFORE_PUBLISH, 5000)) {
         return fail("immediate publish window was never reached");
@@ -310,7 +310,7 @@ static int run_anchored_cancel_bound(void) {
     if (!mint_anchor(ex, dst, &anchor)) return fail("anchor mint failed");
     st.anchor = anchor;
 
-    void* caller = __task_create(POLL_IMMEDIATE_CALLER, &st);
+    void* caller = __task_create(POLL_IMMEDIATE_CALLER, &st, rt_channel_opaque_word_ops());
     if (caller == NULL) return fail("anchored caller create failed");
     if (!wait_reached(RT_SYNC_POINT_SP_IMMEDIATE_ON_BEFORE_PUBLISH, 5000)) {
         return fail("anchored publish window was never reached");
@@ -358,7 +358,7 @@ static int run_anchored_cancel_unbound(void) {
     if (!mint_anchor(ex, dst, &anchor)) return fail("anchor mint failed");
     st.anchor = anchor;
 
-    void* caller = __task_create(POLL_IMMEDIATE_CALLER, &st);
+    void* caller = __task_create(POLL_IMMEDIATE_CALLER, &st, rt_channel_opaque_word_ops());
     if (caller == NULL) return fail("anchored caller create failed");
     if (!wait_reached(RT_SYNC_POINT_SP_IMMEDIATE_ON_BEFORE_DISPATCH, 5000)) {
         return fail("anchored dispatch window was never reached");

@@ -241,7 +241,7 @@ void __surge_poll_call(uint64_t id) {
 	        while (atomic_load_explicit(&release_gate, memory_order_acquire) == 0) {
 	            sleep_us(1000);
 	        }
-	        rt_async_return(NULL, 0);
+	        rt_async_return(NULL, &(uint64_t){0});
 	    }
 	    if (id == POLL_KIND_TARGET) {
 	        const rt_task* task = rt_current_task();
@@ -250,9 +250,9 @@ void __surge_poll_call(uint64_t id) {
 	            atomic_store_explicit(&wrong_shard_poll, 1, memory_order_release);
 	        }
 	        atomic_fetch_add_explicit(&target_polled, 1, memory_order_acq_rel);
-	        rt_async_return(NULL, 0);
+	        rt_async_return(NULL, &(uint64_t){0});
 	    }
-	    rt_async_return(NULL, 0);
+	    rt_async_return(NULL, &(uint64_t){0});
 	}
 
 uint64_t __surge_blocking_call(uint64_t id, void* state) {
@@ -287,6 +287,9 @@ static int fail(const char* msg) {
         return NULL;
     }
 	    memset(task, 0, sizeof(*task));
+	    // This stand's bodies answer with a machine word, which is exactly what
+	    // the opaque-word descriptor describes.
+	    (void)rt_task_result_bind(&task->result, rt_channel_opaque_word_ops());
 	    task->id = id;
 	    task->poll_fn_id = poll_fn_id;
 	    task->kind = TASK_KIND_USER;

@@ -81,7 +81,7 @@ static void poll_ready_requeue_probe(void) {
     while (atomic_load_explicit(&g_requeue_probe_release, memory_order_acquire) == 0) {
         sleep_us(1000);
     }
-    rt_async_return(NULL, 42);
+    rt_async_return(NULL, &(uint64_t){42});
 }
 
 static int mode_ready_requeue_wake_race(rt_executor* ex) {

@@ -105,11 +105,6 @@
       "group": "PG-OPERAND-RANGE"
     },
     {
-      "site": "internal/backend/llvm/emit_copy_result_glue.go::emitUncopyableResultBody#1",
-      "message": "a cloned task handle cannot be served a result holding a dynamic array",
-      "group": "PG-UNFIXTURED"
-    },
-    {
       "site": "internal/backend/llvm/emit_crossing.go::emitSpawnOnCrossing#1",
       "message": "spawn on remote publish requires an async task context",
       "group": "PG-CROSSING"
@@ -930,6 +925,16 @@
       "group": "PG-INVARIANT"
     },
     {
+      "site": "runtime/native/rt_async_poll.c::rt_async_return#2",
+      "message": "async: this task published a result it was not created to hold",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_poll.c::rt_async_return#3",
+      "message": "async: a task's result could not be published",
+      "group": "PG-INVARIANT"
+    },
+    {
       "site": "runtime/native/rt_async_poll.c::rt_async_return_cancelled#1",
       "message": "async_cancel outside poll",
       "group": "PG-INVARIANT"
@@ -1137,6 +1142,11 @@
     {
       "site": "runtime/native/rt_async_task.c::__task_create#1",
       "message": "async: task allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_task.c::__task_create#2",
+      "message": "async: a task's result storage could not be reserved",
       "group": "PG-ALLOC-FAILURE"
     },
     {
@@ -1513,6 +1523,11 @@
       "site": "runtime/native/rt_remote_task_deadlock.c::rt_remote_task_deadlock_check#1",
       "message": "\u003ccomputed\u003e",
       "group": "PG-COMPUTED"
+    },
+    {
+      "site": "runtime/native/rt_remote_task_result.c::rt_far_task_take_result#1",
+      "message": "async: a cloned task handle cannot be served a result that cannot be duplicated",
+      "group": "PG-INVARIANT"
     },
     {
       "site": "runtime/native/rt_scheduler_placement.c::rt_debug_assert_no_parked_with_work#1",

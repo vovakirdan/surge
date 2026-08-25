@@ -8,9 +8,10 @@ static rt_task* spawn_checkpoint_task_locked(rt_executor* ex);
 static void poll_ready_child_inline(rt_executor* ex, rt_task* current, rt_task* target);
 static void rt_task_poll_adopt_placement(rt_executor* ex, rt_task* current, const rt_task* target);
 
-void* __task_create(
+void* __task_create( // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
     uint64_t poll_fn_id,
-    void* state) { // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+    void* state,
+    const rt_value_ops* result_ops) {
     rt_executor* ex = ensure_exec();
     if (ex == NULL) {
         return NULL;
@@ -31,6 +32,11 @@ void* __task_create(
         return NULL;
     }
     memset(task, 0, sizeof(rt_task));
+    if (rt_task_result_bind(&task->result, result_ops) != RT_SLOT_CONTROL_OK) {
+        rt_free((uint8_t*)task, sizeof(rt_task), _Alignof(rt_task));
+        panic_msg("async: a task's result storage could not be reserved");
+        return NULL;
+    }
     task->id = id;
     task->generation = id;
     task->poll_fn_id = (int64_t)poll_fn_id;
@@ -167,7 +173,7 @@ void rt_task_wake(void* task) {
     wake_task(ex, target->id, 1);
 }
 
-uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
+uint8_t rt_task_poll(void* task, void* out_dst) {
     rt_executor* ex = ensure_exec();
     if (ex == NULL) {
         return 2;
@@ -202,7 +208,7 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
         wake_task(ex, target->id, 1);
     }
     if (task_status_load(target) == TASK_DONE) {
-        uint8_t kind = rt_far_task_take_result(target, current, out_bits);
+        uint8_t kind = rt_far_task_take_result(target, current, out_dst);
         // F2 (net-fairness fix): read placement before
         // release, which may free target.
         rt_task_poll_adopt_placement(ex, current, target);
@@ -237,7 +243,7 @@ uint8_t rt_task_poll(void* task, uint64_t* out_bits) {
             current->park_prepared = 0;
             current->park_key = waker_none();
             pending_key = waker_none();
-            uint8_t kind = rt_far_task_take_result(target, current, out_bits);
+            uint8_t kind = rt_far_task_take_result(target, current, out_dst);
             rt_task_poll_adopt_placement(ex, current, target);
             task_release_lane_aware(ex, target);
             return kind;
@@ -337,7 +343,7 @@ static void poll_ready_child_inline(rt_executor* ex, rt_task* current, rt_task* 
     rt_set_current_task(current);
 }
 
-void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits) {
+void rt_task_await(void* task, uint8_t* out_kind, void* out_dst) {
     rt_executor* ex = ensure_exec();
     if (ex == NULL) {
         return;
@@ -359,19 +365,25 @@ void rt_task_await(void* task, uint8_t* out_kind, uint64_t* out_bits) {
             pthread_cond_wait(&ex->done_cv, &ex->lock);
         }
         rt_done_waiters_decrement_for_external_await(ex);
+        rt_control_unlock(ex);
+        // The take MOVES or CLONES the value, and both run generated code that
+        // may not run under a runtime lock -- a user __clone under control is
+        // the §8 P2 failure, and the detached helpers refuse it rather than
+        // letting it deadlock. The target is still alive across the gap: this
+        // caller holds a handle reference, released below.
+        uint8_t kind = rt_far_task_take_result(target, rt_current_task(), out_dst);
         if (out_kind != NULL) {
-            *out_kind = rt_far_task_take_result(target, rt_current_task(), out_bits);
-        } else {
-            (void)rt_far_task_take_result(target, rt_current_task(), out_bits);
+            *out_kind = kind;
         }
+        rt_control_lock(ex);
         task_release(ex, target);
         rt_control_unlock(ex);
         return;
     }
     rt_task* current = rt_current_task();
-    run_until_done(ex, target, out_kind, out_bits);
+    run_until_done(ex, target, out_kind);
     rt_set_current_task(current);
-    uint8_t kind = rt_far_task_take_result(target, current, out_bits);
+    uint8_t kind = rt_far_task_take_result(target, current, out_dst);
     if (out_kind != NULL) {
         *out_kind = kind;
     }
@@ -396,26 +408,22 @@ void rt_task_cancel(void* task) {
     rt_control_unlock(ex);
 }
 
-void* rt_task_clone(void* task, rt_result_copy_fn copy_result, uint64_t result_drop_fn_id) {
+void* rt_task_clone(void* task, rt_value_clone_init_fn duplicate) {
     rt_task* target = task_from_handle(task);
     if (target == NULL) {
         return NULL;
     }
     // From here on two handles can ask for one result, so the result stops
-    // being the first asker's and becomes the task's: everyone is served a
-    // copy, and free_task reclaims the original. A far-carried result keeps
-    // its own once-only lease answer, which already refuses a second asker
-    // rather than reclaiming under one.
+    // being the first asker's and becomes the task's: everyone is served an
+    // independent value built by this duplication, and the task's own slot
+    // destroys the original. A far-carried result keeps its once-only lease
+    // answer, which refuses a second asker rather than reclaiming under one.
     //
     // Only the FIRST clone writes, which is what makes the write safe to leave
     // unserialized: it runs while its source is the only handle in existence,
-    // so no take can be reading and no later clone will write again.
-    if (copy_result != NULL && target->result_copy_fn == NULL) {
-        target->result_copy_fn = copy_result;
-        if (target->result_drop_fn_id == 0) {
-            target->result_drop_fn_id = result_drop_fn_id;
-        }
-    }
+    // so no take can be reading and no later clone changes the answer.
+    target->result_shared = 1;
+    target->result_duplicate = duplicate;
     // S5-Q6: drops control unconditionally, not a rare
     // fallback - task_add_ref is a relaxed atomic increment, and the caller
     // already holds a live handle to target (the handle being cloned), so

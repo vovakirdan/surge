@@ -155,7 +155,7 @@ static int wait_task_status(const rt_task* task, uint8_t want) {
 
 void __surge_poll_call(uint64_t id) {
     (void)id;
-    rt_async_return(NULL, 0);
+    rt_async_return(NULL, &(uint64_t){0});
 }
 
 void __surge_drop_call(uint64_t id, void* state) {

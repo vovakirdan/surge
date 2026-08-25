@@ -141,7 +141,7 @@ func TestRuntimeV2LifecycleScopeCrossOwnerChildDone(t *testing.T) {
 // lifecycleHarnessCommon in runtime_v2_lifecycle_behavior_harness_test.go).
 const lifecycleHarnessScopeAndShutdown = `
 static void poll_scope_child_quick(void) {
-    rt_async_return(NULL, 1);
+    rt_async_return(NULL, &(uint64_t){1});
 }
 
 static _Atomic uint32_t g_scope_spin_steps;
@@ -152,7 +152,7 @@ static void poll_scope_child_spin(void) {
         rt_async_yield(NULL, 0);
         return;
     }
-    rt_async_return(NULL, 1);
+    rt_async_return(NULL, &(uint64_t){1});
 }
 
 // Never completes on its own; only ends via cancellation, since
@@ -176,8 +176,8 @@ static void poll_scope_owner(void) {
     if (phase == 0) {
         void* handle = rt_scope_enter(false);
         atomic_store_explicit(&g_scope_handle, handle, memory_order_release);
-        void* child_a = __task_create(POLL_SCOPE_CHILD_QUICK, NULL);
-        void* child_b = __task_create(POLL_SCOPE_CHILD_SPIN, NULL);
+        void* child_a = __task_create(POLL_SCOPE_CHILD_QUICK, NULL, rt_channel_opaque_word_ops());
+        void* child_b = __task_create(POLL_SCOPE_CHILD_SPIN, NULL, rt_channel_opaque_word_ops());
         atomic_store_explicit(&g_scope_child_a, child_a, memory_order_release);
         atomic_store_explicit(&g_scope_child_b, child_b, memory_order_release);
         rt_scope_register_child(handle, child_a);
@@ -195,7 +195,7 @@ static void poll_scope_owner(void) {
         return;
     }
     rt_scope_exit(handle);
-    rt_async_return(NULL, failfast ? 1 : 0);
+    rt_async_return(NULL, &(uint64_t){failfast ? 1 : 0});
 }
 
 static _Atomic uint32_t g_cancel_owner_phase;
@@ -207,7 +207,7 @@ static void poll_scope_cancel_owner(void) {
     if (phase == 0) {
         void* handle = rt_scope_enter(false);
         atomic_store_explicit(&g_cancel_scope_handle, handle, memory_order_release);
-        void* child = __task_create(POLL_SPIN_FOREVER, NULL);
+        void* child = __task_create(POLL_SPIN_FOREVER, NULL, rt_channel_opaque_word_ops());
         atomic_store_explicit(&g_cancel_child, child, memory_order_release);
         rt_scope_register_child(handle, child);
         atomic_store_explicit(&g_cancel_owner_phase, 1, memory_order_release);
@@ -236,8 +236,8 @@ static void poll_scope_owner_failfast(void) {
     if (phase == 0) {
         void* handle = rt_scope_enter(true);
         atomic_store_explicit(&g_failfast_scope_handle, handle, memory_order_release);
-        void* sibling = __task_create(POLL_SPIN_FOREVER, NULL);
-        void* victim = __task_create(POLL_SPIN_FOREVER, NULL);
+        void* sibling = __task_create(POLL_SPIN_FOREVER, NULL, rt_channel_opaque_word_ops());
+        void* victim = __task_create(POLL_SPIN_FOREVER, NULL, rt_channel_opaque_word_ops());
         atomic_store_explicit(&g_failfast_sibling, sibling, memory_order_release);
         atomic_store_explicit(&g_failfast_victim, victim, memory_order_release);
         rt_scope_register_child(handle, sibling);
@@ -266,7 +266,7 @@ static void poll_scope_owner_failfast(void) {
         return;
     }
     rt_scope_exit(handle);
-    rt_async_return(NULL, failfast ? 1 : 0);
+    rt_async_return(NULL, &(uint64_t){failfast ? 1 : 0});
 }
 
 static _Atomic uint32_t g_scope_forever_phase;
@@ -282,7 +282,7 @@ static void poll_scope_owner_forever(void) {
     if (phase == 0) {
         void* handle = rt_scope_enter(false);
         atomic_store_explicit(&g_scope_forever_handle, handle, memory_order_release);
-        void* child = __task_create(POLL_PARK_FOREVER, NULL);
+        void* child = __task_create(POLL_PARK_FOREVER, NULL, rt_channel_opaque_word_ops());
         atomic_store_explicit(&g_scope_forever_child, child, memory_order_release);
         rt_scope_register_child(handle, child);
         atomic_store_explicit(&g_scope_forever_phase, 1, memory_order_release);
@@ -306,7 +306,7 @@ static void poll_timer_park(void) {
         // point (LIVENESS_PROBES.md "Timer, timeout, and shutdown liveness").
         handle = rt_sleep(60000);
         if (handle == NULL) {
-            rt_async_return(NULL, 0);
+            rt_async_return(NULL, &(uint64_t){0});
             return;
         }
         atomic_store_explicit(&g_sleep_handle, handle, memory_order_release);
@@ -317,12 +317,12 @@ static void poll_timer_park(void) {
         rt_async_yield(NULL, 0);
         return;
     }
-    rt_async_return(NULL, 0);
+    rt_async_return(NULL, &(uint64_t){0});
 }
 
 static void poll_make_chan(void) {
     atomic_store_explicit(&g_chan_a, rt_channel_new(0, rt_channel_opaque_word_ops(), 0), memory_order_release);
-    rt_async_return(NULL, 0);
+    rt_async_return(NULL, &(uint64_t){0});
 }
 
 static void poll_channel_park(void) {
@@ -333,7 +333,7 @@ static void poll_channel_park(void) {
         rt_async_yield(NULL, 0);
         return;
     }
-    rt_async_return(NULL, st);
+    rt_async_return(NULL, &(uint64_t){st});
 }
 
 static void poll_blocking_park(void) {
@@ -343,7 +343,7 @@ static void poll_blocking_park(void) {
         // parked on blocking_key.
         handle = rt_blocking_submit(BLOCKING_FN_SLOW, NULL, 0, 0);
         if (handle == NULL) {
-            rt_async_return(NULL, 0);
+            rt_async_return(NULL, &(uint64_t){0});
             return;
         }
         atomic_store_explicit(&g_clone_shared_target, handle, memory_order_release);
@@ -354,7 +354,7 @@ static void poll_blocking_park(void) {
         rt_async_yield(NULL, 0);
         return;
     }
-    rt_async_return(NULL, 0);
+    rt_async_return(NULL, &(uint64_t){0});
 }
 
 // --- External-await target (worker-side join vs external rt_task_await) ---
@@ -367,7 +367,7 @@ static void poll_external_await_target(void) {
         rt_async_yield(NULL, 0);
         return;
     }
-    rt_async_return(NULL, 123);
+    rt_async_return(NULL, &(uint64_t){123});
 }
 
 uint64_t __surge_blocking_call(uint64_t id, void* state) {

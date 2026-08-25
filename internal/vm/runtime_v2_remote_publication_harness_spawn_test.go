@@ -163,7 +163,7 @@ static int run_abandon_window(rt_sync_point_id window) {
     st.droppable = 1;
     st.abandon_mode = 1;
     drop_expected_state = &child;
-    void* publisher = __task_create(POLL_REMOTE_PUBLISHER, &st);
+    void* publisher = __task_create(POLL_REMOTE_PUBLISHER, &st, rt_channel_opaque_word_ops());
     if (publisher == NULL) return fail("publisher task create failed");
     if (!wait_reached(window, 5000)) return fail("armed window was never reached");
     if (!rt_remote_spawn_abandon_handle(&st.handle)) {
@@ -263,7 +263,7 @@ static int run_stale_request_before_body(void) {
     st.dst = pin_shard(ex, 1);
     st.droppable = 1;
     drop_expected_state = &child;
-    void* publisher = __task_create(POLL_REMOTE_PUBLISHER, &st);
+    void* publisher = __task_create(POLL_REMOTE_PUBLISHER, &st, rt_channel_opaque_word_ops());
     if (publisher == NULL) return fail("publisher task create failed");
     if (!wait_reached(RT_SYNC_POINT_SP_REMOTE_SPAWN_BEFORE_DISPATCH, 5000)) {
         return fail("dispatch window was never reached");
@@ -300,7 +300,7 @@ static int run_stale_redelivery(int redeliver_ack) {
     st.dst = pin_shard(ex, 1);
     st.droppable = 1;
     drop_expected_state = &child;
-    void* publisher = __task_create(POLL_REMOTE_PUBLISHER, &st);
+    void* publisher = __task_create(POLL_REMOTE_PUBLISHER, &st, rt_channel_opaque_word_ops());
     if (publisher == NULL) return fail("publisher task create failed");
     if (!wait_reached(RT_SYNC_POINT_SP_REMOTE_SPAWN_BEFORE_ACK, 5000)) {
         return fail("ack window was never reached");
@@ -352,7 +352,7 @@ static int run_stale_redelivery(int redeliver_ack) {
 }
 
 static int await_immediate(immediate_exec_state* st) {
-    void* task = __task_create(POLL_IMMEDIATE_CALLER, st);
+    void* task = __task_create(POLL_IMMEDIATE_CALLER, st, rt_channel_opaque_word_ops());
     uint8_t kind = 0;
     uint64_t bits = 0;
     rt_task_await(task, &kind, &bits);
@@ -363,7 +363,7 @@ static int await_immediate(immediate_exec_state* st) {
 }
 
 static int await_select(select_exec_state* st) {
-    void* task = __task_create(POLL_SELECT_CALLER, st);
+    void* task = __task_create(POLL_SELECT_CALLER, st, rt_channel_opaque_word_ops());
     uint8_t kind = 0;
     uint64_t bits = 0;
     rt_task_await(task, &kind, &bits);

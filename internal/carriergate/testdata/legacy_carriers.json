@@ -1715,6 +1715,127 @@
         {
           "finding": {
             "category": "native-payload-bits",
+            "path": "runtime/native/rt_async_blocking.c",
+            "token": "result_bits",
+            "evidence": "uint64_t bits = job-\u003eresult_bits;",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d4",
+          "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "native-payload-bits",
+            "path": "runtime/native/rt_remote_task_dispatch.c",
+            "token": "result_bits",
+            "evidence": "ex, pending, status, result_kind, result_bits, NULL, reply_kind);",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d4",
+          "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "native-payload-bits",
+            "path": "runtime/native/rt_remote_task_dispatch.c",
+            "token": "result_bits",
+            "evidence": "pending-\u003eresult_bits,",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d4",
+          "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "native-payload-bits",
+            "path": "runtime/native/rt_remote_task_dispatch.c",
+            "token": "result_bits",
+            "evidence": "rt_remote_task_pending_finish(ex, pending, status, result_kind, result_bits, result_source);",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d4",
+          "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "native-payload-bits",
+            "path": "runtime/native/rt_remote_task_dispatch.c",
+            "token": "result_bits",
+            "evidence": "rt_remote_task_pending_set_reply(pending, status, result_kind, result_bits, result_source);",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d4",
+          "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "native-payload-bits",
+            "path": "runtime/native/rt_remote_task_dispatch.c",
+            "token": "result_bits",
+            "evidence": "uint64_t result_bits,",
+            "ordinal": 2
+          },
+          "retired_by": "wave-d-d4",
+          "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "native-payload-bits",
+            "path": "runtime/native/rt_remote_task_internal.h",
+            "token": "result_bits",
+            "evidence": "uint64_t result_bits,",
+            "ordinal": 2
+          },
+          "retired_by": "wave-d-d4",
+          "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "native-payload-bits",
+            "path": "runtime/native/rt_remote_task_internal.h",
+            "token": "result_bits",
+            "evidence": "uint64_t result_bits,",
+            "ordinal": 3
+          },
+          "retired_by": "wave-d-d4",
+          "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "native-payload-bits",
+            "path": "runtime/native/rt_remote_task_internal.h",
+            "token": "result_bits",
+            "evidence": "uint64_t result_bits,",
+            "ordinal": 4
+          },
+          "retired_by": "wave-d-d4",
+          "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "native-payload-bits",
+            "path": "runtime/native/rt_remote_task_pending.c",
+            "token": "result_bits",
+            "evidence": "uint64_t result_bits,",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d4",
+          "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "native-payload-bits",
+            "path": "runtime/native/rt_remote_task_pending.c",
+            "token": "result_bits",
+            "evidence": "uint64_t result_bits,",
+            "ordinal": 2
+          },
+          "retired_by": "wave-d-d4",
+          "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "native-payload-bits",
             "path": "runtime/native/rt_remote_task_result.c",
             "token": "result_bits",
             "evidence": "(void*)(uintptr_t)producer-\u003eresult_bits);",
@@ -2342,7 +2463,19 @@
           "invalidated_when": "rt_deque begins carrying language values, payload pointers, or ownership obligations."
         }
       ],
-      "migration": []
+      "migration": [
+        {
+          "finding": {
+            "category": "native-word-carrier",
+            "path": "runtime/native/rt_async_blocking.c",
+            "token": "bits",
+            "evidence": "uint64_t bits = job-\u003eresult_bits;",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d4",
+          "tracked_as": "RV2-DEBT-151"
+        }
+      ]
     },
     {
       "id": "numeric-drop-dispatch",
@@ -3777,6 +3910,83 @@
             "ordinal": 1
           },
           "retired_by": "wave-d-d5",
+          "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "numeric-drop-dispatch",
+            "path": "runtime/native/rt_far_channel_select.c",
+            "token": "result_drop_fn_id",
+            "evidence": "pending-\u003eresult_drop_fn_id,",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d4",
+          "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "numeric-drop-dispatch",
+            "path": "runtime/native/rt_immediate_on.c",
+            "token": "result_drop_fn_id",
+            "evidence": "pending-\u003eresult_drop_fn_id,",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d4",
+          "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "numeric-drop-dispatch",
+            "path": "runtime/native/rt_immediate_on.c",
+            "token": "result_drop_fn_id",
+            "evidence": "request-\u003eresult_drop_fn_id = result_type_id;",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d4",
+          "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "numeric-drop-dispatch",
+            "path": "runtime/native/rt_immediate_on_anchored.c",
+            "token": "result_drop_fn_id",
+            "evidence": "request-\u003eresult_drop_fn_id = result_type_id;",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d4",
+          "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "numeric-drop-dispatch",
+            "path": "runtime/native/rt_remote_spawn.c",
+            "token": "result_drop_fn_id",
+            "evidence": "ex, req-\u003epoll_fn_id, req-\u003estate, req-\u003etarget_shard_id, req-\u003eresult_drop_fn_id, \u0026task);",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d4",
+          "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "numeric-drop-dispatch",
+            "path": "runtime/native/rt_remote_task_api.c",
+            "token": "result_drop_fn_id",
+            "evidence": "RT_REMOTE_TASK_OP_AWAIT, handle, result_drop_fn_id, pending, out_kind, out_dst);",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d4",
+          "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "numeric-drop-dispatch",
+            "path": "runtime/native/rt_remote_task_api.c",
+            "token": "result_drop_fn_id",
+            "evidence": "RT_REMOTE_TASK_OP_CANCEL, handle, result_drop_fn_id, pending, out_kind, out_dst);",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d4",
           "tracked_as": "RV2-DEBT-151"
         }
       ]

@@ -16,7 +16,7 @@ static void poll_rtb_spinner(rtb_share_state* state) {
     if (atomic_load_explicit(&state->spin_gate, memory_order_acquire) == 0) {
         rt_async_yield(state, 0);
     }
-    rt_async_return(state, 1);
+    rt_async_return(state, rtb_word(1));
 }
 
 static void poll_rtb_channel_share(rtb_share_state* state) {
@@ -27,7 +27,7 @@ static void poll_rtb_channel_share(rtb_share_state* state) {
     if (state->status == RT_REMOTE_TASK_STATUS_PENDING) {
         rt_async_yield(state, 0);
     }
-    rt_async_return(state, (uint64_t)state->status);
+    rt_async_return(state, rtb_word((uint64_t)state->status));
 }
 
 void rtb_share_poll_dispatch(uint64_t id) {
@@ -47,7 +47,7 @@ static int rtb_share_sibling(rt_executor* ex,
     rtb_share_state state;
     memset(&state, 0, sizeof(state));
     state.source = *source;
-    void* caller = __task_create(POLL_RTB_CHANNEL_SHARE, &state);
+    void* caller = __task_create(POLL_RTB_CHANNEL_SHARE, &state, rt_channel_opaque_word_ops());
     uint8_t kind = 0;
     uint64_t bits = 0;
     (void)rtb_await(caller, &kind, &bits);
@@ -82,7 +82,7 @@ int rtb_mode_share_round_trip(void) {
         return rtb_fail("sibling token fields are wrong");
     }
     void* through_original = rt_far_channel_resolve(ex, &minted.handle);
-    void* through_sibling = rt_far_channel_resolve(ex, &sibling);
+    const void* through_sibling = rt_far_channel_resolve(ex, &sibling);
     if (through_original == NULL || through_original != through_sibling) {
         return rtb_fail("sibling does not resolve to the same channel");
     }
@@ -95,7 +95,8 @@ int rtb_mode_share_round_trip(void) {
     sender.anchor = sibling;
     sender.value = 17;
     sender.body_poll_id = POLL_RTB_ANCHORED_BODY;
-    void* send_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &sender);
+    void* send_caller =
+        __task_create(POLL_RTB_ANCHORED_CALLER, &sender, rt_channel_opaque_word_ops());
     uint8_t kind = 0;
     uint64_t bits = 0;
     (void)rtb_await(send_caller, &kind, &bits);
@@ -209,7 +210,8 @@ int rtb_mode_share_pin_outlives_leases(void) {
     pinned.anchor = sibling;
     pinned.value = 23;
     pinned.body_poll_id = POLL_RTB_ANCHORED_PINNED_BODY;
-    void* pinned_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &pinned);
+    void* pinned_caller =
+        __task_create(POLL_RTB_ANCHORED_CALLER, &pinned, rt_channel_opaque_word_ops());
     if (!rtb_wait_u32(&pinned.body_ran, 1, 5000)) {
         return rtb_fail("pinned body did not start");
     }
@@ -280,7 +282,8 @@ int rtb_mode_share_deadlock_two_holders(void) {
     prefill.anchor = minted.handle;
     prefill.value = 1;
     prefill.body_poll_id = POLL_RTB_ANCHORED_HELPER_SEND;
-    void* prefill_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &prefill);
+    void* prefill_caller =
+        __task_create(POLL_RTB_ANCHORED_CALLER, &prefill, rt_channel_opaque_word_ops());
     uint8_t kind = 0;
     uint64_t bits = 0;
     (void)rtb_await(prefill_caller, &kind, &bits);
@@ -292,13 +295,13 @@ int rtb_mode_share_deadlock_two_holders(void) {
     first.anchor = minted.handle;
     first.value = 2;
     first.body_poll_id = POLL_RTB_ANCHORED_HELPER_SEND;
-    (void)__task_create(POLL_RTB_ANCHORED_CALLER, &first);
+    (void)__task_create(POLL_RTB_ANCHORED_CALLER, &first, rt_channel_opaque_word_ops());
     rtb_anchored_state second;
     memset(&second, 0, sizeof(second));
     second.anchor = sibling;
     second.value = 3;
     second.body_poll_id = POLL_RTB_ANCHORED_HELPER_SEND;
-    (void)__task_create(POLL_RTB_ANCHORED_CALLER, &second);
+    (void)__task_create(POLL_RTB_ANCHORED_CALLER, &second, rt_channel_opaque_word_ops());
     // Both producers park; every holder is now idle. The detector must
     // abort the process from a worker's idle-park edge.
     for (uint32_t i = 0; i < 10000; i++) {
@@ -323,19 +326,21 @@ int rtb_mode_share_no_deadlock_when_runnable(void) {
     prefill.anchor = minted.handle;
     prefill.value = 4;
     prefill.body_poll_id = POLL_RTB_ANCHORED_HELPER_SEND;
-    void* prefill_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &prefill);
+    void* prefill_caller =
+        __task_create(POLL_RTB_ANCHORED_CALLER, &prefill, rt_channel_opaque_word_ops());
     uint8_t kind = 0;
     uint64_t bits = 0;
     (void)rtb_await(prefill_caller, &kind, &bits);
     rtb_share_state spinner;
     memset(&spinner, 0, sizeof(spinner));
-    void* spinner_task = __task_create(POLL_RTB_SPINNER, &spinner);
+    void* spinner_task = __task_create(POLL_RTB_SPINNER, &spinner, rt_channel_opaque_word_ops());
     rtb_anchored_state parked;
     memset(&parked, 0, sizeof(parked));
     parked.anchor = minted.handle;
     parked.value = 5;
     parked.body_poll_id = POLL_RTB_ANCHORED_HELPER_SEND;
-    void* parked_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &parked);
+    void* parked_caller =
+        __task_create(POLL_RTB_ANCHORED_CALLER, &parked, rt_channel_opaque_word_ops());
     if (!rtb_wait_u32(&parked.body_ran, 1, 5000)) {
         return rtb_fail("guard body did not start");
     }
@@ -382,7 +387,8 @@ int rtb_mode_share_deadlock_after_peer_release(void) {
     prefill.anchor = minted.handle;
     prefill.value = 6;
     prefill.body_poll_id = POLL_RTB_ANCHORED_HELPER_SEND;
-    void* prefill_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &prefill);
+    void* prefill_caller =
+        __task_create(POLL_RTB_ANCHORED_CALLER, &prefill, rt_channel_opaque_word_ops());
     uint8_t kind = 0;
     uint64_t bits = 0;
     (void)rtb_await(prefill_caller, &kind, &bits);
@@ -397,7 +403,7 @@ int rtb_mode_share_deadlock_after_peer_release(void) {
     parked.anchor = minted.handle;
     parked.value = 7;
     parked.body_poll_id = POLL_RTB_ANCHORED_HELPER_SEND;
-    (void)__task_create(POLL_RTB_ANCHORED_CALLER, &parked);
+    (void)__task_create(POLL_RTB_ANCHORED_CALLER, &parked, rt_channel_opaque_word_ops());
     for (uint32_t i = 0; i < 10000; i++) {
         rtb_sleep_us(1000);
     }

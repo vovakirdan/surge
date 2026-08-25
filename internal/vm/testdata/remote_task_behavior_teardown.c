@@ -38,7 +38,7 @@ int rtb_mode_teardown(void) {
     state.task_state = &child;
     state.poll_id = POLL_RTB_CHILD;
     state.destination = 1;
-    void* publisher = __task_create(POLL_RTB_PUBLISHER, &state);
+    void* publisher = __task_create(POLL_RTB_PUBLISHER, &state, rt_channel_opaque_word_ops());
     uint8_t kind = 0;
     uint64_t bits = 0;
     if (!rtb_await(publisher, &kind, &bits) || state.status != RT_REMOTE_SPAWN_STATUS_OK ||
@@ -64,7 +64,7 @@ int rtb_mode_pre_ack_cancel(void) {
     state.task_state = &child;
     state.poll_id = POLL_RTB_CHILD;
     state.destination = 1;
-    void* publisher = __task_create(POLL_RTB_PUBLISHER, &state);
+    void* publisher = __task_create(POLL_RTB_PUBLISHER, &state, rt_channel_opaque_word_ops());
     for (uint32_t i = 0;
          i < 5000 && rt_sync_point_reached_count(RT_SYNC_POINT_SP_REMOTE_SPAWN_BEFORE_ACK) == 0;
          i++) {
@@ -105,7 +105,7 @@ int rtb_mode_queue_failure(void) {
     state.handle = handle;
     state.fill_control = 1;
     rt_far_task_begin_transfer(handle);
-    void* caller = __task_create(POLL_RTB_LIFECYCLE, &state);
+    void* caller = __task_create(POLL_RTB_LIFECYCLE, &state, rt_channel_opaque_word_ops());
     rt_far_task_finish_transfer(handle, caller);
     uint8_t kind = 0;
     uint64_t bits = 0;
@@ -145,7 +145,7 @@ int rtb_mode_shutdown_waiters(void) {
         for (uint32_t i = 0; i < 5000; i++) {
             pending[shard] =
                 atomic_load_explicit(&callers[shard].visible_pending, memory_order_acquire);
-            rt_task* task = get_task(ex, caller_handles[shard]->task_id);
+            const rt_task* task = get_task(ex, caller_handles[shard]->task_id);
             if (pending[shard] != NULL && task != NULL && task_status_load(task) == TASK_WAITING &&
                 task->park_key.kind == WAKER_REMOTE_TASK_REPLY) {
                 break;
@@ -155,7 +155,7 @@ int rtb_mode_shutdown_waiters(void) {
         if (pending[shard] == NULL || pending[shard]->source_shard_id != shard) {
             return rtb_fail("remote await caller did not park on its source shard");
         }
-        rt_task* task = get_task(ex, caller_handles[shard]->task_id);
+        const rt_task* task = get_task(ex, caller_handles[shard]->task_id);
         if (task == NULL || task_status_load(task) != TASK_WAITING ||
             task->park_key.kind != WAKER_REMOTE_TASK_REPLY) {
             return rtb_fail("remote await caller was not reply-parked before shutdown");

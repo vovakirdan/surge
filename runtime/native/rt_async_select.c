@@ -34,7 +34,7 @@ static void ensure_select_timers_cap(rt_task* task, size_t want) {
     task->select_timers_cap = next_cap;
 }
 
-uint8_t rt_timeout_poll(void* task, uint64_t ms, uint64_t* out_bits) {
+uint8_t rt_timeout_poll(void* task, uint64_t ms, void* out_dst) {
     rt_executor* ex = ensure_exec();
     if (ex == NULL) {
         return 2;
@@ -83,21 +83,24 @@ uint8_t rt_timeout_poll(void* task, uint64_t ms, uint64_t* out_bits) {
     }
 
     if (task_status_load(target) == TASK_DONE) {
-        uint8_t kind = rt_far_task_take_result(target, current, out_bits);
         current->timeout_task_id = 0;
+        pending_key = waker_none();
+        rt_control_unlock(ex);
+        // The take MOVES or CLONES the value, and both run generated code that
+        // may not run under a runtime lock. The target and the timer are still
+        // alive across the gap: this caller holds a handle reference to each,
+        // released below.
+        uint8_t kind = rt_far_task_take_result(target, current, out_dst);
+        rt_control_lock(ex);
         if (timeout_task != NULL) {
             task_release(ex, timeout_task);
         }
         task_release(ex, target);
-        pending_key = waker_none();
         rt_control_unlock(ex);
         return kind;
     }
     if (timeout_task != NULL && task_status_load(timeout_task) == TASK_DONE) {
         cancel_task(ex, target->id);
-        if (out_bits != NULL) {
-            *out_bits = 0;
-        }
         current->timeout_task_id = 0;
         task_release(ex, timeout_task);
         task_release(ex, target);
@@ -276,8 +279,6 @@ int64_t rt_select_poll(uint64_t count,
                         rt_channel_element_ops(handle), put.address, value_src);
                     rt_control_lock(ex);
                     rt_channel_finish_send_locked(ex, handle, &put);
-                }
-                if (status == 1) {
                     selected = (int64_t)i;
                 } else if (status == 2) {
                     rt_control_unlock(ex);

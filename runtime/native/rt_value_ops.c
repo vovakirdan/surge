@@ -127,6 +127,36 @@ void rt_value_move_init_detached(const rt_value_ops* operations, void* dst, void
     operations->move_init(dst, src);
 }
 
+void rt_value_clone_init_detached(const rt_value_ops* operations, void* dst, const void* src) {
+    if (operations == NULL) {
+        rt_value_dispatch_refuse("rt_value_clone_init_detached", "needs a descriptor");
+    }
+    if ((operations->layout.flags & RT_VALUE_FLAG_CLONABLE) == 0 ||
+        operations->clone_init == NULL) {
+        rt_value_dispatch_refuse("rt_value_clone_init_detached",
+                                 "needs a descriptor that carries a clone; the flag and the "
+                                 "callback are one statement in the manifest");
+    }
+    if (dst == NULL || src == NULL) {
+        rt_value_dispatch_refuse("rt_value_clone_init_detached",
+                                 "needs non-null destination and source storage");
+    }
+    rt_value_refuse_if_locked("rt_value_clone_init_detached");
+    operations->clone_init(dst, src);
+}
+
+void rt_value_duplicate_detached(rt_value_clone_init_fn duplicate, void* dst, const void* src) {
+    if (duplicate == NULL) {
+        rt_value_dispatch_refuse("rt_value_duplicate_detached", "needs a duplication to dispatch");
+    }
+    if (dst == NULL || src == NULL) {
+        rt_value_dispatch_refuse("rt_value_duplicate_detached",
+                                 "needs non-null destination and source storage");
+    }
+    rt_value_refuse_if_locked("rt_value_duplicate_detached");
+    duplicate(dst, src);
+}
+
 void rt_value_drop_in_place_detached(const rt_value_ops* operations, void* value) {
     if (operations == NULL) {
         rt_value_dispatch_refuse("rt_value_drop_in_place_detached", "needs a descriptor");

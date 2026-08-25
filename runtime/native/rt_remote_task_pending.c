@@ -127,6 +127,14 @@ void rt_remote_task_pending_release(rt_remote_task_pending* pending) {
             __surge_drop_result_call(pending->result_drop_fn_id, (void*)pending->result_bits);
             pending->result_bits = 0;
         }
+        // A landed reply whose capability nobody spent: the caller tore down
+        // before its next poll, or resolved through another path. Release the
+        // pin so the producer can be freed; what its slot still holds is
+        // destroyed by the producer's own dispose, exactly once, there.
+        if (pending->result_source.task_id != 0) {
+            rt_remote_task_release_result_source(pending->executor, &pending->result_source);
+            pending->result_source = (rt_result_source){0, 0, 0, 0};
+        }
         if (pending->select_arms != NULL) {
             // Every SEND arm's payload is still owned here except the one
             // select_committed_index names (already delivered/consumed via
@@ -187,7 +195,8 @@ rt_remote_task_status rt_remote_task_pending_snapshot(const rt_remote_task_pendi
 void rt_remote_task_pending_set_reply(rt_remote_task_pending* pending,
                                       rt_remote_task_status status,
                                       uint8_t result_kind,
-                                      uint64_t result_bits) {
+                                      uint64_t result_bits,
+                                      const rt_result_source* result_source) {
     rt_remote_task_state* state =
         pending != NULL ? rt_remote_task_state_get(pending->executor) : NULL;
     if (state == NULL) {
@@ -197,6 +206,9 @@ void rt_remote_task_pending_set_reply(rt_remote_task_pending* pending,
     pending->reply_status = (uint8_t)status;
     pending->result_kind = result_kind;
     pending->result_bits = result_bits;
+    if (result_source != NULL) {
+        pending->result_source = *result_source;
+    }
     pthread_mutex_unlock(&state->lock);
 }
 
@@ -209,7 +221,8 @@ void rt_remote_task_pending_finish(rt_executor* ex,
                                    rt_remote_task_pending* pending,
                                    rt_remote_task_status status,
                                    uint8_t result_kind,
-                                   uint64_t result_bits) {
+                                   uint64_t result_bits,
+                                   const rt_result_source* result_source) {
     rt_remote_task_state* state = rt_remote_task_state_get(ex);
     if (pending == NULL || state == NULL || pending->executor != ex) {
         return;
@@ -220,6 +233,9 @@ void rt_remote_task_pending_finish(rt_executor* ex,
         pending->status = (uint8_t)status;
         pending->result_kind = result_kind;
         pending->result_bits = result_bits;
+        if (result_source != NULL) {
+            pending->result_source = *result_source;
+        }
         pending->owner_registered = 0;
         should_wake = 1;
     }
@@ -228,6 +244,30 @@ void rt_remote_task_pending_finish(rt_executor* ex,
         wake_key_all_with_policy(
             ex, rt_remote_task_reply_key(pending->request_id, pending->source_shard_id), 0);
     }
+}
+
+rt_result_source rt_remote_task_pending_result_source(const rt_remote_task_pending* pending) {
+    rt_result_source source = {0, 0, 0, 0};
+    rt_remote_task_state* state =
+        pending != NULL ? rt_remote_task_state_get(pending->executor) : NULL;
+    if (state == NULL) {
+        return source;
+    }
+    pthread_mutex_lock(&state->lock);
+    source = pending->result_source;
+    pthread_mutex_unlock(&state->lock);
+    return source;
+}
+
+void rt_remote_task_pending_clear_result_source(rt_remote_task_pending* pending) {
+    rt_remote_task_state* state =
+        pending != NULL ? rt_remote_task_state_get(pending->executor) : NULL;
+    if (state == NULL) {
+        return;
+    }
+    pthread_mutex_lock(&state->lock);
+    pending->result_source = (rt_result_source){0, 0, 0, 0};
+    pthread_mutex_unlock(&state->lock);
 }
 
 void rt_remote_task_pending_set_owner_registered(rt_remote_task_pending* pending, int value) {

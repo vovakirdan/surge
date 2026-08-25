@@ -18,27 +18,27 @@ static void anchored_drop_unshipped_state(uint64_t state_drop_fn_id, void* state
 
 rt_remote_task_status rt_immediate_on_execute_anchored(const rt_far_task_handle* anchor,
                                                        uint64_t state_drop_fn_id,
+                                                       uint64_t result_type_id,
                                                        int64_t poll_fn_id,
                                                        void* state,
                                                        rt_remote_task_pending** pending,
                                                        uint8_t* out_kind,
-                                                       uint64_t* out_bits) {
+                                                       void* out_dst) {
     rt_executor* ex = ensure_exec();
     rt_task* current = rt_current_task();
     if (ex == NULL || pending == NULL || current == NULL || rt_current_task_id() == 0) {
         return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
     }
     if (*pending != NULL) {
-        rt_remote_task_status status =
-            rt_remote_task_pending_snapshot(*pending, out_kind, out_bits);
+        rt_remote_task_status status = rt_remote_task_pending_snapshot(*pending, out_kind, NULL);
         if (status != RT_REMOTE_TASK_STATUS_PENDING) {
-            return rt_immediate_on_finish_retry(pending, out_kind, out_bits);
+            return rt_immediate_on_finish_retry(pending, out_kind, out_dst);
         }
         if (task_cancelled_load(current) != 0) {
             rt_immediate_on_cancel_inflight(ex, *pending);
         }
         if (rt_remote_task_prepare_reply_wait(ex, current, *pending) != 0) {
-            return rt_immediate_on_finish_retry(pending, out_kind, out_bits);
+            return rt_immediate_on_finish_retry(pending, out_kind, out_dst);
         }
         return RT_REMOTE_TASK_STATUS_PENDING;
     }
@@ -73,6 +73,7 @@ rt_remote_task_status rt_immediate_on_execute_anchored(const rt_far_task_handle*
     request->body_poll_fn_id = (uint64_t)poll_fn_id;
     request->body_state = state;
     request->state_drop_fn_id = state_drop_fn_id;
+    request->result_drop_fn_id = result_type_id;
     request->state_owned = state_drop_fn_id != 0;
     request->anchor = *anchor;
     *pending = request;

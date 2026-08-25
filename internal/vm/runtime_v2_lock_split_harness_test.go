@@ -122,7 +122,7 @@ static void poll_yielder(void) {
     if (step < 3) {
         rt_async_yield(NULL, 0);
     }
-    rt_async_return(NULL, 7);
+    rt_async_return(NULL, &(uint64_t){7});
 }
 
 static void poll_joiner(void) {
@@ -131,7 +131,7 @@ static void poll_joiner(void) {
     if (st == 0) {
         rt_async_yield(NULL, 0);
     }
-    rt_async_return(NULL, st == 1 ? bits : 0);
+    rt_async_return(NULL, &(uint64_t){st == 1 ? bits : 0});
 }
 
 static void poll_park_recv(void) {
@@ -142,7 +142,7 @@ static void poll_park_recv(void) {
     if (st == 0) {
         rt_async_yield(NULL, 0);
     }
-    rt_async_return(NULL, st);
+    rt_async_return(NULL, &(uint64_t){st});
 }
 
 static void poll_sender(void) {
@@ -151,7 +151,7 @@ static void poll_sender(void) {
         uint32_t sent = atomic_load_explicit(&g_send_count, memory_order_acquire);
         if (sent >= LOCK_SPLIT_FIFO_VALUES) {
             rt_channel_close(ch);
-            rt_async_return(NULL, 0);
+            rt_async_return(NULL, &(uint64_t){0});
         }
         if (!rt_channel_send(ch, &(uint64_t){(uint64_t)sent + 1})) {
             rt_async_yield(NULL, 0);
@@ -170,7 +170,7 @@ static void poll_receiver_fifo(void) {
         }
         if (st == 2) {
             atomic_store_explicit(&g_recv_closed, 1, memory_order_release);
-            rt_async_return(NULL, 0);
+            rt_async_return(NULL, &(uint64_t){0});
         }
         uint32_t got = atomic_fetch_add_explicit(&g_recv_count, 1, memory_order_acq_rel) + 1;
         if (bits != (uint64_t)got) {
@@ -182,7 +182,7 @@ static void poll_receiver_fifo(void) {
 static void poll_make_chan_a(void) {
     atomic_store_explicit(
         &g_chan_a, rt_channel_new(LOCK_SPLIT_CHAN_CAP, rt_channel_opaque_word_ops(), 0), memory_order_release);
-    rt_async_return(NULL, 0);
+    rt_async_return(NULL, &(uint64_t){0});
 }
 
 static void poll_blocking_awaiter(void) {
@@ -190,7 +190,7 @@ static void poll_blocking_awaiter(void) {
     if (handle == NULL) {
         handle = rt_blocking_submit(BLOCKING_FN_SLOW_42, NULL, 0, 0);
         if (handle == NULL) {
-            rt_async_return(NULL, 0);
+            rt_async_return(NULL, &(uint64_t){0});
         }
         atomic_store_explicit(&g_blocking_handle, handle, memory_order_release);
     }
@@ -199,7 +199,7 @@ static void poll_blocking_awaiter(void) {
     if (st == 0) {
         rt_async_yield(NULL, 0);
     }
-    rt_async_return(NULL, st == 1 ? bits : 0);
+    rt_async_return(NULL, &(uint64_t){st == 1 ? bits : 0});
 }
 
 static void poll_sleeper(void) {
@@ -207,7 +207,7 @@ static void poll_sleeper(void) {
     if (handle == NULL) {
         handle = rt_sleep(5);
         if (handle == NULL) {
-            rt_async_return(NULL, 0);
+            rt_async_return(NULL, &(uint64_t){0});
         }
         atomic_store_explicit(&g_sleep_handle, handle, memory_order_release);
     }
@@ -216,7 +216,7 @@ static void poll_sleeper(void) {
     if (st == 0) {
         rt_async_yield(NULL, 0);
     }
-    rt_async_return(NULL, 9);
+    rt_async_return(NULL, &(uint64_t){9});
 }
 
 static void poll_selector_tasks(void) {
@@ -225,7 +225,7 @@ static void poll_selector_tasks(void) {
     if (idx < 0) {
         rt_async_yield(NULL, 0);
     }
-    rt_async_return(NULL, (uint64_t)idx);
+    rt_async_return(NULL, &(uint64_t){(uint64_t)idx});
 }
 
 static void poll_timeout_awaiter(void) {
@@ -234,7 +234,7 @@ static void poll_timeout_awaiter(void) {
     if (st == 0) {
         rt_async_yield(NULL, 0);
     }
-    rt_async_return(NULL, st);
+    rt_async_return(NULL, &(uint64_t){st});
 }
 
 // Drop-dispatch stub: no harness state struct carries a drop obligation
@@ -289,7 +289,7 @@ void __surge_poll_call(uint64_t id) {
         default:
             break;
     }
-    rt_async_return(NULL, 0);
+    rt_async_return(NULL, &(uint64_t){0});
 }
 
 uint64_t __surge_blocking_call(uint64_t id, void* state) {
@@ -317,6 +317,10 @@ static rt_task* alloc_ready_task(rt_executor* ex, int64_t poll_fn_id) {
         return NULL;
     }
     memset(task, 0, sizeof(*task));
+    // A stand's task answers with a machine word, which is exactly what the
+    // opaque-word descriptor describes: the result slot carries it the same way
+    // it carries a compiled type's value.
+    (void)rt_task_result_bind(&task->result, rt_channel_opaque_word_ops());
     task->id = id;
     task->poll_fn_id = poll_fn_id;
     task->kind = TASK_KIND_USER;
@@ -544,7 +548,7 @@ static int mode_timeout_across_owners(rt_executor* ex) {
     }
     // rt_timeout_poll releases the target handle on the timeout path; keep a
     // main-owned reference so the later status wait and await stay valid.
-    g_join_target = rt_task_clone(gate, NULL, 0);
+    g_join_target = rt_task_clone(gate, NULL);
     if (g_join_target == NULL) {
         return fail("gate clone failed");
     }

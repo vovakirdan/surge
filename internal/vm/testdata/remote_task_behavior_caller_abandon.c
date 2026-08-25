@@ -26,7 +26,7 @@ static void rtb_caller_abandon_reset(void) {
 
 static rt_task* rtb_caller_abandon_new_task(rt_executor* ex) {
     rt_task* task = NULL;
-    if (rt_remote_spawn_create_body_task(ex, POLL_RTB_DROP_BODY, NULL, 0, &task) !=
+    if (rt_remote_spawn_create_body_task(ex, POLL_RTB_DROP_BODY, NULL, 0, 0, &task) !=
             RT_REMOTE_SPAWN_STATUS_OK ||
         task == NULL) {
         return NULL;
@@ -56,7 +56,7 @@ rtb_caller_abandon_new_pending(rt_executor* ex, rt_remote_task_op op, uint64_t c
 int rtb_mode_caller_abandon_drops_landed_result(void) {
     rt_executor* ex = ensure_exec();
     rtb_caller_abandon_reset();
-    rt_task* caller = rtb_caller_abandon_new_task(ex);
+    const rt_task* caller = rtb_caller_abandon_new_task(ex);
     if (caller == NULL) {
         return rtb_fail("caller-abandon-drop: caller task creation failed");
     }
@@ -94,7 +94,7 @@ int rtb_mode_caller_abandon_drops_landed_result(void) {
 int rtb_mode_caller_abandon_copy_inert(void) {
     rt_executor* ex = ensure_exec();
     rtb_caller_abandon_reset();
-    rt_task* caller = rtb_caller_abandon_new_task(ex);
+    const rt_task* caller = rtb_caller_abandon_new_task(ex);
     if (caller == NULL) {
         return rtb_fail("caller-abandon-copy-inert: caller task creation failed");
     }
@@ -121,7 +121,7 @@ int rtb_mode_caller_abandon_copy_inert(void) {
 int rtb_mode_caller_abandon_consumed_no_double_drop(void) {
     rt_executor* ex = ensure_exec();
     rtb_caller_abandon_reset();
-    rt_task* caller = rtb_caller_abandon_new_task(ex);
+    const rt_task* caller = rtb_caller_abandon_new_task(ex);
     if (caller == NULL) {
         return rtb_fail("caller-abandon-consumed: caller task creation failed");
     }
@@ -138,7 +138,10 @@ int rtb_mode_caller_abandon_consumed_no_double_drop(void) {
     pending->result_bits = (uint64_t)(uintptr_t)block;
     pending->result_drop_fn_id = RTB_CALLER_ABANDON_MARK_ID;
     // Simulate finish_retry's own clear-before-consume ordering: ownership
-    // already moved to the caller, which frees the value itself.
+    // already moved to the caller, which frees the value itself. The store
+    // looks redundant to an analyser and is the POINT of this stand: it pins
+    // that the clear happens, in this order, whatever the field held before.
+    // cppcheck-suppress redundantAssignment
     pending->result_drop_fn_id = 0;
     rt_free((uint8_t*)block, RTB_RESULT_BLOCK_SIZE, RTB_RESULT_BLOCK_ALIGN);
     rt_remote_task_release_owned(ex, caller);
@@ -157,12 +160,12 @@ int rtb_mode_caller_abandon_consumed_no_double_drop(void) {
 int rtb_mode_caller_abandon_filters_by_op_and_caller(void) {
     rt_executor* ex = ensure_exec();
     rtb_caller_abandon_reset();
-    rt_task* caller_a = rtb_caller_abandon_new_task(ex);
-    rt_task* caller_b = rtb_caller_abandon_new_task(ex);
+    const rt_task* caller_a = rtb_caller_abandon_new_task(ex);
+    const rt_task* caller_b = rtb_caller_abandon_new_task(ex);
     if (caller_a == NULL || caller_b == NULL) {
         return rtb_fail("caller-abandon-filter: caller task creation failed");
     }
-    rt_remote_task_pending* target =
+    const rt_remote_task_pending* target =
         rtb_caller_abandon_new_pending(ex, RT_REMOTE_TASK_OP_AWAIT, caller_a->id);
     rt_remote_task_pending* other_caller =
         rtb_caller_abandon_new_pending(ex, RT_REMOTE_TASK_OP_AWAIT, caller_b->id);
@@ -202,7 +205,7 @@ int rtb_mode_caller_abandon_filters_by_op_and_caller(void) {
 int rtb_mode_caller_abandon_in_flight_survives(void) {
     rt_executor* ex = ensure_exec();
     rtb_caller_abandon_reset();
-    rt_task* caller = rtb_caller_abandon_new_task(ex);
+    const rt_task* caller = rtb_caller_abandon_new_task(ex);
     if (caller == NULL) {
         return rtb_fail("caller-abandon-in-flight: caller task creation failed");
     }

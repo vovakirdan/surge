@@ -20,6 +20,9 @@ func (fe *funcEmitter) emitCall(ins *mir.Instr) error {
 	if handled, err := fe.emitAsyncStateFreeIntrinsic(call); handled {
 		return err
 	}
+	if handled, err := fe.emitTaskCreateIntrinsic(call); handled {
+		return err
+	}
 	if handled, err := fe.emitLayoutIntrinsic(call); handled {
 		return err
 	}

@@ -17,7 +17,7 @@ static void* rtb_start_exec(rtb_execute_state* state, uint64_t placement, rtb_ch
     state->placement = placement;
     state->body_poll_id = POLL_RTB_CHILD;
     state->body_state = child;
-    return __task_create(POLL_RTB_EXECUTE, state);
+    return __task_create(POLL_RTB_EXECUTE, state, rt_channel_opaque_word_ops());
 }
 
 // Trace equivalence + owner proof: one execute request on the destination,

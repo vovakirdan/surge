@@ -7720,3 +7720,116 @@ pointer out of a value.
 slot machinery (`a28c5520`), which nothing reads yet. A representation with two
 disagreeing readers is the failure this epic has already paid for once, and
 starting the flip without settling the fork would build exactly that.
+
+## 2026-08-25 — D4a landed: the result is stored at its own type, near and far
+
+The fork above was settled by the owner with option 2, and with a constraint
+that shaped the whole far half: **the reply carries a capability, never an
+`rt_task*`**. A pointer cannot say "the task I name completed, was freed, and
+its id was reused"; four integers can — task id, task generation, result
+generation, owner shard — and every one of them is checked before the value is
+touched.
+
+**What the far path does now.** The producer's result slot is PINNED when the
+reply is minted, and stays pinned until the terminal outcome. The awaiting side
+hands its destination in only on the retry call that will finish: while parked
+it holds the capability and the pin alone, because a park or a longjmp would
+leave a stored address dangling. On the terminal call the runtime validates the
+four fields, claims the producer's slot, moves the value straight into the live
+destination and commits. Cancel, a stale reply and an enqueue failure all leave
+the source slot its owner, whose ordinary exactly-once cleanup then runs.
+
+Today's far semantics are unchanged: one lease, one move. Several awaiters and
+clone entitlements stay in D4b and do not leak into this step.
+
+**Serving is decided by what the value can do**, in one statement that holds for
+a near handle and a far one alike:
+
+| the value | what an asker gets | what the slot keeps |
+| --- | --- | --- |
+| a second asker exists, and a duplication was installed for it | an independent value | its own, for a later asker |
+| owns nothing | a copy of the bytes | its own — nothing was given away |
+| owns something | the value, moved | nothing; a second asker is told "gone" |
+
+The middle row is why two joiners polling one task both read the same word, and
+it is the row that closes RV2-DEBT-053a's shape properly: a value with no
+obligation has nothing to hand over twice.
+
+**Where the duplication comes from, and why not from the descriptor.** The
+obvious answer -- `rt_value_ops.clone_init` -- is wrong today and instructively
+so. The registry sets `RT_VALUE_FLAG_CLONABLE` only for a type whose clone the
+compiler MONOMORPHIZED, so a `string`, whose duplication is the runtime's own,
+arrives clonable in the language and unclonable in its descriptor. Making the
+backend widen that bit was tried and reverted: two tests pin "the descriptor's
+capabilities are the registry's", the registry is the authority on purpose, and
+a backend that invents a capability is exactly the drift they exist to catch.
+
+So the duplication rides with the CLONE, which is the operation that took the
+obligation on: `rt_task_clone(handle, duplicate)` installs the body that will
+serve a second asker, and the task's descriptor keeps saying only what the
+STORAGE needs -- how this value moves and how it is destroyed. An un-cloned task
+is asked once and moves its result out, and installs nothing.
+
+Whether `CLONABLE` should mean "a duplicate can be made" rather than "a body was
+monomorphized" is a real ABI question with a real cost (every string-carrying
+type would emit glue), and it belongs to D4b's entitlement work, deliberately,
+rather than to a storage flip as a side effect.
+
+A `Task<T>` whose T the backend cannot duplicate at all -- only a dynamic array
+-- still refuses a second asker rather than handing two of them one buffer, at
+the same moment the old representation refused it: when the second asker
+arrives.
+
+**Freeing a task destroys its result**, which runs generated code, so it may no
+longer happen under a scheduler lock — §8 P2 again, in the shape a task wears
+it. A lane holding a lock links the task into a list threaded through the tasks
+themselves and frees it the moment it releases the last one. A side table would
+have put an allocation on the path whose entire purpose is running a destructor
+safely; the intrusive list costs none, which the census below shows.
+
+**Remote select keeps its word.** Its reply still answers "which arm won", and
+D5 retypes it. `rt_task_result_take_word` exists for exactly that one caller and
+goes away with it.
+
+**Measured** (valgrind `--leak-check=full`, probes returning a heap string and a
+two-field composite):
+
+| probe | allocs | frees | definitely lost |
+| --- | --- | --- | --- |
+| string, before (boxed word) | 84 | 5 | 0 |
+| string, after | 84 | 6 | 0 |
+| composite, after (16 bytes, inline) | 84 | 6 | 0 |
+
+The composite is the point: it did not fit a word, so it used to be boxed, and
+now it lives in the task's own storage.
+
+`TestRuntimeV2TaskResultCensusBalanced` is the falsifier. It windows a scalar
+result and a composite one side by side and asserts they cost the SAME, at one
+iteration and at eight -- an equality rather than a pinned absolute, because the
+absolute is task machinery this step does not claim to have changed while the
+DIFFERENCE is exactly the box it removed. Against the pre-flip tree
+(`c73c9f41`) it fails with the numbers that say why: narrow 5/27, wide **6/35**
+-- one block at the window edge and one more per iteration. On this tree both
+read 5/27.
+
+**Three surfaces found by gates rather than by reading.** The `§8 P2` guard caught
+`rt_timeout_poll` taking a result under the control lock -- and taking it into a
+WORD, which for a composite would have written past an eight-byte stack slot.
+It is typed with the rest now. And the freed-channel waiter row caught a
+use-after-free: taking the structural free out from under the control lock
+removed the mutual exclusion that a cancel arriving on another thread relies on.
+The two halves of reclamation have opposite requirements, and `reclaim_task` is
+where that is now written down. The third was the clone glue itself: it fixed up
+a copied value's MEMBERS and nothing else, so a body whose own type owns
+something directly -- a bare `string`, which is what a `Task<string>`'s result
+is -- copied the word and left two owners of one buffer. Latent until this step
+asked it to duplicate a leaf; a double free the first time it did.
+
+**Evidence, on the whole tree.** `make check` 0. `make golden-check` 0 with no
+corpus drift -- the emitter changed for every async program and no fixture
+moved, because the goldens pin diagnostics and MIR rather than LLVM. 19 of 21
+`runtime-v2-*` gates green; `carrier-check` and `ownership-check` red with text
+byte-identical to the base commit (`blocking-scalar: 213 != 278` and 24 issues),
+both sanctioned. `make behaviour-check-mt` 0; `make behaviour-check-all` red on
+`string_from_bytes_invalid_utf8/llvm` alone, which segfaults identically at the
+base.

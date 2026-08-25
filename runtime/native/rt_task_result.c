@@ -18,8 +18,10 @@ rt_slot_control_status rt_task_result_bind(rt_task_result* slot, const rt_value_
     if (slot == NULL) {
         return RT_SLOT_CONTROL_INVALID_ARGUMENT;
     }
+    uint64_t generation = slot->generation;
     memset(slot, 0, sizeof(*slot));
     slot->state = RT_SLOT_EMPTY;
+    slot->generation = generation + 1;
     if (operations == NULL) {
         // A task that produces no value. Nothing to size, nothing to destroy,
         // and every operation below answers "there is no result".
@@ -81,6 +83,44 @@ rt_slot_control_status rt_task_result_commit_move(rt_task_result* slot) {
     }
     slot->state = RT_SLOT_MOVED;
     return RT_SLOT_CONTROL_OK;
+}
+
+int rt_task_result_copy_value(const rt_task_result* slot, void* dst) {
+    if (!rt_task_result_is_ready(slot) || dst == NULL) {
+        return 0;
+    }
+    if ((slot->operations->layout.flags & RT_VALUE_FLAG_DROPPABLE) != 0) {
+        // An owning value has exactly one owner. Copying its bytes would make a
+        // second one silently, which is the double-free this whole layer exists
+        // to prevent, so the answer is "no" rather than a copy.
+        return 0;
+    }
+    memcpy(dst, slot->storage, (size_t)slot->operations->layout.size);
+    return 1;
+}
+
+int rt_task_result_was_taken(const rt_task_result* slot) {
+    return slot != NULL && slot->operations != NULL &&
+           (slot->state == RT_SLOT_MOVED || slot->state == RT_SLOT_DROPPED);
+}
+
+uint64_t rt_task_result_take_word(rt_task_result* slot) {
+    if (!rt_task_result_is_ready(slot) || slot->operations->layout.size > sizeof(uint64_t)) {
+        return 0;
+    }
+    uint64_t bits = 0;
+    memcpy(&bits, slot->storage, (size_t)slot->operations->layout.size);
+    (void)rt_task_result_commit_move(slot);
+    return bits;
+}
+
+uint64_t rt_task_result_generation(const rt_task_result* slot) {
+    return slot == NULL ? 0 : slot->generation;
+}
+
+int rt_task_result_matches(const rt_task_result* slot, const rt_result_source* source) {
+    return slot != NULL && source != NULL && source->result_generation != 0 &&
+           slot->generation == source->result_generation && rt_task_result_is_ready(slot);
 }
 
 void rt_task_result_dispose(rt_task_result* slot) {

@@ -24,13 +24,13 @@ static void poll_anchored_flooded_caller(rtb_anchored_state* state) {
     uint8_t kind = 0;
     uint64_t bits = 0;
     state->status = rt_immediate_on_execute_anchored(
-        &state->anchor, 0, (int64_t)state->body_poll_id, state, &state->pending, &kind, &bits);
+        &state->anchor, 0, 0, (int64_t)state->body_poll_id, state, &state->pending, &kind, &bits);
     if (state->status == RT_REMOTE_TASK_STATUS_PENDING) {
         rt_async_yield(state, 0);
     }
     state->result_kind = kind;
     state->result_bits = bits;
-    rt_async_return(state, (uint64_t)state->status);
+    rt_async_return(state, rtb_word((uint64_t)state->status));
 }
 
 void rtb_anchored_audit_poll_dispatch(uint64_t id) {
@@ -82,7 +82,8 @@ int rtb_mode_anchored_queue_full(void) {
     prefill.anchor = minted.handle;
     prefill.value = 5;
     prefill.body_poll_id = POLL_RTB_ANCHORED_HELPER_SEND;
-    void* prefill_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &prefill);
+    void* prefill_caller =
+        __task_create(POLL_RTB_ANCHORED_CALLER, &prefill, rt_channel_opaque_word_ops());
     uint8_t kind = 0;
     uint64_t bits = 0;
     (void)rtb_await(prefill_caller, &kind, &bits);
@@ -94,7 +95,8 @@ int rtb_mode_anchored_queue_full(void) {
     gated.anchor = minted.handle;
     gated.value = 6;
     gated.body_poll_id = POLL_RTB_ANCHORED_HELPER_SEND;
-    void* gated_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &gated);
+    void* gated_caller =
+        __task_create(POLL_RTB_ANCHORED_CALLER, &gated, rt_channel_opaque_word_ops());
     if (!rtb_wait_u32(&gated.body_ran, 1, 5000)) {
         return rtb_fail("queue-full gated body did not start");
     }
@@ -107,7 +109,8 @@ int rtb_mode_anchored_queue_full(void) {
     flooded.anchor = minted.handle;
     flooded.value = 7;
     flooded.body_poll_id = POLL_RTB_ANCHORED_BODY;
-    void* flooded_caller = __task_create(POLL_RTB_ANCHORED_FLOODED_CALLER, &flooded);
+    void* flooded_caller =
+        __task_create(POLL_RTB_ANCHORED_FLOODED_CALLER, &flooded, rt_channel_opaque_word_ops());
     (void)rtb_await(flooded_caller, &kind, &bits);
     if (flooded.status != RT_REMOTE_TASK_STATUS_QUEUE_FULL) {
         return rtb_fail("saturated data lane did not answer queue-full");
@@ -133,7 +136,8 @@ int rtb_mode_anchored_queue_full(void) {
     retried.anchor = minted.handle;
     retried.value = 7;
     retried.body_poll_id = POLL_RTB_ANCHORED_BODY;
-    void* retried_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &retried);
+    void* retried_caller =
+        __task_create(POLL_RTB_ANCHORED_CALLER, &retried, rt_channel_opaque_word_ops());
     (void)rtb_await(retried_caller, &kind, &bits);
     if (retried.status != RT_REMOTE_TASK_STATUS_OK) {
         return rtb_fail("post-drain attempt did not succeed");
@@ -176,7 +180,8 @@ int rtb_mode_anchored_leak_audit(void) {
             pinned.anchor = minted.handle;
             pinned.value = round;
             pinned.body_poll_id = POLL_RTB_ANCHORED_PINNED_BODY;
-            void* pinned_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &pinned);
+            void* pinned_caller =
+                __task_create(POLL_RTB_ANCHORED_CALLER, &pinned, rt_channel_opaque_word_ops());
             if (!rtb_wait_u32(&pinned.body_ran, 1, 5000)) {
                 return rtb_fail("leak-audit pinned body did not start");
             }
@@ -195,7 +200,8 @@ int rtb_mode_anchored_leak_audit(void) {
         sender.anchor = minted.handle;
         sender.value = round;
         sender.body_poll_id = POLL_RTB_ANCHORED_BODY;
-        void* send_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &sender);
+        void* send_caller =
+            __task_create(POLL_RTB_ANCHORED_CALLER, &sender, rt_channel_opaque_word_ops());
         (void)rtb_await(send_caller, &kind, &bits);
         if (sender.status != RT_REMOTE_TASK_STATUS_OK) {
             return rtb_fail("leak-audit send failed");
@@ -204,7 +210,8 @@ int rtb_mode_anchored_leak_audit(void) {
         memset(&receiver, 0, sizeof(receiver));
         receiver.anchor = minted.handle;
         receiver.body_poll_id = POLL_RTB_ANCHORED_RECV_BODY;
-        void* recv_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &receiver);
+        void* recv_caller =
+            __task_create(POLL_RTB_ANCHORED_CALLER, &receiver, rt_channel_opaque_word_ops());
         (void)rtb_await(recv_caller, &kind, &bits);
         if (receiver.status != RT_REMOTE_TASK_STATUS_OK) {
             return rtb_fail("leak-audit recv failed");
@@ -258,7 +265,8 @@ int rtb_mode_anchored_cross_producer_order(void) {
     first.anchor = minted.handle;
     first.value = 11;
     first.body_poll_id = POLL_RTB_ANCHORED_PINNED_BODY;
-    void* first_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &first);
+    void* first_caller =
+        __task_create(POLL_RTB_ANCHORED_CALLER, &first, rt_channel_opaque_word_ops());
     if (!rtb_wait_u32(&first.body_ran, 1, 5000)) {
         return rtb_fail("first producer's body did not start");
     }
@@ -267,7 +275,8 @@ int rtb_mode_anchored_cross_producer_order(void) {
     second.anchor = minted.handle;
     second.value = 22;
     second.body_poll_id = POLL_RTB_ANCHORED_BODY;
-    void* second_caller = __task_create(POLL_RTB_ANCHORED_CALLER, &second);
+    void* second_caller =
+        __task_create(POLL_RTB_ANCHORED_CALLER, &second, rt_channel_opaque_word_ops());
     uint8_t kind = 0;
     uint64_t bits = 0;
     (void)rtb_await(second_caller, &kind, &bits);

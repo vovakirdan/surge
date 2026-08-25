@@ -6,6 +6,7 @@
 #include "rt_park_pool.h"
 #include "rt_placement.h"
 #include "rt_runtime_config.h"
+#include "rt_task_result.h"
 #include "rt_transport.h"
 #include "rt_waiter.h"
 #include <pthread.h>
@@ -227,31 +228,20 @@ typedef struct rt_task {
     uint64_t generation;
     int64_t poll_fn_id;
     void* state;
-    uint64_t result_bits;
-    // Owner-side drop obligation for a heap-carried remote-body RESULT
-    // (threaded from the spawn-on crossing like state_drop_fn_id; 0 for a
-    // Copy/inert result or a non-far task). Nonzero means this task still
-    // owns result_bits: free_task drops it exactly once. Cleared to 0 at
-    // the single point a consumer takes the result (reply shipped or local
-    // take_result), so the owner-side drop and the consume path are
-    // mutually exclusive by construction (RV2-DEBT-053a).
-    uint64_t result_drop_fn_id;
-    // How this task serves its result to a handle when it may be asked for it
-    // again. NULL means it will be asked at most once, and the single asker is
-    // simply handed result_bits.
+    // How a SECOND asker is served this task's result, installed by the handle
+    // clone that made a second asker possible. NULL until then, and NULL for a
+    // result that needs no duplication or has none. See rt.h's rt_task_clone.
+    rt_value_clone_init_fn result_duplicate;
+    // The one canonical result this task owns, at the width its type asks for.
+    // See rt_task_result.h: the task outlives every handle that can ask for it,
+    // a small result lives in the task's own bytes, and a wider one takes the
+    // single block the box it replaces already cost.
     //
-    // Cloning a handle is what makes it non-NULL, because cloning is what
-    // creates a second asker, and it is the operation that knows the result's
-    // type well enough to say how a copy of one is made. From then on the
-    // result belongs to the TASK: every asker is served a copy built by this
-    // function, nobody reclaims the original out from under a later asker, and
-    // free_task discharges result_drop_fn_id on the one original.
-    //
-    // The store is safe without serialization because the FIRST clone runs
-    // while its source is the only handle in existence, so no take can be in
-    // flight and no second asker exists yet to miss it. Later clones store the
-    // same pointer.
-    rt_result_copy_fn result_copy_fn;
+    // Local and far askers reach the SAME slot. A far await is not a second
+    // representation: the transport is in-process, so a reply carries a
+    // capability naming this slot and the awaiting side moves the value
+    // straight out of it. Nothing is boxed to fit a word on the way.
+    rt_task_result result;
     // A suspend-point or scope-join state box abandoned by a cancellation
     // that completes the task without ever resuming compiled code (the
     // ordinary path frees the INCOMING resumed state box at the START of
@@ -264,6 +254,11 @@ typedef struct rt_task {
     void* abandoned_state;
     uint64_t abandoned_state_drop_fn_id;
     uint8_t result_kind;
+    // Whether more than one handle can ask for this result. Set by the first
+    // clone, which is what creates a second asker; from then on every asker is
+    // served an independent value built by the descriptor's clone and the slot
+    // keeps the original until the task is freed.
+    uint8_t result_shared;
     atomic_u8 status;
     uint8_t kind;
     uint8_t resume_kind;
@@ -315,6 +310,12 @@ typedef struct rt_task {
     uint64_t* children;
     size_t children_len;
     size_t children_cap;
+    // Links this task into the lane's list of tasks waiting to be freed once
+    // the last scheduler lock is released. Freeing a task destroys its result,
+    // which runs generated code, so it may not happen under a lock -- and the
+    // list threads through the tasks themselves, so keeping that rule costs no
+    // allocation at all. NULL outside that list.
+    struct rt_task* reclaim_next;
 } rt_task;
 
 static inline uint32_t rt_task_join_owner_shard_id_load(const rt_task* task) {
@@ -492,7 +493,6 @@ typedef struct {
     uint8_t kind;
     waker_key park_key;
     void* state;
-    uint64_t value_bits;
 } poll_outcome;
 
 typedef struct rt_blocking_job {
@@ -943,10 +943,16 @@ void rt_channel_close(void* channel);
 void rt_channel_free(void* channel);
 void rt_channel_free_when_unlocked(void* channel);
 void rt_channel_reclaim_drain(void);
+// Frees the tasks whose reclamation had to wait for this lane to hold no
+// scheduler lock, because freeing one destroys its result.
+void rt_task_reclaim_drain(void);
 
 int current_task_cancelled(rt_executor* ex);
 void cancel_task(rt_executor* ex, uint64_t id);
-void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t result_bits);
+// Completes a task. The result value, if there is one, is already in the task's
+// own slot: rt_async_return moved it there from inside the task's own poll,
+// which is the one place it can run the element's move with no lock held.
+void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind);
 void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outcome);
 rt_runtime_status rt_executor_request_shutdown(rt_executor* ex);
 rt_runtime_status rt_executor_drain_shutdown_net_waiters(rt_executor* ex);
@@ -965,7 +971,7 @@ void rt_io_wait_slice(rt_executor* ex);
 void rt_io_poll_nudge(rt_executor* ex);
 int worker_next_ready(rt_worker_ctx* ctx, uint64_t* out_id);
 int rt_next_sleep_deadline(const rt_executor* ex, uint64_t* out_deadline);
-void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uint64_t* out_bits);
+void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind);
 int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task);
 rt_scheduler* current_worker_scheduler(const rt_executor* ex);
 void maybe_start_compensation_worker_locked(rt_executor* ex);

@@ -26,14 +26,14 @@ static void poll_rtb_select_caller(rtb_select_state* state) {
     if (state->status == RT_REMOTE_TASK_STATUS_PENDING) {
         rt_async_yield(state, 0);
     }
-    rt_async_return(state, (uint64_t)state->status);
+    rt_async_return(state, rtb_word((uint64_t)state->status));
 }
 
 // The shape the compiled remote select lowers to in the vertical: one
 // select operation as the whole body.
 static void poll_rtb_select_body(void* state) {
     uint64_t winner = rt_anchored_channel_select();
-    rt_async_return(state, winner);
+    rt_async_return(state, rtb_word(winner));
 }
 
 void rtb_select_poll_dispatch(uint64_t id) {
@@ -73,7 +73,7 @@ int rtb_mode_select_ready_first(void) {
     if (raw_b == NULL) {
         return rtb_fail("ready-first resolve failed");
     }
-    rt_channel_send_blocking(raw_b, &(uint64_t){33});
+    rt_channel_send_blocking(raw_b, rtb_word(33));
 
     rtb_select_state state;
     memset(&state, 0, sizeof(state));
@@ -84,7 +84,7 @@ int rtb_mode_select_ready_first(void) {
     state.kinds[0] = SELECT_CHAN_RECV;
     state.kinds[1] = SELECT_CHAN_RECV;
     state.count = 2;
-    void* caller = __task_create(POLL_RTB_SELECT_CALLER, &state);
+    void* caller = __task_create(POLL_RTB_SELECT_CALLER, &state, rt_channel_opaque_word_ops());
     uint8_t kind = 0;
     uint64_t bits = 0;
     (void)rtb_await(caller, &kind, &bits);
@@ -127,7 +127,7 @@ int rtb_mode_select_park_then_send(void) {
     state.kinds[0] = SELECT_CHAN_RECV;
     state.kinds[1] = SELECT_CHAN_RECV;
     state.count = 2;
-    void* caller = __task_create(POLL_RTB_SELECT_CALLER, &state);
+    void* caller = __task_create(POLL_RTB_SELECT_CALLER, &state, rt_channel_opaque_word_ops());
 
     rt_remote_task_pending* pending = NULL;
     for (uint32_t i = 0; i < 4000 && pending == NULL; i++) {
@@ -165,7 +165,7 @@ int rtb_mode_select_park_then_send(void) {
     if (raw_a == NULL) {
         return rtb_fail("park-then-send resolve failed");
     }
-    rt_channel_send_blocking(raw_a, &(uint64_t){42});
+    rt_channel_send_blocking(raw_a, rtb_word(42));
 
     uint8_t kind = 0;
     uint64_t bits = 0;
@@ -203,8 +203,8 @@ int rtb_mode_select_tie_break(void) {
     if (raw_a == NULL || raw_b == NULL) {
         return rtb_fail("tie-break resolve failed");
     }
-    rt_channel_send_blocking(raw_a, &(uint64_t){7});
-    rt_channel_send_blocking(raw_b, &(uint64_t){9});
+    rt_channel_send_blocking(raw_a, rtb_word(7));
+    rt_channel_send_blocking(raw_b, rtb_word(9));
 
     rtb_select_state state;
     memset(&state, 0, sizeof(state));
@@ -215,7 +215,7 @@ int rtb_mode_select_tie_break(void) {
     state.kinds[0] = SELECT_CHAN_RECV;
     state.kinds[1] = SELECT_CHAN_RECV;
     state.count = 2;
-    void* caller = __task_create(POLL_RTB_SELECT_CALLER, &state);
+    void* caller = __task_create(POLL_RTB_SELECT_CALLER, &state, rt_channel_opaque_word_ops());
     uint8_t kind = 0;
     uint64_t bits = 0;
     (void)rtb_await(caller, &kind, &bits);
@@ -260,7 +260,7 @@ static int rtb_select_park(rt_executor* ex,
     state->kinds[0] = SELECT_CHAN_RECV;
     state->kinds[1] = SELECT_CHAN_RECV;
     state->count = 2;
-    void* caller = __task_create(POLL_RTB_SELECT_CALLER, state);
+    void* caller = __task_create(POLL_RTB_SELECT_CALLER, state, rt_channel_opaque_word_ops());
     if (out_caller != NULL) {
         *out_caller = caller;
     }
@@ -320,7 +320,7 @@ int rtb_mode_select_close_before(void) {
     state.kinds[0] = SELECT_CHAN_RECV;
     state.kinds[1] = SELECT_CHAN_RECV;
     state.count = 2;
-    void* caller = __task_create(POLL_RTB_SELECT_CALLER, &state);
+    void* caller = __task_create(POLL_RTB_SELECT_CALLER, &state, rt_channel_opaque_word_ops());
     uint8_t kind = 0;
     uint64_t bits = 0;
     (void)rtb_await(caller, &kind, &bits);
@@ -396,7 +396,7 @@ static int rtb_select_cancel_row(int wait_for_park, const char* label) {
         state.kinds[0] = SELECT_CHAN_RECV;
         state.kinds[1] = SELECT_CHAN_RECV;
         state.count = 2;
-        caller = __task_create(POLL_RTB_SELECT_CALLER, &state);
+        caller = __task_create(POLL_RTB_SELECT_CALLER, &state, rt_channel_opaque_word_ops());
     }
     rt_task_cancel(caller);
     uint8_t kind = 0;
@@ -456,7 +456,7 @@ int rtb_mode_select_cancel_vs_send(void) {
     if (raw_a == NULL) {
         return rtb_fail("cancel-vs-send resolve failed");
     }
-    rt_channel_send_blocking(raw_a, &(uint64_t){42});
+    rt_channel_send_blocking(raw_a, rtb_word(42));
     rt_task_cancel(caller);
     uint8_t kind = 0;
     uint64_t bits = 0;
@@ -502,14 +502,17 @@ int rtb_mode_select_retry_single_body(void) {
     if (rtb_select_park(ex, &chan_a, &chan_b, &state, &caller) != 0) {
         return 1;
     }
-    rt_task* caller_task = (rt_task*)caller;
+    const rt_task* caller_task = (const rt_task*)caller;
+    if (caller_task == NULL) {
+        return rtb_fail("retry park produced no caller task");
+    }
     rtb_wake(ex, caller_task->id);
     rtb_sleep_us(20000);
     void* raw_a = rt_far_channel_resolve(ex, &chan_a.handle);
     if (raw_a == NULL) {
         return rtb_fail("retry resolve failed");
     }
-    rt_channel_send_blocking(raw_a, &(uint64_t){42});
+    rt_channel_send_blocking(raw_a, rtb_word(42));
     uint8_t kind = 0;
     uint64_t bits = 0;
     (void)rtb_await(caller, &kind, &bits);

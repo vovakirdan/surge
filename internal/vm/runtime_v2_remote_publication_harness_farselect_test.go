@@ -26,7 +26,7 @@ static int run_far_select_cancel_vs_commit(void) {
     st.body_state = &state_marker;
     drop_expected_state = &state_marker;
 
-    void* caller = __task_create(POLL_SELECT_CALLER, &st);
+    void* caller = __task_create(POLL_SELECT_CALLER, &st, rt_channel_opaque_word_ops());
     if (caller == NULL) return fail("select caller create failed");
     if (!wait_reached(RT_SYNC_POINT_SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY, 5000)) {
         return fail("commit window was never reached");
@@ -96,7 +96,7 @@ static int run_far_select_cancel_before_dispatch(void) {
     st.body_state = &state_marker;
     drop_expected_state = &state_marker;
 
-    void* caller = __task_create(POLL_SELECT_CALLER, &st);
+    void* caller = __task_create(POLL_SELECT_CALLER, &st, rt_channel_opaque_word_ops());
     if (caller == NULL) return fail("select caller create failed");
     if (!wait_reached(RT_SYNC_POINT_SP_FAR_SELECT_BEFORE_DISPATCH, 5000)) {
         return fail("dispatch window was never reached");
@@ -160,7 +160,7 @@ static int run_far_select_double_cancel(void) {
     st.body_state = &state_marker;
     drop_expected_state = &state_marker;
 
-    void* caller = __task_create(POLL_SELECT_CALLER, &st);
+    void* caller = __task_create(POLL_SELECT_CALLER, &st, rt_channel_opaque_word_ops());
     if (caller == NULL) return fail("select caller create failed");
     if (!wait_reached(RT_SYNC_POINT_SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY, 5000)) {
         return fail("commit window was never reached");

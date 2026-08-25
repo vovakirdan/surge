@@ -298,8 +298,15 @@ void rt_far_channel_dispatch_select(rt_executor* ex, const rt_transport_msg* msg
         }
     }
     rt_task* task = NULL;
-    rt_remote_spawn_status created = rt_remote_spawn_create_body_task(
-        ex, pending->body_poll_fn_id, pending->body_state, msg->target_shard_id, &task);
+    rt_remote_spawn_status created = rt_remote_spawn_create_body_task(ex,
+                                                                      pending->body_poll_fn_id,
+                                                                      pending->body_state,
+                                                                      msg->target_shard_id,
+                                                                      // D5 types this body's
+                                                                      // result; until then it
+                                                                      // answers with a word.
+                                                                      0,
+                                                                      &task);
     if (created != RT_REMOTE_SPAWN_STATUS_OK) {
         rt_far_channel_select_unpin_arms(ex, pending, pending->select_count);
         select_answer(ex, pending, RT_REMOTE_TASK_STATUS_REFUSED);

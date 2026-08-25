@@ -38,12 +38,14 @@ async fn run(dst: Placement) -> far Task<int> {
 	if !strings.Contains(ir, firstAttempt) {
 		t.Fatalf("missing state-shipping publish call:\n%s", ir)
 	}
-	// (state_drop_id == body_id, result_drop_id == 0 for a Copy result, poll == body_id).
-	wantIDs := fmt.Sprintf(", i64 %d, i64 0, i64 %d, ptr %%", bodyID, bodyID)
-	if !strings.Contains(ir, wantIDs) {
+	// (state_drop_id == body_id, then the body's result TYPE id, then poll ==
+	// body_id). The result slot is a type now, so this row pins the state id
+	// and leaves the type to the sibling test that is about it.
+	wantIDs := regexp.MustCompile(fmt.Sprintf(", i64 %d, i64 \\d+, i64 %d, ptr %%", bodyID, bodyID))
+	if !wantIDs.MatchString(ir) {
 		t.Fatalf("state-shipping publish must pass drop id == body id (%d):\n%s", bodyID, ir)
 	}
-	if !strings.Contains(ir, "call i32 @rt_remote_spawn_publish_placement(i64 0, i64 0,") {
+	if !strings.Contains(ir, "call i32 @rt_remote_spawn_publish_placement(i64 0, i64 0, i64 0,") {
 		t.Fatalf("retry publish must keep (id=0, state=null):\n%s", ir)
 	}
 
@@ -87,6 +89,8 @@ async fn run(dst: Placement) -> far Task<int> {
 // (The buildpipeline non-copy reply gate blocks this from compiled source
 // today; the MIR-level lowering used here bypasses that gate so the owner-side
 // codegen can be proven ahead of the gate opening.)
+const publishResultTypePattern = `@rt_remote_spawn_publish_placement\(i64 %[^,]+, i64 \d+, i64 (\d+), i64 \d+, ptr`
+
 func TestEmitSpawnOnRegistersResultDropFn(t *testing.T) {
 	sourceCode := `
 async fn run(dst: Placement) -> far Task<string> {
@@ -97,38 +101,40 @@ async fn run(dst: Placement) -> far Task<string> {
 	mirMod, result := lowerCrossingMIRFromSource(t, sourceCode, sema.CrossingLoweringSpawnOn)
 	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
 	if err != nil {
-		t.Fatalf("emit LLVM IR: %v", err)
+		t.Fatalf("emit LLVM IR: %s", err)
 	}
 
-	// (i64 placement, i64 state_drop, i64 result_drop, i64 poll, ptr state, ...)
-	re := regexp.MustCompile(`@rt_remote_spawn_publish_placement\(i64 %[^,]+, i64 \d+, i64 (\d+), i64 \d+, ptr`)
+	// What the crossing carries for the body's RESULT is its TYPE id, not a
+	// drop-glue id. The body's own result slot is bound with the descriptor
+	// that id resolves to, and the slot's dispose is what reclaims a result
+	// nobody consumed. A crossing cannot carry the descriptor itself -- a
+	// pointer does not survive one -- so the number it carries is a type.
+	//
+	// (i64 placement, i64 state_drop, i64 result_type, i64 poll, ptr state, ...)
+	re := regexp.MustCompile(publishResultTypePattern)
 	m := re.FindStringSubmatch(ir)
 	if m == nil {
-		t.Fatalf("missing state-shipping publish call with a result-drop slot:\n%s", ir)
+		t.Fatalf("missing state-shipping publish call with a result-type slot:\n%s", ir)
 	}
 	if m[1] == "0" {
-		t.Fatalf("result drop id must be nonzero for a heap string result:\n%s", ir)
+		t.Fatalf("result type id must be nonzero for a heap string result:\n%s", ir)
 	}
 
-	dispatch := findLLVMFuncBody(t, ir, "__surge_drop_result_call")
-	armLabel := fmt.Sprintf("i64 %s, label %%drop_result.%s", m[1], m[1])
-	if !strings.Contains(dispatch, armLabel) {
-		t.Fatalf("__surge_drop_result_call switch missing the registered arm %q:\n%s", armLabel, dispatch)
+	descriptor := fmt.Sprintf("@__surge_value_ops_type%s = constant", m[1])
+	if !strings.Contains(ir, descriptor) {
+		t.Fatalf("the module must define the descriptor %s the crossing names:\n%s", descriptor, ir)
 	}
-	if !strings.Contains(dispatch, fmt.Sprintf("call void @drop_result.type%s(ptr %%value)", m[1])) {
-		t.Fatalf("dispatch arm must call the result's drop wrapper:\n%s", dispatch)
+	// The owner side resolves that id through the module's own lookup, and the
+	// descriptor it answers with is what carries the drop.
+	lookup := findLLVMFuncBody(t, ir, "__surge_value_ops_for")
+	if !strings.Contains(lookup, fmt.Sprintf("i64 %s, label %%value_ops.%s", m[1], m[1])) {
+		t.Fatalf("the descriptor lookup must answer for type#%s:\n%s", m[1], lookup)
 	}
-	if !strings.Contains(dispatch, "drop_result_default:") {
-		t.Fatalf("result dispatch must keep the default panic arm for unregistered ids:\n%s", dispatch)
-	}
-
-	glue := findLLVMFuncBody(t, ir, fmt.Sprintf("drop_result.type%s", m[1]))
-	if !strings.Contains(glue, "call void @rt_string_free(ptr %val)") {
-		t.Fatalf("result drop wrapper must free the heap string result:\n%s", glue)
+	if !strings.Contains(ir, fmt.Sprintf("ptr @drop.type%s", m[1])) {
+		t.Fatalf("the descriptor for type#%s must bind a drop body:\n%s", m[1], ir)
 	}
 }
 
-// The placement `on` form ships its state under the same contract.
 func TestEmitImmediateOnRegistersStateDropFn(t *testing.T) {
 	sourceCode := `
 @shard_movable
@@ -149,7 +155,8 @@ async fn run(dst: Placement) -> int {
 		t.Fatalf("emit LLVM IR: %v", err)
 	}
 
-	re := regexp.MustCompile(`call i32 @rt_immediate_on_execute\(i64 %[^,]+, i64 (\d+), i64 (\d+), ptr %`)
+	// (i64 placement, i64 state_drop, i64 result_type, i64 poll, ptr state, ...)
+	re := regexp.MustCompile(`call i32 @rt_immediate_on_execute\(i64 %[^,]+, i64 (\d+), i64 \d+, i64 (\d+), ptr %`)
 	m := re.FindStringSubmatch(ir)
 	if m == nil {
 		t.Fatalf("missing state-shipping immediate-on execute call:\n%s", ir)
@@ -157,7 +164,7 @@ async fn run(dst: Placement) -> int {
 	if m[1] == "0" || m[1] != m[2] {
 		t.Fatalf("immediate-on drop id must equal the body id (got drop=%s body=%s)", m[1], m[2])
 	}
-	if !strings.Contains(ir, "call i32 @rt_immediate_on_execute(i64 0, i64 0,") {
+	if !strings.Contains(ir, "call i32 @rt_immediate_on_execute(i64 0, i64 0, i64 0,") {
 		t.Fatalf("immediate-on retry must keep (id=0, state=null):\n%s", ir)
 	}
 	dispatch := findLLVMFuncBody(t, ir, "__surge_drop_call")

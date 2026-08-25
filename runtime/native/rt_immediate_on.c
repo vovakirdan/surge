@@ -28,9 +28,24 @@ uint32_t rt_immediate_on_source_shard(const rt_task* current) {
 }
 
 rt_remote_task_status
-rt_immediate_on_finish_retry(rt_remote_task_pending** slot, uint8_t* out_kind, uint64_t* out_bits) {
-    rt_remote_task_status status = rt_remote_task_pending_snapshot(*slot, out_kind, out_bits);
+rt_immediate_on_finish_retry(rt_remote_task_pending** slot, uint8_t* out_kind, void* out_dst) {
+    rt_remote_task_status status = rt_remote_task_pending_snapshot(*slot, out_kind, NULL);
     if (status != RT_REMOTE_TASK_STATUS_PENDING) {
+        // Terminal call only: out_dst is live storage on this poll and nothing
+        // may keep its address across one. See finish_retry in
+        // rt_remote_task_api.c, which this mirrors.
+        rt_result_source source = rt_remote_task_pending_result_source(*slot);
+        if (source.task_id != 0) {
+            if (!rt_remote_task_take_result_source(ensure_exec(), &source, out_dst) &&
+                out_kind != NULL) {
+                // The capability named a result that is no longer there. The
+                // reply says Success, but the caller's storage holds nothing,
+                // and telling it Success would hand it uninitialized bytes to
+                // read as a value. "Nothing here" is the only honest answer.
+                *out_kind = 2;
+            }
+            rt_remote_task_pending_clear_result_source(*slot);
+        }
         rt_remote_task_pending_consume(*slot);
         *slot = NULL;
     }
@@ -91,27 +106,27 @@ static void immediate_on_drop_unshipped_state(uint64_t state_drop_fn_id, void* s
 
 rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
                                               uint64_t state_drop_fn_id,
+                                              uint64_t result_type_id,
                                               int64_t poll_fn_id,
                                               void* state,
                                               rt_remote_task_pending** pending,
                                               uint8_t* out_kind,
-                                              uint64_t* out_bits) {
+                                              void* out_dst) {
     rt_executor* ex = ensure_exec();
     rt_task* current = rt_current_task();
     if (ex == NULL || pending == NULL || current == NULL || rt_current_task_id() == 0) {
         return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
     }
     if (*pending != NULL) {
-        rt_remote_task_status status =
-            rt_remote_task_pending_snapshot(*pending, out_kind, out_bits);
+        rt_remote_task_status status = rt_remote_task_pending_snapshot(*pending, out_kind, NULL);
         if (status != RT_REMOTE_TASK_STATUS_PENDING) {
-            return rt_immediate_on_finish_retry(pending, out_kind, out_bits);
+            return rt_immediate_on_finish_retry(pending, out_kind, out_dst);
         }
         if (task_cancelled_load(current) != 0) {
             rt_immediate_on_cancel_inflight(ex, *pending);
         }
         if (rt_remote_task_prepare_reply_wait(ex, current, *pending) != 0) {
-            return rt_immediate_on_finish_retry(pending, out_kind, out_bits);
+            return rt_immediate_on_finish_retry(pending, out_kind, out_dst);
         }
         return RT_REMOTE_TASK_STATUS_PENDING;
     }
@@ -131,9 +146,7 @@ rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
         if (out_kind != NULL) {
             *out_kind = 2;
         }
-        if (out_bits != NULL) {
-            *out_bits = 0;
-        }
+
         return RT_REMOTE_TASK_STATUS_OK;
     }
     rt_shard* destination = rt_runtime_shard(runtime, resolved.shard_id);
@@ -164,6 +177,9 @@ rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
     request->body_poll_fn_id = (uint64_t)poll_fn_id;
     request->body_state = state;
     request->state_drop_fn_id = state_drop_fn_id;
+    // The body's result type, as a number: the descriptor is resolved on the
+    // destination shard, which is the only side that can name it.
+    request->result_drop_fn_id = result_type_id;
     request->state_owned = state_drop_fn_id != 0;
     *pending = request;
     (void)rt_remote_task_prepare_reply_wait(ex, current, request);
@@ -226,8 +242,12 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
         }
     }
     rt_task* task = NULL;
-    rt_remote_spawn_status created = rt_remote_spawn_create_body_task(
-        ex, pending->body_poll_fn_id, pending->body_state, msg->target_shard_id, &task);
+    rt_remote_spawn_status created = rt_remote_spawn_create_body_task(ex,
+                                                                      pending->body_poll_fn_id,
+                                                                      pending->body_state,
+                                                                      msg->target_shard_id,
+                                                                      pending->result_drop_fn_id,
+                                                                      &task);
     if (created != RT_REMOTE_SPAWN_STATUS_OK) {
         if (pending->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED) {
             rt_far_channel_unpin(ex, &pending->anchor);
@@ -327,7 +347,7 @@ void rt_immediate_on_release_owned(rt_executor* ex, const rt_task* caller) {
             rt_immediate_on_cancel_inflight(ex, pending);
             rt_remote_task_pending_release(pending);
         } else {
-            rt_remote_task_pending_finish(ex, pending, RT_REMOTE_TASK_STATUS_REFUSED, 2, 0);
+            rt_remote_task_pending_finish(ex, pending, RT_REMOTE_TASK_STATUS_REFUSED, 2, 0, NULL);
             rt_remote_task_pending_consume(pending);
         }
     }

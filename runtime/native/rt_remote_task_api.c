@@ -21,14 +21,26 @@ static uint32_t current_source_shard(const rt_task* current) {
 }
 
 static rt_remote_task_status
-finish_retry(rt_remote_task_pending** slot, uint8_t* out_kind, uint64_t* out_bits) {
-    rt_remote_task_status status = rt_remote_task_pending_snapshot(*slot, out_kind, out_bits);
+finish_retry(rt_remote_task_pending** slot, uint8_t* out_kind, void* out_dst) {
+    rt_remote_task_status status = rt_remote_task_pending_snapshot(*slot, out_kind, NULL);
     if (status != RT_REMOTE_TASK_STATUS_PENDING) {
-        // Compiled code is about to take ownership of out_bits (or there
-        // is nothing to take for a non-success status) -- clear the drop
-        // obligation before consume's free path can see it, so a
-        // consumed result is never also dropped.
-        (*slot)->result_drop_fn_id = 0;
+        // The terminal call is the ONLY one that may touch out_dst: it is the
+        // caller's live storage on this poll, and a park between polls would
+        // leave any address the pending kept dangling. So the value is fetched
+        // here, from the capability the reply carried, and the capability is
+        // spent so no later path can fetch it twice.
+        rt_result_source source = rt_remote_task_pending_result_source(*slot);
+        if (source.task_id != 0) {
+            if (!rt_remote_task_take_result_source(ensure_exec(), &source, out_dst) &&
+                out_kind != NULL) {
+                // The capability named a result that is no longer there. The
+                // reply says Success, but the caller's storage holds nothing,
+                // and telling it Success would hand it uninitialized bytes to
+                // read as a value. "Nothing here" is the only honest answer.
+                *out_kind = 2;
+            }
+            rt_remote_task_pending_clear_result_source(*slot);
+        }
         rt_remote_task_pending_consume(*slot);
         *slot = NULL;
     }
@@ -40,20 +52,19 @@ static rt_remote_task_status start_remote_task(rt_remote_task_op op,
                                                uint64_t result_drop_fn_id,
                                                rt_remote_task_pending** pending,
                                                uint8_t* out_kind,
-                                               uint64_t* out_bits) {
+                                               void* out_dst) {
     rt_executor* ex = ensure_exec();
     rt_task* current = rt_current_task();
     if (ex == NULL || pending == NULL || current == NULL || rt_current_task_id() == 0) {
         return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
     }
     if (*pending != NULL) {
-        rt_remote_task_status status =
-            rt_remote_task_pending_snapshot(*pending, out_kind, out_bits);
+        rt_remote_task_status status = rt_remote_task_pending_snapshot(*pending, out_kind, NULL);
         if (status != RT_REMOTE_TASK_STATUS_PENDING) {
-            return finish_retry(pending, out_kind, out_bits);
+            return finish_retry(pending, out_kind, out_dst);
         }
         if (rt_remote_task_prepare_reply_wait(ex, current, *pending) != 0) {
-            return finish_retry(pending, out_kind, out_bits);
+            return finish_retry(pending, out_kind, out_dst);
         }
         return RT_REMOTE_TASK_STATUS_PENDING;
     }
@@ -121,18 +132,18 @@ rt_remote_task_status rt_far_task_await(const rt_far_task_handle* handle,
                                         uint64_t result_drop_fn_id,
                                         rt_remote_task_pending** pending,
                                         uint8_t* out_kind,
-                                        uint64_t* out_bits) {
+                                        void* out_dst) {
     return start_remote_task(
-        RT_REMOTE_TASK_OP_AWAIT, handle, result_drop_fn_id, pending, out_kind, out_bits);
+        RT_REMOTE_TASK_OP_AWAIT, handle, result_drop_fn_id, pending, out_kind, out_dst);
 }
 
 rt_remote_task_status rt_far_task_cancel(const rt_far_task_handle* handle,
                                          uint64_t result_drop_fn_id,
                                          rt_remote_task_pending** pending,
                                          uint8_t* out_kind,
-                                         uint64_t* out_bits) {
+                                         void* out_dst) {
     return start_remote_task(
-        RT_REMOTE_TASK_OP_CANCEL, handle, result_drop_fn_id, pending, out_kind, out_bits);
+        RT_REMOTE_TASK_OP_CANCEL, handle, result_drop_fn_id, pending, out_kind, out_dst);
 }
 
 rt_remote_task_status rt_far_task_release(const rt_far_task_handle* handle) {

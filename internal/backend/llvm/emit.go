@@ -113,7 +113,6 @@ type Emitter struct {
 	runtimeOwnedReleaseNeeded map[types.TypeID]struct{}
 	// Result payload types a cloned task handle must be served a copy of. See
 	// emit_copy_result_glue.go.
-	copyResultGlueNeeded map[types.TypeID]struct{}
 	// An ABANDONED async frame is released rather than dropped: the storage
 	// goes back to the allocator and nothing walks the resume payload, which
 	// is a duplicate of what the resumed locals own (emit_drop_glue.go).
@@ -247,7 +246,6 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	e.ensureStringConst("missing poll function")
 	e.ensureStringConst("missing drop function")
 	e.ensureStringConst("missing blocking function")
-	e.ensureStringConst(uncopyableResultMessage)
 	e.ensureStringConst("spawn on remote publish requires an async task context")
 	e.ensureStringConst("spawn on destination is shut down")
 	e.ensureStringConst("spawn on remote publish queue is full")
@@ -330,9 +328,6 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 		return "", err
 	}
 	if err := e.emitBlockingDispatch(); err != nil {
-		return "", err
-	}
-	if err := e.emitCopyResultGlue(); err != nil {
 		return "", err
 	}
 	if err := e.emitCloneGlue(); err != nil {

@@ -24,6 +24,17 @@ import (
 // caller that needs one checks. That is the opposite of the drop dispatch next
 // door, where an id is only ever produced for a type that HAS a wrapper, so
 // arriving with an unknown one is a defect and panics.
+// valueOpsRegistryHas reports whether this module defines a descriptor for one
+// exact type. Every registry entry gets one, so this is the same question as
+// "is the type in the operation registry".
+func (e *Emitter) valueOpsRegistryHas(id types.TypeID) bool {
+	if e == nil || e.mod == nil || e.mod.Meta == nil || e.mod.Meta.Operations == nil {
+		return false
+	}
+	_, err := e.mod.Meta.Operations.Value(id)
+	return err == nil
+}
+
 func (e *Emitter) emitValueOpsLookup() {
 	ids := e.emittedValueOpsTypeIDs()
 

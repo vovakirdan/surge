@@ -1,11 +1,12 @@
 #include "rt_async_internal.h"
 #include "rt_remote_spawn.h"
 #include "rt_sync_point.h"
+#include "rt_value_ops.h"
 
 // Async runtime polling and scheduler logic.
 
 static poll_outcome poll_checkpoint_task(const rt_executor* ex, rt_task* task) {
-    poll_outcome out = {POLL_NONE, waker_none(), NULL, 0};
+    poll_outcome out = {POLL_NONE, waker_none(), NULL};
     if (ex == NULL || task == NULL) {
         out.kind = POLL_DONE_CANCELLED;
         return out;
@@ -24,7 +25,7 @@ static poll_outcome poll_checkpoint_task(const rt_executor* ex, rt_task* task) {
 }
 
 static poll_outcome poll_sleep_task(rt_executor* ex, rt_task* task) {
-    poll_outcome out = {POLL_NONE, waker_none(), NULL, 0};
+    poll_outcome out = {POLL_NONE, waker_none(), NULL};
     if (ex == NULL || task == NULL) {
         out.kind = POLL_DONE_CANCELLED;
         return out;
@@ -70,7 +71,7 @@ static void restore_poll_context(jmp_buf* saved_env,
 }
 
 static poll_outcome poll_user_task(const rt_executor* ex, const rt_task* task) {
-    poll_outcome out = {POLL_NONE, waker_none(), NULL, 0};
+    poll_outcome out = {POLL_NONE, waker_none(), NULL};
     if (ex == NULL || task == NULL) {
         out.kind = POLL_DONE_CANCELLED;
         return out;
@@ -86,7 +87,6 @@ static poll_outcome poll_user_task(const rt_executor* ex, const rt_task* task) {
     poll_result.kind = POLL_NONE;
     poll_result.park_key = waker_none();
     poll_result.state = NULL;
-    poll_result.value_bits = 0;
     poll_env = &env;
     poll_active = 1;
     if (setjmp(env) == 0) {
@@ -102,7 +102,7 @@ static poll_outcome poll_user_task(const rt_executor* ex, const rt_task* task) {
 }
 
 poll_outcome poll_task(rt_executor* ex, rt_task* task) {
-    poll_outcome out = {POLL_NONE, waker_none(), NULL, 0};
+    poll_outcome out = {POLL_NONE, waker_none(), NULL};
     if (task == NULL) {
         out.kind = POLL_DONE_CANCELLED;
         return out;
@@ -110,7 +110,7 @@ poll_outcome poll_task(rt_executor* ex, rt_task* task) {
     if (task_status_load(task) == TASK_DONE) {
         out.kind =
             task->result_kind == TASK_RESULT_CANCELLED ? POLL_DONE_CANCELLED : POLL_DONE_SUCCESS;
-        out.value_bits = task->result_bits;
+        // The value stays in the task's own slot; a reader takes it from there.
         return out;
     }
     if (task->cancel_pending) {
@@ -187,10 +187,10 @@ int run_ready_one(rt_executor* ex) {
         task_polling_exit(task);
         switch (outcome.kind) {
             case POLL_DONE_SUCCESS:
-                mark_done(ex, task, TASK_RESULT_SUCCESS, outcome.value_bits);
+                mark_done(ex, task, TASK_RESULT_SUCCESS);
                 break;
             case POLL_DONE_CANCELLED:
-                mark_done(ex, task, TASK_RESULT_CANCELLED, 0);
+                mark_done(ex, task, TASK_RESULT_CANCELLED);
                 break;
             case POLL_YIELDED:
                 task->state = outcome.state;
@@ -224,10 +224,10 @@ int run_ready_one(rt_executor* ex) {
     rt_control_lock(ex);
     switch (outcome.kind) {
         case POLL_DONE_SUCCESS:
-            mark_done(ex, task, TASK_RESULT_SUCCESS, outcome.value_bits);
+            mark_done(ex, task, TASK_RESULT_SUCCESS);
             break;
         case POLL_DONE_CANCELLED:
-            mark_done(ex, task, TASK_RESULT_CANCELLED, 0);
+            mark_done(ex, task, TASK_RESULT_CANCELLED);
             break;
         case POLL_YIELDED:
             task->state = outcome.state;
@@ -248,7 +248,7 @@ int run_ready_one(rt_executor* ex) {
     return 1;
 }
 
-void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uint64_t* out_bits) {
+void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind) {
     if (ex == NULL || task == NULL) {
         panic_msg("invalid task handle");
         return;
@@ -275,9 +275,6 @@ void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind, uin
         if (task_status_load(current) == TASK_DONE) {
             if (out_kind != NULL) {
                 *out_kind = current->result_kind == TASK_RESULT_CANCELLED ? 2 : 1;
-            }
-            if (out_bits != NULL) {
-                *out_bits = current->result_bits;
             }
             rt_control_unlock(ex);
             rt_heap_accounting_set_current_cell(saved_cell);
@@ -317,7 +314,6 @@ void rt_async_yield(void* state, uint64_t state_drop_fn_id) {
         return;
     }
     poll_result.state = state;
-    poll_result.value_bits = 0;
     if (current_task_cancelled(&exec_state)) {
         stash_abandoned_state(state, state_drop_fn_id);
         poll_result.kind = POLL_DONE_CANCELLED;
@@ -336,13 +332,37 @@ void rt_async_yield(void* state, uint64_t state_drop_fn_id) {
     longjmp(*poll_env, 1);
 }
 
-void rt_async_return(void* state, uint64_t bits) {
+// Completes the current task with a value, or with none when `src` is NULL.
+//
+// The move into the task's own result slot happens HERE, inside the task's own
+// poll, because this is the one place it can: the element's move is generated
+// code and no runtime lock may be held across it, while by the time mark_done
+// publishes DONE the completing lane holds one. From this point the value is
+// the task's and the caller's storage is a husk.
+void rt_async_return(void* state, void* src) {
     if (!poll_active || poll_env == NULL) {
         panic_msg("async_return outside poll");
         return;
     }
+    if (src != NULL) {
+        rt_task* current = rt_current_task();
+        void* destination =
+            current == NULL ? NULL : rt_task_result_publish_storage(&current->result);
+        if (destination == NULL) {
+            // Either this task was created without a result to hold, or it has
+            // already published one. Both are defects in the caller: a task
+            // completes once, and the shape of its result is decided when it is
+            // created.
+            panic_msg("async: this task published a result it was not created to hold");
+            return;
+        }
+        rt_value_move_init_detached(current->result.operations, destination, src);
+        if (rt_task_result_commit(&current->result) != RT_SLOT_CONTROL_OK) {
+            panic_msg("async: a task's result could not be published");
+            return;
+        }
+    }
     poll_result.state = state;
-    poll_result.value_bits = bits;
     poll_result.kind = POLL_DONE_SUCCESS;
     poll_result.park_key = waker_none();
     pending_key = waker_none();
@@ -355,7 +375,6 @@ void rt_async_return_cancelled(void* state, uint64_t state_drop_fn_id) {
         return;
     }
     poll_result.state = state;
-    poll_result.value_bits = 0;
     poll_result.kind = POLL_DONE_CANCELLED;
     poll_result.park_key = waker_none();
     pending_key = waker_none();

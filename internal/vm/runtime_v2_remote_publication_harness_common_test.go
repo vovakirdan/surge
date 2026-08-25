@@ -379,7 +379,7 @@ void __surge_poll_call(uint64_t id) {
         // A counter, not a flag: the duplicate/stale rows assert that a
         // redelivered request never creates a SECOND body.
         atomic_fetch_add_explicit(&child->ran, 1, memory_order_acq_rel);
-        rt_async_return(child, 77);
+        rt_async_return(child, &(uint64_t){77});
         return;
     }
     if (id == POLL_IMMEDIATE_CALLER) {
@@ -393,17 +393,13 @@ void __surge_poll_call(uint64_t id) {
             st->filled = 1;
             if (!fill_data_lane(ex, 0)) {
                 st->status = RT_REMOTE_TASK_STATUS_REFUSED;
-                rt_async_return(st, (uint64_t)st->status);
+                rt_async_return(st, &(uint64_t){(uint64_t)st->status});
                 return;
             }
         }
         rt_remote_task_status status = st->anchored
-            ? rt_immediate_on_execute_anchored(
-                  &st->anchor, st->droppable ? DROP_REMOTE_STATE : 0, POLL_REMOTE_CHILD,
-                  st->child, &st->pending, &st->out_kind, &st->out_bits)
-            : rt_immediate_on_execute(
-                  st->placement, st->droppable ? DROP_REMOTE_STATE : 0, POLL_REMOTE_CHILD,
-                  st->child, &st->pending, &st->out_kind, &st->out_bits);
+            ? rt_immediate_on_execute_anchored(&st->anchor, st->droppable ? DROP_REMOTE_STATE : 0, 0, POLL_REMOTE_CHILD, st->child, &st->pending, &st->out_kind, &st->out_bits)
+            : rt_immediate_on_execute(st->placement, st->droppable ? DROP_REMOTE_STATE : 0, 0, POLL_REMOTE_CHILD, st->child, &st->pending, &st->out_kind, &st->out_bits);
         if (status == RT_REMOTE_TASK_STATUS_PENDING) {
             st->saw_pending = 1;
             atomic_store_explicit(&st->pending_shared, st->pending, memory_order_release);
@@ -411,7 +407,7 @@ void __surge_poll_call(uint64_t id) {
             return;
         }
         st->status = status;
-        rt_async_return(st, (uint64_t)status);
+        rt_async_return(st, &(uint64_t){(uint64_t)status});
         return;
     }
     if (id == POLL_SELECT_CALLER) {
@@ -420,7 +416,7 @@ void __surge_poll_call(uint64_t id) {
             st->filled = 1;
             if (!fill_data_lane(ensure_exec(), st->anchors[0].owner_shard_id)) {
                 st->status = RT_REMOTE_TASK_STATUS_REFUSED;
-                rt_async_return(st, (uint64_t)st->status);
+                rt_async_return(st, &(uint64_t){(uint64_t)st->status});
                 return;
             }
         }
@@ -437,7 +433,7 @@ void __surge_poll_call(uint64_t id) {
             return;
         }
         st->status = status;
-        rt_async_return(st, (uint64_t)status);
+        rt_async_return(st, &(uint64_t){(uint64_t)status});
         return;
     }
     if (id == POLL_SELECT_BODY) {
@@ -446,7 +442,7 @@ void __surge_poll_call(uint64_t id) {
         // harness body mirrors that exactly, since the select machinery
         // itself is production runtime code under test, not a stand-in.
         uint64_t winner = rt_anchored_channel_select();
-        rt_async_return(__task_state(), winner);
+        rt_async_return(__task_state(), &(uint64_t){winner});
         return;
     }
     if (id == POLL_REMOTE_PUBLISHER) {
@@ -466,7 +462,7 @@ void __surge_poll_call(uint64_t id) {
         if (st->fill_queue && !st->filled) {
             st->filled = 1;
             if (!fill_data_lane(ex, st->dst)) {
-                rt_async_return(st, RT_REMOTE_SPAWN_STATUS_REFUSED);
+                rt_async_return(st, &(uint64_t){RT_REMOTE_SPAWN_STATUS_REFUSED});
                 return;
             }
         }
@@ -485,14 +481,14 @@ void __surge_poll_call(uint64_t id) {
         st->validate_status = status == RT_REMOTE_SPAWN_STATUS_OK
                                   ? rt_remote_spawn_handle_validate(ex, &st->handle)
                                   : status;
-        rt_async_return(st, (uint64_t)status);
+        rt_async_return(st, &(uint64_t){(uint64_t)status});
         return;
     }
-    rt_async_return(NULL, 0);
+    rt_async_return(NULL, &(uint64_t){0});
 }
 
 static int await_parent(remote_publish_state* st) {
-    void* task = __task_create(POLL_REMOTE_PUBLISHER, st);
+    void* task = __task_create(POLL_REMOTE_PUBLISHER, st, rt_channel_opaque_word_ops());
     uint8_t kind = 0;
     uint64_t bits = 0;
     rt_task_await(task, &kind, &bits);

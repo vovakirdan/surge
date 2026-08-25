@@ -29,7 +29,7 @@ start_anchored_send(rtb_anchored_state* state, const rt_far_task_handle* anchor,
     state->anchor = *anchor;
     state->value = value;
     state->body_poll_id = POLL_RTB_ANCHORED_BODY;
-    return __task_create(POLL_RTB_ANCHORED_CALLER, state);
+    return __task_create(POLL_RTB_ANCHORED_CALLER, state, rt_channel_opaque_word_ops());
 }
 
 typedef struct freed_waiter_canceller {

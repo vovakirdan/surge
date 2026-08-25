@@ -123,13 +123,42 @@ else
     [ "$sym_leak" -eq 0 ] && note_ok "no test rendezvous symbol in the release (tag-off) build"
 fi
 
-# Check 4: no default build arms the hooks. Only this gate's own Make target and
-# the sync-point test builder may reference the arming macro/tag.
-if grep -nE 'RT_TEST_SYNC_POINTS|surge_syncpoints' "$ROOT/Makefile" | grep -vE 'runtime-v2-syncpoint-check|check_sync_points' >/dev/null 2>&1; then
+# Check 4: no build that PRODUCES anything arms the hooks. Only this gate's own
+# Make target and the sync-point test builder may reference the arming macro or
+# tag.
+#
+# C_STAND_FLAGS is the one named exception, and it is exempt because it never
+# reaches a linker: it exists so the changed-file C scan analyses a TEST STAND
+# with the same flags the stand's own harness compiles it with, and every use of
+# it is -fsyntax-only, cppcheck, or clang-tidy. Check 4b below is what keeps
+# that true -- the exemption is worth exactly as much as the proof beside it.
+if grep -nE 'RT_TEST_SYNC_POINTS|surge_syncpoints' "$ROOT/Makefile" |
+    grep -vE 'runtime-v2-syncpoint-check|check_sync_points|C_STAND_FLAGS|^[0-9]+:#' >/dev/null 2>&1; then
     note_fail "Makefile references RT_TEST_SYNC_POINTS/surge_syncpoints outside the syncpoint gate"
-    grep -nE 'RT_TEST_SYNC_POINTS|surge_syncpoints' "$ROOT/Makefile" | grep -vE 'runtime-v2-syncpoint-check|check_sync_points'
+    grep -nE 'RT_TEST_SYNC_POINTS|surge_syncpoints' "$ROOT/Makefile" |
+        grep -vE 'runtime-v2-syncpoint-check|check_sync_points|C_STAND_FLAGS|^[0-9]+:#'
 else
     note_ok "no default Make target arms RT_TEST_SYNC_POINTS/surge_syncpoints"
+fi
+
+# Check 4b: the analysis-only exemption stays analysis-only. Every COMMAND that
+# passes C_STAND_FLAGS must be a syntax-only compile or an analyser -- the moment
+# one of them can emit an object, the exemption above stops being safe.
+#
+# The unit is the command, not the line and not the recipe: a recipe is one
+# logical line held together by continuations, so a real compile planted beside
+# the three analysers would inherit their words and pass unnoticed. So the
+# continuations are joined and the result is split on `;` first.
+stand_flag_bad=$(tr '\n' '\001' <"$ROOT/Makefile" |
+    sed 's/\\\o001/ /g' |
+    tr '\001;' '\n\n' |
+    grep -F '$(C_STAND_FLAGS)' |
+    grep -vE '\-fsyntax-only|cppcheck|clang-tidy|^[[:space:]]*#|^C_STAND_FLAGS[[:space:]]*:?=' || true)
+if [ -n "$stand_flag_bad" ]; then
+    note_fail "C_STAND_FLAGS reaches a build that is not analysis-only:"
+    printf '%s\n' "$stand_flag_bad"
+else
+    note_ok "every C_STAND_FLAGS use is analysis-only (no object can carry the hooks)"
 fi
 
 if [ "$fail" -ne 0 ]; then

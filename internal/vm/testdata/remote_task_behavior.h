@@ -85,6 +85,16 @@ extern _Atomic(void*) rtb_result_drop_last_value;
 
 int rtb_fail(const char* message);
 void rtb_sleep_us(unsigned long micros);
+
+// The address of a word-shaped payload, for the entry points that take one by
+// address. It is a function rather than a compound literal at each call site
+// because a literal's storage would end at the enclosing block and because the
+// analysers in `make check` cannot parse `&(uint64_t){x}` inside a call.
+//
+// The storage is per-thread and reused by the next call, which is exactly what
+// these entry points need: every one of them MOVES the value out before it
+// returns.
+uint64_t* rtb_word(uint64_t value);
 int rtb_wait_u32(_Atomic uint32_t* value, uint32_t expected, uint32_t attempts);
 int rtb_wait_task_done(rt_executor* ex, uint64_t task_id, uint32_t attempts);
 void rtb_wake(rt_executor* ex, uint64_t task_id);

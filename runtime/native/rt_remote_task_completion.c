@@ -39,35 +39,41 @@ void rt_remote_task_reply_owner_done(rt_executor* ex,
                                        0,
                                        RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_ACK);
     } else if (pending->op == RT_REMOTE_TASK_OP_AWAIT) {
-        // Result ownership transfers to the caller with this reply
-        // (RV2-DEBT-053a); the owner-side drop obligation is cleared.
-        task->result_drop_fn_id = 0;
-        rt_remote_task_reply_or_finish(ex,
-                                       pending,
-                                       RT_REMOTE_TASK_STATUS_OK,
-                                       rt_remote_task_result_kind(task),
-                                       task->result_bits,
-                                       RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION);
+        // The reply NAMES the result rather than carrying it: the transport is
+        // in-process, so the value stays in the producer's slot and the caller
+        // moves it out through the capability. The pin taken here is what keeps
+        // that slot alive until it does (RV2-DEBT-053a).
+        rt_result_source source = rt_remote_task_pin_result(task);
+        rt_remote_task_reply_or_finish_with_result(ex,
+                                                   pending,
+                                                   RT_REMOTE_TASK_STATUS_OK,
+                                                   rt_remote_task_result_kind(task),
+                                                   0,
+                                                   &source,
+                                                   RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION);
     } else if (pending->op == RT_REMOTE_TASK_OP_EXECUTE ||
                pending->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED) {
         if (pending->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED) {
             rt_far_channel_unpin(ex, &pending->anchor);
         }
-        task->result_drop_fn_id = 0;
-        rt_remote_task_reply_or_finish(ex,
-                                       pending,
-                                       RT_REMOTE_TASK_STATUS_OK,
-                                       rt_remote_task_result_kind(task),
-                                       task->result_bits,
-                                       RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY);
+        rt_result_source execute_source = rt_remote_task_pin_result(task);
+        rt_remote_task_reply_or_finish_with_result(ex,
+                                                   pending,
+                                                   RT_REMOTE_TASK_STATUS_OK,
+                                                   rt_remote_task_result_kind(task),
+                                                   0,
+                                                   &execute_source,
+                                                   RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY);
     } else if (pending->op == RT_REMOTE_TASK_OP_CHANNEL_SELECT) {
         rt_far_channel_select_unpin_arms(ex, pending, pending->select_count);
-        task->result_drop_fn_id = 0;
+        // Remote select still answers with a machine word -- which arm won --
+        // and D5 is the step that retypes it. Taking it out of the slot keeps
+        // one storage shape for every task while that reply keeps its own.
         rt_remote_task_reply_or_finish(ex,
                                        pending,
                                        RT_REMOTE_TASK_STATUS_OK,
                                        rt_remote_task_result_kind(task),
-                                       task->result_bits,
+                                       rt_task_result_take_word(&task->result),
                                        RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY);
     }
     task_release_lane_aware(ex, task);

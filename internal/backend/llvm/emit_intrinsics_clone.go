@@ -7,25 +7,6 @@ import (
 	"surge/internal/types"
 )
 
-// taskResultServing works out how a task must serve its result once a second
-// handle exists: the function that builds each asker its own value, and the id
-// that releases the one original the task goes on holding.
-//
-// A result whose bits own nothing and travel in nothing needs neither. Any
-// number of askers can read the same bits and none of them reclaims anything,
-// so the pair is empty and the task keeps handing the bits over as before.
-func (fe *funcEmitter) taskResultServing(taskType types.TypeID) (copyFn string, releaseID types.TypeID, err error) {
-	payload, err := taskPayloadType(fe.emitter.types, taskType)
-	if err != nil {
-		return "", types.NoTypeID, err
-	}
-	if !fe.emitter.payloadNeedsRuntimeRelease(payload) {
-		return "null", types.NoTypeID, nil
-	}
-	name := fe.emitter.requireCopyResultGlue(payload)
-	return "@" + name, fe.emitter.registerCrossingDropResult(payload), nil
-}
-
 // taskPayloadType reads the T out of a Task<T>.
 func taskPayloadType(typesIn *types.Interner, taskType types.TypeID) (types.TypeID, error) {
 	resolved := resolveAliasAndOwn(typesIn, taskType)
@@ -36,6 +17,33 @@ func taskPayloadType(typesIn *types.Interner, taskType types.TypeID) (types.Type
 		return info.TypeArgs[0], nil
 	}
 	return types.NoTypeID, fmt.Errorf("task handle type#%d has no single result type", taskType)
+}
+
+// taskResultDuplication names the body that builds a second asker its own copy
+// of a `Task<T>`'s result, or "null" when none is needed or none exists.
+//
+// Three answers, and each is the honest one for its case:
+//
+//	a result that owns nothing  -> "null". The runtime serves every asker by
+//	                               copying the bytes, which reclaims nothing
+//	                               and shares nothing.
+//	a result this backend can
+//	duplicate                   -> the type's clone glue, the same body every
+//	                               other duplication in the module goes
+//	                               through.
+//	a result it cannot          -> "null" again, and the runtime refuses a
+//	                               second asker rather than handing two of
+//	                               them one buffer to free. Only a dynamic
+//	                               array reaches this.
+func (fe *funcEmitter) taskResultDuplication(taskType types.TypeID) (string, error) {
+	payload, err := taskPayloadType(fe.emitter.types, taskType)
+	if err != nil {
+		return "", err
+	}
+	if !fe.emitter.payloadNeedsRuntimeRelease(payload) || !fe.emitter.canDuplicateValue(payload) {
+		return "null", nil
+	}
+	return "@" + fe.emitter.requireCloneGlue(payload), nil
 }
 
 func (fe *funcEmitter) emitCloneValueIntrinsic(call *mir.CallInstr) (bool, error) {
@@ -70,13 +78,18 @@ func (fe *funcEmitter) emitCloneValueIntrinsic(call *mir.CallInstr) (bool, error
 		if valErr != nil {
 			return true, valErr
 		}
-		copyFn, releaseID, resErr := fe.taskResultServing(dstType)
-		if resErr != nil {
-			return true, resErr
+		// The clone hands the runtime the duplication a SECOND asker will be
+		// served with. The task's descriptor says how a value of this type
+		// moves and is destroyed, which is what the storage needs; who may be
+		// handed an independent copy of it is not a property of the type but
+		// an obligation this operation takes on, so it is decided here.
+		duplicate, dupErr := fe.taskResultDuplication(dstType)
+		if dupErr != nil {
+			return true, dupErr
 		}
 		tmp := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_task_clone(ptr %s, ptr %s, i64 %d)\n",
-			tmp, val, copyFn, releaseID)
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_task_clone(ptr %s, ptr %s)\n",
+			tmp, val, duplicate)
 		ptr, dstTy, dstAlign, ptrErr := fe.emitPlaceStorage(call.Dst)
 		if ptrErr != nil {
 			return true, ptrErr

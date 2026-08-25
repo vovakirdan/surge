@@ -114,6 +114,10 @@ static rt_task* alloc_task(rt_executor* ex, uint64_t id) {
         return NULL;
     }
     memset(task, 0, sizeof(*task));
+    // A stand's task answers with a machine word, which is exactly what the
+    // opaque-word descriptor describes: the result slot carries it the same way
+    // it carries a compiled type's value.
+    (void)rt_task_result_bind(&task->result, rt_channel_opaque_word_ops());
     task->id = id;
     task->kind = TASK_KIND_USER;
     task_status_store(task, TASK_READY);
@@ -178,7 +182,7 @@ int main(void) {
         rt_control_unlock(ex);
         return fail("active child registration metadata missing");
     }
-    mark_done(ex, active, TASK_RESULT_SUCCESS, 0);
+    mark_done(ex, active, TASK_RESULT_SUCCESS);
     if (scope->children_len != 0) {
         rt_control_unlock(ex);
         return fail("completed child remained in scope");

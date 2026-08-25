@@ -49,11 +49,17 @@ func (fe *funcEmitter) emitFarTaskLifecycleCrossing(ins *mir.CrossingInstr, meth
 	}
 
 	kindPtr := fe.nextTemp()
-	bitsPtr := fe.nextTemp()
 	statusSlot := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i8, align %d\n", kindPtr, 1)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i32, align %d\n", statusSlot, 4)
+	// The far result is moved into storage this frame owns, at the payload's
+	// own width. The runtime reads this address ONLY on the terminal call --
+	// every earlier one answers PENDING -- so a frame that parks in between
+	// never leaves an address behind for anyone to hold.
+	payloadPtr, payloadStorageTy, err := fe.emitTaskPayloadSlot(resultPayloadType)
+	if err != nil {
+		return err
+	}
 
 	pendingVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", pendingVal, pendingPtr)
@@ -85,7 +91,7 @@ func (fe *funcEmitter) emitFarTaskLifecycleCrossing(ins *mir.CrossingInstr, meth
 		resultDropID,
 		pendingPtr,
 		kindPtr,
-		bitsPtr)
+		payloadPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_far_task_handle_free(ptr %s)\n", receiverVal)
 	fmt.Fprintf(&fe.emitter.buf, "  store i32 %s, ptr %s\n", initStatus, statusSlot)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", statusBB)
@@ -98,7 +104,7 @@ func (fe *funcEmitter) emitFarTaskLifecycleCrossing(ins *mir.CrossingInstr, meth
 		runtimeFn,
 		pendingPtr,
 		kindPtr,
-		bitsPtr)
+		payloadPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  store i32 %s, ptr %s\n", retryStatus, statusSlot)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", statusBB)
 
@@ -118,7 +124,8 @@ func (fe *funcEmitter) emitFarTaskLifecycleCrossing(ins *mir.CrossingInstr, meth
 	resultBB := fe.nextInlineBlock()
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", isOK, resultBB, errBB)
 
-	if err := fe.emitFarTaskLifecycleResult(ins, resultBB, kindPtr, bitsPtr); err != nil {
+	if err := fe.emitFarTaskLifecycleResult(
+		ins, resultBB, kindPtr, payloadPtr, payloadStorageTy); err != nil {
 		return err
 	}
 	if err := fe.emitFarTaskLifecycleErrorBlocks(method, errBB, statusVal); err != nil {
@@ -128,12 +135,13 @@ func (fe *funcEmitter) emitFarTaskLifecycleCrossing(ins *mir.CrossingInstr, meth
 	return nil
 }
 
-func (fe *funcEmitter) emitFarTaskLifecycleResult(ins *mir.CrossingInstr, resultBB, kindPtr, bitsPtr string) error {
+func (fe *funcEmitter) emitFarTaskLifecycleResult(
+	ins *mir.CrossingInstr,
+	resultBB, kindPtr, payloadPtr, payloadStorageTy string,
+) error {
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", resultBB)
 	kindVal := fe.nextTemp()
-	bitsVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load i8, ptr %s\n", kindVal, kindPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", bitsVal, bitsPtr)
 
 	resultType := ins.ResultType
 	if resultType == 0 {
@@ -157,7 +165,7 @@ func (fe *funcEmitter) emitFarTaskLifecycleResult(ins *mir.CrossingInstr, result
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", isSuccess, successBB, cancelBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", successBB)
-	payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)
+	payloadVal, payloadTy, err := fe.emitTaskPayloadValue(payloadType, payloadStorageTy, payloadPtr)
 	if err != nil {
 		return err
 	}

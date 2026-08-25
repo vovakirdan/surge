@@ -227,6 +227,7 @@ rt_remote_spawn_status rt_remote_spawn_create_body_task(rt_executor* ex,
                                                         uint64_t poll_fn_id,
                                                         void* state,
                                                         uint32_t target_shard_id,
+                                                        uint64_t result_type_id,
                                                         rt_task** out_task) {
     if (out_task == NULL) {
         return RT_REMOTE_SPAWN_STATUS_INVALID_ARGUMENT;
@@ -249,6 +250,18 @@ rt_remote_spawn_status rt_remote_spawn_create_body_task(rt_executor* ex,
         return RT_REMOTE_SPAWN_STATUS_REFUSED;
     }
     memset(task, 0, sizeof(*task));
+    // The body's result lives in its own slot, and the type it holds arrived as
+    // a number because that is the only form that survives a crossing. The
+    // descriptor is resolved on this side, the way a far channel's element is.
+    // Zero, or a type this process compiled no descriptor for, resolves to the
+    // opaque machine word -- the same rule a far channel's element follows. A
+    // body that produces no value publishes none, so an empty slot describing a
+    // word costs nothing and keeps one shape for every body.
+    const rt_value_ops* result_ops = rt_channel_element_ops_for(result_type_id);
+    if (rt_task_result_bind(&task->result, result_ops) != RT_SLOT_CONTROL_OK) {
+        rt_free((uint8_t*)task, sizeof(*task), _Alignof(rt_task));
+        return RT_REMOTE_SPAWN_STATUS_REFUSED;
+    }
     task->id = id;
     task->generation = id;
     task->poll_fn_id = (int64_t)poll_fn_id;
@@ -324,11 +337,12 @@ static void remote_spawn_dispatch_request(rt_executor* ex, const rt_transport_ms
     rt_far_task_handle handle = {0};
     rt_task* task = NULL;
     rt_remote_spawn_status status = rt_remote_spawn_create_body_task(
-        ex, req->poll_fn_id, req->state, req->target_shard_id, &task);
+        ex, req->poll_fn_id, req->state, req->target_shard_id, req->result_drop_fn_id, &task);
     if (status == RT_REMOTE_SPAWN_STATUS_OK) {
-        // Publication-accepted handoff: the body task now owns the reply-edge
-        // result drop obligation (RV2-DEBT-053a).
-        task->result_drop_fn_id = req->result_drop_fn_id;
+        // Publication-accepted handoff. The body task owns its result the way
+        // every task does now -- in its own slot, destroyed by its own dispose
+        // if nobody fetches it -- so there is no reply-edge obligation left to
+        // thread here (RV2-DEBT-053a).
         handle = (rt_far_task_handle){.task_id = task->id,
                                       .generation = task->generation,
                                       .owner_shard_id = req->target_shard_id,

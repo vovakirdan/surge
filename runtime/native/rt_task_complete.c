@@ -165,7 +165,7 @@ static int mark_done_needs_control(const rt_executor* ex,
     return 0;
 }
 
-void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t result_bits) {
+void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind) {
     if (ex == NULL || task == NULL) {
         return;
     }
@@ -231,7 +231,6 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind, uint64_t res
     // needing the control lock. Nothing else in this function reads either
     // field, so the reorder is behavior-preserving.
     task->result_kind = result_kind;
-    task->result_bits = result_bits;
     // A suspend-point or scope-join state box a cancellation abandoned
     // without ever resuming compiled code (rt_async_yield/
     // rt_async_return_cancelled stash it here before completing the task by
@@ -274,7 +273,7 @@ void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outcome) {
     }
     switch (outcome.kind) {
         case POLL_DONE_SUCCESS:
-            mark_done(ex, task, TASK_RESULT_SUCCESS, outcome.value_bits);
+            mark_done(ex, task, TASK_RESULT_SUCCESS);
             break;
         case POLL_DONE_CANCELLED:
             if (task->scope_id != 0) {
@@ -331,7 +330,7 @@ void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outcome) {
                     rt_control_unlock(ex);
                 }
             }
-            mark_done(ex, task, TASK_RESULT_CANCELLED, 0);
+            mark_done(ex, task, TASK_RESULT_CANCELLED);
             break;
         case POLL_YIELDED:
             task->state = outcome.state;

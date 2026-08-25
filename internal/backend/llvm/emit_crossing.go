@@ -5,7 +5,6 @@ import (
 
 	"surge/internal/mir"
 	"surge/internal/sema"
-	"surge/internal/types"
 )
 
 const (
@@ -157,14 +156,16 @@ func (fe *funcEmitter) emitSpawnOnCrossing(ins *mir.CrossingInstr) error {
 		}
 		stateDropID = ins.BodyFuncID
 	}
-	// Owner-side result drop obligation (RV2-DEBT-053a): a heap-carried
-	// body RESULT is reclaimed by free_task on the owner shard when the
-	// caller abandons the reply. PayloadType is the body's returned reply
-	// value (ResultType is the far Task<T> handle); a Copy result keeps id 0
-	// (no drop). Independent of whether the body ships captured state.
-	resultDropID := types.TypeID(0)
-	if fe.emitter.typeOwnsHeap(ins.PayloadType) {
-		resultDropID = fe.emitter.registerCrossingDropResult(ins.PayloadType)
+	// The body's RESULT TYPE, as a number. A crossing carries no pointers, so
+	// the descriptor cannot travel; the id can, and the owner side turns it
+	// back into one (rt_channel_element_ops_for). That descriptor is what the
+	// body's own result slot is bound with, which is how an abandoned reply is
+	// reclaimed on the owner shard now (RV2-DEBT-053a): by the slot's dispose
+	// rather than by a numbered drop threaded beside the value. PayloadType is
+	// the body's returned reply value; ResultType is the far Task<T> handle.
+	resultTypeID, err := fe.crossingResultTypeID(ins.PayloadType)
+	if err != nil {
+		return err
 	}
 	initStatus := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
@@ -172,7 +173,7 @@ func (fe *funcEmitter) emitSpawnOnCrossing(ins *mir.CrossingInstr) error {
 		initStatus,
 		placementVal,
 		stateDropID,
-		resultDropID,
+		resultTypeID,
 		ins.BodyFuncID,
 		stateVal,
 		pendingPtr,

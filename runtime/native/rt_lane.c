@@ -69,10 +69,14 @@ void rt_control_lock(rt_executor* ex) {
 // same reason -- a stand without the channel lane resolves it to null and asks
 // nothing of it.
 extern void rt_channel_reclaim_drain(void) __attribute__((weak));
+extern void rt_task_reclaim_drain(void) __attribute__((weak));
 
 static void lane_run_deferred(void) {
     if (rt_channel_reclaim_drain != NULL) {
         rt_channel_reclaim_drain();
+    }
+    if (rt_task_reclaim_drain != NULL) {
+        rt_task_reclaim_drain();
     }
 }
 

@@ -98,7 +98,7 @@ func checkRuntimeV2CancelledJoinWaiterSyncPointStaticBoundary(t *testing.T) {
 		t.Fatalf("read rt_async_task.c: %v", err)
 	}
 	text := string(source)
-	start := strings.Index(text, "uint8_t rt_task_poll(void* task, uint64_t* out_bits) {")
+	start := strings.Index(text, "uint8_t rt_task_poll(void* task, void* out_dst) {")
 	endOffset := -1
 	if start >= 0 {
 		endOffset = strings.Index(text[start:], "\nstatic void rt_task_poll_adopt_placement(")
@@ -185,6 +185,10 @@ static rt_task* alloc_task_locked(rt_executor* ex, int64_t poll_fn_id, void* sta
         return NULL;
     }
     memset(task, 0, sizeof(*task));
+    // A stand's task answers with a machine word, which is exactly what the
+    // opaque-word descriptor describes: the result slot carries it the same way
+    // it carries a compiled type's value.
+    (void)rt_task_result_bind(&task->result, rt_channel_opaque_word_ops());
     task->id = id;
     task->generation = id;
     task->poll_fn_id = poll_fn_id;
@@ -267,7 +271,7 @@ static void poll_target(void) {
         pending_key = key;
         rt_async_yield(NULL, 0);
     }
-    rt_async_return(NULL, 42);
+    rt_async_return(NULL, &(uint64_t){42});
 }
 
 static void poll_join_waiter(void) {
@@ -277,7 +281,7 @@ static void poll_join_waiter(void) {
     if (status == 0) {
         rt_async_yield(target, POLL_CANCELLED_JOIN_WAITER);
     }
-    rt_async_return(NULL, status == 1 ? bits : 0);
+    rt_async_return(NULL, &(uint64_t){status == 1 ? bits : 0});
 }
 
 void __surge_poll_call(uint64_t id) {
@@ -287,7 +291,7 @@ void __surge_poll_call(uint64_t id) {
     if (id == POLL_CANCELLED_JOIN_WAITER) {
         poll_join_waiter();
     }
-    rt_async_return(NULL, 0);
+    rt_async_return(NULL, &(uint64_t){0});
 }
 
 void __surge_drop_call(uint64_t id, void* state) {
@@ -313,7 +317,7 @@ uint64_t __surge_blocking_call(uint64_t id, void* state) {
 }
 
 static int registration_failure(rt_executor* ex, rt_task* target) {
-    void* target_clone = rt_task_clone(target, NULL, 0);
+    void* target_clone = rt_task_clone(target, NULL);
     if (target_clone == NULL) {
         return fail("negative-control target clone failed");
     }
@@ -333,11 +337,11 @@ static int registration_failure(rt_executor* ex, rt_task* target) {
 static int positive_proof(rt_executor* ex, rt_task* target) {
     unsigned first_before = rt_sync_point_reached_count(
         RT_SYNC_POINT_SP_TASK_POLL_AFTER_JOIN_REGISTER);
-    void* first_target = rt_task_clone(target, NULL, 0);
+    void* first_target = rt_task_clone(target, NULL);
     if (first_target == NULL) {
         return fail("first target clone failed");
     }
-    rt_task* first = (rt_task*)__task_create(POLL_CANCELLED_JOIN_WAITER, first_target);
+    rt_task* first = (rt_task*)__task_create(POLL_CANCELLED_JOIN_WAITER, first_target, rt_channel_opaque_word_ops());
     if (first == NULL) {
         task_release_lane_aware(ex, (rt_task*)first_target);
         return fail("first joiner allocation failed");
@@ -359,11 +363,11 @@ static int positive_proof(rt_executor* ex, rt_task* target) {
         RT_SYNC_POINT_SP_TASK_POLL_AFTER_JOIN_REGISTER);
     unsigned second_park_before = rt_sync_point_reached_count(
         RT_SYNC_POINT_SP_PARK_BEFORE_WAITING);
-    void* second_target = rt_task_clone(target, NULL, 0);
+    void* second_target = rt_task_clone(target, NULL);
     if (second_target == NULL) {
         return fail("second target clone failed");
     }
-    rt_task* second = (rt_task*)__task_create(POLL_CANCELLED_JOIN_WAITER, second_target);
+    rt_task* second = (rt_task*)__task_create(POLL_CANCELLED_JOIN_WAITER, second_target, rt_channel_opaque_word_ops());
     if (second == NULL) {
         task_release_lane_aware(ex, (rt_task*)second_target);
         return fail("second joiner allocation failed");
@@ -417,7 +421,7 @@ int main(int argc, char** argv) {
     }
     unsigned target_park_before = rt_sync_point_reached_count(
         RT_SYNC_POINT_SP_PARK_BEFORE_WAITING);
-    rt_task* target = (rt_task*)__task_create(POLL_CANCELLED_JOIN_TARGET, NULL);
+    rt_task* target = (rt_task*)__task_create(POLL_CANCELLED_JOIN_TARGET, NULL, rt_channel_opaque_word_ops());
     if (target == NULL) {
         return fail("target allocation failed");
     }

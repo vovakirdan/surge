@@ -201,7 +201,7 @@ static void poll_debt022_gated_target(void) {
         rt_async_yield(NULL, 0);
         return;
     }
-    rt_async_return(NULL, 77);
+    rt_async_return(NULL, &(uint64_t){77});
 }
 
 static void* debt022_awaiter_thread(void* arg) {
@@ -222,7 +222,7 @@ static void* debt022_awaiter_thread(void* arg) {
 static void poll_cancel_park_proof(void) {
     rt_task* self = rt_current_task();
     if (self == NULL) {
-        rt_async_return(NULL, 0);
+        rt_async_return(NULL, &(uint64_t){0});
         return;
     }
     if (task_cancelled_load(self) != 0) {
@@ -233,7 +233,7 @@ static void poll_cancel_park_proof(void) {
     uint64_t bits = 0;
     uint8_t st = rt_channel_recv(ch, &bits);
     if (st != 0 || !waker_valid(pending_key)) {
-        rt_async_return(NULL, 0);
+        rt_async_return(NULL, &(uint64_t){0});
         return;
     }
     rt_async_yield(NULL, 0);
@@ -247,7 +247,7 @@ static void poll_debt020_adopt_joiner(void) {
         rt_async_yield(target, 0);
         return;
     }
-    rt_async_return(NULL, st == 1 && bits == 55 ? 55 : 0);
+    rt_async_return(NULL, &(uint64_t){st == 1 && bits == 55 ? 55 : 0});
 }
 
 static void poll_debt020_gap_joiner(void) {
@@ -261,7 +261,7 @@ static void poll_debt020_gap_joiner(void) {
         rt_task* self = rt_current_task();
         rt_task* target_task = task_from_handle(target);
         if (ex == NULL || self == NULL || target_task == NULL) {
-            rt_async_return(NULL, 2);
+            rt_async_return(NULL, &(uint64_t){2});
             return;
         }
         waker_key key = join_key(target_task->id);
@@ -277,7 +277,7 @@ static void poll_debt020_gap_joiner(void) {
         rt_async_yield(target, 0);
         return;
     }
-    rt_async_return(NULL, st == 1 ? 1 : 2);
+    rt_async_return(NULL, &(uint64_t){st == 1 ? 1 : 2});
 }
 
 static int wait_sync_point_count(rt_sync_point_id id, unsigned before, uint32_t attempts) {
@@ -305,7 +305,7 @@ static int mode_debt020_migrate_gap_proof(rt_executor* ex) {
         adopter->state = target;
         rt_task_set_placement(adopter, pin_shard(ex, 0), TASK_PLACEMENT_GENERIC);
     }
-    void* join_handle = adopter != NULL ? rt_task_clone(adopter, NULL, 0) : NULL;
+    void* join_handle = adopter != NULL ? rt_task_clone(adopter, NULL) : NULL;
     rt_task* gap_joiner = join_handle != NULL ? alloc_ready_task(ex, POLL_DEBT020_GAP_JOINER) : NULL;
     if (gap_joiner != NULL) {
         gap_joiner->state = join_handle;
@@ -368,7 +368,7 @@ static int mode_debt022_donecv_storeload_proof(rt_executor* ex) {
     atomic_store_explicit(&g_debt022_expected_bits, 77, memory_order_release);
 
     rt_task* target = spawn_pinned(ex, POLL_DEBT022_GATED_TARGET, 1);
-    void* await_handle = target != NULL ? rt_task_clone(target, NULL, 0) : NULL;
+    void* await_handle = target != NULL ? rt_task_clone(target, NULL) : NULL;
     if (target == NULL || await_handle == NULL) {
         (void)rt_executor_request_shutdown(ex);
         return fail("debt022 target allocation failed");
@@ -449,8 +449,8 @@ static int mode_debt022_multi_awaiters(rt_executor* ex) {
     atomic_store_explicit(&g_debt022_expected_kind, 1, memory_order_release);
     atomic_store_explicit(&g_debt022_expected_bits, 77, memory_order_release);
     rt_task* target = spawn_pinned(ex, POLL_DEBT022_GATED_TARGET, 1);
-    void* handle_a = target != NULL ? rt_task_clone(target, NULL, 0) : NULL;
-    void* handle_b = target != NULL ? rt_task_clone(target, NULL, 0) : NULL;
+    void* handle_a = target != NULL ? rt_task_clone(target, NULL) : NULL;
+    void* handle_b = target != NULL ? rt_task_clone(target, NULL) : NULL;
     if (target == NULL || handle_a == NULL || handle_b == NULL) {
         (void)rt_executor_request_shutdown(ex);
         return fail("debt022 multi-await target allocation failed");
@@ -522,7 +522,7 @@ static int mode_debt022_parked_target(rt_executor* ex) {
     }
 
     rt_task* target = spawn_pinned(ex, POLL_PARK_FOREVER, 1);
-    void* await_handle = target != NULL ? rt_task_clone(target, NULL, 0) : NULL;
+    void* await_handle = target != NULL ? rt_task_clone(target, NULL) : NULL;
     if (target == NULL || await_handle == NULL) {
         (void)rt_executor_request_shutdown(ex);
         return fail("debt022 parked-target allocation failed");
@@ -580,7 +580,7 @@ static int mode_debt022_cancelled_parked_target(rt_executor* ex) {
     }
 
     rt_task* target = spawn_pinned(ex, POLL_PARK_FOREVER, 1);
-    void* await_handle = target != NULL ? rt_task_clone(target, NULL, 0) : NULL;
+    void* await_handle = target != NULL ? rt_task_clone(target, NULL) : NULL;
     if (target == NULL || await_handle == NULL) {
         (void)rt_executor_request_shutdown(ex);
         return fail("debt022 cancelled-target allocation failed");
@@ -695,7 +695,7 @@ static void poll_debt046_joiner(void) {
         rt_async_yield(target, 0);
         return;
     }
-    rt_async_return(NULL, st == 1 && bits == 77 ? 77 : 0);
+    rt_async_return(NULL, &(uint64_t){st == 1 && bits == 77 ? 77 : 0});
 }
 
 static int mode_debt046_join_stale_removal_proof(rt_executor* ex) {
@@ -705,7 +705,7 @@ static int mode_debt046_join_stale_removal_proof(rt_executor* ex) {
     atomic_store_explicit(&g_debt046_wake_done, 0, memory_order_release);
 
     rt_task* target = spawn_pinned(ex, POLL_DEBT022_GATED_TARGET, 0);
-    void* join_handle = target != NULL ? rt_task_clone(target, NULL, 0) : NULL;
+    void* join_handle = target != NULL ? rt_task_clone(target, NULL) : NULL;
     if (target == NULL || join_handle == NULL) {
         (void)rt_executor_request_shutdown(ex);
         return fail("debt046 target allocation failed");

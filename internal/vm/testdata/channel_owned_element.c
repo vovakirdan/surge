@@ -157,26 +157,26 @@ static void poll_owned_maker(void) {
         rt_channel_new(
             atomic_load_explicit(&g_owned_capacity, memory_order_acquire), &owned_ops, 0),
         memory_order_release);
-    rt_async_return(NULL, 0);
+    rt_async_return(NULL, &(uint64_t){0});
 }
 
 static void poll_owned_sender(void) {
     void* channel = atomic_load_explicit(&g_owned_chan, memory_order_acquire);
     uint32_t index = owned_sender_index();
     if (index >= OWNED_SENDERS || channel == NULL) {
-        rt_async_return(NULL, 0);
+        rt_async_return(NULL, &(uint64_t){0});
     }
     for (;;) {
         uint32_t done = atomic_load_explicit(&g_owned_progress[index], memory_order_acquire);
         if (done >= OWNED_PER_SENDER) {
-            rt_async_return(NULL, 1);
+            rt_async_return(NULL, &(uint64_t){1});
         }
         // Rebuilt from the progress counter on every entry, exactly as a
         // compiled sender's value is re-presented from its async frame when a
         // parked send is re-polled.
         owned_element value;
         if (!owned_make(&value, (uint64_t)index * OWNED_PER_SENDER + done + 1u)) {
-            rt_async_return(NULL, 0);
+            rt_async_return(NULL, &(uint64_t){0});
         }
         if (!rt_channel_send(channel, &value)) {
             // The send did not complete: the value is still this task's, and
@@ -196,14 +196,14 @@ static void poll_owned_one_send(void) {
     void* channel = atomic_load_explicit(&g_owned_chan, memory_order_acquire);
     owned_element value;
     if (channel == NULL || !owned_make(&value, 1)) {
-        rt_async_return(NULL, 0);
+        rt_async_return(NULL, &(uint64_t){0});
     }
     if (!rt_channel_send(channel, &value)) {
         free(value.text);
         rt_async_yield(NULL, 0);
     }
     atomic_fetch_add_explicit(&g_owned_progress[0], 1, memory_order_acq_rel);
-    rt_async_return(NULL, 1);
+    rt_async_return(NULL, &(uint64_t){1});
 }
 
 static void poll_owned_receiver(void) {
@@ -216,7 +216,7 @@ static void poll_owned_receiver(void) {
         }
         if (status == 2) {
             atomic_store_explicit(&g_owned_closed, 1, memory_order_release);
-            rt_async_return(NULL, 1);
+            rt_async_return(NULL, &(uint64_t){1});
         }
         char expected[OWNED_TEXT_BYTES];
         snprintf(expected, sizeof(expected), "%llu", (unsigned long long)got.marker);
@@ -251,7 +251,7 @@ void __surge_poll_call(uint64_t id) {
         default:
             break;
     }
-    rt_async_return(NULL, 0);
+    rt_async_return(NULL, &(uint64_t){0});
 }
 
 // No harness state carries a drop obligation, and no blocking work is
@@ -293,6 +293,10 @@ static rt_task* owned_alloc_ready_task(rt_executor* ex, int64_t poll_fn_id) {
         return NULL;
     }
     memset(task, 0, sizeof(*task));
+    // A stand's task answers with a machine word, which is exactly what the
+    // opaque-word descriptor describes: the result slot carries it the same way
+    // it carries a compiled type's value.
+    (void)rt_task_result_bind(&task->result, rt_channel_opaque_word_ops());
     task->id = id;
     task->poll_fn_id = poll_fn_id;
     task->kind = TASK_KIND_USER;

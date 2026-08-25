@@ -178,7 +178,7 @@ void __surge_poll_call(uint64_t id) {
         default:
             break;
     }
-    rt_async_return(NULL, 0);
+    rt_async_return(NULL, &(uint64_t){0});
 }
 
 static int mode_scope_basic(rt_executor* ex) {

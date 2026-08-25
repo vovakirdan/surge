@@ -66,7 +66,7 @@ static rt_task* spawn_placed(rt_executor* ex,
 }
 
 static void poll_adopt_target(void) {
-    rt_async_return(NULL, 55);
+    rt_async_return(NULL, &(uint64_t){55});
 }
 
 // Joins its own __task_state target via rt_task_poll (the worker join lane
@@ -87,7 +87,7 @@ static void poll_adopt_joiner(void) {
     atomic_store_explicit(
         &g_adopt_joiner_placement_class, self->placement_class, memory_order_release);
     atomic_store_explicit(&g_adopt_joiner_ran, 1, memory_order_release);
-    rt_async_return(NULL, st == 1 && bits == 55 ? 1 : 0);
+    rt_async_return(NULL, &(uint64_t){st == 1 && bits == 55 ? 1 : 0});
 }
 
 static int mode_placement_adopt(rt_executor* ex, uint8_t target_class, uint8_t want_class) {
@@ -165,7 +165,7 @@ static _Atomic uint32_t g_xowner_go;
 static _Atomic uint32_t g_xowner_child_shard;
 
 static void poll_xowner_grandchild(void) {
-    rt_async_return(NULL, 55);
+    rt_async_return(NULL, &(uint64_t){55});
 }
 
 // Gated on g_xowner_go, which the driver sets only after the owner is parked
@@ -189,7 +189,7 @@ static void poll_xowner_scope_child(void) {
     }
     const rt_task* self = rt_current_task();
     atomic_store_explicit(&g_xowner_child_shard, self->owner_shard_id, memory_order_release);
-    rt_async_return(NULL, st == 1 && bits == 55 ? 1 : 0);
+    rt_async_return(NULL, &(uint64_t){st == 1 && bits == 55 ? 1 : 0});
 }
 
 static void poll_xowner_owner(void) {
@@ -200,7 +200,7 @@ static void poll_xowner_owner(void) {
         // Same-owner at register time (child inherits the owner's shard 0);
         // the cross-owner placement is adopted only later, when the child
         // consumes the grandchild (which it reads from g_xowner_grandchild).
-        void* child = __task_create(POLL_XOWNER_SCOPE_CHILD, NULL);
+        void* child = __task_create(POLL_XOWNER_SCOPE_CHILD, NULL, rt_channel_opaque_word_ops());
         atomic_store_explicit(&g_scope_child_a, child, memory_order_release);
         rt_scope_register_child(handle, child);
         atomic_store_explicit(&g_xowner_registered, 1, memory_order_release);
@@ -217,7 +217,7 @@ static void poll_xowner_owner(void) {
         return;
     }
     rt_scope_exit(handle);
-    rt_async_return(NULL, 0);
+    rt_async_return(NULL, &(uint64_t){0});
 }
 
 static int mode_scope_cross_owner(rt_executor* ex) {

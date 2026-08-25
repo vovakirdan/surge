@@ -25,7 +25,7 @@ static int rtb_select_park2(rt_executor* ex,
     state->kinds[0] = SELECT_CHAN_RECV;
     state->kinds[1] = SELECT_CHAN_RECV;
     state->count = 2;
-    void* caller = __task_create(POLL_RTB_SELECT_CALLER, state);
+    void* caller = __task_create(POLL_RTB_SELECT_CALLER, state, rt_channel_opaque_word_ops());
     if (out_caller != NULL) {
         *out_caller = caller;
     }
@@ -75,7 +75,7 @@ int rtb_mode_select_stale_wake(void) {
     if (rtb_select_park2(ex, &chan_a.handle, &chan_b.handle, &state, &caller) != 0) {
         return 1;
     }
-    rt_remote_task_pending* pending =
+    const rt_remote_task_pending* pending =
         atomic_load_explicit(&state.visible_pending, memory_order_acquire);
     rtb_wake(ex, pending->handle.task_id);
     rtb_sleep_us(20000);
@@ -87,7 +87,7 @@ int rtb_mode_select_stale_wake(void) {
     if (raw_a == NULL) {
         return rtb_fail("stale-wake resolve failed");
     }
-    rt_channel_send_blocking(raw_a, &(uint64_t){42});
+    rt_channel_send_blocking(raw_a, rtb_word(42));
     uint8_t kind = 0;
     uint64_t bits = 0;
     (void)rtb_await(caller, &kind, &bits);
@@ -139,7 +139,7 @@ int rtb_mode_select_release_while_parked(void) {
     if (rt_far_channel_debug_live_count(ex) == 0) {
         return rtb_fail("release-while-parked reclaimed pinned entries early");
     }
-    rt_channel_send_blocking(raw_a, &(uint64_t){42});
+    rt_channel_send_blocking(raw_a, rtb_word(42));
     uint8_t kind = 0;
     uint64_t bits = 0;
     (void)rtb_await(caller, &kind, &bits);
@@ -192,9 +192,9 @@ int rtb_mode_select_sibling_isolation(void) {
     if (raw_a == NULL) {
         return rtb_fail("sibling resolve failed");
     }
-    rt_channel_send_blocking(raw_a, &(uint64_t){42});
-    rt_task* first_task = (rt_task*)first_caller;
-    rt_task* second_task = (rt_task*)second_caller;
+    rt_channel_send_blocking(raw_a, rtb_word(42));
+    const rt_task* first_task = (rt_task*)first_caller;
+    const rt_task* second_task = (rt_task*)second_caller;
     int first_done = 0;
     int second_done = 0;
     for (uint32_t i = 0; i < 4000; i++) {
@@ -303,7 +303,7 @@ int rtb_mode_select_owner_teardown(void) {
     if (rtb_select_park2(ex, &chan_a.handle, &chan_b.handle, &state, &caller) != 0) {
         return 1;
     }
-    rt_remote_task_pending* pending =
+    const rt_remote_task_pending* pending =
         atomic_load_explicit(&state.visible_pending, memory_order_acquire);
     if (rt_executor_request_shutdown(ex) != RT_RUNTIME_STATUS_OK) {
         return rtb_fail("owner-teardown shutdown failed");
@@ -328,7 +328,7 @@ int rtb_mode_select_no_deadlock_when_runnable(void) {
     }
     static rtb_share_state spin;
     memset(&spin, 0, sizeof(spin));
-    void* spinner = __task_create(POLL_RTB_SPINNER, &spin);
+    void* spinner = __task_create(POLL_RTB_SPINNER, &spin, rt_channel_opaque_word_ops());
     rtb_select_state state;
     void* caller = NULL;
     if (rtb_select_park2(ex, &chan_a.handle, &chan_b.handle, &state, &caller) != 0) {
@@ -343,7 +343,7 @@ int rtb_mode_select_no_deadlock_when_runnable(void) {
     if (raw_a == NULL) {
         return rtb_fail("select-runnable resolve failed");
     }
-    rt_channel_send_blocking(raw_a, &(uint64_t){42});
+    rt_channel_send_blocking(raw_a, rtb_word(42));
     uint8_t kind = 0;
     uint64_t bits = 0;
     (void)rtb_await(caller, &kind, &bits);

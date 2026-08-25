@@ -1,5 +1,6 @@
 #include "rt_async_internal.h"
 #include "rt_sync_point.h"
+#include "rt_value_ops.h"
 
 #include <stdlib.h>
 
@@ -201,7 +202,7 @@ void rt_blocking_request_cancel(rt_executor* ex, rt_task* task) {
 }
 
 poll_outcome poll_blocking_task(rt_executor* ex, rt_task* task) {
-    poll_outcome out = {POLL_NONE, waker_none(), NULL, 0};
+    poll_outcome out = {POLL_NONE, waker_none(), NULL};
     if (ex == NULL || task == NULL) {
         out.kind = POLL_DONE_CANCELLED;
         return out;
@@ -223,7 +224,15 @@ observe_terminal:
     status = atomic_load_explicit(&job->status, memory_order_acquire);
     if (status == BLOCKING_JOB_DONE) {
         out.kind = POLL_DONE_SUCCESS;
-        out.value_bits = job->result_bits;
+        // A blocking job still answers with a machine word, which is D6's to
+        // retype. The task's slot carries it as the opaque word it is, so the
+        // completion path has one shape rather than two.
+        void* destination = rt_task_result_publish_storage(&task->result);
+        if (destination != NULL) {
+            uint64_t bits = job->result_bits;
+            rt_value_move_init_detached(task->result.operations, destination, &bits);
+            (void)rt_task_result_commit(&task->result);
+        }
         blocking_job_release(job);
         task->state = NULL;
         return out;
@@ -269,6 +278,10 @@ void* rt_blocking_submit(uint64_t fn_id, void* state, uint64_t state_size, uint6
         return NULL;
     }
     memset(task, 0, sizeof(rt_task));
+    // A blocking job answers with a machine word, and the opaque-word
+    // descriptor is what carries one. D6 retypes this along with the rest of
+    // the blocking lane; until then the slot holds the word the job returns.
+    (void)rt_task_result_bind(&task->result, rt_channel_opaque_word_ops());
     task->id = id;
     task->generation = id;
     task->poll_fn_id = -1;

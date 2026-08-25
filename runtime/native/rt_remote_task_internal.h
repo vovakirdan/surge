@@ -111,6 +111,13 @@ struct rt_remote_task_pending {
     // owner shard.
     uint64_t payload_drop_fn_id;
     uint64_t result_bits;
+    // Where a task RESULT is, for the reply kinds that carry one. It names the
+    // producer's slot rather than copying a value out of it: the transport is
+    // in-process, the lease already decides who may adopt, and a value that
+    // never becomes a machine word never has to be boxed to fit one. The
+    // producer is PINNED while this is set, so the slot cannot be reused or
+    // freed under a caller that has not fetched yet.
+    rt_result_source result_source;
     // Drop obligation for a landed, heap-carried AWAIT reply the caller
     // never consumed. Threaded from the far Task<T> await/cancel
     // lowering site (the payload type is known there, mirroring
@@ -163,15 +170,23 @@ void rt_remote_task_pending_consume(rt_remote_task_pending* pending);
 rt_remote_task_status rt_remote_task_pending_snapshot(const rt_remote_task_pending* pending,
                                                       uint8_t* out_kind,
                                                       uint64_t* out_bits);
+// The capability this reply carries, if any. Copied out under the state lock,
+// because the pending is shared with the shard that published it.
+rt_result_source rt_remote_task_pending_result_source(const rt_remote_task_pending* pending);
+// Clears it after the value has been fetched, so no later path can spend the
+// same capability twice.
+void rt_remote_task_pending_clear_result_source(rt_remote_task_pending* pending);
 void rt_remote_task_pending_set_reply(rt_remote_task_pending* pending,
                                       rt_remote_task_status status,
                                       uint8_t result_kind,
-                                      uint64_t result_bits);
+                                      uint64_t result_bits,
+                                      const rt_result_source* result_source);
 void rt_remote_task_pending_finish(rt_executor* ex,
                                    rt_remote_task_pending* pending,
                                    rt_remote_task_status status,
                                    uint8_t result_kind,
-                                   uint64_t result_bits);
+                                   uint64_t result_bits,
+                                   const rt_result_source* result_source);
 void rt_remote_task_pending_set_owner_registered(rt_remote_task_pending* pending, int value);
 rt_remote_task_pending* rt_remote_task_pending_take_owner(const rt_task* task);
 
@@ -180,6 +195,20 @@ void rt_far_task_lease_restore(const rt_far_task_handle* handle);
 void rt_far_task_lease_drop_ref(rt_far_task_lease* lease);
 void rt_far_task_lease_release_route(rt_far_task_lease* lease);
 int rt_far_task_adopt_result(rt_task* producer, rt_task* holder);
+// Mints a capability for one task's ready result and PINS the task, so the slot
+// it names cannot be reused or freed under a caller that has not fetched yet.
+// A task with no ready result answers with a zeroed capability and no pin.
+rt_result_source rt_remote_task_pin_result(rt_task* task);
+// Moves the value a capability names into `out_dst` and releases the pin.
+// Answers 0 when the capability names nothing live -- a result already taken, a
+// task already gone, a generation that moved on -- which is a condition of a
+// racing teardown and not an error to retry.
+int rt_remote_task_take_result_source(rt_executor* ex,
+                                      const rt_result_source* source,
+                                      void* out_dst);
+// Releases the pin without taking the value, for a caller that will never
+// fetch. What the slot still holds is destroyed by the producer's own dispose.
+void rt_remote_task_release_result_source(rt_executor* ex, const rt_result_source* source);
 void rt_far_task_release_result(rt_executor* ex, rt_task* producer);
 
 waker_key rt_remote_task_reply_key(uint64_t request_id, uint32_t source_shard_id);
@@ -203,8 +232,17 @@ void rt_remote_task_reply_owner_done(rt_executor* ex,
 void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* msg);
 uint32_t rt_immediate_on_source_shard(const rt_task* current);
 rt_remote_task_status
-rt_immediate_on_finish_retry(rt_remote_task_pending** slot, uint8_t* out_kind, uint64_t* out_bits);
+rt_immediate_on_finish_retry(rt_remote_task_pending** slot, uint8_t* out_kind, void* out_dst);
 void rt_immediate_on_cancel_inflight(rt_executor* ex, rt_remote_task_pending* pending);
+// The reply that NAMES a task result rather than carrying one. `result_source`
+// may be NULL for replies that carry no value at all.
+void rt_remote_task_reply_or_finish_with_result(rt_executor* ex,
+                                                rt_remote_task_pending* pending,
+                                                rt_remote_task_status status,
+                                                uint8_t result_kind,
+                                                uint64_t result_bits,
+                                                const rt_result_source* result_source,
+                                                rt_transport_msg_kind reply_kind);
 void rt_remote_task_reply_or_finish(rt_executor* ex,
                                     rt_remote_task_pending* pending,
                                     rt_remote_task_status status,

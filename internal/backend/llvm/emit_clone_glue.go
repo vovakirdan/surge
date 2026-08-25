@@ -117,6 +117,15 @@ func (e *Emitter) emitCloneGlueBody(id types.TypeID) error {
 	e.emitCloneCopyCounter(layoutInfo.Size)
 
 	g := &glueTmp{}
+	// A value that owns something DIRECTLY is fixed up at offset zero: the byte
+	// copy above left its word pointing at the source's storage, and this is
+	// the only place that can give the destination its own.
+	if e.emitLeafCloneAt(g, id, align, 0) {
+		fmt.Fprintf(&e.buf, "  br label %%ret\n")
+		fmt.Fprintf(&e.buf, "ret:\n")
+		fmt.Fprintf(&e.buf, "  ret void\n}\n")
+		return nil
+	}
 	if elem, length, ok := arrayFixedInfo(e.types, id); ok {
 		e.emitFixedArrayElemClones(g, elem, align, int(length))
 	} else if tt, ok := e.types.Lookup(id); ok {
@@ -168,7 +177,32 @@ func (e *Emitter) emitGlueStorageCopy(dst, src string, size, align uint64) {
 // byte offset `off`. A member the byte copy already finished emits nothing.
 func (e *Emitter) emitFieldCloneAt(g *glueTmp, fieldType types.TypeID, baseAlign, off uint64) {
 	resolved := resolveValueType(e.types, fieldType)
+	if e.emitLeafCloneAt(g, resolved, baseAlign, off) {
+		return
+	}
+	if e.isCloneableComposite(resolved) {
+		// The byte copy carried this member's bits verbatim, which is right for
+		// everything it owns outright and wrong for anything it shares. Cloning
+		// it onto itself lets its own glue decide, member by member.
+		dstField := g.next()
+		fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds i8, ptr %%dst, i64 %d\n", dstField, off)
+		srcField := g.next()
+		fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds i8, ptr %%src, i64 %d\n", srcField, off)
+		fmt.Fprintf(&e.buf, "  call void @%s(ptr %s, ptr %s)\n",
+			e.requireCloneGlue(resolved), dstField, srcField)
+	}
+}
 
+// emitLeafCloneAt fixes up a copied value that owns something DIRECTLY, as
+// opposed to owning it through a member. It answers whether it recognised the
+// type.
+//
+// It is separate from emitFieldCloneAt because the same two cases have to be
+// reachable at OFFSET ZERO of a body whose own type is one of them: a
+// `Task<string>`'s result is a bare string, not a struct with a string in it,
+// and a body that only fixed up members left that string's word pointing at the
+// source's bytes -- two owners, one buffer, one double free.
+func (e *Emitter) emitLeafCloneAt(g *glueTmp, resolved types.TypeID, baseAlign, off uint64) bool {
 	switch {
 	case e.types.IsRefCountedScalar(resolved):
 		// Immutable and counted: the copy shares the block and takes its own
@@ -192,17 +226,10 @@ func (e *Emitter) emitFieldCloneAt(g *glueTmp, fieldType types.TypeID, baseAlign
 		fmt.Fprintf(&e.buf, "  %s = call ptr @rt_string_clone(ptr %s)\n", dup, fv)
 		fmt.Fprintf(&e.buf, "  store ptr %s, ptr %s, align %d\n", dup, fp, memberAccessAlign(baseAlign, off))
 
-	case e.isCloneableComposite(resolved):
-		// The byte copy carried this member's bits verbatim, which is right for
-		// everything it owns outright and wrong for anything it shares. Cloning
-		// it onto itself lets its own glue decide, member by member.
-		dstField := g.next()
-		fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds i8, ptr %%dst, i64 %d\n", dstField, off)
-		srcField := g.next()
-		fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds i8, ptr %%src, i64 %d\n", srcField, off)
-		fmt.Fprintf(&e.buf, "  call void @%s(ptr %s, ptr %s)\n",
-			e.requireCloneGlue(resolved), dstField, srcField)
+	default:
+		return false
 	}
+	return true
 }
 
 // emitFixedArrayElemClones fixes up each element of a copied fixed array.

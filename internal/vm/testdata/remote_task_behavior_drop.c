@@ -15,7 +15,7 @@ enum { RTB_DROP_MARK_ID = 42 };
 // PENDING lifecycle, and a body that runs treats the shipped state as
 // borrowed bits.
 static void poll_rtb_drop_body(void) {
-    rt_async_return(NULL, 5);
+    rt_async_return(NULL, rtb_word(5));
 }
 
 // A parked, state-agnostic body: the recv reaches the channel through the
@@ -23,7 +23,7 @@ static void poll_rtb_drop_body(void) {
 static void poll_rtb_drop_recv_body(void) {
     uint64_t bits = 0;
     (void)rt_anchored_channel_recv(&bits);
-    rt_async_return(NULL, 5);
+    rt_async_return(NULL, rtb_word(5));
 }
 
 typedef struct rtb_drop_state {
@@ -47,6 +47,7 @@ static void poll_rtb_drop_execute(rtb_drop_state* state) {
     uint64_t bits = 0;
     state->status = rt_immediate_on_execute(state->placement,
                                             RTB_DROP_MARK_ID,
+                                            0,
                                             (int64_t)POLL_RTB_DROP_BODY,
                                             &state->shipped_mark,
                                             &state->pending,
@@ -57,7 +58,7 @@ static void poll_rtb_drop_execute(rtb_drop_state* state) {
     }
     state->result_kind = kind;
     state->result_bits = bits;
-    rt_async_return(state, (uint64_t)state->status);
+    rt_async_return(state, rtb_word((uint64_t)state->status));
 }
 
 // The parked-body variant: ships the anchored recv body so the block
@@ -67,6 +68,7 @@ static void poll_rtb_drop_anchored_recv(rtb_drop_state* state) {
     uint64_t bits = 0;
     state->status = rt_immediate_on_execute_anchored(&state->anchor,
                                                      RTB_DROP_MARK_ID,
+                                                     0,
                                                      (int64_t)POLL_RTB_DROP_RECV_BODY,
                                                      &state->shipped_mark,
                                                      &state->pending,
@@ -78,7 +80,7 @@ static void poll_rtb_drop_anchored_recv(rtb_drop_state* state) {
     }
     state->result_kind = kind;
     state->result_bits = bits;
-    rt_async_return(state, (uint64_t)state->status);
+    rt_async_return(state, rtb_word((uint64_t)state->status));
 }
 
 static void poll_rtb_drop_anchored(rtb_drop_state* state) {
@@ -95,6 +97,7 @@ static void poll_rtb_drop_anchored(rtb_drop_state* state) {
     uint64_t bits = 0;
     state->status = rt_immediate_on_execute_anchored(&state->anchor,
                                                      RTB_DROP_MARK_ID,
+                                                     0,
                                                      (int64_t)POLL_RTB_DROP_BODY,
                                                      &state->shipped_mark,
                                                      &state->pending,
@@ -105,7 +108,7 @@ static void poll_rtb_drop_anchored(rtb_drop_state* state) {
     }
     state->result_kind = kind;
     state->result_bits = bits;
-    rt_async_return(state, (uint64_t)state->status);
+    rt_async_return(state, rtb_word((uint64_t)state->status));
 }
 
 static void poll_rtb_drop_select(rtb_drop_state* state) {
@@ -123,7 +126,7 @@ static void poll_rtb_drop_select(rtb_drop_state* state) {
     if (state->status == RT_REMOTE_TASK_STATUS_PENDING) {
         rt_async_yield(state, 0);
     }
-    rt_async_return(state, (uint64_t)state->status);
+    rt_async_return(state, rtb_word((uint64_t)state->status));
 }
 
 void rtb_drop_poll_dispatch(uint64_t id) {
@@ -171,8 +174,8 @@ static int rtb_drop_expect_exactly_once(const rtb_drop_state* state, const char*
         return rtb_fail("shipped state was dropped more than once");
     }
     if (atomic_load_explicit(&rtb_drop_last_id, memory_order_acquire) != RTB_DROP_MARK_ID ||
-        atomic_load_explicit(&rtb_drop_last_state, memory_order_acquire) !=
-            (void*)&state->shipped_mark) {
+        (uintptr_t)atomic_load_explicit(&rtb_drop_last_state, memory_order_acquire) !=
+            (uintptr_t)&state->shipped_mark) {
         rtb_fail(label);
         return rtb_fail("drop carried the wrong id or state");
     }
@@ -187,7 +190,7 @@ int rtb_mode_drop_invalid_placement(void) {
     static rtb_drop_state state;
     memset(&state, 0, sizeof(state));
     state.placement = rt_placement_shard(7);
-    void* caller = __task_create(POLL_RTB_DROP_EXECUTE, &state);
+    void* caller = __task_create(POLL_RTB_DROP_EXECUTE, &state, rt_channel_opaque_word_ops());
     uint8_t kind = 0;
     uint64_t bits = 0;
     rt_task_await(caller, &kind, &bits);
@@ -214,7 +217,7 @@ int rtb_mode_drop_stale_anchor(void) {
     static rtb_drop_state state;
     memset(&state, 0, sizeof(state));
     state.anchor = minted.handle;
-    void* caller = __task_create(POLL_RTB_DROP_ANCHORED, &state);
+    void* caller = __task_create(POLL_RTB_DROP_ANCHORED, &state, rt_channel_opaque_word_ops());
     uint8_t kind = 0;
     uint64_t bits = 0;
     rt_task_await(caller, &kind, &bits);
@@ -240,7 +243,7 @@ int rtb_mode_drop_queue_full(void) {
     memset(&state, 0, sizeof(state));
     state.anchor = minted.handle;
     state.flood_destination = 1;
-    void* caller = __task_create(POLL_RTB_DROP_ANCHORED, &state);
+    void* caller = __task_create(POLL_RTB_DROP_ANCHORED, &state, rt_channel_opaque_word_ops());
     uint8_t kind = 0;
     uint64_t bits = 0;
     rt_task_await(caller, &kind, &bits);
@@ -271,7 +274,7 @@ int rtb_mode_drop_select_mixed_owners(void) {
     state.anchors[1] = &state.anchor_slots[1];
     state.kinds[0] = SELECT_CHAN_RECV;
     state.kinds[1] = SELECT_CHAN_RECV;
-    void* caller = __task_create(POLL_RTB_DROP_SELECT, &state);
+    void* caller = __task_create(POLL_RTB_DROP_SELECT, &state, rt_channel_opaque_word_ops());
     uint8_t kind = 0;
     uint64_t bits = 0;
     rt_task_await(caller, &kind, &bits);
@@ -296,7 +299,7 @@ int rtb_mode_drop_handoff_not_dropped(void) {
     state.placement = rt_placement_shard(1);
     uint8_t kind = 0;
     uint64_t bits = 0;
-    void* caller = __task_create(POLL_RTB_DROP_EXECUTE, &state);
+    void* caller = __task_create(POLL_RTB_DROP_EXECUTE, &state, rt_channel_opaque_word_ops());
     rt_task_await(caller, &kind, &bits);
     if (state.status != RT_REMOTE_TASK_STATUS_OK) {
         return rtb_fail("handoff row did not complete");
@@ -325,7 +328,7 @@ int rtb_mode_drop_bound_cancel_no_pending_drop(void) {
     state.anchor = minted.handle;
     // The anchored recv body parks on the empty channel, so the request is
     // provably bound and suspended when the cancel lands.
-    void* caller = __task_create(POLL_RTB_DROP_ANCHORED_RECV, &state);
+    void* caller = __task_create(POLL_RTB_DROP_ANCHORED_RECV, &state, rt_channel_opaque_word_ops());
     rt_remote_task_pending* pending = NULL;
     for (uint32_t i = 0; i < 4000 && pending == NULL; i++) {
         pending = atomic_load_explicit(&state.visible_pending, memory_order_acquire);
@@ -386,6 +389,65 @@ int rtb_mode_drop_bound_cancel_no_pending_drop(void) {
 // the deterministic proof of the owner-side machinery.
 enum { RTB_RESULT_DROP_MARK_ID = 53 };
 
+// The result descriptor these rows drive free_task with: one machine word
+// holding a heap block, whose drop frees it and is counted.
+//
+// It is what result_drop_fn_id used to say. The obligation travels with the
+// value's TYPE now rather than in a number beside it, so the row that proves
+// "an unconsumed result is destroyed exactly once" drives the same behaviour
+// through the descriptor the task was created with.
+static void rtb_result_block_move(void* destination, void* source) {
+    *(void**)destination = *(void**)source;
+    *(void**)source = NULL;
+}
+
+static void rtb_result_block_drop(void* value) {
+    void* block = *(void**)value;
+    *(void**)value = NULL;
+    atomic_fetch_add_explicit(&rtb_result_drop_calls, 1, memory_order_acq_rel);
+    atomic_store_explicit(&rtb_result_drop_last_id, RTB_RESULT_DROP_MARK_ID, memory_order_release);
+    atomic_store_explicit(&rtb_result_drop_last_value, block, memory_order_release);
+    if (block != NULL) {
+        rt_free((uint8_t*)block, RTB_RESULT_BLOCK_SIZE, RTB_RESULT_BLOCK_ALIGN);
+    }
+}
+
+static rt_carrier_status
+rtb_result_block_plan(const void* source, rt_cross_mode mode, rt_cross_plan* out) {
+    (void)source;
+    (void)mode;
+    (void)out;
+    return RT_CARRIER_STATUS_INVALID_STATE;
+}
+
+static const rt_value_ops rtb_result_block_ops = {
+    .layout = {.size = sizeof(void*),
+               .align = _Alignof(void*),
+               .stride = sizeof(void*),
+               .flags = RT_VALUE_FLAG_DROPPABLE},
+    .move_init = rtb_result_block_move,
+    .copy_init = NULL,
+    .clone_init = NULL,
+    .drop_in_place = rtb_result_block_drop,
+    .trace = NULL,
+    .plan_cross = rtb_result_block_plan,
+    .cross_move_init = NULL,
+    .cross_clone_init = NULL,
+};
+
+// Publishes one heap block as the task's canonical result.
+static int rtb_publish_result_block(rt_task* task, void* block) {
+    if (rt_task_result_bind(&task->result, &rtb_result_block_ops) != RT_SLOT_CONTROL_OK) {
+        return 0;
+    }
+    void* destination = rt_task_result_publish_storage(&task->result);
+    if (destination == NULL) {
+        return 0;
+    }
+    *(void**)destination = block;
+    return rt_task_result_commit(&task->result) == RT_SLOT_CONTROL_OK;
+}
+
 static void rtb_result_drop_reset(void) {
     atomic_store_explicit(&rtb_result_drop_calls, 0, memory_order_release);
     atomic_store_explicit(&rtb_result_drop_last_id, 0, memory_order_release);
@@ -399,7 +461,7 @@ int rtb_mode_result_owner_release(void) {
     rt_executor* ex = ensure_exec();
     rtb_result_drop_reset();
     rt_task* task = NULL;
-    if (rt_remote_spawn_create_body_task(ex, POLL_RTB_DROP_BODY, NULL, 0, &task) !=
+    if (rt_remote_spawn_create_body_task(ex, POLL_RTB_DROP_BODY, NULL, 0, 0, &task) !=
             RT_REMOTE_SPAWN_STATUS_OK ||
         task == NULL) {
         return rtb_fail("result-owner-release: body task creation failed");
@@ -409,11 +471,12 @@ int rtb_mode_result_owner_release(void) {
         return rtb_fail("result-owner-release: block alloc failed");
     }
     task->result_kind = 1;
-    task->result_bits = (uint64_t)(uintptr_t)block;
-    task->result_drop_fn_id = RTB_RESULT_DROP_MARK_ID;
+    if (!rtb_publish_result_block(task, block)) {
+        return rtb_fail("result-owner-release: result publication failed");
+    }
     task_status_store(task, TASK_DONE);
     // The create-time reference is the only one: releasing it frees the DONE
-    // task through free_task, which owns the unconsumed-result drop.
+    // task through free_task, whose dispose owns the unconsumed-result drop.
     task_release_lane_aware(ex, task);
     if (atomic_load_explicit(&rtb_result_drop_calls, memory_order_acquire) != 1) {
         return rtb_fail("result-owner-release: result not dropped exactly once");
@@ -433,14 +496,22 @@ int rtb_mode_result_copy_inert(void) {
     rt_executor* ex = ensure_exec();
     rtb_result_drop_reset();
     rt_task* task = NULL;
-    if (rt_remote_spawn_create_body_task(ex, POLL_RTB_DROP_BODY, NULL, 0, &task) !=
+    if (rt_remote_spawn_create_body_task(ex, POLL_RTB_DROP_BODY, NULL, 0, 0, &task) !=
             RT_REMOTE_SPAWN_STATUS_OK ||
         task == NULL) {
         return rtb_fail("result-copy-inert: body task creation failed");
     }
     task->result_kind = 1;
-    task->result_bits = 42; // inert Copy bits (fixnum-shaped), not a heap pointer
-    task->result_drop_fn_id = 0;
+    // Inert Copy bits (fixnum-shaped), not a heap pointer: the opaque-word
+    // descriptor carries them and owns nothing, which is what "no obligation"
+    // is now spelled as.
+    (void)rt_task_result_bind(&task->result, rt_channel_opaque_word_ops());
+    void* inert = rt_task_result_publish_storage(&task->result);
+    if (inert == NULL) {
+        return rtb_fail("result-copy-inert: result publication failed");
+    }
+    *(uint64_t*)inert = 42;
+    (void)rt_task_result_commit(&task->result);
     task_status_store(task, TASK_DONE);
     task_release_lane_aware(ex, task);
     if (atomic_load_explicit(&rtb_result_drop_calls, memory_order_acquire) != 0) {
@@ -456,7 +527,7 @@ int rtb_mode_result_consumed_no_double_drop(void) {
     rt_executor* ex = ensure_exec();
     rtb_result_drop_reset();
     rt_task* task = NULL;
-    if (rt_remote_spawn_create_body_task(ex, POLL_RTB_DROP_BODY, NULL, 0, &task) !=
+    if (rt_remote_spawn_create_body_task(ex, POLL_RTB_DROP_BODY, NULL, 0, 0, &task) !=
             RT_REMOTE_SPAWN_STATUS_OK ||
         task == NULL) {
         return rtb_fail("result-consumed: body task creation failed");
@@ -466,13 +537,16 @@ int rtb_mode_result_consumed_no_double_drop(void) {
         return rtb_fail("result-consumed: block alloc failed");
     }
     task->result_kind = 1;
-    task->result_bits = (uint64_t)(uintptr_t)block;
-    task->result_drop_fn_id = RTB_RESULT_DROP_MARK_ID;
+    if (!rtb_publish_result_block(task, block)) {
+        return rtb_fail("result-consumed: result publication failed");
+    }
     task_status_store(task, TASK_DONE);
-    // Simulate the compiled consume path: ownership moves to the caller, which
-    // clears the owner-side obligation and frees the value itself.
-    task->result_drop_fn_id = 0;
-    rt_free((uint8_t*)block, RTB_RESULT_BLOCK_SIZE, RTB_RESULT_BLOCK_ALIGN);
+    // Simulate the compiled consume path: the value MOVES to the caller, which
+    // leaves the slot with nothing to destroy, and the caller frees it.
+    void* taken = NULL;
+    rtb_result_block_move((void*)&taken, rt_task_result_value(&task->result));
+    (void)rt_task_result_commit_move(&task->result);
+    rt_free((uint8_t*)taken, RTB_RESULT_BLOCK_SIZE, RTB_RESULT_BLOCK_ALIGN);
     task_release_lane_aware(ex, task);
     if (atomic_load_explicit(&rtb_result_drop_calls, memory_order_acquire) != 0) {
         return rtb_fail("result-consumed: free_task double-dropped a consumed result");
@@ -493,7 +567,7 @@ int rtb_mode_drop_zero_id_never_dispatches(void) {
     memset(&child, 0, sizeof(child));
     atomic_store_explicit(&child.gate, 1, memory_order_release);
     state.body_state = &child;
-    void* caller = __task_create(POLL_RTB_EXECUTE, &state);
+    void* caller = __task_create(POLL_RTB_EXECUTE, &state, rt_channel_opaque_word_ops());
     uint8_t kind = 0;
     uint64_t bits = 0;
     rt_task_await(caller, &kind, &bits);

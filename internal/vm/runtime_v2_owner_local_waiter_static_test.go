@@ -345,6 +345,8 @@ static int require_int(int condition, int code) {
 
 static void reset_task(rt_task* task, uint64_t id) {
     memset(task, 0, sizeof(*task));
+    // No result slot: this stand's tasks are waiter-protocol fixtures that
+    // never publish one, and it links the waiter files alone.
     task->id = id;
     task_status_store(task, TASK_WAITING);
 }

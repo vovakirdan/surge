@@ -307,6 +307,10 @@ static rt_task* alloc_ready_task(rt_executor* ex, int64_t poll_fn_id) {
         return NULL;
     }
     memset(task, 0, sizeof(*task));
+    // A stand's task answers with a machine word, which is exactly what the
+    // opaque-word descriptor describes: the result slot carries it the same way
+    // it carries a compiled type's value.
+    (void)rt_task_result_bind(&task->result, rt_channel_opaque_word_ops());
     task->id = id;
     task->poll_fn_id = poll_fn_id;
     task->kind = TASK_KIND_USER;
@@ -392,7 +396,7 @@ static void poll_owner_probe(void) {
         atomic_store_explicit(&g_owner_probe_shard, UINT32_MAX, memory_order_release);
     }
     atomic_store_explicit(&g_owner_probe_ran, 1, memory_order_release);
-    rt_async_return(NULL, 0);
+    rt_async_return(NULL, &(uint64_t){0});
 }
 
 static _Atomic uint32_t g_join_spin_steps;
@@ -403,11 +407,11 @@ static void poll_join_target_spin(void) {
         rt_async_yield(NULL, 0);
         return;
     }
-    rt_async_return(NULL, 42);
+    rt_async_return(NULL, &(uint64_t){42});
 }
 
 static void poll_join_target_quick(void) {
-    rt_async_return(NULL, 7);
+    rt_async_return(NULL, &(uint64_t){7});
 }
 
 static _Atomic uint32_t g_join_target_release;
@@ -422,7 +426,7 @@ static void poll_join_target_gated(void) {
         rt_async_yield(NULL, 0);
         return;
     }
-    rt_async_return(NULL, 42);
+    rt_async_return(NULL, &(uint64_t){42});
 }
 
 static _Atomic(void*) g_park_forever_chan;
@@ -433,7 +437,7 @@ static _Atomic(void*) g_park_forever_chan;
 // concurrent park_forever instances.
 static void poll_make_park_forever_chan(void) {
     atomic_store_explicit(&g_park_forever_chan, rt_channel_new(0, rt_channel_opaque_word_ops(), 0), memory_order_release);
-    rt_async_return(NULL, 0);
+    rt_async_return(NULL, &(uint64_t){0});
 }
 
 // Genuinely parks forever (never sits in the ready queue), unlike
@@ -455,7 +459,7 @@ static void poll_park_forever(void) {
         rt_async_yield(NULL, 0);
         return;
     }
-    rt_async_return(NULL, 99);
+    rt_async_return(NULL, &(uint64_t){99});
 }
 
 static void poll_joiner(void) {
@@ -465,13 +469,13 @@ static void poll_joiner(void) {
         rt_async_yield(NULL, 0);
         return;
     }
-    rt_async_return(NULL, st == 1 ? bits : 0);
+    rt_async_return(NULL, &(uint64_t){st == 1 ? bits : 0});
 }
 
 // --- Handle clone/release/last-reference-free (rule 1, S5-Q6) ---
 
 static void poll_clone_target(void) {
-    rt_async_return(NULL, 1);
+    rt_async_return(NULL, &(uint64_t){1});
 }
 
 // Repeatedly clones and joins (via rt_task_poll, the actual worker join
@@ -491,13 +495,13 @@ static void poll_clone_racer(void) {
     if (cloned == NULL) {
         void* target = atomic_load_explicit(&g_clone_shared_target, memory_order_acquire);
         if (target == NULL) {
-            rt_async_return(NULL, 0);
+            rt_async_return(NULL, &(uint64_t){0});
             return;
         }
-        cloned = rt_task_clone(target, NULL, 0);
+        cloned = rt_task_clone(target, NULL);
         if (cloned == NULL) {
             atomic_store_explicit(&g_clone_uaf_detected, 1, memory_order_release);
-            rt_async_return(NULL, 0);
+            rt_async_return(NULL, &(uint64_t){0});
             return;
         }
     }
@@ -511,7 +515,7 @@ static void poll_clone_racer(void) {
         atomic_store_explicit(&g_clone_uaf_detected, 1, memory_order_release);
     }
     atomic_fetch_add_explicit(&g_clone_racer_iters, 1, memory_order_acq_rel);
-    rt_async_return(NULL, 0);
+    rt_async_return(NULL, &(uint64_t){0});
 }
 
 // --- Completion-pin interleaving (rule 1: task_add_ref at mark_done entry,
@@ -523,7 +527,7 @@ static void poll_clone_racer(void) {
 // reproduction (does not touch rt_async_state.c to inject a delay);
 // TSan is the oracle that turns "no crash" into "no data race, no UAF".
 static void poll_pin_target(void) {
-    rt_async_return(NULL, 99);
+    rt_async_return(NULL, &(uint64_t){99});
 }
 
 static void poll_pin_joiner(void) {
@@ -541,6 +545,6 @@ static void poll_pin_joiner(void) {
         rt_async_yield(target, 0);
         return;
     }
-    rt_async_return(NULL, st == 1 && bits == 99 ? 1 : 0);
+    rt_async_return(NULL, &(uint64_t){st == 1 && bits == 99 ? 1 : 0});
 }
 `
