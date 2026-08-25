@@ -360,3 +360,34 @@ func TestClonableDescriptorBindsItsMonomorphizedClone(t *testing.T) {
 		t.Fatal("no clonable descriptor was examined")
 	}
 }
+
+// TestAnUnbackedRegistryEntryRefusesTheModule is the control for the refusal
+// that replaced the silent skip.
+//
+// Skipping an entry the backend cannot back was honest about the descriptor and
+// silent about the consequence: the type's owner finds nothing, falls back to
+// carrying the value as an opaque word, and loses the drop and the clone the
+// type actually has -- at runtime, far from the emitter. The refusal says so
+// here instead. It is unreachable in any real program, which is exactly why the
+// condition has to be planted to prove the refusal fires at all.
+func TestAnUnbackedRegistryEntryRefusesTheModule(t *testing.T) {
+	mirMod, result := lowerMIRFromSource(t, clonableProbeProgram)
+	if mirMod.Meta == nil || mirMod.Meta.Operations == nil {
+		t.Fatal("no operation registry was published")
+	}
+	if _, err := EmitModule(
+		mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet,
+	); err != nil {
+		t.Fatalf("the unplanted module must emit cleanly, or the control proves nothing: %v", err)
+	}
+	_, err := emitModuleWithDescriptorDefect(
+		mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet, defectUnnamedClone)
+	if err == nil {
+		t.Fatal("a registry entry whose clone this module cannot name was emitted anyway")
+	}
+	for _, want := range []string{"clone_init", "named no function", "opaque word"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the refusal does not say %q: %v", want, err)
+		}
+	}
+}

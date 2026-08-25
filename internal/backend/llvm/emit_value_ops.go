@@ -56,32 +56,9 @@ var valueOpsSlotOrder = [...]string{
 // will point at, and it has to run BEFORE the glue pass, because that pass
 // closes its own demand: a body first asked for while descriptors are being
 // written would be named and never defined.
-func (e *Emitter) requireValueOpsDropBodies() {
+func (e *Emitter) requireValueOpsDropBodies() error {
 	if e == nil || e.mod == nil || e.mod.Meta == nil || e.mod.Meta.Operations == nil {
-		return
-	}
-	registry := e.mod.Meta.Operations
-	for _, id := range registry.TypeIDs() {
-		entry, err := registry.Value(id)
-		if err != nil || e.backedFlags(&entry)&valueops.FlagDroppable == 0 {
-			continue
-		}
-		if !e.valueOpsEmittable(&entry) {
-			continue
-		}
-		e.requireDropGlue(entry.Type)
-	}
-}
-
-// emitValueOpsDescriptors writes every descriptor the registry can back.
-//
-// It runs after the glue passes, in the tail slot this file reserves for a pass
-// that writes what earlier passes named.
-func (e *Emitter) emitValueOpsDescriptors() {
-	if e == nil || e.mod == nil || e.mod.Meta == nil || e.mod.Meta.Operations == nil {
-		// No whole-program capability authority ran, so no registry was
-		// published. Absence publishes nothing rather than an empty claim.
-		return
+		return nil
 	}
 	registry := e.mod.Meta.Operations
 	for _, id := range registry.TypeIDs() {
@@ -89,8 +66,35 @@ func (e *Emitter) emitValueOpsDescriptors() {
 		if err != nil {
 			continue
 		}
-		if !e.valueOpsEmittable(&entry) {
+		if backingErr := e.valueOpsBacking(&entry); backingErr != nil {
+			return backingErr
+		}
+		if e.backedFlags(&entry)&valueops.FlagDroppable == 0 {
 			continue
+		}
+		e.requireDropGlue(entry.Type)
+	}
+	return nil
+}
+
+// emitValueOpsDescriptors writes every descriptor the registry can back.
+//
+// It runs after the glue passes, in the tail slot this file reserves for a pass
+// that writes what earlier passes named.
+func (e *Emitter) emitValueOpsDescriptors() error {
+	if e == nil || e.mod == nil || e.mod.Meta == nil || e.mod.Meta.Operations == nil {
+		// No whole-program capability authority ran, so no registry was
+		// published. Absence publishes nothing rather than an empty claim.
+		return nil
+	}
+	registry := e.mod.Meta.Operations
+	for _, id := range registry.TypeIDs() {
+		entry, err := registry.Value(id)
+		if err != nil {
+			continue
+		}
+		if backingErr := e.valueOpsBacking(&entry); backingErr != nil {
+			return backingErr
 		}
 		e.emitMoveInitBody(&entry)
 	}
@@ -99,40 +103,53 @@ func (e *Emitter) emitValueOpsDescriptors() {
 		if err != nil {
 			continue
 		}
-		if !e.valueOpsEmittable(&entry) {
-			continue
-		}
 		e.emitValueOpsConstant(&entry)
 	}
+	return nil
 }
 
-// valueOpsEmittable reports whether every slot this entry needs has a filler the
-// backend can name today.
+// valueOpsBacking answers whether every slot this entry needs has a filler the
+// backend can name, and refuses the module when one does not.
 //
-// The rule is mechanical rather than a hardcoded bit: a slot answered
-// FillRegistryNamedBody wants a symbol the registry carries and the backend
-// cannot mint, which today is clone_init under FlagClonable. Skipping is honest;
-// emitting a descriptor with a null clone_init while the flag is set would ship
-// exactly the flag/callback disagreement the runtime refuses.
-func (e *Emitter) valueOpsEmittable(entry *valueops.Entry) bool {
+// It USED to skip such an entry silently, and skipping is honest as far as it
+// goes: emitting a descriptor with a null clone_init while the flag is set
+// would ship exactly the flag/callback disagreement the runtime refuses. What
+// it is not is coverage. A storage owner that finds no descriptor for a type
+// has to fall back to treating the value as an opaque word, which loses the
+// drop and the clone the type actually has -- silently, at runtime, far from
+// here. Owner ruling 2026-08-25: every registry type gets a descriptor, so the
+// owners have no second branch at all, and a type that cannot get one stops the
+// build where the reason is still legible.
+//
+// It is unreachable today and that is the point of saying so out loud: the
+// registry sets FlagClonable only with a resolved instance (mir's cloneSlot
+// fails closed otherwise), and descriptorReferencedFuncs keeps those bodies in
+// the root set so naming them cannot be pruned away. Measured over 400 corpus
+// programs: 176 built, and not one entry was skipped.
+func (e *Emitter) valueOpsBacking(entry *valueops.Entry) error {
 	flags := e.backedFlags(entry)
 	for _, slot := range valueOpsSlotOrder {
 		filler, err := valueops.SlotFiller(slot, flags)
 		if err != nil {
-			return false
+			return fmt.Errorf("llvm: operation registry entry type#%d has no filler for %s: %w",
+				entry.Type, slot, err)
 		}
-		if filler.Kind == valueops.FillRegistryNamedBody {
-			// The registry carries the symbol; the backend must be able to name
-			// the function it became. A monomorphized clone whose instance is
-			// absent from this module cannot be bound, and a descriptor that
-			// claimed the capability with a null callback is the flag/callback
-			// disagreement the runtime refuses.
-			if e.registryNamedSymbol(entry, slot) == "" {
-				return false
-			}
+		if filler.Kind != valueops.FillRegistryNamedBody {
+			continue
+		}
+		// The registry carries the symbol; the backend must be able to name the
+		// function it became.
+		if e.registryNamedSymbol(entry, slot) == "" {
+			return fmt.Errorf(
+				"llvm: type#%d claims %s and this module named no function for the instance "+
+					"the registry holds; note: a clonable type's implementation is made "+
+					"reachable before monomorphization and a descriptor binds it, so every "+
+					"registry entry should have one -- without it the type's owner has no "+
+					"descriptor at all and would have to carry the value as an opaque word",
+				entry.Type, slot)
 		}
 	}
-	return true
+	return nil
 }
 
 // emitMoveInitBody writes the per-type transfer initializer.
@@ -230,6 +247,12 @@ const (
 	// that returns is not a trap, and a test that cannot see the difference is
 	// not proving anything.
 	defectReturningPlanCrossStub
+	// defectUnnamedClone hides the clone body's name from the descriptor
+	// writer, which is the one condition under which an entry cannot be backed.
+	// It is the control for the refusal that replaced the silent skip: the
+	// refusal is unreachable in any real program, so the only way to show it
+	// says no is to arrange the condition on purpose.
+	defectUnnamedClone
 )
 
 // valueOpsOperand renders one slot of the descriptor.
@@ -298,6 +321,9 @@ var emitDescriptorDefect = defectNone
 // reason to skip the descriptor rather than to ship a null against a set bit.
 func (e *Emitter) registryNamedSymbol(entry *valueops.Entry, slot string) string {
 	if slot != "clone_init" {
+		return ""
+	}
+	if emitDescriptorDefect == defectUnnamedClone {
 		return ""
 	}
 	if e == nil || e.mod == nil || !entry.CloneInit.IsValid() {

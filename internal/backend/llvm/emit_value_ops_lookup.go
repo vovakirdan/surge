@@ -51,8 +51,11 @@ func (e *Emitter) emitValueOpsLookup() {
 }
 
 // emittedValueOpsTypeIDs lists, in a stable order, exactly the types whose
-// descriptor this module defines. It asks the same question emitValueOpsDescriptors
-// answers, so a type skipped there cannot be routed to here.
+// descriptor this module defines.
+//
+// Every registry entry has one: emitValueOpsDescriptors refuses the module
+// rather than skipping an entry it cannot back, so the two lists agree by
+// construction instead of by both asking the same predicate.
 func (e *Emitter) emittedValueOpsTypeIDs() []types.TypeID {
 	if e == nil || e.mod == nil || e.mod.Meta == nil || e.mod.Meta.Operations == nil {
 		return nil
@@ -60,11 +63,7 @@ func (e *Emitter) emittedValueOpsTypeIDs() []types.TypeID {
 	registry := e.mod.Meta.Operations
 	ids := make([]types.TypeID, 0, len(registry.TypeIDs()))
 	for _, id := range registry.TypeIDs() {
-		entry, err := registry.Value(id)
-		if err != nil {
-			continue
-		}
-		if !e.valueOpsEmittable(&entry) {
+		if _, err := registry.Value(id); err != nil {
 			continue
 		}
 		ids = append(ids, id)

@@ -340,13 +340,17 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 	}
 	// Descriptors point at drop bodies, so their demand is declared before the
 	// pass that closes it.
-	e.requireValueOpsDropBodies()
+	if err := e.requireValueOpsDropBodies(); err != nil {
+		return "", err
+	}
 	if err := e.emitDropGlue(); err != nil {
 		return "", err
 	}
 	// After the glue passes, because a descriptor points at bodies they may have
 	// defined, and before the tail tables, which close the module.
-	e.emitValueOpsDescriptors()
+	if err := e.emitValueOpsDescriptors(); err != nil {
+		return "", err
+	}
 	e.emitValueOpsLookup()
 	e.emitTraceTextEnd()
 	// Last, because every pass above may have named a source location and this
