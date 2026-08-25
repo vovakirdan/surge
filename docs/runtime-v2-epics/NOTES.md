@@ -7677,3 +7677,46 @@ composite pays a box. An exact-sized slot that always allocates would make the
 cheap case worse. The answer is the one the storage model already gives for
 inline storage: the slot is sized by the descriptor, and small results live in a
 byte run inside `rt_task` rather than in an allocation of their own.
+
+## 2026-08-25 — D4a stopped at a fork the epic's own division does not settle
+
+The local half of the flip is straightforward and was written: the task's result
+fields become one typed slot, `rt_async_return(state, src)` moves the value into
+it from inside the task's own poll (the one place no runtime lock is held),
+`mark_done` stops carrying bits, and `poll_outcome.value_bits` disappears. Seven
+runtime files and twenty-two compile errors away from done.
+
+**What it runs into.** A far body and a local body are THE SAME compiled
+function. `spawn f()` and `spawn on placement f()` both reach
+`emitTermAsyncReturn`, so the emitter cannot box for one and not the other.
+Today it boxes for both -- `emitValueToI64` allocates whenever
+`hasInlineStorage(type)` -- and the far reply ships that box pointer as its
+result word, which the awaiting side adopts with the mirrored `emitI64ToValue`.
+
+So if the emitter stops boxing, the far reply has to box instead, and it has to
+box on EXACTLY the emitter's predicate. `size > 8` is not that predicate: a
+two-field composite of eight bytes is inline-storage to the emitter and a word
+to that rule, and the two sides would disagree in the direction that reads a
+pointer out of a value.
+
+**Three ways out, and none is a detail.**
+
+1. Give the descriptor the fact. `rt_value_ops` would say whether a value of
+   this type is carried boxed when it must fit a word, and the far reply reads
+   it. It is one field in a FROZEN manifest: the hash moves, the link sentinel
+   moves with it, and objects built before it will not link against a runtime
+   built after -- the consequence D0 already paid once.
+2. Type the far await surface now. The transport is in-process, so the value
+   never has to become a word at all: the reply names the producer whose slot
+   holds it, `rt_far_task_await` takes a destination like `rt_task_await`, and
+   the lease that already governs adoption keeps the producer alive. No box
+   anywhere, and the local and far paths end up the same shape. It absorbs a
+   slice of what section 6 assigns to P4/Wave E.
+3. Leave the box where it is and type only what is left. The await destination
+   would still be adopting a pointer the runtime allocated, which is the
+   representation this step exists to remove, so this buys nothing.
+
+**Nothing was left half-flipped.** The edits were reverted; what stands is the
+slot machinery (`a28c5520`), which nothing reads yet. A representation with two
+disagreeing readers is the failure this epic has already paid for once, and
+starting the flip without settling the fork would build exactly that.
