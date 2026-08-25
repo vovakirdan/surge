@@ -239,7 +239,7 @@ runtime-v2-carrier-bench-final:
 
 runtime-v2-slot-control-check:
 	@echo ">> Running Runtime V2 owner-private slot-control gate"
-	SURGE_REQUIRE_SLOT_CONTROL_SANITIZERS=1 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2SlotControl(Protocol|AddressAndUndefinedSanitizers|ThreadSanitizer|IsOwnerPrivateAndCallbackFree|CopyInitTrapIsNamedAndUndispatched|MoveAndDropDispatchThroughTheDetachedHelpers|RequiredSanitizersFailClosed)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
+	SURGE_REQUIRE_SLOT_CONTROL_SANITIZERS=1 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2SlotControl(Protocol|AddressAndUndefinedSanitizers|ThreadSanitizer|IsOwnerPrivateAndCallbackFree|CopyInitTrapIsNamedAndUndispatched|MoveAndDropDispatchThroughTheDetachedHelpers|RequiredSanitizersFailClosed)$$|^TestRuntimeV2TaskResultSlotHoldsOneValueExactlyOnce$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 
 # The overwritten-value obligation, per place shape, on both lanes.
 #
