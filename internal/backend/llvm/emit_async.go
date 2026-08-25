@@ -91,88 +91,6 @@ func (e *Emitter) emitPollDispatch() error {
 
 	return nil
 }
-
-func (e *Emitter) emitBlockingDispatch() error {
-	if e == nil || e.mod == nil {
-		return nil
-	}
-	blockIDs := make([]mir.FuncID, 0)
-	for _, __id := range e.mod.SortedFuncIDs() {
-		id := __id
-		f := e.mod.Funcs[__id]
-		if isBlockingFunc(f) {
-			blockIDs = append(blockIDs, id)
-		}
-	}
-	sort.Slice(blockIDs, func(i, j int) bool { return blockIDs[i] < blockIDs[j] })
-
-	fmt.Fprintf(&e.buf, "define void @__surge_blocking_call(i64 %%id, ptr %%state, ptr %%out) {\n")
-	fmt.Fprintf(&e.buf, "entry:\n")
-	fmt.Fprintf(&e.buf, "  switch i64 %%id, label %%blocking_default [\n")
-	for _, id := range blockIDs {
-		fmt.Fprintf(&e.buf, "    i64 %d, label %%blocking.%d\n", id, id)
-	}
-	fmt.Fprintf(&e.buf, "  ]\n")
-
-	fe := funcEmitter{emitter: e}
-	for _, id := range blockIDs {
-		f := e.mod.Funcs[id]
-		if f == nil {
-			continue
-		}
-		name := e.funcNames[id]
-		sig, ok := e.funcSigs[id]
-		if !ok {
-			return fmt.Errorf("missing blocking function signature for %s", f.Name)
-		}
-		if len(sig.params) != 1 {
-			return fmt.Errorf("blocking function %s must have 1 parameter", f.Name)
-		}
-		lowered, err := e.loweredSignature(&sig)
-		if err != nil {
-			return fmt.Errorf("call contract for %s: %w", f.Name, err)
-		}
-		fmt.Fprintf(&e.buf, "blocking.%d:\n", id)
-		if lowered.sret {
-			// The body already writes its result through a destination
-			// pointer, so it is given the runtime's own storage directly --
-			// no frame-local copy, and nothing to widen into a word.
-			fmt.Fprintf(&e.buf, "  call void @%s(ptr sret(%s) align %d %%out, ptr %%state)\n",
-				name, lowered.retStorage, lowered.retAlign)
-			fmt.Fprintf(&e.buf, "  ret void\n")
-			continue
-		}
-		if lowered.ret == "void" {
-			fmt.Fprintf(&e.buf, "  call void @%s(ptr %%state)\n", name)
-			fmt.Fprintf(&e.buf, "  ret void\n")
-			continue
-		}
-		tmp := fe.nextTemp()
-		fmt.Fprintf(&e.buf, "  %s = call %s @%s(ptr %%state)\n", tmp, lowered.ret, name)
-		// A value the body RETURNS is stored into the runtime's storage at its
-		// own type. The store is the whole conversion: the descriptor the
-		// runtime bound sized that storage from the same type.
-		//
-		// A returned value's alignment comes from the TYPE, not from the sret
-		// contract, which leaves retAlign at zero for anything it does not
-		// carry indirectly.
-		storeAlign := uint64(alignWord)
-		if facts, alignErr := e.layoutOf(f.Result); alignErr == nil && facts.Align > 0 {
-			storeAlign = facts.Align
-		}
-		fmt.Fprintf(&e.buf, "  store %s %s, ptr %%out, align %d\n", lowered.ret, tmp, storeAlign)
-		fmt.Fprintf(&e.buf, "  ret void\n")
-	}
-
-	fmt.Fprintf(&e.buf, "blocking_default:\n")
-	if sc, ok := e.stringConsts["missing blocking function"]; ok && sc.globalName != "" {
-		fmt.Fprintf(&e.buf, "  call void @rt_panic(ptr getelementptr inbounds ([%d x i8], ptr @%s, i64 0, i64 0), i64 %d)\n", sc.arrayLen, sc.globalName, sc.dataLen)
-	}
-	fmt.Fprintf(&e.buf, "  unreachable\n")
-	fmt.Fprintf(&e.buf, "}\n\n")
-	return nil
-}
-
 func (fe *funcEmitter) emitInstrAwait(ins *mir.Instr) error {
 	if ins == nil {
 		return nil
@@ -330,45 +248,6 @@ func (fe *funcEmitter) emitInstrPoll(ins *mir.Instr) error {
 	fe.blockTerminated = true
 	return nil
 }
-
-func (fe *funcEmitter) emitInstrJoinAll(ins *mir.Instr) error {
-	if ins == nil {
-		return nil
-	}
-	scopeVal, scopeTy, err := fe.emitValueOperand(&ins.JoinAll.Scope)
-	if err != nil {
-		return err
-	}
-	if scopeTy != "ptr" {
-		return fmt.Errorf("join_all expects scope handle, got %s", scopeTy)
-	}
-	pendingPtr := fe.nextTemp()
-	failfastPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", pendingPtr, alignWord)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i1, align %d\n", failfastPtr, 1)
-	doneVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_scope_join_all(ptr %s, ptr %s, ptr %s)\n", doneVal, scopeVal, pendingPtr, failfastPtr)
-	readyBB := fmt.Sprintf("bb.inline.join_ready%d", fe.inlineBlock)
-	fe.inlineBlock++
-	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%bb%d\n", doneVal, readyBB, ins.JoinAll.PendBB)
-
-	fmt.Fprintf(&fe.emitter.buf, "%s:\n", readyBB)
-	failfastVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i1, ptr %s\n", failfastVal, failfastPtr)
-	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(ins.JoinAll.Dst)
-	if err != nil {
-		return err
-	}
-	if dstTy != "i1" {
-		dstTy = "i1"
-	}
-	fe.emitValueStore(dstTy, failfastVal, ptr, dstAlign)
-	fmt.Fprintf(&fe.emitter.buf, "  br label %%bb%d\n", ins.JoinAll.ReadyBB)
-
-	fe.blockTerminated = true
-	return nil
-}
-
 func (fe *funcEmitter) emitInstrTimeout(ins *mir.Instr) error {
 	if ins == nil {
 		return nil

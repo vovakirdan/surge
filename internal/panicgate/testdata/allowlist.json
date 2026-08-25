@@ -70,11 +70,6 @@
       "group": "PG-OPERAND-RANGE"
     },
     {
-      "site": "internal/backend/llvm/emit_async.go::emitBlockingDispatch#1",
-      "message": "missing blocking function",
-      "group": "PG-INVARIANT"
-    },
-    {
       "site": "internal/backend/llvm/emit_async.go::emitInstrSelect#1",
       "message": "timeout duration out of range",
       "group": "PG-OPERAND-RANGE"
@@ -87,6 +82,11 @@
     {
       "site": "internal/backend/llvm/emit_async.go::emitPollDispatch#1",
       "message": "missing poll function",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "internal/backend/llvm/emit_blocking_dispatch.go::emitBlockingDispatch#1",
+      "message": "missing blocking function",
       "group": "PG-INVARIANT"
     },
     {

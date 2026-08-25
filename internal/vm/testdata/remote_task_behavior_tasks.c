@@ -4,6 +4,7 @@
 #include "remote_task_behavior.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -208,12 +209,17 @@ _Atomic uint64_t rtb_drop_calls;
 _Atomic uint64_t rtb_drop_last_id;
 _Atomic(void*) rtb_drop_last_state;
 
+// A row's shipped state box. Allocation failure aborts rather than being
+// threaded through every row: a stand that cannot allocate has nothing to
+// measure, and the rows read better without a branch none of them exercises.
 rtb_shipped_state* rtb_shipped_state_new(uint64_t mark) {
     rtb_shipped_state* box =
         (rtb_shipped_state*)rt_alloc(sizeof(rtb_shipped_state), _Alignof(rtb_shipped_state));
-    if (box != NULL) {
-        box->mark = mark;
+    if (box == NULL) {
+        fputs("shipped state box alloc failed\n", stderr);
+        exit(97);
     }
+    box->mark = mark;
     return box;
 }
 
