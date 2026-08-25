@@ -9,9 +9,11 @@ static int run_publish(uint32_t wanted_dst, int stale) {
     rt_executor* ex = ensure_exec();
     remote_child_state child;
     memset(&child, 0, sizeof(child));
+    remote_state_box* box = remote_child_box(&child);
+    if (box == NULL) return fail("child state box alloc failed");
     remote_publish_state st;
     memset(&st, 0, sizeof(st));
-    st.child = &child;
+    st.child = box;
     st.dst = pin_shard(ex, wanted_dst);
     if (!await_parent(&st)) return fail("publisher await failed");
     if (st.status != RT_REMOTE_SPAWN_STATUS_OK) return fail("publish did not return OK");
@@ -52,9 +54,11 @@ static int run_queue_full(void) {
     rt_executor* ex = ensure_exec();
     remote_child_state child;
     memset(&child, 0, sizeof(child));
+    remote_state_box* box = remote_child_box(&child);
+    if (box == NULL) return fail("child state box alloc failed");
     remote_publish_state st;
     memset(&st, 0, sizeof(st));
-    st.child = &child;
+    st.child = box;
     st.dst = 0;
     st.fill_queue = 1;
     if (!await_parent(&st)) return fail("queue-full publisher await failed");
@@ -102,9 +106,11 @@ static int run_shutdown_queued_kinds(void) {
 static int run_shutdown(void) {
     remote_child_state child;
     memset(&child, 0, sizeof(child));
+    remote_state_box* box = remote_child_box(&child);
+    if (box == NULL) return fail("child state box alloc failed");
     remote_publish_state st;
     memset(&st, 0, sizeof(st));
-    st.child = &child;
+    st.child = box;
     st.dst = 0;
     st.shutdown_first = 1;
     if (!await_parent(&st)) return fail("shutdown publisher await failed");
@@ -122,14 +128,16 @@ static int run_refusal_drop(int shutdown_first) {
     rt_executor* ex = ensure_exec();
     remote_child_state child;
     memset(&child, 0, sizeof(child));
+    remote_state_box* box = remote_child_box(&child);
+    if (box == NULL) return fail("child state box alloc failed");
     remote_publish_state st;
     memset(&st, 0, sizeof(st));
-    st.child = &child;
+    st.child = box;
     st.dst = 0;
     st.fill_queue = shutdown_first ? 0 : 1;
     st.shutdown_first = shutdown_first ? 1 : 0;
     st.droppable = 1;
-    drop_expected_state = &child;
+    drop_expected_state = box;
     if (!await_parent(&st)) return fail("refusal publisher await failed");
     rt_remote_spawn_status want = shutdown_first ? RT_REMOTE_SPAWN_STATUS_DESTINATION_SHUTDOWN
                                                  : RT_REMOTE_SPAWN_STATUS_QUEUE_FULL;
@@ -156,13 +164,15 @@ static int run_abandon_window(rt_sync_point_id window) {
     rt_executor* ex = ensure_exec();
     remote_child_state child;
     memset(&child, 0, sizeof(child));
+    remote_state_box* box = remote_child_box(&child);
+    if (box == NULL) return fail("child state box alloc failed");
     remote_publish_state st;
     memset(&st, 0, sizeof(st));
-    st.child = &child;
+    st.child = box;
     st.dst = pin_shard(ex, 1);
     st.droppable = 1;
     st.abandon_mode = 1;
-    drop_expected_state = &child;
+    drop_expected_state = box;
     void* publisher = __task_create(POLL_REMOTE_PUBLISHER, &st, rt_channel_opaque_word_ops());
     if (publisher == NULL) return fail("publisher task create failed");
     if (!wait_reached(window, 5000)) return fail("armed window was never reached");
@@ -214,12 +224,14 @@ static int run_ack_rescue_drain(void) {
     rt_executor* ex = ensure_exec();
     remote_child_state child;
     memset(&child, 0, sizeof(child));
+    remote_state_box* box = remote_child_box(&child);
+    if (box == NULL) return fail("child state box alloc failed");
     remote_publish_state st;
     memset(&st, 0, sizeof(st));
-    st.child = &child;
+    st.child = box;
     st.dst = 0;
     st.droppable = 1;
-    drop_expected_state = &child;
+    drop_expected_state = box;
     ack_failure_driver drv;
     memset(&drv, 0, sizeof(drv));
     drv.ex = ex;
@@ -257,12 +269,14 @@ static int run_stale_request_before_body(void) {
     rt_executor* ex = ensure_exec();
     remote_child_state child;
     memset(&child, 0, sizeof(child));
+    remote_state_box* box = remote_child_box(&child);
+    if (box == NULL) return fail("child state box alloc failed");
     remote_publish_state st;
     memset(&st, 0, sizeof(st));
-    st.child = &child;
+    st.child = box;
     st.dst = pin_shard(ex, 1);
     st.droppable = 1;
-    drop_expected_state = &child;
+    drop_expected_state = box;
     void* publisher = __task_create(POLL_REMOTE_PUBLISHER, &st, rt_channel_opaque_word_ops());
     if (publisher == NULL) return fail("publisher task create failed");
     if (!wait_reached(RT_SYNC_POINT_SP_REMOTE_SPAWN_BEFORE_DISPATCH, 5000)) {
@@ -294,12 +308,14 @@ static int run_stale_redelivery(int redeliver_ack) {
     rt_executor* ex = ensure_exec();
     remote_child_state child;
     memset(&child, 0, sizeof(child));
+    remote_state_box* box = remote_child_box(&child);
+    if (box == NULL) return fail("child state box alloc failed");
     remote_publish_state st;
     memset(&st, 0, sizeof(st));
-    st.child = &child;
+    st.child = box;
     st.dst = pin_shard(ex, 1);
     st.droppable = 1;
-    drop_expected_state = &child;
+    drop_expected_state = box;
     void* publisher = __task_create(POLL_REMOTE_PUBLISHER, &st, rt_channel_opaque_word_ops());
     if (publisher == NULL) return fail("publisher task create failed");
     if (!wait_reached(RT_SYNC_POINT_SP_REMOTE_SPAWN_BEFORE_ACK, 5000)) {

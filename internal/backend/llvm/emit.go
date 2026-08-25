@@ -85,7 +85,6 @@ type Emitter struct {
 	// Crossing states that ship with a drop obligation: the crossing
 	// body's FuncID doubles as the drop-fn id, and the dispatch routes
 	// it to the state struct's recursive glue (emit_async.go).
-	crossingDropStates map[mir.FuncID]types.TypeID
 	// Remote-body RESULT payload types that ship over the reply edge with
 	// an owner-side drop obligation (RV2-DEBT-053a). Keyed by the result
 	// payload TypeID (its own id space, distinct from state's FuncID
@@ -93,8 +92,6 @@ type Emitter struct {
 	// array — needing full value-drop, not just struct-box glue. The
 	// dispatch (__surge_drop_result_call) routes the id to the value's
 	// drop wrapper (emit_async.go).
-	crossingDropResults  map[types.TypeID]struct{}
-	dropResultGlueNeeded map[types.TypeID]struct{}
 	// Suspend-point/scope-join state boxes a cancellation may abandon with
 	// nothing left to unpack them (the abandoned-suspend-state fix). Keyed
 	// by the state struct's own TypeID (its own id space, like results, not
@@ -105,12 +102,10 @@ type Emitter struct {
 	// inert/Copy), so every registration always needs an arm. The dispatch
 	// (__surge_drop_abandoned_state_call) routes the id to the frame
 	// release below (emit_async.go).
-	abandonedStateDrops map[types.TypeID]struct{}
 	// Values the runtime holds in an allocation of its own — an unadopted
 	// transport payload, a crossing state that was never shipped — need one
 	// entry point that releases what the value owns AND the allocation
 	// carrying it. See emit_transport_allocation.go.
-	runtimeOwnedReleaseNeeded map[types.TypeID]struct{}
 	// Result payload types a cloned task handle must be served a copy of. See
 	// emit_copy_result_glue.go.
 	// An ABANDONED async frame is released rather than dropped: the storage

@@ -296,8 +296,8 @@ void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind) {
 // taken this branch once), so there is no overwrite/re-entry hazard to guard
 // against; mark_done is the sole consumer, exactly once, on every path that
 // can reach it.
-static void stash_abandoned_state(void* state, uint64_t state_drop_fn_id) {
-    if (state_drop_fn_id == 0) {
+static void stash_abandoned_state(void* state, uint64_t state_type_id) {
+    if (state_type_id == 0) {
         return;
     }
     rt_task* current = rt_current_task();
@@ -305,17 +305,17 @@ static void stash_abandoned_state(void* state, uint64_t state_drop_fn_id) {
         return;
     }
     current->abandoned_state = state;
-    current->abandoned_state_drop_fn_id = state_drop_fn_id;
+    current->abandoned_state_type_id = state_type_id;
 }
 
-void rt_async_yield(void* state, uint64_t state_drop_fn_id) {
+void rt_async_yield(void* state, uint64_t state_type_id) {
     if (!poll_active || poll_env == NULL) {
         panic_msg("async_yield outside poll");
         return;
     }
     poll_result.state = state;
     if (current_task_cancelled(&exec_state)) {
-        stash_abandoned_state(state, state_drop_fn_id);
+        stash_abandoned_state(state, state_type_id);
         poll_result.kind = POLL_DONE_CANCELLED;
         poll_result.park_key = waker_none();
         pending_key = waker_none();
@@ -369,7 +369,7 @@ void rt_async_return(void* state, void* src) {
     longjmp(*poll_env, 1);
 }
 
-void rt_async_return_cancelled(void* state, uint64_t state_drop_fn_id) {
+void rt_async_return_cancelled(void* state, uint64_t state_type_id) {
     if (!poll_active || poll_env == NULL) {
         panic_msg("async_cancel outside poll");
         return;
@@ -378,6 +378,6 @@ void rt_async_return_cancelled(void* state, uint64_t state_drop_fn_id) {
     poll_result.kind = POLL_DONE_CANCELLED;
     poll_result.park_key = waker_none();
     pending_key = waker_none();
-    stash_abandoned_state(state, state_drop_fn_id);
+    stash_abandoned_state(state, state_type_id);
     longjmp(*poll_env, 1);
 }

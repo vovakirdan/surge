@@ -91,4 +91,23 @@ uint64_t rt_value_cell_generation(const rt_value_cell* cell);
 // the element's drop, so no runtime lock may be held.
 void rt_value_cell_dispose(rt_value_cell* cell);
 
+// Destroys a heap allocation the runtime holds ONE of, and frees it: the
+// members through the type's own drop, then the storage at the width and
+// alignment that type asks for.
+//
+// This is what a numeric drop-fn id used to buy. The id named a generated
+// function that did both halves; the descriptor names the same drop and states
+// the layout, so the runtime performs the free itself and no dispatch table
+// stands between a value and its own destructor. A NULL descriptor or pointer
+// is a no-op -- an obligation that was never taken on.
+void rt_value_release_owned_block(const rt_value_ops* operations, void* storage);
+
+// The same release, deferred until this lane holds no scheduler lock.
+//
+// It is what a caller uses when it is holding one and cannot let go -- the
+// completion path that clears a task's abandoned state runs under control, and
+// the drop it owes runs generated code. The work is handed to the lane, which
+// performs it at the moment it becomes free.
+void rt_release_owned_block_when_unlocked(const rt_value_ops* operations, void* storage);
+
 #endif

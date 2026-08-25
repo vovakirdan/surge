@@ -50,7 +50,7 @@ typedef struct rtb_publish_state {
     rt_far_task_handle* handle;
     void* task_state;
     uint64_t poll_id;
-    uint64_t result_drop_fn_id;
+    uint64_t result_type_id;
     uint32_t destination;
     uint32_t return_handle;
     _Atomic uint32_t saw_pending;
@@ -69,6 +69,19 @@ typedef struct rtb_lifecycle_state {
     uint8_t result_kind;
     uint64_t result_bits;
 } rtb_lifecycle_state;
+
+// The type id these rows name their shipped state by. The runtime turns it
+// into the descriptor below through __surge_value_ops_for.
+enum { RTB_DROP_MARK_ID = 42 };
+
+// A shipped state's box: what these rows hand a crossing, and what the runtime
+// gives back through the type's descriptor when the crossing is abandoned. It
+// is a real allocation because that is what a compiled state box is.
+typedef struct rtb_shipped_state {
+    uint64_t mark;
+} rtb_shipped_state;
+
+rtb_shipped_state* rtb_shipped_state_new(uint64_t mark);
 
 extern _Atomic uint64_t rtb_drop_calls;
 extern _Atomic uint64_t rtb_drop_last_id;

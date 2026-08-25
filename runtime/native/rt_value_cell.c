@@ -128,3 +128,12 @@ void rt_value_cell_dispose(rt_value_cell* cell) {
     cell->operations = NULL;
     cell->state = RT_SLOT_EMPTY;
 }
+
+void rt_value_release_owned_block(const rt_value_ops* operations, void* storage) {
+    if (operations == NULL || storage == NULL) {
+        return;
+    }
+    rt_value_drop_in_place_detached(operations, storage);
+    size_t align = operations->layout.align == 0 ? 1 : operations->layout.align;
+    rt_free((uint8_t*)storage, operations->layout.size, align);
+}

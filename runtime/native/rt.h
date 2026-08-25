@@ -348,11 +348,11 @@ int64_t rt_select_poll(uint64_t count,
                        void* const* values,
                        const uint64_t* ms,
                        int64_t default_index);
-void rt_async_yield(void* state, uint64_t state_drop_fn_id);
+void rt_async_yield(void* state, uint64_t state_type_id);
 // Completes the current task, moving the value at `src` into the task's own
 // result slot. NULL src is a task that produces no value.
 void rt_async_return(void* state, void* src);
-void rt_async_return_cancelled(void* state, uint64_t state_drop_fn_id);
+void rt_async_return_cancelled(void* state, uint64_t state_type_id);
 
 void* rt_channel_new(uint64_t capacity, const rt_value_ops* ops, uint64_t element_type_id);
 const rt_value_ops* rt_channel_opaque_word_ops(void);

@@ -279,7 +279,10 @@ static void poll_join_waiter(void) {
     uint64_t bits = 0;
     uint8_t status = rt_task_poll(target, &bits);
     if (status == 0) {
-        rt_async_yield(target, POLL_CANCELLED_JOIN_WAITER);
+        // The state is the target HANDLE, borrowed, not a box this task owns:
+        // a cancellation that abandons this frame has nothing here to reclaim,
+        // and saying otherwise would hand the runtime a task pointer to free.
+        rt_async_yield(target, 0);
     }
     rt_async_return(NULL, &(uint64_t){status == 1 ? bits : 0});
 }

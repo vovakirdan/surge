@@ -43,7 +43,7 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anc
                                             void* const* send_values,
                                             const uint64_t* payload_type_ids,
                                             uint64_t count,
-                                            uint64_t state_drop_fn_id,
+                                            uint64_t state_type_id,
                                             int64_t poll_fn_id,
                                             void* state,
                                             rt_remote_task_pending** pending,

@@ -1,4 +1,5 @@
 #include "remote_task_behavior.h"
+#include "rt_value_ops.h"
 
 #include <string.h>
 
@@ -49,10 +50,15 @@ rtb_caller_abandon_new_pending(rt_executor* ex, rt_remote_task_op op, uint64_t c
     return pending;
 }
 
-// Row: a landed AWAIT reply nobody consumed -- the reply already resolved
-// (result_bits set, refs already dropped to the caller's own last
-// reference by an earlier dispatch_reply) -- is reclaimed exactly once when
-// the caller-teardown sweep releases that last reference.
+// Row: a landed AWAIT reply nobody consumed is reclaimed exactly once when the
+// caller-teardown sweep releases the pending's last reference.
+//
+// What "nobody consumed" means changed with the reply itself. The reply used to
+// CARRY the value as a word, and the pending destroyed it. It NAMES the
+// producer's result now -- a capability plus a pin -- so the pending releases
+// the pin instead, and the producer's own slot destroys what it still holds,
+// exactly once, where it always did. This row drives that: it pins a real
+// producer's result, abandons the pending, and asks the producer.
 int rtb_mode_caller_abandon_drops_landed_result(void) {
     rt_executor* ex = ensure_exec();
     rtb_caller_abandon_reset();
@@ -60,36 +66,54 @@ int rtb_mode_caller_abandon_drops_landed_result(void) {
     if (caller == NULL) {
         return rtb_fail("caller-abandon-drop: caller task creation failed");
     }
+    rt_task* producer = NULL;
+    if (rt_remote_spawn_create_body_task(
+            ex, POLL_RTB_DROP_BODY, NULL, 0, RTB_DROP_MARK_ID, &producer) !=
+            RT_REMOTE_SPAWN_STATUS_OK ||
+        producer == NULL) {
+        return rtb_fail("caller-abandon-drop: producer creation failed");
+    }
+    // A published result the producer still owns: the value the pin protects.
+    void* destination = rt_value_cell_publish_storage(&producer->result);
+    if (destination == NULL) {
+        return rtb_fail("caller-abandon-drop: producer result storage missing");
+    }
+    rtb_shipped_state published = {RTB_DROP_MARK_ID};
+    rt_value_move_init_detached(producer->result.operations, destination, &published);
+    if (rt_value_cell_commit(&producer->result) != RT_SLOT_CONTROL_OK) {
+        return rtb_fail("caller-abandon-drop: producer result publish failed");
+    }
+    producer->result_kind = TASK_RESULT_SUCCESS;
+    task_status_store(producer, TASK_DONE);
+
     rt_remote_task_pending* pending =
         rtb_caller_abandon_new_pending(ex, RT_REMOTE_TASK_OP_AWAIT, caller->id);
     if (pending == NULL) {
         return rtb_fail("caller-abandon-drop: pending creation failed");
     }
-    void* block = rt_alloc(RTB_RESULT_BLOCK_SIZE, RTB_RESULT_BLOCK_ALIGN);
-    if (block == NULL) {
-        return rtb_fail("caller-abandon-drop: block alloc failed");
-    }
     pending->result_kind = 1;
-    pending->result_bits = (uint64_t)(uintptr_t)block;
-    pending->result_drop_fn_id = RTB_CALLER_ABANDON_MARK_ID;
-    // pending_new leaves refs at 1 (the caller's own slot) -- this row
-    // models "the reply already landed and dispatch_reply already
-    // released its own ref", so no extra add_ref here: the sweep's
-    // release is the LAST one.
-    rt_remote_task_release_owned(ex, caller);
-    if (atomic_load_explicit(&rtb_result_drop_calls, memory_order_acquire) != 1) {
-        return rtb_fail("caller-abandon-drop: result not dropped exactly once");
+    pending->result_source = rt_remote_task_pin_result(producer);
+    if (pending->result_source.task_id != producer->id) {
+        return rtb_fail("caller-abandon-drop: the reply named no producer result");
     }
-    if (atomic_load_explicit(&rtb_result_drop_last_id, memory_order_acquire) !=
-            RTB_CALLER_ABANDON_MARK_ID ||
-        atomic_load_explicit(&rtb_result_drop_last_value, memory_order_acquire) != block) {
-        return rtb_fail("caller-abandon-drop: drop carried the wrong id or value");
+    // pending_new leaves refs at 1 (the caller's own slot) -- this row models
+    // "the reply already landed and dispatch_reply already released its own
+    // ref", so no extra add_ref here: the sweep's release is the LAST one.
+    rt_remote_task_release_owned(ex, caller);
+    if (atomic_load_explicit(&rtb_drop_calls, memory_order_acquire) != 0) {
+        return rtb_fail("caller-abandon-drop: an abandoned reply must not destroy the result");
+    }
+    // Releasing the pin is what lets the producer be freed, and its own slot
+    // destroys what it still holds on the way out -- exactly once.
+    task_release_lane_aware(ex, producer);
+    if (atomic_load_explicit(&rtb_drop_calls, memory_order_acquire) != 1) {
+        return rtb_fail("caller-abandon-drop: result not dropped exactly once");
     }
     (void)rt_executor_request_shutdown(ex);
     return 0;
 }
 
-// Negative control: a Copy result (result_drop_fn_id 0) never reaches the
+// Negative control: a Copy result (result_type_id 0) never reaches the
 // drop dispatch, even when abandoned.
 int rtb_mode_caller_abandon_copy_inert(void) {
     rt_executor* ex = ensure_exec();
@@ -105,7 +129,7 @@ int rtb_mode_caller_abandon_copy_inert(void) {
     }
     pending->result_kind = 1;
     pending->result_bits = 42; // inert Copy bits, not a heap pointer
-    pending->result_drop_fn_id = 0;
+    pending->result_type_id = 0;
     rt_remote_task_release_owned(ex, caller);
     if (atomic_load_explicit(&rtb_result_drop_calls, memory_order_acquire) != 0) {
         return rtb_fail("caller-abandon-copy-inert: inert Copy result reached the drop dispatch");
@@ -136,13 +160,13 @@ int rtb_mode_caller_abandon_consumed_no_double_drop(void) {
     }
     pending->result_kind = 1;
     pending->result_bits = (uint64_t)(uintptr_t)block;
-    pending->result_drop_fn_id = RTB_CALLER_ABANDON_MARK_ID;
+    pending->result_type_id = RTB_CALLER_ABANDON_MARK_ID;
     // Simulate finish_retry's own clear-before-consume ordering: ownership
     // already moved to the caller, which frees the value itself. The store
     // looks redundant to an analyser and is the POINT of this stand: it pins
     // that the clear happens, in this order, whatever the field held before.
     // cppcheck-suppress redundantAssignment
-    pending->result_drop_fn_id = 0;
+    pending->result_type_id = 0;
     rt_free((uint8_t*)block, RTB_RESULT_BLOCK_SIZE, RTB_RESULT_BLOCK_ALIGN);
     rt_remote_task_release_owned(ex, caller);
     if (atomic_load_explicit(&rtb_result_drop_calls, memory_order_acquire) != 0) {

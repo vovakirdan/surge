@@ -192,7 +192,7 @@ dispatch path in the same commit.
 | D4 | Task canonical result/resume and cloned result entitlements. **D4a (typed result slot, near and far) CLOSED 2026-08-25**; D4b (entitlements) open | D0; may run beside D3 only once their production files do not overlap |
 | D5 | REMOTE select only — `rt_far_channel_select.c`. Local `select` moved into D3 by the 2026-08-19 ruling below. **CLOSED 2026-08-25** | D3 |
 | D6 | Blocking captures/results and every cancellation timing. **RESULTS CLOSED 2026-08-25**; captures and cancellation timing open | D3, D4 |
-| D7 | Async frames, captures, polling, wake, normal/shutdown drains | D4 |
+| D7 | Async frames, captures, polling, wake, normal/shutdown drains. **STATE CARRIAGE CLOSED 2026-08-25** (numeric drop dispatch gone); frame storage inversion open | D4 |
 | D8 | RV2-DEBT-151 retirement — local **and** FAR **and** CROSSING (ruling 8) | D1–D7 |
 
 Worktree rule, from §5: task/channel/select/blocking may be separate worktrees

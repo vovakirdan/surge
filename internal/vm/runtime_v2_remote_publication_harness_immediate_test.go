@@ -9,14 +9,16 @@ static int run_immediate_refusal_drop(int shutdown_first) {
     rt_executor* ex = ensure_exec();
     remote_child_state child;
     memset(&child, 0, sizeof(child));
+    remote_state_box* box = remote_child_box(&child);
+    if (box == NULL) return fail("child state box alloc failed");
     immediate_exec_state st;
     memset(&st, 0, sizeof(st));
-    st.child = &child;
+    st.child = box;
     st.placement = rt_placement_shard(0);
     st.fill_queue = shutdown_first ? 0 : 1;
     st.shutdown_first = shutdown_first ? 1 : 0;
     st.droppable = 1;
-    drop_expected_state = &child;
+    drop_expected_state = box;
     if (!await_immediate(&st)) return fail("immediate refusal await failed");
     rt_remote_task_status want = shutdown_first ? RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN
                                                 : RT_REMOTE_TASK_STATUS_QUEUE_FULL;
@@ -45,12 +47,14 @@ static int run_immediate_cancel(rt_sync_point_id window, int expect_body) {
     rt_executor* ex = ensure_exec();
     remote_child_state child;
     memset(&child, 0, sizeof(child));
+    remote_state_box* box = remote_child_box(&child);
+    if (box == NULL) return fail("child state box alloc failed");
     immediate_exec_state st;
     memset(&st, 0, sizeof(st));
-    st.child = &child;
+    st.child = box;
     st.placement = rt_placement_shard(pin_shard(ex, 1));
     st.droppable = 1;
-    drop_expected_state = &child;
+    drop_expected_state = box;
     void* caller = __task_create(POLL_IMMEDIATE_CALLER, &st, rt_channel_opaque_word_ops());
     if (caller == NULL) return fail("immediate caller create failed");
     if (!wait_reached(window, 5000)) return fail("immediate window was never reached");
@@ -93,13 +97,15 @@ static int run_immediate_redelivery(int redeliver_reply) {
     rt_executor* ex = ensure_exec();
     remote_child_state child;
     memset(&child, 0, sizeof(child));
+    remote_state_box* box = remote_child_box(&child);
+    if (box == NULL) return fail("child state box alloc failed");
     immediate_exec_state st;
     memset(&st, 0, sizeof(st));
-    st.child = &child;
+    st.child = box;
     uint32_t dst = pin_shard(ex, 1);
     st.placement = rt_placement_shard(dst);
     st.droppable = 1;
-    drop_expected_state = &child;
+    drop_expected_state = box;
     void* caller = __task_create(POLL_IMMEDIATE_CALLER, &st, rt_channel_opaque_word_ops());
     if (caller == NULL) return fail("immediate caller create failed");
     if (!wait_reached(RT_SYNC_POINT_SP_IMMEDIATE_ON_BEFORE_PUBLISH, 5000)) {
@@ -235,12 +241,14 @@ static int run_anchored_stale_anchor(void) {
     rt_executor* ex = ensure_exec();
     remote_child_state child;
     memset(&child, 0, sizeof(child));
+    remote_state_box* box = remote_child_box(&child);
+    if (box == NULL) return fail("child state box alloc failed");
     immediate_exec_state st;
     memset(&st, 0, sizeof(st));
-    st.child = &child;
+    st.child = box;
     st.droppable = 1;
     st.anchored = 1;
-    drop_expected_state = &child;
+    drop_expected_state = box;
 
     rt_far_task_handle anchor = {0};
     if (!mint_anchor(ex, 0, &anchor)) return fail("anchor mint failed");
@@ -277,12 +285,14 @@ static int run_anchored_happy_path(void) {
     rt_executor* ex = ensure_exec();
     remote_child_state child;
     memset(&child, 0, sizeof(child));
+    remote_state_box* box = remote_child_box(&child);
+    if (box == NULL) return fail("child state box alloc failed");
     immediate_exec_state st;
     memset(&st, 0, sizeof(st));
-    st.child = &child;
+    st.child = box;
     st.droppable = 1;
     st.anchored = 1;
-    drop_expected_state = &child;
+    drop_expected_state = box;
 
     uint32_t dst = pin_shard(ex, 1);
     rt_far_task_handle anchor = {0};
@@ -318,12 +328,14 @@ static int run_anchored_cancel_bound(void) {
     rt_executor* ex = ensure_exec();
     remote_child_state child;
     memset(&child, 0, sizeof(child));
+    remote_state_box* box = remote_child_box(&child);
+    if (box == NULL) return fail("child state box alloc failed");
     immediate_exec_state st;
     memset(&st, 0, sizeof(st));
-    st.child = &child;
+    st.child = box;
     st.droppable = 1;
     st.anchored = 1;
-    drop_expected_state = &child;
+    drop_expected_state = box;
 
     uint32_t dst = pin_shard(ex, 1);
     rt_far_task_handle anchor = {0};
@@ -366,12 +378,14 @@ static int run_anchored_cancel_unbound(void) {
     rt_executor* ex = ensure_exec();
     remote_child_state child;
     memset(&child, 0, sizeof(child));
+    remote_state_box* box = remote_child_box(&child);
+    if (box == NULL) return fail("child state box alloc failed");
     immediate_exec_state st;
     memset(&st, 0, sizeof(st));
-    st.child = &child;
+    st.child = box;
     st.droppable = 1;
     st.anchored = 1;
-    drop_expected_state = &child;
+    drop_expected_state = box;
 
     uint32_t dst = pin_shard(ex, 1);
     rt_far_task_handle anchor = {0};

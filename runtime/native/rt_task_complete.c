@@ -12,6 +12,7 @@
 #include "rt_async_internal.h"
 #include "rt_remote_task.h"
 #include "rt_sync_point.h"
+#include "rt_value_cell.h"
 
 void clear_select_timers(rt_executor* ex, rt_task* task) {
     if (ex == NULL || task == NULL || task->select_timers_len == 0) {
@@ -237,10 +238,13 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind) {
     // this same route). Every completion funnels through mark_done exactly
     // once per task, regardless of how many scope-drain re-parks deferred
     // getting here, so this is the one place that can drop it exactly once.
-    if (task->abandoned_state_drop_fn_id != 0) {
-        __surge_drop_abandoned_state_call(task->abandoned_state_drop_fn_id, task->abandoned_state);
+    if (task->abandoned_state_type_id != 0) {
+        // Deferred, not immediate: this runs holding control, and destroying
+        // the box runs the state type's generated drop.
+        rt_release_owned_block_when_unlocked(
+            rt_channel_element_ops_for(task->abandoned_state_type_id), task->abandoned_state);
         task->abandoned_state = NULL;
-        task->abandoned_state_drop_fn_id = 0;
+        task->abandoned_state_type_id = 0;
     }
     rt_far_task_release_owned(ex, task);
     rt_immediate_on_release_owned(ex, task);

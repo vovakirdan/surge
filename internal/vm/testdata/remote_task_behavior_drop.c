@@ -9,8 +9,6 @@
 // request before a body exists destructs the shipped state exactly once
 // through __surge_drop_call, and the successful handoff never does.
 
-enum { RTB_DROP_MARK_ID = 42 };
-
 // The shipped body: trivial and state-agnostic — the drop rows prove the
 // PENDING lifecycle, and a body that runs treats the shipped state as
 // borrowed bits.
@@ -39,7 +37,7 @@ typedef struct rtb_drop_state {
     // One address per arm, pointing into `bits`: a SEND payload travels by
     // address now, moved out of the caller's storage and back into it.
     void* addrs[2];
-    uint64_t shipped_mark;
+    rtb_shipped_state* shipped_mark;
     rt_remote_task_status status;
     uint8_t result_kind;
     uint64_t result_bits;
@@ -52,7 +50,7 @@ static void poll_rtb_drop_execute(rtb_drop_state* state) {
                                             RTB_DROP_MARK_ID,
                                             0,
                                             (int64_t)POLL_RTB_DROP_BODY,
-                                            &state->shipped_mark,
+                                            state->shipped_mark,
                                             &state->pending,
                                             &kind,
                                             &bits);
@@ -73,7 +71,7 @@ static void poll_rtb_drop_anchored_recv(rtb_drop_state* state) {
                                                      RTB_DROP_MARK_ID,
                                                      0,
                                                      (int64_t)POLL_RTB_DROP_RECV_BODY,
-                                                     &state->shipped_mark,
+                                                     state->shipped_mark,
                                                      &state->pending,
                                                      &kind,
                                                      &bits);
@@ -102,7 +100,7 @@ static void poll_rtb_drop_anchored(rtb_drop_state* state) {
                                                      RTB_DROP_MARK_ID,
                                                      0,
                                                      (int64_t)POLL_RTB_DROP_BODY,
-                                                     &state->shipped_mark,
+                                                     state->shipped_mark,
                                                      &state->pending,
                                                      &kind,
                                                      &bits);
@@ -123,7 +121,7 @@ static void poll_rtb_drop_select(rtb_drop_state* state) {
                                           2,
                                           RTB_DROP_MARK_ID,
                                           (int64_t)POLL_RTB_DROP_BODY,
-                                          &state->shipped_mark,
+                                          state->shipped_mark,
                                           &state->pending,
                                           &state->result_kind,
                                           &state->result_bits);
@@ -179,7 +177,7 @@ static int rtb_drop_expect_exactly_once(const rtb_drop_state* state, const char*
     }
     if (atomic_load_explicit(&rtb_drop_last_id, memory_order_acquire) != RTB_DROP_MARK_ID ||
         (uintptr_t)atomic_load_explicit(&rtb_drop_last_state, memory_order_acquire) !=
-            (uintptr_t)&state->shipped_mark) {
+            (uintptr_t)state->shipped_mark) {
         rtb_fail(label);
         return rtb_fail("drop carried the wrong id or state");
     }
@@ -193,6 +191,10 @@ int rtb_mode_drop_invalid_placement(void) {
     rtb_drop_reset();
     static rtb_drop_state state;
     memset(&state, 0, sizeof(state));
+    state.shipped_mark = rtb_shipped_state_new(RTB_DROP_MARK_ID);
+    if (state.shipped_mark == NULL) {
+        return rtb_fail("shipped state box alloc failed");
+    }
     state.placement = rt_placement_shard(7);
     void* caller = __task_create(POLL_RTB_DROP_EXECUTE, &state, rt_channel_opaque_word_ops());
     uint8_t kind = 0;
@@ -220,6 +222,10 @@ int rtb_mode_drop_stale_anchor(void) {
     }
     static rtb_drop_state state;
     memset(&state, 0, sizeof(state));
+    state.shipped_mark = rtb_shipped_state_new(RTB_DROP_MARK_ID);
+    if (state.shipped_mark == NULL) {
+        return rtb_fail("shipped state box alloc failed");
+    }
     state.anchor = minted.handle;
     void* caller = __task_create(POLL_RTB_DROP_ANCHORED, &state, rt_channel_opaque_word_ops());
     uint8_t kind = 0;
@@ -245,6 +251,10 @@ int rtb_mode_drop_queue_full(void) {
     }
     static rtb_drop_state state;
     memset(&state, 0, sizeof(state));
+    state.shipped_mark = rtb_shipped_state_new(RTB_DROP_MARK_ID);
+    if (state.shipped_mark == NULL) {
+        return rtb_fail("shipped state box alloc failed");
+    }
     state.anchor = minted.handle;
     state.flood_destination = 1;
     void* caller = __task_create(POLL_RTB_DROP_ANCHORED, &state, rt_channel_opaque_word_ops());
@@ -272,6 +282,10 @@ int rtb_mode_drop_select_mixed_owners(void) {
     }
     static rtb_drop_state state;
     memset(&state, 0, sizeof(state));
+    state.shipped_mark = rtb_shipped_state_new(RTB_DROP_MARK_ID);
+    if (state.shipped_mark == NULL) {
+        return rtb_fail("shipped state box alloc failed");
+    }
     state.anchor_slots[0] = chan_a.handle;
     state.anchor_slots[1] = chan_b.handle;
     state.anchors[0] = &state.anchor_slots[0];
@@ -300,6 +314,10 @@ int rtb_mode_drop_handoff_not_dropped(void) {
     rtb_drop_reset();
     static rtb_drop_state state;
     memset(&state, 0, sizeof(state));
+    state.shipped_mark = rtb_shipped_state_new(RTB_DROP_MARK_ID);
+    if (state.shipped_mark == NULL) {
+        return rtb_fail("shipped state box alloc failed");
+    }
     state.placement = rt_placement_shard(1);
     uint8_t kind = 0;
     uint64_t bits = 0;
@@ -329,6 +347,10 @@ int rtb_mode_drop_bound_cancel_no_pending_drop(void) {
     }
     static rtb_drop_state state;
     memset(&state, 0, sizeof(state));
+    state.shipped_mark = rtb_shipped_state_new(RTB_DROP_MARK_ID);
+    if (state.shipped_mark == NULL) {
+        return rtb_fail("shipped state box alloc failed");
+    }
     state.anchor = minted.handle;
     // The anchored recv body parks on the empty channel, so the request is
     // provably bound and suspended when the cancel lands.
@@ -396,7 +418,7 @@ enum { RTB_RESULT_DROP_MARK_ID = 53 };
 // The result descriptor these rows drive free_task with: one machine word
 // holding a heap block, whose drop frees it and is counted.
 //
-// It is what result_drop_fn_id used to say. The obligation travels with the
+// It is what result_type_id used to say. The obligation travels with the
 // value's TYPE now rather than in a number beside it, so the row that proves
 // "an unconsumed result is destroyed exactly once" drives the same behaviour
 // through the descriptor the task was created with.
@@ -494,7 +516,7 @@ int rtb_mode_result_owner_release(void) {
     return 0;
 }
 
-// Negative control: a Copy result keeps result_drop_fn_id 0, so inert bits are
+// Negative control: a Copy result keeps result_type_id 0, so inert bits are
 // never handed to the result-drop dispatch.
 int rtb_mode_result_copy_inert(void) {
     rt_executor* ex = ensure_exec();

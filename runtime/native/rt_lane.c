@@ -80,6 +80,15 @@ static void lane_run_deferred(void) {
     }
 }
 
+// Runs the deferred work now, for a lane that is about to stop existing: a
+// worker thread on its way out holds no lock and owns a queue nobody else can
+// reach, so what it deferred has to be done here or not at all.
+void rt_lane_run_deferred_now(void) {
+    if (!lane_state.holds_control && !rt_lane_holds_any_shard()) {
+        lane_run_deferred();
+    }
+}
+
 void rt_control_unlock(rt_executor* ex) {
     if (ex == NULL) {
         return;

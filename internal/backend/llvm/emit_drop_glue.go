@@ -5,7 +5,6 @@ import (
 	"sort"
 
 	"surge/internal/layout"
-	"surge/internal/mir"
 	"surge/internal/types"
 )
 
@@ -142,81 +141,21 @@ func (e *Emitter) requireDropGlue(id types.TypeID) string {
 	return dropGlueName(id)
 }
 
-// registerCrossingDropState records that the crossing body `bodyID` ships
-// an owned state of type `stateType`: the body FuncID doubles as the
-// drop-fn id the runtime's abandon paths pass to `__surge_drop_call`,
-// and the dispatch routes it to the state's recursive glue.
-func (e *Emitter) registerCrossingDropState(bodyID mir.FuncID, stateType types.TypeID) error {
-	resolved := resolveValueType(e.types, stateType)
-	if e.crossingDropStates == nil {
-		e.crossingDropStates = make(map[mir.FuncID]types.TypeID)
-	}
-	if prev, ok := e.crossingDropStates[bodyID]; ok && prev != resolved {
-		return fmt.Errorf("crossing body %d registered two state types (%d, %d)", bodyID, prev, resolved)
-	}
-	e.crossingDropStates[bodyID] = resolved
-	e.requireDropGlue(resolved)
-	return nil
-}
-
-func dropResultGlueName(id types.TypeID) string { return fmt.Sprintf("drop_result.type%d", id) }
-
-// emitResultDropDispatch emits `__surge_drop_result_call` (RV2-DEBT-053a):
-// the owner-side release path reclaims a heap-carried body RESULT that no
-// consumer took. Every crossing that ships a droppable result registered its
-// result payload TypeID as the drop-fn id; the arm frees the raw result_bits
-// through the value's drop wrapper. Copy/inert results keep id 0 (never
-// dispatched), and the panic arm is the negative control.
-func (e *Emitter) emitResultDropDispatch() {
-	resultDropIDs := make([]types.TypeID, 0, len(e.crossingDropResults))
-	for id := range e.crossingDropResults {
-		resultDropIDs = append(resultDropIDs, id)
-	}
-	sort.Slice(resultDropIDs, func(i, j int) bool { return resultDropIDs[i] < resultDropIDs[j] })
-	fmt.Fprintf(&e.buf, "define void @__surge_drop_result_call(i64 %%id, ptr %%value) {\n")
-	fmt.Fprintf(&e.buf, "entry:\n")
-	fmt.Fprintf(&e.buf, "  switch i64 %%id, label %%drop_result_default [\n")
-	for _, id := range resultDropIDs {
-		fmt.Fprintf(&e.buf, "    i64 %d, label %%drop_result.%d\n", id, id)
-	}
-	fmt.Fprintf(&e.buf, "  ]\n")
-	for _, id := range resultDropIDs {
-		fmt.Fprintf(&e.buf, "drop_result.%d:\n", id)
-		fmt.Fprintf(&e.buf, "  call void @%s(ptr %%value)\n", dropResultGlueName(id))
-		fmt.Fprintf(&e.buf, "  ret void\n")
-	}
-	fmt.Fprintf(&e.buf, "drop_result_default:\n")
-	if sc, ok := e.stringConsts["missing drop function"]; ok && sc.globalName != "" {
-		fmt.Fprintf(&e.buf, "  call void @rt_panic(ptr getelementptr inbounds ([%d x i8], ptr @%s, i64 0, i64 0), i64 %d)\n", sc.arrayLen, sc.globalName, sc.dataLen)
-	}
-	fmt.Fprintf(&e.buf, "  unreachable\n")
-	fmt.Fprintf(&e.buf, "}\n\n")
-}
-
-// registerCrossingDropResult records that a crossing ships a heap-carried
-// RESULT of type `resultType` over the reply edge: the resolved payload
-// TypeID doubles as the drop-fn id the runtime's owner-side release path
-// passes to `__surge_drop_result_call`. Callers gate on typeOwnsHeap, so
-// id 0 (a Copy/inert result) is never registered and never dispatched.
 // registerAbandonedStateDrop records that a suspend-point/scope-join state
-// box may need reclaiming if a cancellation abandons it. The resolved
-// TypeID doubles as the drop-fn id __surge_drop_abandoned_state_call
-// dispatches on — unlike registerCrossingDropResult, there is no inert/
-// Copy case to gate callers on: the box always exists, so it always needs
-// freeing, whether or not any of its fields separately own heap.
+// box may need reclaiming if a cancellation abandons it, and answers with the
+// resolved TypeID the runtime names it by.
 //
-// The full release is what gets registered, members and storage both. Only
-// the yield that finds its task already cancelled abandons a frame this way,
-// and it abandons one it has just finished packing, so the frame is the only
-// owner of what is in it.
+// The runtime turns that id back into the type's DESCRIPTOR and performs both
+// halves itself: the members through drop_in_place, then the storage at the
+// width and alignment the descriptor states. There is no inert/Copy case to
+// gate callers on -- the box always exists, so it always needs freeing,
+// whether or not any of its fields separately own heap.
+//
+// Only the yield that finds its task already cancelled abandons a frame this
+// way, and it abandons one it has just finished packing, so the frame is the
+// only owner of what is in it.
 func (e *Emitter) registerAbandonedStateDrop(stateType types.TypeID) types.TypeID {
-	resolved := resolveValueType(e.types, stateType)
-	if e.abandonedStateDrops == nil {
-		e.abandonedStateDrops = make(map[types.TypeID]struct{})
-	}
-	e.abandonedStateDrops[resolved] = struct{}{}
-	e.requireRuntimeOwnedRelease(resolved)
-	return resolved
+	return resolveValueType(e.types, stateType)
 }
 
 // suspensionFrameReleaseName is the entry point that reclaims a suspension
@@ -273,17 +212,13 @@ func (e *Emitter) emitSuspensionFrameReleaseBody(id types.TypeID) error {
 	return nil
 }
 
+// registerCrossingDropResult answers with the resolved TypeID a crossing names
+// its result by. The runtime turns that number back into the type's descriptor
+// -- there is no dispatch table between the two any more -- so all this does is
+// resolve, and it stays a named step because the CALL SITES read better for
+// saying which id they mean.
 func (e *Emitter) registerCrossingDropResult(resultType types.TypeID) types.TypeID {
-	resolved := resolveValueType(e.types, resultType)
-	if e.crossingDropResults == nil {
-		e.crossingDropResults = make(map[types.TypeID]struct{})
-	}
-	e.crossingDropResults[resolved] = struct{}{}
-	if e.dropResultGlueNeeded == nil {
-		e.dropResultGlueNeeded = make(map[types.TypeID]struct{})
-	}
-	e.dropResultGlueNeeded[resolved] = struct{}{}
-	return resolved
+	return resolveValueType(e.types, resultType)
 }
 
 func (e *Emitter) requireDropElemGlue(id types.TypeID) string {
@@ -390,8 +325,6 @@ func (e *Emitter) emitDropHandleRootAt(g *glueTmp, ptr string, ty types.TypeID, 
 func (e *Emitter) emitDropGlue() error {
 	done := make(map[types.TypeID]struct{})
 	doneElem := make(map[types.TypeID]struct{})
-	doneResult := make(map[types.TypeID]struct{})
-	doneRelease := make(map[types.TypeID]struct{})
 	doneFrame := make(map[types.TypeID]struct{})
 	for {
 		progressed := false
@@ -403,16 +336,6 @@ func (e *Emitter) emitDropGlue() error {
 		}
 		for _, id := range takePendingGlue(e.dropElemGlueNeeded, doneElem) {
 			e.emitDropElemGlueBody(id)
-			progressed = true
-		}
-		for _, id := range takePendingGlue(e.dropResultGlueNeeded, doneResult) {
-			e.emitDropResultGlueBody(id)
-			progressed = true
-		}
-		for _, id := range takePendingGlue(e.runtimeOwnedReleaseNeeded, doneRelease) {
-			if err := e.emitRuntimeOwnedReleaseBody(id); err != nil {
-				return err
-			}
 			progressed = true
 		}
 		for _, id := range takePendingGlue(e.suspensionFrameReleases, doneFrame) {
@@ -448,27 +371,6 @@ func takePendingGlue(needed, done map[types.TypeID]struct{}) []types.TypeID {
 	}
 	sort.Slice(pending, func(i, j int) bool { return pending[i] < pending[j] })
 	return pending
-}
-
-// emitDropResultGlueBody emits `@drop_result.typeN(ptr %val)`: drop a
-// heap-carried reply-edge RESULT the runtime is holding. A handle result
-// arrives as its own word; a composite result arrives as the transport
-// allocation its bytes were copied into, so it is dropped in place and then the
-// allocation itself is released.
-func (e *Emitter) emitDropResultGlueBody(id types.TypeID) {
-	fmt.Fprintf(&e.buf, "define void @%s(ptr %%val) {\n", dropResultGlueName(id))
-	fmt.Fprintf(&e.buf, "entry:\n")
-	fmt.Fprintf(&e.buf, "  %%isnull = icmp eq ptr %%val, null\n")
-	fmt.Fprintf(&e.buf, "  br i1 %%isnull, label %%ret, label %%body\n")
-	fmt.Fprintf(&e.buf, "body:\n")
-	if e.types.IsValueComposite(resolveValueType(e.types, id)) {
-		fmt.Fprintf(&e.buf, "  call void @%s(ptr %%val)\n", e.requireRuntimeOwnedRelease(id))
-	} else {
-		e.emitDropHandle("%val", id)
-	}
-	fmt.Fprintf(&e.buf, "  br label %%ret\n")
-	fmt.Fprintf(&e.buf, "ret:\n")
-	fmt.Fprintf(&e.buf, "  ret void\n}\n")
 }
 
 // emitDropElemGlueBody emits `@drop_elem.typeN(ptr %slot)`: drop one element of

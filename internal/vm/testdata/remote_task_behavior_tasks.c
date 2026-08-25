@@ -114,7 +114,7 @@ static void poll_publisher(rtb_publish_state* state) {
     }
     state->status = rt_remote_spawn_publish(state->destination,
                                             0,
-                                            state->result_drop_fn_id,
+                                            state->result_type_id,
                                             (int64_t)state->poll_id,
                                             state->task_state,
                                             &state->pending,
@@ -208,38 +208,69 @@ _Atomic uint64_t rtb_drop_calls;
 _Atomic uint64_t rtb_drop_last_id;
 _Atomic(void*) rtb_drop_last_state;
 
-void __surge_drop_call(uint64_t id, void* state) {
+rtb_shipped_state* rtb_shipped_state_new(uint64_t mark) {
+    rtb_shipped_state* box =
+        (rtb_shipped_state*)rt_alloc(sizeof(rtb_shipped_state), _Alignof(rtb_shipped_state));
+    if (box != NULL) {
+        box->mark = mark;
+    }
+    return box;
+}
+
+// The stand's shipped-state descriptor. A crossing names its state by TYPE
+// now, and the runtime destroys an abandoned one through that type -- the drop
+// below, then the block at this width. Counting here is what the migration
+// rows assert, in place of the numeric dispatch it replaced.
+static void rtb_state_move(void* destination, void* source) {
+    memcpy(destination, source, sizeof(rtb_shipped_state));
+    memset(source, 0, sizeof(rtb_shipped_state));
+}
+
+static void rtb_state_drop(void* value) {
     atomic_fetch_add_explicit(&rtb_drop_calls, 1, memory_order_acq_rel);
-    atomic_store_explicit(&rtb_drop_last_id, id, memory_order_release);
-    atomic_store_explicit(&rtb_drop_last_state, state, memory_order_release);
+    atomic_store_explicit(&rtb_drop_last_id, RTB_DROP_MARK_ID, memory_order_release);
+    atomic_store_explicit(&rtb_drop_last_state, value, memory_order_release);
+}
+
+static rt_carrier_status
+rtb_state_plan(const void* source, rt_cross_mode mode, rt_cross_plan* out) {
+    (void)source;
+    (void)mode;
+    (void)out;
+    return RT_CARRIER_STATUS_INVALID_STATE;
+}
+
+// The compiler emits this lookup for a real program; this stand defines it so
+// its own shipped-state type has a descriptor to be destroyed through.
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+const rt_value_ops* __surge_value_ops_for(uint64_t type_id);
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+const rt_value_ops* __surge_value_ops_for(uint64_t type_id) {
+    static const rt_value_ops state_ops = {
+        .layout = {.size = sizeof(rtb_shipped_state),
+                   .align = _Alignof(rtb_shipped_state),
+                   .stride = sizeof(rtb_shipped_state),
+                   .flags = RT_VALUE_FLAG_DROPPABLE},
+        .move_init = rtb_state_move,
+        .copy_init = NULL,
+        .clone_init = NULL,
+        .drop_in_place = rtb_state_drop,
+        .trace = NULL,
+        .plan_cross = rtb_state_plan,
+        .cross_move_init = NULL,
+        .cross_clone_init = NULL,
+    };
+    return type_id == RTB_DROP_MARK_ID ? &state_ops : NULL;
 }
 
 // Owner-side result-drop census (RV2-DEBT-053a): the release-while-DONE row
-// installs a nonzero result_drop_fn_id and a heap result_bits; free_task
+// installs a nonzero result_type_id and a heap result_bits; free_task
 // routes the reclamation here. The stub frees the block (mimicking the
 // compiled drop wrapper) so heap accounting balances and counts calls so
 // the row can assert exactly-once with the right id and pointer.
 _Atomic uint64_t rtb_result_drop_calls;
 _Atomic uint64_t rtb_result_drop_last_id;
 _Atomic(void*) rtb_result_drop_last_value;
-
-void __surge_drop_result_call(uint64_t id, void* value) {
-    atomic_fetch_add_explicit(&rtb_result_drop_calls, 1, memory_order_acq_rel);
-    atomic_store_explicit(&rtb_result_drop_last_id, id, memory_order_release);
-    atomic_store_explicit(&rtb_result_drop_last_value, value, memory_order_release);
-    if (value != NULL) {
-        rt_free((uint8_t*)value, RTB_RESULT_BLOCK_SIZE, RTB_RESULT_BLOCK_ALIGN);
-    }
-}
-
-// This harness family never threads a nonzero abandoned-state drop id
-// through rt_async_yield/rt_async_return_cancelled, so mark_done's call
-// here is always a no-op in practice; the stub exists only to satisfy the
-// link (the real definition lives in compiled Surge output).
-void __surge_drop_abandoned_state_call(uint64_t id, void* state) {
-    (void)id;
-    (void)state;
-}
 
 void __surge_poll_call(uint64_t id) {
     if (id == POLL_RTB_CHILD) {

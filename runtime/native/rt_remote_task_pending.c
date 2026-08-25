@@ -1,4 +1,5 @@
 #include "rt_remote_task_internal.h"
+#include "rt_value_cell.h"
 
 #include <string.h>
 
@@ -111,21 +112,11 @@ void rt_remote_task_pending_release(rt_remote_task_pending* pending) {
     }
     uint32_t refs = atomic_fetch_sub_explicit(&pending->refs, 1, memory_order_acq_rel);
     if (refs == 1) {
-        if (pending->state_owned != 0 && pending->state_drop_fn_id != 0 &&
+        if (pending->state_owned != 0 && pending->state_type_id != 0 &&
             pending->body_state != NULL) {
-            __surge_drop_call(pending->state_drop_fn_id, pending->body_state);
+            rt_value_release_owned_block(rt_channel_element_ops_for(pending->state_type_id),
+                                         pending->body_state);
             pending->body_state = NULL;
-        }
-        // A landed AWAIT reply nobody consumed (the caller tore down
-        // before its next poll, or after the reply already resolved and
-        // dropped the last ref). result_bits stays 0 for a Cancelled
-        // reply and for every non-terminal status, so the nonzero check
-        // alone gates this to a genuine, un-consumed Success payload —
-        // mirrors free_task's owner-side result-drop check
-        // (rt_task_lifetime.c) exactly.
-        if (pending->result_drop_fn_id != 0 && pending->result_bits != 0) {
-            __surge_drop_result_call(pending->result_drop_fn_id, (void*)pending->result_bits);
-            pending->result_bits = 0;
         }
         // A landed reply whose capability nobody spent: the caller tore down
         // before its next poll, or resolved through another path. Release the

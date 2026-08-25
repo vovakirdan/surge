@@ -47,13 +47,23 @@ typedef struct remote_child_state {
     _Atomic uint32_t worker;
 } remote_child_state;
 
+// A shipped state's allocation: what a crossing hands the runtime, and what
+// the runtime gives back when the crossing is abandoned. It POINTS AT the
+// row's observation state rather than being it, for two reasons: a row still
+// wants to read what the body saw after the runtime has freed the box, and a
+// compiled state box is a heap allocation in every real program, which is the
+// shape the abandon paths are written against.
+typedef struct remote_state_box {
+    remote_child_state* child;
+} remote_state_box;
+
 typedef struct remote_publish_state {
     rt_remote_spawn_pending* pending;
     // Release/acquire twin of the pending pointer for driver threads: the publisher
     // stores it after publish returns PENDING, giving a cross-thread
     // happens-before edge the sync-point counters (relaxed) do not.
     _Atomic(rt_remote_spawn_pending*) pending_shared;
-    remote_child_state* child;
+    remote_state_box* child;
     rt_far_task_handle handle;
     uint32_t dst;
     uint32_t fill_queue;
@@ -74,7 +84,7 @@ typedef struct immediate_exec_state {
     // Release/acquire twin of the pending pointer for driver threads
     // (the sync-point counters alone give no happens-before edge).
     _Atomic(rt_remote_task_pending*) pending_shared;
-    remote_child_state* child;
+    remote_state_box* child;
     uint64_t placement;
     uint32_t fill_queue;
     uint32_t shutdown_first;
@@ -191,27 +201,22 @@ static int fill_data_lane(rt_executor* ex, uint32_t dst) {
     return rt_transport_enqueue(shard, &data) == RT_TRANSPORT_STATUS_OK;
 }
 
-// Drop-dispatch stub: the abandon/refusal rows publish a droppable state
-// (DROP_REMOTE_STATE) and count releases here — the exactly-once census
-// for the shipped-state ownership contract. Any other id is a test bug.
+// The exactly-once census for the shipped-state ownership contract. The
+// abandon/refusal rows publish a droppable state and the runtime destroys it
+// through that state type's DESCRIPTOR -- the drop below, then the block --
+// so this is what counts, in place of the numeric dispatch it replaced.
+static remote_state_box* remote_child_box(remote_child_state* child) {
+    remote_state_box* box =
+        (remote_state_box*)rt_alloc(sizeof(remote_state_box), _Alignof(remote_state_box));
+    if (box != NULL) {
+        box->child = child;
+    }
+    return box;
+}
+
 static _Atomic uint32_t drop_calls;
 static _Atomic uint32_t payload_drop_calls;
 static void* drop_expected_state;
-void __surge_drop_call(uint64_t id, void* state) {
-    if (id == DROP_REMOTE_STATE && state == drop_expected_state) {
-        atomic_fetch_add_explicit(&drop_calls, 1, memory_order_acq_rel);
-        return;
-    }
-    fputs("unexpected __surge_drop_call\n", stderr);
-    exit(97);
-}
-
-void __surge_drop_result_call(uint64_t id, void* value) {
-    (void)value;
-    (void)id;
-    fputs("unexpected __surge_drop_result_call\n", stderr);
-    exit(97);
-}
 
 // No row here threads a nonzero abandoned-state drop id through
 // rt_async_yield/rt_async_return_cancelled, so reaching this is a test bug.
@@ -383,7 +388,8 @@ static rt_remote_spawn_pending* wait_pending_shared(remote_publish_state* st, ui
 
 void __surge_poll_call(uint64_t id) {
     if (id == POLL_REMOTE_CHILD) {
-        remote_child_state* child = (remote_child_state*)__task_state();
+        remote_state_box* box = (remote_state_box*)__task_state();
+        remote_child_state* child = box->child;
         const rt_task* task = rt_current_task();
         atomic_store_explicit(&child->owner,
                               task != NULL ? task->owner_shard_id : UINT32_MAX,

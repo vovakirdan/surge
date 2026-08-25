@@ -93,7 +93,7 @@ struct rt_remote_task_pending {
     // publication-accepted handoff contract is documented on the spawn
     // pending twin (rt_remote_spawn_internal.h). Final release is the
     // single drop site while owned.
-    uint64_t state_drop_fn_id;
+    uint64_t state_type_id;
     uint8_t state_owned;
     rt_far_task_handle anchor;
     // Anchored blocks only: the local channel resolved atomically with the
@@ -127,7 +127,7 @@ struct rt_remote_task_pending {
     // Drop obligation for a landed, heap-carried AWAIT reply the caller
     // never consumed. Threaded from the far Task<T> await/cancel
     // lowering site (the payload type is known there, mirroring
-    // result_drop_fn_id on rt_task's own owner-side release path);
+    // result_type_id on rt_task's own owner-side release path);
     // cleared the moment compiled code actually reads result_bits out
     // of a resolved pending (rt_remote_task_api.c's finish_retry), so a
     // consumed result is never dropped twice. The free path
@@ -136,7 +136,7 @@ struct rt_remote_task_pending {
     // (dispatch_reply) or by the caller-teardown release
     // (rt_remote_task_release_owned) — same function, two possible
     // callers, exactly-once by construction.
-    uint64_t result_drop_fn_id;
+    uint64_t result_type_id;
     _Atomic uint32_t refs;
     uint8_t listed;
     struct rt_remote_task_pending* next;

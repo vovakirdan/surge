@@ -252,7 +252,7 @@ typedef struct rt_task {
     // when mark_done finally runs, regardless of how many hops the deferral
     // took. mark_done consumes this pair exactly once and clears both.
     void* abandoned_state;
-    uint64_t abandoned_state_drop_fn_id;
+    uint64_t abandoned_state_type_id;
     uint8_t result_kind;
     // Whether more than one handle can ask for this result. Set by the first
     // clone, which is what creates a second asker; from then on every asker is
@@ -721,24 +721,6 @@ static inline void task_polling_exit(rt_task* task) {
 
 extern void
 __surge_poll_call(uint64_t id); // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
-// Destructs a crossing state struct without running its body: the compiled
-// twin of __surge_poll_call for the drop obligation (id 0 = nothing to
-// drop; never dispatched).
-// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
-extern void __surge_drop_call(uint64_t id, void* state);
-// Destructs an owner-held remote-body RESULT that no consumer took: the
-// reply-edge twin of __surge_drop_call keyed by the result payload type
-// (id 0 = inert/Copy bits, never dispatched). The value is the raw
-// result_bits pointer (string, boxed composite, or dynamic array).
-// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
-extern void __surge_drop_result_call(uint64_t id, void* value);
-// Destructs a suspend-point/scope-join state box a cancellation abandoned
-// without ever resuming compiled code to unpack it: keyed by the state
-// struct's own type (id 0 never dispatched). Frees the box itself plus any
-// owned fields, unlike __surge_drop_result_call, which may see inert bits
-// with nothing to free at all.
-// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
-extern void __surge_drop_abandoned_state_call(uint64_t id, void* state);
 // Runs one blocking body and writes its result INTO `out_dst`, which the
 // runtime sized from that body's own result type. It used to RETURN a machine
 // word, which meant a result wider than one was boxed on the way out and
@@ -804,6 +786,10 @@ void rt_shard_lock(rt_shard* shard);
 void rt_shard_unlock(rt_shard* shard);
 int rt_lane_debug_enabled(void);
 int rt_lane_holds_control(void);
+// Runs work deferred out from under a scheduler lock RIGHT NOW, for a lane
+// that is about to stop existing. The ordinary path is rt_control_unlock,
+// which does it at the moment the lane becomes free.
+void rt_lane_run_deferred_now(void);
 int rt_lane_holds_any_shard(void);
 int rt_lane_holds_shard(uint32_t shard_id);
 rt_runtime_status rt_shard_sync_init(rt_shard* shard);

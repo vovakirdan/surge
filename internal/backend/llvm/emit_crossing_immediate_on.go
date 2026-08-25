@@ -79,7 +79,7 @@ func (fe *funcEmitter) emitImmediateOnCrossing(ins *mir.CrossingInstr) error {
 		return fmt.Errorf("on crossing placement must lower as i64, got %s", placementTy)
 	}
 	stateVal := "null"
-	stateDropID := mir.FuncID(0)
+	stateTypeID := types.TypeID(0)
 	if len(ins.State.Fields) > 0 {
 		var stateTy string
 		stateVal, stateTy, err = fe.emitStructLit(&ins.State)
@@ -89,17 +89,18 @@ func (fe *funcEmitter) emitImmediateOnCrossing(ins *mir.CrossingInstr) error {
 		if stateTy != "ptr" {
 			return fmt.Errorf("on crossing state must lower as ptr, got %s", stateTy)
 		}
-		if regErr := fe.emitter.registerCrossingDropState(ins.BodyFuncID, ins.State.TypeID); regErr != nil {
-			return regErr
+		stateType, stateErr := fe.crossingStateTypeID(ins.State.TypeID)
+		if stateErr != nil {
+			return stateErr
 		}
-		stateDropID = ins.BodyFuncID
+		stateTypeID = stateType
 	}
 	initStatus := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
 		"  %s = call i32 @rt_immediate_on_execute(i64 %s, i64 %d, i64 %d, i64 %d, ptr %s, ptr %s, ptr %s, ptr %s)\n",
 		initStatus,
 		placementVal,
-		stateDropID,
+		stateTypeID,
 		resultTypeID,
 		ins.BodyFuncID,
 		stateVal,

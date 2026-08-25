@@ -38,46 +38,57 @@ async fn run(dst: Placement) -> far Task<int> {
 	if !strings.Contains(ir, firstAttempt) {
 		t.Fatalf("missing state-shipping publish call:\n%s", ir)
 	}
-	// (state_drop_id == body_id, then the body's result TYPE id, then poll ==
-	// body_id). The result slot is a type now, so this row pins the state id
-	// and leaves the type to the sibling test that is about it.
-	wantIDs := regexp.MustCompile(fmt.Sprintf(", i64 %d, i64 \\d+, i64 %d, ptr %%", bodyID, bodyID))
-	if !wantIDs.MatchString(ir) {
-		t.Fatalf("state-shipping publish must pass drop id == body id (%d):\n%s", bodyID, ir)
+	// What the crossing carries for its shipped STATE is that state's TYPE id,
+	// the same way it carries the body's result type: the runtime turns the
+	// number back into a descriptor and destroys an abandoned state through it
+	// -- the members by drop_in_place, then the storage at the width the
+	// descriptor states. It used to carry the body's FuncID instead, which
+	// named an arm in a dispatch table that no longer exists.
+	//
+	// (i64 placement, i64 state_type, i64 result_type, i64 poll == body id, ptr state, ...)
+	stateSlot := regexp.MustCompile(fmt.Sprintf(
+		`@rt_remote_spawn_publish_placement\(i64 %%[^,]+, i64 (\d+), i64 \d+, i64 %d, ptr %%`, bodyID))
+	m := stateSlot.FindStringSubmatch(ir)
+	if m == nil {
+		t.Fatalf("state-shipping publish must pass a state type id and poll id %d:\n%s", bodyID, ir)
+	}
+	if m[1] == "0" {
+		t.Fatalf("a shipped state must name a nonzero type id:\n%s", ir)
 	}
 	if !strings.Contains(ir, "call i32 @rt_remote_spawn_publish_placement(i64 0, i64 0, i64 0,") {
 		t.Fatalf("retry publish must keep (id=0, state=null):\n%s", ir)
 	}
 
-	dispatch := findLLVMFuncBody(t, ir, "__surge_drop_call")
-	armLabel := fmt.Sprintf("i64 %d, label %%drop.%d", bodyID, bodyID)
-	if !strings.Contains(dispatch, armLabel) {
-		t.Fatalf("__surge_drop_call switch missing the registered arm %q:\n%s", armLabel, dispatch)
+	assertStateTypeIsReclaimable(t, ir, m[1])
+}
+
+// assertStateTypeIsReclaimable pins the whole chain a shipped state's type id
+// stands for: the module defines that type's descriptor, its own lookup answers
+// for the id, and the descriptor binds the drop the runtime will run.
+//
+// Without all three the runtime would resolve the id to the opaque word and
+// free an abandoned state at eight bytes whatever its real width -- silently,
+// on a path that only runs when something else has already gone wrong.
+func assertStateTypeIsReclaimable(t *testing.T, ir, typeID string) {
+	t.Helper()
+	descriptor := fmt.Sprintf("@__surge_value_ops_type%s = constant", typeID)
+	if !strings.Contains(ir, descriptor) {
+		t.Fatalf("the module must define the descriptor %s the crossing names:\n%s", descriptor, ir)
 	}
-	// A shipped state lives in an allocation the runtime owns, so abandoning it
-	// has two halves: release what the state's members own, and give the
-	// allocation back. The arm reaches the release entry point, which does both
-	// in that order — the recursive glue first, then the free.
-	//
-	// The arm used to call the recursive glue directly, because the glue also
-	// freed the state: a composite WAS its allocation, so dropping it and
-	// reclaiming it were one act. They are two now, and calling only the glue
-	// here would leak the state of every abandoned spawn.
-	armBody := regexp.MustCompile(fmt.Sprintf(
-		`drop\.%d:\n  call void @(release\.type\d+)\(ptr %%state\)\n  ret void`, bodyID))
-	arm := armBody.FindStringSubmatch(dispatch)
-	if arm == nil {
-		t.Fatalf("dispatch arm must release the runtime-owned state:\n%s", dispatch)
+	lookup := findLLVMFuncBody(t, ir, "__surge_value_ops_for")
+	if !strings.Contains(lookup, fmt.Sprintf("i64 %s, label %%value_ops.%s", typeID, typeID)) {
+		t.Fatalf("the descriptor lookup must answer for type#%s:\n%s", typeID, lookup)
 	}
-	release := findLLVMFuncBody(t, ir, arm[1])
-	if !regexp.MustCompile(`call void @drop\.type\d+\(ptr %p\)`).MatchString(release) {
-		t.Fatalf("the release entry point must call the state's recursive glue:\n%s", release)
+	if !strings.Contains(ir, fmt.Sprintf("ptr @drop.type%s", typeID)) {
+		t.Fatalf("the descriptor for type#%s must bind a drop body:\n%s", typeID, ir)
 	}
-	if !strings.Contains(release, "call void @rt_free(ptr %p,") {
-		t.Fatalf("the release entry point must free the runtime-owned allocation:\n%s", release)
+	// The dispatch table this replaced is gone: nothing routes a numeric id to
+	// a generated release any more.
+	if strings.Contains(ir, "define void @__surge_drop_call(") {
+		t.Fatalf("the numeric state-drop dispatch must not be emitted at all:\n%s", ir)
 	}
-	if !strings.Contains(dispatch, "drop_default:") {
-		t.Fatalf("dispatch must keep the default panic arm for unregistered ids:\n%s", dispatch)
+	if strings.Contains(ir, "define void @__surge_drop_abandoned_state_call(") {
+		t.Fatalf("the numeric abandoned-state dispatch must not be emitted at all:\n%s", ir)
 	}
 }
 
@@ -155,20 +166,20 @@ async fn run(dst: Placement) -> int {
 		t.Fatalf("emit LLVM IR: %v", err)
 	}
 
-	// (i64 placement, i64 state_drop, i64 result_type, i64 poll, ptr state, ...)
+	// (i64 placement, i64 state_type, i64 result_type, i64 poll, ptr state, ...)
 	re := regexp.MustCompile(`call i32 @rt_immediate_on_execute\(i64 %[^,]+, i64 (\d+), i64 \d+, i64 (\d+), ptr %`)
 	m := re.FindStringSubmatch(ir)
 	if m == nil {
 		t.Fatalf("missing state-shipping immediate-on execute call:\n%s", ir)
 	}
-	if m[1] == "0" || m[1] != m[2] {
-		t.Fatalf("immediate-on drop id must equal the body id (got drop=%s body=%s)", m[1], m[2])
+	if m[1] == "0" {
+		t.Fatalf("a shipped state must name a nonzero type id (got %s)", m[1])
+	}
+	if m[2] == "0" {
+		t.Fatalf("the execute must still name its body's poll id (got %s)", m[2])
 	}
 	if !strings.Contains(ir, "call i32 @rt_immediate_on_execute(i64 0, i64 0, i64 0,") {
 		t.Fatalf("immediate-on retry must keep (id=0, state=null):\n%s", ir)
 	}
-	dispatch := findLLVMFuncBody(t, ir, "__surge_drop_call")
-	if !strings.Contains(dispatch, fmt.Sprintf("label %%drop.%s", m[1])) {
-		t.Fatalf("dispatch missing the immediate-on arm %s:\n%s", m[1], dispatch)
-	}
+	assertStateTypeIsReclaimable(t, ir, m[1])
 }

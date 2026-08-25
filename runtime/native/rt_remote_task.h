@@ -27,12 +27,12 @@ typedef enum rt_remote_task_status {
 // itself never becomes a machine word -- the reply names the producer's slot
 // and this moves it out.
 rt_remote_task_status rt_far_task_await(const rt_far_task_handle* handle,
-                                        uint64_t result_drop_fn_id,
+                                        uint64_t result_type_id,
                                         rt_remote_task_pending** pending,
                                         uint8_t* out_kind,
                                         void* out_dst);
 rt_remote_task_status rt_far_task_cancel(const rt_far_task_handle* handle,
-                                         uint64_t result_drop_fn_id,
+                                         uint64_t result_type_id,
                                          rt_remote_task_pending** pending,
                                          uint8_t* out_kind,
                                          void* out_dst);
@@ -40,7 +40,7 @@ rt_remote_task_status rt_far_task_release(const rt_far_task_handle* handle);
 // Immediate `on placement` execute/reply: one request, one reply, one
 // request-scoped cancellation token, no publicly observable far Task handle.
 rt_remote_task_status rt_immediate_on_execute_anchored(const rt_far_task_handle* anchor,
-                                                       uint64_t state_drop_fn_id,
+                                                       uint64_t state_type_id,
                                                        uint64_t result_type_id,
                                                        int64_t poll_fn_id,
                                                        void* state,
@@ -48,7 +48,7 @@ rt_remote_task_status rt_immediate_on_execute_anchored(const rt_far_task_handle*
                                                        uint8_t* out_kind,
                                                        void* out_dst);
 rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
-                                              uint64_t state_drop_fn_id,
+                                              uint64_t state_type_id,
                                               uint64_t result_type_id,
                                               int64_t poll_fn_id,
                                               void* state,

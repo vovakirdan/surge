@@ -5,6 +5,7 @@ import (
 
 	"surge/internal/mir"
 	"surge/internal/sema"
+	"surge/internal/types"
 )
 
 const (
@@ -77,6 +78,29 @@ func mirCrossingKindNameForLLVM(kind sema.CrossingLoweringKind) string {
 	}
 }
 
+// crossingStateTypeID names the state box a crossing ships, as the number the
+// runtime turns back into that type's DESCRIPTOR.
+//
+// It refuses a type the operation census never saw. The runtime destroys an
+// abandoned state box through the descriptor -- members, then storage at the
+// width the descriptor states -- so a type with no descriptor would be freed
+// at the wrong width, silently, on a path that only runs when something has
+// already gone wrong. The refusal is here, where the type is still legible.
+func (fe *funcEmitter) crossingStateTypeID(stateType types.TypeID) (types.TypeID, error) {
+	resolved := resolveValueType(fe.emitter.types, stateType)
+	if resolved == types.NoTypeID {
+		return types.NoTypeID, nil
+	}
+	if !fe.emitter.valueOpsRegistryHas(resolved) {
+		return types.NoTypeID, fmt.Errorf(
+			"llvm: a crossing ships a state of type#%d with no operation descriptor, so an "+
+				"abandoned one could not be reclaimed at its own width; note: every registry "+
+				"type gets a descriptor, so this type never reached the operation census",
+			resolved)
+	}
+	return resolved, nil
+}
+
 func (fe *funcEmitter) emitSpawnOnCrossing(ins *mir.CrossingInstr) error {
 	if ins == nil {
 		return nil
@@ -142,7 +166,7 @@ func (fe *funcEmitter) emitSpawnOnCrossing(ins *mir.CrossingInstr) error {
 		return fmt.Errorf("spawn_on placement must lower as i64, got %s", placementTy)
 	}
 	stateVal := "null"
-	stateDropID := mir.FuncID(0)
+	stateTypeID := types.TypeID(0)
 	if len(ins.State.Fields) > 0 {
 		stateVal, placementTy, err = fe.emitStructLit(&ins.State)
 		if err != nil {
@@ -151,10 +175,11 @@ func (fe *funcEmitter) emitSpawnOnCrossing(ins *mir.CrossingInstr) error {
 		if placementTy != "ptr" {
 			return fmt.Errorf("spawn_on state must lower as ptr, got %s", placementTy)
 		}
-		if regErr := fe.emitter.registerCrossingDropState(ins.BodyFuncID, ins.State.TypeID); regErr != nil {
-			return regErr
+		stateType, stateErr := fe.crossingStateTypeID(ins.State.TypeID)
+		if stateErr != nil {
+			return stateErr
 		}
-		stateDropID = ins.BodyFuncID
+		stateTypeID = stateType
 	}
 	// The body's RESULT TYPE, as a number. A crossing carries no pointers, so
 	// the descriptor cannot travel; the id can, and the owner side turns it
@@ -172,7 +197,7 @@ func (fe *funcEmitter) emitSpawnOnCrossing(ins *mir.CrossingInstr) error {
 		"  %s = call i32 @rt_remote_spawn_publish_placement(i64 %s, i64 %d, i64 %d, i64 %d, ptr %s, ptr %s, ptr %s)\n",
 		initStatus,
 		placementVal,
-		stateDropID,
+		stateTypeID,
 		resultTypeID,
 		ins.BodyFuncID,
 		stateVal,

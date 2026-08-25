@@ -36,9 +36,9 @@ static int select_request_matches(const rt_transport_msg* msg,
 // (sema owns the kind diagnostic; this is the runtime's defense in depth),
 // and every arm kind must be a channel operation — timeout and default arms
 // stay on the caller in every lowering.
-static void select_drop_unshipped_state(uint64_t state_drop_fn_id, void* state) {
-    if (state_drop_fn_id != 0 && state != NULL) {
-        __surge_drop_call(state_drop_fn_id, state);
+static void select_drop_unshipped_state(uint64_t state_type_id, void* state) {
+    if (state_type_id != 0 && state != NULL) {
+        rt_value_release_owned_block(rt_channel_element_ops_for(state_type_id), state);
     }
 }
 
@@ -141,7 +141,7 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anc
                                             void* const* send_values,
                                             const uint64_t* payload_type_ids,
                                             uint64_t count,
-                                            uint64_t state_drop_fn_id,
+                                            uint64_t state_type_id,
                                             int64_t poll_fn_id,
                                             void* state,
                                             rt_remote_task_pending** pending,
@@ -174,19 +174,19 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anc
         if (count > 0 && count <= RT_FAR_CHANNEL_SELECT_MAX_ARMS) {
             select_drop_input_payloads(kinds, send_values, payload_type_ids, count);
         }
-        select_drop_unshipped_state(state_drop_fn_id, state);
+        select_drop_unshipped_state(state_type_id, state);
         return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
     }
     for (uint64_t i = 0; i < count; i++) {
         if (anchors[i] == NULL || anchors[i]->kind != RT_FAR_HANDLE_KIND_CHANNEL ||
             anchors[i]->owner_shard_id != anchors[0]->owner_shard_id) {
             select_drop_input_payloads(kinds, send_values, payload_type_ids, count);
-            select_drop_unshipped_state(state_drop_fn_id, state);
+            select_drop_unshipped_state(state_type_id, state);
             return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
         }
         if (kinds[i] != SELECT_CHAN_RECV && kinds[i] != SELECT_CHAN_SEND) {
             select_drop_input_payloads(kinds, send_values, payload_type_ids, count);
-            select_drop_unshipped_state(state_drop_fn_id, state);
+            select_drop_unshipped_state(state_type_id, state);
             return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
         }
     }
@@ -194,21 +194,21 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anc
     rt_shard* destination = rt_runtime_shard(runtime, anchors[0]->owner_shard_id);
     if (destination == NULL) {
         select_drop_input_payloads(kinds, send_values, payload_type_ids, count);
-        select_drop_unshipped_state(state_drop_fn_id, state);
+        select_drop_unshipped_state(state_type_id, state);
         return RT_REMOTE_TASK_STATUS_STALE_TOKEN;
     }
     if (atomic_load_explicit(&ex->shutdown, memory_order_acquire) != 0 ||
         atomic_load_explicit(&destination->transport.park_state, memory_order_acquire) ==
             RT_TRANSPORT_SHARD_SHUTDOWN) {
         select_drop_input_payloads(kinds, send_values, payload_type_ids, count);
-        select_drop_unshipped_state(state_drop_fn_id, state);
+        select_drop_unshipped_state(state_type_id, state);
         return RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN;
     }
     rt_far_channel_select_arm* arms = (rt_far_channel_select_arm*)rt_alloc(
         count * sizeof(rt_far_channel_select_arm), _Alignof(rt_far_channel_select_arm));
     if (arms == NULL) {
         select_drop_input_payloads(kinds, send_values, payload_type_ids, count);
-        select_drop_unshipped_state(state_drop_fn_id, state);
+        select_drop_unshipped_state(state_type_id, state);
         return RT_REMOTE_TASK_STATUS_REFUSED;
     }
     memset(arms, 0, count * sizeof(rt_far_channel_select_arm));
@@ -267,15 +267,15 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anc
         rt_free((uint8_t*)arms,
                 count * sizeof(rt_far_channel_select_arm),
                 _Alignof(rt_far_channel_select_arm));
-        select_drop_unshipped_state(state_drop_fn_id, state);
+        select_drop_unshipped_state(state_type_id, state);
         return RT_REMOTE_TASK_STATUS_REFUSED;
     }
     request->handle.generation = request->request_id;
     request->caller_task_id = current->id;
     request->body_poll_fn_id = (uint64_t)poll_fn_id;
     request->body_state = state;
-    request->state_drop_fn_id = state_drop_fn_id;
-    request->state_owned = state_drop_fn_id != 0;
+    request->state_type_id = state_type_id;
+    request->state_owned = state_type_id != 0;
     request->select_arms = arms;
     request->select_count = count;
     *pending = request;

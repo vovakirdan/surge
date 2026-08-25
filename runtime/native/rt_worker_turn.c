@@ -221,6 +221,11 @@ void* rt_worker_main(void* arg) {
         rt_set_current_task(NULL);
     }
     rt_set_current_task(NULL);
+    // Anything this thread deferred because it was holding a lock: the loop
+    // above ended, so it holds none, and nobody else can run this thread's
+    // queue. Without this a straggler deferred by the last turn is never
+    // reclaimed at all -- the thread that owed it is gone.
+    rt_lane_run_deferred_now();
     tls_worker_ctx = NULL;
     tls_worker_id = -1;
     rt_heap_accounting_set_current_cell(NULL);

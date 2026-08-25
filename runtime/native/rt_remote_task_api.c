@@ -49,7 +49,7 @@ finish_retry(rt_remote_task_pending** slot, uint8_t* out_kind, void* out_dst) {
 
 static rt_remote_task_status start_remote_task(rt_remote_task_op op,
                                                const rt_far_task_handle* handle,
-                                               uint64_t result_drop_fn_id,
+                                               uint64_t result_type_id,
                                                rt_remote_task_pending** pending,
                                                uint8_t* out_kind,
                                                void* out_dst) {
@@ -99,7 +99,7 @@ static rt_remote_task_status start_remote_task(rt_remote_task_op op,
     // CANCEL previously never set this field at all (unlike EXECUTE/
     // EXECUTE_ANCHORED/CHANNEL_SELECT, which already do).
     request->caller_task_id = current->id;
-    request->result_drop_fn_id = result_drop_fn_id;
+    request->result_type_id = result_type_id;
     *pending = request;
     (void)rt_remote_task_prepare_reply_wait(ex, current, request);
     rt_remote_task_pending_add_ref(request);
@@ -129,21 +129,21 @@ static rt_remote_task_status start_remote_task(rt_remote_task_op op,
 }
 
 rt_remote_task_status rt_far_task_await(const rt_far_task_handle* handle,
-                                        uint64_t result_drop_fn_id,
+                                        uint64_t result_type_id,
                                         rt_remote_task_pending** pending,
                                         uint8_t* out_kind,
                                         void* out_dst) {
     return start_remote_task(
-        RT_REMOTE_TASK_OP_AWAIT, handle, result_drop_fn_id, pending, out_kind, out_dst);
+        RT_REMOTE_TASK_OP_AWAIT, handle, result_type_id, pending, out_kind, out_dst);
 }
 
 rt_remote_task_status rt_far_task_cancel(const rt_far_task_handle* handle,
-                                         uint64_t result_drop_fn_id,
+                                         uint64_t result_type_id,
                                          rt_remote_task_pending** pending,
                                          uint8_t* out_kind,
                                          void* out_dst) {
     return start_remote_task(
-        RT_REMOTE_TASK_OP_CANCEL, handle, result_drop_fn_id, pending, out_kind, out_dst);
+        RT_REMOTE_TASK_OP_CANCEL, handle, result_type_id, pending, out_kind, out_dst);
 }
 
 rt_remote_task_status rt_far_task_release(const rt_far_task_handle* handle) {
@@ -196,7 +196,7 @@ rt_remote_task_status rt_far_task_release(const rt_far_task_handle* handle) {
 // through the registry list. If the reply already landed, this may be
 // the ref that drops the pending to zero, freeing it right here
 // through the normal free path (which now drops an unconsumed heap
-// result via result_drop_fn_id) -- correctly unlinked first, so a
+// result via result_type_id) -- correctly unlinked first, so a
 // later shutdown-time registry walk never dereferences the freed
 // block. If the reply hasn't landed yet, the pending stays alive on
 // its remaining ref and resolves exactly as it would have otherwise,

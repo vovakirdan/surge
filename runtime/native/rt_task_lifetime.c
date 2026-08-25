@@ -99,9 +99,56 @@ static void free_task_when_unlocked(rt_executor* ex, rt_task* task) {
     task_reclaim_head = task;
 }
 
+// Owned blocks whose destruction was deferred out from under a scheduler lock.
+//
+// A state box a cancellation abandoned is destroyed by mark_done, which runs
+// holding control -- and destroying it runs the type's generated drop, which
+// may not run under a lock. There is no task to thread it through by then
+// either: mark_done clears the fields on the way past. So the pair travels in
+// its own small ring until the lane is free.
+//
+// The ring is fixed and per-thread: one completion abandons at most one state,
+// and the drain runs the moment the lane drops its last lock, so more than a
+// handful in flight would mean a lock was held across many completions. A full
+// ring falls back to destroying in place, which is the old behaviour rather
+// than a leak, and the detached guard says so loudly if that ever happens
+// under a lock.
+#define RT_DEFERRED_BLOCK_SLOTS 8
+
+typedef struct {
+    const rt_value_ops* operations;
+    void* storage;
+} rt_deferred_block;
+
+static _Thread_local rt_deferred_block deferred_blocks[RT_DEFERRED_BLOCK_SLOTS];
+static _Thread_local size_t deferred_block_count;
+
+void rt_release_owned_block_when_unlocked(const rt_value_ops* operations, void* storage) {
+    if (operations == NULL || storage == NULL) {
+        return;
+    }
+    if ((!rt_lane_holds_control() && !rt_lane_holds_any_shard()) ||
+        deferred_block_count == RT_DEFERRED_BLOCK_SLOTS) {
+        rt_value_release_owned_block(operations, storage);
+        return;
+    }
+    deferred_blocks[deferred_block_count].operations = operations;
+    deferred_blocks[deferred_block_count].storage = storage;
+    deferred_block_count++;
+}
+
 // Called by the lane the moment it releases its last scheduler lock, so nothing
 // is held here by construction.
 void rt_task_reclaim_drain(void) {
+    while (deferred_block_count > 0) {
+        deferred_block_count--;
+        rt_deferred_block* block = &deferred_blocks[deferred_block_count];
+        const rt_value_ops* operations = block->operations;
+        void* storage = block->storage;
+        block->operations = NULL;
+        block->storage = NULL;
+        rt_value_release_owned_block(operations, storage);
+    }
     while (task_reclaim_head != NULL) {
         rt_task* task = task_reclaim_head;
         task_reclaim_head = task->reclaim_next;

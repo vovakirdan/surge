@@ -3,6 +3,7 @@
 #include "rt_remote_spawn_internal.h"
 #include "rt_remote_task_internal.h"
 #include "rt_sync_point.h"
+#include "rt_value_cell.h"
 // Immediate `on placement` execute/reply: one request, one reply, one
 // request-scoped cancellation token, no far Task handle exposed. The
 // pending handle starts as {task_id=0, generation=request_id, owner_shard};
@@ -98,14 +99,14 @@ void rt_immediate_on_cancel_inflight(rt_executor* ex, rt_remote_task_pending* pe
 
 // A refusal before any pending exists still owns the moved state (id 0 =
 // nothing to drop, today's shape).
-static void immediate_on_drop_unshipped_state(uint64_t state_drop_fn_id, void* state) {
-    if (state_drop_fn_id != 0 && state != NULL) {
-        __surge_drop_call(state_drop_fn_id, state);
+static void immediate_on_drop_unshipped_state(uint64_t state_type_id, void* state) {
+    if (state_type_id != 0 && state != NULL) {
+        rt_value_release_owned_block(rt_channel_element_ops_for(state_type_id), state);
     }
 }
 
 rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
-                                              uint64_t state_drop_fn_id,
+                                              uint64_t state_type_id,
                                               uint64_t result_type_id,
                                               int64_t poll_fn_id,
                                               void* state,
@@ -135,11 +136,11 @@ rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
     uint32_t source_shard = rt_immediate_on_source_shard(current);
     rt_placement_resolution resolved = rt_placement_resolve(runtime, placement, source_shard);
     if (resolved.status == RT_PLACEMENT_STATUS_UNSUPPORTED) {
-        immediate_on_drop_unshipped_state(state_drop_fn_id, state);
+        immediate_on_drop_unshipped_state(state_type_id, state);
         return RT_REMOTE_TASK_STATUS_UNSUPPORTED_PLACEMENT;
     }
     if (resolved.status != RT_PLACEMENT_STATUS_OK) {
-        immediate_on_drop_unshipped_state(state_drop_fn_id, state);
+        immediate_on_drop_unshipped_state(state_type_id, state);
         // Out-of-range shard(id): deterministic non-executing placement error
         // path — the immediate crossing resumes as Cancelled, the body does
         // not run, and the resolver's invalid-placement counter records it.
@@ -151,13 +152,13 @@ rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
     }
     rt_shard* destination = rt_runtime_shard(runtime, resolved.shard_id);
     if (destination == NULL) {
-        immediate_on_drop_unshipped_state(state_drop_fn_id, state);
+        immediate_on_drop_unshipped_state(state_type_id, state);
         return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
     }
     if (atomic_load_explicit(&ex->shutdown, memory_order_acquire) != 0 ||
         atomic_load_explicit(&destination->transport.park_state, memory_order_acquire) ==
             RT_TRANSPORT_SHARD_SHUTDOWN) {
-        immediate_on_drop_unshipped_state(state_drop_fn_id, state);
+        immediate_on_drop_unshipped_state(state_type_id, state);
         return RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN;
     }
 
@@ -168,7 +169,7 @@ rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
     rt_remote_task_pending* request =
         rt_remote_task_pending_new(ex, &route, source_shard, RT_REMOTE_TASK_OP_EXECUTE, 1);
     if (request == NULL) {
-        immediate_on_drop_unshipped_state(state_drop_fn_id, state);
+        immediate_on_drop_unshipped_state(state_type_id, state);
         return RT_REMOTE_TASK_STATUS_REFUSED;
     }
     // Request-scoped token until the destination binds the body task.
@@ -176,11 +177,11 @@ rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
     request->caller_task_id = current->id;
     request->body_poll_fn_id = (uint64_t)poll_fn_id;
     request->body_state = state;
-    request->state_drop_fn_id = state_drop_fn_id;
+    request->state_type_id = state_type_id;
     // The body's result type, as a number: the descriptor is resolved on the
     // destination shard, which is the only side that can name it.
-    request->result_drop_fn_id = result_type_id;
-    request->state_owned = state_drop_fn_id != 0;
+    request->result_type_id = result_type_id;
+    request->state_owned = state_type_id != 0;
     *pending = request;
     (void)rt_remote_task_prepare_reply_wait(ex, current, request);
     rt_remote_task_pending_add_ref(request);
@@ -246,7 +247,7 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
                                                                       pending->body_poll_fn_id,
                                                                       pending->body_state,
                                                                       msg->target_shard_id,
-                                                                      pending->result_drop_fn_id,
+                                                                      pending->result_type_id,
                                                                       &task);
     if (created != RT_REMOTE_SPAWN_STATUS_OK) {
         if (pending->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED) {

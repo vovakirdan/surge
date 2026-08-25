@@ -22,9 +22,12 @@ static int run_far_select_cancel_vs_commit(void) {
     st.send_type_ids[0] = DROP_SELECT_PAYLOAD;
     st.count = 1;
     st.droppable = 1;
-    int state_marker = 0;
-    st.body_state = &state_marker;
-    drop_expected_state = &state_marker;
+    remote_child_state select_child;
+    memset(&select_child, 0, sizeof(select_child));
+    remote_state_box* state_box = remote_child_box(&select_child);
+    if (state_box == NULL) return fail("select state box alloc failed");
+    st.body_state = state_box;
+    drop_expected_state = state_box;
 
     void* caller = __task_create(POLL_SELECT_CALLER, &st, rt_channel_opaque_word_ops());
     if (caller == NULL) return fail("select caller create failed");
@@ -92,9 +95,12 @@ static int run_far_select_cancel_before_dispatch(void) {
     st.send_type_ids[0] = DROP_SELECT_PAYLOAD;
     st.count = 1;
     st.droppable = 1;
-    int state_marker = 0;
-    st.body_state = &state_marker;
-    drop_expected_state = &state_marker;
+    remote_child_state select_child;
+    memset(&select_child, 0, sizeof(select_child));
+    remote_state_box* state_box = remote_child_box(&select_child);
+    if (state_box == NULL) return fail("select state box alloc failed");
+    st.body_state = state_box;
+    drop_expected_state = state_box;
 
     void* caller = __task_create(POLL_SELECT_CALLER, &st, rt_channel_opaque_word_ops());
     if (caller == NULL) return fail("select caller create failed");
@@ -156,9 +162,12 @@ static int run_far_select_double_cancel(void) {
     st.send_type_ids[0] = DROP_SELECT_PAYLOAD;
     st.count = 1;
     st.droppable = 1;
-    int state_marker = 0;
-    st.body_state = &state_marker;
-    drop_expected_state = &state_marker;
+    remote_child_state select_child;
+    memset(&select_child, 0, sizeof(select_child));
+    remote_state_box* state_box = remote_child_box(&select_child);
+    if (state_box == NULL) return fail("select state box alloc failed");
+    st.body_state = state_box;
+    drop_expected_state = state_box;
 
     void* caller = __task_create(POLL_SELECT_CALLER, &st, rt_channel_opaque_word_ops());
     if (caller == NULL) return fail("select caller create failed");
@@ -245,9 +254,12 @@ static int run_far_select_refusal_after_shipped(void) {
     st.send_type_ids[1] = DROP_SELECT_PAYLOAD;
     st.count = 2;
     st.droppable = 1;
-    int state_marker = 0;
-    st.body_state = &state_marker;
-    drop_expected_state = &state_marker;
+    remote_child_state select_child;
+    memset(&select_child, 0, sizeof(select_child));
+    remote_state_box* state_box = remote_child_box(&select_child);
+    if (state_box == NULL) return fail("select state box alloc failed");
+    st.body_state = state_box;
+    drop_expected_state = state_box;
 
     if (!await_select(&st)) return fail("refusal-after-shipped await failed");
     if (st.status != RT_REMOTE_TASK_STATUS_STALE_TOKEN) {

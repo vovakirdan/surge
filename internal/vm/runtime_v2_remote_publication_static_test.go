@@ -68,10 +68,10 @@ func TestRuntimeV2RemotePublicationFailurePathStaticGuards(t *testing.T) {
 func TestRuntimeV2RemoteStateHandoffStaticContract(t *testing.T) {
 	root := repoRoot(t)
 	for path, record := range map[string]string{
-		"runtime/native/rt_remote_spawn.c":          "req->state_owned = state_drop_fn_id != 0;",
-		"runtime/native/rt_immediate_on.c":          "request->state_owned = state_drop_fn_id != 0;",
-		"runtime/native/rt_immediate_on_anchored.c": "request->state_owned = state_drop_fn_id != 0;",
-		"runtime/native/rt_far_channel_select.c":    "request->state_owned = state_drop_fn_id != 0;",
+		"runtime/native/rt_remote_spawn.c":          "req->state_owned = state_type_id != 0;",
+		"runtime/native/rt_immediate_on.c":          "request->state_owned = state_type_id != 0;",
+		"runtime/native/rt_immediate_on_anchored.c": "request->state_owned = state_type_id != 0;",
+		"runtime/native/rt_far_channel_select.c":    "request->state_owned = state_type_id != 0;",
 	} {
 		if !strings.Contains(readTransportContractFile(t, root, path), record) {
 			t.Fatalf("%s must record the shipped-state drop obligation at publish", path)

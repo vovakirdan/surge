@@ -78,6 +78,10 @@ static void* rt_blocking_worker_main(void* arg) {
         }
         if (ex->blocking_shutdown && ex->blocking_head == NULL) {
             pthread_mutex_unlock(&ex->blocking_lock);
+            // Anything this thread deferred while holding a scheduler lock:
+            // its queue is per-thread and the thread is leaving, so what is
+            // still in it is reclaimed here or never.
+            rt_lane_run_deferred_now();
             rt_heap_accounting_set_current_cell(NULL);
             return NULL;
         }

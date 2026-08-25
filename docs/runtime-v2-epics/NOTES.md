@@ -7923,3 +7923,53 @@ both back. Against the pre-flip tree it fails on the composite's own count
 field; on this tree it passes. The word-shaped case's allocation profile is
 unchanged: 91 allocs / 9 frees on both sides, including a one-byte leak in
 compiled code that predates this and belongs to neither lane.
+
+## 2026-08-25 — D7: a shipped state is destroyed through its own descriptor
+
+A state box the runtime holds — a crossing's shipped state, a suspend frame a
+cancellation abandoned, a reply-edge result nobody took — was destroyed by
+NUMBER. Three generated dispatch tables (`__surge_drop_call`,
+`__surge_drop_abandoned_state_call`, `__surge_drop_result_call`) each routed an
+id to a per-type release, and each was a place where a value and its destructor
+were connected by a lookup rather than by the value's own type.
+
+The runtime resolves the type's DESCRIPTOR now and does both halves itself: the
+members through `drop_in_place`, then the storage at the width and alignment the
+descriptor states. That is exactly what the generated release did, which is why
+the tables could go rather than be rewritten. The ids the crossings carry are
+TYPE ids, and the fields say so: `state_drop_fn_id` → `state_type_id`,
+`result_drop_fn_id` → `result_type_id`, `abandoned_state_drop_fn_id` →
+`abandoned_state_type_id`.
+
+It fails closed where the type is still legible: `crossingStateTypeID` refuses a
+state type the operation census never saw, because a type with no descriptor
+would be freed at the opaque word's eight bytes whatever its real width.
+
+**Four things the flip made visible.** Each is a contract the old dispatch let a
+caller state without honouring:
+
+- `mark_done` destroyed an abandoned state while holding control — generated
+  code under a scheduler lock. The detached guard says so now, and the release
+  is deferred to the moment the lane is free.
+- the publication stands shipped a STACK address as their state, with a stub
+  that only counted. The runtime frees a shipped state — it always did, through
+  the generated release — so the stands hand over a real block now.
+- a join-waiter stand yielded with a POLL id in the drop-id slot, on a state
+  that is a borrowed task handle. Nothing had ever dispatched it; the descriptor
+  lookup would have freed a task pointer as an eight-byte block.
+- work deferred by the LAST turn a worker thread takes was never run: the thread
+  that owed it exits and its queue is per-thread. `rt_lane_run_deferred_now` is
+  called on the way out of both the scheduler and blocking pools.
+
+**`emit_channel_reclaim_shape_test.go` is deleted**, as its own note asked: it
+pinned the asymmetry between a descriptor's drop and a result drop, and said to
+delete it on the day a cell holds what the descriptor describes. D3 made that
+true for channels; this removes the second body entirely.
+
+**A flaky row, measured rather than assumed.**
+`TestRuntimeV2SelectReleasesA{String,Composite}PayloadExactlyOnce` demand that
+two valgrind runs leave the SAME outstanding-allocation count at four takes and
+at eight. On this machine that differs by ±1 often enough to fail about one run
+in three — and it fails with a NEGATIVE slope as readily as a positive one,
+which no leak can produce. Measured against the pre-D7 tree: 2 failures in 6
+runs there, 1 in 6 here. It is the row's zero tolerance, not the code.

@@ -70,11 +70,6 @@
       "group": "PG-OPERAND-RANGE"
     },
     {
-      "site": "internal/backend/llvm/emit_async.go::emitAbandonedStateDropDispatch#1",
-      "message": "missing drop function",
-      "group": "PG-INVARIANT"
-    },
-    {
       "site": "internal/backend/llvm/emit_async.go::emitBlockingDispatch#1",
       "message": "missing blocking function",
       "group": "PG-INVARIANT"
@@ -92,11 +87,6 @@
     {
       "site": "internal/backend/llvm/emit_async.go::emitPollDispatch#1",
       "message": "missing poll function",
-      "group": "PG-INVARIANT"
-    },
-    {
-      "site": "internal/backend/llvm/emit_async.go::emitPollDispatch#2",
-      "message": "missing drop function",
       "group": "PG-INVARIANT"
     },
     {
@@ -333,11 +323,6 @@
       "site": "internal/backend/llvm/emit_crossing_share.go::emitChannelShareCrossing#6",
       "message": "share request failed",
       "group": "PG-CROSSING"
-    },
-    {
-      "site": "internal/backend/llvm/emit_drop_glue.go::emitResultDropDispatch#1",
-      "message": "missing drop function",
-      "group": "PG-INVARIANT"
     },
     {
       "site": "internal/backend/llvm/emit_helpers_numeric.go::emitCheckedBigFloatToF64#1",

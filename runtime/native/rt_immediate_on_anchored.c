@@ -1,5 +1,6 @@
 #include "rt_far_channel.h"
 #include "rt_remote_task_internal.h"
+#include "rt_value_cell.h"
 
 // The anchored immediate execute: the destination is the anchor's owner
 // shard rather than a resolved placement; everything else (pending, reply
@@ -10,14 +11,14 @@
 // Anchored variant: the destination is the anchor's owner shard, and the
 // dispatch side validates the anchor against the channel registry before a
 // body exists. The retry/cancel path is the placement variant's.
-static void anchored_drop_unshipped_state(uint64_t state_drop_fn_id, void* state) {
-    if (state_drop_fn_id != 0 && state != NULL) {
-        __surge_drop_call(state_drop_fn_id, state);
+static void anchored_drop_unshipped_state(uint64_t state_type_id, void* state) {
+    if (state_type_id != 0 && state != NULL) {
+        rt_value_release_owned_block(rt_channel_element_ops_for(state_type_id), state);
     }
 }
 
 rt_remote_task_status rt_immediate_on_execute_anchored(const rt_far_task_handle* anchor,
-                                                       uint64_t state_drop_fn_id,
+                                                       uint64_t state_type_id,
                                                        uint64_t result_type_id,
                                                        int64_t poll_fn_id,
                                                        void* state,
@@ -43,19 +44,19 @@ rt_remote_task_status rt_immediate_on_execute_anchored(const rt_far_task_handle*
         return RT_REMOTE_TASK_STATUS_PENDING;
     }
     if (anchor == NULL || anchor->kind != RT_FAR_HANDLE_KIND_CHANNEL) {
-        anchored_drop_unshipped_state(state_drop_fn_id, state);
+        anchored_drop_unshipped_state(state_type_id, state);
         return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
     }
     rt_runtime* runtime = rt_executor_runtime(ex);
     rt_shard* destination = rt_runtime_shard(runtime, anchor->owner_shard_id);
     if (destination == NULL) {
-        anchored_drop_unshipped_state(state_drop_fn_id, state);
+        anchored_drop_unshipped_state(state_type_id, state);
         return RT_REMOTE_TASK_STATUS_STALE_TOKEN;
     }
     if (atomic_load_explicit(&ex->shutdown, memory_order_acquire) != 0 ||
         atomic_load_explicit(&destination->transport.park_state, memory_order_acquire) ==
             RT_TRANSPORT_SHARD_SHUTDOWN) {
-        anchored_drop_unshipped_state(state_drop_fn_id, state);
+        anchored_drop_unshipped_state(state_type_id, state);
         return RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN;
     }
     rt_far_task_handle route = {.task_id = 0,
@@ -65,16 +66,16 @@ rt_remote_task_status rt_immediate_on_execute_anchored(const rt_far_task_handle*
     rt_remote_task_pending* request = rt_remote_task_pending_new(
         ex, &route, rt_immediate_on_source_shard(current), RT_REMOTE_TASK_OP_EXECUTE_ANCHORED, 1);
     if (request == NULL) {
-        anchored_drop_unshipped_state(state_drop_fn_id, state);
+        anchored_drop_unshipped_state(state_type_id, state);
         return RT_REMOTE_TASK_STATUS_REFUSED;
     }
     request->handle.generation = request->request_id;
     request->caller_task_id = current->id;
     request->body_poll_fn_id = (uint64_t)poll_fn_id;
     request->body_state = state;
-    request->state_drop_fn_id = state_drop_fn_id;
-    request->result_drop_fn_id = result_type_id;
-    request->state_owned = state_drop_fn_id != 0;
+    request->state_type_id = state_type_id;
+    request->result_type_id = result_type_id;
+    request->state_owned = state_type_id != 0;
     request->anchor = *anchor;
     *pending = request;
     (void)rt_remote_task_prepare_reply_wait(ex, current, request);
