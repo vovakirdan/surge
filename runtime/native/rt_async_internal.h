@@ -501,7 +501,12 @@ typedef struct rt_blocking_job {
     void* state;
     uint64_t state_size;
     uint64_t state_align;
-    uint64_t result_bits;
+    // What the blocking body answered, at its own type. The job owns it from
+    // the moment the body returns until the awaiting task's poll moves it into
+    // that task's result, and destroys it if nobody ever comes: the job
+    // outlives the worker thread's frame and the task's poll alike, which is
+    // why the value cannot live in either.
+    rt_value_cell result;
     atomic_u8 status;
     atomic_u8 cancel_requested;
     atomic_u32 refs;
@@ -734,8 +739,12 @@ extern void __surge_drop_result_call(uint64_t id, void* value);
 // with nothing to free at all.
 // NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 extern void __surge_drop_abandoned_state_call(uint64_t id, void* state);
+// Runs one blocking body and writes its result INTO `out_dst`, which the
+// runtime sized from that body's own result type. It used to RETURN a machine
+// word, which meant a result wider than one was boxed on the way out and
+// adopted on the way back in.
 // NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
-extern uint64_t __surge_blocking_call(uint64_t id, void* state);
+extern void __surge_blocking_call(uint64_t id, void* state, void* out_dst);
 
 extern rt_executor exec_state;
 extern _Thread_local jmp_buf* poll_env;

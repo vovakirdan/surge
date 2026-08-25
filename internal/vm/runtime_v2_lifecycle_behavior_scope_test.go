@@ -341,7 +341,7 @@ static void poll_blocking_park(void) {
     if (handle == NULL) {
         // Long enough that shutdown is requested while this task is still
         // parked on blocking_key.
-        handle = rt_blocking_submit(BLOCKING_FN_SLOW, NULL, 0, 0);
+        handle = rt_blocking_submit(BLOCKING_FN_SLOW, NULL, 0, 0, 0);
         if (handle == NULL) {
             rt_async_return(NULL, &(uint64_t){0});
             return;
@@ -370,13 +370,19 @@ static void poll_external_await_target(void) {
     rt_async_return(NULL, &(uint64_t){123});
 }
 
-uint64_t __surge_blocking_call(uint64_t id, void* state) {
+void __surge_blocking_call(uint64_t id, void* state, void* out_dst) {
     (void)state;
     if (id == BLOCKING_FN_SLOW) {
         sleep_us(30000);
-        return 42;
+        if (out_dst != NULL) {
+            *(uint64_t*)out_dst = 42;
+        }
+        return;
     }
-    return 0;
+    if (out_dst != NULL) {
+            *(uint64_t*)out_dst = 0;
+        }
+        return;
 }
 
 static int mode_scope_failfast(rt_executor* ex) {

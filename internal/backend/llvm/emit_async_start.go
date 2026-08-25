@@ -96,14 +96,22 @@ func (fe *funcEmitter) emitInstrBlocking(ins *mir.Instr) error {
 	if align <= 0 {
 		align = 1
 	}
+	// The blocking body's RESULT type, so the job and the awaiting task bind
+	// the same descriptor: the value moves between their storages rather than
+	// being widened into a word on one side and rebuilt on the other.
+	resultType := types.NoTypeID
+	if body := fe.emitter.mod.Funcs[ins.Blocking.FuncID]; body != nil {
+		resultType = resolveValueType(fe.emitter.types, body.Result)
+	}
 	callTmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
-		"  %s = call ptr @rt_blocking_submit(i64 %d, ptr %s, i64 %d, i64 %d)\n",
+		"  %s = call ptr @rt_blocking_submit(i64 %d, ptr %s, i64 %d, i64 %d, i64 %d)\n",
 		callTmp,
 		ins.Blocking.FuncID,
 		stateVal,
 		size,
-		align)
+		align,
+		resultType)
 	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(ins.Blocking.Dst)
 	if err != nil {
 		return err

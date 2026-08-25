@@ -10,10 +10,13 @@
 int rt_argc = 0;
 char** rt_argv_raw = NULL;
 
-uint64_t __surge_blocking_call(uint64_t id, void* state) {
+void __surge_blocking_call(uint64_t id, void* state, void* out_dst) {
     (void)id;
     (void)state;
-    return 0;
+    if (out_dst != NULL) {
+        *(uint64_t*)out_dst = 0;
+    }
+    return;
 }
 
 int rtb_fail(const char* message) {

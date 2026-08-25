@@ -137,10 +137,13 @@ enum { RACE_PARENT_COUNT = 64, RACE_CHILDREN_PER_PARENT = 24 };
 int rt_argc = 0;
 char** rt_argv_raw = NULL;
 
-uint64_t __surge_blocking_call(uint64_t id, void* state) {
+void __surge_blocking_call(uint64_t id, void* state, void* out_dst) {
     (void)id;
     (void)state;
-    return 0;
+    if (out_dst != NULL) {
+            *(uint64_t*)out_dst = 0;
+        }
+        return;
 }
 
 static _Atomic(void*) g_race_parents[RACE_PARENT_COUNT];

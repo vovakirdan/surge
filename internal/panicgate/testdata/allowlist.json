@@ -801,7 +801,17 @@
     },
     {
       "site": "runtime/native/rt_async_blocking.c::rt_blocking_submit#2",
+      "message": "async: a blocking task's result storage could not be reserved",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_blocking.c::rt_blocking_submit#3",
       "message": "async: blocking job allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_blocking.c::rt_blocking_submit#4",
+      "message": "async: a blocking job's result storage could not be reserved",
       "group": "PG-ALLOC-FAILURE"
     },
     {

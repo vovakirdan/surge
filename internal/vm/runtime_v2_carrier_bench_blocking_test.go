@@ -173,17 +173,26 @@ void __surge_drop_abandoned_state_call(uint64_t id, void* state) {
     (void)state;
 }
 
-uint64_t __surge_blocking_call(uint64_t id, void* state) {
+void __surge_blocking_call(uint64_t id, void* state, void* out_dst) {
     (void)state;
     if (id != BLOCKING_FN_QUICK) {
-        return 0;
+        if (out_dst != NULL) {
+            *(uint64_t*)out_dst = 0;
+        }
+        return;
     }
     unsigned before = atomic_load_explicit(&g_sync_before, memory_order_acquire);
     if (!rt_sync_point_wait_until_after(
             RT_SYNC_POINT_SP_BLOCKING_POLL_BEFORE_WAIT_REGISTER, before)) {
-        return 0;
+        if (out_dst != NULL) {
+            *(uint64_t*)out_dst = 0;
+        }
+        return;
     }
-    return 42;
+    if (out_dst != NULL) {
+            *(uint64_t*)out_dst = 42;
+        }
+        return;
 }
 
 int main(void) {
@@ -196,7 +205,7 @@ int main(void) {
     atomic_store_explicit(&g_sync_before, before, memory_order_release);
     uint64_t completed_before = atomic_load_explicit(
         &ex->blocking_completed, memory_order_acquire);
-    rt_task* task = (rt_task*)rt_blocking_submit(BLOCKING_FN_QUICK, NULL, 0, 0);
+    rt_task* task = (rt_task*)rt_blocking_submit(BLOCKING_FN_QUICK, NULL, 0, 0, 0);
     if (task == NULL) {
         return fail("blocking submit failed");
     }

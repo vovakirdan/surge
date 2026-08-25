@@ -7889,3 +7889,37 @@ measures COMMITTED blobs, so D4a's four-line growth of
 until D4a was committed. It is shrunk back here. A pre-commit run cannot see
 this class of violation at all — worth knowing before trusting a green
 pre-commit as the whole answer.
+
+## 2026-08-25 — D6: a blocking body's result keeps its width
+
+`__surge_blocking_call` returned a `uint64_t`. A blocking result wider than a
+machine word was therefore boxed by the worker thread and adopted again by the
+awaiting poll — and the two sides did not agree about whether that word WAS the
+value or pointed at it. A composite result printed garbage for its first field
+and then segfaulted. That is not a latent shape: it is what the probe did, on
+this tree, before the flip.
+
+The body now writes its result INTO storage the runtime sized from the body's
+own type, and the JOB owns that storage in an `rt_value_cell` until the awaiting
+poll moves it into the task's result.
+
+**Why the job owns it.** It is the only thing that outlives both frames which
+touch the value: the worker thread's, which produced it, and the poll's, which
+comes for it later. A result nobody comes for — a cancelled awaiter, a
+torn-down executor — is destroyed by that cell where the job is released,
+exactly once.
+
+Both cells bind the SAME descriptor, named by `rt_blocking_submit`'s new
+`result_type_id`. That is what lets the value MOVE between them rather than be
+rebuilt from a word on the other side.
+
+The sret case improves twice over: a body that already writes through a
+destination pointer is handed the runtime's own storage, so there is no
+frame-local copy on the way either.
+
+**Falsifier.** `TestRuntimeV2BlockingResultKeepsItsWidth` drives a composite
+(two fields, one owning heap) and a bare string through `blocking`, and reads
+both back. Against the pre-flip tree it fails on the composite's own count
+field; on this tree it passes. The word-shaped case's allocation profile is
+unchanged: 91 allocs / 9 frees on both sides, including a one-byte leak in
+compiled code that predates this and belongs to neither lane.

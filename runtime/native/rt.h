@@ -331,7 +331,13 @@ void rt_task_cancel(void* task);
 // and moves its result out. What may duplicate a value, and for whom, is the
 // entitlement question D4b answers.
 void* rt_task_clone(void* task, rt_value_clone_init_fn duplicate);
-void* rt_blocking_submit(uint64_t fn_id, void* state, uint64_t state_size, uint64_t state_align);
+// `result_type_id` names the blocking body's result type, so the job and the
+// awaiting task bind the SAME descriptor and the value moves between them.
+void* rt_blocking_submit(uint64_t fn_id,
+                         void* state,
+                         uint64_t state_size,
+                         uint64_t state_align,
+                         uint64_t result_type_id);
 // `out_dst` is the caller's storage for the result, sized from its own type:
 // a timeout poll takes the value out of the same slot an await does.
 uint8_t rt_timeout_poll(void* task, uint64_t ms, void* out_dst);

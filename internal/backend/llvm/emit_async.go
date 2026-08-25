@@ -181,7 +181,7 @@ func (e *Emitter) emitBlockingDispatch() error {
 	}
 	sort.Slice(blockIDs, func(i, j int) bool { return blockIDs[i] < blockIDs[j] })
 
-	fmt.Fprintf(&e.buf, "define i64 @__surge_blocking_call(i64 %%id, ptr %%state) {\n")
+	fmt.Fprintf(&e.buf, "define void @__surge_blocking_call(i64 %%id, ptr %%state, ptr %%out) {\n")
 	fmt.Fprintf(&e.buf, "entry:\n")
 	fmt.Fprintf(&e.buf, "  switch i64 %%id, label %%blocking_default [\n")
 	for _, id := range blockIDs {
@@ -209,32 +209,34 @@ func (e *Emitter) emitBlockingDispatch() error {
 		}
 		fmt.Fprintf(&e.buf, "blocking.%d:\n", id)
 		if lowered.sret {
-			// The body writes its result into a destination this frame owns,
-			// and the result then travels on to the runtime as a payload of
-			// its own.
-			dst := fmt.Sprintf("%%blocking.ret.%d", id)
-			fmt.Fprintf(&e.buf, "  %s = alloca %s, align %d\n", dst, lowered.retStorage, lowered.retAlign)
-			fmt.Fprintf(&e.buf, "  call void @%s(ptr sret(%s) align %d %s, ptr %%state)\n",
-				name, lowered.retStorage, lowered.retAlign, dst)
-			bits, bitsErr := fe.emitValueToI64(dst, lowered.retStorage, f.Result)
-			if bitsErr != nil {
-				return bitsErr
-			}
-			fmt.Fprintf(&e.buf, "  ret i64 %s\n", bits)
+			// The body already writes its result through a destination
+			// pointer, so it is given the runtime's own storage directly --
+			// no frame-local copy, and nothing to widen into a word.
+			fmt.Fprintf(&e.buf, "  call void @%s(ptr sret(%s) align %d %%out, ptr %%state)\n",
+				name, lowered.retStorage, lowered.retAlign)
+			fmt.Fprintf(&e.buf, "  ret void\n")
 			continue
 		}
 		if lowered.ret == "void" {
 			fmt.Fprintf(&e.buf, "  call void @%s(ptr %%state)\n", name)
-			fmt.Fprintf(&e.buf, "  ret i64 0\n")
+			fmt.Fprintf(&e.buf, "  ret void\n")
 			continue
 		}
 		tmp := fe.nextTemp()
 		fmt.Fprintf(&e.buf, "  %s = call %s @%s(ptr %%state)\n", tmp, lowered.ret, name)
-		bits, err := fe.emitValueToI64(tmp, lowered.ret, f.Result)
-		if err != nil {
-			return err
+		// A value the body RETURNS is stored into the runtime's storage at its
+		// own type. The store is the whole conversion: the descriptor the
+		// runtime bound sized that storage from the same type.
+		//
+		// A returned value's alignment comes from the TYPE, not from the sret
+		// contract, which leaves retAlign at zero for anything it does not
+		// carry indirectly.
+		storeAlign := uint64(alignWord)
+		if facts, alignErr := e.layoutOf(f.Result); alignErr == nil && facts.Align > 0 {
+			storeAlign = facts.Align
 		}
-		fmt.Fprintf(&e.buf, "  ret i64 %s\n", bits)
+		fmt.Fprintf(&e.buf, "  store %s %s, ptr %%out, align %d\n", lowered.ret, tmp, storeAlign)
+		fmt.Fprintf(&e.buf, "  ret void\n")
 	}
 
 	fmt.Fprintf(&e.buf, "blocking_default:\n")

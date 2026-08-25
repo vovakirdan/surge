@@ -24,6 +24,9 @@ static void blocking_job_release(rt_blocking_job* job) {
     if (job->state != NULL && job->state_size > 0) {
         rt_free((uint8_t*)job->state, job->state_size, job->state_align);
     }
+    // A result nobody came for -- a cancelled awaiter, a torn-down executor --
+    // is destroyed here, exactly once, by the cell that owns it.
+    rt_value_cell_dispose(&job->result);
     rt_free((uint8_t*)job, sizeof(rt_blocking_job), _Alignof(rt_blocking_job));
 }
 
@@ -109,14 +112,21 @@ static void* rt_blocking_worker_main(void* arg) {
                               (unsigned long long)job->task_id,
                               (unsigned long long)job->fn_id,
                               job->state);
-        uint64_t result = __surge_blocking_call(job->fn_id, job->state);
-        rt_async_debug_printf("async blocking done task=%llu fn=%llu result=%llu\n",
+        // The body writes its answer straight into the job's cell, at the
+        // width its own type asks for. It used to RETURN a machine word, so a
+        // result wider than one had to be boxed here and adopted again on the
+        // other side -- two representations for one value, on a path where the
+        // producing thread and the consuming poll never meet.
+        void* destination = rt_value_cell_publish_storage(&job->result);
+        __surge_blocking_call(job->fn_id, job->state, destination);
+        if (destination != NULL) {
+            (void)rt_value_cell_commit(&job->result);
+        }
+        rt_async_debug_printf("async blocking done task=%llu fn=%llu\n",
                               (unsigned long long)job->task_id,
-                              (unsigned long long)job->fn_id,
-                              (unsigned long long)result);
+                              (unsigned long long)job->fn_id);
         (void)atomic_fetch_add_explicit(&ex->blocking_completed, 1, memory_order_relaxed);
 
-        job->result_bits = result;
         uint8_t expected = BLOCKING_JOB_PENDING;
         if (atomic_compare_exchange_strong_explicit(&job->status,
                                                     &expected,
@@ -224,14 +234,16 @@ observe_terminal:
     status = atomic_load_explicit(&job->status, memory_order_acquire);
     if (status == BLOCKING_JOB_DONE) {
         out.kind = POLL_DONE_SUCCESS;
-        // A blocking job still answers with a machine word, which is D6's to
-        // retype. The task's slot carries it as the opaque word it is, so the
-        // completion path has one shape rather than two.
+        // The value MOVES from the job's cell into the task's, both bound to
+        // the same descriptor: this is the one place the producing thread's
+        // storage and the awaiting task's storage meet, and a move is what
+        // makes exactly one of them own it afterwards.
         void* destination = rt_value_cell_publish_storage(&task->result);
-        if (destination != NULL) {
-            uint64_t bits = job->result_bits;
-            rt_value_move_init_detached(task->result.operations, destination, &bits);
+        void* produced = rt_value_cell_value(&job->result);
+        if (destination != NULL && produced != NULL) {
+            rt_value_move_init_detached(task->result.operations, destination, produced);
             (void)rt_value_cell_commit(&task->result);
+            (void)rt_value_cell_commit_move(&job->result);
         }
         blocking_job_release(job);
         task->state = NULL;
@@ -263,7 +275,11 @@ observe_terminal:
     return out;
 }
 
-void* rt_blocking_submit(uint64_t fn_id, void* state, uint64_t state_size, uint64_t state_align) {
+void* rt_blocking_submit(uint64_t fn_id,
+                         void* state,
+                         uint64_t state_size,
+                         uint64_t state_align,
+                         uint64_t result_type_id) {
     rt_executor* ex = ensure_exec();
     if (ex == NULL) {
         return NULL;
@@ -278,10 +294,15 @@ void* rt_blocking_submit(uint64_t fn_id, void* state, uint64_t state_size, uint6
         return NULL;
     }
     memset(task, 0, sizeof(rt_task));
-    // A blocking job answers with a machine word, and the opaque-word
-    // descriptor is what carries one. D6 retypes this along with the rest of
-    // the blocking lane; until then the slot holds the word the job returns.
-    (void)rt_value_cell_bind(&task->result, rt_channel_opaque_word_ops());
+    // The blocking body's result type, named by the caller: the same
+    // descriptor binds the task's result and the job's, which is what lets the
+    // value MOVE between them rather than be rebuilt from a word.
+    const rt_value_ops* result_ops = rt_channel_element_ops_for(result_type_id);
+    if (rt_value_cell_bind(&task->result, result_ops) != RT_SLOT_CONTROL_OK) {
+        rt_control_unlock(ex);
+        panic_msg("async: a blocking task's result storage could not be reserved");
+        return NULL;
+    }
     task->id = id;
     task->generation = id;
     task->poll_fn_id = -1;
@@ -313,6 +334,15 @@ void* rt_blocking_submit(uint64_t fn_id, void* state, uint64_t state_size, uint6
         return NULL;
     }
     memset(job, 0, sizeof(rt_blocking_job));
+    if (rt_value_cell_bind(&job->result, result_ops) != RT_SLOT_CONTROL_OK) {
+        rt_task_slot_store(ex, id, NULL);
+        rt_value_cell_dispose(&task->result);
+        rt_free((uint8_t*)job, sizeof(rt_blocking_job), _Alignof(rt_blocking_job));
+        rt_free((uint8_t*)task, sizeof(rt_task), _Alignof(rt_task));
+        rt_control_unlock(ex);
+        panic_msg("async: a blocking job's result storage could not be reserved");
+        return NULL;
+    }
     job->task_id = id;
     job->fn_id = fn_id;
     job->state = state;

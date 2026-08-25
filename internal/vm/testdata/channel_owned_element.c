@@ -271,10 +271,13 @@ void __surge_drop_abandoned_state_call(uint64_t id, void* state) {
     (void)state;
 }
 
-uint64_t __surge_blocking_call(uint64_t id, void* state) {
+void __surge_blocking_call(uint64_t id, void* state, void* out_dst) {
     (void)id;
     (void)state;
-    return 0;
+    if (out_dst != NULL) {
+        *(uint64_t*)out_dst = 0;
+    }
+    return;
 }
 
 static int owned_fail(const char* message) {
