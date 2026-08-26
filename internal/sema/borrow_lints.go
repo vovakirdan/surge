@@ -161,9 +161,9 @@ func (tc *typeChecker) reportPartialMoveNeedsOwn(desc placeDescriptor, expr ast.
 		"this hands the value in `%s` to its new owner: `%s` keeps its other fields and can still be read, "+
 			"but reading `%s` or `%s` as a whole after this is an error",
 		label, base, label, base))
-	b.WithNote(span, fmt.Sprintf(
-		"hint: if you did not mean to empty it, borrow the field instead (`&%s`) or clone what you need",
-		label))
+	if advice := tc.cloneAdviceFor(advicePartialMove, tc.result.ExprTypes[expr], label); advice.Help != "" {
+		b.WithHelp(span, advice.Help)
+	}
 	// The marker is the ONLY thing missing, so this is one of the few fixes a
 	// compiler can offer without guessing: this diagnostic is reached after the
 	// path is known enumerable, the place is known still present, and the read is
@@ -212,21 +212,22 @@ func (tc *typeChecker) rejectMoveOutOfSharedBorrow(expr ast.ExprID, span source.
 	}
 	b.WithNote(span, fmt.Sprintf(
 		"the value already has an owner, and reading it here would make a second one — both would free the same `%s`", label))
-	if name == "" {
-		b.WithNote(span, "hint: clone it with `.__clone()` to pay for a copy, or keep working through the borrow")
-		b.Emit()
-		return
+	advice := tc.cloneAdviceFor(adviceMoveOutOfSharedBorrow, exprType, name)
+	if advice.Help != "" {
+		b.WithHelp(span, advice.Help)
 	}
-	b.WithNote(span, fmt.Sprintf(
-		"hint: write `%s.__clone()` to pay for a copy, or keep working through the borrow", name))
-	// Offered rather than preferred: `__clone()` allocates, and whether that
-	// cost is wanted is the author's call — the other way out is to stop taking
-	// the value at all, which no edit here can guess. The guard means the fix
-	// simply does not apply when the source spells the deref some other way.
-	b.WithFixSuggestion(fix.ReplaceSpan(
-		fmt.Sprintf("copy the value: `%s.__clone()`", name),
-		span, fmt.Sprintf("%s.__clone()", name), fmt.Sprintf("*%s", name),
-		fix.WithApplicability(diag.FixApplicabilityManualReview)))
+	// Offered rather than preferred: a clone allocates, and whether that cost is
+	// wanted is the author's call — the other way out is to stop taking the
+	// value at all, which no edit here can guess. It is attached only when the
+	// advice actually offered a clone, because an edit writing a call the type
+	// has no implementation for turns one refusal into two. The guard means the
+	// fix simply does not apply when the source spells the deref some other way.
+	if name != "" && advice.offersCloneCall() {
+		b.WithFixSuggestion(fix.ReplaceSpan(
+			fmt.Sprintf("copy the value: `%s`", cloneCall(name)),
+			span, cloneCall(name), fmt.Sprintf("*%s", name),
+			fix.WithApplicability(diag.FixApplicabilityManualReview)))
+	}
 	b.Emit()
 }
 
@@ -315,12 +316,16 @@ func (tc *typeChecker) rejectArmHandingOutBorrowedPayload(
 	b.WithNote(span, fmt.Sprintf(
 		"`%s` names storage the matched value still owns, so returning it would leave the caller and that owner both freeing the same `%s`",
 		name, label))
-	b.WithNote(span, fmt.Sprintf(
-		"hint: write `%s.__clone()` to pay for a copy, or build the answer from `%s` without giving it away", name, name))
-	b.WithFixSuggestion(fix.ReplaceSpan(
-		fmt.Sprintf("copy the payload: `%s.__clone()`", name),
-		span, fmt.Sprintf("%s.__clone()", name), name,
-		fix.WithApplicability(diag.FixApplicabilityManualReview)))
+	advice := tc.cloneAdviceFor(adviceCompareArmPayload, resultType, name)
+	if advice.Help != "" {
+		b.WithHelp(span, advice.Help)
+	}
+	if advice.offersCloneCall() {
+		b.WithFixSuggestion(fix.ReplaceSpan(
+			fmt.Sprintf("copy the payload: `%s`", cloneCall(name)),
+			span, cloneCall(name), name,
+			fix.WithApplicability(diag.FixApplicabilityManualReview)))
+	}
 	b.Emit()
 }
 

@@ -27,7 +27,7 @@ func (tc *typeChecker) rejectRefInAggregate(t types.TypeID, span source.Span, co
 	if !ok || tt.Kind != types.KindReference {
 		return false
 	}
-	tc.reportRefInAggregate(tc.typeLabel(t), tc.typeLabel(tt.Elem), span, container)
+	tc.reportRefInAggregate(tc.typeLabel(t), tt.Elem, span, container)
 	return true
 }
 
@@ -66,8 +66,9 @@ func (tc *typeChecker) checkBorrowEscapeOnReturn(expr ast.ExprID, ty types.TypeI
 	if sym.Span != (source.Span{}) {
 		b.WithNote(sym.Span, fmt.Sprintf("'%s' lives only inside this function", name))
 	}
-	b.WithNote(span, fmt.Sprintf(
-		"hint: return the value itself to move it out, or a copy: %s.__clone()", name))
+	if advice := tc.cloneAdviceFor(adviceReturnedBorrow, tc.bindingType(base), name); advice.Help != "" {
+		b.WithHelp(span, advice.Help)
+	}
 	b.Emit()
 }
 
@@ -146,8 +147,9 @@ func (tc *typeChecker) checkTaskBorrowEscapeOnReturn(expr ast.ExprID, ty types.T
 			if argSpan != (source.Span{}) {
 				b.WithNote(argSpan, fmt.Sprintf("the task borrowed '%s' here", name))
 			}
-			b.WithNote(span, fmt.Sprintf(
-				"hint: await the task inside this function, or spawn it with an owned value: pass %s itself or %s.__clone()", name, name))
+			if advice := tc.cloneAdviceFor(adviceTaskBorrowsFrameLocal, tc.bindingType(base), name); advice.Help != "" {
+				b.WithHelp(span, advice.Help)
+			}
 			b.Emit()
 		}
 		return
@@ -273,7 +275,7 @@ func (tc *typeChecker) isFrameLocalStorage(base symbols.SymbolID) bool {
 	return ok
 }
 
-func (tc *typeChecker) reportRefInAggregate(label, elemLabel string, span source.Span, container string) {
+func (tc *typeChecker) reportRefInAggregate(label string, elem types.TypeID, span source.Span, container string) {
 	article := "a"
 	if container != "" {
 		switch container[0] {
@@ -293,9 +295,10 @@ func (tc *typeChecker) reportRefInAggregate(label, elemLabel string, span source
 	b.WithNote(span, fmt.Sprintf(
 		"a reference is only valid while the borrowed value's scope is alive; a %s can outlive that scope and dangle",
 		container))
-	b.WithNote(span, fmt.Sprintf(
-		"hint: store an owned %s instead — move the value in, or copy it with .__clone(); to lend a value to a function, pass %s as a parameter",
-		elemLabel, label))
+	if advice := tc.cloneAdviceFor(adviceReferenceInAggregate, elem, ""); advice.Help != "" {
+		b.WithHelp(span, advice.Help)
+	}
+	b.WithHelp(span, fmt.Sprintf("to lend a value to a function, pass %s as a parameter", label))
 	b.Emit()
 }
 

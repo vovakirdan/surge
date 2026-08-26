@@ -390,8 +390,9 @@ func (tc *typeChecker) reportOwnedParamNeedsMarker(expected, actual types.TypeID
 	}
 	b.WithNote(span,
 		"passing it by ownership ends your use of it: the callee frees it, and reading it here afterwards is an error")
-	b.WithNote(span, fmt.Sprintf(
-		"hint: to keep the %s you have, pass a clone instead", label))
+	if advice := tc.cloneAdviceFor(adviceOwnedParam, expInfo.Elem, tc.identNameOf(expr)); advice.Help != "" {
+		b.WithHelp(span, advice.Help)
+	}
 	b.WithFixSuggestion(fix.InsertText(
 		"insert `own` to give the value away",
 		span.ZeroideToStart(), "own ", "",
@@ -450,12 +451,8 @@ func (tc *typeChecker) reportBorrowIntoOwned(expected, actual types.TypeID, expr
 	}
 	b.WithNote(span, fmt.Sprintf(
 		"an owned value is freed by %s; binding a borrow to it would free the borrowed value twice", freer))
-	if name != "" {
-		b.WithNote(span, fmt.Sprintf(
-			"hint: pass '%s' itself to give the value away, or keep yours and pass a copy: %s.__clone()",
-			name, name))
-	} else {
-		b.WithNote(span, "hint: pass the value itself to give it away, or pass a copy via .__clone()")
+	if advice := tc.cloneAdviceFor(adviceBorrowIntoOwned, elem, name); advice.Help != "" {
+		b.WithHelp(span, advice.Help)
 	}
 	b.Emit()
 	return true

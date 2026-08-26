@@ -83,11 +83,11 @@ func appendCloneObligationNotes(
 	}
 	diagnostic.Help = append(diagnostic.Help, diag.Note{Span: site, Msg: spec.consumeHelp})
 	if evidence.CanDefineHere {
+		// The sentence comes from the shared renderer, so the signature it
+		// teaches is the same one every other emitter teaches.
 		diagnostic.Help = append(diagnostic.Help, diag.Note{
 			Span: site,
-			Msg: fmt.Sprintf(
-				"or give `%s` the contract that already exists: `extern<%s> { fn __clone(self: &%s) -> %s }`",
-				obligation.SubjectLabel, obligation.SubjectLabel, obligation.SubjectLabel, obligation.SubjectLabel),
+			Msg:  cloneDefinitionHelp(obligation.SubjectLabel),
 		})
 	}
 }

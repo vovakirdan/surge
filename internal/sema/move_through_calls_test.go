@@ -67,19 +67,25 @@ fn bad() -> nothing {
 	if parseBag.HasErrors() {
 		t.Fatalf("unexpected parse diagnostics: %s", diagnosticsSummary(parseBag))
 	}
+	// The way out is ADVICE, so it lives in the Help channel. Which way out it
+	// names depends on what the compiler can prove about the type: this snippet
+	// is checked without the standard library, so `string` has no visible
+	// `__clone` and the sentence offers the borrow alone. That is the whole
+	// point of the type-directed table — it never names a clone it cannot
+	// prove is callable.
 	found := false
 	for _, item := range semaBag.Items() {
 		if item.Code != diag.SemaUseAfterMove {
 			continue
 		}
-		for _, note := range item.Notes {
-			if strings.Contains(note.Msg, "__clone") || strings.Contains(note.Msg, "reference") {
+		for _, entry := range item.Help {
+			if strings.Contains(entry.Msg, "borrow") || strings.Contains(entry.Msg, "clone(") {
 				found = true
 			}
 		}
 	}
 	if !found {
-		t.Fatalf("use-after-move must carry the way-out hint note, got %s", diagnosticsSummary(semaBag))
+		t.Fatalf("use-after-move must carry the way-out help, got %s", diagnosticsSummary(semaBag))
 	}
 }
 

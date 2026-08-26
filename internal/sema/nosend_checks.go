@@ -1,6 +1,8 @@
 package sema
 
 import (
+	"fmt"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
@@ -70,9 +72,21 @@ func (tc *typeChecker) checkChannelSendValue(valueExpr ast.ExprID, span source.S
 	// borrowed value's scope, and the loan table cannot follow the
 	// reference across the channel.
 	if info, ok := tc.types.Lookup(tc.resolveAlias(valueType)); ok && info.Kind == types.KindReference {
-		tc.report(diag.SemaChannelNosendValue, span,
-			"cannot send a borrow (%s) through a channel: the receiving task can outlive the borrowed value; send the value itself to give it away, or a copy via .__clone()",
+		// The way out leaves the headline and becomes help, because it names a
+		// spelling: whether a copy can be sent at all depends on the payload,
+		// and a headline cannot be conditional on it.
+		message := fmt.Sprintf(
+			"cannot send a borrow (%s) through a channel: the receiving task can outlive the borrowed value",
 			tc.typeLabel(valueType))
+		b := diag.ReportError(tc.reporter, diag.SemaChannelNosendValue, span, message)
+		if b == nil {
+			tc.report(diag.SemaChannelNosendValue, span, "%s", message)
+			return true
+		}
+		if advice := tc.cloneAdviceFor(adviceChannelBorrow, info.Elem, tc.identNameOf(valueExpr)); advice.Help != "" {
+			b.WithHelp(span, advice.Help)
+		}
+		b.Emit()
 		return true
 	}
 

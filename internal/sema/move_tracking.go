@@ -242,8 +242,21 @@ func (tc *typeChecker) checkUseAfterMove(symID symbols.SymbolID, span source.Spa
 			name = symName
 		}
 	}
-	if tc.isTaskType(tc.bindingType(symID)) {
-		tc.report(diag.SemaUseAfterMove, span, "use of moved task '%s'; call %s.clone() to keep a handle", name, name)
+	if taskType := tc.bindingType(symID); tc.isTaskType(taskType) {
+		// The clone clause is offered only where the payload can be duplicated:
+		// `.clone()` on a task whose T has no clone is itself an error, and
+		// advising it would send the author from one refusal to the next.
+		advice := tc.cloneAdviceFor(adviceMovedTask, tc.taskPayloadType(taskType), name)
+		if b := diag.ReportError(tc.reporter, diag.SemaUseAfterMove, span,
+			fmt.Sprintf("use of moved task '%s'", name)); b != nil {
+			if moveSpan != (source.Span{}) {
+				b.WithNote(moveSpan, fmt.Sprintf("'%s' gave its handle away here", name))
+			}
+			if advice.Help != "" {
+				b.WithHelp(span, advice.Help)
+			}
+			b.Emit()
+		}
 		return
 	}
 	bindingType := tc.bindingType(symID)
@@ -261,9 +274,9 @@ func (tc *typeChecker) checkUseAfterMove(symID symbols.SymbolID, span source.Spa
 			if moveSpan != (source.Span{}) {
 				b.WithNote(moveSpan, fmt.Sprintf("'%s' gave its value away here", name))
 			}
-			b.WithNote(span, fmt.Sprintf(
-				"hint: if the receiver only reads '%s', let it take a reference (&); to keep using '%s' here, pass a clone instead: %s.__clone()",
-				name, name, name))
+			if advice := tc.cloneAdviceFor(adviceMovedValue, bindingType, name); advice.Help != "" {
+				b.WithHelp(span, advice.Help)
+			}
 			b.Emit()
 		}
 	}
