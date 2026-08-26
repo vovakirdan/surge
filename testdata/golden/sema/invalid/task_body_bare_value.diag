@@ -1,0 +1,2 @@
+error SYN2037 testdata/golden/sema/invalid/task_body_bare_value.sg:5:9 the `blocking` body gives its value with `ret`: write `ret 42;` — a trailing expression is not the body's value
+error SYN2037 testdata/golden/sema/invalid/task_body_bare_value.sg:11:9 the `async` body gives its value with `ret`: write `ret 40 + 2;` — a trailing expression is not the body's value

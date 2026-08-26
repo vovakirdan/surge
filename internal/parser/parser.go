@@ -71,9 +71,12 @@ type Parser struct {
 	rangeLiteralStart     ast.ExprID
 	rangeLiteralInclusive bool
 	rangeLiteralSpan      source.Span
-	pragmaParsed          bool
-	tracer                trace.Tracer // трассировщик для отладки зависаний
-	exprDepth             int          // глубина рекурсии для выражений
+	// taskBody says which async/blocking body, if any, the statement list
+	// being parsed belongs to directly (see parse_context.go).
+	taskBody     taskBodyScope
+	pragmaParsed bool
+	tracer       trace.Tracer // трассировщик для отладки зависаний
+	exprDepth    int          // глубина рекурсии для выражений
 }
 
 // DirectiveMode specifies how directives are handled during parsing.
@@ -128,28 +131,6 @@ func ParseFile(
 
 func (p *Parser) at(k token.Kind) bool {
 	return p.lx.Peek().Kind == k
-}
-
-func (p *Parser) pushColonCastSuspension() {
-	p.suspendColonCastDepths = append(p.suspendColonCastDepths, p.exprDepth+1)
-}
-
-func (p *Parser) popColonCastSuspension() {
-	if n := len(p.suspendColonCastDepths); n > 0 {
-		p.suspendColonCastDepths = p.suspendColonCastDepths[:n-1]
-	}
-}
-
-func (p *Parser) colonCastSuspended() bool {
-	if p.suspendColonCast > 0 {
-		return true
-	}
-	for i := len(p.suspendColonCastDepths) - 1; i >= 0; i-- {
-		if p.suspendColonCastDepths[i] == p.exprDepth {
-			return true
-		}
-	}
-	return false
 }
 
 func (p *Parser) atOr(kinds ...token.Kind) bool {

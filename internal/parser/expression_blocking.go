@@ -14,7 +14,7 @@ func (p *Parser) parseBlockingExpr() (ast.ExprID, bool) {
 		return ast.NoExprID, false
 	}
 
-	bodyID, ok := p.parseBlock()
+	bodyID, ok := p.parseTaskBody("blocking")
 	if !ok {
 		return ast.NoExprID, false
 	}

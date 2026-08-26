@@ -1,8 +1,8 @@
 {
   "version": 1,
   "golden_root": "testdata/golden",
-  "entry_count": 5313,
-  "corpus_sha256": "aec45413431f8d5d77231afb20929814a5804c6878547a512ffade1b09a4d35f",
+  "entry_count": 5318,
+  "corpus_sha256": "94bf3dd3d094d90899480eb7423a7071b10dd2bc802eb25aafb6140cc2376933",
   "diagnostic_zero": [
     "sema/invalid/attrs/deprecated_usage.sg",
     "sema/invalid/compare_arm_implicit_block_value_warn.sg",
@@ -44,6 +44,7 @@
     "sema/invalid/macro_not_supported.sg",
     "sema/invalid/pragma_invalid_position.sg",
     "sema/invalid/returning_anonymous_record.sg",
+    "sema/invalid/task_body_bare_value.sg",
     "sema/invalid/variadic_not_last.sg"
   ],
   "emit_failure": [

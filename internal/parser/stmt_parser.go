@@ -28,6 +28,7 @@ func (p *Parser) parseBlock() (ast.StmtID, bool) {
 	}
 
 	openTok := p.advance()
+	defer p.leaveBlock(p.enterBlock())
 	var stmtIDs []ast.StmtID
 
 	for !p.at(token.EOF) && !p.at(token.RBrace) {
@@ -630,29 +631,7 @@ func (p *Parser) parseExprStmt() (ast.StmtID, bool) {
 	case allowOmitSemicolon:
 		missingSemicolon = true
 	default:
-		insertSpan := p.lastSpan.ZeroideToEnd()
-		semiTok, semiOK = p.expect(
-			token.Semicolon,
-			diag.SynExpectSemicolon,
-			"expected ';' after expression statement",
-			func(b *diag.ReportBuilder) {
-				if b == nil {
-					return
-				}
-				fixID := fix.MakeFixID(diag.SynExpectSemicolon, insertSpan)
-				suggestion := fix.InsertText(
-					"insert ';' after expression statement",
-					insertSpan,
-					";",
-					"",
-					fix.WithID(fixID),
-					fix.WithKind(diag.FixKindRefactor),
-					fix.WithApplicability(diag.FixApplicabilityAlwaysSafe),
-				)
-				b.WithFixSuggestion(suggestion)
-				b.WithNote(insertSpan, "insert missing semicolon")
-			},
-		)
+		semiTok, semiOK = p.expectExprStmtSemicolon(exprID)
 		missingSemicolon = !semiOK
 	}
 	exprSpan := p.arenas.Exprs.Get(exprID).Span

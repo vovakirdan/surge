@@ -22,7 +22,7 @@ func (p *Parser) parseAsyncExprWithAttrs(attrs []ast.Attr, attrSpan source.Span)
 		return ast.NoExprID, false
 	}
 
-	bodyID, ok := p.parseBlock()
+	bodyID, ok := p.parseTaskBody("async")
 	if !ok {
 		return ast.NoExprID, false
 	}

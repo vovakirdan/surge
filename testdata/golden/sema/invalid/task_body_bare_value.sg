@@ -1,0 +1,13 @@
+// A bare trailing expression is not the body's value: the parser names the
+// edit `ret 42;` (SYN2037) and sema adds nothing on top of it.
+fn make() -> Task<int> {
+    return blocking {
+        42
+    };
+}
+
+fn make_async() -> Task<int> {
+    return async {
+        40 + 2
+    };
+}

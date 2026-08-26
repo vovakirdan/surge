@@ -57,6 +57,9 @@ func isStatementKeyword(kind token.Kind) bool {
 // Block expressions contain statements and must end with a return statement
 // (unless the expected type is 'nothing').
 func (p *Parser) parseBlockExprBody(openTok token.Token) (ast.ExprID, bool) {
+	// A block expression inside an async/blocking body is not the body: its
+	// trailing expression is its own (legacy) value, not the task's.
+	defer p.leaveBlock(p.enterBlock())
 	var stmts []ast.StmtID
 
 	for !p.at(token.RBrace) && !p.at(token.EOF) {
