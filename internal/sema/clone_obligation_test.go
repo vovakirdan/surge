@@ -166,3 +166,33 @@ func TestClonableSubjectsSatisfyTheirObligation(t *testing.T) {
 		}
 	}
 }
+
+// TestRequireClonableRoutesConcreteAndGenericSubjects is the D2 handoff shown
+// working, without a `keys()` site existing yet.
+//
+// The map lane adds that site with one call. What this pins is that the call
+// does the routing: a concrete subject becomes a recorded obligation the
+// post-merge validator answers, and a generic one becomes a deferred edge the
+// instantiation walk answers, carrying the operation so the right code and the
+// right sentence come out at the other end.
+func TestRequireClonableRoutesConcreteAndGenericSubjects(t *testing.T) {
+	for _, op := range []CloneObligationOp{CloneObligationTaskClone, CloneObligationMapKeys} {
+		t.Run(op.String(), func(t *testing.T) {
+			spec, known := op.spec()
+			if !known {
+				t.Fatalf("%s has no diagnostic spec", op)
+			}
+			if spec.code == 0 || spec.headline == "" || spec.consumeHelp == "" {
+				t.Fatalf("%s is missing part of its spec: %+v", op, spec)
+			}
+		})
+	}
+	// The two operations must not report under one number: the task reuses
+	// SEM3116 so its concrete and instantiated forms are provably one
+	// diagnostic, while `keys()` says an OPERATION is unavailable here.
+	taskSpec, _ := CloneObligationTaskClone.spec()
+	keysSpec, _ := CloneObligationMapKeys.spec()
+	if taskSpec.code == keysSpec.code {
+		t.Fatalf("both operations report under %s", taskSpec.code.ID())
+	}
+}

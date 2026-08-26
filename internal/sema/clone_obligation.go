@@ -191,48 +191,72 @@ func (e *CloneObligationError) Diagnostic() *diag.Diagnostic {
 	return &detached
 }
 
-// recordTaskCloneObligation notes that this `.clone()` owes an independent
-// payload, and routes the question to whichever authority can answer it.
+// RequireClonable is the one call an operation makes to say that it owes an
+// independent value of `subject`.
 //
-// A concrete payload is recorded for the post-merge validator. A payload that
-// still carries a generic parameter is recorded on the instantiation graph
-// instead, so it is asked once per live instantiation and an uninstantiated
-// generic definition is never asked at all.
-func (tc *typeChecker) recordTaskCloneObligation(
-	receiver types.TypeID,
-	payload types.TypeID,
+// It routes the question to whichever authority can answer it, which is the
+// whole reason a site does not decide this for itself: a concrete subject goes
+// to the post-merge validator, because the `__clone` that settles it may be
+// declared in a module this file only imports; a subject still carrying a
+// generic parameter goes onto the instantiation graph, so it is asked once per
+// LIVE instantiation and an uninstantiated generic definition is never asked.
+//
+// `container` is what the author wrote, and it is what the message names.
+//
+// This is the seam a new operation joins through. `Map<K, V>.keys()` returns an
+// array that owns its keys and therefore duplicates each one; the map lane adds
+// that site by calling this with CloneObligationMapKeys, and gets SEM3204, the
+// notes, the deferral and the instantiation witness without writing any of them.
+func (tc *typeChecker) requireClonable(
+	op CloneObligationOp,
+	subject types.TypeID,
+	container types.TypeID,
 	span source.Span,
 ) {
-	if tc == nil || tc.result == nil || payload == types.NoTypeID || !tc.isTaskType(receiver) {
+	if tc == nil || tc.result == nil || subject == types.NoTypeID {
 		return
 	}
-	// The message names the VALUE the author wrote. A receiver reached through
-	// a borrow is the same task, and `&Task<Widget>` in the headline would read
+	// The message names the VALUE the author wrote. A container reached through
+	// a borrow is the same value, and `&Task<Widget>` in a headline would read
 	// as if the borrow were what refused.
-	if value := tc.valueType(receiver); value != types.NoTypeID {
-		receiver = value
+	if value := tc.valueType(container); value != types.NoTypeID {
+		container = value
 	}
-	if tc.types != nil && types.ContainsGenericParam(tc.types, payload) {
+	if tc.types != nil && types.ContainsGenericParam(tc.types, subject) {
 		// Receiver is the subject that must be clonable; ExpectedResult carries
-		// the container the author wrote, so the instantiated message can name
-		// `Task<Widget>` rather than only `Widget`.
-		tc.pendingCloneObligation = CloneObligationTaskClone
+		// the container, so the instantiated message can name `Task<Widget>`
+		// rather than only `Widget`.
+		tc.pendingCloneObligation = op
 		tc.rememberDeferredCallable(
-			DeferredCloneObligation, payload, cloneObligationMethodName,
-			nil, nil, receiver, false, span, ast.NoExprID, &DeferredCallableRequirement{},
+			DeferredCloneObligation, subject, cloneObligationMethodName,
+			nil, nil, container, false, span, ast.NoExprID, &DeferredCallableRequirement{},
 		)
 		tc.pendingCloneObligation = 0
 		return
 	}
 	tc.recordCloneObligation(&CloneObligation{
-		Op:             CloneObligationTaskClone,
-		Subject:        payload,
-		Container:      receiver,
+		Op:             op,
+		Subject:        subject,
+		Container:      container,
 		Owner:          tc.currentFnSym(),
 		Site:           span,
-		SubjectLabel:   tc.typeLabel(payload),
-		ContainerLabel: tc.typeLabel(receiver),
+		SubjectLabel:   tc.typeLabel(subject),
+		ContainerLabel: tc.typeLabel(container),
 	})
+}
+
+// recordTaskCloneObligation is the `Task<T>.clone()` site, and the shape a new
+// operation copies: check what only this site can know, then hand the question
+// over.
+func (tc *typeChecker) recordTaskCloneObligation(
+	receiver types.TypeID,
+	payload types.TypeID,
+	span source.Span,
+) {
+	if tc == nil || !tc.isTaskType(receiver) {
+		return
+	}
+	tc.requireClonable(CloneObligationTaskClone, payload, receiver, span)
 }
 
 // cloneObligationMethodName is the method the obligation is about. The
