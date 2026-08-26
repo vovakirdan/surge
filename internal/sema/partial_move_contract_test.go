@@ -55,17 +55,6 @@ fn to_req(head: Head) -> Req {
 }
 `,
 		},
-		{
-			// A discarded read takes just as much as a bound one.
-			name: "discarded_field_read",
-			src: `
-type Foo = { bar: string }
-fn f(x: Foo) -> nothing {
-	let _ = x.bar;
-	return nothing;
-}
-`,
-		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -695,5 +684,30 @@ fn to_req(head: Head) -> Req {
 	// diagnostic would still pass a weaker assertion.
 	if offered != 2 {
 		t.Fatalf("expected a fix on each of the two reads, got %d", offered)
+	}
+}
+
+// A discarded read takes nothing. `let _ = x.bar` names nobody to receive
+// the field, so the field stays with `x` -- the same rule that releases a
+// discarded PRODUCED value at its statement's end leaves a discarded PLACE
+// where it is -- and there is no take for `own` to spell. The row used to
+// sit among the refused ones, from when `_` bound (and then leaked) whatever
+// it was handed.
+func TestDiscardedFieldReadTakesNothing(t *testing.T) {
+	parseBag, semaBag := runSemaOnSnippet(t, `
+type Foo = { bar: string }
+fn f(x: Foo) -> nothing {
+	let _ = x.bar;
+	return nothing;
+}
+`)
+	if parseBag.HasErrors() {
+		t.Fatalf("unexpected parse diagnostics: %s", diagnosticsSummary(parseBag))
+	}
+	if hasCode(semaBag, diag.SemaPartialMoveNeedsOwn) {
+		t.Fatalf("a discarded field read must not be a take: got %s", diagnosticsSummary(semaBag))
+	}
+	if semaBag.HasErrors() {
+		t.Fatalf("unexpected sema diagnostics: %s", diagnosticsSummary(semaBag))
 	}
 }

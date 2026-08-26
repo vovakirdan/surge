@@ -72,6 +72,7 @@ fn main:
     if copy L11 then bb6 else bb5
   bb5:
     L12 = move L2
+    drop L12
     return const 1
   bb6:
     drop L2
