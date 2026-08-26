@@ -370,6 +370,14 @@ uint8_t rt_channel_recv_blocking(void* channel, void* dst);
 bool rt_channel_try_send(void* channel, void* src);
 bool rt_channel_try_recv(void* channel, void* dst);
 void rt_channel_close(void* channel);
+// One more copy of a channel handle exists, and one fewer. `Channel<T>` is a
+// copyable handle at the language surface, so copying one retains, dropping a
+// copy releases, and the last release destroys the object -- which drops every
+// payload the channel still owns, because a channel is not a place values go
+// to be forgotten. NULL is a no-op at both entries: a container slot the
+// handle was moved out of holds NULL and the container's glue still visits it.
+void rt_channel_handle_retain(void* channel);
+void rt_channel_handle_drop(void* channel);
 // Reclaims a channel object's memory (header + inline buffer, one
 // allocation), draining every still-buffered entry through the channel's
 // own payload_drop_fn_id first (a no-op for Copy/inert elements). Callers

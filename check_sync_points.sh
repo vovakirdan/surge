@@ -62,6 +62,7 @@ declare -A WINDOW_FILE=(
     [SP_CARRIER_JUMBO_ADMITTED]="rt_transport.c"
     [SP_CARRIER_CREDIT_PARKED]="rt_transport.c"
     [SP_SLEEP_FIRED_BEFORE_WAKE]="rt_async_sleep.c"
+    [SP_CHANNEL_LAST_RELEASE_BEFORE_FREE]="rt_channel_refcount.c"
 )
 
 # Cross-check the allowlist above against the enumerators actually declared in

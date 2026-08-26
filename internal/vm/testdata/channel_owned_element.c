@@ -415,11 +415,12 @@ static int mode_owned_element(rt_executor* ex) {
         return owned_fail("the receiver never finished");
     }
     (void)rt_executor_request_shutdown(ex);
-    // Every task that could touch it has finished, so the stand ends the
-    // channel it made. The census is taken AFTER that drain: a value stranded
-    // in a cell or in a park slot is destroyed there or nowhere, and counting
-    // before it would call a stranded value delivered.
-    rt_channel_free(atomic_load_explicit(&g_owned_chan, memory_order_acquire));
+    // Every task that could touch it has finished, so the stand gives back the
+    // one handle rt_channel_new minted for it, and that last release is the
+    // reclaim. The census is taken AFTER that drain: a value stranded in a cell
+    // or in a park slot is destroyed there or nowhere, and counting before it
+    // would call a stranded value delivered.
+    rt_channel_handle_drop(atomic_load_explicit(&g_owned_chan, memory_order_acquire));
     atomic_store_explicit(&g_owned_chan, NULL, memory_order_release);
 
     uint32_t received = atomic_load_explicit(&g_owned_received, memory_order_acquire);
@@ -485,8 +486,9 @@ static int mode_owned_cancelled_sender(rt_executor* ex) {
         return owned_fail("the cancelled sender never finished");
     }
     (void)rt_executor_request_shutdown(ex);
-    // The channel outlives every park on it, so this is what ends the value.
-    rt_channel_free(channel);
+    // The channel outlives every park on it, so the last release is what ends
+    // the value.
+    rt_channel_handle_drop(channel);
     atomic_store_explicit(&g_owned_chan, NULL, memory_order_release);
     unsigned drops = (unsigned)atomic_load_explicit(&g_owned_drops, memory_order_acquire);
     unsigned received = (unsigned)atomic_load_explicit(&g_owned_received, memory_order_acquire);

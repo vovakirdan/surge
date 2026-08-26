@@ -3,6 +3,7 @@
 
 #include "rt_async_internal.h"
 
+#include "rt_channel_refcount.h"
 #include "rt_park_pool.h"
 #include "rt_typed_fifo.h"
 #include "rt_value_ops.h"
@@ -38,6 +39,17 @@ struct rt_channel {
     // it. A task carries a capability token naming its slot, which is what
     // keeps the scheduler mailbox carrying control only.
     rt_park_pool parks;
+    // What still names this object, in the two kinds section 7 of
+    // docs/RUNTIME_V2.md distinguishes: handle_refs counts the copies of the
+    // handle a program holds, pins count the runtime's own holds -- a
+    // registered waiter, a select subscription, a claimed detached operation.
+    // Both keep the object alive, and reclamation needs both at zero; see
+    // rt_channel_refcount.h. `reclaiming` names the release that performs the
+    // reclaim when both kinds retire at once, so the object is handed over
+    // once and not twice.
+    _Atomic uint32_t handle_refs;
+    _Atomic uint32_t pins;
+    _Atomic uint8_t reclaiming;
 };
 
 // Channel lane (peel B2): a channel's buffer and its two waiter keys live

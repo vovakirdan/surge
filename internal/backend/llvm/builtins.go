@@ -227,6 +227,8 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_channel_try_send", ret: "i1", params: []string{"ptr", "ptr"}},
 		{name: "rt_channel_try_recv", ret: "i1", params: []string{"ptr", "ptr"}},
 		{name: "rt_channel_close", ret: "void", params: []string{"ptr"}},
+		{name: "rt_channel_handle_retain", ret: "void", params: []string{"ptr"}},
+		{name: "rt_channel_handle_drop", ret: "void", params: []string{"ptr"}},
 		{name: "rt_map_new", ret: "ptr", params: []string{"i64", "ptr", "ptr"}},
 		{name: "rt_map_len", ret: "i64", params: []string{"ptr"}},
 		{name: "rt_map_contains", ret: "i1", params: []string{"ptr", "ptr"}},

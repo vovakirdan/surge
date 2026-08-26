@@ -223,7 +223,11 @@ static void release_entry(rt_far_channel_state* state, rt_far_channel_entry* ent
     // left to it, this one, and frees exactly once.
     // Deferred when a scheduler lock is held: the drain inside runs an
     // element's drop, which must not execute with control or a shard held.
-    rt_channel_free_when_unlocked(entry->channel);
+    // Released through the handle count rather than freed outright, because
+    // rt_far_channel_dispatch_create minted this object with rt_channel_new
+    // and that is one handle: giving it back here is what takes the count to
+    // zero, which is what the reclaim is now allowed to happen on.
+    rt_channel_handle_drop(entry->channel);
     rt_free((uint8_t*)entry, sizeof(*entry), _Alignof(rt_far_channel_entry));
 }
 

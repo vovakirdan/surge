@@ -165,6 +165,13 @@ typedef enum rt_sync_point_id {
     // running count, so an idle sample taken now sees an empty executor and
     // the virtual clock advances past a deadline that has already come due.
     RT_SYNC_POINT_SP_SLEEP_FIRED_BEFORE_WAKE,
+    // channel_reclaim_if_unreferenced (rt_channel_refcount.c): reached after
+    // the release that retired the last handle or pin has claimed the reclaim,
+    // and before the object is handed to the deferred free. A driver holding a
+    // thread here while another retains, sends or receives on the same channel
+    // is what proves the count -- and not the timing -- is what decides the
+    // free (RV2-DEBT-155).
+    RT_SYNC_POINT_SP_CHANNEL_LAST_RELEASE_BEFORE_FREE,
     RT_SYNC_POINT_COUNT
 } rt_sync_point_id;
 
@@ -302,6 +309,35 @@ void rt_sync_point_open(void);
     rt_channel_owner_shard_id((const rt_channel*)(uintptr_t)(key).id)
 #else
 #define RT_DEBT199_CHANNEL_OWNER_SHARD(key) ((key).owner_shard_id)
+#endif
+
+// RV2-DEBT-155 negative-control toggle, in two halves because the fix has two.
+//
+// A channel is reclaimed when nothing names it any more, and the count that
+// says so is shared: a handle copied into another shard's frame is retired by
+// a lane the creating one never sees. The fix makes both the retain and the
+// release ATOMIC read-modify-writes, so no update is lost and exactly one
+// releaser can observe the transition to zero. Defining the negative control
+// restores the plain load-modify-store pair, which two lanes can interleave.
+// ThreadSanitizer reports it as a data race at the instruction itself; without
+// a sanitizer the same window surfaces two ways, and BOTH are worth naming
+// because they look nothing alike -- a lost increment frees the object while a
+// holder is still using it (a use-after-free, or a double free), and a lost
+// decrement frees it never (the channel and every payload it holds are lost).
+//
+// The second half is the fail-closed quiescence assertion in
+// rt_channel_free -- no handle, no pin. Defining the negative control makes it
+// inert, so a reclaim that races a live holder proceeds into the drain and the
+// use-after-free lands where a sanitizer can name it, instead of being refused
+// with a sentence at the point of the mistake.
+#ifdef RV2_DEBT_155_NEGATIVE_CONTROL
+#define RT_DEBT155_HANDLE_ACQUIRE(refs) ((*(uint32_t*)(void*)(refs))++)
+#define RT_DEBT155_HANDLE_RELEASE(refs) ((*(uint32_t*)(void*)(refs))--)
+#define RT_DEBT155_STILL_NAMED(count) ((void)(count), (uint32_t)0)
+#else
+#define RT_DEBT155_HANDLE_ACQUIRE(refs) atomic_fetch_add_explicit((refs), 1, memory_order_relaxed)
+#define RT_DEBT155_HANDLE_RELEASE(refs) atomic_fetch_sub_explicit((refs), 1, memory_order_acq_rel)
+#define RT_DEBT155_STILL_NAMED(count) (count)
 #endif
 
 #endif // RT_SYNC_POINT_H

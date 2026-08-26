@@ -64,7 +64,7 @@ void* rt_channel_new(uint64_t capacity, const rt_value_ops* ops, uint64_t elemen
         panic_msg("async: channel allocation failed");
         return NULL;
     }
-    memset(ch, 0, sizeof(rt_channel));
+    rt_channel_handle_refs_init(ch);
     ch->capacity = capacity;
     ch->ops = ops;
     ch->element_type_id = element_type_id;
@@ -169,6 +169,9 @@ void rt_channel_free(void* channel) {
     if (rt_lane_holds_control() || rt_lane_holds_any_shard()) {
         panic_msg("async: channel reclaim ran while a scheduler lock was held");
     }
+    // And nothing may still NAME it: no handle the program could send through,
+    // no pin an operation is inside of (rt_channel_refcount.h).
+    rt_channel_assert_reclaimable(ch);
     // Everything the channel still owns: what is buffered, and what was staged
     // for or delivered to a park that never completed. Each is destroyed
     // exactly once by its owner's own drain.

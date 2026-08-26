@@ -1285,6 +1285,16 @@
       "group": "PG-INVARIANT"
     },
     {
+      "site": "runtime/native/rt_channel_refcount.c::rt_channel_assert_reclaimable#1",
+      "message": "async: a channel was reclaimed while a handle still named it",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_channel_refcount.c::rt_channel_assert_reclaimable#2",
+      "message": "async: a channel was reclaimed while an operation still pinned it",
+      "group": "PG-INVARIANT"
+    },
+    {
       "site": "runtime/native/rt_channel_sync.c::rt_channel_finish_put_owner_locked#1",
       "message": "async: buffered channel value could not be published",
       "group": "PG-INVARIANT"
