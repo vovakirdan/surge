@@ -176,9 +176,10 @@ func (tc *typeChecker) compareSubjectIsBorrowed(value ast.ExprID, ty types.TypeI
 		return false
 	}
 	if tc.types.IsCopy(resolved) {
-		// Copy AND boxed: the read duplicates the box, so this compare owns the
-		// clone and everything it takes out of it. Copy and unboxed: there is
-		// no allocation to own in the first place.
+		// Copy AND a value composite: the read DUPLICATES the union into the
+		// compare — the type-directed copy retains whatever its members count —
+		// so this compare owns that copy and everything it takes out of it.
+		// A Copy scalar: nothing a pattern could bind owns anything.
 		return !tc.types.IsValueComposite(resolved)
 	}
 	return tc.subjectReadsThroughBorrow(value)

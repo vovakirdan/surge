@@ -83,11 +83,13 @@ func operandForLocal(f *Func, id LocalID) Operand {
 }
 
 // operandForAsyncStateStore hands a live local into the resume payload that
-// becomes its only owner while the function is suspended. A @copy value
-// composite still owns a heap box even though LocalFlagCopy is set; this
-// position transfers that already-owned box rather than duplicating it, so it
-// must use MOVE just like a move-only local. Source-level copies have already
-// been materialized as distinct owned locals before this synthetic handoff.
+// becomes its only owner while the function is suspended. A local can be Copy
+// AND own heap — a reference-counted scalar, or a @copy value composite with
+// one as a member, which is what LocalFlagOwnsHeap beside LocalFlagCopy says —
+// and this position transfers what the local owns rather than duplicating it,
+// so it must use MOVE just like a move-only local. Source-level copies have
+// already been materialized as distinct owned locals before this synthetic
+// handoff.
 func operandForAsyncStateStore(f *Func, id LocalID) Operand {
 	op := operandForLocal(f, id)
 	if f == nil || id == NoLocalID || int(id) < 0 || int(id) >= len(f.Locals) {

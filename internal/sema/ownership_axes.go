@@ -200,12 +200,13 @@ func (r *Result) TriviallyTransportableBits(id types.TypeID) bool {
 	if r.ContainsRefCountedScalar(id) {
 		return false
 	}
-	// A value composite rides again, and what changed is not the
-	// representation — it is still a heap box — but who owns it on each side.
+	// A value composite rides again. It lives inline, so its bits ARE the
+	// value; what each crossing has to settle is who owns, on each side, what
+	// those bits own in turn.
 	//
 	// The three crossing shapes reach that differently, which is why no test
 	// here can say "clone it": a CAPTURE is duplicated at its operand, so the
-	// destination's state holds a box of its own; a RESULT is produced by the
+	// destination's state holds a value of its own; a RESULT is produced by the
 	// body and handed to the caller, which is a transfer with one owner at a
 	// time and needs no copy at all; a channel ELEMENT is duplicated at the
 	// send. This axis only answers whether the bits may travel, and once each
@@ -218,15 +219,16 @@ func (r *Result) TriviallyTransportableBits(id types.TypeID) bool {
 	return r.IsCopyType(id)
 }
 
-// IsCopyValueComposite reports the one combination whose machine word is a
-// SHARED box pointer: a struct, tuple, union or fixed array that is also
-// duplicable.
+// IsCopyValueComposite reports the one combination a crossing copies MEMBER BY
+// MEMBER: a struct, tuple, union or fixed array that is also duplicable.
 //
 // Both halves are load-bearing, which is why this is its own question rather
-// than either predicate alone. A move-only composite is equally boxed, but it
-// crosses by transfer, so exactly one shard ends up holding the box. A Copy
-// SCALAR is equally duplicable, but its word is the value. Only their
-// intersection leaves two shards writing one box.
+// than either predicate alone. A move-only composite is equally an inline
+// aggregate, but it crosses by transfer, so exactly one shard ends up owning
+// its members. A Copy SCALAR is equally duplicable, but its word is the value
+// and there are no members to copy. Only their intersection is duplicated
+// into a second aggregate whose members (a counted scalar among them) each
+// need an owner on the far side.
 //
 // It is stated here, next to the axes, because several crossing routes need the
 // same answer and each had been deriving it differently.

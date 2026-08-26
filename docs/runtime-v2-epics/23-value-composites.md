@@ -281,23 +281,38 @@ serve.
 
 ## The ownership-axis migration checklist
 
-`ownsHeap` cannot be flipped in one place. Every leg below must widen in the
-same change, or the build breaks (best case) or double-frees (worst case). This
-list replaces the first draft's one-line "`ownsHeap`/`typeOwnsHeap` return
-true".
+`ownsHeap` could not be flipped in one place, and it was not flipped to the
+answer the first draft named. That draft's target — "value composite → true",
+the BOXED answer, a composite owning the box that held it — is the opposite of
+what shipped in `a262d8a6` (RV2-DEBT-256, owner ruling 2026-08-26): **a value
+composite lives inline and owns heap iff one of its members does**, recursively
+— a struct field, a tuple element, a union member or tag payload, a fixed
+array's element. `@copy type Pair = { a: int, b: int }` owns nothing;
+`type Tagged = { s: string, n: int }` owns a string; `@copy type Pf = { a:
+float, b: float }` owns two counted blocks, because `float` is the
+reference-counted scalar — Copy at the surface, a counted block underneath —
+and a Copy member that owns. Every leg below answers from that one walk
+(`ownsHeapIn`, `internal/sema/ownership_axes.go`), or from a structural walk
+of its own that agrees with it; a leg answering otherwise breaks the build
+(best case) or double-frees (worst case).
 
-| leg | file | today | after |
-| --- | --- | --- | --- |
-| sema in-pass | `internal/sema/ownership_axes.go:44` | `isCopyType` → false | value composite → true |
-| sema post-check | `internal/sema/ownership_axes.go:71` | same | same, identically |
-| drop obligations | `internal/sema/drop_obligations.go:31` | delegates to `ownsHeap` | verify `ReassignOldDrops` still synthesized for the new droppables |
-| **by-value param ownership** | `internal/sema/drop_obligations.go:66` | `isDroppableType && !isCopyType` — no Copy type's parameter is ever droppable | narrow the exception to refcounted scalars, or every cloned composite argument leaks in the callee |
-| MIR local flags | `internal/mir/lower.go` | DONE — `LocalFlagCopy` from `isCopyType`, `LocalFlagOwnsHeap` from `ownsHeap` | `LocalFlagCopy` now means only "duplicable"; the drop obligation rides beside it |
-| **MIR drop validator** | `internal/mir/validate.go` | DONE — rejects on `LocalFlagCopy && !LocalFlagOwnsHeap`; the refcounted-scalar exception is gone | no further change needed; a Copy composite becomes droppable the moment its local carries `LocalFlagOwnsHeap` |
-| LLVM structural leg | `internal/backend/llvm/emit_drop_glue.go:30` | walks composites; a composite whose fields own no heap → false | value composite → true |
-| VM drop | `internal/vm/drop.go:134` | `Heap.Release` | unchanged shape, but now reached for `@copy` composites |
-| crossing drop-fn registration | `internal/backend/llvm/emit_crossing_channel_create.go:86` | keyed off `typeOwnsHeap` | changes meaning for composite payloads — audit, do not assume |
-| transport axis | `internal/sema/ownership_axes.go` | DONE — `TriviallyTransportableBits` excludes a Copy value composite via `IsCopyValueComposite` | every crossing route refuses it with a named cause; step 7 upgrades refusal to a boundary clone |
+| leg | file | answer |
+| --- | --- | --- |
+| sema in-pass | `internal/sema/ownership_axes.go` (`tc.ownsHeap`) | `ownsHeapIn` with `isCopyType` as the Copy leg: reference-counted scalar → true; borrow → false; value composite → the members; handle (string, array, map, task, channel) → `!isCopy` |
+| sema post-check | same file (`Result.OwnsHeap`) | the same walk with `Result.IsCopyType`; identical by construction, held to it by `TestOwnershipAxesAgreeWithCopyToday` and `TestOwnsHeapFollowsTheMembers` |
+| interner-only | same file (`sema.OwnsHeapIn`) | the same walk with the interner's Copy bit, for HIR normalization, which holds no `Result` |
+| drop obligations | `internal/sema/drop_obligations.go` (`isDroppableType`) | delegates to `ownsHeap`: a `@copy` composite of floats is droppable, one of ints is not |
+| by-value param ownership | `internal/sema/drop_obligations.go` (`paramTransfersOwnership`) | ownership transfers on a MOVE, not a copy: a Copy composite's argument is a copy, and the caller keeps its own obligation |
+| MIR local flags | `internal/mir/lower.go` (`localFlags`) | `LocalFlagCopy` from `isCopyType`, `LocalFlagOwnsHeap` from `ownsHeap`, two independent bits |
+| MIR drop validator | `internal/mir/validate.go` | rejects a drop on `LocalFlagCopy && !LocalFlagOwnsHeap`; a Copy composite that owns a member carries both bits and drops |
+| LLVM structural leg | `internal/backend/llvm/emit_drop_glue.go` (`typeOwnsHeap`) | walks composites itself — the leg that answered from the members first, which sema's lagged behind until `a262d8a6` |
+| VM drop | `internal/vm/drop.go` | reached for a `@copy` composite exactly when a member owns |
+| crossing drop-fn registration | `internal/backend/llvm/emit_crossing_channel_create.go` | keyed off `typeOwnsHeap`: a composite payload of ints registers no drop fn, one holding a string or a float does |
+| transport axis | `internal/sema/ownership_axes.go` (`TriviallyTransportableBits`) | `IsCopy` minus `ContainsRefCountedScalar`: a Copy value composite rides as bits, one holding a counted scalar does not, because the crossing copy retains the field on one shard's non-atomic count |
+
+What follows is the design record written before the flip — the validator
+question and the Phase 1 crossing gate — kept as the reasoning the rows above
+settled, not as open work.
 
 **The validator is a hard blocker, not a detail.** `validateDrop` currently
 reads:
