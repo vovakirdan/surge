@@ -210,6 +210,23 @@ uint8_t rt_task_poll(void* task, void* out_dst) {
     }
     if (task_status_load(target) == TASK_DONE) {
         uint8_t kind = rt_far_task_take_result(target, current, out_dst);
+        if (kind == 0) {
+            // The last asker, with a reader still copying out of the slot: park
+            // on the join key -- the reader that retires last wakes it -- and
+            // ask once more after registering, so a reader that retired in
+            // between cannot strand the park.
+            waker_key key = join_key(target->id);
+            prepare_park(ex, current, key, 0);
+            pending_key = key;
+            kind = rt_far_task_take_result(target, current, out_dst);
+            if (kind == 0) {
+                return 0;
+            }
+            remove_waiter(ex, key, current->id);
+            current->park_prepared = 0;
+            current->park_key = waker_none();
+            pending_key = waker_none();
+        }
         // F2 (net-fairness fix): read placement before
         // release, which may free target.
         rt_task_poll_adopt_placement(ex, current, target);
@@ -240,11 +257,16 @@ uint8_t rt_task_poll(void* task, void* out_dst) {
         // drain and this insert serialize on the target owner's store lock,
         // so re-checking after registering closes the stranded-entry race.
         if (task_status_load(target) == TASK_DONE) {
+            uint8_t kind = rt_far_task_take_result(target, current, out_dst);
+            if (kind == 0) {
+                // The join waiter is already registered: stay parked on it
+                // until the reader that retires last wakes this asker.
+                return 0;
+            }
             remove_waiter(ex, key, current->id);
             current->park_prepared = 0;
             current->park_key = waker_none();
             pending_key = waker_none();
-            uint8_t kind = rt_far_task_take_result(target, current, out_dst);
             rt_task_poll_adopt_placement(ex, current, target);
             task_release_lane_aware(ex, target);
             return kind;
@@ -365,18 +387,32 @@ void rt_task_await(void* task, uint8_t* out_kind, void* out_dst) {
             RT_SYNC_POINT(SP_AWAIT_BEFORE_DONECV_WAIT);
             pthread_cond_wait(&ex->done_cv, &ex->lock);
         }
-        rt_done_waiters_decrement_for_external_await(ex);
         rt_control_unlock(ex);
         // The take MOVES or CLONES the value, and both run generated code that
         // may not run under a runtime lock -- a user __clone under control is
         // the §8 P2 failure, and the detached helpers refuse it rather than
         // letting it deadlock. The target is still alive across the gap: this
         // caller holds a handle reference, released below.
+        //
+        // A take answered 0 is the last asker finding a reader still out. The
+        // done_waiters count taken above is still held, so the reader's
+        // retirement broadcasts done_cv under control; checking the reader
+        // count under the same lock, and only then waiting, is what keeps that
+        // broadcast from slipping past this thread.
         uint8_t kind = rt_far_task_take_result(target, rt_current_task(), out_dst);
+        while (kind == 0) {
+            rt_control_lock(ex);
+            while (!rt_task_entitlement_move_ready(target)) {
+                pthread_cond_wait(&ex->done_cv, &ex->lock);
+            }
+            rt_control_unlock(ex);
+            kind = rt_far_task_take_result(target, rt_current_task(), out_dst);
+        }
         if (out_kind != NULL) {
             *out_kind = kind;
         }
         rt_control_lock(ex);
+        rt_done_waiters_decrement_for_external_await(ex);
         task_release(ex, target);
         rt_control_unlock(ex);
         return;
@@ -385,6 +421,12 @@ void rt_task_await(void* task, uint8_t* out_kind, void* out_dst) {
     run_until_done(ex, target, out_kind);
     rt_set_current_task(current);
     uint8_t kind = rt_far_task_take_result(target, current, out_dst);
+    if (kind == 0) {
+        // One thread polls every task to completion here, and a reader
+        // duplicates without yielding, so a reader cannot be out.
+        panic_msg("async: a single-threaded await found a clone reader out");
+        return;
+    }
     if (out_kind != NULL) {
         *out_kind = kind;
     }

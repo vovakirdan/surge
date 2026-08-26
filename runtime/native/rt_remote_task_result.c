@@ -105,8 +105,12 @@ uint8_t rt_far_task_take_result(rt_task* producer, rt_task* holder, void* out_ds
         rt_executor* ex = ensure_exec();
         const rt_value_ops* operations = producer->result.operations;
         int has_value = rt_value_cell_is_ready(&producer->result);
-        int droppable = operations != NULL && (operations->layout.flags & RT_VALUE_FLAG_DROPPABLE) != 0;
-        rt_task_take_mode mode = rt_task_entitlement_begin_take(ex, producer, has_value, droppable);
+        // An asker is named by its task; an external awaiter (rt_task_await
+        // from a thread that is no task) by its thread, which is enough for a
+        // WAIT to be recognised on its way back.
+        static _Thread_local uint8_t external_asker;
+        const void* asker = holder != NULL ? (const void*)holder : (const void*)&external_asker;
+        rt_task_take_mode mode = rt_task_entitlement_begin_take(ex, producer, asker, has_value, operations);
         switch (mode) {
             case RT_TASK_TAKE_COPY:
                 if (out_dst != NULL) {
@@ -115,7 +119,7 @@ uint8_t rt_far_task_take_result(rt_task* producer, rt_task* holder, void* out_ds
                 break;
             case RT_TASK_TAKE_CLONE:
                 if (out_dst != NULL) {
-                    rt_value_duplicate_detached(producer->entitlements.duplicate,
+                    rt_value_duplicate_detached(rt_task_entitlement_duplicate(producer, operations),
                                                 out_dst,
                                                 rt_value_cell_value(&producer->result));
                 }
@@ -145,8 +149,13 @@ uint8_t rt_far_task_take_result(rt_task* producer, rt_task* holder, void* out_ds
                 panic_msg("async: a cloned task handle cannot be served a result "
                           "that cannot be duplicated");
                 return 2;
-            case RT_TASK_TAKE_NONE:
             case RT_TASK_TAKE_WAIT:
+                // The last asker, with a reader still copying out of the slot.
+                // Nothing is retired: the caller parks on the task's join key
+                // (or on done_cv) and asks again when the reader that retires
+                // last wakes it. A DONE task never otherwise answers 0.
+                return 0;
+            case RT_TASK_TAKE_NONE:
                 break;
         }
         rt_task_entitlement_finish_take(ex, producer, mode);

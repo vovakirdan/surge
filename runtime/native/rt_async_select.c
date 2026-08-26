@@ -82,9 +82,8 @@ uint8_t rt_timeout_poll(void* task, uint64_t ms, void* out_dst) {
         current->timeout_task_id = timeout_task->id;
     }
 
+    int move_pending = 0;
     if (task_status_load(target) == TASK_DONE) {
-        current->timeout_task_id = 0;
-        pending_key = waker_none();
         rt_control_unlock(ex);
         // The take MOVES or CLONES the value, and both run generated code that
         // may not run under a runtime lock. The target and the timer are still
@@ -92,14 +91,27 @@ uint8_t rt_timeout_poll(void* task, uint64_t ms, void* out_dst) {
         // released below.
         uint8_t kind = rt_far_task_take_result(target, current, out_dst);
         rt_control_lock(ex);
-        if (timeout_task != NULL) {
-            task_release(ex, timeout_task);
+        if (kind != 0) {
+            current->timeout_task_id = 0;
+            pending_key = waker_none();
+            if (timeout_task != NULL) {
+                task_release(ex, timeout_task);
+            }
+            task_release(ex, target);
+            rt_control_unlock(ex);
+            return kind;
         }
-        task_release(ex, target);
-        rt_control_unlock(ex);
-        return kind;
+        // The last asker with a reader still out: park on the target's join
+        // key as if it were not done yet; the reader that retires last wakes
+        // this asker, and the timer keeps its say.
+        move_pending = 1;
     }
     if (timeout_task != NULL && task_status_load(timeout_task) == TASK_DONE) {
+        if (move_pending) {
+            // The timer won the race the reader was holding up: this asker
+            // never takes, so its entitlement retires as dropped.
+            rt_task_entitlement_drop(ex, target);
+        }
         cancel_task(ex, target->id);
         current->timeout_task_id = 0;
         task_release(ex, timeout_task);

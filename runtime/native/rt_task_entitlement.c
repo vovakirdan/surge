@@ -19,7 +19,9 @@ void rt_task_entitlements_init(rt_task_entitlements* entitlements) {
         return;
     }
     entitlements->live = 1;
-    entitlements->clone_readers = 0;
+    entitlements->claimed = 0;
+    entitlements->mover = NULL;
+    atomic_store_explicit(&entitlements->clone_readers, 0, memory_order_relaxed);
     entitlements->move_waiting = 0;
     entitlements->moved = 0;
     entitlements->duplicate = NULL;
@@ -48,42 +50,70 @@ void rt_task_entitlement_clone(rt_executor* ex, rt_task* task, rt_value_clone_in
     rt_shard_unlock(owner);
 }
 
+rt_value_clone_init_fn rt_task_entitlement_duplicate(const rt_task* task,
+                                                     const rt_value_ops* operations) {
+    if (operations != NULL && (operations->layout.flags & RT_VALUE_FLAG_CLONABLE) != 0 &&
+        operations->clone_init != NULL) {
+        return operations->clone_init;
+    }
+    return task != NULL ? task->entitlements.duplicate : NULL;
+}
+
+// The mover's own decision: move if the slot is free of readers, otherwise
+// park. Made under the lock, for the first arrival and for every retry alike.
+static rt_task_take_mode mover_decision(rt_task_entitlements* e) {
+    if (atomic_load_explicit(&e->clone_readers, memory_order_acquire) > 0) {
+        e->move_waiting = 1;
+        return RT_TASK_TAKE_WAIT;
+    }
+    e->move_waiting = 0;
+    e->moved = 1;
+    return RT_TASK_TAKE_MOVE;
+}
+
 rt_task_take_mode rt_task_entitlement_begin_take(rt_executor* ex,
                                                  rt_task* task,
+                                                 const void* asker,
                                                  int has_value,
-                                                 int droppable) {
+                                                 const rt_value_ops* operations) {
     if (ex == NULL || task == NULL) {
         return RT_TASK_TAKE_NONE;
     }
+    int droppable = operations != NULL && (operations->layout.flags & RT_VALUE_FLAG_DROPPABLE) != 0;
     rt_shard* owner = entitlement_lock(ex, task);
     rt_task_entitlements* e = &task->entitlements;
     rt_task_take_mode mode;
-    if (!has_value || e->moved) {
+    if (e->mover != NULL && e->mover == asker) {
+        // The reserved mover coming back after a WAIT: still claimed, still
+        // the mover, only the readers can have changed.
+        mode = mover_decision(e);
+    } else if (!has_value || e->moved) {
+        e->claimed++;
         mode = RT_TASK_TAKE_NONE;
     } else if (!droppable) {
+        e->claimed++;
         mode = RT_TASK_TAKE_COPY;
-    } else if (e->live > 1) {
-        // Somebody else can still ask, so this asker is served a value of its
-        // own and the slot keeps the original for them. The reader count is
-        // what keeps the final move from running under this duplication.
-        if (e->duplicate == NULL) {
-            mode = RT_TASK_TAKE_REFUSED;
-        } else {
-            e->clone_readers++;
-            mode = RT_TASK_TAKE_CLONE;
-        }
-    } else if (e->clone_readers > 0) {
-        // The last asker, but an earlier one is still copying out of the slot.
-        // The value cannot leave while it is being read; the reader that
-        // retires last wakes this asker to try again.
-        e->move_waiting = 1;
-        mode = RT_TASK_TAKE_WAIT;
     } else {
-        // The last asker, with the slot to itself: the value moves out, which
-        // is what makes a cohort of E cost E-1 duplications and one move.
-        e->moved = 1;
-        e->move_waiting = 0;
-        mode = RT_TASK_TAKE_MOVE;
+        e->claimed++;
+        // Whether a handle that is NOT asking right now still exists. While
+        // one does, a later asker can come and the slot must keep the
+        // original for it; once every remaining handle is inside a take, one
+        // of them -- the first to see that -- is reserved for the final move
+        // and the others clone. That is what makes a cohort of E cost E-1
+        // duplications and one move whether the askers come one after another
+        // or all at once.
+        int unclaimed_left = e->live > e->claimed;
+        if (unclaimed_left || e->mover != NULL) {
+            if (rt_task_entitlement_duplicate(task, operations) == NULL) {
+                mode = RT_TASK_TAKE_REFUSED;
+            } else {
+                atomic_fetch_add_explicit(&e->clone_readers, 1, memory_order_acq_rel);
+                mode = RT_TASK_TAKE_CLONE;
+            }
+        } else {
+            e->mover = asker;
+            mode = mover_decision(e);
+        }
     }
     rt_shard_unlock(owner);
     return mode;
@@ -96,9 +126,16 @@ void rt_task_entitlement_finish_take(rt_executor* ex, rt_task* task, rt_task_tak
     rt_shard* owner = entitlement_lock(ex, task);
     rt_task_entitlements* e = &task->entitlements;
     int wake_mover = 0;
-    if (mode == RT_TASK_TAKE_CLONE && e->clone_readers > 0) {
-        e->clone_readers--;
-        wake_mover = e->clone_readers == 0 && e->move_waiting;
+    if (mode == RT_TASK_TAKE_CLONE &&
+        atomic_load_explicit(&e->clone_readers, memory_order_acquire) > 0) {
+        uint32_t left = atomic_fetch_sub_explicit(&e->clone_readers, 1, memory_order_acq_rel) - 1;
+        wake_mover = left == 0 && e->move_waiting;
+    }
+    if (mode == RT_TASK_TAKE_MOVE) {
+        e->mover = NULL;
+    }
+    if (e->claimed > 0) {
+        e->claimed--;
     }
     if (e->live > 0) {
         e->live--;
@@ -121,4 +158,9 @@ void rt_task_entitlement_drop(rt_executor* ex, rt_task* task) {
         task->entitlements.live--;
     }
     rt_shard_unlock(owner);
+}
+
+int rt_task_entitlement_move_ready(const rt_task* task) {
+    return task == NULL ||
+           atomic_load_explicit(&task->entitlements.clone_readers, memory_order_acquire) == 0;
 }

@@ -125,6 +125,7 @@ static rt_task* alloc_task(rt_executor* ex, uint64_t id) {
     task->kind = TASK_KIND_USER;
     task_status_store(task, TASK_READY);
     atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);
+    rt_task_entitlements_init(&task->entitlements);
     rt_task_slot_store(ex, id, task);
     if (ex->next_id <= id) {
         ex->next_id = id + 1;
