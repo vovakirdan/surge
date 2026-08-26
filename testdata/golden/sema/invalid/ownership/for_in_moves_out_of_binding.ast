@@ -1,0 +1,71 @@
+for_in_moves_out_of_binding.sg (span: 11:1-39:1)
+├─ Item[0]: Type (span: 11:1-11:39)
+│  ├─ Name: Item
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: name: string
+│     └─ Field[1]: id: int
+├─ Item[1]: Fn (span: 13:1-15:2)
+│  ├─ Name: take
+│  ├─ Params: (s: string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 13:31-15:2)
+│        └─ Stmt[0]: Return (span: 14:5-14:20)
+│           └─ Expr: expr#1: nothing
+└─ Item[2]: Fn (span: 17:1-38:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 18:18-38:2)
+         ├─ Stmt[0]: Let (span: 19:5-19:34)
+         │  ├─ Name: names
+         │  ├─ Mutable: true
+         │  ├─ Type: string[]
+         │  └─ Value: expr#2: <ExprKind(8)>
+         ├─ Stmt[1]: Expr (span: 20:5-20:21)
+         │  └─ Expr: expr#6: names.push("a")
+         ├─ Stmt[2]: ForIn (span: 21:5-23:6)
+         │  ├─ Pattern: s
+         │  ├─ Iterable: expr#7: names
+         │  └─ Body:
+Block (span: 21:20-23:6)
+         │     └─ Stmt[0]: Expr (span: 22:9-22:17)
+         │        └─ Expr: expr#10: take(s)
+         ├─ Stmt[3]: Let (span: 25:5-25:33)
+         │  ├─ Name: kept
+         │  ├─ Mutable: true
+         │  ├─ Type: string[]
+         │  └─ Value: expr#11: <ExprKind(8)>
+         ├─ Stmt[4]: Expr (span: 26:5-26:20)
+         │  └─ Expr: expr#15: kept.push("b")
+         ├─ Stmt[5]: ForIn (span: 27:5-30:6)
+         │  ├─ Pattern: s
+         │  ├─ Iterable: expr#16: kept
+         │  └─ Body:
+Block (span: 27:19-30:6)
+         │     ├─ Stmt[0]: Let (span: 28:9-28:22)
+         │     │  ├─ Name: held
+         │     │  ├─ Mutable: false
+         │     │  ├─ Type: <inferred>
+         │     │  └─ Value: expr#17: s
+         │     └─ Stmt[1]: Expr (span: 29:9-29:20)
+         │        └─ Expr: expr#20: take(held)
+         ├─ Stmt[6]: Let (span: 32:5-32:32)
+         │  ├─ Name: items
+         │  ├─ Mutable: true
+         │  ├─ Type: Item[]
+         │  └─ Value: expr#21: <ExprKind(8)>
+         ├─ Stmt[7]: Expr (span: 33:5-33:45)
+         │  └─ Expr: expr#29: items.push(<ExprKind(22)>)
+         ├─ Stmt[8]: ForIn (span: 34:5-36:6)
+         │  ├─ Pattern: it
+         │  ├─ Iterable: expr#30: items
+         │  └─ Body:
+Block (span: 34:21-36:6)
+         │     └─ Stmt[0]: Expr (span: 35:9-35:27)
+         │        └─ Expr: expr#35: take(own it.name)
+         └─ Stmt[9]: Return (span: 37:5-37:14)
+            └─ Expr: expr#36: 0

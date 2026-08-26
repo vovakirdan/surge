@@ -1,0 +1,19 @@
+// `own` in the iterable position is the spelling a consuming loop would have,
+// and the language does not have that loop yet. Before this rule the `own`
+// was accepted and then ignored - the loop read exactly as without it, and
+// the move in the body was the double free SEM3205 describes. Refused by
+// name, and the body's move is not reported on top of it: the author asked for
+// the loop that does not exist, and the way out is the drain by popping.
+fn take(s: string) -> nothing {
+    return nothing;
+}
+
+@entrypoint
+fn main() -> int {
+    let mut names: string[] = [];
+    names.push("a");
+    for s in own names {
+        take(s);
+    }
+    return 0;
+}

@@ -13,6 +13,7 @@ type taskContainerInfo struct {
 	Pending bool
 	Span    source.Span
 	Type    types.TypeID
+	ForIn   source.Span // where a `for` read the tasks without draining them; zero when none did
 }
 
 type taskContainerLoop struct {
@@ -302,7 +303,7 @@ func (tc *typeChecker) checkTaskContainersAtScopeExit(scope symbols.ScopeID) {
 					span = sym.Span
 				}
 			}
-			tc.report(diag.SemaTaskNotAwaited, span, "task container has unconsumed tasks at scope exit (drain required)")
+			tc.reportTaskContainerUndrained(place, info, span)
 		}
 		delete(tc.taskContainers, place)
 	}
@@ -366,10 +367,6 @@ func (tc *typeChecker) taskContainerLoopAllowsAwait(info *taskContainerInfo) boo
 		}
 	}
 	return false
-}
-
-func (tc *typeChecker) bindingMoved(symID symbols.SymbolID) bool {
-	return tc.bindingMovedPlace(symID)
 }
 
 func (tc *typeChecker) enterTaskContainerLoop(place Place) {

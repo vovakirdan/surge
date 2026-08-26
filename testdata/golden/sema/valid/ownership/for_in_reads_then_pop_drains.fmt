@@ -1,0 +1,57 @@
+// The legal shapes beside the refusals in
+// testdata/golden/sema/invalid/ownership/for_in_moves_out_of_binding.sg and
+// testdata/golden/sema/invalid/concurrency/task_container_for_in_is_not_a_drain.sg:
+// a `for` READS its elements, and a container of affine elements is emptied by
+// popping - the pop takes the element out of its slot, so nothing is freed twice.
+type Item = { name: string, id: int };
+
+fn take(s: string) -> nothing {
+    return nothing;
+}
+
+async fn work(k: int) -> int {
+    return k;
+}
+
+fn strings() -> int {
+    let mut names: string[] = [];
+    names.push("a");
+    names.push("bc");
+    let mut total: int = 0;
+    for s in names {
+        total = total + (s.__len() to int);
+    }
+    while names.__len() > 0:uint {
+        let s = names.pop().safe();
+        take(s);
+    }
+
+    let mut items: Item[] = [];
+    items.push(Item { name = "d", id = 4 });
+    for it in items {
+        total = total + it.id;
+    }
+    while items.__len() > 0:uint {
+        let it = items.pop().safe();
+        take(own it.name);
+    }
+    return total;
+}
+
+async fn tasks() -> int {
+    let mut q: Task<int>[] = [];
+    q.push(spawn work(1));
+    q.push(spawn work(2));
+    let mut sum: int = 0;
+    while q.__len() > 0:uint {
+        let t = q.pop().safe();
+        sum = sum + compare t.await() { Success(v) => v; Cancelled() => 0; };
+    }
+    return sum;
+}
+
+@entrypoint
+fn main() -> int {
+    let t = spawn tasks();
+    return strings() + compare t.await() { Success(v) => v; Cancelled() => 0; };
+}

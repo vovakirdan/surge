@@ -454,6 +454,29 @@ const (
 	// the same diagnostic.
 	SemaOperationNeedsClonable Code = 3204
 
+	// SemaMoveOutOfLoopBinding rejects moving a value out of a `for-in`
+	// binding, whole or by field.
+	//
+	// The binding is a word-wise copy of an element the container still owns,
+	// and the frame emits no drop for it. A move through it gives the element
+	// away while its slot still holds the same word, so the container's drop
+	// glue frees it a second time. Measured: `for s in names { take(s) }` is an
+	// `Invalid free` under valgrind, and `for t in tasks { t.await() }` is
+	// `panic: async: invalid task owner shard` at teardown once a task handle
+	// became droppable. A `for` READS, by owner ruling (2026-08-26,
+	// RV2-DEBT-258); a container of affine elements is drained by popping.
+	SemaMoveOutOfLoopBinding Code = 3205
+
+	// SemaOwnedIterable rejects `own` in the ITERABLE position of a `for-in`.
+	//
+	// `for x in own xs` is the spelling a consuming loop would have, and the
+	// language does not have that loop yet: today the `own` is accepted and
+	// then ignored, the loop reads exactly as without it, and a move in the
+	// body double-frees as SemaMoveOutOfLoopBinding describes. Accepting a
+	// request that is not honoured is the disposition SemaMutableIterable
+	// already refuses for `&mut`; this is the same refusal for `own`.
+	SemaOwnedIterable Code = 3206
+
 	// Ошибки I/O
 
 	// IOLoadFileError indicates file load error.
@@ -715,6 +738,8 @@ var ( // todo расширить описания и использовать к
 		SemaMutableIterable:                "a for-in loop only reads what it iterates, so `&mut` cannot be honoured here",
 		SemaArmTagNotAUnionCase:            "this tag is not a case of the union being matched",
 		SemaOperationNeedsClonable:         "this operation is not available at this instantiation",
+		SemaMoveOutOfLoopBinding:           "a for-in binding only reads the element; the container still owns it",
+		SemaOwnedIterable:                  "a consuming for-in is not a feature yet; drain the container with pop",
 		SemaPartialMoveNeedsOwn:            "taking a field out of a live value must be written `own`",
 		SemaPartialMoveFromTemporary:       "cannot take a field out of a value nothing holds",
 		SemaStoreThroughSharedRef:          "cannot write through a shared reference",

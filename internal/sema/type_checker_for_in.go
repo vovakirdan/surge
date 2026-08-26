@@ -1,12 +1,41 @@
 package sema
 
 import (
+	"fmt"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
+
+// A `for` loop READS its elements. It does not consume them, and it is not
+// the way a container of affine elements is emptied — owner ruling 2026-08-26
+// (RV2-DEBT-258), closing the question the read-only ruling of 2026-08-13 left
+// open. Three refusals below follow from that, beside the two write refusals
+// in for_in_readonly.go:
+//
+//   - moving out of the loop binding, whole (`take(s)`, `t.await()`) or by
+//     field (`take(own it.name)`). The binding is a word-wise copy the
+//     container still owns; the move gives the element away while its slot
+//     still holds the same word, and the container's drop glue then frees it
+//     again. Measured: `Invalid free` under valgrind for strings, and
+//     `panic: async: invalid task owner shard` at teardown for task handles.
+//   - `own` in the iterable position. `for x in own xs` is what a consuming
+//     loop would look like, and the language does not have one: the spelling
+//     was accepted and ignored, exactly the disposition SEM3202 refuses for
+//     `&mut`. It is refused by name, and the body's move is not reported on
+//     top of it — the author already asked for the loop that does not exist.
+//   - a task container iterated by `for` stays PENDING. The tracker used to
+//     demand that the loop move its binding, which is the double free above
+//     spelled as a requirement; now the loop is a read, and the container's
+//     own scope-exit refusal (SEM3107) names the loop that read it.
+//
+// The way out is the same in all three: drain by popping,
+// `while xs.__len() > 0:uint { let x = xs.pop().safe(); ... }`, which the
+// task tracker already accepts as a drain (taskContainerDrainLoop) and which
+// empties the slot it takes from.
 
 func (tc *typeChecker) walkForInStmt(id ast.StmtID, stmt *ast.Stmt) {
 	if stmt == nil {
@@ -20,15 +49,12 @@ func (tc *typeChecker) walkForInStmt(id ast.StmtID, stmt *ast.Stmt) {
 	pushed := tc.pushScope(scope)
 
 	tc.rejectMutableIterable(forIn.Iterable)
+	consumingRequested := tc.rejectOwnedIterable(forIn)
 
 	iterableType := tc.typeExpr(forIn.Iterable)
-	var containerPlace Place
-	containerTracked := tc.isTaskContainerType(iterableType)
-	if containerTracked {
+	if tc.isTaskContainerType(iterableType) {
 		if place, ok := tc.taskContainerPlace(forIn.Iterable); ok {
-			containerPlace = place
-		} else {
-			containerTracked = false
+			tc.noteForInReadsTaskContainer(place, forIn, stmt.Span)
 		}
 	}
 
@@ -51,15 +77,13 @@ func (tc *typeChecker) walkForInStmt(id ast.StmtID, stmt *ast.Stmt) {
 		}
 	}
 
-	movedBefore := tc.bindingMoved(loopSym)
 	movedBeforeLoop := tc.snapshotMovedPlaces()
 	tc.enterLoopDropScope()
 	tc.walkStmt(forIn.Body)
 	tc.rejectLoopBackEdgeMoves(movedBeforeLoop, "for-in loop")
 	tc.leaveLoopDropScope()
-	movedAfter := tc.bindingMoved(loopSym)
-	if containerTracked {
-		tc.checkForInTaskConsumed(forIn, containerPlace, movedBefore, movedAfter, stmt.Span)
+	if !consumingRequested {
+		tc.rejectMoveOutOfLoopBinding(forIn, loopSym)
 	}
 	if pushed {
 		tc.leaveScope()
@@ -83,18 +107,143 @@ func (tc *typeChecker) forInElementType(forIn *ast.ForInStmt, iterableType types
 	return elemType
 }
 
-func (tc *typeChecker) checkForInTaskConsumed(forIn *ast.ForInStmt, containerPlace Place, movedBefore, movedAfter bool, span source.Span) {
-	info := tc.taskContainers[containerPlace]
-	if info == nil || !info.Pending {
+// rejectMoveOutOfLoopBinding refuses a body that moved the loop binding, whole
+// or by field. It is asked AFTER the body is walked, from the moved-set the
+// body left behind: the move was recorded where it happened, with its span,
+// and the binding's whole place overlaps a field move as well as a whole one
+// (movedPlaceCovering), so `take(own it.name)` is caught beside `take(it)`.
+//
+// Copy elements never reach here — observeMove records no move for them — so
+// `for i in ns { take_int(i) }` stays legal, as it should: nothing is given
+// away by copying an int.
+func (tc *typeChecker) rejectMoveOutOfLoopBinding(forIn *ast.ForInStmt, loopSym symbols.SymbolID) {
+	if !loopSym.IsValid() {
 		return
 	}
-	consumed := movedAfter && !movedBefore
-	if !consumed {
-		reportSpan := forIn.PatternSpan
-		if reportSpan == (source.Span{}) {
-			reportSpan = span
-		}
-		tc.report(diag.SemaTaskNotAwaited, reportSpan, "task in container is not consumed in for-in loop")
+	moved, moveSpan, ok := tc.movedPlaceCovering(wholePlace(loopSym))
+	if !ok {
+		return
 	}
-	tc.markTaskContainerConsumed(containerPlace)
+	name := tc.bindingName(loopSym)
+	headline := fmt.Sprintf("cannot move out of `%s`: a `for` loop binding only reads the element", name)
+	if moved.Path != "" {
+		headline = fmt.Sprintf("cannot move `%s` out of `%s`: a `for` loop binding only reads the element",
+			tc.plainPlaceLabel(moved), name)
+	}
+	if tc.reporter == nil {
+		tc.report(diag.SemaMoveOutOfLoopBinding, moveSpan, "%s", headline)
+		return
+	}
+	b := diag.ReportError(tc.reporter, diag.SemaMoveOutOfLoopBinding, moveSpan, headline)
+	if b == nil {
+		return
+	}
+	b.WithNote(forIn.PatternSpan, fmt.Sprintf(
+		"`%s` is a copy of an element the container still owns: what leaves through it stays in its slot, and the container frees it again",
+		name))
+	b.WithHelp(tc.exprSpan(forIn.Iterable), tc.forInDrainHelp(forIn.Iterable, name))
+	// A loop that only meant to READ has a cheaper way out than a drain: pass
+	// a copy. Offered for a whole move of an ordinary value, through the one
+	// clone-advice table so the clause cannot name a clone the type lacks.
+	// Not for a task handle - its `.clone()` is an entitlement, and the
+	// container would still need its drain - and not for a field move, whose
+	// subject is not the binding the sentence would name.
+	if elemType := tc.bindingType(loopSym); moved.Path == "" && !tc.isTaskType(elemType) {
+		if advice := tc.cloneAdviceFor(adviceMoveOutOfLoopBinding, elemType, name); advice.Help != "" {
+			b.WithHelp(moveSpan, advice.Help)
+		}
+	}
+	b.Emit()
+}
+
+// rejectOwnedIterable refuses `own` in the iterable position. The test is on
+// the `own expr` SYNTAX, like rejectMutableIterable's on `&mut expr`: an
+// iterable of `own T[]` type that arrived as a parameter is not the mistake,
+// asking for consumption AT the loop is. Reports whether it refused, so the
+// body's move is not reported a second time.
+func (tc *typeChecker) rejectOwnedIterable(forIn *ast.ForInStmt) bool {
+	if !forIn.Iterable.IsValid() {
+		return false
+	}
+	node := tc.builder.Exprs.Get(forIn.Iterable)
+	if node == nil || node.Kind != ast.ExprUnary {
+		return false
+	}
+	unary := tc.builder.Exprs.Unaries.Get(uint32(node.Payload))
+	if unary == nil || unary.Op != ast.ExprUnaryOwn {
+		return false
+	}
+	span := tc.exprSpan(forIn.Iterable)
+	headline := "cannot iterate over `own`: a consuming `for` is not a feature yet"
+	if tc.reporter == nil {
+		tc.report(diag.SemaOwnedIterable, span, "%s", headline)
+		return true
+	}
+	b := diag.ReportError(tc.reporter, diag.SemaOwnedIterable, span, headline)
+	if b == nil {
+		return true
+	}
+	b.WithNote(span,
+		"a `for` loop reads each element and leaves it in the container whatever the iterable is, so this `own` would be accepted and then ignored")
+	b.WithHelp(span, tc.forInDrainHelp(unary.Operand, tc.lookupName(forIn.Pattern)))
+	b.Emit()
+	return true
+}
+
+// forInDrainHelp spells the legal drain for the container the loop named. The
+// `__len` and `pop().safe()` forms are the ones the task tracker recognises as
+// a drain (taskContainerDrainLoop, taskContainerPopSource), so the advice is
+// the shape that compiles, not a paraphrase of it.
+func (tc *typeChecker) forInDrainHelp(iterable ast.ExprID, binding string) string {
+	container := "xs"
+	if ident, ok := tc.builder.Exprs.Ident(tc.unwrapGroupExpr(iterable)); ok && ident != nil {
+		if name := tc.lookupName(ident.Name); name != "" {
+			container = name
+		}
+	}
+	if binding == "" || binding == "_" {
+		binding = "x"
+	}
+	return fmt.Sprintf(
+		"to consume the elements, drain the container instead: `while %s.__len() > 0:uint { let %s = %s.pop().safe(); ... }`",
+		container, binding, container)
+}
+
+// noteForInReadsTaskContainer records that a `for` read a pending task
+// container, so the scope-exit refusal can point at the loop. The container
+// stays pending: a read is not a drain, and the loop is no longer allowed to
+// pretend to be one by moving its binding.
+func (tc *typeChecker) noteForInReadsTaskContainer(place Place, forIn *ast.ForInStmt, span source.Span) {
+	info := tc.taskContainers[place]
+	if info == nil || !info.Pending || info.ForIn != (source.Span{}) {
+		return
+	}
+	if forIn.PatternSpan != (source.Span{}) {
+		span = forIn.PatternSpan
+	}
+	info.ForIn = span
+}
+
+// reportTaskContainerUndrained is the scope-exit refusal for a pending task
+// container. It lives beside the for-in rules because the one thing it adds
+// to the tracker's bare sentence is the loop: when a `for` read the tasks, the
+// author most likely believed that consumed them, and the refusal says where
+// and what to write instead.
+func (tc *typeChecker) reportTaskContainerUndrained(place Place, info *taskContainerInfo, span source.Span) {
+	headline := "task container has unconsumed tasks at scope exit (drain required)"
+	if tc.reporter == nil || info == nil || info.ForIn == (source.Span{}) {
+		tc.report(diag.SemaTaskNotAwaited, span, "%s", headline)
+		return
+	}
+	b := diag.ReportError(tc.reporter, diag.SemaTaskNotAwaited, span, headline)
+	if b == nil {
+		return
+	}
+	container := tc.bindingName(place.Base)
+	b.WithNote(info.ForIn, fmt.Sprintf(
+		"the `for` loop here only reads the tasks in `%s`; it does not drain them", container))
+	b.WithHelp(info.ForIn, fmt.Sprintf(
+		"drain the container instead: `while %s.__len() > 0:uint { let t = %s.pop().safe(); ... }`",
+		container, container))
+	b.Emit()
 }

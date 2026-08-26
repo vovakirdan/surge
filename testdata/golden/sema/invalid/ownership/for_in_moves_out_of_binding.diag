@@ -1,0 +1,3 @@
+error SEM3205 testdata/golden/sema/invalid/ownership/for_in_moves_out_of_binding.sg:22:14 cannot move out of `s`: a `for` loop binding only reads the element
+error SEM3205 testdata/golden/sema/invalid/ownership/for_in_moves_out_of_binding.sg:28:20 cannot move out of `s`: a `for` loop binding only reads the element
+error SEM3205 testdata/golden/sema/invalid/ownership/for_in_moves_out_of_binding.sg:35:14 cannot move `it.name` out of `it`: a `for` loop binding only reads the element

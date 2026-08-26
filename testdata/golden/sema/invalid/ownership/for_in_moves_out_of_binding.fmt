@@ -1,0 +1,38 @@
+// A `for` loop READS its elements. Its binding is a copy of an element the
+// container still owns, so moving through it - whole into a call, whole into
+// a binding, or one field with `own` - gives away storage the container frees
+// again on its own reclamation. Measured: `Invalid read` + `Invalid free`
+// under valgrind for the string form.
+//
+// Owner ruling 2026-08-26 (RV2-DEBT-258): the loop does not consume, and a
+// container of affine elements is drained by popping,
+// `while xs.__len() > 0:uint { let x = xs.pop().safe(); ... }`. The valid
+// twin is testdata/golden/sema/valid/ownership/for_in_reads_then_pop_drains.sg.
+type Item = { name: string, id: int };
+
+fn take(s: string) -> nothing {
+    return nothing;
+}
+
+@entrypoint
+fn main() -> int {
+    let mut names: string[] = [];
+    names.push("a");
+    for s in names {
+        take(s);
+    }
+
+    let mut kept: string[] = [];
+    kept.push("b");
+    for s in kept {
+        let held = s;
+        take(held);
+    }
+
+    let mut items: Item[] = [];
+    items.push(Item { name = "c", id = 1 });
+    for it in items {
+        take(own it.name);
+    }
+    return 0;
+}

@@ -1,0 +1,34 @@
+// ERROR: a `for` over a task container READS the tasks; it does not drain them.
+//
+// Awaiting through the loop binding moves a handle the container still owns
+// (SEM3205: `panic: async: invalid task owner shard` at teardown, measured),
+// and the container is still pending at scope exit either way (SEM3107). The
+// tracker used to DEMAND that move - "task in container is not consumed in
+// for-in loop" - which was the double free spelled as a requirement.
+
+async fn work() -> int {
+    return 1;
+}
+
+fn peek(t: &Task<int>) -> nothing {
+    return nothing;
+}
+
+pub async fn await_through_for() {
+    let mut q: Task<int>[] = [];
+    // ERROR SEM3107: task container has unconsumed tasks at scope exit (drain required)
+    q.push(spawn work());
+    for t in q {
+        // ERROR SEM3205: cannot move out of `t`: a `for` loop binding only reads the element
+        let _ = t.await();
+    }
+}
+
+pub async fn read_through_for() {
+    let mut q: Task<int>[] = [];
+    // ERROR SEM3107: task container has unconsumed tasks at scope exit (drain required)
+    q.push(spawn work());
+    for t in q {
+        peek(&t);
+    }
+}

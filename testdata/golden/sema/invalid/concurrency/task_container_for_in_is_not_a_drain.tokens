@@ -1,0 +1,122 @@
+  1: KwAsync         "async" at 9:1-9:6 (leading: LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline)
+  2: KwFn            "fn" at 9:7-9:9 (leading: Space)
+  3: Ident           "work" at 9:10-9:14 (leading: Space)
+  4: LParen          "(" at 9:14-9:15
+  5: RParen          ")" at 9:15-9:16
+  6: Arrow           "->" at 9:17-9:19 (leading: Space)
+  7: Ident           "int" at 9:20-9:23 (leading: Space)
+  8: LBrace          "{" at 9:24-9:25 (leading: Space)
+  9: KwReturn        "return" at 10:5-10:11 (leading: Newline, Space)
+ 10: IntLit          "1" at 10:12-10:13 (leading: Space)
+ 11: Semicolon       ";" at 10:13-10:14
+ 12: RBrace          "}" at 11:1-11:2 (leading: Newline)
+ 13: KwFn            "fn" at 13:1-13:3 (leading: Newline)
+ 14: Ident           "peek" at 13:4-13:8 (leading: Space)
+ 15: LParen          "(" at 13:8-13:9
+ 16: Ident           "t" at 13:9-13:10
+ 17: Colon           ":" at 13:10-13:11
+ 18: Amp             "&" at 13:12-13:13 (leading: Space)
+ 19: Ident           "Task" at 13:13-13:17
+ 20: Lt              "<" at 13:17-13:18
+ 21: Ident           "int" at 13:18-13:21
+ 22: Gt              ">" at 13:21-13:22
+ 23: RParen          ")" at 13:22-13:23
+ 24: Arrow           "->" at 13:24-13:26 (leading: Space)
+ 25: NothingLit      "nothing" at 13:27-13:34 (leading: Space)
+ 26: LBrace          "{" at 13:35-13:36 (leading: Space)
+ 27: KwReturn        "return" at 14:5-14:11 (leading: Newline, Space)
+ 28: NothingLit      "nothing" at 14:12-14:19 (leading: Space)
+ 29: Semicolon       ";" at 14:19-14:20
+ 30: RBrace          "}" at 15:1-15:2 (leading: Newline)
+ 31: KwPub           "pub" at 17:1-17:4 (leading: Newline)
+ 32: KwAsync         "async" at 17:5-17:10 (leading: Space)
+ 33: KwFn            "fn" at 17:11-17:13 (leading: Space)
+ 34: Ident           "await_through_for" at 17:14-17:31 (leading: Space)
+ 35: LParen          "(" at 17:31-17:32
+ 36: RParen          ")" at 17:32-17:33
+ 37: LBrace          "{" at 17:34-17:35 (leading: Space)
+ 38: KwLet           "let" at 18:5-18:8 (leading: Newline, Space)
+ 39: KwMut           "mut" at 18:9-18:12 (leading: Space)
+ 40: Ident           "q" at 18:13-18:14 (leading: Space)
+ 41: Colon           ":" at 18:14-18:15
+ 42: Ident           "Task" at 18:16-18:20 (leading: Space)
+ 43: Lt              "<" at 18:20-18:21
+ 44: Ident           "int" at 18:21-18:24
+ 45: Gt              ">" at 18:24-18:25
+ 46: LBracket        "[" at 18:25-18:26
+ 47: RBracket        "]" at 18:26-18:27
+ 48: Assign          "=" at 18:28-18:29 (leading: Space)
+ 49: LBracket        "[" at 18:30-18:31 (leading: Space)
+ 50: RBracket        "]" at 18:31-18:32
+ 51: Semicolon       ";" at 18:32-18:33
+ 52: Ident           "q" at 20:5-20:6 (leading: Newline, Space, LineComment, Newline, Space)
+ 53: Dot             "." at 20:6-20:7
+ 54: Ident           "push" at 20:7-20:11
+ 55: LParen          "(" at 20:11-20:12
+ 56: KwSpawn         "spawn" at 20:12-20:17
+ 57: Ident           "work" at 20:18-20:22 (leading: Space)
+ 58: LParen          "(" at 20:22-20:23
+ 59: RParen          ")" at 20:23-20:24
+ 60: RParen          ")" at 20:24-20:25
+ 61: Semicolon       ";" at 20:25-20:26
+ 62: KwFor           "for" at 21:5-21:8 (leading: Newline, Space)
+ 63: Ident           "t" at 21:9-21:10 (leading: Space)
+ 64: KwIn            "in" at 21:11-21:13 (leading: Space)
+ 65: Ident           "q" at 21:14-21:15 (leading: Space)
+ 66: LBrace          "{" at 21:16-21:17 (leading: Space)
+ 67: KwLet           "let" at 23:9-23:12 (leading: Newline, Space, LineComment, Newline, Space)
+ 68: Underscore      "_" at 23:13-23:14 (leading: Space)
+ 69: Assign          "=" at 23:15-23:16 (leading: Space)
+ 70: Ident           "t" at 23:17-23:18 (leading: Space)
+ 71: Dot             "." at 23:18-23:19
+ 72: Ident           "await" at 23:19-23:24
+ 73: LParen          "(" at 23:24-23:25
+ 74: RParen          ")" at 23:25-23:26
+ 75: Semicolon       ";" at 23:26-23:27
+ 76: RBrace          "}" at 24:5-24:6 (leading: Newline, Space)
+ 77: RBrace          "}" at 25:1-25:2 (leading: Newline)
+ 78: KwPub           "pub" at 27:1-27:4 (leading: Newline)
+ 79: KwAsync         "async" at 27:5-27:10 (leading: Space)
+ 80: KwFn            "fn" at 27:11-27:13 (leading: Space)
+ 81: Ident           "read_through_for" at 27:14-27:30 (leading: Space)
+ 82: LParen          "(" at 27:30-27:31
+ 83: RParen          ")" at 27:31-27:32
+ 84: LBrace          "{" at 27:33-27:34 (leading: Space)
+ 85: KwLet           "let" at 28:5-28:8 (leading: Newline, Space)
+ 86: KwMut           "mut" at 28:9-28:12 (leading: Space)
+ 87: Ident           "q" at 28:13-28:14 (leading: Space)
+ 88: Colon           ":" at 28:14-28:15
+ 89: Ident           "Task" at 28:16-28:20 (leading: Space)
+ 90: Lt              "<" at 28:20-28:21
+ 91: Ident           "int" at 28:21-28:24
+ 92: Gt              ">" at 28:24-28:25
+ 93: LBracket        "[" at 28:25-28:26
+ 94: RBracket        "]" at 28:26-28:27
+ 95: Assign          "=" at 28:28-28:29 (leading: Space)
+ 96: LBracket        "[" at 28:30-28:31 (leading: Space)
+ 97: RBracket        "]" at 28:31-28:32
+ 98: Semicolon       ";" at 28:32-28:33
+ 99: Ident           "q" at 30:5-30:6 (leading: Newline, Space, LineComment, Newline, Space)
+100: Dot             "." at 30:6-30:7
+101: Ident           "push" at 30:7-30:11
+102: LParen          "(" at 30:11-30:12
+103: KwSpawn         "spawn" at 30:12-30:17
+104: Ident           "work" at 30:18-30:22 (leading: Space)
+105: LParen          "(" at 30:22-30:23
+106: RParen          ")" at 30:23-30:24
+107: RParen          ")" at 30:24-30:25
+108: Semicolon       ";" at 30:25-30:26
+109: KwFor           "for" at 31:5-31:8 (leading: Newline, Space)
+110: Ident           "t" at 31:9-31:10 (leading: Space)
+111: KwIn            "in" at 31:11-31:13 (leading: Space)
+112: Ident           "q" at 31:14-31:15 (leading: Space)
+113: LBrace          "{" at 31:16-31:17 (leading: Space)
+114: Ident           "peek" at 32:9-32:13 (leading: Newline, Space)
+115: LParen          "(" at 32:13-32:14
+116: Amp             "&" at 32:14-32:15
+117: Ident           "t" at 32:15-32:16
+118: RParen          ")" at 32:16-32:17
+119: Semicolon       ";" at 32:17-32:18
+120: RBrace          "}" at 33:5-33:6 (leading: Newline, Space)
+121: RBrace          "}" at 34:1-34:2 (leading: Newline)
+122: EOF             at 35:1-35:1

@@ -1,0 +1,3 @@
+error SEM3107 testdata/golden/sema/invalid/concurrency/task_container_for_in_is_not_a_drain.sg:20:5 task container has unconsumed tasks at scope exit (drain required)
+error SEM3205 testdata/golden/sema/invalid/concurrency/task_container_for_in_is_not_a_drain.sg:23:17 cannot move out of `t`: a `for` loop binding only reads the element
+error SEM3107 testdata/golden/sema/invalid/concurrency/task_container_for_in_is_not_a_drain.sg:30:5 task container has unconsumed tasks at scope exit (drain required)

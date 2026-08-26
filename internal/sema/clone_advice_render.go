@@ -29,6 +29,7 @@ const (
 	advicePartialMove
 	adviceMoveOutOfSharedBorrow
 	adviceCompareArmPayload
+	adviceMoveOutOfLoopBinding
 )
 
 // cloneAdvice is what one site is allowed to say.
@@ -172,7 +173,7 @@ func (tc *typeChecker) cloneAdviceFor(site cloneAdviceSite, subject types.TypeID
 	return cloneAdvice{State: state, Help: cloneAdviceSentence(site, state, name)}
 }
 
-//nolint:gocyclo // one table, read as a table: eleven sites by four capabilities.
+//nolint:gocyclo // one table, read as a table: twelve sites by four capabilities.
 func cloneAdviceSentence(site cloneAdviceSite, state CloneState, name string) string {
 	if state == CloneDeferred {
 		// The gate lives HERE rather than in the caller so the property holds
@@ -247,6 +248,13 @@ func cloneAdviceSentence(site cloneAdviceSite, state CloneState, name string) st
 			return fmt.Sprintf("build the answer from %s without giving it away", subject)
 		}
 		return fmt.Sprintf("pay for a copy with %s, or build the answer from %s without giving it away", call, subject)
+	case adviceMoveOutOfLoopBinding:
+		// The drain rides the same diagnostic as its own help clause; this
+		// sentence is the OTHER way out, for a loop that only meant to read.
+		if state == CloneNonClonable {
+			return fmt.Sprintf("read %s where it is: a `for` binding lends what the container owns", subject)
+		}
+		return fmt.Sprintf("to keep the container, read %s where it is or pass a copy: %s", subject, call)
 	default:
 		return ""
 	}
