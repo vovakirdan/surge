@@ -3,6 +3,7 @@ package vm
 import (
 	"fmt"
 
+	"surge/internal/asyncrt"
 	"surge/internal/types"
 )
 
@@ -155,4 +156,21 @@ func (vm *VM) opaqueMemberWord(val Value, what, unit string) (int64, *VMError) {
 		return 0, vmErr
 	}
 	return vm.resourceWord(member, what, unit)
+}
+
+// resourceFreed tells the runtime that one resource word is gone.
+//
+// This is the half of the resource contract the heap used to skip: freeing the
+// object released nothing (the runtime owns what the word names) and also SAID
+// nothing, so a task could not learn that the last handle able to consume its
+// result had died. Only tasks answer this today; a channel or a file word is
+// reclaimed by its own close path.
+func (h *Heap) resourceFreed(obj *Object) {
+	if h == nil || h.vm == nil || obj == nil || obj.Resource <= 0 {
+		return
+	}
+	if !h.vm.isTaskType(obj.TypeID) {
+		return
+	}
+	h.vm.taskHandleReleased(asyncrt.TaskID(obj.Resource)) //nolint:gosec // positive, and task ids are executor-bounded
 }

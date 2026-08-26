@@ -172,7 +172,13 @@ func (vm *VM) int64FromValue(val Value, context string) (int64, *VMError) {
 }
 
 func (vm *VM) taskValue(id asyncrt.TaskID, typeID types.TypeID) (Value, *VMError) {
-	return vm.resourceValue(int64(id), typeID, "Task") //nolint:gosec // TaskID is bounded by the executor
+	val, vmErr := vm.resourceValue(int64(id), typeID, "Task") //nolint:gosec // TaskID is bounded by the executor
+	if vmErr != nil {
+		return Value{}, vmErr
+	}
+	// One handed-out task word is one entitlement to that task's result.
+	vm.taskHandleCreated(id)
+	return val, nil
 }
 
 func (vm *VM) channelValue(id asyncrt.ChannelID, typeID types.TypeID) (Value, *VMError) {
@@ -368,8 +374,12 @@ func (vm *VM) runReadyOne() (bool, *VMError) {
 	switch outcome.Kind {
 	case asyncrt.PollDoneSuccess:
 		exec.MarkDone(id, asyncrt.TaskResultSuccess, outcome.Value)
+		// Completion is the second moment a result can become unclaimable: the
+		// cohort may already have emptied while the task was still running.
+		vm.taskCompleted(id)
 	case asyncrt.PollDoneCancelled:
 		exec.MarkDone(id, asyncrt.TaskResultCancelled, Value{})
+		vm.taskCompleted(id)
 	case asyncrt.PollYielded:
 		exec.Yield(id)
 		exec.TickVirtual()

@@ -218,6 +218,12 @@ func (h *Heap) Free(handle Handle) {
 		obj.BigUint = bignum.BigUint{}
 	case OKBigFloat:
 		obj.BigFloat = bignum.BigFloat{}
+	case OKResource:
+		// Nothing under the word is released here — the runtime owns what the
+		// word names. What happens here is the other half of the resource
+		// contract: the runtime is TOLD the word is gone, which for a task is
+		// how its result learns it can no longer be claimed.
+		h.resourceFreed(obj)
 	default:
 	}
 }

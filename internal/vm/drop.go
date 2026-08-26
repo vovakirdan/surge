@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"surge/internal/asyncrt"
 	"surge/internal/mir"
 )
 
@@ -121,6 +122,14 @@ func (vm *VM) dropAsyncTasks() {
 		} else if v, ok := task.State.(Value); ok {
 			vm.dropValue(v)
 		}
+		// A completed result whose cohort is empty should already be gone: the
+		// task owns it and releases it the moment nothing can claim it. Finding
+		// one here is a defect, and it is counted rather than quietly swept —
+		// the sweep is exactly what used to hide this whole class, so that an
+		// end-to-end program could never assert it had left nothing behind.
+		if task.Status == asyncrt.TaskDone && valueHoldsStorage(task.ResultValue) && vm.taskCohortEmpty(task.ID) {
+			vm.unclaimedTaskResults++
+		}
 		vm.dropValue(task.ResultValue)
 		// A resume value still on a task at shutdown is a payload that was
 		// delivered and never read.
@@ -158,6 +167,15 @@ func (vm *VM) dropValue(v Value) {
 func (vm *VM) checkLeaksOrPanic() {
 	if vm.Heap == nil {
 		return
+	}
+	// Asked before the heap walk, because by now the drain has already freed
+	// these and the heap can no longer see them. That is the point: a sweep
+	// that reclaims what an owner should have released reports a clean heap
+	// while the ownership rule is broken.
+	if vm.unclaimedTaskResults > 0 {
+		vm.panic(PanicRCHeapLeakDetected, fmt.Sprintf(
+			"heap leak detected: %d completed task result(s) reached shutdown with an empty entitlement cohort; a task's canonical result is the task's to release, not the drain's",
+			vm.unclaimedTaskResults))
 	}
 	leakCount := 0
 	kindCounts := make(map[ObjectKind]int, 8)

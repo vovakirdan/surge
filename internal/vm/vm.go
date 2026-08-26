@@ -58,6 +58,14 @@ type VM struct {
 	asyncPendingParkKey asyncrt.WakerKey
 	pollDepth           int
 	deferredShutdown    shutdownState
+	// taskCohorts tracks, per task, how many entitlements can still consume
+	// its canonical result. See task_entitlement.go.
+	taskCohorts map[asyncrt.TaskID]*taskCohort
+	// unclaimedTaskResults counts completed results the shutdown drain found
+	// still held by a task nothing could claim from. It is a defect count, not
+	// a workload figure: the task owns its result and releases it when its
+	// cohort empties, so the drain must never have one of these to reclaim.
+	unclaimedTaskResults int
 }
 
 // New creates a new VM for executing the given MIR module.
