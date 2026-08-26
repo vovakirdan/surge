@@ -443,7 +443,9 @@ fn walkdir_collect(root: &string, out: &mut DirEntry[]) -> nothing {
                 if is_dir {
                     sub_path = e.path.__clone();
                 }
-                out.push(e);
+                // `e` is the loop's read of an entry `sorted` still owns:
+                // pushing it would leave the same words in both arrays.
+                out.push(dir_entry_copy(&e));
                 if is_dir {
                     walkdir_collect(&sub_path, out);
                 }
