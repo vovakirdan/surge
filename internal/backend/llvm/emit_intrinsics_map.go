@@ -2,6 +2,7 @@ package llvm
 
 import (
 	"fmt"
+	"strings"
 
 	"surge/internal/mir"
 	"surge/internal/symbols"
@@ -74,8 +75,16 @@ func (fe *funcEmitter) emitMapNew(call *mir.CallInstr) error {
 	if err != nil {
 		return err
 	}
+	// The two descriptors are what make the entry storage typed: they carry the
+	// stride an entry occupies and the move that relocates one. They are given
+	// once, here, because a map's key and value types never change afterwards.
+	keyOps, valueOps, err := fe.mapEntryValueOps(dstType)
+	if err != nil {
+		return err
+	}
 	tmp := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_map_new(i64 %d)\n", tmp, keyKind)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_map_new(i64 %d, ptr %s, ptr %s)\n",
+		tmp, keyKind, keyOps, valueOps)
 	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return err
@@ -129,12 +138,12 @@ func (fe *funcEmitter) emitMapContains(call *mir.CallInstr) error {
 	if err != nil {
 		return err
 	}
-	keyBits, err := fe.emitMapKeyBits(&call.Args[1])
+	key, err := fe.emitMapStorageOperand(&call.Args[1])
 	if err != nil {
 		return err
 	}
 	tmp := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_map_contains(ptr %s, i64 %s)\n", tmp, handle, keyBits)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_map_contains(ptr %s, ptr %s)\n", tmp, handle, key)
 	if call.HasDst {
 		ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 		if err != nil {
@@ -162,15 +171,11 @@ func (fe *funcEmitter) emitMapGet(call *mir.CallInstr, name string) error {
 	if err != nil {
 		return err
 	}
-	keyBits, err := fe.emitMapKeyBits(&call.Args[1])
+	key, err := fe.emitMapStorageOperand(&call.Args[1])
 	if err != nil {
 		return err
 	}
-	bitsPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
-	okVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @%s(ptr %s, i64 %s, ptr %s)\n", okVal, name, handle, keyBits, bitsPtr)
-	return fe.emitMapOptionResult(call, bitsPtr, okVal)
+	return fe.emitMapOptionCall(call, name, []string{"ptr " + handle, "ptr " + key})
 }
 
 func (fe *funcEmitter) emitMapInsert(call *mir.CallInstr) error {
@@ -187,29 +192,20 @@ func (fe *funcEmitter) emitMapInsert(call *mir.CallInstr) error {
 	if err != nil {
 		return err
 	}
-	keyBits, err := fe.emitMapKeyBits(&call.Args[1])
+	key, err := fe.emitMapStorageOperand(&call.Args[1])
 	if err != nil {
 		return err
 	}
-	val, valTy, err := fe.emitValueOperand(&call.Args[2])
+	value, err := fe.emitMapStorageOperand(&call.Args[2])
 	if err != nil {
 		return err
 	}
-	valueType := operandValueType(fe.emitter.types, &call.Args[2])
-	if valueType == types.NoTypeID && call.Args[2].Kind != mir.OperandConst {
-		if baseType, baseErr := fe.placeBaseType(call.Args[2].Place); baseErr == nil {
-			valueType = baseType
-		}
-	}
-	valueBits, err := fe.emitValueToI64(val, valTy, valueType)
-	if err != nil {
-		return err
-	}
-	bitsPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
-	okVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_map_insert(ptr %s, i64 %s, i64 %s, ptr %s)\n", okVal, handle, keyBits, valueBits, bitsPtr)
-	return fe.emitMapOptionResult(call, bitsPtr, okVal)
+	// Both addresses name storage the caller is giving up: the map moves out of
+	// them, so nothing here copies the value into an allocation of its own
+	// first, and no destination means the displaced value is destroyed rather
+	// than written to a slot nobody reads.
+	return fe.emitMapOptionCall(call, "rt_map_insert",
+		[]string{"ptr " + handle, "ptr " + key, "ptr " + value})
 }
 
 func (fe *funcEmitter) emitMapRemove(call *mir.CallInstr) error {
@@ -226,15 +222,11 @@ func (fe *funcEmitter) emitMapRemove(call *mir.CallInstr) error {
 	if err != nil {
 		return err
 	}
-	keyBits, err := fe.emitMapKeyBits(&call.Args[1])
+	key, err := fe.emitMapStorageOperand(&call.Args[1])
 	if err != nil {
 		return err
 	}
-	bitsPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
-	okVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_map_remove(ptr %s, i64 %s, ptr %s)\n", okVal, handle, keyBits, bitsPtr)
-	return fe.emitMapOptionResult(call, bitsPtr, okVal)
+	return fe.emitMapOptionCall(call, "rt_map_remove", []string{"ptr " + handle, "ptr " + key})
 }
 
 func (fe *funcEmitter) emitMapKeys(call *mir.CallInstr) error {
@@ -303,15 +295,23 @@ func (fe *funcEmitter) mapCallKeyType(op *mir.Operand) (types.TypeID, error) {
 	return keyType, nil
 }
 
-// emitMapOptionResult builds the `Option` that a lookup, an insert and a
-// removal all answer with: `Some` of what the runtime wrote out when it
-// reported a hit, `nothing` when it did not.
+// emitMapOptionCall emits one map entry point whose last argument is the
+// destination for what it hands back, and tags the `Option` it answers with.
 //
-// The three used to carry a copy each. They were identical, which is the whole
-// argument for one emitter: three copies of a payload path are three places for
-// the payload contract to change in two of them.
-func (fe *funcEmitter) emitMapOptionResult(call *mir.CallInstr, bitsPtr, okVal string) error {
+// The runtime writes STRAIGHT INTO the destination union's payload: there is no
+// intermediate word, no allocation to adopt out of, and no pair of branches to
+// build the Some arm in. The tag is the only thing decided here, and a `select`
+// is the whole decision.
+//
+// A call with no destination hands the runtime a null instead, which is not a
+// refusal but an instruction: destroy what you would otherwise have handed
+// back. That is the case a map literal takes, where the displaced value used to
+// be written into an alloca nobody read.
+func (fe *funcEmitter) emitMapOptionCall(call *mir.CallInstr, name string, args []string) error {
+	leading := strings.Join(args, ", ")
 	if !call.HasDst {
+		okVal := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @%s(%s, ptr null)\n", okVal, name, leading)
 		return nil
 	}
 	dstType, err := fe.placeBaseType(call.Dst)
@@ -325,39 +325,46 @@ func (fe *funcEmitter) emitMapOptionResult(call *mir.CallInstr, bitsPtr, okVal s
 	if len(someMeta.PayloadTypes) != 1 {
 		return fmt.Errorf("Option::Some expects single payload")
 	}
-	payloadType := someMeta.PayloadTypes[0]
-	readyBB := fe.nextInlineBlock()
-	noneBB := fe.nextInlineBlock()
-	contBB := fe.nextInlineBlock()
-	outPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", outPtr, alignPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", okVal, readyBB, noneBB)
-
-	fmt.Fprintf(&fe.emitter.buf, "%s:\n", readyBB)
-	bitsVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", bitsVal, bitsPtr)
-	payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)
+	noneIdx, noneMeta, err := fe.emitter.tagCaseMeta(dstType, "nothing", symbols.NoSymbolID)
 	if err != nil {
 		return err
 	}
-	somePtr, err := fe.emitTagValueSinglePayload(dstType, someIdx, payloadType, payloadVal, payloadTy, payloadType)
+	if len(noneMeta.PayloadTypes) != 0 {
+		return fmt.Errorf("the nothing case of type#%d expects no payload", dstType)
+	}
+	layoutInfo, err := fe.emitter.layoutOf(dstType)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", somePtr, outPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
-
-	fmt.Fprintf(&fe.emitter.buf, "%s:\n", noneBB)
-	nonePtr, err := fe.emitTagValue(dstType, "nothing", symbols.NoSymbolID, nil)
+	if layoutInfo.TagSize != 4 {
+		return fmt.Errorf("unsupported tag size %d for type#%d", layoutInfo.TagSize, dstType)
+	}
+	align := layoutInfo.Align
+	if align == 0 {
+		align = 1
+	}
+	unionCase, ok := layoutInfo.UnionCase(someIdx)
+	if !ok {
+		return fmt.Errorf("missing finalized union case %d for type#%d", someIdx, dstType)
+	}
+	payloadOffset, ok := unionCase.FieldOffset(0)
+	if !ok {
+		return fmt.Errorf("missing finalized payload offset for type#%d case %d", dstType, someIdx)
+	}
+	mem, err := fe.emitStorageAlloca(dstType)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", nonePtr, outPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
-
-	fmt.Fprintf(&fe.emitter.buf, "%s:\n", contBB)
-	resultVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", resultVal, outPtr)
+	payloadPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n",
+		payloadPtr, mem, unionCase.PayloadOffset+payloadOffset)
+	okVal := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @%s(%s, ptr %s)\n", okVal, name, leading, payloadPtr)
+	// The payload slot is initialized exactly when the tag says Some, which is
+	// the same fact the runtime reported, so one value decides both.
+	tag := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = select i1 %s, i32 %d, i32 %d\n", tag, okVal, someIdx, noneIdx)
+	fmt.Fprintf(&fe.emitter.buf, "  store i32 %s, ptr %s, align %d\n", tag, mem, align)
 	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return err
@@ -365,8 +372,84 @@ func (fe *funcEmitter) emitMapOptionResult(call *mir.CallInstr, bitsPtr, okVal s
 	if !isStorageRun(dstTy) {
 		dstTy = handleType
 	}
-	fe.emitValueStore(dstTy, resultVal, ptr, dstAlign)
+	fe.emitValueStore(dstTy, mem, ptr, dstAlign)
 	return nil
+}
+
+// mapEntryValueOps names the two descriptors a map addresses its entries
+// through.
+//
+// A map's key and value are recorded as operation roots by the layout census
+// (`internal/mir/layout_finalize.go`), so a map that reached emission has both.
+// A type that arrived here without one would leave the runtime unable to say
+// how wide an entry is or how to move one, and there is no degraded mode worth
+// having: the module is refused where the reason is still legible rather than
+// linked against a descriptor that is not there.
+func (fe *funcEmitter) mapEntryValueOps(mapType types.TypeID) (keyOps, valueOps string, err error) {
+	key, value, ok := fe.emitter.types.MapInfo(resolveValueType(fe.emitter.types, mapType))
+	if !ok {
+		return "", "", fmt.Errorf("map construction requires a Map destination, got type#%d", mapType)
+	}
+	keyOps, err = fe.emitter.mapEntrySideOps(key)
+	if err != nil {
+		return "", "", err
+	}
+	valueOps, err = fe.emitter.mapEntrySideOps(value)
+	if err != nil {
+		return "", "", err
+	}
+	return keyOps, valueOps, nil
+}
+
+func (e *Emitter) mapEntrySideOps(id types.TypeID) (string, error) {
+	if e.valueOpsRegistryHas(id) {
+		return "@" + valueOpsSymbol(id), nil
+	}
+	if resolved := resolveValueType(e.types, id); resolved != id && e.valueOpsRegistryHas(resolved) {
+		return "@" + valueOpsSymbol(resolved), nil
+	}
+	return "", fmt.Errorf("map entry type#%d has no value operations descriptor", id)
+}
+
+// emitMapStorageOperand addresses the storage an operand names, which is what
+// every map entry point takes now: a key or a value is handed over by address,
+// at its own type.
+//
+// The three shapes an operand arrives in part company here. A BORROW's value IS
+// the address, so the slot holding the borrow is one level too far out. A place
+// is addressed where it lives, which is also what lets the map move out of it
+// instead of copying. A constant has no place at all and gets a slot of its own
+// to be handed over from.
+func (fe *funcEmitter) emitMapStorageOperand(op *mir.Operand) (string, error) {
+	if op == nil {
+		return "", fmt.Errorf("missing map entry operand")
+	}
+	switch {
+	case op.Kind == mir.OperandAddrOf || op.Kind == mir.OperandAddrOfMut:
+		ptr, _, err := fe.emitPlacePtr(op.Place)
+		return ptr, err
+	case isRefType(fe.emitter.types, op.Type):
+		val, valTy, err := fe.emitOperand(op)
+		if err != nil {
+			return "", err
+		}
+		if valTy != handleType {
+			return "", fmt.Errorf("map entry borrow is %s, expected a pointer", valTy)
+		}
+		return val, nil
+	case op.Kind == mir.OperandConst:
+		val, valTy, err := fe.emitOperand(op)
+		if err != nil {
+			return "", err
+		}
+		slot := fe.nextTemp()
+		fmt.Fprintf(&fe.emitter.buf, "  %s = alloca %s, align %d\n", slot, valTy, alignWord)
+		fe.emitValueStore(valTy, val, slot, alignWord)
+		return slot, nil
+	default:
+		ptr, _, err := fe.emitOperandStorage(op)
+		return ptr, err
+	}
 }
 
 func (fe *funcEmitter) emitMapHandle(op *mir.Operand) (string, error) {
@@ -380,17 +463,6 @@ func (fe *funcEmitter) emitMapHandle(op *mir.Operand) (string, error) {
 	tmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", tmp, handlePtr)
 	return tmp, nil
-}
-
-func (fe *funcEmitter) emitMapKeyBits(op *mir.Operand) (string, error) {
-	if op == nil {
-		return "", fmt.Errorf("missing map key operand")
-	}
-	val, valTy, valType, err := fe.emitToSource(op)
-	if err != nil {
-		return "", err
-	}
-	return fe.emitValueToI64(val, valTy, valType)
 }
 
 func (fe *funcEmitter) mapKeyTypeFromType(mapType types.TypeID) (types.TypeID, error) {

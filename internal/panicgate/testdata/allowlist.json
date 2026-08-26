@@ -1350,24 +1350,24 @@
       "group": "PG-INVARIANT"
     },
     {
-      "site": "runtime/native/rt_map.c::map_ensure_capacity#1",
+      "site": "runtime/native/rt_map.c::map_key_eq#1",
+      "message": "map: unsupported key kind",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_map.c::map_reserve#1",
       "message": "map: null handle",
       "group": "PG-NULL-GUARD"
     },
     {
-      "site": "runtime/native/rt_map.c::map_ensure_capacity#2",
+      "site": "runtime/native/rt_map.c::map_reserve#2",
       "message": "map capacity overflow",
       "group": "PG-SIZE-LIMIT"
     },
     {
-      "site": "runtime/native/rt_map.c::map_ensure_capacity#3",
+      "site": "runtime/native/rt_map.c::map_reserve#3",
       "message": "map allocation failed",
       "group": "PG-ALLOC-FAILURE"
-    },
-    {
-      "site": "runtime/native/rt_map.c::map_key_eq#1",
-      "message": "map: unsupported key kind",
-      "group": "PG-INVARIANT"
     },
     {
       "site": "runtime/native/rt_map.c::rt_map_contains#1",
@@ -1386,6 +1386,11 @@
     },
     {
       "site": "runtime/native/rt_map.c::rt_map_insert#2",
+      "message": "map: insert needs key and value storage",
+      "group": "PG-NULL-GUARD"
+    },
+    {
+      "site": "runtime/native/rt_map.c::rt_map_insert#3",
       "message": "map length overflow",
       "group": "PG-SIZE-LIMIT"
     },
@@ -1396,8 +1401,8 @@
     },
     {
       "site": "runtime/native/rt_map.c::rt_map_keys#2",
-      "message": "map keys element too large",
-      "group": "PG-SIZE-LIMIT"
+      "message": "map keys element width disagrees with the key type",
+      "group": "PG-INVARIANT"
     },
     {
       "site": "runtime/native/rt_map.c::rt_map_keys#3",
@@ -1436,6 +1441,11 @@
     },
     {
       "site": "runtime/native/rt_map.c::rt_map_new#2",
+      "message": "map: entry storage needs key and value operations",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_map.c::rt_map_new#3",
       "message": "map allocation failed",
       "group": "PG-ALLOC-FAILURE"
     },

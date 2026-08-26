@@ -1,30 +1,21 @@
 package llvm
 
 import (
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 )
 
-// The three map intrinsics that answer an `Option` — a lookup, an insert and a
-// removal — build it through ONE emitter, so the shape below is the shape all
-// three have.
+// A map entry is handed over BY ADDRESS, at its own type.
 //
-// This is a pin rather than a regression test: nothing was misbehaving before
-// the three copies were folded into one, and the fold's own proof is that the
-// emitted IR does not change. What the pin buys is that the NEXT change to the
-// payload contract has to change this shape once and deliberately, instead of
-// changing it in two call sites out of three and leaving the third to be found
-// by whoever compiles a map next.
-func TestMapIntrinsicsBuildTheirOptionThroughOneEmitter(t *testing.T) {
-	repoRoot, err := filepath.Abs("../../..")
-	if err != nil {
-		t.Fatalf("resolve repo root: %v", err)
-	}
-	t.Setenv("SURGE_STDLIB", repoRoot)
-
-	sourceCode := `@entrypoint
+// Before the storage flip every one of these calls took a `uint64`: a key was
+// squeezed through a machine word on the way in, a value was copied into a
+// transport allocation whose address became the word, and the answer came back
+// as a word that had to be turned into a pointer again. The whole family is
+// pinned in one test because the word was one contract, and half a migration
+// off it is worse than none.
+func TestMapEntriesAreHandedOverByAddress(t *testing.T) {
+	ir := emitMapProbeIR(t, `@entrypoint
 fn main() -> int {
     let mut m = Map::<string, int>.new();
     let _ = m.insert("a", 1);
@@ -40,70 +31,118 @@ fn main() -> int {
         nothing => 0;
     };
 }
-`
+`)
 
-	ir := emitLLVMFromSource(t, sourceCode)
+	// The constructor hands the map the two descriptors that make its storage
+	// typed: without them the runtime cannot say how wide an entry is.
+	newRe := regexp.MustCompile(`call ptr @rt_map_new\(i64 1, ptr @__surge_value_ops_type\d+, ptr @__surge_value_ops_type\d+\)`)
+	if !newRe.MatchString(ir) {
+		t.Fatalf("rt_map_new was not given a key and a value descriptor:\n%s", ir)
+	}
 
-	for _, intrinsic := range []string{"rt_map_insert", "rt_map_get_mut", "rt_map_remove"} {
-		assertMapOptionSkeleton(t, ir, intrinsic)
+	for _, want := range []struct {
+		intrinsic string
+		arity     int
+	}{
+		{"rt_map_get_mut", 3},
+		{"rt_map_insert", 4},
+		{"rt_map_remove", 3},
+	} {
+		pattern := `call i1 @` + want.intrinsic + `\(` +
+			strings.TrimSuffix(strings.Repeat(`ptr [^,)]+, `, want.arity), ", ") + `\)`
+		if !regexp.MustCompile(pattern).MatchString(ir) {
+			t.Fatalf("%s does not take %d pointers:\n%s", want.intrinsic, want.arity, ir)
+		}
+		assertMapOptionWrittenInPlace(t, ir, want.intrinsic)
 	}
 }
 
-// assertMapOptionSkeleton checks the one Option-building shape: a destination
-// slot, a two-armed branch on the runtime's hit flag, a `Some` arm and a
-// `nothing` arm that both store into that same slot, and a join that reads it
-// back. Naming the slot is the point — an arm that stored somewhere else would
-// publish a value nobody reads, which is precisely how three hand-written
-// copies drift.
-func assertMapOptionSkeleton(t *testing.T, ir, intrinsic string) {
+// A composite value goes into the map's own entry storage, so nothing allocates
+// a box for it on the way in.
+//
+// This is the reading the old shape could not give: an entry was two words, a
+// `Payload16` does not fit in one, so the insert allocated a transport block,
+// copied the value into it and stored the block's address. The map's declared
+// value type and the buffer's element type disagreed by construction.
+func TestMapCompositeValueIsInsertedWithoutATransportAllocation(t *testing.T) {
+	ir := emitMapProbeIR(t, `type Payload16 = { a: uint64, b: uint64 };
+
+@entrypoint
+fn main() -> int {
+    let mut m = Map::<uint64, Payload16>.new();
+    let key: uint64 = 1:uint64;
+    let _ = m.insert(key, Payload16 { a = 7:uint64, b = 9:uint64 });
+    return compare m.remove(&key) {
+        Some(v) => v.a to int;
+        nothing => 0;
+    };
+}
+`)
+
+	body := llvmFunctionContaining(t, ir, "call i1 @rt_map_insert(")
+	for _, forbidden := range []string{"call ptr @rt_alloc(", "ptrtoint", "inttoptr"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("inserting a composite value still goes through %q:\n%s", forbidden, body)
+		}
+	}
+	removed := llvmFunctionContaining(t, ir, "call i1 @rt_map_remove(")
+	for _, forbidden := range []string{"call void @rt_free(", "ptrtoint", "inttoptr"} {
+		if strings.Contains(removed, forbidden) {
+			t.Fatalf("removing a composite value still goes through %q:\n%s", forbidden, removed)
+		}
+	}
+}
+
+// assertMapOptionWrittenInPlace checks the one shape every map entry point that
+// answers an `Option` now has: the destination union is reserved first, the
+// runtime is handed the address of its `Some` payload, and the tag is the only
+// thing the emitted code decides afterwards.
+//
+// Naming the payload address is the point. An entry point handed some other
+// slot would publish its answer where nothing reads it, which is exactly how
+// three hand-written copies of this path used to be able to drift.
+func assertMapOptionWrittenInPlace(t *testing.T, ir, intrinsic string) {
 	t.Helper()
 
-	callRe := regexp.MustCompile(`(%t\d+) = call i1 @` + intrinsic + `\(`)
+	callRe := regexp.MustCompile(`(%t\d+) = call i1 @` + intrinsic + `\([^)]*ptr (%t\d+)\)\n`)
 	call := callRe.FindStringSubmatchIndex(ir)
 	if call == nil {
 		t.Fatalf("no %s call in emitted IR:\n%s", intrinsic, ir)
 	}
 	okVal := ir[call[2]:call[3]]
-	rest := ir[call[1]:]
-	if end := strings.IndexByte(rest, '\n'); end >= 0 {
-		rest = rest[end+1:]
+	payload := ir[call[4]:call[5]]
+
+	before := ir[:call[0]]
+	if start := strings.LastIndex(before, "\ndefine "); start >= 0 {
+		before = before[start:]
 	}
-	// SSA names restart in every function, so the search has to stop at this
-	// one's closing brace or a later function's `%t8` answers for this one's.
-	if end := strings.Index(rest, "\n}\n"); end >= 0 {
-		rest = rest[:end]
+	payloadRe := regexp.MustCompile(
+		regexp.QuoteMeta(payload) + ` = getelementptr inbounds i8, ptr (%t\d+), i64 \d+\n`)
+	payloadMatch := payloadRe.FindStringSubmatch(before)
+	if payloadMatch == nil {
+		t.Fatalf("%s was not handed the destination Option's payload address:\n%s", intrinsic, before)
+	}
+	option := payloadMatch[1]
+	if !regexp.MustCompile(regexp.QuoteMeta(option) + ` = alloca `).MatchString(before) {
+		t.Fatalf("%s: the payload address %s is not inside a reserved Option:\n%s", intrinsic, payload, before)
 	}
 
-	slotRe := regexp.MustCompile(`^\s*(%t\d+) = alloca ptr, align \d+\n`)
-	lines := strings.SplitAfter(rest, "\n")
-	if len(lines) == 0 {
-		t.Fatalf("%s: nothing follows the call:\n%s", intrinsic, ir)
+	after := ir[call[1]:]
+	if end := strings.Index(after, "\n}\n"); end >= 0 {
+		after = after[:end]
 	}
-	slotMatch := slotRe.FindStringSubmatch(lines[0])
-	if slotMatch == nil {
-		t.Fatalf("%s: expected an Option destination slot right after the call, got %q", intrinsic, lines[0])
+	tagRe := regexp.MustCompile(`(%t\d+) = select i1 ` + regexp.QuoteMeta(okVal) + `, i32 \d+, i32 \d+\n`)
+	tag := tagRe.FindStringSubmatch(after)
+	if tag == nil {
+		t.Fatalf("%s: the hit flag %s does not choose the Option's tag:\n%s", intrinsic, okVal, after)
 	}
-	slot := slotMatch[1]
+	if !strings.Contains(after, "store i32 "+tag[1]+", ptr "+option+",") {
+		t.Fatalf("%s: the chosen tag %s is never written into %s:\n%s", intrinsic, tag[1], option, after)
+	}
+}
 
-	branchRe := regexp.MustCompile(`br i1 ` + regexp.QuoteMeta(okVal) + `, label %(\S+), label %(\S+)\n`)
-	branch := branchRe.FindStringSubmatch(rest)
-	if branch == nil {
-		t.Fatalf("%s: the hit flag %s does not select between a Some arm and a nothing arm:\n%s",
-			intrinsic, okVal, rest)
-	}
-
-	storeRe := regexp.MustCompile(`store ptr (%t\d+), ptr ` + regexp.QuoteMeta(slot) + `\n`)
-	stores := storeRe.FindAllStringSubmatch(rest, -1)
-	if len(stores) != 2 {
-		t.Fatalf("%s: expected both arms to store into %s, found %d such stores:\n%s",
-			intrinsic, slot, len(stores), rest)
-	}
-	if stores[0][1] == stores[1][1] {
-		t.Fatalf("%s: both arms stored the same value %s into %s", intrinsic, stores[0][1], slot)
-	}
-
-	joinRe := regexp.MustCompile(`(%t\d+) = load ptr, ptr ` + regexp.QuoteMeta(slot) + `\n`)
-	if joinRe.FindStringSubmatch(rest) == nil {
-		t.Fatalf("%s: the join never reads the Option back out of %s:\n%s", intrinsic, slot, rest)
-	}
+func emitMapProbeIR(t *testing.T, sourceCode string) string {
+	t.Helper()
+	withRepoStdlib(t)
+	return emitLLVMFromSource(t, sourceCode)
 }

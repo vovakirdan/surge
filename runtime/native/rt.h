@@ -377,13 +377,26 @@ void rt_channel_close(void* channel);
 // this on a channel another live handle can still resolve.
 void rt_channel_free(void* channel);
 
-void* rt_map_new(uint64_t key_kind);
+// A map's keys and values live in exact typed storage, so every entry point
+// here takes an ADDRESS: `key` and `value` address storage of the map's own key
+// and value type, never a machine word standing in for one. The two descriptors
+// are what tell the map how wide an entry is and how to move one, so they are
+// given once, at construction.
+//
+// Ownership: `rt_map_insert` takes the key and the value it is handed;
+// `rt_map_remove` moves the value out into `removed` and destroys the stored
+// key. `previous` and `removed` are optional -- NULL means the caller does not
+// want the displaced or removed value, and the map destroys it rather than
+// abandoning it. Lookup transfers nothing: it writes the value's interior
+// ADDRESS into `out_value`, and that address does not survive this map's next
+// growth or removal.
+void* rt_map_new(uint64_t key_kind, const rt_value_ops* key_ops, const rt_value_ops* value_ops);
 uint64_t rt_map_len(const void* map);
-bool rt_map_contains(const void* map, uint64_t key_bits);
-bool rt_map_get_ref(void* map, uint64_t key_bits, uint64_t* out_bits);
-bool rt_map_get_mut(void* map, uint64_t key_bits, uint64_t* out_bits);
-bool rt_map_insert(void* map, uint64_t key_bits, uint64_t value_bits, uint64_t* out_prev);
-bool rt_map_remove(void* map, uint64_t key_bits, uint64_t* out_prev);
+bool rt_map_contains(const void* map, const void* key);
+bool rt_map_get_ref(void* map, const void* key, void** out_value);
+bool rt_map_get_mut(void* map, const void* key, void** out_value);
+bool rt_map_insert(void* map, void* key, void* value, void* previous);
+bool rt_map_remove(void* map, const void* key, void* removed);
 void* rt_map_keys(const void* map, uint64_t elem_size, uint64_t elem_align);
 
 void* rt_scope_enter(bool failfast);

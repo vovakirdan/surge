@@ -22,38 +22,19 @@ import (
 //
 // Until then, a value crossing a transport boundary is copied INTO an
 // allocation the transport owns on the way out, and copied back OUT of it on
-// the way in. The pair below is the only place that happens. It is deliberately
-// not spread through the emitters that call it: keeping it to one publish, one
-// adopt and one release is what stops the box coming back as a second ordinary
-// representation, and it is what makes the retirement a deletion of this file
-// rather than an audit of every transport site.
+// the way in. Keeping that to one publish, one adopt and one release is what
+// stopped the box coming back as a second ordinary representation, and it is
+// what makes the retirement a deletion of this file rather than an audit of
+// every transport site.
 //
-// This is an interval measure. Giving each owner its own typed storage retires
-// it, and retiring it is a deletion of this file.
-
-// emitPublishToTransportAllocation copies the value at `storagePtr` into a
-// fresh transport-owned allocation and returns it.
-//
-// The copy is what makes the transfer safe: the caller's storage is a frame
-// slot, a field or an array element that the caller keeps owning and may
-// overwrite or leave the moment this returns.
-func (fe *funcEmitter) emitPublishToTransportAllocation(storagePtr string, id types.TypeID) (string, error) {
-	facts, err := fe.emitter.storageFactsOf(id)
-	if err != nil {
-		return "", err
-	}
-	allocation := fe.nextTemp()
-	size := facts.Size
-	if size == 0 {
-		// A zero-sized value still needs an address to be a payload, and an
-		// allocator asked for nothing may legally answer with nothing.
-		size = 1
-	}
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n",
-		allocation, size, facts.Align)
-	fe.emitStorageCopy(allocation, storagePtr, facts.Size, facts.Align)
-	return allocation, nil
-}
+// THE PUBLISH LEG IS GONE. Every owner that used to copy a value in on the way
+// out now has typed storage of its own, and the map was the last of them: the
+// helper that boxed a value for the runtime, and the word bridge that reached
+// it, are deleted rather than kept for a caller that no longer exists. What
+// remains is the adopt leg, still reached from the ordinary runtime-call
+// marshaller (`emit_call_site.go`), and it retires the same way -- when the
+// last surface that hands a composite back through a word has storage of its
+// own.
 
 // emitAdoptFromTransportAllocation copies a transport-owned allocation into the
 // storage at `storagePtr` and releases the allocation.

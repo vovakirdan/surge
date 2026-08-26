@@ -2,7 +2,6 @@ package llvm
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"surge/internal/mir"
@@ -87,62 +86,6 @@ func (fe *funcEmitter) taskResultInfo(resultType types.TypeID) (successIdx int, 
 		return -1, types.NoTypeID, fmt.Errorf("TaskResult::Cancelled expects no payload")
 	}
 	return successCaseIdx, successMeta.PayloadTypes[0], nil
-}
-
-func (fe *funcEmitter) emitValueToI64(val, valTy string, typeID types.TypeID) (string, error) {
-	if fe.emitter.hasInlineStorage(typeID) {
-		// The value is about to be handed to the runtime, which will hold it
-		// after this frame is gone. `val` addresses storage this frame owns, so
-		// the payload is a copy in an allocation the transport owns instead.
-		allocation, err := fe.emitPublishToTransportAllocation(val, typeID)
-		if err != nil {
-			return "", err
-		}
-		out := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = ptrtoint ptr %s to i64\n", out, allocation)
-		return out, nil
-	}
-	switch valTy {
-	case "i64":
-		return val, nil
-	case "ptr":
-		out := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = ptrtoint ptr %s to i64\n", out, val)
-		return out, nil
-	case "double":
-		out := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = bitcast double %s to i64\n", out, val)
-		return out, nil
-	case "float":
-		tmp := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = bitcast float %s to i32\n", tmp, val)
-		out := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = zext i32 %s to i64\n", out, tmp)
-		return out, nil
-	case "half":
-		tmp := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = bitcast half %s to i16\n", tmp, val)
-		out := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = zext i16 %s to i64\n", out, tmp)
-		return out, nil
-	}
-	if strings.HasPrefix(valTy, "i") {
-		width, err := strconv.Atoi(strings.TrimPrefix(valTy, "i"))
-		if err != nil || width <= 0 {
-			return "", fmt.Errorf("invalid integer type %s", valTy)
-		}
-		if width == 64 {
-			return val, nil
-		}
-		op := "zext"
-		if info, ok := intInfo(fe.emitter.types, typeID); ok && info.signed {
-			op = "sext"
-		}
-		out := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = %s %s %s to i64\n", out, op, valTy, val)
-		return out, nil
-	}
-	return "", fmt.Errorf("unsupported value type %s for async payload", valTy)
 }
 
 func (fe *funcEmitter) emitI64ToValue(bits string, typeID types.TypeID) (value, valueTy string, err error) {

@@ -1,0 +1,33 @@
+@entrypoint
+fn main() -> int {
+    // Ten entries take the entry storage past two capacity boundaries, so every
+    // live key and value is relocated twice on the way. Heap-owning keys are
+    // what make a relocation observable: bytes copied instead of moved would
+    // leave two owners of one string.
+    let mut m = Map::<string, int>.new();
+    let _ = m.insert("k0", 0);
+    let _ = m.insert("k1", 1);
+    let _ = m.insert("k2", 2);
+    let _ = m.insert("k3", 3);
+    let _ = m.insert("k4", 4);
+    let _ = m.insert("k5", 5);
+    let _ = m.insert("k6", 6);
+    let _ = m.insert("k7", 7);
+    let _ = m.insert("k8", 8);
+    let _ = m.insert("k9", 9);
+    print((m.length()) to string);
+    {
+        // The element borrows are scoped, because a live one keeps the map
+        // borrowed and the removal below needs it back.
+        print((m["k0"]) to string);
+        print((m["k9"]) to string);
+    }
+    // Removal fills the vacated entry from the end, so the entry that moved is
+    // read back through its key rather than through its old position.
+    let gone = "k0";
+    let dropped = m.remove(&gone);
+    print(compare dropped { Some(v) => v; nothing => 0 - 1; } to string);
+    print((m.length()) to string);
+    print((m["k9"]) to string);
+    return 0;
+}
