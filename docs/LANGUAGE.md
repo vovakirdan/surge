@@ -2069,7 +2069,13 @@ fn foo() -> int {
 Nesting follows the same rule at every level:
 
 - a block expression inside a body keeps its own `ret` — `let v: int = { ret 5; };`
-  yields the block, not the body — and a compare arm's block is a block;
+  yields the block, not the body — and a compare arm's block is a block:
+  `Success(v) => { ret v; }` gives the ARM its value, not the body's. A body
+  therefore has no early exit from inside an arm (owner ruling 2026-08-26); it
+  leaves through a flag the arm sets and the body reads after the compare —
+  `if failed { ret failure; }` — since a `ret` in an `if` body does leave the
+  whole body. In an ordinary function `return` inside an arm still leaves the
+  function, as it always did;
 - a body nested in a body has its own exit: `async { let t = async { ret 7; }; ret t; }`;
 - a body without any `ret` yields `Task<nothing>`. Where `Task<T>` is expected
   that is `SemaTaskBodyNoValue`, as is a body some path of which falls off the
@@ -2431,62 +2437,95 @@ fn classify_value(value: IntOrString) {
 
 ```sg
 // Concurrent data processing with structured concurrency
-async fn process_urls(urls: string[]) -> Erring<Data[], Error> {
-    async {
-        let mut tasks: Task<Erring<Data, Error>>[] = [];
+async fn process_pair(a: string, b: string) -> Erring<Data[], Error> {
+    let batch: Task<Erring<Data[], Error>> = async {
+        let first: Task<Erring<Data, Error>> = spawn fetch_data(a);
+        let second: Task<Erring<Data, Error>> = spawn fetch_data(b);
 
-        for url in urls {
-            tasks.push(spawn fetch_data(url));
-	        }
+        let mut results: Data[] = [];
+        let mut failure: Error = { message = "", code = 0:uint };
+        let mut failed: bool = false;
 
-	        let mut results: Data[] = [];
-	        // NOTE: await inside loops is supported.
-	        for t in tasks {
-	            compare t.await() {
-	                Success(res) => {
-	                    compare res {
-                        Success(data) => results.push(data);
-                        err => return err; // Early return on error
-                    };
-                };
-                Cancelled() => {
-                    let e: Error = { message = "cancelled", code = 1:uint };
-                    return e;
+        compare first.await() {
+            Success(res) => {
+                compare res {
+                    Success(data) => results.push(data);
+                    err => { failure = err; failed = true; };
                 };
             };
+            Cancelled() => {
+                failure = { message = "cancelled", code = 1:uint };
+                failed = true;
+            };
+        };
+        // A compare arm is a block of its own, so `ret` inside an arm is the
+        // ARM's value. The body leaves early through a flag it reads after
+        // the compare — a `ret` in an `if` body still leaves the whole body.
+        // The body's `ret` sites must agree on ONE type, and an `Error` reaches
+        // the union through an annotated binding.
+        if failed {
+            let early: Erring<Data[], Error> = failure;
+            ret early;
         }
 
-        return Success(results);
-    }
+        compare second.await() {
+            Success(res) => {
+                compare res {
+                    Success(data) => results.push(data);
+                    err => { failure = err; failed = true; };
+                };
+            };
+            Cancelled() => {
+                failure = { message = "cancelled", code = 1:uint };
+                failed = true;
+            };
+        };
+        if failed {
+            let early: Erring<Data[], Error> = failure;
+            ret early;
+        }
+
+        let done: Erring<Data[], Error> = Success(results);
+        ret done; // the body's value: batch yields Erring<Data[], Error>
+    };
+    return compare batch.await() {
+        Success(v) => v;
+        Cancelled() => Error { message = "cancelled", code = 1:uint };
+    };
 }
 
-// With @failfast, a cancelled child cancels its siblings.
+// With @failfast, a cancelled child cancels its siblings; the body still
+// gives its value with `ret`. Error handling is as above and is elided here.
 @failfast
-async fn process_urls_failfast(urls: string[]) -> Erring<Data[], Error> {
-    async {
-        let mut tasks: Task<Erring<Data, Error>>[] = [];
-        for url in urls {
-            tasks.push(spawn fetch_data(url));
-	        }
-
-	        let mut results: Data[] = [];
-	        // NOTE: await inside loops is supported.
-	        for t in tasks {
-	            compare t.await() {
-	                Success(res) => {
-	                    compare res {
-                        Success(data) => results.push(data);
-                        err => return err;
-                    };
-                };
-                Cancelled() => {
-                    let e: Error = { message = "cancelled", code = 1:uint };
-                    return e;
+async fn process_pair_failfast(a: string, b: string) -> Data[] {
+    let batch: Task<Data[]> = async {
+        let first: Task<Erring<Data, Error>> = spawn fetch_data(a);
+        let second: Task<Erring<Data, Error>> = spawn fetch_data(b);
+        let mut results: Data[] = [];
+        compare first.await() {
+            Success(res) => {
+                compare res {
+                    Success(data) => results.push(data);
+                    err => nothing;
                 };
             };
-        }
-        return Success(results);
-    }
+            Cancelled() => nothing;
+        };
+        compare second.await() {
+            Success(res) => {
+                compare res {
+                    Success(data) => results.push(data);
+                    err => nothing;
+                };
+            };
+            Cancelled() => nothing;
+        };
+        ret results;
+    };
+    return compare batch.await() {
+        Success(v) => v;
+        Cancelled() => [];
+    };
 }
 ```
 
