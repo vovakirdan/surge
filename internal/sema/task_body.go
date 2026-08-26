@@ -85,8 +85,14 @@ func (tc *typeChecker) taskBlockPayload(id ast.ExprID, span source.Span, body as
 func (tc *typeChecker) recordRetExit(id ast.StmtID) {
 	if ctx := tc.currentBlockReturnContext(); ctx != nil && ctx.kind == returnCtxTaskPayload {
 		// The same two notes an explicit `return` leaves: a task-container
-		// loop this exit cuts short, and the drops the exit owes.
-		tc.noteTaskContainerLoopReturn()
+		// loop this exit cuts short, and the drops the exit owes. The `ret`
+		// statement's own span is what the drain refusal points at, the way
+		// the `return` walk points at its statement.
+		retSpan := source.Span{}
+		if stmt := tc.builder.Stmts.Get(id); stmt != nil {
+			retSpan = stmt.Span
+		}
+		tc.noteTaskContainerLoopReturn(retSpan)
 		tc.recordEarlyExitDrops(id, false)
 		return
 	}

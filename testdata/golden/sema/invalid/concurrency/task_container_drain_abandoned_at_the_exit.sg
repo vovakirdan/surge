@@ -1,0 +1,72 @@
+// ERROR: a `return` or `break` inside a drain loop leaves the tasks not yet
+// popped in the container on that path, and a spawned task is awaited or
+// returned, never abandoned (SEM3107). The refusal points at the exit - the
+// statement the author can change - with the container in a note; it used to
+// point at the container's first push, and the lead met it five times
+// rewriting the MT programs before reading the rule off the tracker. The way
+// out is the shape those programs use now: keep the outcome in a local and
+// leave after the `while` has emptied the container.
+
+async fn work() -> int {
+    return 1;
+}
+
+pub async fn returns_mid_drain() -> int {
+    let mut tasks: Task<int>[] = [];
+    tasks.push(spawn work());
+    tasks.push(spawn work());
+    while tasks.__len() > 0:uint {
+        let t = tasks.pop().safe();
+        compare t.await() {
+            Success(v) => {
+                if v == 0 {
+                    // ERROR SEM3107: this `return` leaves the drain of `tasks` unfinished: the tasks not yet popped are abandoned on this path
+                    return 1;
+                }
+            }
+            Cancelled() => {
+                return 2;
+            }
+        }
+    }
+    return 0;
+}
+
+pub async fn breaks_mid_drain(stop: bool) -> int {
+    let mut tasks: Task<int>[] = [];
+    tasks.push(spawn work());
+    tasks.push(spawn work());
+    while tasks.__len() > 0:uint {
+        let t = tasks.pop().safe();
+        let _ = t.await();
+        if stop {
+            // ERROR SEM3107: this `break` leaves the drain of `tasks` unfinished: the tasks not yet popped are abandoned on this path
+            break;
+        }
+    }
+    return 0;
+}
+
+pub async fn finishes_the_drain_first() -> int {
+    let mut tasks: Task<int>[] = [];
+    tasks.push(spawn work());
+    tasks.push(spawn work());
+    let mut failed: bool = false;
+    while tasks.__len() > 0:uint {
+        let t = tasks.pop().safe();
+        compare t.await() {
+            Success(v) => {
+                if v == 0 {
+                    failed = true;
+                }
+            }
+            Cancelled() => {
+                failed = true;
+            }
+        }
+    }
+    if failed {
+        return 1;
+    }
+    return 0;
+}

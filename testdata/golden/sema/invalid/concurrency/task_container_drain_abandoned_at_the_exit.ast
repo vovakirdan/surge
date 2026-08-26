@@ -1,0 +1,115 @@
+task_container_drain_abandoned_at_the_exit.sg (span: 10:1-73:1)
+├─ Item[0]: Fn (span: 10:1-12:2)
+│  ├─ Name: work
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 10:24-12:2)
+│        └─ Stmt[0]: Return (span: 11:5-11:14)
+│           └─ Expr: expr#1: 1
+├─ Item[1]: Fn (span: 14:1-33:2)
+│  ├─ Name: returns_mid_drain
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 14:41-33:2)
+│        ├─ Stmt[0]: Let (span: 15:5-15:37)
+│        │  ├─ Name: tasks
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Task<int>[]
+│        │  └─ Value: expr#2: <ExprKind(8)>
+│        ├─ Stmt[1]: Expr (span: 16:5-16:30)
+│        │  └─ Expr: expr#8: tasks.push(spawn work())
+│        ├─ Stmt[2]: Expr (span: 17:5-17:30)
+│        │  └─ Expr: expr#14: tasks.push(spawn work())
+│        ├─ Stmt[3]: While (span: 18:5-31:6)
+│        │  ├─ Cond: expr#20: (tasks.__len() > (0 to uint))
+│        │  └─ Body:
+Block (span: 18:34-31:6)
+│        │     ├─ Stmt[0]: Let (span: 19:9-19:36)
+│        │     │  ├─ Name: t
+│        │     │  ├─ Mutable: false
+│        │     │  ├─ Type: <inferred>
+│        │     │  └─ Value: expr#25: tasks.pop().safe()
+│        │     └─ Stmt[1]: Expr (span: 20:9-30:10)
+│        │        └─ Expr: expr#41: compare t.await() { 2 arms }
+│        └─ Stmt[4]: Return (span: 32:5-32:14)
+│           └─ Expr: expr#42: 0
+├─ Item[2]: Fn (span: 35:1-48:2)
+│  ├─ Name: breaks_mid_drain
+│  ├─ Params: (stop: bool)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 35:50-48:2)
+│        ├─ Stmt[0]: Let (span: 36:5-36:37)
+│        │  ├─ Name: tasks
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Task<int>[]
+│        │  └─ Value: expr#43: <ExprKind(8)>
+│        ├─ Stmt[1]: Expr (span: 37:5-37:30)
+│        │  └─ Expr: expr#49: tasks.push(spawn work())
+│        ├─ Stmt[2]: Expr (span: 38:5-38:30)
+│        │  └─ Expr: expr#55: tasks.push(spawn work())
+│        ├─ Stmt[3]: While (span: 39:5-46:6)
+│        │  ├─ Cond: expr#61: (tasks.__len() > (0 to uint))
+│        │  └─ Body:
+Block (span: 39:34-46:6)
+│        │     ├─ Stmt[0]: Let (span: 40:9-40:36)
+│        │     │  ├─ Name: t
+│        │     │  ├─ Mutable: false
+│        │     │  ├─ Type: <inferred>
+│        │     │  └─ Value: expr#66: tasks.pop().safe()
+│        │     ├─ Stmt[1]: Let (span: 41:9-41:27)
+│        │     │  ├─ Name: _
+│        │     │  ├─ Mutable: false
+│        │     │  ├─ Type: <inferred>
+│        │     │  └─ Value: expr#69: t.await()
+│        │     └─ Stmt[2]: If (span: 42:9-45:10)
+│        │        ├─ Cond: expr#70: stop
+│        │        ├─ Then:
+Block (span: 42:17-45:10)
+│        │        │  └─ Stmt[0]: Break (span: 44:13-44:19)
+│        │        │     └─ (no additional data)
+│        │        └─ Else: <none>
+│        └─ Stmt[4]: Return (span: 47:5-47:14)
+│           └─ Expr: expr#71: 0
+└─ Item[3]: Fn (span: 50:1-72:2)
+   ├─ Name: finishes_the_drain_first
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 50:48-72:2)
+         ├─ Stmt[0]: Let (span: 51:5-51:37)
+         │  ├─ Name: tasks
+         │  ├─ Mutable: true
+         │  ├─ Type: Task<int>[]
+         │  └─ Value: expr#72: <ExprKind(8)>
+         ├─ Stmt[1]: Expr (span: 52:5-52:30)
+         │  └─ Expr: expr#78: tasks.push(spawn work())
+         ├─ Stmt[2]: Expr (span: 53:5-53:30)
+         │  └─ Expr: expr#84: tasks.push(spawn work())
+         ├─ Stmt[3]: Let (span: 54:5-54:34)
+         │  ├─ Name: failed
+         │  ├─ Mutable: true
+         │  ├─ Type: bool
+         │  └─ Value: expr#85: false
+         ├─ Stmt[4]: While (span: 55:5-67:6)
+         │  ├─ Cond: expr#91: (tasks.__len() > (0 to uint))
+         │  └─ Body:
+Block (span: 55:34-67:6)
+         │     ├─ Stmt[0]: Let (span: 56:9-56:36)
+         │     │  ├─ Name: t
+         │     │  ├─ Mutable: false
+         │     │  ├─ Type: <inferred>
+         │     │  └─ Value: expr#96: tasks.pop().safe()
+         │     └─ Stmt[1]: Expr (span: 57:9-66:10)
+         │        └─ Expr: expr#116: compare t.await() { 2 arms }
+         ├─ Stmt[5]: If (span: 68:5-70:6)
+         │  ├─ Cond: expr#117: failed
+         │  ├─ Then:
+Block (span: 68:15-70:6)
+         │  │  └─ Stmt[0]: Return (span: 69:9-69:18)
+         │  │     └─ Expr: expr#118: 1
+         │  └─ Else: <none>
+         └─ Stmt[6]: Return (span: 71:5-71:14)
+            └─ Expr: expr#119: 0

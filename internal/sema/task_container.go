@@ -14,20 +14,12 @@ type taskContainerInfo struct {
 	Span    source.Span
 	Type    types.TypeID
 	ForIn   source.Span // where a `for` read the tasks without draining them; zero when none did
-}
-
-type taskContainerLoop struct {
-	place       Place
-	popCount    int
-	popConsumed int
-	earlyExit   bool
-	popBindings []taskContainerPopBinding
-}
-
-type taskContainerPopBinding struct {
-	symID    symbols.SymbolID
-	span     source.Span
-	consumed bool
+	// Exit is the `return` or `break` that left a drain loop of this container
+	// with tasks still in it, and ExitKind names which; zero when no drain was
+	// abandoned. The scope-exit refusal points there rather than at the
+	// container, because that statement is what the author can change.
+	Exit     source.Span
+	ExitKind string
 }
 
 func (tc *typeChecker) isTaskContainerType(id types.TypeID) bool {
@@ -353,79 +345,6 @@ func (tc *typeChecker) checkTaskContainersLiveAcrossAwait(span source.Span) {
 	}
 }
 
-func (tc *typeChecker) taskContainerLoopAllowsAwait(info *taskContainerInfo) bool {
-	if info == nil || len(tc.taskContainerLoops) == 0 {
-		return false
-	}
-	for i := len(tc.taskContainerLoops) - 1; i >= 0; i-- {
-		loop := tc.taskContainerLoops[i]
-		if loop.popCount == 0 {
-			continue
-		}
-		if existing := tc.taskContainers[loop.place]; existing == info {
-			return true
-		}
-	}
-	return false
-}
-
-func (tc *typeChecker) enterTaskContainerLoop(place Place) {
-	if !place.IsValid() {
-		return
-	}
-	tc.taskContainerLoops = append(tc.taskContainerLoops, taskContainerLoop{place: place})
-}
-
-func (tc *typeChecker) leaveTaskContainerLoop() (taskContainerLoop, bool) {
-	if len(tc.taskContainerLoops) == 0 {
-		return taskContainerLoop{}, false
-	}
-	idx := len(tc.taskContainerLoops) - 1
-	loop := tc.taskContainerLoops[idx]
-	tc.taskContainerLoops = tc.taskContainerLoops[:idx]
-	return loop, true
-}
-
-func (tc *typeChecker) noteTaskContainerPop(place Place) {
-	if !place.IsValid() {
-		return
-	}
-	for i := len(tc.taskContainerLoops) - 1; i >= 0; i-- {
-		if tc.taskContainerLoops[i].place == place {
-			tc.taskContainerLoops[i].popCount++
-			return
-		}
-	}
-}
-
-func (tc *typeChecker) noteTaskContainerPopBinding(place Place, symID symbols.SymbolID, span source.Span) {
-	if !place.IsValid() || !symID.IsValid() {
-		return
-	}
-	for i := len(tc.taskContainerLoops) - 1; i >= 0; i-- {
-		if tc.taskContainerLoops[i].place != place {
-			continue
-		}
-		for _, binding := range tc.taskContainerLoops[i].popBindings {
-			if binding.symID == symID {
-				return
-			}
-		}
-		tc.taskContainerLoops[i].popBindings = append(tc.taskContainerLoops[i].popBindings, taskContainerPopBinding{
-			symID: symID,
-			span:  span,
-		})
-		return
-	}
-}
-
-func (tc *typeChecker) taskContainerLoopDrained(loop taskContainerLoop) bool {
-	if loop.popCount == 0 {
-		return false
-	}
-	return loop.popConsumed >= loop.popCount
-}
-
 func (tc *typeChecker) taskContainerPopSource(expr ast.ExprID) (Place, bool) {
 	if !expr.IsValid() || tc.builder == nil {
 		return Place{}, false
@@ -507,19 +426,6 @@ func (tc *typeChecker) noteTaskContainerPopConsumedByExpr(expr ast.ExprID) {
 			tc.taskContainerLoops[i].popConsumed++
 			return
 		}
-	}
-}
-
-func (tc *typeChecker) noteTaskContainerLoopBreak() {
-	if len(tc.taskContainerLoops) == 0 {
-		return
-	}
-	tc.taskContainerLoops[len(tc.taskContainerLoops)-1].earlyExit = true
-}
-
-func (tc *typeChecker) noteTaskContainerLoopReturn() {
-	for i := range tc.taskContainerLoops {
-		tc.taskContainerLoops[i].earlyExit = true
 	}
 }
 

@@ -312,7 +312,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 				}
 			}
 			if explicitReturn || tc.currentBlockReturnContext() == nil {
-				tc.noteTaskContainerLoopReturn()
+				tc.noteTaskContainerLoopReturn(stmt.Span)
 				tc.validateReturn(stmt.Span, ret.Expr, valueType)
 				tc.recordEarlyExitDrops(id, false)
 			} else {
@@ -419,7 +419,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			tc.reporter.Report(diag.FutSignalNotSupported, diag.SevError, stmt.Span, "'signal' is not supported in v1, reserved for future use", nil, nil)
 		}
 	case ast.StmtBreak:
-		tc.noteTaskContainerLoopBreak()
+		tc.noteTaskContainerLoopBreak(stmt.Span)
 		tc.recordEarlyExitDrops(id, true)
 	case ast.StmtContinue:
 		tc.recordEarlyExitDrops(id, true)

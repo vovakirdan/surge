@@ -289,13 +289,23 @@ func (tc *typeChecker) noteForInReadsTaskContainer(place Place, forIn *ast.ForIn
 }
 
 // reportTaskContainerUndrained is the scope-exit refusal for a pending task
-// container. It lives beside the for-in rules because the one thing it adds
-// to the tracker's bare sentence is the loop: when a `for` read the tasks, the
-// author most likely believed that consumed them, and the refusal says where
-// and what to write instead.
+// container. It lives beside the for-in rules because what it adds to the
+// tracker's bare sentence is the statement the author can change: the `for`
+// that only read the tasks when the author believed it consumed them, or the
+// `return`/`break` that left the drain loop with tasks still in the container
+// -- there the refusal moves to the exit, and the container becomes the note.
 func (tc *typeChecker) reportTaskContainerUndrained(place Place, info *taskContainerInfo, span source.Span) {
 	headline := "task container has unconsumed tasks at scope exit (drain required)"
-	if tc.reporter == nil || info == nil || info.ForIn == (source.Span{}) {
+	if tc.reporter == nil || info == nil {
+		tc.report(diag.SemaTaskNotAwaited, span, "%s", headline)
+		return
+	}
+	container := tc.bindingName(place.Base)
+	if info.Exit != (source.Span{}) {
+		tc.reportTaskContainerDrainAbandoned(container, info, span)
+		return
+	}
+	if info.ForIn == (source.Span{}) {
 		tc.report(diag.SemaTaskNotAwaited, span, "%s", headline)
 		return
 	}
@@ -303,11 +313,32 @@ func (tc *typeChecker) reportTaskContainerUndrained(place Place, info *taskConta
 	if b == nil {
 		return
 	}
-	container := tc.bindingName(place.Base)
 	b.WithNote(info.ForIn, fmt.Sprintf(
 		"the `for` loop here only reads the tasks in `%s`; it does not drain them", container))
 	b.WithHelp(info.ForIn, fmt.Sprintf(
 		"drain the container instead: `while %s.__len() > 0:uint { let t = %s.pop().safe(); ... }`",
 		container, container))
+	b.Emit()
+}
+
+// reportTaskContainerDrainAbandoned is the same refusal, at the exit. The
+// rule is the strict one the owner kept -- a spawned task is awaited or
+// returned, never abandoned -- and the drain loop is where the author meets
+// it: `if !ok { return 1; }` inside `while tasks.__len() > 0:uint { ... }`
+// leaves every task not yet popped in the container on that path. The way
+// out is the shape the corpus already uses, a flag set inside and the exit
+// after the loop.
+func (tc *typeChecker) reportTaskContainerDrainAbandoned(container string, info *taskContainerInfo, containerSpan source.Span) {
+	b := diag.ReportError(tc.reporter, diag.SemaTaskNotAwaited, info.Exit, fmt.Sprintf(
+		"this `%s` leaves the drain of `%s` unfinished: the tasks not yet popped are abandoned on this path",
+		info.ExitKind, container))
+	if b == nil {
+		return
+	}
+	b.WithNote(containerSpan, fmt.Sprintf(
+		"`%s` still holds tasks here; every task pushed into it must be awaited or returned before its scope ends", container))
+	b.WithHelp(info.Exit, fmt.Sprintf(
+		"finish the drain first: keep the outcome in a local (`let mut failed = false;` ... `failed = true;`) and `%s` after the `while` has emptied `%s`",
+		info.ExitKind, container))
 	b.Emit()
 }

@@ -200,6 +200,16 @@ func TestForInRefusalsNameTheDrain(t *testing.T) {
 			wantNote:  "`r` is a copy of an element the container still owns",
 			cloneFree: true,
 		},
+		// A drain left early is refused AT the exit, and the way out is to
+		// finish the drain, not to add a clone.
+		{
+			name:      "drain_abandoned_by_return",
+			src:       `async fn f() -> int { let mut tasks: Task<int>[] = []; tasks.push(spawn work()); while tasks.__len() > 0:uint { let t = tasks.pop().safe(); let r = t.await(); compare r { Success(v) => { if v == 0 { return 1; } } Cancelled() => { return 2; } } } return 0; }`,
+			code:      diag.SemaTaskNotAwaited,
+			wantHelp:  []string{"finish the drain first"},
+			wantNote:  "`tasks` still holds tasks here",
+			cloneFree: true,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -235,6 +245,45 @@ func TestForInRefusalsNameTheDrain(t *testing.T) {
 			}
 			if !noted {
 				t.Fatalf("note must say %q, got %+v", tc.wantNote, found.Notes)
+			}
+		})
+	}
+}
+
+// A drain loop left by `return` or `break` abandons the tasks not yet popped,
+// and SEM3107 must say so AT THAT STATEMENT: the lead met the refusal five
+// times at the container's declaration before reading the rule off the
+// tracker. The container itself is the note. A loop that only tested the
+// length without popping is not a drain, and a `for` that read the tasks is
+// not an exit, so those keep the refusal at the container.
+func TestAbandonedDrainIsRefusedAtTheExit(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		at   string // the source text the primary span must start on
+	}{
+		{"return_inside_drain", `async fn f() -> int { let mut tasks: Task<int>[] = []; tasks.push(spawn work()); while tasks.__len() > 0:uint { let t = tasks.pop().safe(); let r = t.await(); compare r { Success(v) => { if v == 0 { return 1; } } Cancelled() => { return 2; } } } return 0; }`, "return 1;"},
+		{"break_inside_drain", `async fn f(stop: bool) -> int { let mut tasks: Task<int>[] = []; tasks.push(spawn work()); while tasks.__len() > 0:uint { let t = tasks.pop().safe(); let _ = t.await(); if stop { break; } } return 0; }`, "break;"},
+		{"return_in_a_length_test_that_pops_nothing", `async fn f() -> int { let mut tasks: Task<int>[] = []; tasks.push(spawn work()); while tasks.__len() > 0:uint { return 1; } return 0; }`, "tasks.push"},
+		{"read_by_for_then_returned", `async fn f() -> int { let mut tasks: Task<int>[] = []; tasks.push(spawn work()); for t in tasks { peek_task(&t); } return 0; }`, "tasks.push"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			full := forInConsumingPrelude + tc.src
+			var found *diag.Diagnostic
+			for _, d := range forInDiagnostics(t, full) {
+				if d.Code == diag.SemaTaskNotAwaited {
+					found = d
+					break
+				}
+			}
+			if found == nil {
+				t.Fatalf("SEM3107 was not reported")
+			}
+			want := len(forInConsumingPrelude) + strings.Index(tc.src, tc.at)
+			if int(found.Primary.Start) != want {
+				t.Fatalf("SEM3107 points at offset %d (%q), want %d (%q)",
+					found.Primary.Start, full[found.Primary.Start:min(int(found.Primary.End), len(full))], want, tc.at)
 			}
 		})
 	}
