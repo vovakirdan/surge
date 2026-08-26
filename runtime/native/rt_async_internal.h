@@ -6,9 +6,9 @@
 #include "rt_park_pool.h"
 #include "rt_placement.h"
 #include "rt_runtime_config.h"
+#include "rt_task_entitlement.h"
 #include "rt_transport.h"
 #include "rt_value_cell.h"
-#include "rt_task_entitlement.h"
 #include "rt_waiter.h"
 #include <pthread.h>
 #include <setjmp.h>

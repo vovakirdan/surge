@@ -110,7 +110,8 @@ uint8_t rt_far_task_take_result(rt_task* producer, rt_task* holder, void* out_ds
         // WAIT to be recognised on its way back.
         static _Thread_local uint8_t external_asker;
         const void* asker = holder != NULL ? (const void*)holder : (const void*)&external_asker;
-        rt_task_take_mode mode = rt_task_entitlement_begin_take(ex, producer, asker, has_value, operations);
+        rt_task_take_mode mode =
+            rt_task_entitlement_begin_take(ex, producer, asker, has_value, operations);
         switch (mode) {
             case RT_TASK_TAKE_COPY:
                 if (out_dst != NULL) {
