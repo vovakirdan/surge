@@ -103,6 +103,17 @@ func TestTaskBodyRetAndReturn(t *testing.T) {
 		{"discarded_tail_warns_unconstrained", `fn f() -> int { let t = blocking { 42; }; let u: Task<nothing> = t; return 0; }`, []string{"SEM3208/warning"}, []string{"SEM3208/error", "SEM3015/error"}},
 		{"discarded_call_is_quiet", `fn g() -> int { return 1; } fn f() -> Task<nothing> { return async { g(); }; }`, nil, []string{"SEM3208/warning", "SEM3208/error"}},
 
+		// A trailing `compare` is the one expression statement that may end
+		// without `;`, so the parser accepts it and says nothing. It is still
+		// not the body's value: where `Task<T>` is expected the body owes a
+		// `ret`, whatever the arms are worth.
+		{"compare_tail_wants_value", `fn f(c: bool) -> Task<int> { return async { compare c { true => 1; finally => 2; } }; }`, []string{"SEM3208/error"}, []string{"SEM3015/error"}},
+		{"compare_tail_wants_value_semi", `fn f(c: bool) -> Task<int> { return async { compare c { true => 1; finally => 2; }; }; }`, []string{"SEM3208/error"}, []string{"SEM3015/error"}},
+		{"compare_tail_other_type", `fn f(c: bool) -> Task<int> { return blocking { compare c { true => "a"; finally => "b"; } }; }`, []string{"SEM3208/error"}, []string{"SEM3015/error"}},
+		{"compare_tail_warns_unconstrained", `fn f(c: bool) -> Task<nothing> { return async { compare c { true => 1; finally => 2; } }; }`, []string{"SEM3208/warning"}, []string{"SEM3208/error", "SEM3015/error"}},
+		{"compare_tail_nothing_is_quiet", `fn f(c: bool) -> Task<nothing> { return async { compare c { true => nothing; finally => nothing; } }; }`, nil, []string{"SEM3208/warning", "SEM3208/error", "SEM3015/error"}},
+		{"compare_tail_after_ret_is_quiet", `fn f(c: bool) -> Task<int> { return async { compare c { true => 1; finally => 2; } ret 3; }; }`, nil, []string{"SEM3208/warning", "SEM3208/error", "SEM3015/error"}},
+
 		// `ret` at function level stays refused.
 		{"ret_outside_block", `fn f() -> int { ret 1; }`, []string{"SEM3134/error"}, nil},
 	}
@@ -198,5 +209,28 @@ func TestTaskBodyDiscardedTailFixIsManual(t *testing.T) {
 	}
 	if d.Fixes[0].Applicability != diag.FixApplicabilityManualReview {
 		t.Fatalf("expected a manual-review fix, got %s", d.Fixes[0].Applicability)
+	}
+}
+
+// A trailing `compare` is the one expression statement the parser lets end
+// without `;`, so the `ret` edit it is offered has to supply that `;` too:
+// `ret compare c { ... };`.
+func TestTaskBodyCompareTailFix(t *testing.T) {
+	items := taskBodyDiagnostics(t, `fn f(c: bool) -> Task<int> { return async { compare c { true => 1; finally => 2; } }; }`)
+	d := findTaskBodyDiagnostic(items, diag.SemaTaskBodyNoValue)
+	if d == nil || d.Severity != diag.SevError {
+		t.Fatalf("expected a SEM3208 error, got: %s", joinCodes(taskBodyCodes(items)))
+	}
+	if len(d.Fixes) != 1 || len(d.Fixes[0].Edits) != 2 {
+		t.Fatalf("expected one fix editing both ends, got %+v", d.Fixes)
+	}
+	if d.Fixes[0].Edits[0].NewText != "ret " || d.Fixes[0].Edits[1].NewText != ";" {
+		t.Fatalf("expected `ret ` before and `;` after, got %+v", d.Fixes[0].Edits)
+	}
+	// A tail of another type is not the body's value, so no edit is offered.
+	items = taskBodyDiagnostics(t, `fn f(c: bool) -> Task<int> { return async { compare c { true => "a"; finally => "b"; } }; }`)
+	d = findTaskBodyDiagnostic(items, diag.SemaTaskBodyNoValue)
+	if d == nil || len(d.Fixes) != 0 {
+		t.Fatalf("a tail of another type must not be offered as the value, got %+v", d)
 	}
 }

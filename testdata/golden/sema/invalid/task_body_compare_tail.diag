@@ -1,0 +1,2 @@
+error SEM3208 testdata/golden/sema/invalid/task_body_compare_tail.sg:7:12 this async body never gives a value with `ret`, so its task yields nothing, but Task<int> is expected here
+error SEM3208 testdata/golden/sema/invalid/task_body_compare_tail.sg:16:12 this blocking body never gives a value with `ret`, so its task yields nothing, but Task<int> is expected here

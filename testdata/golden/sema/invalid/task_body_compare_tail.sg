@@ -1,0 +1,31 @@
+// A trailing `compare` is the one expression statement that may end without
+// `;`, so the parser accepts it and says nothing about it. It is still not
+// the body's value: where a Task<T> is expected the body owes a `ret`
+// (SEM3208), and the `ret compare ... ;` edit is offered only when the arms
+// already yield T. The third body's compare is worth nothing, so it is quiet.
+fn pick(c: bool) -> Task<int> {
+    return async {
+        compare c {
+            true => 1;
+            finally => 2;
+        }
+    };
+}
+
+fn wrong_arms(c: bool) -> Task<int> {
+    return blocking {
+        compare c {
+            true => "a";
+            finally => "b";
+        }
+    };
+}
+
+fn effectful(c: bool) -> Task<nothing> {
+    return async {
+        compare c {
+            true => nothing;
+            finally => nothing;
+        }
+    };
+}

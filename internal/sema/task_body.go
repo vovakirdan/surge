@@ -178,7 +178,7 @@ func (tc *typeChecker) taskBodyNoValue(span source.Span, body ast.StmtID, expect
 	nothing := tc.types.Builtins().Nothing
 	wantsValue := expectedPayload != types.NoTypeID && expectedPayload != nothing
 	tail := tc.taskBodyTail(body)
-	if tail.bare {
+	if tail.refused {
 		// `blocking { 42 }`: the parser already named the edit at the `}`
 		// (SynTaskBodyBareValue / the missing `;`); saying it again here would
 		// diagnose one mistake twice.
@@ -197,8 +197,7 @@ func (tc *typeChecker) taskBodyNoValue(span source.Span, body ast.StmtID, expect
 		if tail.expr.IsValid() && tail.typ != types.NoTypeID && tc.typesAssignable(expectedPayload, tail.typ, true) {
 			// The discarded last value already has the expected type: `ret`
 			// in front of it is the one edit that makes the program well-typed.
-			b.WithFixSuggestion(fix.InsertText("insert `ret ` before the last statement", tail.span.ZeroideToStart(), "ret ", "",
-				fix.WithID(fix.MakeFixID(diag.SemaTaskBodyNoValue, tail.span)), fix.Preferred()))
+			b.WithFixSuggestion(tc.taskBodyRetFix(tail, fix.Preferred()))
 		}
 		b.Emit()
 		return true
@@ -209,24 +208,39 @@ func (tc *typeChecker) taskBodyNoValue(span source.Span, body ast.StmtID, expect
 		if b != nil {
 			// Whether the discarded value was meant as the body's value is the
 			// author's call, so the edit is offered, never applied unasked.
-			b.WithFixSuggestion(fix.InsertText("insert `ret ` before the last statement", tail.span.ZeroideToStart(), "ret ", "",
-				fix.WithID(fix.MakeFixID(diag.SemaTaskBodyNoValue, tail.span)), fix.WithApplicability(diag.FixApplicabilityManualReview)))
+			b.WithFixSuggestion(tc.taskBodyRetFix(tail, fix.WithApplicability(diag.FixApplicabilityManualReview)))
 			b.Emit()
 		}
 	}
 	return false
 }
 
+// taskBodyRetFix builds the edit that makes the body's last statement its
+// value. A statement that ends without `;` — the trailing `compare` the
+// parser accepts as a statement — needs that `;` back, or `ret compare … }`
+// would not parse; every other tail already has one.
+func (tc *typeChecker) taskBodyRetFix(tail taskBodyTail, opt fix.Option) *diag.Fix {
+	id := fix.WithID(fix.MakeFixID(diag.SemaTaskBodyNoValue, tail.span))
+	if tail.noSemicolon {
+		return fix.WrapWith("write `ret <expr>;` around the last statement", tail.span, "ret ", ";", id, opt)
+	}
+	return fix.InsertText("insert `ret ` before the last statement", tail.span.ZeroideToStart(), "ret ", "", id, opt)
+}
+
 // taskBodyTail describes the last statement of a body when it is an
-// expression statement: `bare` when it has no `;` (the parser refused it),
-// `value` when it computes a value for its own sake — a literal, an operator
-// expression, a read — rather than calling something for its effect.
+// expression statement: `refused` when the parser already named the `ret`
+// edit there (a bare trailing expression, SynTaskBodyBareValue),
+// `noSemicolon` when the statement carries no `;` at all, and `value` when it
+// computes a value for its own sake — a literal, an operator expression, a
+// read, a `compare` whose arms are worth something — rather than calling
+// something for its effect.
 type taskBodyTail struct {
-	expr  ast.ExprID
-	span  source.Span
-	typ   types.TypeID
-	bare  bool
-	value bool
+	expr        ast.ExprID
+	span        source.Span
+	typ         types.TypeID
+	refused     bool
+	noSemicolon bool
+	value       bool
 }
 
 func (tc *typeChecker) taskBodyTail(body ast.StmtID) taskBodyTail {
@@ -249,12 +263,20 @@ func (tc *typeChecker) taskBodyTail(body ast.StmtID) taskBodyTail {
 	}
 	tail.expr = exprStmt.Expr
 	tail.span = tc.exprSpan(exprStmt.Expr)
-	tail.bare = exprStmt.MissingSemicolon
+	tail.noSemicolon = exprStmt.MissingSemicolon
 	tail.typ = tc.result.ExprTypes[exprStmt.Expr]
+	expr := tc.builder.Exprs.Get(tc.unwrapGroupExpr(exprStmt.Expr))
+	// A trailing `compare` is the one expression statement the parser lets end
+	// without `;` (it reads as a branch taken for its effect), so a missing
+	// `;` there was ACCEPTED, not refused — nothing has been said about it
+	// yet, and this is the stage that knows whether the body owes a value.
+	// Every other tail without a `;` was refused at the `}` with the `ret`
+	// edit already.
+	tail.refused = tail.noSemicolon && (expr == nil || expr.Kind != ast.ExprCompare)
 	if tail.typ == types.NoTypeID || tail.typ == tc.types.Builtins().Nothing {
 		return tail
 	}
-	if expr := tc.builder.Exprs.Get(tc.unwrapGroupExpr(exprStmt.Expr)); expr != nil {
+	if expr != nil {
 		switch expr.Kind {
 		case ast.ExprCall, ast.ExprAwait, ast.ExprSpawn, ast.ExprOn, ast.ExprAsync, ast.ExprBlocking:
 			// Called for its effect; a discarded result is not a surprise.

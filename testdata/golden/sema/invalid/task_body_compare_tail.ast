@@ -1,0 +1,25 @@
+task_body_compare_tail.sg (span: 6:1-32:1)
+├─ Item[0]: Fn (span: 6:1-13:2)
+│  ├─ Name: pick
+│  ├─ Params: (c: bool)
+│  ├─ Return: Task<int>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 6:31-13:2)
+│        └─ Stmt[0]: Return (span: 7:5-12:7)
+│           └─ Expr: expr#6: async { 1 stmt(s) }
+├─ Item[1]: Fn (span: 15:1-22:2)
+│  ├─ Name: wrong_arms
+│  ├─ Params: (c: bool)
+│  ├─ Return: Task<int>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 15:37-22:2)
+│        └─ Stmt[0]: Return (span: 16:5-21:7)
+│           └─ Expr: expr#12: blocking { 1 stmt(s) }
+└─ Item[2]: Fn (span: 24:1-31:2)
+   ├─ Name: effectful
+   ├─ Params: (c: bool)
+   ├─ Return: Task<nothing>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 24:40-31:2)
+         └─ Stmt[0]: Return (span: 25:5-30:7)
+            └─ Expr: expr#18: async { 1 stmt(s) }

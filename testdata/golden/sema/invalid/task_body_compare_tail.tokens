@@ -1,0 +1,94 @@
+  1: KwFn            "fn" at 6:1-6:3 (leading: LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline)
+  2: Ident           "pick" at 6:4-6:8 (leading: Space)
+  3: LParen          "(" at 6:8-6:9
+  4: Ident           "c" at 6:9-6:10
+  5: Colon           ":" at 6:10-6:11
+  6: Ident           "bool" at 6:12-6:16 (leading: Space)
+  7: RParen          ")" at 6:16-6:17
+  8: Arrow           "->" at 6:18-6:20 (leading: Space)
+  9: Ident           "Task" at 6:21-6:25 (leading: Space)
+ 10: Lt              "<" at 6:25-6:26
+ 11: Ident           "int" at 6:26-6:29
+ 12: Gt              ">" at 6:29-6:30
+ 13: LBrace          "{" at 6:31-6:32 (leading: Space)
+ 14: KwReturn        "return" at 7:5-7:11 (leading: Newline, Space)
+ 15: KwAsync         "async" at 7:12-7:17 (leading: Space)
+ 16: LBrace          "{" at 7:18-7:19 (leading: Space)
+ 17: KwCompare       "compare" at 8:9-8:16 (leading: Newline, Space)
+ 18: Ident           "c" at 8:17-8:18 (leading: Space)
+ 19: LBrace          "{" at 8:19-8:20 (leading: Space)
+ 20: KwTrue          "true" at 9:13-9:17 (leading: Newline, Space)
+ 21: FatArrow        "=>" at 9:18-9:20 (leading: Space)
+ 22: IntLit          "1" at 9:21-9:22 (leading: Space)
+ 23: Semicolon       ";" at 9:22-9:23
+ 24: KwFinally       "finally" at 10:13-10:20 (leading: Newline, Space)
+ 25: FatArrow        "=>" at 10:21-10:23 (leading: Space)
+ 26: IntLit          "2" at 10:24-10:25 (leading: Space)
+ 27: Semicolon       ";" at 10:25-10:26
+ 28: RBrace          "}" at 11:9-11:10 (leading: Newline, Space)
+ 29: RBrace          "}" at 12:5-12:6 (leading: Newline, Space)
+ 30: Semicolon       ";" at 12:6-12:7
+ 31: RBrace          "}" at 13:1-13:2 (leading: Newline)
+ 32: KwFn            "fn" at 15:1-15:3 (leading: Newline)
+ 33: Ident           "wrong_arms" at 15:4-15:14 (leading: Space)
+ 34: LParen          "(" at 15:14-15:15
+ 35: Ident           "c" at 15:15-15:16
+ 36: Colon           ":" at 15:16-15:17
+ 37: Ident           "bool" at 15:18-15:22 (leading: Space)
+ 38: RParen          ")" at 15:22-15:23
+ 39: Arrow           "->" at 15:24-15:26 (leading: Space)
+ 40: Ident           "Task" at 15:27-15:31 (leading: Space)
+ 41: Lt              "<" at 15:31-15:32
+ 42: Ident           "int" at 15:32-15:35
+ 43: Gt              ">" at 15:35-15:36
+ 44: LBrace          "{" at 15:37-15:38 (leading: Space)
+ 45: KwReturn        "return" at 16:5-16:11 (leading: Newline, Space)
+ 46: KwBlocking      "blocking" at 16:12-16:20 (leading: Space)
+ 47: LBrace          "{" at 16:21-16:22 (leading: Space)
+ 48: KwCompare       "compare" at 17:9-17:16 (leading: Newline, Space)
+ 49: Ident           "c" at 17:17-17:18 (leading: Space)
+ 50: LBrace          "{" at 17:19-17:20 (leading: Space)
+ 51: KwTrue          "true" at 18:13-18:17 (leading: Newline, Space)
+ 52: FatArrow        "=>" at 18:18-18:20 (leading: Space)
+ 53: StringLit       "\"a\"" at 18:21-18:24 (leading: Space)
+ 54: Semicolon       ";" at 18:24-18:25
+ 55: KwFinally       "finally" at 19:13-19:20 (leading: Newline, Space)
+ 56: FatArrow        "=>" at 19:21-19:23 (leading: Space)
+ 57: StringLit       "\"b\"" at 19:24-19:27 (leading: Space)
+ 58: Semicolon       ";" at 19:27-19:28
+ 59: RBrace          "}" at 20:9-20:10 (leading: Newline, Space)
+ 60: RBrace          "}" at 21:5-21:6 (leading: Newline, Space)
+ 61: Semicolon       ";" at 21:6-21:7
+ 62: RBrace          "}" at 22:1-22:2 (leading: Newline)
+ 63: KwFn            "fn" at 24:1-24:3 (leading: Newline)
+ 64: Ident           "effectful" at 24:4-24:13 (leading: Space)
+ 65: LParen          "(" at 24:13-24:14
+ 66: Ident           "c" at 24:14-24:15
+ 67: Colon           ":" at 24:15-24:16
+ 68: Ident           "bool" at 24:17-24:21 (leading: Space)
+ 69: RParen          ")" at 24:21-24:22
+ 70: Arrow           "->" at 24:23-24:25 (leading: Space)
+ 71: Ident           "Task" at 24:26-24:30 (leading: Space)
+ 72: Lt              "<" at 24:30-24:31
+ 73: NothingLit      "nothing" at 24:31-24:38
+ 74: Gt              ">" at 24:38-24:39
+ 75: LBrace          "{" at 24:40-24:41 (leading: Space)
+ 76: KwReturn        "return" at 25:5-25:11 (leading: Newline, Space)
+ 77: KwAsync         "async" at 25:12-25:17 (leading: Space)
+ 78: LBrace          "{" at 25:18-25:19 (leading: Space)
+ 79: KwCompare       "compare" at 26:9-26:16 (leading: Newline, Space)
+ 80: Ident           "c" at 26:17-26:18 (leading: Space)
+ 81: LBrace          "{" at 26:19-26:20 (leading: Space)
+ 82: KwTrue          "true" at 27:13-27:17 (leading: Newline, Space)
+ 83: FatArrow        "=>" at 27:18-27:20 (leading: Space)
+ 84: NothingLit      "nothing" at 27:21-27:28 (leading: Space)
+ 85: Semicolon       ";" at 27:28-27:29
+ 86: KwFinally       "finally" at 28:13-28:20 (leading: Newline, Space)
+ 87: FatArrow        "=>" at 28:21-28:23 (leading: Space)
+ 88: NothingLit      "nothing" at 28:24-28:31 (leading: Space)
+ 89: Semicolon       ";" at 28:31-28:32
+ 90: RBrace          "}" at 29:9-29:10 (leading: Newline, Space)
+ 91: RBrace          "}" at 30:5-30:6 (leading: Newline, Space)
+ 92: Semicolon       ";" at 30:6-30:7
+ 93: RBrace          "}" at 31:1-31:2 (leading: Newline)
+ 94: EOF             at 32:1-32:1
