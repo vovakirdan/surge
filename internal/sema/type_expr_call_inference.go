@@ -365,16 +365,8 @@ func (tc *typeChecker) matchArgument(expected, actual types.TypeID, isLiteral, a
 		if !ok {
 			return 0, false
 		}
-		// A value the parameter converts on the way in (`print(1)` against
-		// `@allow_to s: &string`) has no place of its own: the conversion
-		// produces a fresh string, and that temporary is what the borrow
-		// reads, released with the statement -- the same materialization a
-		// concatenation or a call result already gets.
-		if !expInfo.Mutable && allowImplicitTo && tc.isStringType(expInfo.Elem) &&
-			!tc.isReferenceType(innerActual) && tc.resolveAlias(innerActual) != tc.types.Builtins().String {
-			if _, found, _ := tc.tryImplicitConversion(innerActual, expInfo.Elem); found {
-				return cost + 2, true
-			}
+		if tc.convertedBorrowMatches(expInfo.Elem, innerActual, expInfo.Mutable, allowImplicitTo) {
+			return cost + 2, true
 		}
 		if expInfo.Mutable {
 			if !tc.isAddressableExpr(expr) {
@@ -507,17 +499,6 @@ func (tc *typeChecker) conversionCost(actual, expected types.TypeID, isLiteral, 
 		}
 	}
 	return 0, false
-}
-
-func (tc *typeChecker) collectArgTypes(args []callArg) []types.TypeID {
-	if len(args) == 0 {
-		return nil
-	}
-	out := make([]types.TypeID, 0, len(args))
-	for _, arg := range args {
-		out = append(out, arg.ty)
-	}
-	return out
 }
 
 // reorderArgsForSignature reorders arguments based on parameter names in the signature.
