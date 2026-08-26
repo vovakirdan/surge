@@ -124,7 +124,7 @@ func TestRuntimeV2TaskContentionCohortCostsExactlyOneFewerDuplication(t *testing
 	baseEnv := envWithStdlib(repoRoot(t))
 	env := overrideEnvVar(baseEnv, "SURGE_THREADS", "4")
 	env = overrideEnvVar(env, "SURGE_SHARDS", "1")
-	for round := 0; round < 3; round++ {
+	for round := range 3 {
 		duration, result := runBinaryWithTimeout(t, outputPath, env, 60*time.Second)
 		if result.exitCode != 0 {
 			t.Fatalf("task contention census failed on run %d (exit=%d, duration=%s)\nstdout:\n%s\nstderr:\n%s",
