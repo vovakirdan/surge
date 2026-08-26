@@ -14,6 +14,13 @@ type blockingCaptureInfo struct {
 	Name      string
 	Type      types.TypeID
 	FieldName string
+	// Transfers marks a capture the state OWNS and hands on: the state
+	// literal consumed the caller's binding, so unpacking is where that
+	// ownership continues into the body. It is false for a capture the state
+	// merely holds a second reference to — a reference-counted scalar was
+	// retained into the field and the field keeps its own count — and for
+	// anything that owns no heap at all.
+	Transfers bool
 }
 
 func (l *funcLowerer) lowerBlockingExpr(e *hir.Expr, consume bool) (Operand, error) {
@@ -86,6 +93,14 @@ func (l *funcLowerer) blockingCaptureInfo(captures []hir.CapturedBinding) ([]blo
 			Name:      name,
 			Type:      ty,
 			FieldName: field,
+			// hir.CapturedBinding carries no capture mode — unlike a
+			// crossing's, which sema classifies — so the question is asked of
+			// the TYPE, through the same predicate the ordinary by-value
+			// argument position uses. It answers the same thing here: the
+			// state literal spends the caller's binding exactly as a call
+			// spends an argument, and a reference-counted scalar is retained
+			// into the field rather than moved out of the caller.
+			Transfers: l.byValueArgContract(ty, false) == ArgContractTransferOwned,
 		})
 	}
 	return out, nil
@@ -187,11 +202,26 @@ func (l *funcLowerer) lowerBlockingFunc(id FuncID, name string, body *hir.Block,
 
 	for _, cap := range captures {
 		localID := l.ensureLocal(cap.SymbolID, cap.Name, cap.Type, span)
+		// An OWNED capture was moved into the state, and this unpack is where
+		// that ownership continues into the body: the state's field is spent,
+		// the body is free to consume what it got, and the job's release must
+		// not come back for it. That is a transfer, and the read SAYS so — a
+		// plain read leaves the field looking initialized, which is a second
+		// owner for anything the state is later destroyed through.
+		//
+		// A reference-counted scalar stays a plain read: the field holds a
+		// reference of its own (the state literal RETAINED it) and gives that
+		// one back when the state is destroyed, so the body's local borrows.
+		//
+		// A `Channel<T>` capture reads as a @copy scalar today, so this
+		// predicate answers "does not transfer" for it. That is D3b's
+		// question, not this one's.
 		l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
 			Dst: Place{Local: localID},
 			Src: RValue{Kind: RValueField, Field: FieldAccess{
 				Object:    Operand{Kind: OperandCopy, Place: Place{Local: stateLocal}},
 				FieldName: cap.FieldName,
+				MoveOut:   cap.Transfers,
 			}},
 		}})
 	}
