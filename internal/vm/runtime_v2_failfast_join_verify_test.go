@@ -110,13 +110,19 @@ static _Atomic(void*) g_debt261_child;
 // drain through the fail-fast path alone. The first poll enters the scope,
 // registers the child and goes straight into the join, which reaches the
 // verify window with that live child in hand.
+//
+// The child is spawned by the DRIVER (inject queue, workers signalled), not by
+// __task_create from inside this poll: a worker's own spawn lands on its local
+// tail and a single local entry signals nobody (ready_push_task_locked,
+// rt_ready_queue.c), so a child pushed by the owner that is then held at the
+// sync point inside this same poll would never be popped -- the pusher is the
+// held worker -- and its cancellation could never be observed.
 static void poll_debt261_scope_owner(void) {
     if (atomic_load_explicit(&g_debt261_owner_entered, memory_order_acquire) == 0) {
         void* handle = rt_scope_enter(true);
-        void* child = __task_create(POLL_SPIN_FOREVER, NULL, rt_channel_opaque_word_ops());
+        void* child = atomic_load_explicit(&g_debt261_child, memory_order_acquire);
         rt_scope_register_child(handle, child);
         atomic_store_explicit(&g_debt261_scope_handle, handle, memory_order_release);
-        atomic_store_explicit(&g_debt261_child, child, memory_order_release);
         atomic_store_explicit(&g_debt261_owner_entered, 1, memory_order_release);
     }
     void* handle = atomic_load_explicit(&g_debt261_scope_handle, memory_order_acquire);
@@ -156,6 +162,15 @@ static int mode_debt261_failfast_join_verify(rt_executor* ex) {
     atomic_store_explicit(&g_debt261_child, NULL, memory_order_release);
     unsigned before =
         rt_sync_point_reached_count(RT_SYNC_POINT_SP_SCOPE_FAILFAST_JOIN_BEFORE_VERIFY);
+    // The child first, on the inject queue with the workers signalled, so a
+    // worker other than the one about to be held picks it up; the owner's
+    // first poll registers it (see poll_debt261_scope_owner). It spins until
+    // cancelled, so it cannot complete before that registration.
+    rt_task* child = spawn_pinned(ex, POLL_SPIN_FOREVER, 0);
+    if (child == NULL) {
+        return fail("debt261 child allocation failed");
+    }
+    atomic_store_explicit(&g_debt261_child, child, memory_order_release);
     rt_task* owner = spawn_pinned(ex, POLL_DEBT261_SCOPE_OWNER, 0);
     if (owner == NULL) {
         return fail("debt261 owner allocation failed");
@@ -167,7 +182,6 @@ static int mode_debt261_failfast_join_verify(rt_executor* ex) {
     }
     // The owner is held between its first snapshot (one live child, fail-fast
     // not fired) and the verify. Everything below lands inside that gap.
-    rt_task* child = (rt_task*)atomic_load_explicit(&g_debt261_child, memory_order_acquire);
     uint64_t scope_id =
         (uint64_t)(uintptr_t)atomic_load_explicit(&g_debt261_scope_handle, memory_order_acquire);
     unsigned triggered = 0;
