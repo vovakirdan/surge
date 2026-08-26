@@ -8365,7 +8365,11 @@ the other loops in the same files already did. After that, `TestMTBlockingPool`,
 `TestRuntimeV2TaskHandleArrayDrainedByPopTearsDownClean` (unskipped) and
 `TestRuntimeV2CompositeCopyIsIndependent` (unskipped) are green on the
 integrated tree; `TestLLVMParity` lost `fs_dir_smoke` from its red set and
-kept the other seven exactly as at the baseline. The price the reviewers
+kept the other seven exactly as at the baseline. One row is intermittent and
+was before the rewrite: `TestMTStructuredConcurrency`, 2 of 6 red at
+`60287ed8` and 1 of 6 at the integrated tree, its `@failfast async` block
+coming back `Success` after a cancelled child -- RV2-DEBT-261, a runtime
+race in fail-fast propagation that belongs to D4b's cancel rows. The price the reviewers
 named and the owner accepted to pay differently: `print(s: string)` takes its
 argument by value, so `for name in names { print(name) }` was refused and the
 corpus wrote `print(clone(name))` -- the owner ruled `print` and its
