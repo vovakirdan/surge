@@ -8109,3 +8109,22 @@ textual conflicts (D2's map arms beside D4b's task arms in `emit_drop_glue.go`
 and `emit_instr.go`, and both lanes' heap-gate rows in the Makefile) resolved
 by keeping both. Gate rows for the two new invariant panics and the VM
 duplication carrier were added at integration, not in the lanes.
+
+**D2 integration exposed a pre-existing LLVM defect in reading a reference payload.**
+Recording the behaviour outputs for D2's two new map goldens, `map_composite_value`
+printed `10 21 1 30` on the VM and `0 0 1 0` natively: `m[k].a` on a
+`Map<int, Pair>` read 0 while `replaced.a` read 30. `__index` answers
+`Option<&V>`; `emitTagPayload` spelled that payload as `llvmValueType(Pair)`,
+a `[16 x i8]` run, and `emitStorageMemberLoad` on a run returns the ADDRESS --
+so the compare arm received the address of the pointer slot and read the
+pointer's own bytes as `a`. The cause is one level up: MIR's `canonicalType`
+strips `&`, `*` and `own` from `TagCaseMeta.PayloadTypes`, so the emitter cannot
+tell `Option<&Pair>` from `Option<Pair>` through the metadata at all. The defect
+predates D2 (the same probe on the pre-D2 compiler crashed in `munmap_chunk`)
+and stayed invisible because every reference payload before pointed at a word,
+which loads the same either way. The fix asks the union's own membership for
+the declared kind (`declaredTagPayloadIsRef`) and loads a `ptr`; pinned by
+`TestEmitTagPayloadOfReferenceLoadsThePointer` (red on the unfixed emitter:
+"payload address %t3 ... is stored as the payload") and by the two goldens on
+both lanes. The construction side is a separate, older gap -- sema types
+`Some(p)` with `p: &T` as `Some<T>` -- recorded as RV2-DEBT-253.
