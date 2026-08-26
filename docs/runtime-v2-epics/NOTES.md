@@ -8331,3 +8331,62 @@ strict zero. The two negative-control toggles (`RV2_DEBT_080_NEGATIVE_CONTROL`,
 that observes them -- that stand is a-4's cancel-after-claim row, and until it
 exists the "walk always" half of a-2 is asserted, not shown. The
 `untyped-capture-state` carrier category reads 0 live rows.
+
+### 2026-08-26 — the owner's rulings land: a `for` reads, a composite owns what a member owns
+
+Seven rulings came back the same evening; two are code now, both built in
+worktrees from `992ad672` by one implementer and two independent reviewers
+each, and every reviewer accepted with minor findings only.
+
+**Q-A (RV2-DEBT-258): `for` reads, a container is popped.** A move out of a
+`for` binding -- whole or by field -- is refused with SEM3205, and the
+tracker no longer demands that move: `checkForInTaskConsumed` is gone, a
+`for` over a pending task container leaves it pending, and the scope-exit
+SEM3107 names the loop that only read it and the drain that empties it
+(`while xs.__len() > 0:uint { let t = xs.pop().safe(); ... }`). `for x in own
+xs`, which parsed and did nothing, is refused with SEM3206 so the spelling a
+consuming loop would have cannot be written into a program meaning nothing --
+the trap RV2-DEBT-212 closed for `&mut hs`. Four new goldens, no existing
+golden moved. The corpus followed: the nine MT programs, the heap contract,
+`mt_correctness_channels.sg`, `showcases/async/02_fanout_fanin`,
+`fs_dir_smoke.sg` and `stdlib/fs/fs.sg` (`walkdir_collect` pushed the loop's
+copy of an entry `sorted` still owned -- a double free the rule found).
+
+What the lead found running the rows the lane could not: the tracker's drain
+loop must DRAIN -- a `return` inside it leaves tasks in the container on that
+path, and the tracker refuses that with SEM3107 at the container, which is
+the strict rule the owner kept (a spawned task is awaited or returned, never
+abandoned). Five drain loops in the MT programs and the heap contract had
+`if !ok { return N; }` inside; they set a flag and finish the drain now, as
+the other loops in the same files already did. After that, `TestMTBlockingPool`,
+`TestMTBlockingChannelHelpersDoNotParkWorkers`,
+`TestMTBlockingChannelHelpersDrainReadyWorkAtCompensationLimit`,
+`TestRuntimeV2HeapAccountingConcurrentWorkersContract`,
+`TestRuntimeV2TaskHandleArrayDrainedByPopTearsDownClean` (unskipped) and
+`TestRuntimeV2CompositeCopyIsIndependent` (unskipped) are green on the
+integrated tree; `TestLLVMParity` lost `fs_dir_smoke` from its red set and
+kept the other seven exactly as at the baseline. The price the reviewers
+named and the owner accepted to pay differently: `print(s: string)` takes its
+argument by value, so `for name in names { print(name) }` was refused and the
+corpus wrote `print(clone(name))` -- the owner ruled `print` and its
+relatives take a borrow, which a follow-up lane does, with the hello-world
+shape kept trivially simple (`print("Hello world!")`, `print(1)` through the
+implicit `to string`, no `&` at any call). RV2-DEBT-260 holds the residue the
+reviewers found: a parenthesised `(own xs)` still slips past SEM3206, a
+`compare` over a union-typed loop binding is refused even when the arm only
+reads a Copy payload, and SEM3107 points at the container rather than at
+the `return` that abandons it.
+
+**Q-B (RV2-DEBT-256): a value composite owns heap iff a member does.** One
+structural walk (`ownsHeapIn`, exported as `sema.OwnsHeapIn`) answers for
+`tc.ownsHeap`, `Result.OwnsHeap` and HIR's `normCtx.ownsHeap`; the MIR legs
+delegate and the backend already walked, so every compiler leg agrees with
+the storage the flips left behind. `@copy Pair { a: int, b: int }` handed out
+of a borrowed arm is accepted now; a composite with a string is refused as
+before; a composite with a `float` -- the reference-counted scalar -- stays
+refused, because it does own two counted blocks (the row is in the test with
+that reason). Six test files outside the lane's ownership had to follow the
+axis (a `Held { v: int }` fixture that assumed the boxed answer, a capability
+test that asserted the disagreement). `docs/runtime-v2-epics/23-value-composites.md`
+lines 284–300 still describe the boxed-era target for the two sema legs and
+are wrong now -- RV2-DEBT-260 carries that too.
