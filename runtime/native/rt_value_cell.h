@@ -51,6 +51,23 @@ struct rt_value_cell {
 // it is a no-op.
 rt_slot_control_status rt_value_cell_bind(rt_value_cell* cell, const rt_value_ops* operations);
 
+// Adopts a block the caller already built a value in, as this cell's one value.
+//
+// The value is INITIALIZED on arrival -- there is nothing to publish, because
+// the caller published it before the runtime ever saw the block -- and the cell
+// owns the storage from here: disposing walks the members through the
+// descriptor and frees the block at the width the descriptor states, exactly as
+// a cell that reserved its own storage does.
+//
+// It exists because one kind of value is built where the runtime cannot reach:
+// compiled code packs a shipped state into storage it reserves at the
+// submission site, so `bind` -- which reserves -- would allocate a SECOND block
+// and leave the first with no owner. A NULL block is the no-value case. A block
+// with no descriptor is refused rather than adopted: a cell that cannot say how
+// wide the value is cannot free it either.
+rt_slot_control_status
+rt_value_cell_adopt(rt_value_cell* cell, const rt_value_ops* operations, void* storage);
+
 // Where to move a value INTO. NULL when the cell has no descriptor, or when it
 // already holds a value -- a second publication is a defect in the caller
 // rather than an overwrite this cell performs.

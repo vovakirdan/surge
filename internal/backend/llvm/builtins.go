@@ -191,7 +191,7 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_task_cancel", ret: "void", params: []string{"ptr"}},
 		{name: "rt_task_clone", ret: "ptr", params: []string{"ptr", "ptr"}},
 		{name: "rt_task_handle_drop", ret: "void", params: []string{"ptr"}},
-		{name: "rt_blocking_submit", ret: "ptr", params: []string{"i64", "ptr", "i64", "i64", "i64"}},
+		{name: "rt_blocking_submit", ret: "ptr", params: []string{"i64", "ptr", "i64", "i64"}},
 		{name: "rt_remote_spawn_publish_placement", ret: "i32", params: []string{"i64", "i64", "i64", "i64", "ptr", "ptr", "ptr"}},
 		{name: "rt_far_task_handle_alloc", ret: "i32", params: []string{"ptr"}},
 		{name: "rt_far_task_handle_free", ret: "void", params: []string{"ptr"}},

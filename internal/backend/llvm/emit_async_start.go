@@ -76,6 +76,38 @@ func (fe *funcEmitter) emitInstrSpawn(ins *mir.Instr) error {
 	return nil
 }
 
+// blockingTypeID names one of a blocking submission's two types as the number
+// the runtime turns back into that type's DESCRIPTOR.
+//
+// It refuses a type the operation census never saw, because the runtime asks
+// for the descriptor by id and a type without one answers the opaque word:
+// eight bytes, no drop, no move. A state would then be freed at the word's
+// width with its captures still inside it, and a result wider than a word
+// would overflow the cell the job reserved for it. Both refusals are here,
+// where the type is still legible, rather than in a runtime that has only a
+// number.
+//
+// A type with no bytes is not a refusal: a body that answers `nothing` has
+// nothing to describe, and the id it carries today is what it keeps.
+func (fe *funcEmitter) blockingTypeID(role string, id types.TypeID) (types.TypeID, error) {
+	resolved := resolveValueType(fe.emitter.types, id)
+	if resolved == types.NoTypeID {
+		return types.NoTypeID, nil
+	}
+	if llvmTy, err := fe.emitter.llvmType(resolved); err == nil && llvmTy == "void" {
+		return resolved, nil
+	}
+	if !fe.emitter.valueOpsRegistryHas(resolved) {
+		return types.NoTypeID, fmt.Errorf(
+			"llvm: a blocking submission names a %s of type#%d with no operation descriptor, so "+
+				"the runtime would carry it as the opaque word -- eight bytes, no drop -- and "+
+				"free or publish it at that width; note: every registry type gets a descriptor, "+
+				"so this type never reached the operation census",
+			role, resolved)
+	}
+	return resolved, nil
+}
+
 func (fe *funcEmitter) emitInstrBlocking(ins *mir.Instr) error {
 	if ins == nil {
 		return nil
@@ -87,30 +119,30 @@ func (fe *funcEmitter) emitInstrBlocking(ins *mir.Instr) error {
 	if stateTy != "ptr" {
 		return fmt.Errorf("blocking expects state pointer, got %s", stateTy)
 	}
-	layout, err := fe.emitter.layoutOf(ins.Blocking.State.TypeID)
+	// The captures' own type, so the job destroys them through their
+	// descriptor. It used to be a size and an alignment, which can free the
+	// block and nothing inside it.
+	stateType, err := fe.blockingTypeID("captured state", ins.Blocking.State.TypeID)
 	if err != nil {
 		return err
-	}
-	size := layout.Size
-	align := layout.Align
-	if align <= 0 {
-		align = 1
 	}
 	// The blocking body's RESULT type, so the job and the awaiting task bind
 	// the same descriptor: the value moves between their storages rather than
 	// being widened into a word on one side and rebuilt on the other.
 	resultType := types.NoTypeID
 	if body := fe.emitter.mod.Funcs[ins.Blocking.FuncID]; body != nil {
-		resultType = resolveValueType(fe.emitter.types, body.Result)
+		resultType, err = fe.blockingTypeID("result", body.Result)
+		if err != nil {
+			return err
+		}
 	}
 	callTmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
-		"  %s = call ptr @rt_blocking_submit(i64 %d, ptr %s, i64 %d, i64 %d, i64 %d)\n",
+		"  %s = call ptr @rt_blocking_submit(i64 %d, ptr %s, i64 %d, i64 %d)\n",
 		callTmp,
 		ins.Blocking.FuncID,
 		stateVal,
-		size,
-		align,
+		stateType,
 		resultType)
 	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(ins.Blocking.Dst)
 	if err != nil {

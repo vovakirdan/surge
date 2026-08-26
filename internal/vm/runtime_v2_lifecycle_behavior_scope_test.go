@@ -341,7 +341,7 @@ static void poll_blocking_park(void) {
     if (handle == NULL) {
         // Long enough that shutdown is requested while this task is still
         // parked on blocking_key.
-        handle = rt_blocking_submit(BLOCKING_FN_SLOW, NULL, 0, 0, 0);
+        handle = rt_blocking_submit(BLOCKING_FN_SLOW, NULL, 0, 0);
         if (handle == NULL) {
             rt_async_return(NULL, &(uint64_t){0});
             return;

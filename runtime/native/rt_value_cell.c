@@ -47,6 +47,31 @@ rt_slot_control_status rt_value_cell_bind(rt_value_cell* cell, const rt_value_op
     return RT_SLOT_CONTROL_OK;
 }
 
+rt_slot_control_status
+rt_value_cell_adopt(rt_value_cell* cell, const rt_value_ops* operations, void* storage) {
+    if (cell == NULL) {
+        return RT_SLOT_CONTROL_INVALID_ARGUMENT;
+    }
+    if (operations == NULL && storage != NULL) {
+        // Adopting would take on an obligation this cell could not discharge:
+        // no descriptor is no width and no drop. Refusing leaves the block with
+        // the caller, which still knows both.
+        return RT_SLOT_CONTROL_INVALID_ARGUMENT;
+    }
+    uint64_t generation = cell->generation;
+    memset(cell, 0, sizeof(*cell));
+    cell->state = RT_SLOT_EMPTY;
+    cell->generation = generation + 1;
+    if (storage == NULL) {
+        return RT_SLOT_CONTROL_OK;
+    }
+    cell->operations = operations;
+    cell->storage = storage;
+    cell->owns_block = 1;
+    cell->state = RT_SLOT_INITIALIZED;
+    return RT_SLOT_CONTROL_OK;
+}
+
 // cppcheck-suppress constParameterPointer
 // The cell is not written HERE, but what this hands back is storage the caller
 // writes a value into. A const parameter would say the opposite of what the

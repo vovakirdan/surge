@@ -299,6 +299,13 @@ var requiredSanitizerCoverage = []string{
 	"TestRuntimeV2ChannelHandleRefcountValgrindZero",
 	"TestRuntimeV2ChannelHandleRefcountUnderAddressAndUndefinedSanitizers",
 	"TestRuntimeV2ChannelHandleRefcountUnderThreadSanitizer",
+	// Valgrind over a blocking job's captured state, at one iteration and at
+	// eight, and over the zero-sized state a capture-less body still gets.
+	// RV2-DEBT-080 recorded its loss as CONSTANT in the iteration count and
+	// left it unattributed, so both counts are the row: at one iteration a
+	// per-execution loss and a one-off loss are the same number.
+	"TestRuntimeV2BlockingCaptureValgrindZero",
+	"TestRuntimeV2BlockingCapturelessStateIsFreed",
 	// The race detector over the carrier bench bridge.
 	"TestRuntimeV2CarrierBenchBlockingRegisterThenVerify",
 	"TestRuntimeV2CarrierBenchCounterMatrix",

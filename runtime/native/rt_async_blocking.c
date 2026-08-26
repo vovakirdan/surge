@@ -21,9 +21,13 @@ static void blocking_job_release(rt_blocking_job* job) {
     if (refs != 1) {
         return;
     }
-    if (job->state != NULL && job->state_size > 0) {
-        rt_free((uint8_t*)job->state, job->state_size, job->state_align);
-    }
+    // The captures, through their own descriptor. Which half runs is the cell's
+    // to say: a state the body never claimed is still initialized, so its
+    // members are destroyed and then the block; a state the body took is spent,
+    // so only the block goes. Freeing the block alone -- what two integers
+    // could express -- abandoned every capture inside it, and the width was the
+    // only thing they could get right.
+    RT_DEBT080_RELEASE_STATE(&job->state);
     // A result nobody came for -- a cancelled awaiter, a torn-down executor --
     // is destroyed here, exactly once, by the cell that owns it.
     rt_value_cell_dispose(&job->result);
@@ -99,7 +103,7 @@ static void* rt_blocking_worker_main(void* arg) {
         rt_async_debug_printf("async blocking pop task=%llu fn=%llu state=%p status=%u\n",
                               (unsigned long long)job->task_id,
                               (unsigned long long)job->fn_id,
-                              job->state,
+                              rt_value_cell_value(&job->state),
                               (unsigned)atomic_load_explicit(&job->status, memory_order_relaxed));
 
         uint8_t status = atomic_load_explicit(&job->status, memory_order_acquire);
@@ -112,17 +116,25 @@ static void* rt_blocking_worker_main(void* arg) {
             continue;
         }
 
+        void* captures = rt_value_cell_value(&job->state);
         rt_async_debug_printf("async blocking start task=%llu fn=%llu state=%p\n",
                               (unsigned long long)job->task_id,
                               (unsigned long long)job->fn_id,
-                              job->state);
+                              captures);
         // The body writes its answer straight into the job's cell, at the
         // width its own type asks for. It used to RETURN a machine word, so a
         // result wider than one had to be boxed here and adopted again on the
         // other side -- two representations for one value, on a path where the
         // producing thread and the consuming poll never meet.
         void* destination = rt_value_cell_publish_storage(&job->result);
-        __surge_blocking_call(job->fn_id, job->state, destination);
+        // The captures become the body's HERE, before it can consume any of
+        // them, and the cell records the handover. A cancel racing the body
+        // wins its CAS while the body is running -- the status was read once,
+        // above -- so the release that follows must be able to tell a state
+        // nobody claimed from one already spent. Claiming after the call would
+        // leave that window open for exactly as long as the body takes.
+        RT_DEBT080_CLAIM_STATE(&job->state);
+        __surge_blocking_call(job->fn_id, captures, destination);
         if (destination != NULL) {
             (void)rt_value_cell_commit(&job->result);
         }
@@ -281,8 +293,7 @@ observe_terminal:
 
 void* rt_blocking_submit(uint64_t fn_id,
                          void* state,
-                         uint64_t state_size,
-                         uint64_t state_align,
+                         uint64_t state_type_id,
                          uint64_t result_type_id) {
     rt_executor* ex = ensure_exec();
     if (ex == NULL) {
@@ -348,23 +359,34 @@ void* rt_blocking_submit(uint64_t fn_id,
         panic_msg("async: a blocking job's result storage could not be reserved");
         return NULL;
     }
+    // The captures arrive already built, in a block the submission site
+    // reserved: the job ADOPTS that block rather than reserving one of its own,
+    // which is the only shape that leaves exactly one owner. A submission with
+    // no captures passes no block and the cell stays empty.
+    if (rt_value_cell_adopt(&job->state, rt_channel_element_ops_for(state_type_id), state) !=
+        RT_SLOT_CONTROL_OK) {
+        rt_task_slot_store(ex, id, NULL);
+        rt_value_cell_dispose(&job->result);
+        rt_value_cell_dispose(&task->result);
+        rt_free((uint8_t*)job, sizeof(rt_blocking_job), _Alignof(rt_blocking_job));
+        rt_free((uint8_t*)task, sizeof(rt_task), _Alignof(rt_task));
+        rt_control_unlock(ex);
+        panic_msg("async: a blocking job's captures could not be adopted");
+        return NULL;
+    }
     job->task_id = id;
     job->fn_id = fn_id;
-    job->state = state;
-    job->state_size = state_size;
-    job->state_align = state_align;
     atomic_store_explicit(&job->status, BLOCKING_JOB_PENDING, memory_order_relaxed);
     atomic_store_explicit(&job->cancel_requested, 0, memory_order_relaxed);
     atomic_store_explicit(&job->refs, 2, memory_order_relaxed);
     task->state = job;
 
     (void)atomic_fetch_add_explicit(&ex->blocking_submitted, 1, memory_order_relaxed);
-    rt_async_debug_printf("async blocking submit task=%llu fn=%llu state=%p size=%llu align=%llu\n",
+    rt_async_debug_printf("async blocking submit task=%llu fn=%llu state=%p type=%llu\n",
                           (unsigned long long)id,
                           (unsigned long long)fn_id,
                           state,
-                          (unsigned long long)state_size,
-                          (unsigned long long)state_align);
+                          (unsigned long long)state_type_id);
     blocking_queue_push(ex, job);
     ready_push(ex, id);
     rt_control_unlock(ex);

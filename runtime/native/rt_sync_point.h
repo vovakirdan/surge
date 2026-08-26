@@ -340,4 +340,32 @@ void rt_sync_point_open(void);
 #define RT_DEBT155_STILL_NAMED(count) (count)
 #endif
 
+// RV2-DEBT-080 negative-control toggle. The fixed release destroys a blocking
+// job's captures through their own descriptor: an initialized state cell is
+// walked and then freed. Defining the negative control spends the cell first,
+// which leaves the dispose with only the block to free -- the pre-fix shallow
+// free of the state block by two integers, under which every capture the state
+// still holds is abandoned. The deterministic proof MUST observe that loss.
+#ifdef RV2_DEBT_080_NEGATIVE_CONTROL
+#define RT_DEBT080_RELEASE_STATE(cell)                                                             \
+    do {                                                                                           \
+        (void)rt_value_cell_commit_move(cell);                                                     \
+        rt_value_cell_dispose(cell);                                                               \
+    } while (0)
+#else
+#define RT_DEBT080_RELEASE_STATE(cell) rt_value_cell_dispose(cell)
+#endif
+
+// RV2-DEBT-080 second negative-control toggle, for the OPPOSITE error. The
+// worker spends the state cell immediately before the body runs, because from
+// that moment the captures are the body's and a cancellation landing mid-body
+// must not come back for them. Defining this control removes the claim, so the
+// release walks a state the body has already consumed -- the double free an
+// unconditional walk would be. The cancel-after-claim proof MUST observe it.
+#ifdef RV2_DEBT_080_WALK_ALWAYS_NEGATIVE_CONTROL
+#define RT_DEBT080_CLAIM_STATE(cell) ((void)(cell))
+#else
+#define RT_DEBT080_CLAIM_STATE(cell) ((void)rt_value_cell_commit_move(cell))
+#endif
+
 #endif // RT_SYNC_POINT_H

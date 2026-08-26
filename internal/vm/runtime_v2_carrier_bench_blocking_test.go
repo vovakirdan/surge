@@ -205,7 +205,7 @@ int main(void) {
     atomic_store_explicit(&g_sync_before, before, memory_order_release);
     uint64_t completed_before = atomic_load_explicit(
         &ex->blocking_completed, memory_order_acquire);
-    rt_task* task = (rt_task*)rt_blocking_submit(BLOCKING_FN_QUICK, NULL, 0, 0, 0);
+    rt_task* task = (rt_task*)rt_blocking_submit(BLOCKING_FN_QUICK, NULL, 0, 0);
     if (task == NULL) {
         return fail("blocking submit failed");
     }

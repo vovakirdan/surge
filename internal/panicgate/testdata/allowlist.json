@@ -800,6 +800,11 @@
       "group": "PG-ALLOC-FAILURE"
     },
     {
+      "site": "runtime/native/rt_async_blocking.c::rt_blocking_submit#5",
+      "message": "async: a blocking job's captures could not be adopted",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
       "site": "runtime/native/rt_async_channel.c::channel_stage_locked#1",
       "message": "async: staged channel value could not be published",
       "group": "PG-INVARIANT"

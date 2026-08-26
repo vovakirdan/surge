@@ -399,8 +399,8 @@ var (
 // alloca.
 //
 // The runtime takes the pointer, keeps it past the suspension, and releases it
-// with the size and alignment it was given — `rt_blocking_submit` stores it into
-// the job and the task owns its resume state the same way. A frame in an alloca
+// at the width the type it was named by states — `rt_blocking_submit` adopts it
+// into the job and the task owns its resume state the same way. A frame in an alloca
 // is therefore read after the function that built it returned, and then freed at
 // a stack address. Both happened: every async program on this backend crashed
 // with `free(): invalid pointer` and every blocking one segfaulted.

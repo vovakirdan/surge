@@ -188,7 +188,7 @@ static void poll_make_chan_a(void) {
 static void poll_blocking_awaiter(void) {
     void* handle = atomic_load_explicit(&g_blocking_handle, memory_order_acquire);
     if (handle == NULL) {
-        handle = rt_blocking_submit(BLOCKING_FN_SLOW_42, NULL, 0, 0, 0);
+        handle = rt_blocking_submit(BLOCKING_FN_SLOW_42, NULL, 0, 0);
         if (handle == NULL) {
             rt_async_return(NULL, &(uint64_t){0});
         }

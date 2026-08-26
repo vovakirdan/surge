@@ -337,12 +337,14 @@ void* rt_task_clone(void* task, rt_value_clone_init_fn duplicate);
 // and cancelling it stays a separate, task-global operation. When this was the
 // last handle on a DONE task, the task and the result nobody took are freed.
 void rt_task_handle_drop(void* task);
-// `result_type_id` names the blocking body's result type, so the job and the
-// awaiting task bind the SAME descriptor and the value moves between them.
+// `state_type_id` names the type of the captures `state` points at, so the job
+// destroys them through their own descriptor instead of freeing the block and
+// abandoning whatever was inside it. `result_type_id` names the blocking body's
+// result type, so the job and the awaiting task bind the SAME descriptor and
+// the value moves between them.
 void* rt_blocking_submit(uint64_t fn_id,
                          void* state,
-                         uint64_t state_size,
-                         uint64_t state_align,
+                         uint64_t state_type_id,
                          uint64_t result_type_id);
 // `out_dst` is the caller's storage for the result, sized from its own type:
 // a timeout poll takes the value out of the same slot an await does.

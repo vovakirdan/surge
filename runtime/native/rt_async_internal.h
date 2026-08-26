@@ -493,9 +493,17 @@ typedef struct {
 typedef struct rt_blocking_job {
     uint64_t task_id;
     uint64_t fn_id;
-    void* state;
-    uint64_t state_size;
-    uint64_t state_align;
+    // The captures the submission packed, at their own type. The job owns the
+    // block compiled code reserved for them and destroys it through the
+    // descriptor, which is what a pointer and two integers could not do: two
+    // numbers free storage but cannot destroy what is INSIDE it.
+    //
+    // The cell also carries the one fact the release path needs and nothing
+    // else records: whether the body took the captures. Handing the state to
+    // the body MOVES it, so a cancellation landing mid-body finds a spent cell
+    // and frees only the block, while a job cancelled before the body ran finds
+    // it initialized and walks the members first.
+    rt_value_cell state;
     // What the blocking body answered, at its own type. The job owns it from
     // the moment the body returns until the awaiting task's poll moves it into
     // that task's result, and destroys it if nobody ever comes: the job
