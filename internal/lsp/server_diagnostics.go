@@ -156,6 +156,10 @@ func (s *Server) publishDiagnostics(plan analysisPlan, diags []diagnose.Diagnost
 		return
 	}
 	grouped := buildPublishedDiagnostics(plan, diags)
+	// The registry is replaced, not extended: an action from a superseded
+	// analysis is unverifiable, because the snapshot its guards were proved
+	// against is gone.
+	s.fixes.record(plan, diags)
 	targets := publishTargets(plan)
 
 	s.mu.Lock()
@@ -483,6 +487,7 @@ func (s *Server) applySnapshot(plan analysisPlan, snapshot *diagnose.AnalysisSna
 }
 
 func (s *Server) clearSnapshotState() {
+	s.fixes.clear()
 	s.mu.Lock()
 	s.lastSnapshot = nil
 	s.lastGoodSnapshot = nil

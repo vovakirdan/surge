@@ -99,6 +99,7 @@ type serverCapabilities struct {
 	CompletionProvider    *completionOptions      `json:"completionProvider,omitempty"`
 	SignatureHelpProvider *signatureHelpOptions   `json:"signatureHelpProvider,omitempty"`
 	FoldingRangeProvider  bool                    `json:"foldingRangeProvider,omitempty"`
+	CodeActionProvider    *codeActionOptions      `json:"codeActionProvider,omitempty"`
 }
 
 type initializeResult struct {

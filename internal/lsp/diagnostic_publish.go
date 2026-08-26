@@ -88,8 +88,8 @@ func diagnosticDataFor(plan analysisPlan, uri string, d *diagnose.Diagnostic, or
 		URI:          uri,
 		Version:      state.version,
 		DiagnosticID: diagnosticIdentity(d, ordinal),
-		FixIDs:       d.FixIDs,
-		SafeFixIDs:   d.SafeFixIDs,
+		FixIDs:       fixIDsOf(d.Fixes, false),
+		SafeFixIDs:   fixIDsOf(d.Fixes, true),
 	}
 }
 
@@ -100,6 +100,22 @@ func diagnosticDataFor(plan analysisPlan, uri string, d *diagnose.Diagnostic, or
 // distinguishable and the same program produces the same ids twice running.
 func diagnosticIdentity(d *diagnose.Diagnostic, ordinal int) string {
 	return fmt.Sprintf("%s:%d:%d:%d", d.Code, d.StartLine, d.StartCol, ordinal)
+}
+
+// fixIDsOf names the attached edits, optionally only the always-safe ones.
+// Only ids cross the wire; the edits stay in the server's registry.
+func fixIDsOf(offers []diagnose.FixOffer, safeOnly bool) []string {
+	out := make([]string, 0, len(offers))
+	for i := range offers {
+		if safeOnly && !offers[i].AlwaysSafe {
+			continue
+		}
+		out = append(out, offers[i].ID)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func diagnosticRange(startLine, startCol, endLine, endCol int) lspRange {

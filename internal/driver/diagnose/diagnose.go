@@ -60,14 +60,35 @@ type Diagnostic struct {
 	// author lost everything the compiler had assembled around it.
 	Notes []RelatedLocation
 	Help  []RelatedLocation
-	// FixIDs names the edits attached to this diagnostic. Only ids travel — the
-	// edits themselves stay on the server, which is what lets a Code Action be
-	// checked against a trusted snapshot rather than against whatever a client
-	// sends back.
-	FixIDs []string
-	// SafeFixIDs is the subset that is AlwaysSafe, and therefore the only
-	// subset a client may be offered without asking a human first.
-	SafeFixIDs []string
+	// Fixes are the edits attached to this diagnostic, positions resolved.
+	//
+	// Only their IDS ever reach a client. The edits stay here so that a Code
+	// Action can be checked against what the server knows rather than against
+	// whatever a client sends back, which is the difference between a guard and
+	// a formality.
+	Fixes []FixOffer
+}
+
+// FixOffer is one attached edit set with the metadata a Code Action needs.
+type FixOffer struct {
+	ID         string
+	Title      string
+	AlwaysSafe bool
+	Edits      []FixEditLocation
+}
+
+// FixEditLocation is one edit in line/column form.
+//
+// OldText is the guard: a replace or a delete says what it expects to find, and
+// an empty guard is valid only for an insertion, where the span is a point.
+type FixEditLocation struct {
+	FilePath  string
+	StartLine int
+	StartCol  int
+	EndLine   int
+	EndCol    int
+	NewText   string
+	OldText   string
 }
 
 // RelatedLocation is one note or help entry with the position it belongs to.
@@ -315,7 +336,7 @@ func toDiagnostic(fs *source.FileSet, item *diag.Diagnostic, fallbackPath string
 		Notes:     relatedLocations(fs, item.Notes, path),
 		Help:      relatedLocations(fs, item.Help, path),
 	}
-	out.FixIDs, out.SafeFixIDs = fixIdentities(fs, item)
+	out.Fixes = fixOffers(fs, item)
 	return out, true
 }
 
@@ -343,19 +364,19 @@ func relatedLocations(fs *source.FileSet, entries []diag.Note, fallbackPath stri
 	return out
 }
 
-// fixIdentities materialises the attached fixes far enough to name them.
+// fixOffers materialises the attached fixes and resolves their positions.
 //
-// The ids are what a Code Action request comes back with; the edits stay here.
-// A fix that cannot be built contributes nothing rather than an id that would
-// resolve to no edit.
-func fixIdentities(fs *source.FileSet, item *diag.Diagnostic) (all, safe []string) {
+// A fix that cannot be built, or that resolves to no edit, contributes nothing
+// rather than an id that would later resolve to nothing.
+func fixOffers(fs *source.FileSet, item *diag.Diagnostic) []FixOffer {
 	if len(item.Fixes) == 0 {
-		return nil, nil
+		return nil
 	}
 	resolved, err := diag.MaterializeFixes(diag.FixBuildContext{FileSet: fs}, item.Fixes)
 	if err != nil {
-		return nil, nil
+		return nil
 	}
+	out := make([]FixOffer, 0, len(resolved))
 	for i, fix := range resolved {
 		if fix == nil || len(fix.Edits) == 0 {
 			continue
@@ -364,12 +385,35 @@ func fixIdentities(fs *source.FileSet, item *diag.Diagnostic) (all, safe []strin
 		if id == "" {
 			id = fmt.Sprintf("%s-%d-%d-%d", item.Code.ID(), item.Primary.File, item.Primary.Start, i)
 		}
-		all = append(all, id)
-		if fix.Applicability == diag.FixApplicabilityAlwaysSafe {
-			safe = append(safe, id)
+		edits := make([]FixEditLocation, 0, len(fix.Edits))
+		for _, edit := range fix.Edits {
+			if !fs.HasFile(edit.Span.File) {
+				edits = nil
+				break
+			}
+			file := fs.Get(edit.Span.File)
+			if file == nil || file.Path == "" {
+				edits = nil
+				break
+			}
+			start, end := fs.Resolve(edit.Span)
+			edits = append(edits, FixEditLocation{
+				FilePath:  file.Path,
+				StartLine: int(start.Line), StartCol: int(start.Col),
+				EndLine: int(end.Line), EndCol: int(end.Col),
+				NewText: edit.NewText, OldText: edit.OldText,
+			})
 		}
+		if len(edits) == 0 {
+			continue
+		}
+		out = append(out, FixOffer{
+			ID: id, Title: fix.Title,
+			AlwaysSafe: fix.Applicability == diag.FixApplicabilityAlwaysSafe,
+			Edits:      edits,
+		})
 	}
-	return all, safe
+	return out
 }
 
 func severityToLSP(sev diag.Severity) int {

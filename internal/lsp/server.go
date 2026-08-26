@@ -55,6 +55,7 @@ type Server struct {
 	debounceTimer     *time.Timer
 	diagCancel        context.CancelFunc
 	analysisSeq       uint64
+	fixes             *fixRegistry
 	latestSeq         uint64
 	appliedSeq        uint64
 	analyze           AnalyzeFunc
@@ -92,6 +93,7 @@ func NewServer(in io.Reader, out io.Writer, opts ServerOptions) *Server {
 	return &Server{
 		in:             bufio.NewReader(in),
 		out:            bufio.NewWriter(out),
+		fixes:          newFixRegistry(),
 		openDocs:       make(map[string]string),
 		versions:       make(map[string]int),
 		docSnapshots:   make(map[string]int64),
@@ -166,6 +168,8 @@ func (s *Server) handleMessage(msg *rpcMessage) error {
 		return s.handleInlayHint(msg)
 	case "textDocument/definition":
 		return s.handleDefinition(msg)
+	case "textDocument/codeAction":
+		return s.handleCodeAction(msg)
 	case "textDocument/foldingRange":
 		return s.handleFoldingRange(msg)
 	default:
@@ -221,6 +225,10 @@ func (s *Server) handleInitialize(msg *rpcMessage) error {
 				TriggerCharacters: []string{"(", ","},
 			},
 			FoldingRangeProvider: true,
+			// Only quick fixes, because only quick fixes are what this server
+			// can prove safe. A broader kind list would advertise actions the
+			// guard pipeline has nothing to check.
+			CodeActionProvider: &codeActionOptions{CodeActionKinds: []string{codeActionKindQuickFix}},
 		},
 	}
 	return s.sendResponse(msg.ID, result)
