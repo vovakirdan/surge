@@ -1150,6 +1150,11 @@
       "group": "PG-INVARIANT"
     },
     {
+      "site": "runtime/native/rt_async_task.c::rt_task_await#1",
+      "message": "async: a single-threaded await found a clone reader out",
+      "group": "PG-INVARIANT"
+    },
+    {
       "site": "runtime/native/rt_async_task.c::rt_task_poll#1",
       "message": "async poll outside task",
       "group": "PG-INVARIANT"
@@ -1588,6 +1593,11 @@
       "site": "runtime/native/rt_task_complete.c::cancel_task#1",
       "message": "async: cancel snapshot allocation failed",
       "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_task_entitlement.c::rt_task_entitlement_clone#1",
+      "message": "async: a task handle was cloned after it was consumed",
+      "group": "PG-INVARIANT"
     },
     {
       "site": "runtime/native/rt_task_park.c::wake_key_all_with_policy#1",

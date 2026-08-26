@@ -431,7 +431,19 @@
         }
       ],
       "allow": [],
-      "migration": []
+      "migration": [
+        {
+          "finding": {
+            "category": "composite-box-marker",
+            "path": "internal/vm/task_result.go",
+            "token": "cloneValueComposite",
+            "evidence": "return vm.cloneValueComposite(task.ResultValue)",
+            "ordinal": 1
+          },
+          "retired_by": "vm-typed-duplication",
+          "tracked_as": "RV2-DEBT-246"
+        }
+      ]
     },
     {
       "id": "llvm-composite-to-ptr",

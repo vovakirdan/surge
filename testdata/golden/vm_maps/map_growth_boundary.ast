@@ -1,0 +1,87 @@
+map_growth_boundary.sg (span: 1:1-34:1)
+└─ Item[0]: Fn (span: 1:1-33:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 2:18-33:2)
+         ├─ Stmt[0]: Let (span: 7:5-7:42)
+         │  ├─ Name: m
+         │  ├─ Mutable: true
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#3: Map.new()
+         ├─ Stmt[1]: Let (span: 8:5-8:31)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#8: m.insert("k0", 0)
+         ├─ Stmt[2]: Let (span: 9:5-9:31)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#13: m.insert("k1", 1)
+         ├─ Stmt[3]: Let (span: 10:5-10:31)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#18: m.insert("k2", 2)
+         ├─ Stmt[4]: Let (span: 11:5-11:31)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#23: m.insert("k3", 3)
+         ├─ Stmt[5]: Let (span: 12:5-12:31)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#28: m.insert("k4", 4)
+         ├─ Stmt[6]: Let (span: 13:5-13:31)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#33: m.insert("k5", 5)
+         ├─ Stmt[7]: Let (span: 14:5-14:31)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#38: m.insert("k6", 6)
+         ├─ Stmt[8]: Let (span: 15:5-15:31)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#43: m.insert("k7", 7)
+         ├─ Stmt[9]: Let (span: 16:5-16:31)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#48: m.insert("k8", 8)
+         ├─ Stmt[10]: Let (span: 17:5-17:31)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#53: m.insert("k9", 9)
+         ├─ Stmt[11]: Expr (span: 18:5-18:35)
+         │  └─ Expr: expr#60: print((m.length()) to string)
+         ├─ Stmt[12]: Block (span: 19:5-24:6)
+         │  ├─ Stmt[0]: Expr (span: 22:9-22:36)
+         │  │  └─ Expr: expr#67: print((m["k0"]) to string)
+         │  └─ Stmt[1]: Expr (span: 23:9-23:36)
+         │     └─ Expr: expr#74: print((m["k9"]) to string)
+         ├─ Stmt[13]: Let (span: 27:5-27:21)
+         │  ├─ Name: gone
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#75: "k0"
+         ├─ Stmt[14]: Let (span: 28:5-28:35)
+         │  ├─ Name: dropped
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#80: m.remove(&gone)
+         ├─ Stmt[15]: Expr (span: 29:5-29:74)
+         │  └─ Expr: expr#93: print((compare dropped { 2 arms }) to string)
+         ├─ Stmt[16]: Expr (span: 30:5-30:35)
+         │  └─ Expr: expr#100: print((m.length()) to string)
+         ├─ Stmt[17]: Expr (span: 31:5-31:32)
+         │  └─ Expr: expr#107: print((m["k9"]) to string)
+         └─ Stmt[18]: Return (span: 32:5-32:14)
+            └─ Expr: expr#108: 0

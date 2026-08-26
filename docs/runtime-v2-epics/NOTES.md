@@ -7973,3 +7973,139 @@ at eight. On this machine that differs by ±1 often enough to fail about one run
 in three — and it fails with a NEGATIVE slope as readily as a positive one,
 which no leak can produce. Measured against the pre-D7 tree: 2 failures in 6
 runs there, 1 in 6 here. It is the row's zero tolerance, not the code.
+
+## 2026-08-26 — Wave D resumes on five lanes: D4b (both halves), D2, RV2-DEBT-167, the carrier scanner
+
+Base `0d00d9fa`. Baseline taken before the first edit, all 26 gate targets
+enumerated from the Makefile and run serially (`scratchpad/baseline-0d00d9fa/`):
+`make check` 0, `golden-check` 0, 17 of 21 `runtime-v2-*` green; red as
+sanctioned: `carrier-check` (`blocking-scalar: 213 != 278`, `array-grow-composite
+8 != 7`), `ownership-check` (24 issues); `behaviour-check-all` red on
+`string_from_bytes_invalid_utf8/llvm` alone, `behaviour-check-mt` 0; tagged
+`internal/vm` 10 failures (list in the baseline directory); `transport-check`
+exit 2 under load (a 300 s package timeout) — to be re-run alone before it is
+read as anything. Lanes ran in worktrees cut from `0d00d9fa` by the lead, not
+by worktree isolation; every agent report leads with `BASE=… LINEAGE_OK`.
+
+### Owner rulings taken today (recorded in full in the plan and the memory)
+
+Local `Task<T>` is droppable; drop retires the handle's entitlement and gives
+its reference back, never cancels; `far Task<T>` stays affine; no bitwise Copy
+for Task. `rt_task_is_last_asker` (yesterday's uncommitted tail, inferring
+ownership from the handle refcount) is reverted: §10 keeps its sentence. The
+duplication recipe rides with the clone operation; three notions are kept
+apart — `LanguageClonable(T)`, `ops.CLONABLE` (a callable monomorphized
+`clone_init`), `result_duplicate` (the recipe a particular clone installed).
+VM parity is D4b's. SEM3107 stays strict AND each `clone()` is a source-level
+entitlement (the two one-sided programs are refused symmetrically); the runtime
+drop path serves cancellation, abandoned frames, container teardown and
+shutdown, never a forget API. `Map<K,V>` owns what it is given; `keys()` is an
+independent owning snapshot through the language's clone recipe; no second map
+type. D7's tail is the full §11 frame. Bench budgets move only by the
+≥3-agreeing-runs procedure. The carrier scanner gains categories for the two
+channels it could not name (blocking captures, compiled-code-owned frames) and
+the base census is re-captured by scanning `7df10725`.
+
+### D4b, native (lead): `6d7a0ee8` · `f749b7d3` · `12e93f33` · `421df648` · `5bda5efd`
+
+- **Sema.** `.clone()` on a task registers its call expression exactly as a
+  spawn does, so the binding, the await, the return and the pass-as-argument
+  sites find it; before, `let s = t.clone(); t.await()` compiled and dropped
+  `s` silently while the mirror image was refused. Eight-row unit test, two of
+  them red on the old tree; five golden fixtures; every corpus program that
+  clones a task still diagnoses clean.
+- **The drop path.** `rt_task_handle_drop` releases the handle's reference and
+  decides nothing about the result; `emitDrop` and the composite walk reach a
+  task handle through it. The falsifier had to be re-found: the 24-byte
+  residual `TestRuntimeV2CancelledSuspendStateReclaimed` documented was already
+  gone at `0d00d9fa` (D7), so that row went to strict zero on both sides and
+  proves nothing about this change. What does: a body cancelled before its
+  first poll abandons its frame at `t.await()` with a clone live, and a task
+  the executor still holds at exit is freed by teardown — invisible to
+  valgrind — so `TestRuntimeV2AbandonedFrameReleasesItsTaskHandles` reads live
+  heap blocks from inside the program: 4 per round and `tasks_done=10` at exit
+  without the release, 2 per round and `tasks_done=0` with it. The 2 that stay
+  are RV2-DEBT-249.
+- **Entitlement counts.** `rt_task_entitlements` (new `rt_task_entitlement.{h,c}`,
+  `rt_async_internal.h` stays at 668 against its 676 ceiling by absorbing
+  `result_shared`/`result_duplicate`): `live`, `claimed`, a reserved `mover`,
+  atomic `clone_readers`, `move_waiting`, `moved`, the recipe. Decided under
+  the owner shard lock; the handle refcount stays memory lifetime. The last
+  asker moves; a mover that finds a reader out is answered WAIT (kind 0, which
+  a DONE task never otherwise answers), parks on the join key (poll) or on
+  `done_cv` under control after checking the reader count there (external
+  await), and the reader that retires last wakes it. The first version counted
+  only unclaimed handles and lost on concurrent askers — two askers each saw
+  the other as "someone who can still ask" and both cloned, 6–10 rounds of 96
+  — which is why `claimed` and the reservation exist.
+- **How duplications were counted.** A heap census could not separate a
+  duplication from scheduler queue growth (±1 per window at four askers), and
+  a string literal duplicates for free. The row that works: the result type's
+  user `__clone` marks the copy it builds, so an asker knows whether it holds
+  the original; per round exactly one must. That also exposed that the task
+  duplication ignored a user `__clone` entirely (structural glue only) — the
+  three-notion ruling settles it: a descriptor carrying `CLONABLE` is used.
+- **A pre-existing hang, found by the contention row, fixed as
+  `421df648`.** `park_current`'s second abort branch swept a seq-0 join entry
+  unqualified; the requeued task had already re-registered on another worker;
+  one stranded asker in ~15 runs. Diagnosed by tracing JOINADD/JOINREMOVE/
+  JOINCOLLECT with a `backtrace()` at the removal (ptrace is off here). Gated
+  on a nonzero generation like the first branch; 60 of 60. A deterministic
+  sync-point proof is owed: RV2-DEBT-248.
+- C-stands that build an `rt_task` by hand now call `rt_task_entitlements_init`.
+  Two invariant panics recorded in the panic ledger (PG-INVARIANT).
+
+### D4b, VM (agent): `210c206b` · `d4ead546` · `f0db0bd7` · `3ca25486`, on top of 167
+
+A poll's return value was evaluated in the poll frame and that frame retired by
+the same terminator, so a composite task result named an arena already given up
+(`panic VM1999: storage: stale reference … (generation 1, arena is at 2)`).
+`transportCopyIn` — the copy a channel send has owed since Wave C — now runs at
+the async return. An asker with no handle is a CLAIM (that is what a `timeout`
+is; the handle route detonated in the 167 lane and is recorded as a dead end).
+The last asker moves, earlier ones duplicate; VM parity row for the native
+clone test; cancel through a sibling is task-global. **Lesson worth its own
+memory:** on the VM lane `runVM` returns `ExitCode` alongside a fatal error, so
+an e2e row that reads only the exit code is vacuous — assert stderr too. The
+VM's duplication call is a `composite-box-marker` carrier and is tracked as
+RV2-DEBT-246; task records are never removed from `e.tasks`: RV2-DEBT-247.
+
+### RV2-DEBT-167 (agent): `b04ef46d` — closed, see the row.
+
+### D2 (agent): `2ba2e0cf` · `01579589` · `429f8821` · `97351ecf`
+
+The VM half was already typed (`807bf541`); 158/172 closed 2026-08-19 through
+SEM3018, so the plan's "D2 carries a known live defect" paragraph is history.
+Native: `SurgeMapEntry{uint64, uint64}` is gone; two typed runs in one
+allocation with `key_ops`/`value_ops`; growth moves elements, remove is
+swap-with-last through `move_init`; every entry point takes an address;
+`HasDst:false` means destroy, not "write to an alloca nobody reads".
+`rt_map_free` drops live keys and values through their descriptors; `keys()`
+takes a clone glue from the compiler. The order was flip THEN ownership, on
+purpose: a drop over word storage would have destroyed eight bytes of pointer
+as a value. 33 carrier identities retired (`rt_map.c` 18, `rt.h` 10,
+`emit_intrinsics_map.go` 5 → 0); the map was the last caller of
+`emitValueToI64`, so the copy-in leg of RV2-DEBT-151 is deleted, the adopt leg
+survives. `canDuplicateValue(Map)` flipped to no — its justification ("a map
+drop frees nothing anyway") stopped being true in the same commit.
+`emit_intrinsics_map.go` 570 → 483. Owed and recorded: RV2-DEBT-250 (linear
+`map_find`), 251 (`rt_key_ops` unused), 252 (no sanitizer stand, no owning-key
+bench row). The two new golden fixtures had their sidecars generated at
+integration by the lead.
+
+### Carrier scanner (agent): `fab9f397`
+
+Two categories the gate could not name: `untyped-capture-state` (15 base rows,
+retires with D6's tail, RV2-DEBT-080) and `suspension-frame-owner` (7 base
+rows, retires with D7's tail, RV2-DEBT-179). Base census re-captured by scan
+(604 → 626, digest moved), the ten old categories byte-identical. A token
+that would survive the fix it is meant to witness (`rt_blocking_submit` by
+name) was refused on purpose.
+
+### Integration
+
+Cherry-picked in dependency order into the main tree by the lead; three
+textual conflicts (D2's map arms beside D4b's task arms in `emit_drop_glue.go`
+and `emit_instr.go`, and both lanes' heap-gate rows in the Makefile) resolved
+by keeping both. Gate rows for the two new invariant panics and the VM
+duplication carrier were added at integration, not in the lanes.
