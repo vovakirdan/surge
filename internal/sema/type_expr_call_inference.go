@@ -352,6 +352,19 @@ func (tc *typeChecker) matchArgument(expected, actual types.TypeID, isLiteral, a
 			}
 			return cost + 2, true
 		}
+		innerActual := actual
+		if okAct && actInfo.Kind == types.KindOwn {
+			innerActual = actInfo.Elem
+		}
+		// The referent's TYPE is answered before the argument's PLACE: `print(42)`
+		// against `&string` is a type mismatch, and "bind it to a variable
+		// first" would send the user to fix the wrong half of the call. A borrow
+		// failure is recorded only for an argument the parameter could have
+		// taken by reference.
+		cost, ok := tc.conversionCost(innerActual, expInfo.Elem, isLiteral, allowImplicitTo)
+		if !ok {
+			return 0, false
+		}
 		if expInfo.Mutable {
 			if !tc.isAddressableExpr(expr) {
 				info.record(expr, true, borrowFailureNotAddressable)
@@ -363,14 +376,6 @@ func (tc *typeChecker) matchArgument(expected, actual types.TypeID, isLiteral, a
 			}
 		} else if !tc.isAddressableExpr(expr) {
 			info.record(expr, false, borrowFailureNotAddressable)
-			return 0, false
-		}
-		innerActual := actual
-		if okAct && actInfo.Kind == types.KindOwn {
-			innerActual = actInfo.Elem
-		}
-		cost, ok := tc.conversionCost(innerActual, expInfo.Elem, isLiteral, allowImplicitTo)
-		if !ok {
 			return 0, false
 		}
 		return cost + 1, true
