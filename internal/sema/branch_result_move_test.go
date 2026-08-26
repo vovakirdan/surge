@@ -17,8 +17,12 @@ import "testing"
 // others gave away, and this asserts both halves at once — the moves land, and
 // the compensating drops land on the branches that need them.
 func TestTernaryBranchesMoveAndCompensate(t *testing.T) {
+	// `Held` owns a string so that it owes a drop at all: a struct of plain
+	// scalars is bits under the OwnsHeap axis (ownership_axes.go), and the
+	// compensating drops this test counts exist only for a value with
+	// something to reclaim.
 	parseBag, semaBag, res := runSemaOnSnippetResult(t, `
-type Held = { v: int };
+type Held = { v: string };
 
 fn consumed(cond: bool, a: Held, b: Held) -> Held {
     return cond ? a : b;

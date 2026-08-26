@@ -18,7 +18,7 @@ fn demo:
     L1: type#1514 [owns_heap] name=tmp_call1
     L2: type#1515 [owns_heap] name=tmp_call2
     L3: type#1512 [owns_heap] name=tmp_cast3
-    L4: type#1516 [owns_heap] name=tmp_call4
+    L4: type#1516 name=tmp_call4
     L5: type#1512 [owns_heap] name=tmp_cast5
   bb0:
     if copy L0 then bb1 else bb2

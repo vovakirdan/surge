@@ -2,6 +2,7 @@ package hir
 
 import (
 	"surge/internal/ast"
+	"surge/internal/sema"
 	"surge/internal/source"
 	"surge/internal/types"
 )
@@ -305,27 +306,15 @@ func (ctx *normCtx) clonesWhenRead(ty types.TypeID) bool {
 
 // ownsHeap reports whether a value of this type has something to reclaim. It
 // answers from the interner alone — the normalize pass runs past sema's
-// checker — and errs toward YES, so an unknown shape keeps whatever release it
-// had rather than losing one.
+// checker — through the axis's interner-only leg (`sema.OwnsHeapIn`), so a
+// composite of plain scalars is bits here exactly as it is for sema's drop
+// obligations and MIR's drop emission. An unknown shape errs toward YES there,
+// so it keeps whatever release it had rather than losing one.
 func (ctx *normCtx) ownsHeap(ty types.TypeID) bool {
 	if ctx == nil || ctx.mod == nil || ctx.mod.TypeInterner == nil || ty == types.NoTypeID {
 		return false
 	}
-	typesIn := ctx.mod.TypeInterner
-	resolved := resolveAlias(typesIn, ty, 0)
-	if typesIn.IsRefCountedScalar(resolved) || typesIn.IsValueComposite(resolved) {
-		return true
-	}
-	if typesIn.IsCopy(resolved) {
-		return false
-	}
-	if tt, ok := typesIn.Lookup(resolved); ok {
-		switch tt.Kind {
-		case types.KindReference, types.KindPointer:
-			return false
-		}
-	}
-	return true
+	return sema.OwnsHeapIn(ctx.mod.TypeInterner, ty)
 }
 
 // envelopeReleaseStmt builds a shallow, own-declared-type box free of

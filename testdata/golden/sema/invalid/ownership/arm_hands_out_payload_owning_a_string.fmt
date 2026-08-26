@@ -1,0 +1,27 @@
+// The same shape as the valid twin with ONE condition changed: the payload
+// carries a string. A composite owns what its members own, so handing `p` out
+// of the borrowed compare would leave the caller and the union both freeing
+// that string — and the rule is still there to say so.
+//
+// Spelled without `@copy` on purpose: `@copy type Tagged = { s: string, n: int }`
+// is refused at the declaration already (a @copy field must be Copy), and a
+// fixture carrying two refusals pins neither.
+type Tagged = { s: string, n: int };
+
+tag Hold(Tagged);
+tag Nothing_();
+type Held = Hold(Tagged) | Nothing_;
+
+fn payload_of(h: &Held) -> Tagged {
+    return compare *h {
+        Hold(p) => p;
+        _ => Tagged { s = "", n = 0 };
+    };
+}
+
+@entrypoint
+fn main() -> int {
+    let h: Held = Hold(Tagged { s = "payload", n = 1 });
+    let got = payload_of(&h);
+    return got.n - 1;
+}

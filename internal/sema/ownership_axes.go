@@ -38,45 +38,35 @@ import "surge/internal/types"
 // ownsHeap reports whether a value of this type carries heap storage that scope
 // exit must reclaim. Answers question 3 above.
 //
-// Present definition: a value that is not a borrow. A reference or raw pointer
-// names storage it does not own, so dropping one would free a value the holder
-// never owned.
+// The answer follows the STORAGE MODEL (docs/runtime-v2-epics/23-storage-model-
+// and-typed-carrier-abi.md), one family at a time:
 //
-// Being Copy is NOT an answer to this question, and two type families prove it:
-// a reference-counted scalar and a VALUE COMPOSITE are both duplicable at the
-// surface and both carry storage underneath. For the composite that is a
-// property of the implementation rather than the language — a struct, tuple,
-// union or fixed array is a value and should live inline — but while it is a
-// heap box, the box has to be reclaimed by whoever holds it, and there are as
-// many holders as there are copies.
+//   - a reference-counted scalar owns its counted block. It is Copy AND
+//     heap-owning at once — the whole reason these are separate axes — so it is
+//     asked first, before any Copy answer can swallow it;
+//   - a borrow (`&T`, `&mut T`, `*T`) names storage it does not own, so
+//     dropping one would free a value the holder never owned;
+//   - a VALUE COMPOSITE — struct, tuple, union, fixed array — lives inline and
+//     owns exactly what its members own: heap iff at least one field, tuple
+//     element, union member or tag payload, or array element owns heap,
+//     recursively. `@copy type Pair = { a: int, b: int }` owns nothing;
+//     `@copy type Pf = { a: float, b: float }` owns two counted blocks;
+//     `type Tagged = { s: string, n: int }` owns a string;
+//   - anything else is a HANDLE — string, dynamic array, map, task, channel,
+//     the opaque runtime resources — and owns heap iff it is not Copy.
+//
+// A value composite used to answer YES whatever its fields held, because it
+// was a heap box and the box had to be reclaimed by whoever held it. The box is
+// gone (`types.IsValueComposite` says "INLINE"; the VM's `cellComposite` and
+// the backend's `storageFactsOf` agree), and the backend's structural leg
+// (`Emitter.typeOwnsHeap`) had already switched to the walk — this leg lagged,
+// and the lag was RV2-DEBT-256: SEM3197 refused handing a `@copy` pair of ints
+// out of a borrowed `compare` over storage nobody could double-free.
 func (tc *typeChecker) ownsHeap(id types.TypeID) bool {
 	if id == types.NoTypeID || tc.types == nil {
 		return false
 	}
-	resolved := tc.resolveAlias(id)
-	// A reference-counted scalar is Copy AND heap-owning at once — the whole
-	// reason these are separate axes. Ask first, so the Copy answer below does
-	// not swallow it.
-	if tc.types.IsRefCountedScalar(resolved) {
-		return true
-	}
-	// Asked before the Copy answer for the same reason: a Copy composite owns
-	// its box, and letting `IsCopy` answer would leak one per value.
-	if tc.types.IsValueComposite(resolved) {
-		return true
-	}
-	if tc.isCopyType(id) {
-		return false
-	}
-	tt, ok := tc.types.Lookup(resolved)
-	if !ok {
-		return false
-	}
-	switch tt.Kind {
-	case types.KindReference, types.KindPointer:
-		return false
-	}
-	return true
+	return ownsHeapIn(tc.types, tc.isCopyType, id)
 }
 
 // OwnsHeap is the post-check leg of tc.ownsHeap, for MIR lowering and the
@@ -85,24 +75,106 @@ func (r *Result) OwnsHeap(id types.TypeID) bool {
 	if r == nil || r.TypeInterner == nil || id == types.NoTypeID {
 		return false
 	}
-	resolved := resolveAlias(r.TypeInterner, id)
-	if r.TypeInterner.IsRefCountedScalar(resolved) {
-		return true
-	}
-	if r.TypeInterner.IsValueComposite(resolved) {
-		return true
-	}
-	if r.IsCopyType(id) {
+	return ownsHeapIn(r.TypeInterner, r.IsCopyType, id)
+}
+
+// OwnsHeapIn is the interner-only leg of the same axis, for passes that run
+// past sema's checker and hold no Result — HIR normalization asks it when it
+// decides whether a compare arm's ignored payload has anything to release.
+//
+// The Copy leg here is the interner's own bit. Every `@copy` declaration marks
+// it (`recordTypeAttrs` → `MarkCopyType`) in the same step that records the
+// attribute sema's leg reads, so the three legs answer alike;
+// `TestOwnsHeapLegsAgree` walks the interner and holds them to it.
+func OwnsHeapIn(in *types.Interner, id types.TypeID) bool {
+	if in == nil || id == types.NoTypeID {
 		return false
 	}
-	tt, ok := r.TypeInterner.Lookup(resolved)
+	return ownsHeapIn(in, func(t types.TypeID) bool { return in.IsCopy(resolveAlias(in, t)) }, id)
+}
+
+// ownsHeapIn is the one structural answer behind the three legs. isCopy is the
+// leg's Copy authority, and it is consulted only for the handle families —
+// a composite's answer comes from its members, never from its own Copy bit.
+func ownsHeapIn(in *types.Interner, isCopy func(types.TypeID) bool, id types.TypeID) bool {
+	return ownsHeapWalk(in, isCopy, id, make(map[types.TypeID]struct{}))
+}
+
+func ownsHeapWalk(in *types.Interner, isCopy func(types.TypeID) bool, id types.TypeID, seen map[types.TypeID]struct{}) bool {
+	if id == types.NoTypeID {
+		return false
+	}
+	resolved := resolveAlias(in, id)
+	if in.IsRefCountedScalar(resolved) {
+		return true
+	}
+	tt, ok := in.Lookup(resolved)
 	if !ok {
 		return false
 	}
 	switch tt.Kind {
 	case types.KindReference, types.KindPointer:
 		return false
+	case types.KindOwn:
+		// `own T` is T with a transfer obligation; what it owns is T's to say.
+		return ownsHeapWalk(in, isCopy, tt.Elem, seen)
 	}
+	if !in.IsValueComposite(resolved) {
+		return !isCopy(resolved)
+	}
+	if _, ok := seen[resolved]; ok {
+		// A recursive type reached itself: this edge contributes nothing and
+		// the answer comes from its other members.
+		return false
+	}
+	seen[resolved] = struct{}{}
+	if elem, _, isFixed := in.ArrayFixedInfo(resolved); isFixed {
+		return ownsHeapWalk(in, isCopy, elem, seen)
+	}
+	switch tt.Kind {
+	case types.KindArray:
+		return ownsHeapWalk(in, isCopy, tt.Elem, seen)
+	case types.KindStruct:
+		for _, f := range in.StructFields(resolved) {
+			if ownsHeapWalk(in, isCopy, f.Type, seen) {
+				return true
+			}
+		}
+		return false
+	case types.KindTuple:
+		info, ok := in.TupleInfo(resolved)
+		if !ok || info == nil {
+			return true
+		}
+		for _, el := range info.Elems {
+			if ownsHeapWalk(in, isCopy, el, seen) {
+				return true
+			}
+		}
+		return false
+	case types.KindUnion:
+		// The FULL membership: a bare type member owns whatever its type owns,
+		// and a tag member owns whatever its payloads own. A union whose
+		// membership cannot be read fails CLOSED — a missing release is the
+		// leak nobody notices, a spare one is a validator's to refuse.
+		info, ok := in.UnionInfo(resolved)
+		if !ok || info == nil {
+			return true
+		}
+		for i := range info.Members {
+			m := &info.Members[i]
+			if m.Kind == types.UnionMemberType && ownsHeapWalk(in, isCopy, m.Type, seen) {
+				return true
+			}
+			for _, arg := range m.TagArgs {
+				if ownsHeapWalk(in, isCopy, arg, seen) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	// A composite the walk cannot see into keeps whatever release it had.
 	return true
 }
 

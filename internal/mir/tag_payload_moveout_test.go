@@ -22,7 +22,12 @@ tag Payload(string);
 tag Empty();
 type Slot = Payload(string) | Empty;
 
-@copy type Cell = { a: int, b: int };
+// Cell owns heap through its float: a composite owns what its members own, so a
+// pair of ints would be bits, the cloned envelope would have nothing to
+// release, and the borrowed and duplicated shapes below would rightly collapse
+// into one. The distinction this test pins is only observable on an envelope
+// with something in it.
+@copy type Cell = { a: int, b: float };
 tag Held(Cell);
 tag Absent();
 @copy type Holder = Held(Cell) | Absent;

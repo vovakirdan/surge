@@ -3,7 +3,6 @@
 funcs=1 types=1
 fn main() -> nothing (id=2147483649, sym=2415919105) {
   let b: type#1514 =  { v = 1 }: type#1514
-  drop b
   return
 }
 

@@ -59,6 +59,13 @@ func lowerForOwnership(t *testing.T, src string) (*mir.Module, *types.Interner, 
 	})
 	requireNoDiagErrors(t, bag, "sema")
 	finalizeTestInstantiationClosure(t, typeInterner, &symbolsRes, &semaRes)
+	// The harness compiles without core, so a fixture's `type Task<T> = {
+	// __opaque: int }` is a plain struct of one int to the interner. The driver
+	// marks core's Task, Channel and Range as runtime handles by name
+	// (`diagnose_modules.go`); the same mark here keeps the fixture's Task a
+	// handle the OwnsHeap axis counts as owning, rather than bits the
+	// structural walk finds nothing in.
+	markFixtureRuntimeHandles(typeInterner, &symbolsRes, sharedStrings)
 
 	hirModule, err := hir.Lower(context.Background(), builder, parsed.File, &semaRes, &symbolsRes)
 	if err != nil {
@@ -73,6 +80,25 @@ func lowerForOwnership(t *testing.T, src string) (*mir.Module, *types.Interner, 
 		t.Fatalf("mir lower: %v", err)
 	}
 	return mirMod, typeInterner, &semaRes
+}
+
+func markFixtureRuntimeHandles(typesIn *types.Interner, res *symbols.Result, names *source.Interner) {
+	if typesIn == nil || res == nil || res.Table == nil || res.Table.Scopes == nil || names == nil {
+		return
+	}
+	scope := res.Table.Scopes.Get(res.FileScope)
+	if scope == nil {
+		return
+	}
+	for _, name := range [...]string{"Task", "Channel", "Range"} {
+		for _, id := range scope.NameIndex[names.Intern(name)] {
+			sym := res.Table.Symbols.Get(id)
+			if sym == nil || sym.Kind != symbols.SymbolType || sym.Type == types.NoTypeID {
+				continue
+			}
+			typesIn.MarkRuntimeHandleType(sym.Type)
+		}
+	}
 }
 
 func requireNoDiagErrors(t *testing.T, bag *diag.Bag, stage string) {
@@ -125,7 +151,12 @@ type ownershipEnv struct {
 	str     types.TypeID
 	flt     types.TypeID
 	fltRef  types.TypeID
-	cell    types.TypeID // a @copy value composite
+	// A @copy value composite that OWNS heap through a reference-counted
+	// scalar field. The float is what makes it a fixture: under the OwnsHeap
+	// axis a composite owns what its members own, so a `@copy` pair of ints is
+	// bits with no release to verify, and every clone/alias row below would be
+	// asking about nothing.
+	cell    types.TypeID
 	cellRef types.TypeID
 	dup     types.TypeID // a @copy union: the scrutineeDuplicated shape
 	dupRef  types.TypeID
@@ -140,7 +171,7 @@ tag Payload(string);
 tag Empty();
 type Slot = Payload(string) | Empty;
 
-@copy type Cell = { a: int, b: int };
+@copy type Cell = { a: int, b: float };
 tag Held(Cell);
 tag Absent();
 @copy type Duplicable = Held(Cell) | Absent;

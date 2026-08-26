@@ -122,18 +122,19 @@ func TestCapabilityDroppableAxis(t *testing.T) {
 	})
 }
 
-// TestCapabilityDroppableIsNotOwnsHeap is the requirement-6 disagreement, run
+// TestCapabilityDroppableAgreesWithOwnsHeap is the requirement-6 row, run
 // in-package against a real checker so the two predicates answer about one type
 // in one program.
 //
-// `ownsHeap` — and so today's drop obligations and the backend's drop glue —
-// says a `@copy` struct of two integers owns heap, because it is a heap box
-// while boxes exist. The classifier says the same struct is not carrier
-// droppable, because once it is bytes in a carrier there is nothing to reclaim.
-// Both are right about their own storage model, which is exactly why the
-// classifier is wired into nothing yet: the answers may not be swapped until
-// the storage they describe is.
-func TestCapabilityDroppableIsNotOwnsHeap(t *testing.T) {
+// The two were designed to DISAGREE here while a value composite was a heap
+// box: `ownsHeap` said a `@copy` struct of two integers owned heap (the box),
+// the classifier said the same struct was not carrier droppable (bytes in a
+// carrier, nothing to reclaim), and this test pinned the disagreement so that
+// nobody merged the predicates before the storage moved. The box is gone and
+// the axis answers from the members (RV2-DEBT-256), so the same row now pins
+// the agreement from both sides — a drop obligation on a struct of integers
+// would be a release of bits.
+func TestCapabilityDroppableAgreesWithOwnsHeap(t *testing.T) {
 	tc, _, syms := newContractChecker(t, `
 @copy type Point = { x: int, y: int }
 `)
@@ -146,13 +147,13 @@ func TestCapabilityDroppableIsNotOwnsHeap(t *testing.T) {
 		t.Fatal("Point has no type")
 	}
 
-	if !tc.isDroppableType(point) {
-		t.Fatal("today's drop obligations no longer treat a Copy value composite as owning heap; " +
-			"this test exists to pin the disagreement, so check which side moved")
+	if tc.isDroppableType(point) {
+		t.Fatal("drop obligations treat a Copy struct of two integers as owning heap; " +
+			"the axis answers from the members (ownership_axes.go), so a composite of scalars is bits")
 	}
 	capability := mustClassify(t, mustClassifier(t, tc.result), point)
 	if capability.CarrierDroppable {
-		t.Fatalf("the classifier agreed with ownsHeap about a Copy struct of integers: %+v", capability)
+		t.Fatalf("the classifier calls a Copy struct of integers carrier droppable: %+v", capability)
 	}
 }
 

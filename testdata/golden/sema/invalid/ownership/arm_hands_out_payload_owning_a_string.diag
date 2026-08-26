@@ -1,0 +1,1 @@
+error SEM3197 testdata/golden/sema/invalid/ownership/arm_hands_out_payload_owning_a_string.sg:17:20 cannot hand `p` out of this arm: the compare only borrows the value it was matched against

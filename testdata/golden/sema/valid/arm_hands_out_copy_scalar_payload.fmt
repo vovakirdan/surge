@@ -1,0 +1,24 @@
+// The other half of SEM3197, and the row RV2-DEBT-256 was filed on: an arm may
+// hand out a payload the compare only borrowed when that payload owns no heap.
+// A `@copy` pair of scalars is bits — reading it duplicates them, and there is
+// nothing the caller and the union could both free. The invalid twin varies
+// one condition: the same pair holding a string.
+@copy type Pair = { a: int, b: int };
+
+tag Hold(Pair);
+tag Nothing_();
+type Held = Hold(Pair) | Nothing_;
+
+fn payload_of(h: &Held) -> Pair {
+    return compare *h {
+        Hold(p) => p;
+        _ => Pair { a = 0, b = 0 };
+    };
+}
+
+@entrypoint
+fn main() -> int {
+    let h: Held = Hold(Pair { a = 1, b = 2 });
+    let got = payload_of(&h);
+    return got.a + got.b - 3;
+}

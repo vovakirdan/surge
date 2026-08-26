@@ -14,14 +14,16 @@ import (
 // stored inline in a typed carrier, does releasing the carrier have to run
 // something?
 //
-// This is deliberately NOT `ownsHeap` (ownership_axes.go), and the two are
-// expected to disagree. `ownsHeap` answers the question today's boxed storage
-// asks — is there a box behind this value — so it says yes for every value
-// composite, a `@copy` struct of two integers included, because that struct IS
-// a heap box while boxes exist. Under the target inline model those same two
-// integers are bytes in the carrier with nothing to reclaim, while a struct
-// holding a string is droppable because the string's handle is. Merging the two
-// predicates would either leak the string or emit a drop for the integers.
+// This is deliberately NOT `ownsHeap` (ownership_axes.go), though the two agree
+// now that a value composite lives inline. `ownsHeap` used to answer the
+// question boxed storage asked — is there a box behind this value — so it said
+// yes for every value composite, a `@copy` struct of two integers included; it
+// answers from the members now (RV2-DEBT-256), as this does: those two integers
+// are bytes with nothing to reclaim, while a struct holding a string is
+// droppable because the string's handle is. The predicates stay separate
+// because they are asked of different storage — a carrier's inline bytes here,
+// a binding's scope exit there — and `TestCapabilityDroppableAgreesWithOwnsHeap`
+// holds them to one answer.
 func (c *CapabilityClassifier) evaluateDroppable(
 	id types.TypeID,
 	at capabilityLookup,

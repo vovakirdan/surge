@@ -7,17 +7,28 @@ import (
 )
 
 // The ownership axes were introduced as NAMES for questions `IsCopy` used to
-// answer alone. They still track it everywhere EXCEPT the reference-counted
-// scalars, which are the whole reason the axes are separate: those are Copy at
-// the surface and heap-owning underneath. This walks every type the snippet's
-// interner holds and pins the invariants:
+// answer alone, and OwnsHeap has since parted from it in two places, both
+// pinned here. The reference-counted scalars are Copy at the surface and a
+// counted block underneath. The value composites live inline and own exactly
+// what their members own, so a `@copy` pair of ints is bits and a plain pair
+// holding a string is not. This walks every type the snippet's interner holds
+// and pins the invariants:
 //
-//	OwnsHeap(T) == true                 for a reference-counted scalar
-//	OwnsHeap(T) == true                 for a value composite, Copy or not
-//	OwnsHeap(T) == false                for a borrow, which owns nothing
-//	OwnsHeap(T) == !IsCopy(T)           everywhere else
+//	OwnsHeap(T) == true                       for a reference-counted scalar
+//	OwnsHeap(T) == false                      for a borrow, which owns nothing
+//	OwnsHeap(T) == ContainsRefCountedScalar   for a Copy struct, tuple or fixed
+//	                                          array: its members are all Copy,
+//	                                          so a counted scalar is the only
+//	                                          thing it can own
+//	OwnsHeap(T) == !IsCopy(T)                 everywhere but the composites
 //
-// `float` is the only type in the first row today. When `int` and `uint`
+// The composite rows this cannot state without restating the walk — a
+// move-only struct, a union, a nesting — are pinned by name in
+// TestOwnsHeapFollowsTheMembers. And every type, composite or not, has to
+// answer the same through the interner-only leg (`OwnsHeapIn`), which HIR
+// normalization asks: one axis, one answer.
+//
+// `float` is the only reference-counted scalar today. When `int` and `uint`
 // follow, they join it — and NOTHING ELSE may move. Another shape breaking
 // this means the widening reached a type it was not meant to.
 //
@@ -33,11 +44,14 @@ type Plain = { a: int, b: int };
 @copy
 type CopyPair = { x: uint, y: uint };
 
+@copy
+type CopyCounted = { x: float, y: uint };
+
 type Owning = { name: string };
 
 type Wrapper = { inner: Owning, label: int };
 
-fn probe(r: &int, m: &mut int, s: string, p: Plain, c: CopyPair, o: Owning, w: Wrapper, f: float, arr: int[]) -> int {
+fn probe(r: &int, m: &mut int, s: string, p: Plain, c: CopyPair, cc: CopyCounted, o: Owning, w: Wrapper, f: float, arr: int[], fixed: float[2]) -> int {
     let local: string = s;
     let n: uint = 1;
     return 0;
@@ -48,10 +62,11 @@ fn probe(r: &int, m: &mut int, s: string, p: Plain, c: CopyPair, o: Owning, w: W
 	if res == nil || res.TypeInterner == nil {
 		t.Fatalf("expected a sema result")
 	}
+	in := res.TypeInterner
 
 	checked := 0
 	for id := types.TypeID(1); ; id++ {
-		tt, ok := res.TypeInterner.Lookup(id)
+		tt, ok := in.Lookup(id)
 		if !ok {
 			break
 		}
@@ -60,43 +75,54 @@ fn probe(r: &int, m: &mut int, s: string, p: Plain, c: CopyPair, o: Owning, w: W
 		copyable := res.IsCopyType(id)
 		// A reference-counted scalar is Copy but ships a pointer to a block
 		// with a non-atomic count, so it is not raw-bits transportable until
-		// the boundary installs a deep copy.
+		// the boundary installs a deep copy — and neither is a Copy composite
+		// HOLDING one, because the crossing copy retains the field rather than
+		// deep-copying it (`CopyCounted` is that row).
 		//
-		// A value composite rides again: its bits are still a box pointer, but
-		// each crossing route now gives the far side an owner — a capture is
-		// duplicated at its operand, a channel element at the send, and a
-		// RESULT is a transfer with one owner at a time and needs no copy.
-		// This axis only says whether the bits may travel.
-		wantBits := copyable && !res.TypeInterner.IsRefCountedScalar(id)
+		// Any other value composite rides: each crossing route gives the far
+		// side an owner — a capture is duplicated at its operand, a channel
+		// element at the send, and a RESULT is a transfer with one owner at a
+		// time and needs no copy. This axis only says whether the bits may
+		// travel.
+		wantBits := copyable && !res.ContainsRefCountedScalar(id)
 		if got := res.TriviallyTransportableBits(id); got != wantBits {
 			t.Errorf("type %d (%v): TriviallyTransportableBits=%v, want %v",
 				id, tt.Kind, got, wantBits)
 		}
 
+		got := res.OwnsHeap(id)
+		if leg := OwnsHeapIn(in, id); leg != got {
+			t.Errorf("type %d (%v): OwnsHeap=%v but the interner-only leg says %v — one axis, one answer",
+				id, tt.Kind, got, leg)
+		}
+
 		want := !copyable
 		switch {
-		case res.TypeInterner.IsRefCountedScalar(id):
+		case in.IsRefCountedScalar(id):
 			// Copy at the surface, heap-owning underneath: `let b = a` leaves
 			// both usable, and the block still has to be reclaimed.
 			want = true
 			if !copyable {
 				t.Errorf("type %d (%v): a reference-counted scalar must stay Copy", id, tt.Kind)
 			}
-		case res.TypeInterner.IsValueComposite(id):
-			// The second family in that row, and the one that made the axes
-			// worth splitting twice: a struct, tuple, union or fixed array is a
-			// value the language stores in a heap box. Whether it is Copy says
-			// nothing about who frees the box — every holder does, which is
-			// why a Copy composite is droppable and a Copy scalar is not.
-			want = true
 		case tt.Kind == types.KindReference || tt.Kind == types.KindPointer:
 			// A borrow names storage it does not own. `&mut T` is the shape
 			// that makes this its own clause rather than a restatement of
 			// IsCopy: it is NOT Copy, yet dropping it would free a value the
 			// holder never owned.
 			want = false
+		case in.IsValueComposite(id):
+			if !copyable || tt.Kind == types.KindUnion {
+				// Pinned by name below: a move-only composite's answer IS the
+				// walk, and ContainsRefCountedScalar does not enter unions.
+				continue
+			}
+			// A Copy composite holds only Copy members, and among those only
+			// a reference-counted scalar owns anything — so the crossing
+			// question and the drop question coincide for it, one level down.
+			want = res.ContainsRefCountedScalar(id)
 		}
-		if got := res.OwnsHeap(id); got != want {
+		if got != want {
 			t.Errorf("type %d (%v): OwnsHeap=%v, want %v (IsCopy=%v)",
 				id, tt.Kind, got, want, copyable)
 		}
@@ -154,5 +180,92 @@ fn probe(r: &int, m: &mut int, o: Owning) -> int {
 	}
 	if !sawOwningComposite {
 		t.Errorf("snippet produced no heap-owning struct")
+	}
+}
+
+// The composite half of the axis, pinned as SOURCE SHAPES with the answer the
+// storage model gives each: a value composite owns heap iff one of its members
+// does — a struct field, a tuple element, a union's tag payload, a fixed
+// array's element — recursively, through nesting. Copy says nothing
+// here (`Plain` and `Pair` answer alike), and the reference-counted scalar is
+// the one Copy member that owns (`Pf`, `Mixed`, `[float; 2]`, `(bool, float)`).
+//
+// Every row is asked of both legs, the Result's and the interner-only one.
+func TestOwnsHeapFollowsTheMembers(t *testing.T) {
+	src := `
+@copy type Pair = { a: int, b: int };
+@copy type Pf = { a: float, b: float };
+@copy type Mixed = { flag: bool, f: float };
+type Plain = { a: int, b: int };
+type Tagged = { s: string, n: int };
+@copy type Inner = { x: int };
+@copy type Outer = { inner: Inner, label: int };
+type Deep = { outer: Outer, text: string };
+type Boxed = { items: int[] };
+type Fixed = { cells: float[2] };
+
+tag Hold(Pair);
+tag HoldF(Pf);
+tag HoldS(Tagged);
+tag Nothing_();
+type HeldPair = Hold(Pair) | Nothing_;
+type HeldPf = HoldF(Pf) | Nothing_;
+type HeldTagged = HoldS(Tagged) | Nothing_;
+
+fn probe(p: Pair, pf: Pf, m: Mixed, pl: Plain, tg: Tagged, o: Outer, d: Deep, bx: Boxed, fx: Fixed, hp: HeldPair, hf: HeldPf, ht: HeldTagged, ai: int[3], af: float[2], strs: string[2], ti: (int, int), ts: (int, string), tf: (bool, float)) -> int {
+    return 0;
+}
+`
+	parseBag, semaBag, res := runSemaOnSnippetResult(t, src)
+	requireNoSemaErrors(t, parseBag, semaBag)
+	if res == nil || res.TypeInterner == nil {
+		t.Fatalf("expected a sema result")
+	}
+	in := res.TypeInterner
+
+	rows := map[string]bool{
+		"Pair":          false,
+		"Pf":            true,
+		"Mixed":         true,
+		"Plain":         false,
+		"Tagged":        true,
+		"Outer":         false,
+		"Deep":          true,
+		"Boxed":         true,
+		"Fixed":         true,
+		"HeldPair":      false,
+		"HeldPf":        true,
+		"HeldTagged":    true,
+		"(int, int)":    false,
+		"(int, string)": true,
+		"(bool, float)": true,
+		// A fixed array is the nominal `ArrayFixed<T, const N, N>` to the
+		// interner, and this is how its label spells it.
+		"ArrayFixed<int, const 3, 3>":    false,
+		"ArrayFixed<float, const 2, 2>":  true,
+		"ArrayFixed<string, const 2, 2>": true,
+	}
+	seen := make(map[string]bool, len(rows))
+	for id := types.TypeID(1); ; id++ {
+		if _, ok := in.Lookup(id); !ok {
+			break
+		}
+		label := types.Label(in, id)
+		want, ok := rows[label]
+		if !ok {
+			continue
+		}
+		seen[label] = true
+		if got := res.OwnsHeap(id); got != want {
+			t.Errorf("%s: OwnsHeap=%v, want %v", label, got, want)
+		}
+		if got := OwnsHeapIn(in, id); got != want {
+			t.Errorf("%s: the interner-only leg says OwnsHeap=%v, want %v", label, got, want)
+		}
+	}
+	for label := range rows {
+		if !seen[label] {
+			t.Errorf("%s: the snippet never produced this type, so its row pinned nothing", label)
+		}
 	}
 }

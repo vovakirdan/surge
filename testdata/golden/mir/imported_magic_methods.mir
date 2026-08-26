@@ -23,8 +23,8 @@ fn main:
     L6: type#1511 [owns_heap] name=tmp_call4
     L7: string [owns_heap] name=tmp_owned_temp5
     L8: bool [copy] name=tmp_call6
-    L9: type#1512 [owns_heap] name=flag
-    L10: type#1512 [owns_heap] name=tmp_struct7
+    L9: type#1512 name=flag
+    L10: type#1512 name=tmp_struct7
     L11: bool [copy] name=tmp_call8
     L12: int [copy] name=converted
     L13: int [copy] name=tmp_call9
@@ -39,8 +39,8 @@ fn main:
     L22: type#189 [owns_heap] name=__iter1
     L23: type#189 [owns_heap] name=tmp_call16
     L24: type#189 [owns_heap] name=tmp_iter17
-    L25: type#1528 [owns_heap] name=__next2
-    L26: type#1528 [owns_heap] name=tmp_next18
+    L25: type#1528 name=__next2
+    L26: type#1528 name=tmp_next18
     L27: bool [copy] name=tmp_tagtest19
     L28: int [copy] name=v
     L29: int [copy] name=tmp_payload20
@@ -50,8 +50,8 @@ fn main:
     L33: type#189 [owns_heap] name=__iter3
     L34: type#189 [owns_heap] name=tmp_call23
     L35: type#189 [owns_heap] name=tmp_iter24
-    L36: type#1528 [owns_heap] name=__next4
-    L37: type#1528 [owns_heap] name=tmp_next25
+    L36: type#1528 name=__next4
+    L37: type#1528 name=tmp_next25
     L38: bool [copy] name=tmp_tagtest26
     L39: int [copy] name=typed
     L40: int [copy] name=tmp_payload27
@@ -85,7 +85,6 @@ fn main:
     L11 = call __bool(addr_of L9)
     if copy L11 then bb6 else bb5
   bb5:
-    drop L9
     drop L5
     drop L3
     drop L0
@@ -97,7 +96,6 @@ fn main:
     L15 = call __ne(copy L12, const 7)
     if copy L15 then bb7 else bb8
   bb7:
-    drop L9
     drop L5
     drop L3
     drop L0
@@ -112,7 +110,6 @@ fn main:
     if copy L20 then bb9 else bb10
   bb9:
     drop L16
-    drop L9
     drop L5
     drop L3
     drop L0
@@ -146,7 +143,6 @@ fn main:
     goto bb11
   bb16:
     drop L16
-    drop L9
     drop L5
     drop L3
     drop L0
@@ -180,14 +176,12 @@ fn main:
     goto bb18
   bb23:
     drop L16
-    drop L9
     drop L5
     drop L3
     drop L0
     return const 7
   bb24:
     drop L16
-    drop L9
     drop L5
     drop L3
     drop L0

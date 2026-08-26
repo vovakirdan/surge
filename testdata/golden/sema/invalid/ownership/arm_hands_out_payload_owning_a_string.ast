@@ -1,0 +1,48 @@
+arm_hands_out_payload_owning_a_string.sg (span: 9:1-28:1)
+├─ Item[0]: Type (span: 9:1-9:37)
+│  ├─ Name: Tagged
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: s: string
+│     └─ Field[1]: n: int
+├─ Item[1]: Tag (span: 11:1-11:18)
+│  ├─ Name: Hold
+│  ├─ Visibility: private
+│  └─ Payload: Tagged
+├─ Item[2]: Tag (span: 12:1-12:16)
+│  ├─ Name: Nothing_
+│  └─ Visibility: private
+├─ Item[3]: Type (span: 13:1-13:37)
+│  ├─ Name: Held
+│  ├─ Kind: Union
+│  ├─ Visibility: private
+│  └─ Union:
+│     ├─ Member[0]: Hold(Tagged)
+│     └─ Member[1]: Nothing_
+├─ Item[4]: Fn (span: 15:1-20:2)
+│  ├─ Name: payload_of
+│  ├─ Params: (h: &Held)
+│  ├─ Return: Tagged
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 15:35-20:2)
+│        └─ Stmt[0]: Return (span: 16:5-19:7)
+│           └─ Expr: expr#13: compare *h { 2 arms }
+└─ Item[5]: Fn (span: 22:1-27:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 23:18-27:2)
+         ├─ Stmt[0]: Let (span: 24:5-24:57)
+         │  ├─ Name: h
+         │  ├─ Mutable: false
+         │  ├─ Type: Held
+         │  └─ Value: expr#20: Hold(<ExprKind(22)>)
+         ├─ Stmt[1]: Let (span: 25:5-25:30)
+         │  ├─ Name: got
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#24: payload_of(&h)
+         └─ Stmt[2]: Return (span: 26:5-26:22)
+            └─ Expr: expr#28: (got.n - 1)

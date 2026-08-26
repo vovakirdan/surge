@@ -5,7 +5,7 @@ funcs=7
 fn __bool:
   locals:
     L0: &type#1512 [copy,ref] name=self
-    L1: type#1512 [owns_heap] name=tmp_un1
+    L1: type#1512 name=tmp_un1
     L2: int [copy] name=tmp_field2
     L3: bool [copy] name=tmp_call3
   bb0:

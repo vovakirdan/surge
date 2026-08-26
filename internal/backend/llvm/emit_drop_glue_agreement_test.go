@@ -19,14 +19,14 @@ import (
 // actual reclamation, and what it calls is what really gets released.
 //
 // The comparison is deliberately NOT of the two VERDICTS. `CarrierDroppable`
-// and `ownsHeap` are designed to disagree on verdicts: `evaluateDroppable` in
-// `internal/sema/capability_axes.go` states the disagreement, and
-// `TestCapabilityDroppableIsNotOwnsHeap` pins it — a Copy struct of two
-// integers owns a box today and will own nothing once storage is inline. A test
-// demanding equal booleans would be demanding the design be wrong. What may not
-// differ is the SET OF OWNING LEAVES each side reaches: whatever the verdict,
-// the same strings, counted scalars and container buffers have to be named by
-// both.
+// and `ownsHeap` were designed to disagree on verdicts while a composite was a
+// box — a Copy struct of two integers owned the box and nothing else — and a
+// test demanding equal booleans would have demanded the design be wrong for
+// that whole period. They agree now that storage is inline
+// (`TestCapabilityDroppableAgreesWithOwnsHeap` in `internal/sema` pins it),
+// and this leg still compares what it always did. What may not differ is the
+// SET OF OWNING LEAVES each side reaches: whatever the verdict, the same
+// strings, counted scalars and container buffers have to be named by both.
 //
 // It is also deliberately not a query against `dropGlueNeeded`. That map is
 // written by `requireDropGlue` unconditionally, for every type anyone mentions,

@@ -4,34 +4,26 @@ funcs=2
 
 fn __eq:
   locals:
-    L0: type#1511 [copy,owns_heap] name=self
-    L1: type#1511 [copy,owns_heap] name=other
+    L0: type#1511 [copy] name=self
+    L1: type#1511 [copy] name=other
     L2: uint64 [copy] name=tmp_field1
     L3: uint64 [copy] name=tmp_field2
     L4: bool [copy] name=tmp_call3
-    L5: bool [copy] name=tmp_retval4
   bb0:
     L2 = field copy L0.value
     L3 = field copy L1.value
     L4 = call __eq(copy L2, copy L3)
-    L5 = copy L4
-    drop L1
-    drop L0
-    return copy L5
+    return copy L4
 
 fn __ne:
   locals:
-    L0: type#1511 [copy,owns_heap] name=self
-    L1: type#1511 [copy,owns_heap] name=other
+    L0: type#1511 [copy] name=self
+    L1: type#1511 [copy] name=other
     L2: uint64 [copy] name=tmp_field1
     L3: uint64 [copy] name=tmp_field2
     L4: bool [copy] name=tmp_call3
-    L5: bool [copy] name=tmp_retval4
   bb0:
     L2 = field copy L0.value
     L3 = field copy L1.value
     L4 = call __ne(copy L2, copy L3)
-    L5 = copy L4
-    drop L1
-    drop L0
-    return copy L5
+    return copy L4

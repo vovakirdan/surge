@@ -6,17 +6,17 @@ fn add:
   locals:
     L0: &type#1511 [copy,ref] name=self
     L1: &type#1511 [copy,ref] name=other
-    L2: type#1511 [owns_heap] name=tmp_un1
+    L2: type#1511 name=tmp_un1
     L3: int [copy] name=tmp_field2
-    L4: type#1511 [owns_heap] name=tmp_un3
+    L4: type#1511 name=tmp_un3
     L5: int [copy] name=tmp_field4
     L6: int [copy] name=tmp_call5
-    L7: type#1511 [owns_heap] name=tmp_un6
+    L7: type#1511 name=tmp_un6
     L8: int [copy] name=tmp_field7
-    L9: type#1511 [owns_heap] name=tmp_un8
+    L9: type#1511 name=tmp_un8
     L10: int [copy] name=tmp_field9
     L11: int [copy] name=tmp_call10
-    L12: type#1511 [owns_heap] name=tmp_struct11
+    L12: type#1511 name=tmp_struct11
   bb0:
     L2 = (* copy L0)
     L3 = field copy L2.x
@@ -33,16 +33,15 @@ fn add:
 
 fn main:
   locals:
-    L0: type#1511 [owns_heap] name=p1
-    L1: type#1511 [owns_heap] name=tmp_struct1
-    L2: type#1511 [owns_heap] name=p2
-    L3: type#1511 [owns_heap] name=tmp_struct2
-    L4: type#1511 [owns_heap] name=p3
-    L5: type#1511 [owns_heap] name=tmp_call3
+    L0: type#1511 name=p1
+    L1: type#1511 name=tmp_struct1
+    L2: type#1511 name=p2
+    L3: type#1511 name=tmp_struct2
+    L4: type#1511 name=p3
+    L5: type#1511 name=tmp_call3
     L6: int [copy] name=tmp_field4
     L7: int [copy] name=tmp_field5
     L8: int [copy] name=tmp_call6
-    L9: int [copy] name=tmp_retval7
   bb0:
     L1 = struct_lit type#1511 {x=const 1, y=const 2}
     L0 = move L1
@@ -53,8 +52,4 @@ fn main:
     L6 = field copy L4.x
     L7 = field copy L4.y
     L8 = call __add(copy L6, copy L7)
-    L9 = copy L8
-    drop L4
-    drop L2
-    drop L0
-    return copy L9
+    return copy L8

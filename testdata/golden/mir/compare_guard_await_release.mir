@@ -7,8 +7,8 @@ fn inc:
     L0: int [copy] name=x
     L1: uint [copy] name=__scope
     L2: int [copy] name=tmp_call1
-    L3: type#1519 [owns_heap] name=__state_init
-    L4: type#1518 [owns_heap] name=__payload_init
+    L3: type#1519 name=__state_init
+    L4: type#1518 name=__payload_init
     L5: type#1511 [owns_heap] name=__task
   bb0:
     L4 = call Pc0(copy L0)
@@ -22,9 +22,9 @@ fn inc$poll:
     L1: uint [copy] name=__scope
     L2: int [copy] name=tmp_call1
     L3: bool [copy] name=__scope_join_failed
-    L4: type#1519 [owns_heap] name=__state
+    L4: type#1519 name=__state
     L5: int [copy] name=__pc
-    L6: type#1518 [owns_heap] name=__payload
+    L6: type#1518 name=__payload
     L7: bool [copy] name=__pc_match
   bb0:
     L2 = call __add(copy L0, const 1)
@@ -72,8 +72,8 @@ fn slow:
     L0: int [copy] name=n
     L1: uint [copy] name=__scope
     L2: bool [copy] name=tmp_call1
-    L3: type#1521 [owns_heap] name=__state_init
-    L4: type#1520 [owns_heap] name=__payload_init
+    L3: type#1521 name=__state_init
+    L4: type#1520 name=__payload_init
     L5: type#1513 [owns_heap] name=__task
   bb0:
     L4 = call Pc0(copy L0)
@@ -87,9 +87,9 @@ fn slow$poll:
     L1: uint [copy] name=__scope
     L2: bool [copy] name=tmp_call1
     L3: bool [copy] name=__scope_join_failed
-    L4: type#1521 [owns_heap] name=__state
+    L4: type#1521 name=__state
     L5: int [copy] name=__pc
-    L6: type#1520 [owns_heap] name=__payload
+    L6: type#1520 name=__payload
     L7: bool [copy] name=__pc_match
   bb0:
     L2 = call __gt(copy L0, const 0)
@@ -142,14 +142,14 @@ fn test:
     L5: type#1513 [owns_heap] name=tmp_call3
     L6: type#1513 [owns_heap] name=tmp_spawn4
     L7: int [copy] name=tmp_block5
-    L8: type#1516 [owns_heap] name=__cmp2
-    L9: type#1516 [owns_heap] name=tmp_await6
+    L8: type#1516 name=__cmp2
+    L9: type#1516 name=tmp_await6
     L10: bool [copy] name=tmp_tagtest7
     L11: int [copy] name=x
     L12: int [copy] name=tmp_payload8
     L13: bool [copy] name=tmp_block9
-    L14: type#1517 [owns_heap] name=__cmp1
-    L15: type#1517 [owns_heap] name=tmp_await10
+    L14: type#1517 name=__cmp1
+    L15: type#1517 name=tmp_await10
     L16: bool [copy] name=tmp_tagtest11
     L17: bool [copy] name=v
     L18: bool [copy] name=tmp_payload12
@@ -176,14 +176,14 @@ fn test$poll:
     L5: type#1513 [owns_heap] name=tmp_call3
     L6: type#1513 [owns_heap] name=tmp_spawn4
     L7: int [copy] name=tmp_block5
-    L8: type#1516 [owns_heap] name=__cmp2
-    L9: type#1516 [owns_heap] name=tmp_await6
+    L8: type#1516 name=__cmp2
+    L9: type#1516 name=tmp_await6
     L10: bool [copy] name=tmp_tagtest7
     L11: int [copy] name=x
     L12: int [copy] name=tmp_payload8
     L13: bool [copy] name=tmp_block9
-    L14: type#1517 [owns_heap] name=__cmp1
-    L15: type#1517 [owns_heap] name=tmp_await10
+    L14: type#1517 name=__cmp1
+    L15: type#1517 name=tmp_await10
     L16: bool [copy] name=tmp_tagtest11
     L17: bool [copy] name=v
     L18: bool [copy] name=tmp_payload12
@@ -222,7 +222,6 @@ fn test$poll:
     L13 = copy L17
     goto bb3
   bb5:
-    drop L14
     L13 = const false
     goto bb3
   bb6:
@@ -232,12 +231,10 @@ fn test$poll:
     L7 = copy L11
     goto bb15
   bb8:
-    drop L8
     L21 = const 0
     drop L4
     goto bb10
   bb9:
-    drop L8
     L22 = call default()
     L7 = copy L22
     goto bb15
