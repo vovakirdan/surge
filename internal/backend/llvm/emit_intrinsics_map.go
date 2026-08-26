@@ -259,8 +259,13 @@ func (fe *funcEmitter) emitMapKeys(call *mir.CallInstr) error {
 	if err != nil {
 		return err
 	}
+	duplicate, err := fe.mapKeysDuplication(keyType)
+	if err != nil {
+		return err
+	}
 	tmp := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_map_keys(ptr %s, i64 %d, i64 %d)\n", tmp, handle, elemSize, elemAlign)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_map_keys(ptr %s, i64 %d, i64 %d, ptr %s)\n",
+		tmp, handle, elemSize, elemAlign, duplicate)
 	if call.HasDst {
 		ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 		if err != nil {
@@ -399,6 +404,35 @@ func (fe *funcEmitter) mapEntryValueOps(mapType types.TypeID) (keyOps, valueOps 
 		return "", "", err
 	}
 	return keyOps, valueOps, nil
+}
+
+// mapKeysDuplication names the body that gives the keys array its OWN copy of
+// one key, or "null" when the key's bytes are the whole value.
+//
+// keys() answers with an INDEPENDENT owning array, which is what makes walking
+// it while removing from the map safe -- the shape stdlib/json/stringify.sg
+// takes. Copying the bytes of a heap-owning key instead would put the array and
+// the map on one block, and the map's teardown would free what the array still
+// held.
+//
+// The recipe is the call site's, not the key descriptor's clone_init, for the
+// reason rt_value_duplicate_detached exists: this duplication is an obligation
+// the OPERATION takes on, the same way cloning a task handle takes on serving a
+// second asker.
+func (fe *funcEmitter) mapKeysDuplication(keyType types.TypeID) (string, error) {
+	if !fe.emitter.typeOwnsHeap(keyType) {
+		return "null", nil
+	}
+	if !fe.emitter.canDuplicateValue(keyType) {
+		// Unreachable while a key may only be a string or an integer, and
+		// stated rather than assumed: a key type that owns heap and cannot be
+		// duplicated has no honest answer for keys(), and a byte copy is not
+		// one.
+		return "", fmt.Errorf(
+			"map key type#%d owns heap and cannot be duplicated, so keys() cannot answer with an independent array",
+			keyType)
+	}
+	return "@" + fe.emitter.requireCloneGlue(keyType), nil
 }
 
 func (e *Emitter) mapEntrySideOps(id types.TypeID) (string, error) {

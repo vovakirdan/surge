@@ -397,7 +397,22 @@ bool rt_map_get_ref(void* map, const void* key, void** out_value);
 bool rt_map_get_mut(void* map, const void* key, void** out_value);
 bool rt_map_insert(void* map, void* key, void* value, void* previous);
 bool rt_map_remove(void* map, const void* key, void* removed);
-void* rt_map_keys(const void* map, uint64_t elem_size, uint64_t elem_align);
+// Answers with an INDEPENDENT owning array of the keys. `duplicate` is the
+// compiler's recipe for giving the array its own copy of one key; NULL means
+// the key carries no obligation and its bytes are the whole value. It is the
+// call site's recipe and not the key descriptor's clone, because duplicating a
+// key here is an obligation this operation takes on rather than a property of
+// the key type.
+void* rt_map_keys(const void* map,
+                  uint64_t elem_size,
+                  uint64_t elem_align,
+                  rt_value_clone_init_fn duplicate);
+// Reclaims a map: destroys every live key and value through the map's own two
+// descriptors, then the entry storage, then the header. Callers must already
+// know no other holder can reach this map -- it is reached from generated drop
+// glue, where the language has proven exactly that. A null handle is a dropped
+// slot that never held one, and is not an error.
+void rt_map_free(void* map);
 
 void* rt_scope_enter(bool failfast);
 void rt_scope_register_child(const void* scope, void* task);

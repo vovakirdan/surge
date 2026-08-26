@@ -363,9 +363,12 @@ func (e *Emitter) memberNeedsCloneFixup(resolved types.TypeID) bool {
 // either owns nothing (its bits are the value), owns bytes that rt_string_clone
 // duplicates, or shares a counted block that a reference makes safe.
 //
-// A map is a yes for the same reason a drop of one reclaims nothing: the
-// language has no reclamation for it yet, so a copy that shares it is exactly
-// as owned as the original.
+// A map is a no for the same reason, and it became one the moment a dropped map
+// started reclaiming its storage. While nothing freed a map, a copy that shared
+// the handle was exactly as owned as the original and cost nothing; now the two
+// holders would free one map twice. Duplicating the entries instead is a real
+// operation and a later one -- what this answers today is that no caller may
+// assume it happened.
 func (e *Emitter) canDuplicateValue(id types.TypeID) bool {
 	return e.canDuplicateValueRec(id, map[types.TypeID]struct{}{})
 }
@@ -390,6 +393,9 @@ func (e *Emitter) canDuplicateValueRec(id types.TypeID, seen map[types.TypeID]st
 	seen[id] = struct{}{}
 
 	if _, dynamic, isArray := arrayElemType(e.types, id); isArray && dynamic {
+		return false
+	}
+	if _, _, isMap := e.types.MapInfo(id); isMap {
 		return false
 	}
 	if elem, _, ok := arrayFixedInfo(e.types, id); ok {

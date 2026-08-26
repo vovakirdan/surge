@@ -104,6 +104,7 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 	isRefCounted := typesIn.IsRefCountedScalar(resolveValueType(typesIn, baseType))
 	isString := isStringLike(typesIn, baseType)
 	isFarChan := isFarChannelType(typesIn, baseType)
+	_, _, isMap := typesIn.MapInfo(baseType)
 	elemType, dynamic, isArray := arrayElemType(typesIn, baseType)
 	dynArray := isArray && dynamic
 	// A `Range` is a handle to a heap object exactly as the four above are, and
@@ -119,7 +120,7 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 	// LIVE handle never reaches an ordinary scope exit; what reaches here is
 	// unwinding, and unwinding must not leak.
 	isTask := isTaskType(typesIn, baseType)
-	if !isRefCounted && !isString && !dynArray && !isFarChan && !isRange && !isTask {
+	if !isRefCounted && !isString && !dynArray && !isFarChan && !isRange && !isTask && !isMap {
 		return nil
 	}
 	ptr, ptrTy, align, err := fe.emitPlaceStorage(ins.Drop.Place)
@@ -145,6 +146,8 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_task_handle_drop(ptr %s)\n", handle)
 	case dynArray:
 		fe.emitter.emitDropDynArray(handle, elemType)
+	case isMap:
+		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_map_free(ptr %s)\n", handle)
 	case isRange:
 		fe.emitRangeObjectFree(handle)
 	}

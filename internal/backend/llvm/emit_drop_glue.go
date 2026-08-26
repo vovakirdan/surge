@@ -85,6 +85,13 @@ func (e *Emitter) typeOwnsHeapRec(id types.TypeID, seen map[types.TypeID]struct{
 	if isTaskType(e.types, id) {
 		return true
 	}
+	// A map owns its entry storage and every key and value in it, and until
+	// this arm existed it answered NO: no glue was emitted, so a dropped map
+	// reclaimed nothing at all and neither did a struct holding one
+	// (RV2-DEBT-156).
+	if _, _, isMap := e.types.MapInfo(id); isMap {
+		return true
+	}
 	if elem, _, ok := arrayFixedInfo(e.types, id); ok {
 		return e.typeOwnsHeapRec(elem, seen)
 	}
@@ -262,6 +269,12 @@ func (e *Emitter) emitDropHandle(val string, ty types.TypeID) {
 	}
 	if elem, dynamic, isArray := arrayElemType(e.types, ty); isArray && dynamic {
 		e.emitDropDynArray(val, elem)
+		return
+	}
+	if _, _, isMap := e.types.MapInfo(ty); isMap {
+		// The map destroys its own keys and values through its own
+		// descriptors, so this end of the drop names no element type.
+		fmt.Fprintf(&e.buf, "  call void @rt_map_free(ptr %s)\n", val)
 		return
 	}
 	if _, isRange := rangeElemType(e.types, ty); isRange {

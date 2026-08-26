@@ -397,7 +397,22 @@ bool rt_map_remove(void* map_ptr, const void* key, void* removed) {
     return true;
 }
 
-void* rt_map_keys(const void* map_ptr, uint64_t elem_size, uint64_t elem_align) {
+// Builds an independent owning array of this map's keys.
+//
+// WHY A RECIPE AND NOT THE DESCRIPTOR'S CLONE. The array does not become a
+// second owner of the map's keys; it becomes the owner of its own. Which body
+// makes that copy is decided by the operation, not by the key's type, which is
+// the same distinction rt_task_clone draws for a result. A NULL recipe says the
+// key's bytes ARE the whole value -- an integer key -- so copying them owns
+// nothing new.
+//
+// Without this the array and the map shared one block per heap key, and the
+// map's own teardown freed what the array still held: `keys()` then `remove` in
+// a loop, which is the shape stdlib/json/stringify.sg takes.
+void* rt_map_keys(const void* map_ptr,
+                  uint64_t elem_size,
+                  uint64_t elem_align,
+                  rt_value_clone_init_fn duplicate) {
     if (map_ptr == NULL) {
         map_panic("map: null handle");
         return NULL;
@@ -444,8 +459,38 @@ void* rt_map_keys(const void* map_ptr, uint64_t elem_size, uint64_t elem_align) 
     if (data != NULL && map->len > 0) {
         uint8_t* bytes = (uint8_t*)data;
         for (uint64_t i = 0; i < map->len; i++) {
-            memcpy(bytes + (size_t)i * (size_t)stride, map_key_slot(map, i), (size_t)elem_size);
+            void* slot = bytes + (size_t)i * (size_t)stride;
+            if (duplicate != NULL) {
+                rt_value_duplicate_detached(duplicate, slot, map_key_slot(map, i));
+            } else {
+                memcpy(slot, map_key_slot(map, i), (size_t)elem_size);
+            }
         }
     }
     return (void*)header;
+}
+
+void rt_map_free(void* map_ptr) {
+    if (map_ptr == NULL) {
+        return;
+    }
+    SurgeMap* map = (SurgeMap*)map_ptr;
+    // Every live entry, exactly once each, and outside any owner lock -- which
+    // for a map means outside a scheduler or shard lock, since a map has none
+    // of its own. The length is cleared first so a drop body that somehow
+    // reached this map again would find it empty rather than find the entry it
+    // is in the middle of destroying.
+    uint64_t live = map->len;
+    map->len = 0;
+    for (uint64_t i = 0; i < live; i++) {
+        rt_value_drop_in_place_detached(map->key_ops, map_key_slot(map, i));
+        rt_value_drop_in_place_detached(map->value_ops, map_value_slot(map, i));
+    }
+    if (map->storage != NULL) {
+        rt_free(map->storage, map->storage_size, map->storage_align);
+        map->storage = NULL;
+        map->storage_size = 0;
+        map->cap = 0;
+    }
+    rt_free((uint8_t*)map, (uint64_t)sizeof(SurgeMap), (uint64_t)alignof(SurgeMap));
 }
