@@ -50,6 +50,7 @@ void* __task_create( // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dc
     atomic_store_explicit(&task->far_task_result_state, 0, memory_order_relaxed);
     atomic_store_explicit(&task->far_task_result_lease, NULL, memory_order_relaxed);
     atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);
+    rt_task_entitlements_init(&task->entitlements);
 
     rt_task* parent = rt_current_task();
     if (parent != NULL) {
@@ -413,17 +414,11 @@ void* rt_task_clone(void* task, rt_value_clone_init_fn duplicate) {
     if (target == NULL) {
         return NULL;
     }
-    // From here on two handles can ask for one result, so the result stops
-    // being the first asker's and becomes the task's: everyone is served an
-    // independent value built by this duplication, and the task's own slot
-    // destroys the original. A far-carried result keeps its once-only lease
-    // answer, which refuses a second asker rather than reclaiming under one.
-    //
-    // Only the FIRST clone writes, which is what makes the write safe to leave
-    // unserialized: it runs while its source is the only handle in existence,
-    // so no take can be reading and no later clone changes the answer.
-    target->result_shared = 1;
-    target->result_duplicate = duplicate;
+    // One more handle that can ask, recorded under the owner lock together
+    // with the recipe a second asker is served by. A far-carried result keeps
+    // its once-only lease answer, which refuses a second asker rather than
+    // reclaiming under one.
+    rt_task_entitlement_clone(ensure_exec(), target, duplicate);
     // S5-Q6: drops control unconditionally, not a rare
     // fallback - task_add_ref is a relaxed atomic increment, and the caller
     // already holds a live handle to target (the handle being cloned), so
@@ -457,6 +452,7 @@ static rt_task* spawn_internal_task_locked(rt_executor* ex, uint8_t kind, uint64
     atomic_store_explicit(&task->far_task_result_state, 0, memory_order_relaxed);
     atomic_store_explicit(&task->far_task_result_lease, NULL, memory_order_relaxed);
     atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);
+    rt_task_entitlements_init(&task->entitlements);
     rt_task_inherit_placement(task, rt_current_task());
     rt_task_assign_spawn_owner(task);
     rt_task_slot_store(ex, id, task);

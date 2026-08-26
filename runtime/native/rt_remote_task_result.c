@@ -82,54 +82,82 @@ uint8_t rt_far_task_take_result(rt_task* producer, rt_task* holder, void* out_ds
     if (kind != 1) {
         return kind;
     }
-    // Serving a result does not always consume it. WHICH of the three it is is
-    // decided by what this value can do, not by who is asking:
+    // Serving a result does not always consume it. WHICH of the four it is is
+    // decided by the task's entitlement counts and by what the value can do,
+    // under the owner lock and never from the handle refcount:
     //
-    //   a second asker exists  -> the duplication the handle clone installed
-    //                             builds this asker an independent value and
-    //                             the slot keeps its own, so a later asker
-    //                             still has one to read;
-    //   owns nothing           -> the bytes ARE the value. Copying them
-    //                             reclaims nothing and leaves nothing behind,
-    //                             which is why two joiners polling one task
-    //                             both read the same word;
-    //   owns something         -> exactly one asker may have it, so the take is
-    //                             a move and the slot is left with nothing to
-    //                             destroy.
+    //   owns nothing         -> the bytes ARE the value. Copying them
+    //                           reclaims nothing and leaves nothing behind,
+    //                           which is why two joiners polling one task
+    //                           both read the same word;
+    //   a later asker can    -> the duplication the handle clone installed
+    //   still come              builds this asker an independent value and
+    //                           the slot keeps its own for that asker;
+    //   the last asker       -> the value MOVES out, which is what makes a
+    //                           cohort of E handles cost E-1 duplications and
+    //                           one move (§10); a task nobody cloned is asked
+    //                           once, and its first asker is already the last.
     //
-    // The far path is deliberately excluded from the first two: a result that
-    // came back from another shard is carried in a lease exactly one holder may
-    // adopt, and that lease is its own answer to "who gets this".
-    if (!result_is_far_carried(producer) && rt_value_cell_is_ready(&producer->result)) {
+    // The far path is deliberately excluded: a result that came back from
+    // another shard is carried in a lease exactly one holder may adopt, and
+    // that lease is its own answer to "who gets this".
+    if (!result_is_far_carried(producer)) {
+        rt_executor* ex = ensure_exec();
         const rt_value_ops* operations = producer->result.operations;
-        if (producer->result_shared && producer->result_duplicate != NULL) {
-            if (out_dst != NULL) {
-                rt_value_duplicate_detached(
-                    producer->result_duplicate, out_dst, rt_value_cell_value(&producer->result));
+        int has_value = rt_value_cell_is_ready(&producer->result);
+        int droppable = operations != NULL && (operations->layout.flags & RT_VALUE_FLAG_DROPPABLE) != 0;
+        rt_task_take_mode mode = rt_task_entitlement_begin_take(ex, producer, has_value, droppable);
+        switch (mode) {
+            case RT_TASK_TAKE_COPY:
+                if (out_dst != NULL) {
+                    rt_value_cell_copy_value(&producer->result, out_dst);
+                }
+                break;
+            case RT_TASK_TAKE_CLONE:
+                if (out_dst != NULL) {
+                    rt_value_duplicate_detached(producer->entitlements.duplicate,
+                                                out_dst,
+                                                rt_value_cell_value(&producer->result));
+                }
+                break;
+            case RT_TASK_TAKE_MOVE: {
+                // The obligation is the caller's from here, and the slot is
+                // left with nothing to destroy.
+                void* value = rt_value_cell_value(&producer->result);
+                if (out_dst != NULL) {
+                    rt_value_move_init_detached(operations, out_dst, value);
+                } else {
+                    rt_value_drop_in_place_detached(operations, value);
+                }
+                (void)rt_value_cell_commit_move(&producer->result);
+                break;
             }
-            return kind;
+            case RT_TASK_TAKE_REFUSED:
+                // An owning result that more than one handle can ask for,
+                // whose type carries no duplication at all. Only a dynamic
+                // array reaches here: duplicating a buffer is not an
+                // operation the runtime offers, and answering a later asker
+                // with the same buffer would give two of them one thing to
+                // free. Refused at the moment the extra asker arrives, as the
+                // old representation refused it; the compile-time refusal is
+                // Wave F's.
+                rt_task_entitlement_finish_take(ex, producer, mode);
+                panic_msg("async: a cloned task handle cannot be served a result "
+                          "that cannot be duplicated");
+                return 2;
+            case RT_TASK_TAKE_NONE:
+            case RT_TASK_TAKE_WAIT:
+                break;
         }
-        if ((operations->layout.flags & RT_VALUE_FLAG_DROPPABLE) == 0) {
-            if (out_dst != NULL) {
-                rt_value_cell_copy_value(&producer->result, out_dst);
-            }
-            return kind;
+        rt_task_entitlement_finish_take(ex, producer, mode);
+        if (mode == RT_TASK_TAKE_NONE && has_value == 0) {
+            // Nothing to hand over: either this task published no value, or an
+            // earlier asker moved the only one out. Both answer "gone" rather
+            // than Success, because Success here would promise a payload that
+            // the caller's storage does not hold.
+            return rt_value_cell_was_taken(&producer->result) ? 2 : kind;
         }
-        if (producer->result_shared) {
-            // An owning result that more than one handle can ask for, whose
-            // type carries no duplication at all. Only a dynamic array reaches
-            // here: duplicating a buffer is not an operation the runtime
-            // offers, and answering a second asker with the same buffer would
-            // give two of them one thing to free.
-            //
-            // Saying so is where the old representation said it, at the moment
-            // the second asker arrives, because the operation that took on this
-            // obligation is the handle clone and this is the first point that
-            // can see it could not be kept.
-            panic_msg("async: a cloned task handle cannot be served a result "
-                      "that cannot be duplicated");
-            return 2;
-        }
+        return kind;
     }
     if (!rt_far_task_adopt_result(producer, holder)) {
         return 2;

@@ -271,6 +271,7 @@ rt_remote_spawn_status rt_remote_spawn_create_body_task(rt_executor* ex,
     atomic_store_explicit(&task->far_task_result_state, 0, memory_order_relaxed);
     atomic_store_explicit(&task->far_task_result_lease, NULL, memory_order_relaxed);
     atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);
+    rt_task_entitlements_init(&task->entitlements);
     rt_task_set_placement(task, target_shard_id, TASK_PLACEMENT_CONNECTION);
 
     rt_shard* owner = rt_runtime_shard(rt_executor_runtime(ex), target_shard_id);

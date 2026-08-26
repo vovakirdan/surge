@@ -170,6 +170,7 @@ void rt_task_handle_drop(void* task) {
     if (ex == NULL || target == NULL) {
         return;
     }
+    rt_task_entitlement_drop(ex, target);
     task_release_lane_aware(ex, target);
 }
 

@@ -320,6 +320,7 @@ void* rt_blocking_submit(uint64_t fn_id,
     atomic_store_explicit(&task->far_task_result_state, 0, memory_order_relaxed);
     atomic_store_explicit(&task->far_task_result_lease, NULL, memory_order_relaxed);
     atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);
+    rt_task_entitlements_init(&task->entitlements);
     rt_task_slot_store(ex, id, task);
     rt_task* parent = rt_current_task();
     if (parent != NULL) {

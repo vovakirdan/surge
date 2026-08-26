@@ -8,6 +8,7 @@
 #include "rt_runtime_config.h"
 #include "rt_transport.h"
 #include "rt_value_cell.h"
+#include "rt_task_entitlement.h"
 #include "rt_waiter.h"
 #include <pthread.h>
 #include <setjmp.h>
@@ -228,10 +229,9 @@ typedef struct rt_task {
     uint64_t generation;
     int64_t poll_fn_id;
     void* state;
-    // How a SECOND asker is served this task's result, installed by the handle
-    // clone that made a second asker possible. NULL until then, and NULL for a
-    // result that needs no duplication or has none. See rt.h's rt_task_clone.
-    rt_value_clone_init_fn result_duplicate;
+    // Who may still ask for the result, and how a second asker is served:
+    // counts, decided under the owner shard lock, never the handle refcount.
+    rt_task_entitlements entitlements;
     // The one canonical result this task owns, at the width its type asks for.
     // See rt_value_cell.h: the task outlives every handle that can ask for it,
     // a small result lives in the task's own bytes, and a wider one takes the
@@ -254,11 +254,6 @@ typedef struct rt_task {
     void* abandoned_state;
     uint64_t abandoned_state_type_id;
     uint8_t result_kind;
-    // Whether more than one handle can ask for this result. Set by the first
-    // clone, which is what creates a second asker; from then on every asker is
-    // served an independent value built by the descriptor's clone and the slot
-    // keeps the original until the task is freed.
-    uint8_t result_shared;
     atomic_u8 status;
     uint8_t kind;
     uint8_t resume_kind;
