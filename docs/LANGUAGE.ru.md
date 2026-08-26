@@ -1890,26 +1890,32 @@ async {
 
 - Creates `Task<T>` where `T` is the block's result type.
 - The block is a **scope**: tasks are joined before it completes.
+- Значение тела задаёт `ret expr;` — так же, как в теле `on` / `spawn on`.
+  `return` внутри тела отвергается (`SemaTaskBodyReturn`): тело исполняется
+  как отдельная задача, и объемлющей функции, из которой мог бы выйти
+  `return`, у него нет. См. «`ret` и `return` в телах задач» ниже.
 
 **Example:**
 ```sg
-async fn process_all(urls: string[]) -> Data[] {
-    async {
-        let mut tasks: Task<Data>[] = [];
-        for url in urls {
-            tasks.push(spawn fetch(url));
-	        }
-
-	        let mut results: Data[] = [];
-	        // NOTE: await inside loops is supported.
-	        for t in tasks {
-	            compare t.await() {
-	                Success(v) => results.push(v);
-	                Cancelled() => return [];
-            };
-        }
-        return results;
-    }
+async fn process_all(a: string, b: string) -> Data[] {
+    let batch: Task<Data[]> = async {
+        let first: Task<Data> = spawn fetch(a);
+        let second: Task<Data> = spawn fetch(b);
+        let mut results: Data[] = [];
+        compare first.await() {
+            Success(v) => results.push(v);
+            Cancelled() => nothing;
+        };
+        compare second.await() {
+            Success(v) => results.push(v);
+            Cancelled() => nothing;
+        };
+        ret results; // значение тела: batch даёт Data[]
+    };
+    return compare batch.await() {
+        Success(v) => v;
+        Cancelled() => [];
+    };
 }
 ```
 
@@ -1918,16 +1924,50 @@ async fn process_all(urls: string[]) -> Data[] {
 ```sg
 blocking {
     // synchronous, possibly OS-blocking work
-    expr
+    ret value;
 }
 ```
 
+- Тело — это операторы (см. продукцию `Blocking` в грамматике); его значение
+  выходит через `ret value;`. Хвостовое выражение значением тела не является:
+  `blocking { 42 }` отвергается парсером с правкой `ret 42;`
+  (`SynTaskBodyBareValue`), а `return` отвергается sema (`SemaTaskBodyReturn`) —
+  тело исполняется в другом потоке и не может выйти из объемлющей функции.
 - Creates `Task<T>` where `T` is the block's result type.
 - The block runs on the blocking pool in native/LLVM.
 - The VM backend rejects `blocking { ... }` with a diagnostic.
 - Captures are by move/copy only; borrowing captures are currently rejected.
 - Cancellation is best-effort: the awaiting task can stop waiting, but the blocking
   work may still finish in the background.
+
+#### `ret` и `return` в телах задач
+
+`ret` выходит из ближайшего блока, производящего значение, с этим значением;
+`return` выходит из объемлющей функции. Тело `async { ... }` или
+`blocking { ... }` — такой блок, и функцией оно не является: оно исполняется
+как отдельная задача (тело `blocking` — в рабочем потоке), поэтому `return`
+внутри него выйти некуда, и он отвергается, а не читается как `ret` — в теле с
+вложенными блоками эти два выхода должны оставаться различимыми.
+
+```sg
+fn foo() -> int {
+    let a: Task<int> = blocking { ret 1; };      // значение тела: a даёт 1
+    let b: Task<int> = blocking { return 42; };  // ОШИБКА SEM3205: напишите `ret 42;`
+    let c: int = { ret 5; };                     // блок-выражение, как раньше
+    return 0;
+}
+```
+
+Вложенность подчиняется тому же правилу на каждом уровне:
+
+- блок-выражение внутри тела сохраняет свой `ret` — `let v: int = { ret 5; };`
+  даёт значение блока, а не тела; ветка `compare` — тоже блок;
+- тело внутри тела имеет свой выход: `async { let t = async { ret 7; }; ret t; }`;
+- тело без единого `ret` даёт `Task<nothing>`. Там, где ожидается `Task<T>`, это
+  `SemaTaskBodyNoValue`; так же диагностируется тело, часть путей которого
+  доходит до конца без `ret`; тело, последний оператор которого вычисляет и
+  отбрасывает значение (`async { 42; }`), получает предупреждение под тем же
+  кодом с предложением правки `ret`.
 
 #### Structured Concurrency Rules
 
@@ -2770,13 +2810,14 @@ ImportSpec := "*" | Ident ("as" Ident)? | "{" ImportName ("," ImportName)* ","? 
 ImportName := Ident ("as" Ident)?
 Path       := (".." | ".." | Ident) ("/" (".." | ".." | Ident))*
 Block      := "{" Stmt* "}"
-Stmt       := Const | Let | While | For | If | Spawn ";" | Async | Blocking | Expr ";" | Break ";" | Continue ";" | Return ";" | Signal ";"
+Stmt       := Const | Let | While | For | If | Spawn ";" | Async | Blocking | Expr ";" | Break ";" | Continue ";" | Return ";" | Ret ";" | Signal ";"
 Const      := "const" Ident (":" Type)? "=" Expr ";"
 Let        := "let" ("mut")? Ident (":" Type)? ("=" Expr)? ";"
 While      := "while" "(" Expr ")" Block
 For        := "for" "(" Expr? ";" Expr? ";" Expr? ")" Block | "for" Ident (":" Type)? "in" Expr Block
 If         := "if" "(" Expr ")" Block ("else" If | "else" Block)?
 Return     := "return" Expr?
+Ret        := "ret" Expr?          // значение ближайшего блок-выражения, тела `on`/`spawn on`, `async` или `blocking`
 Signal     := "signal" Ident ":=" Expr
 Async      := "async" "{" Stmt* "}"
 Blocking   := "blocking" "{" Stmt* "}"

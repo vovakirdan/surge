@@ -439,7 +439,7 @@ Example:
 
 ```sg
 let t = blocking {
-    return read_file(path);
+    ret read_file(path); // `ret` gives the body its value; `return` is refused here
 };
 
 compare t.await() {

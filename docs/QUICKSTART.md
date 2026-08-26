@@ -588,13 +588,15 @@ fn main(values: string[]) {
     let ch = Channel::<int>::new(4:uint);
     let consumer = spawn async {
         let mut sum: int = 0;
-        while true {
+        let mut open: bool = true;
+        while open {
             let v = ch.recv();
             compare v {
                 Some(x) => sum = sum + x;
-                nothing => return sum;
+                nothing => open = false;
             }
         }
+        ret sum; // `ret` gives the body its value; `return` is refused here
     };
 
     async {

@@ -1997,26 +1997,32 @@ async {
 
 - Creates `Task<T>` where `T` is the block's result type.
 - The block is a **scope**: tasks are joined before it completes.
+- The body gives its value with `ret expr;` — the same way an `on` / `spawn on`
+  body does. `return` is refused inside the body (`SemaTaskBodyReturn`): the
+  body runs as its own task, so there is no enclosing function for a `return`
+  to leave. See "`ret` and `return` in task bodies" below.
 
 **Example:**
 ```sg
-async fn process_all(urls: string[]) -> Data[] {
-    async {
-        let mut tasks: Task<Data>[] = [];
-        for url in urls {
-            tasks.push(spawn fetch(url));
-	        }
-
-	        let mut results: Data[] = [];
-	        // NOTE: await inside loops is supported.
-	        for t in tasks {
-	            compare t.await() {
-	                Success(v) => results.push(v);
-	                Cancelled() => return [];
-            };
-        }
-        return results;
-    }
+async fn process_all(a: string, b: string) -> Data[] {
+    let batch: Task<Data[]> = async {
+        let first: Task<Data> = spawn fetch(a);
+        let second: Task<Data> = spawn fetch(b);
+        let mut results: Data[] = [];
+        compare first.await() {
+            Success(v) => results.push(v);
+            Cancelled() => nothing;
+        };
+        compare second.await() {
+            Success(v) => results.push(v);
+            Cancelled() => nothing;
+        };
+        ret results; // the body's value: batch yields Data[]
+    };
+    return compare batch.await() {
+        Success(v) => v;
+        Cancelled() => [];
+    };
 }
 ```
 
@@ -2025,18 +2031,50 @@ async fn process_all(urls: string[]) -> Data[] {
 ```sg
 blocking {
     // synchronous, possibly OS-blocking work
-    return value;
+    ret value;
 }
 ```
 
-- The body is statements (see the `Blocking` production in the grammar); the
-  result leaves through `return`, not through a trailing expression.
+- The body is statements (see the `Blocking` production in the grammar); its
+  value leaves through `ret value;`. A trailing expression is not the body's
+  value: `blocking { 42 }` is refused by the parser with the edit `ret 42;`
+  (`SynTaskBodyBareValue`), and `return` is refused by sema
+  (`SemaTaskBodyReturn`) — the body runs on another thread and cannot leave the
+  enclosing function.
 - Creates `Task<T>` where `T` is the block's result type.
 - The block runs on the blocking pool in native/LLVM.
 - The VM backend rejects `blocking { ... }` with a diagnostic.
 - Captures are by move/copy only; borrowing captures are currently rejected.
 - Cancellation is best-effort: the awaiting task can stop waiting, but the blocking
   work may still finish in the background.
+
+#### `ret` and `return` in task bodies
+
+`ret` leaves the innermost value-producing block with its value; `return`
+leaves the enclosing function. An `async { ... }` or `blocking { ... }` body
+is such a block, and it is not a function: it runs as its own task (a blocking
+body on a worker thread), so a `return` inside it has nowhere to go and is
+refused rather than read as `ret` — in a body that nests other blocks the two
+must stay distinguishable.
+
+```sg
+fn foo() -> int {
+    let a: Task<int> = blocking { ret 1; };      // the body's value: a yields 1
+    let b: Task<int> = blocking { return 42; };  // ERROR SEM3205: write `ret 42;`
+    let c: int = { ret 5; };                     // a block expression, as before
+    return 0;
+}
+```
+
+Nesting follows the same rule at every level:
+
+- a block expression inside a body keeps its own `ret` — `let v: int = { ret 5; };`
+  yields the block, not the body — and a compare arm's block is a block;
+- a body nested in a body has its own exit: `async { let t = async { ret 7; }; ret t; }`;
+- a body without any `ret` yields `Task<nothing>`. Where `Task<T>` is expected
+  that is `SemaTaskBodyNoValue`, as is a body some path of which falls off the
+  end; a body whose last statement computes a value and discards it (`async { 42; }`)
+  warns under the same code and offers the `ret` edit.
 
 #### Structured Concurrency Rules
 
@@ -2876,13 +2914,14 @@ ImportSpec := "*" | Ident ("as" Ident)? | "{" ImportName ("," ImportName)* ","? 
 ImportName := Ident ("as" Ident)?
 Path       := ("." | ".." | Ident) ("/" ("." | ".." | Ident))*
 Block      := "{" Stmt* "}"
-Stmt       := Const | Let | While | For | If | Spawn ";" | Async | Blocking | Expr ";" | Break ";" | Continue ";" | Return ";" | Signal ";"
+Stmt       := Const | Let | While | For | If | Spawn ";" | Async | Blocking | Expr ";" | Break ";" | Continue ";" | Return ";" | Ret ";" | Signal ";"
 Const      := "const" Ident (":" Type)? "=" Expr ";"
 Let        := "let" ("mut")? Ident (":" Type)? ("=" Expr)? ";"
 While      := "while" "(" Expr ")" Block
 For        := "for" "(" Expr? ";" Expr? ";" Expr? ")" Block | "for" Ident (":" Type)? "in" Expr Block
 If         := "if" "(" Expr ")" Block ("else" If | "else" Block)?
 Return     := "return" Expr?
+Ret        := "ret" Expr?          // the value of the innermost block expression, `on`/`spawn on`, `async` or `blocking` body
 Signal     := "signal" Ident ":=" Expr
 Async      := "async" "{" Stmt* "}"
 Blocking   := "blocking" "{" Stmt* "}"

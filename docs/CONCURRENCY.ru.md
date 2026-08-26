@@ -439,7 +439,7 @@ best-effort.
 
 ```sg
 let t = blocking {
-    return read_file(path);
+    ret read_file(path); // `ret` даёт телу значение; `return` здесь отвергается
 };
 
 compare t.await() {
