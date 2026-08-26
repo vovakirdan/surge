@@ -110,12 +110,21 @@ func (tc *typeChecker) reportTaskBodyReturn(body *returnContext, span source.Spa
 	if b == nil {
 		return
 	}
+	// "Always safe" is a claim about the program the edit PRODUCES, so it is
+	// made only where that program is well-typed. Nothing constraining the
+	// body — no `Task<T>` at the site — leaves the payload to be inferred
+	// from the `ret` sites, so the edit stands whatever the value is. A body
+	// that must yield `nothing` does not accept `ret <value>;`, and reading
+	// it as unconstrained is what used to hand out an unasked edit that
+	// turned the refusal into `expected Task<nothing>, got Task<int>`.
 	nothing := tc.types.Builtins().Nothing
-	unconstrained := body.expected == types.NoTypeID || body.expected == nothing
+	unconstrained := body.expected == types.NoTypeID
 	proven := false
 	switch {
 	case !expr.IsValid():
-		proven = unconstrained
+		// `return;` becomes `ret;`, which yields nothing: that fits a body
+		// whose value is nothing, and a body nobody constrained.
+		proven = unconstrained || body.expected == nothing
 	case actual == types.NoTypeID:
 		proven = false
 	default:

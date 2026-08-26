@@ -2,6 +2,7 @@ package sema
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"testing"
 
@@ -19,7 +20,14 @@ type Task<T> = { __opaque: int };
 // code, a sema code, a severity, or a fix.
 func taskBodyDiagnostics(t *testing.T, src string) []*diag.Diagnostic {
 	t.Helper()
-	builder, fileID, parseBag := parseSource(t, taskBodyPrelude+src)
+	return taskBodyDiagnosticsOf(t, taskBodyPrelude+src)
+}
+
+// taskBodyDiagnosticsOf is the same over a whole file, which is what an
+// edited program is: the fix's spans are offsets into prelude+src.
+func taskBodyDiagnosticsOf(t *testing.T, src string) []*diag.Diagnostic {
+	t.Helper()
+	builder, fileID, parseBag := parseSource(t, src)
 	items := append([]*diag.Diagnostic(nil), parseBag.Items()...)
 	symRes := resolveSymbols(t, builder, fileID)
 	semaBag := diag.NewBag(64)
@@ -155,6 +163,8 @@ func TestTaskBodyReturnFixApplicability(t *testing.T) {
 		{"mismatching_type", `fn f() -> Task<string> { return async { return 42; }; }`, diag.FixApplicabilityManualReview},
 		{"bare_return_wants_value", `fn f() -> Task<int> { return async { return; }; }`, diag.FixApplicabilityManualReview},
 		{"bare_return_nothing", `fn f() -> Task<nothing> { return blocking { return; }; }`, diag.FixApplicabilityAlwaysSafe},
+		{"nothing_body_valued_return", `fn f() -> Task<nothing> { return async { return 42; }; }`, diag.FixApplicabilityManualReview},
+		{"nothing_body_nothing_return", `fn g() -> nothing { return nothing; } fn f() -> Task<nothing> { return async { return g(); }; }`, diag.FixApplicabilityAlwaysSafe},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -175,6 +185,19 @@ func TestTaskBodyReturnFixApplicability(t *testing.T) {
 			}
 			if d.Fixes[0].Applicability != tc.want {
 				t.Fatalf("applicability: got %s, want %s", d.Fixes[0].Applicability, tc.want)
+			}
+			if tc.want != diag.FixApplicabilityAlwaysSafe {
+				return
+			}
+			// "Always safe" is a claim about the program the edit produces, so
+			// the row makes it: apply the edit and re-diagnose. An applied fix
+			// that leaves an error is the defect this assertion exists to
+			// catch.
+			edited := applyTaskBodyFix(taskBodyPrelude+tc.src, d.Fixes[0])
+			for _, item := range taskBodyDiagnosticsOf(t, edited) {
+				if item.Severity == diag.SevError {
+					t.Fatalf("the applied edit must compile; %s reports %s: %s", strings.TrimSpace(edited), item.Code.ID(), item.Message)
+				}
 			}
 		})
 	}
@@ -254,4 +277,15 @@ func TestTaskBodyReturnKeepsNonTaskMismatch(t *testing.T) {
 	if !codes["SEM3015/error"] {
 		t.Fatalf("expected the Task<...>-vs-int mismatch to survive the refusal, got: %s", joinCodes(codes))
 	}
+}
+
+// applyTaskBodyFix rewrites src with the fix's edits, back to front so the
+// earlier offsets stay valid.
+func applyTaskBodyFix(src string, f *diag.Fix) string {
+	edits := append([]diag.TextEdit(nil), f.Edits...)
+	sort.SliceStable(edits, func(i, j int) bool { return edits[i].Span.Start > edits[j].Span.Start })
+	for _, e := range edits {
+		src = src[:e.Span.Start] + e.NewText + src[e.Span.End:]
+	}
+	return src
 }
