@@ -8257,3 +8257,19 @@ skipped naming 255/256) and kept `TestLLVMParity`,
 `TestMTNonYieldingTrySendHandoffWakesReceiver`, `TestVMAsyncChildPanicHaltsProgram`,
 `TestVMImportedStdlibMagicBinaryOperator`, `TestVMPanicDropsBufferedChannelPayloads`
 as they were.
+
+**The bench cannot be re-measured on this branch as it stands.** Three runs of
+`make runtime-v2-carrier-bench` in a detached worktree at `992ad672` (a bare
+`git archive` is refused: the bench asks git for the manifest) all abort in
+the same place, before a single row: the harness builds the `epic_base`
+compiler (`7df10725`) and compiles every fixture with it, and
+`scored/maps-scalar` and `scored/maps-composite` are written with
+`Map::<K, V>.new()` -- the `new` canon of 2026-08-21, which the base compiler
+does not know (`LLVM emit failed: unknown external function "new::<Payload64>"`).
+The map fixtures did not change on any Wave D lane (last touched by
+`cabc951e`) and do not exist at the base at all; the bench has been
+unrunnable since the `new` migration, which is what the 2026-08-21 handover
+meant by "carrier-bench not caught up". The manifest is digest-frozen and its
+`epic_base` is a gate-contract fact, so re-capturing it is the owner's, not a
+lane's: it is the open half of RV2-DEBT-174, and RV2-DEBT-156's bench clause
+waits on it.
