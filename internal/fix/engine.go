@@ -204,6 +204,18 @@ func sortCandidates(candidates []candidate) {
 	})
 }
 
+// unsafeForAutomaticApplyReason says why an edit was not applied and how to ask
+// for it anyway. A skip with no way forward reads as a defect; naming the flag
+// turns it into a choice.
+func unsafeForAutomaticApplyReason(f *diag.Fix) string {
+	if f.ID == "" {
+		return fmt.Sprintf("applicability is %s; only always-safe fixes are applied automatically", f.Applicability.String())
+	}
+	return fmt.Sprintf(
+		"applicability is %s; only always-safe fixes are applied automatically — apply it with --id %s",
+		f.Applicability.String(), f.ID)
+}
+
 func selectCandidates(candidates []candidate, opts ApplyOptions) ([]candidate, []SkippedFix) {
 	switch opts.Mode {
 	case ApplyModeID:
@@ -238,8 +250,14 @@ func selectCandidates(candidates []candidate, opts ApplyOptions) ([]candidate, [
 		}
 		return selected, skipped
 	case ApplyModeOnce:
+		// Only an always-safe edit is applied without being asked for.
+		//
+		// This used to fall back to the first candidate of ANY applicability
+		// when no safe one existed, which meant `surge fix` could silently
+		// apply an edit the compiler had explicitly marked as needing a human.
+		// A heuristic or manual candidate is still reachable — by its id, which
+		// is the point at which the author has chosen it.
 		var selected []candidate
-		var fallback *candidate
 		skipped := make([]SkippedFix, 0)
 		for i := range candidates {
 			cand := candidates[i]
@@ -251,17 +269,15 @@ func selectCandidates(candidates []candidate, opts ApplyOptions) ([]candidate, [
 				})
 				continue
 			}
-			if cand.fix.Applicability == diag.FixApplicabilityAlwaysSafe {
+			if cand.fix.Applicability == diag.FixApplicabilityAlwaysSafe && len(selected) == 0 {
 				selected = []candidate{cand}
-				break
+				continue
 			}
-			if fallback == nil {
-				tmp := cand
-				fallback = &tmp
-			}
-		}
-		if len(selected) == 0 && fallback != nil {
-			selected = []candidate{*fallback}
+			skipped = append(skipped, SkippedFix{
+				ID:     cand.fix.ID,
+				Title:  cand.fix.Title,
+				Reason: unsafeForAutomaticApplyReason(cand.fix),
+			})
 		}
 		return selected, skipped
 	default:
@@ -317,6 +333,10 @@ func applyCandidates(fs *source.FileSet, selected []candidate) ([]AppliedFix, []
 			existingApplied := append([]diag.TextEdit(nil), appliedEdits[fileID]...)
 
 			for _, edit := range edits {
+				if reason, unguarded := unguardedEditReason(edit); unguarded {
+					skipReason = reason
+					break
+				}
 				start := int(edit.Span.Start) + cumulativeDelta(existingApplied, int(edit.Span.Start))
 				end := int(edit.Span.End) + cumulativeDelta(existingApplied, int(edit.Span.End))
 				if start < 0 || end < start || end > len(working) {
@@ -400,6 +420,20 @@ func applyCandidates(fs *source.FileSet, selected []candidate) ([]AppliedFix, []
 	})
 
 	return applied, skipped, fileChanges, nil
+}
+
+// unguardedEditReason refuses an edit that overwrites text it never looked at.
+//
+// An insertion adds between two characters and can be checked by its position
+// alone. A replace or a delete destroys what is there, so it has to say what it
+// expects to find: without that guard a span that has since moved silently eats
+// whatever now sits at those offsets. Empty OldText therefore means insertion,
+// and nothing else.
+func unguardedEditReason(edit diag.TextEdit) (reason string, unguarded bool) {
+	if edit.OldText != "" || edit.Span.Start == edit.Span.End {
+		return "", false
+	}
+	return "replace/delete edit carries no OldText guard", true
 }
 
 func conflictsWithExisting(existing, edits []diag.TextEdit) bool {
