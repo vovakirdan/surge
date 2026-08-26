@@ -17,11 +17,11 @@ import "surge/internal/asyncrt"
 //
 // This census is the missing half, in the smallest form that answers the
 // question the drop rule asks: how many entitlements can still consume this
-// result. Only the LIVE count is tracked today. The claimed, clone-reader and
+// result. LIVE entitlements and CLAIMED ones are tracked. The clone-reader and
 // move-waiter states of the same model belong to this record and go here when
-// the cohort learns to tell them apart; the fields are deliberately named for
-// the model rather than for the count so that adding them does not rename what
-// is already here.
+// a taker learns to tell a duplication from the last consumer's move; the
+// fields are deliberately named for the model rather than for the count so
+// that adding them does not rename what is already here.
 type taskCohort struct {
 	// live counts entitlements that exist and have not been given up. On the
 	// VM one entitlement is one OKResource object: `taskValue` allocates a
@@ -29,6 +29,24 @@ type taskCohort struct {
 	// another rather than aliasing the first, so counting objects counts
 	// entitlements exactly.
 	live int32
+	// claimed counts askers that hold no handle and have nevertheless
+	// committed to consuming the result. `timeout(t, ms)` is the one the model
+	// already describes and the VM already had: it builds a runtime task no
+	// name in source ever holds, and it is the only thing that will ever come
+	// for that task's result. A claim is how such an asker is counted without
+	// inventing a handle for it — which was tried and detonated, because a
+	// handle also has to be freed by something, and nothing owns this one.
+	claimed int32
+}
+
+// canStillClaim reports whether anything may still consume the result.
+//
+// The model states the drop rule as a conjunction — no live entitlements, no
+// claimed ones, no clone readers, no move waiter — and this is the half of it
+// the VM can answer today. Every release path asks THIS rather than reading a
+// count, so a state added later is honoured everywhere at once.
+func (c *taskCohort) canStillClaim() bool {
+	return c != nil && (c.live > 0 || c.claimed > 0)
 }
 
 // taskHandleCreated records one new entitlement.
@@ -67,7 +85,44 @@ func (vm *VM) taskHandleReleased(id asyncrt.TaskID) {
 		return
 	}
 	cohort.live--
-	if cohort.live == 0 {
+	if !cohort.canStillClaim() {
+		vm.releaseUnclaimableResult(id)
+	}
+}
+
+// taskClaimTaken records an asker that holds no handle.
+//
+// It is taken when the operation commits — at the moment the runtime task is
+// spawned, not when its result is wanted — because between those two moments
+// the task completes, and completion is one of the two places that asks
+// whether anything can still claim the value.
+func (vm *VM) taskClaimTaken(id asyncrt.TaskID) {
+	if vm == nil || id == 0 {
+		return
+	}
+	if vm.taskCohorts == nil {
+		vm.taskCohorts = make(map[asyncrt.TaskID]*taskCohort, 16)
+	}
+	cohort := vm.taskCohorts[id]
+	if cohort == nil {
+		cohort = &taskCohort{}
+		vm.taskCohorts[id] = cohort
+	}
+	cohort.claimed++
+}
+
+// taskClaimRetired gives one claim up, once its holder has taken what it came
+// for. It is the counterpart of taskHandleReleased and asks the same question.
+func (vm *VM) taskClaimRetired(id asyncrt.TaskID) {
+	if vm == nil || id == 0 {
+		return
+	}
+	cohort := vm.taskCohorts[id]
+	if cohort == nil || cohort.claimed == 0 {
+		return
+	}
+	cohort.claimed--
+	if !cohort.canStillClaim() {
 		vm.releaseUnclaimableResult(id)
 	}
 }
@@ -84,7 +139,7 @@ func (vm *VM) taskCohortEmpty(id asyncrt.TaskID) bool {
 		return false
 	}
 	cohort := vm.taskCohorts[id]
-	return cohort != nil && cohort.live == 0
+	return cohort != nil && !cohort.canStillClaim()
 }
 
 // taskCompleted is the same rule seen from the other side: the cohort emptied

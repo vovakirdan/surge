@@ -56,7 +56,7 @@ func (vm *VM) execInstrTimeout(frame *Frame, instr *mir.Instr, writes []LocalWri
 			return res, vmErr
 		}
 
-		timeoutID = exec.SpawnTimeout(&timeoutState{
+		timeoutID = vm.spawnTimeoutTask(exec, &timeoutState{
 			target:     targetID,
 			delayMs:    uint64(delay), //nolint:gosec // delay is bounded by uintValueToInt
 			resultType: resultType,
@@ -72,26 +72,13 @@ func (vm *VM) execInstrTimeout(frame *Frame, instr *mir.Instr, writes []LocalWri
 		exec.Wake(timeoutID)
 	}
 	if timeoutTask.Status == asyncrt.TaskDone {
-		var doneVal Value
-		switch timeoutTask.ResultKind {
-		case asyncrt.TaskResultSuccess:
-			clone, vmErr := vm.cloneValueComposite(timeoutTask.ResultValue)
-			if vmErr != nil {
-				return res, vmErr
-			}
-			doneVal = clone
-		case asyncrt.TaskResultCancelled:
-			resultType, vmErr := vm.joinResultType(frame, instr.Timeout.Dst)
-			if vmErr != nil {
-				return res, vmErr
-			}
-			cancelled, vmErr := vm.taskResultValue(resultType, asyncrt.TaskResultCancelled, Value{})
-			if vmErr != nil {
-				return res, vmErr
-			}
-			doneVal = cancelled
-		default:
-			return res, vm.eb.makeError(PanicUnimplemented, "unknown task result kind")
+		resultType, vmErr := vm.joinResultType(frame, instr.Timeout.Dst)
+		if vmErr != nil {
+			return res, vmErr
+		}
+		doneVal, vmErr := vm.takeTimeoutOutcome(timeoutTask, resultType)
+		if vmErr != nil {
+			return res, vmErr
 		}
 
 		currentTask.TimeoutTaskID = 0

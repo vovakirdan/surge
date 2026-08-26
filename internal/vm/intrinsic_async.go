@@ -163,7 +163,7 @@ func (vm *VM) handleTimeout(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 	}
 
 	resultType := frame.Locals[call.Dst.Local].TypeID
-	timeoutID := exec.SpawnTimeout(&timeoutState{
+	timeoutID := vm.spawnTimeoutTask(exec, &timeoutState{
 		target:     taskID,
 		delayMs:    uint64(delay), //nolint:gosec // delay is bounded by uintValueToInt
 		resultType: resultType,
@@ -178,20 +178,9 @@ func (vm *VM) handleTimeout(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 			return vm.eb.makeError(PanicInvalidHandle, fmt.Sprintf("invalid task id %d", timeoutID))
 		}
 		if timeoutTask.Status == asyncrt.TaskDone {
-			var result Value
-			switch timeoutTask.ResultKind {
-			case asyncrt.TaskResultSuccess:
-				result, vmErr = vm.cloneValueComposite(timeoutTask.ResultValue)
-				if vmErr != nil {
-					return vmErr
-				}
-			case asyncrt.TaskResultCancelled:
-				result, vmErr = vm.taskResultValue(resultType, asyncrt.TaskResultCancelled, Value{})
-				if vmErr != nil {
-					return vmErr
-				}
-			default:
-				return vm.eb.makeError(PanicUnimplemented, "unknown task result kind")
+			result, vmErr := vm.takeTimeoutOutcome(timeoutTask, resultType)
+			if vmErr != nil {
+				return vmErr
 			}
 			if vmErr := vm.writeLocal(frame, call.Dst.Local, result); vmErr != nil {
 				vm.dropValue(result)

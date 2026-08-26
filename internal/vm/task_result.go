@@ -77,3 +77,42 @@ func (vm *VM) taskResultValue(resultType types.TypeID, kind asyncrt.TaskResultKi
 		return Value{}, vm.eb.makeError(PanicUnimplemented, "unknown task result kind")
 	}
 }
+
+// spawnTimeoutTask starts the runtime task a `timeout(t, ms)` operation drives,
+// and records the claim that operation holds on its result.
+//
+// The claim is what makes the task's result owned rather than abandoned. A
+// timeout task is spawned by the runtime and named by nothing in source, so no
+// handle is ever created for it and no handle is ever freed for it; without a
+// claim its cohort reads empty from the moment it exists, and completion
+// therefore releases the result out from under the operation that asked for it.
+// Registering a handle instead was tried in RV2-DEBT-167's lane and detonated
+// on the spot, because a handle also has to be given up by something and
+// nothing owns this one.
+func (vm *VM) spawnTimeoutTask(exec *asyncrt.Executor[Value], state *timeoutState) asyncrt.TaskID {
+	id := exec.SpawnTimeout(state)
+	vm.taskClaimTaken(id)
+	return id
+}
+
+// takeTimeoutOutcome takes a completed timeout task's result and retires the
+// claim in the same step.
+//
+// The order is the model's: the value is taken FIRST and the claim retired
+// afterwards, so the canonical result is pinned for exactly as long as somebody
+// is reading it. Retiring first would release the value this call is about to
+// duplicate.
+func (vm *VM) takeTimeoutOutcome(task *asyncrt.Task[Value], resultType types.TypeID) (Value, *VMError) {
+	if task == nil {
+		return Value{}, vm.eb.makeError(PanicUnimplemented, "missing timeout task")
+	}
+	defer vm.taskClaimRetired(task.ID)
+	switch task.ResultKind {
+	case asyncrt.TaskResultSuccess:
+		return vm.cloneValueComposite(task.ResultValue)
+	case asyncrt.TaskResultCancelled:
+		return vm.taskResultValue(resultType, asyncrt.TaskResultCancelled, Value{})
+	default:
+		return Value{}, vm.eb.makeError(PanicUnimplemented, "unknown task result kind")
+	}
+}
