@@ -8369,7 +8369,30 @@ kept the other seven exactly as at the baseline. One row is intermittent and
 was before the rewrite: `TestMTStructuredConcurrency`, 2 of 6 red at
 `60287ed8` and 1 of 6 at the integrated tree, its `@failfast async` block
 coming back `Success` after a cancelled child -- RV2-DEBT-261, a runtime
-race in fail-fast propagation that belongs to D4b's cancel rows. The price the reviewers
+race in fail-fast propagation that belongs to D4b's cancel rows.
+
+**`print` reads its string, and converts what it is handed.** The owner's
+follow-up to Q-A, in two steps. The lane (`5d80b23d`, `bba4b946`,
+`4f5bba29`, `b5e064cf`; one implementer, one reviewer, accepted) made
+`print(s: &string, ...)` a borrow, so `for name in names { print(name) }` and
+`print(s); print(s)` read, and the corpus `clone(name)` went away; it also
+found that a borrowed parameter used to check the argument's PLACE before
+its TYPE (`print(42)` reported "cannot take reference to temporary value"
+instead of the mismatch) and fixed that first. Then the owner's hello-world
+contract -- `print("Hello world!")`, `print(1)` through the implicit
+`int.__to(string)`, no `&`, `own` or `clone` at any call -- turned out never
+to have held: `print(1)` was refused at every commit before today, and the
+corpus writes `print(x to string)` twenty-six times. `8f950b2e` makes it
+hold: `print`'s parameter says `@allow_to`, and three things had to change
+for that to mean anything -- the conversion targets the referent (there is
+no `__to(int, &string)`, and the candidate filter refused wrapper targets),
+a converted argument borrows the temporary the conversion produced instead
+of failing "not addressable", and `int` reaching `__to` twice (as `int` and
+as `&int` through autoref) is one conversion, not an ambiguity. The
+temporary is the statement's to release, flagged with the conversion's
+target as its type; `TestRuntimeV2PrintReleasesWhatItConverted` reads
+strict zero. The reviewer's major finding stays owed: `format(fmt: string,
+...)` still takes its template by value. The price the reviewers
 named and the owner accepted to pay differently: `print(s: string)` takes its
 argument by value, so `for name in names { print(name) }` was refused and the
 corpus wrote `print(clone(name))` -- the owner ruled `print` and its
