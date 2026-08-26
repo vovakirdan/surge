@@ -142,6 +142,16 @@ func (vm *VM) execTermAsyncReturn(frame *Frame, term *mir.Terminator) *VMError {
 		if vmErr != nil {
 			return vmErr
 		}
+		// A result crosses a TRANSPORT boundary, and this is the boundary. The
+		// activation that produced it is retired three lines below, so a value
+		// composite handed back from here names an arena whose bytes have
+		// already been given up — every later taker read a stale reference. A
+		// channel send has owed the same copy since Wave C; the task result was
+		// the one handover that never paid it.
+		val, vmErr = vm.transportCopyIn(val)
+		if vmErr != nil {
+			return vmErr
+		}
 		retVal = val
 	}
 	vm.releaseFinishedTaskState(stateVal)

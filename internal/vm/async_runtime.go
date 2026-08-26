@@ -223,63 +223,6 @@ func (vm *VM) isChannelType(typeID types.TypeID) bool {
 	return ok && name == "Channel"
 }
 
-func (vm *VM) taskResultFromTask(task *asyncrt.Task[Value], resultType types.TypeID) (Value, *VMError) {
-	if task == nil {
-		return Value{}, vm.eb.makeError(PanicUnimplemented, "missing task result")
-	}
-	switch task.ResultKind {
-	case asyncrt.TaskResultSuccess:
-		return vm.taskResultValue(resultType, asyncrt.TaskResultSuccess, task.ResultValue)
-	case asyncrt.TaskResultCancelled:
-		return vm.taskResultValue(resultType, asyncrt.TaskResultCancelled, Value{})
-	default:
-		return Value{}, vm.eb.makeError(PanicUnimplemented, "unknown task result kind")
-	}
-}
-
-func (vm *VM) taskResultValue(resultType types.TypeID, kind asyncrt.TaskResultKind, value Value) (Value, *VMError) {
-	layout, vmErr := vm.tagLayoutFor(resultType)
-	if vmErr != nil {
-		return Value{}, vmErr
-	}
-	var (
-		tagName string
-		fields  []Value
-	)
-	switch kind {
-	case asyncrt.TaskResultSuccess:
-		tagName = "Success"
-		tc, ok := layout.CaseByName(tagName)
-		if !ok {
-			return Value{}, vm.eb.makeError(PanicTypeMismatch, "TaskResult missing Success tag")
-		}
-		if len(tc.PayloadTypes) != 1 {
-			return Value{}, vm.eb.makeError(PanicTypeMismatch, "TaskResult Success expects payload")
-		}
-		payload, vmErr := vm.cloneForShare(value)
-		if vmErr != nil {
-			return Value{}, vmErr
-		}
-		if tc.PayloadTypes[0] != types.NoTypeID {
-			payload.TypeID = tc.PayloadTypes[0]
-		}
-		fields = []Value{payload}
-		return vm.buildTag(vm.currentFrame(), resultType, tc.TagSym, fields)
-	case asyncrt.TaskResultCancelled:
-		tagName = "Cancelled"
-		tc, ok := layout.CaseByName(tagName)
-		if !ok {
-			return Value{}, vm.eb.makeError(PanicTypeMismatch, "TaskResult missing Cancelled tag")
-		}
-		if len(tc.PayloadTypes) != 0 {
-			return Value{}, vm.eb.makeError(PanicTypeMismatch, "TaskResult Cancelled expects no payload")
-		}
-		return vm.buildTag(vm.currentFrame(), resultType, tc.TagSym, nil)
-	default:
-		return Value{}, vm.eb.makeError(PanicUnimplemented, "unknown task result kind")
-	}
-}
-
 func (vm *VM) pollTask(task *asyncrt.Task[Value]) (asyncrt.PollOutcome[Value], *VMError) {
 	if vm == nil {
 		return asyncrt.PollOutcome[Value]{}, nil

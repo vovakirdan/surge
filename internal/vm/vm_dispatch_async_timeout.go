@@ -75,7 +75,7 @@ func (vm *VM) execInstrTimeout(frame *Frame, instr *mir.Instr, writes []LocalWri
 		var doneVal Value
 		switch timeoutTask.ResultKind {
 		case asyncrt.TaskResultSuccess:
-			clone, vmErr := vm.cloneForShare(timeoutTask.ResultValue)
+			clone, vmErr := vm.cloneValueComposite(timeoutTask.ResultValue)
 			if vmErr != nil {
 				return res, vmErr
 			}

@@ -181,7 +181,7 @@ func (vm *VM) handleTimeout(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 			var result Value
 			switch timeoutTask.ResultKind {
 			case asyncrt.TaskResultSuccess:
-				result, vmErr = vm.cloneForShare(timeoutTask.ResultValue)
+				result, vmErr = vm.cloneValueComposite(timeoutTask.ResultValue)
 				if vmErr != nil {
 					return vmErr
 				}
