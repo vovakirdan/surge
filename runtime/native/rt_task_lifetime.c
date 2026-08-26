@@ -165,6 +165,11 @@ void rt_task_reclaim_drain(void) {
 // so the slot keeps its own until the last reference goes and the owner-side
 // reclamation in free_task destroys it exactly once (RV2-DEBT-053a).
 void rt_task_handle_drop(void* task) {
+    // A container's element slot the handle was moved out of holds NULL, and
+    // the container's drop glue still visits it: nothing to give back.
+    if (task == NULL) {
+        return;
+    }
     rt_executor* ex = ensure_exec();
     rt_task* target = task_from_handle(task);
     if (ex == NULL || target == NULL) {
