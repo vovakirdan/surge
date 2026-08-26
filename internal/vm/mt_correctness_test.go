@@ -529,6 +529,7 @@ async fn main_async() -> int {
     if progress_cancelled {
         return 1;
     }
+    let mut blocking_cancelled = false;
     while blocking_tasks.__len() > 0:uint {
         let r = blocking_tasks.pop().safe().await();
         let ok = compare r {
@@ -536,8 +537,11 @@ async fn main_async() -> int {
             Cancelled() => false;
         };
         if !ok {
-            return 2;
+            blocking_cancelled = true;
         }
+    }
+    if blocking_cancelled {
+        return 2;
     }
 
     let cancel_iters = spin_iters / 2;
@@ -611,6 +615,7 @@ async fn main_async() -> int {
     if stress_cancelled {
         return 20;
     }
+    let mut stress_blocking_cancelled = false;
     while stress_blocking.__len() > 0:uint {
         let r = stress_blocking.pop().safe().await();
         let ok = compare r {
@@ -618,8 +623,11 @@ async fn main_async() -> int {
             Cancelled() => false;
         };
         if !ok {
-            return 21;
+            stress_blocking_cancelled = true;
         }
+    }
+    if stress_blocking_cancelled {
+        return 21;
     }
 
     print("ok");

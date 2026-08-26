@@ -203,13 +203,23 @@ async fn run() -> int {
     }
 
     let mut done: int = 0;
+    let mut cancelled = false;
     while tasks.__len() > 0:uint {
         let task = tasks.pop().safe();
         let result = task.await();
-        compare result {
-            Success(v) => { done = done + v; }
-            Cancelled() => { return 4; }
+        let ok = compare result {
+            Success(v) => {
+                done = done + v;
+                true;
+            }
+            Cancelled() => false;
         };
+        if !ok {
+            cancelled = true;
+        }
+    }
+    if cancelled {
+        return 4;
     }
     if done != task_count * rounds {
         return 5;

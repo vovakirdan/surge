@@ -1167,6 +1167,7 @@ fn main() -> int {
     }
 
     let mut total = 0;
+    let mut cancelled = false;
     while tasks.__len() > 0:uint {
         let res = tasks.pop().safe().await();
         let ok = compare res {
@@ -1177,8 +1178,11 @@ fn main() -> int {
             Cancelled() => false;
         };
         if !ok {
-            return 1;
+            cancelled = true;
         }
+    }
+    if cancelled {
+        return 1;
     }
 
     let manager_res = manager_task.await();
@@ -1375,6 +1379,7 @@ fn main() -> int {
     }
 
     let mut client_total = 0;
+    let mut cancelled = false;
     while clients.__len() > 0:uint {
         let client_res = clients.pop().safe().await();
         let client_ok = compare client_res {
@@ -1385,7 +1390,7 @@ fn main() -> int {
             Cancelled() => false;
         };
         if !client_ok {
-            return 1;
+            cancelled = true;
         }
     }
 
@@ -1400,8 +1405,11 @@ fn main() -> int {
             Cancelled() => false;
         };
         if !manager_ok {
-            return 1;
+            cancelled = true;
         }
+    }
+    if cancelled {
+        return 1;
     }
 
     if client_total != expected_total || manager_total != expected_total {
