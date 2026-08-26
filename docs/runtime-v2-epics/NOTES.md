@@ -8273,3 +8273,61 @@ meant by "carrier-bench not caught up". The manifest is digest-frozen and its
 `epic_base` is a gate-contract fact, so re-capturing it is the owner's, not a
 lane's: it is the open half of RV2-DEBT-174, and RV2-DEBT-156's bench clause
 waits on it.
+
+**The owner ruled the same evening: the base is the latest green commit, no
+pin.** Measured that way (throwaway worktree at `31af371e` with `epic_base`
+and the six `provenance_commit` fields set to it, budgets iterated one row per
+run because the harness aborts at the first mismatch): the bench runs, and the
+budgets it carries are stale in both directions -- `blocking-composite` 277 →
+**341** (+64: one block per job, the `rt_value_cell` a composite result wider
+than 16 bytes takes since D6-results), `channel-buffered-composite` 78 →
+**14** (−64: the box per element the typed channel storage removed in D3).
+The full row-by-row figure lands in the plan's W4 closeout with the manifest
+re-capture; this is the first measurement of the bench since the `new`
+migration.
+
+### 2026-08-26 — W2 lands: D3b C0 and D6-tail a-1/a-2
+
+**D3b C0 (`8c9851a6`, `1a0b5914`, `743f034e`).** A channel counts what still
+names it: `handle_refs` for the copies a program holds and `pins` for the
+runtime's own holds, both atomic, both in the new
+`runtime/native/rt_channel_refcount.{h,c}` because `rt_async_channel.c` sits
+at 500 effective lines exactly (it took +1 for the fail-closed assertion and
+gave back one in `rt_channel_new`, whose `memset` became
+`rt_channel_handle_refs_init`). The last handle drop reclaims through the
+existing `rt_channel_free_when_unlocked` ring; a third field, `reclaiming`,
+settles who reclaims when the last handle and the last pin retire on
+different lanes. The far registry now releases through `rt_channel_handle_drop`
+(`rt_far_channel.c:226`), byte-for-byte the same path as before. Nothing in
+the language changed: no pin is taken yet (C3) and no `Channel<T>` is dropped
+by generated code yet (C1). Measured by the lead: the C stand's three rows are
+green plain, under valgrind (strict zero), ASan/UBSan and TSan; with
+`-DRV2_DEBT_155_NEGATIVE_CONTROL` TSan reports the data race at
+`rt_channel_handle_retain`/`rt_channel_handle_drop` themselves. RUNTIME_V2 §7
+was read against the code while doing it: the two reference kinds are now
+there; the teardown order §7 prescribes (mark dying under the owner lock,
+detach every initialized slot, invalidate generations, release, then drop and
+free) is NOT what `rt_channel_free` does -- it takes no lock (it refuses to
+run under one), has no dying mark, and detaches and drops slot by slot inside
+`rt_typed_fifo_drain`. RV2-DEBT-259 records the divergence rather than
+patching it in a lane.
+
+**D6-tail a-1 (`dcdcb2da`) and a-2 (`0a3fa567`).** Unpacking a blocking
+capture declares the transfer (`MoveOut` from the same `byValueArgContract`
+the calls use); the job's captured state is one `rt_value_cell` adopted from
+the block the compiler already allocates (`rt_value_cell_adopt`, new), claimed
+by the worker immediately before the body runs and disposed through its own
+descriptor at release -- an initialized cell is walked and freed, a moved one
+only freed, so a cancellation landing mid-body cannot come back for captures
+the body owns. `rt_blocking_submit` takes the state's type id instead of a
+size and an alignment (`rt_async_internal.h` 668 → 666), and the emitter
+refuses a state or result type the operation registry does not know, naming
+the eight-byte word it would otherwise have become. Measured by the lead on
+the integrated tree: `TestRuntimeV2BlockingCapturelessStateIsFreed` (the
+one-byte block a capture-less body used to lose) and
+`TestRuntimeV2BlockingCaptureValgrindZero` at `rounds=1` and `rounds=8` are
+strict zero. The two negative-control toggles (`RV2_DEBT_080_NEGATIVE_CONTROL`,
+`RV2_DEBT_080_WALK_ALWAYS_NEGATIVE_CONTROL`) compile but have no stand yet
+that observes them -- that stand is a-4's cancel-after-claim row, and until it
+exists the "walk always" half of a-2 is asserted, not shown. The
+`untyped-capture-state` carrier category reads 0 live rows.
