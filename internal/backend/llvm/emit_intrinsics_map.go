@@ -94,18 +94,8 @@ func (fe *funcEmitter) emitMapLen(call *mir.CallInstr) error {
 	if len(call.Args) != 1 {
 		return fmt.Errorf("rt_map_len requires 1 argument")
 	}
-	mapType := operandValueType(fe.emitter.types, &call.Args[0])
-	if mapType == types.NoTypeID && call.Args[0].Kind != mir.OperandConst {
-		if baseType, err := fe.placeBaseType(call.Args[0].Place); err == nil {
-			mapType = baseType
-		}
-	}
-	keyType, err := fe.mapKeyTypeFromType(mapType)
-	if err != nil {
+	if _, err := fe.mapCallKeyType(&call.Args[0]); err != nil {
 		return err
-	}
-	if _, keyErr := fe.mapKeyKindForType(keyType); keyErr != nil {
-		return keyErr
 	}
 	handle, err := fe.emitMapHandle(&call.Args[0])
 	if err != nil {
@@ -132,18 +122,8 @@ func (fe *funcEmitter) emitMapContains(call *mir.CallInstr) error {
 	if len(call.Args) != 2 {
 		return fmt.Errorf("rt_map_contains requires 2 arguments")
 	}
-	mapType := operandValueType(fe.emitter.types, &call.Args[0])
-	if mapType == types.NoTypeID && call.Args[0].Kind != mir.OperandConst {
-		if baseType, err := fe.placeBaseType(call.Args[0].Place); err == nil {
-			mapType = baseType
-		}
-	}
-	keyType, err := fe.mapKeyTypeFromType(mapType)
-	if err != nil {
+	if _, err := fe.mapCallKeyType(&call.Args[0]); err != nil {
 		return err
-	}
-	if _, keyErr := fe.mapKeyKindForType(keyType); keyErr != nil {
-		return keyErr
 	}
 	handle, err := fe.emitMapHandle(&call.Args[0])
 	if err != nil {
@@ -175,18 +155,8 @@ func (fe *funcEmitter) emitMapGet(call *mir.CallInstr, name string) error {
 	if len(call.Args) != 2 {
 		return fmt.Errorf("%s requires 2 arguments", name)
 	}
-	mapType := operandValueType(fe.emitter.types, &call.Args[0])
-	if mapType == types.NoTypeID && call.Args[0].Kind != mir.OperandConst {
-		if baseType, err := fe.placeBaseType(call.Args[0].Place); err == nil {
-			mapType = baseType
-		}
-	}
-	keyType, err := fe.mapKeyTypeFromType(mapType)
-	if err != nil {
+	if _, err := fe.mapCallKeyType(&call.Args[0]); err != nil {
 		return err
-	}
-	if _, keyErr := fe.mapKeyKindForType(keyType); keyErr != nil {
-		return keyErr
 	}
 	handle, err := fe.emitMapHandle(&call.Args[0])
 	if err != nil {
@@ -200,62 +170,7 @@ func (fe *funcEmitter) emitMapGet(call *mir.CallInstr, name string) error {
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
 	okVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @%s(ptr %s, i64 %s, ptr %s)\n", okVal, name, handle, keyBits, bitsPtr)
-	if !call.HasDst {
-		return nil
-	}
-	dstType, err := fe.placeBaseType(call.Dst)
-	if err != nil {
-		return err
-	}
-	someIdx, someMeta, err := fe.emitter.tagCaseMeta(dstType, "Some", symbols.NoSymbolID)
-	if err != nil {
-		return err
-	}
-	if len(someMeta.PayloadTypes) != 1 {
-		return fmt.Errorf("Option::Some expects single payload")
-	}
-	payloadType := someMeta.PayloadTypes[0]
-	readyBB := fe.nextInlineBlock()
-	noneBB := fe.nextInlineBlock()
-	contBB := fe.nextInlineBlock()
-	outPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", outPtr, alignPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", okVal, readyBB, noneBB)
-
-	fmt.Fprintf(&fe.emitter.buf, "%s:\n", readyBB)
-	bitsVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", bitsVal, bitsPtr)
-	payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)
-	if err != nil {
-		return err
-	}
-	somePtr, err := fe.emitTagValueSinglePayload(dstType, someIdx, payloadType, payloadVal, payloadTy, payloadType)
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", somePtr, outPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
-
-	fmt.Fprintf(&fe.emitter.buf, "%s:\n", noneBB)
-	nonePtr, err := fe.emitTagValue(dstType, "nothing", symbols.NoSymbolID, nil)
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", nonePtr, outPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
-
-	fmt.Fprintf(&fe.emitter.buf, "%s:\n", contBB)
-	resultVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", resultVal, outPtr)
-	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
-	if err != nil {
-		return err
-	}
-	if !isStorageRun(dstTy) {
-		dstTy = handleType
-	}
-	fe.emitValueStore(dstTy, resultVal, ptr, dstAlign)
-	return nil
+	return fe.emitMapOptionResult(call, bitsPtr, okVal)
 }
 
 func (fe *funcEmitter) emitMapInsert(call *mir.CallInstr) error {
@@ -265,18 +180,8 @@ func (fe *funcEmitter) emitMapInsert(call *mir.CallInstr) error {
 	if len(call.Args) != 3 {
 		return fmt.Errorf("rt_map_insert requires 3 arguments")
 	}
-	mapType := operandValueType(fe.emitter.types, &call.Args[0])
-	if mapType == types.NoTypeID && call.Args[0].Kind != mir.OperandConst {
-		if baseType, err := fe.placeBaseType(call.Args[0].Place); err == nil {
-			mapType = baseType
-		}
-	}
-	keyType, err := fe.mapKeyTypeFromType(mapType)
-	if err != nil {
+	if _, err := fe.mapCallKeyType(&call.Args[0]); err != nil {
 		return err
-	}
-	if _, keyErr := fe.mapKeyKindForType(keyType); keyErr != nil {
-		return keyErr
 	}
 	handle, err := fe.emitMapHandle(&call.Args[0])
 	if err != nil {
@@ -304,62 +209,7 @@ func (fe *funcEmitter) emitMapInsert(call *mir.CallInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
 	okVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_map_insert(ptr %s, i64 %s, i64 %s, ptr %s)\n", okVal, handle, keyBits, valueBits, bitsPtr)
-	if !call.HasDst {
-		return nil
-	}
-	dstType, err := fe.placeBaseType(call.Dst)
-	if err != nil {
-		return err
-	}
-	someIdx, someMeta, err := fe.emitter.tagCaseMeta(dstType, "Some", symbols.NoSymbolID)
-	if err != nil {
-		return err
-	}
-	if len(someMeta.PayloadTypes) != 1 {
-		return fmt.Errorf("Option::Some expects single payload")
-	}
-	payloadType := someMeta.PayloadTypes[0]
-	readyBB := fe.nextInlineBlock()
-	noneBB := fe.nextInlineBlock()
-	contBB := fe.nextInlineBlock()
-	outPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", outPtr, alignPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", okVal, readyBB, noneBB)
-
-	fmt.Fprintf(&fe.emitter.buf, "%s:\n", readyBB)
-	bitsVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", bitsVal, bitsPtr)
-	payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)
-	if err != nil {
-		return err
-	}
-	somePtr, err := fe.emitTagValueSinglePayload(dstType, someIdx, payloadType, payloadVal, payloadTy, payloadType)
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", somePtr, outPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
-
-	fmt.Fprintf(&fe.emitter.buf, "%s:\n", noneBB)
-	nonePtr, err := fe.emitTagValue(dstType, "nothing", symbols.NoSymbolID, nil)
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", nonePtr, outPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
-
-	fmt.Fprintf(&fe.emitter.buf, "%s:\n", contBB)
-	resultVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", resultVal, outPtr)
-	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
-	if err != nil {
-		return err
-	}
-	if !isStorageRun(dstTy) {
-		dstTy = handleType
-	}
-	fe.emitValueStore(dstTy, resultVal, ptr, dstAlign)
-	return nil
+	return fe.emitMapOptionResult(call, bitsPtr, okVal)
 }
 
 func (fe *funcEmitter) emitMapRemove(call *mir.CallInstr) error {
@@ -369,18 +219,8 @@ func (fe *funcEmitter) emitMapRemove(call *mir.CallInstr) error {
 	if len(call.Args) != 2 {
 		return fmt.Errorf("rt_map_remove requires 2 arguments")
 	}
-	mapType := operandValueType(fe.emitter.types, &call.Args[0])
-	if mapType == types.NoTypeID && call.Args[0].Kind != mir.OperandConst {
-		if baseType, err := fe.placeBaseType(call.Args[0].Place); err == nil {
-			mapType = baseType
-		}
-	}
-	keyType, err := fe.mapKeyTypeFromType(mapType)
-	if err != nil {
+	if _, err := fe.mapCallKeyType(&call.Args[0]); err != nil {
 		return err
-	}
-	if _, keyErr := fe.mapKeyKindForType(keyType); keyErr != nil {
-		return keyErr
 	}
 	handle, err := fe.emitMapHandle(&call.Args[0])
 	if err != nil {
@@ -394,62 +234,7 @@ func (fe *funcEmitter) emitMapRemove(call *mir.CallInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
 	okVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_map_remove(ptr %s, i64 %s, ptr %s)\n", okVal, handle, keyBits, bitsPtr)
-	if !call.HasDst {
-		return nil
-	}
-	dstType, err := fe.placeBaseType(call.Dst)
-	if err != nil {
-		return err
-	}
-	someIdx, someMeta, err := fe.emitter.tagCaseMeta(dstType, "Some", symbols.NoSymbolID)
-	if err != nil {
-		return err
-	}
-	if len(someMeta.PayloadTypes) != 1 {
-		return fmt.Errorf("Option::Some expects single payload")
-	}
-	payloadType := someMeta.PayloadTypes[0]
-	readyBB := fe.nextInlineBlock()
-	noneBB := fe.nextInlineBlock()
-	contBB := fe.nextInlineBlock()
-	outPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", outPtr, alignPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", okVal, readyBB, noneBB)
-
-	fmt.Fprintf(&fe.emitter.buf, "%s:\n", readyBB)
-	bitsVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", bitsVal, bitsPtr)
-	payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)
-	if err != nil {
-		return err
-	}
-	somePtr, err := fe.emitTagValueSinglePayload(dstType, someIdx, payloadType, payloadVal, payloadTy, payloadType)
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", somePtr, outPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
-
-	fmt.Fprintf(&fe.emitter.buf, "%s:\n", noneBB)
-	nonePtr, err := fe.emitTagValue(dstType, "nothing", symbols.NoSymbolID, nil)
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", nonePtr, outPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
-
-	fmt.Fprintf(&fe.emitter.buf, "%s:\n", contBB)
-	resultVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", resultVal, outPtr)
-	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
-	if err != nil {
-		return err
-	}
-	if !isStorageRun(dstTy) {
-		dstTy = handleType
-	}
-	fe.emitValueStore(dstTy, resultVal, ptr, dstAlign)
-	return nil
+	return fe.emitMapOptionResult(call, bitsPtr, okVal)
 }
 
 func (fe *funcEmitter) emitMapKeys(call *mir.CallInstr) error {
@@ -459,18 +244,9 @@ func (fe *funcEmitter) emitMapKeys(call *mir.CallInstr) error {
 	if len(call.Args) != 1 {
 		return fmt.Errorf("rt_map_keys requires 1 argument")
 	}
-	mapType := operandValueType(fe.emitter.types, &call.Args[0])
-	if mapType == types.NoTypeID && call.Args[0].Kind != mir.OperandConst {
-		if baseType, err := fe.placeBaseType(call.Args[0].Place); err == nil {
-			mapType = baseType
-		}
-	}
-	keyType, err := fe.mapKeyTypeFromType(mapType)
+	keyType, err := fe.mapCallKeyType(&call.Args[0])
 	if err != nil {
 		return err
-	}
-	if _, keyErr := fe.mapKeyKindForType(keyType); keyErr != nil {
-		return keyErr
 	}
 	keyType = resolveMapKeyType(fe.emitter.types, keyType)
 	keyLLVM, err := fe.emitter.llvmValueType(keyType)
@@ -503,6 +279,93 @@ func (fe *funcEmitter) emitMapKeys(call *mir.CallInstr) error {
 		}
 		fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 	}
+	return nil
+}
+
+// mapCallKeyType is what a map intrinsic must establish before it emits
+// anything: the receiver really is a `Map`, and its key is one the runtime's
+// scan knows how to compare. Both questions are asked here so that six call
+// emitters cannot answer them six slightly different ways.
+func (fe *funcEmitter) mapCallKeyType(op *mir.Operand) (types.TypeID, error) {
+	mapType := operandValueType(fe.emitter.types, op)
+	if mapType == types.NoTypeID && op.Kind != mir.OperandConst {
+		if baseType, err := fe.placeBaseType(op.Place); err == nil {
+			mapType = baseType
+		}
+	}
+	keyType, err := fe.mapKeyTypeFromType(mapType)
+	if err != nil {
+		return types.NoTypeID, err
+	}
+	if _, keyErr := fe.mapKeyKindForType(keyType); keyErr != nil {
+		return types.NoTypeID, keyErr
+	}
+	return keyType, nil
+}
+
+// emitMapOptionResult builds the `Option` that a lookup, an insert and a
+// removal all answer with: `Some` of what the runtime wrote out when it
+// reported a hit, `nothing` when it did not.
+//
+// The three used to carry a copy each. They were identical, which is the whole
+// argument for one emitter: three copies of a payload path are three places for
+// the payload contract to change in two of them.
+func (fe *funcEmitter) emitMapOptionResult(call *mir.CallInstr, bitsPtr, okVal string) error {
+	if !call.HasDst {
+		return nil
+	}
+	dstType, err := fe.placeBaseType(call.Dst)
+	if err != nil {
+		return err
+	}
+	someIdx, someMeta, err := fe.emitter.tagCaseMeta(dstType, "Some", symbols.NoSymbolID)
+	if err != nil {
+		return err
+	}
+	if len(someMeta.PayloadTypes) != 1 {
+		return fmt.Errorf("Option::Some expects single payload")
+	}
+	payloadType := someMeta.PayloadTypes[0]
+	readyBB := fe.nextInlineBlock()
+	noneBB := fe.nextInlineBlock()
+	contBB := fe.nextInlineBlock()
+	outPtr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", outPtr, alignPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", okVal, readyBB, noneBB)
+
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", readyBB)
+	bitsVal := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", bitsVal, bitsPtr)
+	payloadVal, payloadTy, err := fe.emitI64ToValue(bitsVal, payloadType)
+	if err != nil {
+		return err
+	}
+	somePtr, err := fe.emitTagValueSinglePayload(dstType, someIdx, payloadType, payloadVal, payloadTy, payloadType)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", somePtr, outPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
+
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", noneBB)
+	nonePtr, err := fe.emitTagValue(dstType, "nothing", symbols.NoSymbolID, nil)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", nonePtr, outPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
+
+	fmt.Fprintf(&fe.emitter.buf, "%s:\n", contBB)
+	resultVal := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", resultVal, outPtr)
+	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
+	if err != nil {
+		return err
+	}
+	if !isStorageRun(dstTy) {
+		dstTy = handleType
+	}
+	fe.emitValueStore(dstTy, resultVal, ptr, dstAlign)
 	return nil
 }
 
