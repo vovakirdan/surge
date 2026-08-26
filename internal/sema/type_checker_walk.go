@@ -224,22 +224,10 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			switch {
 			case letStmt.Pattern.IsValid():
 				// Tuple destructuring: let (x, y) = value
-				valueType := tc.typeExpr(letStmt.Value)
-				tc.observeMove(letStmt.Value, tc.exprSpan(letStmt.Value))
-				tc.bindTuplePattern(letStmt.Pattern, valueType, scope)
+				tc.checkTupleLet(letStmt, scope)
 			case tc.isWildcardName(letStmt.Name) && letStmt.Value.IsValid():
-				// `let _ = value` names nobody, so nobody receives the value: it
-				// is the discarded result the statement `value;` is, released at
-				// the end of this statement by the same temporary machinery, and
-				// a PLACE on the right is read, not moved -- `x` stays with its
-				// binding. Binding it instead consumed the temporary on behalf of
-				// a binding that never dropped, and every owning value discarded
-				// through `_` leaked.
-				declaredType := tc.resolveTypeExprWithScope(letStmt.Type, scope)
-				tc.pushDiscardedExpr(letStmt.Value)
-				valueType := tc.typeExprWithExpected(letStmt.Value, declaredType)
-				tc.popDiscardedExpr()
-				tc.ensureBindingTypeMatch(letStmt.Type, declaredType, valueType, letStmt.Value)
+				// `let _ = value`: a discarded result, see checkDiscardedLet.
+				tc.checkDiscardedLet(letStmt, scope)
 			default:
 				// Simple binding: let x = value
 				symID := tc.symbolForStmt(id)

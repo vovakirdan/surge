@@ -1,6 +1,10 @@
 package sema
 
-import "testing"
+import (
+	"testing"
+
+	"surge/internal/diag"
+)
 
 // `let _ = e` names nobody, so nobody owns what `e` produced: it is a discarded
 // result exactly like the statement `e;`, and it is released at the end of
@@ -61,5 +65,30 @@ fn f() -> nothing {
 `)
 	if count != 0 {
 		t.Fatalf("expected no temporary for a discarded place, got %d", count)
+	}
+}
+
+// A discarded read takes nothing. `let _ = x.bar` names nobody to receive
+// the field, so the field stays with `x` -- the same rule that releases a
+// discarded PRODUCED value at its statement's end leaves a discarded PLACE
+// where it is -- and there is no take for `own` to spell. The row used to
+// sit among the refused ones in partial_move_contract_test.go, from when `_`
+// bound (and then leaked) whatever it was handed.
+func TestDiscardedFieldReadTakesNothing(t *testing.T) {
+	parseBag, semaBag := runSemaOnSnippet(t, `
+type Foo = { bar: string }
+fn f(x: Foo) -> nothing {
+	let _ = x.bar;
+	return nothing;
+}
+`)
+	if parseBag.HasErrors() {
+		t.Fatalf("unexpected parse diagnostics: %s", diagnosticsSummary(parseBag))
+	}
+	if hasCode(semaBag, diag.SemaPartialMoveNeedsOwn) {
+		t.Fatalf("a discarded field read must not be a take: got %s", diagnosticsSummary(semaBag))
+	}
+	if semaBag.HasErrors() {
+		t.Fatalf("unexpected sema diagnostics: %s", diagnosticsSummary(semaBag))
 	}
 }
