@@ -2060,7 +2060,7 @@ must stay distinguishable.
 ```sg
 fn foo() -> int {
     let a: Task<int> = blocking { ret 1; };      // the body's value: a yields 1
-    let b: Task<int> = blocking { return 42; };  // ERROR SEM3205: write `ret 42;`
+    let b: Task<int> = blocking { return 42; };  // ERROR SEM3207: write `ret 42;`
     let c: int = { ret 5; };                     // a block expression, as before
     return 0;
 }

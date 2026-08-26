@@ -16,10 +16,10 @@ func TestTaskBodyBareValueIsDiagnosedOnce(t *testing.T) {
 		want []string
 		ban  []string
 	}{
-		{"blocking", `fn f() -> Task<int> { return blocking { 42 }; }`, []string{"SYN2037/error"}, []string{"SYN2012/error", "SEM3206/error", "SEM3206/warning", "SEM3015/error"}},
-		{"async", `fn f() -> Task<int> { return async { 42 }; }`, []string{"SYN2037/error"}, []string{"SYN2012/error", "SEM3206/error", "SEM3015/error"}},
+		{"blocking", `fn f() -> Task<int> { return blocking { 42 }; }`, []string{"SYN2037/error"}, []string{"SYN2012/error", "SEM3208/error", "SEM3208/warning", "SEM3015/error"}},
+		{"async", `fn f() -> Task<int> { return async { 42 }; }`, []string{"SYN2037/error"}, []string{"SYN2012/error", "SEM3208/error", "SEM3015/error"}},
 		// A nested block keeps the legacy block-value path: no SYN2037 there.
-		{"inner_block", `fn f() -> Task<int> { return async { let v: int = { 5 }; ret v; }; }`, nil, []string{"SYN2037/error", "SEM3205/error", "SEM3206/error"}},
+		{"inner_block", `fn f() -> Task<int> { return async { let v: int = { 5 }; ret v; }; }`, nil, []string{"SYN2037/error", "SEM3207/error", "SEM3208/error"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

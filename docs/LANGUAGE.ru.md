@@ -1952,7 +1952,7 @@ blocking {
 ```sg
 fn foo() -> int {
     let a: Task<int> = blocking { ret 1; };      // значение тела: a даёт 1
-    let b: Task<int> = blocking { return 42; };  // ОШИБКА SEM3205: напишите `ret 42;`
+    let b: Task<int> = blocking { return 42; };  // ОШИБКА SEM3207: напишите `ret 42;`
     let c: int = { ret 5; };                     // блок-выражение, как раньше
     return 0;
 }
