@@ -292,6 +292,13 @@ var requiredSanitizerCoverage = []string{
 	// Valgrind over a map's teardown, at one shard and at four: a map owns its
 	// keys and values, and reclaiming them is what RV2-DEBT-156 was about.
 	"TestRuntimeV2MapOwnedEntriesValgrindZero",
+	// Valgrind, ASan/UBSan and TSan over a channel's own lifetime: the object
+	// behind a handle is reclaimed by the last release and not before
+	// (RV2-DEBT-155). The leak figure is the only instrument that can say the
+	// CHANNEL was destroyed rather than only the payloads inside it.
+	"TestRuntimeV2ChannelHandleRefcountValgrindZero",
+	"TestRuntimeV2ChannelHandleRefcountUnderAddressAndUndefinedSanitizers",
+	"TestRuntimeV2ChannelHandleRefcountUnderThreadSanitizer",
 	// The race detector over the carrier bench bridge.
 	"TestRuntimeV2CarrierBenchBlockingRegisterThenVerify",
 	"TestRuntimeV2CarrierBenchCounterMatrix",
