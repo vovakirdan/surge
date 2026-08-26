@@ -252,7 +252,12 @@ func cloneAdviceSentence(site cloneAdviceSite, state CloneState, name string) st
 		// The drain rides the same diagnostic as its own help clause; this
 		// sentence is the OTHER way out, for a loop that only meant to read.
 		if state == CloneNonClonable {
-			return fmt.Sprintf("read %s where it is: a `for` binding lends what the container owns", subject)
+			// The borrow is NAMED, because "where it is" alone left the
+			// reader without the form that compiles.
+			if name == "" {
+				return "read the value where it is, through a borrow: a `for` binding lends what the container owns"
+			}
+			return fmt.Sprintf("read `%s` where it is, through a borrow (`&%s`): a `for` binding lends what the container owns", name, name)
 		}
 		return fmt.Sprintf("to keep the container, read %s where it is or pass a copy: %s", subject, call)
 	default:

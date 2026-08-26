@@ -22,6 +22,8 @@ import (
 //     still holds the same word, and the container's drop glue then frees it
 //     again. Measured: `Invalid free` under valgrind for strings, and
 //     `panic: async: invalid task owner shard` at teardown for task handles.
+//     An element that owns no heap has nothing to free twice and is let
+//     through (`compare r { Some(v) => ... }` over an `Option<int>`).
 //   - `own` in the iterable position. `for x in own xs` is what a consuming
 //     loop would look like, and the language does not have one: the spelling
 //     was accepted and ignored, exactly the disposition SEM3202 refuses for
@@ -115,13 +117,25 @@ func (tc *typeChecker) forInElementType(forIn *ast.ForInStmt, iterableType types
 //
 // Copy elements never reach here — observeMove records no move for them — so
 // `for i in ns { take_int(i) }` stays legal, as it should: nothing is given
-// away by copying an int.
+// away by copying an int. A move-only element that owns NO heap is let through
+// on the same ground: `compare r { Some(v) => ... }` over an `Option<int>`
+// binding moves `r` by the language's rule for unions, but what leaves is
+// bits the container does not free again, so there is no double free to
+// refuse — only the ordinary use-after-move, which the moved-set keeps. The
+// refusal is for what owns heap: a string, a task handle, a reference-counted
+// scalar inside a payload (an owned `compare` moves the count out of the
+// envelope, and the binding releases what the container still counts).
 func (tc *typeChecker) rejectMoveOutOfLoopBinding(forIn *ast.ForInStmt, loopSym symbols.SymbolID) {
 	if !loopSym.IsValid() {
 		return
 	}
 	moved, moveSpan, ok := tc.movedPlaceCovering(wholePlace(loopSym))
 	if !ok {
+		return
+	}
+	elemType := tc.bindingType(loopSym)
+	movedType, known := tc.loopBindingMovedType(elemType, moved)
+	if known && !tc.ownsHeap(movedType) {
 		return
 	}
 	name := tc.bindingName(loopSym)
@@ -148,12 +162,59 @@ func (tc *typeChecker) rejectMoveOutOfLoopBinding(forIn *ast.ForInStmt, loopSym 
 	// Not for a task handle - its `.clone()` is an entitlement, and the
 	// container would still need its drain - and not for a field move, whose
 	// subject is not the binding the sentence would name.
-	if elemType := tc.bindingType(loopSym); moved.Path == "" && !tc.isTaskType(elemType) {
+	if moved.Path == "" && !tc.isTaskType(elemType) {
 		if advice := tc.cloneAdviceFor(adviceMoveOutOfLoopBinding, elemType, name); advice.Help != "" {
 			b.WithHelp(moveSpan, advice.Help)
 		}
 	}
+	// A union is read by `compare`, and a compare through a borrow is the form
+	// that compiles: it matches the tags without taking a payload, so the
+	// arm's bindings owe nothing the container still owns. Spelled with the
+	// place the move named, whole (`&r`) or by field (`&it.opt`).
+	if known && tc.isUnionValueType(movedType) {
+		subject := name
+		if moved.Path != "" {
+			subject = tc.plainPlaceLabel(moved)
+		}
+		b.WithHelp(moveSpan, fmt.Sprintf(
+			"to read the tags without taking the payload, compare through a borrow: `compare &%s { ... }`", subject))
+	}
 	b.Emit()
+}
+
+// loopBindingMovedType names the type of what left through the binding: the
+// element itself for a whole move, the field or tuple element for a partial
+// one, walked by the same parts residual drops enumerate. A path the walk
+// cannot name — an index, a deref — answers unknown, and the caller refuses
+// what it cannot see.
+func (tc *typeChecker) loopBindingMovedType(elemType types.TypeID, moved Place) (types.TypeID, bool) {
+	ty := elemType
+	if moved.Path == "" || tc.borrow == nil {
+		return ty, ty != types.NoTypeID
+	}
+	for _, seg := range tc.borrow.placeSegments(moved) {
+		next := types.NoTypeID
+		for _, part := range tc.enumerableParts(ty) {
+			if part.segment == seg {
+				next = part.ty
+				break
+			}
+		}
+		if next == types.NoTypeID {
+			return types.NoTypeID, false
+		}
+		ty = next
+	}
+	return ty, true
+}
+
+// isUnionValueType reports whether the value behind this type is a union.
+func (tc *typeChecker) isUnionValueType(id types.TypeID) bool {
+	if tc.types == nil || id == types.NoTypeID {
+		return false
+	}
+	tt, ok := tc.types.Lookup(tc.resolveAlias(tc.valueType(id)))
+	return ok && tt.Kind == types.KindUnion
 }
 
 // rejectOwnedIterable refuses `own` in the iterable position. The test is on

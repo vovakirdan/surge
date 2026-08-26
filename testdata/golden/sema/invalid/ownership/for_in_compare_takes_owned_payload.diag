@@ -1,0 +1,2 @@
+error SEM3205 testdata/golden/sema/invalid/ownership/for_in_compare_takes_owned_payload.sg:24:17 cannot move out of `r`: a `for` loop binding only reads the element
+error SEM3205 testdata/golden/sema/invalid/ownership/for_in_compare_takes_owned_payload.sg:35:17 cannot move out of `r`: a `for` loop binding only reads the element

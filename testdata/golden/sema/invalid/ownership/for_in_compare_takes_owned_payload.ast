@@ -1,0 +1,55 @@
+for_in_compare_takes_owned_payload.sg (span: 9:1-42:1)
+├─ Item[0]: Fn (span: 9:1-11:2)
+│  ├─ Name: take_int
+│  ├─ Params: (i: int)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 9:32-11:2)
+│        └─ Stmt[0]: Return (span: 10:5-10:20)
+│           └─ Expr: expr#1: nothing
+├─ Item[1]: Fn (span: 13:1-15:2)
+│  ├─ Name: peek
+│  ├─ Params: (s: &string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 13:32-15:2)
+│        └─ Stmt[0]: Return (span: 14:5-14:20)
+│           └─ Expr: expr#2: nothing
+├─ Item[2]: Fn (span: 17:1-19:2)
+│  ├─ Name: take_float
+│  ├─ Params: (f: float)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 17:36-19:2)
+│        └─ Stmt[0]: Return (span: 18:5-18:20)
+│           └─ Expr: expr#3: nothing
+├─ Item[3]: Fn (span: 21:1-30:2)
+│  ├─ Name: read_string_payload
+│  ├─ Params: (opts: Option<string>[])
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 21:59-30:2)
+│        ├─ Stmt[0]: ForIn (span: 22:5-28:6)
+│        │  ├─ Pattern: r
+│        │  ├─ Iterable: expr#4: opts
+│        │  └─ Body:
+Block (span: 22:19-28:6)
+│        │     └─ Stmt[0]: Expr (span: 24:9-27:10)
+│        │        └─ Expr: expr#17: compare r { 2 arms }
+│        └─ Stmt[1]: Return (span: 29:5-29:20)
+│           └─ Expr: expr#18: nothing
+└─ Item[4]: Fn (span: 32:1-41:2)
+   ├─ Name: read_counted_payload
+   ├─ Params: (opts: Option<float>[])
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 32:59-41:2)
+         ├─ Stmt[0]: ForIn (span: 33:5-39:6)
+         │  ├─ Pattern: r
+         │  ├─ Iterable: expr#19: opts
+         │  └─ Body:
+Block (span: 33:19-39:6)
+         │     └─ Stmt[0]: Expr (span: 35:9-38:10)
+         │        └─ Expr: expr#31: compare r { 2 arms }
+         └─ Stmt[1]: Return (span: 40:5-40:20)
+            └─ Expr: expr#32: nothing

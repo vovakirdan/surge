@@ -1,0 +1,60 @@
+// A `for` binding is a copy of an element the container still owns, and moving
+// out of it is refused (SEM3205) because the container frees what left. That
+// refusal is for what OWNS HEAP. A union of Copy payloads owns nothing: reading
+// it with `compare` moves the binding by the language's rule for unions, but
+// what leaves is bits the container never frees, so there is nothing to free
+// twice - whole, by value, or through a field of an element that does own heap
+// elsewhere. A union the container owns is read through a borrow instead:
+// `compare &r { ... }` matches the tags without taking a payload.
+type Holder = { opt: Option<int>, name: string };
+
+fn take_int(i: int) -> nothing {
+    return nothing;
+}
+
+fn take_opt(o: Option<int>) -> nothing {
+    return nothing;
+}
+
+fn peek(s: &string) -> nothing {
+    return nothing;
+}
+
+fn sum_present(opts: Option<int>[]) -> int {
+    let mut total: int = 0;
+    for r in opts {
+        compare r {
+            Some(v) => { total = total + v; }
+            nothing => { total = total; }
+        }
+    }
+    return total;
+}
+
+fn pass_by_value(opts: Option<int>[]) -> nothing {
+    for r in opts {
+        take_opt(r);
+    }
+    return nothing;
+}
+
+fn read_field(hs: Holder[]) -> int {
+    let mut total: int = 0;
+    for h in hs {
+        compare own h.opt {
+            Some(v) => { total = total + v; }
+            nothing => { total = total; }
+        }
+    }
+    return total;
+}
+
+fn through_borrow(opts: Option<string>[]) -> nothing {
+    for r in opts {
+        compare &r {
+            Some(s) => peek(s);
+            nothing => take_int(0);
+        }
+    }
+    return nothing;
+}

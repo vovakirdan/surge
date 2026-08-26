@@ -43,11 +43,14 @@ extern<string> {
     @intrinsic pub fn __clone(self: &string) -> string;
 }
 type Item = { name: string, id: int };
+type Holder = { opt: Option<int>, name: string };
 async fn work() -> int { return 1; }
 fn take(s: string) -> nothing { return nothing; }
 fn peek(s: &string) -> nothing { return nothing; }
 fn peek_task(t: &Task<int>) -> nothing { return nothing; }
 fn take_int(i: int) -> nothing { return nothing; }
+fn take_float(f: float) -> nothing { return nothing; }
+fn take_opt(o: Option<int>) -> nothing { return nothing; }
 `
 
 func TestForInDoesNotConsumeItsElements(t *testing.T) {
@@ -72,6 +75,26 @@ func TestForInDoesNotConsumeItsElements(t *testing.T) {
 		{"own_iterable", `fn f(names: string[]) -> nothing { for s in own names { take(s); } return nothing; }`, []string{"SEM3206"}},
 		// Parentheses are the same request, not a way around it.
 		{"own_iterable_parenthesised", `fn f(names: string[]) -> nothing { for s in (own names) { take(s); } return nothing; }`, []string{"SEM3206"}},
+		// A union element is read by `compare`, which moves a non-Copy subject
+		// by the language's rule. When the union owns no heap, what leaves is
+		// bits the container never frees, so there is no double free to refuse
+		// -- whole, by value, or through a field of an element that does own
+		// heap elsewhere.
+		{"compare_reads_copy_payload", `fn f(opts: Option<int>[]) -> nothing { for r in opts { compare r { Some(v) => take_int(v); nothing => take_int(0); } } return nothing; }`, nil},
+		{"heap_free_union_passed_by_value", `fn f(opts: Option<int>[]) -> nothing { for r in opts { take_opt(r); } return nothing; }`, nil},
+		{"compare_reads_heap_free_field", `fn f(hs: Holder[]) -> nothing { for h in hs { compare own h.opt { Some(v) => take_int(v); nothing => take_int(0); } } return nothing; }`, nil},
+		// A payload the container owns -- a string, a task handle, and the
+		// reference-counted `float`, whose count an owned compare moves out of
+		// the envelope for the binding to release -- is refused however the arm
+		// uses it: the arm's binding owes a release the container also owes.
+		{"compare_owns_string_payload", `fn f(opts: Option<string>[]) -> nothing { for r in opts { compare r { Some(s) => peek(&s); nothing => take_int(0); } } return nothing; }`, []string{"SEM3205"}},
+		{"compare_moves_string_payload", `fn f(opts: Option<string>[]) -> nothing { for r in opts { compare r { Some(s) => take(s); nothing => take_int(0); } } return nothing; }`, []string{"SEM3205"}},
+		{"compare_owns_counted_payload", `fn f(opts: Option<float>[]) -> nothing { for r in opts { compare r { Some(x) => take_float(x); nothing => take_int(0); } } return nothing; }`, []string{"SEM3205"}},
+		{"compare_owns_task_payload", `async fn f(opts: Option<Task<int>>[]) -> int { for r in opts { compare r { Some(t) => peek_task(&t); nothing => take_int(0); } } return 0; }`, []string{"SEM3205"}},
+		// The borrow form compiles for all of them: a reference-typed subject
+		// is inspected, and its payload bindings own nothing.
+		{"compare_through_borrow_reads_string_payload", `fn f(opts: Option<string>[]) -> nothing { for r in opts { compare &r { Some(s) => peek(s); nothing => take_int(0); } } return nothing; }`, nil},
+		{"compare_through_borrow_reads_task_payload", `async fn f(opts: Option<Task<int>>[]) -> int { for r in opts { compare &r { Some(t) => peek_task(t); nothing => take_int(0); } } return 0; }`, nil},
 		// The legal forms.
 		{"strings_drained_by_pop", `fn f() -> nothing { let mut xs: string[] = []; xs.push("a"); while xs.__len() > 0:uint { let s = xs.pop().safe(); take(s); } return nothing; }`, nil},
 		{"tasks_drained_by_pop", `async fn f() -> int { let mut tasks: Task<int>[] = []; tasks.push(spawn work()); while tasks.__len() > 0:uint { let t = tasks.pop().safe(); let _ = t.await(); } return 0; }`, nil},
@@ -163,6 +186,18 @@ func TestForInRefusalsNameTheDrain(t *testing.T) {
 			code:      diag.SemaTaskNotAwaited,
 			wantHelp:  []string{"while tasks.__len() > 0:uint { let t = tasks.pop().safe(); ... }"},
 			wantNote:  "the `for` loop here only reads the tasks in `tasks`",
+			cloneFree: true,
+		},
+		// A union the container owns is refused with the borrow NAMED, twice:
+		// the generic `&r`, and the `compare &r { ... }` that reads its tags
+		// without taking a payload. `Option<string>` has no clone, so the
+		// clone clause must not appear.
+		{
+			name:      "compare_over_a_union_the_container_owns",
+			src:       `fn f(opts: Option<string>[]) -> nothing { for r in opts { compare r { Some(s) => peek(&s); nothing => take_int(0); } } return nothing; }`,
+			code:      diag.SemaMoveOutOfLoopBinding,
+			wantHelp:  []string{"while opts.__len() > 0:uint { let r = opts.pop().safe(); ... }", "through a borrow (`&r`)", "compare &r { ... }"},
+			wantNote:  "`r` is a copy of an element the container still owns",
 			cloneFree: true,
 		},
 	}

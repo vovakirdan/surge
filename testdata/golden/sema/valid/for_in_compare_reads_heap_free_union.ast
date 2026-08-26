@@ -1,0 +1,102 @@
+for_in_compare_reads_heap_free_union.sg (span: 9:1-61:1)
+├─ Item[0]: Type (span: 9:1-9:50)
+│  ├─ Name: Holder
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     ├─ Field[0]: opt: Option<int>
+│     └─ Field[1]: name: string
+├─ Item[1]: Fn (span: 11:1-13:2)
+│  ├─ Name: take_int
+│  ├─ Params: (i: int)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 11:32-13:2)
+│        └─ Stmt[0]: Return (span: 12:5-12:20)
+│           └─ Expr: expr#1: nothing
+├─ Item[2]: Fn (span: 15:1-17:2)
+│  ├─ Name: take_opt
+│  ├─ Params: (o: Option<int>)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 15:40-17:2)
+│        └─ Stmt[0]: Return (span: 16:5-16:20)
+│           └─ Expr: expr#2: nothing
+├─ Item[3]: Fn (span: 19:1-21:2)
+│  ├─ Name: peek
+│  ├─ Params: (s: &string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 19:32-21:2)
+│        └─ Stmt[0]: Return (span: 20:5-20:20)
+│           └─ Expr: expr#3: nothing
+├─ Item[4]: Fn (span: 23:1-32:2)
+│  ├─ Name: sum_present
+│  ├─ Params: (opts: Option<int>[])
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 23:44-32:2)
+│        ├─ Stmt[0]: Let (span: 24:5-24:28)
+│        │  ├─ Name: total
+│        │  ├─ Mutable: true
+│        │  ├─ Type: int
+│        │  └─ Value: expr#4: 0
+│        ├─ Stmt[1]: ForIn (span: 25:5-30:6)
+│        │  ├─ Pattern: r
+│        │  ├─ Iterable: expr#5: opts
+│        │  └─ Body:
+Block (span: 25:19-30:6)
+│        │     └─ Stmt[0]: Expr (span: 26:9-29:10)
+│        │        └─ Expr: expr#21: compare r { 2 arms }
+│        └─ Stmt[2]: Return (span: 31:5-31:18)
+│           └─ Expr: expr#22: total
+├─ Item[5]: Fn (span: 34:1-39:2)
+│  ├─ Name: pass_by_value
+│  ├─ Params: (opts: Option<int>[])
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 34:50-39:2)
+│        ├─ Stmt[0]: ForIn (span: 35:5-37:6)
+│        │  ├─ Pattern: r
+│        │  ├─ Iterable: expr#23: opts
+│        │  └─ Body:
+Block (span: 35:19-37:6)
+│        │     └─ Stmt[0]: Expr (span: 36:9-36:21)
+│        │        └─ Expr: expr#26: take_opt(r)
+│        └─ Stmt[1]: Return (span: 38:5-38:20)
+│           └─ Expr: expr#27: nothing
+├─ Item[6]: Fn (span: 41:1-50:2)
+│  ├─ Name: read_field
+│  ├─ Params: (hs: Holder[])
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 41:36-50:2)
+│        ├─ Stmt[0]: Let (span: 42:5-42:28)
+│        │  ├─ Name: total
+│        │  ├─ Mutable: true
+│        │  ├─ Type: int
+│        │  └─ Value: expr#28: 0
+│        ├─ Stmt[1]: ForIn (span: 43:5-48:6)
+│        │  ├─ Pattern: h
+│        │  ├─ Iterable: expr#29: hs
+│        │  └─ Body:
+Block (span: 43:17-48:6)
+│        │     └─ Stmt[0]: Expr (span: 44:9-47:10)
+│        │        └─ Expr: expr#47: compare own h.opt { 2 arms }
+│        └─ Stmt[2]: Return (span: 49:5-49:18)
+│           └─ Expr: expr#48: total
+└─ Item[7]: Fn (span: 52:1-60:2)
+   ├─ Name: through_borrow
+   ├─ Params: (opts: Option<string>[])
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 52:54-60:2)
+         ├─ Stmt[0]: ForIn (span: 53:5-58:6)
+         │  ├─ Pattern: r
+         │  ├─ Iterable: expr#49: opts
+         │  └─ Body:
+Block (span: 53:19-58:6)
+         │     └─ Stmt[0]: Expr (span: 54:9-57:10)
+         │        └─ Expr: expr#62: compare &r { 2 arms }
+         └─ Stmt[1]: Return (span: 59:5-59:20)
+            └─ Expr: expr#63: nothing

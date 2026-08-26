@@ -1,0 +1,41 @@
+// `compare r` over a `for` binding MOVES `r`, and when the union owns heap the
+// arm's payload binding owes a release the container also owes: a string
+// payload is freed by the arm and again by the container's drop glue; a
+// `float` payload is the reference-counted scalar, and an owned compare moves
+// its count out of the envelope for the binding to release, once more than the
+// container counted. Refused however the arm uses the payload - reading it is
+// not the problem, owning it is. The form that compiles is the borrow,
+// `compare &r { ... }`, which inspects the tags and lends the payload.
+fn take_int(i: int) -> nothing {
+    return nothing;
+}
+
+fn peek(s: &string) -> nothing {
+    return nothing;
+}
+
+fn take_float(f: float) -> nothing {
+    return nothing;
+}
+
+fn read_string_payload(opts: Option<string>[]) -> nothing {
+    for r in opts {
+        // ERROR SEM3205: cannot move out of `r`: a `for` loop binding only reads the element
+        compare r {
+            Some(s) => peek(&s);
+            nothing => take_int(0);
+        }
+    }
+    return nothing;
+}
+
+fn read_counted_payload(opts: Option<float>[]) -> nothing {
+    for r in opts {
+        // ERROR SEM3205: cannot move out of `r`: a `for` loop binding only reads the element
+        compare r {
+            Some(x) => take_float(x);
+            nothing => take_int(0);
+        }
+    }
+    return nothing;
+}

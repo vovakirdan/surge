@@ -1,0 +1,59 @@
+// A `compare` over a `for` binding whose union owns no heap. The binding is a
+// word-wise copy of the container's element and the compare moves it, so the
+// question this fixture asks both lanes is whether reading the tags and the
+// Copy payloads out of that copy touches anything the container frees again:
+// the elements are read twice (once by value, once through a borrow), the
+// container is dropped afterwards, and the sums must agree.
+//
+// A union the container OWNS - a string payload - is read through the borrow
+// only, because the owned form is refused by sema (SEM3205).
+
+fn present_by_value(opts: &Option<int>[]) -> int {
+    let mut total: int = 0;
+    for r in opts {
+        compare r {
+            Some(v) => { total = total + v; }
+            nothing => { total = total; }
+        }
+    }
+    return total;
+}
+
+fn present_through_borrow(opts: &Option<int>[]) -> int {
+    let mut total: int = 0;
+    for r in opts {
+        compare &r {
+            Some(v) => { total = total + v; }
+            nothing => { total = total; }
+        }
+    }
+    return total;
+}
+
+fn lengths_through_borrow(opts: &Option<string>[]) -> int {
+    let mut total: int = 0;
+    for r in opts {
+        compare &r {
+            Some(s) => { total = total + (s.__len() to int); }
+            nothing => { total = total; }
+        }
+    }
+    return total;
+}
+
+@entrypoint
+fn main() -> int {
+    let mut opts: Option<int>[] = [];
+    opts.push(Some(3));
+    opts.push(nothing);
+    opts.push(Some(4));
+    print(present_by_value(&opts) to string);
+    print(present_through_borrow(&opts) to string);
+
+    let mut names: Option<string>[] = [];
+    names.push(Some("ab"));
+    names.push(nothing);
+    names.push(Some("cde"));
+    print(lengths_through_borrow(&names) to string);
+    return 0;
+}
