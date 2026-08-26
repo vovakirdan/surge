@@ -70,9 +70,15 @@ const (
 )
 
 type cloneSelection struct {
-	kind     cloneSelectionKind
-	hook     GlobalCloneHook
-	rivals   []GlobalCloneHook
+	kind   cloneSelectionKind
+	hook   GlobalCloneHook
+	rivals []GlobalCloneHook
+	// decl points at the declaration that settled a negative outcome: the
+	// `__clone` whose shape was rejected, the first of several rivals, or the
+	// winner with no materializable body. A diagnostic that only says "not
+	// clonable" sends the author looking for a declaration it has already
+	// found, so the selection carries it out.
+	decl     source.Span
 	internal error
 }
 
@@ -122,12 +128,18 @@ func (s *cloneCanonicalSelector) selectUncached(receiver types.TypeID) cloneSele
 	}
 	matches := make([]callableMatch, 0, 2)
 	declared := 0
+	var rejectedDecl source.Span
 	for i := range s.candidates {
 		candidate := &s.candidates[i]
 		args, specificity, ok := matchDeferredCandidate(&request, candidate, s.types)
 		if !ok {
 			if cloneCandidateClaimsReceiver(candidate, receiver, s.types) {
 				declared++
+				if rejectedDecl == (source.Span{}) {
+					// The catalog is sorted by canonical body key, so the first
+					// claimant is the same one on every run.
+					rejectedDecl = candidate.Source
+				}
 			}
 			continue
 		}
@@ -135,7 +147,7 @@ func (s *cloneCanonicalSelector) selectUncached(receiver types.TypeID) cloneSele
 	}
 	if len(matches) == 0 {
 		if declared > 0 {
-			return cloneSelection{kind: cloneSelectionShapeRejected}
+			return cloneSelection{kind: cloneSelectionShapeRejected, decl: rejectedDecl}
 		}
 		return cloneSelection{kind: cloneSelectionAbsent}
 	}
@@ -156,11 +168,11 @@ func (s *cloneCanonicalSelector) selectUncached(receiver types.TypeID) cloneSele
 		hooks = append(hooks, hook)
 	}
 	if len(hooks) > 1 {
-		return cloneSelection{kind: cloneSelectionConflict, hook: hooks[0], rivals: hooks}
+		return cloneSelection{kind: cloneSelectionConflict, hook: hooks[0], rivals: hooks, decl: hooks[0].Decl}
 	}
 	winner := &unique[0].candidate
 	if !winner.HasBody && !winner.Intrinsic && !winner.Builtin {
-		return cloneSelection{kind: cloneSelectionUnmaterializable, hook: hooks[0]}
+		return cloneSelection{kind: cloneSelectionUnmaterializable, hook: hooks[0], decl: hooks[0].Decl}
 	}
 	return cloneSelection{kind: cloneSelectionResolved, hook: hooks[0]}
 }

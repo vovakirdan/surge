@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
@@ -32,12 +33,33 @@ const (
 
 // CloneEvidence is the clone verdict for one type together with what settled
 // it: the selected body when there is one, and the reason when there is not.
+//
+// The three fields below the reason exist for the diagnostic that has to be
+// acted on rather than merely read. "This type is not clonable" names no place
+// to go; the component that refused, the declaration that was rejected, and
+// whether a legal `__clone` could be declared for this exact type are the facts
+// that turn the verdict into an edit the author can make.
 type CloneEvidence struct {
 	State        CloneState
 	Method       symbols.SymbolID
 	MethodKey    string
 	TemplateArgs []types.TypeID
 	Reason       string
+
+	// Path runs from the type asked about down to the first component that is
+	// itself non-clonable. It holds the root alone when the refusal is the
+	// type's own and every component it holds is clonable.
+	Path []types.TypeID
+	// Decl points at the `__clone` declaration that settled a negative outcome,
+	// when one exists at all.
+	Decl source.Span
+	// CanDefineHere reports whether a legal `extern<T> { fn __clone(self: &T) -> T }`
+	// could be declared for this exact type. It is proved by the same canonical
+	// receiver identity the resolver would register the method under; `!sealed`
+	// alone is not proof.
+	CanDefineHere bool
+	// DefineReason says why definition advice is or is not offered.
+	DefineReason string
 }
 
 // Capability is the whole semantic answer for one concrete type: whether it may
@@ -196,5 +218,8 @@ func (c *CapabilityClassifier) classifyClone(id, resolved types.TypeID, isCopy b
 			uint32(resolved), uint8(selection.kind),
 		)
 	}
-	return CloneEvidence{State: CloneNonClonable, Reason: reason}, nil
+	evidence := CloneEvidence{State: CloneNonClonable, Reason: reason, Decl: selection.decl}
+	evidence.Path = c.firstNonClonablePath(resolved)
+	evidence.CanDefineHere, evidence.DefineReason = c.canDefineCloneHere(resolved, selection.kind)
+	return evidence, nil
 }

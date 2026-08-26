@@ -8,9 +8,10 @@ import (
 	"surge/internal/types"
 )
 
-// TypeAttrFacts is the detached form of the four type attributes that carry
+// TypeAttrFacts is the detached form of the type attributes that carry
 // capability meaning: whether a value may move between shards, whether it is
-// pinned to one, and whether it may be sent at all.
+// pinned to one, whether it may be sent at all, and whether the type refuses
+// to be extended.
 //
 // The checker's own attribute store holds live AST nodes and is thrown away
 // with the file it was built for, so a whole-program consumer needs a copy that
@@ -27,6 +28,11 @@ type TypeAttrFacts struct {
 	ShardPinned  bool
 	NoSend       bool
 	Send         bool
+	// Sealed carries `@sealed` into the whole-program view. Advice that offers
+	// to declare a method on a type is legal only where the resolver would
+	// accept the declaration, and `@sealed` is the refusal a file-local
+	// attribute store cannot answer for an imported type.
+	Sealed bool
 }
 
 // or folds two views of one type together.
@@ -36,6 +42,7 @@ func (f TypeAttrFacts) or(other TypeAttrFacts) TypeAttrFacts {
 		ShardPinned:  f.ShardPinned || other.ShardPinned,
 		NoSend:       f.NoSend || other.NoSend,
 		Send:         f.Send || other.Send,
+		Sealed:       f.Sealed || other.Sealed,
 	}
 }
 
@@ -62,7 +69,7 @@ func (f TypeAttrFacts) withoutContradictions() TypeAttrFacts {
 	return f
 }
 
-// typeAttrFactsFromInfos reads exactly the four capability attributes out of a
+// typeAttrFactsFromInfos reads exactly the capability attributes out of a
 // type's recorded attributes. Attributes arriving from an import are already
 // name-only records built by recordImportedTypeAttrNames, so they answer here
 // the same way a local declaration does.
@@ -79,6 +86,11 @@ func typeAttrFactsFromInfos(infos []AttrInfo) TypeAttrFacts {
 	}
 	if _, ok := hasAttr(infos, "send"); ok {
 		facts.Send = true
+	}
+	// `@sealed` has no opposite, so it never takes part in the contradiction
+	// pass below; it is folded by the same OR as the rest.
+	if _, ok := hasAttr(infos, "sealed"); ok {
+		facts.Sealed = true
 	}
 	return facts
 }

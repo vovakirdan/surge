@@ -56,6 +56,13 @@ const (
 	noDuplicationRuleReason   = "the crossing has no rule for duplicating this value"
 
 	crossComponentRefusedReason = "it holds `%s`, which the crossing cannot duplicate on its own"
+
+	cloneAlreadyClaimedReason = "a `__clone` already claims this type, so the edit belongs on that declaration"
+	sealedTargetReason        = "the type is `@sealed`, so it may not be extended"
+	runtimeOwnedTargetReason  = "the value is runtime-owned, and its duplication is not the language's to declare"
+	structuralTargetReason    = "the shape has no declared name an `extern` block could be written against"
+	unextendableTargetReason  = "this kind of type carries no methods of its own"
+	extendableTargetReason    = "a `__clone(self: &T) -> T` may be declared for this type"
 )
 
 // reason is the sentence one canonical clone outcome contributes as evidence.
