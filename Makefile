@@ -318,7 +318,9 @@ runtime-v2-heap-check:
 	@echo ">> Running Runtime V2 drop reclamation gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2Drop(LeafReclamation|ScopeExit|FieldAliasDoesNotDoubleFree|ArmSynthesis|Composite|SelectSendArm|UnionCastReclamation)$$|^TestRuntimeV2(FarSelectCancelNonCopySendArm|LocalSelectCancelNonCopySendArm)$$|^TestRuntimeV2CrossingHeapCaptureCensusBalanced$$|^TestRuntimeV2CrossingStrictCensusBalanced$$|^TestRuntimeV2IterProtocolReclamationCensusBalanced$$|^TestRuntimeV2CompareScrutineeReleaseCensusBalanced$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 	@echo ">> Running Runtime V2 VM task-result strict-zero gate"
-	SURGE_BACKEND=vm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2TaskResultStrictZero(SpawnAwait|ChannelRoundTrip|TransportRoundTrip)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
+	SURGE_BACKEND=vm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2TaskResultStrictZero(SpawnAwait|ChannelRoundTrip|TransportRoundTrip|Timeout)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
+	@echo ">> Running Runtime V2 VM task-entitlement gate"
+	SURGE_BACKEND=vm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2VM(ClonedHandlesEachGetTheirOwnResult|CancelThroughASiblingIsTaskGlobal|TimeoutOverATemporaryHandle)$$|^TestTaskResultIsMovedByTheLastAskerAndDuplicatedForEveryEarlierOne$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
 	@echo ">> Running Runtime V2 strict-census valgrind gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2CrossingStrictCensusValgrindBounded$$|^TestRuntimeV2DropFarChannelHandleAndObjectValgrindZero$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 	@echo ">> Running Runtime V2 channel payload reclamation gate"
