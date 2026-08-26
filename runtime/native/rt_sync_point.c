@@ -4,6 +4,14 @@
 // so a shipping build links no rendezvous code and exports no rt_sync_point_*
 // symbol (enforced by check_sync_points.sh). See rt_sync_point.h for the
 // ownership model and the allowlist.
+//
+// clock_gettime is POSIX, not C11: the harness build sees it through -pthread,
+// the strict changed-file scan (no -pthread) does not, so ask for it by name
+// the way rt_alloc.c and rt_async_state.c already do.
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+#endif
+
 #include "rt_sync_point.h"
 
 #ifdef RT_TEST_SYNC_POINTS
