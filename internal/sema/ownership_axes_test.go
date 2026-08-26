@@ -1,8 +1,10 @@
 package sema
 
 import (
+	"context"
 	"testing"
 
+	"surge/internal/diag"
 	"surge/internal/types"
 )
 
@@ -181,6 +183,119 @@ fn probe(r: &int, m: &mut int, o: Owning) -> int {
 	if !sawOwningComposite {
 		t.Errorf("snippet produced no heap-owning struct")
 	}
+}
+
+// The two legs above were compared over a snippet whose interner held no
+// runtime handle and no generic `@copy` instantiation — exactly the types
+// where the two Copy authorities behind them are computed differently and
+// could part: a handle's answer IS `!isCopy` (a composite's never consults
+// its own Copy bit), and an instantiation is marked Copy by a separate step
+// (`type_decl_instantiate.go` → `MarkCopyType`) from the declaration's
+// attribute. So the agreement is asked again here over a `core` module
+// snippet, which is what makes `@intrinsic type Task<T>` a runtime handle
+// (`isRuntimeHandleTypeDecl`), with the answer each row must give:
+//
+//   - `Task<int>`, `Task<string>`: a handle, not Copy, owns the task — true;
+//   - `Channel<int>`: a handle declared `@copy`, so the handle leg answers
+//     `!isCopy` = false today. The storage model has the copy RETAIN and the
+//     drop release (RUNTIME_V2 §7), which is D3b C1's flip: the row records
+//     the seam, and C1 changes it to true in the same change that emits the
+//     drop;
+//   - `Opt<int>` / `Opt<float>`: a generic `@copy` union, instantiated, owns
+//     what its payload owns — false, then true for the counted scalar;
+//   - `Pair<int>`: a generic `@copy` tuple alias. The Copy authorities DO
+//     part here — `in.IsCopy(Pair<int>)` is true (the instantiation marks
+//     the alias id), `Result.IsCopyType(Pair<int>)` is false (it resolves the
+//     alias to `(int, int)` first, and the tuple carries no mark) — and the
+//     axis must still answer alike, because a composite's answer never comes
+//     from its own Copy bit. The parting itself is not pinned: it is a defect
+//     of the Copy leg, recorded under RV2-DEBT-260's residue, not a contract.
+func TestOwnsHeapLegsAgreeOverHandlesAndInstantiations(t *testing.T) {
+	src := `
+@intrinsic
+type Task<T> = { __opaque: int };
+@copy
+@intrinsic
+type Channel<T> = { __opaque: int };
+tag SomeC<T>(T);
+@copy type Opt<T> = SomeC(T) | nothing;
+@copy type Pair<T> = (T, T);
+
+fn probe(t: Task<int>, ts: Task<string>, c: Channel<int>, oi: Opt<int>, of: Opt<float>, p: Pair<int>) -> int {
+    return 0;
+}
+`
+	res := coreSnippetResult(t, src)
+	in := res.TypeInterner
+
+	rows := map[string]bool{
+		"Task<int>":    true,
+		"Task<string>": true,
+		"Channel<int>": false,
+		"Opt<int>":     false,
+		"Opt<float>":   true,
+		"Pair<int>":    false,
+	}
+	seen := make(map[string]bool, len(rows))
+	sawHandle := false
+	for id := types.TypeID(1); ; id++ {
+		tt, ok := in.Lookup(id)
+		if !ok {
+			break
+		}
+		got := res.OwnsHeap(id)
+		if leg := OwnsHeapIn(in, id); leg != got {
+			t.Errorf("type %d (%v, %s): OwnsHeap=%v but the interner-only leg says %v — one axis, one answer",
+				id, tt.Kind, types.Label(in, id), got, leg)
+		}
+		if in.IsRuntimeHandleType(id) {
+			sawHandle = true
+		}
+		label := types.Label(in, id)
+		want, ok := rows[label]
+		if !ok {
+			continue
+		}
+		seen[label] = true
+		if got != want {
+			t.Errorf("%s: OwnsHeap=%v, want %v", label, got, want)
+		}
+	}
+	for label := range rows {
+		if !seen[label] {
+			t.Errorf("%s: the snippet never produced this type, so its row pinned nothing", label)
+		}
+	}
+	// The walk must have crossed a real handle, or the agreement above was
+	// proven where it was already known: `@intrinsic` outside `core` is a
+	// plain struct.
+	if !sawHandle {
+		t.Errorf("interner holds no runtime handle — the snippet did not reach the handle leg")
+	}
+}
+
+// coreSnippetResult checks a snippet as module `core`, where `@intrinsic`
+// declarations are the runtime's own and `Task`/`Channel` become handles.
+func coreSnippetResult(t *testing.T, src string) *Result {
+	t.Helper()
+	builder, fileID, parseBag := parseSource(t, src)
+	if parseBag.Len() != 0 {
+		t.Fatalf("snippet does not parse: %s", diagnosticsSummary(parseBag))
+	}
+	symRes := resolveSymbols(t, builder, fileID)
+	semaBag := diag.NewBag(64)
+	res := Check(context.Background(), builder, fileID, Options{
+		Reporter:   &diag.BagReporter{Bag: semaBag},
+		Symbols:    symRes,
+		ModulePath: builder.StringsInterner.Intern("core"),
+	})
+	if semaBag.HasErrors() {
+		t.Fatalf("unexpected sema diagnostics: %s", diagnosticsSummary(semaBag))
+	}
+	if res.TypeInterner == nil {
+		t.Fatalf("expected a sema result")
+	}
+	return &res
 }
 
 // The composite half of the axis, pinned as SOURCE SHAPES with the answer the
