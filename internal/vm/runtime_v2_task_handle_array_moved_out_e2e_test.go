@@ -5,13 +5,19 @@ import (
 	"time"
 )
 
-// An array of task handles is consumed by `for`: each iteration moves the
-// handle out of its slot, and the slot it leaves behind holds nothing. The array's
-// drop glue still visits every slot, and a droppable Task<T> (D4b) gave that
-// visit a runtime call -- rt_task_handle_drop -- which refused the empty slot
-// with `panic: invalid task handle`. Every multi-worker row that keeps its
-// workers in an array died at teardown the same way.
-const runtimeV2TaskHandleArrayMovedOutSource = `
+// An array of task handles is emptied by POPPING, never by `for`: a `for`
+// loop only reads its elements (SEM3205 refuses a move out of the binding,
+// owner ruling 2026-08-26, RV2-DEBT-258), and each `pop()` takes the handle
+// out of its slot, so the array's drop glue meets only what is left.
+//
+// What is left is not nothing: `with_len` filled every slot with a default
+// handle before `tasks[i] = spawn ...` overwrote it, and each overwrite drops
+// that default through rt_task_handle_drop. A droppable Task<T> (D4b) once
+// handed that NULL to task_from_handle and died with `panic: invalid task
+// handle`; the guard (`TestRuntimeV2TaskHandleDropTreatsAnEmptySlotAsNothing`,
+// a C stand) treats an empty slot as nothing, and this program is its
+// end-to-end row: both lanes, one and four workers, clean teardown.
+const runtimeV2TaskHandleArrayDrainedSource = `
 async fn work(k: int) -> int {
     checkpoint().await();
     return k * 2;
@@ -25,11 +31,13 @@ async fn run() -> int {
         i = i + 1;
     }
     let mut total: int = 0;
-    for t in tasks {
+    while tasks.__len() > 0:uint {
+        let t = tasks.pop().safe();
         total = total + compare t.await() { Success(v) => v; Cancelled() => 0 - 100; };
     }
     if total != 12 { return 2; }
-    print("task-handle-array-moved-out-ok");
+    if tasks.__len() != 0:uint { return 3; }
+    print("task-handle-array-drained-ok");
     return 0;
 }
 
@@ -40,16 +48,8 @@ fn main() -> int {
 }
 `
 
-func TestRuntimeV2TaskHandleArrayDropsItsMovedOutSlots(t *testing.T) {
-	// RV2-DEBT-258: `for t in tasks { t.await() }` consumes each handle through
-	// the loop binding, but the container's slot is not emptied -- the loop
-	// reads the word and leaves it -- so the array's drop glue meets a handle
-	// that was already given back (`panic: async: invalid task owner shard`).
-	// The same shape double-frees an array of strings under valgrind. Which
-	// side moves is the owner's call (consuming for-in, or a refusal at sema);
-	// until then the program stays here as the reproducer.
-	t.Skip("RV2-DEBT-258: a for-in that consumes its elements does not empty the container's slots; owner decision pending")
-	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2TaskHandleArrayMovedOutSource, nil)
+func TestRuntimeV2TaskHandleArrayDrainedByPopTearsDownClean(t *testing.T) {
+	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2TaskHandleArrayDrainedSource, nil)
 	baseEnv := envWithStdlib(repoRoot(t))
 	for _, threads := range []string{"1", "4"} {
 		env := overrideEnvVar(baseEnv, "SURGE_THREADS", threads)

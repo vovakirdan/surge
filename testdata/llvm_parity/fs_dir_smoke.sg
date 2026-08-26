@@ -48,13 +48,17 @@ fn main(dir: string) -> int {
     compare res {
         Success(entries) => {
             let mut names: string[] = [];
-            for e in entries {
+            // A `for` only reads its elements; the names are taken out of
+            // the entries by draining them.
+            let mut pending = entries;
+            while pending.__len() > 0:uint {
+                let e = pending.pop().safe();
                 names.push(own e.name);
             }
             sort_strings(&mut names);
             print("count=" + (names.__len() to string));
             for name in names {
-                print(name);
+                print(clone(name));
             }
         }
         err => {

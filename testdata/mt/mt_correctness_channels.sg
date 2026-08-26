@@ -137,8 +137,8 @@ async fn main_async() -> int {
     }
 
     let mut prod_cancelled = false;
-    for task in prod_tasks {
-        let r = task.await();
+    while prod_tasks.__len() > 0:uint {
+        let r = prod_tasks.pop().safe().await();
         let ok = compare r {
             Success(_) => true;
             Cancelled() => false;
@@ -156,8 +156,8 @@ async fn main_async() -> int {
     let mut total_count = 0;
     let mut total_sum = 0;
     let mut cons_cancelled = false;
-    for task in cons_tasks {
-        let r = task.await();
+    while cons_tasks.__len() > 0:uint {
+        let r = cons_tasks.pop().safe().await();
         let ok = compare r {
             Success(v) => {
                 total_count = total_count + v.count;
@@ -246,8 +246,8 @@ async fn main_async() -> int {
         return 8;
     }
     let mut sem_cancelled = false;
-    for t in sem_tasks {
-        let r = t.await();
+    while sem_tasks.__len() > 0:uint {
+        let r = sem_tasks.pop().safe().await();
         let ok = compare r {
             Success(_) => true;
             Cancelled() => false;
@@ -361,8 +361,8 @@ async fn main_async() -> int {
         got = got + 1;
     }
     let mut cond_cancelled = false;
-    for t in ctasks {
-        let r = t.await();
+    while ctasks.__len() > 0:uint {
+        let r = ctasks.pop().safe().await();
         let ok = compare r {
             Success(_) => true;
             Cancelled() => false;
@@ -448,8 +448,8 @@ async fn main_async() -> int {
         bgot = bgot + 1;
     }
     let mut barr_cancelled = false;
-    for t in btasks {
-        let r = t.await();
+    while btasks.__len() > 0:uint {
+        let r = btasks.pop().safe().await();
         let ok = compare r {
             Success(_) => true;
             Cancelled() => false;
@@ -489,8 +489,8 @@ async fn main_async() -> int {
         bgot2 = bgot2 + 1;
     }
     let mut barr_cancelled2 = false;
-    for t in btasks2 {
-        let r = t.await();
+    while btasks2.__len() > 0:uint {
+        let r = btasks2.pop().safe().await();
         let ok = compare r {
             Success(_) => true;
             Cancelled() => false;

@@ -203,7 +203,8 @@ async fn run() -> int {
     }
 
     let mut done: int = 0;
-    for task in tasks {
+    while tasks.__len() > 0:uint {
+        let task = tasks.pop().safe();
         let result = task.await();
         compare result {
             Success(v) => { done = done + v; }

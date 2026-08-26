@@ -124,8 +124,8 @@ async fn main_async() -> int {
     }
 
     let mut cancelled = false;
-    for t in tasks {
-        let r = t.await();
+    while tasks.__len() > 0:uint {
+        let r = tasks.pop().safe().await();
         let ok = compare r {
             Success(_) => true;
             Cancelled() => false;
@@ -516,8 +516,8 @@ async fn main_async() -> int {
         i = i + 1;
     }
     let mut progress_cancelled = false;
-    for t in progress_tasks {
-        let r = t.await();
+    while progress_tasks.__len() > 0:uint {
+        let r = progress_tasks.pop().safe().await();
         let ok = compare r {
             Success(_) => true;
             Cancelled() => false;
@@ -529,8 +529,8 @@ async fn main_async() -> int {
     if progress_cancelled {
         return 1;
     }
-    for b in blocking_tasks {
-        let r = b.await();
+    while blocking_tasks.__len() > 0:uint {
+        let r = blocking_tasks.pop().safe().await();
         let ok = compare r {
             Success(_) => true;
             Cancelled() => false;
@@ -598,8 +598,8 @@ async fn main_async() -> int {
         j = j + 1;
     }
     let mut stress_cancelled = false;
-    for t in stress_tasks_arr {
-        let r = t.await();
+    while stress_tasks_arr.__len() > 0:uint {
+        let r = stress_tasks_arr.pop().safe().await();
         let ok = compare r {
             Success(_) => true;
             Cancelled() => false;
@@ -611,8 +611,8 @@ async fn main_async() -> int {
     if stress_cancelled {
         return 20;
     }
-    for b in stress_blocking {
-        let r = b.await();
+    while stress_blocking.__len() > 0:uint {
+        let r = stress_blocking.pop().safe().await();
         let ok = compare r {
             Success(_) => true;
             Cancelled() => false;

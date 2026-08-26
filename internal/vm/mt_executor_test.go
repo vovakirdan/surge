@@ -383,8 +383,8 @@ async fn run() -> int {
     }
 
     let mut failed: bool = false;
-    for t in tasks {
-        let r = t.await();
+    while tasks.__len() > 0:uint {
+        let r = tasks.pop().safe().await();
         let ok = compare r {
             Success(v) => v == 0;
             Cancelled() => false;
@@ -562,8 +562,8 @@ fn main() -> int {
     }
     let mut sum: int = 0;
     let mut cancelled: bool = false;
-    for task in tasks {
-        let r = task.await();
+    while tasks.__len() > 0:uint {
+        let r = tasks.pop().safe().await();
         let was_cancelled: bool = compare r {
             Success(v) => {
                 sum = sum + v;
@@ -965,8 +965,8 @@ fn main() -> int {
 
     let mut produced = 0;
     let mut prod_cancelled = false;
-    for task in prod_tasks {
-        let r = task.await();
+    while prod_tasks.__len() > 0:uint {
+        let r = prod_tasks.pop().safe().await();
         let was_cancelled = compare r {
             Success(v) => {
                 produced = produced + v;
@@ -989,8 +989,8 @@ fn main() -> int {
 
     let mut received = 0;
     let mut recv_cancelled = false;
-    for task in cons_tasks {
-        let r = task.await();
+    while cons_tasks.__len() > 0:uint {
+        let r = cons_tasks.pop().safe().await();
         let was_cancelled = compare r {
             Success(v) => {
                 received = received + v;
@@ -1167,8 +1167,8 @@ fn main() -> int {
     }
 
     let mut total = 0;
-    for task in tasks {
-        let res = task.await();
+    while tasks.__len() > 0:uint {
+        let res = tasks.pop().safe().await();
         let ok = compare res {
             Success(v) => {
                 total = total + v;
@@ -1375,8 +1375,8 @@ fn main() -> int {
     }
 
     let mut client_total = 0;
-    for task in clients {
-        let client_res = task.await();
+    while clients.__len() > 0:uint {
+        let client_res = clients.pop().safe().await();
         let client_ok = compare client_res {
             Success(v) => {
                 client_total = client_total + v;
@@ -1390,8 +1390,8 @@ fn main() -> int {
     }
 
     let mut manager_total = 0;
-    for task in managers {
-        let manager_res = task.await();
+    while managers.__len() > 0:uint {
+        let manager_res = managers.pop().safe().await();
         let manager_ok = compare manager_res {
             Success(v) => {
                 manager_total = manager_total + v;
@@ -1449,8 +1449,8 @@ async fn spawn_many(count: int, steps: int) -> int {
         i = i + 1;
     }
     let mut failed: bool = false;
-    for t in tasks {
-        let r = t.await();
+    while tasks.__len() > 0:uint {
+        let r = tasks.pop().safe().await();
         let ok = compare r {
             Success(v) => v == 0;
             Cancelled() => false;
@@ -1534,8 +1534,8 @@ fn main() -> int {
     }
     let mut cancelled: bool = false;
     let mut total: int = 0;
-    for t in tasks {
-        let r = t.await();
+    while tasks.__len() > 0:uint {
+        let r = tasks.pop().safe().await();
         let ok = compare r {
             Success(v) => {
                 total = total + v;

@@ -12,7 +12,8 @@ fn main() {
     }
 
     let mut sum: int = 0;
-    for raw_task in tasks {
+    while tasks.__len() > 0:uint {
+        let raw_task = tasks.pop().safe();
         compare raw_task.await() {
             Success(v) => sum = sum + v;
             Cancelled() => nothing;
