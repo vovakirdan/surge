@@ -48,7 +48,6 @@ const dropGluePrefix = "drop.type"
 var knownDroppableDivergences = map[string]string{
 	"Channel<int>":     "opaque runtime resource: the channel is released by the runtime, not by glue",
 	"own Channel<int>": "same resource seen through an owning binding",
-	"Task<nothing>":    "opaque runtime resource: a task handle is refcounted by the runtime",
 }
 
 // The fixture reaches one carrier of every kind the comparison cares about: a

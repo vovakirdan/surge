@@ -104,8 +104,25 @@ fn main() -> int {
 	if err != nil {
 		t.Fatalf("emit LLVM IR: %v", err)
 	}
-	if taskGlue := fmt.Sprintf("@drop.type%d", taskType); strings.Contains(ir, taskGlue) {
-		t.Fatalf("runtime-owned Task<nothing> must not receive generic boxed drop glue %s", taskGlue)
+	// A task handle now has drop glue -- it is what releases the handle's
+	// reference when a typed slot holding one is destroyed -- but the glue
+	// must be the HANDLE release and not the boxed-composite walk this row was
+	// written against: it gives the reference back through
+	// rt_task_handle_drop and frees no storage of its own.
+	taskGlue := fmt.Sprintf("define void @drop.type%d(", taskType)
+	start := strings.Index(ir, taskGlue)
+	if start < 0 {
+		t.Fatalf("runtime-owned Task<nothing> must receive handle-release drop glue %s", taskGlue)
+	}
+	body := ir[start:]
+	if end := strings.Index(body, "\n}\n"); end >= 0 {
+		body = body[:end]
+	}
+	if !strings.Contains(body, "@rt_task_handle_drop(") {
+		t.Fatalf("Task<nothing> drop glue must release the handle through rt_task_handle_drop:\n%s", body)
+	}
+	if strings.Contains(body, "@rt_free(") {
+		t.Fatalf("Task<nothing> drop glue must not free the handle as a boxed composite:\n%s", body)
 	}
 }
 

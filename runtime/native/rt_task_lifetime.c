@@ -157,6 +157,22 @@ void rt_task_reclaim_drain(void) {
     }
 }
 
+// The drop of a Task<T> value, reached from compiled code: a handle inside a
+// frame a cancellation abandoned, an element of a container being torn down,
+// a local a shutdown unwinds past. It is the one entry the program has to the
+// handle's reference that is not an await, and it must not decide anything
+// about the result: an asker that never came is not a value that was taken,
+// so the slot keeps its own until the last reference goes and the owner-side
+// reclamation in free_task destroys it exactly once (RV2-DEBT-053a).
+void rt_task_handle_drop(void* task) {
+    rt_executor* ex = ensure_exec();
+    rt_task* target = task_from_handle(task);
+    if (ex == NULL || target == NULL) {
+        return;
+    }
+    task_release_lane_aware(ex, target);
+}
+
 void task_release(rt_executor* ex, rt_task* task) {
     // Caller holds the control lock.
     if (ex == NULL || task == NULL) {

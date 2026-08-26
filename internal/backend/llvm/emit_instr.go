@@ -112,7 +112,14 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 	// range a program materialised leaked. The for-loop cursor never did, because
 	// its envelope release frees the same object through the same helper.
 	_, isRange := rangeElemType(typesIn, baseType)
-	if !isRefCounted && !isString && !dynArray && !isFarChan && !isRange {
+	// A local Task<T> is a handle the runtime refcounts, and a handle the
+	// program will never await again -- one an abandoned frame or a container
+	// still holds -- keeps its task and the result nobody took alive until
+	// this reference is given back. Structured concurrency (SEM3107) means a
+	// LIVE handle never reaches an ordinary scope exit; what reaches here is
+	// unwinding, and unwinding must not leak.
+	isTask := isTaskType(typesIn, baseType)
+	if !isRefCounted && !isString && !dynArray && !isFarChan && !isRange && !isTask {
 		return nil
 	}
 	ptr, ptrTy, align, err := fe.emitPlaceStorage(ins.Drop.Place)
@@ -134,6 +141,8 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_string_free(ptr %s)\n", handle)
 	case isFarChan:
 		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_far_channel_handle_drop(ptr %s)\n", handle)
+	case isTask:
+		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_task_handle_drop(ptr %s)\n", handle)
 	case dynArray:
 		fe.emitter.emitDropDynArray(handle, elemType)
 	case isRange:

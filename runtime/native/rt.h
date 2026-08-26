@@ -331,6 +331,12 @@ void rt_task_cancel(void* task);
 // and moves its result out. What may duplicate a value, and for whom, is the
 // entitlement question D4b answers.
 void* rt_task_clone(void* task, rt_value_clone_init_fn duplicate);
+// A handle the program will never ask through again: an abandoned frame, a
+// container torn down by cancellation, shutdown. It gives back this handle's
+// reference and nothing else -- the task keeps running if it has not finished,
+// and cancelling it stays a separate, task-global operation. When this was the
+// last handle on a DONE task, the task and the result nobody took are freed.
+void rt_task_handle_drop(void* task);
 // `result_type_id` names the blocking body's result type, so the job and the
 // awaiting task bind the SAME descriptor and the value moves between them.
 void* rt_blocking_submit(uint64_t fn_id,

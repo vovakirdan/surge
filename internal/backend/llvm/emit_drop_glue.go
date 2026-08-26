@@ -78,6 +78,13 @@ func (e *Emitter) typeOwnsHeapRec(id types.TypeID, seen map[types.TypeID]struct{
 	if _, dynamic, isArray := arrayElemType(e.types, id); isArray && dynamic {
 		return true
 	}
+	// A local task handle holds a reference the runtime counts, so a composite
+	// that carries one owns something its drop has to give back. It was the
+	// one handle family the walk excluded, and the exclusion is where an
+	// abandoned frame's awaited-child handle leaked (RV2-DEBT-198's residual).
+	if isTaskType(e.types, id) {
+		return true
+	}
 	if elem, _, ok := arrayFixedInfo(e.types, id); ok {
 		return e.typeOwnsHeapRec(elem, seen)
 	}
@@ -259,6 +266,13 @@ func (e *Emitter) emitDropHandle(val string, ty types.TypeID) {
 	}
 	if _, isRange := rangeElemType(e.types, ty); isRange {
 		fmt.Fprintf(&e.buf, "  call void @rt_range_free(ptr %s)\n", val)
+		return
+	}
+	if isTaskType(e.types, ty) {
+		// The container gives back the handle's reference. Nothing is
+		// cancelled: the task finishes on its own, and the last reference on
+		// a finished task is what frees it and the result nobody took.
+		fmt.Fprintf(&e.buf, "  call void @rt_task_handle_drop(ptr %s)\n", val)
 	}
 }
 

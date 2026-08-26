@@ -18,17 +18,13 @@ import (
 // spawn just marks the child READY without running it, so nothing can poll
 // the child between spawn and cancel on a single worker.
 //
-// KNOWN RESIDUAL (reported here, not fixed — separate from what this row
-// proves): the abandoned state's own box now frees correctly (measured via
-// git-stash A/B: 32B direct + 24B indirect before this fix, 24B direct + 0
-// indirect after — the 32B box is gone). The remaining 24B is the awaited
-// checkpoint's own Task<T> local, packed live into the abandoned payload:
-// typeOwnsHeapRec's default case (emit_drop_glue.go) explicitly excludes
-// handle-shaped types (Task<T>, and empirically Channel<T> too) from the
-// generic recursive composite walk, because they need their own dedicated
-// release call, not a raw rt_free — the same gap that presumably affects
-// any struct/tuple/union field of one of these handle types going through
-// requireDropGlue anywhere else in the compiler, not just here.
+// The abandoned payload also carries the awaited checkpoint's own Task<T>
+// handle, packed live: the await never came back to release it. A task handle
+// is a reference the runtime counts. This row used to be asserted as bounded
+// because it leaked exactly one 24-byte handle per cancellation; measured at
+// 0d00d9fa the residual is gone (the state is destroyed through its own
+// descriptor since D7), so the row is strict zero and stays that way now that
+// the composite walk gives a task handle's reference back as well.
 const runtimeV2CancelledSuspendStateSource = `
 async fn child_body() -> int {
     checkpoint().await();
@@ -62,9 +58,8 @@ fn main() -> int {
 // suspend-point state fix: a child cancelled before its own checkpoint ever
 // runs must reclaim the state box itself, at SHARDS=1 where the race is
 // deterministic (spawn/cancel/await all run on one worker with nothing else
-// able to poll the child in between). The assertion is bounded, not zero —
-// see the KNOWN RESIDUAL note above for the separate, pre-existing gap this
-// row does not claim to fix.
+// able to poll the child in between). The assertion is strict zero: the
+// state box and the task handle packed inside it are both reclaimed.
 func TestRuntimeV2CancelledSuspendStateReclaimed(t *testing.T) {
 	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2CancelledSuspendStateSource, nil)
 	baseEnv := envWithStdlib(repoRoot(t))
@@ -87,7 +82,7 @@ func TestRuntimeV2CancelledSuspendStateReclaimed(t *testing.T) {
 		}
 	})
 
-	t.Run("valgrind_bounded", func(t *testing.T) {
+	t.Run("valgrind_strict_zero", func(t *testing.T) {
 		vg, err := exec.LookPath("valgrind")
 		if err != nil {
 			t.Skip("valgrind not found on PATH; skipping leak census")
@@ -121,22 +116,15 @@ func TestRuntimeV2CancelledSuspendStateReclaimed(t *testing.T) {
 			"valgrind census: definitely_lost=%dB/%dblk indirectly_lost=%dB/%dblk exit=%d",
 			definiteBytes, definiteBlocks, indirectBytes, indirectBlocks, exitCode,
 		)
-		// The state box itself (32B) must be gone — that's what this row
-		// proves. The known residual is exactly one Task<T> handle (24B
-		// direct, 0 indirect); anything indirect, or any direct count
-		// that isn't a multiple of that unit, means either the state box
-		// fix regressed or a NEW leak shape appeared.
-		const perOccurrenceHandleBytes = 24
-		if indirectBytes != 0 || indirectBlocks != 0 {
+		// Strict zero: the state box AND the task handle it carried are both
+		// reclaimed. Against the tree that walks past a task handle in a
+		// composite this reports definitely_lost=24B/1blk (one handle per
+		// cancellation); anything indirect, or any definite bytes at all, is a
+		// regression of one of the two.
+		if definiteBytes != 0 || definiteBlocks != 0 || indirectBytes != 0 || indirectBlocks != 0 {
 			t.Fatalf(
-				"unexpected indirect leak (definitely_lost=%dB/%dblk indirectly_lost=%dB/%dblk); the state box fix looks incomplete\nstdout:\n%s\nstderr:\n%s",
+				"cancelled suspend state leaked (definitely_lost=%dB/%dblk indirectly_lost=%dB/%dblk)\nstdout:\n%s\nstderr:\n%s",
 				definiteBytes, definiteBlocks, indirectBytes, indirectBlocks, stdout, stderr,
-			)
-		}
-		if definiteBytes%perOccurrenceHandleBytes != 0 {
-			t.Fatalf(
-				"definitely-lost bytes (%d) is not a multiple of the known per-occurrence handle unit (%d); this looks like a NEW leak shape, not the documented residual\nstdout:\n%s\nstderr:\n%s",
-				definiteBytes, perOccurrenceHandleBytes, stdout, stderr,
 			)
 		}
 	})
