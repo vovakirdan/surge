@@ -46,6 +46,9 @@ func CombineHIRWithModulesWithOptions(ctx context.Context, res *DiagnoseResult, 
 	if err := FinalizeInstantiationClosure(ctx, res, 64); err != nil {
 		return nil, err
 	}
+	if res.Bag != nil && res.Bag.HasErrors() {
+		return nil, ErrDiagnosticsReported
+	}
 	if err := reachRequiredValueOperations(res); err != nil {
 		return nil, err
 	}

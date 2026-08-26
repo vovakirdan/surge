@@ -18,6 +18,12 @@ import "testing"
 const runtimeV2VMCohortIndependenceSource = `
 type Box = { note: string, count: int };
 
+extern<Box> {
+    pub fn __clone(self: &Box) -> Box {
+        return Box { note = self.note.__clone(), count = self.count };
+    }
+}
+
 async fn produce(k: int) -> Box {
     let b: Box = { note = "shared-by-nobody", count = k };
     return b;

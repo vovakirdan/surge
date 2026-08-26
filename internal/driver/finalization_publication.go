@@ -23,6 +23,12 @@ func finalizeDiagnoseResult(ctx context.Context, res *DiagnoseResult) (bool, err
 	return res.Bag.HasErrors(), nil
 }
 
+// ErrDiagnosticsReported is what the merge seam answers when the whole-program
+// finalization refused something: the refusal is in the bag, and lowering on
+// past it would only report the decision it never published as an internal
+// compiler error. Callers print the bag.
+var ErrDiagnosticsReported = errors.New("diagnostics reported errors")
+
 type finalizationDiagnosticError interface {
 	error
 	Diagnostic() *diag.Diagnostic

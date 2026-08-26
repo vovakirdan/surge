@@ -36,6 +36,9 @@ func CombineHIRWithCore(ctx context.Context, res *DiagnoseResult) (*hir.Module, 
 	if err := FinalizeInstantiationClosure(ctx, res, 64); err != nil {
 		return nil, err
 	}
+	if res.Bag != nil && res.Bag.HasErrors() {
+		return nil, ErrDiagnosticsReported
+	}
 
 	mapping, cachedMapping := cachedInstantiationSymbolRemap(coreRec, res.Symbols.Table)
 	if !cachedMapping {

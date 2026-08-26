@@ -50,7 +50,7 @@ const (
 // DiagnoseOptions содержит опции для диагностики
 type DiagnoseOptions struct {
 	Stage              DiagnoseStage
-	MaxDiagnostics     int
+	MaxDiagnostics     int // zero means DefaultMaxDiagnostics, never "none"
 	IgnoreWarnings     bool
 	WarningsAsErrors   bool
 	NoAlienHints       bool // Disable extra alien-hint diagnostics (enabled by default)
@@ -158,7 +158,7 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts *DiagnoseOpt
 	modulePath := modulePathForFile(fs, file, opts.ModuleMapping)
 
 	// Создаём диагностический пакет
-	bag := diag.NewBag(opts.MaxDiagnostics)
+	bag := diag.NewBag(bagCapacity(opts.MaxDiagnostics))
 
 	var (
 		builder       *ast.Builder

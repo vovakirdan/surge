@@ -34,7 +34,7 @@ func publishParallelModuleResults(
 			res := &results[resIdx]
 			res.Path, res.FileID, res.ASTFile = file.Path, file.ID, astFile
 			res.Builder = rec.Builder
-			res.Bag = fileBagFromDiagnostics(diagsByFile[file.ID], opts.MaxDiagnostics)
+			res.Bag = fileBagFromDiagnostics(diagsByFile[file.ID], bagCapacity(opts.MaxDiagnostics))
 			res.Symbols = nil
 			if sym, ok := rec.Symbols[astFile]; ok {
 				symCopy := sym

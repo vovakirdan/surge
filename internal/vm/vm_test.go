@@ -3,6 +3,8 @@ package vm_test
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -34,8 +36,7 @@ func compileToMIR(t *testing.T, filePath string) (*mir.Module, *source.FileSet, 
 	if result.Bag.HasErrors() {
 		var sb strings.Builder
 		for _, d := range result.Bag.Items() {
-			sb.WriteString(d.Message)
-			sb.WriteString("\n")
+			fmt.Fprintf(&sb, "%s %s: %s\n", d.Code.String(), d.Primary, d.Message)
 		}
 		t.Fatalf("compilation errors:\n%s", sb.String())
 	}
@@ -52,6 +53,16 @@ func compileToMIR(t *testing.T, filePath string) (*mir.Module, *source.FileSet, 
 
 	hirModule, err := driver.CombineHIRWithModules(context.Background(), result)
 	if err != nil {
+		if errors.Is(err, driver.ErrDiagnosticsReported) {
+			var sb strings.Builder
+			for _, d := range result.Bag.Items() {
+				sb.WriteString(d.Code.String())
+				sb.WriteString(" ")
+				sb.WriteString(d.Message)
+				sb.WriteString("\n")
+			}
+			t.Fatalf("compilation errors at the merge seam:\n%s", sb.String())
+		}
 		t.Fatalf("HIR merge failed: %v", err)
 	}
 	if hirModule == nil {

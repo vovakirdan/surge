@@ -57,7 +57,7 @@ func analyzeDependencyModule(
 	if stdlibRoot != "" && isStdlibModulePath(modulePath) && pathWithin(stdlibRoot, dirPath) {
 		metaBaseDir = stdlibRoot
 	}
-	bag := diag.NewBag(opts.MaxDiagnostics)
+	bag := diag.NewBag(bagCapacity(opts.MaxDiagnostics))
 	builder, fileIDs, files, err := parseModuleDir(ctx, fs, dirPath, bag, strs, nil, nil, parser.DirectiveModeOff)
 	if err != nil {
 		if errors.Is(err, errModuleNotFound) {
@@ -151,7 +151,7 @@ func resolveModuleRecord(
 	}
 	bag := rec.Bag
 	if bag == nil {
-		bag = diag.NewBag(opts.MaxDiagnostics)
+		bag = diag.NewBag(bagCapacity(opts.MaxDiagnostics))
 	}
 	reporter := diag.NewDedupReporter(&diag.BagReporter{Bag: bag})
 	table := symbols.NewTable(symbols.Hints{}, rec.Builder.StringsInterner)

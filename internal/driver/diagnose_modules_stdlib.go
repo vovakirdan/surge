@@ -80,7 +80,7 @@ func loadStdModule(
 		return nil, errStdModuleMissing
 	}
 	dirPath := filepath.Dir(filePath)
-	bag := diag.NewBag(opts.MaxDiagnostics)
+	bag := diag.NewBag(bagCapacity(opts.MaxDiagnostics))
 	builder, fileIDs, files, err := parseModuleDir(ctx, fs, dirPath, bag, strs, nil, nil, parser.DirectiveModeOff)
 	if err != nil {
 		return nil, err

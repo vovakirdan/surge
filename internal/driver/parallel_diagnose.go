@@ -129,7 +129,7 @@ func DiagnoseFilesWithOptions(ctx context.Context, baseDir string, files []strin
 					metrics.workersCompleted.Add(1)
 				}()
 
-				bag := diag.NewBag(opts.MaxDiagnostics)
+				bag := diag.NewBag(bagCapacity(opts.MaxDiagnostics))
 				var (
 					builder *ast.Builder
 					astFile ast.FileID

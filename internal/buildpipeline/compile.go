@@ -2,6 +2,7 @@ package buildpipeline
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -188,6 +189,13 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 		CrossingForms: crossingForms,
 	})
 	if err != nil {
+		if errors.Is(err, driver.ErrDiagnosticsReported) {
+			if !req.Analysis {
+				printBuildDiagnostics(os.Stderr, diagRes)
+			}
+			emitStage(req.Progress, req.Files, StageDiagnose, StatusError, err, 0)
+			return result, err
+		}
 		err = fmt.Errorf("HIR merge failed: %w", err)
 		emitStage(req.Progress, req.Files, StageLower, StatusError, err, 0)
 		return result, err
