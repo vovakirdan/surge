@@ -48,8 +48,30 @@ func (tc *typeChecker) popTempFrame() {
 		tc.result.TempDrops = make(map[ast.ExprID][]DropStep)
 	}
 	for id := range frame.flags {
-		tc.result.TempDrops[id] = tc.temporaryResidualPlan(tc.result.ExprTypes[id], tc.tempTaken[id])
+		ty := tc.result.ExprTypes[id]
+		// An argument converted on the way into a call is released as what
+		// the conversion PRODUCED, not as what was written: `print(1)` against
+		// `@allow_to s: &string` owes a string, not an int.
+		if conv, ok := tc.result.ImplicitConversions[id]; ok && conv.Kind == ImplicitConversionTo {
+			ty = conv.Target
+		}
+		tc.result.TempDrops[id] = tc.temporaryResidualPlan(ty, tc.tempTaken[id])
 	}
+}
+
+// noteConvertedTemporary flags an argument whose implicit `__to` conversion
+// produced a value nobody consumes: the parameter only borrows it, so the
+// temporary is the statement's to release. The expression itself may be a
+// literal or a place -- what is produced is the conversion's result.
+func (tc *typeChecker) noteConvertedTemporary(exprID ast.ExprID, produced types.TypeID) {
+	if len(tc.tempFrames) == 0 || tc.dropObligationsSuppressed() || !tc.isDroppableType(produced) {
+		return
+	}
+	top := &tc.tempFrames[len(tc.tempFrames)-1]
+	if top.flags == nil {
+		top.flags = make(map[ast.ExprID]struct{})
+	}
+	top.flags[exprID] = struct{}{}
 }
 
 // recordTemporaryTaken notes that a path was moved out of an evaluation nothing

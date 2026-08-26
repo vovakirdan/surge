@@ -1,0 +1,19 @@
+// scenario: print reads a string and converts anything that knows how to become one -- no borrow, own or move is spelled at any call
+
+@entrypoint
+fn main() -> int {
+    print("Hello world!");
+    print(1);
+    let n: int = 7;
+    print(n);
+    print(2.5);
+    let names: string[] = ["a", "bb"];
+    for name in names {
+        print(name);
+    }
+    let s: string = "keep";
+    print(s);
+    print(s);
+    print("x" + "y");
+    return 0;
+}

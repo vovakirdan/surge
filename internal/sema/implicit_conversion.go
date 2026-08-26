@@ -1,6 +1,7 @@
 package sema
 
 import (
+	"strings"
 	"surge/internal/ast"
 	"surge/internal/source"
 	"surge/internal/symbols"
@@ -62,7 +63,7 @@ func (tc *typeChecker) tryImplicitConversion(src, target types.TypeID) (types.Ty
 		return types.NoTypeID, false, false
 	}
 
-	candidates := tc.collectToMethods(src, target)
+	candidates := tc.preferReceiverKind(src, tc.collectToMethods(src, target))
 	switch len(candidates) {
 	case 0:
 		return types.NoTypeID, false, false
@@ -79,7 +80,12 @@ func (tc *typeChecker) tryImplicitConversion(src, target types.TypeID) (types.Ty
 // module and all visible imports.
 func (tc *typeChecker) collectToMethods(src, target types.TypeID) []*symbols.FunctionSignature {
 	var results []*symbols.FunctionSignature
-	seen := make(map[*symbols.FunctionSignature]struct{})
+	// One declaration reaches this lookup once per module record that
+	// re-exports it (core is visible through the prelude AND through the
+	// stdlib modules that import it), as distinct signature objects with the
+	// same text. Identity is the text: the same `__to(int, string) -> string`
+	// twice is one candidate, not an ambiguity.
+	seen := make(map[string]struct{})
 	targetCandidates := tc.filterTargetCandidates(target, tc.typeKeyCandidates(target))
 
 	for _, sc := range tc.typeKeyCandidates(src) {
@@ -96,8 +102,8 @@ func (tc *typeChecker) collectToMethods(src, target types.TypeID) []*symbols.Fun
 			for _, tgt := range targetCandidates {
 				if tgt.key != "" && typeKeyEqual(sig.Params[1], tgt.key) && typeKeyEqual(sig.Result, tgt.key) {
 					// Deduplicate: only add each signature once
-					if _, dup := seen[sig]; !dup {
-						seen[sig] = struct{}{}
+					if _, dup := seen[signatureText(sig)]; !dup {
+						seen[signatureText(sig)] = struct{}{}
 						results = append(results, sig)
 					}
 					break // Found a match for this sig, no need to check other target candidates
@@ -453,4 +459,42 @@ func (tc *typeChecker) recordTagInstantiationForInjection(kind ImplicitConversio
 	args := []types.TypeID{payloadType}
 	tc.rememberFunctionInstantiation(tagSymID, args, span, "tag-injection")
 	return tagSymID
+}
+
+// signatureText is a signature's identity for deduplication: its parameter
+// keys and its result key, which is all a `__to` candidate is compared by.
+func signatureText(sig *symbols.FunctionSignature) string {
+	var b strings.Builder
+	for _, p := range sig.Params {
+		b.WriteString(string(p))
+		b.WriteByte('|')
+	}
+	b.WriteString("->")
+	b.WriteString(string(sig.Result))
+	return b.String()
+}
+
+// preferReceiverKind settles the one ambiguity a value never means: a magic
+// method declared once for `T` and once for `&T` applies to a `T` twice --
+// directly and through autoref. The candidate whose receiver is the source's
+// own kind wins; only when neither is exact do both remain, and the caller
+// reports the ambiguity as before.
+func (tc *typeChecker) preferReceiverKind(src types.TypeID, candidates []*symbols.FunctionSignature) []*symbols.FunctionSignature {
+	if len(candidates) < 2 {
+		return candidates
+	}
+	srcKey := tc.typeKeyForType(src)
+	if srcKey == "" {
+		return candidates
+	}
+	exact := candidates[:0:0]
+	for _, sig := range candidates {
+		if len(sig.Params) > 0 && typeKeyEqual(sig.Params[0], srcKey) {
+			exact = append(exact, sig)
+		}
+	}
+	if len(exact) == 1 {
+		return exact
+	}
+	return candidates
 }

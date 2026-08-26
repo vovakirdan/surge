@@ -365,6 +365,17 @@ func (tc *typeChecker) matchArgument(expected, actual types.TypeID, isLiteral, a
 		if !ok {
 			return 0, false
 		}
+		// A value the parameter converts on the way in (`print(1)` against
+		// `@allow_to s: &string`) has no place of its own: the conversion
+		// produces a fresh string, and that temporary is what the borrow
+		// reads, released with the statement -- the same materialization a
+		// concatenation or a call result already gets.
+		if !expInfo.Mutable && allowImplicitTo && tc.isStringType(expInfo.Elem) &&
+			!tc.isReferenceType(innerActual) && tc.resolveAlias(innerActual) != tc.types.Builtins().String {
+			if _, found, _ := tc.tryImplicitConversion(innerActual, expInfo.Elem); found {
+				return cost + 2, true
+			}
+		}
 		if expInfo.Mutable {
 			if !tc.isAddressableExpr(expr) {
 				info.record(expr, true, borrowFailureNotAddressable)

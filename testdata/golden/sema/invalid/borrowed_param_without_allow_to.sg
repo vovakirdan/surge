@@ -1,0 +1,9 @@
+// scenario: a borrowed string parameter WITHOUT @allow_to does not convert its argument -- print does, because it says so
+fn takes(s: &string) -> nothing {
+}
+
+@entrypoint
+fn main() -> int {
+    takes(42);
+    return 0;
+}

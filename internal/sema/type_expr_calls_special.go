@@ -84,8 +84,20 @@ func (tc *typeChecker) recordImplicitConversionsForCall(sym *symbols.Symbol, arg
 			continue
 		}
 		if !tc.typesAssignable(expectedType, arg.ty, true) && tc.callAllowsImplicitTo(sym, paramIndex) {
-			if convType, found, _ := tc.tryImplicitConversion(arg.ty, expectedType); found {
+			// A shared-reference parameter converts to the REFERENT and borrows
+			// the temporary the conversion produced: `print(1)` against
+			// `@allow_to s: &string` is `__to(1, string)` read once.
+			convTarget := expectedType
+			borrowed := false
+			if tt, ok := tc.types.Lookup(tc.resolveAlias(expectedType)); ok && tt.Kind == types.KindReference && !tt.Mutable {
+				convTarget = tt.Elem
+				borrowed = true
+			}
+			if convType, found, _ := tc.tryImplicitConversion(arg.ty, convTarget); found {
 				tc.recordImplicitConversion(arg.expr, arg.ty, convType)
+				if borrowed {
+					tc.noteConvertedTemporary(arg.expr, convType)
+				}
 			}
 		}
 	}

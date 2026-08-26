@@ -172,6 +172,13 @@ func (tc *typeChecker) canMaterializeForRefString(expr ast.ExprID, expected type
 	if tc.isReferenceType(actual) {
 		return false
 	}
+	// An argument the parameter converts on the way in (`print(1)` against
+	// `@allow_to s: &string`) IS a string by the time it is borrowed: the
+	// recorded conversion produces the temporary the borrow reads.
+	if conv, ok := tc.result.ImplicitConversions[expr]; ok && conv.Kind == ImplicitConversionTo &&
+		tc.resolveAlias(conv.Target) == tc.types.Builtins().String {
+		return true
+	}
 	if tc.resolveAlias(actual) != tc.types.Builtins().String {
 		return false
 	}

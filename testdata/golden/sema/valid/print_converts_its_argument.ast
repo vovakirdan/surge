@@ -1,0 +1,45 @@
+print_converts_its_argument.sg (span: 3:1-20:1)
+└─ Item[0]: Fn (span: 3:1-19:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 4:18-19:2)
+         ├─ Stmt[0]: Expr (span: 5:5-5:27)
+         │  └─ Expr: expr#3: print("Hello world!")
+         ├─ Stmt[1]: Expr (span: 6:5-6:14)
+         │  └─ Expr: expr#6: print(1)
+         ├─ Stmt[2]: Let (span: 7:5-7:20)
+         │  ├─ Name: n
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#7: 7
+         ├─ Stmt[3]: Expr (span: 8:5-8:14)
+         │  └─ Expr: expr#10: print(n)
+         ├─ Stmt[4]: Expr (span: 9:5-9:16)
+         │  └─ Expr: expr#13: print(2.5)
+         ├─ Stmt[5]: Let (span: 10:5-10:39)
+         │  ├─ Name: names
+         │  ├─ Mutable: false
+         │  ├─ Type: string[]
+         │  └─ Value: expr#16: <ExprKind(8)>
+         ├─ Stmt[6]: ForIn (span: 11:5-13:6)
+         │  ├─ Pattern: name
+         │  ├─ Iterable: expr#17: names
+         │  └─ Body:
+Block (span: 11:23-13:6)
+         │     └─ Stmt[0]: Expr (span: 12:9-12:21)
+         │        └─ Expr: expr#20: print(name)
+         ├─ Stmt[7]: Let (span: 14:5-14:28)
+         │  ├─ Name: s
+         │  ├─ Mutable: false
+         │  ├─ Type: string
+         │  └─ Value: expr#21: "keep"
+         ├─ Stmt[8]: Expr (span: 15:5-15:14)
+         │  └─ Expr: expr#24: print(s)
+         ├─ Stmt[9]: Expr (span: 16:5-16:14)
+         │  └─ Expr: expr#27: print(s)
+         ├─ Stmt[10]: Expr (span: 17:5-17:22)
+         │  └─ Expr: expr#32: print(("x" + "y"))
+         └─ Stmt[11]: Return (span: 18:5-18:14)
+            └─ Expr: expr#33: 0

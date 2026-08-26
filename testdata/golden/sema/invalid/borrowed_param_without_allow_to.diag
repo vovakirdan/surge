@@ -1,0 +1,1 @@
+error SEM3015 testdata/golden/sema/invalid/borrowed_param_without_allow_to.sg:7:11 expected &string, got int

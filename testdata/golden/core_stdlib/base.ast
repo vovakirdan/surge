@@ -161,10 +161,10 @@ base.sg (span: 1:1-93:1)
 │  │           └─ Expr: expr#65: (self != ((0.0) to float64))
 ├─ Item[16]: Fn (span: 75:1-82:2)
 │  ├─ Name: print
-│  ├─ Params: (s: &string, end: string = "\n")
+│  ├─ Params: (@allow_to s: &string, end: string = "\n")
 │  ├─ Return: nothing
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 75:57-82:2)
+│     └─ Stmt[0]: Block (span: 75:67-82:2)
 │        ├─ Stmt[0]: Let (span: 80:5-80:24)
 │        │  ├─ Name: line
 │        │  ├─ Mutable: false
