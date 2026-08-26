@@ -42,6 +42,10 @@ func TestTaskCloneIsAnEntitlementOfItsOwn(t *testing.T) {
 		{"both_awaited", `async fn f() -> int { let t = spawn work(); let s = t.clone(); let _ = t.await(); let _ = s.await(); return 0; }`, ""},
 		{"await_one_return_other", `async fn f() -> Task<int> { let t = spawn work(); let s = t.clone(); let _ = t.await(); return s; }`, ""},
 		{"clone_returned_in_place", `fn f(t: &Task<int>) -> Task<int> { return t.clone(); }`, ""},
+		// A generic receiver: the clone's own type may still be deferred when the
+		// return is examined, so the tracker must recognise the expression it
+		// registered rather than ask its type.
+		{"clone_returned_in_place_generic", `fn f<T>(t: &Task<T>) -> Task<T> { return t.clone(); }`, ""},
 		{"clone_awaited_in_place", `async fn f() -> int { let t = spawn work(); let _ = t.clone().await(); let _ = t.await(); return 0; }`, ""},
 		{"clone_passed_on", `async fn f() -> int { let t = spawn work(); consume(t.clone()); let _ = t.await(); return 0; }`, ""},
 		{"clone_bound_then_unobserved_in_place", `async fn f() -> int { let t = spawn work(); let _ = t.clone(); let _ = t.await(); return 0; }`, "SEM3107"},

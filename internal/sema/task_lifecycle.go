@@ -79,6 +79,14 @@ func (tc *typeChecker) trackTaskReturn(returnExpr ast.ExprID) {
 	// `far Task<T>` remote handle (from `spawn on`), which transfers ownership
 	// on return just like a local task.
 	returnExpr = tc.unwrapGroupExpr(returnExpr)
+	// An expression the tracker already registered is a task by construction:
+	// a `.clone()` on a generic `&Task<T>` is registered from its receiver
+	// while its own type may still be deferred, so it is asked first, before
+	// the type of the returned expression is.
+	if tc.taskTracker.IsTrackedExpr(returnExpr) {
+		tc.taskTracker.MarkReturnedByExpr(returnExpr)
+		return
+	}
 	returnType := tc.result.ExprTypes[returnExpr]
 	if !tc.isTaskType(returnType) && !tc.isFarTaskType(returnType) {
 		return
