@@ -58,7 +58,7 @@ fn main(dir: string) -> int {
             sort_strings(&mut names);
             print("count=" + (names.__len() to string));
             for name in names {
-                print(clone(name));
+                print(name);
             }
         }
         err => {
