@@ -20,6 +20,12 @@ import (
 // for everything that is not a composite the two are the same call — and it is
 // the only spelling that is correct for a composite, which cannot be shared by
 // counting because there is no count.
+//
+// The LAST asker does not duplicate at all. It moves the canonical value out
+// and leaves the slot empty, because a duplication made for nobody is a copy
+// and a destruction of the same value back to back. For a closed cohort of `E`
+// entitlements all successfully consumed that is exactly `E-1` duplications
+// and one move, which is the cost the storage model states.
 
 func (vm *VM) taskResultFromTask(task *asyncrt.Task[Value], resultType types.TypeID) (Value, *VMError) {
 	if task == nil {
@@ -27,7 +33,11 @@ func (vm *VM) taskResultFromTask(task *asyncrt.Task[Value], resultType types.Typ
 	}
 	switch task.ResultKind {
 	case asyncrt.TaskResultSuccess:
-		return vm.taskResultValue(resultType, asyncrt.TaskResultSuccess, task.ResultValue)
+		payload, vmErr := vm.takeCanonicalResult(task)
+		if vmErr != nil {
+			return Value{}, vmErr
+		}
+		return vm.taskResultValue(resultType, asyncrt.TaskResultSuccess, payload)
 	case asyncrt.TaskResultCancelled:
 		return vm.taskResultValue(resultType, asyncrt.TaskResultCancelled, Value{})
 	default:
@@ -54,10 +64,10 @@ func (vm *VM) taskResultValue(resultType types.TypeID, kind asyncrt.TaskResultKi
 		if len(tc.PayloadTypes) != 1 {
 			return Value{}, vm.eb.makeError(PanicTypeMismatch, "TaskResult Success expects payload")
 		}
-		payload, vmErr := vm.cloneValueComposite(value)
-		if vmErr != nil {
-			return Value{}, vmErr
-		}
+		// The payload arrives ALREADY OWNED: whoever asked for it has decided
+		// whether this asker duplicates or moves, which is a question about
+		// the cohort and not about the tag being built here.
+		payload := value
 		if tc.PayloadTypes[0] != types.NoTypeID {
 			payload.TypeID = tc.PayloadTypes[0]
 		}
@@ -109,10 +119,32 @@ func (vm *VM) takeTimeoutOutcome(task *asyncrt.Task[Value], resultType types.Typ
 	defer vm.taskClaimRetired(task.ID)
 	switch task.ResultKind {
 	case asyncrt.TaskResultSuccess:
-		return vm.cloneValueComposite(task.ResultValue)
+		return vm.takeCanonicalResult(task)
 	case asyncrt.TaskResultCancelled:
 		return vm.taskResultValue(resultType, asyncrt.TaskResultCancelled, Value{})
 	default:
 		return Value{}, vm.eb.makeError(PanicUnimplemented, "unknown task result kind")
 	}
+}
+
+// takeCanonicalResult serves one asker out of the task's canonical result.
+//
+// Every asker but the last gets a duplication and leaves the value where it is,
+// because somebody else can still come for it. The last one MOVES it and
+// empties the slot: nothing can ask again, so duplicating would build a second
+// value only to destroy the first.
+//
+// The slot is emptied in the same step the value leaves it. A moved-from slot
+// that still named its value would be a second owner of it, and the release
+// paths that later find an empty slot then correctly do nothing.
+func (vm *VM) takeCanonicalResult(task *asyncrt.Task[Value]) (Value, *VMError) {
+	if task == nil {
+		return Value{}, vm.eb.makeError(PanicUnimplemented, "missing task")
+	}
+	if vm.taskHasOtherAskers(task.ID) {
+		return vm.cloneValueComposite(task.ResultValue)
+	}
+	taken := task.ResultValue
+	task.ResultValue = Value{}
+	return taken, nil
 }

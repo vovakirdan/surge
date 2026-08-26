@@ -127,6 +127,34 @@ func (vm *VM) taskClaimRetired(id asyncrt.TaskID) {
 	}
 }
 
+// taskHasOtherAskers reports whether anything BESIDES the asker being served
+// right now can still consume the result.
+//
+// This is the question the reserved final move turns on. The asker calling it
+// is still counted — its handle is alive in a local, or its claim is
+// outstanding — so "somebody else" means a count above one. Below that, no
+// further entitlement can appear: a clone may only be taken from a live handle,
+// and the one live handle there is is the one being consumed.
+//
+// The model reserves the final move by parking the last waiter until the clone
+// readers retire. There are no clone readers to wait for here and there never
+// will be: a duplication on the VM is `cloneValueComposite`, which runs to
+// completion on the one thread that asked for it and cannot park. So the
+// reservation and the wait collapse into this single question, asked at the
+// moment of the take.
+func (vm *VM) taskHasOtherAskers(id asyncrt.TaskID) bool {
+	if vm == nil || id == 0 {
+		return false
+	}
+	cohort := vm.taskCohorts[id]
+	if cohort == nil {
+		// No cohort means nothing is counted against this result, so the asker
+		// in hand is the only one there can be.
+		return false
+	}
+	return cohort.live+cohort.claimed > 1
+}
+
 // taskCohortEmpty reports whether a task has a cohort and nothing in it can
 // still consume the result.
 //
