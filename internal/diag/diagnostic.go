@@ -160,12 +160,23 @@ func MaterializeFixes(ctx FixBuildContext, fixes []*Fix) ([]*Fix, error) {
 	return out, nil
 }
 
-// Diagnostic captures a single issue along with optional notes and fixes.
+// Diagnostic captures a single issue across the three channels a friendly
+// compiler owes its user.
+//
+// Notes EXPLAIN: they name the rule, the component, the declaration — the facts
+// that make the refusal make sense. Help ACTS: each entry is a way out the
+// author can take, in a spelling that is legal at the reported position. Fixes
+// EDIT: only where the compiler can prove the edit preserves intent.
+//
+// Keeping Help out of Notes is what lets the two be presented differently and,
+// more importantly, held to different standards. A note may describe a
+// situation; a help line that names an impossible spelling is a defect.
 type Diagnostic struct {
 	Severity Severity
 	Code     Code
 	Message  string
 	Primary  source.Span
 	Notes    []Note
+	Help     []Note
 	Fixes    []*Fix
 }

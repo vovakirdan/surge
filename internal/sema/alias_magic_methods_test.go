@@ -59,8 +59,12 @@ extern<Handle> {
 	if !strings.Contains(d.Message, "delete `__eq` from `extern<Handle>`") {
 		t.Fatalf("headline does not name the edit: %q", d.Message)
 	}
-	if len(d.Notes) < 4 {
+	if len(d.Notes) < 3 {
 		t.Fatalf("expected the rival location and the reasons as notes, got %d", len(d.Notes))
+	}
+	// The way out is advice, not explanation, so it lives in the Help channel.
+	if len(d.Help) != 1 || !strings.Contains(d.Help[0].Msg, "keep the body you want on") {
+		t.Fatalf("the actionable way out is not in the Help channel: %+v", d.Help)
 	}
 	if !strings.Contains(d.Notes[0].Msg, "is declared here") {
 		t.Fatalf("first note should name the other declaration, got %q", d.Notes[0].Msg)

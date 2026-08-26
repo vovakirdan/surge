@@ -81,12 +81,12 @@ func appendCloneObligationNotes(
 			Msg:  fmt.Sprintf("a `__clone` claiming `%s` is declared here", obligation.SubjectLabel),
 		})
 	}
-	diagnostic.Notes = append(diagnostic.Notes, diag.Note{Span: site, Msg: spec.consumeHelp})
+	diagnostic.Help = append(diagnostic.Help, diag.Note{Span: site, Msg: spec.consumeHelp})
 	if evidence.CanDefineHere {
-		diagnostic.Notes = append(diagnostic.Notes, diag.Note{
+		diagnostic.Help = append(diagnostic.Help, diag.Note{
 			Span: site,
 			Msg: fmt.Sprintf(
-				"help: or give `%s` the contract that already exists: `extern<%s> { fn __clone(self: &%s) -> %s }`",
+				"or give `%s` the contract that already exists: `extern<%s> { fn __clone(self: &%s) -> %s }`",
 				obligation.SubjectLabel, obligation.SubjectLabel, obligation.SubjectLabel, obligation.SubjectLabel),
 		})
 	}

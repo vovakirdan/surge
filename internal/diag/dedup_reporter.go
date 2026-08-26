@@ -29,22 +29,31 @@ func NewDedupReporter(next Reporter) *DedupReporter {
 
 // Report filters out duplicate diagnostics and forwards unique ones.
 func (r *DedupReporter) Report(code Code, sev Severity, primary source.Span, msg string, notes []Note, fixes []*Fix) {
-	if r == nil {
+	r.ReportDiagnostic(&Diagnostic{
+		Severity: sev, Code: code, Message: msg,
+		Primary: primary, Notes: notes, Fixes: fixes,
+	})
+}
+
+// ReportDiagnostic filters duplicates on the same key and forwards the whole
+// diagnostic. Help takes no part in the key: two reports that agree on code,
+// severity, span and message are one diagnostic however differently they were
+// advised.
+func (r *DedupReporter) ReportDiagnostic(d *Diagnostic) {
+	if r == nil || d == nil {
 		return
 	}
 	key := dedupKey{
-		code:  code,
-		sev:   sev,
-		file:  primary.File,
-		start: primary.Start,
-		end:   primary.End,
-		msg:   msg,
+		code:  d.Code,
+		sev:   d.Severity,
+		file:  d.Primary.File,
+		start: d.Primary.Start,
+		end:   d.Primary.End,
+		msg:   d.Message,
 	}
 	if _, ok := r.seen[key]; ok {
 		return
 	}
 	r.seen[key] = struct{}{}
-	if r.next != nil {
-		r.next.Report(code, sev, primary, msg, notes, fixes)
-	}
+	emitTo(r.next, d)
 }

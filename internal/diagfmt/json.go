@@ -53,6 +53,7 @@ type DiagnosticJSON struct {
 	Message  string       `json:"message"`
 	Location LocationJSON `json:"location"`
 	Notes    []NoteJSON   `json:"notes,omitempty"`
+	Help     []NoteJSON   `json:"help,omitempty"`
 	Fixes    []FixJSON    `json:"fixes,omitempty"`
 }
 
@@ -127,6 +128,16 @@ func BuildDiagnosticsOutput(bag *diag.Bag, fs *source.FileSet, opts JSONOpts, se
 				diagJSON.Notes[j] = NoteJSON{
 					Message:  note.Msg,
 					Location: makeLocation(note.Span, fs, opts.PathMode, opts.IncludePositions),
+				}
+			}
+		}
+
+		if includeNotes && len(d.Help) > 0 {
+			diagJSON.Help = make([]NoteJSON, len(d.Help))
+			for j, help := range d.Help {
+				diagJSON.Help[j] = NoteJSON{
+					Message:  help.Msg,
+					Location: makeLocation(help.Span, fs, opts.PathMode, opts.IncludePositions),
 				}
 			}
 		}

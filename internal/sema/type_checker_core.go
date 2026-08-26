@@ -163,12 +163,21 @@ type diagnosticCountingReporter struct {
 
 // Report forwards diagnostics while counting sema errors for local checkpoints.
 func (r *diagnosticCountingReporter) Report(code diag.Code, sev diag.Severity, primary source.Span, msg string, notes []diag.Note, fixes []*diag.Fix) {
-	if sev >= diag.SevError && r.errorCount != nil {
+	r.ReportDiagnostic(&diag.Diagnostic{
+		Severity: sev, Code: code, Message: msg,
+		Primary: primary, Notes: notes, Fixes: fixes,
+	})
+}
+
+// ReportDiagnostic counts and forwards the whole diagnostic, Help included.
+func (r *diagnosticCountingReporter) ReportDiagnostic(d *diag.Diagnostic) {
+	if r == nil || d == nil {
+		return
+	}
+	if d.Severity >= diag.SevError && r.errorCount != nil {
 		(*r.errorCount)++
 	}
-	if r.inner != nil {
-		r.inner.Report(code, sev, primary, msg, notes, fixes)
-	}
+	diag.ForwardDiagnostic(r.inner, d)
 }
 
 func (tc *typeChecker) errorCheckpoint() int {

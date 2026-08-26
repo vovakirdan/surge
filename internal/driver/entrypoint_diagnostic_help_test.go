@@ -17,7 +17,7 @@ type Payload = { value: int };
 @entrypoint("stdin") fn main(payload: Payload) -> int { return payload.value; }
 `)
 		diagnostic := requireEntrypointDiagnostic(t, result, diag.SemaEntrypointParamNoFromStdin)
-		requireEntrypointNote(t, diagnostic, "help: add this exact public static method to Payload")
+		requireEntrypointHelp(t, diagnostic, "add this exact public static method to Payload")
 	})
 
 	for _, tc := range []struct {
@@ -80,10 +80,12 @@ import lib::{Payload};
 func requireNeutralEntrypointParserNote(t *testing.T, diagnostic *diag.Diagnostic) {
 	t.Helper()
 	foundNeutral := false
-	for _, note := range diagnostic.Notes {
-		if strings.Contains(note.Msg, "help: add this exact public static method") {
-			t.Fatalf("unproven implementation help = %+v", diagnostic.Notes)
+	for _, entry := range diagnostic.Help {
+		if strings.Contains(entry.Msg, "add this exact public static method") {
+			t.Fatalf("unproven implementation help = %+v", diagnostic.Help)
 		}
+	}
+	for _, note := range diagnostic.Notes {
 		if strings.Contains(note.Msg, "cannot prove that this parameter type is locally extensible") {
 			foundNeutral = true
 		}

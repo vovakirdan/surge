@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	"surge/internal/diag"
 	"surge/internal/driver"
 	"surge/internal/hir"
 	"surge/internal/layout"
@@ -121,12 +120,7 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 
 	if diagRes.Bag != nil && diagRes.Bag.HasErrors() {
 		if !req.Analysis {
-			for _, d := range diagRes.Bag.Items() {
-				if d.Severity != diag.SevError {
-					continue
-				}
-				fmt.Fprintln(os.Stderr, d.Message)
-			}
+			printBuildDiagnostics(os.Stderr, diagRes)
 		}
 		if !req.AllowDiagnosticsError {
 			err = fmt.Errorf("diagnostics reported errors")

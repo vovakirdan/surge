@@ -79,9 +79,9 @@ func newEntrypointCallableError(
 		},
 	}
 	if request.CanDefineHere {
-		diagnostic.Notes = append(diagnostic.Notes, diag.Note{
+		diagnostic.Help = append(diagnostic.Help, diag.Note{
 			Span: request.Site,
-			Msg:  fmt.Sprintf("help: add this exact public static method to %s", typeLabel),
+			Msg:  fmt.Sprintf("add this exact public static method to %s", typeLabel),
 		})
 	} else {
 		diagnostic.Notes = append(diagnostic.Notes, diag.Note{

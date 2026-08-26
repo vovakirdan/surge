@@ -46,7 +46,7 @@ func (tc *typeChecker) validateEntrypointStdinParam(
 		b := diag.ReportError(tc.reporter, diag.SemaEntrypointStdinArity, span,
 			fmt.Sprintf("@entrypoint(\"stdin\") requires exactly one parameter; found %d", len(ids)))
 		b.WithNote(span, "stdin is delivered as one complete owned string; EOF supplies an empty string")
-		b.WithNote(span, "help: declare exactly one parameter implementing FromStdin<T>")
+		b.WithHelp(span, "declare exactly one parameter implementing FromStdin<T>")
 		b.Emit()
 		return
 	}
@@ -126,7 +126,7 @@ func (tc *typeChecker) reportStdinDefault(param *ast.FnParam) {
 	b := diag.ReportError(tc.reporter, diag.SemaEntrypointStdinDefault, primary,
 		"@entrypoint(\"stdin\") parameter cannot have a default value")
 	b.WithNote(param.Span, "stdin always supplies one owned string; EOF supplies the empty string \"\"")
-	b.WithNote(param.Span, "help: remove the parameter initializer")
+	b.WithHelp(param.Span, "remove the parameter initializer")
 	if ok {
 		b.WithFixSuggestion(stdinDefaultRemovalFix(deleteSpan))
 	}

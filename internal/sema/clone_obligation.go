@@ -54,7 +54,7 @@ func (op CloneObligationOp) spec() (cloneObligationSpec, bool) {
 			code: diag.SemaTypeNotClonable,
 			headline: "cloning this handle to %s owes another independent `%s`, " +
 				"which is neither Copy nor validly `__clone`-able",
-			consumeHelp: "help: a task handle is affine — consume this one by awaiting it, " +
+			consumeHelp: "a task handle is affine — consume this one by awaiting it, " +
 				"or move it to whoever awaits it, instead of handing out a second entitlement",
 		}, true
 	case CloneObligationMapKeys:
@@ -62,7 +62,7 @@ func (op CloneObligationOp) spec() (cloneObligationSpec, bool) {
 			code: diag.SemaOperationNeedsClonable,
 			headline: "`keys()` on %s returns an array that owns its keys, so it owes an independent `%s`, " +
 				"which is neither Copy nor validly `__clone`-able",
-			consumeHelp: "help: iterate the map in place, or borrow the keys, " +
+			consumeHelp: "iterate the map in place, or borrow the keys, " +
 				"instead of asking for an array that owns them",
 		}, true
 	default:
@@ -186,6 +186,7 @@ func (e *CloneObligationError) Diagnostic() *diag.Diagnostic {
 	}
 	detached := *e.diagnostic
 	detached.Notes = slices.Clone(e.diagnostic.Notes)
+	detached.Help = slices.Clone(e.diagnostic.Help)
 	detached.Fixes = slices.Clone(e.diagnostic.Fixes)
 	return &detached
 }

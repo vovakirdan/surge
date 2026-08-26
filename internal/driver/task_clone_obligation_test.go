@@ -59,8 +59,11 @@ func TestTaskCloneOnNonClonablePayloadIsRefused(t *testing.T) {
 		t.Fatalf("a Task clone refusal carried %d fix(es): %+v", len(item.Fixes), item.Fixes)
 	}
 	requireNoteContaining(t, item, "no `__clone` declaration claims this type")
-	requireNoteContaining(t, item, "consume this one by awaiting it")
-	requireNoteContaining(t, item, "extern<Widget> { fn __clone(self: &Widget) -> Widget }")
+	// The two ways out are ADVICE, so they belong to the Help channel: a note
+	// that describes a situation and a line the author can act on are held to
+	// different standards, and only the second may name a spelling.
+	requireHelpContaining(t, item, "consume this one by awaiting it")
+	requireHelpContaining(t, item, "extern<Widget> { fn __clone(self: &Widget) -> Widget }")
 }
 
 // TestTaskCloneKeepsClonablePayloadsAccepted is the positive twin. A refusal
@@ -202,15 +205,23 @@ fn duplicate<T>(handle: &Task<T>) -> Task<T> {
 
 func requireNoteContaining(t *testing.T, item *diag.Diagnostic, want string) {
 	t.Helper()
-	for _, note := range item.Notes {
-		if strings.Contains(note.Msg, want) {
+	requireChannelContaining(t, "note", item.Notes, want)
+}
+
+func requireHelpContaining(t *testing.T, item *diag.Diagnostic, want string) {
+	t.Helper()
+	requireChannelContaining(t, "help", item.Help, want)
+}
+
+func requireChannelContaining(t *testing.T, channel string, entries []diag.Note, want string) {
+	t.Helper()
+	var got strings.Builder
+	for _, entry := range entries {
+		if strings.Contains(entry.Msg, want) {
 			return
 		}
-	}
-	var got strings.Builder
-	for _, note := range item.Notes {
 		got.WriteString("\n  ")
-		got.WriteString(note.Msg)
+		got.WriteString(entry.Msg)
 	}
-	t.Fatalf("no note contains %q; notes were:%s", want, got.String())
+	t.Fatalf("no %s contains %q; the channel held:%s", channel, want, got.String())
 }

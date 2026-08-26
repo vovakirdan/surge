@@ -45,6 +45,7 @@ func (e *CloneCanonicalityError) Diagnostic() *diag.Diagnostic {
 	}
 	clone := *e.diagnostic
 	clone.Notes = slices.Clone(e.diagnostic.Notes)
+	clone.Help = slices.Clone(e.diagnostic.Help)
 	clone.Fixes = slices.Clone(e.diagnostic.Fixes)
 	return &clone
 }
@@ -108,15 +109,15 @@ func newCloneNotVisibleError(hook *GlobalCloneHook, view CloneUseView, site sour
 		// `pub` alone does not reach out of a file, so there is no one edit to
 		// offer: the author chooses between moving the declaration and exporting
 		// the file. Naming both is the whole help this case can carry.
-		diagnostic.Notes = append(diagnostic.Notes, diag.Note{
+		diagnostic.Help = append(diagnostic.Help, diag.Note{
 			Span: hook.Decl,
-			Msg:  "help: this declaration is file-private; move it to a shared file or export it",
+			Msg:  "this declaration is file-private; move it to a shared file or export it",
 		})
 		return &CloneCanonicalityError{diagnostic: diagnostic}
 	}
-	diagnostic.Notes = append(diagnostic.Notes, diag.Note{
+	diagnostic.Help = append(diagnostic.Help, diag.Note{
 		Span: hook.Decl,
-		Msg:  "help: declare it `pub` so every user of the type clones it the same way",
+		Msg:  "declare it `pub` so every user of the type clones it the same way",
 	})
 	if edit := cloneVisibilityFix(hook, typeLabel); edit != nil {
 		diagnostic.Fixes = append(diagnostic.Fixes, edit)

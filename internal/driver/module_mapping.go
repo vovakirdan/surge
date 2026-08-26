@@ -81,12 +81,26 @@ type overrideReporter struct {
 
 // Report implements diag.Reporter, overriding missing-module messages when needed.
 func (r *overrideReporter) Report(code diag.Code, sev diag.Severity, span source.Span, msg string, notes []diag.Note, fixes []*diag.Fix) {
-	if code == diag.ProjMissingModule {
-		if override, ok := r.overrides[span]; ok {
-			msg = override
+	r.ReportDiagnostic(&diag.Diagnostic{
+		Severity: sev, Code: code, Message: msg,
+		Primary: span, Notes: notes, Fixes: fixes,
+	})
+}
+
+// ReportDiagnostic forwards the whole diagnostic so a rewritten message does
+// not cost the author its Help.
+func (r *overrideReporter) ReportDiagnostic(d *diag.Diagnostic) {
+	if r == nil || d == nil {
+		return
+	}
+	if d.Code == diag.ProjMissingModule {
+		if override, ok := r.overrides[d.Primary]; ok {
+			replaced := *d
+			replaced.Message = override
+			d = &replaced
 		}
 	}
-	r.base.Report(code, sev, span, msg, notes, fixes)
+	diag.ForwardDiagnostic(r.base, d)
 }
 
 func missingModuleOverrides(records map[string]*moduleRecord, mapping *project.ModuleMapping) map[source.Span]string {

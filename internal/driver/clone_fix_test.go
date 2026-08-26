@@ -80,13 +80,13 @@ func TestCloneFilePrivateWinnerOffersNoMechanicalEdit(t *testing.T) {
 		t.Fatalf("file-private winner offered an edit: %+v", items[0].Fixes)
 	}
 	help := false
-	for _, note := range items[0].Notes {
-		if strings.Contains(note.Msg, "file-private") {
+	for _, entry := range items[0].Help {
+		if strings.Contains(entry.Msg, "file-private") {
 			help = true
 		}
 	}
 	if !help {
-		t.Fatalf("file-private winner lost its help note: %+v", items[0].Notes)
+		t.Fatalf("file-private winner lost its help: notes=%+v help=%+v", items[0].Notes, items[0].Help)
 	}
 }
 

@@ -244,3 +244,17 @@ func requireEntrypointNote(t *testing.T, diagnostic *diag.Diagnostic, text strin
 	}
 	t.Fatalf("missing note %q in %+v", text, diagnostic.Notes)
 }
+
+// requireEntrypointHelp asserts an actionable line in the Help channel. A help
+// entry that had drifted into Notes would still read the same to a person and
+// would no longer be held to the "must be legal here" standard, so the channel
+// is part of what is pinned.
+func requireEntrypointHelp(t *testing.T, diagnostic *diag.Diagnostic, text string) {
+	t.Helper()
+	for _, entry := range diagnostic.Help {
+		if strings.Contains(entry.Msg, text) {
+			return
+		}
+	}
+	t.Fatalf("missing help %q in %+v", text, diagnostic.Help)
+}

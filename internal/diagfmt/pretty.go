@@ -258,6 +258,22 @@ func Pretty(w io.Writer, bag *diag.Bag, fs *source.FileSet, opts PrettyOpts) {
 			}
 		}
 
+		if opts.ShowNotes && len(d.Help) > 0 {
+			for _, help := range d.Help {
+				hf := fs.Get(help.Span.File)
+				helpStart, _ := fs.Resolve(help.Span)
+				fmt.Fprintf( //nolint:errcheck
+					w,
+					"  %s: %s:%d:%d: %s\n",
+					infoColor.Sprint("help"),
+					pathColor.Sprint(formatPath(hf)),
+					helpStart.Line,
+					helpStart.Col,
+					help.Msg,
+				)
+			}
+		}
+
 		if opts.ShowFixes && len(d.Fixes) > 0 {
 			fixes := append([]*diag.Fix(nil), d.Fixes...)
 			sort.SliceStable(fixes, func(i, j int) bool {

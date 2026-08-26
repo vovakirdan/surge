@@ -49,8 +49,8 @@ func (tc *typeChecker) reportAliasMagicRedeclared(
 			"so with two bodies there is no way for you to say which one runs",
 		name,
 	))
-	b.WithNote(primary, fmt.Sprintf(
-		"help: keep the body you want on `%s`, or give `%s` a type of its own instead of aliasing `%s`",
+	b.WithHelp(primary, fmt.Sprintf(
+		"keep the body you want on `%s`, or give `%s` a type of its own instead of aliasing `%s`",
 		targetLabel, aliasLabel, targetLabel,
 	))
 	if edit := aliasMagicRemovalFix(fn, name, aliasLabel); edit != nil {

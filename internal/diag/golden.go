@@ -86,22 +86,40 @@ func appendDiagnostic(out []goldenDiagnostic, d *Diagnostic, fs *source.FileSet,
 	}
 
 	if includeNotes {
-		for _, note := range d.Notes {
-			nloc, nok := resolveSpan(fs, note.Span)
-			if !nok || (skipInternal && shouldSkipPath(nloc.Path)) {
-				continue
-			}
-			out = append(out, goldenDiagnostic{
-				Severity: "note",
-				Code:     d.Code.ID(),
-				Path:     nloc.Path,
-				Line:     nloc.Line,
-				Column:   nloc.Column,
-				Message:  sanitizeMessage(note.Msg),
-			})
-		}
+		// Help rides the SAME switch as notes. `.diag` goldens are generated
+		// without it, so the corpus pins headlines and adding advice to a
+		// diagnostic can never rewrite a fixture — which is what makes the
+		// friendly-diagnostic work and Global Rule 12 compatible.
+		out = appendAuxiliary(out, d, fs, "note", d.Notes, skipInternal)
+		out = appendAuxiliary(out, d, fs, "help", d.Help, skipInternal)
 	}
 
+	return out
+}
+
+// appendAuxiliary renders one auxiliary channel under its own label.
+func appendAuxiliary(
+	out []goldenDiagnostic,
+	d *Diagnostic,
+	fs *source.FileSet,
+	label string,
+	entries []Note,
+	skipInternal bool,
+) []goldenDiagnostic {
+	for _, entry := range entries {
+		loc, ok := resolveSpan(fs, entry.Span)
+		if !ok || (skipInternal && shouldSkipPath(loc.Path)) {
+			continue
+		}
+		out = append(out, goldenDiagnostic{
+			Severity: label,
+			Code:     d.Code.ID(),
+			Path:     loc.Path,
+			Line:     loc.Line,
+			Column:   loc.Column,
+			Message:  sanitizeMessage(entry.Msg),
+		})
+	}
 	return out
 }
 
