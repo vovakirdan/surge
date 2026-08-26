@@ -8203,3 +8203,57 @@ they had compiled blind turn out to be refused by sema -- both red at the
 baseline in the tagged run, both skipped now naming RV2-DEBT-255 (a magic
 `__index` read's borrow outlives its statement) and RV2-DEBT-256 (`ownsHeap`
 still says a `@copy` composite owns a box). RV2-DEBT-257 records the helper.
+
+### 2026-08-26 — the after-run against `ed8144ee`, and what it found
+
+The same 26-gate script as the baseline (`baseline-0d00d9fa`), same order:
+19 gates text-to-text as at the baseline (`carrier-check` and
+`ownership-check` red with the sanctioned refusals, `behaviour-check-all` red
+on `string_from_bytes_invalid_utf8/llvm` only, `behaviour-check-mt` green),
+`runtime-v2-transport-check` green both in sequence and alone (the baseline's
+2 was the 300 s package timeout under load), `runtime-v2-file-size-check`
+PASS on the committed blobs. Two gates turned red and the tagged suite gained
+nine `TestMT*` rows; three causes, none of them where the lanes had looked.
+
+1. **`runtime-v2-heap-check` and the nine `TestMT*` rows: one panic.**
+   `panic: invalid task handle` from `drop_elem → rt_task_handle_drop(NULL)`:
+   the drop glue of a `Task<T>[]` visits a slot the handle was moved out of,
+   and D4b's `rt_task_handle_drop` handed NULL to `task_from_handle`. Guarded
+   (`TestRuntimeV2TaskHandleDropTreatsAnEmptySlotAsNothing`, a C stand red
+   without the guard). Under the guard the SAME programs fail one layer
+   deeper -- `panic: async: invalid task owner shard` at teardown -- because
+   `for t in tasks { t.await() }` does not empty the slots it consumed, and
+   `for s in names { take(s) }` over strings is a double free today under
+   valgrind. That is a language question at the seam of the for-in ruling and
+   the droppable handle: RV2-DEBT-258, owner decision, reproducer skipped.
+   The MT rows and the heap contract stay red until it is made.
+2. **`runtime-v2-carrier-sanitizer-check`: D2's own valgrind row leaked
+   210 bytes in 10 blocks,** and it did so on the lane's own worktree
+   (`ad0efc0a`) -- the row was a claim, not a measurement (the lane could not
+   run it). Attributed by building one program per map function: only
+   `after_removals` (84 B / 4 blocks) and `map_worker` (42 B / 2), exactly the
+   `Owned` values that `remove` and an overwriting `insert` hand back into
+   `let _ = ...`. The map was innocent: **`let _ = e` never released `e`**, in
+   any program -- `observeMove` consumed the initializer's temporary on behalf
+   of a binding that never dropped, while the statement `e;` released it.
+   `let _` is the discarded-result path now (`TestDiscardedLetIsFlagged`,
+   `TestRuntimeV2DiscardedLetReleasesItsValue` strict zero), and a discarded
+   PLACE moves nothing (`let _ = x` leaves `x` with its binding, so
+   `discarded_field_read` moved from the refused rows to
+   `TestDiscardedFieldReadTakesNothing`). One MIR golden changed with it. The
+   map row is strict zero on shards 1 and 4 now.
+3. **D2's bench budgets are not measurements.** The lane's last commit says
+   so itself: 68→4, 68→4, 64→0 are "the numbers the change is EXPECTED to
+   produce". Under ruling 8 they are re-measured by the lead in a clean
+   `git archive` tree, ≥3 agreeing runs, before RV2-DEBT-156 can close;
+   its five valgrind configurations are met. RV2-DEBT-157's first clause is
+   met too (`map_index_set.sg` runs natively, 11 on both lanes); its parity
+   row for a heap-owning value and the 158 reproducer build are still owed.
+
+The tagged suite otherwise lost three baseline reds
+(`TestVMRefsMapGetMutReadonlyHelperKeepsMutRefLive` green;
+`TestVMImportedStdlibMagicMethods` and `TestRuntimeV2CompositeCopyIsIndependent`
+skipped naming 255/256) and kept `TestLLVMParity`,
+`TestMTNonYieldingTrySendHandoffWakesReceiver`, `TestVMAsyncChildPanicHaltsProgram`,
+`TestVMImportedStdlibMagicBinaryOperator`, `TestVMPanicDropsBufferedChannelPayloads`
+as they were.
