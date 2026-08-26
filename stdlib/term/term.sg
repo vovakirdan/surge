@@ -52,8 +52,8 @@ pub fn leave() -> nothing {
     return nothing;
 }
 
-pub fn write_str(s: string) -> nothing {
-    term_write(s to byte[]);
+pub fn write_str(s: &string) -> nothing {
+    term_write((*s) to byte[]);
     return nothing;
 }
 

@@ -1,0 +1,27 @@
+// `print` READS its string (core/base.sg: `print(s: &string, ...)`), so a `for`
+// body may print the loop binding without a clone, a string may be printed
+// twice, and a literal or a temporary is autoreffed at the call. The twin of
+// testdata/golden/sema/invalid/ownership/for_in_moves_out_of_binding.sg: the
+// loop binding is only read here, and the container is still whole afterwards.
+fn take(s: string) -> nothing {
+    return nothing;
+}
+
+@entrypoint
+fn main() -> int {
+    let mut names: string[] = [];
+    names.push("a");
+    names.push("bc");
+    for name in names {
+        print(name);
+        print(name, "");
+    }
+    let greeting = "Hello world!";
+    print(greeting);
+    print(greeting);
+    print("count=" + (names.__len() to string));
+    print(42 to string);
+    let total = names.__len() to int;
+    take(greeting);
+    return total;
+}

@@ -8,7 +8,7 @@ module
   ((* item) = 10): int
   drop item
   let shared: &type#78 [&] = (& xs): &type#78
-  print(__to((* __index(shared, 0)))): nothing
+  print((& owned_temp(__to((* __index(shared, 0))): string))): nothing
   return nothing
 }
 

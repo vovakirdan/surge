@@ -46,7 +46,8 @@ fn main:
     L9: bool [copy] name=tmp_tagtest7
     L10: type#1511 [owns_heap] name=tmp_payload8
     L11: bool [copy] name=tmp_tagtest9
-    L12: type#50 [owns_heap] name=err
+    L12: string [owns_heap] name=tmp_owned_temp10
+    L13: type#50 [owns_heap] name=err
   bb0:
     L1 = call demo(const true)
     L0 = move L1
@@ -64,17 +65,20 @@ fn main:
     L7 = tag_payload_move copy L2.Success[0]
     L8 = tag_payload_move copy L7.Some[0]
     L6 = move L8
-    call print(move L6)
+    call print(addr_of L6)
+    drop L6
     return const 0
   bb4:
     L10 = tag_payload_move copy L2.Success[0]
     L11 = tag_test copy L10 is nothing
     if copy L11 then bb6 else bb5
   bb5:
-    L12 = move L2
-    drop L12
+    L13 = move L2
+    drop L13
     return const 1
   bb6:
     drop L2
-    call print(const "\"none\"")
+    L12 = const "\"none\""
+    call print(addr_of L12)
+    drop L12
     return const 0

@@ -68,7 +68,11 @@ extern<float64> {
 
 // I/O functions
 
-pub fn print(s: string, end: string = "\n") -> nothing {
+// Printing READS its string: the caller keeps `s`, so `for name in names {
+// print(name); }` is a read of the loop binding and `print(s); print(s);`
+// reads one string twice. The call site autorefs a place, a literal or a
+// temporary alike, so no `&` is spelled at the call.
+pub fn print(s: &string, end: string = "\n") -> nothing {
     // Write the line and its terminator in ONE call: rt_write_stdout is
     // serialized, so a single call is atomic against concurrent async tasks.
     // Two separate writes (content, then newline) would let another task's
