@@ -358,6 +358,17 @@ func (s *Server) sendError(id json.RawMessage, code int, message string) error {
 }
 
 func (s *Server) sendPublish(uri string, list []lspDiagnostic) error {
+	return s.publish(uri, list, nil)
+}
+
+// sendPublishVersioned states which document version the set was computed
+// against. A client that cannot tell a current diagnostic from one describing
+// text the user has already changed will decorate the wrong lines.
+func (s *Server) sendPublishVersioned(uri string, list []lspDiagnostic, version int) error {
+	return s.publish(uri, list, &version)
+}
+
+func (s *Server) publish(uri string, list []lspDiagnostic, version *int) error {
 	if list == nil {
 		list = []lspDiagnostic{}
 	}
@@ -366,6 +377,7 @@ func (s *Server) sendPublish(uri string, list []lspDiagnostic) error {
 		"method":  "textDocument/publishDiagnostics",
 		"params": publishDiagnosticsParams{
 			URI:         uri,
+			Version:     version,
 			Diagnostics: list,
 		},
 	}

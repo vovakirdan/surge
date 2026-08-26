@@ -155,37 +155,8 @@ func (s *Server) publishDiagnostics(plan analysisPlan, diags []diagnose.Diagnost
 	if !s.analysisAllowed(plan, false) {
 		return
 	}
-	grouped := make(map[string][]lspDiagnostic)
-	for _, d := range diags {
-		uri := pathToURI(d.FilePath)
-		if uri == "" {
-			continue
-		}
-		startLine := maxZero(d.StartLine - 1)
-		startCol := maxZero(d.StartCol - 1)
-		endLine := maxZero(d.EndLine - 1)
-		endCol := maxZero(d.EndCol - 1)
-		if d.EndLine == 0 && d.EndCol == 0 {
-			endLine = startLine
-			endCol = startCol
-		}
-		grouped[uri] = append(grouped[uri], lspDiagnostic{
-			Range: lspRange{
-				Start: position{Line: startLine, Character: startCol},
-				End:   position{Line: endLine, Character: endCol},
-			},
-			Severity: d.Severity,
-			Code:     d.Code,
-			Source:   "surge",
-			Message:  d.Message,
-		})
-	}
-
-	targets := make([]string, 0, len(plan.docs))
-	for uri := range plan.docs {
-		targets = append(targets, uri)
-	}
-	sort.Strings(targets)
+	grouped := buildPublishedDiagnostics(plan, diags)
+	targets := publishTargets(plan)
 
 	s.mu.Lock()
 	if !s.analysisMatchesLocked(plan) {
@@ -204,7 +175,7 @@ func (s *Server) publishDiagnostics(plan analysisPlan, diags []diagnose.Diagnost
 			return
 		}
 		list := grouped[uri]
-		if err := s.sendPublish(uri, list); err != nil {
+		if err := s.sendPublishVersioned(uri, list, plan.docs[uri].version); err != nil {
 			s.logf("failed to publish diagnostics: %v", err)
 		}
 		s.logPublishDiagnostics(uri, len(list))
@@ -317,9 +288,9 @@ func filterDiagnosticsForOpenFiles(diags []diagnose.Diagnostic, openSet map[stri
 		return nil
 	}
 	out := make([]diagnose.Diagnostic, 0, len(diags))
-	for _, d := range diags {
-		if _, ok := openSet[canonicalPath(d.FilePath)]; ok {
-			out = append(out, d)
+	for i := range diags {
+		if _, ok := openSet[canonicalPath(diags[i].FilePath)]; ok {
+			out = append(out, diags[i])
 		}
 	}
 	return out

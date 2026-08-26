@@ -106,16 +106,50 @@ type initializeResult struct {
 }
 
 type publishDiagnosticsParams struct {
-	URI         string          `json:"uri"`
+	URI string `json:"uri"`
+	// Version is the document version this set was computed against. Without
+	// it a client cannot tell a current diagnostic from one that describes text
+	// the user has already changed.
+	Version     *int            `json:"version,omitempty"`
 	Diagnostics []lspDiagnostic `json:"diagnostics"`
 }
 
 type lspDiagnostic struct {
-	Range    lspRange `json:"range"`
-	Severity int      `json:"severity,omitempty"`
-	Code     string   `json:"code,omitempty"`
-	Source   string   `json:"source,omitempty"`
-	Message  string   `json:"message"`
+	Range              lspRange            `json:"range"`
+	Severity           int                 `json:"severity,omitempty"`
+	Code               string              `json:"code,omitempty"`
+	Source             string              `json:"source,omitempty"`
+	Message            string              `json:"message"`
+	RelatedInformation []diagnosticRelated `json:"relatedInformation,omitempty"`
+	Data               *diagnosticData     `json:"data,omitempty"`
+}
+
+// diagnosticRelated carries one note or help entry to the client.
+type diagnosticRelated struct {
+	Location lspLocation `json:"location"`
+	Message  string      `json:"message"`
+}
+
+type lspLocation struct {
+	URI   string   `json:"uri"`
+	Range lspRange `json:"range"`
+}
+
+// diagnosticData is opaque to the client and meaningful only to this server.
+//
+// It carries IDENTITY, never edits: which analysis produced the diagnostic,
+// which document and version it was computed against, and which fixes exist.
+// The edits, the snapshot and the old-text guards stay on the server, so a
+// client that replays or forges this cannot cause an edit to be applied — the
+// worst it can do is name something the server no longer recognises.
+type diagnosticData struct {
+	AnalysisID   uint64   `json:"analysisId"`
+	SnapshotID   uint64   `json:"snapshotId"`
+	URI          string   `json:"uri"`
+	Version      int      `json:"version"`
+	DiagnosticID string   `json:"diagnosticId"`
+	FixIDs       []string `json:"fixIds,omitempty"`
+	SafeFixIDs   []string `json:"safeFixIds,omitempty"`
 }
 
 type hoverParams textDocumentPositionParams

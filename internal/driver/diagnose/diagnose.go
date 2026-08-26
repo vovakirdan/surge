@@ -55,6 +55,29 @@ type Diagnostic struct {
 	Severity  int
 	Code      string
 	Message   string
+	// Notes and Help are the explanatory and actionable channels. They used to
+	// stop here: the language server received a message and a range and the
+	// author lost everything the compiler had assembled around it.
+	Notes []RelatedLocation
+	Help  []RelatedLocation
+	// FixIDs names the edits attached to this diagnostic. Only ids travel — the
+	// edits themselves stay on the server, which is what lets a Code Action be
+	// checked against a trusted snapshot rather than against whatever a client
+	// sends back.
+	FixIDs []string
+	// SafeFixIDs is the subset that is AlwaysSafe, and therefore the only
+	// subset a client may be offered without asking a human first.
+	SafeFixIDs []string
+}
+
+// RelatedLocation is one note or help entry with the position it belongs to.
+type RelatedLocation struct {
+	FilePath  string
+	StartLine int
+	StartCol  int
+	EndLine   int
+	EndCol    int
+	Message   string
 }
 
 // WorkspaceMode indicates whether diagnostics ran on a file or directory.
@@ -280,7 +303,7 @@ func toDiagnostic(fs *source.FileSet, item *diag.Diagnostic, fallbackPath string
 	if item.Code != diag.UnknownCode {
 		code = item.Code.ID()
 	}
-	return Diagnostic{
+	out := Diagnostic{
 		FilePath:  path,
 		StartLine: startLine,
 		StartCol:  startCol,
@@ -289,7 +312,64 @@ func toDiagnostic(fs *source.FileSet, item *diag.Diagnostic, fallbackPath string
 		Severity:  severityToLSP(item.Severity),
 		Code:      code,
 		Message:   item.Message,
-	}, true
+		Notes:     relatedLocations(fs, item.Notes, path),
+		Help:      relatedLocations(fs, item.Help, path),
+	}
+	out.FixIDs, out.SafeFixIDs = fixIdentities(fs, item)
+	return out, true
+}
+
+// relatedLocations resolves one auxiliary channel. An entry whose span the file
+// set cannot answer for keeps the diagnostic's own path rather than being
+// dropped: the sentence is still worth reading, and a note at the wrong file
+// would be worse than one at the diagnostic's.
+func relatedLocations(fs *source.FileSet, entries []diag.Note, fallbackPath string) []RelatedLocation {
+	if len(entries) == 0 {
+		return nil
+	}
+	out := make([]RelatedLocation, 0, len(entries))
+	for _, entry := range entries {
+		location := RelatedLocation{FilePath: fallbackPath, Message: entry.Msg}
+		if fs.HasFile(entry.Span.File) {
+			if file := fs.Get(entry.Span.File); file != nil && file.Path != "" {
+				location.FilePath = file.Path
+			}
+			start, end := fs.Resolve(entry.Span)
+			location.StartLine, location.StartCol = int(start.Line), int(start.Col)
+			location.EndLine, location.EndCol = int(end.Line), int(end.Col)
+		}
+		out = append(out, location)
+	}
+	return out
+}
+
+// fixIdentities materialises the attached fixes far enough to name them.
+//
+// The ids are what a Code Action request comes back with; the edits stay here.
+// A fix that cannot be built contributes nothing rather than an id that would
+// resolve to no edit.
+func fixIdentities(fs *source.FileSet, item *diag.Diagnostic) (all, safe []string) {
+	if len(item.Fixes) == 0 {
+		return nil, nil
+	}
+	resolved, err := diag.MaterializeFixes(diag.FixBuildContext{FileSet: fs}, item.Fixes)
+	if err != nil {
+		return nil, nil
+	}
+	for i, fix := range resolved {
+		if fix == nil || len(fix.Edits) == 0 {
+			continue
+		}
+		id := fix.ID
+		if id == "" {
+			id = fmt.Sprintf("%s-%d-%d-%d", item.Code.ID(), item.Primary.File, item.Primary.Start, i)
+		}
+		all = append(all, id)
+		if fix.Applicability == diag.FixApplicabilityAlwaysSafe {
+			safe = append(safe, id)
+		}
+	}
+	return all, safe
 }
 
 func severityToLSP(sev diag.Severity) int {
