@@ -172,6 +172,13 @@ typedef enum rt_sync_point_id {
     // is what proves the count -- and not the timing -- is what decides the
     // free (RV2-DEBT-155).
     RT_SYNC_POINT_SP_CHANNEL_LAST_RELEASE_BEFORE_FREE,
+    // rt_scope_join_all: reached after the owner registered its scope_key
+    // waiter and released the first snapshot (a live child, fail-fast not yet
+    // fired), before the verify re-read. A driver cancelling the child while
+    // the owner is held here lands the child's completion accounting -- flag
+    // set and count retired, under one lock -- inside the window the verify
+    // must read whole (RV2-DEBT-261).
+    RT_SYNC_POINT_SP_SCOPE_FAILFAST_JOIN_BEFORE_VERIFY,
     RT_SYNC_POINT_COUNT
 } rt_sync_point_id;
 
@@ -366,6 +373,21 @@ void rt_sync_point_open(void);
 #define RT_DEBT080_CLAIM_STATE(cell) ((void)(cell))
 #else
 #define RT_DEBT080_CLAIM_STATE(cell) ((void)rt_value_cell_commit_move(cell))
+#endif
+
+// RV2-DEBT-261 negative-control toggle. rt_scope_join_all answers two things
+// -- has the set drained, and did fail-fast fire -- and scope_on_child_done
+// decides both in one critical section: the cancelled child that trips the
+// flag is retired from the count under the same lock. The fix reads both in
+// the register-then-verify re-check as well, so a completion landing between
+// the first snapshot and the verify cannot answer "drained" with the flag from
+// before it. Defining the negative control drops the flag from the verify (the
+// pre-fix shape), which the deterministic proof MUST observe as a @failfast
+// scope resolving Success after its child was cancelled.
+#ifdef RV2_DEBT_261_NEGATIVE_CONTROL
+#define RT_DEBT261_VERIFY_FAILFAST_OUT(failfast) ((void)(failfast), (bool*)NULL)
+#else
+#define RT_DEBT261_VERIFY_FAILFAST_OUT(failfast) (failfast)
 #endif
 
 #endif // RT_SYNC_POINT_H

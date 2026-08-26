@@ -1,4 +1,5 @@
 #include "rt_async_internal.h"
+#include "rt_sync_point.h"
 
 // Async runtime scope management.
 //
@@ -33,13 +34,22 @@ rt_shard* rt_scope_owner_shard(rt_executor* ex, const rt_scope* scope) {
     return shard != NULL ? shard : rt_runtime_shard0(runtime);
 }
 
-// Read active_children under the pinned shard lock. A function boundary here is
-// deliberate: active_children is mutated concurrently under this lock by
-// child-done on other threads, so a re-read after a lock release genuinely
-// observes a new value (the register-then-verify re-check below relies on it).
-static size_t scope_active_locked(rt_shard* pinned, const rt_scope* scope) {
+// Snapshot the two answers join_all gives -- how many children are still live
+// and whether fail-fast fired -- under the pinned shard lock, TOGETHER. A
+// function boundary here is deliberate: both fields are mutated concurrently
+// under this lock by child-done on other threads, so a re-read after a lock
+// release genuinely observes new values (the register-then-verify re-check
+// below relies on it). Reading them apart is the RV2-DEBT-261 window:
+// scope_on_child_done retires the cancelled child from the count in the same
+// critical section that sets the flag, so a count read after it paired with a
+// flag read before it says "drained, not fail-fast" -- and the @failfast
+// block resolves Success after a child was cancelled.
+static size_t scope_join_snapshot_locked(rt_shard* pinned, const rt_scope* scope, bool* failfast) {
     rt_shard_lock(pinned);
     size_t active = scope->active_children;
+    if (failfast != NULL) {
+        *failfast = scope->failfast_triggered ? true : false;
+    }
     rt_shard_unlock(pinned);
     return active;
 }
@@ -216,12 +226,7 @@ bool rt_scope_join_all(const void* scope_handle, uint64_t* pending, bool* failfa
         return true;
     }
     rt_shard* pinned = rt_scope_owner_shard(ex, scope);
-    rt_shard_lock(pinned);
-    if (failfast != NULL) {
-        *failfast = scope->failfast_triggered ? true : false;
-    }
-    size_t active = scope->active_children;
-    rt_shard_unlock(pinned);
+    size_t active = scope_join_snapshot_locked(pinned, scope, failfast);
     if (pending != NULL) {
         *pending = 0;
     }
@@ -240,10 +245,18 @@ bool rt_scope_join_all(const void* scope_handle, uint64_t* pending, bool* failfa
     // registration is caught by the re-check; one that lands after wakes the
     // registration. A RUNNING owner double-woken here is absorbed by
     // wake_task_on_shard_locked's status gate.
+    //
+    // The verify re-reads the fail-fast flag WITH the count (RV2-DEBT-261):
+    // the child-done it catches may be the cancelled one that fired fail-fast,
+    // and its answer is only whole when both fields come from after it. The
+    // negative-control toggle drops the flag from this read and restores the
+    // window the sync point below holds open.
     waker_key key = scope_key(scope_id);
     prepare_park(ex, current, key, 0);
     pending_key = key;
-    size_t active_after = scope_active_locked(pinned, scope);
+    RT_SYNC_POINT(SP_SCOPE_FAILFAST_JOIN_BEFORE_VERIFY);
+    size_t active_after =
+        scope_join_snapshot_locked(pinned, scope, RT_DEBT261_VERIFY_FAILFAST_OUT(failfast));
     if (active_after == 0) {
         remove_waiter(ex, key, current->id);
         current->park_prepared = 0;
