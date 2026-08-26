@@ -328,7 +328,20 @@ void park_current(rt_executor* ex, waker_key key) {
         // this park's generation: the requeued task can re-register the same
         // channel key on another worker before this lands, and an
         // unqualified removal would eat that fresh registration.
-        remove_waiter_generation(ex, key, task->id, abort_seq);
+        //
+        // And for a key with NO generation it is not attempted at all, for
+        // the same reason the first abort branch above refuses it: a join,
+        // scope or remote-reply registration sits at seq 0, so the removal
+        // would be the unqualified sweep, and the requeued task can already be
+        // polling on another worker and have registered the same join key
+        // again. Sweeping that fresh entry strands the joiner for good -- its
+        // target completes once, the completion drain finds nothing, and no
+        // wake ever comes (measured: one hang in ~15 runs of a four-asker
+        // cohort on four workers). The stale entry is self-cleaning instead:
+        // the drain pops it and the token absorbs the spurious wake.
+        if (abort_seq != 0) {
+            remove_waiter_generation(ex, key, task->id, abort_seq);
+        }
         return;
     }
     rt_shard_unlock(owner_shard);
