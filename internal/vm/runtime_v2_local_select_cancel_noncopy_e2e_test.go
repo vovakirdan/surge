@@ -149,7 +149,13 @@ func TestRuntimeV2LocalSelectCancelNonCopySendArm(t *testing.T) {
 		// objects are simply bigger. Which is also why the number is written
 		// here rather than derived: it is a fact about a leak that RV2-DEBT-155
 		// owns, and it should change loudly when that leak is fixed.
-		const controlBaselineBytes = 1344
+		//
+		// It moved again, from 1344 to 1376, when D3b C0 gave the channel its
+		// two reference counts and the reclaiming flag (2026-08-26): sixteen
+		// bytes per object with alignment, two objects. Still two blocks, still
+		// the same two channels nobody releases yet -- C1 is what makes this
+		// number zero.
+		const controlBaselineBytes = 1376
 		const controlBaselineBlocks = 2
 		if controlBytesLost != controlBaselineBytes || controlBlocksLost != controlBaselineBlocks {
 			t.Fatalf(
