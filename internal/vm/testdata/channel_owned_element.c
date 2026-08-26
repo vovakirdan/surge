@@ -234,6 +234,21 @@ static void poll_owned_receiver(void) {
     }
 }
 
+// The program-side symbols the runtime links against. Each is declared before
+// it is defined because the stand is compiled with -Wmissing-prototypes, and
+// each declaration is exempted by name because the emitter owns this spelling.
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+void __surge_poll_call(uint64_t id);
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+void __surge_drop_call(uint64_t id, void* state);
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+void __surge_drop_result_call(uint64_t id, void* value);
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+void __surge_drop_abandoned_state_call(uint64_t id, void* state);
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+void __surge_blocking_call(uint64_t id, void* state, void* out_dst);
+
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 void __surge_poll_call(uint64_t id) {
     switch (id) {
         case POLL_OWNED_MAKER:
@@ -256,21 +271,25 @@ void __surge_poll_call(uint64_t id) {
 
 // No harness state carries a drop obligation, and no blocking work is
 // submitted: reaching either of these is a defect in the stand, not a result.
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 void __surge_drop_call(uint64_t id, void* state) {
     (void)id;
     (void)state;
 }
 
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 void __surge_drop_result_call(uint64_t id, void* value) {
     (void)id;
     (void)value;
 }
 
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 void __surge_drop_abandoned_state_call(uint64_t id, void* state) {
     (void)id;
     (void)state;
 }
 
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 void __surge_blocking_call(uint64_t id, void* state, void* out_dst) {
     (void)id;
     (void)state;
