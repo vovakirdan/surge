@@ -169,8 +169,13 @@ type Result struct {
 	// DirectCloneRequests are `clone(&value)` uses on concrete non-Copy types.
 	// They are answered once against the merged callable catalog so that a type
 	// clones the same way everywhere, and published back as CloneSymbols.
-	DirectCloneRequests        []DirectCloneRequest
-	DirectCloneBindings        []DirectCloneBinding
+	DirectCloneRequests []DirectCloneRequest
+	DirectCloneBindings []DirectCloneBinding
+	// CloneObligations are operations that are valid exactly when a concrete
+	// subject type turns out to be clonable. A generic subject is not recorded
+	// here: it rides the instantiation graph so the question is asked once per
+	// live instantiation.
+	CloneObligations           []CloneObligation
 	FunctionInstantiations     map[symbols.SymbolID][][]types.TypeID
 	FunctionInstantiationSites map[symbols.SymbolID][]source.Span
 	ImplicitConversions        map[ast.ExprID]ImplicitConversion // Tracks implicit __to calls

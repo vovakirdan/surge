@@ -1,0 +1,18 @@
+// scenario: the same refusal arrives at the instantiation of a generic clone
+type Widget = { name: string }
+
+async fn make_widget() -> Widget {
+    return Widget { name = "w" };
+}
+
+fn duplicate<T>(handle: &Task<T>) -> Task<T> {
+    return handle.clone();
+}
+
+@entrypoint
+fn main() {
+    let first = spawn make_widget();
+    let second = duplicate(&first);  // ERROR: instantiated with a non-clonable Widget
+    let a = first.await();
+    let b = second.await();
+}

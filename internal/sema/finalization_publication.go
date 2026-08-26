@@ -16,7 +16,10 @@ func canonicalizeFinalizationRequestSources(result *Result, resolve func(source.
 	if err := canonicalizeEntrypointCallableSources(result, resolve); err != nil {
 		return err
 	}
-	return canonicalizeDirectCloneSources(result, resolve)
+	if err := canonicalizeDirectCloneSources(result, resolve); err != nil {
+		return err
+	}
+	return canonicalizeCloneObligationSources(result, resolve)
 }
 
 // mergeFinalizationRequests carries one file's unanswered requests into the
@@ -24,6 +27,7 @@ func canonicalizeFinalizationRequestSources(result *Result, resolve func(source.
 func mergeFinalizationRequests(dst, src *Result, mapping map[symbols.SymbolID]symbols.SymbolID) {
 	mergeEntrypointCallableRequests(dst, src, mapping)
 	mergeDirectCloneRequests(dst, src, mapping)
+	mergeCloneObligations(dst, src, mapping)
 }
 
 // copyFinalizationRequests shares one finalized authority's requests and
@@ -33,6 +37,7 @@ func copyFinalizationRequests(dst, src *Result) {
 	dst.EntrypointCallableBindings = cloneEntrypointCallableBindings(src.EntrypointCallableBindings)
 	dst.DirectCloneRequests = cloneDirectCloneRequests(src.DirectCloneRequests)
 	dst.DirectCloneBindings = cloneDirectCloneBindings(src.DirectCloneBindings)
+	dst.CloneObligations = cloneCloneObligations(src.CloneObligations)
 }
 
 // FinalizationPublication describes one owning per-file semantic result. The

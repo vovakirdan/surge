@@ -1,0 +1,79 @@
+  1: KwType          "type" at 2:1-2:5 (leading: LineComment, Newline)
+  2: Ident           "Widget" at 2:6-2:12 (leading: Space)
+  3: Assign          "=" at 2:13-2:14 (leading: Space)
+  4: LBrace          "{" at 2:15-2:16 (leading: Space)
+  5: Ident           "name" at 2:17-2:21 (leading: Space)
+  6: Colon           ":" at 2:21-2:22
+  7: Ident           "string" at 2:23-2:29 (leading: Space)
+  8: RBrace          "}" at 2:30-2:31 (leading: Space)
+  9: KwAsync         "async" at 4:1-4:6 (leading: Newline)
+ 10: KwFn            "fn" at 4:7-4:9 (leading: Space)
+ 11: Ident           "make_widget" at 4:10-4:21 (leading: Space)
+ 12: LParen          "(" at 4:21-4:22
+ 13: RParen          ")" at 4:22-4:23
+ 14: Arrow           "->" at 4:24-4:26 (leading: Space)
+ 15: Ident           "Widget" at 4:27-4:33 (leading: Space)
+ 16: LBrace          "{" at 4:34-4:35 (leading: Space)
+ 17: KwReturn        "return" at 5:5-5:11 (leading: Newline, Space)
+ 18: Ident           "Widget" at 5:12-5:18 (leading: Space)
+ 19: LBrace          "{" at 5:19-5:20 (leading: Space)
+ 20: Ident           "name" at 5:21-5:25 (leading: Space)
+ 21: Assign          "=" at 5:26-5:27 (leading: Space)
+ 22: StringLit       "\"w\"" at 5:28-5:31 (leading: Space)
+ 23: RBrace          "}" at 5:32-5:33 (leading: Space)
+ 24: Semicolon       ";" at 5:33-5:34
+ 25: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 26: KwFn            "fn" at 8:1-8:3 (leading: Newline)
+ 27: Ident           "duplicate" at 8:4-8:13 (leading: Space)
+ 28: Lt              "<" at 8:13-8:14
+ 29: Ident           "T" at 8:14-8:15
+ 30: Gt              ">" at 8:15-8:16
+ 31: LParen          "(" at 8:16-8:17
+ 32: Ident           "handle" at 8:17-8:23
+ 33: Colon           ":" at 8:23-8:24
+ 34: Amp             "&" at 8:25-8:26 (leading: Space)
+ 35: Ident           "Task" at 8:26-8:30
+ 36: Lt              "<" at 8:30-8:31
+ 37: Ident           "T" at 8:31-8:32
+ 38: Gt              ">" at 8:32-8:33
+ 39: RParen          ")" at 8:33-8:34
+ 40: Arrow           "->" at 8:35-8:37 (leading: Space)
+ 41: Ident           "Task" at 8:38-8:42 (leading: Space)
+ 42: Lt              "<" at 8:42-8:43
+ 43: Ident           "T" at 8:43-8:44
+ 44: Gt              ">" at 8:44-8:45
+ 45: LBrace          "{" at 8:46-8:47 (leading: Space)
+ 46: KwReturn        "return" at 9:5-9:11 (leading: Newline, Space)
+ 47: Ident           "handle" at 9:12-9:18 (leading: Space)
+ 48: Dot             "." at 9:18-9:19
+ 49: Ident           "clone" at 9:19-9:24
+ 50: LParen          "(" at 9:24-9:25
+ 51: RParen          ")" at 9:25-9:26
+ 52: Semicolon       ";" at 9:26-9:27
+ 53: RBrace          "}" at 10:1-10:2 (leading: Newline)
+ 54: At              "@" at 12:1-12:2 (leading: Newline)
+ 55: Ident           "entrypoint" at 12:2-12:12
+ 56: KwFn            "fn" at 13:1-13:3 (leading: Newline)
+ 57: Ident           "main" at 13:4-13:8 (leading: Space)
+ 58: LParen          "(" at 13:8-13:9
+ 59: RParen          ")" at 13:9-13:10
+ 60: LBrace          "{" at 13:11-13:12 (leading: Space)
+ 61: KwLet           "let" at 14:5-14:8 (leading: Newline, Space)
+ 62: Ident           "first" at 14:9-14:14 (leading: Space)
+ 63: Assign          "=" at 14:15-14:16 (leading: Space)
+ 64: KwSpawn         "spawn" at 14:17-14:22 (leading: Space)
+ 65: Ident           "make_widget" at 14:23-14:34 (leading: Space)
+ 66: LParen          "(" at 14:34-14:35
+ 67: RParen          ")" at 14:35-14:36
+ 68: Semicolon       ";" at 14:36-14:37
+ 69: KwLet           "let" at 15:5-15:8 (leading: Newline, Space)
+ 70: Ident           "a" at 15:9-15:10 (leading: Space)
+ 71: Assign          "=" at 15:11-15:12 (leading: Space)
+ 72: Ident           "first" at 15:13-15:18 (leading: Space)
+ 73: Dot             "." at 15:18-15:19
+ 74: Ident           "await" at 15:19-15:24
+ 75: LParen          "(" at 15:24-15:25
+ 76: RParen          ")" at 15:25-15:26
+ 77: Semicolon       ";" at 15:26-15:27
+ 78: RBrace          "}" at 16:1-16:2 (leading: Newline)
+ 79: EOF             at 17:1-17:1

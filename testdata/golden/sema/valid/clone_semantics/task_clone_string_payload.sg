@@ -1,0 +1,12 @@
+// scenario: a string payload duplicates through its __clone intrinsic
+async fn make_text() -> string {
+    return "hello";
+}
+
+@entrypoint
+fn main() {
+    let first = spawn make_text();
+    let second = first.clone();
+    let a = first.await();
+    let b = second.await();
+}

@@ -88,6 +88,15 @@ func (b *reachableClosureBuilder) resolveDeferred(current *InstantiationInstance
 	if err != nil {
 		return fmt.Errorf("deferred callable %s result: %w", edge.UseID, err)
 	}
+	if edge.Kind == DeferredCloneObligation {
+		// An obligation is not a call: it resolves to a verdict, so it stops
+		// here rather than selecting a callable. It rides this edge because the
+		// substitution above is exactly the machinery it needs, and because
+		// reaching this line at all is the proof the instantiation is LIVE —
+		// an uninstantiated generic definition is never walked, which is what
+		// keeps an unused template deferred instead of refused.
+		return b.checkDeferredCloneObligation(current, edge, receiver, result)
+	}
 	requirement := cloneDeferredCallableRequirement(&edge.Requirement)
 	requirement.Params, err = substituteConcreteTypes(subst, requirement.Params, b.identity.Types.Types)
 	if err != nil {

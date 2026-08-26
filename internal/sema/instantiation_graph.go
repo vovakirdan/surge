@@ -125,6 +125,11 @@ const (
 	DeferredMethodCall DeferredCallableKind = iota + 1
 	DeferredBoolCall
 	DeferredCloneCall
+	// DeferredCloneObligation is not a call at all: it is an operation whose
+	// validity requires that the substituted type be clonable. It rides the
+	// same edge because the substitution machinery is the same, and it resolves
+	// to a verdict rather than to a callable, so nothing downstream looks it up.
+	DeferredCloneObligation
 )
 
 // DeferredCallableEdge keeps the complete sema-approved call shape in the
@@ -146,6 +151,10 @@ type DeferredCallableEdge struct {
 	AccessModule        string
 	Requirement         DeferredCallableRequirement
 	Witness             InstantiationWitness
+	// Obligation is set only for DeferredCloneObligation edges, where the edge
+	// carries a verdict rather than a call: Receiver is the subject that must
+	// be clonable and ExpectedResult is the container the author wrote.
+	Obligation CloneObligationOp
 }
 
 // InstantiationGraph is the mandatory sema artefact. It is populated whether

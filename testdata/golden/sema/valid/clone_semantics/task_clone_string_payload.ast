@@ -1,0 +1,35 @@
+task_clone_string_payload.sg (span: 2:1-13:1)
+├─ Item[0]: Fn (span: 2:1-4:2)
+│  ├─ Name: make_text
+│  ├─ Params: ()
+│  ├─ Return: string
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:32-4:2)
+│        └─ Stmt[0]: Return (span: 3:5-3:20)
+│           └─ Expr: expr#1: "hello"
+└─ Item[1]: Fn (span: 6:1-12:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:11-12:2)
+         ├─ Stmt[0]: Let (span: 8:5-8:35)
+         │  ├─ Name: first
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#4: spawn make_text()
+         ├─ Stmt[1]: Let (span: 9:5-9:32)
+         │  ├─ Name: second
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#7: first.clone()
+         ├─ Stmt[2]: Let (span: 10:5-10:27)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#10: first.await()
+         └─ Stmt[3]: Let (span: 11:5-11:28)
+            ├─ Name: b
+            ├─ Mutable: false
+            ├─ Type: <inferred>
+            └─ Value: expr#13: second.await()

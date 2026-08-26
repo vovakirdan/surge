@@ -1,0 +1,14 @@
+// scenario: cloning a task handle owes another independent payload
+type Widget = { name: string }
+
+async fn make_widget() -> Widget {
+    return Widget { name = "w" };
+}
+
+@entrypoint
+fn main() {
+    let first = spawn make_widget();
+    let second = first.clone();  // ERROR: Widget is neither Copy nor __clone-able
+    let a = first.await();
+    let b = second.await();
+}

@@ -1,0 +1,20 @@
+// scenario: a payload with a valid __clone keeps Task<T>.clone() accepted
+type Boxed = { name: string }
+
+extern<Boxed> {
+    pub fn __clone(self: &Boxed) -> Boxed {
+        return Boxed { name = clone(self.name) };
+    }
+}
+
+async fn make_boxed() -> Boxed {
+    return Boxed { name = "b" };
+}
+
+@entrypoint
+fn main() {
+    let first = spawn make_boxed();
+    let second = first.clone();
+    let a = first.await();
+    let b = second.await();
+}

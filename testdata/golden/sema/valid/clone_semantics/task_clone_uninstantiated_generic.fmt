@@ -1,0 +1,16 @@
+// scenario: a generic clone nobody instantiates stays deferred, not refused
+type Widget = { name: string }
+
+async fn make_widget() -> Widget {
+    return Widget { name = "w" };
+}
+
+fn duplicate<T>(handle: &Task<T>) -> Task<T> {
+    return handle.clone();
+}
+
+@entrypoint
+fn main() {
+    let first = spawn make_widget();
+    let a = first.await();
+}

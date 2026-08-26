@@ -14,6 +14,7 @@ type reachableClosureBuilder struct {
 	callEdges      map[symbols.SymbolID]map[symbols.SymbolID]struct{}
 	candidates     []CallableCandidate
 	clones         *cloneCanonicalSelector
+	capabilities   *CapabilityClassifier
 	templateParams map[symbols.SymbolID][]types.TypeID
 	identity       InstantiationIdentity
 	limits         instantiationClosureLimits
@@ -39,12 +40,21 @@ func buildReachableInstantiationClosureWithDeferred(
 	requiredValueOpRoots map[symbols.SymbolID]struct{},
 	candidates []CallableCandidate,
 	templateParams map[symbols.SymbolID][]types.TypeID,
+	capabilities *CapabilityClassifier,
 	identity InstantiationIdentity,
 	limits instantiationClosureLimits,
 ) (InstantiationClosure, error) {
+	// One selector, not two. The capability classifier already owns the
+	// program-wide clone authority, so taking its selector is what keeps the
+	// deferred CALL path and the deferred OBLIGATION path from answering the
+	// same question out of two catalogs.
+	clones := newCloneCanonicalSelector(candidates, identity.Types.Types)
+	if capabilities != nil && capabilities.clones != nil {
+		clones = capabilities.clones
+	}
 	b := &reachableClosureBuilder{
 		graph: graph, callEdges: callEdges, candidates: candidates, templateParams: templateParams,
-		clones:   newCloneCanonicalSelector(candidates, identity.Types.Types),
+		clones: clones, capabilities: capabilities,
 		identity: identity, limits: limits,
 		rootsByCaller:    make(map[symbols.SymbolID][]InstantiationRoot),
 		edgesByCaller:    make(map[symbols.SymbolID][]InstantiationEdge),

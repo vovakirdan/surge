@@ -1,0 +1,1 @@
+error SEM3116 testdata/golden/sema/invalid/clone_semantics/task_clone_generic_instantiated.sg:9:12 cloning this handle to `Task<Widget>` owes another independent `Widget`, which is neither Copy nor validly `__clone`-able

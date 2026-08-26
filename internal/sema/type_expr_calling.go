@@ -68,11 +68,15 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 			if !receiverIsType && methodName == "clone" && len(call.Args) == 0 {
 				payload := tc.taskPayloadType(receiverType)
 				if tc.isFarTaskType(payload) {
+					// Far-ness is a fact this file already has, so the earliest
+					// reliable stage is here. Everything else about the payload
+					// needs the merged program and becomes an obligation.
 					tc.report(diag.SemaTypeNotClonable, span,
 						"type %s is not clonable because its far Task payload is affine", tc.typeLabel(receiverType))
 					return types.NoTypeID
 				}
 				tc.trackTaskClone(id, member.Target, receiverType, span)
+				tc.recordTaskCloneObligation(receiverType, payload, span)
 			}
 			if !receiverIsType && tc.isChannelType(receiverType) &&
 				(methodName == "send" || methodName == "try_send") && len(call.Args) > 0 {

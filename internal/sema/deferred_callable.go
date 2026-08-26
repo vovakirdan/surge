@@ -119,6 +119,8 @@ func (tc *typeChecker) rememberDeferredCallable(
 		reason = "deferred bool call"
 	case DeferredCloneCall:
 		reason = "deferred clone call"
+	case DeferredCloneObligation:
+		reason = "deferred clone obligation"
 	}
 	ordinal := uint32(0)
 	edges := tc.result.InstantiationGraph.deferredCallables
@@ -143,6 +145,7 @@ func (tc *typeChecker) rememberDeferredCallable(
 		StaticReceiver:      staticReceiver,
 		AccessModule:        tc.modulePath,
 		Requirement:         cloneDeferredCallableRequirement(requirement),
+		Obligation:          tc.pendingCloneObligation,
 		Witness: InstantiationWitness{
 			Site:   site,
 			Caller: caller,

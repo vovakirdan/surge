@@ -1,0 +1,101 @@
+  1: KwType          "type" at 2:1-2:5 (leading: LineComment, Newline)
+  2: Ident           "Boxed" at 2:6-2:11 (leading: Space)
+  3: Assign          "=" at 2:12-2:13 (leading: Space)
+  4: LBrace          "{" at 2:14-2:15 (leading: Space)
+  5: Ident           "name" at 2:16-2:20 (leading: Space)
+  6: Colon           ":" at 2:20-2:21
+  7: Ident           "string" at 2:22-2:28 (leading: Space)
+  8: RBrace          "}" at 2:29-2:30 (leading: Space)
+  9: KwExtern        "extern" at 4:1-4:7 (leading: Newline)
+ 10: Lt              "<" at 4:7-4:8
+ 11: Ident           "Boxed" at 4:8-4:13
+ 12: Gt              ">" at 4:13-4:14
+ 13: LBrace          "{" at 4:15-4:16 (leading: Space)
+ 14: KwPub           "pub" at 5:5-5:8 (leading: Newline, Space)
+ 15: KwFn            "fn" at 5:9-5:11 (leading: Space)
+ 16: Ident           "__clone" at 5:12-5:19 (leading: Space)
+ 17: LParen          "(" at 5:19-5:20
+ 18: Ident           "self" at 5:20-5:24
+ 19: Colon           ":" at 5:24-5:25
+ 20: Amp             "&" at 5:26-5:27 (leading: Space)
+ 21: Ident           "Boxed" at 5:27-5:32
+ 22: RParen          ")" at 5:32-5:33
+ 23: Arrow           "->" at 5:34-5:36 (leading: Space)
+ 24: Ident           "Boxed" at 5:37-5:42 (leading: Space)
+ 25: LBrace          "{" at 5:43-5:44 (leading: Space)
+ 26: KwReturn        "return" at 6:9-6:15 (leading: Newline, Space)
+ 27: Ident           "Boxed" at 6:16-6:21 (leading: Space)
+ 28: LBrace          "{" at 6:22-6:23 (leading: Space)
+ 29: Ident           "name" at 6:24-6:28 (leading: Space)
+ 30: Assign          "=" at 6:29-6:30 (leading: Space)
+ 31: Ident           "clone" at 6:31-6:36 (leading: Space)
+ 32: LParen          "(" at 6:36-6:37
+ 33: Ident           "self" at 6:37-6:41
+ 34: Dot             "." at 6:41-6:42
+ 35: Ident           "name" at 6:42-6:46
+ 36: RParen          ")" at 6:46-6:47
+ 37: RBrace          "}" at 6:48-6:49 (leading: Space)
+ 38: Semicolon       ";" at 6:49-6:50
+ 39: RBrace          "}" at 7:5-7:6 (leading: Newline, Space)
+ 40: RBrace          "}" at 8:1-8:2 (leading: Newline)
+ 41: KwAsync         "async" at 10:1-10:6 (leading: Newline)
+ 42: KwFn            "fn" at 10:7-10:9 (leading: Space)
+ 43: Ident           "make_boxed" at 10:10-10:20 (leading: Space)
+ 44: LParen          "(" at 10:20-10:21
+ 45: RParen          ")" at 10:21-10:22
+ 46: Arrow           "->" at 10:23-10:25 (leading: Space)
+ 47: Ident           "Boxed" at 10:26-10:31 (leading: Space)
+ 48: LBrace          "{" at 10:32-10:33 (leading: Space)
+ 49: KwReturn        "return" at 11:5-11:11 (leading: Newline, Space)
+ 50: Ident           "Boxed" at 11:12-11:17 (leading: Space)
+ 51: LBrace          "{" at 11:18-11:19 (leading: Space)
+ 52: Ident           "name" at 11:20-11:24 (leading: Space)
+ 53: Assign          "=" at 11:25-11:26 (leading: Space)
+ 54: StringLit       "\"b\"" at 11:27-11:30 (leading: Space)
+ 55: RBrace          "}" at 11:31-11:32 (leading: Space)
+ 56: Semicolon       ";" at 11:32-11:33
+ 57: RBrace          "}" at 12:1-12:2 (leading: Newline)
+ 58: At              "@" at 14:1-14:2 (leading: Newline)
+ 59: Ident           "entrypoint" at 14:2-14:12
+ 60: KwFn            "fn" at 15:1-15:3 (leading: Newline)
+ 61: Ident           "main" at 15:4-15:8 (leading: Space)
+ 62: LParen          "(" at 15:8-15:9
+ 63: RParen          ")" at 15:9-15:10
+ 64: LBrace          "{" at 15:11-15:12 (leading: Space)
+ 65: KwLet           "let" at 16:5-16:8 (leading: Newline, Space)
+ 66: Ident           "first" at 16:9-16:14 (leading: Space)
+ 67: Assign          "=" at 16:15-16:16 (leading: Space)
+ 68: KwSpawn         "spawn" at 16:17-16:22 (leading: Space)
+ 69: Ident           "make_boxed" at 16:23-16:33 (leading: Space)
+ 70: LParen          "(" at 16:33-16:34
+ 71: RParen          ")" at 16:34-16:35
+ 72: Semicolon       ";" at 16:35-16:36
+ 73: KwLet           "let" at 17:5-17:8 (leading: Newline, Space)
+ 74: Ident           "second" at 17:9-17:15 (leading: Space)
+ 75: Assign          "=" at 17:16-17:17 (leading: Space)
+ 76: Ident           "first" at 17:18-17:23 (leading: Space)
+ 77: Dot             "." at 17:23-17:24
+ 78: Ident           "clone" at 17:24-17:29
+ 79: LParen          "(" at 17:29-17:30
+ 80: RParen          ")" at 17:30-17:31
+ 81: Semicolon       ";" at 17:31-17:32
+ 82: KwLet           "let" at 18:5-18:8 (leading: Newline, Space)
+ 83: Ident           "a" at 18:9-18:10 (leading: Space)
+ 84: Assign          "=" at 18:11-18:12 (leading: Space)
+ 85: Ident           "first" at 18:13-18:18 (leading: Space)
+ 86: Dot             "." at 18:18-18:19
+ 87: Ident           "await" at 18:19-18:24
+ 88: LParen          "(" at 18:24-18:25
+ 89: RParen          ")" at 18:25-18:26
+ 90: Semicolon       ";" at 18:26-18:27
+ 91: KwLet           "let" at 19:5-19:8 (leading: Newline, Space)
+ 92: Ident           "b" at 19:9-19:10 (leading: Space)
+ 93: Assign          "=" at 19:11-19:12 (leading: Space)
+ 94: Ident           "second" at 19:13-19:19 (leading: Space)
+ 95: Dot             "." at 19:19-19:20
+ 96: Ident           "await" at 19:20-19:25
+ 97: LParen          "(" at 19:25-19:26
+ 98: RParen          ")" at 19:26-19:27
+ 99: Semicolon       ";" at 19:27-19:28
+100: RBrace          "}" at 20:1-20:2 (leading: Newline)
+101: EOF             at 21:1-21:1

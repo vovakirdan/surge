@@ -133,6 +133,10 @@ func (r *Result) FinalizeInstantiationClosure(identity InstantiationIdentity, ma
 		// hand. Driver-created results always install an explicit root policy.
 		closure, err = BuildInstantiationClosure(&r.InstantiationGraph, identity, maxDepth)
 	} else {
+		var capabilities *CapabilityClassifier
+		if capabilities, err = r.NewCapabilityClassifier(); err != nil {
+			return err
+		}
 		closure, err = buildReachableInstantiationClosureWithDeferred(
 			&r.InstantiationGraph,
 			r.FunctionCallEdges,
@@ -140,6 +144,7 @@ func (r *Result) FinalizeInstantiationClosure(identity InstantiationIdentity, ma
 			r.RequiredValueOpRoots,
 			r.CallableCandidates,
 			r.InstantiationTemplateParams,
+			capabilities,
 			identity,
 			instantiationClosureLimits{maxDepth: maxDepth, maxInstances: DefaultInstantiationClosureInstanceLimit},
 		)

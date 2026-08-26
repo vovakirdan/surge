@@ -438,6 +438,22 @@ const (
 	// `Erring<T, E>`'s bare `E` member is still caught by `err`.
 	SemaArmTagNotAUnionCase Code = 3203
 
+	// SemaOperationNeedsClonable rejects an operation that is only valid when
+	// the language can obtain an independent copy of one of the types it was
+	// written with, at an instantiation whose concrete type cannot be cloned.
+	//
+	// It is distinct from SemaTypeNotClonable, which says a TYPE has no clone.
+	// This one says an OPERATION is unavailable at this instantiation: the
+	// generic definition is legal and other instantiations of it still compile,
+	// so the span, the notes and the way out all belong to the substitution
+	// rather than to the type declaration.
+	//
+	// `Task<T>.clone()` deliberately does NOT use this number: it reuses
+	// SemaTypeNotClonable so that the concrete call and the instantiated
+	// generic call report one code, which is what makes the two paths provably
+	// the same diagnostic.
+	SemaOperationNeedsClonable Code = 3204
+
 	// Ошибки I/O
 
 	// IOLoadFileError indicates file load error.
@@ -698,6 +714,7 @@ var ( // todo расширить описания и использовать к
 		SemaWriteToLoopBinding:             "a for-in binding is a copy of the element, so writing to it changes nothing",
 		SemaMutableIterable:                "a for-in loop only reads what it iterates, so `&mut` cannot be honoured here",
 		SemaArmTagNotAUnionCase:            "this tag is not a case of the union being matched",
+		SemaOperationNeedsClonable:         "this operation is not available at this instantiation",
 		SemaPartialMoveNeedsOwn:            "taking a field out of a live value must be written `own`",
 		SemaPartialMoveFromTemporary:       "cannot take a field out of a value nothing holds",
 		SemaStoreThroughSharedRef:          "cannot write through a shared reference",

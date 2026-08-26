@@ -55,24 +55,28 @@ type typeChecker struct {
 	tracer    trace.Tracer // трассировщик для отладки
 	exprDepth int          // глубина рекурсии для typeExpr
 
-	scopeStack                  []symbols.ScopeID
-	scopeByItem                 map[ast.ItemID]symbols.ScopeID
-	scopeByStmt                 map[ast.StmtID]symbols.ScopeID
-	scopeByExtern               map[ast.ExternMemberID]symbols.ScopeID
-	stmtSymbols                 map[ast.StmtID]symbols.SymbolID
-	externSymbols               map[ast.ExternMemberID]symbols.SymbolID
-	bindingBorrow               map[symbols.SymbolID]BorrowID
-	bindingTypes                map[symbols.SymbolID]types.TypeID
-	constState                  map[symbols.SymbolID]constEvalState
-	typeItems                   map[ast.ItemID]types.TypeID
-	typeCache                   map[typeCacheKey]types.TypeID
-	rawPointerChecked           map[ast.TypeID]struct{}
-	allowRawPointer             bool
-	typeKeys                    map[string]types.TypeID
-	typeIDItems                 map[types.TypeID]ast.ItemID
-	structBases                 map[types.TypeID]types.TypeID
-	externFields                map[symbols.TypeKey]*externFieldSet
-	externSealedBlocks          map[ast.ItemID]struct{}
+	scopeStack         []symbols.ScopeID
+	scopeByItem        map[ast.ItemID]symbols.ScopeID
+	scopeByStmt        map[ast.StmtID]symbols.ScopeID
+	scopeByExtern      map[ast.ExternMemberID]symbols.ScopeID
+	stmtSymbols        map[ast.StmtID]symbols.SymbolID
+	externSymbols      map[ast.ExternMemberID]symbols.SymbolID
+	bindingBorrow      map[symbols.SymbolID]BorrowID
+	bindingTypes       map[symbols.SymbolID]types.TypeID
+	constState         map[symbols.SymbolID]constEvalState
+	typeItems          map[ast.ItemID]types.TypeID
+	typeCache          map[typeCacheKey]types.TypeID
+	rawPointerChecked  map[ast.TypeID]struct{}
+	allowRawPointer    bool
+	typeKeys           map[string]types.TypeID
+	typeIDItems        map[types.TypeID]ast.ItemID
+	structBases        map[types.TypeID]types.TypeID
+	externFields       map[symbols.TypeKey]*externFieldSet
+	externSealedBlocks map[ast.ItemID]struct{}
+	// pendingCloneObligation labels the deferred edge rememberDeferredCallable
+	// is about to record. It is set only around that one call, because the edge
+	// builder is shared with the three deferred CALL kinds, which carry none.
+	pendingCloneObligation      CloneObligationOp
 	typeAttrs                   map[types.TypeID][]AttrInfo     // Type attribute storage
 	fieldAttrs                  map[fieldKey][]AttrInfo         // Field attribute storage
 	symbolAttrs                 map[symbols.SymbolID][]AttrInfo // Symbol attribute storage (functions, let, const)

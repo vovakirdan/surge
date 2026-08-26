@@ -1,0 +1,51 @@
+task_clone_user_clone.sg (span: 2:1-21:1)
+├─ Item[0]: Type (span: 2:1-2:30)
+│  ├─ Name: Boxed
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: name: string
+├─ Item[1]: Extern (span: 4:1-8:2)
+│  ├─ Target: Boxed
+│  ├─ Members:
+│  │  └─ Fn[0]: __clone
+│  │     ├─ Params: (self: &Boxed)
+│  │     ├─ Return: Boxed
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 5:43-7:6)
+│  │        └─ Stmt[0]: Return (span: 6:9-6:50)
+│  │           └─ Expr: expr#6: <ExprKind(22)>
+├─ Item[2]: Fn (span: 10:1-12:2)
+│  ├─ Name: make_boxed
+│  ├─ Params: ()
+│  ├─ Return: Boxed
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 10:32-12:2)
+│        └─ Stmt[0]: Return (span: 11:5-11:33)
+│           └─ Expr: expr#9: <ExprKind(22)>
+└─ Item[3]: Fn (span: 14:1-20:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 15:11-20:2)
+         ├─ Stmt[0]: Let (span: 16:5-16:36)
+         │  ├─ Name: first
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#12: spawn make_boxed()
+         ├─ Stmt[1]: Let (span: 17:5-17:32)
+         │  ├─ Name: second
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#15: first.clone()
+         ├─ Stmt[2]: Let (span: 18:5-18:27)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#18: first.await()
+         └─ Stmt[3]: Let (span: 19:5-19:28)
+            ├─ Name: b
+            ├─ Mutable: false
+            ├─ Type: <inferred>
+            └─ Value: expr#21: second.await()
