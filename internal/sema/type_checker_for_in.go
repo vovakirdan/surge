@@ -159,13 +159,16 @@ func (tc *typeChecker) rejectMoveOutOfLoopBinding(forIn *ast.ForInStmt, loopSym 
 // rejectOwnedIterable refuses `own` in the iterable position. The test is on
 // the `own expr` SYNTAX, like rejectMutableIterable's on `&mut expr`: an
 // iterable of `own T[]` type that arrived as a parameter is not the mistake,
-// asking for consumption AT the loop is. Reports whether it refused, so the
-// body's move is not reported a second time.
+// asking for consumption AT the loop is. Parentheses are looked through, so
+// `for s in (own names)` is the same request as `for s in own names` and not a
+// spelling that slips past the rule. Reports whether it refused, so the body's
+// move is not reported a second time.
 func (tc *typeChecker) rejectOwnedIterable(forIn *ast.ForInStmt) bool {
 	if !forIn.Iterable.IsValid() {
 		return false
 	}
-	node := tc.builder.Exprs.Get(forIn.Iterable)
+	iterable := tc.unwrapGroupExpr(forIn.Iterable)
+	node := tc.builder.Exprs.Get(iterable)
 	if node == nil || node.Kind != ast.ExprUnary {
 		return false
 	}
@@ -173,7 +176,7 @@ func (tc *typeChecker) rejectOwnedIterable(forIn *ast.ForInStmt) bool {
 	if unary == nil || unary.Op != ast.ExprUnaryOwn {
 		return false
 	}
-	span := tc.exprSpan(forIn.Iterable)
+	span := tc.exprSpan(iterable)
 	headline := "cannot iterate over `own`: a consuming `for` is not a feature yet"
 	if tc.reporter == nil {
 		tc.report(diag.SemaOwnedIterable, span, "%s", headline)

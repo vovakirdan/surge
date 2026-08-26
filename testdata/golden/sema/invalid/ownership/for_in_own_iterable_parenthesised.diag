@@ -1,0 +1,1 @@
+error SEM3206 testdata/golden/sema/invalid/ownership/for_in_own_iterable_parenthesised.sg:14:15 cannot iterate over `own`: a consuming `for` is not a feature yet

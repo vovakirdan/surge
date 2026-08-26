@@ -1,0 +1,31 @@
+for_in_own_iterable_parenthesised.sg (span: 6:1-19:1)
+├─ Item[0]: Fn (span: 6:1-8:2)
+│  ├─ Name: take
+│  ├─ Params: (s: string)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 6:31-8:2)
+│        └─ Stmt[0]: Return (span: 7:5-7:20)
+│           └─ Expr: expr#1: nothing
+└─ Item[1]: Fn (span: 10:1-18:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 11:18-18:2)
+         ├─ Stmt[0]: Let (span: 12:5-12:34)
+         │  ├─ Name: names
+         │  ├─ Mutable: true
+         │  ├─ Type: string[]
+         │  └─ Value: expr#2: <ExprKind(8)>
+         ├─ Stmt[1]: Expr (span: 13:5-13:21)
+         │  └─ Expr: expr#6: names.push("a")
+         ├─ Stmt[2]: ForIn (span: 14:5-16:6)
+         │  ├─ Pattern: s
+         │  ├─ Iterable: expr#9: (own names)
+         │  └─ Body:
+Block (span: 14:26-16:6)
+         │     └─ Stmt[0]: Expr (span: 15:9-15:17)
+         │        └─ Expr: expr#12: take(s)
+         └─ Stmt[3]: Return (span: 17:5-17:14)
+            └─ Expr: expr#13: 0

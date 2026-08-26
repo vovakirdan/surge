@@ -70,6 +70,8 @@ func TestForInDoesNotConsumeItsElements(t *testing.T) {
 		// language does not have: refused by name, and the body's move is not
 		// reported a second time on top of it.
 		{"own_iterable", `fn f(names: string[]) -> nothing { for s in own names { take(s); } return nothing; }`, []string{"SEM3206"}},
+		// Parentheses are the same request, not a way around it.
+		{"own_iterable_parenthesised", `fn f(names: string[]) -> nothing { for s in (own names) { take(s); } return nothing; }`, []string{"SEM3206"}},
 		// The legal forms.
 		{"strings_drained_by_pop", `fn f() -> nothing { let mut xs: string[] = []; xs.push("a"); while xs.__len() > 0:uint { let s = xs.pop().safe(); take(s); } return nothing; }`, nil},
 		{"tasks_drained_by_pop", `async fn f() -> int { let mut tasks: Task<int>[] = []; tasks.push(spawn work()); while tasks.__len() > 0:uint { let t = tasks.pop().safe(); let _ = t.await(); } return 0; }`, nil},

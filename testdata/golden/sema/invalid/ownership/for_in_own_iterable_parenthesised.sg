@@ -1,0 +1,18 @@
+// `(own names)` is `own names` in parentheses: the same request for the
+// consuming loop the language does not have, and the same refusal. Before this
+// rule the parentheses were enough to slip past SEM3206 - the `own` was
+// accepted and ignored, exactly the trap the rule was added to close - and only
+// the body's move was refused, one line later and for a different reason.
+fn take(s: string) -> nothing {
+    return nothing;
+}
+
+@entrypoint
+fn main() -> int {
+    let mut names: string[] = [];
+    names.push("a");
+    for s in (own names) {
+        take(s);
+    }
+    return 0;
+}
