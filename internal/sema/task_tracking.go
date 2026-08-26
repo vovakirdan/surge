@@ -160,6 +160,16 @@ func (tt *TaskTracker) MarkPassedByExpr(expr ast.ExprID) {
 	tt.pendingPassed[expr] = struct{}{}
 }
 
+// IsTrackedExpr reports whether this expression produced a tracked task: a
+// `spawn`, or a `.clone()` on a task, which is an entitlement of its own.
+func (tt *TaskTracker) IsTrackedExpr(expr ast.ExprID) bool {
+	if !expr.IsValid() {
+		return false
+	}
+	taskID, ok := tt.exprTasks[expr]
+	return ok && taskID != 0 && int(taskID) < len(tt.tasks)
+}
+
 // EndScope checks for task leaks when leaving a scope.
 // Returns all tasks that were created in this scope but not awaited or returned.
 func (tt *TaskTracker) EndScope(scope symbols.ScopeID) []TaskInfo {

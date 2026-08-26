@@ -1,0 +1,1 @@
+error SEM3107 testdata/golden/sema/invalid/concurrency/task_clone_sibling_not_awaited.sg:10:13 task is neither awaited nor returned

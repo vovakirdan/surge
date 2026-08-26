@@ -72,6 +72,7 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 						"type %s is not clonable because its far Task payload is affine", tc.typeLabel(receiverType))
 					return types.NoTypeID
 				}
+				tc.trackTaskClone(id, member.Target, receiverType, span)
 			}
 			if !receiverIsType && tc.isChannelType(receiverType) &&
 				(methodName == "send" || methodName == "try_send") && len(call.Args) > 0 {

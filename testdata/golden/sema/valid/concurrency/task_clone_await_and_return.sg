@@ -1,0 +1,13 @@
+// One entitlement awaited here, the other handed to the caller: returning a
+// clone transfers the obligation exactly as returning a spawn does.
+
+async fn work() -> int {
+    return 42;
+}
+
+async fn await_one_return_other() -> Task<int> {
+    let t = spawn work();
+    let s = t.clone();
+    let _ = t.await();
+    return s;
+}

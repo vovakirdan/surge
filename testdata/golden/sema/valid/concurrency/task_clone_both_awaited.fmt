@@ -1,0 +1,14 @@
+// Every entitlement observed: the source and its clone are both awaited, and
+// each await yields an independent value.
+
+async fn work() -> int {
+    return 42;
+}
+
+async fn both_awaited() -> int {
+    let t = spawn work();
+    let s = t.clone();
+    let a: int = compare t.await() { Success(v) => v; Cancelled() => 0; };
+    let b: int = compare s.await() { Success(v) => v; Cancelled() => 0; };
+    return a + b;
+}

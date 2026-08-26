@@ -1,0 +1,13 @@
+// ERROR: the mirror image of task_clone_sibling_not_awaited: the clone is
+// awaited and the source handle is the one left unobserved.
+
+async fn work() -> int {
+    return 42;
+}
+
+async fn source_leaks() -> int {
+    let t = spawn work();
+    // ERROR SEM3107: t is neither awaited nor returned
+    let s = t.clone();
+    return compare s.await() { Success(v) => v; Cancelled() => 0; };
+}

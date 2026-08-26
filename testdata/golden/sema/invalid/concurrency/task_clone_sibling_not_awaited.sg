@@ -1,0 +1,13 @@
+// ERROR: a cloned handle is an entitlement of its own; the source is awaited,
+// the clone falls off the end of the scope unobserved.
+
+async fn work() -> int {
+    return 42;
+}
+
+async fn clone_leaks() -> int {
+    let t = spawn work();
+    let s = t.clone();
+    // ERROR SEM3107: s is neither awaited nor returned
+    return compare t.await() { Success(v) => v; Cancelled() => 0; };
+}

@@ -2,6 +2,8 @@ package sema
 
 import (
 	"surge/internal/ast"
+	"surge/internal/source"
+	"surge/internal/types"
 )
 
 // This file contains typeChecker methods for tracking task lifecycle in structured concurrency.
@@ -38,8 +40,9 @@ func (tc *typeChecker) trackTaskAwait(targetExpr ast.ExprID) {
 		return
 	}
 
-	// Case 1: Direct spawn expression (spawn foo.await())
-	if expr.Kind == ast.ExprTask || expr.Kind == ast.ExprSpawn {
+	// Case 1: a task-producing expression awaited in place: `spawn foo().await()`,
+	// or a clone awaited without a binding, `t.clone().await()`.
+	if expr.Kind == ast.ExprTask || expr.Kind == ast.ExprSpawn || tc.taskTracker.IsTrackedExpr(targetExpr) {
 		tc.taskTracker.MarkAwaitedByExpr(targetExpr)
 		tc.noteTaskContainerPopConsumedByExpr(targetExpr)
 		return
@@ -86,8 +89,9 @@ func (tc *typeChecker) trackTaskReturn(returnExpr ast.ExprID) {
 		return
 	}
 
-	// Case 1: Direct spawn expression (return spawn foo())
-	if expr.Kind == ast.ExprTask || expr.Kind == ast.ExprSpawn {
+	// Case 1: a task-producing expression returned in place: `return spawn foo()`
+	// or `return t.clone()`.
+	if expr.Kind == ast.ExprTask || expr.Kind == ast.ExprSpawn || tc.taskTracker.IsTrackedExpr(returnExpr) {
 		tc.taskTracker.MarkReturnedByExpr(returnExpr)
 		return
 	}
@@ -131,6 +135,12 @@ func (tc *typeChecker) trackTaskPassedAsArg(argExpr ast.ExprID) {
 		if expr == nil {
 			return
 		}
+		if tc.taskTracker.IsTrackedExpr(argExpr) {
+			// A clone passed on in place, `f(t.clone())`: the callee owns it now.
+			tc.taskTracker.MarkPassedByExpr(argExpr)
+			tc.noteTaskContainerPopConsumedByExpr(argExpr)
+			return
+		}
 		switch expr.Kind {
 		case ast.ExprTask, ast.ExprSpawn:
 			tc.taskTracker.MarkPassedByExpr(argExpr)
@@ -153,4 +163,39 @@ func (tc *typeChecker) trackTaskPassedAsArg(argExpr ast.ExprID) {
 			return
 		}
 	}
+}
+
+// trackTaskClone records the handle a `.clone()` on a `Task<T>` produces as a
+// task of its own.
+//
+// A clone is a second source-level entitlement to one result, and the
+// structured-concurrency rule is per entitlement rather than per task: every
+// handle the program holds must be awaited, returned or passed on, or the
+// task's result and its failure are lost through that handle while its
+// sibling looks perfectly observed. Before this, the tracker knew the spawn
+// and the one binding it was assigned to, so `let s = t.clone(); t.await()`
+// let `s` fall off the end of the scope unremarked while the mirror image was
+// refused -- an asymmetry with no rule behind it.
+//
+// The clone's call expression is registered exactly as a spawn expression is,
+// so the `let` that binds it (BindTaskByExpr) and the await, return and
+// pass-as-argument sites all find it through the paths they already walk.
+// Locality and async-block placement are the receiver's: a clone names the
+// same task, so it can be no more remote than the handle it was made from.
+func (tc *typeChecker) trackTaskClone(callExpr, receiverExpr ast.ExprID, receiverType types.TypeID, span source.Span) {
+	if tc.taskTracker == nil || !callExpr.IsValid() || !tc.isTaskType(receiverType) {
+		return
+	}
+	local := false
+	receiverExpr = tc.unwrapGroupExpr(receiverExpr)
+	if expr := tc.builder.Exprs.Get(receiverExpr); expr != nil {
+		if expr.Kind == ast.ExprIdent {
+			if symID := tc.symbolForExpr(receiverExpr); symID.IsValid() {
+				local = tc.taskTracker.IsLocalBinding(symID)
+			}
+		} else {
+			local = tc.taskTracker.IsLocalExpr(receiverExpr)
+		}
+	}
+	tc.taskTracker.SpawnTask(callExpr, span, tc.currentScope(), tc.asyncBlockDepth > 0, local)
 }

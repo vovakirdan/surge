@@ -1,0 +1,27 @@
+task_clone_sibling_not_awaited.sg (span: 4:1-14:1)
+├─ Item[0]: Fn (span: 4:1-6:2)
+│  ├─ Name: work
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 4:24-6:2)
+│        └─ Stmt[0]: Return (span: 5:5-5:15)
+│           └─ Expr: expr#1: 42
+└─ Item[1]: Fn (span: 8:1-13:2)
+   ├─ Name: clone_leaks
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 8:31-13:2)
+         ├─ Stmt[0]: Let (span: 9:5-9:26)
+         │  ├─ Name: t
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#4: spawn work()
+         ├─ Stmt[1]: Let (span: 10:5-10:23)
+         │  ├─ Name: s
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#7: t.clone()
+         └─ Stmt[2]: Return (span: 12:5-12:69)
+            └─ Expr: expr#18: compare t.await() { 2 arms }

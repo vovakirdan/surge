@@ -1,0 +1,32 @@
+task_clone_await_and_return.sg (span: 4:1-14:1)
+├─ Item[0]: Fn (span: 4:1-6:2)
+│  ├─ Name: work
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 4:24-6:2)
+│        └─ Stmt[0]: Return (span: 5:5-5:15)
+│           └─ Expr: expr#1: 42
+└─ Item[1]: Fn (span: 8:1-13:2)
+   ├─ Name: await_one_return_other
+   ├─ Params: ()
+   ├─ Return: Task<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 8:48-13:2)
+         ├─ Stmt[0]: Let (span: 9:5-9:26)
+         │  ├─ Name: t
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#4: spawn work()
+         ├─ Stmt[1]: Let (span: 10:5-10:23)
+         │  ├─ Name: s
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#7: t.clone()
+         ├─ Stmt[2]: Let (span: 11:5-11:23)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#10: t.await()
+         └─ Stmt[3]: Return (span: 12:5-12:14)
+            └─ Expr: expr#11: s

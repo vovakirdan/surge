@@ -1,0 +1,29 @@
+task_clone_in_container_not_drained.sg (span: 4:1-15:1)
+├─ Item[0]: Fn (span: 4:1-6:2)
+│  ├─ Name: work
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 4:24-6:2)
+│        └─ Stmt[0]: Return (span: 5:5-5:15)
+│           └─ Expr: expr#1: 42
+└─ Item[1]: Fn (span: 8:1-14:2)
+   ├─ Name: container_keeps_clone
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 8:41-14:2)
+         ├─ Stmt[0]: Let (span: 9:5-9:26)
+         │  ├─ Name: t
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#4: spawn work()
+         ├─ Stmt[1]: Let (span: 10:5-10:39)
+         │  ├─ Name: pending
+         │  ├─ Mutable: true
+         │  ├─ Type: Task<int>[]
+         │  └─ Value: expr#5: <ExprKind(8)>
+         ├─ Stmt[2]: Expr (span: 11:5-11:29)
+         │  └─ Expr: expr#11: pending.push(t.clone())
+         └─ Stmt[3]: Return (span: 13:5-13:69)
+            └─ Expr: expr#22: compare t.await() { 2 arms }

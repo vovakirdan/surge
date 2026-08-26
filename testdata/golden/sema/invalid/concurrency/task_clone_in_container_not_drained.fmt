@@ -1,0 +1,14 @@
+// ERROR: moving a clone into a container transfers its entitlement to the
+// container, which then has to be drained by a consuming await.
+
+async fn work() -> int {
+    return 42;
+}
+
+async fn container_keeps_clone() -> int {
+    let t = spawn work();
+    let mut pending: Task<int>[] = [];
+    pending.push(t.clone());
+    // ERROR SEM3107: pending still holds the clone at scope exit
+    return compare t.await() { Success(v) => v; Cancelled() => 0; };
+}
