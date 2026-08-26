@@ -1,1 +1,1 @@
-warning SEM3208 testdata/golden/sema/invalid/task_body_discarded_tail.sg:5:9 this async body yields nothing: its last statement computes a int and discards it; write `ret` in front of it if that is the body's value
+warning SEM3208 testdata/golden/sema/invalid/task_body_discarded_tail.sg:5:9 this async body yields nothing: its last statement computes a value of type int and discards it; write `ret` in front of it if that is the body's value

@@ -250,6 +250,7 @@ func (tc *typeChecker) validateRet(span source.Span, expr ast.ExprID, actual typ
 		tc.report(diag.SemaRetOutsideBlock, span, "'ret' can only be used inside value-producing blocks")
 		return
 	}
+	ctx.retSites++
 	if expr.IsValid() && actual == types.NoTypeID && ctx.expected != types.NoTypeID {
 		if tc.applyExpectedType(expr, ctx.expected) {
 			actual = tc.result.ExprTypes[expr]

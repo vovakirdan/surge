@@ -207,6 +207,11 @@ type returnContext struct {
 	// stays quiet — the refusal already names the edit.
 	bodyLabel      string
 	returnRejected bool
+	// retSites counts the `ret` statements that named this context, whether
+	// or not their expression typed. A `ret` whose expression is broken
+	// collects no result, and without this count the body would be read as
+	// one that never gives a value — a second diagnosis of the first error.
+	retSites int
 }
 
 type collectedResult struct {

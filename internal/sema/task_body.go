@@ -45,16 +45,26 @@ func (tc *typeChecker) taskBlockPayload(id ast.ExprID, span source.Span, body as
 		tc.asyncBlockDepth--
 		tc.awaitDepth--
 	}
-	returnRejected := tc.returnStack[len(tc.returnStack)-1].returnRejected
+	ctx := &tc.returnStack[len(tc.returnStack)-1]
+	returnRejected := ctx.returnRejected
+	retSites := ctx.retSites
 	tc.popReturnContext()
 
 	payload, sawRet := tc.unifyBodyResults(label, returns, bareRet)
+	// A `ret` whose expression did not type is still a `ret`: the body is not
+	// one that "never gives a value", and the error already reported at that
+	// expression is the edit the author owes, so nothing is added here.
+	brokenRet := !sawRet && retSites > 0
 	// A body that produced no proper result adopts the expected type so the
 	// enclosing binding/return does not also report a cascading mismatch:
 	// the refusal (or the missing-value diagnosis) already names the edit.
-	explained := returnRejected ||
+	explained := returnRejected || brokenRet ||
 		tc.checkTaskBodyValue(span, body, label, payload, sawRet, bareRet, expectedPayload)
-	if explained && expected != types.NoTypeID {
+	// Only a `Task<T>` expectation is adopted. Where the site asked for
+	// something else — `let x: int = async { ... }` — the block is still a
+	// task and the site is still wrong after the edit this diagnostic named,
+	// so borrowing the site's type would hide the second half of the answer.
+	if explained && expectedPayload != types.NoTypeID {
 		return expected
 	}
 	return tc.taskType(payload, span)
@@ -204,7 +214,7 @@ func (tc *typeChecker) taskBodyNoValue(span source.Span, body ast.StmtID, expect
 	}
 	if tail.value {
 		b := diag.ReportWarning(tc.reporter, diag.SemaTaskBodyNoValue, tail.span,
-			fmt.Sprintf("this %s yields nothing: its last statement computes a %s and discards it; write `ret` in front of it if that is the body's value", label, tc.typeLabel(tail.typ)))
+			fmt.Sprintf("this %s yields nothing: its last statement computes a value of type %s and discards it; write `ret` in front of it if that is the body's value", label, tc.typeLabel(tail.typ)))
 		if b != nil {
 			// Whether the discarded value was meant as the body's value is the
 			// author's call, so the edit is offered, never applied unasked.

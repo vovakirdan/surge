@@ -114,6 +114,12 @@ func TestTaskBodyRetAndReturn(t *testing.T) {
 		{"compare_tail_nothing_is_quiet", `fn f(c: bool) -> Task<nothing> { return async { compare c { true => nothing; finally => nothing; } }; }`, nil, []string{"SEM3208/warning", "SEM3208/error", "SEM3015/error"}},
 		{"compare_tail_after_ret_is_quiet", `fn f(c: bool) -> Task<int> { return async { compare c { true => 1; finally => 2; } ret 3; }; }`, nil, []string{"SEM3208/warning", "SEM3208/error", "SEM3015/error"}},
 
+		// A `ret` whose expression did not type is still a `ret`: the body is
+		// not "never gives a value", and the broken expression is diagnosed
+		// where it stands.
+		{"ret_expr_broken", `fn f(c: bool) -> Task<int> { return async { ret c.missing; }; }`, []string{"SEM3005/error"}, []string{"SEM3208/error", "SEM3015/error"}},
+		{"ret_expr_broken_operator", `fn f() -> Task<int> { return blocking { ret 1 + "s"; }; }`, []string{"SEM3016/error"}, []string{"SEM3208/error", "SEM3015/error"}},
+
 		// `ret` at function level stays refused.
 		{"ret_outside_block", `fn f() -> int { ret 1; }`, []string{"SEM3134/error"}, nil},
 	}
@@ -232,5 +238,20 @@ func TestTaskBodyCompareTailFix(t *testing.T) {
 	d = findTaskBodyDiagnostic(items, diag.SemaTaskBodyNoValue)
 	if d == nil || len(d.Fixes) != 0 {
 		t.Fatalf("a tail of another type must not be offered as the value, got %+v", d)
+	}
+}
+
+// The refusal of `return` does not swallow the site's own mismatch. An
+// async/blocking block is a `Task<T>`; a binding that asked for `T` stays
+// wrong after the `ret` edit, so the mismatch is reported rather than hidden
+// behind the type the site asked for.
+func TestTaskBodyReturnKeepsNonTaskMismatch(t *testing.T) {
+	items := taskBodyDiagnostics(t, `fn f() -> int { let x: int = async { return 1; }; return x; }`)
+	codes := taskBodyCodes(items)
+	if !codes["SEM3207/error"] {
+		t.Fatalf("expected the `return` refusal, got: %s", joinCodes(codes))
+	}
+	if !codes["SEM3015/error"] {
+		t.Fatalf("expected the Task<...>-vs-int mismatch to survive the refusal, got: %s", joinCodes(codes))
 	}
 }
