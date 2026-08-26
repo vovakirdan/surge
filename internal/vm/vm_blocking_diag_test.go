@@ -13,7 +13,7 @@ import (
 // VM does with `blocking`.
 const blockingFixture = `fn make() -> Task<int> {
     return blocking {
-        return 42;
+        ret 42;
     };
 }
 

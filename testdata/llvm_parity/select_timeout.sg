@@ -3,7 +3,7 @@ fn main() -> int {
     let r = (async {
         let worker = spawn async {
             sleep(50).await();
-            return 9;
+            ret 9;
         };
         let worker2 = worker.clone();
         let v = select {
@@ -13,7 +13,7 @@ fn main() -> int {
             Success(_) => 0;
             Cancelled() => 2;
         };
-        return v + status;
+        ret v + status;
     }).await();
 
     compare r {

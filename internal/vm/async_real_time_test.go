@@ -19,7 +19,7 @@ func TestRealTimeSleepDoesNotReturnImmediately(t *testing.T) {
 fn main() -> int {
     let _ = (async {
         sleep(50).await();
-        return 0;
+        ret 0;
     }).await();
     return 0;
 }

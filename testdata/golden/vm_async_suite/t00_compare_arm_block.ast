@@ -5,7 +5,7 @@ t00_compare_arm_block.sg (span: 1:1-10:1)
    ├─ Return: int
    └─ Body:
       └─ Stmt[0]: Block (span: 2:18-9:2)
-         ├─ Stmt[0]: Let (span: 3:5-3:43)
+         ├─ Stmt[0]: Let (span: 3:5-3:40)
          │  ├─ Name: r
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>

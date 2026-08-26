@@ -46,7 +46,7 @@ fn main() -> int {
             nothing => 0;
         };
 
-        return first + sent + second + third + after_close;
+        ret first + sent + second + third + after_close;
     }).await();
 
     compare r {

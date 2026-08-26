@@ -4,17 +4,17 @@ fn main() -> int {
         let a = spawn async {
             checkpoint().await();
             checkpoint().await();
-            return 1;
+            ret 1;
         };
         let b = spawn async {
             checkpoint().await();
-            return 2;
+            ret 2;
         };
 
         a.cancel();
         let _ = a.await();
         let _ = b.await();
-        return 0;
+        ret 0;
     }).await();
 
     compare r {

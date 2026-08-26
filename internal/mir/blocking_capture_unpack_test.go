@@ -37,7 +37,7 @@ async fn runs_a_blocking_body(seed: int) -> int {
     let count: int = seed;
     let note: Note = Note { text: "and a second one inside a struct" };
     let job: Task<int> = blocking {
-        return peek(&msg) + count + read(&note);
+        ret peek(&msg) + count + read(&note);
     };
     return compare job.await() {
         Success(v) => v;

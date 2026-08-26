@@ -10,7 +10,7 @@ async fn work() -> int { return 1; }
             Success(_) => nothing;
             Cancelled() => nothing;
         };
-        return 0;
+        ret 0;
     };
     compare s.await() {
         Success(_) => nothing;

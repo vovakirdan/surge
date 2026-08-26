@@ -162,11 +162,11 @@
 162: Assign          "=" at 43:22-43:23 (leading: Space)
 163: KwAsync         "async" at 43:24-43:29 (leading: Space)
 164: LBrace          "{" at 43:30-43:31 (leading: Space)
-165: KwReturn        "return" at 43:32-43:38 (leading: Space)
-166: IntLit          "100" at 43:39-43:42 (leading: Space)
-167: Semicolon       ";" at 43:42-43:43
-168: RBrace          "}" at 43:44-43:45 (leading: Space)
-169: Semicolon       ";" at 43:45-43:46
+165: KwRet           "ret" at 43:32-43:35 (leading: Space)
+166: IntLit          "100" at 43:36-43:39 (leading: Space)
+167: Semicolon       ";" at 43:39-43:40
+168: RBrace          "}" at 43:41-43:42 (leading: Space)
+169: Semicolon       ";" at 43:42-43:43
 170: KwReturn        "return" at 44:5-44:11 (leading: Newline, Space)
 171: KwCompare       "compare" at 44:12-44:19 (leading: Space)
 172: Ident           "t" at 44:20-44:21 (leading: Space)

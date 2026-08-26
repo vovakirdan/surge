@@ -13,16 +13,16 @@
  13: LParen          "(" at 3:13-3:14 (leading: Space)
  14: KwAsync         "async" at 3:14-3:19
  15: LBrace          "{" at 3:20-3:21 (leading: Space)
- 16: KwReturn        "return" at 3:22-3:28 (leading: Space)
- 17: IntLit          "1" at 3:29-3:30 (leading: Space)
- 18: Semicolon       ";" at 3:30-3:31
- 19: RBrace          "}" at 3:32-3:33 (leading: Space)
- 20: RParen          ")" at 3:33-3:34
- 21: Dot             "." at 3:34-3:35
- 22: Ident           "await" at 3:35-3:40
- 23: LParen          "(" at 3:40-3:41
- 24: RParen          ")" at 3:41-3:42
- 25: Semicolon       ";" at 3:42-3:43
+ 16: KwRet           "ret" at 3:22-3:25 (leading: Space)
+ 17: IntLit          "1" at 3:26-3:27 (leading: Space)
+ 18: Semicolon       ";" at 3:27-3:28
+ 19: RBrace          "}" at 3:29-3:30 (leading: Space)
+ 20: RParen          ")" at 3:30-3:31
+ 21: Dot             "." at 3:31-3:32
+ 22: Ident           "await" at 3:32-3:37
+ 23: LParen          "(" at 3:37-3:38
+ 24: RParen          ")" at 3:38-3:39
+ 25: Semicolon       ";" at 3:39-3:40
  26: KwCompare       "compare" at 4:5-4:12 (leading: Newline, Space)
  27: Ident           "r" at 4:13-4:14 (leading: Space)
  28: LBrace          "{" at 4:15-4:16 (leading: Space)

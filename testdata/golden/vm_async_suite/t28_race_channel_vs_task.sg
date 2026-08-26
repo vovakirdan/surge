@@ -7,14 +7,14 @@ fn main() -> int {
         let t = spawn async {
             sleep(100).await();
             print("t done");
-            return 0;
+            ret 0;
         };
 
         let v = race {
             ch.recv() => 1;
             t.await() => 2;
         };
-        return v;
+        ret v;
     }).await();
 
     compare r {
@@ -24,7 +24,7 @@ fn main() -> int {
 
     let guard = spawn async {
         sleep(200).await();
-        return 0;
+        ret 0;
     };
     let _ = guard.await();
     return 0;

@@ -38,9 +38,9 @@
  38: IntLit          "1" at 7:21-7:22 (leading: Space)
  39: Semicolon       ";" at 7:22-7:23
  40: RBrace          "}" at 8:9-8:10 (leading: Newline, Space)
- 41: KwReturn        "return" at 9:9-9:15 (leading: Newline, Space)
- 42: Ident           "i" at 9:16-9:17 (leading: Space)
- 43: Semicolon       ";" at 9:17-9:18
+ 41: KwRet           "ret" at 9:9-9:12 (leading: Newline, Space)
+ 42: Ident           "i" at 9:13-9:14 (leading: Space)
+ 43: Semicolon       ";" at 9:14-9:15
  44: RBrace          "}" at 10:5-10:6 (leading: Newline, Space)
  45: RParen          ")" at 10:6-10:7
  46: Dot             "." at 10:7-10:8

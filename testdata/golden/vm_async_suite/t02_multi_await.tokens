@@ -48,9 +48,9 @@
  48: Plus            "+" at 8:19-8:20 (leading: Space)
  49: IntLit          "1" at 8:21-8:22 (leading: Space)
  50: Semicolon       ";" at 8:22-8:23
- 51: KwReturn        "return" at 9:9-9:15 (leading: Newline, Space)
- 52: Ident           "c" at 9:16-9:17 (leading: Space)
- 53: Semicolon       ";" at 9:17-9:18
+ 51: KwRet           "ret" at 9:9-9:12 (leading: Newline, Space)
+ 52: Ident           "c" at 9:13-9:14 (leading: Space)
+ 53: Semicolon       ";" at 9:14-9:15
  54: RBrace          "}" at 10:5-10:6 (leading: Newline, Space)
  55: RParen          ")" at 10:6-10:7
  56: Dot             "." at 10:7-10:8

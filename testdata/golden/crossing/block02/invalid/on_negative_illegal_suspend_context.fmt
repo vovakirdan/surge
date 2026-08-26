@@ -6,7 +6,7 @@ fn double(x: int) -> int {
 
 fn run(n: int) -> TaskResult<int> {
     blocking {
-        return on pool {
+        ret on pool {
             ret double(n);
         };
     };

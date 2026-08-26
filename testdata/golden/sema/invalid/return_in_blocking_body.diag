@@ -1,0 +1,2 @@
+error SEM3207 testdata/golden/sema/invalid/return_in_blocking_body.sg:7:35 cannot return from the enclosing function inside the blocking body: the body runs as its own task; write `ret <expr>;` to give the body its value
+error SEM3207 testdata/golden/sema/invalid/return_in_blocking_body.sg:8:38 cannot return from the enclosing function inside the blocking body: the body runs as its own task; write `ret <expr>;` to give the body its value

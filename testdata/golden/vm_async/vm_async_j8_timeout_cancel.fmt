@@ -2,7 +2,7 @@ async fn run() -> int {
     let worker = spawn async {
         sleep(100).await();
         print("worker done");
-        return 1;
+        ret 1;
     };
 
     let r = timeout(worker, 10);
@@ -13,7 +13,7 @@ async fn run() -> int {
 
     let guard = spawn async {
         sleep(200).await();
-        return 0;
+        ret 0;
     };
     let _ = guard.await();
 

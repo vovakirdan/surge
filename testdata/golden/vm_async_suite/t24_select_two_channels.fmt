@@ -17,7 +17,7 @@ fn main() -> int {
             Some(x) => print("second=" + (x to string));
             nothing => print("second=none");
         };
-        return 0;
+        ret 0;
     }).await();
 
     return 0;

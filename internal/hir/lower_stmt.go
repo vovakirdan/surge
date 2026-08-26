@@ -468,16 +468,20 @@ func (l *lowerer) markTailReturn(block *Block) {
 	if block == nil || len(block.Stmts) == 0 {
 		return
 	}
-	last := block.Stmts[len(block.Stmts)-1]
-	if last.Kind != StmtReturn {
-		return
+	last := &block.Stmts[len(block.Stmts)-1]
+	switch data := last.Data.(type) {
+	case ReturnData:
+		if data.IsTail {
+			return
+		}
+		data.IsTail = true
+		last.Data = data
+	case RetData:
+		// An async/blocking body's last `ret` is its normal exit, exactly as
+		// a tail `return` was before `ret` became the body's exit.
+		data.IsTail = true
+		last.Data = data
 	}
-	data, ok := last.Data.(ReturnData)
-	if !ok || data.IsTail {
-		return
-	}
-	data.IsTail = true
-	block.Stmts[len(block.Stmts)-1].Data = data
 }
 
 // isNothingType checks if the given type is the "nothing" type.

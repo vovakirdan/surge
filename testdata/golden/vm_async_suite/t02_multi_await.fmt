@@ -6,7 +6,7 @@ fn main() -> int {
         let b = a + 1;
         checkpoint().await();
         let c = b + 1;
-        return c;
+        ret c;
     }).await();
 
     compare r {

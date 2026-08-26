@@ -1,0 +1,44 @@
+return_in_blocking_body.sg (span: 5:1-15:1)
+└─ Item[0]: Fn (span: 5:1-14:2)
+   ├─ Name: foo
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 5:17-14:2)
+         ├─ Stmt[0]: Let (span: 6:5-6:44)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: Task<int>
+         │  └─ Value: expr#2: blocking { 1 stmt(s) }
+         ├─ Stmt[1]: Let (span: 7:5-7:48)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: Task<int>
+         │  └─ Value: expr#4: blocking { 1 stmt(s) }
+         ├─ Stmt[2]: Let (span: 8:5-8:51)
+         │  ├─ Name: c
+         │  ├─ Mutable: false
+         │  ├─ Type: Task<string>
+         │  └─ Value: expr#6: blocking { 1 stmt(s) }
+         ├─ Stmt[3]: Let (span: 9:5-9:29)
+         │  ├─ Name: d
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#8: <ExprKind(25)>
+         ├─ Stmt[4]: Let (span: 10:5-10:15)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#9: a
+         ├─ Stmt[5]: Let (span: 11:5-11:15)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#10: b
+         ├─ Stmt[6]: Let (span: 12:5-12:15)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#11: c
+         └─ Stmt[7]: Return (span: 13:5-13:14)
+            └─ Expr: expr#12: d

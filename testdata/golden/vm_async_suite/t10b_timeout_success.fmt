@@ -1,7 +1,7 @@
 async fn run() -> int {
     let worker = spawn async {
         sleep(3).await();
-        return 3;
+        ret 3;
     };
 
     let r = timeout(worker, 10);

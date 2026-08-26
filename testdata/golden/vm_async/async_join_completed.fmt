@@ -1,7 +1,7 @@
 @entrypoint
 fn main() -> int {
     let t = spawn async {
-        return 9;
+        ret 9;
     };
     let t1 = t.clone();
 

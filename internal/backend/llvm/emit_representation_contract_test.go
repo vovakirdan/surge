@@ -81,7 +81,7 @@ fn defaults() -> int64 {
 async fn work(seed: int64) -> int64 {
 	let held: Payload = make(seed);
 	let job: Task<int64> = blocking {
-		return held.a + held.b;
+		ret held.a + held.b;
 	};
 	return compare job.await() {
 		Success(v) => v;

@@ -7,7 +7,7 @@ pub type LocalConn = {
 
 @entrypoint fn main() {
     let conn: LocalConn = { id: 1 };
-    let t = @local spawn async { return conn.id; };
+    let t = @local spawn async { ret conn.id; };
     compare t.await() {
         Success(_) => nothing;
         Cancelled() => nothing;

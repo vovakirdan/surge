@@ -33,7 +33,7 @@ fn main() -> int {
             Cancelled() => 0;
         };
 
-        return v1 + v2 + got;
+        ret v1 + v2 + got;
     }).await();
 
     compare r {

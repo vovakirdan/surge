@@ -32,14 +32,14 @@
  32: LParen          "(" at 10:27-10:28
  33: RParen          ")" at 10:28-10:29
  34: Semicolon       ";" at 10:29-10:30
- 35: KwReturn        "return" at 11:9-11:15 (leading: Newline, Space)
- 36: KwCompare       "compare" at 11:16-11:23 (leading: Space)
- 37: Ident           "t" at 11:24-11:25 (leading: Space)
- 38: Dot             "." at 11:25-11:26
- 39: Ident           "await" at 11:26-11:31
- 40: LParen          "(" at 11:31-11:32
- 41: RParen          ")" at 11:32-11:33
- 42: LBrace          "{" at 11:34-11:35 (leading: Space)
+ 35: KwRet           "ret" at 11:9-11:12 (leading: Newline, Space)
+ 36: KwCompare       "compare" at 11:13-11:20 (leading: Space)
+ 37: Ident           "t" at 11:21-11:22 (leading: Space)
+ 38: Dot             "." at 11:22-11:23
+ 39: Ident           "await" at 11:23-11:28
+ 40: LParen          "(" at 11:28-11:29
+ 41: RParen          ")" at 11:29-11:30
+ 42: LBrace          "{" at 11:31-11:32 (leading: Space)
  43: Ident           "Success" at 12:13-12:20 (leading: Newline, Space)
  44: LParen          "(" at 12:20-12:21
  45: Ident           "v" at 12:21-12:22
@@ -108,14 +108,14 @@
 108: LParen          "(" at 26:31-26:32
 109: RParen          ")" at 26:32-26:33
 110: Semicolon       ";" at 26:33-26:34
-111: KwReturn        "return" at 27:13-27:19 (leading: Newline, Space)
-112: KwCompare       "compare" at 27:20-27:27 (leading: Space)
-113: Ident           "t" at 27:28-27:29 (leading: Space)
-114: Dot             "." at 27:29-27:30
-115: Ident           "await" at 27:30-27:35
-116: LParen          "(" at 27:35-27:36
-117: RParen          ")" at 27:36-27:37
-118: LBrace          "{" at 27:38-27:39 (leading: Space)
+111: KwRet           "ret" at 27:13-27:16 (leading: Newline, Space)
+112: KwCompare       "compare" at 27:17-27:24 (leading: Space)
+113: Ident           "t" at 27:25-27:26 (leading: Space)
+114: Dot             "." at 27:26-27:27
+115: Ident           "await" at 27:27-27:32
+116: LParen          "(" at 27:32-27:33
+117: RParen          ")" at 27:33-27:34
+118: LBrace          "{" at 27:35-27:36 (leading: Space)
 119: Ident           "Success" at 28:17-28:24 (leading: Newline, Space)
 120: LParen          "(" at 28:24-28:25
 121: Ident           "v" at 28:25-28:26
@@ -133,14 +133,14 @@
 133: Semicolon       ";" at 30:14-30:15
 134: RBrace          "}" at 31:9-31:10 (leading: Newline, Space)
 135: Semicolon       ";" at 31:10-31:11
-136: KwReturn        "return" at 32:9-32:15 (leading: Newline, Space)
-137: KwCompare       "compare" at 32:16-32:23 (leading: Space)
-138: Ident           "inner" at 32:24-32:29 (leading: Space)
-139: Dot             "." at 32:29-32:30
-140: Ident           "await" at 32:30-32:35
-141: LParen          "(" at 32:35-32:36
-142: RParen          ")" at 32:36-32:37
-143: LBrace          "{" at 32:38-32:39 (leading: Space)
+136: KwRet           "ret" at 32:9-32:12 (leading: Newline, Space)
+137: KwCompare       "compare" at 32:13-32:20 (leading: Space)
+138: Ident           "inner" at 32:21-32:26 (leading: Space)
+139: Dot             "." at 32:26-32:27
+140: Ident           "await" at 32:27-32:32
+141: LParen          "(" at 32:32-32:33
+142: RParen          ")" at 32:33-32:34
+143: LBrace          "{" at 32:35-32:36 (leading: Space)
 144: Ident           "Success" at 33:13-33:20 (leading: Newline, Space)
 145: LParen          "(" at 33:20-33:21
 146: Ident           "v" at 33:21-33:22

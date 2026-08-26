@@ -20,7 +20,7 @@ fn main() -> int {
             checkpoint().await();
             i = i + 1;
         }
-        return i;
+        ret i;
     }).await();
     return compare res {
         Success(v) => v;

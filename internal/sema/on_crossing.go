@@ -87,7 +87,7 @@ func (tc *typeChecker) typeExprOn(id ast.ExprID, span source.Span) types.TypeID 
 		siteOK = false
 	}
 
-	payload, sawRet := tc.unifyOnBodyResults(returns, bareRet)
+	payload, sawRet := tc.unifyBodyResults("on-crossing", returns, bareRet)
 
 	// ON-BODY-N002: a value-position crossing must produce a result with `ret`.
 	// A rejected `return` (SEM3147) already explains a missing result.
@@ -221,10 +221,11 @@ func (tc *typeChecker) destIdentSymbol(dest ast.ExprID) *symbols.Symbol {
 	return tc.symbolFromID(tc.symbolForExpr(d))
 }
 
-// unifyOnBodyResults folds the `ret` value types of a crossing body into a
-// single payload type (defaulting to `nothing`), reporting whether any `ret`
-// appeared.
-func (tc *typeChecker) unifyOnBodyResults(returns []collectedResult, bareRet []source.Span) (types.TypeID, bool) {
+// unifyBodyResults folds the `ret` value types of a value-producing body — a
+// crossing body or an async/blocking body, named by label in the mismatch —
+// into a single payload type (defaulting to `nothing`), reporting whether any
+// `ret` appeared.
+func (tc *typeChecker) unifyBodyResults(label string, returns []collectedResult, bareRet []source.Span) (types.TypeID, bool) {
 	nothing := tc.types.Builtins().Nothing
 	sawRet := len(returns) > 0 || len(bareRet) > 0
 	payload := types.NoTypeID
@@ -244,7 +245,7 @@ func (tc *typeChecker) unifyOnBodyResults(returns []collectedResult, bareRet []s
 			payload = r.typ
 		default:
 			tc.report(diag.SemaTypeMismatch, r.span,
-				"on-crossing result type mismatch: expected %s, got %s", tc.typeLabel(payload), tc.typeLabel(r.typ))
+				"%s result type mismatch: expected %s, got %s", label, tc.typeLabel(payload), tc.typeLabel(r.typ))
 		}
 	}
 	if !have {

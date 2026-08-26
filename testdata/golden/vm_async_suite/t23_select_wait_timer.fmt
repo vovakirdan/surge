@@ -5,7 +5,7 @@ fn main() -> int {
         let prod = spawn async {
             sleep(100).await();
             ch.send(7);
-            return 0;
+            ret 0;
         };
 
         let v = select {
@@ -14,7 +14,7 @@ fn main() -> int {
         };
 
         let _ = prod.await();
-        return v;
+        ret v;
     }).await();
 
     compare r {

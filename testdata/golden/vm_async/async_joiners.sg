@@ -3,7 +3,7 @@ fn main() -> int {
     let t = spawn async {
         checkpoint().await();
         checkpoint().await();
-        return 7;
+        ret 7;
     };
     let t1 = t.clone();
 

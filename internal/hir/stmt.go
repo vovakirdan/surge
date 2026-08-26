@@ -161,6 +161,11 @@ type RetData struct {
 	// exit. A crossing body reaches its exit through `ret` and nothing
 	// else, so without this list nothing it still owns is ever released.
 	DropsAfterValue []DropLocal
+	// IsTail is true when this ret is the last statement of an async/blocking
+	// body — the body's normal exit, with the same meaning IsTail has on
+	// ReturnData: a task leaving through it joins its scope without
+	// cancelling the children, while an early exit cancels them first.
+	IsTail bool
 }
 
 func (RetData) stmtData() {}

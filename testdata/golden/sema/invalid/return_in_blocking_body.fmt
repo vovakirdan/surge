@@ -1,0 +1,14 @@
+// The owner's example (2026-08-26): `ret` gives the blocking body its value,
+// `return` cannot leave `foo` from another thread and is refused with the
+// `ret` edit. The edit is left for review when the value's type does not
+// match what the body must yield.
+fn foo() -> int {
+    let a: Task<int> = blocking { ret 1; };
+    let b: Task<int> = blocking { return 42; };
+    let c: Task<string> = blocking { return 42; };
+    let d: int = { ret 5; };
+    let _ = a;
+    let _ = b;
+    let _ = c;
+    return d;
+}

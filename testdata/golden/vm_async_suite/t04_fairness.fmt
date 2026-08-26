@@ -6,7 +6,7 @@ fn main() -> int {
         print("L2");
         checkpoint().await();
         print("L3");
-        return 0;
+        ret 0;
     };
     let right = spawn async {
         print("R1");
@@ -14,7 +14,7 @@ fn main() -> int {
         print("R2");
         checkpoint().await();
         print("R3");
-        return 0;
+        ret 0;
     };
 
     let _ = left.await();

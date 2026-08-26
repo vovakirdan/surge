@@ -35,7 +35,7 @@ fn build(prefix: string) -> string {
 
 async fn run() -> int {
     let wide: Note = compare (blocking {
-        return Note { text = build("wide-"), count = 7 };
+        ret Note { text = build("wide-"), count = 7 };
     }).await() {
         Success(v) => v;
         Cancelled() => Note { text = "", count = 0 };
@@ -51,7 +51,7 @@ async fn run() -> int {
         return 2;
     }
 
-    let narrow: string = compare (blocking { return build("narrow-"); }).await() {
+    let narrow: string = compare (blocking { ret build("narrow-"); }).await() {
         Success(v) => v;
         Cancelled() => "";
     };

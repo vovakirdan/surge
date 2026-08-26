@@ -42,9 +42,9 @@
  42: Semicolon       ";" at 6:35-6:36
  43: RBrace          "}" at 7:9-7:10 (leading: Newline, Space)
  44: Semicolon       ";" at 7:10-7:11
- 45: KwReturn        "return" at 8:9-8:15 (leading: Newline, Space)
- 46: Ident           "v" at 8:16-8:17 (leading: Space)
- 47: Semicolon       ";" at 8:17-8:18
+ 45: KwRet           "ret" at 8:9-8:12 (leading: Newline, Space)
+ 46: Ident           "v" at 8:13-8:14 (leading: Space)
+ 47: Semicolon       ";" at 8:14-8:15
  48: RBrace          "}" at 9:5-9:6 (leading: Newline, Space)
  49: RParen          ")" at 9:6-9:7
  50: Dot             "." at 9:7-9:8

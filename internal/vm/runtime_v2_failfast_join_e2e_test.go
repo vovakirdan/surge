@@ -38,11 +38,11 @@ async fn main_async() -> int {
         let ff = (@failfast async {
             let slow = spawn async {
                 let _ = spin(200).await();
-                return 1;
+                ret 1;
             };
             let fast = spawn async {
                 checkpoint().await();
-                return 2;
+                ret 2;
             };
             fast.cancel();
             let r_fast = fast.await();
@@ -51,7 +51,7 @@ async fn main_async() -> int {
                 Success(_) => false;
             };
             if !fast_cancelled {
-                return 10;
+                ret 10;
             }
             let r_slow = slow.await();
             let slow_cancelled = compare r_slow {
@@ -59,9 +59,9 @@ async fn main_async() -> int {
                 Success(_) => false;
             };
             if !slow_cancelled {
-                return 11;
+                ret 11;
             }
-            return 0;
+            ret 0;
         }).await();
         let ff_ok = compare ff {
             Cancelled() => true;
@@ -74,17 +74,17 @@ async fn main_async() -> int {
         let ff2 = (@failfast async {
             let a = spawn async {
                 let _ = spin(50).await();
-                return 1;
+                ret 1;
             };
             let b = spawn async {
                 let _ = spin(50).await();
-                return 2;
+                ret 2;
             };
             a.cancel();
             b.cancel();
             let _ = a.await();
             let _ = b.await();
-            return 0;
+            ret 0;
         }).await();
         let ff2_ok = compare ff2 {
             Cancelled() => true;

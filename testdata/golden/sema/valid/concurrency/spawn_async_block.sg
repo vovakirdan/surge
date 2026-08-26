@@ -3,13 +3,13 @@
 pub async fn test_spawn_async_block() {
     // spawn async block -> Task<int>
     let t1: Task<int> = spawn async {
-        return 42;
+        ret 42;
     };
     let result1: TaskResult<int> = t1.await();
 
     // spawn async block returning string
     let t2: Task<string> = spawn async {
-        return "hello";
+        ret "hello";
     };
     let result2: TaskResult<string> = t2.await();
 }
@@ -17,6 +17,6 @@ pub async fn test_spawn_async_block() {
 // spawn async block from sync function
 pub fn sync_fn_spawn_block() -> Task<bool> {
     return spawn async {
-        return true;
+        ret true;
     };
 }

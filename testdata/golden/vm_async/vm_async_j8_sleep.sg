@@ -4,7 +4,7 @@ fn main() -> int {
         print("A");
         sleep(10).await();
         print("B");
-        return 0;
+        ret 0;
     };
     let _ = t.await();
     return 0;

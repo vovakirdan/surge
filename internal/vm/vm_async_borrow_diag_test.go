@@ -19,7 +19,7 @@ fn main() -> int {
     let refv = &value;
     let task: Task<int> = spawn async {
         checkpoint().await();
-        return *refv;
+        ret *refv;
     };
     compare task.await() {
         Success(out) => return out;

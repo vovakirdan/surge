@@ -32,14 +32,14 @@
  32: StringLit       "\"child\"" at 6:19-6:26
  33: RParen          ")" at 6:26-6:27
  34: Semicolon       ";" at 6:27-6:28
- 35: KwReturn        "return" at 7:13-7:19 (leading: Newline, Space)
- 36: IntLit          "0" at 7:20-7:21 (leading: Space)
- 37: Semicolon       ";" at 7:21-7:22
+ 35: KwRet           "ret" at 7:13-7:16 (leading: Newline, Space)
+ 36: IntLit          "0" at 7:17-7:18 (leading: Space)
+ 37: Semicolon       ";" at 7:18-7:19
  38: RBrace          "}" at 8:9-8:10 (leading: Newline, Space)
  39: Semicolon       ";" at 8:10-8:11
- 40: KwReturn        "return" at 9:9-9:15 (leading: Newline, Space)
- 41: IntLit          "5" at 9:16-9:17 (leading: Space)
- 42: Semicolon       ";" at 9:17-9:18
+ 40: KwRet           "ret" at 9:9-9:12 (leading: Newline, Space)
+ 41: IntLit          "5" at 9:13-9:14 (leading: Space)
+ 42: Semicolon       ";" at 9:14-9:15
  43: RBrace          "}" at 10:5-10:6 (leading: Newline, Space)
  44: RParen          ")" at 10:6-10:7
  45: Dot             "." at 10:7-10:8

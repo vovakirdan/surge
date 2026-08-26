@@ -72,7 +72,7 @@ spec_alignment.sg (span: 9:1-302:1)
 │  ├─ Return: int
 │  └─ Body:
 │     └─ Stmt[0]: Block (span: 42:40-48:2)
-│        ├─ Stmt[0]: Let (span: 43:5-43:46)
+│        ├─ Stmt[0]: Let (span: 43:5-43:43)
 │        │  ├─ Name: t
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Task<int>

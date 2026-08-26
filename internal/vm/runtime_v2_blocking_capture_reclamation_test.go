@@ -33,7 +33,7 @@ import (
 // gave it back.
 const runtimeV2BlockingCapturelessSource = `
 async fn run() -> int {
-    let job: Task<int> = blocking { return 42; };
+    let job: Task<int> = blocking { ret 42; };
     return compare job.await() {
         Success(v) => v;
         Cancelled() => 0;
@@ -87,7 +87,7 @@ async fn run() -> int {
     let mut i: int = 0;
     while i < $ROUNDS$ {
         let note: Note = Note { id = 1, text = wide() };
-        let job: Task<int> = blocking { return sink(own note); };
+        let job: Task<int> = blocking { ret sink(own note); };
         total = total + compare job.await() {
             Success(v) => v;
             Cancelled() => 0;

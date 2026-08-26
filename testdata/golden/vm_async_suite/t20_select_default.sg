@@ -6,7 +6,7 @@ fn main() -> int {
             ch.recv() => 1;
             default => 2;
         };
-        return v;
+        ret v;
     }).await();
 
     compare r {

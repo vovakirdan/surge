@@ -226,10 +226,8 @@ func (l *funcLowerer) lowerBlockingFunc(id FuncID, name string, body *hir.Block,
 		}})
 	}
 
-	if body != nil {
-		if err := l.lowerBlock(body); err != nil {
-			return nil, err
-		}
+	if err := l.lowerTaskBody(body); err != nil {
+		return nil, err
 	}
 
 	if !l.curBlock().Terminated() {

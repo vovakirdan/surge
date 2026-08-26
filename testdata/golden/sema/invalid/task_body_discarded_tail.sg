@@ -1,0 +1,7 @@
+// The body's last statement computes a value and drops it, and nothing
+// expected a value: the body yields nothing, and a warning offers `ret`.
+fn make() -> Task<nothing> {
+    return async {
+        42;
+    };
+}

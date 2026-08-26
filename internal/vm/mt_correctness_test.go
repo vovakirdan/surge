@@ -283,7 +283,7 @@ async fn main_async() -> int {
             let _ = t;
             i = i + 1;
         }
-        return done;
+        ret done;
     }).await();
     let mut done_ch = Channel::<int>::new(0:uint);
     let parent_ok = compare pres {
@@ -312,11 +312,11 @@ async fn main_async() -> int {
     let ff = (@failfast async {
         let slow = spawn async {
             let _ = spin(200).await();
-            return 1;
+            ret 1;
         };
         let fast = spawn async {
             checkpoint().await();
-            return 2;
+            ret 2;
         };
         fast.cancel();
         let r_fast = fast.await();
@@ -325,7 +325,7 @@ async fn main_async() -> int {
             Success(_) => false;
         };
         if !fast_cancelled {
-            return 10;
+            ret 10;
         }
         let r_slow = slow.await();
         let slow_cancelled = compare r_slow {
@@ -333,9 +333,9 @@ async fn main_async() -> int {
             Success(_) => false;
         };
         if !slow_cancelled {
-            return 11;
+            ret 11;
         }
-        return 0;
+        ret 0;
     }).await();
     let ff_ok = compare ff {
         Cancelled() => true;
@@ -348,17 +348,17 @@ async fn main_async() -> int {
     let ff2 = (@failfast async {
         let a = spawn async {
             let _ = spin(50).await();
-            return 1;
+            ret 1;
         };
         let b = spawn async {
             let _ = spin(50).await();
-            return 2;
+            ret 2;
         };
         a.cancel();
         b.cancel();
         let _ = a.await();
         let _ = b.await();
-        return 0;
+        ret 0;
     }).await();
     let ff2_ok = compare ff2 {
         Cancelled() => true;
@@ -419,11 +419,11 @@ async fn main_async() -> int {
             Success(_) => false;
         };
         if !jr_ok {
-            return 30;
+            ret 30;
         }
         worker.cancel();
         let _ = worker.await();
-        return 0;
+        ret 0;
     }.await();
     let join_ok = compare join_res {
         Success(v) => v == 0;
@@ -476,7 +476,7 @@ async fn progress_worker(steps: int) -> int {
 
 async fn cancel_waiter(started: own Channel<int>, spin_iters: int) -> int {
     let b = blocking {
-        return busy_loop(spin_iters);
+        ret busy_loop(spin_iters);
     };
     started.send(1);
     let _ = b.await();
@@ -499,7 +499,7 @@ async fn main_async() -> int {
     while i < blocking_count {
         let iters = spin_iters;
         blocking_tasks[i] = blocking {
-            return busy_loop(iters);
+            ret busy_loop(iters);
         };
         i = i + 1;
     }
@@ -546,7 +546,7 @@ async fn main_async() -> int {
 
     let cancel_iters = spin_iters / 2;
     let blocker = blocking {
-        return busy_loop(spin_iters);
+        ret busy_loop(spin_iters);
     };
     let started = Channel::<int>::new(1:uint);
     let st = started;
@@ -585,7 +585,7 @@ async fn main_async() -> int {
     while j < stress_jobs {
         let iters = cancel_iters;
         stress_blocking[j] = blocking {
-            return busy_loop(iters);
+            ret busy_loop(iters);
         };
         j = j + 1;
     }

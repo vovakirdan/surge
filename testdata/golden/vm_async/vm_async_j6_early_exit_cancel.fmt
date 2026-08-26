@@ -5,11 +5,11 @@ fn main() -> int {
             checkpoint().await();
             checkpoint().await();
             checkpoint().await();
-            return 1;
+            ret 1;
         };
-        let b = spawn async { return 2; };
+        let b = spawn async { ret 2; };
 
-        return 0;
+        ret 0;
     }).await();
 
     compare r {

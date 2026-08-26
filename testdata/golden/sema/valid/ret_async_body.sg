@@ -1,0 +1,45 @@
+// `ret` gives an async body its value (owner ruling 2026-08-26, RV2-DEBT-161):
+// a ret from inside an if or a loop leaves the whole body, a block
+// expression's ret inside the body yields the block and not the body, a
+// nested body has its own exit, and a body without ret yields nothing.
+fn pick(c: bool) -> Task<int> {
+    return async {
+        if c {
+            ret 1;
+        }
+        let v: int = { ret 5; };
+        let mut i: int = 0;
+        while i < 10 {
+            if i == v {
+                ret i * 10;
+            }
+            i = i + 1;
+        }
+        ret v + 1;
+    };
+}
+
+fn nested() -> Task<Task<int>> {
+    return async {
+        let inner: Task<int> = async { ret 7; };
+        ret inner;
+    };
+}
+
+fn quiet() -> Task<nothing> {
+    return async {
+        let x: int = 1;
+    };
+}
+
+fn early() -> Task<nothing> {
+    return async {
+        let mut n: int = 0;
+        while true {
+            n = n + 1;
+            if n == 2 {
+                ret;
+            }
+        }
+    };
+}

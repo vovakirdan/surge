@@ -1,0 +1,25 @@
+return_in_async_body.sg (span: 5:1-26:1)
+├─ Item[0]: Fn (span: 5:1-9:2)
+│  ├─ Name: make
+│  ├─ Params: ()
+│  ├─ Return: Task<int>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 5:24-9:2)
+│        └─ Stmt[0]: Return (span: 6:5-8:7)
+│           └─ Expr: expr#2: async { 1 stmt(s) }
+├─ Item[1]: Fn (span: 11:1-18:2)
+│  ├─ Name: make_nested
+│  ├─ Params: ()
+│  ├─ Return: Task<int>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 11:31-18:2)
+│        └─ Stmt[0]: Return (span: 12:5-17:7)
+│           └─ Expr: expr#6: async { 2 stmt(s) }
+└─ Item[2]: Fn (span: 20:1-25:2)
+   ├─ Name: make_inner
+   ├─ Params: ()
+   ├─ Return: Task<Task<int>>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 20:36-25:2)
+         └─ Stmt[0]: Return (span: 21:5-24:7)
+            └─ Expr: expr#10: async { 2 stmt(s) }

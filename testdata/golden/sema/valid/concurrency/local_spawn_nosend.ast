@@ -17,7 +17,7 @@ local_spawn_nosend.sg (span: 3:1-16:1)
          │  ├─ Mutable: false
          │  ├─ Type: LocalConn
          │  └─ Value: expr#3: <ExprKind(22)>
-         ├─ Stmt[1]: Let (span: 10:5-10:52)
+         ├─ Stmt[1]: Let (span: 10:5-10:49)
          │  ├─ Name: t
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>

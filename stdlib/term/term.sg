@@ -67,9 +67,9 @@ pub fn read_event_async(ch: Channel<TermEvent>) -> Task<nothing> {
             };
             ch.send(ev);
             if done {
-                return nothing;
+                ret nothing;
             }
         }
-        return nothing;
+        ret nothing;
     };
 }

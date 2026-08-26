@@ -8,7 +8,7 @@ async fn work() -> int {
 pub async fn test_await_in_async_block() -> int {
     let result = async {
         let t = spawn work();
-        return compare t.await() {
+        ret compare t.await() {
             Success(v) => v;
             Cancelled() => 0;
         };
@@ -24,12 +24,12 @@ pub async fn test_nested_async() -> int {
     let outer = async {
         let inner = async {
             let t = spawn work();
-            return compare t.await() {
+            ret compare t.await() {
                 Success(v) => v;
                 Cancelled() => 0;
             };
         };
-        return compare inner.await() {
+        ret compare inner.await() {
             Success(v) => v;
             Cancelled() => 0;
         };

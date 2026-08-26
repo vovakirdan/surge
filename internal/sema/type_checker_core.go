@@ -201,6 +201,12 @@ type returnContext struct {
 	collect   *[]collectedResult
 	bareRet   *[]source.Span
 	discarded bool
+	// bodyLabel names a returnCtxTaskPayload body back to the author
+	// ("async body" / "blocking body"); returnRejected records that a
+	// `return` was refused inside it (SEM3207), so the missing-value check
+	// stays quiet — the refusal already names the edit.
+	bodyLabel      string
+	returnRejected bool
 }
 
 type collectedResult struct {

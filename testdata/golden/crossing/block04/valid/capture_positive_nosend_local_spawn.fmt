@@ -7,7 +7,7 @@ type LocalOnly = {
 @entrypoint fn main() {
     let v: LocalOnly = { id: 1 };
     let t = @local spawn async {
-        return v.id;
+        ret v.id;
     };
     compare t.await() {
         Success(_) => nothing;

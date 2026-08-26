@@ -39,7 +39,7 @@ fn main() -> int {
             Cancelled() => true;
         };
         if !first_cancelled {
-            return 1;
+            ret 1;
         }
 
         ch.send(42);
@@ -49,11 +49,11 @@ fn main() -> int {
             Cancelled() => false;
         };
         if !second_ok {
-            return 2;
+            ret 2;
         }
 
         print("ok", "\n");
-        return 0;
+        ret 0;
     }).await();
 
     return compare r {
@@ -94,7 +94,7 @@ fn main() -> int {
             Cancelled() => true;
         };
         if !first_cancelled {
-            return 1;
+            ret 1;
         }
 
         let got = ch.recv();
@@ -103,7 +103,7 @@ fn main() -> int {
             nothing => false;
         };
         if !got_ok {
-            return 2;
+            ret 2;
         }
 
         let second_res = second.await();
@@ -112,11 +112,11 @@ fn main() -> int {
             Cancelled() => false;
         };
         if !second_ok {
-            return 3;
+            ret 3;
         }
 
         print("ok", "\n");
-        return 0;
+        ret 0;
     }).await();
 
     return compare r {
@@ -164,11 +164,11 @@ fn main() -> int {
             Cancelled() => false;
         };
         if !first_ok || !second_ok {
-            return 1;
+            ret 1;
         }
 
         print("ok", "\n");
-        return 0;
+        ret 0;
     }).await();
 
     return compare r {
@@ -201,7 +201,7 @@ fn main() -> int {
         ch.close();
 
         let _ = sender.await();
-        return 1;
+        ret 1;
     }).await();
 
     return compare r {
@@ -258,11 +258,11 @@ fn main() -> int {
             Cancelled() => false;
         };
         if !ok {
-            return 1;
+            ret 1;
         }
 
         print("ok", "\n");
-        return 0;
+        ret 0;
     }).await();
 
     return compare r {
@@ -310,7 +310,7 @@ fn main() -> int {
             Success(_) => false;
         };
         if !cancelled_ok {
-            return 1;
+            ret 1;
         }
 
         sleep(150).await();
@@ -327,11 +327,11 @@ fn main() -> int {
             Cancelled() => false;
         };
         if !recv_ok {
-            return 2;
+            ret 2;
         }
 
         print("ok", "\n");
-        return 0;
+        ret 0;
     }).await();
 
     return compare r {

@@ -133,7 +133,7 @@ fn make() -> string {
 fn f() -> nothing {
     let t = spawn async {
         let s: string = "a" + "b";
-        return 1;
+        ret 1;
     };
 }
 `)

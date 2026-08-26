@@ -2,7 +2,7 @@
 fn main() -> int {
     let t = spawn async {
         checkpoint().await();
-        return 41 + 1;
+        ret 41 + 1;
     };
     let r: int = compare t.await() {
         Success(v) => v;

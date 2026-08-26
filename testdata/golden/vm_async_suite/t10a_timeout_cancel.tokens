@@ -26,9 +26,9 @@
  26: StringLit       "\"worker done\"" at 4:15-4:28
  27: RParen          ")" at 4:28-4:29
  28: Semicolon       ";" at 4:29-4:30
- 29: KwReturn        "return" at 5:9-5:15 (leading: Newline, Space)
- 30: IntLit          "1" at 5:16-5:17 (leading: Space)
- 31: Semicolon       ";" at 5:17-5:18
+ 29: KwRet           "ret" at 5:9-5:12 (leading: Newline, Space)
+ 30: IntLit          "1" at 5:13-5:14 (leading: Space)
+ 31: Semicolon       ";" at 5:14-5:15
  32: RBrace          "}" at 6:5-6:6 (leading: Newline, Space)
  33: Semicolon       ";" at 6:6-6:7
  34: KwLet           "let" at 8:5-8:8 (leading: Newline, Space)
@@ -86,9 +86,9 @@
  86: LParen          "(" at 15:24-15:25
  87: RParen          ")" at 15:25-15:26
  88: Semicolon       ";" at 15:26-15:27
- 89: KwReturn        "return" at 16:9-16:15 (leading: Newline, Space)
- 90: IntLit          "0" at 16:16-16:17 (leading: Space)
- 91: Semicolon       ";" at 16:17-16:18
+ 89: KwRet           "ret" at 16:9-16:12 (leading: Newline, Space)
+ 90: IntLit          "0" at 16:13-16:14 (leading: Space)
+ 91: Semicolon       ";" at 16:14-16:15
  92: RBrace          "}" at 17:5-17:6 (leading: Newline, Space)
  93: Semicolon       ";" at 17:6-17:7
  94: KwLet           "let" at 18:5-18:8 (leading: Newline, Space)

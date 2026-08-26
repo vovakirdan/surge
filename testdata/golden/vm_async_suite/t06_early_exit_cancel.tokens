@@ -40,21 +40,21 @@
  40: StringLit       "\"child done\"" at 7:19-7:31
  41: RParen          ")" at 7:31-7:32
  42: Semicolon       ";" at 7:32-7:33
- 43: KwReturn        "return" at 8:13-8:19 (leading: Newline, Space)
- 44: IntLit          "1" at 8:20-8:21 (leading: Space)
- 45: Semicolon       ";" at 8:21-8:22
+ 43: KwRet           "ret" at 8:13-8:16 (leading: Newline, Space)
+ 44: IntLit          "1" at 8:17-8:18 (leading: Space)
+ 45: Semicolon       ";" at 8:18-8:19
  46: RBrace          "}" at 9:9-9:10 (leading: Newline, Space)
  47: Semicolon       ";" at 9:10-9:11
  48: KwIf            "if" at 11:9-11:11 (leading: Newline, Space)
  49: KwTrue          "true" at 11:12-11:16 (leading: Space)
  50: LBrace          "{" at 11:17-11:18 (leading: Space)
- 51: KwReturn        "return" at 12:13-12:19 (leading: Newline, Space)
- 52: IntLit          "9" at 12:20-12:21 (leading: Space)
- 53: Semicolon       ";" at 12:21-12:22
+ 51: KwRet           "ret" at 12:13-12:16 (leading: Newline, Space)
+ 52: IntLit          "9" at 12:17-12:18 (leading: Space)
+ 53: Semicolon       ";" at 12:18-12:19
  54: RBrace          "}" at 13:9-13:10 (leading: Newline, Space)
- 55: KwReturn        "return" at 15:9-15:15 (leading: Newline, Space)
- 56: IntLit          "0" at 15:16-15:17 (leading: Space)
- 57: Semicolon       ";" at 15:17-15:18
+ 55: KwRet           "ret" at 15:9-15:12 (leading: Newline, Space)
+ 56: IntLit          "0" at 15:13-15:14 (leading: Space)
+ 57: Semicolon       ";" at 15:14-15:15
  58: RBrace          "}" at 16:5-16:6 (leading: Newline, Space)
  59: RParen          ")" at 16:6-16:7
  60: Dot             "." at 16:7-16:8
@@ -107,9 +107,9 @@
 107: LParen          "(" at 24:24-24:25
 108: RParen          ")" at 24:25-24:26
 109: Semicolon       ";" at 24:26-24:27
-110: KwReturn        "return" at 25:9-25:15 (leading: Newline, Space)
-111: IntLit          "0" at 25:16-25:17 (leading: Space)
-112: Semicolon       ";" at 25:17-25:18
+110: KwRet           "ret" at 25:9-25:12 (leading: Newline, Space)
+111: IntLit          "0" at 25:13-25:14 (leading: Space)
+112: Semicolon       ";" at 25:14-25:15
 113: RBrace          "}" at 26:5-26:6 (leading: Newline, Space)
 114: Semicolon       ";" at 26:6-26:7
 115: KwLet           "let" at 27:5-27:8 (leading: Newline, Space)

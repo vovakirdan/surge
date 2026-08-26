@@ -4,10 +4,10 @@ fn main() -> int {
         let flag = true;
         if flag {
             checkpoint().await();
-            return 11;
+            ret 11;
         } else {
             checkpoint().await();
-            return 12;
+            ret 12;
         }
     }).await();
 

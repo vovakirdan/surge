@@ -262,40 +262,6 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 	return resultType
 }
 
-func (tc *typeChecker) taskBlockPayload(span source.Span, body ast.StmtID, async bool) types.TypeID {
-	var returns []collectedResult
-	tc.pushReturnContext(returnCtxTaskPayload, types.NoTypeID, span, &returns, nil)
-	if async {
-		tc.awaitDepth++
-		tc.asyncBlockDepth++
-	}
-	tc.walkStmt(body)
-	if async {
-		tc.asyncBlockDepth--
-		tc.awaitDepth--
-	}
-	tc.popReturnContext()
-
-	payload := tc.types.Builtins().Nothing
-	for _, result := range returns {
-		rt := result.typ
-		if rt == types.NoTypeID {
-			continue
-		}
-		if payload == tc.types.Builtins().Nothing {
-			payload = rt
-			continue
-		}
-		if !tc.typesAssignable(payload, rt, true) && !tc.typesAssignable(rt, payload, true) {
-			payload = types.NoTypeID
-		}
-	}
-	if payload == types.NoTypeID {
-		payload = tc.types.Builtins().Nothing
-	}
-	return tc.taskType(payload, span)
-}
-
 func (tc *typeChecker) typeExprAsync(id ast.ExprID, span source.Span) types.TypeID {
 	asyncData, ok := tc.builder.Exprs.Async(id)
 	if !ok || asyncData == nil {
@@ -313,7 +279,7 @@ func (tc *typeChecker) typeExprAsync(id ast.ExprID, span source.Span) types.Type
 	// Then the body is given the obligation for what moves into it, BEFORE it is
 	// walked, so a `ret` inside sees the capture as a live one.
 	tc.registerAsyncBodyOwnership(asyncData.Body)
-	resultType := tc.taskBlockPayload(span, asyncData.Body, true)
+	resultType := tc.taskBlockPayload(id, span, asyncData.Body, true)
 	tc.popDropScope()
 
 	captures := tc.collectBlockingCaptures(asyncData.Body)
@@ -355,7 +321,7 @@ func (tc *typeChecker) typeExprBlocking(id ast.ExprID, span source.Span) types.T
 		return types.NoTypeID
 	}
 	tc.blockingDepth++
-	resultType := tc.taskBlockPayload(span, blockingData.Body, false)
+	resultType := tc.taskBlockPayload(id, span, blockingData.Body, false)
 	tc.blockingDepth--
 	captures := tc.collectBlockingCaptures(blockingData.Body)
 	tc.recordBlockingCaptures(id, captures)

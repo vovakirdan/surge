@@ -1,9 +1,9 @@
 @entrypoint
 fn main() -> int {
     let r = (async {
-        let t1 = spawn async { sleep(5).await(); return 1; };
-        let t2 = spawn async { sleep(5).await(); return 2; };
-        let t3 = spawn async { sleep(5).await(); return 3; };
+        let t1 = spawn async { sleep(5).await(); ret 1; };
+        let t2 = spawn async { sleep(5).await(); ret 2; };
+        let t3 = spawn async { sleep(5).await(); ret 3; };
 
         let mut ts: Array<Task<int>> = [];
         ts.push(t1);
@@ -19,7 +19,7 @@ fn main() -> int {
                 Cancelled() => sum = sum + 0;
             };
         }
-        return sum;
+        ret sum;
     }).await();
     compare r {
         Success(v) => print("sum=" + (v to string));

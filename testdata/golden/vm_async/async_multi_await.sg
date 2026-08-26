@@ -5,7 +5,7 @@ fn main() -> int {
         checkpoint().await();
         let b = a + 1;
         checkpoint().await();
-        return b + 1;
+        ret b + 1;
     }).await() {
         Success(v) => v;
         Cancelled() => 0;

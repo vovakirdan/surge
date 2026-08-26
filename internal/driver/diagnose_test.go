@@ -657,19 +657,20 @@ fn main() -> int {
 	}
 }
 
-func TestDiagnoseRejectsRetInAsyncPayload(t *testing.T) {
+// The user-facing path carries the refusal AND its fix: a `return` inside an
+// async body is SEM3207 with an always-safe `ret` edit when the value already
+// has the body's type (owner ruling 2026-08-26, RV2-DEBT-161).
+func TestDiagnoseRejectsReturnInAsyncBody(t *testing.T) {
 	src := `
-fn main() -> nothing {
-    let t = async {
-        ret 1;
+fn make() -> Task<int> {
+    return async {
+        return 1;
     };
-    t;
-    return nothing;
 }
 `
 
 	dir := t.TempDir()
-	path := filepath.Join(dir, "ret_async_payload.sg")
+	path := filepath.Join(dir, "return_in_async_body.sg")
 	if writeErr := os.WriteFile(path, []byte(src), 0o600); writeErr != nil {
 		t.Fatalf("write file: %v", writeErr)
 	}
@@ -683,23 +684,17 @@ fn main() -> nothing {
 	if err != nil {
 		t.Fatalf("DiagnoseWithOptions error: %v", err)
 	}
-	if res.Bag.Len() == 0 {
-		t.Fatalf("expected diagnostics, got none")
-	}
 
-	found := false
 	for _, d := range res.Bag.Items() {
-		if d.Code != diag.SemaRetOutsideBlock {
+		if d.Code != diag.SemaTaskBodyReturn {
 			continue
 		}
-		if strings.Contains(d.Message, "'ret' is not supported inside async/blocking payloads; use 'return' for now") {
-			found = true
-			break
+		if len(d.Fixes) != 1 || len(d.Fixes[0].Edits) != 1 || d.Fixes[0].Edits[0].NewText != "ret" || d.Fixes[0].Applicability != diag.FixApplicabilityAlwaysSafe {
+			t.Fatalf("expected one always-safe `ret` edit on SEM3207, got %+v", d.Fixes)
 		}
+		return
 	}
-	if !found {
-		t.Fatalf("expected async-payload ret diagnostic, got %+v", res.Bag.Items())
-	}
+	t.Fatalf("expected return-in-async-body diagnostic, got %+v", res.Bag.Items())
 }
 
 func TestDiagnoseTreatsRetAsTerminatingForMoveAnalysis(t *testing.T) {

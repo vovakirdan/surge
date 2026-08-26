@@ -5,7 +5,7 @@ fn main() -> int {
             sleep(10).await() => 1;
             sleep(10).await() => 2;
         };
-        return v;
+        ret v;
     }).await();
 
     compare r {

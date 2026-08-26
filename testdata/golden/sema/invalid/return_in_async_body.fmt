@@ -1,0 +1,25 @@
+// `return` inside an async body is refused: the body runs as its own task,
+// so there is no enclosing function to leave; `ret` gives the body its value.
+// The second body shows the same refusal through a block expression, the
+// third through a nested body, whose exit is its own.
+fn make() -> Task<int> {
+    return async {
+        return 42;
+    };
+}
+
+fn make_nested() -> Task<int> {
+    return async {
+        let v: int = {
+            return 5;
+        };
+        ret v;
+    };
+}
+
+fn make_inner() -> Task<Task<int>> {
+    return async {
+        let inner: Task<int> = async { return 7; };
+        ret inner;
+    };
+}

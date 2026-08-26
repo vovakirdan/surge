@@ -5,10 +5,10 @@ fn main() -> int {
         let a = 10;
         if flag {
             checkpoint().await();
-            return a + 1;
+            ret a + 1;
         } else {
             checkpoint().await();
-            return a + 2;
+            ret a + 2;
         }
     }).await() {
         Success(v) => v;

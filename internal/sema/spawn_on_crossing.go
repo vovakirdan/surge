@@ -75,7 +75,7 @@ func (tc *typeChecker) typeExprSpawnOn(id ast.ExprID, span source.Span) types.Ty
 		siteOK = false
 	}
 
-	payload, sawRet := tc.unifyOnBodyResults(returns, bareRet)
+	payload, sawRet := tc.unifyBodyResults("on-crossing", returns, bareRet)
 
 	// B05: a `spawn on` body must always produce its result with `ret` (unlike a
 	// discarded `on` crossing, a dropped `far Task` is still a lifecycle error).

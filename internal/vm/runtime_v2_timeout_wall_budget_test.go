@@ -143,7 +143,7 @@ func TestRuntimeV2SleepWithoutNetWaiterStillAdvancesInstantly(t *testing.T) {
 fn main() -> int {
     let t = (async {
         sleep(5000:uint).await();
-        return 42;
+        ret 42;
     }).await();
     compare t {
         Success(v) => { return v; }

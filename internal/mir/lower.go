@@ -192,6 +192,11 @@ type returnCtx struct {
 	// may hold a temp this path never materialized, and releasing that reads
 	// an uninitialized slot.
 	tempFrameDepth int
+	// taskBody marks the context an async/blocking body function pushes for
+	// its own statements: a `ret` that reaches it IS the function's return
+	// (see lowerRetStmt), so it has no exit block and no result slot. Block
+	// expressions inside the body push their own contexts on top of it.
+	taskBody bool
 }
 
 type funcLowerer struct {
@@ -352,10 +357,8 @@ func (l *funcLowerer) lowerSyntheticFunc(id FuncID, name string, body *hir.Block
 		l.f.ScopeLocal = l.scopeLocal
 	}
 
-	if body != nil {
-		if err := l.lowerBlock(body); err != nil {
-			return nil, err
-		}
+	if err := l.lowerTaskBody(body); err != nil {
+		return nil, err
 	}
 
 	if !l.curBlock().Terminated() {

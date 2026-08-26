@@ -37,11 +37,11 @@
  37: LParen          "(" at 7:31-7:32
  38: RParen          ")" at 7:32-7:33
  39: Semicolon       ";" at 7:33-7:34
- 40: KwReturn        "return" at 8:13-8:19 (leading: Newline, Space)
- 41: Ident           "a" at 8:20-8:21 (leading: Space)
- 42: Plus            "+" at 8:22-8:23 (leading: Space)
- 43: IntLit          "1" at 8:24-8:25 (leading: Space)
- 44: Semicolon       ";" at 8:25-8:26
+ 40: KwRet           "ret" at 8:13-8:16 (leading: Newline, Space)
+ 41: Ident           "a" at 8:17-8:18 (leading: Space)
+ 42: Plus            "+" at 8:19-8:20 (leading: Space)
+ 43: IntLit          "1" at 8:21-8:22 (leading: Space)
+ 44: Semicolon       ";" at 8:22-8:23
  45: RBrace          "}" at 9:9-9:10 (leading: Newline, Space)
  46: KwElse          "else" at 9:11-9:15 (leading: Space)
  47: LBrace          "{" at 9:16-9:17 (leading: Space)
@@ -53,11 +53,11 @@
  53: LParen          "(" at 10:31-10:32
  54: RParen          ")" at 10:32-10:33
  55: Semicolon       ";" at 10:33-10:34
- 56: KwReturn        "return" at 11:13-11:19 (leading: Newline, Space)
- 57: Ident           "a" at 11:20-11:21 (leading: Space)
- 58: Plus            "+" at 11:22-11:23 (leading: Space)
- 59: IntLit          "2" at 11:24-11:25 (leading: Space)
- 60: Semicolon       ";" at 11:25-11:26
+ 56: KwRet           "ret" at 11:13-11:16 (leading: Newline, Space)
+ 57: Ident           "a" at 11:17-11:18 (leading: Space)
+ 58: Plus            "+" at 11:19-11:20 (leading: Space)
+ 59: IntLit          "2" at 11:21-11:22 (leading: Space)
+ 60: Semicolon       ";" at 11:22-11:23
  61: RBrace          "}" at 12:9-12:10 (leading: Newline, Space)
  62: RBrace          "}" at 13:5-13:6 (leading: Newline, Space)
  63: RParen          ")" at 13:6-13:7

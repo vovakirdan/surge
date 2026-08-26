@@ -1,8 +1,8 @@
 {
   "version": 1,
   "golden_root": "testdata/golden",
-  "entry_count": 5288,
-  "corpus_sha256": "cf7609119443699e31c4c72a4d937302dcf65c1f59c8ad4022f2d6c1266e4b18",
+  "entry_count": 5313,
+  "corpus_sha256": "aec45413431f8d5d77231afb20929814a5804c6878547a512ffade1b09a4d35f",
   "diagnostic_zero": [
     "sema/invalid/attrs/deprecated_usage.sg",
     "sema/invalid/compare_arm_implicit_block_value_warn.sg",
@@ -10,7 +10,8 @@
     "sema/invalid/implicit_block_value_nested_call_warn.sg",
     "sema/invalid/implicit_block_value_warn.sg",
     "sema/invalid/import_all_private_test/privatemodule.sg",
-    "sema/invalid/redundant_finally.sg"
+    "sema/invalid/redundant_finally.sg",
+    "sema/invalid/task_body_discarded_tail.sg"
   ],
   "formatter_failure": [
     "crossing/block01/invalid/far_negative_grouping_unsupported.sg",

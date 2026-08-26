@@ -1,0 +1,24 @@
+// A body without `ret` yields nothing; where a Task<int> is expected that is
+// an error naming the edit (SEM3208), not a bare type mismatch. The second
+// body has a `ret` on one path only, and the third's only `ret` belongs to a
+// block expression inside it.
+fn make() -> Task<int> {
+    return async {
+        let x: int = 1;
+        x + 1;
+    };
+}
+
+fn some_paths(c: bool) -> Task<int> {
+    return async {
+        if c {
+            ret 1;
+        }
+    };
+}
+
+fn inner_block() -> Task<int> {
+    return async {
+        let v: int = { ret 5; };
+    };
+}

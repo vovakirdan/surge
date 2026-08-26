@@ -9,7 +9,7 @@ async fn run(samples: &mut ArrayFixed<int64, 64>) -> uint64 {
         let started: int64 = bench.now();
         let value: bench.Payload64 = bench.payload64(1:uint64);
         let task: Task<bench.Payload64> = blocking {
-            return value;
+            ret value;
         };
         checksum = checksum + compare task.await() {
             Success(result) => bench.sum64(&result);

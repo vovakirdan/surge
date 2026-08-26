@@ -1,0 +1,19 @@
+  1: KwFn            "fn" at 3:1-3:3 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "make" at 3:4-3:8 (leading: Space)
+  3: LParen          "(" at 3:8-3:9
+  4: RParen          ")" at 3:9-3:10
+  5: Arrow           "->" at 3:11-3:13 (leading: Space)
+  6: Ident           "Task" at 3:14-3:18 (leading: Space)
+  7: Lt              "<" at 3:18-3:19
+  8: NothingLit      "nothing" at 3:19-3:26
+  9: Gt              ">" at 3:26-3:27
+ 10: LBrace          "{" at 3:28-3:29 (leading: Space)
+ 11: KwReturn        "return" at 4:5-4:11 (leading: Newline, Space)
+ 12: KwAsync         "async" at 4:12-4:17 (leading: Space)
+ 13: LBrace          "{" at 4:18-4:19 (leading: Space)
+ 14: IntLit          "42" at 5:9-5:11 (leading: Newline, Space)
+ 15: Semicolon       ";" at 5:11-5:12
+ 16: RBrace          "}" at 6:5-6:6 (leading: Newline, Space)
+ 17: Semicolon       ";" at 6:6-6:7
+ 18: RBrace          "}" at 7:1-7:2 (leading: Newline)
+ 19: EOF             at 8:1-8:1

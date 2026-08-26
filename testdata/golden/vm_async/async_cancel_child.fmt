@@ -3,7 +3,7 @@ fn main() -> int {
     let child = spawn async {
         checkpoint().await();
         checkpoint().await();
-        return 1;
+        ret 1;
     };
 
     child.cancel();

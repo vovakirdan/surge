@@ -1,0 +1,14 @@
+// `ret` gives a blocking body its value, with the same block rules an async
+// body follows: the owner's example, plus a block expression inside the body
+// that keeps its own ret.
+fn foo() -> int {
+    let a: Task<int> = blocking { ret 1; };
+    let c: int = { ret 5; };
+    let b: Task<int> = blocking {
+        let v: int = { ret c + 1; };
+        ret v * 2;
+    };
+    let _ = a;
+    let _ = b;
+    return 0;
+}

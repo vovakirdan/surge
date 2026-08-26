@@ -44,9 +44,9 @@
  44: StringLit       "\"A3\"" at 8:15-8:19
  45: RParen          ")" at 8:19-8:20
  46: Semicolon       ";" at 8:20-8:21
- 47: KwReturn        "return" at 9:9-9:15 (leading: Newline, Space)
- 48: IntLit          "0" at 9:16-9:17 (leading: Space)
- 49: Semicolon       ";" at 9:17-9:18
+ 47: KwRet           "ret" at 9:9-9:12 (leading: Newline, Space)
+ 48: IntLit          "0" at 9:13-9:14 (leading: Space)
+ 49: Semicolon       ";" at 9:14-9:15
  50: RBrace          "}" at 10:5-10:6 (leading: Newline, Space)
  51: Semicolon       ";" at 10:6-10:7
  52: KwLet           "let" at 11:5-11:8 (leading: Newline, Space)
@@ -86,9 +86,9 @@
  86: StringLit       "\"B3\"" at 16:15-16:19
  87: RParen          ")" at 16:19-16:20
  88: Semicolon       ";" at 16:20-16:21
- 89: KwReturn        "return" at 17:9-17:15 (leading: Newline, Space)
- 90: IntLit          "0" at 17:16-17:17 (leading: Space)
- 91: Semicolon       ";" at 17:17-17:18
+ 89: KwRet           "ret" at 17:9-17:12 (leading: Newline, Space)
+ 90: IntLit          "0" at 17:13-17:14 (leading: Space)
+ 91: Semicolon       ";" at 17:14-17:15
  92: RBrace          "}" at 18:5-18:6 (leading: Newline, Space)
  93: Semicolon       ";" at 18:6-18:7
  94: KwLet           "let" at 19:5-19:8 (leading: Newline, Space)

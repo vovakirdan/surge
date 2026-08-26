@@ -7,7 +7,7 @@ fn main() -> int {
             ch.recv() => 10;
             sleep(100).await() => 20;
         };
-        return v;
+        ret v;
     }).await();
 
     compare r {

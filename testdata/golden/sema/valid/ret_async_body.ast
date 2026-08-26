@@ -1,0 +1,33 @@
+ret_async_body.sg (span: 5:1-46:1)
+├─ Item[0]: Fn (span: 5:1-20:2)
+│  ├─ Name: pick
+│  ├─ Params: (c: bool)
+│  ├─ Return: Task<int>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 5:31-20:2)
+│        └─ Stmt[0]: Return (span: 6:5-19:7)
+│           └─ Expr: expr#23: async { 5 stmt(s) }
+├─ Item[1]: Fn (span: 22:1-27:2)
+│  ├─ Name: nested
+│  ├─ Params: ()
+│  ├─ Return: Task<Task<int>>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 22:32-27:2)
+│        └─ Stmt[0]: Return (span: 23:5-26:7)
+│           └─ Expr: expr#27: async { 2 stmt(s) }
+├─ Item[2]: Fn (span: 29:1-33:2)
+│  ├─ Name: quiet
+│  ├─ Params: ()
+│  ├─ Return: Task<nothing>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 29:29-33:2)
+│        └─ Stmt[0]: Return (span: 30:5-32:7)
+│           └─ Expr: expr#29: async { 1 stmt(s) }
+└─ Item[3]: Fn (span: 35:1-45:2)
+   ├─ Name: early
+   ├─ Params: ()
+   ├─ Return: Task<nothing>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 35:29-45:2)
+         └─ Stmt[0]: Return (span: 36:5-44:7)
+            └─ Expr: expr#40: async { 2 stmt(s) }

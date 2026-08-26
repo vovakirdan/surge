@@ -64,6 +64,21 @@ const (
 	SynPragmaPosition          Code = 2029
 	SynFnNotAllowed            Code = 2030
 
+	// Numbers 2031-2036 are taken; the crossing syntax block lives in
+	// codes_crossing.go.
+
+	// SynTaskBodyBareValue rejects a bare trailing expression in an
+	// `async { ... }` / `blocking { ... }` body — `blocking { 42 }`.
+	//
+	// The body gives its value with `ret <expr>;`; a trailing expression is
+	// not that, and the generic missing-`;` diagnostic would offer to insert
+	// the `;`, after which the task silently yields nothing and the author
+	// meets a type mismatch one statement away from the real mistake. The
+	// parser is the first stage that knows which body the expression ends, so
+	// it names the edit here and marks the statement as missing its `;` so
+	// sema does not diagnose the same site twice.
+	SynTaskBodyBareValue Code = 2037
+
 	// import errors & warnings
 
 	// SynInfoImportGroup represents import group information.
@@ -287,7 +302,7 @@ const (
 	SemaTrivialRecursion               Code = 3131 // Obvious infinite recursion cycle
 	SemaLocalTaskNotSendable           Code = 3132 // Local task handle used in sendable context
 	SemaBlockingBorrowCapture          Code = 3133 // blocking capture cannot borrow
-	SemaRetOutsideBlock                Code = 3134 // ret used outside block expression / async payload
+	SemaRetOutsideBlock                Code = 3134 // ret used outside a value-producing block
 	SemaImplicitBlockValue             Code = 3135 // legacy implicit block value should use ret
 	SemaPartialPathMove                Code = 3136 // droppable value moved on some paths but not others
 	SemaBorrowIntoOwnedParam           Code = 3137 // borrow passed where the parameter takes ownership
@@ -476,6 +491,30 @@ const (
 	// request that is not honoured is the disposition SemaMutableIterable
 	// already refuses for `&mut`; this is the same refusal for `own`.
 	SemaOwnedIterable Code = 3206
+	// SemaTaskBodyReturn rejects `return` inside an `async { ... }` /
+	// `blocking { ... }` body.
+	//
+	// The body runs as its own task (a blocking body on a worker thread), so
+	// there is no enclosing function for a `return` to leave: the keyword can
+	// only mean "the body's value", which is what `ret` already says. Owner
+	// ruling 2026-08-26: `ret` leaves a block with its value, `return` leaves
+	// the function, and in a body that nests other blocks the two must stay
+	// distinguishable — so `return` is refused rather than read as `ret`.
+	// The `on` / `spawn on` bodies made the same call earlier (SemaOnBodyReturn,
+	// SemaSpawnOnBodyReturn); this is the third body kind under the one rule.
+	SemaTaskBodyReturn Code = 3207
+
+	// SemaTaskBodyNoValue explains an `async` / `blocking` body that does not
+	// give a value with `ret` where one is expected.
+	//
+	// As an error: the site expects `Task<T>` with a real `T`, and either no
+	// `ret` exists or some path falls off the body's end. As a warning: nothing
+	// expected a value, but the body's last statement computes one and discards
+	// it — the shape a body written before `ret` was its exit takes. Both name
+	// the `ret` edit; the bare mismatch sema would otherwise report
+	// (`expected Task<int>, got Task<nothing>`) says what went wrong one step
+	// away from where it can be fixed.
+	SemaTaskBodyNoValue Code = 3208
 
 	// Ошибки I/O
 
@@ -554,6 +593,7 @@ var ( // todo расширить описания и использовать к
 		SynInfoImportGroup:                 "Import group information",
 		SynUnexpectedTopLevel:              "Unexpected top level",
 		SynExpectSemicolon:                 "Expect semicolon",
+		SynTaskBodyBareValue:               "an async/blocking body gives its value with `ret <expr>;`, not a trailing expression",
 		SynForMissingIn:                    "Missing 'in' in for-in loop",
 		SynForBadHeader:                    "Malformed for-loop header",
 		SynModifierNotAllowed:              "Modifier not allowed here",
@@ -740,6 +780,8 @@ var ( // todo расширить описания и использовать к
 		SemaOperationNeedsClonable:         "this operation is not available at this instantiation",
 		SemaMoveOutOfLoopBinding:           "a for-in binding only reads the element; the container still owns it",
 		SemaOwnedIterable:                  "a consuming for-in is not a feature yet; drain the container with pop",
+		SemaTaskBodyReturn:                 "cannot return from the enclosing function inside an async/blocking body; write `ret <expr>;`",
+		SemaTaskBodyNoValue:                "an async/blocking body gives its value with `ret`",
 		SemaPartialMoveNeedsOwn:            "taking a field out of a live value must be written `own`",
 		SemaPartialMoveFromTemporary:       "cannot take a field out of a value nothing holds",
 		SemaStoreThroughSharedRef:          "cannot write through a shared reference",

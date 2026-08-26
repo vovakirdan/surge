@@ -42,7 +42,7 @@ fn main() -> int {
         c.cancel();
         let _ = c.await();
         print("ok", "\n");
-        return total;
+        ret total;
     }).await();
 
     return compare r {
@@ -153,7 +153,7 @@ fn main() -> int {
             };
             i = i + 1;
         }
-        return total;
+        ret total;
     }).await();
 
     return compare r {

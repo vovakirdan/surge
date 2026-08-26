@@ -6,7 +6,7 @@ fn main() -> int {
             sleep(5).await();
             i = i + 1;
         }
-        return i;
+        ret i;
     }).await();
 
     compare r {

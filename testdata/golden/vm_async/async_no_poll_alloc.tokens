@@ -36,9 +36,9 @@
  36: LParen          "(" at 6:27-6:28
  37: RParen          ")" at 6:28-6:29
  38: Semicolon       ";" at 6:29-6:30
- 39: KwReturn        "return" at 7:9-7:15 (leading: Newline, Space)
- 40: IntLit          "0" at 7:16-7:17 (leading: Space)
- 41: Semicolon       ";" at 7:17-7:18
+ 39: KwRet           "ret" at 7:9-7:12 (leading: Newline, Space)
+ 40: IntLit          "0" at 7:13-7:14 (leading: Space)
+ 41: Semicolon       ";" at 7:14-7:15
  42: RBrace          "}" at 8:5-8:6 (leading: Newline, Space)
  43: RParen          ")" at 8:6-8:7
  44: Dot             "." at 8:7-8:8

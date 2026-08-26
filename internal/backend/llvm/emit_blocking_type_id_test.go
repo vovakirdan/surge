@@ -78,8 +78,8 @@ fn sink(n: own Note) -> int {
 
 async fn run() -> int {
     let note: Note = Note { id = 7, text = "captured" };
-    let held: Task<int> = blocking { return sink(own note); };
-    let bare: Task<int> = blocking { return 42; };
+    let held: Task<int> = blocking { ret sink(own note); };
+    let bare: Task<int> = blocking { ret 42; };
     let a: int = compare held.await() {
         Success(v) => v;
         Cancelled() => 0;

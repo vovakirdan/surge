@@ -21,11 +21,11 @@
  21: LParen          "(" at 4:27-4:28
  22: RParen          ")" at 4:28-4:29
  23: Semicolon       ";" at 4:29-4:30
- 24: KwReturn        "return" at 5:9-5:15 (leading: Newline, Space)
- 25: IntLit          "41" at 5:16-5:18 (leading: Space)
- 26: Plus            "+" at 5:19-5:20 (leading: Space)
- 27: IntLit          "1" at 5:21-5:22 (leading: Space)
- 28: Semicolon       ";" at 5:22-5:23
+ 24: KwRet           "ret" at 5:9-5:12 (leading: Newline, Space)
+ 25: IntLit          "41" at 5:13-5:15 (leading: Space)
+ 26: Plus            "+" at 5:16-5:17 (leading: Space)
+ 27: IntLit          "1" at 5:18-5:19 (leading: Space)
+ 28: Semicolon       ";" at 5:19-5:20
  29: RBrace          "}" at 6:5-6:6 (leading: Newline, Space)
  30: Semicolon       ";" at 6:6-6:7
  31: KwLet           "let" at 7:5-7:8 (leading: Newline, Space)

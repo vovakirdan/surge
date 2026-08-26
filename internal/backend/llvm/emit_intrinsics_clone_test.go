@@ -9,7 +9,7 @@ func TestEmitTaskCloneLoadsHandleValue(t *testing.T) {
 	sourceCode := `@entrypoint
 fn main() -> int {
     let worker = spawn async {
-        return 1;
+        ret 1;
     };
     let worker2 = worker.clone();
     compare worker2.await() {

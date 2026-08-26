@@ -3,7 +3,7 @@ fn main() -> int {
     let r = (async {
         let t = spawn async {
             sleep(5).await();
-            return 3;
+            ret 3;
         };
         let t2 = t.clone();
         let v = select {
@@ -11,7 +11,7 @@ fn main() -> int {
             sleep(100).await() => 0;
         };
         let _ = t2.await();
-        return v;
+        ret v;
     }).await();
 
     compare r {

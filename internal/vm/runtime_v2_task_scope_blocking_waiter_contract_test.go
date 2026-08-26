@@ -38,7 +38,7 @@ fn main() -> int {
         let slow = spawn spin(200);
         let fast = spawn async {
             checkpoint().await();
-            return 2;
+            ret 2;
         };
 
         fast.cancel();
@@ -48,7 +48,7 @@ fn main() -> int {
             Success(_) => false;
         };
         if !fast_cancelled {
-            return 1;
+            ret 1;
         }
 
         let slow_res = slow.await();
@@ -57,10 +57,10 @@ fn main() -> int {
             Success(_) => false;
         };
         if !slow_cancelled {
-            return 2;
+            ret 2;
         }
 
-        return 0;
+        ret 0;
     }).await();
 
     let cancelled_ok = compare r {
@@ -96,7 +96,7 @@ func TestRuntimeV2BlockingCompletionWakesAwaiter(t *testing.T) {
 fn main() -> int {
     let r = (async {
         let task = blocking {
-            return busy_loop(50000);
+            ret busy_loop(50000);
         };
         let res = task.await();
         let ok = compare res {
@@ -104,10 +104,10 @@ fn main() -> int {
             Cancelled() => false;
         };
         if !ok {
-            return 1;
+            ret 1;
         }
         print("ok", "\n");
-        return 0;
+        ret 0;
     }).await();
 
     return compare r {
@@ -145,7 +145,7 @@ async fn await_task(task: Task<int>) -> int {
 fn main() -> int {
     let r = (async {
         let blocker = blocking {
-            return busy_loop(500000);
+            ret busy_loop(500000);
         };
         let waiter_task = blocker.clone();
         let waiter = spawn await_task(waiter_task);
@@ -159,7 +159,7 @@ fn main() -> int {
             Success(_) => false;
         };
         if !waiter_cancelled {
-            return 1;
+            ret 1;
         }
 
         let block_res = blocker.await();
@@ -168,11 +168,11 @@ fn main() -> int {
             Cancelled() => false;
         };
         if !block_ok {
-            return 2;
+            ret 2;
         }
 
         print("ok", "\n");
-        return 0;
+        ret 0;
     }).await();
 
     return compare r {

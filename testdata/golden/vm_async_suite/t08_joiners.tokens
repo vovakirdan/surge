@@ -86,9 +86,9 @@
  86: LParen          "(" at 13:27-13:28
  87: RParen          ")" at 13:28-13:29
  88: Semicolon       ";" at 13:29-13:30
- 89: KwReturn        "return" at 14:9-14:15 (leading: Newline, Space)
- 90: IntLit          "9" at 14:16-14:17 (leading: Space)
- 91: Semicolon       ";" at 14:17-14:18
+ 89: KwRet           "ret" at 14:9-14:12 (leading: Newline, Space)
+ 90: IntLit          "9" at 14:13-14:14 (leading: Space)
+ 91: Semicolon       ";" at 14:14-14:15
  92: RBrace          "}" at 15:5-15:6 (leading: Newline, Space)
  93: Semicolon       ";" at 15:6-15:7
  94: KwLet           "let" at 16:5-16:8 (leading: Newline, Space)

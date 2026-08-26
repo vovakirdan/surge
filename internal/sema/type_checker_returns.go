@@ -52,25 +52,42 @@ func (tc *typeChecker) currentBlockReturnContext() *returnContext {
 	if ctx == nil || ctx.collect == nil {
 		return nil
 	}
-	if ctx.kind != returnCtxBlockExpr && ctx.kind != returnCtxOnCrossing {
+	if ctx.kind == returnCtxFunction {
 		return nil
 	}
 	return ctx
 }
 
-// insideOnCrossing reports whether the innermost enclosing value-producing
-// context is an `on` crossing body (before any function boundary). A `return`
-// in that position cannot exit through the crossing and is rejected (SEM3147).
+// insideOnCrossing reports whether the innermost enclosing body is an `on`
+// crossing body (before any function or task-body boundary). A `return` in
+// that position cannot exit through the crossing and is rejected (SEM3147).
 func (tc *typeChecker) insideOnCrossing() bool {
 	for i := len(tc.returnStack) - 1; i >= 0; i-- {
 		switch tc.returnStack[i].kind {
 		case returnCtxOnCrossing:
 			return true
-		case returnCtxFunction:
+		case returnCtxFunction, returnCtxTaskPayload:
 			return false
 		}
 	}
 	return false
+}
+
+// enclosingTaskBody returns the innermost `async` / `blocking` body a
+// `return` would try to leave, or nil when a function or crossing boundary
+// comes first. Block expressions between the two are skipped: a `return`
+// inside them still means "leave the function", which is exactly what the
+// body has no function to offer (SEM3207).
+func (tc *typeChecker) enclosingTaskBody() *returnContext {
+	for i := len(tc.returnStack) - 1; i >= 0; i-- {
+		switch tc.returnStack[i].kind {
+		case returnCtxTaskPayload:
+			return &tc.returnStack[i]
+		case returnCtxFunction, returnCtxOnCrossing:
+			return nil
+		}
+	}
+	return nil
 }
 
 func (tc *typeChecker) appendCollectedResult(ctx *returnContext, span source.Span, expr ast.ExprID, typ types.TypeID) {
@@ -121,6 +138,10 @@ func (tc *typeChecker) validateReturn(span source.Span, expr ast.ExprID, actual 
 		if n := len(tc.onCrossingStack); n > 0 {
 			tc.onCrossingStack[n-1].returnRejected = true
 		}
+		return
+	}
+	if body := tc.enclosingTaskBody(); body != nil {
+		tc.reportTaskBodyReturn(body, span, expr, actual)
 		return
 	}
 	if ctx.collect != nil && ctx.kind != returnCtxFunction {
@@ -226,10 +247,6 @@ func (tc *typeChecker) validateRet(span source.Span, expr ast.ExprID, actual typ
 	}
 	ctx := tc.currentBlockReturnContext()
 	if ctx == nil {
-		if outer := tc.currentReturnContext(); outer != nil && outer.kind == returnCtxTaskPayload {
-			tc.report(diag.SemaRetOutsideBlock, span, "'ret' is not supported inside async/blocking payloads; use 'return' for now")
-			return
-		}
 		tc.report(diag.SemaRetOutsideBlock, span, "'ret' can only be used inside value-producing blocks")
 		return
 	}

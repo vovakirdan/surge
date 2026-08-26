@@ -44,11 +44,11 @@
  44: LParen          "(" at 7:27-7:28
  45: RParen          ")" at 7:28-7:29
  46: Semicolon       ";" at 7:29-7:30
- 47: KwReturn        "return" at 8:9-8:15 (leading: Newline, Space)
- 48: Ident           "b" at 8:16-8:17 (leading: Space)
- 49: Plus            "+" at 8:18-8:19 (leading: Space)
- 50: IntLit          "1" at 8:20-8:21 (leading: Space)
- 51: Semicolon       ";" at 8:21-8:22
+ 47: KwRet           "ret" at 8:9-8:12 (leading: Newline, Space)
+ 48: Ident           "b" at 8:13-8:14 (leading: Space)
+ 49: Plus            "+" at 8:15-8:16 (leading: Space)
+ 50: IntLit          "1" at 8:17-8:18 (leading: Space)
+ 51: Semicolon       ";" at 8:18-8:19
  52: RBrace          "}" at 9:5-9:6 (leading: Newline, Space)
  53: RParen          ")" at 9:6-9:7
  54: Dot             "." at 9:7-9:8
