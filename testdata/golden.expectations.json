@@ -1,8 +1,8 @@
 {
   "version": 1,
   "golden_root": "testdata/golden",
-  "entry_count": 5210,
-  "corpus_sha256": "4f7d8f847a6728a3eaabb448f37134e93056da1cbd0b247eaa1f937aee15a58e",
+  "entry_count": 5247,
+  "corpus_sha256": "2abdf70c2eb3d3f547e1f1e6ce80578087e6f0e07eee8b9fa1911bbf97628835",
   "diagnostic_zero": [
     "sema/invalid/attrs/deprecated_usage.sg",
     "sema/invalid/compare_arm_implicit_block_value_warn.sg",

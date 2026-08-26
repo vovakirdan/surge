@@ -8128,3 +8128,78 @@ the declared kind (`declaredTagPayloadIsRef`) and loads a `ptr`; pinned by
 "payload address %t3 ... is stored as the payload") and by the two goldens on
 both lanes. The construction side is a separate, older gap -- sema types
 `Some(p)` with `p: &T` as `Some<T>` -- recorded as RV2-DEBT-253.
+
+### 2026-08-26 — Wave F, the diagnostic half (P5), lands: eight commits
+
+Integrated from `wip/wavef-diag` (cut from `0d00d9fa`; `9fe013eb..8a3c7eb2`).
+The clonability classifier already carried four canonical states, so
+RV2-DEBT-134 was a naming, not a missing authority; C1 adds what turns a
+verdict into an edit -- the path to the first non-clonable component, the span
+of a rejected `__clone`, and `CanDefineHere` proven by the same receiver
+identity rather than `!sealed` (the falsifier, the `!sealed` form, fails 7 of 18
+rows). `Task<T>.clone()` owes an independent payload: the concrete case on the
+post-merge seam next to `FinalizeDirectCloneBindings`, the generic case as a
+fourth kind of deferred edge that resolves to a verdict rather than a callable,
+both through ONE function and ONE classifier -- the two `SEM3116` headers in the
+new goldens differ only by file and line. Without the instantiation check the
+falsifier reproduces the raw mono refusal RV2-DEBT-133 names (`instantiation
+closure: deferred callable ... (__clone): no exact implementation`). `SEM3204`
+is declared for `Map<K, V>.keys()` with a non-clonable key; its emission site
+is the map lane's (`tc.requireClonable(CloneObligationMapKeys, ...)`).
+
+`Diagnostic` gains a `Help` channel of its own (eight fakes with a `"help: "`
+prefix migrated); `surge build` printed `d.Message` and nothing else, and now
+carries code, span, notes, help and fix headers with applicability. Eleven
+advice emitters collapse into one table of site × capability; the advice says
+`clone(x)` -- the free function, autoref confirmed against
+`stdlib/http/headers.sg` -- and `.clone()` only for a local `Task<T>` whose
+payload is duplicable. One golden line changed, legitimately:
+`task_await_use_after_move.diag` loses `; call t.clone() to keep a handle`,
+because the way out moved into Help, where it is conditional on the payload.
+`fix once` no longer falls back to a non-safe edit and prints what it skipped
+with `--id`; replace/delete edits without `OldText` are refused. LSP: 
+`relatedInformation` (notes, then help), `publishDiagnostics.version`,
+`Diagnostic.data` carrying identities only (a test marshals and fails on the
+words `newText`/`oldText`/`edits`/`range`), and Code Actions only AlwaysSafe,
+registered on the server, guarded before and after materialization, with
+versioned `documentChanges` -- 11 race rows, each of which first requires the
+action to EXIST and only then breaks a condition.
+
+Two calls the lane made alone, recorded for review: the `nosend_checks.go`
+headline carried its advice inline (`...or a copy via .__clone()`) and now
+carries it in Help; and `adviceCloneState` is a projection of the authority
+onto file-check time (the checker's magic-method registry, imports included),
+conservative in the direction of not proposing a clone it cannot prove -- in a
+snippet stand without the stdlib, `string` reads as non-clonable and the
+advice offers only the borrow (`move_through_calls_test.go`).
+
+Effective lines: `internal/lsp/server_diagnostics.go` 577 → 551,
+`internal/sema/type_expr_calls.go` 451 → 448, `internal/diag/codes.go` 593 →
+595 (SIZE_EXEMPT), eleven new files all under 200. DEBT: 133 diagnostic half
+closed, 134 closed, 135/136 narrowed, 254 opened (corpus spelling).
+
+The two lanes met on one seam. D4b's tracker registers a `Task<T>.clone()` as
+an entitlement from its RECEIVER; Wave F's generic obligation leaves the
+clone's own type deferred until instantiation; and `trackTaskReturn` asked the
+returned expression's type before asking the tracker -- so `return
+handle.clone()` inside an uninstantiated generic (`task_clone_uninstantiated_generic`,
+a VALID golden) reported SEM3107 on the merged tree while each lane alone was
+green. The tracker is asked first now (`clone_returned_in_place_generic` in
+`task_clone_entitlement_test.go`, red on the pre-fix tracker).
+
+The hook then found the second seam, and it was not Wave F's. Wave F's
+SEM3116 refused `Task<Box>.clone()` in the VM lane's cohort test (a `Box` of
+`string` and `int` with no `__clone`, which the owner's ruling makes
+non-clonable: the test now declares the contract), but what the test reported
+was `HIR merge failed: internal compiler error: clone at 9:5014-5029 has no
+published implementation`. The VM-lane helper `compileToMIR` sized its
+diagnostic bag at ZERO (`DiagnoseOptions` without `MaxDiagnostics`, and
+`diag.NewBag(0)` drops every `Add`), so it had never seen a refusal; the
+finalization consumed SEM3116 into a bag that kept nothing, returned before
+publishing, and lowering met an unpublished clone. The driver now sizes an
+unsized bag at `DefaultMaxDiagnostics` and the merge seam answers
+`ErrDiagnosticsReported`; six test helpers gained eyes at once, and two programs
+they had compiled blind turn out to be refused by sema -- both red at the
+baseline in the tagged run, both skipped now naming RV2-DEBT-255 (a magic
+`__index` read's borrow outlives its statement) and RV2-DEBT-256 (`ownsHeap`
+still says a `@copy` composite owns a box). RV2-DEBT-257 records the helper.
