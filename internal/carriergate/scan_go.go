@@ -63,6 +63,14 @@ func goIdentifierCategory(filePath, name string) string {
 		case "crossingDropStates", "crossingDropResults", "registerCrossingDropResult",
 			"channelPayloadDropID", "abandonedStateDropID":
 			return categoryNumericDrop
+		// The emitter reserving, sizing and releasing a frame the runtime
+		// holds past the suspension. `abandonedStateDropID` is deliberately
+		// NOT here: it names the same frame, but what it carries is a numeric
+		// drop id, and that is the category already counting it.
+		case "emitRuntimeOwnedStorage", "requireSuspensionFrameRelease",
+			"emitSuspensionFrameReleaseBody", "emitAsyncStateFreeIntrinsic",
+			"AsyncStateFreeBuiltin":
+			return categoryFrameOwner
 		}
 	case strings.HasPrefix(filePath, "internal/vm/"):
 		switch name {

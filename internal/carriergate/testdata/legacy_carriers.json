@@ -2,8 +2,8 @@
   "version": 1,
   "base_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd",
   "digest_algorithm": "sha256-length-prefixed-v1",
-  "baseline_count": 604,
-  "baseline_digest": "2e3b26d837f5ad32f3df92305424ec4f3df1f9f79762ec40661a75500783ce7c",
+  "baseline_count": 626,
+  "baseline_digest": "1978fe25166ecbf73fef3bc7baf219389e9a6c2db8af24eea5a5129556eef8fe",
   "scope": [
     {
       "root": "internal/asyncrt",
@@ -3988,6 +3988,358 @@
           },
           "retired_by": "wave-d-d4",
           "tracked_as": "RV2-DEBT-151"
+        }
+      ]
+    },
+    {
+      "id": "suspension-frame-owner",
+      "retire_to_zero": true,
+      "baseline_count": 7,
+      "baseline_digest": "4baedb81c7d695a7669c3c6040dbd947349a6b2b7a7682fecc00bfe88575ef5e",
+      "legacy": [
+        {
+          "category": "suspension-frame-owner",
+          "path": "internal/backend/llvm/emit_async_helpers.go",
+          "token": "AsyncStateFreeBuiltin",
+          "evidence": "if call == nil || call.Callee.Kind != mir.CalleeValue || call.Callee.Name != mir.AsyncStateFreeBuiltin {",
+          "ordinal": 1
+        },
+        {
+          "category": "suspension-frame-owner",
+          "path": "internal/backend/llvm/emit_async_helpers.go",
+          "token": "emitAsyncStateFreeIntrinsic",
+          "evidence": "func (fe *funcEmitter) emitAsyncStateFreeIntrinsic(call *mir.CallInstr) (bool, error) {",
+          "ordinal": 1
+        },
+        {
+          "category": "suspension-frame-owner",
+          "path": "internal/backend/llvm/emit_calls.go",
+          "token": "emitAsyncStateFreeIntrinsic",
+          "evidence": "if handled, err := fe.emitAsyncStateFreeIntrinsic(call); handled {",
+          "ordinal": 1
+        },
+        {
+          "category": "suspension-frame-owner",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "abandoned_state",
+          "evidence": "void* abandoned_state;",
+          "ordinal": 1
+        },
+        {
+          "category": "suspension-frame-owner",
+          "path": "runtime/native/rt_async_poll.c",
+          "token": "abandoned_state",
+          "evidence": "current-\u003eabandoned_state = state;",
+          "ordinal": 1
+        },
+        {
+          "category": "suspension-frame-owner",
+          "path": "runtime/native/rt_task_complete.c",
+          "token": "abandoned_state",
+          "evidence": "__surge_drop_abandoned_state_call(task-\u003eabandoned_state_drop_fn_id, task-\u003eabandoned_state);",
+          "ordinal": 1
+        },
+        {
+          "category": "suspension-frame-owner",
+          "path": "runtime/native/rt_task_complete.c",
+          "token": "abandoned_state",
+          "evidence": "task-\u003eabandoned_state = NULL;",
+          "ordinal": 1
+        }
+      ],
+      "allow": [],
+      "migration": [
+        {
+          "finding": {
+            "category": "suspension-frame-owner",
+            "path": "internal/backend/llvm/emit_aggregate_ops.go",
+            "token": "emitRuntimeOwnedStorage",
+            "evidence": "func (fe *funcEmitter) emitRuntimeOwnedStorage(id types.TypeID) (string, error) {",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d7",
+          "tracked_as": "RV2-DEBT-179"
+        },
+        {
+          "finding": {
+            "category": "suspension-frame-owner",
+            "path": "internal/backend/llvm/emit_aggregate_ops.go",
+            "token": "emitRuntimeOwnedStorage",
+            "evidence": "return fe.emitRuntimeOwnedStorage(id)",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d7",
+          "tracked_as": "RV2-DEBT-179"
+        },
+        {
+          "finding": {
+            "category": "suspension-frame-owner",
+            "path": "internal/backend/llvm/emit_async.go",
+            "token": "requireSuspensionFrameRelease",
+            "evidence": "fe.emitter.requireSuspensionFrameRelease(frameType), stateVal)",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d7",
+          "tracked_as": "RV2-DEBT-179"
+        },
+        {
+          "finding": {
+            "category": "suspension-frame-owner",
+            "path": "internal/backend/llvm/emit_drop_glue.go",
+            "token": "emitSuspensionFrameReleaseBody",
+            "evidence": "func (e *Emitter) emitSuspensionFrameReleaseBody(id types.TypeID) error {",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d7",
+          "tracked_as": "RV2-DEBT-179"
+        },
+        {
+          "finding": {
+            "category": "suspension-frame-owner",
+            "path": "internal/backend/llvm/emit_drop_glue.go",
+            "token": "emitSuspensionFrameReleaseBody",
+            "evidence": "if err := e.emitSuspensionFrameReleaseBody(id); err != nil {",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d7",
+          "tracked_as": "RV2-DEBT-179"
+        },
+        {
+          "finding": {
+            "category": "suspension-frame-owner",
+            "path": "internal/backend/llvm/emit_drop_glue.go",
+            "token": "requireSuspensionFrameRelease",
+            "evidence": "func (e *Emitter) requireSuspensionFrameRelease(id types.TypeID) string {",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d7",
+          "tracked_as": "RV2-DEBT-179"
+        },
+        {
+          "finding": {
+            "category": "suspension-frame-owner",
+            "path": "runtime/native/rt_async_internal.h",
+            "token": "abandoned_state_type_id",
+            "evidence": "uint64_t abandoned_state_type_id;",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d7",
+          "tracked_as": "RV2-DEBT-179"
+        },
+        {
+          "finding": {
+            "category": "suspension-frame-owner",
+            "path": "runtime/native/rt_async_poll.c",
+            "token": "abandoned_state_type_id",
+            "evidence": "current-\u003eabandoned_state_type_id = state_type_id;",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d7",
+          "tracked_as": "RV2-DEBT-179"
+        },
+        {
+          "finding": {
+            "category": "suspension-frame-owner",
+            "path": "runtime/native/rt_task_complete.c",
+            "token": "abandoned_state",
+            "evidence": "rt_channel_element_ops_for(task-\u003eabandoned_state_type_id), task-\u003eabandoned_state);",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d7",
+          "tracked_as": "RV2-DEBT-179"
+        },
+        {
+          "finding": {
+            "category": "suspension-frame-owner",
+            "path": "runtime/native/rt_task_complete.c",
+            "token": "abandoned_state_type_id",
+            "evidence": "if (task-\u003eabandoned_state_type_id != 0) {",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d7",
+          "tracked_as": "RV2-DEBT-179"
+        },
+        {
+          "finding": {
+            "category": "suspension-frame-owner",
+            "path": "runtime/native/rt_task_complete.c",
+            "token": "abandoned_state_type_id",
+            "evidence": "rt_channel_element_ops_for(task-\u003eabandoned_state_type_id), task-\u003eabandoned_state);",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d7",
+          "tracked_as": "RV2-DEBT-179"
+        },
+        {
+          "finding": {
+            "category": "suspension-frame-owner",
+            "path": "runtime/native/rt_task_complete.c",
+            "token": "abandoned_state_type_id",
+            "evidence": "task-\u003eabandoned_state_type_id = 0;",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d7",
+          "tracked_as": "RV2-DEBT-179"
+        }
+      ]
+    },
+    {
+      "id": "untyped-capture-state",
+      "retire_to_zero": true,
+      "baseline_count": 15,
+      "baseline_digest": "1de5f81b71dddcd8d49514417b3f839724607a2f17fe0d8e6ff36163052668a0",
+      "legacy": [
+        {
+          "category": "untyped-capture-state",
+          "path": "runtime/native/rt.h",
+          "token": "state_align",
+          "evidence": "void* rt_blocking_submit(uint64_t fn_id, void* state, uint64_t state_size, uint64_t state_align);",
+          "ordinal": 1
+        },
+        {
+          "category": "untyped-capture-state",
+          "path": "runtime/native/rt.h",
+          "token": "state_size",
+          "evidence": "void* rt_blocking_submit(uint64_t fn_id, void* state, uint64_t state_size, uint64_t state_align);",
+          "ordinal": 1
+        },
+        {
+          "category": "untyped-capture-state",
+          "path": "runtime/native/rt_async_blocking.c",
+          "token": "state_align",
+          "evidence": "(unsigned long long)state_align);",
+          "ordinal": 1
+        },
+        {
+          "category": "untyped-capture-state",
+          "path": "runtime/native/rt_async_blocking.c",
+          "token": "state_align",
+          "evidence": "job-\u003estate_align = state_align;",
+          "ordinal": 1
+        },
+        {
+          "category": "untyped-capture-state",
+          "path": "runtime/native/rt_async_blocking.c",
+          "token": "state_align",
+          "evidence": "job-\u003estate_align = state_align;",
+          "ordinal": 2
+        },
+        {
+          "category": "untyped-capture-state",
+          "path": "runtime/native/rt_async_blocking.c",
+          "token": "state_align",
+          "evidence": "rt_free((uint8_t*)job-\u003estate, job-\u003estate_size, job-\u003estate_align);",
+          "ordinal": 1
+        },
+        {
+          "category": "untyped-capture-state",
+          "path": "runtime/native/rt_async_blocking.c",
+          "token": "state_align",
+          "evidence": "void* rt_blocking_submit(uint64_t fn_id, void* state, uint64_t state_size, uint64_t state_align) {",
+          "ordinal": 1
+        },
+        {
+          "category": "untyped-capture-state",
+          "path": "runtime/native/rt_async_blocking.c",
+          "token": "state_size",
+          "evidence": "(unsigned long long)state_size,",
+          "ordinal": 1
+        },
+        {
+          "category": "untyped-capture-state",
+          "path": "runtime/native/rt_async_blocking.c",
+          "token": "state_size",
+          "evidence": "if (job-\u003estate != NULL \u0026\u0026 job-\u003estate_size \u003e 0) {",
+          "ordinal": 1
+        },
+        {
+          "category": "untyped-capture-state",
+          "path": "runtime/native/rt_async_blocking.c",
+          "token": "state_size",
+          "evidence": "job-\u003estate_size = state_size;",
+          "ordinal": 1
+        },
+        {
+          "category": "untyped-capture-state",
+          "path": "runtime/native/rt_async_blocking.c",
+          "token": "state_size",
+          "evidence": "job-\u003estate_size = state_size;",
+          "ordinal": 2
+        },
+        {
+          "category": "untyped-capture-state",
+          "path": "runtime/native/rt_async_blocking.c",
+          "token": "state_size",
+          "evidence": "rt_free((uint8_t*)job-\u003estate, job-\u003estate_size, job-\u003estate_align);",
+          "ordinal": 1
+        },
+        {
+          "category": "untyped-capture-state",
+          "path": "runtime/native/rt_async_blocking.c",
+          "token": "state_size",
+          "evidence": "void* rt_blocking_submit(uint64_t fn_id, void* state, uint64_t state_size, uint64_t state_align) {",
+          "ordinal": 1
+        },
+        {
+          "category": "untyped-capture-state",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "state_align",
+          "evidence": "uint64_t state_align;",
+          "ordinal": 1
+        },
+        {
+          "category": "untyped-capture-state",
+          "path": "runtime/native/rt_async_internal.h",
+          "token": "state_size",
+          "evidence": "uint64_t state_size;",
+          "ordinal": 1
+        }
+      ],
+      "allow": [],
+      "migration": [
+        {
+          "finding": {
+            "category": "untyped-capture-state",
+            "path": "runtime/native/rt.h",
+            "token": "state_align",
+            "evidence": "uint64_t state_align,",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d6",
+          "tracked_as": "RV2-DEBT-080"
+        },
+        {
+          "finding": {
+            "category": "untyped-capture-state",
+            "path": "runtime/native/rt.h",
+            "token": "state_size",
+            "evidence": "uint64_t state_size,",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d6",
+          "tracked_as": "RV2-DEBT-080"
+        },
+        {
+          "finding": {
+            "category": "untyped-capture-state",
+            "path": "runtime/native/rt_async_blocking.c",
+            "token": "state_align",
+            "evidence": "uint64_t state_align,",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d6",
+          "tracked_as": "RV2-DEBT-080"
+        },
+        {
+          "finding": {
+            "category": "untyped-capture-state",
+            "path": "runtime/native/rt_async_blocking.c",
+            "token": "state_size",
+            "evidence": "uint64_t state_size,",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d6",
+          "tracked_as": "RV2-DEBT-080"
         }
       ]
     },

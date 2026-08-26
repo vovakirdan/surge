@@ -205,6 +205,19 @@ func TestRequiredCategoriesAreCanonical(t *testing.T) {
 	if !reflect.DeepEqual(copyValue, requiredCategories) {
 		t.Fatalf("required categories are not sorted: %v", requiredCategories)
 	}
+	// Named one by one rather than counted, because a count is satisfied by
+	// any twelve strings. The manifest is keyed by position on this list, so
+	// dropping a category here would silently un-ratchet it instead of
+	// failing the load.
+	want := []string{
+		categoryCompositeBox, categoryLLVMCompositePtr, categoryLLVMWordBridge,
+		categoryLLVMPointerWord, categoryNativePayloadBits, categoryNativeWord,
+		categoryNumericDrop, categoryFrameOwner, categoryUntypedCaptureState,
+		categoryAsyncAny, categoryVMBoxKind, categoryVMUniversalOwner,
+	}
+	if !reflect.DeepEqual(requiredCategories, want) {
+		t.Fatalf("required categories = %v, want %v", requiredCategories, want)
+	}
 }
 
 func newSnapshotManifest(findings []Finding, allowances []Allowance) (Manifest, error) {

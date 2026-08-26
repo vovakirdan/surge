@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	frozenBaseCount  = 604
-	frozenBaseDigest = "2e3b26d837f5ad32f3df92305424ec4f3df1f9f79762ec40661a75500783ce7c"
+	frozenBaseCount  = 626
+	frozenBaseDigest = "1978fe25166ecbf73fef3bc7baf219389e9a6c2db8af24eea5a5129556eef8fe"
 )
 
 func TestLegacyCarrierManifestMatchesExactBaseCensus(t *testing.T) {
@@ -68,6 +68,13 @@ func assertFrozenManifestCounts(t *testing.T, manifest Manifest) {
 		t.Fatalf("frozen manifest census = llvm:%d native payload/word/files:%d/%d/%d",
 			categoryCounts[categoryLLVMWordBridge], categoryCounts[categoryNativePayloadBits],
 			categoryCounts[categoryNativeWord], len(nativeFiles))
+	}
+	// A category whose frozen baseline is empty is a category that ratchets
+	// nothing: it would be green at zero from the day it was added, and the
+	// carriers it was written to see would never have been counted at all.
+	if categoryCounts[categoryFrameOwner] != 7 || categoryCounts[categoryUntypedCaptureState] != 15 {
+		t.Fatalf("frozen manifest census = frame owner/untyped capture state:%d/%d, want 7/15",
+			categoryCounts[categoryFrameOwner], categoryCounts[categoryUntypedCaptureState])
 	}
 }
 
@@ -171,6 +178,8 @@ func assertKnownBaseCounts(t *testing.T, findings []Finding) {
 	llvmWords := 0
 	nativeTokens := 0
 	nativeWords := 0
+	frameOwners := 0
+	captureStates := 0
 	lines := make(map[string]struct{})
 	files := make(map[string]struct{})
 	for _, finding := range findings {
@@ -183,6 +192,10 @@ func assertKnownBaseCounts(t *testing.T, findings []Finding) {
 			files[finding.Path] = struct{}{}
 		case categoryNativeWord:
 			nativeWords++
+		case categoryFrameOwner:
+			frameOwners++
+		case categoryUntypedCaptureState:
+			captureStates++
 		}
 	}
 	// The earlier raw-regex census was 143/133/21. A lexical scan excludes its
@@ -191,5 +204,13 @@ func assertKnownBaseCounts(t *testing.T, findings []Finding) {
 	if llvmWords != 25 || nativeTokens != 134 || nativeWords != 85 || len(lines) != 124 || len(files) != 21 {
 		t.Fatalf("known census = llvm:%d native payload/word/lines/files:%d/%d/%d/%d",
 			llvmWords, nativeTokens, nativeWords, len(lines), len(files))
+	}
+	// Asserted against the SCAN, not against the manifest, because the manifest
+	// was written from this scan: a token that stopped matching would leave the
+	// two agreeing at zero, and a ratchet standing at zero over a live carrier
+	// is the failure this whole gate was built to refuse.
+	if frameOwners != 7 || captureStates != 15 {
+		t.Fatalf("known census = frame owner/untyped capture state:%d/%d, want 7/15",
+			frameOwners, captureStates)
 	}
 }

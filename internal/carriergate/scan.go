@@ -29,6 +29,19 @@ const (
 	categoryNativePayloadBits = "native-payload-bits"
 	categoryNativeWord        = "native-word-carrier"
 	categoryNumericDrop       = "numeric-drop-dispatch"
+	// categoryFrameOwner marks a suspension frame whose storage is reserved,
+	// sized and released by COMPILED CODE. The frame outlives the function
+	// that builds it, so its lifetime belongs to the runtime; while the
+	// emitter allocates it and hands the runtime a bare address, the runtime
+	// can only give it back to be released, which is why the release paths
+	// are counted here alongside the allocation.
+	categoryFrameOwner = "suspension-frame-owner"
+	// categoryUntypedCaptureState marks a captured state described by
+	// `(void* state, uint64_t state_size, uint64_t state_align)`. Two
+	// integers are not a type: nothing in that triple can construct, copy or
+	// destroy what the pointer addresses, which is the same erasure a typed
+	// cell removes everywhere else in the blocking job.
+	categoryUntypedCaptureState = "untyped-capture-state"
 )
 
 var requiredCategories = []string{
@@ -39,6 +52,8 @@ var requiredCategories = []string{
 	categoryNativePayloadBits,
 	categoryNativeWord,
 	categoryNumericDrop,
+	categoryFrameOwner,
+	categoryUntypedCaptureState,
 	categoryAsyncAny,
 	categoryVMBoxKind,
 	categoryVMUniversalOwner,

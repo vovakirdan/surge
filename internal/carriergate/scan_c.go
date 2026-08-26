@@ -8,6 +8,15 @@ var (
 	nativeMapKeyBitsRE  = regexp.MustCompile(`\buint64_t\s+(key_bits)\b`)
 	nativeMapEntryRE    = regexp.MustCompile(`\buint64_t\s+(key|value)\s*;`)
 	nativeDropRE        = regexp.MustCompile(`\b([A-Za-z_][A-Za-z0-9_]*_drop_fn_id|send_drop_fn_ids|__surge_drop_call|__surge_drop_result_call|__surge_drop_abandoned_state_call)\b`)
+	// The captured state a blocking job holds, described by two integers
+	// instead of a type. `state_size`/`state_align` are the whole shape: the
+	// pointer beside them is only untyped BECAUSE they are what describes it.
+	nativeCaptureStateRE = regexp.MustCompile(`\b(state_size|state_align)\b`)
+	// The frame a task holds without owning: the runtime keeps the address
+	// compiled code allocated and can only hand it back to be released.
+	// Longest alternative first, so the type-id field is not read as the
+	// pointer field with a suffix.
+	nativeFrameOwnerRE = regexp.MustCompile(`\b(abandoned_state_type_id|abandoned_state)\b`)
 )
 
 func scanCFile(filePath string, data []byte) []rawFinding {
@@ -19,6 +28,8 @@ func scanCFile(filePath string, data []byte) []rawFinding {
 	findings = appendCMatches(findings, categoryNativeWord, filePath, data, clean, nativeMapEntryRE)
 	findings = appendNativeWordContextMatches(findings, filePath, data, clean)
 	findings = appendCMatches(findings, categoryNumericDrop, filePath, data, clean, nativeDropRE)
+	findings = appendCMatches(findings, categoryUntypedCaptureState, filePath, data, clean, nativeCaptureStateRE)
+	findings = appendCMatches(findings, categoryFrameOwner, filePath, data, clean, nativeFrameOwnerRE)
 	return findings
 }
 

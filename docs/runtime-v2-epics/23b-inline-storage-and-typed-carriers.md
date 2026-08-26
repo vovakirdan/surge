@@ -622,6 +622,11 @@ Production code must contain no definitions, declarations, or uses of:
 - a universal map entry made from `uint64_t key` plus `uint64_t value`;
 - task/channel/map/far/blocking APIs whose payload contract is `value_bits`,
   `out_bits`, `uint64_t *values`, or a `uint64_t` result;
+- a captured state described by `(void* state, uint64_t state_size,
+  uint64_t state_align)` — two integers cannot construct, copy or destroy what
+  the pointer addresses, so the capture is erased exactly as a word payload is;
+- a suspension frame whose storage compiled code reserves, sizes and releases,
+  and the address-plus-id pair a task must hold to give such a frame back;
 - composite `llvmType -> ptr` solely because the type is a composite;
 - `isBoxedComposite` allocation/free/clone paths;
 - VM task/channel/select/blocking payload fields typed `any`;
