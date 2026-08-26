@@ -8417,3 +8417,43 @@ axis (a `Held { v: int }` fixture that assumed the boxed answer, a capability
 test that asserted the disagreement). `docs/runtime-v2-epics/23-value-composites.md`
 lines 284–300 still describe the boxed-era target for the two sema legs and
 are wrong now -- RV2-DEBT-260 carries that too.
+
+### 2026-08-26 — RV2-DEBT-261 lands its join fix; the symptom outlives it
+
+The lane's four commits (`a9ba47c5`, `36131c49`, `872735ee`, `2d7c6ac0`)
+close a real window: `rt_scope_join_all` read `failfast_triggered` and
+`active_children` under one lock at its first snapshot and re-read the
+count ALONE at the register-then-verify re-check, so a cancelled completion
+landing between the two answered "drained, not fail-fast".
+`scope_join_snapshot_locked` reads both at the verify too;
+`SP_SCOPE_FAILFAST_JOIN_BEFORE_VERIFY` holds the gap open and
+`RV2_DEBT_261_NEGATIVE_CONTROL` drops the flag from the verify.
+
+Two things the lead's runs added. First, the stand the reviewer accepted
+did not run: at every thread count it timed out with "cancelled child never
+completed". The owner created its child with `__task_create` from inside
+its own poll, which lands on the pushing worker's LOCAL tail, and a single
+local entry signals nobody (`ready_push_task_locked`, `rt_ready_queue.c`);
+the pusher is the worker then held at the sync point, so the child was
+never popped and its cancellation never observed. That is the stand's
+defect, not the runtime's (§7: the local queue is the pusher's path).
+`37db26fc` spawns the child from the driver, on the inject queue, before
+the owner; the owner's first poll registers it. With that: proof green at
+`SURGE_THREADS=2/4/8` with "landed: active=0 failfast_triggered=1", the
+negative control red AT the verify ("answered Success after a cancelled
+child"). A stand whose owner is held inside its poll must get its children
+from the driver -- recorded for every future lifecycle stand.
+
+Second, the symptom is not closed. On the fixed tree, pinned off the bench
+CPUs, `TestMTStructuredConcurrency` exits 12 in 7 of 20 runs and the new
+`TestRuntimeV2FailfastJoinAnswersCancelled` once in 20 (`llvm`,
+`SURGE_THREADS=4`) -- the same rate as before the fix (2 of 6). The second
+lens (Codex, `scratchpad/second-opinion-261.md`) names the live window: a
+task commits `TASK_RESULT_SUCCESS` with `cancelled=1`, because cancellation
+is observed only at suspension points whose target is not yet `TASK_DONE`
+(`rt_task_poll` after the DONE fast path, `rt_async_yield`) and
+`rt_async_return` publishes unconditionally; fail-fast keys on the child's
+`result_kind` alone. The fix belongs at the success-commit boundary in
+`mark_done`, linearized against `cancel_task`, with VM parity in
+`vm_terminator.go`. That is RV2-DEBT-263, on its own lane from this HEAD;
+261 stays open until 263 reads 0 of 20 on both rows.
