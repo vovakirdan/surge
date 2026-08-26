@@ -631,11 +631,12 @@ func lowerTagPayloadPattern(ctx *normCtx, span source.Span, subject *Expr, subje
 			},
 		})
 		// A pattern binding is introduced HERE, long after sema, so it carries
-		// no scope-exit obligation. For a reference-counted scalar its
-		// initialization RETAINS — it is a genuine second owner — and the
-		// reference would otherwise never be given back. Hand it to the arm's
-		// return, which frees it after the result has been evaluated.
-		if owned != nil && ctx.isRefCountedScalar(ty) {
+		// no scope-exit obligation. For a reference-counted value — a scalar
+		// or a channel handle — its initialization RETAINS — it is a genuine
+		// second owner — and the reference would otherwise never be given
+		// back. Hand it to the arm's return, which frees it after the result
+		// has been evaluated.
+		if owned != nil && ctx.isRefCounted(ty) {
 			*owned = append(*owned, DropLocal{SymbolID: sym, Type: ty, Span: span})
 		}
 		return body
@@ -740,11 +741,12 @@ func lowerTupleArm(ctx *normCtx, span source.Span, subject *Expr, subjectTy type
 	return Stmt{Kind: StmtBlock, Span: span, Data: BlockStmtData{Block: body}}
 }
 
-// isRefCountedScalar reports whether values of this type carry a reference
-// count, i.e. whether a binding of it owns something to give back.
-func (ctx *normCtx) isRefCountedScalar(ty types.TypeID) bool {
+// isRefCounted reports whether values of this type carry a reference count —
+// an arbitrary-precision scalar or a channel handle — i.e. whether a binding
+// of it owns something to give back.
+func (ctx *normCtx) isRefCounted(ty types.TypeID) bool {
 	if ctx == nil || ctx.mod == nil || ctx.mod.TypeInterner == nil || ty == types.NoTypeID {
 		return false
 	}
-	return ctx.mod.TypeInterner.IsRefCountedScalar(resolveAlias(ctx.mod.TypeInterner, ty, 0))
+	return ctx.mod.TypeInterner.IsRefCounted(resolveAlias(ctx.mod.TypeInterner, ty, 0))
 }

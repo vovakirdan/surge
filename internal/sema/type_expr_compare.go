@@ -133,13 +133,14 @@ func (tc *typeChecker) registerComparePayloadDroppables(
 
 // payloadTakesItsOwnReference reports whether extracting this binding out of a
 // BORROWED union gives it a reference the arm must give back. Only the
-// reference-counted scalars do — the extraction retains them, which is the
-// whole reason `TagPayloadData.SubjectBorrowed` exists.
+// reference-counted values do — a scalar or a channel handle; the extraction
+// retains them, which is the whole reason `TagPayloadData.SubjectBorrowed`
+// exists.
 func (tc *typeChecker) payloadTakesItsOwnReference(symID symbols.SymbolID) bool {
 	if tc.types == nil {
 		return false
 	}
-	return tc.types.IsRefCountedScalar(tc.resolveAlias(tc.bindingType(symID)))
+	return tc.types.IsRefCounted(tc.resolveAlias(tc.bindingType(symID)))
 }
 
 // compareSubjectIsBorrowed reports whether the compare only READS a union

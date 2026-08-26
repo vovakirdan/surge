@@ -80,10 +80,10 @@ func (l *funcLowerer) constNothing(ty types.TypeID) Operand {
 func (l *funcLowerer) placeOperand(place Place, ty types.TypeID, consume bool) Operand {
 	kind := OperandCopy
 	switch {
-	case consume && l.isRefCountedScalar(ty):
-		// Copy at the surface, counted underneath: the source stays usable, so
-		// this cannot be a move, and the destination needs its own reference,
-		// so it cannot be a bare copy.
+	case consume && l.isRefCounted(ty):
+		// Copy at the surface, counted underneath — a scalar or a channel
+		// handle: the source stays usable, so this cannot be a move, and the
+		// destination needs its own reference, so it cannot be a bare copy.
 		kind = OperandRetain
 	case consume && !l.isCopyType(ty):
 		kind = OperandMove
@@ -189,7 +189,7 @@ func (l *funcLowerer) retainExtractedValue(local LocalID, ty types.TypeID) {
 	if local == NoLocalID {
 		return
 	}
-	if !l.isRefCountedScalar(ty) {
+	if !l.isRefCounted(ty) {
 		return
 	}
 	l.emit(&Instr{
@@ -208,6 +208,16 @@ func (l *funcLowerer) isRefCountedScalar(ty types.TypeID) bool {
 		return false
 	}
 	return l.types.IsRefCountedScalar(resolveAlias(l.types, ty))
+}
+
+// isRefCounted reports whether the type is Copy at the surface and counted
+// underneath — a reference-counted scalar or a channel handle — so that a
+// consuming read retains and a release gives one reference back.
+func (l *funcLowerer) isRefCounted(ty types.TypeID) bool {
+	if l == nil || l.types == nil || ty == types.NoTypeID {
+		return false
+	}
+	return l.types.IsRefCounted(ty)
 }
 
 func (l *funcLowerer) unwrapReferenceType(id types.TypeID) types.TypeID {

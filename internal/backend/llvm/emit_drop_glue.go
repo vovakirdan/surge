@@ -56,7 +56,15 @@ func (e *Emitter) typeOwnsHeapRec(id types.TypeID, seen map[types.TypeID]struct{
 	}
 	seen[id] = struct{}{}
 
-	if e.types.IsRefCountedScalar(id) {
+	// A reference-counted value owns one reference: a scalar's to its counted
+	// block, a channel handle's to the runtime object it names. The channel
+	// answered NO here for as long as it was "Copy, so nothing to reclaim",
+	// which is what left every local channel unreclaimed (RV2-DEBT-155) and
+	// every composite holding one with a drop body that freed nothing
+	// (RV2-DEBT-198). The release it reaches is `rt_channel_handle_drop`, in
+	// emitDropHandle; the two are widened together, because the walk claiming
+	// storage the leaf cannot give back is exactly the empty body 198 records.
+	if e.types.IsRefCounted(id) {
 		return true
 	}
 	if isStringLike(e.types, id) {
@@ -250,7 +258,8 @@ type glueTmp struct{ n int }
 func (g *glueTmp) next() string { g.n++; return fmt.Sprintf("%%g%d", g.n) }
 
 // emitDropHandle releases a value whose whole representation is the word
-// already loaded as `val`: a counted scalar, a string, a dynamic array.
+// already loaded as `val`: a counted scalar, a channel handle, a string, a
+// dynamic array.
 //
 // A value composite is not one of these and never reaches here. Its bytes are
 // not a word, so there is nothing to have loaded; it is dropped through
@@ -261,6 +270,15 @@ func (e *Emitter) emitDropHandle(val string, ty types.TypeID) {
 		// The container is giving back the reference it held. Whether the block
 		// dies here depends on who else still points at it.
 		fmt.Fprintf(&e.buf, "  call void @rt_bigfloat_release(ptr %s)\n", val)
+		return
+	}
+	if e.types.IsRefCountedHandle(ty) {
+		// The same act on the runtime's count: this holder is done with the
+		// channel, and the object is destroyed — every payload still in its
+		// ring dropped — only when nothing else names it (RUNTIME_V2
+		// section 7). Not `close`: a channel other holders still send on is
+		// left exactly as it was.
+		fmt.Fprintf(&e.buf, "  call void @rt_channel_handle_drop(ptr %s)\n", val)
 		return
 	}
 	if isStringLike(e.types, ty) {
@@ -620,14 +638,13 @@ func (e *Emitter) emitUnionPayloadDrops(g *glueTmp, id types.TypeID, facts *layo
 // walk the same members, or a copy outlives the thing it points at.
 //
 // `@copy type Semaphore = { permits: Channel<nothing> }` is the shape that
-// found this. Two semaphores share one channel, and freeing it once per
-// semaphore is a use-after-free in the second one.
-//
-// This is also where the backend's structural leg and sema's answer are
-// reconciled: sema says a Copy channel owns nothing to reclaim, while the
-// structural walk sees a handle to runtime storage and says it does. Sema is
-// right about the OBLIGATION, the walk is right about the STORAGE, and the
-// obligation is what a drop acts on.
+// found this, back when the clone SHARED the channel word: two semaphores
+// named one channel with one reference between them, and freeing it once per
+// semaphore was a use-after-free in the second one. The clone retains the
+// channel now (emitLeafCloneAt), so each semaphore holds a reference of its
+// own and the drop of each gives back exactly that one — the channel handle
+// joined the families below the day its retain and its release both existed,
+// and not a day earlier, because the two halves are one invariant.
 func (e *Emitter) fieldDropIsExclusive(fieldType types.TypeID) bool {
 	if e == nil || e.types == nil {
 		return true
@@ -637,6 +654,8 @@ func (e *Emitter) fieldDropIsExclusive(fieldType types.TypeID) bool {
 		// Move-only: the container is the sole holder and must reclaim it.
 		return true
 	}
-	// The two Copy families the clone DOES duplicate, so each copy owns one.
-	return e.types.IsRefCountedScalar(id) || e.types.IsValueComposite(id)
+	// The Copy families the clone DOES duplicate, so each copy owns one: a
+	// counted scalar and a channel handle take a reference, a value composite
+	// gets bytes of its own.
+	return e.types.IsRefCounted(id) || e.types.IsValueComposite(id)
 }

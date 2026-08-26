@@ -46,6 +46,49 @@ func (e *Executor[P]) ChanNew(capacity uint64) ChannelID {
 	return id
 }
 
+// ChanDestroy forgets a channel nothing names any more and hands back every
+// payload it still owned: the buffered values and the values parked senders
+// had staged. The caller releases them -- they leave the executor's hold in
+// the same step, so this is the one release they get.
+//
+// This is the VM lane's half of the channel lifetime RUNTIME_V2 section 7
+// describes: destruction is what the LAST handle release performs, and only
+// there do the remaining payloads get dropped. It is not `close`: a closed
+// channel is still drained by its receivers, a destroyed one has none left.
+// The caller guarantees no task is parked on the channel -- a parked task holds
+// a handle -- so the waiter lists are expected empty and are dropped as such.
+func (e *Executor[P]) ChanDestroy(id ChannelID) []P {
+	if e == nil || len(e.channels) == 0 {
+		return nil
+	}
+	ch := e.channels[id]
+	if ch == nil {
+		return nil
+	}
+	delete(e.channels, id)
+	payloads := make([]P, 0, ch.bufLen()+len(ch.sendq))
+	payloads = append(payloads, ch.buf[ch.head:]...)
+	clear(ch.buf)
+	ch.buf = nil
+	ch.head = 0
+	for i := range ch.sendq {
+		waiter := &ch.sendq[i]
+		if waiter.hasValue {
+			payloads = append(payloads, waiter.value)
+		}
+		waiter.value = zeroPayload[P]()
+		waiter.hasValue = false
+	}
+	ch.sendq = nil
+	ch.recvq = nil
+	ch.recvNotify = nil
+	ch.sendNotify = nil
+	if len(payloads) == 0 {
+		return nil
+	}
+	return payloads
+}
+
 // ChanIsClosed reports whether the channel is closed.
 func (e *Executor[P]) ChanIsClosed(id ChannelID) bool {
 	if e == nil {

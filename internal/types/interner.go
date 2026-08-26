@@ -33,29 +33,34 @@ type Builtins struct {
 
 // Interner provides stable TypeIDs by hashing structural descriptors.
 type Interner struct {
-	types            []Type
-	index            map[typeKey]TypeID
-	builtins         Builtins
-	structs          []StructInfo
-	aliases          []AliasInfo
-	Strings          *source.Interner
-	typeLayoutAttrs  map[TypeID]LayoutAttrs
-	copyTypes        map[TypeID]struct{}
-	placementTypes   map[TypeID]struct{}
-	runtimeHandles   map[TypeID]struct{}
-	runtimeFamilies  map[runtimeHandleFamily]struct{}
-	params           []TypeParamInfo
-	unions           []UnionInfo
-	enums            []EnumInfo
-	tuples           []TupleInfo
-	tupleIndex       map[string]TypeID
-	fns              []FnInfo
-	arrayType        TypeID
-	arrayParam       TypeID
-	arrayFixedType   TypeID
-	arrayFixedParams [2]TypeID
-	mapType          TypeID
-	mapParams        [2]TypeID
+	types           []Type
+	index           map[typeKey]TypeID
+	builtins        Builtins
+	structs         []StructInfo
+	aliases         []AliasInfo
+	Strings         *source.Interner
+	typeLayoutAttrs map[TypeID]LayoutAttrs
+	copyTypes       map[TypeID]struct{}
+	placementTypes  map[TypeID]struct{}
+	runtimeHandles  map[TypeID]struct{}
+	runtimeFamilies map[runtimeHandleFamily]struct{}
+	// refCountedHandles is the subset of runtimeHandles whose object the
+	// runtime reference-counts (refcounted_handle.go); refCountedFamilies is
+	// the declaration set a new instantiation inherits the mark from.
+	refCountedHandles  map[TypeID]struct{}
+	refCountedFamilies map[runtimeHandleFamily]struct{}
+	params             []TypeParamInfo
+	unions             []UnionInfo
+	enums              []EnumInfo
+	tuples             []TupleInfo
+	tupleIndex         map[string]TypeID
+	fns                []FnInfo
+	arrayType          TypeID
+	arrayParam         TypeID
+	arrayFixedType     TypeID
+	arrayFixedParams   [2]TypeID
+	mapType            TypeID
+	mapParams          [2]TypeID
 }
 
 type runtimeHandleFamily struct {
@@ -302,6 +307,7 @@ func (in *Interner) IsRuntimeHandleType(id TypeID) bool {
 }
 
 func (in *Interner) inheritRuntimeHandleFamily(id TypeID, name source.StringID, decl source.Span) {
+	in.inheritRefCountedHandleFamily(id, name, decl)
 	if in == nil || id == NoTypeID || in.runtimeFamilies == nil {
 		return
 	}

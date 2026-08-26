@@ -136,30 +136,21 @@ func TestRuntimeV2LocalSelectCancelNonCopySendArm(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse copy-control valgrind leak summary: %v\nstderr:\n%s", err, controlStderr)
 		}
-		// RV2-DEBT-062: abandoned composite drop glue does not dispatch the
-		// dedicated release for nested local Channel<T> handles. The two
-		// never-ready channels therefore leave this exact pre-existing baseline;
-		// it is held visible here instead of being fixed in the ownership epic.
-		//
-		// The BLOCK COUNT is the invariant and it is unchanged: two channels,
-		// two blocks. The byte figure moved from 96 to 1344 when the channel
-		// gained typed storage -- a channel is now its header plus a ring at
-		// the element's own stride plus a pool of park slots, where before it
-		// was a header and a word per cell. Nothing new leaks; the same two
-		// objects are simply bigger. Which is also why the number is written
-		// here rather than derived: it is a fact about a leak that RV2-DEBT-155
-		// owns, and it should change loudly when that leak is fixed.
-		//
-		// It moved again, from 1344 to 1376, when D3b C0 gave the channel its
-		// two reference counts and the reclaiming flag (2026-08-26): sixteen
-		// bytes per object with alignment, two objects. Still two blocks, still
-		// the same two channels nobody releases yet -- C1 is what makes this
-		// number zero.
-		const controlBaselineBytes = 1376
-		const controlBaselineBlocks = 2
+		// Strict zero. This row used to pin RV2-DEBT-062's residue -- the two
+		// never-ready channels the cancelled frame abandoned, 2 blocks at
+		// 96, then 1344, then 1376 bytes as the channel object grew -- because
+		// nothing released a local Channel<T> anywhere (RV2-DEBT-155), and the
+		// number was written down so it would change loudly when that leak was
+		// fixed. It did: the channel is a reference-counted handle now, the
+		// abandoned frame's drop glue reaches `rt_channel_handle_drop` for
+		// each held channel, and the two blocks are the two objects those
+		// releases destroy. The pin stays a pin, at the only number a
+		// reclaimed channel can leave.
+		const controlBaselineBytes = 0
+		const controlBaselineBlocks = 0
 		if controlBytesLost != controlBaselineBytes || controlBlocksLost != controlBaselineBlocks {
 			t.Fatalf(
-				"copy-control RV2-DEBT-062 baseline changed: got %dB/%d blocks, want %dB/%d blocks\nstderr:\n%s",
+				"copy-control leaked the channels the cancelled frame held: got %dB/%d blocks, want %dB/%d blocks (RV2-DEBT-155 closed this at zero)\nstderr:\n%s",
 				controlBytesLost, controlBlocksLost, controlBaselineBytes, controlBaselineBlocks, controlStderr,
 			)
 		}
@@ -186,7 +177,7 @@ func TestRuntimeV2LocalSelectCancelNonCopySendArm(t *testing.T) {
 		indirectBytes, indirectBlocks := parseValgrindLeakMatch(valgrindIndirectLeakRE, stderr)
 		if controlIndirectBytes != 0 || controlIndirectBlocks != 0 {
 			t.Fatalf(
-				"copy-control RV2-DEBT-062 baseline gained indirect loss: got %dB/%d blocks, want strict zero",
+				"copy-control gained indirect loss: got %dB/%d blocks, want strict zero",
 				controlIndirectBytes, controlIndirectBlocks,
 			)
 		}

@@ -306,6 +306,11 @@ var requiredSanitizerCoverage = []string{
 	"TestRuntimeV2ChannelHandleRefcountValgrindZero",
 	"TestRuntimeV2ChannelHandleRefcountUnderAddressAndUndefinedSanitizers",
 	"TestRuntimeV2ChannelHandleRefcountUnderThreadSanitizer",
+	// Valgrind over whole programs, once the compiler emits the retain and the
+	// release: an empty, a buffered, a closed and a task-outlived channel, and
+	// the composite that holds one (core/sync.sg's Mutex) copied and locked.
+	"TestRuntimeV2ChannelHandleValgrindZero",
+	"TestRuntimeV2MutexLockUnlockValgrindZero",
 	// Valgrind over a blocking job's captured state, at one iteration and at
 	// eight, and over the zero-sized state a capture-less body still gets.
 	// RV2-DEBT-080 recorded its loss as CONSTANT in the iteration count and

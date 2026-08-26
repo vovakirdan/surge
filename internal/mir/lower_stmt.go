@@ -526,10 +526,10 @@ func (l *funcLowerer) detachFromExitDrops(op *Operand, drops []hir.DropLocal, sp
 		},
 	})
 	// Reading the transfer temp must not retain again: the reference it holds
-	// is the one the caller receives. A reference-counted scalar is Copy at the
+	// is the one the caller receives. A reference-counted value is Copy at the
 	// language level, but this synthesized temp is spent by the return, so its
 	// MIR read is an explicit move.
-	if l.isRefCountedScalar(op.Type) {
+	if l.isRefCounted(op.Type) {
 		return Operand{Kind: OperandMove, Type: op.Type, Place: Place{Local: tmp}}
 	}
 	return l.placeOperand(Place{Local: tmp}, op.Type, true)

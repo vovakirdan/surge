@@ -31,11 +31,11 @@ func storeArgContracts(n int) []ArgContract {
 // byValueArgContract classifies an ordinary by-value argument position from
 // the position's own type, mirroring sema's paramTransfersOwnership: the
 // callee owns what it was handed unless the type is not droppable at all or is
-// a reference-counted scalar, which the caller keeps owning for the whole
-// call.
+// reference-counted — a scalar or a channel handle — which the caller keeps
+// owning for the whole call.
 //
 // `stores` short-circuits it, and deliberately without consulting the type:
-// storing a value past the call is a sink for reference-counted scalars too,
+// storing a value past the call is a sink for reference-counted values too,
 // which is precisely the case the paramTransfersOwnership predicate excludes.
 func byValueArgContract(typesIn *types.Interner, semaRes *sema.Result, ty types.TypeID, stores bool) ArgContract {
 	if stores {
@@ -44,7 +44,7 @@ func byValueArgContract(typesIn *types.Interner, semaRes *sema.Result, ty types.
 	if !ownsHeapFor(typesIn, semaRes, ty) {
 		return ArgContractBorrow
 	}
-	if typesIn != nil && typesIn.IsRefCountedScalar(resolveAlias(typesIn, ty)) {
+	if typesIn != nil && typesIn.IsRefCounted(ty) {
 		return ArgContractBorrow
 	}
 	return ArgContractTransferOwned
@@ -139,12 +139,13 @@ func (l *funcLowerer) applyChannelSendContracts(name string, args []Operand, con
 	contracts[1] = ArgContractStore
 }
 
-// retainStoredRefCountedArgs gives a stored reference-counted scalar its own
-// reference, which is what ArgContractStore already says it is owed.
+// retainStoredRefCountedArgs gives a stored reference-counted value — a scalar
+// or a channel handle — its own reference, which is what ArgContractStore
+// already says it is owed.
 //
 // The contract and the operand answer two different questions and were only
 // ever connected in prose. A by-value argument is read with the ordinary
-// consuming rule, and for a reference-counted scalar that rule produces
+// consuming rule, and for a reference-counted value that rule produces
 // OperandRetain — but only where the read itself is a consuming one. At a call
 // it is not: the callee is usually a borrower, and a `float` handed to an
 // arithmetic entry point must NOT be retained. So the operand comes out as a
@@ -168,7 +169,7 @@ func retainStoredRefCountedArgs(l *funcLowerer, args []Operand, contracts []ArgC
 		if i >= len(contracts) || contracts[i] != ArgContractStore {
 			continue
 		}
-		if args[i].Kind != OperandCopy || !l.isRefCountedScalar(args[i].Type) {
+		if args[i].Kind != OperandCopy || !l.isRefCounted(args[i].Type) {
 			continue
 		}
 		args[i].Kind = OperandRetain

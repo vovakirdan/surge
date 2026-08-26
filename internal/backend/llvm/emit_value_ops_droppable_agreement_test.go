@@ -32,23 +32,22 @@ import (
 //
 // A name leaves this list the day its reclamation is emitted, and the test then
 // fails until the row is deleted — the intended amount of noise for a carrier
-// family becoming real.
+// family becoming real. The list is EMPTY now: its last two rows, `Channel<int>`
+// and `own Channel<int>`, left when the channel became a reference-counted
+// handle and its drop glue started calling `rt_channel_handle_drop`
+// (RV2-DEBT-155). The map stays, with the check that reads it, so that the
+// next carrier this backend cannot back is recorded by name rather than
+// joining a crowd — and the fixture below still reaches every carrier kind the
+// comparison cares about.
 //
-// What a listed name promises is narrow and worth stating exactly: the
+// What a listed name would promise is narrow and worth stating exactly: the
 // descriptor is still WRITTEN — a channel of channels needs its element's
 // layout and move_init to exist at all — and what comes off is the DROPPABLE
 // bit, leaving drop_in_place null. The ABI allows exactly that: capability
-// slots are independent, and only move_init and plan_cross are mandatory. So
-// the descriptor states today's truth, where such an element's drop id is zero.
-// It does NOT make these carriers reclaimable: RV2-DEBT-155 is still open, and
-// a future owner obliged to destroy such an element needs real release glue
-// rather than this null.
+// slots are independent, and only move_init and plan_cross are mandatory.
 const dropGluePrefix = "drop.type"
 
-var knownDroppableDivergences = map[string]string{
-	"Channel<int>":     "opaque runtime resource: the channel is released by the runtime, not by glue",
-	"own Channel<int>": "same resource seen through an owning binding",
-}
+var knownDroppableDivergences = map[string]string{}
 
 // The fixture reaches one carrier of every kind the comparison cares about: a
 // composite owning a string (both legs say yes), a channel held by value and by
@@ -187,15 +186,20 @@ func TestAnEmittedDescriptorCarriesARealDropBody(t *testing.T) {
 	}
 }
 
-// TestAnOpaqueResourceElementGetsALayoutDescriptorWithNoDropClaim is the
-// acceptance the owner named for this rule.
+// TestAChannelElementDescriptorCarriesTheHandleRelease is the acceptance the
+// owner named for this rule, turned around by RV2-DEBT-155's close.
 //
-// A channel of channels is legal today and must stay legal: the typed
-// constructor needs its element's layout and move_init, which this backend can
-// write, while the drop it cannot perform stays absent rather than being faked.
-// Nothing about this makes such an element reclaimable — that is RV2-DEBT-155,
-// and a null callback here must not be mistaken for it being handled.
-func TestAnOpaqueResourceElementGetsALayoutDescriptorWithNoDropClaim(t *testing.T) {
+// A channel of channels is legal and must stay legal: the typed constructor
+// needs its element's layout and move_init, which this backend has always
+// written. What it used to withhold was the DROP — the element was an opaque
+// resource with no release, so the bit came off rather than promise a drop
+// nobody performed. The channel is a reference-counted handle now, and an
+// element that is a channel is destroyed by the outer channel's drain the way
+// any other owning element is: its descriptor names a drop body, and that body
+// gives the inner handle's reference back through `rt_channel_handle_drop`.
+// A descriptor that dropped the bit again would let a `Channel<Channel<T>>`
+// leak every inner channel still in its ring, silently, past every preflight.
+func TestAChannelElementDescriptorCarriesTheHandleRelease(t *testing.T) {
 	const source = `
 @entrypoint
 fn main() -> int {
@@ -230,8 +234,14 @@ fn main() -> int {
 		if !strings.Contains(line, "@"+moveInitName(id)) {
 			t.Errorf("type#%d carries no move_init, which is mandatory: %s", id, line)
 		}
-		if strings.Contains(line, "@drop.type") {
-			t.Errorf("type#%d claims a drop this backend cannot perform: %s", id, line)
+		dropName := dropGlueName(id)
+		if !strings.Contains(line, "ptr @"+dropName) {
+			t.Errorf("type#%d names no drop body: a channel element would be abandoned by the ring drain: %s", id, line)
+			continue
+		}
+		body := findLLVMFuncBody(t, ir, dropName)
+		if !strings.Contains(body, "call void @rt_channel_handle_drop(") {
+			t.Errorf("type#%d's drop body does not give the handle's reference back:\n%s", id, body)
 		}
 	}
 	if checked == 0 {

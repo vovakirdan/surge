@@ -279,10 +279,10 @@ func (l *funcLowerer) lowerBlockExpr(e *hir.Expr, data hir.BlockExprData, consum
 		return l.constNothing(e.Type), nil
 	}
 	// Reading the transfer slot must not retain again: `ret` already gave it
-	// the reference the consumer receives. A reference-counted scalar is Copy
+	// the reference the consumer receives. A reference-counted value is Copy
 	// at the language level, but this synthesized slot is spent here just like
 	// every other transfer temp, so its MIR read is an explicit move.
-	if l.isRefCountedScalar(e.Type) {
+	if l.isRefCounted(e.Type) {
 		return Operand{Kind: OperandMove, Type: e.Type, Place: Place{Local: resultLocal}}, nil
 	}
 	return l.placeOperand(Place{Local: resultLocal}, e.Type, consume), nil

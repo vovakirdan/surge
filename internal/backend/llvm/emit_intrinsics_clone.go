@@ -134,12 +134,13 @@ func (fe *funcEmitter) emitCloneValueIntrinsic(call *mir.CallInstr) (bool, error
 		fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s, align %d\n", tmp, dstTy, val, dstAlign)
 		val = tmp
 	}
-	// A counted scalar is shared, not copied, so the destination has to take a
-	// reference of its own. MIR wraps the result in `retain`/`drop`, which is a
-	// net zero on top of whatever this produces, so the one reference the
-	// destination goes on holding has to come from here.
-	if fe.emitter.types.IsRefCountedScalar(resolveValueType(fe.emitter.types, dstType)) {
-		fe.emitRetainValue(val, dstTy)
+	// A counted value — a scalar or a channel handle — is shared, not copied,
+	// so the destination has to take a reference of its own. MIR wraps the
+	// result in `retain`/`drop`, which is a net zero on top of whatever this
+	// produces, so the one reference the destination goes on holding has to
+	// come from here.
+	if valueType := resolveValueType(fe.emitter.types, dstType); fe.emitter.types.IsRefCounted(valueType) {
+		fe.emitRetainValue(val, dstTy, valueType)
 	}
 	fe.emitValueStore(dstTy, val, ptr, dstAlign)
 	return true, nil

@@ -214,6 +214,19 @@ func (e *Emitter) emitLeafCloneAt(g *glueTmp, resolved types.TypeID, baseAlign, 
 		fmt.Fprintf(&e.buf, "  %s = load ptr, ptr %s, align %d\n", fv, fp, memberAccessAlign(baseAlign, off))
 		e.emitGlueRetain(g, fv)
 
+	case e.types.IsRefCountedHandle(resolved):
+		// Shared and counted by the runtime: the copy names the same channel
+		// and takes its own reference through the runtime's atomic retain.
+		// Left at the bare word, a copied `@copy type Mutex = { gate:
+		// Channel<nothing> }` would be a second holder with no reference of
+		// its own, and the drop of either copy would destroy the channel under
+		// the other.
+		fp := g.next()
+		fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds i8, ptr %%dst, i64 %d\n", fp, off)
+		fv := g.next()
+		fmt.Fprintf(&e.buf, "  %s = load ptr, ptr %s, align %d\n", fv, fp, memberAccessAlign(baseAlign, off))
+		fmt.Fprintf(&e.buf, "  call void @rt_channel_handle_retain(ptr %s)\n", fv)
+
 	case isStringLike(e.types, resolved):
 		// Single-owner bytes: the copied word still points at the source's, so
 		// the destination is given its own and the two can be dropped
@@ -348,7 +361,7 @@ func (e *Emitter) memberNeedsCloneFixup(resolved types.TypeID) bool {
 	if e == nil || e.types == nil {
 		return false
 	}
-	return e.types.IsRefCountedScalar(resolved) ||
+	return e.types.IsRefCounted(resolved) ||
 		isStringLike(e.types, resolved) ||
 		e.isCloneableComposite(resolved)
 }

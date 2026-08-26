@@ -186,7 +186,7 @@ func (fe *funcEmitter) emitOperand(op *mir.Operand) (val, ty string, err error) 
 			// A retain bumps a count in a shared block. Inline storage has no
 			// count of its own; what its members share is retained by the
 			// generated clone, member by member.
-			fe.emitRetainValue(val, opTy)
+			fe.emitRetainValue(val, opTy, op.Type)
 		}
 		return val, opTy, nil
 	case mir.OperandAddrOf, mir.OperandAddrOfMut:

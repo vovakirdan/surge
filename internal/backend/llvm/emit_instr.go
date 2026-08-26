@@ -102,6 +102,12 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 	}
 	typesIn := fe.emitter.types
 	isRefCounted := typesIn.IsRefCountedScalar(resolveValueType(typesIn, baseType))
+	// A local Channel<T> is the runtime-counted twin of the scalar above: this
+	// place gives back the one reference it held, and the object goes when the
+	// last holder does. A `far Channel<T>` is NOT one of these — its word is a
+	// lease on another shard's object — and IsRefCountedHandle stops at the
+	// far qualifier, so the two never meet.
+	isChan := typesIn.IsRefCountedHandle(baseType)
 	isString := isStringLike(typesIn, baseType)
 	isFarChan := isFarChannelType(typesIn, baseType)
 	_, _, isMap := typesIn.MapInfo(baseType)
@@ -120,7 +126,7 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 	// LIVE handle never reaches an ordinary scope exit; what reaches here is
 	// unwinding, and unwinding must not leak.
 	isTask := isTaskType(typesIn, baseType)
-	if !isRefCounted && !isString && !dynArray && !isFarChan && !isRange && !isTask && !isMap {
+	if !isRefCounted && !isChan && !isString && !dynArray && !isFarChan && !isRange && !isTask && !isMap {
 		return nil
 	}
 	ptr, ptrTy, align, err := fe.emitPlaceStorage(ins.Drop.Place)
@@ -138,6 +144,8 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 		// same block may still be reachable from another binding, and only the
 		// last release frees it.
 		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_bigfloat_release(ptr %s)\n", handle)
+	case isChan:
+		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_channel_handle_drop(ptr %s)\n", handle)
 	case isString:
 		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_string_free(ptr %s)\n", handle)
 	case isFarChan:

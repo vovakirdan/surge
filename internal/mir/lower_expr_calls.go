@@ -37,7 +37,7 @@ func (l *funcLowerer) lowerCallArgExpr(argExpr *hir.Expr, paramType types.TypeID
 	// is a STORE — `Some(x)` keeps the payload inside the union it builds,
 	// which outlives the call, so the union needs its own reference exactly
 	// like a struct-literal field does.
-	if !calleeStores && argExpr != nil && l.isRefCountedScalar(argExpr.Type) {
+	if !calleeStores && argExpr != nil && l.isRefCounted(argExpr.Type) {
 		op, err := l.lowerExpr(argExpr, false)
 		return op, contract, err
 	}

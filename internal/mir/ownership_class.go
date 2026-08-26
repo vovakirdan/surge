@@ -277,14 +277,14 @@ func classifyOperand(op *Operand, typesIn *types.Interner, semaRes *sema.Result)
 // byValueArgContract mirrors on the caller's side of the same call — because
 // the callee's view of what it owns on entry and the caller's view of what it
 // handed over have to be the same fact. The exclusion is written as
-// "reference-counted scalar" rather than "Copy" for the reason it is written
-// that way there: a @copy value composite is CLONED at the call site and the
-// callee genuinely owns that clone.
+// "reference-counted" — a scalar or a channel handle — rather than "Copy" for
+// the reason it is written that way there: a @copy value composite is CLONED
+// at the call site and the callee genuinely owns that clone.
 func classifyParamAtEntry(ty types.TypeID, typesIn *types.Interner, semaRes *sema.Result) ownershipClass {
 	if !ownsHeapFor(typesIn, semaRes, ty) {
 		return ownershipNotApplicable
 	}
-	if typesIn != nil && typesIn.IsRefCountedScalar(resolveAlias(typesIn, ty)) {
+	if typesIn != nil && typesIn.IsRefCounted(ty) {
 		// Not owned at entry: the caller keeps its binding and its reference
 		// for the whole call, so this parameter is a borrow and needs the same
 		// explicit retain any other borrowed read does before anything may

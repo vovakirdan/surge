@@ -343,6 +343,16 @@ func (l *funcLowerer) lowerSelectAwaitExpr(expr *hir.Expr) (SelectArm, loweredSe
 // pending async state later treats as an owner. Only the exact HIR VarRef plus
 // bare-local COPY shape takes this path; projections and all other expressions
 // retain the evaluate-once temp fallback.
+//
+// That fallback temp is a HOLDER, not an alias. The select is re-polled from
+// the temp after every resume, so the temp is live across the suspension and
+// is packed into the pending frame as an owner (`operandForAsyncStateStore`
+// moves a heap-owning local); a cancellation that abandons that frame then
+// releases what the temp holds. Copied bare, it would give back a reference
+// the source binding still counts on — one channel, two releases. So the temp
+// takes a reference of its own, and being born through `newTemp` it is also
+// registered for the release at the end of the select statement, which is the
+// balance for the winner and loser paths alike.
 func (l *funcLowerer) lowerLocalSelectChannelOperand(receiver *hir.Expr) (Operand, LocalID, error) {
 	if receiver == nil {
 		return Operand{}, NoLocalID, fmt.Errorf("mir: local select channel receiver is missing")
@@ -354,6 +364,9 @@ func (l *funcLowerer) lowerLocalSelectChannelOperand(receiver *hir.Expr) (Operan
 	if receiver.Kind == hir.ExprVarRef && ch.Kind == OperandCopy &&
 		ch.Place.Kind == PlaceLocal && len(ch.Place.Proj) == 0 && ch.Place.Local != NoLocalID {
 		return ch, ch.Place.Local, nil
+	}
+	if ch.Kind == OperandCopy && l.isRefCounted(ch.Type) {
+		ch.Kind = OperandRetain
 	}
 	tmp := l.newTemp(ch.Type, "select_ch", receiver.Span)
 	l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{

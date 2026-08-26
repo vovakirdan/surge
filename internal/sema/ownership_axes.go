@@ -41,9 +41,11 @@ import "surge/internal/types"
 // The answer follows the STORAGE MODEL (docs/runtime-v2-epics/23-storage-model-
 // and-typed-carrier-abi.md), one family at a time:
 //
-//   - a reference-counted scalar owns its counted block. It is Copy AND
-//     heap-owning at once — the whole reason these are separate axes — so it is
-//     asked first, before any Copy answer can swallow it;
+//   - a reference-counted scalar owns its counted block, and a
+//     reference-counted HANDLE — `Channel<T>` — owns one reference to the
+//     runtime object it names. Both are Copy AND heap-owning at once — the
+//     whole reason these are separate axes — so they are asked first, before
+//     any Copy answer can swallow them;
 //   - a borrow (`&T`, `&mut T`, `*T`) names storage it does not own, so
 //     dropping one would free a value the holder never owned;
 //   - a VALUE COMPOSITE — struct, tuple, union, fixed array — lives inline and
@@ -52,8 +54,12 @@ import "surge/internal/types"
 //     recursively. `@copy type Pair = { a: int, b: int }` owns nothing;
 //     `@copy type Pf = { a: float, b: float }` owns two counted blocks;
 //     `type Tagged = { s: string, n: int }` owns a string;
-//   - anything else is a HANDLE — string, dynamic array, map, task, channel,
-//     the opaque runtime resources — and owns heap iff it is not Copy.
+//   - anything else is a HANDLE — string, dynamic array, map, task, the
+//     opaque runtime resources — and owns heap iff it is not Copy.
+//
+// The channel used to fall into the last family and answer NO, being Copy,
+// which is why a local `Channel<T>` was never reclaimed at all (RV2-DEBT-155):
+// no obligation here meant no drop in MIR and nothing for the backend to emit.
 //
 // A value composite used to answer YES whatever its fields held, because it
 // was a heap box and the box had to be reclaimed by whoever held it. The box is
@@ -105,7 +111,7 @@ func ownsHeapWalk(in *types.Interner, isCopy func(types.TypeID) bool, id types.T
 		return false
 	}
 	resolved := resolveAlias(in, id)
-	if in.IsRefCountedScalar(resolved) {
+	if in.IsRefCounted(resolved) {
 		return true
 	}
 	tt, ok := in.Lookup(resolved)

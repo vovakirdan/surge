@@ -504,14 +504,15 @@ func (l *funcLowerer) newTemp(ty types.TypeID, hint string, span source.Span) Lo
 	return id
 }
 
-// registerRefCountedTemp adds a refcounted-scalar temp to the innermost
-// temp-drop frame so it releases at the end of its evaluation region.
+// registerRefCountedTemp adds a reference-counted temp — a scalar or a channel
+// handle — to the innermost temp-drop frame so it releases at the end of its
+// evaluation region.
 //
 // The one place that must NOT go through here is the return-value temp: its
 // reference is handed to the caller rather than released, which is exactly
 // what makes `return` a transfer (see detachFromExitDrops).
 func (l *funcLowerer) registerRefCountedTemp(id LocalID, ty types.TypeID) {
-	if id == NoLocalID || !l.isRefCountedScalar(ty) || len(l.tempDropFrames) == 0 {
+	if id == NoLocalID || !l.isRefCounted(ty) || len(l.tempDropFrames) == 0 {
 		return
 	}
 	top := len(l.tempDropFrames) - 1

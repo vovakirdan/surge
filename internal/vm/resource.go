@@ -163,14 +163,36 @@ func (vm *VM) opaqueMemberWord(val Value, what, unit string) (int64, *VMError) {
 // This is the half of the resource contract the heap used to skip: freeing the
 // object released nothing (the runtime owns what the word names) and also SAID
 // nothing, so a task could not learn that the last handle able to consume its
-// result had died. Only tasks answer this today; a channel or a file word is
-// reclaimed by its own close path.
+// result had died. A task and a channel answer this; a file word is reclaimed
+// by its own close path.
 func (h *Heap) resourceFreed(obj *Object) {
 	if h == nil || h.vm == nil || obj == nil || obj.Resource <= 0 {
 		return
 	}
-	if !h.vm.isTaskType(obj.TypeID) {
+	switch {
+	case h.vm.isTaskType(obj.TypeID):
+		h.vm.taskHandleReleased(asyncrt.TaskID(obj.Resource)) //nolint:gosec // positive, and task ids are executor-bounded
+	case h.vm.isChannelType(obj.TypeID):
+		h.vm.channelHandleReleased(asyncrt.ChannelID(obj.Resource)) //nolint:gosec // positive, and channel ids are executor-bounded
+	}
+}
+
+// channelHandleReleased is the last release of a channel handle: the heap word
+// every copy shared has just been freed, so nothing can send on or receive
+// from the channel again, and the object is destroyed the way RUNTIME_V2
+// section 7 says the last release destroys it -- every payload it still owns
+// is dropped here, not at process exit (RV2-DEBT-155 on the VM lane).
+//
+// The heap's own count IS the handle count on this lane: `eval.go` retains on
+// every copy of a resource word and `dropValue` releases on every drop, so the
+// object dying is exactly "no handle names the channel any more". A task still
+// parked on the channel holds a handle in its frame and keeps the count up, so
+// a parked waiter can never watch its channel disappear.
+func (vm *VM) channelHandleReleased(id asyncrt.ChannelID) {
+	if vm == nil || vm.Async == nil {
 		return
 	}
-	h.vm.taskHandleReleased(asyncrt.TaskID(obj.Resource)) //nolint:gosec // positive, and task ids are executor-bounded
+	for _, payload := range vm.Async.ChanDestroy(id) {
+		vm.transportRelease(payload)
+	}
 }

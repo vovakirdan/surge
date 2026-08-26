@@ -66,6 +66,14 @@ func (tc *typeChecker) registerTypeDecls(file *ast.File) {
 		}
 		if tc.isRuntimeHandleTypeDecl(itemID, typeItem) {
 			tc.types.MarkRuntimeHandleType(typeID)
+			// Of the runtime handle families only the channel's object is
+			// reference-counted by the runtime today (RUNTIME_V2 section 7,
+			// "Channel lifetime"): copying the handle retains, dropping a copy
+			// releases, the last release destroys. `Task` follows in D4b once
+			// its entitlement is settled; `Range` is single-owner.
+			if tc.lookupName(typeItem.Name) == "Channel" {
+				tc.types.MarkRefCountedHandleType(typeID)
+			}
 		}
 	}
 }

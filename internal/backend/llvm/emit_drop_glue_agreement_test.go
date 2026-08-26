@@ -42,12 +42,19 @@ const (
 	leafString        = "string"
 	leafCountedScalar = "counted scalar"
 	leafElementBuffer = "container element buffer"
+	// The runtime-owned objects a handle names, one family per release
+	// helper. They were one family, "opaque runtime resource", for as long
+	// as none of them had a release; the channel's arrival split it, because
+	// a family the glue reclaims has to be matched helper by helper.
+	leafChannelHandle = "channel handle"
+	leafTaskHandle    = "task handle"
+	leafMap           = "map"
+	leafRange         = "range"
 
-	// The two families a carrier descriptor will have to release and today's
-	// glue has no call for at all. They are named so that a fixture reaching
-	// one fails loudly instead of comparing two empty sets and passing.
-	leafFarLease        = "far lease"
-	leafRuntimeResource = "opaque runtime resource"
+	// The one family a carrier descriptor will have to release and today's
+	// glue has no call for at all. It is named so that a fixture reaching it
+	// fails loudly instead of comparing two empty sets and passing.
+	leafFarLease = "far lease"
 )
 
 // unreclaimedFamilies is the standing list of leaf families sema calls
@@ -57,8 +64,9 @@ const (
 //
 // A family leaves this list only when a reclamation for it is emitted, and the
 // day it does, both legs start failing until their rows are updated — which is
-// the intended amount of noise for a carrier family becoming real.
-var unreclaimedFamilies = []string{leafFarLease, leafRuntimeResource}
+// the intended amount of noise for a carrier family becoming real. The channel
+// left it on 2026-08-26 (RV2-DEBT-155): its release is `rt_channel_handle_drop`.
+var unreclaimedFamilies = []string{leafFarLease}
 
 func isUnreclaimedFamily(family string) bool {
 	for _, unreclaimed := range unreclaimedFamilies {
@@ -100,16 +108,23 @@ fn build() -> int {
 	return len(h.label):int + p.x;
 }
 
-// The two carrier families sema calls droppable and this backend has no
-// reclamation for. They are in the fixture so that the second leg asks about
-// them by name instead of leaving them to a future reader to discover.
+// The carrier families. The channel is reclaimed -- by the handle release,
+// as a root and as the field of Gate, which is RV2-DEBT-198's composite
+// holding a carrier, in the shape core/sync.sg gives every primitive. The far
+// handle is the one family this backend still has no reclamation for; it is
+// in the fixture so that the second leg asks about it by name instead of
+// leaving it to a future reader to discover.
 //
 // watcher is never called and touches nothing: a far handle only takes an
 // operation inside an accepted remote context, and the leg needs the far TYPE
 // to exist with a frozen layout, not a remote call.
+@copy type Gate = { ch: Channel<int> }
+
 fn carriers() -> int {
 	let ch: own Channel<int> = Channel::<int>::new(1:uint);
 	ch.close();
+	let g: Gate = Gate{ ch: Channel::<int>::new(1:uint) };
+	g.ch.close();
 	return 0;
 }
 
@@ -168,6 +183,11 @@ func TestDropGlueReachesTheLeavesSemaSaysAreThere(t *testing.T) {
 			families: []string{leafString, leafElementBuffer, leafCountedScalar},
 		},
 		{typeName: "ArrayFixed<string, const 2, 2>", families: []string{leafString}},
+		// The channel as a root and one level down. Both reach the handle
+		// release and nothing else: the ELEMENT type is the channel's to
+		// destroy through its own descriptor, not this glue's to walk.
+		{typeName: "Channel<int>", families: []string{leafChannelHandle}},
+		{typeName: "Gate", families: []string{leafChannelHandle}},
 	}
 
 	e, result := prepareEmitterAndResultForTest(t, dropGlueAgreementSource)
@@ -253,22 +273,17 @@ type emptyBodyRow struct {
 // the runtime's "droppable implies a drop function" invariant satisfied — and
 // leaks the value.
 //
-// The two carrier families this backend cannot reclaim are IN the table rather
-// than absent from it. Leaving them out would have made the leg say "six named
-// types are fine" while `Channel<int>` — the carrier family this wave is about
-// — was a one-line green-to-red counterexample sitting outside the list.
-//
-// WHAT THIS LEG STILL DOES NOT REACH, stated so the name is not read as more
-// than it is: a COMPOSITE THAT HOLDS a carrier. `type Box = { ch: Channel<int> }`
-// is droppable to sema — it holds a channel, which requires reclamation — and
-// gets an empty body, because the struct arm walks its fields and `emitDropHandle`
-// has no channel case. Such a row can be neither compared by the first leg nor
-// excused here: `leafFamilyOf` answers "" for any composite, and
-// `isUnreclaimedFamily("")` is false, so the excuse table cannot express it.
-// That matters because a carrier descriptor IS a synthesized struct holding a
-// channel, so this is the wave's own shape and not an exotic one. Tracked as
-// RV2-DEBT-198; it belongs with the owner migration that makes such a composite
-// reclaimable, not with a wider excuse table here.
+// The carrier family this backend cannot reclaim is IN the table rather than
+// absent from it. Leaving it out would have made the leg say "eight named
+// types are fine" while `far Channel<int>` was a one-line green-to-red
+// counterexample sitting outside the list. `Channel<int>` was the other such
+// row until its release existed; it is an ordinary row now, and so is Gate —
+// the COMPOSITE THAT HOLDS a carrier that RV2-DEBT-198 recorded as
+// unrepresentable here: `leafFamilyOf` answers "" for a composite, so the
+// excuse table could not name it, and the struct arm walked into an
+// `emitDropHandle` with no channel case and emitted a body that freed nothing.
+// The arm exists now, the first leg compares the row by the families of the
+// leaves it holds, and this leg refuses the empty body it used to get.
 func TestNoDroppableTypeGetsAnEmptyGlueBody(t *testing.T) {
 	rows := []emptyBodyRow{
 		{typeName: "string"},
@@ -282,17 +297,8 @@ func TestNoDroppableTypeGetsAnEmptyGlueBody(t *testing.T) {
 		// can still say "empty". Without it a detector that had quietly stopped
 		// recognising the shape would report no violation and read as a pass.
 		{typeName: "Point"},
-		{
-			typeName: "Channel<int>",
-			excused: "opaque runtime resource. Sema calls a handle-backed value droppable because " +
-				"the handle names storage the runtime holds, but nothing gives that storage back " +
-				"here: `emitDropHandle` has a call for a string, a counted scalar and a dynamic " +
-				"array and none for a channel, a task or a map, and `typeOwnsHeap` answers false " +
-				"for all three so no walk would reach one either. Closing this is a change to BOTH " +
-				"legs of the OwnsHeap axis at once — the release has to exist before the walk may " +
-				"claim the storage is owned — which is why it is recorded here instead of widened " +
-				"in the arm alone",
-		},
+		{typeName: "Channel<int>"},
+		{typeName: "Gate"},
 		{
 			typeName: "far Channel<int>",
 			excused: "far lease. A far handle holds a lease the owning shard has to be told about, " +
@@ -472,17 +478,28 @@ func leafFamilyOf(typesIn *types.Interner, id types.TypeID) string {
 	switch {
 	case typesIn.IsRefCountedScalar(resolved):
 		return leafCountedScalar
+	case typesIn.IsRefCountedHandle(resolved):
+		return leafChannelHandle
 	case tt.Kind == types.KindString:
 		return leafString
 	case isDynamicElementBuffer(typesIn, resolved):
 		return leafElementBuffer
 	case tt.Kind == types.KindFar:
 		return leafFarLease
+	case isTaskType(typesIn, resolved):
+		return leafTaskHandle
+	case isMapType(typesIn, resolved):
+		return leafMap
 	}
-	if _, handleBacked := typesIn.RuntimeHandlePayloads(resolved); handleBacked {
-		return leafRuntimeResource
+	if _, isRange := rangeElemType(typesIn, resolved); isRange {
+		return leafRange
 	}
 	return ""
+}
+
+func isMapType(typesIn *types.Interner, resolved types.TypeID) bool {
+	_, _, isMap := typesIn.MapInfo(resolved)
+	return isMap
 }
 
 // isDynamicElementBuffer reports the container that owns a resizable element
@@ -510,10 +527,14 @@ var runtimeCall = regexp.MustCompile(`call [^@]*@(rt_[A-Za-z0-9_]+)\(`)
 // this test rather than being ignored, because a new leaf family the glue
 // learns to reclaim is precisely what the comparison must be extended for.
 var leafFamilyByHelper = map[string]string{
-	"rt_string_free":      leafString,
-	"rt_bigfloat_release": leafCountedScalar,
-	"rt_array_free":       leafElementBuffer,
-	"rt_array_free_elems": leafElementBuffer,
+	"rt_string_free":         leafString,
+	"rt_bigfloat_release":    leafCountedScalar,
+	"rt_array_free":          leafElementBuffer,
+	"rt_array_free_elems":    leafElementBuffer,
+	"rt_channel_handle_drop": leafChannelHandle,
+	"rt_task_handle_drop":    leafTaskHandle,
+	"rt_map_free":            leafMap,
+	"rt_range_free":          leafRange,
 }
 
 // emittedLeafFamilies is the backend's side: the families the emitted glue

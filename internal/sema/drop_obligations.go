@@ -66,12 +66,17 @@ func (tc *typeChecker) pushDropScope(functionRoot bool) {
 // reference for the whole call — the parameter merely borrows, and dropping it
 // in the callee would release a reference the callee never acquired.
 //
-// The exception is written as "reference-counted scalar", not "Copy", and the
+// The exception is written as "reference-counted", not "Copy", and the
 // difference became load-bearing when value composites became droppable. A
 // composite argument is CLONED at the call — the caller keeps its own value and
 // the callee receives an independent one — so the callee genuinely owns what it
 // was handed and must drop it. Excluding it as merely-Copy would abandon that
 // clone on every call, silently, in a way no test of independence can see.
+//
+// A reference-counted HANDLE (`Channel<T>`) is the scalar's twin here: the
+// caller keeps its binding and its reference, the callee reads through the
+// same word for the call's duration, and RUNTIME_V2 section 11 asks exactly
+// this of request-path code — a call must not touch the shared count.
 func (tc *typeChecker) paramTransfersOwnership(id types.TypeID) bool {
 	if !tc.isDroppableType(id) {
 		return false
@@ -79,7 +84,23 @@ func (tc *typeChecker) paramTransfersOwnership(id types.TypeID) bool {
 	if tc.types == nil {
 		return true
 	}
-	return !tc.types.IsRefCountedScalar(tc.resolveAlias(id))
+	return !tc.types.IsRefCounted(tc.resolveAlias(id))
+}
+
+// paramIsRetainedIntoFrame reports the one shape where a borrowed by-value
+// parameter still leaves the callee owing a release: an ASYNC function's
+// reference-counted parameter. The task outlives the call that created it, so
+// its initial frame takes a reference of its own
+// (`operandForAsyncInitialStateStore` reads the parameter with RETAIN), and
+// that reference is the poll body's to give back at every exit — nothing else
+// ever sees it. Without this obligation the frame's reference was simply
+// abandoned: a `float` or a `Channel<T>` handed to an `async fn` by value
+// kept its block, or its channel, alive for the rest of the process.
+func (tc *typeChecker) paramIsRetainedIntoFrame(fn *ast.FnItem, id types.TypeID) bool {
+	if fn == nil || fn.Flags&ast.FnModifierAsync == 0 || tc.types == nil {
+		return false
+	}
+	return tc.isDroppableType(id) && tc.types.IsRefCounted(tc.resolveAlias(id))
 }
 
 // registerDroppableParams registers a function's by-value owned params
@@ -90,7 +111,11 @@ func (tc *typeChecker) registerDroppableParams(fn *ast.FnItem, scope symbols.Sco
 		return
 	}
 	register := func(symID symbols.SymbolID) {
-		if !symID.IsValid() || !tc.paramTransfersOwnership(tc.bindingType(symID)) {
+		if !symID.IsValid() {
+			return
+		}
+		ty := tc.bindingType(symID)
+		if !tc.paramTransfersOwnership(ty) && !tc.paramIsRetainedIntoFrame(fn, ty) {
 			return
 		}
 		tc.registerDroppableBinding(symID)
@@ -203,13 +228,14 @@ func (tc *typeChecker) isProjectionRead(expr ast.ExprID) bool {
 // still owns what it read.
 //
 // It does for the values that live INSIDE their container: a field of a struct,
-// an element of an array. It does NOT for a reference-counted scalar, and that
-// exception is what keeps sema in step with the lowering. Such a value is a
-// COPY at the surface and a counted block underneath, so the read takes a
-// reference of its own (`retainExtractedValue`, which every projection read
-// emits) and the binding holding it is a real owner. Marked as an alias, the
-// binding kept that reference and released nothing — `let f = b.value` on a
-// `float` field leaked one block per evaluation.
+// an element of an array. It does NOT for a reference-counted value — a
+// scalar or a channel handle — and that exception is what keeps sema in step
+// with the lowering. Such a value is a COPY at the surface and counted
+// underneath, so the read takes a reference of its own
+// (`retainExtractedValue`, which every projection read emits) and the binding
+// holding it is a real owner. Marked as an alias, the binding kept that
+// reference and released nothing — `let f = b.value` on a `float` field
+// leaked one block per evaluation.
 func (tc *typeChecker) projectionReadAliasesItsSource(expr ast.ExprID, ty types.TypeID) bool {
 	if !tc.isProjectionRead(expr) || tc.partialMoveRead(expr) {
 		return false
@@ -238,7 +264,7 @@ func (tc *typeChecker) projectionReadAliasesItsSource(expr ast.ExprID, ty types.
 	if tc.mintsOwnedValue(expr) {
 		return false
 	}
-	if tc.types != nil && tc.types.IsRefCountedScalar(tc.resolveAlias(ty)) {
+	if tc.types != nil && tc.types.IsRefCounted(tc.resolveAlias(ty)) {
 		return false
 	}
 	return true

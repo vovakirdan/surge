@@ -178,11 +178,14 @@ func (e *Emitter) emitMoveInitBody(entry *valueops.Entry) {
 //
 // They differ for one family and one reason: the classifier states a carrier's
 // drop OBLIGATION, while DROPPABLE means what the manifest says it means --
-// drop_in_place is present and has work to do. For an opaque runtime resource
-// (a channel, a task handle) the obligation is real and this backend has no
-// reclamation for the leaf, so the bit comes off and the descriptor ships
-// without it. That is not a weaker claim than the truth: it is the truth the
-// channel already implements, where such an element's drop id is zero.
+// drop_in_place is present and has work to do. For a far handle the obligation
+// is real and this backend has no reclamation for the leaf -- returning the
+// lease is a remote message, Wave E's -- so the bit comes off and the
+// descriptor ships without it. That is not a weaker claim than the truth. The
+// local channel and the task handle used to be in this family too; they left
+// it when their release existed (`rt_channel_handle_drop`,
+// `rt_task_handle_drop`), and a channel element's descriptor now carries the
+// drop body that reclaims it.
 //
 // The alternative -- withholding the descriptor entirely -- was what this
 // emitter did until the typed constructor needed a descriptor for layout and
