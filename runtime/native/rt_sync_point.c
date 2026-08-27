@@ -133,6 +133,8 @@ static const char* rt_sp_name(rt_sync_point_id id) {
             return "SP_SLEEP_FIRED_BEFORE_WAKE";
         case RT_SYNC_POINT_SP_SCOPE_FAILFAST_JOIN_BEFORE_VERIFY:
             return "SP_SCOPE_FAILFAST_JOIN_BEFORE_VERIFY";
+        case RT_SYNC_POINT_SP_ASYNC_RETURN_BEFORE_SUCCESS_COMMIT:
+            return "SP_ASYNC_RETURN_BEFORE_SUCCESS_COMMIT";
         default:
             return "";
     }

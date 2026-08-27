@@ -179,6 +179,15 @@ typedef enum rt_sync_point_id {
     // set and count retired, under one lock -- inside the window the verify
     // must read whole (RV2-DEBT-261).
     RT_SYNC_POINT_SP_SCOPE_FAILFAST_JOIN_BEFORE_VERIFY,
+    // rt_async_return: reached after the body's value has been moved into the
+    // task's own result slot and committed there, and before the success
+    // outcome is handed to the scheduler. A driver cancelling the task while it
+    // is held here lands the cancellation strictly after the last suspension
+    // point this task will ever have -- so nothing in the poll can still
+    // observe it -- and strictly before mark_done chooses the kind to commit.
+    // That gap is the whole of RV2-DEBT-263: the commit boundary is the only
+    // place left that can still answer Cancelled.
+    RT_SYNC_POINT_SP_ASYNC_RETURN_BEFORE_SUCCESS_COMMIT,
     RT_SYNC_POINT_COUNT
 } rt_sync_point_id;
 
@@ -388,6 +397,26 @@ void rt_sync_point_open(void);
 #define RT_DEBT261_VERIFY_FAILFAST_OUT(failfast) ((void)(failfast), (bool*)NULL)
 #else
 #define RT_DEBT261_VERIFY_FAILFAST_OUT(failfast) (failfast)
+#endif
+
+// RV2-DEBT-263 negative-control toggle. A task's answer is decided at the
+// moment its completion commits, not by whoever carried the kind into
+// mark_done: `cancel` through a live handle is task-global and, before
+// committed success, must be observed by every awaited entitlement
+// (23-storage-model-and-typed-carrier-abi.md, "before committed success it
+// requests cancellation observed by every awaited entitlement"). The fix reads
+// the cancelled flag at that boundary and commits Cancelled instead of Success.
+// Defining the negative control commits the kind as brought -- the pre-fix
+// shape, in which a task cancelled after its last suspension point still
+// answers Success -- which the deterministic proof MUST observe.
+//
+// The toggle sits on the DECISION only: the seq-cst load beside it is still
+// performed either way, so the negative control cannot pass by changing the
+// ordering the proof is built on.
+#ifdef RV2_DEBT_263_NEGATIVE_CONTROL
+#define RT_DEBT263_COMMIT_CANCELLED(observed) ((void)(observed), 0)
+#else
+#define RT_DEBT263_COMMIT_CANCELLED(observed) (observed)
 #endif
 
 #endif // RT_SYNC_POINT_H

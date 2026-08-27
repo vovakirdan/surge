@@ -361,6 +361,14 @@ void rt_async_return(void* state, void* src) {
             panic_msg("async: a task's result could not be published");
             return;
         }
+        // RV2-DEBT-263 proof window. The body has produced its value and the
+        // slot holds it; the scheduler has not been told the outcome yet. A
+        // cancel landing here is past every suspension point this task will
+        // ever have (rt_task_poll's TASK_DONE fast path answers from the target
+        // and never consults the awaiter's flag), so the only thing left that
+        // can still make this task answer Cancelled is mark_done's commit
+        // boundary.
+        RT_SYNC_POINT(SP_ASYNC_RETURN_BEFORE_SUCCESS_COMMIT);
     }
     poll_result.state = state;
     poll_result.kind = POLL_DONE_SUCCESS;

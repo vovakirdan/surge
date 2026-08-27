@@ -162,6 +162,12 @@ void __surge_poll_call(uint64_t id) {
         case POLL_DEBT261_SCOPE_OWNER:
             poll_debt261_scope_owner();
             break;
+        case POLL_DEBT263_CANCELLED_CHILD:
+            poll_debt263_cancelled_child();
+            break;
+        case POLL_DEBT263_SCOPE_OWNER:
+            poll_debt263_scope_owner();
+            break;
         case POLL_DEBT020_GAP_JOINER:
             poll_debt020_gap_joiner();
             break;
@@ -469,6 +475,9 @@ int main(int argc, char** argv) {
     }
     if (strcmp(argv[1], "debt261-failfast-join-verify") == 0) {
         return mode_debt261_failfast_join_verify(ex);
+    }
+    if (strcmp(argv[1], "debt263-cancel-commit-boundary") == 0) {
+        return mode_debt263_cancel_commit_boundary(ex);
     }
 #endif
     return fail("unknown mode");
