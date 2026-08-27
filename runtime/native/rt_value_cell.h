@@ -108,6 +108,23 @@ uint64_t rt_value_cell_generation(const rt_value_cell* cell);
 // the element's drop, so no runtime lock may be held.
 void rt_value_cell_dispose(rt_value_cell* cell);
 
+// Hands the value to a caller that will destroy it LATER, and leaves the cell
+// reading "already taken" straight away.
+//
+// It exists for the one caller that must separate those two moments: a
+// completion that refuses the value its body produced (RV2-DEBT-263) may not
+// run the drop where it makes that decision, because a scheduler lock may be
+// held there (rule 8 P2) -- but it must empty the slot before it publishes
+// TASK_DONE, or a reader downstream is offered a value by a task that answers
+// Cancelled. `out_owns_block` says which kind of storage came back: a block the
+// cell allocated, which the caller now owns whole and must drop AND free, or
+// bytes inside the cell itself, which the caller drops in place and must never
+// free, and which stay valid only as long as the cell's owner does. Returns
+// NULL when there was no value, leaving the cell untouched.
+void* rt_value_cell_hand_off(rt_value_cell* cell,
+                             const rt_value_ops** out_operations,
+                             int* out_owns_block);
+
 // Destroys a heap allocation the runtime holds ONE of, and frees it: the
 // members through the type's own drop, then the storage at the width and
 // alignment that type asks for.

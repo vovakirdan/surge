@@ -102,7 +102,8 @@ func buildRuntimeV2LifecycleHarnessWithFlags(t *testing.T, name string, extraFla
 		lifecycleHarnessScopeAndShutdown + lifecycleHarnessPlacementAdoption + lifecycleHarnessScopeCrossOwner +
 		lifecycleHarnessSyncPointModes + lifecycleHarnessReadyRequeueModes +
 		lifecycleHarnessSleepPublishModes + lifecycleHarnessParkAbortModes +
-		lifecycleHarnessFailfastJoinModes + lifecycleHarnessCancelCommitModes + lifecycleHarnessMain
+		lifecycleHarnessFailfastJoinModes + lifecycleHarnessCancelCommitModes +
+		lifecycleHarnessCancelSealModes + lifecycleHarnessMain
 	if writeErr := os.WriteFile(harnessPath, []byte(source), 0o600); writeErr != nil {
 		t.Fatalf("write harness: %v", writeErr)
 	}
@@ -316,7 +317,7 @@ static rt_task* alloc_ready_task(rt_executor* ex, int64_t poll_fn_id) {
     task->poll_fn_id = poll_fn_id;
     task->kind = TASK_KIND_USER;
     task_status_store(task, TASK_READY);
-    task_cancelled_store(task, 0);
+    task_cancel_gate_init(task);
     task_enqueued_store(task, 0);
     (void)task_wake_token_exchange(task, 0);
     atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);

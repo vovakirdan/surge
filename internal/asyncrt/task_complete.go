@@ -28,38 +28,37 @@ func (e *Executor[P]) commitKind(task *Task[P], kind TaskResultKind) TaskResultK
 	return kind
 }
 
-// CommitKindFor reports the kind MarkDone would commit for this task, so a
-// caller holding an OWNED payload can ask before it hands it over.
+// MarkDone marks a task as completed and wakes join waiters, and RETURNS any
+// payload the commit refused.
 //
-// This executor is generic over the payload and cannot destroy one; a value a
-// completion refuses has to go back to the lane that knows how (the VM's
-// dropValue). Asking first is what keeps that lane from leaking it, and both
-// answers come from commitKind so the two cannot drift apart.
-func (e *Executor[P]) CommitKindFor(id TaskID, kind TaskResultKind) TaskResultKind {
+// The return is not a convenience. This executor is generic over its payload
+// and cannot destroy one, so a value the commit will not keep has exactly two
+// possible fates: back to the lane that knows how to destroy it, or lost. The
+// signature makes the first one the only one a caller can spell -- handing the
+// value over and getting nothing back would be the leak, and `refused, ok :=`
+// at the call site is a reviewable line. (`ok` is false, and `refused` the
+// payload's zero value, on every ordinary commit.)
+func (e *Executor[P]) MarkDone(id TaskID, kind TaskResultKind, result P) (P, bool) {
+	var refused P
 	if e == nil {
-		return kind
-	}
-	return e.commitKind(e.tasks[id], kind)
-}
-
-// MarkDone marks a task as completed and wakes join waiters.
-func (e *Executor[P]) MarkDone(id TaskID, kind TaskResultKind, result P) {
-	if e == nil {
-		return
+		return refused, false
 	}
 	task := e.tasks[id]
 	if task == nil {
-		return
+		return refused, false
 	}
-	// RV2-DEBT-263: the kind is decided HERE, at the commit. A refused value is
-	// not kept -- a Cancelled task has no result, and holding one would leave a
-	// payload no reader may take and no owner will destroy. The caller asks
-	// CommitKindFor first when it owns something that needs destroying.
-	kind = e.commitKind(task, kind)
-	if kind == TaskResultCancelled {
+	// RV2-DEBT-263: the kind is decided HERE, at the commit, and a Cancelled
+	// task keeps no result -- holding one would leave a payload no reader may
+	// take and no owner will destroy.
+	committed := e.commitKind(task, kind)
+	givenBack := false
+	if committed == TaskResultCancelled && kind == TaskResultSuccess {
+		refused = result
+		givenBack = true
 		var none P
 		result = none
 	}
+	kind = committed
 	task.ResultKind = kind
 	task.ResultValue = result
 	task.Status = TaskDone
@@ -78,6 +77,7 @@ func (e *Executor[P]) MarkDone(id TaskID, kind TaskResultKind, result P) {
 	}
 	e.unregisterScopeChild(task)
 	e.WakeKeyAll(JoinKey(id))
+	return refused, givenBack
 }
 
 // Cancel marks a task (and its descendants) as cancelled.

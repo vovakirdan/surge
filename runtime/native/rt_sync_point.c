@@ -135,6 +135,8 @@ static const char* rt_sp_name(rt_sync_point_id id) {
             return "SP_SCOPE_FAILFAST_JOIN_BEFORE_VERIFY";
         case RT_SYNC_POINT_SP_ASYNC_RETURN_BEFORE_SUCCESS_COMMIT:
             return "SP_ASYNC_RETURN_BEFORE_SUCCESS_COMMIT";
+        case RT_SYNC_POINT_SP_MARKDONE_AFTER_SEAL_BEFORE_DONE:
+            return "SP_MARKDONE_AFTER_SEAL_BEFORE_DONE";
         default:
             return "";
     }

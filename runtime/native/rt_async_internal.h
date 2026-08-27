@@ -672,15 +672,24 @@ static inline void task_enqueued_store(rt_task* task, uint8_t value) {
     atomic_store_explicit(&task->enqueued, value, memory_order_release);
 }
 
+// The cancel gate (RV2-DEBT-263). `task->cancelled` is not a flag but a
+// three-state word, and a cancel and a completion each move it with ONE
+// compare-and-swap out of OPEN: whichever gets there first wins, and the loser's
+// CAS fails. rt_task_complete.c owns both transitions and states the argument.
+// REQUESTED is the only state that means "a cancel is outstanding", so every
+// reader of task_cancelled_load below keeps the meaning it always had: a task
+// whose completion sealed the word is committing its answer, not cancelled.
+enum { RT_TASK_CANCEL_OPEN = 0, RT_TASK_CANCEL_REQUESTED = 1, RT_TASK_CANCEL_SEALED = 2 };
+
 static inline uint8_t task_cancelled_load(const rt_task* task) {
-    return task == NULL ? 1 : atomic_load_explicit(&task->cancelled, memory_order_acquire);
+    return task == NULL ||
+           atomic_load_explicit(&task->cancelled, memory_order_acquire) == RT_TASK_CANCEL_REQUESTED;
 }
 
-static inline void task_cancelled_store(rt_task* task, uint8_t value) {
-    if (task == NULL) {
-        return;
-    }
-    atomic_store_explicit(&task->cancelled, value, memory_order_release);
+// Opens the gate on a task being created. Every caller has just allocated the
+// task and dereferenced it, so there is no NULL case to answer for here.
+static inline void task_cancel_gate_init(rt_task* task) {
+    atomic_store_explicit(&task->cancelled, RT_TASK_CANCEL_OPEN, memory_order_release);
 }
 
 static inline uint8_t task_wake_token_exchange(rt_task* task, uint8_t value) {
@@ -944,6 +953,10 @@ void rt_channel_reclaim_drain(void);
 // Frees the tasks whose reclamation had to wait for this lane to hold no
 // scheduler lock, because freeing one destroys its result.
 void rt_task_reclaim_drain(void);
+// Empties the result slot of a completion that refused the value its body
+// produced, destroying it once this lane holds no scheduler lock
+// (RV2-DEBT-263).
+void rt_task_result_refuse(rt_executor* ex, rt_task* task);
 
 int current_task_cancelled(rt_executor* ex);
 void cancel_task(rt_executor* ex, uint64_t id);

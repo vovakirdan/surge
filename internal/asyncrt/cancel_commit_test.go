@@ -29,7 +29,14 @@ func TestMarkDoneCommitsCancelledForACancelledTask(t *testing.T) {
 		t.Fatalf("expected the child to carry the cancel, got %+v", childTask)
 	}
 
-	exec.MarkDone(child, TaskResultSuccess, "the body's value")
+	refused, givenBack := exec.MarkDone(child, TaskResultSuccess, "the body's value")
+	// The refused value must come BACK, not vanish: this executor is generic
+	// over its payload and cannot destroy one, so a value it silently zeroed
+	// would be a value with no owner left.
+	if !givenBack || refused != "the body's value" {
+		t.Fatalf("the commit did not hand back the value it refused: refused=%q givenBack=%v",
+			refused, givenBack)
+	}
 
 	if childTask.ResultKind != TaskResultCancelled {
 		t.Fatalf("a cancelled task committed kind %v, want %v",
@@ -56,7 +63,11 @@ func TestMarkDoneKeepsSuccessForATaskNobodyCancelled(t *testing.T) {
 	child := exec.Spawn(2, nil)
 	exec.RegisterChild(scopeID, child)
 
-	exec.MarkDone(child, TaskResultSuccess, "the body's value")
+	refused, givenBack := exec.MarkDone(child, TaskResultSuccess, "the body's value")
+	if givenBack || refused != "" {
+		t.Fatalf("an ordinary commit handed a value back: refused=%q givenBack=%v",
+			refused, givenBack)
+	}
 
 	childTask := exec.tasks[child]
 	if childTask == nil || childTask.ResultKind != TaskResultSuccess {
@@ -70,28 +81,19 @@ func TestMarkDoneKeepsSuccessForATaskNobodyCancelled(t *testing.T) {
 	}
 }
 
-// CommitKindFor is what lets a caller holding an OWNED payload ask before it
-// hands it over -- the VM's Values must be destroyed by the VM, not dropped on
-// the floor by a generic executor. It must answer exactly what MarkDone will
-// do, or the two drift and a refused value leaks.
-func TestCommitKindForAgreesWithMarkDone(t *testing.T) {
+// A commit that was ALREADY answering Cancelled hands nothing back: its caller
+// passed no value in, and inventing one to give back would be a second owner
+// for a payload that never had a first.
+func TestMarkDoneHandsBackNothingForACancelledCommit(t *testing.T) {
 	exec := NewExecutor[string](Config{Deterministic: true})
-	cancelled := exec.Spawn(1, nil)
-	exec.Cancel(cancelled)
-	live := exec.Spawn(2, nil)
+	task := exec.Spawn(1, nil)
 
-	if got := exec.CommitKindFor(cancelled, TaskResultSuccess); got != TaskResultCancelled {
-		t.Fatalf("CommitKindFor(cancelled, Success) = %v, want %v", got, TaskResultCancelled)
+	refused, givenBack := exec.MarkDone(task, TaskResultCancelled, "")
+	if givenBack || refused != "" {
+		t.Fatalf("a Cancelled commit handed a value back: refused=%q givenBack=%v",
+			refused, givenBack)
 	}
-	if got := exec.CommitKindFor(live, TaskResultSuccess); got != TaskResultSuccess {
-		t.Fatalf("CommitKindFor(live, Success) = %v, want %v", got, TaskResultSuccess)
-	}
-	exec.MarkDone(cancelled, TaskResultSuccess, "refused")
-	exec.MarkDone(live, TaskResultSuccess, "kept")
-	if exec.tasks[cancelled].ResultKind != exec.CommitKindFor(cancelled, TaskResultSuccess) {
-		t.Fatalf("MarkDone and CommitKindFor disagreed for the cancelled task")
-	}
-	if exec.tasks[live].ResultKind != TaskResultSuccess {
-		t.Fatalf("MarkDone and CommitKindFor disagreed for the live task")
+	if exec.tasks[task].ResultKind != TaskResultCancelled {
+		t.Fatalf("a Cancelled commit did not commit Cancelled: %+v", exec.tasks[task])
 	}
 }

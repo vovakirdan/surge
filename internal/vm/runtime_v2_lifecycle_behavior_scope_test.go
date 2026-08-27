@@ -400,9 +400,10 @@ static int mode_scope_failfast(rt_executor* ex) {
     }
     rt_task* victim = (rt_task*)atomic_load_explicit(&g_failfast_victim, memory_order_acquire);
     rt_task* sibling = (rt_task*)atomic_load_explicit(&g_failfast_sibling, memory_order_acquire);
-    // Cancel while still READY: task_cancelled_store is unconditional
-    // (rt_async_state.c:1466-1469), so this is safe before victim is ever
-    // scheduled. Peeked via task_status_load only -- no rt_task_await/
+    // Cancel while still READY: the cancel gate is OPEN until a cancel or the
+    // task's own completion moves it (rt_task_complete.c), so a cancel here
+    // wins uncontested, before victim is ever scheduled. Peeked via
+    // task_status_load only -- no rt_task_await/
     // task_release on victim's handle here, since the owner's poll function
     // (phase 1) also holds and dereferences this same raw pointer; releasing
     // it from this driver first would race the owner's own use of it.

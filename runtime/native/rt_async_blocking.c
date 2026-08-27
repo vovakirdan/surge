@@ -324,7 +324,7 @@ void* rt_blocking_submit(uint64_t fn_id,
     task->state = NULL;
     task_status_store(task, TASK_READY);
     task->kind = TASK_KIND_BLOCKING;
-    task_cancelled_store(task, 0);
+    task_cancel_gate_init(task);
     task_enqueued_store(task, 0);
     (void)task_wake_token_exchange(task, 0);
     atomic_store_explicit(&task->remote_handle_state, 0, memory_order_relaxed);

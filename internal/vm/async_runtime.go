@@ -321,16 +321,14 @@ func (vm *VM) runReadyOne() (bool, *VMError) {
 		// carrying Success -- execTermAsyncReturn publishes PollDoneSuccess
 		// unconditionally and pollTask's DONE fast path answers from the
 		// TARGET, so the body never had a suspension left to see the cancel at.
-		// Ask the executor what it will commit BEFORE handing the value over: a
-		// refused value is this lane's to destroy, because the executor is
-		// generic over the payload and cannot destroy one.
-		kind := exec.CommitKindFor(id, asyncrt.TaskResultSuccess)
-		result := outcome.Value
-		if kind != asyncrt.TaskResultSuccess {
-			vm.dropValue(result)
-			result = Value{}
+		// A value the commit refuses comes back HERE, because the executor is
+		// generic over its payload and only this lane can destroy one. It is
+		// destroyed at the commit, which is where the native runtime destroys
+		// it too (rt_task_result_refuse) -- the two lanes agree on the moment,
+		// not just on the answer.
+		if refused, ok := exec.MarkDone(id, asyncrt.TaskResultSuccess, outcome.Value); ok {
+			vm.dropValue(refused)
 		}
-		exec.MarkDone(id, kind, result)
 		// Completion is the second moment a result can become unclaimable: the
 		// cohort may already have emptied while the task was still running.
 		vm.taskCompleted(id)

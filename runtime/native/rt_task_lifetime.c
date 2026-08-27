@@ -7,6 +7,7 @@
 
 #include "rt_async_internal.h"
 #include "rt_remote_task.h"
+#include "rt_value_ops.h"
 
 void task_add_ref(rt_task* task) {
     if (task == NULL) {
@@ -118,36 +119,92 @@ static void free_task_when_unlocked(rt_executor* ex, rt_task* task) {
 typedef struct {
     const rt_value_ops* operations;
     void* storage;
+    // The task whose own bytes `storage` points into, or NULL when the block is
+    // an allocation the release must also free. A refused task result that fits
+    // inline lives in the task (RV2-DEBT-263), so the deferral pins it: the
+    // drop must not reach for bytes a reclaim has already given back.
+    rt_task* inline_owner;
 } rt_deferred_block;
 
 static _Thread_local rt_deferred_block deferred_blocks[RT_DEFERRED_BLOCK_SLOTS];
 static _Thread_local size_t deferred_block_count;
 
-void rt_release_owned_block_when_unlocked(const rt_value_ops* operations, void* storage) {
-    if (operations == NULL || storage == NULL) {
-        return;
-    }
-    if ((!rt_lane_holds_control() && !rt_lane_holds_any_shard()) ||
-        deferred_block_count == RT_DEFERRED_BLOCK_SLOTS) {
+static void deferred_block_release(rt_deferred_block* block) {
+    const rt_value_ops* operations = block->operations;
+    void* storage = block->storage;
+    rt_task* owner = block->inline_owner;
+    block->operations = NULL;
+    block->storage = NULL;
+    block->inline_owner = NULL;
+    if (owner == NULL) {
         rt_value_release_owned_block(operations, storage);
         return;
     }
-    deferred_blocks[deferred_block_count].operations = operations;
-    deferred_blocks[deferred_block_count].storage = storage;
+    // Inline bytes: drop the value where it lies, never free it, then give back
+    // the pin that kept those bytes addressable.
+    rt_value_drop_in_place_detached(operations, storage);
+    task_release_lane_aware(task_reclaim_executor, owner);
+}
+
+static void
+release_when_unlocked(const rt_value_ops* operations, void* storage, rt_task* inline_owner) {
+    if (operations == NULL || storage == NULL) {
+        return;
+    }
+    rt_deferred_block block = {operations, storage, inline_owner};
+    if ((!rt_lane_holds_control() && !rt_lane_holds_any_shard()) ||
+        deferred_block_count == RT_DEFERRED_BLOCK_SLOTS) {
+        deferred_block_release(&block);
+        return;
+    }
+    deferred_blocks[deferred_block_count] = block;
     deferred_block_count++;
+}
+
+void rt_release_owned_block_when_unlocked(const rt_value_ops* operations, void* storage) {
+    release_when_unlocked(operations, storage, NULL);
+}
+
+// A completion that refused the value its body produced (RV2-DEBT-263).
+//
+// The slot is emptied HERE, synchronously, because what comes after in
+// mark_done can NAME it: rt_remote_task_on_owner_done answers a far await with
+// a capability that points at this very cell, and the caller then moves the
+// value out of it -- into storage whose generated Cancelled arm never reads it.
+// A task that answers Cancelled must therefore hold no value by the time
+// TASK_DONE is published, which restores the invariant every reader of a result
+// slot already relies on. The DESTRUCTION is what waits: it runs the value's own
+// drop, which may not run under a scheduler lock (rule 8 P2).
+void rt_task_result_refuse(rt_executor* ex, rt_task* task) {
+    if (ex == NULL || task == NULL) {
+        return;
+    }
+    const rt_value_ops* operations = NULL;
+    int owns_block = 0;
+    void* storage = rt_value_cell_hand_off(&task->result, &operations, &owns_block);
+    if (storage == NULL) {
+        return;
+    }
+    if (owns_block) {
+        release_when_unlocked(operations, storage, NULL);
+        return;
+    }
+    // The bytes are the task's own. Pin it so the deferral cannot outlive them;
+    // deferred_block_release gives the pin back after the drop.
+    task_add_ref(task);
+    task_reclaim_executor = ex;
+    release_when_unlocked(operations, storage, task);
 }
 
 // Called by the lane the moment it releases its last scheduler lock, so nothing
 // is held here by construction.
 void rt_task_reclaim_drain(void) {
+    // Blocks first, tasks second, and the order is load-bearing: a refused
+    // result that lived inline in a task releases that task's pin, which can
+    // push it onto the reclaim list this loop then drains.
     while (deferred_block_count > 0) {
         deferred_block_count--;
-        rt_deferred_block* block = &deferred_blocks[deferred_block_count];
-        const rt_value_ops* operations = block->operations;
-        void* storage = block->storage;
-        block->operations = NULL;
-        block->storage = NULL;
-        rt_value_release_owned_block(operations, storage);
+        deferred_block_release(&deferred_blocks[deferred_block_count]);
     }
     while (task_reclaim_head != NULL) {
         rt_task* task = task_reclaim_head;

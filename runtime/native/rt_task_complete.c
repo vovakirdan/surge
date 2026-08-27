@@ -39,30 +39,58 @@ int current_task_cancelled(rt_executor* ex) {
     return task != NULL && task_cancelled_load(task) != 0;
 }
 
-// The two halves of ONE decision (RV2-DEBT-263): which kind a task commits.
+// The cancel gate (RV2-DEBT-263): ONE word, two claimants, one RMW each.
 //
-// A cancel and a completion race for it, and this module owns both sides --
-// cancel_task publishes the flag, mark_done reads it -- which is why the two
-// accessors live here and not beside the ordinary release/acquire pair in
-// rt_async_internal.h. Ordinary release/acquire is not enough. cancel_task
-// stores the flag and then loads the status; mark_done loads the flag and then
-// stores TASK_DONE. With release/acquire both can miss: the cancel sees a
-// not-yet-DONE task and the completion sees a not-yet-set flag, and the task
-// commits Success while its canceller believes it was cancelled. Sequential
-// consistency on all four accesses forbids exactly that pair -- it would be a
-// cycle in the single total order -- so at least one side sees the other. It is
-// the same StoreLoad hazard docs/RUNTIME_V2.md section 8 states for the shard
-// park race ("a release/acquire pair is insufficient for this park race") and
-// the protocol RV2-DEBT-022 already pays for on done_waiters.
+// A cancel and a completion decide one thing between them -- which kind a task
+// commits -- and exactly one of them must win. This module owns both sides,
+// which is why both transitions live here. Each side moves task->cancelled with
+// a compare-and-swap OUT OF the open state:
 //
-// mark_done's TASK_DONE store is the completion side's seq-cst half and is
-// already written that way (rt_task_status_store_done_for_external_awaiters).
-static void task_cancel_publish(rt_task* task) {
-    atomic_store_explicit(&task->cancelled, 1, memory_order_seq_cst);
+//   cancel_task  CAS OPEN -> REQUESTED   the cancel got here first
+//   mark_done    CAS OPEN -> SEALED      the result got here first
+//
+// Why that is enough, and why fences are not. Read-modify-writes on ONE atomic
+// object are totally ordered by that object's modification order, and a CAS
+// reads the value written by the modification immediately before it in that
+// order (C11 5.1.2.4). Whichever of the two appears first therefore reads OPEN
+// and moves the word; the other reads REQUESTED or SEALED and fails. So "both
+// sides believed they won" has no execution at all -- there is no window to
+// make narrow, because there is no window.
+//
+// A pair of ordered plain accesses does NOT give that, and the first shape of
+// this fix wrongly claimed it did: it paired a store-then-load on the cancel
+// side with a LOAD-then-store on the completion side, and
+// L(cancelled)=OPEN, S(cancelled=REQUESTED), L(status)=RUNNING, S(status=DONE)
+// is an ordinary interleaving rather than a cycle -- it is simply the real-time
+// order M.load, C.store, C.load, M.store. Sequential consistency forbids only
+// the store-then-load pair on BOTH sides, which is the shape section 8 of
+// docs/RUNTIME_V2.md describes for the shard park race. The residual window it
+// left ran from the flag read to the DONE store, and everything mark_done does
+// in between is inside it -- including a mutex acquisition in
+// release_matching_leases (rt_remote_task_lease.c). Hundreds of nanoseconds,
+// not a few instructions.
+//
+// The other reason to prefer the CAS over the alternative (the task's owner
+// shard lock around both sides) is cost: that would put a lock acquire and
+// release on EVERY task completion, which is the steady request path Epic 7
+// spent its scope taking off the control lane, to serialize two accesses that
+// need an order and not mutual exclusion.
+static int task_cancel_gate_request(rt_task* task) {
+    uint8_t open = RT_TASK_CANCEL_OPEN;
+    return atomic_compare_exchange_strong_explicit(&task->cancelled,
+                                                   &open,
+                                                   (uint8_t)RT_TASK_CANCEL_REQUESTED,
+                                                   memory_order_acq_rel,
+                                                   memory_order_acquire);
 }
 
-static int task_cancel_observed_before_commit(const rt_task* task) {
-    return task != NULL && atomic_load_explicit(&task->cancelled, memory_order_seq_cst) != 0;
+static int task_cancel_gate_seal(rt_task* task) {
+    uint8_t open = RT_TASK_CANCEL_OPEN;
+    return atomic_compare_exchange_strong_explicit(&task->cancelled,
+                                                   &open,
+                                                   (uint8_t)RT_TASK_CANCEL_SEALED,
+                                                   memory_order_acq_rel,
+                                                   memory_order_acquire);
 }
 
 void cancel_task(rt_executor* ex, uint64_t id) {
@@ -73,30 +101,27 @@ void cancel_task(rt_executor* ex, uint64_t id) {
     if (task == NULL || task_status_load(task) == TASK_DONE) {
         return;
     }
-    if (task_cancelled_load(task) != 0) {
-        return;
-    }
-    // RV2-DEBT-263: publish the flag, then re-read the status, both seq-cst.
-    // The re-read is not an optimization and must not be deleted -- it is this
-    // side's half of the StoreLoad above, and without it the completion side
-    // can miss a flag that was stored a few instructions too late. When it
-    // reports DONE the completion already committed its result, and the storage
-    // model says a cancel arriving then does not revoke it
-    // (23-storage-model-and-typed-carrier-abi.md: "after success is committed
-    // it does not revoke already available independent results"). So this cancel
-    // stops here, exactly as the DONE check at the top of the function stops one
-    // that arrived later still: no wake, and no walk into children a completing
-    // task has already finished with.
-    task_cancel_publish(task);
-    if (task_status_load_seq_cst(task) == TASK_DONE) {
+    // RV2-DEBT-263: this ONE compare-and-swap is both the idempotence check
+    // (a second cancel finds REQUESTED) and the race against the completion (a
+    // late cancel finds SEALED). Losing to a seal means the task's answer was
+    // already decided, which the storage model says a cancel arriving then does
+    // not revoke (23-storage-model-and-typed-carrier-abi.md: "after success is
+    // committed it does not revoke already available independent results"). So
+    // this cancel stops here -- no flag, no wake, and no walk into children a
+    // completing task has already finished with -- exactly as the DONE check
+    // above stops one that arrived later still. The gate closes a few
+    // instructions before TASK_DONE becomes visible; a cancel landing in that
+    // sliver is refused rather than silently swallowed, which is what
+    // SP_MARKDONE_AFTER_SEAL_BEFORE_DONE holds open to prove.
+    if (!RT_DEBT263_CANCEL_LANDED(task_cancel_gate_request(task), task)) {
         return;
     }
     if (task->kind == TASK_KIND_BLOCKING) {
         rt_blocking_request_cancel(ex, task);
     }
-    // Wake-token ordering rule (RV2-DEBT-023, ). The cancelled flag is
-    // stored unconditionally above; the wake here is now UNCONDITIONAL too - it
-    // no longer gates on observing TASK_WAITING. cancel_task runs control-held
+    // Wake-token ordering rule (RV2-DEBT-023, ). This cancel owns the gate
+    // by the CAS above; the wake here is UNCONDITIONAL - it does not gate on
+    // observing TASK_WAITING. cancel_task runs control-held
     // (every caller holds the control lane; proof in
     // docs/runtime-v2-epics/09-tasks/02-debt-023-cancel-wake-token.md), so
     // free_task (control-lane only) cannot free this task between the get_task
@@ -214,6 +239,29 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind) {
     // the result and drop the last handle on another shard before the body
     // finishes touching the task.
     task_add_ref(task);
+    // RV2-DEBT-263: the kind is decided FIRST, and by the gate rather than by
+    // whoever carried it in. A task whose body ran all the way to a value can
+    // still have been cancelled after its last suspension point -- rt_task_poll's
+    // TASK_DONE fast path answers from the TARGET and never consults the
+    // awaiter's own gate, so once every remaining await resolves from an
+    // already-DONE child there is nothing left in the poll that could see the
+    // cancel. `cancel` through a live handle is task-global and must be observed
+    // by every awaited entitlement before committed success, so the seal is what
+    // draws that line.
+    //
+    // It happens here, at the top, and not beside the result_kind store below,
+    // for two reasons. The seal is a single RMW: once it has run the answer
+    // cannot change, so there is nothing to keep tight. And a refused value has
+    // to leave the slot BEFORE anything downstream can name it --
+    // rt_remote_task_on_owner_done sends a reply that names this very slot in a
+    // capability, and that runs later in this function.
+    int sealed = task_cancel_gate_seal(task);
+    if (result_kind == TASK_RESULT_SUCCESS && !RT_DEBT263_COMMIT_SEALED(sealed)) {
+        result_kind = TASK_RESULT_CANCELLED;
+        // Empties the slot now; the value's own drop is generated code and runs
+        // once this lane holds no scheduler lock (rule 8 P2).
+        rt_task_result_refuse(ex, task);
+    }
     // The task is RUNNING here (just polled to completion, TASK_DONE is not
     // stored until below), and the wake path only reads or clears a task's
     // park_key while that task is parked (WAITING, not enqueued) under its
@@ -270,32 +318,16 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind) {
     // written before the TASK_DONE release store, so a joiner's acquire-load
     // of TASK_DONE (rt_task_poll, now control-free) publishes them without
     // needing the control lock. Nothing else in this function reads either
-    // field, so the reorder is behavior-preserving.
-    //
-    // RV2-DEBT-263: and the KIND is decided here too, at the commit, not by
-    // whoever carried it in. A task whose body ran all the way to a value can
-    // still have been cancelled after its last suspension point -- rt_task_poll's
-    // TASK_DONE fast path answers from the TARGET and never consults the
-    // awaiter's own flag, so a cancel landing after it is observed nowhere else
-    // -- and `cancel` through a live handle is task-global: before committed
-    // success it must be observed by every awaited entitlement. This seq-cst
-    // read and the seq-cst TASK_DONE store below are the completion half of the
-    // StoreLoad cancel_task's publish-then-re-read is the other half of, so a
-    // cancel that has not yet been seen here is a cancel that will see DONE
-    // there.
-    //
-    // The value the body produced stays where rt_async_return published it.
-    // A Cancelled result is never served -- rt_far_task_take_result answers the
-    // kind and returns before it looks at the slot -- so the slot keeps its own
-    // and the owner-side reclamation destroys it exactly once, unlocked, in
-    // reclaim_task: the "cancel-after-done" case RV2-DEBT-053a names
-    // (rt_task_lifetime.c). Nothing is dropped on this line, so no generated
-    // code runs here while this lane may be holding control (rule 8 P2).
-    if (result_kind == TASK_RESULT_SUCCESS &&
-        RT_DEBT263_COMMIT_CANCELLED(task_cancel_observed_before_commit(task))) {
-        result_kind = TASK_RESULT_CANCELLED;
-    }
+    // field, so the reorder is behavior-preserving. `result_kind` is what the
+    // gate decided at the top of this function (RV2-DEBT-263), not what the
+    // caller handed in.
     task->result_kind = result_kind;
+    // RV2-DEBT-263 proof window: the gate is closed and the kind is chosen, the
+    // slot is already empty if the value was refused, and TASK_DONE is not
+    // published yet. A cancel landing here must be REFUSED -- its CAS finds
+    // SEALED -- and must not leave a task answering Success while something
+    // believes it cancelled it.
+    RT_SYNC_POINT(SP_MARKDONE_AFTER_SEAL_BEFORE_DONE);
     // A suspend-point or scope-join state box a cancellation abandoned
     // without ever resuming compiled code (rt_async_yield/
     // rt_async_return_cancelled stash it here before completing the task by

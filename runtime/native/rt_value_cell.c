@@ -154,6 +154,26 @@ void rt_value_cell_dispose(rt_value_cell* cell) {
     cell->state = RT_SLOT_EMPTY;
 }
 
+void* rt_value_cell_hand_off(rt_value_cell* cell,
+                             const rt_value_ops** out_operations,
+                             int* out_owns_block) {
+    if (!rt_value_cell_is_ready(cell) || out_operations == NULL || out_owns_block == NULL) {
+        return NULL;
+    }
+    void* storage = cell->storage;
+    *out_operations = cell->operations;
+    *out_owns_block = cell->owns_block;
+    // The header is cleared BEFORE the caller can act on the value, exactly as
+    // dispose does it: from here the cell reads "the one value this held is
+    // already somebody else's", which every reader already knows how to answer.
+    cell->state = RT_SLOT_MOVED;
+    if (cell->owns_block) {
+        cell->storage = NULL;
+        cell->owns_block = 0;
+    }
+    return storage;
+}
+
 void rt_value_release_owned_block(const rt_value_ops* operations, void* storage) {
     if (operations == NULL || storage == NULL) {
         return;

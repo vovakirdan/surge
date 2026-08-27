@@ -292,6 +292,13 @@ var requiredSanitizerCoverage = []string{
 	// Valgrind over a map's teardown, at one shard and at four: a map owns its
 	// keys and values, and reclaiming them is what RV2-DEBT-156 was about.
 	"TestRuntimeV2MapOwnedEntriesValgrindZero",
+	// Valgrind over a task result the completion REFUSED. After RV2-DEBT-263 a
+	// cancel that lands before the commit makes a task answer Cancelled with a
+	// value already in its slot, and that value must be destroyed exactly once.
+	// The payload is a composite of two strings on purpose: an int result lives
+	// inline and owns no block, so it could not tell a correct reclamation from
+	// no reclamation at all.
+	"TestRuntimeV2CancelledOwnedResultValgrindZero",
 	// Valgrind, ASan/UBSan and TSan over a channel's own lifetime: the object
 	// behind a handle is reclaimed by the last release and not before
 	// (RV2-DEBT-155). The leak figure is the only instrument that can say the

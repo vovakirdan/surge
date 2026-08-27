@@ -48,7 +48,7 @@ func TestRuntimeV2LifecycleDebt263CancelCommitBoundaryProof(t *testing.T) {
 			// Non-vacuity: the cancel landed while the task was held INSIDE the
 			// window with its value already published and its status still not
 			// DONE, or the commit boundary had nothing to decide.
-			if !strings.Contains(stderr, "debt263 cancelled in window: cancelled=1 done=0") {
+			if !strings.Contains(stderr, "debt263 cancelled in window: cancelled=1 done=0 done_waiters=0") {
 				t.Fatalf("DEBT-263 positive proof did not land the cancel inside the window\nstdout:\n%s\nstderr:\n%s",
 					stdout, stderr)
 			}
@@ -71,7 +71,7 @@ func TestRuntimeV2LifecycleDebt263CancelCommitBoundaryNegativeControl(t *testing
 	}
 	// The strand must be AT the commit, on a window built the same way: the
 	// cancel landed before the commit and the task still answered Success.
-	if !strings.Contains(stderr, "debt263 cancelled in window: cancelled=1 done=0") {
+	if !strings.Contains(stderr, "debt263 cancelled in window: cancelled=1 done=0 done_waiters=0") {
 		t.Fatalf("DEBT-263 negative control did not build the window (code=%d)\nstdout:\n%s\nstderr:\n%s",
 			exitCode, stdout, stderr)
 	}
@@ -209,7 +209,13 @@ static int mode_debt263_cancel_commit_boundary(rt_executor* ex) {
     rt_task_cancel(child);
     unsigned cancelled = task_cancelled_load(child);
     unsigned done = task_status_load(child) == TASK_DONE ? 1u : 0u;
-    fprintf(stderr, "debt263 cancelled in window: cancelled=%u done=%u\n", cancelled, done);
+    // done_waiters is the input that would otherwise put this child's mark_done
+    // on the control lane (mark_done_needs_control): the driver holds no
+    // external await here, so the completion that follows runs control-free and
+    // this row cannot be passing because a lock happened to serialise it.
+    unsigned waiters = rt_done_waiters_load_before_done(ex);
+    fprintf(stderr, "debt263 cancelled in window: cancelled=%u done=%u done_waiters=%u\n",
+            cancelled, done, waiters);
     // Two permits, not one. The child takes the first. The second is for the
     // owner's OWN value-returning return, which the negative control reaches
     // (the fixed build answers Cancelled there and returns no value); an unspent
@@ -217,9 +223,9 @@ static int mode_debt263_cancel_commit_boundary(rt_executor* ex) {
     // it is not being measured at.
     rt_sync_point_open();
     rt_sync_point_open();
-    if (cancelled != 1 || done != 0) {
+    if (cancelled != 1 || done != 0 || waiters != 0) {
         (void)rt_executor_request_shutdown(ex);
-        return fail("debt263 cancel did not land inside the window");
+        return fail("debt263 cancel did not land inside a control-free window");
     }
 
     if (!wait_task_status(child, TASK_DONE, 4000)) {

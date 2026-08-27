@@ -193,9 +193,21 @@ uint8_t rt_far_task_take_result(rt_task* producer, rt_task* holder, void* out_ds
 
 rt_result_source rt_remote_task_pin_result(rt_task* task) {
     rt_result_source source = {0, 0, 0, 0};
-    if (task == NULL || !rt_value_cell_is_ready(&task->result)) {
+    if (task == NULL || rt_remote_task_result_kind(task) != 1 ||
+        !rt_value_cell_is_ready(&task->result)) {
         // Nothing to name. A cancelled outcome and a task with no result value
         // both land here, and both are answers rather than failures.
+        //
+        // The KIND is asked first, and it fails closed (RV2-DEBT-263). A
+        // completion that refuses its value empties the slot before it publishes
+        // TASK_DONE (rt_task_result_refuse), so a Cancelled task reaching here
+        // with a ready cell should not be reachable -- but the holder of this
+        // capability moves the value out UNCONDITIONALLY (finish_retry,
+        // rt_remote_task_api.c) while the generated Cancelled arm never reads
+        // the storage it lands in (emit_crossing_far_task.go), so naming a slot
+        // on a non-Success answer would drop an obligation on the floor. The
+        // local path has always asked the kind first
+        // (rt_far_task_take_result); this one does too now.
         return source;
     }
     // The pin is the whole reason a capability is safe to send: the task it

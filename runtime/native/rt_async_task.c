@@ -43,7 +43,7 @@ void* __task_create( // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dc
     task->state = state;
     task_status_store(task, TASK_READY);
     task->kind = TASK_KIND_USER;
-    task_cancelled_store(task, 0);
+    task_cancel_gate_init(task);
     task_enqueued_store(task, 0);
     (void)task_wake_token_exchange(task, 0);
     atomic_store_explicit(&task->remote_handle_state, 0, memory_order_relaxed);
@@ -487,7 +487,7 @@ static rt_task* spawn_internal_task_locked(rt_executor* ex, uint8_t kind, uint64
     task_status_store(task, TASK_READY);
     task->kind = kind;
     task->sleep_delay = sleep_delay;
-    task_cancelled_store(task, 0);
+    task_cancel_gate_init(task);
     task_enqueued_store(task, 0);
     (void)task_wake_token_exchange(task, 0);
     atomic_store_explicit(&task->remote_handle_state, 0, memory_order_relaxed);

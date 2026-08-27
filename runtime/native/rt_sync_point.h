@@ -188,6 +188,16 @@ typedef enum rt_sync_point_id {
     // That gap is the whole of RV2-DEBT-263: the commit boundary is the only
     // place left that can still answer Cancelled.
     RT_SYNC_POINT_SP_ASYNC_RETURN_BEFORE_SUCCESS_COMMIT,
+    // mark_done: reached after the cancel gate has been sealed and the kind
+    // chosen, and before TASK_DONE is published. This is the RESIDUAL window --
+    // everything the completion still has to do lives inside it, including a
+    // mutex acquisition in release_matching_leases (rt_remote_task_lease.c) --
+    // so it is where a cancel that arrives "just too late" actually lands.
+    // Holding a completion here and cancelling it must produce ONE answer:
+    // the cancel is refused, its CAS finding the gate sealed, and the task
+    // answers Success. Never a task answering Success while its canceller
+    // believes it landed (RV2-DEBT-263).
+    RT_SYNC_POINT_SP_MARKDONE_AFTER_SEAL_BEFORE_DONE,
     RT_SYNC_POINT_COUNT
 } rt_sync_point_id;
 
@@ -399,24 +409,36 @@ void rt_sync_point_open(void);
 #define RT_DEBT261_VERIFY_FAILFAST_OUT(failfast) (failfast)
 #endif
 
-// RV2-DEBT-263 negative-control toggle. A task's answer is decided at the
-// moment its completion commits, not by whoever carried the kind into
-// mark_done: `cancel` through a live handle is task-global and, before
-// committed success, must be observed by every awaited entitlement
-// (23-storage-model-and-typed-carrier-abi.md, "before committed success it
-// requests cancellation observed by every awaited entitlement"). The fix reads
-// the cancelled flag at that boundary and commits Cancelled instead of Success.
-// Defining the negative control commits the kind as brought -- the pre-fix
-// shape, in which a task cancelled after its last suspension point still
-// answers Success -- which the deterministic proof MUST observe.
+// RV2-DEBT-263 negative-control toggle, in two halves because the defect had
+// two sides that could both believe they won.
 //
-// The toggle sits on the DECISION only: the seq-cst load beside it is still
-// performed either way, so the negative control cannot pass by changing the
-// ordering the proof is built on.
+// A task's answer is decided at the moment its completion seals the cancel
+// gate, not by whoever carried the kind into mark_done: `cancel` through a live
+// handle is task-global and, before committed success, must be observed by
+// every awaited entitlement (23-storage-model-and-typed-carrier-abi.md). The
+// fix makes each side move one word with one compare-and-swap out of OPEN, so
+// exactly one of them wins.
+//
+// Defining the negative control restores the pre-fix shape on BOTH sides: the
+// completion commits the kind it was handed however the seal went, and the
+// cancel writes its flag and believes it landed however the CAS went. The
+// deterministic proofs MUST then observe what the runtime used to do -- a task
+// committing Success after a cancel it was told about, and a task committing
+// Success while its canceller believes it cancelled it.
+//
+// Both toggles leave the CAS itself in place and change only what is BELIEVED
+// about its result, so the negative control cannot pass by removing the
+// ordering the proofs are built on.
 #ifdef RV2_DEBT_263_NEGATIVE_CONTROL
-#define RT_DEBT263_COMMIT_CANCELLED(observed) ((void)(observed), 0)
+#define RT_DEBT263_COMMIT_SEALED(sealed) ((void)(sealed), 1)
+#define RT_DEBT263_CANCEL_LANDED(requested, task)                                                  \
+    ((void)(requested),                                                                            \
+     atomic_store_explicit(                                                                        \
+         &(task)->cancelled, (uint8_t)RT_TASK_CANCEL_REQUESTED, memory_order_release),             \
+     1)
 #else
-#define RT_DEBT263_COMMIT_CANCELLED(observed) (observed)
+#define RT_DEBT263_COMMIT_SEALED(sealed) (sealed)
+#define RT_DEBT263_CANCEL_LANDED(requested, task) ((void)(task), (requested))
 #endif
 
 #endif // RT_SYNC_POINT_H
