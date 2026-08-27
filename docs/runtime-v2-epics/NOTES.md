@@ -8894,3 +8894,44 @@ the generated tail of a `@failfast` block branches on whatever the frame held.
 Its wrong-default reading is `Success`. That is undefined behaviour whose
 outcome can differ between two machines for no reason the source can name --
 exactly the shape of what was just observed.
+
+### 2026-08-27 — 400 runs on the dedicated machine: 265 is not the window, and a new panic
+
+The instrument was chosen to be the command that actually went red, not the
+row in isolation: the second line of `runtime-v2-lifecycle-check`, which runs
+the two cancellation-answer program rows with `-parallel=1 -p=1`. It costs
+seven seconds, so it can be repeated enough times to say something. The full
+gate was tried first and gave 0 red in 10 runs at two minutes each -- true and
+useless.
+
+```
+SURGE_STDLIB=$(pwd) SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 \
+  taskset -c 8-15 go test ./internal/vm \
+  -run '^TestRuntimeV2(FailfastJoinAnswersCancelled|TimeoutTargetAnswersCancelledToEveryHandle)$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 300s
+```
+
+`d4d1b3eb`, before RV2-DEBT-265: 3 red of 200, 0 vacuous.
+`082ffae9`, after it: 1 red of 200, 0 vacuous.
+
+Both remaining reds are `SURGE_THREADS=4: exit=12` on the fail-fast row, on
+the `llvm` lane; the VM lane is green in all 400. Two of 200 against one of
+200 is noise at this count, so **RV2-DEBT-265 is not the window**. Its fix
+stands on its own -- the undefined behaviour is real and the emitter test is
+red on the revert -- but it does not get to claim this symptom. The residue is
+alive at roughly half a percent, and the next lane has to find a fourth
+window rather than assume the third was it.
+
+The third red is a different defect and now has its own row. At `d4d1b3eb`,
+`TestRuntimeV2TimeoutTargetAnswersCancelledToEveryHandle/llvm/threads-4`:
+`exit=1 -- the program did not run to its verdict (dur=1.03647ms)`, stdout
+empty, stderr `panic: async: task slot out of range`. A millisecond in, so
+nothing had run yet; `rt_task_slot_store` found the task table's segment still
+`NULL` at an id whose creator had just been told the segment was there. That
+is RV2-DEBT-291.
+
+What this pass is really worth recording for: a row that is green twenty times
+on the working machine is not a closed row, and a row that is green twenty
+times on the DEDICATED machine is not one either -- the same two rows run alone
+on `surge-bm` are 0 of 20. Only repeating the command the gate runs, enough
+times to see a half-percent event, said anything at all.
