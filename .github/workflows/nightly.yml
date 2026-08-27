@@ -1,0 +1,99 @@
+name: Nightly (self-hosted)
+
+# То, что стоит дорого и потому не бежит на каждый пуш: тегированный набор,
+# обе behaviour-полосы, MT-матрица шардов и бенчи. Публикует сырые цифры
+# артефактами; решение «топология быстрее» остаётся за человеком, потому что
+# Benchmark Plan требует от строки замера назвать харнесс, разогрев,
+# длительность, метод перцентиля и доказательство, что упёрся не клиент.
+on:
+  schedule:
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Ветка или коммит'
+        required: false
+        default: 'codex/runtime-net-scheduler-refactor'
+
+permissions:
+  contents: read
+
+env:
+  GOCACHE: /srv/ci/cache/go
+  GOMODCACHE: /srv/ci/cache/gomod
+  CCACHE_DIR: /srv/ci/cache/ccache
+
+jobs:
+  tagged-suite:
+    name: Тегированный набор internal/vm
+    runs-on: [self-hosted, surge-timing]
+    timeout-minutes: 120
+    concurrency:
+      group: surge-timing-singleflight
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - name: runtime_v2_pending
+        run: |
+          SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 \
+          taskset -c 8-15 go test -tags runtime_v2_pending ./internal/vm -count=1 -timeout 3600s
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tagged-suite
+          path: target/debug/.tests/**
+          retention-days: 7
+          if-no-files-found: ignore
+
+  behaviour:
+    name: Behaviour-полосы
+    runs-on: [self-hosted, surge-build]
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - run: make behaviour-check-all
+      - run: make behaviour-check-mt
+
+  topology-matrix:
+    name: Матрица топологий (1x1 / 1xN / Nx1)
+    runs-on: [self-hosted, surge-timing]
+    timeout-minutes: 120
+    concurrency:
+      group: surge-timing-singleflight
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - name: Три строки одним харнессом
+        # Сервер живёт на CCD1 (изолированные ядра 8-15), генератор нагрузки —
+        # на CCD0: иначе строка не вправе утверждать, что упёрся не клиент.
+        run: |
+          set -eu
+          mkdir -p build/benchmarks
+          for row in "1 1" "1 8" "8 8"; do
+            set -- $row
+            echo ">> shards=$1 carriers=$2"
+            SURGE_NET_BENCH_SHARDS=$1 SURGE_NET_BENCH_THREADS=$2 \
+            SURGE_NET_BENCH_REPORT=build/benchmarks/topology-$1x$2.md \
+              taskset -c 8-15 bash scripts/bench_native_net.sh || echo "строка $1x$2 не снялась"
+          done
+      - name: Окружение строки
+        run: |
+          { echo "## Окружение прогона"; date -Is; uname -r;
+            echo "governor: $(cat /sys/devices/system/cpu/cpufreq/policy0/scaling_governor)";
+            echo "isolated: $(cat /sys/devices/system/cpu/isolated 2>/dev/null || echo none)";
+            echo "smt: $(cat /sys/devices/system/cpu/smt/control)";
+            clang --version | head -1; go version;
+          } > build/benchmarks/environment.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: topology-matrix
+          path: build/benchmarks/**
+          retention-days: 30
+          if-no-files-found: ignore

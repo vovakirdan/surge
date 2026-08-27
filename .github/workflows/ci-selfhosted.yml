@@ -1,0 +1,90 @@
+name: CI (self-hosted)
+
+# Тяжёлая и тайминговая полоса. Живёт на выделенной машине, потому что здесь
+# бегут ряды, которым нужны тишина, пиннинг ядер и совпадающий с эталоном
+# тулчейн (LLVM 18.1.3): голден-корпус содержит IR, а MT-ряды меряют время.
+#
+# Репозиторий публичный, поэтому этот workflow НЕ слушает `pull_request`:
+# форк не должен доставать выделенную машину. Триггеры — только ветки самого
+# репозитория и кнопка.
+on:
+  push:
+    branches: [main, dev, 'codex/**', 'wip/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Кэши лежат на рабочем NVMe, а не в домашнем каталоге раннера.
+  GOCACHE: /srv/ci/cache/go
+  GOMODCACHE: /srv/ci/cache/gomod
+  CCACHE_DIR: /srv/ci/cache/ccache
+
+jobs:
+  gates:
+    name: Ворота (сборка, корпус, статика)
+    runs-on: [self-hosted, surge-build]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Тулчейн совпадает с эталоном
+        # Расхождение версии LLVM меняет IR, а значит красит голден-корпус по
+        # причине, не связанной с изменением. Проверяем до того, как что-то гонять.
+        run: |
+          set -eu
+          go version | grep -q 'go1.26.1'
+          clang --version | head -1 | grep -q '18\.1\.3'
+          gcc --version | head -1 | grep -q '13\.3\.0'
+          valgrind --version | grep -q '3\.22\.0'
+      - name: Голден-корпус
+        run: make golden-check
+      - name: make check
+        # -p=6 намеренно: при полном параллелизме пакет internal/goldencheck
+        # конкурирует с internal/vm, и нагрузочно-чувствительный ряд HUP
+        # (RV2-DEBT-223) падает по таймингу, а не по существу.
+        run: make check GO="go" GOFLAGS=-p=6
+      - name: Размеры файлов
+        run: ./scripts/runtime_v2_file_size_check.sh --committed
+        env:
+          EPIC_BASE: ${{ github.event.before }}
+        continue-on-error: true
+
+  timing:
+    name: Тайминговые ряды (изолированные ядра)
+    runs-on: [self-hosted, surge-timing]
+    timeout-minutes: 90
+    # Одновременно бежит ровно один тайминговый прогон: цифры, снятые под
+    # конкурирующей нагрузкой, ничего не значат.
+    concurrency:
+      group: surge-timing-singleflight
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Жизненный цикл задач
+        run: taskset -c 8-15 make runtime-v2-lifecycle-check
+      - name: Живучесть под нагрузкой
+        run: taskset -c 8-15 make runtime-v2-liveness-stress
+      - name: Ряд, чувствительный к нагрузке (в тишине)
+        run: taskset -c 8-15 go test ./internal/goldencheck -run '^TestGoldenScriptSignalsPreserveLiveCorpus$' -count=3
+
+  sanitizers:
+    name: Санитайзеры и valgrind
+    runs-on: [self-hosted, surge-build]
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Носители под санитайзерами
+        run: make runtime-v2-carrier-sanitizer-check
+      - name: Куча
+        run: make runtime-v2-heap-check
+      - name: Артефакты при падении
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sanitizer-logs
+          path: |
+            build/**/*.log
+            target/debug/.tests/**
+          retention-days: 7
+          if-no-files-found: ignore
