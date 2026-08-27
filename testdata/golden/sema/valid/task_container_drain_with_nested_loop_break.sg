@@ -1,0 +1,98 @@
+// A `break` or `continue` in a loop NESTED inside a drain leaves the INNER
+// loop. The drain runs on to its own condition and empties the container, so
+// there is nothing here for SEM3107 to refuse. The tracker used to keep only
+// drain loops on its stack, so it blamed the innermost drain for every `break`
+// it walked, and this file was refused with "this `break` leaves the drain of
+// `tasks` unfinished" - a false statement about a `break` that never left the
+// drain, advising the author to move it after a `while` it is not in.
+//
+// The refusal for a `break` that really does leave the drain is the invalid
+// twin, testdata/golden/sema/invalid/concurrency/
+// task_container_drain_abandoned_at_the_exit.sg.
+async fn work() -> int {
+    return 1;
+}
+
+async fn drains_around_a_nested_while() -> int {
+    let mut tasks: Task<int>[] = [];
+    tasks.push(spawn work());
+    tasks.push(spawn work());
+    let mut total: int = 0;
+    while tasks.__len() > 0:uint {
+        let t = tasks.pop().safe();
+        total = total + compare t.await() { Success(v) => v; Cancelled() => 0; };
+        let mut i: int = 0;
+        while i < 3 {
+            if i == 1 {
+                break;
+            }
+            i = i + 1;
+        }
+    }
+    return total;
+}
+
+async fn drains_around_a_nested_continue() -> int {
+    let mut tasks: Task<int>[] = [];
+    tasks.push(spawn work());
+    let mut total: int = 0;
+    while tasks.__len() > 0:uint {
+        let t = tasks.pop().safe();
+        total = total + compare t.await() { Success(v) => v; Cancelled() => 0; };
+        let mut i: int = 0;
+        while i < 3 {
+            i = i + 1;
+            if i == 1 {
+                continue;
+            }
+            total = total + 1;
+        }
+    }
+    return total;
+}
+
+async fn drains_around_a_nested_for_in(ns: int[]) -> int {
+    let mut tasks: Task<int>[] = [];
+    tasks.push(spawn work());
+    let mut total: int = 0;
+    while tasks.__len() > 0:uint {
+        let t = tasks.pop().safe();
+        total = total + compare t.await() { Success(v) => v; Cancelled() => 0; };
+        for n in ns {
+            if n == 1 {
+                break;
+            }
+            total = total + n;
+        }
+    }
+    return total;
+}
+
+// The same `break` two levels down, inside a `compare` arm inside a `for`
+// inside the drain: it leaves the `for`, the drain still empties `tasks`, and
+// the outcome travels out in a local the way the corpus does it.
+async fn drains_then_leaves(ns: int[]) -> int {
+    let mut tasks: Task<int>[] = [];
+    tasks.push(spawn work());
+    let mut failed: bool = false;
+    while tasks.__len() > 0:uint {
+        let t = tasks.pop().safe();
+        compare t.await() {
+            Success(v) => {
+                for n in ns {
+                    if n == v {
+                        failed = true;
+                        break;
+                    }
+                }
+            }
+            Cancelled() => {
+                failed = true;
+            }
+        }
+    }
+    if failed {
+        return 1;
+    }
+    return 0;
+}

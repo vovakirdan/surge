@@ -102,6 +102,15 @@ func TestForInDoesNotConsumeItsElements(t *testing.T) {
 		{"tasks_read_then_drained_by_pop", `async fn f() -> int { let mut tasks: Task<int>[] = []; tasks.push(spawn work()); for t in tasks { peek_task(&t); } while tasks.__len() > 0:uint { let t = tasks.pop().safe(); let _ = t.await(); } return 0; }`, nil},
 		{"strings_read_in_for", `fn f(names: string[]) -> nothing { for s in names { peek(&s); } return nothing; }`, nil},
 		{"copy_elements_passed_by_value", `fn f(ns: int[]) -> nothing { for n in ns { take_int(n); } return nothing; }`, nil},
+		// A `break` or `continue` in a loop NESTED inside the drain leaves that
+		// inner loop; the drain runs to its own condition and empties the
+		// container. The tracker used to blame the innermost DRAIN loop for
+		// every `break` it walked, because only drain loops were on its stack,
+		// so these three programs were refused with SEM3107 telling the author
+		// their `break` abandoned a container it never left.
+		{"drain_with_break_in_a_nested_while", `async fn f() -> int { let mut tasks: Task<int>[] = []; tasks.push(spawn work()); while tasks.__len() > 0:uint { let t = tasks.pop().safe(); let _ = t.await(); let mut i: int = 0; while i < 3 { if i == 1 { break; } i = i + 1; } } return 0; }`, nil},
+		{"drain_with_continue_in_a_nested_while", `async fn f() -> int { let mut tasks: Task<int>[] = []; tasks.push(spawn work()); while tasks.__len() > 0:uint { let t = tasks.pop().safe(); let _ = t.await(); let mut i: int = 0; while i < 3 { i = i + 1; if i == 1 { continue; } } } return 0; }`, nil},
+		{"drain_with_break_in_a_nested_for_in", `async fn f(ns: int[]) -> int { let mut tasks: Task<int>[] = []; tasks.push(spawn work()); while tasks.__len() > 0:uint { let t = tasks.pop().safe(); let _ = t.await(); for n in ns { if n == 1 { break; } take_int(n); } } return 0; }`, nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

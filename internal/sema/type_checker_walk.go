@@ -376,10 +376,10 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			movedBeforeLoop := tc.snapshotMovedPlaces()
 			tc.ensureBoolContext(whileStmt.Cond, tc.exprSpan(whileStmt.Cond))
 			loopPlace, loopOK := tc.taskContainerDrainLoop(whileStmt.Cond)
+			tc.enterLoopDropScope()
 			if loopOK {
 				tc.enterTaskContainerLoop(loopPlace)
 			}
-			tc.enterLoopDropScope()
 			tc.walkStmt(whileStmt.Body)
 			tc.rejectLoopBackEdgeMoves(movedBeforeLoop, "while loop")
 			tc.leaveLoopDropScope()

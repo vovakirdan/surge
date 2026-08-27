@@ -21,6 +21,7 @@ type taskContainerLoop struct {
 	earlyExit   bool
 	exit        source.Span // the first statement that left the loop early; zero until one did
 	exitKind    string
+	bodyDepth   int // loop nesting depth of this loop's own body; see loopNestingDepth
 	popBindings []taskContainerPopBinding
 }
 
@@ -56,11 +57,26 @@ func (tc *typeChecker) taskContainerLoopAllowsAwait(info *taskContainerInfo) boo
 	return false
 }
 
+// loopNestingDepth is how many loop bodies enclose the statement being walked.
+// Every loop the language has -- `while`, the classic `for`, `for`-in -- pushes
+// exactly one loop drop mark around its body and pops it after, so that stack
+// IS the loop nesting. The drain tracker reads it because its OWN stack holds
+// only drain loops: without a count of the loops in between, a `break` two
+// levels down looks exactly like a `break` of the drain itself.
+func (tc *typeChecker) loopNestingDepth() int {
+	return len(tc.loopDropMarks)
+}
+
+// enterTaskContainerLoop is called from inside the loop's drop-mark region, so
+// the depth it reads is the depth the body about to be walked will report.
 func (tc *typeChecker) enterTaskContainerLoop(place Place) {
 	if !place.IsValid() {
 		return
 	}
-	tc.taskContainerLoops = append(tc.taskContainerLoops, taskContainerLoop{place: place})
+	tc.taskContainerLoops = append(tc.taskContainerLoops, taskContainerLoop{
+		place:     place,
+		bodyDepth: tc.loopNestingDepth(),
+	})
 }
 
 func (tc *typeChecker) leaveTaskContainerLoop() (*taskContainerLoop, bool) {
@@ -132,13 +148,28 @@ func (tc *typeChecker) taskContainerLoopDrained(loop *taskContainerLoop) bool {
 }
 
 // noteTaskContainerLoopBreak marks the innermost drain loop as leavable at
-// this `break`; noteTaskContainerLoopReturn marks every enclosing one, since
-// a `return` leaves them all.
+// this `break` -- but only when that drain loop is the loop the `break`
+// actually leaves. A `break` inside a plain `while` or `for` nested in the
+// drain body leaves the INNER loop; the drain keeps running to its own
+// condition and empties the container, so nothing about it was abandoned.
+// Blaming it there stated something false about a statement: "this `break`
+// leaves the drain of `tasks` unfinished", of a `break` that never left the
+// drain, with advice to move it after a `while` it is not in.
+//
+// `continue` is not recorded at all, at any depth: it goes back to the loop's
+// condition, so the drain it belongs to still finishes.
+//
+// noteTaskContainerLoopReturn marks every enclosing drain loop, since a
+// `return` does leave them all, however deep it is nested.
 func (tc *typeChecker) noteTaskContainerLoopBreak(span source.Span) {
 	if len(tc.taskContainerLoops) == 0 {
 		return
 	}
-	tc.taskContainerLoops[len(tc.taskContainerLoops)-1].markEarlyExit(span, "break")
+	loop := &tc.taskContainerLoops[len(tc.taskContainerLoops)-1]
+	if loop.bodyDepth != tc.loopNestingDepth() {
+		return
+	}
+	loop.markEarlyExit(span, "break")
 }
 
 func (tc *typeChecker) noteTaskContainerLoopReturn(span source.Span) {

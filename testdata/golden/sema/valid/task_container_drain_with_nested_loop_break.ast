@@ -1,0 +1,194 @@
+task_container_drain_with_nested_loop_break.sg (span: 12:1-99:1)
+├─ Item[0]: Fn (span: 12:1-14:2)
+│  ├─ Name: work
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 12:24-14:2)
+│        └─ Stmt[0]: Return (span: 13:5-13:14)
+│           └─ Expr: expr#1: 1
+├─ Item[1]: Fn (span: 16:1-33:2)
+│  ├─ Name: drains_around_a_nested_while
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 16:48-33:2)
+│        ├─ Stmt[0]: Let (span: 17:5-17:37)
+│        │  ├─ Name: tasks
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Task<int>[]
+│        │  └─ Value: expr#2: <ExprKind(8)>
+│        ├─ Stmt[1]: Expr (span: 18:5-18:30)
+│        │  └─ Expr: expr#8: tasks.push(spawn work())
+│        ├─ Stmt[2]: Expr (span: 19:5-19:30)
+│        │  └─ Expr: expr#14: tasks.push(spawn work())
+│        ├─ Stmt[3]: Let (span: 20:5-20:28)
+│        │  ├─ Name: total
+│        │  ├─ Mutable: true
+│        │  ├─ Type: int
+│        │  └─ Value: expr#15: 0
+│        ├─ Stmt[4]: While (span: 21:5-31:6)
+│        │  ├─ Cond: expr#21: (tasks.__len() > (0 to uint))
+│        │  └─ Body:
+Block (span: 21:34-31:6)
+│        │     ├─ Stmt[0]: Let (span: 22:9-22:36)
+│        │     │  ├─ Name: t
+│        │     │  ├─ Mutable: false
+│        │     │  ├─ Type: <inferred>
+│        │     │  └─ Value: expr#26: tasks.pop().safe()
+│        │     ├─ Stmt[1]: Expr (span: 23:9-23:82)
+│        │     │  └─ Expr: expr#41: (total = ((total + (compare t.await() { 2 arms }))))
+│        │     ├─ Stmt[2]: Let (span: 24:9-24:28)
+│        │     │  ├─ Name: i
+│        │     │  ├─ Mutable: true
+│        │     │  ├─ Type: int
+│        │     │  └─ Value: expr#42: 0
+│        │     └─ Stmt[3]: While (span: 25:9-30:10)
+│        │        ├─ Cond: expr#45: (i < 3)
+│        │        └─ Body:
+Block (span: 25:21-30:10)
+│        │           ├─ Stmt[0]: If (span: 26:13-28:14)
+│        │           │  ├─ Cond: expr#48: (i == 1)
+│        │           │  ├─ Then:
+Block (span: 26:23-28:14)
+│        │           │  │  └─ Stmt[0]: Break (span: 27:17-27:23)
+│        │           │  │     └─ (no additional data)
+│        │           │  └─ Else: <none>
+│        │           └─ Stmt[1]: Expr (span: 29:13-29:23)
+│        │              └─ Expr: expr#53: (i = ((i + 1)))
+│        └─ Stmt[5]: Return (span: 32:5-32:18)
+│           └─ Expr: expr#54: total
+├─ Item[2]: Fn (span: 35:1-52:2)
+│  ├─ Name: drains_around_a_nested_continue
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 35:51-52:2)
+│        ├─ Stmt[0]: Let (span: 36:5-36:37)
+│        │  ├─ Name: tasks
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Task<int>[]
+│        │  └─ Value: expr#55: <ExprKind(8)>
+│        ├─ Stmt[1]: Expr (span: 37:5-37:30)
+│        │  └─ Expr: expr#61: tasks.push(spawn work())
+│        ├─ Stmt[2]: Let (span: 38:5-38:28)
+│        │  ├─ Name: total
+│        │  ├─ Mutable: true
+│        │  ├─ Type: int
+│        │  └─ Value: expr#62: 0
+│        ├─ Stmt[3]: While (span: 39:5-50:6)
+│        │  ├─ Cond: expr#68: (tasks.__len() > (0 to uint))
+│        │  └─ Body:
+Block (span: 39:34-50:6)
+│        │     ├─ Stmt[0]: Let (span: 40:9-40:36)
+│        │     │  ├─ Name: t
+│        │     │  ├─ Mutable: false
+│        │     │  ├─ Type: <inferred>
+│        │     │  └─ Value: expr#73: tasks.pop().safe()
+│        │     ├─ Stmt[1]: Expr (span: 41:9-41:82)
+│        │     │  └─ Expr: expr#88: (total = ((total + (compare t.await() { 2 arms }))))
+│        │     ├─ Stmt[2]: Let (span: 42:9-42:28)
+│        │     │  ├─ Name: i
+│        │     │  ├─ Mutable: true
+│        │     │  ├─ Type: int
+│        │     │  └─ Value: expr#89: 0
+│        │     └─ Stmt[3]: While (span: 43:9-49:10)
+│        │        ├─ Cond: expr#92: (i < 3)
+│        │        └─ Body:
+Block (span: 43:21-49:10)
+│        │           ├─ Stmt[0]: Expr (span: 44:13-44:23)
+│        │           │  └─ Expr: expr#97: (i = ((i + 1)))
+│        │           ├─ Stmt[1]: If (span: 45:13-47:14)
+│        │           │  ├─ Cond: expr#100: (i == 1)
+│        │           │  ├─ Then:
+Block (span: 45:23-47:14)
+│        │           │  │  └─ Stmt[0]: Continue (span: 46:17-46:26)
+│        │           │  │     └─ (no additional data)
+│        │           │  └─ Else: <none>
+│        │           └─ Stmt[2]: Expr (span: 48:13-48:31)
+│        │              └─ Expr: expr#105: (total = ((total + 1)))
+│        └─ Stmt[4]: Return (span: 51:5-51:18)
+│           └─ Expr: expr#106: total
+├─ Item[3]: Fn (span: 54:1-69:2)
+│  ├─ Name: drains_around_a_nested_for_in
+│  ├─ Params: (ns: int[])
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 54:58-69:2)
+│        ├─ Stmt[0]: Let (span: 55:5-55:37)
+│        │  ├─ Name: tasks
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Task<int>[]
+│        │  └─ Value: expr#107: <ExprKind(8)>
+│        ├─ Stmt[1]: Expr (span: 56:5-56:30)
+│        │  └─ Expr: expr#113: tasks.push(spawn work())
+│        ├─ Stmt[2]: Let (span: 57:5-57:28)
+│        │  ├─ Name: total
+│        │  ├─ Mutable: true
+│        │  ├─ Type: int
+│        │  └─ Value: expr#114: 0
+│        ├─ Stmt[3]: While (span: 58:5-67:6)
+│        │  ├─ Cond: expr#120: (tasks.__len() > (0 to uint))
+│        │  └─ Body:
+Block (span: 58:34-67:6)
+│        │     ├─ Stmt[0]: Let (span: 59:9-59:36)
+│        │     │  ├─ Name: t
+│        │     │  ├─ Mutable: false
+│        │     │  ├─ Type: <inferred>
+│        │     │  └─ Value: expr#125: tasks.pop().safe()
+│        │     ├─ Stmt[1]: Expr (span: 60:9-60:82)
+│        │     │  └─ Expr: expr#140: (total = ((total + (compare t.await() { 2 arms }))))
+│        │     └─ Stmt[2]: ForIn (span: 61:9-66:10)
+│        │        ├─ Pattern: n
+│        │        ├─ Iterable: expr#141: ns
+│        │        └─ Body:
+Block (span: 61:21-66:10)
+│        │           ├─ Stmt[0]: If (span: 62:13-64:14)
+│        │           │  ├─ Cond: expr#144: (n == 1)
+│        │           │  ├─ Then:
+Block (span: 62:23-64:14)
+│        │           │  │  └─ Stmt[0]: Break (span: 63:17-63:23)
+│        │           │  │     └─ (no additional data)
+│        │           │  └─ Else: <none>
+│        │           └─ Stmt[1]: Expr (span: 65:13-65:31)
+│        │              └─ Expr: expr#149: (total = ((total + n)))
+│        └─ Stmt[4]: Return (span: 68:5-68:18)
+│           └─ Expr: expr#150: total
+└─ Item[4]: Fn (span: 74:1-98:2)
+   ├─ Name: drains_then_leaves
+   ├─ Params: (ns: int[])
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 74:47-98:2)
+         ├─ Stmt[0]: Let (span: 75:5-75:37)
+         │  ├─ Name: tasks
+         │  ├─ Mutable: true
+         │  ├─ Type: Task<int>[]
+         │  └─ Value: expr#151: <ExprKind(8)>
+         ├─ Stmt[1]: Expr (span: 76:5-76:30)
+         │  └─ Expr: expr#157: tasks.push(spawn work())
+         ├─ Stmt[2]: Let (span: 77:5-77:34)
+         │  ├─ Name: failed
+         │  ├─ Mutable: true
+         │  ├─ Type: bool
+         │  └─ Value: expr#158: false
+         ├─ Stmt[3]: While (span: 78:5-93:6)
+         │  ├─ Cond: expr#164: (tasks.__len() > (0 to uint))
+         │  └─ Body:
+Block (span: 78:34-93:6)
+         │     ├─ Stmt[0]: Let (span: 79:9-79:36)
+         │     │  ├─ Name: t
+         │     │  ├─ Mutable: false
+         │     │  ├─ Type: <inferred>
+         │     │  └─ Value: expr#169: tasks.pop().safe()
+         │     └─ Stmt[1]: Expr (span: 80:9-92:10)
+         │        └─ Expr: expr#190: compare t.await() { 2 arms }
+         ├─ Stmt[4]: If (span: 94:5-96:6)
+         │  ├─ Cond: expr#191: failed
+         │  ├─ Then:
+Block (span: 94:15-96:6)
+         │  │  └─ Stmt[0]: Return (span: 95:9-95:18)
+         │  │     └─ Expr: expr#192: 1
+         │  └─ Else: <none>
+         └─ Stmt[5]: Return (span: 97:5-97:14)
+            └─ Expr: expr#193: 0
