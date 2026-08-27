@@ -8554,49 +8554,117 @@ independent results." There is a committed-success MOMENT, and it decides.
 So the fix is at that moment and nowhere else: `mark_done` chooses the kind,
 and a `SUCCESS` carried in with the cancel observed commits `CANCELLED`.
 
-**Which linearization, and why (a).** The observation has to be linearizable
-against `cancel_task`, which today loaded the status and then stored the flag
-while `mark_done` loaded the flag and then stored `TASK_DONE` -- a miss in
-both directions. Two options were on the table:
+**A WRONG first answer, kept here on purpose.** The lane's first shape of
+this fix was a memory-ordering argument that does not hold, and two
+independent reviewers found it. It made `cancel_task` store the flag seq-cst
+and then load the status seq-cst, and `mark_done` LOAD the flag seq-cst and
+then store `TASK_DONE` seq-cst, and claimed the bad pair "cancel saw a live
+task, completion saw no cancel" was a cycle in the single total order. It is
+not. Sequential consistency forbids only the store-then-load pair on BOTH
+sides (Dekker; §8's park race is written that way on both sides). Here the
+completion side is load-then-store, and
 
-- **(a) one atomic transition.** Both sides sequentially consistent on the
-  two words they already have: `cancel_task` publishes the flag seq-cst and
-  then RE-READS the status seq-cst; `mark_done` reads the flag seq-cst before
-  the `TASK_DONE` store, which was already seq-cst for RV2-DEBT-022. The pair
-  "cancel saw a live task, completion saw no cancel" is then a cycle in the
-  single total order and cannot happen.
+```
+M.load(cancelled)=OPEN  <  C.store(cancelled)  <  C.load(status)=RUNNING  <  M.store(status=DONE)
+```
+
+is a valid total order -- indeed it is just the real-time order. The residual
+window ran from `:294` to `:316`, and everything `mark_done` still had to do
+was inside it: the result-kind store, the deferred `abandoned_state` release,
+three owned releases, and a MUTEX acquisition in `release_matching_leases`
+(`rt_remote_task_lease.c`). Hundreds of nanoseconds, not "a few
+instructions", and it reproduces the very symptom this row is about.
+
+Worse, the lane's gate went GREEN on it -- and that green was the control
+lock, not the protocol. `mark_done_needs_control` returns 1 whenever
+`done_waiters > 0`, and the external await in `main` keeps that above zero
+for the whole program, so completions were being serialized by the control
+lane: option (b) below, arriving implicitly and with no guarantee. The window
+is open wherever `done_waiters == 0` with no wait_keys, select timers or net
+key -- the steady worker path, `rt_worker_turn.c`, takes no lane lock across
+`apply_poll_outcome` at all -- and it would be open everywhere if the
+`done_waiters` reason were ever removed from `mark_done_needs_control`, which
+its own comment names as the goal.
+
+**Which linearization, and why (a).** Two options:
+
+- **(a) one read-modify-write per side on one word.** `task->cancelled`
+  becomes a three-state gate: `OPEN`, `REQUESTED`, `SEALED`. `cancel_task`
+  does `CAS(OPEN -> REQUESTED)`; `mark_done` does `CAS(OPEN -> SEALED)`.
 - **(b) the task's owner-shard lock around both sides.**
 
-**Chose (a).** §8 states this exact hazard for the shard park race ("a
-release/acquire pair is insufficient for this park race") and prescribes
-sequential consistency for it; RV2-DEBT-022 already pays for the same
-protocol on `done_waiters`, so this is the runtime's existing instrument
-rather than a new one (rule 5). (b) would put a lock acquire and release on
-EVERY task completion -- the steady request-completion path Epic 7 spent its
-whole scope taking off the control lane -- to serialize two words that need
-no mutual exclusion, only an order. No new field either: `task->cancelled`
-and `task->status` are the two words, and `rt_async_internal.h` did not grow
-by a line (still 666 effective, and it is over the 500 ceiling so it may not
-grow at all). The two accessors live in `rt_task_complete.c`, which owns both
-`cancel_task` and `mark_done`, so the protocol's two halves sit in one file.
+**Chose (a), and the proof is not about fences at all.** RMWs on ONE atomic
+object are totally ordered by that object's modification order, and a CAS
+reads the value written by the modification immediately before it in that
+order (C11 5.1.2.4). Of the two CASes, whichever appears first reads `OPEN`
+and moves the word; the other then reads `REQUESTED` or `SEALED` and fails.
+So at most one succeeds:
 
-`cancel_task` now STOPS when its re-read reports `TASK_DONE`. That is the
-storage model's "after success is committed it does not revoke", and it is
-the same decision the `TASK_DONE` check at the top of the function already
-makes for a cancel that arrives later still.
+- cancel wins -> `mark_done`'s seal fails -> it commits `Cancelled`;
+- completion wins -> `cancel_task`'s request fails -> the cancel is refused
+  and stops, which is what the storage model says a cancel arriving after
+  committed success does.
 
-**Nothing is destroyed at the boundary, deliberately.** The brief asked for
-the produced value to be released through `rt_release_owned_block_when_
-unlocked`, as `abandoned_state` is. That would be wrong here: that call frees
-the STORAGE, and a task result under 16 bytes lives inline in its
-`rt_value_cell` and owns no block (`rt_value_cell.h`), so it would free
-memory the cell does not own. It is also unnecessary. A `Cancelled` result is
-never served -- `rt_far_task_take_result` answers the kind and returns before
-it looks at the slot -- so the slot keeps its own value and `reclaim_task`
-destroys it exactly once, unlocked, before it takes control for the
-structural free. That is the "cancel-after-done" case RV2-DEBT-053a already
-names in `rt_task_lifetime.c:41-52`. Keeping it there means no generated drop
-runs on a lane that may be holding control (rule 8 P2).
+"Both believed they won" is not a narrow window; it has no execution. That is
+the difference from the first shape, and it is why the fix is a CAS rather
+than an ordering.
+
+(b) was rejected on cost: a lock acquire and release on EVERY task completion
+-- the steady request-completion path Epic 7 spent its whole scope taking off
+the control lane -- to serialize two accesses that need an order, not mutual
+exclusion. And it is what the broken shape was accidentally relying on, which
+is a poor reason to adopt it deliberately.
+
+No new field: the gate reuses `task->cancelled`, and `rt_async_internal.h`
+did not grow (666 effective, base 666, and it is over the 500 ceiling so it
+may not grow at all -- paid for by `task_cancelled_store`, which only ever
+wrote a zero at creation, becoming the three-line `task_cancel_gate_init`).
+`REQUESTED` is the only state that means "a cancel is outstanding", so
+`task_cancelled_load` keeps the meaning its fourteen readers already had: a
+task whose completion sealed the word is committing its answer, not
+cancelled. Both transitions live in `rt_task_complete.c`, which owns
+`cancel_task` and `mark_done` alike.
+
+`cancel_task` now STOPS when its CAS fails against `SEALED`. That is the
+storage model's "after success is committed it does not revoke", and the same
+decision the `TASK_DONE` check at the top of the function already makes for a
+cancel that arrives later still. The consequence, stated plainly: the gate
+closes a few instructions BEFORE `TASK_DONE` becomes visible, so a cancel in
+that sliver no longer wakes the task and no longer walks its `children[]`.
+That widens by a few instructions a window the `TASK_DONE` early return
+already had, and the children of a task that is completing have been drained
+by the awaits that got it there. It is refused visibly rather than swallowed,
+which is exactly what `debt263-cancel-after-seal` asserts.
+
+**The value IS destroyed at the boundary — the first version of this note was
+wrong about that too.** It argued the slot could keep the value because a
+`Cancelled` result is never served, having checked only
+`rt_far_task_take_result`. It missed the FAR reply path:
+`rt_remote_task_on_owner_done` runs later in `mark_done` and calls
+`rt_remote_task_pin_result`, which minted a capability naming the slot on the
+strength of "is there a value here"; the holder then moves the value out
+UNCONDITIONALLY (`finish_retry`, `rt_remote_task_api.c`) while the generated
+`Cancelled` arm never reads the storage it lands in
+(`emit_crossing_far_task.go`). An obligation dropped on the floor. "Cancelled
+with a ready result cell" was a state that did not exist before this lane
+(`POLL_DONE_SUCCESS` implies published, `POLL_DONE_CANCELLED` implies not),
+and inventing one and auditing its readers was the wrong trade.
+
+So the state is gone again. `rt_task_result_refuse` (`rt_task_lifetime.c`)
+empties the slot at the commit, before anything downstream can name it, and
+splits the two moments the brief's `rt_release_owned_block_when_unlocked`
+could not: `rt_value_cell_hand_off` marks the cell `MOVED` -- "already taken",
+a state every reader answers -- and hands back the storage plus whether the
+cell OWNED it. An owning cell's block goes to the existing deferred release,
+which drops and frees it. An inline value (anything at or under
+`RT_VALUE_CELL_INLINE_BYTES`) lives in the task's own bytes, so it is dropped
+in place and never freed, and the deferral PINS the task so it cannot outlive
+those bytes; the drain does blocks before task reclaims for that reason. The
+destruction waits because the drop is generated code and may not run under a
+scheduler lock (rule 8 P2) -- on the steady worker path there is no lock at
+all (`rt_worker_turn.c` takes none across `apply_poll_outcome`), so it runs
+immediately there. `rt_remote_task_pin_result` also asks the kind first now,
+fail-closed behind the invariant rather than in place of it.
 
 **The pre-move fast path in `rt_async_return` was considered and dropped.**
 Checking `current_task_cancelled` before the value moves would mean refusing
@@ -8607,14 +8675,20 @@ path beside the one the runtime already has, and one that lands right after
 `rt_far_task_prepare_return` has handed a far `Task<T>`'s lease back. It buys
 nothing the boundary does not already decide. One chokepoint is the point.
 
-**Sync point.** `SP_ASYNC_RETURN_BEFORE_SUCCESS_COMMIT`, in `rt_async_return`
+**Sync points, two of them, because there are two windows.**
+`SP_ASYNC_RETURN_BEFORE_SUCCESS_COMMIT` sits in `rt_async_return`
 (`rt_async_poll.c`, inside the `src != NULL` branch, after
-`rt_value_cell_commit` and before `poll_result.kind = POLL_DONE_SUCCESS`). It
-must sit there and not in `mark_done`: a cancel landing after `mark_done`'s
-load is a cancel that legitimately lost, so a window opened there would be
-red on the FIXED tree. `RV2_DEBT_263_NEGATIVE_CONTROL` removes only the
-DECISION and leaves the seq-cst load in place, so the control cannot pass by
-changing the ordering the proof is built on.
+`rt_value_cell_commit` and before `poll_result.kind = POLL_DONE_SUCCESS`):
+a cancel landing there is BEFORE the commit and must be answered `Cancelled`.
+`SP_MARKDONE_AFTER_SEAL_BEFORE_DONE` sits in `mark_done` between the
+`result_kind` store and the `TASK_DONE` publication: a cancel landing THERE
+has lost, and must be refused rather than swallowed -- that is the residual
+window, and holding it open is what the first shape of this fix could not
+have survived. `RV2_DEBT_263_NEGATIVE_CONTROL` now restores BOTH pre-fix
+sides (the completion commits the kind it was handed however the seal went;
+the cancel writes its flag and believes it landed however the CAS went) while
+leaving the CASes themselves in place, so it changes only what is BELIEVED
+about their results and cannot pass by removing the ordering.
 
 **Rule 13, run on this lane.** The stand `debt263-cancel-commit-boundary`
 spawns the child from the DRIVER (`spawn_pinned`; a worker's own spawn lands
@@ -8623,11 +8697,32 @@ on its local tail and a single local entry signals nobody -- the lesson from
 into the window, cancels it there and requires both answers:
 
 - positive, `SURGE_SHARDS=1`, `SURGE_THREADS=2/4/8`: `debt263 cancelled in
-  window: cancelled=1 done=0`, `debt263 after: child kind=2 bits=0`,
-  `debt263 after: owner kind=2`, exit 0;
+  window: cancelled=1 done=0 done_waiters=0`, `debt263 after: child kind=2
+  bits=0`, `debt263 after: owner kind=2`, exit 0;
 - negative control, same window: `debt263 after: child kind=1 bits=7` and
   `debt263 the task committed Success after a cancel that landed before the
   commit`, exit 1.
+
+The second stand, `debt263-cancel-after-seal`, is the one the review asked
+for: it holds a completion at `SP_MARKDONE_AFTER_SEAL_BEFORE_DONE` -- inside
+the RESIDUAL window, not before `mark_done` -- and cancels it there.
+
+- positive, 2/4/8: `debt263 seal window: done=0 done_waiters=0`, `debt263
+  after seal: cancel believed=0`, `kind=1 bits=9`, exit 0. Both halves of ONE
+  answer: the task commits `Success` AND the cancel is visibly REFUSED.
+  Asserting only the first would pass on a runtime that swallowed the cancel.
+- negative control: `cancel believed=1` beside `kind=1`, failing with
+  `debt263 the task committed Success while its canceller believed the cancel
+  landed` -- the split brain the old shape allowed.
+
+Both stands assert `done_waiters == 0` at the window, which is the input that
+would otherwise force `mark_done` onto the control lane, so neither can be
+passing because a lock serialised it -- the exact way the lane's first shape
+went green. The seal stand is stronger still: it cancels while a worker is
+held INSIDE `mark_done`, and `rt_task_cancel` takes the control lock, so if
+`mark_done` held control across that window the row would strand at the sync
+point's bounded guard instead of passing. The row existing at all is the
+proof the window is control-free.
 
 The program row `TestRuntimeV2TimeoutTargetAnswersCancelledToEveryHandle`
 (24 rounds) reported **exit 20 in 9 of 10 runs** with the boundary made inert
@@ -8645,6 +8740,35 @@ re-polls the target while its child is still live, measured green 3 of 3 with
 the VM boundary reverted -- so the VM row there is an acceptance row, not the
 witness.
 
+**An OWNING value, because an `int` proves nothing about reclamation.** Every
+other row here answers with an `int`, which lives inline in the cell and owns
+no block (`cell_fits_inline`, threshold 16 bytes), so a refusal that got the
+ownership wrong would leak nothing and free nothing twice.
+`TestRuntimeV2CancelledOwnedResultValgrindZero` answers with a composite of
+two strings -- wider than the inline run, so the slot holds a block it
+allocated and two counted payloads inside it -- produced (the body prints
+`produced` immediately before its `return`, which is the non-vacuity) and then
+refused. Measured: strict zero on the fixed tree; `definitely lost: 200 bytes
+in 8 blocks` with `rt_task_result_refuse` handing off and never releasing;
+`Invalid free()`, `ERROR SUMMARY: 33 errors from 7 contexts`, with
+`rt_value_cell_hand_off` leaving the cell `INITIALIZED` so the refusal and
+`reclaim_task` both destroy it. It is in `requiredSanitizerCoverage`.
+
+**Two static rows** pin what a timing test cannot: exactly two CASes on the
+gate word with no direct load or store of it in either side
+(`StaticCancelGateOneRMWPerSide`), and the far reply asking the kind before
+it names a slot (`StaticFarReplyNamesResultOnlyForSuccess`). The first exists
+because the broken shape was spelled with the same words as the correct one
+and no timing row could be relied on to notice a "simplification" back to it.
+
+**MarkDone hands the refused payload BACK** rather than zeroing it
+(`internal/asyncrt/task_complete.go`). The executor is generic over its
+payload and cannot destroy one, so a value it silently dropped would be a
+value with no owner; the signature makes `refused, ok :=` the only spelling a
+caller has. That also aligns the lanes on the MOMENT of destruction -- native
+destroys at the commit in `rt_task_result_refuse`, the VM in `runReadyOne` --
+so there is no parity gap to record.
+
 **Gate.** Both program rows -- 261's `TestRuntimeV2FailfastJoinAnswersCancelled`
 and this one -- are now a recipe line of `runtime-v2-lifecycle-check`. Neither
 was run by any target before: they are one defect family ("a cancelled task
@@ -8652,8 +8776,9 @@ answered `Success`"), and rule 13 asks for the row rather than a prefix so
 that closing one cannot let the other regress while the gate stays green.
 
 **Not run by this lane** (the lead's): `make runtime-v2-lifecycle-check`,
-`go test ./internal/vm`, `make check`, `make golden-check`, TSan/valgrind,
-benchmarks, and the 20 pinned runs that are the acceptance. The golden corpus
+`go test ./internal/vm`, `make check`, `make golden-check`, the sanitizer
+gate, TSan, benchmarks, and the 20 pinned runs that are the acceptance. The
+golden corpus
 was READ instead of run: every `.sg` under `testdata/golden/vm_async*` and
 `vm_async_suite` that calls `.cancel()` or `timeout()` already expects
 `Cancelled` where a cancel landed (`async_cancel_child`,
@@ -8661,11 +8786,25 @@ was READ instead of run: every `.sg` under `testdata/golden/vm_async*` and
 `t10a_timeout_cancel`, `vm_async_j8_timeout_cancel`), and the two that expect
 `Success` are the runs where the timer loses and nothing is cancelled.
 
-**Two side defects the derivation turned up**, filed and NOT fixed:
-RV2-DEBT-265 (`rt_scope_join_all` returns `true` without writing `*failfast`
-on its two early exits, and the LLVM caller's `alloca i1` is never
-initialized -- the `@failfast` tail branches on undefined memory) and
-RV2-DEBT-266 (`poll_task`'s `cancel_pending` branch reads `active_children`
-and frees the scope under the control lane alone, while the steady child-done
-mutates both control-free under the pinned shard lock; the comment on
-`scope_exit_locked` still describes the old lane).
+**Three side defects, filed and NOT fixed:** RV2-DEBT-265 (`rt_scope_join_all`
+returns `true` without writing `*failfast` on its two early exits, and the
+LLVM caller's `alloca i1` is never initialized -- the `@failfast` tail
+branches on undefined memory), RV2-DEBT-266 (`poll_task`'s `cancel_pending`
+branch reads `active_children` and frees the scope under the control lane
+alone, while the steady child-done mutates both control-free under the pinned
+shard lock; the comment on `scope_exit_locked` still describes the old lane),
+and RV2-DEBT-267 -- the one this lane owes rather than found: there is no
+BEHAVIOURAL row for the far reply path with a cancelled producer. The guards
+are in (the slot is emptied at the commit; `pin_result` asks the kind first)
+and a static row pins their shape, but a far body is a single call expression,
+so "produced, then cancelled across the crossing" needs a program shape the
+crossing rows do not have today. Filed with the witness owed rather than
+claimed.
+
+**What this lane got wrong, for whoever reads it next.** Two blockers, both
+found by review and neither by the lane: a memory-ordering argument that was
+simply false (and whose gate went green on the control lock instead), and an
+ownership audit that stopped at the first reader it checked. The pattern in
+both is the same -- a claim stated more confidently than it was tested. The
+protocol is now a CAS whose argument needs no fence reasoning, and the state
+whose readers had to be audited no longer exists.
