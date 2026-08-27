@@ -845,6 +845,39 @@ async fn wait_send(ch: own Channel<int>) -> int {
     return 0;
 }
 
+// RV2-DEBT-297. The handoff yield fires on a send that COMPLETES immediately
+// because a receiver was already parked, and whose continuation is a recv
+// suspend. The ping-pong below does not force that shape: on a quiet machine
+// the two tasks alternate strictly, every send arrives first and parks, and
+// the ready path is never taken. These two force it -- the receiver is spawned
+// and given the runtime two yields to reach its park, exactly as the cancel
+// phases above do, and only then does the sender run.
+async fn handoff_waiter(inp: own Channel<int>, out: own Channel<int>) -> int {
+    let v = inp.recv();
+    let ok = compare v {
+        Some(_) => true;
+        nothing => false;
+    };
+    if !ok {
+        return 1;
+    }
+    out.send(0);
+    return 0;
+}
+
+async fn handoff_sender(out: own Channel<int>, inp: own Channel<int>) -> int {
+    out.send(1);
+    let v = inp.recv();
+    let ok = compare v {
+        Some(_) => true;
+        nothing => false;
+    };
+    if !ok {
+        return 1;
+    }
+    return 0;
+}
+
 async fn ping(out: own Channel<int>, inp: own Channel<int>, count: int) -> int {
     let mut i = 0;
     while i < count {
@@ -978,6 +1011,30 @@ fn main() -> int {
         return 6;
     }
 
+    let mut handoff = 0;
+    while handoff < 8 {
+        let to_waiter = Channel::<int>::new(0:uint);
+        let to_sender = Channel::<int>::new(0:uint);
+        let waiter_task = spawn handoff_waiter(to_waiter, to_sender);
+        checkpoint().await();
+        checkpoint().await();
+        let sender_task = spawn handoff_sender(to_waiter, to_sender);
+        let waiter_res = waiter_task.await();
+        let sender_res = sender_task.await();
+        let waiter_ok = compare waiter_res {
+            Success(v) => v == 0;
+            Cancelled() => false;
+        };
+        let sender_ok = compare sender_res {
+            Success(v) => v == 0;
+            Cancelled() => false;
+        };
+        if !waiter_ok || !sender_ok {
+            return 8;
+        }
+        handoff = handoff + 1;
+    }
+
     let rounds = 20;
     let iter = 2000;
     let mut round = 0;
@@ -1028,6 +1085,11 @@ fn main() -> int {
 		trace["channel_task_blocking_recv"] != 0 || trace["compensation_started"] != 0 {
 		t.Fatalf("async channel path should not pin workers, got %+v\nstderr:\n%s", trace, res.stderr)
 	}
+	// RV2-DEBT-297: the program forces this shape eight times over -- a receiver
+	// parked before the sender runs, and a send whose continuation is a recv --
+	// so a zero here is the fast path being dead or the spawned receiver never
+	// reaching its park across two yields, and both are defects. It is no longer
+	// a reading of how the ping-pong below happened to interleave.
 	if trace["channel_handoff_yield"] == 0 {
 		t.Fatalf("expected async channel handoff yields in TRACE_EXEC, got %+v\nstderr:\n%s",
 			trace, res.stderr)
