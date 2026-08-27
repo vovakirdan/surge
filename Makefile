@@ -98,9 +98,13 @@ test:
 	@echo ">> Running tests"
 	SURGE_SKIP_TIMEOUT_TESTS=$(SURGE_SKIP_TIMEOUT_TESTS) $(GO) test ./... --timeout 300s
 
+# --committed is not a default repeated here, it is the gate's contract: a gate
+# must answer the same thing for the same commits no matter what is lying in
+# anyone's worktree. The script itself defaults to --worktree, because a person
+# or an agent asking it directly wants to know about the file they just edited.
 .PHONY: runtime-v2-file-size-check
 runtime-v2-file-size-check:
-	@./scripts/runtime_v2_file_size_check.sh
+	@./scripts/runtime_v2_file_size_check.sh --committed
 
 runtime-v2-check:
 	@echo ">> Checking Runtime V2 LLVM toolchain"

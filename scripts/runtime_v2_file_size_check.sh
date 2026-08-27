@@ -63,6 +63,23 @@ die() {
     exit 2
 }
 
+usage() {
+    cat <<'HELP'
+usage: runtime_v2_file_size_check.sh [--worktree | --committed]
+
+Sizes every source file the epic touches, in effective LOC, against EPIC_BASE.
+
+  --worktree   size the files as they are ON DISK, including files that are
+               staged or not added yet. This is the default, so the answer
+               arrives while the growth can still be undone.
+  --committed  size the committed blobs at HEAD and ignore the worktree. This
+               is what the gate and CI run: the same input every time.
+
+EPIC_BASE=<ancestor-commit> is required. SIZE_CHECK_SOURCE=worktree|committed
+picks the same two modes, and an explicit argument outranks the variable.
+HELP
+}
+
 is_source_path() {
     case "$1" in
         *.go|*.c|*.h) return 0 ;;
@@ -81,6 +98,18 @@ write_blob() {
     git cat-file blob "$oid" >"$destination" || die "cannot read committed blob for $label"
 }
 
+write_worktree() {
+    local path=$1
+    local destination=$2
+    # No path, or nothing on disk under it, is a deletion: the head side of the
+    # comparison is empty, exactly as an absent blob is.
+    if [[ -z "$path" || ! -f "$path" ]]; then
+        : >"$destination"
+        return
+    fi
+    cat -- "$path" >"$destination" || die "cannot read worktree file $path"
+}
+
 line_count() {
     awk 'END { print NR + 0 }' "$1"
 }
@@ -96,7 +125,7 @@ line_churn() {
     rc=$?
     set -e
     if (( rc > 1 )); then
-        die "cannot calculate committed line churn"
+        die "cannot calculate line churn"
     fi
     if [[ -z "$output" ]]; then
         printf '0\n'
@@ -126,6 +155,21 @@ violation() {
     violations=$((violations + 1))
 }
 
+source_mode=${SIZE_CHECK_SOURCE:-worktree}
+while (( $# )); do
+    case "$1" in
+        --worktree) source_mode=worktree ;;
+        --committed) source_mode=committed ;;
+        -h|--help) usage; exit 0 ;;
+        *) usage >&2; die "unknown argument: $1" ;;
+    esac
+    shift
+done
+case "$source_mode" in
+    worktree|committed) ;;
+    *) die "SIZE_CHECK_SOURCE must be worktree or committed, not: $source_mode" ;;
+esac
+
 clear_repo_local_git_env
 command -v git >/dev/null 2>&1 || die "git is required"
 [[ -n "${EPIC_BASE:-}" ]] || die \
@@ -145,12 +189,31 @@ git merge-base --is-ancestor "$base_oid" "$head_oid" 2>/dev/null ||
 tmp_dir=$(mktemp -d) || die "cannot create temporary directory"
 trap 'rm -rf -- "$tmp_dir"' EXIT
 raw_diff="$tmp_dir/diff.raw"
-git -c diff.renameLimit=999999 diff --raw -z --find-renames=50% --find-copies=50% --no-abbrev \
-    "$base_oid" "$head_oid" -- >"$raw_diff" || die "cannot read committed BASE..HEAD diff"
+if [[ "$source_mode" == committed ]]; then
+    head_label=$head_oid
+    banner="measuring committed blobs only"
+    git -c diff.renameLimit=999999 diff --raw -z --find-renames=50% --find-copies=50% --no-abbrev \
+        "$base_oid" "$head_oid" -- >"$raw_diff" || die "cannot read committed BASE..HEAD diff"
+else
+    head_label=worktree
+    banner="measuring the worktree against $base_oid; HEAD is $head_oid"
+    # A base and NO second commit is how git is asked to compare a commit with
+    # the files on disk. Untracked files sit outside that comparison, so they
+    # are appended as additions: a source file written but not added yet is the
+    # commonest way a new file first crosses the limit.
+    git -c diff.renameLimit=999999 diff --raw -z --find-renames=50% --find-copies=50% --no-abbrev \
+        "$base_oid" -- >"$raw_diff" || die "cannot read BASE..worktree diff"
+    git ls-files --others --exclude-standard -z >"$tmp_dir/untracked" ||
+        die "cannot list untracked worktree files"
+    while IFS= read -r -d '' untracked_path; do
+        is_source_path "$untracked_path" || continue
+        printf ':000000 100644 %040d %040d A\0%s\0' 0 0 "$untracked_path" >>"$raw_diff"
+    done <"$tmp_dir/untracked"
+fi
 
 printf 'runtime-v2-file-size-check: base=%s head=%s limit=%d-effective-LOC\n' \
-    "$base_oid" "$head_oid" "$LIMIT"
-printf 'runtime-v2-file-size-check: worktree state ignored; measuring committed blobs only\n'
+    "$base_oid" "$head_label" "$LIMIT"
+printf 'runtime-v2-file-size-check: %s\n' "$banner"
 
 files=0
 violations=0
@@ -169,9 +232,15 @@ while IFS= read -r -d '' metadata; do
             IFS= read -r -d '' new_path || die "rename/copy record has no destination path"
             ;;
         M|T) ;;
+        U)
+            # Only a worktree comparison can report an unmerged path, and its
+            # content is half of two commits: measuring it answers nothing.
+            is_source_path "$first_path" || continue
+            die "unmerged path $first_path; fix: finish the merge before measuring the worktree"
+            ;;
         *)
             if is_source_path "$first_path"; then
-                die "unsupported committed git status $status for source path"
+                die "unsupported git status $status for source path"
             fi
             continue
             ;;
@@ -186,23 +255,29 @@ while IFS= read -r -d '' metadata; do
 
     is_new=0
     is_deleted=0
+    head_path=$new_path
     if (( ! old_scoped )) || [[ "$code" == A || "$code" == C ]]; then
         old_oid=
         is_new=1
     fi
     if (( ! new_scoped )) || [[ "$code" == D ]]; then
         new_oid=
+        head_path=
         is_deleted=1
     fi
     report_path=$new_path
     (( new_scoped )) || report_path=$old_path
 
     write_blob "$old_oid" "$tmp_dir/base.source" "$old_path"
-    write_blob "$new_oid" "$tmp_dir/head.source" "$new_path"
+    if [[ "$source_mode" == worktree ]]; then
+        write_worktree "$head_path" "$tmp_dir/head.source"
+    else
+        write_blob "$new_oid" "$tmp_dir/head.source" "$new_path"
+    fi
     awk -v mode=lines -f "$effective_awk" "$tmp_dir/base.source" >"$tmp_dir/base.effective" ||
         die "effective LOC parser failed for committed base blob"
     awk -v mode=lines -f "$effective_awk" "$tmp_dir/head.source" >"$tmp_dir/head.effective" ||
-        die "effective LOC parser failed for committed head blob"
+        die "effective LOC parser failed for the head-side source"
 
     physical_base=$(line_count "$tmp_dir/base.source")
     physical_head=$(line_count "$tmp_dir/head.source")

@@ -72,9 +72,9 @@ func (r *fileSizeGateRepo) commit(message string) string {
 	return r.git("rev-parse", "HEAD")
 }
 
-func (r *fileSizeGateRepo) run(base string) (string, int) {
+func (r *fileSizeGateRepo) run(base string, args ...string) (string, int) {
 	r.t.Helper()
-	cmd := exec.Command(filepath.Join("scripts", "runtime_v2_file_size_check.sh"))
+	cmd := exec.Command(filepath.Join("scripts", "runtime_v2_file_size_check.sh"), args...)
 	cmd.Dir = r.dir
 	cmd.Env = []string{
 		"EPIC_BASE=" + base,
@@ -124,14 +124,14 @@ func TestRuntimeV2FileSizeGateUsesCommittedProdAndTestBlobs(t *testing.T) {
 	r.write("prod_test.go", sourceLines("testHead", 2), 0o644)
 	r.commit("head")
 
-	cleanReport, cleanCode := r.run(base)
+	cleanReport, cleanCode := r.run(base, "--committed")
 	if cleanCode != 0 {
 		t.Fatalf("clean gate exit=%d\n%s", cleanCode, cleanReport)
 	}
 	for _, want := range []string{
 		"path=prod.go", "path=prod_test.go", "physical_base=", "physical_head=",
 		"physical_churn=", "effective_base=", "effective_head=", "effective_churn=",
-		"worktree state ignored",
+		"measuring committed blobs only",
 	} {
 		if !strings.Contains(cleanReport, want) {
 			t.Errorf("report missing %q:\n%s", want, cleanReport)
@@ -144,7 +144,7 @@ func TestRuntimeV2FileSizeGateUsesCommittedProdAndTestBlobs(t *testing.T) {
 	r.write("prod.go", sourceLines("dirty", 700), 0o644)
 	r.write("untracked_test.go", sourceLines("untracked", 700), 0o644)
 	r.write(filepath.Join(".serena", "project.yml"), "tool: state\n", 0o644)
-	dirtyReport, dirtyCode := r.run(base)
+	dirtyReport, dirtyCode := r.run(base, "--committed")
 	if dirtyCode != cleanCode || dirtyReport != cleanReport {
 		t.Fatalf("dirty state changed committed report/exit\nclean(%d):\n%s\ndirty(%d):\n%s",
 			cleanCode, cleanReport, dirtyCode, dirtyReport)
@@ -238,6 +238,87 @@ func TestRuntimeV2FileSizeGateParsesNULSafeRename(t *testing.T) {
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("rename report missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestRuntimeV2FileSizeGateMeasuresTheWorktreeByDefault(t *testing.T) {
+	r := newFileSizeGateRepo(t)
+	r.write("legacy.go", sourceLines("legacy", 501), 0o644)
+	base := r.commit("base")
+	// Grown on disk and committed nowhere: the state the gate used to be blind
+	// to, which is the only state in which the growth can still be undone.
+	r.write("legacy.go", sourceLines("legacy", 520), 0o644)
+
+	out, code := r.run(base)
+	if code != 1 {
+		t.Fatalf("worktree gate exit=%d want 1\n%s", code, out)
+	}
+	for _, want := range []string{
+		"head=worktree", "measuring the worktree against " + base,
+		"code=LEGACY_GROWTH", "effective_base=501", "effective_head=520",
+		"FAIL files=1 violations=1",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("worktree report missing %q:\n%s", want, out)
+		}
+	}
+
+	committed, committedCode := r.run(base, "--committed")
+	if committedCode != 0 {
+		t.Fatalf("committed gate exit=%d want 0\n%s", committedCode, committed)
+	}
+	for _, want := range []string{"measuring committed blobs only", "PASS files=0 violations=0"} {
+		if !strings.Contains(committed, want) {
+			t.Errorf("committed report missing %q:\n%s", want, committed)
+		}
+	}
+	if strings.Contains(committed, "LEGACY_GROWTH") {
+		t.Fatalf("committed mode reported worktree growth:\n%s", committed)
+	}
+}
+
+func TestRuntimeV2FileSizeGateSizesAnUnaddedSourceFile(t *testing.T) {
+	r := newFileSizeGateRepo(t)
+	base := r.commit("base")
+	r.write("fresh.go", sourceLines("fresh", 501), 0o644)
+	r.write("notes.txt", sourceLines("notes", 900), 0o644)
+
+	out, code := r.run(base)
+	if code != 1 {
+		t.Fatalf("worktree gate exit=%d want 1\n%s", code, out)
+	}
+	for _, want := range []string{
+		"FILE status=A", "path=fresh.go", "effective_base=0", "effective_head=501",
+		"code=NEW_OVER_500", "FAIL files=1 violations=1",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("untracked report missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "notes.txt") {
+		t.Fatalf("untracked non-source file was sized:\n%s", out)
+	}
+}
+
+func TestRuntimeV2FileSizeGateTakesAWorktreeDeletionAsEmpty(t *testing.T) {
+	r := newFileSizeGateRepo(t)
+	r.write("gone.go", sourceLines("gone", 501), 0o644)
+	base := r.commit("base")
+	if err := os.Remove(filepath.Join(r.dir, "gone.go")); err != nil {
+		t.Fatal(err)
+	}
+
+	out, code := r.run(base)
+	if code != 0 {
+		t.Fatalf("worktree gate exit=%d want 0\n%s", code, out)
+	}
+	for _, want := range []string{
+		"FILE status=D", "path=gone.go", "effective_base=501", "effective_head=0",
+		"PASS files=1 violations=0",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("deletion report missing %q:\n%s", want, out)
 		}
 	}
 }

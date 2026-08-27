@@ -10,9 +10,9 @@ import (
 	"testing"
 )
 
-func runFileSizeGateFrom(t *testing.T, r *fileSizeGateRepo, base, cwd string, extraEnv ...string) (string, int) {
+func runFileSizeGateFrom(t *testing.T, r *fileSizeGateRepo, base, cwd string, args []string, extraEnv ...string) (string, int) {
 	t.Helper()
-	cmd := exec.Command(filepath.Join(r.dir, "scripts", "runtime_v2_file_size_check.sh"))
+	cmd := exec.Command(filepath.Join(r.dir, "scripts", "runtime_v2_file_size_check.sh"), args...)
 	cmd.Dir = cwd
 	cmd.Env = append([]string{
 		"EPIC_BASE=" + base,
@@ -87,8 +87,8 @@ func TestRuntimeV2FileSizeGateIsolatesCallerGitEnvironment(t *testing.T) {
 	if err := os.MkdirAll(nested, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	cleanOut, cleanCode := runFileSizeGateFrom(t, r, base, nested)
-	poisonedOut, poisonedCode := runFileSizeGateFrom(t, r, base, nested,
+	cleanOut, cleanCode := runFileSizeGateFrom(t, r, base, nested, nil)
+	poisonedOut, poisonedCode := runFileSizeGateFrom(t, r, base, nested, nil,
 		"GIT_ALTERNATE_OBJECT_DIRECTORIES="+filepath.Join(outerGitDir, "objects"),
 		"GIT_CEILING_DIRECTORIES="+r.dir,
 		"GIT_COMMON_DIR="+outerGitDir,
@@ -208,4 +208,39 @@ func TestRuntimeV2FileSizeGateCopyScopeIsNULSafe(t *testing.T) {
 			t.Fatalf("scoped copy produced unexpected rows:\n%s", out)
 		}
 	})
+}
+
+func TestRuntimeV2FileSizeGateSourceIsChosenByArgumentThenVariable(t *testing.T) {
+	r := newFileSizeGateRepo(t)
+	r.write("legacy.go", sourceLines("legacy", 501), 0o644)
+	base := r.commit("base")
+	r.write("legacy.go", sourceLines("legacy", 520), 0o644)
+
+	for _, tc := range []struct {
+		name, env string
+		args      []string
+		wantCode  int
+		want      string
+	}{
+		{name: "default", wantCode: 1, want: "measuring the worktree against " + base},
+		{name: "variable picks committed", env: "committed", want: "measuring committed blobs only"},
+		{name: "variable picks worktree", env: "worktree", wantCode: 1, want: "measuring the worktree against " + base},
+		{name: "argument outranks variable", env: "worktree", args: []string{"--committed"},
+			want: "measuring committed blobs only"},
+		{name: "unusable variable", env: "index", wantCode: 2,
+			want: "SIZE_CHECK_SOURCE must be worktree or committed"},
+		{name: "unknown argument", args: []string{"--index"}, wantCode: 2, want: "unknown argument: --index"},
+		{name: "help names both modes", args: []string{"--help"}, want: "usage: runtime_v2_file_size_check.sh"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var env []string
+			if tc.env != "" {
+				env = append(env, "SIZE_CHECK_SOURCE="+tc.env)
+			}
+			out, code := runFileSizeGateFrom(t, r, base, r.dir, tc.args, env...)
+			if code != tc.wantCode || !strings.Contains(out, tc.want) {
+				t.Fatalf("exit=%d want %d containing %q\n%s", code, tc.wantCode, tc.want, out)
+			}
+		})
+	}
 }
