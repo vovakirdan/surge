@@ -1,6 +1,6 @@
 module surge
 
-go 1.25.1
+go 1.26.1
 
 require (
 	fortio.org/safecast v1.2.0
