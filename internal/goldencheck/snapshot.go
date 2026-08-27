@@ -76,6 +76,9 @@ func Scan(root string) (snapshot Snapshot, returnErr error) {
 		if statErr != nil {
 			return statErr
 		}
+		if special := info.Mode() & (os.ModeSetuid | os.ModeSetgid | os.ModeSticky); special != 0 {
+			return fmt.Errorf("golden entry %q carries %s, which git cannot store", relativePath, special)
+		}
 		entry := Entry{Path: relativePath, Mode: snapshotMode(info.Mode())}
 		var content []byte
 		var readErr error
@@ -105,9 +108,21 @@ func Scan(root string) (snapshot Snapshot, returnErr error) {
 	return Snapshot{Entries: entries}, nil
 }
 
+// snapshotMode answers what git stores about a mode, and nothing else: one
+// executable bit for a file, a fixed mode for a directory. Recording the rest
+// made the frozen digest an answer about the umask of whoever wrote the tree
+// -- a corpus regenerated in place at 0600 and the same corpus checked out at
+// 0644 hold identical bytes and disagreed, which is how the digest drifted
+// between the working machine and a runner. Modes git cannot carry are
+// refused at the scan instead of being folded in here.
 func snapshotMode(mode fs.FileMode) uint32 {
-	const special = os.ModeSetuid | os.ModeSetgid | os.ModeSticky
-	return uint32(mode.Perm() | mode&special)
+	if mode.IsDir() {
+		return 0o755
+	}
+	if mode.Perm()&0o111 != 0 {
+		return 0o755
+	}
+	return 0o644
 }
 
 // Digest hashes length-framed entry fields, so path and content boundaries

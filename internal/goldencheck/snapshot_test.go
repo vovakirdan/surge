@@ -85,3 +85,40 @@ func TestParsePorcelainUsesNULTerminatedPaths(t *testing.T) {
 		t.Fatalf("changes = %#v", changes)
 	}
 }
+
+func TestSnapshotDigestIgnoresPermissionsGitCannotStore(t *testing.T) {
+	root := t.TempDir()
+	filename := filepath.Join(root, "entry")
+	writeTestFile(t, filename, "content", 0o644)
+	checkedOut, err := Scan(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The same bytes, written in place by a regenerating tool under a tighter
+	// umask. A digest that moves here is an answer about the writer, not about
+	// the corpus, and it refuses a runner's clean checkout for no reason.
+	if chmodErr := os.Chmod(filename, 0o600); chmodErr != nil {
+		t.Fatal(chmodErr)
+	}
+	regenerated, err := Scan(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if regenerated.Digest() != checkedOut.Digest() {
+		t.Fatalf("0600 moved the digest: %s != %s", regenerated.Digest(), checkedOut.Digest())
+	}
+	if changes := Diff(checkedOut, regenerated); len(changes) != 0 {
+		t.Fatalf("0600 was reported as a change: %#v", changes)
+	}
+	// The one permission bit git does store still has to be seen.
+	if chmodErr := os.Chmod(filename, 0o755); chmodErr != nil {
+		t.Fatal(chmodErr)
+	}
+	executable, err := Scan(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if executable.Digest() == checkedOut.Digest() {
+		t.Fatal("the executable bit did not move the digest")
+	}
+}

@@ -50,7 +50,7 @@ func TestScanRejectsEveryNestedSymlink(t *testing.T) {
 	}
 }
 
-func TestScanRecordsRootAndSpecialModeBits(t *testing.T) {
+func TestScanRecordsRootAndRefusesSpecialModeBits(t *testing.T) {
 	root := t.TempDir()
 	if err := os.Chmod(root, 0o700); err != nil {
 		t.Fatal(err)
@@ -64,17 +64,20 @@ func TestScanRecordsRootAndSpecialModeBits(t *testing.T) {
 	if len(baseline.Entries) != 2 || baseline.Entries[0].Path != "." || baseline.Entries[0].Kind != "directory" {
 		t.Fatalf("root entry = %#v", baseline.Entries)
 	}
+	// A mode git cannot carry cannot reach the corpus through a checkout, so the
+	// scan refuses it where it refuses a symlink, instead of freezing a number
+	// no other machine can reproduce.
 	if chmodErr := os.Chmod(filename, 0o755|os.ModeSetuid); chmodErr != nil {
 		t.Fatal(chmodErr)
 	}
-	setuid, err := Scan(root)
-	if err != nil {
-		t.Fatal(err)
+	if _, scanErr := Scan(root); scanErr == nil {
+		t.Fatal("a setuid golden entry was accepted")
 	}
-	changes := Diff(baseline, setuid)
-	if len(changes) != 1 || changes[0].Path != "entry" || changes[0].After.Mode&uint32(os.ModeSetuid) == 0 {
-		t.Fatalf("setuid changes = %#v", changes)
+	if chmodErr := os.Chmod(filename, 0o755); chmodErr != nil {
+		t.Fatal(chmodErr)
 	}
+	// A directory's permissions are not stored by git either: this is the change
+	// that made the frozen digest disagree between a working tree and a runner.
 	if chmodErr := os.Chmod(root, 0o755); chmodErr != nil {
 		t.Fatal(chmodErr)
 	}
@@ -82,8 +85,7 @@ func TestScanRecordsRootAndSpecialModeBits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	changes = Diff(setuid, rootMode)
-	if len(changes) != 1 || changes[0].Path != "." {
-		t.Fatalf("root mode changes = %#v", changes)
+	if changes := Diff(baseline, rootMode); len(changes) != 0 {
+		t.Fatalf("a directory's permission change was reported: %#v", changes)
 	}
 }
