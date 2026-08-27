@@ -8935,3 +8935,48 @@ on the working machine is not a closed row, and a row that is green twenty
 times on the DEDICATED machine is not one either -- the same two rows run alone
 on `surge-bm` are 0 of 20. Only repeating the command the gate runs, enough
 times to see a half-percent event, said anything at all.
+
+### 2026-08-27 — half B of the rulings is drafted, reviewed, and refused
+
+Р2, Р5, Р7 and Р8 were written as normative edits by four authors, each
+reading the whole document and the code its ruling touches, and each draft was
+then attacked by two independent lenses: one asking whether the text says
+exactly what the owner ruled, one checking every claim it makes about the tree
+by opening the file. Eight verdicts, none accepting. That is the pass working,
+not failing: what it caught is the same failure four times over.
+
+**Every draft settled a fork the ruling left open.** Р2's author picked a
+single monotonic base for all shards (the ruling says monotonic wall time, not
+how many bases), fixed the clock the already-normative 1 ms service budget is
+measured on (Р2 does not touch that budget), and defined "sleep semantics" --
+the ruling's load-bearing phrase -- and stated the definition as settled. Р5's
+author added a scope limit the owner never ruled ("the promise covers one
+channel"), and closed with "that is the only freedom this order allows", an
+exhaustiveness claim its own open questions contradict twice. Р7's author
+invented the fallback's mechanism and settled span granularity as size classes,
+which RV2-DEBT-286 already records as an unanswered part of Р7. Р8's author
+classified debug invariants as reporting, a classification the ruling does not
+make, and enumerated the reporting switches wrongly.
+
+**Two of the four cannot be written as description at all, because the tree
+does not do what the ruling says.**
+
+Р2: the runtime does not run on monotonic wall time. `rt_clock_now` reads
+`ex->now_ms`, a virtual clock (`rt_async_internal.h:403-411`, commented
+"Virtual clock (D7)"), `rt_clock_tick` hands out a millisecond nobody waited
+for on every yielded poll, and `rt_clock_advance_to_next_deadline`
+(`rt_async_sleep.c:179-202`) jumps straight to the next deadline when the wall
+bound is inactive. That is RV2-DEBT-180, already open and already
+blocker-class. Р2 is therefore an instruction to close 180, not a paragraph to
+add -- and on the VM side it inverts a default, since `surge run --real-time`
+opts INTO wall time today.
+
+Р5: the channel orders admission, not commit. `channel_stage_locked` releases
+the owner lane across the element move (`rt_async_channel.c:232-234`), so two
+senders admitted A then B can commit B then A whenever B's element is cheaper
+to move. Writing Р5's promise into Section 7 today would state a guarantee the
+runtime does not keep. That is RV2-DEBT-298, opened here.
+
+So half B does not land. The four rulings are recorded with the forks each one
+leaves open, and the questions go back to the owner rather than being answered
+in prose by whoever happened to be typing.
