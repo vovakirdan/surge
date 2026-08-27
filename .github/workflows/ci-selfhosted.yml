@@ -20,6 +20,9 @@ env:
   GOCACHE: /srv/ci/cache/go
   GOMODCACHE: /srv/ci/cache/gomod
   CCACHE_DIR: /srv/ci/cache/ccache
+  # stdlib ищется по SURGE_STDLIB; в профиле раннера её нет, и ряды
+  # падают с `SEM3005 cannot resolve` вместо того, что мерили.
+  SURGE_STDLIB: ${{ github.workspace }}
 
 jobs:
   gates:
@@ -28,6 +31,10 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+      - name: Тулчейн в PATH
+        # Служба раннера стартует не как login shell, поэтому /usr/local/go/bin
+        # в её PATH не попадает и make падает на `go: No such file or directory`.
+        run: echo /usr/local/go/bin >> "$GITHUB_PATH"
       - name: Тулчейн совпадает с эталоном
         # Расхождение версии LLVM меняет IR, а значит красит голден-корпус по
         # причине, не связанной с изменением. Проверяем до того, как что-то гонять.
@@ -61,6 +68,10 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
+      - name: Тулчейн в PATH
+        # Служба раннера стартует не как login shell, поэтому /usr/local/go/bin
+        # в её PATH не попадает и make падает на `go: No such file or directory`.
+        run: echo /usr/local/go/bin >> "$GITHUB_PATH"
       - name: Жизненный цикл задач
         run: taskset -c 8-15 make runtime-v2-lifecycle-check
       - name: Живучесть под нагрузкой
@@ -74,6 +85,10 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+      - name: Тулчейн в PATH
+        # Служба раннера стартует не как login shell, поэтому /usr/local/go/bin
+        # в её PATH не попадает и make падает на `go: No such file or directory`.
+        run: echo /usr/local/go/bin >> "$GITHUB_PATH"
       - name: Носители под санитайзерами
         run: make runtime-v2-carrier-sanitizer-check
       - name: Куча

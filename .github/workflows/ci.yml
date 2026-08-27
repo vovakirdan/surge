@@ -21,6 +21,12 @@ concurrency:
 permissions:
   contents: read
 
+# Тесты компилируют программы во временных каталогах, а stdlib ищется по
+# SURGE_STDLIB. На рабочей машине переменная стоит в профиле, на раннере её
+# нет -- и ряды падали не по существу, а с `SEM3005 cannot resolve 'clone'`.
+env:
+  SURGE_STDLIB: ${{ github.workspace }}
+
 jobs:
   test-go:
     name: Go tests (${{ matrix.backend }})

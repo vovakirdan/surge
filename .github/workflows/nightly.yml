@@ -22,6 +22,9 @@ env:
   GOCACHE: /srv/ci/cache/go
   GOMODCACHE: /srv/ci/cache/gomod
   CCACHE_DIR: /srv/ci/cache/ccache
+  # stdlib ищется по SURGE_STDLIB; в профиле раннера её нет, и ряды
+  # падают с `SEM3005 cannot resolve` вместо того, что мерили.
+  SURGE_STDLIB: ${{ github.workspace }}
 
 jobs:
   tagged-suite:
@@ -35,6 +38,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
+      - name: Тулчейн в PATH
+        # Служба раннера стартует не как login shell, поэтому /usr/local/go/bin
+        # в её PATH не попадает и make падает на `go: No such file or directory`.
+        run: echo /usr/local/go/bin >> "$GITHUB_PATH"
       - name: runtime_v2_pending
         run: |
           SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 \
@@ -55,6 +62,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
+      - name: Тулчейн в PATH
+        # Служба раннера стартует не как login shell, поэтому /usr/local/go/bin
+        # в её PATH не попадает и make падает на `go: No such file or directory`.
+        run: echo /usr/local/go/bin >> "$GITHUB_PATH"
       - run: make behaviour-check-all
       - run: make behaviour-check-mt
 
@@ -69,6 +80,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
+      - name: Тулчейн в PATH
+        # Служба раннера стартует не как login shell, поэтому /usr/local/go/bin
+        # в её PATH не попадает и make падает на `go: No such file or directory`.
+        run: echo /usr/local/go/bin >> "$GITHUB_PATH"
       - name: Три строки одним харнессом
         # Сервер живёт на CCD1 (изолированные ядра 8-15), генератор нагрузки —
         # на CCD0: иначе строка не вправе утверждать, что упёрся не клиент.
