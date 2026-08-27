@@ -316,7 +316,21 @@ func (vm *VM) runReadyOne() (bool, *VMError) {
 	}
 	switch outcome.Kind {
 	case asyncrt.PollDoneSuccess:
-		exec.MarkDone(id, asyncrt.TaskResultSuccess, outcome.Value)
+		// RV2-DEBT-263: the kind belongs to the commit, not to the terminator.
+		// A task cancelled after its last suspension point arrives here
+		// carrying Success -- execTermAsyncReturn publishes PollDoneSuccess
+		// unconditionally and pollTask's DONE fast path answers from the
+		// TARGET, so the body never had a suspension left to see the cancel at.
+		// Ask the executor what it will commit BEFORE handing the value over: a
+		// refused value is this lane's to destroy, because the executor is
+		// generic over the payload and cannot destroy one.
+		kind := exec.CommitKindFor(id, asyncrt.TaskResultSuccess)
+		result := outcome.Value
+		if kind != asyncrt.TaskResultSuccess {
+			vm.dropValue(result)
+			result = Value{}
+		}
+		exec.MarkDone(id, kind, result)
 		// Completion is the second moment a result can become unclaimable: the
 		// cohort may already have emptied while the task was still running.
 		vm.taskCompleted(id)
