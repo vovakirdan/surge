@@ -176,10 +176,10 @@ in Section 8. Every cell names its owner -- a carrier, a lane, or the runtime;
 a cell that names none is refused; a lane-owned cell several carriers write
 under that lane stays single-writer in the only sense that matters; and cells
 of different owners are padded apart, asserted at compile time. The threads
-that serve a shard are named by the topology and recorded with it, in two roles
-never merged: only a carrier executes task turns and owns private work, and a
-service agent is a serving thread that is not a carrier of the shard, driving
-its transport, readiness, and timers, polling no task, and touching no
+that serve a shard are named by the topology and recorded with it, in two
+roles never merged: only a carrier executes task turns and owns private work,
+and a service agent is a serving thread that is not a carrier of the shard,
+driving its transport, readiness, and timers, polling no task, and touching no
 carrier's private deque or run-next slot. Serving is not executing, so
 eligibility class (Section 10) and carrier affinity (Section 9) survive every
 removal, and serving turns external readiness into publication: what is ready,
@@ -190,54 +190,73 @@ observed, never from when a thread happened to look. The budget binds the
 function, not the role: it binds whichever thread serves a shard with no
 service agent, and a waiting service arms its wait no later than the shard's
 nearest deadline. The budget is the service's, not a promise that the task
-runs within 1 ms. While a group is
-open the set of threads serving each of its shards is non-empty, and making a
-task runnable is publication under Section 10 unless a continuity obligation
-covers it: an eligible credit and a notification. Outstanding work has three
-classes, and non-emptiness names none of them. A runnable obligation is work a
-carrier could execute now: unless a continuity obligation covers it, it owes an
-eligible credit and a notification, and no thread eligible for it may wait
-while that credit is unclaimed; the one covered case is a task reserved in its
-own carrier's run-next slot, which binds that carrier alone and no peer. A
-service obligation -- an armed deadline, a registered readiness interest --
-owes a live service for its shard, not a carrier credit, until readiness turns
-it into a runnable obligation. A maintenance obligation -- a remote-release
-queue -- keeps no shard active, creates no credit, and owes only its bound and
-its fallback. Every structure that can hold work names its class -- the subsections
-below, and equally the fd registry and deadline index of Section 4, the ready
-queue, run-next slot and public queue of Section 8, and the class queues of
-Section 10 -- and one that can hold work and names no class is refused.
-Each subsection states what the target `N shards x 1 carrier` topology still
-pays, and no rule is priced at zero there until it names the entrant that
-topology eliminates and the mechanism eliminating it.
+runs within 1 ms. While a group is open the set of threads serving each of its
+shards is non-empty, and making a task runnable is publication under Section
+10 unless a continuity obligation covers it: an eligible credit and a
+notification. Outstanding work has three classes, and non-emptiness names none
+of them. A runnable obligation is work a carrier could execute now: unless a
+continuity obligation covers it, it owes an eligible credit and a
+notification, and no thread eligible for it may wait while that credit is
+unclaimed; the one covered case is a task reserved in its own carrier's
+run-next slot, which binds that carrier alone and no peer. A service
+obligation -- an armed deadline, a registered readiness interest -- owes a
+live service for its shard, not a carrier credit, until readiness turns it
+into a runnable obligation. A maintenance obligation -- a remote-release queue
+-- keeps no shard active, creates no credit, and owes only its bound and its
+fallback. Every structure that can hold work names its class -- the
+subsections below, and equally the fd registry and deadline index of Section
+4, the ready queue, run-next slot and public queue of Section 8, and the class
+queues of Section 10 -- and one that can hold work and names no class is
+refused. Each subsection states what the target `N shards x 1 carrier`
+topology still pays, and no rule is priced at zero there until it names the
+entrant that topology eliminates and the mechanism eliminating it.
 
 **Timers.** A shard has one timer structure: the deadline index and the timer
 waiters of Section 4. Every thread serving the shard arms, cancels, and pops
 from it under the shard's lane, and a due sleeper is popped by whichever
 serving thread reaches it first; no carrier owns a subset of the shard's
-deadlines. A timer is armed against its owning shard's clock and popped on that
-shard; another shard's minimum is readable only as a published hint. Arming is
-a publication: a thread that arms a deadline becoming the shard's new minimum
-publishes a group notification before leaving the arming critical section, and
-a thread entering a wait reads that minimum under the same indivisible protocol
-that governs its wait transition; an arm that does not lower the minimum owes
-nothing. An armed deadline is a service obligation, not a runnable one: while
-only armed it owes no carrier credit, and firing is what makes it runnable. It
-is discharged by service, so at a safepoint, for every shard of an open group
-holding one, at least one thread serving that shard -- carrier or service
-agent -- must be one that reaches the index again without waiting for an event
-other than that deadline or an owed notification. A batch of `k` due sleepers
-publishes `k`
+deadlines. A deadline is a reading of the clock in force plus the requested
+duration, taken on the shard that owns the timer, and it is popped on that
+shard; another shard's minimum is readable only as a published hint. The clock
+in force never runs backward, and no runtime advances its own clock because it
+found nothing to run: an idle jump is a contract failure under either clock,
+not a scheduling liberty. Wall time is what a program gets unless it asks
+otherwise, and wall time never outruns the wall -- a millisecond nobody waited
+is not payable, so a runtime with nothing to run waits for a deadline it
+cannot yet serve. A virtual clock is a test facility, reached only by an
+explicit selection at the run's boundary; selecting it changes how much wall
+time a deadline costs and nothing else, since the order deadlines fire in, the
+batch rule below, and the guarantee that a task resumes no earlier than its
+deadline in the clock in force are the same under either. The runtime does not
+keep this today, and the selection runs the other way: `surge run --real-time`
+opts INTO wall time on the VM and is refused for any other backend, so virtual
+is the default where a clock can be chosen and the only clock where it cannot.
+The native clock is advanced by idleness -- topped up on every yield tick, and
+jumped straight to the next deadline when no readiness wait holds it back --
+which is how a sixty-second timeout came to be served in a tenth of a second.
+`RV2-DEBT-180` carries that gap, and closing it is what this paragraph asks
+for. Arming is a publication: a thread that arms a
+deadline becoming the shard's new minimum publishes a group notification
+before leaving the arming critical section, and a thread entering a wait reads
+that minimum under the same indivisible protocol that governs its wait
+transition; an arm that does not lower the minimum owes nothing. An armed
+deadline is a service obligation, not a runnable one: while only armed it owes
+no carrier credit, and firing is what makes it runnable. It is discharged by
+service, so at a safepoint, for every shard of an open group holding one, at
+least one thread serving that shard -- carrier or service agent -- must be one
+that reaches the index again without waiting for an event other than that
+deadline or an owed notification. A batch of `k` due sleepers publishes `k`
 eligible credits and a notification; a firing carrier eligible for the batch's
-earliest deadline may elide that one member into its free run-next slot and owe
-`k - 1`, a carrier-affine sleeper may be elided only by its own carrier, and a
-thread with no free run-next slot owes all `k` -- a service agent, which has no
-slot at all, and a carrier whose slot is already reserved, answer the same way. The batch is served in nondecreasing
-deadline order by the thread that pops it, and published so a peer observes
-that order at selection. A closing group fires or cancels every armed deadline
-before the last thread serving its shards leaves. In the target topology the
-shard's one carrier is its only serving and only eligible thread, so no credit,
-notification, or arm notification arises.
+earliest deadline may elide that one member into its free run-next slot and
+owe `k - 1`, a carrier-affine sleeper may be elided only by its own carrier,
+and a thread with no free run-next slot owes all `k` -- a service agent, which
+has no slot at all, and a carrier whose slot is already reserved, answer the
+same way. The batch is served in nondecreasing deadline order by the thread
+that pops it, and published so a peer observes that order at selection. A
+closing group fires or cancels every armed deadline before the last thread
+serving its shards leaves. In the target topology the shard's one carrier is
+its only serving and only eligible thread, so no credit, notification, or arm
+notification arises.
 
 **Readiness and the fd registry.** A shard's fd registry and its readiness wait
 are one resource. At most one thread is inside that wait: it enters by claiming
@@ -346,66 +365,82 @@ section publishing the child, one acquisition instead of two; elsewhere it is a
 message. No rule here licenses a steady completion path reaching a scope on
 another shard through the process-wide control lane.
 
-**Heap cells and allocation pools.** Heap accounting is per lane, and a lane is
-not always a carrier: the lanes are the carriers, the main lane, the I/O lane,
-each blocking-pool and compensation worker, and one process-wide cold lane for
-threads that own no cell. A carrier, blocking, or compensation lane has one
-writer, which reads and writes it with no synchronization on the hot path; main
-and cold are multi-writer by construction. "Owner" here is the lane, not the
-shard, so a pool, free list, or cell more than one carrier reaches on the
-allocation path is shared state. The padding rule above binds lane cells, pool
-heads, and free-list heads, and debug instrumentation may not change which
-cells share a line; it binds the target topology too, which also indexes one
-cell array by carrier, so this subsection is not free there either. A release
-issued away from the allocation owner is a remote release even inside one
-shard, since Section 10 lets that topology steal within it. The rule is written
-over release, not `free`: growing a block in place is a release of the old
-block, so a reallocation issued away from the owner allocates on the issuing
-lane, copies, and remotely releases; only the owner grows in place. The
-allocator records the owning lane in page or span metadata, and a remote
-release is enqueued on the owner's remote-release queue, the only structure
-here two lanes may write; cross-shard release is one case of this rule, not a
-second. A non-empty remote-release queue is not runnable work: it creates no
-credit, no coverage obligation, and does not make its owner's wait illegal. It
-is bounded all the same, with a depth bound and a defined action there as
-scheduler policy, and depth, maximum depth, and drain age are traced; the owner
-drains it at a safepoint and before allocating. An owner that leaves hands its
-pools and queue to a survivor, or drains them and returns the memory, before
-releasing its lane cell; a group closes only when no owner tag names an exited
-lane. A summed snapshot is not a global cut: a per-lane difference is not a
-live-block count, and a difference of two sums is an exact allocation budget
-only over a window in which no other lane allocated, so a gate comparing an
-allocation delta against an exact number names the lanes it required quiet and
-measures it. Counters are reported per lane and in total, every reported figure
-names the lane set it covers, and reading another lane's counters stays off the
-request path.
+**Heap cells and allocation pools.** Heap accounting is per lane, and a lane
+is not always a carrier: the lanes are the carriers, the main lane, the I/O
+lane, each blocking-pool and compensation worker, and one process-wide cold
+lane for threads that own no cell. A carrier, blocking, or compensation lane
+has one writer, which reads and writes it with no synchronization on the hot
+path; main and cold are multi-writer by construction. "Owner" here is the
+lane, not the shard, so a pool, free list, or cell more than one carrier
+reaches on the allocation path is shared state. The padding rule above binds
+lane cells, pool heads, and free-list heads, and debug instrumentation may not
+change which cells share a line; it binds the target topology too, which also
+indexes one cell array by carrier, so this subsection is not free there
+either. A release issued away from the allocation owner is a remote release
+even inside one shard, since Section 10 lets that topology steal within it.
+The rule is written over release, not `free`: growing a block in place is a
+release of the old block, so a reallocation issued away from the owner
+allocates on the issuing lane, copies, and remotely releases; only the owner
+grows in place. The allocator records the owning lane in page or span
+metadata, and a remote release is enqueued on the owner's remote-release
+queue, the only structure here two lanes may write on the ordinary path -- the
+fallback at the bound below is the one exception, and it is cold by
+construction; cross-shard release is one case of this rule, not a second. A
+non-empty remote-release queue is not runnable work: it creates no credit, no
+coverage obligation, and does not make its owner's wait illegal. It is bounded
+all the same, and what happens at the bound is fixed rather than policy:
+memory is never a reason to wait and never a reason to wake an owner, so a
+release that finds the queue full takes a cold, ownership-neutral fallback
+instead of blocking or signalling. Depth, maximum depth, drain age and
+fallback releases are traced; the owner drains the queue at a safepoint and
+before allocating. A span is carved by its owner into objects of one size
+class; only a span holding no live object returns to the process allocator, so
+releasing one object from a lane that does not own it can never dissolve a
+span whose other objects are still live. An owner that leaves hands its pools
+and queue to a survivor, or -- when no span it owns holds a live object --
+drains them and returns the memory, before releasing its lane cell; a group
+closes only when no owner tag names an exited lane. A summed snapshot is not a
+global cut: a per-lane difference is not a live-block count, and a difference
+of two sums is an exact allocation budget only over a window in which no other
+lane allocated, so a gate comparing an allocation delta against an exact
+number names the lanes it required quiet and measures it. Counters are
+reported per lane and in total, every reported figure names the lane set it
+covers, and reading another lane's counters stays off the request path.
 
 **Traces and counters.** The trace line is refined per counter, not wholesale.
 A record of a carrier's own action -- a wake, an elision, a steal, a refused
-steal, a wait, a local streak -- is carrier-owned and carries the carrier index
-beside the shard id. A record of shard-owned state -- inbound queue length,
-park state, fd registry rows, public-queue age -- is lane-owned, written under
-the lane, and carries the shard id alone. Public-queue age belongs to the
-queue, not a carrier, so a queue no carrier polls reports a rising age instead
-of no sample; a carrier owns what it did, its local selections since its last
-public poll and its crossings of the bound. A carrier has no lock and this
-section creates none: carrier cells are published release and read acquire, and
-lane-owned cells are read under their lane, one at a time, by a reader holding
-no other. A carrier publishing into another group's state counts it on its own
-cells while the receiver counts the acceptance on its own lane, so a legal
-cross-group publication is never an ownership violation. A number the runtime
-reads in order to decide -- an admission count, a wake credit, a wait-predicate
-input -- is runtime state, always present, not a trace: its counters report
-events, its outstanding value is read from the state itself, never summed from
-events. Every elision site carries its own owned counter. Each record is
-emitted by one `write` whose result is checked; a short or refused write is
-counted as a dropped record, not discarded; a per-owner breakdown is one record
-per owner, so no record grows with the carrier count. A reported counter is
-admissible evidence when its owner is named: carrier-owned per carrier,
-lane-owned per shard naming the lane. A row may not publish a number whose
-writers share neither a lock nor an owner; it names the reporting mode it ran
-in and is compared only within that mode. Both refinements collapse in the
-target topology, where the lane has one carrier.
+steal, a wait, a local streak -- is carrier-owned and carries the carrier
+index beside the shard id. A record of shard-owned state -- inbound queue
+length, park state, fd registry rows, public-queue age -- is lane-owned,
+written under the lane, and carries the shard id alone. Public-queue age
+belongs to the queue, not a carrier, so a queue no carrier polls reports a
+rising age instead of no sample; a carrier owns what it did, its local
+selections since its last public poll and its crossings of the bound. A
+carrier has no lock and this section creates none: carrier cells are published
+release and read acquire, and lane-owned cells are read under their lane, one
+at a time, by a reader holding no other. A carrier publishing into another
+group's state counts it on its own cells while the receiver counts the
+acceptance on its own lane, so a legal cross-group publication is never an
+ownership violation. A number the runtime reads in order to decide -- an
+admission count, a wake credit, a wait-predicate input -- is runtime state,
+always present, not a trace: its counters report events, its outstanding value
+is read from the state itself, never summed from events. Every elision site
+carries its own owned counter. Each record is emitted by one `write` whose
+result is checked; a short or refused write is counted as a dropped record,
+not discarded; a per-owner breakdown is one record per owner, so no record
+grows with the carrier count. Being always present binds the synchronization
+too: a cell whose atomicity, publication, or ownership is armed by a reporting
+switch is a contract failure, because the build that reports nothing has to
+decide what the reporting build decides. Reporting that only reports is
+switchable. A debug invariant is neither of those two: it is armed in the
+gated builds -- the `runtime-v2-*` gates and the sanitizer lanes -- and may be
+absent from a release build, while any state it reads that a runtime decision
+also reads stays always present whether or not the invariant is armed. A
+reported counter is admissible evidence when its owner is named: carrier-owned
+per carrier, lane-owned per shard naming the lane. A row may not publish a
+number whose writers share neither a lock nor an owner; it names the reporting
+mode it ran in and is compared only within that mode. Both refinements
+collapse in the target topology, where the lane has one carrier.
 
 ### 2. FD Ownership
 
@@ -569,6 +604,24 @@ A same-shard handoff is still scheduler publication. In a multi-carrier worker
 group it follows the Section 10 wake contract: only a non-stealable run-next
 handoff may use continuity elision; publication into a public or stealable queue
 must issue an eligible worker-group credit.
+
+Section 1 says where a value takes its position: the owner lane commits it into
+the channel's storage. What that position implies for a program is an order,
+and the order is the channel's promise. A direct handoff does not overtake a
+write already committed into the ring, and it does not overtake a sender the
+lane let in before it -- both a sender whose value has already taken its
+position and one that only queued on the channel's send key, so the order
+parked senders are refilled in is part of the promise rather than a scheduling
+artifact. It is an order over commits, not over the moments sends began: two
+sends racing to start may commit in either order, and once one has committed
+nothing later passes it.
+
+The ring half of this holds today: both send paths gate the direct handoff on
+the buffer being empty with nothing on its way in, so a committed write cannot
+be passed. The sender half does not. `RV2-DEBT-298` records that the owner lane
+is released across the element move, so two senders admitted in order can
+commit in the other, and that a refill may serve a later candidate than the one
+that queued first -- the runtime orders admission, and not always that.
 
 Cross-shard send/recv sends a message to the owning shard. The owning shard
 performs the queue operation and returns a completion message if needed.
@@ -1036,15 +1089,21 @@ process-global counter set on every allocation and free. Current `rt_alloc`,
 accounting cells, including an explicit cold path, and `rt_heap_stats()`
 aggregates those cells on read.
 
-Runtime V2 still needs later allocator ownership work:
+Section 1's "Heap cells and allocation pools" is the normative statement; this
+list is what the allocator still owes it, and it is keyed by LANE, not by
+shard, wherever the two differ:
 
-- hot runtime objects come from shard-local slab or bump allocators;
+- hot runtime objects come from lane-local slab or bump allocators;
 - connection buffers, task states, waiter nodes, and parser scratch memory are
-  allocated and freed on the owning shard;
-- the allocator records the owning shard in page or span metadata;
-- freeing on a non-owner shard enqueues the pointer on the owner's remote-free
-  queue;
-- the owner drains remote frees at scheduler safepoints or before allocation;
+  allocated and released on the owning lane;
+- the allocator records the owning lane in page or span metadata, and a span is
+  carved by its owner into objects of one size class;
+- releasing on a non-owner lane enqueues the pointer on the owner's
+  remote-release queue, which is bounded, and a release that finds it full
+  takes the cold ownership-neutral fallback rather than waiting or waking;
+- only a span holding no live object returns to the process allocator;
+- the owner drains remote releases at scheduler safepoints or before
+  allocation;
 - request-path code must not touch shared refcounts or global heap counters.
 
 The first allocator step was not a slab allocator. Slab or bump pools come
@@ -1124,6 +1183,24 @@ function. Epic 11 implements direct/intra-module sema inference for these forms
 and direct calls. Higher-order/function-type propagation and possible exported
 cross-module effect metadata remain tracked as `RV2-DEBT-024` if Phase 4
 lowering needs them.
+
+Left open by the 2026-08-27 rulings, and deliberately not answered in the text
+above. Whether one monotonic base serves every shard or each shard reads its
+own, and what `sleep(0)` is -- a yield, or a deadline at the current reading.
+What names and enables the test clock, and whether a shard refuses to arm,
+refuses to start, or bounds its advance when the monotonic clock is unreadable.
+Whether the channel's commit order survives `close` for a sender the close
+settled, and whether a position a `select` arm took and then destroyed counts
+in the order a later receiver is judged against. The remote-release queue's
+bound as a number and a unit, whether there is one queue per owner or one per
+owner-and-releasing-lane pair, and which mechanism the words "cold,
+ownership-neutral fallback" name -- the span's own release accounting, or a
+process-wide cold structure some later drain reconciles -- and whether the
+fallback rate carries a budget or only a report. Whether the mode a row names
+covers only the reporting switches or the topology and sanitizer configuration
+with them, and whether the paired trace-off/trace-on run is paired per switch
+or once for the whole enabled set. Each of these changes what an implementation
+must do, so each waits for the owner rather than for whoever writes the lane.
 
 ## Cost Model And Levers
 
@@ -1292,7 +1369,10 @@ surface.
 - Phase 3 does not claim lock-level throughput scaling: `rt_executor.lock`
   still protects the remaining global executor state.
 - Epic 7 then split that lock: scheduler queues, worker sleep/wake, waiter
-  stores, sleep timers (atomic virtual clock + per-shard sorted stores), and
+  stores, sleep timers (atomic virtual clock + per-shard sorted stores -- the
+  virtual clock is the shipped state the 2026-08-27 Р2 ruling removes, tracked
+  by `RV2-DEBT-180`, and the gated code shape is re-derived when the default
+  flips), and
   channel ownership run on per-shard lanes under `rt_shard.lock`, with a
   reduced control lane for task lifecycle, scopes, select, shutdown, and the
   sync-channel compatibility wait. Lane order (control -> at most one shard
@@ -1426,18 +1506,20 @@ Runtime V2 should be judged with:
 - the counters the shard-ownership rules of Section 1 make checkable: timer
   fires by serving-thread kind, arm notifications published and suppressed,
   timer run-next elisions as their own site, batches served out of deadline
-  order, and timer service lateness as a distribution rather than a mean; poll
-  lease grants, refusals, maximum hold, and non-carrier grants per shard, wake
-  writes attributed at the writer, and empty readiness slices; revoked
-  rendezvous admissions by cause and by entrant class, claim refusals, retry
-  republications and budget exhaustions, and a hard zero for values destroyed
-  in recovery; a hard zero for unserialized scope accounting and for a
-  fail-fast raised after a drained answer; allocation counters per lane with
-  the peer allocation delta and the lanes started in the window, remote-release
-  balance, maximum depth and drain age, free-path registry acquisitions per
-  lane, and a hard zero for heap cells straddling a cache line; dropped trace
-  records with their owner named, and public-queue bound crossings per carrier.
-  A row also names the reporting mode it ran in and is compared only within it.
+  order, and timer service lateness as a distribution rather than a mean;
+  poll lease grants, refusals, maximum hold, and non-carrier grants per
+  shard, wake writes attributed at the writer, and empty readiness slices;
+  revoked rendezvous admissions by cause and by entrant class, claim
+  refusals, retry republications and budget exhaustions, and a hard zero for
+  values destroyed in recovery; a hard zero for unserialized scope
+  accounting and for a fail-fast raised after a drained answer; allocation
+  counters per lane with the peer allocation delta and the lanes started in
+  the window, remote-release balance, maximum depth, drain age and fallback
+  releases named per owner, free-path registry acquisitions per lane, and a
+  hard zero for heap cells straddling a cache line; dropped trace records
+  with their owner named, and public-queue bound crossings per carrier. A
+  row also names the reporting mode it ran in and is compared only within
+  it.
 
 Every latency and throughput row must name the time-measuring harness, its
 warmup, duration, percentile method, and connection distribution. An
