@@ -8457,3 +8457,62 @@ is observed only at suspension points whose target is not yet `TASK_DONE`
 `mark_done`, linearized against `cancel_task`, with VM parity in
 `vm_terminator.go`. That is RV2-DEBT-263, on its own lane from this HEAD;
 261 stays open until 263 reads 0 of 20 on both rows.
+
+### 2026-08-27 — RV2-DEBT-260, review round two: two SEM3107s that named the wrong statement
+
+The reviewer rejected `9e2e58b2`. Moving SEM3107 from the container to the
+exit that abandoned the drain (item 3 of the row) had landed a rule that
+fired on statements it did not describe, in two ways, and both were false
+sentences about a `break` rather than missing advice.
+
+**A `break` of an inner loop was charged to the drain around it.** The
+tracker kept only DRAIN loops on its stack, so `noteTaskContainerLoopBreak`
+marked the innermost drain for every `break` it walked — including the
+`break` of a plain `while` or `for` nested inside the drain body. That loop
+returns to the drain, the drain runs to its own condition and empties the
+container, and nothing is abandoned; the author was nevertheless told "this
+`break` leaves the drain of `tasks` unfinished" and advised to move it after
+a `while` it is not in. The missing fact was the loops IN BETWEEN, and it
+was already on the tree: every loop the language has pushes exactly one loop
+drop mark around its body, so that stack IS the loop nesting.
+`loopNestingDepth` reads it, each drain loop records the depth of its own
+body, and a `break` counts as leaving the drain only when the innermost
+enclosing loop is that drain. `return` is unchanged — it leaves them all —
+and `continue` is recorded nowhere at any depth, because it goes back to the
+condition and the drain still finishes.
+
+**An exit outlived the pending life it described.** `taskContainerInfo.Exit`
+was written once and never cleared. `markTaskContainerConsumed` dropped
+`Pending` when a drain emptied the container but left the exit behind, so a
+`push` afterwards started a fresh pending life carrying the old life's
+statements: the scope-exit refusal pointed at a `break` two loops back — on
+a path a later drain had emptied after all — and helped with "finish the
+drain first" about a drain that finishes. `ForIn` had the same problem one
+channel down, as the note. `forgetPendingLife` ends all three with the
+pending life they describe, on both transitions; repeated pushes into a
+STILL-pending container are untouched, which is what keeps a genuinely
+abandoned drain pointing at its `break`.
+
+Both fixes are pinned at the level that can see them: unit rows in
+`TestForInDoesNotConsumeItsElements` and `TestAbandonedDrainIsRefusedAtTheExit`
+(red on the unfixed tree with `expected a clean program, got [SEM3107]` and
+`SEM3107 points at offset 1247 ("break;"), want 1133 ("tasks.push")`), and
+the goldens `sema/valid/task_container_drain_with_nested_loop_break.sg` and
+`sema/invalid/concurrency/task_container_pushed_again_after_a_finished_drain.sg`.
+The golden corpus records headlines only, so it sees the first defect (a
+"valid" case that reports) and the primary span of the second, but NOT the
+stale `for` note — that one is asserted in the unit row, which is the reason
+the case table grew a `notNoted` column.
+
+The same review found the blocker under all of it: `ff7b7fb2` and `5f493fb2`
+added fixtures without regenerating `testdata/golden.expectations.json` and
+`6b535a74` then froze it at 5303 against a corpus of 5304, so
+`make golden-check` refused the tree before it compiled anything
+(`golden preflight rejected frozen corpus: golden entry count is 5304, want
+5303`, exit 2). Frozen at 5304 first, and the two new fixtures took it to
+5314 across the two fix commits. The generic `@copy` tuple alias divergence
+the row called "residue for a row of its own" is now **RV2-DEBT-264**,
+measured rather than restated: `Pair<int>` answers `in.IsCopy=true`,
+`Result.IsCopyType=false`, `OwnsHeap=false`, and `(int, int)` answers
+`in.IsCopy=false`, because `Result.IsCopyType` resolves the alias before
+asking and the `@copy` bit lives on the alias.
