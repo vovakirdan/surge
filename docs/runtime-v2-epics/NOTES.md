@@ -8808,3 +8808,56 @@ ownership audit that stopped at the first reader it checked. The pattern in
 both is the same -- a claim stated more confidently than it was tested. The
 protocol is now a CAS whose argument needs no fence reasoning, and the state
 whose readers had to be audited no longer exists.
+
+### 2026-08-27 — RV2-DEBT-263 integrates, and the symptom is measured out
+
+The lane was written on `91c2778e` and the trunk had moved twenty-seven
+commits past it, so seven of its twelve commits were absent and three of the
+absences were interactions rather than merges.
+
+**What the trunk refused.** Two of the lane's e2e programs write
+`spawn async { … return … }`, authored before the Q-C lane landed; trunk
+answers SEM3207 there, because an async body is its own task and takes `ret`.
+The `async fn` bodies keep `return`, which is what the ruling says. The
+lane's C was formatted by a different clang-format than this tree's and
+`make cfmt-check` refused three hunks. And `channel_owned_element.c`, a C
+stand under `internal/vm/testdata`, still called `task_cancelled_store` --
+the function the cancel-gate fix replaced with `task_cancel_gate_init`. That
+stand is built by `make runtime-v2-carrier-sanitizer-check` and by nothing
+else, so `make check` was green over a stand that did not compile; the
+sanitizer gate is what found it.
+
+**The measurement.** The acceptance the lane owed was recorded as
+`ok surge/internal/vm 250.520s` -- the package, not the row -- and its sibling
+log contains no `MTStructuredConcurrency` at all. Both rows skip themselves
+when `clang` is absent and when `SURGE_SKIP_TIMEOUT_TESTS` is anything but
+`0`/`false`, so that line is indistinguishable from twenty skips. It was
+re-taken with the row named, `-v`, `SURGE_SKIP_TIMEOUT_TESTS=0`, and a harness
+that counts a round as VACUOUS when either row is missing or skipped from the
+output:
+
+```
+SURGE_SKIP_TIMEOUT_TESTS=0 SURGE_BACKEND=llvm SURGE_STDLIB=$(pwd) \
+  taskset -c 4-31 go test ./internal/vm \
+  -run '^(TestMTStructuredConcurrency|TestRuntimeV2FailfastJoinAnswersCancelled)$' \
+  -count=1 -v --timeout 600s
+```
+
+At `691ae487`, with RV2-DEBT-261 in and 263 out: `TestMTStructuredConcurrency`
+red 5 of 20 (exit 12, 13, 22), `TestRuntimeV2FailfastJoinAnswersCancelled` red
+7 of 20 (exit 12, 13), 12 of 20 rounds carrying at least one red, 0 vacuous.
+At `b07851d1`, with 263 in: 0 of 20 and 0 of 20, 0 vacuous. The before reading
+is the negative control, taken on the same machine with the same command an
+hour earlier, not remembered from another tree.
+
+**The ledger.** Row 266 -- the cancel-pending scope teardown reading and
+freeing a scope under the control lane alone -- is RV2-DEBT-280's site (1) and
+RV2-DEBT-283's free, found twice: here while deriving 263, and again a day
+later by the multi-carrier planes review, which could not have seen 266
+because it lived only on the lane. All three rows stay, each says so, and the
+rule is that whichever lane serializes that teardown closes all three; no lane
+may claim one alone.
+
+`make runtime-v2-carrier-check` is red and was red on `691ae487` before the
+lane (a stale `blocking-composite/main.sg` digest and frozen topology counts),
+so it is not this lane's and is not counted against it.

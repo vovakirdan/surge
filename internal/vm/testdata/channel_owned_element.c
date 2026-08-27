@@ -323,7 +323,7 @@ static rt_task* owned_alloc_ready_task(rt_executor* ex, int64_t poll_fn_id) {
     task->poll_fn_id = poll_fn_id;
     task->kind = TASK_KIND_USER;
     task_status_store(task, TASK_READY);
-    task_cancelled_store(task, 0);
+    task_cancel_gate_init(task);
     task_enqueued_store(task, 0);
     (void)task_wake_token_exchange(task, 0);
     atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);
