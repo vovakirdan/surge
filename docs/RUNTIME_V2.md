@@ -176,15 +176,37 @@ in Section 8. Every cell names its owner -- a carrier, a lane, or the runtime;
 a cell that names none is refused; a lane-owned cell several carriers write
 under that lane stays single-writer in the only sense that matters; and cells
 of different owners are padded apart, asserted at compile time. The threads
-that serve a shard are named by the topology and recorded with it; they need
-not all be its carriers, and serving is not executing, so eligibility class
-(Section 10) and carrier affinity (Section 9) survive every removal and a
-serving thread that is not eligible publishes to one that is. While a group is
+that serve a shard are named by the topology and recorded with it, in two roles
+never merged: only a carrier executes task turns and owns private work, and a
+service agent is a serving thread that is not a carrier of the shard, driving
+its transport, readiness, and timers, polling no task, and touching no
+carrier's private deque or run-next slot. Serving is not executing, so
+eligibility class (Section 10) and carrier affinity (Section 9) survive every
+removal, and serving turns external readiness into publication: what is ready,
+or past its deadline, reaches the eligible class's queue with an eligible
+credit and a notification within a normative budget of 1 ms, measured from the
+earlier of the deadline's expiry and the readiness the shard's poll could have
+observed, never from when a thread happened to look. The budget binds the
+function, not the role: it binds whichever thread serves a shard with no
+service agent, and a waiting service arms its wait no later than the shard's
+nearest deadline. The budget is the service's, not a promise that the task
+runs within 1 ms. While a group is
 open the set of threads serving each of its shards is non-empty, and making a
 task runnable is publication under Section 10 unless a continuity obligation
-covers it: an eligible credit and a notification. Which shard-owned structures
-are outstanding work is stated per structure below; one that is constrains when
-the shard's threads may wait, one that is not constrains only its own bound.
+covers it: an eligible credit and a notification. Outstanding work has three
+classes, and non-emptiness names none of them. A runnable obligation is work a
+carrier could execute now: unless a continuity obligation covers it, it owes an
+eligible credit and a notification, and no thread eligible for it may wait
+while that credit is unclaimed; the one covered case is a task reserved in its
+own carrier's run-next slot, which binds that carrier alone and no peer. A
+service obligation -- an armed deadline, a registered readiness interest --
+owes a live service for its shard, not a carrier credit, until readiness turns
+it into a runnable obligation. A maintenance obligation -- a remote-release
+queue -- keeps no shard active, creates no credit, and owes only its bound and
+its fallback. Every structure that can hold work names its class -- the subsections
+below, and equally the fd registry and deadline index of Section 4, the ready
+queue, run-next slot and public queue of Section 8, and the class queues of
+Section 10 -- and one that can hold work and names no class is refused.
 Each subsection states what the target `N shards x 1 carrier` topology still
 pays, and no rule is priced at zero there until it names the entrant that
 topology eliminates and the mechanism eliminating it.
@@ -199,14 +221,18 @@ a publication: a thread that arms a deadline becoming the shard's new minimum
 publishes a group notification before leaving the arming critical section, and
 a thread entering a wait reads that minimum under the same indivisible protocol
 that governs its wait transition; an arm that does not lower the minimum owes
-nothing. An armed deadline is outstanding work: at a safepoint, for every shard
-of an open group holding one, at least one thread serving that shard must be
-one that reaches the index again without waiting for an event other than that
-deadline or an owed notification. A batch of `k` due sleepers publishes `k`
+nothing. An armed deadline is a service obligation, not a runnable one: while
+only armed it owes no carrier credit, and firing is what makes it runnable. It
+is discharged by service, so at a safepoint, for every shard of an open group
+holding one, at least one thread serving that shard -- carrier or service
+agent -- must be one that reaches the index again without waiting for an event
+other than that deadline or an owed notification. A batch of `k` due sleepers
+publishes `k`
 eligible credits and a notification; a firing carrier eligible for the batch's
 earliest deadline may elide that one member into its free run-next slot and owe
 `k - 1`, a carrier-affine sleeper may be elided only by its own carrier, and a
-serving thread with no slot owes all `k`. The batch is served in nondecreasing
+thread with no free run-next slot owes all `k` -- a service agent, which has no
+slot at all, and a carrier whose slot is already reserved, answer the same way. The batch is served in nondecreasing
 deadline order by the thread that pops it, and published so a peer observes
 that order at selection. A closing group fires or cancels every armed deadline
 before the last thread serving its shards leaves. In the target topology the
@@ -219,21 +245,28 @@ the shard's poll lease and leaves by releasing it, and the lease is claimed,
 released, and observed under the lane guarding the registry rows. Every reader
 reads the registry under that lane -- snapshot, has-waiters predicate, and idle
 sample alike -- and a refused claim is arbitration, not a fault. An open
-registered interest is outstanding work, and coverage is owed by the thread
-that stops looking: a carrier enters the group wait only when the shard holds
-no such interest, or the lease is held by a thread whose readiness wait a group
-notification can end; a carrier seeing an open interest and a free lease claims
-it instead, that observation and its transition to waiting linearized under
-that lane. A lease holder covers its shard's readiness class and no other;
-releasing the lease is a safepoint; entering the wait is leaving the turn, so
-the holder first discharges its continuity obligation, running rather than
+registered interest is a service obligation: it owes no carrier credit until
+the fd is ready, and coverage is owed by the thread that stops looking. A
+carrier enters the group wait only when the shard holds no such interest, or
+the lease is held by a thread -- carrier or service agent -- whose readiness
+wait a group notification can end; a carrier seeing an open interest and a free
+lease claims it instead, that observation and its transition to waiting
+linearized under that lane, a held lease being the only observable coverage of
+that class. A lease holder covers its shard's readiness class and no other, and
+releasing it is a safepoint. For a carrier, entering the wait is leaving the
+turn, so it first discharges its continuity obligation, running rather than
 leaving behind a task whose affinity forbids transfer. The wait runs under the
 bounded, traced budget of Section 8, and a holder that neither completes
 readiness nor releases the lease within it is a contract failure, not a slow
-poll. Deliverability, not membership, is the rule: the group notification path
-writes the shard's readiness wake source in the lane section that publishes the
-credit, and the wait observes that source, the shard's inbound wake source, and
-shutdown alongside readiness. No peer publishes `PARKED` for a shard whose
+poll. Deliverability, not membership, is the rule, and the readiness wait has
+one wake source, not one per mechanism: every notification able to reach a
+thread inside it -- readiness, an eligible credit, an inbound record, shutdown
+-- is delivered by writing the shard's existing wake pipe, in the lane section
+publishing the credit, whenever a thread may be inside that wait, tested under
+the same indivisible protocol that governs the wait transition; a publisher
+that observes no such thread may elide the write. The byte only interrupts the
+poll: the durable credit and the indivisible no-work gate are what make the
+wakeup correct. No peer publishes `PARKED` for a shard whose
 lease is held, and the coverage obligation names every thread admitted to claim
 the lease, not the carriers alone. In the target topology the lease is
 uncontended, its owner field and budget accounting debug-only, and the credit
@@ -284,9 +317,17 @@ and, when that kind is a cancellation in a fail-fast scope, raises the flag
 indivisibly against any join, so no observer sees a scope drained and not
 fail-fast when the draining child is the one that raised it. Only a member
 raises fail-fast, and the raiser cancels every member still live before
-returning to selection. Membership is decided once, by one writer, under the
-serializer, never re-derived; a second writer of a child's scope identity, on
-any lane, is a contract failure. Publication and count are one critical section
+returning to selection. Membership is decided at the child's creation, by one
+writer, under the serializer, and never re-derived; a second writer of a
+child's scope identity, on any lane, is a contract failure. No later operation
+adopts a live task: scheduling an already created task runs it under the scope
+that created it and enrols it nowhere. A scope belongs to its owner lane for
+its whole life and never migrates silently; the one transfer is a quiescent
+repin, admissible only under the serializer with no member live, no completion
+outstanding for a member, and no registration outstanding on the scope's wait
+key, re-registering every waiter on the destination lane before it publishes
+the new owner; a repin missing one of these is a contract failure, not a slow
+path. Publication and count are one critical section
 where child and scope share a shard and cannot be where they do not, since a
 carrier holds at most one shard's lock: there the count joins through the scope
 subscription on the owning edge's generation, in order, never to a count
@@ -663,8 +704,11 @@ state is never `PARKED` while a carrier is serving the queue, and the
 `PARKED`-with-inbound invariant is evaluated at a safepoint, not mid-turn.
 And a carrier may wait inside the readiness poll as well as in the group wait:
 both are wait states of the same group, so a group notification must be
-deliverable to whichever one a carrier is in. The readiness poll therefore
-observes the group wake source alongside readiness, and it does so under a
+deliverable to whichever one a carrier is in. For the readiness wait that
+source is not a second primitive: it is the shard's existing wake fd, written
+by the publisher as Section 1 requires. The group wait keeps its own
+notification mechanism, and merging the two is later work. The readiness poll
+observes that source alongside readiness, and it does so under a
 bounded, traced budget; a poll that cannot be woken by a group notification is
 not a legal wait state for a carrier of that group.
 
@@ -695,6 +739,16 @@ For explicitly distributed scopes, the scope has an owning shard. Child
 completion and cancellation are messages to that owner. This is acceptable for
 low-fanout distributed work, but it must not be the default per-request shape.
 
+Fixing membership at creation changes the language contract, not only the
+topology. Today a task created outside a scope and scheduled inside one is
+adopted by it: `spawn` lowers to the runtime wake, which writes the current
+scope's identity into a target that has none, on a lane other than the one
+child registration uses. The adoption is partial, which is worse than silent
+membership: the child is never counted, so the scope does not join it, yet its
+cancelled result still raises the scope's fail-fast flag and cancels the real
+members. Semantic analysis rejects that `spawn` with a diagnostic of its own
+rather than change its meaning in silence.
+
 **Distributed spawn is an explicit crossing.** A local spawn may capture borrows
 of the parent, but common shard ownership is not itself a same-thread guarantee
 in the transitional multi-carrier topology. A child that captures `&T` or
@@ -705,7 +759,12 @@ records the affinity at the spawn that creates it and rejects an explicit
 placement that contradicts it; keeping the affinity at run time is the
 scheduler's part, whose steal and handoff predicates refuse that task on any
 carrier other than its parent's, exactly as placement refuses a connection task
-on a non-owner shard, and trace every refusal. A distributed spawn is written
+on a non-owner shard, and trace every refusal. A wake of such a task is a
+publication into its class (Section 10) unless the waking thread is its own
+carrier, which may elide it as any eligible carrier may; it is never a push
+into a deque that carrier cannot reach, since a task its own carrier cannot
+see is unreachable even when the steal predicate refuses it. A distributed
+spawn is written
 `spawn on distributed { ... }` and is checked move-only plus shard-movable: it
 may capture `own` shard-movable values or copyable values, never `&T`, `&mut T`,
 or shard-pinned resources of the parent. The construct that makes the crossing
@@ -777,6 +836,20 @@ carrier affinity (Section 9), and from any task-class restriction. A worker
 knows the classes it may execute from its own identity, and a group with no
 restrictions has exactly one class.
 
+Each class has its own publication queue and credit counter, created lazily at
+the first publication into it and kept while the group is open; a group with no
+restrictions has one queue, one counter, and no cost. That partition is the
+public injection queue: a class's queue is the group's public queue for that
+class, the private deques are unchanged, a worker's no-work predicate reads
+every class queue its identity admits, and the bounded service latency below is
+owed per class queue, so a singleton class is polled on the same bound as any
+other. A class's set of waiters is not lazy: a worker waits registered for
+every class its identity admits, including one nothing has been published into,
+so none sleeps into the gap between a class's first credit and its first queue.
+Publication and notification are addressed to the class, never to the group and
+never to a thread outside it; a carrier-affine task (Section 9) is normally a
+singleton class whose only eligible worker is its carrier.
+
 A worker may wait only after it has observed a
 consistent no-work predicate: its own deque, the public queue, and every task
 it is eligible to steal contain no task, and no eligible wake credit is pending.
@@ -808,8 +881,13 @@ preserves these at-least-once observations.
 
 A notification must be able to reach a worker that is eligible for the credit's
 class. Waking a worker that may not consume the credit does not discharge the
-notification, so a group either broadcasts, keeps a wait set per class, or
-notifies every waiter that could consume it. The credit is the correctness
+notification: a notification is addressed to the credit's class and must reach
+at least one waiter that could consume it, which for a singleton class is its
+only worker; whether it reaches one or all of them stays policy, and reaching
+none is a lost wakeup. A notification carrying no credit -- the arm
+notification of Section 1, a shutdown transition -- is addressed to the threads
+serving the shard, and the rule above binds credit-bearing notifications only.
+The credit is the correctness
 obligation and the notification is the policy decision on top of it: a producer
 may batch or suppress notifications only when, under the same indivisible
 protocol that governs the wait transition, it observes that an eligible worker
@@ -862,15 +940,20 @@ turn without returning to selection has this obligation before it leaves.
 
 A scheduler safepoint is a point at which a carrier holds no task mid-turn:
 between finishing one task and selecting the next, and immediately before it
-waits. The invariant holds per eligibility class, not per group: at a safepoint,
-for every class that has runnable work, an unclaimed eligible credit, or an
-unserved wake notification, at least one worker eligible for that class must be
-covering it — executing the group's scheduler path, leaving the wait, releasable
-by an eligible credit, or running a task from which it is guaranteed to return
+waits. The invariant holds per eligibility class and per obligation class
+(Section 1), not per group: at a safepoint, for every class holding a runnable
+obligation -- runnable work, an unclaimed eligible credit, or an unserved wake
+notification -- at least one worker eligible for that class must be covering it
+— executing the group's scheduler path, leaving the wait, releasable by an
+eligible credit, or running a task from which it is guaranteed to return
 to scheduler selection. A worker that has left the scheduler path into a wait it
 cannot be released from covers no class. Counting only whether some worker is
 busy is not enough: a class whose only eligible carrier is inside a task it
 cannot leave is uncovered even though the group looks alive.
+For every shard holding a service obligation -- an armed deadline, an open
+readiness interest -- at least one thread serving it, carrier or service agent,
+must be one that obligation can release. A maintenance obligation makes no wait
+illegal and no worker covers it; its owner drains it as Section 1 requires.
 This is the debug-invariant counterpart to Section 8's `PARKED` inbound check;
 it detects a stranded group as a contract failure instead of leaving it to
 appear as a hang.
@@ -1363,7 +1446,7 @@ claim. No topology may be declared faster, slower, or ready to replace the
 default until the same time-measuring harness has reported all three
 `shards x carriers` rows.
 
-Four rules make a latency or throughput row admissible. A row records `shards`
+Five rules make a latency or throughput row admissible. A row records `shards`
 and `carriers per shard` as two separate fields with the exact environment that
 produced them: a harness that derives the carrier count from the shard count
 cannot express `1xN` and `Nx1` at once and cannot produce this matrix. A row the
@@ -1375,7 +1458,10 @@ is a throughput restatement and may not be published as a tail, so a pipelined
 row reports per-request latency or reports no percentile at all. And a row
 states the evidence that the load generator was not the bottleneck: client and
 server CPU during the run, and a client-scaling row at a fixed server
-configuration.
+configuration. And a row names the reporting mode it ran in and is compared only
+within it: a traced run and an untraced one measure different programs, so the
+price of reporting is read off a paired run, never off two rows taken in
+different modes.
 
 Success means the `Nx1` target meets its predeclared small-load latency threshold
 against the `1x1` control and materially improves many-connection throughput and
