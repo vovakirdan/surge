@@ -16,7 +16,7 @@ endif
 LDFLAGS_SCRIPT := ./scripts/ldflags.sh
 
 GOLANGCI_LINT := $(GOBIN)/golangci-lint
-GOLANGCI_LINT_VERSION := v2.7.2
+GOLANGCI_LINT_VERSION := v2.11.3
 
 STATICCHECK := $(GOBIN)/staticcheck
 GOSEC := $(GOBIN)/gosec
@@ -453,7 +453,17 @@ $(GOLANGCI_LINT):
 	@echo ">> Installing golangci-lint $(GOLANGCI_LINT_VERSION)"
 	$(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
+# Сверяем ВЕРСИЮ, а не наличие: цель выше срабатывает только когда бинаря нет,
+# поэтому уже установленный другой golangci-lint молча становился гейтом и
+# отвечал не то, что отвечает CI (2.11.3 на машине против закреплённой 2.7.2 в
+# CI дали 0 находок против 38 на одном и том же дереве).
 lint: $(GOLANGCI_LINT)
+	@have=$$($(GOLANGCI_LINT) version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1); \
+	want=$$(echo $(GOLANGCI_LINT_VERSION) | tr -d v); \
+	if [ "$$have" != "$$want" ]; then \
+		echo ">> golangci-lint $$have is installed, this tree is linted by $$want; reinstalling"; \
+		$(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
+	fi
 	@echo ">> Running linters"
 	$(GOLANGCI_LINT) run --config .golangci.yaml
 
