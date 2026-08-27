@@ -165,6 +165,207 @@ while the runtime migrates to `N shards x 1 carrier`, but it must obey the
 multi-carrier wake contract in Section 10. Its results do not establish
 thread-per-core Tier 1 scaling.
 
+### Shard Ownership With Several Carriers
+
+A shard owns the tables listed above, and ownership names a serializer rather
+than a thread: each item is read and written under the shard's lane, which a
+thread borrows rather than owns. Where the transitional topology turns one
+owner into several threads, that list is refined item by item, not wholesale,
+as the run-next slot above is refined to the carrier and `PARKED` to the group
+in Section 8. Every cell names its owner -- a carrier, a lane, or the runtime;
+a cell that names none is refused; a lane-owned cell several carriers write
+under that lane stays single-writer in the only sense that matters; and cells
+of different owners are padded apart, asserted at compile time. The threads
+that serve a shard are named by the topology and recorded with it; they need
+not all be its carriers, and serving is not executing, so eligibility class
+(Section 10) and carrier affinity (Section 9) survive every removal and a
+serving thread that is not eligible publishes to one that is. While a group is
+open the set of threads serving each of its shards is non-empty, and making a
+task runnable is publication under Section 10 unless a continuity obligation
+covers it: an eligible credit and a notification. Which shard-owned structures
+are outstanding work is stated per structure below; one that is constrains when
+the shard's threads may wait, one that is not constrains only its own bound.
+Each subsection states what the target `N shards x 1 carrier` topology still
+pays, and no rule is priced at zero there until it names the entrant that
+topology eliminates and the mechanism eliminating it.
+
+**Timers.** A shard has one timer structure: the deadline index and the timer
+waiters of Section 4. Every thread serving the shard arms, cancels, and pops
+from it under the shard's lane, and a due sleeper is popped by whichever
+serving thread reaches it first; no carrier owns a subset of the shard's
+deadlines. A timer is armed against its owning shard's clock and popped on that
+shard; another shard's minimum is readable only as a published hint. Arming is
+a publication: a thread that arms a deadline becoming the shard's new minimum
+publishes a group notification before leaving the arming critical section, and
+a thread entering a wait reads that minimum under the same indivisible protocol
+that governs its wait transition; an arm that does not lower the minimum owes
+nothing. An armed deadline is outstanding work: at a safepoint, for every shard
+of an open group holding one, at least one thread serving that shard must be
+one that reaches the index again without waiting for an event other than that
+deadline or an owed notification. A batch of `k` due sleepers publishes `k`
+eligible credits and a notification; a firing carrier eligible for the batch's
+earliest deadline may elide that one member into its free run-next slot and owe
+`k - 1`, a carrier-affine sleeper may be elided only by its own carrier, and a
+serving thread with no slot owes all `k`. The batch is served in nondecreasing
+deadline order by the thread that pops it, and published so a peer observes
+that order at selection. A closing group fires or cancels every armed deadline
+before the last thread serving its shards leaves. In the target topology the
+shard's one carrier is its only serving and only eligible thread, so no credit,
+notification, or arm notification arises.
+
+**Readiness and the fd registry.** A shard's fd registry and its readiness wait
+are one resource. At most one thread is inside that wait: it enters by claiming
+the shard's poll lease and leaves by releasing it, and the lease is claimed,
+released, and observed under the lane guarding the registry rows. Every reader
+reads the registry under that lane -- snapshot, has-waiters predicate, and idle
+sample alike -- and a refused claim is arbitration, not a fault. An open
+registered interest is outstanding work, and coverage is owed by the thread
+that stops looking: a carrier enters the group wait only when the shard holds
+no such interest, or the lease is held by a thread whose readiness wait a group
+notification can end; a carrier seeing an open interest and a free lease claims
+it instead, that observation and its transition to waiting linearized under
+that lane. A lease holder covers its shard's readiness class and no other;
+releasing the lease is a safepoint; entering the wait is leaving the turn, so
+the holder first discharges its continuity obligation, running rather than
+leaving behind a task whose affinity forbids transfer. The wait runs under the
+bounded, traced budget of Section 8, and a holder that neither completes
+readiness nor releases the lease within it is a contract failure, not a slow
+poll. Deliverability, not membership, is the rule: the group notification path
+writes the shard's readiness wake source in the lane section that publishes the
+credit, and the wait observes that source, the shard's inbound wake source, and
+shutdown alongside readiness. No peer publishes `PARKED` for a shard whose
+lease is held, and the coverage obligation names every thread admitted to claim
+the lease, not the carriers alone. In the target topology the lease is
+uncontended, its owner field and budget accounting debug-only, and the credit
+obligation gone; the lane rule remains, so a whole-runtime readiness question
+costs one shard lock per shard per sample and belongs to the control plane.
+
+**Channel wait queues.** A channel is serialized by the lane of its owning
+shard, and that lane is not a carrier: whatever thread performs the operation
+borrows it, so "same-shard rendezvous" means same owner lane, not same line of
+execution. Two lanes meet in an operation: the channel's storage -- buffer,
+park slots, and the registrations on its two keys -- answers to the owner's
+lane, a task's resume mailbox to that task's own owner lane, and only the token
+crosses. An operation is a sequence of critical sections: no generated move,
+copy, or drop runs under the owner lock, so an operation that leaves the lane
+first converts what it decided into explicit claims -- the storage it will
+write, the registration it consumed, the admission test that authorized the
+transfer, and the object itself, pinned for the released window -- and re-tests
+at the commit every predicate it did not convert. A claim is bounded by its
+operation, not by a turn, so no carrier's safepoint says anything about claims
+outstanding on the channels its shard owns. A claim is refused, never queued;
+the refused operation returns to selection as a publication like any other,
+counting against the public queue's service bound. The retry budget names its
+exhaustion: the operation parks on the channel's own key, the release of the
+claim that refused it wakes that key, and shutdown terminates the retry rather
+than let it re-enter selection. A local channel linearizes on its owner lane: a
+value takes its position when that lane commits it into the channel's storage,
+and a rendezvous is admissible only while the buffer holds nothing and nothing
+is on its way in, tested at the commit. A send that loses that test has taken
+no position: it joins the buffer if the buffer will take it, otherwise wakes
+the receiver it popped, unacked, and parks holding its slot; destroying the
+value is never a legal recovery. The target topology removes the peer-carrier
+entrant and admits a task of another shard, and the last handle drop is an
+entrant of both, so this is not free there.
+
+**Scope accounting.** A scope's accounting state -- live-child count, fail-fast
+flag with the child that raised it, child list -- is owned by the scope's
+owning shard; "local" means local to that shard, not same-thread. One
+mechanism, designated once for the runtime, serializes every read and write of
+it; a read or write outside it, or under another lock than its writers hold, is
+a contract failure, a read that only decides whether to enter included. A join
+reads every answer from one indivisible observation of that state, at its first
+test and again at the verify after registering on the scope's wait key;
+registration is published before the verify reads, and register-then-verify is
+mandatory wherever a drain is waited for, teardown included. A task's committed
+kind is sealed by the single read-modify-write of its cancellation gate at its
+commit and never re-derived by accounting; the completion retires the child
+and, when that kind is a cancellation in a fail-fast scope, raises the flag
+indivisibly against any join, so no observer sees a scope drained and not
+fail-fast when the draining child is the one that raised it. Only a member
+raises fail-fast, and the raiser cancels every member still live before
+returning to selection. Membership is decided once, by one writer, under the
+serializer, never re-derived; a second writer of a child's scope identity, on
+any lane, is a contract failure. Publication and count are one critical section
+where child and scope share a shard and cannot be where they do not, since a
+carrier holds at most one shard's lock: there the count joins through the scope
+subscription on the owning edge's generation, in order, never to a count
+excluding it. Nothing the serializer protects is dereferenced after release,
+and a scope's wait key resolves to its store from the key alone. Draining
+discharges two obligations, neither substituting for the other: the draining
+completion finds the joiner's registration or the joiner's verify sees the
+drained count, and the carrier, after leaving the serializer, publishes an
+eligible credit for the joiner's class and notifies; the serializer is never
+held across a wake, a park, a cancel walk, or generated code. An exiting
+carrier completes the accounting step of every child it runs or cancels, and an
+undrainable scope is recorded at shutdown with its id, count, and last live
+child. The cost is nothing where scope, owner, and children share one shard
+with one carrier; with several carriers a registration merges into the critical
+section publishing the child, one acquisition instead of two; elsewhere it is a
+message. No rule here licenses a steady completion path reaching a scope on
+another shard through the process-wide control lane.
+
+**Heap cells and allocation pools.** Heap accounting is per lane, and a lane is
+not always a carrier: the lanes are the carriers, the main lane, the I/O lane,
+each blocking-pool and compensation worker, and one process-wide cold lane for
+threads that own no cell. A carrier, blocking, or compensation lane has one
+writer, which reads and writes it with no synchronization on the hot path; main
+and cold are multi-writer by construction. "Owner" here is the lane, not the
+shard, so a pool, free list, or cell more than one carrier reaches on the
+allocation path is shared state. The padding rule above binds lane cells, pool
+heads, and free-list heads, and debug instrumentation may not change which
+cells share a line; it binds the target topology too, which also indexes one
+cell array by carrier, so this subsection is not free there either. A release
+issued away from the allocation owner is a remote release even inside one
+shard, since Section 10 lets that topology steal within it. The rule is written
+over release, not `free`: growing a block in place is a release of the old
+block, so a reallocation issued away from the owner allocates on the issuing
+lane, copies, and remotely releases; only the owner grows in place. The
+allocator records the owning lane in page or span metadata, and a remote
+release is enqueued on the owner's remote-release queue, the only structure
+here two lanes may write; cross-shard release is one case of this rule, not a
+second. A non-empty remote-release queue is not runnable work: it creates no
+credit, no coverage obligation, and does not make its owner's wait illegal. It
+is bounded all the same, with a depth bound and a defined action there as
+scheduler policy, and depth, maximum depth, and drain age are traced; the owner
+drains it at a safepoint and before allocating. An owner that leaves hands its
+pools and queue to a survivor, or drains them and returns the memory, before
+releasing its lane cell; a group closes only when no owner tag names an exited
+lane. A summed snapshot is not a global cut: a per-lane difference is not a
+live-block count, and a difference of two sums is an exact allocation budget
+only over a window in which no other lane allocated, so a gate comparing an
+allocation delta against an exact number names the lanes it required quiet and
+measures it. Counters are reported per lane and in total, every reported figure
+names the lane set it covers, and reading another lane's counters stays off the
+request path.
+
+**Traces and counters.** The trace line is refined per counter, not wholesale.
+A record of a carrier's own action -- a wake, an elision, a steal, a refused
+steal, a wait, a local streak -- is carrier-owned and carries the carrier index
+beside the shard id. A record of shard-owned state -- inbound queue length,
+park state, fd registry rows, public-queue age -- is lane-owned, written under
+the lane, and carries the shard id alone. Public-queue age belongs to the
+queue, not a carrier, so a queue no carrier polls reports a rising age instead
+of no sample; a carrier owns what it did, its local selections since its last
+public poll and its crossings of the bound. A carrier has no lock and this
+section creates none: carrier cells are published release and read acquire, and
+lane-owned cells are read under their lane, one at a time, by a reader holding
+no other. A carrier publishing into another group's state counts it on its own
+cells while the receiver counts the acceptance on its own lane, so a legal
+cross-group publication is never an ownership violation. A number the runtime
+reads in order to decide -- an admission count, a wake credit, a wait-predicate
+input -- is runtime state, always present, not a trace: its counters report
+events, its outstanding value is read from the state itself, never summed from
+events. Every elision site carries its own owned counter. Each record is
+emitted by one `write` whose result is checked; a short or refused write is
+counted as a dropped record, not discarded; a per-owner breakdown is one record
+per owner, so no record grows with the carrier count. A reported counter is
+admissible evidence when its owner is named: carrier-owned per carrier,
+lane-owned per shard naming the lane. A row may not publish a number whose
+writers share neither a lock nor an owner; it names the reporting mode it ran
+in and is compared only within that mode. Both refinements collapse in the
+target topology, where the lane has one carrier.
+
 ### 2. FD Ownership
 
 Each accepted connection belongs to exactly one shard. The owning shard handles:
@@ -1138,7 +1339,22 @@ Runtime V2 should be judged with:
   steals, waits, public-queue age, maximum local streak, and blocking-pool
   admission stalls by cause. Every elision site carries its own counter, so an
   elision rate is a measured number before the protocol changes it, not an
-  estimate afterwards.
+  estimate afterwards;
+- the counters the shard-ownership rules of Section 1 make checkable: timer
+  fires by serving-thread kind, arm notifications published and suppressed,
+  timer run-next elisions as their own site, batches served out of deadline
+  order, and timer service lateness as a distribution rather than a mean; poll
+  lease grants, refusals, maximum hold, and non-carrier grants per shard, wake
+  writes attributed at the writer, and empty readiness slices; revoked
+  rendezvous admissions by cause and by entrant class, claim refusals, retry
+  republications and budget exhaustions, and a hard zero for values destroyed
+  in recovery; a hard zero for unserialized scope accounting and for a
+  fail-fast raised after a drained answer; allocation counters per lane with
+  the peer allocation delta and the lanes started in the window, remote-release
+  balance, maximum depth and drain age, free-path registry acquisitions per
+  lane, and a hard zero for heap cells straddling a cache line; dropped trace
+  records with their owner named, and public-queue bound crossings per carrier.
+  A row also names the reporting mode it ran in and is compared only within it.
 
 Every latency and throughput row must name the time-measuring harness, its
 warmup, duration, percentile method, and connection distribution. An
