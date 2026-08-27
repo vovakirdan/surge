@@ -8516,3 +8516,156 @@ measured rather than restated: `Pair<int>` answers `in.IsCopy=true`,
 `Result.IsCopyType=false`, `OwnsHeap=false`, and `(int, int)` answers
 `in.IsCopy=false`, because `Result.IsCopyType` resolves the alias before
 asking and the `@copy` bit lives on the alias.
+
+### 2026-08-27 — RV2-DEBT-263: a task's answer belongs to the moment it commits
+
+RV2-DEBT-261 closed one window behind the `@failfast` symptom (the join read
+its two answers apart). The lead's re-measurement with 261 integrated still
+showed `TestMTStructuredConcurrency` exit 12/13 in **7 of 20** pinned runs,
+so a second, independent window was still open. This is that one. Acceptance
+for the pair is 0 of 20.
+
+**What was wrong.** Cancellation was observed only at suspension points whose
+target was not already `TASK_DONE`. `rt_task_poll`'s `TASK_DONE` fast path
+(`rt_async_task.c:211-235`) answers from the TARGET and never consults the
+awaiter's own `cancelled` flag -- deliberately, and correctly, because asking
+"am I cancelled?" first would lose a result that is already sitting in the
+target. But it means a body whose every remaining await resolves from an
+already-DONE child has NO suspension left to see its own cancel at:
+
+```
+let slow = spawn async { let _ = spin(200).await(); return 1; };
+```
+
+cancel `slow`, its `spin` child is cancelled through `children[]`, `spin`
+completes `Cancelled` and WAKES `slow`; `slow` is then polled with its child
+already DONE, reads it from the fast path, `let _ =` discards it, and runs on
+to `return 1`. `rt_async_return` published `POLL_DONE_SUCCESS`
+unconditionally and `mark_done` committed the kind it was handed. Fail-fast
+keys solely on the child's committed `result_kind`, so no child ever
+committed `Cancelled`, the flag never fired, and the block resolved
+`Success`.
+
+**The model already had the answer.** `23-storage-model-and-typed-carrier-
+abi.md:477-480`: `cancel` through a live handle is task-global and "before
+committed success it requests cancellation observed by every awaited
+entitlement; after success is committed it does not revoke already available
+independent results." There is a committed-success MOMENT, and it decides.
+So the fix is at that moment and nowhere else: `mark_done` chooses the kind,
+and a `SUCCESS` carried in with the cancel observed commits `CANCELLED`.
+
+**Which linearization, and why (a).** The observation has to be linearizable
+against `cancel_task`, which today loaded the status and then stored the flag
+while `mark_done` loaded the flag and then stored `TASK_DONE` -- a miss in
+both directions. Two options were on the table:
+
+- **(a) one atomic transition.** Both sides sequentially consistent on the
+  two words they already have: `cancel_task` publishes the flag seq-cst and
+  then RE-READS the status seq-cst; `mark_done` reads the flag seq-cst before
+  the `TASK_DONE` store, which was already seq-cst for RV2-DEBT-022. The pair
+  "cancel saw a live task, completion saw no cancel" is then a cycle in the
+  single total order and cannot happen.
+- **(b) the task's owner-shard lock around both sides.**
+
+**Chose (a).** §8 states this exact hazard for the shard park race ("a
+release/acquire pair is insufficient for this park race") and prescribes
+sequential consistency for it; RV2-DEBT-022 already pays for the same
+protocol on `done_waiters`, so this is the runtime's existing instrument
+rather than a new one (rule 5). (b) would put a lock acquire and release on
+EVERY task completion -- the steady request-completion path Epic 7 spent its
+whole scope taking off the control lane -- to serialize two words that need
+no mutual exclusion, only an order. No new field either: `task->cancelled`
+and `task->status` are the two words, and `rt_async_internal.h` did not grow
+by a line (still 666 effective, and it is over the 500 ceiling so it may not
+grow at all). The two accessors live in `rt_task_complete.c`, which owns both
+`cancel_task` and `mark_done`, so the protocol's two halves sit in one file.
+
+`cancel_task` now STOPS when its re-read reports `TASK_DONE`. That is the
+storage model's "after success is committed it does not revoke", and it is
+the same decision the `TASK_DONE` check at the top of the function already
+makes for a cancel that arrives later still.
+
+**Nothing is destroyed at the boundary, deliberately.** The brief asked for
+the produced value to be released through `rt_release_owned_block_when_
+unlocked`, as `abandoned_state` is. That would be wrong here: that call frees
+the STORAGE, and a task result under 16 bytes lives inline in its
+`rt_value_cell` and owns no block (`rt_value_cell.h`), so it would free
+memory the cell does not own. It is also unnecessary. A `Cancelled` result is
+never served -- `rt_far_task_take_result` answers the kind and returns before
+it looks at the slot -- so the slot keeps its own value and `reclaim_task`
+destroys it exactly once, unlocked, before it takes control for the
+structural free. That is the "cancel-after-done" case RV2-DEBT-053a already
+names in `rt_task_lifetime.c:41-52`. Keeping it there means no generated drop
+runs on a lane that may be holding control (rule 8 P2).
+
+**The pre-move fast path in `rt_async_return` was considered and dropped.**
+Checking `current_task_cancelled` before the value moves would mean refusing
+a value the caller has already given up: generated code emits `unreachable`
+straight after the call and never drops it, so the runtime would have to drop
+it in place at the caller's storage -- a second, differently shaped ownership
+path beside the one the runtime already has, and one that lands right after
+`rt_far_task_prepare_return` has handed a far `Task<T>`'s lease back. It buys
+nothing the boundary does not already decide. One chokepoint is the point.
+
+**Sync point.** `SP_ASYNC_RETURN_BEFORE_SUCCESS_COMMIT`, in `rt_async_return`
+(`rt_async_poll.c`, inside the `src != NULL` branch, after
+`rt_value_cell_commit` and before `poll_result.kind = POLL_DONE_SUCCESS`). It
+must sit there and not in `mark_done`: a cancel landing after `mark_done`'s
+load is a cancel that legitimately lost, so a window opened there would be
+red on the FIXED tree. `RV2_DEBT_263_NEGATIVE_CONTROL` removes only the
+DECISION and leaves the seq-cst load in place, so the control cannot pass by
+changing the ordering the proof is built on.
+
+**Rule 13, run on this lane.** The stand `debt263-cancel-commit-boundary`
+spawns the child from the DRIVER (`spawn_pinned`; a worker's own spawn lands
+on its local tail and a single local entry signals nobody -- the lesson from
+`5ca1a131`), has a scope owner adopt it into a `@failfast` scope, releases it
+into the window, cancels it there and requires both answers:
+
+- positive, `SURGE_SHARDS=1`, `SURGE_THREADS=2/4/8`: `debt263 cancelled in
+  window: cancelled=1 done=0`, `debt263 after: child kind=2 bits=0`,
+  `debt263 after: owner kind=2`, exit 0;
+- negative control, same window: `debt263 after: child kind=1 bits=7` and
+  `debt263 the task committed Success after a cancel that landed before the
+  commit`, exit 1.
+
+The program row `TestRuntimeV2TimeoutTargetAnswersCancelledToEveryHandle`
+(24 rounds) reported **exit 20 in 9 of 10 runs** with the boundary made inert
+-- 5 of 5 at `SURGE_THREADS=1`, 4 of 5 at 4 -- and **10 of 10 green** with
+it. It refuses to pass on zero timed-out rounds (exit 21), so a run where the
+target beats every deadline says so instead of going green having asked
+nothing.
+
+The VM half is pinned by `TestMarkDoneCommitsCancelledForACancelledTask`
+(`internal/asyncrt`), red without it with `a cancelled task committed kind 0,
+want 1`; its acceptance twin passed in that same red run, so it is not
+green-by-absence in the other direction. The VM lane CANNOT witness the
+defect in the timeout program -- single-threaded and deterministic, it
+re-polls the target while its child is still live, measured green 3 of 3 with
+the VM boundary reverted -- so the VM row there is an acceptance row, not the
+witness.
+
+**Gate.** Both program rows -- 261's `TestRuntimeV2FailfastJoinAnswersCancelled`
+and this one -- are now a recipe line of `runtime-v2-lifecycle-check`. Neither
+was run by any target before: they are one defect family ("a cancelled task
+answered `Success`"), and rule 13 asks for the row rather than a prefix so
+that closing one cannot let the other regress while the gate stays green.
+
+**Not run by this lane** (the lead's): `make runtime-v2-lifecycle-check`,
+`go test ./internal/vm`, `make check`, `make golden-check`, TSan/valgrind,
+benchmarks, and the 20 pinned runs that are the acceptance. The golden corpus
+was READ instead of run: every `.sg` under `testdata/golden/vm_async*` and
+`vm_async_suite` that calls `.cancel()` or `timeout()` already expects
+`Cancelled` where a cancel landed (`async_cancel_child`,
+`async_cancel_propagation`, `t07_failfast`, `vm_async_j6_failfast`,
+`t10a_timeout_cancel`, `vm_async_j8_timeout_cancel`), and the two that expect
+`Success` are the runs where the timer loses and nothing is cancelled.
+
+**Two side defects the derivation turned up**, filed and NOT fixed:
+RV2-DEBT-265 (`rt_scope_join_all` returns `true` without writing `*failfast`
+on its two early exits, and the LLVM caller's `alloca i1` is never
+initialized -- the `@failfast` tail branches on undefined memory) and
+RV2-DEBT-266 (`poll_task`'s `cancel_pending` branch reads `active_children`
+and frees the scope under the control lane alone, while the steady child-done
+mutates both control-free under the pinned shard lock; the comment on
+`scope_exit_locked` still describes the old lane).
