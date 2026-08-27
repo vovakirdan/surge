@@ -8861,3 +8861,36 @@ may claim one alone.
 `make runtime-v2-carrier-check` is red and was red on `691ae487` before the
 lane (a stale `blocking-composite/main.sg` digest and frozen topology counts),
 so it is not this lane's and is not counted against it.
+
+### 2026-08-27 — the dedicated machine reopens what the working machine closed
+
+The RV2-DEBT-263 acceptance above was taken on the working machine and read as
+a close. The dedicated runner disagreed within the hour: `make
+runtime-v2-lifecycle-check` under `taskset -c 8-15` on `surge-bm` at
+`d4d1b3eb` reported
+
+```
+runtime_v2_failfast_join_e2e_test.go:121: llvm SURGE_THREADS=4: exit=12 --
+  the first @failfast block (fast cancelled, slow cancelled by fail-fast)
+  resolved Success
+```
+
+which is the symptom RV2-DEBT-261 and RV2-DEBT-263 both exist to remove.
+
+The interesting part is not that a second machine differs. It is that on that
+same machine the two rows RUN ALONE are 0 red in 20 pinned rounds -- the same
+harness, the same isolated cores, the same commit. What separates the red from
+the green is the rest of the lifecycle gate running beside them. So neither
+"it reproduces on my machine" nor "the row is green twenty times" is the
+question to ask: the row has to be repeated UNDER THE GATE, which is how CI
+runs it and how it went red.
+
+Rows 261 and 263 are reopened with both readings recorded, because a ledger
+that says Closed over a red gate is worse than one that says nothing. The
+first candidate for the third window is RV2-DEBT-265: `rt_scope_join_all` has
+two early exits that answer "drained" without writing `*failfast`, and the
+LLVM emitter reserves that flag with `alloca i1` and never initialises it, so
+the generated tail of a `@failfast` block branches on whatever the frame held.
+Its wrong-default reading is `Success`. That is undefined behaviour whose
+outcome can differ between two machines for no reason the source can name --
+exactly the shape of what was just observed.
