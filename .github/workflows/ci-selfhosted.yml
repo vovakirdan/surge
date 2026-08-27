@@ -12,6 +12,15 @@ on:
     branches: [main, dev, 'codex/**', 'wip/**']
   workflow_dispatch:
 
+# Раннер один, а прогон стоит ему три джоба, так что пуши выстраиваются в
+# очередь и она растёт быстрее, чем разбирается. Про устаревший коммит ветки
+# знать нечего: держим только самый свежий. Тайминговая группа внутри остаётся
+# single-flight с cancel-in-progress: false — оборванный тайминговый ряд хуже,
+# чем неснятый.
+concurrency:
+  group: selfhosted-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
