@@ -216,6 +216,16 @@ void rt_scope_cancel_all(const void* scope_handle) {
 }
 
 bool rt_scope_join_all(const void* scope_handle, uint64_t* pending, bool* failfast) {
+    // Both answers are written before anything can return, so no exit can leave
+    // either one holding what the caller's stack happened to contain. The two
+    // early exits below say "drained" about a scope that is gone, and a scope
+    // that is gone has no fail-fast outstanding and nothing pending.
+    if (pending != NULL) {
+        *pending = 0;
+    }
+    if (failfast != NULL) {
+        *failfast = false;
+    }
     rt_executor* ex = ensure_exec();
     if (ex == NULL) {
         return true;

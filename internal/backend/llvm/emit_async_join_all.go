@@ -25,6 +25,13 @@ func (fe *funcEmitter) emitInstrJoinAll(ins *mir.Instr) error {
 	failfastPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", pendingPtr, alignWord)
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i1, align %d\n", failfastPtr, 1)
+	// The ready block loads the flag whatever the call answered, so the slot is
+	// given a value before the call rather than after it. The runtime writes both
+	// out-parameters on every return; storing here as well means the two ends
+	// cannot disagree about who initialises them, and an `alloca` is never read
+	// before it is written.
+	fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s, align %d\n", pendingPtr, alignWord)
+	fmt.Fprintf(&fe.emitter.buf, "  store i1 false, ptr %s, align %d\n", failfastPtr, 1)
 	doneVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_scope_join_all(ptr %s, ptr %s, ptr %s)\n", doneVal, scopeVal, pendingPtr, failfastPtr)
 	readyBB := fmt.Sprintf("bb.inline.join_ready%d", fe.inlineBlock)
