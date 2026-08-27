@@ -174,6 +174,11 @@ func (tc *typeChecker) markTaskContainerPending(place Place, span source.Span, c
 		info = &taskContainerInfo{Scope: scope}
 		tc.taskContainers[place] = info
 	}
+	if !info.Pending {
+		// A push into a drained container starts a fresh pending life; what the
+		// previous one recorded about being abandoned does not describe it.
+		info.forgetPendingLife()
+	}
 	info.Pending = true
 	if info.Span == (source.Span{}) {
 		info.Span = span
@@ -189,6 +194,7 @@ func (tc *typeChecker) markTaskContainerConsumed(place Place) {
 	}
 	if info := tc.taskContainers[place]; info != nil {
 		info.Pending = false
+		info.forgetPendingLife()
 	}
 }
 

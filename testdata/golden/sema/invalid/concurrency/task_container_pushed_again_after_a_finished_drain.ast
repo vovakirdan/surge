@@ -1,0 +1,147 @@
+task_container_pushed_again_after_a_finished_drain.sg (span: 16:1-73:1)
+├─ Item[0]: Fn (span: 16:1-18:2)
+│  ├─ Name: work
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 16:24-18:2)
+│        └─ Stmt[0]: Return (span: 17:5-17:14)
+│           └─ Expr: expr#1: 1
+├─ Item[1]: Fn (span: 20:1-22:2)
+│  ├─ Name: peek
+│  ├─ Params: (t: &Task<int>)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 20:35-22:2)
+│        └─ Stmt[0]: Return (span: 21:5-21:20)
+│           └─ Expr: expr#2: nothing
+├─ Item[2]: Fn (span: 24:1-42:2)
+│  ├─ Name: pushed_again_after_a_second_drain
+│  ├─ Params: (stop: bool)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 24:67-42:2)
+│        ├─ Stmt[0]: Let (span: 25:5-25:37)
+│        │  ├─ Name: tasks
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Task<int>[]
+│        │  └─ Value: expr#3: <ExprKind(8)>
+│        ├─ Stmt[1]: Expr (span: 27:5-27:30)
+│        │  └─ Expr: expr#9: tasks.push(spawn work())
+│        ├─ Stmt[2]: Expr (span: 28:5-28:30)
+│        │  └─ Expr: expr#15: tasks.push(spawn work())
+│        ├─ Stmt[3]: While (span: 29:5-35:6)
+│        │  ├─ Cond: expr#21: (tasks.__len() > (0 to uint))
+│        │  └─ Body:
+Block (span: 29:34-35:6)
+│        │     ├─ Stmt[0]: Let (span: 30:9-30:36)
+│        │     │  ├─ Name: t
+│        │     │  ├─ Mutable: false
+│        │     │  ├─ Type: <inferred>
+│        │     │  └─ Value: expr#26: tasks.pop().safe()
+│        │     ├─ Stmt[1]: Let (span: 31:9-31:27)
+│        │     │  ├─ Name: _
+│        │     │  ├─ Mutable: false
+│        │     │  ├─ Type: <inferred>
+│        │     │  └─ Value: expr#29: t.await()
+│        │     └─ Stmt[2]: If (span: 32:9-34:10)
+│        │        ├─ Cond: expr#30: stop
+│        │        ├─ Then:
+Block (span: 32:17-34:10)
+│        │        │  └─ Stmt[0]: Break (span: 33:13-33:19)
+│        │        │     └─ (no additional data)
+│        │        └─ Else: <none>
+│        ├─ Stmt[4]: While (span: 36:5-39:6)
+│        │  ├─ Cond: expr#36: (tasks.__len() > (0 to uint))
+│        │  └─ Body:
+Block (span: 36:34-39:6)
+│        │     ├─ Stmt[0]: Let (span: 37:9-37:36)
+│        │     │  ├─ Name: t
+│        │     │  ├─ Mutable: false
+│        │     │  ├─ Type: <inferred>
+│        │     │  └─ Value: expr#41: tasks.pop().safe()
+│        │     └─ Stmt[1]: Let (span: 38:9-38:27)
+│        │        ├─ Name: _
+│        │        ├─ Mutable: false
+│        │        ├─ Type: <inferred>
+│        │        └─ Value: expr#44: t.await()
+│        ├─ Stmt[5]: Expr (span: 40:5-40:30)
+│        │  └─ Expr: expr#50: tasks.push(spawn work())
+│        └─ Stmt[6]: Return (span: 41:5-41:14)
+│           └─ Expr: expr#51: 0
+├─ Item[3]: Fn (span: 44:1-57:2)
+│  ├─ Name: pushed_again_after_a_for_read_and_a_drain
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 44:65-57:2)
+│        ├─ Stmt[0]: Let (span: 45:5-45:37)
+│        │  ├─ Name: tasks
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Task<int>[]
+│        │  └─ Value: expr#52: <ExprKind(8)>
+│        ├─ Stmt[1]: Expr (span: 47:5-47:30)
+│        │  └─ Expr: expr#58: tasks.push(spawn work())
+│        ├─ Stmt[2]: ForIn (span: 48:5-50:6)
+│        │  ├─ Pattern: t
+│        │  ├─ Iterable: expr#59: tasks
+│        │  └─ Body:
+Block (span: 48:20-50:6)
+│        │     └─ Stmt[0]: Expr (span: 49:9-49:18)
+│        │        └─ Expr: expr#63: peek(&t)
+│        ├─ Stmt[3]: While (span: 51:5-54:6)
+│        │  ├─ Cond: expr#69: (tasks.__len() > (0 to uint))
+│        │  └─ Body:
+Block (span: 51:34-54:6)
+│        │     ├─ Stmt[0]: Let (span: 52:9-52:36)
+│        │     │  ├─ Name: t
+│        │     │  ├─ Mutable: false
+│        │     │  ├─ Type: <inferred>
+│        │     │  └─ Value: expr#74: tasks.pop().safe()
+│        │     └─ Stmt[1]: Let (span: 53:9-53:27)
+│        │        ├─ Name: _
+│        │        ├─ Mutable: false
+│        │        ├─ Type: <inferred>
+│        │        └─ Value: expr#77: t.await()
+│        ├─ Stmt[4]: Expr (span: 55:5-55:30)
+│        │  └─ Expr: expr#83: tasks.push(spawn work())
+│        └─ Stmt[5]: Return (span: 56:5-56:14)
+│           └─ Expr: expr#84: 0
+└─ Item[4]: Fn (span: 59:1-72:2)
+   ├─ Name: abandons_its_only_drain
+   ├─ Params: (stop: bool)
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 59:57-72:2)
+         ├─ Stmt[0]: Let (span: 60:5-60:37)
+         │  ├─ Name: tasks
+         │  ├─ Mutable: true
+         │  ├─ Type: Task<int>[]
+         │  └─ Value: expr#85: <ExprKind(8)>
+         ├─ Stmt[1]: Expr (span: 61:5-61:30)
+         │  └─ Expr: expr#91: tasks.push(spawn work())
+         ├─ Stmt[2]: Expr (span: 62:5-62:30)
+         │  └─ Expr: expr#97: tasks.push(spawn work())
+         ├─ Stmt[3]: While (span: 63:5-70:6)
+         │  ├─ Cond: expr#103: (tasks.__len() > (0 to uint))
+         │  └─ Body:
+Block (span: 63:34-70:6)
+         │     ├─ Stmt[0]: Let (span: 64:9-64:36)
+         │     │  ├─ Name: t
+         │     │  ├─ Mutable: false
+         │     │  ├─ Type: <inferred>
+         │     │  └─ Value: expr#108: tasks.pop().safe()
+         │     ├─ Stmt[1]: Let (span: 65:9-65:27)
+         │     │  ├─ Name: _
+         │     │  ├─ Mutable: false
+         │     │  ├─ Type: <inferred>
+         │     │  └─ Value: expr#111: t.await()
+         │     └─ Stmt[2]: If (span: 66:9-69:10)
+         │        ├─ Cond: expr#112: stop
+         │        ├─ Then:
+Block (span: 66:17-69:10)
+         │        │  └─ Stmt[0]: Break (span: 68:13-68:19)
+         │        │     └─ (no additional data)
+         │        └─ Else: <none>
+         └─ Stmt[4]: Return (span: 71:5-71:14)
+            └─ Expr: expr#113: 0

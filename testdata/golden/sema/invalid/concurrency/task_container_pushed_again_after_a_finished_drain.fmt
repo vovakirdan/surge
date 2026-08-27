@@ -1,0 +1,72 @@
+// ERROR: an exit that abandoned one drain is not an exit for the NEXT life of
+// the container.
+//
+// `taskContainerInfo.Exit` was recorded once and never cleared. A second drain
+// empties the container - `markTaskContainerConsumed` dropped `Pending` and
+// left the exit behind - so a task pushed AFTERWARDS was refused at the `break`
+// that had left the FIRST drain: a statement on a path that was drained after
+// all, with the help "finish the drain first" naming a drain that finishes.
+// What is undrained here is the container, and the container is where the
+// refusal goes, exactly as it did before an exit was recorded at all.
+//
+// The control below is the shape that must keep pointing at the exit: one
+// drain, left by `break`, and nothing draining it afterwards. Its own goldens
+// are in task_container_drain_abandoned_at_the_exit.sg.
+
+async fn work() -> int {
+    return 1;
+}
+
+fn peek(t: &Task<int>) -> nothing {
+    return nothing;
+}
+
+pub async fn pushed_again_after_a_second_drain(stop: bool) -> int {
+    let mut tasks: Task<int>[] = [];
+    // ERROR SEM3107: task container has unconsumed tasks at scope exit (drain required)
+    tasks.push(spawn work());
+    tasks.push(spawn work());
+    while tasks.__len() > 0:uint {
+        let t = tasks.pop().safe();
+        let _ = t.await();
+        if stop {
+            break;
+        }
+    }
+    while tasks.__len() > 0:uint {
+        let t = tasks.pop().safe();
+        let _ = t.await();
+    }
+    tasks.push(spawn work());
+    return 0;
+}
+
+pub async fn pushed_again_after_a_for_read_and_a_drain() -> int {
+    let mut tasks: Task<int>[] = [];
+    // ERROR SEM3107: task container has unconsumed tasks at scope exit (drain required)
+    tasks.push(spawn work());
+    for t in tasks {
+        peek(&t);
+    }
+    while tasks.__len() > 0:uint {
+        let t = tasks.pop().safe();
+        let _ = t.await();
+    }
+    tasks.push(spawn work());
+    return 0;
+}
+
+pub async fn abandons_its_only_drain(stop: bool) -> int {
+    let mut tasks: Task<int>[] = [];
+    tasks.push(spawn work());
+    tasks.push(spawn work());
+    while tasks.__len() > 0:uint {
+        let t = tasks.pop().safe();
+        let _ = t.await();
+        if stop {
+            // ERROR SEM3107: this `break` leaves the drain of `tasks` unfinished: the tasks not yet popped are abandoned on this path
+            break;
+        }
+    }
+    return 0;
+}

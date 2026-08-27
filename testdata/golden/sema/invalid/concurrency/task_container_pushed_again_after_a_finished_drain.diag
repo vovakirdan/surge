@@ -1,0 +1,3 @@
+error SEM3107 testdata/golden/sema/invalid/concurrency/task_container_pushed_again_after_a_finished_drain.sg:27:5 task container has unconsumed tasks at scope exit (drain required)
+error SEM3107 testdata/golden/sema/invalid/concurrency/task_container_pushed_again_after_a_finished_drain.sg:47:5 task container has unconsumed tasks at scope exit (drain required)
+error SEM3107 testdata/golden/sema/invalid/concurrency/task_container_pushed_again_after_a_finished_drain.sg:68:13 this `break` leaves the drain of `tasks` unfinished: the tasks not yet popped are abandoned on this path

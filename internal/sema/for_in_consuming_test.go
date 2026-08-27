@@ -267,14 +267,26 @@ func TestForInRefusalsNameTheDrain(t *testing.T) {
 // not an exit, so those keep the refusal at the container.
 func TestAbandonedDrainIsRefusedAtTheExit(t *testing.T) {
 	cases := []struct {
-		name string
-		src  string
-		at   string // the source text the primary span must start on
+		name     string
+		src      string
+		at       string // the source text the primary span must start on
+		notNoted string // a note clause the refusal must NOT carry; "" asserts nothing
 	}{
-		{"return_inside_drain", `async fn f() -> int { let mut tasks: Task<int>[] = []; tasks.push(spawn work()); while tasks.__len() > 0:uint { let t = tasks.pop().safe(); let r = t.await(); compare r { Success(v) => { if v == 0 { return 1; } } Cancelled() => { return 2; } } } return 0; }`, "return 1;"},
-		{"break_inside_drain", `async fn f(stop: bool) -> int { let mut tasks: Task<int>[] = []; tasks.push(spawn work()); while tasks.__len() > 0:uint { let t = tasks.pop().safe(); let _ = t.await(); if stop { break; } } return 0; }`, "break;"},
-		{"return_in_a_length_test_that_pops_nothing", `async fn f() -> int { let mut tasks: Task<int>[] = []; tasks.push(spawn work()); while tasks.__len() > 0:uint { return 1; } return 0; }`, "tasks.push"},
-		{"read_by_for_then_returned", `async fn f() -> int { let mut tasks: Task<int>[] = []; tasks.push(spawn work()); for t in tasks { peek_task(&t); } return 0; }`, "tasks.push"},
+		{"return_inside_drain", `async fn f() -> int { let mut tasks: Task<int>[] = []; tasks.push(spawn work()); while tasks.__len() > 0:uint { let t = tasks.pop().safe(); let r = t.await(); compare r { Success(v) => { if v == 0 { return 1; } } Cancelled() => { return 2; } } } return 0; }`, "return 1;", ""},
+		{"break_inside_drain", `async fn f(stop: bool) -> int { let mut tasks: Task<int>[] = []; tasks.push(spawn work()); while tasks.__len() > 0:uint { let t = tasks.pop().safe(); let _ = t.await(); if stop { break; } } return 0; }`, "break;", ""},
+		{"return_in_a_length_test_that_pops_nothing", `async fn f() -> int { let mut tasks: Task<int>[] = []; tasks.push(spawn work()); while tasks.__len() > 0:uint { return 1; } return 0; }`, "tasks.push", ""},
+		{"read_by_for_then_returned", `async fn f() -> int { let mut tasks: Task<int>[] = []; tasks.push(spawn work()); for t in tasks { peek_task(&t); } return 0; }`, "tasks.push", ""},
+		// A second drain EMPTIES the container, so the `break` that left the
+		// first one is on a path that was drained after all: it abandoned
+		// nothing and names nothing the author can change. What is undrained at
+		// scope exit is the task pushed AFTERWARDS, and the refusal belongs at
+		// the container. The exit used to be recorded once and never cleared,
+		// so this program was refused at that first `break`.
+		{"pushed_again_after_a_second_drain_finished", `async fn f(stop: bool) -> int { let mut tasks: Task<int>[] = []; tasks.push(spawn work()); while tasks.__len() > 0:uint { let t = tasks.pop().safe(); let _ = t.await(); if stop { break; } } while tasks.__len() > 0:uint { let t = tasks.pop().safe(); let _ = t.await(); } tasks.push(spawn work()); return 0; }`, "tasks.push", ""},
+		// The same for the `for` that only READ the container before a drain
+		// emptied it: the loop is not what leaves the later push undrained, and
+		// it must not be the note either.
+		{"pushed_again_after_a_for_read_and_a_drain", `async fn f() -> int { let mut tasks: Task<int>[] = []; tasks.push(spawn work()); for t in tasks { peek_task(&t); } while tasks.__len() > 0:uint { let t = tasks.pop().safe(); let _ = t.await(); } tasks.push(spawn work()); return 0; }`, "tasks.push", "only reads the tasks"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -293,6 +305,14 @@ func TestAbandonedDrainIsRefusedAtTheExit(t *testing.T) {
 			if int(found.Primary.Start) != want {
 				t.Fatalf("SEM3107 points at offset %d (%q), want %d (%q)",
 					found.Primary.Start, full[found.Primary.Start:min(int(found.Primary.End), len(full))], want, tc.at)
+			}
+			if tc.notNoted == "" {
+				return
+			}
+			for _, note := range found.Notes {
+				if strings.Contains(note.Msg, tc.notNoted) {
+					t.Fatalf("SEM3107 must not note %q, got %q", tc.notNoted, note.Msg)
+				}
 			}
 		})
 	}

@@ -31,6 +31,22 @@ type taskContainerPopBinding struct {
 	consumed bool
 }
 
+// forgetPendingLife drops what the container's PREVIOUS pending life recorded
+// about the way it could be left with tasks in it: the drain exit that
+// abandoned it, and the `for` that only read it. Both name a statement, and
+// both live on the container rather than on the loop, so without this they
+// outlive the tasks they were about. A drain that finishes empties the
+// container; a `break` or a `for` before it is then on a path that WAS drained
+// after all, and refusing a LATER push at that statement points the author at
+// something there is nothing wrong with, advising them to "finish the drain
+// first" about a drain that already finishes. What is undrained after such a
+// push is the container, and the container is where the refusal goes.
+func (info *taskContainerInfo) forgetPendingLife() {
+	info.Exit = source.Span{}
+	info.ExitKind = ""
+	info.ForIn = source.Span{}
+}
+
 // markEarlyExit records that the loop can be left before its condition turns
 // false, keeping the FIRST exit as the one the refusal will name.
 func (loop *taskContainerLoop) markEarlyExit(span source.Span, kind string) {
