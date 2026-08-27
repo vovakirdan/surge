@@ -22,8 +22,10 @@ More precisely:
 - The hot path uses a thread-per-core, shared-nothing scheduler. File
   descriptors, request tasks, timers, channel waiters, and hot allocations stay
   on the owning shard.
-- Work stealing does not run on the connection hot path. It belongs to the CPU
-  Tier 2 destination and, if needed, emergency or control-plane paths.
+- A Tier 1 shard has one carrier. Its ready queue is shard-local, not a
+  worker-private deque shared with peer workers.
+- The target connection hot path has no work stealing. Stealing belongs to the
+  CPU Tier 2 destination and, if needed, emergency or control-plane paths.
 - Shard boundaries are move-only and shard-movable-only: only `own` values whose
   type is not shard-pinned may cross shards. Borrows stay on the source shard.
 - Cross-shard operations are syntactically explicit. A value or call that
@@ -129,8 +131,8 @@ also on the hot allocation path; heap accounting now uses owner-scoped cells.
 
 ### 1. Shards
 
-Runtime V2 consists of `N` shards. Each shard normally maps to one OS thread and
-one CPU core. A shard owns:
+Runtime V2 consists of `N` shards. Each Tier 1 shard maps to one carrier OS
+thread and one CPU core. A shard owns:
 
 - a local ready queue;
 - a run-next or LIFO handoff slot;
@@ -143,6 +145,25 @@ one CPU core. A shard owns:
 
 The process may still have a runtime object that contains all shards, but the
 connection hot path must not require one global lock.
+
+`local` in Tier 1 means local to the shard. The carrier may use a run-next slot
+or a LIFO queue for locality, but there is no second Tier 1 worker that can
+sleep on, steal from, or be signalled for that queue. A worker-private deque and
+peer stealing belong to the CPU Tier 2 pool or to the explicitly transitional
+topology below.
+
+A run-next slot holds no more than one task and belongs to a single carrier. No
+peer may read it, steal from it, or be signalled for it, and in a multi-carrier
+group (Section 10) it is the only publication a carrier may make without a wake
+credit. A shard with one carrier owns exactly one such slot; in the transitional
+topology below each carrier of the shard owns its own.
+
+The transitional `1 shard x N carriers` topology is an exception, not a second
+definition of a shard. It remains Tier 1: its tasks stay on the shard and keep
+their fd, timer, and channel ownership. It may use intra-shard peer scheduling
+while the runtime migrates to `N shards x 1 carrier`, but it must obey the
+multi-carrier wake contract in Section 10. Its results do not establish
+thread-per-core Tier 1 scaling.
 
 ### 2. FD Ownership
 
@@ -302,6 +323,11 @@ Same-shard send/recv uses local queues:
 - push the resumed task into the run-next slot or local queue;
 - avoid global condition variables.
 
+A same-shard handoff is still scheduler publication. In a multi-carrier worker
+group it follows the Section 10 wake contract: only a non-stealable run-next
+handoff may use continuity elision; publication into a public or stealable queue
+must issue an eligible worker-group credit.
+
 Cross-shard send/recv sends a message to the owning shard. The owning shard
 performs the queue operation and returns a completion message if needed.
 
@@ -414,6 +440,33 @@ writes` counter measures elision efficiency, not correctness. A lost wakeup
 shows up as a latency cliff or a hang, not in that counter. Add a debug
 invariant: no `PARKED` shard may have a non-empty inbound queue at a safepoint.
 
+**Scope.** In the target topology, `PARKED` is the state of the one Tier 1 shard
+transport loop. It is not the state of a worker pool and it does not describe a
+private worker deque. A Tier 1 shard then has one carrier, so a same-shard local
+continuation has no sleeping peer to wake.
+
+The transitional `1 shard x N carriers` topology needs a different reading:
+`PARKED` may be published only after every carrier in the shard's worker group
+has completed the group no-work handshake (Section 10). One sleeping carrier may
+not mark the whole shard `PARKED`. Every transport delivery into such a shard is
+an external producer for its worker group: after publishing the inbound record
+it must issue an eligible group credit, whether the aggregate transport state
+reads `RUNNING` or `PARKED`. The wake fd remains the cross-shard transport edge;
+the group credit and group notification make the accepted record runnable for a
+carrier. This prevents a busy carrier from making a non-empty inbound queue look
+served while all peer carriers remain asleep.
+
+Two rules keep the aggregate state honest. A carrier that leaves the group wait
+publishes `RUNNING` for the shard before it consumes any inbound record, so the
+state is never `PARKED` while a carrier is serving the queue, and the
+`PARKED`-with-inbound invariant is evaluated at a safepoint, not mid-turn.
+And a carrier may wait inside the readiness poll as well as in the group wait:
+both are wait states of the same group, so a group notification must be
+deliverable to whichever one a carrier is in. The readiness poll therefore
+observes the group wake source alongside readiness, and it does so under a
+bounded, traced budget; a poll that cannot be woken by a group notification is
+not a legal wait state for a carrier of that group.
+
 The inbound transport queue is bounded. Data messages reserve target-shard byte
 credits for their physical envelope, padding, exact payload, and transport-owned
 sidecars before enqueue; if no credit is available, the sender task parks on
@@ -442,14 +495,22 @@ completion and cancellation are messages to that owner. This is acceptable for
 low-fanout distributed work, but it must not be the default per-request shape.
 
 **Distributed spawn is an explicit crossing.** A local spawn may capture borrows
-of the parent; parent and child share a shard, so the borrows stay valid. A
-distributed spawn is written `spawn on distributed { ... }` and is checked
-move-only plus shard-movable: it may capture `own` shard-movable values or
-copyable values, never `&T`, `&mut T`, or shard-pinned resources of the parent.
-The construct that makes the crossing visible is also the point where the
-no-borrow-across-shards and no-implicit-resource-migration rules are enforced.
-Joining a distributed child returns through a `far Task<T>`, so the join is
-itself a visible crossing.
+of the parent, but common shard ownership is not itself a same-thread guarantee
+in the transitional multi-carrier topology. A child that captures `&T` or
+`&mut T` is carrier-affine from its creation to its completion; a borrow that
+ends earlier does not release the affinity unless the runtime carries an
+explicit affinity-release event the steal predicate can test. Semantic analysis
+records the affinity at the spawn that creates it and rejects an explicit
+placement that contradicts it; keeping the affinity at run time is the
+scheduler's part, whose steal and handoff predicates refuse that task on any
+carrier other than its parent's, exactly as placement refuses a connection task
+on a non-owner shard, and trace every refusal. A distributed spawn is written
+`spawn on distributed { ... }` and is checked move-only plus shard-movable: it
+may capture `own` shard-movable values or copyable values, never `&T`, `&mut T`,
+or shard-pinned resources of the parent. The construct that makes the crossing
+visible is also the point where the no-borrow-across-shards and
+no-implicit-resource-migration rules are enforced. Joining a distributed child
+returns through a `far Task<T>`, so the join is itself a visible crossing.
 
 Cross-shard cancellation uses generation tokens. A distributed child, scope
 subscription, cancellation request, and completion message carry the generation
@@ -467,17 +528,20 @@ Runtime V2 separates hot shard-local work from work that should leave the shard.
 - Tier 2 is the offload tier for work that should leave the connection shard:
   blocking calls, bounded CPU-heavy work, and compatibility operations.
 
-Tier 2 has two destinations. Existing `blocking { ... }` is a dynamically sized
-pool for work that blocks in syscalls; its threads may park indefinitely.
-`spawn on pool { ... }` is the accepted source shape for future CPU-bound placed
-work that must not block and may be stolen internally. Mixing them in one pool
-lets a blocked syscall stall queued CPU work, so the boundary is explicit.
+Tier 2 has two destinations. `blocking { ... }` is a bounded-admission service
+with a configured worker limit for work that blocks in syscalls; its threads may
+park indefinitely. `spawn on pool { ... }` is the accepted source shape for
+future CPU-bound placed work that must not block and may be stolen internally.
+Mixing them in one pool lets a blocked syscall stall queued CPU work, so the
+boundary is explicit.
 
-The CPU destination is a stealing pool, and stealing lives here and nowhere
-else. This is the one place where work stealing is the correct tool: the work is
-CPU-bound and does not care which core runs it, so balancing it by stealing
-costs nothing the hot path pays. Tier 1 never steals; the CPU Tier 2 destination
-always may.
+The CPU destination is the target stealing pool. This is the one target path
+where work stealing is the correct tool: the work is CPU-bound and does not care
+which core runs it, so balancing it by stealing costs nothing the connection hot
+path pays. The transitional `1 shard x N carriers` topology may steal only
+within one shard and only tasks eligible for the stealing carrier; it is a
+compatibility cost, not a Tier 1 target property. Tier 1 never steals across a
+shard boundary.
 
 Tier 2 is the lever for CPU skew. A hot shard offloads CPU-heavy work to Tier 2,
 where stealing rebalances it across cores, without putting a steal on any
@@ -494,6 +558,188 @@ The syntax stays explicit, and one rule governs all crossing captures.
 Tier 2 completion returns to the caller's shard through the same cross-shard
 completion path as shard-to-shard work. Tier 2 code cannot hold borrows into
 Tier 1 shard-local state.
+
+#### Multi-Carrier Worker Wakeups
+
+CPU Tier 2 is the target scheduler with multiple peer workers. During the
+`1 shard x N carriers` transition, Tier 1 also has a multi-carrier scheduler.
+Both use this wake protocol, but they do not acquire the same ownership rights:
+Tier 2 tasks hold no borrow into Tier 1 state and no shard-pinned resource;
+transitional Tier 1 tasks remain on their owning shard and never become Tier 2
+work.
+
+A worker group has a public injection queue, worker-private deques, and an
+eligibility class for each task. A task's eligibility class is the set of
+workers that may execute it. The placement layer assigns it when the task is
+published and stores it with the task; it follows from shard placement, from
+carrier affinity (Section 9), and from any task-class restriction. A worker
+knows the classes it may execute from its own identity, and a group with no
+restrictions has exactly one class.
+
+A worker may wait only after it has observed a
+consistent no-work predicate: its own deque, the public queue, and every task
+it is eligible to steal contain no task, and no eligible wake credit is pending.
+Satisfying that predicate is what Section 8 calls completing the group no-work
+handshake. This predicate is normative; the implementation may use
+a lock, epochs, per-deque metadata, or an explicit
+`SEARCHING -> PARKING -> WAITING` handshake.
+Release/acquire ordering makes an already-published task visible, but it does
+not close the race to sleep. The no-work observation and the transition to
+waiting must be linearized against credit publication: either both sides run
+under one shared lock, or both sides are store-then-load with sequentially
+consistent ordering as in Section 8, or the transition is a single competing
+read-modify-write.
+
+Wake credits are non-negative counted permits in a task's eligibility class,
+not a boolean. A producer publishes at least one eligible credit for every task
+it makes runnable that is not covered by a continuity obligation. It publishes
+the task with release ordering, then the credit with release ordering, then
+notifies. A worker observes the credit with acquire ordering before it scans
+queues. A worker may consume a credit only when it can execute the credit's
+class. It then performs the full no-work check before waiting again. A consumed
+credit is never returned: a worker that finds no eligible task has observed an
+allowed spurious wake, and it cannot tell from inside whether an eligible peer
+claimed the task or it lost a steal race to it. The full no-work check is what
+keeps that from becoming a lost wakeup. Over-crediting is a policy
+cost. Under-crediting is a correctness failure. An implementation may encode
+permits as a monotonic generation rather than a decrementing counter only if it
+preserves these at-least-once observations.
+
+A notification must be able to reach a worker that is eligible for the credit's
+class. Waking a worker that may not consume the credit does not discharge the
+notification, so a group either broadcasts, keeps a wait set per class, or
+notifies every waiter that could consume it. The credit is the correctness
+obligation and the notification is the policy decision on top of it: a producer
+may batch or suppress notifications only when, under the same indivisible
+protocol that governs the wait transition, it observes that an eligible worker
+is already awake or searching. One notification may therefore serve a batch of
+credits, but no credit may go unpublished.
+
+Continuity is task-specific, not merely a property of a running owner. An elided
+task occupies a non-stealable run-next slot, and the owner must claim that exact
+task at its next scheduler selection before it starts another task. The
+continuity debt discharges at that claim, or when the carrier republishes the
+reserved task into a queue reachable by eligible peers with an eligible credit
+and a notification. It discharges in no other way. A private deque entry is not
+such a reservation: peers may steal it, and the owner may choose another source
+at selection. Therefore a local deque push, a public injection push, and every
+external publication always issue eligible credits. The simple deque rule
+`queue.len > 1` is never a model-level reason to elide a credit.
+
+A carrier has at most one outstanding continuity debt, because the run-next slot
+holds exactly one task. A producer that would elide into an occupied slot
+publishes into a queue reachable by eligible peers with a credit and a
+notification instead, and displacing a task already in the slot is itself such a
+publication. Elision is also available only to a carrier that may execute the
+task it elides: handing a task to a slot its holder is not eligible to run is a
+publication like any other and must issue an eligible credit. A turn that makes
+two tasks runnable therefore elides at most one of them.
+
+A wait that can suspend the task instead of the carrier must do so. Inside an
+async body every suspension point — awaiting a task, joining a scope, sending to
+or receiving from a channel, waiting on readiness, a timeout, a `select`, or a
+crossing — parks the waiting task and returns the carrier to scheduler
+selection, where it claims its reserved task if it has one. This is the
+stackless poll-state-machine lowering stated in the Summary, and it costs the
+carrier nothing; Section 4 is what makes the resume cheap, because the waiter
+already lives with its owner. Only a path that must abandon the carrier itself
+reaches the obligation below: a blocking syscall, carrier exit, an `await`
+written outside an async body, and the synchronous channel wait Section 7
+records as debt. A carrier that suspends its own scheduler path while holding a
+task no peer may claim is a contract failure, not a policy choice.
+
+If a carrier cannot claim its continuity task immediately, it must first move
+every task covered by its continuity or private-queue obligations into a queue
+reachable by eligible peers, publish one eligible credit for each task, and
+notify. This includes the owner's run-next task. A task whose affinity prevents
+that transfer may not be left behind: the carrier runs it to completion, or
+refuses the transition that would make it unavailable. A primitive that cannot
+be refused at that point is a contract failure, not a policy choice; only
+shutdown may resolve such a task by cancelling it. A path that blocks, enters a
+syscall or a sync wait, abandons its carrier, or otherwise leaves the current
+turn without returning to selection has this obligation before it leaves.
+
+A scheduler safepoint is a point at which a carrier holds no task mid-turn:
+between finishing one task and selecting the next, and immediately before it
+waits. The invariant holds per eligibility class, not per group: at a safepoint,
+for every class that has runnable work, an unclaimed eligible credit, or an
+unserved wake notification, at least one worker eligible for that class must be
+covering it — executing the group's scheduler path, leaving the wait, releasable
+by an eligible credit, or running a task from which it is guaranteed to return
+to scheduler selection. A worker that has left the scheduler path into a wait it
+cannot be released from covers no class. Counting only whether some worker is
+busy is not enough: a class whose only eligible carrier is inside a task it
+cannot leave is uncovered even though the group looks alive.
+This is the debug-invariant counterpart to Section 8's `PARKED` inbound check;
+it detects a stranded group as a contract failure instead of leaving it to
+appear as a hang.
+
+The public injection queue also has bounded service latency: a worker must poll
+it after a bounded number of local selections. The bound is a scheduler policy
+parameter and must be traced, so a chain of local continuations cannot starve
+external arrivals. The bound outranks continuity: when it is reached, the
+carrier serves the public queue first and republishes its outstanding run-next
+task with an eligible credit, because a continuity debt may delay one task but
+may never postpone the bound indefinitely.
+
+Shutdown is part of the wait predicate. Closing a worker group rejects or
+transfers new work, publishes shutdown wake transitions for every waiter, and
+drains or transfers queued work before worker exit. Waiters re-check shutdown
+before sleeping; credits and notifications are discarded only after no waiter
+can consume them. Shutdown therefore cannot strand a worker on an empty credit
+wait. A carrier-affine task cannot be transferred, so shutdown resolves it on
+its own carrier: the exiting carrier runs or cancels every task pinned to it
+before it leaves, and the group is closed only when no carrier-affine task
+remains.
+
+Continuity does not promise preemption or a latency deadline: a CPU-bound task
+that does not yield delays its owner's next turn. Tier 2 accepts that cost
+because it is explicitly off the connection hot path; workloads that need a
+stronger latency bound need a bounded cooperative quantum. This protocol buys
+locality only through the run-next slot. Its cost is a distinct synchronization
+domain, queue visibility for stealing, durable credits, and observability. The
+runtime must trace run-next elisions, credits by eligibility class, wake
+transitions, suppressed notifications, steals, refused steals, waits,
+public-queue age, maximum local streak, and blocking-pool admission stalls by
+cause. These counters measure policy; the liveness invariant is correctness.
+
+Every cost in this section is paid by a scheduler that has peer workers. The
+target Tier 1 topology has none: with one carrier per shard there are no
+credits, no notifications, no stealing, and no eligibility bookkeeping, and the
+run-next slot degenerates into plain locality. The protocol is therefore the
+price of the transitional topology and of Tier 2, not of the thread-per-core
+model. The transitional topology also pays a second price that belongs in the
+same place: a request tree whose children capture borrows is carrier-affine, so
+a `join_all` fan-out over such children runs on one carrier and is not a
+parallelism lever there. A program that wants intra-shard parallelism in that
+topology must spawn children that capture no borrow.
+
+#### Blocking Tier 2 Pool
+
+The syscall-blocking pool is a separate, bounded-admission service. It has a
+configured worker limit and a bounded queue; it does not provision unbounded
+threads, use worker-private deque continuity, or steal, because a submitted job
+may block indefinitely. When the pool has no admission capacity, the submitting
+task parks asynchronously until a completion returns capacity. If every worker
+is blocked indefinitely, later submissions make no progress by design: they are
+backpressured rather than accumulated without bound. Admission is bounded by the
+worker limit and by the queue together, and each has its own counter, so an
+admission stall is a measured number rather than a hang. Every admitted job
+creates an eligible durable wake credit, and the pool's wait and shutdown
+predicates follow the same at-least-once, visibility, and drain-or-transfer
+rules above. It has its own queue, capacity accounting, and observability; it
+must not inherit CPU-pool wake elision merely because both destinations are
+Tier 2.
+
+Backpressure only works while the waiting side can make progress elsewhere, so
+a job admitted to the blocking pool may not itself require blocking-pool
+admission, directly or transitively: the runtime refuses or accounts such a
+submission rather than parking it behind its own completion. Shutdown of this
+pool drains or cancels queued jobs and refuses new submissions, with one
+exception to the drain-or-transfer rule above: it does not wait for an admitted
+job that is already blocked in a syscall. Such a job's thread is detached at
+exit, so a pool whose workers block indefinitely cannot hold the runtime open,
+and shutdown records the job rather than blocking on it.
 
 ### 11. Allocation And Heap Stats
 
@@ -645,7 +891,7 @@ cancellation traffic.
 | Global waiter list | All waiter kinds share one FIFO list. | Owner-local wait queues keyed by fd, channel, task, timer, or scope. |
 | O(n) wake and park | `pop_waiter()` scanned and compacted the full waiter list; it was deleted in Wave D step D0 after its last caller went away. | O(1) or O(k) operations on the owner-local queue. |
 | Net poll rebuild churn | Net polling rebuilds the fd set from global waiters. | Shard-local fd registry persists across poll cycles. |
-| Cross-worker wake churn | Non-worker wakes enter global inject; worker wakes can signal other workers. | Net readiness resumes the task on the owning shard. |
+| Cross-worker wake churn | Non-worker wakes enter global inject; worker wakes can signal other workers. Nothing credits a sleeping peer for a task pushed onto a private deque, so a same-shard push can be lost to a carrier that never returns to selection. | Target Tier 1 has one carrier per shard and no peer wake. Transitional `1 shard x N carriers` and Tier 2 use counted at-least-once credits per eligibility class; the only credit-free publication is a task placed in the publisher's own run-next slot and claimed at its next selection. |
 | I/O thread as partial worker | The current patch drains ready inject tasks after net readiness. | A shard runs its own net-ready continuations or drains a net-woken queue only. |
 | Expensive channel handoff | Channel send/recv uses global lock plus shared waiters. | Same-shard channel handoff is local; cross-shard handoff is explicit messaging. |
 | Heap allocation ownership | Heap accounting uses runtime/shard-owned cells, but allocation still uses the current `malloc`/`free` strategy. | Shard-local hot object pools and owner-routed frees. |
@@ -879,16 +1125,47 @@ Runtime V2 should be judged with:
 
 - 1, 8, and 32 connections for small-load latency and regression checks;
 - 1k and 10k connections for shared-nothing scaling;
-- single-shard and multi-shard rows;
+- identical `shards x carriers` rows: `1x1` legacy control, `1xN`
+  transitional multi-carrier, and `Nx1` target topology;
 - pipelined and non-pipelined TCP rows;
 - mixed CPU/TCP rows with bounded CPU tasks;
 - trace counters for cross-shard messages, wake-fd writes, inbound transport
   credit stalls, remote-free queue depth, remote bounded-channel round trips,
   remote `select` uses, stale generation drops, global path usage, shard
-  imbalance, local queue depth, allocation counters, and fd readiness batches.
+  imbalance, local queue depth, allocation counters, and fd readiness batches;
+- the Section 10 counters alongside them: run-next elisions, wake credits by
+  eligibility class, wake transitions, suppressed notifications, steals, refused
+  steals, waits, public-queue age, maximum local streak, and blocking-pool
+  admission stalls by cause. Every elision site carries its own counter, so an
+  elision rate is a measured number before the protocol changes it, not an
+  estimate afterwards.
 
-Success means multi-shard runtime does not regress small-load latency badly and
-materially improves many-connection throughput and tail latency.
+Every latency and throughput row must name the time-measuring harness, its
+warmup, duration, percentile method, and connection distribution. An
+allocation-only carrier benchmark cannot establish a latency or throughput
+claim. No topology may be declared faster, slower, or ready to replace the
+default until the same time-measuring harness has reported all three
+`shards x carriers` rows.
+
+Four rules make a latency or throughput row admissible. A row records `shards`
+and `carriers per shard` as two separate fields with the exact environment that
+produced them: a harness that derives the carrier count from the shard count
+cannot express `1xN` and `Nx1` at once and cannot produce this matrix. A row the
+harness skipped, truncated, or lost to a timeout is not a reported row: it
+records the requests actually completed and the wall time actually elapsed, and
+a comparison missing any of the three rows fails rather than printing a
+placeholder. A percentile computed from a batch mean replicated once per request
+is a throughput restatement and may not be published as a tail, so a pipelined
+row reports per-request latency or reports no percentile at all. And a row
+states the evidence that the load generator was not the bottleneck: client and
+server CPU during the run, and a client-scaling row at a fixed server
+configuration.
+
+Success means the `Nx1` target meets its predeclared small-load latency threshold
+against the `1x1` control and materially improves many-connection throughput and
+tail latency against both `1x1` and the transitional `1xN` row. The owner must
+set those thresholds before collecting the comparison; an allocation-only row
+cannot substitute for them.
 
 ## Sources
 
