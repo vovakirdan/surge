@@ -765,16 +765,50 @@ observes that source alongside readiness, and it does so under a
 bounded, traced budget; a poll that cannot be woken by a group notification is
 not a legal wait state for a carrier of that group.
 
-The inbound transport queue is bounded. Data messages reserve target-shard byte
-credits for their physical envelope, padding, exact payload, and transport-owned
-sidecars before enqueue; if no credit is available, the sender task parks on
-its own shard until the target returns credit. The reserved control lane carries
-bounded protocol metadata only. Credit-return and cancellation metadata may use
-it, but a completion or reply containing arbitrary `T` uses the data lane or a
-pre-reserved reply budget. Credit returns may be coalesced; cancellation and
-completion records remain distinct and generation-checked. Backpressure must
-not block the bounded messages that release backpressure. Exact accounting,
-jumbo reservations, and cleanup are specified by the typed-carrier design.
+The inbound transport queue is bounded, and on the transport that exists the
+budget is slots. A cross-shard message is a fixed `rt_transport_msg` envelope
+whose `payload` is a pointer into a refcount graph the transport neither copies
+nor owns, and every construction site in the tree sets `payload_len` to zero.
+An exact payload cannot be derived from such a pointer: the graph is shared, is
+not copied, and has no stable per-message cost, so the root's allocated size, a
+walk of the graph, and an alias estimate are three spellings of a number the
+transport does not have. What a pointer message actually spends is one envelope
+and one queue entry, so one envelope and one queue entry are what it is charged
+for. `payload_len` means the bytes of a buffer the transport itself owns, and
+on this path that is zero.
+
+A byte budget is a measurement only where the transport owns the bytes: a
+serialized message, or a buffer explicitly handed over at enqueue and held until
+the target drains it. No such path exists yet, and until one does a physical
+byte credit is false precision rather than an unfinished feature.
+`RT_TRANSPORT_MSG_CREDIT_CONTROL` and the `credit_stalls` counter are reserved
+names for that path -- no site in the runtime builds a credit-control message
+and nothing increments `credit_stalls` -- so neither is a partial implementation
+of this model and neither may be read as one.
+
+The bound therefore carries two budgets, a data-slot credit for each pointer
+envelope and a separate control reserve, and the reserve is what a data backlog
+may not consume. A bound whose control reserve can be spent by data is a
+contract failure rather than a tuning mistake, because the messages that release
+backpressure -- the credit return, the completion, the cancellation ack, the
+shutdown wake -- are exactly the ones a backlog starves, and a larger number
+moves that deadlock without removing it. The reserve carries bounded protocol
+metadata only; a completion or reply carrying arbitrary `T` is data traffic and
+is budgeted as data. The tree does not hold this line today:
+`rt_transport_msg_is_control` routes `RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION`
+and `RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY` onto the same
+`RT_TRANSPORT_CONTROL_QUEUE_CAP` entries as `RT_TRANSPORT_MSG_CREDIT_CONTROL`
+and `RT_TRANSPORT_MSG_SHUTDOWN_WAKE`, so sixteen queued completions leave the
+transport refusing the next release message with
+`RT_TRANSPORT_STATUS_QUEUE_FULL`. Credit returns may be coalesced; cancellation
+and completion records remain distinct and generation-checked.
+
+A same-shard publication is not transport and reserves nothing: it never enters
+the inbound queue, so this bound is a cost of crossing rather than a cost of
+sending. The transitional `1 shard x N carriers` topology adds no second
+reservation either -- the carriers of one shard share one inbound queue, and the
+group credit of Section 10, not a per-carrier transport credit, is what makes an
+accepted record runnable for one of them.
 
 ### 9. Structured Concurrency
 
@@ -1202,6 +1236,20 @@ with them, and whether the paired trace-off/trace-on run is paired per switch
 or once for the whole enabled set. Each of these changes what an implementation
 must do, so each waits for the owner rather than for whoever writes the lane.
 
+Left open by the 2026-08-28 transport rulings, and deliberately not answered in
+the text above. Whether the control reserve is accounted independently of the
+data budget or subtracted from it, and what each budget is as a number of slots.
+Whether a completion or reply carrying arbitrary `T` takes an ordinary data slot
+or a reply slot reserved when its request was admitted. What a sender does when
+no slot is available -- park on its own shard until one returns, or keep the
+drain-and-retry the tree performs at `RT_TRANSPORT_STATUS_QUEUE_FULL`. Whether
+`payload_len` stays on the pointer path as the length of a transport-owned
+buffer, zero for every message the tree builds, or leaves that path until a
+serialized transport needs it. And whether `RT_TRANSPORT_MSG_CREDIT_CONTROL` and
+`credit_stalls` are held as reserved names for that transport or removed until
+it exists. Each names a mechanism the transport must have before a bound can be
+claimed, so each waits for the owner rather than for whoever writes the lane.
+
 ## Cost Model And Levers
 
 Runtime V2 treats cost visibility as part of the language contract. Legibility
@@ -1260,7 +1308,7 @@ cancellation traffic.
 | Shard-pinned resource move | `own File` could move to another shard while its fd remains registered on the old shard. | Types that transitively own shard-registered resources are shard-pinned; ordinary sends are rejected and explicit migration re-registers the resource. |
 | Invisible cross-shard cost | A remote operation could be spelled like a local one. | Crossing is a distinct typed construct (`far` + `on` / `spawn on`); cost is legible before compile. |
 | Lost cross-shard wakeup | A producer can enqueue, see the target as running, skip the wake, and race with target parking. | Wake elision uses the seq-cst park protocol: `PARKED` store, queue re-check, and debug invariant. |
-| Unbounded inbound transport | Cross-shard messages can grow memory without backpressure. | Inbound transport is bounded by target credits with a reserved control lane for release messages. |
+| Unbounded inbound transport | Cross-shard messages can grow memory without backpressure. | Inbound transport is bounded in slots, one data credit per pointer envelope, with a control reserve a data backlog cannot spend; byte credits wait for a transport-owned buffer. |
 | Remote bounded channels | A bounded send across shards needs receiver-side capacity state. | The receiver shard owns capacity and completes sends through request/ack. |
 | Remote select | Selecting over remote channels creates multi-shard subscriptions and cancellation. | Local select is fast; remote select is denied the fast path and lowered to a slow coordinator. |
 | Cross-shard cancellation staleness | A child can complete while cancel is in flight, or storage can be reused. | Distributed scope cancel and completion messages carry generation tokens; stale messages are ignored. |
@@ -1431,9 +1479,11 @@ Current status is maintained in `runtime-v2-epics/README.md`. The production
 LLVM/native vertical includes the inbound transport spine, placement task
 crossings, remote channels, far-handle sharing, remote `select`, migration,
 crossing drop activation, and the owner-routed reclamation core. The remaining
-one-word payload ABI and placeholder credit model are replaced end to end by
-Epic 23b, `runtime-v2-epics/23b-inline-storage-and-typed-carriers.md`; it owns
-typed task/channel/select/blocking/far payloads and physical byte credits.
+one-word payload ABI is replaced end to end by Epic 23b,
+`runtime-v2-epics/23b-inline-storage-and-typed-carriers.md`; it owns typed
+task/channel/select/blocking/far payloads. The pointer transport keeps the slot
+budget of Section 8; the physical byte credits that epic also plans belong to a
+transport-owned buffer and wait for one.
 Distributed scopes, `pool` execution, and any VM transport not expressly
 implemented by an active epic remain future work with deterministic
 diagnostics.
@@ -1455,9 +1505,11 @@ diagnostics.
   for CPU-bound placed work with internal stealing.
 - Implement the wake-elision park protocol with sequentially consistent
   enqueue/PARKED ordering and the PARKED-with-non-empty-queue debug invariant.
-- Implement bounded inbound transport queues with physical target byte credits
-  and a reserved control lane for bounded credit-return/cancellation/progress
-  metadata. Arbitrary typed completion/reply payloads use credited data storage.
+- Implement bounded inbound transport queues budgeted in slots, one data credit
+  per pointer envelope, with a control reserve for bounded
+  credit-return/cancellation/progress metadata that a data backlog cannot spend.
+  A completion or reply carrying arbitrary `T` is data traffic and is budgeted
+  as data rather than against the reserve.
 - Implement bounded remote send as receiver-owned request/ack.
 - Lower remote `select` to a slow coordinator with generation-based
   cancellation; remote `select` is not a compile error.
