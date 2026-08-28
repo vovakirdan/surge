@@ -28,6 +28,39 @@ an owner decision.
 | **Scope refusal** | `lane-scope-refusal` | Committed. Critic: **UNSOUND**. Refuses a legal program with a false message; three bypasses compile silently (alias, sync helper, call pass-through) and two of them give OPPOSITE answers. Its justification for deleting the runtime adoption is false — a sync-helper program still reaches `rt_task_wake` with a scope set. | Rework. The refusal must ask about the TASK, not the spelling of the binding. |
 | **W2 instrument** | dedicated machine | **0 red in 200 runs.** Not "fixed": at a 0.5% rate, zero in 200 happens 37% of the time. | 600 more runs. Zero in 800 puts the rate under ~0.4% with 95% confidence; a red enters W2. |
 
+## Next, in this order
+
+1. **The two SOUND_WITH_GAPS lanes get their gaps closed and land** — the frame
+   leak (`lane-d7-1`) and the channel pins (`lane-d7-3`). Both have real,
+   measured findings; neither is integrable while its critic's list stands.
+2. **The two UNSOUND lanes are re-sent, not repaired.** `lane-d7-2`'s field is
+   right and its writers are not; `lane-scope-refusal` asks about the spelling
+   of a binding where it must ask about the task. Each re-sent lane carries its
+   critic's findings as part of the brief.
+3. **W6 — D2's measurement close.** No conflicts, no lane needed, and the
+   machine is free between campaigns. Re-capture the frozen bench manifest
+   against the latest green commit, then re-measure with at least three agreeing
+   runs. *~1 day. Closes D2, code complete and unmeasured for weeks.*
+4. **The cancelled-scope reclamation defect** the leak lane found: `run_ready_one`
+   is a hand-copy of `apply_poll_outcome`'s switch whose cancelled arm performs
+   no scope teardown, so a task cancelled before its first poll never gives back
+   its scope block. One block and 64 bytes per cancelled task, measured. This is
+   a live unbounded retention and it blocks nothing else, so it follows the
+   lanes above rather than preempting them. *~1 day.*
+5. **W2**, only if the 800-run campaign produces a red under the gate. Zero in
+   800 means the entry condition is not met and the row is re-measured, not
+   worked. *~3 days if entered.*
+6. **The allocation test** the clone ruling obliges: every generated
+   move/copy/clone body tests its `rt_alloc` and panics naming the type. Lands
+   in W4's files, so it follows W4. *~2 days.*
+7. **W5 — D8's adopt leg**, after W4 is integrated. *~1 day.*
+8. **W8 — wave closeout** when D2, D7, D8, D3b and the cancellation window are
+   all closed on one tree. *~1 day.*
+
+**Wave D closes when** `suspension-frame-owner`, `llvm-erased-word-bridge` and
+`llvm-pointer-word-ir` read live zero and the remainder is confined to
+`rt_remote_task_*` and `rt_far_channel*`. That is 24 of the 83 live findings.
+
 ## File claims — who may touch what
 
 Two lanes at one file is how this wave produced every integration conflict it
