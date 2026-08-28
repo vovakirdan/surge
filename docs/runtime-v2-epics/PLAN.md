@@ -41,16 +41,32 @@ No scheduled work waits on an owner decision.
    right and its writers are not; `lane-scope-refusal` asks about the spelling
    of a binding where it must ask about the task. Each re-sent lane carries its
    critic's findings as part of the brief.
-3. **W6 — D2's measurement close.** No conflicts, no lane needed, and the
-   machine is free between campaigns. Re-capture the frozen bench manifest
-   against the latest green commit, then re-measure with at least three agreeing
-   runs. *~1 day. Closes D2, code complete and unmeasured for weeks.*
-4. **The cancelled-scope reclamation defect** the leak lane found: `run_ready_one`
-   is a hand-copy of `apply_poll_outcome`'s switch whose cancelled arm performs
-   no scope teardown, so a task cancelled before its first poll never gives back
-   its scope block. One block and 64 bytes per cancelled task, measured. This is
-   a live unbounded retention and it blocks nothing else, so it follows the
-   lanes above rather than preempting them. *~1 day.*
+3. **W6 — D2's measurement close. BLOCKED, and both blockers are new.** Moving
+   `epic_base` forward works: the base compiler at the frozen commit could no
+   longer compile the fixtures at all, and with the base moved the bench
+   measures again. Four budgets were re-captured by the instrument itself —
+   `select-send-composite` 134 → 6, `task-clone-composite` 405 → 277,
+   `far-channel-composite` 474 → 410, `far-select-composite` 479 → 415 — typed
+   carriers having removed a box the budgets were never re-captured for. Then:
+   - `--phase=final` **cannot pass until Wave E exists**. Its liveness probes
+     wait on the sync point `SP_CARRIER_CREDIT_PARKED`, and the manifest's own
+     deferral reason says "Wave E must reach the frozen sync point". The probe
+     does not fail — it TIMES OUT at 10s waiting for a mechanism nobody built.
+     It also needs re-deriving against the 2026-08-28 transport ruling, under
+     which pointer transport takes no byte credits at all.
+   - `--phase=wave-a` **needs a quiet machine**. It aborts on
+     `array-grow-composite base p95 CV 0.415389 exceeds 0.050000` — eight times
+     the allowance, measured while lanes and a gate were running. The allocation
+     half is deterministic and does not care; the latency half cannot be taken
+     on a busy host.
+   - Two rows **carry no single number**: `channel-unbuffered-composite` and
+     `-scalar` read 4 in warmup and 3 in every measured pair, repeatably. An
+     exact allocation budget presumes determinism and these do not have it — the
+     first batch pays a one-time cost the rest do not. That is a question about
+     the measurement window or the fixture, and it is the owner's.
+4. ~~**The cancelled-scope reclamation defect**~~ — **LANDED** as `9c7b9b3e`,
+   closing the ledger row that had proposed exactly this fix from a code
+   reading and never reproduced it.
 6. **The allocation test** the clone ruling obliges: every generated
    move/copy/clone body tests its `rt_alloc` and panics naming the type. Lands
    in W4's files, so it follows W4. *~2 days.*

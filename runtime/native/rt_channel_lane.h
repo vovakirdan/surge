@@ -55,9 +55,15 @@ struct rt_channel {
     // ordered against each other -- see rt_channel_refcount.h, and
     // rt_scope_membership.h for the same argument spelled out at length.
     //
-    // Atomic because the reader is not always under the lock the writer holds:
-    // an operation pin is taken before any lock, which is the whole point --
-    // the pin has to exist before the window it protects opens.
+    // Atomic because the reader is not always under the lock the writer holds.
+    // Not every pin is taken lock-free -- a select arm pins with the control
+    // lock held, and a waiter registration pins under the owner shard lock --
+    // so "outside every lock" would be a comfortable sentence and a false one.
+    // What is true is what the atomicity is for: the pins that matter here
+    // share NO lock with the reclaim, because a claimed operation pins before
+    // it takes anything and the reclaim runs under the owner lock. The pin has
+    // to exist before the window it protects opens, and no lock orders those
+    // two against each other.
     _Atomic uint32_t pin_state;
     _Atomic uint8_t reclaiming;
 };
