@@ -516,6 +516,37 @@ initializing it. Polling claims and empties the resume slot exactly once. A
 wrong type/state is an internal ABI invariant failure, never an `any` payload or
 runtime box fallback.
 
+Three readings of that paragraph were put to the owner on 2026-08-28, because an
+implementer choosing among them would have been deciding the model rather than
+building it. The rulings:
+
+The **table** is the compiled per-arm dispatch, not emitted data. One
+`switch <discriminant>` per frame type, whose arms walk that state's statically
+known payload types at frozen offsets, IS the table this paragraph asks for: it
+achieves every purpose the storage model gives a descriptor table — nothing
+copied per slot, no per-value function-id dispatch, no box fallback — and a
+K-entry constant array beside it would be a second mechanism for one job.
+Emitted data stays available as a purely additive change if a later need shows
+one; the reserved descriptor-entry record is left to `select`.
+
+The **generation** the producer must match is the channel park slot's
+`{owner, index, generation}` token together with the task's park sequence. The
+frame carries none of its own, and a resumed value does not enter the frame at
+all — it lands in a slot the caller owns, which is what makes those two the
+generations this sentence is about. So the clause is met by another owner, and
+an async frame gains no generation field.
+
+A frame abandoned through the wrong path is **refused at build time AND trapped
+at run time**, not either-or. The compiler can prove this one, and the rule that
+a provably invalid program is rejected at the earliest reliable stage therefore
+binds; the run-time check is what makes a lie harmless on the paths that never
+enter compiled code at all.
+
+A frame's descriptor is reached by **pointer**, because crossings are and remain
+in-process. The far and remote sites that carry a type as a number, and the
+opaque-word fallback they keep for a type the process never compiled a
+descriptor for, exist for a crossing shape this model does not have.
+
 ## 12. Far Values, Transport, And Anchored Resources
 
 Crossing first creates a read-only `CrossPlan` from a source held exclusively
