@@ -4,8 +4,8 @@
 
 ## 📊 Main code (without tests)
 
-- **Files:** 1066 (Go: 917, C: 149)
-- **Lines of code:** 236562 (Go: 198578, C: 37984)
+- **Files:** 1067 (Go: 918, C: 149)
+- **Lines of code:** 237122 (Go: 199138, C: 37984)
 
 ## 📁 Directory breakdown
 
@@ -37,8 +37,8 @@
 
 ## 📈 Total volume (code + tests)
 
-- **Files:** 1675
-- **Lines of code:** 362602
+- **Files:** 1676
+- **Lines of code:** 363162
 
 ## 📊 Percentage breakdown
 

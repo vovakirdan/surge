@@ -26,11 +26,11 @@ No scheduled work waits on an owner decision.
 | Lane | Branch / where | State | What must happen |
 | --- | --- | --- | --- |
 | **Scope join fix** | trunk, `48285f25` | **Landed.** A scope had stopped counting any child, so it answered before its children finished — my own regression in the claim protocol. Losing the claim to this scope's OWN id is now a win. | Aggregate gate on the dedicated machine, then done. |
-| **W4 · frame leak** | `lane-d7-1` | Committed. Critic: SOUND_WITH_GAPS. It REFUTED the frame leak it was sent to find — the frame is released on every path — and found a real one instead: a task cancelled before its first poll never gives back its `rt_scope` block, 1.00 block / 64.0 bytes per cancelled task. | Fix the three things the critic named: the row turns two green gates red and the report does not say so; a second unreported retention at four workers; a false claim about `make check` written into a source comment. |
+| **W4 · frame leak** | LANDED on trunk | Committed. Critic: SOUND_WITH_GAPS. It REFUTED the frame leak it was sent to find — the frame is released on every path — and found a real one instead: a task cancelled before its first poll never gives back its `rt_scope` block, 1.00 block / 64.0 bytes per cancelled task. | Fix the three things the critic named: the row turns two green gates red and the report does not say so; a second unreported retention at four workers; a false claim about `make check` written into a source comment. |
 | **W4 · frame word** | `lane-d7-2` | Committed. Critic: **UNSOUND**. The blocking frame's word is wrong by construction — no write site exists in `lower_blocking.go`, so a blocking frame is born PACKED and never corrected. Half the write sites have no failing test; the construction site pins the count, not the word. | Rework, not repair. The field is right; its writers are not. |
 | **W7 · channel** | `lane-d7-3` | Committed. Critic: SOUND_WITH_GAPS. Pins land with a real negative row; the §7 teardown half ships with no failing test, the header enumerates pin sites that do not exist, and `dying` is a load-then-store pair rather than a gate. | Give the teardown its failing test, fix the header's enumeration, and make `dying` one read-modify-write. |
 | **Scope refusal** | `lane-scope-refusal` | Committed. Critic: **UNSOUND**. Refuses a legal program with a false message; three bypasses compile silently (alias, sync helper, call pass-through) and two of them give OPPOSITE answers. Its justification for deleting the runtime adoption is false — a sync-helper program still reaches `rt_task_wake` with a scope set. | Rework. The refusal must ask about the TASK, not the spelling of the binding. |
-| **W2 instrument** | dedicated machine | **0 red in 200 runs.** Not "fixed": at a 0.5% rate, zero in 200 happens 37% of the time. | 600 more runs. Zero in 800 puts the rate under ~0.4% with 95% confidence; a red enters W2. |
+| **W2 instrument** | dedicated machine | **DONE: 0 red in 800 runs.** At the ~0.5% rate the row was chasing, zero in 800 has probability 1.8%. The entry condition for the fourth-window lane is NOT met. | Nothing. W2 is off the schedule until an instrument produces a red. |
 
 ## Next, in this order
 
@@ -51,9 +51,6 @@ No scheduled work waits on an owner decision.
    its scope block. One block and 64 bytes per cancelled task, measured. This is
    a live unbounded retention and it blocks nothing else, so it follows the
    lanes above rather than preempting them. *~1 day.*
-5. **W2**, only if the 800-run campaign produces a red under the gate. Zero in
-   800 means the entry condition is not met and the row is re-measured, not
-   worked. *~3 days if entered.*
 6. **The allocation test** the clone ruling obliges: every generated
    move/copy/clone body tests its `rt_alloc` and panics naming the type. Lands
    in W4's files, so it follows W4. *~2 days.*
@@ -94,8 +91,8 @@ Taken in order, not in parallel with the above.
 | **Epic 22 ph. 2** | `int`/`uint` reclamation. | ~5 | — |
 | **Epic 21** | Bench, matrix, seam, debt closeout. | ~2 | — |
 
-Sizes are lane-days: one focused worker, one day. Wave D's tail is ~15 more.
-**~42 lane-days remain — about six calendar weeks at three lanes, eight with a
+Sizes are lane-days: one focused worker, one day. Wave D's tail is ~12 more, W2 having been measured out.
+**~39 lane-days remain — about six calendar weeks at three lanes, eight with a
 blocker allowance**, which the history justifies: this migration has hit one
 parking blocker per epic.
 
