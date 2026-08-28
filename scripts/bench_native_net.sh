@@ -40,11 +40,14 @@ trace_value() {
 	' "$file"
 }
 
-# The scheduler publishes no total of its own: each SCHED_TRACE pop count
-# belongs to one owner -- a carrier, or the runtime's control lane -- and a row
-# summing owners has writers that share neither a lock nor an owner, so the
-# runtime refuses to print one. The reader adds the owner records up here, over
-# the owner set the runtime record names.
+# The scheduler prints no row that sums across owners: each SCHED_TRACE count of
+# something a thread did -- where it took its next task from, a steal it was
+# refused, a connection task it ran -- belongs to one owner, a carrier or the
+# runtime's control lane, and a row summing owners has writers that share
+# neither a lock nor an owner, so the runtime refuses to print one. The reader
+# adds the owner records up here, over the owner set the runtime record names.
+# The `owner=runtime` row is read with trace_value instead, because its counts
+# are that one owner's own and not a sum of anybody else's.
 trace_owner_sum() {
 	local file="$1"
 	local key="$2"
@@ -367,10 +370,10 @@ for shard_count in $shards; do
 						"$shard_count" "$worker_count" "$connection_count" "$mode" "$pattern" \
 						"$(trace_value "$trace_log" TRACE_NET runtime_shards)" \
 						"$(trace_owner_sum "$trace_log" steal)" \
-						"$(trace_value "$trace_log" SCHED_TRACE tier1_steal_denied)" \
+						"$(trace_owner_sum "$trace_log" tier1_steal_denied)" \
 						"$(trace_value "$trace_log" SCHED_TRACE conn_owner_placed)" \
-						"$(trace_value "$trace_log" SCHED_TRACE conn_owner_local)" \
-						"$(trace_value "$trace_log" SCHED_TRACE conn_owner_mismatch)" \
+						"$(trace_owner_sum "$trace_log" conn_owner_local)" \
+						"$(trace_owner_sum "$trace_log" conn_owner_mismatch)" \
 						"$(trace_value "$trace_log" TRACE_NET accept_owner_total)" \
 						"$(trace_value "$trace_log" TRACE_NET accept_owner_active_shards)" \
 						"$(trace_value "$trace_log" TRACE_NET accept_owner_imbalance)" \

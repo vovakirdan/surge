@@ -202,34 +202,98 @@ func TestRuntimeV2SchedTraceReportsAnOwnerPerCell(t *testing.T) {
 
 // TestRuntimeV2SchedTraceCellsAreOwnedAndPaddedApart pins what the dump cannot
 // show. Section 1 requires cells of different owners to be padded apart and the
-// separation asserted at compile time, and requires a carrier's cell to be
-// published release and read acquire, since a carrier holds no lock and this
-// section creates none.
+// separation asserted at compile time, and requires a cell to be published
+// release and read acquire, since no owner here holds a lock a reader could
+// take.
+//
+// It refuses a SHAPE, not a list of names. A list is evaded by the next counter
+// somebody adds -- this file's own `unowned_pops` and `dropped_records` sat in
+// exactly the banned form, `static _Atomic uint64_t sched_trace_...`, written
+// from more than one owner's path and printed at the dump, while a guard that
+// named four other identifiers walked straight past them. So the rule is the
+// shape itself: rt_sched_trace.c declares no counter at file scope at all, and
+// every number the dump prints is loaded out of a cell that names its owner.
+// The two halves close it from both sides -- an atomic counter at file scope
+// fails the first, and dropping the _Atomic to get around it fails the second
+// as soon as the dump reads it, besides being a race the sanitizer stand
+// already halts on.
 func TestRuntimeV2SchedTraceCellsAreOwnedAndPaddedApart(t *testing.T) {
-	// First, and deliberately: the five words must be GONE, not merely made
-	// atomic. A file-scope pop counter is one cell every carrier writes, and
-	// that is the violation whether or not the writes tear -- so this is the
-	// check that has to name the reason when somebody "fixes" the race by
-	// putting _Atomic in front of the same five words.
-	legacy := readSchedTraceFile(t, "runtime/native/rt_async_trace.c")
-	for _, name := range []string{
-		"trace_sched_hash",
-		"trace_sched_events",
-		"trace_sched_local_pops",
-		"trace_sched_inject_pops",
-		"trace_sched_steal_pops",
-	} {
-		if strings.Contains(legacy, name) {
-			t.Fatalf("rt_async_trace.c still holds %q: a scheduler pop counter at file "+
-				"scope is written by every carrier and owned by none, atomic or not", name)
+	// First, and deliberately: the five words must be GONE from where they
+	// lived, not merely made atomic. A file-scope pop counter is one cell every
+	// carrier writes, and that is the violation whether or not the writes tear
+	// -- so this is the check that has to name the reason when somebody "fixes"
+	// the race by putting _Atomic in front of the same words, or brings a new
+	// scheduler counter back to the file they came from.
+	for _, decl := range cFileScopeObjects(readSchedTraceFile(t, "runtime/native/rt_async_trace.c")) {
+		if strings.HasPrefix(decl.name, "trace_sched") {
+			t.Fatalf("rt_async_trace.c declares %q at file scope (%s): a scheduler pop "+
+				"counter at file scope is written by every carrier and owned by none, "+
+				"atomic or not", decl.name, decl.text)
 		}
 	}
 
 	header := readSchedTraceFile(t, "runtime/native/rt_sched_trace.h")
 	body := readSchedTraceFile(t, "runtime/native/rt_sched_trace.c")
+
+	// (1) No counter at file scope in this translation unit, whatever it is
+	// called. Every _Atomic object here has to be a member of a cell, because a
+	// cell is the only thing in this file that names an owner. This runs first
+	// because it is the rule; the padding and the ordering below are how a cell
+	// is built once the number is on one.
+	var loose []string
+	for _, decl := range cFileScopeObjects(body) {
+		if strings.Contains(decl.text, "_Atomic") {
+			loose = append(loose, "\t"+decl.text)
+		}
+	}
+	// Every one of them, not the first: a guard that stops at the first name
+	// reads as a complaint about that name, and this is a complaint about all of
+	// them at once.
+	if len(loose) > 0 {
+		t.Fatalf("rt_sched_trace.c declares %d counter(s) at file scope:\n%s\na counter every "+
+			"owner writes names no owner, atomic or not -- put it on the cell of the owner "+
+			"whose action it records, or on the runtime's cell if no single owner performed it",
+			len(loose), strings.Join(loose, "\n"))
+	}
+
+	// (2) And nothing else can be printed either: every number the dump emits
+	// is loaded through a cell pointer, so a number that came from somewhere
+	// else cannot reach the wire without failing here first.
+	for _, fn := range []string{"sched_trace_emit_cell", "sched_trace_emit_runtime"} {
+		emit, ok := cFunctionBody(body, fn)
+		if !ok {
+			t.Fatalf("rt_sched_trace.c has no %s: the dump must emit one record per owner", fn)
+		}
+		for _, load := range []string{"sched_trace_read(&", "atomic_load_explicit(&"} {
+			for offset := 0; ; {
+				relative := strings.Index(emit[offset:], load)
+				if relative < 0 {
+					break
+				}
+				index := offset + relative + len(load)
+				read := emit[index:]
+				if !strings.HasPrefix(read, "cell->") && !strings.HasPrefix(read, "runtime->") {
+					end := index + 60
+					if end > len(emit) {
+						end = len(emit)
+					}
+					t.Fatalf("%s reads a number that is not a cell field: %q\nevery number the "+
+						"dump prints must be read from the cell of the owner it belongs to",
+						fn, emit[index:end])
+				}
+				offset = index
+			}
+		}
+	}
+
+	// (3) And a cell is built so that its owner can write it alone and a reader
+	// can read it without a lock: one whole cache line each, asserted at compile
+	// time, published release and read acquire.
 	for _, want := range []string{
 		"_Static_assert(sizeof(rt_sched_trace_cell) == RT_SCHED_TRACE_CELL_BYTES",
 		"_Static_assert(_Alignof(rt_sched_trace_cell) >= RT_SCHED_TRACE_CELL_BYTES",
+		"_Static_assert(sizeof(rt_sched_trace_runtime_cell) == RT_SCHED_TRACE_CELL_BYTES",
+		"_Static_assert(_Alignof(rt_sched_trace_runtime_cell) >= RT_SCHED_TRACE_CELL_BYTES",
 		"_Alignas(RT_SCHED_TRACE_CELL_BYTES)",
 	} {
 		if !strings.Contains(header, want) {
@@ -237,18 +301,49 @@ func TestRuntimeV2SchedTraceCellsAreOwnedAndPaddedApart(t *testing.T) {
 		}
 	}
 	if !strings.Contains(body, "memory_order_release") {
-		t.Fatal("a carrier cell must be published release: the carrier holds no lock")
+		t.Fatal("a cell must be published release: its owner holds no lock a reader can take")
 	}
 	if !strings.Contains(body, "memory_order_acquire") {
-		t.Fatal("a carrier cell must be read acquire: the reader holds no lock either")
+		t.Fatal("a cell must be read acquire: the reader holds no lock either")
 	}
-	for _, name := range []string{"local_pops", "inject_pops", "steal_pops", "pop_mix"} {
-		decl := "static _Atomic uint64_t sched_trace_" + name
-		if strings.Contains(body, decl) {
-			t.Fatalf("rt_sched_trace.c declares %q at file scope: a pop counter every "+
-				"owner writes names no owner, atomic or not", decl)
+}
+
+type cFileScopeObject struct {
+	name string
+	text string
+}
+
+// cFileScopeObjects returns the file-scope OBJECT declarations of a C source --
+// the things a counter can be, as opposed to functions, macros and types. A
+// declaration is file-scope when it starts in column 0, and an object when it
+// carries no parameter list.
+func cFileScopeObjects(source string) []cFileScopeObject {
+	var out []cFileScopeObject
+	for _, line := range strings.Split(source, "\n") {
+		if !strings.HasPrefix(line, "static ") && !strings.HasPrefix(line, "_Atomic ") {
+			continue
 		}
+		if strings.Contains(line, "(") || !strings.HasSuffix(strings.TrimSpace(line), ";") {
+			continue
+		}
+		text := strings.TrimSpace(line)
+		declared := strings.TrimSuffix(text, ";")
+		if index := strings.Index(declared, "="); index >= 0 {
+			declared = strings.TrimSpace(declared[:index])
+		}
+		if index := strings.Index(declared, "["); index >= 0 {
+			declared = strings.TrimSpace(declared[:index])
+		}
+		fields := strings.Fields(declared)
+		if len(fields) < 2 {
+			continue
+		}
+		out = append(out, cFileScopeObject{
+			name: strings.TrimLeft(fields[len(fields)-1], "*"),
+			text: text,
+		})
 	}
+	return out
 }
 
 func readSchedTraceFile(t *testing.T, rel string) string {
