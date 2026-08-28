@@ -57,7 +57,7 @@ func ParseGates(makefile string) []Gate {
 
 // A leading `-flag` after `$(MAKE)` is an option to make, not the target being
 // called, so the target is the first word after any run of them.
-var makeCallRe = regexp.MustCompile(`\$\(MAKE\)\s+(?:-[^\s]+\s+)*([A-Za-z0-9_.][A-Za-z0-9_.-]*)`)
+var makeCallRe = regexp.MustCompile(`\$\(MAKE\)\s+(?:-\S+\s+)*([A-Za-z0-9_.][A-Za-z0-9_.-]*)`)
 
 // A recipe reference to a make variable, e.g. `$(RUNTIME_V2_SUBGATES)`.
 var varRefRe = regexp.MustCompile(`\$\(([A-Za-z_][A-Za-z0-9_]*)\)`)
