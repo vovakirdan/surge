@@ -155,6 +155,9 @@ void __surge_poll_call(uint64_t id) {
         case POLL_XOWNER_OWNER:
             poll_xowner_owner();
             break;
+        case POLL_STAND_TRAP_OWNER:
+            poll_stand_trap_owner();
+            break;
 	#ifdef RT_TEST_SYNC_POINTS
         case POLL_DEBT020_ADOPT_JOINER:
             poll_debt020_adopt_joiner();
@@ -441,6 +444,9 @@ int main(int argc, char** argv) {
     }
     if (strcmp(argv[1], "scope-cross-owner") == 0) {
         return mode_scope_cross_owner(ex);
+    }
+    if (strcmp(argv[1], "stand-helper-held-poll-trap") == 0) {
+        return mode_stand_helper_held_poll_trap(ex);
     }
 	#ifdef RT_TEST_SYNC_POINTS
     if (strcmp(argv[1], "debt020-migrate-gap-proof") == 0) {

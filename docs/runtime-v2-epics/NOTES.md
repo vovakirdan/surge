@@ -8980,3 +8980,33 @@ runtime does not keep. That is RV2-DEBT-298, opened here.
 So half B does not land. The four rulings are recorded with the forks each one
 leaves open, and the questions go back to the owner rather than being answered
 in prose by whoever happened to be typing.
+
+## Writing a lifecycle stand whose owner is held (the 261 trap, tooled)
+
+**The defect class.** A stand that holds its owner inside its own poll -- at a
+sync point, or on any wait that does not return to the scheduler -- must not
+create its child with `__task_create` from that poll. That push lands on the
+held worker's LOCAL deque and one local entry signals nobody
+(`signal_ready_now = signal_ready && local->len > 1`, `rt_ready_queue.c`); the
+other workers sit in `pthread_cond_wait` with `wake_pending == 0`
+(`rt_worker_turn.c`) and stealing needs an awake thief. The child never runs,
+so its cancellation is never delivered and the stand hangs to its timeout
+blaming the runtime. The local queue being the pusher's own path is the model.
+
+**The tool.** `lifecycleHarnessStandHelpers`
+(`internal/vm/runtime_v2_lifecycle_stand_helper_test.go`): `spawn_child_for_stand`
+spawns through the inject queue with the ready signal and refuses on a worker
+thread; `stand_require_child_running` proves a worker took the child -- it
+watches `(TASK_READY, enqueued=1)`, the pair the push writes and only a pop
+undoes -- or prints "stand: child never ran -- spawned from a held poll?" so
+the stand fails in seconds with the real culprit named.
+
+**How to write one.** Driver spawns the child, waits for
+`stand_require_child_running`, then spawns the owner; the owner's poll only
+calls `rt_scope_register_child` on the live task. The falsifier is
+`stand-helper-held-poll-trap` (`TestRuntimeV2LifecycleStandHelperHeldPollTrap`,
+wired into `runtime-v2-lifecycle-check`): it walks into the trap on purpose and
+must fail with that sentence, while a driver-spawned control child runs under
+the same hold. `-DRV2_STAND_HELPER_NEGATIVE_CONTROL` removes the helper from
+that stand and it spends the full 4s budget to report "cancelled child never
+completed" -- the 261 sentence -- instead.
