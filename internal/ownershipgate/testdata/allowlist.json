@@ -26,18 +26,6 @@
       "invalidated_when": "The corpus learns the fixture's directory compilation context or the fixture becomes a valid standalone file target."
     },
     {
-      "id": "CF-005",
-      "disposition": "debt",
-      "reason": "Nested async-block lowering does not remap a captured enclosing local into the synthesized async function.",
-      "debt": "RV2-DEBT-103"
-    },
-    {
-      "id": "CF-006",
-      "disposition": "debt",
-      "reason": "Generic default, minimum, and maximum intrinsics reach MIR lowering with the type parameter T unresolved.",
-      "debt": "RV2-DEBT-104"
-    },
-    {
       "id": "CF-007",
       "disposition": "debt",
       "reason": "Autoref overload materialization loses the resolved record type on its synthesized struct temporary.",
@@ -90,13 +78,89 @@
       "disposition": "debt",
       "reason": "The stdlib audit deliberately exercises the currently unsupported multi-argument print surface.",
       "debt": "RV2-DEBT-112"
+    },
+    {
+      "id": "CF-016",
+      "disposition": "debt",
+      "reason": "Compiling a stdlib library file as its own root leaves the corpus with no entrypoint to seed instantiation from, and the authoritative closure then records no use site for the generic calls an already-concrete extern<Array<T>> method makes. Every one of these modules compiles to MIR through an importing program, so this is a monomorphization gap under this profile and not a library defect.",
+      "debt": "RV2-DEBT-302"
     }
   ],
   "compile_failures": [
     {
-      "fixture": "stdlib/saturating_cast.sg",
-      "signature": "error:MIR lowering failed: mir: unsupported global value reference \"T\" (type ?)",
-      "group": "CF-006"
+      "fixture": "stdlib/hash/hash.sg",
+      "signature": "error:monomorphization failed: mono: generic call to reserve at 3:1029-1048 has no authoritative concrete instantiation",
+      "group": "CF-016"
+    },
+    {
+      "fixture": "stdlib/http/accept.sg",
+      "signature": "error:monomorphization failed: mono: generic call to array_push at 14:667-690 has no authoritative concrete instantiation",
+      "group": "CF-016"
+    },
+    {
+      "fixture": "stdlib/http/body.sg",
+      "signature": "error:monomorphization failed: mono: generic call to array_push at 14:667-690 has no authoritative concrete instantiation",
+      "group": "CF-016"
+    },
+    {
+      "fixture": "stdlib/http/context.sg",
+      "signature": "error:monomorphization failed: mono: generic call to array_push at 14:667-690 has no authoritative concrete instantiation",
+      "group": "CF-016"
+    },
+    {
+      "fixture": "stdlib/http/cookie.sg",
+      "signature": "error:monomorphization failed: mono: generic call to array_push at 14:667-690 has no authoritative concrete instantiation",
+      "group": "CF-016"
+    },
+    {
+      "fixture": "stdlib/http/headers.sg",
+      "signature": "error:monomorphization failed: mono: generic call to array_push at 14:667-690 has no authoritative concrete instantiation",
+      "group": "CF-016"
+    },
+    {
+      "fixture": "stdlib/http/http.sg",
+      "signature": "error:monomorphization failed: mono: generic call to array_push at 14:667-690 has no authoritative concrete instantiation",
+      "group": "CF-016"
+    },
+    {
+      "fixture": "stdlib/http/parser.sg",
+      "signature": "error:monomorphization failed: mono: generic call to array_push at 14:667-690 has no authoritative concrete instantiation",
+      "group": "CF-016"
+    },
+    {
+      "fixture": "stdlib/http/query.sg",
+      "signature": "error:monomorphization failed: mono: generic call to array_push at 14:667-690 has no authoritative concrete instantiation",
+      "group": "CF-016"
+    },
+    {
+      "fixture": "stdlib/http/response.sg",
+      "signature": "error:monomorphization failed: mono: generic call to array_push at 14:667-690 has no authoritative concrete instantiation",
+      "group": "CF-016"
+    },
+    {
+      "fixture": "stdlib/http/server.sg",
+      "signature": "error:monomorphization failed: mono: generic call to array_push at 14:667-690 has no authoritative concrete instantiation",
+      "group": "CF-016"
+    },
+    {
+      "fixture": "stdlib/json/json.sg",
+      "signature": "error:monomorphization failed: mono: generic call to array_reserve at 3:562-590 has no authoritative concrete instantiation",
+      "group": "CF-016"
+    },
+    {
+      "fixture": "stdlib/json/parser.sg",
+      "signature": "error:monomorphization failed: mono: generic call to array_reserve at 3:562-590 has no authoritative concrete instantiation",
+      "group": "CF-016"
+    },
+    {
+      "fixture": "stdlib/json/stringify.sg",
+      "signature": "error:monomorphization failed: mono: generic call to array_reserve at 3:562-590 has no authoritative concrete instantiation",
+      "group": "CF-016"
+    },
+    {
+      "fixture": "stdlib/term/ansi.sg",
+      "signature": "error:monomorphization failed: mono: generic call to array_push at 3:667-690 has no authoritative concrete instantiation",
+      "group": "CF-016"
     },
     {
       "fixture": "testdata/golden/crossing/block02/valid/on_positive_compare_on.sg",
@@ -269,11 +333,6 @@
       "group": "CF-001"
     },
     {
-      "fixture": "testdata/golden/crossing/block04/valid/capture_positive_nosend_local_spawn.sg",
-      "signature": "error:MIR lowering failed: mir: unknown local symbol 2843 (v) in __async_block$84",
-      "group": "CF-005"
-    },
-    {
       "fixture": "testdata/golden/crossing/block04/valid/capture_positive_shard_movable_dropped_on_dest.sg",
       "signature": "diagnostics:FUT7019@testdata/golden/crossing/block04/valid/capture_positive_shard_movable_dropped_on_dest.sg:12:12-15:6",
       "group": "CF-001"
@@ -317,11 +376,6 @@
       "fixture": "testdata/golden/crossing/block04/valid/locality_positive_copy_and_movable_on.sg",
       "signature": "diagnostics:FUT7019@testdata/golden/crossing/block04/valid/locality_positive_copy_and_movable_on.sg:14:12-16:6",
       "group": "CF-001"
-    },
-    {
-      "fixture": "testdata/golden/crossing/block04/valid/locality_positive_nosend_local_spawn.sg",
-      "signature": "error:MIR lowering failed: mir: unknown local symbol 2843 (v) in __async_block$84",
-      "group": "CF-005"
     },
     {
       "fixture": "testdata/golden/crossing/block04/valid/locality_positive_send_and_movable_on.sg",
@@ -439,16 +493,6 @@
       "group": "CF-008"
     },
     {
-      "fixture": "testdata/golden/sema/valid/concurrency/local_spawn_nosend.sg",
-      "signature": "error:MIR lowering failed: mir: unknown local symbol 2843 (conn) in __async_block$84",
-      "group": "CF-005"
-    },
-    {
-      "fixture": "testdata/golden/sema/valid/default_max_min_calls.sg",
-      "signature": "error:MIR lowering failed: mir: unsupported global value reference \"T\" (type ?)",
-      "group": "CF-006"
-    },
-    {
       "fixture": "testdata/golden/sema/valid/import_all.sg",
       "signature": "error:MIR lowering failed: mir: unknown local symbol 46 (MODULE_CONST) in main",
       "group": "CF-009"
@@ -487,16 +531,6 @@
       "fixture": "testdata/golden/spec_audit/s10_stdlib.sg",
       "signature": "diagnostics:SEM3046@testdata/golden/spec_audit/s10_stdlib.sg:7:5-7:35",
       "group": "CF-015"
-    },
-    {
-      "fixture": "testdata/golden/vm_async_suite/t22_select_wait_recv.sg",
-      "signature": "error:MIR lowering failed: mir: unknown local symbol 2842 (ch) in __async_block$85",
-      "group": "CF-005"
-    },
-    {
-      "fixture": "testdata/golden/vm_async_suite/t23_select_wait_timer.sg",
-      "signature": "error:MIR lowering failed: mir: unknown local symbol 2842 (ch) in __async_block$85",
-      "group": "CF-005"
     }
   ],
   "findings": []

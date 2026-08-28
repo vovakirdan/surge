@@ -26,8 +26,14 @@ type corpusRootSpec struct {
 	PinnedCount int    `json:"pinned_count"`
 }
 
+// The counts are a tripwire, not a target: they force someone to look at what
+// was added or removed before the corpus silently changes size. The golden
+// count was raised from 966 to 1052 on 2026-08-28 after the run accounted for
+// every one of the 1052 paths -- no unrecorded failure, no stale allowance and
+// no untriaged finding -- so the growth is fixtures added since the pin was
+// last set rather than coverage drifting away.
 var corpusRoots = []corpusRootSpec{
-	{Path: "testdata/golden", PinnedCount: 966},
+	{Path: "testdata/golden", PinnedCount: 1052},
 	{Path: "showcases", PinnedCount: 38},
 	{Path: "core", PinnedCount: 10},
 	{Path: "stdlib", PinnedCount: 32},

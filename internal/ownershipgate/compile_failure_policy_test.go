@@ -310,8 +310,12 @@ func TestRepositoryCompileFailureLedgerIsCompleteAndDebtLinked(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load repository ledger: %v", err)
 	}
-	if len(ledger.CompileFailureGroups) != 15 || len(ledger.CompileFailures) != 81 {
-		t.Fatalf("repository compile ledger has groups=%d failures=%d, want 15/81",
+	// Pinned so the ledger cannot grow or shrink without someone saying why.
+	// Moved on 2026-08-28 from 15/81: CF-005 and CF-006 were retired because
+	// all seven of their fixtures compile again, and CF-016 was added for the
+	// fifteen stdlib files that only fail when compiled as their own root.
+	if len(ledger.CompileFailureGroups) != 14 || len(ledger.CompileFailures) != 89 {
+		t.Fatalf("repository compile ledger has groups=%d failures=%d, want 14/89",
 			len(ledger.CompileFailureGroups), len(ledger.CompileFailures))
 	}
 	groups := make(map[string]CompileFailureDisposition, len(ledger.CompileFailureGroups))
@@ -323,8 +327,8 @@ func TestRepositoryCompileFailureLedgerIsCompleteAndDebtLinked(t *testing.T) {
 		counts[groups[failure.Group]]++
 	}
 	if counts[CompileFailureExpectedGuard] != 50 || counts[CompileFailureContextOnly] != 14 ||
-		counts[CompileFailureDebt] != 17 {
-		t.Fatalf("repository dispositions = %+v, want expected_guard=50 context_only=14 debt=17", counts)
+		counts[CompileFailureDebt] != 25 {
+		t.Fatalf("repository dispositions = %+v, want expected_guard=50 context_only=14 debt=25", counts)
 	}
 	debtMarkdown, err := os.ReadFile(filepath.Join(root, "docs", "runtime-v2-epics", "DEBT.md"))
 	if err != nil {
