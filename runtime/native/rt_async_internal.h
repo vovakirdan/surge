@@ -268,6 +268,10 @@ typedef struct rt_task {
     uint8_t park_prepared;
     uint8_t scope_registered;
     uint8_t cancel_pending;
+    // Handle count in the low 31 bits, "this task has completed" in the top
+    // one: one word, because whether a drop may free the task is one question.
+    // The protocol, and why asking it as two reads was a double free, is in
+    // rt_task_refs.h.
     atomic_u32 handle_refs;
     // Where a channel value delivered to this task is waiting.
     //

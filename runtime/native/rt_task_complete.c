@@ -12,6 +12,7 @@
 #include "rt_async_internal.h"
 #include "rt_remote_task.h"
 #include "rt_sync_point.h"
+#include "rt_task_refs.h"
 #include "rt_value_cell.h"
 
 void clear_select_timers(rt_executor* ex, rt_task* task) {
@@ -345,6 +346,14 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind) {
     rt_far_task_release_owned(ex, task);
     rt_immediate_on_release_owned(ex, task);
     rt_remote_task_release_owned(ex, task);
+    // The same fact the store below publishes, recorded where the free is
+    // decided. A handle drop must be able to answer "was this the last
+    // reference to a COMPLETED task?" out of its own decrement; reading the
+    // status separately afterwards let a poller resurrect the task in between
+    // and free it first (see rt_task.handle_refs). Raised before the status
+    // store so the two can never be observed the other way round: a thread that
+    // sees TASK_DONE and drops the last reference always finds the flag.
+    task_mark_completed(task);
     rt_task_status_store_done_for_external_awaiters(task);
     rt_remote_task_on_owner_done(ex, task);
     RT_SYNC_POINT(SP_MARKDONE_BEFORE_DONEWAITERS_LOAD);
@@ -371,6 +380,31 @@ void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outcome) {
     if (ex == NULL || task == NULL) {
         return;
     }
+    // What keeps a polled task addressable during its own turn is its RUNNING
+    // status, not a reference: a release frees only a task that has completed,
+    // so a RUNNING one cannot be reclaimed under its poller. Every arm below
+    // ends that protection -- it publishes READY, WAITING or DONE -- and then
+    // goes on using the pointer.
+    //
+    // The yielded arm is the one AddressSanitizer caught. It publishes
+    // TASK_READY and re-pushes, and ready_push_with_policy resolves the owner
+    // shard, BLOCKS on that shard's lock, and re-reads the task's status on the
+    // far side of the acquisition. A task that is READY and not yet enqueued
+    // can be woken by an awaiting poll in that window, popped by another
+    // worker, run to completion, and freed by the last handle drop, all while
+    // this thread waits for the lock; the re-read then reads freed memory.
+    //
+    // A reference held across the whole function is what makes the pointer
+    // outlive the turn -- the same pin mark_done takes, one level down. The
+    // release is the last statement, so a turn that held the final reference
+    // frees here, with no lock held.
+    //
+    // RT_POLL_OUTCOME_PIN_NEGATIVE_CONTROL removes the pin, which MUST make the
+    // yielded re-push read a freed task under AddressSanitizer; that build is
+    // how the row proves it is asking a real question.
+#ifndef RT_POLL_OUTCOME_PIN_NEGATIVE_CONTROL
+    task_add_ref(task);
+#endif
     switch (outcome.kind) {
         case POLL_DONE_SUCCESS:
             mark_done(ex, task, TASK_RESULT_SUCCESS);
@@ -447,4 +481,7 @@ void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outcome) {
             panic_msg("async: unknown poll outcome");
             break;
     }
+#ifndef RT_POLL_OUTCOME_PIN_NEGATIVE_CONTROL
+    task_release_lane_aware(ex, task);
+#endif
 }

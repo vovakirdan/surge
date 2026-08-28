@@ -7,13 +7,72 @@
 
 #include "rt_async_internal.h"
 #include "rt_remote_task.h"
+#include "rt_task_refs.h"
 #include "rt_value_ops.h"
+#ifdef RT_TASK_RELEASE_SPLIT_NEGATIVE_CONTROL
+#include <time.h>
+#endif
 
 void task_add_ref(rt_task* task) {
     if (task == NULL) {
         return;
     }
     (void)atomic_fetch_add_explicit(&task->handle_refs, 1, memory_order_relaxed);
+}
+
+void task_mark_completed(rt_task* task) {
+    if (task == NULL) {
+        return;
+    }
+    // Release, and paired with the acquire half of the decrement below: the
+    // thread that frees must see everything mark_done wrote before it got here.
+    // No free can be owed by this store itself -- mark_done holds a reference
+    // across it, so the count is at least one -- which is why raising the flag
+    // needs no answer.
+    (void)atomic_fetch_or_explicit(
+        &task->handle_refs, RT_TASK_REFS_COMPLETED, memory_order_release);
+}
+
+// Drops one handle reference and answers, from that one decrement, whether this
+// drop is the one that must free the task: it emptied the count AND the task had
+// already completed. Nothing is read from the task afterwards, which is the
+// whole point -- see the handle_refs field comment for the double free that a
+// decrement plus a separate status load produced.
+static int task_drop_ref_owes_free(rt_task* task) {
+#ifdef RT_TASK_RELEASE_SPLIT_NEGATIVE_CONTROL
+    // The pre-fix shape, restored so the stand can show what it costs: the
+    // decrement decides "last reference", a SEPARATE load decides "completed".
+    // The sleep is not the defect and not a fix for it -- the window between
+    // the two is the defect, and the sleep only holds this thread inside that
+    // window long enough for it to be taken often instead of about once in
+    // forty thousand program runs.
+    uint32_t split_refs = atomic_load_explicit(&task->handle_refs, memory_order_relaxed);
+    if (split_refs == 0) {
+        return 0;
+    }
+    split_refs = atomic_fetch_sub_explicit(&task->handle_refs, 1, memory_order_acq_rel);
+    if (split_refs != 1) {
+        return 0;
+    }
+    if (task_status_load(task) != TASK_DONE) {
+        // The window itself: the count is at zero and the task has NOT
+        // completed, so this thread is about to answer "do not free" -- and the
+        // answer it will actually give comes from the load AFTER this pause. A
+        // poller that resurrects, completes and frees the task in the meantime
+        // is invisible to it. Waiting here is what makes the window get taken;
+        // it does not create it.
+        struct timespec widen = {0, 20000000};
+        (void)nanosleep(&widen, NULL);
+    }
+    return task_status_load(task) == TASK_DONE;
+#else
+    uint32_t refs = atomic_load_explicit(&task->handle_refs, memory_order_relaxed);
+    if ((refs & RT_TASK_REFS_COUNT_MASK) == 0) {
+        return 0;
+    }
+    refs = atomic_fetch_sub_explicit(&task->handle_refs, 1, memory_order_acq_rel);
+    return (refs & RT_TASK_REFS_COUNT_MASK) == 1 && (refs & RT_TASK_REFS_COMPLETED) != 0;
+#endif
 }
 
 static void free_task(rt_executor* ex, rt_task* task) {
@@ -241,12 +300,7 @@ void task_release(rt_executor* ex, rt_task* task) {
     if (ex == NULL || task == NULL) {
         return;
     }
-    uint32_t refs = atomic_load_explicit(&task->handle_refs, memory_order_relaxed);
-    if (refs == 0) {
-        return;
-    }
-    refs = atomic_fetch_sub_explicit(&task->handle_refs, 1, memory_order_acq_rel);
-    if (refs == 1 && task_status_load(task) == TASK_DONE) {
+    if (task_drop_ref_owes_free(task)) {
         free_task_when_unlocked(ex, task);
     }
 }
@@ -257,12 +311,7 @@ void task_release_lane_aware(rt_executor* ex, rt_task* task) {
     if (ex == NULL || task == NULL) {
         return;
     }
-    uint32_t refs = atomic_load_explicit(&task->handle_refs, memory_order_relaxed);
-    if (refs == 0) {
-        return;
-    }
-    refs = atomic_fetch_sub_explicit(&task->handle_refs, 1, memory_order_acq_rel);
-    if (refs == 1 && task_status_load(task) == TASK_DONE) {
+    if (task_drop_ref_owes_free(task)) {
         // A lane that holds nothing reclaims here and now; one that holds a
         // lock defers to the moment it lets go, because destroying the result
         // runs generated code.
