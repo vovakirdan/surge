@@ -3,61 +3,7 @@
 This is the live handoff log for Runtime V2 work. Keep it current during each
 task, then move durable decisions into the owning epic document before closeout.
 
----
-
-# BOARD — 2026-08-28, at `69b83f7f`
-
-The near-term dispatch. `PLAN.md` says what the whole migration is and what
-closes it; this says what is being done right now and what is taken next. Update
-this section, do not append below it.
-
-## In flight
-
-| Lane | Branch | What it is doing | Blocks |
-| --- | --- | --- | --- |
-| **W4 · D7 leak** | `lane-d7-1` | Exhibiting the async-frame leak RED with a byte/block number and wiring it as a NAMED row in the sanitizer gate. Committed, in adversarial review. | nothing |
-| **W4 · D7 frame word** | `lane-d7-2` | The MIR frame lifecycle field (`FrameStateField`), written truthfully at pack/unpack/return, and the deletion of `AsyncStateFreeBuiltin`. Committed, in review. | W5 |
-| **W7 · channel** | `lane-d7-3` | Channel pins (zero callers today, so the fail-closed reclaim gate is vacuous) and §7's teardown order in `rt_channel_free`. Committed, in review. | nothing |
-| **Scope refusal** | `lane-scope-refusal` | Sema refuses the `spawn` that is partially adopted by a scope, then the now-dead adoption block in `rt_task_wake` goes. New diagnostic, `internal/sema/spawn_scope_adoption.go`. Uncommitted. | nothing |
-| **W2 instrument** | dedicated machine | 200 runs of the gate's own cancellation line, to establish whether the ~0.5% residue is alive. One green run does not answer it. | W2's entry |
-
-## Taken next, in this order
-
-1. **Integrate the four lanes** once their critics report — W4's two first, since
-   W5 must follow them and W2/W3 cannot share `rt_task_complete.c` with them.
-2. **W6 — D2's measurement close.** Unblocked, no conflicts, mine rather than a
-   lane's: re-capture the frozen bench manifest against the latest green commit,
-   then re-measure with at least three agreeing runs.
-3. **W2 — the fourth cancellation window**, IF the 200-run campaign produces a
-   red under the gate. If it produces zero, W2's entry condition is not met and
-   the row is re-measured rather than worked.
-4. **W3's replacement work** — the allocation test in every generated
-   move/copy/clone body, which the 2026-08-28 clone ruling obliges. It lands in
-   W4's files, so it follows W4.
-5. **W5 — D8's adopt leg**, after W4 is integrated.
-6. **W8 — wave closeout** when D2, D7, D8, D3b and the cancellation window are
-   all closed on one tree.
-
-## Runs in parallel with all of the above
-
-- Nothing that touches `internal/backend/llvm/emit_async*.go`,
-  `internal/mir/async_codegen.go` or `runtime/native/rt_task_complete.c` — those
-  three are W4's for the duration.
-- `internal/sema/*` and `internal/diag/*` are free (the scope-refusal lane aside).
-- `runtime/native/rt_channel*` and `internal/backend/llvm/emit_channel*` are
-  W7's.
-
-## Standing state
-
-- Trunk is green: `make runtime-v2-lifecycle-check`, `runtime-v2-heap-check` and
-  `runtime-v2-carrier-sanitizer-check` all exit 0 on the dedicated machine at
-  `cf20c74d` (183s / 135s / 99s, 77 lifecycle rows, 0 failures). That closes W1.
-- The live carrier census reads 83 against a base of 626.
-- No scheduled work waits on an owner decision.
-
----
-
-## Epic 13 Prep (2026-07-09)
+# Epic 13 Prep (2026-07-09)
 
 Prepared proposed Epic 13:
 `13-phase4-transport-spine-and-placement-task-lowering.md`.
