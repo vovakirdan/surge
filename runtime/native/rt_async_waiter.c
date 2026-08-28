@@ -16,8 +16,22 @@ waker_key join_key(uint64_t id) {
     return key;
 }
 
-waker_key timer_key(uint64_t id) {
-    waker_key key = {WAKER_TIMER, id, 0};
+// A timer key carries the sleeping task's owner shard, for the same reason a
+// channel key carries the channel's: the key OUTLIVES the object it names. The
+// deferred stale-key removal in wake_task_with_policy captures a parked task's
+// timer key, drops the owner shard lock, and only then removes the waiter --
+// and in that window the timeout that was waiting on this sleep can resolve,
+// release the last reference and free the task. Routing by looking the id up
+// and reading the task's placement therefore reads freed memory. The shard is
+// stamped here instead, while the caller holds the task live in hand.
+//
+// It is also the shard the park itself used: poll_sleep_task adds the deadline
+// to that shard's sleep store, so recording it keeps the waiter entry and the
+// deadline index on one shard even if the task is later re-placed. Resolving
+// live would send the removal to the new owner's store, where the entry it
+// wants has never been.
+waker_key timer_key(uint64_t id, uint32_t owner_shard_id) {
+    waker_key key = {WAKER_TIMER, id, owner_shard_id};
     return key;
 }
 

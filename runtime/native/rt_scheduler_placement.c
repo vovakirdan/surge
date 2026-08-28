@@ -49,6 +49,18 @@ rt_shard* rt_task_owner_shard(rt_executor* ex, const rt_task* task) {
     return rt_runtime_shard0(runtime);
 }
 
+// The id of the shard rt_task_owner_shard would answer, for a caller that has
+// to record the answer rather than use it now. Both fall back to shard 0 for an
+// unplaced task, which is what keeps a recorded id and a later live lookup from
+// disagreeing.
+uint32_t rt_task_owner_shard_id(rt_executor* ex, const rt_task* task) {
+    const rt_runtime* runtime = rt_executor_runtime(ex);
+    if (runtime != NULL && task != NULL && task->owner_shard_valid != 0) {
+        return task->owner_shard_id;
+    }
+    return 0;
+}
+
 rt_scheduler* rt_task_scheduler(rt_executor* ex, const rt_task* task) {
     return rt_shard_scheduler(rt_task_owner_shard(ex, task));
 }

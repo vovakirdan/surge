@@ -8,8 +8,13 @@ static rt_shard* rt_task_join_waiter_shard(rt_executor* ex, uint64_t task_id) {
 }
 
 // Owner resolution for non-net keys (dependency map section 5): join keys use
-// the task's atomic join-owner route, while timer and blocking keys carry the
-// parked-on task's id and use its scheduler owner shard. Join add/remove and
+// the task's atomic join-owner route, while blocking keys carry the parked-on
+// task's id and use its scheduler owner shard. Timer keys USED to do the same
+// and no longer do: like a channel key, a timer key outlives the object it
+// names, so it carries its shard instead (see timer_key, rt_async_waiter.c).
+// A blocking key can be reached the same way -- wake_key_all mints one from a
+// job's task id in rt_async_blocking.c -- and still resolves by dereference
+// here; that arm is the same hazard, unproven and unfixed. Join add/remove and
 // collect-all wake operations must not call this helper as a split "store
 // now, lock later" sequence: rt_async_waiter.c / rt_task_park.c delegate to the
 // join-route helpers, which resolve the join route, lock that shard, and
@@ -47,6 +52,10 @@ rt_waiter_store* rt_waiter_store_for_key(rt_executor* ex, waker_key key) {
         case WAKER_JOIN:
             return rt_shard_waiter_store(rt_task_join_waiter_shard(ex, key.id));
         case WAKER_TIMER:
+            // On the shard the key carries, never on the task it names: a timer
+            // key outlives its task, so looking the id up here and reading its
+            // placement reads freed memory.
+            return rt_executor_waiter_store_for_shard(ex, key.owner_shard_id);
         case WAKER_BLOCKING:
             return rt_shard_waiter_store(rt_task_owner_shard(ex, get_task(ex, key.id)));
         case WAKER_SCOPE:
@@ -78,6 +87,7 @@ rt_shard* rt_waiter_key_shard(rt_executor* ex, waker_key key) {
         case WAKER_JOIN:
             return rt_task_join_waiter_shard(ex, key.id);
         case WAKER_TIMER:
+            return rt_runtime_shard(rt_executor_runtime(ex), key.owner_shard_id);
         case WAKER_BLOCKING:
             return rt_task_owner_shard(ex, get_task(ex, key.id));
         case WAKER_SCOPE:

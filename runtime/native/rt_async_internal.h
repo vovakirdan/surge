@@ -884,6 +884,7 @@ void rt_task_replace_owner(rt_executor* ex,
 void rt_task_inherit_placement(rt_task* task, const rt_task* parent);
 void rt_task_assign_spawn_owner(rt_task* task);
 rt_shard* rt_task_owner_shard(rt_executor* ex, const rt_task* task);
+uint32_t rt_task_owner_shard_id(rt_executor* ex, const rt_task* task);
 void rt_sched_wake_signal_shard_n(rt_shard* shard, uint32_t tokens);
 void rt_sched_wake_broadcast_all(rt_executor* ex);
 int rt_sched_idle_sample_locked(rt_executor* ex);

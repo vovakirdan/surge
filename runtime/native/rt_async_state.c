@@ -327,15 +327,37 @@ void rt_task_slot_store(rt_executor* ex, uint64_t id, rt_task* task) {
     // ): the segment already exists in both cases (ensure_task_cap /
     // rt_task_table_segment_missing ran first), so this is a pure
     // release-store into a never-moved slot.
+    // The two failures below are different defects and must not share a
+    // sentence: an id past the directory means the id itself is wrong (a
+    // garbage or overflowed id), while a NULL segment means the id is
+    // plausible but no creator allocated its segment first. One string for
+    // both leaves a field report unable to say which happened.
     size_t seg_idx = (size_t)(id >> RT_TASK_TABLE_SEGMENT_SHIFT);
+    char panic_buf[192];
     if (seg_idx >= RT_TASK_TABLE_MAX_SEGMENTS) {
-        panic_msg("async: task slot out of range");
+        (void)snprintf(panic_buf,
+                       sizeof(panic_buf),
+                       "async: task slot id past the table (task=%llu segment=%llu "
+                       "max_segments=%llu worker=%d)",
+                       (unsigned long long)id,
+                       (unsigned long long)seg_idx,
+                       (unsigned long long)RT_TASK_TABLE_MAX_SEGMENTS,
+                       tls_worker_id);
+        panic_msg(panic_buf);
         return;
     }
     rt_task_segment* segment =
         atomic_load_explicit(&ex->tasks_table.segments[seg_idx], memory_order_acquire);
     if (segment == NULL) {
-        panic_msg("async: task slot out of range");
+        (void)snprintf(panic_buf,
+                       sizeof(panic_buf),
+                       "async: task slot segment not allocated (task=%llu segment=%llu "
+                       "slot=%llu worker=%d)",
+                       (unsigned long long)id,
+                       (unsigned long long)seg_idx,
+                       (unsigned long long)(id & (RT_TASK_TABLE_SEGMENT_SIZE - 1)),
+                       tls_worker_id);
+        panic_msg(panic_buf);
         return;
     }
     size_t slot_idx = (size_t)(id & (RT_TASK_TABLE_SEGMENT_SIZE - 1));
@@ -368,15 +390,35 @@ void rt_scope_slot_store(rt_executor* ex, uint64_t id, rt_scope* scope) {
     // the steady rt_scope_enter publish and scope_exit clear reach here after
     // ensure_scope_cap / rt_scope_table_segment_missing guaranteed the segment
     // exists, so this is a pure release-store into a never-moved slot.
+    // Distinct sentences for the same reason as rt_task_slot_store above: a
+    // scope id past the directory is a wrong id, a NULL segment is a missing
+    // allocation, and only the message can tell the two apart after the fact.
     size_t seg_idx = (size_t)(id >> RT_SCOPE_TABLE_SEGMENT_SHIFT);
+    char panic_buf[192];
     if (seg_idx >= RT_SCOPE_TABLE_MAX_SEGMENTS) {
-        panic_msg("async: scope slot out of range");
+        (void)snprintf(panic_buf,
+                       sizeof(panic_buf),
+                       "async: scope slot id past the table (scope=%llu segment=%llu "
+                       "max_segments=%llu worker=%d)",
+                       (unsigned long long)id,
+                       (unsigned long long)seg_idx,
+                       (unsigned long long)RT_SCOPE_TABLE_MAX_SEGMENTS,
+                       tls_worker_id);
+        panic_msg(panic_buf);
         return;
     }
     rt_scope_segment* segment =
         atomic_load_explicit(&ex->scopes_table.segments[seg_idx], memory_order_acquire);
     if (segment == NULL) {
-        panic_msg("async: scope slot out of range");
+        (void)snprintf(panic_buf,
+                       sizeof(panic_buf),
+                       "async: scope slot segment not allocated (scope=%llu segment=%llu "
+                       "slot=%llu worker=%d)",
+                       (unsigned long long)id,
+                       (unsigned long long)seg_idx,
+                       (unsigned long long)(id & (RT_SCOPE_TABLE_SEGMENT_SIZE - 1)),
+                       tls_worker_id);
+        panic_msg(panic_buf);
         return;
     }
     size_t slot_idx = (size_t)(id & (RT_SCOPE_TABLE_SEGMENT_SIZE - 1));

@@ -159,7 +159,7 @@ typedef struct {
 waker_key waker_none(void);
 int waker_valid(waker_key key);
 waker_key join_key(uint64_t id);
-waker_key timer_key(uint64_t id);
+waker_key timer_key(uint64_t id, uint32_t owner_shard_id);
 waker_key scope_key(uint64_t id);
 waker_key channel_send_key(const rt_channel* ch);
 waker_key channel_recv_key(const rt_channel* ch);

@@ -1091,13 +1091,13 @@
     },
     {
       "site": "runtime/native/rt_async_state.c::rt_scope_slot_store#1",
-      "message": "async: scope slot out of range",
-      "group": "PG-INVARIANT"
+      "message": "\u003ccomputed\u003e",
+      "group": "PG-COMPUTED"
     },
     {
       "site": "runtime/native/rt_async_state.c::rt_scope_slot_store#2",
-      "message": "async: scope slot out of range",
-      "group": "PG-INVARIANT"
+      "message": "\u003ccomputed\u003e",
+      "group": "PG-COMPUTED"
     },
     {
       "site": "runtime/native/rt_async_state.c::rt_start_workers#1",
@@ -1126,13 +1126,13 @@
     },
     {
       "site": "runtime/native/rt_async_state.c::rt_task_slot_store#1",
-      "message": "async: task slot out of range",
-      "group": "PG-INVARIANT"
+      "message": "\u003ccomputed\u003e",
+      "group": "PG-COMPUTED"
     },
     {
       "site": "runtime/native/rt_async_state.c::rt_task_slot_store#2",
-      "message": "async: task slot out of range",
-      "group": "PG-INVARIANT"
+      "message": "\u003ccomputed\u003e",
+      "group": "PG-COMPUTED"
     },
     {
       "site": "runtime/native/rt_async_state.c::task_from_handle#1",

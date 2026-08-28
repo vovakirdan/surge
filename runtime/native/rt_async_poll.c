@@ -48,12 +48,12 @@ static poll_outcome poll_sleep_task(rt_executor* ex, rt_task* task) {
             panic_msg("async: sleep store allocation failed");
         }
         out.kind = POLL_PARKED;
-        out.park_key = timer_key(task->id);
+        out.park_key = timer_key(task->id, rt_task_owner_shard_id(ex, task));
         return out;
     }
     if (rt_clock_now(ex) < task->sleep_deadline) {
         out.kind = POLL_PARKED;
-        out.park_key = timer_key(task->id);
+        out.park_key = timer_key(task->id, rt_task_owner_shard_id(ex, task));
         return out;
     }
     out.kind = POLL_DONE_SUCCESS;
