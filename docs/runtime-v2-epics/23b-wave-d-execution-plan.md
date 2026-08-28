@@ -3,6 +3,15 @@
 Containers and local carriers. Written 2026-08-11 against HEAD `f2641713`,
 after a ruling-by-ruling pass over the eight standing blockers.
 
+**Statuses last re-established against the tree at `03379549` on 2026-08-28**,
+by opening the code each step was supposed to produce rather than by reading the
+previous status line. The status table in §4, the per-step record in §4.1 and
+the handback in §7 are that pass; everything else in this file is the original
+plan and the rulings that shaped it, kept unedited as the record. Between
+2026-08-25 (the previous status edit, `afa902a4`) and this pass, D2, D4b, the
+D6 tail and one Wave-F lane landed while the table still called two of them
+open.
+
 This plan lives IN THE REPOSITORY. Its predecessor
 (`23b-wave-d-execution-plan-v2-final.md`) was written into a session scratchpad,
 was never committed, and was lost; only fragments survived inside an agent
@@ -184,31 +193,148 @@ the integrated tree and not per-branch.
 Ordering is by dependency, not by size. Each step deletes the old fields and
 dispatch path in the same commit.
 
-| Step | Owner | Entry condition |
-| --- | --- | --- |
-| D1 | Fixed arrays and dynamic array element buffers | D0 |
-| D2 | Map key/value entries — insert, rehash, replace, remove, failed insert, teardown | D1 (element storage first) |
-| D3 | Buffered/unbuffered channel send/receive and waiter mailboxes | D0.7 (the waiter fix is a precondition, not a parallel task) |
-| D4 | Task canonical result/resume and cloned result entitlements. **D4a (typed result slot, near and far) CLOSED 2026-08-25**; D4b (entitlements) open | D0; may run beside D3 only once their production files do not overlap |
-| D5 | REMOTE select only — `rt_far_channel_select.c`. Local `select` moved into D3 by the 2026-08-19 ruling below. **CLOSED 2026-08-25** | D3 |
-| D6 | Blocking captures/results and every cancellation timing. **RESULTS CLOSED 2026-08-25**; captures and cancellation timing open | D3, D4 |
-| D7 | Async frames, captures, polling, wake, normal/shutdown drains. **STATE CARRIAGE CLOSED 2026-08-25** (numeric drop dispatch gone); frame storage inversion open | D4 |
-| D8 | RV2-DEBT-151 retirement — local **and** FAR **and** CROSSING (ruling 8) | D1–D7 |
+Status column read at `03379549`, 2026-08-28. **CODE COMPLETE** means the step's
+storage flip is on the tree and wired; it does NOT mean the step's evidence run
+has been recorded. **CLOSED** means both.
+
+| Step | Owner | Status at `03379549` | Entry condition |
+| --- | --- | --- | --- |
+| D1 | Fixed arrays and dynamic array element buffers | **CLOSED** | D0 |
+| D2 | Map key/value entries — insert, rehash, replace, remove, failed insert, teardown | **CODE COMPLETE**; bench re-measure and the two parity rows owed (RV2-DEBT-156/157, gated on 174) | D1 (element storage first) |
+| D3 | Buffered/unbuffered channel send/receive and waiter mailboxes | **CLOSED 2026-08-24.** D3b (the channel's own lifetime) is a follow-on: C0 landed, C1 and C3 not started | D0.7 (the waiter fix is a precondition, not a parallel task) |
+| D4 | Task canonical result/resume and cloned result entitlements | **D4a CLOSED 2026-08-25. D4b CODE COMPLETE 2026-08-26** on both lanes; P3's closeout is not recorded and three of its named sync-point rows do not exist | D0; may run beside D3 only once their production files do not overlap |
+| D5 | REMOTE select only — `rt_far_channel_select.c`. Local `select` moved into D3 by the 2026-08-19 ruling below | **CLOSED 2026-08-25** | D3 |
+| D6 | Blocking captures/results and every cancellation timing | **CODE COMPLETE.** Results 2026-08-25; captures a-1..a-4 2026-08-26..28; RV2-DEBT-080 stays Open pending the lead's green run of the rows a-3 and a-4 added | D3, D4 |
+| D7 | Async frames, captures, polling, wake, normal/shutdown drains | **STATE CARRIAGE CLOSED 2026-08-25** (numeric drop dispatch gone). **The frame itself is NOT STARTED**: 18 live `suspension-frame-owner` carriers, RV2-DEBT-179 Open | D4 |
+| D8 | RV2-DEBT-151 retirement — local **and** FAR **and** CROSSING (ruling 8) | **PARTIAL.** The copy-in leg is deleted and the release leg is gone from production; the adopt leg survives at three sites | D1–D7 |
 
 Worktree rule, from §5: task/channel/select/blocking may be separate worktrees
 **only after** the shared owner/slot API is integrated and their production
 files do not overlap. Subagent worktrees have twice come up on the wrong
 lineage — the base commit is a required field in any worktree handoff.
 
-### D2 carries a known live defect
+## 4.1 What the tree says, step by step — established 2026-08-28
 
-DEBT-158's premise that the VM is safe by construction is FALSE. VM map
-elements resolve POSITIONALLY (`intrinsic_map.go:246` returns
-`Location{LKMapElem, Handle, Index}`; `place_container.go:221-224` resolves by
-index), and VM remove IS swap-with-last (`intrinsic_map.go:421-431`). So
-`let p = m.get_mut(&"b"); m.remove(&"b"); *p = 99` writes into the slot `"c"`
-was swapped into and drops `c`'s live value. The VM is immune to ADDRESS
-invalidation, not INDEX invalidation. D2 owns this; it is not native-only.
+The instrument that answers most of this in one number is the carrier scanner
+itself, run live against `03379549`: **83 findings against a frozen base census
+of 626**, and `go test ./internal/carriergate -run
+'^TestLiveCarrierRatchetAgainstRepository$'` is green, so nothing live is
+outside the manifest's legacy-plus-migration allowance. Per category, live
+against base:
+
+| category | base | live | reads as |
+| --- | --- | --- | --- |
+| `vm-boxed-composite-kind` | 74 | **0** | D1's VM half |
+| `llvm-composite-to-ptr` | 5 | **0** | D1's native half |
+| `untyped-capture-state` | 15 | **0** | D6 captures |
+| `vm-async-any-carrier` | 23 | 2 | both in `internal/asyncrt/timer.go`, `heap.Interface` |
+| `llvm-erased-word-bridge` | 25 | 3 | D8's adopt leg |
+| `llvm-pointer-word-ir` | 3 | 3 | the same helper's body plus `emit_term.go` |
+| `vm-universal-owner` | 13 | 7 | VM `Value` frame slots |
+| `composite-box-marker` | 54 | 8 | clone/drop glue naming plus `cloneValueComposite` (RV2-DEBT-246) |
+| `native-word-carrier` | 85 | 10 | `rt_far_channel*`, `rt_remote_task_*` — Wave E |
+| `numeric-drop-dispatch` | 188 | 13 | `rt_far_channel*` and the crossing emitters — Wave E |
+| `native-payload-bits` | 134 | 19 | `rt_remote_task_*` only — Wave E |
+| `suspension-frame-owner` | 7 (+12 migration) | **18** | D7's tail, untouched |
+
+**D1 — CLOSED.** The VM half is `08c0bc56` (the storage) and `d6ebe0ac` (a
+dynamic array's elements are a typed run); `Arr []Value` is gone from
+`internal/vm/object.go`, and `internal/vm/array_storage_internal_test.go:363`
+records the retirement. Natively an array header is `{len, cap, data}` with
+`cap` counted in ELEMENTS and the data run sized `cap * stride`
+(`runtime/native/rt_array_internal.h:8-17`); every entry point takes
+`elem_stride` and `elem_align` (`rt.h:24-40`) and the compiler walks the
+elements. Both of D1's carrier categories read live zero.
+
+**D2 — CODE COMPLETE, not closed.** `2ba2e0cf` · `01579589` · `429f8821` ·
+`97351ecf`, VM half `807bf541`. `SurgeMapEntry` does not exist anywhere in the
+tree; `rt_map` holds `key_ops`/`value_ops` and two typed runs in one allocation
+(`runtime/native/rt_map.c:52-53,107-118,149-153`), growth moves through
+`rt_value_move_init_detached` (`:234-236`), and `rt_map_new` takes both
+descriptors (`rt.h:403`). **The section this replaces is history**: DEBT-158's
+positional-invalidation defect and RV2-DEBT-172 were both closed 2026-08-19
+through the borrow rule (SEM3018), and the map lane confirmed it. What is still
+owed is measurement, not code: RV2-DEBT-156's bench clause and RV2-DEBT-157's
+parity row for a heap-owning value, both blocked behind RV2-DEBT-174 — the
+carrier bench cannot run against the frozen `epic_base` compiler at all since
+the `Channel::<T>::new` migration, and re-capturing the digest-frozen manifest
+is the owner's call. Also owed and filed: RV2-DEBT-250 (linear `map_find`),
+251 (`rt_key_ops` unused), 252 (no sanitizer stand, no owning-key bench row).
+
+**D4b — CODE COMPLETE on both lanes.** Native `12e93f33` · `5bda5efd` (plus
+`6d7a0ee8`, `f749b7d3`, `421df648`); VM `210c206b` · `d4ead546` · `f0db0bd7` ·
+`3ca25486`. `runtime/native/rt_task_entitlement.h` carries exactly what §10
+describes — `live`, `claimed`, a reserved `mover`, atomic `clone_readers`,
+`move_waiting`, `moved`, and the installed `duplicate` recipe — with the six
+take modes including `WAIT` and `REFUSED`; `internal/vm/task_entitlement.go` is
+the VM's. `TestRuntimeV2TaskCohortCostsOneDuplicationPerExtraHandle` is the
+`N-1` row. **P3 is NOT closed and nobody has said so.** §5 of this plan says P3
+closes with D4; there is no closeout record for it in `NOTES.md` or here, and
+of P3's four named deterministic sync-point rows only the clone-reader-versus-
+last-await pair exists in the tree (`SP_AWAIT_AFTER_INCREMENT`,
+`SP_AWAIT_BEFORE_DONECV_WAIT`, `rt_async_task.c:397-399`). No sync point is
+declared for shutdown versus a claimed clone, or for stale-generation late
+publication — checked against the full enum in `runtime/native/rt_sync_point.h`.
+Filed and open beside it: RV2-DEBT-246, 247, 248, 249.
+
+**D6 — CODE COMPLETE, RV2-DEBT-080 still Open by its own terms.** Results
+landed `66c2f156`: `rt_blocking_submit(fn_id, state, state_type_id,
+result_type_id)` (`rt.h:340-348`) binds ONE descriptor to the job's cell and the
+awaiting poll's. Captures landed as a-1 `dcdcb2da`, a-2 `0a3fa567` (the job's
+state is an `rt_value_cell` adopted from the compiler's block,
+`rt_async_blocking.c:404`), a-3 `2a79f345` (`dropObligationsSuppressed` is
+deleted; only `blockingDepth`, which answers a different question, survives) and
+a-4 `2f67cc9b` — the §7 cancellation rows the two negative-control toggles had
+been asserted against with nothing observing them now exist as
+`TestRuntimeV2LifecycleDebt080*`
+(`internal/vm/runtime_v2_blocking_cancel_lifecycle_test.go`), each with its
+negative control naming the sentence it must fail with. The `untyped-capture-
+state` category reads live zero. The row's closure condition is the lead's green
+run of a-3's four valgrind rows and a-4's lifecycle rows, and that run is not
+recorded.
+
+**Which step owns the cancellation-ANSWER family.** This table's D6 row says
+"and every cancellation timing", and a-4 delivered every cancellation timing of
+the BLOCKING owner, which is how the epic's §5 bullet reads it. The separate
+family — a task committing `Success` after a cancel (RV2-DEBT-261, 263, 265,
+291) — is filed against D4b's cancel rows in `NOTES.md` and is tracked there,
+not here. It is not closed: 261 and 263 were reopened 2026-08-27 when
+`runtime-v2-lifecycle-check` went red on the dedicated machine at
+`TestRuntimeV2FailfastJoinAnswersCancelled/llvm/threads-4`, and 400 pinned runs
+established that RV2-DEBT-265 is not the window either (3 red of 200 before, 1
+of 200 after). A fourth window is open at roughly half a percent, under the
+gate and not under the row run alone.
+
+**D7 — the frame is NOT STARTED.** What closed on 2026-08-25 (`afa902a4`) is
+state CARRIAGE: the three generated dispatch tables are gone from production
+(`__surge_drop_call`, `__surge_drop_result_call`,
+`__surge_drop_abandoned_state_call` survive only inside C test stands), and the
+crossings carry TYPE ids. The frame itself is untouched. Compiled code still
+reserves it (`emitRuntimeOwnedStorage`), releases it
+(`mir.AsyncStateFreeBuiltin`, `emitAsyncStateFreeIntrinsic`,
+`emitSuspensionFrameReleaseBody`) and hands the runtime a bare address plus a
+type id (`rt_async_poll.c`, `rt_task_complete.c`, `abandoned_state` +
+`abandoned_state_type_id`) — 18 live carriers in that category. §11 of the
+storage model is the target and none of it holds: there is no compiler-generated
+frame/state descriptor table, no per-suspension-state resume type and slot, and
+no state generation a producer must match before initializing. RV2-DEBT-179 —
+two emitter sites needing OPPOSITE reclamation with nothing in the frame able to
+tell them apart — is the same gap named from the defect side, and is Open.
+
+**D8 — PARTIAL, and smaller than the row reads.** The three-operation helper set
+RV2-DEBT-151 names has lost two of its three legs. Copy-in (`emitValueToI64`) is
+DELETED — D2 was its last caller — and the release leg
+(`requireRuntimeOwnedRelease`) is gone from production, replaced for frames by
+`requireSuspensionFrameRelease`, which the row itself predicted would outlive
+the payload helpers. What survives is the adopt leg: `emitI64ToValue`
+(`emit_async_helpers.go:91`) with exactly two callers, `emit_async.go:444` and
+`emit_crossing_select.go:261`. Both convert `rt_select_poll`'s `i64` return into
+`Select.Dst`, and `mir.SelectArm` carries no destination of its own, so what
+those two adopt is the WINNER INDEX and not a payload. The far and crossing
+SITES the row scoped no longer route through the helper; the far runtime's own
+word carriers (`native-payload-bits` 19, `native-word-carrier` 10,
+`numeric-drop-dispatch` 13, all in `rt_remote_task_*` and `rt_far_channel*`) are
+Wave E's and are not this row.
 
 ### D3 IS CLOSED — 2026-08-24
 
@@ -422,6 +548,14 @@ restated here.
 
 P4 and P5 are Wave E and Wave F respectively and have no edge into this plan.
 
+**Status 2026-08-28.** P2 was recorded closed with D3 (§4's D3 block lists its
+four criteria and what answers each). **P3 has no closeout record anywhere**,
+although D4a and D4b are both on the tree — see §4.1. P3 is therefore an open
+item of this wave with a named gap, not a formality: three of its four
+deterministic sync-point rows do not exist. P5 landed independently on
+2026-08-26 (Wave F's diagnostic half, `9fe013eb..8a3c7eb2`), which does not
+change this plan's edges.
+
 ## 6. Closeout evidence
 
 The §12 command list in full, on the integrated tree, plus:
@@ -434,3 +568,166 @@ The §12 command list in full, on the integrated tree, plus:
 
 Never append `; echo $?` to a lane invocation. It makes the harness report exit
 0 while a failure sits in the log; it has bitten this epic twice.
+
+## 7. Remaining work — the dispatch list, ordered, 2026-08-28
+
+Established against `03379549`. Each item names its entry condition and the
+production files it will touch, because two lanes at one file is how this wave
+has produced its integration conflicts. **The file conflicts are real and are
+stated: W3, W4 and W5 all reach `internal/backend/llvm/emit_async.go`, and W2
+and W3 both reach `runtime/native/rt_task_complete.c`.** Those pairs are
+sequenced, not parallel.
+
+### W1 — record RV2-DEBT-080's owed run and close D6
+
+Entry: none. The code is on the tree; only the measurement is missing.
+
+Run, on the dedicated machine, and record the readings in `DEBT.md` and
+`NOTES.md`: `make runtime-v2-carrier-sanitizer-check` (whose second recipe line
+already names a-3's four valgrind rows and the cancelled-owned-result row),
+`make runtime-v2-heap-check`, and `make runtime-v2-lifecycle-check` (which runs
+`TestRuntimeV2LifecycleDebt080*`). Repeat the lifecycle line under the gate, not
+the rows alone — 2026-08-27 established that a row green twenty times in
+isolation says nothing about the same row under its gate.
+
+Files: `docs/runtime-v2-epics/DEBT.md`, `docs/runtime-v2-epics/NOTES.md`. No
+production file. Size: hours, dominated by gate wall time.
+
+### W2 — the fourth cancellation-answer window, under the gate
+
+Entry: W1's lifecycle-gate run, which is the instrument. A red
+`TestRuntimeV2FailfastJoinAnswersCancelled/llvm/threads-4` under the gate is the
+entry; the row run alone is not.
+
+RV2-DEBT-261 and 263 are reopened, 265 has been measured out as not the window
+(3 red of 200 before it, 1 of 200 after), and the residue is roughly half a
+percent. Find the fourth window and pin it with a sync point plus a negative
+control, as 263 was. RV2-DEBT-291 (`panic: async: task slot out of range`, a
+task-table segment still `NULL` at an id whose creator was told it was there)
+is a different defect surfaced by the same instrument and rides with this lane.
+
+Files: `runtime/native/rt_task_complete.c`, `rt_async_poll.c`,
+`rt_async_task.c`, `rt_task_table.c`, `rt_scope.c`, `rt_sync_point.{h,c}`;
+`internal/asyncrt/task_complete.go`; `internal/vm/vm_terminator.go`;
+`internal/vm/runtime_v2_lifecycle_*_test.go`. Size: several days — three windows
+have been found behind this one symptom and each took a lane.
+
+### W3 — close P3
+
+Entry: W2 integrated. It shares `rt_task_complete.c` and the lifecycle stands
+with W2 and may not run beside it.
+
+Build P3's three missing deterministic sync-point rows — shutdown versus a
+claimed clone, stale-generation late publication, and cancel versus `READY` —
+each with the negative-control build §7 of the epic requires, and write the P3
+closeout record the way P2's was written into §4 of this plan. Use
+`lifecycleHarnessStandHelpers`: a stand whose owner is held inside its own poll
+must take its child from the driver.
+
+Files: `runtime/native/rt_sync_point.{h,c}`, `rt_task_entitlement.c`,
+`rt_task_lifetime.c`, `rt_task_result.c`, `rt_async_task.c`;
+`internal/vm/runtime_v2_task_*_test.go`;
+`docs/runtime-v2-epics/23b-wave-d-execution-plan.md`. Size: several days.
+
+### W4 — D7's tail: the frame answers for what it holds
+
+Entry: D4 (met). Must not run beside W5 — both rewrite
+`internal/backend/llvm/emit_async.go` and `emit_async_helpers.go` — and not
+beside W2/W3, which own `rt_task_complete.c`.
+
+Implement §11's async-frame paragraph: one compiler-generated frame/state
+descriptor table, each suspension state naming its concrete resume type and
+slot, a state generation the producer must match before initializing, and a poll
+that claims and empties the resume slot exactly once. That is also what retires
+RV2-DEBT-179: the frame itself, not the calling convention, says whether it
+still owns its contents, so the walking and shallow releases become one release
+that can tell — proven by a negative row in which a frame abandoned through the
+wrong path is refused at build time or trapped at run time, and by the existing
+valgrind witnesses staying green. Target: `suspension-frame-owner` reads live
+zero.
+
+Files: `internal/backend/llvm/emit_async.go`, `emit_async_helpers.go`,
+`emit_aggregate_ops.go`, `emit_calls.go`, `emit_drop_glue.go`;
+`internal/mir/lower_expr_crossing_spawn_poll.go` and the
+`AsyncStateFreeBuiltin` declaration; `runtime/native/rt_async_poll.c`,
+`rt_task_complete.c`, `rt_async_internal.h`; `internal/vm/async_runtime.go`,
+`vm_dispatch_async_types.go`. Size: several days — it is the only Wave D storage
+owner that has not been touched at all, and it crosses both backends.
+
+### W5 — D8's tail: delete the adopt leg
+
+Entry: W4 integrated (file conflict on `emit_async.go` and
+`emit_async_helpers.go`).
+
+Give the select's winner index its own typed return so neither caller needs a
+word bridge, then delete `emitI64ToValue` and the `inttoptr` in its body.
+`emit_term.go`'s single `inttoptr` is a deliberate constant reinterpretation and
+should be re-read rather than assumed to be part of this. Prove it the way the
+row asks: the transport round-trip test family passes against the inline path
+with no copy at the boundary, on both backends. Target: `llvm-erased-word-
+bridge` and `llvm-pointer-word-ir` read live zero and RV2-DEBT-151 retires.
+
+Files: `internal/backend/llvm/emit_async_helpers.go`, `emit_async.go`,
+`emit_crossing_select.go`, `emit_term.go`; the select lowering in
+`internal/mir`. Size: a day — three call sites and one helper, but it is the
+row's retirement, so the round-trip family is the cost.
+
+### W6 — D2's measurement close
+
+Entry: an owner decision on RV2-DEBT-174. The carrier bench cannot run against
+its digest-frozen `epic_base` compiler at all since the `Channel::<T>::new`
+migration, because `scored/maps-scalar` and `scored/maps-composite` are written
+with `Map::<K, V>.new()`, which `7df10725` does not know. The owner ruled on
+2026-08-26 that the base is the latest green commit with no pin; re-capturing
+the frozen manifest is the act that implements it, and it is not a lane's.
+
+Then re-measure with ≥3 agreeing runs and close RV2-DEBT-156's bench clause and
+RV2-DEBT-157's parity row for a heap-owning value. Two budgets are already known
+stale in both directions: `blocking-composite` 277 → 341, `channel-buffered-
+composite` 78 → 14.
+
+Files: `testdata/runtime-v2-carrier-bench.json`, `scripts/runtime_v2_carrier_
+bench*.py`, `docs/runtime-v2-epics/DEBT.md`. Size: a day after the ruling; it is
+blocked, not sized, before it.
+
+### W7 — D3b: the channel's own lifetime
+
+Entry: none for C1; C3 follows C1. Not in the D1–D8 list because D3 closed
+before the channel's lifetime was a question, but it is this wave's and it is
+open.
+
+C0 landed (`8c9851a6`, `1a0b5914`, `743f034e`): `handle_refs`, `pins` and
+`reclaiming` in `runtime/native/rt_channel_refcount.{h,c}`, with the far
+registry releasing through `rt_channel_handle_drop`. **Nothing else calls it**:
+`rt_channel_handle_retain`/`_drop` are declared in the emitter's builtin table
+and emitted by no site, so no program's `Channel<T>` copy retains and no drop
+releases (C1), and no pin is taken by a waiter, a select subscription or a
+claimed slot (C3). RV2-DEBT-259 rides here: `rt_channel_free` does not perform
+the teardown order §7 prescribes — no dying mark under the owner lock, no
+detach-then-invalidate pass — and it was recorded rather than patched in a lane.
+
+Files: `internal/backend/llvm/emit_channel.go`, `emit_channel_storage.go`,
+`emit_drop_glue.go`, `builtins.go`; `runtime/native/rt_channel_refcount.c`,
+`rt_async_channel.c`, `rt_channel_lane.h`, `rt_far_channel.c`. Size: several
+days for C1+C3 together; RV2-DEBT-155 closes with them.
+
+### W8 — wave closeout
+
+Entry: W1–W5 and W7 integrated on one tree. W6 gates only RV2-DEBT-156/157.
+
+The §12 command list in full on the integrated tree, plus the four additions in
+§6 above, plus a re-run of the live carrier scan: the number that says Wave D is
+done is `suspension-frame-owner`, `llvm-erased-word-bridge` and
+`llvm-pointer-word-ir` at live zero, with what remains confined to
+`rt_remote_task_*` and `rt_far_channel*` — Wave E's, by name and by file.
+
+### Not Wave D, recorded so no lane picks it up by mistake
+
+`native-payload-bits` (19), `native-word-carrier` (10) and the far half of
+`numeric-drop-dispatch` (13) live entirely in `rt_remote_task_*` and
+`rt_far_channel*` and belong to Wave E. `vm-universal-owner` (7) is the VM's
+`Value` frame slot and is not a Wave D owner. `composite-box-marker` (8) is four
+glue-function names plus `cloneValueComposite` (RV2-DEBT-246).
+`vm-async-any-carrier` (2) is `heap.Interface` in `internal/asyncrt/timer.go`.
+RV2-DEBT-180 (the runtime's virtual clock, which ruling Р2 turns into a removal)
+is blocker-class but is the multi-carrier work's, not this wave's.
