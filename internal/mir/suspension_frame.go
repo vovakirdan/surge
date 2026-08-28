@@ -85,8 +85,16 @@ const (
 	// FrameStatePacked: the frame holds a suspension's live locals, so
 	// reclaiming it means walking them first.
 	FrameStatePacked int64 = 0x5041434B // "PACK"
-	// FrameStateSpent: the frame's payload has been moved out and nothing left
-	// in it owns anything, so reclaiming it is a release of the storage alone.
+	// FrameStateSpent: nothing in the frame owns anything any more, so
+	// reclaiming it is a release of the storage alone.
+	//
+	// "Nothing owns anything" is the claim, not "the fields are blank". A
+	// capture the unpack MOVED out leaves a field whose bits still look like a
+	// value; a reference-counted one is copied out without a retain, which
+	// hands the frame's reference to the local and leaves the field's bits
+	// standing too. Either way the frame has stopped being the thing that has
+	// to give something back, and that — not the bytes — is what a reclamation
+	// reads this word to learn.
 	FrameStateSpent int64 = 0x53504E54 // "SPNT"
 )
 

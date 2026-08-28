@@ -14,12 +14,15 @@ type blockingCaptureInfo struct {
 	Name      string
 	Type      types.TypeID
 	FieldName string
-	// Transfers marks a capture the state OWNS and hands on: the state
-	// literal consumed the caller's binding, so unpacking is where that
-	// ownership continues into the body. It is false for a capture the state
-	// merely holds a second reference to — a reference-counted scalar was
-	// retained into the field and the field keeps its own count — and for
-	// anything that owns no heap at all.
+	// Transfers marks a capture the state literal MOVED in, so the unpack has
+	// to take it out again: the caller's binding was spent, and a field left
+	// looking initialized would be a second owner of what the body now holds.
+	//
+	// It is false for two unlike captures, and only one of them is free. A
+	// capture owning no heap has nothing to hand on. A reference-counted one
+	// was RETAINED into the field, so the frame holds a reference of its own
+	// and something still has to give it back — see the unpack in
+	// lowerBlockingFunc, which hands that reference to the body's local.
 	Transfers bool
 }
 
@@ -98,7 +101,7 @@ func (l *funcLowerer) blockingCaptureInfo(captures []hir.CapturedBinding) ([]blo
 			// the TYPE, through the same predicate the ordinary by-value
 			// argument position uses. It answers the same thing here: the
 			// state literal spends the caller's binding exactly as a call
-			// spends an argument, and a reference-counted scalar is retained
+			// spends an argument, and a reference-counted value is retained
 			// into the field rather than moved out of the caller.
 			Transfers: l.byValueArgContract(ty, false) == ArgContractTransferOwned,
 		})
@@ -220,13 +223,21 @@ func (l *funcLowerer) lowerBlockingFunc(id FuncID, name string, body *hir.Block,
 		// plain read leaves the field looking initialized, which is a second
 		// owner for anything the state is later destroyed through.
 		//
-		// A reference-counted scalar stays a plain read: the field holds a
-		// reference of its own (the state literal RETAINED it) and gives that
-		// one back when the state is destroyed, so the body's local borrows.
+		// A RETAINED capture stays a plain read, and the plain read is what
+		// hands the frame's reference on. `Channel<T>` is the whole of this
+		// family here: the literal retained a reference into the field
+		// (captureOperand reads it consuming, which for a reference-counted
+		// value is OperandRetain), and the job never gives that one back — the
+		// worker spends the state cell before calling this body, so the release
+		// frees the block without walking a field. Copying the handle word out
+		// therefore moves that reference to the local, and the local owes it
+		// back at every return — which is a drop obligation sema registers, in
+		// registerBlockingBodyOwnership, beside the one it registers for the
+		// transferring captures above.
 		//
-		// A `Channel<T>` capture reads as a @copy scalar today, so this
-		// predicate answers "does not transfer" for it. That is D3b's
-		// question, not this one's.
+		// The reference-counted SCALAR the predicate also admits cannot arrive:
+		// sema refuses a `float`-carrying blocking capture outright, because the
+		// count is not atomic and the worker is another thread.
 		l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
 			Dst: Place{Local: localID},
 			Src: RValue{Kind: RValueField, Field: FieldAccess{
@@ -236,10 +247,11 @@ func (l *funcLowerer) lowerBlockingFunc(id FuncID, name string, body *hir.Block,
 			}},
 		}})
 	}
-	// The unpack above took the owning captures out into locals, so the frame is
-	// SPENT and says so — adjacent to the reads that made it true, as in the
-	// crossing poll's entry: this is still the entry block, so nothing between
-	// them can have handed the frame to another reader.
+	// Every capture that owned anything has now left the frame: a transferring
+	// one was moved out, a retained one handed its reference to the local above.
+	// So the frame owns nothing and says so — adjacent to the reads that made it
+	// true, as in the crossing poll's entry: this is still the entry block, so
+	// nothing between them can have handed the frame to another reader.
 	//
 	// The runtime asserts the same handover from its own side: the worker spends
 	// the job's state cell immediately before it calls this body, so a cancel

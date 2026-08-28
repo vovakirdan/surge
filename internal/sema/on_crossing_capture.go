@@ -320,15 +320,42 @@ func (tc *typeChecker) registerAsyncBodyOwnership(body ast.StmtID) {
 // free; the claim without this registration abandons the capture once per
 // execution, which is the leak this registration closes.
 //
-// A `Channel<T>` capture reads as a `@copy` scalar today, so the predicate
-// answers "does not transfer" for it; that is D3b's question, not this one's.
+// A reference-counted capture needs the SECOND predicate, and for the same
+// reason an async function's reference-counted parameter does: the state literal
+// RETAINED it into the field, and "does not transfer" is the right answer only
+// where a caller is still holding the reference the callee reads through. Here
+// the frame is that holder, and the frame is never walked -- so the body's
+// return is the one place that reference can be given back, and nothing else in
+// the tree is going to do it.
 func (tc *typeChecker) registerBlockingBodyOwnership(body ast.StmtID) {
 	for _, cap := range tc.collectBlockingCaptures(body) {
-		if !tc.paramTransfersOwnership(tc.bindingType(cap.symID)) {
+		ty := tc.bindingType(cap.symID)
+		if !tc.paramTransfersOwnership(ty) && !tc.captureIsRetainedIntoBlockingFrame(ty) {
 			continue
 		}
 		tc.registerDroppableBinding(cap.symID)
 	}
+}
+
+// captureIsRetainedIntoBlockingFrame is paramIsRetainedIntoFrame for a
+// `blocking` capture: a reference-counted value the state literal read into a
+// frame that outlives the read.
+//
+// It takes no function, because unlike a parameter there is no non-frame case to
+// exclude -- a capture is by definition read into a frame. Of the two
+// reference-counted families only the HANDLE reaches an ACCEPTED program: the
+// loop below this one refuses a `float`-carrying blocking capture, so a scalar
+// is registered here and the program is then rejected anyway.
+//
+// Deliberately not shared with registerAsyncBodyOwnership above, which still
+// asks only the transfer predicate. A local `async` block's frame is reclaimed
+// on its own protocol, so whether it abandons a retained capture the same way is
+// a separate derivation, on its own evidence, which this change does not make.
+func (tc *typeChecker) captureIsRetainedIntoBlockingFrame(id types.TypeID) bool {
+	if tc.types == nil {
+		return false
+	}
+	return tc.isDroppableType(id) && tc.types.IsRefCounted(tc.resolveAlias(id))
 }
 
 func (tc *typeChecker) isOwnType(id types.TypeID) bool {

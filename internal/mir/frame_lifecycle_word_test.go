@@ -135,9 +135,14 @@ func TestSpawnOnFrameIsBornPacked(t *testing.T) {
 		t.Fatalf("the spawn_on state literal is born %q while its captures sit in the fields below it; "+
 			"a frame holding live captures is PACKED", wordName(word))
 	}
+	// The literal's ORDER, which is not what puts the word at offset zero: the
+	// state struct declares it as field 0 (buildSpawnOnStateStruct) and the
+	// emitter resolves a literal field by name, so reordering the literal moves
+	// nothing. What this pins is that the two are written in one order, so a
+	// reader of either file sees the same leading field.
 	if ins.State.Fields[0].Name != mir.FrameStateField {
-		t.Fatalf("the lifecycle word is not the literal's first field (%q is); the word is read at offset "+
-			"zero by a reader that knows nothing else about the storage it holds", ins.State.Fields[0].Name)
+		t.Fatalf("the lifecycle word is not the literal's first field (%q is); the literal no longer "+
+			"reads in the order its state struct declares", ins.State.Fields[0].Name)
 	}
 }
 
@@ -152,19 +157,38 @@ func TestSpawnOnPollMarksTheFrameSpentAtEntry(t *testing.T) {
 // Every return of a crossing body leaves the frame marked SPENT, and the word is
 // the LAST instruction of the block that returns.
 //
-// Last is the assertion, not an accident of where it was appended. SPENT is
-// truthful on this leg only because the drops of the owned captures run first:
-// a Copy capture carrying storage arrived as this crossing's own copy and the
-// local is its only holder, so a frame that claimed to hold nothing while that
-// local was still alive would strand exactly that copy. Ordering the word after
-// the drops is what makes the claim true, so anything appended after the word is
-// a frame that lies for as long as it stands there.
+// WHAT THE ORDERING HALF DOES AND DOES NOT SEE. rewriteSpawnOnPollReturns
+// appends the owned-capture drops and then the word, so ordering the word after
+// them is what would make the claim true on a body that has any: a Copy capture
+// carrying storage arrives as the crossing's own copy, the local is its only
+// holder, and a frame claiming to hold nothing while that local is still alive
+// would strand exactly that copy.
+//
+// This fixture has none, and no fixture can. Its two captures are an `own`
+// shard-movable, which is not a Copy capture and owns no heap either (`Movable`
+// is a struct of one `int`), and an `int`, which owns no heap — so the returning
+// block holds the word and nothing else, and "last" is true here for a reason
+// that is not the one above. Nor is a better fixture available: the only Copy
+// types that own heap are the reference-counted ones, and a crossing refuses
+// both — `@copy` alone is not sufficient for shard movement (SEM3170), and a
+// `@shard_movable` struct may not carry a `Channel<T>` field (SEM3171). The crossing's own drop
+// leg is therefore unreachable today; the reachable version of this shape is a
+// `blocking` capture, pinned in internal/crossinggate, which needs the real
+// standard library to have a reference-counted handle at all.
+//
+// So the count below is pinned at zero WITH that reason, in place of an ordering
+// argument this fixture cannot make. The day a Copy capture that owns heap can
+// cross, the count moves, this row goes red, and the ordering claim gets derived
+// against a body that can actually witness it instead of being assumed.
+const spawnOnOwnedCaptureDropsAtReturns = 0
+
 func TestSpawnOnPollMarksTheFrameSpentAtEveryReturn(t *testing.T) {
 	compiled := compileCrossingMIR(t, spawnOnCaptureUnpackSource,
 		map[sema.CrossingLoweringKind]bool{sema.CrossingLoweringSpawnOn: true})
 	poll := requireSyntheticBody(t, compiled.mod, "__spawn_on_block$")
 
 	returns := 0
+	drops := 0
 	for bi := range poll.Blocks {
 		bb := &poll.Blocks[bi]
 		if bb.Term.Kind != mir.TermAsyncReturn {
@@ -175,6 +199,11 @@ func TestSpawnOnPollMarksTheFrameSpentAtEveryReturn(t *testing.T) {
 			t.Errorf("%s bb%d ends the activation with no instructions at all; nothing marks the frame "+
 				"empty and whoever reclaims it walks what the body already took", poll.Name, bi)
 			continue
+		}
+		for ii := range bb.Instrs {
+			if bb.Instrs[ii].Kind == mir.InstrDrop {
+				drops++
+			}
 		}
 		word, ok := frameStateWord(&bb.Instrs[len(bb.Instrs)-1])
 		if !ok {
@@ -190,6 +219,12 @@ func TestSpawnOnPollMarksTheFrameSpentAtEveryReturn(t *testing.T) {
 	}
 	if returns == 0 {
 		t.Fatalf("%s has no returning block: the probe stopped measuring what it claims to", poll.Name)
+	}
+	if drops != spawnOnOwnedCaptureDropsAtReturns {
+		t.Errorf("%s synthesizes %d owned-capture drop(s) at its returns, not %d. Something made a Copy "+
+			"crossing capture that owns heap reachable; re-derive what orders the word against a body "+
+			"that can now witness it, rather than leaving this row asserting a sequence of one",
+			poll.Name, drops, spawnOnOwnedCaptureDropsAtReturns)
 	}
 }
 
@@ -230,8 +265,10 @@ func TestBlockingFrameIsPackedUntilTheBodyTakesIt(t *testing.T) {
 						"it consumed sit in the fields below it", f.Name, bi, ii, wordName(word))
 				}
 				if ins.Blocking.State.Fields[0].Name != mir.FrameStateField {
-					t.Fatalf("%s bb%d#%d builds a blocking state whose first field is %q; the word is read "+
-						"at offset zero", f.Name, bi, ii, ins.Blocking.State.Fields[0].Name)
+					t.Fatalf("%s bb%d#%d builds a blocking state whose first field is %q; the literal "+
+						"no longer reads in the order buildBlockingStateStruct declares, which is where "+
+						"the word's offset is actually decided",
+						f.Name, bi, ii, ins.Blocking.State.Fields[0].Name)
 				}
 			}
 		}
