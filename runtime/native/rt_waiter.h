@@ -74,11 +74,13 @@ typedef struct {
 //   rt_async_waiter.c  add_waiter, net arm: appends (key, task, hint,
 //       seq=0) to the fd owner's store, bumps net_len, attaches fd interest.
 //   rt_async_waiter.c  add_waiter, generic arm: appends (key, task, hint,
-//       seq=0) to the store rt_waiter_store_for_key routes to.
+//       seq=0) to the store rt_waiter_store_for_key routes to. A channel key
+//       here is a select subscription; the append registers its pin.
 //   rt_waiter_join_route.c  rt_waiter_add_join_waiter: appends a join entry
 //       under the route lock, after revalidating the route.
 //   rt_channel_lane.h  channel_park_prepare_locked, append arm: appends a
-//       channel entry stamped with a freshly bumped task->park_seq.
+//       channel entry stamped with a freshly bumped task->park_seq, and
+//       registers the pin that entry holds for as long as it exists.
 //
 // RE-ARM — rewrite an entry in place, no length change:
 //   rt_channel_lane.h  channel_park_prepare_locked, dedupe arm: an absorbed
@@ -90,20 +92,22 @@ typedef struct {
 // REMOVE — drop entries and compact:
 //   rt_async_waiter.c  remove_waiter_from_store_seq, the shared compactor
 //       behind remove_waiter and remove_waiter_generation: drops (key, task)
-//       entries, generation-qualified when seq!=0, counts same-key survivors
-//       and decrements net_len.
+//       entries, generation-qualified when seq!=0, counts same-key survivors,
+//       decrements net_len, and retires one channel pin per entry it dropped.
 //   rt_async_waiter.c  rt_executor_wake_net_waiters_for_key_on_owner: drains
 //       every entry of a net key into a wake batch, then detaches the fd
 //       interest under the same lock.
 //   rt_task_park.c  wake_key_all_with_policy, non-join arm: drains every
-//       entry of a scope/timer/blocking key into a wake batch.
+//       entry of a scope/timer/blocking key into a wake batch, and retires one
+//       channel pin per drained entry -- inert today, because no caller passes
+//       this a channel key, and present so the retire side stays complete.
 //   rt_waiter_join_route.c  rt_waiter_remove_join_waiter_generation: drops
 //       join entries matching (key, task) and, when seq!=0, that seq.
 //   rt_waiter_join_route.c  rt_waiter_collect_join_waiters: drains every
 //       entry of a join key into a wake batch.
 //   rt_channel_lane.h  channel_pop_candidate_locked: memmoves out the first
-//       FIFO entry for a channel key; the caller validates the candidate
-//       afterwards and drops it if the peer moved on.
+//       FIFO entry for a channel key and retires that entry's pin; the caller
+//       validates the candidate afterwards and drops it if the peer moved on.
 //
 // MOVE — remove from one shard's store and append to another's:
 //   rt_waiter_route.c  rt_waiter_migrate_join_waiters: drains join entries
@@ -129,16 +133,23 @@ typedef struct {
 // any task can park on it. Nothing rebinds it afterwards, and both migrators
 // above filter on join_key, so a channel entry never changes stores.
 //
-// A channel key OUTLIVES its channel (RV2-DEBT-199). A far channel is freed at
-// rt_far_channel.c's release_entry, and the deferred stale-key removal in
-// rt_task_park.c's wake_task_with_policy still holds the parked task's channel
-// key across the window in which the woken task completes, unpins the registry
-// entry and frees the object. Because the shard is fixed before any park (the
-// paragraph above), channel_send_key / channel_recv_key stamp it into the key's
-// owner_shard_id field and rt_waiter_route.c routes on that copy — a channel
-// key must therefore be treated as an OPAQUE identity, never as a pointer to
-// dereference. Entry MATCHING is unaffected: every comparison in this file's
-// mutation points tests kind and id only.
+// A channel key CARRIED by a caller outlives its channel (RV2-DEBT-199). A far
+// channel is freed at rt_far_channel.c's release_entry, and the deferred
+// stale-key removal in rt_task_park.c's wake_task_with_policy still holds the
+// parked task's channel key across the window in which the woken task
+// completes, releases the registry entry and retires the object. Because the
+// shard is fixed before any park (the paragraph above), channel_send_key /
+// channel_recv_key stamp it into the key's owner_shard_id field and
+// rt_waiter_route.c routes on that copy — a channel key must therefore be
+// treated as an OPAQUE identity, never as a pointer to dereference. Entry
+// MATCHING is unaffected: every comparison in this file's mutation points tests
+// kind and id only.
+//
+// A channel key IN THE STORE is the one exception, and it is not a weakening of
+// the rule above: the entry holds an internal pin, so while it exists the
+// object it names is provably alive. That is why the two hooks below may act on
+// the key as a pointer where nothing else may. The carried key is the dangerous
+// one precisely because it is a copy nothing counts.
 typedef struct {
     waiter* entries;
     size_t len;
@@ -171,6 +182,20 @@ waker_key blocking_key(uint64_t id);
 waker_key remote_spawn_reply_key(uint64_t id, uint32_t owner_shard_id);
 uint32_t rt_channel_owner_shard_id(const rt_channel* ch);
 void rt_channel_bind_owner_shard(void* channel, uint32_t shard_id);
+
+// A store entry on a channel key is one of the internal pins section 7 of
+// docs/RUNTIME_V2.md counts, so the object cannot be reclaimed while the entry
+// still names it. These two are the hooks the mutation points above call: every
+// INSERT of a channel entry registers one, and every REMOVE of `count` of them
+// retires that many. Both ignore a key of any other kind, so a caller that
+// handles all kinds calls them unconditionally.
+//
+// This is what makes the key safe to act on. A key is otherwise an opaque
+// identity precisely because it can outlive its object; while an entry holds
+// it, the object is provably alive, so the pin is taken and released through
+// the key itself rather than through a pointer a caller had to keep.
+void rt_channel_key_registered(waker_key key);
+void rt_channel_key_retired(waker_key key, size_t count);
 
 rt_runtime_status rt_waiter_store_ensure_cap(rt_waiter_store* store);
 rt_waiter_store* rt_waiter_store_for_key(rt_executor* ex, waker_key key);

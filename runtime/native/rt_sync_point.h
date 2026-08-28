@@ -398,6 +398,17 @@ void rt_sync_point_open(void);
 // building the key holds it, so routing reads the key and never the object.
 // Defining the negative control restores the dereference, which the
 // deterministic proof MUST observe as an ASan heap-use-after-free.
+//
+// IT MUST NOW BE DEFINED TOGETHER WITH RV2_CHANNEL_PIN_NEGATIVE_CONTROL below.
+// A store entry on a channel key holds an internal pin, so while the entry
+// exists the object is alive and the restored dereference reads live storage:
+// this control alone no longer reproduces anything, and a control that
+// reproduces nothing is a proof that passes without running. The pin is a
+// SECOND defence against the same hazard, not a replacement for this fix -- a
+// key a caller merely CARRIES is still a copy nothing counts, and the routing
+// path is reached with exactly such a copy -- so the two controls compose: the
+// pin control removes the hold, this one restores the dereference, and together
+// they are the pre-fix world the ASan run must fail in.
 #ifdef RV2_DEBT_199_NEGATIVE_CONTROL
 #define RT_DEBT199_CHANNEL_OWNER_SHARD(key)                                                        \
     rt_channel_owner_shard_id((const rt_channel*)(uintptr_t)(key).id)
@@ -424,6 +435,7 @@ void rt_sync_point_open(void);
 // inert, so a reclaim that races a live holder proceeds into the drain and the
 // use-after-free lands where a sanitizer can name it, instead of being refused
 // with a sentence at the point of the mistake.
+//
 #ifdef RV2_DEBT_155_NEGATIVE_CONTROL
 #define RT_DEBT155_HANDLE_ACQUIRE(refs) ((*(uint32_t*)(void*)(refs))++)
 #define RT_DEBT155_HANDLE_RELEASE(refs) ((*(uint32_t*)(void*)(refs))--)
@@ -433,6 +445,36 @@ void rt_sync_point_open(void);
 #define RT_DEBT155_HANDLE_RELEASE(refs) atomic_fetch_sub_explicit((refs), 1, memory_order_acq_rel)
 #define RT_DEBT155_STILL_NAMED(count) (count)
 #endif
+
+// The channel PIN's own negative control, separate from the handle count's
+// above because it removes a different defence and each must be removable
+// alone.
+//
+// A handle answers the language's question -- may a program still send on
+// this? -- and a pin answers the runtime's: is a registered waiter, a select
+// subscription, or a claimed operation still INSIDE the object? Only the pin
+// can refuse a reclaim that no handle is left to refuse.
+//
+// Defining this makes the acquire inert, so the count never leaves zero and a
+// reclaim proceeds under a live holder. The registration leg of the quiescence
+// assertion goes inert with it, and must: it exists because a registration is a
+// pin, so with pins removed it would refuse the very reclaim this control is
+// asking to let through, and the run would end at a panic instead of at the
+// defect. What is left is the pre-pin world -- a program that drops its last
+// handle while a waiter is registered destroys the channel's buffered payloads
+// there, a difference the census states as a number, and the key that
+// registration still holds names freed storage.
+#ifdef RV2_CHANNEL_PIN_NEGATIVE_CONTROL
+#define RT_CHANNEL_PIN_ACQUIRE(pins) ((void)(pins), (uint32_t)0)
+#define RT_CHANNEL_REGISTERED(count) ((void)(count), (size_t)0)
+#else
+#define RT_CHANNEL_PIN_ACQUIRE(pins) atomic_fetch_add_explicit((pins), 1, memory_order_relaxed)
+#define RT_CHANNEL_REGISTERED(count) (count)
+#endif
+// The release is never toggled: with the acquire inert the count never leaves
+// zero and rt_channel_unpin returns before reaching this, so a second spelling
+// would only be a second thing to keep in step.
+#define RT_CHANNEL_PIN_RELEASE(pins) atomic_fetch_sub_explicit((pins), 1, memory_order_acq_rel)
 
 // RV2-DEBT-080 negative-control toggle. The fixed release destroys a blocking
 // job's captures through their own descriptor: an initialized state cell is

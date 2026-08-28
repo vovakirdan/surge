@@ -8,6 +8,13 @@
 // The claim/move/finish cycle, spelled once for every caller that owns no lock
 // of its own: take the lock, claim, release, run the element's move, take the
 // lock again, finish. Every public channel entry point below is this shape.
+//
+// The release in the middle is the window section 7's internal pin exists for:
+// the element's move runs there, generated code that may not run under a
+// scheduler lock, and a handle dropped on another lane in that window retires
+// the last name of the channel while this operation is still inside it. Each
+// entry point therefore pins the object for its own duration -- an operation
+// hold, counted apart from the handles a program holds.
 bool rt_channel_try_send(void* channel, void* src) {
     rt_executor* ex = ensure_exec();
     rt_channel* ch = channel_from_handle(channel);
@@ -15,11 +22,13 @@ bool rt_channel_try_send(void* channel, void* src) {
         return 0;
     }
     rt_shard* ch_shard = channel_owner_shard(ex, ch);
+    rt_channel_pin(ch);
     rt_shard_lock(ch_shard);
     rt_channel_put put;
     uint8_t status = rt_channel_try_send_status_owner_locked(ex, ch_shard, ch, &put);
     if (status != 1) {
         rt_shard_unlock(ch_shard);
+        rt_channel_unpin(ch);
         return 0;
     }
     rt_shard_unlock(ch_shard);
@@ -27,6 +36,7 @@ bool rt_channel_try_send(void* channel, void* src) {
     rt_shard_lock(ch_shard);
     rt_channel_finish_put_owner_locked(ex, ch_shard, ch, &put);
     rt_shard_unlock(ch_shard);
+    rt_channel_unpin(ch);
     // The slot is NOT released here. A delivery hands the value to the receiver
     // that now owns the park; ending it from this side destroys the value the
     // receiver is about to take, which is how a delivered value went missing
@@ -41,11 +51,13 @@ bool rt_channel_try_recv(void* channel, void* dst) {
         return 0;
     }
     rt_shard* ch_shard = channel_owner_shard(ex, ch);
+    rt_channel_pin(ch);
     rt_shard_lock(ch_shard);
     rt_channel_take take;
     uint8_t status = rt_channel_try_recv_status_owner_locked(ex, ch_shard, ch, &take);
     if (status != 1) {
         rt_shard_unlock(ch_shard);
+        rt_channel_unpin(ch);
         return 0;
     }
     rt_shard_unlock(ch_shard);
@@ -60,6 +72,7 @@ bool rt_channel_try_recv(void* channel, void* dst) {
         channel_end_park_locked(ch_shard, ch, &take.slot);
     }
     rt_shard_unlock(ch_shard);
+    rt_channel_unpin(ch);
     return 1;
 }
 
@@ -387,17 +400,24 @@ void rt_channel_send_blocking(void* channel, void* src) {
         return;
     }
     rt_async_debug_printf("async chan send start ch=%p\n", (void*)ch);
+    // One operation hold for the whole helper, including the retries: the
+    // control-lane loop below claims, RELEASES control to run the element's
+    // move, and retakes it to finish, and the channel must not be reclaimed in
+    // between.
+    rt_channel_pin(ch);
     if (rt_current_task() != NULL) {
         rt_trace_channel_task_blocking_send();
         while (!rt_channel_send(channel, src)) {
             if (current_task_cancelled(ex)) {
                 pending_key = waker_none();
+                rt_channel_unpin(ch);
                 return;
             }
             channel_blocking_yield();
         }
         pending_key = waker_none();
         rt_async_debug_printf("async chan send ok ch=%p\n", (void*)ch);
+        rt_channel_unpin(ch);
         return;
     }
     for (;;) {
@@ -411,10 +431,12 @@ void rt_channel_send_blocking(void* channel, void* src) {
             rt_channel_finish_send_locked(ex, channel, &put);
             rt_control_unlock(ex);
             rt_async_debug_printf("async chan send ok ch=%p\n", (void*)ch);
+            rt_channel_unpin(ch);
             return;
         }
         if (status == 2) {
             rt_async_debug_printf("async chan send closed ch=%p\n", (void*)ch);
+            rt_channel_unpin(ch);
             panic_msg("send on closed channel");
             return;
         }
@@ -429,6 +451,9 @@ uint8_t rt_channel_recv_blocking(void* channel, void* dst) {
         return 2;
     }
     rt_async_debug_printf("async chan recv start ch=%p\n", (void*)ch);
+    // Pinned for the same reason the send helper is: the control-lane loop
+    // below releases control across the element's move.
+    rt_channel_pin(ch);
     if (rt_current_task() != NULL) {
         rt_trace_channel_task_blocking_recv();
         for (;;) {
@@ -440,10 +465,12 @@ uint8_t rt_channel_recv_blocking(void* channel, void* dst) {
                 } else if (status == 2) {
                     rt_async_debug_printf("async chan recv closed ch=%p\n", (void*)ch);
                 }
+                rt_channel_unpin(ch);
                 return status;
             }
             if (current_task_cancelled(ex)) {
                 pending_key = waker_none();
+                rt_channel_unpin(ch);
                 return 2;
             }
             channel_blocking_yield();
@@ -468,6 +495,7 @@ uint8_t rt_channel_recv_blocking(void* channel, void* dst) {
             } else if (status == 2) {
                 rt_async_debug_printf("async chan recv closed ch=%p\n", (void*)ch);
             }
+            rt_channel_unpin(ch);
             return status;
         }
         channel_blocking_yield();
@@ -484,9 +512,15 @@ void rt_channel_close(void* channel) {
     rt_shard* ch_shard = channel_owner_shard(ex, ch);
     waker_key keys[2] = {channel_recv_key(ch), channel_send_key(ch)};
     const uint8_t resumes[2] = {RESUME_CHAN_RECV_CLOSED, RESUME_CHAN_SEND_CLOSED};
+    // Closing settles every parked peer, and each pop below retires the pin its
+    // registration held. The last one can be the last hold on the object, so
+    // this operation holds one of its own for the whole walk -- otherwise the
+    // loop would be draining a channel it had just handed to the reclaim.
+    rt_channel_pin(ch);
     rt_shard_lock(ch_shard);
     if (ch->closed) {
         rt_shard_unlock(ch_shard);
+        rt_channel_unpin(ch);
         return;
     }
     ch->closed = 1;
@@ -514,4 +548,5 @@ void rt_channel_close(void* channel) {
         }
     }
     rt_shard_unlock(ch_shard);
+    rt_channel_unpin(ch);
 }

@@ -352,3 +352,59 @@ void rt_typed_fifo_drain(rt_typed_fifo* fifo) {
     }
     rt_typed_fifo_clear_reservation(fifo);
 }
+
+void rt_typed_fifo_detach_all_locked(rt_typed_fifo* fifo, rt_typed_fifo_detached* out) {
+    if (out == NULL) {
+        return;
+    }
+    out->head = 0;
+    out->len = 0;
+    if (fifo == NULL || fifo->operations == NULL) {
+        return;
+    }
+    out->head = fifo->head;
+    out->len = fifo->len;
+    fifo->head = 0;
+    fifo->len = 0;
+    // A ticket taken before this names a turn of a cell that no longer belongs
+    // to the queue, so its commit must fail rather than publish into storage
+    // the teardown is about to destroy.
+    fifo->next_generation++;
+    rt_typed_fifo_clear_reservation(fifo);
+}
+
+void rt_typed_fifo_drop_detached(rt_typed_fifo* fifo, const rt_typed_fifo_detached* detached) {
+    if (fifo == NULL || fifo->operations == NULL || detached == NULL || fifo->capacity == 0) {
+        return;
+    }
+    int first = 1;
+    for (uint64_t offset = 0; offset < detached->len; offset++) {
+        uint64_t index = (detached->head + offset) % fifo->capacity;
+        if (fifo->headers[index].state != RT_SLOT_INITIALIZED) {
+            continue;
+        }
+        void* cell = rt_typed_fifo_cell(fifo, index);
+        if (!rt_typed_fifo_bind_control(fifo, index, first)) {
+            // Same refusal the drain reports by leaving the queue non-empty:
+            // dropping without the cycle proves nothing about how many times
+            // it happened. Here the evidence left behind is the initialized
+            // header, which the owner's own accounting reads.
+            return;
+        }
+        first = 0;
+        uint64_t generation = fifo->control.generation;
+        rt_claim_token token;
+        if (rt_slot_publish_initial_locked(&fifo->control, generation) != RT_SLOT_CONTROL_OK ||
+            rt_slot_claim_exclusive_locked(
+                &fifo->control, NULL, RT_SLOT_CLAIM_DROP, generation, 0, &token) !=
+                RT_SLOT_CONTROL_OK) {
+            return;
+        }
+        // Cleared BEFORE the callback, so a drop that re-enters finds no cell
+        // it could destroy a second time.
+        fifo->headers[index].state = RT_SLOT_DROPPED;
+        rt_value_drop_in_place_detached(fifo->operations, cell);
+        rt_slot_commit_drop_locked(&fifo->control, &token);
+        fifo->headers[index].state = RT_SLOT_EMPTY;
+    }
+}

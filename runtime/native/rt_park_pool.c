@@ -462,3 +462,35 @@ void rt_park_pool_drain(rt_park_pool* pool) {
         }
     }
 }
+
+void rt_park_pool_detach_all_locked(rt_park_pool* pool) {
+    if (pool == NULL || pool->operations == NULL) {
+        return;
+    }
+    for (uint64_t index = 0; index < pool->capacity; index++) {
+        rt_park_slot* slot = &pool->slots[index];
+        slot->live = 0;
+        slot->reserved = 0;
+        slot->next_free = RT_PARK_POOL_NO_FREE;
+        // Forward only, as everywhere else: a token from the park that just
+        // ended can never match the number this slot carries now.
+        slot->generation = pool->next_generation++;
+    }
+    pool->live = 0;
+    // No successor may be handed a slot in a pool that is being destroyed, so
+    // the free list is emptied rather than rebuilt.
+    pool->first_free = RT_PARK_POOL_NO_FREE;
+}
+
+void rt_park_pool_drop_detached(rt_park_pool* pool) {
+    if (pool == NULL || pool->operations == NULL) {
+        return;
+    }
+    int first = 1;
+    for (uint64_t index = 0; index < pool->capacity; index++) {
+        if (pool->headers[index].state == RT_SLOT_INITIALIZED) {
+            rt_park_pool_destroy_slot(pool, index, first);
+            first = 0;
+        }
+    }
+}

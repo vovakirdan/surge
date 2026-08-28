@@ -139,4 +139,19 @@ rt_slot_control_status rt_park_pool_release(rt_park_pool* pool, const rt_park_to
 // it must be called with no owner lock held.
 void rt_park_pool_drain(rt_park_pool* pool);
 
+// The two halves of a teardown, for an owner whose destruction other lanes can
+// observe. A drain ends one park and destroys its value before it looks at the
+// next, which leaves the pool half torn down while an element's drop runs; an
+// owner that must be quiescent before the first drop ends EVERY park first.
+//
+// Detach runs no element operation: it ends every park, moves every slot's
+// generation forward so no token issued before can name a slot again, and
+// empties the free list so nothing can acquire one. The payload bytes stay
+// where they are; the initialized headers are what the drop half reads.
+void rt_park_pool_detach_all_locked(rt_park_pool* pool);
+
+// Destroys the values the matching detach left behind, exactly once each. Runs
+// element drops, so no owner lock may be held.
+void rt_park_pool_drop_detached(rt_park_pool* pool);
+
 #endif

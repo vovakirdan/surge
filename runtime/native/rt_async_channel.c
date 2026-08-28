@@ -93,99 +93,6 @@ void* rt_channel_new(uint64_t capacity, const rt_value_ops* ops, uint64_t elemen
     return ch;
 }
 
-// Reclaims the single rt_alloc block rt_channel_new made (header + inline
-// buffer): the size is reconstructed deterministically from the stored
-// capacity, the same way emitTagValueFromValues-style leaf frees elsewhere
-// in the runtime recompute their own allocation size. See rt.h for the
-// caller-responsibility contract (no other live holder). Drains every
-// still-buffered entry through payload_drop_fn_id first (a no-op walk when
-// it's 0, the Copy/inert case): the only caller today, release_entry
-// (rt_far_channel.c), only reaches this after confirming no lease or pin
-// can resolve the channel anymore, so the buffer is quiescent here without
-// this function taking any lock of its own.
-// rt_channel_free_when_unlocked reclaims now if this lane holds no scheduler
-// lock, and otherwise hands the channel to the lane's deferred work.
-//
-// Callers reach this holding control because completion bookkeeping runs
-// there: mark_done takes the control lane, and a far-channel unpin that drops
-// the last pin reclaims from inside it. Draining the buffer under that lock
-// runs an element's drop with the scheduler held, which the typed flip turns
-// from a latent rule into a deadlock.
-typedef struct {
-    void** items;
-    size_t len;
-    size_t cap;
-} rt_channel_reclaim_queue;
-
-static _Thread_local rt_channel_reclaim_queue channel_reclaim_queue;
-
-void rt_channel_free_when_unlocked(void* channel) {
-    if (channel == NULL) {
-        return;
-    }
-    if (!rt_lane_holds_control() && !rt_lane_holds_any_shard()) {
-        rt_channel_free(channel);
-        return;
-    }
-    rt_channel_reclaim_queue* queue = &channel_reclaim_queue;
-    if (queue->len == queue->cap) {
-        size_t next_cap = queue->cap == 0 ? 4 : queue->cap * 2;
-        void** grown = (void**)rt_alloc(next_cap * sizeof(void*), _Alignof(void*));
-        if (grown == NULL) {
-            // Dropping the pointer would leak the channel silently, which is
-            // worse than the rule this queue exists to keep.
-            panic_msg("async: channel reclaim queue allocation failed");
-            return;
-        }
-        for (size_t i = 0; i < queue->len; i++) {
-            grown[i] = queue->items[i];
-        }
-        if (queue->items != NULL) {
-            rt_free((uint8_t*)queue->items, queue->cap * sizeof(void*), _Alignof(void*));
-        }
-        queue->items = grown;
-        queue->cap = next_cap;
-    }
-    queue->items[queue->len++] = channel;
-}
-
-// rt_channel_reclaim_drain is called by the lane at the moment it releases its
-// last scheduler lock, so by construction nothing is held here.
-void rt_channel_reclaim_drain(void) {
-    rt_channel_reclaim_queue* queue = &channel_reclaim_queue;
-    while (queue->len > 0) {
-        void* channel = queue->items[--queue->len];
-        rt_channel_free(channel);
-    }
-}
-
-void rt_channel_free(void* channel) {
-    rt_channel* ch = channel_from_handle(channel);
-    // The drains below run USER code -- an element's drop_in_place -- so no
-    // scheduler lock may be held here: a drop that reenters the runtime while
-    // control is held would deadlock rather than misbehave visibly. Fail
-    // closed, naming the lane, instead of leaving the rule to whoever reads
-    // the caller contract in rt.h.
-    if (rt_lane_holds_control() || rt_lane_holds_any_shard()) {
-        panic_msg("async: channel reclaim ran while a scheduler lock was held");
-    }
-    // And nothing may still NAME it: no handle the program could send through,
-    // no pin an operation is inside of (rt_channel_refcount.h).
-    rt_channel_assert_reclaimable(ch);
-    // Everything the channel still owns: what is buffered, and what was staged
-    // for or delivered to a park that never completed. Each is destroyed
-    // exactly once by its owner's own drain.
-    rt_typed_fifo_drain(&ch->ring);
-    rt_park_pool_drain(&ch->parks);
-    size_t align = ch->ops != NULL && ch->ops->layout.align > _Alignof(rt_channel)
-                       ? ch->ops->layout.align
-                       : _Alignof(rt_channel);
-    uint64_t bytes = channel_alloc_size(ch->ops, ch->capacity);
-    rt_async_debug_printf(
-        "async chan free ch=%p cap=%llu\n", (void*)ch, (unsigned long long)ch->capacity);
-    rt_free((uint8_t*)ch, bytes, align);
-}
-
 // Destroys a value taken out of a channel that will never reach a receiver.
 //
 // A select's winning recv arm is the caller this exists for. Taking the value
@@ -445,15 +352,48 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
     }
 }
 
+// The operation's own hold on the object, and the reason the entry points below
+// are wrappers rather than the loops themselves.
+//
+// The loop RELEASES the owner shard lock at every step that runs generated
+// code, because no element move or drop may run under a scheduler lock:
+// channel_stage_locked's move into a park slot, the buffered push beside it,
+// each of the four takes in the receive loop, channel_end_park_locked's drop
+// and channel_stage_into_ring_locked's move in rt_channel_lane.h, and the three
+// helpers that release the owner lock to take a peer's. A handle dropped on
+// another lane inside any of those windows retires the last NAME of the channel
+// while this operation is still inside it, and without a pin the reclaim would
+// free the storage the move is writing into.
+//
+// One pin for the whole operation covers every window by construction. A pin
+// per window would have to be paired down each of the loop's dozen early
+// returns, and the first one missed is either a channel that leaks forever or
+// exactly the free this is here to stop.
+static bool channel_send_pinned(void* channel, void* src, int yield_after_handoff) {
+    rt_channel_pin(channel);
+    bool done = rt_channel_send_inner(channel, src, yield_after_handoff);
+    rt_channel_unpin(channel);
+    return done;
+}
+
 bool rt_channel_send(void* channel, void* src) {
-    return rt_channel_send_inner(channel, src, 0);
+    return channel_send_pinned(channel, src, 0);
 }
 
 bool rt_channel_send_yield(void* channel, void* src) {
-    return rt_channel_send_inner(channel, src, 1);
+    return channel_send_pinned(channel, src, 1);
 }
 
+static uint8_t rt_channel_recv_inner(void* channel, void* dst);
+
 uint8_t rt_channel_recv(void* channel, void* dst) {
+    rt_channel_pin(channel);
+    uint8_t status = rt_channel_recv_inner(channel, dst);
+    rt_channel_unpin(channel);
+    return status;
+}
+
+static uint8_t rt_channel_recv_inner(void* channel, void* dst) {
     rt_executor* ex = ensure_exec();
     rt_channel* ch = channel_from_handle(channel);
     if (ex == NULL || ch == NULL) {

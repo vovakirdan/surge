@@ -196,6 +196,7 @@ static size_t remove_waiter_from_store_seq(rt_waiter_store* store,
     }
     store->len = out;
     net_waiters_removed(store, key, removed);
+    rt_channel_key_retired(key, removed);
     if (out_kept_same_key != NULL) {
         *out_kept_same_key = kept_same_key;
     }
@@ -445,13 +446,6 @@ static void ensure_wait_keys_cap(rt_task* task, size_t want) {
     task->wait_keys_cap = next_cap;
 }
 
-static size_t remove_waiter_from_store(rt_waiter_store* store,
-                                       waker_key key,
-                                       uint64_t task_id,
-                                       size_t* out_kept_same_key) {
-    return remove_waiter_from_store_seq(store, key, task_id, 0, out_kept_same_key);
-}
-
 // Generation-qualified removal (blocker fix): the deferred stale-key
 // removal in wake_task_with_policy runs after the owner lock is released,
 // and the woken task can re-register the same channel key in that window.
@@ -504,8 +498,8 @@ void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
         if (store_shard != NULL) {
             rt_shard_lock(store_shard);
         }
-        (void)remove_waiter_from_store(
-            rt_waiter_store_for_key(ex, key), key, task_id, &kept_same_key);
+        (void)remove_waiter_from_store_seq(
+            rt_waiter_store_for_key(ex, key), key, task_id, 0, &kept_same_key);
         if (store_shard != NULL) {
             rt_shard_unlock(store_shard);
         }
@@ -528,7 +522,7 @@ void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
             rt_shard_lock(shard);
         }
         size_t removed_on_shard =
-            remove_waiter_from_store(shard_store, key, task_id, &kept_on_shard);
+            remove_waiter_from_store_seq(shard_store, key, task_id, 0, &kept_on_shard);
         if (shard_store == owner_store) {
             owner_removed = removed_on_shard;
             owner_kept_same_key = kept_on_shard;
@@ -605,6 +599,7 @@ void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
         status = rt_waiter_store_ensure_cap(store);
         if (status == RT_RUNTIME_STATUS_OK) {
             store->entries[store->len++] = (waiter){key, task_id, owner_hint, 0};
+            rt_channel_key_registered(key);
         }
         if (store_shard != NULL) {
             rt_shard_unlock(store_shard);

@@ -380,11 +380,20 @@ void rt_channel_close(void* channel);
 // handle was moved out of holds NULL and the container's glue still visits it.
 void rt_channel_handle_retain(void* channel);
 void rt_channel_handle_drop(void* channel);
-// Reclaims a channel object's memory (header + inline buffer, one
-// allocation), draining every still-buffered entry through the channel's
-// own payload_drop_fn_id first (a no-op for Copy/inert elements). Callers
-// must already know no other holder can reach this channel — never call
-// this on a channel another live handle can still resolve.
+// Reclaims a channel object's memory (header + inline buffer, one allocation),
+// destroying everything it still holds first: the buffered values and whatever
+// a park slot was left holding, each exactly once through the element's own
+// drop.
+//
+// Callers must already know no other holder can reach this channel — never
+// call this on a channel another live handle, waiter, subscription or
+// in-flight operation can still resolve. It does not take that on trust: it
+// refuses, naming what it found, and the ordinary way to reach it is to drop
+// the last handle rather than to call it.
+//
+// Takes the channel owner's shard lock for the detaching half of its teardown,
+// so it must be called with NO scheduler lock held. Callers that cannot
+// promise that go through rt_channel_free_when_unlocked instead.
 void rt_channel_free(void* channel);
 
 // A map's keys and values live in exact typed storage, so every entry point

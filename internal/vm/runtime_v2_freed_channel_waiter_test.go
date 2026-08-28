@@ -61,7 +61,18 @@ func buildFreedChannelWaiterHarness(t *testing.T, negativeControl bool) string {
 		"-o", bin,
 	}
 	if negativeControl {
-		args = append(args, "-DRV2_DEBT_199_NEGATIVE_CONTROL")
+		// TWO controls, because there are now two defences and the pre-fix
+		// world is the absence of both. The first restores the dereference of
+		// a channel key during routing. The second removes the internal pin a
+		// store entry holds: with it in place the stale registration keeps the
+		// object alive, the restored dereference reads live storage, and this
+		// build would exit cleanly -- a proof that passes without running.
+		// Neither control substitutes for the other: the routing path is
+		// reached with a key a caller merely CARRIES, which is a copy nothing
+		// counts, so the fix under test here is still the one that must hold.
+		args = append(args,
+			"-DRV2_DEBT_199_NEGATIVE_CONTROL",
+			"-DRV2_CHANNEL_PIN_NEGATIVE_CONTROL")
 	}
 	args = append(args, fixtures...)
 	for _, source := range sources {

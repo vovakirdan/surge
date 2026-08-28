@@ -334,6 +334,21 @@ int pthread_cond_broadcast(pthread_cond_t* cond) {
     return 0;
 }
 
+// A store entry on a CHANNEL key holds one of the channel's internal pins, and
+// the waiter file registers and retires it at the insert and remove points.
+// This stand links the waiter files alone and builds no channel at all -- every
+// key here is a net or join key, for which both hooks are no-ops in the real
+// module too -- so they are stubbed rather than pulled in, exactly as the
+// scheduler locks above are.
+void rt_channel_key_registered(waker_key key) {
+    (void)key;
+}
+
+void rt_channel_key_retired(waker_key key, size_t count) {
+    (void)key;
+    (void)count;
+}
+
 	#include "rt_fd_registry.c"
 	#include "rt_async_waiter.c"
 	#include "rt_waiter_route.c"

@@ -23,12 +23,17 @@
 // number could not tell a channel with no holders that is quiescent from one
 // with no holders that is mid-delivery, and only the first may be destroyed.
 //
-// Nothing here runs generated code and nothing here takes a scheduler lock
-// (section 8, P2). The last release hands the object to
-// rt_channel_free_when_unlocked, which reclaims immediately on a lane that
-// holds no lock and defers to the moment that lane lets go otherwise --
-// because reclaiming drains the buffer, and a drain runs the element's own
-// drop.
+// No RELEASE here runs generated code or takes a scheduler lock (section 8,
+// P2): the last one hands the object to rt_channel_free_when_unlocked, which
+// reclaims immediately on a lane that holds no lock and defers to the moment
+// that lane lets go otherwise -- because reclaiming drains the buffer, and a
+// drain runs the element's own drop.
+//
+// The RECLAIM itself does both, in the order section 7 prescribes and in that
+// order only: it takes the owner lock, marks the object dying, detaches every
+// initialized slot and invalidates the generations; releases the lock; runs
+// drop_in_place on what it detached; frees the storage. Nothing user-written
+// runs while the lock is held, and nothing is half-detached while it runs.
 
 // Zeroes a fresh channel header and gives it the one handle its creator holds.
 // Called by rt_channel_new instead of the bare memset it replaces, so that no
@@ -49,17 +54,54 @@ void rt_channel_handle_drop(void* channel);
 // it says "an operation is inside this object", never "a program may still
 // use it", and the two are counted apart for that reason.
 //
-// C0 defines the counter and the pair; the registration sites are C3's. Until
-// then the count is provably zero, which is what makes the fail-closed
-// assertion below meaningful rather than aspirational.
+// THE THREE HOLDERS, AND WHERE EACH TAKES ITS PIN.
+//
+//   A registered waiter -- channel_park_prepare_locked's append arm
+//     (rt_channel_lane.h), retired by channel_pop_candidate_locked and by
+//     remove_waiter_from_store_seq (rt_async_waiter.c).
+//   A select subscription -- add_waiter's generic arm (rt_async_waiter.c),
+//     retired by the same removal.
+//   A claimed detached operation -- rt_channel_send / rt_channel_send_yield /
+//     rt_channel_recv (rt_async_channel.c), rt_channel_close and the
+//     try/blocking/claim lanes (rt_channel_sync.c), rt_channel_release_payload.
+//
+// WHY THE THIRD ONE IS AN OPERATION AND NOT A LINE. A channel operation
+// RELEASES the owner shard lock across every step that runs generated code,
+// because no element move or drop may run under a scheduler lock. There are
+// nine such windows and the operation is inside the object across all of them:
+// channel_stage_locked's move into a park slot and the buffered push beside it;
+// the four takes in rt_channel_recv (a delivered value, the ring's head, a
+// same-shard parked sender's slot, a foreign one's); channel_end_park_locked's
+// drop and channel_stage_into_ring_locked's move (rt_channel_lane.h); and
+// channel_wake_only / channel_deliver_foreign / channel_claim_foreign_sender_locked,
+// which release the owner lock to take a peer's. A pin per window would have to
+// be paired down every early return in all of them; one pin for the operation
+// covers each window by construction, and is the reading section 7 asks for --
+// the operation is what is CLAIMED, and the moves inside it are what is
+// DETACHED.
+//
+// The two holders compose, and the composition is load-bearing: popping a
+// candidate retires a waiter's pin, and the operation that popped it keeps
+// using the channel afterwards on its own.
 void rt_channel_pin(void* channel);
 void rt_channel_unpin(void* channel);
 
-// Fail-closed, called by rt_channel_free before it destroys anything: nothing
-// may still name the object. Panics when a handle or a pin is outstanding, and
-// reports (without refusing) a waiter still registered on either of the
-// channel's two keys -- that one is a debug invariant rather than the
-// mechanism, because the mechanism is the pin a registered waiter will hold.
-void rt_channel_assert_reclaimable(void* channel);
+// Fail-closed, called by rt_channel_free under the owner lock before it detaches
+// anything: nothing may still name the object. Panics when a handle is
+// outstanding, when a pin is, or when a waiter is still registered on either of
+// the channel's two keys. That last one used to report and continue, because
+// nothing took a pin for a registration; now that the registration IS a pin, an
+// entry here means the counting is wrong, which is exactly what a fail-closed
+// assertion is for.
+//
+// `owner` is the channel's owner shard, locked by the caller, or NULL when the
+// runtime has no shard for it -- then there is no store to read and the two
+// counts answer alone.
+//
+// rt_channel_free, rt_channel_free_when_unlocked and rt_channel_reclaim_drain
+// are declared with the rest of the async surface in rt_async_internal.h and
+// defined in this module, next to the counts that decide when they run.
+struct rt_shard;
+void rt_channel_assert_reclaimable_locked(const struct rt_shard* owner, void* channel);
 
 #endif

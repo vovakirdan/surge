@@ -9061,101 +9061,130 @@ status return the condition for being rollback-capable. RV2-DEBT-305: the two
 bounded child-process controls do not exist and the lifecycle harness has no
 child process to build them in.
 
-## A cancelled task keeps its scope, and the copied switch that kept it (2026-08-28)
+## The channel's two internal pins, and a teardown in the document's order — 2026-08-28
 
-**What was wrong.** `run_ready_one` (the single-worker control runner,
-`runtime/native/rt_async_poll.c`) carried its own copy of `apply_poll_outcome`'s
-switch, one per task kind, and the copies had drifted: their `POLL_DONE_CANCELLED`
-arms called `mark_done` directly, with none of the scope teardown the shared
-applier performs. Every async body opens a scope at the top of its own poll
-whether or not it spawns anything, so a task cancelled at its first suspension
-point abandoned one 64-byte `rt_scope` block, forever, once per cancellation.
+**What was there.** `rt_channel_pin` / `rt_channel_unpin` existed, were declared,
+and had ZERO callers, so `ch->pins` was provably zero and the pin leg of the
+fail-closed reclaim assertion refused nothing it could not already refuse
+through the handle count. Alongside it, `rt_channel_free` performed none of
+section 7's prescribed teardown order: it took no owner lock (and refused to run
+under one), carried no dying mark, and interleaved detach with drop slot by slot
+through `rt_typed_fifo_drain` / `rt_park_pool_drain`. Only "free the storage"
+happened where the document puts it. And the channel's registrations on its two
+waiter keys were never removed at reclaim: a debug-only counter looked at them
+and PRINTED.
 
-**What changed.** Both arms of `run_ready_one` now call `apply_poll_outcome`,
-the same applier the shard-lane worker turn (`rt_worker_turn.c`) and the inline
-child poll (`rt_async_task.c`) already used. `rt_async_poll.c` goes 391 -> 363
-physical lines, 301 effective. Behaviour deltas beyond the cancelled arm, both
-checked before making the change: the yielded arm now pushes through
-`ready_push_yielded_task` instead of `ready_push`, which on this runner resolves
-to the same inject queue (`current_local_queue` returns NULL off a worker thread,
-`rt_ready_queue.c`) and differs only in a `worker_cv` signal that nothing can be
-waiting on here (`maybe_start_compensation_worker_locked` returns early at
-`worker_count <= 1`, `rt_async_compat.c`); and the task is now pinned across the
-turn by the applier's `task_add_ref`, which this runner previously did not do.
+**The three holders, wired.** Section 7 names a registered waiter, a select
+subscription, and a claimed detached operation.
 
-**The proof, and the numbers.** `internal/vm/runtime_v2_cancelled_scope_reclamation_e2e_test.go`,
-valgrind `in use at exit` over the same program at two round counts,
-`SURGE_SHARDS=1 SURGE_THREADS=1`:
+- Registered waiter — `channel_park_prepare_locked`'s APPEND arm pins
+  (`rt_channel_lane.h`). The dedupe arm does not: it rewrites an entry that
+  already holds one.
+- Select subscription — `add_waiter`'s generic arm pins (`rt_async_waiter.c`).
+- Both retire through the same two removals: `channel_pop_candidate_locked` (one
+  entry) and `remove_waiter_from_store_seq` (`removed` entries).
+  `wake_key_all_with_policy`'s non-join arm retires too — inert, since no caller
+  passes it a channel key, and present so the retire side is complete by
+  enumeration rather than by an argument about callers.
+- Claimed detached operation — one pin for the whole operation, at
+  `rt_channel_send` / `rt_channel_send_yield` / `rt_channel_recv`
+  (`rt_async_channel.c`) and `rt_channel_try_send` / `rt_channel_try_recv` /
+  `rt_channel_send_blocking` / `rt_channel_recv_blocking` / `rt_channel_close`
+  (`rt_channel_sync.c`).
 
-```
-SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm \
-  -run '^TestRuntimeV2CancelledTaskReclaimsItsScope$' -count=1 -parallel=1 -p=1 -v --timeout 900s
-```
+**Why the operation and not the window.** The nine windows where the owner shard
+lock is released across generated code are: `channel_stage_locked`'s move into a
+park slot and the buffered push beside it (`rt_async_channel.c`); the four takes
+in the receive loop — a delivered value, the ring's head, a same-shard parked
+sender's slot, a foreign one's; `channel_end_park_locked`'s drop and
+`channel_stage_into_ring_locked`'s move (`rt_channel_lane.h`); and
+`channel_wake_only` / `channel_deliver_foreign` /
+`channel_claim_foreign_sender_locked`, which release the owner lock to take a
+peer's. A pin per window would have to be paired down a dozen early returns in
+`rt_channel_send_inner` alone, and the first one missed is either a channel that
+leaks forever or exactly the free the pin exists to stop. One pin per operation
+covers all nine by construction.
 
-- with the fix: cancelled 68,248 B / 14 blk at 10 rounds AND at 200 rounds
-  (+0 blocks, +0 bytes); uncancelled twin 67,880 B / 13 blk at both. PASS, 26.57s.
-- with `runtime/native/rt_async_poll.c` reverted to the copied switch and nothing
-  else changed: cancelled 68,888 B / 24 blk at 10 rounds, 81,048 B / 214 blk at
-  200 — +190 blocks / +12,160 bytes over 190 extra cancelled rounds, 1.00 block
-  and 64.0 bytes per cancelled task. FAIL, 27.42s.
+**The two holders compose, and that is load-bearing.** A pop retires a waiter's
+pin under the owner lock, and the operation that popped it keeps using the
+channel afterwards on its own hold. A reclaim set off under a lock is deferred
+by the lane's existing queue, so the pop is safe where it stands.
 
-**The four-worker configuration is NOT a flat control, and an earlier note here
-said it was on one sample.** At `SURGE_SHARDS=4 SURGE_THREADS=4` the same
-200-round cancelled program retains, intermittently, 200 blocks of 368 bytes
-allocated by `spawn_internal_task_locked` (`rt_async_task.c:492`) for the
-`checkpoint` task — a different object from `rt_scope`, reached through
-`poll_ready_child_inline`. Twenty-five interleaved samples of each build:
-15/25 at 76,288 B / 26 blocks and 10/25 between 63 and 226 blocks WITH the scope
-fix; 13/25 at 26 blocks and 12/25 between 180 and 228 blocks WITHOUT it. Same
-distribution on both sides, as expected — `rt_task_await` only reaches this
-runner when `rt_worker_count() <= 1` (`rt_async_task.c:391`), so the fix cannot
-execute at four workers at all. **That second retention is open and unattributed;
-it is not this fix's, and it is not what the row measures.**
+**The negative row, and its numbers.**
+`internal/vm/testdata/channel_handle_refcount.c` mode `waiter-pin`
+(`registration-refuses-the-reclaim`): three values buffered, a subscription
+registered through `add_waiter`, then the last handle dropped.
 
-**The row's build tag came off, on a fact rather than on a belief.** The tag was
-committed with the claim that a red untagged row makes `make check` refuse every
-commit. It does not: `make check` -> `make test` -> `SURGE_SKIP_TIMEOUT_TESTS=1
-go test ./...` (Makefile), and `buildRuntimeV2CrossingSource` calls
-`skipTimeoutTests` first. Measured: `SURGE_SKIP_TIMEOUT_TESTS=1 go test
-./internal/vm -run '^TestRuntimeV2CancelledTaskReclaimsItsScope$' -count=1 -v` ->
-`--- SKIP` in 0.00s, exit 0. Untagged, the row now sits with the untagged
-valgrind family it belongs to, on `runtime-v2-heap-check`'s strict-census line
-and on `runtime-v2-carrier-sanitizer-check`'s untagged valgrind line; the two
-tagged `ChannelHandleRefcount` lines are back to what they were.
+- fixed: `waiter pin: sent=3 drops_while_registered=0 reclaimed_drops=3 bad=0`
+- `-DRV2_CHANNEL_PIN_NEGATIVE_CONTROL`: `drops_while_registered=3` — the reclaim
+  runs under the live registration, and the row fails with both figures side by
+  side.
+- the same negative build under ASan: `heap-use-after-free ... READ of size 4`
+  at `rt_channel_unpin` (`rt_channel_refcount.c:100`) via
+  `rt_channel_key_retired` <- `remove_waiter_from_store_seq`, 468 bytes into an
+  816-byte region freed by `rt_channel_free`.
 
-**A gate keyed by source location noticed the deletion.** Removing the two copied
-switches removed two `panic_msg("async: unknown poll outcome")` raises, and
-`internal/panicgate` failed with `stale ledger row
-"runtime/native/rt_async_poll.c::run_ready_one#2"`. Both rows deleted from
-`internal/panicgate/testdata/allowlist.json`; the surviving raise is
-`rt_task_complete.c::apply_poll_outcome#1`, already balloted.
+The pin got its OWN control rather than riding on
+`RV2_DEBT_155_NEGATIVE_CONTROL`: that one also makes the handle count
+non-atomic, which is a second thing removed and would make a multi-threaded
+harness's outcome depend on whether an update was lost. Each control now removes
+exactly one defence.
 
-**Gates run, and what each answered.**
+**Teardown, in the document's order.** `rt_channel_free` moved to
+`rt_channel_refcount.c` (next to the counts that decide when it runs; also what
+bought the room, since `rt_async_channel.c` was at exactly 500 effective LOC and
+is now 457) and now does: take the owner lock; assert quiescence; mark dying;
+`rt_typed_fifo_detach_all_locked` + `rt_park_pool_detach_all_locked`; release the
+lock; `rt_typed_fifo_drop_detached` + `rt_park_pool_drop_detached`; free the
+storage. The detach halves are new and run NO element operation — the fifo's
+records `{head, len}` because a ring's occupied cells are contiguous, so the
+teardown needs no allocation to remember them; the pool's leaves the initialized
+headers as its record and empties the free list so nothing can acquire. The
+existing `_drain` entry points are untouched, because the slot-control stands
+call them on pools they keep using.
 
-- `make test` -> exit 0. `make c-check-changed C_CHANGED=runtime/native/rt_async_poll.c`
-  -> OK. `go test ./internal/gatecheck -count=1` -> ok 49.8s.
-- `make runtime-v2-check` -> 18 of 20 sub-gates pass, `runtime-v2-heap-check`
-  among them (418s) with the new row PASSing inside it at 26.27s.
-- `runtime-v2-waiter-check` flaked once in that walk, on
-  `TestRuntimeV2FreedChannelWaiterRouting`'s use-after-free negative control
-  (`negative control failed without the use-after-free (code=-1)`); the gate is
-  exit 0 on re-run and the row alone is 3 of 3 green.
-- `runtime-v2-transport-check` is red on this tree AND at HEAD with none of these
-  changes applied — `runtime_v2_remote_task_behavior_test.go:478`,
-  `result-owner-release` and `caller-abandon-drops-landed-result`, both code=1.
-  Inherited, not caused here. **Open.**
-- The modified `runtime-v2-carrier-sanitizer-check` valgrind line, run verbatim:
-  first run exit 1 on `TestRuntimeV2ChannelHandleValgrindZero/async_float_param`
-  — `valgrind run timed out after 3m0s` — second run exit 0 with all 13 rows
-  PASS (that row 48.12s, the new row 26.30s). That fixture runs at the DEFAULT
-  worker count, which is `max(2, nproc)` = 32 here
-  (`rt_runtime_default_worker_count`, `rt_runtime.c`), so the runner this change
-  touches is unreachable in it. Ten runs of that subtest alone: 10/10 PASS,
-  9.36s-37.40s with this fix; 10/10 PASS, 9.48s-18.76s with `rt_async_poll.c`
-  reverted. A 32-thread program under valgrind against a 180s budget, not a
-  liveness regression — but the tail is real and the budget is not generous.
-- `make behaviour-check-all` (the corpus on vm + native at ONE worker, the
-  configuration this change governs, 842s) -> one red fixture,
-  `TestVMStringsGolden/string_from_bytes_invalid_utf8/llvm`, `exit code: want 0,
-  got 255`. Deterministic 3/3 here and identically red at HEAD with none of these
-  changes. Inherited. **Open.**
+**The registration check now REFUSES.** With a registration holding a pin,
+reaching `rt_channel_free` with one means the counts disagree with the store they
+summarise. `rt_channel_assert_reclaimable` became
+`rt_channel_assert_reclaimable_locked(owner, channel)` and panics there; it reads
+the store under the lock the caller already holds, which is also the only place
+the count and the pins are consistent with each other.
+
+**A negative control that stopped reproducing — caught by the gate, not by
+reasoning.** `RV2_DEBT_199_NEGATIVE_CONTROL` restores the dereference of a
+channel key during routing and MUST be observed as an ASan use-after-free. A
+store entry now holds a pin, so the object is alive when the deferred stale-key
+removal routes it, and `TestRuntimeV2FreedChannelWaiterRouting` failed with
+`negative control exited cleanly; the proof is vacuous`. Fixed by building that
+harness with BOTH controls: the pin control removes the hold, 199 restores the
+dereference, and together they are the pre-fix world. The 199 FIX is unchanged
+and still needed — the routing path is reached with a key a caller merely
+CARRIES, which is a copy nothing counts. Both rows green again.
+
+**A leak the change exposed rather than created.** The deferred-reclaim queue is
+`_Thread_local` and its backing array was never freed, so any thread that
+reached a last release and then exited left it behind. Before, only lanes that
+outlive the process got there; the unpin in `remove_waiter_from_store_seq` put a
+short-lived cancel thread on that path, and LeakSanitizer named it:
+`Direct leak of 32 byte(s) in 1 object(s)` from `rt_channel_free_when_unlocked`
+on `freed_waiter_cancel_thread`. `rt_channel_reclaim_drain` now gives the array
+back whenever the queue empties — one allocation per batch of deferred reclaims,
+against a leak per thread.
+
+**Gates.** `make runtime-v2-carrier-sanitizer-check` exit 0 before and after.
+`make c-check-changed` exit 0 over every touched C/H file.
+`make runtime-v2-slot-control-check` exit 0. `make runtime-v2-waiter-check`
+exit 0 (after both fixes above).
+
+**PRE-EXISTING RED, not this lane's.** `make runtime-v2-lifecycle-check` is red
+on `a6acc31c` itself: `duplicate case value '4042'` when the lifecycle harness is
+assembled, from `POLL_SCOPE_MEMBERSHIP_OWNER 4042`
+(`internal/vm/runtime_v2_scope_membership_claim_test.go`, commit `0d28f29d`) and
+`POLL_ENTITLEMENT_OWNING_RESULT 4042`
+(`internal/vm/runtime_v2_task_entitlement_stand_test.go`, commit `53fa7ca4`) —
+two lanes that landed the same day and picked the same poll id. 33 rows fail to
+BUILD; 35 pass. Measured by stashing this lane's diff and running
+`TestRuntimeV2LifecycleDebt080CancelBeforeClaimProof` on the bare commit: same
+error. `TestRuntimeV2LifecycleShutdownWithParkedTasks`, the row that would notice
+a registration pin leaking a channel at shutdown, builds and PASSES with this
+change.

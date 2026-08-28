@@ -810,16 +810,6 @@
       "group": "PG-INVARIANT"
     },
     {
-      "site": "runtime/native/rt_async_channel.c::rt_channel_free#1",
-      "message": "async: channel reclaim ran while a scheduler lock was held",
-      "group": "PG-INVARIANT"
-    },
-    {
-      "site": "runtime/native/rt_async_channel.c::rt_channel_free_when_unlocked#1",
-      "message": "async: channel reclaim queue allocation failed",
-      "group": "PG-ALLOC-FAILURE"
-    },
-    {
       "site": "runtime/native/rt_async_channel.c::rt_channel_new#1",
       "message": "async: channel needs its element descriptor",
       "group": "PG-INVARIANT"
@@ -840,27 +830,27 @@
       "group": "PG-INVARIANT"
     },
     {
-      "site": "runtime/native/rt_async_channel.c::rt_channel_recv#1",
+      "site": "runtime/native/rt_async_channel.c::rt_channel_recv_inner#1",
       "message": "async channel recv outside task",
       "group": "PG-INVARIANT"
     },
     {
-      "site": "runtime/native/rt_async_channel.c::rt_channel_recv#2",
+      "site": "runtime/native/rt_async_channel.c::rt_channel_recv_inner#2",
       "message": "async: missing current task",
       "group": "PG-INVARIANT"
     },
     {
-      "site": "runtime/native/rt_async_channel.c::rt_channel_recv#3",
+      "site": "runtime/native/rt_async_channel.c::rt_channel_recv_inner#3",
       "message": "async: delivered channel value was not in its slot",
       "group": "PG-INVARIANT"
     },
     {
-      "site": "runtime/native/rt_async_channel.c::rt_channel_recv#4",
+      "site": "runtime/native/rt_async_channel.c::rt_channel_recv_inner#4",
       "message": "async: buffered channel value could not be retired",
       "group": "PG-INVARIANT"
     },
     {
-      "site": "runtime/native/rt_async_channel.c::rt_channel_recv#5",
+      "site": "runtime/native/rt_async_channel.c::rt_channel_recv_inner#5",
       "message": "async: foreign parked sender had no staged value",
       "group": "PG-INVARIANT"
     },
@@ -1280,13 +1270,33 @@
       "group": "PG-INVARIANT"
     },
     {
-      "site": "runtime/native/rt_channel_refcount.c::rt_channel_assert_reclaimable#1",
+      "site": "runtime/native/rt_channel_refcount.c::rt_channel_assert_reclaimable_locked#1",
       "message": "async: a channel was reclaimed while a handle still named it",
       "group": "PG-INVARIANT"
     },
     {
-      "site": "runtime/native/rt_channel_refcount.c::rt_channel_assert_reclaimable#2",
+      "site": "runtime/native/rt_channel_refcount.c::rt_channel_assert_reclaimable_locked#2",
       "message": "async: a channel was reclaimed while an operation still pinned it",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_channel_refcount.c::rt_channel_assert_reclaimable_locked#3",
+      "message": "async: a channel was reclaimed while a waiter was registered on it",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_channel_refcount.c::rt_channel_free#1",
+      "message": "async: channel reclaim ran while a scheduler lock was held",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_channel_refcount.c::rt_channel_free_when_unlocked#1",
+      "message": "async: channel reclaim queue allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_channel_refcount.c::rt_channel_pin#1",
+      "message": "async: an operation entered a channel that is being destroyed",
       "group": "PG-INVARIANT"
     },
     {

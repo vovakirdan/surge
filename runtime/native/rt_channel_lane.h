@@ -20,6 +20,17 @@ struct rt_channel {
     // owner's store and never move.
     uint32_t owner_shard_id;
     uint8_t closed;
+    // Set under the owner lock by the reclaim, before it detaches anything.
+    // Section 7 of docs/RUNTIME_V2.md names this the first step of teardown,
+    // and what it buys is a place to fail closed: an operation that pins the
+    // object after this is set found it through something that should already
+    // have been gone, and a panic naming that is worth more than the storage
+    // it would have written into.
+    //
+    // Atomic because the reader is not always under the lock the writer holds:
+    // an operation pin is taken before any lock, which is the whole point --
+    // the pin has to exist before the window it protects opens.
+    _Atomic uint8_t dying;
     // The element's descriptor, and its type id.
     //
     // ONE descriptor for the whole channel, per the storage model: a slot
@@ -105,6 +116,12 @@ static inline int channel_pop_candidate_locked(rt_shard* owner_shard, waker_key 
             memmove(
                 &store->entries[i], &store->entries[i + 1], (store->len - i - 1) * sizeof(waiter));
             store->len--;
+            // The entry held one of the channel's pins for as long as it named
+            // it. Retiring the entry retires the pin, and if it was the last
+            // hold the reclaim it sets off is deferred until this lane lets go
+            // of the owner lock -- which is why the caller may keep using the
+            // channel below, on the operation's own pin.
+            rt_channel_key_retired(key, 1);
             *out = w;
             return 1;
         }
@@ -324,6 +341,12 @@ channel_park_prepare_locked(rt_shard* owner_shard, rt_task* task, waker_key key)
         task->park_seq = 1;
     }
     store->entries[store->len++] = (waiter){key, task->id, owner_hint, task->park_seq};
+    // A registered waiter is one of the three holds section 7 of
+    // docs/RUNTIME_V2.md names. Only the APPEND takes it: the dedupe arm above
+    // rewrites an entry that already holds one, and pinning there would leave a
+    // hold nothing ever retires. The park it registers outlives this call, so
+    // the entry -- not this frame -- is what owns the pin.
+    rt_channel_key_registered(key);
     task->park_key = key;
     task->park_prepared = 1;
 }

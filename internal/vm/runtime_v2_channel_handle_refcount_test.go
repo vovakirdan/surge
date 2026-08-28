@@ -104,6 +104,19 @@ func channelHandleRows() []channelHandleRow {
 			mode: "contended-handles",
 			want: "bad=0 accounted=1",
 		},
+		{
+			// A registration on one of the channel's waiter keys is a hold the
+			// program cannot see. The last HANDLE goes while it stands, and the
+			// first figure is what the channel still held at that instant:
+			// nothing destroyed yet. On a tree where a registration takes no
+			// pin the reclaim runs there instead, so the pair reads
+			// drops_while_registered=3 reclaimed_drops=3 -- the same three
+			// values, destroyed under a live registration whose key then names
+			// freed storage.
+			name: "registration-refuses-the-reclaim",
+			mode: "waiter-pin",
+			want: "waiter pin: sent=3 drops_while_registered=0 reclaimed_drops=3 bad=0",
+		},
 	}
 }
 

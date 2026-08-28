@@ -222,6 +222,59 @@ static int mode_two_handles(void) {
     return 0;
 }
 
+// The task id the subscription below is registered for. Nothing has to exist
+// behind it: add_waiter reads the id only to stamp an owner hint, and a store
+// entry is what holds the pin -- not the task the entry names. Registering
+// through the runtime's own entry point is the point of the row; a hand-built
+// entry would prove something about this file instead.
+#define HANDLE_SUBSCRIBER_TASK 4242u
+
+// A REGISTRATION refuses the reclaim a handle no longer can.
+//
+// A `Channel<T>` handle is the program's name for the object, and dropping the
+// last one is what destroys it. But a registration on one of the channel's two
+// waiter keys is a hold the program cannot see: a select subscription here, and
+// a parked task's park entry in the same store. Section 7 of docs/RUNTIME_V2.md
+// counts those as internal pins, apart from handles, precisely so that "nothing
+// names it any more" and "nothing is inside it any more" are separate
+// questions.
+//
+// The row asks the second one at the moment the first is already answered. The
+// last handle goes while the subscription stands, and the census states what
+// the channel still held at that instant: three values, destroyed by nobody
+// yet. Then the subscription is retired, and the same three are destroyed.
+//
+// Without the pin the first number is three instead of zero -- the reclaim runs
+// under a live registration, whose key then names freed storage -- and the
+// difference is the whole fix, stated as a pair of numbers rather than as an
+// absence of a crash.
+static int mode_waiter_pin(void) {
+    rt_executor* ex = ensure_exec();
+    void* channel = handle_make_channel(HANDLE_CAPACITY);
+    if (ex == NULL || channel == NULL) {
+        return handle_fail("channel was not created");
+    }
+    for (uint64_t marker = 1; marker <= 3; marker++) {
+        if (!handle_send_one(channel, marker)) {
+            return handle_fail("a send the buffer had room for was refused");
+        }
+    }
+    waker_key key = channel_recv_key((const rt_channel*)channel);
+    add_waiter(ex, key, HANDLE_SUBSCRIBER_TASK);
+    rt_channel_handle_drop(channel);
+    unsigned while_registered =
+        (unsigned)atomic_load_explicit(&g_reclaimed_drops, memory_order_acquire);
+    // Retiring the entry retires the pin it held, and that release is the last
+    // one: the reclaim happens here, three values later than it would have.
+    remove_waiter(ex, key, HANDLE_SUBSCRIBER_TASK);
+    printf("waiter pin: sent=%u drops_while_registered=%u reclaimed_drops=%u bad=%u\n",
+           (unsigned)atomic_load_explicit(&g_sent, memory_order_acquire),
+           while_registered,
+           (unsigned)atomic_load_explicit(&g_reclaimed_drops, memory_order_acquire),
+           (unsigned)atomic_load_explicit(&g_bad_markers, memory_order_acquire));
+    return 0;
+}
+
 static void handle_sleep_us(unsigned long micros) {
     struct timespec ts;
     ts.tv_sec = (time_t)(micros / 1000000UL);
@@ -366,6 +419,8 @@ int main(void) {
         status = mode_two_handles();
     } else if (strcmp(mode, "contended-handles") == 0) {
         status = mode_contended_handles();
+    } else if (strcmp(mode, "waiter-pin") == 0) {
+        status = mode_waiter_pin();
     } else {
         return handle_fail("unknown mode");
     }

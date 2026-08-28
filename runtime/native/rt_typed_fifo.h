@@ -114,4 +114,30 @@ rt_slot_control_status rt_typed_fifo_commit_pop_locked(rt_typed_fifo* fifo,
 // Runs element drops, so it must be called with no owner lock held.
 void rt_typed_fifo_drain(rt_typed_fifo* fifo);
 
+// What a detach unlinked: where the queue's values were and how many. Two
+// integers rather than a list because a queue's occupied cells are contiguous
+// in ring order from its old head, so the pair names all of them and a teardown
+// needs no allocation to remember them.
+typedef struct {
+    uint64_t head;
+    uint64_t len;
+} rt_typed_fifo_detached;
+
+// The two halves of a teardown, split so the queue can be emptied under the
+// owner's lock and its values destroyed after that lock is released.
+//
+// A drain does both at once, one cell at a time, which leaves the queue half
+// empty while an element's drop runs. An owner whose teardown is observable --
+// a channel, whose keys other lanes still route on -- needs the whole queue
+// detached before the first drop instead, so that a drop re-entering the
+// runtime finds an object that is already empty rather than one mid-teardown.
+//
+// Detach runs NO element operation: it unlinks every cell and invalidates the
+// outstanding reservation, and the payload bytes stay exactly where they are.
+void rt_typed_fifo_detach_all_locked(rt_typed_fifo* fifo, rt_typed_fifo_detached* out);
+
+// Destroys what the matching detach unlinked, exactly once each. Runs element
+// drops, so no owner lock may be held.
+void rt_typed_fifo_drop_detached(rt_typed_fifo* fifo, const rt_typed_fifo_detached* detached);
+
 #endif

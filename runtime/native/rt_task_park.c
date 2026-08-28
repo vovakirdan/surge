@@ -239,6 +239,12 @@ void wake_key_all_with_policy(rt_executor* ex, waker_key key, int front) {
             // and fd-registry bookkeeping stay owned by rt_async_waiter.c
             // removal paths.
             store->len = out;
+            // No channel-key producer either -- channel wakes are candidate
+            // pops, not key drains. The retire is called anyway so that "every
+            // removal retires the pin" holds by enumeration rather than by an
+            // argument about who calls this, which is what would have to be
+            // re-derived the first time somebody adds a caller.
+            rt_channel_key_retired(key, batch_len);
         }
         if (store_shard != NULL) {
             rt_shard_unlock(store_shard);
