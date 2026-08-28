@@ -82,6 +82,29 @@ path. `panic`/`exit` do not return, and raw allocator `NULL` is not a
 `ValueOps` status. This is an implementation-safety rule, not a new unwind or
 recoverable-OOM language feature.
 
+**Owner ruling 2026-08-28 — a local duplication that cannot finish is FATAL,
+and the local clone slot keeps its `void` return.** The three crossing
+operations return a status because a crossing has a caller that can still
+answer; a local `clone_init` does not, and giving it one would buy an internal
+rollback that no program can observe, since recoverable out-of-memory is
+explicitly outside this epic's scope.
+
+The ruling is NOT the cheap half of that reading, and it must not be
+implemented as such. Today a generated duplication calls `rt_alloc` and does
+not test the result: `rt_alloc` answers `NULL` on refusal without panicking,
+and the generated body writes through it. So the present behaviour is not "a
+failed duplication is fatal" — it is a segmentation fault at an address the
+program never chose, which is the crutch this ruling removes. Making the
+failure fatal means the generated code TESTS the allocation and panics with a
+sentence that names the type it could not duplicate. Until that test exists,
+the slot's `void` return is not a decision; it is an unexamined default.
+
+What this settles: the rollback failpoint the local clone slot was blocked on
+is not owed, because there is nothing to roll back from — the duplication either
+completes or the process stops. What it opens: every emitted `move_init`,
+`copy_init` and `clone_init` body owes an allocation test, and a stand that
+exhibits the refusal must show the panic rather than the fault.
+
 ## 4. Canonical Layout
 
 `../ABI_LAYOUT.md` and `internal/layout` remain the single layout authority.

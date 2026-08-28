@@ -859,6 +859,30 @@ visible is also the point where the no-borrow-across-shards and
 no-implicit-resource-migration rules are enforced. Joining a distributed child
 returns through a `far Task<T>`, so the join is itself a visible crossing.
 
+**Owner ruling 2026-08-28 -- affinity is a function of the CAPTURE SET, not of
+the parent-child edge.** A child of a carrier-affine task is itself affine only
+when it captures something borrowed; capturing nothing borrowed, or capturing
+`own`, leaves it free to run on any carrier whatever its parent is. Affinity is
+therefore not inherited down the tree, and it IS transitive through borrowing: a
+grandchild that borrows from a frame which itself borrows is affine to the same
+carrier, because the frame it reads is alive only while that carrier is. The
+rule is the one above applied again at each spawn, recorded at the spawn that
+creates it and never propagated from the parent's state.
+
+Inheriting affinity down the tree was refused because it spends parallelism that
+is legitimately available: a fan-out of children that borrow nothing would be
+pinned to one carrier for no reason the ownership model can state.
+
+**A `blocking { ... }` body may not capture a borrow, and is refused exactly as
+a crossing is.** The body executes on a Tier 2 pool thread, which is not the
+parent's carrier and is not a carrier at all, so a borrow inside it is the same
+violation as a borrow crossing a shard.
+
+There is no deadlock between affinity and the blocking pool, and this is worth
+stating because one was assumed to exist: submitting a blocking body PARKS the
+submitting task rather than occupying its carrier, so an affine task waiting on
+a blocking body leaves its carrier free for the work that will wake it.
+
 Cross-shard cancellation uses generation tokens. A distributed child, scope
 subscription, cancellation request, and completion message carry the generation
 of the owning scope edge. If a child completes while cancellation is in flight,
@@ -1242,7 +1266,21 @@ data budget or subtracted from it, and what each budget is as a number of slots.
 Whether a completion or reply carrying arbitrary `T` takes an ordinary data slot
 or a reply slot reserved when its request was admitted. What a sender does when
 no slot is available -- park on its own shard until one returns, or keep the
-drain-and-retry the tree performs at `RT_TRANSPORT_STATUS_QUEUE_FULL`. Whether
+drain-and-retry the tree performs at `RT_TRANSPORT_STATUS_QUEUE_FULL`.
+**ANSWERED 2026-08-28: the sender PARKS on its own shard, and
+`RT_TRANSPORT_STATUS_QUEUE_FULL` stops being an answer a program can observe.**
+Saturation is backpressure, which is the ruling the blocking pool already
+carries; the status stays as an internal result of the enqueue call, because the
+parking code has to be told there is no room, but no crossing answers a program
+with it and no language surface gains a failure arm for it. The drain-and-retry
+the tree performs today is replaced by that park. Two obligations travel with it
+and are not optional: an admission stall must be a MEASURED NUMBER rather than a
+hang, the same counter requirement the blocking pool carries, so a saturated
+transport is distinguishable from a stopped one; and a park that can never be
+released must still be reachable by cancellation, because a receiver that is
+gone would otherwise turn backpressure into a silent permanent sleep -- scope
+cancellation and timeout answer that, not a status.
+Whether
 `payload_len` stays on the pointer path as the length of a transport-owned
 buffer, zero for every message the tree builds, or leaves that path until a
 serialized transport needs it. And whether `RT_TRANSPORT_MSG_CREDIT_CONTROL` and
