@@ -122,12 +122,12 @@ func (fe *funcEmitter) emitDefaultValue(typeID types.TypeID) (val, ty string, er
 		return "0.0", llvmTy, nil
 	case types.KindArray:
 		if tt.Count == types.ArrayDynamicLength {
-			return fe.emitDefaultArrayDynamic()
+			return fe.emitDefaultArrayDynamic(typeID)
 		}
 		return fe.emitDefaultArrayFixed(typeID, tt.Elem, tt.Count)
 	case types.KindStruct:
 		if _, ok := fe.emitter.types.ArrayInfo(typeID); ok {
-			return fe.emitDefaultArrayDynamic()
+			return fe.emitDefaultArrayDynamic(typeID)
 		}
 		if elem, length, ok := fe.emitter.types.ArrayFixedInfo(typeID); ok {
 			return fe.emitDefaultArrayFixed(typeID, elem, length)
@@ -238,9 +238,12 @@ func (fe *funcEmitter) emitDefaultTuple(typeID types.TypeID) (val, ty string, er
 	return mem, handleType, nil
 }
 
-func (fe *funcEmitter) emitDefaultArrayDynamic() (val, ty string, err error) {
-	headPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", headPtr, arrayHeaderSize, arrayHeaderAlign)
+// emitDefaultArrayDynamic builds the empty array a `default` of an array type
+// answers with. typeID is carried only so a refused header can name the array
+// the program asked for; the header's own size and alignment are the container's.
+func (fe *funcEmitter) emitDefaultArrayDynamic(typeID types.TypeID) (val, ty string, err error) {
+	headPtr := fe.emitCheckedAlloc(allocSiteDefaultArray, typeID,
+		fmt.Sprintf("%d", arrayHeaderSize), arrayHeaderAlign)
 	lenPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, headPtr, arrayLenOffset)
 	fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s, align %d\n", lenPtr, alignWord)

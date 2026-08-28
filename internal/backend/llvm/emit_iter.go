@@ -81,8 +81,7 @@ func (fe *funcEmitter) emitRangeIterInit(op *mir.Operand, rangeType types.TypeID
 		return "", "", fmt.Errorf("range iter_init requires ptr, got %s", rangeTy)
 	}
 	size := fe.emitRangeObjectSize(rangePtr)
-	iterPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %s, i64 %d)\n", iterPtr, size, rangeAlign)
+	iterPtr := fe.emitCheckedAlloc(allocSiteRangeIter, rangeType, size, rangeAlign)
 	fmt.Fprintf(&fe.emitter.buf,
 		"  call void @llvm.memcpy.p0.p0.i64(ptr align %d %s, ptr align %d %s, i64 %s, i1 false)\n",
 		rangeAlign, iterPtr, rangeAlign, rangePtr, size)
@@ -524,8 +523,10 @@ func (fe *funcEmitter) emitArrayIterInit(op *mir.Operand, arrType types.TypeID, 
 		lenVal = fmt.Sprintf("%d", fixedLength)
 	}
 
-	iterPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", iterPtr, arrayIterSize, rangeAlign)
+	// A refused cursor names the ARRAY being walked rather than the cursor
+	// shape: Range<T> is the runtime handle, and the array is what the reader
+	// wrote down.
+	iterPtr := fe.emitCheckedAlloc(allocSiteArrayIter, arrType, fmt.Sprintf("%d", arrayIterSize), rangeAlign)
 
 	// The cursor opens with a descriptor header saying what it is and that it
 	// has no bounds. Both flags matter: they name the shape for the step

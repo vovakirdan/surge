@@ -9286,3 +9286,62 @@ it. `rt_channel_free` calls `ensure_exec()` unconditionally now, because it need
 the owner shard to lock — a channel reclaimed on a short-lived thread can lazily
 spin an executor up. And no carrier benchmark was run for the compare-and-swap
 the pin now costs.
+
+## A refused allocation reports the type instead of faulting — 2026-08-28
+
+The owner ruling written into §3 of `23-storage-model-and-typed-carrier-abi.md`
+said a local duplication that cannot get memory is FATAL, and named the reason
+the ruling was not already implemented: `rt_alloc` answers `NULL` on refusal
+(`runtime/native/rt_alloc.c:47,87,93`) and the generated bodies stored through
+that answer. So the behaviour was not "fatal"; it was a segmentation fault at an
+address the program never chose.
+
+**Seven emitted allocations had no test.** `emit_aggregate_ops.go`
+(runtime-owned storage — the suspension frame and a blocking body's captures),
+`emit_literals.go` (an array literal's element buffer AND its header),
+`emit_intrinsics_default.go` (the header a `default` array answers with),
+`emit_intrinsics_error.go` (an error-like value), and `emit_iter.go` (the Range
+duplication a `for` makes, and the array cursor). All seven now go through
+`emitCheckedAlloc` in `internal/backend/llvm/emit_alloc_guard.go`: the emitted
+code tests the pointer and, on `NULL`, calls the runtime's own `rt_panic` with
+`out of memory: could not allocate <type>` and `unreachable`.
+
+**Two allocations deliberately do NOT go through it.** The `rt_alloc` intrinsic
+(`emit_intrinsics_memory.go`) hands the program the allocator's own answer,
+which §5 keeps nullable; panicking there would take the answer away. The async
+ref-parameter box (`emit_func.go`) already tests its allocation and traps — it
+stops the process, so it is not a hole, but it reports nothing, and its stand
+lives in a file owned by another lane.
+
+**The message could not use the module's string table.** That table hands out
+globals by index over its sorted contents and must be complete before the first
+body names one. The per-type sentence goes through the lazily filled table in
+`emit_span.go` instead — and NOT through `spanConstOrder`, which is also the
+trace string table the backtrace maps index by position. The first writing put
+it there and gave the walker a row nothing names; `messageConstOrder` is the
+separation, and `TestTheRefusalMessageIsNotInTheTraceStringTable` pins it.
+
+**Proving it needed a negative-control BUILD.** No program can make a real
+allocator refuse. `SURGE_INTERNAL_TEST_ALLOC_REFUSAL=<site>` makes the compiler
+ask for 2^64-1 bytes at exactly one named site; nothing else differs, no
+allocator is stubbed, and the refusal travels the real `rt_alloc` → `NULL` →
+guard path. Measured, `array-literal-elements` and `runtime-owned-storage`:
+
+- before the guard, both armed builds were killed by SIGSEGV, stderr empty
+  (`Segmentation fault (core dumped)`; Go's `ExitCode()` reports -1);
+- after, `panic: out of memory: could not allocate Array<int>` and
+  `panic: out of memory: could not allocate __AsyncState$add`, exit 1.
+
+**The VM lane has no such hole.** Its `rt_alloc` is `handleRtAlloc`
+(`internal/vm/intrinsic_mem.go:29`) reaching `rawAlloc`
+(`internal/vm/raw_memory.go:29`), whose storage is `make([]byte, size)` — a Go
+allocation that cannot answer nil, and whose exhaustion aborts the process
+rather than handing back a pointer. Nothing else in the VM allocates a Surge
+value through a nullable C allocator.
+
+**Gates.** The rows ride `runtime-v2-panic-surface-check`: a source census that
+refuses a new untested `call ptr @rt_alloc`, a roster/call-site agreement check,
+the emitted-shape rows, and the native negative control at
+`SURGE_SKIP_TIMEOUT_TESTS=0`. The panic ledger gains one row —
+`emit_alloc_guard.go::emitAllocRefusalPanic#1`, `PG-ALLOC-FAILURE` — and that
+group's reason now records that one of its rows is provoked by a build.

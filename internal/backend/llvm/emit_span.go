@@ -100,7 +100,29 @@ func (e *Emitter) spanText(span source.Span) string {
 // found seven eighths of those never reached a panic at all. This table pays for
 // the locations that do.
 func (e *Emitter) spanConst(text string) *stringConst {
-	if sc, ok := e.spanConsts[text]; ok {
+	return e.lateConst("span", text, &e.spanConstOrder)
+}
+
+// messageConst interns one panic sentence built while a function was being
+// emitted, which is what a per-type message is: the allocation guards report the
+// type whose storage was refused, and no pass before the bodies knows which
+// types those will be.
+//
+// It is deliberately NOT spanConst. spanConstOrder is also the trace string
+// table — emitTraceStrings writes it out and the line/function maps index into
+// it by position — so a message appended there would occupy a row the backtrace
+// walker can reach and no row names.
+func (e *Emitter) messageConst(text string) *stringConst {
+	return e.lateConst("allocmsg", text, &e.messageConstOrder)
+}
+
+// lateConst interns one byte constant discovered while functions are being
+// emitted, under a `kind` naming what it is and into the order its own table is
+// written from. The interning map is shared and the key carries the kind, so a
+// message whose text happened to read like a location cannot borrow its global.
+func (e *Emitter) lateConst(kind, text string, order *[]*stringConst) *stringConst {
+	key := kind + "\x00" + text
+	if sc, ok := e.spanConsts[key]; ok {
 		return sc
 	}
 	bytes := []byte(text)
@@ -113,25 +135,29 @@ func (e *Emitter) spanConst(text string) *stringConst {
 		bytes:      bytes,
 		dataLen:    len(bytes),
 		arrayLen:   arrayLen,
-		globalName: fmt.Sprintf(".span.%d", len(e.spanConstOrder)),
+		globalName: fmt.Sprintf(".%s.%d", kind, len(*order)),
 	}
-	e.spanConsts[text] = sc
-	e.spanConstOrder = append(e.spanConstOrder, sc)
+	e.spanConsts[key] = sc
+	*order = append(*order, sc)
 	return sc
 }
 
-// emitSpanConsts writes the location table. It runs after the functions that
-// reference it, which is what lets the table be filled lazily: a global may be
+// emitSpanConsts writes the late tables. They run after the functions that
+// reference them, which is what lets them be filled lazily: a global may be
 // defined anywhere in a module, and a function body that mentions one earlier in
 // the file is an ordinary forward reference.
 func (e *Emitter) emitSpanConsts() {
-	if len(e.spanConstOrder) == 0 {
+	if len(e.spanConstOrder) == 0 && len(e.messageConstOrder) == 0 {
 		return
 	}
 	// Written in the order the functions asked for them, which is the order the
 	// functions themselves are emitted in — the same order for the same module,
 	// so two emissions of one module produce the same text.
 	for _, sc := range e.spanConstOrder {
+		lit := formatLLVMBytes(sc.bytes, sc.arrayLen)
+		fmt.Fprintf(&e.buf, "@%s = private unnamed_addr constant [%d x i8] %s\n", sc.globalName, sc.arrayLen, lit)
+	}
+	for _, sc := range e.messageConstOrder {
 		lit := formatLLVMBytes(sc.bytes, sc.arrayLen)
 		fmt.Fprintf(&e.buf, "@%s = private unnamed_addr constant [%d x i8] %s\n", sc.globalName, sc.arrayLen, lit)
 	}

@@ -395,9 +395,22 @@ runtime-v2-syncpoint-check:
 # behavioural fixture on both backends nor excused by an owned row. The package
 # already rides `go test ./...`; it is named here as well because a gate nobody
 # can run alone is a gate nobody runs while fixing it.
+#
+# The allocation-refusal rows ride here because they are the same question asked
+# of an emitted panic that no fixture can provoke. The census can only say the
+# raise is excused; the two rows under it say the raise EXISTS -- that every
+# emitted allocation is tested (a source census, so a site no program reaches is
+# still counted), and that a refused one stops the process with the type's name
+# rather than faulting. The last needs a real build and a real run, so it carries
+# SURGE_SKIP_TIMEOUT_TESTS=0: under `make check` it skips, and a gate that only
+# ever skipped would be green having proven nothing.
 runtime-v2-panic-surface-check:
 	@echo ">> Running the panic-surface census gate"
 	$(GO) test ./internal/panicgate -run '^Test(PanicSitesAreCoveredOrExcused|EveryRecordedFixtureIsActuallyRun|PanicScanFindsTheKnownSurface|PanicReportersAreAllKnown|EmitterRaisesOnlyFromTheKnownPackage)$$' -count=1 --timeout 120s
+	@echo ">> Running the emitted-allocation refusal census"
+	$(GO) test ./internal/backend/llvm -run '^Test(EveryEmittedAllocationGoesThroughTheRefusalTest|TheGuardedSiteRosterMatchesTheEmitterCallSites|AGuardedAllocationIsTestedAndReportsItsType|TheRefusalMessageIsNotInTheTraceStringTable|TheNegativeControlAimsAtOneSite|TheGuardIsWhereTheReportedFileSaysItIs)$$' -count=1 --timeout 120s
+	@echo ">> Running the allocation-refusal negative control"
+	SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2AllocationRefusalReportsTheTypeItCouldNotAllocate$$' -count=1 -v --timeout 300s
 
 # The stable transport gate: park/wake spine acceptance, publication rows,
 # the crossing e2e verticals, race rows, and the negative matrix all run

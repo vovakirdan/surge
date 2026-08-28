@@ -60,20 +60,27 @@ type Emitter struct {
 	// it emits, because nothing at run time can look one up. Nil means the
 	// caller did not supply one, and then no panic carries a location.
 	files *source.FileSet
-	// spanConsts interns the rendered locations panics report, keyed by the
-	// rendered text so one file:line:col is one global. It is filled while
-	// functions are emitted and written out after them; see emit_span.go for
-	// why it is not the string-constant table above.
-	spanConsts     map[string]*stringConst
-	spanConstOrder []*stringConst
-	buf            strings.Builder
-	stringConsts   map[string]*stringConst
-	fnRefs         map[mir.FuncID]struct{}
-	funcNames      map[mir.FuncID]string
-	funcSigs       map[mir.FuncID]funcSig
-	globalNames    map[mir.GlobalID]string
-	runtimeSigs    map[string]funcSig
-	paramCounts    map[mir.FuncID]int
+	// spanConsts interns the texts discovered while functions are emitted: the
+	// rendered locations panics report, and the per-type sentence an allocation
+	// guard reports. Keyed by kind plus text, so one file:line:col is one global
+	// and a message cannot borrow a location's. It is filled while functions are
+	// emitted and written out after them; see emit_span.go for why it is not the
+	// string-constant table above.
+	//
+	// The two orders are separate because spanConstOrder is ALSO the trace string
+	// table the backtrace maps index by position (emit_trace_table.go); a message
+	// appended there would take a row nothing names.
+	spanConsts        map[string]*stringConst
+	spanConstOrder    []*stringConst
+	messageConstOrder []*stringConst
+	buf               strings.Builder
+	stringConsts      map[string]*stringConst
+	fnRefs            map[mir.FuncID]struct{}
+	funcNames         map[mir.FuncID]string
+	funcSigs          map[mir.FuncID]funcSig
+	globalNames       map[mir.GlobalID]string
+	runtimeSigs       map[string]funcSig
+	paramCounts       map[mir.FuncID]int
 	// Recursive drop glue generated on demand (emit_drop_glue.go).
 	dropGlueNeeded     map[types.TypeID]struct{}
 	dropElemGlueNeeded map[types.TypeID]struct{}

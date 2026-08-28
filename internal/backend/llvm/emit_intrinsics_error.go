@@ -201,8 +201,7 @@ func (fe *funcEmitter) emitErrorLikeValue(errType types.TypeID, msgVal, msgTy, c
 	if align <= 0 {
 		align = 1
 	}
-	mem := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", mem, size, align)
+	mem := fe.emitCheckedAlloc(allocSiteErrorValue, errType, fmt.Sprintf("%d", size), align)
 
 	msgIdx, msgFieldType, err := fe.structFieldInfo(errType, mir.PlaceProj{Kind: mir.PlaceProjField, FieldName: "message", FieldIdx: -1})
 	if err != nil {

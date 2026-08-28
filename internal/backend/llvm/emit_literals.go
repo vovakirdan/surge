@@ -190,10 +190,11 @@ func (fe *funcEmitter) emitArrayLit(lit *mir.ArrayLit, dstType types.TypeID) (va
 		// keeps this a container question rather than a value one.
 		dataSize := stride * uint64(length)
 
-		dataPtr := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", dataPtr, dataSize, elemAlign)
-		headPtr := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", headPtr, arrayHeaderSize, arrayHeaderAlign)
+		// Both allocations name the ARRAY, not the element: a refused header is
+		// as much a failure to build this array as a refused element buffer, and
+		// the reader is holding one literal either way.
+		dataPtr := fe.emitCheckedAlloc(allocSiteArrayElements, dstType, fmt.Sprintf("%d", dataSize), elemAlign)
+		headPtr := fe.emitCheckedAlloc(allocSiteArrayHeader, dstType, fmt.Sprintf("%d", arrayHeaderSize), arrayHeaderAlign)
 
 		lenPtr := fe.nextTemp()
 		fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", lenPtr, headPtr, arrayLenOffset)

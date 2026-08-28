@@ -190,19 +190,16 @@ func (fe *funcEmitter) emitStorageAllocaAligned(id types.TypeID) (ptr string, al
 // past the suspension and releases it with the size and alignment recorded here.
 // So the allocation is the runtime's allocator, and this emission does not free
 // it: doing so would free storage whose owner is still holding it.
+//
+// The allocator may refuse, and then there is nothing here to hand anyone: the
+// duplication stops the process naming this type. See emit_alloc_guard.go.
 func (fe *funcEmitter) emitRuntimeOwnedStorage(id types.TypeID) (string, error) {
 	facts, err := fe.emitter.layoutOf(id)
 	if err != nil {
 		return "", err
 	}
-	align := facts.Align
-	if align == 0 {
-		align = 1
-	}
-	ptr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n",
-		ptr, facts.Size, align)
-	return ptr, nil
+	size := fmt.Sprintf("%d", facts.Size)
+	return fe.emitCheckedAlloc(allocSiteRuntimeOwned, id, size, facts.Align), nil
 }
 
 // emitValueStorage reserves storage for one value in the place its
