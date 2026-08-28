@@ -1270,18 +1270,8 @@
       "group": "PG-INVARIANT"
     },
     {
-      "site": "runtime/native/rt_channel_refcount.c::rt_channel_assert_reclaimable_locked#1",
-      "message": "async: a channel was reclaimed while a handle still named it",
-      "group": "PG-INVARIANT"
-    },
-    {
-      "site": "runtime/native/rt_channel_refcount.c::rt_channel_assert_reclaimable_locked#2",
-      "message": "async: a channel was reclaimed while an operation still pinned it",
-      "group": "PG-INVARIANT"
-    },
-    {
-      "site": "runtime/native/rt_channel_refcount.c::rt_channel_assert_reclaimable_locked#3",
-      "message": "async: a channel was reclaimed while a waiter was registered on it",
+      "site": "runtime/native/rt_channel_refcount.c::rt_channel_assert_pinned#1",
+      "message": "async: a claimed channel operation ran without a pin",
       "group": "PG-INVARIANT"
     },
     {
@@ -1297,6 +1287,21 @@
     {
       "site": "runtime/native/rt_channel_refcount.c::rt_channel_pin#1",
       "message": "async: an operation entered a channel that is being destroyed",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_channel_refcount.c::rt_channel_seal_reclaimable_locked#1",
+      "message": "async: a channel was reclaimed while a handle still named it",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_channel_refcount.c::rt_channel_seal_reclaimable_locked#2",
+      "message": "async: a channel was reclaimed while an operation still pinned it",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_channel_refcount.c::rt_channel_seal_reclaimable_locked#3",
+      "message": "async: a channel was reclaimed while a waiter was registered on it",
       "group": "PG-INVARIANT"
     },
     {

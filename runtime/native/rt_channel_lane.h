@@ -20,17 +20,6 @@ struct rt_channel {
     // owner's store and never move.
     uint32_t owner_shard_id;
     uint8_t closed;
-    // Set under the owner lock by the reclaim, before it detaches anything.
-    // Section 7 of docs/RUNTIME_V2.md names this the first step of teardown,
-    // and what it buys is a place to fail closed: an operation that pins the
-    // object after this is set found it through something that should already
-    // have been gone, and a panic naming that is worth more than the storage
-    // it would have written into.
-    //
-    // Atomic because the reader is not always under the lock the writer holds:
-    // an operation pin is taken before any lock, which is the whole point --
-    // the pin has to exist before the window it protects opens.
-    _Atomic uint8_t dying;
     // The element's descriptor, and its type id.
     //
     // ONE descriptor for the whole channel, per the storage model: a slot
@@ -52,16 +41,32 @@ struct rt_channel {
     rt_park_pool parks;
     // What still names this object, in the two kinds section 7 of
     // docs/RUNTIME_V2.md distinguishes: handle_refs counts the copies of the
-    // handle a program holds, pins count the runtime's own holds -- a
+    // handle a program holds, pin_state counts the runtime's own holds -- a
     // registered waiter, a select subscription, a claimed detached operation.
     // Both keep the object alive, and reclamation needs both at zero; see
     // rt_channel_refcount.h. `reclaiming` names the release that performs the
     // reclaim when both kinds retire at once, so the object is handed over
     // once and not twice.
     _Atomic uint32_t handle_refs;
-    _Atomic uint32_t pins;
+    // ONE WORD, not a count beside a flag. The high bit is the teardown seal
+    // section 7 calls "mark the object dying"; the low bits are the live pin
+    // count. Admitting a pin and counting it is a single read-modify-write on
+    // this word, and so is sealing it, which is the only way the two can be
+    // ordered against each other -- see rt_channel_refcount.h, and
+    // rt_scope_membership.h for the same argument spelled out at length.
+    //
+    // Atomic because the reader is not always under the lock the writer holds:
+    // an operation pin is taken before any lock, which is the whole point --
+    // the pin has to exist before the window it protects opens.
+    _Atomic uint32_t pin_state;
     _Atomic uint8_t reclaiming;
 };
+
+// The seal bit, and the mask of the count beside it. 2^31 simultaneous pins is
+// not a quantity of live operations any machine can hold, so the count cannot
+// reach the bit.
+#define RT_CHANNEL_PIN_DYING ((uint32_t)1u << 31)
+#define RT_CHANNEL_PIN_COUNT_MASK (RT_CHANNEL_PIN_DYING - 1u)
 
 // Channel lane (peel B2): a channel's buffer and its two waiter keys live
 // under the channel owner's shard lock; entry APIs no longer take the

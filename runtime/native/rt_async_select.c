@@ -267,6 +267,17 @@ int64_t rt_select_poll(uint64_t count,
                 // it held again. The claim is what makes the release safe: the
                 // cell or slot the take named cannot be reused while the
                 // reservation stands.
+                //
+                // The PIN is what makes the channel itself safe across the same
+                // release. This bracket is one of section 7's claimed detached
+                // operations, drawn one level further out than the others, and
+                // the hold has to span it: between the unlock and the relock
+                // another lane may retire the last handle, and without a pin the
+                // reclaim would free the ring the move is reading from. A
+                // winning arm carries the pin further still -- past the commit,
+                // to the release of the payload below, which reads the
+                // channel's descriptor with no lock held at all.
+                rt_channel_pin(handle);
                 rt_channel_take take;
                 uint8_t status = rt_channel_claim_recv_locked(ex, handle, &take);
                 if (status == 1) {
@@ -275,6 +286,8 @@ int64_t rt_select_poll(uint64_t count,
                     rt_control_lock(ex);
                     rt_channel_finish_recv_locked(ex, handle, &take);
                     taken_channel = handle;
+                } else {
+                    rt_channel_unpin(handle);
                 }
                 if (status == 1 || status == 2) {
                     selected = (int64_t)i;
@@ -284,6 +297,7 @@ int64_t rt_select_poll(uint64_t count,
             case SELECT_CHAN_SEND: {
                 void* value_src = values != NULL ? values[i] : NULL;
                 rt_channel_put put;
+                rt_channel_pin(handle);
                 uint8_t status = rt_channel_claim_send_locked(ex, handle, &put);
                 if (status == 1) {
                     rt_control_unlock(ex);
@@ -297,6 +311,9 @@ int64_t rt_select_poll(uint64_t count,
                     panic_msg("send on closed channel");
                     return -1;
                 }
+                // The send arm's value is the caller's and stays the caller's,
+                // so nothing outlives the commit here and the hold ends with it.
+                rt_channel_unpin(handle);
                 break;
             }
             case SELECT_TIMEOUT: {
@@ -347,7 +364,12 @@ int64_t rt_select_poll(uint64_t count,
         pending_key = waker_none();
         rt_control_unlock(ex);
         if (taken_channel != NULL) {
+            // Still on the pin the winning recv arm took above: the destination
+            // for this value is nowhere, and destroying it reads the channel's
+            // descriptor. The unpin is last, so a reclaim it sets off runs on a
+            // lane holding nothing.
             rt_channel_release_payload(taken_channel, taken_storage);
+            rt_channel_unpin(taken_channel);
         }
         return selected;
     }

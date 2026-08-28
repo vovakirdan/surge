@@ -63,6 +63,64 @@ static _Atomic uint32_t g_received;
 static _Atomic uint32_t g_bad_markers;
 static _Atomic(void*) g_channel;
 
+// WHAT THE ELEMENT'S DROP COULD SEE OF THE CHANNEL AT THE MOMENT IT RAN.
+//
+// Section 7 of docs/RUNTIME_V2.md prescribes an ORDER for teardown, and an
+// order is not observable from outside: a channel whose reclaim drains slot by
+// slot with no lock and no mark destroys exactly the same values, leaks
+// nothing, and prints exactly the same census as one that seals, detaches
+// everything, releases the lock and only then drops. Every figure the other
+// rows assert is blind to it.
+//
+// The element's own drop is the one place inside the order, so these three
+// count what it found. Each is the clause it belongs to, stated as a number:
+//
+//   sealed      -- the object was marked dying BEFORE anything was destroyed,
+//                  so an operation reaching it now is refused rather than
+//                  admitted into storage about to go.
+//   attached    -- the most any single drop still found reachable in the ring
+//                  or the park pool. A drop is user code that may re-enter the
+//                  runtime, and it must not find a half-emptied object; the
+//                  detach runs first precisely so the only thing left to find
+//                  is nothing.
+//   locked      -- how many drops ran with a scheduler lock held. Generated
+//                  code may not, which is why the lock is released before the
+//                  drops rather than after them. This figure CONFIRMS rather
+//                  than discriminates: rt_value_drop_in_place_detached already
+//                  refuses to dispatch under a lock, so an order that dropped
+//                  while holding one would be refused there before it could be
+//                  counted here. It is recorded because it is the one reading
+//                  of the lane state taken from inside the drop rather than at
+//                  the gate in front of it.
+static _Atomic uint32_t g_drops_with_seal;
+static _Atomic uint32_t g_max_attached_at_drop;
+static _Atomic uint32_t g_drops_under_lock;
+
+static void observe_teardown_order(void) {
+    const rt_channel* ch =
+        (const rt_channel*)atomic_load_explicit(&g_channel, memory_order_acquire);
+    if (ch == NULL) {
+        return;
+    }
+    if ((atomic_load_explicit(&ch->pin_state, memory_order_acquire) & RT_CHANNEL_PIN_DYING) != 0) {
+        atomic_fetch_add_explicit(&g_drops_with_seal, 1, memory_order_acq_rel);
+    }
+    if (rt_lane_holds_control() || rt_lane_holds_any_shard()) {
+        atomic_fetch_add_explicit(&g_drops_under_lock, 1, memory_order_acq_rel);
+    }
+    uint32_t attached = (uint32_t)(rt_typed_fifo_len(&ch->ring) + rt_park_pool_live(&ch->parks));
+    uint32_t seen = atomic_load_explicit(&g_max_attached_at_drop, memory_order_acquire);
+    while (attached > seen) {
+        if (atomic_compare_exchange_weak_explicit(&g_max_attached_at_drop,
+                                                  &seen,
+                                                  attached,
+                                                  memory_order_acq_rel,
+                                                  memory_order_acquire)) {
+            break;
+        }
+    }
+}
+
 static void owned_text_move(void* destination, void* source) {
     owned_text* to = (owned_text*)destination;
     owned_text* from = (owned_text*)source;
@@ -80,6 +138,7 @@ static void owned_text_drop(void* value) {
     typed->text = NULL;
     typed->marker = 0;
     atomic_fetch_add_explicit(&g_reclaimed_drops, 1, memory_order_acq_rel);
+    observe_teardown_order();
 }
 
 static rt_carrier_status
@@ -275,6 +334,40 @@ static int mode_waiter_pin(void) {
     return 0;
 }
 
+// THE ORDER OF THE TEARDOWN, ASKED FROM INSIDE IT.
+//
+// Same shape as the one-handle row -- three values nobody receives, one
+// release -- but what it states is not how many were destroyed. It is what each
+// destruction could see, and every figure belongs to one clause of the order
+// section 7 prescribes. The row is here because nothing else in this stand can
+// tell the two orders apart: destroy-as-you-go and seal-detach-unlock-drop
+// destroy the same three values, leak nothing, and print identical censuses.
+//
+// Measured against the pre-lane body -- rt_typed_fifo_drain and
+// rt_park_pool_drain, no owner lock, no mark, no detach -- this row prints
+// `drops=3 sealed_at_drop=0 still_attached=2 locked_at_drop=0` where the tree
+// with the order prints `drops=3 sealed_at_drop=3 still_attached=0
+// locked_at_drop=0`. Every other row in this file is byte-identical between the
+// two builds, which is why this one had to exist.
+static int mode_teardown_order(void) {
+    void* channel = handle_make_channel(HANDLE_CAPACITY);
+    if (channel == NULL) {
+        return handle_fail("channel was not created");
+    }
+    for (uint64_t marker = 1; marker <= 3; marker++) {
+        if (!handle_send_one(channel, marker)) {
+            return handle_fail("a send the buffer had room for was refused");
+        }
+    }
+    rt_channel_handle_drop(channel);
+    printf("teardown order: drops=%u sealed_at_drop=%u still_attached=%u locked_at_drop=%u\n",
+           (unsigned)atomic_load_explicit(&g_reclaimed_drops, memory_order_acquire),
+           (unsigned)atomic_load_explicit(&g_drops_with_seal, memory_order_acquire),
+           (unsigned)atomic_load_explicit(&g_max_attached_at_drop, memory_order_acquire),
+           (unsigned)atomic_load_explicit(&g_drops_under_lock, memory_order_acquire));
+    return 0;
+}
+
 static void handle_sleep_us(unsigned long micros) {
     struct timespec ts;
     ts.tv_sec = (time_t)(micros / 1000000UL);
@@ -421,6 +514,8 @@ int main(void) {
         status = mode_contended_handles();
     } else if (strcmp(mode, "waiter-pin") == 0) {
         status = mode_waiter_pin();
+    } else if (strcmp(mode, "teardown-order") == 0) {
+        status = mode_teardown_order();
     } else {
         return handle_fail("unknown mode");
     }

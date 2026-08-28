@@ -455,26 +455,30 @@ void rt_sync_point_open(void);
 // subscription, or a claimed operation still INSIDE the object? Only the pin
 // can refuse a reclaim that no handle is left to refuse.
 //
-// Defining this makes the acquire inert, so the count never leaves zero and a
-// reclaim proceeds under a live holder. The registration leg of the quiescence
-// assertion goes inert with it, and must: it exists because a registration is a
-// pin, so with pins removed it would refuse the very reclaim this control is
-// asking to let through, and the run would end at a panic instead of at the
-// defect. What is left is the pre-pin world -- a program that drops its last
-// handle while a waiter is registered destroys the channel's buffered payloads
-// there, a difference the census states as a number, and the key that
-// registration still holds names freed storage.
+// Defining this makes a pin count for nothing, so the count never leaves zero
+// and a reclaim proceeds under a live holder. Two other legs go inert with it,
+// and both must: the registration leg of the quiescence check, which exists
+// because a registration is a pin and would otherwise refuse the very reclaim
+// this control is asking to let through; and the caller-holds-a-pin check on
+// the claim/finish surface, which in a run where no pin is ever counted would
+// fire on the first select instead of at the defect. Either would end the run
+// at a panic rather than at the thing the control is trying to show. What is
+// left is the pre-pin world -- a program that drops its last handle while a
+// waiter is registered destroys the channel's buffered payloads there, a
+// difference the census states as a number, and the key that registration still
+// holds names freed storage.
+//
+// It is spelled as the ADDEND rather than as the whole operation because the
+// admission and the count are one compare-and-swap on one word (see
+// rt_channel_refcount.c): removing the exchange would remove the ordering the
+// rest of the runtime reads, not the hold this control is asking to remove.
 #ifdef RV2_CHANNEL_PIN_NEGATIVE_CONTROL
-#define RT_CHANNEL_PIN_ACQUIRE(pins) ((void)(pins), (uint32_t)0)
+#define RT_CHANNEL_PIN_COUNTS 0u
 #define RT_CHANNEL_REGISTERED(count) ((void)(count), (size_t)0)
 #else
-#define RT_CHANNEL_PIN_ACQUIRE(pins) atomic_fetch_add_explicit((pins), 1, memory_order_relaxed)
+#define RT_CHANNEL_PIN_COUNTS 1u
 #define RT_CHANNEL_REGISTERED(count) (count)
 #endif
-// The release is never toggled: with the acquire inert the count never leaves
-// zero and rt_channel_unpin returns before reaching this, so a second spelling
-// would only be a second thing to keep in step.
-#define RT_CHANNEL_PIN_RELEASE(pins) atomic_fetch_sub_explicit((pins), 1, memory_order_acq_rel)
 
 // RV2-DEBT-080 negative-control toggle. The fixed release destroys a blocking
 // job's captures through their own descriptor: an initialized state cell is

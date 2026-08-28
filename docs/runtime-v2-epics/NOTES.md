@@ -9188,3 +9188,101 @@ BUILD; 35 pass. Measured by stashing this lane's diff and running
 error. `TestRuntimeV2LifecycleShutdownWithParkedTasks`, the row that would notice
 a registration pin leaking a channel at shutdown, builds and PASSES with this
 change.
+
+## Channel lifetime — answering the adversarial review (2026-08-28)
+
+Four findings, all conceded; nothing in the review's "Refuted" list survived as
+written except one geographic detail.
+
+**The teardown half shipped with no failing test, and now has one.** The review
+reverted `rt_channel_free` to the pre-lane body and every census row printed
+byte-identically — because every row counts what was DESTROYED, and both orders
+destroy the same three values. The order is only visible from INSIDE it, so the
+element's own `drop_in_place` now records three things and a fifth row states
+them: `teardown order: drops=3 sealed_at_drop=3 still_attached=0
+locked_at_drop=0`. Rebuilt against the pre-lane body — `rt_typed_fifo_drain` +
+`rt_park_pool_drain`, no owner lock, no mark, no detach — the same build prints
+`drops=3 sealed_at_drop=0 still_attached=2 locked_at_drop=0` and the row's
+want-substring misses. `still_attached` is the maximum any single drop still
+found in the ring or the park pool, which is the clause that matters: a drop is
+user code that may re-enter the runtime and must not find a half-emptied object.
+`locked_at_drop` CONFIRMS rather than discriminates —
+`rt_value_drop_in_place_detached` already refuses to dispatch under a scheduler
+lock — and the row's comment says so rather than claiming three proofs where
+there are two.
+
+**`dying` was a load-then-store pair, not a gate.** `rt_channel_pin` read
+`dying` and then added to `pins`; `rt_channel_free` read `pins` and then stored
+`dying`. Two objects, load-then-store against store-then-load: both sides can
+read zero, so a pin could land in storage a reclaim was already freeing. This is
+the shape `rt_scope_membership.h` was written about. The two words are now ONE —
+`rt_channel::pin_state`, seal bit in bit 31, count below it — and each side moves
+it with ONE read-modify-write: `channel_pin_admit` compare-exchanges the count
+up only while the seal is clear, and `rt_channel_seal_reclaimable_locked`
+compare-exchanges `0 -> DYING`, so a CAS that fails IS the "still pinned"
+refusal rather than a separate check before it. Modification order on one object
+makes exactly one of them first. Cost: one uncontended CAS per pin.
+
+**The header enumerated pin sites that do not exist.** It listed
+`rt_channel_release_payload` and "the claim lanes" as taking a pin; neither did.
+The list is now the seven entry points that actually call `rt_channel_pin`, plus
+an explicit NOT-here paragraph for the five that do not — and those five stopped
+being an unmarked hole: `rt_channel_assert_pinned` fails closed on the caller's
+pin in all four `*_locked` claim/finish helpers and in
+`rt_channel_release_payload`.
+
+**The select slow lane is pinned; the LOC reason for deferring it was wrong.**
+The lane reported `rt_far_channel_select.c` at 521 "effective" LOC — that is
+`wc -l`; `scripts/effective_loc.awk` says 390. The bracket is not in that file
+at all (it has no `rt_channel_claim_*` call); it is in `rt_async_select.c`, 417
+effective before and 423 after, against a ceiling of 500. `rt_select_poll` now
+pins before the claim on both channel arms and unpins after the finish — for a
+winning recv arm, after `rt_channel_release_payload`, which reads the channel's
+descriptor with no lock held. Proven by removal, not by argument: with the recv
+arm's pin deleted,
+`go test ./internal/vm -run TestRuntimeV2SelectReleasesAStringPayloadExactlyOnce`
+fails with `panic: async: a claimed channel operation ran without a pin`; it
+passes in 20.52s with the pin.
+
+**Corrections to the lane's own report.** The valgrind `possibly lost: 304 bytes
+in 1 blocks` figure is not "reproducible 3/3" as a property of the code: the
+review saw it in 2 of 19 runs, this worktree saw it in 15 of 15. The block is
+the blocking worker's pthread TLS from `ensure_exec`, outside what the row
+asserts (definite + indirect at strict zero). `rt_channel_refcount.c` was 200
+effective LOC, not 201. Three Go TEST files were in the diff; the accurate claim
+is that no file under `internal/backend/llvm/` was opened. And the `STATS.md`
+hunk's Go delta (918 files/199138 lines -> 917/198578) was not this lane's — the
+file was stale at the base and `scripts/pre-commit` regenerated it; only the C
+delta belongs here.
+
+**Global Rule 16 earned its keep, again.** The new caller-holds-a-pin contract is
+a protocol change, and a stand encoded the old rule: `channel_probe_take`
+(`runtime_v2_remote_publication_harness_common_test.go`) called
+`rt_channel_release_payload` after `rt_channel_try_recv` had already given its
+own pin back, so the release read the descriptor holding nothing.
+`TestRuntimeV2RemoteSelectAbandonEdges` went red at 4.79s in the serialized
+tagged sweep and nowhere in the gates this lane had opened. The probe takes the
+spanning pin now — the same hold the select slow lane takes around its own
+claim/move/release — and the row passes in 4.73s, nine subtests.
+
+**Two transport subtests are red and were red before this.** `make
+runtime-v2-transport-check` stops at `TestRuntimeV2RemoteTaskBehavior`:
+`result-owner-release` and `caller-abandon-drops-landed-result`, both `code=1`,
+`runtime_v2_remote_task_behavior_test.go:478`. Measured on `bf8501e9` with this
+work stashed: the same two subtests, the same line, the same code. Every other
+row of that gate passes, including the whole remote-task acceptance line
+(15 rows) and the three lines after it (88.7s).
+
+**A hang that was the measurement's own fault.**
+`TestRuntimeV2ChannelHandleValgrindZero/async_float_param` timed out at 180s
+while a second valgrind batch of mine was running on the same machine; alone it
+is 9.61s and the five-row set is 47.30s. Two concurrent valgrind batches are not
+a measurement of anything.
+
+**Still open, and named rather than fixed.** Nothing sweeps channel-key
+registrations at teardown, so a process exiting with a task parked on a channel
+leaves that pin unretired and the object unfreed; nothing in the corpus reaches
+it. `rt_channel_free` calls `ensure_exec()` unconditionally now, because it needs
+the owner shard to lock — a channel reclaimed on a short-lived thread can lazily
+spin an executor up. And no carrier benchmark was run for the compare-and-swap
+the pin now costs.

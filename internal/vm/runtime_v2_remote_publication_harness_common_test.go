@@ -9,6 +9,7 @@ package vm_test
 const remotePublicationHarnessCommon = `
 #define _POSIX_C_SOURCE 199309L
 #include "rt_async_internal.h"
+#include "rt_channel_refcount.h"
 #include "rt_far_channel.h"
 #include "rt_placement.h"
 #include "rt_remote_spawn.h"
@@ -350,13 +351,23 @@ static rt_remote_task_pending* wait_select_pending_shared(select_exec_state* st,
 // element's move runs between the claim and the commit, and no generated
 // operation may run under a runtime lock. rt_channel_try_recv performs that
 // whole sequence, taking and releasing the channel's own lock as it goes.
+//
+// The probe holds a PIN across the pair. rt_channel_try_recv takes one of its
+// own and gives it back on the way out, which leaves the release below holding
+// nothing while it reads the channel's descriptor -- so the probe takes the
+// hold that spans both, exactly as the select slow lane does around its own
+// claim/move/release. rt_channel_release_payload refuses an unpinned caller
+// rather than reading storage another lane may already have reclaimed.
 static uint8_t channel_probe_take(rt_executor* ex, void* channel, uint64_t* out_bits) {
     (void)ex;
     *out_bits = 0;
+    rt_channel_pin(channel);
     if (!rt_channel_try_recv(channel, out_bits)) {
+        rt_channel_unpin(channel);
         return 0;
     }
     rt_channel_release_payload(channel, out_bits);
+    rt_channel_unpin(channel);
     return 1;
 }
 

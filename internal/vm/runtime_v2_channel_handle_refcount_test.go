@@ -117,6 +117,24 @@ func channelHandleRows() []channelHandleRow {
 			mode: "waiter-pin",
 			want: "waiter pin: sent=3 drops_while_registered=0 reclaimed_drops=3 bad=0",
 		},
+		{
+			// The ORDER of the teardown, which no other row can see: the same
+			// three values are destroyed either way, so a census of what was
+			// destroyed is blind to it. This one is taken from INSIDE, by the
+			// element's own drop, and each figure is one clause of the order
+			// section 7 of docs/RUNTIME_V2.md prescribes -- sealed before
+			// anything is destroyed, everything detached before the first drop
+			// runs, and no scheduler lock held while it does. Rebuilt against
+			// the pre-lane body -- drain in place, no owner lock, no mark --
+			// the same three drops report `sealed_at_drop=0 still_attached=2`
+			// and this row goes red; every other row above is byte-identical
+			// between the two builds. The third figure confirms rather than
+			// discriminates, since the drop dispatch already refuses to run
+			// under a scheduler lock.
+			name: "teardown-runs-in-the-prescribed-order",
+			mode: "teardown-order",
+			want: "teardown order: drops=3 sealed_at_drop=3 still_attached=0 locked_at_drop=0",
+		},
 	}
 }
 

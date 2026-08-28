@@ -329,11 +329,19 @@ void rt_channel_finish_put_owner_locked(rt_executor* ex,
 // only one that can release control -- moves and then finishes. That is the
 // same claim/move/commit split as everywhere else, drawn one level further out
 // because the lock is one level further out.
+//
+// THE PIN THAT COVERS THEM BELONGS TO THE CALLER, and each of the four checks
+// that it exists. They cannot take one per call: the window that needs the hold
+// is the caller's release of the control lock BETWEEN a claim and its finish,
+// and a pin taken and dropped inside one call is gone before that window opens.
+// So the contract is the caller's, and a caller that forgot it is refused here
+// rather than at the use-after-free that would follow.
 uint8_t rt_channel_claim_recv_locked(rt_executor* ex, void* channel, rt_channel_take* out_take) {
     rt_channel* ch = channel_from_handle(channel);
     if (ex == NULL || ch == NULL || out_take == NULL) {
         return 0;
     }
+    rt_channel_assert_pinned(ch);
     rt_shard* ch_shard = channel_owner_shard(ex, ch);
     rt_shard_lock(ch_shard);
     uint8_t status = rt_channel_try_recv_status_owner_locked(ex, ch_shard, ch, out_take);
@@ -346,6 +354,7 @@ void rt_channel_finish_recv_locked(rt_executor* ex, void* channel, const rt_chan
     if (ex == NULL || ch == NULL || take == NULL) {
         return;
     }
+    rt_channel_assert_pinned(ch);
     rt_shard* ch_shard = channel_owner_shard(ex, ch);
     rt_shard_lock(ch_shard);
     rt_channel_finish_take_owner_locked(ex, ch_shard, ch, take);
@@ -360,6 +369,7 @@ uint8_t rt_channel_claim_send_locked(rt_executor* ex, void* channel, rt_channel_
     if (ex == NULL || ch == NULL || out_put == NULL) {
         return 0;
     }
+    rt_channel_assert_pinned(ch);
     rt_shard* ch_shard = channel_owner_shard(ex, ch);
     rt_shard_lock(ch_shard);
     uint8_t status = rt_channel_try_send_status_owner_locked(ex, ch_shard, ch, out_put);
@@ -372,6 +382,7 @@ void rt_channel_finish_send_locked(rt_executor* ex, void* channel, rt_channel_pu
     if (ex == NULL || ch == NULL || put == NULL) {
         return;
     }
+    rt_channel_assert_pinned(ch);
     rt_shard* ch_shard = channel_owner_shard(ex, ch);
     rt_shard_lock(ch_shard);
     rt_channel_finish_put_owner_locked(ex, ch_shard, ch, put);

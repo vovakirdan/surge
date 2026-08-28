@@ -104,11 +104,18 @@ void* rt_channel_new(uint64_t capacity, const rt_value_ops* ops, uint64_t elemen
 // `storage` is the select operation's own staging slot, which is where the take
 // moved the value. Runs the element's drop, so no shard or control lock may be
 // held here.
+//
+// It takes no pin of its own, and reads the channel's descriptor, so the
+// caller's pin from the claim that took the value must still be standing: with
+// no lock held, this is precisely the moment another lane could retire the last
+// handle. Checked rather than assumed, because the descriptor read below is the
+// use-after-free that would otherwise be the only report.
 void rt_channel_release_payload(void* channel, void* storage) {
     const rt_channel* ch = channel_from_handle(channel);
     if (ch == NULL || storage == NULL) {
         return;
     }
+    rt_channel_assert_pinned(ch);
     rt_value_drop_in_place_detached(ch->ops, storage);
 }
 

@@ -133,7 +133,9 @@ typedef struct {
 // any task can park on it. Nothing rebinds it afterwards, and both migrators
 // above filter on join_key, so a channel entry never changes stores.
 //
-// A channel key CARRIED by a caller outlives its channel (RV2-DEBT-199). A far
+// A channel key CARRIED by a caller outlives its channel, and nothing counts
+// that copy, so resolving it by casting the id back to a pointer is a read of
+// storage that may already be gone. A far
 // channel is freed at rt_far_channel.c's release_entry, and the deferred
 // stale-key removal in rt_task_park.c's wake_task_with_policy still holds the
 // parked task's channel key across the window in which the woken task

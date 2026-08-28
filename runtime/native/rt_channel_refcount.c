@@ -22,7 +22,8 @@ static rt_channel* refcount_channel(void* channel) {
 // reclaims, never what the reclaim does.
 static void channel_reclaim_if_unreferenced(rt_channel* ch) {
     if (atomic_load_explicit(&ch->handle_refs, memory_order_acquire) != 0 ||
-        atomic_load_explicit(&ch->pins, memory_order_acquire) != 0) {
+        (atomic_load_explicit(&ch->pin_state, memory_order_acquire) & RT_CHANNEL_PIN_COUNT_MASK) !=
+            0) {
         return;
     }
     if (atomic_exchange_explicit(&ch->reclaiming, (uint8_t)1, memory_order_acq_rel) != 0) {
@@ -76,20 +77,79 @@ void rt_channel_handle_drop(void* channel) {
     channel_reclaim_if_unreferenced(ch);
 }
 
+// ADMISSION AND COUNTING ARE ONE READ-MODIFY-WRITE, AND THAT IS THE WHOLE
+// POINT.
+//
+// Two lanes decide this word: a pin, which must refuse to enter an object being
+// torn down, and the reclaim, which must refuse to tear down an object still
+// pinned. They share no lock -- a pin is taken BEFORE any lock, because the
+// window it protects opens before the first one is acquired.
+//
+// Spelled as a flag beside a count, each side is a load then a store on a
+// different object: the pin reads the seal then adds to the count, the reclaim
+// reads the count then writes the seal. That is a load-then-store against a
+// store-then-load, and sequential consistency does NOT linearise it -- both
+// sides can read zero, and then a pin lands in storage the reclaim is already
+// freeing. rt_scope_membership.h carries the same argument at length, written
+// after exactly this shape cost a scope its children.
+//
+// So the seal and the count live in ONE word and each side moves it with ONE
+// read-modify-write. Read-modify-writes on one object are totally ordered by
+// that object's modification order and each reads the value written by the
+// modification immediately before it, so whichever runs second sees the first:
+// exactly one of "the pin was admitted" and "the object was sealed" is true.
+// The cost is one compare-and-swap per pin, uncontended in every ordinary
+// program, against a window in which a pin and a reclaim both believe they were
+// first.
+static int channel_pin_admit(rt_channel* ch) {
+    uint32_t state = atomic_load_explicit(&ch->pin_state, memory_order_relaxed);
+    for (;;) {
+        if ((state & RT_CHANNEL_PIN_DYING) != 0) {
+            return 0;
+        }
+        // RT_CHANNEL_PIN_COUNTS is 0 under the negative control, which asks the
+        // count never to leave zero. The exchange still happens, so the control
+        // removes the HOLD and not the ordering the rest of the runtime reads.
+        if (atomic_compare_exchange_weak_explicit(&ch->pin_state,
+                                                  &state,
+                                                  state + RT_CHANNEL_PIN_COUNTS,
+                                                  memory_order_acq_rel,
+                                                  memory_order_acquire)) {
+            return 1;
+        }
+    }
+}
+
+// The count before this release, or 0 for an over-release. A CAS rather than a
+// fetch_sub so the seal bit above the count is carried through untouched: a
+// borrow out of the count into that bit would read as a channel already dying.
+static uint32_t channel_pin_release(rt_channel* ch) {
+    uint32_t state = atomic_load_explicit(&ch->pin_state, memory_order_relaxed);
+    for (;;) {
+        uint32_t held = state & RT_CHANNEL_PIN_COUNT_MASK;
+        if (held == 0) {
+            return 0;
+        }
+        if (atomic_compare_exchange_weak_explicit(
+                &ch->pin_state, &state, state - 1u, memory_order_acq_rel, memory_order_acquire)) {
+            return held;
+        }
+    }
+}
+
 void rt_channel_pin(void* channel) {
     rt_channel* ch = refcount_channel(channel);
     if (ch == NULL) {
         return;
     }
-    if (atomic_load_explicit(&ch->dying, memory_order_acquire) != 0) {
+    if (!channel_pin_admit(ch)) {
         // Reached through something that should already have been retired: the
-        // reclaim set this under the owner lock after the assertion below found
-        // no handle and no pin. Say so here rather than let the operation write
-        // into storage that is about to be freed.
+        // reclaim sealed the word under the owner lock, and this admission lost
+        // to that seal rather than racing it. Say so here rather than let the
+        // operation write into storage that is about to be freed.
         panic_msg("async: an operation entered a channel that is being destroyed");
         return;
     }
-    (void)RT_CHANNEL_PIN_ACQUIRE(&ch->pins);
 }
 
 void rt_channel_unpin(void* channel) {
@@ -97,13 +157,29 @@ void rt_channel_unpin(void* channel) {
     if (ch == NULL) {
         return;
     }
-    if (atomic_load_explicit(&ch->pins, memory_order_relaxed) == 0) {
-        return;
-    }
-    if (RT_CHANNEL_PIN_RELEASE(&ch->pins) != 1) {
+    if (channel_pin_release(ch) != 1) {
         return;
     }
     channel_reclaim_if_unreferenced(ch);
+}
+
+// Fail-closed for the callers that hold no lock of their own between a claim
+// and its finish: the select slow lane, and the blocking loops. Section 7 makes
+// a claimed detached operation an internal pin, so an unpinned caller in this
+// bracket is one whose channel another lane may reclaim mid-move -- and the
+// only evidence would be the use-after-free that followed.
+void rt_channel_assert_pinned(const void* channel) {
+    const rt_channel* ch = channel == NULL ? NULL : (const rt_channel*)channel;
+    if (ch == NULL) {
+        return;
+    }
+    uint32_t held =
+        atomic_load_explicit(&ch->pin_state, memory_order_acquire) & RT_CHANNEL_PIN_COUNT_MASK;
+    // Nothing to assert when the negative control has asked pins not to count:
+    // the control's whole purpose is a run in which no hold exists.
+    if (RT_CHANNEL_PIN_COUNTS != 0 && held == 0) {
+        panic_msg("async: a claimed channel operation ran without a pin");
+    }
 }
 
 // The two hooks the waiter-store mutation points call. A store entry naming a
@@ -154,8 +230,8 @@ static size_t channel_registered_waiters_locked(const rt_shard* owner, const rt_
     return found;
 }
 
-void rt_channel_assert_reclaimable_locked(const struct rt_shard* owner, void* channel) {
-    const rt_channel* ch = channel == NULL ? NULL : (const rt_channel*)channel;
+void rt_channel_seal_reclaimable_locked(const struct rt_shard* owner, void* channel) {
+    rt_channel* ch = refcount_channel(channel);
     if (ch == NULL) {
         return;
     }
@@ -163,9 +239,26 @@ void rt_channel_assert_reclaimable_locked(const struct rt_shard* owner, void* ch
         panic_msg("async: a channel was reclaimed while a handle still named it");
         return;
     }
-    if (RT_DEBT155_STILL_NAMED(atomic_load_explicit(&ch->pins, memory_order_acquire)) != 0) {
-        panic_msg("async: a channel was reclaimed while an operation still pinned it");
-        return;
+    // The seal IS the pin check, in one read-modify-write: the word moves from
+    // "no pin, not sealed" to "sealed" or it does not move at all. A pin that
+    // reads the word after this loses; a pin that got there first is what makes
+    // this fail, and it fails LOUDLY rather than freeing storage underneath it.
+    // Reading the count and then writing the seal as two steps is the shape
+    // channel_pin_admit above explains sequential consistency does not order.
+    uint32_t observed = 0;
+    if (!atomic_compare_exchange_strong_explicit(&ch->pin_state,
+                                                 &observed,
+                                                 RT_CHANNEL_PIN_DYING,
+                                                 memory_order_acq_rel,
+                                                 memory_order_acquire)) {
+        if (RT_DEBT155_STILL_NAMED(observed & RT_CHANNEL_PIN_COUNT_MASK) != 0) {
+            panic_msg("async: a channel was reclaimed while an operation still pinned it");
+            return;
+        }
+        // Only the negative control reaches here, which asks the reclaim to walk
+        // into the defect so a sanitizer can name it. Seal anyway, so what the
+        // rest of teardown reads is the same word it reads in an ordinary run.
+        (void)atomic_fetch_or_explicit(&ch->pin_state, RT_CHANNEL_PIN_DYING, memory_order_acq_rel);
     }
     if (owner == NULL) {
         return;
@@ -266,9 +359,15 @@ void rt_channel_reclaim_drain(void) {
 //
 // UNDER THE OWNER LOCK, because that is the lock that answers for the ring, the
 // park pool and the two waiter keys. Taking it is what lets the quiescence
-// assertion read the store at all: the count of registrations and the pin count
-// it is supposed to summarise are only consistent with each other while the
-// lock that mutates both is held.
+// check read the store at all: the count of registrations and the pin count it
+// is supposed to summarise are only consistent with each other while the lock
+// that mutates both is held.
+//
+// MARK IT DYING FIRST, and by the same read-modify-write that finds no pin, so
+// that "nothing was inside it" and "nothing may enter it" are one decision. The
+// teardown-order row of internal/vm/testdata/channel_handle_refcount.c is what
+// says this happened: every element's drop runs with the object sealed, with
+// nothing left attached to find, and with no scheduler lock held.
 //
 // DETACH BEFORE ANY DROP, because an element's drop is user code and may re-
 // enter the runtime. A slot-by-slot drain hands it an object that is half torn
@@ -302,8 +401,7 @@ void rt_channel_free(void* channel) {
     if (owner != NULL) {
         rt_shard_lock(owner);
     }
-    rt_channel_assert_reclaimable_locked(owner, ch);
-    atomic_store_explicit(&ch->dying, (uint8_t)1, memory_order_release);
+    rt_channel_seal_reclaimable_locked(owner, ch);
     rt_typed_fifo_detach_all_locked(&ch->ring, &buffered);
     rt_park_pool_detach_all_locked(&ch->parks);
     if (owner != NULL) {
