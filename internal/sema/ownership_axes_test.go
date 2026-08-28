@@ -196,11 +196,13 @@ fn probe(r: &int, m: &mut int, o: Owning) -> int {
 // (`isRuntimeHandleTypeDecl`), with the answer each row must give:
 //
 //   - `Task<int>`, `Task<string>`: a handle, not Copy, owns the task — true;
-//   - `Channel<int>`: a handle declared `@copy`, so the handle leg answers
-//     `!isCopy` = false today. The storage model has the copy RETAIN and the
-//     drop release (RUNTIME_V2 §7), which is D3b C1's flip: the row records
-//     the seam, and C1 changes it to true in the same change that emits the
-//     drop;
+//   - `Channel<int>`: a handle declared `@copy` — true. The row used to be
+//     false, because the handle leg answered `!isCopy` and nothing else, and
+//     a Copy handle therefore owned nothing. It is a reference-counted handle
+//     now: a copy RETAINS and a drop RELEASES the runtime object the handle
+//     names (RUNTIME_V2 §7), so the value owns one reference and the axis
+//     must say so. This row and the emitted drop are one change: an axis
+//     answering true with no release emitted is a promise nothing keeps;
 //   - `Opt<int>` / `Opt<float>`: a generic `@copy` union, instantiated, owns
 //     what its payload owns — false, then true for the counted scalar;
 //   - `Pair<int>`: a generic `@copy` tuple alias. The Copy authorities DO
@@ -231,7 +233,7 @@ fn probe(t: Task<int>, ts: Task<string>, c: Channel<int>, oi: Opt<int>, of: Opt<
 	rows := map[string]bool{
 		"Task<int>":    true,
 		"Task<string>": true,
-		"Channel<int>": false,
+		"Channel<int>": true,
 		"Opt<int>":     false,
 		"Opt<float>":   true,
 		"Pair<int>":    false,

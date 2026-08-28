@@ -115,6 +115,16 @@ func operandForAsyncInitialStateStore(f *Func, id LocalID, typesIn *types.Intern
 	}
 	if typesIn.IsRefCounted(f.Locals[id].Type) {
 		op.Kind = OperandRetain
+		// The operand has to CARRY its type, which the synthetic handoff
+		// operands otherwise leave unset. A retain is the one operand kind
+		// whose lowering asks the type: the backend bumps a counted scalar's
+		// count inline and calls the runtime for a channel handle's, and with
+		// no type it cannot tell them apart and takes the inline path. On a
+		// channel that is a non-atomic increment of the first word of the
+		// runtime's channel header -- the handle count is never bumped, so the
+		// creator's release destroys the object under the task it was handed
+		// to, and the header is corrupted besides.
+		op.Type = f.Locals[id].Type
 	}
 	return op
 }

@@ -93,8 +93,8 @@ func TestImportedOwnershipFindingProvenanceDedupesAcrossRoots(t *testing.T) {
 		if finding.Source != "core/sync.sg" {
 			t.Fatalf("imported poll source = %q, want core/sync.sg: %s", finding.Source, finding)
 		}
-		if finding.StartLine != 8 {
-			t.Fatalf("imported poll line = %d, want mutex_lock_task declaration line 8: %s", finding.StartLine, finding)
+		if finding.StartLine != 14 {
+			t.Fatalf("imported poll line = %d, want mutex_lock_task declaration line 14: %s", finding.StartLine, finding)
 		}
 	}
 	if first != second {
