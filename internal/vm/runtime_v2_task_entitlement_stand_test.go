@@ -19,7 +19,11 @@ const lifecycleHarnessTaskEntitlementModes = `
 #ifdef RT_TEST_SYNC_POINTS
 #include "rt_remote_task_internal.h"
 
-#define POLL_ENTITLEMENT_OWNING_RESULT 4042
+// 4042 and 4043 are the scope-membership pair's. Two lanes written apart both
+// reached for 4042 and the harness compiles every mode into one switch, so the
+// collision is a duplicate case label rather than a wrong answer -- which is
+// why it only appears under the gate that builds the whole harness.
+#define POLL_ENTITLEMENT_OWNING_RESULT 4044
 
 // A value that is whole, then dead, and never both: the marker says which, so a
 // second visit is COUNTED instead of being a double free the stand cannot see,

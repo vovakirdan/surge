@@ -528,6 +528,7 @@ int main(int argc, char** argv) {
     }
     if (strcmp(argv[1], "scope-membership-completed-before-registration") == 0) {
         return mode_scope_membership_completed_before_registration(ex);
+    }
     if (strcmp(argv[1], "entitlement-shutdown-vs-claimed-clone") == 0) {
         return mode_entitlement_shutdown_vs_claimed_clone(ex);
     }
