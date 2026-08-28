@@ -156,6 +156,10 @@ static const char* rt_sp_name(rt_sync_point_id id) {
             return "SP_BLOCKING_SHUTDOWN_BEFORE_DRAIN";
         case RT_SYNC_POINT_SP_INLINE_CHILD_TAKEN_OFF_QUEUE:
             return "SP_INLINE_CHILD_TAKEN_OFF_QUEUE";
+        case RT_SYNC_POINT_SP_SCOPE_MEMBERSHIP_DECIDED_BEFORE_PUBLISH:
+            return "SP_SCOPE_MEMBERSHIP_DECIDED_BEFORE_PUBLISH";
+        case RT_SYNC_POINT_SP_SCOPE_CHILD_DONE_AFTER_MEMBERSHIP_TAKE:
+            return "SP_SCOPE_CHILD_DONE_AFTER_MEMBERSHIP_TAKE";
         default:
             return "";
     }

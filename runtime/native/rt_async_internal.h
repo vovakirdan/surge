@@ -280,7 +280,10 @@ typedef struct rt_task {
     uint64_t sleep_delay;
     uint64_t sleep_deadline;
     uint64_t scope_id;
-    uint64_t parent_scope_id;
+    // Which scope this task is a child of. A CLAIM word, not a plain field:
+    // two threads race to decide it and only one may win, and the protocol that
+    // decides it lives in rt_scope_membership.h.
+    _Atomic uint64_t parent_scope_id;
     // Park generation for channel candidate/validate: bumped when a channel
     // park registers and when this task consumes a delivered channel resume,
     // so a popped entry from a superseded park validates false instead of

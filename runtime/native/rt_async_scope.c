@@ -1,4 +1,5 @@
 #include "rt_async_internal.h"
+#include "rt_scope_membership.h"
 #include "rt_sync_point.h"
 
 // Async runtime scope management.
@@ -147,27 +148,40 @@ void rt_scope_register_child(const void* scope_handle, void* task) {
     // synchronous call from the owner's own poll right after __task_create, so
     // the child's owner shard == the scope's pinned shard here (it cannot have
     // re-placed yet). That makes the pinned shard lock == the child's owner
-    // shard lock, so this register and the child's own mark_done child-done
-    // serialize on ONE lock; the status check below plus the atomic TASK_DONE
-    // store close the register-vs-completion race without the control lane.
+    // shard lock, so the scope's accounting and the child's own mark_done
+    // child-done serialize on ONE lock, with no control lane.
+    //
+    // The lock is NOT what decides membership, though, and it cannot be: the
+    // completion has to read this child's scope identity before it knows which
+    // lock to take, so it reads it holding none. The claim below is what
+    // decides, in one read-modify-write against the completion's own -- whoever
+    // runs second sees the first. Losing it means the child completed before
+    // this registration reached it, which is the late path further down: the
+    // scope must never count a child whose completion has already been and gone.
     rt_shard_lock(pinned);
     if (child->scope_registered) {
         rt_shard_unlock(pinned);
         return;
     }
-    if (task_status_load(child) != TASK_DONE) {
+    int claimed = RT_SCOPE_MEMBERSHIP_CLAIM(child, scope_id);
+    RT_SYNC_POINT(SP_SCOPE_MEMBERSHIP_DECIDED_BEFORE_PUBLISH);
+    if (claimed) {
         scope_add_child(scope, child_id);
-        child->parent_scope_id = scope_id;
+        RT_SCOPE_MEMBERSHIP_PUBLISH(child, scope_id);
         child->scope_registered = 1;
         scope->active_children++;
         rt_shard_unlock(pinned);
         return;
     }
     rt_shard_unlock(pinned);
-    // Rare late-registration (S5-Q9): the child is already DONE. Only a
+    // Rare late-registration (S5-Q9): the child completed before this claim
+    // reached it, so it is not a member and nothing will retire it. Only a
     // cancelled child in a failfast scope acts - it triggers failfast and
     // cancels the already-registered siblings. The walk needs the control lane
-    // (see file header re-derivation).
+    // (see file header re-derivation). Reading the child's committed result
+    // here is ordered by the claim itself: the completion's read-modify-write
+    // released everything it had written, and the acquire on this failed claim
+    // is what makes it visible.
     if (child->result_kind != TASK_RESULT_CANCELLED || !scope->failfast) {
         return;
     }
@@ -330,12 +344,25 @@ void scope_exit_locked(rt_executor* ex, rt_scope* scope) {
 // owner shard here); cross-owner (re-placed child) or failfast-triggering
 // completions take the counted control lane (file header re-derivation).
 void scope_on_child_done(rt_executor* ex, rt_task* task, uint8_t result_kind) {
-    if (ex == NULL || task == NULL || task->parent_scope_id == 0) {
+    if (ex == NULL || task == NULL) {
+        return;
+    }
+    // Take this task out of the membership race before anything else, and take
+    // it with one read-modify-write. This read cannot be made under the scope's
+    // lock -- its answer is which scope's lock to take -- so it is the claim
+    // word itself that has to be the serializer. A task that answers NONE here
+    // never belonged to a scope, and the word is now sealed: a registration
+    // still in flight for it loses its claim and reports the completion itself,
+    // instead of counting a child that has already finished. Reading and
+    // returning on a plain zero here was a lost fail-fast and a scope that
+    // never drains.
+    uint64_t psid = RT_SCOPE_MEMBERSHIP_TAKE(task);
+    RT_SYNC_POINT(SP_SCOPE_CHILD_DONE_AFTER_MEMBERSHIP_TAKE);
+    if (psid == RT_SCOPE_CLAIM_NONE) {
         return;
     }
     rt_shard* child_shard = rt_task_owner_shard(ex, task);
     rt_shard_lock(child_shard);
-    uint64_t psid = task->parent_scope_id;
     rt_scope* scope = get_scope(ex, psid);
     if (scope == NULL) {
         rt_shard_unlock(child_shard);

@@ -195,6 +195,12 @@ void __surge_poll_call(uint64_t id) {
         case POLL_INLINE_CLAIM_CHILD:
             poll_inline_claim_child();
             break;
+        case POLL_SCOPE_MEMBERSHIP_OWNER:
+            poll_scope_membership_owner();
+            break;
+        case POLL_SCOPE_MEMBERSHIP_CHILD:
+            poll_scope_membership_child();
+            break;
 #endif
         default:
             break;
@@ -514,6 +520,12 @@ int main(int argc, char** argv) {
     }
     if (strcmp(argv[1], "inline-claim-off-queue") == 0) {
         return mode_inline_claim_off_queue(ex);
+    }
+    if (strcmp(argv[1], "scope-membership-claim") == 0) {
+        return mode_scope_membership_claim(ex);
+    }
+    if (strcmp(argv[1], "scope-membership-completed-before-registration") == 0) {
+        return mode_scope_membership_completed_before_registration(ex);
     }
 #endif
     return fail("unknown mode");

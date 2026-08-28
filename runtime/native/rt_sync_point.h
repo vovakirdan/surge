@@ -227,6 +227,23 @@ typedef enum rt_sync_point_id {
     // poll. Holding a worker here and waking the task is what shows whether the
     // take and the claim are one observation.
     RT_SYNC_POINT_SP_INLINE_CHILD_TAKEN_OFF_QUEUE,
+    // rt_scope_register_child (rt_async_scope.c): reached once this child's
+    // membership has been DECIDED -- the claim has run and answered -- and
+    // before the scope's accounting is published for it. A driver that lands a
+    // completion in this gap is asking the one question the two racers have to
+    // agree on: a child that completes here is either a member the scope will
+    // retire, or a non-member whose completion the registration must report
+    // itself. Holding the registration here is what makes "both sides decided
+    // the other was not there" reproducible instead of one run in hundreds.
+    RT_SYNC_POINT_SP_SCOPE_MEMBERSHIP_DECIDED_BEFORE_PUBLISH,
+    // scope_on_child_done (rt_async_scope.c): reached by EVERY completing task
+    // immediately after it has taken its own membership answer out of the claim
+    // word and before it acts on it. Never arm this one to block -- every
+    // completion in the process crosses it -- it is here to be COUNTED, so a
+    // driver can prove a completion really did read its membership inside the
+    // window a held registration is holding open, instead of inferring it from
+    // a sleep.
+    RT_SYNC_POINT_SP_SCOPE_CHILD_DONE_AFTER_MEMBERSHIP_TAKE,
     RT_SYNC_POINT_COUNT
 } rt_sync_point_id;
 
@@ -495,6 +512,36 @@ void rt_sync_point_open(void);
 #define RT_INLINE_CLAIM_UNDER_LOCK(task) claim_task_off_queue(task)
 #define RT_INLINE_CLAIM_SPLIT_FIRST(task) ((void)(task))
 #define RT_INLINE_CLAIM_SPLIT_REST(task) ((void)(task))
+#endif
+
+// Scope-membership claim negative-control toggle. A child's scope identity has
+// two writers that share no lock -- the registration and the child's own
+// completion -- so the fix has each of them move the claim word with ONE
+// read-modify-write and lets exactly one win (rt_scope_claim_membership /
+// rt_scope_take_membership, rt_async_internal.h).
+//
+// Defining the negative control restores the pre-fix shape: the registration
+// decides from the child's STATUS and publishes the id with a plain store, and
+// the completion decides from a plain read of the id. The word stays atomic in
+// both builds, so the control build is not undefined behaviour -- what it
+// removes is only the read-modify-write, which is the whole of the fix. The
+// deterministic proof MUST then observe what the runtime used to do: a
+// registration that counts a child which has already completed, a fail-fast
+// that is never raised for it, and a `@failfast` scope that never resolves.
+//
+// Both builds reach the window sync point at the same place, so the negative
+// control cannot pass by removing the window the proof is built on.
+#ifdef RV2_SCOPE_MEMBERSHIP_CLAIM_NEGATIVE_CONTROL
+#define RT_SCOPE_MEMBERSHIP_CLAIM(child, scope_id)                                                 \
+    ((void)(scope_id), task_status_load(child) != TASK_DONE)
+#define RT_SCOPE_MEMBERSHIP_PUBLISH(child, scope_id)                                               \
+    atomic_store_explicit(&(child)->parent_scope_id, (scope_id), memory_order_relaxed)
+#define RT_SCOPE_MEMBERSHIP_TAKE(task)                                                             \
+    atomic_load_explicit(&(task)->parent_scope_id, memory_order_relaxed)
+#else
+#define RT_SCOPE_MEMBERSHIP_CLAIM(child, scope_id) rt_scope_claim_membership((child), (scope_id))
+#define RT_SCOPE_MEMBERSHIP_PUBLISH(child, scope_id) ((void)(child), (void)(scope_id))
+#define RT_SCOPE_MEMBERSHIP_TAKE(task) rt_scope_take_membership(task)
 #endif
 
 #endif // RT_SYNC_POINT_H

@@ -1,5 +1,6 @@
 #include "rt_async_internal.h"
 #include "rt_remote_task.h"
+#include "rt_scope_membership.h"
 #include "rt_sync_point.h"
 
 // Async runtime task API and task builtins.
@@ -157,22 +158,22 @@ void rt_task_wake(void* task) {
     // reads only current's own scope_id (thread-local while current is
     // RUNNING, safe without a lock).
     //
-    // parent_scope_id is NOT single-lock state, and this comment used to claim
-    // it was. It has two writers on two different locks -- the adoption write
-    // just below, under the CONTROL lock, and rt_scope_register_child's, under
-    // the scope's pinned shard lock (rt_async_scope.c) -- and scope_on_child_done
-    // reads it with no lock at all as its entry guard, returning on zero and so
-    // skipping the fail-fast raise. Anything that comes to depend on the value
-    // being stable has to close that first.
+    // parent_scope_id is not single-lock state and no lock here would make it
+    // so: its other writers are rt_scope_register_child, under the scope's
+    // pinned shard lock, and the target's own completion, under no lock at all
+    // (rt_async_scope.c). What orders the three is that each moves the word with
+    // ONE read-modify-write, so this adoption can only take a task no scope and
+    // no completion has claimed -- never overwrite one that has been.
     const rt_task* current = rt_current_task();
     if (current != NULL && current->scope_id != 0) {
         rt_control_lock(ex);
         rt_trace_control_lock_site(RT_CTRL_SITE_HANDLE);
         rt_trace_control_lock_handle_site(RT_CTRL_HANDLE_WAKE);
-        if (target->parent_scope_id == 0) {
+        if (atomic_load_explicit(&target->parent_scope_id, memory_order_acquire) ==
+            RT_SCOPE_CLAIM_NONE) {
             const rt_scope* scope = get_scope(ex, current->scope_id);
             if (scope != NULL) {
-                target->parent_scope_id = scope->id;
+                (void)rt_scope_claim_membership(target, scope->id);
             }
         }
         rt_control_unlock(ex);
