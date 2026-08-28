@@ -1,4 +1,5 @@
 #include "remote_task_behavior.h"
+#include "rt_task_refs.h"
 #include "rt_value_ops.h"
 
 #include <string.h>
@@ -85,6 +86,13 @@ int rtb_mode_caller_abandon_drops_landed_result(void) {
     }
     producer->result_kind = TASK_RESULT_SUCCESS;
     task_status_store(producer, TASK_DONE);
+    // Completing is what sets the completion flag in the task's reference word,
+    // and the release below decides the free from its own decrement plus that
+    // flag -- asking the status afterwards was a double free. A stand that
+    // stores the status by hand performs only half of a completion, so it seals
+    // the other half here; without this the release finds an uncompleted task,
+    // declines the free, and the result this row is about is never dropped.
+    task_mark_completed(producer);
 
     rt_remote_task_pending* pending =
         rtb_caller_abandon_new_pending(ex, RT_REMOTE_TASK_OP_AWAIT, caller->id);
