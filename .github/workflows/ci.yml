@@ -62,10 +62,17 @@ jobs:
     name: Runtime V2 liveness (llvm)
     runs-on: ubuntu-latest
     # The aggregate runs its whole roster of sub-gates now instead of stopping at
-    # the first red one, so the job does the work of eighteen gates rather than
+    # the first red one, so the job does the work of the entire roster rather than
     # of however many happened to precede the first failure. A job killed by this
     # limit reports as a timeout and the sub-gates it never reached go unanswered,
     # which is the state this budget exists to avoid.
+    #
+    # Measured at 03379549 on this runner: the roster's own per-row clocks summed
+    # to 1251s against a 21m18s job. The headroom is what pays for rows that move
+    # onto the roster from the closeout sanitizer sweep, which this runner cannot
+    # run in full -- it has clang with ASan/TSan but no valgrind, which is why
+    # runtime-v2-heap-check's leak rows are red here and green on the self-hosted
+    # sanitizer job.
     timeout-minutes: 45
     env:
       SURGE_MT_TIMEOUT_SCALE: "3"

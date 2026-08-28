@@ -41,7 +41,12 @@
 
 set -euo pipefail
 
-readonly GATE="runtime-v2-carrier-sanitizer-check"
+# The name this script speaks under. More than one Makefile target now drives
+# the `run` mode -- the closeout sweep and the owned-storage stand gate on the
+# aggregate's roster -- and a refusal that names the wrong target sends whoever
+# reads the log to the wrong recipe. Callers other than the sweep set
+# SURGE_GATE_NAME; the default keeps every existing message byte-identical.
+readonly GATE="${SURGE_GATE_NAME:-runtime-v2-carrier-sanitizer-check}"
 
 # Exit codes chosen so a probe that "fails" for an unrelated reason (a crash,
 # a signal, a wrong binary) cannot be mistaken for the planted defect firing.

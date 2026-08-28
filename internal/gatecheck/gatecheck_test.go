@@ -85,6 +85,7 @@ func TestGateSelectionsAreLiveAndComplete(t *testing.T) {
 	// Every explicit selection matches at least one test, under the gate's
 	// own tags.
 	matchedByKey := map[string][][]string{}
+	runByReachableGate := map[string][]string{}
 	for _, g := range gates {
 		if g.Run == "" || len(g.Packages) == 0 {
 			continue
@@ -101,7 +102,13 @@ func TestGateSelectionsAreLiveAndComplete(t *testing.T) {
 			key := pkg + "\x00" + g.Tags
 			matchedByKey[key] = append(matchedByKey[key], matched)
 		}
+		if reachable[g.Target] {
+			for _, name := range matched {
+				runByReachableGate[name] = append(runByReachableGate[name], g.Target)
+			}
+		}
 	}
+	assertClosingSweepIsNeverASoleHome(t, makefile, runByReachableGate)
 
 	// Coverage for the tag-gated runtime suites: default-tag tests ride
 	// `go test ./...`; tag-gated tests exist ONLY through explicit gates,

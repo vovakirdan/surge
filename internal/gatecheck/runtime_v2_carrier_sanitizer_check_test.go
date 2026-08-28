@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -311,6 +312,19 @@ var requiredSanitizerCoverage = []string{
 	// the composite that holds one (core/sync.sg's Mutex) copied and locked.
 	"TestRuntimeV2ChannelHandleValgrindZero",
 	"TestRuntimeV2MutexLockUnlockValgrindBounded",
+	// ASan/UBSan and TSan over a channel element that OWNS a heap block: a
+	// value delivered twice frees one block twice, and a value read after its
+	// move reads storage that was emptied. Both rows landed with their row in
+	// the Makefile and their name missing from this list, which left the
+	// ratchet holding nothing for them.
+	"TestRuntimeV2ChannelOwnedElementUnderAddressAndUndefinedSanitizers",
+	"TestRuntimeV2ChannelOwnedElementUnderThreadSanitizer",
+	// The view registry after a reallocation. Both sides of a recorded pair
+	// are raw ADDRESSES, so a registration outlives the block it names unless
+	// the release says otherwise; the census row reads that directly and the
+	// ASan row catches the write through a stale one. Same omission as above.
+	"TestRuntimeV2ReallocReleaseIsForgottenByTheViewRegistry",
+	"TestRuntimeV2ReallocReleaseUnderAddressAndUndefinedSanitizers",
 	// Valgrind over a blocking job's captured state, at one iteration and at
 	// eight, and over the zero-sized state a capture-less body still gets.
 	// RV2-DEBT-080 recorded its loss as CONSTANT in the iteration count and
@@ -330,6 +344,84 @@ var requiredSanitizerCoverage = []string{
 	"TestRuntimeV2CarrierBenchBlockingRegisterThenVerify",
 	"TestRuntimeV2CarrierBenchCounterMatrix",
 	"TestRuntimeV2CarrierBenchBridgeHasNoHotPathEnvironmentLookup",
+}
+
+// soleHomeRows returns the tests the closeout sweep declares that no gate an
+// aggregate walks also selects. `covered` maps a test name to the reachable
+// gate targets that select it, so this function never matches a `-run` pattern
+// itself — Go's selection semantics stay where they belong, in `go test -list`.
+func soleHomeRows(makefile string, covered map[string][]string) []string {
+	seen := map[string]bool{}
+	var sole []string
+	for _, line := range recipeLines(makefile, carrierSanitizerTarget) {
+		for _, name := range expectedTests(line) {
+			if seen[name] {
+				continue
+			}
+			seen[name] = true
+			if len(covered[name]) == 0 {
+				sole = append(sole, name)
+			}
+		}
+	}
+	sort.Strings(sole)
+	return sole
+}
+
+// A CLOSEOUT SWEEP MAY BE A SECOND OPINION, NEVER THE ONLY ONE.
+//
+// The sweep target is exempt from the reachability rule for a real reason: it
+// demands Valgrind before its first row and spends minutes there, so it cannot
+// sit in the pre-commit hook and no aggregate walks it. The cost of that
+// exemption is that a row living only there is evidence a person has to
+// remember to collect — and this repository has already paid it twice, with
+// the sweep named mandatory in three documents while having no target at all.
+//
+// So the exemption buys the sweep permission to be slow, not permission to be
+// somebody's sole home. Every test it declares must also be selected by a gate
+// reachable from `check` or `runtime-v2-check`. When a lane adds a row here, it
+// adds the row to a roster gate in the same commit: the valgrind rows to
+// runtime-v2-heap-check, the sanitizer stands to runtime-v2-owned-storage-check,
+// or wherever the obligation belongs.
+//
+// This runs inside TestGateSelectionsAreLiveAndComplete rather than as a test
+// of its own because that test already lists every gate's real selection. A
+// second pass would cost another `go test -list` per gate in the pre-commit
+// hook and would answer exactly the same question.
+func assertClosingSweepIsNeverASoleHome(t *testing.T, makefile string, covered map[string][]string) {
+	t.Helper()
+	for _, name := range soleHomeRows(makefile, covered) {
+		t.Errorf("%s is the ONLY gate that runs %s, and no aggregate walks it. "+
+			"An exempt closeout sweep may be a second opinion, never a row's sole home: "+
+			"add the test to a gate reachable from check or runtime-v2-check "+
+			"(the valgrind rows live in runtime-v2-heap-check, the sanitizer stands in "+
+			"runtime-v2-owned-storage-check) in the commit that adds it here",
+			carrierSanitizerTarget, name)
+	}
+}
+
+// The negative control for the assertion above, on synthetic input: it must
+// name a row whose only home is the sweep, and stay silent once that row has a
+// reachable gate. Without this, a coverage map that silently went empty — or a
+// row parser that stopped finding --expect names — would read as "nothing is
+// orphaned" and the check would pass by answering no question at all.
+func TestSoleHomeRowsFlagsAnOrphanAndClearsWhenItIsAdopted(t *testing.T) {
+	makefile := carrierSanitizerTarget + ":\n" +
+		"\t@./scripts/runtime_v2_carrier_sanitizer_check.sh preflight\n" +
+		"\tbash scripts/runtime_v2_carrier_sanitizer_check.sh run --expect TestAdopted,TestOrphan -- $(GO) test ./internal/vm -v\n"
+
+	adoptedOnly := map[string][]string{"TestAdopted": {"runtime-v2-heap-check"}}
+	if got := soleHomeRows(makefile, adoptedOnly); len(got) != 1 || got[0] != "TestOrphan" {
+		t.Fatalf("a row whose only home is the sweep was not flagged: %v", got)
+	}
+
+	both := map[string][]string{
+		"TestAdopted": {"runtime-v2-heap-check"},
+		"TestOrphan":  {"runtime-v2-owned-storage-check"},
+	}
+	if got := soleHomeRows(makefile, both); len(got) != 0 {
+		t.Fatalf("a row a roster gate already runs was still flagged: %v", got)
+	}
 }
 
 // The target's shape is the gate. Every row must reach the wrapper, because a

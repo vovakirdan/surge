@@ -1,4 +1,4 @@
-.PHONY: build run test runtime-v2-check runtime-v2-abi-manifest-check runtime-v2-slot-control-check runtime-v2-liveness-check runtime-v2-ownership-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-sched-trace-check runtime-v2-syncpoint-check runtime-v2-panic-surface-check runtime-v2-transport-contract-check runtime-v2-transport-check runtime-v2-carrier-check runtime-v2-carrier-sanitizer-check runtime-v2-place-overwrite-check runtime-v2-carrier-bench runtime-v2-carrier-baseline-capture runtime-v2-carrier-bench-final vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
+.PHONY: build run test runtime-v2-check runtime-v2-abi-manifest-check runtime-v2-slot-control-check runtime-v2-liveness-check runtime-v2-ownership-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-owned-storage-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-sched-trace-check runtime-v2-syncpoint-check runtime-v2-panic-surface-check runtime-v2-transport-contract-check runtime-v2-transport-check runtime-v2-carrier-check runtime-v2-carrier-sanitizer-check runtime-v2-place-overwrite-check runtime-v2-carrier-bench runtime-v2-carrier-baseline-capture runtime-v2-carrier-bench-final vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
 .PHONY: golden golden-update golden-check golden-corpus-determinism behaviour-check behaviour-check-all behaviour-check-mt stats
 .PHONY: c-check cfmt-check c-warnings ctidy cppcheck c-check-changed
 
@@ -125,6 +125,7 @@ RUNTIME_V2_SUBGATES := \
 	runtime-v2-ownership-check \
 	runtime-v2-crossing-check \
 	runtime-v2-heap-check \
+	runtime-v2-owned-storage-check \
 	runtime-v2-waiter-check \
 	runtime-v2-fd-registry-check \
 	runtime-v2-net-handle-check \
@@ -141,7 +142,8 @@ RUNTIME_V2_SUBGATES := \
 
 # The clang/ar preflight is the one thing that still stops the aggregate dead:
 # without a toolchain no sub-gate can produce an answer, so running the roster
-# would only manufacture eighteen identical failures.
+# would only manufacture one identical failure per row. (No count is spelled
+# here on purpose: the roster grows, and a number in prose rots silently.)
 #
 # The roster itself is walked in one shell loop rather than as recipe lines
 # because make aborts a recipe at the first failing line and offers no per-line
@@ -228,10 +230,46 @@ runtime-v2-carrier-check:
 	$(GO) test ./internal/carriergate -count=1
 	$(GO) test -race ./internal/vm -run '^TestRuntimeV2CarrierBench' -count=1 --timeout 120s
 
+# The owned-storage stands, on the aggregate's roster.
+#
+# WHY THIS TARGET EXISTS SEPARATELY FROM THE SWEEP BELOW. The sweep below is a
+# closeout target: it demands Valgrind before it runs a single row, so it can
+# only live on a machine that has Valgrind, and no aggregate walks it. Three C
+# stands had their ONLY home there -- a channel element that owns a heap block,
+# a channel object's own lifetime behind its handles, and the view registry
+# after a reallocation -- which made their evidence something a person had to
+# remember to collect. None of those three rows needs Valgrind. They need clang
+# with ASan/UBSan and TSan, which the aggregate's runner already has and already
+# proves on every run through the slot-control gate beside them. So they run
+# here, on the roster, every time; the sweep below keeps them too, as the
+# closeout superset.
+#
+# Every row goes through the same `run` wrapper the sweep uses, and for the same
+# reason: each of these stands SKIPS when clang is missing, and a skipped test
+# makes `go test` print ok and exit 0. Exit status cannot tell a stand that
+# proved something from one that never built. The --expect list can, so it is
+# mandatory here exactly as it is there. `run` needs no Valgrind -- only the
+# sweep's `preflight` does -- which is what lets these rows sit on a roster the
+# sweep cannot join.
+runtime-v2-owned-storage-check:
+	@echo ">> Running Runtime V2 owned-storage stand gate"
+	SURGE_GATE_NAME=runtime-v2-owned-storage-check SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 bash scripts/runtime_v2_carrier_sanitizer_check.sh run --expect TestRuntimeV2ChannelOwnedElementUnderAddressAndUndefinedSanitizers,TestRuntimeV2ChannelOwnedElementUnderThreadSanitizer -- $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2ChannelOwnedElementUnder(AddressAndUndefinedSanitizers|ThreadSanitizer)$$' -count=1 -parallel=1 -p=1 -v --timeout 600s
+	SURGE_GATE_NAME=runtime-v2-owned-storage-check SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 bash scripts/runtime_v2_carrier_sanitizer_check.sh run --expect TestRuntimeV2ChannelHandleRefcountUnderAddressAndUndefinedSanitizers,TestRuntimeV2ChannelHandleRefcountUnderThreadSanitizer -- $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2ChannelHandleRefcountUnder(AddressAndUndefinedSanitizers|ThreadSanitizer)$$' -count=1 -parallel=1 -p=1 -v --timeout 600s
+	SURGE_GATE_NAME=runtime-v2-owned-storage-check SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 bash scripts/runtime_v2_carrier_sanitizer_check.sh run --expect TestRuntimeV2ReallocReleaseIsForgottenByTheViewRegistry,TestRuntimeV2ReallocReleaseUnderAddressAndUndefinedSanitizers -- $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2ReallocRelease(IsForgottenByTheViewRegistry|UnderAddressAndUndefinedSanitizers)$$' -count=1 -parallel=1 -p=1 -v --timeout 600s
+
 # The mandatory carrier sanitizer gate (epic 23b section 12). It is a CLOSEOUT
 # gate and deliberately not part of `make check`: check is the pre-commit hook,
 # and this target costs minutes of valgrind. Its owned exemption from the
 # gate-integrity reachability rule is in internal/gatecheck/exemptions.txt.
+#
+# It is a SUPERSET, never a sole home. Every row it names is also selected by a
+# gate on the aggregate's roster -- the sanitizer stands by
+# runtime-v2-owned-storage-check, the valgrind rows by runtime-v2-heap-check,
+# the slot API by runtime-v2-slot-control-check, the bench bridge by
+# runtime-v2-carrier-check. assertClosingSweepIsNeverASoleHome, called from
+# TestGateSelectionsAreLiveAndComplete in internal/gatecheck, holds that: a row
+# added here and nowhere else fails a fast test in the pre-commit hook instead
+# of quietly becoming evidence nobody collects.
 #
 # Availability comes FIRST and never skips: the preflight proves Valgrind,
 # ASan/UBSan and TSan are installed AND actually instrumenting on this host by
@@ -392,8 +430,16 @@ runtime-v2-heap-check:
 	SURGE_BACKEND=vm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2VMChannelStrictZero$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
 	@echo ">> Running Runtime V2 VM task-entitlement gate"
 	SURGE_BACKEND=vm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2VM(ClonedHandlesEachGetTheirOwnResult|CancelThroughASiblingIsTaskGlobal|TimeoutOverATemporaryHandle)$$|^TestTaskResultIsMovedByTheLastAskerAndDuplicatedForEveryEarlierOne$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
+	# Every valgrind leak row this repository owns runs from here, and that is
+	# load-bearing rather than tidy: the slow full sweep further down is a
+	# closeout target no aggregate walks, so a leak row whose ONLY home was
+	# that sweep would be evidence nobody collects. The refused-task-result row
+	# and the channel-object lifetime row were both in exactly that state when
+	# they landed. The second line is spelled separately because its stand is
+	# behind a build tag and the first line's selection is untagged.
 	@echo ">> Running Runtime V2 strict-census valgrind gate"
-	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2CrossingStrictCensusValgrindBounded$$|^TestRuntimeV2DropFarChannelHandleAndObjectValgrindZero$$|^TestRuntimeV2MapOwnedEntriesValgrindZero$$|^TestRuntimeV2BlockingCaptureValgrindZero$$|^TestRuntimeV2BlockingCapturelessStateIsFreed$$|^TestRuntimeV2BlockingBodyLocalIsReclaimed$$|^TestRuntimeV2BlockingReadCaptureIsReclaimed$$|^TestRuntimeV2BlockingConsumedCaptureIsReleasedOnce$$|^TestRuntimeV2BlockingCopyCompositeCaptureIsReclaimed$$|^TestRuntimeV2ChannelHandleValgrindZero$$|^TestRuntimeV2MutexLockUnlockValgrindBounded$$' -count=1 -parallel=1 -p=1 -v --timeout 1500s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2CrossingStrictCensusValgrindBounded$$|^TestRuntimeV2DropFarChannelHandleAndObjectValgrindZero$$|^TestRuntimeV2MapOwnedEntriesValgrindZero$$|^TestRuntimeV2CancelledOwnedResultValgrindZero$$|^TestRuntimeV2BlockingCaptureValgrindZero$$|^TestRuntimeV2BlockingCapturelessStateIsFreed$$|^TestRuntimeV2BlockingBodyLocalIsReclaimed$$|^TestRuntimeV2BlockingReadCaptureIsReclaimed$$|^TestRuntimeV2BlockingConsumedCaptureIsReleasedOnce$$|^TestRuntimeV2BlockingCopyCompositeCaptureIsReclaimed$$|^TestRuntimeV2ChannelHandleValgrindZero$$|^TestRuntimeV2MutexLockUnlockValgrindBounded$$' -count=1 -parallel=1 -p=1 -v --timeout 1500s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2ChannelHandleRefcountValgrindZero$$' -count=1 -parallel=1 -p=1 -v --timeout 600s
 	@echo ">> Running Runtime V2 channel payload reclamation gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2SelectReleasesA(String|Composite)PayloadExactlyOnce$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 	@echo ">> Running Runtime V2 array-view reclamation gate"
