@@ -230,7 +230,7 @@ async fn run() -> int {
     if mg8v != 0 { return fail_growth("migration-growth", mg1v, mg8v); }
 
     // SHARE and SELECT are not zero, and what remains is now exactly one unit
-    // per .share() call plus one at the window edge, in both verticals.
+    // per .share() call plus two at the window edge, in both verticals.
     //
     // The per-call unit is the dispatch-side sibling lease struct. Leases are
     // freed together, but only once the registry entry's last lease releases,
@@ -238,9 +238,9 @@ async fn run() -> int {
     // measured window — so within the window every .share() accumulates one
     // still-reachable struct. share_window makes 4 such calls per iteration
     // and select_window 5, which is exactly the growth pinned below:
-    // (33 - 5) / 7 = 4 and (41 - 6) / 7 = 5.
+    // (34 - 6) / 7 = 4 and (42 - 7) / 7 = 5.
     //
-    // Three earlier costs are gone. The caller-side box each channel_on(...)
+    // Two earlier costs are gone. The caller-side box each channel_on(...)
     // and .share() allocated to hold the returned far Channel<T> value now
     // frees at the binding's ordinary scope exit. And a composite stopped
     // being a heap box, which removed one window-edge unit from every vertical
@@ -258,10 +258,10 @@ async fn run() -> int {
     //
     // The figures are pinned exactly, not asserted flat, so the next real
     // reduction collapses this check loudly instead of passing quietly.
-    if sh1v != 5 { return fail_growth("share-baseline", sh1v, sh8v); }
-    if sh8v != 33 { return fail_growth("share-growth", sh1v, sh8v); }
-    if se1v != 6 { return fail_growth("select-baseline", se1v, se8v); }
-    if se8v != 41 { return fail_growth("select-growth", se1v, se8v); }
+    if sh1v != 6 { return fail_growth("share-baseline", sh1v, sh8v); }
+    if sh8v != 34 { return fail_growth("share-growth", sh1v, sh8v); }
+    if se1v != 7 { return fail_growth("select-baseline", se1v, se8v); }
+    if se8v != 42 { return fail_growth("select-growth", se1v, se8v); }
 
     print("crossing-strict-census-ok");
     return 0;

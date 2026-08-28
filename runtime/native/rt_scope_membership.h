@@ -38,22 +38,38 @@
 #define RT_SCOPE_CLAIM_NONE ((uint64_t)0)
 #define RT_SCOPE_CLAIM_COMPLETED UINT64_MAX
 
-// The registration's half of the claim: NONE -> scope_id. Answers whether THIS
-// caller is the one that made the task a member, so the caller that loses knows
-// the task completed first and that the scope must be told by the late path
-// instead of counting a child nobody will retire.
+// The registration's half of the claim: NONE -> scope_id. Answers whether the
+// task is now this scope's member AND still uncounted, so the caller that is
+// told no knows the task completed first and that the scope must be told by the
+// late path instead of counting a child nobody will retire.
+//
+// Losing to this scope's OWN id is not losing, and reading it as a loss is what
+// stopped a scope from joining anything. `spawn` lowers to a wake followed by a
+// registration, and the wake adopts a task whose word is still NONE into the
+// waking task's scope -- which, for an ordinary spawn inside a scope body, is
+// the very scope the registration that follows is for. That adoption makes the
+// task a member and counts nothing, so the registration is still the caller
+// that must count it. Answering no there left `active_children` at zero for
+// every child of every scope, and a scope with no children to wait for answers
+// immediately: the block resolved while the work it had started was still
+// running.
+//
+// Counting twice is prevented by the caller's own `scope_registered` flag under
+// the same lock, not by this answer. A DIFFERENT scope's id, or the completed
+// seal, is a real loss and still reads as one.
 static inline int rt_scope_claim_membership(rt_task* task, uint64_t scope_id) {
     if (task == NULL) {
         return 0;
     }
     uint64_t expected = RT_SCOPE_CLAIM_NONE;
-    return atomic_compare_exchange_strong_explicit(&task->parent_scope_id,
-                                                   &expected,
-                                                   scope_id,
-                                                   memory_order_acq_rel,
-                                                   memory_order_acquire)
-               ? 1
-               : 0;
+    if (atomic_compare_exchange_strong_explicit(&task->parent_scope_id,
+                                                &expected,
+                                                scope_id,
+                                                memory_order_acq_rel,
+                                                memory_order_acquire)) {
+        return 1;
+    }
+    return expected == scope_id ? 1 : 0;
 }
 
 // The completion's half: NONE -> COMPLETED. Answers the scope that had claimed
