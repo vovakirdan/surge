@@ -1,4 +1,4 @@
-.PHONY: build run test runtime-v2-check runtime-v2-abi-manifest-check runtime-v2-slot-control-check runtime-v2-ownership-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check runtime-v2-panic-surface-check runtime-v2-transport-contract-check runtime-v2-transport-check runtime-v2-carrier-check runtime-v2-carrier-sanitizer-check runtime-v2-place-overwrite-check runtime-v2-carrier-bench runtime-v2-carrier-baseline-capture runtime-v2-carrier-bench-final vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
+.PHONY: build run test runtime-v2-check runtime-v2-abi-manifest-check runtime-v2-slot-control-check runtime-v2-liveness-check runtime-v2-ownership-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check runtime-v2-panic-surface-check runtime-v2-transport-contract-check runtime-v2-transport-check runtime-v2-carrier-check runtime-v2-carrier-sanitizer-check runtime-v2-place-overwrite-check runtime-v2-carrier-bench runtime-v2-carrier-baseline-capture runtime-v2-carrier-bench-final vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
 .PHONY: golden golden-update golden-check golden-corpus-determinism behaviour-check behaviour-check-all behaviour-check-mt stats
 .PHONY: c-check cfmt-check c-warnings ctidy cppcheck c-check-changed
 
@@ -106,6 +106,46 @@ test:
 runtime-v2-file-size-check:
 	@./scripts/runtime_v2_file_size_check.sh --committed
 
+# The Runtime V2 aggregate gate and its roster, in the order the sub-gates run.
+#
+# Every row on this list runs on every invocation, and the verdict is taken only
+# once they all have. The aggregate used to be a plain sequence of recipe lines,
+# so the first red stopped `make` and the rows behind it never executed while the
+# aggregate still spoke for all of them -- one gate pretending to be the whole
+# roster. A row that never ran and a row that passed must never look alike in the
+# log, so the roster is printed before anything starts, each row announces itself
+# and then states its own verdict, and the closing summary repeats the roster with
+# what each row answered. Anything on the roster with no verdict line did not run.
+#
+# Adding a sub-gate means adding it here and nowhere else.
+RUNTIME_V2_SUBGATES := \
+	runtime-v2-abi-manifest-check \
+	runtime-v2-slot-control-check \
+	runtime-v2-liveness-check \
+	runtime-v2-ownership-check \
+	runtime-v2-crossing-check \
+	runtime-v2-heap-check \
+	runtime-v2-waiter-check \
+	runtime-v2-fd-registry-check \
+	runtime-v2-net-handle-check \
+	runtime-v2-http-owner-check \
+	runtime-v2-accept-check \
+	runtime-v2-lock-check \
+	runtime-v2-lifecycle-check \
+	runtime-v2-perf-check \
+	runtime-v2-syncpoint-check \
+	runtime-v2-panic-surface-check \
+	runtime-v2-carrier-check \
+	runtime-v2-transport-check
+
+# The clang/ar preflight is the one thing that still stops the aggregate dead:
+# without a toolchain no sub-gate can produce an answer, so running the roster
+# would only manufacture eighteen identical failures.
+#
+# The roster itself is walked in one shell loop rather than as recipe lines
+# because make aborts a recipe at the first failing line and offers no per-line
+# recovery. The loop writes straight to the recipe's stdout with no capture, so a
+# slow sub-gate's output appears while it runs instead of arriving at the end.
 runtime-v2-check:
 	@echo ">> Checking Runtime V2 LLVM toolchain"
 	@if ! command -v clang >/dev/null 2>&1; then \
@@ -116,25 +156,47 @@ runtime-v2-check:
 		echo "Error: ar not found. Install with: sudo apt-get install -y binutils"; \
 		exit 1; \
 	fi
-	$(MAKE) runtime-v2-abi-manifest-check
-	$(MAKE) runtime-v2-slot-control-check
+	@total=$(words $(RUNTIME_V2_SUBGATES)); \
+	echo ""; \
+	echo ">> Runtime V2 aggregate gate: $$total sub-gates, all of them run, verdict at the end"; \
+	n=0; \
+	for gate in $(RUNTIME_V2_SUBGATES); do \
+		n=$$((n + 1)); \
+		echo "   [$$n/$$total] $$gate"; \
+	done; \
+	n=0; failed=""; \
+	for gate in $(RUNTIME_V2_SUBGATES); do \
+		n=$$((n + 1)); \
+		started=$$(date +%s); \
+		echo ""; \
+		echo "===== runtime-v2-check [$$n/$$total] $$gate START ====="; \
+		if $(MAKE) --no-print-directory $$gate; then \
+			verdict=PASS; \
+		else \
+			verdict=FAIL; \
+			failed="$$failed $$gate"; \
+		fi; \
+		echo "===== runtime-v2-check [$$n/$$total] $$gate $$verdict ($$(($$(date +%s) - started))s) ====="; \
+	done; \
+	echo ""; \
+	echo ">> Runtime V2 aggregate gate summary ($$total sub-gates ran)"; \
+	for gate in $(RUNTIME_V2_SUBGATES); do \
+		case " $$failed " in \
+			*" $$gate "*) echo "   FAIL  $$gate";; \
+			*) echo "   pass  $$gate";; \
+		esac; \
+	done; \
+	if [ -n "$$failed" ]; then \
+		echo ">> runtime-v2-check FAILED:$$failed"; \
+		exit 1; \
+	fi; \
+	echo ">> runtime-v2-check passed: every sub-gate on the roster ran and answered green"
+
+# The MT liveness rows. Named rather than inlined into the aggregate so they get
+# a verdict line of their own like every other row on the roster.
+runtime-v2-liveness-check:
 	@echo ">> Running Runtime V2 liveness gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 SURGE_MT_TIMEOUT_SCALE=$(SURGE_MT_TIMEOUT_SCALE) $(GO) test ./internal/vm -run '^TestMT(WakeupsAndCancellation|ChannelParkUnpark|BlockingChannelHelpersAllowTimersToAdvance|SeededScheduler)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
-	$(MAKE) runtime-v2-ownership-check
-	$(MAKE) runtime-v2-crossing-check
-	$(MAKE) runtime-v2-heap-check
-	$(MAKE) runtime-v2-waiter-check
-	$(MAKE) runtime-v2-fd-registry-check
-	$(MAKE) runtime-v2-net-handle-check
-	$(MAKE) runtime-v2-http-owner-check
-	$(MAKE) runtime-v2-accept-check
-	$(MAKE) runtime-v2-lock-check
-	$(MAKE) runtime-v2-lifecycle-check
-	$(MAKE) runtime-v2-perf-check
-	$(MAKE) runtime-v2-syncpoint-check
-	$(MAKE) runtime-v2-panic-surface-check
-	$(MAKE) runtime-v2-carrier-check
-	$(MAKE) runtime-v2-transport-check
 
 runtime-v2-abi-manifest-check:
 	@echo ">> Checking Runtime V2 typed-carrier ABI manifest"

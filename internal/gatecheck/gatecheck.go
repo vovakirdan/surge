@@ -55,16 +55,63 @@ func ParseGates(makefile string) []Gate {
 	return gates
 }
 
-// ReachableTargets walks both edge kinds a Makefile has — target-line
-// prerequisites (`a: b c`) and `$(MAKE) <target>` recipe calls — from the
-// given roots and returns every transitively reachable target name.
+// A leading `-flag` after `$(MAKE)` is an option to make, not the target being
+// called, so the target is the first word after any run of them.
+var makeCallRe = regexp.MustCompile(`\$\(MAKE\)\s+(?:-[^\s]+\s+)*([A-Za-z0-9_.][A-Za-z0-9_.-]*)`)
+
+// A recipe reference to a make variable, e.g. `$(RUNTIME_V2_SUBGATES)`.
+var varRefRe = regexp.MustCompile(`\$\(([A-Za-z_][A-Za-z0-9_]*)\)`)
+
+// A variable definition at column 0, e.g. `NAME := a b c`.
+var varDefRe = regexp.MustCompile(`^([A-Za-z_][A-Za-z0-9_]*)\s*[:?+]?=(.*)$`)
+
+// parseListVars reads the simple `NAME := words...` definitions, joining
+// backslash continuations, so a recipe that walks a variable can be followed
+// through it.
+func parseListVars(makefile string) map[string][]string {
+	vars := map[string][]string{}
+	lines := strings.Split(makefile, "\n")
+	for i := 0; i < len(lines); i++ {
+		m := varDefRe.FindStringSubmatch(lines[i])
+		if m == nil {
+			continue
+		}
+		value := m[2]
+		for strings.HasSuffix(strings.TrimRight(value, " \t"), "\\") && i+1 < len(lines) {
+			value = strings.TrimSuffix(strings.TrimRight(value, " \t"), "\\")
+			i++
+			value += " " + lines[i]
+		}
+		vars[m[1]] = strings.Fields(value)
+	}
+	return vars
+}
+
+// ReachableTargets walks the three edge kinds this Makefile has — target-line
+// prerequisites (`a: b c`), `$(MAKE) <target>` recipe calls, and a recipe that
+// loops over a variable holding target names — from the given roots and returns
+// every transitively reachable target name.
+//
+// The third kind is not decoration. `runtime-v2-check` names its sub-gates in
+// RUNTIME_V2_SUBGATES and walks that list in one shell loop, precisely so a red
+// sub-gate cannot stop the rows behind it the way a sequence of recipe lines
+// does. Without this edge every one of those sub-gates would read as
+// unreachable and the gate-integrity test would demand an exemption for a gate
+// that in fact runs on every invocation.
+//
+// Only words that are themselves defined targets are followed, so a variable
+// holding flags or paths contributes nothing. A misspelled roster entry is
+// caught where it does damage instead: make refuses an unknown goal, so the
+// aggregate's own call fails and is reported as that row's FAIL.
 func ReachableTargets(makefile string, roots ...string) map[string]bool {
 	recipes := map[string][]string{}
 	prereqs := map[string][]string{}
+	defined := map[string]bool{}
 	target := ""
 	for _, raw := range strings.Split(makefile, "\n") {
 		if m := targetRe.FindStringSubmatch(raw); m != nil && !strings.HasPrefix(raw, "\t") {
 			target = m[1]
+			defined[target] = true
 			rest := strings.TrimSpace(raw[len(m[0]):])
 			if rest != "" && !strings.HasPrefix(target, ".") {
 				prereqs[target] = append(prereqs[target], strings.Fields(rest)...)
@@ -75,7 +122,7 @@ func ReachableTargets(makefile string, roots ...string) map[string]bool {
 			recipes[target] = append(recipes[target], raw)
 		}
 	}
-	makeRe := regexp.MustCompile(`\$\(MAKE\)\s+([A-Za-z0-9_.-]+)`)
+	listVars := parseListVars(makefile)
 	reachable := map[string]bool{}
 	var visit func(string)
 	visit = func(name string) {
@@ -87,8 +134,15 @@ func ReachableTargets(makefile string, roots ...string) map[string]bool {
 			visit(dep)
 		}
 		for _, line := range recipes[name] {
-			for _, m := range makeRe.FindAllStringSubmatch(line, -1) {
+			for _, m := range makeCallRe.FindAllStringSubmatch(line, -1) {
 				visit(m[1])
+			}
+			for _, m := range varRefRe.FindAllStringSubmatch(line, -1) {
+				for _, word := range listVars[m[1]] {
+					if defined[word] {
+						visit(word)
+					}
+				}
 			}
 		}
 	}

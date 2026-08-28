@@ -61,7 +61,12 @@ jobs:
   runtime-v2-check:
     name: Runtime V2 liveness (llvm)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # The aggregate runs its whole roster of sub-gates now instead of stopping at
+    # the first red one, so the job does the work of eighteen gates rather than
+    # of however many happened to precede the first failure. A job killed by this
+    # limit reports as a timeout and the sub-gates it never reached go unanswered,
+    # which is the state this budget exists to avoid.
+    timeout-minutes: 45
     env:
       SURGE_MT_TIMEOUT_SCALE: "3"
     steps:
