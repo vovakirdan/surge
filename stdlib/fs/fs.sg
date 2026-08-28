@@ -429,7 +429,11 @@ pub fn read_dir(path: string) -> Erring<DirEntry[], FsError> {
     return out_res;
 }
 
-pub type WalkDir = Range<DirEntry>;
+// The walk hands back the entries themselves, not a cursor over them. A
+// `Range<DirEntry>` returned from here would walk storage this frame owns and
+// frees on the way out, so the caller would iterate freed memory; the array is
+// the owning value, and the caller iterates what it now owns.
+pub type WalkDir = DirEntry[];
 
 fn walkdir_collect(root: &string, out: &mut DirEntry[]) -> nothing {
     let res = rt_fs_read_dir(root);
@@ -461,8 +465,7 @@ fn walkdir_collect(root: &string, out: &mut DirEntry[]) -> nothing {
 }
 
 pub fn walkdir(root: string) -> WalkDir {
-    let mut out: DirEntry[] = [];
+    let mut out: WalkDir = [];
     walkdir_collect(&root, &mut out);
-    let iter: WalkDir = out.__range();
-    return iter;
+    return out;
 }
