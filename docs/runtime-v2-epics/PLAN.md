@@ -7,7 +7,7 @@ It does not restate the migration. `README.md` holds the epic history and
 roadmap, `DEBT.md` the ledger, `23b-*.md` the wave definitions, `RULES.md` the
 rules every lane obeys. Read those to know why; read this to know what.
 
-**State line, 2026-08-28 at `ace94c47`.** Live carrier census **83 against a
+**State line, 2026-08-28 at `48285f25`.** Live carrier census **83 against a
 frozen base of 626**, ratchet green. Epics 1–25 are closed except three: 21
 (closeout only), 22 (parked until 23b closes), 23b (in flight — the whole
 remaining migration). Trunk is green: `runtime-v2-lifecycle-check`,
@@ -19,38 +19,14 @@ an owner decision.
 
 ## In flight
 
-| Lane | Branch / where | Doing | Done when |
+| Lane | Branch / where | State | What must happen |
 | --- | --- | --- | --- |
-| **W4 · frame leak** | `lane-d7-1` | Exhibiting the async-frame leak RED with a byte/block number, wired as a NAMED row in the sanitizer gate. Committed, in adversarial review. | The row is red with a recorded number, and it runs under its gate rather than alone. |
-| **W4 · frame word** | `lane-d7-2` | The MIR frame lifecycle field written truthfully at pack, unpack and both returns; `AsyncStateFreeBuiltin` deleted in the same commit. Committed, in review. | The field is read by something, no dual path remains, `make golden-check` green. |
-| **W7 · channel** | `lane-d7-3` | Channel pins — zero callers today, so the fail-closed reclaim gate is vacuous — and §7's teardown order in `rt_channel_free`. Committed, in review. | A program that would have reclaimed under a waiter is refused, and the teardown performs §7's order. |
-| **Scope refusal** | `lane-scope-refusal` | Sema refuses the `spawn` a scope partially adopts; the dead adoption block in `rt_task_wake` goes with it. Uncommitted. | The refusal has its own diagnostic and a golden `.diag`, shown red on the revert. |
-| **W2 instrument** | dedicated machine | 200 runs of the gate's own cancellation line, to establish whether the ~0.5% residue is alive. | A count of reds out of 200. One green run answers nothing. |
-
-## Next, in this order
-
-1. **Integrate the four lanes** as their critics report. W4's two go first: W5
-   must follow them, and W2 and W3 cannot share `rt_task_complete.c` with them.
-2. **W6 — D2's measurement close.** No conflicts, no lane needed. Re-capture the
-   frozen bench manifest against the latest green commit, then re-measure with
-   at least three agreeing runs. *~1 day. Closes D2, which has been code
-   complete and unmeasured for weeks.*
-3. **W2 — the fourth cancellation window**, only if the campaign produces a red
-   under the gate. Zero reds means the entry condition is not met and the row is
-   re-measured, not worked. *~3 days if entered.*
-4. **The allocation test** the clone ruling obliges: every generated
-   move/copy/clone body tests its `rt_alloc` and panics naming the type it could
-   not duplicate. Today the body tests nothing and `rt_alloc` returns `NULL`
-   without panicking, so a refused allocation is a segmentation fault. Lands in
-   W4's files, so it follows W4. *~2 days.*
-5. **W5 — D8's adopt leg.** Typed return for the select winner, delete
-   `emitI64ToValue`. *~1 day, after W4 is integrated.*
-6. **W8 — wave closeout** when D2, D7, D8, D3b and the cancellation window are
-   all closed on one tree. *~1 day.*
-
-**Wave D closes when** `suspension-frame-owner`, `llvm-erased-word-bridge` and
-`llvm-pointer-word-ir` read live zero and the remainder is confined to
-`rt_remote_task_*` and `rt_far_channel*`. That is 24 of the 83 live findings.
+| **Scope join fix** | trunk, `48285f25` | **Landed.** A scope had stopped counting any child, so it answered before its children finished — my own regression in the claim protocol. Losing the claim to this scope's OWN id is now a win. | Aggregate gate on the dedicated machine, then done. |
+| **W4 · frame leak** | `lane-d7-1` | Committed. Critic: SOUND_WITH_GAPS. It REFUTED the frame leak it was sent to find — the frame is released on every path — and found a real one instead: a task cancelled before its first poll never gives back its `rt_scope` block, 1.00 block / 64.0 bytes per cancelled task. | Fix the three things the critic named: the row turns two green gates red and the report does not say so; a second unreported retention at four workers; a false claim about `make check` written into a source comment. |
+| **W4 · frame word** | `lane-d7-2` | Committed. Critic: **UNSOUND**. The blocking frame's word is wrong by construction — no write site exists in `lower_blocking.go`, so a blocking frame is born PACKED and never corrected. Half the write sites have no failing test; the construction site pins the count, not the word. | Rework, not repair. The field is right; its writers are not. |
+| **W7 · channel** | `lane-d7-3` | Committed. Critic: SOUND_WITH_GAPS. Pins land with a real negative row; the §7 teardown half ships with no failing test, the header enumerates pin sites that do not exist, and `dying` is a load-then-store pair rather than a gate. | Give the teardown its failing test, fix the header's enumeration, and make `dying` one read-modify-write. |
+| **Scope refusal** | `lane-scope-refusal` | Committed. Critic: **UNSOUND**. Refuses a legal program with a false message; three bypasses compile silently (alias, sync helper, call pass-through) and two of them give OPPOSITE answers. Its justification for deleting the runtime adoption is false — a sync-helper program still reaches `rt_task_wake` with a scope set. | Rework. The refusal must ask about the TASK, not the spelling of the binding. |
+| **W2 instrument** | dedicated machine | **0 red in 200 runs.** Not "fixed": at a 0.5% rate, zero in 200 happens 37% of the time. | 600 more runs. Zero in 800 puts the rate under ~0.4% with 95% confidence; a red enters W2. |
 
 ## File claims — who may touch what
 

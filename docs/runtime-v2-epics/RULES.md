@@ -390,9 +390,20 @@ unnecessary is not.
 Exact pins exist so that a reduction collapses loudly instead of passing
 quietly, and the comment beside such a pin usually says so. When a pinned
 census, budget or allocation count moves DOWN after a protocol change, the first
-question is which change removed the cost — not how to restore it. Re-pin at the
-new value with the reason written beside the old one, so the next reader sees
-the sequence rather than a bare number.
+question is which change removed the cost — not how to restore it.
+
+**Naming what removed the cost is the whole of the rule, and a story that merely
+fits the new number is not that.** Two censuses were re-pinned downward on
+2026-08-28 with a plausible reason written beside each, and both readings were a
+defect wearing a reduction's clothes: scopes had stopped counting their
+children, so nothing held the references those censuses count. The wrong story
+was easy to believe because it explained the SHAPE of the change correctly — a
+once-per-window loss looks exactly like a once-per-window saving. Before
+re-pinning, point at the commit and the line that stopped doing the work, and
+check that the thing which stopped is something you meant to stop.
+
+Re-pin at the new value with the reason written beside the old one, so the next
+reader sees the sequence rather than a bare number.
 
 The same applies to a stand that fails after a protocol change: a stand which
 constructs an object by hand, bypassing the path the protocol now runs, is
