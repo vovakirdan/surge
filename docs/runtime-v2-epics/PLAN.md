@@ -12,10 +12,15 @@ frozen base of 626**, ratchet green. Epics 1–25 are closed except three: 21
 (closeout only), 22 (parked until 23b closes), 23b (in flight — the whole
 remaining migration).
 
-**The twenty-gate aggregate passes.** `make runtime-v2-check` exits 0 on the
-dedicated machine, 675 seconds, twenty of twenty sub-gates PASS. That is the
-first time in this wave the whole roster has been green on one tree, and it is
-the measurement W8 will need to repeat at closeout.
+**The twenty-gate aggregate passed ONCE, and once is not a measurement.** It
+exited 0 on the dedicated machine at 675 seconds, twenty of twenty. A later run
+of the same roster on the same machine failed at `runtime-v2-transport-check`,
+and the row responsible turned out to fail **81 times in 100** there while
+passing 3 of 3 here. A row that fails four times in five passes one run in five,
+so the green run was a sample. The defect predates this wave -- bisected on the
+machine that sees it, red at every commit back to 2026-08-26 -- and it is
+RV2-DEBT-308. **W8's closeout must state the aggregate's greenness as a count of
+runs on the machine that fails, not as one exit code.**
 
 No scheduled work waits on an owner decision.
 
