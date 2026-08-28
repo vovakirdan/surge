@@ -27,6 +27,12 @@ import (
 // pointer is classified here, and an entry point reached through the ordinary
 // call path — which is written by no emitter and was therefore invisible to any
 // scan of emitter text — is on it like every other.
+//
+// The second level reads the emitted IR and lives in emit_alloc_guard_ir_test.go,
+// because text and IR answer different questions and neither can stand in for
+// the other: text is where a hole in the roster shows, IR is where a hole in the
+// LOWERING shows. The third is the end-to-end negative control in
+// internal/vm/runtime_v2_alloc_refusal_test.go.
 
 // runtimeAnswerClass says what a pointer-answering runtime entry point does when
 // the allocator refuses it.
@@ -45,6 +51,12 @@ const (
 	// NOT test it. A live hole, recorded here so this census reports it instead
 	// of reporting coverage it does not have.
 	refusalIsUntested
+	// refusalIsSwallowed: the refusal never reaches the generated code AS a
+	// refusal — the entry point drops it inside itself and answers a NUMBER. No
+	// test the emitter could write would see this one: the answer is a legal
+	// value, not a null. It is a class of its own because it is neither
+	// reported nor testable, and calling it either would be a false row.
+	refusalIsSwallowed
 )
 
 type runtimeAnswer struct {
@@ -80,21 +92,36 @@ func runtimePointerAnswers() map[string]runtimeAnswer {
 			"rt_range_int_new", "rt_range_int_from_start", "rt_range_int_to_end", "rt_range_int_full"),
 
 		classified(refusalIsReported,
-			"a refused limb block is reported as the numeric size limit and stops the process through "+
-				"bignum_panic_err (runtime/native/rt_bignum_uint_core.c: bu_alloc, rt_bignum_panic.c); "+
-				"a NULL answer from these is the tagged encoding of zero, not a refusal",
-			"rt_bigint_abs", "rt_bigint_add", "rt_bigint_bit_and", "rt_bigint_bit_or", "rt_bigint_bit_xor",
-			"rt_bigint_div", "rt_bigint_from_i64", "rt_bigint_from_literal", "rt_bigint_from_u64",
-			"rt_bigint_mod", "rt_bigint_mul", "rt_bigint_neg", "rt_bigint_shl", "rt_bigint_shr",
-			"rt_bigint_sub", "rt_bigint_to_bigfloat", "rt_bigint_to_biguint",
-			"rt_biguint_add", "rt_biguint_bit_and", "rt_biguint_bit_or", "rt_biguint_bit_xor",
-			"rt_biguint_div", "rt_biguint_from_literal", "rt_biguint_from_u64", "rt_biguint_mod",
-			"rt_biguint_mul", "rt_biguint_shl", "rt_biguint_shr", "rt_biguint_sub",
-			"rt_biguint_to_bigfloat", "rt_biguint_to_bigint",
+			"the limb block is taken with an error out-parameter, and a refused one is reported as the "+
+				"numeric size limit through bignum_panic_err (runtime/native/rt_bignum_int.c: bi_alloc, "+
+				"rt_bignum_uint_core.c: bu_alloc, rt_bignum_panic.c); the NULL these answer beside it is "+
+				"the tagged encoding of zero, not a refusal",
+			"rt_bigint_from_i64", "rt_bigint_from_literal", "rt_bigint_from_u64",
+			"rt_biguint_from_literal", "rt_biguint_from_u64", "rt_biguint_to_bigint",
 			"rt_bigfloat_abs", "rt_bigfloat_add", "rt_bigfloat_clone", "rt_bigfloat_div",
 			"rt_bigfloat_from_f64", "rt_bigfloat_from_i64", "rt_bigfloat_from_literal",
 			"rt_bigfloat_from_u64", "rt_bigfloat_mod", "rt_bigfloat_mul", "rt_bigfloat_neg",
 			"rt_bigfloat_sub", "rt_bigfloat_to_bigint", "rt_bigfloat_to_biguint"),
+		classified(refusalIsSwallowed,
+			"promotes a tagged operand with NO error out-parameter — bi_promote calls "+
+				"bi_from_i64(fixi_value(w), NULL) and bu_promote calls bu_from_u64(fixu_value(w), NULL) "+
+				"(runtime/native/rt_bignum_api.c: bi_promote, bu_promote), and bi_alloc/bu_alloc only "+
+				"record BN_ERR_MAX_LIMBS when they are given somewhere to record it. A refused promotion "+
+				"therefore yields a NULL operand that is indistinguishable from the tagged zero, and "+
+				"bi_add(NULL, b, &err) answers bi_clone(b) with err still BN_OK: `a + b` returns `b`. "+
+				"This is ordinary int arithmetic, not a wide-number corner. The repair is the error "+
+				"out-parameter these two helpers do not pass, and it belongs to the bignum lane",
+			"rt_bigint_abs", "rt_bigint_add", "rt_bigint_bit_and", "rt_bigint_bit_or", "rt_bigint_bit_xor",
+			"rt_bigint_div", "rt_bigint_mod", "rt_bigint_mul", "rt_bigint_neg", "rt_bigint_shl",
+			"rt_bigint_shr", "rt_bigint_sub", "rt_bigint_to_bigfloat",
+			"rt_biguint_add", "rt_biguint_bit_and", "rt_biguint_bit_or", "rt_biguint_bit_xor",
+			"rt_biguint_div", "rt_biguint_mod", "rt_biguint_mul", "rt_biguint_shl", "rt_biguint_shr",
+			"rt_biguint_sub", "rt_biguint_to_bigfloat"),
+		classified(refusalIsSwallowed,
+			"clones the magnitude with no error out-parameter — bu_clone(bi_as_uint(src), NULL) "+
+				"(runtime/native/rt_bignum_api.c: rt_bigint_to_biguint) — so a refused clone is handed to "+
+				"bu_finish as NULL and the conversion answers zero for a number that was not zero",
+			"rt_bigint_to_biguint"),
 		classified(refusalIsReported,
 			"reports through its own panic before returning: array_panic / concat_panic / map_panic "+
 				"(runtime/native/rt_array.c, rt_array_concat.c, rt_map.c)",
@@ -175,6 +202,18 @@ func runtimePointerAnswers() map[string]runtimeAnswer {
 // same day it was measured, by reporting at the allocation instead.
 const untestedRuntimeAnswers = 31
 
+// swallowedRuntimeAnswers pins the other open surface, which no test in the
+// generated code can close because the refusal is not a null by the time it
+// gets there. Pinned separately from the count above so that closing one family
+// cannot be paid for out of the other.
+//
+// 25 on 2026-08-29: the tagged int arithmetic that promotes through bi_promote
+// (13, counting rt_bigint_to_bigfloat), its uint twin through bu_promote (11),
+// and rt_bigint_to_biguint's bu_clone. They were all recorded as reported until
+// this count existed, on a reason that is true of the RESULT block and not of
+// the promotion in front of it.
+const swallowedRuntimeAnswers = 25
+
 // TestEveryRuntimePointerAnswerIsClassified is the census.
 //
 // It runs over the ABI roster rather than over the emitters, because that is the
@@ -183,7 +222,7 @@ const untestedRuntimeAnswers = 31
 func TestEveryRuntimePointerAnswerIsClassified(t *testing.T) {
 	answers := runtimePointerAnswers()
 	declared := map[string]bool{}
-	untested := []string{}
+	open := map[runtimeAnswerClass][]string{}
 	for _, decl := range runtimeDecls() {
 		if decl.ret != "ptr" {
 			continue
@@ -196,8 +235,8 @@ func TestEveryRuntimePointerAnswerIsClassified(t *testing.T) {
 				decl.name)
 			continue
 		}
-		if answer.class == refusalIsUntested {
-			untested = append(untested, decl.name)
+		if answer.class == refusalIsUntested || answer.class == refusalIsSwallowed {
+			open[answer.class] = append(open[answer.class], decl.name)
 		}
 	}
 	for name := range answers {
@@ -206,10 +245,20 @@ func TestEveryRuntimePointerAnswerIsClassified(t *testing.T) {
 				"the classification has rotted", name)
 		}
 	}
-	if len(untested) != untestedRuntimeAnswers {
-		sort.Strings(untested)
-		t.Errorf("%d runtime answers are refused-and-untested, the pin says %d:\n  %s",
-			len(untested), untestedRuntimeAnswers, strings.Join(untested, "\n  "))
+	for _, pin := range []struct {
+		class runtimeAnswerClass
+		want  int
+		what  string
+	}{
+		{refusalIsUntested, untestedRuntimeAnswers, "refused-and-untested"},
+		{refusalIsSwallowed, swallowedRuntimeAnswers, "refused-and-answered-as-a-number"},
+	} {
+		got := open[pin.class]
+		if len(got) != pin.want {
+			sort.Strings(got)
+			t.Errorf("%d runtime answers are %s, the pin says %d:\n  %s",
+				len(got), pin.what, pin.want, strings.Join(got, "\n  "))
+		}
 	}
 }
 
@@ -238,6 +287,18 @@ var indirectPointerCallEmitters = map[string]string{
 	"emit_iter.go":               "rt_bigint_from_i64, rt_biguint_from_u64, rt_bigint_add, rt_biguint_add",
 }
 
+// genericCallPathEmitters write a call statement whose callee AND result type
+// are both format operands, so no entry point is spelled in their text at all
+// and the text census below can read NOTHING of them. That blindness is the
+// gap, named here rather than left implicit: a census that cannot see a whole
+// emission path reports coverage it does not have. What covers this path is
+// runtimeAnswersTestedAtTheCallSite, and what keeps that map complete is
+// TestATestedAnswerIsGuardedOnEveryPathThatReachesIt.
+var genericCallPathEmitters = map[string]string{
+	"emit_call_site.go": "emitCallSite lowers every call the language makes, runtime symbol or not; " +
+		"emitRuntimeAnswerTest is the test it writes",
+}
+
 // allocGuardFile is where the tested calls are written, so it is the one file
 // this census reads past.
 const allocGuardFile = "emit_alloc_guard.go"
@@ -258,6 +319,14 @@ func pointerCallFindings(name, source string) []string {
 	atTheCallSite := runtimeAnswersTestedAtTheCallSite()
 	var out []string
 	for i, line := range strings.Split(source, "\n") {
+		if strings.Contains(line, `"call %s %s(`) {
+			if _, recorded := genericCallPathEmitters[name]; !recorded {
+				out = append(out, fmt.Sprintf("%s:%d writes the generic call statement, so this census "+
+					"can read no entry point out of it at all; record it in genericCallPathEmitters and "+
+					"say what tests the answers it can hand back", name, i+1))
+			}
+			continue
+		}
 		if strings.Contains(line, "call ptr @%s(") {
 			if _, recorded := indirectPointerCallEmitters[name]; !recorded {
 				out = append(out, fmt.Sprintf("%s:%d writes a pointer-answering call whose callee is a "+
@@ -336,6 +405,96 @@ func TestTheCensusSeesTheCallItOnceMissed(t *testing.T) {
 	}
 }
 
+// TestTheCensusSaysWhenItCanSeeNothingOfAFile is the second blindness, one
+// layer along from the first. A file that writes the generic call statement
+// spells no entry point at all, so the census reads nothing of it and reported
+// nothing about it — silence that looked exactly like coverage. The text is the
+// statement emit_call_site.go builds.
+func TestTheCensusSaysWhenItCanSeeNothingOfAFile(t *testing.T) {
+	const generic = "\tcallStmt := fmt.Sprintf(\"call %s %s(%s)\", lowered.ret, target.callee, args)\n"
+	findings := pointerCallFindings("emit_some_new_call_path.go", generic)
+	if len(findings) != 1 {
+		t.Fatalf("the census answered %d findings for an unrecorded generic call emitter, want 1: %v",
+			len(findings), findings)
+	}
+	if !strings.Contains(findings[0], "genericCallPathEmitters") {
+		t.Fatalf("the census reported %q, which does not say where to record the path", findings[0])
+	}
+	if got := pointerCallFindings("emit_call_site.go", generic); len(got) != 0 {
+		t.Fatalf("the recorded generic call emitter was reported: %v", got)
+	}
+}
+
+var intrinsicCaseRe = regexp.MustCompile(`"(rt_[a-z0-9_]+)"`)
+
+// intrinsicsInterceptedBeforeTheCallPath reads the dispatch: a runtime symbol
+// named in a `case` of an intrinsic emitter is lowered by that emitter and never
+// reaches emitCallSite. Read out of the switches themselves rather than listed
+// here, so the two cannot drift.
+func intrinsicsInterceptedBeforeTheCallPath(t *testing.T) map[string]string {
+	t.Helper()
+	out := map[string]string{}
+	for _, name := range emitterSourceFiles(t) {
+		if !strings.HasPrefix(name, "emit_intrinsics_") {
+			continue
+		}
+		raw, err := os.ReadFile(name) // #nosec G304 -- package-owned path
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		for _, line := range strings.Split(string(raw), "\n") {
+			if !strings.HasPrefix(strings.TrimSpace(line), "case ") {
+				continue
+			}
+			for _, m := range intrinsicCaseRe.FindAllStringSubmatch(line, -1) {
+				out[m[1]] = name
+			}
+		}
+	}
+	if len(out) == 0 {
+		t.Fatal("no intrinsic dispatch was found; the switches moved and this check now excuses everything")
+	}
+	return out
+}
+
+// TestATestedAnswerIsGuardedOnEveryPathThatReachesIt is the check the census
+// could not make, and its absence is how a constructor came to be tested on one
+// of its two paths and called untested on the other.
+//
+// A runtime symbol the language can name arrives one of two ways: an intrinsic
+// emitter claims it in a `case`, or it falls through to emitCallSite. The second
+// path spells no name in any source text, so nothing in the emitters says which
+// entry points travel it — the ABI roster is the only list, and every tested
+// entry point on it that is NOT claimed by a `case` reaches the generic path.
+// There it is tested by runtimeAnswersTestedAtTheCallSite or by nothing.
+func TestATestedAnswerIsGuardedOnEveryPathThatReachesIt(t *testing.T) {
+	intercepted := intrinsicsInterceptedBeforeTheCallPath(t)
+	atTheCallSite := runtimeAnswersTestedAtTheCallSite()
+	for name, answer := range runtimePointerAnswers() {
+		if answer.class != refusalIsTested {
+			continue
+		}
+		if where, claimed := intercepted[name]; claimed {
+			if atTheCallSite[name] {
+				t.Errorf("%s is claimed by %s and also listed in runtimeAnswersTestedAtTheCallSite; "+
+					"one of the two is dead, and a dead guard is a guard nobody notices losing", name, where)
+			}
+			continue
+		}
+		if !atTheCallSite[name] {
+			t.Errorf("%s answers NULL on refusal, no intrinsic emitter claims it, and it is not in "+
+				"runtimeAnswersTestedAtTheCallSite: every call to it goes through emitCallSite untested. "+
+				"Add it there, or reclassify it", name)
+		}
+	}
+	for name := range atTheCallSite {
+		if runtimePointerAnswers()[name].class != refusalIsTested {
+			t.Errorf("%s is tested at the call site and is not classified as tested; "+
+				"the guard and the census disagree about it", name)
+		}
+	}
+}
+
 // TestTheGuardedSiteRosterMatchesTheEmitterCallSites keeps the roster honest in
 // both directions: a site the negative control can aim at but nothing emits, and
 // a site something emits that the control cannot aim at, are both failures.
@@ -405,129 +564,6 @@ func allocSiteConstantValues(t *testing.T) map[string]allocSite {
 		t.Fatal("no site constants were found; the declaration moved")
 	}
 	return out
-}
-
-// allocGuardArrayProgram reaches every shape the guard writes: the literal's two
-// allocations, both iterator cursors, the growth path a push takes, and the two
-// Range constructors — the bounded one an emitter writes and the open-ended one
-// that is an ordinary call to a runtime symbol.
-// One array literal, because the negative control aims at a SITE and a second
-// literal would make the same site refuse twice.
-const allocGuardArrayProgram = `@entrypoint
-fn main() -> int {
-    let mut a: int[] = [1, 2, 3];
-    let mut total: int = 0;
-    for x in a {
-        total = total + x;
-    }
-    // Bound to a name first: a range walked straight out of its literal is
-    // lowered without a Range object, and then nothing allocates a cursor.
-    let r = 0..2;
-    for i in r {
-        total = total + i;
-    }
-    a.push(total);
-    let tail: int[] = a[[1..]];
-    return a[3] + tail[0];
-}
-`
-
-func emitAllocGuardProgram(t *testing.T) string {
-	t.Helper()
-	mirMod, result := lowerMIRFromSource(t, allocGuardArrayProgram)
-	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
-	if err != nil {
-		t.Fatalf("emit LLVM IR: %v", err)
-	}
-	return ir
-}
-
-// TestAGuardedAllocationIsTestedAndReportsItsType reads the emitted shape: the
-// call, the test against null, and a reporter that names the type. Every entry
-// point classified as tested is held to it, so a call added to the guard cannot
-// be added without its test.
-//
-// The message is checked as the bytes the module actually carries, because that
-// is what a person reads on stderr; asserting the Go string would pass even if
-// the constant were emitted at the wrong length.
-func TestAGuardedAllocationIsTestedAndReportsItsType(t *testing.T) {
-	ir := emitAllocGuardProgram(t)
-	answers := runtimePointerAnswers()
-	lines := strings.Split(ir, "\n")
-	callRe := regexp.MustCompile(`^\s*(%t\d+) = call ptr @(rt_[a-z0-9_]+)\(`)
-	tested := map[string]int{}
-	for i, line := range lines {
-		m := callRe.FindStringSubmatch(line)
-		if m == nil || answers[m[2]].class != refusalIsTested {
-			continue
-		}
-		want := fmt.Sprintf("= icmp eq ptr %s, null", m[1])
-		if i+1 >= len(lines) || !strings.Contains(lines[i+1], want) {
-			t.Fatalf("the %s at line %d is not tested; next line is %q", m[2], i+1, lines[i+1])
-		}
-		if i+4 >= len(lines) || !strings.Contains(lines[i+4], "call void @rt_panic(") {
-			t.Fatalf("the refusal block for %s does not report; line is %q", m[1], lines[i+4])
-		}
-		if !strings.Contains(lines[i+5], "unreachable") {
-			t.Fatalf("the refusal block for %s returns; line is %q", m[1], lines[i+5])
-		}
-		tested[m[2]]++
-	}
-	for _, want := range []string{"rt_alloc", "rt_realloc", "rt_range_int_new", "rt_range_int_from_start"} {
-		if tested[want] == 0 {
-			t.Fatalf("the program emitted no %s at all, so nothing was proven about it", want)
-		}
-	}
-
-	message := "out of memory: could not allocate Array<int>"
-	lit := formatLLVMBytes([]byte(message), len(message))
-	want := fmt.Sprintf("= private unnamed_addr constant [%d x i8] %s", len(message), lit)
-	if !strings.Contains(ir, want) {
-		t.Fatalf("no emitted constant carries %q", message)
-	}
-}
-
-// TestTheRefusalMessageIsNotInTheTraceStringTable is the mistake this guard made
-// on its first writing: the per-type sentence went into the lazily filled table
-// that ALSO backs the backtrace maps, where the walker indexes rows by position.
-// A message there is a row nothing names and the runtime can still reach.
-func TestTheRefusalMessageIsNotInTheTraceStringTable(t *testing.T) {
-	ir := emitAllocGuardProgram(t)
-	table := ""
-	for _, line := range strings.Split(ir, "\n") {
-		if strings.HasPrefix(line, "@surge_trace_strings = ") {
-			table = line
-			break
-		}
-	}
-	if table == "" {
-		t.Fatal("the module emitted no trace string table")
-	}
-	if strings.Contains(table, "@.allocmsg.") {
-		t.Fatalf("an allocation message is a row of the trace string table:\n%s", table)
-	}
-}
-
-// TestTheNegativeControlAimsAtOneSite is the control's own control.
-//
-// A build flag that refused every allocation would prove only that the first one
-// in a program is guarded, and one that refused none would make the stand green
-// for the wrong reason. Both are checked here against the emitted text.
-func TestTheNegativeControlAimsAtOneSite(t *testing.T) {
-	if n := strings.Count(emitAllocGuardProgram(t), "i64 "+allocRefusalSize); n != 0 {
-		t.Fatalf("an unarmed build already asks for the refusal size %d times", n)
-	}
-	for _, site := range []allocSite{
-		allocSiteArrayElements, allocSiteArrayHeader, allocSiteArrayIter,
-		allocSiteRangeIter, allocSiteArrayGrowPush,
-	} {
-		t.Run(string(site), func(t *testing.T) {
-			t.Setenv(allocRefusalEnvVar, string(site))
-			if n := strings.Count(emitAllocGuardProgram(t), "i64 "+allocRefusalSize); n != 1 {
-				t.Fatalf("arming %q made %d allocations refuse, want 1", site, n)
-			}
-		})
-	}
 }
 
 // TestTheGuardIsWhereTheReportedFileSaysItIs keeps the ledger row that excuses

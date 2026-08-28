@@ -93,11 +93,27 @@ func allocGuardedSites() []allocSite {
 }
 
 // runtimeAnswersTestedAtTheCallSite are the nullable runtime entry points the
-// generic call path tests, because they have no emitter of their own: an
-// open-ended range is lowered to an ordinary call to a runtime symbol, so there
-// is no site in this package where its answer could otherwise be tested.
+// generic call path tests.
+//
+// A runtime symbol the language names arrives one of two ways: an intrinsic
+// emitter claims it in a `case` and lowers it itself, or it falls through to
+// emitCallSite, which spells its callee through a format operand and so writes
+// no entry point's name anywhere in this package. Membership here is therefore
+// not a matter of taste — an unclaimed entry point is tested here or nowhere —
+// and it is checked rather than remembered, in
+// TestATestedAnswerIsGuardedOnEveryPathThatReachesIt.
+//
+// rt_range_int_new is on this list AND written by emitCheckedRangeNew, because a
+// bounded range has two spellings that share no lowering: `a..b` is a binary
+// operator this package lowers itself, and `[a..b]` is lowered by
+// internal/hir/lower_expr_range.go to an ordinary call to this same symbol. The
+// two paths never meet — emitBinary does not go through emitCallSite — so
+// neither test can double-test the other's call. Reading the list off the
+// emitters instead of off the ABI is what hid the second spelling: no emitter
+// writes it.
 func runtimeAnswersTestedAtTheCallSite() map[string]bool {
 	return map[string]bool{
+		"rt_range_int_new":        true,
 		"rt_range_int_from_start": true,
 		"rt_range_int_to_end":     true,
 		"rt_range_int_full":       true,
@@ -186,11 +202,17 @@ func (fe *funcEmitter) emitCheckedRealloc(site allocSite, id types.TypeID, data,
 // the object, because the walk reads the kind byte out of the object to decide
 // how big its cursor must be: a test placed there would already be a load
 // through the null it was meant to catch.
-func (fe *funcEmitter) emitCheckedRangeNew(label, start, end, inclusive string) string {
+//
+// `typeLabel` is a TYPE SPELLING, not a sentence: it goes through the same
+// wording every other refusal uses. Handing it to emitRefusalTest directly is
+// what this did first, and a refused `0..3` then reported `panic: Range<int>` —
+// a bare type name, no reason, nothing the reader could act on — beside a
+// sibling site reporting the whole sentence for the same object.
+func (fe *funcEmitter) emitCheckedRangeNew(typeLabel, start, end, inclusive string) string {
 	ptr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_range_int_new(ptr %s, ptr %s, i1 %s)\n",
 		ptr, start, end, inclusive)
-	fe.emitRefusalTest(label, ptr)
+	fe.emitRefusalTest(allocFailureMessageFor(typeLabel), ptr)
 	return ptr
 }
 

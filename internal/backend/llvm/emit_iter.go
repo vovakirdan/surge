@@ -81,11 +81,17 @@ func (fe *funcEmitter) emitRangeIterInit(op *mir.Operand, rangeType types.TypeID
 		return "", "", fmt.Errorf("range iter_init requires ptr, got %s", rangeTy)
 	}
 	// The size is read out of the source object, so this load runs BEFORE the
-	// cursor's own guard and could not be protected by it. It does not need to
-	// be: every Range object that reaches here comes from a producer that
-	// already tested its allocation — the two constructors in the guard file,
-	// the call-path test for the open-ended ones, and the two cursors below.
-	// A second test here would be a branch no program can take.
+	// cursor's own guard and could not be protected by it. What makes that safe
+	// is that every producer of a Range tests its own allocation — but the list
+	// of producers is longer than the emitters, and reading it off them is how
+	// this comment came to assert something false: `[a..b]` is lowered by
+	// internal/hir/lower_expr_range.go to an ordinary call to the SAME
+	// constructor `a..b` reaches through emitCheckedRangeNew, and that call is
+	// written by no emitter and was tested by nothing. So the list is not kept
+	// here. It is derived in TestATestedAnswerIsGuardedOnEveryPathThatReachesIt,
+	// which fails when a constructor is reachable on a path with no test on it,
+	// and read back out of the emitted IR by
+	// TestAGuardedAllocationIsTestedAndReportsItsType over both spellings.
 	size := fe.emitRangeObjectSize(rangePtr)
 	iterPtr := fe.emitCheckedAlloc(allocSiteRangeIter, rangeType, size, rangeAlign)
 	fmt.Fprintf(&fe.emitter.buf,

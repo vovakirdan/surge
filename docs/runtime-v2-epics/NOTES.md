@@ -9370,15 +9370,29 @@ three open-ended `Range` constructors stayed invisible to a scan of emitter text
 records the answer: a refused reallocation releases nothing (`rt_alloc.c`), so
 the old block is still the array's and the only pointer to it is the one about to
 be overwritten. A guard that read NULL as "the buffer moved" would leak the block
-as well. `rt_range_int_new` through `emitCheckedRangeNew`; the three open-ended
-siblings through `emitRuntimeAnswerTest`, a hook in `emitCallSite` keyed on
-`runtimeAnswersTestedAtTheCallSite`.
+as well. `rt_range_int_new` through `emitCheckedRangeNew` for `a..b` AND through
+`emitRuntimeAnswerTest` for `[a..b]`, which is a different lowering to the same
+symbol; the three open-ended siblings through that same hook in `emitCallSite`,
+keyed on `runtimeAnswersTestedAtTheCallSite`. Both range paths now report the
+same sentence: `emitCheckedRangeNew` used to hand its type LABEL to the reporter
+as the whole message, so a refused `0..3` said `panic: Range<int>` — 10 bytes, no
+reason — beside a 44-byte `out of memory: could not allocate Range<int>` for the
+same object down the other path.
 
-**The review's ordering finding is closed at the producer, not at the consumer.**
+**The review's ordering finding is closed at the producer, not at the consumer —
+but the producer list was wrong, and a measurement refuted it.**
 `emitRangeIterInit` sizes its cursor by reading the source Range's kind byte
-before its own guard runs. With all four constructors tested, no NULL Range can
-reach it, so a second test there would be a branch no program can take; the
-invariant is written beside the load.
+before its own guard runs, so the guard has to be at every producer. The list
+written here on 2026-08-29 named four and there are five: a BRACKETED bounded
+literal `[a..b]` is not lowered by `emitBinary` at all —
+`internal/hir/lower_expr_range.go` lowers it to an ordinary call to the SAME
+`rt_range_int_new`, which reaches `emitCallSite`, where the hook did not name it.
+`let r = [1..3]; for i in r` emitted an untested call and then loaded the kind
+byte at offset 19 through the answer. The argument was right in form and wrong in
+fact because it enumerated the emitters, which is the same mistake the roster was
+moved to `builtins.go` to stop making. Closed by the one line the hook was
+missing; the list is no longer written down beside the load, it is derived in
+`TestATestedAnswerIsGuardedOnEveryPathThatReachesIt`.
 
 **The string family answers NULL and is a DIFFERENT failure, so it gets a
 different answer.** It was not a fault: the readers answer NULL/0 for a handle
@@ -9404,6 +9418,21 @@ the string fix, `TestARefusedStringReportsInsteadOfAnsweringTheEmptyString` exit
 change, `runtime-v2-panic-surface-check` 0, `runtime-v2-heap-check` 0 (91 rows),
 `runtime-v2-carrier-check` 0 with `allocation_count=8` unmoved.
 
+**Numbers for the bracketed-range hole and the wrong sentence.** Both rows were
+run red on the tree that had the four-producer argument in it.
+`TestAGuardedAllocationIsTestedAndReportsItsType/bracketed_range_literals`
+reported `the rt_range_int_new at line 510 is not tested; next line is "  store
+ptr %t12, ptr %l4, align 8"`; `.../operator_range_and_array_growth` reported
+`a refused rt_range_int_new reports "Range<int>"; every refusal reads "out of
+memory: could not allocate " plus the type`; and
+`TestATestedAnswerIsGuardedOnEveryPathThatReachesIt` reported `rt_range_int_new
+answers NULL on refusal, no intrinsic emitter claims it, and it is not in
+runtimeAnswersTestedAtTheCallSite`. Green afterwards, 10 emitter rows in 2.15s,
+and both range paths now carry the same 44-byte constant. `make check` 0 in
+2m13s, `make golden-check` 0 in 8m55s with `git status` over `testdata/golden`
+empty, `runtime-v2-panic-surface-check` 0 in 54.5s with the four refusal rows at
+11.81s / 11.07s / 11.30s / 10.79s.
+
 **The open surface is 31 entry points and it is pinned as a number.** The
 filesystem result (17), the socket result (9), and five blocks that carry their
 own answer (`rt_entropy_bytes`, `rt_argv`, `rt_heap_stats`,
@@ -9413,13 +9442,41 @@ whose discriminant the match then reads through it. `untestedRuntimeAnswers`
 holds the count so that adding one is a deliberate edit and closing a family
 moves it down.
 
-**Two incidental findings, neither fixed here.** `rt_string_from_utf16` is
+**A SECOND open surface is 25 entry points, and it was hiding inside the
+"reported" class.** The tagged bignum arithmetic was recorded as reporting on a
+reason that is true of the RESULT block and false of the promotion in front of
+it: `bi_promote` calls `bi_from_i64(fixi_value(w), NULL)` and `bu_promote` calls
+`bu_from_u64(fixu_value(w), NULL)` (`rt_bignum_api.c`), and `bi_alloc`/`bu_alloc`
+only record `BN_ERR_MAX_LIMBS` when they are given somewhere to record it. A
+refused promotion therefore hands back a NULL operand indistinguishable from the
+tagged zero, and `bi_add(NULL, b, &err)` answers `bi_clone(b)` with `err` still
+`BN_OK`: `a + b` returns `b`. This is ordinary `int` arithmetic — the guard's own
+probe emits `rt_bigint_add` for `total = total + x`. The class is
+`refusalIsSwallowed`, pinned at `swallowedRuntimeAnswers = 25` separately from
+the 31 so that closing one family cannot be paid for out of the other: 13 signed
+entries through `bi_promote` (counting `rt_bigint_to_bigfloat`), 11 unsigned
+through `bu_promote`, and `rt_bigint_to_biguint`'s `bu_clone(..., NULL)`. No test
+the emitter could write can close it — the answer is a legal value, not a null —
+so the repair is the error out-parameter those helpers do not pass, and it
+belongs to the bignum lane. The false row belonged to this one.
+
+**One incidental finding, not fixed here.** `rt_string_from_utf16` is
 declared in the ABI roster and emitted by `emit_intrinsics_runtime.go`, and has
 no definition in `runtime/native` — a native program that reaches it does not
-link. And `bi_promote` (`rt_bignum_api.c`) passes a NULL `bn_err` to
-`bi_from_i64`, so a refusal there makes the operand read as zero and the
-arithmetic answer silently wrong, rather than reporting the way every other
-bignum path does.
+link.
+
+**What the census still cannot see, said rather than left implicit.**
+`emit_call_site.go` builds its call as `fmt.Sprintf("call %s %s(%s)", ...)`, so
+no entry point is spelled in its text and a scan of emitter source reads NOTHING
+of the whole ordinary call path. That is now a reported condition rather than
+silence: an unrecorded file writing that statement is a finding, the one file
+that does is recorded in `genericCallPathEmitters` with what covers it, and
+`TestATestedAnswerIsGuardedOnEveryPathThatReachesIt` derives the gap the way the
+31 is pinned — a tested-class entry point that no `case` in an
+`emit_intrinsics_*.go` dispatch claims reaches `emitCallSite`, and must be named
+in `runtimeAnswersTestedAtTheCallSite` or it is tested by nothing. That row is
+what fails on the missing `rt_range_int_new`, in one line, without building
+anything.
 
 **Pre-existing reds, checked not assumed.** `TestLLVMParity` fails on
 `random_pcg32`, `hash_xxh64`, `hash_stable64`, `uuid_v4` (RV2-DEBT-159 and -306,
