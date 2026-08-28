@@ -313,6 +313,14 @@ var requiredSanitizerCoverage = []string{
 	// per-execution loss and a one-off loss are the same number.
 	"TestRuntimeV2BlockingCaptureValgrindZero",
 	"TestRuntimeV2BlockingCapturelessStateIsFreed",
+	// Valgrind over what the blocking BODY owns, eight executions each: the
+	// local it builds, the capture it only reads (one owner left after the
+	// worker's claim -- the body), the capture it consumes (released once, not
+	// twice), and the `@copy` composite it receives a copy of.
+	"TestRuntimeV2BlockingBodyLocalIsReclaimed",
+	"TestRuntimeV2BlockingReadCaptureIsReclaimed",
+	"TestRuntimeV2BlockingConsumedCaptureIsReleasedOnce",
+	"TestRuntimeV2BlockingCopyCompositeCaptureIsReclaimed",
 	// The race detector over the carrier bench bridge.
 	"TestRuntimeV2CarrierBenchBlockingRegisterThenVerify",
 	"TestRuntimeV2CarrierBenchCounterMatrix",

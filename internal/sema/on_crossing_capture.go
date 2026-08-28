@@ -306,6 +306,31 @@ func (tc *typeChecker) registerAsyncBodyOwnership(body ast.StmtID) {
 	}
 }
 
+// registerBlockingBodyOwnership is registerAsyncBodyOwnership for a `blocking`
+// body, and asks the same predicate for the same reason: the body becomes a
+// function whose one parameter is the packed state, and unpacking that state
+// spends each field exactly as a by-value argument is spent (MIR's
+// `blockingCaptureInfo.Transfers` answers from `byValueArgContract`, which is
+// this predicate's lowering-side twin).
+//
+// The job that carries the state destroys it through its own descriptor, and
+// marks it SPENT before the body runs (`rt_async_blocking.c`), so a capture the
+// body only reads has exactly one owner left -- the body -- and this is where it
+// is told so. Registering here without the worker's claim would be a double
+// free; the claim without this registration abandons the capture once per
+// execution, which is the leak this registration closes.
+//
+// A `Channel<T>` capture reads as a `@copy` scalar today, so the predicate
+// answers "does not transfer" for it; that is D3b's question, not this one's.
+func (tc *typeChecker) registerBlockingBodyOwnership(body ast.StmtID) {
+	for _, cap := range tc.collectBlockingCaptures(body) {
+		if !tc.paramTransfersOwnership(tc.bindingType(cap.symID)) {
+			continue
+		}
+		tc.registerDroppableBinding(cap.symID)
+	}
+}
+
 func (tc *typeChecker) isOwnType(id types.TypeID) bool {
 	if id == types.NoTypeID || tc.types == nil {
 		return false

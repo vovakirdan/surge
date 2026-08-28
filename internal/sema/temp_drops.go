@@ -64,7 +64,7 @@ func (tc *typeChecker) popTempFrame() {
 // temporary is the statement's to release. The expression itself may be a
 // literal or a place -- what is produced is the conversion's result.
 func (tc *typeChecker) noteConvertedTemporary(exprID ast.ExprID, produced types.TypeID) {
-	if len(tc.tempFrames) == 0 || tc.dropObligationsSuppressed() || !tc.isDroppableType(produced) {
+	if len(tc.tempFrames) == 0 || !tc.isDroppableType(produced) {
 		return
 	}
 	top := &tc.tempFrames[len(tc.tempFrames)-1]
@@ -310,7 +310,7 @@ func (tc *typeChecker) unwrapTempCandidate(exprID ast.ExprID) ast.ExprID {
 // binaries yield the assigned PLACE and never flag; suspension constructs
 // taint the whole statement instead.
 func (tc *typeChecker) noteTempCandidate(exprID ast.ExprID, kind ast.ExprKind, ty types.TypeID) {
-	if len(tc.tempFrames) == 0 || tc.dropObligationsSuppressed() {
+	if len(tc.tempFrames) == 0 {
 		return
 	}
 

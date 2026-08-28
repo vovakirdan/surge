@@ -20,13 +20,13 @@ import (
 // The job owns the captures in an `rt_value_cell` now, bound to the type's own
 // descriptor, and destroys them through it.
 //
-// WHAT THESE ROWS CAN AND CANNOT SEE. A body that CONSUMES its captures settles
-// them itself, and that is the shape driven here, because it is the shape whose
-// every block has a named owner today. A body that merely READS an owned
-// capture still abandons it: blocking bodies record no drop obligations at all
-// (`dropObligationsSuppressed`), so the body's local has no scope-exit release
-// to run. That is the other half of RV2-DEBT-080 and it is not what these rows
-// pin -- a row asserting zero over it would be asserting a fix nobody has made.
+// WHAT THESE ROWS SEE. A body that CONSUMES its captures settles them itself,
+// and that is the shape driven here: it is the shape that pins the JOB's half
+// of the ownership -- the state destroyed through its descriptor, and not
+// walked again after the body took it. The BODY's half -- a capture it only
+// reads, a local it builds -- is pinned by the rows in
+// runtime_v2_blocking_body_reclamation_test.go, which went to zero when blocking
+// bodies started recording drop obligations like every other function body.
 
 // One submission, no captures at all. The state block is a zero-sized
 // allocation, which `rt_alloc` still answers with one byte, and nothing ever

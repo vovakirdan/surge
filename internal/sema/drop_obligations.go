@@ -42,30 +42,15 @@ func (tc *typeChecker) isDroppableBinding(symID symbols.SymbolID) bool {
 	return tc.isDroppableType(tc.bindingType(symID))
 }
 
-// dropObligationsSuppressed gates the recording paths for bodies that ship
-// their state to a runtime with its own release discipline, where a
-// synthesized drop would race that runtime's ownership.
-//
-// Crossing bodies used to be suppressed here too, on the authority of
-// RV2-DEBT-034. That row CLOSED at the Epic 20 closeout: the crossing side now
-// has compiled per-state drop functions with real ids at every publish site
-// and drop-count censuses across the refusal, abandon, stale and cancel edges.
-// The runtime's discipline covers the STATE and the edges into it — it never
-// covered what the BODY allocates after unpacking, and with the row closed the
-// suppression was reclaiming nothing and abandoning every droppable the body
-// built and still held at its `ret`. Measured at 16 blocks over 8 crossings,
-// valgrind, native backend.
-//
-// This says nothing about the moved-in CAPTURES, which are reclaimed by a site
-// this epic could not identify — see RV2-DEBT-079. They do not leak; adding a
-// body-side drop for them double-frees.
-//
-// Blocking bodies keep the suppression, and that is a parked question rather
-// than a proven boundary: their release path is a separate shallow free on the
-// pool side, unprobed here (RV2-DEBT-080).
-func (tc *typeChecker) dropObligationsSuppressed() bool {
-	return tc.blockingDepth > 0
-}
+// There is no body whose obligations are suppressed any more. Crossing bodies
+// were unmuted once their state carried compiled drop functions at every publish
+// site; blocking bodies were unmuted once the job began destroying its captured
+// state through the state's own descriptor and marking it spent before the body
+// runs. What a body builds after unpacking was never any runtime's to reclaim
+// -- measured at 16 blocks over 8 crossings before the first unmuting -- and a
+// body's exits are recorded here exactly as a function's are, with the body
+// registered as the owner of what moved in (registerAsyncBodyOwnership,
+// registerBlockingBodyOwnership).
 
 func (tc *typeChecker) pushDropScope(functionRoot bool) {
 	tc.dropScopes = append(tc.dropScopes, dropScope{functionRoot: functionRoot})
@@ -299,7 +284,7 @@ func (tc *typeChecker) liveDroppables(scope *dropScope) []symbols.SymbolID {
 // above is the function root, its live droppables (the by-value params)
 // are appended — the body block's fallthrough is the function's exit.
 func (tc *typeChecker) recordScopeEndDrops(id ast.StmtID) {
-	if len(tc.dropScopes) == 0 || !id.IsValid() || tc.dropObligationsSuppressed() {
+	if len(tc.dropScopes) == 0 || !id.IsValid() {
 		return
 	}
 	top := &tc.dropScopes[len(tc.dropScopes)-1]
@@ -328,7 +313,7 @@ func (tc *typeChecker) recordScopeEndDrops(id ast.StmtID) {
 // (compare/if arms, standalone value blocks), keyed by the expression:
 // their locals live in the block's own scope and drop at its normal end.
 func (tc *typeChecker) recordBlockExprEndDrops(id ast.ExprID) {
-	if len(tc.dropScopes) == 0 || !id.IsValid() || tc.dropObligationsSuppressed() {
+	if len(tc.dropScopes) == 0 || !id.IsValid() {
 		return
 	}
 	top := &tc.dropScopes[len(tc.dropScopes)-1]
@@ -344,7 +329,7 @@ func (tc *typeChecker) recordBlockExprEndDrops(id ast.ExprID) {
 }
 
 func (tc *typeChecker) recordEarlyExitDrops(id ast.StmtID, toLoop bool) {
-	if !id.IsValid() || tc.dropObligationsSuppressed() {
+	if !id.IsValid() {
 		return
 	}
 	floor := 0
@@ -605,7 +590,7 @@ func (tc *typeChecker) bindingName(symID symbols.SymbolID) string {
 // the RHS evaluated, so `x = f(x)` (the RHS moved x) suppresses it —
 // move tracking is the source of truth for the suppression.
 func (tc *typeChecker) recordReassignOldDrop(exprID ast.ExprID, symID symbols.SymbolID) {
-	if !exprID.IsValid() || !tc.isDroppableBinding(symID) || tc.dropObligationsSuppressed() {
+	if !exprID.IsValid() || !tc.isDroppableBinding(symID) {
 		return
 	}
 	// An aliased binding's current value belongs to its container.
@@ -642,7 +627,7 @@ func (tc *typeChecker) recordReassignOldDrop(exprID ast.ExprID, symID symbols.Sy
 // covers, and that set is the only thing able to answer the question the
 // moved-place guard below asks.
 func (tc *typeChecker) recordPlaceOldDrop(exprID, left, right ast.ExprID, desc placeDescriptor, target Place) {
-	if !exprID.IsValid() || !left.IsValid() || tc.dropObligationsSuppressed() {
+	if !exprID.IsValid() || !left.IsValid() {
 		return
 	}
 	// An element assignment is not this path's business. `xs[i] = v` is

@@ -320,9 +320,16 @@ func (tc *typeChecker) typeExprBlocking(id ast.ExprID, span source.Span) types.T
 	if !ok || blockingData == nil {
 		return types.NoTypeID
 	}
+	// The same three-way pairing as typeExprAsync: a root for the body's exits,
+	// ownership of what moves in registered BEFORE the walk, and the caller's
+	// binding marked moved below. blockingDepth stays: it answers a different
+	// question (no suspension inside the body, SEM3152), not this one.
+	tc.pushDropScope(true)
+	tc.registerBlockingBodyOwnership(blockingData.Body)
 	tc.blockingDepth++
 	resultType := tc.taskBlockPayload(id, span, blockingData.Body, false)
 	tc.blockingDepth--
+	tc.popDropScope()
 	captures := tc.collectBlockingCaptures(blockingData.Body)
 	tc.recordBlockingCaptures(id, captures)
 	for _, cap := range captures {
