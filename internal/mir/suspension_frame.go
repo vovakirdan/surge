@@ -52,20 +52,26 @@ var suspensionFramePrefixes = [...]string{
 //
 // It exists because more than one reclamation converges on one frame type and
 // the frame said nothing about which one was due. Whether a frame still holds a
-// packed suspension or has already been emptied into resumed locals was recorded
-// only in prose beside the call sites — so a release could not check what it was
-// releasing, and a frame abandoned through the wrong path looked exactly like a
-// frame abandoned through the right one. The word is written at every point that
-// changes the answer, which makes the frame itself the record.
+// packed suspension or has already been emptied into resumed locals is carried
+// today by the SITE that gives the frame up — the drop id a yield hands the
+// runtime, the shallow release a cancelled return emits — and by prose beside
+// those sites. That answer travels with the site, so a reclamation holding only
+// the frame's address cannot check what it is releasing. The word is written at
+// every point that changes the answer, which makes the frame itself the record.
 //
 // Offset zero, and the same offset on all three, because the reader that needs
 // it most has the least: a run-time check holding only the frame's address, on a
 // path that may never have entered compiled code at all.
 //
-// One spelling, here, for the reason the prefixes above are one spelling. MIR
-// writes it, both backends and the verifier read it, and three spellings would
-// drift into three meanings — silently, since each side would keep agreeing with
-// itself.
+// One spelling, here, for the reason the prefixes above are one spelling: three
+// spellings would drift into three meanings, silently, since each side would
+// keep agreeing with itself.
+//
+// MIR is so far the only side. No backend, no runtime path and not the ownership
+// verifier reads the word yet, so nothing downstream would notice a frame that
+// stopped writing it. That is what the tests around each write site are for, and
+// why they assert the VALUE rather than the presence of a field: until a reader
+// lands, a word nobody reads is a word that rots without anything failing.
 const FrameStateField = "__frame_state"
 
 // The two words the lifecycle field may hold.

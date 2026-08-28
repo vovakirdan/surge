@@ -113,9 +113,14 @@ func (l *funcLowerer) blockingStateLiteral(stateType types.TypeID, captures []bl
 	fields := make([]StructLitField, 0, len(captures)+1)
 	// A blocking job's frame is built whether or not it captures anything, so
 	// the lifecycle word is written unconditionally: an allocated frame whose
-	// word was never written is the case this field exists to rule out. It is
-	// born PACKED — the captures below are moved into it and the job's release
-	// destroys them through the frame's descriptor.
+	// word was never written is the case this field exists to rule out.
+	//
+	// PACKED is true for the window this literal opens, and only for it. The
+	// captures below are moved in, and a job the runtime cancels before it ever
+	// starts the body is reclaimed by destroying them through the frame's
+	// descriptor — a walk, which is what PACKED asks for. The window closes at
+	// the body's first instructions, where the captures come back out and
+	// lowerBlockingFunc writes the other word.
 	fields = append(fields, frameStatePackedField(l.types.Builtins().Int))
 	for _, cap := range captures {
 		val, err := l.captureOperand(cap)
@@ -231,6 +236,24 @@ func (l *funcLowerer) lowerBlockingFunc(id FuncID, name string, body *hir.Block,
 			}},
 		}})
 	}
+	// The unpack above took the owning captures out into locals, so the frame is
+	// SPENT and says so — adjacent to the reads that made it true, as in the
+	// crossing poll's entry: this is still the entry block, so nothing between
+	// them can have handed the frame to another reader.
+	//
+	// The runtime asserts the same handover from its own side: the worker spends
+	// the job's state cell immediately before it calls this body, so a cancel
+	// landing mid-body releases the storage without walking it. That is what
+	// makes SPENT the truth here rather than an ambition, and the two must not
+	// be allowed to disagree — the cell answers a caller that already knows this
+	// is a blocking job, the word answers a reader holding only the address.
+	//
+	// Written whether or not there are captures, because the submission builds a
+	// frame either way and there is always storage here for the word to
+	// describe. A capture-less CROSSING is the case that differs: it is handed a
+	// null state, so there is nothing there to store into.
+	spent := frameStateWrite(stateLocal, FrameStateSpent, l.types.Builtins().Int)
+	l.emit(&spent)
 
 	if err := l.lowerTaskBody(body); err != nil {
 		return nil, err

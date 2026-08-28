@@ -20,7 +20,14 @@ func buildSpawnOnStateStruct(typesIn *types.Interner, funcName string, captures 
 
 	// Same lifecycle word, same field 0, as the async frame. IsSuspensionFrameType
 	// answers for all three kinds with one predicate, and a reader that trusts
-	// that predicate then finds the word at one offset whichever kind it got.
+	// that predicate finds the word at one offset whichever kind it got.
+	//
+	// It finds it only once it HAS a frame, and a crossing is the kind that may
+	// not: a capture-less body is handed a null state, and this type is then
+	// describing storage nobody allocated. The word is skipped in the literal
+	// for exactly that count, so the type declaring a field here is not a
+	// promise that a pointer of this type is non-null. A reader must ask that
+	// first; the other two kinds always have the storage.
 	fields := make([]types.StructField, 0, len(captures)+1)
 	fields = append(fields, types.StructField{
 		Name: typesIn.Strings.Intern(FrameStateField),
