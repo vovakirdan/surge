@@ -138,13 +138,15 @@ static void poll_lifecycle(rtb_lifecycle_state* state) {
     uint8_t kind = 0;
     uint64_t bits = 0;
     const rt_far_task_handle* handle = state->phase == 0 ? state->handle : NULL;
-    if (state->phase == 0 && state->fill_control != 0 && handle != NULL) {
+    // An await or a cancel asks the owner for work, so it spends a DATA
+    // credit; saturating the reserve would no longer refuse it, and must not.
+    if (state->phase == 0 && state->fill_inbound != 0 && handle != NULL) {
         rt_executor* ex = ensure_exec();
         rt_shard* owner = rt_runtime_shard(rt_executor_runtime(ex), handle->owner_shard_id);
         rt_shard_lock(owner);
-        memset(owner->transport.control, 0, sizeof(owner->transport.control));
-        owner->transport.control_head = 0;
-        owner->transport.control_len = RT_TRANSPORT_CONTROL_QUEUE_CAP;
+        memset(owner->transport.data, 0, sizeof(owner->transport.data));
+        owner->transport.data_head = 0;
+        owner->transport.data_len = RT_TRANSPORT_DATA_SLOT_CREDITS;
         rt_shard_unlock(owner);
     }
     state->status = state->cancel != 0

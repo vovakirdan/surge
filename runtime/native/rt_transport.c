@@ -11,31 +11,46 @@
 #include <string.h>
 #include <unistd.h>
 
-static int rt_transport_msg_is_control(rt_transport_msg_kind kind) {
+// The reserve is for RELEASING, never for carrying. A message belongs to the
+// control class only when its delivery is what lets somebody finish, drop a
+// pin, or shut down: the ack that ends a publication handshake, a cancel and
+// its ack, a handle release, a shutdown wake. Those are answers to work
+// already admitted, so admitting them costs the target nothing it has not
+// already agreed to hold.
+//
+// Everything a caller ASKS for is data -- including a completion or a reply
+// that hands back a value the target must then consume. Such a message is
+// caller-driven and unbounded in exactly the way a request is, so budgeting
+// it against the reserve would let ordinary traffic spend the lane that
+// clears a backlog: sixteen queued completions would refuse the seventeenth
+// cancel. A backlog must never be able to destroy its own release path.
+static rt_transport_msg_class rt_transport_msg_class_of(rt_transport_msg_kind kind) {
     switch (kind) {
         case RT_TRANSPORT_MSG_REMOTE_SPAWN_ACK:
-        case RT_TRANSPORT_MSG_REMOTE_TASK_AWAIT_REQUEST:
-        case RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION:
         case RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_REQUEST:
         case RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_ACK:
         case RT_TRANSPORT_MSG_REMOTE_TASK_RELEASE_REQUEST:
-        case RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY:
-        case RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REPLY:
-        case RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY:
-        case RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY:
-        case RT_TRANSPORT_MSG_CREDIT_CONTROL:
         case RT_TRANSPORT_MSG_SHUTDOWN_WAKE:
-            return 1;
+            return RT_TRANSPORT_MSG_CLASS_CONTROL;
         case RT_TRANSPORT_MSG_REMOTE_SPAWN_REQUEST:
+        case RT_TRANSPORT_MSG_REMOTE_TASK_AWAIT_REQUEST:
+        case RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION:
         case RT_TRANSPORT_MSG_IMMEDIATE_ON_EXECUTE_REQUEST:
+        case RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY:
         case RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REQUEST:
+        case RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REPLY:
         case RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REQUEST:
+        case RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY:
         case RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REQUEST:
-            return 0;
+        case RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY:
+            return RT_TRANSPORT_MSG_CLASS_DATA;
         case RT_TRANSPORT_MSG_NONE:
-        default:
-            return -1;
+            return RT_TRANSPORT_MSG_CLASS_INVALID;
     }
+    // No `default` arm above: a kind added without a budget fails the -Wswitch
+    // build rather than silently inheriting one. This return answers only for
+    // a value that is not an enumerator at all.
+    return RT_TRANSPORT_MSG_CLASS_INVALID;
 }
 
 static void rt_transport_wake_init_empty(rt_transport_wake* wake) {
@@ -182,10 +197,17 @@ rt_transport_push_locked(rt_transport_state* state, const rt_transport_msg* msg,
         return RT_TRANSPORT_STATUS_INVALID_ARGUMENT;
     }
     rt_transport_msg* queue = control ? state->control : state->data;
-    size_t cap = control ? RT_TRANSPORT_CONTROL_QUEUE_CAP : RT_TRANSPORT_DATA_QUEUE_CAP;
+    size_t cap = control ? RT_TRANSPORT_CONTROL_SLOT_RESERVE : RT_TRANSPORT_DATA_SLOT_CREDITS;
     const size_t* head = control ? &state->control_head : &state->data_head;
     size_t* len = control ? &state->control_len : &state->data_len;
+    // One credit per envelope, spent from this class's own budget. The other
+    // class's occupancy is not consulted, so neither can exhaust the other.
     if (*len >= cap) {
+        if (control) {
+            state->control_reserve_stalls++;
+        } else {
+            state->data_credit_stalls++;
+        }
         return RT_TRANSPORT_STATUS_QUEUE_FULL;
     }
     size_t index = (*head + *len) % cap;
@@ -233,7 +255,7 @@ rt_transport_pop_locked(rt_transport_state* state, rt_transport_msg* out, int co
         return RT_TRANSPORT_STATUS_INVALID_ARGUMENT;
     }
     rt_transport_msg* queue = control ? state->control : state->data;
-    size_t cap = control ? RT_TRANSPORT_CONTROL_QUEUE_CAP : RT_TRANSPORT_DATA_QUEUE_CAP;
+    size_t cap = control ? RT_TRANSPORT_CONTROL_SLOT_RESERVE : RT_TRANSPORT_DATA_SLOT_CREDITS;
     size_t* head = control ? &state->control_head : &state->data_head;
     size_t* len = control ? &state->control_len : &state->data_len;
     if (*len == 0) {
@@ -268,11 +290,12 @@ static rt_transport_status rt_transport_enqueue_locked(rt_shard* shard,
     if (shard == NULL || msg == NULL) {
         return RT_TRANSPORT_STATUS_INVALID_ARGUMENT;
     }
-    int category = rt_transport_msg_is_control(msg->kind);
-    if (category < 0) {
+    rt_transport_msg_class cls = rt_transport_msg_class_of(msg->kind);
+    if (cls == RT_TRANSPORT_MSG_CLASS_INVALID) {
         return RT_TRANSPORT_STATUS_INVALID_ARGUMENT;
     }
-    rt_transport_status status = rt_transport_push_locked(&shard->transport, msg, category != 0);
+    rt_transport_status status =
+        rt_transport_push_locked(&shard->transport, msg, cls == RT_TRANSPORT_MSG_CLASS_CONTROL);
     if (status != RT_TRANSPORT_STATUS_OK) {
         return status;
     }

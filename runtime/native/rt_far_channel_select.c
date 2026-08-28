@@ -288,7 +288,6 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anc
         .route_id = request->request_id,
         .generation = request->handle.generation,
         .payload = request,
-        .payload_len = 0,
     };
     rt_remote_task_status status =
         rt_remote_task_transport_status(rt_transport_enqueue(destination, &msg));

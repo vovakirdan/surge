@@ -113,7 +113,6 @@ static rt_remote_task_status start_remote_task(rt_remote_task_op op,
         .route_id = handle->task_id,
         .generation = handle->generation,
         .payload = request,
-        .payload_len = 0,
     };
     rt_remote_task_status status =
         rt_remote_task_transport_status(rt_transport_enqueue(owner, &msg));
@@ -168,7 +167,6 @@ rt_remote_task_status rt_far_task_release(const rt_far_task_handle* handle) {
         .route_id = handle->task_id,
         .generation = handle->generation,
         .payload = request,
-        .payload_len = 0,
     };
     rt_remote_task_status status =
         rt_remote_task_transport_status(rt_remote_spawn_enqueue_with_drain(ex, owner, &msg));

@@ -31,7 +31,8 @@ static struct rt_transport_debug_snapshot snapshot_locked(const rt_shard* shard)
     snapshot.far_channel_share_replies = state->far_channel_share_replies;
     snapshot.far_channel_select_requests = state->far_channel_select_requests;
     snapshot.far_channel_select_replies = state->far_channel_select_replies;
-    snapshot.credit_stalls = state->credit_stalls;
+    snapshot.data_credit_stalls = state->data_credit_stalls;
+    snapshot.control_reserve_stalls = state->control_reserve_stalls;
     snapshot.unsupported_fallback_attempts = state->unsupported_fallback_attempts;
     snapshot.transport_wake_writes = state->transport_wake_writes;
     snapshot.transport_wake_elisions = state->transport_wake_elisions;

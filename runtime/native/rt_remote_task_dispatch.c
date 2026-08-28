@@ -16,7 +16,6 @@ enqueue_reply(rt_executor* ex, rt_remote_task_pending* pending, rt_transport_msg
         .route_id = pending->request_id,
         .generation = pending->handle.generation,
         .payload = pending,
-        .payload_len = 0,
     };
     return rt_remote_task_transport_status(rt_remote_spawn_enqueue_with_drain(ex, source, &reply));
 }

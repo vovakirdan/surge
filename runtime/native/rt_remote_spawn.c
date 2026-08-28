@@ -170,7 +170,6 @@ rt_remote_spawn_status rt_remote_spawn_publish(uint32_t dst_shard_id,
         .route_id = req->request_id,
         .generation = 0,
         .payload = req,
-        .payload_len = 0,
     };
     rt_remote_spawn_status status = remote_spawn_transport_status(rt_transport_enqueue(dst, &msg));
     if (status != RT_REMOTE_SPAWN_STATUS_OK) {
@@ -374,7 +373,6 @@ static void remote_spawn_dispatch_request(rt_executor* ex, const rt_transport_ms
         .route_id = req->request_id,
         .generation = handle.generation,
         .payload = req,
-        .payload_len = 0,
     };
     RT_SYNC_POINT(SP_REMOTE_SPAWN_BEFORE_ACK);
     status = remote_spawn_enqueue_ack(ex, source, &ack);
@@ -456,7 +454,6 @@ void rt_remote_spawn_fail_all_pending(rt_executor* ex, rt_remote_spawn_status st
             switch (msg.kind) {
                 case RT_TRANSPORT_MSG_NONE:
                 case RT_TRANSPORT_MSG_SHUTDOWN_WAKE:
-                case RT_TRANSPORT_MSG_CREDIT_CONTROL:
                 case RT_TRANSPORT_MSG_REMOTE_SPAWN_REQUEST:
                 case RT_TRANSPORT_MSG_REMOTE_SPAWN_ACK:
                 case RT_TRANSPORT_MSG_REMOTE_TASK_AWAIT_REQUEST:

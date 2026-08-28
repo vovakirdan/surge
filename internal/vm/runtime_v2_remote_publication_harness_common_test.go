@@ -190,9 +190,8 @@ static int fill_data_lane(rt_executor* ex, uint32_t dst) {
         .route_id = 9000,
         .generation = 1,
         .payload = NULL,
-        .payload_len = 0,
     };
-    for (size_t i = 0; i < RT_TRANSPORT_DATA_QUEUE_CAP; i++) {
+    for (size_t i = 0; i < RT_TRANSPORT_DATA_SLOT_CREDITS; i++) {
         if (rt_transport_enqueue(shard, &data) != RT_TRANSPORT_STATUS_OK) {
             return 0;
         }
@@ -267,7 +266,7 @@ static int fill_control_lane(rt_shard* shard, uint32_t shard_id) {
     rt_transport_msg ack = {0};
     ack.kind = RT_TRANSPORT_MSG_REMOTE_SPAWN_ACK;
     ack.target_shard_id = shard_id;
-    for (size_t i = 0; i < RT_TRANSPORT_CONTROL_QUEUE_CAP * 2; i++) {
+    for (size_t i = 0; i < RT_TRANSPORT_CONTROL_SLOT_RESERVE * 2; i++) {
         if (rt_transport_enqueue(shard, &ack) == RT_TRANSPORT_STATUS_QUEUE_FULL) {
             return 1;
         }

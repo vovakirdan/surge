@@ -26,17 +26,27 @@ typedef enum rt_transport_msg_kind {
     RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_ACK = 5,
     RT_TRANSPORT_MSG_IMMEDIATE_ON_EXECUTE_REQUEST = 6,
     RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY = 7,
-    RT_TRANSPORT_MSG_CREDIT_CONTROL = 8,
-    RT_TRANSPORT_MSG_SHUTDOWN_WAKE = 9,
-    RT_TRANSPORT_MSG_REMOTE_TASK_AWAIT_REQUEST = 10,
-    RT_TRANSPORT_MSG_REMOTE_TASK_RELEASE_REQUEST = 11,
-    RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REQUEST = 12,
-    RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REPLY = 13,
-    RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REQUEST = 14,
-    RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY = 15,
-    RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REQUEST = 16,
-    RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY = 17,
+    RT_TRANSPORT_MSG_SHUTDOWN_WAKE = 8,
+    RT_TRANSPORT_MSG_REMOTE_TASK_AWAIT_REQUEST = 9,
+    RT_TRANSPORT_MSG_REMOTE_TASK_RELEASE_REQUEST = 10,
+    RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REQUEST = 11,
+    RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REPLY = 12,
+    RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REQUEST = 13,
+    RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY = 14,
+    RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REQUEST = 15,
+    RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY = 16,
 } rt_transport_msg_kind;
+
+// Which budget an envelope spends. DATA is everything a caller asks for --
+// every request, and every completion or reply that hands back a value the
+// target must consume. CONTROL is the release-and-teardown traffic that lets
+// a party finish, free a pin, or shut down; it spends a reserve of its own so
+// that a data backlog can never starve the messages that clear the backlog.
+typedef enum rt_transport_msg_class {
+    RT_TRANSPORT_MSG_CLASS_INVALID = 0,
+    RT_TRANSPORT_MSG_CLASS_DATA = 1,
+    RT_TRANSPORT_MSG_CLASS_CONTROL = 2,
+} rt_transport_msg_class;
 
 typedef enum rt_transport_park_state {
     RT_TRANSPORT_SHARD_RUNNING = 0,
@@ -44,6 +54,12 @@ typedef enum rt_transport_park_state {
     RT_TRANSPORT_SHARD_SHUTDOWN = 2,
 } rt_transport_park_state;
 
+// `payload` points into a refcount graph the transport neither copies nor
+// owns, so the envelope carries no length: the bytes behind the pointer are
+// shared, have no per-message cost, and are not the transport's to measure.
+// A length belongs here only once a message carries a buffer the transport
+// itself owns -- a serialized or explicitly handed-over one -- and that
+// buffer will bring its own length with it.
 typedef struct rt_transport_msg {
     rt_transport_msg_kind kind;
     uint32_t source_shard_id;
@@ -51,11 +67,19 @@ typedef struct rt_transport_msg {
     uint64_t route_id;
     uint64_t generation;
     void* payload;
-    size_t payload_len;
 } rt_transport_msg;
 
-#define RT_TRANSPORT_DATA_QUEUE_CAP 64U
-#define RT_TRANSPORT_CONTROL_QUEUE_CAP 16U
+// The bound is SLOTS, not bytes. An envelope is a fixed record over a pointer
+// the transport does not own, so its whole cost to the target is one slot:
+// one credit per envelope, and the free slots ARE the credits -- there is no
+// second counter beside the occupancy to drift away from it.
+//
+// The two budgets are independent. A data envelope is never admitted to the
+// control reserve, so no volume of data traffic can spend it; that is what
+// keeps a reply, a cancel, a release, or a shutdown wake admissible while the
+// data lane sits at its bound.
+#define RT_TRANSPORT_DATA_SLOT_CREDITS 64U
+#define RT_TRANSPORT_CONTROL_SLOT_RESERVE 16U
 #define RT_TRANSPORT_DRAIN_TURN_LIMIT 16U
 
 typedef struct rt_transport_wake {
@@ -68,8 +92,8 @@ typedef struct rt_transport_wake {
 } rt_transport_wake;
 
 typedef struct rt_transport_state {
-    rt_transport_msg data[RT_TRANSPORT_DATA_QUEUE_CAP];
-    rt_transport_msg control[RT_TRANSPORT_CONTROL_QUEUE_CAP];
+    rt_transport_msg data[RT_TRANSPORT_DATA_SLOT_CREDITS];
+    rt_transport_msg control[RT_TRANSPORT_CONTROL_SLOT_RESERVE];
     size_t data_head;
     size_t data_len;
     size_t control_head;
@@ -96,7 +120,8 @@ typedef struct rt_transport_state {
     uint64_t far_channel_share_replies;
     uint64_t far_channel_select_requests;
     uint64_t far_channel_select_replies;
-    uint64_t credit_stalls;
+    uint64_t data_credit_stalls;
+    uint64_t control_reserve_stalls;
     uint64_t unsupported_fallback_attempts;
     uint64_t transport_wake_writes;
     uint64_t transport_wake_elisions;
@@ -129,7 +154,8 @@ struct rt_transport_debug_snapshot {
     uint64_t far_channel_share_replies;
     uint64_t far_channel_select_requests;
     uint64_t far_channel_select_replies;
-    uint64_t credit_stalls;
+    uint64_t data_credit_stalls;
+    uint64_t control_reserve_stalls;
     uint64_t unsupported_fallback_attempts;
     uint64_t transport_wake_writes;
     uint64_t transport_wake_elisions;

@@ -63,7 +63,7 @@ typedef struct rtb_lifecycle_state {
     rt_far_task_handle* handle;
     uint32_t cancel;
     uint32_t phase;
-    uint32_t fill_control;
+    uint32_t fill_inbound;
     _Atomic(rt_remote_task_pending*) visible_pending;
     rt_remote_task_status status;
     uint8_t result_kind;

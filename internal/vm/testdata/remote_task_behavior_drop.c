@@ -91,7 +91,7 @@ static void poll_rtb_drop_anchored(rtb_drop_state* state) {
         rt_shard_lock(owner);
         memset(owner->transport.data, 0, sizeof(owner->transport.data));
         owner->transport.data_head = 0;
-        owner->transport.data_len = RT_TRANSPORT_DATA_QUEUE_CAP;
+        owner->transport.data_len = RT_TRANSPORT_DATA_SLOT_CREDITS;
         rt_shard_unlock(owner);
     }
     uint8_t kind = 0;

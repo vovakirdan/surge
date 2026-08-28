@@ -65,7 +65,7 @@ static int run_queue_full(void) {
     if (st.status != RT_REMOTE_SPAWN_STATUS_QUEUE_FULL) return fail("queue full status mismatch");
     rt_shard* shard = rt_runtime_shard(rt_executor_runtime(ex), 0);
     struct rt_transport_debug_snapshot snap = rt_transport_debug_snapshot(shard);
-    if (snap.control_len == 0 || snap.data_len != RT_TRANSPORT_DATA_QUEUE_CAP) {
+    if (snap.control_len == 0 || snap.data_len != RT_TRANSPORT_DATA_SLOT_CREDITS) {
         return fail("control lane was blocked by full data lane");
     }
     (void)rt_executor_request_shutdown(ex);
@@ -85,7 +85,6 @@ static int run_shutdown_queued_kinds(void) {
         RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REQUEST,
         RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REQUEST,
         RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY,
-        RT_TRANSPORT_MSG_CREDIT_CONTROL,
     };
     for (size_t i = 0; i < sizeof(kinds) / sizeof(kinds[0]); i++) {
         rt_transport_msg msg = {0};

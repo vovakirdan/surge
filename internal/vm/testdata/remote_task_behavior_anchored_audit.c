@@ -19,7 +19,7 @@ static void poll_anchored_flooded_caller(rtb_anchored_state* state) {
     rt_shard_lock(owner);
     memset(owner->transport.data, 0, sizeof(owner->transport.data));
     owner->transport.data_head = 0;
-    owner->transport.data_len = RT_TRANSPORT_DATA_QUEUE_CAP;
+    owner->transport.data_len = RT_TRANSPORT_DATA_SLOT_CREDITS;
     rt_shard_unlock(owner);
     uint8_t kind = 0;
     uint64_t bits = 0;
@@ -147,8 +147,13 @@ int rtb_mode_anchored_queue_full(void) {
         rt_transport_debug_snapshot(rt_runtime_shard(runtime, 0));
     struct rt_transport_debug_snapshot destination =
         rt_transport_debug_snapshot(rt_runtime_shard(runtime, 1));
-    if (source.credit_stalls != 0 || destination.credit_stalls != 0) {
-        return rtb_fail("credit stalls must stay structurally zero without a credit protocol");
+    // The saturated lane refused a data envelope, so the data budget must say
+    // so; the reserve must not, because no volume of data traffic may spend it.
+    if (source.data_credit_stalls + destination.data_credit_stalls == 0) {
+        return rtb_fail("saturated data budget recorded no slot-credit stall");
+    }
+    if (source.control_reserve_stalls != 0 || destination.control_reserve_stalls != 0) {
+        return rtb_fail("a data backlog stalled the control reserve");
     }
     if (source.unsupported_fallback_attempts != 0 ||
         destination.unsupported_fallback_attempts != 0) {

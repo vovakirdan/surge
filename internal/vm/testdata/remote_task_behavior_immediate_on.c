@@ -136,7 +136,6 @@ int rtb_mode_immediate_stale(void) {
         .route_id = bad->request_id,
         .generation = bad->handle.generation + 1,
         .payload = bad,
-        .payload_len = 0,
     };
     (void)rt_remote_task_dispatch_message(ex, &msg);
     if (rt_remote_task_pending_snapshot(bad, NULL, NULL) != RT_REMOTE_TASK_STATUS_STALE_TOKEN) {

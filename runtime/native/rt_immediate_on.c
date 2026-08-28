@@ -86,7 +86,6 @@ void rt_immediate_on_cancel_inflight(rt_executor* ex, rt_remote_task_pending* pe
         .route_id = handle.task_id,
         .generation = handle.generation,
         .payload = pending,
-        .payload_len = 0,
     };
     if (rt_remote_task_transport_status(rt_remote_spawn_enqueue_with_drain(ex, owner, &msg)) !=
         RT_REMOTE_TASK_STATUS_OK) {
@@ -192,7 +191,6 @@ rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
         .route_id = request->request_id,
         .generation = request->handle.generation,
         .payload = request,
-        .payload_len = 0,
     };
     rt_remote_task_status status =
         rt_remote_task_transport_status(rt_transport_enqueue(destination, &msg));

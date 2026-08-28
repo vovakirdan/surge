@@ -103,14 +103,14 @@ int rtb_mode_queue_failure(void) {
     rtb_lifecycle_state state;
     memset(&state, 0, sizeof(state));
     state.handle = handle;
-    state.fill_control = 1;
+    state.fill_inbound = 1;
     rt_far_task_begin_transfer(handle);
     void* caller = __task_create(POLL_RTB_LIFECYCLE, &state, rt_channel_opaque_word_ops());
     rt_far_task_finish_transfer(handle, caller);
     uint8_t kind = 0;
     uint64_t bits = 0;
     if (!rtb_await(caller, &kind, &bits) || state.status != RT_REMOTE_TASK_STATUS_QUEUE_FULL) {
-        return rtb_fail("full control lane did not return queue-full");
+        return rtb_fail("saturated data budget did not return queue-full");
     }
     if (!wait_release(ex, &child, 0, child_task_id)) {
         return rtb_fail("queue-full consume rollback did not release remote child");

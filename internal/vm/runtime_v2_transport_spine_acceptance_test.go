@@ -235,7 +235,6 @@ static rt_transport_msg msg(rt_transport_msg_kind kind) {
         .route_id = 1,
         .generation = 1,
         .payload = 0,
-        .payload_len = 0,
     };
     return out;
 }

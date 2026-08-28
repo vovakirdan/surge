@@ -31,10 +31,10 @@ struct rt_transport_debug_snapshot (*runtime_v2_check_transport_debug_snapshot)(
 _Static_assert(RT_TRANSPORT_STATUS_OK == 0, "transport OK status must stay zero");
 _Static_assert(RT_TRANSPORT_STATUS_QUEUE_FULL != RT_TRANSPORT_STATUS_OK,
                "data backpressure must not look successful");
-_Static_assert(RT_TRANSPORT_DATA_QUEUE_CAP > 0, "data queue must be bounded");
-_Static_assert(RT_TRANSPORT_CONTROL_QUEUE_CAP > 0, "control queue must be reserved");
+_Static_assert(RT_TRANSPORT_DATA_SLOT_CREDITS > 0, "data traffic must be bounded in slots");
+_Static_assert(RT_TRANSPORT_CONTROL_SLOT_RESERVE > 0, "the control reserve must be non-empty");
 _Static_assert(RT_TRANSPORT_DRAIN_TURN_LIMIT > 0, "worker turn must have bounded transport drain");
-_Static_assert(RT_TRANSPORT_CONTROL_QUEUE_CAP < RT_TRANSPORT_DATA_QUEUE_CAP,
+_Static_assert(RT_TRANSPORT_CONTROL_SLOT_RESERVE < RT_TRANSPORT_DATA_SLOT_CREDITS,
                "control lane is reserved, not the bulk data lane");
 
 _Static_assert(RT_TRANSPORT_MSG_REMOTE_SPAWN_REQUEST != RT_TRANSPORT_MSG_NONE,
@@ -42,15 +42,18 @@ _Static_assert(RT_TRANSPORT_MSG_REMOTE_SPAWN_REQUEST != RT_TRANSPORT_MSG_NONE,
 _Static_assert(RT_TRANSPORT_MSG_IMMEDIATE_ON_EXECUTE_REQUEST != RT_TRANSPORT_MSG_NONE,
                "immediate execute request must be a real data category");
 _Static_assert(RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION != RT_TRANSPORT_MSG_NONE,
-               "completion must be a real control category");
+               "completion must be a real data category");
 _Static_assert(RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_REQUEST != RT_TRANSPORT_MSG_NONE,
                "cancel must be a real control category");
 _Static_assert(RT_TRANSPORT_MSG_REMOTE_TASK_AWAIT_REQUEST != RT_TRANSPORT_MSG_NONE,
-               "remote task await must be a real control category");
+               "remote task await must be a real data category");
 _Static_assert(RT_TRANSPORT_MSG_REMOTE_TASK_RELEASE_REQUEST != RT_TRANSPORT_MSG_NONE,
                "remote task release must be a real control category");
-_Static_assert(RT_TRANSPORT_MSG_CREDIT_CONTROL != RT_TRANSPORT_MSG_NONE,
-               "credit must be a real control category");
+_Static_assert(RT_TRANSPORT_MSG_CLASS_DATA != RT_TRANSPORT_MSG_CLASS_CONTROL,
+               "the two budgets must be distinguishable classes");
+_Static_assert(RT_TRANSPORT_MSG_CLASS_INVALID != RT_TRANSPORT_MSG_CLASS_DATA &&
+                   RT_TRANSPORT_MSG_CLASS_INVALID != RT_TRANSPORT_MSG_CLASS_CONTROL,
+               "an unclassified kind must not fall into a budget");
 _Static_assert(RT_TRANSPORT_MSG_SHUTDOWN_WAKE != RT_TRANSPORT_MSG_NONE,
                "shutdown wake must be a real control category");
 
@@ -61,16 +64,19 @@ _Static_assert(sizeof(((rt_transport_msg*)0)->target_shard_id) == sizeof(uint32_
                "target shard id must stay uint32_t");
 _Static_assert(sizeof(((rt_transport_msg*)0)->generation) == sizeof(uint64_t),
                "generation token must stay uint64_t");
-_Static_assert(sizeof(((rt_transport_msg*)0)->payload_len) == sizeof(size_t),
-               "payload length must stay size_t");
+_Static_assert(sizeof(((rt_transport_msg*)0)->payload) == sizeof(void*),
+               "payload must stay a bare pointer the transport does not own");
+_Static_assert(offsetof(rt_transport_msg, payload) + sizeof(void*) == sizeof(rt_transport_msg),
+               "the payload pointer must be the last member: nothing may trail it claiming to "
+               "measure bytes the transport does not own");
 
 _Static_assert(sizeof(((rt_shard*)0)->transport) == sizeof(rt_transport_state),
                "rt_shard must embed transport state by value");
 _Static_assert(sizeof(((rt_transport_state*)0)->data) / sizeof(rt_transport_msg) ==
-                   RT_TRANSPORT_DATA_QUEUE_CAP,
+                   RT_TRANSPORT_DATA_SLOT_CREDITS,
                "data lane capacity must be structural");
 _Static_assert(sizeof(((rt_transport_state*)0)->control) / sizeof(rt_transport_msg) ==
-                   RT_TRANSPORT_CONTROL_QUEUE_CAP,
+                   RT_TRANSPORT_CONTROL_SLOT_RESERVE,
                "control lane capacity must be structural");
 _Static_assert(sizeof(((rt_transport_state*)0)->park_state) == sizeof(_Atomic uint8_t),
                "park state must be atomic");
@@ -98,6 +104,12 @@ _Static_assert(sizeof(((struct rt_transport_debug_snapshot*)0)->transport_wake_e
 _Static_assert(sizeof(((struct rt_transport_debug_snapshot*)0)->shutdown_wakes) ==
                    sizeof(uint64_t),
                "shutdown transport wakes must be counted separately");
+_Static_assert(sizeof(((struct rt_transport_debug_snapshot*)0)->data_credit_stalls) ==
+                   sizeof(uint64_t),
+               "a refused data envelope must be counted, not merely returned");
+_Static_assert(sizeof(((struct rt_transport_debug_snapshot*)0)->control_reserve_stalls) ==
+                   sizeof(uint64_t),
+               "a refused control envelope must be counted separately from a data refusal");
 `
 
 	runFDRegistryStaticCheck(t, "Runtime V2 transport seam static shape check", source)
@@ -163,7 +175,7 @@ int main(void) {
         .generation = 22,
     };
     rt_transport_msg control = data;
-    control.kind = RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION;
+    control.kind = RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_ACK;
     control.route_id = 99;
 
     if (require_int(rt_transport_enqueue(shard, &data) == RT_TRANSPORT_STATUS_OK,
@@ -174,14 +186,14 @@ int main(void) {
     rt_transport_msg out = {0};
     if (require_int(rt_transport_try_drain_one(shard, &out) == RT_TRANSPORT_STATUS_OK,
                     "first drain failed")) return 5;
-    if (require_int(out.kind == RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION,
+    if (require_int(out.kind == RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_ACK,
                     "control lane did not drain before data")) return 6;
     if (require_int(rt_transport_try_drain_one(shard, &out) == RT_TRANSPORT_STATUS_OK,
                     "second drain failed")) return 7;
     if (require_int(out.kind == RT_TRANSPORT_MSG_REMOTE_SPAWN_REQUEST,
                     "data lane did not drain after control")) return 8;
 
-    for (size_t i = 0; i < RT_TRANSPORT_DATA_QUEUE_CAP; i++) {
+    for (size_t i = 0; i < RT_TRANSPORT_DATA_SLOT_CREDITS; i++) {
         if (rt_transport_enqueue(shard, &data) != RT_TRANSPORT_STATUS_OK) return 9;
     }
     if (require_int(rt_transport_enqueue(shard, &data) == RT_TRANSPORT_STATUS_QUEUE_FULL,
