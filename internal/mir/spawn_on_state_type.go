@@ -18,7 +18,14 @@ func buildSpawnOnStateStruct(typesIn *types.Interner, funcName string, captures 
 	nameID := typesIn.Strings.Intern(name)
 	stateID := typesIn.RegisterStruct(nameID, source.Span{})
 
-	fields := make([]types.StructField, 0, len(captures))
+	// Same lifecycle word, same field 0, as the async frame. IsSuspensionFrameType
+	// answers for all three kinds with one predicate, and a reader that trusts
+	// that predicate then finds the word at one offset whichever kind it got.
+	fields := make([]types.StructField, 0, len(captures)+1)
+	fields = append(fields, types.StructField{
+		Name: typesIn.Strings.Intern(FrameStateField),
+		Type: typesIn.Builtins().Int,
+	})
 	for _, cap := range captures {
 		fieldName := cap.FieldName
 		if fieldName == "" {

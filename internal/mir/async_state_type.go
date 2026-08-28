@@ -75,7 +75,12 @@ func buildAsyncStateStruct(typesIn *types.Interner, f *Func, payloadType types.T
 	nameID := typesIn.Strings.Intern(name)
 	stateID := typesIn.RegisterStruct(nameID, source.Span{})
 
+	// The lifecycle word leads, so it lands at offset zero (see FrameStateField).
+	// The resume point and the packed payload follow it; both are read only by
+	// code that already knows this is a frame, while the word answers a reader
+	// that knows nothing else about the storage it is holding.
 	fields := []types.StructField{
+		{Name: typesIn.Strings.Intern(FrameStateField), Type: typesIn.Builtins().Int},
 		{Name: typesIn.Strings.Intern(asyncStatePcField), Type: typesIn.Builtins().Int},
 		{Name: typesIn.Strings.Intern(asyncStatePayloadField), Type: payloadType},
 	}

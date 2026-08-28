@@ -93,6 +93,18 @@ func (l *funcLowerer) lowerSpawnOnPollFunc(id FuncID, name string, body *hir.Blo
 			ownedCaptures = append(ownedCaptures, localID)
 		}
 	}
+	// The unpack above emptied the frame's fields into locals, so the frame is
+	// SPENT and says so — and, as in the async poll's entry, the write is
+	// adjacent to the reads it describes: this is still the entry block, and
+	// nothing between them can have handed the frame to another reader.
+	//
+	// Written only when there IS a frame. A capture-less crossing builds no
+	// state at all and is handed a null one, so there is no storage here for a
+	// word to describe and no store to make through a null pointer.
+	if len(captures) > 0 {
+		spent := frameStateWrite(stateLocal, FrameStateSpent, l.types.Builtins().Int)
+		l.emit(&spent)
+	}
 
 	exitBB := l.newBlock()
 	resultLocal := NoLocalID
@@ -124,7 +136,7 @@ func (l *funcLowerer) lowerSpawnOnPollFunc(id FuncID, name string, body *hir.Blo
 	} else {
 		l.setTerm(&Terminator{Kind: TermReturn})
 	}
-	rewriteSpawnOnPollReturns(l.f, stateLocal, ownedCaptures)
+	rewriteSpawnOnPollReturns(l.f, stateLocal, ownedCaptures, len(captures) > 0, l.types.Builtins().Int)
 	for i := range l.f.Blocks {
 		if l.f.Blocks[i].Term.Kind == TermNone {
 			l.f.Blocks[i].Term.Kind = TermUnreachable
@@ -133,7 +145,10 @@ func (l *funcLowerer) lowerSpawnOnPollFunc(id FuncID, name string, body *hir.Blo
 	return l.f, nil
 }
 
-func rewriteSpawnOnPollReturns(f *Func, stateLocal LocalID, ownedCaptures []LocalID) {
+// rewriteSpawnOnPollReturns closes every return of a crossing body. hasFrame is
+// false for a capture-less crossing, which is handed a null state and therefore
+// has no word to write.
+func rewriteSpawnOnPollReturns(f *Func, stateLocal LocalID, ownedCaptures []LocalID, hasFrame bool, intType types.TypeID) {
 	if f == nil {
 		return
 	}
@@ -143,27 +158,22 @@ func rewriteSpawnOnPollReturns(f *Func, stateLocal LocalID, ownedCaptures []Loca
 			continue
 		}
 		term := bb.Term.Return
-		// A completed body never re-enters this state: the captures were
-		// unpacked into locals at entry, so only the envelope box itself is
-		// dead. Release it shallowly (the native lowering nulls the slot,
-		// handing the runtime a null it never reads); the pending-side
-		// __surge_drop_call path only runs for states that were never
-		// handed off, so no state sees both releases.
+		// A completed body never re-enters this frame. The captures were
+		// unpacked into locals at entry, so nothing in the frame owns anything
+		// and it is SPENT — whoever reclaims it reclaims storage alone.
 		//
-		// "Only the envelope is dead" holds because the unpacked locals are
-		// reclaimed FIRST, right here. A capture that carries storage arrived
-		// as this crossing's own copy, and the shallow release below would
-		// abandon it.
+		// SPENT is truthful here ONLY BECAUSE the drops below run first. A COPY
+		// capture that carries storage arrived as this crossing's own copy, and
+		// the local is its only holder; leaving it alive while the frame claims
+		// to hold nothing would strand exactly that copy. The order is the
+		// claim: reclaim what the locals hold, and only then say the frame holds
+		// nothing.
 		for _, localID := range ownedCaptures {
 			bb.Instrs = append(bb.Instrs, Instr{Kind: InstrDrop, Drop: DropInstr{Place: Place{Local: localID}}})
 		}
-		bb.Instrs = append(bb.Instrs, Instr{Kind: InstrCall, Call: CallInstr{
-			Callee: Callee{Kind: CalleeValue, Name: AsyncStateFreeBuiltin},
-			Args:   []Operand{{Kind: OperandCopy, Place: Place{Local: stateLocal}}},
-			// This call IS the envelope's release, so the position must have
-			// been handed a box the caller owned.
-			ArgContracts: []ArgContract{ArgContractTransferOwned},
-		}})
+		if hasFrame {
+			bb.Instrs = append(bb.Instrs, frameStateWrite(stateLocal, FrameStateSpent, intType))
+		}
 		bb.Term = Terminator{Kind: TermAsyncReturn, AsyncReturn: AsyncReturnTerm{
 			State: Operand{Kind: OperandCopy, Place: Place{Local: stateLocal}},
 		}}
@@ -172,6 +182,24 @@ func rewriteSpawnOnPollReturns(f *Func, stateLocal LocalID, ownedCaptures []Loca
 			bb.Term.AsyncReturn.Value = term.Value
 		}
 	}
+}
+
+// appendFrameStatePacked writes the lifecycle word into a crossing's state
+// literal, which is where a crossing frame is born PACKED: the captures below it
+// are moved in, and the body cannot run before the destination has the frame.
+//
+// It is skipped for a capture-less crossing, and the condition is captureCount
+// rather than a flag because that is exactly the condition the backends use to
+// decide whether to build a frame at all — a state literal with no fields is
+// lowered as a null state. Writing the word unconditionally would make those
+// crossings allocate a frame to hold one number, and skipping it while the
+// backend built one would leave the word unwritten, which is the thing this
+// field exists to prevent. Tying both to one count keeps them one decision.
+func (l *funcLowerer) appendFrameStatePacked(lit *StructLit, captureCount int) {
+	if l == nil || lit == nil || captureCount == 0 {
+		return
+	}
+	lit.Fields = append(lit.Fields, frameStatePackedField(l.types.Builtins().Int))
 }
 
 func (l *funcLowerer) opaquePointerType() types.TypeID {

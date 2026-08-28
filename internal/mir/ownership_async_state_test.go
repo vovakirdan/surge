@@ -1,7 +1,6 @@
 package mir_test
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
@@ -36,54 +35,127 @@ async fn float_state_task(value: float, task: Task<int>) -> int {
 }
 `
 
-// The async state boxes are consumed through two MIR spellings that look like
-// aliases unless their lowering contract is carried explicitly:
+// frameStateWord returns the lifecycle word an instruction stores into a frame,
+// and whether it is such a store at all.
+func frameStateWord(ins *mir.Instr) (int64, bool) {
+	if ins.Kind != mir.InstrAssign {
+		return 0, false
+	}
+	dst := ins.Assign.Dst
+	if dst.Kind != mir.PlaceLocal || len(dst.Proj) != 1 ||
+		dst.Proj[0].Kind != mir.PlaceProjField || dst.Proj[0].FieldName != mir.FrameStateField {
+		return 0, false
+	}
+	src := ins.Assign.Src
+	if src.Kind != mir.RValueUse || src.Use.Kind != mir.OperandConst || src.Use.Const.Kind != mir.ConstInt {
+		return 0, false
+	}
+	return src.Use.Const.IntValue, true
+}
+
+func wordName(word int64) string {
+	switch word {
+	case mir.FrameStatePacked:
+		return "PACKED"
+	case mir.FrameStateSpent:
+		return "SPENT"
+	default:
+		return "not-a-lifecycle-word"
+	}
+}
+
+// The suspension frame says what it is holding, and every point that changes the
+// answer writes it.
 //
-//   - resuming transfers state.__payload out of an envelope that is then
-//     shallow-freed, so the field read must carry MoveOut;
-//   - __async_state_free uses bare-local COPY operands as an ABI spelling, but
-//     the builtin frees and nulls both slots, so the verifier must resolve the
-//     locals' definitions like a place release instead of rejecting the COPY.
-func TestOwnershipAsyncStateResumeProtocol(t *testing.T) {
+// One frame type is reclaimed by more than one path, and none of those paths can
+// see the block it is reclaiming a frame from. What separates a frame that still
+// holds a packed suspension from one already emptied into resumed locals used to
+// be a sentence in a comment beside each call site — which no reclamation can
+// read. So this asserts the word at each of the four points, and asserts the one
+// property the argument for a plain store rests on: the SPENT write at entry is
+// ADJACENT to the read that empties the frame. Nothing runs between them, so no
+// schedule exists in which the frame is empty while the word still says PACKED.
+//
+// It also asserts what is no longer there. A frame release call in compiled code
+// was the third reclamation, and leaving it beside the word would be two answers
+// to one question.
+func TestAsyncFrameCarriesItsLifecycleWord(t *testing.T) {
 	compiled := compileCrossingMIR(t, ownershipAsyncStateSource, nil)
 	if err := mir.LowerAsyncStateMachine(compiled.mod, compiled.sema, compiled.symbols.Table); err != nil {
 		t.Fatalf("lower async state machine: %v", err)
 	}
 
-	var payloadMoveOut, stateFree bool
+	polls, spentAtEntry, packedAtYield, spentAtReturn := 0, 0, 0, 0
 	for _, id := range compiled.mod.SortedFuncIDs() {
 		f := compiled.mod.Funcs[id]
 		if f == nil || !strings.HasSuffix(baseName(f.Name), "$poll") {
 			continue
 		}
+		polls++
 		for bi := range f.Blocks {
-			for ii := range f.Blocks[bi].Instrs {
-				ins := &f.Blocks[bi].Instrs[ii]
-				if ins.Kind == mir.InstrAssign && ins.Assign.Src.Kind == mir.RValueField &&
-					ins.Assign.Src.Field.FieldName == "__payload" {
-					payloadMoveOut = true
-					if !ins.Assign.Src.Field.MoveOut {
-						t.Fatalf("%s resume payload read aliases state instead of transferring: %+v", f.Name, ins.Assign.Src.Field)
-					}
+			bb := &f.Blocks[bi]
+			for ii := range bb.Instrs {
+				ins := &bb.Instrs[ii]
+				if word, ok := frameStateWord(ins); ok && word != mir.FrameStatePacked && word != mir.FrameStateSpent {
+					t.Errorf("%s bb%d#%d writes %d into %s, which is neither lifecycle word",
+						f.Name, bi, ii, word, mir.FrameStateField)
 				}
-				if ins.Kind == mir.InstrCall && ins.Call.Callee.Name == mir.AsyncStateFreeBuiltin {
-					stateFree = true
-					if len(ins.Call.Args) == 0 || len(ins.Call.Args) > 2 ||
-						len(ins.Call.ArgContracts) != len(ins.Call.Args) {
-						t.Fatalf("%s async state free shape = %d args/%d contracts", f.Name,
-							len(ins.Call.Args), len(ins.Call.ArgContracts))
-					}
-					for i, contract := range ins.Call.ArgContracts {
-						if contract != mir.ArgContractTransferOwned {
-							t.Fatalf("%s async state free contract %d = %s, want transfer_owned", f.Name, i, contract)
-						}
-					}
+				if ins.Kind == mir.InstrCall && ins.Call.Callee.Name == "__async_state_free" {
+					t.Errorf("%s bb%d#%d still calls a frame release builtin; the lifecycle word replaced it",
+						f.Name, bi, ii)
 				}
+				if ins.Kind != mir.InstrAssign || ins.Assign.Src.Kind != mir.RValueField ||
+					ins.Assign.Src.Field.FieldName != "__payload" {
+					continue
+				}
+				if !ins.Assign.Src.Field.MoveOut {
+					t.Fatalf("%s resume payload read aliases the frame instead of emptying it: %+v",
+						f.Name, ins.Assign.Src.Field)
+				}
+				if ii+1 >= len(bb.Instrs) {
+					t.Fatalf("%s bb%d empties the frame in its last instruction; the SPENT write has nowhere "+
+						"adjacent to go, and a window opens where the frame lies", f.Name, bi)
+				}
+				word, ok := frameStateWord(&bb.Instrs[ii+1])
+				if !ok || word != mir.FrameStateSpent {
+					t.Fatalf("%s bb%d#%d empties the frame and the next instruction is not the SPENT write "+
+						"(got %+v); anything between them is a window in which the frame lies",
+						f.Name, bi, ii, bb.Instrs[ii+1])
+				}
+				spentAtEntry++
+			}
+
+			last, ok := lastFrameStateWord(bb)
+			switch bb.Term.Kind {
+			case mir.TermAsyncYield:
+				// The payload was just written back into the frame, so the
+				// frame is PACKED before the runtime is handed it: reclaiming
+				// it from here walks what it holds.
+				if !ok || last != mir.FrameStatePacked {
+					t.Errorf("%s bb%d yields with the frame's last word %q; a suspension packs the frame",
+						f.Name, bi, wordName(last))
+					continue
+				}
+				packedAtYield++
+			case mir.TermAsyncReturn, mir.TermAsyncReturnCancelled:
+				// Both outcomes were reached from a resumed body, so both leave
+				// the frame empty. They differ in who reclaims it, not in what
+				// is left in it.
+				if !ok || last != mir.FrameStateSpent {
+					t.Errorf("%s bb%d returns with the frame's last word %q; a completed activation "+
+						"leaves the frame empty", f.Name, bi, wordName(last))
+					continue
+				}
+				spentAtReturn++
 			}
 		}
 	}
-	if !payloadMoveOut || !stateFree {
-		t.Fatalf("async lowering evidence missing: payload_move_out=%t state_free=%t", payloadMoveOut, stateFree)
+
+	// A count of zero anywhere means the shape stopped being compiled, not that
+	// the rule holds.
+	if polls == 0 || spentAtEntry == 0 || packedAtYield == 0 || spentAtReturn == 0 {
+		t.Fatalf("evidence missing: polls=%d spent_at_entry=%d packed_at_yield=%d spent_at_return=%d",
+			polls, spentAtEntry, packedAtYield, spentAtReturn)
 	}
 
 	findings := mir.VerifyOwnership(compiled.mod, compiled.types, compiled.sema)
@@ -99,57 +171,73 @@ func TestOwnershipAsyncStateResumeProtocol(t *testing.T) {
 	}
 }
 
-func TestOwnershipAsyncStateFreeExceptionIsExact(t *testing.T) {
-	env, taskTy := newTaskOwnershipEnv(t)
-	build := func(name, callee string, arity int, alias bool) *mir.Func {
-		b := newFn(name)
-		params := make([]mir.LocalID, arity)
-		for i := range params {
-			params[i] = b.param(fmt.Sprintf("arg%d", i), taskTy, true)
+// lastFrameStateWord returns the last lifecycle word a block writes.
+func lastFrameStateWord(bb *mir.Block) (int64, bool) {
+	for i := len(bb.Instrs) - 1; i >= 0; i-- {
+		if word, ok := frameStateWord(&bb.Instrs[i]); ok {
+			return word, true
 		}
-		instrs := make([]mir.Instr, 0, 2)
-		stateArg := mir.NoLocalID
-		if arity != 0 {
-			stateArg = params[0]
-		}
-		if alias {
-			stateArg = b.local("alias", taskTy, true)
-			instrs = append(instrs, assign(stateArg, useRV(opCopy(params[0], taskTy))))
-		}
-		args := make([]mir.Operand, 0, arity)
-		contracts := make([]mir.ArgContract, 0, arity)
-		for i, param := range params {
-			arg := param
-			if i == 0 {
-				arg = stateArg
-			}
-			args = append(args, opCopy(arg, taskTy))
-			contracts = append(contracts, mir.ArgContractTransferOwned)
-		}
-		instrs = append(instrs, mir.Instr{Kind: mir.InstrCall, Call: mir.CallInstr{
-			Callee:       mir.Callee{Kind: mir.CalleeValue, Name: callee},
-			Args:         args,
-			ArgContracts: contracts,
-		}})
-		b.block(instrs, retTerm())
-		return b.done()
+	}
+	return 0, false
+}
+
+// The frame the async CONSTRUCTOR hands to the task is born packed. A task the
+// scheduler drops before its first poll never reaches the poll function at all,
+// so a word written only there would leave that frame describing itself with
+// whatever its storage happened to contain.
+func TestAsyncConstructorBuildsThePackedFrame(t *testing.T) {
+	compiled := compileCrossingMIR(t, ownershipAsyncStateSource, nil)
+	if err := mir.LowerAsyncStateMachine(compiled.mod, compiled.sema, compiled.symbols.Table); err != nil {
+		t.Fatalf("lower async state machine: %v", err)
 	}
 
-	requireClean(t, env.verify(build("owned_state_free_pair", mir.AsyncStateFreeBuiltin, 2, false)))
-	requireClean(t, env.verify(build("owned_state_free_single", mir.AsyncStateFreeBuiltin, 1, false)))
-	requireFindings(t, env.verify(build("aliased_state_free", mir.AsyncStateFreeBuiltin, 1, true)),
-		"aliased_state_free: call_arg of L1(alias) (def bb0#0) at bb0#1")
-	requireFindings(t, env.verify(build("ordinary_transfer", "ordinary_transfer", 2, false)),
-		"ordinary_transfer: call_arg of L0(arg0) (def use) at bb0#0",
-		"ordinary_transfer: call_arg of L1(arg1) (def use) at bb0#0")
+	built := 0
+	for _, id := range compiled.mod.SortedFuncIDs() {
+		f := compiled.mod.Funcs[id]
+		if f == nil || strings.HasSuffix(baseName(f.Name), "$poll") {
+			continue
+		}
+		for bi := range f.Blocks {
+			for ii := range f.Blocks[bi].Instrs {
+				ins := &f.Blocks[bi].Instrs[ii]
+				if ins.Kind != mir.InstrAssign || ins.Assign.Src.Kind != mir.RValueStructLit {
+					continue
+				}
+				lit := &ins.Assign.Src.StructLit
+				var word int64
+				found := false
+				for fi := range lit.Fields {
+					if lit.Fields[fi].Name != mir.FrameStateField {
+						continue
+					}
+					found = true
+					word = lit.Fields[fi].Value.Const.IntValue
+				}
+				if !hasField(lit, "__pc") {
+					continue
+				}
+				if !found {
+					t.Fatalf("%s bb%d#%d builds a frame with a resume point and no lifecycle word",
+						f.Name, bi, ii)
+				}
+				if word != mir.FrameStatePacked {
+					t.Fatalf("%s bb%d#%d builds a frame whose word is %q, want PACKED",
+						f.Name, bi, ii, wordName(word))
+				}
+				built++
+			}
+		}
+	}
+	if built == 0 {
+		t.Fatal("no async constructor built a frame: the probe stopped measuring what it claims to")
+	}
+}
 
-	withDst := build("state_free_with_result", mir.AsyncStateFreeBuiltin, 1, false)
-	withDst.Blocks[0].Instrs[0].Call.HasDst = true
-	requireFindings(t, env.verify(withDst),
-		"state_free_with_result: call_arg of L0(arg0) (def use) at bb0#0")
-
-	requireFindings(t, env.verify(build("state_free_three_args", mir.AsyncStateFreeBuiltin, 3, false)),
-		"state_free_three_args: call_arg of L0(arg0) (def use) at bb0#0",
-		"state_free_three_args: call_arg of L1(arg1) (def use) at bb0#0",
-		"state_free_three_args: call_arg of L2(arg2) (def use) at bb0#0")
+func hasField(lit *mir.StructLit, name string) bool {
+	for i := range lit.Fields {
+		if lit.Fields[i].Name == name {
+			return true
+		}
+	}
+	return false
 }

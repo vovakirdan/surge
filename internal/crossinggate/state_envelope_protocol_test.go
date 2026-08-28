@@ -18,12 +18,15 @@ import (
 // and each one is a silent memory error if it slips:
 //
 //   - the restore TAKES a local out of the payload rather than duplicating it,
-//     which is why the payload box may then be freed without walking its fields;
+//     which is why the frame's storage may then be reclaimed without walking its
+//     fields;
 //   - nothing DROPS the state or payload box, because a drop would walk those
 //     fields and free what the restored locals now hold;
-//   - a completing poll releases the envelope exactly once, while a CANCELLED
-//     one deliberately does not — the state is still reachable from the runtime
-//     there, and releasing it was a use-after-free (RV2-DEBT-044).
+//   - the frame SAYS which of those two it is. A suspension leaves live locals
+//     in it and marks it packed; an activation that ends has emptied it and
+//     marks it spent. Nothing in the frame distinguished the two before, so a
+//     reclamation that could not see the block it came from had to guess — and
+//     the guess was wrong in one direction or the other for every path.
 //
 // All three live in the lowering as construction choices, not as checks, and
 // the censuses that would notice them run only with SURGE_SKIP_TIMEOUT_TESTS=0
@@ -108,34 +111,37 @@ fn main() -> int {
 			"or the restore stopped going through the channel that TAKES its value")
 	}
 
-	// A completing poll hands the envelope back; a cancelled one leaves it to
-	// the runtime, which still reaches it.
+	// Every activation that ends says the frame is empty, and every suspension
+	// says it is packed. Both outcomes of an ending activation leave the frame
+	// empty and both must say so — they differ in WHO reclaims it (a cancelled
+	// return leaves the frame reachable from the runtime, an ordinary one does
+	// not), not in what is left inside it, and it is precisely that difference
+	// which used to be recorded in prose instead of in the frame.
 	suspends := 0
 	for bi := range poll.Blocks {
 		term := poll.Blocks[bi].Term
-		releases := envelopeReleaseCount(poll.Blocks[bi])
+		spent := envelopeSpentCount(poll.Blocks[bi])
 		switch term.Kind {
-		case mir.TermAsyncReturn:
-			if releases != 1 {
-				t.Errorf("block %d returns with %d envelope releases; want exactly one", bi, releases)
-			}
-		case mir.TermAsyncReturnCancelled:
-			if releases != 0 {
-				t.Errorf("block %d cancels after releasing the envelope %d times; the runtime still "+
-					"reaches that state (RV2-DEBT-044)", bi, releases)
+		case mir.TermAsyncReturn, mir.TermAsyncReturnCancelled:
+			if spent != 1 {
+				t.Errorf("block %d ends the activation with %d frame-spent writes; want exactly one", bi, spent)
 			}
 		case mir.TermAsyncYield:
 			suspends++
+			if packed := envelopePackedCount(poll.Blocks[bi]); packed != 1 {
+				t.Errorf("block %d suspends with %d frame-packed writes; a suspension leaves live "+
+					"locals in the frame and must say so", bi, packed)
+			}
+			if spent != 0 {
+				t.Errorf("block %d suspends while marking the frame empty %d times; the payload it "+
+					"just wrote back is still in there", bi, spent)
+			}
 			// The envelope belongs to the ACTIVATION: a suspension writes the
 			// resume point and the repacked payload through the one it was
 			// entered with. Releasing and rebuilding it here would be two
 			// allocations on every re-entry, and re-entry is decided by the
 			// scheduler — so the cost would land in a measurement nobody can
 			// hold still.
-			if releases != 0 {
-				t.Errorf("block %d suspends after releasing the envelope %d times; a suspension "+
-					"rewrites the envelope it holds, it does not rebuild one", bi, releases)
-			}
 			if rebuilds := envelopeRebuildCount(poll.Blocks[bi], frameLocals(poll)); rebuilds != 0 {
 				t.Errorf("block %d suspends after rebuilding the envelope %d times; the pointer the "+
 					"runtime already holds is the one that must carry the new state", bi, rebuilds)
@@ -204,12 +210,30 @@ func envelopeLocals(fn *mir.Func) map[mir.LocalID]bool {
 	return out
 }
 
-// envelopeReleaseCount counts the shallow releases in one block.
-func envelopeReleaseCount(bb mir.Block) int {
+// envelopeSpentCount counts the writes in one block that mark the frame empty.
+func envelopeSpentCount(bb mir.Block) int {
+	return frameStateWriteCount(bb, mir.FrameStateSpent)
+}
+
+// envelopePackedCount counts the writes in one block that mark the frame packed.
+func envelopePackedCount(bb mir.Block) int {
+	return frameStateWriteCount(bb, mir.FrameStatePacked)
+}
+
+func frameStateWriteCount(bb mir.Block, word int64) int {
 	n := 0
 	for ii := range bb.Instrs {
 		ins := &bb.Instrs[ii]
-		if ins.Kind == mir.InstrCall && ins.Call.Callee.Name == mir.AsyncStateFreeBuiltin {
+		if ins.Kind != mir.InstrAssign {
+			continue
+		}
+		dst := ins.Assign.Dst
+		if dst.Kind != mir.PlaceLocal || len(dst.Proj) != 1 ||
+			dst.Proj[0].Kind != mir.PlaceProjField || dst.Proj[0].FieldName != mir.FrameStateField {
+			continue
+		}
+		src := ins.Assign.Src
+		if src.Kind == mir.RValueUse && src.Use.Kind == mir.OperandConst && src.Use.Const.IntValue == word {
 			n++
 		}
 	}

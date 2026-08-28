@@ -12,7 +12,7 @@ fn inc:
     L5: type#1507 [owns_heap] name=__task
   bb0:
     L4 = call Pc0(copy L0)
-    L3 = struct_lit type#1515 {__pc=const 0, __payload=move L4}
+    L3 = struct_lit type#1515 {__frame_state=const 1346454347, __pc=const 0, __payload=move L4}
     L5 = call const 0(const 4, move L3)
     return move L5
 
@@ -36,14 +36,16 @@ fn inc$poll:
     call const 0(copy L1)
     if copy L3 then bb4 else bb3
   bb3:
-    call const 0(copy L4)
+    L4.__frame_state = const 1397771860
     async_return move L4, copy L2
   bb4:
+    L4.__frame_state = const 1397771860
     async_cancel move L4
   bb5:
     L4 = call const 0()
     L5 = field copy L4.__pc
     L6 = field_move copy L4.__payload
+    L4.__frame_state = const 1397771860
     goto bb10
   bb6:
     unreachable
@@ -65,6 +67,7 @@ fn inc$poll:
     L6 = call Pc1(copy L1, copy L2)
     L4.__pc = const 1
     L4.__payload = move L6
+    L4.__frame_state = const 1346454347
     async_yield move L4
 
 fn slow:
@@ -77,7 +80,7 @@ fn slow:
     L5: type#1509 [owns_heap] name=__task
   bb0:
     L4 = call Pc0(copy L0)
-    L3 = struct_lit type#1517 {__pc=const 0, __payload=move L4}
+    L3 = struct_lit type#1517 {__frame_state=const 1346454347, __pc=const 0, __payload=move L4}
     L5 = call const 0(const 5, move L3)
     return move L5
 
@@ -101,14 +104,16 @@ fn slow$poll:
     call const 0(copy L1)
     if copy L3 then bb4 else bb3
   bb3:
-    call const 0(copy L4)
+    L4.__frame_state = const 1397771860
     async_return move L4, copy L2
   bb4:
+    L4.__frame_state = const 1397771860
     async_cancel move L4
   bb5:
     L4 = call const 0()
     L5 = field copy L4.__pc
     L6 = field_move copy L4.__payload
+    L4.__frame_state = const 1397771860
     goto bb10
   bb6:
     unreachable
@@ -130,6 +135,7 @@ fn slow$poll:
     L6 = call Pc1(copy L1, copy L2)
     L4.__pc = const 1
     L4.__payload = move L6
+    L4.__frame_state = const 1346454347
     async_yield move L4
 
 fn test:
@@ -162,7 +168,7 @@ fn test:
     L25: type#1507 [owns_heap] name=__task
   bb0:
     L24 = call Pc0()
-    L23 = struct_lit type#1519 {__pc=const 0, __payload=move L24}
+    L23 = struct_lit type#1519 {__frame_state=const 1346454347, __pc=const 0, __payload=move L24}
     L25 = call const 0(const 6, move L23)
     return move L25
 
@@ -260,14 +266,16 @@ fn test$poll:
     call const 0(copy L0)
     if copy L23 then bb18 else bb17
   bb17:
-    call const 0(copy L24)
+    L24.__frame_state = const 1397771860
     async_return move L24, copy L7
   bb18:
+    L24.__frame_state = const 1397771860
     async_cancel move L24
   bb19:
     L24 = call const 0()
     L25 = field copy L24.__pc
     L26 = field_move copy L24.__payload
+    L24.__frame_state = const 1397771860
     goto bb28
   bb20:
     unreachable
@@ -305,14 +313,17 @@ fn test$poll:
     L26 = call Pc13(copy L0, move L1, move L4)
     L24.__pc = const 13
     L24.__payload = move L26
+    L24.__frame_state = const 1346454347
     async_yield move L24
   bb30:
     L26 = call Pc15(copy L0, move L4, move L8, copy L11)
     L24.__pc = const 15
     L24.__payload = move L26
+    L24.__frame_state = const 1346454347
     async_yield move L24
   bb31:
     L26 = call Pc16(copy L0, copy L7)
     L24.__pc = const 16
     L24.__payload = move L26
+    L24.__frame_state = const 1346454347
     async_yield move L24

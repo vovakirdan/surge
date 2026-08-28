@@ -216,7 +216,6 @@ func (v *ownershipFuncVerifier) checkReleasedPlace(
 
 func (v *ownershipFuncVerifier) checkCallArgs(call *CallInstr, at ownershipPoint) []OwnershipFinding {
 	var out []OwnershipFinding
-	asyncStateFree := isAsyncStateFreeCall(call)
 	for i, contract := range call.ArgContracts {
 		if i >= len(call.Args) {
 			break
@@ -231,42 +230,12 @@ func (v *ownershipFuncVerifier) checkCallArgs(call *CallInstr, at ownershipPoint
 			// marker exists to prevent.
 			out = append(out, v.findings(operandLocal(arg), nil, at, OwnershipSinkUnresolvedContract, position)...)
 		case ArgContractTransferOwned:
-			if asyncStateFree {
-				out = append(out, v.checkAsyncStateFreeArg(arg, at, position)...)
-				continue
-			}
 			out = append(out, v.checkOperandSink(arg, at, OwnershipSinkCallArg, position)...)
 		case ArgContractStore:
 			out = append(out, v.checkOperandSink(arg, at, OwnershipSinkCallArg, position)...)
 		}
 	}
 	return out
-}
-
-// isAsyncStateFreeCall recognizes exactly the compiler-generated one- or
-// two-box release ABI. Its operands are spelled COPY because the native
-// backend nulls the slots while freeing them; semantically this is a place
-// release, not an alias handed to an ordinary transfer-owned parameter.
-func isAsyncStateFreeCall(call *CallInstr) bool {
-	if call == nil || call.Callee.Kind != CalleeValue || call.Callee.Name != AsyncStateFreeBuiltin ||
-		call.HasDst || len(call.Args) == 0 || len(call.Args) > 2 || len(call.ArgContracts) != len(call.Args) {
-		return false
-	}
-	for _, contract := range call.ArgContracts {
-		if contract != ArgContractTransferOwned {
-			return false
-		}
-	}
-	return true
-}
-
-func (v *ownershipFuncVerifier) checkAsyncStateFreeArg(op *Operand, at ownershipPoint, position string) []OwnershipFinding {
-	eff := v.effectiveOperand(op)
-	if eff.Kind != OperandCopy || eff.Place.Kind != PlaceLocal || len(eff.Place.Proj) != 0 ||
-		eff.Place.Local == NoLocalID {
-		return v.checkOperandSink(&eff, at, OwnershipSinkCallArg, position)
-	}
-	return v.checkReleasedPlace(eff.Place, false, at, OwnershipSinkCallArg, position)
 }
 
 func (v *ownershipFuncVerifier) checkAssign(assign *AssignInstr, at ownershipPoint) []OwnershipFinding {

@@ -9,60 +9,6 @@ import (
 	"surge/internal/types"
 )
 
-// emitAsyncStateFreeIntrinsic lowers mir.AsyncStateFreeBuiltin: free the
-// consumed suspension frame and null its slot so later reads of the same slot
-// hand the runtime a null it never dereferences. The free is shallow by
-// design — the frame's payload was already unpacked (copied) into locals, so
-// only the storage itself is dead.
-func (fe *funcEmitter) emitAsyncStateFreeIntrinsic(call *mir.CallInstr) (bool, error) {
-	if call == nil || call.Callee.Kind != mir.CalleeValue || call.Callee.Name != mir.AsyncStateFreeBuiltin {
-		return false, nil
-	}
-	for i := range call.Args {
-		arg := &call.Args[i]
-		if arg.Kind != mir.OperandCopy && arg.Kind != mir.OperandCopyValue && arg.Kind != mir.OperandMove {
-			continue
-		}
-		baseType, err := fe.placeBaseType(arg.Place)
-		if err != nil || baseType == types.NoTypeID {
-			continue
-		}
-		if fe.emitter.hasInlineStorage(baseType) {
-			// The slot would hold the value's own bytes, not the address of
-			// an allocation, so the load below would free whatever those
-			// bytes happened to spell. Only a frame the runtime allocated is
-			// released here.
-			return true, fmt.Errorf(
-				"async state free expects a runtime-owned frame, got inline storage for type#%d",
-				baseType)
-		}
-		layoutInfo, err := fe.emitter.layoutOf(baseType)
-		if err != nil {
-			return true, err
-		}
-		size := layoutInfo.Size
-		align := layoutInfo.Align
-		if size <= 0 {
-			size = 1
-		}
-		if align <= 0 {
-			align = 1
-		}
-		ptr, ptrTy, err := fe.emitPlacePtr(arg.Place)
-		if err != nil {
-			return true, err
-		}
-		if ptrTy != "ptr" {
-			return true, fmt.Errorf("async state free expected ptr storage, got %s", ptrTy)
-		}
-		handle := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", handle, ptr)
-		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_free(ptr %s, i64 %d, i64 %d)\n", handle, size, align)
-		fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", ptr)
-	}
-	return true, nil
-}
-
 func (fe *funcEmitter) taskResultInfo(resultType types.TypeID) (successIdx int, payloadType types.TypeID, err error) {
 	if fe == nil || fe.emitter == nil || fe.emitter.types == nil {
 		return -1, types.NoTypeID, fmt.Errorf("missing type info")

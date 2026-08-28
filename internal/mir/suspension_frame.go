@@ -47,6 +47,43 @@ var suspensionFramePrefixes = [...]string{
 	blockingStateTypePrefix,
 }
 
+// FrameStateField is the lifecycle word every one of those frames carries, and
+// it is FIELD 0 of all three, so it sits at offset zero of the frame.
+//
+// It exists because more than one reclamation converges on one frame type and
+// the frame said nothing about which one was due. Whether a frame still holds a
+// packed suspension or has already been emptied into resumed locals was recorded
+// only in prose beside the call sites — so a release could not check what it was
+// releasing, and a frame abandoned through the wrong path looked exactly like a
+// frame abandoned through the right one. The word is written at every point that
+// changes the answer, which makes the frame itself the record.
+//
+// Offset zero, and the same offset on all three, because the reader that needs
+// it most has the least: a run-time check holding only the frame's address, on a
+// path that may never have entered compiled code at all.
+//
+// One spelling, here, for the reason the prefixes above are one spelling. MIR
+// writes it, both backends and the verifier read it, and three spellings would
+// drift into three meanings — silently, since each side would keep agreeing with
+// itself.
+const FrameStateField = "__frame_state"
+
+// The two words the lifecycle field may hold.
+//
+// Neither is zero, and that is deliberate. Fresh storage and storage a release
+// has already scribbled over both tend to read as zero, and a check that could
+// not tell those apart from PACKED would wave through exactly the abandoned
+// frame it exists to catch. They also spell themselves in a hex dump, which is
+// where a frame carrying the wrong word is usually found.
+const (
+	// FrameStatePacked: the frame holds a suspension's live locals, so
+	// reclaiming it means walking them first.
+	FrameStatePacked int64 = 0x5041434B // "PACK"
+	// FrameStateSpent: the frame's payload has been moved out and nothing left
+	// in it owns anything, so reclaiming it is a release of the storage alone.
+	FrameStateSpent int64 = 0x53504E54 // "SPNT"
+)
+
 // IsSuspensionFrameType reports whether a type is one of those frames.
 //
 // A backend asks so that it keeps giving these frames storage the runtime owns,

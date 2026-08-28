@@ -144,10 +144,6 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		return vm.handleTaskCreate(frame, call, writes)
 	case "__task_state":
 		return vm.handleTaskState(frame, call, writes)
-	case mir.AsyncStateFreeBuiltin:
-		// Native-backend-only release of the consumed async resume boxes;
-		// the VM's garbage collector reclaims them, so nothing to do here.
-		return nil
 	case "checkpoint":
 		return vm.handleCheckpoint(frame, call, writes)
 	case "sleep":

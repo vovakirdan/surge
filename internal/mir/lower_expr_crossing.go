@@ -188,6 +188,7 @@ func (l *funcLowerer) prepareSpawnOnCrossing(ins *CrossingInstr, body *hir.Block
 	}
 
 	stateLit := StructLit{TypeID: stateType}
+	l.appendFrameStatePacked(&stateLit, len(captures))
 	for i := range captures {
 		if i >= len(ins.Captures) {
 			return fmt.Errorf("mir: spawn_on: capture state mismatch")
@@ -272,6 +273,7 @@ func (l *funcLowerer) prepareImmediateBodyCrossing(ins *CrossingInstr, body *hir
 	}
 
 	stateLit := StructLit{TypeID: stateType}
+	l.appendFrameStatePacked(&stateLit, len(captures))
 	for i := range captures {
 		if i >= len(ins.Captures) {
 			return fmt.Errorf("mir: on: capture state mismatch")

@@ -110,7 +110,13 @@ func (l *funcLowerer) blockingStateLiteral(stateType types.TypeID, captures []bl
 	if stateType == types.NoTypeID {
 		return StructLit{}, fmt.Errorf("mir: blocking: missing state type")
 	}
-	fields := make([]StructLitField, 0, len(captures))
+	fields := make([]StructLitField, 0, len(captures)+1)
+	// A blocking job's frame is built whether or not it captures anything, so
+	// the lifecycle word is written unconditionally: an allocated frame whose
+	// word was never written is the case this field exists to rule out. It is
+	// born PACKED — the captures below are moved into it and the job's release
+	// destroys them through the frame's descriptor.
+	fields = append(fields, frameStatePackedField(l.types.Builtins().Int))
 	for _, cap := range captures {
 		val, err := l.captureOperand(cap)
 		if err != nil {

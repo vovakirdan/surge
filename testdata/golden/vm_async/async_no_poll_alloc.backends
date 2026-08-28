@@ -1,5 +1,13 @@
 # This program asks rt_heap_stats() how many allocations one await made, and
-# the recorded 26 is a fact about the VM's object model, not about the language.
+# the recorded 37 is a fact about the VM's object model, not about the language.
+#
+# It was 26 until the suspension frame gained its lifecycle word. Ten of the
+# eleven come from the word being WRITTEN, not from carrying it: the frame's
+# extra field costs exactly one allocation (26 -> 27 with the field and no
+# writes), and each store of a constant into a struct field costs the VM another
+# — the same cost the resume-point store beside it has always had. On the native
+# lane a store into a frame field is a store; this number measures the
+# interpreter's boxing, which is why it is recorded for one backend only.
 # The native runtime allocates differently by construction - docs/RUNTIME.md says
 # so in as many words: "the native counters describe native allocation traffic
 # only". It produces 13 at one worker and 16 at thirty-two, which is the same

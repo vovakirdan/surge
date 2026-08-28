@@ -9,29 +9,30 @@ import (
 	"surge/internal/types"
 )
 
-// AsyncStateFreeBuiltin releases a consumed async resume frame: the state
-// box handed out by __task_state, which carries the resume payload in its own
-// bytes. The native backend lowers it to rt_free of that box; the VM's
-// garbage collector reclaims it automatically, so it treats the call as a
-// no-op. Without this release every completed task leaks its frame.
-const AsyncStateFreeBuiltin = "__async_state_free"
-
-// asyncStateFreeInstr builds the release call for the current invocation's
-// state box. The operand is a copy: the VM must keep its bookkeeping
-// untouched (the call is a no-op there), and the native backend nulls the
-// slot itself after freeing.
-func asyncStateFreeInstr(stateLocal LocalID) Instr {
-	return Instr{Kind: InstrCall, Call: CallInstr{
-		Callee: Callee{Kind: CalleeValue, Name: AsyncStateFreeBuiltin},
-		Args: []Operand{
-			{Kind: OperandCopy, Place: Place{Local: stateLocal}},
-		},
-		// This call IS the release of the box, so the position must have been
-		// handed something the caller genuinely owned — the copy above is how
-		// the backend gets to null the slot itself, not a sign the box is
-		// borrowed.
-		ArgContracts: []ArgContract{ArgContractTransferOwned},
+// frameStateWrite stores one lifecycle word into the frame this activation is
+// holding. It is an ordinary field store through the frame pointer, which is
+// what makes it usable on the paths where the frame must survive the write:
+// nothing is released, moved or renamed, so the pointer the runtime holds keeps
+// meaning what it meant.
+func frameStateWrite(stateLocal LocalID, word int64, intType types.TypeID) Instr {
+	return Instr{Kind: InstrAssign, Assign: AssignInstr{
+		Dst: asyncStateFieldPlace(stateLocal, FrameStateField),
+		Src: RValue{Kind: RValueUse, Use: Operand{
+			Kind:  OperandConst,
+			Type:  intType,
+			Const: Const{Kind: ConstInt, Type: intType, IntValue: word},
+		}},
 	}}
+}
+
+// frameStatePackedField is the lifecycle word as a struct-literal field, for the
+// frames that are born PACKED at their construction site rather than reaching
+// that state by a store.
+func frameStatePackedField(intType types.TypeID) StructLitField {
+	return StructLitField{
+		Name:  FrameStateField,
+		Value: Operand{Kind: OperandConst, Type: intType, Const: Const{Kind: ConstInt, Type: intType, IntValue: FrameStatePacked}},
+	}
 }
 
 // asyncStateFieldPlace addresses one field of the state box a poll is holding.
@@ -87,6 +88,14 @@ func buildAsyncPollEntry(f *Func, stateLocal, pcLocal, payloadLocal LocalID, var
 			MoveOut: true,
 		}},
 	}})
+	// The read above emptied the frame, so the frame is now SPENT and says so.
+	//
+	// Between the two there is no window a second reader can be in. They are
+	// adjacent instructions in one block — no call, no yield, nothing that could
+	// hand this activation's frame to anybody — so no schedule exists in which
+	// the frame is empty while the word still reads PACKED. That is what lets a
+	// plain store stand here instead of an ordering dance.
+	appendInstr(f, entryBB, frameStateWrite(stateLocal, FrameStateSpent, intType))
 	setBlockTerm(f, entryBB, Terminator{Kind: TermGoto, Goto: GotoTerm{Target: dispatchBB}})
 
 	condLocal := addLocal(f, "__pc_match", boolType, LocalFlagCopy)
@@ -197,6 +206,11 @@ func buildAsyncPendingBlocks(f *Func, stateLocal, payloadLocal LocalID, sites []
 			Dst: asyncStateFieldPlace(stateLocal, asyncStatePayloadField),
 			Src: RValue{Kind: RValueUse, Use: operandForLocal(f, payloadLocal)},
 		}})
+		// The payload is in the frame, so the frame is PACKED and says so before
+		// the yield hands it to the runtime. Reclaiming it from here on has to
+		// walk what it holds; the word is how a reclamation that never saw this
+		// block finds that out.
+		appendInstr(f, pendingBB, frameStateWrite(stateLocal, FrameStatePacked, intType))
 		setBlockTerm(f, pendingBB, Terminator{Kind: TermAsyncYield, AsyncYield: AsyncYieldTerm{
 			State: operandForLocal(f, stateLocal),
 		}})
@@ -235,7 +249,7 @@ func buildAsyncPendingBlocks(f *Func, stateLocal, payloadLocal LocalID, sites []
 }
 
 // rewriteAsyncReturns transforms return terminators into AsyncReturn.
-func rewriteAsyncReturns(f *Func, stateLocal LocalID) {
+func rewriteAsyncReturns(f *Func, stateLocal LocalID, intType types.TypeID) {
 	if f == nil {
 		return
 	}
@@ -244,25 +258,19 @@ func rewriteAsyncReturns(f *Func, stateLocal LocalID) {
 		if bb.Term.Kind != TermReturn {
 			continue
 		}
+		// Both outcomes leave the frame empty, and both say so. A return is
+		// reached from a resumed body, and a resume unpacked the payload into
+		// locals at entry — so whatever reclaims this frame afterwards, on
+		// either leg, must reclaim storage and nothing else. The two legs differ
+		// in WHO reclaims it, not in what is left: a cancelled return leaves the
+		// frame reachable from the runtime, an ordinary one does not.
+		bb.Instrs = append(bb.Instrs, frameStateWrite(stateLocal, FrameStateSpent, intType))
 		if bb.Term.Return.Cancelled {
-			// The backend releases this state where the terminator lands
-			// rather than abandoning it for the runtime to reclaim later.
-			// The state was kept alive here on the belief that a cancelled
-			// return could be re-parked and re-entered while scope children
-			// drain; a cancelled outcome goes straight to completion instead,
-			// so nothing reads the state afterwards and holding it only
-			// stranded the allocation.
 			bb.Term = Terminator{Kind: TermAsyncReturnCancelled, AsyncReturnCancelled: AsyncReturnCancelledTerm{
 				State: operandForLocal(f, stateLocal),
 			}}
 			continue
 		}
-		// A successful completion never re-enters this state: mark_done
-		// clears task->state without reading the returned pointer. Release
-		// the frame here — this is the one place an activation's single box
-		// is freed; the native lowering nulls the state slot, so the
-		// AsyncReturn terminator hands the runtime a null it never reads.
-		bb.Instrs = append(bb.Instrs, asyncStateFreeInstr(stateLocal))
 		newTerm := Terminator{Kind: TermAsyncReturn, AsyncReturn: AsyncReturnTerm{
 			State: operandForLocal(f, stateLocal),
 		}}
@@ -319,6 +327,15 @@ func buildAsyncConstructorState(f *Func, typesIn *types.Interner, semaRes *sema.
 			TypeID: stateType,
 			Fields: []StructLitField{
 				{
+					// Built PACKED: the start payload below carries the
+					// captured locals, and the task is handed this frame before
+					// anything polls it. The word is true from the frame's first
+					// instant, so a frame the scheduler drops before its first
+					// poll is still reclaimable by what it says.
+					Name:  FrameStateField,
+					Value: Operand{Kind: OperandConst, Type: intType, Const: Const{Kind: ConstInt, Type: intType, IntValue: FrameStatePacked}},
+				},
+				{
 					Name:  asyncStatePcField,
 					Value: Operand{Kind: OperandConst, Type: intType, Const: Const{Kind: ConstInt, Type: intType, IntValue: int64(startVariant.resumeBB)}},
 				},
@@ -342,7 +359,7 @@ func buildAsyncConstructorState(f *Func, typesIn *types.Interner, semaRes *sema.
 			Place: Place{Local: stateTmp},
 		}},
 		// The poll id is a plain number; the state box moves into the task,
-		// which frees it later (AsyncStateFreeBuiltin).
+		// which reclaims it by what the frame's lifecycle word then says.
 		ArgContracts: []ArgContract{ArgContractBorrow, ArgContractStore},
 	}})
 	for _, localID := range farTaskParams {

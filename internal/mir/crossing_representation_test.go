@@ -134,8 +134,16 @@ fn cancel_remote(t: far Task<int>) -> TaskResult<nothing> {
 				if ins.Pending.Local == mir.NoLocalID {
 					t.Fatal("spawn_on crossing missing persisted pending local")
 				}
-				if len(ins.State.Fields) != tc.wantCaptures {
-					t.Fatalf("spawn_on state fields = %d, want %d", len(ins.State.Fields), tc.wantCaptures)
+				// The captures, plus the frame's lifecycle word — which is written
+				// only where a frame is actually built. A capture-less crossing
+				// is handed a null state, and a word describing storage that does
+				// not exist would be the one thing worse than no word at all.
+				wantFields := tc.wantCaptures
+				if wantFields > 0 {
+					wantFields++
+				}
+				if len(ins.State.Fields) != wantFields {
+					t.Fatalf("spawn_on state fields = %d, want %d", len(ins.State.Fields), wantFields)
 				}
 				pollFn := compiled.mod.Funcs[ins.BodyFuncID]
 				if pollFn == nil || !strings.HasPrefix(pollFn.Name, "__spawn_on_block$") || !strings.HasSuffix(pollFn.Name, "$poll") {
