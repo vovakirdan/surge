@@ -154,6 +154,8 @@ static const char* rt_sp_name(rt_sync_point_id id) {
             return "SP_BLOCKING_STATE_BEFORE_BODY";
         case RT_SYNC_POINT_SP_BLOCKING_SHUTDOWN_BEFORE_DRAIN:
             return "SP_BLOCKING_SHUTDOWN_BEFORE_DRAIN";
+        case RT_SYNC_POINT_SP_INLINE_CHILD_TAKEN_OFF_QUEUE:
+            return "SP_INLINE_CHILD_TAKEN_OFF_QUEUE";
         default:
             return "";
     }

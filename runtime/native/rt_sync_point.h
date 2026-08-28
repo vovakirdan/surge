@@ -216,6 +216,17 @@ typedef enum rt_sync_point_id {
     // Holding a worker here is what proves a queued body is drained by
     // cancellation at shutdown and never executed.
     RT_SYNC_POINT_SP_BLOCKING_SHUTDOWN_BEFORE_DRAIN,
+    // ready_claim_current_local_tail (rt_ready_queue.c): reached once the task
+    // has been removed from this worker's local tail and that shard lock has
+    // been released, immediately before the inline poll of it begins. Claiming
+    // it -- clearing enqueued, storing RUNNING, consuming the wake token -- is
+    // what tells every other thread the task is spoken for, and doing that
+    // outside the lock that removed it leaves an instant when the task is in no
+    // queue and still reads schedulable. A wake landing there passes the wake
+    // path's gate and queues a SECOND entry for a task this thread is about to
+    // poll. Holding a worker here and waking the task is what shows whether the
+    // take and the claim are one observation.
+    RT_SYNC_POINT_SP_INLINE_CHILD_TAKEN_OFF_QUEUE,
     RT_SYNC_POINT_COUNT
 } rt_sync_point_id;
 
@@ -457,6 +468,33 @@ void rt_sync_point_open(void);
 #else
 #define RT_DEBT263_COMMIT_SEALED(sealed) (sealed)
 #define RT_DEBT263_CANCEL_LANDED(requested, task) ((void)(task), (requested))
+#endif
+
+// Inline-claim split negative-control toggle. Claiming a task for a poll is
+// three stores -- enqueued cleared, status RUNNING, wake token consumed -- and
+// the fix makes them run inside the same critical section that took the task
+// off the queue, the way the worker turn's own claim already does
+// (rt_worker_turn.c). Defining the negative control puts them back after the
+// unlock, split at the exact instant that matters: enqueued is cleared first,
+// so the task reads READY and not enqueued while it sits in no queue at all.
+// The deterministic proof MUST then observe a wake queueing a second entry for
+// a task already taken for this thread's poll.
+//
+// Both builds reach the sync point at the same place, so the negative control
+// cannot pass by removing the window the proof is built on.
+#ifdef RV2_INLINE_CLAIM_SPLIT_NEGATIVE_CONTROL
+#define RT_INLINE_CLAIM_UNDER_LOCK(task) ((void)(task))
+// The pre-fix shape: the claim runs after the lock is gone, and the store that
+// clears enqueued lands before the window below. That is what leaves the task
+// reading READY-and-not-enqueued while it sits in no queue at all. The rest of
+// the claim follows the window; re-storing the cleared flag is a no-op, so the
+// sequence a wake sees here is exactly the one the split used to produce.
+#define RT_INLINE_CLAIM_SPLIT_FIRST(task) task_enqueued_store((task), 0)
+#define RT_INLINE_CLAIM_SPLIT_REST(task) claim_task_off_queue(task)
+#else
+#define RT_INLINE_CLAIM_UNDER_LOCK(task) claim_task_off_queue(task)
+#define RT_INLINE_CLAIM_SPLIT_FIRST(task) ((void)(task))
+#define RT_INLINE_CLAIM_SPLIT_REST(task) ((void)(task))
 #endif
 
 #endif // RT_SYNC_POINT_H

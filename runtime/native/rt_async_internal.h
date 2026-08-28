@@ -858,7 +858,11 @@ int wake_task_on_shard_locked(const rt_executor* ex,
                               int front,
                               int signal_ready,
                               waker_key* out_stale_key);
-int ready_take_current_local_tail(rt_executor* ex, uint64_t id);
+// Takes the task off the CURRENT worker's local deque tail and claims it for
+// this thread's poll -- both under the owner shard lock, one observation --
+// returning whether it was there to take. Claiming means what the worker turn
+// means by it: unqueued, RUNNING, wake token consumed (rt_ready_queue.c).
+int ready_claim_current_local_tail(rt_executor* ex, uint64_t id);
 // Extracted to rt_ready_queue.c; external because
 // apply_poll_outcome (rt_task_complete.c) re-pushes yielded tasks across the
 // module boundary.

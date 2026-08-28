@@ -155,9 +155,15 @@ void rt_task_wake(void* task) {
     // shard locking, already called control-free elsewhere in the tree); only
     // the rare scope-adoption write stays behind a control fallback. The peek
     // reads only current's own scope_id (thread-local while current is
-    // RUNNING, safe without a lock) - target->parent_scope_id is read only
-    // under the lock, never as an unsynchronized peek, since still has
-    // rt_scope_register_child writing it under control.
+    // RUNNING, safe without a lock).
+    //
+    // parent_scope_id is NOT single-lock state, and this comment used to claim
+    // it was. It has two writers on two different locks -- the adoption write
+    // just below, under the CONTROL lock, and rt_scope_register_child's, under
+    // the scope's pinned shard lock (rt_async_scope.c) -- and scope_on_child_done
+    // reads it with no lock at all as its entry guard, returning on zero and so
+    // skipping the fail-fast raise. Anything that comes to depend on the value
+    // being stable has to close that first.
     const rt_task* current = rt_current_task();
     if (current != NULL && current->scope_id != 0) {
         rt_control_lock(ex);
@@ -201,8 +207,12 @@ uint8_t rt_task_poll(void* task, void* out_dst) {
         panic_msg("async: missing current task");
         return 2;
     }
+    // ready_claim_current_local_tail both takes the child off this worker's
+    // local tail and claims it for the poll below, in one critical section, so
+    // a true return means this thread already owns it: RUNNING, unqueued, wake
+    // token consumed.
     if (target->kind == TASK_KIND_USER && task_status_load(target) == TASK_READY &&
-        task_enqueued_load(target) != 0 && ready_take_current_local_tail(ex, target->id)) {
+        task_enqueued_load(target) != 0 && ready_claim_current_local_tail(ex, target->id)) {
         poll_ready_child_inline(ex, current, target);
     }
     if (task_status_load(target) != TASK_WAITING && task_status_load(target) != TASK_DONE) {
@@ -325,7 +335,7 @@ static void rt_task_poll_adopt_placement(rt_executor* ex, rt_task* current, cons
 
 // S5-Q4: runs entirely on the child's owner shard lane, no
 // control. The only eligible child is the fresh, just-created child popped
-// off the CURRENT WORKER'S OWN local queue tail (ready_take_current_local_tail,
+// off the CURRENT WORKER'S OWN local queue tail (ready_claim_current_local_tail,
 // guarded at the call site above); by construction (rt_task_inherit_placement
 // copies the parent's owner shard before publish, ) that child's owner
 // shard equals this worker's shard, and it is reachable from no other
@@ -342,9 +352,11 @@ static void poll_ready_child_inline(rt_executor* ex, rt_task* current, rt_task* 
     if (owner_shard == NULL || scheduler == NULL) {
         return;
     }
-    task_enqueued_store(target, 0);
-    task_status_store(target, TASK_RUNNING);
-    (void)task_wake_token_exchange(target, 0);
+    // The claim already happened, under the lock that took this child off the
+    // queue (ready_claim_current_local_tail, rt_ready_queue.c): the child is
+    // RUNNING, unqueued and its wake token consumed before this thread got
+    // here, so nothing between the take and this poll can hand it to a second
+    // worker.
     rt_shard_lock(owner_shard);
     scheduler->running_count++;
     rt_shard_unlock(owner_shard);

@@ -189,6 +189,12 @@ void __surge_poll_call(uint64_t id) {
         case POLL_READY_REQUEUE_PROBE:
             poll_ready_requeue_probe();
             break;
+        case POLL_INLINE_CLAIM_OWNER:
+            poll_inline_claim_owner();
+            break;
+        case POLL_INLINE_CLAIM_CHILD:
+            poll_inline_claim_child();
+            break;
 #endif
         default:
             break;
@@ -505,6 +511,9 @@ int main(int argc, char** argv) {
     }
     if (strcmp(argv[1], "debt080-release-refuses-under-lock") == 0) {
         return mode_debt080_release_refuses_under_lock(ex);
+    }
+    if (strcmp(argv[1], "inline-claim-off-queue") == 0) {
+        return mode_inline_claim_off_queue(ex);
     }
 #endif
     return fail("unknown mode");

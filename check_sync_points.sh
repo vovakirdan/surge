@@ -72,6 +72,7 @@ declare -A WINDOW_FILE=(
     [SP_BLOCKING_POP_BEFORE_STATUS]="rt_async_blocking.c"
     [SP_BLOCKING_STATE_BEFORE_BODY]="rt_async_blocking.c"
     [SP_BLOCKING_SHUTDOWN_BEFORE_DRAIN]="rt_async_blocking.c"
+    [SP_INLINE_CHILD_TAKEN_OFF_QUEUE]="rt_ready_queue.c"
 )
 
 # Cross-check the allowlist above against the enumerators actually declared in

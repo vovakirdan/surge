@@ -294,17 +294,46 @@ void ready_push(rt_executor* ex, uint64_t id) {
     (void)ready_push_inner(ex, id, 0);
 }
 
-int ready_take_current_local_tail(rt_executor* ex, uint64_t id) {
+// Claim a task this thread has just taken out of a queue: it belongs to this
+// thread's poll now, and these three stores are how every other thread is told
+// so. enqueued says "a queue entry names me", the status says "someone is
+// running me", and the wake token is the signal a park racing a wake must
+// abort on -- the poll about to run consumes it, exactly as the worker turn
+// consumes it after its own pop (rt_worker_turn.c).
+static void claim_task_off_queue(rt_task* task) {
+    task_enqueued_store(task, 0);
+    task_status_store(task, TASK_RUNNING);
+    (void)task_wake_token_exchange(task, 0);
+}
+
+int ready_claim_current_local_tail(rt_executor* ex, uint64_t id) {
     // Serialized by the owner shard lock taken below, NOT the control lock:
-    // rt_task_poll (the sole caller, rt_async_task.c) reaches here control-free
-    // since . The take here, the worker's own next_ready pop, and
-    // any steal all run under this shard's rt_shard_lock (rt_worker_turn.c), so
-    // that lock is the local queue's serializer. Intentionally narrow: it only
-    // removes the fresh child __task_create just pushed onto the current
-    // worker, so the queue is this shard's own and its lock nests here.
-    rt_shard* owner_shard = rt_task_owner_shard(ex, get_task(ex, id));
+    // rt_task_poll (the sole caller, rt_async_task.c) reaches here control-free.
+    // The take here, the worker's own next_ready pop, and any steal all run
+    // under this shard's rt_shard_lock (rt_worker_turn.c), so that lock is the
+    // local queue's serializer. Intentionally narrow: it only removes the fresh
+    // child __task_create just pushed onto the current worker, so the queue is
+    // this shard's own and its lock nests here.
+    //
+    // The take and the claim are ONE observation, under that one lock, because
+    // every gate the wake path has is a test of exactly these two fields:
+    //
+    //     if (status == TASK_DONE || status == TASK_RUNNING ||
+    //         task_enqueued_load(task) != 0) return 0;   (rt_task_park.c)
+    //
+    // Removing the task and claiming it apart leaves an instant when neither
+    // half of that test is true and the task is nonetheless in no queue: it
+    // reads READY with enqueued already cleared. A wake arriving then passes
+    // the gate, pushes, and a second worker takes a task this thread is about
+    // to poll -- and ready_push_task_locked's READY store lands under the live
+    // poll. That is the same duplicate-entry shape ready_push_with_policy
+    // re-validates against under this very lock, and its re-validation cannot
+    // see a claim made outside it. rt_worker_turn.c's own claim is inside its
+    // pop's critical section for this reason; this is that discipline.
+    rt_task* task = get_task(ex, id);
+    rt_shard* owner_shard = rt_task_owner_shard(ex, task);
     rt_scheduler* scheduler = rt_shard_scheduler(owner_shard);
-    if (owner_shard == NULL) {
+    if (task == NULL || owner_shard == NULL) {
         return 0;
     }
     rt_shard_lock(owner_shard);
@@ -320,7 +349,15 @@ int ready_take_current_local_tail(rt_executor* ex, uint64_t id) {
             taken = 1;
         }
     }
+    if (taken) {
+        RT_INLINE_CLAIM_UNDER_LOCK(task);
+    }
     rt_shard_unlock(owner_shard);
+    if (taken) {
+        RT_INLINE_CLAIM_SPLIT_FIRST(task);
+        RT_SYNC_POINT(SP_INLINE_CHILD_TAKEN_OFF_QUEUE);
+        RT_INLINE_CLAIM_SPLIT_REST(task);
+    }
     return taken;
 }
 
