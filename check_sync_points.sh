@@ -15,6 +15,8 @@
 #   3. PLACEMENT: each name appears only in its designated window file.
 #   4. NO-DEFAULT-ARMING: no default build path defines RT_TEST_SYNC_POINTS or
 #      passes -tags surge_syncpoints (only the syncpoint check may).
+#   5. NAMED: every declared enumerator has a row in the rt_sp_name table in
+#      rt_sync_point.c, and each row returns its own case's spelling.
 set -u
 
 RED='\033[0;31m'
@@ -24,6 +26,7 @@ NC='\033[0m'
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 NATIVE="$ROOT/runtime/native"
 HEADER="$NATIVE/rt_sync_point.h"
+IMPL="$NATIVE/rt_sync_point.c"
 fail=0
 
 note_fail() { printf "${RED}FAIL${NC} %s\n" "$1"; fail=1; }
@@ -80,6 +83,53 @@ if [ "$header_names" != "$allow_names" ]; then
     diff <(echo "$header_names") <(echo "$allow_names") || true
 else
     note_ok "allowlist matches the header enumerators"
+fi
+
+# Check 5: every declared enumerator is REACHABLE BY NAME. The two checks above
+# see the declaration and the call site; neither sees rt_sp_name in
+# rt_sync_point.c, which is the table SURGE_SYNC_POINT is resolved through. A
+# hook that is declared, called, and absent from that table passes checks 1-4
+# and then aborts every stand that tries to arm it -- so the gate has to look at
+# the table too.
+#
+# The rows are read as pairs, `case RT_SYNC_POINT_<X>:` with the `return "<Y>";`
+# that follows it, because that yields both facts at once: which enumerators the
+# table covers at all, and whether a row answers to its own name. A pair of rows
+# whose strings were swapped would arm the wrong hook while both sets still
+# matched the header, so the set alone is not enough.
+table_pairs=$(awk '
+    /^static const char\* rt_sp_name\(/ { inside = 1; next }
+    inside && /^}/ { inside = 0 }
+    inside && /case RT_SYNC_POINT_SP_/ {
+        pending = $0
+        sub(/^.*case RT_SYNC_POINT_/, "", pending)
+        sub(/:.*$/, "", pending)
+        next
+    }
+    inside && pending != "" && /return "SP_/ {
+        named = $0
+        sub(/^.*return "/, "", named)
+        sub(/".*$/, "", named)
+        print pending, named
+        pending = ""
+    }
+' "$IMPL")
+table_names=$(printf '%s\n' "$table_pairs" | awk 'NF { print $1 }' | sort -u)
+if [ "$header_names" != "$table_names" ]; then
+    note_fail "rt_sp_name in rt_sync_point.c does not name every rt_sync_point.h enumerator"
+    comm -23 <(printf '%s\n' "$header_names") <(printf '%s\n' "$table_names") |
+        sed 's/^/       declared but unnamed (no stand can arm it): /'
+    comm -13 <(printf '%s\n' "$header_names") <(printf '%s\n' "$table_names") |
+        sed 's/^/       named but not declared: /'
+else
+    note_ok "every declared sync point has a row in the rt_sp_name table"
+fi
+mismatched=$(printf '%s\n' "$table_pairs" | awk 'NF && $1 != $2 { print $1 " returns \"" $2 "\"" }')
+if [ -n "$mismatched" ]; then
+    note_fail "an rt_sp_name row answers to a name that is not its own enumerator"
+    printf '%s\n' "$mismatched" | sed 's/^/       /'
+else
+    note_ok "every rt_sp_name row returns its own enumerator spelling"
 fi
 
 # Files that actually call a sync-point macro.

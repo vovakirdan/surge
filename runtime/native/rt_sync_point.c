@@ -71,6 +71,13 @@ static pthread_cond_t rt_sp_reached_cond = PTHREAD_COND_INITIALIZER;
 // Bounded so a mis-armed test fails loud instead of hanging the harness.
 #define RT_SP_TIMEOUT_SECS 10
 
+// The name every sync point answers to. This is the only way a stand can reach a
+// hook: SURGE_SYNC_POINT carries names, and rt_sp_arm below walks this table to
+// turn one into an id, aborting the process when no row matches. So an
+// enumerator with no row here is a declared hook that nothing can ever arm, and
+// the abort lands on the stand rather than on whoever forgot the row. Every
+// enumerator in rt_sync_point.h must have a row, and each row must return its
+// own case's spelling; check_sync_points.sh refuses both departures.
 static const char* rt_sp_name(rt_sync_point_id id) {
     switch (id) {
         case RT_SYNC_POINT_SP_CANCEL_BEFORE_WAKE:
@@ -117,6 +124,8 @@ static const char* rt_sp_name(rt_sync_point_id id) {
             return "SP_IMMEDIATE_ON_BEFORE_DISPATCH";
         case RT_SYNC_POINT_SP_IMMEDIATE_ON_BEFORE_PUBLISH:
             return "SP_IMMEDIATE_ON_BEFORE_PUBLISH";
+        case RT_SYNC_POINT_SP_IMMEDIATE_ON_AFTER_PUBLISH:
+            return "SP_IMMEDIATE_ON_AFTER_PUBLISH";
         case RT_SYNC_POINT_SP_READY_REQUEUE_BEFORE_LOCK:
             return "SP_READY_REQUEUE_BEFORE_LOCK";
         case RT_SYNC_POINT_SP_WAKE_BEFORE_STALE_REMOVAL:
@@ -131,6 +140,8 @@ static const char* rt_sp_name(rt_sync_point_id id) {
             return "SP_CARRIER_CREDIT_PARKED";
         case RT_SYNC_POINT_SP_SLEEP_FIRED_BEFORE_WAKE:
             return "SP_SLEEP_FIRED_BEFORE_WAKE";
+        case RT_SYNC_POINT_SP_CHANNEL_LAST_RELEASE_BEFORE_FREE:
+            return "SP_CHANNEL_LAST_RELEASE_BEFORE_FREE";
         case RT_SYNC_POINT_SP_SCOPE_FAILFAST_JOIN_BEFORE_VERIFY:
             return "SP_SCOPE_FAILFAST_JOIN_BEFORE_VERIFY";
         case RT_SYNC_POINT_SP_ASYNC_RETURN_BEFORE_SUCCESS_COMMIT:
