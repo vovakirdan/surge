@@ -34,8 +34,8 @@ import (
 // fails until the row is deleted — the intended amount of noise for a carrier
 // family becoming real. The list is EMPTY now: its last two rows, `Channel<int>`
 // and `own Channel<int>`, left when the channel became a reference-counted
-// handle and its drop glue started calling `rt_channel_handle_drop`
-// (RV2-DEBT-155). The map stays, with the check that reads it, so that the
+// handle and its drop glue started calling `rt_channel_handle_drop`. The
+// map stays, with the check that reads it, so that the
 // next carrier this backend cannot back is recorded by name rather than
 // joining a crowd — and the fixture below still reaches every carrier kind the
 // comparison cares about.
@@ -187,7 +187,8 @@ func TestAnEmittedDescriptorCarriesARealDropBody(t *testing.T) {
 }
 
 // TestAChannelElementDescriptorCarriesTheHandleRelease is the acceptance the
-// owner named for this rule, turned around by RV2-DEBT-155's close.
+// owner named for this rule, turned around now that a channel handle has a
+// release to name.
 //
 // A channel of channels is legal and must stay legal: the typed constructor
 // needs its element's layout and move_init, which this backend has always

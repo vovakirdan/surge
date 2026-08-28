@@ -136,10 +136,10 @@ func TestRuntimeV2LocalSelectCancelNonCopySendArm(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse copy-control valgrind leak summary: %v\nstderr:\n%s", err, controlStderr)
 		}
-		// Strict zero. This row used to pin RV2-DEBT-062's residue -- the two
+		// Strict zero. This row used to pin a known residue -- the two
 		// never-ready channels the cancelled frame abandoned, 2 blocks at
 		// 96, then 1344, then 1376 bytes as the channel object grew -- because
-		// nothing released a local Channel<T> anywhere (RV2-DEBT-155), and the
+		// nothing released a local Channel<T> anywhere, and the
 		// number was written down so it would change loudly when that leak was
 		// fixed. It did: the channel is a reference-counted handle now, the
 		// abandoned frame's drop glue reaches `rt_channel_handle_drop` for
@@ -150,7 +150,7 @@ func TestRuntimeV2LocalSelectCancelNonCopySendArm(t *testing.T) {
 		const controlBaselineBlocks = 0
 		if controlBytesLost != controlBaselineBytes || controlBlocksLost != controlBaselineBlocks {
 			t.Fatalf(
-				"copy-control leaked the channels the cancelled frame held: got %dB/%d blocks, want %dB/%d blocks (RV2-DEBT-155 closed this at zero)\nstderr:\n%s",
+				"copy-control leaked the channels the cancelled frame held: got %dB/%d blocks, want %dB/%d blocks (a reclaimed channel can only leave zero)\nstderr:\n%s",
 				controlBytesLost, controlBlocksLost, controlBaselineBytes, controlBaselineBlocks, controlStderr,
 			)
 		}

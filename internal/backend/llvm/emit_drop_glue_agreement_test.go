@@ -65,7 +65,7 @@ const (
 // A family leaves this list only when a reclamation for it is emitted, and the
 // day it does, both legs start failing until their rows are updated — which is
 // the intended amount of noise for a carrier family becoming real. The channel
-// left it on 2026-08-26 (RV2-DEBT-155): its release is `rt_channel_handle_drop`.
+// left it on 2026-08-26: its release is `rt_channel_handle_drop`.
 var unreclaimedFamilies = []string{leafFarLease}
 
 func isUnreclaimedFamily(family string) bool {
@@ -109,8 +109,8 @@ fn build() -> int {
 }
 
 // The carrier families. The channel is reclaimed -- by the handle release,
-// as a root and as the field of Gate, which is RV2-DEBT-198's composite
-// holding a carrier, in the shape core/sync.sg gives every primitive. The far
+// as a root and as the field of Gate, the composite that HOLDS a carrier, in
+// the shape core/sync.sg gives every primitive. The far
 // handle is the one family this backend still has no reclamation for; it is
 // in the fixture so that the second leg asks about it by name instead of
 // leaving it to a future reader to discover.
@@ -278,8 +278,8 @@ type emptyBodyRow struct {
 // types are fine" while `far Channel<int>` was a one-line green-to-red
 // counterexample sitting outside the list. `Channel<int>` was the other such
 // row until its release existed; it is an ordinary row now, and so is Gate —
-// the COMPOSITE THAT HOLDS a carrier that RV2-DEBT-198 recorded as
-// unrepresentable here: `leafFamilyOf` answers "" for a composite, so the
+// the COMPOSITE THAT HOLDS a carrier, which used to be unrepresentable here:
+// `leafFamilyOf` answers "" for a composite, so the
 // excuse table could not name it, and the struct arm walked into an
 // `emitDropHandle` with no channel case and emitted a body that freed nothing.
 // The arm exists now, the first leg compares the row by the families of the

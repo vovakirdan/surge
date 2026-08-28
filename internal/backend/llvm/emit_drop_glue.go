@@ -59,11 +59,11 @@ func (e *Emitter) typeOwnsHeapRec(id types.TypeID, seen map[types.TypeID]struct{
 	// A reference-counted value owns one reference: a scalar's to its counted
 	// block, a channel handle's to the runtime object it names. The channel
 	// answered NO here for as long as it was "Copy, so nothing to reclaim",
-	// which is what left every local channel unreclaimed (RV2-DEBT-155) and
-	// every composite holding one with a drop body that freed nothing
-	// (RV2-DEBT-198). The release it reaches is `rt_channel_handle_drop`, in
-	// emitDropHandle; the two are widened together, because the walk claiming
-	// storage the leaf cannot give back is exactly the empty body 198 records.
+	// which is what left every local channel unreclaimed and every composite
+	// holding one with a drop body that freed nothing. The release it reaches
+	// is `rt_channel_handle_drop`, in emitDropHandle; the two are widened
+	// together, because a walk that claims storage the leaf cannot give back
+	// is exactly that empty body again.
 	if e.types.IsRefCounted(id) {
 		return true
 	}

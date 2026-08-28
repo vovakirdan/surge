@@ -181,7 +181,7 @@ func (h *Heap) resourceFreed(obj *Object) {
 // every copy shared has just been freed, so nothing can send on or receive
 // from the channel again, and the object is destroyed the way RUNTIME_V2
 // section 7 says the last release destroys it -- every payload it still owns
-// is dropped here, not at process exit (RV2-DEBT-155 on the VM lane).
+// is dropped here, not at the process-exit sweep.
 //
 // The heap's own count IS the handle count on this lane: `eval.go` retains on
 // every copy of a resource word and `dropValue` releases on every drop, so the

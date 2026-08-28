@@ -58,7 +58,7 @@ import "surge/internal/types"
 //     opaque runtime resources — and owns heap iff it is not Copy.
 //
 // The channel used to fall into the last family and answer NO, being Copy,
-// which is why a local `Channel<T>` was never reclaimed at all (RV2-DEBT-155):
+// which is why a local `Channel<T>` was never reclaimed at all:
 // no obligation here meant no drop in MIR and nothing for the backend to emit.
 //
 // A value composite used to answer YES whatever its fields held, because it

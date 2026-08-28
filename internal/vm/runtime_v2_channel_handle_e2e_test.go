@@ -7,7 +7,7 @@ import (
 )
 
 // A local Channel<T> is reclaimed by its last release, and so is everything
-// it still owns (RV2-DEBT-155).
+// it still owns.
 //
 // `Channel<T>` is a copyable handle whose object the runtime reference-counts:
 // copying the handle retains, dropping a copy releases, the last release
