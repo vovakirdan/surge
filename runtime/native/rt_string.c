@@ -276,6 +276,25 @@ void rt_string_free(void* handle) {
     rt_free((uint8_t*)s, total, (uint64_t)alignof(SurgeString));
 }
 
+// A refused string allocation stops the process; it does not become "".
+//
+// Every string is one block, and the readers below answer NULL/0 for a handle
+// that is not there, so a refusal handed back as NULL reached the program as an
+// empty string it could not tell from one it asked for -- wrong data rather
+// than a fault, and no caller can be made to handle it because `string` is not
+// a result type. It is fatal at the allocation instead, which is the branch
+// this same function already takes for a length it cannot represent, and what
+// rt_readline already does with this exact answer. The sentence is the one the
+// generated code reports for a refused allocation of its own.
+static SurgeString* string_alloc_or_report(size_t total) {
+    SurgeString* s = (SurgeString*)rt_alloc((uint64_t)total, (uint64_t)alignof(SurgeString));
+    if (s == NULL) {
+        const char* msg = "out of memory: could not allocate String";
+        rt_panic((const uint8_t*)msg, (uint64_t)strlen(msg));
+    }
+    return s;
+}
+
 void* rt_string_from_bytes(const uint8_t* ptr, uint64_t len) {
     uint64_t bytes = len;
     uint64_t count = 0;
@@ -289,10 +308,7 @@ void* rt_string_from_bytes(const uint8_t* ptr, uint64_t len) {
         rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg), NULL, 0);
     }
     size_t total = sizeof(SurgeString) + (size_t)bytes + 1;
-    SurgeString* s = (SurgeString*)rt_alloc((uint64_t)total, (uint64_t)alignof(SurgeString));
-    if (s == NULL) {
-        return NULL;
-    }
+    SurgeString* s = string_alloc_or_report(total);
     s->len_cp = count;
     s->len_bytes = bytes;
     if (bytes > 0 && ptr != NULL) {
@@ -468,10 +484,7 @@ void* rt_string_concat(void* a, void* b) {
         rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg), NULL, 0);
     }
     size_t total = sizeof(SurgeString) + (size_t)total_bytes + 1;
-    SurgeString* out = (SurgeString*)rt_alloc((uint64_t)total, (uint64_t)alignof(SurgeString));
-    if (out == NULL) {
-        return NULL;
-    }
+    SurgeString* out = string_alloc_or_report(total);
     out->len_cp = total_cp;
     out->len_bytes = total_bytes;
     if (left_bytes > 0 && left != NULL) {
@@ -517,10 +530,7 @@ void* rt_string_repeat(void* s, int64_t count) {
         rt_panic_numeric((const uint8_t*)msg, (uint64_t)strlen(msg), NULL, 0);
     }
     size_t total = sizeof(SurgeString) + (size_t)total_bytes + 1;
-    SurgeString* out = (SurgeString*)rt_alloc((uint64_t)total, (uint64_t)alignof(SurgeString));
-    if (out == NULL) {
-        return NULL;
-    }
+    SurgeString* out = string_alloc_or_report(total);
     out->len_cp = total_cp;
     out->len_bytes = total_bytes;
     for (int64_t i = 0; i < count; i++) {

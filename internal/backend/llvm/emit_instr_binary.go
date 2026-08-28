@@ -29,9 +29,8 @@ func (fe *funcEmitter) emitBinary(op *mir.BinaryOp) (val, ty string, err error) 
 		if op.Op == ast.ExprBinaryRangeInclusive {
 			inclusive = "1"
 		}
-		tmp := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_range_int_new(ptr %s, ptr %s, i1 %s)\n", tmp, leftVal, rightVal, inclusive)
-		return tmp, "ptr", nil
+		label := "Range<" + types.Label(fe.emitter.types, op.Left.Type) + ">"
+		return fe.emitCheckedRangeNew(label, leftVal, rightVal, inclusive), "ptr", nil
 	}
 	if op.Op == ast.ExprBinaryMul && isStringLike(fe.emitter.types, op.Left.Type) && !isStringLike(fe.emitter.types, op.Right.Type) {
 		strPtr, strErr := fe.emitHandleOperandPtr(&op.Left)

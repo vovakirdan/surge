@@ -12,7 +12,7 @@
       "id": "PG-ALLOC-FAILURE",
       "owner": "runtime",
       "disposition": "unreachable_from_source",
-      "reason": "An allocation-failure guard. Reaching it needs the allocator to answer NULL, which the corpus cannot arrange: it runs real programs against the real allocator and has no fault injection. The guard is still the right code - the alternative is dereferencing NULL - it simply cannot be provoked from a .sg file. One row is now provoked, by a build rather than by a fixture: SURGE_INTERNAL_TEST_ALLOC_REFUSAL names one emitted allocation site and the compiler asks for a size no allocator serves there, which TestRuntimeV2AllocationRefusalReportsTheTypeItCouldNotAllocate runs. That is native-only and is not a two-backend fixture, so the row stays here.",
+      "reason": "An allocation-failure guard. Reaching it needs the allocator to answer NULL, which the corpus cannot arrange: it runs real programs against the real allocator and has no fault injection. The guard is still the right code - the alternative is dereferencing NULL - it simply cannot be provoked from a .sg file. One row is now provoked, by a build rather than by a fixture: SURGE_INTERNAL_TEST_ALLOC_REFUSAL names one emitted allocation site and the compiler asks for a size no allocator serves there, which TestRuntimeV2AllocationRefusalReportsTheTypeItCouldNotAllocate runs. That is native-only and is not a two-backend fixture, so the row stays here. A second row is provoked by a PROGRAM rather than by a build: rt_string.c::string_alloc_or_report is reached by asking for a string of 2^63-1 bytes, which no allocator on any machine serves, and TestARefusedStringReportsInsteadOfAnsweringTheEmptyString runs it. It is native-only for the same reason - the VM does not take its storage from this allocator - so it stays here too.",
       "invalidated_when": "The corpus itself can make an allocation fail - a heap cap a fixture can set low enough, or an allocator the VM lane can refuse from too - at which point the report becomes an answer both backends can record."
     },
     {
@@ -1608,6 +1608,11 @@
       "site": "runtime/native/rt_string.c::rt_string_repeat#3",
       "message": "string repeat length out of range",
       "group": "PG-SIZE-LIMIT"
+    },
+    {
+      "site": "runtime/native/rt_string.c::string_alloc_or_report#1",
+      "message": "out of memory: could not allocate String",
+      "group": "PG-ALLOC-FAILURE"
     },
     {
       "site": "runtime/native/rt_task_complete.c::apply_poll_outcome#1",

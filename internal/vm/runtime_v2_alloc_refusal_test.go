@@ -32,6 +32,30 @@ fn main() -> int {
 }
 `
 
+// allocRefusalPushProgram grows an array through the path a program actually
+// takes. `a.push(...)` reaches rt_realloc, not rt_alloc: the first writing of
+// this guard tested the spelling instead of the answer, so this call stored the
+// refusal into the array header, recorded the grown capacity over it, and then
+// wrote the element through the null.
+const allocRefusalPushProgram = `@entrypoint
+fn main() -> int {
+    let mut a: int[] = [1];
+    a.push(2);
+    a.push(3);
+    return a[0] + a[1] + a[2];
+}
+`
+
+// allocRefusalReserveProgram reaches the same reallocation through `reserve`,
+// which is the other caller of it and grows without an element to store.
+const allocRefusalReserveProgram = `@entrypoint
+fn main() -> int {
+    let mut a: int[] = [1, 2, 3];
+    a.reserve(64:uint);
+    return a[0] + a[1] + a[2];
+}
+`
+
 // allocRefusalAsyncProgram reaches the site the ruling is about: the suspension
 // frame, which is storage the RUNTIME owns past the await and the emitter takes
 // from rt_alloc rather than from the stack.
@@ -70,6 +94,20 @@ func TestRuntimeV2AllocationRefusalReportsTheTypeItCouldNotAllocate(t *testing.T
 			served:   6,
 		},
 		{
+			name:     "array_grow_push",
+			program:  allocRefusalPushProgram,
+			site:     "array-grow-push",
+			typeName: "Array<int>",
+			served:   6,
+		},
+		{
+			name:     "array_grow_reserve",
+			program:  allocRefusalReserveProgram,
+			site:     "array-grow-reserve",
+			typeName: "Array<int>",
+			served:   6,
+		},
+		{
 			name:     "runtime_owned_suspension_frame",
 			program:  allocRefusalAsyncProgram,
 			site:     "runtime-owned-storage",
@@ -94,6 +132,42 @@ func TestRuntimeV2AllocationRefusalReportsTheTypeItCouldNotAllocate(t *testing.T
 				t.Fatalf("a refused allocation reported %q, want %q", stderr, want)
 			}
 		})
+	}
+}
+
+// refusedStringProgram asks for a string no allocator serves. It needs no
+// control build: 2^63-1 bytes is refused on every machine, and the refusal
+// travels rt_string_repeat's own rt_alloc.
+const refusedStringProgram = `@entrypoint
+fn main() -> int {
+    let s: string = "x" * 9223372036854775807;
+    if s == "" {
+        return 7;
+    }
+    return 0;
+}
+`
+
+// TestARefusedStringReportsInsteadOfAnsweringTheEmptyString is the string half
+// of the same defect, and it is a different failure from the array half.
+//
+// A refused string was not a fault: the readers answer NULL and 0 for a handle
+// that is not there, so the program carried on with a string that does not
+// exist. On the tree before the fix this exits 0 with an empty stderr — it does
+// not report, and it does not even take the `s == ""` branch, so the program can
+// tell neither that it got the string nor that it did not. The report is in the
+// runtime rather than in the generated code because `string` is not a result
+// type: a dozen entry points reach the same two allocations, several of them
+// indirectly, and no caller can be handed a refusal it has no way to represent.
+func TestARefusedStringReportsInsteadOfAnsweringTheEmptyString(t *testing.T) {
+	_, stderr, code := buildAndRunWithAllocRefusal(t, refusedStringProgram, "")
+	want := "panic: out of memory: could not allocate String\n"
+	if code != 1 {
+		t.Fatalf("a refused string exited %d, want 1 (0 is the silent wrong answer this fix replaced); stderr=%q",
+			code, stderr)
+	}
+	if stderr != want {
+		t.Fatalf("a refused string reported %q, want %q", stderr, want)
 	}
 }
 

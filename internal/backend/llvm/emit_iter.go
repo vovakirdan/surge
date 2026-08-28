@@ -80,6 +80,12 @@ func (fe *funcEmitter) emitRangeIterInit(op *mir.Operand, rangeType types.TypeID
 	if rangeTy != "ptr" {
 		return "", "", fmt.Errorf("range iter_init requires ptr, got %s", rangeTy)
 	}
+	// The size is read out of the source object, so this load runs BEFORE the
+	// cursor's own guard and could not be protected by it. It does not need to
+	// be: every Range object that reaches here comes from a producer that
+	// already tested its allocation — the two constructors in the guard file,
+	// the call-path test for the open-ended ones, and the two cursors below.
+	// A second test here would be a branch no program can take.
 	size := fe.emitRangeObjectSize(rangePtr)
 	iterPtr := fe.emitCheckedAlloc(allocSiteRangeIter, rangeType, size, rangeAlign)
 	fmt.Fprintf(&fe.emitter.buf,

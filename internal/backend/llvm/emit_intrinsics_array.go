@@ -41,12 +41,14 @@ func (fe *funcEmitter) emitArrayIntrinsic(call *mir.CallInstr) (bool, error) {
 	}
 }
 
-func (fe *funcEmitter) arrayElemLayout(op *mir.Operand) (elemType types.TypeID, elemLLVM string, stride, align uint64, err error) {
-	if fe == nil || fe.emitter == nil || fe.emitter.types == nil {
-		return types.NoTypeID, "", 0, 0, fmt.Errorf("missing type interner")
-	}
-	if op == nil {
-		return types.NoTypeID, "", 0, 0, fmt.Errorf("nil operand")
+// arrayOperandType answers which array an operand names. The refusal message a
+// grown buffer reports names this type, so it is read the same way the element
+// layout is read rather than recovered a second way — the resolution included,
+// because these intrinsics take the array through a `&mut` and the storage that
+// was refused is the array's, not the reference's.
+func (fe *funcEmitter) arrayOperandType(op *mir.Operand) types.TypeID {
+	if fe == nil || fe.emitter == nil || fe.emitter.types == nil || op == nil {
+		return types.NoTypeID
 	}
 	arrType := operandValueType(fe.emitter.types, op)
 	if arrType == types.NoTypeID && op.Kind != mir.OperandConst {
@@ -54,6 +56,17 @@ func (fe *funcEmitter) arrayElemLayout(op *mir.Operand) (elemType types.TypeID, 
 			arrType = baseType
 		}
 	}
+	return resolveValueType(fe.emitter.types, arrType)
+}
+
+func (fe *funcEmitter) arrayElemLayout(op *mir.Operand) (elemType types.TypeID, elemLLVM string, stride, align uint64, err error) {
+	if fe == nil || fe.emitter == nil || fe.emitter.types == nil {
+		return types.NoTypeID, "", 0, 0, fmt.Errorf("missing type interner")
+	}
+	if op == nil {
+		return types.NoTypeID, "", 0, 0, fmt.Errorf("nil operand")
+	}
+	arrType := fe.arrayOperandType(op)
 	elemType, dynamic, ok := arrayElemType(fe.emitter.types, arrType)
 	if !ok || !dynamic {
 		return types.NoTypeID, "", 0, 0, fmt.Errorf("rt_array_* requires a dynamic array")
@@ -147,6 +160,7 @@ func (fe *funcEmitter) emitArrayReserve(call *mir.CallInstr) error {
 	if err != nil {
 		return err
 	}
+	arrType := fe.arrayOperandType(&call.Args[0])
 	handlePtr, err := fe.emitHandleOperandPtr(&call.Args[0])
 	if err != nil {
 		return err
@@ -258,8 +272,7 @@ func (fe *funcEmitter) emitArrayReserve(call *mir.CallInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  %s = mul i64 %s, %d\n", oldSize, curCap, stride)
 	newSize := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = mul i64 %s, %d\n", newSize, grown, stride)
-	newData := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_realloc(ptr %s, i64 %s, i64 %s, i64 %d)\n", newData, dataPtr, oldSize, newSize, elemAlign)
+	newData := fe.emitCheckedRealloc(allocSiteArrayGrowReserve, arrType, dataPtr, oldSize, newSize, elemAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", newData, dataPtrPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_array_sync_views(ptr %s)\n", head)
 	fmt.Fprintf(&fe.emitter.buf, "  store i64 %s, ptr %s\n", grown, capPtr)
@@ -279,6 +292,7 @@ func (fe *funcEmitter) emitArrayPush(call *mir.CallInstr) error {
 	if err != nil {
 		return err
 	}
+	arrType := fe.arrayOperandType(&call.Args[0])
 	handlePtr, err := fe.emitHandleOperandPtr(&call.Args[0])
 	if err != nil {
 		return err
@@ -335,8 +349,7 @@ func (fe *funcEmitter) emitArrayPush(call *mir.CallInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  %s = mul i64 %s, %d\n", oldSize, curCap, stride)
 	newSize := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = mul i64 %s, %d\n", newSize, grown, stride)
-	newData := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_realloc(ptr %s, i64 %s, i64 %s, i64 %d)\n", newData, dataPtr, oldSize, newSize, elemAlign)
+	newData := fe.emitCheckedRealloc(allocSiteArrayGrowPush, arrType, dataPtr, oldSize, newSize, elemAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", newData, dataPtrPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_array_sync_views(ptr %s)\n", head)
 	fmt.Fprintf(&fe.emitter.buf, "  store i64 %s, ptr %s\n", grown, capPtr)

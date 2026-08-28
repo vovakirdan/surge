@@ -9345,3 +9345,84 @@ the emitted-shape rows, and the native negative control at
 `SURGE_SKIP_TIMEOUT_TESTS=0`. The panic ledger gains one row —
 `emit_alloc_guard.go::emitAllocRefusalPanic#1`, `PG-ALLOC-FAILURE` — and that
 group's reason now records that one of its rows is provoked by a build.
+
+## The predicate was the spelling, and the spelling missed `a.push(7)` — 2026-08-29
+
+The pass above guarded the sites spelled `rt_alloc`. That is the wrong
+predicate, and an adversarial review showed the consequence in generated IR:
+`a.push(7)` emits `call ptr @rt_realloc`, stores the answer into the array
+header untested, records the grown capacity over it, and then writes the element
+through the null. The census could not see it either — it matched the text
+`call ptr @rt_alloc(`, which `call ptr @rt_realloc(` does not contain — so two
+live holes passed a gate that reported coverage.
+
+**The predicate is now "can this call answer NULL", and the roster is
+`builtins.go`.** Every ABI declaration with `ret: "ptr"` is classified in
+`runtimePointerAnswers` (`emit_alloc_guard_test.go`) as one of: the entry point
+reports a refusal itself, its NULL is not a refusal, the generated code tests it,
+or it answers NULL untested. 112 declarations, all classified. The roster is the
+ABI list rather than the emitters because an entry point reached through the
+ORDINARY CALL PATH is written by no emitter at all — which is exactly how the
+three open-ended `Range` constructors stayed invisible to a scan of emitter text.
+
+**What is now tested.** `rt_realloc` at both callers (`emitArrayPush`,
+`emitArrayReserve`) through `emitCheckedRealloc`, which reports BEFORE the header
+records the answer: a refused reallocation releases nothing (`rt_alloc.c`), so
+the old block is still the array's and the only pointer to it is the one about to
+be overwritten. A guard that read NULL as "the buffer moved" would leak the block
+as well. `rt_range_int_new` through `emitCheckedRangeNew`; the three open-ended
+siblings through `emitRuntimeAnswerTest`, a hook in `emitCallSite` keyed on
+`runtimeAnswersTestedAtTheCallSite`.
+
+**The review's ordering finding is closed at the producer, not at the consumer.**
+`emitRangeIterInit` sizes its cursor by reading the source Range's kind byte
+before its own guard runs. With all four constructors tested, no NULL Range can
+reach it, so a second test there would be a branch no program can take; the
+invariant is written beside the load.
+
+**The string family answers NULL and is a DIFFERENT failure, so it gets a
+different answer.** It was not a fault: the readers answer NULL/0 for a handle
+that is not there, so the program carried on with a string that does not exist.
+Measured on the unfixed tree with `"x" * 9223372036854775807`: exit 0, stderr
+empty — it does not report, and `s == ""` is false too, so the program can tell
+neither that it got the string nor that it did not. The report is in the RUNTIME
+(`string_alloc_or_report`, `rt_string.c`) rather than at each emitted call:
+twelve entry points reach those two allocations, several indirectly
+(`rt_string_from_int` → `rt_string_from_bytes`), `string` is not a result type so
+no caller can be handed a refusal it has no way to represent, and the same
+function already treats a length it cannot represent as fatal. `rt_readline`
+already did exactly this with the same answer. `rt_string.c` 510 → 509 effective
+lines, so the over-limit file did not grow.
+
+**Numbers.** Without the realloc guard, `array_grow_push` and
+`array_grow_reserve` exit -1 with stderr empty (the SIGSEGV), and the shape row
+reports `the rt_realloc at line 493 is not tested; next line is "store ptr %t27,
+ptr %t23"`. Without the Range guards the shape row reports the same for
+`rt_range_int_new` (line 713) and `rt_range_int_from_start` (line 849). Without
+the string fix, `TestARefusedStringReportsInsteadOfAnsweringTheEmptyString` exits
+0 instead of 1. `make check` 0, `make golden-check` 0 with no golden status
+change, `runtime-v2-panic-surface-check` 0, `runtime-v2-heap-check` 0 (91 rows),
+`runtime-v2-carrier-check` 0 with `allocation_count=8` unmoved.
+
+**The open surface is 31 entry points and it is pinned as a number.** The
+filesystem result (17), the socket result (9), and five blocks that carry their
+own answer (`rt_entropy_bytes`, `rt_argv`, `rt_heap_stats`,
+`rt_string_bytes_view`, `rt_term_read_event`). Each answers NULL when its tagged
+result block is refused, and the generated code stores it into the Result slot
+whose discriminant the match then reads through it. `untestedRuntimeAnswers`
+holds the count so that adding one is a deliberate edit and closing a family
+moves it down.
+
+**Two incidental findings, neither fixed here.** `rt_string_from_utf16` is
+declared in the ABI roster and emitted by `emit_intrinsics_runtime.go`, and has
+no definition in `runtime/native` — a native program that reaches it does not
+link. And `bi_promote` (`rt_bignum_api.c`) passes a NULL `bn_err` to
+`bi_from_i64`, so a refusal there makes the operand read as zero and the
+arithmetic answer silently wrong, rather than reporting the way every other
+bignum path does.
+
+**Pre-existing reds, checked not assumed.** `TestLLVMParity` fails on
+`random_pcg32`, `hash_xxh64`, `hash_stable64`, `uuid_v4` (RV2-DEBT-159 and -306,
+same texts) and on `net_echo`, which is undocumented and was measured at
+`5897840a` in a separate worktree: identical failure, `panic VM1999: storage:
+string is not an unsized integer (type#10)` at `core/string.sg:341:16`.

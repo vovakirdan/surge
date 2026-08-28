@@ -92,6 +92,7 @@ func (fe *funcEmitter) emitCallSite(call *mir.CallInstr, target *callTarget) err
 	}
 	tmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = %s\n", tmp, callStmt)
+	fe.emitRuntimeAnswerTest(call, target.callee, tmp)
 	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return err
