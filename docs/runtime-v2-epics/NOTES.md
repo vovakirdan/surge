@@ -9060,3 +9060,102 @@ P3's rollback failpoint cannot be written against today's ABI at all, because
 status return the condition for being rollback-capable. RV2-DEBT-305: the two
 bounded child-process controls do not exist and the lifecycle harness has no
 child process to build them in.
+
+## A cancelled task keeps its scope, and the copied switch that kept it (2026-08-28)
+
+**What was wrong.** `run_ready_one` (the single-worker control runner,
+`runtime/native/rt_async_poll.c`) carried its own copy of `apply_poll_outcome`'s
+switch, one per task kind, and the copies had drifted: their `POLL_DONE_CANCELLED`
+arms called `mark_done` directly, with none of the scope teardown the shared
+applier performs. Every async body opens a scope at the top of its own poll
+whether or not it spawns anything, so a task cancelled at its first suspension
+point abandoned one 64-byte `rt_scope` block, forever, once per cancellation.
+
+**What changed.** Both arms of `run_ready_one` now call `apply_poll_outcome`,
+the same applier the shard-lane worker turn (`rt_worker_turn.c`) and the inline
+child poll (`rt_async_task.c`) already used. `rt_async_poll.c` goes 391 -> 363
+physical lines, 301 effective. Behaviour deltas beyond the cancelled arm, both
+checked before making the change: the yielded arm now pushes through
+`ready_push_yielded_task` instead of `ready_push`, which on this runner resolves
+to the same inject queue (`current_local_queue` returns NULL off a worker thread,
+`rt_ready_queue.c`) and differs only in a `worker_cv` signal that nothing can be
+waiting on here (`maybe_start_compensation_worker_locked` returns early at
+`worker_count <= 1`, `rt_async_compat.c`); and the task is now pinned across the
+turn by the applier's `task_add_ref`, which this runner previously did not do.
+
+**The proof, and the numbers.** `internal/vm/runtime_v2_cancelled_scope_reclamation_e2e_test.go`,
+valgrind `in use at exit` over the same program at two round counts,
+`SURGE_SHARDS=1 SURGE_THREADS=1`:
+
+```
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm \
+  -run '^TestRuntimeV2CancelledTaskReclaimsItsScope$' -count=1 -parallel=1 -p=1 -v --timeout 900s
+```
+
+- with the fix: cancelled 68,248 B / 14 blk at 10 rounds AND at 200 rounds
+  (+0 blocks, +0 bytes); uncancelled twin 67,880 B / 13 blk at both. PASS, 26.57s.
+- with `runtime/native/rt_async_poll.c` reverted to the copied switch and nothing
+  else changed: cancelled 68,888 B / 24 blk at 10 rounds, 81,048 B / 214 blk at
+  200 — +190 blocks / +12,160 bytes over 190 extra cancelled rounds, 1.00 block
+  and 64.0 bytes per cancelled task. FAIL, 27.42s.
+
+**The four-worker configuration is NOT a flat control, and an earlier note here
+said it was on one sample.** At `SURGE_SHARDS=4 SURGE_THREADS=4` the same
+200-round cancelled program retains, intermittently, 200 blocks of 368 bytes
+allocated by `spawn_internal_task_locked` (`rt_async_task.c:492`) for the
+`checkpoint` task — a different object from `rt_scope`, reached through
+`poll_ready_child_inline`. Twenty-five interleaved samples of each build:
+15/25 at 76,288 B / 26 blocks and 10/25 between 63 and 226 blocks WITH the scope
+fix; 13/25 at 26 blocks and 12/25 between 180 and 228 blocks WITHOUT it. Same
+distribution on both sides, as expected — `rt_task_await` only reaches this
+runner when `rt_worker_count() <= 1` (`rt_async_task.c:391`), so the fix cannot
+execute at four workers at all. **That second retention is open and unattributed;
+it is not this fix's, and it is not what the row measures.**
+
+**The row's build tag came off, on a fact rather than on a belief.** The tag was
+committed with the claim that a red untagged row makes `make check` refuse every
+commit. It does not: `make check` -> `make test` -> `SURGE_SKIP_TIMEOUT_TESTS=1
+go test ./...` (Makefile), and `buildRuntimeV2CrossingSource` calls
+`skipTimeoutTests` first. Measured: `SURGE_SKIP_TIMEOUT_TESTS=1 go test
+./internal/vm -run '^TestRuntimeV2CancelledTaskReclaimsItsScope$' -count=1 -v` ->
+`--- SKIP` in 0.00s, exit 0. Untagged, the row now sits with the untagged
+valgrind family it belongs to, on `runtime-v2-heap-check`'s strict-census line
+and on `runtime-v2-carrier-sanitizer-check`'s untagged valgrind line; the two
+tagged `ChannelHandleRefcount` lines are back to what they were.
+
+**A gate keyed by source location noticed the deletion.** Removing the two copied
+switches removed two `panic_msg("async: unknown poll outcome")` raises, and
+`internal/panicgate` failed with `stale ledger row
+"runtime/native/rt_async_poll.c::run_ready_one#2"`. Both rows deleted from
+`internal/panicgate/testdata/allowlist.json`; the surviving raise is
+`rt_task_complete.c::apply_poll_outcome#1`, already balloted.
+
+**Gates run, and what each answered.**
+
+- `make test` -> exit 0. `make c-check-changed C_CHANGED=runtime/native/rt_async_poll.c`
+  -> OK. `go test ./internal/gatecheck -count=1` -> ok 49.8s.
+- `make runtime-v2-check` -> 18 of 20 sub-gates pass, `runtime-v2-heap-check`
+  among them (418s) with the new row PASSing inside it at 26.27s.
+- `runtime-v2-waiter-check` flaked once in that walk, on
+  `TestRuntimeV2FreedChannelWaiterRouting`'s use-after-free negative control
+  (`negative control failed without the use-after-free (code=-1)`); the gate is
+  exit 0 on re-run and the row alone is 3 of 3 green.
+- `runtime-v2-transport-check` is red on this tree AND at HEAD with none of these
+  changes applied — `runtime_v2_remote_task_behavior_test.go:478`,
+  `result-owner-release` and `caller-abandon-drops-landed-result`, both code=1.
+  Inherited, not caused here. **Open.**
+- The modified `runtime-v2-carrier-sanitizer-check` valgrind line, run verbatim:
+  first run exit 1 on `TestRuntimeV2ChannelHandleValgrindZero/async_float_param`
+  — `valgrind run timed out after 3m0s` — second run exit 0 with all 13 rows
+  PASS (that row 48.12s, the new row 26.30s). That fixture runs at the DEFAULT
+  worker count, which is `max(2, nproc)` = 32 here
+  (`rt_runtime_default_worker_count`, `rt_runtime.c`), so the runner this change
+  touches is unreachable in it. Ten runs of that subtest alone: 10/10 PASS,
+  9.36s-37.40s with this fix; 10/10 PASS, 9.48s-18.76s with `rt_async_poll.c`
+  reverted. A 32-thread program under valgrind against a 180s budget, not a
+  liveness regression — but the tail is real and the budget is not generous.
+- `make behaviour-check-all` (the corpus on vm + native at ONE worker, the
+  configuration this change governs, 842s) -> one red fixture,
+  `TestVMStringsGolden/string_from_bytes_invalid_utf8/llvm`, `exit code: want 0,
+  got 255`. Deterministic 3/3 here and identically red at HEAD with none of these
+  changes. Inherited. **Open.**

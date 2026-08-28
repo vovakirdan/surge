@@ -300,11 +300,12 @@ var requiredSanitizerCoverage = []string{
 	// inline and owns no block, so it could not tell a correct reclamation from
 	// no reclamation at all.
 	"TestRuntimeV2CancelledOwnedResultValgrindZero",
-	// Valgrind over what a task cancelled before its first poll gives back.
-	// The row reads the HEAP SUMMARY at two round counts rather than the leak
-	// summary, because the block it is about stays reachable from the
-	// executor's scope table and a strict-zero leak assertion is green against
-	// it. It is RED: one 64-byte scope block per cancelled task.
+	// Valgrind over the scope a task gives back when it is cancelled at its
+	// first suspension point. The row reads the HEAP SUMMARY at two round
+	// counts rather than the leak summary, because the block it is about stays
+	// reachable from the executor's scope table and a strict-zero leak
+	// assertion is green against it -- it was 64 bytes per cancelled task and
+	// `definitely lost: 0 bytes in 0 blocks` at the same time.
 	"TestRuntimeV2CancelledTaskReclaimsItsScope",
 	// Valgrind, ASan/UBSan and TSan over a channel's own lifetime: the object
 	// behind a handle is reclaimed by the last release and not before

@@ -79,8 +79,14 @@ func buildRuntimeV2CrossingProject(
 	if result.TmpDir != "" {
 		artifacts.TmpDir = result.TmpDir
 	}
+	// SURGE_SKIP_TIMEOUT_TESTS=0 is part of the command, not decoration: every
+	// row built through here calls skipTimeoutTests first, so the same line
+	// without it selects the test and then SKIPS it. A repro printed by a
+	// failure that answers `ok ... [no tests to run]` sends its reader away
+	// believing the tree is green. The backend needs no spelling -- the build
+	// above names BackendLLVM itself.
 	artifacts.Repro = fmt.Sprintf(
-		"cd %s && go test ./internal/vm -run '^%s$' -count=1",
+		"cd %s && SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^%s$' -count=1",
 		root,
 		t.Name(),
 	)

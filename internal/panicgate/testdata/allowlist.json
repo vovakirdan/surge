@@ -950,16 +950,6 @@
       "group": "PG-INVARIANT"
     },
     {
-      "site": "runtime/native/rt_async_poll.c::run_ready_one#2",
-      "message": "async: unknown poll outcome",
-      "group": "PG-INVARIANT"
-    },
-    {
-      "site": "runtime/native/rt_async_poll.c::run_ready_one#3",
-      "message": "async: unknown poll outcome",
-      "group": "PG-INVARIANT"
-    },
-    {
       "site": "runtime/native/rt_async_poll.c::run_until_done#1",
       "message": "invalid task handle",
       "group": "PG-INVARIANT"

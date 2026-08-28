@@ -1,11 +1,3 @@
-//go:build runtime_v2_pending
-
-// The tag is here for exactly one reason: this row is RED, and a red row in
-// the untagged set makes `make check` -- and therefore the pre-commit hook --
-// refuse every commit in the tree until the defect is fixed. The tag is how
-// this repository keeps a known-red gate committable, and it comes off in the
-// same commit that makes the row pass.
-
 package vm_test
 
 import (
@@ -17,21 +9,28 @@ import (
 	"time"
 )
 
-// A task cancelled before the executor ever polls it must give back everything
-// its own first poll allocated. It does not: the scope block that poll opened
-// is never freed, once per cancelled task, forever.
+// A task cancelled at its first suspension point must give back everything its
+// own poll allocated. It did not: the scope block that poll opened was never
+// freed, once per cancelled task, forever.
 //
 // THE SHAPE. Every async body opens a scope at the top of its own poll --
 // rt_scope_enter runs in the start variant of the generated state machine
 // (internal/mir/async_codegen.go), whether or not the body ever spawns
 // anything -- and rt_scope_enter allocates one rt_scope
 // (runtime/native/rt_async_scope.c). The block is handed back by
-// scope_exit_locked, and the only completion path that calls it for a
-// cancelled task is apply_poll_outcome's cancelled arm
-// (runtime/native/rt_task_complete.c). The single-worker control runner has
-// its own copy of that switch (run_ready_one, runtime/native/rt_async_poll.c)
-// and its cancelled arm goes straight to mark_done with no scope teardown at
-// all, so the scope the poll opened outlives the task that owned it.
+// scope_exit_locked, which the cancelled arm of apply_poll_outcome calls
+// (runtime/native/rt_task_complete.c). The single-worker control runner used
+// to carry its own copy of that switch (run_ready_one, runtime/native/
+// rt_async_poll.c), and the copy had drifted: its cancelled arm went straight
+// to mark_done with no scope teardown at all, so the scope the poll opened
+// outlived the task that owned it. The copy is gone -- that runner now applies
+// its outcome through the same apply_poll_outcome as every other poll site --
+// and this row is what notices if a second copy is ever written.
+//
+// The task IS polled here, whatever "cancelled before it ran" would suggest:
+// the cancel is requested before the await, and the body takes it at its first
+// suspension point, after rt_scope_enter has already allocated. That is what
+// the valgrind stack below shows.
 //
 // WHY VALGRIND'S LEAK SUMMARY IS SILENT ABOUT IT, and why this row does not
 // read that summary. Scope ids are monotonic and the executor's segmented
@@ -43,21 +42,37 @@ import (
 // reclaimed scope makes that count flat, and an abandoned one makes it grow
 // one block per round.
 //
-// MEASURED on this tree, SURGE_SHARDS=1 SURGE_THREADS=1, `in use at exit`:
+// MEASURED, SURGE_SHARDS=1 SURGE_THREADS=1, `in use at exit`, before the fix
+// and after it:
 //
-//	cancelled     10 rounds ->  24 blocks     200 rounds -> 214 blocks   (+190)
-//	not cancelled 10 rounds ->  13 blocks     200 rounds ->  13 blocks   (+0)
+//	                          10 rounds     200 rounds
+//	cancelled, unfixed        24 blocks     214 blocks   (+190)
+//	cancelled, fixed          14 blocks      14 blocks   (+0)
+//	not cancelled, either     13 blocks      13 blocks   (+0)
 //
 // 190 blocks over 190 extra rounds: exactly one per cancelled task, 12,160
-// bytes, 64 bytes each -- sizeof(rt_scope). Valgrind names the site directly:
+// bytes, 64 bytes each -- sizeof(rt_scope). Valgrind named the site directly:
 // "12,800 bytes in 200 blocks are still reachable ... by rt_scope_enter
 // (rt_async_scope.c:114) ... by run_ready_one (rt_async_poll.c)".
 //
-// AT FOUR WORKERS THE SAME PROGRAM IS FLAT (26 blocks at both round counts),
-// because the worker turn applies its outcome through apply_poll_outcome,
-// which does exit the scope. That is the whole difference between the two
-// arms, and it is why this row pins one worker rather than sweeping widths:
-// the wide configuration cannot see the defect.
+// WHY ONE WORKER, and what the wide configuration does instead. The arm this
+// row is about only runs when no worker thread takes the turn: with more than
+// one worker rt_task_await waits on done_cv and never enters this runner at
+// all (rt_worker_count(), runtime/native/rt_async_task.c), so a width sweep
+// cannot reach the code under test. The wide configuration is also NOT a flat
+// control to compare against -- it has a second, unrelated intermittent
+// retention on this very program, 200 blocks of 368 bytes allocated by
+// spawn_internal_task_locked for the checkpoint task. Measured at
+// SURGE_SHARDS=4 SURGE_THREADS=4 over 200 cancelled rounds, 25 interleaved
+// samples of each build: 15/25 runs at 26 blocks and 10/25 between 63 and 226
+// with the scope fix, 13/25 at 26 blocks and 12/25 between 180 and 228
+// without it -- the same distribution on both sides, because this fix cannot
+// execute there. That retention is a separate open question and is NOT what
+// this row measures. One block of it is visible even here: the fixed cancelled
+// figure sits one block and 368 bytes above the uncancelled twin (68,248 vs
+// 67,880) at BOTH round counts. Constant, not per-round, so this row's two-count
+// difference is blind to it by construction -- which is exactly why the row
+// subtracts two counts instead of asserting an absolute total.
 //
 // The uncancelled twin is not decoration. Without it this row could pass on a
 // tree that never ran the loop at all, or that failed to cancel anything: a
@@ -161,9 +176,9 @@ func runtimeV2CancelledScopeCensus(t *testing.T, rounds int, cancel bool) (bytes
 	return parseValgrindInUseAtExit(t, stderr)
 }
 
-// TestRuntimeV2CancelledTaskReclaimsItsScope is RED. It reports 190 blocks of
-// growth over 190 extra cancelled rounds; a tree that reclaims the scope
-// reports 0.
+// TestRuntimeV2CancelledTaskReclaimsItsScope reports 0 blocks and 0 bytes of
+// growth over 190 extra cancelled rounds. Restore the control runner's own
+// copy of the outcome switch and it reports 190 blocks / 12,160 bytes.
 func TestRuntimeV2CancelledTaskReclaimsItsScope(t *testing.T) {
 	const (
 		fewRounds  = 10
@@ -177,11 +192,11 @@ func TestRuntimeV2CancelledTaskReclaimsItsScope(t *testing.T) {
 	keptManyBytes, keptManyBlocks := runtimeV2CancelledScopeCensus(t, manyRounds, false)
 	t.Logf("uncancelled: rounds=%d in_use_at_exit=%dB/%dblk; rounds=%d in_use_at_exit=%dB/%dblk",
 		fewRounds, keptFewBytes, keptFewBlocks, manyRounds, keptManyBytes, keptManyBlocks)
-	if keptManyBlocks != keptFewBlocks {
+	if keptManyBlocks != keptFewBlocks || keptManyBytes != keptFewBytes {
 		t.Fatalf(
-			"an UNCANCELLED round already retains memory: %d blocks at %d rounds vs %d blocks at %d rounds (%+d over %d extra rounds); the cancelled measurement below cannot be attributed to cancellation until this is flat",
-			keptManyBlocks, manyRounds, keptFewBlocks, fewRounds,
-			keptManyBlocks-keptFewBlocks, manyRounds-fewRounds,
+			"an UNCANCELLED round already retains memory: %d blocks / %d bytes at %d rounds vs %d blocks / %d bytes at %d rounds (%+d blocks, %+d bytes over %d extra rounds); the cancelled measurement below cannot be attributed to cancellation until this is flat",
+			keptManyBlocks, keptManyBytes, manyRounds, keptFewBlocks, keptFewBytes, fewRounds,
+			keptManyBlocks-keptFewBlocks, keptManyBytes-keptFewBytes, manyRounds-fewRounds,
 		)
 	}
 
@@ -193,9 +208,13 @@ func TestRuntimeV2CancelledTaskReclaimsItsScope(t *testing.T) {
 	extraRounds := manyRounds - fewRounds
 	grownBlocks := cancelledManyBlocks - cancelledFewBlocks
 	grownBytes := cancelledManyBytes - cancelledFewBytes
-	if grownBlocks != 0 {
+	// Both figures are asserted, not only the count this defect moves: a
+	// per-round retention of blocks that happen to be recycled would show up in
+	// the byte total alone, and a message that prints a number it does not
+	// check is an invitation to read it as checked.
+	if grownBlocks != 0 || grownBytes != 0 {
 		t.Fatalf(
-			"a task cancelled before its first poll never gives back the scope that poll opened: %d blocks / %d bytes still live at exit over %d extra cancelled rounds (%.2f blocks and %.1f bytes per cancelled task), while the same program with nothing cancelled is flat at %d blocks. The block is rt_scope: rt_scope_enter allocates it, and the single-worker control runner's cancelled arm completes the task without the scope teardown its multi-worker twin performs",
+			"a task cancelled at its first suspension point does not give back the scope its poll opened: %d blocks / %d bytes still live at exit over %d extra cancelled rounds (%.2f blocks and %.1f bytes per cancelled task), while the same program with nothing cancelled is flat at %d blocks. The block is rt_scope: rt_scope_enter allocates it, and a completion path that reaches mark_done without scope_exit_locked abandons it -- which is what the single-worker control runner did while it applied poll outcomes through a copy of apply_poll_outcome's switch instead of through apply_poll_outcome",
 			grownBlocks, grownBytes, extraRounds,
 			float64(grownBlocks)/float64(extraRounds), float64(grownBytes)/float64(extraRounds),
 			keptFewBlocks,

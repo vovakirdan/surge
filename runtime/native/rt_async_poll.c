@@ -181,31 +181,23 @@ int run_ready_one(rt_executor* ex) {
     (void)task_wake_token_exchange(task, 0);
     rt_set_current_task(task);
 
+    // Both arms below end their turn through apply_poll_outcome, the same
+    // applier the shard-lane worker turn and the inline child poll use
+    // (rt_worker_turn.c, rt_async_task.c). This runner used to carry its own
+    // copy of that switch, and the copy drifted: its cancelled arm went
+    // straight to mark_done, while the shared applier exits the task's scope
+    // first. Every async body opens a scope at the top of its own poll, so a
+    // cancelled task completed by the copy abandoned one rt_scope block -- 64
+    // bytes per cancelled task, visible only when no worker thread takes the
+    // turn. One applier is the only thing that keeps the two answers equal.
+    //
+    // apply_poll_outcome is lane-aware and takes the control lock only when
+    // its caller does not already hold it; both call sites below hold it.
     if (task->kind != TASK_KIND_USER) {
         task_polling_enter(task, POLL_SITE_CONTROL_RUNNER_SYSTEM);
         poll_outcome outcome = poll_task(ex, task);
         task_polling_exit(task);
-        switch (outcome.kind) {
-            case POLL_DONE_SUCCESS:
-                mark_done(ex, task, TASK_RESULT_SUCCESS);
-                break;
-            case POLL_DONE_CANCELLED:
-                mark_done(ex, task, TASK_RESULT_CANCELLED);
-                break;
-            case POLL_YIELDED:
-                task->state = outcome.state;
-                task_status_store(task, TASK_READY);
-                ready_push(ex, task->id);
-                tick_virtual(ex);
-                break;
-            case POLL_PARKED:
-                task->state = outcome.state;
-                park_current(ex, outcome.park_key);
-                break;
-            default:
-                panic_msg("async: unknown poll outcome");
-                break;
-        }
+        apply_poll_outcome(ex, task, outcome);
         rt_set_current_task(NULL);
         rt_control_unlock(ex);
         return 1;
@@ -222,27 +214,7 @@ int run_ready_one(rt_executor* ex) {
     // token even though the target still reads as TASK_RUNNING.
     RT_SYNC_POINT_IF(outcome.kind == POLL_PARKED, SP_PARK_BEFORE_WAITING);
     rt_control_lock(ex);
-    switch (outcome.kind) {
-        case POLL_DONE_SUCCESS:
-            mark_done(ex, task, TASK_RESULT_SUCCESS);
-            break;
-        case POLL_DONE_CANCELLED:
-            mark_done(ex, task, TASK_RESULT_CANCELLED);
-            break;
-        case POLL_YIELDED:
-            task->state = outcome.state;
-            task_status_store(task, TASK_READY);
-            ready_push(ex, task->id);
-            tick_virtual(ex);
-            break;
-        case POLL_PARKED:
-            task->state = outcome.state;
-            park_current(ex, outcome.park_key);
-            break;
-        default:
-            panic_msg("async: unknown poll outcome");
-            break;
-    }
+    apply_poll_outcome(ex, task, outcome);
     rt_set_current_task(NULL);
     rt_control_unlock(ex);
     return 1;
