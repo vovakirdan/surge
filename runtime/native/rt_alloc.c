@@ -33,10 +33,6 @@ static void record_free(uint64_t size) {
     rt_heap_accounting_record_free(rt_heap_accounting_current_cell(), size);
 }
 
-static void record_realloc(uint64_t old_size, uint64_t new_size) {
-    rt_heap_accounting_record_realloc(rt_heap_accounting_current_cell(), old_size, new_size);
-}
-
 void* rt_alloc(uint64_t size, uint64_t align) {
     size = alloc_size(size);
     void* ptr = NULL;
@@ -63,27 +59,43 @@ void rt_free(uint8_t* ptr, uint64_t size, uint64_t align) {
     free(ptr);
 }
 
+// A reallocation RELEASES the old block, and this runtime has exactly one
+// release: rt_free. That is where a block stops being reachable through the
+// registries that recorded its address -- the array view registry is the one
+// that exists today, and rt_free is the only thing that tells it to forget.
+//
+// Growing a block in place is still a release of the old block, and it is safe
+// only for the lane that OWNS the block. No owning lane is recorded in page or
+// span metadata yet, so no caller can claim to be one, and no reallocation may
+// grow in place. libc realloc grows in place when it can and releases the old
+// block itself, telling no registry: a block grown through it kept its
+// registrations while its address went back to the allocator. So there is no
+// alignment-conditional fast path here. Every reallocation allocates, copies,
+// and releases through rt_free.
+//
+// The consequence for callers: the returned pointer is always a new address, so
+// a pointer held INTO the old block does not survive this call. That was
+// already true of every over-aligned reallocation; it is now true of all of
+// them, rather than true only when the allocator happened to move the block.
+//
+// The counters are unchanged by the merge: rt_alloc + rt_free record exactly
+// what the single realloc record did, one allocation and one release against
+// the issuing lane's cell.
 void* rt_realloc(uint8_t* ptr, uint64_t old_size, uint64_t new_size, uint64_t align) {
     if (new_size == 0) {
         rt_free(ptr, old_size, align);
         return NULL;
     }
-    if (align <= sizeof(void*)) {
-        void* next = realloc(ptr, (size_t)alloc_size(new_size));
-        if (next != NULL) {
-            if (ptr == NULL) {
-                record_alloc(new_size);
-            } else {
-                record_realloc(old_size, new_size);
-            }
-        }
-        return next;
-    }
     void* next = rt_alloc(new_size, align);
     if (next == NULL) {
+        // Nothing was released: a failed reallocation leaves the caller owning
+        // the block it came in with.
         return NULL;
     }
-    if (ptr != NULL && old_size > 0) {
+    if (ptr != NULL) {
+        // An empty copy is still a release. A live pointer whose old size is
+        // zero has a block behind it, and skipping the release here is how it
+        // used to leak on the over-aligned path.
         rt_memcpy((uint8_t*)next, ptr, min_u64(old_size, new_size));
         rt_free(ptr, old_size, align);
     }

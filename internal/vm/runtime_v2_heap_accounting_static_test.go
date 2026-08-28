@@ -260,16 +260,31 @@ func runtimeV2HeapAccountingHasDirectOldGlobalWrites(source string) bool {
 	return false
 }
 
+// record_alloc and record_free are the two helpers rt_alloc.c must have: rt_alloc
+// and rt_free are public ABI and each one records. record_realloc is optional
+// because a reallocation need not record for itself — one that allocates and
+// releases through rt_alloc and rt_free is already recorded twice, and adding a
+// third record would double-count. Present or absent, what is checked is the
+// same: a helper that exists reaches the accounting API rather than a counter of
+// its own. The twin check below skips an absent helper the same way.
 func runtimeV2HeapAccountingRecordHelpersUseAccountingAPI(source string) bool {
 	code := runtimeV2HeapAccountingCodeOnly(source)
-	checks := map[string]string{
-		"record_alloc":   "rt_heap_accounting_record_alloc",
-		"record_free":    "rt_heap_accounting_record_free",
+	required := map[string]string{
+		"record_alloc": "rt_heap_accounting_record_alloc",
+		"record_free":  "rt_heap_accounting_record_free",
+	}
+	optional := map[string]string{
 		"record_realloc": "rt_heap_accounting_record_realloc",
 	}
-	for helper, api := range checks {
+	for helper, api := range required {
 		body, ok := runtimeV2HeapAccountingFunctionBody(code, helper)
 		if !ok || !strings.Contains(body, api) {
+			return false
+		}
+	}
+	for helper, api := range optional {
+		body, ok := runtimeV2HeapAccountingFunctionBody(code, helper)
+		if ok && !strings.Contains(body, api) {
 			return false
 		}
 	}
