@@ -27,10 +27,18 @@ must not weaken the global rules.
 
 ## Where we are and what is next
 
-`PLAN.md` is the live plan: the measured state of every epic, the three numbers
-that close Epic 23b's remaining waves, the ordered work with sizes, and the list
-of what is deliberately NOT picked up. Read it before starting anything. This
-section and the roadmap table below are the HISTORY.
+Two documents answer this, and they answer different questions.
+
+`PLAN.md` is the technical plan: the measured state of every epic, the numbers
+that close Epic 23b's remaining waves, the ordered work with sizes, and what is
+deliberately NOT picked up. It carries no session history.
+
+The **BOARD** at the top of `NOTES.md` is the near-term dispatch: what is in
+flight right now, what is taken next and in what order, and which files are
+claimed by which lane. Read the board before starting anything; read the plan to
+know why.
+
+This section and the roadmap table below are the HISTORY.
 
 ## Current Status
 

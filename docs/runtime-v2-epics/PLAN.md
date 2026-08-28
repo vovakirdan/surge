@@ -1,12 +1,16 @@
-# Runtime V2 — where we are, what is next, and what we refuse to pick up
+# Runtime V2 — state, exit conditions, and remaining order
 
-Written 2026-08-28. This document exists because the migration kept finding work
-instead of finishing it. Every number here was measured on the date given, with
-the command given. Nothing is carried forward on its wording.
+The migration's technical plan. It states what is left, what closes each
+remaining wave as a number, and in what order the work is taken. It carries no
+session history and no near-term dispatch: **what is in flight right now lives
+in `NOTES.md`**, and the current wave's task list lives in
+`23b-wave-d-execution-plan.md` §7.
 
-Its companions: `README.md` holds the epic history, `DEBT.md` the ledger,
-`23b-wave-d-execution-plan.md` the current wave's dispatch list. This file is
-the only place that says WHAT IS NEXT and WHEN.
+Every figure is measured, with the command and the commit beside it. A figure
+without one does not belong in this file.
+
+Companions: `README.md` (epic history), `DEBT.md` (ledger), `RULES.md` (the
+development rules every lane obeys).
 
 ---
 
@@ -155,13 +159,8 @@ allowance and it is eight weeks.
 
 ## 5. What we do NOT pick up
 
-This is the section that keeps the estimate honest, and it is a rule, not a
-preference.
-
 **A defect found during a wave goes into `DEBT.md` and is NOT worked** unless it
-blocks that wave's exit condition — the numbers in §3. The owner set this rule
-on 2026-08-27 and it is what stops sub-waves from breeding: "решаем баги тогда,
-когда они БЛОКИРУЮТ разработку… пусть их хоть тысяча будет".
+blocks that wave's exit condition — the numbers in §3 (owner rule, 2026-08-27).
 
 Specifically parked, so no lane picks them up:
 
@@ -182,23 +181,6 @@ Specifically parked, so no lane picks them up:
 - **RV2-DEBT-180** — the runtime's virtual clock. Blocker-class, but it belongs
   to the multi-carrier work, not to 23b.
 
-### Two verification rules the last week paid for
-
-**Verify a ledger row before acting on it.** Two rows describing a blocked
-migration described nothing: RV2-DEBT-299 said the standard library does not
-compile (all 32 modules are clean under `surge diag`; the row quoted `build`,
-which refuses every library file for want of an `@entrypoint`), and
-RV2-DEBT-300 said the aggregate stops at its third gate (it walks its whole
-roster in a loop with a per-gate verdict). Both were opened in good faith days
-earlier. An hour went into establishing that.
-
-**A pinned number that FALLS is a signal, not a regression.** Three exact pins
-moved this week when a protocol changed, all downward, and all three were the
-pin working as designed. Re-pin with the reason written beside it; do not
-"fix" the code back.
-
----
-
 ## 6. What the owner ruled, 2026-08-28
 
 Four questions blocked work. All four are answered, and each is recorded where
@@ -211,29 +193,5 @@ the paragraph it interprets lives, not only here.
 | Do the legacy `cloneValueComposite` rows retire with RV2-DEBT-246? | **Rename.** Re-counted: all EIGHT live findings are that one symbol, three of them in comments, and `AllocStruct`/`AllocTag` no longer exist. The duplication is already correct — what is counted is a NAME from the boxed-composite era. Precedent: `Payload` → `TaskState`. | `DEBT.md` RV2-DEBT-246 |
 | Is `QUEUE_FULL` visible once saturation parks? | **No — the sender PARKS on its own shard.** The status stays internal so the parking code can be told there is no room; no crossing answers a program with it and no language surface gains a failure arm. Two obligations travel with it: an admission stall is a MEASURED NUMBER, and a park that cannot be released stays reachable by cancellation. | `RUNTIME_V2.md`, transport open questions |
 
-### The standing principle behind all four
-
-> Мы выбираем не самые дешевые пути, а самые правильные и осознанные, не создаем костылей.
-
-Two of the four could have been answered cheaply and were not. The clone ruling
-looks like "change nothing" until you notice it obliges an allocation test in
-every generated duplication body — the cheap reading would have left a
-segmentation fault standing and called it a decision. The rename ruling is only
-legitimate BECAUSE the row had already established the representation is right;
-it is not a way of making a census read zero.
-
-### Still open, and not blocking
-
 Nothing in §4's schedule waits on an owner answer. The questions that remain are
-in `DEBT.md` and are attached to work that is deliberately not scheduled.
-
-## 7. Standing goals
-
-1. **One wave at a time, closed by a number.** A wave that is "code complete"
-   and unmeasured is not closed — D2 has been in that state for weeks.
-2. **Every lane reports what it did NOT do.** The lanes that produce the least
-   integration damage are the ones that say where they stopped.
-3. **Push after each integration.** The branch has been 67 commits ahead once.
-4. **The full suite before pushing a lane that changes a protocol.** One push
-   this week cost five regressions in exact pins, and four of them only showed
-   under their gate.
+in `DEBT.md`, attached to work that is deliberately not scheduled.

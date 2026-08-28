@@ -369,3 +369,43 @@ detonated a double free elsewhere because a leak had been masking a second
 owner. Adding or moving a release is a reason to go looking for that second
 owner — with an adversarial review, a differential valgrind run, and the
 question "what else owned this" — and the regression test cannot ask it for you.
+
+## Global Rule 14: Verify A Ledger Row Before Acting On It
+
+A row in `DEBT.md` records what was true when it was written. It is evidence
+that someone measured something once, not a standing fact, and two of them
+described a blocked migration that had stopped existing days later — one said
+the standard library did not compile when every module was clean, because the
+row quoted a command that refuses any library file for want of an `@entrypoint`;
+the other said the aggregate gate stopped at its third sub-gate after the
+aggregate had been rewritten to walk its whole roster with a per-gate verdict.
+
+Before a lane starts on a row, it re-runs the row's own evidence. If the premise
+is gone, the lane's deliverable is the corrected row, not the work the row
+described. Correcting it is cheap; discovering mid-lane that the work was
+unnecessary is not.
+
+## Global Rule 15: A Pinned Number That Falls Is A Signal, Not A Regression
+
+Exact pins exist so that a reduction collapses loudly instead of passing
+quietly, and the comment beside such a pin usually says so. When a pinned
+census, budget or allocation count moves DOWN after a protocol change, the first
+question is which change removed the cost — not how to restore it. Re-pin at the
+new value with the reason written beside the old one, so the next reader sees
+the sequence rather than a bare number.
+
+The same applies to a stand that fails after a protocol change: a stand which
+constructs an object by hand, bypassing the path the protocol now runs, is
+asserting the replaced rule. Fix the stand, not the protocol.
+
+## Global Rule 16: Run The Full Suite Before Pushing A Protocol Change
+
+A lane that changes a runtime protocol — what a word means, who may write it,
+when a claim is sealed — must run the complete suite before its push, not the
+gates it believes it touched. A protocol change moves every stand that encodes
+the old rule, and those stands are spread across gates the lane never opened:
+one such push cost five separate repairs, four of which appeared only under
+their own gate and not in an ordinary `go test ./...`.
+
+Push after each integration, so the branch never carries a long unpushed tail
+whose failures cannot be attributed to one lane.
