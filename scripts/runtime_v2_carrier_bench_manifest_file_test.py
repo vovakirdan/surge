@@ -45,6 +45,21 @@ class CanonicalManifestTests(unittest.TestCase):
             {"jumbo-credit-cancel", "jumbo-global-shutdown"},
         )
 
+        # A SECOND, DELIBERATE COPY of every nonzero structural allocation
+        # budget in the manifest. It is duplicated on purpose: the manifest is
+        # data the benchmark reads, so a budget edited there alone would move
+        # the contract silently. Changing a budget means editing this literal
+        # too, which is what puts a human in front of the change.
+        #
+        # Because it is a copy, it can go stale on its own, and it has: these
+        # numbers must be re-stated here whenever the manifest is re-captured.
+        #
+        # Two rows are knowingly wrong and are NOT to be "corrected" to a
+        # measured value: channel-unbuffered-scalar and its composite twin
+        # report a different count between identical runs, by one and with the
+        # sign flipping. They keep the pre-re-capture budget so they stay
+        # visibly red until that second contributor is found; a modal number
+        # here would make the gate pass about half the time.
         nonzero_allocations = {
             row.row_id: row.candidate_structural_allocations_per_batch
             for row in self.manifest.rows
@@ -55,34 +70,34 @@ class CanonicalManifestTests(unittest.TestCase):
             {
                 "array-grow-composite": 7,
                 "array-grow-scalar": 7,
-                "blocking-composite": 278,
-                "blocking-scalar": 278,
-                "channel-buffered-composite": 15,
-                "channel-buffered-scalar": 15,
+                "blocking-composite": 277,
+                "blocking-scalar": 213,
+                "channel-buffered-composite": 78,
+                "channel-buffered-scalar": 14,
                 "channel-unbuffered-composite": 130,
                 "channel-unbuffered-scalar": 130,
-                "far-channel-composite": 544,
-                "far-channel-scalar": 544,
-                "far-immediate-composite": 281,
-                "far-immediate-scalar": 281,
-                "far-jumbo-contention": 1042,
-                "far-large-capture": 1049,
-                "far-large-result": 537,
-                "far-select-composite": 615,
-                "far-select-scalar": 615,
-                "far-share-control": 351,
-                "far-task-composite": 537,
-                "far-task-scalar": 537,
+                "far-channel-composite": 474,
+                "far-channel-scalar": 410,
+                "far-immediate-composite": 277,
+                "far-immediate-scalar": 149,
+                "far-jumbo-contention": 657,
+                "far-large-capture": 661,
+                "far-large-result": 405,
+                "far-select-composite": 479,
+                "far-select-scalar": 415,
+                "far-share-control": 217,
+                "far-task-composite": 405,
+                "far-task-scalar": 277,
                 "map-insert-composite": 4,
                 "map-insert-scalar": 4,
                 "map-rehash-composite": 4,
                 "map-rehash-scalar": 4,
-                "select-send-composite": 7,
-                "select-send-scalar": 7,
-                "task-clone-composite": 278,
-                "task-clone-scalar": 278,
-                "task-composite": 278,
-                "task-scalar": 278,
+                "select-send-composite": 134,
+                "select-send-scalar": 6,
+                "task-clone-composite": 405,
+                "task-clone-scalar": 213,
+                "task-composite": 277,
+                "task-scalar": 213,
             },
         )
         self.assertFalse(

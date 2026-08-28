@@ -142,7 +142,7 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_file_test.py",
-      "sha256": "1d24f1f451289902ad3de79c43418afda71e2a0a1320287fe9977f461afad6a1"
+      "sha256": "74a7b882305680a902c50a1cc04bdccad3e1bc82df0aff87db1af747d6142c97"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_validation.py",
@@ -196,11 +196,11 @@
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/blocking-composite/main.sg",
-      "sha256": "9e6e45d9f2e37284dfa33db9b234ae9be4175546f89076c1ea6545b6f9aabdd6"
+      "sha256": "33696f69a1292c175315ad22790baf827a3506066675ebce71655d366f74797f"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/blocking-scalar/main.sg",
-      "sha256": "7351dec1f8d1cc54600417f451dd8b0286b476c554da0dc552a2abd9356f5739"
+      "sha256": "f785c6b3fe81a8bad9380d0c5ff879c946956304ed9f38205f077f2be8274abf"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/channel-buffered-composite/main.sg",
