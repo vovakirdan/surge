@@ -119,7 +119,11 @@ func (l *funcLowerer) blockingStateLiteral(stateType types.TypeID, captures []bl
 	// word was never written is the case this field exists to rule out.
 	//
 	// PACKED is true for the window this literal opens, and only for it. The
-	// captures below are moved in, and a job the runtime cancels before it ever
+	// captures below arrive by the route their ownership asks for: a
+	// transferring capture is MOVED in, while a reference-counted one is
+	// RETAINED into the frame and leaves its holder standing. Both leave the
+	// frame owing something, which is what PACKED says. A job the runtime
+	// cancels before it ever
 	// starts the body is reclaimed by destroying them through the frame's
 	// descriptor — a walk, which is what PACKED asks for. The window closes at
 	// the body's first instructions, where the captures come back out and

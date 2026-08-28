@@ -164,22 +164,33 @@ func TestSpawnOnPollMarksTheFrameSpentAtEntry(t *testing.T) {
 // holder, and a frame claiming to hold nothing while that local is still alive
 // would strand exactly that copy.
 //
-// This fixture has none, and no fixture can. Its two captures are an `own`
-// shard-movable, which is not a Copy capture and owns no heap either (`Movable`
-// is a struct of one `int`), and an `int`, which owns no heap — so the returning
-// block holds the word and nothing else, and "last" is true here for a reason
-// that is not the one above. Nor is a better fixture available: the only Copy
-// types that own heap are the reference-counted ones, and a crossing refuses
-// both — `@copy` alone is not sufficient for shard movement (SEM3170), and a
-// `@shard_movable` struct may not carry a `Channel<T>` field (SEM3171). The crossing's own drop
-// leg is therefore unreachable today; the reachable version of this shape is a
-// `blocking` capture, pinned in internal/crossinggate, which needs the real
-// standard library to have a reference-counted handle at all.
+// THIS FIXTURE has none. Its two captures are an `own` shard-movable, which is
+// not a Copy capture and owns no heap either (`Movable` is a struct of one
+// `int`), and an `int`, which owns no heap — so the returning block holds the
+// word and nothing else, and "last" is true here for a reason that is not the
+// one above.
 //
-// So the count below is pinned at zero WITH that reason, in place of an ordering
-// argument this fixture cannot make. The day a Copy capture that owns heap can
-// cross, the count moves, this row goes red, and the ordering claim gets derived
-// against a body that can actually witness it instead of being assumed.
+// THE SHAPE ITSELF IS REACHABLE, and an earlier draft of this comment said it
+// was not. It is reached by capturing a reference-counted handle directly
+// rather than through a shard-movable struct:
+//
+//	async fn work(ch: Channel<int>) -> int {
+//	    let t: far Task<int> = spawn on distributed { ch.close(); ret 7; };
+//	    ...
+//	}
+//
+// compiles with no diagnostics, and its poll emits `L1 = field copy
+// L0.__cap0` followed at the return by `drop L1` — the Copy-capture-owning-heap
+// leg. The two refusals that were cited as making it impossible fire only on
+// the OWNED spellings, so neither reaches this one. The crossing is therefore
+// the WORKING model of this rule, not a dead leg, and what the sema change in
+// this commit does is make `blocking` match it.
+//
+// The count below stays pinned at zero because it is true of THIS fixture, not
+// because the shape cannot exist. A fixture that captures a handle directly
+// would witness the ordering claim, and building one here needs the real
+// standard library — which is why the reachable version is pinned in
+// internal/crossinggate instead.
 const spawnOnOwnedCaptureDropsAtReturns = 0
 
 func TestSpawnOnPollMarksTheFrameSpentAtEveryReturn(t *testing.T) {
