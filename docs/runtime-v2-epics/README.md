@@ -25,6 +25,13 @@ epic before the earlier runtime facts are known.
 Global working rules live in `RULES.md`. An epic may add local rules, but it
 must not weaken the global rules.
 
+## Where we are and what is next
+
+`PLAN.md` is the live plan: the measured state of every epic, the three numbers
+that close Epic 23b's remaining waves, the ordered work with sizes, and the list
+of what is deliberately NOT picked up. Read it before starting anything. This
+section and the roadmap table below are the HISTORY.
+
 ## Current Status
 
 Epic 1 is complete. Epic 2 is complete for its `N=1`

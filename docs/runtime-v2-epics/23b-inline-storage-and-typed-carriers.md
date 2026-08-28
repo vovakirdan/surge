@@ -204,6 +204,18 @@ protocol-passed endpoint-RED report.
 This wave is an integration dependency for all erased runtime owners. It must
 land before parallel owner migrations branch from it.
 
+**Status correction of the status correction, measured 2026-08-28.** The
+paragraph below was true when it was written and is not true now. The backend
+generates descriptors for real types: `internal/backend/llvm/emit_value_ops.go`
+emits a `move_init.type<N>` body that performs the storage copy at the type's
+measured size and alignment (`:166-174`), the `plan_cross` slot is emitted
+beside it, and `emit_task_result.go:28-45` refuses a module outright when a type
+has no descriptor rather than falling back to an opaque word. So
+`rt_slot_operations_preflight`'s unconditional requirement is met and owner
+migrations are NOT standing on an entry condition that was never met. Wave B is
+closed in substance. The original correction is kept below because it is why the
+work was done.
+
 **Status correction, owner ruling 2026-08-20.** Items 3 and 5 say GENERATE, and
 nothing generates. `internal/backend/llvm/` mentions `rt_value_ops` exactly once
 - as the shape of the record, in `typed_carrier_v2.generated.go` - and emits no
