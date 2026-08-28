@@ -198,6 +198,24 @@ typedef enum rt_sync_point_id {
     // answers Success. Never a task answering Success while its canceller
     // believes it landed (RV2-DEBT-263).
     RT_SYNC_POINT_SP_MARKDONE_AFTER_SEAL_BEFORE_DONE,
+    // blocking worker (rt_async_blocking.c): reached after a job has been
+    // popped and claimed in the running count, before its status is read. A
+    // cancel landing here is "cancel before claim": the worker
+    // must observe CANCELLED and release a state it never claimed -- walked
+    // through its descriptor, then freed.
+    RT_SYNC_POINT_SP_BLOCKING_POP_BEFORE_STATUS,
+    // blocking worker: reached after the state cell has been marked spent and
+    // before the body runs. A cancel landing here is "cancel after claim":
+    // its CAS wins while the body runs and consumes the captures, so the
+    // release that follows must free only the block. The
+    // RV2_DEBT_080_WALK_ALWAYS_NEGATIVE_CONTROL build removes the claim and
+    // MUST be seen destroying the captures a second time.
+    RT_SYNC_POINT_SP_BLOCKING_STATE_BEFORE_BODY,
+    // blocking worker: reached with a job popped AFTER the pool's shutdown was
+    // published, before that job is cancelled and released instead of run.
+    // Holding a worker here is what proves a queued body is drained by
+    // cancellation at shutdown and never executed.
+    RT_SYNC_POINT_SP_BLOCKING_SHUTDOWN_BEFORE_DRAIN,
     RT_SYNC_POINT_COUNT
 } rt_sync_point_id;
 

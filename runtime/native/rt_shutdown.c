@@ -62,6 +62,10 @@ rt_runtime_status rt_executor_request_shutdown(rt_executor* ex) {
     rt_control_unlock(ex);
 
     if (ex->blocking_started) {
+        // Published under the pool's own lock, and the pool reads it under the
+        // same lock at every pop: a job still queued now is CANCELLED by the
+        // worker that pops it, never run (rt_async_blocking.c), and the workers
+        // leave once the queue is empty.
         pthread_mutex_lock(&ex->blocking_lock);
         ex->blocking_shutdown = 1;
         pthread_cond_broadcast(&ex->blocking_cv);

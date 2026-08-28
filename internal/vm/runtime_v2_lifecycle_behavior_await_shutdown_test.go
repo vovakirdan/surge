@@ -485,6 +485,21 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "debt263-cancel-after-seal") == 0) {
         return mode_debt263_cancel_after_seal(ex);
     }
+    if (strcmp(argv[1], "debt080-cancel-before-claim") == 0) {
+        return mode_debt080_cancel_before_claim(ex);
+    }
+    if (strcmp(argv[1], "debt080-cancel-after-claim") == 0) {
+        return mode_debt080_cancel_after_claim(ex);
+    }
+    if (strcmp(argv[1], "debt080-poll-cancelled-queued") == 0) {
+        return mode_debt080_poll_cancelled_queued(ex);
+    }
+    if (strcmp(argv[1], "debt080-shutdown-drains-queued") == 0) {
+        return mode_debt080_shutdown_drains_queued(ex);
+    }
+    if (strcmp(argv[1], "debt080-release-refuses-under-lock") == 0) {
+        return mode_debt080_release_refuses_under_lock(ex);
+    }
 #endif
     return fail("unknown mode");
 }

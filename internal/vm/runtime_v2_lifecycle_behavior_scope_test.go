@@ -370,7 +370,15 @@ static void poll_external_await_target(void) {
     rt_async_return(NULL, &(uint64_t){123});
 }
 
+// The blocking-cancellation bodies live with their rows in lifecycleHarnessBlockingCancelModes
+// (runtime_v2_blocking_cancel_lifecycle_test.go), which is concatenated after
+// this constant; the dispatcher below hands them their ids first.
+static int blocking_cancel_call(uint64_t id, void* state, void* out_dst);
+
 void __surge_blocking_call(uint64_t id, void* state, void* out_dst) {
+    if (blocking_cancel_call(id, state, out_dst)) {
+        return;
+    }
     (void)state;
     if (id == BLOCKING_FN_SLOW) {
         sleep_us(30000);

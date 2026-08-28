@@ -66,6 +66,33 @@ static rt_blocking_job* blocking_queue_pop(rt_executor* ex) {
     return job;
 }
 
+// A job the pool will not run: cancelled before the worker read its status, or
+// popped after the pool's shutdown was published. The status is settled to
+// CANCELLED here when nothing settled it earlier, so a cancel that raced the
+// pop and a shutdown that found the job queued both leave the same terminal
+// state; the awaiter is woken only in that case, because a cancel_task already
+// woke its own target. The running count and the pool's reference then go the
+// way a completed job's do, and the release walks a state the body never
+// claimed.
+static void blocking_job_settle_unrun(rt_executor* ex, rt_blocking_job* job) {
+    uint8_t expected = BLOCKING_JOB_PENDING;
+    if (atomic_compare_exchange_strong_explicit(&job->status,
+                                                &expected,
+                                                BLOCKING_JOB_CANCELLED,
+                                                memory_order_acq_rel,
+                                                memory_order_acquire)) {
+        (void)atomic_fetch_add_explicit(&ex->blocking_cancel_requested, 1, memory_order_relaxed);
+        rt_control_lock(ex);
+        wake_key_all(ex, blocking_key(job->task_id));
+        rt_control_unlock(ex);
+    }
+    rt_async_debug_printf("async blocking cancelled task=%llu fn=%llu\n",
+                          (unsigned long long)job->task_id,
+                          (unsigned long long)job->fn_id);
+    (void)atomic_fetch_sub_explicit(&ex->blocking_running, 1, memory_order_release);
+    blocking_job_release(job);
+}
+
 static void* rt_blocking_worker_main(void* arg) {
     rt_blocking_worker_ctx* ctx = (rt_blocking_worker_ctx*)arg;
     rt_executor* ex = ctx != NULL ? ctx->ex : NULL;
@@ -90,6 +117,9 @@ static void* rt_blocking_worker_main(void* arg) {
             return NULL;
         }
         rt_blocking_job* job = blocking_queue_pop(ex);
+        // Read under the same lock that guards the pop, so a job and the
+        // shutdown it was popped under are one observation.
+        int draining = ex->blocking_shutdown;
         if (job != NULL) {
             // Claim the job in the running counter before the queue lock is
             // released: a popped-but-unclaimed job would be invisible to
@@ -105,14 +135,21 @@ static void* rt_blocking_worker_main(void* arg) {
                               (unsigned long long)job->fn_id,
                               rt_value_cell_value(&job->state),
                               (unsigned)atomic_load_explicit(&job->status, memory_order_relaxed));
+        if (draining) {
+            // Shutdown drains the queue by cancelling it: every blocking job is
+            // drained or transferred at shutdown (docs/runtime-v2-epics/
+            // 23-storage-model-and-typed-carrier-abi.md, section 13), and a
+            // body that ran now would execute user code the program has
+            // already asked to stop, for a result nothing will come for.
+            RT_SYNC_POINT(SP_BLOCKING_SHUTDOWN_BEFORE_DRAIN);
+            blocking_job_settle_unrun(ex, job);
+            continue;
+        }
 
+        RT_SYNC_POINT(SP_BLOCKING_POP_BEFORE_STATUS);
         uint8_t status = atomic_load_explicit(&job->status, memory_order_acquire);
         if (status == BLOCKING_JOB_CANCELLED) {
-            rt_async_debug_printf("async blocking cancelled task=%llu fn=%llu\n",
-                                  (unsigned long long)job->task_id,
-                                  (unsigned long long)job->fn_id);
-            (void)atomic_fetch_sub_explicit(&ex->blocking_running, 1, memory_order_release);
-            blocking_job_release(job);
+            blocking_job_settle_unrun(ex, job);
             continue;
         }
 
@@ -134,6 +171,7 @@ static void* rt_blocking_worker_main(void* arg) {
         // nobody claimed from one already spent. Claiming after the call would
         // leave that window open for exactly as long as the body takes.
         RT_DEBT080_CLAIM_STATE(&job->state);
+        RT_SYNC_POINT(SP_BLOCKING_STATE_BEFORE_BODY);
         __surge_blocking_call(job->fn_id, captures, destination);
         if (destination != NULL) {
             (void)rt_value_cell_commit(&job->result);
