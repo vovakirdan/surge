@@ -9010,3 +9010,53 @@ must fail with that sentence, while a driver-spawned control child runs under
 the same hold. `-DRV2_STAND_HELPER_NEGATIVE_CONTROL` removes the helper from
 that stand and it spends the full 4s budget to report "cancelled child never
 completed" -- the 261 sentence -- instead.
+
+## P3's three missing deterministic rows — 2026-08-28
+
+The record lives in §4.1 of `23b-wave-d-execution-plan.md`, under D4b, written
+the way P2's was. This entry exists so the log points at it: a vertical whose
+closeout is written in one file and nowhere else is how this one went unnoticed
+for three days.
+
+**What was missing.** P3 names four deterministic sync-point rows. Only the
+clone-reader-versus-last-await pair existed (`SP_AWAIT_AFTER_INCREMENT`,
+`SP_AWAIT_BEFORE_DONECV_WAIT`). The enum declared no hook for shutdown versus a
+claimed clone, for cancel versus `READY`, or for stale-generation late
+publication — verified against the whole of `rt_sync_point.h`, not against the
+previous status line.
+
+**Why no existing stand could have caught it.** Every other lifecycle stand
+binds its task result to the opaque machine word, and a word owns nothing: its
+take is a COPY that leaves the slot alone. The entitlement machinery — clone,
+move, refuse, the reader count, the reserved mover — is only reached by a result
+that OWNS something. The new stands are the first with such a result
+(`internal/vm/runtime_v2_task_entitlement_stand_test.go`), which is the general
+lesson: a machine-word fixture cannot exercise an owning-value contract, however
+many rows are pointed at it.
+
+**The three hooks**, each named for the behaviour it holds open, in
+`rt_sync_point.{h,c}` and in `check_sync_points.sh`'s window map:
+`SP_CLONE_READER_OUT_OF_LOCK` (`rt_task_entitlement.c`) is the only instant a
+claim is out — counted into `clone_readers`, no lock held, duplicating the
+canonical value where it lies, and two rows race against it;
+`SP_CANCEL_AT_COMMITTED_RESULT` (`rt_task_complete.c`) is armed by nothing and
+exists for its reached count, which is what keeps the cancel row from being
+vacuous; `SP_RESULT_CAPABILITY_BEFORE_MATCH` (`rt_task_result.c`) is the moment
+a capability is about to ask a slot whether it still holds the occupant it named.
+
+**The controls, and what each removes.**
+`RV2_SHUTDOWN_UNPINNED_CANONICAL_NEGATIVE_CONTROL` reads "shutdown drops any
+canonical result" literally and destroys the value on the first release after
+shutdown; `RV2_CANCEL_REVOKES_COMMITTED_RESULT_NEGATIVE_CONTROL` lets a cancel
+that arrives after the answer is committed empty the slot;
+`RV2_STALE_RESULT_GENERATION_NEGATIVE_CONTROL` drops the generation from the
+capability match. Each leaves the window intact and changes one guard, so none
+can pass by removing the ordering its proof is built on, and each fails in
+seconds at its own window with its own sentence.
+
+**Still owed, and recorded rather than left to be rediscovered.** RV2-DEBT-304:
+P3's rollback failpoint cannot be written against today's ABI at all, because
+`rt_value_clone_init_fn` returns `void` and §3 of the storage model makes a
+status return the condition for being rollback-capable. RV2-DEBT-305: the two
+bounded child-process controls do not exist and the lifecycle harness has no
+child process to build them in.

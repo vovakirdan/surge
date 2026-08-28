@@ -244,6 +244,28 @@ typedef enum rt_sync_point_id {
     // window a held registration is holding open, instead of inferring it from
     // a sleep.
     RT_SYNC_POINT_SP_SCOPE_CHILD_DONE_AFTER_MEMBERSHIP_TAKE,
+    // rt_task_entitlement_begin_take: reached after the take has been decided
+    // CLONE, the reader has been counted into clone_readers, and the owner
+    // shard lock has been released -- the instant the duplication out of the
+    // canonical slot begins, with nothing held. It is the only window in which
+    // a claim is OUT: the value must not move, and it must not be destroyed,
+    // until this reader retires. Holding a reader here and then doing something
+    // to the task from another thread is what shows whether the claim really
+    // pins the canonical result.
+    RT_SYNC_POINT_SP_CLONE_READER_OUT_OF_LOCK,
+    // cancel_task: reached with the target already DONE and its result slot
+    // still holding a published value -- a cancel that arrived after the task's
+    // answer was decided. The storage model says such a cancel does not revoke
+    // results that are already available, so this point exists to prove the
+    // cancel ARRIVED there (its reached count) rather than to hold anything
+    // open by itself.
+    RT_SYNC_POINT_SP_CANCEL_AT_COMMITTED_RESULT,
+    // rt_task_result_matches: reached with a result capability resolved to a
+    // live task, immediately before the slot is asked whether it still holds
+    // the occupant that capability was minted for. Holding a late holder here
+    // and retiring plus rebinding the slot underneath it is what shows whether
+    // the generation, and not the task id alone, is what answers.
+    RT_SYNC_POINT_SP_RESULT_CAPABILITY_BEFORE_MATCH,
     RT_SYNC_POINT_COUNT
 } rt_sync_point_id;
 
@@ -542,6 +564,52 @@ void rt_sync_point_open(void);
 #define RT_SCOPE_MEMBERSHIP_CLAIM(child, scope_id) rt_scope_claim_membership((child), (scope_id))
 #define RT_SCOPE_MEMBERSHIP_PUBLISH(child, scope_id) ((void)(child), (void)(scope_id))
 #define RT_SCOPE_MEMBERSHIP_TAKE(task) rt_scope_take_membership(task)
+#endif
+
+// Canonical-pin negative-control toggle. A task's result is destroyed by the
+// reclaim that runs when the LAST reference to a DONE task goes, and every
+// asker inside a take is holding one of those references -- that reference is
+// what pins the canonical value while a claimed clone reader duplicates out of
+// it with no lock held. Shutdown does not change the rule: it stops new
+// entitlements and lets claimed work finish before the canonical slot is
+// dropped. Defining this control reads "shutdown drops the canonical result"
+// literally, dropping it on the first release after shutdown however many
+// askers still hold the task, so a reader that is out at that instant is
+// duplicating out of a slot that has already been destroyed. The deterministic
+// proof MUST observe the destruction landing while the claim is out.
+#ifdef RV2_SHUTDOWN_UNPINNED_CANONICAL_NEGATIVE_CONTROL
+#define RT_CANONICAL_UNPINNED(ex, refs) ((ex)->shutdown != 0 || (refs) == 1)
+#else
+#define RT_CANONICAL_UNPINNED(ex, refs) ((refs) == 1)
+#endif
+
+// Committed-result negative-control toggle. `cancel` through a live handle is
+// task-global, and it is refused once the task's answer is committed: it does
+// not revoke results that are already available to the other entitlements.
+// Defining this control lets such a cancel empty the result slot instead, which
+// is exactly the entitlement-local revocation the model forbids -- one handle
+// keeps a value it was served while its siblings are told there is none. The
+// deterministic proof MUST observe that revocation landing on a committed
+// result. The default expands to nothing, so cancel_task's shape is unchanged.
+#ifdef RV2_CANCEL_REVOKES_COMMITTED_RESULT_NEGATIVE_CONTROL
+#define RT_CANCEL_AFTER_COMMITTED_RESULT(ex, task) rt_task_result_refuse((ex), (task))
+#else
+#define RT_CANCEL_AFTER_COMMITTED_RESULT(ex, task) ((void)(ex), (void)(task))
+#endif
+
+// Stale-generation negative-control toggle. A result capability names a slot by
+// four integers, and the slot's own generation is the one that says WHICH
+// occupant: an id can be reused and storage can be rebound, so a capability
+// minted for one occupant must not be spendable on the next one in the same
+// bytes. Defining this control drops the generation from the comparison,
+// leaving the task id and "a value is there" to answer -- the state in which
+// late work reaches into reused storage. The deterministic proof MUST observe
+// the late holder being handed the occupant it never named.
+#ifdef RV2_STALE_RESULT_GENERATION_NEGATIVE_CONTROL
+#define RT_RESULT_GENERATION_MATCHES(cell, source) ((void)(cell), (void)(source), 1)
+#else
+#define RT_RESULT_GENERATION_MATCHES(cell, source)                                                 \
+    (rt_value_cell_generation(cell) == (source)->result_generation)
 #endif
 
 #endif // RT_SYNC_POINT_H

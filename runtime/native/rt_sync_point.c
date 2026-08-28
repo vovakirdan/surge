@@ -160,6 +160,12 @@ static const char* rt_sp_name(rt_sync_point_id id) {
             return "SP_SCOPE_MEMBERSHIP_DECIDED_BEFORE_PUBLISH";
         case RT_SYNC_POINT_SP_SCOPE_CHILD_DONE_AFTER_MEMBERSHIP_TAKE:
             return "SP_SCOPE_CHILD_DONE_AFTER_MEMBERSHIP_TAKE";
+        case RT_SYNC_POINT_SP_CLONE_READER_OUT_OF_LOCK:
+            return "SP_CLONE_READER_OUT_OF_LOCK";
+        case RT_SYNC_POINT_SP_CANCEL_AT_COMMITTED_RESULT:
+            return "SP_CANCEL_AT_COMMITTED_RESULT";
+        case RT_SYNC_POINT_SP_RESULT_CAPABILITY_BEFORE_MATCH:
+            return "SP_RESULT_CAPABILITY_BEFORE_MATCH";
         default:
             return "";
     }

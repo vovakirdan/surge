@@ -7,6 +7,7 @@
 
 #include "rt_async_internal.h"
 #include "rt_remote_task.h"
+#include "rt_sync_point.h"
 #include "rt_task_refs.h"
 #include "rt_value_ops.h"
 #ifdef RT_TASK_RELEASE_SPLIT_NEGATIVE_CONTROL
@@ -38,7 +39,17 @@ void task_mark_completed(rt_task* task) {
 // already completed. Nothing is read from the task afterwards, which is the
 // whole point -- see the handle_refs field comment for the double free that a
 // decrement plus a separate status load produced.
-static int task_drop_ref_owes_free(rt_task* task) {
+// "Last reference" is also the canonical result's pin: an asker inside a take
+// holds one of these references, and a claimed clone reader duplicates out of
+// the result slot in place with no lock held, so the reclaim that destroys that
+// value may not run while any of them is still out. Shutdown is not an
+// exception -- it stops new entitlements and lets claimed work finish, and the
+// canonical slot goes when the last asker has let go. RT_CANONICAL_UNPINNED is
+// that rule, and its negative control reads shutdown as permission to drop.
+static int task_drop_ref_owes_free(rt_executor* ex, rt_task* task) {
+    // Only the canonical-pin negative control reads the executor; the shipping
+    // rule answers from the word alone.
+    (void)ex;
 #ifdef RT_TASK_RELEASE_SPLIT_NEGATIVE_CONTROL
     // The pre-fix shape, restored so the stand can show what it costs: the
     // decrement decides "last reference", a SEPARATE load decides "completed".
@@ -71,7 +82,8 @@ static int task_drop_ref_owes_free(rt_task* task) {
         return 0;
     }
     refs = atomic_fetch_sub_explicit(&task->handle_refs, 1, memory_order_acq_rel);
-    return (refs & RT_TASK_REFS_COUNT_MASK) == 1 && (refs & RT_TASK_REFS_COMPLETED) != 0;
+    return RT_CANONICAL_UNPINNED(ex, refs & RT_TASK_REFS_COUNT_MASK) &&
+           (refs & RT_TASK_REFS_COMPLETED) != 0;
 #endif
 }
 
@@ -300,7 +312,7 @@ void task_release(rt_executor* ex, rt_task* task) {
     if (ex == NULL || task == NULL) {
         return;
     }
-    if (task_drop_ref_owes_free(task)) {
+    if (task_drop_ref_owes_free(ex, task)) {
         free_task_when_unlocked(ex, task);
     }
 }
@@ -311,7 +323,7 @@ void task_release_lane_aware(rt_executor* ex, rt_task* task) {
     if (ex == NULL || task == NULL) {
         return;
     }
-    if (task_drop_ref_owes_free(task)) {
+    if (task_drop_ref_owes_free(ex, task)) {
         // A lane that holds nothing reclaims here and now; one that holds a
         // lock defers to the moment it lets go, because destroying the result
         // runs generated code.

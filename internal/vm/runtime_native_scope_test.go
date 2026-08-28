@@ -64,6 +64,7 @@ func TestNativeScopeDropsCompletedChildrenImmediately(t *testing.T) {
 
 const scopeChildrenHarness = `
 #include "rt_async_internal.h"
+#include "rt_scope_membership.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -207,6 +208,13 @@ int main(void) {
     }
     task_status_store(completed, TASK_DONE);
     completed->result_kind = TASK_RESULT_SUCCESS;
+    // Completing is what seals the membership word, and a hand-built task has
+    // not done it: the status store above is the only part of a completion this
+    // stand performs. Sealing it here is the rest of that completion, and it is
+    // what a registration arriving afterwards has to lose against -- without it
+    // the stand is asking the registration to read a status the protocol
+    // deliberately stopped reading.
+    (void)rt_scope_take_membership(completed);
     rt_control_unlock(ex);
 
     rt_scope_register_child(scope_handle, completed);

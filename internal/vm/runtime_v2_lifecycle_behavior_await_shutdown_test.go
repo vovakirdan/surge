@@ -200,6 +200,8 @@ void __surge_poll_call(uint64_t id) {
             break;
         case POLL_SCOPE_MEMBERSHIP_CHILD:
             poll_scope_membership_child();
+        case POLL_ENTITLEMENT_OWNING_RESULT:
+            poll_entitlement_owning_result();
             break;
 #endif
         default:
@@ -526,6 +528,14 @@ int main(int argc, char** argv) {
     }
     if (strcmp(argv[1], "scope-membership-completed-before-registration") == 0) {
         return mode_scope_membership_completed_before_registration(ex);
+    if (strcmp(argv[1], "entitlement-shutdown-vs-claimed-clone") == 0) {
+        return mode_entitlement_shutdown_vs_claimed_clone(ex);
+    }
+    if (strcmp(argv[1], "entitlement-cancel-vs-committed-result") == 0) {
+        return mode_entitlement_cancel_vs_committed_result(ex);
+    }
+    if (strcmp(argv[1], "entitlement-stale-result-capability") == 0) {
+        return mode_entitlement_stale_result_capability(ex);
     }
 #endif
     return fail("unknown mode");

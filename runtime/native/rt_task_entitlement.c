@@ -1,6 +1,7 @@
 #include "rt_task_entitlement.h"
 
 #include "rt_async_internal.h"
+#include "rt_sync_point.h"
 
 // Every transition runs under the task's owner shard lock: the take sites hold
 // nothing when they get here (the take runs generated code, which no runtime
@@ -116,6 +117,11 @@ rt_task_take_mode rt_task_entitlement_begin_take(rt_executor* ex,
         }
     }
     rt_shard_unlock(owner);
+    // The claim is now OUT: this asker is counted into clone_readers and holds
+    // no lock, and the duplication it is about to run reads the canonical value
+    // in place. Everything the counts promise -- no move, no destruction --
+    // has to hold across exactly this window.
+    RT_SYNC_POINT_IF(mode == RT_TASK_TAKE_CLONE, SP_CLONE_READER_OUT_OF_LOCK);
     return mode;
 }
 

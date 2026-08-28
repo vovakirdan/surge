@@ -75,6 +75,9 @@ declare -A WINDOW_FILE=(
     [SP_INLINE_CHILD_TAKEN_OFF_QUEUE]="rt_ready_queue.c"
     [SP_SCOPE_MEMBERSHIP_DECIDED_BEFORE_PUBLISH]="rt_async_scope.c"
     [SP_SCOPE_CHILD_DONE_AFTER_MEMBERSHIP_TAKE]="rt_async_scope.c"
+    [SP_CLONE_READER_OUT_OF_LOCK]="rt_task_entitlement.c"
+    [SP_CANCEL_AT_COMMITTED_RESULT]="rt_task_complete.c"
+    [SP_RESULT_CAPABILITY_BEFORE_MATCH]="rt_task_result.c"
 )
 
 # Cross-check the allowlist above against the enumerators actually declared in

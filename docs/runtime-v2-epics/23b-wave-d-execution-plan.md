@@ -202,7 +202,7 @@ has been recorded. **CLOSED** means both.
 | D1 | Fixed arrays and dynamic array element buffers | **CLOSED** | D0 |
 | D2 | Map key/value entries — insert, rehash, replace, remove, failed insert, teardown | **CODE COMPLETE**; bench re-measure and the two parity rows owed (RV2-DEBT-156/157, gated on 174) | D1 (element storage first) |
 | D3 | Buffered/unbuffered channel send/receive and waiter mailboxes | **CLOSED 2026-08-24.** D3b (the channel's own lifetime) is a follow-on: C0 landed, C1 and C3 not started | D0.7 (the waiter fix is a precondition, not a parallel task) |
-| D4 | Task canonical result/resume and cloned result entitlements | **D4a CLOSED 2026-08-25. D4b CODE COMPLETE 2026-08-26** on both lanes; P3's closeout is not recorded and three of its named sync-point rows do not exist | D0; may run beside D3 only once their production files do not overlap |
+| D4 | Task canonical result/resume and cloned result entitlements | **D4a CLOSED 2026-08-25. D4b CODE COMPLETE 2026-08-26** on both lanes; P3's four deterministic rows are complete 2026-08-28 and recorded below, its rollback failpoint (RV2-DEBT-304) and child-process controls (RV2-DEBT-305) are not | D0; may run beside D3 only once their production files do not overlap |
 | D5 | REMOTE select only — `rt_far_channel_select.c`. Local `select` moved into D3 by the 2026-08-19 ruling below | **CLOSED 2026-08-25** | D3 |
 | D6 | Blocking captures/results and every cancellation timing | **CODE COMPLETE.** Results 2026-08-25; captures a-1..a-4 2026-08-26..28; RV2-DEBT-080 stays Open pending the lead's green run of the rows a-3 and a-4 added | D3, D4 |
 | D7 | Async frames, captures, polling, wake, normal/shutdown drains | **STATE CARRIAGE CLOSED 2026-08-25** (numeric drop dispatch gone). **The frame itself is NOT STARTED**: 18 live `suspension-frame-owner` carriers, RV2-DEBT-179 Open | D4 |
@@ -268,14 +268,114 @@ describes — `live`, `claimed`, a reserved `mover`, atomic `clone_readers`,
 `move_waiting`, `moved`, and the installed `duplicate` recipe — with the six
 take modes including `WAIT` and `REFUSED`; `internal/vm/task_entitlement.go` is
 the VM's. `TestRuntimeV2TaskCohortCostsOneDuplicationPerExtraHandle` is the
-`N-1` row. **P3 is NOT closed and nobody has said so.** §5 of this plan says P3
-closes with D4; there is no closeout record for it in `NOTES.md` or here, and
-of P3's four named deterministic sync-point rows only the clone-reader-versus-
-last-await pair exists in the tree (`SP_AWAIT_AFTER_INCREMENT`,
-`SP_AWAIT_BEFORE_DONECV_WAIT`, `rt_async_task.c:397-399`). No sync point is
-declared for shutdown versus a claimed clone, or for stale-generation late
-publication — checked against the full enum in `runtime/native/rt_sync_point.h`.
-Filed and open beside it: RV2-DEBT-246, 247, 248, 249.
+`N-1` row. The three deterministic sync-point rows that were missing on
+2026-08-28 are on the tree — see **P3 IS CLOSED** below. Filed and open beside
+it: RV2-DEBT-246, 247, 248, 249.
+
+### P3 — THE FOUR DETERMINISTIC ROWS ARE COMPLETE, 2026-08-28
+
+The three rows this vertical was short landed together with the hooks they need.
+Before them the tree carried only the clone-reader-versus-last-await pair
+(`SP_AWAIT_AFTER_INCREMENT`, `SP_AWAIT_BEFORE_DONECV_WAIT`,
+`rt_async_task.c`), and the enum declared nothing for the other three; that was
+checked against the whole of `runtime/native/rt_sync_point.h` twice, once when
+the gap was recorded and once before the rows were built.
+
+WHAT THE ROWS ARE. Three new hooks, each named for the behaviour it holds open
+and declared in both `rt_sync_point.h` and the `rt_sp_name` table:
+
+- `SP_CLONE_READER_OUT_OF_LOCK` (`rt_task_entitlement.c`, at the end of
+  `rt_task_entitlement_begin_take`) — a take has been decided CLONE, the reader
+  is counted into `clone_readers`, the owner shard lock is gone, and the
+  duplication reads the canonical value where it lies. It is the only instant at
+  which a claim is OUT, which is why two rows race against it;
+- `SP_CANCEL_AT_COMMITTED_RESULT` (`rt_task_complete.c`, in `cancel_task`) — a
+  cancel arriving at a task already DONE whose result slot still holds a
+  published value. It is armed by nothing; its reached count is what proves the
+  cancel row is not vacuous;
+- `SP_RESULT_CAPABILITY_BEFORE_MATCH` (`rt_task_result.c`, in
+  `rt_task_result_matches`) — a result capability resolved to a live task,
+  immediately before the slot is asked whether it still holds the occupant that
+  capability was minted for.
+
+The stands are `internal/vm/runtime_v2_task_entitlement_syncpoint_test.go` and
+`runtime_v2_task_entitlement_stand_test.go`, in the lifecycle harness. They are
+the first lifecycle stands whose task result OWNS something: every other one
+binds the opaque machine word, and a word's take is a COPY that leaves the slot
+alone, so those stands never reach the entitlement machinery at all.
+
+THE THREE ROWS, AND THE GUARD EACH NEGATIVE CONTROL REMOVES:
+
+- **shutdown versus a claimed clone.** A clone reader is held out of lock; the
+  executor is told to stop and a sibling entitlement lets go. Positive:
+  `canonical_drops=0` at the window, then `duplications=1 drops=2
+  double_drops=0` — the reader is served a whole value and the last asker moves
+  the canonical. `RV2_SHUTDOWN_UNPINNED_CANONICAL_NEGATIVE_CONTROL` reads
+  "shutdown drops any canonical result" literally, dropping it on the first
+  release after shutdown however many askers still hold the task; it reports
+  `canonical_drops=1` at the same window and fails with "the canonical result
+  was destroyed while a claimed clone reader was still out";
+- **cancel versus `READY`.** The same window, with a cancel issued through a
+  sibling handle. Positive: `at_committed_result=1 canonical_drops=0`, then
+  `duplications=2 drops=3 double_drops=0` — a cohort of three, every
+  entitlement served its own value, nothing answered Cancelled.
+  `RV2_CANCEL_REVOKES_COMMITTED_RESULT_NEGATIVE_CONTROL` lets the cancel empty
+  the slot instead; it reports `canonical_drops=1` and fails with "a cancel
+  revoked a result the task had already committed, while a claimed clone reader
+  was still out";
+- **stale-generation late publication.** A capability is minted for one occupant
+  of a result slot; the holder is held at the match and the slot is then
+  destroyed, rebound and refilled underneath it. Positive: `rebind_drops=1
+  late_taken=0 second_occupant_ready=1`, and each occupant destroyed exactly
+  once. `RV2_STALE_RESULT_GENERATION_NEGATIVE_CONTROL` drops the generation from
+  the comparison, leaving the id and "a value is there" to answer; it reports
+  `late_taken=1 second_occupant_ready=0` and fails with "a capability minted for
+  one occupant was spent on the next one in the same storage".
+
+Every control leaves the window itself intact and changes exactly one guard, so
+none of them can pass by removing the ordering the proof is built on. Each fails
+at its own window in seconds with its own sentence; none times out.
+
+WHERE THEY RUN. `make runtime-v2-lifecycle-check` grew a third recipe line for
+the six rows, beside the stands the other lifecycle windows already run under.
+`./check_sync_points.sh` (the `runtime-v2-syncpoint-check` gate) carries the
+three new window/file pairs, so a hook declared without its `rt_sp_name` row, or
+called outside its window file, is refused.
+
+WHAT ANSWERS P3'S NAMED CRITERIA. The four deterministic rows §6 of the epic
+requires now exist: the out-of-lock clone reader versus sibling drop/last-await
+pair was already there, and the three above are the rest. The cohort arithmetic
+— `N-1` duplications plus one reserved final move — is
+`TestRuntimeV2TaskCohortCostsOneDuplicationPerExtraHandle` for the compiled
+program and is re-read inside each of the two entitlement rows for the native
+cohort. "Cancel remains task-global across entitlements; no clone failure is
+translated into entitlement-local `Cancelled`" is the cancel row's own
+assertion, on all three handles.
+
+WHAT IS STILL OWED, AND WHY THE HEADING SAYS "THE FOUR ROWS" AND NOT "CLOSED".
+§6 asks P3 for two things beside its deterministic rows, and neither is built:
+
+- **the generated `ValueOps` rollback failpoint** — "returns after initializing
+  one child to prove rollback", answering the success bullet about a returned
+  internal status restoring the destination to `EMPTY`. It cannot be built
+  against today's ABI at all: `rt_value_clone_init_fn` is
+  `void (*)(void* dst, const void* src)`
+  (`runtime/native/rt_typed_carrier_abi.generated.h`), and §3 of the storage
+  model says "only an operation that returns an explicit internal status is
+  locally rollback-capable". The duplication path has no status slot, so there
+  is nothing for a failpoint to return and nothing for the take to roll back
+  from. Making it fallible is an ABI change on the clone slot, which is Wave B's
+  surface and not a row this lane may add on its own. **RV2-DEBT-304**;
+- **the two bounded child-process controls** — a user `__clone` panic following
+  the terminal `panic -> exit(Error)` path and never being observed as
+  `Cancelled`, and a deterministic allocator `NULL` proving no result
+  publication, no `Cancelled` and no retry spin. Both are stand work rather than
+  ABI work, and both need a child process the lifecycle harness does not have
+  today. **RV2-DEBT-305**.
+
+Also owed and not this worktree's: the gate wall-time run. These rows have been
+run singly and as the gate's own recipe line here; the epic's closeout evidence
+is the lead's machine.
 
 **D6 — CODE COMPLETE, RV2-DEBT-080 still Open by its own terms.** Results
 landed `66c2f156`: `rt_blocking_submit(fn_id, state, state_type_id,
@@ -549,12 +649,16 @@ restated here.
 P4 and P5 are Wave E and Wave F respectively and have no edge into this plan.
 
 **Status 2026-08-28.** P2 was recorded closed with D3 (§4's D3 block lists its
-four criteria and what answers each). **P3 has no closeout record anywhere**,
-although D4a and D4b are both on the tree — see §4.1. P3 is therefore an open
-item of this wave with a named gap, not a formality: three of its four
-deterministic sync-point rows do not exist. P5 landed independently on
-2026-08-26 (Wave F's diagnostic half, `9fe013eb..8a3c7eb2`), which does not
-change this plan's edges.
+four criteria and what answers each). P3's record is now written the same way,
+in §4.1 under D4b: its four deterministic sync-point rows are complete — the
+three that did not exist that morning landed with the hooks they need, each with
+its own negative control and each wired into `runtime-v2-lifecycle-check`. P3 is
+still not CLOSED, and the record says exactly what is missing rather than
+leaving it to be rediscovered: the generated `ValueOps` rollback failpoint
+(RV2-DEBT-304, blocked on the clone slot being `void`) and the two bounded
+child-process controls (RV2-DEBT-305). P5 landed independently on 2026-08-26
+(Wave F's diagnostic half, `9fe013eb..8a3c7eb2`), which does not change this
+plan's edges.
 
 ## 6. Closeout evidence
 
@@ -614,20 +718,24 @@ have been found behind this one symptom and each took a lane.
 
 ### W3 — close P3
 
-Entry: W2 integrated. It shares `rt_task_complete.c` and the lifecycle stands
-with W2 and may not run beside it.
+**The three deterministic rows are DONE, 2026-08-28** — shutdown versus a
+claimed clone, cancel versus `READY`, and stale-generation late publication,
+each with the negative-control build §7 of the epic requires, each wired into
+`runtime-v2-lifecycle-check`, and the record written into §4.1 the way P2's was.
+Touched: `runtime/native/rt_sync_point.{h,c}`, `rt_task_entitlement.c`,
+`rt_task_complete.c`, `rt_task_lifetime.c`, `rt_task_result.c`,
+`check_sync_points.sh`, `Makefile`,
+`internal/vm/runtime_v2_task_entitlement_{syncpoint,stand}_test.go`,
+`internal/vm/runtime_v2_lifecycle_behavior_{harness,await_shutdown}_test.go`.
+It did not need `rt_async_task.c`: the window a claim is out in belongs to
+`rt_task_entitlement_begin_take`, not to the await that calls it.
 
-Build P3's three missing deterministic sync-point rows — shutdown versus a
-claimed clone, stale-generation late publication, and cancel versus `READY` —
-each with the negative-control build §7 of the epic requires, and write the P3
-closeout record the way P2's was written into §4 of this plan. Use
-`lifecycleHarnessStandHelpers`: a stand whose owner is held inside its own poll
-must take its child from the driver.
-
-Files: `runtime/native/rt_sync_point.{h,c}`, `rt_task_entitlement.c`,
-`rt_task_lifetime.c`, `rt_task_result.c`, `rt_async_task.c`;
-`internal/vm/runtime_v2_task_*_test.go`;
-`docs/runtime-v2-epics/23b-wave-d-execution-plan.md`. Size: several days.
+WHAT REMAINS OF W3, and it is not a sync-point row: RV2-DEBT-304 (the rollback
+failpoint, blocked on the clone slot returning `void`) and RV2-DEBT-305 (the two
+bounded child-process controls). 266 is an ABI decision and belongs with whoever
+owns the `ValueOps` shape; 267 is stand work and can run beside anything, since
+it touches no production file. Size: 266 unknown until the ABI call is made,
+267 a day.
 
 ### W4 — D7's tail: the frame answers for what it holds
 

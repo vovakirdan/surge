@@ -79,8 +79,13 @@ async fn run() -> int {
     print(per_round to string);
     // Pinned exactly, so the next reduction collapses this loudly rather than
     // passing quietly. Four is what a frame that walks past its task handles
-    // retains: the DONE child and its result, on top of the two below.
-    if per_round != 2:uint {
+    // retains: the DONE child and its result, on top of the two below. It read
+    // two until a child's scope membership stopped being decided by reading the
+    // child's status: a child that completes before its registration arrives is
+    // no longer counted into the scope, so the scope stops holding the one
+    // reference it used to hold for it, and the census drops to one. The
+    // reduction is the point of the pin, and this is it collapsing loudly.
+    if per_round != 1:uint {
         print("FAIL abandoned frame retained blocks per round: ");
         print(per_round to string);
         return 1;

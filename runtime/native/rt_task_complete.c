@@ -99,7 +99,18 @@ void cancel_task(rt_executor* ex, uint64_t id) {
         return;
     }
     rt_task* task = get_task(ex, id);
-    if (task == NULL || task_status_load(task) == TASK_DONE) {
+    if (task == NULL) {
+        return;
+    }
+    if (task_status_load(task) == TASK_DONE) {
+        // The task's answer is already committed, and a result it published is
+        // already available to every entitlement that has not asked yet. A
+        // cancel arriving now changes nothing about it: it is task-global, so
+        // there is no per-handle answer for it to write, and revoking a value
+        // some sibling may already have been served would leave one handle
+        // holding what its siblings are told does not exist.
+        RT_SYNC_POINT_IF(rt_value_cell_is_ready(&task->result), SP_CANCEL_AT_COMMITTED_RESULT);
+        RT_CANCEL_AFTER_COMMITTED_RESULT(ex, task);
         return;
     }
     // RV2-DEBT-263: this ONE compare-and-swap is both the idempotence check
