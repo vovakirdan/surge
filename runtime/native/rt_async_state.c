@@ -148,9 +148,9 @@ static void exec_init_once(void) {
     pthread_cond_init(&ex->compat_cv, NULL);
     pthread_cond_init(&ex->done_cv, NULL);
     rt_exec_trace_init();
-    rt_sched_trace_init();
     uint32_t threads = config.legacy_worker_threads;
     uint32_t total_worker_threads = rt_config_total_worker_threads(&config);
+    rt_sched_trace_init(total_worker_threads);
     uint32_t blocking_threads = config.blocking_threads;
     ex->blocking_count = blocking_threads;
     rt_heap_accounting* accounting = rt_executor_heap_accounting(ex);

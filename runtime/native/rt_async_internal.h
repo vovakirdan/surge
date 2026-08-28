@@ -71,11 +71,6 @@ typedef enum {
     SCHED_SEEDED = 1,
 } sched_mode;
 typedef enum {
-    RT_TRACE_SCHED_SRC_LOCAL = 0,
-    RT_TRACE_SCHED_SRC_INJECT = 1,
-    RT_TRACE_SCHED_SRC_STEAL = 2,
-} rt_trace_sched_source;
-typedef enum {
     BLOCKING_JOB_PENDING = 0,
     BLOCKING_JOB_DONE = 1,
     BLOCKING_JOB_CANCELLED = 2,
@@ -521,9 +516,7 @@ int rt_async_debug_enabled(void);
 void rt_async_debug_printf(const char* fmt, ...);
 int rt_exec_trace_enabled(void);
 void rt_exec_trace_init(void);
-void rt_sched_trace_init(void);
 int rt_trace_dump_requested(void);
-void rt_trace_sched_record(rt_trace_sched_source source, uint64_t id);
 void rt_trace_wake_called(void);
 void rt_trace_wake_enqueued(void);
 void rt_trace_wake_ignored_completed(void);

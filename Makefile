@@ -1,4 +1,4 @@
-.PHONY: build run test runtime-v2-check runtime-v2-abi-manifest-check runtime-v2-slot-control-check runtime-v2-liveness-check runtime-v2-ownership-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-syncpoint-check runtime-v2-panic-surface-check runtime-v2-transport-contract-check runtime-v2-transport-check runtime-v2-carrier-check runtime-v2-carrier-sanitizer-check runtime-v2-place-overwrite-check runtime-v2-carrier-bench runtime-v2-carrier-baseline-capture runtime-v2-carrier-bench-final vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
+.PHONY: build run test runtime-v2-check runtime-v2-abi-manifest-check runtime-v2-slot-control-check runtime-v2-liveness-check runtime-v2-ownership-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-sched-trace-check runtime-v2-syncpoint-check runtime-v2-panic-surface-check runtime-v2-transport-contract-check runtime-v2-transport-check runtime-v2-carrier-check runtime-v2-carrier-sanitizer-check runtime-v2-place-overwrite-check runtime-v2-carrier-bench runtime-v2-carrier-baseline-capture runtime-v2-carrier-bench-final vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
 .PHONY: golden golden-update golden-check golden-corpus-determinism behaviour-check behaviour-check-all behaviour-check-mt stats
 .PHONY: c-check cfmt-check c-warnings ctidy cppcheck c-check-changed
 
@@ -133,6 +133,7 @@ RUNTIME_V2_SUBGATES := \
 	runtime-v2-lock-check \
 	runtime-v2-lifecycle-check \
 	runtime-v2-perf-check \
+	runtime-v2-sched-trace-check \
 	runtime-v2-syncpoint-check \
 	runtime-v2-panic-surface-check \
 	runtime-v2-carrier-check \
@@ -449,6 +450,14 @@ runtime-v2-lifecycle-check:
 runtime-v2-perf-check:
 	@echo ">> Running Runtime V2 performance CI gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2PerfControlLaneGate$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
+
+# The scheduler's pop counters are what the perf gate above runs alongside, so
+# this row guards the mode that gate measures in: every reported pop count names
+# the owner that produced it, and no cell is shared by owners that share neither
+# a lock nor an owner.
+runtime-v2-sched-trace-check:
+	@echo ">> Running Runtime V2 scheduler trace ownership gate"
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2SchedTrace(ReportsAnOwnerPerCell|CellsAreOwnedAndPaddedApart|StandCountsExactlyPerOwner|StandUnderThreadSanitizer)$$' -count=1 -parallel=1 -p=1 -v --timeout 600s
 
 # ===== Format =====
 format: fmt

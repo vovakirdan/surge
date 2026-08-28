@@ -67,6 +67,20 @@ func overrideEnvVar(base []string, key, value string) []string {
 	return out
 }
 
+// One scheduler-pop record, as its owner published it. The owner is named on
+// the record because the cell behind it has exactly one: a carrier, or the
+// runtime's control lane.
+type schedTraceOwner struct {
+	owner  string
+	id     uint64
+	shard  string
+	local  uint64
+	inject uint64
+	steal  uint64
+	events uint64
+	popMix uint64
+}
+
 type schedTrace struct {
 	mode              string
 	seed              uint64
@@ -78,7 +92,12 @@ type schedTrace struct {
 	connOwnerLocal    uint64
 	connOwnerMismatch uint64
 	events            uint64
-	hash              uint64
+	popMix            uint64
+	owners            []schedTraceOwner
+	declaredCarriers  uint64
+	declaredOwners    uint64
+	unownedPops       uint64
+	droppedRecords    uint64
 }
 
 type execTrace map[string]uint64
@@ -133,88 +152,83 @@ func parseExecSnapshot(t *testing.T, stderr string) execTrace {
 	return nil
 }
 
+func schedTraceFields(line string) map[string]string {
+	out := map[string]string{}
+	for _, field := range strings.Fields(line)[1:] {
+		if kv := strings.SplitN(field, "=", 2); len(kv) == 2 {
+			out[kv[0]] = kv[1]
+		}
+	}
+	return out
+}
+
+func schedTraceU64(t *testing.T, fields map[string]string, key string) uint64 {
+	t.Helper()
+	raw, ok := fields[key]
+	if !ok {
+		t.Fatalf("SCHED_TRACE record has no %s: %v", key, fields)
+	}
+	v, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil {
+		t.Fatalf("parse %s=%q: %v", key, raw, err)
+	}
+	return v
+}
+
+// parseSchedTrace reads the per-owner scheduler records. The runtime publishes
+// no total of its own: a sum over owners has writers that share neither a lock
+// nor an owner, so the reader adds the owner records up here and learns from
+// the runtime record's `owners` exactly which set it added up.
 func parseSchedTrace(t *testing.T, stderr string) schedTrace {
 	t.Helper()
+	out := schedTrace{}
 	for _, line := range strings.Split(stderr, "\n") {
 		if !strings.HasPrefix(line, "SCHED_TRACE") {
 			continue
 		}
-		fields := strings.Fields(line)
-		out := schedTrace{}
-		for _, field := range fields[1:] {
-			kv := strings.SplitN(field, "=", 2)
-			if len(kv) != 2 {
-				continue
+		fields := schedTraceFields(line)
+		switch fields["owner"] {
+		case "runtime":
+			out.mode = fields["mode"]
+			out.seed = schedTraceU64(t, fields, "seed")
+			out.declaredCarriers = schedTraceU64(t, fields, "carriers")
+			out.declaredOwners = schedTraceU64(t, fields, "owners")
+			out.tier1StealDenied = schedTraceU64(t, fields, "tier1_steal_denied")
+			out.connOwnerPlaced = schedTraceU64(t, fields, "conn_owner_placed")
+			out.connOwnerLocal = schedTraceU64(t, fields, "conn_owner_local")
+			out.connOwnerMismatch = schedTraceU64(t, fields, "conn_owner_mismatch")
+			out.unownedPops = schedTraceU64(t, fields, "unowned_pops")
+			out.droppedRecords = schedTraceU64(t, fields, "dropped_records")
+		case "carrier", "control":
+			owner := schedTraceOwner{
+				owner:  fields["owner"],
+				id:     schedTraceU64(t, fields, "id"),
+				shard:  fields["shard"],
+				local:  schedTraceU64(t, fields, "local"),
+				inject: schedTraceU64(t, fields, "inject"),
+				steal:  schedTraceU64(t, fields, "steal"),
+				events: schedTraceU64(t, fields, "events"),
+				popMix: schedTraceU64(t, fields, "pop_mix"),
 			}
-			switch kv[0] {
-			case "mode":
-				out.mode = kv[1]
-			case "seed":
-				v, err := strconv.ParseUint(kv[1], 10, 64)
-				if err != nil {
-					t.Fatalf("parse seed: %v", err)
-				}
-				out.seed = v
-			case "local":
-				v, err := strconv.ParseUint(kv[1], 10, 64)
-				if err != nil {
-					t.Fatalf("parse local: %v", err)
-				}
-				out.local = v
-			case "inject":
-				v, err := strconv.ParseUint(kv[1], 10, 64)
-				if err != nil {
-					t.Fatalf("parse inject: %v", err)
-				}
-				out.inject = v
-			case "steal":
-				v, err := strconv.ParseUint(kv[1], 10, 64)
-				if err != nil {
-					t.Fatalf("parse steal: %v", err)
-				}
-				out.steal = v
-			case "tier1_steal_denied":
-				v, err := strconv.ParseUint(kv[1], 10, 64)
-				if err != nil {
-					t.Fatalf("parse tier1_steal_denied: %v", err)
-				}
-				out.tier1StealDenied = v
-			case "conn_owner_placed":
-				v, err := strconv.ParseUint(kv[1], 10, 64)
-				if err != nil {
-					t.Fatalf("parse conn_owner_placed: %v", err)
-				}
-				out.connOwnerPlaced = v
-			case "conn_owner_local":
-				v, err := strconv.ParseUint(kv[1], 10, 64)
-				if err != nil {
-					t.Fatalf("parse conn_owner_local: %v", err)
-				}
-				out.connOwnerLocal = v
-			case "conn_owner_mismatch":
-				v, err := strconv.ParseUint(kv[1], 10, 64)
-				if err != nil {
-					t.Fatalf("parse conn_owner_mismatch: %v", err)
-				}
-				out.connOwnerMismatch = v
-			case "events":
-				v, err := strconv.ParseUint(kv[1], 10, 64)
-				if err != nil {
-					t.Fatalf("parse events: %v", err)
-				}
-				out.events = v
-			case "hash":
-				v, err := strconv.ParseUint(kv[1], 10, 64)
-				if err != nil {
-					t.Fatalf("parse hash: %v", err)
-				}
-				out.hash = v
-			}
+			out.owners = append(out.owners, owner)
+			out.local += owner.local
+			out.inject += owner.inject
+			out.steal += owner.steal
+			out.events += owner.events
+			// Composed over the owner set the runtime record names, not read
+			// off a word several owners wrote. Addition is what makes the
+			// owners' fingerprints composable at all.
+			out.popMix += owner.popMix
+		default:
+			t.Fatalf("SCHED_TRACE record names no owner:\n%s", line)
 		}
-		return out
 	}
-	t.Fatalf("missing SCHED_TRACE in stderr")
-	return schedTrace{}
+	// The runtime record is emitted last and always names at least the control
+	// lane, so its absence is the absence of the dump.
+	if out.declaredOwners == 0 {
+		t.Fatalf("missing SCHED_TRACE runtime record in stderr")
+	}
+	return out
 }
 
 func mtScaledTimeout(t *testing.T, timeout time.Duration) time.Duration {
@@ -1595,7 +1609,14 @@ fn main() -> int {
 		t.Fatalf("unexpected stdout (run 2): %q", res2.stdout)
 	}
 	trace2 := parseSchedTrace(t, res2.stderr)
-	if trace1.hash != trace2.hash || trace1.events != trace2.events {
+	// What a seed reproduces is WHICH pops the run made, not which carrier made
+	// each one: the per-owner records show the same 32 pops divided differently
+	// between the carriers on every run, because the seed fixes the order tasks
+	// leave the shared inject queue and not the race to take one off it. So the
+	// comparison is over the composed fingerprint of the whole owner set --
+	// which is exactly what a sum of per-owner fingerprints can express and an
+	// ordered chain cannot.
+	if trace1.popMix != trace2.popMix || trace1.events != trace2.events {
 		t.Fatalf("seeded trace mismatch:\ntrace1=%+v\ntrace2=%+v", trace1, trace2)
 	}
 }

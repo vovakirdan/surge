@@ -40,6 +40,35 @@ trace_value() {
 	' "$file"
 }
 
+# The scheduler publishes no total of its own: each SCHED_TRACE pop count
+# belongs to one owner -- a carrier, or the runtime's control lane -- and a row
+# summing owners has writers that share neither a lock nor an owner, so the
+# runtime refuses to print one. The reader adds the owner records up here, over
+# the owner set the runtime record names.
+trace_owner_sum() {
+	local file="$1"
+	local key="$2"
+	awk -v key="$key" '
+		$1 == "SCHED_TRACE" {
+			owner = ""
+			value = ""
+			for (i = 2; i <= NF; i++) {
+				split($i, kv, "=")
+				if (kv[1] == "owner") owner = kv[2]
+				if (kv[1] == key) value = kv[2]
+			}
+			if ((owner == "carrier" || owner == "control") && value != "") {
+				total += value
+				seen = 1
+			}
+		}
+		END {
+			if (!seen) print "n/a"
+			else print total
+		}
+	' "$file"
+}
+
 trace_prefixed_fields() {
 	local file="$1"
 	local record="$2"
@@ -337,7 +366,7 @@ for shard_count in $shards; do
 					printf '| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n' \
 						"$shard_count" "$worker_count" "$connection_count" "$mode" "$pattern" \
 						"$(trace_value "$trace_log" TRACE_NET runtime_shards)" \
-						"$(trace_value "$trace_log" SCHED_TRACE steal)" \
+						"$(trace_owner_sum "$trace_log" steal)" \
 						"$(trace_value "$trace_log" SCHED_TRACE tier1_steal_denied)" \
 						"$(trace_value "$trace_log" SCHED_TRACE conn_owner_placed)" \
 						"$(trace_value "$trace_log" SCHED_TRACE conn_owner_local)" \

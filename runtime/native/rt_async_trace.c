@@ -6,7 +6,6 @@
 #include <unistd.h>
 
 static volatile sig_atomic_t trace_exec_enabled_flag = 0;
-static volatile sig_atomic_t trace_sched_enabled_flag = 0;
 static _Atomic uint64_t trace_wake_called_total;
 static _Atomic uint64_t trace_wake_enqueued_total;
 static _Atomic uint64_t trace_wake_ignored_completed_total;
@@ -27,23 +26,10 @@ static _Atomic uint64_t trace_collect_wake_batch_total;
 static _Atomic uint64_t trace_owner_replaced_total;
 static _Atomic uint64_t trace_placement_adoption_total;
 static _Atomic uint64_t trace_control_lock_site_total[RT_CTRL_SITE_COUNT];
-static uint64_t trace_sched_hash;
-static uint64_t trace_sched_events;
-static uint64_t trace_sched_local_pops;
-static uint64_t trace_sched_inject_pops;
-static uint64_t trace_sched_steal_pops;
-static _Atomic uint64_t trace_sched_tier1_steal_denied_total;
-static _Atomic uint64_t trace_sched_conn_owner_placed_total;
-static _Atomic uint64_t trace_sched_conn_owner_local_total;
-static _Atomic uint64_t trace_sched_conn_owner_mismatch_total;
 static _Atomic sig_atomic_t trace_dump_requested_flag;
 
 int rt_exec_trace_enabled(void) {
     return trace_exec_enabled_flag != 0;
-}
-
-static int trace_sched_enabled(void) {
-    return trace_sched_enabled_flag != 0;
 }
 
 static void trace_inc_atomic(_Atomic uint64_t* counter) {
@@ -146,7 +132,7 @@ void rt_trace_control_lock_handle_site(rt_ctrl_handle_site site) {
         &trace_control_lock_handle_site_total[site], 1, memory_order_relaxed);
 }
 
-static size_t trace_append_literal(char* buf, size_t pos, size_t cap, const char* lit) {
+size_t trace_append_literal(char* buf, size_t pos, size_t cap, const char* lit) {
     if (buf == NULL || lit == NULL) {
         return pos;
     }
@@ -156,7 +142,7 @@ static size_t trace_append_literal(char* buf, size_t pos, size_t cap, const char
     return pos;
 }
 
-static size_t trace_append_u64(char* buf, size_t pos, size_t cap, uint64_t value) {
+size_t trace_append_u64(char* buf, size_t pos, size_t cap, uint64_t value) {
     char tmp[32];
     size_t len = 0;
     do {
@@ -169,8 +155,7 @@ static size_t trace_append_u64(char* buf, size_t pos, size_t cap, uint64_t value
     return pos;
 }
 
-static void
-trace_append_kv_u64(char* buf, size_t* pos, size_t cap, const char* name, uint64_t value) {
+void trace_append_kv_u64(char* buf, size_t* pos, size_t cap, const char* name, uint64_t value) {
     if (buf == NULL || pos == NULL || name == NULL) {
         return;
     }
@@ -569,46 +554,6 @@ static void trace_exec_snapshot_dump(const char* reason) {
     (void)write(STDERR_FILENO, buf, pos);
 }
 
-void rt_trace_sched_record(rt_trace_sched_source source, uint64_t id) {
-    if (!trace_sched_enabled()) {
-        return;
-    }
-    trace_sched_events++;
-    if (source == RT_TRACE_SCHED_SRC_LOCAL) {
-        trace_sched_local_pops++;
-    } else if (source == RT_TRACE_SCHED_SRC_INJECT) {
-        trace_sched_inject_pops++;
-    } else if (source == RT_TRACE_SCHED_SRC_STEAL) {
-        trace_sched_steal_pops++;
-    }
-    uint64_t mix = id ^ ((uint64_t)source << 56);
-    trace_sched_hash ^= mix;
-    trace_sched_hash *= UINT64_C(1099511628211);
-}
-
-static void trace_sched_inc_atomic(_Atomic uint64_t* counter) {
-    if (!trace_sched_enabled() || counter == NULL) {
-        return;
-    }
-    (void)atomic_fetch_add_explicit(counter, 1, memory_order_relaxed);
-}
-
-void rt_trace_sched_tier1_steal_denied(void) {
-    trace_sched_inc_atomic(&trace_sched_tier1_steal_denied_total);
-}
-
-void rt_trace_sched_connection_owner_placed(void) {
-    trace_sched_inc_atomic(&trace_sched_conn_owner_placed_total);
-}
-
-void rt_trace_sched_connection_owner_run(uint32_t owner_shard_id, uint32_t worker_shard_id) {
-    if (owner_shard_id == worker_shard_id) {
-        trace_sched_inc_atomic(&trace_sched_conn_owner_local_total);
-        return;
-    }
-    trace_sched_inc_atomic(&trace_sched_conn_owner_mismatch_total);
-}
-
 static void trace_exec_signal_handler(int sig) {
     (void)sig;
 #ifdef SIGUSR1
@@ -638,23 +583,6 @@ void rt_exec_trace_dump(void) {
     trace_dump_all("exit");
 }
 
-void rt_sched_trace_init(void) {
-    const char* value = getenv("SURGE_SCHED_TRACE");
-    if (value == NULL || value[0] == '\0' || (value[0] == '0' && value[1] == '\0')) {
-        return;
-    }
-    trace_sched_enabled_flag = 1;
-    trace_sched_hash = UINT64_C(1469598103934665603);
-    trace_sched_events = 0;
-    trace_sched_local_pops = 0;
-    trace_sched_inject_pops = 0;
-    trace_sched_steal_pops = 0;
-    atomic_store_explicit(&trace_sched_tier1_steal_denied_total, 0, memory_order_relaxed);
-    atomic_store_explicit(&trace_sched_conn_owner_placed_total, 0, memory_order_relaxed);
-    atomic_store_explicit(&trace_sched_conn_owner_local_total, 0, memory_order_relaxed);
-    atomic_store_explicit(&trace_sched_conn_owner_mismatch_total, 0, memory_order_relaxed);
-}
-
 void rt_exec_trace_init(void) {
     const char* value = getenv("SURGE_TRACE_EXEC");
     if (value == NULL || value[0] == '\0' || (value[0] == '0' && value[1] == '\0')) {
@@ -668,60 +596,4 @@ void rt_exec_trace_init(void) {
 
 int rt_trace_dump_requested(void) {
     return atomic_load_explicit(&trace_dump_requested_flag, memory_order_relaxed) != 0;
-}
-
-void rt_sched_trace_dump(void) {
-    if (!trace_sched_enabled()) {
-        return;
-    }
-    if (!exec_state.initialized) {
-        return;
-    }
-    rt_control_lock(&exec_state);
-    const rt_scheduler* scheduler = rt_executor_scheduler_const(&exec_state);
-    uint64_t local = trace_sched_local_pops;
-    uint64_t inject = trace_sched_inject_pops;
-    uint64_t steal = trace_sched_steal_pops;
-    uint64_t events = trace_sched_events;
-    uint64_t hash = trace_sched_hash;
-    uint64_t tier1_steal_denied =
-        atomic_load_explicit(&trace_sched_tier1_steal_denied_total, memory_order_relaxed);
-    uint64_t conn_owner_placed =
-        atomic_load_explicit(&trace_sched_conn_owner_placed_total, memory_order_relaxed);
-    uint64_t conn_owner_local =
-        atomic_load_explicit(&trace_sched_conn_owner_local_total, memory_order_relaxed);
-    uint64_t conn_owner_mismatch =
-        atomic_load_explicit(&trace_sched_conn_owner_mismatch_total, memory_order_relaxed);
-    uint64_t seed = scheduler != NULL ? scheduler->sched_seed : 0;
-    uint8_t mode = scheduler != NULL ? scheduler->sched_mode : SCHED_PARALLEL;
-    rt_control_unlock(&exec_state);
-
-    char buf[512];
-    size_t pos = 0;
-    pos = trace_append_literal(buf, pos, sizeof(buf), "SCHED_TRACE mode=");
-    pos = trace_append_literal(buf, pos, sizeof(buf), mode == SCHED_SEEDED ? "seeded" : "parallel");
-    pos = trace_append_literal(buf, pos, sizeof(buf), " seed=");
-    pos = trace_append_u64(buf, pos, sizeof(buf), seed);
-    pos = trace_append_literal(buf, pos, sizeof(buf), " local=");
-    pos = trace_append_u64(buf, pos, sizeof(buf), local);
-    pos = trace_append_literal(buf, pos, sizeof(buf), " inject=");
-    pos = trace_append_u64(buf, pos, sizeof(buf), inject);
-    pos = trace_append_literal(buf, pos, sizeof(buf), " steal=");
-    pos = trace_append_u64(buf, pos, sizeof(buf), steal);
-    pos = trace_append_literal(buf, pos, sizeof(buf), " tier1_steal_denied=");
-    pos = trace_append_u64(buf, pos, sizeof(buf), tier1_steal_denied);
-    pos = trace_append_literal(buf, pos, sizeof(buf), " conn_owner_placed=");
-    pos = trace_append_u64(buf, pos, sizeof(buf), conn_owner_placed);
-    pos = trace_append_literal(buf, pos, sizeof(buf), " conn_owner_local=");
-    pos = trace_append_u64(buf, pos, sizeof(buf), conn_owner_local);
-    pos = trace_append_literal(buf, pos, sizeof(buf), " conn_owner_mismatch=");
-    pos = trace_append_u64(buf, pos, sizeof(buf), conn_owner_mismatch);
-    pos = trace_append_literal(buf, pos, sizeof(buf), " events=");
-    pos = trace_append_u64(buf, pos, sizeof(buf), events);
-    pos = trace_append_literal(buf, pos, sizeof(buf), " hash=");
-    pos = trace_append_u64(buf, pos, sizeof(buf), hash);
-    if (pos + 1 < sizeof(buf)) {
-        buf[pos++] = '\n';
-    }
-    (void)write(STDERR_FILENO, buf, pos);
 }
