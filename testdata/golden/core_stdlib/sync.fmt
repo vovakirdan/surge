@@ -5,7 +5,13 @@ pub type Mutex = {
     gate: Channel<nothing>
 };
 
-async fn mutex_lock_task(mtx: Mutex) -> nothing {
+// The waiting tasks below BORROW their primitive. A `Channel<T>` handle is
+// reference counted by the runtime, so passing a `Mutex` by value would clone
+// it -- one atomic retain and one atomic release per `lock()` -- and a lock
+// is request-path code, which must not touch a shared count
+// (docs/RUNTIME_V2.md section 11). The borrow reads the gate through the
+// caller's copy for as long as the task runs.
+async fn mutex_lock_task(mtx: &Mutex) -> nothing {
     let _ = mtx.gate.recv();
     return nothing;
 }
@@ -18,7 +24,7 @@ extern<Mutex> {
     }
 
     pub fn lock(self: &Mutex) -> Task<nothing> {
-        return mutex_lock_task(*self);
+        return mutex_lock_task(self);
     }
 
     @nonblocking
@@ -42,7 +48,7 @@ pub type Condition = {
     queue: Channel<nothing>
 };
 
-async fn condition_wait_task(cond: Condition, mutex: Mutex) -> nothing {
+async fn condition_wait_task(cond: &Condition, mutex: &Mutex) -> nothing {
     let _ = cond.queue.recv();
     let _ = mutex.gate.recv();
     return nothing;
@@ -56,7 +62,7 @@ extern<Condition> {
 
     pub fn wait(self: &Condition, mutex: &Mutex) -> Task<nothing> {
         mutex.gate.try_send(nothing);
-        return condition_wait_task(*self, *mutex);
+        return condition_wait_task(self, mutex);
     }
 
     @nonblocking
@@ -80,7 +86,7 @@ pub type Semaphore = {
     permits: Channel<nothing>
 };
 
-async fn semaphore_acquire_task(sem: Semaphore) -> nothing {
+async fn semaphore_acquire_task(sem: &Semaphore) -> nothing {
     let _ = sem.permits.recv();
     return nothing;
 }
@@ -101,7 +107,7 @@ extern<Semaphore> {
     }
 
     pub fn acquire(self: &Semaphore) -> Task<nothing> {
-        return semaphore_acquire_task(*self);
+        return semaphore_acquire_task(self);
     }
 
     @nonblocking
@@ -133,7 +139,7 @@ pub type Barrier = {
     state: Channel<BarrierState>
 };
 
-async fn barrier_arrive_task(barrier: Barrier) -> nothing {
+async fn barrier_arrive_task(barrier: &Barrier) -> nothing {
     if barrier.parties <= 1:uint {
         return nothing;
     }
@@ -183,7 +189,7 @@ extern<Barrier> {
     }
 
     pub fn arrive_and_wait(self: &Barrier) -> Task<nothing> {
-        return barrier_arrive_task(*self);
+        return barrier_arrive_task(self);
     }
 }
 

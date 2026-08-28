@@ -7,12 +7,12 @@ fn inc:
     L0: int [copy] name=x
     L1: uint [copy] name=__scope
     L2: int [copy] name=tmp_call1
-    L3: type#1519 name=__state_init
-    L4: type#1518 name=__payload_init
-    L5: type#1511 [owns_heap] name=__task
+    L3: type#1515 name=__state_init
+    L4: type#1514 name=__payload_init
+    L5: type#1507 [owns_heap] name=__task
   bb0:
     L4 = call Pc0(copy L0)
-    L3 = struct_lit type#1519 {__pc=const 0, __payload=move L4}
+    L3 = struct_lit type#1515 {__pc=const 0, __payload=move L4}
     L5 = call const 0(const 4, move L3)
     return move L5
 
@@ -22,9 +22,9 @@ fn inc$poll:
     L1: uint [copy] name=__scope
     L2: int [copy] name=tmp_call1
     L3: bool [copy] name=__scope_join_failed
-    L4: type#1519 name=__state
+    L4: type#1515 name=__state
     L5: int [copy] name=__pc
-    L6: type#1518 name=__payload
+    L6: type#1514 name=__payload
     L7: bool [copy] name=__pc_match
   bb0:
     L2 = call __add(copy L0, const 1)
@@ -72,12 +72,12 @@ fn slow:
     L0: int [copy] name=n
     L1: uint [copy] name=__scope
     L2: bool [copy] name=tmp_call1
-    L3: type#1521 name=__state_init
-    L4: type#1520 name=__payload_init
-    L5: type#1513 [owns_heap] name=__task
+    L3: type#1517 name=__state_init
+    L4: type#1516 name=__payload_init
+    L5: type#1509 [owns_heap] name=__task
   bb0:
     L4 = call Pc0(copy L0)
-    L3 = struct_lit type#1521 {__pc=const 0, __payload=move L4}
+    L3 = struct_lit type#1517 {__pc=const 0, __payload=move L4}
     L5 = call const 0(const 5, move L3)
     return move L5
 
@@ -87,9 +87,9 @@ fn slow$poll:
     L1: uint [copy] name=__scope
     L2: bool [copy] name=tmp_call1
     L3: bool [copy] name=__scope_join_failed
-    L4: type#1521 name=__state
+    L4: type#1517 name=__state
     L5: int [copy] name=__pc
-    L6: type#1520 name=__payload
+    L6: type#1516 name=__payload
     L7: bool [copy] name=__pc_match
   bb0:
     L2 = call __gt(copy L0, const 0)
@@ -135,21 +135,21 @@ fn slow$poll:
 fn test:
   locals:
     L0: uint [copy] name=__scope
-    L1: type#1511 [owns_heap] name=a
-    L2: type#1511 [owns_heap] name=tmp_call1
-    L3: type#1511 [owns_heap] name=tmp_spawn2
-    L4: type#1513 [owns_heap] name=b
-    L5: type#1513 [owns_heap] name=tmp_call3
-    L6: type#1513 [owns_heap] name=tmp_spawn4
+    L1: type#1507 [owns_heap] name=a
+    L2: type#1507 [owns_heap] name=tmp_call1
+    L3: type#1507 [owns_heap] name=tmp_spawn2
+    L4: type#1509 [owns_heap] name=b
+    L5: type#1509 [owns_heap] name=tmp_call3
+    L6: type#1509 [owns_heap] name=tmp_spawn4
     L7: int [copy] name=tmp_block5
-    L8: type#1516 name=__cmp2
-    L9: type#1516 name=tmp_await6
+    L8: type#1512 name=__cmp2
+    L9: type#1512 name=tmp_await6
     L10: bool [copy] name=tmp_tagtest7
     L11: int [copy] name=x
     L12: int [copy] name=tmp_payload8
     L13: bool [copy] name=tmp_block9
-    L14: type#1517 name=__cmp1
-    L15: type#1517 name=tmp_await10
+    L14: type#1513 name=__cmp1
+    L15: type#1513 name=tmp_await10
     L16: bool [copy] name=tmp_tagtest11
     L17: bool [copy] name=v
     L18: bool [copy] name=tmp_payload12
@@ -157,33 +157,33 @@ fn test:
     L20: bool [copy] name=tmp_tagtest14
     L21: int [copy] name=tmp_block15
     L22: int [copy] name=tmp_call16
-    L23: type#1523 [owns_heap] name=__state_init
-    L24: type#1522 [owns_heap] name=__payload_init
-    L25: type#1511 [owns_heap] name=__task
+    L23: type#1519 [owns_heap] name=__state_init
+    L24: type#1518 [owns_heap] name=__payload_init
+    L25: type#1507 [owns_heap] name=__task
   bb0:
     L24 = call Pc0()
-    L23 = struct_lit type#1523 {__pc=const 0, __payload=move L24}
+    L23 = struct_lit type#1519 {__pc=const 0, __payload=move L24}
     L25 = call const 0(const 6, move L23)
     return move L25
 
 fn test$poll:
   locals:
     L0: uint [copy] name=__scope
-    L1: type#1511 [owns_heap] name=a
-    L2: type#1511 [owns_heap] name=tmp_call1
-    L3: type#1511 [owns_heap] name=tmp_spawn2
-    L4: type#1513 [owns_heap] name=b
-    L5: type#1513 [owns_heap] name=tmp_call3
-    L6: type#1513 [owns_heap] name=tmp_spawn4
+    L1: type#1507 [owns_heap] name=a
+    L2: type#1507 [owns_heap] name=tmp_call1
+    L3: type#1507 [owns_heap] name=tmp_spawn2
+    L4: type#1509 [owns_heap] name=b
+    L5: type#1509 [owns_heap] name=tmp_call3
+    L6: type#1509 [owns_heap] name=tmp_spawn4
     L7: int [copy] name=tmp_block5
-    L8: type#1516 name=__cmp2
-    L9: type#1516 name=tmp_await6
+    L8: type#1512 name=__cmp2
+    L9: type#1512 name=tmp_await6
     L10: bool [copy] name=tmp_tagtest7
     L11: int [copy] name=x
     L12: int [copy] name=tmp_payload8
     L13: bool [copy] name=tmp_block9
-    L14: type#1517 name=__cmp1
-    L15: type#1517 name=tmp_await10
+    L14: type#1513 name=__cmp1
+    L15: type#1513 name=tmp_await10
     L16: bool [copy] name=tmp_tagtest11
     L17: bool [copy] name=v
     L18: bool [copy] name=tmp_payload12
@@ -192,9 +192,9 @@ fn test$poll:
     L21: int [copy] name=tmp_block15
     L22: int [copy] name=tmp_call16
     L23: bool [copy] name=__scope_join_failed
-    L24: type#1523 [owns_heap] name=__state
+    L24: type#1519 [owns_heap] name=__state
     L25: int [copy] name=__pc
-    L26: type#1522 [owns_heap] name=__payload
+    L26: type#1518 [owns_heap] name=__payload
     L27: bool [copy] name=__pc_match
   bb0:
     L2 = call inc(const 5)
