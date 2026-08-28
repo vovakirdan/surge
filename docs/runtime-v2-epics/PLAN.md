@@ -7,13 +7,17 @@ It does not restate the migration. `README.md` holds the epic history and
 roadmap, `DEBT.md` the ledger, `23b-*.md` the wave definitions, `RULES.md` the
 rules every lane obeys. Read those to know why; read this to know what.
 
-**State line, 2026-08-28 at `48285f25`.** Live carrier census **83 against a
+**State line, 2026-08-28 at `0001b82c`.** Live carrier census **83 against a
 frozen base of 626**, ratchet green. Epics 1–25 are closed except three: 21
 (closeout only), 22 (parked until 23b closes), 23b (in flight — the whole
-remaining migration). Trunk is green: `runtime-v2-lifecycle-check`,
-`-heap-check` and `-carrier-sanitizer-check` all exit 0 on the dedicated machine
-(183s / 135s / 99s, 77 lifecycle rows, 0 failures). No scheduled work waits on
-an owner decision.
+remaining migration).
+
+**The twenty-gate aggregate passes.** `make runtime-v2-check` exits 0 on the
+dedicated machine, 675 seconds, twenty of twenty sub-gates PASS. That is the
+first time in this wave the whole roster has been green on one tree, and it is
+the measurement W8 will need to repeat at closeout.
+
+No scheduled work waits on an owner decision.
 
 ---
 
