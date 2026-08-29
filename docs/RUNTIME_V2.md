@@ -340,7 +340,19 @@ returning to selection. Membership is decided at the child's creation, by one
 writer, under the serializer, and never re-derived; a second writer of a
 child's scope identity, on any lane, is a contract failure. No later operation
 adopts a live task: scheduling an already created task runs it under the scope
-that created it and enrols it nowhere. A scope belongs to its owner lane for
+that created it and enrols it nowhere.
+
+**Owner ruling 2026-08-29 -- the fact a checker reads is a write-once
+`creation_scope_key` on the task.** A task records, at creation, the scope that
+created it or `NO_SCOPE`, and that word is never written again. The refusal this
+section requires compares that key against the current scope; it does NOT
+reconstruct a task's origin from its parent, its waiters or its placement, and
+two attempts to write it without the key were wrong in both directions -- they
+refused a legal program and missed four spellings of the one they exist to
+refuse, three of which produced different runtime answers. The key is write-once
+provenance and therefore survives a quiescent repin of the owner lane. It is
+RUNTIME state, not a public API: no program is given a scope id, and nothing in
+the language surface grows to carry one. A scope belongs to its owner lane for
 its whole life and never migrates silently; the one transfer is a quiescent
 repin, admissible only under the serializer with no member live, no completion
 outstanding for a member, and no registration outstanding on the scope's wait
@@ -403,7 +415,19 @@ closes only when no owner tag names an exited lane. A summed snapshot is not a
 global cut: a per-lane difference is not a live-block count, and a difference
 of two sums is an exact allocation budget only over a window in which no other
 lane allocated, so a gate comparing an allocation delta against an exact
-number names the lanes it required quiet and measures it. Counters are
+number names the lanes it required quiet and measures it.
+
+**Owner ruling 2026-08-29 -- an allocation budget has TWO phases and they are
+measured separately.** `initialization_budget` runs from the cold state to the
+end of the first working batch. `steady_structural_budget` runs over the
+batches after an explicitly named warmup or setup, and only those. Averaging the
+expensive first batch into the rest is forbidden, and so is hiding it silently
+inside a warmup: a row whose first batch costs more than its later ones has two
+numbers, not one number and a rounding. Each window takes its snapshots on a
+NAMED quiet lane set and ends only after the drain or cleanup that window
+requires. A row that reads one figure in warmup and another in every measured
+pair is not a budget that needs re-pinning -- it is a row that has not yet said
+which of its two budgets each figure belongs to. Counters are
 reported per lane and in total, every reported figure names the lane set it
 covers, and reading another lane's counters stays off the request path.
 
@@ -766,7 +790,17 @@ bounded, traced budget; a poll that cannot be woken by a group notification is
 not a legal wait state for a carrier of that group.
 
 The inbound transport queue is bounded, and on the transport that exists the
-budget is slots. A cross-shard message is a fixed `rt_transport_msg` envelope
+budget is slots.
+
+**Owner ruling 2026-08-29 -- `SP_CARRIER_CREDIT_PARKED` goes, in its present
+meaning.** A physical byte credit does not exist for pointer transport, so a
+probe asserting `payload_bytes = 8192` and a peak resident-byte figure is
+asserting a model this document no longer has. The SCENARIO the probe covers is
+still worth proving and it is renamed to what it actually is:
+`SP_TRANSPORT_DATA_SLOT_TASK_PARKED` -- a task parked on exhausted DATA-SLOT
+admission, after which a cancellation or shutdown travels the reserved control
+lane and every data slot comes back. The word `CARRIER` is wrong in the old name
+for a second reason: an async crossing parks the TASK, not the carrier. A cross-shard message is a fixed `rt_transport_msg` envelope
 whose `payload` is a pointer into a refcount graph the transport neither copies
 nor owns, and every construction site in the tree sets `payload_len` to zero.
 An exact payload cannot be derived from such a pointer: the graph is shared, is
@@ -882,6 +916,19 @@ There is no deadlock between affinity and the blocking pool, and this is worth
 stating because one was assumed to exist: submitting a blocking body PARKS the
 submitting task rather than occupying its carrier, so an affine task waiting on
 a blocking body leaves its carrier free for the work that will wake it.
+
+**Owner ruling 2026-08-29 -- publication does not promise a first poll.** A far
+task that is cancelled after publication guarantees only that the task EXISTS
+and can be cancelled; it does not guarantee its body is ever entered. If the
+cancellation linearizes while the task is `PUBLISHED` and before `STARTED`, the
+target withdraws the record, releases the admission it took, and answers
+`Cancelled()` WITHOUT running the body. If `STARTED` linearizes first, the
+cancellation is an ordinary cooperative one and the body observes it.
+
+A row requiring the body to leave a witness in the first case asserts something
+this model does not promise. What such a row must prove instead is the terminal
+`Cancelled()`, the release of the slot the publication took, and the absence of
+a second completion.
 
 Cross-shard cancellation uses generation tokens. A distributed child, scope
 subscription, cancellation request, and completion message carry the generation
@@ -1287,6 +1334,40 @@ serialized transport needs it. And whether `RT_TRANSPORT_MSG_CREDIT_CONTROL` and
 `credit_stalls` are held as reserved names for that transport or removed until
 it exists. Each names a mechanism the transport must have before a bound can be
 claimed, so each waits for the owner rather than for whoever writes the lane.
+
+## Refusal Of A Result Type's Own Storage
+
+**Owner ruling 2026-08-29, written here rather than left to be derived from the
+storage model's Non-Goals.** An ordinary filesystem or network error stays what
+it is: a value of the result type. But a refusal to allocate the result TAG or
+the error object itself is FATAL. `OutOfMemory` is not added to any result type,
+because a value reporting that a value could not be created does not solve the
+problem it reports -- it needs the same storage that was just refused.
+
+Every runtime entry point that answers a result therefore has exactly two
+outcomes, and the boundary belongs in its own contract: a VALID RESULT, or a
+TERMINAL FATAL. There is no third answer, and in particular no null answer for
+generated code to store and then read a discriminant through. Thirty-one entry
+points -- seventeen the filesystem, nine sockets, five carrying their own
+answer -- return a bare `NULL` on refusal today, and closing that boundary is
+the work this ruling creates.
+
+## The Shape Of A Fatal Report
+
+**Owner ruling 2026-08-29.** Every fatal report reads:
+
+```
+surge: fatal [<CODE>]: <static-or-provided-message>
+```
+
+for example `surge: fatal [RT_OOM]: could not allocate FsResult`. `panic_msg`
+routes through the same emitter under the code `PANIC`. A reachable LLVM trap is
+replaced by a call to `rt_fatal_static(RT_TRAP, ...)`; a bare `llvm.trap()` is
+permitted ONLY for a backend invariant proved unreachable, never for a refusal a
+program can provoke.
+
+Composing an out-of-memory message must not allocate, which is why the type name
+in it is a static literal rather than a formatted one.
 
 ## Cost Model And Levers
 
