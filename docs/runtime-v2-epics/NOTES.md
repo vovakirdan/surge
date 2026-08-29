@@ -9484,84 +9484,101 @@ same texts) and on `net_echo`, which is undocumented and was measured at
 `5897840a` in a separate worktree: identical failure, `panic VM1999: storage:
 string is not an unsized integer (type#10)` at `core/string.sg:341:16`.
 
-## The select's winner index is an index, not a word — 2026-08-29
+## The frame's width was stated three times, and the caller said which — 2026-08-29
 
-WHAT CHANGED. `emitI64ToValue` is deleted. Its last two callers both wrote a
-select's winner index — the local path from `rt_select_poll`'s `i64` return
-(`emit_async.go`), the crossing path from the anchored reply's `out_bits`
-(`emit_crossing_select.go`) — and both now call one helper,
-`emitSelectWinnerIndex` in the new `emit_select_winner.go`, which narrows the
-word to the winner index's own type and refuses any other destination. The two
-`inttoptr` spellings in the deleted body went with it.
+Lane base `c075d654`, worktree `w-d7`, landed as `4664a0ff`.
 
-WHY A SHARED HELPER AND NOT A NARROWER RUNTIME RETURN. Only one of the two
-callers reads `rt_select_poll` at all; the crossing caller loads a 64-bit wire
-field out of the reply. Narrowing the C entry point would therefore have left
-the second caller exactly where it was. The typed answer has to live at the
-emitter boundary both callers share, which is also where the two files that
-already record this pattern put theirs (`emit_channel_storage.go:12`,
-`emit_task_result.go:10`).
+**What existed.** A suspension frame was reserved by `emitRuntimeOwnedStorage`
+with the size written into the `rt_alloc` call; given back by a generated
+per-type `@release.frame.typeN` with the same size written again into an
+`rt_free`; and given back a THIRD way by the runtime, which asked the type's
+descriptor and always walked the members. Which of the last two ran was decided
+by the CALL SITE and recorded in prose beside each one, so a reclamation holding
+only the frame's address could not be told what it was holding.
 
-CENSUS, live, `go test ./internal/carriergate`:
-`llvm-erased-word-bridge` 3 -> 0; `llvm-pointer-word-ir` 3 -> 1; whole-tree
-total 80 -> 75. Ratchet green: `unexpected=0 stale=0 staleAllow=0`.
+**What exists now.** `runtime/native/rt_frame.{h,c}`, 38 and 8 effective lines.
+`rt_frame_alloc(const rt_value_ops*)` reads size and alignment out of the
+descriptor and zero-fills; `rt_frame_release(const rt_value_ops*, void*)` reads
+the lifecycle word the frame has carried since `4038a55a` and walks the members
+only for a frame that says PACKED, deferring that walk through
+`rt_release_owned_block_when_unlocked` because it runs generated code. Both ends
+of a frame's life name `@__surge_value_ops_typeN`; the emitter refuses a frame
+type the operation registry never saw rather than letting it be carried as the
+opaque word.
 
-THE REMAINING 1 IS `emit_term.go:291` AND IT IS NOT THIS ROW'S. Re-read as the
-plan asked. `inlineFixnumWord` returns an LLVM CONSTANT EXPRESSION,
-`inttoptr (i64 N to ptr)` — not an instruction — building the tagged immediate
-`rt_bignum_tag.h` defines and `fixi_box` builds. It reinterprets a compile-time
-constant, never a runtime carrier, and it owns nothing. It is a base-census
-legacy finding with a reviewed permanent allowance (`fixnum-inline-tagged-word`),
-whose own `invalidated_when` says what would retire it: fixnums ceasing to use
-pointer-typed tagged immediates. So the category's live count reaches 1, not 0,
-and the honest reading of "live zero" for it is zero UNALLOWED findings and zero
-migration carriers — both of which hold. Spelling the same reinterpretation
-another way to move the number would be gaming the instrument, not retiring a
-carrier.
+**The word is fixnum-tagged, which is the thing a reader gets wrong first.**
+`__frame_state` is a Surge `int`, so the native lane stores
+`store ptr inttoptr (i64 2692908695 to ptr)` — `(0x5041434B << 1) | 1` — and not
+`0x5041434B`. `rt_frame.c` decodes with `fixi_as_i64`. A release comparing raw
+words would pass a C stand that wrote raw words and answer "not packed" for every
+real frame, which leaks silently rather than failing.
 
-THE SCANNER'S TOKEN LIST MUST NOT BE PRUNED — measured, not argued. Removing
-`case "emitValueToI64", "emitI64ToValue"` from
-`internal/carriergate/scan_go.go` and running the package fails
-`TestLegacyCarrierManifestMatchesExactBaseCensus` with 25 `stale legacy` lines
-and `TestScanIsLexicalCommentSafeAndDeterministic` on its own fixture. The base
-census is RE-DERIVED by scanning commit `7df10725` with the CURRENT scanner, so
-a token cannot leave the scanner without falsifying the census of a commit that
-contained 25 of them. Retiring a legacy finding to zero is already what
-`Compare` calls progress; the precedent categories that reached live zero
-(`vm-boxed-composite-kind`, `llvm-composite-to-ptr`) all keep their tokens.
+**Anything that is not PACKED reads as SPENT, deliberately.** Walking a spent
+frame frees members the resumed locals already own — a double free. Skipping a
+packed one leaks them. The asymmetry decides the default.
 
-PROOF (Rule 13). `TestSelectWinnerIndexRefusesAWordDestination` in
-`internal/backend/llvm/emit_select_winner_test.go`, run by `make check`. The
-positive stand alone proves nothing here: for the `Int32` destination the
-deleted bridge emitted the SAME `trunc i64 %bits to i32`, so only the refusal
-tells a typed arrival from a word arrival. Against a tree with the bridge
-restored at the call sites the three rows go red with what the bridge emitted:
-`store i64 %bits, ptr %select_index, align 8`;
-`%t1 = bitcast i64 %bits to double`;
-`%t1 = inttoptr i64 %bits to ptr`.
+**Census.** `go test ./internal/carriergate`, live rows by category over the
+production scope: `suspension-frame-owner` 15 -> 0, whole scope 80 -> 65.
 
-GATES. `make check` 0, `make golden-check` 0 (and
-`git status --porcelain=v1 --untracked-files=all -- testdata/golden` empty),
-`make runtime-v2-carrier-check` 0. `make runtime-v2-transport-check` exits 2 on
-`TestRuntimeV2FarTaskCallerCancel`'s valgrind rows, and that red is PRE-EXISTING:
-reverted to a clean `c075d654` in the same worktree it fails identically —
-`definitely_lost=40B/1blk` on `cancel_after_publication_before_first_poll/
-valgrind/shards_1` and a four-figure loss on the phase sweep, with the base
-losing one MORE subtest than the changed tree, so the row is also flaky at
-shards_2. Far-task cancellation reclamation, not this step's.
+**The brief's arithmetic for that 15 was wrong, and the correction matters.** It
+was given as five emitter identifiers. The measured 15 is six Go rows
+(`emitRuntimeOwnedStorage` x2, `requireSuspensionFrameRelease` x2,
+`emitSuspensionFrameReleaseBody` x2) and NINE C rows — `abandoned_state` x4 and
+`abandoned_state_type_id` x5 in `runtime/native`, which the brief never named.
+`AsyncStateFreeBuiltin` and `emitAsyncStateFreeIntrinsic` had ZERO live rows
+before this lane started: `4038a55a` had already deleted them. Driving the
+category to zero therefore required the C half as well, and that is the task
+field pair becoming `reclaim_frame` / `reclaim_frame_ops` — a descriptor resolved
+where the frame is handed over, instead of a pointer and a number.
 
-BOTH BACKENDS. `SURGE_BEHAVIOUR_BACKENDS=vm,llvm go test ./internal/vm -run
-'^TestVMAsyncSuiteGolden$'` — 60 pass / 0 fail, including all eight select
-fixtures `t20`..`t29` on BOTH lanes.
+**"Remove the retired tokens from the scanner" is not executable, and the tree
+says so in one command.** Deleting the five Go tokens and the C pattern makes
+`go test ./internal/carriergate` fail:
 
-THE BOUNDARY NUMBERS DID NOT MOVE, which is the "no copy at the boundary"
-reading this step could give. Four select copy-control stands are red on this
-tree and were already red at `c075d654`, byte for byte and block for block:
-`FarSelectCancelNonCopySendArm` 104B/3blk (want 48B/2blk),
-`FarSelectNonCopySendArm` 64B/1blk (want 0),
-`FarSelectConstArmEvaluatedOnce` 92B/2blk (want 36B/1blk),
-`LocalSelectCancelNonCopySendArm` 48B/1blk (want 0). Identical before and after
-means the winner-index change neither added a copy nor removed one; the four
-belong to far/frame reclamation, not to the index.
-`SelectReleasesAStringPayloadExactlyOnce` and
-`SelectReleasesACompositePayloadExactlyOnce` pass.
+```
+--- FAIL: TestLegacyCarrierManifestMatchesExactBaseCensus
+    base_test.go:46: exact-base carrier census changed:
+        stale legacy: suspension-frame-owner internal/backend/llvm/emit_async_helpers.go token="AsyncStateFreeBuiltin" ...
+        stale legacy: suspension-frame-owner runtime/native/rt_async_internal.h token="abandoned_state" ...
+```
+
+The frozen census is a census of a COMMIT and is re-derived by scanning that
+commit's tree, so a detector that stops matching re-derives `7df10725` as having
+fewer carriers than it had. The detectors stay, matching nothing, which is also
+what keeps the category able to see the shape come back. `RV2-DEBT-151`'s own
+inventory already treats a surviving-but-inert token in `scan_go.go` this way.
+
+**The allocation guard keeps its site and its sentence.** A frame call carries no
+size operand for the negative control to rewrite, so the control rewrites the
+DESCRIPTOR the site names: `@__surge_frame_alloc_refusal_ops`, emitted only in an
+armed build, whose layout asks for 2^64-1 bytes. The armed build still reports
+`panic: out of memory: could not allocate __AsyncState$add` and exits 1. That
+sentence needs re-pointing when the `surge: fatal [RT_OOM]` shape lands.
+`rt_frame_alloc` is the first pointer-answering entry point the LANGUAGE cannot
+name, so `emitterOnlyPointerAnswers` records it and
+`TestAnEmitterOnlyAnswerIsNotCallable` checks the claim against
+`core/intrinsics.sg` rather than trusting it.
+
+**Gates.** `make check` 0, `make golden-check` 0,
+`make runtime-v2-lifecycle-check` 0, `make runtime-v2-heap-check` **2**.
+
+**The heap gate is red at `c075d654` and this lane did not move it.** Measured on
+a pristine `git archive c075d654` tree and on the lane, identical rows and
+identical numbers: `TestRuntimeV2CrossingHeapCaptureCensusBalanced`,
+`TestRuntimeV2CrossingStrictCensusBalanced` (`exit=255`, `census share one= 14`),
+`TestRuntimeV2FarSelectCancelNonCopySendArm/valgrind` (`got 104B/3 blocks, want
+48B/2 blocks`), `TestRuntimeV2LocalSelectCancelNonCopySendArm/valgrind` (`got
+48B/1 blocks, want 0B/0 blocks`).
+
+**The frame is still not reclaimed on the ordinary return path.** `4038a55a` said
+so and it is still true: a 200-iteration `await` loop definitely-loses 9,408
+bytes in 168 blocks — 56 bytes per frame — the same figure before and after this
+lane. Wiring the success leg needs `rt_async_return` to be given the frame's
+descriptor, and the frame must not be released before the value moves, so it is a
+change to that entry point's signature and not a call inserted in front of it.
+
+**`__surge_drop_abandoned_state_call` is a dead symbol.** Zero references under
+`runtime/native` — no declaration, no definition, no call. It survives in 15
+files under `internal/` as test-harness stubs plus the carrier scanner's token.
+`emit.go` carried a comment saying the runtime routed the abandoned state through
+it; that comment is corrected here, the stubs are not touched.
