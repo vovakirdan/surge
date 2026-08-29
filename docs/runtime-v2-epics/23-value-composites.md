@@ -1023,6 +1023,21 @@ failure is one cross-cutting concern for the whole runtime, not a rule this
 epic invents for one helper. If it is ever taken up, it is taken up everywhere
 at once.
 
+**SUPERSEDED 2026-08-29, and the paragraph above is kept only as the record of
+why the work was deferred.** Two of its sentences are now false. "No caller
+checks it" and "the language has no allocation-failure path anywhere today"
+described the tree accurately when written; six entry points are guarded today
+and stop the process with `out of memory: could not allocate <type>` -- the
+`rt_alloc` and `rt_realloc` writers plus the four Range constructors. Its
+closing promise was not honoured either: the guard shipped for those six and
+left thirty-one entry points answering a bare `NULL`, seventeen of them the
+filesystem.
+
+The owner ruled on 2026-08-29 what those thirty-one owe, and the rule is in
+`docs/RUNTIME_V2.md` under "Refusal Of A Result Type's Own Storage": a valid
+result or a terminal fatal, with no third answer and no `OutOfMemory` arm added
+to any result type. Do not quote the paragraph above as current fact.
+
 **4. The boundary clone attaches at the CAPTURE OPERAND, not at the state
 literal.** Decided by counting sites: the capture operand is produced in one
 place per mechanism (`internal/mir/lower_expr_crossing.go:78` for `on` /
