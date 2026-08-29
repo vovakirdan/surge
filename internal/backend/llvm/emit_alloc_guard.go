@@ -57,9 +57,14 @@ const allocRefusalSize = "18446744073709551615"
 //
 // The names exist so the control can refuse exactly one site and a stand can say
 // which refusal it observed. A single switch that refused every allocation would
-// prove only that the first one in the program is guarded. A site exists only
-// where the call carries a SIZE operand the control can rewrite; a guarded call
-// with no size — a Range constructor — is proven by its emitted shape instead.
+// prove only that the first one in the program is guarded.
+//
+// A site is where the control has SOMETHING TO REWRITE, and that is no longer
+// always a size operand. A frame reservation carries no size at all -- it names
+// a descriptor and the runtime reads the size out of it -- so its control
+// rewrites the DESCRIPTOR the site names, to one whose layout asks for a block
+// no allocator will give. A guarded call with neither, such as a Range
+// constructor, is proven by its emitted shape instead.
 type allocSite string
 
 const (

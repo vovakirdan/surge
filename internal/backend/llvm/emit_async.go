@@ -526,10 +526,18 @@ func (fe *funcEmitter) emitTermAsyncReturnCancelled(term *mir.Terminator) error 
 	// walking is the only thing that reclaims what it holds.
 	//
 	// Zero says the runtime has nothing left to reclaim for this task: the
-	// frame is already back. Nothing reads the state pointer after a cancelled
-	// outcome — the runtime's cancelled arm goes straight to completion — so
-	// passing the freed pointer alongside it keeps the call shape without
-	// anyone dereferencing it.
+	// frame is already back.
+	//
+	// The pointer passed beside it is DEAD, and the reason nothing is harmed is
+	// narrower than it looks. A cancelled outcome does not always go straight to
+	// completion: a task whose own scope still has live children is re-parked on
+	// the scope key with this pointer stored in `task->state`, and it is copied
+	// out again on each re-poll. What makes that safe is that the re-poll
+	// SHORT-CIRCUITS before compiled code every time -- the cancel-pending arm
+	// answers cancelled or re-parks, and never hands the pointer to a body. It
+	// is carried, never dereferenced. If that arm ever gains a path back into
+	// compiled code, this line becomes a use-after-free and the comment is where
+	// to start.
 	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_frame_release(ptr @%s, ptr %s)\n", ops, stateVal)
 	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_async_return_cancelled(ptr %s, i64 0)\n", stateVal)
 	fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")

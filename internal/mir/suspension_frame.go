@@ -67,11 +67,18 @@ var suspensionFramePrefixes = [...]string{
 // spellings would drift into three meanings, silently, since each side would
 // keep agreeing with itself.
 //
-// MIR is so far the only side. No backend, no runtime path and not the ownership
-// verifier reads the word yet, so nothing downstream would notice a frame that
-// stopped writing it. That is what the tests around each write site are for, and
-// why they assert the VALUE rather than the presence of a field: until a reader
-// lands, a word nobody reads is a word that rots without anything failing.
+// THE RUNTIME NOW READS IT. `rt_frame_release` decodes the word at offset zero
+// and walks the frame's members only for a frame that says PACKED, so a write
+// site that stopped writing truthfully is no longer a word that rots quietly --
+// it is a leak or a double free, depending on which way it lies. The tests
+// around each write site still assert the VALUE rather than the presence of a
+// field, and that is now the reason rather than a precaution.
+//
+// One decoding trap, stated here because it is invisible from the Go side: the
+// field is a Surge `int`, so the native lane stores it FIXNUM-TAGGED --
+// `(value << 1) | 1`, not the raw constant. A reader comparing raw words agrees
+// with a C stand that wrote raw words and answers "not packed" for every frame a
+// program built.
 const FrameStateField = "__frame_state"
 
 // The two words the lifecycle field may hold.
