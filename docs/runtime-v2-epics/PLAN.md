@@ -79,9 +79,17 @@ No scheduled work waits on an owner decision.
 8. **W8 — wave closeout** when D2, D7, D8, D3b and the cancellation window are
    all closed on one tree. *~1 day.*
 
-**Wave D closes when** `suspension-frame-owner`, `llvm-erased-word-bridge` and
-`llvm-pointer-word-ir` read live zero and the remainder is confined to
-`rt_remote_task_*` and `rt_far_channel*`. That is 24 of the 83 live findings.
+**Wave D closes when** `suspension-frame-owner` and `llvm-erased-word-bridge`
+read live zero, `llvm-pointer-word-ir` reads live ONE, and the remainder is
+confined to `rt_remote_task_*` and `rt_far_channel*`. That is 24 of the 83 live
+findings. `llvm-erased-word-bridge` reached zero on 2026-08-29 and
+`llvm-pointer-word-ir` reached its one; the one is `emit_term.go`'s
+`inlineFixnumWord`, an LLVM constant expression building the tagged immediate
+`fixi_box` builds, held by the reviewed permanent allowance
+`fixnum-inline-tagged-word`. Raw zero for that category means the fixnum
+representation has changed, which is what the allowance's `invalidated_when`
+names and is nobody's work in this wave; the condition was written before anyone
+re-read the site, and this is the re-read.
 
 ## File claims — who may touch what
 

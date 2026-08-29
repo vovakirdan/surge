@@ -437,22 +437,9 @@ func (fe *funcEmitter) emitInstrSelect(ins *mir.Instr) error {
 	readyBB := fmt.Sprintf("bb.inline.select_ready%d", fe.inlineBlock)
 	fe.inlineBlock++
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", readyBB)
-	dstType, err := fe.placeBaseType(ins.Select.Dst)
-	if err != nil {
+	if err := fe.emitSelectWinnerIndex(idxVal, ins.Select.Dst); err != nil {
 		return err
 	}
-	val, valTy, err := fe.emitI64ToValue(idxVal, dstType)
-	if err != nil {
-		return err
-	}
-	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(ins.Select.Dst)
-	if err != nil {
-		return err
-	}
-	if dstTy != valTy {
-		dstTy = valTy
-	}
-	fe.emitValueStore(dstTy, val, ptr, dstAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%bb%d\n", ins.Select.ReadyBB)
 
 	fe.blockTerminated = true

@@ -206,7 +206,7 @@ has been recorded. **CLOSED** means both.
 | D5 | REMOTE select only — `rt_far_channel_select.c`. Local `select` moved into D3 by the 2026-08-19 ruling below | **CLOSED 2026-08-25** | D3 |
 | D6 | Blocking captures/results and every cancellation timing | **CODE COMPLETE.** Results 2026-08-25; captures a-1..a-4 2026-08-26..28; RV2-DEBT-080 stays Open pending the lead's green run of the rows a-3 and a-4 added | D3, D4 |
 | D7 | Async frames, captures, polling, wake, normal/shutdown drains | **STATE CARRIAGE CLOSED 2026-08-25** (numeric drop dispatch gone). **The frame itself is NOT STARTED**: 18 live `suspension-frame-owner` carriers, RV2-DEBT-179 Open | D4 |
-| D8 | RV2-DEBT-151 retirement — local **and** FAR **and** CROSSING (ruling 8) | **PARTIAL.** The copy-in leg is deleted and the release leg is gone from production; the adopt leg survives at three sites | D1–D7 |
+| D8 | RV2-DEBT-151 retirement — local **and** FAR **and** CROSSING (ruling 8) | **NATIVE HALF DONE 2026-08-29.** The copy-in leg was deleted, the release leg is gone from production, and the adopt leg went with its three sites: the select's winner index has a typed return of its own. `llvm-erased-word-bridge` reads live 0. The VM half (`internal/vm/transport_storage.go`) is untouched and is what keeps RV2-DEBT-151 open | D1–D7 |
 
 Worktree rule, from §5: task/channel/select/blocking may be separate worktrees
 **only after** the shared owner/slot API is integrated and their production
@@ -228,8 +228,8 @@ against base:
 | `llvm-composite-to-ptr` | 5 | **0** | D1's native half |
 | `untyped-capture-state` | 15 | **0** | D6 captures |
 | `vm-async-any-carrier` | 23 | 2 | both in `internal/asyncrt/timer.go`, `heap.Interface` |
-| `llvm-erased-word-bridge` | 25 | 3 | D8's adopt leg |
-| `llvm-pointer-word-ir` | 3 | 3 | the same helper's body plus `emit_term.go` |
+| `llvm-erased-word-bridge` | 25 | **0** (was 3) | D8's adopt leg, retired 2026-08-29 |
+| `llvm-pointer-word-ir` | 3 | 1 (was 3) | `emit_term.go`'s allowed fixnum constant, alone |
 | `vm-universal-owner` | 13 | 7 | VM `Value` frame slots |
 | `composite-box-marker` | 54 | 8 | clone/drop glue naming plus `cloneValueComposite` (RV2-DEBT-246) |
 | `native-word-carrier` | 85 | 10 | `rt_far_channel*`, `rt_remote_task_*` — Wave E |
@@ -780,6 +780,40 @@ Files: `internal/backend/llvm/emit_async_helpers.go`, `emit_async.go`,
 `internal/mir`. Size: a day — three call sites and one helper, but it is the
 row's retirement, so the round-trip family is the cost.
 
+**DONE 2026-08-29, and three of the four sentences above need correcting.**
+
+`emitI64ToValue` and both its `inttoptr` spellings are gone. The typed return
+lives in a new `internal/backend/llvm/emit_select_winner.go` and is shared by
+both callers, which is where it HAD to go: only the local caller reads
+`rt_select_poll`, the crossing caller loads a 64-bit wire field out of the
+anchored reply, so narrowing the C entry point would have left the second caller
+unchanged. Neither `emit_term.go` nor the `internal/mir` select lowering was
+touched — the lowering already gave the destination the winner-index type, and
+what was missing was the emitter checking it. `llvm-erased-word-bridge` 3 -> 0,
+`llvm-pointer-word-ir` 3 -> 1.
+
+The one that remains is `emit_term.go:291`, re-read as asked, and it stays: it
+is an LLVM CONSTANT EXPRESSION, `inttoptr (i64 N to ptr)`, building the tagged
+immediate `rt_bignum_tag.h` defines and `fixi_box` builds. It reinterprets a
+compile-time constant, not a runtime carrier. So "read live zero" is unreachable
+for that category and always was; what it reaches is zero unallowed findings and
+zero migration carriers, with one base-census legacy finding under the reviewed
+permanent allowance `fixnum-inline-tagged-word`.
+
+RV2-DEBT-151 does NOT retire with this. Its narrowing of 2026-08-28 moved the
+open half to the VM (`internal/vm/transport_storage.go`, three operations,
+twelve call sites), which no part of this step touches.
+
+**The scanner's token list is not part of the deletion.** Removing
+`case "emitValueToI64", "emitI64ToValue"` from `internal/carriergate/scan_go.go`
+was tried and measured: `TestLegacyCarrierManifestMatchesExactBaseCensus` fails
+with 25 `stale legacy` lines and `TestScanIsLexicalCommentSafeAndDeterministic`
+fails on its own fixture. The frozen base census is re-derived by scanning
+`7df10725` with the CURRENT scanner, so pruning a token falsifies the census of
+a commit that contained 25 of them. Every category already at live zero
+(`vm-boxed-composite-kind`, `llvm-composite-to-ptr`) keeps its tokens for the
+same reason.
+
 ### W6 — D2's measurement close
 
 Entry: an owner decision on RV2-DEBT-174. The carrier bench cannot run against
@@ -825,9 +859,11 @@ Entry: W1–W5 and W7 integrated on one tree. W6 gates only RV2-DEBT-156/157.
 
 The §12 command list in full on the integrated tree, plus the four additions in
 §6 above, plus a re-run of the live carrier scan: the number that says Wave D is
-done is `suspension-frame-owner`, `llvm-erased-word-bridge` and
-`llvm-pointer-word-ir` at live zero, with what remains confined to
-`rt_remote_task_*` and `rt_far_channel*` — Wave E's, by name and by file.
+done is `suspension-frame-owner` and `llvm-erased-word-bridge` at live zero and
+`llvm-pointer-word-ir` at live ONE, with what remains confined to
+`rt_remote_task_*` and `rt_far_channel*` — Wave E's, by name and by file. The
+one is `emit_term.go`'s allowed fixnum constant; W5 records why raw zero there
+would mean the fixnum representation had changed, which is not this wave's.
 
 ### Not Wave D, recorded so no lane picks it up by mistake
 

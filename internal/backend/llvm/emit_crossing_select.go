@@ -254,22 +254,9 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 	// place by the call above, which is the place sema's losing-arm drops
 	// already name. The winner's place was emptied by the staging move and
 	// stays empty, so nothing there is dropped twice.
-	dstType, err := fe.placeBaseType(ins.Dst)
-	if err != nil {
+	if err := fe.emitSelectWinnerIndex(winnerBits, ins.Dst); err != nil {
 		return err
 	}
-	val, valTy, err := fe.emitI64ToValue(winnerBits, dstType)
-	if err != nil {
-		return err
-	}
-	dstPtr, dstTy, dstAlign, err := fe.emitPlaceStorage(ins.Dst)
-	if err != nil {
-		return err
-	}
-	if dstTy != valTy {
-		dstTy = valTy
-	}
-	fe.emitValueStore(dstTy, val, dstPtr, dstAlign)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%bb%d\n", ins.ReadyBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", errBB)

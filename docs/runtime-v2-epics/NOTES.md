@@ -9483,3 +9483,85 @@ anything.
 same texts) and on `net_echo`, which is undocumented and was measured at
 `5897840a` in a separate worktree: identical failure, `panic VM1999: storage:
 string is not an unsized integer (type#10)` at `core/string.sg:341:16`.
+
+## The select's winner index is an index, not a word — 2026-08-29
+
+WHAT CHANGED. `emitI64ToValue` is deleted. Its last two callers both wrote a
+select's winner index — the local path from `rt_select_poll`'s `i64` return
+(`emit_async.go`), the crossing path from the anchored reply's `out_bits`
+(`emit_crossing_select.go`) — and both now call one helper,
+`emitSelectWinnerIndex` in the new `emit_select_winner.go`, which narrows the
+word to the winner index's own type and refuses any other destination. The two
+`inttoptr` spellings in the deleted body went with it.
+
+WHY A SHARED HELPER AND NOT A NARROWER RUNTIME RETURN. Only one of the two
+callers reads `rt_select_poll` at all; the crossing caller loads a 64-bit wire
+field out of the reply. Narrowing the C entry point would therefore have left
+the second caller exactly where it was. The typed answer has to live at the
+emitter boundary both callers share, which is also where the two files that
+already record this pattern put theirs (`emit_channel_storage.go:12`,
+`emit_task_result.go:10`).
+
+CENSUS, live, `go test ./internal/carriergate`:
+`llvm-erased-word-bridge` 3 -> 0; `llvm-pointer-word-ir` 3 -> 1; whole-tree
+total 80 -> 75. Ratchet green: `unexpected=0 stale=0 staleAllow=0`.
+
+THE REMAINING 1 IS `emit_term.go:291` AND IT IS NOT THIS ROW'S. Re-read as the
+plan asked. `inlineFixnumWord` returns an LLVM CONSTANT EXPRESSION,
+`inttoptr (i64 N to ptr)` — not an instruction — building the tagged immediate
+`rt_bignum_tag.h` defines and `fixi_box` builds. It reinterprets a compile-time
+constant, never a runtime carrier, and it owns nothing. It is a base-census
+legacy finding with a reviewed permanent allowance (`fixnum-inline-tagged-word`),
+whose own `invalidated_when` says what would retire it: fixnums ceasing to use
+pointer-typed tagged immediates. So the category's live count reaches 1, not 0,
+and the honest reading of "live zero" for it is zero UNALLOWED findings and zero
+migration carriers — both of which hold. Spelling the same reinterpretation
+another way to move the number would be gaming the instrument, not retiring a
+carrier.
+
+THE SCANNER'S TOKEN LIST MUST NOT BE PRUNED — measured, not argued. Removing
+`case "emitValueToI64", "emitI64ToValue"` from
+`internal/carriergate/scan_go.go` and running the package fails
+`TestLegacyCarrierManifestMatchesExactBaseCensus` with 25 `stale legacy` lines
+and `TestScanIsLexicalCommentSafeAndDeterministic` on its own fixture. The base
+census is RE-DERIVED by scanning commit `7df10725` with the CURRENT scanner, so
+a token cannot leave the scanner without falsifying the census of a commit that
+contained 25 of them. Retiring a legacy finding to zero is already what
+`Compare` calls progress; the precedent categories that reached live zero
+(`vm-boxed-composite-kind`, `llvm-composite-to-ptr`) all keep their tokens.
+
+PROOF (Rule 13). `TestSelectWinnerIndexRefusesAWordDestination` in
+`internal/backend/llvm/emit_select_winner_test.go`, run by `make check`. The
+positive stand alone proves nothing here: for the `Int32` destination the
+deleted bridge emitted the SAME `trunc i64 %bits to i32`, so only the refusal
+tells a typed arrival from a word arrival. Against a tree with the bridge
+restored at the call sites the three rows go red with what the bridge emitted:
+`store i64 %bits, ptr %select_index, align 8`;
+`%t1 = bitcast i64 %bits to double`;
+`%t1 = inttoptr i64 %bits to ptr`.
+
+GATES. `make check` 0, `make golden-check` 0 (and
+`git status --porcelain=v1 --untracked-files=all -- testdata/golden` empty),
+`make runtime-v2-carrier-check` 0. `make runtime-v2-transport-check` exits 2 on
+`TestRuntimeV2FarTaskCallerCancel`'s valgrind rows, and that red is PRE-EXISTING:
+reverted to a clean `c075d654` in the same worktree it fails identically —
+`definitely_lost=40B/1blk` on `cancel_after_publication_before_first_poll/
+valgrind/shards_1` and a four-figure loss on the phase sweep, with the base
+losing one MORE subtest than the changed tree, so the row is also flaky at
+shards_2. Far-task cancellation reclamation, not this step's.
+
+BOTH BACKENDS. `SURGE_BEHAVIOUR_BACKENDS=vm,llvm go test ./internal/vm -run
+'^TestVMAsyncSuiteGolden$'` — 60 pass / 0 fail, including all eight select
+fixtures `t20`..`t29` on BOTH lanes.
+
+THE BOUNDARY NUMBERS DID NOT MOVE, which is the "no copy at the boundary"
+reading this step could give. Four select copy-control stands are red on this
+tree and were already red at `c075d654`, byte for byte and block for block:
+`FarSelectCancelNonCopySendArm` 104B/3blk (want 48B/2blk),
+`FarSelectNonCopySendArm` 64B/1blk (want 0),
+`FarSelectConstArmEvaluatedOnce` 92B/2blk (want 36B/1blk),
+`LocalSelectCancelNonCopySendArm` 48B/1blk (want 0). Identical before and after
+means the winner-index change neither added a copy nor removed one; the four
+belong to far/frame reclamation, not to the index.
+`SelectReleasesAStringPayloadExactlyOnce` and
+`SelectReleasesACompositePayloadExactlyOnce` pass.
