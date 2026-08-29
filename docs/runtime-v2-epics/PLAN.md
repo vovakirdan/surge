@@ -28,14 +28,24 @@ No scheduled work waits on an owner decision.
 
 ## In flight
 
-| Lane | Branch / where | State | What must happen |
-| --- | --- | --- | --- |
-| **Scope join fix** | trunk, `48285f25` | **Landed.** A scope had stopped counting any child, so it answered before its children finished — my own regression in the claim protocol. Losing the claim to this scope's OWN id is now a win. | Aggregate gate on the dedicated machine, then done. |
-| **W4 · frame leak** | LANDED on trunk | Committed. Critic: SOUND_WITH_GAPS. It REFUTED the frame leak it was sent to find — the frame is released on every path — and found a real one instead: a task cancelled before its first poll never gives back its `rt_scope` block, 1.00 block / 64.0 bytes per cancelled task. | Fix the three things the critic named: the row turns two green gates red and the report does not say so; a second unreported retention at four workers; a false claim about `make check` written into a source comment. |
-| **W4 · frame word** | `lane-d7-2` | Committed. Critic: **UNSOUND**. The blocking frame's word is wrong by construction — no write site exists in `lower_blocking.go`, so a blocking frame is born PACKED and never corrected. Half the write sites have no failing test; the construction site pins the count, not the word. | Rework, not repair. The field is right; its writers are not. |
-| **W7 · channel** | `lane-d7-3` | Committed. Critic: SOUND_WITH_GAPS. Pins land with a real negative row; the §7 teardown half ships with no failing test, the header enumerates pin sites that do not exist, and `dying` is a load-then-store pair rather than a gate. | Give the teardown its failing test, fix the header's enumeration, and make `dying` one read-modify-write. |
-| **Scope refusal** | `lane-scope-refusal` | Committed. Critic: **UNSOUND**. Refuses a legal program with a false message; three bypasses compile silently (alias, sync helper, call pass-through) and two of them give OPPOSITE answers. Its justification for deleting the runtime adoption is false — a sync-helper program still reaches `rt_task_wake` with a scope set. | Rework. The refusal must ask about the TASK, not the spelling of the binding. |
-| **W2 instrument** | dedicated machine | **DONE: 0 red in 800 runs.** At the ~0.5% rate the row was chasing, zero in 800 has probability 1.8%. The entry condition for the fourth-window lane is NOT met. | Nothing. W2 is off the schedule until an instrument produces a red. |
+**Wave D — the only thing that closes the wave.**
+
+| | State |
+| --- | --- |
+| Carrier categories | **MET.** `suspension-frame-owner` 0, `llvm-erased-word-bridge` 0, `llvm-pointer-word-ir` 1 allowed. Census 83 -> 60. |
+| W8 — aggregate as a COUNT | Running: five consecutive `make runtime-v2-check` on the dedicated machine. One exit code is not a measurement; RV2-DEBT-308 is why. |
+| W6 — D2 closed by measurement | Waiting on a quiet host. The bench's reference host is the development machine and its timing half aborts at `p95 CV 0.415` against an allowance of `0.05` when anything else runs. |
+
+**Contract debt from the 2026-08-29 rulings — PARKED, none of it closes the
+wave.** Four lanes ran; their branches hold the work and their reviews hold the
+reasons. Nothing here is abandoned and nothing here is progress on the epic.
+
+| Branch | Verdict | What must happen before it lands |
+| --- | --- | --- |
+| `w-scope` | LAND_WITH_NOTES | The `creation_scope_key` refusal. Closest to landing of the four. |
+| `w-result` | **DO_NOT_LAND** | Two blockers: `runtime-v2-net-handle-check` is RED on its tree and that gate is on the aggregate roster, and `internal/buildpipeline/build.go` crossed 500 effective LOC. It changes a runtime C ABI signature (`rt_tag_alloc` gains a parameter) and every result constructor's NULL contract -- a protocol change that did not run the full suite, which is what Rule 16 exists for. |
+| `w-bench` | **DO_NOT_LAND** | A false fact in a committed comment, in a digest-pinned harness file. Rule 14's deliverable -- correcting the ledger row whose premise it disproved -- was not done. And it deferred the `final` phase on its own authority: the ruling renames the sync point and retires the byte assertions, and says nothing about deferral. |
+| `w-farcancel` | **DO_NOT_LAND** | The row is VACUOUS: it observed `withdrawn_before_first_poll = 0` in 7 of 7 runs, entering the body 1024 times of 1024 -- it never takes the path it is about. It also claims a transport credit the header does not have, and one of its comments contradicts its own sibling row. |
 
 ## Next, in this order
 
