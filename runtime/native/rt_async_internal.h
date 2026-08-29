@@ -237,17 +237,20 @@ typedef struct rt_task {
     // capability naming this slot and the awaiting side moves the value
     // straight out of it. Nothing is boxed to fit a word on the way.
     rt_value_cell result;
-    // A suspend-point or scope-join state box abandoned by a cancellation
-    // that completes the task without ever resuming compiled code (the
-    // ordinary path frees the INCOMING resumed state box at the START of
-    // the NEXT poll; a task that never polls again never reaches that
-    // free). Set once, from inside rt_async_yield/rt_async_return_cancelled
-    // before any re-park bookkeeping can touch it, so a state that gets
-    // deferred across one or more scope-drain re-parks is still found here
-    // when mark_done finally runs, regardless of how many hops the deferral
-    // took. mark_done consumes this pair exactly once and clears both.
-    void* abandoned_state;
-    uint64_t abandoned_state_type_id;
+    // A suspension frame a cancellation left behind, and the descriptor that
+    // reclaims it: the width, the alignment and the members' drop, resolved
+    // where the frame is handed over rather than carried as a number nothing
+    // in this struct can size. Set once, before any re-park bookkeeping can
+    // touch it, so a frame deferred across one or more scope-drain re-parks is
+    // still found here when mark_done finally runs. mark_done consumes the pair
+    // exactly once and clears both; what a release then means is the frame's
+    // own answer (rt_frame.h).
+    //
+    // The yield that finds its task already cancelled is what fills it in
+    // practice: a cancelled RETURN has already given its own frame back through
+    // the same release, so it names no type and leaves this empty.
+    void* reclaim_frame;
+    const rt_value_ops* reclaim_frame_ops;
     uint8_t result_kind;
     atomic_u8 status;
     uint8_t kind;

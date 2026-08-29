@@ -167,71 +167,17 @@ func (e *Emitter) requireDropGlue(id types.TypeID) string {
 // box may need reclaiming if a cancellation abandons it, and answers with the
 // resolved TypeID the runtime names it by.
 //
-// The runtime turns that id back into the type's DESCRIPTOR and performs both
-// halves itself: the members through drop_in_place, then the storage at the
-// width and alignment the descriptor states. There is no inert/Copy case to
-// gate callers on -- the box always exists, so it always needs freeing,
-// whether or not any of its fields separately own heap.
+// The runtime turns that id back into the type's DESCRIPTOR and gives the frame
+// back through the one release, which asks the FRAME whether its members are
+// still live before it walks them (runtime/native/rt_frame.h). There is no
+// inert/Copy case to gate callers on -- the frame always exists, so it always
+// needs freeing, whether or not any of its fields separately own heap.
 //
 // Only the yield that finds its task already cancelled abandons a frame this
 // way, and it abandons one it has just finished packing, so the frame is the
-// only owner of what is in it.
+// only owner of what is in it and the release finds it PACKED.
 func (e *Emitter) registerAbandonedStateDrop(stateType types.TypeID) types.TypeID {
 	return resolveValueType(e.types, stateType)
-}
-
-// suspensionFrameReleaseName is the entry point that reclaims a suspension
-// frame the runtime is holding and will never resume.
-func suspensionFrameReleaseName(id types.TypeID) string {
-	return fmt.Sprintf("release.frame.type%d", id)
-}
-
-// requireSuspensionFrameRelease records that a frame type needs the entry
-// point and returns its name.
-func (e *Emitter) requireSuspensionFrameRelease(id types.TypeID) string {
-	id = resolveValueType(e.types, id)
-	if e.suspensionFrameReleases == nil {
-		e.suspensionFrameReleases = make(map[types.TypeID]struct{})
-	}
-	e.suspensionFrameReleases[id] = struct{}{}
-	return suspensionFrameReleaseName(id)
-}
-
-// emitSuspensionFrameReleaseBody emits one frame release: the storage goes
-// back to the allocator and NOTHING walks what is in it.
-//
-// This is the release for a frame whose payload is spent. A poll takes its
-// locals OUT of the payload on entry and leaves those bytes behind, so from
-// then on the frame holds a bitwise duplicate of values those locals own; a
-// walk would free a string, a task handle or a channel a second time. The
-// terminator that ends a poll by cancellation reclaims its frame this way, and
-// so does the poll's own release of a completed frame.
-//
-// The frame a YIELD abandons is the other case and takes the full release:
-// there the packing store has just run, so the frame is the only owner of what
-// it holds and walking is the only thing that reclaims it. Which of the two a
-// frame is, is known at the site that gives it up rather than by the frame,
-// which is why nothing here has to ask.
-func (e *Emitter) emitSuspensionFrameReleaseBody(id types.TypeID) error {
-	facts, err := e.layoutOf(id)
-	if err != nil {
-		return err
-	}
-	align := facts.Align
-	if align == 0 {
-		align = 1
-	}
-	fmt.Fprintf(&e.buf, "define void @%s(ptr %%p) {\n", suspensionFrameReleaseName(id))
-	fmt.Fprintf(&e.buf, "entry:\n")
-	fmt.Fprintf(&e.buf, "  %%isnull = icmp eq ptr %%p, null\n")
-	fmt.Fprintf(&e.buf, "  br i1 %%isnull, label %%ret, label %%body\n")
-	fmt.Fprintf(&e.buf, "body:\n")
-	fmt.Fprintf(&e.buf, "  call void @rt_free(ptr %%p, i64 %d, i64 %d)\n",
-		transportAllocationSize(facts.Size), align)
-	fmt.Fprintf(&e.buf, "  br label %%ret\n")
-	fmt.Fprintf(&e.buf, "ret:\n")
-	fmt.Fprintf(&e.buf, "  ret void\n}\n\n")
-	return nil
 }
 
 // registerCrossingDropResult answers with the resolved TypeID a crossing names
@@ -361,16 +307,15 @@ func (e *Emitter) emitDropHandleRootAt(g *glueTmp, ptr string, ty types.TypeID, 
 // emitDropGlue emits every needed glue function, processing to a
 // fixpoint (a glue body can require more glue).
 //
-// All four kinds are drained in ONE fixpoint because they ask for each other in
-// both directions: dropping a value the runtime is holding reaches for the
-// release entry point of its type, and a release entry point reaches back for
-// the ordinary drop glue of the same type. Draining them in separate passes
-// emits whichever ran second and silently skips whatever it asked of the first
-// — leaving a call to a function the module never defines.
+// Both kinds are drained in ONE fixpoint because they ask for each other in
+// both directions: a composite's drop reaches for the per-element glue of a
+// dynamic array it holds, and that element glue reaches back for the ordinary
+// drop glue of the element's own type. Draining them in separate passes emits
+// whichever ran second and silently skips whatever it asked of the first —
+// leaving a call to a function the module never defines.
 func (e *Emitter) emitDropGlue() error {
 	done := make(map[types.TypeID]struct{})
 	doneElem := make(map[types.TypeID]struct{})
-	doneFrame := make(map[types.TypeID]struct{})
 	for {
 		progressed := false
 		for _, id := range takePendingGlue(e.dropGlueNeeded, done) {
@@ -381,12 +326,6 @@ func (e *Emitter) emitDropGlue() error {
 		}
 		for _, id := range takePendingGlue(e.dropElemGlueNeeded, doneElem) {
 			e.emitDropElemGlueBody(id)
-			progressed = true
-		}
-		for _, id := range takePendingGlue(e.suspensionFrameReleases, doneFrame) {
-			if err := e.emitSuspensionFrameReleaseBody(id); err != nil {
-				return err
-			}
 			progressed = true
 		}
 		if !progressed {

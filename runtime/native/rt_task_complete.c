@@ -10,6 +10,7 @@
 // rt_async_state.c; no behavior change.
 
 #include "rt_async_internal.h"
+#include "rt_frame.h"
 #include "rt_remote_task.h"
 #include "rt_sync_point.h"
 #include "rt_task_refs.h"
@@ -340,19 +341,18 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind) {
     // SEALED -- and must not leave a task answering Success while something
     // believes it cancelled it.
     RT_SYNC_POINT(SP_MARKDONE_AFTER_SEAL_BEFORE_DONE);
-    // A suspend-point or scope-join state box a cancellation abandoned
-    // without ever resuming compiled code (rt_async_yield/
-    // rt_async_return_cancelled stash it here before completing the task by
-    // this same route). Every completion funnels through mark_done exactly
+    // A suspension frame a cancellation left behind without ever resuming
+    // compiled code (rt_async_yield stashes it here before completing the task
+    // by this same route). Every completion funnels through mark_done exactly
     // once per task, regardless of how many scope-drain re-parks deferred
-    // getting here, so this is the one place that can drop it exactly once.
-    if (task->abandoned_state_type_id != 0) {
-        // Deferred, not immediate: this runs holding control, and destroying
-        // the box runs the state type's generated drop.
-        rt_release_owned_block_when_unlocked(
-            rt_channel_element_ops_for(task->abandoned_state_type_id), task->abandoned_state);
-        task->abandoned_state = NULL;
-        task->abandoned_state_type_id = 0;
+    // getting here, so this is the one place that can give it back exactly
+    // once. What giving it back means -- walk the members first, or hand the
+    // storage straight to the allocator -- is the frame's own answer, and this
+    // site does not supply it.
+    if (task->reclaim_frame != NULL) {
+        rt_frame_release(task->reclaim_frame_ops, task->reclaim_frame);
+        task->reclaim_frame = NULL;
+        task->reclaim_frame_ops = NULL;
     }
     rt_far_task_release_owned(ex, task);
     rt_immediate_on_release_owned(ex, task);

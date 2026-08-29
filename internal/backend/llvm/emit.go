@@ -89,36 +89,6 @@ type Emitter struct {
 	// (emit_clone_array.go).
 	cloneGlueNeeded     map[types.TypeID]struct{}
 	cloneElemGlueNeeded map[types.TypeID]struct{}
-	// Crossing states that ship with a drop obligation: the crossing
-	// body's FuncID doubles as the drop-fn id, and the dispatch routes
-	// it to the state struct's recursive glue (emit_async.go).
-	// Remote-body RESULT payload types that ship over the reply edge with
-	// an owner-side drop obligation (RV2-DEBT-053a). Keyed by the result
-	// payload TypeID (its own id space, distinct from state's FuncID
-	// space) because a result may be a heap leaf — string or dynamic
-	// array — needing full value-drop, not just struct-box glue. The
-	// dispatch (__surge_drop_result_call) routes the id to the value's
-	// drop wrapper (emit_async.go).
-	// Suspend-point/scope-join state boxes a cancellation may abandon with
-	// nothing left to unpack them (the abandoned-suspend-state fix). Keyed
-	// by the state struct's own TypeID (its own id space, like results, not
-	// state's FuncID space): every yield/return-cancelled site in every
-	// function can build a differently-typed state, so there is no single
-	// natural FuncID to key on the way a crossing body has. Unlike a
-	// result, this box always exists (an activation allocates one, never
-	// inert/Copy), so every registration always needs an arm. The dispatch
-	// (__surge_drop_abandoned_state_call) routes the id to the frame
-	// release below (emit_async.go).
-	// Values the runtime holds in an allocation of its own — an unadopted
-	// transport payload, a crossing state that was never shipped — need one
-	// entry point that releases what the value owns AND the allocation
-	// carrying it. See emit_transport_allocation.go.
-	// Result payload types a cloned task handle must be served a copy of. See
-	// emit_copy_result_glue.go.
-	// An ABANDONED async frame is released rather than dropped: the storage
-	// goes back to the allocator and nothing walks the resume payload, which
-	// is a duplicate of what the resumed locals own (emit_drop_glue.go).
-	suspensionFrameReleases map[types.TypeID]struct{}
 }
 
 type funcEmitter struct {
@@ -367,6 +337,7 @@ func (e *Emitter) emitPreamble() {
 	// because shards are OS threads, and the counter is written by whichever
 	// shard runs the copy; nothing ever reads it back.
 	fmt.Fprintf(&e.buf, "@%s = thread_local global i32 0\n\n", retainScratchGlobal)
+	e.emitAllocRefusalDescriptor()
 }
 
 // retainScratchGlobal is the module-level sink a NULL retain bumps instead.

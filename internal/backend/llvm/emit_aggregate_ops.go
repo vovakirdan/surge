@@ -181,25 +181,49 @@ func (fe *funcEmitter) emitStorageAllocaAligned(id types.TypeID) (ptr string, al
 	return slot, facts.Align, nil
 }
 
-// emitRuntimeOwnedStorage reserves storage for a value whose owner outlives the
-// function that builds it, and returns its address.
+// emitFrameStorage reserves the storage a suspension frame lives in and returns
+// its address.
 //
-// This is where a suspension frame is materialized. The address is handed to the
-// runtime — to `__task_create` for an async state and its payload, to
-// `rt_blocking_submit` for a blocking body's captures — and the runtime keeps it
-// past the suspension and releases it with the size and alignment recorded here.
-// So the allocation is the runtime's allocator, and this emission does not free
-// it: doing so would free storage whose owner is still holding it.
+// The address is handed to the runtime — to `__task_create` for an async state
+// and its payload, to `rt_blocking_submit` for a blocking body's captures — and
+// the runtime keeps it past the suspension. So the allocation is the runtime's
+// allocator, and this emission does not free it: doing so would free storage
+// whose owner is still holding it.
+//
+// The width and the alignment are NOT written into the call. They are read at
+// run time out of the frame type's own descriptor, which is the same authority
+// the release asks (runtime/native/rt_frame.h). A frame sized here and freed
+// from the descriptor is a frame two authorities describe, and the day they
+// disagree the block goes back at the wrong width.
 //
 // The allocator may refuse, and then there is nothing here to hand anyone: the
-// duplication stops the process naming this type. See emit_alloc_guard.go.
-func (fe *funcEmitter) emitRuntimeOwnedStorage(id types.TypeID) (string, error) {
-	facts, err := fe.emitter.layoutOf(id)
+// guard stops the process naming this type. See emit_alloc_guard.go.
+func (fe *funcEmitter) emitFrameStorage(id types.TypeID) (string, error) {
+	ops, err := fe.emitter.frameOpsSymbol(id)
 	if err != nil {
 		return "", err
 	}
-	size := fmt.Sprintf("%d", facts.Size)
-	return fe.emitCheckedAlloc(allocSiteRuntimeOwned, id, size, facts.Align), nil
+	return fe.emitCheckedFrameAlloc(allocSiteRuntimeOwned, id, ops), nil
+}
+
+// frameOpsSymbol names the descriptor a frame's reservation and its release
+// both read, and refuses a frame type the operation census never saw.
+//
+// A type with no descriptor is carried as the opaque word — eight bytes, no
+// drop — so the frame would be reserved and given back at a width that is not
+// its own, with its captures still inside it. The refusal is here, where the
+// type is still legible, rather than in a runtime holding only an address.
+func (e *Emitter) frameOpsSymbol(id types.TypeID) (string, error) {
+	if e.valueOpsRegistryHas(id) {
+		return valueOpsSymbol(id), nil
+	}
+	if resolved := resolveValueType(e.types, id); resolved != id && e.valueOpsRegistryHas(resolved) {
+		return valueOpsSymbol(resolved), nil
+	}
+	return "", fmt.Errorf(
+		"llvm: suspension frame type#%d has no operation descriptor, so its storage would be "+
+			"reserved and released at the opaque word's width; note: every registry type gets a "+
+			"descriptor, so this type never reached the operation census", id)
 }
 
 // emitValueStorage reserves storage for one value in the place its
@@ -213,7 +237,7 @@ func (fe *funcEmitter) emitValueStorage(id types.TypeID) (string, error) {
 	if fe.emitter.hasInlineStorage(id) {
 		return fe.emitStorageAlloca(id)
 	}
-	return fe.emitRuntimeOwnedStorage(id)
+	return fe.emitFrameStorage(id)
 }
 
 // emitTypedAlloca reserves the storage a value of typeID occupies, spelled

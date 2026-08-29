@@ -16,6 +16,13 @@ var (
 	// compiled code allocated and can only hand it back to be released.
 	// Longest alternative first, so the type-id field is not read as the
 	// pointer field with a suffix.
+	//
+	// The tree these name is EMPTY today -- the task keeps a frame and its
+	// descriptor now, not a pointer and a number -- and the pattern stays
+	// because the frozen census is a census of a COMMIT that had four of them.
+	// Deleting the pattern would re-derive that commit as having none, which is
+	// the manifest disagreeing with the thing it is a census of, and it would
+	// leave the category unable to see the shape come back.
 	nativeFrameOwnerRE = regexp.MustCompile(`\b(abandoned_state_type_id|abandoned_state)\b`)
 )
 

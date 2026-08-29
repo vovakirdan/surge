@@ -15,6 +15,12 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_alloc", ret: "ptr", params: []string{"i64", "i64"}},
 		{name: "rt_free", ret: "void", params: []string{"ptr", "i64", "i64"}},
 		{name: "rt_realloc", ret: "ptr", params: []string{"ptr", "i64", "i64", "i64"}},
+		// A suspension frame's two ends, and both take the frame type's own
+		// descriptor: the width and the alignment are stated once, by the
+		// type, instead of being written into the reservation by the emitter
+		// and into the release by a second body that had to agree with it.
+		{name: "rt_frame_alloc", ret: "ptr", params: []string{"ptr"}},
+		{name: "rt_frame_release", ret: "void", params: []string{"ptr", "ptr"}},
 		{name: "llvm.trap", ret: "void", params: nil},
 		// The byte move behind every inline-storage copy. It is the intrinsic
 		// rather than the runtime helper next to it because a composite

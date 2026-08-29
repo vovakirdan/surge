@@ -172,6 +172,44 @@ func (fe *funcEmitter) emitCheckedAlloc(site allocSite, id types.TypeID, size st
 	return ptr
 }
 
+// allocRefusalOpsSymbol names the descriptor the armed control makes a frame
+// site reserve from. It exists only in an armed build.
+const allocRefusalOpsSymbol = "__surge_frame_alloc_refusal_ops"
+
+// emitAllocRefusalDescriptor writes that descriptor, and writes nothing at all
+// in an ordinary build.
+//
+// Its layout asks for allocRefusalSize bytes; every callback slot is null,
+// because the guard stops the process before anything can dispatch one.
+func (e *Emitter) emitAllocRefusalDescriptor() {
+	if !allocRefusalArmed(allocSiteRuntimeOwned) {
+		return
+	}
+	fmt.Fprintf(&e.buf,
+		"@%s = constant %%struct.rt_value_ops { %%struct.rt_value_layout { i64 %s, i64 1, i64 %s, i64 0 }"+
+			", ptr null, ptr null, ptr null, ptr null, ptr null, ptr null, ptr null, ptr null }\n\n",
+		allocRefusalOpsSymbol, allocRefusalSize, allocRefusalSize)
+}
+
+// emitCheckedFrameAlloc reserves one suspension frame and tests the answer.
+//
+// The size operand every other guarded site carries is absent on purpose: a
+// frame's width is stated once, by its descriptor, and rt_frame_alloc reads it
+// there. So the negative control cannot rewrite an integer in the call — it
+// rewrites the DESCRIPTOR the call names, to one whose layout asks for
+// allocRefusalSize bytes. The refusal then travels the same
+// rt_alloc -> NULL -> guard path a real one does, and the armed build still
+// differs from the ordinary one in exactly that integer.
+func (fe *funcEmitter) emitCheckedFrameAlloc(site allocSite, id types.TypeID, opsSymbol string) string {
+	if allocRefusalArmed(site) {
+		opsSymbol = allocRefusalOpsSymbol
+	}
+	ptr := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_frame_alloc(ptr @%s)\n", ptr, opsSymbol)
+	fe.emitRefusalTest(allocFailureMessage(fe.emitter.types, id), ptr)
+	return ptr
+}
+
 // emitCheckedRealloc grows one runtime block and tests the answer BEFORE the
 // caller records it.
 //

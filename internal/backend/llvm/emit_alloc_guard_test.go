@@ -86,6 +86,11 @@ func runtimePointerAnswers() map[string]runtimeAnswer {
 				"because a refused reallocation releases nothing (runtime/native/rt_alloc.c: rt_realloc)",
 			"rt_realloc"),
 		classified(refusalIsTested,
+			"emitCheckedFrameAlloc writes it and tests the answer; it reaches rt_alloc at the width "+
+				"its descriptor states and reports nothing itself, because the sentence names the TYPE "+
+				"and only the caller has one (runtime/native/rt_frame.c: rt_frame_alloc)",
+			"rt_frame_alloc"),
+		classified(refusalIsTested,
 			"emitCheckedRangeNew for the bounded form and emitRuntimeAnswerTest for the open-ended ones, "+
 				"which are reached as ordinary calls to a runtime symbol; all four share alloc_range "+
 				"(runtime/native/rt_range.c)",
@@ -470,8 +475,20 @@ func intrinsicsInterceptedBeforeTheCallPath(t *testing.T) map[string]string {
 func TestATestedAnswerIsGuardedOnEveryPathThatReachesIt(t *testing.T) {
 	intercepted := intrinsicsInterceptedBeforeTheCallPath(t)
 	atTheCallSite := runtimeAnswersTestedAtTheCallSite()
+	emitterOnly := emitterOnlyPointerAnswers()
 	for name, answer := range runtimePointerAnswers() {
 		if answer.class != refusalIsTested {
+			continue
+		}
+		if _, only := emitterOnly[name]; only {
+			if atTheCallSite[name] {
+				t.Errorf("%s is listed as unnameable and also tested at the call site; "+
+					"one of the two is dead, and a dead guard is a guard nobody notices losing", name)
+			}
+			if where, claimed := intercepted[name]; claimed {
+				t.Errorf("%s is listed as unnameable and %s claims it in a case; "+
+					"a symbol an intrinsic emitter lowers is one the language can name", name, where)
+			}
 			continue
 		}
 		if where, claimed := intercepted[name]; claimed {
@@ -491,6 +508,54 @@ func TestATestedAnswerIsGuardedOnEveryPathThatReachesIt(t *testing.T) {
 		if runtimePointerAnswers()[name].class != refusalIsTested {
 			t.Errorf("%s is tested at the call site and is not classified as tested; "+
 				"the guard and the census disagree about it", name)
+		}
+	}
+}
+
+// emitterOnlyPointerAnswers are pointer-answering entry points the LANGUAGE
+// cannot name.
+//
+// The two ways in TestATestedAnswerIsGuardedOnEveryPathThatReachesIt — an
+// intrinsic emitter's `case`, or the generic call path — both start from a
+// program writing the symbol's name, and a program can only write a name
+// `core/intrinsics.sg` declares. An entry point that is not declared there is
+// reached from one emitter and from nothing else, so the test beside that
+// emitter's call is the whole surface.
+//
+// Membership is not taken on trust. TestAnEmitterOnlyAnswerIsNotCallable reads
+// the intrinsic declarations and fails if one of these appears among them,
+// because the day a symbol becomes callable is the day the generic call path
+// can reach it untested.
+func emitterOnlyPointerAnswers() map[string]string {
+	return map[string]string{
+		"rt_frame_alloc": "a suspension frame is reserved by emitFrameStorage and by nothing a program can write",
+	}
+}
+
+// intrinsicDeclRe reads one `@intrinsic fn NAME(` declaration.
+var intrinsicDeclRe = regexp.MustCompile(`@intrinsic\s+(?:pub\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(`)
+
+// TestAnEmitterOnlyAnswerIsNotCallable checks the claim above against the
+// language's own roster of runtime symbols.
+func TestAnEmitterOnlyAnswerIsNotCallable(t *testing.T) {
+	path := filepath.Join(repoRootFromLLVMTest(t), "core", "intrinsics.sg")
+	raw, err := os.ReadFile(path) // #nosec G304 -- repository-owned path
+	if err != nil {
+		t.Fatalf("read the intrinsic roster: %v", err)
+	}
+	declared := map[string]bool{}
+	for _, m := range intrinsicDeclRe.FindAllStringSubmatch(string(raw), -1) {
+		declared[m[1]] = true
+	}
+	// A roster that stopped parsing would excuse every entry below, which is
+	// the failure this whole file is written against.
+	if !declared["rt_alloc"] {
+		t.Fatalf("%s no longer declares rt_alloc; the roster moved and this check reads nothing", path)
+	}
+	for name, why := range emitterOnlyPointerAnswers() {
+		if declared[name] {
+			t.Errorf("%s is declared in %s, so a program can call it and the generic call path "+
+				"reaches it untested; the reason recorded for it was %q", name, path, why)
 		}
 	}
 }

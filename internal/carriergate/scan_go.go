@@ -67,6 +67,15 @@ func goIdentifierCategory(filePath, name string) string {
 		// holds past the suspension. `abandonedStateDropID` is deliberately
 		// NOT here: it names the same frame, but what it carries is a numeric
 		// drop id, and that is the category already counting it.
+		//
+		// Every one of these names is EMPTY in this tree: the frame is
+		// reserved and released through its own descriptor now
+		// (runtime/native/rt_frame.h) and the two `AsyncStateFree` spellings
+		// went with the builtin. The list stays because the frozen census is a
+		// census of a COMMIT that had all five, so deleting a name re-derives
+		// that commit as having fewer -- the manifest disagreeing with the
+		// thing it is a census of -- and leaves the category unable to see the
+		// shape come back.
 		case "emitRuntimeOwnedStorage", "requireSuspensionFrameRelease",
 			"emitSuspensionFrameReleaseBody", "emitAsyncStateFreeIntrinsic",
 			"AsyncStateFreeBuiltin":

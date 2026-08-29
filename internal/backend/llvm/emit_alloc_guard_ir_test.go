@@ -69,6 +69,24 @@ fn main() -> int {
 }
 `
 
+// allocGuardFrameProgram reaches the one site whose width is NOT written into
+// its call: a suspension frame takes its bytes from its own descriptor, so
+// rt_frame_alloc is spelled with a single descriptor operand and the guard's
+// shape has to hold over it exactly as it does over a call carrying a size.
+const allocGuardFrameProgram = `async fn add(a: int, b: int) -> int {
+    checkpoint().await();
+    return a + b;
+}
+
+@entrypoint
+fn main() -> int {
+    return compare add(2, 4).await() {
+        Success(v) => v;
+        Cancelled() => 9;
+    };
+}
+`
+
 // allocGuardProgram is one program together with the entry points it must
 // reach. The list is asserted, so a program that stops reaching a constructor —
 // because a lowering changed — fails here instead of passing vacuously over a
@@ -90,6 +108,11 @@ func allocGuardPrograms() []allocGuardProgram {
 			name:    "bracketed_range_literals",
 			source:  allocGuardRangeProgram,
 			reaches: []string{"rt_alloc", "rt_range_int_new", "rt_range_int_to_end", "rt_range_int_full"},
+		},
+		{
+			name:    "suspension_frame",
+			source:  allocGuardFrameProgram,
+			reaches: []string{"rt_frame_alloc"},
 		},
 	}
 }

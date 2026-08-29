@@ -446,13 +446,16 @@ func (fe *funcEmitter) emitInstrSelect(ins *mir.Instr) error {
 	return nil
 }
 
-// abandonedStateDropID resolves the drop-fn id the runtime passes to
-// __surge_drop_abandoned_state_call if a cancellation abandons this
-// suspend-point state box without ever resuming compiled code to free it.
-// The state is always a heap-boxed struct (buildAsyncPendingBlocks packs
-// live locals into one every time), so — unlike a task result, which may be
-// inert Copy bits with no box at all — there is always something to
-// register here.
+// abandonedStateDropID resolves the number a yield hands the runtime for the
+// frame it may be abandoning: a cancellation completes the task without ever
+// resuming compiled code, so nothing here can give the frame back and the
+// runtime turns this number into the frame type's DESCRIPTOR to do it
+// (rt_async_poll.c, stash_reclaim_frame). There is no dispatch function
+// between the two.
+//
+// The state is always a heap frame (buildAsyncPendingBlocks packs live locals
+// into one every time), so — unlike a task result, which may be inert Copy bits
+// with no storage of its own at all — there is always something to name here.
 func (fe *funcEmitter) abandonedStateDropID(state *mir.Operand) (types.TypeID, error) {
 	stateType, err := fe.suspensionFrameTypeOf(state)
 	if err != nil {
@@ -461,8 +464,7 @@ func (fe *funcEmitter) abandonedStateDropID(state *mir.Operand) (types.TypeID, e
 	return fe.emitter.registerAbandonedStateDrop(stateType), nil
 }
 
-// suspensionFrameTypeOf names the frame a suspension terminator is holding,
-// for the terminators that reclaim it themselves rather than registering it.
+// suspensionFrameTypeOf names the frame a suspension terminator is holding.
 func (fe *funcEmitter) suspensionFrameTypeOf(state *mir.Operand) (types.TypeID, error) {
 	stateType, err := fe.placeBaseType(state.Place)
 	if err != nil || stateType == types.NoTypeID {
@@ -511,19 +513,24 @@ func (fe *funcEmitter) emitTermAsyncReturnCancelled(term *mir.Terminator) error 
 	if err != nil {
 		return err
 	}
-	// This frame's payload was read out at the top of the poll and the locals
-	// that took those bytes have been released since, so what sits here is a
-	// duplicate of values that are already gone: give back the storage and
-	// walk nothing. Handing it to the runtime's abandoned-frame release
-	// instead would free them a second time, because that release is written
-	// for the frame a yield packs and abandons, which owns what it holds.
+	ops, err := fe.emitter.frameOpsSymbol(frameType)
+	if err != nil {
+		return err
+	}
+	// The ONE release, which reads the frame's own lifecycle word and decides
+	// there. This frame is SPENT: its payload was read out at the top of the
+	// poll and the locals that took those bytes have been released since, so
+	// what sits here is a duplicate of values that are already gone and the
+	// release walks nothing. The frame a yield packs and abandons reaches the
+	// same entry point from the completion path and answers PACKED, where
+	// walking is the only thing that reclaims what it holds.
 	//
-	// Zero says there is nothing left to reclaim. Nothing reads the state
-	// pointer after a cancelled outcome — the runtime's cancelled arm goes
-	// straight to completion — so passing the freed pointer alongside it
-	// keeps the call shape without anyone dereferencing it.
-	fmt.Fprintf(&fe.emitter.buf, "  call void @%s(ptr %s)\n",
-		fe.emitter.requireSuspensionFrameRelease(frameType), stateVal)
+	// Zero says the runtime has nothing left to reclaim for this task: the
+	// frame is already back. Nothing reads the state pointer after a cancelled
+	// outcome — the runtime's cancelled arm goes straight to completion — so
+	// passing the freed pointer alongside it keeps the call shape without
+	// anyone dereferencing it.
+	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_frame_release(ptr @%s, ptr %s)\n", ops, stateVal)
 	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_async_return_cancelled(ptr %s, i64 0)\n", stateVal)
 	fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
 	return nil

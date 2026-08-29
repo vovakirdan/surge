@@ -261,23 +261,27 @@ void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind) {
     }
 }
 
-// Stashes a suspend-point/scope-join state box onto the current task before
-// a cancellation completes it. This runs at most once per task lifetime
-// (poll_task's TASK_DONE fast path and cancel_pending short-circuit both
-// prevent compiled code from ever running again for a task that has already
-// taken this branch once), so there is no overwrite/re-entry hazard to guard
-// against; mark_done is the sole consumer, exactly once, on every path that
-// can reach it.
-static void stash_abandoned_state(void* state, uint64_t state_type_id) {
-    if (state_type_id == 0) {
+// Stashes a suspension frame onto the current task before a cancellation
+// completes it. This runs at most once per task lifetime (poll_task's TASK_DONE
+// fast path and cancel_pending short-circuit both prevent compiled code from
+// ever running again for a task that has already taken this branch once), so
+// there is no overwrite/re-entry hazard to guard against; mark_done is the sole
+// consumer, exactly once, on every path that can reach it.
+//
+// The frame's DESCRIPTOR is resolved here, at the boundary where the number
+// generated code carries is still next to the frame it names. What the task
+// keeps is the descriptor itself, so the release is a question about a type
+// rather than about a table lookup nobody downstream can check.
+static void stash_reclaim_frame(void* frame, uint64_t frame_type_id) {
+    if (frame_type_id == 0) {
         return;
     }
     rt_task* current = rt_current_task();
     if (current == NULL) {
         return;
     }
-    current->abandoned_state = state;
-    current->abandoned_state_type_id = state_type_id;
+    current->reclaim_frame = frame;
+    current->reclaim_frame_ops = rt_channel_element_ops_for(frame_type_id);
 }
 
 void rt_async_yield(void* state, uint64_t state_type_id) {
@@ -287,7 +291,7 @@ void rt_async_yield(void* state, uint64_t state_type_id) {
     }
     poll_result.state = state;
     if (current_task_cancelled(&exec_state)) {
-        stash_abandoned_state(state, state_type_id);
+        stash_reclaim_frame(state, state_type_id);
         poll_result.kind = POLL_DONE_CANCELLED;
         poll_result.park_key = waker_none();
         pending_key = waker_none();
@@ -358,6 +362,6 @@ void rt_async_return_cancelled(void* state, uint64_t state_type_id) {
     poll_result.kind = POLL_DONE_CANCELLED;
     poll_result.park_key = waker_none();
     pending_key = waker_none();
-    stash_abandoned_state(state, state_type_id);
+    stash_reclaim_frame(state, state_type_id);
     longjmp(*poll_env, 1);
 }
