@@ -41,9 +41,9 @@ func (fe *funcEmitter) selectWinnerIndexType() types.TypeID {
 //
 // `bits` is rt_select_poll's i64 return on the local path and the anchored
 // reply's out_bits on the crossing path. Both already hold the index -- the
-// local caller has taken the pending branch before arriving here, and the
-// crossing caller has taken the winner branch -- so the narrowing is the whole
-// of the conversion.
+// local caller has PASSED the pending test and is inside the ready block, and
+// the crossing caller is inside the winner block -- so the narrowing is the
+// whole of the conversion.
 func (fe *funcEmitter) emitSelectWinnerIndex(bits string, dst mir.Place) error {
 	if fe == nil || fe.emitter == nil || fe.emitter.types == nil {
 		return fmt.Errorf("missing type info")

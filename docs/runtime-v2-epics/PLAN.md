@@ -81,8 +81,21 @@ No scheduled work waits on an owner decision.
 
 **Wave D closes when** `suspension-frame-owner` and `llvm-erased-word-bridge`
 read live zero, `llvm-pointer-word-ir` reads live ONE, and the remainder is
-confined to `rt_remote_task_*` and `rt_far_channel*`. That is 24 of the 83 live
-findings. `llvm-erased-word-bridge` reached zero on 2026-08-29 and
+confined to `rt_remote_task_*` and `rt_far_channel*`.
+
+**The exit condition as first written was wrong and this is the correction.** It
+said all three categories read live ZERO. `llvm-pointer-word-ir` cannot: its
+remaining finding is `emit_term.go`'s `inttoptr (i64 N to ptr)`, an LLVM
+CONSTANT EXPRESSION building the fixnum tagged immediate from a compile-time
+constant, and it carries the reviewed permanent allowance
+`fixnum-inline-tagged-word` whose `invalidated_when` retires it only if fixnums
+stop using pointer-typed tagged immediates. Driving that number to raw zero
+means changing the fixnum representation, which is not this wave's work, and
+spelling the same reinterpretation another way to move the count would be gaming
+the instrument rather than retiring a carrier. What the wave owes is zero
+UNALLOWED findings, and that is what the condition now says.
+
+Remaining: **15**, all `suspension-frame-owner`. `llvm-erased-word-bridge` reached zero on 2026-08-29 and
 `llvm-pointer-word-ir` reached its one; the one is `emit_term.go`'s
 `inlineFixnumWord`, an LLVM constant expression building the tagged immediate
 `fixi_box` builds, held by the reviewed permanent allowance
