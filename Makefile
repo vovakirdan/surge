@@ -408,9 +408,9 @@ runtime-v2-panic-surface-check:
 	@echo ">> Running the panic-surface census gate"
 	$(GO) test ./internal/panicgate -run '^Test(PanicSitesAreCoveredOrExcused|EveryRecordedFixtureIsActuallyRun|PanicScanFindsTheKnownSurface|PanicReportersAreAllKnown|EmitterRaisesOnlyFromTheKnownPackage)$$' -count=1 --timeout 120s
 	@echo ">> Running the emitted-allocation refusal census"
-	$(GO) test ./internal/backend/llvm -run '^Test(EveryEmittedAllocationGoesThroughTheRefusalTest|TheGuardedSiteRosterMatchesTheEmitterCallSites|AGuardedAllocationIsTestedAndReportsItsType|TheRefusalMessageIsNotInTheTraceStringTable|TheNegativeControlAimsAtOneSite|TheGuardIsWhereTheReportedFileSaysItIs)$$' -count=1 --timeout 120s
+	$(GO) test ./internal/backend/llvm -run '^Test(EveryEmittedAllocationGoesThroughTheRefusalTest|EveryRuntimePointerAnswerIsClassified|ATestedAnswerIsGuardedOnEveryPathThatReachesIt|TheCensusSeesTheCallItOnceMissed|TheCensusSaysWhenItCanSeeNothingOfAFile|TheGuardedSiteRosterMatchesTheEmitterCallSites|AGuardedAllocationIsTestedAndReportsItsType|TheRefusalMessageIsNotInTheTraceStringTable|TheNegativeControlAimsAtOneSite|TheGuardIsWhereTheReportedFileSaysItIs)$$' -count=1 --timeout 120s
 	@echo ">> Running the allocation-refusal negative control"
-	SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2AllocationRefusalReportsTheTypeItCouldNotAllocate$$' -count=1 -v --timeout 300s
+	SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^Test(RuntimeV2AllocationRefusalReportsTheTypeItCouldNotAllocate|ARefusedStringReportsInsteadOfAnsweringTheEmptyString)$$' -count=1 -v --timeout 300s
 
 # The stable transport gate: park/wake spine acceptance, publication rows,
 # the crossing e2e verticals, race rows, and the negative matrix all run
