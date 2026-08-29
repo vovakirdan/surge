@@ -79,23 +79,40 @@ No scheduled work waits on an owner decision.
 8. **W8 — wave closeout** when D2, D7, D8, D3b and the cancellation window are
    all closed on one tree. *~1 day.*
 
-**Wave D closes when** `suspension-frame-owner` and `llvm-erased-word-bridge`
-read live zero, `llvm-pointer-word-ir` reads live ONE, and the remainder is
-confined to `rt_remote_task_*` and `rt_far_channel*`.
+**Wave D's exit condition, restated 2026-08-29 against what was measured.** The
+first form asked for three categories at live zero and for the whole remainder
+to sit in `rt_remote_task_*` and `rt_far_channel*`. Both halves were wrong, in
+opposite directions, and both are corrected here rather than declared met.
 
-**The exit condition as first written was wrong and this is the correction.** It
-said all three categories read live ZERO. `llvm-pointer-word-ir` cannot: its
-remaining finding is `emit_term.go`'s `inttoptr (i64 N to ptr)`, an LLVM
-CONSTANT EXPRESSION building the fixnum tagged immediate from a compile-time
-constant, and it carries the reviewed permanent allowance
-`fixnum-inline-tagged-word` whose `invalidated_when` retires it only if fixnums
-stop using pointer-typed tagged immediates. Driving that number to raw zero
-means changing the fixnum representation, which is not this wave's work, and
-spelling the same reinterpretation another way to move the count would be gaming
-the instrument rather than retiring a carrier. What the wave owes is zero
-UNALLOWED findings, and that is what the condition now says.
+The FIRST half asked one category for a number it cannot reach.
+`llvm-pointer-word-ir`'s last finding is `emit_term.go`'s
+`inttoptr (i64 N to ptr)` — an LLVM CONSTANT EXPRESSION building the fixnum
+tagged immediate from a compile-time constant, carrying the reviewed permanent
+allowance `fixnum-inline-tagged-word`, which retires only if fixnums stop using
+pointer-typed tagged immediates. That is Epic 22's representation, not this
+wave's, and spelling the same reinterpretation another way to move the count
+would be gaming the instrument.
 
-Remaining: **15**, all `suspension-frame-owner`. `llvm-erased-word-bridge` reached zero on 2026-08-29 and
+The SECOND half asked the remainder to be confined to two file families, and
+this document's own §5 already exempts nine of those findings from every wave.
+It also mislocated Wave E: `numeric-drop-dispatch` and `native-word-carrier`
+live partly in the CROSSING EMITTERS (`emit_async.go`, `emit_channel.go`,
+`emit_crossing_*.go`) and in `rt_async_internal.h`, not only in the far files —
+seven findings, all Wave E's by category and none of them Wave D's.
+
+**So Wave D closes when, and this is checkable:**
+
+| what | required | measured 2026-08-29 |
+| --- | ---: | ---: |
+| `suspension-frame-owner` | 0 | **0** |
+| `llvm-erased-word-bridge` | 0 | **0** |
+| `llvm-pointer-word-ir` | 1 allowed | **1** |
+| everything else | Wave E's by category, or named in §5 as no wave's | 42 + 17 |
+
+and D2 is closed by measurement, and the aggregate roster is green as a COUNT OF
+RUNS rather than one exit code.
+
+**The carrier half is met. The wave is not closed until the last two are.** `llvm-erased-word-bridge` reached zero on 2026-08-29 and
 `llvm-pointer-word-ir` reached its one; the one is `emit_term.go`'s
 `inlineFixnumWord`, an LLVM constant expression building the tagged immediate
 `fixi_box` builds, held by the reviewed permanent allowance
