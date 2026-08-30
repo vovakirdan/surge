@@ -7,7 +7,7 @@ It does not restate the migration. `README.md` holds the epic history and
 roadmap, `DEBT.md` the ledger, `23b-*.md` the wave definitions, `RULES.md` the
 rules every lane obeys. Read those to know why; read this to know what.
 
-**State line, 2026-08-30 at `37bd759b`.** Live carrier census **60 against a
+**State line, 2026-08-30 at `45c54b22`.** Live carrier census **60 against a
 frozen base of 626**, ratchet green. Epics 1–25 are closed except three: 21
 (closeout only), 22 (parked until 23b closes), 23b (in flight — the whole
 remaining migration).
@@ -22,10 +22,28 @@ the aggregate as the thing being counted. A suite that cannot start reads
 exactly like a suite that passed. Closed by `4968061f`, which also adds the row
 that asserts the probe shape from the loaded object.
 
-**The aggregate as a COUNT, first honest reading: 4 green of 5** at `b303a213`
-on the dedicated machine, 656–711 seconds each. The red is
-`runtime-v2-waiter-check`, and the row is `TestRuntimeV2NetWaiterTraceContract`:
-`missing TRACE_NET reason=sigusr1 in stderr`.
+**The aggregate as a COUNT at `45c54b22`: 3 green, 2 red of 5** on the dedicated
+machine (`/root/w8.sh 5` over the pinned clone `/root/surge-gates`), 656–808
+seconds each, with no CI job on the machine while it ran. The two reds are
+**different gates, and neither is the row the previous count named**:
+
+| run | seconds | verdict | gate, and the row inside it |
+| ---: | ---: | --- | --- |
+| 1 | 808 | RED | `runtime-v2-heap-check` — `TestRuntimeV2ChannelHandleValgrindZero/outlives_scope`, 182.01s against a 180s budget, stderr holding nothing but the Memcheck banner, siblings 2.96–3.03s |
+| 2 | 656 | green | |
+| 3 | 695 | green | |
+| 4 | 657 | green | |
+| 5 | 672 | RED | `runtime-v2-http-owner-check` — `TestRuntimeV2HTTPOwnerLocalBehavior/shards-8`, `client 1 read response: read tcp 127.0.0.1:16052->127.0.0.1:16625: i/o timeout`; `shards-1` and `shards-2` passed in the same run |
+
+An earlier count at `b303a213` read 4 green of 5, and its red was a THIRD gate:
+`runtime-v2-waiter-check` / `TestRuntimeV2NetWaiterTraceContract`, closed since
+as a stand defect (RV2-DEBT-310). So across two counts the aggregate has been
+red at four distinct gates, each once or twice, none of them the same one twice.
+**W8 is not one row away from green.** Every one of the four is
+topology-sensitive — an eight-shard arm, a load-sensitive trace race, a valgrind
+row whose thread count is `sysconf(_SC_NPROCESSORS_ONLN)` because these rows do
+not pin `SURGE_THREADS` the way `envForParity` does — which says the class to
+close is the unpinned topology, not the four rows one at a time.
 
 **The twenty-gate aggregate passed ONCE, and once is not a measurement.** It
 exited 0 on the dedicated machine at 675 seconds, twenty of twenty. A later run
@@ -49,7 +67,7 @@ No scheduled work waits on an owner decision.
 | --- | --- |
 | Carrier categories | **MET.** `suspension-frame-owner` 0, `llvm-erased-word-bridge` 0, `llvm-pointer-word-ir` 1 allowed. Census 83 -> 60. |
 | W6 — D2 closed by measurement | **MET.** Valgrind zero on the five map-teardown shapes, 10 of 10 on the dedicated machine, is the proof; the eight stale budgets are re-captured and re-pinned. See item 3 below for the premise that did not survive. |
-| W8 — aggregate as a COUNT | **4 green, 1 red of 5** at `b303a213`. The red is `runtime-v2-waiter-check`, and the row inside it is `TestRuntimeV2NetWaiterTraceContract`. Counted again at the final tree once that row is closed. |
+| W8 — aggregate as a COUNT | **3 green, 2 red of 5** at `45c54b22`, and the two reds are different gates (`runtime-v2-heap-check`, `runtime-v2-http-owner-check`). See the state line: four distinct gates over two counts, all topology-sensitive. Counted again once the class is closed, not once a row is. |
 
 **Contract debt from the 2026-08-29 rulings — PARKED, none of it closes the
 wave.** Four lanes ran; their branches hold the work and their reviews hold the
