@@ -420,3 +420,34 @@ their own gate and not in an ordinary `go test ./...`.
 
 Push after each integration, so the branch never carries a long unpushed tail
 whose failures cannot be attributed to one lane.
+
+## Global Rule 17: A Lane Is A Worktree, And A Measurement Comes From A Pinned One
+
+File claims divide FILES. They do not divide the TREE, and on 2026-08-30 three
+concurrent lanes sharing one checkout lost work in three separate ways within a
+single hour: two of them wrote the same `vgdb v.info scheduler` instrumentation
+into the same file, neither seeing the other's edit; a thirty-iteration rate
+stand recorded a neighbouring lane's temporary two-second valgrind budget as two
+hangs of its own subject; and one lane's twenty-eight CPU burners were free to
+land inside another lane's local timing. None of those are conflicts the claims
+table can see, because none of them are two lanes claiming one file.
+
+Concurrent lanes therefore do not share a checkout. Each lane gets its own
+worktree from a verified SHA, and lanes integrate through commits to the branch,
+never by reading or editing one another's dirty tree:
+
+```
+H=$(git rev-parse HEAD)
+git worktree add -q -b lane-<name> .claude/worktrees/lane-<name> "$H"
+git worktree list | grep lane-        # confirm the SHA, do not assume
+```
+
+Any count — a rate stand, a gate tally, a benchmark, anything whose deliverable
+is a number — runs from a worktree pinned to a SHA, `git worktree add --detach
+<SHA>`, and never from a tree another lane may write while it runs. A count
+taken from a shared working tree measures whatever the neighbour was editing,
+and it reports that as a property of the subject.
+
+This is the owner's ruling of 2026-08-30, given with the alternatives
+"measurements only" and "leave it as it is" on the table; lane-per-worktree was
+chosen over both.

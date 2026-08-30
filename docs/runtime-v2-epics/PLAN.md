@@ -190,6 +190,12 @@ has had.
 same function: W4 owns the suspension-frame family, W7 owns `typeOwnsHeapRec`,
 `emitDropHandle` and `fieldDropIsExclusive`.
 
+This table divides files, not the tree. Concurrent lanes each work from their own
+worktree and integrate through commits — Global Rule 17, owner's ruling of
+2026-08-30, after three lanes in one checkout cost a duplicated instrumentation,
+a rate stand that measured a neighbour's edit, and a timing run exposed to a
+neighbour's load.
+
 ---
 
 ## After Wave D
