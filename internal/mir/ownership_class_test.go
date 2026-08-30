@@ -593,9 +593,20 @@ func TestClassifyParamAtEntry(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := classifyParamAtEntry(tc.ty, ot.in, ot.sema)
+			got := classifyParamAtEntry(tc.ty, ot.in, ot.sema, false)
 			if got != tc.want {
 				t.Errorf("classifyParamAtEntry = %s, want %s", got, tc.want)
+			}
+			// The same type read as a FRAME'S CAPTURE rather than a caller's
+			// argument: the only class that moves is the reference-counted
+			// one, and it moves to owned, because the state literal took the
+			// reference before the body existed.
+			wantAsCapture := tc.want
+			if tc.want == ownershipAliases {
+				wantAsCapture = ownershipOwnedAtEntry
+			}
+			if asCapture := classifyParamAtEntry(tc.ty, ot.in, ot.sema, true); asCapture != wantAsCapture {
+				t.Errorf("classifyParamAtEntry(capturesArriveOwned) = %s, want %s", asCapture, wantAsCapture)
 			}
 			if got == ownershipTransfers {
 				t.Errorf("a parameter classified TRANSFERS, which has nothing to inherit from")
@@ -604,9 +615,13 @@ func TestClassifyParamAtEntry(t *testing.T) {
 	}
 
 	// The caller's side of the same call has to agree about the same type, or
-	// the callee thinks it owns what the caller never handed over.
+	// the callee thinks it owns what the caller never handed over. Asked of an
+	// ordinary CALL, so `capturesArriveOwned` is false here: a frame's capture
+	// has no caller-side argument contract to agree with, because the retain
+	// that gave it its reference happened at the state literal rather than at
+	// a call site.
 	for _, ty := range []types.TypeID{ot.str, ot.strArray, ot.flt, ot.strRef, ot.plain} {
-		entry := classifyParamAtEntry(ty, ot.in, ot.sema)
+		entry := classifyParamAtEntry(ty, ot.in, ot.sema, false)
 		contract := byValueArgContract(ot.in, ot.sema, ty, false)
 		if (entry == ownershipOwnedAtEntry) != (contract == ArgContractTransferOwned) {
 			t.Errorf("type %d: entry axiom %s disagrees with argument contract %s", ty, entry, contract)

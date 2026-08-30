@@ -107,9 +107,16 @@ fn main() -> int {
 		t.Fatalf("%s never unpacks a local named `ch`: the probe stopped measuring what it claims to",
 			body.Name)
 	}
-	if capture.moveOut {
-		t.Fatalf("%s unpacks its channel capture as a transfer; the field is then spent and this row "+
-			"is asserting a shape the lowering no longer produces", body.Name)
+	// The unpack MUST take the reference out of the field, and this assertion
+	// was the other way round for a day. Reading it as a COPY left the field
+	// looking initialized while the body was made to give the reference back,
+	// which is two owners of one reference — the ownership verifier reported
+	// exactly that, on `stdlib/term/term.sg`, and was right. Taking it out
+	// makes the frame's SPENT word true of this field as well and leaves the
+	// local as the single holder the release below belongs to.
+	if !capture.moveOut {
+		t.Fatalf("%s unpacks its channel capture as a COPY, so the frame's field still looks "+
+			"initialized while the local is released below: two owners of one reference", body.Name)
 	}
 	if !bodyMarksFrameSpent(body) {
 		t.Fatalf("%s never marks its frame spent, so there is no claim here for the drop below to "+

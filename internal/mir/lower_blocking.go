@@ -24,6 +24,13 @@ type blockingCaptureInfo struct {
 	// and something still has to give it back — see the unpack in
 	// lowerBlockingFunc, which hands that reference to the body's local.
 	Transfers bool
+
+	// Retained marks the second family: a reference-counted capture the state
+	// literal RETAINED into the field. It leaves the frame the same way a
+	// transferring one does -- the unpack takes it out -- because a field left
+	// looking initialized while the body gives the reference back is two
+	// owners of one reference.
+	Retained bool
 }
 
 func (l *funcLowerer) lowerBlockingExpr(e *hir.Expr, consume bool) (Operand, error) {
@@ -104,6 +111,16 @@ func (l *funcLowerer) blockingCaptureInfo(captures []hir.CapturedBinding) ([]blo
 			// spends an argument, and a reference-counted value is retained
 			// into the field rather than moved out of the caller.
 			Transfers: l.byValueArgContract(ty, false) == ArgContractTransferOwned,
+			// Retained is the other way a capture leaves something in the
+			// frame: the literal took a REFERENCE rather than the value, so
+			// the field holds one and the unpack has to take it, exactly as a
+			// transferring capture's does. Reading it as a copy instead left
+			// the field looking initialized while the local was made to give
+			// the reference back -- two owners of one reference, which the
+			// ownership verifier reported as an unbalanced release and was
+			// right to.
+			Retained: l.byValueArgContract(ty, false) != ArgContractTransferOwned &&
+				ownsHeapFor(l.types, l.sema, ty),
 		})
 	}
 	return out, nil
@@ -211,6 +228,10 @@ func (l *funcLowerer) lowerBlockingFunc(id FuncID, name string, body *hir.Block,
 		IsAsync:    false,
 		Failfast:   false,
 		ParamCount: 1,
+		// The state literal retained every reference-counted capture into the
+		// frame before this body existed, so what arrives here is owned and
+		// the release at each return is the other half of that retain.
+		CapturesArriveOwned: true,
 	}
 
 	stateLocal := addLocal(l.f, "__state", stateType, localFlagsFor(l.types, l.sema, stateType))
@@ -247,7 +268,7 @@ func (l *funcLowerer) lowerBlockingFunc(id FuncID, name string, body *hir.Block,
 			Src: RValue{Kind: RValueField, Field: FieldAccess{
 				Object:    Operand{Kind: OperandCopy, Place: Place{Local: stateLocal}},
 				FieldName: cap.FieldName,
-				MoveOut:   cap.Transfers,
+				MoveOut:   cap.Transfers || cap.Retained,
 			}},
 		}})
 	}

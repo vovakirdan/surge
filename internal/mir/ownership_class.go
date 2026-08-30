@@ -280,11 +280,24 @@ func classifyOperand(op *Operand, typesIn *types.Interner, semaRes *sema.Result)
 // "reference-counted" — a scalar or a channel handle — rather than "Copy" for
 // the reason it is written that way there: a @copy value composite is CLONED
 // at the call site and the callee genuinely owns that clone.
-func classifyParamAtEntry(ty types.TypeID, typesIn *types.Interner, semaRes *sema.Result) ownershipClass {
+func classifyParamAtEntry(
+	ty types.TypeID,
+	typesIn *types.Interner,
+	semaRes *sema.Result,
+	capturesArriveOwned bool,
+) ownershipClass {
 	if !ownsHeapFor(typesIn, semaRes, ty) {
 		return ownershipNotApplicable
 	}
 	if typesIn != nil && typesIn.IsRefCounted(ty) {
+		if capturesArriveOwned {
+			// A frame's capture, not a caller's argument. The state literal
+			// that built the frame retained this value into it before the body
+			// existed, so the reference is already the body's and releasing it
+			// at a return is the other half of that retain rather than a drop
+			// of something someone else still holds.
+			return ownershipOwnedAtEntry
+		}
 		// Not owned at entry: the caller keeps its binding and its reference
 		// for the whole call, so this parameter is a borrow and needs the same
 		// explicit retain any other borrowed read does before anything may

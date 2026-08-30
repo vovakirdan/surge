@@ -306,7 +306,7 @@ func (v *ownershipFuncVerifier) resolvePlaceDefs(local LocalID, at ownershipPoin
 func (v *ownershipFuncVerifier) resolveDef(d ownershipDefSite, st *ownershipResolveState) bool {
 	if d.IsParamRoot() {
 		ty := v.localType(d.Local)
-		switch classifyParamAtEntry(ty, v.typesIn, v.semaRes) {
+		switch classifyParamAtEntry(ty, v.typesIn, v.semaRes, v.f != nil && v.f.CapturesArriveOwned) {
 		case ownershipMints, ownershipOwnedAtEntry:
 			return true
 		default:
