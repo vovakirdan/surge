@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "epic_base": "7df10725e001ddf915d536aa58f880bd7e04aafd",
+  "epic_base": "4968061f2791d7dff0896e1841ce647412053a68",
   "reference_host": {
     "system": "Linux",
     "machine": "x86_64",
@@ -49,8 +49,8 @@
       "source": "runtime_exit",
       "base": {
         "status": "unsupported",
-        "reason": "EPIC_BASE has no typed-carrier physical-copy counter",
-        "provenance_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd"
+        "reason": "resource capture is candidate-only, so no base run reports a physical-copy count",
+        "provenance_commit": "4968061f2791d7dff0896e1841ce647412053a68"
       },
       "candidate": {
         "status": "required"
@@ -62,8 +62,8 @@
       "source": "runtime_exit",
       "base": {
         "status": "unsupported",
-        "reason": "EPIC_BASE has no typed-carrier physical-move counter",
-        "provenance_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd"
+        "reason": "resource capture is candidate-only, so no base run reports a physical-move count",
+        "provenance_commit": "4968061f2791d7dff0896e1841ce647412053a68"
       },
       "candidate": {
         "status": "required"
@@ -75,8 +75,8 @@
       "source": "runtime_exit",
       "base": {
         "status": "unsupported",
-        "reason": "EPIC_BASE has no monomorphic ValueOps callback counter",
-        "provenance_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd"
+        "reason": "resource capture is candidate-only, so no base run reports a ValueOps callback count",
+        "provenance_commit": "4968061f2791d7dff0896e1841ce647412053a68"
       },
       "candidate": {
         "status": "required"
@@ -88,8 +88,8 @@
       "source": "runtime_exit",
       "base": {
         "status": "unsupported",
-        "reason": "EPIC_BASE has no physical byte-credit park counter",
-        "provenance_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd"
+        "reason": "resource capture is candidate-only, so no base run reports a credit-stall count",
+        "provenance_commit": "4968061f2791d7dff0896e1841ce647412053a68"
       },
       "candidate": {
         "status": "required"
@@ -101,8 +101,8 @@
       "source": "runtime_exit",
       "base": {
         "status": "unsupported",
-        "reason": "EPIC_BASE has no physical carrier resident-byte counter",
-        "provenance_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd"
+        "reason": "resource capture is candidate-only, so no base run reports a peak transport-byte figure",
+        "provenance_commit": "4968061f2791d7dff0896e1841ce647412053a68"
       },
       "candidate": {
         "status": "required"
@@ -142,7 +142,7 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_file_test.py",
-      "sha256": "a0fc83d5f478fd74c0715b2397b0747d8493cdf2b210ccd7721863246582fc44"
+      "sha256": "6db5127ade9348844e2510e5b86d44b38beb069c32d62be22479d72b70411320"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_validation.py",
@@ -504,7 +504,7 @@
       "timeout_seconds": 20,
       "relative_performance": false,
       "expected_checksum": "2304",
-      "candidate_structural_allocations_per_batch": 277,
+      "candidate_structural_allocations_per_batch": 341,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -576,7 +576,7 @@
       "timeout_seconds": 15,
       "relative_performance": false,
       "expected_checksum": "2304",
-      "candidate_structural_allocations_per_batch": 78,
+      "candidate_structural_allocations_per_batch": 14,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -648,7 +648,7 @@
       "timeout_seconds": 15,
       "relative_performance": false,
       "expected_checksum": "2304",
-      "candidate_structural_allocations_per_batch": 130,
+      "candidate_structural_allocations_per_batch": 4,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -684,7 +684,7 @@
       "timeout_seconds": 15,
       "relative_performance": true,
       "expected_checksum": "2368",
-      "candidate_structural_allocations_per_batch": 130,
+      "candidate_structural_allocations_per_batch": 4,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -720,7 +720,7 @@
       "timeout_seconds": 20,
       "relative_performance": false,
       "expected_checksum": "2368",
-      "candidate_structural_allocations_per_batch": 474,
+      "candidate_structural_allocations_per_batch": 410,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1050,7 +1050,7 @@
       "timeout_seconds": 20,
       "relative_performance": false,
       "expected_checksum": "1344",
-      "candidate_structural_allocations_per_batch": 479,
+      "candidate_structural_allocations_per_batch": 415,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1806,7 +1806,7 @@
       "timeout_seconds": 15,
       "relative_performance": false,
       "expected_checksum": "15947",
-      "candidate_structural_allocations_per_batch": 134,
+      "candidate_structural_allocations_per_batch": 6,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1896,7 +1896,7 @@
       "timeout_seconds": 15,
       "relative_performance": false,
       "expected_checksum": "4608",
-      "candidate_structural_allocations_per_batch": 405,
+      "candidate_structural_allocations_per_batch": 277,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -2090,12 +2090,12 @@
       "wave_a": {
         "status": "deferred",
         "reason": "Wave A has no byte-credit park transition; Wave E must reach the frozen sync point.",
-        "provenance_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd"
+        "provenance_commit": "4968061f2791d7dff0896e1841ce647412053a68"
       },
       "final": {
         "status": "deferred",
         "reason": "The byte-credit model this probe asserted does not exist: pointer transport carries a pointer into a refcount graph it neither copies nor owns, so there is no per-message byte cost and the budget is SLOTS. Renamed to the scenario that is real -- a task parked on exhausted data-slot admission, after which a cancellation or shutdown travels the reserved control lane and every data slot comes back -- and deferred because nothing arms that sync point yet: the tree still drain-and-retries where the model now parks, and building the park is the far-carrier work. Deferred rather than left to run, because a probe waiting on a point nothing reaches TIMES OUT instead of failing, and a ten-second hang in the middle of a benchmark reads as a broken instrument rather than as absent work.",
-        "provenance_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd"
+        "provenance_commit": "4968061f2791d7dff0896e1841ce647412053a68"
       }
     },
     {
@@ -2109,12 +2109,12 @@
       "wave_a": {
         "status": "deferred",
         "reason": "Wave A has no byte-credit shutdown drain; Wave E must reach the frozen sync point.",
-        "provenance_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd"
+        "provenance_commit": "4968061f2791d7dff0896e1841ce647412053a68"
       },
       "final": {
         "status": "deferred",
         "reason": "The byte-credit model this probe asserted does not exist: pointer transport carries a pointer into a refcount graph it neither copies nor owns, so there is no per-message byte cost and the budget is SLOTS. Renamed to the scenario that is real -- a task parked on exhausted data-slot admission, after which a cancellation or shutdown travels the reserved control lane and every data slot comes back -- and deferred because nothing arms that sync point yet: the tree still drain-and-retries where the model now parks, and building the park is the far-carrier work. Deferred rather than left to run, because a probe waiting on a point nothing reaches TIMES OUT instead of failing, and a ten-second hang in the middle of a benchmark reads as a broken instrument rather than as absent work.",
-        "provenance_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd"
+        "provenance_commit": "4968061f2791d7dff0896e1841ce647412053a68"
       }
     }
   ]

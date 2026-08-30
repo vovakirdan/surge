@@ -33,8 +33,8 @@ No scheduled work waits on an owner decision.
 | | State |
 | --- | --- |
 | Carrier categories | **MET.** `suspension-frame-owner` 0, `llvm-erased-word-bridge` 0, `llvm-pointer-word-ir` 1 allowed. Census 83 -> 60. |
-| W8 — aggregate as a COUNT | Running: five consecutive `make runtime-v2-check` on the dedicated machine. One exit code is not a measurement; RV2-DEBT-308 is why. |
-| W6 — D2 closed by measurement | Waiting on a quiet host. The bench's reference host is the development machine and its timing half aborts at `p95 CV 0.415` against an allowance of `0.05` when anything else runs. |
+| W6 — D2 closed by measurement | **MET.** Valgrind zero on the five map-teardown shapes, 10 of 10 on the dedicated machine, is the proof; the eight stale budgets are re-captured and re-pinned. See item 3 below for the premise that did not survive. |
+| W8 — aggregate as a COUNT | **4 green, 1 red of 5** at `b303a213`. The red is `runtime-v2-waiter-check`, and the row inside it is `TestRuntimeV2NetWaiterTraceContract`. Counted again at the final tree once that row is closed. |
 
 **Contract debt from the 2026-08-29 rulings — PARKED, none of it closes the
 wave.** Four lanes ran; their branches hold the work and their reviews hold the
@@ -56,29 +56,39 @@ reasons. Nothing here is abandoned and nothing here is progress on the epic.
    right and its writers are not; `lane-scope-refusal` asks about the spelling
    of a binding where it must ask about the task. Each re-sent lane carries its
    critic's findings as part of the brief.
-3. **W6 — D2's measurement close. BLOCKED, and both blockers are new.** Moving
-   `epic_base` forward works: the base compiler at the frozen commit could no
-   longer compile the fixtures at all, and with the base moved the bench
-   measures again. Four budgets were re-captured by the instrument itself —
-   `select-send-composite` 134 → 6, `task-clone-composite` 405 → 277,
-   `far-channel-composite` 474 → 410, `far-select-composite` 479 → 415 — typed
-   carriers having removed a box the budgets were never re-captured for. Then:
-   - `--phase=final` **cannot pass until Wave E exists**. Its liveness probes
-     wait on the sync point `SP_CARRIER_CREDIT_PARKED`, and the manifest's own
-     deferral reason says "Wave E must reach the frozen sync point". The probe
-     does not fail — it TIMES OUT at 10s waiting for a mechanism nobody built.
-     It also needs re-deriving against the 2026-08-28 transport ruling, under
-     which pointer transport takes no byte credits at all.
-   - `--phase=wave-a` **needs a quiet machine**. It aborts on
-     `array-grow-composite base p95 CV 0.415389 exceeds 0.050000` — eight times
-     the allowance, measured while lanes and a gate were running. The allocation
-     half is deterministic and does not care; the latency half cannot be taken
-     on a busy host.
-   - Two rows **carry no single number**: `channel-unbuffered-composite` and
-     `-scalar` read 4 in warmup and 3 in every measured pair, repeatably. An
-     exact allocation budget presumes determinism and these do not have it — the
-     first batch pays a one-time cost the rest do not. That is a question about
-     the measurement window or the fixture, and it is the owner's.
+3. ~~**W6 — D2's measurement close.**~~ — **DONE 2026-08-30 by measurement.**
+   Eight budgets were re-captured in ONE run of
+   `make runtime-v2-carrier-baseline-capture`, which reports every mismatch
+   instead of stopping at the first, and each read one number across all
+   eighteen samples the protocol takes.
+
+   **The premise this item used to carry was false and is corrected here rather
+   than deleted.** It said `channel-unbuffered-composite` and `-scalar` "read 4
+   in warmup and 3 in every measured pair, repeatably", and the 2026-08-29
+   two-phase ruling was taken on that reading. The instrument says otherwise:
+   both rows answer **4 in warmup and 4 in every measured pair**, eighteen of
+   eighteen, on two separate capture runs a day apart. There is no phase split
+   in any row. The wobble that was seen is the runtime TOPOLOGY going unpinned —
+   one binary reads 343 then 350 for the same commit with no
+   `SURGE_SHARDS`/`SURGE_THREADS`/`SURGE_BLOCKING_THREADS`, and 341 three times
+   running with them. That is `RUNTIME_V2.md`'s own rule about a difference of
+   two summed lane counters, and it is the ruling's SECOND half — per-lane
+   counters and a named quiet lane set — that answers it, not its first.
+
+   One budget ROSE: `blocking-composite` 277 → 341, exactly one allocation per
+   operation over a batch of 64. Bisected across the 327 commits since the pin
+   was taken, to `66c2f156` — "a blocking body's result keeps its width". The
+   row was cheaper before because it was WRONG: the composite result was cut
+   into a word, and the three commits before the fix cannot run the fixture at
+   all, panicking `VM1101: integer overflow` in `sum64`.
+
+   `epic_base` moved to `4968061f`, and the cost is stated rather than hidden:
+   the base compiler at the frozen commit refuses today's fixtures outright
+   (`'ret' is not supported inside async/blocking payloads`), so no run of any
+   kind reached the candidate side. The allocation half is candidate-only and is
+   unaffected. **The relative-performance half now asserts nothing** — base and
+   candidate are one tree — and the twenty rows carrying `relative_performance`
+   are green by identity until a base worth comparing against exists.
 4. ~~**The cancelled-scope reclamation defect**~~ — **LANDED** as `9c7b9b3e`,
    closing the ledger row that had proposed exactly this fix from a code
    reading and never reproduced it.

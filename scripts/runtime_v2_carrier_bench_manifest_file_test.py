@@ -89,12 +89,16 @@ class CanonicalManifestTests(unittest.TestCase):
         # Because it is a copy, it can go stale on its own, and it has: these
         # numbers must be re-stated here whenever the manifest is re-captured.
         #
-        # Two rows are knowingly wrong and are NOT to be "corrected" to a
-        # measured value: channel-unbuffered-scalar and its composite twin
-        # report a different count between identical runs, by one and with the
-        # sign flipping. They keep the pre-re-capture budget so they stay
-        # visibly red until that second contributor is found; a modal number
-        # here would make the gate pass about half the time.
+        # THE TWO channel-unbuffered ROWS ARE NO LONGER HELD BACK, and what
+        # changed is the measurement rather than anyone's patience. They were
+        # kept at 130 on the reading that they answer a different count between
+        # identical runs, by one and with the sign flipping. Re-measured over
+        # every sample the protocol takes -- two warmups and seven pairs, two
+        # batches each, eighteen figures per row -- both answer 4, eighteen
+        # times out of eighteen. The wobble was the runtime TOPOLOGY going
+        # unpinned, not the row: an unpinned binary reads 343 then 350 where a
+        # binary given the manifest's own shards, threads and blocking threads
+        # reads one number and repeats it.
         nonzero_allocations = {
             row.row_id: row.candidate_structural_allocations_per_batch
             for row in self.manifest.rows
@@ -105,20 +109,20 @@ class CanonicalManifestTests(unittest.TestCase):
             {
                 "array-grow-composite": 7,
                 "array-grow-scalar": 7,
-                "blocking-composite": 277,
+                "blocking-composite": 341,
                 "blocking-scalar": 213,
-                "channel-buffered-composite": 78,
+                "channel-buffered-composite": 14,
                 "channel-buffered-scalar": 14,
-                "channel-unbuffered-composite": 130,
-                "channel-unbuffered-scalar": 130,
-                "far-channel-composite": 474,
+                "channel-unbuffered-composite": 4,
+                "channel-unbuffered-scalar": 4,
+                "far-channel-composite": 410,
                 "far-channel-scalar": 410,
                 "far-immediate-composite": 277,
                 "far-immediate-scalar": 149,
                 "far-jumbo-contention": 657,
                 "far-large-capture": 661,
                 "far-large-result": 405,
-                "far-select-composite": 479,
+                "far-select-composite": 415,
                 "far-select-scalar": 415,
                 "far-share-control": 217,
                 "far-task-composite": 405,
@@ -127,9 +131,9 @@ class CanonicalManifestTests(unittest.TestCase):
                 "map-insert-scalar": 4,
                 "map-rehash-composite": 4,
                 "map-rehash-scalar": 4,
-                "select-send-composite": 134,
+                "select-send-composite": 6,
                 "select-send-scalar": 6,
-                "task-clone-composite": 405,
+                "task-clone-composite": 277,
                 "task-clone-scalar": 213,
                 "task-composite": 277,
                 "task-scalar": 213,
