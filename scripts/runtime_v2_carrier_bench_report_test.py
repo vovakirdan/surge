@@ -195,6 +195,10 @@ class ReportTests(unittest.TestCase):
         )
 
     def test_liveness_record_enforces_exact_park_and_peak_boundaries(self) -> None:
+        # The peak-byte half of this row is GONE, and its absence is the
+        # assertion: a probe reports peak transport bytes and nothing refuses on
+        # the figure, because pointer transport charges no per-message bytes to
+        # bound. Any peak parses; only the park count is a contract.
         probe = make_manifest().liveness_probes[0]
         nonce = "b" * 32
         protocol = "a" * 64
@@ -206,11 +210,11 @@ class ReportTests(unittest.TestCase):
             "protocol_sha256": protocol,
             "syncpoint": probe.syncpoint,
             "credit_balance": 0,
-            "peak_transport_bytes": probe.min_peak_transport_bytes,
+            "peak_transport_bytes": 0,
             "park_transitions": 1,
             "error": None,
         }
-        for peak in (probe.min_peak_transport_bytes, probe.max_peak_transport_bytes):
+        for peak in (0, 8192, 1 << 40):
             with self.subTest(peak=peak):
                 record["peak_transport_bytes"] = peak
                 parsed = _parse_liveness_record(
@@ -221,16 +225,7 @@ class ReportTests(unittest.TestCase):
                     expected_protocol_sha256=protocol,
                 )
                 self.assertEqual(parsed.peak_transport_bytes, peak)
-        record["peak_transport_bytes"] = probe.max_peak_transport_bytes + 1
-        with self.assertRaisesRegex(GateFailure, "outside"):
-            _parse_liveness_record(
-                "",
-                LIVENESS_PREFIX + json.dumps(record),
-                probe,
-                expected_nonce=nonce,
-                expected_protocol_sha256=protocol,
-            )
-        record["peak_transport_bytes"] = probe.max_peak_transport_bytes
+        record["peak_transport_bytes"] = 9472
         record["park_transitions"] = 2
         with self.assertRaisesRegex(GateFailure, "park transitions 2, want 1"):
             _parse_liveness_record(

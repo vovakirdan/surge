@@ -163,11 +163,8 @@ class LivenessProbe:
     fixture: str
     probe: str
     syncpoint: str
-    payload_bytes: int
     timeout_seconds: int
     expected_credit_balance: int
-    min_peak_transport_bytes: int
-    max_peak_transport_bytes: int
     expected_park_transitions: int
     wave_a: LivenessAvailability
     final: LivenessAvailability

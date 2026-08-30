@@ -383,16 +383,19 @@ def _liveness_probes(raw: Any) -> tuple[LivenessProbe, ...]:
     if not isinstance(raw, list) or not raw:
         raise ManifestError("liveness_probes must be a non-empty array")
     out: list[LivenessProbe] = []
+    # No byte figures here, and that is the transport model rather than an
+    # omission: a cross-shard message carries a POINTER into a refcount graph
+    # the transport neither copies nor owns, so there is no per-message byte
+    # cost to bound and the budget that exists is slots. A probe that named a
+    # payload size and a peak-byte window was asserting a cost that is not
+    # charged.
     fields = {
         "id",
         "fixture",
         "probe",
         "syncpoint",
-        "payload_bytes",
         "timeout_seconds",
         "expected_credit_balance",
-        "min_peak_transport_bytes",
-        "max_peak_transport_bytes",
         "expected_park_transitions",
         "wave_a",
         "final",
@@ -407,9 +410,6 @@ def _liveness_probes(raw: Any) -> tuple[LivenessProbe, ...]:
                 fixture=_string(item["fixture"], f"{label}.fixture"),
                 probe=_string(item["probe"], f"{label}.probe"),
                 syncpoint=_string(item["syncpoint"], f"{label}.syncpoint"),
-                payload_bytes=_integer(
-                    item["payload_bytes"], f"{label}.payload_bytes", 1
-                ),
                 timeout_seconds=_integer(
                     item["timeout_seconds"], f"{label}.timeout_seconds", 1
                 ),
@@ -417,16 +417,6 @@ def _liveness_probes(raw: Any) -> tuple[LivenessProbe, ...]:
                     item["expected_credit_balance"],
                     f"{label}.expected_credit_balance",
                     0,
-                ),
-                min_peak_transport_bytes=_integer(
-                    item["min_peak_transport_bytes"],
-                    f"{label}.min_peak_transport_bytes",
-                    1,
-                ),
-                max_peak_transport_bytes=_integer(
-                    item["max_peak_transport_bytes"],
-                    f"{label}.max_peak_transport_bytes",
-                    1,
                 ),
                 expected_park_transitions=_integer(
                     item["expected_park_transitions"],

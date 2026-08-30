@@ -138,15 +138,15 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest.py",
-      "sha256": "e7312a8c1b6ea74e1c8d4b81657b6c909298a7ea348591ea4c7b35f6dacdde95"
+      "sha256": "e2ddc5f8365f197033a508a71f2ec3f09bb645327be1372a6a9ad9a0a677c897"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_file_test.py",
-      "sha256": "74a7b882305680a902c50a1cc04bdccad3e1bc82df0aff87db1af747d6142c97"
+      "sha256": "a0fc83d5f478fd74c0715b2397b0747d8493cdf2b210ccd7721863246582fc44"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_validation.py",
-      "sha256": "89d58b86b95748ae56cc9994a4060d354d8875543d2e08e09117d7d4974cb9ff"
+      "sha256": "3b1244966228001741eb00bacf5ec5483b9c7256ee76be411d21f28c26d68b22"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_values.py",
@@ -154,15 +154,15 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_model.py",
-      "sha256": "5ab5e0ff8adf1581a4de3104d1774bb40bcf4964c8278fa262af01c4df5bf551"
+      "sha256": "f2ddfafe05ff84696d132173f828a7b63fdcc538cbf54ae6f1aa864eb98a2d6f"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_model_test.py",
-      "sha256": "293d5fe343898fb496050d774f49cf731f998d13cbeba05aba3567df1dce275d"
+      "sha256": "2d8415fb79fac1c97ef8c792aea0d1638ab141f0bc0063b67560b302d7920498"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_protocol.py",
-      "sha256": "44756c07ce7977b31fef06f29f151bba9fe12ee82103979774cebd7c472bc93b"
+      "sha256": "33a977a2b5beb48c0da69ffaddc251d1f54ef8b020a86a9511e0f9510fb1e62b"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_protocol_test.py",
@@ -174,7 +174,7 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_report_test.py",
-      "sha256": "a866d6839b42b5ce53f45ce48647c09e04455b3de24e704b3db0ed2c2b1f77e3"
+      "sha256": "2a105fd546516944a14dc614932f1496a5b803dc3939c27b9b6d2a9c372db74b"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_runner.py",
@@ -182,7 +182,7 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_test_support.py",
-      "sha256": "a27abf8179e36dde7cd8fc9782c17da16f50d388a4a2febae837012087a34faa"
+      "sha256": "c0bfdc7eec9e33d67a79b386cc6b6dc3a7a572bcf241ae5f68be12b47321bdcb"
     }
   ],
   "fixtures": [
@@ -2094,7 +2094,8 @@
       },
       "final": {
         "status": "deferred",
-        "reason": "The byte-credit model this probe asserted does not exist: pointer transport carries a pointer into a refcount graph it neither copies nor owns, so there is no per-message byte cost and the budget is SLOTS. Renamed to the scenario that is real -- a task parked on exhausted data-slot admission, after which a cancellation or shutdown travels the reserved control lane and every data slot comes back -- and deferred because nothing arms that sync point yet: the tree still drain-and-retries where the model now parks, and building the park is the far-carrier work. Deferred rather than left to run, because a probe waiting on a point nothing reaches TIMES OUT instead of failing, and a ten-second hang in the middle of a benchmark reads as a broken instrument rather than as absent work."
+        "reason": "The byte-credit model this probe asserted does not exist: pointer transport carries a pointer into a refcount graph it neither copies nor owns, so there is no per-message byte cost and the budget is SLOTS. Renamed to the scenario that is real -- a task parked on exhausted data-slot admission, after which a cancellation or shutdown travels the reserved control lane and every data slot comes back -- and deferred because nothing arms that sync point yet: the tree still drain-and-retries where the model now parks, and building the park is the far-carrier work. Deferred rather than left to run, because a probe waiting on a point nothing reaches TIMES OUT instead of failing, and a ten-second hang in the middle of a benchmark reads as a broken instrument rather than as absent work.",
+        "provenance_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd"
       }
     },
     {
@@ -2112,7 +2113,8 @@
       },
       "final": {
         "status": "deferred",
-        "reason": "The byte-credit model this probe asserted does not exist: pointer transport carries a pointer into a refcount graph it neither copies nor owns, so there is no per-message byte cost and the budget is SLOTS. Renamed to the scenario that is real -- a task parked on exhausted data-slot admission, after which a cancellation or shutdown travels the reserved control lane and every data slot comes back -- and deferred because nothing arms that sync point yet: the tree still drain-and-retries where the model now parks, and building the park is the far-carrier work. Deferred rather than left to run, because a probe waiting on a point nothing reaches TIMES OUT instead of failing, and a ten-second hang in the middle of a benchmark reads as a broken instrument rather than as absent work."
+        "reason": "The byte-credit model this probe asserted does not exist: pointer transport carries a pointer into a refcount graph it neither copies nor owns, so there is no per-message byte cost and the budget is SLOTS. Renamed to the scenario that is real -- a task parked on exhausted data-slot admission, after which a cancellation or shutdown travels the reserved control lane and every data slot comes back -- and deferred because nothing arms that sync point yet: the tree still drain-and-retries where the model now parks, and building the park is the far-carrier work. Deferred rather than left to run, because a probe waiting on a point nothing reaches TIMES OUT instead of failing, and a ten-second hang in the middle of a benchmark reads as a broken instrument rather than as absent work.",
+        "provenance_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd"
       }
     }
   ]

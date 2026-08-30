@@ -295,11 +295,14 @@ class ManifestTests(unittest.TestCase):
                         load_manifest(path)
 
     def test_loader_freezes_transport_and_liveness_boundaries(self) -> None:
+        # No peak-byte bound rows here any more: a probe carries no byte figure
+        # to freeze, because pointer transport charges no per-message bytes.
+        # What a probe still freezes is the point it waits on, which is what
+        # licenses its final phase to defer.
         mutations = (
             ("transport_budget", "max_inline_overhead_bytes", 255, "transport budget"),
             ("liveness_probes", "expected_credit_balance", 1, "zero credit"),
-            ("liveness_probes", "min_peak_transport_bytes", 8191, "lower bound"),
-            ("liveness_probes", "max_peak_transport_bytes", 9473, "upper bound"),
+            ("liveness_probes", "syncpoint", "SP_CARRIER_CREDIT_PARKED", "must wait on"),
         )
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "manifest.json"

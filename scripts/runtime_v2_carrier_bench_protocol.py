@@ -115,11 +115,12 @@ def _parse_liveness_record(
             f"liveness probe {probe.probe_id} credit balance {credit_balance}, "
             f"want {probe.expected_credit_balance}"
         )
-    if not probe.min_peak_transport_bytes <= peak <= probe.max_peak_transport_bytes:
-        raise GateFailure(
-            f"liveness probe {probe.probe_id} peak transport bytes {peak} outside "
-            f"[{probe.min_peak_transport_bytes}, {probe.max_peak_transport_bytes}]"
-        )
+    # `peak` is READ AND RECORDED but no longer bounded. The window it used to
+    # be checked against was derived from a payload size plus a per-message
+    # overhead, and pointer transport charges neither: the message carries a
+    # pointer into a refcount graph the transport does not copy. The number
+    # stays in the record because it is an observation the report can show; it
+    # is not a budget, so nothing here refuses on it.
     if parks != probe.expected_park_transitions:
         raise GateFailure(
             f"liveness probe {probe.probe_id} park transitions {parks}, "

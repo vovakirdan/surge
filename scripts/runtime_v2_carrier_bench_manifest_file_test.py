@@ -26,6 +26,41 @@ class CanonicalManifestTests(unittest.TestCase):
             cls.root / "testdata" / "runtime-v2-carrier-bench.json"
         )
 
+    def test_liveness_probes_are_deferred_on_the_point_nothing_arms(self) -> None:
+        # THIS ROW EXISTS BECAUSE THE MANIFEST AND ITS LOADER CAME APART. The
+        # commit that renamed the sync point, dropped the probes' byte figures
+        # and deferred their final phase changed only the JSON; the loader went
+        # on demanding the three byte keys and the validator went on demanding
+        # the old point and a required final phase. The result was not a red
+        # assertion anywhere -- load_manifest raised in setUpClass, the suite
+        # ran ZERO tests, and the gate that owns this file reported nothing to
+        # fail. A suite that cannot start reads exactly like a suite that
+        # passed.
+        #
+        # So this asserts the SHAPE the manifest actually has, from the loaded
+        # object, and would have failed the moment the two came apart.
+        probes = {probe.probe_id: probe for probe in self.manifest.liveness_probes}
+        self.assertEqual(set(probes), {"jumbo-credit-cancel", "jumbo-global-shutdown"})
+        for probe_id, probe in sorted(probes.items()):
+            with self.subTest(probe=probe_id):
+                self.assertEqual(probe.syncpoint, "SP_TRANSPORT_DATA_SLOT_TASK_PARKED")
+                self.assertEqual(probe.wave_a.status, "deferred")
+                self.assertEqual(probe.final.status, "deferred")
+                for availability in (probe.wave_a, probe.final):
+                    self.assertTrue(availability.reason)
+                    self.assertEqual(
+                        availability.provenance_commit, self.manifest.epic_base
+                    )
+                # A byte figure on a probe is what the transport ruling
+                # retired: the field is gone from the model, so asking for it
+                # is an AttributeError rather than a stale number.
+                for gone in (
+                    "payload_bytes",
+                    "min_peak_transport_bytes",
+                    "max_peak_transport_bytes",
+                ):
+                    self.assertFalse(hasattr(probe, gone), gone)
+
     def test_file_inventories_and_hashes_are_exact(self) -> None:
         verify_file_digests(self.root, self.manifest.harness_files, "harness file")
         verify_file_digests(self.root, self.manifest.fixtures, "fixture")
