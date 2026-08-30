@@ -218,11 +218,14 @@ fn main(port: uint, count: uint) -> int {
 	}
 
 	stderr := errBuf.String()
-	requireRuntimeV2NetTraceContract(t, stderr, "sigusr1")
-	requireRuntimeV2NetTraceContract(t, stderr, "exit")
+	// The live dump is taken WHILE the runtime works, the exit dump after it
+	// has stopped, and only the second is a quiescent cut. See the rebuild
+	// check at the bottom of the helper for what that distinction buys.
+	requireRuntimeV2NetTraceContract(t, stderr, "sigusr1", false)
+	requireRuntimeV2NetTraceContract(t, stderr, "exit", true)
 }
 
-func requireRuntimeV2NetTraceContract(t *testing.T, stderr string, reason string) {
+func requireRuntimeV2NetTraceContract(t *testing.T, stderr string, reason string, quiescent bool) {
 	t.Helper()
 	values, line := runtimeV2NetTraceValues(t, stderr, reason)
 	for _, field := range []string{
@@ -287,9 +290,31 @@ func requireRuntimeV2NetTraceContract(t *testing.T, stderr string, reason string
 				"in TRACE_NET %s line:\n%s", field, reason, line)
 		}
 	}
-	if values["io_poll_rebuilds"] != values["io_poll_calls"] {
-		t.Fatalf("poll rebuilds must stay comparable to poll calls in TRACE_NET %s line:\n%s",
+	// ONE REBUILD PER POLL CALL -- exactly, but only where the two can be read
+	// as a cut. `rt_net_trace_poll_start_enabled` increments rebuilds and then
+	// calls on adjacent lines, relaxed, so a dump taken WHILE the runtime works
+	// can land between them and read more rebuilds than calls. That is not a
+	// defect and a stand must not call it one; it is what the model says about
+	// any summed snapshot, that a difference of two counters is exact only over
+	// a window nothing else moved in.
+	//
+	// The bound on a live cut is the number of LANES that can sit inside that
+	// pair at once, which is the shard count reported on this very line -- not
+	// one. Bounding it at one would only move the flake from "sometimes the
+	// dump is missing" to "sometimes two shards polled together", and this row
+	// has already paid for one such assumption.
+	//
+	// The exit dump is taken after the runtime has stopped, so it is a real cut
+	// and keeps the exact equality.
+	rebuilds, calls := values["io_poll_rebuilds"], values["io_poll_calls"]
+	if quiescent && rebuilds != calls {
+		t.Fatalf("poll rebuilds must equal poll calls in the quiescent TRACE_NET %s line:\n%s",
 			reason, line)
+	}
+	if !quiescent && (rebuilds < calls || rebuilds > calls+values["runtime_shards"]) {
+		t.Fatalf("poll rebuilds %d must be poll calls %d, or at most one per shard more "+
+			"while rebuilds are in flight across %d shards, in TRACE_NET %s line:\n%s",
+			rebuilds, calls, values["runtime_shards"], reason, line)
 	}
 	if values["io_poll_waiters_total"] < values["io_poll_calls"] {
 		t.Fatalf("poll waiter total must cover at least one registry row per poll call "+
