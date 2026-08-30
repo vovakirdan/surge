@@ -12,8 +12,14 @@ them was learned by getting it wrong in this session.
 
 ## 1. Where the migration is
 
+The carrier counts below were taken at `9d710bcb`, the HEAD on the handoff date.
+Trunk has moved since — see §2 for the current SHA. The commits in between are
+tests, docs, bench scripts and four C files, and the diff adds and removes no
+carrier annotation, so the counts are expected to hold — but they were **not
+re-measured**. Re-run the census before quoting them as current.
+
 ```
-HEAD                9d710bcb  (pushed, tree clean)
+HEAD                9d710bcb  (pushed, tree clean, as of 2026-08-29)
 branch              codex/runtime-net-scheduler-refactor
 live carriers       60   (was 83 at the start of the session)
 ```
@@ -35,12 +41,40 @@ session. That is the carrier half of Wave D's exit condition and it is MET.
 
 Two things, and only two.
 
-**W8 — the aggregate as a COUNT of runs.** Five consecutive
-`make runtime-v2-check` are running on the dedicated machine right now
-(`/root/w8.sh 5`, log `/root/w8.log`). The first came back **green at 676s**.
-One exit code is not a measurement — RV2-DEBT-308 is why — so wait for the count.
-Note the run started at `b303a213`; `9d710bcb` landed after it and should be
-re-run.
+**W8 — the aggregate as a COUNT of runs.** One exit code is not a measurement —
+RV2-DEBT-308 is why — so the exit criterion is five consecutive
+`make runtime-v2-check`, read as a count.
+
+*Updated 2026-08-30 17:30, at `e60c8179`.* The count at `b303a213` is superseded;
+so is the one at `45c54b22`, which came back **1 red of the first 3** and named
+two separate reds. Both are now answered, and the current count is running on the
+dedicated machine at `e60c8179` (`/root/w8fix2.sh 40 5`, `/root/w8fix2-out/`,
+detached worktree, `LINEAGE_OK`).
+
+- **Red 1, `runtime-v2-heap-check` — root named and fixed.** It read as a leak
+  gate failing, but it was a **timeout**: `outlives_scope` hit the 3-minute
+  valgrind wall with only the Memcheck banner on stderr, no leak line. Not a
+  hang either — the same row came back at 3.01s, 43.48s and 182s, so it is a
+  heavy-tailed duration, and any instrument that kills at a fixed budget destroys
+  the evidence. A snapshot of a slow run showed one core spinning while every
+  other thread sat in `futex_wait`: the RV2-DEBT-311 signature. It is the same
+  defect. `fd054b88` fixes it, and the A/B is direct — 200 replays of the
+  prebuilt `outlives_scope` binary under valgrind, interleaved between two
+  detached worktrees, **0 slow of 100 at `fd054b88` against 11 of 100 at
+  `e1e24cf2`** (one of those over a 600s ceiling). The gate-shaped instrument
+  cannot see this: `make runtime-v2-heap-check` measured 40 green of 40 across
+  two independent runs of 20 while the row's own tail was 11%. Measure the row,
+  not the gate.
+- **Red 2, `runtime-v2-http-owner-check` — bounded, not explained.** Seen once
+  (a client's read timed out); **0 red of 40 at `e60c8179`**. That bounds the
+  rate, it does not show absence, and `fd054b88` is *not* a candidate
+  explanation — the stdlib path has no `checkpoint()`, and `SHARDS>1` puts one
+  carrier per shard, so this is a different topology. If it returns, it is its
+  own defect.
+
+The suspects the board carried for the heap-check red — `9d710bcb`, `b303a213`,
+`3479954c`, `59b835aa` — are moot. No bisect was needed: the root was named by a
+rate, and a named root beats a bisect over an intermittent row.
 
 **W6 — D2 closed by measurement.** Its exit condition is RV2-DEBT-156's:
 valgrind zero for five map-teardown shapes, AND the `map-teardown-*` benchmark
