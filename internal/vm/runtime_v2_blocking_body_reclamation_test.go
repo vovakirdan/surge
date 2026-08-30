@@ -307,6 +307,14 @@ async fn window(n: int) -> uint {
         round = round + 1;
     }
     let c1: HeapStats = rt_heap_stats();
+    // Answered as a floor at zero rather than a bare difference. The window can
+    // legitimately END with fewer live blocks than it started -- a round that
+    // gives back more than it took does exactly that -- and an unsigned
+    // subtraction meets that with an underflow panic instead of a measurement.
+    // The row asks whether anything is RETAINED, so a window that retained
+    // nothing and released something answers the same as one that retained
+    // nothing at all: zero.
+    if c1.live_blocks < c0.live_blocks { return 0:uint; }
     return c1.live_blocks - c0.live_blocks;
 }
 
@@ -317,7 +325,10 @@ async fn run() -> int {
         print("FAIL a blocking round did not answer 7");
         return 1;
     }
-    let per_round: uint = (w129 - w1) / 128:uint;
+    // Same floor, same reason: w129 may be below w1 once the frames come back.
+    let mut grown: uint = 0:uint;
+    if w129 > w1 { grown = w129 - w1; }
+    let per_round: uint = grown / 128:uint;
     print("blocking retained capture census: retained per round=");
     print(per_round to string);
     if per_round != 0:uint {

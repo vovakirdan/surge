@@ -213,6 +213,28 @@ func (fe *funcEmitter) emitTermAsyncReturn(term *mir.Terminator) error {
 	if err != nil {
 		return err
 	}
+	// The frame goes back HERE, on the ordinary return, and it says SPENT: the
+	// captures were unpacked into locals at entry and the drops that reclaim
+	// them ran before this terminator, so the release hands the storage
+	// straight to the allocator without walking a member.
+	//
+	// This used to be the free builtin the lowering appended, and when the
+	// frame gained a word that answers for itself the builtin went with it --
+	// but the reader of the word was wired only to the cancelled and abandoned
+	// paths, and nothing gave a SUCCESSFUL body's frame back at all. The
+	// runtime cannot do it in `rt_async_return`: that entry point never learns
+	// the frame's type, and `mark_done` only releases what a yield stashed.
+	frameType, frameErr := fe.suspensionFrameTypeOf(&term.AsyncReturn.State)
+	if frameErr != nil {
+		return frameErr
+	}
+	if frameType != types.NoTypeID {
+		ops, opsErr := fe.emitter.frameOpsSymbol(frameType)
+		if opsErr != nil {
+			return opsErr
+		}
+		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_frame_release(ptr @%s, ptr %s)\n", ops, stateVal)
+	}
 	if stateTy != "ptr" {
 		return fmt.Errorf("async_return expects state pointer, got %s", stateTy)
 	}
