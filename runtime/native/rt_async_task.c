@@ -258,30 +258,42 @@ uint8_t rt_task_poll(void* task, void* out_dst) {
     if (current_task_cancelled(ex)) {
         return 0;
     }
-    if (target->kind != TASK_KIND_CHECKPOINT) {
-        waker_key key = join_key(target->id);
-        prepare_park(ex, current, key, 0);
-        pending_key = key;
-        RT_SYNC_POINT(SP_TASK_POLL_AFTER_JOIN_REGISTER);
-        // Register-then-verify: the target may complete on its own shard
-        // between the DONE check above and the registration; its completion
-        // drain and this insert serialize on the target owner's store lock,
-        // so re-checking after registering closes the stranded-entry race.
-        if (task_status_load(target) == TASK_DONE) {
-            uint8_t kind = rt_far_task_take_result(target, current, out_dst);
-            if (kind == 0) {
-                // The join waiter is already registered: stay parked on it
-                // until the reader that retires last wakes this asker.
-                return 0;
-            }
-            remove_waiter(ex, key, current->id);
-            current->park_prepared = 0;
-            current->park_key = waker_none();
-            pending_key = waker_none();
-            rt_task_poll_adopt_placement(ex, current, target);
-            task_release_lane_aware(ex, target);
-            return kind;
+    // Every kind registers, checkpoints included. Leaving `pending_key`
+    // invalid is not "no park needed" -- it is the yield path: the caller
+    // branches to PendBB on a 0 return (emit_async.go:190), rt_async_yield
+    // finds no valid key and returns POLL_YIELDED (rt_async_poll.c:304), and
+    // apply_poll_outcome pushes the awaiter straight back onto the inject
+    // queue (rt_task_complete.c:484). So an awaiter that does not register
+    // does not wait for its target -- it re-enters the ready queue on every
+    // turn and asks again, which is what the worker's outer loop was measured
+    // doing 99,000 times a second while the row made no progress.
+    //
+    // Nothing about a checkpoint target needed the exemption: mark_done ends
+    // every completion with wake_key_all_with_policy(join_key(id))
+    // (rt_task_complete.c:379) with no test on kind, so a join waiter left
+    // against a checkpoint is woken by exactly the same drain as any other.
+    waker_key key = join_key(target->id);
+    prepare_park(ex, current, key, 0);
+    pending_key = key;
+    RT_SYNC_POINT(SP_TASK_POLL_AFTER_JOIN_REGISTER);
+    // Register-then-verify: the target may complete on its own shard
+    // between the DONE check above and the registration; its completion
+    // drain and this insert serialize on the target owner's store lock,
+    // so re-checking after registering closes the stranded-entry race.
+    if (task_status_load(target) == TASK_DONE) {
+        uint8_t kind = rt_far_task_take_result(target, current, out_dst);
+        if (kind == 0) {
+            // The join waiter is already registered: stay parked on it
+            // until the reader that retires last wakes this asker.
+            return 0;
         }
+        remove_waiter(ex, key, current->id);
+        current->park_prepared = 0;
+        current->park_key = waker_none();
+        pending_key = waker_none();
+        rt_task_poll_adopt_placement(ex, current, target);
+        task_release_lane_aware(ex, target);
+        return kind;
     }
     return 0;
 }
