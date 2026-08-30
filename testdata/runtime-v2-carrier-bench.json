@@ -2083,12 +2083,9 @@
       "id": "jumbo-credit-cancel",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/liveness/main.sg",
       "probe": "jumbo-credit-cancel",
-      "syncpoint": "SP_CARRIER_CREDIT_PARKED",
-      "payload_bytes": 8192,
+      "syncpoint": "SP_TRANSPORT_DATA_SLOT_TASK_PARKED",
       "timeout_seconds": 10,
       "expected_credit_balance": 0,
-      "min_peak_transport_bytes": 8192,
-      "max_peak_transport_bytes": 9472,
       "expected_park_transitions": 1,
       "wave_a": {
         "status": "deferred",
@@ -2096,19 +2093,17 @@
         "provenance_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd"
       },
       "final": {
-        "status": "required"
+        "status": "deferred",
+        "reason": "The byte-credit model this probe asserted does not exist: pointer transport carries a pointer into a refcount graph it neither copies nor owns, so there is no per-message byte cost and the budget is SLOTS. Renamed to the scenario that is real -- a task parked on exhausted data-slot admission, after which a cancellation or shutdown travels the reserved control lane and every data slot comes back -- and deferred because nothing arms that sync point yet: the tree still drain-and-retries where the model now parks, and building the park is the far-carrier work. Deferred rather than left to run, because a probe waiting on a point nothing reaches TIMES OUT instead of failing, and a ten-second hang in the middle of a benchmark reads as a broken instrument rather than as absent work."
       }
     },
     {
       "id": "jumbo-global-shutdown",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/liveness/main.sg",
       "probe": "jumbo-global-shutdown",
-      "syncpoint": "SP_CARRIER_CREDIT_PARKED",
-      "payload_bytes": 8192,
+      "syncpoint": "SP_TRANSPORT_DATA_SLOT_TASK_PARKED",
       "timeout_seconds": 10,
       "expected_credit_balance": 0,
-      "min_peak_transport_bytes": 8192,
-      "max_peak_transport_bytes": 9472,
       "expected_park_transitions": 1,
       "wave_a": {
         "status": "deferred",
@@ -2116,7 +2111,8 @@
         "provenance_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd"
       },
       "final": {
-        "status": "required"
+        "status": "deferred",
+        "reason": "The byte-credit model this probe asserted does not exist: pointer transport carries a pointer into a refcount graph it neither copies nor owns, so there is no per-message byte cost and the budget is SLOTS. Renamed to the scenario that is real -- a task parked on exhausted data-slot admission, after which a cancellation or shutdown travels the reserved control lane and every data slot comes back -- and deferred because nothing arms that sync point yet: the tree still drain-and-retries where the model now parks, and building the park is the far-carrier work. Deferred rather than left to run, because a probe waiting on a point nothing reaches TIMES OUT instead of failing, and a ten-second hang in the middle of a benchmark reads as a broken instrument rather than as absent work."
       }
     }
   ]

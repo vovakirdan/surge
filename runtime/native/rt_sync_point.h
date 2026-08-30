@@ -154,10 +154,25 @@ typedef enum rt_sync_point_id {
     // UNBOUND request and the late dispatch refuses to pin any arm (Epic
     // 20 Task 7 row 3).
     RT_SYNC_POINT_SP_FAR_SELECT_BEFORE_DISPATCH,
-    // Epic 23b final carrier liveness: hold the first exclusive jumbo
-    // reservation, then prove the competing sender reached PARKED_CREDIT.
+    // Hold the first exclusive jumbo reservation, then prove the competing
+    // sender parked.
+    //
+    // The second name says TRANSPORT DATA SLOT and not CARRIER CREDIT, and
+    // both halves of that were wrong before. A physical BYTE credit does not
+    // exist for pointer transport -- a cross-shard message carries a pointer
+    // into a refcount graph the transport neither copies nor owns, so there is
+    // no per-message byte cost to charge -- and the budget that does exist is
+    // slots. And an async crossing parks the TASK, not the carrier: the
+    // carrier goes on to run other work.
+    //
+    // Nothing arms the second point yet. The admission it names parks a sender
+    // on an exhausted data-slot budget, and the tree still drain-and-retries
+    // instead, so the site belongs to the far-carrier work that builds the
+    // park. A probe waiting on it therefore waits forever rather than failing,
+    // which is why the two liveness probes that use it are deferred with that
+    // reason rather than left to time out.
     RT_SYNC_POINT_SP_CARRIER_JUMBO_ADMITTED,
-    RT_SYNC_POINT_SP_CARRIER_CREDIT_PARKED,
+    RT_SYNC_POINT_SP_TRANSPORT_DATA_SLOT_TASK_PARKED,
     // rt_sleep_fire_due_on_shard: reached after the due batch has been popped
     // out of the sleep store and the shard lock released, before the first
     // wake puts any of it back. Holding a worker here is the whole of the

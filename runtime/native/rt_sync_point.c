@@ -136,8 +136,8 @@ static const char* rt_sp_name(rt_sync_point_id id) {
             return "SP_FAR_SELECT_BEFORE_DISPATCH";
         case RT_SYNC_POINT_SP_CARRIER_JUMBO_ADMITTED:
             return "SP_CARRIER_JUMBO_ADMITTED";
-        case RT_SYNC_POINT_SP_CARRIER_CREDIT_PARKED:
-            return "SP_CARRIER_CREDIT_PARKED";
+        case RT_SYNC_POINT_SP_TRANSPORT_DATA_SLOT_TASK_PARKED:
+            return "SP_TRANSPORT_DATA_SLOT_TASK_PARKED";
         case RT_SYNC_POINT_SP_SLEEP_FIRED_BEFORE_WAKE:
             return "SP_SLEEP_FIRED_BEFORE_WAKE";
         case RT_SYNC_POINT_SP_CHANNEL_LAST_RELEASE_BEFORE_FREE:

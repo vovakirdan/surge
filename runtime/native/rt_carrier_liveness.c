@@ -10,7 +10,7 @@ bool rt_carrier_liveness_jumbo_admitted(void) {
 }
 
 bool rt_carrier_liveness_credit_parked(void) {
-    return rt_sync_point_reached_count(RT_SYNC_POINT_SP_CARRIER_CREDIT_PARKED) != 0;
+    return rt_sync_point_reached_count(RT_SYNC_POINT_SP_TRANSPORT_DATA_SLOT_TASK_PARKED) != 0;
 }
 
 void rt_carrier_liveness_release_jumbo(void) {
