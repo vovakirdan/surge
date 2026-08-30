@@ -89,6 +89,11 @@ typedef struct rt_transport_wake {
     uint64_t drain_count;
     uint64_t drain_bytes;
     uint64_t write_failures;
+    // Counts every drain that reached the pipe, including the ones that read
+    // nothing. drain_count only counts the ones that found bytes, so it cannot
+    // see a read(2) issued under the shard lock for an already-empty queue --
+    // which is the cost this counter exists to bound.
+    uint64_t drain_calls;
 } rt_transport_wake;
 
 typedef struct rt_transport_state {
@@ -164,6 +169,7 @@ struct rt_transport_debug_snapshot {
     uint64_t wake_drain_count;
     uint64_t wake_drain_bytes;
     uint64_t wake_write_failures;
+    uint64_t wake_drain_calls;
 };
 
 rt_runtime_status rt_transport_state_init(rt_transport_state* state);

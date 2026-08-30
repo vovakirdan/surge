@@ -57,6 +57,13 @@ func TestRuntimeV2TransportSpineAcceptanceRows(t *testing.T) {
 			flags:      []string{"-DRT_TRANSPORT_NEG_SHUTDOWN_NO_WAKE"},
 			expectFail: true,
 		},
+		{name: "empty-queue drain reads no wake pipe", mode: "empty_drain_no_read"},
+		{
+			name:       "empty-queue drain negative unconditional read",
+			mode:       "empty_drain_no_read",
+			flags:      []string{"-DRT_TRANSPORT_NEG_DRAIN_EMPTY_QUEUE"},
+			expectFail: true,
+		},
 		{name: "reply wait suspends task instead of parking shard", mode: "reply_wait"},
 		{
 			name:       "reply wait negative shard park",
@@ -484,6 +491,62 @@ static int mode_shutdown_wake(void) {
     return 0;
 }
 
+// The worker turn drains inbound on every pass, and the overwhelmingly common
+// pass finds the queue already empty. This row holds that pass to zero pipe
+// reads: an empty queue owes no wake byte, because a byte is only ever written
+// under this shard's lock right after a push, and whoever removes the last
+// message drains it. A read(2) here is spent inside the critical section every
+// carrier on the shard is queued for.
+static int mode_empty_drain_no_read(void) {
+    rt_executor ex;
+    rt_runtime runtime;
+    if (init_runtime(&ex, &runtime, 1) != 0) return fail("init failed");
+    rt_shard* shard = &runtime.shards[0];
+
+    // One real message, drained: this is the pass that DOES own the byte, and
+    // it must still read the pipe. Pinning it here stops the fix from
+    // degenerating into "never drain", which would strand a wake byte.
+    rt_transport_msg data = msg(RT_TRANSPORT_MSG_REMOTE_SPAWN_REQUEST);
+    if (rt_transport_prepare_shard_park(shard) != RT_TRANSPORT_STATUS_OK ||
+        rt_transport_enqueue(shard, &data) != RT_TRANSPORT_STATUS_OK) {
+        destroy_runtime(&runtime);
+        return fail("parked enqueue failed");
+    }
+    rt_transport_msg out = {0};
+    if (rt_transport_try_drain_one(shard, &out) != RT_TRANSPORT_STATUS_OK) {
+        destroy_runtime(&runtime);
+        return fail("the one enqueued message did not drain");
+    }
+    struct rt_transport_debug_snapshot after_real = rt_transport_debug_snapshot(shard);
+    if (after_real.transport_wake_writes != 1 || after_real.wake_drain_calls != 1 ||
+        after_real.wake_drain_count != 1) {
+        destroy_runtime(&runtime);
+        return fail("the pass that owned the wake byte did not read the pipe exactly once");
+    }
+
+    // Now the empty passes -- the shape of a worker turn with nothing to do.
+    for (int i = 0; i < 64; i++) {
+        if (rt_transport_try_drain_one(shard, &out) != RT_TRANSPORT_STATUS_UNAVAILABLE) {
+            destroy_runtime(&runtime);
+            return fail("empty drain reported work");
+        }
+    }
+    rt_shard_lock(shard);
+    size_t bulk = rt_transport_drain_inbound_locked(shard, RT_TRANSPORT_DRAIN_TURN_LIMIT);
+    rt_shard_unlock(shard);
+    if (bulk != 0) {
+        destroy_runtime(&runtime);
+        return fail("bulk drain of an empty queue reported work");
+    }
+    struct rt_transport_debug_snapshot snapshot = rt_transport_debug_snapshot(shard);
+    if (snapshot.wake_drain_calls != after_real.wake_drain_calls) {
+        destroy_runtime(&runtime);
+        return fail("empty-queue drain read the wake pipe under the shard lock");
+    }
+    destroy_runtime(&runtime);
+    return 0;
+}
+
 static int mode_reply_wait(void) {
     if (!rt_transport_reply_wait_before_task_suspend()) {
         return fail("reply wait parked shard instead of suspending task");
@@ -504,6 +567,7 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "worker_wait_wake") == 0) return mode_worker_wait_wake();
     if (strcmp(argv[1], "parked_inbound_negative") == 0) return mode_parked_inbound_negative();
     if (strcmp(argv[1], "shutdown_wake") == 0) return mode_shutdown_wake();
+    if (strcmp(argv[1], "empty_drain_no_read") == 0) return mode_empty_drain_no_read();
     if (strcmp(argv[1], "reply_wait") == 0) return mode_reply_wait();
     return fail("unknown mode");
 }

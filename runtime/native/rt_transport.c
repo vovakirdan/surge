@@ -63,6 +63,7 @@ static void rt_transport_wake_init_empty(rt_transport_wake* wake) {
     wake->drain_count = 0;
     wake->drain_bytes = 0;
     wake->write_failures = 0;
+    wake->drain_calls = 0;
 }
 
 static int rt_transport_set_nonblocking(int fd) {
@@ -143,6 +144,7 @@ static void rt_transport_wake_drain(rt_transport_state* state) {
     if (state == NULL || state->wake.initialized == 0 || state->wake.read_fd < 0) {
         return;
     }
+    state->wake.drain_calls++;
     uint8_t buf[64];
     size_t drained = 0;
     for (;;) {
@@ -343,6 +345,25 @@ rt_transport_status rt_transport_enqueue(rt_shard* shard, const rt_transport_msg
     return status;
 }
 
+// A wake byte is written only under this shard's lock, and only immediately
+// after a message was pushed -- so a byte can exist only while the queue is
+// non-empty, and whoever removes the last message owns the drain. A caller
+// that removed nothing cannot be holding an unconsumed byte and has nothing to
+// read. Draining anyway spends a read(2) inside the shard's critical section
+// on every worker turn, and under the default one-shard-by-N-carriers topology
+// that critical section is the one every carrier is queued for.
+//
+// RT_TRANSPORT_NEG_DRAIN_EMPTY_QUEUE restores the unconditional drain, which
+// MUST make the empty-queue row count reads that answer nothing.
+static int rt_transport_should_drain_wake(const rt_shard* shard, int removed) {
+#ifdef RT_TRANSPORT_NEG_DRAIN_EMPTY_QUEUE
+    (void)removed;
+    return rt_transport_inbound_len_locked(shard) == 0;
+#else
+    return removed != 0 && rt_transport_inbound_len_locked(shard) == 0;
+#endif
+}
+
 rt_transport_status rt_transport_try_drain_one(rt_shard* shard, rt_transport_msg* out) {
     if (shard == NULL || out == NULL) {
         return RT_TRANSPORT_STATUS_INVALID_ARGUMENT;
@@ -352,7 +373,7 @@ rt_transport_status rt_transport_try_drain_one(rt_shard* shard, rt_transport_msg
         if (status == RT_TRANSPORT_STATUS_UNAVAILABLE) {
             status = rt_transport_pop_locked(&shard->transport, out, 0);
         }
-        if (rt_transport_inbound_len_locked(shard) == 0) {
+        if (rt_transport_should_drain_wake(shard, status == RT_TRANSPORT_STATUS_OK)) {
             rt_transport_wake_drain(&shard->transport);
         }
         return status;
@@ -366,7 +387,7 @@ rt_transport_status rt_transport_try_drain_one(rt_shard* shard, rt_transport_msg
     if (status == RT_TRANSPORT_STATUS_UNAVAILABLE) {
         status = rt_transport_pop_locked(&shard->transport, out, 0);
     }
-    if (rt_transport_inbound_len_locked(shard) == 0) {
+    if (rt_transport_should_drain_wake(shard, status == RT_TRANSPORT_STATUS_OK)) {
         rt_transport_wake_drain(&shard->transport);
     }
     rt_shard_unlock(shard);
@@ -485,7 +506,7 @@ size_t rt_transport_drain_inbound_locked(rt_shard* shard, size_t limit) {
            rt_transport_pop_locked(&shard->transport, &msg, 0) == RT_TRANSPORT_STATUS_OK) {
         drained++;
     }
-    if (rt_transport_inbound_len_locked(shard) == 0) {
+    if (rt_transport_should_drain_wake(shard, drained > 0)) {
         rt_transport_wake_drain(&shard->transport);
     }
     return drained;
