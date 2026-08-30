@@ -9,10 +9,32 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
 )
+
+// lockedBuffer is an io.Writer a test can read from while the child process is
+// still writing to it. exec fills a command's Stdout/Stderr from its own
+// goroutine, so a bare bytes.Buffer read mid-run is a race the race detector
+// will find and, before it does, a torn read.
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
 
 func TestRuntimeV2NetWaiterTraceContract(t *testing.T) {
 	ensureLLVMToolchain(t)
@@ -96,9 +118,13 @@ fn main(port: uint, count: uint) -> int {
 	requestCount := 12
 	cmd := exec.Command(outputPath, strconv.Itoa(port), strconv.Itoa(requestCount))
 	cmd.Env = overrideEnvVar(mtEnv(t), "SURGE_TRACE_EXEC", "1")
-	var outBuf, errBuf bytes.Buffer
-	cmd.Stdout = &outBuf
-	cmd.Stderr = &errBuf
+	// The buffers are read WHILE the process is running -- to wait for the live
+	// dump below, and on every failure path -- and exec fills them from a
+	// goroutine of its own, so a plain bytes.Buffer here is a data race and not
+	// merely untidy.
+	outBuf, errBuf := &lockedBuffer{}, &lockedBuffer{}
+	cmd.Stdout = outBuf
+	cmd.Stderr = errBuf
 
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start net trace contract server: %v", err)
@@ -144,6 +170,35 @@ fn main(port: uint, count: uint) -> int {
 			if err = cmd.Process.Signal(syscall.SIGUSR1); err != nil {
 				_ = conn.Close()
 				fail("signal live trace: %v", err)
+			}
+			// AND THEN WAIT FOR THE DUMP, before driving the server towards its
+			// exit. A signal is delivered asynchronously and the dump is
+			// written by whichever lane next reaches a safepoint; the request
+			// loop below is what ends the program. Sending the signal and then
+			// asserting the dump at the end asserts that the handler always
+			// wins that race, and nothing promises it.
+			//
+			// IT LOSES UNDER LOAD AND ONLY UNDER LOAD, which is why the race
+			// went unnoticed. On the dedicated machine this row is 0 red of 20
+			// run by itself on an idle host, and 1 red of 5 inside
+			// `make runtime-v2-check`, where nineteen other gates have just
+			// run. The command that goes red is the aggregate, so that is the
+			// command this fix has to be counted against.
+			//
+			// Waiting on the line is not a sleep: the deadline only bounds how
+			// long a genuine loss takes to report.
+			// The prefix is the whole record and not just the reason: this run
+			// sets SURGE_TRACE_EXEC too, so TRACE_EXEC carries reason=sigusr1
+			// as well, and waiting on the reason alone would let the loop
+			// continue before the TRACE_NET line this test asserts exists.
+			awaited := "TRACE_NET reason=sigusr1 "
+			deadline := time.Now().Add(10 * time.Second)
+			for !strings.Contains(errBuf.String(), awaited) {
+				if time.Now().After(deadline) {
+					_ = conn.Close()
+					fail("live TRACE_NET dump never arrived within 10s of SIGUSR1")
+				}
+				time.Sleep(5 * time.Millisecond)
 			}
 		}
 	}

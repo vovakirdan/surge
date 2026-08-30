@@ -7,10 +7,25 @@ It does not restate the migration. `README.md` holds the epic history and
 roadmap, `DEBT.md` the ledger, `23b-*.md` the wave definitions, `RULES.md` the
 rules every lane obeys. Read those to know why; read this to know what.
 
-**State line, 2026-08-28 at `0001b82c`.** Live carrier census **83 against a
+**State line, 2026-08-30 at `37bd759b`.** Live carrier census **60 against a
 frozen base of 626**, ratchet green. Epics 1–25 are closed except three: 21
 (closeout only), 22 (parked until 23b closes), 23b (in flight — the whole
 remaining migration).
+
+**`runtime-v2-carrier-check` was RED on the trunk from `9d710bcb` to
+`4968061f`, and no gate said so.** The sync-point rename edited the manifest
+and left five rules in the loader and the validator demanding the shape it had
+replaced, so `load_manifest` raised inside `setUpClass`: the canonical class
+never ran, the suite reported 53 tests instead of 59, and the nineteenth
+sub-gate of the twenty on the aggregate roster was red while the board recorded
+the aggregate as the thing being counted. A suite that cannot start reads
+exactly like a suite that passed. Closed by `4968061f`, which also adds the row
+that asserts the probe shape from the loaded object.
+
+**The aggregate as a COUNT, first honest reading: 4 green of 5** at `b303a213`
+on the dedicated machine, 656–711 seconds each. The red is
+`runtime-v2-waiter-check`, and the row is `TestRuntimeV2NetWaiterTraceContract`:
+`missing TRACE_NET reason=sigusr1 in stderr`.
 
 **The twenty-gate aggregate passed ONCE, and once is not a measurement.** It
 exited 0 on the dedicated machine at 675 seconds, twenty of twenty. A later run
