@@ -408,9 +408,11 @@ func runBinaryUnderValgrind(t *testing.T, outputPath string, env []string, timeo
 			}
 		}
 	case <-time.After(timeout):
+		// Photograph the wedge BEFORE the kill destroys it (RV2-DEBT-311).
+		wedge := valgrindWedgeReport(cmd.Process.Pid, timeout, env)
 		_ = cmd.Process.Kill()
 		<-done
-		t.Fatalf("valgrind run timed out after %s\nstdout:\n%s\nstderr:\n%s", timeout, outBuf.String(), errBuf.String())
+		t.Fatalf("valgrind run timed out after %s\n%s\nstdout:\n%s\nstderr:\n%s", timeout, wedge, outBuf.String(), errBuf.String())
 	}
 	return outBuf.String(), errBuf.String(), exitCode
 }
