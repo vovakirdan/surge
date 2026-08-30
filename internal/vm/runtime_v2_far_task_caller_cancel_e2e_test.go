@@ -207,19 +207,32 @@ func TestRuntimeV2FarTaskCallerCancel(t *testing.T) {
 				if !strings.Contains(result.stdout, "far-task-caller-cancel-e2e1-ok") {
 					t.Fatalf("far-task caller-cancel e2e1 missing completion marker; stdout=%q", result.stdout)
 				}
-				// At SURGE_SHARDS=1 the caller-cancel race is won
-				// deterministically by cancel() before the child ever
-				// runs (see the source comment): the far task is never
-				// created, so its witness never fires. At 2+ shards the
-				// child reliably gets a head start on a second worker
-				// and the far body runs before the caller resolves
-				// Cancelled — the witness is required there.
+				// WHETHER THE BODY RUNS IS NOT THIS ROW'S TO ASSERT, and
+				// requiring it was asserting a guarantee the model
+				// withholds. Publication promises that the task EXISTS and
+				// can be cancelled; it does not promise a first poll. A
+				// cancellation that linearizes while the task is PUBLISHED
+				// and before STARTED withdraws the record and answers
+				// Cancelled with the body never entered; a cancellation
+				// that loses to STARTED becomes an ordinary cooperative one
+				// and the body observes it. Both are legal outcomes of the
+				// same program, and which one a machine picks is its
+				// scheduler's business.
+				//
+				// The old form demanded the witness at 2+ shards on the
+				// reasoning that the child "reliably" wins there. Measured,
+				// it does not: 81 red of 100 on a 16-core host against 0 of
+				// 3 on a 32-core one, red at every commit back to
+				// 2026-08-26. The row was reporting the host.
+				//
+				// What survives is the shards=1 direction, which is not a
+				// guarantee about the body either — it is this program's
+				// own arrangement, and a witness appearing there means the
+				// arrangement stopped holding and the row no longer
+				// exercises what it was written for.
 				hasWitness := strings.Contains(result.stdout, "e2e1-far-body-ran")
 				if shardCount == 1 && hasWitness {
 					t.Fatalf("unexpected far-body witness at shards=1 (race assumption changed); stdout=%q", result.stdout)
-				}
-				if shardCount > 1 && !hasWitness {
-					t.Fatalf("missing far-body witness at shards=%d; stdout=%q", shardCount, result.stdout)
 				}
 			})
 		}
