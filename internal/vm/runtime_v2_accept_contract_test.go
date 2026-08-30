@@ -8,6 +8,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -104,6 +105,7 @@ fn main(port: uint, clients: uint) -> int {
     let listen_res = net.listen("127.0.0.1", port);
     compare listen_res {
         Success(listener) => {
+            print("accept-listening");
             let result = serve_many(listener, clients).await();
             return compare result {
                 Success(code) => code;
@@ -137,6 +139,7 @@ func runRuntimeV2AcceptBurst(t *testing.T, shards int, clients int) string {
 		strconv.Itoa(port),
 		strconv.Itoa(clients),
 	)
+	waitRuntimeV2AcceptWaiter(t, srv, 10*time.Second)
 
 	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
 	errCh := make(chan error, clients)
@@ -175,6 +178,70 @@ func runRuntimeV2AcceptBurst(t *testing.T, shards int, clients int) string {
 	}
 	_, stderr := srv.waitExitZero(20 * time.Second)
 	return stderr
+}
+
+func waitRuntimeV2AcceptWaiter(
+	t *testing.T,
+	srv *runtimeV2AcceptServer,
+	timeout time.Duration,
+) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for !strings.Contains(srv.outBuf.String(), "accept-listening") {
+		if exited, err := srv.peekExit(); exited {
+			srv.fail("accept fixture exited before listening: %v", err)
+		}
+		if time.Now().After(deadline) {
+			srv.fail("accept fixture did not start listening before the client burst")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	for time.Now().Before(deadline) {
+		before := len(srv.errBuf.String())
+		if srv.cmd.Process == nil {
+			srv.fail("accept fixture process is missing before waiter trace")
+		}
+		if err := srv.cmd.Process.Signal(syscall.SIGUSR1); err != nil {
+			srv.fail("signal accept waiter trace: %v", err)
+		}
+
+		for time.Now().Before(deadline) {
+			trace, ok := runtimeV2AcceptNetTraceAfter(srv.errBuf.String(), before)
+			if ok {
+				values, line := runtimeV2NetTraceValues(t, trace, "sigusr1")
+				if values["io_direct_waits"] >= 1 && values["fd_owner_registry_rows"] >= 1 {
+					return
+				}
+				t.Logf("accept waiter not registered yet: %s", line)
+				break
+			}
+			if exited, err := srv.peekExit(); exited {
+				srv.fail("accept fixture exited before registering a waiter: %v", err)
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}
+	srv.fail("accept fixture did not register a waiter before the client burst")
+}
+
+func runtimeV2AcceptNetTraceAfter(stderr string, offset int) (string, bool) {
+	if offset > len(stderr) {
+		return "", false
+	}
+	tail := stderr[offset:]
+	const prefix = "TRACE_NET reason=sigusr1 "
+	for {
+		end := strings.IndexByte(tail, '\n')
+		if end < 0 {
+			return "", false
+		}
+		line := tail[:end]
+		if strings.HasPrefix(line, prefix) {
+			return line + "\n", true
+		}
+		tail = tail[end+1:]
+	}
 }
 
 func requireRuntimeV2AcceptNetFieldAtLeast(
