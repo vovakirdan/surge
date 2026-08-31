@@ -377,6 +377,28 @@ section publishing the child, one acquisition instead of two; elsewhere it is a
 message. No rule here licenses a steady completion path reaching a scope on
 another shard through the process-wide control lane.
 
+**Owner ruling 2026-08-31 -- a task's owning shard is decided at its creation
+and is never re-derived on the request path.** The rule above is stated of the
+scope; it holds of the shard in the same words. A task's owning shard is
+decided at the task's creation, by one writer, before the task is published to
+any run queue and to any waiter store, and it is not re-derived afterwards; a
+second writer of a task's owning shard on the request path is a contract
+failure, not a slow path. The one transfer is the quiet repin, and it is driven
+from the control-plane lane. A task is quiet when it is `WAITING`, is not
+queued, has no wake in flight, and is named by no entry of any waiter store; a
+`RUNNING` task is never quiet, and therefore a running task never repins
+itself. Because the repin moves the serializer under which the task is decided,
+it runs holding the old and the new shard's locks at once, acquired in
+ascending `shard_id` order; every wait key is re-registered on the destination
+BEFORE the new owner is published, and a wake follows only AFTER that
+publication. A holder of an already popped reference to the task revalidates
+the task's wait key under the serializer before acting on the reference: an
+empty store does not mean no references outstanding. While a legal repin
+remains in the tree, every path that selects a lock by the owning shard
+re-reads that shard under the lock it took; where ownership is immutable after
+creation, that revalidation is discharged by the immutability instead. Which of
+the two holds is stated in the code at the site, not left to the reader.
+
 **Heap cells and allocation pools.** Heap accounting is per lane, and a lane
 is not always a carrier: the lanes are the carriers, the main lane, the I/O
 lane, each blocking-pool and compensation worker, and one process-wide cold
@@ -482,6 +504,13 @@ each shard can own an accept socket and receive connections directly. The
 fallback can be a single acceptor plus explicit handoff, but that fallback is
 not the ideal hot path.
 
+An accept socket per shard is half of the mechanism. The other half is that the
+acceptor is a task on that same shard, waiting on that same shard's socket. A
+value naming the whole listener group is shard-pinned as a whole and is not
+handed out to acceptors sitting on different shards; the shard-local acceptor
+`i` takes member `i` of the group and waits on member `i` only. A reference to
+another shard's member is `far`.
+
 Types that own shard-registered resources are shard-pinned. A local `File`,
 socket, timer, or any value that transitively owns one may not cross a shard by
 ordinary value move, even if the outer value is `own T`. Moving the registration
@@ -499,6 +528,14 @@ as migration:
 4. update fd and timer ownership.
 
 Migration is a control-plane feature, not a request-path primitive.
+
+Both symmetric forms of it are forbidden on the accept path: moving the *task*
+to the shard that owns the newly accepted fd on every accept, and moving that
+connection's *fd registration* to the acceptor's shard on every accept. The
+first is migration of a task, the second is migration of a resource under the
+paragraph below; both sit on the request path, so neither is licensed by the
+other's absence. A handler is co-located with its connection by creating the
+handler on the connection's shard, not by moving either of them afterwards.
 
 Migration is also the only way to transfer a shard-registered resource. It
 re-registers the fd, timer, or equivalent resource on the destination shard and
