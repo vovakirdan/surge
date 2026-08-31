@@ -905,6 +905,11 @@
       "group": "PG-ALLOC-FAILURE"
     },
     {
+      "site": "runtime/native/rt_async_panic.c::rt_double_poll_panic#1",
+      "message": "\u003ccomputed\u003e",
+      "group": "PG-COMPUTED"
+    },
+    {
       "site": "runtime/native/rt_async_poll.c::poll_sleep_task#1",
       "message": "async: sleep store allocation failed",
       "group": "PG-ALLOC-FAILURE"
@@ -1068,11 +1073,6 @@
       "site": "runtime/native/rt_async_state.c::rt_config_total_worker_threads#1",
       "message": "async: worker count overflow",
       "group": "PG-INVARIANT"
-    },
-    {
-      "site": "runtime/native/rt_async_state.c::rt_double_poll_panic#1",
-      "message": "\u003ccomputed\u003e",
-      "group": "PG-COMPUTED"
     },
     {
       "site": "runtime/native/rt_async_state.c::rt_scope_slot_store#1",
