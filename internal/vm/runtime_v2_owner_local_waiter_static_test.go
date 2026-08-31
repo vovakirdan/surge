@@ -350,7 +350,9 @@ void rt_channel_key_retired(waker_key key, size_t count) {
 }
 
 	#include "rt_fd_registry.c"
+	#include "rt_waiter_key.c"
 	#include "rt_async_waiter.c"
+	#include "rt_task_wait_keys.c"
 	#include "rt_waiter_route.c"
 	#include "rt_waiter_join_route.c"
 

@@ -1170,11 +1170,6 @@
       "group": "PG-ALLOC-FAILURE"
     },
     {
-      "site": "runtime/native/rt_async_waiter.c::ensure_wait_keys_cap#1",
-      "message": "async: wait key allocation failed",
-      "group": "PG-ALLOC-FAILURE"
-    },
-    {
       "site": "runtime/native/rt_async_waiter.c::rt_executor_wake_net_waiters_for_key_on_owner#1",
       "message": "async: net wake batch allocation failed",
       "group": "PG-ALLOC-FAILURE"
@@ -1643,6 +1638,11 @@
       "site": "runtime/native/rt_task_table.c::ensure_task_cap#1",
       "message": "async: task capacity overflow",
       "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_task_wait_keys.c::ensure_wait_keys_cap#1",
+      "message": "async: wait key allocation failed",
+      "group": "PG-ALLOC-FAILURE"
     },
     {
       "site": "runtime/native/rt_term.c::rt_term_read_event#1",

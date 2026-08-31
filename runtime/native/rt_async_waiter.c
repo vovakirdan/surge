@@ -2,93 +2,13 @@
 
 #include <limits.h>
 
-waker_key waker_none(void) {
-    waker_key key = {WAKER_NONE, 0, 0};
-    return key;
-}
-
-int waker_valid(waker_key key) {
-    return key.kind != WAKER_NONE && key.id != 0;
-}
-
-waker_key join_key(uint64_t id) {
-    waker_key key = {WAKER_JOIN, id, 0};
-    return key;
-}
-
-// A timer key carries the sleeping task's owner shard, for the same reason a
-// channel key carries the channel's: the key OUTLIVES the object it names. The
-// deferred stale-key removal in wake_task_with_policy captures a parked task's
-// timer key, drops the owner shard lock, and only then removes the waiter --
-// and in that window the timeout that was waiting on this sleep can resolve,
-// release the last reference and free the task. Routing by looking the id up
-// and reading the task's placement therefore reads freed memory. The shard is
-// stamped here instead, while the caller holds the task live in hand.
-//
-// It is also the shard the park itself used: poll_sleep_task adds the deadline
-// to that shard's sleep store, so recording it keeps the waiter entry and the
-// deadline index on one shard even if the task is later re-placed. Resolving
-// live would send the removal to the new owner's store, where the entry it
-// wants has never been.
-waker_key timer_key(uint64_t id, uint32_t owner_shard_id) {
-    waker_key key = {WAKER_TIMER, id, owner_shard_id};
-    return key;
-}
-
-waker_key scope_key(uint64_t id) {
-    waker_key key = {WAKER_SCOPE, id, 0};
-    return key;
-}
-
-waker_key blocking_key(uint64_t id) {
-    waker_key key = {WAKER_BLOCKING, id, 0};
-    return key;
-}
-
-waker_key remote_spawn_reply_key(uint64_t id, uint32_t owner_shard_id) {
-    waker_key key = {WAKER_REMOTE_SPAWN_REPLY, id, owner_shard_id};
-    return key;
-}
-
-// Channel keys carry the channel's owner shard, read HERE — the only place a
-// channel key is ever built, and a place every caller reaches while holding the
-// channel (send/recv/close/select all have it live in hand). Everything
-// downstream copies the key: task->park_key, task->wait_keys[], the wake path's
-// captured stale key, the store entries. That copy is what lets the routing
-// path resolve a channel key without dereferencing it, which matters because a
-// far channel IS freed under a carried key (RV2-DEBT-199). The shard is fixed
-// before any task can park (rt_waiter.h: rt_channel_bind_owner_shard runs
-// between rt_channel_new and the mint), so a key built at any later moment
-// stamps the same value.
-waker_key channel_send_key(const rt_channel* ch) {
-    waker_key key = {WAKER_CHAN_SEND, (uint64_t)(uintptr_t)ch, rt_channel_owner_shard_id(ch)};
-    return key;
-}
-
-waker_key channel_recv_key(const rt_channel* ch) {
-    waker_key key = {WAKER_CHAN_RECV, (uint64_t)(uintptr_t)ch, rt_channel_owner_shard_id(ch)};
-    return key;
-}
-
-waker_key net_accept_key(int fd) {
-    waker_key key = {WAKER_NET_ACCEPT, (uint64_t)fd, 0};
-    return key;
-}
-
-waker_key net_read_key(int fd) {
-    waker_key key = {WAKER_NET_READ, (uint64_t)fd, 0};
-    return key;
-}
-
-waker_key net_write_key(int fd) {
-    waker_key key = {WAKER_NET_WRITE, (uint64_t)fd, 0};
-    return key;
-}
-
-int waker_is_net(waker_key key) {
-    waker_kind kind = (waker_kind)key.kind;
-    return kind == WAKER_NET_ACCEPT || kind == WAKER_NET_READ || kind == WAKER_NET_WRITE;
-}
+// The waiter store and the fd-registry bridge over it: who is waiting on a
+// given key, on which shard that entry lives, and how registry interest is kept
+// in exact step with store membership. Two neighbours were split out of this
+// file and are declared alongside these in rt_waiter.h:
+//   rt_waiter_key.c      mints every waker_key; no store, no task, no lock.
+//   rt_task_wait_keys.c  owns task->wait_keys, the per-task record of which
+//                        keys this task currently has entries under.
 
 static void net_waiter_added(rt_waiter_store* store, waker_key key) {
     if (store != NULL && waker_is_net(key)) {
@@ -423,29 +343,6 @@ rt_waiter_completion rt_executor_wake_net_waiters_for_key_on_owner(rt_executor* 
     return result;
 }
 
-static void ensure_wait_keys_cap(rt_task* task, size_t want) {
-    if (task == NULL) {
-        return;
-    }
-    if (task->wait_keys_cap >= want) {
-        return;
-    }
-    size_t next_cap = task->wait_keys_cap == 0 ? 4 : task->wait_keys_cap;
-    while (next_cap < want) {
-        next_cap *= 2;
-    }
-    size_t old_size = task->wait_keys_cap * sizeof(waker_key);
-    size_t new_size = next_cap * sizeof(waker_key);
-    waker_key* next = (waker_key*)rt_realloc(
-        (uint8_t*)task->wait_keys, (uint64_t)old_size, (uint64_t)new_size, _Alignof(waker_key));
-    if (next == NULL) {
-        panic_msg("async: wait key allocation failed");
-        return;
-    }
-    task->wait_keys = next;
-    task->wait_keys_cap = next_cap;
-}
-
 // Generation-qualified removal (blocker fix): the deferred stale-key
 // removal in wake_task_with_policy runs after the owner lock is released,
 // and the woken task can re-register the same channel key in that window.
@@ -610,28 +507,6 @@ void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
     }
 }
 
-void clear_wait_keys(rt_executor* ex, rt_task* task) {
-    if (ex == NULL || task == NULL || task->wait_keys_len == 0) {
-        return;
-    }
-    for (size_t i = 0; i < task->wait_keys_len; i++) {
-        remove_waiter(ex, task->wait_keys[i], task->id);
-    }
-    task->wait_keys_len = 0;
-}
-
-void add_wait_key(rt_executor* ex, rt_task* task, waker_key key) {
-    if (ex == NULL || task == NULL || !waker_valid(key)) {
-        return;
-    }
-    ensure_wait_keys_cap(task, task->wait_keys_len + 1);
-    if (task->wait_keys == NULL) {
-        return;
-    }
-    task->wait_keys[task->wait_keys_len++] = key;
-    add_waiter(ex, key, task->id);
-}
-
 // NOTES (MT iteration 2):
 // - prepare_park pre-registers waiters under ex->lock to avoid wake-before-park races for user
 // tasks.
@@ -660,10 +535,6 @@ void prepare_park(rt_executor* ex, rt_task* task, waker_key key, int already_add
 // enumerated over rt_waiter_store in rt_waiter.h; do not reintroduce a generic
 // cross-key pop without adding it to that list.
 //
-// ensure_waiter_cap lived above ensure_wait_keys_cap and went the same way. It
-// grew shard 0's store (rt_executor_waiter_store) and panicked on allocation
-// failure, holding no lock of its own. Nothing called it: every insert grows
-// the store it is about to append to, under that store's lock, through
-// rt_waiter_store_ensure_cap. It was held up by the static pin in the waiter
-// boundary check, and its panic — which no live path could reach — by a row in
-// the panic ledger; both went with it.
+// ensure_waiter_cap went the same way. Its note travelled with the wait-key
+// set to rt_task_wait_keys.c, next to ensure_wait_keys_cap, the function it
+// used to sit above and the one it is easiest to confuse it with.
