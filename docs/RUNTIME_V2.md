@@ -1459,6 +1459,51 @@ contracts and which are current implementation artifacts. The VM backend and
 golden tests may implicitly depend on FIFO ordering that the native runtime
 should not promise forever.
 
+### What `checkpoint()` Promises
+
+Settled by the model owner on 2026-08-31, answering the first case the paragraph
+above anticipated.
+
+`checkpoint().await()` is **not** a fairness primitive. Its contract is to finish
+the current poll, check for cancellation, and return the task to scheduler
+selection. It does **not** promise that some other Ready task — woken by a join
+or by any other path — runs before this task is polled again. The opportunity to
+schedule other work is real; the ordering guarantee is not.
+
+Two consequences are load-bearing.
+
+`force_inject` is a wake **placement** policy, not the carrier of a language
+guarantee. Join wakes do not force injection while net wakes do
+(`rt_task_park.c`), and that asymmetry is a scheduling decision answerable on
+scheduling grounds — starvation of the oldest connection, in the net case. It is
+not evidence of a fairness defect on the join path, and neither a broad flip
+(every join wake) nor a narrow one (join against a checkpoint task) is justified
+by this model. Changing it needs a scheduling argument, not a fairness one.
+
+The fairness properties F1-F3 in `docs/CONCURRENCY.md` are properties of the
+**VM's deterministic single-worker scheduler profile**. They are not properties
+of the `checkpoint()` abstraction, and not properties of single-worker execution
+in general — the native runtime at one worker is not thereby obliged to
+reproduce them. This is consistent with V2 giving up automatic fairness in the
+connection hot path (see Non-Goals And Tradeoffs) and with parallel mode
+promising no global FIFO order.
+
+The corpus records this distinction rather than restating it. `t04_fairness`,
+`t15_fairness_round_robin`, and `t16_no_starvation_chatty` carry an
+`.order-backends` sidecar naming the VM: their recorded interleaving is checked
+on the VM, and on native the same rows are compared as a multiset of lines, so
+the work each task owes is still asserted while the order floats.
+`t11_loop_checkpoint` is not marked — it has one task and records a value, not
+an interleaving.
+
+Measured on `e34b7db8`, native at `SURGE_THREADS=8`, five runs each: all three
+marked rows produced the recorded set of lines every time, and the recorded
+order in none of them reliably — `t04_fairness` matched twice in five, which is
+the clearest evidence that the interleaving was never a native promise. No task
+was starved in any run; `t16`'s two quiet tasks finished all three prints every
+time, never later than the eleventh line. Native gives up the *order*, not the
+*progress*.
+
 ## Migration Plan
 
 Current note: Phase 4 crossed both workstreams. Parser/sema, LLVM/native

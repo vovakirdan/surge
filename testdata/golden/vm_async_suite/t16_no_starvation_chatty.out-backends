@@ -1,0 +1,14 @@
+# A chatty task prints 100 times while two quiet ones print 3 each. The
+# recording interleaves them A B C A B C A B C before the chatty one runs on,
+# which is round-robin fairness — a property of the VM's deterministic scheduler
+# profile, not a promise of `checkpoint()`, per the model owner's ruling of
+# 2026-08-31.
+#
+# What the name of this row claims is still checked on native, and by the
+# stronger half of the comparison. Measured on e34b7db8 at SURGE_THREADS=8, five
+# runs: the order differed from the recording every time, and the set of lines
+# was identical every time — B and C completed all three prints in every run,
+# never later than the eleventh line. There is no starvation on native; there is
+# no promised interleaving either. The multiset comparison is what says so, and
+# it would fail if B or C were ever actually starved.
+vm

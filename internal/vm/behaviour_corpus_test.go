@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -175,9 +176,27 @@ func runBehaviourCase(t *testing.T, root, surge, dir, absDir, name, backend stri
 	if other != "" {
 		t.Fatalf("[%s] unexpected %s:\n%s", backend, otherName, other)
 	}
+	if !orderPromisedOn(t, absDir, name, backend) {
+		// The recorded interleaving is not a promise on this backend, but the
+		// recorded WORK is: every line the program owes still has to arrive.
+		// Comparing the two as multisets keeps the row able to catch a starved,
+		// dropped, or duplicated task while letting the order float.
+		if gotSorted, wantSorted := sortedLines(got), sortedLines(wantOut); gotSorted != wantSorted {
+			t.Fatalf("[%s] output multiset mismatch (order is not promised on this backend, the set of lines is):\nwant:\n%s\n\ngot:\n%s",
+				backend, wantOut, got)
+		}
+		return
+	}
 	if got != wantOut {
 		t.Fatalf("[%s] output mismatch:\nwant:\n%s\n\ngot:\n%s", backend, wantOut, got)
 	}
+}
+
+// sortedLines renders the output as an order-independent multiset of lines.
+func sortedLines(s string) string {
+	lines := strings.Split(s, "\n")
+	sort.Strings(lines)
+	return strings.Join(lines, "\n")
 }
 
 // fixtureRunsOn reports whether this fixture is checked on this backend.
@@ -189,7 +208,37 @@ func runBehaviourCase(t *testing.T, root, surge, dir, absDir, name, backend stri
 // exclusion that lives in test code is an exclusion nobody finds.
 func fixtureRunsOn(t *testing.T, absDir, name, backend string) bool {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join(absDir, name+".backends"))
+	return sidecarNames(t, absDir, name, ".backends", backend)
+}
+
+// orderPromisedOn reports whether the recorded ORDER of this fixture's output is
+// a promise on this backend, as opposed to the recorded set of lines.
+//
+// A row is compared byte-for-byte everywhere unless an .order-backends sidecar
+// says otherwise. The distinction exists because the two are different claims:
+// "this program prints these lines" is a fact about the language, while "it
+// prints them in this interleaving" can be a fact about one scheduler. Fairness
+// (CONCURRENCY.md F1-F3) is a property of the VM's deterministic single-worker
+// profile; the native runtime promises that `checkpoint().await()` returns the
+// task to scheduler selection, not that another task runs before its next poll.
+// Recording the VM interleaving as a native promise would freeze a scheduling
+// artifact into a gate, which is the trap docs/RUNTIME_V2.md warns about where
+// it says golden tests may depend on FIFO ordering the native runtime should
+// not promise forever.
+//
+// Narrowing the promise is deliberately not the same as dropping the row: the
+// multiset comparison still fails if a task is starved, lost, or run twice.
+func orderPromisedOn(t *testing.T, absDir, name, backend string) bool {
+	t.Helper()
+	return sidecarNames(t, absDir, name, ".order-backends", backend)
+}
+
+// sidecarNames reports whether a backend-list sidecar names this backend. A
+// missing sidecar means every backend, so the default stays the strict one and
+// an exemption has to be written down in a file the reader can open.
+func sidecarNames(t *testing.T, absDir, name, suffix, backend string) bool {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join(absDir, name+suffix))
 	if err != nil {
 		return true
 	}

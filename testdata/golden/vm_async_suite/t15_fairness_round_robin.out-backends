@@ -1,0 +1,10 @@
+# Five workers send their id and yield; the recording is three clean round-robin
+# passes, v=0..v=4 in order. That ordering is the VM's deterministic scheduler
+# profile (CONCURRENCY.md F1-F3), not a promise `checkpoint()` makes, per the
+# model owner's ruling of 2026-08-31.
+#
+# Measured on e34b7db8, native at SURGE_THREADS=8, five runs: fifteen sends
+# arrived every time, and the order differed from the recording in all five.
+# The multiset comparison still holds every worker to all three of its sends,
+# so a starved or duplicated worker is still a failure here.
+vm

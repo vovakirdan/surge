@@ -1,0 +1,11 @@
+# The recorded interleaving L1 R1 L2 R2 L3 R3 is round-robin fairness, and the
+# model owner ruled on 2026-08-31 that fairness is a property of the VM's
+# deterministic scheduler profile rather than a promise of `checkpoint()`. On
+# native, `checkpoint().await()` returns the task to scheduler selection; it does
+# not promise another task is polled before this one runs again.
+#
+# Measured on e34b7db8, native at SURGE_THREADS=8, five runs: the set of lines
+# was identical every time and the order matched the recording only twice. A
+# row that passes three times in five is not a check, it is a coin flip, so the
+# order is recorded for the VM and the work is still checked everywhere.
+vm

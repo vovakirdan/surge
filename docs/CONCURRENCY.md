@@ -395,8 +395,11 @@ channel request/reply cheaper.
 
 ### 10.5 Fairness and CPU-bound work
 
-Fairness is guaranteed for **Ready** tasks in single-worker mode under
-cooperative scheduling:
+Fairness is guaranteed for **Ready** tasks by the **VM's deterministic
+single-worker scheduler profile** under cooperative scheduling. Read the scope
+carefully: F1-F3 below are properties of that profile. They are not properties
+of the `checkpoint()` abstraction, and not properties of single-worker execution
+in general — the native runtime running one worker does not inherit them:
 
 - **F1 (round-robin for Ready tasks):** with a finite ready set, each Ready task
   is polled again after at most `N-1` polls of other Ready tasks (where `N` is
@@ -409,6 +412,16 @@ cooperative scheduling:
 
 In parallel mode, there is no global FIFO ordering and fairness is best-effort
 across workers.
+
+On the native runtime, `checkpoint().await()` finishes the current poll, checks
+for cancellation, and returns the task to scheduler selection. It does **not**
+promise that another Ready task runs before this one is polled again, at any
+worker count. Cooperating with `checkpoint()` gives the scheduler the
+opportunity to run other work; the opportunity is not an ordering guarantee.
+Programs that need a specific order must express it with a channel, a join, or
+another explicit dependency rather than relying on the shape of an interleaving.
+Settled by the model owner on 2026-08-31; see `docs/RUNTIME_V2.md`, "What
+`checkpoint()` Promises".
 
 Tight CPU loops without suspension points can starve other tasks. The runtime
 does **not** insert yields or preempt tasks by default. Use `checkpoint().await()`
