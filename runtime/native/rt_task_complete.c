@@ -133,8 +133,10 @@ void cancel_task(rt_executor* ex, uint64_t id) {
         rt_blocking_request_cancel(ex, task);
     }
     // Wake-token ordering rule (RV2-DEBT-023, ). This cancel owns the gate
-    // by the CAS above; the wake here is UNCONDITIONAL - it does not gate on
-    // observing TASK_WAITING. cancel_task runs control-held
+    // by the CAS above; the wake is UNCONDITIONAL - it does not gate on
+    // observing TASK_WAITING. It is issued at the BOTTOM of this function,
+    // after the walk below has reached every descendant, and that placement is
+    // the rule stated at the walk. cancel_task runs control-held
     // (every caller holds the control lane; proof in
     // docs/runtime-v2-epics/09-tasks/02-debt-023-cancel-wake-token.md), so
     // free_task (control-lane only) cannot free this task between the get_task
@@ -153,8 +155,37 @@ void cancel_task(rt_executor* ex, uint64_t id) {
     // rt_trace_spurious_wake_absorbed (rt_task_park.c). SP_CANCEL_BEFORE_WAKE
     // reproduces the race deterministically against SP_PARK_BEFORE_WAITING; its
     // reached-count is the proof that this wake path engaged.
-    RT_SYNC_POINT(SP_CANCEL_BEFORE_WAKE);
-    RT_DEBT023_CANCEL_WAKE(ex, task);
+    // A cancel reaches the leaves before it makes anyone runnable again.
+    //
+    // The wake used to be issued HERE, above the walk, so a cancelled parent
+    // entered the ready queue ahead of the children this same call was about to
+    // cancel. It was then polled first, with those children still WAITING, and
+    // rt_task_poll answered "not done" for the child it was awaiting; the
+    // cancelled-awaiter check below that (rt_async_task.c) returned 0,
+    // rt_async_yield saw the cancel and ended the parent at its suspension
+    // (rt_async_poll.c). The parent's whole turn could only re-park it on its
+    // scope key, and every result its cancelled children were about to publish
+    // was unobservable to it -- not because the model says a cancelled awaiter
+    // may not see them, but because nothing had run yet to produce them.
+    //
+    // Waking last inverts that: the walk cancels depth-first, each descendant is
+    // made runnable as its own frame returns, and the task this cancel was aimed
+    // at is enqueued behind all of them. Its next poll therefore finds the
+    // children it awaits already DONE, and rt_task_poll's TASK_DONE fast path
+    // (which answers from the TARGET, before any check of the awaiter's own
+    // gate) hands their results over. The suspension still carries the cancel
+    // for every await that has nothing to deliver, which is what
+    // docs/CONCURRENCY.md means by observing cancellation at suspension points;
+    // what changes is only that an await with an answer waiting is no longer
+    // denied it by queue order.
+    //
+    // Nothing about the RV2-DEBT-023 argument above depends on the wake being
+    // early. The gate CAS still precedes it, the token is still set
+    // unconditionally under the owner shard lock, and a target that parks inside
+    // the widened window re-checks that token in park_current exactly as before.
+    // The task pointer is still live: this walk never releases the control lane,
+    // and free_task is control-lane only.
+    //
     // Since , task_add_child appends into this task's
     // children[] under the task's own owner shard lock, not control (the
     // steady-state __task_create path takes no control lock at all). This
@@ -203,6 +234,8 @@ void cancel_task(rt_executor* ex, uint64_t id) {
     if (children != inline_children) {
         rt_free((uint8_t*)children, child_count * sizeof(uint64_t), _Alignof(uint64_t));
     }
+    RT_SYNC_POINT(SP_CANCEL_BEFORE_WAKE);
+    RT_DEBT023_CANCEL_WAKE(ex, task);
 }
 
 // Lane-aware completion (peel B1b): a control-lane caller runs the whole

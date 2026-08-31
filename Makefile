@@ -508,7 +508,7 @@ runtime-v2-lifecycle-check:
 	@echo ">> Running Runtime V2 task result and clone-entitlement rows"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2TaskEntitlement(ShutdownDoesNotDropAClaimedCanonical|ShutdownUnpinnedCanonicalNegativeControl|CancelDoesNotRevokeACommittedResult|CancelRevokesCommittedResultNegativeControl|StaleCapabilityCannotReachReusedStorage|StaleResultGenerationNegativeControl)$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 	@echo ">> Running Runtime V2 cancellation-answer program rows (both lanes)"
-	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2(FailfastJoinAnswersCancelled|TimeoutTargetAnswersCancelledToEveryHandle)$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2(FailfastJoinAnswersCancelled|TimeoutTargetAnswersCancelledToEveryHandle|CancelReachesLeavesBeforeItWakesTheTarget)$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 	@echo ">> Running Runtime V2 task-free observation rows (AddressSanitizer campaign, three arms)"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2LifecycleTaskFreeIsOneObservation$$' -count=1 -parallel=1 -p=1 -v --timeout 3600s
 
