@@ -93,7 +93,14 @@ func TestRuntimeV2CheckRunsAndReportsEverySubGate(t *testing.T) {
 	cmd := exec.Command("make", "--no-print-directory", "runtime-v2-check", // #nosec G204 -- fixed executable; arguments are repository-owned names and a test-owned temp path.
 		"RUNTIME_V2_SUBGATES="+strings.Join(probeOrder, " "))
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(), "MAKEFILES="+probeFile)
+	// This drives the real runtime-v2-check recipe, but only to prove the
+	// roster-reporting wiring against fast substitute probes -- it never runs a
+	// true heavy sub-gate. scripts/heavy_run_guard.sh (Global Rule 19,
+	// docs/runtime-v2-epics/RULES.md) now sits first in that recipe and would
+	// otherwise refuse this test outside the dedicated host; GITHUB_ACTIONS=true
+	// is the guard's documented lane for exactly this kind of ephemeral,
+	// non-heavy invocation.
+	cmd.Env = append(os.Environ(), "MAKEFILES="+probeFile, "GITHUB_ACTIONS=true")
 	out, runErr := cmd.CombinedOutput()
 	output := string(out)
 
