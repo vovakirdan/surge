@@ -1,6 +1,7 @@
 package gatecheck
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"os/exec"
@@ -53,7 +54,7 @@ func hermeticRepo(t *testing.T) string {
 		t.Helper()
 		cmd := exec.Command("git", args...) // #nosec G204 -- fixed executable, test-owned fixed argv.
 		cmd.Dir = dir
-		cmd.Env = append(os.Environ(),
+		cmd.Env = gitFixtureEnv(
 			"GIT_AUTHOR_NAME=heavy-run-guard-test", "GIT_AUTHOR_EMAIL=test@example.invalid",
 			"GIT_COMMITTER_NAME=heavy-run-guard-test", "GIT_COMMITTER_EMAIL=test@example.invalid",
 		)
@@ -68,6 +69,50 @@ func hermeticRepo(t *testing.T) string {
 	run("add", "f.txt")
 	run("commit", "-q", "-m", "seed")
 	return dir
+}
+
+func gitFixtureEnv(extra ...string) []string {
+	env := make([]string, 0, len(os.Environ())+len(extra))
+	for _, kv := range os.Environ() {
+		if strings.HasPrefix(kv, "GIT_") {
+			continue
+		}
+		env = append(env, kv)
+	}
+	return append(env, extra...)
+}
+
+func TestHermeticRepoIgnoresCallerGitEnvironment(t *testing.T) {
+	outer := hermeticRepo(t)
+	outerGitDir := filepath.Join(outer, ".git")
+	outerIndex := filepath.Join(outerGitDir, "index")
+	indexBefore, err := os.ReadFile(outerIndex)
+	if err != nil {
+		t.Fatalf("read outer index: %v", err)
+	}
+
+	for name, value := range map[string]string{
+		"GIT_COMMON_DIR":       outerGitDir,
+		"GIT_DIR":              outerGitDir,
+		"GIT_INDEX_FILE":       outerIndex,
+		"GIT_OBJECT_DIRECTORY": filepath.Join(outerGitDir, "objects"),
+		"GIT_PREFIX":           "outer/",
+		"GIT_WORK_TREE":        outer,
+	} {
+		t.Setenv(name, value)
+	}
+
+	inner := hermeticRepo(t)
+	if _, statErr := os.Stat(filepath.Join(inner, ".git", "index")); statErr != nil {
+		t.Fatalf("inner repository has no index: %v", statErr)
+	}
+	indexAfter, err := os.ReadFile(outerIndex)
+	if err != nil {
+		t.Fatalf("re-read outer index: %v", err)
+	}
+	if !bytes.Equal(indexAfter, indexBefore) {
+		t.Fatal("inner repository setup changed the caller's Git index")
+	}
 }
 
 // baseEnv strips GITHUB_ACTIONS and SURGE_STDLIB from the ambient environment
