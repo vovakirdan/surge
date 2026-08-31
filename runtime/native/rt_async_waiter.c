@@ -230,6 +230,22 @@ rt_runtime_status rt_waiter_store_ensure_cap(rt_waiter_store* store) {
     return RT_RUNTIME_STATUS_OK;
 }
 
+#ifndef RV2_DEBT_313_NEGATIVE_CONTROL
+// Does this task still hold `key` in its wait set? Read under the control
+// lane, the same lane clear_wait_keys runs on.
+static int task_holds_wait_key(const rt_task* task, waker_key key) {
+    if (task == NULL) {
+        return 0;
+    }
+    for (size_t i = 0; i < task->wait_keys_len; i++) {
+        if (task->wait_keys[i].kind == key.kind && task->wait_keys[i].id == key.id) {
+            return 1;
+        }
+    }
+    return 0;
+}
+#endif
+
 static void clear_accept_winner_wait_keys(rt_executor* ex, waker_key key, uint32_t owner_shard_id) {
     if (ex == NULL || key.kind != WAKER_NET_ACCEPT || key.id > (uint64_t)INT_MAX) {
         return;
@@ -325,6 +341,27 @@ rt_waiter_completion rt_executor_wake_net_waiters_for_key_on_owner(rt_executor* 
                                       (unsigned long long)key.id,
                                       owner_shard_id);
             }
+            // A multi-member listener registers one accept waiter per member,
+            // and add_waiter files each under the shard that owns that
+            // member's fd -- so one accept task sits in N shards' stores at
+            // once. Collect-then-wake pops this batch under the store shard's
+            // lock and releases it before taking control, so a poller can
+            // still hold a task id whose readiness another shard's poller
+            // already delivered. That task consumed it and cleared its wait
+            // keys under control (rt_net_consume_ready_accept_member ->
+            // clear_wait_keys), which removed its sibling entries -- but not
+            // this already-popped batch. Applying the accept re-own here
+            // overwrites the owner rt_net_accept just placed from the member
+            // it actually accepted on, leaving the accepted conn owned by one
+            // shard while every task that handles it is placed on another;
+            // the conn's first use then fails the owner guard. Re-own only a
+            // task that still wants this key. The clear and this loop are both
+            // on the control lane, so the check is serialized against it.
+#ifndef RV2_DEBT_313_NEGATIVE_CONTROL
+            if (!task_holds_wait_key(task, key)) {
+                continue;
+            }
+#endif
             task->net_ready_accept_valid = 1;
             task->net_ready_accept_fd = (int)key.id;
             task->net_ready_accept_owner_shard = owner_shard_id;
