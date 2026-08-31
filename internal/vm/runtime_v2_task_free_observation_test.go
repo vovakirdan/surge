@@ -44,10 +44,27 @@ import (
 // pinning across apply_poll_outcome adds exactly the resurrect-from-zero that
 // the split decision cannot see. Landed apart, the pin makes the panic worse.
 //
-// The row is three arms and never a single green run. A green positive arm on
-// its own would prove nothing about races that only sometimes run, so each
-// negative control removes ONE half of the fix and must be caught by
+// The row is two arms and never a single green run. A green positive arm on its
+// own would prove nothing about races that only sometimes run, so the negative
+// control removes the release decision's half of the fix and must be caught by
 // AddressSanitizer doing what that half prevents.
+//
+// THE PIN'S HALF IS NO LONGER PROVED HERE. It was: a third arm built with
+// -DRT_POLL_OUTCOME_PIN_NEGATIVE_CONTROL, required to report a freed read in
+// the re-push somewhere in 96 oversubscribed processes. That arm asks for an
+// interleaving -- an awaiting poll meeting a task that is mid-yield-re-push --
+// which the cancel-ordering fix makes rarer (a cancel now reaches the leaves
+// before it makes anyone runnable again, rt_task_complete.c: a cancelled awaiter
+// is re-polled after its children are DONE, so its poll no longer finds one of
+// them in that window). It went from 10 aggregates of 10 reporting to 4 of 10
+// reporting nothing, and a control that reports nothing says "the row proved
+// nothing" -- correctly. A schedule is not the rule. The pin's half is now
+// proved deterministically, by holding the re-push at
+// SP_READY_REQUEUE_BEFORE_LOCK and doing the awaiting poll's two actions from a
+// driver: TestRuntimeV2LifecyclePollOutcomePin{Proof,NegativeControl}
+// (runtime_v2_poll_outcome_pin_test.go). What remains here is the campaign the
+// release decision's window still needs, plus the positive arm as a stress over
+// the whole program.
 //
 // Measured on this lane at SURGE_THREADS=4 with 24 concurrent processes
 // (32 cores): trunk before either fix, 3 of 48 runs; no-pin control, 6 of 48;
@@ -60,7 +77,11 @@ const taskFreeObservationRuns = 96
 // rather than silently satisfying or failing this one. Any other report is
 // logged in full.
 //
-// The pin's half has one frame. The release decision's half has several and is
+// The pin's half has one frame, and since its negative control moved to the
+// deterministic stand it is watched here only by the POSITIVE arm -- this
+// program is still the widest exercise of that window the tree has, so a report
+// landing in it must fail the row rather than pass unread. The release
+// decision's half has several frames and is
 // pinned by its FILE: the losing thread can be caught reading the freed refs
 // word as it decides (task_drop_ref_owes_free), or one step later inside the
 // second free itself (free_task reading task->id, which is the shape that
@@ -77,27 +98,17 @@ var (
 // afterwards. The checkpoint tasks are what yield, and the second handle is what
 // supplies a last-reference drop concurrent with a completion.
 func TestRuntimeV2LifecycleTaskFreeIsOneObservation(t *testing.T) {
-	// One compile of the program, three instrumented links of the runtime it
-	// was compiled against: the arms differ only in a -D, so the .sg build and
-	// its out.o are shared.
+	// One compile of the program, two instrumented links of the runtime it was
+	// compiled against: the arms differ only in a -D, so the .sg build and its
+	// out.o are shared.
 	kept := keepTaskFreeObservationBuild(t)
 	positive := buildTaskFreeObservationProgram(t, kept, "task_free_observation")
-	noPin := buildTaskFreeObservationProgram(t, kept,
-		"task_free_observation_no_pin", "-DRT_POLL_OUTCOME_PIN_NEGATIVE_CONTROL")
 	splitRelease := buildTaskFreeObservationProgram(t, kept,
 		"task_free_observation_split_release", "-DRT_TASK_RELEASE_SPLIT_NEGATIVE_CONTROL")
 
-	// The negative controls run FIRST. If neither race runs on this machine the
-	// row asked nothing, and saying so is more useful than a positive arm that
-	// was green because nothing happened.
-	noPinReports := runTaskFreeObservationStand(t, noPin)
-	if len(reportsMatching(noPinReports, pollOutcomePinSignature)) == 0 {
-		t.Fatalf("the control removed the poll-outcome pin and %d runs reported no "+
-			"use-after-free in the re-push; the row proved nothing, because the race "+
-			"it claims to pin did not run\nreports:\n%s",
-			taskFreeObservationRuns, strings.Join(noPinReports, "\n---\n"))
-	}
-
+	// The negative control runs FIRST. If the race does not run on this machine
+	// the row asked nothing, and saying so is more useful than a positive arm
+	// that was green because nothing happened.
 	splitReports := runTaskFreeObservationStand(t, splitRelease)
 	if len(reportsMatching(splitReports, releaseDecisionSignature)) == 0 {
 		t.Fatalf("the control restored the split release decision and %d runs reported "+

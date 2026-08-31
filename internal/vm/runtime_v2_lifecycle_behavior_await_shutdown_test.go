@@ -47,168 +47,14 @@ func TestRuntimeV2LifecycleShutdownWithParkedTasks(t *testing.T) {
 	}
 }
 
-// lifecycleHarnessMain holds the per-mode drivers, the __surge_poll_call
-// dispatcher, and main. Concatenated after lifecycleHarnessCommon and
-// lifecycleHarnessScopeAndShutdown (see buildRuntimeV2LifecycleHarnessWithFlags
-// in runtime_v2_lifecycle_behavior_harness_test.go) into one translation unit.
+// lifecycleHarnessMain holds the per-mode drivers and main. The
+// __surge_poll_call dispatcher and the drop stubs it used to carry moved to
+// lifecycleHarnessPollDispatch
+// (runtime_v2_lifecycle_behavior_poll_dispatch_test.go), which every new stand
+// adds a case to. Concatenated last (see
+// buildRuntimeV2LifecycleHarnessWithFlags in
+// runtime_v2_lifecycle_behavior_harness_test.go) into one translation unit.
 const lifecycleHarnessMain = `
-// Drop-dispatch stub: no harness state struct carries a drop obligation
-// (drop-fn id 0 never dispatches), so reaching this is a test bug.
-void __surge_drop_call(uint64_t id, void* state) {
-    (void)id;
-    (void)state;
-}
-
-void __surge_drop_result_call(uint64_t id, void* value) {
-    (void)id;
-    (void)value;
-}
-
-void __surge_drop_abandoned_state_call(uint64_t id, void* state) {
-    (void)id;
-    (void)state;
-}
-
-void __surge_poll_call(uint64_t id) {
-    switch (id) {
-        case POLL_OWNER_PROBE:
-            poll_owner_probe();
-            break;
-        case POLL_JOIN_TARGET_SPIN:
-            poll_join_target_spin();
-            break;
-        case POLL_JOIN_TARGET_QUICK:
-            poll_join_target_quick();
-            break;
-        case POLL_JOINER:
-            poll_joiner();
-            break;
-        case POLL_CLONE_TARGET:
-            poll_clone_target();
-            break;
-        case POLL_CLONE_RACER:
-            poll_clone_racer();
-            break;
-        case POLL_PIN_TARGET:
-            poll_pin_target();
-            break;
-        case POLL_PIN_JOINER:
-            poll_pin_joiner();
-            break;
-        case POLL_SCOPE_CHILD_QUICK:
-            poll_scope_child_quick();
-            break;
-        case POLL_SCOPE_CHILD_SPIN:
-            poll_scope_child_spin();
-            break;
-        case POLL_SCOPE_OWNER:
-            poll_scope_owner();
-            break;
-        case POLL_SCOPE_CANCEL_OWNER:
-            poll_scope_cancel_owner();
-            break;
-        case POLL_SPIN_FOREVER:
-            poll_spin_forever();
-            break;
-        case POLL_TIMER_PARK:
-            poll_timer_park();
-            break;
-        case POLL_CHANNEL_PARK:
-            poll_channel_park();
-            break;
-        case POLL_BLOCKING_PARK:
-            poll_blocking_park();
-            break;
-        case POLL_EXTERNAL_AWAIT_TARGET:
-            poll_external_await_target();
-            break;
-        case POLL_MAKE_CHAN:
-            poll_make_chan();
-            break;
-        case POLL_SCOPE_OWNER_FOREVER:
-            poll_scope_owner_forever();
-            break;
-        case POLL_JOIN_TARGET_GATED:
-            poll_join_target_gated();
-            break;
-        case POLL_PARK_FOREVER:
-            poll_park_forever();
-            break;
-        case POLL_MAKE_PARK_FOREVER_CHAN:
-            poll_make_park_forever_chan();
-            break;
-        case POLL_SCOPE_OWNER_FAILFAST:
-            poll_scope_owner_failfast();
-            break;
-        case POLL_ADOPT_TARGET:
-            poll_adopt_target();
-            break;
-        case POLL_ADOPT_JOINER:
-            poll_adopt_joiner();
-            break;
-        case POLL_XOWNER_GRANDCHILD:
-            poll_xowner_grandchild();
-            break;
-        case POLL_XOWNER_SCOPE_CHILD:
-            poll_xowner_scope_child();
-            break;
-        case POLL_XOWNER_OWNER:
-            poll_xowner_owner();
-            break;
-        case POLL_STAND_TRAP_OWNER:
-            poll_stand_trap_owner();
-            break;
-	#ifdef RT_TEST_SYNC_POINTS
-        case POLL_DEBT020_ADOPT_JOINER:
-            poll_debt020_adopt_joiner();
-            break;
-        case POLL_DEBT261_SCOPE_OWNER:
-            poll_debt261_scope_owner();
-            break;
-        case POLL_DEBT263_CANCELLED_CHILD:
-            poll_debt263_cancelled_child();
-            break;
-        case POLL_DEBT263_SCOPE_OWNER:
-            poll_debt263_scope_owner();
-            break;
-        case POLL_DEBT263_SEALED_TASK:
-            poll_debt263_sealed_task();
-            break;
-        case POLL_DEBT020_GAP_JOINER:
-            poll_debt020_gap_joiner();
-            break;
-        case POLL_DEBT022_GATED_TARGET:
-            poll_debt022_gated_target();
-            break;
-        case POLL_CANCEL_PARK_PROOF:
-            poll_cancel_park_proof();
-            break;
-        case POLL_DEBT046_JOINER:
-            poll_debt046_joiner();
-            break;
-        case POLL_READY_REQUEUE_PROBE:
-            poll_ready_requeue_probe();
-            break;
-        case POLL_INLINE_CLAIM_OWNER:
-            poll_inline_claim_owner();
-            break;
-        case POLL_INLINE_CLAIM_CHILD:
-            poll_inline_claim_child();
-            break;
-        case POLL_SCOPE_MEMBERSHIP_OWNER:
-            poll_scope_membership_owner();
-            break;
-        case POLL_SCOPE_MEMBERSHIP_CHILD:
-            poll_scope_membership_child();
-        case POLL_ENTITLEMENT_OWNING_RESULT:
-            poll_entitlement_owning_result();
-            break;
-#endif
-        default:
-            break;
-    }
-    rt_async_return(NULL, &(uint64_t){0});
-}
 
 static int mode_scope_basic(rt_executor* ex) {
     atomic_store_explicit(&g_scope_owner_phase, 0, memory_order_relaxed);
@@ -537,6 +383,9 @@ int main(int argc, char** argv) {
     }
     if (strcmp(argv[1], "entitlement-stale-result-capability") == 0) {
         return mode_entitlement_stale_result_capability(ex);
+    }
+    if (strcmp(argv[1], "debt291-poll-outcome-pin") == 0) {
+        return mode_debt291_poll_outcome_pin(ex);
     }
 #endif
     return fail("unknown mode");
