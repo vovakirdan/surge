@@ -9795,3 +9795,39 @@ tag, and drop group; map get/insert/remove in-place Option construction;
 `storage_padding_union` and `storage_overwrite` on both VM and LLVM; the
 invalid-UTF-8 VM/LLVM golden pair; and its strict-zero Valgrind proof.
 RV2-DEBT-315 is closed.
+
+## Wave D closeout exposes the exact live carrier census — 2026-09-01
+
+The monotonic carrier ratchet rejects additions but deliberately accepts a
+legacy finding once it disappears.  It therefore cannot by itself prove Wave
+D's current-state exit condition.  The W8 carrier half now has a separate live
+census whose accepted report is exactly:
+
+```
+suspension-frame-owner=0
+llvm-erased-word-bridge=0
+llvm-pointer-word-ir allowed=1 unallowed=0
+```
+
+The surviving pointer word is pinned by allowance id and the complete frozen
+finding identity to `fixnum-inline-tagged-word` in
+`internal/backend/llvm/emit_term.go`; preserving only the count is not enough.
+The intended proof restores one retired frame owner, one retired erased bridge,
+and one unallowed pointer word independently; removes the allowed fixnum word;
+and rebinds the allowance to another frozen pointer finding.  Each mutation
+must make the W8 census red.  This proves only the carrier half of W8.  It does
+not replace the required count of five complete `runtime-v2-check` runs on the
+dedicated stand.
+
+Candidate evidence:
+
+- `GOFLAGS=-buildvcs=false go test ./internal/carriergate -run
+  '^TestW8CarrierCensusReportsEachExitCategory$' -count=1 -v` passed in 0.786 s
+  and printed the accepted `0 / 0 / allowed 1 / unallowed 0` report;
+- the returned-frame, returned-bridge, unallowed-pointer, and removed-fixnum
+  controls printed respectively `1 / 0 / 1+1 / allowed 0`, and the allowance
+  rebind was rejected before a count could legitimize it;
+- `GOFLAGS=-buildvcs=false go test ./internal/carriergate -count=1` passed in
+  2.415 s;
+- `base_test.go` remains 216 lines and the W8-specific proof is isolated in the
+  186-line `w8_census_test.go`.
