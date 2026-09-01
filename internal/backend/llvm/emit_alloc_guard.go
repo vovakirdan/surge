@@ -72,7 +72,6 @@ const (
 	allocSiteArrayElements    allocSite = "array-literal-elements"
 	allocSiteArrayHeader      allocSite = "array-literal-header"
 	allocSiteDefaultArray     allocSite = "default-array-header"
-	allocSiteErrorValue       allocSite = "error-value"
 	allocSiteRangeIter        allocSite = "range-iterator"
 	allocSiteArrayIter        allocSite = "array-iterator"
 	allocSiteArrayGrowPush    allocSite = "array-grow-push"
@@ -89,7 +88,6 @@ func allocGuardedSites() []allocSite {
 		allocSiteArrayElements,
 		allocSiteArrayHeader,
 		allocSiteDefaultArray,
-		allocSiteErrorValue,
 		allocSiteRangeIter,
 		allocSiteArrayIter,
 		allocSiteArrayGrowPush,

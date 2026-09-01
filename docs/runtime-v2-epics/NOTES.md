@@ -9681,3 +9681,47 @@ freed-channel waiter proof also passed both its ASan negative-control and fixed
 rows in 14.72 s; in this ptrace sandbox only LeakSanitizer postprocessing was
 disabled (`ASAN_OPTIONS=detect_leaks=0`), while the expected heap-use-after-free
 remained required and observed by the negative row.
+
+## LLVM conversion errors use the canonical bare-union representation — 2026-09-01
+
+The invalid UTF-8 golden row exposed a representation-C regression in both
+`string.from_bytes` and numeric `from_str`: each intrinsic built a 16-byte
+`Error`, then copied 24 bytes from that pointer as though it already were the
+destination `Erring<T, Error>`.  The unfixed detached tree proves the failure
+in three independent ways:
+
+- the IR rows for both intrinsics contain no direct-member discriminant and
+  perform `memcpy ... i64 24` from `rt_alloc(i64 16, i64 8)`;
+- the golden LLVM row exits 255 and prints `err=0` where the VM prints
+  `err=1`;
+- both final Valgrind rows read eight bytes immediately after the 16-byte box
+  and then reach an invalid `rt_string_free`; the focused processes terminate
+  with SIGSEGV and `ERROR SUMMARY: 2 errors`.
+
+The ruling comes from the already accepted full-membership model in
+RV2-DEBT-233, not from the old backend behaviour.  `Error` is direct physical
+case 1 of `Erring`; its payload is 16 bytes at offset 8 in a 24-byte,
+8-aligned union.  Both intrinsic error branches now call
+`emitUnionMaterialiseBareMember`, fail closed if the proven member cannot be
+materialised, and never fall back to a union-sized copy from a member pointer.
+The temporary `Error` itself is exact-size inline storage, so the obsolete
+`allocSiteErrorValue` heap site and roster entry are removed.
+
+The regression test derives case, offset, payload size, and temporary alignment
+from `Module.Meta.UnionCases` plus `layout.PhysicalFacts`, then separately
+pins the accepted 1/8/16 and 24/8 ABI.  It follows the exact memcpy source and
+requires that source to be an aligned alloca; an `rt_alloc(Error.Size,
+Error.Align)` source is red even if a future cleanup were to free it later.
+The native `from_str` row proves the expected arm/code and zero invalid
+accesses; the existing invalid-UTF-8 fixture additionally proves zero definite
+and indirect loss.  Both rows are now selected by `runtime-v2-heap-check`.
+
+Candidate evidence:
+
+- focused LLVM membership/materialisation/allocation-roster group: pass;
+- invalid-UTF-8 VM and LLVM golden pair: pass, including LLVM `err=1`;
+- `from_str` and `from_bytes` Valgrind rows: pass in 12.617 s;
+- `from_bytes`: zero definite and indirect loss;
+- `from_str`: no invalid access and the expected error code, with the
+  independent 327-byte/6-block message residual recorded as RV2-DEBT-314 rather
+  than repaired in this blocking change.

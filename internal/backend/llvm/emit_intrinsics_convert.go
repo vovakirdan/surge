@@ -170,7 +170,14 @@ func (fe *funcEmitter) emitFromStrIntrinsic(call *mir.CallInstr) (bool, error) {
 	if err != nil {
 		return true, err
 	}
-	fe.emitValueStore(dstTy, errVal, ptr, dstAlign)
+	materialised, err := fe.emitUnionMaterialiseBareMember(
+		ptr, dstAlign, dstType, errVal, "ptr", errType)
+	if err != nil {
+		return true, err
+	}
+	if !materialised {
+		return true, fmt.Errorf("from_str Error type#%d is not a bare member of destination type#%d", errType, dstType)
+	}
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", contBB)
@@ -266,7 +273,14 @@ func (fe *funcEmitter) emitFromBytesIntrinsic(call *mir.CallInstr) (bool, error)
 	if err != nil {
 		return true, err
 	}
-	fe.emitValueStore(dstTy, errVal, ptr, dstAlign)
+	materialised, err := fe.emitUnionMaterialiseBareMember(
+		ptr, dstAlign, dstType, errVal, "ptr", errType)
+	if err != nil {
+		return true, err
+	}
+	if !materialised {
+		return true, fmt.Errorf("from_bytes Error type#%d is not a bare member of destination type#%d", errType, dstType)
+	}
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", contBB)

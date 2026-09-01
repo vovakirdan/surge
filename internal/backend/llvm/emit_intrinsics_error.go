@@ -193,15 +193,10 @@ func (fe *funcEmitter) emitErrorLikeValue(errType types.TypeID, msgVal, msgTy, c
 	if err != nil {
 		return "", err
 	}
-	size := layoutInfo.Size
-	align := layoutInfo.Align
-	if size <= 0 {
-		size = 1
+	mem, _, err := fe.emitStorageAllocaAligned(errType)
+	if err != nil {
+		return "", err
 	}
-	if align <= 0 {
-		align = 1
-	}
-	mem := fe.emitCheckedAlloc(allocSiteErrorValue, errType, fmt.Sprintf("%d", size), align)
 
 	msgIdx, msgFieldType, err := fe.structFieldInfo(errType, mir.PlaceProj{Kind: mir.PlaceProjField, FieldName: "message", FieldIdx: -1})
 	if err != nil {
