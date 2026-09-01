@@ -19,9 +19,9 @@ func assertRuntimeV2FatalEmitter(t *testing.T) {
 	root := repoRoot(t)
 	native := filepath.Join(root, "runtime", "native")
 
-	headerBytes, err := os.ReadFile(filepath.Join(native, "rt.h"))
-	if err != nil {
-		t.Fatalf("read fatal ABI header: %v", err)
+	headerBytes, readHeaderErr := os.ReadFile(filepath.Join(native, "rt.h"))
+	if readHeaderErr != nil {
+		t.Fatalf("read fatal ABI header: %v", readHeaderErr)
 	}
 	header := string(headerBytes)
 	for _, want := range []string{
@@ -48,9 +48,9 @@ void probe(void) { rt_fatal_code code = RT_OOM; (void)code; }
 	}
 
 	fatalPath := filepath.Join(native, "rt_fatal.c")
-	fatalBytes, err := os.ReadFile(fatalPath)
-	if err != nil {
-		t.Fatalf("read fatal emitter: %v", err)
+	fatalBytes, readFatalErr := os.ReadFile(fatalPath)
+	if readFatalErr != nil {
+		t.Fatalf("read fatal emitter: %v", readFatalErr)
 	}
 	for _, forbidden := range []string{
 		"malloc(", "calloc(", "realloc(", "snprintf(", "printf(", "strlen(",
@@ -61,9 +61,9 @@ void probe(void) { rt_fatal_code code = RT_OOM; (void)code; }
 		}
 	}
 
-	asyncPanicBytes, err := os.ReadFile(filepath.Join(native, "rt_async_panic.c"))
-	if err != nil {
-		t.Fatalf("read internal panic router: %v", err)
+	asyncPanicBytes, readRouterErr := os.ReadFile(filepath.Join(native, "rt_async_panic.c"))
+	if readRouterErr != nil {
+		t.Fatalf("read internal panic router: %v", readRouterErr)
 	}
 	panicRouter := strings.SplitN(string(asyncPanicBytes), "void fatal_oom_msg", 2)[0]
 	if !strings.Contains(panicRouter, "rt_fatal_static(RT_FATAL_PANIC") || strings.Contains(panicRouter, "rt_panic(") {
@@ -113,10 +113,10 @@ int main(int argc, char** argv) {
 			var stdout, stderr bytes.Buffer
 			cmd.Stdout = &stdout
 			cmd.Stderr = &stderr
-			err := cmd.Run()
+			runErr := cmd.Run()
 			var exitErr *exec.ExitError
-			if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
-				t.Fatalf("fatal probe error=%v stdout=%q stderr=%q, want exit 1", err, stdout.String(), stderr.String())
+			if !errors.As(runErr, &exitErr) || exitErr.ExitCode() != 1 {
+				t.Fatalf("fatal probe error=%v stdout=%q stderr=%q, want exit 1", runErr, stdout.String(), stderr.String())
 			}
 			if stdout.Len() != 0 || stderr.String() != row.want {
 				t.Fatalf("fatal probe stdout=%q stderr=%q, want stdout empty and stderr=%q",
@@ -151,11 +151,11 @@ int main(void) {
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	err = cmd.Run()
+	runErr := cmd.Run()
 	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 || stdout.Len() != 0 ||
+	if !errors.As(runErr, &exitErr) || exitErr.ExitCode() != 1 || stdout.Len() != 0 ||
 		stderr.String() != "panic: ordinary user panic\n" {
 		t.Fatalf("ordinary panic error=%v stdout=%q stderr=%q, want exit 1 and unchanged panic line",
-			err, stdout.String(), stderr.String())
+			runErr, stdout.String(), stderr.String())
 	}
 }
