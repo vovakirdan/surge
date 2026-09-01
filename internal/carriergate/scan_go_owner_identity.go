@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/format"
 	"go/token"
+	"strconv"
 	"strings"
 )
 
@@ -27,11 +28,7 @@ func (graph *goOwnerGraph) localInstances(
 	args []ast.Expr,
 	outer *goTypeEnv,
 ) ([]goTypeInstance, bool) {
-	ident, ok := ownerBaseIdent(base)
-	if !ok {
-		return nil, false
-	}
-	declarations := graph.types[ident.Name]
+	declarations := graph.typesForBase(base)
 	instances := make([]goTypeInstance, 0, len(declarations))
 	for _, decl := range declarations {
 		instances = append(instances, goTypeInstance{
@@ -40,6 +37,122 @@ func (graph *goOwnerGraph) localInstances(
 		})
 	}
 	return instances, len(declarations) != 0
+}
+
+func (graph *goOwnerGraph) typesForExpr(expr ast.Expr, name string) []*goOwnerType {
+	file := graph.fileForExpr(expr)
+	if file == nil {
+		return nil
+	}
+	if declarations := graph.types[file.pkg][name]; len(declarations) != 0 {
+		return declarations
+	}
+	declarations := make([]*goOwnerType, 0)
+	for _, pkg := range graph.dotImportedPackages(file) {
+		declarations = append(declarations, graph.types[pkg][name]...)
+	}
+	return declarations
+}
+
+func (graph *goOwnerGraph) typesForBase(expr ast.Expr) []*goOwnerType {
+	for {
+		paren, ok := expr.(*ast.ParenExpr)
+		if !ok {
+			break
+		}
+		expr = paren.X
+	}
+	switch value := expr.(type) {
+	case *ast.Ident:
+		return graph.typesForExpr(value, value.Name)
+	case *ast.SelectorExpr:
+		pkg, ok := graph.selectorPackage(value)
+		if !ok {
+			return nil
+		}
+		return graph.types[pkg][value.Sel.Name]
+	}
+	return nil
+}
+
+func (graph *goOwnerGraph) fileForExpr(expr ast.Expr) *goOwnerFile {
+	if expr == nil {
+		return nil
+	}
+	return graph.files[graph.fset.Position(expr.Pos()).Filename]
+}
+
+func (graph *goOwnerGraph) selectorPackage(selector *ast.SelectorExpr) (string, bool) {
+	qualifier, ok := selector.X.(*ast.Ident)
+	if !ok {
+		return "", false
+	}
+	file := graph.fileForExpr(selector)
+	if file == nil {
+		return "", false
+	}
+	for _, spec := range file.file.Imports {
+		importPath, err := strconv.Unquote(spec.Path.Value)
+		if err != nil {
+			continue
+		}
+		pkg := strings.TrimPrefix(importPath, "surge/")
+		declaredNames, scoped := graph.packages[pkg]
+		if !scoped {
+			continue
+		}
+		if spec.Name != nil {
+			if spec.Name.Name == qualifier.Name {
+				return pkg, true
+			}
+			continue
+		}
+		if declaredNames[qualifier.Name] {
+			return pkg, true
+		}
+	}
+	return "", false
+}
+
+func (graph *goOwnerGraph) dotImportedPackages(file *goOwnerFile) []string {
+	if file == nil || file.file == nil {
+		return nil
+	}
+	packages := make([]string, 0)
+	for _, spec := range file.file.Imports {
+		if spec.Name == nil || spec.Name.Name != "." {
+			continue
+		}
+		importPath, err := strconv.Unquote(spec.Path.Value)
+		if err != nil {
+			continue
+		}
+		pkg := strings.TrimPrefix(importPath, "surge/")
+		if _, scoped := graph.packages[pkg]; scoped {
+			packages = append(packages, pkg)
+		}
+	}
+	return packages
+}
+
+func (graph *goOwnerGraph) directSelectorCarrier(selector *ast.SelectorExpr) bool {
+	pkg, ok := graph.selectorPackage(selector)
+	return ok && pkg == graph.root && graph.isRootCarrierName(selector.Sel.Name)
+}
+
+func (graph *goOwnerGraph) directDotCarrier(ident *ast.Ident) bool {
+	file := graph.fileForExpr(ident)
+	for _, pkg := range graph.dotImportedPackages(file) {
+		if pkg == graph.root && graph.isRootCarrierName(ident.Name) {
+			return true
+		}
+	}
+	return false
+}
+
+func (graph *goOwnerGraph) isRootCarrierName(name string) bool {
+	return graph.root == "internal/vm" && name == "Value" ||
+		graph.root == "internal/asyncrt" && name == "Payload"
 }
 
 // instantiateTypeParams captures every actual against the immutable outer
@@ -122,7 +235,7 @@ func (graph *goOwnerGraph) canonicalType(
 			delete(state.bindings, key)
 			return canonical
 		}
-		for _, decl := range graph.types[value.Name] {
+		for _, decl := range graph.typesForExpr(value, value.Name) {
 			if !decl.spec.Assign.IsValid() {
 				continue
 			}
@@ -137,6 +250,25 @@ func (graph *goOwnerGraph) canonicalType(
 			return canonical
 		}
 		return value.Name
+	case *ast.SelectorExpr:
+		for _, decl := range graph.typesForBase(value) {
+			if !decl.spec.Assign.IsValid() {
+				continue
+			}
+			instanceEnv := graph.instantiateTypeParams(decl.spec, nil, env)
+			graph.resolveCanonicalBindings(decl.spec, instanceEnv, state)
+			if state.aliases[decl.spec] {
+				return "$alias-cycle(" + decl.name + ")"
+			}
+			state.aliases[decl.spec] = true
+			canonical := graph.canonicalType(decl.spec.Type, instanceEnv, state)
+			delete(state.aliases, decl.spec)
+			return canonical
+		}
+		if pkg, ok := graph.selectorPackage(value); ok {
+			return pkg + "." + value.Sel.Name
+		}
+		return graph.canonicalType(value.X, env, state) + "." + value.Sel.Name
 	case *ast.StarExpr:
 		return "*" + graph.canonicalType(value.X, env, state)
 	case *ast.ArrayType:
@@ -165,8 +297,6 @@ func (graph *goOwnerGraph) canonicalType(
 		return graph.canonicalInstance(value.X, []ast.Expr{value.Index}, env, state)
 	case *ast.IndexListExpr:
 		return graph.canonicalInstance(value.X, value.Indices, env, state)
-	case *ast.SelectorExpr:
-		return graph.canonicalType(value.X, env, state) + "." + value.Sel.Name
 	case *ast.StructType:
 		return "struct{" + graph.canonicalFields(value.Fields, env, state) + "}"
 	case *ast.InterfaceType:
@@ -191,21 +321,19 @@ func (graph *goOwnerGraph) canonicalInstance(
 	env *goTypeEnv,
 	state *goCanonicalState,
 ) string {
-	if ident, ok := ownerBaseIdent(base); ok {
-		for _, decl := range graph.types[ident.Name] {
-			if !decl.spec.Assign.IsValid() {
-				continue
-			}
-			instanceEnv := graph.instantiateTypeParams(decl.spec, args, env)
-			graph.resolveCanonicalBindings(decl.spec, instanceEnv, state)
-			if state.aliases[decl.spec] {
-				return "$alias-cycle(" + decl.name + ")"
-			}
-			state.aliases[decl.spec] = true
-			canonical := graph.canonicalType(decl.spec.Type, instanceEnv, state)
-			delete(state.aliases, decl.spec)
-			return canonical
+	for _, decl := range graph.typesForBase(base) {
+		if !decl.spec.Assign.IsValid() {
+			continue
 		}
+		instanceEnv := graph.instantiateTypeParams(decl.spec, args, env)
+		graph.resolveCanonicalBindings(decl.spec, instanceEnv, state)
+		if state.aliases[decl.spec] {
+			return "$alias-cycle(" + decl.name + ")"
+		}
+		state.aliases[decl.spec] = true
+		canonical := graph.canonicalType(decl.spec.Type, instanceEnv, state)
+		delete(state.aliases, decl.spec)
+		return canonical
 	}
 	indices := make([]string, len(args))
 	for i := range args {

@@ -10194,3 +10194,47 @@ rules file.  The `internal` scan reports 6455 with all seven rules green, and
 the root scan reports 6153 with all eight checked rules green.  Rule 19 still
 reserves heavy Runtime V2, sanitizer, Valgrind, and benchmark rows for the
 dedicated stand.
+
+## Structural owners resolve through packages inside the scanned scope — 2026-09-01
+
+Final review of `1d32eda5` found one remaining P1 escape.  The fixed production
+scope already walks subdirectories, but the structural graph discarded every
+source whose directory was not exactly `internal/vm` or `internal/asyncrt`.
+The surviving root graph also treated a qualified type as opaque.  A valid
+package extraction could therefore put `type Fog = interface{}` or a lifecycle
+`Slot { state; generation }` in `internal/vm/sidecar`, refer to it as
+`*sidecar.Fog` or `map[uint64]*sidecar.Slot`, and leave the carrier gate green.
+That is exactly the renamed indirect sidecar and root general pool the
+normative absence contract forbids.
+
+Rule 13 ran before production repair on exact `1d32eda5`:
+`GOFLAGS=-buildvcs=false go test ./internal/carriergate -run
+'^TestStructuralOwnerCensus(ResolvesScopedPackageSelectors|KeepsScopedSelectorControlsNegative)$'
+-count=1 -v` exited 1.  The universal-alias row printed `findings=[]` for
+`token.q->universal`, the lifecycle row printed `findings=[]` for
+`VM.pool->general-slot(Slot)`, and the methodful/non-lifecycle control passed.
+
+The scanner now indexes each package directory below the two existing scopes.
+Unqualified identifiers resolve in their lexical package, and selectors
+resolve only when their import names another indexed package in the same fixed
+scope; imports outside that scope remain opaque.  Import aliases, dot imports,
+and a declared package name different from `path.Base(importPath)` use Go's
+lexical binding rather than path spelling.  Nested package structs participate
+in the carrier census, while canonical `VM` and `Executor` root discovery stays
+restricted to the two root packages.  No marker, public API, ABI, language, or
+UX surface was added.
+
+The repaired selector, dot-import, declared-package-name, nested-struct, and
+negative-control rows pass.  The exact-base and live ratchets remain green at
+the immutable `683` findings and digest
+`db5a0f475c32c2155aa82f3606800da0668392bd2e7a7aee917b742e76e58ee9`;
+the manifest, four allowances, and 75 migrations are unchanged.  The complete
+`internal/carriergate` package passes in 2.562 s, its race run passes in
+33.617 s, `go vet ./...` passes, and `make lint` reports zero issues.  The full
+pre-commit completed the package sweep (`internal/vm` in 99.922 s), lint,
+strict C checks, and Rule 4; after the final package-name-set hardening, the
+exact final scanner package and package vet passed again.  Sentrux
+closes the scoped session with `pass=true`, signal 9045 -> 9048; `internal`
+stays 6455 with all seven rules green, and the repository reports 6154 with all
+eight checked rules green.  Rule 19 still reserves heavy Runtime V2,
+sanitizer, Valgrind, and benchmark rows for the dedicated stand.

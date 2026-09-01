@@ -31,7 +31,7 @@ func lifecycleHeader(structType *ast.StructType) bool {
 // contract is part of D8. Unknown regions fail closed. Callback count, selector
 // spelling, and layout-looking field names prove nothing about ownership.
 func (graph *goOwnerGraph) isTypedOwnerRegion(decl *goOwnerType, _ *goTypeEnv) bool {
-	if graph.root != "internal/vm" || decl.name != "asyncOwnerRegion" ||
+	if graph.root != "internal/vm" || decl.file.pkg != graph.root || decl.name != "asyncOwnerRegion" ||
 		decl.spec.Assign.IsValid() || decl.spec.TypeParams != nil {
 		return false
 	}
@@ -75,7 +75,7 @@ func (graph *goOwnerGraph) vmType(name string) string {
 }
 
 func (graph *goOwnerGraph) namedStructHasExactFields(name string, expected map[string]string) bool {
-	for _, decl := range graph.types[name] {
+	for _, decl := range graph.types[graph.root][name] {
 		if decl.name == name && !decl.spec.Assign.IsValid() && decl.spec.TypeParams == nil &&
 			graph.declHasExactFields(decl, expected) {
 			return true
@@ -114,7 +114,7 @@ func (graph *goOwnerGraph) declHasExactFields(decl *goOwnerType, expected map[st
 }
 
 func (graph *goOwnerGraph) namedUint8(name string) bool {
-	for _, decl := range graph.types[name] {
+	for _, decl := range graph.types[graph.root][name] {
 		if decl.name != name || decl.spec.Assign.IsValid() || decl.spec.TypeParams != nil {
 			continue
 		}
@@ -133,10 +133,11 @@ func (graph *goOwnerGraph) semanticType(
 ) (string, bool) {
 	switch value := expr.(type) {
 	case *ast.Ident:
-		if builtinOwnerType(value.Name) && len(graph.types[value.Name]) == 0 {
+		declarations := graph.types[graph.fileForExpr(value).pkg][value.Name]
+		if builtinOwnerType(value.Name) && len(declarations) == 0 {
 			return value.Name, true
 		}
-		for _, decl := range graph.types[value.Name] {
+		for _, decl := range declarations {
 			if !decl.spec.Assign.IsValid() || aliases[decl.spec] {
 				continue
 			}

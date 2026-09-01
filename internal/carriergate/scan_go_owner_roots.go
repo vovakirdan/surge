@@ -8,7 +8,7 @@ func (graph *goOwnerGraph) scanRootTypes() []rawFinding {
 		return nil
 	}
 	findings := make([]rawFinding, 0)
-	for _, rootDecl := range graph.types[rootName] {
+	for _, rootDecl := range graph.types[graph.root][rootName] {
 		rootEnv := graph.instantiateTypeParams(rootDecl.spec, nil, nil)
 		file, structType, env := graph.rootStruct(
 			goEffectiveType{expr: rootDecl.spec.Type, env: rootEnv},
@@ -64,6 +64,8 @@ func (graph *goOwnerGraph) rootStruct(
 		return graph.rootStructInstances(value.X, []ast.Expr{value.Index}, actual.env, visiting)
 	case *ast.IndexListExpr:
 		return graph.rootStructInstances(value.X, value.Indices, actual.env, visiting)
+	case *ast.SelectorExpr:
+		return graph.rootStructInstances(value, nil, actual.env, visiting)
 	}
 	return nil, nil, nil
 }

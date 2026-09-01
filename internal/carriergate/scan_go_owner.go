@@ -16,6 +16,7 @@ type goOwnerSource struct {
 
 type goOwnerFile struct {
 	path string
+	pkg  string
 	data []byte
 	file *ast.File
 }
@@ -50,7 +51,9 @@ type goOwnerGraph struct {
 	root     string
 	category string
 	fset     *token.FileSet
-	types    map[string][]*goOwnerType
+	files    map[string]*goOwnerFile
+	packages map[string]map[string]bool
+	types    map[string]map[string][]*goOwnerType
 }
 
 // scanGoOwners augments the frozen lexical census with package-wide owner
@@ -67,15 +70,19 @@ func scanGoOwners(root string, sources []goOwnerSource) ([]rawFinding, error) {
 	files := make([]*goOwnerFile, 0, len(sources))
 	for i := range sources {
 		source := &sources[i]
-		if path.Dir(source.path) != root {
-			continue
-		}
 		parsed, err := parser.ParseFile(graph.fset, source.path, source.data, 0)
 		if err != nil {
 			return nil, err
 		}
-		ownerFile := &goOwnerFile{path: source.path, data: source.data, file: parsed}
+		ownerFile := &goOwnerFile{
+			path: source.path, pkg: path.Dir(source.path), data: source.data, file: parsed,
+		}
 		files = append(files, ownerFile)
+		graph.files[source.path] = ownerFile
+		if graph.packages[ownerFile.pkg] == nil {
+			graph.packages[ownerFile.pkg] = make(map[string]bool)
+		}
+		graph.packages[ownerFile.pkg][parsed.Name.Name] = true
 		graph.collectTypes(ownerFile)
 	}
 	return graph.scanFiles(files), nil
@@ -95,7 +102,9 @@ func goOwnerCategory(root string) string {
 func newGoOwnerGraph(root, category string) *goOwnerGraph {
 	return &goOwnerGraph{
 		root: root, category: category, fset: token.NewFileSet(),
-		types: make(map[string][]*goOwnerType),
+		files:    make(map[string]*goOwnerFile),
+		packages: make(map[string]map[string]bool),
+		types:    make(map[string]map[string][]*goOwnerType),
 	}
 }
 
@@ -141,6 +150,9 @@ func (graph *goOwnerGraph) scanStruct(file *goOwnerFile, spec *ast.TypeSpec, str
 }
 
 func (graph *goOwnerGraph) collectTypes(file *goOwnerFile) {
+	if graph.types[file.pkg] == nil {
+		graph.types[file.pkg] = make(map[string][]*goOwnerType)
+	}
 	for _, decl := range file.file.Decls {
 		gen, ok := decl.(*ast.GenDecl)
 		if !ok || gen.Tok != token.TYPE {
@@ -152,7 +164,10 @@ func (graph *goOwnerGraph) collectTypes(file *goOwnerFile) {
 				continue
 			}
 			name := spec.Name.Name
-			graph.types[name] = append(graph.types[name], &goOwnerType{name: name, spec: spec, file: file})
+			graph.types[file.pkg][name] = append(
+				graph.types[file.pkg][name],
+				&goOwnerType{name: name, spec: spec, file: file},
+			)
 		}
 	}
 }
@@ -197,10 +212,19 @@ func (graph *goOwnerGraph) carrierPath(
 			defer delete(visiting, visitKey)
 			return graph.carrierPath(bound.expr, bound.env, visiting)
 		}
-		if graph.directCarrier(value.Name) {
+		if graph.directCarrier(value) {
 			return []string{graph.carrierTerminal(value.Name)}
 		}
-		for _, decl := range graph.types[value.Name] {
+		for _, decl := range graph.typesForExpr(value, value.Name) {
+			if found := graph.carrierFromType(decl, nil, env, visiting); len(found) != 0 {
+				return found
+			}
+		}
+	case *ast.SelectorExpr:
+		if graph.directSelectorCarrier(value) {
+			return []string{graph.carrierTerminal(value.Sel.Name)}
+		}
+		for _, decl := range graph.typesForBase(value) {
 			if found := graph.carrierFromType(decl, nil, env, visiting); len(found) != 0 {
 				return found
 			}

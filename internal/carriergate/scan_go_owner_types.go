@@ -2,9 +2,15 @@ package carriergate
 
 import "go/ast"
 
-func (graph *goOwnerGraph) directCarrier(name string) bool {
-	return name == "any" || graph.root == "internal/vm" && name == "Value" ||
-		graph.root == "internal/asyncrt" && name == "Payload"
+func (graph *goOwnerGraph) directCarrier(ident *ast.Ident) bool {
+	if ident.Name == "any" {
+		return true
+	}
+	file := graph.fileForExpr(ident)
+	if file != nil && file.pkg == graph.root {
+		return graph.isRootCarrierName(ident.Name)
+	}
+	return graph.directDotCarrier(ident)
 }
 
 func (graph *goOwnerGraph) carrierTerminal(name string) string {
@@ -63,6 +69,8 @@ func (graph *goOwnerGraph) emptyInterface(
 		return graph.emptyInterfaceInstance(value.X, []ast.Expr{value.Index}, env, visiting)
 	case *ast.IndexListExpr:
 		return graph.emptyInterfaceInstance(value.X, value.Indices, env, visiting)
+	case *ast.SelectorExpr:
+		return graph.emptyInterfaceInstance(value, nil, env, visiting)
 	}
 	return false
 }
@@ -162,6 +170,8 @@ func (graph *goOwnerGraph) generalSlotBound(
 		return graph.generalSlotInstance(value.X, []ast.Expr{value.Index}, crossedCollection, visiting, env)
 	case *ast.IndexListExpr:
 		return graph.generalSlotInstance(value.X, value.Indices, crossedCollection, visiting, env)
+	case *ast.SelectorExpr:
+		return graph.generalSlotInstance(value, nil, crossedCollection, visiting, env)
 	case *ast.StructType:
 		if crossedCollection && lifecycleHeader(value) {
 			return "anonymous"
