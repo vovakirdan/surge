@@ -126,7 +126,7 @@ static void poll_entitlement_owning_result(void) {
 // descriptor is replaced here -- under the same control lock, before the task
 // is pushed, so nothing can look at the slot in between. The rebind is also
 // what makes the slot's generation move, which is the third row's subject.
-static rt_task* entitlement_spawn_owner(rt_executor* ex) {
+static rt_task* entitlement_spawn_owner(rt_executor* ex, const rt_value_ops* ops) {
     if (current_worker_scheduler(ex) != NULL) {
         fputs("entitlement stand: the owner must be spawned from the driver\n", stderr);
         return NULL;
@@ -134,7 +134,7 @@ static rt_task* entitlement_spawn_owner(rt_executor* ex) {
     rt_control_lock(ex);
     rt_task* task = alloc_ready_task(ex, POLL_ENTITLEMENT_OWNING_RESULT);
     if (task != NULL) {
-        (void)rt_value_cell_bind(&task->result, &entitlement_value_ops);
+        (void)rt_value_cell_bind(&task->result, ops);
         rt_task_set_placement(task, pin_shard(ex, 0), TASK_PLACEMENT_CONNECTION);
         ready_push(ex, task->id);
     }
@@ -177,7 +177,7 @@ typedef struct {
 static int entitlement_hold_reader(rt_executor* ex, entitlement_reader_hold* hold) {
     memset(hold, 0, sizeof(*hold));
     unsigned before = rt_sync_point_reached_count(RT_SYNC_POINT_SP_CLONE_READER_OUT_OF_LOCK);
-    hold->target = entitlement_spawn_owner(ex);
+    hold->target = entitlement_spawn_owner(ex, &entitlement_value_ops);
     if (hold->target == NULL) {
         fputs("entitlement stand: owner allocation failed\n", stderr);
         return 0;
@@ -390,7 +390,7 @@ static void* entitlement_late_holder_thread(void* unused) {
 static int mode_entitlement_stale_result_capability(rt_executor* ex) {
     entitlement_reset();
     unsigned before = rt_sync_point_reached_count(RT_SYNC_POINT_SP_RESULT_CAPABILITY_BEFORE_MATCH);
-    rt_task* target = entitlement_spawn_owner(ex);
+    rt_task* target = entitlement_spawn_owner(ex, &entitlement_value_ops);
     if (target == NULL || !wait_task_status(target, TASK_DONE, 8000)) {
         (void)rt_executor_request_shutdown(ex);
         return fail("entitlement capability stand: the owner never completed");

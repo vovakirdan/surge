@@ -384,6 +384,12 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "entitlement-stale-result-capability") == 0) {
         return mode_entitlement_stale_result_capability(ex);
     }
+    if (strcmp(argv[1], "entitlement-user-clone-panic") == 0) {
+        return mode_entitlement_user_clone_panic(ex);
+    }
+    if (strcmp(argv[1], "entitlement-alloc-null-fatal") == 0) {
+        return mode_entitlement_alloc_null_fatal(ex);
+    }
     if (strcmp(argv[1], "debt291-poll-outcome-pin") == 0) {
         return mode_debt291_poll_outcome_pin(ex);
     }
