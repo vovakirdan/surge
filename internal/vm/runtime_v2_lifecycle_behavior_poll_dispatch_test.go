@@ -150,6 +150,12 @@ void __surge_poll_call(uint64_t id) {
         case POLL_DEBT046_JOINER:
             poll_debt046_joiner();
             break;
+        case POLL_DEBT248_TARGET:
+            poll_debt248_target();
+            break;
+        case POLL_DEBT248_JOINER:
+            poll_debt248_joiner();
+            break;
         case POLL_READY_REQUEUE_PROBE:
             poll_ready_requeue_probe();
             break;

@@ -10595,3 +10595,110 @@ passed the full package sweep (`internal/vm` `103.590s`), lint with zero issues,
 strict C checks, and Rule 4. Sentrux reports `internal` signal 6458 with all
 7 rules green and repository signal 6158 with all 8 checked rules green; the
 same-root session closes 6158 -> 6158 with `pass=true`.
+
+### RV2-DEBT-248 deterministic second-token-abort proof
+
+Started from exact integrated base `6bd9ae091aa3d8c54c81cbc0259c3ab6c253d6bb`
+in the isolated `codex/rv2-debt248` worktree. The production guard already
+refuses a waiter removal when the second `park_current` token-abort branch has
+no park generation. What remains open is the row's rate-only evidence.
+
+One after-requeue hook cannot select that branch: a token already present at
+`park_current` entry takes the first abort. The deterministic drive therefore
+uses two test-only points. The first holds a join park after its initial token
+exchange returned zero, with the join registration already prepared but before
+`park_current` mutates the prepared fields or commits WAITING; the driver wakes
+the still-RUNNING task there. The second holds that same poller after the second
+exchange consumed the token, requeued the task as READY, and released the owner
+lock, but before any waiter removal. A second carrier then re-polls the task,
+publishes a fresh join registration, and pauses inside the poll. The positive
+build must preserve both old and fresh entries for the target completion drain;
+`RV2_DEBT_248_NEGATIVE_CONTROL` restores only the old unqualified `seq == 0`
+removal and must report `target DONE + joiner WAITING + zero registrations`
+immediately, never use a timeout as its success oracle.
+
+The lane does not change waiter ownership, token semantics, channel code,
+compiler lowering, ABI, or language/UX surface. Focused lifecycle positives,
+the Rule 13 control, sync-point placement/release-symbol checks, C checks, lint,
+file-size enforcement, and the mandatory pre-commit sequence are owed before
+the row can close. Heavy aggregate evidence remains pinned dedicated-runner
+work on the final integrated SHA.
+
+The first focused run exposed a stand-only scheduling fact instead of being
+waived: the second abort requeues onto the held poller's local deque, and its
+single entry deliberately does not signal a sibling. A permanently READY
+gated target also kept the inject queue nonempty, so the fresh poll did not
+start. The final stand holds its target inside a poll and, after observing the
+after-requeue point, uses the existing test driver's shard wake to wake two
+sleeping siblings without injecting competing work. A sibling then has exactly
+the requeued joiner to steal. No production scheduling policy changed.
+
+Focused evidence is green. The exact positive + Rule 13 command passed once in
+`9.763s`, then passed five consecutive runs in `54.593s`:
+
+```sh
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2LifecycleDebt248(SecondTokenAbortKeepsFreshJoinWaiter|SecondTokenAbortNegativeControl)$' -count=5 -parallel=1 -p=1 -v --timeout 300s
+```
+
+The positive requires the exact structural report
+`debt248 windows: initial=2 abort=1 entries_before=2 entries_parked=2 attempts=2`
+and the measured completion `kind=1 bits=42 attempts=2`. The negative build
+must instead observe `target=done joiner=waiting entries=0 attempts=2` and fail
+with `debt248 negative control swept the fresh join registration`; the Go test
+passes only when that failure occurs for exactly this reason.
+
+`./check_sync_points.sh` passed the enumerator/name/window census, tag-off
+symbol absence, default-target guard, and analysis-only stand-flag guard.
+`EPIC_BASE=6bd9ae091aa3d8c54c81cbc0259c3ab6c253d6bb
+./scripts/runtime_v2_file_size_check.sh --worktree` passed six measured code
+files with zero violations; the largest changed stand is 435 effective LOC.
+The remaining C, lint, focused-roster, pre-commit, Rule 4, and generated stats
+evidence is appended after those gates run.
+
+Native checks are green: `make cfmt-check` (`3.924s`), `make c-check`
+(`8.467s`), and
+`make c-check-changed C_CHANGED='runtime/native/rt_sync_point.c
+runtime/native/rt_sync_point.h runtime/native/rt_task_park.c'` (`1.657s`)
+all passed. The required whole-tree analyzers also passed: `make cppcheck`
+checked 110 files and ended `cppcheck OK`; `make ctidy` ended
+`clang-tidy check OK`. Tagged `GOFLAGS=-buildvcs=false go vet -tags
+runtime_v2_pending ./internal/vm` passed with no output. The first `make lint`
+attempt was refused before analysis because another lane already held
+golangci-lint's process lock (`parallel golangci-lint is running`); after that
+process exited, the identical `GOFLAGS=-buildvcs=false make lint` command passed
+with `0 issues`.
+
+The composed `make runtime-v2-lifecycle-check` was not run locally or claimed
+green: its `heavy-run-guard` correctly refused this non-dedicated host before
+starting because `/etc/surge-dedicated-runner` is absent. Rule 19 requires a
+commit-pinned worktree on the dedicated server; the aggregate therefore remains
+post-commit/final-SHA work. The exact two selected lifecycle rows are the local
+focused evidence above, and their explicit Makefile alternation is part of this
+diff rather than being inferred from a family prefix.
+
+Sentrux on the isolated worktree is green. Repository root scan:
+`quality_signal=6158`, bottleneck `modularity`, all 8 checked rules pass.
+`runtime/native` scope: `quality_signal=5434`, bottleneck `redundancy`, all 7
+rules pass. The scoped session baseline was saved at 5434 and will be closed on
+the same absolute path after the final diff.
+
+The staged mandatory pre-commit was run as
+`SURGE_STDLIB=/tmp/surge-rv2-debt248.xGYZTb/worktree
+GOFLAGS=-buildvcs=false ./scripts/pre-commit` and passed end to end. Its staged
+three-file C analysis passed first; `make check` then passed the entire package
+sweep (`internal/vm` `121.568s`), lint with `0 issues`, strict C format/compile,
+and the repository file-size check with all three changed native files OK.
+There were no ignored failures. The hook generated the expected `STATS.md`
+update: native code `39002 -> 39023`, test code `134680 -> 134943`, total
+`376013 -> 376297`. The checked-in file and two fresh generator streams all
+have identical SHA-256
+`7cf8176f299cd3770d81dbc2eceb3a953db9809d8e4eabb41c39c64fcf568205`.
+
+Final Sentrux closure used the same absolute `runtime/native` path as its
+session baseline: `5434 -> 5434`, delta zero, `pass=true`; health still names
+`redundancy` and all 7 rules pass. The final repository-root rescan remains
+`quality_signal=6158`, bottleneck `modularity`, with all 8 checked rules green.
+After the first evidence append, the staged pre-commit was rerun and passed
+again: VM `105.084s`, lint `0 issues`, strict C checks green, and Rule 4 green.
+This final sentence is documentation-only; no code or generated artifact
+changed after that accepted run.

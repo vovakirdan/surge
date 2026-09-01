@@ -84,6 +84,10 @@ static const char* rt_sp_name(rt_sync_point_id id) {
             return "SP_CANCEL_BEFORE_WAKE";
         case RT_SYNC_POINT_SP_PARK_BEFORE_WAITING:
             return "SP_PARK_BEFORE_WAITING";
+        case RT_SYNC_POINT_SP_PARK_AFTER_INITIAL_TOKEN_CHECK:
+            return "SP_PARK_AFTER_INITIAL_TOKEN_CHECK";
+        case RT_SYNC_POINT_SP_PARK_ABORT_AFTER_REQUEUE:
+            return "SP_PARK_ABORT_AFTER_REQUEUE";
         case RT_SYNC_POINT_SP_MARKDONE_BEFORE_DONEWAITERS_LOAD:
             return "SP_MARKDONE_BEFORE_DONEWAITERS_LOAD";
         case RT_SYNC_POINT_SP_AWAIT_AFTER_INCREMENT:

@@ -12,10 +12,8 @@
 // Allowlist: `name` must be one of the RT_SYNC_POINT_* enumerators below or the
 // translation unit fails to compile, in BOTH the armed and the release build
 // (the release macro still references the enumerator). Adding a site therefore
-// requires (1) adding an enumerator here and (2) listing the window in
-// check_sync_points.sh. The first lifecycle windows were introduced here;
-// adds transport park/wake contract windows whose production sites land
-// in .
+// requires an enumerator here, a name row in rt_sync_point.c, and a designated
+// window in check_sync_points.sh.
 #ifndef RT_SYNC_POINT_H
 #define RT_SYNC_POINT_H
 
@@ -24,13 +22,15 @@
 // without linking any rendezvous code.
 typedef enum rt_sync_point_id {
     RT_SYNC_POINT_NONE = 0,
-    // cancel_task: reached with the target's status still observed RUNNING,
-    // immediately before the (now unconditional) wake. Pairs with
+    // cancel_task: target still RUNNING immediately before the unconditional wake; pairs with
     // SP_PARK_BEFORE_WAITING to reproduce the RV2-DEBT-023 cancel-vs-park race.
     RT_SYNC_POINT_SP_CANCEL_BEFORE_WAKE,
-    // user-task scheduler path: reached after poll has returned PARKED but
-    // before committing TASK_WAITING, while status is RUNNING.
+    // user poll returned PARKED, before TASK_WAITING is committed while still RUNNING.
     RT_SYNC_POINT_SP_PARK_BEFORE_WAITING,
+    // park_current's first wake-token exchange returned zero; no park is committed yet.
+    RT_SYNC_POINT_SP_PARK_AFTER_INITIAL_TOKEN_CHECK,
+    // second token abort requeued READY and unlocked; waiter removal has not begun.
+    RT_SYNC_POINT_SP_PARK_ABORT_AFTER_REQUEUE,
     // mark_done tail: reached after the TASK_DONE store, immediately before the
     // post-DONE seq-cst done_waiters load. Pairs with
     // SP_AWAIT_AFTER_INCREMENT to reproduce the RV2-DEBT-022 StoreLoad window.

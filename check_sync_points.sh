@@ -37,6 +37,8 @@ note_ok() { printf "${GREEN}OK${NC}   %s\n" "$1"; }
 declare -A WINDOW_FILE=(
     [SP_CANCEL_BEFORE_WAKE]="rt_task_complete.c"
     [SP_PARK_BEFORE_WAITING]="rt_async_poll.c rt_worker_turn.c"
+    [SP_PARK_AFTER_INITIAL_TOKEN_CHECK]="rt_task_park.c"
+    [SP_PARK_ABORT_AFTER_REQUEUE]="rt_task_park.c"
     [SP_MARKDONE_BEFORE_DONEWAITERS_LOAD]="rt_task_complete.c"
     [SP_AWAIT_AFTER_INCREMENT]="rt_async_task.c"
     [SP_AWAIT_BEFORE_DONECV_WAIT]="rt_async_task.c"

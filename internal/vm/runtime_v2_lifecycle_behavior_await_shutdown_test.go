@@ -420,6 +420,9 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "debt201-park-abort-retires-entry") == 0) {
         return mode_debt201_park_abort_retires_entry(ex);
     }
+    if (strcmp(argv[1], "debt248-second-token-abort") == 0) {
+        return mode_debt248_second_token_abort(ex);
+    }
     if (strcmp(argv[1], "ready-requeue-wake-race") == 0) {
         return mode_ready_requeue_wake_race(ex);
     }

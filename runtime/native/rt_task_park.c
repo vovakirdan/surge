@@ -309,6 +309,14 @@ void park_current(rt_executor* ex, waker_key key) {
         }
         return;
     }
+    // RV2-DEBT-248 needs this point in addition to the after-requeue point:
+    // reaching it proves the initial exchange above observed zero. The poll
+    // has already prepared its join registration, but park_current has not
+    // mutated those prepared fields or committed WAITING; a wake delivered
+    // here is therefore consumed by the SECOND exchange below, not by the
+    // first abort branch. Join-only keeps an armed proof from stopping
+    // unrelated runtime parks.
+    RT_SYNC_POINT_IF(key.kind == WAKER_JOIN, SP_PARK_AFTER_INITIAL_TOKEN_CHECK);
     // Register-then-commit (D5): the registration may fire from here on; the
     // token double-check under the owner lock closes the window. park_key is
     // thread-own while the task is RUNNING on this poller.
@@ -328,6 +336,10 @@ void park_current(rt_executor* ex, waker_key key) {
     if (task_wake_token_exchange(task, 0) != 0) {
         park_requeue_locked(ex, owner_shard, task, key);
         rt_shard_unlock(owner_shard);
+        // The task is READY and may already be re-polling on another carrier.
+        // Hold the old poller here so the proof can publish a fresh join entry
+        // before this branch decides whether to remove anything.
+        RT_SYNC_POINT_IF(key.kind == WAKER_JOIN, SP_PARK_ABORT_AFTER_REQUEUE);
         // Abort removal happens after the owner lock is released (never two
         // shard locks); a concurrent pop of this entry is absorbed as one
         // spurious wake by the token it re-sets. The removal is qualified by
@@ -345,9 +357,14 @@ void park_current(rt_executor* ex, waker_key key) {
         // wake ever comes (measured: one hang in ~15 runs of a four-asker
         // cohort on four workers). The stale entry is self-cleaning instead:
         // the drain pops it and the token absorbs the spurious wake.
+#ifdef RV2_DEBT_248_NEGATIVE_CONTROL
+        // Rule 13: restore only the old seq-0 sweep in this second branch.
+        remove_waiter_generation(ex, key, task->id, abort_seq);
+#else
         if (abort_seq != 0) {
             remove_waiter_generation(ex, key, task->id, abort_seq);
         }
+#endif
         return;
     }
     rt_shard_unlock(owner_shard);
