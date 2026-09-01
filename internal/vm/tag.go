@@ -35,11 +35,20 @@ func (vm *VM) tagLayoutFor(typeID types.TypeID) (*TagLayout, *VMError) {
 // evalOperand, which copies, and the reader owes its release. Under a box these
 // were one case because both ended in a counted handle; under storage they are
 // opposites, and the difference has to be carried rather than guessed.
+type tagScrutineeOwnership uint8
+
+const (
+	tagScrutineeBorrowed tagScrutineeOwnership = iota
+	tagScrutineeOwnsStorage
+	tagScrutineeOwnsHeap
+)
+
 type tagScrutinee struct {
-	value     Value
 	storage   StorageRef
+	heap      Handle
+	kind      ValueKind
+	ownership tagScrutineeOwnership
 	isTag     bool
-	owned     bool
 	viaRef    bool
 	viaRefMut bool
 }
@@ -50,7 +59,7 @@ func (vm *VM) evalTagScrutinee(frame *Frame, op *mir.Operand) (tagScrutinee, *VM
 	if vmErr != nil {
 		return tagScrutinee{}, vmErr
 	}
-	s := tagScrutinee{value: val, owned: true}
+	s := tagScrutinee{kind: val.Kind}
 	if val.Kind == VKRef || val.Kind == VKRefMut {
 		s.viaRef = true
 		s.viaRefMut = val.Kind == VKRefMut
@@ -58,23 +67,48 @@ func (vm *VM) evalTagScrutinee(frame *Frame, op *mir.Operand) (tagScrutinee, *VM
 		if loadErr != nil {
 			return tagScrutinee{}, loadErr
 		}
-		switch {
-		case loaded.Kind == VKComposite:
-			// Borrowed. Nothing was duplicated, so nothing is owed.
-			s.owned = false
-		case loaded.IsHeap() && loaded.H != 0:
-			vm.Heap.Retain(loaded.H)
-		}
-		s.value = loaded
+		s.kind = loaded.Kind
+		val = loaded
 	}
-	s.storage, s.isTag = vm.isTagStorage(s.value)
+	s.captureOwnership(val)
+	if s.viaRef && s.ownership == tagScrutineeOwnsStorage {
+		// A reference names storage its source still owns. Unlike a heap value,
+		// exact storage has no count to retain, so this inspection only borrows it.
+		s.ownership = tagScrutineeBorrowed
+	}
+	if s.viaRef && s.ownership == tagScrutineeOwnsHeap {
+		vm.Heap.Retain(s.heap)
+	}
+	if s.kind == VKComposite {
+		_, unionErr := vm.unionMembers(s.storage.TypeID)
+		s.isTag = unionErr == nil
+	}
 	return s, nil
+}
+
+func (s *tagScrutinee) captureOwnership(value Value) {
+	switch {
+	case value.Kind == VKComposite:
+		if storage, ok := value.Storage(); ok {
+			s.storage = storage
+			s.ownership = tagScrutineeOwnsStorage
+		}
+	case value.IsHeap() && value.H != 0:
+		s.heap = value.H
+		s.ownership = tagScrutineeOwnsHeap
+	}
 }
 
 // release gives up whatever the scrutinee owns, and nothing it merely borrows.
 func (vm *VM) releaseTagScrutinee(s tagScrutinee) {
-	if s.owned {
-		vm.dropValue(s.value)
+	if vm == nil || vm.Heap == nil {
+		return
+	}
+	switch s.ownership {
+	case tagScrutineeOwnsStorage:
+		vm.dropCompositeStorage(s.storage)
+	case tagScrutineeOwnsHeap:
+		vm.Heap.Release(s.heap)
 	}
 }
 
@@ -119,7 +153,7 @@ func (vm *VM) evalTagPayload(frame *Frame, tp *mir.TagPayload) (Value, *VMError)
 	}
 	defer vm.releaseTagScrutinee(s)
 	if !s.isTag {
-		return Value{}, vm.eb.tagPayloadOnNonTag(s.value.Kind.String())
+		return Value{}, vm.eb.tagPayloadOnNonTag(s.kind.String())
 	}
 	// The arm the discriminant selects is the only arm whose members exist, so
 	// a payload asked for under a different name is refused BEFORE anything is
@@ -194,7 +228,7 @@ func (vm *VM) execSwitchTag(frame *Frame, st *mir.SwitchTagTerm) *VMError {
 	}
 	defer vm.releaseTagScrutinee(s)
 	if !s.isTag {
-		return vm.eb.switchTagOnNonTag(s.value.Kind.String())
+		return vm.eb.switchTagOnNonTag(s.kind.String())
 	}
 	live, vmErr := vm.tagArmName(s.storage)
 	if vmErr != nil {

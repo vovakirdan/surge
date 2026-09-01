@@ -335,6 +335,11 @@ func (vm *VM) dropComposite(v Value) {
 	if !ok {
 		return
 	}
+	vm.dropCompositeStorage(ref)
+}
+
+// dropCompositeStorage releases everything an exact composite extent owns.
+func (vm *VM) dropCompositeStorage(ref StorageRef) {
 	// A drop that cannot complete is not raised here: dropValue is called from
 	// paths that are finishing rather than asking for something, and the extent
 	// is going away either way. What it could not release stays on the heap,
