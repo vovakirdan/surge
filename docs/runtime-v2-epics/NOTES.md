@@ -9582,3 +9582,36 @@ change to that entry point's signature and not a call inserted in front of it.
 files under `internal/` as test-harness stubs plus the carrier scanner's token.
 `emit.go` carried a comment saying the runtime routed the abandoned state through
 it; that comment is corrected here, the stubs are not touched.
+
+## Phase 4 closeout starts from the model, not from the V1 carrier — 2026-09-01
+
+Integration base is `db349581b5318546aac26e19cc6853a1bb65de0e` on
+`codex/runtime-v2-closeout`, in the isolated worktree
+`/tmp/surge-rv2-closeout.gaHvNP/worktree`.  The canonical checkout's only local
+change is the owner's `.gitignore`; this lane does not read from or write to that
+dirty tree.
+
+The accepted order is Epic 23b Wave D closeout, Waves E/F, Epic 22 Phase 2,
+Epic 21 Task 9, then a V1-gap census.  V1 implementation and ABI compatibility
+are not constraints.  The first tracked design change will make every normative
+document agree on the slot/pointer transport before production code adopts it;
+transport-owned byte/jumbo storage remains future work.  No language syntax,
+public configuration, diagnostic UX, PR, merge, or version bump belongs to this
+lane.
+
+The first proof tranche is Wave D only: re-run the recorded ledger evidence,
+repair mandatory gate blockers with a same-commit negative control, reconstruct
+only the justified parts of `origin/lane-sur224`, and obtain five fresh W8 runs
+on the dedicated `ryzen` stand.  A non-obvious runtime failure is first ruled by
+`docs/RUNTIME_V2.md`; if that model does not decide it, the lane stops.
+
+Pre-change Sentrux scans, all with configured rules passing:
+
+- repository root: quality `6147`;
+- `internal`: quality `6451`;
+- `runtime`: quality `5295`;
+- `runtime/native`: quality `5440`.
+
+Each scan saved a session baseline.  Final evidence will rescan the same exact
+paths and record `health`, `check_rules`, and `session_end` after the code and
+documentation are stable.
