@@ -69,10 +69,9 @@ jobs:
     #
     # Measured at 03379549 on this runner: the roster's own per-row clocks summed
     # to 1251s against a 21m18s job. The headroom is what pays for rows that move
-    # onto the roster from the closeout sanitizer sweep, which this runner cannot
-    # run in full -- it has clang with ASan/TSan but no valgrind, which is why
-    # runtime-v2-heap-check's leak rows are red here and green on the self-hosted
-    # sanitizer job.
+    # onto the roster from the closeout sanitizer sweep. runtime-v2-heap-check is
+    # a mandatory roster member and owns Valgrind rows, so this job provisions
+    # Valgrind; the larger closeout sweep remains on ci-selfhosted.yml.
     timeout-minutes: 45
     env:
       SURGE_MT_TIMEOUT_SCALE: "3"
@@ -82,8 +81,10 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Install LLVM toolchain
-        run: sudo apt-get update && sudo apt-get install -y clang llvm lld binutils
+      - name: Install LLVM and Valgrind toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm lld binutils valgrind
       - name: Run Runtime V2 liveness gate
         run: make runtime-v2-check
 

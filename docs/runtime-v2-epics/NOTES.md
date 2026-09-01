@@ -9725,3 +9725,18 @@ Candidate evidence:
 - `from_str`: no invalid access and the expected error code, with the
   independent 327-byte/6-block message residual recorded as RV2-DEBT-314 rather
   than repaired in this blocking change.
+
+## Hosted Runtime V2 aggregate provisions Valgrind — 2026-09-01
+
+The hosted `runtime-v2-check` job runs the complete aggregate, whose mandatory
+heap row fails closed when Valgrind is absent.  The job now installs Valgrind
+with its LLVM tools instead of documenting that row as an expected hosted red.
+The timeout remains 45 minutes until a complete hosted measurement says it must
+change.
+
+The gatecheck contract is command- and order-sensitive: it requires exactly one
+`make runtime-v2-check` and exactly one preceding `apt-get install` line with a
+real `valgrind` shell word.  The test-only tree was red with `0, want 1`; the
+fixed workflow and the full `internal/gatecheck` package pass.  Comment-only,
+echo-only, false-prefix, missing-package, late-install, and missing-gate
+controls are all rejected.
