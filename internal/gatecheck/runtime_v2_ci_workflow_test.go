@@ -62,6 +62,59 @@ func TestHostedRuntimeV2AggregateValgrindContractRejectsMissingOrLateInstall(t *
 	}
 }
 
+func TestHostedCSanitizersRunsRuntimeV2OwnedStorageGate(t *testing.T) {
+	job, count := workflowJobBody(readHostedCI(t), "c-sanitizers")
+	if count != 1 {
+		t.Fatalf("c-sanitizers: job definitions = %d, want 1", count)
+	}
+	if err := validateCSanitizersJob(job); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestHostedCSanitizersContractRejectsGenericGoTest(t *testing.T) {
+	valid := `
+      - run: make runtime-v2-owned-storage-check
+`
+	if err := validateCSanitizersJob(valid); err != nil {
+		t.Fatalf("valid hosted sanitizer job rejected: %v", err)
+	}
+
+	tests := map[string]struct {
+		job       string
+		wantError string
+	}{
+		"comment_only": {
+			job: `
+      # make runtime-v2-owned-storage-check
+      - run: echo no sanitizer gate
+`,
+			wantError: `command "make runtime-v2-owned-storage-check" count = 0, want 1`,
+		},
+		"missing_target": {
+			job:       "      - run: go test ./...\n",
+			wantError: `command "make runtime-v2-owned-storage-check" count = 0, want 1`,
+		},
+		"generic_tests_remain": {
+			job: `
+      - run: |
+          make runtime-v2-owned-storage-check
+          go test ./internal/backend/llvm/...
+          go test ./... -run TestRuntime
+`,
+			wantError: "direct go test commands = 2, want 0",
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateCSanitizersJob(test.job)
+			if err == nil || !strings.Contains(err.Error(), test.wantError) {
+				t.Fatalf("invalid hosted sanitizer job error = %v, want containing %q", err, test.wantError)
+			}
+		})
+	}
+}
+
 func readHostedCI(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(repoRoot(t), ".github", "workflows", "ci.yml")
@@ -201,6 +254,29 @@ func validateRuntimeV2AggregateJob(job string) error {
 	}
 	if qualifyingInstalls != 1 {
 		return fmt.Errorf("runtime-v2-check: qualifying valgrind install lines before gate = %d, want 1", qualifyingInstalls)
+	}
+	return nil
+}
+
+func validateCSanitizersJob(job string) error {
+	lines := workflowExecutableLines(job)
+	const target = "make runtime-v2-owned-storage-check"
+	if count := commandCount(lines, target); count != 1 {
+		return fmt.Errorf("c-sanitizers: command %q count = %d, want 1", target, count)
+	}
+
+	directGoTests := 0
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		for len(fields) > 0 && (fields[0] == "env" || strings.Contains(fields[0], "=")) {
+			fields = fields[1:]
+		}
+		if len(fields) >= 2 && fields[0] == "go" && fields[1] == "test" {
+			directGoTests++
+		}
+	}
+	if directGoTests != 0 {
+		return fmt.Errorf("c-sanitizers: direct go test commands = %d, want 0", directGoTests)
 	}
 	return nil
 }

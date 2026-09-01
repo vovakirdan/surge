@@ -9740,3 +9740,23 @@ real `valgrind` shell word.  The test-only tree was red with `0, want 1`; the
 fixed workflow and the full `internal/gatecheck` package pass.  Comment-only,
 echo-only, false-prefix, missing-package, late-install, and missing-gate
 controls are all rejected.
+
+## Hosted sanitizer job runs the owned-storage stands — 2026-09-01
+
+The old `c-sanitizers` job compiled each native C file into an object that it
+never linked or executed, then set CGO sanitizer flags for Go tests even though
+the production build pipeline invokes clang directly.  Its broad `go test`
+selection also omitted the `runtime_v2_pending` tag that owns the sanitizer
+stands.  The job therefore did not prove the Runtime V2 C paths named by its
+display name.
+
+The job now invokes `make runtime-v2-owned-storage-check`, the existing
+fail-closed gate that builds and runs the six channel-element, channel-handle,
+and realloc-view ASan/UBSan/TSan rows and requires every expected test to print
+`PASS`.  Its job id and display name remain stable so a required-check context
+is not renamed as a side effect.
+
+The test-only tree was red with target count `0, want 1`.  The fixed workflow
+passes the focused contract; comment-only and missing-target controls stay red,
+and a mutant that keeps two generic `go test` commands is rejected with
+`direct go test commands = 2, want 0`.
