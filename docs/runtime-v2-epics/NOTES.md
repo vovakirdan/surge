@@ -10096,3 +10096,101 @@ saved 8984 baseline; that scope has no rules file.  The `internal` scan reports
 checked rules green.  Rule 19 keeps heavy Runtime V2, sanitizer, Valgrind, and
 benchmark rows on the dedicated stand; this scanner-only repair runs none of
 them locally.
+
+## Structural owner proof is nominal and generic substitutions are lexical — 2026-09-01
+
+The third independent review of exact `85d737d1` found four P1 families.  The
+typed-region exemption still accepted an arbitrary layout-shaped callback
+record, byte slice, and foreign lifecycle slot.  Generic methodless interface
+embeddings lost their actual arguments.  Generic aliases and named underlying
+types lost the effective bindings of canonical `VM` and `Executor` roots.
+Finally, inner type parameters rewrote composite actuals such as `Box[*P]`
+instead of resolving them in the caller's immutable environment.
+
+The four new test groups were overlaid without production changes on exact
+`85d737d101b2cd76692172cd618c21cdd8ee2404`.  The command
+`GOFLAGS=-buildvcs=false go test ./internal/carriergate -run
+'^TestStructuralOwnerCensus(RequiresCanonicalVMAsyncOwner|InstantiatesMethodlessInterfaces|PreservesGenericRootBindings|SubstitutesCompositeActualsBeforeShadowing)$'
+-count=1` exited 1 with ten exact violations: the callback decoy hid
+`VM.owners->general-slot(foreignSlot)`; the real D8 shape exposed
+`VM.owners->general-slot(asyncPayloadSlot)`; generic methodless interfaces
+missed `token.payload->universal`, `pairToken.payload->universal`, and
+`constrained.payload->universal`; generic roots missed
+`VM.pool->general-slot(generalSlot)` for alias and two-argument named forms and
+the same `Executor.pool` token for its alias; composite substitution missed
+`VM.one->general-slot(generalSlot)` and
+`VM.two->general-slot(generalSlot)`.  Methodful and non-basic constraints,
+generic cycles, and the existing carrier in the composite fixture remained
+valid controls.
+
+The repair uses one effective-type representation: an AST expression plus the
+immutable lexical environment in which that expression was written.  Carrier,
+general-slot, interface, constraint, and root walkers now instantiate from
+that representation and key recursion by declaration plus canonical effective
+bindings.  A callee's parameter may shadow a spelling, but it cannot rewrite a
+caller's captured `*P`.  Root aliases retain their actuals while findings keep
+the canonical `VM` or `Executor` token; maps still inspect keys before values.
+
+An adversarial review then found that a package declaration still inherited
+the caller's environment and that anonymous composite actuals were rendered
+without their captured environment.  The final p3 fixtures were also overlaid
+on exact `85d737d1`.  `GOFLAGS=-buildvcs=false go test
+./internal/carriergate -run
+'^TestStructuralOwnerCensus(KeepsDeclarationEnvironmentsLexical|CanonicalizesAnonymousActualsInEnvironment|TerminatesTransformedGenericAliasCycle|DistinguishesFiniteNestedAliasActuals)$'
+-count=1` exited 1: caller capture missed
+`VM.pool->general-slot(generalSlot)` and
+`token.root->carrierWrap.nested->carrierLeaf.value->Value`; anonymous-actual
+identity missed
+`token.root->CarrierRoot.value->CarrierDirect.next->CarrierDirect.value->x->Value`.
+The same base already terminated the transformed alias-cycle control and found
+the root anonymous-slot and finite nested-alias controls.
+
+Two negative controls caught defects in the candidate architecture itself.
+`type Link[P any] = *P; type VM = Link[VM]` first crashed the scanner with
+`fatal error: stack overflow`, and a declaration-only alias guard then made the
+finite `Wrap[Wrap[Q]]` fixture miss
+`VM.pool->general-slot(generalSlot)`.  Canonicalization now pre-resolves each
+alias actual before activating its declaration cycle guard.  Finite nested
+aliases remain distinct, while a recursive alias body stops at the active
+declaration.  All four p3 groups now pass together.
+
+The owner exemption now recognizes only the closed nominal
+`surge/internal/vm.asyncOwnerRegion` contract used by D8: exact owner identity,
+`types.TypeID`, `storageMember`, stride, `Arena`, and
+`[]asyncPayloadSlot` lifecycle fields plus their exact dependent nominal and
+scalar types.  It has no callback-arity, selector-spelling, or existential
+layout heuristic.  Unknown and near-miss regions fail closed.  Negative
+controls also reject an extra callback on the exact-shaped owner and a
+package-level `uint32` shadow; the latter first failed with
+`shadowed primitive spoof hid token
+"VM.owners->general-slot(asyncPayloadSlot)"` before builtin resolution began
+respecting package declarations.  This internal recognition needs no public
+marker, ABI, language, or UX change.
+
+Current non-heavy evidence: the new focused groups and both updated legacy
+owner-region twins pass; `go test ./internal/carriergate -count=1` passes in
+2.669 s with the immutable census still `683` at digest
+`db5a0f475c32c2155aa82f3606800da0668392bd2e7a7aee917b742e76e58ee9`.
+`make lint` reports zero issues, and `git diff --check` and
+`./check_file_sizes.sh` pass.  The project file-size gate reports all five
+modified production files green at 277, 274, 191, 93, and 217 effective LOC.
+`go test -race ./internal/carriergate -count=1` passes in 32.730 s, and
+`go vet ./...` passes after the alias-guard repair.
+
+The first full pre-commit passed every Go package, including VM in 113.271 s,
+then lint rejected one constant `underlying` parameter; `namedUint8` removed
+it.  A second complete run was intentionally interrupted during VM when the
+independent review reported the nested-alias blocker, so it is not final gate
+evidence.  The final `GOFLAGS=-buildvcs=false ./scripts/pre-commit` rerun passed
+the complete package sweep (VM 98.993 s), lint with zero issues, strict C
+checks, and the file-size gate, then regenerated and staged `STATS.md`.  Final
+Sentrux reports scoped `internal/carriergate` quality 9031, 47 above the saved
+pre-edit lane baseline 8984; equality remains its only bottleneck.  The MCP
+session state no longer retained that old baseline, so the first final
+`session_end` honestly returned `No baseline saved`; a same-tree replacement
+session closed with `pass=true`, signal 9031 -> 9031, while the recorded
+pre-edit/final scans provide the real comparison.  That scope still has no
+rules file.  The `internal` scan reports 6455 with all seven rules green, and
+the root scan reports 6153 with all eight checked rules green.  Rule 19 still
+reserves heavy Runtime V2, sanitizer, Valgrind, and benchmark rows for the
+dedicated stand.

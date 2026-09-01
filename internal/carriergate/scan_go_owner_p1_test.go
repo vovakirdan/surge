@@ -76,31 +76,16 @@ type VM struct { owners map[uint64]*decoyRegion }
 		}
 	})
 
-	t.Run("canonical region is a boundary", func(t *testing.T) {
+	t.Run("canonical D8 region is a boundary", func(t *testing.T) {
 		root := buildFixtureTree(t, map[string][]byte{
-			"internal/vm/typed_region.go": []byte(`package vm
-type slotState uint8
-type valueLayout struct { size, align, stride uint64; flags uint32 }
-type valueOps struct {
-	layout valueLayout
-	moveInit func(uintptr, uintptr)
-	planCross func(uintptr, uint8) uint64
-}
-type ownerSlot struct { state slotState; generation uint64 }
-type ownerRegion struct {
-	descriptor valueOps
-	memory []byte
-	entries []ownerSlot
-}
-type VM struct { owners map[uint64]*ownerRegion }
-`),
+			"internal/vm/async_owner_region.go": []byte(canonicalD8OwnerFixture),
 		}, false)
 		findings, err := Scan(root)
 		if err != nil {
 			t.Fatalf("scan canonical region: %v", err)
 		}
-		if hasFinding(findings, categoryVMUniversalOwner, "VM.owners->general-slot(ownerSlot)") {
-			t.Fatalf("canonical typed owner region became a general pool: %+v", findings)
+		if hasFinding(findings, categoryVMUniversalOwner, "VM.owners->general-slot(asyncPayloadSlot)") {
+			t.Fatalf("canonical D8 typed owner region became a general pool: %+v", findings)
 		}
 	})
 }

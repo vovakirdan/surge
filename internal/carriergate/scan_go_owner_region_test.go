@@ -4,28 +4,12 @@ import "testing"
 
 func TestStructuralOwnerCensusKeepsControlAndOwnerRegionsDistinct(t *testing.T) {
 	root := buildFixtureTree(t, map[string][]byte{
-		"internal/vm/owner_regions.go": []byte(`package vm
+		"internal/vm/async_owner_region.go": []byte(canonicalD8OwnerFixture),
+		"internal/vm/control.go": []byte(`package vm
 type service interface { Run() }
-type slotState uint8
-type layoutSpec struct { size, align, stride uint64; flags uint32 }
-type valueOps struct {
-	layout layoutSpec
-	moveInit func(uintptr, uintptr)
-	planCross func(uintptr, uint8) uint64
-}
-type ownerSlot struct { state slotState; generation uint64; offset uint64 }
-type ownerRegion struct {
-	descriptor valueOps
-	backing []byte
-	slots []ownerSlot
-}
-type neutralWrapper struct { q *ownerRegion }
-type VM struct {
-	runtime service
-	owners map[uint64]*neutralWrapper
-}
 type controlCell struct { ready bool }
 type controlToken struct { cell *controlCell }
+type serviceToken struct { runtime service }
 `),
 		"internal/asyncrt/control_generic.go": []byte(`package asyncrt
 type orderedQueue[P comparable] struct { value P }

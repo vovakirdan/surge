@@ -28,12 +28,22 @@ type goOwnerType struct {
 
 type goOwnerVisitKey struct {
 	spec     *ast.TypeSpec
+	env      *goTypeEnv
 	bindings string
 }
 
-type goCarrierBinding struct {
-	path      []string
-	canonical string
+type goEffectiveType struct {
+	expr ast.Expr
+	env  *goTypeEnv
+}
+
+type goTypeEnv struct {
+	values map[string]goEffectiveType
+}
+
+type goTypeInstance struct {
+	decl *goOwnerType
+	env  *goTypeEnv
 }
 
 type goOwnerGraph struct {
@@ -116,12 +126,12 @@ func (graph *goOwnerGraph) scanFiles(files []*goOwnerFile) []rawFinding {
 
 func (graph *goOwnerGraph) scanStruct(file *goOwnerFile, spec *ast.TypeSpec, structType *ast.StructType) []rawFinding {
 	findings := make([]rawFinding, 0, len(structType.Fields.List))
-	bindings := graph.typeParamBindings(spec, nil, nil)
-	visitKey := graph.carrierVisitKey(spec, bindings)
+	env := graph.instantiateTypeParams(spec, nil, nil)
+	visitKey := graph.typeVisitKey(spec, env)
 	for _, field := range structType.Fields.List {
 		for _, fieldName := range ownerFieldNames(field) {
 			visiting := map[goOwnerVisitKey]bool{visitKey: true}
-			if carrierPath := graph.carrierFieldPath(field, bindings, visiting); len(carrierPath) != 0 {
+			if carrierPath := graph.carrierFieldPath(field, env, visiting); len(carrierPath) != 0 {
 				tokenName := spec.Name.Name + "." + fieldName + "->" + strings.Join(carrierPath, "->")
 				findings = append(findings, graph.finding(file, field, tokenName))
 			}
@@ -165,55 +175,61 @@ func (graph *goOwnerGraph) finding(file *goOwnerFile, field *ast.Field, tokenNam
 
 func (graph *goOwnerGraph) carrierFieldPath(
 	field *ast.Field,
-	bindings map[string]goCarrierBinding,
+	env *goTypeEnv,
 	visiting map[goOwnerVisitKey]bool,
 ) []string {
-	return graph.carrierPath(field.Type, bindings, visiting)
+	return graph.carrierPath(field.Type, env, visiting)
 }
 
 func (graph *goOwnerGraph) carrierPath(
 	expr ast.Expr,
-	bindings map[string]goCarrierBinding,
+	env *goTypeEnv,
 	visiting map[goOwnerVisitKey]bool,
 ) []string {
 	switch value := expr.(type) {
 	case *ast.Ident:
-		if bound, ok := bindings[value.Name]; ok {
-			return append([]string(nil), bound.path...)
+		if bound, owner, ok := env.lookup(value.Name); ok {
+			visitKey := graph.bindingVisitKey(owner, value.Name, bound)
+			if visiting[visitKey] {
+				return nil
+			}
+			visiting[visitKey] = true
+			defer delete(visiting, visitKey)
+			return graph.carrierPath(bound.expr, bound.env, visiting)
 		}
 		if graph.directCarrier(value.Name) {
 			return []string{graph.carrierTerminal(value.Name)}
 		}
 		for _, decl := range graph.types[value.Name] {
-			if found := graph.carrierFromType(decl, nil, bindings, visiting); len(found) != 0 {
+			if found := graph.carrierFromType(decl, nil, env, visiting); len(found) != 0 {
 				return found
 			}
 		}
 	case *ast.StarExpr:
-		return graph.carrierPath(value.X, bindings, visiting)
+		return graph.carrierPath(value.X, env, visiting)
 	case *ast.ArrayType:
-		return graph.carrierPath(value.Elt, bindings, visiting)
+		return graph.carrierPath(value.Elt, env, visiting)
 	case *ast.MapType:
-		if found := graph.carrierPath(value.Key, bindings, visiting); len(found) != 0 {
+		if found := graph.carrierPath(value.Key, env, visiting); len(found) != 0 {
 			return found
 		}
-		return graph.carrierPath(value.Value, bindings, visiting)
+		return graph.carrierPath(value.Value, env, visiting)
 	case *ast.ChanType:
-		return graph.carrierPath(value.Value, bindings, visiting)
+		return graph.carrierPath(value.Value, env, visiting)
 	case *ast.Ellipsis:
-		return graph.carrierPath(value.Elt, bindings, visiting)
+		return graph.carrierPath(value.Elt, env, visiting)
 	case *ast.ParenExpr:
-		return graph.carrierPath(value.X, bindings, visiting)
+		return graph.carrierPath(value.X, env, visiting)
 	case *ast.IndexExpr:
-		return graph.carrierFromInstance(value.X, []ast.Expr{value.Index}, bindings, visiting)
+		return graph.carrierFromInstance(value.X, []ast.Expr{value.Index}, env, visiting)
 	case *ast.IndexListExpr:
-		return graph.carrierFromInstance(value.X, value.Indices, bindings, visiting)
+		return graph.carrierFromInstance(value.X, value.Indices, env, visiting)
 	case *ast.InterfaceType:
-		if graph.emptyInterface(value, make(map[*ast.TypeSpec]bool)) {
+		if graph.emptyInterface(value, env, make(map[goOwnerVisitKey]bool)) {
 			return []string{"universal"}
 		}
 	case *ast.StructType:
-		return graph.carrierFromStruct(value, bindings, visiting)
+		return graph.carrierFromStruct(value, env, visiting)
 	}
 	return nil
 }
@@ -221,28 +237,25 @@ func (graph *goOwnerGraph) carrierPath(
 func (graph *goOwnerGraph) carrierFromInstance(
 	base ast.Expr,
 	args []ast.Expr,
-	bindings map[string]goCarrierBinding,
+	env *goTypeEnv,
 	visiting map[goOwnerVisitKey]bool,
 ) []string {
-	if ident, ok := base.(*ast.Ident); ok {
-		declarations := graph.types[ident.Name]
-		for _, decl := range declarations {
-			if found := graph.carrierFromType(decl, args, bindings, visiting); len(found) != 0 {
+	if instances, local := graph.localInstances(base, args, env); local {
+		for _, instance := range instances {
+			if found := graph.carrierFromTypeEnv(instance.decl, instance.env, visiting); len(found) != 0 {
 				return found
 			}
 		}
 		// A local generic declaration is not opaque. If its own graph has no
 		// carrier, its arguments are phantom for this path; inspecting them as
 		// storage would both defeat recursion guards and invent ownership.
-		if len(declarations) != 0 {
-			return nil
-		}
+		return nil
 	}
 	// A qualified generic belongs to another scanned package.  Its arguments
 	// are still visible here, so Value cannot hide merely by crossing that
 	// package boundary.
 	for _, arg := range args {
-		if found := graph.carrierPath(arg, bindings, visiting); len(found) != 0 {
+		if found := graph.carrierPath(arg, env, visiting); len(found) != 0 {
 			return found
 		}
 	}
@@ -252,23 +265,31 @@ func (graph *goOwnerGraph) carrierFromInstance(
 func (graph *goOwnerGraph) carrierFromType(
 	decl *goOwnerType,
 	args []ast.Expr,
-	outer map[string]goCarrierBinding,
+	outer *goTypeEnv,
 	visiting map[goOwnerVisitKey]bool,
 ) []string {
-	bindings := graph.typeParamBindings(decl.spec, args, outer)
-	visitKey := graph.carrierVisitKey(decl.spec, bindings)
+	env := graph.instantiateTypeParams(decl.spec, args, outer)
+	return graph.carrierFromTypeEnv(decl, env, visiting)
+}
+
+func (graph *goOwnerGraph) carrierFromTypeEnv(
+	decl *goOwnerType,
+	env *goTypeEnv,
+	visiting map[goOwnerVisitKey]bool,
+) []string {
+	visitKey := graph.typeVisitKey(decl.spec, env)
 	if visiting[visitKey] {
 		return nil
 	}
 	visiting[visitKey] = true
 	defer delete(visiting, visitKey)
 	if structType, ok := decl.spec.Type.(*ast.StructType); ok {
-		if found := graph.carrierFromStruct(structType, bindings, visiting); len(found) != 0 {
+		if found := graph.carrierFromStruct(structType, env, visiting); len(found) != 0 {
 			return append([]string{decl.name + "." + found[0]}, found[1:]...)
 		}
 		return nil
 	}
-	if found := graph.carrierPath(decl.spec.Type, bindings, visiting); len(found) != 0 {
+	if found := graph.carrierPath(decl.spec.Type, env, visiting); len(found) != 0 {
 		return found
 	}
 	return nil
@@ -276,11 +297,11 @@ func (graph *goOwnerGraph) carrierFromType(
 
 func (graph *goOwnerGraph) carrierFromStruct(
 	structType *ast.StructType,
-	bindings map[string]goCarrierBinding,
+	env *goTypeEnv,
 	visiting map[goOwnerVisitKey]bool,
 ) []string {
 	for _, field := range structType.Fields.List {
-		if found := graph.carrierFieldPath(field, bindings, visiting); len(found) != 0 {
+		if found := graph.carrierFieldPath(field, env, visiting); len(found) != 0 {
 			return append([]string{ownerFieldNames(field)[0]}, found...)
 		}
 	}

@@ -1,27 +1,6 @@
 package carriergate
 
-import (
-	"go/ast"
-)
-
-func (graph *goOwnerGraph) payloadConstraint(expr ast.Expr) string {
-	switch value := expr.(type) {
-	case *ast.Ident:
-		if value.Name == "Payload" || value.Name == "any" {
-			return value.Name
-		}
-		for _, decl := range graph.types[value.Name] {
-			if graph.emptyInterface(decl.spec.Type, make(map[*ast.TypeSpec]bool)) {
-				return value.Name
-			}
-		}
-	case *ast.InterfaceType:
-		if graph.emptyInterface(value, make(map[*ast.TypeSpec]bool)) {
-			return "interface{}"
-		}
-	}
-	return ""
-}
+import "go/ast"
 
 func (graph *goOwnerGraph) directCarrier(name string) bool {
 	return name == "any" || graph.root == "internal/vm" && name == "Value" ||
@@ -35,14 +14,18 @@ func (graph *goOwnerGraph) carrierTerminal(name string) string {
 	return "universal"
 }
 
-func (graph *goOwnerGraph) emptyInterface(expr ast.Expr, visiting map[*ast.TypeSpec]bool) bool {
+func (graph *goOwnerGraph) emptyInterface(
+	expr ast.Expr,
+	env *goTypeEnv,
+	visiting map[goOwnerVisitKey]bool,
+) bool {
 	switch value := expr.(type) {
 	case *ast.InterfaceType:
 		if value.Methods == nil || len(value.Methods.List) == 0 {
 			return true
 		}
 		for _, field := range value.Methods.List {
-			if len(field.Names) != 0 || !graph.emptyInterface(field.Type, visiting) {
+			if len(field.Names) != 0 || !graph.emptyInterface(field.Type, env, visiting) {
 				return false
 			}
 		}
@@ -51,19 +34,60 @@ func (graph *goOwnerGraph) emptyInterface(expr ast.Expr, visiting map[*ast.TypeS
 		if value.Name == "any" {
 			return true
 		}
-		for _, decl := range graph.types[value.Name] {
-			if visiting[decl.spec] {
+		if actual, owner, ok := env.lookup(value.Name); ok {
+			key := graph.bindingVisitKey(owner, value.Name, actual)
+			if visiting[key] {
+				return false
+			}
+			visiting[key] = true
+			found := graph.emptyInterface(actual.expr, actual.env, visiting)
+			delete(visiting, key)
+			return found
+		}
+		instances, _ := graph.localInstances(value, nil, env)
+		for _, instance := range instances {
+			key := graph.typeVisitKey(instance.decl.spec, instance.env)
+			if visiting[key] {
 				continue
 			}
-			visiting[decl.spec] = true
-			if graph.emptyInterface(decl.spec.Type, visiting) {
-				delete(visiting, decl.spec)
+			visiting[key] = true
+			if graph.emptyInterface(instance.decl.spec.Type, instance.env, visiting) {
+				delete(visiting, key)
 				return true
 			}
-			delete(visiting, decl.spec)
+			delete(visiting, key)
 		}
 	case *ast.ParenExpr:
-		return graph.emptyInterface(value.X, visiting)
+		return graph.emptyInterface(value.X, env, visiting)
+	case *ast.IndexExpr:
+		return graph.emptyInterfaceInstance(value.X, []ast.Expr{value.Index}, env, visiting)
+	case *ast.IndexListExpr:
+		return graph.emptyInterfaceInstance(value.X, value.Indices, env, visiting)
+	}
+	return false
+}
+
+func (graph *goOwnerGraph) emptyInterfaceInstance(
+	base ast.Expr,
+	args []ast.Expr,
+	env *goTypeEnv,
+	visiting map[goOwnerVisitKey]bool,
+) bool {
+	instances, local := graph.localInstances(base, args, env)
+	if !local {
+		return false
+	}
+	for _, instance := range instances {
+		key := graph.typeVisitKey(instance.decl.spec, instance.env)
+		if visiting[key] {
+			continue
+		}
+		visiting[key] = true
+		found := graph.emptyInterface(instance.decl.spec.Type, instance.env, visiting)
+		delete(visiting, key)
+		if found {
+			return true
+		}
 	}
 	return false
 }
@@ -87,72 +111,63 @@ func ownerFieldNames(field *ast.Field) []string {
 	return []string{"embedded"}
 }
 
-func cloneOwnerBindings(source map[string]goCarrierBinding) map[string]goCarrierBinding {
-	cloned := make(map[string]goCarrierBinding, len(source))
-	for name, binding := range source {
-		binding.path = append([]string(nil), binding.path...)
-		cloned[name] = binding
-	}
-	return cloned
-}
-
 // generalSlot follows every neutral wrapper after it crosses a collection. It
-// stops only at a region whose type proves all three owner obligations: exact
-// layout metadata, backing storage, and lifecycle slots.  Names are not owner
-// evidence; without the complete shape, a reachable lifecycle slot belongs to
-// a root general pool and is a finding.
+// exempts only the closed nominal D8 typed-owner contract. Other type or field
+// names are not owner evidence: a reachable lifecycle slot belongs to a root
+// general pool and is a finding.
 func (graph *goOwnerGraph) generalSlot(
 	expr ast.Expr,
 	crossedCollection bool,
 	visiting map[goOwnerVisitKey]bool,
+	env *goTypeEnv,
 ) string {
 	if visiting == nil {
 		visiting = make(map[goOwnerVisitKey]bool)
 	}
-	return graph.generalSlotBound(expr, crossedCollection, visiting, nil)
+	return graph.generalSlotBound(expr, crossedCollection, visiting, env)
 }
 
 func (graph *goOwnerGraph) generalSlotBound(
 	expr ast.Expr,
 	crossedCollection bool,
 	visiting map[goOwnerVisitKey]bool,
-	bindings map[string]ast.Expr,
+	env *goTypeEnv,
 ) string {
 	switch value := expr.(type) {
 	case *ast.StarExpr:
-		return graph.generalSlotBound(value.X, crossedCollection, visiting, bindings)
+		return graph.generalSlotBound(value.X, crossedCollection, visiting, env)
 	case *ast.ArrayType:
-		return graph.generalSlotBound(value.Elt, true, visiting, bindings)
+		return graph.generalSlotBound(value.Elt, true, visiting, env)
 	case *ast.MapType:
-		if found := graph.generalSlotBound(value.Key, true, visiting, bindings); found != "" {
+		if found := graph.generalSlotBound(value.Key, true, visiting, env); found != "" {
 			return found
 		}
-		return graph.generalSlotBound(value.Value, true, visiting, bindings)
+		return graph.generalSlotBound(value.Value, true, visiting, env)
 	case *ast.ChanType:
-		return graph.generalSlotBound(value.Value, true, visiting, bindings)
+		return graph.generalSlotBound(value.Value, true, visiting, env)
 	case *ast.ParenExpr:
-		return graph.generalSlotBound(value.X, crossedCollection, visiting, bindings)
+		return graph.generalSlotBound(value.X, crossedCollection, visiting, env)
 	case *ast.Ident:
-		if actual, ok := bindings[value.Name]; ok {
-			bindingKey := goOwnerVisitKey{bindings: "$" + value.Name + "=" + graph.canonicalSlotType(actual, bindings)}
+		if actual, owner, ok := env.lookup(value.Name); ok {
+			bindingKey := graph.bindingVisitKey(owner, value.Name, actual)
 			if visiting[bindingKey] {
 				return ""
 			}
 			visiting[bindingKey] = true
 			defer delete(visiting, bindingKey)
-			return graph.generalSlotBound(actual, crossedCollection, visiting, bindings)
+			return graph.generalSlotBound(actual.expr, crossedCollection, visiting, actual.env)
 		}
-		return graph.generalSlotInstance(value, nil, crossedCollection, visiting, bindings)
+		return graph.generalSlotInstance(value, nil, crossedCollection, visiting, env)
 	case *ast.IndexExpr:
-		return graph.generalSlotInstance(value.X, []ast.Expr{value.Index}, crossedCollection, visiting, bindings)
+		return graph.generalSlotInstance(value.X, []ast.Expr{value.Index}, crossedCollection, visiting, env)
 	case *ast.IndexListExpr:
-		return graph.generalSlotInstance(value.X, value.Indices, crossedCollection, visiting, bindings)
+		return graph.generalSlotInstance(value.X, value.Indices, crossedCollection, visiting, env)
 	case *ast.StructType:
 		if crossedCollection && lifecycleHeader(value) {
 			return "anonymous"
 		}
 		for _, field := range value.Fields.List {
-			if found := graph.generalSlotBound(field.Type, crossedCollection, visiting, bindings); found != "" {
+			if found := graph.generalSlotBound(field.Type, crossedCollection, visiting, env); found != "" {
 				return found
 			}
 		}
@@ -165,35 +180,40 @@ func (graph *goOwnerGraph) generalSlotInstance(
 	args []ast.Expr,
 	crossedCollection bool,
 	visiting map[goOwnerVisitKey]bool,
-	bindings map[string]ast.Expr,
+	env *goTypeEnv,
 ) string {
-	ident, local := base.(*ast.Ident)
-	if local {
-		if actual, ok := bindings[ident.Name]; ok && len(args) == 0 {
-			bindingKey := goOwnerVisitKey{bindings: "$" + ident.Name + "=" + graph.canonicalSlotType(actual, bindings)}
+	if ident, ok := ownerBaseIdent(base); ok && len(args) == 0 {
+		if actual, owner, bound := env.lookup(ident.Name); bound {
+			bindingKey := graph.bindingVisitKey(owner, ident.Name, actual)
 			if visiting[bindingKey] {
 				return ""
 			}
 			visiting[bindingKey] = true
 			defer delete(visiting, bindingKey)
-			return graph.generalSlotBound(actual, crossedCollection, visiting, bindings)
+			return graph.generalSlotBound(actual.expr, crossedCollection, visiting, actual.env)
 		}
-		for _, decl := range graph.types[ident.Name] {
-			instanceBindings := slotTypeBindings(decl.spec, args, bindings)
-			visitKey := graph.slotVisitKey(decl.spec, instanceBindings)
+	}
+	if instances, local := graph.localInstances(base, args, env); local {
+		for _, instance := range instances {
+			visitKey := graph.typeVisitKey(instance.decl.spec, instance.env)
 			if visiting[visitKey] {
 				continue
 			}
 			visiting[visitKey] = true
-			if crossedCollection && graph.isTypedOwnerRegion(decl) {
+			if crossedCollection && graph.isTypedOwnerRegion(instance.decl, instance.env) {
 				delete(visiting, visitKey)
 				continue
 			}
-			if crossedCollection && graph.isLifecycleSlot(decl) {
+			if crossedCollection && graph.isLifecycleSlot(instance.decl) {
 				delete(visiting, visitKey)
-				return decl.name
+				return instance.decl.name
 			}
-			if found := graph.generalSlotBound(decl.spec.Type, crossedCollection, visiting, instanceBindings); found != "" {
+			if found := graph.generalSlotBound(
+				instance.decl.spec.Type,
+				crossedCollection,
+				visiting,
+				instance.env,
+			); found != "" {
 				delete(visiting, visitKey)
 				return found
 			}
@@ -204,36 +224,9 @@ func (graph *goOwnerGraph) generalSlotInstance(
 	// A qualified generic is opaque to this package. Its arguments remain
 	// visible, so a lifecycle slot cannot hide behind the package boundary.
 	for _, arg := range args {
-		if found := graph.generalSlotBound(arg, crossedCollection, visiting, bindings); found != "" {
+		if found := graph.generalSlotBound(arg, crossedCollection, visiting, env); found != "" {
 			return found
 		}
 	}
 	return ""
-}
-
-func slotTypeBindings(spec *ast.TypeSpec, args []ast.Expr, outer map[string]ast.Expr) map[string]ast.Expr {
-	bindings := make(map[string]ast.Expr, len(outer))
-	for name, actual := range outer {
-		bindings[name] = actual
-	}
-	if spec.TypeParams == nil {
-		return bindings
-	}
-	argIndex := 0
-	for _, field := range spec.TypeParams.List {
-		for _, name := range field.Names {
-			delete(bindings, name.Name)
-			if argIndex < len(args) {
-				actual := args[argIndex]
-				if ident, ok := actual.(*ast.Ident); ok {
-					if resolved, exists := outer[ident.Name]; exists {
-						actual = resolved
-					}
-				}
-				bindings[name.Name] = actual
-			}
-			argIndex++
-		}
-	}
-	return bindings
 }

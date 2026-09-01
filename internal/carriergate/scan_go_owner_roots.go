@@ -9,13 +9,18 @@ func (graph *goOwnerGraph) scanRootTypes() []rawFinding {
 	}
 	findings := make([]rawFinding, 0)
 	for _, rootDecl := range graph.types[rootName] {
-		file, structType := graph.rootStruct(rootDecl.spec.Type, rootDecl.file, make(map[*ast.TypeSpec]bool))
+		rootEnv := graph.instantiateTypeParams(rootDecl.spec, nil, nil)
+		file, structType, env := graph.rootStruct(
+			goEffectiveType{expr: rootDecl.spec.Type, env: rootEnv},
+			rootDecl.file,
+			make(map[goOwnerVisitKey]bool),
+		)
 		if structType == nil {
 			continue
 		}
 		for _, field := range structType.Fields.List {
 			for _, fieldName := range ownerFieldNames(field) {
-				slotName := graph.generalSlot(field.Type, false, nil)
+				slotName := graph.generalSlot(field.Type, false, nil, env)
 				if slotName == "" {
 					continue
 				}
@@ -39,33 +44,55 @@ func (graph *goOwnerGraph) rootTypeName() string {
 }
 
 func (graph *goOwnerGraph) rootStruct(
-	expr ast.Expr,
+	actual goEffectiveType,
 	file *goOwnerFile,
-	visiting map[*ast.TypeSpec]bool,
-) (*goOwnerFile, *ast.StructType) {
-	switch value := expr.(type) {
+	visiting map[goOwnerVisitKey]bool,
+) (*goOwnerFile, *ast.StructType, *goTypeEnv) {
+	switch value := actual.expr.(type) {
 	case *ast.StructType:
-		return file, value
+		return file, value, actual.env
 	case *ast.Ident:
-		for _, decl := range graph.types[value.Name] {
-			if visiting[decl.spec] {
-				continue
-			}
-			visiting[decl.spec] = true
-			resolvedFile, structType := graph.rootStruct(decl.spec.Type, decl.file, visiting)
-			delete(visiting, decl.spec)
-			if structType != nil {
-				return resolvedFile, structType
-			}
+		if bound, _, ok := actual.env.lookup(value.Name); ok {
+			return graph.rootStruct(bound, file, visiting)
 		}
+		return graph.rootStructInstances(value, nil, actual.env, visiting)
 	case *ast.StarExpr:
-		return graph.rootStruct(value.X, file, visiting)
+		return graph.rootStruct(goEffectiveType{expr: value.X, env: actual.env}, file, visiting)
 	case *ast.ParenExpr:
-		return graph.rootStruct(value.X, file, visiting)
+		return graph.rootStruct(goEffectiveType{expr: value.X, env: actual.env}, file, visiting)
 	case *ast.IndexExpr:
-		return graph.rootStruct(value.X, file, visiting)
+		return graph.rootStructInstances(value.X, []ast.Expr{value.Index}, actual.env, visiting)
 	case *ast.IndexListExpr:
-		return graph.rootStruct(value.X, file, visiting)
+		return graph.rootStructInstances(value.X, value.Indices, actual.env, visiting)
 	}
-	return nil, nil
+	return nil, nil, nil
+}
+
+func (graph *goOwnerGraph) rootStructInstances(
+	base ast.Expr,
+	args []ast.Expr,
+	env *goTypeEnv,
+	visiting map[goOwnerVisitKey]bool,
+) (*goOwnerFile, *ast.StructType, *goTypeEnv) {
+	instances, local := graph.localInstances(base, args, env)
+	if !local {
+		return nil, nil, nil
+	}
+	for _, instance := range instances {
+		key := graph.typeVisitKey(instance.decl.spec, instance.env)
+		if visiting[key] {
+			continue
+		}
+		visiting[key] = true
+		file, structType, resolvedEnv := graph.rootStruct(
+			goEffectiveType{expr: instance.decl.spec.Type, env: instance.env},
+			instance.decl.file,
+			visiting,
+		)
+		delete(visiting, key)
+		if structType != nil {
+			return file, structType, resolvedEnv
+		}
+	}
+	return nil, nil, nil
 }
