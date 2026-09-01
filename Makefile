@@ -100,7 +100,7 @@ sec:
 # later. See RV2-DEBT-220 for the measurements.
 test:
 	@echo ">> Running tests"
-	SURGE_SKIP_TIMEOUT_TESTS=$(SURGE_SKIP_TIMEOUT_TESTS) $(GO) test ./... --timeout 300s
+	SURGE_STDLIB="$(CURDIR)" SURGE_SKIP_TIMEOUT_TESTS=$(SURGE_SKIP_TIMEOUT_TESTS) $(GO) test ./... --timeout 300s
 
 # --committed is not a default repeated here, it is the gate's contract: a gate
 # must answer the same thing for the same commits no matter what is lying in
