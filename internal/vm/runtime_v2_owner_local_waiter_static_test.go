@@ -120,6 +120,13 @@ void panic_msg(const char* msg) {
     abort();
 }
 
+// This waiter-only stand never exercises allocation refusal. Keep the fatal
+// route link-complete without pulling the process-exiting reporter into a
+// fixture whose only observable contract is waiter ownership and routing.
+void fatal_oom_msg(const char* msg) {
+    panic_msg(msg);
+}
+
 int rt_async_debug_enabled(void) {
     return 0;
 }

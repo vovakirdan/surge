@@ -18,6 +18,37 @@ func TestHostedRuntimeV2AggregateHasValgrindBeforeGate(t *testing.T) {
 	}
 }
 
+func TestHostedGoMatrixInstallsValgrindBeforeBackendTests(t *testing.T) {
+	job, count := workflowJobBody(readHostedCI(t), "test-go")
+	if count != 1 {
+		t.Fatalf("test-go: job definitions = %d, want 1", count)
+	}
+	lines := workflowExecutableLines(job)
+	firstTest := len(lines)
+	testCount := 0
+	for index, line := range lines {
+		if line != "go test ./..." {
+			continue
+		}
+		if testCount == 0 {
+			firstTest = index
+		}
+		testCount++
+	}
+	if testCount != 2 {
+		t.Fatalf("test-go: backend test commands = %d, want 2", testCount)
+	}
+	installCount := 0
+	for _, line := range lines[:firstTest] {
+		if shellLineInstallsPackage(line, "valgrind") {
+			installCount++
+		}
+	}
+	if installCount != 1 {
+		t.Fatalf("test-go: qualifying valgrind install lines before tests = %d, want 1", installCount)
+	}
+}
+
 func TestHostedRuntimeV2AggregateValgrindContractRejectsMissingOrLateInstall(t *testing.T) {
 	valid := `
       - run: sudo apt-get install -y clang valgrind
