@@ -108,7 +108,7 @@ func (graph *goOwnerGraph) scanStruct(file *goOwnerFile, spec *ast.TypeSpec, str
 	for _, field := range structType.Fields.List {
 		for _, fieldName := range ownerFieldNames(field) {
 			visiting := map[string]bool{spec.Name.Name: true}
-			if carrierPath := graph.carrierFieldPath(field, bindings, visiting, 1); len(carrierPath) != 0 {
+			if carrierPath := graph.carrierFieldPath(field, bindings, visiting); len(carrierPath) != 0 {
 				tokenName := spec.Name.Name + "." + fieldName + "->" + strings.Join(carrierPath, "->")
 				findings = append(findings, graph.finding(file, field, tokenName))
 			}
@@ -156,76 +156,80 @@ func (graph *goOwnerGraph) finding(file *goOwnerFile, field *ast.Field, tokenNam
 	}
 }
 
-func (graph *goOwnerGraph) carrierFieldPath(field *ast.Field, bindings map[string][]string, visiting map[string]bool, namedBudget int) []string {
-	if pointer, ok := directPointer(field.Type); ok && !graph.ownerPointer(field, pointer) {
-		return nil
-	}
-	return graph.carrierPath(field.Type, bindings, visiting, namedBudget)
+func (graph *goOwnerGraph) carrierFieldPath(field *ast.Field, bindings map[string][]string, visiting map[string]bool) []string {
+	return graph.carrierPath(field.Type, bindings, visiting)
 }
 
-func (graph *goOwnerGraph) carrierPath(expr ast.Expr, bindings map[string][]string, visiting map[string]bool, namedBudget int) []string {
+func (graph *goOwnerGraph) carrierPath(expr ast.Expr, bindings map[string][]string, visiting map[string]bool) []string {
 	switch value := expr.(type) {
 	case *ast.Ident:
-		if bound := bindings[value.Name]; len(bound) != 0 {
+		if bound, ok := bindings[value.Name]; ok {
 			return append([]string(nil), bound...)
 		}
 		if graph.directCarrier(value.Name) {
 			return []string{graph.carrierTerminal(value.Name)}
 		}
 		for _, decl := range graph.types[value.Name] {
-			if found := graph.carrierFromType(decl, nil, bindings, visiting, namedBudget); len(found) != 0 {
+			if found := graph.carrierFromType(decl, nil, bindings, visiting); len(found) != 0 {
 				return found
 			}
 		}
 	case *ast.StarExpr:
-		return graph.carrierPath(value.X, bindings, visiting, namedBudget)
+		return graph.carrierPath(value.X, bindings, visiting)
 	case *ast.ArrayType:
-		return graph.carrierPath(value.Elt, bindings, visiting, namedBudget)
+		return graph.carrierPath(value.Elt, bindings, visiting)
 	case *ast.MapType:
-		if found := graph.carrierPath(value.Key, bindings, visiting, namedBudget); len(found) != 0 {
+		if found := graph.carrierPath(value.Key, bindings, visiting); len(found) != 0 {
 			return found
 		}
-		return graph.carrierPath(value.Value, bindings, visiting, namedBudget)
+		return graph.carrierPath(value.Value, bindings, visiting)
 	case *ast.ChanType:
-		return graph.carrierPath(value.Value, bindings, visiting, namedBudget)
+		return graph.carrierPath(value.Value, bindings, visiting)
 	case *ast.Ellipsis:
-		return graph.carrierPath(value.Elt, bindings, visiting, namedBudget)
+		return graph.carrierPath(value.Elt, bindings, visiting)
 	case *ast.ParenExpr:
-		return graph.carrierPath(value.X, bindings, visiting, namedBudget)
+		return graph.carrierPath(value.X, bindings, visiting)
 	case *ast.IndexExpr:
-		return graph.carrierFromInstance(value.X, []ast.Expr{value.Index}, bindings, visiting, namedBudget)
+		return graph.carrierFromInstance(value.X, []ast.Expr{value.Index}, bindings, visiting)
 	case *ast.IndexListExpr:
-		return graph.carrierFromInstance(value.X, value.Indices, bindings, visiting, namedBudget)
+		return graph.carrierFromInstance(value.X, value.Indices, bindings, visiting)
 	case *ast.InterfaceType:
 		if value.Methods == nil || len(value.Methods.List) == 0 {
 			return []string{"universal"}
 		}
 	case *ast.StructType:
-		return graph.carrierFromStruct(value, bindings, visiting, namedBudget)
+		return graph.carrierFromStruct(value, bindings, visiting)
 	}
 	return nil
 }
 
-func (graph *goOwnerGraph) carrierFromInstance(base ast.Expr, args []ast.Expr, bindings map[string][]string, visiting map[string]bool, namedBudget int) []string {
+func (graph *goOwnerGraph) carrierFromInstance(base ast.Expr, args []ast.Expr, bindings map[string][]string, visiting map[string]bool) []string {
 	if ident, ok := base.(*ast.Ident); ok {
-		for _, decl := range graph.types[ident.Name] {
-			if found := graph.carrierFromType(decl, args, bindings, visiting, namedBudget); len(found) != 0 {
+		declarations := graph.types[ident.Name]
+		for _, decl := range declarations {
+			if found := graph.carrierFromType(decl, args, bindings, visiting); len(found) != 0 {
 				return found
 			}
+		}
+		// A local generic declaration is not opaque. If its own graph has no
+		// carrier, its arguments are phantom for this path; inspecting them as
+		// storage would both defeat recursion guards and invent ownership.
+		if len(declarations) != 0 {
+			return nil
 		}
 	}
 	// A qualified generic belongs to another scanned package.  Its arguments
 	// are still visible here, so Value cannot hide merely by crossing that
 	// package boundary.
 	for _, arg := range args {
-		if found := graph.carrierPath(arg, bindings, visiting, namedBudget); len(found) != 0 {
+		if found := graph.carrierPath(arg, bindings, visiting); len(found) != 0 {
 			return found
 		}
 	}
 	return nil
 }
 
-func (graph *goOwnerGraph) carrierFromType(decl *goOwnerType, args []ast.Expr, outer map[string][]string, visiting map[string]bool, namedBudget int) []string {
+func (graph *goOwnerGraph) carrierFromType(decl *goOwnerType, args []ast.Expr, outer map[string][]string, visiting map[string]bool) []string {
 	if visiting[decl.name] {
 		return nil
 	}
@@ -233,23 +237,20 @@ func (graph *goOwnerGraph) carrierFromType(decl *goOwnerType, args []ast.Expr, o
 	defer delete(visiting, decl.name)
 	bindings := graph.typeParamBindings(decl.spec, args, outer)
 	if structType, ok := decl.spec.Type.(*ast.StructType); ok {
-		if namedBudget == 0 {
-			return nil
-		}
-		if found := graph.carrierFromStruct(structType, bindings, visiting, namedBudget-1); len(found) != 0 {
+		if found := graph.carrierFromStruct(structType, bindings, visiting); len(found) != 0 {
 			return append([]string{decl.name + "." + found[0]}, found[1:]...)
 		}
 		return nil
 	}
-	if found := graph.carrierPath(decl.spec.Type, bindings, visiting, namedBudget); len(found) != 0 {
+	if found := graph.carrierPath(decl.spec.Type, bindings, visiting); len(found) != 0 {
 		return found
 	}
 	return nil
 }
 
-func (graph *goOwnerGraph) carrierFromStruct(structType *ast.StructType, bindings map[string][]string, visiting map[string]bool, namedBudget int) []string {
+func (graph *goOwnerGraph) carrierFromStruct(structType *ast.StructType, bindings map[string][]string, visiting map[string]bool) []string {
 	for _, field := range structType.Fields.List {
-		if found := graph.carrierFieldPath(field, bindings, visiting, namedBudget); len(found) != 0 {
+		if found := graph.carrierFieldPath(field, bindings, visiting); len(found) != 0 {
 			return append([]string{ownerFieldNames(field)[0]}, found...)
 		}
 	}
@@ -266,11 +267,11 @@ func (graph *goOwnerGraph) typeParamBindings(spec *ast.TypeSpec, args []ast.Expr
 		for _, name := range field.Names {
 			delete(bindings, name.Name)
 			if argIndex < len(args) {
-				if actual := graph.carrierPath(args[argIndex], outer, make(map[string]bool), 1); len(actual) != 0 {
-					bindings[name.Name] = actual
-				}
-			}
-			if len(bindings[name.Name]) == 0 {
+				// Presence is significant even when the concrete argument is not
+				// a carrier: it must override the generic constraint rather than
+				// falling back to (for example) `any`.
+				bindings[name.Name] = graph.carrierPath(args[argIndex], outer, make(map[string]bool))
+			} else {
 				if label := graph.payloadConstraint(field.Type); label != "" {
 					bindings[name.Name] = []string{"universal"}
 				}

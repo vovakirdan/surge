@@ -2,8 +2,8 @@
   "version": 1,
   "base_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd",
   "digest_algorithm": "sha256-length-prefixed-v1",
-  "baseline_count": 659,
-  "baseline_digest": "92969b43d82783481c2052b220892b3696e30190e528cb2b92e5be20bba24a3e",
+  "baseline_count": 683,
+  "baseline_digest": "db5a0f475c32c2155aa82f3606800da0668392bd2e7a7aee917b742e76e58ee9",
   "scope": [
     {
       "root": "internal/asyncrt",
@@ -4358,8 +4358,8 @@
     {
       "id": "vm-async-any-carrier",
       "retire_to_zero": true,
-      "baseline_count": 34,
-      "baseline_digest": "a86a9f8882cab731b269715668b233da49249341e10afce077a49f0168f3dd7c",
+      "baseline_count": 35,
+      "baseline_digest": "a80f328d7cbe71cfdada38c3ade9f23c87c91048a8afa5e6b22feaf73a6f62fc",
       "legacy": [
         {
           "category": "vm-async-any-carrier",
@@ -4555,6 +4555,13 @@
           "path": "internal/asyncrt/channel.go",
           "token": "chanWaiter.value-\u003euniversal",
           "evidence": "structural owner field chanWaiter.value",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/clock.go",
+          "token": "VirtualClock.ex-\u003eExecutor.tasks-\u003eTask.State-\u003euniversal",
+          "evidence": "structural owner field VirtualClock.ex",
           "ordinal": 1
         },
         {
@@ -5161,9 +5168,23 @@
     {
       "id": "vm-universal-owner",
       "retire_to_zero": true,
-      "baseline_count": 35,
-      "baseline_digest": "89c7f14fd5de73fa68f34ca66ddafe08ed96be29f82766da7bb4d648bd8dea35",
+      "baseline_count": 58,
+      "baseline_digest": "82dd3d8562813ecc83d38979b1c4946601ef6d42e0f2c57e669444e97b03fcb8",
       "legacy": [
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/array_utils.go",
+          "token": "arrayView.baseObj-\u003eObject.Arr-\u003eValue",
+          "evidence": "structural owner field arrayView.baseObj",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/async_runtime.go",
+          "token": "asyncExit.pins-\u003etaskStatePins.locals-\u003epinnedLocal.frame-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+          "evidence": "structural owner field asyncExit.pins",
+          "ordinal": 1
+        },
         {
           "category": "vm-universal-owner",
           "path": "internal/vm/async_runtime.go",
@@ -5195,6 +5216,13 @@
         {
           "category": "vm-universal-owner",
           "path": "internal/vm/async_runtime.go",
+          "token": "userTaskState.pins-\u003etaskStatePins.locals-\u003epinnedLocal.frame-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+          "evidence": "structural owner field userTaskState.pins",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/async_runtime.go",
           "token": "userTaskState.state-\u003eValue",
           "evidence": "structural owner field userTaskState.state",
           "ordinal": 1
@@ -5211,6 +5239,27 @@
           "path": "internal/vm/async_runtime.go",
           "token": "value Value",
           "evidence": "value   Value",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/debugger.go",
+          "token": "Debugger.fmt-\u003eTracer.vm-\u003eVM.Stack-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+          "evidence": "structural owner field Debugger.fmt",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/debugger.go",
+          "token": "Debugger.inspector-\u003eInspector.vm-\u003eVM.Stack-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+          "evidence": "structural owner field Debugger.inspector",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/debugger.go",
+          "token": "Debugger.vm-\u003eVM.Stack-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+          "evidence": "structural owner field Debugger.vm",
           "ordinal": 1
         },
         {
@@ -5239,6 +5288,27 @@
           "path": "internal/vm/heap.go",
           "token": "Heap.objs-\u003eObject.Arr-\u003eValue",
           "evidence": "structural owner field Heap.objs",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/heap.go",
+          "token": "Heap.vm-\u003eVM.Stack-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+          "evidence": "structural owner field Heap.vm",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/inspect.go",
+          "token": "Inspector.fmt-\u003eTracer.vm-\u003eVM.Stack-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+          "evidence": "structural owner field Inspector.fmt",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/inspect.go",
+          "token": "Inspector.vm-\u003eVM.Stack-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+          "evidence": "structural owner field Inspector.vm",
           "ordinal": 1
         },
         {
@@ -5348,9 +5418,65 @@
         },
         {
           "category": "vm-universal-owner",
+          "path": "internal/vm/panic.go",
+          "token": "errorBuilder.vm-\u003eVM.Stack-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+          "evidence": "structural owner field errorBuilder.vm",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/ref.go",
+          "token": "Location.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+          "evidence": "structural owner field Location.FrameRef",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/runtime.go",
+          "token": "ReplayRuntime.vm-\u003eVM.Stack-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+          "evidence": "structural owner field ReplayRuntime.vm",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
           "path": "internal/vm/tag.go",
           "token": "make([]Value)",
           "evidence": "args := make([]Value, len(call.Args))",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/task_state_pins.go",
+          "token": "pinnedLocal.frame-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+          "evidence": "structural owner field pinnedLocal.frame",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/task_state_pins.go",
+          "token": "taskStatePinCollector.pins-\u003etaskStatePins.locals-\u003epinnedLocal.frame-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+          "evidence": "structural owner field taskStatePinCollector.pins",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/task_state_pins.go",
+          "token": "taskStatePinCollector.visitedLocals-\u003epinnedLocal.frame-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+          "evidence": "structural owner field taskStatePinCollector.visitedLocals",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/task_state_pins.go",
+          "token": "taskStatePinCollector.vm-\u003eVM.Stack-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+          "evidence": "structural owner field taskStatePinCollector.vm",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/task_state_pins.go",
+          "token": "taskStatePins.locals-\u003epinnedLocal.frame-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+          "evidence": "structural owner field taskStatePins.locals",
           "ordinal": 1
         },
         {
@@ -5362,9 +5488,44 @@
         },
         {
           "category": "vm-universal-owner",
+          "path": "internal/vm/trace.go",
+          "token": "Tracer.vm-\u003eVM.Stack-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+          "evidence": "structural owner field Tracer.vm",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/typelayout.go",
+          "token": "layoutCache.vm-\u003eVM.Stack-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+          "evidence": "structural owner field layoutCache.vm",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/value.go",
+          "token": "Value.Loc-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+          "evidence": "structural owner field Value.Loc",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
           "path": "internal/vm/vm.go",
           "token": "VM.Globals-\u003eLocalSlot.V-\u003eValue",
           "evidence": "structural owner field VM.Globals",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/vm.go",
+          "token": "VM.Heap-\u003eHeap.objs-\u003eObject.Arr-\u003eValue",
+          "evidence": "structural owner field VM.Heap",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/vm.go",
+          "token": "VM.Stack-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+          "evidence": "structural owner field VM.Stack",
           "ordinal": 1
         },
         {
@@ -5379,6 +5540,13 @@
           "path": "internal/vm/vm.go",
           "token": "VM.captureReturn-\u003eValue",
           "evidence": "structural owner field VM.captureReturn",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/vm_dispatch_async_types.go",
+          "token": "pollExecResult.storeLoc-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+          "evidence": "structural owner field pollExecResult.storeLoc",
           "ordinal": 1
         },
         {
@@ -5415,6 +5583,171 @@
         {
           "finding": {
             "category": "vm-universal-owner",
+            "path": "internal/vm/array_utils.go",
+            "token": "arrayView.baseRef-\u003eStorageRef.Arena-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field arrayView.baseRef",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/array_utils.go",
+            "token": "arrayView.heapObj-\u003eObject.ArrElems-\u003eStorageRef.Arena-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field arrayView.heapObj",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/call_contract.go",
+            "token": "resultDest.Frame-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field resultDest.Frame",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/call_contract.go",
+            "token": "resultProtocol.Dest-\u003eresultDest.Frame-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field resultProtocol.Dest",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/heap.go",
+            "token": "Heap.objs-\u003eObject.ArrElems-\u003eStorageRef.Arena-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field Heap.objs",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/object.go",
+            "token": "Object.ArrElems-\u003eStorageRef.Arena-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field Object.ArrElems",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/object.go",
+            "token": "Object.ArrSliceStorage-\u003eStorageRef.Arena-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field Object.ArrSliceStorage",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/object.go",
+            "token": "Object.MapKeys-\u003eStorageRef.Arena-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field Object.MapKeys",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/object.go",
+            "token": "Object.MapVals-\u003eStorageRef.Arena-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field Object.MapVals",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/object.go",
+            "token": "Object.storage-\u003escratch.arena-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field Object.storage",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/storage.go",
+            "token": "Arena.refIndex-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field Arena.refIndex",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/storage.go",
+            "token": "Arena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field Arena.refs",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/storage.go",
+            "token": "StorageRef.Arena-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field StorageRef.Arena",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/storage_scratch.go",
+            "token": "scratch.arena-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field scratch.arena",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/tag.go",
+            "token": "tagScrutinee.storage-\u003eStorageRef.Arena-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field tagScrutinee.storage",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
             "path": "internal/vm/tag.go",
             "token": "tagScrutinee.value-\u003eValue",
             "evidence": "structural owner field tagScrutinee.value",
@@ -5422,6 +5755,83 @@
           },
           "retired_by": "typed VM temporary owner slot migration",
           "tracked_as": "RV2-DEBT-316"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/task_state_pins.go",
+            "token": "storageExtent.arena-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field storageExtent.arena",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/task_state_pins.go",
+            "token": "taskStatePinCollector.visitedArenas-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field taskStatePinCollector.visitedArenas",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/task_state_pins.go",
+            "token": "taskStatePinCollector.visitedExtents-\u003estorageExtent.arena-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field taskStatePinCollector.visitedExtents",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/task_state_pins.go",
+            "token": "taskStatePins.arenas-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field taskStatePins.arenas",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/vm.go",
+            "token": "VM.Async-\u003eValue",
+            "evidence": "structural owner field VM.Async",
+            "ordinal": 1
+          },
+          "retired_by": "wave-d-d8-vm-exact-async-owner",
+          "tracked_as": "RV2-DEBT-151"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/vm.go",
+            "token": "VM.Heap-\u003eHeap.objs-\u003eObject.ArrElems-\u003eStorageRef.Arena-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field VM.Heap",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/vm.go",
+            "token": "VM.globalArena-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field VM.globalArena",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
         }
       ]
     }

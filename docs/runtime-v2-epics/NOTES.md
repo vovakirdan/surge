@@ -9965,3 +9965,69 @@ found two unchecked AST type assertions; both became guarded assertions and
 the complete hook was rerun from the start.  That final hook passed the full
 `make check` package sweep, lint with zero issues, `c-check`, and the file-size
 gate, then regenerated and staged `STATS.md`.
+
+## Structural carrier walk has no depth, generic, or owner-region name escape — 2026-09-01
+
+Independent review of `3606f4f7` found two P1 holes.  First, the carrier walk
+spent a one-record `namedBudget`, so a moved cross-file alias or a finite
+leaf/middle/token chain could hide the same `Value`.  Second, the root
+general-slot check stopped at the first named wrapper and treated
+task/channel/select spelling as owner evidence.  The repair removes both name
+decisions: finite type graphs end only at a recursion guard, and a root walk
+stops only at a structurally proved region with exact layout facts, backing
+storage, and lifecycle slots.
+
+Rule-13 was red before the repair in three independent ways.  The carrier
+fixture reported all three new cross-file/deep paths missing; the layout-less
+named-region fixture returned no `general-slot`; and the generic, selector
+decoy, and pointer-reachability group respectively failed to substitute
+`Wrapper[ownerSlot]`, accepted `evil.Descriptor` by selector spelling, and
+showed that an unmarked pointer cannot be classified as a borrow from the Go
+type graph.  The ruling is conservative: both the direct carrier leaf and
+every finite unmarked pointer path to it remain visible.  No field or type name
+is used to infer ownership.
+
+Generic recursion required one more negative control.  A local recursive
+generic whose recursive edge was already visiting fell through to the opaque
+external-generic rule and counted a phantom type argument as storage.  The
+mutual `Node[P]`/`Branch[P]` fixture was red: it reported the carrier through
+the recursive back edge and also reported `Phantom[Value]`.  Local declarations
+now stop before that fallback, so the concrete `Branch.value` path survives
+and the phantom path does not.  A changing recursive instantiation such as
+`Node[*P]` is not another valid graph state: `go tool compile` rejects it as an
+`instantiation cycle`.
+
+The stronger exact-base scan adds 24 reviewed paths, all transitive routes to
+already known carrier leaves: one asyncrt path and 23 VM paths.  The immutable
+manifest is now `683` findings at
+`db5a0f475c32c2155aa82f3606800da0668392bd2e7a7aee917b742e76e58ee9`;
+the structural category counts are 12 asyncrt and 45 VM.  The live scan found
+22 post-base paths.  `VM.Async -> Executor[Value]` is tracked under
+RV2-DEBT-151 until D8's exact async-owner cutover.  The other 21 reach
+`Frame.Locals -> LocalSlot.V -> Value` through post-base storage/control
+graphs; they are one grouped instrumentation finding, RV2-DEBT-318, with 21
+exact migration identities.  The manifest still has exactly four allowances;
+none of these paths, `tagScrutinee`, or a D8 `asyncPayload` owner is allowed.
+
+Final candidate non-heavy evidence:
+
+- the exact-base, live-ratchet, reviewed-migration, recursive-generic, generic
+  slot, descriptor-decoy, owner-region, pointer-reachability, and deep carrier
+  controls pass;
+- `GOFLAGS=-buildvcs=false go test ./internal/carriergate -count=1` passed in
+  2.685 s; `GOFLAGS=-buildvcs=false go test -race ./internal/carriergate
+  -count=1` passed in 32.851 s; and `GOFLAGS=-buildvcs=false go vet
+  ./internal/carriergate` passed;
+- `gofmt`, `git diff --check`, and the project `<500`-line limit pass; the
+  scanner implementation is split into 283/221/218-line files and its tests
+  into 254/127-line files;
+- `GOFLAGS=-buildvcs=false ./scripts/pre-commit` passed its complete
+  `go test ./...` sweep, lint with zero issues, strict C checks, and file-size
+  gate, and regenerated `STATS.md`;
+- Sentrux reports scoped `internal/carriergate` signal 9049.  That is 13 below
+  the `3606f4f7` snapshot (9062) because the P1 proof adds generic/region
+  branches, but remains 65 above this scanner lane's saved pre-edit signal
+  8984.  The `internal` scan remains 6455 with all seven rules green; the root
+  scan is 6153 (one above the prior 6152) with all eight checked rules green.
+  The scoped directory has no rules file.  Rule 19 still reserves the heavy
+  Runtime V2, sanitizer, Valgrind, and benchmark gates for the dedicated stand.

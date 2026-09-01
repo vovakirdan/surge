@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	frozenBaseCount  = 659
-	frozenBaseDigest = "92969b43d82783481c2052b220892b3696e30190e528cb2b92e5be20bba24a3e"
+	frozenBaseCount  = 683
+	frozenBaseDigest = "db5a0f475c32c2155aa82f3606800da0668392bd2e7a7aee917b742e76e58ee9"
 )
 
 func TestLegacyCarrierManifestMatchesExactBaseCensus(t *testing.T) {
@@ -76,8 +76,8 @@ func assertFrozenManifestCounts(t *testing.T, manifest Manifest) {
 		t.Fatalf("frozen manifest census = frame owner/untyped capture state:%d/%d, want 7/15",
 			categoryCounts[categoryFrameOwner], categoryCounts[categoryUntypedCaptureState])
 	}
-	if categoryCounts[categoryAsyncAny] != 34 || categoryCounts[categoryVMUniversalOwner] != 35 {
-		t.Fatalf("frozen manifest async/VM owner census = %d/%d, want 34/35",
+	if categoryCounts[categoryAsyncAny] != 35 || categoryCounts[categoryVMUniversalOwner] != 58 {
+		t.Fatalf("frozen manifest async/VM owner census = %d/%d, want 35/58",
 			categoryCounts[categoryAsyncAny], categoryCounts[categoryVMUniversalOwner])
 	}
 }
@@ -227,8 +227,8 @@ func assertKnownBaseCounts(t *testing.T, findings []Finding) {
 		t.Fatalf("known census = frame owner/untyped capture state:%d/%d, want 7/15",
 			frameOwners, captureStates)
 	}
-	if structuralAsyncOwners != 11 || structuralVMOwners != 22 {
-		t.Fatalf("known structural async/VM owners = %d/%d, want 11/22",
+	if structuralAsyncOwners != 12 || structuralVMOwners != 45 {
+		t.Fatalf("known structural async/VM owners = %d/%d, want 12/45",
 			structuralAsyncOwners, structuralVMOwners)
 	}
 }
