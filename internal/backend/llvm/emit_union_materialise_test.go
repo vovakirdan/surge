@@ -1,6 +1,7 @@
 package llvm
 
 import (
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -86,12 +87,20 @@ func TestBareMemberIsMaterialisedWithItsDiscriminant(t *testing.T) {
 	// Find the union's own member index rather than hard-coding 1: the point is
 	// that the STORED value is the direct-member index, not that it is any
 	// particular number.
-	mirMod, _ := lowerMIRFromSource(t, bareMemberProgram)
+	mirMod, result := lowerMIRFromSource(t, bareMemberProgram)
 	wantIndex := -1
-	for _, cases := range mirMod.Meta.UnionCases {
+	wantSize := uint64(0)
+	wantAlign := uint64(0)
+	e := &Emitter{mod: mirMod, types: result.Sema.TypeInterner}
+	for id, cases := range mirMod.Meta.UnionCases {
 		for index := range cases {
 			if cases[index].Kind == mir.UnionCaseBareType {
 				wantIndex = cases[index].PhysicalCaseIndex
+				facts, err := e.layoutOf(id)
+				if err != nil {
+					t.Fatalf("resolve mixed-union layout: %v", err)
+				}
+				wantSize, wantAlign = facts.Size, facts.Align
 			}
 		}
 	}
@@ -99,10 +108,45 @@ func TestBareMemberIsMaterialisedWithItsDiscriminant(t *testing.T) {
 		t.Fatal("the probe carries no bare member")
 	}
 
-	pattern := regexp.MustCompile(`store i32 ` + itoa(wantIndex) + `, ptr %l\d+`)
-	if !pattern.MatchString(ir) {
+	pattern := regexp.MustCompile(`store i32 ` + itoa(wantIndex) + `, ptr (%l\d+)`)
+	stored := pattern.FindStringSubmatch(ir)
+	if len(stored) != 2 {
 		t.Errorf("no discriminant %d is stored for the bare member; the union is not materialised:\n%s",
 			wantIndex, extractMain(ir))
+		return
+	}
+	zero := "call void @llvm.memset.p0.i64(ptr align " + itoa(int(wantAlign)) + " " + stored[1] +
+		", i8 0, i64 " + itoa(int(wantSize)) + ", i1 false)"
+	zeroAt := strings.Index(ir, zero)
+	tagAt := strings.Index(ir, stored[0])
+	if zeroAt < 0 || zeroAt > tagAt {
+		t.Errorf("the %d-byte union destination was not deterministically initialized before case %d:\n%s",
+			wantSize, wantIndex, extractMain(ir))
+	}
+}
+
+func TestEveryUnionDiscriminantStartsFromDeterministicStorage(t *testing.T) {
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("read LLVM emitter directory: %v", err)
+	}
+	const directDiscriminant = `store i32 %d, ptr %s`
+	var findings []string
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		content, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		for range strings.Count(string(content), directDiscriminant) {
+			findings = append(findings, name)
+		}
+	}
+	if len(findings) != 1 {
+		t.Fatalf("direct union-discriminant emitters = %v, want one shared deterministic initializer", findings)
 	}
 }
 

@@ -225,7 +225,9 @@ func (fe *funcEmitter) emitTagValueIntoStorage(
 	if align == 0 {
 		align = 1
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store i32 %d, ptr %s, align %d\n", tagIndex, dst, align)
+	if initErr := fe.emitUnionDiscriminant(dst, layoutInfo.Size, align, tagIndex); initErr != nil {
+		return initErr
+	}
 	if len(payloadTypes) == 0 {
 		return nil
 	}

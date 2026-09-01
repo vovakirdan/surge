@@ -264,7 +264,9 @@ func (fe *funcEmitter) emitTagValue(typeID types.TypeID, tagName string, tagSym 
 		if allocErr != nil {
 			return "", allocErr
 		}
-		fmt.Fprintf(&fe.emitter.buf, "  store i32 %d, ptr %s, align %d\n", caseIdx, mem, align)
+		if initErr := fe.emitUnionDiscriminant(mem, layoutInfo.Size, align, caseIdx); initErr != nil {
+			return "", initErr
+		}
 		return mem, nil
 	}
 	offsets := unionCase.FieldOffsets()
@@ -276,7 +278,9 @@ func (fe *funcEmitter) emitTagValue(typeID types.TypeID, tagName string, tagSym 
 	if err != nil {
 		return "", err
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store i32 %d, ptr %s, align %d\n", caseIdx, mem, align)
+	if initErr := fe.emitUnionDiscriminant(mem, layoutInfo.Size, align, caseIdx); initErr != nil {
+		return "", initErr
+	}
 	for i := range args {
 		arg := &args[i]
 		payloadTy := meta.PayloadTypes[i]

@@ -123,8 +123,18 @@ func assertMapOptionWrittenInPlace(t *testing.T, ir, intrinsic string) {
 		t.Fatalf("%s was not handed the destination Option's payload address:\n%s", intrinsic, before)
 	}
 	option := payloadMatch[1]
-	if !regexp.MustCompile(regexp.QuoteMeta(option) + ` = alloca `).MatchString(before) {
+	allocRe := regexp.MustCompile(regexp.QuoteMeta(option) + ` = alloca \[(\d+) x i8\], align (\d+)\n`)
+	alloc := allocRe.FindStringSubmatch(before)
+	if alloc == nil {
 		t.Fatalf("%s: the payload address %s is not inside a reserved Option:\n%s", intrinsic, payload, before)
+	}
+	zero := "call void @llvm.memset.p0.i64(ptr align " + alloc[2] + " " + option +
+		", i8 0, i64 " + alloc[1] + ", i1 false)"
+	zeroAt := strings.Index(before, zero)
+	payloadAt := strings.Index(before, payloadMatch[0])
+	if zeroAt < 0 || zeroAt > payloadAt {
+		t.Fatalf("%s: the Option storage %s is not deterministically initialized before its payload is exposed:\n%s",
+			intrinsic, option, before)
 	}
 
 	after := ir[call[1]:]

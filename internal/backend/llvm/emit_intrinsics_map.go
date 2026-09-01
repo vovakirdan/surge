@@ -360,6 +360,12 @@ func (fe *funcEmitter) emitMapOptionCall(call *mir.CallInstr, name string, args 
 	if err != nil {
 		return err
 	}
+	// The runtime initializes only Some's active payload. Start with a
+	// deterministic Option object so the none path, padding, and inactive bytes
+	// never publish contents left behind in the fresh storage.
+	if initErr := fe.emitUnionStorageInit(mem, layoutInfo.Size, align); initErr != nil {
+		return initErr
+	}
 	payloadPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n",
 		payloadPtr, mem, unionCase.PayloadOffset+payloadOffset)

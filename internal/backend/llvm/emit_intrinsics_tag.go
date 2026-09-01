@@ -27,7 +27,9 @@ func (fe *funcEmitter) emitTagValueSinglePayload(typeID types.TypeID, tagIndex i
 	if err != nil {
 		return "", err
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  store i32 %d, ptr %s, align %d\n", tagIndex, mem, align)
+	if initErr := fe.emitUnionDiscriminant(mem, layoutInfo.Size, align, tagIndex); initErr != nil {
+		return "", initErr
+	}
 	if isNothingType(fe.emitter.types, payloadType) {
 		return mem, nil
 	}

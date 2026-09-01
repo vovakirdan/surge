@@ -209,7 +209,8 @@ func commandCount(lines []string, exact string) int {
 
 func shellLineHasWord(line, word string) bool {
 	for _, field := range strings.FieldsFunc(line, func(r rune) bool {
-		return !(r >= 'a' && r <= 'z') && !(r >= 'A' && r <= 'Z') && !(r >= '0' && r <= '9') && r != '-' && r != '_'
+		return (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') &&
+			(r < '0' || r > '9') && r != '-' && r != '_'
 	}) {
 		if field == word {
 			return true

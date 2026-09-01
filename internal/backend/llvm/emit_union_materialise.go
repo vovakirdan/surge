@@ -7,6 +7,33 @@ import (
 	"surge/internal/types"
 )
 
+func (fe *funcEmitter) emitUnionStorageInit(dst string, size, align uint64) error {
+	if fe == nil || fe.emitter == nil {
+		return fmt.Errorf("missing emitter for union storage initialization")
+	}
+	if size < 4 {
+		return fmt.Errorf("union storage is %d bytes, need at least the 4-byte discriminant", size)
+	}
+	if align == 0 {
+		align = 1
+	}
+	fmt.Fprintf(&fe.emitter.buf,
+		"  call void @llvm.memset.p0.i64(ptr align %d %s, i8 0, i64 %d, i1 false)\n",
+		align, dst, size)
+	return nil
+}
+
+func (fe *funcEmitter) emitUnionDiscriminant(dst string, size, align uint64, caseIndex int) error {
+	if initErr := fe.emitUnionStorageInit(dst, size, align); initErr != nil {
+		return initErr
+	}
+	if align == 0 {
+		align = 1
+	}
+	fmt.Fprintf(&fe.emitter.buf, "  store i32 %d, ptr %s, align %d\n", caseIndex, dst, align)
+	return nil
+}
+
 // Materialising a union from one of its members.
 //
 // A union value is a discriminant plus a payload, and the discriminant is the
@@ -86,8 +113,13 @@ func (fe *funcEmitter) emitUnionMaterialiseBareMember(
 	}
 
 	// The discriminant. Its width is the layout engine's, fixed at 4 bytes.
-	fmt.Fprintf(&fe.emitter.buf, "  store i32 %d, ptr %s, align %d\n",
-		member.PhysicalCaseIndex, dstPtr, memberAccessAlign(dstAlign, 0))
+	// Start from deterministic bytes so padding and the inactive arms never
+	// inherit whatever happened to occupy this destination before it was empty.
+	if initErr := fe.emitUnionDiscriminant(
+		dstPtr, facts.Size, memberAccessAlign(dstAlign, 0), member.PhysicalCaseIndex,
+	); initErr != nil {
+		return false, initErr
+	}
 
 	// The payload, at this case's own offset.
 	payloadOffset := caseLayout.PayloadOffset + offsets[0]

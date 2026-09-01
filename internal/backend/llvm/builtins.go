@@ -29,6 +29,7 @@ func runtimeDecls() []builtinDecl {
 		// has none, and would hide a fixed-size move from every optimizer that
 		// knows how to widen one.
 		{name: "llvm.memcpy.p0.p0.i64", ret: "void", params: []string{"ptr", "ptr", "i64", "i1"}},
+		{name: "llvm.memset.p0.i64", ret: "void", params: []string{"ptr", "i8", "i64", "i1"}},
 		{name: "rt_memcpy", ret: "void", params: []string{"ptr", "ptr", "i64"}},
 		{name: "rt_memmove", ret: "void", params: []string{"ptr", "ptr", "i64"}},
 		{name: "rt_array_is_view", ret: "i1", params: []string{"ptr"}},

@@ -9760,3 +9760,38 @@ The test-only tree was red with target count `0, want 1`.  The fixed workflow
 passes the focused contract; comment-only and missing-target controls stay red,
 and a mutant that keeps two generic `go test` commands is rejected with
 `direct go test commands = 2, want 0`.
+
+## LLVM union constructors initialize deterministic storage — 2026-09-01
+
+RV2-DEBT-315's bare-member witness was one instance of a wider constructor
+rule: P1 applies to the complete union object, including alignment gaps and
+inactive arms.  A source census found five constant-tag writers spread across
+the ordinary tag, single-payload, cast-into-storage, and bare-member paths.
+The map `Option` path was the sole dynamic-tag writer: it exposed Some's payload
+slot to the runtime and selected the final tag afterward, but never initialized
+the rest of the object.
+
+All constant-tag constructors now share `emitUnionDiscriminant`, which first
+emits a layout-sized byte zero-fill through `emitUnionStorageInit` and only
+then commits the tag.  The fill uses `llvm.memset`, not an aggregate zero store:
+the complete `make check` representation gate proved the latter would move a
+composite through a register.  The map path uses the same initializer before it
+hands out the payload address, then writes the runtime-selected Some/nothing
+tag.  Active payload writes retain their layout-owned offsets and alignment;
+no inactive arm is read or given an ownership obligation.
+
+Rule-13 evidence was non-vacuous:
+
+- the bare-member IR test was red because the 16-byte destination had no zero
+  initialization before physical case 1;
+- the source census was red with five direct constant-discriminant emitters,
+  where the fixed tree has one shared emitter;
+- the map IR assertion now derives the Option alloca size and alignment and
+  requires the matching full-object initializer before the runtime sees the
+  payload pointer.
+
+Candidate evidence is green for the focused constructor, membership, nested
+tag, and drop group; map get/insert/remove in-place Option construction;
+`storage_padding_union` and `storage_overwrite` on both VM and LLVM; the
+invalid-UTF-8 VM/LLVM golden pair; and its strict-zero Valgrind proof.
+RV2-DEBT-315 is closed.
