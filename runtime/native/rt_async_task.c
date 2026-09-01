@@ -155,7 +155,7 @@ void rt_task_wake(void* task) {
     // S5-Q2: the wake itself is owner-shard work (wake_task manages its own
     // shard locking, already called control-free elsewhere in the tree); only
     // the rare scope-adoption write stays behind a control fallback. The peek
-    // reads only current's own scope_id (thread-local while current is
+    // reads only current's own active_scope_key (thread-local while current is
     // RUNNING, safe without a lock).
     //
     // parent_scope_id is not single-lock state and no lock here would make it
@@ -165,16 +165,13 @@ void rt_task_wake(void* task) {
     // ONE read-modify-write, so this adoption can only take a task no scope and
     // no completion has claimed -- never overwrite one that has been.
     const rt_task* current = rt_current_task();
-    if (current != NULL && current->scope_id != 0) {
+    if (current != NULL && waker_valid(current->active_scope_key)) {
         rt_control_lock(ex);
         rt_trace_control_lock_site(RT_CTRL_SITE_HANDLE);
         rt_trace_control_lock_handle_site(RT_CTRL_HANDLE_WAKE);
         if (atomic_load_explicit(&target->parent_scope_id, memory_order_acquire) ==
             RT_SCOPE_CLAIM_NONE) {
-            const rt_scope* scope = get_scope(ex, current->scope_id);
-            if (scope != NULL) {
-                (void)rt_scope_claim_membership(target, scope->id);
-            }
+            (void)rt_scope_claim_membership(target, current->active_scope_key.id);
         }
         rt_control_unlock(ex);
     }

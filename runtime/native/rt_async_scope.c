@@ -35,21 +35,36 @@ rt_shard* rt_scope_owner_shard(rt_executor* ex, const rt_scope* scope) {
     return shard != NULL ? shard : rt_runtime_shard0(runtime);
 }
 
-// Snapshot the two answers join_all gives -- how many children are still live
-// and whether fail-fast fired -- under the pinned shard lock, TOGETHER. A
-// function boundary here is deliberate: both fields are mutated concurrently
-// under this lock by child-done on other threads, so a re-read after a lock
-// release genuinely observes new values (the register-then-verify re-check
-// below relies on it). Reading them apart is the RV2-DEBT-261 window:
-// scope_on_child_done retires the cancelled child from the count in the same
-// critical section that sets the flag, so a count read after it paired with a
-// flag read before it says "drained, not fail-fast" -- and the @failfast
-// block resolves Success after a child was cancelled.
-static size_t scope_join_snapshot_locked(rt_shard* pinned, const rt_scope* scope, bool* failfast) {
+// Caller holds the shard carried by key. Re-resolving after that acquisition
+// makes slot presence, identity and owner stamp one serialized observation.
+rt_scope* rt_scope_resolve_key_locked(rt_executor* ex, waker_key key) {
+    if (ex == NULL || key.kind != WAKER_SCOPE || key.id == 0) {
+        return NULL;
+    }
+    rt_scope* scope = get_scope(ex, key.id);
+    if (scope == NULL || scope->id != key.id || scope->owner_shard_id != key.owner_shard_id) {
+        return NULL;
+    }
+    return scope;
+}
+
+static waker_key current_scope_key(uint64_t scope_id) {
+    const rt_task* current = rt_current_task();
+    if (current == NULL || current->active_scope_key.kind != WAKER_SCOPE ||
+        current->active_scope_key.id != scope_id) {
+        return waker_none();
+    }
+    return current->active_scope_key;
+}
+
+// Read both join answers together, initially and after waiter registration.
+static size_t scope_join_snapshot(rt_executor* ex, waker_key key, bool* failfast) {
+    rt_shard* pinned = rt_waiter_key_shard(ex, key);
     rt_shard_lock(pinned);
-    size_t active = scope->active_children;
+    const rt_scope* scope = rt_scope_resolve_key_locked(ex, key);
+    size_t active = scope != NULL ? scope->active_children : 0;
     if (failfast != NULL) {
-        *failfast = scope->failfast_triggered ? true : false;
+        *failfast = scope != NULL && scope->failfast_triggered ? true : false;
     }
     rt_shard_unlock(pinned);
     return active;
@@ -59,15 +74,20 @@ static size_t scope_join_snapshot_locked(rt_shard* pinned, const rt_scope* scope
 // under the control lane (caller holds control). Never holds the pinned shard
 // lock across cancel_task (which takes a child's own owner shard lock), so the
 // lane order stays control -> at most one shard lock; never two shard locks.
-void scope_cancel_children_controlled(rt_executor* ex, const rt_scope* scope) {
-    if (ex == NULL || scope == NULL) {
+void scope_cancel_children_controlled(rt_executor* ex, waker_key key) {
+    if (ex == NULL || !waker_valid(key)) {
         return;
     }
-    rt_shard* pinned = rt_scope_owner_shard(ex, scope);
+    rt_shard* pinned = rt_waiter_key_shard(ex, key);
     uint64_t inline_children[8];
     uint64_t* children = inline_children;
     size_t count = 0;
     rt_shard_lock(pinned);
+    const rt_scope* scope = rt_scope_resolve_key_locked(ex, key);
+    if (scope == NULL) {
+        rt_shard_unlock(pinned);
+        return;
+    }
     count = scope->children_len;
     if (count > 8) {
         children = (uint64_t*)rt_alloc(count * sizeof(uint64_t), _Alignof(uint64_t));
@@ -102,8 +122,8 @@ void* rt_scope_enter(bool failfast) {
     // Owner-lane publish (S5-Q7 realization B, mirroring __task_create): id is a
     // lock-free fetch_add; the segmented scope table only takes control on rare
     // segment growth; the slot publish is a release store into a never-moved
-    // slot and owner->scope_id is a thread-own write on the RUNNING owner. No
-    // control lock on the steady path.
+    // slot and owner->active_scope_key is a thread-own write on the RUNNING
+    // owner. No control lock on the steady path.
     uint64_t id = atomic_fetch_add_explicit(&ex->next_scope_id, 1, memory_order_relaxed);
     if (rt_scope_table_segment_missing(ex, id)) {
         rt_control_lock(ex);
@@ -123,7 +143,7 @@ void* rt_scope_enter(bool failfast) {
     scope->owner_shard_id = owner->owner_shard_valid != 0 ? owner->owner_shard_id : 0;
     scope->failfast = failfast ? 1 : 0;
     rt_scope_slot_store(ex, id, scope);
-    owner->scope_id = id;
+    owner->active_scope_key = scope_key(id, scope->owner_shard_id);
     return (void*)(uintptr_t)id;
 }
 
@@ -133,8 +153,8 @@ void rt_scope_register_child(const void* scope_handle, void* task) {
         return;
     }
     uint64_t scope_id = (uint64_t)(uintptr_t)scope_handle;
-    rt_scope* scope = get_scope(ex, scope_id);
-    if (scope == NULL) {
+    waker_key key = current_scope_key(scope_id);
+    if (!waker_valid(key)) {
         return;
     }
     uint64_t child_id = task_id_from_handle(task);
@@ -142,7 +162,7 @@ void rt_scope_register_child(const void* scope_handle, void* task) {
     if (child == NULL) {
         return;
     }
-    rt_shard* pinned = rt_scope_owner_shard(ex, scope);
+    rt_shard* pinned = rt_waiter_key_shard(ex, key);
     // Steady path (S5-Q8): a live child registers under the pinned shard lock.
     // The child inherits the scope owner's placement at spawn and this is a
     // synchronous call from the owner's own poll right after __task_create, so
@@ -159,6 +179,11 @@ void rt_scope_register_child(const void* scope_handle, void* task) {
     // this registration reached it, which is the late path further down: the
     // scope must never count a child whose completion has already been and gone.
     rt_shard_lock(pinned);
+    rt_scope* scope = rt_scope_resolve_key_locked(ex, key);
+    if (scope == NULL) {
+        rt_shard_unlock(pinned);
+        return;
+    }
     if (child->scope_registered) {
         rt_shard_unlock(pinned);
         return;
@@ -173,6 +198,7 @@ void rt_scope_register_child(const void* scope_handle, void* task) {
         rt_shard_unlock(pinned);
         return;
     }
+    int scope_failfast = scope->failfast;
     rt_shard_unlock(pinned);
     // Rare late-registration (S5-Q9): the child completed before this claim
     // reached it, so it is not a member and nothing will retire it. Only a
@@ -182,7 +208,7 @@ void rt_scope_register_child(const void* scope_handle, void* task) {
     // here is ordered by the claim itself: the completion's read-modify-write
     // released everything it had written, and the acquire on this failed claim
     // is what makes it visible.
-    if (child->result_kind != TASK_RESULT_CANCELLED || !scope->failfast) {
+    if (child->result_kind != TASK_RESULT_CANCELLED || !scope_failfast) {
         return;
     }
     int need_control = !rt_lane_holds_control();
@@ -192,6 +218,14 @@ void rt_scope_register_child(const void* scope_handle, void* task) {
     }
     uint64_t owner_to_wake = 0;
     rt_shard_lock(pinned);
+    scope = rt_scope_resolve_key_locked(ex, key);
+    if (scope == NULL) {
+        rt_shard_unlock(pinned);
+        if (need_control) {
+            rt_control_unlock(ex);
+        }
+        return;
+    }
     if (!scope->failfast_triggered) {
         scope->failfast_triggered = 1;
         scope->failfast_child = child_id;
@@ -199,7 +233,7 @@ void rt_scope_register_child(const void* scope_handle, void* task) {
     }
     rt_shard_unlock(pinned);
     if (owner_to_wake != 0) {
-        scope_cancel_children_controlled(ex, scope);
+        scope_cancel_children_controlled(ex, key);
         wake_task(ex, owner_to_wake, 1);
     }
     if (need_control) {
@@ -213,6 +247,10 @@ void rt_scope_cancel_all(const void* scope_handle) {
         return;
     }
     uint64_t scope_id = (uint64_t)(uintptr_t)scope_handle;
+    waker_key key = current_scope_key(scope_id);
+    if (!waker_valid(key)) {
+        return;
+    }
     // Cross-owner cancel walk needs the control lane (re-derivation, file
     // header). Rare: explicit scope cancellation, not the steady path.
     int need_control = !rt_lane_holds_control();
@@ -220,10 +258,7 @@ void rt_scope_cancel_all(const void* scope_handle) {
         rt_control_lock(ex);
         rt_trace_control_lock_site(RT_CTRL_SITE_SCOPE);
     }
-    const rt_scope* scope = get_scope(ex, scope_id);
-    if (scope != NULL) {
-        scope_cancel_children_controlled(ex, scope);
-    }
+    scope_cancel_children_controlled(ex, key);
     if (need_control) {
         rt_control_unlock(ex);
     }
@@ -245,12 +280,11 @@ bool rt_scope_join_all(const void* scope_handle, uint64_t* pending, bool* failfa
         return true;
     }
     uint64_t scope_id = (uint64_t)(uintptr_t)scope_handle;
-    const rt_scope* scope = get_scope(ex, scope_id);
-    if (scope == NULL) {
+    waker_key key = current_scope_key(scope_id);
+    if (!waker_valid(key)) {
         return true;
     }
-    rt_shard* pinned = rt_scope_owner_shard(ex, scope);
-    size_t active = scope_join_snapshot_locked(pinned, scope, failfast);
+    size_t active = scope_join_snapshot(ex, key, failfast);
     if (pending != NULL) {
         *pending = 0;
     }
@@ -275,12 +309,10 @@ bool rt_scope_join_all(const void* scope_handle, uint64_t* pending, bool* failfa
     // and its answer is only whole when both fields come from after it. The
     // negative-control toggle drops the flag from this read and restores the
     // window the sync point below holds open.
-    waker_key key = scope_key(scope_id);
     prepare_park(ex, current, key, 0);
     pending_key = key;
     RT_SYNC_POINT(SP_SCOPE_FAILFAST_JOIN_BEFORE_VERIFY);
-    size_t active_after =
-        scope_join_snapshot_locked(pinned, scope, RT_DEBT261_VERIFY_FAILFAST_OUT(failfast));
+    size_t active_after = scope_join_snapshot(ex, key, RT_DEBT261_VERIFY_FAILFAST_OUT(failfast));
     if (active_after == 0) {
         remove_waiter(ex, key, current->id);
         current->park_prepared = 0;
@@ -297,12 +329,17 @@ void rt_scope_exit(const void* scope_handle) {
         return;
     }
     uint64_t scope_id = (uint64_t)(uintptr_t)scope_handle;
-    rt_scope* scope = get_scope(ex, scope_id);
-    if (scope == NULL) {
+    waker_key key = current_scope_key(scope_id);
+    if (!waker_valid(key)) {
         return;
     }
-    rt_shard* pinned = rt_scope_owner_shard(ex, scope);
+    rt_shard* pinned = rt_waiter_key_shard(ex, key);
     rt_shard_lock(pinned);
+    rt_scope* scope = rt_scope_resolve_key_locked(ex, key);
+    if (scope == NULL) {
+        rt_shard_unlock(pinned);
+        return;
+    }
     if (scope->active_children > 0) {
         rt_shard_unlock(pinned);
         panic_msg("async: scope exit with active children");
@@ -312,12 +349,9 @@ void rt_scope_exit(const void* scope_handle) {
     rt_shard_unlock(pinned);
 }
 
-// Caller holds the scope's pinned owner shard lock (rt_scope_exit) or the
-// control lane over that shard (apply_poll_outcome cancelled teardown). Frees
-// only after active_children == 0. The slot is cleared (release NULL) before
-// the struct is freed; scope ids are monotonic and never reused, so a late
-// get_scope for this id resolves to NULL rather than a recycled scope, and by
-// the scope lifetime rule no scope_key routing references it after this point.
+// Caller holds the pinned owner shard lock and observed active_children == 0.
+// The slot is cleared before free; copied scope keys remain routable because
+// they carry that same pinned shard and never dereference the cleared slot.
 void scope_exit_locked(rt_executor* ex, rt_scope* scope) {
     if (ex == NULL || scope == NULL) {
         return;
@@ -325,8 +359,9 @@ void scope_exit_locked(rt_executor* ex, rt_scope* scope) {
     uint64_t scope_id = scope->id;
     if (scope->owner != 0) {
         rt_task* owner = get_task(ex, scope->owner);
-        if (owner != NULL && owner->scope_id == scope_id) {
-            owner->scope_id = 0;
+        if (owner != NULL && owner->active_scope_key.kind == WAKER_SCOPE &&
+            owner->active_scope_key.id == scope_id) {
+            owner->active_scope_key = waker_none();
         }
     }
     rt_scope_slot_store(ex, scope_id, NULL);
@@ -373,6 +408,7 @@ void scope_on_child_done(rt_executor* ex, rt_task* task, uint8_t result_kind) {
         result_kind == TASK_RESULT_CANCELLED && scope->failfast && !scope->failfast_triggered;
     if (same_owner && !may_failfast) {
         int wake_owner = 0;
+        waker_key key = scope_key(scope->id, scope->owner_shard_id);
         if (task->scope_registered) {
             (void)scope_remove_child(scope, task->id);
             if (scope->active_children > 0) {
@@ -383,7 +419,7 @@ void scope_on_child_done(rt_executor* ex, rt_task* task, uint8_t result_kind) {
         }
         rt_shard_unlock(child_shard);
         if (wake_owner) {
-            wake_key_all(ex, scope_key(scope->id));
+            wake_key_all(ex, key);
         }
         return;
     }
@@ -397,9 +433,19 @@ void scope_on_child_done(rt_executor* ex, rt_task* task, uint8_t result_kind) {
     scope = get_scope(ex, psid);
     if (scope != NULL) {
         rt_shard* pinned = rt_scope_owner_shard(ex, scope);
+        waker_key key;
         uint64_t owner_to_wake = 0;
         int wake_owner = 0;
         rt_shard_lock(pinned);
+        scope = get_scope(ex, psid);
+        if (scope == NULL) {
+            rt_shard_unlock(pinned);
+            if (need_control) {
+                rt_control_unlock(ex);
+            }
+            return;
+        }
+        key = scope_key(scope->id, scope->owner_shard_id);
         if (result_kind == TASK_RESULT_CANCELLED && scope->failfast && !scope->failfast_triggered) {
             scope->failfast_triggered = 1;
             scope->failfast_child = task->id;
@@ -415,11 +461,11 @@ void scope_on_child_done(rt_executor* ex, rt_task* task, uint8_t result_kind) {
         }
         rt_shard_unlock(pinned);
         if (owner_to_wake != 0) {
-            scope_cancel_children_controlled(ex, scope);
+            scope_cancel_children_controlled(ex, key);
             wake_task(ex, owner_to_wake, 1);
         }
         if (wake_owner) {
-            wake_key_all(ex, scope_key(scope->id));
+            wake_key_all(ex, key);
         }
     }
     if (need_control) {

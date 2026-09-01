@@ -286,7 +286,7 @@ typedef struct rt_task {
     rt_park_token resume_slot;
     uint64_t sleep_delay;
     uint64_t sleep_deadline;
-    uint64_t scope_id;
+    waker_key active_scope_key;
     // Which scope this task is a child of. A CLAIM word, not a plain field:
     // two threads race to decide it and only one may win, and the protocol that
     // decides it lives in rt_scope_membership.h.
@@ -332,7 +332,7 @@ static inline void rt_task_join_owner_shard_id_store(rt_task* task, uint32_t sha
     atomic_store_explicit(&task->join_owner_shard_id, shard_id, memory_order_release);
 }
 
-typedef struct {
+typedef struct rt_scope {
     uint64_t id;
     uint64_t owner;
     // Pinned scope owner shard (S5-Q8/Q10): set once at
@@ -927,16 +927,10 @@ uint32_t rt_debug_current_worker_shard_id(void);
 void task_add_child(rt_task* parent, uint64_t child_id);
 void scope_add_child(rt_scope* scope, uint64_t child_id);
 int scope_remove_child(rt_scope* scope, uint64_t child_id);
-// Scope owner lane (rt_async_scope.c): rt_scope_owner_shard
-// resolves the scope's PINNED owner shard (stable for the scope's life);
-// scope_on_child_done is mark_done's completion-side bookkeeping (same-owner
-// control-free / cross-owner+failfast counted control fallback);
-// scope_cancel_children_controlled snapshots children under the pinned shard
-// lock and cancels each under the control lane (caller holds control).
-rt_shard* rt_scope_owner_shard(rt_executor* ex, const rt_scope* scope);
-void scope_on_child_done(rt_executor* ex, rt_task* task, uint8_t result_kind);
-void scope_cancel_children_controlled(rt_executor* ex, const rt_scope* scope);
-void scope_exit_locked(rt_executor* ex, rt_scope* scope);
+// Scope owner lane (rt_async_scope.c): a scope key carries its PINNED owner
+// shard, stable for the scope's life. Callers resolve the slot only while that
+// lock is held; cancellation snapshots there, then walks under control.
+#include "rt_scope_teardown.h"
 
 void task_add_ref(rt_task* task);
 void task_release(rt_executor* ex, rt_task* task);

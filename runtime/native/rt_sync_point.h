@@ -4,11 +4,8 @@
 // rendezvous inside REAL runtime code so a test can pause one thread at a named
 // window and release it in lockstep with another, reproducing a few-instruction
 // ordering window deterministically (see docs/runtime-v2-epics/09-tasks/
-// 01-proving-spike-sync-points.md).
-//
-// Ownership and lifecycle: the hook is TEST-ONLY. Unless the build defines
-// RT_TEST_SYNC_POINTS the macro emits no call, no branch, and no symbol, so a
-// hook can never sit on the worker steady path of a shipping build. That
+// 01-proving-spike-sync-points.md). Unless RT_TEST_SYNC_POINTS is defined the
+// macro emits no call, no branch, and no symbol on the shipping path. That
 // property is enforced mechanically by check_sync_points.sh (nm of the
 // default/tag-off build must show zero rt_sync_point_* symbols).
 //
@@ -194,6 +191,10 @@ typedef enum rt_sync_point_id {
     // set and count retired, under one lock -- inside the window the verify
     // must read whole (RV2-DEBT-261).
     RT_SYNC_POINT_SP_SCOPE_FAILFAST_JOIN_BEFORE_VERIFY,
+    // Cancelled scope teardown: after observing live children and before
+    // publishing its scope-key waiter. Draining the final child while held
+    // here proves the post-registration verify prevents a lost wake.
+    RT_SYNC_POINT_SP_SCOPE_TEARDOWN_BEFORE_REGISTER,
     // rt_async_return: reached after the body's value has been moved into the
     // task's own result slot and committed there, and before the success
     // outcome is handed to the scheduler. A driver cancelling the task while it

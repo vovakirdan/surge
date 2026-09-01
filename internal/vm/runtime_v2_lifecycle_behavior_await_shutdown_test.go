@@ -90,7 +90,18 @@ static int mode_scope_cancelled_poll_teardown(rt_executor* ex) {
     atomic_store_explicit(&g_cancel_owner_phase, 0, memory_order_relaxed);
     atomic_store_explicit(&g_cancel_scope_handle, NULL, memory_order_relaxed);
     atomic_store_explicit(&g_cancel_child, NULL, memory_order_relaxed);
-    rt_task* owner = spawn_pinned(ex, POLL_SCOPE_CANCEL_OWNER, 0);
+    atomic_store_explicit(&g_park_forever_chan, NULL, memory_order_relaxed);
+    rt_task* chan_maker = spawn_pinned(ex, POLL_MAKE_PARK_FOREVER_CHAN, 0);
+    if (chan_maker == NULL || !wait_ptr(&g_park_forever_chan, 4000) ||
+        !wait_task_status(chan_maker, TASK_DONE, 4000)) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("cancel-owner channel setup failed");
+    }
+#ifdef RT_TEST_SYNC_POINTS
+    unsigned teardown_before =
+        rt_sync_point_reached_count(RT_SYNC_POINT_SP_SCOPE_TEARDOWN_BEFORE_REGISTER);
+#endif
+    rt_task* owner = spawn_pinned(ex, POLL_SCOPE_CANCEL_OWNER, 1);
     if (owner == NULL) {
         return fail("cancel-owner allocation failed");
     }
@@ -99,9 +110,73 @@ static int mode_scope_cancelled_poll_teardown(rt_executor* ex) {
         return fail("cancel-owner did not register its child");
     }
     rt_task* child = (rt_task*)atomic_load_explicit(&g_cancel_child, memory_order_acquire);
+    if (!wait_task_status(child, TASK_WAITING, 4000)) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("cancel-owner child did not park");
+    }
     void* handle = atomic_load_explicit(&g_cancel_scope_handle, memory_order_acquire);
     uint64_t scope_id = (uint64_t)(uintptr_t)handle;
+    waker_key scope_wait_key = owner->active_scope_key;
+#ifdef RT_TEST_SYNC_POINTS
+    if (!wait_sync_point_count(RT_SYNC_POINT_SP_SCOPE_TEARDOWN_BEFORE_REGISTER,
+                               teardown_before,
+                               4000)) {
+        rt_sync_point_open();
+        (void)rt_executor_request_shutdown(ex);
+        return fail("scope teardown did not reach pre-register window");
+    }
+    rt_task_cancel(child);
+    size_t active = SIZE_MAX;
+    rt_shard* scope_owner = rt_waiter_key_shard(ex, scope_wait_key);
+    for (uint32_t i = 0; i < 4000 && active != 0; i++) {
+        rt_shard_lock(scope_owner);
+        rt_scope* live_scope = rt_scope_resolve_key_locked(ex, scope_wait_key);
+        active = live_scope != NULL ? live_scope->active_children : 0;
+        rt_shard_unlock(scope_owner);
+        if (active != 0) {
+            sleep_us(1000);
+        }
+    }
+    if (active != 0) {
+        rt_sync_point_open();
+        (void)rt_executor_request_shutdown(ex);
+        fprintf(stderr,
+                "scope child did not drain inside teardown gap: active=%zu child=%u registered=%u parent=%llu\n",
+                active,
+                (unsigned)task_status_load(child),
+                (unsigned)child->scope_registered,
+                (unsigned long long)atomic_load_explicit(&child->parent_scope_id,
+                                                        memory_order_acquire));
+        return 1;
+    }
+    rt_sync_point_open();
+#ifdef RV2_DEBT_281_NEGATIVE_CONTROL
+    if (!wait_task_status(owner, TASK_WAITING, 4000)) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("negative-control owner did not strand in WAITING");
+    }
+    size_t waiters = 0;
+    rt_shard_lock(scope_owner);
+    rt_waiter_store* store = rt_waiter_store_for_key(ex, scope_wait_key);
+    for (size_t i = 0; store != NULL && i < store->len; i++) {
+        waiter w = store->entries[i];
+        if (w.key.kind == scope_wait_key.kind && w.key.id == scope_wait_key.id &&
+            w.task_id == owner->id) {
+            waiters++;
+        }
+    }
+    rt_shard_unlock(scope_owner);
+    fprintf(stderr,
+            "scope teardown stranded: owner=%u active=%zu waiters=%zu\n",
+            (unsigned)task_status_load(owner),
+            active,
+            waiters);
+    (void)rt_executor_request_shutdown(ex);
+    return 1;
+#endif
+#else
     rt_task_cancel(owner);
+#endif
     if (!await_expect(ex, owner, 2, 0, "cancelled scope owner")) {
         return 1;
     }
@@ -114,6 +189,15 @@ static int mode_scope_cancelled_poll_teardown(rt_executor* ex) {
     if (scope_after != NULL) {
         (void)rt_executor_request_shutdown(ex);
         return fail("scope was not torn down after cancelled owner drained");
+    }
+    if (rt_runtime_shard_count(rt_executor_runtime(ex)) > 1) {
+        rt_shard* stamped =
+            rt_runtime_shard(rt_executor_runtime(ex), scope_wait_key.owner_shard_id);
+        if (rt_waiter_key_shard(ex, scope_wait_key) != stamped ||
+            rt_waiter_store_for_key(ex, scope_wait_key) != rt_shard_waiter_store(stamped)) {
+            (void)rt_executor_request_shutdown(ex);
+            return fail("scope key lost stamped owner after exit");
+        }
     }
     (void)rt_executor_request_shutdown(ex);
     return 0;

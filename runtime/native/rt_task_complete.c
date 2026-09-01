@@ -454,58 +454,12 @@ void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outcome) {
             mark_done(ex, task, TASK_RESULT_SUCCESS);
             break;
         case POLL_DONE_CANCELLED:
-            if (task->scope_id != 0) {
-                // Owner-cancelled scope teardown (S5-Q14, ): the
-                // child cancel walk needs the control lane (re-derivation:
-                // cancel_task reads sibling owner_shard_ids that F2 self-replace
-                // writes under control), so this rare branch takes control. But
-                // same-owner child-done now runs control-free on the pinned
-                // shard lane, so control no longer excludes it - the re-park on
-                // scope_key uses register-then-verify (scope_key routes to the
-                // pinned store) to avoid losing a child-done wake.
-                int need_control = !rt_lane_holds_control();
-                if (need_control) {
-                    rt_control_lock(ex);
-                    rt_trace_control_lock_site(RT_CTRL_SITE_SCOPE);
-                }
-                rt_scope* scope = get_scope(ex, task->scope_id);
-                rt_shard* pinned = scope != NULL ? rt_scope_owner_shard(ex, scope) : NULL;
-                size_t active = 0;
-                if (scope != NULL) {
-                    rt_shard_lock(pinned);
-                    active = scope->active_children;
-                    rt_shard_unlock(pinned);
-                }
-                if (scope != NULL && active > 0) {
-                    task->cancel_pending = 1;
-                    scope_cancel_children_controlled(ex, scope);
-                    task->state = outcome.state;
-                    waker_key key = scope_key(scope->id);
-                    prepare_park(ex, task, key, 0);
-                    rt_shard_lock(pinned);
-                    size_t active_after = scope->active_children;
-                    rt_shard_unlock(pinned);
-                    if (active_after != 0) {
-                        park_current(ex, key);
-                        if (need_control) {
-                            rt_control_unlock(ex);
-                        }
-                        break;
-                    }
-                    // All children drained during the walk/registration: undo
-                    // the park and fall through to exit + mark_done.
-                    remove_waiter(ex, key, task->id);
-                    task->park_prepared = 0;
-                    task->park_key = waker_none();
-                    pending_key = waker_none();
-                }
-                if (scope != NULL) {
-                    rt_shard_lock(pinned);
-                    scope_exit_locked(ex, scope);
-                    rt_shard_unlock(pinned);
-                }
-                if (need_control) {
-                    rt_control_unlock(ex);
+            if (waker_valid(task->active_scope_key)) {
+                task->state = outcome.state;
+                waker_key key = waker_none();
+                if (rt_scope_cancel_teardown(ex, task, 1, &key) == RT_SCOPE_TEARDOWN_PARKED) {
+                    park_current(ex, key);
+                    break;
                 }
             }
             mark_done(ex, task, TASK_RESULT_CANCELLED);

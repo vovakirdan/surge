@@ -18,15 +18,9 @@ static rt_shard* rt_task_join_waiter_shard(rt_executor* ex, uint64_t task_id) {
 // collect-all wake operations must not call this helper as a split "store
 // now, lock later" sequence: rt_async_waiter.c / rt_task_park.c delegate to the
 // join-route helpers, which resolve the join route, lock that shard, and
-// revalidate the route under the lock before touching the store. Scope keys
-// carry the scope id and route to the scope's PINNED owner shard (,
-// S5-Q10, revising D8): the scope's owner_shard_id is fixed at
-// rt_scope_enter, so both the join_all park and the child-done wake serialize
-// on that one shard's store lock; a freed/absent scope (monotonic, never-reused
-// ids) resolves to shard 0 via rt_scope_owner_shard, draining nothing. Channel
-// keys route to the channel's own owner shard, below — the migration already
-// happened, and this comment claimed shard 0 for it long after the arm below
-// stopped agreeing.
+// revalidate the route under the lock before touching the store. Scope keys,
+// like timer and channel keys, stamp their stable owner while the object is
+// live; routing must not dereference a scope that may already be freed.
 //
 // Channel keys resolve WITHOUT touching the channel (RV2-DEBT-199). The claim
 // that stood here — "channels are never freed" — was false: rt_far_channel.c's
@@ -59,7 +53,9 @@ rt_waiter_store* rt_waiter_store_for_key(rt_executor* ex, waker_key key) {
         case WAKER_BLOCKING:
             return rt_shard_waiter_store(rt_task_owner_shard(ex, get_task(ex, key.id)));
         case WAKER_SCOPE:
+#ifdef RV2_DEBT_283_NEGATIVE_CONTROL
             return rt_shard_waiter_store(rt_scope_owner_shard(ex, get_scope(ex, key.id)));
+#endif
         case WAKER_REMOTE_SPAWN_REPLY:
         case WAKER_REMOTE_TASK_REPLY:
             return rt_executor_waiter_store_for_shard(ex, key.owner_shard_id);
@@ -91,7 +87,9 @@ rt_shard* rt_waiter_key_shard(rt_executor* ex, waker_key key) {
         case WAKER_BLOCKING:
             return rt_task_owner_shard(ex, get_task(ex, key.id));
         case WAKER_SCOPE:
+#ifdef RV2_DEBT_283_NEGATIVE_CONTROL
             return rt_scope_owner_shard(ex, get_scope(ex, key.id));
+#endif
         case WAKER_REMOTE_SPAWN_REPLY:
         case WAKER_REMOTE_TASK_REPLY:
             return rt_runtime_shard(rt_executor_runtime(ex), key.owner_shard_id);

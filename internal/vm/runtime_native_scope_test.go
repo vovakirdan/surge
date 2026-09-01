@@ -228,16 +228,16 @@ int main(void) {
         rt_control_unlock(ex);
         return fail("completed child should not be marked registered");
     }
-    rt_set_current_task(NULL);
     rt_control_unlock(ex);
 
     rt_scope_exit(scope_handle);
 
     rt_control_lock(ex);
-    if (owner->scope_id != 0) {
+    if (waker_valid(owner->active_scope_key)) {
         rt_control_unlock(ex);
-        return fail("scope exit did not clear owner scope id");
+        return fail("scope exit did not clear owner scope key");
     }
+    rt_set_current_task(NULL);
     free_task_slot(ex, completed);
     free_task_slot(ex, active);
     free_task_slot(ex, owner);

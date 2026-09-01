@@ -66,6 +66,7 @@ declare -A WINDOW_FILE=(
     [SP_TRANSPORT_DATA_SLOT_TASK_PARKED]="rt_transport.c"
     [SP_SLEEP_FIRED_BEFORE_WAKE]="rt_async_sleep.c"
     [SP_SCOPE_FAILFAST_JOIN_BEFORE_VERIFY]="rt_async_scope.c"
+    [SP_SCOPE_TEARDOWN_BEFORE_REGISTER]="rt_scope_teardown.c"
     [SP_ASYNC_RETURN_BEFORE_SUCCESS_COMMIT]="rt_async_poll.c"
     [SP_MARKDONE_AFTER_SEAL_BEFORE_DONE]="rt_task_complete.c"
     [SP_CHANNEL_LAST_RELEASE_BEFORE_FREE]="rt_channel_refcount.c"

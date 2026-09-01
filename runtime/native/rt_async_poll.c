@@ -114,28 +114,15 @@ poll_outcome poll_task(rt_executor* ex, rt_task* task) {
         return out;
     }
     if (task->cancel_pending) {
-        if (task->scope_id != 0 && ex != NULL) {
-            rt_control_lock(ex);
-            rt_scope* scope = get_scope(ex, task->scope_id);
-            if (scope == NULL) {
-                task->cancel_pending = 0;
-                rt_control_unlock(ex);
-                out.kind = POLL_DONE_CANCELLED;
+        if (waker_valid(task->active_scope_key) && ex != NULL) {
+            waker_key key = waker_none();
+            if (rt_scope_cancel_teardown(ex, task, 0, &key) == RT_SCOPE_TEARDOWN_PARKED) {
+                out.kind = POLL_PARKED;
+                out.park_key = key;
+                out.state = task->state;
                 return out;
             }
-            if (scope->active_children == 0) {
-                task->cancel_pending = 0;
-                scope_exit_locked(ex, scope);
-                rt_control_unlock(ex);
-                out.kind = POLL_DONE_CANCELLED;
-                return out;
-            }
-            waker_key key = scope_key(scope->id);
-            prepare_park(ex, task, key, 0);
-            out.kind = POLL_PARKED;
-            out.park_key = key;
-            out.state = task->state;
-            rt_control_unlock(ex);
+            out.kind = POLL_DONE_CANCELLED;
             return out;
         }
         task->cancel_pending = 0;

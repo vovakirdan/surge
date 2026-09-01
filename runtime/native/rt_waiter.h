@@ -8,8 +8,8 @@
 // Waiter keys, entries, and stores. Stores are owned per the /9
 // dependency map: net keys by the fd owner shard, join keys by the task's
 // atomic join-owner route, timer/blocking keys by the parked-on task's owner
-// shard, scope keys by the control lane, and channel keys by the shard in
-// rt_channel.owner_shard_id — the creating task's shard, or the bound target
+// shard, scope keys by the scope's pinned owner shard, and channel keys by the
+// shard in rt_channel.owner_shard_id — the creating task's shard, or the bound target
 // shard for a transport-minted channel, and 0 only when a channel is created
 // outside task context.
 
@@ -173,7 +173,7 @@ waker_key waker_none(void);
 int waker_valid(waker_key key);
 waker_key join_key(uint64_t id);
 waker_key timer_key(uint64_t id, uint32_t owner_shard_id);
-waker_key scope_key(uint64_t id);
+waker_key scope_key(uint64_t id, uint32_t owner_shard_id);
 waker_key channel_send_key(const rt_channel* ch);
 waker_key channel_recv_key(const rt_channel* ch);
 waker_key net_accept_key(int fd);

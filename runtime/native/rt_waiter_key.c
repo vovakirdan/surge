@@ -46,8 +46,8 @@ waker_key timer_key(uint64_t id, uint32_t owner_shard_id) {
     return key;
 }
 
-waker_key scope_key(uint64_t id) {
-    waker_key key = {WAKER_SCOPE, id, 0};
+waker_key scope_key(uint64_t id, uint32_t owner_shard_id) {
+    waker_key key = {WAKER_SCOPE, id, owner_shard_id};
     return key;
 }
 

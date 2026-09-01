@@ -281,9 +281,20 @@ func TestRuntimeV2LifecycleStaticScopeOwnerLane(t *testing.T) {
 	if strings.Contains(route, "case WAKER_SCOPE:\n            return &ex->control_waiters;") {
 		t.Fatal("WAKER_SCOPE must move off ex->control_waiters to the scope owner store")
 	}
-	if !strings.Contains(route, "rt_scope_owner_shard(ex, get_scope(ex, key.id))") {
-		t.Fatal("WAKER_SCOPE must resolve the scope owner shard via " +
-			"rt_scope_owner_shard(ex, get_scope(ex, key.id))")
+	for function, stampedRoute := range map[string]string{
+		"rt_waiter_store_for_key": "return rt_executor_waiter_store_for_shard(ex, key.owner_shard_id);",
+		"rt_waiter_key_shard":     "return rt_runtime_shard(rt_executor_runtime(ex), key.owner_shard_id);",
+	} {
+		body := lifecycleFindFunctionBody(t, function)
+		start := strings.Index(body, "case WAKER_SCOPE:")
+		if start < 0 {
+			t.Fatalf("%s has no WAKER_SCOPE arm:\n%s", function, body)
+		}
+		arm := body[start:]
+		if !strings.Contains(arm, stampedRoute) {
+			t.Fatalf("%s WAKER_SCOPE arm must route from its stamped owner: %s\n%s",
+				function, stampedRoute, arm)
+		}
 	}
 	// Scope-reason-gone (the assertion P8 deferred to P9, S6-Q1 complete):
 	// mark_done_needs_control no longer forces control for a scope-registered

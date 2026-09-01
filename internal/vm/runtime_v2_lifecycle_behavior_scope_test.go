@@ -71,6 +71,7 @@ func TestRuntimeV2LifecycleScopeCancelledPollTeardown(t *testing.T) {
 		t.Fatalf("cancelled-poll scope teardown failed (code=%d)\nstdout:\n%s\nstderr:\n%s",
 			exitCode, stdout, stderr)
 	}
+	runRuntimeV2ScopeTeardownSerializerProofs(t, binPath)
 }
 
 // The three ...AcrossShards tests below re-run the same scope scenarios under
@@ -207,10 +208,15 @@ static void poll_scope_cancel_owner(void) {
     if (phase == 0) {
         void* handle = rt_scope_enter(false);
         atomic_store_explicit(&g_cancel_scope_handle, handle, memory_order_release);
-        void* child = __task_create(POLL_SPIN_FOREVER, NULL, rt_channel_opaque_word_ops());
+        void* child = __task_create(POLL_PARK_FOREVER, NULL, rt_channel_opaque_word_ops());
         atomic_store_explicit(&g_cancel_child, child, memory_order_release);
         rt_scope_register_child(handle, child);
         atomic_store_explicit(&g_cancel_owner_phase, 1, memory_order_release);
+#ifdef RT_TEST_SYNC_POINTS
+        // Proving builds enter the retry teardown directly, with no carried
+        // cancellation wake token to mask a missing post-register verify.
+        rt_current_task()->cancel_pending = 1;
+#endif
     }
     // Every subsequent invocation just yields; a cancellation delivered by
     // the harness driver surfaces here via rt_async_yield's own cancelled
