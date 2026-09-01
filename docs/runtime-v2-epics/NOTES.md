@@ -9654,3 +9654,9 @@ reported that `.order-backends` was not preserved.  After renaming the three
 inputs and extending the keep-list, both rows pass in 0.025 s.  A pre-commit
 `make golden-check` correctly refused the uncommitted delete/add state; the full
 gate must run after this corpus-input change is committed.
+
+The committed input change was followed by `make golden-update`.  It exited 0,
+left all generated files unchanged, and proposed only the frozen manifest:
+entry count `5359 -> 5362`, digest
+`3154831e7f6047bfaccfd0d53f42b6cc65ce2b5c1806a2c142c794b605167aef ->
+2f75babf4f297fa70a0d9ca7eeaeb12767a5202ec85ec6e7a930ddb4d5a725fa`.
