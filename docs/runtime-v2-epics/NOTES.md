@@ -9660,3 +9660,24 @@ left all generated files unchanged, and proposed only the frozen manifest:
 entry count `5359 -> 5362`, digest
 `3154831e7f6047bfaccfd0d53f42b6cc65ce2b5c1806a2c142c794b605167aef ->
 2f75babf4f297fa70a0d9ca7eeaeb12767a5202ec85ec6e7a930ddb4d5a725fa`.
+
+`make golden-check` then completed both serialized generator passes with exit 0
+and no corpus or Git-state change.
+
+**Cppcheck blocker.**  The only error-producing finding is the intentional
+`knownConditionTrueFalse` at `rt_channel_refcount.c:272`: the armed channel-pin
+negative control maps the registered-waiter count to zero so the sanitizer can
+reach the pre-pin defect.  The production configuration still checks the real
+count.  The repair is therefore a local, explained inline suppression on that
+condition; global cppcheck flags and the negative-control arm stay unchanged.
+
+With that local suppression, `make cppcheck` scanned all 109 configured C
+files and exited 0 with `cppcheck OK`.  The terminal `toomanyconfigs` row remains
+informational; no warning class or global flag was disabled.
+
+`make c-check-changed C_CHANGED='runtime/native/rt_channel_refcount.c'` then
+passed both the ordinary and `RT_TEST_SYNC_POINTS=1` compilations.  The paired
+freed-channel waiter proof also passed both its ASan negative-control and fixed
+rows in 14.72 s; in this ptrace sandbox only LeakSanitizer postprocessing was
+disabled (`ASAN_OPTIONS=detect_leaks=0`), while the expected heap-use-after-free
+remained required and observed by the negative row.

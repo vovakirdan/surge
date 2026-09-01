@@ -269,6 +269,9 @@ void rt_channel_seal_reclaimable_locked(const struct rt_shard* owner, void* chan
     // channel freed under a live registration left a key naming freed storage,
     // and the only thing that noticed was a reader of the log.
     size_t registered = RT_CHANNEL_REGISTERED(channel_registered_waiters_locked(owner, ch));
+    // The armed pin-count control deliberately maps this value to zero so the
+    // sanitizer reaches the pre-pin failure instead of stopping at this guard.
+    // cppcheck-suppress knownConditionTrueFalse
     if (registered != 0) {
         panic_msg("async: a channel was reclaimed while a waiter was registered on it");
     }
