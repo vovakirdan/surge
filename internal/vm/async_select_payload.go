@@ -76,6 +76,9 @@ func (vm *VM) sendSelectedChannelPayload(
 	completed, committed := reservation.Commit(routed)
 	if !committed || !completed {
 		vm.dropAsyncPayload(routed)
+		if exec.ChanIsClosed(channel) {
+			return vm.eb.makeError(PanicInvalidHandle, "send on closed channel")
+		}
 		return vm.eb.invalidLocation("selected channel send could not commit")
 	}
 	return nil

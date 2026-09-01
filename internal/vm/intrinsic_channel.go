@@ -34,8 +34,8 @@ func (vm *VM) handleChannelNew(frame *Frame, call *mir.CallInstr, writes *[]Loca
 	channelCapacity := uint64(capacity) //nolint:gosec // capacity is bounded by uintValueToInt
 	id := exec.ChanNew(channelCapacity)
 	exec.ChanPreparePayloadCapacity(id)
-	if vmErr := vm.registerAsyncChannelOwner(id, payloadType, channelCapacity); vmErr != nil {
-		return vmErr
+	if registerErr := vm.registerAsyncChannelOwner(id, payloadType, channelCapacity); registerErr != nil {
+		return registerErr
 	}
 	chVal, vmErr := vm.channelValue(id, dstType)
 	if vmErr != nil {
@@ -80,32 +80,29 @@ func (vm *VM) handleChannelSend(frame *Frame, call *mir.CallInstr) *VMError {
 		return vmErr
 	}
 
-	val, vmErr := vm.evalOperand(frame, &call.Args[1])
-	if vmErr != nil {
-		return vmErr
-	}
-	ownsValue := true
-	defer func() {
-		if ownsValue {
-			vm.dropValue(val)
-		}
-	}()
-
 	for {
 		if vm.Halted {
 			return nil
 		}
 		reservation, ready := exec.ChanReserveTrySend(chID)
 		if ready {
-			payload, vmErr := vm.stageReservedChannelSend(reservation, val)
+			val, vmErr := vm.evalOperand(frame, &call.Args[1])
 			if vmErr != nil {
 				reservation.Abort()
 				return vmErr
 			}
-			ownsValue = false
+			payload, vmErr := vm.stageReservedChannelSend(reservation, val)
+			if vmErr != nil {
+				reservation.Abort()
+				vm.dropValue(val)
+				return vmErr
+			}
 			completed, committed := reservation.Commit(payload)
 			if !committed || !completed {
 				vm.dropAsyncPayload(payload)
+				if exec.ChanIsClosed(chID) {
+					return vm.eb.makeError(PanicInvalidHandle, "send on closed channel")
+				}
 				return vm.eb.invalidLocation("reserved channel send could not commit")
 			}
 			return nil

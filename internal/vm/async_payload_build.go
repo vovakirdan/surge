@@ -53,12 +53,16 @@ func (vm *VM) buildTagFromAsyncPayload(
 		return Value{}, vmErr
 	}
 	rollback := func(failure *VMError) (Value, *VMError) {
-		_ = vm.storageDrop(destination)
-		_ = vm.releaseTemporary(frame, destination)
+		if dropErr := vm.storageDrop(destination); dropErr != nil {
+			return Value{}, vm.eb.makeError(PanicUnimplemented, dropErr.Error())
+		}
+		if releaseErr := vm.releaseTemporary(frame, destination); releaseErr != nil {
+			return Value{}, releaseErr
+		}
 		return Value{}, failure
 	}
-	if err := vm.storageSetActiveCase(destination, shape, index); err != nil {
-		return rollback(vm.eb.makeError(PanicUnimplemented, err.Error()))
+	if activateErr := vm.storageSetActiveCase(destination, shape, index); activateErr != nil {
+		return rollback(vm.eb.makeError(PanicUnimplemented, activateErr.Error()))
 	}
 	payloadDestination, err := destination.memberRef(shape.Cases[index].Payload[0])
 	if err != nil {

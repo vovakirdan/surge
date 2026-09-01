@@ -10295,3 +10295,249 @@ One adjacent pre-existing branch is explicitly not a D8 blocker:
 `Channel.popSendWaiter` / `hasSendWaiter` can prune a done sender without
 returning its generic payload to the VM. It is recorded as RV2-DEBT-317 with an
 exact close condition rather than widening this atomic storage cutover.
+
+### D8 independent-review hardening
+
+Two negative controls found lifecycle gaps before integration. First, a
+composite stage moved into an owner slot before scratch handoff could report an
+internal refusal. The refusal then reset the reserved slot without dropping
+the bytes it had already received. Scratch handoff now has a non-mutating
+preflight before `storageMoveInit`; a returned failure leaves the destination
+`EMPTY` and the source obligation unchanged, as the typed-carrier contract
+requires.
+
+Second, the executor's receive queue named only a task. A task woken and parked
+again could therefore make an old registration look current, including when it
+parked on the same channel. Receive registrations now carry the VM task's
+monotonic park sequence. Queue selection, reservation, commit, abort, and close
+preserve or validate that exact sequence and the current channel key; the VM
+binds the resume claim to the sequence the reservation consumed rather than
+re-reading and adopting a newer one. The permanent negative rows cover both a
+different-channel repark and two generations on the same channel. The sender
+queue issue remains separately scoped to RV2-DEBT-317.
+
+The two touched legacy files already over Rule 4's limit both shrink:
+`internal/asyncrt/asyncrt.go` 608 -> 577 physical lines and `channel.go`
+541 -> 483. The effective-size gate reports 497 and 422 respectively. Task
+accessors and receive-registration validation moved into narrowly named 25-
+and 73-line files; no catch-all helper module was introduced.
+
+### D8 rendezvous reservation/close correction
+
+Independent lifecycle review found a third blocking gap: reserving a
+rendezvous receiver removed its exact registration from `recvq`, but did not
+transfer that registration into channel-owned state visible to close,
+cancellation, stale wakeup, or shutdown.  A close between reservation and
+publication could therefore leave the receiver parked forever.
+
+The approved owner ruling is now explicit in `docs/RUNTIME_V2.md`: reservation
+is not publication; a successful owner-lane commit is publication.
+Commit-before-close delivers `T` and close cannot revoke it. Close-before-
+commit rejects with the existing send-on-closed result, settles the exact
+receiver closed/`nothing`, and leaves the VM payload lane to drop its staged
+value exactly once. Close-before-abort retires that same close-won claim
+idempotently and never requeues it.
+
+`Channel.recvClaim` is the smallest channel-owned implementation of that
+ruling. It carries only `(task, park-generation)` control identity. Moving a
+live FIFO registration into it is one owner-lane transition; commit, abort,
+close, generic wake/cancel, stale-generation pruning, destroy, and drain can
+all retire the same identity. There is at most one active rendezvous claim.
+Later direct, buffered, blocking, try, and selected sends cannot overtake it;
+a refused blocking sender subscribes to `ChannelSendKey` without evaluating or
+staging its source. Claim release wakes both select send subscriptions and
+those retry subscribers, and the executor's ready credit closes the late final
+`ParkCurrent` sleep race. `parkTask` checks that durable credit before creating
+any subscription: a credited task remains `READY` for the next poll regardless
+of which key the completed poll reports. `Yield` delegates to `Wake`, so every
+existing-task producer retires a parked row and exact receive claim before
+entering `readySet`; spawn is the only other producer and starts without park
+state. Thus `ready => not parked` is structural, rather than a cleanup deferred
+until `NextReady`. Generic wake changes control state only: it never touches
+`Value`, `asyncPayload`, or an owner slot.
+
+The VM validates the receiver sequence captured by the reservation in both
+`stageReservedChannelSend` and `routeAsyncPayloadToChannel`. The ordinary send
+path reserves before evaluating its source, and direct, try, and selected
+close-won commits discharge composite payloads in their existing owning lane.
+No new `Value` carrier, public payload API, language construction, or syntax
+was introduced.
+
+Rule 13 RED evidence used the exact prior production index (binary diff SHA256
+`837bda5512aedac2822441002692895a26f8dfd3e8e146a666841ab5827a5c41`)
+plus the permanent behavior-only tests. It failed with receiver resume
+`(0, 0), want closed/nothing`; close-won abort, cancel, external wake, and drain
+each restored one registration; later FIFO and ring sends overtook the claim;
+claim-refused send retry rows reserved ahead of it. Both direct composite
+teardown orders and both routed/select orders observed `ResumeNone` instead of
+closed, and closed `try_send` returned `VM2103` instead of `false` without an
+error. Commit-before-close, payload-lane-only terminal cleanup, stale queued
+generation filtering, and MaxUint64 were deliberate positive controls and
+already passed.
+
+Precise negative mutants cover the controls whose prerequisite fix was already
+present in that staged index. Removing the MaxUint64 guard failed with
+`implicit receive generation wrapped after MaxUint64`. Treating every waiting
+task as live made all four same/different-channel queued/claimed generation
+rows fail. Removing the captured-sequence check from the direct and routed VM
+paths failed with `stage accepted a changed receiver sequence` and `route
+accepted a changed receiver sequence` respectively. Production was restored
+after every mutant.
+
+Final focused evidence is green: the asyncrt lifecycle/generation/terminal
+matrix (`ok`, 0.004 s), the direct/routed/composite VM matrix (`ok`, 0.034 s),
+full `internal/asyncrt` (`ok`, 0.004 s), targeted race detector rows
+(`internal/asyncrt` 1.023 s, `internal/vm` 1.227 s), and focused vet. The
+cancelled local-select row passed in 10.909 s; its Valgrind subrow passed in
+13.061 s (2.12 s inside Valgrind) with copy and non-copy lanes at 0 bytes and
+0 blocks, including 0 indirect bytes.
+
+Rule 10 exact command ledger for those recorded runs (all from
+`/tmp/surge-d8-lifecycle-fix.Lfnik1`):
+
+```sh
+GOFLAGS=-buildvcs=false go test ./internal/asyncrt -count=1 -timeout=2m -run 'TestChannelRendezvous|TestChanCanSendFiltersReceiveGenerations|TestChannelReceiveGenerationOverflowFailsClosed' -v
+```
+
+Result: PASS, `ok surge/internal/asyncrt 0.004s`.
+
+```sh
+GOFLAGS=-buildvcs=false go test ./internal/vm -count=1 -timeout=3m -run 'TestReservedRendezvousCloseDropsCompositeExactlyOnce|TestReservedTrySendCloseReturnsFalseAndDropsComposite|TestRoutedSelectRendezvousCloseDropsCompositeExactlyOnce|TestReservedRendezvousSequenceChangeLeavesSourceUnchanged|TestRoutedRendezvousSequenceChangeLeavesStagedSourceUnchanged|TestReservedRendezvousTerminalOwnerEventsLeavePayloadToVM|TestReservedTrySendErrorReleasesItsSourceValue|TestRefillErrorDropsAlreadyPoppedRingPayload' -v
+```
+
+Result: PASS, `ok surge/internal/vm 0.034s`.
+
+```sh
+GOFLAGS=-buildvcs=false go test ./internal/asyncrt -count=1 -timeout=5m
+```
+
+Result: PASS, `ok surge/internal/asyncrt 0.004s`.
+
+```sh
+GOFLAGS=-buildvcs=false go test -race ./internal/asyncrt -count=1 -timeout=3m -run 'TestChannelRendezvous|TestChanCanSendFiltersReceiveGenerations|TestChannelReceiveGenerationOverflowFailsClosed'
+GOFLAGS=-buildvcs=false go test -race ./internal/vm -count=1 -timeout=4m -run 'TestReservedRendezvousCloseDropsCompositeExactlyOnce|TestReservedTrySendCloseReturnsFalseAndDropsComposite|TestRoutedSelectRendezvousCloseDropsCompositeExactlyOnce|TestReservedRendezvousSequenceChangeLeavesSourceUnchanged|TestRoutedRendezvousSequenceChangeLeavesStagedSourceUnchanged|TestReservedRendezvousTerminalOwnerEventsLeavePayloadToVM|TestReservedTrySendErrorReleasesItsSourceValue|TestRefillErrorDropsAlreadyPoppedRingPayload'
+```
+
+Results: PASS, `ok surge/internal/asyncrt 1.023s` and
+`ok surge/internal/vm 1.227s` respectively.
+
+```sh
+GOFLAGS=-buildvcs=false go vet ./internal/asyncrt ./internal/vm
+```
+
+Result: PASS, exit 0 with no diagnostics.
+
+```sh
+GOFLAGS=-buildvcs=false go test ./internal/vm -count=1 -timeout=2m -run '^TestRuntimeV2LocalSelectCancelNonCopySendArm$/^cancelled_outcome$' -v
+GOFLAGS=-buildvcs=false go test ./internal/vm -count=1 -timeout=3m -run '^TestRuntimeV2LocalSelectCancelNonCopySendArm$/^valgrind$' -v
+```
+
+Results: PASS, `ok surge/internal/vm 10.909s` and
+`ok surge/internal/vm 13.061s`; the latter logged the 2.12 s Valgrind subrow
+and zero direct or indirect bytes/blocks for both lanes.
+
+Independent review repeated the complete local-select row on staged snapshot
+`54aa252ec14820e3f855753bcd7fe388ef7c1073ef900ba44c57b0cbf45c522f`
+with this exact command:
+
+```sh
+SURGE_STDLIB=/tmp/surge-d8-lifecycle-fix.Lfnik1 GOFLAGS=-buildvcs=false SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^TestRuntimeV2LocalSelectCancelNonCopySendArm$' -count=1 -parallel=1 -p=1 -v --timeout 120s
+```
+
+Result: PASS, `ok surge/internal/vm 13.783s`; Valgrind took 2.18 s and both
+lanes remained at 0 direct/indirect bytes and blocks.
+
+A final frozen-snapshot audit found that the first late-park test proved only
+that ready credit survived: it consumed that credit without checking whether
+the final `ParkCurrent` had also recreated a stale waiter row. Against frozen
+staged SHA256
+`d6ad82e99dbe4ad237ade677144e0b79c13e70a016f9f6277b11c55167bdbf9d`,
+the permanent same-key and unrelated-key rows both failed with `late park left
+a subscription beside durable ready credit`; a later successful retry could
+therefore wake and re-enqueue its currently running sender. The handshake above
+makes both rows green, including two queued FIFO receivers, consumed sender
+credit, successful retry publication, exact second-receiver wake, and no
+self-enqueued sender. The rendezvous matrix passes 100 repetitions and the new
+row passes 10 race-detector repetitions. Four old generation tests initially
+set `current` directly over an unconsumed Spawn/Wake credit, a state the VM
+scheduler cannot produce; their harness now follows the production
+`NextReady -> SetCurrent` transition before parking.
+
+The exact post-handshake stress commands were:
+
+```sh
+GOFLAGS=-buildvcs=false go test ./internal/asyncrt -count=100 -timeout=3m -run 'TestChannelRendezvous|TestChanCanSendFiltersReceiveGenerations|TestChannelReceiveGenerationOverflowFailsClosed'
+GOFLAGS=-buildvcs=false go test ./internal/asyncrt -count=100 -timeout=3m -run 'TestChannelRendezvous'
+GOFLAGS=-buildvcs=false go test -race ./internal/asyncrt -count=10 -timeout=4m -run '^TestChannelRendezvousReleaseCreditRetiresLateParkSubscription$'
+```
+
+Results: PASS, `ok surge/internal/asyncrt 0.093s`,
+`ok surge/internal/asyncrt 0.041s`, and
+`ok surge/internal/asyncrt 1.017s` respectively.
+
+Independent review reproduced the adjacent Rule 13 RED with a disposable Go
+overlay. `/tmp/surge-d8-final-review/late_park_mutant_overlay.json` replaced
+`internal/asyncrt/asyncrt.go` with
+`/tmp/surge-d8-final-review/asyncrt_late_park_mutant.go`; that file and the old
+index blob `d2a4fb61` both hashed to
+`bf9d80d8554f661f95ea47c2e66fc651e84147ff22a8841081c024b4b6f12125`.
+The exact test command was:
+
+```sh
+SURGE_STDLIB=/tmp/surge-d8-lifecycle-fix.Lfnik1 GOFLAGS=-buildvcs=false go test -overlay=/tmp/surge-d8-final-review/late_park_mutant_overlay.json ./internal/asyncrt -run '^TestChannelRendezvousReleaseCreditRetiresLateParkSubscription$' -count=1 -v
+```
+
+Result: expected FAIL, `FAIL surge/internal/asyncrt 0.003s`; both `same-key`
+and `unrelated-key` failed with `late park left a subscription beside durable
+ready credit`. The overlay was disposable and production bytes were unchanged.
+
+After completing the Rule 10 and Rule 3 evidence text, the exact commands
+listed above were rerun unchanged as the final proportionate gate. Results were
+focused asyncrt `0.005s`, focused VM `0.033s`, full asyncrt `0.006s`, targeted
+asyncrt race `1.020s`, targeted VM race `1.227s`, vet exit 0, the 100-count
+matrix `0.098s`, and the 10-count late-park race `1.020s`. The exact combined
+local-select command recorded above also passed in `12.938s`; its Valgrind
+subrow took `2.07s` and again reported zero direct/indirect bytes and blocks in
+both lanes.
+
+The first broad hook run is INVALID environment evidence, not a product red:
+it omitted `SURGE_STDLIB` and reproduced the branch's unpinned-stdlib LLVM and
+layout failures on the exact prior index. The accepted Rule 16 invocation was
+this exact command:
+
+```sh
+SURGE_STDLIB=/tmp/surge-d8-lifecycle-fix.Lfnik1 GOFLAGS=-buildvcs=false ./scripts/pre-commit
+```
+
+The final post-handshake rerun passed all packages (full VM 101.255 s), lint with
+0 issues, C formatting and strict warnings, and the effective-size gate with
+25/25 files OK and no legacy or over-limit file. The cumulative lint
+differential is main `d8e100d7`: 0, prior D8 index: 48, lifecycle candidate
+before cleanup: 52, final: 0.
+
+The final Sentrux tool sequence was
+`mcp__sentrux__scan(path=/tmp/surge-d8-lifecycle-fix.Lfnik1/internal)`,
+`mcp__sentrux__health`, `mcp__sentrux__check_rules`, and
+`mcp__sentrux__session_end`. The scoped scan improved 6454 -> 6455; health
+reported 2,590 cross-module edges of 2,877 and `modularity` as the bottleneck.
+Root-cause score/raw pairs were acyclicity 10000/0, depth 6154/5, equality
+5164/0.4836009522, modularity 3712/0.0568286419, and redundancy
+9498/0.0502083333. Rules passed 7/7 with zero violations. `session_end`
+measured signal +1 but returned `pass=false` because its secondary count of
+complex functions rose 645 -> 647; the Rule 3 lower-signal blocker is absent,
+and this secondary warning is retained explicitly rather than hidden.
+
+The repository-root sequence used
+`mcp__sentrux__scan(path=/tmp/surge-d8-lifecycle-fix.Lfnik1)`,
+`mcp__sentrux__health`, and `mcp__sentrux__check_rules`. The scan improved
+6152 -> 6153; health reported 2,854 cross-module edges of 3,248 and again
+identified `modularity` as the bottleneck. Root-cause score/raw pairs were
+acyclicity 10000/0, depth 5714/6, equality 4704/0.5296070280, modularity
+3947/0.0921005386, and redundancy 8315/0.1685102377. Rules passed 8/8 with
+zero violations. A direct `session_end` after switching from the scoped scan
+was invalid cross-scope evidence and is discarded; the corrected same-root
+`mcp__sentrux__session_start` -> `mcp__sentrux__session_end` closure passed at
+6153 -> 6153 with delta 0 and no violations.
+
+The heavy Runtime V2 aggregate and load stands remain dedicated-runner work
+and were not run from this mutable development worktree.

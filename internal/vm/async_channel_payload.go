@@ -19,9 +19,9 @@ func (vm *VM) stageReservedChannelSend(
 		return vm.stageAsyncPayloadInto(channelOwner, asyncSlotPark, value)
 	case asyncrt.ChannelSendRendezvous:
 		receiver := reservation.Receiver()
-		sequence := vm.currentAsyncParkSequence(receiver)
-		if sequence == 0 {
-			return asyncPayload{}, vm.eb.invalidLocation("receiver has no park sequence")
+		sequence := reservation.ReceiverParkSequence()
+		if sequence == 0 || vm.currentAsyncParkSequence(receiver) != sequence {
+			return asyncPayload{}, vm.eb.invalidLocation("receiver park sequence changed")
 		}
 		owner, vmErr := vm.asyncResumeOwner(receiver, channelOwner.typeID)
 		if vmErr != nil {
@@ -38,6 +38,7 @@ func (vm *VM) stageReservedChannelSend(
 }
 
 func (vm *VM) commitReservedTrySend(
+	exec *asyncrt.Executor[asyncPayload],
 	reservation asyncrt.ChannelSendReservation[asyncPayload],
 	value Value,
 ) (bool, *VMError) {
@@ -50,6 +51,9 @@ func (vm *VM) commitReservedTrySend(
 	completed, committed := reservation.Commit(payload)
 	if !committed {
 		vm.dropAsyncPayload(payload)
+		if exec != nil && exec.ChanIsClosed(reservation.ChannelID()) {
+			return false, nil
+		}
 		return false, vm.eb.invalidLocation("reserved try_send could not commit")
 	}
 	return completed, nil
@@ -70,9 +74,9 @@ func (vm *VM) routeAsyncPayloadToChannel(
 		return vm.moveAsyncPayloadIntoOwner(payload, channelOwner, asyncSlotPark)
 	case asyncrt.ChannelSendRendezvous:
 		receiver := reservation.Receiver()
-		sequence := vm.currentAsyncParkSequence(receiver)
-		if sequence == 0 {
-			return asyncPayload{}, vm.eb.invalidLocation("receiver has no park sequence")
+		sequence := reservation.ReceiverParkSequence()
+		if sequence == 0 || vm.currentAsyncParkSequence(receiver) != sequence {
+			return asyncPayload{}, vm.eb.invalidLocation("receiver park sequence changed")
 		}
 		owner, vmErr := vm.asyncResumeOwner(receiver, channelOwner.typeID)
 		if vmErr != nil {
@@ -107,20 +111,22 @@ func (vm *VM) tryReceiveAsyncChannel(
 	exec *asyncrt.Executor[asyncPayload],
 	id asyncrt.ChannelID,
 ) (asyncPayload, bool, *VMError) {
-	return vm.receiveAsyncChannel(exec, id, false)
+	return vm.receiveAsyncChannel(exec, id, false, 0)
 }
 
 func (vm *VM) receiveOrParkAsyncChannel(
 	exec *asyncrt.Executor[asyncPayload],
 	id asyncrt.ChannelID,
+	parkSeq uint64,
 ) (asyncPayload, bool, *VMError) {
-	return vm.receiveAsyncChannel(exec, id, true)
+	return vm.receiveAsyncChannel(exec, id, true, parkSeq)
 }
 
 func (vm *VM) receiveAsyncChannel(
 	exec *asyncrt.Executor[asyncPayload],
 	id asyncrt.ChannelID,
 	allowPark bool,
+	parkSeq uint64,
 ) (asyncPayload, bool, *VMError) {
 	var refillErr *VMError
 	transfer := func(staged asyncPayload) (asyncPayload, bool) {
@@ -131,7 +137,7 @@ func (vm *VM) receiveAsyncChannel(
 	var payload asyncPayload
 	var ok bool
 	if allowPark {
-		payload, ok = exec.ChanRecvOrParkTransfer(id, transfer)
+		payload, ok = exec.ChanRecvOrParkTransfer(id, parkSeq, transfer)
 	} else {
 		payload, ok = exec.ChanTryRecvTransfer(id, transfer)
 	}

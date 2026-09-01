@@ -45,7 +45,9 @@ func (vm *VM) cloneAsyncPayloadIntoStorage(payload asyncPayload, dst StorageRef)
 	}
 	if owner.cell.Kind == cellComposite {
 		if err := vm.storageCopy(dst, src); err != nil {
-			_ = vm.storageDrop(dst)
+			if dropErr := vm.storageDrop(dst); dropErr != nil {
+				return vm.eb.makeError(PanicUnimplemented, dropErr.Error())
+			}
 			return vm.eb.makeError(PanicUnimplemented, err.Error())
 		}
 		return nil

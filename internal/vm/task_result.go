@@ -84,7 +84,9 @@ func (vm *VM) takeTimeoutOutcome(task *asyncrt.Task[asyncPayload], resultType ty
 			return Value{}, vmErr
 		}
 		if vmErr := vm.moveAsyncPayloadIntoStorage(task.ResultValue, destination); vmErr != nil {
-			_ = vm.releaseTemporary(vm.currentFrame(), destination)
+			if releaseErr := vm.releaseTemporary(vm.currentFrame(), destination); releaseErr != nil {
+				return Value{}, releaseErr
+			}
 			return Value{}, vmErr
 		}
 		task.ResultValue = asyncPayload{}

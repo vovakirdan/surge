@@ -143,14 +143,24 @@ func (s *scratch) grow(need uint64) {
 // reference that is not into this scratch at all — a move that thought it was
 // clearing scratch and was not would leave the rewind dropping a value that now
 // has a second owner.
+func (s *scratch) canRelease(ref StorageRef) error {
+	return s.handoff(ref, false)
+}
+
 func (s *scratch) release(ref StorageRef) error {
+	return s.handoff(ref, true)
+}
+
+func (s *scratch) handoff(ref StorageRef, commit bool) error {
 	if s == nil || ref.Arena != s.arena {
 		return nil
 	}
 	for i := len(s.entries) - 1; i >= 0; i-- {
 		entry := s.entries[i]
 		if entry.offset == ref.Offset && entry.live {
-			s.entries[i].live = false
+			if commit {
+				s.entries[i].live = false
+			}
 			return nil
 		}
 		// A reference INSIDE a live extent names a MEMBER of that temporary,

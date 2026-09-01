@@ -138,9 +138,9 @@ func (vm *VM) execTermAsyncReturn(frame *Frame, term *mir.Terminator) *VMError {
 	}
 	var result Value
 	if term.AsyncReturn.HasValue {
-		val, vmErr := vm.evalOperand(frame, &term.AsyncReturn.Value)
-		if vmErr != nil {
-			return vmErr
+		val, valueErr := vm.evalOperand(frame, &term.AsyncReturn.Value)
+		if valueErr != nil {
+			return valueErr
 		}
 		result = val
 	}

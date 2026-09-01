@@ -20,82 +20,82 @@ func (vm *VM) storageMoveInit(dst, src StorageRef) error {
 }
 
 func (vm *VM) storageMovePreflight(dst, src StorageRef) error {
-	size, err := vm.storageSizeOf(src.TypeID)
-	if err != nil {
-		return err
+	size, sizeErr := vm.storageSizeOf(src.TypeID)
+	if sizeErr != nil {
+		return sizeErr
 	}
-	if _, err := src.resolve(size); err != nil {
-		return err
+	if _, resolveErr := src.resolve(size); resolveErr != nil {
+		return resolveErr
 	}
-	if _, err := dst.resolve(size); err != nil {
-		return err
+	if _, resolveErr := dst.resolve(size); resolveErr != nil {
+		return resolveErr
 	}
-	if shape, err := vm.unionMembers(src.TypeID); err == nil {
-		index, err := vm.storageActiveCase(src, shape)
-		if err != nil {
-			return err
+	if shape, unionErr := vm.unionMembers(src.TypeID); unionErr == nil {
+		index, activeErr := vm.storageActiveCase(src, shape)
+		if activeErr != nil {
+			return activeErr
 		}
 		for _, member := range shape.Cases[index].Payload {
-			if err := vm.storageMoveMemberPreflight(dst, src, member); err != nil {
-				return err
+			if memberErr := vm.storageMoveMemberPreflight(dst, src, member); memberErr != nil {
+				return memberErr
 			}
 		}
 		return nil
 	}
-	members, err := vm.compositeMembers(src.TypeID)
-	if err != nil {
-		return err
+	members, membersErr := vm.compositeMembers(src.TypeID)
+	if membersErr != nil {
+		return membersErr
 	}
 	for _, member := range members {
-		if err := vm.storageMoveMemberPreflight(dst, src, member); err != nil {
-			return err
+		if memberErr := vm.storageMoveMemberPreflight(dst, src, member); memberErr != nil {
+			return memberErr
 		}
 	}
 	return nil
 }
 
 func (vm *VM) storageMoveMemberPreflight(dst, src StorageRef, member storageMember) error {
-	dstMember, err := dst.memberRef(member)
-	if err != nil {
-		return err
+	dstMember, dstErr := dst.memberRef(member)
+	if dstErr != nil {
+		return dstErr
 	}
-	srcMember, err := src.memberRef(member)
-	if err != nil {
-		return err
+	srcMember, srcErr := src.memberRef(member)
+	if srcErr != nil {
+		return srcErr
 	}
 	if member.Kind == cellComposite {
 		return vm.storageMovePreflight(dstMember, srcMember)
 	}
-	if _, err := dstMember.resolve(member.Size); err != nil {
-		return err
+	if _, resolveErr := dstMember.resolve(member.Size); resolveErr != nil {
+		return resolveErr
 	}
-	_, err = vm.storageReadCell(srcMember, member)
-	return err
+	_, readErr := vm.storageReadCell(srcMember, member)
+	return readErr
 }
 
 func (vm *VM) storageMoveWalk(dst, src StorageRef) error {
-	if shape, err := vm.unionMembers(src.TypeID); err == nil {
-		index, err := vm.storageActiveCase(src, shape)
-		if err != nil {
-			return err
+	if shape, unionErr := vm.unionMembers(src.TypeID); unionErr == nil {
+		index, activeErr := vm.storageActiveCase(src, shape)
+		if activeErr != nil {
+			return activeErr
 		}
-		if err := vm.storageSetActiveCase(dst, shape, index); err != nil {
-			return err
+		if activateErr := vm.storageSetActiveCase(dst, shape, index); activateErr != nil {
+			return activateErr
 		}
 		for _, member := range shape.Cases[index].Payload {
-			if err := vm.storageMoveMember(dst, src, member); err != nil {
-				return err
+			if memberErr := vm.storageMoveMember(dst, src, member); memberErr != nil {
+				return memberErr
 			}
 		}
 		return vm.storageZero(src)
 	}
-	members, err := vm.compositeMembers(src.TypeID)
-	if err != nil {
-		return err
+	members, membersErr := vm.compositeMembers(src.TypeID)
+	if membersErr != nil {
+		return membersErr
 	}
 	for _, member := range members {
-		if err := vm.storageMoveMember(dst, src, member); err != nil {
-			return err
+		if memberErr := vm.storageMoveMember(dst, src, member); memberErr != nil {
+			return memberErr
 		}
 	}
 	return vm.storageZero(src)
@@ -120,19 +120,19 @@ func (vm *VM) storageMoveCellInit(dst, src StorageRef, member storageMember) err
 	if member.Kind == cellComposite {
 		return fmt.Errorf("storage: composite type#%d needs a transfer walk", member.TypeID)
 	}
-	value, err := vm.storageReadCell(src, member)
-	if err != nil {
-		return err
+	value, readErr := vm.storageReadCell(src, member)
+	if readErr != nil {
+		return readErr
 	}
-	if _, err := dst.resolve(member.Size); err != nil {
-		return err
+	if _, resolveErr := dst.resolve(member.Size); resolveErr != nil {
+		return resolveErr
 	}
-	if err := vm.storageWriteCell(dst, member, value); err != nil {
-		return err
+	if writeErr := vm.storageWriteCell(dst, member, value); writeErr != nil {
+		return writeErr
 	}
-	bytes, err := src.resolve(member.Size)
-	if err != nil {
-		return err
+	bytes, resolveErr := src.resolve(member.Size)
+	if resolveErr != nil {
+		return resolveErr
 	}
 	clear(bytes)
 	return nil

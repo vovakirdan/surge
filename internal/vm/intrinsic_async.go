@@ -41,8 +41,8 @@ func (vm *VM) handleTaskCreate(frame *Frame, call *mir.CallInstr, writes *[]Loca
 		return stateErr
 	}
 	id := exec.Spawn(pollFnID, state)
-	if vmErr := vm.registerAsyncTaskOwner(id, payloadType); vmErr != nil {
-		return vmErr
+	if registerErr := vm.registerAsyncTaskOwner(id, payloadType); registerErr != nil {
+		return registerErr
 	}
 	taskVal, vmErr := vm.taskValue(id, taskType)
 	if vmErr != nil {
@@ -78,8 +78,8 @@ func (vm *VM) handleCheckpoint(frame *Frame, call *mir.CallInstr, writes *[]Loca
 	if vmErr != nil {
 		return vmErr
 	}
-	if vmErr := vm.registerAsyncTaskOwner(id, payloadType); vmErr != nil {
-		return vmErr
+	if registerErr := vm.registerAsyncTaskOwner(id, payloadType); registerErr != nil {
+		return registerErr
 	}
 	taskVal, vmErr := vm.taskValue(id, taskType)
 	if vmErr != nil {
@@ -125,8 +125,8 @@ func (vm *VM) handleSleep(frame *Frame, call *mir.CallInstr, writes *[]LocalWrit
 	if vmErr != nil {
 		return vmErr
 	}
-	if vmErr := vm.registerAsyncTaskOwner(id, payloadType); vmErr != nil {
-		return vmErr
+	if registerErr := vm.registerAsyncTaskOwner(id, payloadType); registerErr != nil {
+		return registerErr
 	}
 	taskVal, vmErr := vm.taskValue(id, taskType)
 	if vmErr != nil {

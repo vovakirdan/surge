@@ -16,6 +16,7 @@ func TestReservedTrySendErrorReleasesItsSourceValue(t *testing.T) {
 		t.Fatal("empty buffered channel did not reserve a send")
 	}
 	if _, vmErr := f.vm.commitReservedTrySend(
+		exec,
 		reservation, MakeHandleString(handle, f.text),
 	); vmErr == nil {
 		t.Fatal("wrong payload type was accepted")

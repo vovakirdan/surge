@@ -72,12 +72,13 @@ func (vm *VM) registerAsyncChannelOwner(
 	if capacity+2 > initial {
 		initial = capacity + 2
 	}
-	if initial > uint64(maxIntValue()) {
+	initialCapacity, fitsInt := checkedAsyncInt(initial)
+	if !fitsInt {
 		return vm.eb.invalidLocation("channel payload capacity overflows")
 	}
 	owner, vmErr := vm.newAsyncOwnerRegion(asyncOwnerID{
 		kind: asyncOwnerChannel, id: uint64(id),
-	}, typeID, int(initial))
+	}, typeID, initialCapacity)
 	if vmErr != nil {
 		return vmErr
 	}

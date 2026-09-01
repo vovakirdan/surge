@@ -30,7 +30,7 @@ func (vm *VM) handleChannelTrySend(frame *Frame, call *mir.CallInstr, writes *[]
 	reservation, ready := exec.ChanReserveTrySend(chID)
 	sent := false
 	if ready {
-		sent, vmErr = vm.commitReservedTrySend(reservation, val)
+		sent, vmErr = vm.commitReservedTrySend(exec, reservation, val)
 		if vmErr != nil {
 			return vmErr
 		}

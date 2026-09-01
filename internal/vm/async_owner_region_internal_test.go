@@ -27,8 +27,8 @@ func TestAsyncClaimMovesCompositeIntoCallerStorageThenExpires(t *testing.T) {
 	if vmErr != nil {
 		t.Fatalf("build caller destination: %v", vmErr)
 	}
-	if vmErr := f.vm.moveAsyncPayloadIntoStorage(claim, destination); vmErr != nil {
-		t.Fatalf("move into caller destination: %v", vmErr)
+	if moveErr := f.vm.moveAsyncPayloadIntoStorage(claim, destination); moveErr != nil {
+		t.Fatalf("move into caller destination: %v", moveErr)
 	}
 	if destination.Arena != f.receiver.scratch.arena {
 		t.Fatal("the payload did not land in caller-owned storage")
@@ -36,7 +36,7 @@ func TestAsyncClaimMovesCompositeIntoCallerStorageThenExpires(t *testing.T) {
 	if got := f.refCount(t, handle); got != 1 {
 		t.Fatalf("direct move left %d owners, want 1", got)
 	}
-	if vmErr := f.vm.moveAsyncPayloadIntoStorage(claim, destination); vmErr == nil {
+	if moveErr := f.vm.moveAsyncPayloadIntoStorage(claim, destination); moveErr == nil {
 		t.Fatal("a terminal claim was accepted twice")
 	}
 
@@ -171,8 +171,8 @@ func TestAsyncSlotGenerationExhaustionPoisonsOnlyThatQuiescentSlot(t *testing.T)
 	if vmErr != nil {
 		t.Fatalf("build destination: %v", vmErr)
 	}
-	if vmErr := f.vm.moveAsyncPayloadIntoStorage(claim, destination); vmErr != nil {
-		t.Fatalf("move last-generation result: %v", vmErr)
+	if moveErr := f.vm.moveAsyncPayloadIntoStorage(claim, destination); moveErr != nil {
+		t.Fatalf("move last-generation result: %v", moveErr)
 	}
 	if owner.slots[0].state != asyncPayloadExhausted {
 		t.Fatalf("last-generation slot state = %v, want exhausted", owner.slots[0].state)

@@ -1326,14 +1326,28 @@ and direct calls. Higher-order/function-type propagation and possible exported
 cross-module effect metadata remain tracked as `RV2-DEBT-024` if Phase 4
 lowering needs them.
 
+Decided (2026-09-01, D8 owner ruling): reserving a rendezvous receiver is not
+publication.  Removing a `WAITING` registration from its FIFO transfers that
+exact `(channel, task, park-generation)` registration into channel-owned claim
+state; it is never temporarily absent from owner-visible lifecycle state.  A
+successful commit on the channel owner lane publishes the value.  Therefore a
+commit ordered before `close` delivers `T`, and the later close cannot revoke
+it.  A `close` ordered before commit wins: the exact receiver completes
+closed/`nothing`, the later send commit is rejected with the existing
+send-on-closed result, and the sender's staged payload is discharged exactly
+once by its owning payload lane.  An abort after that close only retires the
+same close-won claim, idempotently; it never restores the registration.  The
+claim carries control only, admits no second rendezvous claim, and its release
+wakes send-readiness subscribers so later operations can re-evaluate without
+overtaking it.
+
 Left open by the 2026-08-27 rulings, and deliberately not answered in the text
 above. Whether one monotonic base serves every shard or each shard reads its
 own, and what `sleep(0)` is -- a yield, or a deadline at the current reading.
 What names and enables the test clock, and whether a shard refuses to arm,
 refuses to start, or bounds its advance when the monotonic clock is unreadable.
-Whether the channel's commit order survives `close` for a sender the close
-settled, and whether a position a `select` arm took and then destroyed counts
-in the order a later receiver is judged against. The remote-release queue's
+Whether a position a `select` arm took and then destroyed counts in the order a
+later receiver is judged against. The remote-release queue's
 bound as a number and a unit, whether there is one queue per owner or one per
 owner-and-releasing-lane pair, and which mechanism the words "cold,
 ownership-neutral fallback" name -- the span's own release accounting, or a

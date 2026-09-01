@@ -18,8 +18,8 @@ func TestStorageMoveTransfersOnlyTheActiveUnionArm(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve Wrapped arm: %v", err)
 	}
-	if err := f.vm.storageSetActiveCase(src, shape, wrapped); err != nil {
-		t.Fatalf("select source arm: %v", err)
+	if activateErr := f.vm.storageSetActiveCase(src, shape, wrapped); activateErr != nil {
+		t.Fatalf("select source arm: %v", activateErr)
 	}
 	payload := shape.Cases[wrapped].Payload
 	if len(payload) != 1 {
@@ -36,11 +36,11 @@ func TestStorageMoveTransfersOnlyTheActiveUnionArm(t *testing.T) {
 	f.writeCell(t, srcLeaf, leafMembers[0], MakeInt(17, types.NoTypeID))
 	f.writeCell(t, srcLeaf, leafMembers[1], MakeInt(23, types.NoTypeID))
 
-	if err := f.vm.storageMoveInit(dst, src); err != nil {
-		t.Fatalf("move exact union storage: %v", err)
+	if moveErr := f.vm.storageMoveInit(dst, src); moveErr != nil {
+		t.Fatalf("move exact union storage: %v", moveErr)
 	}
-	if got, err := f.vm.storageActiveCase(dst, shape); err != nil || got != wrapped {
-		t.Fatalf("destination active arm = %d (%v), want %d", got, err, wrapped)
+	if got, activeErr := f.vm.storageActiveCase(dst, shape); activeErr != nil || got != wrapped {
+		t.Fatalf("destination active arm = %d (%v), want %d", got, activeErr, wrapped)
 	}
 	dstLeaf, err := dst.memberRef(payload[0])
 	if err != nil {

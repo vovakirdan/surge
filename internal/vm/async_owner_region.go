@@ -45,12 +45,13 @@ func (vm *VM) newAsyncOwnerRegion(
 		return nil, vm.eb.invalidLocation("async owner capacity exceeds claim index")
 	}
 	byteLen, ok := mulAsyncExtent(stride, uint64(capacity))
-	if !ok || byteLen > uint64(maxIntValue()) {
+	byteCapacity, fitsInt := checkedAsyncInt(byteLen)
+	if !ok || !fitsInt {
 		return nil, vm.eb.invalidLocation("async owner backing size overflows")
 	}
 	owner := &asyncOwnerRegion{
 		id: id, typeID: typeID, cell: cell, stride: stride,
-		arena: Arena{bytes: make([]byte, int(byteLen)), gen: 1},
+		arena: Arena{bytes: make([]byte, byteCapacity), gen: 1},
 		slots: make([]asyncPayloadSlot, capacity),
 	}
 	for i := range owner.slots {
@@ -106,10 +107,11 @@ func (vm *VM) growAsyncOwner(owner *asyncOwnerRegion) (int, *VMError) {
 	}
 	next := old * 2
 	byteLen, ok := mulAsyncExtent(owner.stride, uint64(next))
-	if !ok || byteLen > uint64(maxIntValue()) {
+	byteCapacity, fitsInt := checkedAsyncInt(byteLen)
+	if !ok || !fitsInt {
 		return -1, vm.eb.invalidLocation("async owner backing size overflows")
 	}
-	owner.arena.bytes = append(owner.arena.bytes, make([]byte, int(byteLen)-len(owner.arena.bytes))...)
+	owner.arena.bytes = append(owner.arena.bytes, make([]byte, byteCapacity-len(owner.arena.bytes))...)
 	owner.slots = append(owner.slots, make([]asyncPayloadSlot, old)...)
 	for i := old; i < next; i++ {
 		owner.slots[i].generation = 1
@@ -136,3 +138,10 @@ func mulAsyncExtent(left, right uint64) (uint64, bool) {
 }
 
 func maxIntValue() int { return int(^uint(0) >> 1) }
+
+func checkedAsyncInt(value uint64) (int, bool) {
+	if value > uint64(maxIntValue()) { //nolint:gosec // the positive int bound widens without loss
+		return 0, false
+	}
+	return int(value), true //nolint:gosec // the comparison above proves this conversion
+}

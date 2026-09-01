@@ -103,6 +103,7 @@ type Task[P Payload] struct {
 	Children         []TaskID
 	TimeoutTaskID    TaskID
 	SelectID         SelectID
+	channelRecvSeq   uint64
 	checkpointPolled bool
 }
 
@@ -146,30 +147,6 @@ func NewExecutor[P Payload](cfg Config) *Executor[P] {
 		exec.rng = rand.New(rand.NewSource(int64(seed))) //nolint:gosec // deterministic scheduler seed
 	}
 	return exec
-}
-
-// Current returns the ID of the task being polled.
-func (e *Executor[P]) Current() TaskID {
-	if e == nil {
-		return 0
-	}
-	return e.current
-}
-
-// SetCurrent sets the currently running task ID.
-func (e *Executor[P]) SetCurrent(id TaskID) {
-	if e == nil {
-		return
-	}
-	e.current = id
-}
-
-// Task returns a task by ID.
-func (e *Executor[P]) Task(id TaskID) *Task[P] {
-	if e == nil {
-		return nil
-	}
-	return e.tasks[id]
 }
 
 // Spawn registers a task and enqueues it for execution.
@@ -352,22 +329,6 @@ func (e *Executor[P]) hasNetWaiters() bool {
 	return false
 }
 
-// Wake enqueues a task if it is not done.
-func (e *Executor[P]) Wake(id TaskID) {
-	if e == nil {
-		return
-	}
-	task := e.tasks[id]
-	if task == nil || task.Status == TaskDone {
-		return
-	}
-	if key, ok := e.parked[id]; ok {
-		e.removeWaiter(key, id)
-		delete(e.parked, id)
-	}
-	e.enqueue(id)
-}
-
 // Yield requeues a task after it voluntarily yielded.
 func (e *Executor[P]) Yield(id TaskID) {
 	if e == nil {
@@ -377,7 +338,9 @@ func (e *Executor[P]) Yield(id TaskID) {
 	if task == nil || task.Status == TaskDone {
 		return
 	}
-	e.enqueue(id)
+	// Wake is the single existing-task path into readySet: it retires any
+	// parked subscription (and exact receive claim) before publishing credit.
+	e.Wake(id)
 }
 
 // ParkCurrent moves the current task into a wait queue for the key.
@@ -407,7 +370,6 @@ func (e *Executor[P]) WakeKeyOne(key WakerKey) {
 	} else {
 		e.waiters[key] = waiters
 	}
-	delete(e.parked, waiter.TaskID)
 	e.Wake(waiter.TaskID)
 }
 
@@ -422,7 +384,6 @@ func (e *Executor[P]) WakeKeyAll(key WakerKey) {
 	}
 	delete(e.waiters, key)
 	for _, waiter := range waiters {
-		delete(e.parked, waiter.TaskID)
 		e.Wake(waiter.TaskID)
 	}
 }
@@ -453,6 +414,13 @@ func (e *Executor[P]) parkTask(id TaskID, key WakerKey) {
 	}
 	task := e.tasks[id]
 	if task == nil || task.Status == TaskDone {
+		return
+	}
+	// readySet is the owner-lane no-sleep handshake. Spawned tasks have no park
+	// state, while Wake (and Yield through Wake) retires it before enqueue, so
+	// observing a credit here also proves that no parked row needs cleanup.
+	if _, ready := e.readySet[id]; ready {
+		task.Status = TaskReady
 		return
 	}
 	if e.waiters == nil {
@@ -598,6 +566,7 @@ func (e *Executor[P]) drainChannelPayloads() []P {
 		}
 		ch.sendq = nil
 		ch.recvq = nil
+		ch.recvClaim = recvClaim{}
 		ch.recvNotify = nil
 		ch.sendNotify = nil
 	}

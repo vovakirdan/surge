@@ -126,10 +126,16 @@ func (vm *VM) initializeAsyncSlot(owner *asyncOwnerRegion, dst StorageRef, value
 		if !ok {
 			return vm.eb.typeMismatch("composite", value.Kind.String())
 		}
+		frame := vm.currentFrame()
+		if frame != nil && frame.scratch != nil {
+			if err := frame.scratch.canRelease(src); err != nil {
+				return vm.eb.makeError(PanicMemoryLeakDetected, err.Error())
+			}
+		}
 		if err := vm.storageMoveInit(dst, src); err != nil {
 			return vm.eb.makeError(PanicUnimplemented, err.Error())
 		}
-		return vm.releaseTemporary(vm.currentFrame(), src)
+		return vm.releaseTemporary(frame, src)
 	}
 	if value.Kind == VKComposite {
 		return vm.eb.typeMismatch("inline scalar", value.Kind.String())

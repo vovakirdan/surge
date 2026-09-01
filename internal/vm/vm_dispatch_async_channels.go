@@ -59,19 +59,20 @@ func (vm *VM) execInstrChanSend(frame *Frame, instr *mir.Instr, writes []LocalWr
 		return res, vmErr
 	}
 
-	val, vmErr := vm.evalOperand(frame, &instr.ChanSend.Value)
-	if vmErr != nil {
-		return res, vmErr
-	}
 	reservation, ready := exec.ChanReserveSendOrPark(chID)
 	if !ready {
-		vm.dropValue(val)
 		if exec.ChanIsClosed(chID) {
 			return res, vm.eb.makeError(PanicInvalidHandle, "send on closed channel")
 		}
+		vm.asyncPendingParkKey = asyncrt.ChannelSendKey(chID)
 		res.doJump = true
 		res.jumpBB = instr.ChanSend.PendBB
 		return res, nil
+	}
+	val, vmErr := vm.evalOperand(frame, &instr.ChanSend.Value)
+	if vmErr != nil {
+		reservation.Abort()
+		return res, vmErr
 	}
 	payload, vmErr := vm.stageReservedChannelSend(reservation, val)
 	if vmErr != nil {
@@ -82,6 +83,9 @@ func (vm *VM) execInstrChanSend(frame *Frame, instr *mir.Instr, writes []LocalWr
 	completed, committed := reservation.Commit(payload)
 	if !committed {
 		vm.dropAsyncPayload(payload)
+		if exec.ChanIsClosed(chID) {
+			return res, vm.eb.makeError(PanicInvalidHandle, "send on closed channel")
+		}
 		return res, vm.eb.invalidLocation("reserved async send could not commit")
 	}
 	if completed {
@@ -204,26 +208,26 @@ func (vm *VM) execInstrChanRecv(frame *Frame, instr *mir.Instr, writes []LocalWr
 		return res, receiveErr
 	}
 	if ok {
-		dstType, vmErr := vm.joinResultType(frame, instr.ChanRecv.Dst)
-		if vmErr != nil {
+		dstType, resultTypeErr := vm.joinResultType(frame, instr.ChanRecv.Dst)
+		if resultTypeErr != nil {
 			vm.dropAsyncPayload(payload)
-			return res, vmErr
+			return res, resultTypeErr
 		}
-		doneVal, vmErr := vm.makeOptionSomeFromAsync(dstType, payload)
-		if vmErr != nil {
-			return res, vmErr
+		doneVal, optionErr := vm.makeOptionSomeFromAsync(dstType, payload)
+		if optionErr != nil {
+			return res, optionErr
 		}
 		return storeResult(doneVal)
 	}
 
 	if exec.ChanIsClosed(chID) {
-		dstType, vmErr := vm.joinResultType(frame, instr.ChanRecv.Dst)
-		if vmErr != nil {
-			return res, vmErr
+		dstType, resultTypeErr := vm.joinResultType(frame, instr.ChanRecv.Dst)
+		if resultTypeErr != nil {
+			return res, resultTypeErr
 		}
-		doneVal, vmErr := vm.makeOptionNothing(dstType)
-		if vmErr != nil {
-			return res, vmErr
+		doneVal, optionErr := vm.makeOptionNothing(dstType)
+		if optionErr != nil {
+			return res, optionErr
 		}
 		return storeResult(doneVal)
 	}
@@ -232,10 +236,11 @@ func (vm *VM) execInstrChanRecv(frame *Frame, instr *mir.Instr, writes []LocalWr
 		res.jumpBB = instr.ChanRecv.PendBB
 		return res, nil
 	}
-	if _, vmErr := vm.nextAsyncParkSequence(current); vmErr != nil {
+	parkSeq, vmErr := vm.nextAsyncParkSequence(current)
+	if vmErr != nil {
 		return res, vmErr
 	}
-	if payload, ok, receiveErr := vm.receiveOrParkAsyncChannel(exec, chID); receiveErr != nil {
+	if payload, ok, receiveErr := vm.receiveOrParkAsyncChannel(exec, chID, parkSeq); receiveErr != nil {
 		return res, receiveErr
 	} else if ok {
 		vm.dropAsyncPayload(payload)
