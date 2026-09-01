@@ -33,11 +33,38 @@ typedef enum {
     WAKER_REMOTE_TASK_REPLY = 11,
 } waker_kind;
 
+// ABI order predates Runtime V2 and is shared with generated/test code.
+// NOLINTNEXTLINE(clang-analyzer-optin.performance.Padding)
 typedef struct {
     uint8_t kind;
     uint64_t id;
     uint32_t owner_shard_id;
 } waker_key;
+
+int waker_valid(waker_key key);
+
+// A retry registration with no generation cannot be removed after its task is
+// republished: remove_waiter_generation(seq=0) is an unqualified match-all and
+// can sweep the fresh registration made by the next poll.  These keys have one
+// terminal owner event that drains every entry, so retaining the stale entry is
+// bounded until that self-cleaning drain. Timer/net completion is independently
+// addressed, and channel parks carry a generation.
+static inline int waker_seq0_retry_is_terminal_drained(waker_key key) {
+    switch ((waker_kind)key.kind) {
+#ifndef RV2_DEBT_046_NEGATIVE_CONTROL
+        case WAKER_JOIN:
+#endif
+        case WAKER_SCOPE:
+        case WAKER_BLOCKING:
+        case WAKER_REMOTE_SPAWN_REPLY:
+#ifndef RV2_SEQ0_RETRY_NEGATIVE_CONTROL
+        case WAKER_REMOTE_TASK_REPLY:
+#endif
+            return 1;
+        default:
+            return 0;
+    }
+}
 
 typedef struct {
     waker_key key;
@@ -170,7 +197,6 @@ typedef struct {
 } rt_waiter_trace_counts;
 
 waker_key waker_none(void);
-int waker_valid(waker_key key);
 waker_key join_key(uint64_t id);
 waker_key timer_key(uint64_t id, uint32_t owner_shard_id);
 waker_key scope_key(uint64_t id, uint32_t owner_shard_id);

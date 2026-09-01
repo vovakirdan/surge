@@ -13,13 +13,13 @@
 // wait-key set lives in rt_task_wait_keys.c. Declarations for all three are in
 // rt_waiter.h.
 
+int waker_valid(waker_key key) {
+    return key.kind != WAKER_NONE && key.id != 0;
+}
+
 waker_key waker_none(void) {
     waker_key key = {WAKER_NONE, 0, 0};
     return key;
-}
-
-int waker_valid(waker_key key) {
-    return key.kind != WAKER_NONE && key.id != 0;
 }
 
 waker_key join_key(uint64_t id) {

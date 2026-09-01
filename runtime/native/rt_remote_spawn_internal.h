@@ -5,6 +5,7 @@
 #include "rt_remote_spawn.h"
 
 struct rt_remote_spawn_pending {
+    rt_executor* executor;
     uint64_t request_id;
     uint64_t poll_fn_id;
     void* state;

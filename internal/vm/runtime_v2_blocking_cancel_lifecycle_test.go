@@ -506,11 +506,13 @@ static int mode_debt080_release_refuses_under_lock(rt_executor* ex) {
         (void)rt_executor_request_shutdown(ex);
         return fail("awaiter did not park before the pool-side cancel");
     }
-    // Settle the job on the pool side only -- no wake, so the parked awaiter
-    // keeps its reference and stays parked. The worker sees CANCELLED and
-    // releases the pool's reference; the flush proves that release is done.
+    // Inject the pool-side terminal status directly -- this row needs the
+    // awaiter to stay parked so its later manual poll performs the last release
+    // under control. rt_blocking_request_cancel is deliberately not used: its
+    // terminal CAS now drains and wakes every blocking-key registration.
+    rt_blocking_job* pool_job = (rt_blocking_job*)((rt_task*)job)->state;
     rt_control_lock(ex);
-    rt_blocking_request_cancel(ex, (rt_task*)job);
+    atomic_store_explicit(&pool_job->status, BLOCKING_JOB_CANCELLED, memory_order_release);
     rt_control_unlock(ex);
     rt_sync_point_open();
     if (flush_pool(ex, RT_SYNC_POINT_SP_BLOCKING_POP_BEFORE_STATUS) != 0) {

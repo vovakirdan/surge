@@ -107,23 +107,15 @@ static void wake_task_with_policy(rt_executor* ex,
     int pushed = wake_task_on_shard_locked(
         ex, owner_shard, task, force_inject, front, signal_ready, &stale_key);
     rt_shard_unlock(owner_shard);
-    // Join keys are exempt from the deferred removal (RV2-DEBT-046, toggle in
-    // rt_sync_point.h): their entries carry no park generation (seq 0), so the
-    // removal below is unqualified and sweeps EVERY (key, task) match —
-    // including a fresh registration the woken task made after re-polling and
-    // re-parking on the same join key in this window. That eaten registration
-    // strands the joiner forever: join wakes are store-driven (mark_done ->
-    // wake_key_all pops the join store), so a missing entry means no wake ever
-    // comes (the async/02 fan-in hang). Leaving the stale entry is safe and
-    // self-cleaning: the join target completes exactly once, its completion
-    // drain pops every entry for the key, and a stale pop is absorbed as one
-    // spurious wake by the wake token. Timer keys stay removable (their wake
-    // is by-id from the sleep deadline index, never store-driven) and channel
-    // keys stay removable because their entries carry the park generation
-    // (stale_seq above).
+    // A seq-0 retry registration whose terminal owner event drains the whole
+    // key is exempt from this deferred removal.  Removing it is unqualified and
+    // can sweep a fresh re-registration made after the task was republished;
+    // retaining it is bounded until that one terminal drain, whose duplicate
+    // wake is absorbed by the token.  Timer/by-id and net readiness keys remain
+    // removable, while channel parks use stale_seq above (RV2-DEBT-046/320).
     if (remove_waiter_flag && waker_valid(stale_key)) {
         RT_SYNC_POINT(SP_WAKE_BEFORE_STALE_REMOVAL);
-        if (RT_DEBT046_STALE_KEY_REMOVABLE(stale_key)) {
+        if (!waker_seq0_retry_is_terminal_drained(stale_key)) {
             remove_waiter_generation(ex, stale_key, id, stale_seq);
         }
     }

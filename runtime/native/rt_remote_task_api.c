@@ -220,6 +220,11 @@ void rt_remote_task_release_owned(rt_executor* ex, const rt_task* caller) {
         if (pending == NULL) {
             return;
         }
+        // The caller can no longer re-register this immutable request key, but
+        // the owner request may still be in flight and must remain PENDING for
+        // its normal ref/cleanup route.  Retire only the independent reply-wait
+        // lifecycle, then unlink the caller-owned registry reference.
+        rt_remote_task_pending_retire_reply_wait(ex, pending);
         rt_remote_task_pending_consume(pending);
     }
 }

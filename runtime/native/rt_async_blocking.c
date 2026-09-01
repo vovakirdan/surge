@@ -262,6 +262,16 @@ void rt_blocking_request_cancel(rt_executor* ex, rt_task* task) {
                                                 memory_order_acq_rel,
                                                 memory_order_acquire)) {
         (void)atomic_fetch_add_explicit(&ex->blocking_cancel_requested, 1, memory_order_relaxed);
+        // This CAS is the terminal owner for a running job.  The worker's
+        // settle-unrun CAS now loses, so it must not be relied on to retire the
+        // task's retry registrations.  The caller is the task's own live
+        // poller. It may hold the control lane, whose documented order permits
+        // taking one shard lane at a time; wake_key_all collect-then-wakes and
+        // never nests two shard lanes, so no lock release or extra task pin is
+        // needed around this drain.
+#ifndef RV2_SEQ0_TERMINAL_RETIRE_NEGATIVE_CONTROL
+        wake_key_all(ex, blocking_key(task->id));
+#endif
     }
 }
 

@@ -105,6 +105,18 @@ int main(int argc, char** argv) {
         return rtb_mode_select_cancel_vs_send();
     if (strcmp(argv[1], "select-retry-single-body") == 0)
         return rtb_mode_select_retry_single_body();
+    if (strcmp(argv[1], "seq0-retry-classification") == 0)
+        return rtb_mode_seq0_retry_classification();
+    if (strcmp(argv[1], "select-seq0-retry-terminal-drain") == 0)
+        return rtb_mode_select_seq0_retry_terminal_drain();
+    if (strcmp(argv[1], "seq0-blocking-cancel-drain") == 0)
+        return rtb_mode_seq0_blocking_cancel_drain();
+    if (strcmp(argv[1], "seq0-spawn-abandon-drain") == 0)
+        return rtb_mode_seq0_spawn_abandon_drain();
+    if (strcmp(argv[1], "seq0-remote-teardown-drain") == 0)
+        return rtb_mode_seq0_remote_teardown_drain();
+    if (strcmp(argv[1], "seq0-remote-shutdown-drain") == 0)
+        return rtb_mode_seq0_remote_shutdown_drain();
     if (strcmp(argv[1], "select-stale-wake") == 0)
         return rtb_mode_select_stale_wake();
     if (strcmp(argv[1], "select-release-while-parked") == 0)

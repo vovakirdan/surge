@@ -143,6 +143,8 @@ int rt_remote_spawn_abandon_handle(const rt_far_task_handle* out_handle) {
     rt_remote_spawn_pending* found = NULL;
     rt_far_task_handle release_handle = {0};
     int drop_caller_ref = 0;
+    int retire_reply_wait = 0;
+    int drop_retire_ref = 0;
     pthread_mutex_lock(&remote_spawn_lock);
     for (rt_remote_spawn_pending* it = remote_spawn_pending_head; it != NULL; it = it->next) {
         if (it->out_handle != out_handle) {
@@ -150,6 +152,18 @@ int rt_remote_spawn_abandon_handle(const rt_far_task_handle* out_handle) {
         }
         found = it;
         it->out_handle = NULL;
+        // Abandon and terminal finish race under this one owner lock.  If
+        // abandon observes PENDING it owns reply-wait retirement now; a later
+        // finish sees `abandoned` and skips its wake.  If finish won first,
+        // status is already terminal and finish owns the wake instead.
+        retire_reply_wait = it->status == RT_REMOTE_SPAWN_STATUS_PENDING;
+        if (retire_reply_wait) {
+            // Keep the pending (and its immutable key/executor fields) live
+            // after releasing the owner lock.  A concurrent finish is allowed
+            // to unlink and drop the caller reference before this wake runs.
+            remote_spawn_pending_add_ref(it);
+            drop_retire_ref = 1;
+        }
         it->abandoned = 1;
         if (it->status != RT_REMOTE_SPAWN_STATUS_PENDING) {
             if (it->status == RT_REMOTE_SPAWN_STATUS_OK) {
@@ -163,6 +177,21 @@ int rt_remote_spawn_abandon_handle(const rt_far_task_handle* out_handle) {
         break;
     }
     pthread_mutex_unlock(&remote_spawn_lock);
+#ifndef RV2_SEQ0_TERMINAL_RETIRE_NEGATIVE_CONTROL
+    if (retire_reply_wait) {
+        // request_id never aliases another pending, and source_shard_id is
+        // stamped before publication.  Once the output handle is abandoned no
+        // caller can register this key again, so this exact-key wake retires the
+        // full seq=0 retry set without touching a later request.
+        wake_key_all_with_policy(
+            found->executor, remote_spawn_reply_key(found->request_id, found->source_shard_id), 0);
+    }
+#else
+    (void)retire_reply_wait;
+#endif
+    if (drop_retire_ref) {
+        remote_spawn_pending_release(found);
+    }
     if (release_handle.task_id != 0) {
         (void)rt_far_task_release(&release_handle);
     }
