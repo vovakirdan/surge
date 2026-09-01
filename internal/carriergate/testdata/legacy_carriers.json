@@ -2,8 +2,8 @@
   "version": 1,
   "base_commit": "7df10725e001ddf915d536aa58f880bd7e04aafd",
   "digest_algorithm": "sha256-length-prefixed-v1",
-  "baseline_count": 626,
-  "baseline_digest": "1978fe25166ecbf73fef3bc7baf219389e9a6c2db8af24eea5a5129556eef8fe",
+  "baseline_count": 659,
+  "baseline_digest": "92969b43d82783481c2052b220892b3696e30190e528cb2b92e5be20bba24a3e",
   "scope": [
     {
       "root": "internal/asyncrt",
@@ -4358,9 +4358,58 @@
     {
       "id": "vm-async-any-carrier",
       "retire_to_zero": true,
-      "baseline_count": 23,
-      "baseline_digest": "de681941a0571ab43289e7e505e0da28e70b6fafb86678eccf9e100e87f47f38",
+      "baseline_count": 34,
+      "baseline_digest": "a86a9f8882cab731b269715668b233da49249341e10afce077a49f0168f3dd7c",
       "legacy": [
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/asyncrt.go",
+          "token": "DrainedTasks.ChannelPayloads-\u003euniversal",
+          "evidence": "structural owner field DrainedTasks.ChannelPayloads",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/asyncrt.go",
+          "token": "DrainedTasks.Tasks-\u003eTask.State-\u003euniversal",
+          "evidence": "structural owner field DrainedTasks.Tasks",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/asyncrt.go",
+          "token": "Executor.channels-\u003eChannel.buf-\u003euniversal",
+          "evidence": "structural owner field Executor.channels",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/asyncrt.go",
+          "token": "Executor.tasks-\u003eTask.State-\u003euniversal",
+          "evidence": "structural owner field Executor.tasks",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/asyncrt.go",
+          "token": "Task.ResultValue-\u003euniversal",
+          "evidence": "structural owner field Task.ResultValue",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/asyncrt.go",
+          "token": "Task.ResumeValue-\u003euniversal",
+          "evidence": "structural owner field Task.ResumeValue",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/asyncrt.go",
+          "token": "Task.State-\u003euniversal",
+          "evidence": "structural owner field Task.State",
+          "ordinal": 1
+        },
         {
           "category": "vm-async-any-carrier",
           "path": "internal/asyncrt/asyncrt.go",
@@ -4422,6 +4471,20 @@
           "path": "internal/asyncrt/asyncrt.go",
           "token": "any",
           "evidence": "payloads := make([]any, 0)",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/channel.go",
+          "token": "Channel.buf-\u003euniversal",
+          "evidence": "structural owner field Channel.buf",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/channel.go",
+          "token": "Channel.sendq-\u003echanWaiter.value-\u003euniversal",
+          "evidence": "structural owner field Channel.sendq",
           "ordinal": 1
         },
         {
@@ -4489,6 +4552,13 @@
         },
         {
           "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/channel.go",
+          "token": "chanWaiter.value-\u003euniversal",
+          "evidence": "structural owner field chanWaiter.value",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
           "path": "internal/asyncrt/task_sleep.go",
           "token": "any",
           "evidence": "func (e *Executor) SpawnSleep(state any) TaskID {",
@@ -4513,6 +4583,13 @@
           "path": "internal/asyncrt/timer.go",
           "token": "any",
           "evidence": "func (h *timerHeap) Push(x any) {",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-async-any-carrier",
+          "path": "internal/asyncrt/waker.go",
+          "token": "PollOutcome.Value-\u003euniversal",
+          "evidence": "structural owner field PollOutcome.Value",
           "ordinal": 1
         },
         {
@@ -5084,9 +5161,23 @@
     {
       "id": "vm-universal-owner",
       "retire_to_zero": true,
-      "baseline_count": 13,
-      "baseline_digest": "4dd790d81ae265cccd12832c469b377dd71d6edaa98bdb1a096cb54edef4c9f5",
+      "baseline_count": 35,
+      "baseline_digest": "89c7f14fd5de73fa68f34ca66ddafe08ed96be29f82766da7bb4d648bd8dea35",
       "legacy": [
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/async_runtime.go",
+          "token": "asyncExit.state-\u003eValue",
+          "evidence": "structural owner field asyncExit.state",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/async_runtime.go",
+          "token": "asyncExit.value-\u003eValue",
+          "evidence": "structural owner field asyncExit.value",
+          "ordinal": 1
+        },
         {
           "category": "vm-universal-owner",
           "path": "internal/vm/async_runtime.go",
@@ -5099,6 +5190,13 @@
           "path": "internal/vm/async_runtime.go",
           "token": "state Value",
           "evidence": "state Value",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/async_runtime.go",
+          "token": "userTaskState.state-\u003eValue",
+          "evidence": "structural owner field userTaskState.state",
           "ordinal": 1
         },
         {
@@ -5118,8 +5216,29 @@
         {
           "category": "vm-universal-owner",
           "path": "internal/vm/frame.go",
+          "token": "Frame.Locals-\u003eLocalSlot.V-\u003eValue",
+          "evidence": "structural owner field Frame.Locals",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/frame.go",
+          "token": "LocalSlot.V-\u003eValue",
+          "evidence": "structural owner field LocalSlot.V",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/frame.go",
           "token": "V Value",
           "evidence": "V         Value        // Current value",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/heap.go",
+          "token": "Heap.objs-\u003eObject.Arr-\u003eValue",
+          "evidence": "structural owner field Heap.objs",
           "ordinal": 1
         },
         {
@@ -5134,6 +5253,20 @@
           "path": "internal/vm/map_object.go",
           "token": "Value Value",
           "evidence": "Value Value",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/map_object.go",
+          "token": "mapEntry.Key-\u003eValue",
+          "evidence": "structural owner field mapEntry.Key",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/map_object.go",
+          "token": "mapEntry.Value-\u003eValue",
+          "evidence": "structural owner field mapEntry.Value",
           "ordinal": 1
         },
         {
@@ -5159,9 +5292,107 @@
         },
         {
           "category": "vm-universal-owner",
+          "path": "internal/vm/object.go",
+          "token": "Object.Arr-\u003eValue",
+          "evidence": "structural owner field Object.Arr",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/object.go",
+          "token": "Object.Fields-\u003eValue",
+          "evidence": "structural owner field Object.Fields",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/object.go",
+          "token": "Object.MapEntries-\u003emapEntry.Key-\u003eValue",
+          "evidence": "structural owner field Object.MapEntries",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/object.go",
+          "token": "Object.Range-\u003eRangeObject.Start-\u003eValue",
+          "evidence": "structural owner field Object.Range",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/object.go",
+          "token": "Object.Tag-\u003eTagObject.Fields-\u003eValue",
+          "evidence": "structural owner field Object.Tag",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/object.go",
+          "token": "RangeObject.End-\u003eValue",
+          "evidence": "structural owner field RangeObject.End",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/object.go",
+          "token": "RangeObject.Start-\u003eValue",
+          "evidence": "structural owner field RangeObject.Start",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/object.go",
+          "token": "TagObject.Fields-\u003eValue",
+          "evidence": "structural owner field TagObject.Fields",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
           "path": "internal/vm/tag.go",
           "token": "make([]Value)",
           "evidence": "args := make([]Value, len(call.Args))",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/trace.go",
+          "token": "LocalWrite.Value-\u003eValue",
+          "evidence": "structural owner field LocalWrite.Value",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/vm.go",
+          "token": "VM.Globals-\u003eLocalSlot.V-\u003eValue",
+          "evidence": "structural owner field VM.Globals",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/vm.go",
+          "token": "VM.asyncCapture-\u003easyncExit.state-\u003eValue",
+          "evidence": "structural owner field VM.asyncCapture",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/vm.go",
+          "token": "VM.captureReturn-\u003eValue",
+          "evidence": "structural owner field VM.captureReturn",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/vm_dispatch_async_types.go",
+          "token": "pollExecResult.storeVal-\u003eValue",
+          "evidence": "structural owner field pollExecResult.storeVal",
+          "ordinal": 1
+        },
+        {
+          "category": "vm-universal-owner",
+          "path": "internal/vm/vm_dispatch_async_types.go",
+          "token": "pollExecResult.writes-\u003eLocalWrite.Value-\u003eValue",
+          "evidence": "structural owner field pollExecResult.writes",
           "ordinal": 1
         },
         {
@@ -5180,7 +5411,19 @@
         }
       ],
       "allow": [],
-      "migration": []
+      "migration": [
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/tag.go",
+            "token": "tagScrutinee.value-\u003eValue",
+            "evidence": "structural owner field tagScrutinee.value",
+            "ordinal": 1
+          },
+          "retired_by": "typed VM temporary owner slot migration",
+          "tracked_as": "RV2-DEBT-316"
+        }
+      ]
     }
   ]
 }

@@ -34,19 +34,20 @@ func TestScanIsLexicalCommentSafeAndDeterministic(t *testing.T) {
 	}
 
 	wantTokens := map[string]int{
-		categoryLLVMWordBridge + ":emitValueToI64":    1,
-		categoryLLVMPointerWord + ":ptrtoint":         1,
-		categoryLLVMCompositePtr + ":KindStruct->ptr": 1,
-		categoryVMBoxKind + ":VKHandleStruct":         1,
-		categoryCompositeBox + ":AllocTag":            1,
-		categoryAsyncAny + ":any":                     1,
-		categoryNativePayloadBits + ":result_bits":    2,
-		categoryNativeWord + ":buf":                   1,
-		categoryNativeWord + ":key":                   1,
-		categoryNativeWord + ":key_bits":              1,
-		categoryNativeWord + ":value":                 1,
-		categoryNativeWord + ":values":                1,
-		categoryNumericDrop + ":state_drop_fn_id":     1,
+		categoryLLVMWordBridge + ":emitValueToI64":     1,
+		categoryLLVMPointerWord + ":ptrtoint":          1,
+		categoryLLVMCompositePtr + ":KindStruct->ptr":  1,
+		categoryVMBoxKind + ":VKHandleStruct":          1,
+		categoryCompositeBox + ":AllocTag":             1,
+		categoryAsyncAny + ":any":                      1,
+		categoryAsyncAny + ":carrier.Value->universal": 1,
+		categoryNativePayloadBits + ":result_bits":     2,
+		categoryNativeWord + ":buf":                    1,
+		categoryNativeWord + ":key":                    1,
+		categoryNativeWord + ":key_bits":               1,
+		categoryNativeWord + ":value":                  1,
+		categoryNativeWord + ":values":                 1,
+		categoryNumericDrop + ":state_drop_fn_id":      1,
 	}
 	gotTokens := make(map[string]int)
 	for _, finding := range firstFindings {

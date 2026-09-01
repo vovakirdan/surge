@@ -96,6 +96,7 @@ func Scan(repoRoot string) ([]Finding, error) {
 func scanFS(rootFS fs.FS) ([]Finding, error) {
 	raw := make([]rawFinding, 0, 512)
 	for _, scope := range requiredScopes {
+		goSources := make([]goOwnerSource, 0, 64)
 		err := fs.WalkDir(rootFS, scope.Root, func(filePath string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr
@@ -120,6 +121,7 @@ func scanFS(rootFS fs.FS) ([]Finding, error) {
 			switch path.Ext(filePath) {
 			case ".go":
 				found, err = scanGoFile(filePath, data)
+				goSources = append(goSources, goOwnerSource{path: filePath, data: data})
 			case ".c", ".h":
 				found = scanCFile(filePath, data)
 			}
@@ -132,6 +134,11 @@ func scanFS(rootFS fs.FS) ([]Finding, error) {
 		if err != nil {
 			return nil, fmt.Errorf("walk %s: %w", scope.Root, err)
 		}
+		owners, err := scanGoOwners(scope.Root, goSources)
+		if err != nil {
+			return nil, fmt.Errorf("scan %s owner types: %w", scope.Root, err)
+		}
+		raw = append(raw, owners...)
 	}
 	return finalizeFindings(raw), nil
 }

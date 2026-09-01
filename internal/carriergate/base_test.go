@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	frozenBaseCount  = 626
-	frozenBaseDigest = "1978fe25166ecbf73fef3bc7baf219389e9a6c2db8af24eea5a5129556eef8fe"
+	frozenBaseCount  = 659
+	frozenBaseDigest = "92969b43d82783481c2052b220892b3696e30190e528cb2b92e5be20bba24a3e"
 )
 
 func TestLegacyCarrierManifestMatchesExactBaseCensus(t *testing.T) {
@@ -75,6 +75,10 @@ func assertFrozenManifestCounts(t *testing.T, manifest Manifest) {
 	if categoryCounts[categoryFrameOwner] != 7 || categoryCounts[categoryUntypedCaptureState] != 15 {
 		t.Fatalf("frozen manifest census = frame owner/untyped capture state:%d/%d, want 7/15",
 			categoryCounts[categoryFrameOwner], categoryCounts[categoryUntypedCaptureState])
+	}
+	if categoryCounts[categoryAsyncAny] != 34 || categoryCounts[categoryVMUniversalOwner] != 35 {
+		t.Fatalf("frozen manifest async/VM owner census = %d/%d, want 34/35",
+			categoryCounts[categoryAsyncAny], categoryCounts[categoryVMUniversalOwner])
 	}
 }
 
@@ -180,6 +184,8 @@ func assertKnownBaseCounts(t *testing.T, findings []Finding) {
 	nativeWords := 0
 	frameOwners := 0
 	captureStates := 0
+	structuralAsyncOwners := 0
+	structuralVMOwners := 0
 	lines := make(map[string]struct{})
 	files := make(map[string]struct{})
 	for _, finding := range findings {
@@ -197,6 +203,14 @@ func assertKnownBaseCounts(t *testing.T, findings []Finding) {
 		case categoryUntypedCaptureState:
 			captureStates++
 		}
+		if strings.HasPrefix(finding.Evidence, "structural owner field ") {
+			switch finding.Category {
+			case categoryAsyncAny:
+				structuralAsyncOwners++
+			case categoryVMUniversalOwner:
+				structuralVMOwners++
+			}
+		}
 	}
 	// The earlier raw-regex census was 143/133/21. A lexical scan excludes its
 	// nine comment/string matches and freezes the actual source carrier sites.
@@ -212,5 +226,9 @@ func assertKnownBaseCounts(t *testing.T, findings []Finding) {
 	if frameOwners != 7 || captureStates != 15 {
 		t.Fatalf("known census = frame owner/untyped capture state:%d/%d, want 7/15",
 			frameOwners, captureStates)
+	}
+	if structuralAsyncOwners != 11 || structuralVMOwners != 22 {
+		t.Fatalf("known structural async/VM owners = %d/%d, want 11/22",
+			structuralAsyncOwners, structuralVMOwners)
 	}
 }
