@@ -193,6 +193,7 @@ func (vm *VM) channelHandleReleased(id asyncrt.ChannelID) {
 		return
 	}
 	for _, payload := range vm.Async.ChanDestroy(id) {
-		vm.transportRelease(payload)
+		vm.dropAsyncPayload(payload)
 	}
+	vm.destroyAsyncChannelOwner(id)
 }

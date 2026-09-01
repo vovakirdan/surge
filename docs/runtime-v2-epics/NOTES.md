@@ -10249,3 +10249,49 @@ the debt row closed rather than converted into an allowance.  The separate
 conservative path through `tagScrutinee.storage -> Arena.refs -> Frame.Locals`
 remains an RV2-DEBT-318 Wave F migration; this integration does not confuse
 exact tag ownership with the legacy frame-local leaf it can still reach.
+
+## D8 VM interval transport is retired — 2026-09-01
+
+The remaining RV2-DEBT-151 half no longer re-boxes a VM payload in a fresh
+transport interval. `internal/vm/transport_storage.go` and its three helpers are
+deleted, and all twelve channel send/receive, task publication, select, cancel,
+resource-release, and shutdown callers now route through concrete exact typed
+owner regions.
+
+The executor-visible `asyncPayload` is control only:
+`ownerKind/ownerID/ownerGeneration/region/index/slotGeneration/parkSeq`. It
+contains no `Value`, type id, storage reference, arena pointer, or generic
+owner pointer. The descriptor remains in one homogeneous channel, task,
+select-arm, or task-resume region. A consumer validates every coordinate and
+state, initializes caller-owned exact storage by a true storage-to-storage move
+without retain/clone, commits the source terminal, and only then makes the slot
+reusable. Earlier task-result askers clone directly into their destinations;
+the final asker moves. The old `cloneValueComposite` task-result migration row
+is therefore removed and RV2-DEBT-246 closes with this cutover.
+
+Reservation and teardown have one lifecycle:
+`EMPTY -> RESERVED -> INITIALIZED -> CLAIMED -> MOVED/DROPPED -> EMPTY`.
+Reserved, initialized, claimed, stale, cancellation, refill-failure, refused
+commit, and shutdown paths retain or discharge exactly one obligation. A slot
+whose generation reaches `MaxUint32` becomes quiescent `EXHAUSTED`; it is never
+reused, a replacement slot is added, and owner teardown still retires the
+arena. This prevents ABA without turning generation exhaustion into a hidden
+liveness leak.
+
+Rule 13 evidence was captured before production implementation: the structural
+owner scanner missed an alias/pointer/container carrier, the destination-only
+API test found the old `Value`-returning take, and the owner-region tests did
+not compile. The final scanner parses every production Go file in
+`internal/vm`, follows named aliases, pointers and containers transitively, and
+keeps `Arena`/`StorageRef` as deliberate exact-storage terminals. Focused
+evidence is green for `internal/asyncrt`, the package-wide carrier gate, owner
+generation/region/role/park validation, reservation and claim lifecycle,
+active-union direct move, task result clone/move, try-send stage failure,
+receive-refill failure, shutdown, strict-zero task/channel/transport programs,
+the VM async golden corpus, and its LLVM subrows. Heavy aggregate and load
+gates were intentionally not run in this development worktree.
+
+One adjacent pre-existing branch is explicitly not a D8 blocker:
+`Channel.popSendWaiter` / `hasSendWaiter` can prune a done sender without
+returning its generic payload to the VM. It is recorded as RV2-DEBT-317 with an
+exact close condition rather than widening this atomic storage cutover.

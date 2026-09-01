@@ -127,16 +127,17 @@ func (vm *VM) dropAsyncTasks() {
 		// one here is a defect, and it is counted rather than quietly swept —
 		// the sweep is exactly what used to hide this whole class, so that an
 		// end-to-end program could never assert it had left nothing behind.
-		if task.Status == asyncrt.TaskDone && valueHoldsStorage(task.ResultValue) && vm.taskCohortEmpty(task.ID) {
+		if task.Status == asyncrt.TaskDone && vm.asyncPayloadHoldsStorage(task.ResultValue) && vm.taskCohortEmpty(task.ID) {
 			vm.unclaimedTaskResults++
 		}
-		vm.dropValue(task.ResultValue)
+		vm.dropAsyncPayload(task.ResultValue)
 		// A resume value still on a task at shutdown is a payload that was
 		// delivered and never read.
-		vm.transportRelease(task.ResumeValue)
+		vm.dropAsyncPayload(task.ResumeValue)
 		task.State = nil
-		task.ResultValue = Value{}
-		task.ResumeValue = Value{}
+		task.ResultValue = asyncPayload{}
+		task.ResumeValue = asyncPayload{}
+		vm.destroyAsyncTaskOwners(task.ID)
 	}
 	// Drop-without-receive: values still in a channel buffer, or in a parked
 	// sender's queue entry, when the program ends. The receive that would have
@@ -144,7 +145,10 @@ func (vm *VM) dropAsyncTasks() {
 	// only one, because the drain takes them out of the runtime's hold in the
 	// same step it hands them here.
 	for _, payload := range drained.ChannelPayloads {
-		vm.transportRelease(payload)
+		vm.dropAsyncPayload(payload)
+	}
+	for id := range vm.asyncOwners.channels {
+		vm.destroyAsyncChannelOwner(id)
 	}
 }
 

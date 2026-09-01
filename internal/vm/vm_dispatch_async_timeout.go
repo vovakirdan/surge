@@ -56,11 +56,15 @@ func (vm *VM) execInstrTimeout(frame *Frame, instr *mir.Instr, writes []LocalWri
 			return res, vmErr
 		}
 
-		timeoutID = vm.spawnTimeoutTask(exec, &timeoutState{
+		var spawnErr *VMError
+		timeoutID, spawnErr = vm.spawnTimeoutTask(exec, &timeoutState{
 			target:     targetID,
 			delayMs:    uint64(delay), //nolint:gosec // delay is bounded by uintValueToInt
 			resultType: resultType,
 		})
+		if spawnErr != nil {
+			return res, spawnErr
+		}
 		currentTask.TimeoutTaskID = timeoutID
 	}
 

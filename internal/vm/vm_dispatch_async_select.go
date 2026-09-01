@@ -47,39 +47,13 @@ func (vm *VM) execInstrSelect(frame *Frame, instr *mir.Instr, writes []LocalWrit
 		defaultIndex    = -1
 	)
 
-	resolveTaskID := func(op mir.Operand) (asyncrt.TaskID, *VMError) {
-		val, vmErr := vm.evalOperand(frame, &op)
-		if vmErr != nil {
-			return 0, vmErr
-		}
-		taskID, vmErr := vm.taskIDFromValue(val)
-		vm.dropValue(val)
-		if vmErr != nil {
-			return 0, vmErr
-		}
-		return taskID, nil
-	}
-
-	resolveChanID := func(op mir.Operand) (asyncrt.ChannelID, *VMError) {
-		val, vmErr := vm.evalOperand(frame, &op)
-		if vmErr != nil {
-			return 0, vmErr
-		}
-		chID, vmErr := vm.channelIDFromValue(val)
-		vm.dropValue(val)
-		if vmErr != nil {
-			return 0, vmErr
-		}
-		return chID, nil
-	}
-
 	for i := range instr.Select.Arms {
 		arm := &instr.Select.Arms[i]
 		switch arm.Kind {
 		case mir.SelectArmDefault:
 			defaultIndex = i
 		case mir.SelectArmTask:
-			taskID, vmErr := resolveTaskID(arm.Task)
+			taskID, vmErr := vm.selectTaskID(frame, arm.Task)
 			if vmErr != nil {
 				return res, vmErr
 			}
@@ -96,7 +70,7 @@ func (vm *VM) execInstrSelect(frame *Frame, instr *mir.Instr, writes []LocalWrit
 				selectedTaskID = taskID
 			}
 		case mir.SelectArmChanRecv:
-			chID, vmErr := resolveChanID(arm.Channel)
+			chID, vmErr := vm.selectChannelID(frame, arm.Channel)
 			if vmErr != nil {
 				return res, vmErr
 			}
@@ -106,7 +80,7 @@ func (vm *VM) execInstrSelect(frame *Frame, instr *mir.Instr, writes []LocalWrit
 				selectedChanID = chID
 			}
 		case mir.SelectArmChanSend:
-			chID, vmErr := resolveChanID(arm.Channel)
+			chID, vmErr := vm.selectChannelID(frame, arm.Channel)
 			if vmErr != nil {
 				return res, vmErr
 			}
@@ -116,7 +90,7 @@ func (vm *VM) execInstrSelect(frame *Frame, instr *mir.Instr, writes []LocalWrit
 				selectedChanID = chID
 			}
 		case mir.SelectArmTimeout:
-			taskID, vmErr := resolveTaskID(arm.Task)
+			taskID, vmErr := vm.selectTaskID(frame, arm.Task)
 			if vmErr != nil {
 				return res, vmErr
 			}
@@ -161,26 +135,21 @@ func (vm *VM) execInstrSelect(frame *Frame, instr *mir.Instr, writes []LocalWrit
 
 		switch selectedKind {
 		case mir.SelectArmChanRecv:
-			val, ok := exec.ChanTryRecv(selectedChanID)
-			if ok {
-				vm.dropValue(val)
+			if vmErr := vm.consumeSelectedChannelPayload(
+				exec, current, uint32(selectedIndex), selectedChanID, //nolint:gosec // selectedIndex indexes the arm slice
+			); vmErr != nil {
+				return res, vmErr
 			}
 		case mir.SelectArmChanSend:
-			if exec.ChanIsClosed(selectedChanID) {
-				return res, vm.eb.makeError(PanicInvalidHandle, "send on closed channel")
-			}
 			arm := instr.Select.Arms[selectedIndex]
 			val, vmErr := vm.evalOperand(frame, &arm.Value)
 			if vmErr != nil {
 				return res, vmErr
 			}
-			if !exec.ChanTrySend(selectedChanID, val) {
-				if exec.ChanIsClosed(selectedChanID) {
-					vm.dropValue(val)
-					return res, vm.eb.makeError(PanicInvalidHandle, "send on closed channel")
-				}
-				vm.dropValue(val)
-				return res, vm.eb.makeError(PanicUnimplemented, "select send not ready")
+			if vmErr := vm.sendSelectedChannelPayload(
+				exec, current, uint32(selectedIndex), selectedChanID, val, //nolint:gosec // selectedIndex indexes the arm slice
+			); vmErr != nil {
+				return res, vmErr
 			}
 		case mir.SelectArmTimeout:
 			if selectedTimeout {
@@ -245,7 +214,7 @@ func (vm *VM) execInstrSelect(frame *Frame, instr *mir.Instr, writes []LocalWrit
 		arm := &instr.Select.Arms[i]
 		switch arm.Kind {
 		case mir.SelectArmTask:
-			taskID, vmErr := resolveTaskID(arm.Task)
+			taskID, vmErr := vm.selectTaskID(frame, arm.Task)
 			if vmErr != nil {
 				return res, vmErr
 			}
@@ -258,19 +227,19 @@ func (vm *VM) execInstrSelect(frame *Frame, instr *mir.Instr, writes []LocalWrit
 			}
 			exec.SelectSubscribeKey(selectID, asyncrt.JoinKey(taskID))
 		case mir.SelectArmChanRecv:
-			chID, vmErr := resolveChanID(arm.Channel)
+			chID, vmErr := vm.selectChannelID(frame, arm.Channel)
 			if vmErr != nil {
 				return res, vmErr
 			}
 			exec.SelectSubscribeRecv(selectID, chID)
 		case mir.SelectArmChanSend:
-			chID, vmErr := resolveChanID(arm.Channel)
+			chID, vmErr := vm.selectChannelID(frame, arm.Channel)
 			if vmErr != nil {
 				return res, vmErr
 			}
 			exec.SelectSubscribeSend(selectID, chID)
 		case mir.SelectArmTimeout:
-			taskID, vmErr := resolveTaskID(arm.Task)
+			taskID, vmErr := vm.selectTaskID(frame, arm.Task)
 			if vmErr != nil {
 				return res, vmErr
 			}

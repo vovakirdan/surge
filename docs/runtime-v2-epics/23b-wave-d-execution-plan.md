@@ -206,7 +206,7 @@ has been recorded. **CLOSED** means both.
 | D5 | REMOTE select only — `rt_far_channel_select.c`. Local `select` moved into D3 by the 2026-08-19 ruling below | **CLOSED 2026-08-25** | D3 |
 | D6 | Blocking captures/results and every cancellation timing | **CODE COMPLETE.** Results 2026-08-25; captures a-1..a-4 2026-08-26..28; RV2-DEBT-080 stays Open pending the lead's green run of the rows a-3 and a-4 added | D3, D4 |
 | D7 | Async frames, captures, polling, wake, normal/shutdown drains | **STATE CARRIAGE CLOSED 2026-08-25** (numeric drop dispatch gone). **The frame itself is NOT STARTED**: 18 live `suspension-frame-owner` carriers, RV2-DEBT-179 Open | D4 |
-| D8 | RV2-DEBT-151 retirement — local **and** FAR **and** CROSSING (ruling 8) | **NATIVE HALF DONE 2026-08-29.** The copy-in leg was deleted, the release leg is gone from production, and the adopt leg went with its three sites: the select's winner index has a typed return of its own. `llvm-erased-word-bridge` reads live 0. The VM half (`internal/vm/transport_storage.go`) is untouched and is what keeps RV2-DEBT-151 open | D1–D7 |
+| D8 | RV2-DEBT-151 retirement — local **and** FAR **and** CROSSING (ruling 8) | **CLOSED 2026-09-01.** Native remains at `llvm-erased-word-bridge=0`. The VM interval allocator and all twelve callers are gone; channel ring/park/resume, task result, and select owners hold exact typed slots addressed by generation-checked metadata-only claims. | D1–D7 |
 
 Worktree rule, from §5: task/channel/select/blocking may be separate worktrees
 **only after** the shared owner/slot API is integrated and their production
@@ -421,20 +421,19 @@ no state generation a producer must match before initializing. RV2-DEBT-179 —
 two emitter sites needing OPPOSITE reclamation with nothing in the frame able to
 tell them apart — is the same gap named from the defect side, and is Open.
 
-**D8 — PARTIAL, and smaller than the row reads.** The three-operation helper set
-RV2-DEBT-151 names has lost two of its three legs. Copy-in (`emitValueToI64`) is
-DELETED — D2 was its last caller — and the release leg
-(`requireRuntimeOwnedRelease`) is gone from production, replaced for frames by
-`requireSuspensionFrameRelease`, which the row itself predicted would outlive
-the payload helpers. What survives is the adopt leg: `emitI64ToValue`
-(`emit_async_helpers.go:91`) with exactly two callers, `emit_async.go:444` and
-`emit_crossing_select.go:261`. Both convert `rt_select_poll`'s `i64` return into
-`Select.Dst`, and `mir.SelectArm` carries no destination of its own, so what
-those two adopt is the WINNER INDEX and not a payload. The far and crossing
-SITES the row scoped no longer route through the helper; the far runtime's own
-word carriers (`native-payload-bits` 19, `native-word-carrier` 10,
-`numeric-drop-dispatch` 13, all in `rt_remote_task_*` and `rt_far_channel*`) are
-Wave E's and are not this row.
+**D8 — CLOSED 2026-09-01.** The native helper set remains retired and
+`llvm-erased-word-bridge` remains zero. The VM half now deletes
+`internal/vm/transport_storage.go` and migrates all twelve production callers.
+The generic executor carries only a metadata claim; exact bytes live in a
+homogeneous channel ring/park/resume, task-result, or select owner region. A
+consumer validates owner identity, owner generation, owner-local region, slot
+generation, role, and park sequence, then moves directly into caller-owned
+exact storage before making the source reusable. No composite `Value` alias
+escapes, scalar/handle values need no per-value allocation, and slot-generation
+exhaustion terminally poisons only the quiescent slot rather than wrapping into
+an ABA-equivalent claim. RV2-DEBT-151 is therefore closed. The far runtime's
+own word carriers and suspension-frame ownership remain Wave E / RV2-DEBT-179
+work; D8 does not reclassify them.
 
 ### D3 IS CLOSED — 2026-08-24
 

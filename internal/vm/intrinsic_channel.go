@@ -27,7 +27,16 @@ func (vm *VM) handleChannelNew(frame *Frame, call *mir.CallInstr, writes *[]Loca
 	if exec == nil {
 		return vm.eb.makeError(PanicUnimplemented, "async executor missing")
 	}
-	id := exec.ChanNew(uint64(capacity)) //nolint:gosec // capacity is bounded by uintValueToInt
+	payloadType, vmErr := vm.runtimeHandlePayloadType(dstType, "Channel")
+	if vmErr != nil {
+		return vmErr
+	}
+	channelCapacity := uint64(capacity) //nolint:gosec // capacity is bounded by uintValueToInt
+	id := exec.ChanNew(channelCapacity)
+	exec.ChanPreparePayloadCapacity(id)
+	if vmErr := vm.registerAsyncChannelOwner(id, payloadType, channelCapacity); vmErr != nil {
+		return vmErr
+	}
 	chVal, vmErr := vm.channelValue(id, dstType)
 	if vmErr != nil {
 		return vmErr
@@ -75,30 +84,43 @@ func (vm *VM) handleChannelSend(frame *Frame, call *mir.CallInstr) *VMError {
 	if vmErr != nil {
 		return vmErr
 	}
+	ownsValue := true
+	defer func() {
+		if ownsValue {
+			vm.dropValue(val)
+		}
+	}()
 
 	for {
 		if vm.Halted {
-			vm.dropValue(val)
 			return nil
 		}
-		if exec.ChanSendOrPark(chID, val) {
+		reservation, ready := exec.ChanReserveTrySend(chID)
+		if ready {
+			payload, vmErr := vm.stageReservedChannelSend(reservation, val)
+			if vmErr != nil {
+				reservation.Abort()
+				return vmErr
+			}
+			ownsValue = false
+			completed, committed := reservation.Commit(payload)
+			if !committed || !completed {
+				vm.dropAsyncPayload(payload)
+				return vm.eb.invalidLocation("reserved channel send could not commit")
+			}
 			return nil
 		}
 		if exec.ChanIsClosed(chID) {
-			vm.dropValue(val)
 			return vm.eb.makeError(PanicInvalidHandle, "send on closed channel")
 		}
 		ran, vmErr := vm.runReadyOne()
 		if vmErr != nil {
-			vm.dropValue(val)
 			return vmErr
 		}
 		if vm.Halted {
-			vm.dropValue(val)
 			return nil
 		}
 		if !ran {
-			vm.dropValue(val)
 			return vm.eb.makeError(PanicUnimplemented, "async deadlock")
 		}
 	}
@@ -136,11 +158,13 @@ func (vm *VM) handleChannelRecv(frame *Frame, call *mir.CallInstr, writes *[]Loc
 		if vm.Halted {
 			return nil
 		}
-		valAny, ok := exec.ChanRecvOrPark(chID)
+		payload, ok, receiveErr := vm.tryReceiveAsyncChannel(exec, chID)
+		if receiveErr != nil {
+			return receiveErr
+		}
 		if ok {
-			doneVal, vmErr := vm.makeOptionSome(dstType, valAny)
+			doneVal, vmErr := vm.makeOptionSomeFromAsync(dstType, payload)
 			if vmErr != nil {
-				vm.dropValue(valAny)
 				return vmErr
 			}
 			if vmErr := vm.writeLocal(frame, dstLocal, doneVal); vmErr != nil {
@@ -185,125 +209,4 @@ func (vm *VM) handleChannelRecv(frame *Frame, call *mir.CallInstr, writes *[]Loc
 			return vm.eb.makeError(PanicUnimplemented, "async deadlock")
 		}
 	}
-}
-
-func (vm *VM) handleChannelTrySend(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
-	if call == nil || !call.HasDst {
-		return vm.eb.makeError(PanicUnimplemented, "try_send missing destination")
-	}
-	if len(call.Args) != 2 {
-		return vm.eb.makeError(PanicUnimplemented, "try_send expects 2 arguments")
-	}
-	exec := vm.ensureExecutor()
-	if exec == nil {
-		return vm.eb.makeError(PanicUnimplemented, "async executor missing")
-	}
-
-	chVal, vmErr := vm.evalOperand(frame, &call.Args[0])
-	if vmErr != nil {
-		return vmErr
-	}
-	chID, vmErr := vm.channelIDFromValue(chVal)
-	vm.dropValue(chVal)
-	if vmErr != nil {
-		return vmErr
-	}
-	val, vmErr := vm.evalOperand(frame, &call.Args[1])
-	if vmErr != nil {
-		return vmErr
-	}
-
-	sent := exec.ChanTrySend(chID, val)
-	if !sent {
-		vm.dropValue(val)
-	}
-	boolType := frame.Locals[call.Dst.Local].TypeID
-	res := MakeBool(sent, boolType)
-	if vmErr := vm.writeLocal(frame, call.Dst.Local, res); vmErr != nil {
-		return vmErr
-	}
-	if writes != nil {
-		*writes = append(*writes, LocalWrite{
-			LocalID: call.Dst.Local,
-			Name:    frame.Locals[call.Dst.Local].Name,
-			Value:   res,
-		})
-	}
-	return nil
-}
-
-func (vm *VM) handleChannelTryRecv(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
-	if call == nil || !call.HasDst {
-		return vm.eb.makeError(PanicUnimplemented, "try_recv missing destination")
-	}
-	if len(call.Args) != 1 {
-		return vm.eb.makeError(PanicUnimplemented, "try_recv expects 1 argument")
-	}
-	exec := vm.ensureExecutor()
-	if exec == nil {
-		return vm.eb.makeError(PanicUnimplemented, "async executor missing")
-	}
-
-	chVal, vmErr := vm.evalOperand(frame, &call.Args[0])
-	if vmErr != nil {
-		return vmErr
-	}
-	chID, vmErr := vm.channelIDFromValue(chVal)
-	vm.dropValue(chVal)
-	if vmErr != nil {
-		return vmErr
-	}
-
-	valAny, ok := exec.ChanTryRecv(chID)
-	dstLocal := call.Dst.Local
-	dstType := frame.Locals[dstLocal].TypeID
-	var res Value
-	if ok {
-		res, vmErr = vm.makeOptionSome(dstType, valAny)
-		if vmErr != nil {
-			vm.dropValue(valAny)
-			return vmErr
-		}
-	} else {
-		res, vmErr = vm.makeOptionNothing(dstType)
-		if vmErr != nil {
-			return vmErr
-		}
-	}
-	if vmErr := vm.writeLocal(frame, dstLocal, res); vmErr != nil {
-		vm.dropValue(res)
-		return vmErr
-	}
-	if writes != nil {
-		*writes = append(*writes, LocalWrite{
-			LocalID: dstLocal,
-			Name:    frame.Locals[dstLocal].Name,
-			Value:   res,
-		})
-	}
-	return nil
-}
-
-func (vm *VM) handleChannelClose(frame *Frame, call *mir.CallInstr) *VMError {
-	if call == nil {
-		return vm.eb.makeError(PanicTypeMismatch, "close requires a call")
-	}
-	if len(call.Args) != 1 {
-		return vm.eb.makeError(PanicTypeMismatch, "close expects 1 argument")
-	}
-	exec := vm.ensureExecutor()
-	if exec == nil {
-		return vm.eb.makeError(PanicUnimplemented, "async executor missing")
-	}
-	chVal, vmErr := vm.evalOperand(frame, &call.Args[0])
-	if vmErr != nil {
-		return vmErr
-	}
-	chID, vmErr := vm.channelIDFromValue(chVal)
-	vm.dropValue(chVal)
-	if vmErr != nil {
-		return vmErr
-	}
-	exec.ChanClose(chID)
-	return nil
 }

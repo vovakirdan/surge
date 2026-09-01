@@ -26,9 +26,9 @@ func (vm *VM) execInstrChanSend(frame *Frame, instr *mir.Instr, writes []LocalWr
 	if task.Cancelled {
 		// A resume value on a cancelled task is a handover that will not
 		// happen: the receive it was delivered for never runs.
-		vm.transportRelease(task.ResumeValue)
+		vm.dropAsyncPayload(task.ResumeValue)
 		task.ResumeKind = asyncrt.ResumeNone
-		task.ResumeValue = Value{}
+		task.ResumeValue = asyncPayload{}
 		res.doJump = true
 		res.jumpBB = instr.ChanSend.PendBB
 		return res, nil
@@ -37,15 +37,15 @@ func (vm *VM) execInstrChanSend(frame *Frame, instr *mir.Instr, writes []LocalWr
 	switch task.ResumeKind {
 	case asyncrt.ResumeChanSendAck:
 		task.ResumeKind = asyncrt.ResumeNone
-		task.ResumeValue = Value{}
+		task.ResumeValue = asyncPayload{}
 		res.doJump = true
 		res.jumpBB = instr.ChanSend.ReadyBB
 		return res, nil
 	case asyncrt.ResumeChanSendClosed:
-		resumeVal := task.ResumeValue
+		resumePayload := task.ResumeValue
 		task.ResumeKind = asyncrt.ResumeNone
-		task.ResumeValue = Value{}
-		vm.transportRelease(resumeVal)
+		task.ResumeValue = asyncPayload{}
+		vm.dropAsyncPayload(resumePayload)
 		return res, vm.eb.makeError(PanicInvalidHandle, "send on closed channel")
 	}
 
@@ -63,31 +63,30 @@ func (vm *VM) execInstrChanSend(frame *Frame, instr *mir.Instr, writes []LocalWr
 	if vmErr != nil {
 		return res, vmErr
 	}
-	// COPY IN. The runtime holds the payload — in a buffer, or in this task's
-	// own send queue entry while it is parked — and this activation rewinds
-	// before either is read. A composite that stayed in the sender's arena
-	// would be resolved against a generation that has moved on.
-	val, vmErr = vm.transportCopyIn(val)
-	if vmErr != nil {
-		return res, vmErr
-	}
-
-	if exec.ChanSendOrPark(chID, val) {
-		res.doJump = true
-		res.jumpBB = instr.ChanSend.ReadyBB
-		return res, nil
-	}
-	// Below here the payload was NOT taken: ChanSendOrPark refuses before it
-	// queues anything, and the parking path returns false having queued the
-	// value, so these two exits own what they release.
-	if exec.ChanIsClosed(chID) {
-		vm.transportRelease(val)
-		return res, vm.eb.makeError(PanicInvalidHandle, "send on closed channel")
-	}
-	if task.Cancelled {
-		vm.transportRelease(val)
+	reservation, ready := exec.ChanReserveSendOrPark(chID)
+	if !ready {
+		vm.dropValue(val)
+		if exec.ChanIsClosed(chID) {
+			return res, vm.eb.makeError(PanicInvalidHandle, "send on closed channel")
+		}
 		res.doJump = true
 		res.jumpBB = instr.ChanSend.PendBB
+		return res, nil
+	}
+	payload, vmErr := vm.stageReservedChannelSend(reservation, val)
+	if vmErr != nil {
+		reservation.Abort()
+		vm.dropValue(val)
+		return res, vmErr
+	}
+	completed, committed := reservation.Commit(payload)
+	if !committed {
+		vm.dropAsyncPayload(payload)
+		return res, vm.eb.invalidLocation("reserved async send could not commit")
+	}
+	if completed {
+		res.doJump = true
+		res.jumpBB = instr.ChanSend.ReadyBB
 		return res, nil
 	}
 	vm.asyncPendingParkKey = asyncrt.ChannelSendKey(chID)
@@ -117,9 +116,9 @@ func (vm *VM) execInstrChanRecv(frame *Frame, instr *mir.Instr, writes []LocalWr
 		// that would have consumed it never runs, so this is where it is
 		// released — exactly once, and not again by the shutdown drain, which
 		// clears the resume value below.
-		vm.transportRelease(task.ResumeValue)
+		vm.dropAsyncPayload(task.ResumeValue)
 		task.ResumeKind = asyncrt.ResumeNone
-		task.ResumeValue = Value{}
+		task.ResumeValue = asyncPayload{}
 		res.doJump = true
 		res.jumpBB = instr.ChanRecv.PendBB
 		return res, nil
@@ -163,30 +162,22 @@ func (vm *VM) execInstrChanRecv(frame *Frame, instr *mir.Instr, writes []LocalWr
 
 	switch task.ResumeKind {
 	case asyncrt.ResumeChanRecvValue:
-		resumeVal := task.ResumeValue
+		resumePayload := task.ResumeValue
 		task.ResumeKind = asyncrt.ResumeNone
-		task.ResumeValue = Value{}
-		v := resumeVal
-		// COPY OUT: the payload becomes this frame's, and the transport's copy
-		// is given up in the same step.
-		v, vmErr := vm.transportCopyOut(frame, v)
-		if vmErr != nil {
-			return res, vmErr
-		}
+		task.ResumeValue = asyncPayload{}
 		dstType, vmErr := vm.joinResultType(frame, instr.ChanRecv.Dst)
 		if vmErr != nil {
-			vm.dropValue(v)
+			vm.dropAsyncPayload(resumePayload)
 			return res, vmErr
 		}
-		doneVal, vmErr := vm.makeOptionSome(dstType, v)
+		doneVal, vmErr := vm.makeOptionSomeFromAsync(dstType, resumePayload)
 		if vmErr != nil {
-			vm.dropValue(v)
 			return res, vmErr
 		}
 		return storeResult(doneVal)
 	case asyncrt.ResumeChanRecvClosed:
 		task.ResumeKind = asyncrt.ResumeNone
-		task.ResumeValue = Value{}
+		task.ResumeValue = asyncPayload{}
 		dstType, vmErr := vm.joinResultType(frame, instr.ChanRecv.Dst)
 		if vmErr != nil {
 			return res, vmErr
@@ -208,21 +199,18 @@ func (vm *VM) execInstrChanRecv(frame *Frame, instr *mir.Instr, writes []LocalWr
 		return res, vmErr
 	}
 
-	valAny, ok := exec.ChanRecvOrPark(chID)
+	payload, ok, receiveErr := vm.tryReceiveAsyncChannel(exec, chID)
+	if receiveErr != nil {
+		return res, receiveErr
+	}
 	if ok {
-		v := valAny
-		v, vmErr = vm.transportCopyOut(frame, v)
-		if vmErr != nil {
-			return res, vmErr
-		}
 		dstType, vmErr := vm.joinResultType(frame, instr.ChanRecv.Dst)
 		if vmErr != nil {
-			vm.dropValue(v)
+			vm.dropAsyncPayload(payload)
 			return res, vmErr
 		}
-		doneVal, vmErr := vm.makeOptionSome(dstType, v)
+		doneVal, vmErr := vm.makeOptionSomeFromAsync(dstType, payload)
 		if vmErr != nil {
-			vm.dropValue(v)
 			return res, vmErr
 		}
 		return storeResult(doneVal)
@@ -243,6 +231,15 @@ func (vm *VM) execInstrChanRecv(frame *Frame, instr *mir.Instr, writes []LocalWr
 		res.doJump = true
 		res.jumpBB = instr.ChanRecv.PendBB
 		return res, nil
+	}
+	if _, vmErr := vm.nextAsyncParkSequence(current); vmErr != nil {
+		return res, vmErr
+	}
+	if payload, ok, receiveErr := vm.receiveOrParkAsyncChannel(exec, chID); receiveErr != nil {
+		return res, receiveErr
+	} else if ok {
+		vm.dropAsyncPayload(payload)
+		return res, vm.eb.invalidLocation("channel became ready between single-threaded reserve steps")
 	}
 	vm.asyncPendingParkKey = asyncrt.ChannelRecvKey(chID)
 	res.doJump = true

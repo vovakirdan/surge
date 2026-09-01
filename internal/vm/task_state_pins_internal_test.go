@@ -3,7 +3,6 @@ package vm
 import (
 	"testing"
 
-	"surge/internal/asyncrt"
 	"surge/internal/types"
 )
 
@@ -84,20 +83,36 @@ func TestCollectTaskStatePinsRollbackKeepsDetachedLocalAlive(t *testing.T) {
 }
 
 func TestDropAsyncTasksDropsWrappedUserTaskPayloads(t *testing.T) {
-	vm := New(nil, nil, nil, nil, nil)
-	vm.Async = asyncrt.NewExecutor[Value](asyncrt.Config{Deterministic: true})
+	vm, str, _ := newTaskResultFixture(t)
 
-	stateHandle := vm.Heap.AllocString(types.NoTypeID, "state")
-	resultHandle := vm.Heap.AllocString(types.NoTypeID, "result")
-	resumeHandle := vm.Heap.AllocString(types.NoTypeID, "resume")
+	stateHandle := vm.Heap.AllocString(str, "state")
+	resultHandle := vm.Heap.AllocString(str, "result")
+	resumeHandle := vm.Heap.AllocString(str, "resume")
 
-	taskID := vm.Async.Spawn(1, &userTaskState{state: MakeHandleString(stateHandle, types.NoTypeID)})
+	taskID := vm.Async.Spawn(1, &userTaskState{state: MakeHandleString(stateHandle, str)})
 	task := vm.Async.Task(taskID)
 	if task == nil {
 		t.Fatal("expected task")
 	}
-	task.ResultValue = MakeHandleString(resultHandle, types.NoTypeID)
-	task.ResumeValue = MakeHandleString(resumeHandle, types.NoTypeID)
+	if vmErr := vm.registerAsyncTaskOwner(taskID, str); vmErr != nil {
+		t.Fatalf("registering result owner must succeed: %v", vmErr)
+	}
+	result, vmErr := vm.stageAsyncTaskResult(taskID, MakeHandleString(resultHandle, str))
+	if vmErr != nil {
+		t.Fatalf("staging result payload must succeed: %v", vmErr)
+	}
+	resumeOwner, vmErr := vm.asyncResumeOwner(taskID, str)
+	if vmErr != nil {
+		t.Fatalf("registering resume owner must succeed: %v", vmErr)
+	}
+	resume, vmErr := vm.stageAsyncPayloadInto(
+		resumeOwner, asyncSlotResume, MakeHandleString(resumeHandle, str),
+	)
+	if vmErr != nil {
+		t.Fatalf("staging resume payload must succeed: %v", vmErr)
+	}
+	task.ResultValue = result
+	task.ResumeValue = resume
 
 	vm.dropAsyncTasks()
 

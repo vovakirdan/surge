@@ -136,23 +136,24 @@ func (vm *VM) execTermAsyncReturn(frame *Frame, term *mir.Terminator) *VMError {
 	if vmErr != nil {
 		return vmErr
 	}
-	var retVal Value
+	var result Value
 	if term.AsyncReturn.HasValue {
 		val, vmErr := vm.evalOperand(frame, &term.AsyncReturn.Value)
 		if vmErr != nil {
 			return vmErr
 		}
-		// A result crosses a TRANSPORT boundary, and this is the boundary. The
-		// activation that produced it is retired three lines below, so a value
-		// composite handed back from here names an arena whose bytes have
-		// already been given up — every later taker read a stale reference. A
-		// channel send has owed the same copy since Wave C; the task result was
-		// the one handover that never paid it.
-		val, vmErr = vm.transportCopyIn(val)
-		if vmErr != nil {
-			return vmErr
-		}
-		retVal = val
+		result = val
+	}
+	// Completion initializes the task's exact owner slot before the producing
+	// activation retires. The slot, rather than this frame, owns the value from
+	// this point onward.
+	exec := vm.ensureExecutor()
+	if exec == nil || exec.Current() == 0 {
+		return vm.eb.invalidLocation("async return has no task owner")
+	}
+	retVal, vmErr := vm.stageAsyncTaskResult(exec.Current(), result)
+	if vmErr != nil {
+		return vmErr
 	}
 	vm.releaseFinishedTaskState(stateVal)
 	vm.dropFrameLocals(frame)
@@ -205,7 +206,7 @@ func (vm *VM) execTermAsyncReturnCancelled(frame *Frame, term *mir.Terminator) *
 	vm.asyncCapture.parkKey = asyncrt.WakerKey{}
 	vm.asyncPendingParkKey = asyncrt.WakerKey{}
 	vm.asyncCapture.state = Value{}
-	vm.asyncCapture.value = Value{}
+	vm.asyncCapture.value = asyncPayload{}
 	return nil
 }
 

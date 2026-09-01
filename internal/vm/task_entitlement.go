@@ -202,9 +202,9 @@ func (vm *VM) releaseUnclaimableResult(id asyncrt.TaskID) {
 		return
 	}
 	result := task.ResultValue
-	task.ResultValue = Value{}
+	task.ResultValue = asyncPayload{}
 	delete(vm.taskCohorts, id)
-	vm.dropValue(result)
+	vm.dropAsyncPayload(result)
 }
 
 // valueHoldsStorage reports whether a value owns something a release would

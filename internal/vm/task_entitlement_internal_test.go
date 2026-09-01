@@ -7,84 +7,93 @@ import (
 	"surge/internal/layout"
 	"surge/internal/mir"
 	"surge/internal/source"
+	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
-// The reserved final move, asked where it is a DECISION rather than an answer.
-//
-// It cannot be asked as an answer. Every asker receives an independent value
-// either way — a duplication and a move are indistinguishable to the program
-// that reads the result — and the canonical value's lifetime is already minimal
-// after RV2-DEBT-167, because the cohort releases it the moment the last handle
-// dies. What the move changes is the COST: for a closed cohort of `E`
-// entitlements the model states exactly `E-1` duplications and one move, and
-// on the VM one duplication of a heap-bearing result is one refcount operation
-// against a per-iteration background of roughly two hundred. Pinning that
-// absolute would be a test of the string machinery, not of this rule.
-//
-// So the rule is asked directly: does the LAST asker leave the slot empty.
-func newTaskResultFixture(t *testing.T) (*VM, types.TypeID) {
+const (
+	taskResultSuccessSym   = symbols.SymbolID(71)
+	taskResultCancelledSym = symbols.SymbolID(72)
+)
+
+func newTaskResultFixture(t *testing.T) (*VM, types.TypeID, types.TypeID) {
 	t.Helper()
 	interner := types.NewInterner()
 	interner.Strings = source.NewInterner()
 	str := interner.Builtins().String
+	result := interner.RegisterUnion(interner.Strings.Intern("TaskResultString"), source.Span{})
+	interner.SetUnionMembers(result, []types.UnionMember{
+		{Kind: types.UnionMemberTag, TagName: interner.Strings.Intern("Success"), TagArgs: []types.TypeID{str}},
+		{Kind: types.UnionMemberTag, TagName: interner.Strings.Intern("Cancelled")},
+	})
 	engine := layout.New(layout.X86_64LinuxGNU(), interner)
-	registry, err := layout.FinalizeRegistry(engine, []types.TypeID{str})
+	registry, err := layout.FinalizeRegistry(engine, []types.TypeID{str, result})
 	if err != nil {
-		t.Fatalf("freezing the fixture layouts must succeed: %v", err)
+		t.Fatalf("freezing fixture layouts: %v", err)
 	}
-	machine := New(&mir.Module{Meta: &mir.ModuleMeta{Layouts: registry}}, nil, nil, interner, nil)
-	return machine, str
+	module := &mir.Module{Meta: &mir.ModuleMeta{
+		Layouts: registry,
+		TagLayouts: map[types.TypeID][]mir.TagCaseMeta{result: {
+			{TagName: "Success", TagSym: taskResultSuccessSym, PayloadTypes: []types.TypeID{str}},
+			{TagName: "Cancelled", TagSym: taskResultCancelledSym},
+		}},
+		TagNames: map[symbols.SymbolID]string{
+			taskResultSuccessSym: "Success", taskResultCancelledSym: "Cancelled",
+		},
+	}}
+	machine := New(module, nil, nil, interner, nil)
+	machine.Async = asyncrt.NewExecutor[asyncPayload](asyncrt.Config{Deterministic: true})
+	machine.Stack = []*Frame{machine.activate(&mir.Func{Blocks: []mir.Block{{}}})}
+	return machine, str, result
 }
 
-func TestTaskResultIsMovedByTheLastAskerAndDuplicatedForEveryEarlierOne(t *testing.T) {
-	machine, str := newTaskResultFixture(t)
-
+func TestTaskResultMovesLastAskerAndClonesEveryEarlierOne(t *testing.T) {
+	machine, str, resultType := newTaskResultFixture(t)
+	taskID := machine.Async.Spawn(1, nil)
+	if vmErr := machine.registerAsyncTaskOwner(taskID, str); vmErr != nil {
+		t.Fatalf("register task owner: %v", vmErr)
+	}
 	handle := machine.Heap.AllocString(str, "the canonical result")
-	task := &asyncrt.Task[Value]{ID: 7, ResultValue: MakeHandleString(handle, str)}
-
-	// A cohort of two: the handle the task was spawned with, and one clone.
+	payload, vmErr := machine.stageAsyncTaskResult(taskID, MakeHandleString(handle, str))
+	if vmErr != nil {
+		t.Fatalf("stage canonical result: %v", vmErr)
+	}
+	task := machine.Async.Task(taskID)
+	task.Status = asyncrt.TaskDone
+	task.ResultKind = asyncrt.TaskResultSuccess
+	task.ResultValue = payload
 	machine.taskHandleCreated(task.ID)
 	machine.taskHandleCreated(task.ID)
 
-	first, vmErr := machine.takeCanonicalResult(task)
+	first, vmErr := machine.taskResultFromTask(task, resultType)
 	if vmErr != nil {
-		t.Fatalf("the first asker must be served: %v", vmErr)
+		t.Fatalf("serve first asker: %v", vmErr)
 	}
-	if task.ResultValue.Kind == VKInvalid {
-		t.Fatalf("the first of two askers emptied the slot; the second has nothing to take")
+	_, slot, _, inspectErr := machine.inspectAsyncPayload(task.ResultValue)
+	if inspectErr != nil || slot.state != asyncPayloadInitialized {
+		t.Fatalf("first asker emptied canonical slot: %v state=%v", inspectErr, slot)
 	}
 	if got := machine.Heap.Get(handle).RefCount; got != 2 {
-		t.Fatalf("a duplication for an earlier asker left refcount %d, want 2", got)
+		t.Fatalf("earlier asker left refcount %d, want 2", got)
 	}
 
-	// That asker's handle dies. One entitlement is left, so the next asker is
-	// the last one there can be.
 	machine.taskHandleReleased(task.ID)
-	if task.ResultValue.Kind == VKInvalid {
-		t.Fatalf("the result was released while an entitlement could still claim it")
-	}
-
-	second, vmErr := machine.takeCanonicalResult(task)
+	second, vmErr := machine.taskResultFromTask(task, resultType)
 	if vmErr != nil {
-		t.Fatalf("the last asker must be served: %v", vmErr)
+		t.Fatalf("serve last asker: %v", vmErr)
 	}
-	if task.ResultValue.Kind != VKInvalid {
-		t.Fatalf("the last asker DUPLICATED instead of moving: the slot still holds %v", task.ResultValue.Kind)
+	if task.ResultValue.ownerKind != 0 {
+		t.Fatal("last asker cloned instead of terminally moving the canonical slot")
 	}
 	if got := machine.Heap.Get(handle).RefCount; got != 2 {
-		t.Fatalf("the last asker's take changed refcount to %d, want 2 — it moved, so it counted nothing", got)
+		t.Fatalf("last move changed refcount to %d, want 2", got)
 	}
-
-	// Both askers hold a value of their own and neither is the empty one.
-	if first.Kind != VKHandleString || second.Kind != VKHandleString {
-		t.Fatalf("askers received %v and %v, want two strings", first.Kind, second.Kind)
-	}
-
-	// And the cohort's own release finds nothing left to do, which is what
-	// makes the move exactly once rather than once plus a stale second owner.
 	machine.taskHandleReleased(task.ID)
-	if got := machine.Heap.Get(handle).RefCount; got != 2 {
-		t.Fatalf("emptying the cohort released a value the last asker had moved out; refcount %d, want 2", got)
+
+	machine.dropValue(first)
+	machine.dropValue(second)
+	obj, _ := machine.Heap.lookup(handle)
+	if obj == nil || !obj.Freed || obj.RefCount != 0 {
+		t.Fatalf("two caller-owned results did not release exactly twice: %#v", obj)
 	}
 }

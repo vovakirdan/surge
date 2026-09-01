@@ -8,13 +8,10 @@ import (
 // A task's result must outlive the activation that produced it.
 //
 // A poll function's return value is evaluated inside the poll frame and the
-// frame is retired in the same terminator, so a value composite handed back
-// from an async body names an arena that has already given its bytes up. The
-// channel path solved this long ago -- a payload crossing a transport boundary
-// is copied into storage the transport owns (`transport_storage.go`) -- and the
-// TASK result was never wired to the same obligation, which is visible in the
-// shutdown sweep itself: a resume value is released through `transportRelease`
-// and a result through a bare `dropValue`.
+// frame is retired in the same terminator, so the producer must initialize the
+// task's exact owner slot before retirement. Channel, resume, and task-result
+// delivery now use the same typed carrier obligation: one owner slot is either
+// handed directly to a taker or dropped exactly once.
 //
 // The two rows below differ in ONE condition, the width of the result:
 //

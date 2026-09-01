@@ -19,57 +19,61 @@ type timeoutState struct {
 	resultType types.TypeID
 }
 
-func (vm *VM) pollSleepTask(task *asyncrt.Task[Value]) (asyncrt.PollOutcome[Value], *VMError) {
+func (vm *VM) pollSleepTask(task *asyncrt.Task[asyncPayload]) (asyncrt.PollOutcome[asyncPayload], *VMError) {
 	if vm == nil || task == nil {
-		return asyncrt.PollOutcome[Value]{}, vm.eb.makeError(PanicUnimplemented, "missing sleep task")
+		return asyncrt.PollOutcome[asyncPayload]{}, vm.eb.makeError(PanicUnimplemented, "missing sleep task")
 	}
 	exec := vm.ensureExecutor()
 	if exec == nil {
-		return asyncrt.PollOutcome[Value]{}, vm.eb.makeError(PanicUnimplemented, "async executor missing")
+		return asyncrt.PollOutcome[asyncPayload]{}, vm.eb.makeError(PanicUnimplemented, "async executor missing")
 	}
 	state, ok := task.State.(*sleepState)
 	if !ok || state == nil {
-		return asyncrt.PollOutcome[Value]{}, vm.eb.makeError(PanicUnimplemented, "sleep state missing")
+		return asyncrt.PollOutcome[asyncPayload]{}, vm.eb.makeError(PanicUnimplemented, "sleep state missing")
 	}
 	if task.Cancelled {
 		if state.armed && exec.TimerActive(state.timerID) {
 			exec.TimerCancel(state.timerID)
 		}
-		return asyncrt.PollOutcome[Value]{Kind: asyncrt.PollDoneCancelled}, nil
+		return asyncrt.PollOutcome[asyncPayload]{Kind: asyncrt.PollDoneCancelled}, nil
 	}
 	if !state.armed {
 		state.timerID = exec.TimerScheduleAfter(task.ID, state.delayMs)
 		state.armed = true
-		return asyncrt.PollOutcome[Value]{Kind: asyncrt.PollParked, ParkKey: asyncrt.TimerKey(state.timerID)}, nil
+		return asyncrt.PollOutcome[asyncPayload]{Kind: asyncrt.PollParked, ParkKey: asyncrt.TimerKey(state.timerID)}, nil
 	}
 	if exec.TimerActive(state.timerID) {
-		return asyncrt.PollOutcome[Value]{Kind: asyncrt.PollParked, ParkKey: asyncrt.TimerKey(state.timerID)}, nil
+		return asyncrt.PollOutcome[asyncPayload]{Kind: asyncrt.PollParked, ParkKey: asyncrt.TimerKey(state.timerID)}, nil
 	}
-	return asyncrt.PollOutcome[Value]{Kind: asyncrt.PollDoneSuccess, Value: MakeNothing()}, nil
+	payload, vmErr := vm.stageAsyncTaskResult(task.ID, MakeNothing())
+	if vmErr != nil {
+		return asyncrt.PollOutcome[asyncPayload]{}, vmErr
+	}
+	return asyncrt.PollOutcome[asyncPayload]{Kind: asyncrt.PollDoneSuccess, Value: payload}, nil
 }
 
-func (vm *VM) pollTimeoutTask(task *asyncrt.Task[Value]) (asyncrt.PollOutcome[Value], *VMError) {
+func (vm *VM) pollTimeoutTask(task *asyncrt.Task[asyncPayload]) (asyncrt.PollOutcome[asyncPayload], *VMError) {
 	if vm == nil || task == nil {
-		return asyncrt.PollOutcome[Value]{}, vm.eb.makeError(PanicUnimplemented, "missing timeout task")
+		return asyncrt.PollOutcome[asyncPayload]{}, vm.eb.makeError(PanicUnimplemented, "missing timeout task")
 	}
 	exec := vm.ensureExecutor()
 	if exec == nil {
-		return asyncrt.PollOutcome[Value]{}, vm.eb.makeError(PanicUnimplemented, "async executor missing")
+		return asyncrt.PollOutcome[asyncPayload]{}, vm.eb.makeError(PanicUnimplemented, "async executor missing")
 	}
 	state, ok := task.State.(*timeoutState)
 	if !ok || state == nil {
-		return asyncrt.PollOutcome[Value]{}, vm.eb.makeError(PanicUnimplemented, "timeout state missing")
+		return asyncrt.PollOutcome[asyncPayload]{}, vm.eb.makeError(PanicUnimplemented, "timeout state missing")
 	}
 	if task.Cancelled {
 		if state.armed && exec.TimerActive(state.timerID) {
 			exec.TimerCancel(state.timerID)
 		}
-		return asyncrt.PollOutcome[Value]{Kind: asyncrt.PollDoneCancelled}, nil
+		return asyncrt.PollOutcome[asyncPayload]{Kind: asyncrt.PollDoneCancelled}, nil
 	}
 
 	target := exec.Task(state.target)
 	if target == nil {
-		return asyncrt.PollOutcome[Value]{}, vm.eb.makeError(PanicInvalidHandle, "timeout target missing")
+		return asyncrt.PollOutcome[asyncPayload]{}, vm.eb.makeError(PanicInvalidHandle, "timeout target missing")
 	}
 	if target.Status != asyncrt.TaskWaiting && target.Status != asyncrt.TaskDone {
 		exec.Wake(state.target)
@@ -80,25 +84,33 @@ func (vm *VM) pollTimeoutTask(task *asyncrt.Task[Value]) (asyncrt.PollOutcome[Va
 		}
 		result, vmErr := vm.taskResultFromTask(target, state.resultType)
 		if vmErr != nil {
-			return asyncrt.PollOutcome[Value]{}, vmErr
+			return asyncrt.PollOutcome[asyncPayload]{}, vmErr
 		}
-		return asyncrt.PollOutcome[Value]{Kind: asyncrt.PollDoneSuccess, Value: result}, nil
+		payload, vmErr := vm.stageAsyncTaskResult(task.ID, result)
+		if vmErr != nil {
+			return asyncrt.PollOutcome[asyncPayload]{}, vmErr
+		}
+		return asyncrt.PollOutcome[asyncPayload]{Kind: asyncrt.PollDoneSuccess, Value: payload}, nil
 	}
 
 	if !state.armed {
 		state.timerID = exec.TimerScheduleAfter(task.ID, state.delayMs)
 		state.armed = true
-		return asyncrt.PollOutcome[Value]{Kind: asyncrt.PollParked, ParkKey: asyncrt.JoinKey(state.target)}, nil
+		return asyncrt.PollOutcome[asyncPayload]{Kind: asyncrt.PollParked, ParkKey: asyncrt.JoinKey(state.target)}, nil
 	}
 	if exec.TimerActive(state.timerID) {
-		return asyncrt.PollOutcome[Value]{Kind: asyncrt.PollParked, ParkKey: asyncrt.JoinKey(state.target)}, nil
+		return asyncrt.PollOutcome[asyncPayload]{Kind: asyncrt.PollParked, ParkKey: asyncrt.JoinKey(state.target)}, nil
 	}
 
 	exec.Cancel(state.target)
 	exec.Wake(state.target)
-	result, vmErr := vm.taskResultValue(state.resultType, asyncrt.TaskResultCancelled, Value{})
+	result, vmErr := vm.taskResultCancelledValue(state.resultType)
 	if vmErr != nil {
-		return asyncrt.PollOutcome[Value]{}, vmErr
+		return asyncrt.PollOutcome[asyncPayload]{}, vmErr
 	}
-	return asyncrt.PollOutcome[Value]{Kind: asyncrt.PollDoneSuccess, Value: result}, nil
+	payload, vmErr := vm.stageAsyncTaskResult(task.ID, result)
+	if vmErr != nil {
+		return asyncrt.PollOutcome[asyncPayload]{}, vmErr
+	}
+	return asyncrt.PollOutcome[asyncPayload]{Kind: asyncrt.PollDoneSuccess, Value: payload}, nil
 }

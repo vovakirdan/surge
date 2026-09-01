@@ -32,7 +32,7 @@ type VM struct {
 	heapCounters  heapCounters
 	layouts       *layoutCache
 	tagLayouts    *TagLayouts
-	Async         *asyncrt.Executor[Value]
+	Async         *asyncrt.Executor[asyncPayload]
 	AsyncConfig   asyncrt.Config
 	ExitCode      int
 	Halted        bool
@@ -43,9 +43,8 @@ type VM struct {
 	netConns      map[uint64]*vmNetConn
 	netNextListen uint64
 	netNextConn   uint64
-
-	contracts    map[*mir.Func]callContract
-	storagePlans map[*mir.Func]*StoragePlan
+	contracts     map[*mir.Func]callContract
+	storagePlans  map[*mir.Func]*StoragePlan
 	// globalArena holds the bytes of every composite global. Globals follow
 	// locals rather than getting a storage scheme of their own; the only
 	// difference is that there is one activation of them and it lasts as long
@@ -56,6 +55,7 @@ type VM struct {
 	captureReturn       *Value
 	asyncCapture        *asyncExit
 	asyncPendingParkKey asyncrt.WakerKey
+	asyncOwners         asyncOwnerRegistry
 	pollDepth           int
 	deferredShutdown    shutdownState
 	// taskCohorts tracks, per task, how many entitlements can still consume
