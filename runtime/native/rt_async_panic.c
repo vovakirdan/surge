@@ -7,7 +7,14 @@ void panic_msg(const char* msg) {
     if (msg == NULL) {
         return;
     }
-    rt_panic((const uint8_t*)msg, (uint64_t)strlen(msg));
+    rt_fatal_static(RT_FATAL_PANIC, (const uint8_t*)msg, (uint64_t)strlen(msg));
+}
+
+void fatal_oom_msg(const char* msg) {
+    if (msg == NULL) {
+        msg = "could not allocate runtime storage";
+    }
+    rt_fatal_static(RT_OOM, (const uint8_t*)msg, (uint64_t)strlen(msg));
 }
 
 // Names both sides of a double-poll collision: the site codes are the

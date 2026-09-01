@@ -69,8 +69,8 @@ void* rt_readline(void) {
         free(buf);
         void* out = rt_string_from_bytes(NULL, 0);
         if (out == NULL) {
-            const char* msg = "readline allocation failed";
-            rt_panic((const uint8_t*)msg, (uint64_t)strlen(msg));
+            static const uint8_t msg[] = "readline allocation failed";
+            rt_fatal_static(RT_OOM, msg, sizeof(msg) - 1);
         }
         return out;
     }
@@ -84,8 +84,8 @@ void* rt_readline(void) {
     void* out = rt_string_from_bytes((const uint8_t*)buf, (uint64_t)len);
     free(buf);
     if (out == NULL) {
-        const char* msg = "readline allocation failed";
-        rt_panic((const uint8_t*)msg, (uint64_t)strlen(msg));
+        static const uint8_t msg[] = "readline allocation failed";
+        rt_fatal_static(RT_OOM, msg, sizeof(msg) - 1);
     }
     return out;
 }

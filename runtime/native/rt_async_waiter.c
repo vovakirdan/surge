@@ -299,7 +299,7 @@ rt_waiter_completion rt_executor_wake_net_waiters_for_key_on_owner(rt_executor* 
             uint64_t* next =
                 (uint64_t*)rt_alloc((uint64_t)(next_cap * sizeof(uint64_t)), _Alignof(uint64_t));
             if (next == NULL) {
-                panic_msg("async: net wake batch allocation failed");
+                fatal_oom_msg("async: net wake batch allocation failed");
                 break;
             }
             memcpy(next, batch, batch_len * sizeof(uint64_t));
@@ -540,7 +540,7 @@ void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
         }
     }
     if (status == RT_RUNTIME_STATUS_ALLOCATION_FAILED) {
-        panic_msg("async: waiter allocation failed");
+        fatal_oom_msg("async: waiter allocation failed");
     }
 }
 

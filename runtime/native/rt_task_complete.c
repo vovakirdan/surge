@@ -220,7 +220,7 @@ void cancel_task(rt_executor* ex, uint64_t id) {
         children = (uint64_t*)rt_alloc(child_count * sizeof(uint64_t), _Alignof(uint64_t));
         if (children == NULL) {
             rt_shard_unlock(owner_shard);
-            panic_msg("async: cancel snapshot allocation failed");
+            fatal_oom_msg("async: cancel snapshot allocation failed");
             return;
         }
     }

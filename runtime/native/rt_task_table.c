@@ -35,7 +35,7 @@ static rt_task_segment* ensure_segment_locked(rt_executor* ex, size_t seg_idx) {
     }
     segment = (rt_task_segment*)rt_alloc(sizeof(rt_task_segment), _Alignof(rt_task_segment));
     if (segment == NULL) {
-        panic_msg("async: task segment allocation failed");
+        fatal_oom_msg("async: task segment allocation failed");
         return NULL;
     }
     for (size_t i = 0; i < RT_TASK_TABLE_SEGMENT_SIZE; i++) {

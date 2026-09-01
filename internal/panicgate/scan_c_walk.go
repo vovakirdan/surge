@@ -282,6 +282,7 @@ func paramNames(params []string) []string {
 func cReporters(src string) map[string]bool {
 	writes := map[string]bool{}
 	exits := map[string]bool{}
+	calls := map[string][]string{}
 	w := newCWalker(src)
 	for {
 		call, ok := w.nextCall()
@@ -291,11 +292,38 @@ func cReporters(src string) map[string]bool {
 		if call.function == "" {
 			continue
 		}
+		calls[call.function] = append(calls[call.function], call.name)
 		switch call.name {
 		case "rt_write_stderr":
 			writes[call.function] = true
+		case "write":
+			if len(call.args) > 0 && strings.TrimSpace(call.args[0]) == "STDERR_FILENO" {
+				writes[call.function] = true
+			}
 		case "_exit":
 			exits[call.function] = true
+		}
+	}
+	// A reporter may keep its raw write loop in a non-exiting helper so the
+	// terminal entry point remains small and testable. Propagate only the write
+	// property through calls: `_exit` must still be in the reporter itself, or a
+	// forwarding wrapper would be mistaken for a second primitive reporter.
+	for {
+		changed := false
+		for function, callees := range calls {
+			if writes[function] {
+				continue
+			}
+			for _, callee := range callees {
+				if writes[callee] {
+					writes[function] = true
+					changed = true
+					break
+				}
+			}
+		}
+		if !changed {
+			break
 		}
 	}
 	out := map[string]bool{}

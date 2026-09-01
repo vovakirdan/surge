@@ -259,17 +259,7 @@ func (fe *funcEmitter) emitAsyncRefParamBox(paramValue string, refType types.Typ
 	if align == 0 {
 		align = 1
 	}
-	box := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_alloc(i64 %d, i64 %d)\n", box, size, align)
-	isNull := fe.nextTemp()
-	trapBB := fe.nextInlineBlock()
-	okBB := fe.nextInlineBlock()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq ptr %s, null\n", isNull, box)
-	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", isNull, trapBB, okBB)
-	fmt.Fprintf(&fe.emitter.buf, "%s:\n", trapBB)
-	fmt.Fprintf(&fe.emitter.buf, "  call void @llvm.trap()\n")
-	fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
-	fmt.Fprintf(&fe.emitter.buf, "%s:\n", okBB)
+	box := fe.emitCheckedAlloc(allocSiteAsyncRefBox, valueType, fmt.Sprintf("%d", size), align)
 	// A pointee that lives in inline storage has no register wide enough to
 	// carry it, so the move into the box is a byte move from the address the
 	// parameter already names. Going through the value helpers is what keeps

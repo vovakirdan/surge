@@ -53,6 +53,10 @@ const allocRefusalEnvVar = "SURGE_INTERNAL_TEST_ALLOC_REFUSAL"
 // stand happens to have.
 const allocRefusalSize = "18446744073709551615"
 
+// fatalCodeOOM is the explicit-width rt_fatal_code value declared in rt.h.
+// The focused ABI test pins the C and LLVM views together.
+const fatalCodeOOM = 1
+
 // allocSite names one guarded allocation the negative control can aim at.
 //
 // The names exist so the control can refuse exactly one site and a stand can say
@@ -76,6 +80,7 @@ const (
 	allocSiteArrayIter        allocSite = "array-iterator"
 	allocSiteArrayGrowPush    allocSite = "array-grow-push"
 	allocSiteArrayGrowReserve allocSite = "array-grow-reserve"
+	allocSiteAsyncRefBox      allocSite = "async-ref-box"
 )
 
 // allocGuardedSites is the roster: every allocation this file writes with a size
@@ -92,6 +97,7 @@ func allocGuardedSites() []allocSite {
 		allocSiteArrayIter,
 		allocSiteArrayGrowPush,
 		allocSiteArrayGrowReserve,
+		allocSiteAsyncRefBox,
 	}
 }
 
@@ -141,7 +147,7 @@ func allocFailureMessage(typesIn *types.Interner, id types.TypeID) string {
 // bound type is the only thing that tells one Range type from another, which is
 // what the caller spells.
 func allocFailureMessageFor(label string) string {
-	return "out of memory: could not allocate " + label
+	return "could not allocate " + label
 }
 
 // emitRefusalTest tests one runtime answer and continues in a block reached only
@@ -154,7 +160,7 @@ func (fe *funcEmitter) emitRefusalTest(label, ptr string) {
 	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp eq ptr %s, null\n", refused, ptr)
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", refused, refusedBB, servedBB)
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", refusedBB)
-	fe.emitAllocRefusalPanic(label)
+	fe.emitAllocRefusalFatal(label)
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", servedBB)
 }
 
@@ -274,17 +280,17 @@ func (fe *funcEmitter) emitRuntimeAnswerTest(call *mir.CallInstr, callee, ptr st
 	fe.emitRefusalTest(allocFailureMessage(fe.emitter.types, id), ptr)
 }
 
-// emitAllocRefusalPanic reports the refusal and does not return.
+// emitAllocRefusalFatal reports the refusal and does not return.
 //
 // The message is built per type, so it cannot come from the module's
 // string-constant table: that table hands out globals by index over its sorted
 // contents and has to be complete before the first function body names one of
 // them. It goes through the late table emit_span.go fills, which exists for
 // exactly this — a text nothing knew about until a body was written.
-func (fe *funcEmitter) emitAllocRefusalPanic(label string) {
+func (fe *funcEmitter) emitAllocRefusalFatal(label string) {
 	sc := fe.emitter.messageConst(label)
 	fmt.Fprintf(&fe.emitter.buf,
-		"  call void @rt_panic(ptr getelementptr inbounds ([%d x i8], ptr @%s, i64 0, i64 0), i64 %d)\n",
-		sc.arrayLen, sc.globalName, sc.dataLen)
+		"  call void @rt_fatal_static(i32 %d, ptr getelementptr inbounds ([%d x i8], ptr @%s, i64 0, i64 0), i64 %d)\n",
+		fatalCodeOOM, sc.arrayLen, sc.globalName, sc.dataLen)
 	fe.emitter.buf.WriteString("  unreachable\n")
 }

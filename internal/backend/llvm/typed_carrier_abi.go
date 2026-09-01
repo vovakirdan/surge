@@ -60,6 +60,10 @@ func emitTypedCarrierABI(out *strings.Builder) {
 // hash and the link sentinel, and buy no capability. It is kept in llvm.used so
 // that being unreferenced — which it is until descriptors are emitted — does not
 // let it be dropped before the slot rule that names it can be honoured.
+// This is the model's proved-unreachable bare-trap exemption: valid source
+// cannot request a crossing mode when the descriptor advertises neither one.
+// The terminality probe deliberately bypasses that source/descriptor validity
+// rule; dispatch from that negative probe does not make the stub program-reachable.
 func emitPlanCrossUnavailableStub(out *strings.Builder) {
 	fmt.Fprintf(out, "define internal zeroext i32 @%s(ptr %%src, i8 zeroext %%mode, ptr %%out) noinline {\nentry:\n",
 		valueops.PlanCrossUnavailableStub)

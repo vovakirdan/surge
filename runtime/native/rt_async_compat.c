@@ -37,7 +37,7 @@ void maybe_start_compensation_worker_locked(rt_executor* ex) {
     // Compensation workers live until executor shutdown; their context is process-lifetime.
     rt_worker_ctx* ctx = (rt_worker_ctx*)rt_alloc(sizeof(rt_worker_ctx), _Alignof(rt_worker_ctx));
     if (ctx == NULL) {
-        panic_msg("async: compensation worker context allocation failed");
+        fatal_oom_msg("async: compensation worker context allocation failed");
         return;
     }
     memset(ctx, 0, sizeof(rt_worker_ctx));

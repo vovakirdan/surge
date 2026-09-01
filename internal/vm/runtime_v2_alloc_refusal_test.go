@@ -18,7 +18,7 @@ import (
 // by SIGSEGV with an empty stderr -- `Segmentation fault (core dumped)` under a
 // shell, exit code -1 as Go reports a signalled process -- because the generated
 // body stored through the NULL that rt_alloc.c returns. With the guard they
-// answer `panic: out of memory: could not allocate <type>` and exit 1.
+// answer `surge: fatal [RT_OOM]: could not allocate <type>` and exit 1.
 
 const allocRefusalEnv = "SURGE_INTERNAL_TEST_ALLOC_REFUSAL"
 
@@ -73,12 +73,33 @@ fn main() -> int {
 }
 `
 
+// allocRefusalAsyncRefProgram reaches the constructor box for a shared
+// reference that must survive suspension. Before this row the box checked NULL
+// but dispatched llvm.trap, so an ordinary program could provoke a signal with
+// no fatal report.
+const allocRefusalAsyncRefProgram = `async fn read_ref(x: &int) -> int {
+    checkpoint().await();
+    return *x;
+}
+
+@entrypoint
+fn main() -> int {
+    let value: int = 3;
+    compare read_ref(&value).await() {
+        Success(v) => return v;
+        Cancelled() => return 9;
+    };
+}
+`
+
 // TestRuntimeV2AllocationRefusalReportsTheTypeItCouldNotAllocate is the row.
 //
 // The unarmed arm is not decoration: a stand whose program dies whichever way it
 // is built proves nothing about the guard, and the exit code it asserts is a sum
 // only a program that actually built its array can produce.
 func TestRuntimeV2AllocationRefusalReportsTheTypeItCouldNotAllocate(t *testing.T) {
+	t.Run("fatal_emitter_codes_and_static_path", assertRuntimeV2FatalEmitter)
+
 	for _, tc := range []struct {
 		name     string
 		program  string
@@ -114,6 +135,13 @@ func TestRuntimeV2AllocationRefusalReportsTheTypeItCouldNotAllocate(t *testing.T
 			typeName: "__AsyncState$add",
 			served:   6,
 		},
+		{
+			name:     "async_shared_ref_box",
+			program:  allocRefusalAsyncRefProgram,
+			site:     "async-ref-box",
+			typeName: "int",
+			served:   3,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			stdout, stderr, code := buildAndRunWithAllocRefusal(t, tc.program, "")
@@ -123,7 +151,7 @@ func TestRuntimeV2AllocationRefusalReportsTheTypeItCouldNotAllocate(t *testing.T
 			}
 
 			_, stderr, code = buildAndRunWithAllocRefusal(t, tc.program, tc.site)
-			want := "panic: out of memory: could not allocate " + tc.typeName + "\n"
+			want := "surge: fatal [RT_OOM]: could not allocate " + tc.typeName + "\n"
 			if code != 1 {
 				t.Fatalf("a refused allocation exited %d, want 1 (-1 is the SIGSEGV this guard replaced); stderr=%q",
 					code, stderr)
@@ -161,7 +189,7 @@ fn main() -> int {
 // indirectly, and no caller can be handed a refusal it has no way to represent.
 func TestARefusedStringReportsInsteadOfAnsweringTheEmptyString(t *testing.T) {
 	_, stderr, code := buildAndRunWithAllocRefusal(t, refusedStringProgram, "")
-	want := "panic: out of memory: could not allocate String\n"
+	want := "surge: fatal [RT_OOM]: could not allocate String\n"
 	if code != 1 {
 		t.Fatalf("a refused string exited %d, want 1 (0 is the silent wrong answer this fix replaced); stderr=%q",
 			code, stderr)

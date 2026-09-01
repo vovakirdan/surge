@@ -167,11 +167,22 @@ func TestPanicScanFindsTheKnownSurface(t *testing.T) {
 	}
 }
 
-// Every reporter that writes a panic line and exits must be one the scan
-// follows. rt_bignum_panic.c formats its own report rather than calling
-// rt.h, which is exactly the way a reporter gets missed, so the scan's seed
-// table is checked against the tree instead of trusted.
+// Every reporter that writes a panic or fatal line and exits must be one the
+// scan follows. rt_bignum_panic.c and rt_fatal.c format their own reports
+// rather than forwarding through another reporter, which is exactly the way a
+// reporter gets missed, so the scan's seed table is checked against the tree
+// instead of trusted.
 func TestPanicReportersAreAllKnown(t *testing.T) {
+	const helperWriter = `
+static void write_all(void) { write(STDERR_FILENO, "x", 1); }
+static void fatal(void) { write_all(); _exit(1); }
+static void not_a_reporter(void) { _exit(1); }
+`
+	canary := cReporters(helperWriter)
+	if !canary["fatal"] || canary["not_a_reporter"] {
+		t.Fatalf("reporter scan does not follow a raw stderr-write helper exactly: %#v", canary)
+	}
+
 	root := repoRoot(t)
 	dir := filepath.Join(root, "runtime", "native")
 	entries, err := os.ReadDir(dir)
@@ -220,7 +231,7 @@ func TestEmitterRaisesOnlyFromTheKnownPackage(t *testing.T) {
 		if readErr != nil {
 			return readErr
 		}
-		if strings.Contains(string(raw), "@rt_panic") {
+		if strings.Contains(string(raw), "@rt_panic") || strings.Contains(string(raw), "@rt_fatal_static") {
 			offenders = append(offenders, rel)
 		}
 		return nil

@@ -99,7 +99,8 @@ void* rt_array_concat(void* left_slot,
     if (size > 0) {
         data = (uint8_t*)rt_alloc(size, elem_align);
         if (data == NULL) {
-            concat_panic("array allocation failed");
+            static const uint8_t msg[] = "array allocation failed";
+            rt_fatal_static(RT_OOM, msg, sizeof(msg) - 1);
             return NULL;
         }
         concat_copy_run(data, left, elem_stride, clone_elem);
@@ -109,7 +110,8 @@ void* rt_array_concat(void* left_slot,
     SurgeArrayHeader* header = (SurgeArrayHeader*)rt_alloc((uint64_t)sizeof(SurgeArrayHeader),
                                                            (uint64_t)alignof(SurgeArrayHeader));
     if (header == NULL) {
-        concat_panic("array allocation failed");
+        static const uint8_t msg[] = "array allocation failed";
+        rt_fatal_static(RT_OOM, msg, sizeof(msg) - 1);
         return NULL;
     }
     header->len = total;

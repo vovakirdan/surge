@@ -32,7 +32,7 @@ static rt_scope_segment* ensure_scope_segment_locked(rt_executor* ex, size_t seg
     }
     segment = (rt_scope_segment*)rt_alloc(sizeof(rt_scope_segment), _Alignof(rt_scope_segment));
     if (segment == NULL) {
-        panic_msg("async: scope segment allocation failed");
+        fatal_oom_msg("async: scope segment allocation failed");
         return NULL;
     }
     for (size_t i = 0; i < RT_SCOPE_TABLE_SEGMENT_SIZE; i++) {

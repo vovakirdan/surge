@@ -222,14 +222,14 @@ void rt_blocking_init(rt_executor* ex) {
     rt_blocking_worker_ctx* ctxs =
         (rt_blocking_worker_ctx*)calloc((size_t)count, sizeof(rt_blocking_worker_ctx));
     if (ctxs == NULL) {
-        panic_msg("async: blocking context allocation failed");
+        fatal_oom_msg("async: blocking context allocation failed");
         return;
     }
     pthread_t* threads =
         (pthread_t*)rt_alloc((uint64_t)count * (uint64_t)sizeof(pthread_t), _Alignof(pthread_t));
     if (threads == NULL) {
         free(ctxs);
-        panic_msg("async: blocking worker allocation failed");
+        fatal_oom_msg("async: blocking worker allocation failed");
         return;
     }
     ex->blocking_worker_ctxs = ctxs;
@@ -343,7 +343,7 @@ void* rt_blocking_submit(uint64_t fn_id,
     rt_task* task = (rt_task*)rt_alloc(sizeof(rt_task), _Alignof(rt_task));
     if (task == NULL) {
         rt_control_unlock(ex);
-        panic_msg("async: blocking task allocation failed");
+        fatal_oom_msg("async: blocking task allocation failed");
         return NULL;
     }
     memset(task, 0, sizeof(rt_task));
@@ -384,7 +384,7 @@ void* rt_blocking_submit(uint64_t fn_id,
         rt_task_slot_store(ex, id, NULL);
         rt_free((uint8_t*)task, sizeof(rt_task), _Alignof(rt_task));
         rt_control_unlock(ex);
-        panic_msg("async: blocking job allocation failed");
+        fatal_oom_msg("async: blocking job allocation failed");
         return NULL;
     }
     memset(job, 0, sizeof(rt_blocking_job));

@@ -8,6 +8,14 @@
 #include "rt_typed_carrier_abi.generated.h"
 
 #ifdef __cplusplus
+#define SURGE_RT_NORETURN [[noreturn]]
+#define SURGE_RT_STATIC_ASSERT static_assert
+#else
+#define SURGE_RT_NORETURN _Noreturn
+#define SURGE_RT_STATIC_ASSERT _Static_assert
+#endif
+
+#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -65,6 +73,21 @@ void* rt_term_read_event(void);
 void* rt_readline(void);
 void rt_exit(int64_t code);
 void rt_panic(const uint8_t* ptr, uint64_t length);
+
+// Process-terminal failures that are not language panics. The explicit-width
+// typedef is part of the compiler/runtime ABI: LLVM declares the first
+// parameter as i32, independently of a C compiler's enum representation.
+typedef uint32_t rt_fatal_code;
+enum {
+    RT_FATAL_PANIC = 0,
+    RT_OOM = 1,
+    RT_TRAP = 2,
+};
+
+// Writes one fixed-shape fatal report and terminates without allocating.
+// The message is a borrowed byte span and need not be NUL-terminated.
+SURGE_RT_NORETURN void
+rt_fatal_static(rt_fatal_code code, const uint8_t* message, uint64_t message_length);
 /* These two reporters take the source location as a trailing (pointer, length)
  * pair, which the compiler fills in from the instruction that raised the panic:
  * a compiled binary has no frame to ask at run time, so the location has to be
@@ -172,14 +195,14 @@ typedef struct SurgeRangeArrayIter {
     uint64_t length;
 } SurgeRangeArrayIter;
 
-_Static_assert(sizeof(SurgeRange) == 24,
-               "SurgeRange must stay 24 bytes: the emitter allocates that");
-_Static_assert(sizeof(SurgeRangeArrayIter) == 40,
-               "the array cursor must stay 40 bytes: the emitter allocates that");
-_Static_assert(offsetof(SurgeRangeArrayIter, index) == 24,
-               "cursor index offset must match the emitter");
-_Static_assert(offsetof(SurgeRangeArrayIter, length) == 32,
-               "cursor length offset must match the emitter");
+SURGE_RT_STATIC_ASSERT(sizeof(SurgeRange) == 24,
+                       "SurgeRange must stay 24 bytes: the emitter allocates that");
+SURGE_RT_STATIC_ASSERT(sizeof(SurgeRangeArrayIter) == 40,
+                       "the array cursor must stay 40 bytes: the emitter allocates that");
+SURGE_RT_STATIC_ASSERT(offsetof(SurgeRangeArrayIter, index) == 24,
+                       "cursor index offset must match the emitter");
+SURGE_RT_STATIC_ASSERT(offsetof(SurgeRangeArrayIter, length) == 32,
+                       "cursor length offset must match the emitter");
 
 // Reclaims ONE Range object, of either shape, sizing it off its own kind byte.
 // Null-safe: a released slot is nulled and a second release must not read a
@@ -450,5 +473,8 @@ void* rt_range_int_full(bool inclusive);
 #ifdef __cplusplus
 }
 #endif
+
+#undef SURGE_RT_STATIC_ASSERT
+#undef SURGE_RT_NORETURN
 
 #endif

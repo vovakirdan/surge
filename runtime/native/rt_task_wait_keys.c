@@ -37,7 +37,7 @@ static void ensure_wait_keys_cap(rt_task* task, size_t want) {
     waker_key* next = (waker_key*)rt_realloc(
         (uint8_t*)task->wait_keys, (uint64_t)old_size, (uint64_t)new_size, _Alignof(waker_key));
     if (next == NULL) {
-        panic_msg("async: wait key allocation failed");
+        fatal_oom_msg("async: wait key allocation failed");
         return;
     }
     task->wait_keys = next;

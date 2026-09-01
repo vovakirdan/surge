@@ -105,7 +105,7 @@ size_t rt_waiter_collect_join_waiters(rt_executor* ex,
                 uint64_t* next = (uint64_t*)rt_alloc((uint64_t)(next_cap * sizeof(uint64_t)),
                                                      _Alignof(uint64_t));
                 if (next == NULL) {
-                    panic_msg("async: wake batch allocation failed");
+                    fatal_oom_msg("async: wake batch allocation failed");
                     break;
                 }
                 memcpy(next, *batch, batch_len * sizeof(uint64_t));

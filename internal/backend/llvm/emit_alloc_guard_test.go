@@ -275,11 +275,6 @@ var allocEmittersOutsideTheGuard = map[string]string{
 	// nullable C ABI, and a program that calls it is holding a *byte it must
 	// test itself. Panicking here would take that answer away.
 	"emit_intrinsics_memory.go": "the rt_alloc intrinsic hands the program the allocator's own answer",
-	// The async ref-parameter box writes its own test and traps. It stops the
-	// process rather than faulting, which is the half this lane is about; it
-	// reports nothing, which is the half it does not fix, because the stand that
-	// pins it belongs to the async lane.
-	"emit_func.go": "the async ref box tests its own allocation and traps",
 }
 
 // indirectPointerCallEmitters write a pointer-answering call whose callee is a
@@ -632,7 +627,7 @@ func allocSiteConstantValues(t *testing.T) map[string]allocSite {
 }
 
 // TestTheGuardIsWhereTheReportedFileSaysItIs keeps the ledger row that excuses
-// this raise pointed at the raise. The panic-surface census keys its rows on
+// this raise pointed at the raise. The fatal-surface census keys its rows on
 // file and function, and a row whose key has moved is reported as renumbered
 // rather than as covered; this fails first, where the reason is legible.
 func TestTheGuardIsWhereTheReportedFileSaysItIs(t *testing.T) {
@@ -640,7 +635,7 @@ func TestTheGuardIsWhereTheReportedFileSaysItIs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read the guard: %v", err)
 	}
-	if !strings.Contains(string(raw), "func (fe *funcEmitter) emitAllocRefusalPanic(") {
-		t.Fatal("emitAllocRefusalPanic moved; update internal/panicgate/testdata/allowlist.json with it")
+	if !strings.Contains(string(raw), "func (fe *funcEmitter) emitAllocRefusalFatal(") {
+		t.Fatal("emitAllocRefusalFatal moved; update internal/panicgate/testdata/allowlist.json with it")
 	}
 }

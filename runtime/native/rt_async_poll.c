@@ -45,7 +45,7 @@ static poll_outcome poll_sleep_task(rt_executor* ex, rt_task* task) {
             rt_sleep_store_add(&owner_shard->sleep_store, task->sleep_deadline, task->id);
         rt_shard_unlock(owner_shard);
         if (status != RT_RUNTIME_STATUS_OK) {
-            panic_msg("async: sleep store allocation failed");
+            fatal_oom_msg("async: sleep store allocation failed");
         }
         out.kind = POLL_PARKED;
         out.park_key = timer_key(task->id, rt_task_owner_shard_id(ex, task));

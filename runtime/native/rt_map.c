@@ -225,7 +225,8 @@ static void map_reserve(SurgeMap* map, uint64_t needed) {
     }
     uint8_t* next = (uint8_t*)rt_alloc(plan.total, plan.align);
     if (next == NULL) {
-        map_panic("map allocation failed");
+        static const uint8_t msg[] = "map allocation failed";
+        rt_fatal_static(RT_OOM, msg, sizeof(msg) - 1);
         return;
     }
     uint64_t key_stride = (uint64_t)map->key_ops->layout.stride;
@@ -265,7 +266,8 @@ void* rt_map_new(uint64_t key_kind, const rt_value_ops* key_ops, const rt_value_
     }
     SurgeMap* map = (SurgeMap*)rt_alloc((uint64_t)sizeof(SurgeMap), (uint64_t)alignof(SurgeMap));
     if (map == NULL) {
-        map_panic("map allocation failed");
+        static const uint8_t msg[] = "map allocation failed";
+        rt_fatal_static(RT_OOM, msg, sizeof(msg) - 1);
         return NULL;
     }
     memset(map, 0, sizeof(*map));
@@ -444,13 +446,15 @@ void* rt_map_keys(const void* map_ptr,
         }
         data = rt_alloc(data_size, elem_align);
         if (data == NULL) {
-            map_panic("map keys allocation failed");
+            static const uint8_t msg[] = "map keys allocation failed";
+            rt_fatal_static(RT_OOM, msg, sizeof(msg) - 1);
         }
     }
     SurgeArrayHeader* header = (SurgeArrayHeader*)rt_alloc((uint64_t)sizeof(SurgeArrayHeader),
                                                            (uint64_t)alignof(SurgeArrayHeader));
     if (header == NULL) {
-        map_panic("map keys allocation failed");
+        static const uint8_t msg[] = "map keys allocation failed";
+        rt_fatal_static(RT_OOM, msg, sizeof(msg) - 1);
         return NULL;
     }
     header->len = map->len;

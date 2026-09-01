@@ -70,7 +70,7 @@
       "group": "PG-OPERAND-RANGE"
     },
     {
-      "site": "internal/backend/llvm/emit_alloc_guard.go::emitAllocRefusalPanic#1",
+      "site": "internal/backend/llvm/emit_alloc_guard.go::emitAllocRefusalFatal#1",
       "message": "<computed>",
       "group": "PG-ALLOC-FAILURE"
     },
@@ -1606,7 +1606,7 @@
     },
     {
       "site": "runtime/native/rt_string.c::string_alloc_or_report#1",
-      "message": "out of memory: could not allocate String",
+      "message": "could not allocate String",
       "group": "PG-ALLOC-FAILURE"
     },
     {

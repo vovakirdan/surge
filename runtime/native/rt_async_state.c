@@ -128,7 +128,7 @@ static void exec_init_once(void) {
     if (rt_heap_accounting_prepare_cells(accounting, total_worker_threads, blocking_threads) !=
         RT_HEAP_ACCOUNTING_OK) {
         rt_runtime_destroy_global();
-        panic_msg("async: heap accounting cell allocation failed");
+        fatal_oom_msg("async: heap accounting cell allocation failed");
     }
     rt_heap_accounting_set_current_cell(rt_heap_accounting_main_cell(accounting));
     if (rt_remote_task_state_init(ex) != RT_RUNTIME_STATUS_OK) {
@@ -149,7 +149,7 @@ static void exec_init_once(void) {
         (void)rt_far_channel_state_destroy(ex);
         (void)rt_remote_task_state_destroy(ex);
         rt_runtime_destroy_global();
-        panic_msg("async: local queue allocation failed");
+        fatal_oom_msg("async: local queue allocation failed");
     }
     if (scheduler_status != RT_RUNTIME_STATUS_OK) {
         rt_far_channel_release_all(ex);
@@ -201,7 +201,7 @@ static void rt_start_workers(rt_executor* ex) {
     pthread_t* threads = (pthread_t*)rt_alloc((uint64_t)thread_count * (uint64_t)sizeof(pthread_t),
                                               _Alignof(pthread_t));
     if (threads == NULL) {
-        panic_msg("async: worker allocation failed");
+        fatal_oom_msg("async: worker allocation failed");
         return;
     }
     ex->workers = threads;
@@ -223,7 +223,7 @@ static void rt_start_workers(rt_executor* ex) {
         rt_worker_ctx* ctxs = (rt_worker_ctx*)rt_alloc(
             (uint64_t)count * (uint64_t)sizeof(rt_worker_ctx), _Alignof(rt_worker_ctx));
         if (ctxs == NULL) {
-            panic_msg("async: worker context allocation failed");
+            fatal_oom_msg("async: worker context allocation failed");
             return;
         }
         memset(ctxs, 0, (size_t)count * sizeof(rt_worker_ctx));
@@ -420,7 +420,7 @@ void ensure_child_cap(rt_task* task, size_t want) {
     uint64_t* next = (uint64_t*)rt_realloc(
         (uint8_t*)task->children, (uint64_t)old_size, (uint64_t)new_size, _Alignof(uint64_t));
     if (next == NULL) {
-        panic_msg("async: child allocation failed");
+        fatal_oom_msg("async: child allocation failed");
         return;
     }
     task->children = next;
@@ -443,7 +443,7 @@ void ensure_scope_child_cap(rt_scope* scope, size_t want) {
     uint64_t* next = (uint64_t*)rt_realloc(
         (uint8_t*)scope->children, (uint64_t)old_size, (uint64_t)new_size, _Alignof(uint64_t));
     if (next == NULL) {
-        panic_msg("async: scope child allocation failed");
+        fatal_oom_msg("async: scope child allocation failed");
         return;
     }
     scope->children = next;

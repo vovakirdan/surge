@@ -87,6 +87,25 @@ fn main() -> int {
 }
 `
 
+// allocGuardAsyncRefProgram reaches the constructor-owned box that keeps a
+// shared reference valid across suspension. Its allocation used to end in a
+// bare llvm.trap and was therefore the one program-reachable trap exception in
+// the generated allocation census.
+const allocGuardAsyncRefProgram = `async fn read_ref(x: &int) -> int {
+    checkpoint().await();
+    return *x;
+}
+
+@entrypoint
+fn main() -> int {
+    let value: int = 3;
+    return compare read_ref(&value).await() {
+        Success(v) => v;
+        Cancelled() => 9;
+    };
+}
+`
+
 // allocGuardProgram is one program together with the entry points it must
 // reach. The list is asserted, so a program that stops reaching a constructor —
 // because a lowering changed — fails here instead of passing vacuously over a
@@ -114,6 +133,11 @@ func allocGuardPrograms() []allocGuardProgram {
 			source:  allocGuardFrameProgram,
 			reaches: []string{"rt_frame_alloc"},
 		},
+		{
+			name:    "async_shared_ref_box",
+			source:  allocGuardAsyncRefProgram,
+			reaches: []string{"rt_alloc", "rt_frame_alloc"},
+		},
 	}
 }
 
@@ -129,7 +153,7 @@ func emitAllocGuardProgram(t *testing.T, source string) string {
 
 var (
 	emittedGuardCallRe = regexp.MustCompile(`^\s*(%t\d+) = call ptr @(rt_[a-z0-9_]+)\(`)
-	panicMessageRefRe  = regexp.MustCompile(`ptr @(\.allocmsg\.\d+),`)
+	fatalMessageRefRe  = regexp.MustCompile(`ptr @(\.allocmsg\.\d+),`)
 	messageConstRe     = regexp.MustCompile(`^@(\.allocmsg\.\d+) = private unnamed_addr constant \[\d+ x i8\] c"([^"]*)"`)
 )
 
@@ -211,13 +235,13 @@ func assertRefusalShape(t *testing.T, lines []string, messages map[string]string
 	if i+1 >= len(lines) || !strings.Contains(lines[i+1], want) {
 		t.Fatalf("the %s at line %d is not tested; next line is %q", callee, i+1, lines[i+1])
 	}
-	if i+4 >= len(lines) || !strings.Contains(lines[i+4], "call void @rt_panic(") {
+	if i+4 >= len(lines) || !strings.Contains(lines[i+4], "call void @rt_fatal_static(i32 1,") {
 		t.Fatalf("the refusal block for %s does not report; line is %q", tmp, lines[i+4])
 	}
 	if !strings.Contains(lines[i+5], "unreachable") {
 		t.Fatalf("the refusal block for %s returns; line is %q", tmp, lines[i+5])
 	}
-	ref := panicMessageRefRe.FindStringSubmatch(lines[i+4])
+	ref := fatalMessageRefRe.FindStringSubmatch(lines[i+4])
 	if ref == nil {
 		t.Fatalf("the refusal block for %s does not report through a message constant; line is %q", callee, lines[i+4])
 	}
@@ -225,7 +249,7 @@ func assertRefusalShape(t *testing.T, lines []string, messages map[string]string
 	if !ok {
 		t.Fatalf("the refusal block for %s names @%s, which the module does not define", callee, ref[1])
 	}
-	const prefix = "out of memory: could not allocate "
+	const prefix = "could not allocate "
 	if !strings.HasPrefix(text, prefix) {
 		t.Fatalf("a refused %s reports %q; every refusal reads %q plus the type", callee, text, prefix)
 	}
@@ -275,4 +299,10 @@ func TestTheNegativeControlAimsAtOneSite(t *testing.T) {
 			}
 		})
 	}
+	t.Run(string(allocSiteAsyncRefBox), func(t *testing.T) {
+		t.Setenv(allocRefusalEnvVar, string(allocSiteAsyncRefBox))
+		if n := strings.Count(emitAllocGuardProgram(t, allocGuardAsyncRefProgram), "i64 "+allocRefusalSize); n != 1 {
+			t.Fatalf("arming %q made %d allocations refuse, want 1", allocSiteAsyncRefBox, n)
+		}
+	})
 }

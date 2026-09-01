@@ -193,7 +193,9 @@ func directRaiseVerb(call *ast.CallExpr) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	for _, verb := range []string{"@rt_panic_bounds(", "@rt_panic_numeric(", "@rt_panic_code(", "@rt_panic("} {
+	for _, verb := range []string{
+		"@rt_fatal_static(", "@rt_panic_bounds(", "@rt_panic_numeric(", "@rt_panic_code(", "@rt_panic(",
+	} {
 		if strings.Contains(format, verb) {
 			return strings.TrimSuffix(strings.TrimPrefix(verb, "@"), "("), true
 		}

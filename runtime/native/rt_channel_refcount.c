@@ -310,7 +310,7 @@ void rt_channel_free_when_unlocked(void* channel) {
         if (grown == NULL) {
             // Dropping the pointer would leak the channel silently, which is
             // worse than the rule this queue exists to keep.
-            panic_msg("async: channel reclaim queue allocation failed");
+            fatal_oom_msg("async: channel reclaim queue allocation failed");
             return;
         }
         for (size_t i = 0; i < queue->len; i++) {

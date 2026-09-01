@@ -29,7 +29,7 @@ void* __task_create( // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dc
     }
     rt_task* task = (rt_task*)rt_alloc(sizeof(rt_task), _Alignof(rt_task));
     if (task == NULL) {
-        panic_msg("async: task allocation failed");
+        fatal_oom_msg("async: task allocation failed");
         return NULL;
     }
     memset(task, 0, sizeof(rt_task));
@@ -503,7 +503,7 @@ static rt_task* spawn_internal_task_locked(rt_executor* ex, uint8_t kind, uint64
     ensure_task_cap(ex, id);
     rt_task* task = (rt_task*)rt_alloc(sizeof(rt_task), _Alignof(rt_task));
     if (task == NULL) {
-        panic_msg("async: task allocation failed");
+        fatal_oom_msg("async: task allocation failed");
         return NULL;
     }
     memset(task, 0, sizeof(rt_task));

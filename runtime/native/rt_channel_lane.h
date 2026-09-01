@@ -343,7 +343,7 @@ channel_park_prepare_locked(rt_shard* owner_shard, rt_task* task, waker_key key)
         }
     }
     if (rt_waiter_store_ensure_cap(store) != RT_RUNTIME_STATUS_OK) {
-        panic_msg("async: waiter allocation failed");
+        fatal_oom_msg("async: waiter allocation failed");
         return;
     }
     uint32_t owner_hint = task->owner_shard_valid != 0 ? task->owner_shard_id : 0;

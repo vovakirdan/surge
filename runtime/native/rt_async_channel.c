@@ -61,7 +61,7 @@ void* rt_channel_new(uint64_t capacity, const rt_value_ops* ops, uint64_t elemen
         ops->layout.align > _Alignof(rt_channel) ? ops->layout.align : _Alignof(rt_channel);
     rt_channel* ch = (rt_channel*)rt_alloc(bytes, align);
     if (ch == NULL) {
-        panic_msg("async: channel allocation failed");
+        fatal_oom_msg("async: channel allocation failed");
         return NULL;
     }
     rt_channel_handle_refs_init(ch);

@@ -27,7 +27,7 @@ static void ensure_select_timers_cap(rt_task* task, size_t want) {
     uint64_t* next = (uint64_t*)rt_realloc(
         (uint8_t*)task->select_timers, (uint64_t)old_size, (uint64_t)new_size, _Alignof(uint64_t));
     if (next == NULL) {
-        panic_msg("async: select timer allocation failed");
+        fatal_oom_msg("async: select timer allocation failed");
         return;
     }
     task->select_timers = next;

@@ -251,8 +251,10 @@ func llvmTestRepoRoot(t *testing.T) string {
 	return root
 }
 
-// TestPlanCrossUnavailableStubIsEmittedAndDoesNotReturn reads the stub's BODY,
-// not its definition line.
+// TestPlanCrossUnavailableStubIsEmittedAndDoesNotReturn pins the model's only
+// proved-unreachable bare-trap exemption and reads the stub's BODY, not its
+// definition line. The executing sibling is a negative protocol probe: it
+// bypasses the valid-program rule rather than demonstrating reachability.
 //
 // A test that only grepped for the definition would pass identically for a body
 // that returned a status — which is the one thing this symbol must never do. A
@@ -284,6 +286,9 @@ func TestPlanCrossUnavailableStubIsEmittedAndDoesNotReturn(t *testing.T) {
 	}
 	if strings.Contains(body, "ret ") {
 		t.Errorf("the stub RETURNS, which would assert the call was legal:\n%s", body)
+	}
+	if strings.Contains(body, "rt_fatal_static") {
+		t.Errorf("the proved-unreachable exemption was broadened into a reachable fatal path:\n%s", body)
 	}
 	if !strings.Contains(ir, "ptr @"+valueops.PlanCrossUnavailableStub+"]") {
 		t.Error("the stub is absent from llvm.used and may be dropped before any descriptor binds it")

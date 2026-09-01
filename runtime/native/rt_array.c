@@ -8,7 +8,7 @@
 #include <string.h>
 
 static SurgeArrayViewLink* array_views = NULL;
-
+static const uint8_t array_allocation_failed[] = "array allocation failed";
 // The registry is process-global while tasks mutate it from every worker
 // thread; every registry touch serializes here (the drop-emission epic
 // turned the latent race hot, so the lock landed with it).
@@ -129,7 +129,7 @@ array_register_view(SurgeArrayHeader* base, SurgeArrayHeader* view, uint64_t byt
     SurgeArrayViewLink* link = (SurgeArrayViewLink*)rt_alloc((uint64_t)sizeof(SurgeArrayViewLink),
                                                              (uint64_t)alignof(SurgeArrayViewLink));
     if (link == NULL) {
-        array_panic("array allocation failed");
+        rt_fatal_static(RT_OOM, array_allocation_failed, sizeof(array_allocation_failed) - 1);
         return;
     }
     link->base = base;
@@ -267,7 +267,7 @@ static SurgeArrayHeader* array_alloc_view(uint64_t len, void* data) {
     SurgeArrayHeader* view = (SurgeArrayHeader*)rt_alloc((uint64_t)sizeof(SurgeArrayHeader),
                                                          (uint64_t)alignof(SurgeArrayHeader));
     if (view == NULL) {
-        array_panic("array allocation failed");
+        rt_fatal_static(RT_OOM, array_allocation_failed, sizeof(array_allocation_failed) - 1);
         return NULL;
     }
     view->len = len;
@@ -389,7 +389,7 @@ void rt_array_append_raw_bytes(void* array_slot, const uint8_t* src, uint64_t le
         void* data =
             rt_realloc((uint8_t*)header->data, header->cap, new_cap, (uint64_t)alignof(uint8_t));
         if (data == NULL) {
-            array_panic("array allocation failed");
+            rt_fatal_static(RT_OOM, array_allocation_failed, sizeof(array_allocation_failed) - 1);
             return;
         }
         header->data = data;

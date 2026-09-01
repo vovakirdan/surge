@@ -34,12 +34,19 @@ fn main() -> int {
 	for _, want := range []string{
 		"call ptr @rt_alloc(i64 8, i64 8)",
 		"icmp eq ptr",
-		"call void @llvm.trap()",
+		"call void @rt_fatal_static(i32 1,",
 		"unreachable",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("async shared ref constructor missing %q:\n%s", want, body)
 		}
+	}
+	foundMessage := false
+	for _, message := range allocMessageConstants(t, ir) {
+		foundMessage = foundMessage || message == "could not allocate int"
+	}
+	if !foundMessage {
+		t.Fatal("async shared ref refusal does not name the boxed type")
 	}
 }
 

@@ -685,8 +685,8 @@ void* rt_term_size(void) {
     } TermSize;
     TermSize* out = (TermSize*)rt_alloc((uint64_t)sizeof(TermSize), (uint64_t)alignof(TermSize));
     if (out == NULL) {
-        const char* msg = "term_size allocation failed";
-        rt_panic((const uint8_t*)msg, (uint64_t)strlen(msg));
+        static const uint8_t msg[] = "term_size allocation failed";
+        rt_fatal_static(RT_OOM, msg, sizeof(msg) - 1);
         return NULL;
     }
     out->cols = rt_bigint_from_i64((int64_t)cols);
@@ -1084,8 +1084,8 @@ void* rt_term_read_event(void) {
         term_debug_printf("term_read_event result=%p tag=%u\n", ev, (unsigned)tag);
     }
     if (ev == NULL) {
-        const char* msg = "term_read_event allocation failed";
-        rt_panic((const uint8_t*)msg, (uint64_t)strlen(msg));
+        static const uint8_t msg[] = "term_read_event allocation failed";
+        rt_fatal_static(RT_OOM, msg, sizeof(msg) - 1);
     }
     return ev;
 }

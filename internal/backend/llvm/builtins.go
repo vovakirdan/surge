@@ -96,6 +96,7 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_net_wait_readable", ret: "i1", params: []string{"ptr"}},
 		{name: "rt_net_wait_writable", ret: "i1", params: []string{"ptr"}},
 		{name: "rt_exit", ret: "void", params: []string{"i64"}},
+		{name: "rt_fatal_static", ret: "void", params: []string{"i32", "ptr", "i64"}},
 		// The two reporters the VM answers with a located panic take a trailing
 		// (ptr, i64) naming the source location, which the emitter fills in from
 		// the instruction it is lowering. A null pointer means "no location

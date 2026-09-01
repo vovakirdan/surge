@@ -32,7 +32,7 @@ deque_reserve(rt_deque* dq, size_t want, const char* overflow_msg, const char* a
     }
     uint64_t* next = (uint64_t*)rt_alloc((uint64_t)new_size, _Alignof(uint64_t));
     if (next == NULL) {
-        panic_msg(alloc_msg);
+        fatal_oom_msg(alloc_msg);
         return 0;
     }
     if (dq->len > 0 && dq->buf != NULL) {

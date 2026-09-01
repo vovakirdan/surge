@@ -157,7 +157,7 @@ void rt_waiter_migrate_join_waiters(rt_executor* ex,
         }
         for (size_t i = 0; i < moved_len; i++) {
             if (rt_waiter_store_ensure_cap(to) != RT_RUNTIME_STATUS_OK) {
-                panic_msg("async: waiter allocation failed");
+                fatal_oom_msg("async: waiter allocation failed");
                 break;
             }
             to->entries[to->len++] = moved[i];
@@ -225,7 +225,7 @@ void rt_waiter_publish_join_owner_and_migrate(rt_executor* ex,
         }
         for (size_t i = 0; i < moved_len; i++) {
             if (rt_waiter_store_ensure_cap(to) != RT_RUNTIME_STATUS_OK) {
-                panic_msg("async: waiter allocation failed");
+                fatal_oom_msg("async: waiter allocation failed");
                 break;
             }
             to->entries[to->len++] = moved[i];

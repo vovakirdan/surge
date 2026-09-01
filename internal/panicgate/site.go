@@ -89,6 +89,10 @@ func boundsResolve(literal string) (string, bool) {
 func primitiveRaisers() map[string][]raiser {
 	return map[string][]raiser{
 		// Declared in runtime/native/rt.h.
+		// The fatal emitter covers both internal PANIC and the terminal codes
+		// (RT_OOM/RT_TRAP). Keeping it in this raiser graph preserves the census
+		// over every process-ending report even though only one code is a panic.
+		"rt_fatal_static":  {{Name: "rt_fatal_static", Arg: 1, Resolve: identityResolve}},
 		"rt_panic":         {{Name: "rt_panic", Arg: 0, Resolve: identityResolve}},
 		"rt_panic_numeric": {{Name: "rt_panic_numeric", Arg: 0, Resolve: identityResolve}},
 		"rt_panic_code":    {{Name: "rt_panic_code", Arg: 2, Resolve: identityResolve}},
@@ -98,6 +102,9 @@ func primitiveRaisers() map[string][]raiser {
 		// hand for that reason, and TestPanicReportersAreAllKnown is what stops
 		// a second hand-rolled reporter from being missed the same way.
 		"panic_with_code": {{Name: "panic_with_code", Arg: 1, Resolve: identityResolve}},
+		// The carrier benchmark signal handler emits its diagnostic with raw
+		// write(2) and exits, but has no caller-supplied panic message to follow.
+		"on_signal": nil,
 	}
 }
 

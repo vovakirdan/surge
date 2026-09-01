@@ -73,7 +73,7 @@ void scope_cancel_children_controlled(rt_executor* ex, const rt_scope* scope) {
         children = (uint64_t*)rt_alloc(count * sizeof(uint64_t), _Alignof(uint64_t));
         if (children == NULL) {
             rt_shard_unlock(pinned);
-            panic_msg("async: scope cancel snapshot allocation failed");
+            fatal_oom_msg("async: scope cancel snapshot allocation failed");
             return;
         }
     }
@@ -113,7 +113,7 @@ void* rt_scope_enter(bool failfast) {
     }
     rt_scope* scope = (rt_scope*)rt_alloc(sizeof(rt_scope), _Alignof(rt_scope));
     if (scope == NULL) {
-        panic_msg("async: scope allocation failed");
+        fatal_oom_msg("async: scope allocation failed");
         return NULL;
     }
     memset(scope, 0, sizeof(rt_scope));

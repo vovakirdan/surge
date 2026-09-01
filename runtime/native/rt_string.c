@@ -289,8 +289,8 @@ void rt_string_free(void* handle) {
 static SurgeString* string_alloc_or_report(size_t total) {
     SurgeString* s = (SurgeString*)rt_alloc((uint64_t)total, (uint64_t)alignof(SurgeString));
     if (s == NULL) {
-        const char* msg = "out of memory: could not allocate String";
-        rt_panic((const uint8_t*)msg, (uint64_t)strlen(msg));
+        static const uint8_t msg[] = "could not allocate String";
+        rt_fatal_static(RT_OOM, msg, sizeof(msg) - 1);
     }
     return s;
 }
