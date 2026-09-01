@@ -451,3 +451,43 @@ and it reports that as a property of the subject.
 This is the owner's ruling of 2026-08-30, given with the alternatives
 "measurements only" and "leave it as it is" on the table; lane-per-worktree was
 chosen over both.
+
+## Global Rule 19: A Heavy Row Refuses To Start Outside Its Stand
+
+Global Rule 17 said a lane is a worktree and a count comes from one pinned to a
+SHA. That was prose. On 2026-08-31 three agents ran `internal/vm`, `make
+runtime-*` and valgrind directly inside the shared dev checkout in the same
+hour, and local load average reached 47.28 — nothing in the tree had refused
+them, because nothing in the tree checked.
+
+Every repo-owned heavy entry point — the `runtime-v2-*` sub-gates, the
+aggregate `runtime-v2-check`, and `behaviour-check`/`behaviour-check-all`/
+`behaviour-check-mt` — now calls `scripts/heavy_run_guard.sh` as the first line
+of its recipe, before anything compiles. The guard refuses, with exit 3 and an
+instruction naming the dedicated host and the `git worktree add --detach`
+command, unless: the tree is on the dedicated measurement host (a marker file
+at `/etc/surge-dedicated-runner`), the tree is a detached worktree pinned to a
+SHA rather than a named branch, the tree is clean (`git status --porcelain` is
+empty), and `SURGE_STDLIB` points at that same worktree rather than an
+installed or unrelated copy. `GITHUB_ACTIONS=true` is not a bypass; it names an
+ephemeral `actions/checkout` tree, which both `ci.yml` and `ci-selfhosted.yml`
+put a named branch under, so a detached-HEAD-only rule would close all of CI.
+
+Excluded, each for a reason recorded next to the exemption in the Makefile: the
+three `runtime-v2-carrier-bench*` targets already carry their own fail-closed
+host guard (`scripts/runtime_v2_carrier_bench_host.py`); `test` and `check` are
+the pre-commit hook, and closing them would make a local commit impossible
+(tracked separately, not solved by this rule). The cheap lane —
+`runtime-v2-file-size-check`, `runtime-v2-syncpoint-check`, `cfmt-check`,
+`lint`, `c-check` — carries no guard and stays runnable from any checkout.
+
+A guard in the tree is not unbypassable — `export GITHUB_ACTIONS=true` defeats
+it — and this rule does not claim otherwise. What it removes is the silent
+default: running a heavy row in the wrong place now takes a deliberate action
+instead of being what happens when nobody thinks about it, and the guard always
+names which lane it let through.
+
+This is the owner's ruling of 2026-08-31, requested because a threshold on load
+average cannot be the mechanism — a shared checkout is invalid at load 0.05 too,
+because the tree mutates under a neighbouring agent regardless of load. See
+SUR-180, SUR-181, SUR-186.

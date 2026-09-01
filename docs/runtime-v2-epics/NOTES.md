@@ -9615,3 +9615,32 @@ Pre-change Sentrux scans, all with configured rules passing:
 Each scan saved a session baseline.  Final evidence will rescan the same exact
 paths and record `health`, `check_rules`, and `session_end` after the code and
 documentation are stable.
+
+**Pinned-base preflight.**  A detached `db349581` worktree produced the exact
+baseline failures the closeout plan expected: `make golden-check` refused
+`5362`, want `5359`; `make cppcheck` reported
+`rt_channel_refcount.c:272 knownConditionTrueFalse` and the terminal
+`toomanyconfigs` information row.  `go test ./internal/carriergate -count=1`
+passed in 1.651 s, and `go test ./internal/gatecheck -count=1` passed in
+60.053 s.  The first two failures are blockers; the latter two say the carrier
+census and ordinary gate package did not cause them.
+
+**Reviewed lane reconstruction.**  The first six commits from
+`origin/lane-sur224` were applied in their original order after a read-only
+non-author audit.  The three production functions moved by the size repair kept
+their bodies and callers.  `6f52c7a0` records only the accepted N1--N3 task-owner
+rules; its N4 accept-roster language question remains open and this lane does
+not implement that surface.
+
+The heavy-run guard was reconstructed from `e9c33086` plus `e6fdf5a4` as one
+change.  The unrelated, untested `c-roster-preflight` hunk was removed.  The
+nested Git fixture now strips inherited `GIT_*` state before creating its inner
+repository.  Focused proof results on the reconstructed tree:
+
+- guard, hermetic-Git, and aggregate tests: pass in 0.874 s;
+- `go test ./internal/mir ./internal/panicgate -count=1`: pass;
+- transport-spine acceptance: all 15 rows pass in 5.72 s;
+- poll-outcome-pin proof and deterministic negative control: pass in 35.117 s;
+- changed-C checks for `rt_async_panic.c`, `rt_virtual_clock.c`, and
+  `rt_async_state.c`: pass.
+- full `go test ./internal/gatecheck -count=1`: pass in 53.981 s.

@@ -15,6 +15,10 @@ endif
 
 LDFLAGS_SCRIPT := ./scripts/ldflags.sh
 
+# Fail-closed guard for heavy repo-owned entry points; see
+# docs/runtime-v2-epics/RULES.md Global Rule 19.
+GUARD := @./scripts/heavy_run_guard.sh --label
+
 GOLANGCI_LINT := $(GOBIN)/golangci-lint
 GOLANGCI_LINT_VERSION := v2.11.3
 
@@ -150,6 +154,7 @@ RUNTIME_V2_SUBGATES := \
 # recovery. The loop writes straight to the recipe's stdout with no capture, so a
 # slow sub-gate's output appears while it runs instead of arriving at the end.
 runtime-v2-check:
+	$(GUARD) runtime-v2-check
 	@echo ">> Checking Runtime V2 LLVM toolchain"
 	@if ! command -v clang >/dev/null 2>&1; then \
 		echo "Error: clang not found. Install with: sudo apt-get install -y clang llvm lld binutils"; \
@@ -198,10 +203,12 @@ runtime-v2-check:
 # The MT liveness rows. Named rather than inlined into the aggregate so they get
 # a verdict line of their own like every other row on the roster.
 runtime-v2-liveness-check:
+	$(GUARD) runtime-v2-liveness-check
 	@echo ">> Running Runtime V2 liveness gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 SURGE_MT_TIMEOUT_SCALE=$(SURGE_MT_TIMEOUT_SCALE) $(GO) test ./internal/vm -run '^TestMT(WakeupsAndCancellation|ChannelParkUnpark|BlockingChannelHelpersAllowTimersToAdvance|SeededScheduler)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
 
 runtime-v2-abi-manifest-check:
+	$(GUARD) runtime-v2-abi-manifest-check
 	@echo ">> Checking Runtime V2 typed-carrier ABI manifest"
 	@command -v clang >/dev/null 2>&1 || { \
 		echo "Error: clang is required for the typed-carrier strong-link ABI proof"; \
@@ -224,6 +231,7 @@ runtime-v2-abi-manifest-check:
 	$(CC) $(C_STD) $(C_WARN_FLAGS) $(C_INCLUDES) -fsyntax-only runtime/native/rt_typed_carrier_abi.generated.c
 
 runtime-v2-carrier-check:
+	$(GUARD) runtime-v2-carrier-check
 	@echo ">> Running Runtime V2 carrier harness and bridge gate"
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest discover -s scripts -p 'runtime_v2_carrier_bench*_test.py'
 	$(GO) test ./internal/buildpipeline -run '^TestRuntime(TestSyncPoint|CarrierBench)BuildFlag$$' -count=1
@@ -252,6 +260,7 @@ runtime-v2-carrier-check:
 # sweep's `preflight` does -- which is what lets these rows sit on a roster the
 # sweep cannot join.
 runtime-v2-owned-storage-check:
+	$(GUARD) runtime-v2-owned-storage-check
 	@echo ">> Running Runtime V2 owned-storage stand gate"
 	SURGE_GATE_NAME=runtime-v2-owned-storage-check SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 bash scripts/runtime_v2_carrier_sanitizer_check.sh run --expect TestRuntimeV2ChannelOwnedElementUnderAddressAndUndefinedSanitizers,TestRuntimeV2ChannelOwnedElementUnderThreadSanitizer -- $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2ChannelOwnedElementUnder(AddressAndUndefinedSanitizers|ThreadSanitizer)$$' -count=1 -parallel=1 -p=1 -v --timeout 600s
 	SURGE_GATE_NAME=runtime-v2-owned-storage-check SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 bash scripts/runtime_v2_carrier_sanitizer_check.sh run --expect TestRuntimeV2ChannelHandleRefcountUnderAddressAndUndefinedSanitizers,TestRuntimeV2ChannelHandleRefcountUnderThreadSanitizer -- $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2ChannelHandleRefcountUnder(AddressAndUndefinedSanitizers|ThreadSanitizer)$$' -count=1 -parallel=1 -p=1 -v --timeout 600s
@@ -324,6 +333,7 @@ runtime-v2-owned-storage-check:
 # out as one string, this comment alone would satisfy the assertion and the
 # tripwire would become a gate nothing can fail.)
 runtime-v2-carrier-sanitizer-check:
+	$(GUARD) runtime-v2-carrier-sanitizer-check
 	@echo ">> Running Runtime V2 carrier sanitizer gate"
 	@./scripts/runtime_v2_carrier_sanitizer_check.sh preflight
 	SURGE_REQUIRE_SLOT_CONTROL_SANITIZERS=1 bash scripts/runtime_v2_carrier_sanitizer_check.sh run --expect TestRuntimeV2SlotControlAddressAndUndefinedSanitizers,TestRuntimeV2SlotControlThreadSanitizer,TestRuntimeV2SlotControlRequiredSanitizersFailClosed -- $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2SlotControl(AddressAndUndefinedSanitizers|ThreadSanitizer|RequiredSanitizersFailClosed)$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
@@ -345,6 +355,7 @@ runtime-v2-carrier-bench-final:
 	@$(MAKE) runtime-v2-carrier-bench
 
 runtime-v2-slot-control-check:
+	$(GUARD) runtime-v2-slot-control-check
 	@echo ">> Running Runtime V2 owner-private slot-control gate"
 	SURGE_REQUIRE_SLOT_CONTROL_SANITIZERS=1 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2SlotControl(Protocol|AddressAndUndefinedSanitizers|ThreadSanitizer|IsOwnerPrivateAndCallbackFree|CopyInitTrapIsNamedAndUndispatched|MoveAndDropDispatchThroughTheDetachedHelpers|RequiredSanitizersFailClosed)$$|^TestRuntimeV2TaskResultSlotHoldsOneValueExactlyOnce$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 
@@ -365,10 +376,12 @@ runtime-v2-slot-control-check:
 # existed, for the whole-binding spelling. A selection naming only one of them
 # would let the other regress with the gate still green.
 runtime-v2-place-overwrite-check:
+	$(GUARD) runtime-v2-place-overwrite-check
 	@echo ">> Running Runtime V2 overwritten-value obligation gate"
 	SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2(PlaceOverwrite|LoopBinding)' -count=1 -parallel=1 -p=1 -v --timeout 300s
 
 runtime-v2-ownership-check:
+	$(GUARD) runtime-v2-ownership-check
 	@echo ">> Running Runtime V2 ownership corpus gate"
 	SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_ownership_corpus ./internal/ownershipgate -run '^Test(OwnershipCorpusCompileProfileContract|OwnershipCorpusInventoryDigestContract|OwnershipCorpusCensusReportContract|OwnershipCorpusCensusReportAccountingContract|OwnershipCorpusCensusReportInvalidationAndAtomicFailure|OwnershipCorpusFailureSignatureContract|OwnershipCorpusLLVMBackendContract|RuntimeV2OwnershipCorpus)$$' -count=1 -parallel=1 -p=1 -v --timeout 900s
 
@@ -380,6 +393,7 @@ runtime-v2-ownership-check:
 # headroom below is deliberate; a genuine hang is unbounded and will still be
 # caught. Measure before lowering it.
 runtime-v2-crossing-check:
+	$(GUARD) runtime-v2-crossing-check
 	@echo ">> Running Runtime V2 crossing readiness gate"
 	$(GO) test ./internal/crossinggate -count=1 --timeout 300s
 	$(GO) test ./internal/buildpipeline ./internal/hir -run '^(TestCrossingBackendUnavailableMessages|TestCrossingBackendGuardsAreDefaultClosed|TestCrossingBackendGuardDoesNotMaskSemaErrors|TestCrossingBackendGuardsCoverImportedModules|TestVMAndUnknownBackendsKeepExecutableAsyncFormsGuarded|TestLLVMTransportCapabilityOpensAsyncSpawnOn|TestLLVMTransportCapabilityOpensAsyncImmediateOn|TestLLVMTransportCapabilityOpensAsyncFarTaskLifecycle|TestLowerOnCrossingBypassReturnsError|TestLowerSpawnOnCrossingBypassReturnsError|TestLowerFarTaskCrossingBypassReturnsError|TestLowerCrossingRepresentationWithExplicitCapability)$$' -count=1 --timeout 60s
@@ -405,6 +419,7 @@ runtime-v2-syncpoint-check:
 # SURGE_SKIP_TIMEOUT_TESTS=0: under `make check` it skips, and a gate that only
 # ever skipped would be green having proven nothing.
 runtime-v2-panic-surface-check:
+	$(GUARD) runtime-v2-panic-surface-check
 	@echo ">> Running the panic-surface census gate"
 	$(GO) test ./internal/panicgate -run '^Test(PanicSitesAreCoveredOrExcused|EveryRecordedFixtureIsActuallyRun|PanicScanFindsTheKnownSurface|PanicReportersAreAllKnown|EmitterRaisesOnlyFromTheKnownPackage)$$' -count=1 --timeout 120s
 	@echo ">> Running the emitted-allocation refusal census"
@@ -419,6 +434,7 @@ runtime-v2-transport-check: runtime-v2-transport-contract-check
 	@echo ">> Runtime V2 transport gate complete"
 
 runtime-v2-transport-contract-check:
+	$(GUARD) runtime-v2-transport-contract-check
 	@echo ">> Running Runtime V2 transport contract gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Transport(SeamStaticShape|SpineBehavior|SyncPointAllowlistShape|ProbeRowsDocumented|SlotCreditReserve)$$' -count=1 -parallel=1 -p=1 -v --timeout 60s
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_transport_spine ./internal/vm -run '^TestRuntimeV2TransportSpineAcceptanceRows$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
@@ -431,6 +447,7 @@ runtime-v2-transport-contract-check:
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2(ChannelGenesisOverrideAcrossShards|OnChAnchoredOpsAcrossShards|ShareFanOutAcrossShards|RemoteSelectFanInAcrossShards|OwnedCaptureMigrationAcrossShards|CrossingHeapCaptureArrivesIntact|FarTaskCallerCancel)$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 
 runtime-v2-heap-check:
+	$(GUARD) runtime-v2-heap-check
 	@echo ">> Running Runtime V2 heap accounting gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestLLVMNative(HeapStats|BufferedChannelAllocatesSingleBlock)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2HeapAccounting(SequentialContracts|ConcurrentWorkersContract)$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
@@ -463,6 +480,7 @@ runtime-v2-heap-check:
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2RangeFor(IntegerHead|StoredValue)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
 
 runtime-v2-waiter-check:
+	$(GUARD) runtime-v2-waiter-check
 	@echo ">> Running Runtime V2 waiter liveness gate"
 	$(GO) test ./internal/vm -run '^TestRuntimeV2WaiterHelperStaticBoundary$$' -count=1 -v --timeout 30s
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2(CancelledRecvWaiterDoesNotConsumeNextWake|CancelledSendWaiterDoesNotConsumeNextRecv|ChannelCloseWakesRecvWaiters|ChannelCloseWakesSendWaiters|SelectTimeoutCleansLosingChannelWaiter|CancelledSelectCleansWaitKeysAndTimers|CancelledJoinWaiterDoesNotConsumeTaskCompletionWake|AwaitingACheckpointRegistersAJoinWaiter|FailfastScopeCancellationWakesOwner|BlockingCompletionWakesAwaiter|CancelledBlockingWaiterDoesNotConsumeCompletionWake|OwnerLocalWaiterSkeletonStaticShape|OwnerLocalTraceAggregatesShardWaiters|OwnerLocalNetWaiterBehavior|NetWaiterTraceContract)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
@@ -470,18 +488,22 @@ runtime-v2-waiter-check:
 	SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2(TimeoutOverNetWaitSurvivesItsWallBudget|SleepWithoutNetWaiterStillAdvancesInstantly)$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 
 runtime-v2-fd-registry-check:
+	$(GUARD) runtime-v2-fd-registry-check
 	@echo ">> Running Runtime V2 fd registry liveness gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2FDRegistry(RepeatedReadinessSingleFD|ReadWriteInterestSharesFDRow|DuplicateReadWaitersBothComplete|ClosedFDFailsFast|StaticShape|StaticBoundary|GenerationStaleSnapshotProof|CloseWakePollNotificationProof|ShutdownDrainStaticContract|ShutdownDrainBehavior|CancelledDuplicateReadWaiterPreservesLiveAndReregister|CancelledReadInterestPreservesWriteInterest|CloseWakesParkedAcceptWaiter|CloseWakesParkedReadWaiter|WakeFDObservedForInterestAddedDuringPoll|CancelledInterestWakesPoller|HandleWordPublishedInline)$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
 
 runtime-v2-net-handle-check:
+	$(GUARD) runtime-v2-net-handle-check
 	@echo ">> Running Runtime V2 net-handle guard gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2NetHandle(StaleCopyReusedFD|GuardStaticShape|CanonicalOutlivesPublicBox|ResultAllocationRollback)$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
 
 runtime-v2-http-owner-check:
+	$(GUARD) runtime-v2-http-owner-check
 	@echo ">> Running Runtime V2 HTTP owner-local gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2HTTPOwnerLocal(StaticShape|Behavior)$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
 
 runtime-v2-accept-check:
+	$(GUARD) runtime-v2-accept-check
 	@echo ">> Running Runtime V2 accept CI gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2AcceptShardOneNativeNetCompatibility$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2(NetMetadata(StaticShape|MultiShardListenClose)|Accept(ShardConfigInitializesRequestedShardCount|RejectsInvalidShardConfig|RejectsConflictingThreadCount|DistributionAcrossOwnerShards|OwnerShardLifecycleTraceContract|NetOwnershipNoShard0Shortcut|DynamicShardArrayShape|ReadinessClearsSiblingWaitKeys|ListenerRegistryGrowsUnderLock|StaleSiblingWakeDoesNotReownTheAcceptor|StaleSiblingWakeStandFailsOnRevert))$$' -count=1 -parallel=1 -p=1 -v --timeout 240s
@@ -489,6 +511,7 @@ runtime-v2-accept-check:
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2SchedulerPlacement(WorkerShape|NoStealPolicy|NoStealWorkerPath|StealPathSourceGate|ParkedWithWorkSourceGate|ParkedWithWorkInvariant|InvalidOwnerFailsClosed)$$|^TestRuntimeV2Placement(ABIStaticShape|ResolverRows)$$|^TestRuntimeV2SkeletonStaticShape$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
 
 runtime-v2-lock-check:
+	$(GUARD) runtime-v2-lock-check
 	@echo ">> Running Runtime V2 lock split gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2LockSplit(LaneAPIShape|ShardSyncShape|WorkerLoopShardLane|NoAmbiguousGlobalLock|ClockAndSleepStoreShape|NoWholeTableSleepScan|ChannelOwnerShape|GlobalCondvarRetirement)$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2LockSplit(CrossShardJoin|CrossShardCancel|CrossShardChannelFifoAndClose|ChannelCloseWakesParkedReceiver|SelectAcrossOwners|TimeoutAcrossOwners|SleepIdleAdvanceMultiShard|BlockingCompletionCrossShard|ShutdownWakesAllLanes)$$|^TestRuntimeV2ChannelOwnedElementArrivesExactlyOnce$$|^TestRuntimeV2ChannelHandleRefcountCensus$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
@@ -499,10 +522,12 @@ runtime-v2-lock-check:
 # closest sanitizer coverage of the polling paths. Not part of make check;
 # recorded as the gate manifest's single seeded exemption.
 runtime-v2-liveness-stress:
+	$(GUARD) runtime-v2-liveness-stress
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 SURGE_MT_TIMEOUT_SCALE=3 $(GO) test ./internal/vm -run '^TestMTChannelParkUnpark$$' -count=50 -parallel=1 -p=1 --timeout 900s
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2LifecycleCompletionPinInterleavingTSan$$' -count=3 -parallel=1 -p=1 --timeout 900s
 
 runtime-v2-lifecycle-check:
+	$(GUARD) runtime-v2-lifecycle-check
 	@echo ">> Running Runtime V2 task-lifecycle lane gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Lifecycle(StaticCompletionResultVisibilityOrder|StaticControlSiteEnumShape|StaticJoinWaiterRoutesByTargetOwner|StaticTaskTableAtomicSnapshot|StaticJoinScopeWaitersUnqualified|StaticCreateSiteCounterWired|StaticCensusSitesTagged|TraceControlSiteContract|OwnerLocalCreateAndReadyPublication|JoinPollResultObservation|JoinWaiterCleanupRegisterThenVerify|CloneReleaseLastReferenceFree|ScopeEnterRegisterJoinExit|ScopeFailfastCancellation|ScopeCancelledPollTeardown|WorkerAwaitVsExternalAwait|ShutdownWithParkedTasks|StaticCreateReadyPushOwnerShard|CancelSpawnChildrenRace|CancelSpawnChildrenRaceTSan|StaticJoinPollOwnerLane|StaticScopeOwnerLane|JoinConsumePlacementAdoption|ScopeEnterRegisterJoinExitAcrossShards|ScopeFailfastCancellationAcrossShards|ScopeCancelledPollTeardownAcrossShards|ScopeCrossOwnerChildDone|Debt020MigrateGapProof|Debt020MigrateGapNegativeControl|Debt022DoneCVStoreLoadProof|Debt022DoneCVStoreLoadNegativeControl|Debt022ExternalAwaitMatrix|Debt023CancelParkWakeTokenProof|Debt023CancelParkWakeTokenNegativeControl|CompletionPinInterleavingTSan|StaticAwaitCompatCountedSeparately|TraceAwaitCompatCountedSeparately|ReadyRequeueWakeRaceProof|ReadyRequeueWakeRaceNegativeControl|Debt046JoinStaleRemovalProof|Debt046JoinStaleRemovalNegativeControl|SleepFiredBatchIsNotIdleProof|SleepFiredBatchIsNotIdleNegativeControl|Debt201AbortedParkRetiresChannelEntry|Debt201AbortedParkRetiresChannelEntryNegativeControl|Debt201AbortRetirementStaticShape|Debt261FailfastJoinVerifyProof|Debt261FailfastJoinVerifyNegativeControl|Debt263CancelCommitBoundaryProof|Debt263CancelCommitBoundaryNegativeControl|Debt263CancelAfterSealIsRefusedProof|Debt263CancelAfterSealNegativeControl|StaticCancelGateOneRMWPerSide|StaticFarReplyNamesResultOnlyForSuccess|Debt080CancelBeforeClaimProof|Debt080CancelBeforeClaimNegativeControl|Debt080CancelAfterClaimProof|Debt080CancelAfterClaimNegativeControl|Debt080PollCancelledQueuedJob|Debt080ShutdownCancelsQueuedJob|Debt080ReleaseRefusesUnderLock|StandHelperHeldPollTrap|StandHelperHeldPollTrapNegativeControl|InlineClaimIsOneObservation|InlineClaimSplitNegativeControl|ScopeMembershipClaimProof|ScopeMembershipClaimNegativeControl|ScopeMembershipCompletedBeforeRegistration|PollOutcomePinProof|PollOutcomePinNegativeControl)$$' -count=1 -parallel=1 -p=1 -v --timeout 360s
 	@echo ">> Running Runtime V2 task result and clone-entitlement rows"
@@ -513,6 +538,7 @@ runtime-v2-lifecycle-check:
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2LifecycleTaskFreeIsOneObservation$$' -count=1 -parallel=1 -p=1 -v --timeout 3600s
 
 runtime-v2-perf-check:
+	$(GUARD) runtime-v2-perf-check
 	@echo ">> Running Runtime V2 performance CI gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2PerfControlLaneGate$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
 
@@ -521,6 +547,7 @@ runtime-v2-perf-check:
 # the owner that produced it, and no cell is shared by owners that share neither
 # a lock nor an owner.
 runtime-v2-sched-trace-check:
+	$(GUARD) runtime-v2-sched-trace-check
 	@echo ">> Running Runtime V2 scheduler trace ownership gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2SchedTrace(ReportsAnOwnerPerCell|CellsAreOwnedAndPaddedApart|StandCountsExactlyPerOwner|StandUnderThreadSanitizer)$$' -count=1 -parallel=1 -p=1 -v --timeout 600s
 
@@ -554,6 +581,7 @@ golden-corpus-determinism:
 # `behaviour-check` is the VM lane and is what `make check` already runs as part
 # of `make test`; this target names it so it can be run alone.
 behaviour-check:
+	$(GUARD) behaviour-check
 	@echo ">> Running the behavioural corpus (vm)"
 	$(GO) test ./internal/vm -run 'Golden|Determinism' -count=1 --timeout 900s
 
@@ -562,6 +590,7 @@ behaviour-check:
 # the runtime for each one, so it is run at an important step rather than on
 # every commit. It FAILS rather than skips when the toolchain is missing.
 behaviour-check-all:
+	$(GUARD) behaviour-check-all
 	@echo ">> Running the behavioural corpus (vm + native)"
 	SURGE_BEHAVIOUR_BACKENDS=vm,llvm $(GO) test ./internal/vm -run 'Golden' -count=1 --timeout 3600s
 
@@ -577,6 +606,7 @@ behaviour-check-all:
 # Worker counts and repeats are configurable: SURGE_BEHAVIOUR_MT=2,4,8 and
 # SURGE_BEHAVIOUR_MT_REPEATS=5 for a longer sweep.
 behaviour-check-mt:
+	$(GUARD) behaviour-check-mt
 	@echo ">> Running the async corpus on the native backend, multi-worker"
 	SURGE_BEHAVIOUR_MT=1 SURGE_BEHAVIOUR_BACKENDS=llvm $(GO) test ./internal/vm -run 'BehaviourCorpusMT' -count=1 --timeout 3600s
 
