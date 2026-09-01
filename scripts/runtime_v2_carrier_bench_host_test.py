@@ -91,6 +91,32 @@ class HostTests(unittest.TestCase):
                 )
         self.assertIn("\\xff", str(caught.exception))
 
+    def test_success_parent_with_adopted_zombie_is_not_lingering(self) -> None:
+        parent = """
+import os
+import time
+from pathlib import Path
+
+child_pid = os.fork()
+if child_pid == 0:
+    os._exit(0)
+deadline = time.monotonic() + 1.0
+while time.monotonic() < deadline:
+    stat = Path(f"/proc/{child_pid}/stat").read_text(encoding="ascii")
+    if stat[stat.rfind(")") + 2] == "Z":
+        break
+    time.sleep(0.001)
+else:
+    raise SystemExit("child did not become a zombie")
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            result = run_checked(
+                [sys.executable, "-c", parent],
+                cwd=Path(temporary),
+                timeout_seconds=5,
+            )
+        self.assertEqual(result, CommandResult(stdout="", stderr=""))
+
     def test_timeout_kills_sigterm_ignoring_grandchild(self) -> None:
         child = (
             "import signal,time; "

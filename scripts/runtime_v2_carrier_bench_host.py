@@ -26,6 +26,7 @@ INHERITED_ENVIRONMENT = (
 )
 PR_SET_CHILD_SUBREAPER = 36
 _SUBREAPER_ENABLED = False
+_POST_EXIT_NATURAL_DRAIN_SECONDS = 0.1
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,7 +88,9 @@ def run_checked(
             stdout_bytes, stderr_bytes = process.communicate(timeout=timeout_seconds)
         except subprocess.TimeoutExpired as err:
             timeout_error = err
-            lingering_group = _terminate_process_tree(process, process_start_time)
+            lingering_group = _terminate_process_tree(
+                process, process_start_time, allow_natural_drain=False
+            )
             try:
                 stdout_bytes, stderr_bytes = process.communicate(timeout=3)
             except subprocess.TimeoutExpired as cleanup_err:
@@ -101,7 +104,12 @@ def run_checked(
         # alive, so clean the whole group on every completion path, not only on
         # timeout.
         lingering_group = (
-            _terminate_process_tree(process, process_start_time) or lingering_group
+            _terminate_process_tree(
+                process,
+                process_start_time,
+                allow_natural_drain=timeout_error is None,
+            )
+            or lingering_group
         )
     stdout, stdout_valid = _decode_output(stdout_bytes)
     stderr, stderr_valid = _decode_output(stderr_bytes)
@@ -222,8 +230,18 @@ def _ensure_child_subreaper() -> None:
 
 
 def _terminate_process_tree(
-    process: subprocess.Popen[bytes], process_start_time: int
+    process: subprocess.Popen[bytes],
+    process_start_time: int,
+    *,
+    allow_natural_drain: bool,
 ) -> bool:
+    process.poll()
+    if (
+        allow_natural_drain
+        and process.returncode is not None
+        and _drain_process_tree_after_parent_exit(process.pid, process_start_time)
+    ):
+        return False
     touched = _signal_process_group(
         process.pid, process_start_time, signal.SIGTERM
     )
@@ -232,8 +250,7 @@ def _terminate_process_tree(
         process.poll()
         owned = _owned_processes(process.pid, process_start_time)
         if owned:
-            touched = True
-            _signal_processes(owned, signal.SIGTERM)
+            touched = _signal_processes(owned, signal.SIGTERM) or touched
         _reap_adopted(owned, process.pid)
         if not owned and not _process_group_exists(
             process.pid, process_start_time
@@ -258,6 +275,26 @@ def _terminate_process_tree(
         "timed-out process tree survived SIGKILL: "
         f"pids={sorted(_owned_processes(process.pid, process_start_time))}"
     )
+
+
+def _drain_process_tree_after_parent_exit(
+    root_pid: int, process_start_time: int
+) -> bool:
+    owned = _owned_processes(root_pid, process_start_time)
+    _reap_adopted(owned, root_pid)
+    owned = _owned_processes(root_pid, process_start_time)
+    if not owned and not _process_group_exists(root_pid, process_start_time):
+        return True
+
+    deadline = time.monotonic() + _POST_EXIT_NATURAL_DRAIN_SECONDS
+    while time.monotonic() < deadline:
+        time.sleep(0.01)
+        owned = _owned_processes(root_pid, process_start_time)
+        _reap_adopted(owned, root_pid)
+        owned = _owned_processes(root_pid, process_start_time)
+        if not owned and not _process_group_exists(root_pid, process_start_time):
+            return True
+    return False
 
 
 def _owned_processes(root_pid: int, process_start_time: int) -> set[int]:
@@ -342,12 +379,15 @@ def _process_group_exists(process_group: int, process_start_time: int) -> bool:
         return False
 
 
-def _signal_processes(pids: set[int], sig: signal.Signals) -> None:
+def _signal_processes(pids: set[int], sig: signal.Signals) -> bool:
+    signaled = False
     for pid in pids:
         try:
             os.kill(pid, sig)
+            signaled = True
         except ProcessLookupError:
             continue
+    return signaled
 
 
 def _reap_adopted(pids: set[int], root_pid: int) -> None:

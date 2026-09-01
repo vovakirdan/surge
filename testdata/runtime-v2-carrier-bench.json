@@ -126,11 +126,11 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_host.py",
-      "sha256": "84b34f73165c2e57993b4fe9e880f3546f5facdea17d557633dce333346e2083"
+      "sha256": "baec8ac97bdfdd3daebd4f819e88d8e0bfabfdb47944871d38df2d254faf7c69"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_host_test.py",
-      "sha256": "68945fae468d6052d373cc7108195290f1bcbd91381a8eec145cf00ee0a66ae8"
+      "sha256": "c7dc286b7340c8eac51e8f281c4033a191db8d6e9539feebc1a1f44d33a72fbe"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_ir.py",
