@@ -7,12 +7,16 @@ func TestStructuralOwnerCensusKeepsControlAndOwnerRegionsDistinct(t *testing.T) 
 		"internal/vm/owner_regions.go": []byte(`package vm
 type service interface { Run() }
 type slotState uint8
-type Arena struct { bytes []byte }
-type layoutSpec struct { size uint64; align uint64 }
+type layoutSpec struct { size, align, stride uint64; flags uint32 }
+type valueOps struct {
+	layout layoutSpec
+	moveInit func(uintptr, uintptr)
+	planCross func(uintptr, uint8) uint64
+}
 type ownerSlot struct { state slotState; generation uint64; offset uint64 }
 type ownerRegion struct {
-	layout layoutSpec
-	backing Arena
+	descriptor valueOps
+	backing []byte
 	slots []ownerSlot
 }
 type neutralWrapper struct { q *ownerRegion }

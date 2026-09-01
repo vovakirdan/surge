@@ -30,78 +30,143 @@ func (graph *goOwnerGraph) isTypedOwnerRegion(decl *goOwnerType) bool {
 	if !ok {
 		return false
 	}
-	return graph.structHasLayout(structType) && graph.structHasBacking(structType) &&
-		graph.structHasLifecycleSlots(structType)
-}
-
-func (graph *goOwnerGraph) structHasLayout(structType *ast.StructType) bool {
+	hasOps, hasBacking, hasSlots := false, false, false
 	for _, field := range structType.Fields.List {
-		if graph.layoutDescriptor(field.Type, make(map[string]bool)) {
-			return true
+		if graph.valueOpsDescriptor(field.Type, make(map[*ast.TypeSpec]bool)) {
+			hasOps = true
+		}
+		if graph.storageBacking(field.Type, make(map[string]bool)) {
+			hasBacking = true
+		}
+		if graph.lifecycleSlots(field.Type, false, make(map[string]bool)) {
+			hasSlots = true
 		}
 	}
-	return false
+	return hasOps && hasBacking && hasSlots
 }
 
-func (graph *goOwnerGraph) layoutDescriptor(expr ast.Expr, visiting map[string]bool) bool {
+func (graph *goOwnerGraph) valueOpsDescriptor(expr ast.Expr, visiting map[*ast.TypeSpec]bool) bool {
 	switch value := expr.(type) {
 	case *ast.Ident:
-		if visiting[value.Name] {
-			return false
-		}
-		visiting[value.Name] = true
-		defer delete(visiting, value.Name)
 		for _, decl := range graph.types[value.Name] {
-			if structType, ok := decl.spec.Type.(*ast.StructType); ok && layoutFields(structType) {
-				return true
+			if visiting[decl.spec] {
+				continue
 			}
-			if graph.layoutDescriptor(decl.spec.Type, visiting) {
+			visiting[decl.spec] = true
+			found := graph.valueOpsDescriptor(decl.spec.Type, visiting)
+			delete(visiting, decl.spec)
+			if found {
 				return true
 			}
 		}
 	case *ast.StarExpr:
-		return graph.layoutDescriptor(value.X, visiting)
+		return graph.valueOpsDescriptor(value.X, visiting)
 	case *ast.ParenExpr:
-		return graph.layoutDescriptor(value.X, visiting)
+		return graph.valueOpsDescriptor(value.X, visiting)
 	case *ast.IndexExpr:
-		return graph.layoutDescriptor(value.X, visiting)
+		return graph.valueOpsDescriptor(value.X, visiting)
 	case *ast.IndexListExpr:
-		return graph.layoutDescriptor(value.X, visiting)
+		return graph.valueOpsDescriptor(value.X, visiting)
 	case *ast.StructType:
-		if layoutFields(value) {
-			return true
+		return graph.valueOpsStruct(value)
+	}
+	return false
+}
+
+func (graph *goOwnerGraph) valueOpsStruct(structType *ast.StructType) bool {
+	hasLayout, hasMove, hasPlan := false, false, false
+	for _, field := range structType.Fields.List {
+		if graph.fullLayout(field.Type, make(map[*ast.TypeSpec]bool)) {
+			hasLayout = true
 		}
-		for _, field := range value.Fields.List {
-			if graph.layoutDescriptor(field.Type, visiting) {
+		params, results, callable := graph.callableArity(field.Type, make(map[*ast.TypeSpec]bool))
+		if !callable || params < 2 {
+			continue
+		}
+		if results == 0 {
+			hasMove = true
+		} else {
+			hasPlan = true
+		}
+	}
+	return hasLayout && hasMove && hasPlan
+}
+
+func (graph *goOwnerGraph) fullLayout(expr ast.Expr, visiting map[*ast.TypeSpec]bool) bool {
+	switch value := expr.(type) {
+	case *ast.Ident:
+		for _, decl := range graph.types[value.Name] {
+			if visiting[decl.spec] {
+				continue
+			}
+			visiting[decl.spec] = true
+			found := graph.fullLayout(decl.spec.Type, visiting)
+			delete(visiting, decl.spec)
+			if found {
 				return true
 			}
 		}
+	case *ast.StarExpr:
+		return graph.fullLayout(value.X, visiting)
+	case *ast.ParenExpr:
+		return graph.fullLayout(value.X, visiting)
+	case *ast.StructType:
+		return fullLayoutFields(value)
 	}
 	return false
 }
 
-func layoutFields(structType *ast.StructType) bool {
-	hasSize, hasAlign := false, false
+func fullLayoutFields(structType *ast.StructType) bool {
+	found := make(map[string]bool, 4)
 	for _, field := range structType.Fields.List {
 		for _, name := range ownerFieldNames(field) {
 			switch strings.ToLower(name) {
-			case "size":
-				hasSize = true
-			case "align":
-				hasAlign = true
+			case "size", "align", "stride", "flags":
+				found[strings.ToLower(name)] = true
 			}
 		}
 	}
-	return hasSize && hasAlign
+	return found["size"] && found["align"] && found["stride"] && found["flags"]
 }
 
-func (graph *goOwnerGraph) structHasBacking(structType *ast.StructType) bool {
-	for _, field := range structType.Fields.List {
-		if graph.storageBacking(field.Type, make(map[string]bool)) {
-			return true
+func (graph *goOwnerGraph) callableArity(
+	expr ast.Expr,
+	visiting map[*ast.TypeSpec]bool,
+) (params, results int, found bool) {
+	switch value := expr.(type) {
+	case *ast.Ident:
+		for _, decl := range graph.types[value.Name] {
+			if visiting[decl.spec] {
+				continue
+			}
+			visiting[decl.spec] = true
+			params, results, found := graph.callableArity(decl.spec.Type, visiting)
+			delete(visiting, decl.spec)
+			if found {
+				return params, results, true
+			}
+		}
+	case *ast.ParenExpr:
+		return graph.callableArity(value.X, visiting)
+	case *ast.FuncType:
+		return fieldCount(value.Params), fieldCount(value.Results), true
+	}
+	return 0, 0, false
+}
+
+func fieldCount(fields *ast.FieldList) int {
+	if fields == nil {
+		return 0
+	}
+	count := 0
+	for _, field := range fields.List {
+		if len(field.Names) == 0 {
+			count++
+		} else {
+			count += len(field.Names)
 		}
 	}
-	return false
+	return count
 }
 
 func (graph *goOwnerGraph) storageBacking(expr ast.Expr, visiting map[string]bool) bool {
@@ -159,15 +224,6 @@ func (graph *goOwnerGraph) byteType(expr ast.Expr, visiting map[string]bool) boo
 	defer delete(visiting, ident.Name)
 	for _, decl := range graph.types[ident.Name] {
 		if graph.byteType(decl.spec.Type, visiting) {
-			return true
-		}
-	}
-	return false
-}
-
-func (graph *goOwnerGraph) structHasLifecycleSlots(structType *ast.StructType) bool {
-	for _, field := range structType.Fields.List {
-		if graph.lifecycleSlots(field.Type, false, make(map[string]bool)) {
 			return true
 		}
 	}

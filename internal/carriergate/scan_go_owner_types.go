@@ -11,12 +11,12 @@ func (graph *goOwnerGraph) payloadConstraint(expr ast.Expr) string {
 			return value.Name
 		}
 		for _, decl := range graph.types[value.Name] {
-			if graph.emptyInterface(decl.spec.Type, make(map[string]bool)) {
+			if graph.emptyInterface(decl.spec.Type, make(map[*ast.TypeSpec]bool)) {
 				return value.Name
 			}
 		}
 	case *ast.InterfaceType:
-		if value.Methods == nil || len(value.Methods.List) == 0 {
+		if graph.emptyInterface(value, make(map[*ast.TypeSpec]bool)) {
 			return "interface{}"
 		}
 	}
@@ -35,24 +35,35 @@ func (graph *goOwnerGraph) carrierTerminal(name string) string {
 	return "universal"
 }
 
-func (graph *goOwnerGraph) emptyInterface(expr ast.Expr, visiting map[string]bool) bool {
+func (graph *goOwnerGraph) emptyInterface(expr ast.Expr, visiting map[*ast.TypeSpec]bool) bool {
 	switch value := expr.(type) {
 	case *ast.InterfaceType:
-		return value.Methods == nil || len(value.Methods.List) == 0
+		if value.Methods == nil || len(value.Methods.List) == 0 {
+			return true
+		}
+		for _, field := range value.Methods.List {
+			if len(field.Names) != 0 || !graph.emptyInterface(field.Type, visiting) {
+				return false
+			}
+		}
+		return true
 	case *ast.Ident:
 		if value.Name == "any" {
 			return true
 		}
-		if visiting[value.Name] {
-			return false
-		}
-		visiting[value.Name] = true
-		defer delete(visiting, value.Name)
 		for _, decl := range graph.types[value.Name] {
+			if visiting[decl.spec] {
+				continue
+			}
+			visiting[decl.spec] = true
 			if graph.emptyInterface(decl.spec.Type, visiting) {
+				delete(visiting, decl.spec)
 				return true
 			}
+			delete(visiting, decl.spec)
 		}
+	case *ast.ParenExpr:
+		return graph.emptyInterface(value.X, visiting)
 	}
 	return false
 }
@@ -76,17 +87,13 @@ func ownerFieldNames(field *ast.Field) []string {
 	return []string{"embedded"}
 }
 
-func cloneOwnerBindings(source map[string][]string) map[string][]string {
-	cloned := make(map[string][]string, len(source))
-	for name, path := range source {
-		cloned[name] = append([]string(nil), path...)
+func cloneOwnerBindings(source map[string]goCarrierBinding) map[string]goCarrierBinding {
+	cloned := make(map[string]goCarrierBinding, len(source))
+	for name, binding := range source {
+		binding.path = append([]string(nil), binding.path...)
+		cloned[name] = binding
 	}
 	return cloned
-}
-
-func (graph *goOwnerGraph) isRootType(name string) bool {
-	return graph.root == "internal/vm" && name == "VM" ||
-		graph.root == "internal/asyncrt" && name == "Executor"
 }
 
 // generalSlot follows every neutral wrapper after it crosses a collection. It
@@ -94,9 +101,13 @@ func (graph *goOwnerGraph) isRootType(name string) bool {
 // layout metadata, backing storage, and lifecycle slots.  Names are not owner
 // evidence; without the complete shape, a reachable lifecycle slot belongs to
 // a root general pool and is a finding.
-func (graph *goOwnerGraph) generalSlot(expr ast.Expr, crossedCollection bool, visiting map[string]bool) string {
+func (graph *goOwnerGraph) generalSlot(
+	expr ast.Expr,
+	crossedCollection bool,
+	visiting map[goOwnerVisitKey]bool,
+) string {
 	if visiting == nil {
-		visiting = make(map[string]bool)
+		visiting = make(map[goOwnerVisitKey]bool)
 	}
 	return graph.generalSlotBound(expr, crossedCollection, visiting, nil)
 }
@@ -104,7 +115,7 @@ func (graph *goOwnerGraph) generalSlot(expr ast.Expr, crossedCollection bool, vi
 func (graph *goOwnerGraph) generalSlotBound(
 	expr ast.Expr,
 	crossedCollection bool,
-	visiting map[string]bool,
+	visiting map[goOwnerVisitKey]bool,
 	bindings map[string]ast.Expr,
 ) string {
 	switch value := expr.(type) {
@@ -113,6 +124,9 @@ func (graph *goOwnerGraph) generalSlotBound(
 	case *ast.ArrayType:
 		return graph.generalSlotBound(value.Elt, true, visiting, bindings)
 	case *ast.MapType:
+		if found := graph.generalSlotBound(value.Key, true, visiting, bindings); found != "" {
+			return found
+		}
 		return graph.generalSlotBound(value.Value, true, visiting, bindings)
 	case *ast.ChanType:
 		return graph.generalSlotBound(value.Value, true, visiting, bindings)
@@ -120,7 +134,7 @@ func (graph *goOwnerGraph) generalSlotBound(
 		return graph.generalSlotBound(value.X, crossedCollection, visiting, bindings)
 	case *ast.Ident:
 		if actual, ok := bindings[value.Name]; ok {
-			bindingKey := "$" + value.Name
+			bindingKey := goOwnerVisitKey{bindings: "$" + value.Name + "=" + graph.canonicalSlotType(actual, bindings)}
 			if visiting[bindingKey] {
 				return ""
 			}
@@ -150,13 +164,13 @@ func (graph *goOwnerGraph) generalSlotInstance(
 	base ast.Expr,
 	args []ast.Expr,
 	crossedCollection bool,
-	visiting map[string]bool,
+	visiting map[goOwnerVisitKey]bool,
 	bindings map[string]ast.Expr,
 ) string {
 	ident, local := base.(*ast.Ident)
 	if local {
 		if actual, ok := bindings[ident.Name]; ok && len(args) == 0 {
-			bindingKey := "$" + ident.Name
+			bindingKey := goOwnerVisitKey{bindings: "$" + ident.Name + "=" + graph.canonicalSlotType(actual, bindings)}
 			if visiting[bindingKey] {
 				return ""
 			}
@@ -164,22 +178,26 @@ func (graph *goOwnerGraph) generalSlotInstance(
 			defer delete(visiting, bindingKey)
 			return graph.generalSlotBound(actual, crossedCollection, visiting, bindings)
 		}
-		if visiting[ident.Name] {
-			return ""
-		}
-		visiting[ident.Name] = true
-		defer delete(visiting, ident.Name)
 		for _, decl := range graph.types[ident.Name] {
+			instanceBindings := slotTypeBindings(decl.spec, args, bindings)
+			visitKey := graph.slotVisitKey(decl.spec, instanceBindings)
+			if visiting[visitKey] {
+				continue
+			}
+			visiting[visitKey] = true
 			if crossedCollection && graph.isTypedOwnerRegion(decl) {
+				delete(visiting, visitKey)
 				continue
 			}
 			if crossedCollection && graph.isLifecycleSlot(decl) {
+				delete(visiting, visitKey)
 				return decl.name
 			}
-			instanceBindings := slotTypeBindings(decl.spec, args, bindings)
 			if found := graph.generalSlotBound(decl.spec.Type, crossedCollection, visiting, instanceBindings); found != "" {
+				delete(visiting, visitKey)
 				return found
 			}
+			delete(visiting, visitKey)
 		}
 		return ""
 	}

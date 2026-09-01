@@ -10031,3 +10031,68 @@ Final candidate non-heavy evidence:
   scan is 6153 (one above the prior 6152) with all eight checked rules green.
   The scoped directory has no rules file.  Rule 19 still reserves the heavy
   Runtime V2, sanitizer, Valgrind, and benchmark gates for the dedicated stand.
+
+## Structural carrier identity includes effective generic state — 2026-09-01
+
+The second independent review of `3606f4f7` plus `cb7722c3` found five P1
+escapes.  Both walkers keyed recursion only by declaration name; the typed
+region proof combined unrelated layout, backing, and lifecycle facts; embedded
+named methodless interfaces were opaque; the root map walk skipped keys; and
+root identity required the literal `VM` or `Executor` struct declaration.
+
+The Rule-13 tests in `scan_go_owner_p1_test.go` were overlaid, without the
+production repair, onto a detached worktree at exact
+`cb7722c30657748f0fd123006cf712eb681564be`.  The named five-test command exited
+1 with eight precise missing paths:
+
+- `TestStructuralOwnerCensusKeysRecursionByEffectiveBindings` missed
+  `token.root->Direct.next->Direct.value->Value` and
+  `VM.pool->general-slot(generalSlot)`;
+- `TestStructuralOwnerCensusRequiresCoherentTypedRegion` let the unrelated
+  facts decoy hide `VM.owners->general-slot(foreignSlot)` while its canonical
+  positive twin passed;
+- `TestStructuralOwnerCensusResolvesEmbeddedMethodlessInterfaces` missed
+  `token.payload->universal`;
+- `TestStructuralOwnerCensusWalksRootMapKeysBeforeValues` missed
+  `VM.pool->general-slot(generalSlot)`; and
+- `TestStructuralOwnerCensusResolvesCanonicalRootIdentity` missed the canonical
+  `VM.pool` token for both alias and named-underlying roots and the canonical
+  `Executor.pool` token for an alias root.
+
+The landed recursion state is `{declaration, canonical effective bindings}`.
+Aliases resolve before the binding signature is formed, concrete non-carrier
+arguments remain distinct, and recursive generic arguments no longer disappear
+behind a declaration-only guard.  The exact `Direct[int] -> Direct[Value]`
+fixture also passed `go tool compile`, so the positive control represents a
+valid finite Go type graph rather than parser-only syntax.  Map roots inspect
+keys before values, and a root declaration resolves through alias and named
+underlying chains while its finding retains the canonical `VM` or `Executor`
+token.
+
+A typed owner-region boundary now proves one descriptor shape: a nested
+`size/align/stride/flags` layout plus the two structurally mandatory operation
+shapes (move: two inputs and no result; plan: two inputs and a result).  The
+same region must also reach byte backing and a collection of lifecycle slots
+with state and generation.  Three unrelated records cannot satisfy the proof;
+neither a selector nor task/channel/select spelling grants an exemption.
+Embedded methodless interfaces resolve recursively by declaration identity;
+methodful, non-basic constraint, and cyclic controls remain non-carriers.
+
+The immutable census remains exactly `683` findings at digest
+`db5a0f475c32c2155aa82f3606800da0668392bd2e7a7aee917b742e76e58ee9`.
+Allowances remain four, and the reviewed migration rows remain unchanged; this
+repair adds no D8 owner entry.  The five new groups pass together in 0.020 s,
+the complete `internal/carriergate` package passes in 2.638 s, its race run
+passes in 32.745 s, and package vet passes.  The first full pre-commit run
+completed every Go package, then lint named two local style issues; named
+results and a tagged channel-direction switch repaired them.  The next lint
+pass required the two adjacent named result types to share one declaration;
+the final rerun started again from the full package sweep and passed tests,
+lint with zero issues, strict C checks, and the file-size gate.
+
+Sentrux reports `internal/carriergate` quality 9015, still 31 above this lane's
+saved 8984 baseline; that scope has no rules file.  The `internal` scan reports
+6454 with all seven rules green, and the root scan reports 6152 with all eight
+checked rules green.  Rule 19 keeps heavy Runtime V2, sanitizer, Valgrind, and
+benchmark rows on the dedicated stand; this scanner-only repair runs none of
+them locally.
