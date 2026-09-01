@@ -253,3 +253,34 @@ func sidecarNames(t *testing.T, absDir, name, suffix, backend string) bool {
 	}
 	return false
 }
+
+func TestBehaviourCorpusUsesRecognizedOrderSidecars(t *testing.T) {
+	root := filepath.Join(repoRoot(t), "testdata", "golden")
+	var unsupported []string
+	err := filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if !info.IsDir() && strings.HasSuffix(info.Name(), ".out-backends") {
+			unsupported = append(unsupported, path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk behavioural corpus: %v", err)
+	}
+	if len(unsupported) != 0 {
+		t.Fatalf("unsupported order sidecars %v; use .order-backends", unsupported)
+	}
+}
+
+func TestGoldenUpdaterPreservesOrderSidecars(t *testing.T) {
+	path := filepath.Join(repoRoot(t), "scripts", "golden_update.sh")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	if !strings.Contains(string(raw), "! -name '*.order-backends'") {
+		t.Fatal("golden updater does not preserve .order-backends corpus inputs")
+	}
+}

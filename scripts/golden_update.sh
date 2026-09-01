@@ -244,10 +244,10 @@ generate_outputs() {
 
 # The keep-list is the corpus's INPUTS: the program, the recorded answer, and
 # the sidecars that say how to ask for it. `.backends` names which backends a
-# fixture is checked on and is an input like `.flags`, not something this script
-# re-derives - sweeping it away leaves the fixture claiming every backend and
-# silently disarms the selection the behavioural lane runs on.
-if ! (cd "${GOLDEN_DIR}" && find . ! -path './spec_audit/*' ! -path './crossing/crosses_deferred/*' -type f ! -name '*.sg' ! -name '*.script' ! -name '*.out' ! -name '*.code' ! -name '*.args' ! -name '*.stdin' ! -name '*.flags' ! -name '*.backends' -delete); then
+# fixture is checked on; `.order-backends` names where its recorded interleaving
+# is promised. Both are inputs like `.flags`, not something this script
+# re-derives. Sweeping either away silently broadens the behavioural claim.
+if ! (cd "${GOLDEN_DIR}" && find . ! -path './spec_audit/*' ! -path './crossing/crosses_deferred/*' -type f ! -name '*.sg' ! -name '*.script' ! -name '*.out' ! -name '*.code' ! -name '*.args' ! -name '*.stdin' ! -name '*.flags' ! -name '*.backends' ! -name '*.order-backends' -delete); then
 	echo "failed to delete stale golden sidecars" >&2
 	exit 1
 fi

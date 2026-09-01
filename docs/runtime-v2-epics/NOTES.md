@@ -9644,3 +9644,13 @@ repository.  Focused proof results on the reconstructed tree:
 - changed-C checks for `rt_async_panic.c`, `rt_virtual_clock.c`, and
   `rt_async_state.c`: pass.
 - full `go test ./internal/gatecheck -count=1`: pass in 53.981 s.
+
+**Golden suffix blocker.**  The behavioural reader accepted only
+`.order-backends`, while three fairness fixtures were committed as
+`.out-backends`; the updater's keep-list would also have deleted the correct
+suffix.  The two new regression rows were run on an unfixed `db349581` scratch:
+the corpus row named exactly the three unsupported files, and the updater row
+reported that `.order-backends` was not preserved.  After renaming the three
+inputs and extending the keep-list, both rows pass in 0.025 s.  A pre-commit
+`make golden-check` correctly refused the uncommitted delete/add state; the full
+gate must run after this corpus-input change is committed.
