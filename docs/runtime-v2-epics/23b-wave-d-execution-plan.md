@@ -672,6 +672,29 @@ The §12 command list in full, on the integrated tree, plus:
 Never append `; echo $?` to a lane invocation. It makes the harness report exit
 0 while a failure sits in the log; it has bitten this epic twice.
 
+### Quiet rare-symptom campaign at wave close
+
+W8 includes one long, serialized campaign on the dedicated machine after the
+Wave D code freeze. Pin the exact integrated commit, leave the machine otherwise
+idle (no CI, benchmark, sanitizer, or second test campaign), and repeat the
+historical cancellation-answer instrument that exposed RV2-DEBT-261/263:
+
+```bash
+SURGE_STDLIB=$(pwd) SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 \
+taskset -c 8-15 go test ./internal/vm \
+  -run '^TestRuntimeV2(FailfastJoinAnswersCancelled|TimeoutTargetAnswersCancelledToEveryHandle)$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 300s
+```
+
+Run at least 800 non-vacuous iterations; prefer 1000 while the measured cost
+remains about seven seconds per iteration. A run is a failure when either named
+row is absent or skipped, not only when `go test` exits nonzero. Record the
+commit SHA, checkout, CPU affinity, exact command, wall time, pass/fail/vacuous
+counts, and every distinct failure signature. Do not split this timing-sensitive
+campaign 8+8: the historical evidence is load-dependent and was measured with
+the command above on CPUs 8-15. The ordinary full closeout gates run before and
+after the campaign; this loop is not a substitute for them.
+
 ## 7. Remaining work — the dispatch list, ordered, 2026-08-28
 
 Established against `03379549`. Each item names its entry condition and the
@@ -708,6 +731,13 @@ percent. Find the fourth window and pin it with a sync point plus a negative
 control, as 263 was. RV2-DEBT-291 (`panic: async: task slot out of range`, a
 task-table segment still `NULL` at an id whose creator was told it was there)
 is a different defect surfaced by the same instrument and rides with this lane.
+
+**Measurement update 2026-08-28:** the entry condition is not currently met.
+The exact gate line completed 200 and then 600 non-vacuous iterations on the
+dedicated machine with zero red at `cf20c74d`/`4db2f120`. W2 therefore remains
+dormant until that instrument produces a red; absence of a red is evidence, not
+a guessed fourth-window fix. W8 repeats the same instrument after the final
+integrated freeze so later Wave D changes cannot silently restore the symptom.
 
 Files: `runtime/native/rt_task_complete.c`, `rt_async_poll.c`,
 `rt_async_task.c`, `rt_task_table.c`, `rt_scope.c`, `rt_sync_point.{h,c}`;
@@ -863,6 +893,11 @@ done is `suspension-frame-owner` and `llvm-erased-word-bridge` at live zero and
 `rt_remote_task_*` and `rt_far_channel*` — Wave E's, by name and by file. The
 one is `emit_term.go`'s allowed fixnum constant; W5 records why raw zero there
 would mean the fixnum representation had changed, which is not this wave's.
+
+After those deterministic gates are green and the integrated SHA is frozen,
+run §6's quiet rare-symptom campaign. Wave D does not close on fewer than 800
+non-vacuous iterations, on a campaign sharing the machine with another job, or
+on a report that omits the exact SHA and failure-signature census.
 
 ### Not Wave D, recorded so no lane picks it up by mistake
 
