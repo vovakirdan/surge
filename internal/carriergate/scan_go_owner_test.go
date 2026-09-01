@@ -187,7 +187,6 @@ func TestStructuralOwnerManifestClassifiesOnlyReviewedMigrations(t *testing.T) {
 		t.Fatal(err)
 	}
 	frameReachability := 0
-	d8AsyncOwner := 0
 	for _, category := range manifest.Categories {
 		for _, allowance := range category.Allow {
 			if strings.Contains(allowance.Finding.Token, "asyncPayload") ||
@@ -201,15 +200,16 @@ func TestStructuralOwnerManifestClassifiesOnlyReviewedMigrations(t *testing.T) {
 			if strings.Contains(migration.Finding.Token, "asyncPayload") {
 				t.Fatalf("D8 owner was hidden by a migration: %+v", migration)
 			}
+			if migration.TrackedAs == "RV2-DEBT-246" ||
+				(migration.Finding.Path == "internal/vm/task_result.go" &&
+					migration.Finding.Token == "cloneValueComposite") {
+				t.Fatalf("closed task-result clone owner remained a migration: %+v", migration)
+			}
 			if migration.Finding.Token == "tagScrutinee.value->Value" {
 				t.Fatalf("closed tag-scrutinee owner remained a migration: %+v", migration)
 			}
 			if migration.Finding.Token == "VM.Async->Value" {
-				if migration.TrackedAs != "RV2-DEBT-151" ||
-					migration.RetiredBy != "wave-d-d8-vm-exact-async-owner" {
-					t.Fatalf("VM async owner migration classification = %+v", migration)
-				}
-				d8AsyncOwner++
+				t.Fatalf("closed VM async owner remained a migration: %+v", migration)
 			}
 			if strings.HasSuffix(migration.Finding.Token, "Frame.Locals->LocalSlot.V->Value") {
 				if migration.TrackedAs != "RV2-DEBT-318" ||
@@ -220,9 +220,8 @@ func TestStructuralOwnerManifestClassifiesOnlyReviewedMigrations(t *testing.T) {
 			}
 		}
 	}
-	if d8AsyncOwner != 1 || frameReachability != 21 {
-		t.Fatalf("post-base structural migrations = D8:%d frame-reachability:%d, want 1/21",
-			d8AsyncOwner, frameReachability)
+	if frameReachability != 27 {
+		t.Fatalf("post-base frame-reachability migrations = %d, want 27", frameReachability)
 	}
 }
 

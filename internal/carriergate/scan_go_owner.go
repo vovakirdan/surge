@@ -134,6 +134,10 @@ func (graph *goOwnerGraph) scanFiles(files []*goOwnerFile) []rawFinding {
 }
 
 func (graph *goOwnerGraph) scanStruct(file *goOwnerFile, spec *ast.TypeSpec, structType *ast.StructType) []rawFinding {
+	decl := &goOwnerType{name: spec.Name.Name, spec: spec, file: file}
+	if graph.isChannelSendControlClaim(decl) {
+		return nil
+	}
 	findings := make([]rawFinding, 0, len(structType.Fields.List))
 	env := graph.instantiateTypeParams(spec, nil, nil)
 	visitKey := graph.typeVisitKey(spec, env)
@@ -301,6 +305,9 @@ func (graph *goOwnerGraph) carrierFromTypeEnv(
 	env *goTypeEnv,
 	visiting map[goOwnerVisitKey]bool,
 ) []string {
+	if graph.isChannelSendControlClaim(decl) {
+		return nil
+	}
 	visitKey := graph.typeVisitKey(decl.spec, env)
 	if visiting[visitKey] {
 		return nil

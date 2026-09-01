@@ -10541,3 +10541,57 @@ was invalid cross-scope evidence and is discarded; the corrected same-root
 
 The heavy Runtime V2 aggregate and load stands remain dedicated-runner work
 and were not run from this mutable development worktree.
+
+### Wave D integrated structural-owner reconciliation
+
+Replaying D8 under the stronger package-structural scanner exposed eight paths
+that its original local scanner could not classify. Six terminate at the
+already-known legacy `Frame.Locals -> LocalSlot.V -> Value` leaf through the
+new exact owner region and registry. They are migrations under RV2-DEBT-318,
+not allowances; the live count is now 27. The retired direct `VM.Async->Value`,
+`tagScrutinee.value->Value`, and `cloneValueComposite` migration entries are
+absent and the manifest test rejects their reintroduction.
+
+The other two paths reached existing generic owners through
+`ChannelSendReservation.exec` and `.channel`. The approved model answers this
+without a new language or UX choice: the reservation is a control claim, not
+publication and not a payload owner. The scanner therefore treats only the
+exact nominal `internal/asyncrt.ChannelSendReservation[P Payload]` declaration
+as a terminal, with its complete eight-field control shape. Adding either `P`
+or `Payload`, renaming the declaration, weakening `recvSeq`, or reaching the
+same shape through an unrecognized declaration fails closed and restores the
+ordinary pointer walk.
+
+Rule 13 was measured before adding the terminal. This exact command:
+
+```sh
+GOFLAGS=-buildvcs=false go test ./internal/carriergate -run '^TestStructuralOwnerCensusRecognizesExactChannelSendControlClaim$' -count=1 -v
+```
+
+exited 1: the exact row reported both
+`ChannelSendReservation.channel->Channel.buf->universal` and
+`ChannelSendReservation.exec->Executor.tasks->Task.State->universal`, plus the
+transitive envelope path. The payload-field, renamed-declaration, and weakened
+shape controls already passed. After the exact structural terminal, all five
+rows pass and the complete live carrier ratchet is green. RV2-DEBT-319 records
+the distinct value-copyable one-shot-bit defect; it is nonblocking and is not
+hidden by this payload-ownership classification.
+
+A final integrated review added the canonical-directory negative control before
+changing production. It exited 1 with `nested package spoof became a control
+terminal`: a declaration under `internal/asyncrt/sidecar` using the same Go
+package name lost both reservation paths. Requiring `decl.file.pkg == graph.root`
+makes that row fail closed as well; the exact-control matrix now has six green
+rows. The exact final pinned Rule 16 rerun after this guard also passed: full
+VM `100.213s`, lint zero issues, strict C checks green, and Rule 4 green.
+
+Integrated verification from
+`/tmp/surge-rv2-closeout.gaHvNP/worktree` is green: the 100-count rendezvous
+matrix (`0.097s`), focused direct/routed VM close and exact-once rows (`0.034s`),
+targeted late-park race count 10 (`1.018s`), full carrier race (`32.817s`), and
+focused vet all passed. The pinned Rule 16 command
+`SURGE_STDLIB=/tmp/surge-rv2-closeout.gaHvNP/worktree GOFLAGS=-buildvcs=false ./scripts/pre-commit`
+passed the full package sweep (`internal/vm` `103.590s`), lint with zero issues,
+strict C checks, and Rule 4. Sentrux reports `internal` signal 6458 with all
+7 rules green and repository signal 6158 with all 8 checked rules green; the
+same-root session closes 6158 -> 6158 with `pass=true`.

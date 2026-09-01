@@ -5593,6 +5593,61 @@
         {
           "finding": {
             "category": "vm-universal-owner",
+            "path": "internal/vm/async_owner_region.go",
+            "token": "asyncOwnerRegion.arena-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field asyncOwnerRegion.arena",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/async_owner_registry.go",
+            "token": "asyncOwnerRegistry.channels-\u003easyncOwnerRegion.arena-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field asyncOwnerRegistry.channels",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/async_owner_registry.go",
+            "token": "asyncOwnerRegistry.resumes-\u003easyncOwnerRegion.arena-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field asyncOwnerRegistry.resumes",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/async_owner_registry.go",
+            "token": "asyncOwnerRegistry.selects-\u003easyncOwnerRegion.arena-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field asyncOwnerRegistry.selects",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/async_owner_registry.go",
+            "token": "asyncOwnerRegistry.tasks-\u003easyncOwnerRegion.arena-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field asyncOwnerRegistry.tasks",
+            "ordinal": 1
+          },
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
+        },
+        {
+          "finding": {
+            "category": "vm-universal-owner",
             "path": "internal/vm/call_contract.go",
             "token": "resultDest.Frame-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
             "evidence": "structural owner field resultDest.Frame",
@@ -5781,19 +5836,19 @@
           "finding": {
             "category": "vm-universal-owner",
             "path": "internal/vm/vm.go",
-            "token": "VM.Async-\u003eValue",
-            "evidence": "structural owner field VM.Async",
+            "token": "VM.Heap-\u003eHeap.objs-\u003eObject.ArrElems-\u003eStorageRef.Arena-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field VM.Heap",
             "ordinal": 1
           },
-          "retired_by": "wave-d-d8-vm-exact-async-owner",
-          "tracked_as": "RV2-DEBT-151"
+          "retired_by": "wave-f-frame-locals-typed-owner",
+          "tracked_as": "RV2-DEBT-318"
         },
         {
           "finding": {
             "category": "vm-universal-owner",
             "path": "internal/vm/vm.go",
-            "token": "VM.Heap-\u003eHeap.objs-\u003eObject.ArrElems-\u003eStorageRef.Arena-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
-            "evidence": "structural owner field VM.Heap",
+            "token": "VM.asyncOwners-\u003easyncOwnerRegistry.channels-\u003easyncOwnerRegion.arena-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field VM.asyncOwners",
             "ordinal": 1
           },
           "retired_by": "wave-f-frame-locals-typed-owner",

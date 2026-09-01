@@ -12,6 +12,41 @@ func (graph *goOwnerGraph) isLifecycleSlot(decl *goOwnerType) bool {
 	return ok && lifecycleHeader(structType)
 }
 
+// isChannelSendControlClaim accepts the one asyncrt reservation that carries
+// selection metadata and owner references, but never P itself. Unknown or
+// weakened reservation shapes retain ordinary fail-closed pointer traversal.
+func (graph *goOwnerGraph) isChannelSendControlClaim(decl *goOwnerType) bool {
+	if graph.root != "internal/asyncrt" || decl.file.pkg != graph.root ||
+		decl.file.file.Name.Name != "asyncrt" ||
+		decl.name != "ChannelSendReservation" || decl.spec.Assign.IsValid() ||
+		decl.spec.TypeParams == nil || len(decl.spec.TypeParams.List) != 1 {
+		return false
+	}
+	parameter := decl.spec.TypeParams.List[0]
+	if len(parameter.Names) != 1 || parameter.Names[0].Name != "P" {
+		return false
+	}
+	constraint, ok := graph.semanticType(
+		parameter.Type,
+		decl.file,
+		make(map[*ast.TypeSpec]bool),
+	)
+	if !ok || constraint != "surge/internal/asyncrt.Payload" {
+		return false
+	}
+	parameterType := "surge/internal/asyncrt.P"
+	return graph.declHasExactFields(decl, map[string]string{
+		"exec":     "*surge/internal/asyncrt.Executor[" + parameterType + "]",
+		"channel":  "*surge/internal/asyncrt.Channel[" + parameterType + "]",
+		"id":       "surge/internal/asyncrt.ChannelID",
+		"route":    "surge/internal/asyncrt.ChannelSendRoute",
+		"receiver": "surge/internal/asyncrt.TaskID",
+		"recvSeq":  "uint64",
+		"sender":   "surge/internal/asyncrt.TaskID",
+		"valid":    "bool",
+	})
+}
+
 func lifecycleHeader(structType *ast.StructType) bool {
 	hasState, hasGeneration := false, false
 	for _, field := range structType.Fields.List {
@@ -170,6 +205,10 @@ func (graph *goOwnerGraph) semanticType(
 		key, keyOK := graph.semanticType(value.Key, file, aliases)
 		item, itemOK := graph.semanticType(value.Value, file, aliases)
 		return "map[" + key + "]" + item, keyOK && itemOK
+	case *ast.IndexExpr:
+		base, baseOK := graph.semanticType(value.X, file, aliases)
+		argument, argumentOK := graph.semanticType(value.Index, file, aliases)
+		return base + "[" + argument + "]", baseOK && argumentOK
 	case *ast.ParenExpr:
 		return graph.semanticType(value.X, file, aliases)
 	}
