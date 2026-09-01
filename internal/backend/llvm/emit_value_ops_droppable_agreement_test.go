@@ -73,6 +73,8 @@ fn main() -> int {
 `
 
 func TestTheDroppableBitAgreesWithTheBackendThatHasToBackIt(t *testing.T) {
+	withRepoStdlib(t)
+
 	e, _ := prepareEmitterAndResultForTest(t, droppableAgreementSource)
 	registry := e.mod.Meta.Operations
 	if registry == nil {

@@ -6,6 +6,8 @@ import (
 )
 
 func TestEmitTaskCloneLoadsHandleValue(t *testing.T) {
+	withRepoStdlib(t)
+
 	sourceCode := `@entrypoint
 fn main() -> int {
     let worker = spawn async {
