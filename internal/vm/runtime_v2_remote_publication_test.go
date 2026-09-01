@@ -484,13 +484,6 @@ func buildRemotePublicationHarness(t *testing.T) string {
 	return bin
 }
 
-func runRemotePublicationHarness(t *testing.T, bin, mode string, env []string) (string, string, int) {
-	t.Helper()
-	cmd := exec.Command(bin, mode)
-	cmd.Env = env
-	return runCommand(t, cmd, "")
-}
-
 func remotePublicationEnv(values ...string) []string {
 	env := os.Environ()
 	for _, value := range values {
