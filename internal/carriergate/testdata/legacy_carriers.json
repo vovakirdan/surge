@@ -5748,17 +5748,6 @@
         {
           "finding": {
             "category": "vm-universal-owner",
-            "path": "internal/vm/tag.go",
-            "token": "tagScrutinee.value-\u003eValue",
-            "evidence": "structural owner field tagScrutinee.value",
-            "ordinal": 1
-          },
-          "retired_by": "typed VM temporary owner slot migration",
-          "tracked_as": "RV2-DEBT-316"
-        },
-        {
-          "finding": {
-            "category": "vm-universal-owner",
             "path": "internal/vm/task_state_pins.go",
             "token": "storageExtent.arena-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
             "evidence": "structural owner field storageExtent.arena",

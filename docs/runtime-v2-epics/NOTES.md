@@ -10238,3 +10238,14 @@ closes the scoped session with `pass=true`, signal 9045 -> 9048; `internal`
 stays 6455 with all seven rules green, and the repository reports 6154 with all
 eight checked rules green.  Rule 19 still reserves heavy Runtime V2,
 sanitizer, Valgrind, and benchmark rows for the dedicated stand.
+
+### Wave D tag-scrutinee migration reconciliation
+
+The exact tag-scrutinee owner change removes the live structural token
+`tagScrutinee.value->Value`: a composite is now held as exact `StorageRef`, a
+heap value as a retained handle, and scalar state only by `ValueKind`.  The
+RV2-DEBT-316 migration entry was therefore deleted from the live manifest and
+the debt row closed rather than converted into an allowance.  The separate
+conservative path through `tagScrutinee.storage -> Arena.refs -> Frame.Locals`
+remains an RV2-DEBT-318 Wave F migration; this integration does not confuse
+exact tag ownership with the legacy frame-local leaf it can still reach.

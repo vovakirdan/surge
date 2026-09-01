@@ -186,7 +186,6 @@ func TestStructuralOwnerManifestClassifiesOnlyReviewedMigrations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	foundDebt316 := false
 	frameReachability := 0
 	d8AsyncOwner := 0
 	for _, category := range manifest.Categories {
@@ -203,10 +202,7 @@ func TestStructuralOwnerManifestClassifiesOnlyReviewedMigrations(t *testing.T) {
 				t.Fatalf("D8 owner was hidden by a migration: %+v", migration)
 			}
 			if migration.Finding.Token == "tagScrutinee.value->Value" {
-				if migration.TrackedAs != "RV2-DEBT-316" {
-					t.Fatalf("tag scrutinee tracked as %q", migration.TrackedAs)
-				}
-				foundDebt316 = true
+				t.Fatalf("closed tag-scrutinee owner remained a migration: %+v", migration)
 			}
 			if migration.Finding.Token == "VM.Async->Value" {
 				if migration.TrackedAs != "RV2-DEBT-151" ||
@@ -223,9 +219,6 @@ func TestStructuralOwnerManifestClassifiesOnlyReviewedMigrations(t *testing.T) {
 				frameReachability++
 			}
 		}
-	}
-	if !foundDebt316 {
-		t.Fatal("pre-existing tagScrutinee temporary owner is not tracked as RV2-DEBT-316")
 	}
 	if d8AsyncOwner != 1 || frameReachability != 21 {
 		t.Fatalf("post-base structural migrations = D8:%d frame-reachability:%d, want 1/21",
