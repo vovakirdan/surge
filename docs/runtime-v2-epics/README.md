@@ -92,6 +92,8 @@ detailed current chain is maintained in the roadmap and Detour Chain below.
 
 ## Current Runtime V2 Artifacts
 
+- `../EPICS_CLOSEOUT_PLAN.md`: owner-approved dependency order and stop
+  conditions for closing Epics 23b, 21, and 22.
 - `RULES.md`: global Runtime V2 development rules.
 - `SENTRUX_POLICY.md`: repository and scoped Sentrux policy, current baseline
   signals, and rule-check requirements.

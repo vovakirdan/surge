@@ -1,0 +1,256 @@
+# Закрытие оставшихся Runtime V2 эпиков
+
+## Текущее положение и цель
+
+| Эпик | Сейчас | Условие закрытия |
+|---|---|---|
+| Epic 23b | Wave D почти реализована, но новый liveness blocker делает текущий Nightly красным; Wave E/F открыты | Закрыть Waves D, E и F со всеми нормативными доказательствами |
+| Epic 21 | Реализация готова, открыт Task 9 / DEBT-125 | Закрыть acceptance внутри Wave F |
+| Epic 22 | Phases 0a/0b и локальный `float` готовы; crossings и `int`/`uint` не завершены | После 23b закончить crossing barriers и Phase 2 |
+| Остальные эпики | Закрыты | Финальный live-census подтверждает отсутствие новых обязательных хвостов |
+
+Текущий d2956347 считается interrupted/red: Ryzen-прогон завис и focused-тест воспроизвёл зависание. Сервер сейчас
+очищен и простаивает; финальная нагрузочная кампания ещё не запускалась.
+
+Результат работы: Epic 23b, Epic 21 и Epic 22 честно получают COMPLETE; обязательные owned debts закрыты
+доказательствами. Неблокирующие баги остаются в DEBT с владельцем и условием возврата.
+
+## Зафиксированные интерфейсы и решения
+
+- Пользовательский язык не получает нового синтаксиса или UX.
+- Совместимость с Runtime V1 и временными V2-путями не сохраняется: старые carriers, adapters и boxing удаляются вместе
+  с новым путём.
+
+- Channel использует Close-wins по owner-lane order:
+    - Commit → Close сохраняет доставленное значение;
+    - Close → Commit отклоняет commit, будит receiver как closed и уничтожает payload ровно один раз;
+    - detached claim остаётся owner-visible до terminal retirement.
+
+- Локальный spawn, захвативший borrow, получает выводимую compiler-ом carrier affinity:
+    - internal task metadata содержит единственного eligible carrier;
+    - такая задача не steal’ится, не handoff’ится и завершается на исходном carrier;
+    - crossing и blocking с borrow отвергаются;
+    - никакого нового @local-подобного атрибута не вводится.
+
+- Far task/channel/select переходят с result_bits/out_bits на exact typed storage с ValueOps и явной ownership
+  obligation.
+
+- Transport сохраняет независимые slot budgets DATA=64, CONTROL=16; reply capacity резервируется при admission.
+  Произвольный typed reply использует заранее зарезервированный DATA resource, а не CONTROL.
+
+- Epic 22 использует non-atomic RC. Локальные копии heap-backed int/uint делают retain; copied crossings делают deep
+  clone; эксклюзивный own move может передать единственное владение без sharing.
+
+- DEBT-125 закрывается внутри Wave F.
+- Performance contract Epic 22: 95% throughput / 110% p95 только для сопоставимых fast paths; heap-bignum закрывается
+  абсолютными ownership/resource gates.
+
+## Этап 1 — закрыть Wave D
+
+1. Сохранить контекст и закрепить authority.
+    - В начале implementation-фазы записать в agentmemory три подтверждённых owner-решения, Close-wins, seq=0 invariant
+      и точные данные Ryzen-инцидента.
+
+    - Работать от чистого integration worktree, не трогая dirty canonical checkout.
+    - Использовать codebase-memory graph-first для поиска, но проверять найденный код в фактическом integration
+      worktree.
+
+    - Старые dirty worktree Scope/277 переносить по проверенным hunks, не cherry-pick’ать целиком и не переносить
+      преждевременные записи Closed.
+
+2. Починить надёжность тестового harness.
+    - Запускать дочерний C harness в отдельной process group.
+    - На timeout завершать всю группу: bounded SIGTERM, затем SIGKILL.
+    - Добавить regression test, доказывающий отсутствие orphan-процессов после timeout.
+
+3. Исправить новый seq=0 liveness blocker.
+    - Deterministic stand фиксирует окно: первая регистрация → spurious wake → повторный park → две seq=0 registrations
+      → deferred cleanup → terminal reply.
+
+    - Общий primitive запрещает deferred removal удалять retry registrations, судьбу которых решает terminal wake-all.
+    - Не распространять правило автоматически на timer/by-id keys без отдельной lifecycle-проверки.
+    - Positive требует один request/body/reply, правильный select arm, DONE и пустой waiter store.
+    - Rule-13 mutant возвращает старый sweep и обязан получить terminal pending + WAITING caller + ноль registrations.
+    - Включить stand в обязательный aggregate и CI.
+
+4. Реализовать DEBT-307 и удалить временный DEBT-303.
+    - Compiler выводит requires_parent_carrier из capture set, включая транзитивные borrows.
+    - Borrow живёт до истинного completion задачи; escape, owner mutation/drop, crossing и blocking запрещаются
+      существующей диагностикой.
+
+    - Native scheduler хранит eligible carrier и отказывает steal/public handoff; shutdown разрешает задачу на её
+      carrier.
+
+    - VM/asyncrt проверяют ту же семантику.
+    - Удалить emitAsyncRefParamBox; передавать настоящий borrow pointer только после доказанной affinity.
+    - Проверки: 2/4/8 carriers, yield/requeue, cancellation, never-polled child, scope shutdown, independent non-
+      borrowing child, steal-refusal mutants и strict-zero для core/sync.
+
+5. Интегрировать Scope provenance / SEM3209.
+    - Перенести существующую реализацию поверх нового task ABI.
+    - creation_scope_key устанавливается один раз до publication и сохраняется через alias/helper/destructure/branch.
+    - Scope cancellation не переусыновляет задачу и не меняет creation provenance.
+    - Сохранить уже одобренный UX SEM3209 и deterministic 2/4/8 tests.
+
+6. Исправить и интегрировать DEBT-277.
+    - Перенести ветку поверх общего seq=0 primitive.
+    - Retry budget остаётся 8.
+    - Использовать bounded pending-prefix array максимум на семь предыдущих отказов {channel, operation,
+      refusal_cause}.
+
+    - При первом exhaustion зарегистрировать текущий arm, проверить generation/state и flush’нуть все предыдущие
+      регистрации под соответствующими owner lanes; последующие отказы обрабатывать сразу.
+
+    - Не вводить heap allocation, epoch, новый lifecycle bit или unbounded rescan.
+    - Матрица: send7/send8, send7/recv8, recv7/send8, busy/busy→release, ранний exhausted arm + поздний ready winner,
+      exact cleanup/drop/pin.
+
+    - Получить новый независимый APPROVE; до этого DEBT остаётся open.
+
+7. Перепроверить Close-wins channel protocol.
+    - Удаление receiver из FIFO атомарно переводит его в owner-visible claim registry.
+    - Проверить reserve→close→commit, reserve→commit→close, reserve→close→abort, cancel и shutdown.
+    - Во всех случаях один wake, один drop/move и один pin/claim retirement.
+
+8. Заморозить единственный финальный Wave D SHA.
+    - После последней scheduler/carrier правки выполнить полный §12 gate set, behaviour MT/all, topology 1×1, 1×8, 8×8,
+      carrier census, sanitizer/Valgrind, C/static/file-size gates, два golden-прогона, Sentrux и независимый review.
+
+    - Полный tagged internal/vm suite должен пройти на новом SHA; d2956347 не является доказательством.
+    - Затем на полностью свободном Ryzen выполнить ровно 1000 non-vacuous повторов:
+
+    ```bash
+    SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 \
+    taskset -c 8-15 go test ./internal/vm \
+      -run '^TestRuntimeV2(FailfastJoinAnswersCancelled|TimeoutTargetAnswersCancelledToEveryHandle)$' \
+      -count=1 -parallel=1 -p=1 -v --timeout 300s
+    ```
+
+    - Записать SHA, checkout, host identity, CPU affinity, команду, wall time, pass/fail/vacuous counts и все различные
+      signatures.
+
+    - Исторические 200+600, разные SHA и красный Nightly не суммировать.
+    - После кампании повторить полный gate set; только затем закрыть Wave D и DEBT-312.
+
+## Этап 2 — Wave E: exact carriers и bounded transport
+
+1. Перед изменением файлов, уже превышающих 500 строк, вынести устойчивые подсистемные части; не наращивать монолиты.
+2. Ввести transport-owned exact payload storage и сразу перевести far task, far channel и far select:
+    - task result ссылается на canonical typed slot;
+    - channel/transport владеет точными payload bytes;
+    - select пишет в typed destination;
+    - word-only ABI и adapters удаляются в том же изменении.
+
+3. Закрыть caller-anchor/body-lease:
+    - caller сохраняет owning anchor;
+    - body получает generation-qualified non-owning pinned lease;
+    - cancel/stale/shutdown освобождают pin и nested payload ровно один раз.
+
+4. Реализовать DEBT-031 после DEBT-277:
+    - reservation token: NONE → PROVISIONAL → COMMITTED → CONSUMED_REPLY | RELEASED_NO_REPLY;
+    - reply resource резервируется до публикации request;
+    - target refusal откатывает provisional reserve до park;
+    - source exhaustion паркует source task, не удерживая target resource;
+    - committed reply не может получить FULL;
+    - обычный producer паркуется вместо пользовательского QUEUE_FULL.
+
+5. Добавить точную resident-byte telemetry: header, padding, payload, sidecars и crossing clone.
+    - Slot budgets остаются 64/16.
+    - Normal/jumbo byte budgets сначала измеряются.
+    - Если понадобятся новые численные лимиты, работа останавливается с таблицей измерений и отдельным owner-решением;
+      implementer их не выбирает.
+
+6. Закрыть P4 matrix:
+    - > word values через far task/channel/select;
+    - success, refusal, stale generation, cancel, shutdown и partial allocation;
+    - DATA exhaustion, два jumbo producer, oversized reply;
+    - under-budget Rule-13 mutant;
+    - exact возврат request/reply slot и byte credits;
+    - Close-wins для detached far claims.
+
+7. Пройти sanitizer/Valgrind/TSan, behaviour/topology, resource counters, review и зафиксировать Wave E SHA.
+
+## Этап 3 — Wave F и Epic 21 Task 9
+
+1. Rule-14 audit сначала проверяет уже заявленные diagnostics/P5 свойства; исправлять только реальные gaps.
+2. DEBT-309 закрывается доказательством по каждому из 31 pointer-returning entrypoint: valid result либо terminal
+   RT_OOM/fatal, без nullable continuation.
+
+3. DEBT-318:
+    - удалить все 27 путей Frame.Locals → LocalSlot.V → Value;
+    - удалить legacy carrier symbols, glue, flags и их тесты;
+    - переснять live frozen census — не использовать исторические 0 of 626 или текущие 683;
+    - единственная разрешённая word-like запись остаётся документированным fixnum representation.
+
+4. Закрыть DEBT-125 и Epic 21:
+    - property map migration/share/select/non-copy-channel × happy/cancel/refusal/teardown-buffered;
+    - shards 1/2/8;
+    - one-to-one mapping трёх исторических E2E tests или более сильные typed replacements;
+    - Phase 5 seam inventory и dispositions DEBT-054–058 без реализации allocator Phase 5.
+
+5. Исправить performance evidence 23b:
+    - base и candidate SHA обязаны различаться;
+    - оба выполняют общий manifest и одинаковый workload/checksum;
+    - self-comparison и неподдерживаемый base fail closed.
+
+6. Закрыть owned debts 031/056/062/080/082/125/126/133 только после focused evidence.
+7. Финальный 23b closeout:
+    - полный gate set дважды, goldens дважды;
+    - sanitizer/Valgrind/TSan и paired benchmark;
+    - Sentrux baseline/final;
+    - пять независимых review-линз: model/liveness, ownership/types, runtime ABI, tests/gates, performance/docs;
+    - синхронизировать README, PLAN, epic headers, DEBT и NOTES, не переписывая датированную историю.
+
+8. После этого Epic 23b и Epic 21 получают COMPLETE.
+
+## Этап 4 — Epic 22 Phase 2
+
+1. Исправить устаревшую строку DEBT-035: authority — non-atomic RC + отсутствие shared heap block между shards.
+2. Подтвердить, что шесть float/composite crossing barriers из Wave E закрыты, затем добавить int/uint.
+3. Ownership:
+    - fixnum не выделяет память и не вызывает retain/release;
+    - heap local copy — O(1) retain;
+    - move передаёт obligation;
+    - drop делает release и освобождает на нуле;
+    - copied crossing делает deep clone;
+    - exclusive own crossing может передать единственный объект;
+    - Range, composite, array, map, task, channel и select получают те же recursive lifecycle rules.
+
+4. Проверить VM/LLVM parity, boundary integers, overflow, return/argument/local/container paths, cancellation и
+   crossing cleanup.
+
+5. Performance:
+    - baseline — точный закрытый 23b SHA; candidate — отдельный Phase 2 SHA; равные SHA запрещены;
+    - int/uint fixnum и fixed-width controls: 2 warmup + 7 alternating paired runs, CV каждой стороны ≤5%, throughput
+      ≥95%, p95 ≤110%, zero allocations после setup;
+
+    - heap-bignum: zero allocation на local copy, один retain на дополнительного owner, один eventual release,
+      отсутствие local deep clone, crossing clone пропорционален limb payload, strict-zero и точный checksum;
+
+    - heap timing публикуется, но не сравнивается с утечным baseline как acceptance gate.
+
+6. Пройти полные compiler/runtime gates, sanitizer/Valgrind, benchmarks и независимый review; закрыть DEBT-035/068 и
+   Epic 22.
+
+## Операционная дисциплина и стоп-условия
+
+- Перед каждым push проверять CI workflow triggers. Protocol commit сначала получает полный pre-push suite; после push
+  дожидаемся автоматического CI и не дублируем покрываемые им проверки.
+
+- Ryzen использовать только через ssh-ryzen.
+- Функциональные независимые проверки можно запускать параллельно на 0–7 и 8–15; benchmark, Valgrind-sensitive и
+  финальный stress — только эксклюзивно на 8–15.
+
+- После старта серверного задания проверять unit, точную команду/SHA, PID/process tree, рост лога и CPU; один serial
+  subtest может занимать одно ядро, но отсутствие прогресса обязано диагностироваться.
+
+- После каждого integration/closeout сохранять в agentmemory: решение, инвариант, SHA, команду, результат, failure
+  signature и ссылку на durable repo evidence.
+
+- Board не обновлять. STATS.md, DEBT, NOTES и epic status обновлять по правилам проекта.
+- Неблокирующий баг откладывать. Если баг блокирует gate — чинить до продолжения.
+- Если модель не определяет неочевидное решение, остановиться и обсудить.
+- Любой новый UX, синтаксис, language semantic или изменение согласованных численных transport budgets требует
+  отдельного owner-решения.
+
+- Финальный шаг — live-census всех epic headers и mandatory debts. Version bump не делать без отдельного решения.
