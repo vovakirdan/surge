@@ -15,9 +15,10 @@ import (
 )
 
 type linuxCancellationLifecycle struct {
-	signalGroup     func(int, syscall.Signal) error
-	signalProcess   func(*os.Process, syscall.Signal) error
-	beforeFinalKill func(*exec.Cmd) error
+	signalGroup      func(int, syscall.Signal) error
+	signalProcess    func(*os.Process, syscall.Signal) error
+	beforeFinalKill  func(*exec.Cmd) error
+	eventualWaitDone chan<- error
 }
 
 func platformCancellationLifecycle() commandCancellationLifecycle {
@@ -46,7 +47,7 @@ func (lifecycle linuxCancellationLifecycle) wait(
 	select {
 	case observeErr := <-exitCh:
 		if observeErr != nil {
-			eventuallyWaitCommand(cmd, nil)
+			eventuallyWaitCommand(cmd, nil, lifecycle.eventualWaitDone)
 			return cancellationWaitResult{waitErr: observeErr}
 		}
 		return cancellationWaitResult{waitErr: cmd.Wait()}
@@ -94,7 +95,7 @@ func (lifecycle linuxCancellationLifecycle) terminate(
 		timer.Stop()
 	}
 	if !observed {
-		eventuallyWaitCommand(cmd, exitCh)
+		eventuallyWaitCommand(cmd, exitCh, lifecycle.eventualWaitDone)
 		return cancellationWaitResult{
 			waitErr: fmt.Errorf(
 				"process-group leader %d did not exit within %s after SIGKILL; reap continues in background",
@@ -106,7 +107,7 @@ func (lifecycle linuxCancellationLifecycle) terminate(
 		}
 	}
 	if observeErr != nil {
-		eventuallyWaitCommand(cmd, nil)
+		eventuallyWaitCommand(cmd, nil, lifecycle.eventualWaitDone)
 		return cancellationWaitResult{
 			waitErr:    fmt.Errorf("observe process-group leader %d exit: %w", cmd.Process.Pid, observeErr),
 			contextErr: contextErr,
@@ -154,11 +155,14 @@ func (lifecycle linuxCancellationLifecycle) signalTarget(cmd *exec.Cmd, signal s
 // eventuallyWaitCommand is the one Wait owner after a bounded exceptional
 // return. If every signal failed, immediate reap and bounded return cannot both
 // be guaranteed; the child remains wait-owned and is reaped when it exits.
-func eventuallyWaitCommand(cmd *exec.Cmd, exitCh <-chan error) {
+func eventuallyWaitCommand(cmd *exec.Cmd, exitCh <-chan error, done chan<- error) {
 	go func() {
 		if exitCh != nil {
 			<-exitCh
 		}
-		_ = cmd.Wait()
+		waitErr := cmd.Wait()
+		if done != nil {
+			done <- waitErr
+		}
 	}()
 }

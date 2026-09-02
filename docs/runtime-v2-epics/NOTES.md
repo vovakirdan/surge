@@ -11109,3 +11109,68 @@ reported `0 issues`, strict C checks passed, and the repository file-size gate
 passed. The generated final `STATS.md`, relative to base `163b9cda`, records
 test files `652 -> 659`, test LOC `135171 -> 136187`, total files
 `1755 -> 1762`, and total LOC `376603 -> 377619`.
+
+#### The consumer boundary, and one sentence above that was broader than the code
+
+Continued 2026-09-02 on top of `349f8a1a` in the same lane. The paragraph above
+claims that `runBinaryWithTimeout` "includes `runErr` in both its timeout fatal
+and its saved `run.diagnostics`". That is true of the TIMEOUT branch and was not
+true of the other one: the non-timeout `execution.runErr != nil` branch printed
+the error inline in its `t.Fatalf` and built its saved `runDiagnostics` record
+WITHOUT `runErr`, so the file left behind for a run that failed to start, or
+whose wait failed, did not name the reason. The reader of an artifact directory
+after a red gate is the only reader that matters there, because the terminal
+output is gone by then, and that reader got an empty stdout, an empty stderr and
+no error. The sentence is corrected by the code rather than by editing it: the
+record now carries `runErr` on both branches.
+
+Rule 13 on that exact line: removing `runErr: execution.runErr` from the
+non-timeout branch makes `TestRunBinaryWithTimeoutSavesNonTimeoutRunError` fail
+in `0.01s` with
+
+```text
+saved run diagnostics missing "run_error: sentinel non-timeout wait failure"
+```
+
+while `TestRunBinaryWithTimeoutReportsCancellationRunError` and
+`TestRunBinaryCancellationConsumerHelper` stay green in the same run. The
+control is targeted rather than a build break.
+
+The reason the gap survived the first pass is that neither real consumer was
+reachable from a test. `runBinaryWithTimeout` and `runRemotePublicationHarness`
+each build their own `exec.Cmd` and call `runCommandWithCancellation` directly,
+so exercising their failure boundaries meant producing a genuinely unkillable
+subprocess inside the test -- which is the thing this lane exists to prevent.
+The seam is one package-level variable, `runHarnessCommandWithCancellation`,
+initialised to the real function; the two consumers call through it and the new
+tests substitute a stub answering with a chosen `runErr` and `contextErr`. No
+production path and no cancellation lifecycle changed: the seam is a test
+indirection over test infrastructure, and the stub never stands in for the
+mechanism the other rows prove.
+
+`TestRunCommandWithCancellationKillsTermResistantDescendantAfterLeaderExit` also
+stops racing its own cleanup. It used to block a goroutine in `Wait4` on the
+grandchild while both the body and `t.Cleanup` received from that one-shot
+channel, so whichever arrived second waited for a value nobody would send. It
+now observes the exit with the same WNOWAIT primitive the production path uses
+and then reaps explicitly: observe-then-reap in the test mirrors
+observe-then-reap in the supervisor, and cleanup can tell "already reaped" from
+"still running" without a timeout.
+
+Lint rejected the first version of the observe helper: `awaitObservedProcessExit`
+took a `timeout` parameter that every one of its four callers passed
+`subprocessKillWait` for (`unparam`). The parameter is removed rather than
+silenced, because the constant is not an incidental default — it is the same
+bound the supervisor gives its own final group signal, and a test allowed to
+wait longer would report a pass the gate would not. The comment now says that,
+so the next caller does not reintroduce the knob.
+
+Evidence on this tree: the full cancellation family -- the five process-group
+rows, the three new consumer rows, the two remote consumer rows, the diagnostics
+boundary and the helper -- passed in `8.864s`; `go vet -tags runtime_v2_pending
+./internal/vm` is clean; repository `make lint` reports `0 issues`; the
+exact-base file-size gate against `163b9cda` passed 13 files with 0 violations,
+the two new ones at 89 and 45 effective LOC. `STATS.md` is regenerated for them:
+test files `659 -> 661`, test LOC `136187 -> 136372`, total files
+`1762 -> 1764`, total LOC `377619 -> 377804`. The composed heavy aggregate stays
+commit-pinned dedicated-runner work and was not run locally.

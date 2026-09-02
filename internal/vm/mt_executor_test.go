@@ -90,7 +90,7 @@ func runBinaryWithTimeout(t *testing.T, outputPath string, env []string, timeout
 	cmd := exec.Command(outputPath)
 	cmd.Dir = root
 	cmd.Env = env
-	execution := runCommandWithCancellation(ctx, cmd, subprocessTerminationGrace)
+	execution := runHarnessCommandWithCancellation(ctx, cmd, subprocessTerminationGrace)
 	dur := execution.duration
 	stdout := execution.stdout
 	stderr := execution.stderr
@@ -127,6 +127,7 @@ func runBinaryWithTimeout(t *testing.T, outputPath string, env []string, timeout
 			stderr:       stderr,
 			exitCode:     -1,
 			duration:     dur,
+			runErr:       execution.runErr,
 		})
 		writeRunDiagnostics(t, artifactInfo.artifactsDir, diagnostics)
 		t.Fatalf("run %s: %v\nstderr:\n%s\ndiagnostics:\n%s", outputPath, execution.runErr, stderr, diagnostics)

@@ -73,6 +73,10 @@ func runCommandWithCancellation(
 	)
 }
 
+// runHarnessCommandWithCancellation is a test seam for exercising the real
+// harness consumer boundaries without relying on an unkillable subprocess.
+var runHarnessCommandWithCancellation = runCommandWithCancellation
+
 func runCommandWithCancellationLifecycle(
 	ctx context.Context,
 	cmd *exec.Cmd,

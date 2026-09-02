@@ -25,6 +25,12 @@ const (
 	processGroupPIDFileEnv    = "SURGE_TEST_PROCESS_GROUP_PID_FILE"
 )
 
+type reapedProcess struct {
+	pid    int
+	status syscall.WaitStatus
+	err    error
+}
+
 func TestProcessGroupCancellationHelper(t *testing.T) {
 	switch os.Getenv(processGroupHelperModeEnv) {
 	case "":
@@ -108,24 +114,28 @@ func TestRunCommandWithCancellationKillsTermResistantDescendantAfterLeaderExit(t
 		resultCh <- runCommandWithCancellationLifecycle(ctx, cmd, subprocessTerminationGrace, lifecycle)
 	}()
 	childPID, grandchildPID := waitForProcessGroupPIDs(t, pidFile, timeout)
-	type reapedProcess struct {
-		pid    int
-		status syscall.WaitStatus
-		err    error
-	}
-	reapedCh := make(chan reapedProcess, 1)
-	go func() {
-		var status syscall.WaitStatus
-		pid, err := syscall.Wait4(grandchildPID, &status, 0, nil)
-		reapedCh <- reapedProcess{pid: pid, status: status, err: err}
-	}()
+	grandchildExitCh := observeLinuxProcessExit(grandchildPID)
 	reaped := false
 	t.Cleanup(func() {
 		if reaped {
 			return
 		}
-		_ = syscall.Kill(-childPID, syscall.SIGKILL)
-		<-reapedCh
+		process, findErr := os.FindProcess(grandchildPID)
+		if findErr == nil {
+			killErr := process.Kill()
+			if killErr != nil && !errors.Is(killErr, os.ErrProcessDone) {
+				t.Errorf("cleanup TERM-resistant grandchild %d: %v", grandchildPID, killErr)
+			}
+		}
+		if observeErr := awaitObservedProcessExit(grandchildExitCh); observeErr != nil {
+			t.Errorf("observe cleanup of TERM-resistant grandchild %d: %v", grandchildPID, observeErr)
+			return
+		}
+		cleanupResult := reapLinuxChild(grandchildPID)
+		reaped = true
+		if cleanupResult.err != nil {
+			t.Errorf("reap cleanup of TERM-resistant grandchild %d: %v", grandchildPID, cleanupResult.err)
+		}
 	})
 
 	result := <-resultCh
@@ -150,13 +160,11 @@ func TestRunCommandWithCancellationKillsTermResistantDescendantAfterLeaderExit(t
 	if childPID != cmd.Process.Pid {
 		t.Fatalf("child pid: helper reported %d, command started %d", childPID, cmd.Process.Pid)
 	}
-	var reapedResult reapedProcess
-	select {
-	case reapedResult = <-reapedCh:
-		reaped = true
-	case <-time.After(subprocessKillWait):
-		t.Fatalf("grandchild process %d survived cancellation after leader Wait", grandchildPID)
+	if observeErr := awaitObservedProcessExit(grandchildExitCh); observeErr != nil {
+		t.Fatalf("grandchild process %d survived cancellation after leader Wait: %v", grandchildPID, observeErr)
 	}
+	reapedResult := reapLinuxChild(grandchildPID)
+	reaped = true
 	if reapedResult.err != nil {
 		t.Fatalf("reap TERM-resistant grandchild %d: %v", grandchildPID, reapedResult.err)
 	}
@@ -376,4 +384,25 @@ func requireProcessGone(t *testing.T, pid int, role string) {
 	if !errors.Is(err, syscall.ESRCH) {
 		t.Fatalf("probe %s process %d: %v", role, pid, err)
 	}
+}
+
+// awaitObservedProcessExit waits for a WNOWAIT observation of the process to
+// land. The budget is subprocessKillWait for every caller on purpose: it is the
+// same bound the supervisor gives its own final group signal, so a test that
+// waited longer would report a pass the gate would not.
+func awaitObservedProcessExit(exitCh <-chan error) error {
+	timer := time.NewTimer(subprocessKillWait)
+	defer timer.Stop()
+	select {
+	case err := <-exitCh:
+		return err
+	case <-timer.C:
+		return fmt.Errorf("process exit was not observable within %s", subprocessKillWait)
+	}
+}
+
+func reapLinuxChild(pid int) reapedProcess {
+	var status syscall.WaitStatus
+	reapedPID, err := syscall.Wait4(pid, &status, 0, nil)
+	return reapedProcess{pid: reapedPID, status: status, err: err}
 }

@@ -30,18 +30,29 @@ func TestRunCommandWithCancellationSignalFailureReturnsBoundedly(t *testing.T) {
 	lifecycle := platformCancellationLifecycle().(linuxCancellationLifecycle)
 	lifecycle.signalGroup = func(int, syscall.Signal) error { return groupErr }
 	lifecycle.signalProcess = func(*os.Process, syscall.Signal) error { return directErr }
+	eventualWaitDone := make(chan error, 1)
+	lifecycle.eventualWaitDone = eventualWaitDone
 
 	resultCh := make(chan cancellationCommandResult, 1)
 	go func() {
 		resultCh <- runCommandWithCancellationLifecycle(ctx, cmd, 0, lifecycle)
 	}()
 	waitForMarkerFile(t, readyFile, mtScaledTimeout(t, 2*time.Second))
-	cleanupArmed := true
+	reaped := false
 	t.Cleanup(func() {
-		if !cleanupArmed {
+		if reaped {
 			return
 		}
-		_ = unix.Kill(-cmd.Process.Pid, unix.SIGKILL)
+		killErr := cmd.Process.Kill()
+		if killErr != nil && !errors.Is(killErr, os.ErrProcessDone) {
+			t.Errorf("cleanup failed-signal child: %v", killErr)
+		}
+		select {
+		case <-eventualWaitDone:
+			reaped = true
+		case <-time.After(mtScaledTimeout(t, 3*time.Second)):
+			t.Error("background Wait did not complete during failed-signal cleanup")
+		}
 	})
 	cancel()
 
@@ -61,11 +72,15 @@ func TestRunCommandWithCancellationSignalFailureReturnsBoundedly(t *testing.T) {
 		t.Fatalf("signal result: want both injected failures, got %v", result.signalErr)
 	}
 
-	if err := unix.Kill(-cmd.Process.Pid, unix.SIGKILL); err != nil && !errors.Is(err, unix.ESRCH) {
-		t.Fatalf("cleanup failed-signal process group: %v", err)
+	if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		t.Fatalf("kill failed-signal child: %v", err)
 	}
-	waitForPIDAbsent(t, cmd.Process.Pid, mtScaledTimeout(t, 2*time.Second))
-	cleanupArmed = false
+	select {
+	case <-eventualWaitDone:
+		reaped = true
+	case <-time.After(mtScaledTimeout(t, 3*time.Second)):
+		t.Fatal("background Wait did not reap failed-signal child")
+	}
 }
 
 func TestRunCommandWithCancellationBoundsEscapedInheritedPipe(t *testing.T) {
@@ -80,24 +95,28 @@ func TestRunCommandWithCancellationBoundsEscapedInheritedPipe(t *testing.T) {
 		resultCh <- runCommandWithCancellation(ctx, cmd, subprocessTerminationGrace)
 	}()
 	leaderPID, escapedPID := waitForProcessGroupPIDs(t, pidFile, mtScaledTimeout(t, 2*time.Second))
-	type reapedProcess struct {
-		pid    int
-		status syscall.WaitStatus
-		err    error
-	}
-	reapedCh := make(chan reapedProcess, 1)
-	go func() {
-		var status syscall.WaitStatus
-		pid, err := syscall.Wait4(escapedPID, &status, 0, nil)
-		reapedCh <- reapedProcess{pid: pid, status: status, err: err}
-	}()
+	escapedExitCh := observeLinuxProcessExit(escapedPID)
 	reaped := false
 	t.Cleanup(func() {
 		if reaped {
 			return
 		}
-		_ = unix.Kill(escapedPID, unix.SIGKILL)
-		<-reapedCh
+		process, findErr := os.FindProcess(escapedPID)
+		if findErr == nil {
+			killErr := process.Kill()
+			if killErr != nil && !errors.Is(killErr, os.ErrProcessDone) {
+				t.Errorf("cleanup escaped descendant %d: %v", escapedPID, killErr)
+			}
+		}
+		if observeErr := awaitObservedProcessExit(escapedExitCh); observeErr != nil {
+			t.Errorf("observe cleanup of escaped descendant %d: %v", escapedPID, observeErr)
+			return
+		}
+		cleanupResult := reapLinuxChild(escapedPID)
+		reaped = true
+		if cleanupResult.err != nil {
+			t.Errorf("reap cleanup of escaped descendant %d: %v", escapedPID, cleanupResult.err)
+		}
 	})
 
 	cancel()
@@ -123,7 +142,10 @@ func TestRunCommandWithCancellationBoundsEscapedInheritedPipe(t *testing.T) {
 	if err := unix.Kill(escapedPID, unix.SIGKILL); err != nil {
 		t.Fatalf("kill escaped descendant: %v", err)
 	}
-	reapedResult := <-reapedCh
+	if observeErr := awaitObservedProcessExit(escapedExitCh); observeErr != nil {
+		t.Fatalf("observe escaped descendant %d exit: %v", escapedPID, observeErr)
+	}
+	reapedResult := reapLinuxChild(escapedPID)
 	reaped = true
 	if reapedResult.err != nil || reapedResult.pid != escapedPID ||
 		!reapedResult.status.Signaled() || reapedResult.status.Signal() != syscall.SIGKILL {
@@ -191,28 +213,6 @@ func waitForMarkerFile(t *testing.T, path string, timeout time.Duration) {
 		case <-ticker.C:
 		case <-timer.C:
 			t.Fatalf("marker %q was not created before timeout", path)
-		}
-	}
-}
-
-func waitForPIDAbsent(t *testing.T, pid int, timeout time.Duration) {
-	t.Helper()
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-	ticker := time.NewTicker(time.Millisecond)
-	defer ticker.Stop()
-	for {
-		err := unix.Kill(pid, 0)
-		if errors.Is(err, unix.ESRCH) {
-			return
-		}
-		if err != nil {
-			t.Fatalf("probe process %d: %v", pid, err)
-		}
-		select {
-		case <-ticker.C:
-		case <-timer.C:
-			t.Fatalf("process %d was not eventually reaped", pid)
 		}
 	}
 }

@@ -18,7 +18,7 @@ func runRemotePublicationHarness(t *testing.T, bin, mode string, env []string) (
 	defer cancel()
 	cmd := exec.Command(bin, mode)
 	cmd.Env = env
-	result := runCommandWithCancellation(ctx, cmd, subprocessTerminationGrace)
+	result := runHarnessCommandWithCancellation(ctx, cmd, subprocessTerminationGrace)
 	if result.contextErr != nil {
 		t.Fatalf("remote publication harness mode %q timed out after %s\nstdout:\n%s\nstderr:\n%s\ncancellation:\n%s",
 			mode, timeout, result.stdout, result.stderr, formatCancellationDiagnostics(result))
