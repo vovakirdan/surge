@@ -166,12 +166,28 @@ func parseValgrindOutstandingAllocations(stderr string) (int, error) {
 
 var valgrindHeapUsagePattern = regexp.MustCompile(`total heap usage: ([0-9,]+) allocs, ([0-9,]+) frees`)
 
+// selectReclaimLeaksPerTake reads the two outstanding-block counts as a slope
+// over the four extra takes between them. A payload released zero times leaves
+// one block per take -- four more at eight takes than at four (two per take for
+// a composite, eight) -- and that is what this names. What it does not name is
+// a single block: the two counts come from two separate valgrind runs of two
+// separate processes, and the runtime's own lazily-grown storage can differ
+// by a block between them. Read as an exact equality this fired on the
+// dedicated machine with 62 outstanding at four takes and 63 at eight, one of
+// three aggregate runs on 017686af -- 0.25 allocations per take, a slope no
+// missing release can produce. The line is half a block per take: below it
+// is run-to-run noise, at or above it every take leaked something whole.
+func selectReclaimLeaksPerTake(at4, at8 int) bool {
+	delta := at8 - at4
+	return delta >= 2
+}
+
 // A string taken by a winning recv arm is released exactly once. If it were
 // released zero times the slope goes to one block per take; if it were released
 // twice the run dies on a memcheck error before the slope is read at all.
 func TestRuntimeV2SelectReleasesAStringPayloadExactlyOnce(t *testing.T) {
 	at4, at8 := measureSelectReclaimSlope(t, runtimeV2SelectReclaimStringFmt, "select-string-reclaim-witness", 4, 8)
-	if at8-at4 != 0 {
+	if selectReclaimLeaksPerTake(at4, at8) {
 		t.Fatalf(
 			"a string taken by a select's recv arm is never returned: %.2f allocations per take\n"+
 				"4 takes left %d outstanding, 8 takes left %d.\n"+
@@ -190,7 +206,7 @@ func TestRuntimeV2SelectReleasesAStringPayloadExactlyOnce(t *testing.T) {
 // ring. This is the row that measures which one runs.
 func TestRuntimeV2SelectReleasesACompositePayloadExactlyOnce(t *testing.T) {
 	at4, at8 := measureSelectReclaimSlope(t, runtimeV2SelectReclaimCompositeFmt, "select-composite-reclaim-witness", 4, 8)
-	if at8-at4 != 0 {
+	if selectReclaimLeaksPerTake(at4, at8) {
 		t.Fatalf(
 			"a composite taken by a select's recv arm is never returned: %.2f allocations per take\n"+
 				"4 takes left %d outstanding, 8 takes left %d.\n"+
