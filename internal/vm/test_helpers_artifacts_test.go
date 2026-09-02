@@ -1,6 +1,7 @@
 package vm_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -146,5 +147,19 @@ func TestRunBinaryWithTimeoutReportsEmptyOutputDiagnostics(t *testing.T) {
 		if got := string(gotBytes); got != want {
 			t.Fatalf("%s mismatch:\nwant %q\ngot  %q", name, want, got)
 		}
+	}
+}
+
+func TestCancellationTimeoutDiagnosticsIncludeRunError(t *testing.T) {
+	runErr := errors.New("leader reap continues in background")
+	result := cancellationCommandResult{runErr: runErr}
+	boundary := formatCancellationDiagnostics(result)
+	if !strings.Contains(boundary, runErr.Error()) {
+		t.Fatalf("timeout boundary hid run error while signal error was nil:\n%s", boundary)
+	}
+
+	saved := formatRunDiagnostics(runDiagnostics{runErr: runErr})
+	if !strings.Contains(saved, "run_error: "+runErr.Error()) {
+		t.Fatalf("saved diagnostics hid run error:\n%s", saved)
 	}
 }

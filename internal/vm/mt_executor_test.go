@@ -1,7 +1,6 @@
 package vm_test
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -88,19 +87,15 @@ func runBinaryWithTimeout(t *testing.T, outputPath string, env []string, timeout
 	timeout = mtScaledTimeout(t, timeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, outputPath)
+	cmd := exec.Command(outputPath)
 	cmd.Dir = root
 	cmd.Env = env
-	var outBuf, errBuf bytes.Buffer
-	cmd.Stdout = &outBuf
-	cmd.Stderr = &errBuf
-	start := time.Now()
-	err := cmd.Run()
-	dur := time.Since(start)
-	stdout := outBuf.String()
-	stderr := errBuf.String()
+	execution := runHarnessCommandWithCancellation(ctx, cmd, subprocessTerminationGrace)
+	dur := execution.duration
+	stdout := execution.stdout
+	stderr := execution.stderr
 	artifactInfo := lookupRunArtifactInfo(outputPath)
-	if ctx.Err() == context.DeadlineExceeded {
+	if errors.Is(execution.contextErr, context.DeadlineExceeded) {
 		writeRunOutputArtifacts(t, artifactInfo.artifactsDir, stdout, stderr, -1)
 		diagnostics := formatRunDiagnostics(runDiagnostics{
 			cmd:          cmd,
@@ -113,30 +108,29 @@ func runBinaryWithTimeout(t *testing.T, outputPath string, env []string, timeout
 			duration:     dur,
 			timeout:      timeout,
 			ctxErr:       ctx.Err(),
+			runErr:       execution.runErr,
 		})
 		writeRunDiagnostics(t, artifactInfo.artifactsDir, diagnostics)
-		t.Fatalf("program timeout after %s\nstdout:\n%s\nstderr:\n%s\ndiagnostics:\n%s", timeout, stdout, stderr, diagnostics)
+		t.Fatalf("program timeout after %s\nstdout:\n%s\nstderr:\n%s\ncancellation:\n%s\ndiagnostics:\n%s",
+			timeout, stdout, stderr, formatCancellationDiagnostics(execution), diagnostics)
 	}
-	exitCode := 0
-	var exitErr *exec.ExitError
-	if err != nil {
-		if errors.As(err, &exitErr) {
-			exitCode = exitErr.ExitCode()
-		} else {
-			writeRunOutputArtifacts(t, artifactInfo.artifactsDir, stdout, stderr, -1)
-			diagnostics := formatRunDiagnostics(runDiagnostics{
-				cmd:          cmd,
-				artifactsDir: artifactInfo.artifactsDir,
-				outputPath:   outputPath,
-				tmpDir:       artifactInfo.tmpDir,
-				stdout:       stdout,
-				stderr:       stderr,
-				exitCode:     -1,
-				duration:     dur,
-			})
-			writeRunDiagnostics(t, artifactInfo.artifactsDir, diagnostics)
-			t.Fatalf("run %s: %v\nstderr:\n%s\ndiagnostics:\n%s", outputPath, err, stderr, diagnostics)
-		}
+	exitCode := execution.exitCode
+	exitErr := execution.exitErr
+	if execution.runErr != nil {
+		writeRunOutputArtifacts(t, artifactInfo.artifactsDir, stdout, stderr, -1)
+		diagnostics := formatRunDiagnostics(runDiagnostics{
+			cmd:          cmd,
+			artifactsDir: artifactInfo.artifactsDir,
+			outputPath:   outputPath,
+			tmpDir:       artifactInfo.tmpDir,
+			stdout:       stdout,
+			stderr:       stderr,
+			exitCode:     -1,
+			duration:     dur,
+			runErr:       execution.runErr,
+		})
+		writeRunDiagnostics(t, artifactInfo.artifactsDir, diagnostics)
+		t.Fatalf("run %s: %v\nstderr:\n%s\ndiagnostics:\n%s", outputPath, execution.runErr, stderr, diagnostics)
 	}
 	writeRunOutputArtifacts(t, artifactInfo.artifactsDir, stdout, stderr, exitCode)
 	diagnostics := ""

@@ -10802,3 +10802,482 @@ into promoted storage replaces it, so 303 closes with 307 and not before it.
 The preserved partial implementation in the DEBT-307 lane is NOT committed, per
 the reviews. Its two P0s are mandatory parts of the same vertical, not
 follow-ups.
+
+*Reading order note, added at integration.* The harness-containment section
+below is dated 2026-09-01 and belongs to Wave D step 2, so it precedes this one
+in both wall-clock and plan order. It appears after it because the two lanes
+branched from the same commit and appended at the same anchor, and the merge
+kept both rather than reflowing a normative log to fix an ordering that every
+section already states in its own first line.
+
+## 2026-09-01 — Wave D remote-harness timeout containment (in progress)
+
+The exact tagged `internal/vm` run at code SHA `d2956347` stalled in
+`TestRuntimeV2RemoteTaskBehavior/select-spurious-caller-wake-mints-no-second-request`.
+The focused row reproduced the stall and Go's timeout left the native C child
+under PID 1. This is red liveness evidence for the product path; this lane does
+not resolve or close that defect.
+
+The bounded infrastructure task starts from `163b9cda` in isolated worktree
+`/tmp/surge-rv2-harness.rcryLN/worktree`. Its proof is a shared Go subprocess
+runner that owns a child from `Start` through `Wait`, gives it a distinct
+supported-Unix process group, and on context cancellation sends group
+`SIGTERM`, then bounded
+`SIGKILL`. A self-reexec regression must create a synchronized child and
+grandchild, time out, and prove that neither PID survives. A second row must
+force the TERM-to-KILL escalation. Rule 13 will replace the group signal with a
+direct-child signal in a scratch tree; the descendant test must then report the
+surviving grandchild. No runtime protocol or product semantics are in scope.
+
+Pre-edit Sentrux evidence on the isolated worktree was green. The repository
+root reported `quality_signal=6160`, bottleneck `modularity`, with all eight
+checked rules passing. The scoped `internal/vm` scan reported
+`quality_signal=7192`; that exact absolute path is the saved session baseline.
+
+The first focused infrastructure run passed in `4.062s`, and the identical
+post-split run passed in `4.064s`:
+
+```sh
+SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm \
+  -run '^(TestRunCommandWithCancellation(ReapsDescendantProcessGroup|EscalatesToKill)|TestRunBinaryWithTimeoutReportsEmptyOutputDiagnostics|TestProcessGroupCancellationHelper)$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 30s
+```
+
+The descendant row reaches its two-second context deadline only after the
+child has received a byte-level readiness acknowledgement from its grandchild.
+The child reaps the grandchild before returning, and the Go parent both waits
+for the child and proves `ESRCH` for both recorded PIDs. The escalation row
+first writes its ready marker after installing `SIGTERM` ignore, then the test
+requires a `SIGKILL` wait status after the 50 ms grace. No sleep is used as a
+readiness or survivor assertion.
+
+The pre-change red Ryzen row was also rerun once from this local worktree with
+the new bounded runner. It completed green rather than reproducing, in
+`5.830s` total (`0.02s` in the selected row), and no matching harness process
+remained:
+
+```sh
+SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 \
+  go test -tags runtime_v2_pending ./internal/vm \
+  -run '^TestRuntimeV2RemoteTaskBehavior$/^select-spurious-caller-wake-mints-no-second-request$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 45s
+```
+
+That single local pass does not supersede the server failure or close the
+product liveness blocker; it only verifies that the focused harness still runs
+normally through the shared cancellation path.
+
+The two cancellation regressions then passed five consecutive runs in
+`20.284s`. A focused race build passed both rows in `5.326s`, and the tagged VM
+package vet plus diff whitespace check passed with no output:
+
+```sh
+SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm \
+  -run '^TestRunCommandWithCancellation(ReapsDescendantProcessGroup|EscalatesToKill)$' \
+  -count=5 -parallel=1 -p=1 --timeout 60s
+SURGE_SKIP_TIMEOUT_TESTS=0 go test -race ./internal/vm \
+  -run '^TestRunCommandWithCancellation(ReapsDescendantProcessGroup|EscalatesToKill)$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 60s
+GOFLAGS=-buildvcs=false go vet -tags runtime_v2_pending ./internal/vm
+git diff --check
+```
+
+Rule 4 is green against exact base `163b9cda`: seven measured Go files, zero
+violations. Both pre-existing over-limit files shrink (`mt_executor_test.go`
+1458 to 1450 physical lines; `runtime_v2_remote_publication_test.go` 503 to
+496), and every new file is at most 191 effective LOC.
+
+Rule 13 is proven on detached scratch tree `53bd8251`, created from the exact
+staged index. The only mutant changed the Linux group target from
+`syscall.Kill(-cmd.Process.Pid, signal)` to
+`syscall.Kill(cmd.Process.Pid, signal)`. The named descendant test failed with
+exit 1 after `2.259s` and the exact report:
+
+```text
+grandchild process 3341886 survived process-group timeout
+```
+
+The test's cleanup then killed the surviving process group; PID `3341886` was
+absent before the scratch worktree was removed. Thus the positive test is not
+vacuous: it distinguishes process-group cleanup from the former direct-child
+behavior and observes exactly one escaped descendant in the mutant.
+
+Final Sentrux closure on the same absolute `internal/vm` scope improved
+`quality_signal` from `7192` to `7194` (`pass=true`, delta reported as `+3` by
+the integer API). Health still names `modularity`; the scope has no local
+`.sentrux/rules.toml`, so architectural constraints were checked at repository
+root instead. The final root scan improved `6160 -> 6161`, still names
+`modularity`, and all eight checked repository rules pass.
+
+The staged mandatory hook passed end to end as:
+
+```sh
+SURGE_STDLIB=/tmp/surge-rv2-harness.rcryLN/worktree \
+  GOFLAGS=-buildvcs=false ./scripts/pre-commit
+```
+
+`make check` completed the full package sweep (`internal/vm` `118.097s`),
+golangci-lint reported `0 issues`, strict C format/compile checks passed, and
+the repository file-size check passed. No C source or header is staged, so the
+staged-C-only analyzer correctly had no input. The hook generated and staged
+the expected `STATS.md` update: test files `652 -> 657`, test LOC
+`135171 -> 135576`, and total LOC `376603 -> 377008`.
+
+## 2026-09-02 — Independent-review repair: leader Wait is not group retirement
+
+Independent review correctly rejected the first implementation. Its
+`terminateCancelledCommand` returned as soon as the direct child's `Wait`
+finished during the TERM grace. A leader can exit promptly while a descendant
+which detached stdio and ignores TERM remains in the same process group, so
+that direct `Wait` is not a process-tree retirement point.
+
+The revised cancellation path always holds the complete bounded TERM grace,
+sends group `SIGKILL` even when the leader was already reaped, waits for the
+leader if necessary, and then requires the process group to disappear within a
+bounded one-second post-KILL probe. A failed group signal still falls back to
+the direct child but is returned as an error because descendant cleanup can no
+longer be guaranteed.
+
+The new deterministic Linux row starts a process-group leader whose default
+SIGTERM disposition exits immediately. That leader starts a grandchild with
+stdio on `/dev/null`; the grandchild installs SIGTERM ignore before its
+readiness byte. `CLONE_PARENT` makes the grandchild directly reapable by the Go
+test without changing its inherited process group. After timeout, the row
+requires leader status `SIGTERM`, grandchild status `SIGKILL`, and `ESRCH` for
+both recorded PIDs after their respective waits.
+
+An intermediate fixture asked a race-instrumented Go signal handler to exit the
+leader inside the 250 ms production grace. It passed alone but failed in the
+three-row race run because instrumentation sometimes delayed that handler until
+the group KILL. The final fixture uses the kernel's default SIGTERM disposition
+instead; product grace and runner semantics did not change.
+
+All three cancellation rows passed five consecutive final runs in `32.812s`.
+The same three rows passed together under the race detector in `7.589s`:
+
+```sh
+SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm \
+  -run '^TestRunCommandWithCancellation(ReapsDescendantProcessGroup|KillsTermResistantDescendantAfterLeaderExit|EscalatesToKill)$' \
+  -count=5 -parallel=1 -p=1 --timeout 90s
+SURGE_SKIP_TIMEOUT_TESTS=0 go test -race ./internal/vm \
+  -run '^TestRunCommandWithCancellation(ReapsDescendantProcessGroup|KillsTermResistantDescendantAfterLeaderExit|EscalatesToKill)$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 60s
+```
+
+Process-group targeting is no longer Linux-only. The implementation build
+constraint explicitly covers `aix`, `darwin`, `dragonfly`, `freebsd`, `linux`,
+`netbsd`, `openbsd`, and `solaris` (which also covers the Go illumos port); the
+direct-child fallback is the exact complement. The tagged VM test package
+cross-compiled successfully for experimental macOS support:
+
+```sh
+CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 GOFLAGS=-buildvcs=false \
+  go test -c -tags runtime_v2_pending ./internal/vm -o /dev/null
+```
+
+The final Rule 13 tree is detached scratch commit `ca8c7795`. Its only mutant
+restored the rejected early return from the leader's `Wait`, before the grace
+expired or group KILL ran. The new row failed with exit 1 after `3.011s`:
+
+```text
+grandchild process 3426525 survived cancellation after leader Wait
+```
+
+The regression cleanup then killed and reaped that exact grandchild; PID
+`3426525` was absent before the scratch worktree was removed. This is separate
+from the earlier group-target mutant: one pins `-PGID` rather than direct PID,
+and the other pins continued ownership after the group leader is gone.
+
+Tagged VM vet and Rule 4 are green on the revised tree. The exact-base file
+size gate measured seven Go files with zero violations; the largest new test is
+329 effective LOC, and the two pre-existing over-limit files still shrink.
+Build selection was also inspected explicitly: Darwin and illumos select
+`subprocess_cancellation_unix_test.go`, while Windows selects the direct-child
+fallback.
+
+```sh
+GOFLAGS=-buildvcs=false go vet -tags runtime_v2_pending ./internal/vm
+EPIC_BASE=163b9cda ./scripts/runtime_v2_file_size_check.sh --worktree
+for task_os in darwin illumos windows; do
+  CGO_ENABLED=0 GOOS="$task_os" GOARCH=amd64 \
+    go list -tags runtime_v2_pending -f '{{.XTestGoFiles}}' ./internal/vm
+done
+```
+
+The previously red remote-task row again completed normally through the
+revised runner (`5.725s` total, `0.03s` selected row), and the preserved
+non-zero/empty-output diagnostics row passed in `0.007s`. The remote pass is
+still only harness compatibility evidence, not closure of the intermittent
+product liveness blocker.
+
+The revised Sentrux scan improves the original same-worktree `internal/vm`
+baseline `7192 -> 7195`; the bottleneck remains `modularity`. Repository root
+remains `quality_signal=6161`, and all eight checked architectural rules pass.
+The scoped directory still has no local rules file, as recorded in the
+first-pass closure above.
+
+The first revised mandatory-hook attempt rejected an unused `stdin` parameter
+on the shared helper (`unparam: stdin always receives ""`). The helper and all
+call sites were narrowed rather than suppressing the lint. The three
+cancellation rows plus the preserved diagnostic then passed again in `6.581s`,
+and scoped golangci-lint reported `0 issues`.
+
+The mandatory hook subsequently passed end to end on the final staged tree:
+
+```sh
+SURGE_STDLIB=/tmp/surge-rv2-harness.rcryLN/worktree \
+  GOFLAGS=-buildvcs=false ./scripts/pre-commit
+```
+
+The full package sweep passed (`internal/vm` `101.019s`), repository
+golangci-lint reported `0 issues`, strict C formatting and compilation checks
+passed, and the repository file-size check passed. The exact-base Runtime V2
+file-size gate was also rerun after the lint repair and still reports seven Go
+files with zero violations. Final `STATS.md` values relative to base
+`163b9cda` are test files `652 -> 657`, test LOC `135171 -> 135759`, and total
+LOC `376603 -> 377191`.
+
+## 2026-09-02 — Quality-review repair: hold leader identity until group kill
+
+Quality review rejected commit `af44fb28`. Although it delayed group
+`SIGKILL` until the full TERM grace, its concurrently running `cmd.Wait()`
+could reap the leader first. A later `kill(-oldPID, SIGKILL)` could therefore
+target a reused process-group ID. The subsequent `kill(-oldPID, 0)` probe was
+also a TOCTOU check rather than an identity hold.
+
+The accepted design narrows descendant-safe process-group cleanup to Linux.
+The pinned `golang.org/x/sys/unix` dependency exposes a supported
+`Waitid(..., WNOWAIT)` wrapper on Linux but not on Darwin. Adding raw Darwin
+ABI calls or a supervisor solely for the test harness was explicitly rejected
+as an unapproved portability/complexity expansion. Non-Linux builds now use a
+bounded direct-child lifecycle and do not promise descendant cleanup.
+
+On Linux a blocking `waitid(P_PID, leader, WEXITED|WNOWAIT)` observes exit
+without reaping. If cancellation wins, the runner sends group `SIGTERM`, holds
+the complete grace, sends final group `SIGKILL`, and only then calls
+`cmd.Wait()`. An exited leader therefore remains a zombie holding its numeric
+PID/PGID identity until the last group signal has been decided. The former
+group-existence probe is gone. If natural exit wins the context race, the
+runner immediately calls `cmd.Wait()` and performs no later group signal.
+
+The early-leader regression now installs a hook at the exact pre-SIGKILL
+point. A second `Waitid` with `WNOWAIT|WNOHANG` proves the leader is still
+waitable, and `kill(leader, 0)` proves the identity is still present; only then
+does the real group kill run. The test continues to require leader `SIGTERM`,
+TERM-resistant grandchild `SIGKILL`, and `ESRCH` after both are reaped. This
+checks the dangerous ordering without attempting an actual PID-reuse attack.
+
+All command paths set a one-second `Cmd.WaitDelay`, bounding inherited output
+pipes after the leader exits. The descendant cleanup contract covers only
+processes which remain in the inherited process group. A synchronized
+`setsid` regression deliberately escapes a grandchild while it retains the
+leader's stdout/stderr. The runner returns through `WaitDelay`; the test proves
+the escaped process is still alive (and therefore outside the kill contract),
+then kills and reaps it deterministically.
+
+Signal calls are injectable only through the internal Linux test lifecycle.
+The failure regression makes both group and direct TERM/KILL calls return
+sentinel errors while a TERM-resistant leader remains live. The public helper
+returns after the bounded post-KILL wait with the combined signal error and an
+explicit `reap continues in background` error. The test then performs the real
+group kill and proves the one eventual `cmd.Wait()` reaps the leader. Output
+capture uses a mutex-protected buffer so taking the bounded-return snapshot is
+race-free while the eventual Wait still owns the exec copy goroutines. This
+exception is explicit: if every SIGKILL operation fails, bounded return and
+guaranteed immediate reap are physically incompatible; there is nevertheless
+exactly one eventual Wait owner and no double Wait.
+
+The five cancellation rows passed five consecutive runs in `44.152s`. The
+same rows plus preserved empty-output diagnostics passed together under the
+race detector in `9.910s`:
+
+```sh
+GOFLAGS=-buildvcs=false go test -tags runtime_v2_pending ./internal/vm \
+  -run '^TestRunCommandWithCancellation(ReapsDescendantProcessGroup|KillsTermResistantDescendantAfterLeaderExit|EscalatesToKill|SignalFailureReturnsBoundedly|BoundsEscapedInheritedPipe)$' \
+  -count=5 -parallel=1 -p=1 --timeout 120s
+GOFLAGS=-buildvcs=false go test -race -tags runtime_v2_pending ./internal/vm \
+  -run '^(TestRunCommandWithCancellation.*|TestRunBinaryWithTimeoutReportsEmptyOutputDiagnostics)$' \
+  -count=1 -parallel=1 -p=1 -v --timeout 90s
+```
+
+The first race run correctly exposed that embedding `bytes.Buffer` promoted
+its unlocked `ReadFrom`, bypassing the synchronized `Write`, and that the new
+setsid test read `cmd.Process` concurrently with `Start`. Composition removed
+the promoted method and the result channel now establishes the required
+happens-before edge; the quoted final race run is after both repairs.
+
+Tagged VM vet and scoped golangci-lint pass (`0 issues`). Rule 4 passes against
+exact base `163b9cda` with eight measured Go files and zero violations; the
+largest new file is 359 effective LOC. The tagged VM test package still
+cross-compiles for Darwin, but build selection now deliberately chooses
+`subprocess_cancellation_linux_test.go` only on Linux and
+`subprocess_cancellation_other_test.go` on Darwin, illumos, and Windows.
+
+Rule 13 uses exact-index scratch commit `09bb6d8b`. Its only mutant removed
+`WNOWAIT` from the Linux exit observer, allowing that observer to reap the
+leader before group `SIGKILL`. The identity regression failed with exit 1 in
+`2.259s`:
+
+```text
+cancel process group after leader exit: run=waitid: no child processes
+signal=observe unreaped leader before group SIGKILL: no child processes
+```
+
+The test cleanup killed and reaped the TERM-resistant grandchild; no `vm.test`
+process remained after the mutant run. The previously red remote-task row also
+completed normally through the final runner (`5.606s` total, `0.02s` selected
+row). As before, that is harness compatibility evidence only and does not
+close the intermittent product liveness blocker or any Runtime V2 epic.
+
+Final Sentrux evidence on the same isolated paths is green. `internal/vm`
+improves the original baseline `7192 -> 7196`, with `modularity` still the
+bottleneck. Repository root remains `quality_signal=6161`; all eight checked
+architectural rules pass with zero violations.
+
+The mandatory hook passed end to end on the final quality-review tree:
+
+```sh
+SURGE_STDLIB=/tmp/surge-rv2-harness.rcryLN/worktree \
+  GOFLAGS=-buildvcs=false ./scripts/pre-commit
+```
+
+The full package sweep passed (`internal/vm` `100.302s`), repository
+golangci-lint reported `0 issues`, strict C formatting and compilation passed,
+and the repository file-size check passed. The hook generated and staged the
+final `STATS.md`: relative to base `163b9cda`, test files `652 -> 658`, test LOC
+`135171 -> 136159`, total files `1755 -> 1761`, and total LOC
+`376603 -> 377591`.
+
+## 2026-09-02 — Spec-review repair: disarm cleanup and preserve timeout errors
+
+Spec review rejected `9e36616d` without challenging the Linux
+`waitid(WNOWAIT)` production design. It found two test/diagnostic boundary
+defects. First, successful tests reaped their children and proved `ESRCH`, but
+some deferred cleanups still sent `SIGKILL` to the old numeric PID or PGID.
+Second, both timeout consumers selected on `contextErr` and printed only
+`signalErr`, hiding a simultaneous low-level `runErr` such as the bounded
+`reap continues in background` failure.
+
+The cleanup audit removed deferred numeric group signals from the synchronous
+success paths: their returned `cmd.Wait` status or explicit `ESRCH` proof is
+already the ownership closure. The injected-signal failure row now arms its
+group cleanup only while the leader is unresolved and disarms it immediately
+after the eventual background Wait proves the PID absent. The two rows with an
+explicit `Wait4` reaper now return immediately from cleanup when `reaped` is
+true, bypassing both the numeric kill and the channel receive. They set that
+flag immediately after the expected reap, before validating the returned wait
+status. The remaining direct `Process.Kill` is the startup-failure handle, not
+a stale numeric cleanup.
+
+`runBinaryWithTimeout` now includes `runErr` in both its timeout fatal and its
+saved `run.diagnostics`; the tagged remote-publication harness fatal prints the
+same shared cancellation block. That block always contains both `run/wait`
+and `termination`, so `signalErr=nil` cannot mask a reap/background failure.
+`TestCancellationTimeoutDiagnosticsIncludeRunError` fixes the consumption
+boundary with exactly that matrix and also verifies the saved `run_error:`
+field.
+
+Adding the saved field directly to `test_helpers_test.go` initially crossed
+Rule 4 (`498 -> 502` effective LOC). The cohesive `runDiagnostics` record and
+formatter were moved unchanged into `run_diagnostics_test.go`; the legacy file
+now shrinks to 450 effective LOC. The final exact-base Rule 4 run measures
+eleven Go files with zero violations.
+
+The five cancellation rows plus the new diagnostic boundary passed five
+consecutive runs in `44.160s`. The full focused matrix, including preserved
+empty-output diagnostics, passed under the race detector in `9.898s`. Tagged
+VM vet, scoped golangci-lint (`0 issues`), and tagged Darwin cross-compilation
+also pass.
+
+Rule 13 was repeated on the exact staged code as scratch commit `b8839faf`.
+Removing `WNOWAIT` made
+`TestRunCommandWithCancellationKillsTermResistantDescendantAfterLeaderExit`
+fail with exit 1 in `2.256s`; the measured output was:
+
+```text
+cancel process group after leader exit: run=waitid: no child processes
+signal=observe unreaped leader before group SIGKILL: no child processes
+```
+
+The test's armed cleanup completed, and no matching
+`TestProcessGroupCancellationHelper` process remained. This exact test name,
+exit, duration, and failure text are also required in the amended commit
+message rather than living only in these notes.
+
+The remote compatibility row remains green after the consumer change
+(`5.302s` total, `0.02s` selected). Sentrux remains green at
+`internal/vm=7196` and repository root `6161`; all eight checked root rules
+pass. The remote pass remains test-infrastructure evidence, not product
+liveness or epic closure.
+
+The mandatory hook passed on the final spec-review tree. The full package
+sweep completed with `internal/vm` in `100.151s`, repository golangci-lint
+reported `0 issues`, strict C checks passed, and the repository file-size gate
+passed. The generated final `STATS.md`, relative to base `163b9cda`, records
+test files `652 -> 659`, test LOC `135171 -> 136187`, total files
+`1755 -> 1762`, and total LOC `376603 -> 377619`.
+
+#### The consumer boundary, and one sentence above that was broader than the code
+
+Continued 2026-09-02 on top of `349f8a1a` in the same lane. The paragraph above
+claims that `runBinaryWithTimeout` "includes `runErr` in both its timeout fatal
+and its saved `run.diagnostics`". That is true of the TIMEOUT branch and was not
+true of the other one: the non-timeout `execution.runErr != nil` branch printed
+the error inline in its `t.Fatalf` and built its saved `runDiagnostics` record
+WITHOUT `runErr`, so the file left behind for a run that failed to start, or
+whose wait failed, did not name the reason. The reader of an artifact directory
+after a red gate is the only reader that matters there, because the terminal
+output is gone by then, and that reader got an empty stdout, an empty stderr and
+no error. The sentence is corrected by the code rather than by editing it: the
+record now carries `runErr` on both branches.
+
+Rule 13 on that exact line: removing `runErr: execution.runErr` from the
+non-timeout branch makes `TestRunBinaryWithTimeoutSavesNonTimeoutRunError` fail
+in `0.01s` with
+
+```text
+saved run diagnostics missing "run_error: sentinel non-timeout wait failure"
+```
+
+while `TestRunBinaryWithTimeoutReportsCancellationRunError` and
+`TestRunBinaryCancellationConsumerHelper` stay green in the same run. The
+control is targeted rather than a build break.
+
+The reason the gap survived the first pass is that neither real consumer was
+reachable from a test. `runBinaryWithTimeout` and `runRemotePublicationHarness`
+each build their own `exec.Cmd` and call `runCommandWithCancellation` directly,
+so exercising their failure boundaries meant producing a genuinely unkillable
+subprocess inside the test -- which is the thing this lane exists to prevent.
+The seam is one package-level variable, `runHarnessCommandWithCancellation`,
+initialised to the real function; the two consumers call through it and the new
+tests substitute a stub answering with a chosen `runErr` and `contextErr`. No
+production path and no cancellation lifecycle changed: the seam is a test
+indirection over test infrastructure, and the stub never stands in for the
+mechanism the other rows prove.
+
+`TestRunCommandWithCancellationKillsTermResistantDescendantAfterLeaderExit` also
+stops racing its own cleanup. It used to block a goroutine in `Wait4` on the
+grandchild while both the body and `t.Cleanup` received from that one-shot
+channel, so whichever arrived second waited for a value nobody would send. It
+now observes the exit with the same WNOWAIT primitive the production path uses
+and then reaps explicitly: observe-then-reap in the test mirrors
+observe-then-reap in the supervisor, and cleanup can tell "already reaped" from
+"still running" without a timeout.
+
+Lint rejected the first version of the observe helper: `awaitObservedProcessExit`
+took a `timeout` parameter that every one of its four callers passed
+`subprocessKillWait` for (`unparam`). The parameter is removed rather than
+silenced, because the constant is not an incidental default — it is the same
+bound the supervisor gives its own final group signal, and a test allowed to
+wait longer would report a pass the gate would not. The comment now says that,
+so the next caller does not reintroduce the knob.
+
+Evidence on this tree: the full cancellation family -- the five process-group
+rows, the three new consumer rows, the two remote consumer rows, the diagnostics
+boundary and the helper -- passed in `8.864s`; `go vet -tags runtime_v2_pending
+./internal/vm` is clean; repository `make lint` reports `0 issues`; the
+exact-base file-size gate against `163b9cda` passed 13 files with 0 violations,
+the two new ones at 89 and 45 effective LOC. `STATS.md` is regenerated for them:
+test files `659 -> 661`, test LOC `136187 -> 136372`, total files
+`1762 -> 1764`, total LOC `377619 -> 377804`. The composed heavy aggregate stays
+commit-pinned dedicated-runner work and was not run locally.
