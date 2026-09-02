@@ -76,7 +76,7 @@ func (tc *typeChecker) typeExpr(id ast.ExprID) types.TypeID {
 		ty = tc.typeExprTernary(id, expr.Span)
 	case ast.ExprCall:
 		if call, ok := tc.builder.Exprs.Call(id); ok && call != nil {
-			ty = tc.typeExprCall(id, expr.Span, call)
+			ty = tc.typeTaskProducingCall(id, expr.Span, call)
 		}
 	case ast.ExprArray:
 		ty = tc.typeExprArray(id, expr.Span)

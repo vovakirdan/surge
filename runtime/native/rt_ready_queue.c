@@ -130,6 +130,22 @@ static int pop_task_from_deque(rt_executor* ex,
     if (ex == NULL || dq == NULL) {
         return 0;
     }
+    // The popper is whoever runs this pop -- a worker of this executor by its
+    // id, or no worker at all (the control-lane runner), which admits nothing
+    // pinned.
+    uint32_t popper_worker_id =
+        tls_worker_ctx != NULL && tls_worker_ctx->ex == ex ? tls_worker_ctx->worker_id : UINT32_MAX;
+    // A carrier-affine task met by a worker that is not its carrier is put
+    // back and looked PAST, not stopped at: it goes to the far end of the
+    // deque and the scan goes on, bounded by the length it started with. A
+    // scan that stopped at the first pinned entry left every stealable task
+    // behind it unreachable, and the sleeper then parked beside work that
+    // admitted it -- the parked-with-work invariant, fired by a deque that
+    // read [pinned, unpinned]. Moving the pinned entry to the far end costs
+    // its carrier nothing it can notice: the carrier pops its deque from the
+    // tail, and a steal scans from the head.
+    size_t looked_past = 0;
+    size_t started_with = dq->len;
     while (dq->len > 0) {
         uint64_t id = 0;
         if (lifo) {
@@ -150,17 +166,23 @@ static int pop_task_from_deque(rt_executor* ex,
             }
             continue;
         }
-        // A carrier-affine task is refused by worker, before the shard check:
-        // only its carrier may take it, from any deque it is met in. The
-        // popper is whoever runs this pop -- a worker of this executor by its
-        // id, or no worker at all (the control-lane runner), which admits
-        // nothing pinned.
-        uint32_t popper_worker_id = tls_worker_ctx != NULL && tls_worker_ctx->ex == ex
-                                        ? tls_worker_ctx->worker_id
-                                        : UINT32_MAX;
-        if (!rt_task_carrier_admits_worker_or_trace_denied(task, popper_worker_id) ||
-            (source == RT_TRACE_SCHED_SRC_STEAL &&
-             !rt_task_can_steal_from_shard_or_trace_denied(task, stealer_shard_id))) {
+        if (!rt_task_carrier_admits_worker_or_trace_denied(task, popper_worker_id)) {
+            int ok = lifo ? deque_push_head(dq,
+                                            id,
+                                            "async: local queue overflow",
+                                            "async: local queue allocation failed")
+                          : deque_push_tail(dq,
+                                            id,
+                                            "async: local queue overflow",
+                                            "async: local queue allocation failed");
+            (void)ok;
+            if (++looked_past >= started_with) {
+                return 0;
+            }
+            continue;
+        }
+        if (source == RT_TRACE_SCHED_SRC_STEAL &&
+            !rt_task_can_steal_from_shard_or_trace_denied(task, stealer_shard_id)) {
             int ok = lifo ? deque_push_tail(dq,
                                             id,
                                             "async: local queue overflow",
@@ -242,7 +264,15 @@ int ready_push_task_locked(const rt_executor* ex,
         task_enqueued_store(task, 1);
         task_status_store(task, TASK_READY);
         RT_SYNC_POINT(SP_CARRIER_PUBLISH_BEFORE_CREDIT);
-        if (signal_ready && carrier_dq != local) {
+        // The credit is decided by WHO pushes, not by what the caller asked:
+        // signal_ready == 0 means "the pusher will run this on its next turn",
+        // which is true only when the pusher is the carrier. A yield or a
+        // handoff wake issued by another worker for a pinned task would
+        // otherwise leave the carrier asleep beside its own work.
+        int pusher_is_carrier = tls_worker_ctx != NULL && tls_worker_ctx->ex == ex &&
+                                tls_worker_ctx->scheduler == scheduler &&
+                                tls_worker_ctx->worker_id == task->carrier_worker_id;
+        if (!pusher_is_carrier) {
             rt_trace_sched_carrier_addressed_wake();
 #ifndef RV2_D46_NEGATIVE_CONTROL
             if (scheduler->worker_wake_pending != NULL &&

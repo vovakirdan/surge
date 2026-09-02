@@ -205,11 +205,9 @@ fn test$poll:
   bb0:
     L2 = call inc(const 5)
     L3 = spawn move L2
-    call const 0(copy L0, copy L3)
     L1 = move L3
     L5 = call slow(const 1)
     L6 = spawn move L5
-    call const 0(copy L0, copy L6)
     L4 = move L6
     goto bb12
   bb1:

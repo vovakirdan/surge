@@ -450,6 +450,11 @@ static void trace_exec_snapshot_dump(const char* reason) {
                                                      memory_order_acquire));
             trace_append_kv_u64(tbuf, &tpos, sizeof(tbuf), "resume", task->resume_kind);
             trace_append_kv_u64(tbuf, &tpos, sizeof(tbuf), "owner", task->owner_shard_id);
+            // Carrier affinity: a pinned task's only eligible worker, so a
+            // READY task left in a deque names the worker whose credit was
+            // lost.
+            trace_append_kv_u64(tbuf, &tpos, sizeof(tbuf), "pinned", task->carrier_valid);
+            trace_append_kv_u64(tbuf, &tpos, sizeof(tbuf), "carrier", task->carrier_worker_id);
             if (tpos + 1 < sizeof(tbuf)) {
                 tbuf[tpos++] = '\n';
             }
@@ -477,6 +482,56 @@ static void trace_exec_snapshot_dump(const char* reason) {
             default:
                 tasks_other_kind++;
                 break;
+        }
+    }
+    {
+        // One line per worker deque: its length, the entry at its tail (the
+        // one the worker pops next) with that entry's carrier pin, and the
+        // worker's own addressed credit. A READY pinned task in a deque whose
+        // worker sleeps on a zero credit is a lost addressed wake; one in
+        // another worker's deque is a mispublication.
+        rt_runtime* rt = rt_executor_runtime(ex);
+        size_t shard_count = rt_runtime_shard_count(rt);
+        for (size_t si = 0; si < shard_count; si++) {
+            const rt_scheduler* scheduler = rt_shard_scheduler_const(rt_runtime_shard(rt, si));
+            if (scheduler == NULL || scheduler->local_queues == NULL) {
+                continue;
+            }
+            for (uint32_t w = 0; w < scheduler->worker_count; w++) {
+                const rt_deque* dq = &scheduler->local_queues[w];
+                char dbuf[224];
+                size_t dpos = 0;
+                dpos = trace_append_literal(dbuf, dpos, sizeof(dbuf), "TRACE_DEQUE");
+                trace_append_kv_u64(dbuf, &dpos, sizeof(dbuf), "shard", si);
+                trace_append_kv_u64(dbuf, &dpos, sizeof(dbuf), "worker", w);
+                trace_append_kv_u64(dbuf, &dpos, sizeof(dbuf), "len", dq->len);
+                uint64_t tail_id = 0;
+                uint64_t tail_pinned = 0;
+                uint64_t tail_carrier = 0;
+                if (dq->len > 0 && dq->buf != NULL) {
+                    tail_id = dq->buf[dq->head + dq->len - 1];
+                    const rt_task* tail = get_task(ex, tail_id);
+                    if (tail != NULL) {
+                        tail_pinned = tail->carrier_valid;
+                        tail_carrier = tail->carrier_worker_id;
+                    }
+                }
+                trace_append_kv_u64(dbuf, &dpos, sizeof(dbuf), "tail_task", tail_id);
+                trace_append_kv_u64(dbuf, &dpos, sizeof(dbuf), "tail_pinned", tail_pinned);
+                trace_append_kv_u64(dbuf, &dpos, sizeof(dbuf), "tail_carrier", tail_carrier);
+                trace_append_kv_u64(
+                    dbuf,
+                    &dpos,
+                    sizeof(dbuf),
+                    "credit",
+                    scheduler->worker_wake_pending != NULL ? scheduler->worker_wake_pending[w] : 0);
+                trace_append_kv_u64(
+                    dbuf, &dpos, sizeof(dbuf), "shard_credit", scheduler->wake_pending);
+                if (dpos + 1 < sizeof(dbuf)) {
+                    dbuf[dpos++] = '\n';
+                }
+                (void)write(STDERR_FILENO, dbuf, dpos);
+            }
         }
     }
     rt_trace_collect_waiter_counts(ex, &waiters);

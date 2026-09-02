@@ -129,6 +129,14 @@ poll_outcome poll_task(rt_executor* ex, rt_task* task) {
         out.kind = POLL_DONE_CANCELLED;
         return out;
     }
+    // A carrier-affine task borrows a frame that lives with one worker; a poll
+    // anywhere else reads that frame from a thread that may be writing it.
+    // The route and the refusal are meant to make this unreachable; it is
+    // asserted here, at the one place every poll passes, rather than trusted.
+    if (task->carrier_valid != 0 && (tls_worker_ctx == NULL || tls_worker_ctx->ex != ex ||
+                                     tls_worker_ctx->worker_id != task->carrier_worker_id)) {
+        panic_msg("async: a carrier-affine task polled off its carrier");
+    }
     switch (task->kind) {
         case TASK_KIND_CHECKPOINT:
             return poll_checkpoint_task(ex, task);

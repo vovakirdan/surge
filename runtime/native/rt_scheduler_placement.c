@@ -207,7 +207,20 @@ scheduler_has_queued_work_for(rt_executor* ex, const rt_scheduler* scheduler, ui
         }
         for (size_t k = 0; k < dq->len; k++) {
             const rt_task* task = get_task(ex, dq->buf[(dq->head + k) % dq->cap]);
-            if (task == NULL || task->carrier_valid == 0 || task->carrier_worker_id != i) {
+            // A stale entry -- a task already DONE, or RUNNING under a
+            // duplicate entry, or freed -- is work for nobody: a pop discards
+            // it. It used to be discarded by the steal scan itself before the
+            // sleeper got here; a pinned entry ahead of it now stops that
+            // scan, so the stale ones behind it have to be read as what they
+            // are, or every sleeper beside a carrier parks "with work".
+            if (task == NULL) {
+                continue;
+            }
+            uint8_t status = task_status_load(task);
+            if (status == TASK_DONE || status == TASK_RUNNING) {
+                continue;
+            }
+            if (task->carrier_valid == 0 || task->carrier_worker_id != i) {
                 return 1;
             }
         }
