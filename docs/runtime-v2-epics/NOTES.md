@@ -11478,3 +11478,69 @@ lines, and total code plus tests is 376829 lines. The commit hook is rerun on
 the final staged documentation and generated stats during amend. RV2-DEBT-320
 remains open until independent re-review and the commit-pinned aggregate accept
 the amended SHA.
+
+### The W8 count's first run at the integrated candidate, and what it caught
+
+Run 1 of `make runtime-v2-check` at the integrated candidate `86b3881c` on the
+dedicated machine: **19 of 20 sub-gates pass, `runtime-v2-transport-check` fails
+in 17s**. The failing row is `TestRuntimeV2RemoteTaskSourcesRespectFileLimit`,
+and it is a STATIC assertion rather than a flake:
+
+```text
+runtime_v2_remote_task_static_test.go:81: rt_remote_task_pending.c has 362 lines;
+    remote-task modules must stay <=360 (split it)
+```
+
+The other two lines it printed -- `rt_remote_task_dispatch.c` at 302 and
+`rt_immediate_on.c` at 353 against a soft limit of 300 -- are `t.Logf`
+advisories and failed nothing. Only the hard limit did.
+
+The cause is the seq-0 lane: it added 29 lines to `rt_remote_task_pending.c`,
+carrying it from 333 to 362 and over that module family's own 360-line ceiling.
+That ceiling is NOT the repository-wide 500-effective-LOC gate, which passes on
+the same tree -- `runtime-v2-file-size-check` reports 0 violations, at 321 and
+267 effective LOC either side of this split. A module gate living inside a row
+and a repository gate living beside it answer different questions, and passing
+one says nothing about the other.
+
+**Why no lane could have caught it, which is the reusable part.** The seq-0
+lane's own notes record that "the composed heavy lifecycle aggregate was not run
+locally: Rule 19 reserves it for the commit-pinned dedicated runner." Rule 19 is
+right, and this is its cost: a lane that may not run the composed aggregate
+cannot see a gate that exists only inside one of its rows. The integration count
+on the dedicated machine is the first instrument that can -- which is an argument
+for counting the aggregate rather than trusting a roster of per-lane greens.
+
+**The remaining four runs were stopped rather than spent.** A deterministic
+row-20 failure makes every run red, so the count cannot produce the five
+consecutive greens W8 asks for, and the machine time would buy only a re-census
+of nineteen rows on a SHA about to be replaced. Killing the driver script did
+not stop the run: the `make` it had started survived its parent and had to be
+killed by PROCESS GROUP, which is the same lesson this integration's own step 2
+fixed for the C harness one level down.
+
+**The split follows the seam, not the line count.** The gate's own comment says
+to refactor by readability rather than by lines, so the cut is where the file
+changes subject. `rt_remote_task_pending.c` keeps the pending object's own
+lifecycle -- create, reference, release, consume, snapshot, publish a reply,
+retire, finish, result source, owner flag -- every one of which already has the
+pending in hand. The three functions that moved into
+`rt_remote_task_pending_lookup.c` start from a TASK and walk the state's list to
+find which pending speaks for it: `rt_remote_task_pending_take_owner`,
+`rt_remote_task_anchored_binding_current` and
+`rt_remote_task_anchored_channel_current`. They share the list and the lock with
+the module they left, and not its subject.
+
+The four followers a native split drags along were checked before the cut rather
+than after it: nothing `#include`s this `.c` literally; the panic allowlist
+carries no row for it; the build globs `native/*.c`, so there is no
+translation-unit manifest to edit; and the one static test that reads this file
+by path asserts `pending->state_owned != 0`, which lives in
+`rt_remote_task_pending_release` and stays. Evidence: the previously failing row
+passes, the four neighbouring transport static rows pass,
+`TestRuntimeV2RemoteTaskBehavior` and `TestRuntimeV2ImmediateOnAbandonEdges`
+pass together in `12.098s` -- which is what proves the new translation unit is
+actually linked into the stands rather than merely compiling -- `make c-check`
+passes format and strict compile, and the exact-base file-size gate passes 2
+files with 0 violations. The composed aggregate is re-counted on the dedicated
+machine at the new SHA rather than here.
