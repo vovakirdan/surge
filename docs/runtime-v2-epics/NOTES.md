@@ -11906,3 +11906,46 @@ the honest way: the block case asserts the host is ABSENT from the map.
 `go test ./internal/sema` passes, `internal/gatecheck` passes, `make lint`
 reports `0 issues`, and the exact-base file-size gate passes 5 files with 0
 violations.
+
+### Step 4's foundation: a place walk that cannot forget a kind
+
+Step 4 promotes a borrowed local into a fixed-offset field of the activation's
+frame, and the way it does that is by redirecting every use of the local to that
+field. So the pass needs to reach ALL of them, and the cost of missing one is
+the worst kind: the missed use keeps addressing the old slot while every other
+use addresses the field, the parent and the child it lent the place to disagree
+about the storage, and nothing crashes and nothing is reported. A silent wrong
+answer is exactly what the resident exists to prevent, so a walker that is
+"probably complete" is not usable here.
+
+Nothing in the tree could be reused. `layout_roots_walk.go` looks like the right
+thing and is not: it collects TYPES, its `walkOperand` never touches
+`operand.Place`, and its `InstrAssign` case walks only `Src` and not the
+destination. The two walks answer different questions and are kept apart rather
+than merged into one that answers neither cleanly.
+
+`forEachPlace` is therefore new, and it is exhaustive by construction and by
+test. Every kind switch ends in a `default` that names the kind it did not know,
+and four tests walk EVERY kind by value against the enum sentinels the tree
+already maintains for this purpose -- `instrKindCount`, `rvalueKindCount`,
+`termKindCount`, `operandKindCount`, the same ones `TestKindCountSentinelsStayLast`
+pins. A kind added later fails here before it can be forgotten in the walker.
+
+Two more tests ask the questions coverage does not. One builds a function whose
+places sit in the positions most easily dropped -- an assignment's destination, a
+call's destination, a terminator's operand -- and requires every one back, because
+covering a kind is not the same as reaching the places inside it. The other
+rewrites through the visitor and reads the result, because a walk that handed out
+copies would satisfy everything else and make every caller a silent no-op.
+
+Rule 13: deleting the `InstrChanRecv` case makes
+`TestPlaceWalkCoversEveryInstrKind` fail with
+`InstrKind 11 (ChanRecv) is not covered by the place walk`, naming the exact kind
+rather than reporting a count. That is the property being bought -- a forgotten
+kind is loud and self-identifying.
+
+This commit adds no behaviour: the walker is a helper with tests and no
+production caller yet. It lands separately so the promotion that will use it is
+built on something already proven, rather than the proof arriving with the change
+that needs it. `go test ./internal/mir` passes, `make lint` reports `0 issues`,
+and the exact-base file-size gate passes 2 files with 0 violations.
