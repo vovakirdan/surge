@@ -57,7 +57,7 @@ func TestVMHeapOOBPanics(t *testing.T) {
 	sourceCode := `@entrypoint
 fn main() -> int {
     let argv: string[] = rt_argv();
-    let s: string = argv[0];
+    let s: string = clone(argv[0]);
     return 0;
 }
 `

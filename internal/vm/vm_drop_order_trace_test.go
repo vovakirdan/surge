@@ -51,7 +51,7 @@ fn main() -> int {
         s = s + "x";
         i = i + 1;
     }
-    let _strings: string[] = [s, s + "y"];
+    let _strings: string[] = [clone(s), s + "y"];
     return 0;
 }
 `

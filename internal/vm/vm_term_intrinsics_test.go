@@ -17,9 +17,9 @@ fn main() -> int {
     while i < 3 {
         let ev = term.term_read_event();
         let code: uint8 = compare &ev {
-            Key(_) => 75:uint8;
-            Resize(_, _) => 82:uint8;
-            Eof() => 69:uint8;
+            term.Key(_) => 75:uint8;
+            term.Resize(_, _) => 82:uint8;
+            term.Eof() => 69:uint8;
         };
         out.push(code);
         i = i + 1;
