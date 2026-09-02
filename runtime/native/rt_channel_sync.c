@@ -36,6 +36,12 @@ bool rt_channel_try_send(void* channel, void* src) {
     rt_shard_lock(ch_shard);
     rt_channel_finish_put_owner_locked(ex, ch_shard, ch, &put);
     rt_shard_unlock(ch_shard);
+    // Close won, or the receiver died with the buffer full: the value came
+    // back as an orphan and is destroyed here, exactly once, with no lock.
+    // The answer stays 1: the value was TAKEN -- moved out of `src` above --
+    // and a try that answered 0 would hand its caller a husk to send again.
+    // The Go model copies at commit and can answer false; a move cannot.
+    rt_channel_release_orphan_put(ex, channel, &put);
     rt_channel_unpin(ch);
     // The slot is NOT released here. A delivery hands the value to the receiver
     // that now owns the park; ending it from this side destroys the value the
@@ -247,6 +253,12 @@ uint8_t rt_channel_try_send_status_owner_locked(rt_executor* ex,
     if (ch->closed) {
         return 2;
     }
+    if (channel_recv_claim_blocks(ch)) {
+        // A rendezvous claim is out on the oldest receiver: nothing is
+        // admitted until it is retired (rt_channel_claim.h). REFUSED, counted.
+        out_put->refusal_cause = RT_CHANNEL_CLAIM_REFUSAL_RENDEZVOUS;
+        return 3;
+    }
     waiter cand;
     // Rendezvous only while the buffer has nothing older to hand over first;
     // see channel_nothing_queued. With a queue standing, this send joins it.
@@ -263,16 +275,17 @@ uint8_t rt_channel_try_send_status_owner_locked(rt_executor* ex,
         rt_park_token slot;
         if (rt_park_pool_acquire_locked(&ch->parks, &slot) != RT_SLOT_CONTROL_OK) {
             // Nowhere to stage the value for this receiver. Its registration
-            // is already consumed by the pop, so wake it to re-register
-            // instead of leaving it parked on a channel that has forgotten it.
-            channel_wake_only(ex, ch_shard, &cand);
+            // is already consumed by the pop: it was the oldest, put it back
+            // at the head rather than leave it parked on a channel that has
+            // forgotten it.
+            channel_push_candidate_front_locked(ch_shard, &cand);
             break;
         }
         void* address = NULL;
         if (rt_park_pool_reserve_deliver_locked(&ch->parks, &slot, &address) !=
             RT_SLOT_CONTROL_OK) {
             channel_end_park_locked(ex, ch_shard, ch, &slot);
-            channel_wake_only(ex, ch_shard, &cand);
+            channel_push_candidate_front_locked(ch_shard, &cand);
             break;
         }
         out_put->kind = RT_CHANNEL_PUT_INTO_PARK;
@@ -280,6 +293,9 @@ uint8_t rt_channel_try_send_status_owner_locked(rt_executor* ex,
         out_put->slot = slot;
         out_put->candidate = cand;
         out_put->has_candidate = 1;
+        // The popped receiver is the channel's claim until the finish below
+        // commits or a close settles it (rt_channel_claim.h).
+        (void)channel_recv_claim_open_locked(ch, &cand);
         return 1;
     }
     if (ch->capacity > 0 && channel_buffered(ch) < ch->capacity) {
@@ -328,16 +344,26 @@ void rt_channel_finish_put_owner_locked(rt_executor* ex,
     }
     // The delivery commit released the slot's reservation.
     rt_channel_claim_released_locked(ex, ch_shard, ch);
+    if (!channel_recv_claim_take_locked(ex, ch_shard, ch, &put->candidate)) {
+        // Close won while the value was being moved: the receiver was woken
+        // as closed, and the payload is destroyed exactly once -- by the
+        // caller, once it holds no runtime lock (the control lane may be held
+        // here, and a drop may not run under it).
+        put->kind = RT_CHANNEL_PUT_ORPHAN;
+        return;
+    }
     int pushed = 0;
     if (!channel_deliver_same_shard_locked(
             ex, ch_shard, &put->candidate, RESUME_CHAN_RECV_VALUE, put->slot, 1, &pushed)) {
         // The receiver died while we moved. The value belongs to the channel,
-        // so put it in the buffer if there is room, and end the park either way:
-        // a successful stage leaves the slot empty and ending it just hands
-        // the slot back, while a refused one leaves the value there and ending
-        // the park is what destroys it.
-        (void)channel_stage_into_ring_locked(ex, ch_shard, ch, &put->slot, NULL);
-        channel_end_park_locked(ex, ch_shard, ch, &put->slot);
+        // so put it in the buffer if there is room -- a successful stage
+        // leaves the slot empty and ending it just hands the slot back --
+        // and otherwise hand it to the caller as an orphan to destroy.
+        if (channel_stage_into_ring_locked(ex, ch_shard, ch, &put->slot, NULL)) {
+            channel_end_park_locked(ex, ch_shard, ch, &put->slot);
+            return;
+        }
+        put->kind = RT_CHANNEL_PUT_ORPHAN;
         return;
     }
     if (!pushed) {
@@ -466,6 +492,7 @@ void rt_channel_send_blocking(void* channel, void* src) {
             rt_control_lock(ex);
             rt_channel_finish_send_locked(ex, channel, &put);
             rt_control_unlock(ex);
+            rt_channel_release_orphan_put(ex, channel, &put);
             rt_async_debug_printf("async chan send ok ch=%p\n", (void*)ch);
             rt_channel_unpin(ch);
             return;
@@ -538,65 +565,5 @@ uint8_t rt_channel_recv_blocking(void* channel, void* dst) {
     }
 }
 
-void rt_channel_close(void* channel) {
-    rt_executor* ex = ensure_exec();
-    rt_channel* ch = channel_from_handle(channel);
-    if (ex == NULL || ch == NULL || ch->closed) {
-        return;
-    }
-    rt_async_debug_printf("async chan close ch=%p\n", (void*)ch);
-    rt_shard* ch_shard = channel_owner_shard(ex, ch);
-    // Four keys, not two: a task whose claim retries ran out is parked on the
-    // channel's RETRY key (rt_channel_retry.h), a registration close must
-    // settle exactly like the sender or receiver it is.
-    waker_key keys[4] = {channel_recv_key(ch),
-                         channel_send_key(ch),
-                         channel_recv_retry_key(ch),
-                         channel_send_retry_key(ch)};
-    const uint8_t resumes[4] = {RESUME_CHAN_RECV_CLOSED,
-                                RESUME_CHAN_SEND_CLOSED,
-                                RESUME_CHAN_RECV_CLOSED,
-                                RESUME_CHAN_SEND_CLOSED};
-#ifndef RV2_DEBT_277_CLOSE_NEGATIVE_CONTROL
-    const size_t key_count = 4;
-#else
-    const size_t key_count = 2;
-#endif
-    // Closing settles every parked peer, and each pop below retires the pin its
-    // registration held. The last one can be the last hold on the object, so
-    // this operation holds one of its own for the whole walk -- otherwise the
-    // loop would be draining a channel it had just handed to the reclaim.
-    rt_channel_pin(ch);
-    rt_shard_lock(ch_shard);
-    if (ch->closed) {
-        rt_shard_unlock(ch_shard);
-        rt_channel_unpin(ch);
-        return;
-    }
-    ch->closed = 1;
-    for (size_t k = 0; k < key_count; k++) {
-        waiter cand;
-        while (channel_pop_candidate_locked(ch_shard, keys[k], &cand)) {
-            if (cand.seq == 0) {
-                channel_wake_only(ex, ch_shard, &cand);
-                continue;
-            }
-            if (cand.owner_hint == ch->owner_shard_id) {
-                int pushed = 0;
-                int live = channel_deliver_same_shard_locked(
-                    ex, ch_shard, &cand, resumes[k], (rt_park_token){0}, 1, &pushed);
-                if (live && !pushed) {
-                    rt_shard_unlock(ch_shard);
-                    channel_compat_broadcast_if_needed(ex, 0);
-                    rt_shard_lock(ch_shard);
-                }
-                continue;
-            }
-            rt_shard_unlock(ch_shard);
-            (void)channel_deliver_foreign(ex, &cand, resumes[k], (rt_park_token){0});
-            rt_shard_lock(ch_shard);
-        }
-    }
-    rt_shard_unlock(ch_shard);
-    rt_channel_unpin(ch);
-}
+// rt_channel_close lives in rt_channel_close.c: the walk is unchanged, and it
+// settles the receive claim (rt_channel_claim.h) before the four FIFOs.

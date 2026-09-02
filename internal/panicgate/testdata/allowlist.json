@@ -1245,6 +1245,16 @@
       "group": "PG-UNFIXTURED"
     },
     {
+      "site": "runtime/native/rt_channel_claim.c::channel_push_candidate_front_locked#1",
+      "message": "async: waiter allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_channel_claim.c::channel_recv_claim_take_locked#1",
+      "message": "async: a rendezvous commit found no claim on its receiver",
+      "group": "PG-INVARIANT"
+    },
+    {
       "site": "runtime/native/rt_channel_lane.h::channel_align_up#1",
       "message": "async: channel allocation overflow",
       "group": "PG-INVARIANT"

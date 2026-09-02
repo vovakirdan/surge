@@ -85,29 +85,66 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
         // race between locks -- it is what a candidate-first order means once
         // a receiver can park with a full buffer, which it can, because the
         // buffer refuses a pop while its single transfer is in flight.
+        if (channel_recv_claim_blocks(ch)) {
+            // Another sender's rendezvous is out on the channel's oldest
+            // receiver (rt_channel_claim.h): nothing is admitted -- not the
+            // ring either -- until it is retired, or the value that receiver
+            // was promised would be overtaken. A REFUSED claim, counted; the
+            // retirement is the release that wakes an exhausted retrier.
+            rt_channel_wait_after_claim_refusal_locked(
+                ch_shard, ch, task, RT_CHANNEL_RETRY_SEND, RT_CHANNEL_CLAIM_REFUSAL_RENDEZVOUS);
+            return 0;
+        }
         if (channel_nothing_queued(ch) && channel_pop_candidate_locked(ch_shard, recv_key, &cand)) {
             if (cand.seq == 0) {
                 channel_wake_only(ex, ch_shard, &cand);
                 rt_shard_unlock(ch_shard);
                 continue;
             }
+            // The pop and the claim are ONE hold of the lane: from here the
+            // popped receiver is the channel's CLAIM, owner-visible while the
+            // staging below releases the lane to move the value, so a close
+            // crossing that window settles it (Close-wins). Opening it after
+            // the stage -- the first port did -- left a receiver in no store
+            // for the length of a move.
+#ifndef RV2_CLAIM_OPEN_AFTER_STAGE_NEGATIVE_CONTROL
+            (void)channel_recv_claim_open_locked(ch, &cand);
+#endif
             if (!staged_live && !rt_channel_stage_locked(ex, ch_shard, ch, src, &staged)) {
                 // No slot to stage into. The candidate has already been POPPED,
                 // so dropping it here would strand a receiver that is still
                 // parked -- which showed up as a violated FIFO order rather
                 // than as a hang, because the next sender delivered to a later
-                // waiter first. Wake it to re-register instead.
-                channel_wake_only(ex, ch_shard, &cand);
+                // waiter first. It was the oldest: the abort puts it back at
+                // the head (or finds close settled it meanwhile).
+#ifdef RV2_CLAIM_OPEN_AFTER_STAGE_NEGATIVE_CONTROL
+                channel_push_candidate_front_locked(ch_shard, &cand);
+#else
+                channel_recv_claim_abort_locked(ex, ch_shard, ch, &cand);
+#endif
                 rt_shard_unlock(ch_shard);
                 continue;
             }
+#ifdef RV2_CLAIM_OPEN_AFTER_STAGE_NEGATIVE_CONTROL
+            // Rule 13: the claim opens only after the lane was released and
+            // retaken across the move.
+            (void)channel_recv_claim_open_locked(ch, &cand);
+#endif
             // The slot belongs to the handover from here: every path below
-            // delivers it, moves it into the buffer, or destroys it, so this
-            // task must stop naming it before any of them runs.
+            // delivers it, moves it into the buffer, or keeps it staged, so
+            // this task must stop naming it before any of them runs.
             task->resume_slot = (rt_park_token){0};
             if (cand.owner_hint == ch->owner_shard_id) {
                 int no_signal = yield_after_handoff && same_shard_worker;
                 int pushed = 0;
+                if (!channel_recv_claim_take_locked(ex, ch_shard, ch, &cand)) {
+                    // Close won: the receiver was already woken as closed. The
+                    // payload is destroyed exactly once, here, and the next
+                    // pass answers "send on closed channel".
+                    channel_end_park_locked(ex, ch_shard, ch, &staged);
+                    rt_shard_unlock(ch_shard);
+                    continue;
+                }
                 int live = channel_deliver_same_shard_locked(ex,
                                                              ch_shard,
                                                              &cand,
@@ -117,12 +154,13 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
                                                              &pushed);
                 if (!live) {
                     // The candidate died while we staged. The value is in a
-                    // slot this channel owns, so give it to the buffer if
-                    // there is room and destroy it otherwise -- never strand
-                    // it, and never hand it to a task that is gone.
-                    if (!channel_stage_into_ring_locked(ex, ch_shard, ch, &staged, NULL)) {
-                        channel_end_park_locked(ex, ch_shard, ch, &staged);
-                    } else {
+                    // slot this channel owns: give it to the buffer if there
+                    // is room, and otherwise KEEP it staged -- this send has
+                    // taken no position, the next pass parks holding its slot
+                    // or meets the next receiver. Destroying it is never a
+                    // legal recovery (RV2-DEBT-276): `src` is a husk by now.
+                    rt_channel_trace_recovery_dead_receiver();
+                    if (channel_stage_into_ring_locked(ex, ch_shard, ch, &staged, NULL)) {
                         channel_end_park_locked(ex, ch_shard, ch, &staged);
                         rt_shard_unlock(ch_shard);
 #ifndef RV2_DEBT_277_RECOVERY_RESET_NEGATIVE_CONTROL
@@ -132,6 +170,14 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
 #endif
                         return 1;
                     }
+#ifdef RV2_DEBT_276_NEGATIVE_CONTROL
+                    // Rule 13: the pre-fix recovery -- destroy the staged
+                    // value and re-enter the loop with an emptied `src`.
+                    rt_channel_trace_value_destroyed_in_recovery();
+                    channel_end_park_locked(ex, ch_shard, ch, &staged);
+#else
+                    task->resume_slot = staged;
+#endif
                     rt_shard_unlock(ch_shard);
                     continue;
                 }
@@ -143,9 +189,17 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
                 }
                 return 1;
             }
+            // Foreign receiver: the commit point is the take, under this lane
+            // -- the owner-lane order is what decides against a close.
+            if (!channel_recv_claim_take_locked(ex, ch_shard, ch, &cand)) {
+                channel_end_park_locked(ex, ch_shard, ch, &staged);
+                rt_shard_unlock(ch_shard);
+                continue;
+            }
             rt_shard_unlock(ch_shard);
             if (!channel_deliver_foreign(ex, &cand, RESUME_CHAN_RECV_VALUE, staged)) {
                 rt_shard_lock(ch_shard);
+                rt_channel_trace_recovery_dead_receiver();
                 if (channel_stage_into_ring_locked(ex, ch_shard, ch, &staged, NULL)) {
                     channel_end_park_locked(ex, ch_shard, ch, &staged);
                     rt_shard_unlock(ch_shard);
@@ -154,7 +208,12 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
 #endif
                     return 1;
                 }
+#ifdef RV2_DEBT_276_NEGATIVE_CONTROL
+                rt_channel_trace_value_destroyed_in_recovery();
                 channel_end_park_locked(ex, ch_shard, ch, &staged);
+#else
+                task->resume_slot = staged;
+#endif
                 rt_shard_unlock(ch_shard);
                 continue;
             }

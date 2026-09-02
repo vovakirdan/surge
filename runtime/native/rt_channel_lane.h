@@ -3,6 +3,7 @@
 
 #include "rt_async_internal.h"
 
+#include "rt_channel_claim.h"
 #include "rt_channel_refcount.h"
 #include "rt_park_pool.h"
 #include "rt_typed_fifo.h"
@@ -66,6 +67,10 @@ struct rt_channel {
     // two against each other.
     _Atomic uint32_t pin_state;
     _Atomic uint8_t reclaiming;
+    // The one receiver popped for a rendezvous whose value is still on its
+    // way: owner-visible until the sender commits or aborts, or close settles
+    // it (rt_channel_claim.h).
+    rt_channel_recv_claim recv_claim;
 };
 
 // The seal bit, and the mask of the count beside it. 2^31 simultaneous pins is
@@ -610,6 +615,10 @@ typedef enum {
     RT_CHANNEL_PUT_NONE = 0,
     RT_CHANNEL_PUT_INTO_RING = 1,
     RT_CHANNEL_PUT_INTO_PARK = 2,
+    // The finish could not deliver (close won, or the receiver died with no
+    // room in the buffer) and the value sits in `slot`, to be destroyed by
+    // rt_channel_release_orphan_put once the caller holds no runtime lock.
+    RT_CHANNEL_PUT_ORPHAN = 3,
 } rt_channel_put_kind;
 
 typedef struct {
@@ -647,6 +656,11 @@ uint8_t rt_channel_claim_recv_locked(rt_executor* ex, void* channel, rt_channel_
 void rt_channel_finish_recv_locked(rt_executor* ex, void* channel, const rt_channel_take* take);
 uint8_t rt_channel_claim_send_locked(rt_executor* ex, void* channel, rt_channel_put* out_put);
 void rt_channel_finish_send_locked(rt_executor* ex, void* channel, rt_channel_put* put);
+// Give a claimed put back without finishing it (rt_channel_claim.c).
+void rt_channel_abandon_send_locked(rt_executor* ex, void* channel, rt_channel_put* put);
+// Destroy what a finish left as RT_CHANNEL_PUT_ORPHAN; the caller holds no
+// runtime lock, and still holds the operation pin (rt_channel_claim.c).
+void rt_channel_release_orphan_put(rt_executor* ex, void* channel, rt_channel_put* put);
 
 // Stage a value into a park slot the channel owns, under the channel's owner
 // shard lock. Shared by the send lane (rt_async_channel_send.c) and the receive

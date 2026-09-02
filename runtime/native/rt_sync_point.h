@@ -299,6 +299,14 @@ typedef enum rt_sync_point_id {
     // shows whether the register-then-verify under the owner lane sees it
     // (RV2-DEBT-277).
     RT_SYNC_POINT_SP_CHANNEL_SELECT_REFUSED_BEFORE_RETRY_REGISTER,
+    // rt_channel_stage_locked (rt_async_channel.c): reached by a sender with
+    // the channel owner lane RELEASED for the element's move -- for a
+    // rendezvous, after the receiver was popped and the claim opened under
+    // one hold, before the value exists in its slot. A close crossing here
+    // must find the receiver in the claim and settle it (Close-wins); a
+    // driver holding the sender here and closing is what shows the pop and
+    // the open were one hold, not two.
+    RT_SYNC_POINT_SP_CHANNEL_RENDEZVOUS_CLAIM_BEFORE_MOVE,
     RT_SYNC_POINT_COUNT
 } rt_sync_point_id;
 

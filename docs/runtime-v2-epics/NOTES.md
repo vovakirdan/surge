@@ -12536,3 +12536,138 @@ had asked for: the same worktree, the same binary, `goldencheck/HUP` once
 under `nohup` and once under `setsid` -- `FAIL 45.013s` and `PASS 0.016s`.
 The row was never the tree's; it was the launcher's signal disposition, and
 every count on the runner goes through `setsid` from here on.
+
+### D7, Close-wins: the receiver a rendezvous pops stays the channel's (2026-09-03)
+
+**What was true.** A rendezvous popped the oldest parked receiver out of the
+FIFO and released the owner lane to move the value. Popped, the receiver was
+in no store: `rt_channel_close` drained every parked peer except the one about
+to be handed a value, which then received it on a closed channel. The Go
+model has had the answer since the claim work (`internal/asyncrt/
+channel_recv_claim.go`, four lifecycle rows); the native channel had only the
+FIFO. Two neighbours rode along: RV2-DEBT-276 (the recovery for a receiver
+that died inside the staging window destroyed the staged value and then
+re-sent the husk `src` had become) and RV2-DEBT-279 (a row whose premise --
+"the pin has no call sites" -- the pin work of RV2-DEBT-155 had already
+falsified).
+
+**The registry.** `struct rt_channel` gained `recv_claim` (`rt_channel_claim.h`):
+the popped receiver's registration, `active`, `close_won`. Every rendezvous
+pop opens it under the SAME hold of the owner lane as the pop -- in the send
+lane before the value is staged (staging releases the lane for the move),
+and in the try-send core before it answers; the select send arm goes
+through the core. While it is out, no send is admitted
+-- not to the ring either, the Go rows say so -- and a send that meets it is
+REFUSED with a fourth cause, `RENDEZVOUS`, counted against the D6 budget;
+retiring the claim is the release that wakes an exhausted retrier. Commit is
+`channel_recv_claim_take_locked`: the claim is the sender's, deliver; or close
+settled it first, and the payload is destroyed exactly once. Abort puts a
+still-parked receiver back at the HEAD of its FIFO (`channel_push_candidate_front_locked`,
+re-pinned) instead of waking it to re-register behind everyone who came
+meanwhile. `rt_channel_close` moved to `rt_channel_close.c` unchanged in its
+walk and settles the claim first -- it was the head of its FIFO. Owner-lane
+order decides: for a foreign receiver the commit point is the take under the
+lane, and a close after it finds the value delivered.
+
+**The drop that could not run where it was.** The control-lane finish
+(`rt_channel_finish_put_owner_locked`) runs with control held, and a drop may
+not. The first port destroyed the close-won payload inside it and the stand
+answered with `rt_value_drop_in_place_detached was dispatched while a runtime
+lock is held`. The finish now hands the value back as `RT_CHANNEL_PUT_ORPHAN`
+and the caller destroys it with no lock held and the operation pin still in
+hand (`rt_channel_release_orphan_put`): `rt_channel_try_send`, the blocking
+send loop, and `rt_select_poll`, which carries the orphan past its
+`rt_control_unlock` like it carries a won recv arm's value. The same shape
+now covers the dead-receiver case in the finish, which used to drop under
+control too.
+
+**Before / after, literally.** Stand `internal/vm/testdata/channel_close_wins_modes.c`
+(on the claim-retry fixture; an unbuffered channel, the sender on the
+control-lane pair so the window is open while the driver acts):
+reserve→close→commit reads `receiver=closed drops=1 wakes=1 claim=retired`
+(before: the receiver read VALUE after close); reserve→commit→close
+`receiver=value drops=0 wakes=1`; reserve→close→abort→abort
+`receiver=closed requeued=0 drops=0 wakes=1`; claim-not-overtaken:
+`try_send` refused, a task's send republished once with count 1, the commit
+reached the first receiver, the released sender met the second; dead-receiver
+(276): the sender parks holding its slot, `try_recv` reads 7277 --
+before, 0. Trace: `channel_recv_claims_opened/close_won/aborted`,
+`channel_claim_refusals_rendezvous`, `channel_rendezvous_recoveries_dead_receiver`,
+`channel_values_destroyed_in_recovery` (its only writer is the 276 mutant --
+a hard zero by construction, and said so). Four mutants, each red on its
+named line: close ignoring the claim ("a receiver was handed a value on a
+closed channel"), an open claim admitting later sends ("a later send overtook
+the active rendezvous" -- the mutant also commits past the claim, or it would
+have died on the invariant panic instead of its line), the old recovery
+("recovery destroyed the value"), and the claim opened after the stage ("the
+claim was not open while the lane was released", the review's finding, see
+below). RV2-DEBT-279 closes by census: eleven pin
+sites, the print is a panic, the pin control is armed by the freed-waiter
+ASan row, and `unpinned-claim` shows `rt_channel_assert_pinned` refusing --
+on a channel with no registration, because a registration holds a pin of its
+own and the assert answers for the count, not for who took it.
+
+**The independent review, round one: REJECT, two blocking findings, both
+taken.** The first port opened the claim AFTER `rt_channel_stage_locked`,
+and staging releases the lane for the move: for the length of a move the
+popped receiver was in no store and in no claim, a close crossing there
+settled nobody, and the commit that followed delivered a value on a closed
+channel -- the very defect the close-wins mutant was written to catch, in
+the tree. The same gap let a second sender pop the next receiver and open
+the claim first, and the first sender's commit then died on the "no claim on
+its receiver" invariant. Fix: the open moved to the hold that pops (the
+no-slot path aborts the claim instead of re-inserting by hand), the old
+placement survives as `RV2_CLAIM_OPEN_AFTER_STAGE_NEGATIVE_CONTROL`, and
+the take also refuses on `ch->closed` as the model does at commit. The row
+that proves it, `claim-window-close`: a sender held by
+`SP_CHANNEL_RENDEZVOUS_CLAIM_BEFORE_MOVE` with the lane released, the
+driver reads `recv_claim.active` under the lane (1 in the tree, 0 under the
+mutant), closes, sees the receiver settled closed with one wake, and the
+released sender dies on "send on closed channel" -- the process exit the row
+expects. Two deviations from the Go model, recorded rather than argued
+away: `rt_channel_try_send` still answers 1 when close wins its commit,
+because the value was MOVED out of `src` and a 0 would hand the caller a
+husk (the model copies at commit and can answer false); and the receive
+side is not gated by an open claim (the model gates `ChanTryRecv`), which
+matters only for a sender parked without a slot -- noted, not closed. An
+orphaned claim after a non-local exit out of the move (longjmp) would block
+the channel for ever where before it lost a slot; `rt_channel_abandon_send_locked`
+is the control-lane pair's abort for that, called today by the stand alone.
+
+**Gates on the working tree.** `c-check`, panicgate (two rows for
+`rt_channel_claim.c`), sync-points, file-size (`rt_channel_sync.c` 434 after
+the move, `rt_channel_claim.c` 199, `rt_channel_close.c` 57,
+`rt_async_channel_send.c` 226, `rt_async_channel.c` 302,
+`rt_async_select.c` 478 -- twenty-two to the line, the next select change
+splits it), gatecheck
+roster with the new waiter-gate line, the D6 stands and the select/channel
+smoke re-run on this tree: all green.
+
+### D4.8, the acceptance at 2, 4 and 8 carriers, and RV2-DEBT-307 closed (2026-09-03)
+
+Five compiled programs, one shape each from the plan's list, at
+`SURGE_SHARDS=1` with 2, 4 and 8 threads -- the only topology with several
+carriers on one shard, so the only one where a pin is a fact
+(`TestRuntimeV2CarrierAffineAcceptanceMatrix`): the borrow spawn; the
+borrowed place read by the child after the PARENT suspended and resumed
+eight times (resident storage: the address the child dereferences after its
+own eight suspensions is the one the parent wrote); sixty-four yields on the
+carrier, each reading the place; a borrowing child cancelled by its parent
+and joined (Cancelled, on its carrier, nothing left for the exit); and a
+by-value child, which is NOT pinned. Each run is read through the scheduler
+trace -- `carrier_pinned` at least one where a borrow exists and exactly
+zero where none does, `carrier_shutdown_cancelled` zero -- and through the
+refusal the runtime makes on every poll: a pinned task polled off its
+carrier panics, and a run that answers has never been. Fifteen runs, all
+green, on top of the harness rows already at 2/4/8 (addressed publication;
+the never-polled child cancelled at exit). RV2-DEBT-307 closes: every clause
+of its acceptance column has a row it can be read off, from the two-program
+diagnostic (4.1) to the by-value child that carries no pin.
+
+**One trap, twice today.** `go build` of the `surge` binary -- which every
+e2e row does -- fails in a worktree under `/tmp` with "error obtaining VCS
+status: exit status 128" while `git status` by hand is green: a stray, empty
+`/tmp/.git` (September 1, not ours) is what `go` takes for the VCS root.
+Golden-check and the acceptance matrix both ran with
+`GOFLAGS=-buildvcs=false`; the runner's `/tmp` is clean and its gates run as
+written. Recorded, not deleted: it is not ours to remove.

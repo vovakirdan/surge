@@ -176,6 +176,8 @@ static const char* rt_sp_name(rt_sync_point_id id) {
             return "SP_RESULT_CAPABILITY_BEFORE_MATCH";
         case RT_SYNC_POINT_SP_CHANNEL_SELECT_REFUSED_BEFORE_RETRY_REGISTER:
             return "SP_CHANNEL_SELECT_REFUSED_BEFORE_RETRY_REGISTER";
+        case RT_SYNC_POINT_SP_CHANNEL_RENDEZVOUS_CLAIM_BEFORE_MOVE:
+            return "SP_CHANNEL_RENDEZVOUS_CLAIM_BEFORE_MOVE";
         default:
             return "";
     }

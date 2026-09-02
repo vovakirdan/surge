@@ -243,6 +243,12 @@ int64_t rt_select_poll(uint64_t count,
     // returns.
     void* taken_channel = NULL;
     _Alignas(max_align_t) unsigned char taken_storage[RT_SELECT_STAGING_BYTES];
+    // A won send arm whose finish could not deliver (close won the race, or
+    // the receiver died with the buffer full): the value is an orphan in the
+    // channel's slot, destroyed below once the control lock is gone, on the
+    // arm's pin.
+    void* orphan_channel = NULL;
+    rt_channel_put orphan_put;
 
     for (uint64_t i = 0; i < count; i++) {
         uint8_t kind = kinds != NULL ? kinds[i] : SELECT_TASK;
@@ -331,6 +337,10 @@ int64_t rt_select_poll(uint64_t count,
                     rt_control_lock(ex);
                     rt_channel_finish_send_locked(ex, handle, &put);
                     selected = (int64_t)i;
+                    if (put.kind == RT_CHANNEL_PUT_ORPHAN) {
+                        orphan_channel = handle;
+                        orphan_put = put;
+                    }
                 } else if (status == 2) {
                     rt_channel_retry_reset(current);
                     rt_control_unlock(ex);
@@ -345,8 +355,12 @@ int64_t rt_select_poll(uint64_t count,
                                                                  put.refusal_cause);
                 }
                 // The send arm's value is the caller's and stays the caller's,
-                // so nothing outlives the commit here and the hold ends with it.
-                rt_channel_unpin(handle);
+                // so nothing outlives the commit here and the hold ends with it
+                // -- unless the finish left an orphan, whose destruction below
+                // still needs the pin.
+                if (orphan_channel != handle) {
+                    rt_channel_unpin(handle);
+                }
                 break;
             }
             case SELECT_TIMEOUT: {
@@ -407,6 +421,13 @@ int64_t rt_select_poll(uint64_t count,
         rt_channel_retry_reset(current);
         pending_key = waker_none();
         rt_control_unlock(ex);
+        if (orphan_channel != NULL) {
+            // Close won the race against this arm's commit (or its receiver
+            // died with the buffer full): destroy the value exactly once,
+            // with no lock held, then let go of the arm's pin.
+            rt_channel_release_orphan_put(ex, orphan_channel, &orphan_put);
+            rt_channel_unpin(orphan_channel);
+        }
         if (taken_channel != NULL) {
             // Still on the pin the winning recv arm took above: the destination
             // for this value is nowhere, and destroying it reads the channel's

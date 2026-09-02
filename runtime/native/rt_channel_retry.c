@@ -239,6 +239,7 @@ size_t rt_channel_trace_append(char* buf, size_t* pos, size_t cap) {
         "channel_claim_refusals_ring_push",
         "channel_claim_refusals_ring_pop",
         "channel_claim_refusals_park_take",
+        "channel_claim_refusals_rendezvous",
     };
     for (size_t i = 0; i < RT_CHANNEL_CLAIM_REFUSAL_COUNT; i++) {
         trace_append_kv_u64(buf,
@@ -267,5 +268,5 @@ size_t rt_channel_trace_append(char* buf, size_t* pos, size_t cap) {
                         cap,
                         "channel_claim_releases",
                         atomic_load_explicit(&claim_releases, memory_order_relaxed));
-    return *pos;
+    return rt_channel_claim_trace_append(buf, pos, cap);
 }

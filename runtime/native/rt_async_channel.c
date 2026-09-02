@@ -1,4 +1,5 @@
 #include "rt_channel_lane.h"
+#include "rt_sync_point.h"
 
 // Async channel fast lanes (peel B2): send and recv run on the channel
 // owner's shard lane; see rt_channel_lane.h for the shared protocol.
@@ -134,6 +135,11 @@ int rt_channel_stage_locked(
         return 0;
     }
     rt_shard_unlock(ch_shard);
+    // The lane is released for the move. For a rendezvous the popped receiver
+    // is the channel's claim by now (rt_channel_claim.h), and this is the
+    // window a close can cross: holding a sender here and closing is what
+    // shows the claim was opened under the same hold as the pop.
+    RT_SYNC_POINT(SP_CHANNEL_RENDEZVOUS_CLAIM_BEFORE_MOVE);
     rt_value_move_init_detached(ch->ops, address, src);
     rt_shard_lock(ch_shard);
     if (rt_park_pool_commit_deliver_locked(&ch->parks, out_token) != RT_SLOT_CONTROL_OK) {

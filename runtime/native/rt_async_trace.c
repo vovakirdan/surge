@@ -200,7 +200,7 @@ static void trace_exec_dump(const char* reason) {
     if (!rt_exec_trace_enabled()) {
         return;
     }
-    char buf[2048];
+    char buf[2560];
     size_t pos = 0;
     pos = trace_append_literal(buf, pos, sizeof(buf), "TRACE_EXEC ");
     if (reason != NULL) {

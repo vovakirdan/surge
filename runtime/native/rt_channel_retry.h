@@ -44,7 +44,10 @@ typedef enum {
     RT_CHANNEL_CLAIM_REFUSAL_RING_PUSH = 0,
     RT_CHANNEL_CLAIM_REFUSAL_RING_POP = 1,
     RT_CHANNEL_CLAIM_REFUSAL_PARK_TAKE = 2,
-    RT_CHANNEL_CLAIM_REFUSAL_COUNT = 3,
+    // A rendezvous claim is out on the channel's oldest receiver
+    // (rt_channel_claim.h): no send is admitted until it is retired.
+    RT_CHANNEL_CLAIM_REFUSAL_RENDEZVOUS = 3,
+    RT_CHANNEL_CLAIM_REFUSAL_COUNT = 4,
 } rt_channel_claim_refusal_cause;
 
 // One remembered refusal: the channel, the direction the arm was claiming in,

@@ -487,6 +487,8 @@ runtime-v2-waiter-check:
 	SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2FreedChannelWaiterRouting$$' -count=1 -parallel=1 -p=1 -v --timeout 900s
 	@echo ">> Running Runtime V2 bounded claim-retry rows (budget, wake, close, select identity, prefix and default, register-then-verify, twelve mutants)"
 	SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2ChannelClaimRetry(BudgetAndWake|IdentityAndReset|NegativeControls|RegisterVerify|RegisterVerifyNegativeControl)$$' -count=1 -parallel=1 -p=1 -v --timeout 900s
+	@echo ">> Running Runtime V2 Close-wins rows (the receive claim under close, commit and abort in each owner-lane order; dead-receiver recovery; unpinned claim; three mutants)"
+	SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2ChannelCloseWins(Orders|ClaimWindow|UnpinnedClaimIsRefused|NegativeControls)$$' -count=1 -parallel=1 -p=1 -v --timeout 600s
 	SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2(TimeoutOverNetWaitSurvivesItsWallBudget|SleepWithoutNetWaiterStillAdvancesInstantly)$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 
 runtime-v2-fd-registry-check:
