@@ -41,8 +41,16 @@ type corpusRootSpec struct {
 // sema/valid/task_borrow_join_on_every_branch, the positive, the may-be-live
 // negative and the control for the carrier-affine borrow pin. Nothing was
 // removed, and the run reports normalized_findings=0 beside the new count.
+//
+// Raised 1055 -> 1057 on 2026-09-02, later the same day. The two are the
+// SEM3209 port's fixtures (8882ff00): sema/invalid/concurrency/
+// task_created_outside_scope, the refusal of a task created outside the
+// scope that would count it, and sema/valid/concurrency/
+// task_created_in_current_scope, its accepted twin. The port landed without
+// this line, so the tripwire read 1057 against 1055 on every aggregate count
+// since; the run beside the new count again reports normalized_findings=0.
 var corpusRoots = []corpusRootSpec{
-	{Path: "testdata/golden", PinnedCount: 1055},
+	{Path: "testdata/golden", PinnedCount: 1057},
 	{Path: "showcases", PinnedCount: 38},
 	{Path: "core", PinnedCount: 10},
 	{Path: "stdlib", PinnedCount: 32},
