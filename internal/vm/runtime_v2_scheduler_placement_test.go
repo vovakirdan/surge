@@ -450,7 +450,7 @@ static int no_steal(void) {
         return fail("missing executor");
     }
     rt_control_lock(ex);
-    rt_debug_assert_no_parked_with_work(ex, 1);
+    rt_debug_assert_no_parked_with_work(ex, 1, UINT32_MAX);
     rt_control_unlock(ex);
     (void)rt_executor_request_shutdown(ex);
     return 0;
@@ -469,7 +469,7 @@ static int parked_violation(void) {
     }
     rt_task_set_placement(task, 1, TASK_PLACEMENT_CONNECTION);
     ready_push(ex, task->id);
-    rt_debug_assert_no_parked_with_work(ex, 1);
+    rt_debug_assert_no_parked_with_work(ex, 1, UINT32_MAX);
     rt_control_unlock(ex);
     return fail("parked-with-work assertion did not fire");
 }

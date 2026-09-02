@@ -135,8 +135,8 @@ func runtimePointerAnswers() map[string]runtimeAnswer {
 			"panic_msg on a refused task, scope, job or channel block (runtime/native/rt_async_task.c, "+
 				"rt_async_scope.c, rt_async_blocking.c, rt_async_channel.c); the NULL beside it answers an "+
 				"executor that ensure_exec returns a static for and never fails to give",
-			"__task_create", "__task_state", "checkpoint", "rt_sleep", "rt_blocking_submit",
-			"rt_scope_enter", "rt_channel_new"),
+			"__task_create", "__task_create_affine", "__task_state", "checkpoint", "rt_sleep",
+			"rt_blocking_submit", "rt_scope_enter", "rt_channel_new"),
 		classified(refusalIsReported,
 			"tests its own answer and reports (runtime/native/rt_io.c: rt_readline, rt_term.c: rt_term_size)",
 			"rt_readline", "rt_term_size"),
@@ -281,6 +281,7 @@ var allocEmittersOutsideTheGuard = map[string]string{
 // parameter, so the name is not in the text this census reads. Each is recorded
 // with the entry points it can name; all of them are classified above.
 var indirectPointerCallEmitters = map[string]string{
+	"emit_task_result.go":        "__task_create, __task_create_affine",
 	"emit_intrinsics_fs.go":      "rt_fs_close, rt_fs_flush, rt_fs_file_name, rt_fs_file_type, rt_fs_file_metadata",
 	"emit_intrinsics_net.go":     "rt_net_close_listener, rt_net_close_conn",
 	"emit_intrinsics_runtime.go": "rt_string_from_bytes, rt_string_from_utf16",

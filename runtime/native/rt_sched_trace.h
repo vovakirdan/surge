@@ -103,9 +103,24 @@ typedef struct rt_sched_trace_runtime_cell {
     // discarded: a reader summing the owner records has to know its sum is
     // short.
     _Atomic uint64_t dropped_records;
+    // Carrier affinity, four records. A task pinned to the worker creating it;
+    // a publication of a pinned task credited to its carrier by another
+    // thread; a pop that met a pinned task and was not the carrier; a pinned
+    // task an exiting carrier cancelled unpolled at shutdown. The pin and the
+    // shutdown cancel are made by threads that may own no cell; the addressed
+    // wake by whichever thread published. The refusal IS a popper's own
+    // action, and it still lives here rather than on the owner's cell: that
+    // cell's line is full, and widening every owner's line to make room for a
+    // defence counter would double the footprint of tracing for a number the
+    // publication route is meant to keep at zero. It is bumped with an atomic
+    // read-modify-write, like the rest of this cell.
+    _Atomic uint64_t carrier_pinned;
+    _Atomic uint64_t carrier_addressed_wakes;
+    _Atomic uint64_t carrier_steal_denied;
+    _Atomic uint64_t carrier_shutdown_cancelled;
     // The runtime does not share a line with the owners it is reporting on
     // either.
-    unsigned char pad[RT_SCHED_TRACE_CELL_BYTES - 3U * sizeof(uint64_t)];
+    unsigned char pad[RT_SCHED_TRACE_CELL_BYTES - 7U * sizeof(uint64_t)];
 } rt_sched_trace_runtime_cell;
 
 _Static_assert(sizeof(rt_sched_trace_cell) == RT_SCHED_TRACE_CELL_BYTES,
@@ -125,5 +140,9 @@ void rt_trace_sched_record(rt_trace_sched_source source, uint64_t id);
 void rt_trace_sched_tier1_steal_denied(void);
 void rt_trace_sched_connection_owner_placed(void);
 void rt_trace_sched_connection_owner_run(uint32_t owner_shard_id, uint32_t worker_shard_id);
+void rt_trace_sched_carrier_pinned(void);
+void rt_trace_sched_carrier_addressed_wake(void);
+void rt_trace_sched_carrier_steal_denied(void);
+void rt_trace_sched_carrier_shutdown_cancelled(void);
 
 #endif // SURGE_RUNTIME_NATIVE_RT_SCHED_TRACE_H

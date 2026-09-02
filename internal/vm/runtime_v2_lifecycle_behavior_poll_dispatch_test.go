@@ -98,6 +98,18 @@ void __surge_poll_call(uint64_t id) {
         case POLL_PARK_FOREVER:
             poll_park_forever();
             break;
+        case POLL_CARRIER_OWNER:
+            poll_carrier_owner();
+            break;
+        case POLL_CARRIER_CHILD:
+            poll_carrier_child();
+            break;
+        case POLL_CARRIER_SPINNER:
+            poll_carrier_spinner();
+            break;
+        case POLL_CARRIER_SHUTDOWN_OWNER:
+            poll_carrier_shutdown_owner();
+            break;
         case POLL_MAKE_PARK_FOREVER_CHAN:
             poll_make_park_forever_chan();
             break;

@@ -119,6 +119,11 @@ typedef struct {
     // bump before signaling, sleepers consume before waiting, so wakes that
     // race the control-to-shard sleep transition are never lost.
     uint32_t wake_pending;
+    // Addressed wake tokens, one per worker (shard-lock-guarded, same condvar):
+    // a carrier-affine task's publication credits its carrier and nobody
+    // else, so an ineligible sleeper cannot consume the only credit and leave
+    // the carrier asleep. worker_count entries; NULL when there are none.
+    uint32_t* worker_wake_pending;
     uint8_t sched_mode;
     uint64_t sched_seed;
 } rt_scheduler;
@@ -257,7 +262,13 @@ typedef struct rt_task {
     uint8_t resume_kind;
     uint8_t placement_class;
     uint8_t owner_shard_valid;
+    // Carrier affinity: a task that borrows its creator's frame runs only on
+    // the worker carrying the creator when it was made. Publication addresses
+    // that worker's deque and token; every other worker refuses it on pop.
+    // Written once, at creation, before the task is published.
+    uint8_t carrier_valid;
     uint32_t owner_shard_id;
+    uint32_t carrier_worker_id;
     atomic_u32 join_owner_shard_id;
     atomic_u8 cancelled;
     atomic_u8 enqueued;
@@ -744,6 +755,8 @@ void rt_task_replace_owner(rt_executor* ex,
                            uint32_t shard_id,
                            uint8_t placement_class);
 void rt_task_inherit_placement(rt_task* task, const rt_task* parent);
+void rt_task_pin_carrier_current(rt_task* task);
+int rt_task_carrier_admits_worker_or_trace_denied(const rt_task* task, uint32_t worker_id);
 void rt_task_assign_spawn_owner(rt_task* task);
 rt_shard* rt_task_owner_shard(rt_executor* ex, const rt_task* task);
 uint32_t rt_task_owner_shard_id(rt_executor* ex, const rt_task* task);
@@ -769,7 +782,7 @@ int rt_clock_advance_to_next_deadline(rt_executor* ex);
 size_t rt_sleep_fire_due_on_shard(rt_executor* ex, rt_shard* shard, uint64_t now);
 int rt_task_can_steal_from_shard(const rt_task* task, uint32_t shard_id);
 int rt_task_can_steal_from_shard_or_trace_denied(const rt_task* task, uint32_t shard_id);
-void rt_debug_assert_no_parked_with_work(rt_executor* ex, uint32_t shard_id);
+void rt_debug_assert_no_parked_with_work(rt_executor* ex, uint32_t shard_id, uint32_t worker_id);
 int rt_debug_validate_worker_ctx(rt_executor* ex,
                                  uint32_t shard_id,
                                  uint32_t worker_id,

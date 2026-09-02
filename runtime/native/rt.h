@@ -330,6 +330,14 @@ void* rt_bigfloat_to_biguint(const void* a);
 // how an independent copy of one is made -- the descriptor already knows.
 // NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 void* __task_create(uint64_t poll_fn_id, void* state, const rt_value_ops* result_ops);
+// The same constructor for a task that BORROWS its creator's frame: the task
+// is pinned to the worker carrying the creator before it is published, so it
+// only ever runs where the borrowed frame is. Creation is the only point that
+// knows the carrier, because creation is a synchronous action of the running
+// parent and publishes the task at once -- a pin at the spawn's wake would
+// come after the first publication.
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+void* __task_create_affine(uint64_t poll_fn_id, void* state, const rt_value_ops* result_ops);
 // NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 void* __task_state(void);
 void rt_task_wake(void* task);

@@ -68,7 +68,9 @@ func TestRuntimeV2SchedulerPlacementParkedWithWorkSourceGate(t *testing.T) {
 		t.Fatalf("read rt_worker_turn.c: %v", err)
 	}
 	source := string(sourceBytes)
-	assertIndex := strings.Index(source, "rt_debug_assert_no_parked_with_work(ex, ctx->shard_id)")
+	// The assert names the worker about to park (D4.6): a carrier-affine task
+	// in another carrier's deque is that carrier's work, not this sleeper's.
+	assertIndex := strings.Index(source, "rt_debug_assert_no_parked_with_work(ex, ctx->shard_id, ctx->worker_id)")
 	if assertIndex < 0 {
 		t.Fatal("worker sleep path must assert no shard-local queued work before cond wait")
 	}

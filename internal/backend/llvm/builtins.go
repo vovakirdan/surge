@@ -192,6 +192,7 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_bigfloat_to_bigint", ret: "ptr", params: []string{"ptr"}},
 		{name: "rt_bigfloat_to_biguint", ret: "ptr", params: []string{"ptr"}},
 		{name: "__task_create", ret: "ptr", params: []string{"i64", "ptr", "ptr"}},
+		{name: "__task_create_affine", ret: "ptr", params: []string{"i64", "ptr", "ptr"}},
 		{name: "__task_state", ret: "ptr", params: nil},
 		{name: "rt_task_wake", ret: "void", params: []string{"ptr"}},
 		{name: "rt_task_poll", ret: "i8", params: []string{"ptr", "ptr"}},

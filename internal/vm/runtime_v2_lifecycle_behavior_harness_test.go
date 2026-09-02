@@ -106,7 +106,7 @@ func buildRuntimeV2LifecycleHarnessWithFlags(t *testing.T, name string, extraFla
 		lifecycleHarnessCancelSealModes + lifecycleHarnessBlockingCancelModes +
 		lifecycleHarnessStandHelpers + lifecycleHarnessInlineClaimModes +
 		lifecycleHarnessScopeMembershipModes + lifecycleHarnessTaskEntitlementModes + lifecycleHarnessTaskEntitlementTerminalModes +
-		lifecycleHarnessPollOutcomePinModes + lifecycleHarnessPollDispatch +
+		lifecycleHarnessPollOutcomePinModes + lifecycleHarnessCarrierModes + lifecycleHarnessPollDispatch +
 		lifecycleHarnessMain
 	if writeErr := os.WriteFile(harnessPath, []byte(source), 0o600); writeErr != nil {
 		t.Fatalf("write harness: %v", writeErr)

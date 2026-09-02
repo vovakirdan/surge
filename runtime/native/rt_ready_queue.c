@@ -150,8 +150,17 @@ static int pop_task_from_deque(rt_executor* ex,
             }
             continue;
         }
-        if (source == RT_TRACE_SCHED_SRC_STEAL &&
-            !rt_task_can_steal_from_shard_or_trace_denied(task, stealer_shard_id)) {
+        // A carrier-affine task is refused by worker, before the shard check:
+        // only its carrier may take it, from any deque it is met in. The
+        // popper is whoever runs this pop -- a worker of this executor by its
+        // id, or no worker at all (the control-lane runner), which admits
+        // nothing pinned.
+        uint32_t popper_worker_id = tls_worker_ctx != NULL && tls_worker_ctx->ex == ex
+                                        ? tls_worker_ctx->worker_id
+                                        : UINT32_MAX;
+        if (!rt_task_carrier_admits_worker_or_trace_denied(task, popper_worker_id) ||
+            (source == RT_TRACE_SCHED_SRC_STEAL &&
+             !rt_task_can_steal_from_shard_or_trace_denied(task, stealer_shard_id))) {
             int ok = lifo ? deque_push_tail(dq,
                                             id,
                                             "async: local queue overflow",
@@ -199,6 +208,58 @@ int ready_push_task_locked(const rt_executor* ex,
         local = current_local_queue(ex, scheduler);
     }
     int signal_ready_now = signal_ready;
+    // A carrier-affine task is ADDRESSED: it goes to its carrier's deque, never
+    // the pusher's and never the inject queue, and the credit goes to that one
+    // worker on the shard's condvar. A generic shard credit here is the P0 the
+    // model names (RUNTIME_V2.md, "The ROUTING half of affinity"): an
+    // ineligible sleeper would consume the only credit, refuse the task on
+    // pop, and the carrier would sleep on. The pusher being the carrier itself
+    // needs no credit: it is awake and re-scans its deque before it sleeps.
+    // RV2_D46_ROUTE_NEGATIVE_CONTROL keeps the pusher's route (the task lands
+    // where it cannot run); RV2_D46_NEGATIVE_CONTROL keeps the address but
+    // credits the shard (the wake can land on the wrong worker).
+#ifndef RV2_D46_ROUTE_NEGATIVE_CONTROL
+    if (task->carrier_valid != 0 && scheduler->local_queues != NULL &&
+        task->carrier_worker_id < scheduler->worker_count) {
+        rt_deque* carrier_dq = &scheduler->local_queues[task->carrier_worker_id];
+        // The carrier pops its deque from the tail. A wake or a spawn goes to
+        // the tail, as a local push would; a yield or a net wake -- what asks
+        // for the inject queue, and asks for it so that a task re-entering
+        // every turn cannot starve the ones behind it -- goes to the HEAD
+        // instead, since the inject queue is exactly where a pinned task may
+        // not go. Round-robin among the carrier's pinned tasks follows.
+        int ok = force_inject || front ? deque_push_head(carrier_dq,
+                                                         task->id,
+                                                         "async: local queue overflow",
+                                                         "async: local queue allocation failed")
+                                       : deque_push_tail(carrier_dq,
+                                                         task->id,
+                                                         "async: local queue overflow",
+                                                         "async: local queue allocation failed");
+        if (!ok) {
+            return 0;
+        }
+        task_enqueued_store(task, 1);
+        task_status_store(task, TASK_READY);
+        RT_SYNC_POINT(SP_CARRIER_PUBLISH_BEFORE_CREDIT);
+        if (signal_ready && carrier_dq != local) {
+            rt_trace_sched_carrier_addressed_wake();
+#ifndef RV2_D46_NEGATIVE_CONTROL
+            if (scheduler->worker_wake_pending != NULL &&
+                scheduler->worker_wake_pending[task->carrier_worker_id] < UINT32_MAX) {
+                scheduler->worker_wake_pending[task->carrier_worker_id]++;
+            }
+            pthread_cond_broadcast(&owner_shard->worker_cv);
+#else
+            if (scheduler->wake_pending < UINT32_MAX) {
+                scheduler->wake_pending++;
+            }
+            pthread_cond_signal(&owner_shard->worker_cv);
+#endif
+        }
+        return 1;
+    }
+#endif
     if (local != NULL) {
         // Local queues are popped from the tail, so tail insertion is the local priority path.
         int ok = deque_push_tail(

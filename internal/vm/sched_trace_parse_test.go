@@ -42,6 +42,13 @@ type schedTrace struct {
 	declaredOwners    uint64
 	unownedPops       uint64
 	droppedRecords    uint64
+	// Carrier affinity, the runtime's four: tasks pinned at creation, wakes
+	// credited to a carrier by another thread, pops refused by worker, and
+	// pinned tasks an exiting carrier cancelled at shutdown.
+	carrierPinned            uint64
+	carrierAddressedWakes    uint64
+	carrierStealDenied       uint64
+	carrierShutdownCancelled uint64
 }
 
 type execTrace map[string]uint64
@@ -142,6 +149,10 @@ func parseSchedTrace(t *testing.T, stderr string) schedTrace {
 			out.connOwnerPlaced = schedTraceU64(t, fields, "conn_owner_placed")
 			out.unownedPops = schedTraceU64(t, fields, "unowned_pops")
 			out.droppedRecords = schedTraceU64(t, fields, "dropped_records")
+			out.carrierPinned = schedTraceU64(t, fields, "carrier_pinned")
+			out.carrierAddressedWakes = schedTraceU64(t, fields, "carrier_addressed_wakes")
+			out.carrierStealDenied = schedTraceU64(t, fields, "carrier_steal_denied")
+			out.carrierShutdownCancelled = schedTraceU64(t, fields, "carrier_shutdown_cancelled")
 		case "carrier", "control":
 			owner := schedTraceOwner{
 				owner:             fields["owner"],

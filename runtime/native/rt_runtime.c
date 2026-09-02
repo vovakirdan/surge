@@ -26,6 +26,11 @@ static void rt_shard_scheduler_destroy(rt_scheduler* scheduler) {
                 (uint64_t)scheduler->worker_count * (uint64_t)sizeof(rt_deque),
                 _Alignof(rt_deque));
     }
+    if (scheduler->worker_wake_pending != NULL && scheduler->worker_count > 0) {
+        rt_free((uint8_t*)scheduler->worker_wake_pending,
+                (uint64_t)scheduler->worker_count * (uint64_t)sizeof(uint32_t),
+                _Alignof(uint32_t));
+    }
     memset(scheduler, 0, sizeof(*scheduler));
 }
 
@@ -330,6 +335,12 @@ rt_runtime_status rt_shard_scheduler_init(rt_shard* shard,
         return RT_RUNTIME_STATUS_ALLOCATION_FAILED;
     }
     memset(scheduler->local_queues, 0, (size_t)worker_count * sizeof(rt_deque));
+    scheduler->worker_wake_pending = (uint32_t*)rt_alloc(
+        (uint64_t)worker_count * (uint64_t)sizeof(uint32_t), _Alignof(uint32_t));
+    if (scheduler->worker_wake_pending == NULL) {
+        return RT_RUNTIME_STATUS_ALLOCATION_FAILED;
+    }
+    memset(scheduler->worker_wake_pending, 0, (size_t)worker_count * sizeof(uint32_t));
     return RT_RUNTIME_STATUS_OK;
 }
 

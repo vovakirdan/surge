@@ -195,6 +195,14 @@ typedef enum rt_sync_point_id {
     // publishing its scope-key waiter. Draining the final child while held
     // here proves the post-registration verify prevents a lost wake.
     RT_SYNC_POINT_SP_SCOPE_TEARDOWN_BEFORE_REGISTER,
+    // ready_push_task_locked, carrier-addressed route: reached after a
+    // carrier-affine task has been pushed into its carrier's deque and marked
+    // READY, and before the carrier is credited for it. A driver holding the
+    // publisher here sees the entry exist with no credit issued: with the
+    // carrier asleep and another worker awake, the run proves which worker
+    // the credit reaches (RV2 D4.6; the shard-wide mutant lets the wrong one
+    // consume it).
+    RT_SYNC_POINT_SP_CARRIER_PUBLISH_BEFORE_CREDIT,
     // rt_async_return: reached after the body's value has been moved into the
     // task's own result slot and committed there, and before the success
     // outcome is handed to the scheduler. A driver cancelling the task while it

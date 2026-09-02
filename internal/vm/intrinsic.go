@@ -140,7 +140,9 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 	case "rt_map_keys":
 		return vm.handleMapKeys(frame, call, writes)
 
-	case "__task_create":
+	// The VM has no carriers to be affine to: the constructor for a task that
+	// borrows its creator's frame is the plain one here.
+	case "__task_create", "__task_create_affine":
 		return vm.handleTaskCreate(frame, call, writes)
 	case "__task_state":
 		return vm.handleTaskState(frame, call, writes)

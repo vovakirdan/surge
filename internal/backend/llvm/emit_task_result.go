@@ -51,18 +51,24 @@ func (fe *funcEmitter) taskResultType(taskType types.TypeID) (types.TypeID, erro
 	return taskPayloadType(fe.emitter.types, taskType)
 }
 
-// emitTaskCreateIntrinsic adds the result descriptor to __task_create.
+// emitTaskCreateIntrinsic adds the result descriptor to __task_create, and to
+// __task_create_affine, the same constructor for a task that borrows its
+// creator's frame (the lowering chose between them; see
+// mir.asyncTaskConstructorName).
 //
 // The lowering builds the call with the two arguments it can name from MIR --
 // the poll id and the state box -- and the descriptor is the emitter's to add,
 // because it is the emitter that knows the symbol a type's descriptor became.
 func (fe *funcEmitter) emitTaskCreateIntrinsic(call *mir.CallInstr) (bool, error) {
-	if call == nil || call.Callee.Kind != mir.CalleeValue ||
-		stripGenericSuffix(call.Callee.Name) != "__task_create" {
+	if call == nil || call.Callee.Kind != mir.CalleeValue {
+		return false, nil
+	}
+	ctor := stripGenericSuffix(call.Callee.Name)
+	if ctor != "__task_create" && ctor != "__task_create_affine" {
 		return false, nil
 	}
 	if len(call.Args) != 2 {
-		return true, fmt.Errorf("__task_create expects 2 lowered arguments, got %d", len(call.Args))
+		return true, fmt.Errorf("%s expects 2 lowered arguments, got %d", ctor, len(call.Args))
 	}
 	pollID, _, err := fe.emitValueOperand(&call.Args[0])
 	if err != nil {
@@ -85,8 +91,8 @@ func (fe *funcEmitter) emitTaskCreateIntrinsic(call *mir.CallInstr) (bool, error
 		return true, err
 	}
 	tmp := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @__task_create(i64 %s, ptr %s, %s)\n",
-		tmp, pollID, state, operand)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @%s(i64 %s, ptr %s, %s)\n",
+		tmp, ctor, pollID, state, operand)
 	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return true, err

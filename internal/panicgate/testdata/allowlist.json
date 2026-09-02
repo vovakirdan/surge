@@ -1130,16 +1130,6 @@
       "group": "PG-INVARIANT"
     },
     {
-      "site": "runtime/native/rt_async_task.c::__task_create#1",
-      "message": "async: task allocation failed",
-      "group": "PG-ALLOC-FAILURE"
-    },
-    {
-      "site": "runtime/native/rt_async_task.c::__task_create#2",
-      "message": "async: a task's result storage could not be reserved",
-      "group": "PG-ALLOC-FAILURE"
-    },
-    {
       "site": "runtime/native/rt_async_task.c::__task_state#1",
       "message": "async: __task_state without current task",
       "group": "PG-INVARIANT"
@@ -1167,6 +1157,16 @@
     {
       "site": "runtime/native/rt_async_task.c::spawn_internal_task_locked#1",
       "message": "async: task allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_task.c::task_create#1",
+      "message": "async: task allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_task.c::task_create#2",
+      "message": "async: a task's result storage could not be reserved",
       "group": "PG-ALLOC-FAILURE"
     },
     {
@@ -1520,29 +1520,49 @@
       "group": "PG-INVARIANT"
     },
     {
+      "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#10",
+      "message": "async: inject queue allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
       "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#2",
       "message": "async: local queue allocation failed",
       "group": "PG-ALLOC-FAILURE"
     },
     {
       "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#3",
-      "message": "async: inject queue overflow",
+      "message": "async: local queue overflow",
       "group": "PG-INVARIANT"
     },
     {
       "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#4",
-      "message": "async: inject queue allocation failed",
+      "message": "async: local queue allocation failed",
       "group": "PG-ALLOC-FAILURE"
     },
     {
       "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#5",
-      "message": "async: inject queue overflow",
+      "message": "async: local queue overflow",
       "group": "PG-INVARIANT"
     },
     {
       "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#6",
+      "message": "async: local queue allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#7",
+      "message": "async: inject queue overflow",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#8",
       "message": "async: inject queue allocation failed",
       "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#9",
+      "message": "async: inject queue overflow",
+      "group": "PG-INVARIANT"
     },
     {
       "site": "runtime/native/rt_remote_spawn.c::rt_remote_spawn_drain_inbound_locked#1",
@@ -1707,6 +1727,16 @@
     {
       "site": "runtime/native/rt_waiter_route.c::rt_waiter_publish_join_owner_and_migrate#1",
       "message": "async: waiter allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_worker_turn.c::worker_drain_pinned_on_exit#1",
+      "message": "async: local queue overflow",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_worker_turn.c::worker_drain_pinned_on_exit#2",
+      "message": "async: local queue allocation failed",
       "group": "PG-ALLOC-FAILURE"
     }
   ]

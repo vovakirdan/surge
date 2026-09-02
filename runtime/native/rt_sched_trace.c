@@ -204,6 +204,36 @@ void rt_trace_sched_connection_owner_run(uint32_t owner_shard_id, uint32_t worke
     sched_trace_bump_owned(&cell->conn_run_mismatch);
 }
 
+// Carrier affinity's four records, all on the runtime's cell (the header says
+// why the refusal is not on the popper's own).
+void rt_trace_sched_carrier_pinned(void) {
+    if (!trace_sched_enabled()) {
+        return;
+    }
+    sched_trace_bump_runtime(&sched_trace_runtime_cell.carrier_pinned);
+}
+
+void rt_trace_sched_carrier_addressed_wake(void) {
+    if (!trace_sched_enabled()) {
+        return;
+    }
+    sched_trace_bump_runtime(&sched_trace_runtime_cell.carrier_addressed_wakes);
+}
+
+void rt_trace_sched_carrier_steal_denied(void) {
+    if (!trace_sched_enabled()) {
+        return;
+    }
+    sched_trace_bump_runtime(&sched_trace_runtime_cell.carrier_steal_denied);
+}
+
+void rt_trace_sched_carrier_shutdown_cancelled(void) {
+    if (!trace_sched_enabled()) {
+        return;
+    }
+    sched_trace_bump_runtime(&sched_trace_runtime_cell.carrier_shutdown_cancelled);
+}
+
 // One record, one write, and a short or refused write is counted rather than
 // dropped on the floor: a reader that summed four owner records out of five has
 // to be told, or it will report the sum as the whole.
@@ -281,6 +311,23 @@ static void sched_trace_emit_runtime(const rt_sched_trace_runtime_cell* runtime,
         buf, &pos, sizeof(buf), "unowned_pops", sched_trace_read(&runtime->unowned_pops));
     trace_append_kv_u64(
         buf, &pos, sizeof(buf), "dropped_records", sched_trace_read(&runtime->dropped_records));
+    trace_append_kv_u64(
+        buf, &pos, sizeof(buf), "carrier_pinned", sched_trace_read(&runtime->carrier_pinned));
+    trace_append_kv_u64(buf,
+                        &pos,
+                        sizeof(buf),
+                        "carrier_addressed_wakes",
+                        sched_trace_read(&runtime->carrier_addressed_wakes));
+    trace_append_kv_u64(buf,
+                        &pos,
+                        sizeof(buf),
+                        "carrier_steal_denied",
+                        sched_trace_read(&runtime->carrier_steal_denied));
+    trace_append_kv_u64(buf,
+                        &pos,
+                        sizeof(buf),
+                        "carrier_shutdown_cancelled",
+                        sched_trace_read(&runtime->carrier_shutdown_cancelled));
     if (pos + 1 < sizeof(buf)) {
         buf[pos++] = '\n';
     }

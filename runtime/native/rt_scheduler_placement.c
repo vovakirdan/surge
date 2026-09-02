@@ -148,11 +148,84 @@ int rt_task_can_steal_from_shard_or_trace_denied(const rt_task* task, uint32_t s
     return 0;
 }
 
-void rt_debug_assert_no_parked_with_work(rt_executor* ex, uint32_t shard_id) {
+// Pins a task to the worker that is creating it. Creation is a synchronous
+// action of the running parent, so the current worker IS the parent's
+// carrier, and the frame the task borrows lives on that worker's stack of
+// polls. A creator that is not a worker of this executor -- the io thread, a
+// blocking thread, the main thread before the executor starts -- has no
+// carrier; the task stays unpinned and is scheduled as any other.
+void rt_task_pin_carrier_current(rt_task* task) {
+    if (task == NULL || tls_worker_ctx == NULL || tls_worker_ctx->ex == NULL) {
+        return;
+    }
+    task->carrier_valid = 1;
+    task->carrier_worker_id = tls_worker_ctx->worker_id;
+    rt_trace_sched_carrier_pinned();
+}
+
+// A worker may run a carrier-affine task only if it IS the carrier. Every
+// other worker meets the task in a deque -- steal, or the shard-0 inject pop
+// of a runner that is no worker at all -- and puts it back. The refusal is a
+// defence, not the mechanism: correctness lives on the publication route,
+// which never hands a pinned task to anyone else in the first place.
+int rt_task_carrier_admits_worker_or_trace_denied(const rt_task* task, uint32_t worker_id) {
+    if (task == NULL) {
+        return 0;
+    }
+    if (task->carrier_valid == 0 || task->carrier_worker_id == worker_id) {
+        return 1;
+    }
+    rt_trace_sched_carrier_steal_denied();
+    return 0;
+}
+
+// Queued work that ADMITS a given worker: the inject queue and the worker's
+// own deque, whatever they hold, and another worker's deque only for the
+// entries not pinned to that worker. A carrier-affine task sitting in its
+// carrier's deque is the carrier's work and nobody else's, so a sibling
+// sleeping beside it is not parked with work; the shard-wide count above
+// would say it is. Walked entry by entry, which is fine on the sleep path
+// and nowhere else.
+static int
+scheduler_has_queued_work_for(rt_executor* ex, const rt_scheduler* scheduler, uint32_t worker_id) {
+    if (scheduler == NULL) {
+        return 0;
+    }
+    if (scheduler->inject.len > 0) {
+        return 1;
+    }
+    if (scheduler->local_queues == NULL || scheduler->worker_count == 0) {
+        return 0;
+    }
+    for (uint32_t i = 0; i < scheduler->worker_count; i++) {
+        const rt_deque* dq = &scheduler->local_queues[i];
+        if (dq->len == 0) {
+            continue;
+        }
+        if (i == worker_id || dq->buf == NULL || dq->cap == 0) {
+            return 1;
+        }
+        for (size_t k = 0; k < dq->len; k++) {
+            const rt_task* task = get_task(ex, dq->buf[(dq->head + k) % dq->cap]);
+            if (task == NULL || task->carrier_valid == 0 || task->carrier_worker_id != i) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+// `worker_id` names the worker about to park; UINT32_MAX asks for the shard
+// as a whole -- every queued entry counts -- which is what a driver checking
+// a quiesced shard from outside wants.
+void rt_debug_assert_no_parked_with_work(rt_executor* ex, uint32_t shard_id, uint32_t worker_id) {
     rt_runtime* runtime = ex != NULL ? ex->runtime : NULL;
     rt_shard* shard = rt_runtime_shard(runtime, shard_id);
     const rt_scheduler* scheduler = rt_shard_scheduler_const(shard);
-    if (!scheduler_has_queued_work(scheduler) && rt_transport_inbound_len_locked(shard) == 0) {
+    int has_work = worker_id == UINT32_MAX
+                       ? scheduler_has_queued_work(scheduler)
+                       : scheduler_has_queued_work_for(ex, scheduler, worker_id);
+    if (!has_work && rt_transport_inbound_len_locked(shard) == 0) {
         return;
     }
     if (shard != NULL && rt_transport_inbound_len_locked(shard) != 0) {

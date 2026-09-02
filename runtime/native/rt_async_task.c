@@ -10,10 +10,13 @@ static void poll_ready_child_inline(rt_executor* ex, rt_task* current, rt_task* 
 static void publish_created_task(rt_executor* ex, rt_task* task, rt_task* parent);
 static void rt_task_poll_adopt_placement(rt_executor* ex, rt_task* current, const rt_task* target);
 
-void* __task_create( // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
-    uint64_t poll_fn_id,
-    void* state,
-    const rt_value_ops* result_ops) {
+// The one constructor behind __task_create and __task_create_affine. `affine`
+// pins the task to the creating worker before anything can publish it: the
+// task borrows the creator's frame, and the frame is wherever the creator's
+// carrier is. Publication follows at once (publish_created_task pushes the
+// task READY), which is why the pin cannot wait for the spawn's wake.
+static void*
+task_create(uint64_t poll_fn_id, void* state, const rt_value_ops* result_ops, int affine) {
     rt_executor* ex = ensure_exec();
     if (ex == NULL) {
         return NULL;
@@ -55,6 +58,9 @@ void* __task_create( // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dc
     rt_task_entitlements_init(&task->entitlements);
 
     rt_task* parent = rt_current_task();
+    if (affine) {
+        rt_task_pin_carrier_current(task);
+    }
     publish_created_task(ex, task, parent);
 
     // Lane-aware compensation-worker check, mirroring wake_task's identical
@@ -74,6 +80,20 @@ void* __task_create( // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dc
         }
     }
     return task;
+}
+
+void* __task_create( // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+    uint64_t poll_fn_id,
+    void* state,
+    const rt_value_ops* result_ops) {
+    return task_create(poll_fn_id, state, result_ops, 0);
+}
+
+void* __task_create_affine( // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+    uint64_t poll_fn_id,
+    void* state,
+    const rt_value_ops* result_ops) {
+    return task_create(poll_fn_id, state, result_ops, 1);
 }
 
 static void publish_created_task(rt_executor* ex, rt_task* task, rt_task* parent) {

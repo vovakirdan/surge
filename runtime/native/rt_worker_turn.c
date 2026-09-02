@@ -103,6 +103,90 @@ void rt_io_wait_slice(rt_executor* ex) {
     rt_control_lock(ex);
 }
 
+#ifndef RV2_D46_SHUTDOWN_NEGATIVE_CONTROL
+// An exiting carrier cancels every task pinned to it that it never got to
+// poll, and then RUNS each one so the cancel can complete it (RUNTIME_V2.md,
+// Section 10's shutdown sentence: the exiting carrier runs or cancels every
+// task pinned to it). Nobody else may run them -- that is what the pin means
+// -- so left in the deque they would hold their awaiters forever; and a
+// cancel alone is not a completion: cancel_task seals the gate and wakes the
+// target, and the target unwinds on its next poll, which only its carrier can
+// give it. So the carrier gives it: this pops one pinned entry for the turn
+// below to poll, cancelled, and the loop comes back here until its deque
+// holds no pinned entry. Unpinned entries are left where they were; shutdown
+// treats them as it always has.
+//
+// Called with the shard lock held and returns with it held. cancel_task wants
+// the control lock, which nests OUTSIDE the shard's, so the ids are collected
+// first and cancelled with the shard released; the wake a cancel issues to an
+// already-queued target changes nothing (rt_task_park.c: not parked, nothing
+// enqueued), so no entry is duplicated.
+static int worker_drain_pinned_on_exit(rt_worker_ctx* ctx,
+                                       rt_shard* shard,
+                                       rt_scheduler* scheduler,
+                                       uint64_t* out_id) {
+    rt_executor* ex = ctx != NULL ? ctx->ex : NULL;
+    if (ex == NULL || shard == NULL || scheduler == NULL || scheduler->local_queues == NULL ||
+        ctx->worker_id >= scheduler->worker_count) {
+        return 0;
+    }
+    rt_deque* dq = &scheduler->local_queues[ctx->worker_id];
+    size_t len = dq->len;
+    if (len == 0) {
+        return 0;
+    }
+    uint64_t* pinned = (uint64_t*)rt_alloc((uint64_t)len * sizeof(uint64_t), _Alignof(uint64_t));
+    if (pinned == NULL) {
+        return 0;
+    }
+    size_t pinned_len = 0;
+    uint64_t first = 0;
+    for (size_t i = 0; i < len; i++) {
+        uint64_t id = 0;
+        if (!deque_pop_head(dq, &id)) {
+            break;
+        }
+        rt_task* task = get_task(ex, id);
+        int mine = task != NULL && task_status_load(task) != TASK_DONE &&
+                   task->carrier_valid != 0 && task->carrier_worker_id == ctx->worker_id;
+        if (mine && pinned_len == 0) {
+            // The one this turn will poll: off the deque for good.
+            task_enqueued_store(task, 0);
+            first = id;
+        } else if (task == NULL || task_status_load(task) == TASK_DONE) {
+            if (task != NULL) {
+                task_enqueued_store(task, 0);
+            }
+            continue;
+        } else {
+            (void)deque_push_tail(
+                dq, id, "async: local queue overflow", "async: local queue allocation failed");
+        }
+        if (mine) {
+            pinned[pinned_len++] = id;
+        }
+    }
+    if (pinned_len == 0) {
+        rt_free((uint8_t*)pinned, (uint64_t)len * sizeof(uint64_t), _Alignof(uint64_t));
+        return 0;
+    }
+    rt_shard_unlock(shard);
+    rt_control_lock(ex);
+    for (size_t i = 0; i < pinned_len; i++) {
+        rt_task* task = get_task(ex, pinned[i]);
+        if (task != NULL && task_cancelled_load(task) == 0) {
+            cancel_task(ex, pinned[i]);
+            rt_trace_sched_carrier_shutdown_cancelled();
+        }
+    }
+    rt_control_unlock(ex);
+    rt_free((uint8_t*)pinned, (uint64_t)len * sizeof(uint64_t), _Alignof(uint64_t));
+    rt_shard_lock(shard);
+    *out_id = first;
+    return 1;
+}
+#endif
+
 void* rt_worker_main(void* arg) {
     rt_worker_ctx* ctx = (rt_worker_ctx*)arg;
     rt_executor* ex = ctx != NULL ? ctx->ex : NULL;
@@ -170,7 +254,7 @@ void* rt_worker_main(void* arg) {
             if (rt_transport_prepare_shard_park(shard) == RT_TRANSPORT_STATUS_UNAVAILABLE) {
                 continue;
             }
-            rt_debug_assert_no_parked_with_work(ex, ctx->shard_id);
+            rt_debug_assert_no_parked_with_work(ex, ctx->shard_id, ctx->worker_id);
             // The deadlock scan takes every shard's lock one at a time, so
             // it runs with this shard's lock released; a wake landing in
             // the gap bumps wake_pending under the lock and the sleep
@@ -179,18 +263,42 @@ void* rt_worker_main(void* arg) {
             rt_remote_task_deadlock_check(ex);
             rt_shard_lock(shard);
             rt_trace_worker_sleep();
-            while (scheduler->wake_pending == 0 && !ex->shutdown) {
+            // Two credits can name this worker: the shard's, which any worker
+            // may consume, and its own, which a carrier-affine publication
+            // addressed to it and nobody else can take. A broadcast on the
+            // shard condvar wakes every sleeper; the ones with neither credit
+            // re-check and sleep on, so an addressed wake never lands on the
+            // wrong worker and the shard credit is never spent on its behalf.
+            uint32_t* own_credit =
+                scheduler->worker_wake_pending != NULL && ctx->worker_id < scheduler->worker_count
+                    ? &scheduler->worker_wake_pending[ctx->worker_id]
+                    : NULL;
+            while (scheduler->wake_pending == 0 && (own_credit == NULL || *own_credit == 0) &&
+                   !ex->shutdown) {
                 pthread_cond_wait(&shard->worker_cv, &shard->lock);
             }
-            if (scheduler->wake_pending > 0) {
+            if (own_credit != NULL && *own_credit > 0) {
+                (*own_credit)--;
+            } else if (scheduler->wake_pending > 0) {
                 scheduler->wake_pending--;
             }
             rt_transport_mark_shard_running(shard);
             rt_trace_worker_wake();
         }
         if (ex->shutdown) {
+            // An exiting carrier runs its cancelled pinned tasks to completion
+            // first (worker_drain_pinned_on_exit). RV2_D46_SHUTDOWN_NEGATIVE_
+            // CONTROL leaves them in the deque, which the carrier-affine
+            // shutdown stand must catch.
+#ifndef RV2_D46_SHUTDOWN_NEGATIVE_CONTROL
+            if (!worker_drain_pinned_on_exit(ctx, shard, scheduler, &id)) {
+                rt_shard_unlock(shard);
+                break;
+            }
+#else
             rt_shard_unlock(shard);
             break;
+#endif
         }
         rt_task* task = get_task(ex, id);
         if (task == NULL || task_status_load(task) == TASK_DONE) {

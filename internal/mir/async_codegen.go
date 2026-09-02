@@ -370,7 +370,7 @@ func buildAsyncConstructorState(f *Func, typesIn *types.Interner, semaRes *sema.
 	appendInstr(f, entry, Instr{Kind: InstrCall, Call: CallInstr{
 		HasDst: true,
 		Dst:    Place{Local: taskTmp},
-		Callee: Callee{Kind: CalleeValue, Name: "__task_create"},
+		Callee: Callee{Kind: CalleeValue, Name: asyncTaskConstructorName(f, typesIn, startVariant.locals)},
 		Args: []Operand{{
 			Kind:  OperandConst,
 			Type:  typesIn.Builtins().Int64,
@@ -396,4 +396,33 @@ func buildAsyncConstructorState(f *Func, typesIn *types.Interner, semaRes *sema.
 	}
 	setBlockTerm(f, entry, Terminator{Kind: TermReturn, Return: ReturnTerm{HasValue: true, Value: Operand{Kind: OperandMove, Place: Place{Local: taskTmp}}}})
 	return nil
+}
+
+// asyncTaskConstructorName picks the runtime constructor for an activation's
+// task. An activation that receives a REFERENCE in its start payload -- an
+// `async fn` with a `&T` parameter, or a block capturing a borrow -- reads
+// storage owned by its creator's frame until it completes, so it is
+// carrier-affine: it must run where that frame is, on the worker carrying the
+// creator, and the runtime pins it there at creation (__task_create_affine),
+// before the task is first published. Everything else owns what it holds and
+// may run anywhere.
+//
+// This is the same fact the checker records as StableActivationPlaces on the
+// creator's side: the borrow pins a place in the parent and pins the child to
+// the parent's carrier. Here it is read off the callee's own start locals,
+// which is the one place both an `async fn` and a block name their inputs.
+func asyncTaskConstructorName(f *Func, typesIn *types.Interner, startLocals []LocalID) string {
+	if f == nil || typesIn == nil {
+		return "__task_create"
+	}
+	for _, localID := range startLocals {
+		if int(localID) < 0 || int(localID) >= len(f.Locals) {
+			continue
+		}
+		tt, ok := typesIn.Lookup(resolveAlias(typesIn, f.Locals[localID].Type))
+		if ok && tt.Kind == types.KindReference {
+			return "__task_create_affine"
+		}
+	}
+	return "__task_create"
 }

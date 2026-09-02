@@ -322,7 +322,7 @@ static int mode_shutdown_parked(rt_executor* ex) {
     rt_control_lock(ex);
     size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
     for (size_t i = 0; i < shard_count; i++) {
-        rt_debug_assert_no_parked_with_work(ex, (uint32_t)i);
+        rt_debug_assert_no_parked_with_work(ex, (uint32_t)i, UINT32_MAX);
     }
     rt_control_unlock(ex);
 
@@ -480,6 +480,12 @@ int main(int argc, char** argv) {
         return mode_debt291_poll_outcome_pin(ex);
     }
 #endif
+    if (strcmp(argv[1], "carrier-affine-publish") == 0) {
+        return mode_carrier_affine_publish(ex);
+    }
+    if (strcmp(argv[1], "carrier-affine-shutdown") == 0) {
+        return mode_carrier_affine_shutdown(ex);
+    }
     return fail("unknown mode");
 }
 `
