@@ -67,7 +67,19 @@ func (vm *VM) resolveCallTarget(frame *Frame, call *mir.CallInstr) *mir.Func {
 }
 
 func (vm *VM) pickTypedFunctionCandidate(candidates []*mir.Func, argTypes []types.TypeID, resultType types.TypeID) *mir.Func {
-	for _, wantedResult := range []types.TypeID{resultType, types.NoTypeID} {
+	// The result type is relaxed only when the call has none to offer. When it
+	// does, a candidate that returns something else is exactly the "unrelated
+	// user magic method with the same spelling" the caller's comment names, and
+	// letting it through shadows the intrinsic: `from_str(&string)` for a `uint`
+	// parameter matched the prelude's string identity `from_str`, whose
+	// Erring<string> was then read as an Erring<uint>, and every
+	// @entrypoint("argv") with a numeric parameter beside a string one died in
+	// the prelude with "string is not an unsized integer".
+	wanted := []types.TypeID{resultType}
+	if resultType == types.NoTypeID {
+		wanted = []types.TypeID{types.NoTypeID}
+	}
+	for _, wantedResult := range wanted {
 		var match *mir.Func
 		for _, fn := range candidates {
 			if !vm.functionSignatureMatches(fn, argTypes, wantedResult, true) {
