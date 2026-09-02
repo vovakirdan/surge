@@ -237,6 +237,16 @@ func TestCrossingBackendGuardDoesNotMaskSemaErrors(t *testing.T) {
 func TestCrossingBackendGuardsCoverImportedModules(t *testing.T) {
 	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
 
+	// The project has to live in THIS package directory: resolution of the
+	// imported module is relative to it, and from t.TempDir or the build cache
+	// the same program reports PRJ5002 instead of the crossings this test is
+	// about. That makes the directory clean only when the test gets to run its
+	// Cleanup -- a process killed mid-gate leaves `rv2-crossing-xmod-*` behind,
+	// and a SHA-pinned worktree with an untracked path is a dirty tree, which
+	// the heavy-run guard refuses, so one interrupted run turned every later
+	// run of an aggregate count into an instant refusal. The name is therefore
+	// git-ignored: a project a killed process leaves here is invisible to
+	// `git status` and cannot poison the next run.
 	dir, err := os.MkdirTemp(".", "rv2-crossing-xmod-")
 	if err != nil {
 		t.Fatalf("mkdir temp project: %v", err)

@@ -38,6 +38,11 @@ tmp*.sg
 .cursor/
 build/
 target/
+# A test project TestCrossingBackendGuardsCoverImportedModules builds in its own
+# package directory (module resolution is relative to it). A process killed
+# mid-gate leaves it behind; ignored so a leftover cannot dirty a SHA-pinned
+# worktree and make the heavy-run guard refuse every later run of a count.
+internal/buildpipeline/rv2-crossing-xmod-*/
 
 # Surge project
 helloworld/
