@@ -10702,3 +10702,103 @@ After the first evidence append, the staged pre-commit was rerun and passed
 again: VM `105.084s`, lint `0 issues`, strict C checks green, and Rule 4 green.
 This final sentence is documentation-only; no code or generated artifact
 changed after that accepted run.
+
+### Wave D DEBT-307 normative closure — the model was missing a piece
+
+Written 2026-09-02 from exact integration base
+`b5e4ae73188c3ade467678a7c18197f8300afa10` in the isolated
+`codex/rv2-debt307-normative` worktree. Documentation only: no `.go`, `.c`,
+`.h`, `.sg` or generated artifact changed in this commit.
+
+Two independent read-only reviews of the preserved DEBT-307 partial
+implementation agreed on something the closeout plan had not accounted for.
+The plan's step 4 read "prove affinity, delete `emitAsyncRefParamBox`, pass a
+real borrow pointer". That is not sufficient and could not have been: an
+ordinary local place is a per-poll `alloca`, suspension packs live values into
+task state, and a later poll unpacks them into NEW allocas. A child holding the
+original pointer dangles after its parent suspends **even on the same carrier**.
+Common carrier is necessary and is not sufficient, so the row was never an
+implementation detail — it was a missing piece of the model.
+
+The two documents also disagreed with each other, which is how the gap stayed
+invisible. `RUNTIME_V2.md` Section 9 permits a local `spawn` to capture a borrow
+of its parent; Section 7 of the storage model forbade storing an ordinary `&T`
+or `&mut T` in any owner that can outlive or suspend the borrow, without
+exception and without defining an address-stable parent place. One of them had
+to move. The owner ruling of 2026-09-02 moves Section 7, narrowly, and this
+commit is that closure.
+
+**What Section 7 now says.** The sole exception is a compiler-proven
+carrier-affine child-task borrow whose referent is a parent place promoted to
+address-stable fixed-offset parent async-state storage; the reference is valid
+only while parent storage and the child affinity/lifetime pin are valid, and it
+still may not cross carriers, enter blocking or crossing transport, or escape
+the structured scope. Promotion is PLACE-oriented, never type-oriented: the
+capture set is known before the spawn is lowered, so exactly the borrowed places
+are promoted and nothing else. No new category of heap-boxed locals is
+introduced, and no async local is heap-promoted for merely living across an
+await. The invariant is that a place borrowed by a live carrier-affine child has
+ONE stable storage identity from the child's publication until its true
+completion; its consequences — no address change between polls, no copy back
+into a fresh `alloca`, no reuse of the field as a different logical place while
+the borrow lives — are recorded as normative rather than as guidance.
+
+**Why the region is named and not the symbol.** Section 7 says "stable task
+activation storage", not `__AsyncState$`. That is deliberate. The root
+activation needs promoted places on exactly the same terms, and a rule written
+against the async frame symbol would have been copy-pasted, divergently, for the
+root within two steps.
+
+**The pin is flow state.** `UnpinForTask` mutating a global table at a syntactic
+`await` is refused as a mechanism, because it releases the pin for the paths on
+which that await never ran. After `let t = spawn child(&x); if cond { t.await();
+} mutate(x);` the borrow is still live at `mutate(x)`. The rule is definite
+completion on every reachable incoming path, merged as a may-be-live lattice
+(`ACTIVE + RELEASED -> ACTIVE`) through the same snapshot and merge discipline
+that already carries ownership flow. Handle move state and referent pin state
+stay different facts: the handle may be consumed on one path while the referent
+stays borrowed.
+
+**The scheduler half needed no new rule, and that is the finding.** Section 10
+already requires that publication and notification are addressed to the
+eligibility CLASS, never to the group and never to a thread outside it, and that
+a carrier-affine task is normally a singleton class whose only eligible worker
+is its carrier. The reviewed implementation published an affine task into a
+worker-private deque under a generic group wake credit, which contradicts that
+sentence directly — an ineligible waiter consumes the only credit, refuses the
+task, and the eligible carrier sleeps. So P0 #1 is an implementation violating
+existing normative text, not a gap in it. The same is true of the shutdown half:
+Section 10 already says the exiting carrier runs or cancels every task pinned to
+it and the group closes only when no carrier-affine task remains. Both are cited
+in Section 9 now so the next reader does not re-derive them.
+
+**`main` is given a carrier rather than a refusal.** The reviews exposed a
+question the plan did not carry: a synchronous entrypoint runs outside executor
+carriers, so "affine to the parent's carrier" had no referent for the one
+context every program starts in. Refusing borrow-capturing `spawn` from a
+non-carrier context was the cheaper option and was rejected on evidence:
+`docs/QUICKSTART.md:555-564` already shows a synchronous `@entrypoint fn main()`
+doing `spawn producer(&ch)` and `spawn consumer(&ch)`, and `await` is already
+permitted in an entrypoint (`docs/CONCURRENCY.md:197`). The refusal would have
+withdrawn working documented UX to avoid naming a carrier the runtime already
+has. Instead `@entrypoint` executes as the runtime's synthetic root task on an
+initial carrier. This is a lowering and runtime property: `fn main()` stays
+`fn main()`, nothing on the source surface becomes `async`, and no attribute is
+added. `docs/LANGUAGE.md:171` — borrowed references may not cross worker-thread
+boundaries — is unchanged and uncontradicted, because a carrier-affine child
+never crosses one.
+
+**The forbidden intermediate state.** Both documents now say it outright: a tree
+in which semantic analysis has admitted the borrow and the scheduler has pinned
+the task while the lowered pointer is still a per-poll `alloca` is forbidden. It
+is worse than the refusal it would replace, because it reports a proof nothing
+holds. The existing refusal therefore stands until promoted storage,
+path-sensitive pin state and carrier-addressed publication are all live
+together, and the closeout plan's step 4 is rewritten as the eight-step ordered
+vertical that reaches that state. RV2-DEBT-303 is routed rather than closed: the
+box is not taught to retain, it is deleted at step 7 once a real borrow pointer
+into promoted storage replaces it, so 303 closes with 307 and not before it.
+
+The preserved partial implementation in the DEBT-307 lane is NOT committed, per
+the reviews. Its two P0s are mandatory parts of the same vertical, not
+follow-ups.

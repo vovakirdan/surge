@@ -944,6 +944,89 @@ Inheriting affinity down the tree was refused because it spends parallelism that
 is legitimately available: a fan-out of children that borrow nothing would be
 pinned to one carrier for no reason the ownership model can state.
 
+**Owner ruling 2026-09-02 -- a captured borrow needs address-stable storage, and
+affinity alone never gave it one.** Common carrier is necessary and is not
+sufficient. An ordinary local place is a per-poll `alloca`: suspension packs the
+live values into task state and the next poll unpacks them into NEW allocas, so
+a child that kept the original pointer dangles after its parent suspends even
+when both are on the same carrier. The capture is sound only when the borrowed
+PLACE is promoted into the parent activation's stable storage -- selective,
+place-oriented promotion into fixed-offset fields, defined normatively in
+`runtime-v2-epics/23-storage-model-and-typed-carrier-abi.md` Section 7. This
+does not widen the source language: it is the physical execution of the
+paragraph above.
+
+Until promoted storage, path-sensitive pin state and carrier-addressed
+publication are all live together, semantic analysis keeps refusing the capture.
+A tree in which sema has admitted the borrow and the scheduler has pinned the
+task while the pointer is still a per-poll `alloca` is worse than the refusal it
+replaces, because it reports a proof nothing holds.
+
+**Owner ruling 2026-09-02 -- the borrow pin is path-sensitive flow state, not a
+global flag.** A join releases the pin only when the child is DEFINITELY
+complete on every reachable incoming path; a join that happens on only some of
+them releases nothing. In
+
+```sg
+let t = spawn child(&x);
+if cond {
+    t.await();
+}
+mutate(x);
+```
+
+the borrow is still live at `mutate(x)`, because the `cond == false` path leaves
+the child running. Pin state therefore merges as a may-be-live lattice --
+`ACTIVE + ACTIVE -> ACTIVE`, `ACTIVE + RELEASED -> ACTIVE`, and
+`RELEASED + RELEASED -> RELEASED` -- through the same snapshot and merge
+discipline that already carries ownership flow across branches, loop back edges,
+early returns and `compare`. A global mutation performed at a syntactic
+`await` is refused as a mechanism, because it releases the pin for the paths on
+which that await never ran.
+
+The handle's move state and the referent's pin state are DIFFERENT facts and do
+not share a slot. A `Task<T>` handle may be consumed on one path while the
+referent stays borrowed: referent safety is decided by definite completion, not
+by the syntactic presence of a join.
+
+**Owner ruling 2026-09-02 -- every task-capable execution context has a carrier,
+`@entrypoint` included.** A synchronous `@entrypoint` may already `await`, and
+may already `spawn` a child that borrows one of its locals, so "affine to its
+parent's carrier" had no referent for the one context that starts every program.
+It is given one rather than an exception: the entrypoint executes as the
+runtime's SYNTHETIC ROOT TASK on an initial carrier. The bootstrap creates the
+runtime, creates the root task, assigns it the root carrier, and runs the
+entrypoint activation there. A borrow captured by a child of the entrypoint is
+then the ordinary case, and no main-stack special case appears anywhere in the
+model.
+
+This is a lowering and runtime property, not a surface change. `fn main()` stays
+`fn main()`; nothing in the source becomes `async` and no attribute is added.
+The root activation is a task activation like any other, which is why the
+storage model names "stable task activation storage" rather than the
+`__AsyncState$` symbol: the root activation needs promoted places on the same
+terms as an `async fn`, and one rule has to cover both.
+
+Refusing a borrow-capturing `spawn` from the entrypoint was the alternative and
+was rejected. `docs/QUICKSTART.md` already shows a synchronous `main` handing
+`&ch` to a spawned producer and consumer, so the refusal would have withdrawn
+working, documented UX in order to avoid naming a carrier the runtime already
+has.
+
+The ROUTING half of affinity needs no new rule, and that is worth stating
+plainly because an implementation was found contradicting it. Section 10 already
+requires that publication and notification are addressed to the eligibility
+CLASS, never to the group and never to a thread outside it, and that a
+carrier-affine task is normally a singleton class whose only eligible worker is
+its carrier. Publishing an affine task into a worker-private deque while issuing
+a generic group wake credit contradicts that sentence directly: an ineligible
+waiter consumes the only credit, refuses the task, and the eligible carrier
+sleeps. Steal refusal after dequeue is a defence and is not the correctness
+mechanism -- correctness lives on the publication route. Section 10's shutdown
+sentence is normative on the same terms: the exiting carrier runs or cancels
+every task pinned to it, and the group closes only when no carrier-affine task
+remains.
+
 **A `blocking { ... }` body may not capture a borrow, and is refused exactly as
 a crossing is.** The body executes on a Tier 2 pool thread, which is not the
 parent's carrier and is not a carrier at all, so a borrow inside it is the same

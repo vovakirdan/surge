@@ -30,7 +30,12 @@
     - internal task metadata содержит единственного eligible carrier;
     - такая задача не steal’ится, не handoff’ится и завершается на исходном carrier;
     - crossing и blocking с borrow отвергаются;
-    - никакого нового @local-подобного атрибута не вводится.
+    - никакого нового @local-подобного атрибута не вводится;
+    - **уточнено 2026-09-02:** affinity необходима и НЕ достаточна. Заимствованное место продвигается в
+      address-stable фиксированное поле stable task activation storage родителя, а публикация и пробуждение
+      affine-задачи адресуются её классу пригодности, а не группе;
+    - **уточнено 2026-09-02:** `@entrypoint` — не исключение из модели, а synthetic root task на initial carrier;
+      поверхность языка не меняется.
 
 - Far task/channel/select переходят с result_bits/out_bits на exact typed storage с ValueOps и явной ownership
   obligation.
@@ -73,18 +78,47 @@
     - Rule-13 mutant возвращает старый sweep и обязан получить terminal pending + WAITING caller + ноль registrations.
     - Включить stand в обязательный aggregate и CI.
 
-4. Реализовать DEBT-307 и удалить временный DEBT-303.
-    - Compiler выводит requires_parent_carrier из capture set, включая транзитивные borrows.
-    - Borrow живёт до истинного completion задачи; escape, owner mutation/drop, crossing и blocking запрещаются
-      существующей диагностикой.
+4. Реализовать DEBT-307 одной вертикалью; DEBT-303 закрывается её седьмым шагом.
 
-    - Native scheduler хранит eligible carrier и отказывает steal/public handoff; shutdown разрешает задачу на её
-      carrier.
+    **Owner ruling 2026-09-02.** Прежняя формулировка — «доказать affinity, удалить emitAsyncRefParamBox, передать
+    настоящий pointer» — отозвана как недостаточная. Обычное локальное место в LLVM это alloca на одну итерацию poll:
+    suspension пакует живые значения в task state, а следующий poll распаковывает их в НОВЫЕ alloca, поэтому ребёнок,
+    удержавший исходный указатель, повисает после suspend родителя даже на том же carrier. Общий carrier необходим и
+    недостаточен. Два независимых ревью нашли в сохранённой частичной реализации два P0 — общий group wake credit для
+    affine-публикации и не-path-sensitive `UnpinForTask`; оба входят в эту же вертикаль, а сама частичная реализация
+    не коммитится.
 
-    - VM/asyncrt проверяют ту же семантику.
-    - Удалить emitAsyncRefParamBox; передавать настоящий borrow pointer только после доказанной affinity.
-    - Проверки: 2/4/8 carriers, yield/requeue, cancellation, never-polled child, scope shutdown, independent non-
-      borrowing child, steal-refusal mutants и strict-zero для core/sync.
+    Порядок шагов обязателен: до готовности шагов 2–6 старый gate обязан продолжать отвергать unsafe borrow path.
+    Промежуточное состояние «sema разрешила borrow, scheduler прикрепил задачу, но указатель всё ещё alloca»
+    запрещено — оно объявляет доказательство, которого нет.
+
+    1. Нормативно закрыть исключение хранения и семантику root-entrypoint carrier (сделано этой полосой):
+       узкое исключение §7 storage model для carrier-affine borrow в promoted address-stable место; понятие
+       stable task activation storage вместо привязки к символу `__AsyncState$`; `@entrypoint` исполняется как
+       synthetic root task рантайма на initial carrier, `fn main()` остаётся `fn main()`.
+
+    2. Сделать pin-состояние borrow path-sensitive в sema: релиз только при definite completion на ВСЕХ достижимых
+       входящих путях, решётка may-be-live `ACTIVE + RELEASED -> ACTIVE`, через тот же snapshot/merge, что и
+       ownership flow. Move-состояние handle и pin-состояние referent — разные факты.
+
+    3. Добавить анализ «места, требующие stable promotion»: place-oriented, из capture set, только те места, чей
+       адрес попадает в захват задачи.
+
+    4. Реализовать fixed-offset promoted storage для async- и root-активаций: резиденты исключены из resume
+       pack/unpack, ровно один владелец, drop через обычное обязательство места.
+
+    5. Только после этого — lowering настоящей borrow-ссылки вместо бокса.
+
+    6. Carrier-addressed publication и targeted wake для affine-задач. Нового правила не вводится: §10 RUNTIME_V2
+       уже требует адресовать публикацию и уведомление классу пригодности. Steal-refusal после dequeue остаётся
+       защитой, а не механизмом корректности.
+
+    7. Удалить emitAsyncRefParamBox вместе с временным путём боксинга; этим закрывается DEBT-303.
+
+    8. Только теперь — приёмка: 2/4/8 carriers, yield/requeue, cancellation, never-polled child, scope shutdown,
+       independent non-borrowing child, steal-refusal mutants, borrow-capturing spawn из синхронного
+       `@entrypoint`, address-stability места через suspend родителя, join на части путей не снимает pin,
+       и strict-zero для core/sync.
 
 5. Интегрировать Scope provenance / SEM3209.
     - Перенести существующую реализацию поверх нового task ABI.

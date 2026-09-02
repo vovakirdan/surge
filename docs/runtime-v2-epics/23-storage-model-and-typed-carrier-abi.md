@@ -331,12 +331,75 @@ The compiler preserves the existing ownership rules:
 - partial moves leave a residual obligation for the still-initialized fields;
 - reinitialization restores the selected place;
 - borrows do not outlive their owner or cross suspend/shard/transport
-  boundaries;
+  boundaries, except for the one carrier-affine capture ruled below;
 - shard-pinned resources move only through the explicit migration/lease rules.
 
 No implementation may store an ordinary `&T` or `&mut T` inside a task,
 channel, far pending, blocking job, or other owner that can outlive/suspend the
 borrow.
+
+### The one exception, and the storage it requires
+
+**Owner ruling 2026-09-02.** The sentence above was unimplementable as written
+beside `docs/RUNTIME_V2.md` Section 9, which already permits a local `spawn` to
+capture a borrow of its parent. The two are reconciled by naming the exception
+and the storage that makes it true, not by widening either side:
+
+> Ordinary references may not be stored in tasks or other suspendable owners.
+> The sole exception is a compiler-proven carrier-affine child-task borrow whose
+> referent is a parent place promoted to address-stable fixed-offset parent
+> async-state storage. The reference remains valid only while parent storage and
+> the child affinity/lifetime pin remain valid. Such a reference may not cross
+> carriers, enter blocking/crossing transport, or escape the structured scope.
+
+Carrier affinity alone never made that capture sound, and this is the reason the
+exception has to talk about storage at all. An ordinary local place is a
+per-poll `alloca` in LLVM: suspension packs live values into task state and a
+later poll unpacks them into NEW allocas. A child holding the original pointer
+therefore dangles after its parent suspends EVEN ON THE SAME CARRIER. The
+exception introduces no new source semantic; it is the physical execution of a
+semantics the language already states.
+
+### Stable task activation storage
+
+Every task activation has one region whose fields keep a fixed offset for the
+life of the activation. This document names the REGION rather than a frame
+symbol on purpose: an `async fn` realizes it as the existing `__AsyncState$`
+frame and an `@entrypoint` realizes it as the synthetic root activation of
+`RUNTIME_V2.md` Section 9, and a rule written against `__AsyncState$` would be
+copied, divergently, for the root activation within two steps.
+
+Promotion into that region is PLACE-oriented, never type-oriented. The compiler
+knows the capture set before it lowers the spawn, so it promotes exactly those
+places whose address enters a task capture and no others. A type is never
+"promoted", and no async local is heap-promoted for merely being live across an
+await. Promoted residents are excluded from resume pack/unpack, retain exactly
+one owner, and are dropped through the ordinary obligation of the place they
+already are, not through a second lifecycle.
+
+The invariant the exception rests on:
+
+> A place borrowed by a live carrier-affine child has ONE stable storage
+> identity, from the child's publication until the child's true completion.
+
+Its consequences are normative:
+
+- the place's address does not change between polls of the parent;
+- suspend/resume does not copy the place back into a fresh `alloca`;
+- a later poll of the parent reaches the SAME field, not a copy of it;
+- the field may not be reused or reinitialized as a different logical place
+  while the borrow lives;
+- the child's completion releases the pin, after which ordinary lifecycle
+  storage rules apply to that place again;
+- crossing, blocking and public handoff of such a reference stay refused
+  exactly as they are refused today.
+
+An intermediate tree in which semantic analysis has admitted the borrow and the
+scheduler has pinned the task while the lowered pointer is still a per-poll
+`alloca` is FORBIDDEN. It is worse than the refusal it would replace, because
+it reports a proof it does not have. The existing refusal stands until promoted
+storage, path-sensitive pin state and carrier-addressed publication are all live
+together.
 
 ## 8. Ordinary Call ABI
 
