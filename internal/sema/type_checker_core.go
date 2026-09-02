@@ -164,10 +164,11 @@ type typeChecker struct {
 	// answer for an `async { }` body. See spawnReachingBorrowExprs.
 	spawnReachingExprs map[ast.ExprID]struct{}
 	// activationBlocks is the stack of `async { }` / `blocking { }` bodies being
-	// walked, innermost last. Each is its own activation with its own frame, so
-	// it is what a promoted place inside it belongs to; empty means the
+	// walked, innermost last, by SPAN -- the block identity that survives into
+	// the lowering that will read this. Each is its own activation with its own
+	// frame, so it is what a promoted place inside it belongs to; empty means the
 	// callable's own activation. See ActivationKey.
-	activationBlocks       []ast.ExprID
+	activationBlocks       []source.Span
 	onCrossingStack        []onAnchorFrame // active `on dst { ... }` crossing frames
 	directFunctionCrossing map[symbols.SymbolID]struct{}
 	functionCrossingEdges  map[symbols.SymbolID]map[symbols.SymbolID]struct{}

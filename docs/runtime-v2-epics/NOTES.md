@@ -11877,6 +11877,32 @@ the analysis rather than the lowering.
 Rule 13 is targeted: reducing `currentActivation` to the callable alone makes the
 new case fail with `"host/block" constrains nothing; got map[host:[inner]]` --
 the defect stated in the assertion's own words -- while the other five cases
-stay green. `go test ./internal/sema` passes, `internal/gatecheck` passes,
-`make lint` reports `0 issues`, and the exact-base file-size gate passes 5 files
-with 0 violations.
+stay green.
+
+**The key's shape was got wrong twice, both times by writing what reads well in
+sema rather than what the reader can hold.** Worth recording as a pair, because
+the second mistake survived the fix for the first.
+
+First draft: the block half was an `ast.ExprID`. `hir.Expr` carries kind, type,
+span and data and NO AST id, so the id dies at HIR and the consumer can never
+reconstruct it. A block lowers to a synthetic `__async_block$N`
+(`internal/mir/lower_expr_misc.go:190`) built by
+`lowerSyntheticFunc(..., e.Span, ...)`, and `mir.Func` keeps that span, so the
+span is the block identity that survives.
+
+Second draft, still wrong: the key held the HOST callable's symbol beside the
+block's span. But `lowerSyntheticFunc` builds the block's function with
+`Sym: symbols.NoSymbolID` — it carries no symbol at all — so a reader standing in
+that function has the span and nothing else, and could not rebuild a key that
+demanded a host symbol too. EXACTLY ONE half is now set: a callable's activation
+is named by its symbol, a block's by its span alone. A span carries its FileID,
+so it is unique across the program.
+
+Both drafts would have tested green. What caught them was asking where the answer
+has to be RESOLVED before fixing the shape of the answer — the storage model's
+ordering rule read from the consumer's end. The test now proves the attribution
+the honest way: the block case asserts the host is ABSENT from the map.
+
+`go test ./internal/sema` passes, `internal/gatecheck` passes, `make lint`
+reports `0 issues`, and the exact-base file-size gate passes 5 files with 0
+violations.

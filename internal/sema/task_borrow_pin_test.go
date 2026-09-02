@@ -41,9 +41,13 @@ func stableActivationPlaceNames(t *testing.T, src string) map[string][]string {
 		// A block activation renders as "host/block" so a case can tell the two
 		// apart without knowing expression ids -- which is the whole point of
 		// keying by activation rather than by callable.
+		// A block activation renders as "block" and carries no callable name,
+		// because the key deliberately holds no symbol for one -- the synthetic
+		// function it lowers to has none either. A case therefore proves the
+		// attribution by the HOST BEING ABSENT from the map.
 		label := stableTestSymbolName(symRes, owner.Fn)
-		if owner.Block.IsValid() {
-			label += "/block"
+		if owner.IsBlock() {
+			label = "block"
 		}
 		out[label] = names
 	}
@@ -150,7 +154,7 @@ fn host() {
 	};
 }
 `,
-			want: map[string][]string{"host/block": {"inner"}},
+			want: map[string][]string{"block": {"inner"}},
 		},
 		{
 			name: "the constraint is per callable, not per file",

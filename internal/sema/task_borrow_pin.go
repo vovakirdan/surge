@@ -249,27 +249,44 @@ func (tc *typeChecker) openTaskBorrowPins(task uint32, captures []spawnBorrowCap
 
 // ActivationKey names ONE task activation. A callable has one of its own, and
 // every `async { }` / `blocking { }` block inside it has another, because a
-// block is a separate activation with a separate frame. Block is NoExprID for
-// the callable's own activation.
+// block is a separate activation with a separate frame. A zero Block is the
+// callable's own activation.
 //
 // Filing a block's local under its host callable is not a naming nicety. A
 // lowering that trusted it would promote a field in the HOST's frame and leave
 // the block's real local a per-poll `alloca` -- exactly the state the storage
 // model calls forbidden, and it would do so silently, because both answers
 // name a real binding.
+//
+// EXACTLY ONE half is set, and that is what makes the key resolvable by the
+// lowering that will read it. A callable's activation is named by its symbol; a
+// block's is named by its SPAN and carries no symbol at all, because the
+// function a block lowers to carries none either: `lowerSyntheticFunc` builds
+// `__async_block$N` with `Sym: symbols.NoSymbolID` and `Span: e.Span`. Storing
+// the HOST's symbol beside the span would read well here and be unreconstructible
+// there, so the key mirrors what the reader actually holds.
+//
+// The block half is a span rather than an expression id for the same reason one
+// step earlier: `hir.Expr` carries kind, type, span and data and no AST id, so
+// an id dies at HIR while a span reaches `mir.Func.Span`. A span carries its
+// FileID, so it is unique across the program.
 type ActivationKey struct {
 	Fn    symbols.SymbolID
-	Block ast.ExprID
+	Block source.Span
 }
 
+// IsBlock reports whether the key names an `async`/`blocking` block's own
+// activation rather than a callable's.
+func (k ActivationKey) IsBlock() bool { return k.Block != (source.Span{}) }
+
 // currentActivation is the activation whose frame the checker is inside now.
-// Blocks nest, so the innermost one wins.
+// Blocks nest, so the innermost one wins, and it answers for itself rather than
+// for the callable it is written inside.
 func (tc *typeChecker) currentActivation() ActivationKey {
-	key := ActivationKey{Fn: tc.currentFnSym(), Block: ast.NoExprID}
 	if n := len(tc.activationBlocks); n > 0 {
-		key.Block = tc.activationBlocks[n-1]
+		return ActivationKey{Block: tc.activationBlocks[n-1]}
 	}
-	return key
+	return ActivationKey{Fn: tc.currentFnSym()}
 }
 
 // recordStableActivationPlace names a place the enclosing activation must keep
@@ -282,7 +299,7 @@ func (tc *typeChecker) recordStableActivationPlace(place Place) {
 		return
 	}
 	owner := tc.currentActivation()
-	if !owner.Fn.IsValid() && !owner.Block.IsValid() {
+	if !owner.Fn.IsValid() && !owner.IsBlock() {
 		return
 	}
 	for _, existing := range tc.result.StableActivationPlaces[owner] {

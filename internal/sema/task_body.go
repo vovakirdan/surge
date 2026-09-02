@@ -51,7 +51,7 @@ func (tc *typeChecker) taskBlockPayload(id ast.ExprID, span source.Span, body as
 	// the block owns a frame, so a place a child of the BLOCK borrows constrains
 	// the BLOCK's storage and not its host's.
 	pinsOutsideBody := tc.snapshotTaskBorrowPins()
-	tc.activationBlocks = append(tc.activationBlocks, id)
+	tc.activationBlocks = append(tc.activationBlocks, span)
 	tc.walkStmt(body)
 	tc.activationBlocks = tc.activationBlocks[:len(tc.activationBlocks)-1]
 	tc.restoreTaskBorrowPins(pinsOutsideBody)
