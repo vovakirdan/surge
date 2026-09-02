@@ -1640,6 +1640,16 @@
       "group": "PG-ALLOC-FAILURE"
     },
     {
+      "site": "runtime/native/rt_select_channel_retry.h::select_retry_ensure_wait_key_cap#1",
+      "message": "async: select retry-key allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_select_channel_retry.h::select_retry_register_then_verify#1",
+      "message": "async: select retry waiter allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
       "site": "runtime/native/rt_string.c::rt_string_concat#1",
       "message": "string concat length out of range",
       "group": "PG-SIZE-LIMIT"

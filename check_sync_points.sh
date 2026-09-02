@@ -85,6 +85,7 @@ declare -A WINDOW_FILE=(
     [SP_CLONE_READER_OUT_OF_LOCK]="rt_task_entitlement.c"
     [SP_CANCEL_AT_COMMITTED_RESULT]="rt_task_complete.c"
     [SP_RESULT_CAPABILITY_BEFORE_MATCH]="rt_task_result.c"
+    [SP_CHANNEL_SELECT_REFUSED_BEFORE_RETRY_REGISTER]="rt_async_select.c"
 )
 
 # Cross-check the allowlist above against the enumerators actually declared in

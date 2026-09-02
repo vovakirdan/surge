@@ -513,6 +513,8 @@ typedef struct {
     rt_park_token slot;
     // A sender whose value this claim took, to be acked once the move is done.
     uint64_t sender_task_id;
+    // Why the claim was refused when the core answers 3; COUNT otherwise.
+    rt_channel_claim_refusal_cause refusal_cause;
 } rt_channel_take;
 
 // Ends a park and destroys whatever its slot still holds.
@@ -524,8 +526,10 @@ typedef struct {
 //
 // The ordinary case has nothing to destroy: a park whose value was delivered
 // leaves an empty slot, and this just hands it back.
-static inline void
-channel_end_park_locked(rt_shard* ch_shard, rt_channel* ch, const rt_park_token* token) {
+static inline void channel_end_park_locked(rt_executor* ex,
+                                           rt_shard* ch_shard,
+                                           rt_channel* ch,
+                                           const rt_park_token* token) {
     void* value = NULL;
     if (rt_park_pool_begin_release_locked(&ch->parks, token, &value) != RT_SLOT_CONTROL_OK) {
         return;
@@ -535,23 +539,56 @@ channel_end_park_locked(rt_shard* ch_shard, rt_channel* ch, const rt_park_token*
         rt_value_drop_in_place_detached(ch->ops, value);
         rt_shard_lock(ch_shard);
     }
-    (void)rt_park_pool_finish_release_locked(&ch->parks, token);
+    if (rt_park_pool_finish_release_locked(&ch->parks, token) == RT_SLOT_CONTROL_OK &&
+        value != NULL) {
+#ifndef RV2_DEBT_277_PARK_RELEASE_WAKE_NEGATIVE_CONTROL
+        // Only the value-bearing path released the owner lane: its reserved
+        // slot was observable as BUSY to a taker while the drop glue ran.
+        // Finishing that externally visible claim carries the retry wake
+        // (rt_channel_retry.h).
+        rt_channel_claim_released_locked(ex, ch_shard, ch);
+#else
+        (void)ex;
+#endif
+    }
 }
 
 // Moves a staged value out of its park slot and into the ring, again with the
 // lock released across the move. Used when a send finds room in the buffer
 // rather than a waiting receiver.
+//
+// `out_refusal`, when given, names why a 0 is a REFUSED single-transfer claim
+// (the ring's push, or the park's take) rather than "no room": the caller
+// counts a refusal against its retry budget (rt_channel_retry.h). Every
+// release of a claim this function held wakes an exhausted retrier.
 static inline int channel_stage_into_ring_locked(rt_executor* ex,
                                                  rt_shard* ch_shard,
                                                  rt_channel* ch,
-                                                 const rt_park_token* staged) {
+                                                 const rt_park_token* staged,
+                                                 rt_channel_claim_refusal_cause* out_refusal) {
+    if (out_refusal != NULL) {
+        *out_refusal = RT_CHANNEL_CLAIM_REFUSAL_COUNT;
+    }
     rt_typed_fifo_ticket ticket;
-    if (rt_typed_fifo_reserve_push_locked(&ch->ring, &ticket) != RT_SLOT_CONTROL_OK) {
+    rt_slot_control_status ring_status = rt_typed_fifo_reserve_push_locked(&ch->ring, &ticket);
+    if (ring_status != RT_SLOT_CONTROL_OK) {
+        if (ring_status == RT_SLOT_CONTROL_BUSY && out_refusal != NULL) {
+            *out_refusal = RT_CHANNEL_CLAIM_REFUSAL_RING_PUSH;
+        }
         return 0;
     }
     void* from = NULL;
-    if (rt_park_pool_reserve_take_locked(&ch->parks, staged, &from) != RT_SLOT_CONTROL_OK) {
+    rt_slot_control_status park_status =
+        rt_park_pool_reserve_take_locked(&ch->parks, staged, &from);
+    if (park_status != RT_SLOT_CONTROL_OK) {
+        // The push reservation was taken and abandoned under one continuous
+        // hold of the owner lane: no other lane observed it, so there is no
+        // retrier to wake here -- and a wake would release the lane between
+        // a caller's refusal and its retry registration.
         (void)rt_typed_fifo_abandon_push_locked(&ch->ring, &ticket);
+        if (park_status == RT_SLOT_CONTROL_BUSY && out_refusal != NULL) {
+            *out_refusal = RT_CHANNEL_CLAIM_REFUSAL_PARK_TAKE;
+        }
         return 0;
     }
     rt_shard_unlock(ch_shard);
@@ -562,6 +599,7 @@ static inline int channel_stage_into_ring_locked(rt_executor* ex,
         panic_msg("async: buffered channel value could not be published");
         return 0;
     }
+    rt_channel_claim_released_locked(ex, ch_shard, ch);
     channel_wake_parked_receiver_locked(ex, ch_shard, ch);
     return 1;
 }
@@ -582,6 +620,8 @@ typedef struct {
     // The receiver this put is destined for, woken once the value is in place.
     waiter candidate;
     int has_candidate;
+    // Why the claim was refused when the core answers 3; COUNT otherwise.
+    rt_channel_claim_refusal_cause refusal_cause;
 } rt_channel_put;
 
 // The owner-locked cores: they CLAIM under the caller's lock and describe what

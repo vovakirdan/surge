@@ -81,6 +81,26 @@ waker_key channel_recv_key(const rt_channel* ch) {
     return key;
 }
 
+// The retry keys: the same channel and owner shard as the ordinary two, so an
+// entry on them holds the same pin and close drains them together; a
+// different kind, so a released claim can wake an exhausted retrier without
+// popping a sender or receiver waiting for capacity or a peer.
+waker_key channel_send_retry_key(const rt_channel* ch) {
+    waker_key key = {WAKER_CHAN_SEND_RETRY, (uint64_t)(uintptr_t)ch, rt_channel_owner_shard_id(ch)};
+    return key;
+}
+
+waker_key channel_recv_retry_key(const rt_channel* ch) {
+    waker_key key = {WAKER_CHAN_RECV_RETRY, (uint64_t)(uintptr_t)ch, rt_channel_owner_shard_id(ch)};
+    return key;
+}
+
+int waker_is_channel(waker_key key) {
+    waker_kind kind = (waker_kind)key.kind;
+    return kind == WAKER_CHAN_SEND || kind == WAKER_CHAN_RECV || kind == WAKER_CHAN_SEND_RETRY ||
+           kind == WAKER_CHAN_RECV_RETRY;
+}
+
 waker_key net_accept_key(int fd) {
     waker_key key = {WAKER_NET_ACCEPT, (uint64_t)fd, 0};
     return key;

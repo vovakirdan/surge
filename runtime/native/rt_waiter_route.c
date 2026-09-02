@@ -61,6 +61,8 @@ rt_waiter_store* rt_waiter_store_for_key(rt_executor* ex, waker_key key) {
             return rt_executor_waiter_store_for_shard(ex, key.owner_shard_id);
         case WAKER_CHAN_SEND:
         case WAKER_CHAN_RECV:
+        case WAKER_CHAN_SEND_RETRY:
+        case WAKER_CHAN_RECV_RETRY:
             return rt_executor_waiter_store_for_shard(ex, RT_DEBT199_CHANNEL_OWNER_SHARD(key));
         default:
             return rt_executor_waiter_store(ex);
@@ -95,6 +97,8 @@ rt_shard* rt_waiter_key_shard(rt_executor* ex, waker_key key) {
             return rt_runtime_shard(rt_executor_runtime(ex), key.owner_shard_id);
         case WAKER_CHAN_SEND:
         case WAKER_CHAN_RECV:
+        case WAKER_CHAN_SEND_RETRY:
+        case WAKER_CHAN_RECV_RETRY:
             return rt_runtime_shard(rt_executor_runtime(ex), RT_DEBT199_CHANNEL_OWNER_SHARD(key));
         default:
             return rt_runtime_shard0(rt_executor_runtime(ex));

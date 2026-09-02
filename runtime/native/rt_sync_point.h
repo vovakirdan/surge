@@ -290,6 +290,15 @@ typedef enum rt_sync_point_id {
     // and retiring plus rebinding the slot underneath it is what shows whether
     // the generation, and not the task id alone, is what answers.
     RT_SYNC_POINT_SP_RESULT_CAPABILITY_BEFORE_MATCH,
+    // rt_select_poll (rt_async_select.c): reached once a channel arm's claim
+    // has been REFUSED for the eighth time -- the retry budget is exhausted --
+    // and before the select registers on the refusing channels' retry keys.
+    // The compatibility claim helper released the channel owner lane with the
+    // refusal, so a release or a close can cross the still-empty retry key
+    // inside this gap. Holding the select here and releasing the claim is what
+    // shows whether the register-then-verify under the owner lane sees it
+    // (RV2-DEBT-277).
+    RT_SYNC_POINT_SP_CHANNEL_SELECT_REFUSED_BEFORE_RETRY_REGISTER,
     RT_SYNC_POINT_COUNT
 } rt_sync_point_id;
 
@@ -390,9 +399,7 @@ void rt_sync_point_open(void);
 #ifdef RV2_DEBT_201_NEGATIVE_CONTROL
 #define RT_DEBT201_ABORT_SEQ(task, key) ((uint32_t)0)
 #else
-#define RT_DEBT201_ABORT_SEQ(task, key)                                                            \
-    (((key).kind == WAKER_CHAN_SEND || (key).kind == WAKER_CHAN_RECV) ? (task)->park_seq           \
-                                                                      : (uint32_t)0)
+#define RT_DEBT201_ABORT_SEQ(task, key) (waker_is_channel(key) ? (task)->park_seq : (uint32_t)0)
 #endif
 
 // RV2-DEBT-199 negative-control toggle. A far channel IS freed

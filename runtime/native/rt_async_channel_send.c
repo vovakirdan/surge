@@ -36,6 +36,7 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
         return 1;
     }
     if (task_cancelled_load(task) != 0) {
+        rt_channel_retry_reset(task);
         task->resume_kind = RESUME_NONE;
         return 0;
     }
@@ -55,6 +56,7 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
             task->resume_kind = RESUME_NONE;
             task->park_seq++;
             rt_shard_unlock(own_shard);
+            rt_channel_retry_reset(task);
             if (rk == RESUME_CHAN_SEND_CLOSED) {
                 panic_msg("send on closed channel");
             }
@@ -65,6 +67,7 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
         rt_shard_lock(ch_shard);
         if (ch->closed) {
             rt_shard_unlock(ch_shard);
+            rt_channel_retry_reset(task);
             panic_msg("send on closed channel");
             return 1;
         }
@@ -117,11 +120,16 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
                     // slot this channel owns, so give it to the buffer if
                     // there is room and destroy it otherwise -- never strand
                     // it, and never hand it to a task that is gone.
-                    if (!channel_stage_into_ring_locked(ex, ch_shard, ch, &staged)) {
-                        channel_end_park_locked(ch_shard, ch, &staged);
+                    if (!channel_stage_into_ring_locked(ex, ch_shard, ch, &staged, NULL)) {
+                        channel_end_park_locked(ex, ch_shard, ch, &staged);
                     } else {
-                        channel_end_park_locked(ch_shard, ch, &staged);
+                        channel_end_park_locked(ex, ch_shard, ch, &staged);
                         rt_shard_unlock(ch_shard);
+#ifndef RV2_DEBT_277_RECOVERY_RESET_NEGATIVE_CONTROL
+                        // Sent, by way of the buffer: this operation is
+                        // complete, and its refusal count goes with it.
+                        rt_channel_retry_reset(task);
+#endif
                         return 1;
                     }
                     rt_shard_unlock(ch_shard);
@@ -129,6 +137,7 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
                 }
                 rt_shard_unlock(ch_shard);
                 channel_compat_broadcast_if_needed(ex, pushed);
+                rt_channel_retry_reset(task);
                 if (yield_after_handoff && prepare_channel_send_yield(task)) {
                     return 0;
                 }
@@ -137,15 +146,19 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
             rt_shard_unlock(ch_shard);
             if (!channel_deliver_foreign(ex, &cand, RESUME_CHAN_RECV_VALUE, staged)) {
                 rt_shard_lock(ch_shard);
-                if (channel_stage_into_ring_locked(ex, ch_shard, ch, &staged)) {
-                    channel_end_park_locked(ch_shard, ch, &staged);
+                if (channel_stage_into_ring_locked(ex, ch_shard, ch, &staged, NULL)) {
+                    channel_end_park_locked(ex, ch_shard, ch, &staged);
                     rt_shard_unlock(ch_shard);
+#ifndef RV2_DEBT_277_RECOVERY_RESET_NEGATIVE_CONTROL
+                    rt_channel_retry_reset(task);
+#endif
                     return 1;
                 }
-                channel_end_park_locked(ch_shard, ch, &staged);
+                channel_end_park_locked(ex, ch_shard, ch, &staged);
                 rt_shard_unlock(ch_shard);
                 continue;
             }
+            rt_channel_retry_reset(task);
             if (yield_after_handoff && prepare_channel_send_yield(task)) {
                 return 0;
             }
@@ -154,24 +167,36 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
         if (ch->capacity > 0 && channel_buffered(ch) < ch->capacity && staged_live) {
             // The value is in a slot already: move it from there into the
             // buffer. A refusal here means the buffer's single transfer is in
-            // flight, or a receiver is taking this very value -- both resolve
-            // by parking with the slot still held.
-            if (channel_stage_into_ring_locked(ex, ch_shard, ch, &staged)) {
+            // flight, or a receiver is taking this very value -- a REFUSED
+            // claim either way, counted against the send's budget; exhausted,
+            // it parks on the retry key with the slot still held.
+            rt_channel_claim_refusal_cause refusal;
+            if (channel_stage_into_ring_locked(ex, ch_shard, ch, &staged, &refusal)) {
                 task->resume_slot = (rt_park_token){0};
-                channel_end_park_locked(ch_shard, ch, &staged);
+                channel_end_park_locked(ex, ch_shard, ch, &staged);
                 rt_shard_unlock(ch_shard);
+                rt_channel_retry_reset(task);
                 return 1;
+            }
+            if (refusal != RT_CHANNEL_CLAIM_REFUSAL_COUNT) {
+                rt_channel_wait_after_claim_refusal_locked(
+                    ch_shard, ch, task, RT_CHANNEL_RETRY_SEND, refusal);
+                return 0;
             }
         } else if (ch->capacity > 0 && channel_buffered(ch) < ch->capacity) {
             rt_typed_fifo_ticket ticket;
             rt_slot_control_status reserved = rt_typed_fifo_reserve_push_locked(&ch->ring, &ticket);
             if (reserved == RT_SLOT_CONTROL_BUSY) {
                 // The buffer has room; what it does not have at this instant is
-                // its single transfer, held by another task's move. Parking
-                // would block a send the buffer can take -- and a buffered send
-                // that fits must not block -- so come back and look again.
-                rt_shard_unlock(ch_shard);
-                pending_key = waker_none();
+                // its single transfer, held by another task's move. Parking on
+                // readiness would block a send the buffer can take -- and a
+                // buffered send that fits must not block -- so the claim is
+                // REFUSED and counted: seven times the send comes back and
+                // looks again, the eighth parks on the channel's retry key
+                // until the claim that refused it is released
+                // (rt_channel_retry.h, RV2-DEBT-277).
+                rt_channel_wait_after_claim_refusal_locked(
+                    ch_shard, ch, task, RT_CHANNEL_RETRY_SEND, RT_CHANNEL_CLAIM_REFUSAL_RING_PUSH);
                 return 0;
             }
             if (reserved == RT_SLOT_CONTROL_OK) {
@@ -183,8 +208,11 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
                     panic_msg("async: buffered channel value could not be published");
                     return 1;
                 }
+                // The commit released the single transfer this send held.
+                rt_channel_claim_released_locked(ex, ch_shard, ch);
                 channel_wake_parked_receiver_locked(ex, ch_shard, ch);
                 rt_shard_unlock(ch_shard);
+                rt_channel_retry_reset(task);
                 return 1;
             }
         }

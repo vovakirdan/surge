@@ -1,5 +1,7 @@
 #include "rt_channel_lane.h"
 #include "rt_remote_task.h"
+#include "rt_select_channel_retry.h"
+#include "rt_sync_point.h"
 
 #include <stddef.h>
 
@@ -177,6 +179,7 @@ int64_t rt_select_poll(uint64_t count,
     clear_wait_keys(ex, current);
     if (current_task_cancelled(ex)) {
         clear_select_timers(ex, current);
+        rt_channel_retry_reset(current);
         pending_key = waker_none();
         rt_control_unlock(ex);
         return -1;
@@ -213,6 +216,20 @@ int64_t rt_select_poll(uint64_t count,
     int64_t selected = -1;
     int selected_timeout = 0;
     uint64_t selected_task_id = 0;
+    // A refused single-transfer claim on any channel arm this poll, and whether
+    // the select's retry budget ran out on it (rt_select_channel_retry.h).
+    int claim_refused = 0;
+    int retry_exhausted = 0;
+#ifdef RV2_DEBT_277_SELECT_IDENTITY_NEGATIVE_CONTROL
+    // Rule 13: restores the unstable per-poll stack address, which resets the
+    // logical select whenever a re-entry rebuilds its arm table elsewhere.
+    uint64_t retry_operation_id = (uint64_t)(uintptr_t)handles;
+#else
+    // A task has at most one live select. Completion, cancellation and a clean
+    // scan reset the state, so zero is the stable identity of that whole arm
+    // set across polls.
+    uint64_t retry_operation_id = 0;
+#endif
     // A won recv arm's value, held until the control lock is gone (see the
     // SELECT_CHAN_RECV scan below). Only ever set on the iteration that also
     // sets `selected`, and the scan stops there, so at most one arm's value is
@@ -289,6 +306,14 @@ int64_t rt_select_poll(uint64_t count,
                 } else {
                     rt_channel_unpin(handle);
                 }
+                if (status == 3) {
+                    claim_refused = 1;
+                    retry_exhausted |= select_retry_note_refusal(current,
+                                                                 retry_operation_id,
+                                                                 handle,
+                                                                 RT_CHANNEL_RETRY_RECV,
+                                                                 take.refusal_cause);
+                }
                 if (status == 1 || status == 2) {
                     selected = (int64_t)i;
                 }
@@ -307,9 +332,17 @@ int64_t rt_select_poll(uint64_t count,
                     rt_channel_finish_send_locked(ex, handle, &put);
                     selected = (int64_t)i;
                 } else if (status == 2) {
+                    rt_channel_retry_reset(current);
                     rt_control_unlock(ex);
                     panic_msg("send on closed channel");
                     return -1;
+                } else if (status == 3) {
+                    claim_refused = 1;
+                    retry_exhausted |= select_retry_note_refusal(current,
+                                                                 retry_operation_id,
+                                                                 handle,
+                                                                 RT_CHANNEL_RETRY_SEND,
+                                                                 put.refusal_cause);
                 }
                 // The send arm's value is the caller's and stays the caller's,
                 // so nothing outlives the commit here and the hold ends with it.
@@ -351,7 +384,17 @@ int64_t rt_select_poll(uint64_t count,
         }
     }
 
+    // A `default` arm executes immediately when no arm won (LANGUAGE.md,
+    // select): with a default present the task never crosses a suspension
+    // point, and a refused claim -- arbitration the language cannot see -- is
+    // no exception. The refusal was counted; the win below resets it.
+#ifdef RV2_DEBT_277_SELECT_DEFAULT_NEGATIVE_CONTROL
+    // Rule 13: gate the default on a clean scan, and a select with a default
+    // republishes on a refusal, then parks on the eighth.
+    if (selected < 0 && !claim_refused && default_index >= 0) {
+#else
     if (selected < 0 && default_index >= 0) {
+#endif
         selected = default_index;
     }
 
@@ -361,6 +404,7 @@ int64_t rt_select_poll(uint64_t count,
             wake_task(ex, selected_task_id, 1);
         }
         clear_select_timers(ex, current);
+        rt_channel_retry_reset(current);
         pending_key = waker_none();
         rt_control_unlock(ex);
         if (taken_channel != NULL) {
@@ -372,6 +416,28 @@ int64_t rt_select_poll(uint64_t count,
             rt_channel_unpin(taken_channel);
         }
         return selected;
+    }
+
+    if (claim_refused && !retry_exhausted) {
+        // Refused, budget left: back to selection as a publication, no key.
+        rt_channel_retry_republished();
+        pending_key = waker_none();
+        rt_control_unlock(ex);
+        return -1;
+    }
+    if (!claim_refused) {
+        // A clean scan with no winner: whatever an earlier poll counted was
+        // against claims that have since been released.
+        rt_channel_retry_reset(current);
+    } else {
+        // The budget ran out on this scan: subscribe to the release of every
+        // claim that refused this select, verifying each under its owner lane
+        // (rt_select_channel_retry.h), BEFORE the readiness keys below -- a
+        // close that crosses here settles only what is registered, and the
+        // verify is what answers for the retry keys. The readiness keys still
+        // follow: a peer's park or a close wakes this select through them.
+        RT_SYNC_POINT(SP_CHANNEL_SELECT_REFUSED_BEFORE_RETRY_REGISTER);
+        select_retry_register_prefix(ex, current, count, kinds, handles);
     }
 
     waker_key first_key = waker_none();
@@ -476,9 +542,9 @@ int64_t rt_select_poll(uint64_t count,
         prepare_park(ex, current, first_key, first_added);
     }
     pending_key = first_key;
-    // Register-then-verify (see rt_timeout_poll): covers task and timeout
-    // arms; channel arms stay control-serialized with channel wakes until
-    // the channel lane migration revisits this scan.
+    // Register-then-verify (see rt_timeout_poll): task and timeout arms use
+    // their completion state here; exhausted channel-claim arms installed and
+    // verified their exact retry keys under the channel owner lane above.
     for (uint64_t i = 0; i < count; i++) {
         uint8_t kind = kinds != NULL ? kinds[i] : SELECT_TASK;
         if (kind != SELECT_TASK && kind != SELECT_TIMEOUT) {

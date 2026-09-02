@@ -19,9 +19,9 @@ void rt_trace_collect_waiter_counts(const rt_executor* ex, rt_waiter_trace_count
                 out->join++;
             } else if (kind == WAKER_TIMER) {
                 out->timer++;
-            } else if (kind == WAKER_CHAN_SEND) {
+            } else if (kind == WAKER_CHAN_SEND || kind == WAKER_CHAN_SEND_RETRY) {
                 out->chan_send++;
-            } else if (kind == WAKER_CHAN_RECV) {
+            } else if (kind == WAKER_CHAN_RECV || kind == WAKER_CHAN_RECV_RETRY) {
                 out->chan_recv++;
             } else if (kind == WAKER_NET_ACCEPT || kind == WAKER_NET_READ ||
                        kind == WAKER_NET_WRITE) {

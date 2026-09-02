@@ -31,6 +31,13 @@ typedef enum {
     WAKER_BLOCKING = 9,
     WAKER_REMOTE_SPAWN_REPLY = 10,
     WAKER_REMOTE_TASK_REPLY = 11,
+    // Claim-budget exhaustion waits apart from ordinary channel readiness: a
+    // released claim wakes one of these without popping, and so without
+    // reordering, a sender or receiver waiting for capacity or a peer. Both
+    // stay channel-owned keys -- same channel id, same owner shard, the same
+    // internal pin -- and close drains them with the ordinary two.
+    WAKER_CHAN_SEND_RETRY = 12,
+    WAKER_CHAN_RECV_RETRY = 13,
 } waker_kind;
 
 // ABI order predates Runtime V2 and is shared with generated/test code.
@@ -202,6 +209,10 @@ waker_key timer_key(uint64_t id, uint32_t owner_shard_id);
 waker_key scope_key(uint64_t id, uint32_t owner_shard_id);
 waker_key channel_send_key(const rt_channel* ch);
 waker_key channel_recv_key(const rt_channel* ch);
+waker_key channel_send_retry_key(const rt_channel* ch);
+waker_key channel_recv_retry_key(const rt_channel* ch);
+// Any of the four channel-owned kinds: the ordinary two and the retry two.
+int waker_is_channel(waker_key key);
 waker_key net_accept_key(int fd);
 waker_key net_read_key(int fd);
 waker_key net_write_key(int fd);

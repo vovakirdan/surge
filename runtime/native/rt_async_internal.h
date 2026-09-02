@@ -2,6 +2,7 @@
 #define SURGE_RUNTIME_NATIVE_RT_ASYNC_INTERNAL_H
 #include "rt.h"
 #include "rt_async_trace.h"
+#include "rt_channel_retry.h"
 #include "rt_heap_accounting.h"
 #include "rt_park_pool.h"
 #include "rt_placement.h"
@@ -282,6 +283,10 @@ typedef struct rt_task {
     uint8_t park_prepared;
     uint8_t scope_registered;
     uint8_t cancel_pending;
+    // Bounded channel-claim arbitration (rt_channel_retry.h): the one poll
+    // operation executing this task owns these words; they survive a
+    // republication and an ordinary park, and reset on progress or completion.
+    rt_channel_retry_state channel_retry;
     // Handle count in the low 31 bits, "this task has completed" in the top
     // one: one word, because whether a drop may free the task is one question.
     // The protocol, and why asking it as two reads was a double free, is in

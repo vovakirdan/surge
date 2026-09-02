@@ -193,7 +193,7 @@ void rt_channel_assert_pinned(const void* channel) {
 // alive: at registration because the operation building the key holds it, and
 // at retirement because the entry being retired is itself a hold.
 static rt_channel* channel_from_key(waker_key key) {
-    if (key.kind != WAKER_CHAN_SEND && key.kind != WAKER_CHAN_RECV) {
+    if (!waker_is_channel(key)) {
         return NULL;
     }
     return (rt_channel*)(uintptr_t)key.id;
@@ -213,14 +213,18 @@ void rt_channel_key_retired(waker_key key, size_t count) {
     }
 }
 
-// How many tasks are still registered on either of the channel's two keys.
-// Reads the owner shard's store, which the caller has already locked.
+// How many tasks are still registered on any of the channel's four keys: the
+// ordinary two and the retry two. Reads the owner shard's store, which the
+// caller has already locked.
 static size_t channel_registered_waiters_locked(const rt_shard* owner, const rt_channel* ch) {
-    const waker_key keys[2] = {channel_recv_key(ch), channel_send_key(ch)};
+    const waker_key keys[4] = {channel_recv_key(ch),
+                               channel_send_key(ch),
+                               channel_recv_retry_key(ch),
+                               channel_send_retry_key(ch)};
     size_t found = 0;
     const rt_waiter_store* store = &owner->waiter_store;
     for (size_t i = 0; i < store->len; i++) {
-        for (size_t k = 0; k < 2; k++) {
+        for (size_t k = 0; k < 4; k++) {
             if (store->entries[i].key.kind == keys[k].kind &&
                 store->entries[i].key.id == keys[k].id) {
                 found++;

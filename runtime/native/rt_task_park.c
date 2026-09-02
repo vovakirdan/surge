@@ -101,7 +101,7 @@ static void wake_task_with_policy(rt_executor* ex,
     // reading them for a non-parked task would race its unlocked writes. The
     // same WAITING gate governs wake_task_on_shard_locked's park_key clear.
     if (task_status_load(task) == TASK_WAITING && task_enqueued_load(task) == 0 &&
-        (task->park_key.kind == WAKER_CHAN_SEND || task->park_key.kind == WAKER_CHAN_RECV)) {
+        waker_is_channel(task->park_key)) {
         stale_seq = task->park_seq;
     }
     int pushed = wake_task_on_shard_locked(
@@ -171,9 +171,7 @@ void wake_net_task(rt_executor* ex, uint64_t id) {
 static void
 park_requeue_locked(const rt_executor* ex, rt_shard* owner_shard, rt_task* task, waker_key key) {
     rt_trace_spurious_wake_absorbed();
-    waker_kind kind = (waker_kind)key.kind;
-    int force_inject =
-        channel_wake_force_inject_enabled() && (kind == WAKER_CHAN_SEND || kind == WAKER_CHAN_RECV);
+    int force_inject = channel_wake_force_inject_enabled() && waker_is_channel(key);
     task->park_key = waker_none();
     task->park_prepared = 0;
     task_status_store(task, TASK_READY);
@@ -320,7 +318,7 @@ void park_current(rt_executor* ex, waker_key key) {
     // This park's generation, read on the parking task's own thread before
     // the requeue can hand the task to another worker.
     uint32_t abort_seq = 0;
-    if (key.kind == WAKER_CHAN_SEND || key.kind == WAKER_CHAN_RECV) {
+    if (waker_is_channel(key)) {
         abort_seq = task->park_seq;
     }
     rt_shard_lock(owner_shard);

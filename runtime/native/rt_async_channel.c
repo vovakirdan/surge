@@ -130,7 +130,7 @@ int rt_channel_stage_locked(
     void* address = NULL;
     if (rt_park_pool_reserve_deliver_locked(&ch->parks, out_token, &address) !=
         RT_SLOT_CONTROL_OK) {
-        channel_end_park_locked(ch_shard, ch, out_token);
+        channel_end_park_locked(ex, ch_shard, ch, out_token);
         return 0;
     }
     rt_shard_unlock(ch_shard);
@@ -140,7 +140,9 @@ int rt_channel_stage_locked(
         panic_msg("async: staged channel value could not be published");
         return 0;
     }
-    (void)ex;
+    // The delivery commit released the slot's reservation, which a taker saw
+    // as BUSY while the move ran.
+    rt_channel_claim_released_locked(ex, ch_shard, ch);
     return 1;
 }
 
@@ -175,6 +177,7 @@ static uint8_t rt_channel_recv_inner(void* channel, void* dst) {
         return 2;
     }
     if (task_cancelled_load(task) != 0) {
+        rt_channel_retry_reset(task);
         // A sender may already have delivered a value into this mailbox
         // (channel_deliver_same_shard_locked/channel_deliver_foreign) before
         // this task's cancellation landed: candidate validation only blocks
@@ -185,7 +188,7 @@ static uint8_t rt_channel_recv_inner(void* channel, void* dst) {
         if (task->resume_kind == RESUME_CHAN_RECV_VALUE) {
             rt_shard* ch_shard = channel_owner_shard(ex, ch);
             rt_shard_lock(ch_shard);
-            channel_end_park_locked(ch_shard, ch, &task->resume_slot);
+            channel_end_park_locked(ex, ch_shard, ch, &task->resume_slot);
             rt_shard_unlock(ch_shard);
         }
         task->resume_kind = RESUME_NONE;
@@ -226,10 +229,14 @@ static uint8_t rt_channel_recv_inner(void* channel, void* dst) {
                 }
                 rt_shard_lock(ch_shard);
                 (void)rt_park_pool_commit_take_locked(&ch->parks, &slot);
-                channel_end_park_locked(ch_shard, ch, &slot);
+                // The commit released the slot this take held BUSY.
+                rt_channel_claim_released_locked(ex, ch_shard, ch);
+                channel_end_park_locked(ex, ch_shard, ch, &slot);
                 rt_shard_unlock(ch_shard);
+                rt_channel_retry_reset(task);
                 return 1;
             }
+            rt_channel_retry_reset(task);
             return 2;
         }
         task->resume_kind = RESUME_NONE;
@@ -239,11 +246,14 @@ static uint8_t rt_channel_recv_inner(void* channel, void* dst) {
         rt_slot_control_status claimed = rt_typed_fifo_reserve_pop_locked(&ch->ring, &popped);
         if (claimed == RT_SLOT_CONTROL_BUSY) {
             // A value IS queued for us; another task holds the buffer's single
-            // transfer for an instant. Parking here would sleep on a value that
-            // is already ours, and a close arriving first would then report an
-            // empty channel and lose it. Come back and look again.
-            rt_shard_unlock(ch_shard);
-            pending_key = waker_none();
+            // transfer for an instant. Parking on readiness here would sleep
+            // on a value that is already ours, and a close arriving first
+            // would then report an empty channel and lose it. The claim is
+            // REFUSED and counted instead: seven times the receive comes back
+            // and looks again, the eighth parks on the channel's retry key
+            // until the claim that refused it is released (rt_channel_retry.h).
+            rt_channel_wait_after_claim_refusal_locked(
+                ch_shard, ch, task, RT_CHANNEL_RETRY_RECV, RT_CHANNEL_CLAIM_REFUSAL_RING_POP);
             return 0;
         }
         if (claimed == RT_SLOT_CONTROL_OK) {
@@ -259,6 +269,8 @@ static uint8_t rt_channel_recv_inner(void* channel, void* dst) {
                 panic_msg("async: buffered channel value could not be retired");
                 return 2;
             }
+            // The commit released the single transfer this receive held.
+            rt_channel_claim_released_locked(ex, ch_shard, ch);
             // Refill from a parked sender: same-shard senders hand their
             // value over inline; foreign senders are woken to retry so the
             // value never travels outside its owner's lock.
@@ -285,7 +297,7 @@ static uint8_t rt_channel_recv_inner(void* channel, void* dst) {
                             ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
                         continue;
                     }
-                    if (!channel_stage_into_ring_locked(ex, ch_shard, ch, &sender_slot)) {
+                    if (!channel_stage_into_ring_locked(ex, ch_shard, ch, &sender_slot, NULL)) {
                         // The buffer refused: its single transfer is in
                         // flight, or a receiver is taking this very value.
                         // This sender's registration was consumed by the pop
@@ -304,7 +316,7 @@ static uint8_t rt_channel_recv_inner(void* channel, void* dst) {
                     // while RUNNING, so no compat fallback is needed.
                     (void)wake_task_on_shard_locked(
                         ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
-                    channel_end_park_locked(ch_shard, ch, &sender_slot);
+                    channel_end_park_locked(ex, ch_shard, ch, &sender_slot);
                     break;
                 }
                 rt_shard_unlock(ch_shard);
@@ -312,6 +324,7 @@ static uint8_t rt_channel_recv_inner(void* channel, void* dst) {
                 rt_shard_lock(ch_shard);
             }
             rt_shard_unlock(ch_shard);
+            rt_channel_retry_reset(task);
             return 1;
         }
         waiter cand;
@@ -332,9 +345,10 @@ static uint8_t rt_channel_recv_inner(void* channel, void* dst) {
                 if (rt_park_pool_reserve_take_locked(&ch->parks, &sender_slot, &from) !=
                     RT_SLOT_CONTROL_OK) {
                     // The sender parked without staging (a full pool), so there
-                    // is nothing here to receive. Wake it to retry, unacked --
-                    // it still owns its value; this is a condition, not a
-                    // broken invariant.
+                    // is nothing here to receive, or its slot is mid-transfer.
+                    // Wake it to retry, unacked -- it still owns its value;
+                    // this is a condition, not a broken invariant -- and look
+                    // at the next candidate.
                     (void)wake_task_on_shard_locked(
                         ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
                     rt_shard_unlock(ch_shard);
@@ -350,11 +364,14 @@ static uint8_t rt_channel_recv_inner(void* channel, void* dst) {
                 }
                 rt_shard_lock(ch_shard);
                 (void)rt_park_pool_commit_take_locked(&ch->parks, &sender_slot);
+                // The commit released the sender's slot, BUSY while we took.
+                rt_channel_claim_released_locked(ex, ch_shard, ch);
                 int pushed = wake_task_on_shard_locked(
                     ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
-                channel_end_park_locked(ch_shard, ch, &sender_slot);
+                channel_end_park_locked(ex, ch_shard, ch, &sender_slot);
                 rt_shard_unlock(ch_shard);
                 channel_compat_broadcast_if_needed(ex, pushed);
+                rt_channel_retry_reset(task);
                 return 1;
             }
             // Foreign parked sender: its value is in this channel's pool, so
@@ -380,12 +397,15 @@ static uint8_t rt_channel_recv_inner(void* channel, void* dst) {
             }
             rt_shard_lock(ch_shard);
             (void)rt_park_pool_commit_take_locked(&ch->parks, &sender_slot);
-            channel_end_park_locked(ch_shard, ch, &sender_slot);
+            rt_channel_claim_released_locked(ex, ch_shard, ch);
+            channel_end_park_locked(ex, ch_shard, ch, &sender_slot);
             rt_shard_unlock(ch_shard);
+            rt_channel_retry_reset(task);
             return 1;
         }
         if (ch->closed) {
             rt_shard_unlock(ch_shard);
+            rt_channel_retry_reset(task);
             return 2;
         }
         waker_key recv_key = channel_recv_key(ch);

@@ -193,11 +193,14 @@ static uint64_t find_channel_parked_body(rt_executor* ex,
                     int waiting = task_status_load(body) == TASK_WAITING;
                     uint8_t kind = body->park_key.kind;
                     rt_shard_unlock(owner);
-                    if (waiting && (kind == WAKER_CHAN_SEND || kind == WAKER_CHAN_RECV)) {
+                    if (waiting &&
+                        (kind == WAKER_CHAN_SEND || kind == WAKER_CHAN_RECV ||
+                         kind == WAKER_CHAN_SEND_RETRY || kind == WAKER_CHAN_RECV_RETRY)) {
                         suspect_id = body->id;
-                        *op_name = arm_counts[i] > 0         ? "select"
-                                   : kind == WAKER_CHAN_SEND ? "send"
-                                                             : "recv";
+                        *op_name = arm_counts[i] > 0 ? "select"
+                                   : (kind == WAKER_CHAN_SEND || kind == WAKER_CHAN_SEND_RETRY)
+                                       ? "send"
+                                       : "recv";
                         if (owner_shard_id != NULL) {
                             *owner_shard_id = body->owner_shard_id;
                         }

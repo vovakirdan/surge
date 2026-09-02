@@ -200,7 +200,7 @@ static void trace_exec_dump(const char* reason) {
     if (!rt_exec_trace_enabled()) {
         return;
     }
-    char buf[1536];
+    char buf[2048];
     size_t pos = 0;
     pos = trace_append_literal(buf, pos, sizeof(buf), "TRACE_EXEC ");
     if (reason != NULL) {
@@ -283,6 +283,8 @@ static void trace_exec_dump(const char* reason) {
         pos,
         sizeof(buf),
         atomic_load_explicit(&trace_compensation_started_total, memory_order_relaxed));
+    // The channel claim-retry budget's seven records (rt_channel_retry.c).
+    (void)rt_channel_trace_append(buf, &pos, sizeof(buf));
     pos = trace_append_literal(buf, pos, sizeof(buf), " control_lock_acquired=");
     pos = trace_append_u64(
         buf,

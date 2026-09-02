@@ -12418,3 +12418,121 @@ that demanded the box now forbids it and demands the affine constructor
 (`TestEmitAsyncSharedRefParamKeepsCallerAlias`); the alloc-guard census row
 reaches `rt_frame_alloc` alone. RV2-DEBT-303 closes on the terms its routing
 set: nothing is copied, so nothing is held uncounted.
+
+### D6, RV2-DEBT-277: the retry budget, redesigned from the patch (2026-09-03)
+
+**What the lane had, and what it lacked.** The `codex/rv2-channel-retry`
+snapshot (`4471d2e7`, thirty staged files, 25 commits behind the trunk) had
+a single counter per logical operation, a budget of eight with the mutant
+nine, three refusal causes, the counters under `TRACE_EXEC`, and an
+exhaustion that registered the ONE arm whose refusal was the eighth. A select
+is refused on whichever arm's claim is busy at each poll, so that registration
+missed every earlier arm: a release on the first of two busy channels woke
+nobody, and the select slept until the second was released too. The port
+re-derives every integration hunk against the trunk's `rt_waiter*` (the seq-0
+primitive rewrote them after the lane forked) and adds what was missing.
+
+**The design, in one paragraph.** The cores answer a fourth status -- 3,
+REFUSED, with a cause: the ring's push, the ring's pop, or a park slot's take
+(`rt_channel_sync.c`, `channel_stage_into_ring_locked` gained `out_refusal`).
+Every refusal site counts it against the task's current logical operation
+(`rt_channel_retry.c`, `rt_channel_retry_state` on the task: operation, key
+identity, count, and a prefix ring of up to seven distinct
+`{channel, direction, cause}`); seven times the operation republishes with no
+key, the eighth parks on the channel's own retry key -- two new waker kinds,
+`WAKER_CHAN_SEND_RETRY` / `WAKER_CHAN_RECV_RETRY`, same channel and owner shard
+as the ordinary two, so the same pin and the same close settle them. Every
+release of a claim wakes that key (`rt_channel_claim_released_locked`: after
+commit push and pop, commit take and deliver, abandon push, and the
+value-bearing half of `channel_end_park_locked`, whose reserved slot was BUSY
+to a taker while the drop ran): select subscriptions (seq 0) are drained
+whole, then the oldest still-valid direct waiter is woken, and the ordinary
+sender/receiver FIFOs are never touched. `rt_channel_close` drains four keys.
+A select counts each refused arm, remembers it in the prefix, and at
+exhaustion subscribes to EVERY remembered arm of this poll's arm set,
+register-then-verify under each owner lane
+(`rt_select_channel_retry.h`); a `default` arm wins only after a clean scan,
+and a clean scan with no winner resets the count. Progress resets the state
+at every completing return, including the two recovery returns where a
+candidate died and the staged value went to the buffer instead.
+
+**Before / after, literally.** Before: `drive_direct_refusals` on a held ring
+claim -- eight `rt_channel_send` calls each returned 0 with `pending_key =
+none`; nothing counted, nothing parked; `channel_retry_budget_exhaustions`
+had no writer. After: `OK_DIRECT: refusals=8 republications=7 exhaustions=1
+max_retries=8 woke=1 completed=1`, `channel_claim_refusals_ring_push=8`,
+`channel_claim_releases=2`; the recv twin reads `ring_pop=8`, `releases=4`;
+the select twin `ring_push=8`, `releases=2`; close reads
+`retry_park_terminated=1 resume=closed registrations=1->0 pins=1->0`. Stand:
+`internal/vm/testdata/channel_claim_retry*.c` (one process, no workers, a
+hand-made current task, the rival claim HELD by the driver), five tests
+`TestRuntimeV2ChannelClaimRetry(BudgetAndWake|IdentityAndReset|NegativeControls|RegisterVerify|RegisterVerifyNegativeControl)`
+on the waiter gate; local, 77 s, all green.
+
+**Twelve mutants, each red on its named line.** Budget nine ("operation did
+not park on the eighth refusal"); no wake on release ("claim release did not
+wake the retry park"); close draining two keys ("close did not terminate the
+retry park"); select identity by the arm table's stack address ("select
+address rotation reset the retry budget"); only the eighth arm registered
+(`RV2_DEBT_277_PREFIX_NEGATIVE_CONTROL`, the new one: "release on an earlier
+refusing arm did not wake the select" -- two send arms, both held, four polls
+of two refusals each, the FIRST arm released); a `default` arm gated on a
+clean scan (`RV2_DEBT_277_SELECT_DEFAULT_NEGATIVE_CONTROL`: "select with a
+default republished on a refused claim"); no recovery reset, same and
+foreign owner ("new send inherited completed retry budget"); no wake from the
+value-bearing park release ("finish-release did not preserve retry wake");
+one mixed FIFO on the retry key ×2 ("claim release stopped at select
+sibling", "claim release left select retry subscription behind"); register
+without the owner-lane verify ("select parked after release crossed empty
+retry key").
+
+**The independent review, round one: REJECT, five findings, all taken.** The
+first port gated a `default` arm on a clean scan -- "arbitration is not
+non-readiness" -- and so a select with a `default` crossed a suspension point
+on the first refusal and parked on the eighth, against `LANGUAGE.md` ("with
+`default` ... executes immediately"). The language norm outranks the
+arbitration argument: the default wins, the refusal it counted is reset by
+the win, and the gate survives only as the twelfth mutant with its own row
+(nine polls against a held claim, nine defaults, no state left). Second: the
+wake after `abandon_push` inside `channel_stage_into_ring_locked` was
+vacuous (the reservation lived and died under one hold of the owner lane)
+and, worse, released that lane between a caller's refusal and its retry
+registration -- removed. Third: an exhausted select refused by a park take
+re-polls by self-token, and that re-poll went uncounted -- it is a
+republication now. Fourth: the first port returned REFUSED from the recv core
+on a BUSY sender slot mid-loop, which made `try_recv` answer false while a
+later parked sender could still deliver -- reverted to "wake the sender
+unacked, look at the next", as the lane had it; park-take refusals are
+counted only where the lane counted them, the staged send. Fifth: a NULL
+task read as "exhausted" and would have parked nothing -- reads 0.
+
+**One ordering the stand caught.** The first port registered the retry keys
+AFTER the readiness keys and held the sync point between them; a close
+crossing that gap settled the readiness registration and the verify stand
+counted one pin where it expected two. The retry registration now precedes
+the readiness keys: what a close crossing the window can settle is exactly
+what the verify answers for. Two mutant builds also failed to compile under
+`-Werror=unused-function` (the waker with no caller, the class pop with no
+caller) -- fixed by keeping the waker referenced and fencing the class
+helpers with the same mutant, so each mutant differs from the tree by the one
+thing it names.
+
+**Gates on the working tree.** `c-check` green; `check_sync_points.sh` green
+with the new window `SP_CHANNEL_SELECT_REFUSED_BEFORE_RETRY_REGISTER` in
+`rt_async_select.c`; panicgate green with two `PG-ALLOC-FAILURE` rows for the
+select retry allocations; file-size gate `violations=0` (effective:
+`rt_async_internal.h` 549 of a 676 base, `rt_channel_lane.h` 400,
+`rt_channel_sync.c` 481 -- nineteen to the line, which is why the
+release-side wake lives in `rt_channel_retry.c` and D7's claim registry goes
+to a file of its own, `rt_async_select.c` 462); gatecheck roster green with
+the new waiter-gate line.
+
+**The runner, meanwhile, on `479a75e6` (before D6).** `baseline.sh`: 0 red.
+W8 ×5: 5/5 red, every run on exactly the four lifecycle static pins that
+still named `__task_create` after the constructor split -- `da5a4d2e` fixes
+the pins, nothing else was red in five aggregates. `TestMTCorrectnessWakeups`
+×100 under `taskset`: 0 red of 100. And the HUP differential the day before
+had asked for: the same worktree, the same binary, `goldencheck/HUP` once
+under `nohup` and once under `setsid` -- `FAIL 45.013s` and `PASS 0.016s`.
+The row was never the tree's; it was the launcher's signal disposition, and
+every count on the runner goes through `setsid` from here on.
