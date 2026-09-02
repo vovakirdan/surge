@@ -11281,3 +11281,200 @@ the two new ones at 89 and 45 effective LOC. `STATS.md` is regenerated for them:
 test files `659 -> 661`, test LOC `136187 -> 136372`, total files
 `1762 -> 1764`, total LOC `377619 -> 377804`. The composed heavy aggregate stays
 commit-pinned dedicated-runner work and was not run locally.
+
+### Wave D seq-0 remote-reply retry-registration liveness blocker
+
+Started 2026-09-01 from exact integration base
+`163b9cdad8f12ef9fa4bcf2f0ad62a9632d05af0` in the isolated
+`codex/rv2-seq0-retry-liveness` worktree.  The dedicated-runner tagged suite
+stopped in
+`select-spurious-caller-wake-mints-no-second-request`; the exact focused row
+then reproduced the same terminal hang.  This is a Wave D liveness blocker,
+not a timeout-policy defect.
+
+The model answer is already present in `docs/RUNTIME_V2.md`: waiter
+registration is published before terminal verification, and an owner terminal
+event drains its waiter key.  The live path violates that rule for a
+`WAKER_REMOTE_TASK_REPLY` retry.  `wake_task_with_policy` consumes the first
+park, releases the task-owner lane, and defers stale-key removal.  The caller
+can re-poll and append a second registration on the same key in that window.
+Both entries have `seq == 0`, where `remove_waiter_generation` means
+unqualified match-all; the existing DEBT-046 exception covers only JOIN, so
+the delayed removal can sweep both remote-reply registrations before the
+single terminal `wake_key_all` drain.  The caller is then WAITING behind no
+store entry.
+
+The intended fix is one lifecycle classification for seq-0 retry
+registrations whose terminal event owns a wake-all drain.  It covers JOIN,
+SCOPE, BLOCKING, REMOTE_SPAWN_REPLY, and REMOTE_TASK_REPLY; it deliberately
+does not cover TIMER (deadline/by-id wake), net readiness, or channel
+generation registrations.  A stale terminal-drained entry is retained until
+that one terminal drain; a duplicate pop is absorbed by the task wake token.
+
+Closing evidence is a deterministic stand using the existing
+`SP_WAKE_BEFORE_STALE_REMOVAL` window: prove one first remote-reply
+registration, hold the spurious wake before removal, prove the caller re-parks
+with exactly two seq-0 entries, release the removal, then deliver one terminal
+reply.  The transport reply counter proves enqueue only, not terminal commit.
+The positive therefore requires the caller's committed result and an empty
+waiter store.  A Rule-13 build restores the remote-reply sweep, waits (under a
+bounded limiter) until `rt_remote_task_pending_snapshot` reports the exact OK
+result, then under the one shared owner lane proves the caller is WAITING,
+`task_enqueued == 0`, and its exact-key registration count is zero before the
+intentional failure.  Timer/by-id policy, channel generation removal, DEBT-277
+retry budgeting, transport, and language/UX are out of scope.
+
+Implemented the lifecycle predicate as
+`waker_seq0_retry_is_terminal_drained`, a reusable inline primitive beside
+`waker_key`; its exact classification proof requires five terminal-drained and
+six independently-completed kinds. `wake_task_with_policy` now skips only the
+unqualified stale sweep for those terminal-drained seq-0 lifecycles.  The stand
+proves `first=1 retry=2 after_removal=2 all_seq0=1`, then
+`caller=done entries=0 requests=1 bodies=1 replies=1`.  The Rule-13 build with
+`RV2_SEQ0_RETRY_NEGATIVE_CONTROL` restores only the remote-task-reply sweep and
+proves `after_removal=0`, `pending=ok`, `caller=waiting`, `enqueued=0`, and zero
+exact-key entries before the test accepts that exact intentional failure.  Its
+first positive draft incorrectly required the remote body to remain
+discoverable after its terminal retirement; that stand-only oracle was
+corrected to the single request/body-id/reply counters.  Review then caught
+that the reply counter itself names enqueue rather than terminal commit; the
+pending snapshot and same-lane caller/store census above close that oracle gap.
+No product behavior was changed for either correction.
+
+Focused evidence is green: the new positive/negative pair passed once and then
+five consecutive deterministic runs (`internal/vm`, `74.391s` for count 5);
+the formerly hanging
+`select-spurious-caller-wake-mints-no-second-request` row passed; and the
+existing DEBT-046 positive/negative proof remained green.  `make
+runtime-v2-syncpoint-check`, the exact-base file-size check, `make
+c-check-changed` (8/8 files), `make c-check`, full `make cppcheck`, full `make
+ctidy`, and `GOFLAGS=-buildvcs=false make check` all passed.  The first changed-C
+analysis exposed const-pointer, duplicate-branch, and pre-existing ABI-padding
+diagnostics; the fixture pointers, predicate form, and targeted NOLINT ABI
+comment were corrected before the accepted rerun.  The composed heavy lifecycle
+aggregate was not run locally: Rule 19 reserves it for the commit-pinned
+dedicated runner.
+
+Sentrux was necessarily captured late because implementation preceded this
+lane's gate pass; it is not represented as a pre-edit session baseline.  Review
+measured the exact parent `runtime/native` signal at 5434 and the first head at
+5431, so that head was rejected.  Moving both pure key predicates --
+`waker_valid` and the new lifecycle classifier -- beside `waker_key` removes
+the extra module coupling without weakening the reusable API or its 5-vs-6
+proof.  Final `runtime/native` reports `quality_signal=5435`, bottleneck
+`redundancy`, with root-cause scores acyclicity 10000, depth 8000, equality
+6074, modularity 3794, and redundancy 2573; all 7 scoped rules pass.  A fresh
+scan of the immutable exact parent in a detached worktree also read 5435 (one
+point above the review capture), so both the review baseline comparison
+`5434 -> 5435` and the immediate same-tool comparison `5435 -> 5435` are
+non-regressing.  The final same-path session baseline is 5435 and is closed
+after the final diff below.
+
+After the P1 oracle correction, the exact positive/Rule-13 pair passed once
+(`11.514s`) and five consecutive deterministic runs (`59.228s`).  The retained
+DEBT-046 positive shards 1/2/8 plus its negative control passed in `11.595s`.
+The eight-file changed-C analysis, sync-point static gate, cfmt, diff check, and
+exact-base file-size gate all passed; the new fixture is 326 effective LOC.
+The final same-path Sentrux session then closed `5435 -> 5435`, delta zero,
+with the same root causes and all 7 rules green.
+
+The terminal-snapshot probe takes its own pending reference before the send, so
+even an unusually late successful caller consumption cannot invalidate the
+review oracle.  After that lifetime guard, the exact positive/Rule-13 pair
+passed again in `11.595s`, and the changed-C analysis remained 8/8 green.  The
+mandatory staged pre-commit then passed: three changed C files passed their
+focused static analysis; the full package sweep passed (`internal/vm`
+`103.178s`); lint reported `0 issues`; strict C format/compile and file-size
+checks passed.  The hook regenerated the committed `STATS.md`; native `.c`
+volume is `39101` lines and total code plus tests is `376673` lines.
+
+#### Quality re-review: terminal-owner coverage and ABI restoration
+
+Quality review rejected `8754e649` for two independent reasons. First, the
+five-kind lifecycle predicate promised terminal wake-all ownership more broadly
+than the implementation actually provided: blocking cancel, remote-spawn
+abandonment, remote-task caller teardown, and queued shutdown could each win a
+terminal lifecycle without draining the retained registrations. Second, making
+`waker_valid` inline broke the established external C helper ABI and made the
+isolated fd-registry stands fail at compile time. The final correction keeps the
+reusable inline lifecycle classifier and its exact 5-vs-6 proof, but restores
+the external `waker_valid` declaration and `rt_waiter_key.c` definition.
+
+The terminal-owner matrix after the correction is:
+
+| seq-0 key | success | cancel | abandon | shutdown |
+| --- | --- | --- | --- | --- |
+| JOIN | `mark_done` drains JOIN | cancelled `mark_done` drains JOIN | no separate abandon state; the task remains live until a terminal result | shutdown cancellation reaches `mark_done` and the same drain |
+| SCOPE | last child (`active_children -> 0`) drains SCOPE | cancelled children converge on the same last-child transition | no detached scope operation can disappear without child exit | shutdown cancellation converges on the same last-child transition |
+| BLOCKING | worker terminal CAS drains BLOCKING | poller cancel CAS winner now drains BLOCKING; the worker CAS loses | no separate abandon state; task cancellation is the terminal route | queued/unrun settlement drains BLOCKING; a running job uses its normal worker/cancel terminal CAS |
+| REMOTE_SPAWN_REPLY | terminal finish drains unless abandon already won | refusal/cancel-like finish uses the same terminal finish | abandon and finish serialize under `remote_spawn_lock`; abandon-first owns the drain and finish skips, finish-first owns the drain and abandon only unlinks | fail-all reaches terminal finish and the same drain |
+| REMOTE_TASK_REPLY | `pending_finish` claims and drains | CANCEL reply uses `pending_finish` and the same claim | AWAIT/CANCEL caller teardown retires only the reply-wait lifecycle, without falsely terminalizing an in-flight request | queued payload drop and fail-all share one claim, so exactly one drains |
+
+The independent `reply_wait_retired` bit is necessary because remote-task
+request status and reply-wait lifetime are not the same state: after caller
+teardown the request may honestly remain in flight, while its immutable reply
+key can never be registered again. Reply, teardown, queued-message release, and
+fail-all all claim that bit under `rt_remote_task_state.lock`; only the winner
+drains outside the lock. A pending is never reused, and its monotonic request id
+plus source shard form the exact retirement key. Remote-spawn abandonment uses
+the existing `abandoned`/terminal states instead of another bit. When
+abandon-first claims retirement, it also takes an explicit pending ref under
+`remote_spawn_lock`, so a concurrent finish may unlink and release its own refs
+without invalidating the key/executor snapshot used after unlock.
+
+Blocking cancellation stays under the caller's existing lane for its CAS. Its
+terminal drain needs no lock handoff: the documented lane order permits control
+then one shard, and `wake_key_all` collect-then-wakes without nesting shard
+lanes. Because no lane is released, the live poller's existing lifetime remains
+continuous; no unlock window or synthetic handle ref was introduced.
+
+The new deterministic stand adds two seq-0 registrations for each missing
+terminal route, executes the winning terminal action, and requires an empty
+store. Its Rule-13 build omits only the new terminal drain and must first observe
+exactly two stranded entries before cleaning them up and intentionally failing.
+It covers blocking cancel, remote-spawn abandon-first plus finish-first ordering,
+remote AWAIT and CANCEL caller teardown, and queued shutdown followed by
+fail-all. The original remote-select success/Rule-13 stand and DEBT-046 proof
+remain unchanged.
+
+Focused evidence after the correction is green:
+
+* the four new positive/mutant terminal-owner rows and the original remote
+  success/mutant pair passed with the remote-spawn abandonment suite in
+  `27.039s`;
+* all seven DEBT-080 rows passed in `34.027s`;
+* DEBT-046 positive shards 1/2/8 plus its mutant passed in `11.306s`;
+* existing caller-abandon, queue-failure, pre-ack-cancel, and shutdown-waiter
+  rows passed in `5.437s`;
+* the three fd-registry rows that the inline ABI broke --
+  `GenerationStaleSnapshotProof`, `CloseWakePollNotificationProof`, and
+  `ShutdownDrainBehavior` -- passed in `0.430s` after restoration.
+
+`make runtime-v2-fd-registry-check` and the composed lifecycle aggregate remain
+commit-pinned dedicated-runner work: the local heavy-run guard refused them
+before execution as required. Both new Go tests are explicitly wired into the
+lifecycle aggregate. Local static evidence is green: sync-point gate, cfmt,
+strict whole-runtime C compile, changed-C warning/cppcheck/clang-tidy analysis,
+tagged `go vet`, `go test ./internal/gatecheck`, and diff check. The exact-base
+worktree file-size gate passed 21 code/test files; the new terminal-owner
+fixture is 215 effective LOC under the 500-line limit.
+
+Sentrux history is recorded without treating tool drift as product progress.
+Review captured the exact parent at 5434 and rejected the first head at 5431.
+The intermediate inline-ABI head measured 5435, but that representation was
+rejected by quality review. After restoring the external helper ABI, a fresh
+scan of the final `runtime/native` worktree is 5434: equal to the reviewer's
+captured parent, bottleneck `redundancy`, root scores acyclicity 10000, depth
+8000, equality 6077, modularity 3794, redundancy 2569, and all 7 architectural
+rules pass. The prior paragraph's 5435 final claim is superseded by this
+post-quality scan.
+
+The mandatory staged pre-commit passed the corrected diff end to end. Its
+changed-C analysis accepted all 14 C/header files; the full package sweep passed
+with `internal/vm` in `101.628s`; lint reported `0 issues`; strict C
+format/compile passed; and the hook's file-size pass accepted all 14 changed C
+files. It regenerated `STATS.md`: native C is 39198 lines, tests are 135300
+lines, and total code plus tests is 376829 lines. The commit hook is rerun on
+the final staged documentation and generated stats during amend. RV2-DEBT-320
+remains open until independent re-review and the commit-pinned aggregate accept
+the amended SHA.

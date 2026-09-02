@@ -42,6 +42,7 @@ void rt_remote_task_fail_all_pending(rt_executor* ex, rt_remote_task_status stat
     for (;;) {
         rt_remote_task_pending* pending = NULL;
         int release_owner_ref = 0;
+        int should_wake = 0;
         pthread_mutex_lock(&state->lock);
         for (rt_remote_task_pending* it = state->pending_head; it != NULL; it = it->next) {
             if (it->status != RT_REMOTE_TASK_STATUS_PENDING) {
@@ -52,6 +53,8 @@ void rt_remote_task_fail_all_pending(rt_executor* ex, rt_remote_task_status stat
             it->result_bits = 0;
             release_owner_ref = it->owner_registered != 0;
             it->owner_registered = 0;
+            should_wake = it->reply_wait_retired == 0;
+            it->reply_wait_retired = 1;
             rt_remote_task_pending_add_ref(it);
             pending = it;
             break;
@@ -60,8 +63,10 @@ void rt_remote_task_fail_all_pending(rt_executor* ex, rt_remote_task_status stat
         if (pending == NULL) {
             return;
         }
-        wake_key_all_with_policy(
-            ex, rt_remote_task_reply_key(pending->request_id, pending->source_shard_id), 0);
+        if (should_wake) {
+            wake_key_all_with_policy(
+                ex, rt_remote_task_reply_key(pending->request_id, pending->source_shard_id), 0);
+        }
         if (release_owner_ref) {
             rt_remote_task_pending_release(pending);
         }

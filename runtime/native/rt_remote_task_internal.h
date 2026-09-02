@@ -85,6 +85,11 @@ struct rt_remote_task_pending {
     uint8_t reply_status;
     uint8_t result_kind;
     uint8_t owner_registered;
+    // The request may remain in flight after its caller has gone away, so
+    // request status cannot honestly represent whether the reply-key lifecycle
+    // is still open.  This independent owner-lock bit claims its one terminal
+    // wake across reply, caller teardown, fail-all, and queued-message drain.
+    uint8_t reply_wait_retired;
     uint8_t cancel_routed;
     uint64_t caller_task_id;
     uint64_t body_poll_fn_id;
@@ -193,6 +198,7 @@ void rt_remote_task_pending_finish(rt_executor* ex,
                                    uint8_t result_kind,
                                    uint64_t result_bits,
                                    const rt_result_source* result_source);
+void rt_remote_task_pending_retire_reply_wait(rt_executor* ex, rt_remote_task_pending* pending);
 void rt_remote_task_pending_set_owner_registered(rt_remote_task_pending* pending, int value);
 rt_remote_task_pending* rt_remote_task_pending_take_owner(const rt_task* task);
 

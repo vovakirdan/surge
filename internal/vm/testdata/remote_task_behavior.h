@@ -184,6 +184,12 @@ typedef struct rtb_select_state {
 } rtb_select_state;
 
 void rtb_select_poll_dispatch(uint64_t id);
+int rtb_select_counters_ok(rt_executor* ex, uint64_t expected_requests);
+int rtb_select_park(rt_executor* ex,
+                    rtb_create_state* chan_a,
+                    rtb_create_state* chan_b,
+                    rtb_select_state* state,
+                    void** out_caller);
 int rtb_mode_select_ready_first(void);
 int rtb_mode_select_park_then_send(void);
 int rtb_mode_select_tie_break(void);
@@ -193,6 +199,12 @@ int rtb_mode_select_cancel_unbound(void);
 int rtb_mode_select_cancel_parked(void);
 int rtb_mode_select_cancel_vs_send(void);
 int rtb_mode_select_retry_single_body(void);
+int rtb_mode_seq0_retry_classification(void);
+int rtb_mode_select_seq0_retry_terminal_drain(void);
+int rtb_mode_seq0_blocking_cancel_drain(void);
+int rtb_mode_seq0_spawn_abandon_drain(void);
+int rtb_mode_seq0_remote_teardown_drain(void);
+int rtb_mode_seq0_remote_shutdown_drain(void);
 int rtb_mode_select_stale_wake(void);
 int rtb_mode_select_release_while_parked(void);
 int rtb_mode_select_sibling_isolation(void);

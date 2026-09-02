@@ -146,6 +146,7 @@ rt_remote_spawn_status rt_remote_spawn_publish(uint32_t dst_shard_id,
         return RT_REMOTE_SPAWN_STATUS_REFUSED;
     }
     memset(req, 0, sizeof(*req));
+    req->executor = ex;
     req->poll_fn_id = (uint64_t)poll_fn_id;
     req->state = state;
     req->state_type_id = state_type_id;

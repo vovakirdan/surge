@@ -205,6 +205,36 @@ waker_key rt_remote_task_reply_key(uint64_t request_id, uint32_t source_shard_id
     return key;
 }
 
+static int reply_wait_retire_locked(rt_remote_task_pending* pending) {
+    if (pending->reply_wait_retired != 0) {
+        return 0;
+    }
+    pending->reply_wait_retired = 1;
+    return 1;
+}
+
+void rt_remote_task_pending_retire_reply_wait(rt_executor* ex, rt_remote_task_pending* pending) {
+    rt_remote_task_state* state = rt_remote_task_state_get(ex);
+    if (pending == NULL || state == NULL || pending->executor != ex) {
+        return;
+    }
+    int should_wake = 0;
+    pthread_mutex_lock(&state->lock);
+    should_wake = reply_wait_retire_locked(pending);
+    pthread_mutex_unlock(&state->lock);
+#ifndef RV2_SEQ0_TERMINAL_RETIRE_NEGATIVE_CONTROL
+    if (should_wake) {
+        // Both key fields are immutable from pending_new until final release;
+        // request ids are monotonic, so retirement cannot consume a later
+        // operation's registration even after the caller task is reused.
+        wake_key_all_with_policy(
+            ex, rt_remote_task_reply_key(pending->request_id, pending->source_shard_id), 0);
+    }
+#else
+    (void)should_wake;
+#endif
+}
+
 void rt_remote_task_pending_finish(rt_executor* ex,
                                    rt_remote_task_pending* pending,
                                    rt_remote_task_status status,
@@ -225,7 +255,7 @@ void rt_remote_task_pending_finish(rt_executor* ex,
             pending->result_source = *result_source;
         }
         pending->owner_registered = 0;
-        should_wake = 1;
+        should_wake = reply_wait_retire_locked(pending);
     }
     pthread_mutex_unlock(&state->lock);
     if (should_wake) {

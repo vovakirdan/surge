@@ -344,22 +344,6 @@ void rt_sync_point_open(void);
 #define RT_DEBT023_CANCEL_WAKE(ex, task) wake_task((ex), (task)->id, 1)
 #endif
 
-// RV2-DEBT-046 negative-control toggle. Default (the fix): a consumed park's
-// stale JOIN key is exempt from the deferred waiter removal — join entries
-// carry no park generation, so the removal is unqualified and sweeps a fresh
-// re-registration made in the post-unlock window, stranding the joiner (join
-// wakes are store-driven). The stale entry is self-cleaning instead: the join
-// target completes exactly once and its completion drain pops every entry for
-// the key; a stale pop is absorbed as one spurious wake by the wake token.
-// A build defining RV2_DEBT_046_NEGATIVE_CONTROL restores the pre-fix
-// remove-every-kind behavior, which MUST strand the deterministic
-// wake-vs-repark proof (the non-vacuity check).
-#ifdef RV2_DEBT_046_NEGATIVE_CONTROL
-#define RT_DEBT046_STALE_KEY_REMOVABLE(key) 1
-#else
-#define RT_DEBT046_STALE_KEY_REMOVABLE(key) ((key).kind != WAKER_JOIN)
-#endif
-
 // RV2-DEBT-143 negative-control toggle. The fixed blocking poll publishes its
 // waiter and then treats a terminal re-check as authoritative. Defining the
 // negative control makes that post-registration observation inert, restoring

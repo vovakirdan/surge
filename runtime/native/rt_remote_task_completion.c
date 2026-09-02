@@ -10,6 +10,14 @@ void rt_remote_task_release_msg_payload(const rt_transport_msg* msg) {
         case RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION:
         case RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_REQUEST:
         case RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_ACK:
+            // Shutdown may drop the last queued request/reply after caller
+            // teardown already unlinked it from fail-all's registry walk.
+            // Claim exact reply-key retirement before releasing the transport
+            // reference. Normal dispatch does not call this helper.
+            rt_remote_task_pending_retire_reply_wait(
+                ((rt_remote_task_pending*)msg->payload)->executor, msg->payload);
+            rt_remote_task_pending_release(msg->payload);
+            break;
         case RT_TRANSPORT_MSG_REMOTE_TASK_RELEASE_REQUEST:
         case RT_TRANSPORT_MSG_IMMEDIATE_ON_EXECUTE_REQUEST:
         case RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY:
