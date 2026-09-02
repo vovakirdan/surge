@@ -1,0 +1,5 @@
+error SEM3209 testdata/golden/sema/invalid/concurrency/task_created_outside_scope.sg:10:12 cannot spawn a task created outside the current scope
+error SEM3209 testdata/golden/sema/invalid/concurrency/task_created_outside_scope.sg:16:23 cannot spawn a task created outside the current scope
+error SEM3209 testdata/golden/sema/invalid/concurrency/task_created_outside_scope.sg:26:23 cannot spawn a task created outside the current scope
+error SEM3209 testdata/golden/sema/invalid/concurrency/task_created_outside_scope.sg:35:23 cannot spawn a task created outside the current scope
+error SEM3209 testdata/golden/sema/invalid/concurrency/task_created_outside_scope.sg:55:23 cannot spawn a task created outside the current scope

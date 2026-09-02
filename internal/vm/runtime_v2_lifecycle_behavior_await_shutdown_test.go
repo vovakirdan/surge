@@ -141,12 +141,11 @@ static int mode_scope_cancelled_poll_teardown(rt_executor* ex) {
         rt_sync_point_open();
         (void)rt_executor_request_shutdown(ex);
         fprintf(stderr,
-                "scope child did not drain inside teardown gap: active=%zu child=%u registered=%u parent=%llu\n",
+                "scope child did not drain inside teardown gap: active=%zu child=%u registered=%u creation_scope=%llu\n",
                 active,
                 (unsigned)task_status_load(child),
                 (unsigned)child->scope_registered,
-                (unsigned long long)atomic_load_explicit(&child->parent_scope_id,
-                                                        memory_order_acquire));
+                (unsigned long long)child->creation_scope_key.id);
         return 1;
     }
     rt_sync_point_open();

@@ -8,10 +8,10 @@ import (
 )
 
 // TestRuntimeV2LifecycleScopeEnterRegisterJoinExit exercises the normal
-// same-owner scope lifecycle directly at the C level (rt_scope_enter/
-// register_child/join_all/exit, rt_async_scope.c:5-170): two children (one
-// completing immediately, one yielding a few times first) registered under
-// one scope, join_all parking the owner until both drain, then a clean exit.
+// same-owner scope lifecycle directly at the C level: two children (one
+// completing immediately, one yielding a few times first) acquire membership
+// at creation, the compatibility register calls validate it, join_all parks the
+// owner until both drain, and the owner exits cleanly.
 // This gives file:line-precise coverage of the park/wake path itself ahead
 // of the scope-owner-lane migration (S5-Q7/Q8/Q10), complementing the
 // existing Surge-source-level scope coverage in
@@ -27,23 +27,20 @@ func TestRuntimeV2LifecycleScopeEnterRegisterJoinExit(t *testing.T) {
 }
 
 // TestRuntimeV2LifecycleScopeFailfastCancellation exercises the failfast
-// branch directly at the C level: `rt_scope_register_child`'s late-
-// registration path (`rt_async_scope.c:67-75`), which fires when a child is
-// already TASK_DONE+TASK_RESULT_CANCELLED at registration time, sets
-// `failfast_triggered`, cancels every already-registered sibling via
-// `scope_cancel_children_locked`, and wakes the scope owner. The owner
-// registers a slow sibling first (so it is in `scope->children[]`), cancels
-// a second child directly and waits for it to drain, then registers that
-// already-cancelled child -- which must cancel the slow sibling and set
-// `failfast_triggered`, observed via `rt_scope_join_all`'s `failfast` out
-// param (`rt_async_scope.c:107-108`). This complements, rather than
+// completion branch directly at the C level. Both children acquire membership
+// at creation before becoming runnable. Cancelling one child must atomically
+// retire that member, set `failfast_triggered`, cancel the still-live sibling,
+// and wake the owner. The final compatibility register call is deliberately a
+// no-op validator: it proves an already-completed task is not adopted or
+// counted again. The answer is observed through `rt_scope_join_all`'s failfast
+// out parameter. This complements, rather than
 // duplicates, the existing Surge-source-level
 // `TestRuntimeV2FailfastScopeCancellationWakesOwner`
 // (`runtime_v2_task_scope_blocking_waiter_contract_test.go`, also selected
 // by the spike's corroboration table): that test proves the contract
 // through compiled Surge/LLVM codegen; this one proves the same C entry
-// points directly, with an explicit registration order the raw C harness
-// controls. Guards S5-Q8/S5-Q9 (rule 3) ahead of the next implementation step.
+// points directly, with creation-before-runnable membership controlled by the
+// raw C harness. Guards S5-Q8/S5-Q9 (rule 3).
 func TestRuntimeV2LifecycleScopeFailfastCancellation(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarness(t)
 	env := lifecycleEnv("SURGE_SHARDS=1", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1")
@@ -79,7 +76,7 @@ func TestRuntimeV2LifecycleScopeCancelledPollTeardown(t *testing.T) {
 // SURGE_SHARDS>1 the scope is pinned to its owner's shard and scope_key parks/
 // wakes route to that shard's waiter store (not the control-lane store), so
 // these prove the segmented scope table, pinned-shard scope_key routing, and
-// owner-lane register/child-done/join_all/exit/failfast/cancel bookkeeping all
+// owner-lane creation/child-done/join_all/exit/failfast/cancel bookkeeping all
 // hold when the runtime has multiple shards. Genuine cross-thread, cross-shard
 // scope-child completion (post-F2 net-wrapper children on contending workers)
 // is additionally covered by the 8-shard/1024 net benchmark that anchors the
@@ -105,7 +102,7 @@ func TestRuntimeV2LifecycleScopeCancelledPollTeardownAcrossShards(t *testing.T) 
 // is the sole producer of the residual ctrl_scope on the 8x1024 net benchmark
 // ); before this test it was exercised only by the benchmark
 // and the no-keepalive completion-pin TSan stress, neither deterministic in
-// CI. Here a scope owner pinned to shard 0 registers a scope-child while it is
+// CI. Here a scope owner pinned to shard 0 creates a scope-child while it is
 // same-owner, then parks in join_all; the scope-child adopts a shard-1
 // CONNECTION placement via the real F2 machinery (rt_task_poll_adopt_placement
 // consuming a connection-placed grandchild) and completes cross-owner, so
@@ -230,13 +227,12 @@ static _Atomic(void*) g_failfast_scope_handle;
 static _Atomic(void*) g_failfast_victim;
 static _Atomic(void*) g_failfast_sibling;
 
-// Registers a slow sibling first (so it lands in scope->children[]), waits
-// (by direct status peek -- no separate handle, no extra ref) for a
-// harness-cancelled victim to reach TASK_DONE+TASK_RESULT_CANCELLED, then
-// registers that victim: rt_scope_register_child's late-registration branch
-// (rt_async_scope.c:67-75) must fire failfast_triggered, cancel the already-
-// registered sibling, and wake the owner. Phase 2 confirms via
-// rt_scope_join_all's failfast out param once the cancelled sibling drains.
+// Creates two members before either becomes runnable, then waits (by direct
+// status peek -- no separate handle, no extra ref) for a harness-cancelled
+// victim to reach TASK_DONE+TASK_RESULT_CANCELLED. That member completion must
+// fire failfast, cancel the sibling, and wake the owner. The register call made
+// after completion is an ABI-validator no-op and must not reincarnate the task.
+// Phase 2 confirms the failfast answer once the sibling drains.
 static void poll_scope_owner_failfast(void) {
     uint32_t phase = atomic_load_explicit(&g_failfast_owner_phase, memory_order_acquire);
     if (phase == 0) {
@@ -280,7 +276,7 @@ static _Atomic(void*) g_scope_forever_handle;
 static _Atomic(void*) g_scope_forever_child;
 
 // Used only by the shutdown-with-parked-tasks scenario: enters a scope,
-// registers one never-completing child, then parks in join_all forever (the
+// creates one never-completing member, then parks in join_all forever (the
 // child only ends via cancellation or process exit), so the owner is
 // observably TASK_WAITING on scope_key at the moment shutdown is requested.
 static void poll_scope_owner_forever(void) {

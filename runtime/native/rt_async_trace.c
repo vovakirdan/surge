@@ -200,7 +200,7 @@ static void trace_exec_dump(const char* reason) {
     if (!rt_exec_trace_enabled()) {
         return;
     }
-    char buf[1408];
+    char buf[1536];
     size_t pos = 0;
     pos = trace_append_literal(buf, pos, sizeof(buf), "TRACE_EXEC ");
     if (reason != NULL) {
@@ -289,12 +289,11 @@ static void trace_exec_dump(const char* reason) {
         pos,
         sizeof(buf),
         atomic_load_explicit(&trace_control_lock_acquired_total, memory_order_relaxed));
-    pos = trace_append_literal(buf, pos, sizeof(buf), " cross_shard_wakes=");
-    pos =
-        trace_append_u64(buf,
-                         pos,
-                         sizeof(buf),
-                         atomic_load_explicit(&trace_cross_shard_wake_total, memory_order_relaxed));
+    trace_append_kv_u64(buf,
+                        &pos,
+                        sizeof(buf),
+                        "cross_shard_wakes",
+                        atomic_load_explicit(&trace_cross_shard_wake_total, memory_order_relaxed));
     pos = trace_append_literal(buf, pos, sizeof(buf), " spurious_wakes_absorbed=");
     pos = trace_append_u64(
         buf,
@@ -318,6 +317,7 @@ static void trace_exec_dump(const char* reason) {
         pos,
         sizeof(buf),
         atomic_load_explicit(&trace_placement_adoption_total, memory_order_relaxed));
+    rt_scope_provenance_trace_append(buf, &pos, sizeof(buf));
     // Per-site control-lock attribution. Fields follow the
     // rt_ctrl_site order (OTHER at index 0 is the untagged residual and is not
     // dumped); their sum is <= control_lock_acquired. Emitted via a loop rather

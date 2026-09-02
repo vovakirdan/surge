@@ -47,6 +47,7 @@ func TestVMScopeExitInvariantBecomesVMError(t *testing.T) {
 	if actualScopeID != 1 {
 		t.Fatalf("expected scope id 1, got %d", actualScopeID)
 	}
+	exec.SetCurrent(owner)
 	child := exec.Spawn(2, nil)
 	exec.RegisterChild(actualScopeID, child)
 

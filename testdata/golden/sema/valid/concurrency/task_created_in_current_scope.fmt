@@ -1,0 +1,26 @@
+// Creation inside the spawning scope remains valid, including assignment to a
+// mutable binding declared outside the async body. Provenance follows the task,
+// not the spelling or declaration site of the binding that happens to hold it.
+
+fn same_scope() -> Task<int> {
+    return async {
+        let created = async { ret 41; };
+        let started = spawn created;
+        ret compare started.await() {
+            Success(v) => v;
+            Cancelled() => 0;
+        };
+    };
+}
+
+fn inner_creation_in_outer_binding() -> Task<int> {
+    let mut slot: Task<int>;
+    return async {
+        slot = async { ret 42; };
+        let started = spawn slot;
+        ret compare started.await() {
+            Success(v) => v;
+            Cancelled() => 0;
+        };
+    };
+}

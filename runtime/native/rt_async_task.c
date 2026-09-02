@@ -7,6 +7,7 @@
 
 static rt_task* spawn_checkpoint_task_locked(rt_executor* ex);
 static void poll_ready_child_inline(rt_executor* ex, rt_task* current, rt_task* target);
+static void publish_created_task(rt_executor* ex, rt_task* task, rt_task* parent);
 static void rt_task_poll_adopt_placement(rt_executor* ex, rt_task* current, const rt_task* target);
 
 void* __task_create( // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
@@ -54,64 +55,7 @@ void* __task_create( // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dc
     rt_task_entitlements_init(&task->entitlements);
 
     rt_task* parent = rt_current_task();
-    if (parent != NULL) {
-        rt_task_inherit_placement(task, parent);
-    }
-    rt_task_assign_spawn_owner(task);
-
-    // Spike-proven order: assign owner -> shard-lock -> slot-store(release)
-    // -> ready-push -> unlock. The parent's children[] append is nested in
-    // the SAME critical section: a fresh child's owner shard always equals
-    // its parent's (rt_task_inherit_placement, just above), so this is the
-    // identical lock cancel_task now snapshots children[] under (see
-    // cancel_task, rt_async_state.c) - no extra lock.
-    //
-    // Invariant this relies on (write this down precisely - a future
-    // rt_task_replace_owner call site, e.g. the join-consume placement adoption
-    // path, must fit case (a) below without breaking this):
-    // (a) task_add_child always runs on the parent's own executing thread -
-    //     spawning a child is a synchronous call the parent makes from
-    //     within its own poll, never issued on the parent's behalf by
-    //     another thread. So every append to a given parent's children[]
-    //     is program-order sequenced with anything else that thread does
-    //     to itself, INCLUDING a self-replace of its own owner_shard_id
-    //     (today: rt_task_poll_adopt_placement plus the accept
-    //     rt_net_place_current_task_on_owner self-place path).
-    // (b) this append takes the CHILD's owner shard lock, which
-    //     rt_task_inherit_placement (just above) set to the parent's
-    //     CURRENT owner_shard_id at this exact spawn - read fresh, not
-    //     cached.
-    // (c) a reader (cancel_task, rt_async_state.c) holds control plus the
-    //     parent's CURRENT owner shard lock. Every rt_task_replace_owner
-    //     call today is either a self-replace on the owning thread (case
-    //     (a): program order carries prior appends forward to whatever
-    //     lock that thread acquires next - happens-before is the
-    //     transitive closure of sequenced-before and synchronizes-with, so
-    //     even a parent that changes its own owner BETWEEN two of its own
-    //     children's spawns leaves both appends visible to a canceller
-    //     locking the parent's current owner shard), or a cross-thread
-    //     replace targeting a task popped from a waiter store, i.e.
-    //     TASK_WAITING - parked, not mid-spawn
-    //     (rt_executor_wake_net_waiters_for_key_on_owner, rt_async_waiter.c,
-    //     the only such call shape; rt_task_poll_adopt_placement,
-    //     net_task_set_ready_accept, and rt_net_place_current_task_on_owner
-    //     are the current self-replace shapes - grep-verified in
-    //     rt_async_task.c, rt_net_accept_group.c, and rt_async_waiter.c).
-    // This does NOT claim a running parent's owner_shard_id never changes
-    // (it can, per (a)) - only that no path lets a DIFFERENT thread rewrite
-    // it while the owning thread might be mid-append. If a future change
-    // ever lets a parent spawn while parked, or lets another thread replace
-    // a task's owner while that task is unambiguously running (not
-    // self-driven, not popped-from-a-store), this invariant breaks and
-    // must be re-derived before relying on it.
-    rt_shard* owner_shard = rt_task_owner_shard(ex, task);
-    rt_shard_lock(owner_shard);
-    rt_task_slot_store(ex, id, task);
-    if (parent != NULL) {
-        task_add_child(parent, id);
-    }
-    (void)ready_push_task_locked(ex, owner_shard, task, 0, 0, 1);
-    rt_shard_unlock(owner_shard);
+    publish_created_task(ex, task, parent);
 
     // Lane-aware compensation-worker check, mirroring wake_task's identical
     // pattern (rt_async_state.c): only sync-channel-blocked-worker scenarios
@@ -130,6 +74,48 @@ void* __task_create( // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dc
         }
     }
     return task;
+}
+
+static void publish_created_task(rt_executor* ex, rt_task* task, rt_task* parent) {
+    if (parent != NULL) {
+        rt_task_inherit_placement(task, parent);
+    }
+    task->creation_scope_key = parent != NULL ? parent->active_scope_key : waker_none();
+    if (waker_valid(task->creation_scope_key) &&
+        task->owner_shard_id != task->creation_scope_key.owner_shard_id) {
+        rt_task_set_placement(task, task->creation_scope_key.owner_shard_id, task->placement_class);
+    }
+    rt_task_assign_spawn_owner(task);
+
+    // Creation seals provenance and publishes scope membership/count before
+    // slot or ready publication. A scope remains pinned even if its running
+    // owner task was re-placed, so a scoped child belongs to the scope shard.
+    // The separate parent children[] relation is protected by the parent's
+    // current owner shard; when those lanes differ, append there first and
+    // release it before taking the scope/child lane (never two shard locks).
+    //
+    // The parent-lane snapshot relies on spawn being a synchronous action of
+    // the RUNNING parent. A self-replace is sequenced with this read; today's
+    // cross-thread replace targets only a WAITING task, which cannot be in this
+    // call. cancel_task snapshots children[] under the same parent lane. If a
+    // future path can re-place a RUNNING task from another thread, this lock
+    // choice must be re-derived.
+    rt_shard* owner_shard = rt_task_owner_shard(ex, task);
+    rt_shard* parent_shard = parent != NULL ? rt_task_owner_shard(ex, parent) : NULL;
+    if (parent != NULL && parent_shard != owner_shard) {
+        rt_shard_lock(parent_shard);
+        task_add_child(parent, task->id);
+        rt_shard_unlock(parent_shard);
+    }
+    rt_shard_lock(owner_shard);
+    rt_scope_publish_creation_locked(ex, task);
+    RT_SYNC_POINT(SP_SCOPE_MEMBERSHIP_DECIDED_BEFORE_PUBLISH);
+    rt_task_slot_store(ex, task->id, task);
+    if (parent != NULL && parent_shard == owner_shard) {
+        task_add_child(parent, task->id);
+    }
+    (void)ready_push_task_locked(ex, owner_shard, task, 0, 0, 1);
+    rt_shard_unlock(owner_shard);
 }
 
 void* __task_state(void) { // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
@@ -152,28 +138,11 @@ void rt_task_wake(void* task) {
     if (target == NULL || task_status_load(target) == TASK_DONE) {
         return;
     }
-    // S5-Q2: the wake itself is owner-shard work (wake_task manages its own
-    // shard locking, already called control-free elsewhere in the tree); only
-    // the rare scope-adoption write stays behind a control fallback. The peek
-    // reads only current's own active_scope_key (thread-local while current is
-    // RUNNING, safe without a lock).
-    //
-    // parent_scope_id is not single-lock state and no lock here would make it
-    // so: its other writers are rt_scope_register_child, under the scope's
-    // pinned shard lock, and the target's own completion, under no lock at all
-    // (rt_async_scope.c). What orders the three is that each moves the word with
-    // ONE read-modify-write, so this adoption can only take a task no scope and
-    // no completion has claimed -- never overwrite one that has been.
+    // Wake is scheduling only. Scope provenance was sealed by creation before
+    // publication; in particular, waking a foreign task never adopts it.
     const rt_task* current = rt_current_task();
     if (current != NULL && waker_valid(current->active_scope_key)) {
-        rt_control_lock(ex);
-        rt_trace_control_lock_site(RT_CTRL_SITE_HANDLE);
-        rt_trace_control_lock_handle_site(RT_CTRL_HANDLE_WAKE);
-        if (atomic_load_explicit(&target->parent_scope_id, memory_order_acquire) ==
-            RT_SCOPE_CLAIM_NONE) {
-            (void)rt_scope_claim_membership(target, current->active_scope_key.id);
-        }
-        rt_control_unlock(ex);
+        RT_SCOPE_WAKE_PROVENANCE(target, current->active_scope_key);
     }
     wake_task(ex, target->id, 1);
 }

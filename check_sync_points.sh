@@ -76,7 +76,10 @@ declare -A WINDOW_FILE=(
     [SP_BLOCKING_STATE_BEFORE_BODY]="rt_async_blocking.c"
     [SP_BLOCKING_SHUTDOWN_BEFORE_DRAIN]="rt_async_blocking.c"
     [SP_INLINE_CHILD_TAKEN_OFF_QUEUE]="rt_ready_queue.c"
-    [SP_SCOPE_MEMBERSHIP_DECIDED_BEFORE_PUBLISH]="rt_async_scope.c"
+    # The window moved with the rule it guards: membership is now decided at
+    # CREATION, before slot and ready publication, so the point is armed from
+    # rt_task_create rather than from the scope module it used to sit in.
+    [SP_SCOPE_MEMBERSHIP_DECIDED_BEFORE_PUBLISH]="rt_async_task.c"
     [SP_SCOPE_CHILD_DONE_AFTER_MEMBERSHIP_TAKE]="rt_async_scope.c"
     [SP_CLONE_READER_OUT_OF_LOCK]="rt_task_entitlement.c"
     [SP_CANCEL_AT_COMMITTED_RESULT]="rt_task_complete.c"

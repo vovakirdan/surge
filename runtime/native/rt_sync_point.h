@@ -582,35 +582,10 @@ void rt_sync_point_open(void);
 #define RT_INLINE_CLAIM_SPLIT_REST(task) ((void)(task))
 #endif
 
-// Scope-membership claim negative-control toggle. A child's scope identity has
-// two writers that share no lock -- the registration and the child's own
-// completion -- so the fix has each of them move the claim word with ONE
-// read-modify-write and lets exactly one win (rt_scope_claim_membership /
-// rt_scope_take_membership, rt_async_internal.h).
-//
-// Defining the negative control restores the pre-fix shape: the registration
-// decides from the child's STATUS and publishes the id with a plain store, and
-// the completion decides from a plain read of the id. The word stays atomic in
-// both builds, so the control build is not undefined behaviour -- what it
-// removes is only the read-modify-write, which is the whole of the fix. The
-// deterministic proof MUST then observe what the runtime used to do: a
-// registration that counts a child which has already completed, a fail-fast
-// that is never raised for it, and a `@failfast` scope that never resolves.
-//
-// Both builds reach the window sync point at the same place, so the negative
-// control cannot pass by removing the window the proof is built on.
-#ifdef RV2_SCOPE_MEMBERSHIP_CLAIM_NEGATIVE_CONTROL
-#define RT_SCOPE_MEMBERSHIP_CLAIM(child, scope_id)                                                 \
-    ((void)(scope_id), task_status_load(child) != TASK_DONE)
-#define RT_SCOPE_MEMBERSHIP_PUBLISH(child, scope_id)                                               \
-    atomic_store_explicit(&(child)->parent_scope_id, (scope_id), memory_order_relaxed)
-#define RT_SCOPE_MEMBERSHIP_TAKE(task)                                                             \
-    atomic_load_explicit(&(task)->parent_scope_id, memory_order_relaxed)
-#else
-#define RT_SCOPE_MEMBERSHIP_CLAIM(child, scope_id) rt_scope_claim_membership((child), (scope_id))
-#define RT_SCOPE_MEMBERSHIP_PUBLISH(child, scope_id) ((void)(child), (void)(scope_id))
-#define RT_SCOPE_MEMBERSHIP_TAKE(task) rt_scope_take_membership(task)
-#endif
+// Scope provenance has no claim race: creation writes it once and publishes
+// membership before runnable publication. Its negative control lives beside
+// that protocol in rt_scope_membership.h; the legacy define remains an alias
+// there so the old stand cannot accidentally exercise a different build.
 
 // Canonical-pin negative-control toggle. A task's result is destroyed by the
 // reclaim that runs when the LAST reference to a DONE task goes, and every

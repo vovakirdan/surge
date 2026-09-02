@@ -249,7 +249,7 @@ void cancel_task(rt_executor* ex, uint64_t id) {
 // here unlocked raced wake_task_on_shard_locked's write. Only a net park_key
 // still forces control here (cross-shard registry removal). S6-Q1 is now
 // complete: the WAKER_JOIN reason went in , and the scope reason
-// (parent_scope_id/scope_registered) and the WAKER_SCOPE park_key reason are
+// (creation_scope_key/scope_registered) and the WAKER_SCOPE park_key reason are
 // gone in - scope completion bookkeeping runs on the scope owner shard
 // lane (scope_on_child_done) and the scope_key waiter store moved to the scope
 // owner shard, so both are owner-local. mark_done_needs_control's final form is

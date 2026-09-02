@@ -12062,3 +12062,63 @@ type Task` -- named a missing prelude rather than a refusal. `SURGE_STDLIB` poin
 at the repository ROOT, not at `stdlib/`; the Makefile passes `$(CURDIR)`, and the
 existence of a `stdlib/` directory is what makes the mistake easy. A wrong stand,
 not a regression.
+
+### Scope creation provenance, ported onto the integrated base
+
+Wave D step 5. The work existed in a dirty lane on base `4e4ec572` and is
+carried here onto `5b44cb0c`. Nothing about the feature changed in the move; what
+changed is what it is now measured against.
+
+**The transfer was by hunks, not by taking the lane whole.** The base had moved
+twelve commits, but the real conflict surface was seven files, found by
+intersecting the two change sets -- `comm -12` of the base drift against the
+lane's own dirty list -- of which three were the journal, the ledger and the
+generated counter. `git apply --3way` then landed everything with ONE conflict:
+the lifecycle aggregate's test roster. It resolved as a UNION -- the lane's
+roster is right to retire the `ScopeMembershipClaim*` rows, because it REPLACED
+those tests with `ScopeCreationProvenance*`, and the four `Seq0*` rows that
+landed meanwhile are added back.
+
+*A trap worth recording:* piping `git apply --3way` through `head` makes SIGPIPE
+kill the apply mid-way and roll it back, after it has already printed a per-file
+success for most of the patch. The first attempt looked like it had applied and
+had not.
+
+**The lane arrived with two ledger rows already marked `Closed`, and they were
+re-derived rather than carried.** Evidence taken on a superseded tree is not
+evidence for this one. On this base: the deterministic stand passed again at
+threads 2/4/8 and its `RV2_SCOPE_PROVENANCE_NEGATIVE_CONTROL` mutant failed as
+recorded; `StaticCreationScopeBeforeRunnablePublication` passed; the three
+SEM3209 rows -- the diagnostic contract, the legal inner-creation/outer-binding
+control, and the branch-merge row -- passed. `make golden-update` regenerated the
+two carried fixture sets BYTE-IDENTICALLY, which is the part that proves the
+behaviour is the same here and not merely that files were copied. The invalid
+fixture records five `SEM3209` rows, one per spelling the row claims to cover.
+Both ledger rows now carry the re-derivation date and base.
+
+**The sync-point gate caught a real defect the lane had.** It maps each sync
+point to the file whose window it guards. The lane moved
+`RT_SYNC_POINT(SP_SCOPE_MEMBERSHIP_DECIDED_BEFORE_PUBLISH)` from
+`rt_async_scope.c` into `rt_async_task.c` -- correctly, since the whole feature
+is that membership is decided at CREATION, before slot and ready publication --
+and never touched `check_sync_points.sh`. At base the gate passes; on the ported
+tree it failed by name. The window moved with the rule it guards. Nothing else
+notices a moved sync point: the code compiles and the tests pass, and only this
+static gate reads the pairing, so it is worth running on any lane that touches
+these calls -- it needs no build.
+
+**Gates.** `check_sync_points.sh`, `make c-check` (format and strict compile),
+`go test ./internal/panicgate`, `make lint` (`0 issues`), and the exact-base
+file-size gate at 31 files with 0 violations. `internal/mir` and
+`internal/asyncrt` pass.
+
+The full `internal/vm` sweep reports three failures --
+`TestVMDropOrderDeterministic`, `TestVMHeapOOBPanics`, `TestVMTermReadEventQueue`
+-- and they are NOT this port's. The control says so: the same three fail
+identically on `5b44cb0c` itself, with and without `SURGE_STDLIB` set
+(`cannot resolve 'Key' / 'Resize' / 'Eof'`, `missing argv argument`). They are a
+property of this workstation, and a failure without a control is not a
+measurement. The first attempt at that sweep is also void for a different reason
+and is not quoted anywhere: it was run without `--timeout`, hit `go test`'s own
+ten-minute default, and reported `FAIL ... 600.011s`, which is a timeout rather
+than a result.

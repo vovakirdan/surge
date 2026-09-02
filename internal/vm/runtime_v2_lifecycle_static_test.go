@@ -178,10 +178,9 @@ func TestRuntimeV2LifecycleStaticCensusSitesTagged(t *testing.T) {
 		// different function name.
 		{"rt_task_poll_adopt_placement", "RT_CTRL_SITE_JOIN_POLL"},
 		{"rt_task_await", "RT_CTRL_SITE_AWAIT_COMPAT"},
-		// rt_task_clone: S5-Q6 drops control unconditionally (unlike clone/
-		// wake's scope-adoption case, this is not a rare fallback) - there is
-		// nothing left to tag, so this case is deleted rather than repointed.
-		{"rt_task_wake", "RT_CTRL_SITE_HANDLE"},
+		// rt_task_clone and rt_task_wake are control-free. Wake is scheduling
+		// only now that creation seals scope provenance; it has no adoption
+		// fallback left to tag.
 		{"rt_task_cancel", "RT_CTRL_SITE_HANDLE"},
 		{"mark_done", "RT_CTRL_SITE_COMPLETION"},
 		{"rt_scope_enter", "RT_CTRL_SITE_SCOPE"},
@@ -202,11 +201,60 @@ func TestRuntimeV2LifecycleStaticCensusSitesTagged(t *testing.T) {
 // >= 2.0) moves id-alloc, slot publish, and ready-push under the owner shard
 // lock with no control acquisition in the steady state; only a rare
 // segment-growth event still takes control. Activated when the implementation lands:
-// asserts ready_push runs under rt_shard_lock in __task_create.
+// asserts the creation publisher called by __task_create runs ready_push under
+// rt_shard_lock.
 func TestRuntimeV2LifecycleStaticCreateReadyPushOwnerShard(t *testing.T) {
-	body := lifecycleFindFunctionBody(t, "__task_create")
+	create := lifecycleFindFunctionBody(t, "__task_create")
+	if !strings.Contains(create, "publish_created_task(ex, task, parent)") {
+		t.Fatalf("__task_create must use the creation publisher:\n%s", create)
+	}
+	body := lifecycleFindFunctionBody(t, "publish_created_task")
 	if !strings.Contains(body, "rt_shard_lock(") {
-		t.Fatalf("__task_create must ready-push under the owner shard lock:\n%s", body)
+		t.Fatalf("publish_created_task must ready-push under the owner shard lock:\n%s", body)
+	}
+}
+
+// Creation provenance and scope accounting are published before either task
+// kind can become runnable. This pins the order, not merely the presence of the
+// calls: no worker may observe a task between its slot/queue publication and
+// the scope's child-list/count publication.
+func TestRuntimeV2LifecycleStaticCreationScopeBeforeRunnablePublication(t *testing.T) {
+	assertOrder := func(name, body string, needles ...string) {
+		t.Helper()
+		previous := -1
+		for _, needle := range needles {
+			at := strings.Index(body, needle)
+			if at < 0 || at <= previous {
+				t.Fatalf("%s must order %q after the preceding creation step:\n%s", name, needle, body)
+			}
+			previous = at
+		}
+	}
+
+	create := lifecycleFindFunctionBody(t, "__task_create")
+	assertOrder("__task_create", create, "rt_task* parent =", "publish_created_task(ex, task, parent)")
+	createPublish := lifecycleFindFunctionBody(t, "publish_created_task")
+	assertOrder("publish_created_task", createPublish,
+		"task->creation_scope_key =",
+		"rt_scope_publish_creation_locked(ex, task)",
+		"rt_task_slot_store(ex, task->id, task)",
+		"ready_push_task_locked(ex, owner_shard, task")
+
+	blocking := lifecycleFindFunctionBody(t, "rt_blocking_submit")
+	publish := strings.Index(blocking, "rt_scope_publish_creation_locked(ex, task)")
+	if publish < 0 {
+		t.Fatalf("rt_blocking_submit must publish creation membership:\n%s", blocking)
+	}
+	assertOrder("rt_blocking_submit", blocking[:publish], "task->creation_scope_key =")
+	assertOrder("rt_blocking_submit publication", blocking[publish:],
+		"rt_scope_publish_creation_locked(ex, task)",
+		"rt_task_slot_store(ex, id, task)",
+		"blocking_queue_push(ex, job)",
+		"ready_push(ex, id)")
+
+	wake := lifecycleFindFunctionBody(t, "rt_task_wake")
+	if strings.Contains(wake, "creation_scope_key =") || strings.Contains(wake, "rt_control_lock(") {
+		t.Fatalf("rt_task_wake must schedule without adopting or taking control:\n%s", wake)
 	}
 }
 
@@ -227,9 +275,8 @@ func TestRuntimeV2LifecycleStaticJoinPollOwnerLane(t *testing.T) {
 // BEFORE the TASK_DONE release store (rule 1/2), and the WAKER_JOIN reason is
 // gone from mark_done_needs_control (S6-Q1) — join-key removal is
 // join-owner-route local and runs control-free. The remaining scope reason
-// (parent_scope_id/scope_
-// registered and the WAKER_SCOPE park_key) stays until the scope bookkeeping moves
-// bookkeeping + the scope_key store to the scope owner lane; that
+// (creation_scope_key/scope_registered and the WAKER_SCOPE park_key) stays until
+// the scope bookkeeping + scope_key store move to the scope owner lane; that
 // scope-reason-gone assertion belongs to P9 (TestRuntimeV2LifecycleStaticScope
 // OwnerLane), not here. Activated when the implementation lands.
 func TestRuntimeV2LifecycleStaticCompletionResultVisibilityOrder(t *testing.T) {

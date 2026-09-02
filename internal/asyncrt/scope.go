@@ -30,6 +30,17 @@ type Scope struct {
 	FailfastTriggered bool
 }
 
+func (e *Executor[P]) registerCreatedScopeMember(parent, task *Task[P]) {
+	if parent == nil || task == nil {
+		return
+	}
+	if scope := e.scopes[parent.ScopeID]; scope != nil {
+		task.CreationScopeID = scope.ID
+		task.ScopeRegistered = true
+		scope.Children = append(scope.Children, task.ID)
+	}
+}
+
 // EnterScope registers a new scope owned by the given task.
 func (e *Executor[P]) EnterScope(owner TaskID, failfast bool) ScopeID {
 	if e == nil {
@@ -77,7 +88,8 @@ func (e *Executor[P]) ExitScope(scopeID ScopeID) {
 	}
 }
 
-// RegisterChild records a child task in the scope.
+// RegisterChild validates the legacy lowering call. Creation already recorded
+// membership before enqueue; a task created elsewhere is never adopted here.
 func (e *Executor[P]) RegisterChild(scopeID ScopeID, child TaskID) {
 	if e == nil || scopeID == 0 {
 		return
@@ -87,22 +99,9 @@ func (e *Executor[P]) RegisterChild(scopeID ScopeID, child TaskID) {
 		return
 	}
 	task := e.tasks[child]
-	if task == nil || task.ScopeRegistered {
+	if task == nil || task.CreationScopeID != scope.ID {
 		return
 	}
-	if task.Status == TaskDone {
-		if task.ResultKind == TaskResultCancelled && scope.Failfast && !scope.FailfastTriggered {
-			scope.FailfastTriggered = true
-			e.CancelAllChildren(scopeID)
-			if owner := e.tasks[scope.Owner]; owner != nil && owner.Status != TaskDone {
-				e.Wake(scope.Owner)
-			}
-		}
-		return
-	}
-	scope.Children = append(scope.Children, child)
-	task.ParentScopeID = scopeID
-	task.ScopeRegistered = true
 }
 
 // CancelAllChildren cancels all children in task order.
@@ -146,7 +145,6 @@ func (e *Executor[P]) compactScopeChildren(scope *Scope) {
 		task := e.tasks[child]
 		if task == nil || task.Status == TaskDone {
 			if task != nil {
-				task.ParentScopeID = 0
 				task.ScopeRegistered = false
 			}
 			return true
@@ -159,7 +157,7 @@ func (e *Executor[P]) unregisterScopeChild(task *Task[P]) {
 	if e == nil || task == nil {
 		return
 	}
-	scopeID := task.ParentScopeID
+	scopeID := task.CreationScopeID
 	if scopeID != 0 {
 		if scope := e.scopes[scopeID]; scope != nil && len(scope.Children) > 0 {
 			if idx := slices.Index(scope.Children, task.ID); idx >= 0 {
@@ -167,6 +165,5 @@ func (e *Executor[P]) unregisterScopeChild(task *Task[P]) {
 			}
 		}
 	}
-	task.ParentScopeID = 0
 	task.ScopeRegistered = false
 }

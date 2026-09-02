@@ -1,0 +1,59 @@
+// A task keeps the scope that created it through aliases, synchronous helper
+// returns, helper-side spawn, and nested tuple destructuring. Scheduling it
+// from a later async body must not adopt it into that body's scope.
+
+fn pass_task(t: Task<int>) -> Task<int> {
+    return t;
+}
+
+fn schedule_task(t: Task<int>) -> Task<int> {
+    return spawn t;
+}
+
+fn direct_outside() -> Task<nothing> {
+    let earlier = async { ret 1; };
+    return async {
+        let started = spawn earlier;
+        let _ = started.await();
+        ret;
+    };
+}
+
+fn alias_outside() -> Task<nothing> {
+    let earlier = async { ret 2; };
+    let same = earlier;
+    return async {
+        let started = spawn same;
+        let _ = started.await();
+        ret;
+    };
+}
+
+fn helper_return_outside() -> Task<nothing> {
+    let earlier = async { ret 3; };
+    return async {
+        let started = spawn pass_task(earlier);
+        let _ = started.await();
+        ret;
+    };
+}
+
+fn helper_spawn_outside() -> Task<nothing> {
+    let earlier = async { ret 4; };
+    return async {
+        let started = schedule_task(earlier);
+        let _ = started.await();
+        ret;
+    };
+}
+
+fn destructured_outside() -> Task<nothing> {
+    let earlier = async { ret 5; };
+    let nested = (0, (earlier, 1));
+    let (_, (same, _)) = nested;
+    return async {
+        let started = spawn same;
+        let _ = started.await();
+        ret;
+    };
+}

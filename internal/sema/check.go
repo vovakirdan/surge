@@ -297,6 +297,9 @@ func Check(ctx context.Context, builder *ast.Builder, fileID ast.FileID, opts Op
 		}
 	}
 	checker.run()
+	if checker.errorCount == 0 {
+		checker.checkTaskCreationScopes()
+	}
 	if opts.AlienHints {
 		emitAlienHints(builder, fileID, opts)
 	}

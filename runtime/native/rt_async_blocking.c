@@ -1,4 +1,5 @@
 #include "rt_async_internal.h"
+#include "rt_scope_membership.h"
 #include "rt_sync_point.h"
 #include "rt_value_ops.h"
 
@@ -380,11 +381,15 @@ void* rt_blocking_submit(uint64_t fn_id,
     atomic_store_explicit(&task->far_task_result_lease, NULL, memory_order_relaxed);
     atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);
     rt_task_entitlements_init(&task->entitlements);
-    rt_task_slot_store(ex, id, task);
     rt_task* parent = rt_current_task();
     if (parent != NULL) {
         task_add_child(parent, id);
         rt_task_inherit_placement(task, parent);
+    }
+    task->creation_scope_key = parent != NULL ? parent->active_scope_key : waker_none();
+    if (waker_valid(task->creation_scope_key) &&
+        task->owner_shard_id != task->creation_scope_key.owner_shard_id) {
+        rt_task_set_placement(task, task->creation_scope_key.owner_shard_id, task->placement_class);
     }
     rt_task_assign_spawn_owner(task);
 
@@ -428,6 +433,16 @@ void* rt_blocking_submit(uint64_t fn_id,
     atomic_store_explicit(&job->cancel_requested, 0, memory_order_relaxed);
     atomic_store_explicit(&job->refs, 2, memory_order_relaxed);
     task->state = job;
+
+    if (waker_valid(task->creation_scope_key)) {
+        rt_shard* scope_shard = rt_waiter_key_shard(ex, task->creation_scope_key);
+        rt_shard_lock(scope_shard);
+        rt_scope_publish_creation_locked(ex, task);
+        rt_task_slot_store(ex, id, task);
+        rt_shard_unlock(scope_shard);
+    } else {
+        rt_task_slot_store(ex, id, task);
+    }
 
     (void)atomic_fetch_add_explicit(&ex->blocking_submitted, 1, memory_order_relaxed);
     rt_async_debug_printf("async blocking submit task=%llu fn=%llu state=%p type=%llu\n",

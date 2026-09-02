@@ -149,9 +149,8 @@ func (l *funcLowerer) lowerTaskExpr(e *hir.Expr, consume bool) (Operand, error) 
 				{Kind: OperandCopy, Place: Place{Local: l.scopeLocal}},
 				{Kind: OperandCopy, Place: Place{Local: tmp}},
 			},
-			// Both borrow: the scope records the child's numeric task id and
-			// the executor's task table keeps owning the task itself, so the
-			// scope releases nothing later (runtime/native/rt_async_scope.c).
+			// Both borrow: creation already published membership; this legacy
+			// call only validates the two identities and stores neither handle.
 			ArgContracts: borrowArgContracts(2),
 		}})
 	}
@@ -178,9 +177,8 @@ func (l *funcLowerer) lowerSpawnExpr(e *hir.Expr, consume bool) (Operand, error)
 				{Kind: OperandCopy, Place: Place{Local: l.scopeLocal}},
 				{Kind: OperandCopy, Place: Place{Local: tmp}},
 			},
-			// Both borrow: the scope records the child's numeric task id and
-			// the executor's task table keeps owning the task itself, so the
-			// scope releases nothing later (runtime/native/rt_async_scope.c).
+			// Both borrow: creation already published membership; this legacy
+			// call only validates the two identities and stores neither handle.
 			ArgContracts: borrowArgContracts(2),
 		}})
 	}

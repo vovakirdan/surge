@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "rt_sched_trace.h"
+#include "rt_scope_provenance_trace.h"
 
 // What the scheduler REPORTS about itself.
 //

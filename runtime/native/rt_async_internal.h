@@ -287,10 +287,9 @@ typedef struct rt_task {
     uint64_t sleep_delay;
     uint64_t sleep_deadline;
     waker_key active_scope_key;
-    // Which scope this task is a child of. A CLAIM word, not a plain field:
-    // two threads race to decide it and only one may win, and the protocol that
-    // decides it lives in rt_scope_membership.h.
-    _Atomic uint64_t parent_scope_id;
+    // Write-once provenance: the scope active at creation, or WAKER_NONE.
+    // Placement, scheduling, wake and completion never rewrite it.
+    waker_key creation_scope_key;
     // Park generation for channel candidate/validate: bumped when a channel
     // park registers and when this task consumes a delivered channel resume,
     // so a popped entry from a superseded park validates false instead of

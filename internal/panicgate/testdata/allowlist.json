@@ -1570,6 +1570,16 @@
       "group": "PG-INVARIANT"
     },
     {
+      "site": "runtime/native/rt_scope_membership.h::rt_scope_publish_creation_locked#1",
+      "message": "async: scope membership published outside its owner lane",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_scope_membership.h::rt_scope_publish_creation_locked#2",
+      "message": "async: scope membership could not be published at task creation",
+      "group": "PG-INVARIANT"
+    },
+    {
       "site": "runtime/native/rt_scope_table.c::ensure_scope_cap#1",
       "message": "async: scope capacity overflow",
       "group": "PG-INVARIANT"

@@ -98,7 +98,7 @@ type Task[P Payload] struct {
 	Kind             TaskKind
 	Cancelled        bool
 	ScopeID          ScopeID
-	ParentScopeID    ScopeID
+	CreationScopeID  ScopeID
 	ScopeRegistered  bool
 	Children         []TaskID
 	TimeoutTaskID    TaskID
@@ -174,6 +174,7 @@ func (e *Executor[P]) Spawn(pollFuncID int64, state TaskState) TaskID {
 	if e.current != 0 {
 		if parent := e.tasks[e.current]; parent != nil {
 			parent.Children = append(parent.Children, id)
+			e.registerCreatedScopeMember(parent, task)
 		}
 	}
 	e.enqueue(id)

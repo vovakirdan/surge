@@ -9,6 +9,7 @@ func TestScopeExitPanicsOnLiveChildren(t *testing.T) {
 	exec := NewExecutor[string](Config{Deterministic: true})
 	owner := exec.Spawn(1, nil)
 	scopeID := exec.EnterScope(owner, false)
+	exec.SetCurrent(owner)
 	child := exec.Spawn(2, nil)
 	exec.RegisterChild(scopeID, child)
 
@@ -41,6 +42,7 @@ func TestScopeDropsCompletedChildrenImmediately(t *testing.T) {
 	exec := NewExecutor[string](Config{Deterministic: true})
 	owner := exec.Spawn(1, nil)
 	scopeID := exec.EnterScope(owner, false)
+	exec.SetCurrent(owner)
 
 	scope := exec.scopes[scopeID]
 	if scope == nil {
@@ -60,7 +62,7 @@ func TestScopeDropsCompletedChildrenImmediately(t *testing.T) {
 	if len(scope.Children) != 1 || scope.Children[0] != active {
 		t.Fatalf("expected active child to be tracked, got %v", scope.Children)
 	}
-	if !activeTask.ScopeRegistered || activeTask.ParentScopeID != scopeID {
+	if !activeTask.ScopeRegistered || activeTask.CreationScopeID != scopeID {
 		t.Fatalf("expected active child registration metadata, got %+v", activeTask)
 	}
 
@@ -68,7 +70,7 @@ func TestScopeDropsCompletedChildrenImmediately(t *testing.T) {
 	if len(scope.Children) != 0 {
 		t.Fatalf("expected completed child to be pruned, got %v", scope.Children)
 	}
-	if activeTask.ScopeRegistered || activeTask.ParentScopeID != 0 {
+	if activeTask.ScopeRegistered || activeTask.CreationScopeID != scopeID {
 		t.Fatalf("expected completed child metadata to be cleared, got %+v", activeTask)
 	}
 
@@ -82,7 +84,7 @@ func TestScopeDropsCompletedChildrenImmediately(t *testing.T) {
 	if len(scope.Children) != 0 {
 		t.Fatalf("expected already completed child to be ignored, got %v", scope.Children)
 	}
-	if completedTask.ScopeRegistered || completedTask.ParentScopeID != 0 {
+	if completedTask.ScopeRegistered || completedTask.CreationScopeID != scopeID {
 		t.Fatalf("expected completed child to remain unregistered, got %+v", completedTask)
 	}
 
@@ -92,10 +94,11 @@ func TestScopeDropsCompletedChildrenImmediately(t *testing.T) {
 	}
 }
 
-func TestScopeRegisterCancelledChildTriggersFailfast(t *testing.T) {
+func TestScopeMemberCancellationTriggersFailfastAtCompletion(t *testing.T) {
 	exec := NewExecutor[string](Config{Deterministic: true})
 	owner := exec.Spawn(1, nil)
 	scopeID := exec.EnterScope(owner, true)
+	exec.SetCurrent(owner)
 
 	active := exec.Spawn(2, nil)
 	exec.RegisterChild(scopeID, active)
@@ -109,7 +112,7 @@ func TestScopeRegisterCancelledChildTriggersFailfast(t *testing.T) {
 		t.Fatal("expected scope to exist")
 	}
 	if !scope.FailfastTriggered {
-		t.Fatal("expected failfast to trigger when registering a cancelled child")
+		t.Fatal("expected failfast to trigger when a member completed cancelled")
 	}
 	activeTask := exec.tasks[active]
 	if activeTask == nil || !activeTask.Cancelled {
@@ -117,5 +120,25 @@ func TestScopeRegisterCancelledChildTriggersFailfast(t *testing.T) {
 	}
 	if len(scope.Children) != 1 || scope.Children[0] != active {
 		t.Fatalf("expected active child to remain the only registered child, got %v", scope.Children)
+	}
+}
+
+func TestScopeRegistrationDoesNotAdoptTaskCreatedOutside(t *testing.T) {
+	exec := NewExecutor[string](Config{Deterministic: true})
+	foreign := exec.Spawn(2, nil)
+	owner := exec.Spawn(1, nil)
+	scopeID := exec.EnterScope(owner, true)
+	exec.SetCurrent(owner)
+
+	exec.RegisterChild(scopeID, foreign)
+	exec.MarkDone(foreign, TaskResultCancelled, "")
+
+	scope := exec.scopes[scopeID]
+	if scope == nil || scope.FailfastTriggered || len(scope.Children) != 0 {
+		t.Fatalf("foreign task changed scope accounting: %+v", scope)
+	}
+	foreignTask := exec.tasks[foreign]
+	if foreignTask == nil || foreignTask.CreationScopeID != 0 || foreignTask.ScopeRegistered {
+		t.Fatalf("foreign task was adopted: %+v", foreignTask)
 	}
 }

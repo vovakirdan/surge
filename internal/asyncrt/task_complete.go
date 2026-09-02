@@ -66,8 +66,8 @@ func (e *Executor[P]) MarkDone(id TaskID, kind TaskResultKind, result P) (P, boo
 		e.removeWaiter(key, id)
 		delete(e.parked, id)
 	}
-	if kind == TaskResultCancelled && task.ParentScopeID != 0 {
-		if scope := e.scopes[task.ParentScopeID]; scope != nil && scope.Failfast && !scope.FailfastTriggered {
+	if kind == TaskResultCancelled && task.ScopeRegistered && task.CreationScopeID != 0 {
+		if scope := e.scopes[task.CreationScopeID]; scope != nil && scope.Failfast && !scope.FailfastTriggered {
 			scope.FailfastTriggered = true
 			e.CancelAllChildren(scope.ID)
 			if owner := e.tasks[scope.Owner]; owner != nil && owner.Status != TaskDone {

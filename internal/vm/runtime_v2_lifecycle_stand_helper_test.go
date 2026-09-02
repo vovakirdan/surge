@@ -126,8 +126,8 @@ const lifecycleHarnessStandHelpers = `
 // The stand's answer is to spawn the child from the DRIVER thread. A driver has
 // no worker TLS context, so current_local_queue returns NULL, the push goes to
 // the shard's shared inject queue WITH the ready signal, and a parked worker is
-// woken for it. The owner's poll then only REGISTERS the already-live task
-// (rt_scope_register_child accepts a live, not-yet-DONE task).
+// woken for it. Such a task is deliberately outside any worker-owned scope;
+// callers must not mistake the helper for scope membership or late adoption.
 
 // Spawn a child the way a stand driver must: inject queue plus ready signal.
 // Refuses, loudly, when it is called from a worker thread -- there the push

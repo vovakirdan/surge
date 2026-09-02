@@ -516,6 +516,12 @@ const (
 	// away from where it can be fixed.
 	SemaTaskBodyNoValue Code = 3208
 
+	// SemaTaskCreatedOutsideScope rejects scheduling a task under a different
+	// structured-concurrency scope than the one that created it. Reservation
+	// is not adoption: creation provenance is immutable and `spawn` cannot
+	// enrol an already-created task into the current scope.
+	SemaTaskCreatedOutsideScope Code = 3209
+
 	// Ошибки I/O
 
 	// IOLoadFileError indicates file load error.
@@ -782,6 +788,7 @@ var ( // todo расширить описания и использовать к
 		SemaOwnedIterable:                  "a consuming for-in is not a feature yet; drain the container with pop",
 		SemaTaskBodyReturn:                 "cannot return from the enclosing function inside an async/blocking body; write `ret <expr>;`",
 		SemaTaskBodyNoValue:                "an async/blocking body gives its value with `ret`",
+		SemaTaskCreatedOutsideScope:        "a task can be spawned only by the scope that created it",
 		SemaPartialMoveNeedsOwn:            "taking a field out of a live value must be written `own`",
 		SemaPartialMoveFromTemporary:       "cannot take a field out of a value nothing holds",
 		SemaStoreThroughSharedRef:          "cannot write through a shared reference",

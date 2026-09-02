@@ -898,14 +898,17 @@ completion and cancellation are messages to that owner. This is acceptable for
 low-fanout distributed work, but it must not be the default per-request shape.
 
 Fixing membership at creation changes the language contract, not only the
-topology. Today a task created outside a scope and scheduled inside one is
-adopted by it: `spawn` lowers to the runtime wake, which writes the current
-scope's identity into a target that has none, on a lane other than the one
-child registration uses. The adoption is partial, which is worse than silent
-membership: the child is never counted, so the scope does not join it, yet its
-cancelled result still raises the scope's fail-fast flag and cancels the real
-members. Semantic analysis rejects that `spawn` with a diagnostic of its own
-rather than change its meaning in silence.
+topology. The superseded implementation partially adopted a task created
+outside a scope when `spawn` scheduled it inside one: wake wrote a scope
+identity without registering or counting the child. The scope therefore did
+not join or cancel that task, yet its cancelled result could raise fail-fast
+and cancel real members. The current contract has no adoption step: wake is
+scheduling-only, and semantic analysis rejects the crossing as SEM3209,
+`cannot spawn a task created outside the current scope`, with the creation site
+and the instruction to create the task inside the scope. This fact follows the
+task value through aliases, synchronous helper returns and destructuring; it is
+not inferred from a variable's declaration site. No syntax or public scope
+identity is added.
 
 **Distributed spawn is an explicit crossing.** A local spawn may capture borrows
 of the parent, but common shard ownership is not itself a same-thread guarantee

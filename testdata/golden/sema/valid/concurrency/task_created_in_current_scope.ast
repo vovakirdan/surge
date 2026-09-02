@@ -1,0 +1,22 @@
+task_created_in_current_scope.sg (span: 5:1-27:1)
+├─ Item[0]: Fn (span: 5:1-14:2)
+│  ├─ Name: same_scope
+│  ├─ Params: ()
+│  ├─ Return: Task<int>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 5:30-14:2)
+│        └─ Stmt[0]: Return (span: 6:5-13:7)
+│           └─ Expr: expr#16: async { 3 stmt(s) }
+└─ Item[1]: Fn (span: 16:1-26:2)
+   ├─ Name: inner_creation_in_outer_binding
+   ├─ Params: ()
+   ├─ Return: Task<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 16:51-26:2)
+         ├─ Stmt[0]: Let (span: 17:5-17:29)
+         │  ├─ Name: slot
+         │  ├─ Mutable: true
+         │  ├─ Type: Task<int>
+         │  └─ Value: <none>
+         └─ Stmt[1]: Return (span: 18:5-25:7)
+            └─ Expr: expr#34: async { 3 stmt(s) }

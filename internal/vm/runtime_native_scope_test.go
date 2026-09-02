@@ -111,7 +111,7 @@ static int fail(const char* msg) {
     return 1;
 }
 
-static rt_task* alloc_task(rt_executor* ex, uint64_t id) {
+static rt_task* alloc_task(rt_executor* ex, uint64_t id, waker_key creation_scope) {
     ensure_task_cap(ex, id);
     rt_task* task = (rt_task*)rt_alloc(sizeof(rt_task), _Alignof(rt_task));
     if (task == NULL) {
@@ -124,10 +124,15 @@ static rt_task* alloc_task(rt_executor* ex, uint64_t id) {
     (void)rt_value_cell_bind(&task->result, rt_channel_opaque_word_ops());
     task->id = id;
     task->kind = TASK_KIND_USER;
+    task->creation_scope_key = creation_scope;
     task_status_store(task, TASK_READY);
     atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);
     rt_task_entitlements_init(&task->entitlements);
+    rt_shard* owner_shard = rt_task_owner_shard(ex, task);
+    rt_shard_lock(owner_shard);
+    (void)rt_scope_publish_creation_locked(ex, task);
     rt_task_slot_store(ex, id, task);
+    rt_shard_unlock(owner_shard);
     if (ex->next_id <= id) {
         ex->next_id = id + 1;
     }
@@ -149,7 +154,7 @@ int main(void) {
     }
 
     rt_control_lock(ex);
-    rt_task* owner = alloc_task(ex, ex->next_id);
+    rt_task* owner = alloc_task(ex, ex->next_id, waker_none());
     if (owner == NULL) {
         rt_control_unlock(ex);
         return fail("owner allocation failed");
@@ -169,21 +174,19 @@ int main(void) {
         rt_control_unlock(ex);
         return fail("scope missing");
     }
-    rt_task* active = alloc_task(ex, ex->next_id);
+    rt_task* active = alloc_task(ex, ex->next_id, owner->active_scope_key);
     if (active == NULL) {
         rt_control_unlock(ex);
         return fail("active task allocation failed");
     }
     rt_control_unlock(ex);
 
-    rt_scope_register_child(scope_handle, active);
-
     rt_control_lock(ex);
     if (scope->children_len != 1 || scope->active_children != 1) {
         rt_control_unlock(ex);
         return fail("active child not tracked");
     }
-    if (active->scope_registered == 0 || active->parent_scope_id != scope_id) {
+    if (active->scope_registered == 0 || active->creation_scope_key.id != scope_id) {
         rt_control_unlock(ex);
         return fail("active child registration metadata missing");
     }
@@ -201,20 +204,13 @@ int main(void) {
         return fail("completed child still marked as registered");
     }
 
-    rt_task* completed = alloc_task(ex, ex->next_id);
+    rt_task* completed = alloc_task(ex, ex->next_id, waker_none());
     if (completed == NULL) {
         rt_control_unlock(ex);
         return fail("completed task allocation failed");
     }
     task_status_store(completed, TASK_DONE);
     completed->result_kind = TASK_RESULT_SUCCESS;
-    // Completing is what seals the membership word, and a hand-built task has
-    // not done it: the status store above is the only part of a completion this
-    // stand performs. Sealing it here is the rest of that completion, and it is
-    // what a registration arriving afterwards has to lose against -- without it
-    // the stand is asking the registration to read a status the protocol
-    // deliberately stopped reading.
-    (void)rt_scope_take_membership(completed);
     rt_control_unlock(ex);
 
     rt_scope_register_child(scope_handle, completed);

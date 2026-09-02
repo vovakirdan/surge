@@ -20,6 +20,7 @@ func TestMarkDoneCommitsCancelledForACancelledTask(t *testing.T) {
 	exec := NewExecutor[string](Config{Deterministic: true})
 	owner := exec.Spawn(1, nil)
 	scopeID := exec.EnterScope(owner, true)
+	exec.SetCurrent(owner)
 	child := exec.Spawn(2, nil)
 	exec.RegisterChild(scopeID, child)
 
@@ -60,6 +61,7 @@ func TestMarkDoneKeepsSuccessForATaskNobodyCancelled(t *testing.T) {
 	exec := NewExecutor[string](Config{Deterministic: true})
 	owner := exec.Spawn(1, nil)
 	scopeID := exec.EnterScope(owner, true)
+	exec.SetCurrent(owner)
 	child := exec.Spawn(2, nil)
 	exec.RegisterChild(scopeID, child)
 

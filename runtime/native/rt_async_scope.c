@@ -158,87 +158,14 @@ void rt_scope_register_child(const void* scope_handle, void* task) {
         return;
     }
     uint64_t child_id = task_id_from_handle(task);
-    rt_task* child = get_task(ex, child_id);
+    const rt_task* child = get_task(ex, child_id);
     if (child == NULL) {
         return;
     }
-    rt_shard* pinned = rt_waiter_key_shard(ex, key);
-    // Steady path (S5-Q8): a live child registers under the pinned shard lock.
-    // The child inherits the scope owner's placement at spawn and this is a
-    // synchronous call from the owner's own poll right after __task_create, so
-    // the child's owner shard == the scope's pinned shard here (it cannot have
-    // re-placed yet). That makes the pinned shard lock == the child's owner
-    // shard lock, so the scope's accounting and the child's own mark_done
-    // child-done serialize on ONE lock, with no control lane.
-    //
-    // The lock is NOT what decides membership, though, and it cannot be: the
-    // completion has to read this child's scope identity before it knows which
-    // lock to take, so it reads it holding none. The claim below is what
-    // decides, in one read-modify-write against the completion's own -- whoever
-    // runs second sees the first. Losing it means the child completed before
-    // this registration reached it, which is the late path further down: the
-    // scope must never count a child whose completion has already been and gone.
-    rt_shard_lock(pinned);
-    rt_scope* scope = rt_scope_resolve_key_locked(ex, key);
-    if (scope == NULL) {
-        rt_shard_unlock(pinned);
-        return;
-    }
-    if (child->scope_registered) {
-        rt_shard_unlock(pinned);
-        return;
-    }
-    int claimed = RT_SCOPE_MEMBERSHIP_CLAIM(child, scope_id);
-    RT_SYNC_POINT(SP_SCOPE_MEMBERSHIP_DECIDED_BEFORE_PUBLISH);
-    if (claimed) {
-        scope_add_child(scope, child_id);
-        RT_SCOPE_MEMBERSHIP_PUBLISH(child, scope_id);
-        child->scope_registered = 1;
-        scope->active_children++;
-        rt_shard_unlock(pinned);
-        return;
-    }
-    int scope_failfast = scope->failfast;
-    rt_shard_unlock(pinned);
-    // Rare late-registration (S5-Q9): the child completed before this claim
-    // reached it, so it is not a member and nothing will retire it. Only a
-    // cancelled child in a failfast scope acts - it triggers failfast and
-    // cancels the already-registered siblings. The walk needs the control lane
-    // (see file header re-derivation). Reading the child's committed result
-    // here is ordered by the claim itself: the completion's read-modify-write
-    // released everything it had written, and the acquire on this failed claim
-    // is what makes it visible.
-    if (child->result_kind != TASK_RESULT_CANCELLED || !scope_failfast) {
-        return;
-    }
-    int need_control = !rt_lane_holds_control();
-    if (need_control) {
-        rt_control_lock(ex);
-        rt_trace_control_lock_site(RT_CTRL_SITE_SCOPE);
-    }
-    uint64_t owner_to_wake = 0;
-    rt_shard_lock(pinned);
-    scope = rt_scope_resolve_key_locked(ex, key);
-    if (scope == NULL) {
-        rt_shard_unlock(pinned);
-        if (need_control) {
-            rt_control_unlock(ex);
-        }
-        return;
-    }
-    if (!scope->failfast_triggered) {
-        scope->failfast_triggered = 1;
-        scope->failfast_child = child_id;
-        owner_to_wake = scope->owner;
-    }
-    rt_shard_unlock(pinned);
-    if (owner_to_wake != 0) {
-        scope_cancel_children_controlled(ex, key);
-        wake_task(ex, owner_to_wake, 1);
-    }
-    if (need_control) {
-        rt_control_unlock(ex);
-    }
+    // Kept as an ABI-compatible validator while existing MIR call sites remain.
+    // Membership was already published at creation; this call never adopts or
+    // rewrites a task, including one created in another scope.
+    (void)rt_scope_key_equal(child->creation_scope_key, key);
 }
 
 void rt_scope_cancel_all(const void* scope_handle) {
@@ -382,71 +309,58 @@ void scope_on_child_done(rt_executor* ex, rt_task* task, uint8_t result_kind) {
     if (ex == NULL || task == NULL) {
         return;
     }
-    // Take this task out of the membership race before anything else, and take
-    // it with one read-modify-write. This read cannot be made under the scope's
-    // lock -- its answer is which scope's lock to take -- so it is the claim
-    // word itself that has to be the serializer. A task that answers NONE here
-    // never belonged to a scope, and the word is now sealed: a registration
-    // still in flight for it loses its claim and reports the completion itself,
-    // instead of counting a child that has already finished. Reading and
-    // returning on a plain zero here was a lost fail-fast and a scope that
-    // never drains.
-    uint64_t psid = RT_SCOPE_MEMBERSHIP_TAKE(task);
+    waker_key key = task->creation_scope_key;
     RT_SYNC_POINT(SP_SCOPE_CHILD_DONE_AFTER_MEMBERSHIP_TAKE);
-    if (psid == RT_SCOPE_CLAIM_NONE) {
+    if (!waker_valid(key) || !RT_SCOPE_MEMBER_MAY_FAILFAST(task)) {
         return;
     }
     rt_shard* child_shard = rt_task_owner_shard(ex, task);
-    rt_shard_lock(child_shard);
-    rt_scope* scope = get_scope(ex, psid);
-    if (scope == NULL) {
-        rt_shard_unlock(child_shard);
-        return;
-    }
-    int same_owner = scope->owner_shard_id == task->owner_shard_id;
-    int may_failfast =
-        result_kind == TASK_RESULT_CANCELLED && scope->failfast && !scope->failfast_triggered;
-    if (same_owner && !may_failfast) {
-        int wake_owner = 0;
-        waker_key key = scope_key(scope->id, scope->owner_shard_id);
-        if (task->scope_registered) {
-            (void)scope_remove_child(scope, task->id);
-            if (scope->active_children > 0) {
-                scope->active_children--;
+    int same_owner = key.owner_shard_id == task->owner_shard_id;
+    if (same_owner) {
+        rt_shard_lock(child_shard);
+        rt_scope* scope = rt_scope_resolve_key_locked(ex, key);
+        if (scope == NULL) {
+            rt_shard_unlock(child_shard);
+            return;
+        }
+        int may_failfast = result_kind == TASK_RESULT_CANCELLED && scope->failfast &&
+                           !scope->failfast_triggered && RT_SCOPE_MEMBER_MAY_FAILFAST(task);
+        if (may_failfast) {
+            rt_shard_unlock(child_shard);
+        } else {
+            int wake_owner = 0;
+            if (task->scope_registered) {
+                (void)scope_remove_child(scope, task->id);
+                if (scope->active_children > 0) {
+                    scope->active_children--;
+                }
+                wake_owner = scope->active_children == 0;
+                task->scope_registered = 0;
             }
-            wake_owner = scope->active_children == 0;
-            task->scope_registered = 0;
+            rt_shard_unlock(child_shard);
+            if (wake_owner) {
+                wake_key_all(ex, key);
+            }
+            return;
         }
-        rt_shard_unlock(child_shard);
-        if (wake_owner) {
-            wake_key_all(ex, key);
-        }
-        return;
     }
-    rt_shard_unlock(child_shard);
     // Rare: cross-owner (re-placed child) or failfast-triggering completion.
     int need_control = !rt_lane_holds_control();
     if (need_control) {
         rt_control_lock(ex);
         rt_trace_control_lock_site(RT_CTRL_SITE_SCOPE);
     }
-    scope = get_scope(ex, psid);
+    rt_shard* pinned = rt_waiter_key_shard(ex, key);
+    uint64_t owner_to_wake = 0;
+    int wake_owner = 0;
+    rt_shard_lock(pinned);
+    rt_scope* scope = rt_scope_resolve_key_locked(ex, key);
     if (scope != NULL) {
-        rt_shard* pinned = rt_scope_owner_shard(ex, scope);
-        waker_key key;
-        uint64_t owner_to_wake = 0;
-        int wake_owner = 0;
-        rt_shard_lock(pinned);
-        scope = get_scope(ex, psid);
-        if (scope == NULL) {
-            rt_shard_unlock(pinned);
-            if (need_control) {
-                rt_control_unlock(ex);
+        if (result_kind == TASK_RESULT_CANCELLED && scope->failfast && !scope->failfast_triggered &&
+            RT_SCOPE_MEMBER_MAY_FAILFAST(task)) {
+            if (!task->scope_registered) {
+                rt_scope_trace_failfast_after_drained_answer();
             }
-            return;
-        }
-        key = scope_key(scope->id, scope->owner_shard_id);
-        if (result_kind == TASK_RESULT_CANCELLED && scope->failfast && !scope->failfast_triggered) {
             scope->failfast_triggered = 1;
             scope->failfast_child = task->id;
             owner_to_wake = scope->owner;
@@ -459,14 +373,14 @@ void scope_on_child_done(rt_executor* ex, rt_task* task, uint8_t result_kind) {
             wake_owner = scope->active_children == 0;
             task->scope_registered = 0;
         }
-        rt_shard_unlock(pinned);
-        if (owner_to_wake != 0) {
-            scope_cancel_children_controlled(ex, key);
-            wake_task(ex, owner_to_wake, 1);
-        }
-        if (wake_owner) {
-            wake_key_all(ex, key);
-        }
+    }
+    rt_shard_unlock(pinned);
+    if (owner_to_wake != 0) {
+        scope_cancel_children_controlled(ex, key);
+        wake_task(ex, owner_to_wake, 1);
+    }
+    if (wake_owner) {
+        wake_key_all(ex, key);
     }
     if (need_control) {
         rt_control_unlock(ex);
