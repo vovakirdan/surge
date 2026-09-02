@@ -288,8 +288,9 @@ func TestRuntimeV2LifecycleStaticCompletionResultVisibilityOrder(t *testing.T) {
 	}
 	// The store hides behind the external-awaiter helper, so pin the helper
 	// to the DONE store too — the indirection must not be able to mask a
-	// weakened or missing publication.
-	internalHeader := lifecycleReadNativeFile(t, "rt_async_internal.h")
+	// weakened or missing publication. The helper lives in rt_task_state.h,
+	// the fragment of rt_async_internal.h that holds the task state words.
+	internalHeader := lifecycleReadNativeFile(t, "rt_task_state.h")
 	if !strings.Contains(internalHeader, "task_status_store_seq_cst(task, TASK_DONE)") {
 		t.Fatal("rt_task_status_store_done_for_external_awaiters must publish TASK_DONE " +
 			"with the seq_cst store")
@@ -454,7 +455,9 @@ func TestRuntimeV2LifecycleStaticAwaitCompatCountedSeparately(t *testing.T) {
 		strings.Contains(doneCVSource, "pthread_cond_wait(&ex->done_cv") {
 		t.Fatal("completion code must never wait on done_cv; the only waiter is rt_task_await")
 	}
-	header := lifecycleReadNativeFile(t, "rt_async_internal.h")
+	// The helpers live in rt_task_state.h, the fragment of rt_async_internal.h
+	// that holds the task state words; that is the file the shape is read from.
+	header := lifecycleReadNativeFile(t, "rt_task_state.h")
 	for _, item := range []struct {
 		name string
 		want string
@@ -466,7 +469,7 @@ func TestRuntimeV2LifecycleStaticAwaitCompatCountedSeparately(t *testing.T) {
 	} {
 		body, ok := lockSplitFunctionDefinitionBody(header, item.name)
 		if !ok {
-			t.Fatalf("rt_async_internal.h must define RV2-DEBT-022 helper %q", item.name)
+			t.Fatalf("rt_task_state.h must define RV2-DEBT-022 helper %q", item.name)
 		}
 		if !strings.Contains(body, item.want) {
 			t.Fatalf("RV2-DEBT-022 helper %s must keep its seq-cst contract; missing %q:\n%s",
