@@ -11544,3 +11544,43 @@ actually linked into the stands rather than merely compiling -- `make c-check`
 passes format and strict compile, and the exact-base file-size gate passes 2
 files with 0 violations. The composed aggregate is re-counted on the dedicated
 machine at the new SHA rather than here.
+
+#### W8 aggregate count at 8963b84a — 5 of 5 green, and it is measured non-vacuous
+
+The re-count above. Recorded in full because a count that omits its own
+conditions is not evidence.
+
+| field | value |
+| --- | --- |
+| SHA | `8963b84a81a9267fa69098bc54721c2fe6e88c61` |
+| checkout | `/root/rv2-8963b84a`, detached worktree of `/root/surge-gates` |
+| delivery | `git bundle` + `scp` + `git fetch`; the candidate was never pushed |
+| host | `161808.example.uk` (212.108.83.42), 16 cores |
+| command | `make runtime-v2-check`, five consecutive runs |
+| driver | `/root/w8-8963b84a.sh 5`, logs in `/root/w8-8963b84a/` |
+| wall time | 06:36:03 -> 07:38:26 local, 1h02m |
+| result | **5 of 5 `rc=0`** |
+
+Per-run durations were 12:42, 12:25, 12:26, 12:24 and 12:25 — metronomic, with
+none of the heavy tail RV2-DEBT-311 taught this epic to look for.
+
+Non-vacuity is MEASURED rather than assumed. Every run's log carries 20 `pass`
+roster rows and 0 `FAIL` rows against the roster the aggregate prints before it
+starts, so a row that never ran and a row that passed cannot read alike. The
+lane's `git status --porcelain` was empty at the start and is kept as a
+zero-byte `tree-status.txt`, and the heavy-run guard accepted each run by SHA,
+so no run measured a dirty or a different tree. The driver takes each run's
+status on its own statement and never appends `; echo $?` to the lane
+invocation, which has reported a false green in this epic before.
+
+**What this count does not say.** CPU affinity was not pinned: there is no
+`taskset` here, deliberately. Section 6's quiet rare-symptom campaign reserves
+`taskset -c 8-15` and an otherwise-idle host because its evidence is
+load-dependent; this is the deterministic roster and a different instrument.
+The two are not summed and not conflated. Nor does this close Wave D: the
+closeout plan's steps 4 through 8 are open, there has been no code freeze, and
+the campaign runs only after one.
+
+The earlier count at `86b3881c` is SUPERSEDED, not pooled with this one. It was
+red at row 20 on the static module-size assertion, was stopped after its first
+run, and its candidate is no longer the branch tip.
