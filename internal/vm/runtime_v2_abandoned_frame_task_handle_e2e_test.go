@@ -89,7 +89,18 @@ async fn run() -> int {
     // released earlier. Restored to two with the fix; the episode is why a
     // falling pin has to be explained by naming what removed the cost, not by
     // finding a story that fits the new number.
-    if per_round != 2:uint {
+    //
+    // It then read ZERO, and this time the cost was named: a bisect over 245
+    // commits stopped at 6376af8a, "a cancelled task gives back the scope its
+    // own poll opened". The single-worker runner's copied outcome switch had
+    // skipped the scope teardown, so every task cancelled at its first
+    // suspension abandoned the rt_scope its poll allocated -- one 64-byte block
+    // per cancelled round, which is what the two below were made of. That
+    // commit routes the cancelled arm through the shared applier and carries
+    // its own Rule-13 proof (190 blocks / 12160 bytes live with the copy
+    // restored, flat without it). With the scope given back, a frame that walks
+    // past its task handles retains nothing per round, and the pin says so.
+    if per_round != 0:uint {
         print("FAIL abandoned frame retained blocks per round: ");
         print(per_round to string);
         return 1;
