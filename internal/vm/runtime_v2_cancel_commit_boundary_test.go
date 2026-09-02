@@ -124,13 +124,16 @@ static void poll_debt263_cancelled_child(void) {
 
 // The generated tail of a @failfast block (insertScopeJoins): join the set,
 // exit the scope, then Cancelled when the join says fail-fast fired and Success
-// otherwise. The owner only ADOPTS the driver's child, so the child's schedule
-// does not depend on a poll that is about to be held.
+// otherwise. The owner CREATES the child inside its scope -- creation is the
+// sole writer of membership, so a child spawned elsewhere and handed over
+// would not be counted -- and spawn_pinned_in_scope forces the push onto the
+// inject queue, so the child's schedule still does not depend on this poll,
+// which is about to be held.
 static void poll_debt263_scope_owner(void) {
     if (atomic_load_explicit(&g_debt263_owner_entered, memory_order_acquire) == 0) {
         void* handle = rt_scope_enter(true);
-        rt_scope_register_child(handle,
-                                atomic_load_explicit(&g_debt263_child, memory_order_acquire));
+        rt_task* child = spawn_pinned_in_scope(ensure_exec(), POLL_DEBT263_CANCELLED_CHILD, 0);
+        atomic_store_explicit(&g_debt263_child, child, memory_order_release);
         atomic_store_explicit(&g_debt263_scope_handle, handle, memory_order_release);
         atomic_store_explicit(&g_debt263_owner_entered, 1, memory_order_release);
     }
@@ -172,11 +175,9 @@ static int mode_debt263_cancel_commit_boundary(rt_executor* ex) {
     atomic_store_explicit(&g_debt263_scope_handle, NULL, memory_order_release);
     atomic_store_explicit(&g_debt263_child, NULL, memory_order_release);
 
-    rt_task* child = spawn_pinned(ex, POLL_DEBT263_CANCELLED_CHILD, 0);
-    if (child == NULL) {
-        return fail("debt263 child allocation failed");
-    }
-    atomic_store_explicit(&g_debt263_child, child, memory_order_release);
+    // The owner creates the child from inside its own scope (creation is the
+    // sole writer of membership; a driver-spawned task handed over afterwards
+    // is refused), and publishes it here for the driver to cancel and await.
     rt_task* owner = spawn_pinned(ex, POLL_DEBT263_SCOPE_OWNER, 0);
     if (owner == NULL) {
         (void)rt_executor_request_shutdown(ex);
@@ -185,6 +186,11 @@ static int mode_debt263_cancel_commit_boundary(rt_executor* ex) {
     if (!wait_u32_at_least(&g_debt263_owner_entered, 1, 4000)) {
         (void)rt_executor_request_shutdown(ex);
         return fail("debt263 owner never entered its scope");
+    }
+    rt_task* child = (rt_task*)atomic_load_explicit(&g_debt263_child, memory_order_acquire);
+    if (child == NULL) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("debt263 owner entered its scope but created no child");
     }
     uint64_t scope_id =
         (uint64_t)(uintptr_t)atomic_load_explicit(&g_debt263_scope_handle, memory_order_acquire);

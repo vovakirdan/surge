@@ -980,6 +980,11 @@
       "group": "PG-INVARIANT"
     },
     {
+      "site": "runtime/native/rt_async_scope.c::rt_scope_register_child#1",
+      "message": "async: a task registered with a scope that did not create it",
+      "group": "PG-INVARIANT"
+    },
+    {
       "site": "runtime/native/rt_async_scope.c::scope_cancel_children_controlled#1",
       "message": "async: scope cancel snapshot allocation failed",
       "group": "PG-ALLOC-FAILURE"

@@ -162,10 +162,18 @@ void rt_scope_register_child(const void* scope_handle, void* task) {
     if (child == NULL) {
         return;
     }
-    // Kept as an ABI-compatible validator while existing MIR call sites remain.
-    // Membership was already published at creation; this call never adopts or
-    // rewrites a task, including one created in another scope.
-    (void)rt_scope_key_equal(child->creation_scope_key, key);
+    // Creation is the sole writer of a task's scope identity, so this call
+    // adopts nothing and rewrites nothing. What it does is REFUSE: a task that
+    // was not created in this scope is not this scope's child, and saying so
+    // here is the whole reason the entry point still exists. It used to compute
+    // the comparison and discard it, which is a check that checks nothing --
+    // the stands that once relied on it to adopt a driver's child then ran
+    // with a scope that counted nobody, and their fail-fast joins resolved
+    // against an empty scope.
+    if (!rt_scope_key_equal(child->creation_scope_key, key)) {
+        panic_msg("async: a task registered with a scope that did not create it");
+        return;
+    }
 }
 
 void rt_scope_cancel_all(const void* scope_handle) {

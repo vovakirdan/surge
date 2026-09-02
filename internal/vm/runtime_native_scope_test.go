@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -59,6 +60,20 @@ func TestNativeScopeDropsCompletedChildrenImmediately(t *testing.T) {
 	stdout, stderr, exitCode := runCommand(t, runCmd, "")
 	if exitCode != 0 {
 		t.Fatalf("harness failed (code=%d)\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+	}
+
+	// The same binary, asked to register a task the scope did not create:
+	// creation is the only writer of membership, so the intrinsic must refuse
+	// with a fatal panic rather than count, list, or silently drop the task.
+	// A run that returns is the mutant this stand exists to catch.
+	foreignCmd := exec.Command(binPath)
+	foreignCmd.Env = append(os.Environ(),
+		"SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1", "SCOPE_STAND_FOREIGN=1")
+	foreignOut, foreignErr, foreignCode := runCommand(t, foreignCmd, "")
+	const refusal = "a task registered with a scope that did not create it"
+	if foreignCode == 0 || !strings.Contains(foreignErr, refusal) {
+		t.Fatalf("registering a task the scope did not create must die with %q (code=%d)\nstdout:\n%s\nstderr:\n%s",
+			refusal, foreignCode, foreignOut, foreignErr)
 	}
 }
 
@@ -204,25 +219,34 @@ int main(void) {
         return fail("completed child still marked as registered");
     }
 
-    rt_task* completed = alloc_task(ex, ex->next_id, waker_none());
-    if (completed == NULL) {
+    // A task the scope did not create. Creation is the only writer of
+    // membership, so the register intrinsic has nothing to write here: it
+    // compares the two identities and refuses the mismatch as a fatal panic.
+    // The refusal is a process exit, so it lives in a second run of this same
+    // binary (SCOPE_STAND_FOREIGN=1) that the Go side expects to die with the
+    // message; the default run keeps to the members the scope created.
+    rt_task* foreign = alloc_task(ex, ex->next_id, waker_none());
+    if (foreign == NULL) {
         rt_control_unlock(ex);
-        return fail("completed task allocation failed");
+        return fail("foreign task allocation failed");
     }
-    task_status_store(completed, TASK_DONE);
-    completed->result_kind = TASK_RESULT_SUCCESS;
+    task_status_store(foreign, TASK_DONE);
+    foreign->result_kind = TASK_RESULT_SUCCESS;
     rt_control_unlock(ex);
 
-    rt_scope_register_child(scope_handle, completed);
+    if (getenv("SCOPE_STAND_FOREIGN") != NULL) {
+        rt_scope_register_child(scope_handle, foreign);
+        return fail("a task the scope did not create was accepted as its child");
+    }
 
     rt_control_lock(ex);
     if (scope->children_len != 0 || scope->active_children != 0) {
         rt_control_unlock(ex);
-        return fail("already completed child leaked into scope history");
+        return fail("a task the scope did not create leaked into scope history");
     }
-    if (completed->scope_registered != 0) {
+    if (foreign->scope_registered != 0) {
         rt_control_unlock(ex);
-        return fail("completed child should not be marked registered");
+        return fail("a task the scope did not create is marked registered");
     }
     rt_control_unlock(ex);
 
@@ -234,7 +258,7 @@ int main(void) {
         return fail("scope exit did not clear owner scope key");
     }
     rt_set_current_task(NULL);
-    free_task_slot(ex, completed);
+    free_task_slot(ex, foreign);
     free_task_slot(ex, active);
     free_task_slot(ex, owner);
     rt_control_unlock(ex);

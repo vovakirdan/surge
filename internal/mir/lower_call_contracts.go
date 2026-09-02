@@ -67,9 +67,11 @@ func (l *funcLowerer) byValueArgContract(ty types.TypeID, stores bool) ArgContra
 //
 //   - rt_array_append_raw_bytes, rt_byte_array_append_range — these copy raw
 //     bytes through a pointer/slice. Nothing owning is retained.
-//   - rt_scope_register_child — the compatibility intrinsic only validates
-//     creation-time membership and stores neither handle. The executor's task
-//     table owns the task, so both arguments are borrowed.
+//   - rt_scope_register_child — MIR no longer emits it (creation writes
+//     membership; see lowerTaskExpr). The intrinsic survives for native
+//     stands: it validates creation-time membership, refuses a mismatch, and
+//     stores neither handle. The executor's task table owns the task, so both
+//     arguments are borrowed.
 //   - rt_far_task_begin_transfer / rt_far_task_finish_transfer — bookkeeping
 //     around a handoff; they read the handles and store nothing.
 //   - timeout, await, rt_fs_close, rt_net_close_* — these consume an owned

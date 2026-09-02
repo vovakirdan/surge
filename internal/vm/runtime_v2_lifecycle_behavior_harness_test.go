@@ -98,7 +98,7 @@ func buildRuntimeV2LifecycleHarnessWithFlags(t *testing.T, name string, extraFla
 	tmpDir := t.TempDir()
 	harnessPath := filepath.Join(tmpDir, name+".c")
 	binPath := filepath.Join(tmpDir, name)
-	source := lifecycleHarnessCommon + lifecycleHarnessCreateJoinModes + lifecycleHarnessHandleLifetimeModes +
+	source := lifecycleHarnessCommon + lifecycleHarnessScopeSpawn + lifecycleHarnessCreateJoinModes + lifecycleHarnessHandleLifetimeModes +
 		lifecycleHarnessScopeAndShutdown + lifecycleHarnessPlacementAdoption + lifecycleHarnessScopeCrossOwner +
 		lifecycleHarnessSyncPointModes + lifecycleHarnessReadyRequeueModes +
 		lifecycleHarnessSleepPublishModes + lifecycleHarnessParkAbortModes +
@@ -202,6 +202,7 @@ func runLifecycleModeAcrossShards(t *testing.T, binPath string, mode string) {
 const lifecycleHarnessCommon = `
 #define _POSIX_C_SOURCE 199309L
 #include "rt_async_internal.h"
+#include "rt_scope_membership.h"
 #include "rt_sync_point.h"
 
 #include <stdatomic.h>
@@ -348,6 +349,9 @@ static rt_task* spawn_pinned(rt_executor* ex, int64_t poll_fn_id, uint32_t wante
     rt_control_unlock(ex);
     return task;
 }
+
+// spawn_pinned_in_scope, the in-scope creator, follows in
+// lifecycleHarnessScopeSpawn (runtime_v2_lifecycle_behavior_harness_scope_spawn_test.go).
 
 // spawn_pinned_with_state sets the task's initial __task_state() payload
 // directly, so many concurrent instances of the same poll function can each

@@ -140,20 +140,10 @@ func (l *funcLowerer) lowerTaskExpr(e *hir.Expr, consume bool) (Operand, error) 
 		return Operand{}, err
 	}
 	tmp := l.newTemp(e.Type, "task", e.Span)
+	// Scope membership is written once, by creation: the runtime reads the
+	// creator's active scope at spawn and publishes the child under that
+	// scope's lane, so nothing is registered here afterwards.
 	l.emit(&Instr{Kind: InstrSpawn, Spawn: SpawnInstr{Dst: Place{Local: tmp}, Value: value}})
-	if l.scopeLocal != NoLocalID {
-		l.emit(&Instr{Kind: InstrCall, Call: CallInstr{
-			HasDst: false,
-			Callee: Callee{Kind: CalleeValue, Name: "rt_scope_register_child"},
-			Args: []Operand{
-				{Kind: OperandCopy, Place: Place{Local: l.scopeLocal}},
-				{Kind: OperandCopy, Place: Place{Local: tmp}},
-			},
-			// Both borrow: creation already published membership; this legacy
-			// call only validates the two identities and stores neither handle.
-			ArgContracts: borrowArgContracts(2),
-		}})
-	}
 	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
 }
 
@@ -168,20 +158,9 @@ func (l *funcLowerer) lowerSpawnExpr(e *hir.Expr, consume bool) (Operand, error)
 		return Operand{}, err
 	}
 	tmp := l.newTemp(e.Type, "spawn", e.Span)
+	// As in lowerTaskExpr: membership is creation's to write, not a call after
+	// the spawn.
 	l.emit(&Instr{Kind: InstrSpawn, Spawn: SpawnInstr{Dst: Place{Local: tmp}, Value: value}})
-	if l.scopeLocal != NoLocalID {
-		l.emit(&Instr{Kind: InstrCall, Call: CallInstr{
-			HasDst: false,
-			Callee: Callee{Kind: CalleeValue, Name: "rt_scope_register_child"},
-			Args: []Operand{
-				{Kind: OperandCopy, Place: Place{Local: l.scopeLocal}},
-				{Kind: OperandCopy, Place: Place{Local: tmp}},
-			},
-			// Both borrow: creation already published membership; this legacy
-			// call only validates the two identities and stores neither handle.
-			ArgContracts: borrowArgContracts(2),
-		}})
-	}
 	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
 }
 
