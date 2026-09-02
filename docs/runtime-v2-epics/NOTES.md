@@ -11845,3 +11845,38 @@ The corpus is the load-bearing number: `surge diag` over every `.sg` file under
 `testdata/` and `examples/`, comparing the step-2 compiler against this one,
 reports ZERO differing files. Every one of these changes is visible only to the
 programs written to exercise it.
+
+### The promotion analysis was naming the wrong frame
+
+The last of the review's findings on step 3, and it had to close BEFORE step 4
+reads the field, because a lowering that trusted a wrong answer here would do
+the one thing the storage model calls forbidden.
+
+`StableActivationPlaces` was keyed by the enclosing CALLABLE. An `async { }` or
+`blocking { }` block is a separate activation with its own frame, so a local of
+the BLOCK, borrowed by a child of the block, was filed under the host function.
+Nothing complains at that point: both are real activations and both name a real
+binding. The damage lands later — a lowering promotes a field into the HOST's
+frame and leaves the block's actual local a per-poll `alloca`, which is exactly
+the state section 7 forbids, arrived at silently.
+
+The key is now an ACTIVATION: `ActivationKey{Fn, Block}`, with `Block` the
+`async`/`blocking` body being walked and `NoExprID` for the callable's own
+activation. Blocks nest, so the innermost wins. The stack is pushed and popped
+around the same body walk that already snapshots and restores pin state across
+that boundary, which is the right place: a block being a different activation is
+one fact, and it decides both what its joins may release and what its locals
+belong to.
+
+The storage model already anticipated this. It names "stable task activation
+storage" rather than the `__AsyncState$` symbol, and says a rule written against
+one frame "would be copied, divergently, for the root activation within two
+steps". This is the same divergence, one step earlier than predicted and inside
+the analysis rather than the lowering.
+
+Rule 13 is targeted: reducing `currentActivation` to the callable alone makes the
+new case fail with `"host/block" constrains nothing; got map[host:[inner]]` --
+the defect stated in the assertion's own words -- while the other five cases
+stay green. `go test ./internal/sema` passes, `internal/gatecheck` passes,
+`make lint` reports `0 issues`, and the exact-base file-size gate passes 5 files
+with 0 violations.

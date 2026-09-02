@@ -247,18 +247,42 @@ func (tc *typeChecker) openTaskBorrowPins(task uint32, captures []spawnBorrowCap
 	}
 }
 
+// ActivationKey names ONE task activation. A callable has one of its own, and
+// every `async { }` / `blocking { }` block inside it has another, because a
+// block is a separate activation with a separate frame. Block is NoExprID for
+// the callable's own activation.
+//
+// Filing a block's local under its host callable is not a naming nicety. A
+// lowering that trusted it would promote a field in the HOST's frame and leave
+// the block's real local a per-poll `alloca` -- exactly the state the storage
+// model calls forbidden, and it would do so silently, because both answers
+// name a real binding.
+type ActivationKey struct {
+	Fn    symbols.SymbolID
+	Block ast.ExprID
+}
+
+// currentActivation is the activation whose frame the checker is inside now.
+// Blocks nest, so the innermost one wins.
+func (tc *typeChecker) currentActivation() ActivationKey {
+	key := ActivationKey{Fn: tc.currentFnSym(), Block: ast.NoExprID}
+	if n := len(tc.activationBlocks); n > 0 {
+		key.Block = tc.activationBlocks[n-1]
+	}
+	return key
+}
+
 // recordStableActivationPlace names a place the enclosing activation must keep
 // at a fixed address. It is recorded at the spawn, which is the only point that
-// knows both the capture set and the callable it was taken from, and it is a
-// per-callable answer because the storage it constrains is that callable's
-// activation -- an `async fn`'s frame, or the synthetic root activation of an
-// `@entrypoint`, which needs promoted places on exactly the same terms.
+// knows both the capture set and the activation it was taken from -- an
+// `async fn`'s frame, a block's own frame, or the synthetic root activation of
+// an `@entrypoint`, which needs promoted places on exactly the same terms.
 func (tc *typeChecker) recordStableActivationPlace(place Place) {
 	if tc.result == nil || !place.IsValid() || !place.Base.IsValid() {
 		return
 	}
-	owner := tc.currentFnSym()
-	if !owner.IsValid() {
+	owner := tc.currentActivation()
+	if !owner.Fn.IsValid() && !owner.Block.IsValid() {
 		return
 	}
 	for _, existing := range tc.result.StableActivationPlaces[owner] {
@@ -267,7 +291,7 @@ func (tc *typeChecker) recordStableActivationPlace(place Place) {
 		}
 	}
 	if tc.result.StableActivationPlaces == nil {
-		tc.result.StableActivationPlaces = make(map[symbols.SymbolID][]symbols.SymbolID)
+		tc.result.StableActivationPlaces = make(map[ActivationKey][]symbols.SymbolID)
 	}
 	tc.result.StableActivationPlaces[owner] = append(tc.result.StableActivationPlaces[owner], place.Base)
 }

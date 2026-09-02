@@ -46,8 +46,14 @@ func (tc *typeChecker) taskBlockPayload(id ast.ExprID, span source.Span, body as
 	// would otherwise release the parent's pin on a path the parent never takes
 	// -- the same laundering the ruling refuses for a join written in one branch
 	// -- and a spawn inside the body would strand a pin in the parent's flow.
+	//
+	// Being a different activation is also what its own locals are filed under:
+	// the block owns a frame, so a place a child of the BLOCK borrows constrains
+	// the BLOCK's storage and not its host's.
 	pinsOutsideBody := tc.snapshotTaskBorrowPins()
+	tc.activationBlocks = append(tc.activationBlocks, id)
 	tc.walkStmt(body)
+	tc.activationBlocks = tc.activationBlocks[:len(tc.activationBlocks)-1]
 	tc.restoreTaskBorrowPins(pinsOutsideBody)
 	if async {
 		tc.asyncBlockDepth--

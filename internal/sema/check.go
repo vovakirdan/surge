@@ -112,19 +112,25 @@ type Result struct {
 	// fall-through; HIR synthesizes an else block with these drops
 	// (keyed by the if statement).
 	IfSyntheticElseDrops map[ast.StmtID][]symbols.SymbolID
-	// StableActivationPlaces names, per enclosing callable, the bindings whose
-	// storage must be ADDRESS-STABLE for that callable's activation, because a
-	// carrier-affine child task borrows them and reads them until it completes.
-	// An ordinary local is a per-poll `alloca` and a suspension repacks it into a
-	// new one, so a child holding the original pointer would dangle even on the
-	// same carrier; these are the places that may not move under it.
+	// StableActivationPlaces names, per ACTIVATION, the bindings whose storage
+	// must be ADDRESS-STABLE, because a carrier-affine child task borrows them
+	// and reads them until it completes. An ordinary local is a per-poll `alloca`
+	// and a suspension repacks it into a new one, so a child holding the original
+	// pointer would dangle even on the same carrier; these are the places that
+	// may not move under it.
 	//
-	// Keyed by binding rather than by Place because only whole-binding places are
-	// reachable today, exactly as movedPlaces records. Its consumer is the
+	// The key is an ACTIVATION and not a callable, which is the whole reason
+	// ActivationKey exists. An `async { }` block is a separate activation with
+	// its own frame, so a local of the BLOCK filed under its host function would
+	// send a lowering to promote a field in the wrong frame and leave the real
+	// one a per-poll `alloca` -- the state the storage model calls forbidden.
+	//
+	// Values are bindings rather than Places because only whole-binding places
+	// are reachable today, exactly as movedPlaces records. Its consumer is the
 	// activation-storage lowering; until that exists this is an analysis result
-	// with a test and no reader, which is deliberate — the ordering rule is that
-	// a real borrow may not be lowered before its storage is stable.
-	StableActivationPlaces map[symbols.SymbolID][]symbols.SymbolID
+	// with a test and no reader, which is deliberate -- the ordering rule is
+	// that a real borrow may not be lowered before its storage is stable.
+	StableActivationPlaces map[ActivationKey][]symbols.SymbolID
 	// CopyTypes records nominal types marked as Copy via @copy attribute.
 	// Builtin Copy-ness is queried via TypeInterner.
 	CopyTypes map[types.TypeID]struct{}

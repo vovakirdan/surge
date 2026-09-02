@@ -38,7 +38,14 @@ func stableActivationPlaceNames(t *testing.T, src string) map[string][]string {
 			names = append(names, stableTestSymbolName(symRes, place))
 		}
 		sort.Strings(names)
-		out[stableTestSymbolName(symRes, owner)] = names
+		// A block activation renders as "host/block" so a case can tell the two
+		// apart without knowing expression ids -- which is the whole point of
+		// keying by activation rather than by callable.
+		label := stableTestSymbolName(symRes, owner.Fn)
+		if owner.Block.IsValid() {
+			label += "/block"
+		}
+		out[label] = names
 	}
 	return out
 }
@@ -122,6 +129,28 @@ fn host() {
 }
 `,
 			want: map[string][]string{"host": {"v", "w"}},
+		},
+		{
+			// The block owns a frame, so its local is the BLOCK's to keep at a
+			// fixed address. Filing it under `host` would send a lowering to
+			// promote a field in the wrong frame -- silently, because `host` is
+			// a real activation too.
+			name: "a block-local belongs to the block's activation, not its host",
+			src: `
+async fn worker(x: &int) -> int {
+	return *x + 1;
+}
+
+fn host() {
+	let outer: int = 0;
+	let j = spawn async {
+		let mut inner: int = 0;
+		let t = spawn worker(&inner);
+		ret 0;
+	};
+}
+`,
+			want: map[string][]string{"host/block": {"inner"}},
 		},
 		{
 			name: "the constraint is per callable, not per file",

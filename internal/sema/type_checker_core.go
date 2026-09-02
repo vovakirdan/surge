@@ -162,7 +162,12 @@ type typeChecker struct {
 	// actually travels into the child -- the spawned call's arguments and its
 	// receiver. nil means every borrow in the operand reaches, which is the right
 	// answer for an `async { }` body. See spawnReachingBorrowExprs.
-	spawnReachingExprs     map[ast.ExprID]struct{}
+	spawnReachingExprs map[ast.ExprID]struct{}
+	// activationBlocks is the stack of `async { }` / `blocking { }` bodies being
+	// walked, innermost last. Each is its own activation with its own frame, so
+	// it is what a promoted place inside it belongs to; empty means the
+	// callable's own activation. See ActivationKey.
+	activationBlocks       []ast.ExprID
 	onCrossingStack        []onAnchorFrame // active `on dst { ... }` crossing frames
 	directFunctionCrossing map[symbols.SymbolID]struct{}
 	functionCrossingEdges  map[symbols.SymbolID]map[symbols.SymbolID]struct{}
