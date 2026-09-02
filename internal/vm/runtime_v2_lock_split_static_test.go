@@ -164,7 +164,15 @@ func TestRuntimeV2LockSplitChannelOwnerShape(t *testing.T) {
 	if !strings.Contains(source, "owner_shard_id") {
 		t.Fatal("struct rt_channel must record its owner shard")
 	}
-	body, ok := cFunctionBody(source, "rt_channel_send_inner")
+	// The send loop lives in its own translation unit; the shape being pinned
+	// is the loop's, so that is the file the body is read from. Reading it from
+	// the receive-side file would not find the function and would fail on the
+	// lookup rather than on the property.
+	sendBytes, err := os.ReadFile(filepath.Join(root, "runtime", "native", "rt_async_channel_send.c"))
+	if err != nil {
+		t.Fatalf("read rt_async_channel_send.c: %v", err)
+	}
+	body, ok := cFunctionBody(string(sendBytes), "rt_channel_send_inner")
 	if !ok {
 		t.Fatal("rt_channel_send_inner not found")
 	}

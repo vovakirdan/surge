@@ -607,6 +607,13 @@ uint8_t rt_channel_claim_recv_locked(rt_executor* ex, void* channel, rt_channel_
 void rt_channel_finish_recv_locked(rt_executor* ex, void* channel, const rt_channel_take* take);
 uint8_t rt_channel_claim_send_locked(rt_executor* ex, void* channel, rt_channel_put* out_put);
 void rt_channel_finish_send_locked(rt_executor* ex, void* channel, rt_channel_put* put);
+
+// Stage a value into a park slot the channel owns, under the channel's owner
+// shard lock. Shared by the send lane (rt_async_channel_send.c) and the receive
+// lane (rt_async_channel.c); defined beside the receive loop. Returns 0 when no
+// slot was free -- the caller still owns its value and parks holding it.
+int rt_channel_stage_locked(
+    rt_executor* ex, rt_shard* ch_shard, rt_channel* ch, void* src, rt_park_token* out_token);
 void rt_channel_finish_put_owner_locked(rt_executor* ex,
                                         rt_shard* ch_shard,
                                         rt_channel* ch,

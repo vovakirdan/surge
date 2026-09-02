@@ -810,11 +810,6 @@
       "group": "PG-ALLOC-FAILURE"
     },
     {
-      "site": "runtime/native/rt_async_channel.c::channel_stage_locked#1",
-      "message": "async: staged channel value could not be published",
-      "group": "PG-INVARIANT"
-    },
-    {
       "site": "runtime/native/rt_async_channel.c::rt_channel_new#1",
       "message": "async: channel needs its element descriptor",
       "group": "PG-INVARIANT"
@@ -860,27 +855,32 @@
       "group": "PG-INVARIANT"
     },
     {
-      "site": "runtime/native/rt_async_channel.c::rt_channel_send_inner#1",
+      "site": "runtime/native/rt_async_channel.c::rt_channel_stage_locked#1",
+      "message": "async: staged channel value could not be published",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_channel_send.c::rt_channel_send_inner#1",
       "message": "async channel send outside task",
       "group": "PG-INVARIANT"
     },
     {
-      "site": "runtime/native/rt_async_channel.c::rt_channel_send_inner#2",
+      "site": "runtime/native/rt_async_channel_send.c::rt_channel_send_inner#2",
       "message": "async: missing current task",
       "group": "PG-INVARIANT"
     },
     {
-      "site": "runtime/native/rt_async_channel.c::rt_channel_send_inner#3",
+      "site": "runtime/native/rt_async_channel_send.c::rt_channel_send_inner#3",
       "message": "send on closed channel",
       "group": "PG-UNFIXTURED"
     },
     {
-      "site": "runtime/native/rt_async_channel.c::rt_channel_send_inner#4",
+      "site": "runtime/native/rt_async_channel_send.c::rt_channel_send_inner#4",
       "message": "send on closed channel",
       "group": "PG-UNFIXTURED"
     },
     {
-      "site": "runtime/native/rt_async_channel.c::rt_channel_send_inner#5",
+      "site": "runtime/native/rt_async_channel_send.c::rt_channel_send_inner#5",
       "message": "async: buffered channel value could not be published",
       "group": "PG-INVARIANT"
     },
