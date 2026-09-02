@@ -21,20 +21,24 @@ func LowerAsyncStateMachine(m *Module, semaRes *sema.Result, symTable *symbols.T
 		return fmt.Errorf("mir: async lowering requires type interner")
 	}
 
+	// Computed once for the module: the answer is the same for every function,
+	// and it is a fold over every activation sema recorded.
+	constrained := constrainedBindings(semaRes)
+
 	for _, __id := range m.SortedFuncIDs() {
 
 		f := m.Funcs[__id]
 		if f == nil || !f.IsAsync {
 			continue
 		}
-		if err := lowerAsyncStateMachineFunc(m, f, typesIn, semaRes, symTable); err != nil {
+		if err := lowerAsyncStateMachineFunc(m, f, typesIn, semaRes, symTable, constrained); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, semaRes *sema.Result, symTable *symbols.Table) error {
+func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, semaRes *sema.Result, symTable *symbols.Table, constrained map[symbols.SymbolID]struct{}) error {
 	if f == nil {
 		return nil
 	}
@@ -184,16 +188,40 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 		})
 	}
 
+	// Promotion is decided BEFORE the payload union is built, because its whole
+	// effect is on what that union holds: a resident is excluded from every
+	// variant, so no suspension packs it and no resume unpacks it into a fresh
+	// slot. The start variant's list is read off first -- a promoted PARAM arrives
+	// through it today, and the constructor has to keep delivering that value once
+	// the packing no longer does.
+	residents := newResidentSet(pollFn, asyncPromotedLocals(pollFn, constrained))
+	startResidents := make([]LocalID, 0, len(residents.order))
+	for _, id := range variants[0].locals {
+		if residents.has(id) {
+			startResidents = append(startResidents, id)
+		}
+	}
+	for i := range variants {
+		variants[i].locals = residents.without(variants[i].locals)
+	}
+
 	payloadType, err := buildAsyncPayloadUnion(m, typesIn, symTable, f, pollFn, variants)
 	if err != nil {
 		return err
 	}
-	stateType, err := buildAsyncStateStruct(typesIn, f, payloadType)
+	stateType, err := buildAsyncStateStruct(typesIn, f, pollFn, payloadType, residents)
 	if err != nil {
 		return err
 	}
 
 	stateLocal := addLocal(pollFn, "__state", stateType, localFlagsFor(typesIn, semaRes, stateType))
+	// The body is redirected onto the frame's fields before the state machine's
+	// own blocks exist, so the rewrite sees the body and only the body. The entry
+	// dispatch and the pending blocks address the frame directly and must not be
+	// walked as though they held ordinary locals.
+	if err := residents.rewritePlaces(pollFn, stateLocal); err != nil {
+		return err
+	}
 	pcLocal := addLocal(pollFn, "__pc", typesIn.Builtins().Int, localFlagsFor(typesIn, semaRes, typesIn.Builtins().Int))
 	payloadLocal := addLocal(pollFn, "__payload", payloadType, localFlagsFor(typesIn, semaRes, payloadType))
 	entryBB := buildAsyncPollEntry(pollFn, stateLocal, pcLocal, payloadLocal, variants, pollFn.ScopeLocal, pollFn.Failfast, typesIn.Builtins().Bool, typesIn.Builtins().Int)
@@ -204,7 +232,7 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 	}
 	rewriteAsyncReturns(pollFn, stateLocal, typesIn.Builtins().Int)
 
-	if err := buildAsyncConstructorState(f, typesIn, semaRes, taskType, stateType, payloadType, pollFnID, variants[0], typesIn.Builtins().Int); err != nil {
+	if err := buildAsyncConstructorState(f, typesIn, semaRes, taskType, stateType, payloadType, pollFnID, variants[0], typesIn.Builtins().Int, residents, startResidents); err != nil {
 		return err
 	}
 	f.IsAsync = false

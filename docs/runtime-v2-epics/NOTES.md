@@ -11949,3 +11949,116 @@ production caller yet. It lands separately so the promotion that will use it is
 built on something already proven, rather than the proof arriving with the change
 that needs it. `go test ./internal/mir` passes, `make lint` reports `0 issues`,
 and the exact-base file-size gate passes 2 files with 0 violations.
+
+### Step 4.4: the borrowed place stops being a per-poll slot
+
+This is the change the whole storage exception rests on. A local of an async body
+is a per-poll slot: a suspension packs the live ones into the frame's payload
+union and the next poll unpacks them into FRESH slots, so a child holding a
+pointer to one is left addressing storage the parent no longer uses -- on the
+same carrier, with no crossing and no transport involved. Epic 23 section 7
+requires instead that a place a live carrier-affine child borrows have ONE stable
+storage identity from publication to completion. A resident is that identity: a
+fixed-offset field of the activation's own frame.
+
+Three facts had to be read out of the tree before any of this could be designed,
+and each one moved the design.
+
+**The frame does not hold the captures.** `buildAsyncConstructorState` builds a
+THREE-field struct -- lifecycle word, resume point, payload -- and the captured
+locals go into the payload union's START VARIANT, not into the frame. The comment
+there says that variant "keeps the captured locals for the task's whole life",
+and across a suspension that is not true: every await site replaces the payload
+with a different variant. That is the dangling pointer, in the tree's own words.
+It also settles what promoting a PARAMETER means: not "add a field" but "stop
+unpacking it into a fresh slot", with the constructor delivering the same value to
+the resident field that it used to hand to the start variant.
+
+**A partial struct literal is a supported shape, not a hole.** MIR has no generic
+zero of an arbitrary type -- `ConstKind` is Int/Uint/Float/Bool/String/Nothing/Fn
+-- so a resident declared in the BODY rather than taken as a parameter looked like
+it had nothing to initialize it with in the constructor's literal. The apparent
+options were both bad: narrow promotion to types with a representable zero, which
+makes sema and lowering silently disagree about which places are promoted, or
+invent an undef. Neither was needed. `vm.buildComposite` zeroes an extent
+DELIBERATELY, and says why: "a producer that fills only some members would
+otherwise leave the rest reading as the corpse of something that has already been
+released." A literal naming only some fields is the supported way to say
+uninitialized, and `validate.go` agrees -- it checks the operands of the fields
+present and requires no completeness. So a body-local resident gets no entry, its
+bytes are zero, its first write is the body's own assignment redirected onto the
+field, and it is never dropped generically: section 7 already requires residents
+to be "dropped through the ordinary obligation of the place they already are, not
+through a second lifecycle", so a frame discarded before that assignment drops
+nothing.
+
+**Promotion belongs only where storage can move.** A plain `fn` cannot suspend:
+its frame is stable for the whole call, and the structured scope joins the child
+before that frame dies, so a borrow out of one is already sound. Sema names those
+places anyway -- it answers which storage a child constrains, not which storage
+moves -- and the lowering, which only ever runs over async functions, never claims
+them.
+
+A fourth fact surfaced only because a test demanded it. Sema files a constrained
+place under an ACTIVATION, and the obvious implementation asks that map for the
+activation being lowered. It returns nothing for every `async fn` in the language,
+because **monomorphization rewrites a function's symbol**: `resident_parent`
+reaches MIR carrying instance id `0x90000001` where sema recorded `1450`. Blocks
+kept working, since they carry no symbol and are keyed by span -- so the failure
+was invisible from the block case alone, and the package stayed green. The binding
+symbols themselves survive untouched: the local holding `v` still carries the
+exact id sema named. So the lookup is by BINDING, which is not a workaround but
+the better question -- a binding symbol is one declaration, so it can only appear
+as a local of the activation that declared it, and attribution falls out without
+being asked for. A generic async function instantiated twice yields two functions
+that both carry that binding, and both get the resident, which is what correctness
+requires and what a per-instance activation key would have got wrong in the other
+direction.
+
+The tests are built so that no one of them alone reads as "promotion works". One
+requires a borrowed local of an `async fn` to become a resident and one requires
+the same of an `async {}` block's own local; those two fail for different reasons,
+and it was the block passing while the function silently did nothing that exposed
+the mono rewrite. A third requires that an async function borrowing NOTHING into a
+child promotes nothing, because a promotion firing for every local would satisfy
+the first two while quietly enlarging every async frame and discarding the
+place-oriented rule. A fourth set tests the exclusion from the payload union
+directly, since the end-to-end tests structurally cannot see it: a resident that
+was promoted AND still packed produces exactly the same field, differing only in
+that the frame then carries a stale copy of a place the child is mutating -- the
+two-storage problem arrived at from the other side. The rewrite is also required
+to keep an existing projection, so a promoted composite's `v.x` does not silently
+become the whole of `v`: a read of the wrong size from the right address, which
+nothing downstream is positioned to catch.
+
+**The partial literal had one more consequence, on one backend only.** Reading
+the runtime settled where the "unnamed means uninitialized" convention actually
+lives, and it is not only the VM: `rt_frame_alloc` memsets a frame block, saying
+why in the same terms. But `rt_frame_release` runs the type's GENERATED
+member-wise drop over any frame whose lifecycle word reads PACKED, and the
+constructor writes that word from the frame's first instant. So an abandoned
+frame drops every member -- residents included. The VM was safe, because
+`buildComposite` zeroes. LLVM was not: `emitStructLit` builds into a bare alloca,
+so a frame discarded before its body ran would have dropped a field nobody wrote.
+That is a backend-divergent use of uninitialized memory, which is the worst place
+for a difference to live, so `emitStructLit` now clears its storage when the
+literal names fewer fields than the type has -- and only then, since a complete
+literal overwrites every byte that matters and zeroing first would be dead stores
+in the overwhelmingly common case.
+
+Rule 13 earned its keep twice here. The first version of that test asserted only
+that a memset appeared in the constructor's body, and it PASSED with the clearing
+removed: the body already contains one, because a union materialisation clears
+its own storage. The assertion is now on the memset's exact byte size -- the frame
+struct's own -- and both mutants fail as they should: removing the clearing fails
+the partial case, and clearing unconditionally fails the complete one.
+
+One process note worth keeping. The first full-suite run reported eight failures
+in `internal/driver` and `internal/lsp`, and a plausible story was ready-made:
+this branch added pin refusals, and tests asserting a clean compile are exactly
+what pin refusals break. Both halves of that story were wrong. Stashing the
+working changes reproduced the identical eight, and the failure TEXT -- `unknown
+type Task` -- named a missing prelude rather than a refusal. `SURGE_STDLIB` points
+at the repository ROOT, not at `stdlib/`; the Makefile passes `$(CURDIR)`, and the
+existence of a `stdlib/` directory is what makes the mistake easy. A wrong stand,
+not a regression.

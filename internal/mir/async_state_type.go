@@ -67,7 +67,7 @@ func buildAsyncPayloadUnion(m *Module, typesIn *types.Interner, symTable *symbol
 	return stateID, nil
 }
 
-func buildAsyncStateStruct(typesIn *types.Interner, f *Func, payloadType types.TypeID) (types.TypeID, error) {
+func buildAsyncStateStruct(typesIn *types.Interner, f, pollFn *Func, payloadType types.TypeID, residents residentSet) (types.TypeID, error) {
 	if typesIn == nil || typesIn.Strings == nil {
 		return types.NoTypeID, fmt.Errorf("mir: async: missing type interner strings")
 	}
@@ -83,6 +83,20 @@ func buildAsyncStateStruct(typesIn *types.Interner, f *Func, payloadType types.T
 		{Name: typesIn.Strings.Intern(FrameStateField), Type: typesIn.Builtins().Int},
 		{Name: typesIn.Strings.Intern(asyncStatePcField), Type: typesIn.Builtins().Int},
 		{Name: typesIn.Strings.Intern(asyncStatePayloadField), Type: payloadType},
+	}
+	// Residents sit BESIDE the payload, never inside it. Inside, they would be
+	// members of one union arm and would therefore change address -- or cease to
+	// exist -- the moment a suspension selected a different arm, which is the very
+	// thing the promotion exists to prevent. Beside it, each keeps one offset for
+	// the life of the activation.
+	for _, id := range residents.order {
+		if pollFn == nil || int(id) >= len(pollFn.Locals) {
+			return types.NoTypeID, fmt.Errorf("mir: async: resident local %d is not a local of %s", int64(id), f.Name)
+		}
+		fields = append(fields, types.StructField{
+			Name: typesIn.Strings.Intern(residents.fields[id]),
+			Type: pollFn.Locals[id].Type,
+		})
 	}
 	typesIn.SetStructFields(stateID, fields)
 	return stateID, nil

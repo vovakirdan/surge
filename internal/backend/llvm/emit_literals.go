@@ -32,6 +32,21 @@ func (fe *funcEmitter) emitStructLit(lit *mir.StructLit) (val, ty string, err er
 		return "", "", err
 	}
 	fieldOffsets := layoutInfo.FieldOffsets()
+	// A literal that names only SOME of the type's fields is a supported shape --
+	// it is how the async frame constructor says that a resident place has no
+	// value yet -- and the rest must read as uninitialized rather than as whatever
+	// this storage last held. The VM's buildComposite zeroes an extent for exactly
+	// this reason, and rt_frame_alloc memsets a frame block for it too; without
+	// the same here, the two backends disagree about a frame released before its
+	// body ran, and the generated member-wise drop rt_frame_release performs on a
+	// PACKED frame would run over an unwritten field. Full literals skip it: they
+	// overwrite every byte that matters, and the memset would be dead stores in
+	// the overwhelmingly common case.
+	if len(lit.Fields) < len(fieldOffsets) {
+		if zeroErr := fe.emitStructStorageZero(mem, layoutInfo.Size, align); zeroErr != nil {
+			return "", "", zeroErr
+		}
+	}
 	for i := range lit.Fields {
 		field := &lit.Fields[i]
 		fieldIdx, fieldType, err := fe.structFieldInfo(lit.TypeID, mir.PlaceProj{Kind: mir.PlaceProjField, FieldName: field.Name, FieldIdx: -1})

@@ -283,7 +283,7 @@ func rewriteAsyncReturns(f *Func, stateLocal LocalID, intType types.TypeID) {
 }
 
 // buildAsyncConstructorState builds the constructor function that creates the initial task.
-func buildAsyncConstructorState(f *Func, typesIn *types.Interner, semaRes *sema.Result, taskType, stateType, payloadType types.TypeID, pollFnID FuncID, startVariant stateVariant, intType types.TypeID) error {
+func buildAsyncConstructorState(f *Func, typesIn *types.Interner, semaRes *sema.Result, taskType, stateType, payloadType types.TypeID, pollFnID FuncID, startVariant stateVariant, intType types.TypeID, residents residentSet, startResidents []LocalID) error {
 	if f == nil {
 		return nil
 	}
@@ -321,29 +321,50 @@ func buildAsyncConstructorState(f *Func, typesIn *types.Interner, semaRes *sema.
 		// locals for the task's whole life.
 		ArgContracts: storeArgContracts(len(args)),
 	}})
+	stateFields := []StructLitField{
+		{
+			// Built PACKED: the start payload below carries the
+			// captured locals, and the task is handed this frame before
+			// anything polls it. The word is true from the frame's first
+			// instant, so a frame the scheduler drops before its first
+			// poll is still reclaimable by what it says.
+			Name:  FrameStateField,
+			Value: Operand{Kind: OperandConst, Type: intType, Const: Const{Kind: ConstInt, Type: intType, IntValue: FrameStatePacked}},
+		},
+		{
+			Name:  asyncStatePcField,
+			Value: Operand{Kind: OperandConst, Type: intType, Const: Const{Kind: ConstInt, Type: intType, IntValue: int64(startVariant.resumeBB)}},
+		},
+		{
+			Name:  asyncStatePayloadField,
+			Value: operandForLocal(f, payloadTmp),
+		},
+	}
+	// A promoted PARAMETER used to arrive in the start payload and be unpacked
+	// into a fresh slot at every poll. It now goes straight to its resident field,
+	// which is the same value delivered to storage that does not move.
+	//
+	// A promoted BODY local gets no entry here on purpose, and the omission is
+	// meaningful rather than an oversight: it has no value yet. Its field's bytes
+	// are zero, because buildComposite zeroes an extent precisely so that a
+	// literal naming only some members leaves the rest reading as uninitialized
+	// instead of as the corpse of an earlier temporary. The body's own assignment,
+	// redirected onto the field, is its first write, and the frame never drops a
+	// resident generically -- a drop reaches it only through the ordinary
+	// obligation of the place it already is, which the body emits only where the
+	// place is live. A frame discarded before that assignment therefore drops
+	// nothing.
+	for _, localID := range startResidents {
+		stateFields = append(stateFields, StructLitField{
+			Name:  residents.fields[localID],
+			Value: operandForAsyncInitialStateStore(f, localID, typesIn),
+		})
+	}
 	appendInstr(f, entry, Instr{Kind: InstrAssign, Assign: AssignInstr{
 		Dst: Place{Local: stateTmp},
 		Src: RValue{Kind: RValueStructLit, StructLit: StructLit{
 			TypeID: stateType,
-			Fields: []StructLitField{
-				{
-					// Built PACKED: the start payload below carries the
-					// captured locals, and the task is handed this frame before
-					// anything polls it. The word is true from the frame's first
-					// instant, so a frame the scheduler drops before its first
-					// poll is still reclaimable by what it says.
-					Name:  FrameStateField,
-					Value: Operand{Kind: OperandConst, Type: intType, Const: Const{Kind: ConstInt, Type: intType, IntValue: FrameStatePacked}},
-				},
-				{
-					Name:  asyncStatePcField,
-					Value: Operand{Kind: OperandConst, Type: intType, Const: Const{Kind: ConstInt, Type: intType, IntValue: int64(startVariant.resumeBB)}},
-				},
-				{
-					Name:  asyncStatePayloadField,
-					Value: operandForLocal(f, payloadTmp),
-				},
-			},
+			Fields: stateFields,
 		}},
 	}})
 	appendInstr(f, entry, Instr{Kind: InstrCall, Call: CallInstr{

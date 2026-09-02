@@ -7,6 +7,26 @@ import (
 	"surge/internal/types"
 )
 
+// emitStructStorageZero clears a struct literal's storage before a PARTIAL
+// literal writes the fields it does name. It is deliberately separate from the
+// union initializer next door: that one also enforces a discriminant's minimum
+// size, which is a union's rule and not a struct's.
+func (fe *funcEmitter) emitStructStorageZero(dst string, size, align uint64) error {
+	if fe == nil || fe.emitter == nil {
+		return fmt.Errorf("missing emitter for struct storage initialization")
+	}
+	if size == 0 {
+		return nil
+	}
+	if align == 0 {
+		align = 1
+	}
+	fmt.Fprintf(&fe.emitter.buf,
+		"  call void @llvm.memset.p0.i64(ptr align %d %s, i8 0, i64 %d, i1 false)\n",
+		align, dst, size)
+	return nil
+}
+
 func (fe *funcEmitter) emitUnionStorageInit(dst string, size, align uint64) error {
 	if fe == nil || fe.emitter == nil {
 		return fmt.Errorf("missing emitter for union storage initialization")
