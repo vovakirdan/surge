@@ -112,6 +112,19 @@ type Result struct {
 	// fall-through; HIR synthesizes an else block with these drops
 	// (keyed by the if statement).
 	IfSyntheticElseDrops map[ast.StmtID][]symbols.SymbolID
+	// StableActivationPlaces names, per enclosing callable, the bindings whose
+	// storage must be ADDRESS-STABLE for that callable's activation, because a
+	// carrier-affine child task borrows them and reads them until it completes.
+	// An ordinary local is a per-poll `alloca` and a suspension repacks it into a
+	// new one, so a child holding the original pointer would dangle even on the
+	// same carrier; these are the places that may not move under it.
+	//
+	// Keyed by binding rather than by Place because only whole-binding places are
+	// reachable today, exactly as movedPlaces records. Its consumer is the
+	// activation-storage lowering; until that exists this is an analysis result
+	// with a test and no reader, which is deliberate — the ordering rule is that
+	// a real borrow may not be lowered before its storage is stable.
+	StableActivationPlaces map[symbols.SymbolID][]symbols.SymbolID
 	// CopyTypes records nominal types marked as Copy via @copy attribute.
 	// Builtin Copy-ness is queried via TypeInterner.
 	CopyTypes map[types.TypeID]struct{}

@@ -11689,3 +11689,40 @@ the exact-base file-size gate passes 12 files with 0 violations. `make
 golden-check` is run after this commit rather than before it: its preflight
 refuses an uncommitted corpus, by design, because an uncommitted corpus has no
 reviewed starting point to compare against.
+
+### Carrier-affine borrow, step 3: naming the places that may not move
+
+Step 3 of the vertical, in the same lane, on top of step 2. It adds an ANSWER and
+no behaviour: `Result.StableActivationPlaces` names, per enclosing callable, the
+bindings whose storage the activation must keep at a fixed address because a
+carrier-affine child borrows them.
+
+It is recorded at the SPAWN rather than at the join, because the capture set is
+what decides which storage may not move, and it is recorded per callable because
+the storage it constrains is that callable's activation -- an `async fn`'s frame,
+or the synthetic root activation of an `@entrypoint`, which needs promoted places
+on exactly the same terms. Keyed by binding rather than by `Place`, for the
+reason `movedPlaces` already gives: only whole-binding places are reachable while
+the partial-move gate is up.
+
+**This field has a test and no reader, deliberately.** Its consumer is the
+activation-storage lowering, which is step 4, and the ordering rule the ruling
+sets is that a real borrow may not be lowered before its storage is stable. A
+seam with no consumer is normally a smell; here it is the shape of the sequence,
+and the test is what keeps it from rotting before step 4 arrives.
+
+Evidence is five cases in `TestStableActivationPlacesNameOnlyBorrowedCaptures`,
+two of which are negative controls rather than confirmations: a spawn that
+borrows NOTHING constrains no storage, and a callable that never spawns is absent
+from the map even when a sibling in the same file borrows a binding of the same
+name. The other three pin the positive shape -- an inline `&v` argument names
+`v`, two children borrowing one place name it once, and two borrowed places are
+both named. The prelude is `onCrossingPrelude`, reused for the reason that file
+states: a sema unit test must not depend on the real stdlib. Without it `Task`
+does not resolve, the spawn types as `NoTypeID`, and the analysis correctly
+records nothing -- which is how the first draft of this test failed, and is worth
+recording because a snippet harness that silently cannot type a `spawn` would
+have made any assertion about spawns vacuous.
+
+`go test ./internal/sema` passes, `make lint` reports `0 issues`, and the
+file-size gate passes 14 files with 0 violations.

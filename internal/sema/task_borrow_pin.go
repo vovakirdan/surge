@@ -159,7 +159,33 @@ func (tc *typeChecker) openTaskBorrowPins(task uint32, captures []spawnBorrowCap
 			Kind:   capture.Kind,
 			Span:   capture.Span,
 		}
+		tc.recordStableActivationPlace(capture.Place)
 	}
+}
+
+// recordStableActivationPlace names a place the enclosing activation must keep
+// at a fixed address. It is recorded at the spawn, which is the only point that
+// knows both the capture set and the callable it was taken from, and it is a
+// per-callable answer because the storage it constrains is that callable's
+// activation -- an `async fn`'s frame, or the synthetic root activation of an
+// `@entrypoint`, which needs promoted places on exactly the same terms.
+func (tc *typeChecker) recordStableActivationPlace(place Place) {
+	if tc.result == nil || !place.IsValid() || !place.Base.IsValid() {
+		return
+	}
+	owner := tc.currentFnSym()
+	if !owner.IsValid() {
+		return
+	}
+	for _, existing := range tc.result.StableActivationPlaces[owner] {
+		if existing == place.Base {
+			return
+		}
+	}
+	if tc.result.StableActivationPlaces == nil {
+		tc.result.StableActivationPlaces = make(map[symbols.SymbolID][]symbols.SymbolID)
+	}
+	tc.result.StableActivationPlaces[owner] = append(tc.result.StableActivationPlaces[owner], place.Base)
 }
 
 // releaseTaskBorrowPins drops every pin one task holds, on THIS path only. A join
