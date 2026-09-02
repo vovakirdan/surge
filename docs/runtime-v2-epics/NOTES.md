@@ -11584,3 +11584,108 @@ the campaign runs only after one.
 The earlier count at `86b3881c` is SUPERSEDED, not pooled with this one. It was
 red at row 20 on the static module-size assertion, was stopped after its first
 run, and its candidate is no longer the branch tip.
+
+### Carrier-affine borrow, step 2: the pin becomes flow state
+
+Written 2026-09-02 in the isolated `codex/rv2-debt307-pin-flow` worktree. It was
+developed and measured against integration base `86b3881c` and then rebased onto
+`5b44cb0c`, after the module split and the aggregate count landed; the
+measurements below name `86b3881c` because that is the tree they were taken on,
+and none of them touch the two files those commits changed. This is step 2 of the
+eight-step vertical
+the 2026-09-02 ruling put in place of the closeout plan's old step 4. It changes
+no lowering and no scheduler.
+
+**The gap is not where the row said it was.** The row attributes the silence to
+routing -- an ordinary local `spawn` reaching `registerAsyncBodyOwnership` rather
+than `classifyOnCapture`. Measured at `86b3881c` with `surge diag`, varying one
+condition, the discriminator is the NAMED BINDING:
+
+| program | result |
+| --- | --- |
+| `let t = spawn worker(&v); v = 5;` | **zero diagnostics** |
+| `let r = &v; let t = spawn worker(r); v = 5;` | `SemaBorrowThreadEscape` + `SEM3019` |
+| `docs/QUICKSTART.md:555-564` verbatim | **zero diagnostics** |
+
+`enforceSpawn` -> `scanSpawn` fires only on an `ast.ExprIdent` whose symbol has a
+borrow binding. A borrow written inline as `&v` in a call argument is a temporary
+no binding holds, and its ordinary region ends at the call, after which `v = 5`
+is legal by every rule the compiler had.
+
+**Which decides the shape of step 2: narrow, never widen.** A blanket refusal
+would have taken the third row with it, and that row is documented UX the ruling
+protects by name. Section 9 of the model already says a local spawn MAY capture
+borrows of its parent, so the capture stays legal and what changes is that the
+unsound USE is refused. No program that compiled for a sound reason stops
+compiling; nothing sema refuses today becomes accepted. The docs said "the
+existing refusal stands", which was written believing a refusal covered this
+generally; both normative files are corrected in this lane to say what the tree
+actually does.
+
+**The pin, and why it is the same lattice as moved places.** A child that
+captured a borrow reads the place until it completes, so the borrow outlives its
+own lexical region. `taskBorrowPins` maps (task, place) to the capture, and a
+spawn opens one pin per borrowed place in its operand. A join REMOVES the pins of
+that task on the current path only; the union at every branch join puts back any
+the other path still held. That IS `ACTIVE + RELEASED -> ACTIVE`, with no new
+merge machinery: `mergeMovedPlaces` was already a union for the mirror-image
+reason, stated in its own comment -- a value moved on any path may not be used
+after the join.
+
+Because the two lattices are always snapshotted, restored and merged together,
+they are bundled as `flowSnapshot` rather than threaded as two parallel
+variables. That is what keeps the next join point from remembering one and
+forgetting the other, and it is also what let the join points absorb the change
+without growing. The first attempt threaded the two lattices separately and the
+legacy-file gate refused it: `type_checker_walk.go` went `584 -> 598` and
+`borrow_runtime_ops.go` `586 -> 597` effective LOC, both `LEGACY_GROWTH`. After
+bundling, one call replaces two at every join and the same files measure
+`584 -> 584` and `586 -> 582`. The gate asked for the better shape rather than
+for fewer lines, which is the point of it.
+
+Join points covered, all of them existing sites rather than new ones:
+statement `if`/`else` including the closed-arm cases and the else-less form,
+`while`, `for`, `for-in`, `compare` arms, `select` arms, and the ternary. The
+three loops share `closeLoopFlow`, which states the asymmetry: a move across a
+back edge is refused outright, while a join inside the body releases nothing
+after the loop, because the zero-iteration path is a reachable predecessor.
+
+**`TaskTracker.Awaited` is deliberately not reused.** It is a global per-task
+boolean with no flow sensitivity, correct for the scope leak check, which only
+asks whether a handle was disposed of somewhere, and exactly wrong for referent
+safety, which asks about definite completion on every path. Handle move state and
+referent pin state stay different facts.
+
+**One implementation trap worth recording.** The first version read the captures
+back from the borrow table after the operand had been typed, and found nothing:
+`DropBorrow` deletes the expression's entry when a call-argument borrow ends, so
+by then the table no longer remembers that `spawn worker(&v)` borrowed anything.
+That deletion is the same fact as the defect -- the binding outlives the call and
+the temporary does not. Captures are recorded at CREATION instead, while the
+spawn operand is being typed.
+
+**Evidence.** Three new golden fixtures and their controls:
+`invalid/task_borrow_mutated_while_child_runs.sg` and
+`invalid/task_borrow_join_on_one_branch_only.sg` each record one
+`SEM3019 cannot mutate 'v' while it is shared-borrowed`;
+`valid/task_borrow_join_on_every_branch.sg` records none, which is what keeps the
+rule from meaning "a borrow-capturing spawn poisons the place forever". The two
+task-borrow rows the corpus already had are unchanged:
+`valid/task_borrow_awaited_in_scope.sg` still compiles, and
+`invalid/task_borrows_local_escapes.sg` still reports its two `SEM3139` rows. The
+regeneration modified NO existing recorded output -- the only edit outside the
+new files is `testdata/golden.expectations.json`, `entry_count` 5362 -> 5377,
+which is exactly three fixtures times five artifacts.
+
+Rule 13, and it is targeted rather than a build break: making the else-less `if`
+take the then-arm's flow instead of the union makes
+`task_borrow_join_on_one_branch_only.sg` report **0 errors** against its recorded
+1, while `task_borrow_mutated_while_child_runs.sg` stays at 1 and
+`task_borrow_join_on_every_branch.sg` stays at 0. The mutant removes exactly the
+may-be-live rule and nothing else.
+
+`go test ./internal/sema` passes, repository `make lint` reports `0 issues`, and
+the exact-base file-size gate passes 12 files with 0 violations. `make
+golden-check` is run after this commit rather than before it: its preflight
+refuses an uncommitted corpus, by design, because an uncommitted corpus has no
+reviewed starting point to compare against.

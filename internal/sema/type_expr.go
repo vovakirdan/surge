@@ -196,7 +196,11 @@ func (tc *typeChecker) typeSpawnExpr(exprID ast.ExprID, span source.Span, value 
 	// block's body. Marking it stops the block from asking for the same scan and
 	// reporting everything twice.
 	prevSpawnOperand := tc.spawnOperand
+	// A nested spawn inside this operand collects into its own list and hands it
+	// back, so an inner child's borrows are not attributed to the outer one.
+	prevSpawnCaptures := tc.spawnBorrowCaptures
 	tc.spawnOperand = value
+	tc.spawnBorrowCaptures = nil
 	exprType := tc.typeExpr(value)
 	tc.spawnOperand = prevSpawnOperand
 	tc.observeMove(value, tc.exprSpan(value))
@@ -218,8 +222,13 @@ func (tc *typeChecker) typeSpawnExpr(exprID ast.ExprID, span source.Span, value 
 
 	if tc.taskTracker != nil && ty != types.NoTypeID {
 		inAsyncBlock := tc.asyncBlockDepth > 0
-		tc.taskTracker.SpawnTask(exprID, span, tc.currentScope(), inAsyncBlock, local)
+		taskID := tc.taskTracker.SpawnTask(exprID, span, tc.currentScope(), inAsyncBlock, local)
+		// The child outlives the call that handed it the reference, so every
+		// borrow the operand carried is pinned to the child's completion rather
+		// than to its own lexical region. task_borrow_pin.go carries the rule.
+		tc.openTaskBorrowPins(taskID, tc.spawnBorrowCaptures)
 	}
+	tc.spawnBorrowCaptures = prevSpawnCaptures
 
 	return ty
 }

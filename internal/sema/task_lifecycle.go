@@ -3,6 +3,7 @@ package sema
 import (
 	"surge/internal/ast"
 	"surge/internal/source"
+	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
@@ -44,6 +45,9 @@ func (tc *typeChecker) trackTaskAwait(targetExpr ast.ExprID) {
 	// or a clone awaited without a binding, `t.clone().await()`.
 	if expr.Kind == ast.ExprTask || expr.Kind == ast.ExprSpawn || tc.taskTracker.IsTrackedExpr(targetExpr) {
 		tc.taskTracker.MarkAwaitedByExpr(targetExpr)
+		// The join ends the child on THIS path. Whether it ends it on every path
+		// that reaches a later use is decided at the next merge, not here.
+		tc.releaseTaskBorrowPins(tc.taskIDForAwaitTarget(targetExpr, symbols.NoSymbolID))
 		tc.noteTaskContainerPopConsumedByExpr(targetExpr)
 		return
 	}
@@ -52,6 +56,7 @@ func (tc *typeChecker) trackTaskAwait(targetExpr ast.ExprID) {
 	if expr.Kind == ast.ExprIdent {
 		if symID := tc.symbolForExpr(targetExpr); symID.IsValid() {
 			tc.taskTracker.MarkAwaited(symID)
+			tc.releaseTaskBorrowPins(tc.taskIDForAwaitTarget(targetExpr, symID))
 			tc.noteTaskContainerPopBindingConsumed(symID)
 		}
 		return

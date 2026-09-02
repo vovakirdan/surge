@@ -394,12 +394,20 @@ Its consequences are normative:
 - crossing, blocking and public handoff of such a reference stay refused
   exactly as they are refused today.
 
-An intermediate tree in which semantic analysis has admitted the borrow and the
-scheduler has pinned the task while the lowered pointer is still a per-poll
-`alloca` is FORBIDDEN. It is worse than the refusal it would replace, because
-it reports a proof it does not have. The existing refusal stands until promoted
-storage, path-sensitive pin state and carrier-addressed publication are all live
-together.
+An intermediate tree in which semantic analysis has NEWLY admitted a borrow
+capture, and the scheduler has pinned its task, while the lowered pointer is
+still a per-poll `alloca`, is FORBIDDEN. It reports a proof it does not have,
+which is worse than the refusal it would replace.
+
+The rule that follows from that is directional, and it is stated as a direction
+rather than as "the capture stays refused" because the latter is not true of
+this tree. Measured at `86b3881c`, the compiler refuses a borrow held by a NAMED
+BINDING and handed to a spawn, and accepts the same borrow written inline as
+`spawn worker(&v)` with zero diagnostics even when the parent mutates the
+referent afterwards. So until promoted storage, path-sensitive pin state and
+carrier-addressed publication are live together, the compiler may only NARROW:
+it refuses a use that was unsound, and it may not admit a capture it refuses
+today.
 
 ## 8. Ordinary Call ABI
 

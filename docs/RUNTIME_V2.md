@@ -957,10 +957,24 @@ does not widen the source language: it is the physical execution of the
 paragraph above.
 
 Until promoted storage, path-sensitive pin state and carrier-addressed
-publication are all live together, semantic analysis keeps refusing the capture.
-A tree in which sema has admitted the borrow and the scheduler has pinned the
-task while the pointer is still a per-poll `alloca` is worse than the refusal it
-replaces, because it reports a proof nothing holds.
+publication are all live together, semantic analysis admits no capture it does
+not already admit. That is the honest form of the rule, and it is not the same
+as "the capture stays refused", because what the compiler refuses today is
+UNEVEN, and the unevenness is the defect. Measured at `86b3881c`: a borrow held
+by a NAMED BINDING and handed to a spawn is refused, with
+`SemaBorrowThreadEscape` at the argument and the ordinary shared-borrow rule on
+a later mutation; the SAME borrow written inline as `spawn worker(&v)` reaches
+no escape check at all, because no binding holds it and its ordinary borrow
+region ends at the call, so a following `v = 5` is accepted with zero
+diagnostics. That silence is the data race this section exists to remove.
+
+The interim rule is therefore to NARROW and never to widen. The unsound USE is
+refused -- the inline form receives the same diagnostic the binding form already
+receives -- while no program that compiles today for a sound reason stops
+compiling, and no lowering changes. Widening is what is forbidden: a tree in
+which sema has NEWLY admitted a capture, and the scheduler has pinned its task,
+while the pointer is still a per-poll `alloca`, reports a proof nothing holds
+and is worse than the refusal it replaced.
 
 **Owner ruling 2026-09-02 -- the borrow pin is path-sensitive flow state, not a
 global flag.** A join releases the pin only when the child is DEFINITELY

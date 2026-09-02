@@ -1,0 +1,1 @@
+error SEM3019 testdata/golden/sema/invalid/task_borrow_join_on_one_branch_only.sg:15:5 cannot mutate 'v' while it is shared-borrowed

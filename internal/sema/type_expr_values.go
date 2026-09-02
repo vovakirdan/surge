@@ -221,12 +221,16 @@ func (tc *typeChecker) typeExprTernary(id ast.ExprID, span source.Span) types.Ty
 	// The same reasoning a compare applies across its arms, which restores
 	// before each one for exactly this reason.
 	before := tc.snapshotMovedPlaces()
+	pinsBefore := tc.snapshotTaskBorrowPins()
 	trueType := tc.typeExpr(tern.TrueExpr)
 	movedTrue := tc.snapshotMovedPlaces()
+	pinsTrue := tc.snapshotTaskBorrowPins()
 
 	tc.restoreMovedPlaces(before)
+	tc.restoreTaskBorrowPins(pinsBefore)
 	falseType := tc.typeExpr(tern.FalseExpr)
 	movedFalse := tc.snapshotMovedPlaces()
+	tc.restoreTaskBorrowPins(mergeTaskBorrowPins(pinsTrue, tc.snapshotTaskBorrowPins()))
 
 	// The branches transfer into the ternary's own result value, so the outer
 	// expression carries the drop candidacy from here. Asked BEFORE consuming,

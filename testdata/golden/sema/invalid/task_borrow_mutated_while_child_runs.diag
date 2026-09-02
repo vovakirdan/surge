@@ -1,0 +1,1 @@
+error SEM3019 testdata/golden/sema/invalid/task_borrow_mutated_while_child_runs.sg:13:5 cannot mutate 'v' while it is shared-borrowed

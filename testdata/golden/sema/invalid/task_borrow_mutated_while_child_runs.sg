@@ -1,0 +1,15 @@
+// A child that captured a borrow keeps reading the place until it completes, so
+// the parent may not write through that place before joining it. The borrow is
+// taken INLINE at the spawn argument: no binding holds it, its own lexical
+// region ends at the call, and it was invisible to every rule the compiler had.
+async fn worker(x: &int) -> int {
+    return *x + 1;
+}
+
+@entrypoint
+fn main() {
+    let mut v: int = 0;
+    let t = spawn worker(&v);
+    v = 5;
+    let res = t.await();
+}

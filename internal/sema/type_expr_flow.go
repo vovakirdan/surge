@@ -14,7 +14,9 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		return types.NoTypeID
 	}
 	movedBefore := tc.snapshotMovedPlaces()
+	pinsBefore := tc.snapshotTaskBorrowPins()
 	movedArms := make([]map[Place]source.Span, len(cmp.Arms))
+	pinsArms := make([]map[taskBorrowPinKey]taskBorrowPin, len(cmp.Arms))
 	armClosed := make([]bool, len(cmp.Arms))
 	valueType := tc.typeExpr(cmp.Value)
 	// A compare INSPECTS its subject; it does not take it. That is what makes
@@ -26,6 +28,7 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 	tc.observeMove(cmp.Value, tc.exprSpan(cmp.Value))
 	tc.observingCompareScrutinee = false
 	movedAfterValue := tc.snapshotMovedPlaces()
+	pinsAfterValue := tc.snapshotTaskBorrowPins()
 	expectedCompare := tc.expectedTypeForExpr(id)
 	resultType := expectedCompare
 	remainingMembers := tc.unionMembers(valueType)
@@ -58,6 +61,7 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 
 	for i, arm := range cmp.Arms {
 		tc.restoreMovedPlaces(movedAfterValue)
+		tc.restoreTaskBorrowPins(pinsAfterValue)
 		armSubject := valueType
 		if narrowed := tc.narrowCompareSubjectType(valueType, remainingMembers); narrowed != types.NoTypeID {
 			armSubject = narrowed
@@ -175,6 +179,7 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		}
 		tc.popDropScope()
 		movedArms[i] = tc.snapshotMovedPlaces()
+		pinsArms[i] = tc.snapshotTaskBorrowPins()
 	}
 
 	if owned := len(mintingArms) + sometimesMintingArms; owned > 0 {
@@ -207,9 +212,19 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 	// read; it encoded "moved on every arm", which is not the condition a use
 	// is checked against, so it was deleted rather than carried to places.
 	var mergedMoves map[Place]source.Span
+	var mergedPins map[taskBorrowPinKey]taskBorrowPin
+	mergedPinsSeen := false
 	for i := range cmp.Arms {
 		if armClosed[i] {
 			continue
+		}
+		// A join written in one arm releases nothing after the compare while any
+		// other reachable arm left the child running.
+		if !mergedPinsSeen {
+			mergedPins = pinsArms[i]
+			mergedPinsSeen = true
+		} else {
+			mergedPins = mergeTaskBorrowPins(mergedPins, pinsArms[i])
 		}
 		if mergedMoves == nil {
 			mergedMoves = movedArms[i]
@@ -252,6 +267,11 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		tc.movedPlaces = movedBefore
 	} else {
 		tc.movedPlaces = mergedMoves
+	}
+	if mergedPinsSeen {
+		tc.taskBorrowPins = mergedPins
+	} else {
+		tc.taskBorrowPins = pinsBefore
 	}
 	if expectedCompare == types.NoTypeID && resultType != types.NoTypeID {
 		for i, arm := range cmp.Arms {

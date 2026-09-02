@@ -207,6 +207,28 @@ func (tt *TaskTracker) HasTasks() bool {
 	return tt.nextID > 1
 }
 
+// TaskIDForExpr resolves a task-producing expression to its task id, or 0.
+func (tt *TaskTracker) TaskIDForExpr(expr ast.ExprID) uint32 {
+	if !expr.IsValid() {
+		return 0
+	}
+	if taskID, ok := tt.exprTasks[expr]; ok && int(taskID) < len(tt.tasks) {
+		return taskID
+	}
+	return 0
+}
+
+// TaskIDForBinding resolves a handle binding to its task id, or 0.
+func (tt *TaskTracker) TaskIDForBinding(binding symbols.SymbolID) uint32 {
+	if !binding.IsValid() {
+		return 0
+	}
+	if taskID, ok := tt.bindingTasks[binding]; ok && int(taskID) < len(tt.tasks) {
+		return taskID
+	}
+	return 0
+}
+
 // IsLocalBinding reports whether the binding refers to a local task handle.
 func (tt *TaskTracker) IsLocalBinding(binding symbols.SymbolID) bool {
 	if !binding.IsValid() {

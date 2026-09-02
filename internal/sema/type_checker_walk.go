@@ -332,48 +332,51 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 	case ast.StmtIf:
 		if ifStmt := tc.builder.Stmts.If(id); ifStmt != nil {
 			tc.ensureBoolContext(ifStmt.Cond, tc.exprSpan(ifStmt.Cond))
-			movedBefore := tc.snapshotMovedPlaces()
+			before := tc.snapshotFlow()
 			tc.walkStmt(ifStmt.Then)
-			movedThen := tc.snapshotMovedPlaces()
+			thenFlow := tc.snapshotFlow()
 			thenClosed := tc.returnStatus(ifStmt.Then) == returnClosed
 			if ifStmt.Else.IsValid() {
-				tc.restoreMovedPlaces(movedBefore)
+				tc.restoreFlow(before)
 				tc.walkStmt(ifStmt.Else)
-				movedElse := tc.snapshotMovedPlaces()
+				elseFlow := tc.snapshotFlow()
 				elseClosed := tc.returnStatus(ifStmt.Else) == returnClosed
 				switch {
 				case thenClosed && elseClosed:
 					// Both branches return; state after if is unreachable.
-					tc.movedPlaces = movedBefore
+					tc.restoreFlow(before)
 				case thenClosed:
-					tc.movedPlaces = movedElse
+					tc.restoreFlow(elseFlow)
 				case elseClosed:
-					tc.movedPlaces = movedThen
+					tc.restoreFlow(thenFlow)
 				default:
-					union := mergeMovedPlaces(movedThen, movedElse)
-					tc.recordIfArmDrops(ifStmt.Then, movedThen, union)
-					tc.recordIfArmDrops(ifStmt.Else, movedElse, union)
-					tc.movedPlaces = union
+					joined := mergeFlow(thenFlow, elseFlow)
+					tc.recordIfArmDrops(ifStmt.Then, thenFlow.moved, joined.moved)
+					tc.recordIfArmDrops(ifStmt.Else, elseFlow.moved, joined.moved)
+					tc.restoreFlow(joined)
 				}
 			} else {
 				if thenClosed {
-					tc.movedPlaces = movedBefore
+					tc.restoreFlow(before)
 				} else {
-					union := mergeMovedPlaces(movedThen, movedBefore)
-					if drops, plans := tc.oneSidedObligations(movedBefore, union); len(drops) > 0 {
+					// The arm-less path is a reachable predecessor, so a join
+					// written only in the then-arm releases nothing after the
+					// `if` and a value it moved is maybe-moved.
+					joined := mergeFlow(thenFlow, before)
+					if drops, plans := tc.oneSidedObligations(before.moved, joined.moved); len(drops) > 0 {
 						if tc.result.IfSyntheticElseDrops == nil {
 							tc.result.IfSyntheticElseDrops = make(map[ast.StmtID][]symbols.SymbolID)
 						}
 						tc.result.IfSyntheticElseDrops[id] = drops
 						tc.recordOneSidedDrops(DropSite{Stmt: id}, plans)
 					}
-					tc.movedPlaces = union
+					tc.restoreFlow(joined)
 				}
 			}
 		}
 	case ast.StmtWhile:
 		if whileStmt := tc.builder.Stmts.While(id); whileStmt != nil {
-			movedBeforeLoop := tc.snapshotMovedPlaces()
+			beforeLoop := tc.snapshotFlow()
 			tc.ensureBoolContext(whileStmt.Cond, tc.exprSpan(whileStmt.Cond))
 			loopPlace, loopOK := tc.taskContainerDrainLoop(whileStmt.Cond)
 			tc.enterLoopDropScope()
@@ -381,7 +384,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 				tc.enterTaskContainerLoop(loopPlace)
 			}
 			tc.walkStmt(whileStmt.Body)
-			tc.rejectLoopBackEdgeMoves(movedBeforeLoop, "while loop")
+			tc.closeLoopFlow(beforeLoop, "while loop")
 			tc.leaveLoopDropScope()
 			if loopOK {
 				if loop, ok := tc.leaveTaskContainerLoop(); ok && loop.popCount > 0 && !loop.earlyExit {
@@ -399,12 +402,12 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			if forStmt.Init.IsValid() {
 				tc.walkStmt(forStmt.Init)
 			}
-			movedBeforeLoop := tc.snapshotMovedPlaces()
+			beforeLoop := tc.snapshotFlow()
 			tc.ensureBoolContext(forStmt.Cond, tc.exprSpan(forStmt.Cond))
 			tc.typeExpr(forStmt.Post)
 			tc.enterLoopDropScope()
 			tc.walkStmt(forStmt.Body)
-			tc.rejectLoopBackEdgeMoves(movedBeforeLoop, "for loop")
+			tc.closeLoopFlow(beforeLoop, "for loop")
 			tc.leaveLoopDropScope()
 			tc.recordScopeEndDrops(id)
 			tc.popDropScope()

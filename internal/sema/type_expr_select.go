@@ -48,7 +48,9 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 	// owned inside the other arms' bodies, and is maybe-moved after the
 	// join (same discipline as compare arms).
 	movedBefore := tc.snapshotMovedPlaces()
+	pinsBefore := tc.snapshotTaskBorrowPins()
 	movedArms := make([]map[Place]source.Span, len(data.Arms))
+	pinsArms := make([]map[taskBorrowPinKey]taskBorrowPin, len(data.Arms))
 	armClosed := make([]bool, len(data.Arms))
 	// Moves made while evaluating an arm's AWAIT expression, snapshotted
 	// separately from the arm's full moved-set. Every arm's await is
@@ -64,6 +66,7 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 
 	for i, arm := range data.Arms {
 		tc.restoreMovedPlaces(movedBefore)
+		tc.restoreTaskBorrowPins(pinsBefore)
 		if arm.IsDefault {
 			defaultCount++
 			if i != len(data.Arms)-1 {
@@ -82,6 +85,7 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 		armResult := tc.typeExpr(arm.Result)
 		armClosed[i] = tc.compareArmAbruptExit(arm.Result)
 		movedArms[i] = tc.snapshotMovedPlaces()
+		pinsArms[i] = tc.snapshotTaskBorrowPins()
 		armTypes[i] = armResult
 		if armResult != types.NoTypeID {
 			switch {
@@ -103,9 +107,19 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 	}
 
 	var mergedMoves map[Place]source.Span
+	var mergedPins map[taskBorrowPinKey]taskBorrowPin
+	mergedPinsSeen := false
 	for i := range data.Arms {
 		if armClosed[i] {
 			continue
+		}
+		// One arm wins, so a join written in one of them releases nothing after
+		// the select while another reachable arm left the child running.
+		if !mergedPinsSeen {
+			mergedPins = pinsArms[i]
+			mergedPinsSeen = true
+		} else {
+			mergedPins = mergeTaskBorrowPins(mergedPins, pinsArms[i])
 		}
 		if mergedMoves == nil {
 			mergedMoves = movedArms[i]
@@ -160,6 +174,11 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 		tc.movedPlaces = mergedMoves
 	} else {
 		tc.movedPlaces = movedBefore
+	}
+	if mergedPinsSeen {
+		tc.taskBorrowPins = mergedPins
+	} else {
+		tc.taskBorrowPins = pinsBefore
 	}
 
 	if defaultCount > 1 {

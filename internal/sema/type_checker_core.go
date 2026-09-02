@@ -140,17 +140,25 @@ type typeChecker struct {
 	// place rather than by binding so a field can be tracked apart from its
 	// container; at present only whole-binding places (empty path) are
 	// reachable, because the partial-move gate rejects the rest.
-	movedPlaces            map[Place]source.Span
-	dropScopes             []dropScope                     // lexical scopes' droppable bindings (drop obligations)
-	loopDropMarks          []int                           // dropScopes depth at each enclosing loop body
-	tempFrames             []tempFrame                     // per-statement owned-rvalue candidates (temp drops)
-	tempTaken              map[ast.ExprID][][]PlaceSegment // paths moved OUT of a statement-end temporary, so its release can be narrowed to the remainder
-	choiceOwnsItsValue     map[ast.ExprID]struct{}         // control-flow expressions every branch of which produced a fresh owned value, so the result is theirs to release
-	aliasedBindings        map[symbols.SymbolID]struct{}   // bindings holding container-owned handles (never drop)
-	nonOwningBindings      map[symbols.SymbolID]struct{}   // bindings that never own what they hold, for life (loop bindings)
-	blockingDepth          int                             // nesting depth of `blocking { }` bodies (suspension illegal inside)
-	spawnOperand           ast.ExprID                      // the expression `spawn` is currently typing, so an async block can tell whether spawn will scan it
-	onCrossingStack        []onAnchorFrame                 // active `on dst { ... }` crossing frames
+	movedPlaces        map[Place]source.Span
+	dropScopes         []dropScope                     // lexical scopes' droppable bindings (drop obligations)
+	loopDropMarks      []int                           // dropScopes depth at each enclosing loop body
+	tempFrames         []tempFrame                     // per-statement owned-rvalue candidates (temp drops)
+	tempTaken          map[ast.ExprID][][]PlaceSegment // paths moved OUT of a statement-end temporary, so its release can be narrowed to the remainder
+	choiceOwnsItsValue map[ast.ExprID]struct{}         // control-flow expressions every branch of which produced a fresh owned value, so the result is theirs to release
+	aliasedBindings    map[symbols.SymbolID]struct{}   // bindings holding container-owned handles (never drop)
+	nonOwningBindings  map[symbols.SymbolID]struct{}   // bindings that never own what they hold, for life (loop bindings)
+	blockingDepth      int                             // nesting depth of `blocking { }` bodies (suspension illegal inside)
+	spawnOperand       ast.ExprID                      // the expression `spawn` is currently typing, so an async block can tell whether spawn will scan it
+	// taskBorrowPins holds, per child task, the parent places that child borrowed.
+	// It is flow state on the same lattice as movedPlaces and is merged by union
+	// at the same join points; task_borrow_pin.go carries the rule.
+	taskBorrowPins map[taskBorrowPinKey]taskBorrowPin
+	// spawnBorrowCaptures collects the borrowed places found while scanning the
+	// spawn operand currently being typed. It is filled by scanSpawn and consumed
+	// by typeSpawnExpr once the task has an id to key its pins by.
+	spawnBorrowCaptures    []spawnBorrowCapture
+	onCrossingStack        []onAnchorFrame // active `on dst { ... }` crossing frames
 	directFunctionCrossing map[symbols.SymbolID]struct{}
 	functionCrossingEdges  map[symbols.SymbolID]map[symbols.SymbolID]struct{}
 	callTargetDepth        int
@@ -326,6 +334,7 @@ func (tc *typeChecker) run() {
 	tc.rangeCursorExprBase = make(map[ast.ExprID]symbols.SymbolID)
 	tc.rangeCursorBindingBase = make(map[symbols.SymbolID]symbols.SymbolID)
 	tc.movedPlaces = make(map[Place]source.Span)
+	tc.taskBorrowPins = make(map[taskBorrowPinKey]taskBorrowPin)
 	tc.taskContainers = make(map[Place]*taskContainerInfo)
 	tc.directFunctionCrossing = make(map[symbols.SymbolID]struct{})
 	tc.functionCrossingEdges = make(map[symbols.SymbolID]map[symbols.SymbolID]struct{})

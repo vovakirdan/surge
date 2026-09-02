@@ -1,0 +1,19 @@
+// The same program as the one-branch case, joined on BOTH paths. Every reachable
+// predecessor of the write has definitely completed the child, so the pin is
+// released at the merge and the write is legal. This is the control that keeps
+// the rule from being "a borrow-capturing spawn poisons the place forever".
+async fn worker(x: &int) -> int {
+    return *x + 1;
+}
+
+@entrypoint
+fn main(cond: bool = true) {
+    let mut v: int = 0;
+    let t = spawn worker(&v);
+    if (cond) {
+        let res = t.await();
+    } else {
+        let other = t.await();
+    }
+    v = 5;
+}

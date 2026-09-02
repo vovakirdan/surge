@@ -186,11 +186,7 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 		Issue:       issue.Kind,
 		IssueBorrow: issue.Borrow,
 	})
-	if issue.Kind != BorrowIssueNone {
-		if span == (source.Span{}) {
-			span = evSpan
-		}
-		tc.reportBorrowMove(place, span, issue)
+	if tc.refuseMoveOfHeldPlace(place, span, evSpan, issue) {
 		return
 	}
 	switch {
@@ -478,11 +474,13 @@ func (tc *typeChecker) handleBorrow(exprID ast.ExprID, span source.Span, op ast.
 				tc.reportBorrowConflict(place, span, issue, kind)
 				return
 			}
+			tc.noteSpawnOperandBorrow(bid, span)
 			frame.reserved = append(frame.reserved, bid)
 			return
 		}
 	}
 	bid, issue := tc.borrow.BeginBorrow(exprID, span, kind, place, scope, parent)
+	tc.noteSpawnOperandBorrow(bid, span)
 	tc.recordBorrowEvent(&BorrowEvent{
 		Kind:        BorrowEvBorrowStart,
 		Borrow:      bid,
@@ -559,9 +557,7 @@ func (tc *typeChecker) handleAssignment(exprID ast.ExprID, op ast.ExprBinaryOp, 
 			Issue:       issue.Kind,
 			IssueBorrow: issue.Borrow,
 		})
-		if issue.Kind != BorrowIssueNone {
-			tc.reportBorrowMutation(place, span, issue)
-		}
+		tc.refuseWriteToHeldPlace(place, span, issue)
 	} else if tc.borrow != nil {
 		// Still record the write event for diagnostics/debugging
 		tc.recordBorrowEvent(&BorrowEvent{

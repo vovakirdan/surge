@@ -11,6 +11,50 @@ func (tc *typeChecker) enforceSpawn(expr ast.ExprID, allowNosend bool) {
 	tc.scanSpawn(expr, seen, allowNosend)
 }
 
+// noteSpawnOperandBorrow records a borrow taken while the spawn operand is being
+// typed. It has to be recorded HERE, at creation, and not read back afterwards
+// from the expression: a call-argument borrow is dropped when the call ends, and
+// DropBorrow deletes the expression's entry, so by the time the operand has been
+// typed the table no longer remembers that `spawn worker(&v)` borrowed anything.
+// That deletion is why the inline form was invisible while the binding form was
+// refused — the binding outlives the call and the temporary does not.
+func (tc *typeChecker) noteSpawnOperandBorrow(borrow BorrowID, span source.Span) {
+	if !tc.spawnOperand.IsValid() {
+		return
+	}
+	tc.noteSpawnBorrowCapture(borrow, span)
+}
+
+// noteSpawnBorrowCapture records one borrowed place the spawn operand carries
+// into the child. Both routes into a child are collected here because they are
+// the same capture written two ways, and only one of them was ever visible: a
+// borrow behind a NAMED BINDING reaches the ident branch below, while a borrow
+// taken inline as `&v` in an argument is a temporary no binding holds, so it is
+// found by asking the borrow table what this expression borrowed.
+func (tc *typeChecker) noteSpawnBorrowCapture(borrow BorrowID, span source.Span) {
+	if borrow == NoBorrowID || tc.borrow == nil {
+		return
+	}
+	info := tc.borrow.Info(borrow)
+	if info == nil || !info.Place.IsValid() {
+		return
+	}
+	if span == (source.Span{}) {
+		span = info.Span
+	}
+	for _, existing := range tc.spawnBorrowCaptures {
+		if existing.Place == info.Place && existing.Borrow == borrow {
+			return
+		}
+	}
+	tc.spawnBorrowCaptures = append(tc.spawnBorrowCaptures, spawnBorrowCapture{
+		Place:  info.Place,
+		Borrow: borrow,
+		Kind:   info.Kind,
+		Span:   span,
+	})
+}
+
 func (tc *typeChecker) scanSpawn(expr ast.ExprID, seen map[symbols.SymbolID]struct{}, allowNosend bool) {
 	if !expr.IsValid() || tc.builder == nil {
 		return
@@ -18,6 +62,9 @@ func (tc *typeChecker) scanSpawn(expr ast.ExprID, seen map[symbols.SymbolID]stru
 	node := tc.builder.Exprs.Get(expr)
 	if node == nil {
 		return
+	}
+	if tc.borrow != nil {
+		tc.noteSpawnBorrowCapture(tc.borrow.ExprBorrow(expr), node.Span)
 	}
 	if node.Kind == ast.ExprIdent {
 		symID := tc.symbolForExpr(expr)
@@ -48,6 +95,7 @@ func (tc *typeChecker) scanSpawn(expr ast.ExprID, seen map[symbols.SymbolID]stru
 				Span:    node.Span,
 				Scope:   tc.currentScope(),
 			})
+			tc.noteSpawnBorrowCapture(bid, node.Span)
 			tc.reportSpawnThreadEscape(symID, node.Span, bid)
 		}
 		if tc.isTaskContainerType(tc.bindingType(symID)) {

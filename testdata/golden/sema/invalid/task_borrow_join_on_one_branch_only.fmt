@@ -1,0 +1,16 @@
+// A join reached on only some paths releases nothing: the branch that skips it
+// arrives at the write with the child still running. The pin is may-be-live, so
+// it survives the merge, which is what this file records.
+async fn worker(x: &int) -> int {
+    return *x + 1;
+}
+
+@entrypoint
+fn main(cond: bool = true) {
+    let mut v: int = 0;
+    let t = spawn worker(&v);
+    if (cond) {
+        let res = t.await();
+    }
+    v = 5;
+}
