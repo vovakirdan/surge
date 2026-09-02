@@ -12671,3 +12671,76 @@ status: exit status 128" while `git status` by hand is green: a stray, empty
 Golden-check and the acceptance matrix both ran with
 `GOFLAGS=-buildvcs=false`; the runner's `/tmp` is clean and its gates run as
 written. Recorded, not deleted: it is not ours to remove.
+
+### D8, the Wave D freeze: candidate `c38e4275` (2026-09-03, in progress)
+
+**The candidate.** D7 (`71396627`) was the last scheduler/carrier/channel
+change of the wave; D4.8 (`c38e4275`) is a test and its gate line on top.
+Nothing in Wave D's list is left to land: D0 (fast-forward, the SEM3209
+port, the 277 patch saved), D0b (the pre-existing reds, each with its cause),
+D0c (the splits), D4.5–D4.8, D5, D6, D7. `c38e4275` is the freeze candidate,
+and the rows the plan's step 8 names run on it, on the runner, one after
+another, from one queue script (`/srv/ci/queue_c38.sh` → `baseline.sh`,
+`w8count.sh` ×5, `d8.sh`): file-size `--committed`, golden twice plus
+corpus determinism, `behaviour-check-all`, the MT corpus at 2/4/8 × 5,
+`TestLLVMParity` at 1×1, 1×8 and 8×8, the carrier census pair, the whole
+tagged `internal/vm` suite, the sanitizer lane, then the 1000-repeat
+campaign on cores 8–15 with the rest of the box idle (each run's llvm PASS
+leaves counted, so a vacuous run reads as a number), then W8 ×2 again, then
+the DEBT-312 rate (`rate312.sh`, 200 iterations, a live dump on the first
+red). The counts land here as they finish.
+
+**Sentrux, on the candidate, locally (the runner has no binary).** All four
+scopes pass every rule: `.` quality 6157 (10 rules), `internal` 6446,
+`runtime` 5287, `runtime/native` 5415 -- against the Epic 12 record in
+`SENTRUX_POLICY.md` of 6189 / 6532 / 5195 / 5159: the two Go scopes a
+fraction lower, the two runtime scopes higher. No D0 baseline was taken
+separately; this scan is the wave's baseline, and F7's "final" is measured
+against it.
+
+**One red to attribute before the freeze.** The D6 baseline (`91c41e43`)
+read one red of the whole `go test ./...`: `TestMTCorrectnessHTTPServer`,
+"server had already exited (wait: <nil>); the client gave up 1.166s after
+start", connection reset -- while `479a75e6` the day before read zero, W8
+on `91c41e43` read 4/4 green including the HTTP owner gate, and the same row
+is 5/5 green on WSL2. Rule: a rate before a bisect. `http_diff.sh` runs the
+row twenty times on `479a75e6` and twenty on `91c41e43`, sequentially and
+alone on the box; the two counts decide whether D6 owns it.
+
+### E1, the splits before the change (2026-09-03)
+
+Wave E rewrites the far channel and the transport, and the file-size gate
+reads any added line in a file over the line as `LEGACY_GROWTH`. So the
+files are split first, with no change in behaviour, and each split is proved
+the same way: the multiset of code lines (comments and blanks stripped) of
+the old file equals the multiset of the new files, minus the lines a split
+must add or drop -- `#include`s, guard macros, a `static` that became a
+declaration, a forward declaration that became unnecessary.
+
+- `rt_far_channel.c` 630 → 363 + `rt_far_channel_crossing.c` 264: the
+  registry, its leases and pins stay; create and share, with their
+  dispatchers, move out. Nothing private crosses the seam -- both
+  dispatchers mint through the registry's public entry points -- so the
+  only delta is four includes on one side and two forward declarations
+  (the lease helpers, now defined before their first use) on the other.
+  The new name is outside the `rt_remote_task*`/`rt_immediate_on*` glob
+  the 360-line remote-task pin reads.
+- `rt_transport.c` 452 → 230 + `rt_transport_park.c` 238, with
+  `rt_transport_internal.h` (11) as the seam: the envelope queues and the
+  wake pipe stay -- what a message IS -- and admission, the park/wake
+  protocol, shutdown and the drains move -- what a message DOES to a
+  shard. Five statics became the seam's declarations. What followed the
+  move: six sync-point windows re-homed in `check_sync_points.sh`, four
+  panic rows renamed in the panicgate ledger, the transport contract test
+  reads the windows from the new file and both C harnesses (the contract
+  and the spine acceptance) compile it.
+- `runtime_v2_remote_publication_harness_common_test.go` 497 → 362 +
+  `_polls_test.go` 138: one Go constant of C text, cut at
+  `__surge_poll_call`; the assembly concatenates the halves in the old
+  order, so the C the stand compiles is byte-identical.
+
+Gates on the split tree: `c-check`, sync-points, panicgate, file-size
+(`violations=0`), the tagged transport contract rows, the gate roster; the
+far-channel, remote, transport and remote-publication rows re-run green.
+`remote_task_behavior_anchored.c` (485) is left alone until a change
+touches it.

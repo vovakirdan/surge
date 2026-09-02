@@ -255,7 +255,10 @@ func TestRuntimeV2TransportSyncPointAllowlistShape(t *testing.T) {
 	header := readTransportContractFile(t, root, "runtime/native/rt_sync_point.h")
 	syncPointSource := readTransportContractFile(t, root, "runtime/native/rt_sync_point.c")
 	checkScript := readTransportContractFile(t, root, "check_sync_points.sh")
-	transportSource := readTransportContractFile(t, root, "runtime/native/rt_transport.c")
+	// The six windows sit in the transport's shard-facing half: admission,
+	// park, shutdown and the reply wait live in rt_transport_park.c since the
+	// E1 split; rt_transport.c keeps the queues and the wake pipe.
+	transportSource := readTransportContractFile(t, root, "runtime/native/rt_transport_park.c")
 	workerTurn := readTransportContractFile(t, root, "runtime/native/rt_worker_turn.c")
 	asyncPoll := readTransportContractFile(t, root, "runtime/native/rt_async_poll.c")
 
@@ -274,11 +277,11 @@ func TestRuntimeV2TransportSyncPointAllowlistShape(t *testing.T) {
 		if !strings.Contains(syncPointSource, `return "`+name+`"`) {
 			t.Fatalf("rt_sync_point.c missing transport sync-point name %s", name)
 		}
-		if !strings.Contains(checkScript, "["+name+`]="rt_transport.c"`) {
-			t.Fatalf("check_sync_points.sh must allow %s only in rt_transport.c", name)
+		if !strings.Contains(checkScript, "["+name+`]="rt_transport_park.c"`) {
+			t.Fatalf("check_sync_points.sh must allow %s only in rt_transport_park.c", name)
 		}
 		if !strings.Contains(transportSource, "RT_SYNC_POINT("+name+")") {
-			t.Fatalf("rt_transport.c must expose transport sync-point window %s", name)
+			t.Fatalf("rt_transport_park.c must expose transport sync-point window %s", name)
 		}
 	}
 	if strings.Contains(checkScript, "rt_net.c\"") &&
@@ -350,6 +353,7 @@ func runTransportCProgram(t *testing.T, label, source string, extraFlags []strin
 		"c",
 		"-",
 		filepath.Join(root, "runtime", "native", "rt_transport.c"),
+		filepath.Join(root, "runtime", "native", "rt_transport_park.c"),
 		filepath.Join(root, "runtime", "native", "rt_transport_debug.c"),
 		filepath.Join(root, "runtime", "native", "rt_lane.c"),
 		filepath.Join(root, "runtime", "native", "rt_sync_point.c"),

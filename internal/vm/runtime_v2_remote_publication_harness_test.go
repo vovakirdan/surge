@@ -9,6 +9,7 @@ package vm_test
 // select rows about a payload's own ownership.
 
 const remotePublicationHarness = remotePublicationHarnessCommon +
+	remotePublicationHarnessPolls +
 	remotePublicationHarnessDescriptors +
 	remotePublicationHarnessSpawn +
 	remotePublicationHarnessImmediate +

@@ -1735,28 +1735,28 @@
       "group": "PG-ALLOC-FAILURE"
     },
     {
-      "site": "runtime/native/rt_transport.c::rt_transport_enqueue#1",
+      "site": "runtime/native/rt_transport_debug.c::rt_transport_debug_snapshot#1",
+      "message": "transport: debug snapshot while holding another shard lock",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_transport_park.c::rt_transport_enqueue#1",
       "message": "transport: enqueue while holding another shard lock",
       "group": "PG-INVARIANT"
     },
     {
-      "site": "runtime/native/rt_transport.c::rt_transport_mark_shard_running#1",
+      "site": "runtime/native/rt_transport_park.c::rt_transport_mark_shard_running#1",
       "message": "transport: mark running while holding another shard lock",
       "group": "PG-INVARIANT"
     },
     {
-      "site": "runtime/native/rt_transport.c::rt_transport_prepare_shard_park#1",
+      "site": "runtime/native/rt_transport_park.c::rt_transport_prepare_shard_park#1",
       "message": "transport: park while holding another shard lock",
       "group": "PG-INVARIANT"
     },
     {
-      "site": "runtime/native/rt_transport.c::rt_transport_try_drain_one#1",
+      "site": "runtime/native/rt_transport_park.c::rt_transport_try_drain_one#1",
       "message": "transport: drain while holding another shard lock",
-      "group": "PG-INVARIANT"
-    },
-    {
-      "site": "runtime/native/rt_transport_debug.c::rt_transport_debug_snapshot#1",
-      "message": "transport: debug snapshot while holding another shard lock",
       "group": "PG-INVARIANT"
     },
     {

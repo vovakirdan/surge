@@ -46,12 +46,15 @@ declare -A WINDOW_FILE=(
     [SP_BLOCKING_POLL_BEFORE_WAIT_REGISTER]="rt_async_blocking.c"
     [SP_WAKEKEY_MID_DRAIN]="rt_task_park.c"
     [SP_MIGRATE_GAP]="rt_scheduler_placement.c rt_waiter_route.c"
-    [SP_TRANSPORT_AFTER_DRAIN_BEFORE_PARK]="rt_transport.c"
-    [SP_TRANSPORT_AFTER_PARK_BEFORE_RECHECK]="rt_transport.c"
-    [SP_TRANSPORT_AFTER_PUBLISH_BEFORE_STATE_LOAD]="rt_transport.c"
-    [SP_TRANSPORT_AFTER_STATE_LOAD_BEFORE_WAKE]="rt_transport.c"
-    [SP_TRANSPORT_REPLY_WAIT_BEFORE_TASK_SUSPEND]="rt_transport.c"
-    [SP_TRANSPORT_SHUTDOWN_BEFORE_WAKE]="rt_transport.c"
+    # The transport's shard-facing half (admission, park, shutdown, the reply
+    # wait) moved to rt_transport_park.c in the E1 split; the queues and the
+    # wake pipe stayed in rt_transport.c, which arms no window of its own.
+    [SP_TRANSPORT_AFTER_DRAIN_BEFORE_PARK]="rt_transport_park.c"
+    [SP_TRANSPORT_AFTER_PARK_BEFORE_RECHECK]="rt_transport_park.c"
+    [SP_TRANSPORT_AFTER_PUBLISH_BEFORE_STATE_LOAD]="rt_transport_park.c"
+    [SP_TRANSPORT_AFTER_STATE_LOAD_BEFORE_WAKE]="rt_transport_park.c"
+    [SP_TRANSPORT_REPLY_WAIT_BEFORE_TASK_SUSPEND]="rt_transport_park.c"
+    [SP_TRANSPORT_SHUTDOWN_BEFORE_WAKE]="rt_transport_park.c"
     [SP_REMOTE_TASK_AFTER_OWNER_REGISTER]="rt_remote_task_dispatch.c"
     [SP_REMOTE_TASK_BEFORE_OWNER_REGISTER]="rt_remote_task_dispatch.c"
     [SP_REMOTE_SPAWN_BEFORE_DISPATCH]="rt_remote_spawn.c"
