@@ -151,9 +151,11 @@ func TestRuntimeV2LifecycleStaticJoinScopeWaitersUnqualified(t *testing.T) {
 // the control lane and tags it CREATE; this counter's 8x1024 per-request value
 // decides the segmented-table escalation (>= 2.0/request).
 func TestRuntimeV2LifecycleStaticCreateSiteCounterWired(t *testing.T) {
-	body := lifecycleFindFunctionBody(t, "__task_create")
+	// The constructor's body is task_create, shared by __task_create and
+	// __task_create_affine (the two are one-line wrappers over it).
+	body := lifecycleFindFunctionBody(t, "task_create")
 	if !strings.Contains(body, "rt_trace_control_lock_site(RT_CTRL_SITE_CREATE)") {
-		t.Fatalf("__task_create must tag its control acquisition RT_CTRL_SITE_CREATE:\n%s", body)
+		t.Fatalf("task_create must tag its control acquisition RT_CTRL_SITE_CREATE:\n%s", body)
 	}
 }
 
@@ -167,7 +169,7 @@ func TestRuntimeV2LifecycleStaticCensusSitesTagged(t *testing.T) {
 		fn  string
 		tag string
 	}{
-		{"__task_create", "RT_CTRL_SITE_CREATE"},
+		{"task_create", "RT_CTRL_SITE_CREATE"},
 		// rt_task_poll itself no longer takes the control lane
 		// at all (P7, StaticJoinPollOwnerLane, below) - its only remaining
 		// control acquisition is the rare F2 placement-adoption fallback,
@@ -204,9 +206,9 @@ func TestRuntimeV2LifecycleStaticCensusSitesTagged(t *testing.T) {
 // asserts the creation publisher called by __task_create runs ready_push under
 // rt_shard_lock.
 func TestRuntimeV2LifecycleStaticCreateReadyPushOwnerShard(t *testing.T) {
-	create := lifecycleFindFunctionBody(t, "__task_create")
+	create := lifecycleFindFunctionBody(t, "task_create")
 	if !strings.Contains(create, "publish_created_task(ex, task, parent)") {
-		t.Fatalf("__task_create must use the creation publisher:\n%s", create)
+		t.Fatalf("task_create must use the creation publisher:\n%s", create)
 	}
 	body := lifecycleFindFunctionBody(t, "publish_created_task")
 	if !strings.Contains(body, "rt_shard_lock(") {
@@ -231,8 +233,8 @@ func TestRuntimeV2LifecycleStaticCreationScopeBeforeRunnablePublication(t *testi
 		}
 	}
 
-	create := lifecycleFindFunctionBody(t, "__task_create")
-	assertOrder("__task_create", create, "rt_task* parent =", "publish_created_task(ex, task, parent)")
+	create := lifecycleFindFunctionBody(t, "task_create")
+	assertOrder("task_create", create, "rt_task* parent =", "publish_created_task(ex, task, parent)")
 	createPublish := lifecycleFindFunctionBody(t, "publish_created_task")
 	assertOrder("publish_created_task", createPublish,
 		"task->creation_scope_key =",
