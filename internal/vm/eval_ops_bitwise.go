@@ -11,7 +11,7 @@ import (
 // evalBitAnd evaluates the bitwise AND operation.
 func (vm *VM) evalBitAnd(left, right Value) (Value, *VMError) {
 	switch {
-	case left.Kind == VKBigInt && right.Kind == VKBigInt:
+	case (left.Kind == VKBigInt && right.Kind == VKBigInt) || vm.mixedBigInt(left, right):
 		a, vmErr := vm.mustBigInt(left)
 		if vmErr != nil {
 			return Value{}, vmErr
@@ -25,7 +25,7 @@ func (vm *VM) evalBitAnd(left, right Value) (Value, *VMError) {
 			return Value{}, vm.bignumErr(err)
 		}
 		return vm.makeBigInt(left.TypeID, res), nil
-	case left.Kind == VKBigUint && right.Kind == VKBigUint:
+	case (left.Kind == VKBigUint && right.Kind == VKBigUint) || vm.mixedBigUint(left, right):
 		a, vmErr := vm.mustBigUint(left)
 		if vmErr != nil {
 			return Value{}, vmErr
@@ -55,7 +55,7 @@ func (vm *VM) evalBitAnd(left, right Value) (Value, *VMError) {
 // evalBitOr evaluates the bitwise OR operation.
 func (vm *VM) evalBitOr(left, right Value) (Value, *VMError) {
 	switch {
-	case left.Kind == VKBigInt && right.Kind == VKBigInt:
+	case (left.Kind == VKBigInt && right.Kind == VKBigInt) || vm.mixedBigInt(left, right):
 		a, vmErr := vm.mustBigInt(left)
 		if vmErr != nil {
 			return Value{}, vmErr
@@ -69,7 +69,7 @@ func (vm *VM) evalBitOr(left, right Value) (Value, *VMError) {
 			return Value{}, vm.bignumErr(err)
 		}
 		return vm.makeBigInt(left.TypeID, res), nil
-	case left.Kind == VKBigUint && right.Kind == VKBigUint:
+	case (left.Kind == VKBigUint && right.Kind == VKBigUint) || vm.mixedBigUint(left, right):
 		a, vmErr := vm.mustBigUint(left)
 		if vmErr != nil {
 			return Value{}, vmErr
@@ -99,7 +99,7 @@ func (vm *VM) evalBitOr(left, right Value) (Value, *VMError) {
 // evalBitXor evaluates the bitwise XOR operation.
 func (vm *VM) evalBitXor(left, right Value) (Value, *VMError) {
 	switch {
-	case left.Kind == VKBigInt && right.Kind == VKBigInt:
+	case (left.Kind == VKBigInt && right.Kind == VKBigInt) || vm.mixedBigInt(left, right):
 		a, vmErr := vm.mustBigInt(left)
 		if vmErr != nil {
 			return Value{}, vmErr
@@ -113,7 +113,7 @@ func (vm *VM) evalBitXor(left, right Value) (Value, *VMError) {
 			return Value{}, vm.bignumErr(err)
 		}
 		return vm.makeBigInt(left.TypeID, res), nil
-	case left.Kind == VKBigUint && right.Kind == VKBigUint:
+	case (left.Kind == VKBigUint && right.Kind == VKBigUint) || vm.mixedBigUint(left, right):
 		a, vmErr := vm.mustBigUint(left)
 		if vmErr != nil {
 			return Value{}, vmErr
@@ -143,7 +143,9 @@ func (vm *VM) evalBitXor(left, right Value) (Value, *VMError) {
 // evalShiftLeft evaluates the left shift operation.
 func (vm *VM) evalShiftLeft(left, right Value) (Value, *VMError) {
 	switch {
-	case left.Kind == VKBigInt && right.Kind == VKBigInt:
+	// The mixed forms are one declared type in two representations (see
+	// mustBigInt / mustBigUint), which widen the inline side on read.
+	case (left.Kind == VKBigInt && right.Kind == VKBigInt) || vm.mixedBigInt(left, right):
 		a, vmErr := vm.mustBigInt(left)
 		if vmErr != nil {
 			return Value{}, vmErr
@@ -161,7 +163,7 @@ func (vm *VM) evalShiftLeft(left, right Value) (Value, *VMError) {
 			return Value{}, vm.bignumErr(err)
 		}
 		return vm.makeBigInt(left.TypeID, res), nil
-	case left.Kind == VKBigUint && right.Kind == VKBigUint:
+	case (left.Kind == VKBigUint && right.Kind == VKBigUint) || vm.mixedBigUint(left, right):
 		a, vmErr := vm.mustBigUint(left)
 		if vmErr != nil {
 			return Value{}, vmErr
@@ -230,7 +232,7 @@ func (vm *VM) evalIntShiftLeft(left, right Value) (Value, *VMError) {
 // evalShiftRight evaluates the right shift operation.
 func (vm *VM) evalShiftRight(left, right Value) (Value, *VMError) {
 	switch {
-	case left.Kind == VKBigInt && right.Kind == VKBigInt:
+	case (left.Kind == VKBigInt && right.Kind == VKBigInt) || vm.mixedBigInt(left, right):
 		a, vmErr := vm.mustBigInt(left)
 		if vmErr != nil {
 			return Value{}, vmErr
@@ -248,7 +250,7 @@ func (vm *VM) evalShiftRight(left, right Value) (Value, *VMError) {
 			return Value{}, vm.bignumErr(err)
 		}
 		return vm.makeBigInt(left.TypeID, res), nil
-	case left.Kind == VKBigUint && right.Kind == VKBigUint:
+	case (left.Kind == VKBigUint && right.Kind == VKBigUint) || vm.mixedBigUint(left, right):
 		a, vmErr := vm.mustBigUint(left)
 		if vmErr != nil {
 			return Value{}, vmErr

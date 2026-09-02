@@ -24,6 +24,12 @@ func (vm *VM) evalAdd(left, right Value) (Value, *VMError) {
 		return vm.evalBigFloatAdd(left, right)
 	case left.Kind == VKInt && right.Kind == VKInt:
 		return vm.evalIntAdd(left, right)
+	// One declared type in two representations (see mustBigUint): route to
+	// the big arm, which widens the inline side.
+	case vm.mixedBigUint(left, right):
+		return vm.evalBigUintAdd(left, right)
+	case vm.mixedBigInt(left, right):
+		return vm.evalBigIntAdd(left, right)
 	default:
 		return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 	}
@@ -148,6 +154,10 @@ func (vm *VM) evalSub(left, right Value) (Value, *VMError) {
 		return vm.evalBigFloatSub(left, right)
 	case left.Kind == VKInt && right.Kind == VKInt:
 		return vm.evalIntSub(left, right)
+	case vm.mixedBigUint(left, right):
+		return vm.evalBigUintSub(left, right)
+	case vm.mixedBigInt(left, right):
+		return vm.evalBigIntSub(left, right)
 	default:
 		return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 	}
@@ -245,6 +255,10 @@ func (vm *VM) evalMul(left, right Value) (Value, *VMError) {
 		return vm.evalBigFloatMul(left, right)
 	case left.Kind == VKInt && right.Kind == VKInt:
 		return vm.evalIntMul(left, right)
+	case vm.mixedBigUint(left, right):
+		return vm.evalBigUintMul(left, right)
+	case vm.mixedBigInt(left, right):
+		return vm.evalBigIntMul(left, right)
 	default:
 		return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 	}
@@ -331,6 +345,10 @@ func (vm *VM) evalDiv(left, right Value) (Value, *VMError) {
 		return vm.evalBigFloatDiv(left, right)
 	case left.Kind == VKInt && right.Kind == VKInt:
 		return vm.evalIntDiv(left, right)
+	case vm.mixedBigUint(left, right):
+		return vm.evalBigUintDiv(left, right)
+	case vm.mixedBigInt(left, right):
+		return vm.evalBigIntDiv(left, right)
 	default:
 		return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 	}
@@ -430,6 +448,10 @@ func (vm *VM) evalMod(left, right Value) (Value, *VMError) {
 		return vm.evalBigFloatMod(left, right)
 	case left.Kind == VKInt && right.Kind == VKInt:
 		return vm.evalIntMod(left, right)
+	case vm.mixedBigUint(left, right):
+		return vm.evalBigUintMod(left, right)
+	case vm.mixedBigInt(left, right):
+		return vm.evalBigIntMod(left, right)
 	default:
 		return Value{}, vm.eb.typeMismatch("numeric", fmt.Sprintf("%s and %s", left.Kind, right.Kind))
 	}
