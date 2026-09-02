@@ -81,6 +81,7 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 		symID := tc.typeSymbolForItem(id)
 		popFn := tc.pushFnSym(symID)
 		defer popFn()
+		tc.resetTaskBorrowPinsForCallable()
 		popParams := tc.pushFnParams(tc.fnParamSymbols(fnItem, scope))
 		defer popParams()
 		allowRawPointer := tc.hasIntrinsicAttr(fnItem.AttrStart, fnItem.AttrCount)
@@ -312,6 +313,9 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 				}
 			}
 			if explicitReturn || tc.currentBlockReturnContext() == nil {
+				// The frame is about to go, and a child still reading one of its
+				// places would read storage nobody owns.
+				tc.refuseLivePinsAtReturn(valueType)
 				tc.noteTaskContainerLoopReturn(stmt.Span)
 				tc.validateReturn(stmt.Span, ret.Expr, valueType)
 				tc.recordEarlyExitDrops(id, false)
@@ -330,50 +334,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			tc.recordRetExit(id)
 		}
 	case ast.StmtIf:
-		if ifStmt := tc.builder.Stmts.If(id); ifStmt != nil {
-			tc.ensureBoolContext(ifStmt.Cond, tc.exprSpan(ifStmt.Cond))
-			before := tc.snapshotFlow()
-			tc.walkStmt(ifStmt.Then)
-			thenFlow := tc.snapshotFlow()
-			thenClosed := tc.returnStatus(ifStmt.Then) == returnClosed
-			if ifStmt.Else.IsValid() {
-				tc.restoreFlow(before)
-				tc.walkStmt(ifStmt.Else)
-				elseFlow := tc.snapshotFlow()
-				elseClosed := tc.returnStatus(ifStmt.Else) == returnClosed
-				switch {
-				case thenClosed && elseClosed:
-					// Both branches return; state after if is unreachable.
-					tc.restoreFlow(before)
-				case thenClosed:
-					tc.restoreFlow(elseFlow)
-				case elseClosed:
-					tc.restoreFlow(thenFlow)
-				default:
-					joined := mergeFlow(thenFlow, elseFlow)
-					tc.recordIfArmDrops(ifStmt.Then, thenFlow.moved, joined.moved)
-					tc.recordIfArmDrops(ifStmt.Else, elseFlow.moved, joined.moved)
-					tc.restoreFlow(joined)
-				}
-			} else {
-				if thenClosed {
-					tc.restoreFlow(before)
-				} else {
-					// The arm-less path is a reachable predecessor, so a join
-					// written only in the then-arm releases nothing after the
-					// `if` and a value it moved is maybe-moved.
-					joined := mergeFlow(thenFlow, before)
-					if drops, plans := tc.oneSidedObligations(before.moved, joined.moved); len(drops) > 0 {
-						if tc.result.IfSyntheticElseDrops == nil {
-							tc.result.IfSyntheticElseDrops = make(map[ast.StmtID][]symbols.SymbolID)
-						}
-						tc.result.IfSyntheticElseDrops[id] = drops
-						tc.recordOneSidedDrops(DropSite{Stmt: id}, plans)
-					}
-					tc.restoreFlow(joined)
-				}
-			}
-		}
+		tc.walkIfStmt(id)
 	case ast.StmtWhile:
 		if whileStmt := tc.builder.Stmts.While(id); whileStmt != nil {
 			beforeLoop := tc.snapshotFlow()
@@ -422,9 +383,14 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			tc.reporter.Report(diag.FutSignalNotSupported, diag.SevError, stmt.Span, "'signal' is not supported in v1, reserved for future use", nil, nil)
 		}
 	case ast.StmtBreak:
+		// The walker carries no state along these edges -- it keeps walking the
+		// enclosing block linearly -- so a join written after a break would
+		// release a pin on a path that never reached it.
+		tc.refuseLivePinsAtAbruptExit(tc.currentLoopDepth(), "break")
 		tc.noteTaskContainerLoopBreak(stmt.Span)
 		tc.recordEarlyExitDrops(id, true)
 	case ast.StmtContinue:
+		tc.refuseLivePinsAtAbruptExit(tc.currentLoopDepth(), "continue")
 		tc.recordEarlyExitDrops(id, true)
 	case ast.StmtDrop:
 		if drop := tc.builder.Stmts.Drop(id); drop != nil {

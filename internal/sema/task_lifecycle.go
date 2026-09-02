@@ -210,5 +210,10 @@ func (tc *typeChecker) trackTaskClone(callExpr, receiverExpr ast.ExprID, receive
 			local = tc.taskTracker.IsLocalExpr(receiverExpr)
 		}
 	}
-	tc.taskTracker.SpawnTask(callExpr, span, tc.currentScope(), tc.asyncBlockDepth > 0, local)
+	cloneID := tc.taskTracker.SpawnTask(callExpr, span, tc.currentScope(), tc.asyncBlockDepth > 0, local)
+	// A clone is a second handle on ONE task, so joining it is the same definite
+	// completion as joining the original. Without this link the borrow pin
+	// outlives a join written on the clone, and whether the place was writable
+	// afterwards depended on which handle the program happened to await first.
+	tc.taskTracker.NoteCloneOrigin(cloneID, tc.taskIDForAwaitTarget(receiverExpr, tc.symbolForExpr(receiverExpr)))
 }

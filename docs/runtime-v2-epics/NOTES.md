@@ -11726,3 +11726,122 @@ have made any assertion about spawns vacuous.
 
 `go test ./internal/sema` passes, `make lint` reports `0 issues`, and the
 file-size gate passes 14 files with 0 violations.
+
+### What two independent adversarial reviews found in the pin
+
+The step-2 pin was reviewed twice, independently, before integration. One review
+put the DESIGN to three external models without letting them see the code; the
+other RAN a compiler built from the lane against about forty targeted programs
+and all of the corpus. Both found real defects and both concluded the lane must
+not be integrated as written. Every finding was re-measured here before being
+accepted, and two of the reviewers' own witnesses did not survive that.
+
+**The first sentence to go was mine.** Step 2's notes claimed the code base
+"already merges moved places by union at exactly these points". That is FALSE FOR
+LOOPS: `type_checker_walk.go` does not union at `while`/`for`, it REFUSES,
+through `rejectLoopBackEdgeMoves`. Moved places can afford the weaker loop rule
+because "moved" is STICKY -- gen with no kill. A pin has a kill, so the
+mirror-image argument does not transfer, and copying the merge points without
+copying the refusal is exactly what left the back edge open.
+
+#### Seven defects, each closed against a measurement
+
+| what was wrong | before | after |
+| --- | --- | --- |
+| the pin was asked at writes and moves and NOWHERE else, so acquiring a new borrow never saw it | `spawn reader(&v); spawn writer(&mut v)` -- one child reading and one writing one place -- **accepted** | `SEM3018`, the answer the binding form already gave |
+| a borrow in the operand that the child never receives was pinned | `spawn worker(peek(&v))`, child takes an `int` by value, **refused** | accepted |
+| the loop back edge was not modelled | a pin opened late in a body was invisible at the top of the next turn | refused at the back edge |
+| `break`/`continue` carry no state, so a join after one released a pin on a path that never reached it | **accepted** | refused at the `break`/`continue` |
+| a live pin at `return` let the frame die under a running child | **accepted** | refused, unless the return hands the task back |
+| a join inside a deferred `async { }` body released the PARENT's pin | **accepted** | refused |
+| awaiting a clone released nothing, so the answer depended on which handle was joined first | one order refused, the mirror order accepted | both accepted |
+
+Two deserve their own sentence.
+
+**The pin now guards three operations, not two.** Acquisition was the one that
+mattered: a reader child and a writer child admitted on one place is the sharpest
+case the feature can have, and it contradicted the ruling, which says the inline
+form receives the same diagnostic the binding form receives. `handleBorrow` now
+asks before `BeginBorrow`, with the borrow table's own rule applied to a borrow
+whose lexical record has ended -- an exclusive pin refuses any new borrow, a
+shared pin refuses only an exclusive one.
+
+**The capture set is now the capture set.** The second row falsified the storage
+model's own claim that promotion names "exactly those places whose address enters
+a task capture and no others"; what the code computed was "borrows taken anywhere
+in the operand". `spawnReachingBorrowExprs` names the positions a reference can
+actually reach the child from -- the spawned call's arguments and its receiver --
+and a nil set still means "everything", which is right for an `async { }` body,
+because the body IS the child.
+
+#### One false positive the ruling forbids, and how it closed
+
+Fanning out borrow-capturing children into a container and draining them in a
+loop was refused FOREVER: a handle popped from a container cannot be resolved
+back to a task by name, so no join the checker can see would ever release the
+pin. That is a sound program made uncompilable, which is precisely the widening
+the ruling prohibits.
+
+It closed without a new concept, because the compiler already proves the shape:
+`taskContainerDrainLoop` recognises "while this container still holds something".
+The container now records whose handles were pushed into it, and a PROVEN drain
+answers for their pins -- draining is exactly the construct that makes completion
+definite for every one of them.
+
+#### The diagnostic was nondeterministic
+
+`taskBorrowPinFor` ranged a Go map and kept the first hit. With two pins on one
+place the winner decided the message text and the note's position, so one binary
+printed two different outputs for one file -- measured at 37 of 40 runs against 3
+of 40. The winner is now chosen: an exact place match beats an overlap, an
+exclusive pin beats a shared one, the earliest span breaks the tie.
+
+#### Two reviewer witnesses that did not survive re-measurement
+
+Recorded so they are not retried. The cross-model review's first loop program
+(`let mut t = spawn dummy(); while cond { v = 5; t.await(); t = spawn worker(&v); }`)
+is refused by `SEM3107` for an unrelated reason -- reassignment defeats the leak
+checker -- so it proves nothing about the pin. A witness has to keep the leak
+checker satisfied, which is why `break` and `continue` are the way in. Index
+aliasing and identifier shadowing were also flagged and are already safe:
+`BorrowTable.internPath` writes the literal `"i:;"` for every index segment, so
+all indices of one array intern to one place, and tasks are keyed by
+`symbols.SymbolID` rather than by spelling.
+
+#### Deliberately NOT fixed here, with reproducers
+
+An `async fn` called WITHOUT `spawn` yields a live `Task<T>` and opens no pin.
+The root is measured and is not this lane's: the task tracker does not see that
+shape at all. `let t = worker(&v);` never awaited draws NO diagnostic, while
+`spawn worker(&v)` never awaited draws `SEM3107`. Teaching the tracker to see
+plain calls returning `Task<T>` changes what structured concurrency covers and
+belongs in its own row.
+
+An `async { }` block's IMPLICIT captures are never pinned, because the pin is
+keyed to a syntactic `&` and a block that merely reads a parent local produces no
+`BorrowID`. The model settles the rule -- section 9 says a child that CAPTURES,
+not a child that writes an ampersand -- so this needs no owner decision, but it
+needs a capture analysis for blocks that does not exist yet. That is the same
+question step 3's promotion analysis asks, and it belongs there.
+
+Also open: `StableActivationPlaces` attributes a block-local to the host function
+rather than to the block's own activation, which a lowering must not trust; and a
+parent READ under an exclusive pin is not refused, which the ordinary borrow rule
+does not refuse either, so the pin mirrors a pre-existing gap rather than adding
+one.
+
+#### Evidence
+
+Fifteen witnesses -- eight that must be refused, seven that must be accepted --
+all behaving correctly. `go test ./internal/sema` passes and `make lint` reports
+`0 issues`. The exact-base file-size gate passes 19 files with 0 violations,
+which took two splits it asked for and that the code wanted anyway:
+`task_container.go` gave up the drain-SHAPE recognition, a syntactic question
+about one expression rather than a fact about a container, and
+`type_checker_walk.go` gave up the if-statement's flow join, which is a rule
+rather than a dispatch.
+
+The corpus is the load-bearing number: `surge diag` over every `.sg` file under
+`testdata/` and `examples/`, comparing the step-2 compiler against this one,
+reports ZERO differing files. Every one of these changes is visible only to the
+programs written to exercise it.

@@ -157,7 +157,12 @@ type typeChecker struct {
 	// spawnBorrowCaptures collects the borrowed places found while scanning the
 	// spawn operand currently being typed. It is filled by scanSpawn and consumed
 	// by typeSpawnExpr once the task has an id to key its pins by.
-	spawnBorrowCaptures    []spawnBorrowCapture
+	spawnBorrowCaptures []spawnBorrowCapture
+	// spawnReachingExprs names the positions in that operand from which a borrow
+	// actually travels into the child -- the spawned call's arguments and its
+	// receiver. nil means every borrow in the operand reaches, which is the right
+	// answer for an `async { }` body. See spawnReachingBorrowExprs.
+	spawnReachingExprs     map[ast.ExprID]struct{}
 	onCrossingStack        []onAnchorFrame // active `on dst { ... }` crossing frames
 	directFunctionCrossing map[symbols.SymbolID]struct{}
 	functionCrossingEdges  map[symbols.SymbolID]map[symbols.SymbolID]struct{}

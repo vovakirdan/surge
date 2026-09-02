@@ -18,11 +18,64 @@ func (tc *typeChecker) enforceSpawn(expr ast.ExprID, allowNosend bool) {
 // typed the table no longer remembers that `spawn worker(&v)` borrowed anything.
 // That deletion is why the inline form was invisible while the binding form was
 // refused — the binding outlives the call and the temporary does not.
-func (tc *typeChecker) noteSpawnOperandBorrow(borrow BorrowID, span source.Span) {
-	if !tc.spawnOperand.IsValid() {
+// Being inside the operand is necessary and NOT sufficient. In
+// `spawn worker(peek(&v))` the reference is consumed by a synchronous call and
+// the child receives an `int`, so nothing of the parent's storage travels with
+// it; pinning `v` there refuses a sound program. spawnReachingBorrowExprs names
+// the positions a reference can actually reach the child from.
+func (tc *typeChecker) noteSpawnOperandBorrow(exprID ast.ExprID, borrow BorrowID, span source.Span) {
+	if !tc.spawnOperand.IsValid() || !tc.spawnBorrowReaches(exprID) {
 		return
 	}
 	tc.noteSpawnBorrowCapture(borrow, span)
+}
+
+// spawnBorrowReaches reports whether a borrow taken at exprID travels into the
+// child. A nil set means "every borrow in this operand does", which is the right
+// answer for an `async { ... }` body: the body IS the child, so a borrow taken
+// anywhere inside it is the child's own.
+func (tc *typeChecker) spawnBorrowReaches(exprID ast.ExprID) bool {
+	if tc.spawnReachingExprs == nil {
+		return true
+	}
+	if !exprID.IsValid() {
+		return false
+	}
+	if _, ok := tc.spawnReachingExprs[exprID]; ok {
+		return true
+	}
+	_, ok := tc.spawnReachingExprs[tc.unwrapGroupExpr(exprID)]
+	return ok
+}
+
+// spawnReachingBorrowExprs names the expressions of a spawn operand whose borrow
+// is handed to the child: the spawned call's own arguments, and its receiver
+// when the call is a method. Returns nil when the operand is not a call, which
+// means every borrow inside it counts.
+func (tc *typeChecker) spawnReachingBorrowExprs(value ast.ExprID) map[ast.ExprID]struct{} {
+	if tc.builder == nil {
+		return nil
+	}
+	call, ok := tc.builder.Exprs.Call(tc.unwrapGroupExpr(value))
+	if !ok || call == nil {
+		return nil
+	}
+	out := make(map[ast.ExprID]struct{}, len(call.Args)+1)
+	add := func(id ast.ExprID) {
+		if !id.IsValid() {
+			return
+		}
+		out[id] = struct{}{}
+		out[tc.unwrapGroupExpr(id)] = struct{}{}
+	}
+	for _, arg := range call.Args {
+		add(arg.Value)
+	}
+	// `spawn c.tick()` hands the receiver over exactly as an argument does.
+	if member, ok := tc.builder.Exprs.Member(tc.unwrapGroupExpr(call.Target)); ok && member != nil {
+		add(member.Target)
+	}
+	return out
 }
 
 // noteSpawnBorrowCapture records one borrowed place the spawn operand carries
@@ -95,7 +148,11 @@ func (tc *typeChecker) scanSpawn(expr ast.ExprID, seen map[symbols.SymbolID]stru
 				Span:    node.Span,
 				Scope:   tc.currentScope(),
 			})
-			tc.noteSpawnBorrowCapture(bid, node.Span)
+			// Same reaching test as the inline form: `spawn worker(peek(r))`
+			// hands the child a value, not r's referent.
+			if tc.spawnBorrowReaches(expr) {
+				tc.noteSpawnBorrowCapture(bid, node.Span)
+			}
 			tc.reportSpawnThreadEscape(symID, node.Span, bid)
 		}
 		if tc.isTaskContainerType(tc.bindingType(symID)) {

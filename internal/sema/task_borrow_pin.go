@@ -2,11 +2,13 @@ package sema
 
 import (
 	"fmt"
+	"sort"
 
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
 	"surge/internal/symbols"
+	"surge/internal/types"
 )
 
 // A child task that captured a borrow of its parent keeps reading that place for
@@ -69,14 +71,91 @@ func mergeFlow(a, b flowSnapshot) flowSnapshot {
 	}
 }
 
-// closeLoopFlow ends a loop body's flow against the state before the loop. The
-// two halves are different rules for the same reason: a value moved in the body
-// would be used moved on the next iteration, which is refused outright, while a
-// join written in the body releases nothing after the loop because the
-// zero-iteration path is a reachable predecessor of whatever follows.
+// closeLoopFlow ends a loop body's flow against the state before the loop.
+//
+// Two rules, and they are different because the two lattices are: a value moved
+// in the body would be used moved on the next iteration, which is refused
+// outright, while a join written in the body releases nothing AFTER the loop
+// because the zero-iteration path is a reachable predecessor of whatever
+// follows -- so the exit state is a union.
+//
+// The union is not enough on its own, and that gap was a real hole. The body is
+// walked ONCE, with the state at loop entry, so a pin opened late in the body is
+// invisible to a use earlier in it: the next iteration's write is checked
+// against a pin set that does not yet contain the previous iteration's child.
+// Moved places never needed a second walk because "moved" is sticky -- it has no
+// kill -- and because the back edge is where they REFUSE rather than merge. A
+// pin has a kill, so the mirror argument does not transfer, and the honest fix
+// in the same style is to refuse the shape rather than iterate to a fixpoint: a
+// child spawned inside the body that is still running at the back edge would
+// race the next turn of the same body.
 func (tc *typeChecker) closeLoopFlow(before flowSnapshot, loopLabel string) {
 	tc.rejectLoopBackEdgeMoves(before.moved, loopLabel)
+	tc.rejectLoopBackEdgePins(loopLabel)
 	tc.taskBorrowPins = mergeTaskBorrowPins(tc.taskBorrowPins, before.pins)
+}
+
+// currentLoopDepth is the enclosing loop nesting, borrowed from the drop
+// machinery's own marks rather than counted a second time.
+func (tc *typeChecker) currentLoopDepth() int {
+	return len(tc.loopDropMarks)
+}
+
+// rejectLoopBackEdgePins refuses a pin opened in the loop body that reaches the
+// back edge. The body's own depth is still current when this runs.
+func (tc *typeChecker) rejectLoopBackEdgePins(loopLabel string) {
+	tc.refuseLivePinsAtEdge(tc.currentLoopDepth(), func(label string) string {
+		return fmt.Sprintf(
+			"a task spawned in this %s still borrows %s at the end of the body; the next iteration would run beside it",
+			loopLabel, label)
+	})
+}
+
+// refuseLivePinsAtAbruptExit refuses a pin opened at or below the given depth
+// that is live where control leaves normally-sequenced code. `break` and
+// `continue` are exactly the edges the walker does not carry state along -- it
+// keeps walking the enclosing block linearly -- so a join written after one of
+// them releases a pin on a path that never reached it.
+func (tc *typeChecker) refuseLivePinsAtAbruptExit(depth int, what string) {
+	tc.refuseLivePinsAtEdge(depth, func(label string) string {
+		return fmt.Sprintf("a spawned task still borrows %s at this %s", label, what)
+	})
+}
+
+func (tc *typeChecker) refuseLivePinsAtEdge(depth int, message func(label string) string) {
+	if len(tc.taskBorrowPins) == 0 || tc.reporter == nil {
+		return
+	}
+	for _, key := range sortedTaskBorrowPinKeys(tc.taskBorrowPins) {
+		pin := tc.taskBorrowPins[key]
+		if pin.LoopDepth < depth {
+			continue
+		}
+		label := tc.placeLabel(key.Place)
+		builder := diag.ReportError(tc.reporter, diag.SemaBorrowThreadEscape, pin.Span, message(label))
+		if builder == nil {
+			continue
+		}
+		builder.WithHelp(pin.Span, "join the task before control leaves here")
+		builder.Emit()
+		delete(tc.taskBorrowPins, key)
+	}
+}
+
+// sortedTaskBorrowPinKeys orders the map so a file with several stranded pins
+// reports them in a stable order rather than in Go's map order.
+func sortedTaskBorrowPinKeys(pins map[taskBorrowPinKey]taskBorrowPin) []taskBorrowPinKey {
+	keys := make([]taskBorrowPinKey, 0, len(pins))
+	for key := range pins {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].Task != keys[j].Task {
+			return keys[i].Task < keys[j].Task
+		}
+		return pins[keys[i]].Span.Start < pins[keys[j]].Span.Start
+	})
+	return keys
 }
 
 // taskBorrowPinKey names one pinned place for one child task. A place borrowed by
@@ -94,6 +173,10 @@ type taskBorrowPin struct {
 	Borrow BorrowID
 	Kind   BorrowKind
 	Span   source.Span
+	// LoopDepth is the loop nesting the spawn sat at. A pin opened INSIDE a loop
+	// body is the one that may not survive to the back edge; one opened outside
+	// and merely carried through the loop is sound and stays legal.
+	LoopDepth int
 }
 
 // spawnBorrowCapture is one borrowed place found in a spawn's operand.
@@ -155,9 +238,10 @@ func (tc *typeChecker) openTaskBorrowPins(task uint32, captures []spawnBorrowCap
 			continue
 		}
 		tc.taskBorrowPins[key] = taskBorrowPin{
-			Borrow: capture.Borrow,
-			Kind:   capture.Kind,
-			Span:   capture.Span,
+			Borrow:    capture.Borrow,
+			Kind:      capture.Kind,
+			Span:      capture.Span,
+			LoopDepth: tc.currentLoopDepth(),
 		}
 		tc.recordStableActivationPlace(capture.Place)
 	}
@@ -202,27 +286,109 @@ func (tc *typeChecker) releaseTaskBorrowPins(task uint32) {
 	}
 }
 
+// noteTaskContainerHoldsTask records the child whose handle was just pushed into
+// a container. A handle inside a container cannot be resolved back to its task
+// by name, so the container carries the identity and its PROVEN drain answers
+// for the pin instead.
+func (tc *typeChecker) noteTaskContainerHoldsTask(place Place, value ast.ExprID) {
+	if !place.IsValid() || tc.taskContainers == nil || tc.taskTracker == nil {
+		return
+	}
+	info := tc.taskContainers[place]
+	if info == nil {
+		return
+	}
+	id := tc.taskIDForAwaitTarget(value, tc.symbolForExpr(tc.unwrapGroupExpr(value)))
+	if id == 0 {
+		return
+	}
+	for _, existing := range info.Tasks {
+		if existing == id {
+			return
+		}
+	}
+	info.Tasks = append(info.Tasks, id)
+}
+
+// releaseTaskBorrowPinsDrained answers for every child a drained container held.
+// Draining is exactly the construct that makes completion definite for all of
+// them, and without it a borrow-capturing fan-out could never be released --
+// no join the checker can see names a handle popped from a container.
+func (tc *typeChecker) releaseTaskBorrowPinsDrained(info *taskContainerInfo) {
+	if info == nil {
+		return
+	}
+	for _, id := range info.Tasks {
+		tc.releaseTaskBorrowPins(id)
+	}
+	info.Tasks = nil
+}
+
+// resetTaskBorrowPinsForCallable drops pins left by the previous callable. A pin
+// cannot legitimately span two of them -- a place is keyed by its binding symbol,
+// so nothing here can match another callable's -- and leaving stranded pins
+// behind makes every later write pay for them on a path walked once per
+// assignment. Clearing cannot change an answer and bounds the scan.
+func (tc *typeChecker) resetTaskBorrowPinsForCallable() {
+	tc.taskBorrowPins = make(map[taskBorrowPinKey]taskBorrowPin)
+}
+
+// refuseLivePinsAtReturn is the return edge's form of refuseLivePinsAtAbruptExit.
+// It steps aside when the return HANDS THE TASK BACK, because SEM3139 already
+// answers that and with the better sentence -- it names the binding that dies and
+// why the caller cannot fix it. Two messages for one defect is worse than one.
+func (tc *typeChecker) refuseLivePinsAtReturn(valueType types.TypeID) {
+	if tc.isTaskType(valueType) {
+		return
+	}
+	tc.refuseLivePinsAtAbruptExit(0, "return")
+}
+
 // taskBorrowPinFor reports the pin covering a place, if any child still holds it.
 // Overlap follows the borrow table's own place-overlap rule, so pinning a
 // container also pins the field a later statement writes through.
+//
+// The winner is chosen, not taken from map order. Several children may pin one
+// place, and the pins differ in what they make the diagnostic SAY -- the kind
+// picks the message and the span picks where the note points -- so ranging the
+// map and keeping the first hit made the compiler print two different messages
+// for one file depending on nothing. Measured at 37 of 40 runs against 3 of 40.
+// The order is: an exact place match beats an overlap, an exclusive pin beats a
+// shared one because it is the stronger claim, and the earliest span breaks the
+// remaining tie so the note points at the first child that took the place.
 func (tc *typeChecker) taskBorrowPinFor(place Place) (taskBorrowPin, bool) {
 	if len(tc.taskBorrowPins) == 0 || !place.IsValid() {
 		return taskBorrowPin{}, false
 	}
 	var (
-		found  taskBorrowPin
-		anyHit bool
+		best      taskBorrowPin
+		bestExact bool
+		found     bool
 	)
 	for key, pin := range tc.taskBorrowPins {
-		if key.Place == place {
-			return pin, true
+		exact := key.Place == place
+		if !exact && (tc.borrow == nil || !tc.borrow.placesOverlap(key.Place, place)) {
+			continue
 		}
-		if !anyHit && tc.borrow != nil && tc.borrow.placesOverlap(key.Place, place) {
-			found = pin
-			anyHit = true
+		if !found || taskBorrowPinOutranks(exact, pin, bestExact, best) {
+			best, bestExact, found = pin, exact, true
 		}
 	}
-	return found, anyHit
+	return best, found
+}
+
+// taskBorrowPinOutranks is the total order taskBorrowPinFor picks its winner by.
+func taskBorrowPinOutranks(exact bool, pin taskBorrowPin, bestExact bool, best taskBorrowPin) bool {
+	if exact != bestExact {
+		return exact
+	}
+	if (pin.Kind == BorrowMut) != (best.Kind == BorrowMut) {
+		return pin.Kind == BorrowMut
+	}
+	if pin.Span.Start != best.Span.Start {
+		return pin.Span.Start < best.Span.Start
+	}
+	return pin.Borrow < best.Borrow
 }
 
 // reportTaskBorrowPinConflict answers with the SAME diagnostic the ordinary
@@ -272,6 +438,46 @@ func (tc *typeChecker) refuseWriteToHeldPlace(place Place, span source.Span, iss
 	}
 }
 
+// refuseBorrowOfPinnedPlace answers the ACQUISITION of a new borrow against the
+// children already holding one, and reports whether it refused.
+//
+// This is the third operation the pin guards, and leaving it out was the hole
+// that mattered most: writes and moves were checked while `&mut v` was not, so
+// `spawn reader(&v); spawn writer(&mut v)` -- one child reading and one child
+// writing the same place, concurrently -- was admitted. The rule is the borrow
+// table's own, applied to a borrow whose lexical record has ended: an exclusive
+// pin refuses any new borrow, and a shared pin refuses only an exclusive one,
+// because readers do not conflict with each other.
+func (tc *typeChecker) refuseBorrowOfPinnedPlace(place Place, span source.Span, kind BorrowKind) bool {
+	pin, pinned := tc.taskBorrowPinFor(place)
+	if !pinned || (kind != BorrowMut && pin.Kind != BorrowMut) {
+		return false
+	}
+	if tc.reporter == nil {
+		return true
+	}
+	label := tc.placeLabel(place)
+	var msg string
+	switch {
+	case pin.Kind == BorrowMut && kind == BorrowMut:
+		msg = fmt.Sprintf("cannot take mutable borrow of %s while another mutable borrow is active", label)
+	case pin.Kind == BorrowMut:
+		msg = fmt.Sprintf("cannot take shared borrow of %s while an exclusive borrow is active", label)
+	default:
+		msg = fmt.Sprintf("cannot take mutable borrow of %s while a shared borrow is active", label)
+	}
+	builder := diag.ReportError(tc.reporter, diag.SemaBorrowConflict, span, msg)
+	if builder == nil {
+		return true
+	}
+	builder.WithNote(pin.Span,
+		fmt.Sprintf("a spawned task captured this borrow of %s and is not joined on every path to here", label))
+	builder.WithHelp(pin.Span,
+		"join the task before this line, on every path that can reach it")
+	builder.Emit()
+	return true
+}
+
 // refuseMoveOfHeldPlace is the same question asked of a move, and reports
 // whether the move was refused so the caller can stop. evSpan is the fallback
 // the move path already carries for a read with no span of its own.
@@ -299,11 +505,11 @@ func (tc *typeChecker) taskIDForAwaitTarget(targetExpr ast.ExprID, binding symbo
 	}
 	if targetExpr.IsValid() {
 		if id := tc.taskTracker.TaskIDForExpr(targetExpr); id != 0 {
-			return id
+			return tc.taskTracker.TaskIdentity(id)
 		}
 	}
 	if binding.IsValid() {
-		return tc.taskTracker.TaskIDForBinding(binding)
+		return tc.taskTracker.TaskIdentity(tc.taskTracker.TaskIDForBinding(binding))
 	}
 	return 0
 }

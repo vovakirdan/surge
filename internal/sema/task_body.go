@@ -40,7 +40,15 @@ func (tc *typeChecker) taskBlockPayload(id ast.ExprID, span source.Span, body as
 		tc.awaitDepth++
 		tc.asyncBlockDepth++
 	}
+	// The body is a DIFFERENT activation that has not run: its statements are
+	// walked here only because that is where the source puts them. Pin state must
+	// not cross that boundary in either direction. A join written inside the body
+	// would otherwise release the parent's pin on a path the parent never takes
+	// -- the same laundering the ruling refuses for a join written in one branch
+	// -- and a spawn inside the body would strand a pin in the parent's flow.
+	pinsOutsideBody := tc.snapshotTaskBorrowPins()
 	tc.walkStmt(body)
+	tc.restoreTaskBorrowPins(pinsOutsideBody)
 	if async {
 		tc.asyncBlockDepth--
 		tc.awaitDepth--

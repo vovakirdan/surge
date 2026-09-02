@@ -27,6 +27,7 @@ type TaskTracker struct {
 	bindingTasks  map[symbols.SymbolID]uint32  // binding -> taskID
 	exprTasks     map[ast.ExprID]uint32        // task expression -> taskID
 	pendingPassed map[ast.ExprID]struct{}      // task expressions marked passed before SpawnTask
+	cloneOrigin   map[uint32]uint32            // clone task id -> the task it names
 	nextID        uint32                       // Next task ID to assign
 }
 
@@ -205,6 +206,36 @@ func (tt *TaskTracker) GetTask(id uint32) (TaskInfo, bool) {
 // HasTasks returns true if there are any tracked tasks.
 func (tt *TaskTracker) HasTasks() bool {
 	return tt.nextID > 1
+}
+
+// NoteCloneOrigin records that clone names the same running task as origin. The
+// two have different ids because they are different HANDLES with their own
+// disposal obligations, but they are one task, so anything asking "has this task
+// completed" must resolve them to one identity.
+func (tt *TaskTracker) NoteCloneOrigin(clone, origin uint32) {
+	if clone == 0 || origin == 0 || clone == origin {
+		return
+	}
+	if tt.cloneOrigin == nil {
+		tt.cloneOrigin = make(map[uint32]uint32)
+	}
+	tt.cloneOrigin[clone] = origin
+}
+
+// TaskIdentity resolves a handle's task id to the id of the task it names,
+// following a clone of a clone back to the original. Awaiting any handle of one
+// task is the same definite completion, so the borrow pin is keyed by this
+// rather than by whichever handle happened to be joined. The hop bound is the
+// task count, so a corrupted map cannot spin.
+func (tt *TaskTracker) TaskIdentity(id uint32) uint32 {
+	for hops := 0; hops <= len(tt.tasks); hops++ {
+		origin, ok := tt.cloneOrigin[id]
+		if !ok {
+			break
+		}
+		id = origin
+	}
+	return id
 }
 
 // TaskIDForExpr resolves a task-producing expression to its task id, or 0.

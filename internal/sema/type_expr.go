@@ -199,12 +199,17 @@ func (tc *typeChecker) typeSpawnExpr(exprID ast.ExprID, span source.Span, value 
 	// A nested spawn inside this operand collects into its own list and hands it
 	// back, so an inner child's borrows are not attributed to the outer one.
 	prevSpawnCaptures := tc.spawnBorrowCaptures
+	prevSpawnReaching := tc.spawnReachingExprs
 	tc.spawnOperand = value
 	tc.spawnBorrowCaptures = nil
+	tc.spawnReachingExprs = tc.spawnReachingBorrowExprs(value)
 	exprType := tc.typeExpr(value)
 	tc.spawnOperand = prevSpawnOperand
 	tc.observeMove(value, tc.exprSpan(value))
+	// enforceSpawn walks the operand again for the binding-shaped captures, so
+	// the reaching set stays in place until it has finished.
 	tc.enforceSpawn(value, local)
+	tc.spawnReachingExprs = prevSpawnReaching
 
 	var ty types.TypeID
 	if tc.isTaskType(exprType) {

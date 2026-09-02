@@ -88,6 +88,10 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 				tc.isTaskType(argTypes[0]) && tc.isTaskContainerType(receiverType) {
 				if place, ok := tc.taskContainerPlace(member.Target); ok {
 					tc.markTaskContainerPending(place, span, receiverType)
+					// The handle goes where taskIDForAwaitTarget cannot follow
+					// it, so the container carries the task's identity instead
+					// and its proven drain answers for the pin.
+					tc.noteTaskContainerHoldsTask(place, call.Args[0].Value)
 				}
 			}
 			if !receiverIsType && methodName == "pop" && tc.isTaskContainerType(receiverType) {

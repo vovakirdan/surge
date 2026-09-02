@@ -454,6 +454,13 @@ func (tc *typeChecker) handleBorrow(exprID ast.ExprID, span source.Span, op ast.
 		}
 		kind = BorrowMut
 	}
+	// A child still reading this place is a live borrow, even though the borrow
+	// table's own record of it ended at the call that handed it over. Acquiring
+	// a NEW borrow has to see it, or two children -- one reading, one writing --
+	// are admitted on the same place.
+	if tc.refuseBorrowOfPinnedPlace(place, span, kind) {
+		return
+	}
 	// A direct `&mut` call argument reserves instead of activating: sibling
 	// arguments may still read the place until the whole list is evaluated
 	// (two_phase_borrow.go). Activation runs when the call's arguments end.
@@ -474,13 +481,13 @@ func (tc *typeChecker) handleBorrow(exprID ast.ExprID, span source.Span, op ast.
 				tc.reportBorrowConflict(place, span, issue, kind)
 				return
 			}
-			tc.noteSpawnOperandBorrow(bid, span)
+			tc.noteSpawnOperandBorrow(exprID, bid, span)
 			frame.reserved = append(frame.reserved, bid)
 			return
 		}
 	}
 	bid, issue := tc.borrow.BeginBorrow(exprID, span, kind, place, scope, parent)
-	tc.noteSpawnOperandBorrow(bid, span)
+	tc.noteSpawnOperandBorrow(exprID, bid, span)
 	tc.recordBorrowEvent(&BorrowEvent{
 		Kind:        BorrowEvBorrowStart,
 		Borrow:      bid,
