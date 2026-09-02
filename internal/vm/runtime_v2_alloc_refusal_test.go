@@ -73,25 +73,6 @@ fn main() -> int {
 }
 `
 
-// allocRefusalAsyncRefProgram reaches the constructor box for a shared
-// reference that must survive suspension. Before this row the box checked NULL
-// but dispatched llvm.trap, so an ordinary program could provoke a signal with
-// no fatal report.
-const allocRefusalAsyncRefProgram = `async fn read_ref(x: &int) -> int {
-    checkpoint().await();
-    return *x;
-}
-
-@entrypoint
-fn main() -> int {
-    let value: int = 3;
-    compare read_ref(&value).await() {
-        Success(v) => return v;
-        Cancelled() => return 9;
-    };
-}
-`
-
 // TestRuntimeV2AllocationRefusalReportsTheTypeItCouldNotAllocate is the row.
 //
 // The unarmed arm is not decoration: a stand whose program dies whichever way it
@@ -134,13 +115,6 @@ func TestRuntimeV2AllocationRefusalReportsTheTypeItCouldNotAllocate(t *testing.T
 			site:     "runtime-owned-storage",
 			typeName: "__AsyncState$add",
 			served:   6,
-		},
-		{
-			name:     "async_shared_ref_box",
-			program:  allocRefusalAsyncRefProgram,
-			site:     "async-ref-box",
-			typeName: "int",
-			served:   3,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

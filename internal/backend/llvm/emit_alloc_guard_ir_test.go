@@ -87,10 +87,12 @@ fn main() -> int {
 }
 `
 
-// allocGuardAsyncRefProgram reaches the constructor-owned box that keeps a
-// shared reference valid across suspension. Its allocation used to end in a
-// bare llvm.trap and was therefore the one program-reachable trap exception in
-// the generated allocation census.
+// allocGuardAsyncRefProgram is an async fn taking a shared reference. Its
+// constructor used to copy the referent into a heap box (RV2-DEBT-303) that
+// nothing freed; the box is gone, the parameter is stored as the pointer it
+// is, and the only allocation the program reaches is its suspension frame --
+// which the census below pins, so a box coming back would show as rt_alloc
+// reached where the row says it is not.
 const allocGuardAsyncRefProgram = `async fn read_ref(x: &int) -> int {
     checkpoint().await();
     return *x;
@@ -134,9 +136,9 @@ func allocGuardPrograms() []allocGuardProgram {
 			reaches: []string{"rt_frame_alloc"},
 		},
 		{
-			name:    "async_shared_ref_box",
+			name:    "async_shared_ref_param",
 			source:  allocGuardAsyncRefProgram,
-			reaches: []string{"rt_alloc", "rt_frame_alloc"},
+			reaches: []string{"rt_frame_alloc"},
 		},
 	}
 }
@@ -299,10 +301,4 @@ func TestTheNegativeControlAimsAtOneSite(t *testing.T) {
 			}
 		})
 	}
-	t.Run(string(allocSiteAsyncRefBox), func(t *testing.T) {
-		t.Setenv(allocRefusalEnvVar, string(allocSiteAsyncRefBox))
-		if n := strings.Count(emitAllocGuardProgram(t, allocGuardAsyncRefProgram), "i64 "+allocRefusalSize); n != 1 {
-			t.Fatalf("arming %q made %d allocations refuse, want 1", allocSiteAsyncRefBox, n)
-		}
-	})
 }

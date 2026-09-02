@@ -7,7 +7,14 @@ import (
 	"testing"
 )
 
-func TestEmitAsyncSharedRefParamIsBoxedAndAllocationChecked(t *testing.T) {
+// A shared reference parameter of an async fn is stored as the pointer it is,
+// exactly as a mutable one always was. The constructor used to copy the
+// referent into a heap box here (RV2-DEBT-303, "rt_alloc(i64 8, i64 8)" in
+// this prologue, freed by nothing); the box is gone because the borrowed place
+// is promoted to the creator's frame and the child is pinned to the creator's
+// carrier, and this row is what keeps it gone. It is built through the affine
+// constructor, which is the other half of the same fact.
+func TestEmitAsyncSharedRefParamKeepsCallerAlias(t *testing.T) {
 	sourceCode := `async fn read_ref(x: &int) -> int {
     checkpoint().await();
     return *x;
@@ -31,22 +38,19 @@ fn main() -> int {
 	}
 	body := findLLVMFuncBody(t, ir, fmt.Sprintf("fn.%d", fn.ID))
 
-	for _, want := range []string{
-		"call ptr @rt_alloc(i64 8, i64 8)",
-		"icmp eq ptr",
-		"call void @rt_fatal_static(i32 1,",
-		"unreachable",
-	} {
-		if !strings.Contains(body, want) {
-			t.Fatalf("async shared ref constructor missing %q:\n%s", want, body)
-		}
+	prologueEnd := strings.Index(body, "\n  br ")
+	if prologueEnd < 0 {
+		t.Fatalf("missing constructor prologue terminator:\n%s", body)
 	}
-	foundMessage := false
-	for _, message := range allocMessageConstants(t, ir) {
-		foundMessage = foundMessage || message == "could not allocate int"
+	prologue := body[:prologueEnd]
+	if strings.Contains(prologue, "call ptr @rt_alloc(") {
+		t.Fatalf("async shared ref constructor must not box the referent:\n%s", prologue)
 	}
-	if !foundMessage {
-		t.Fatal("async shared ref refusal does not name the boxed type")
+	if !strings.Contains(body, "store ptr %p0, ptr %l0") {
+		t.Fatalf("async shared ref constructor should store the original pointer alias:\n%s", body)
+	}
+	if !strings.Contains(body, "call ptr @__task_create_affine(") {
+		t.Fatalf("a constructor holding a borrow must build its task through __task_create_affine:\n%s", body)
 	}
 }
 

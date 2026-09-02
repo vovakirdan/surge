@@ -318,7 +318,7 @@ var requiredSanitizerCoverage = []string{
 	// release: an empty, a buffered, a closed and a task-outlived channel, and
 	// the composite that holds one (core/sync.sg's Mutex) copied and locked.
 	"TestRuntimeV2ChannelHandleValgrindZero",
-	"TestRuntimeV2MutexLockUnlockValgrindBounded",
+	"TestRuntimeV2MutexLockUnlockValgrindZero",
 	// ASan/UBSan and TSan over a channel element that OWNS a heap block: a
 	// value delivered twice frees one block twice, and a value read after its
 	// move reads storage that was emptied. Both rows landed with their row in

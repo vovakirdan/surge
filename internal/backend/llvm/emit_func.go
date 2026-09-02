@@ -189,8 +189,17 @@ func localSlotType(local mir.Local) types.TypeID {
 // by-value contract makes the copy at the call, once, so the move here is from
 // that storage into the slot the body addresses. Everything else arrives in a
 // register and is stored.
+//
+// A reference parameter of an async constructor arrives as the pointer it is
+// and is stored as that pointer. It used to be copied into a heap box here, a
+// snapshot of the referent that nothing freed (RV2-DEBT-303), because the
+// referent was a per-poll alloca in the caller and the pointer would dangle at
+// the caller's next suspension. Two things made the pointer honest: the place
+// a child borrows is promoted to the creator's frame, which does not move
+// under it (StableActivationPlaces, the resident fields), and the child is
+// pinned to the creator's carrier and joined before the place is written
+// again (task_borrow_pin.go; __task_create_affine). A borrow is now a borrow.
 func (fe *funcEmitter) emitParamStores() error {
-	boxAsyncRefs := fe.shouldBoxAsyncRefParams()
 	for i, localID := range fe.paramLocals {
 		local := fe.f.Locals[localID]
 		llvmTy, err := fe.emitter.llvmLocalValueType(local)
@@ -204,15 +213,6 @@ func (fe *funcEmitter) emitParamStores() error {
 		}
 		slotType := localSlotType(local)
 		value := fmt.Sprintf("%%p%d", i)
-		if boxAsyncRefs && isRefType(fe.emitter.types, local.Type) && !isMutableRefType(fe.emitter.types, local.Type) {
-			boxed, boxErr := fe.emitAsyncRefParamBox(value, local.Type)
-			if boxErr != nil {
-				return boxErr
-			}
-			value = boxed
-			llvmTy = handleType
-			slotType = types.NoTypeID
-		}
 		align, err := fe.emitter.storageAlignOf(slotType, llvmTy)
 		if err != nil {
 			return err
@@ -220,54 +220,4 @@ func (fe *funcEmitter) emitParamStores() error {
 		fe.emitValueStore(llvmTy, value, "%"+fe.localAlloca[localID], align)
 	}
 	return nil
-}
-
-func (fe *funcEmitter) shouldBoxAsyncRefParams() bool {
-	if fe == nil || fe.f == nil || fe.emitter == nil || fe.emitter.mod == nil {
-		return false
-	}
-	if isPollFunc(fe.f) || !isTaskType(fe.emitter.types, fe.f.Result) {
-		return false
-	}
-	pollName := fe.f.Name + "$poll"
-	for _, fn := range fe.emitter.mod.Funcs {
-		if fn != nil && fn.Name == pollName {
-			return true
-		}
-	}
-	return false
-}
-
-func (fe *funcEmitter) emitAsyncRefParamBox(paramValue string, refType types.TypeID) (string, error) {
-	valueType, ok := derefType(fe.emitter.types, refType)
-	if !ok {
-		return "", fmt.Errorf("async ref parameter has non-reference type")
-	}
-	valueLLVM, err := fe.emitter.llvmValueType(valueType)
-	if err != nil {
-		return "", err
-	}
-	// Sized from the layout registry rather than from the spelling, so that a
-	// reference to a composite is boxed at the composite's own size.
-	size, align, err := fe.emitter.valueSizeAlign(valueType)
-	if err != nil {
-		return "", err
-	}
-	if size == 0 {
-		size = 1
-	}
-	if align == 0 {
-		align = 1
-	}
-	box := fe.emitCheckedAlloc(allocSiteAsyncRefBox, valueType, fmt.Sprintf("%d", size), align)
-	// A pointee that lives in inline storage has no register wide enough to
-	// carry it, so the move into the box is a byte move from the address the
-	// parameter already names. Going through the value helpers is what keeps
-	// the two cases from needing to be told apart here.
-	value, _, err := fe.emitValueLoad(valueLLVM, paramValue)
-	if err != nil {
-		return "", err
-	}
-	fe.emitValueStore(valueLLVM, value, box, align)
-	return box, nil
 }

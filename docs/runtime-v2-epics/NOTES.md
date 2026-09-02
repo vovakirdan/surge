@@ -12332,3 +12332,89 @@ of scope, having no carriers to be affine to. The stand and its mutant -- the
 shard-wide token in place of the addressed one, the P0 the reviews named --
 are written before the implementation, and it lands in three slices with the
 aggregate green after each.
+
+### Closeout, the same day continued: D5b, two leftovers a count found, D4.6 landed with one correction, D4.5 by deletion
+
+**D5b (`71bd0674`).** Variant B to its end: `rt_scope_register_child` refuses
+a `creation_scope_key` that is not the scope's, as a fatal panic; MIR no
+longer emits the call after `InstrSpawn`, membership having been written at
+creation. Of the eleven direct stand sites, seven create their children inside
+the entered scope and pass the validator unchanged; two adopted a child the
+DRIVER had spawned (the DEBT-261 and DEBT-263 stands, spawned outside because
+a push from inside a held poll lands on that worker's local deque and signals
+nobody) and now create it from the owner's poll through
+`spawn_pinned_in_scope`, which seals provenance, publishes membership on the
+scope's lane and FORCES the push onto the inject queue; the native scope
+stand registers a task the scope never created and must die with the
+message, and with HEAD's silent validator restored it reads "was accepted as
+its child", code 1 -- the Rule 13 mutant.
+
+**Two leftovers the aggregate found, neither this day's.** The W8 count on
+`64cc028c` read 0/5, and both reds pre-dated the count: `lifecycle-check` on
+exactly the four DEBT-261/263 rows above, and `ownership-check` on "corpus
+count = 1057, want 1055" -- the SEM3209 port (`8882ff00`) added two golden
+fixtures and never raised the inventory tripwire, so the gate had been red on
+every aggregate since the port (`017686af`). A third, on the widening commit
+`60902766`: `eval_ops_arith.go` crossed 500 effective lines (493 -> 513) and
+the size gate was not run on it; div and mod moved out (`b583ff91`).
+
+**`goldencheck/HUP` on the dedicated machine is the launcher, not the tree.**
+Red on both SHAs there, 45.06 s -- the whole guard -- with INT and TERM green
+in the same test, green on the workstation. The counts on the runner were
+started with `nohup`, which sets SIGHUP to SIG_IGN; the disposition survives
+exec down to `golden_update.sh`, and bash cannot trap a signal ignored on
+entry, so its `trap 'exit 129' HUP` is a no-op. Counts now start under
+`setsid`; the differential (one run under each, same worktree) is queued
+behind the count on `1ba55ecd`. The baseline on `017686af` read exactly one
+red, this one, of the seven the day began with.
+
+**D4.6 (`1ba55ecd`), with the correction the tree forced.** The note above
+put the pin at the spawn's `rt_task_wake`. The tree publishes earlier:
+`__task_create` pushes the task READY at creation (`publish_created_task`),
+and the wake at the spawn finds it enqueued and does nothing -- a pin there is
+a pin after the first publication. So the mark lives on the CONSTRUCTOR: an
+activation whose start payload holds a reference is built through
+`__task_create_affine` (`mir.asyncTaskConstructorName`), the same constructor
+with the pin taken from the creating worker before the task is published;
+`__task_create`, its signature and the ABI manifest are untouched, and the VM
+treats the sibling as the plain one. Everything else is as decided:
+`carrier_valid`/`carrier_worker_id` on the task; the addressed route and the
+per-worker credit in `ready_push_task_locked`, the leaf every publication
+funnels through; refusal by worker in `pop_task_from_deque` before the shard
+check; four records on the runtime's trace cell. Two things the stand taught
+that the note did not know. A yield or a net wake asks for the inject queue
+so that a task re-entering every turn cannot starve the ones behind it, and a
+pinned task may not go there -- so those go to the HEAD of the carrier's
+deque, or three always-ready spinners pinned beside a parked child starve it
+forever (LIFO). And a cancel is not a completion: `cancel_task` seals the
+gate and wakes the target, and the target unwinds on its next poll, which
+only its carrier may give -- so an exiting carrier gives it, popping one
+cancelled pinned entry per turn until its deque holds none; a plain cancel
+put the task straight back into the deque it was leaving. The
+parked-with-work assert now names the parking worker, since a pinned entry
+in another carrier's deque is not this sleeper's work (it fired at two
+workers otherwise). Proof: the publish stand at 2/4/8 workers, a driver that
+is no worker waking a parked child 24 times, every wake reaching the
+carrier; the shutdown stand reading DONE+CANCELLED; three mutants red at
+eight workers (the pusher's route, caught by the parked-with-work invariant;
+the shard-wide credit, stuck on cycle one; the deque left at exit); and a
+compiled `spawn plus_one(&v)` from an `@entrypoint` answering 42 at 1 and 8
+workers, pinned at 8 -- at one thread the control lane's single runner is no
+worker and records no pin, which the test says.
+
+**A flaky row named by its arithmetic.** W8 on `017686af` read 4/5; the one
+red was `TestRuntimeV2SelectReleasesACompositePayloadExactlyOnce`, "0.25
+allocations per take", 62 outstanding blocks at four takes and 63 at eight.
+The row compared two separate valgrind processes for exact equality; a leak
+reads a whole block per take, four over four takes. The comparison is a
+slope now, half a block per take the line (`83ae586d`).
+
+**D4.5 and D4.7, by deletion.** With the place promoted and the child pinned,
+`emitAsyncRefParamBox`, `shouldBoxAsyncRefParams` and the `async-ref-box`
+site are gone; a shared `&T` parameter is stored as the pointer it is. Before:
+`TestRuntimeV2MutexLockUnlockValgrindBounded` pinned 192 bytes in 24 blocks.
+After: `TestRuntimeV2MutexLockUnlockValgrindZero`, strict zero. The IR row
+that demanded the box now forbids it and demands the affine constructor
+(`TestEmitAsyncSharedRefParamKeepsCallerAlias`); the alloc-guard census row
+reaches `rt_frame_alloc` alone. RV2-DEBT-303 closes on the terms its routing
+set: nothing is copied, so nothing is held uncounted.

@@ -294,25 +294,18 @@ fn main() -> int {
 }
 `
 
-// The residue this row pins is NOT the channel's and does not belong to the
-// handle axis at all. The LLVM backend materialises a shared `&T` parameter of
-// an `async fn` into a heap box (`emitAsyncRefParamBox`), because the caller's
-// stack frame may die before the task runs; the box is packed into the task
-// frame and nothing ever frees it. Three such calls per round -- `m.lock()`,
-// `m2.lock()`, `s.acquire()` -- times eight rounds is 24 blocks of one pointer
-// each, and the same figure appears for a program with no channel in it at all
-// (`async fn read_ref(x: &int)` called eight times leaks 64 bytes in 8 blocks
-// on a tree with none of this change on it). It is pinned exactly rather than
-// bounded so that a channel outliving its last handle -- hundreds of bytes in
-// a block of its own -- still fails this row, and so that freeing the box makes
-// this row fail until it is rewritten to strict zero.
-func TestRuntimeV2MutexLockUnlockValgrindBounded(t *testing.T) {
-	const asyncRefParamBoxBytes = 192
-	const asyncRefParamBoxBlocks = 24
-	runChannelHandleValgrindRowWithResidue(
-		t, runtimeV2MutexLockUnlockSource, "mutex-cycle-witness",
-		asyncRefParamBoxBytes, asyncRefParamBoxBlocks,
-	)
+// Strict zero. This row used to pin a residue of exactly 192 bytes in 24
+// blocks that was not the channel's at all: the LLVM backend copied a shared
+// `&T` parameter of an `async fn` into a heap box (`emitAsyncRefParamBox`)
+// that nothing freed -- three such calls per round, `m.lock()`, `m2.lock()`,
+// `s.acquire()`, times eight rounds (RV2-DEBT-303). The box is gone: the place
+// a child borrows is promoted to the creator's frame and the child is pinned
+// to the creator's carrier, so the parameter is stored as the pointer it is
+// (emitParamStores). What is left for valgrind to count is the channel's own
+// behaviour, and a channel outliving its last handle -- hundreds of bytes in
+// a block of its own -- fails this row as before.
+func TestRuntimeV2MutexLockUnlockValgrindZero(t *testing.T) {
+	runChannelHandleValgrindRow(t, runtimeV2MutexLockUnlockSource, "mutex-cycle-witness")
 }
 
 // The VM lane's half of the same row. The VM already balanced the handle

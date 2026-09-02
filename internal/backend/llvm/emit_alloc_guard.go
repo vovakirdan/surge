@@ -80,7 +80,6 @@ const (
 	allocSiteArrayIter        allocSite = "array-iterator"
 	allocSiteArrayGrowPush    allocSite = "array-grow-push"
 	allocSiteArrayGrowReserve allocSite = "array-grow-reserve"
-	allocSiteAsyncRefBox      allocSite = "async-ref-box"
 )
 
 // allocGuardedSites is the roster: every allocation this file writes with a size
@@ -97,7 +96,6 @@ func allocGuardedSites() []allocSite {
 		allocSiteArrayIter,
 		allocSiteArrayGrowPush,
 		allocSiteArrayGrowReserve,
-		allocSiteAsyncRefBox,
 	}
 }
 
