@@ -12122,3 +12122,116 @@ measurement. The first attempt at that sweep is also void for a different reason
 and is not quoted anywhere: it was run without `--timeout`, hit `go test`'s own
 ten-minute default, and reported `FAIL ... 600.011s`, which is a timeout rather
 than a result.
+
+### Closeout, step D0: the trunk is put in order and three things that were held by nothing are held
+
+Written 2026-09-02 on `codex/runtime-v2-closeout`, executing
+`docs/EPICS_CLOSEOUT_PLAN.md` Этап 1 as one continuous run.
+
+The integration branch stood at `40f1c6b3`, two commits behind the tip that
+carried the resident promotion, and the SEM3209 port sat at `8882ff00` on NO ref
+at all -- `git for-each-ref --contains` was empty and one reflog entry was the
+only thing between it and garbage collection. `keep/sem3209` now names it, and
+the branch fast-forwards through `8b12beb3` to it in one step, because its parent
+already was the tip. The DEBT-277 retry-budget work existed only as thirty
+staged, uncommitted files in its lane worktree -- the lane's tip `1480151c` is
+an ancestor of the trunk, so the branch itself carried nothing, and a single
+checkout there would have lost the work. It is snapshotted to a patch and
+committed as `wip/debt277-index-snapshot` (`4471d2e7`), explicitly not a landing
+candidate: twenty-five commits stale, rewriting `rt_waiter*` that the seq-0
+primitive also rewrote, with a DEBT row it marks Closed prematurely. The
+DEBT-307 lane (`163b9cda`, fifty-six dirty files, two P0s in review) is recorded
+as discarded, its diff kept beside the session's baselines.
+
+A Sentrux structural baseline is saved at this tree for all four policy scopes
+(`2500ce89`), because the closeout's final gate compares against a saved
+baseline and a final without one is not a comparison. Every scope passes its
+rules; no enforced scope moved down against the previously committed baseline
+(root 6178 -> 6165 is the advisory scope; internal 6450 -> 6459, runtime
+5195 -> 5282, runtime/native 5159 -> 5419).
+
+### Closeout, step D0c: two files are split before the work that would have to grow them
+
+`4bca34c9`. No behaviour changes. The file-size gate measures effective lines
+against the epic base and refuses growth in a file already over the limit, so
+the question for the scheduler-affinity, retry-budget and claim-registry work
+that follows was not whether `rt_async_channel.c` and `rt_async_internal.h`
+were large but whether they had ROOM: 42 effective lines in the first against a
+retry-budget port needing about 34 of them, and 18 in the second -- already over
+500 at the base -- against three changes that each add a field.
+
+The send loop moves verbatim to `rt_async_channel_send.c`; the one helper both
+loops perform, staging a value into a park slot the channel owns, keeps its body
+and gains external linkage as `rt_channel_stage_locked`. A static-function map
+taken before the cut established that nothing else crossed the seam.
+`rt_async_channel.c` goes 458 -> 289 effective (base 299) with 170 in the new
+file. The task state words and their inline helpers move from
+`rt_async_internal.h` to `rt_task_state.h`, a fragment included once, in place,
+after `rt_task` and `rt_executor` are complete; 658 -> 542 against a base of 676.
+
+Three gates key on source location, and each was found by the gate going red
+rather than by memory, which is the point of running them: the panic-surface
+allowlist keys sites as `file::function#ordinal`, so five `rt_channel_send_inner`
+rows moved to the new file and the renamed helper moved to its sorted position
+(the gate reported first the uncovered sites, then the ordering); the lock-split
+static test reads the send loop's body out of a named file and now reads the
+file the loop is in; the carrier census was re-run. Proof of no change: the full
+C gate (format plus strict warnings), the file-size gate at 0 violations over
+1155 files, panicgate, carriergate, the tagged lock-split rows, and the channel
+behaviour rows on both lanes -- 429 tests selected untagged and 623 tagged, both
+packages `ok`, plus 17 asyncrt rows, all counted rather than assumed.
+
+A fourth thing surfaced from the runner rather than the tree. An aggregate count
+on the dedicated machine ran once and then refused four times in under a second
+each: the heavy-run guard reported a dirty tree, and the dirt was
+`internal/buildpipeline/rv2-crossing-xmod-1577022690/`, a test project that
+`TestCrossingBackendGuardsCoverImportedModules` builds in its own package
+directory and removes in a Cleanup -- gone whenever the test gets to finish,
+left whenever the process is killed first. The project cannot move (resolution
+of the imported module is relative to the package directory; `t.TempDir` and the
+build cache both fail on the lookup with PRJ5002, both tried), so the name is
+git-ignored instead (`7f6c0243`): a leftover is invisible to `git status`, which
+is what the guard consults.
+
+### Closeout: the SEM3209 port breaks the HTTP owner gate, and its baseline could not have seen it
+
+Found by the DEBT-312 rate the plan schedules for the runner. The gate went red
+on the FIRST iteration at shards-2 and shards-8 alike, which is not the row's
+shape (one client of eight, only at eight shards, intermittent); it stayed red
+with the box exclusive, so contention was not the cause. Three runs on the
+runner closed the attribution: `07df9885` green in 8 s, `8b12beb3` (the resident
+promotion) green in 14 s, `8882ff00` (the port) red in 34 s.
+
+The mechanism reads directly off `publish_created_task`. The port re-places
+EVERY task created inside a scope onto the scope's owner shard, after
+`rt_task_inherit_placement` has already copied the parent's shard AND class.
+An HTTP handler is a CONNECTION-class task placed on the shard that owns its
+fd; moved to the scope's shard it keeps its class, and every touch of the
+connection from the wrong shard is refused -- the red run's trace reads
+`non_owner_conn_denied=15` at shards-2 and `=3` at shards-8, and the client's
+read times out. At shards-1 the two shards coincide, which is why that leaf
+passed. This is the accept-ownership ruling of 2026-08-31 (variant A: the fd
+owner decides, no hot path re-places a connection task) contradicted by a hot
+path.
+
+Why the port's own baseline was blind: `go test ./...` does not run
+`runtime-v2-http-owner-check`, which lives behind `-tags runtime_v2_pending`
+and `SURGE_BACKEND=llvm`. "The port carries no red of its own" was true of the
+untagged suite only. The rule recorded earlier in this file -- a tagged test
+needs a tagged gate -- has a converse: a baseline that omits the tagged gates is
+blind to exactly the class those gates exist for.
+
+The fix keeps a connection child where the fd owner put it and re-places only
+generic children; scope membership is then published under the SCOPE's lane
+when that differs from the task's, one lane at a time and released before the
+next, which is the protocol the function already states for the parent relation.
+`rt_scope_publish_creation_locked` panics outside the scope's lane, which is
+why the port had collapsed the two lanes into one to begin with.
+
+Two things about the stand, kept because they cost a count each. The rate and
+an aggregate count were started concurrently on the two halves of the machine
+because the plan's schedule allowed functional rows to share it; both contain
+this gate, both went red, both counts were discarded as contaminated. Network
+gates do not share a box. And `pkill -f <pattern>` issued inside an ssh command
+whose own argument string contains that pattern kills the ssh session itself,
+which it did twice before the orphaned make was killed by pid.

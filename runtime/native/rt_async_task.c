@@ -81,18 +81,28 @@ static void publish_created_task(rt_executor* ex, rt_task* task, rt_task* parent
         rt_task_inherit_placement(task, parent);
     }
     task->creation_scope_key = parent != NULL ? parent->active_scope_key : waker_none();
+    // A scoped GENERIC child runs on the scope's shard, so that its whole
+    // lifetime -- membership, completion, cancellation -- stays on one lane. A
+    // CONNECTION child does not move: it was placed on the shard that owns its
+    // fd, and a task that touches a connection from any other shard is refused
+    // (non_owner_conn_denied). Re-placing it here put every HTTP handler
+    // spawned inside a scope on the wrong shard at SURGE_SHARDS>1, and its
+    // client's read timed out; the accept-ownership ruling is that the fd owner
+    // decides, and no hot path re-places a connection task.
     if (waker_valid(task->creation_scope_key) &&
-        task->owner_shard_id != task->creation_scope_key.owner_shard_id) {
+        task->owner_shard_id != task->creation_scope_key.owner_shard_id &&
+        task->placement_class != TASK_PLACEMENT_CONNECTION) {
         rt_task_set_placement(task, task->creation_scope_key.owner_shard_id, task->placement_class);
     }
     rt_task_assign_spawn_owner(task);
 
     // Creation seals provenance and publishes scope membership/count before
-    // slot or ready publication. A scope remains pinned even if its running
-    // owner task was re-placed, so a scoped child belongs to the scope shard.
-    // The separate parent children[] relation is protected by the parent's
-    // current owner shard; when those lanes differ, append there first and
-    // release it before taking the scope/child lane (never two shard locks).
+    // slot or ready publication. The scope's records live on the scope's own
+    // shard, which is the task's shard for a generic child and may not be for
+    // a connection child; the separate parent children[] relation is protected
+    // by the parent's current owner shard. Each lane is taken on its own and
+    // released before the next (never two shard locks), and membership is
+    // published before the task is, whichever lane it lands on.
     //
     // The parent-lane snapshot relies on spawn being a synchronous action of
     // the RUNNING parent. A self-replace is sequenced with this read; today's
@@ -102,13 +112,28 @@ static void publish_created_task(rt_executor* ex, rt_task* task, rt_task* parent
     // choice must be re-derived.
     rt_shard* owner_shard = rt_task_owner_shard(ex, task);
     rt_shard* parent_shard = parent != NULL ? rt_task_owner_shard(ex, parent) : NULL;
+    rt_shard* scope_shard = owner_shard;
+    if (waker_valid(task->creation_scope_key)) {
+        rt_shard* by_key =
+            rt_runtime_shard(rt_executor_runtime(ex), task->creation_scope_key.owner_shard_id);
+        if (by_key != NULL) {
+            scope_shard = by_key;
+        }
+    }
     if (parent != NULL && parent_shard != owner_shard) {
         rt_shard_lock(parent_shard);
         task_add_child(parent, task->id);
         rt_shard_unlock(parent_shard);
     }
+    if (scope_shard != owner_shard) {
+        rt_shard_lock(scope_shard);
+        rt_scope_publish_creation_locked(ex, task);
+        rt_shard_unlock(scope_shard);
+    }
     rt_shard_lock(owner_shard);
-    rt_scope_publish_creation_locked(ex, task);
+    if (scope_shard == owner_shard) {
+        rt_scope_publish_creation_locked(ex, task);
+    }
     RT_SYNC_POINT(SP_SCOPE_MEMBERSHIP_DECIDED_BEFORE_PUBLISH);
     rt_task_slot_store(ex, task->id, task);
     if (parent != NULL && parent_shard == owner_shard) {
