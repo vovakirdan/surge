@@ -12235,3 +12235,100 @@ this gate, both went red, both counts were discarded as contaminated. Network
 gates do not share a box. And `pkill -f <pattern>` issued inside an ssh command
 whose own argument string contains that pattern kills the ssh session itself,
 which it did twice before the orphaned make was killed by pid.
+
+The witness, Rule 13 read literally: `runtime-v2-http-owner-check` on
+`c9c083e2` is `ok` in 14 s on the same runner, exclusive, where `8882ff00` and
+`7f6c0243` were red in 34 s. Six tagged rows that were red on the fixed tip
+were then run against `8b12beb3`, before the port and the split: four --
+the DEBT-261 and DEBT-263 proof and negative-control pairs -- were red there
+too and are the port's remaining tail (the stands adopt a driver's child
+through `rt_scope_register_child`, which the port made a validator); two --
+`LifecycleStaticCompletionResultVisibilityOrder` and
+`LifecycleStaticAwaitCompatCountedSeparately` -- were green there, so they were
+the split's: both read `rt_async_internal.h` by name for helpers now in
+`rt_task_state.h`, hidden behind the `runtime_v2_pending` tag where the untagged
+proof could not see them. Repointed in `0db26a48`.
+
+### Closeout, lane B: the pre-existing reds, each with its cause named
+
+Eight rows were red on the tree the closeout started from, verified on
+`5b44cb0c` before any of this branch's work. Six are closed; the cause of each
+is a sentence, not a story.
+
+Three were test programs the language moved out from under (`64cc028c`), each
+refused by a rule the tree states and the corpus follows: `let s: string =
+argv[0]` binds an indexed place, and `__index(self: &Array<T>, index: int) ->
+&T` makes that SEM3015 -- the corpus reads an element as `clone(a[j])`;
+`[s, s + "y"]` moves `s` and then reads it, SEM3130, the rule the
+`drop_then_use` fixtures pin; and a compare arm naming an imported module's tag
+bare after `import stdlib/term as term` is SEM3005, because tag lookup in a
+pattern walks lexical scopes and never an import alias -- `term.Key(_)`
+compiles clean, and that arm had been written on 2026-01-15 with no corpus
+fixture to move with it.
+
+One was a pin that fell (`e8d1ccff`). The abandoned-frame census pinned the
+blocks a scope retains per cancelled round at two and read zero; its own
+comment says the last such fall was a defect and that a fall is explained by
+naming what removed the cost. A bisect over 245 commits on the runner stopped
+at `6376af8a`, "a cancelled task gives back the scope its own poll opened":
+the single-worker runner's copied outcome switch skipped the scope teardown,
+one 64-byte `rt_scope` per cancelled round, measured there and pinned by its
+own Rule-13 row. That block was what the two were made of. The pin is zero and
+names the commit.
+
+Two were the VM lane disagreeing with the native lane on the parity row, and
+they were two different defects. `random_pcg32` (`60902766`): a value of an
+arbitrary-precision type is stored inline while it fits a word and as a heap
+bignum once it does not, so `wide_value % U64_MOD`, both declared `uint`, is a
+VKInt beside a VKBigUint the moment U64_MOD is 2^64 -- and every arithmetic
+dispatch accepted only same-kind pairs. The big readers now widen an inline
+operand of the matching signedness, and every dispatch routes a mixed pair to
+its big arm; with the widening forced off, the row dies again with "VM1003:
+expected numeric, got biguint and int", four times. `net_echo` (`05a57cc3`):
+the instruction trace showed the `uint` parameter's argv text being handed to
+`core/string.sg:341`, the STRING identity `from_str`. Sema classifies the
+numeric parser as a builtin, MIR emits the call with no symbol, and the VM's
+name resolution -- already on the typed path, because `from_str` is on the
+list of names that must not be shadowed -- tried the wanted result type, found
+nothing, and RELAXED to any result type, matching the prelude's user `from_str`
+on its argument alone. The relaxed pass is now taken only when the call has no
+result type; with it restored, a two-parameter probe dies at the same line.
+
+Two remain and are timing rows rather than logic: `TestMTCorrectnessWakeups`
+(20 s deadline, red on the trunk on both machines, green on the port -- one
+observation on a concurrency test, not an attribution) and
+`goldencheck/HUP` (red on the dedicated runner at both SHAs, green 3 of 3 in
+0.138 s on a quiet workstation). Both get a measured rate on the runner, not a
+verdict from one run. `TaskContentionCohort` is red only on WSL2 and green on
+the runner at the same SHA; it is recorded as machine-dependent.
+
+### D4.6, decided before the code
+
+Carrier-addressed publication is a scheduler structure, not a predicate, and
+the shape is fixed here so the implementation does not fix it silently. A
+worker already has a stable identity (`rt_worker_ctx{shard_id, worker_id}`)
+and its own deque (`local_queues[worker_id]`); a task has a shard and no
+worker; publication pushes to the PUSHING worker's deque, never a named one;
+wake is one counter and one condvar per shard; steal refusal is per shard and
+never fires, because steals never cross shards and more than one carrier exists
+only at `SURGE_SHARDS=1`; `spawn` lowers to `rt_task_wake` on a handle the
+constructor already made, and `SpawnInstr` carries no flags.
+
+The decisions: the compiler marks only `RequiresParentCarrier` on the spawn,
+from the same `StableActivationPlaces` fact the resident promotion keys on; the
+runtime resolves the carrier at the spawn through a new `rt_task_pin_carrier`
+emitted before `rt_task_wake`, reading the current worker, which IS the
+parent's carrier because spawn is a synchronous action of the running parent
+-- `__task_create` and the ABI manifest do not change; publication of a pinned
+task goes to `local_queues[eligible_worker]` of the eligible shard, never the
+inject queue; the wake is addressed with a per-worker token and the shard's
+existing condvar -- a broadcast the named worker consumes and the others sleep
+through on the re-check that already exists -- rather than a condvar per
+worker, which would put a second wait object under the shard lock; steal and
+handoff refuse by worker in `pop_task_from_deque`, before the shard check;
+shutdown cancels a pinned task that was never polled, the model allowing
+either; four sched-trace counters make it observable; and the VM lane is out
+of scope, having no carriers to be affine to. The stand and its mutant -- the
+shard-wide token in place of the addressed one, the P0 the reviews named --
+are written before the implementation, and it lands in three slices with the
+aggregate green after each.
