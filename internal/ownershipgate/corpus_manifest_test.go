@@ -32,8 +32,17 @@ type corpusRootSpec struct {
 // every one of the 1052 paths -- no unrecorded failure, no stale allowance and
 // no untriaged finding -- so the growth is fixtures added since the pin was
 // last set rather than coverage drifting away.
+//
+// Raised 1052 -> 1055 on 2026-09-02. The tripwire did its job: it fired on the
+// dedicated machine after three fixtures landed, and the three are accounted
+// for by name rather than by arithmetic --
+// sema/invalid/task_borrow_mutated_while_child_runs,
+// sema/invalid/task_borrow_join_on_one_branch_only and
+// sema/valid/task_borrow_join_on_every_branch, the positive, the may-be-live
+// negative and the control for the carrier-affine borrow pin. Nothing was
+// removed, and the run reports normalized_findings=0 beside the new count.
 var corpusRoots = []corpusRootSpec{
-	{Path: "testdata/golden", PinnedCount: 1052},
+	{Path: "testdata/golden", PinnedCount: 1055},
 	{Path: "showcases", PinnedCount: 38},
 	{Path: "core", PinnedCount: 10},
 	{Path: "stdlib", PinnedCount: 32},
