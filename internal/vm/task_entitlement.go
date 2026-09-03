@@ -138,7 +138,7 @@ func (vm *VM) taskClaimRetired(id asyncrt.TaskID) {
 //
 // The model reserves the final move by parking the last waiter until the clone
 // readers retire. There are no clone readers to wait for here and there never
-// will be: a duplication on the VM is `cloneValueComposite`, which runs to
+// will be: a duplication on the VM is `duplicateValue`, which runs to
 // completion on the one thread that asked for it and cannot park. So the
 // reservation and the wait collapse into this single question, asked at the
 // moment of the take.

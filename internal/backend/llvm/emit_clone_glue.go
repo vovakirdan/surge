@@ -76,7 +76,7 @@ func (e *Emitter) emitCloneGlue() error {
 	for {
 		progressed := false
 		for _, id := range takePendingGlue(e.cloneGlueNeeded, done) {
-			if err := e.emitCloneGlueBody(id); err != nil {
+			if err := e.emitDuplicateGlueBody(id); err != nil {
 				return err
 			}
 			progressed = true
@@ -93,11 +93,11 @@ func (e *Emitter) emitCloneGlue() error {
 	}
 }
 
-// emitCloneGlueBody emits `@clone.typeN(ptr %dst, ptr %src)`: make the value at
+// emitDuplicateGlueBody emits `@clone.typeN(ptr %dst, ptr %src)`: make the value at
 // %dst an INDEPENDENT copy of the one at %src. Both are storage the caller
 // owns; null-safe on the source, so a source nobody wrote leaves the
 // destination alone rather than reading bytes that are not there.
-func (e *Emitter) emitCloneGlueBody(id types.TypeID) error {
+func (e *Emitter) emitDuplicateGlueBody(id types.TypeID) error {
 	id = resolveValueType(e.types, id)
 	layoutInfo, err := e.layoutOf(id)
 	if err != nil {

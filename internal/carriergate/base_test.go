@@ -91,8 +91,72 @@ func TestLiveCarrierRatchetAgainstRepository(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scan live repository: %v", err)
 	}
-	if difference := Compare(&manifest, actual); !difference.Empty() {
+	difference := Compare(&manifest, actual)
+	if !difference.Empty() {
 		t.Fatalf("live carrier ratchet failed:\n%s", FormatDifference(&difference))
+	}
+	// The tracked migration carriers still present are a number the ratchet
+	// only reported until now; a wave that grows or shrinks it should have to
+	// see it here and re-pin it (Rule 15). Every one of them is an
+	// RV2-DEBT-318 path to the VM's universal `Value` owner through a
+	// post-base storage or control graph; the number reads zero only when
+	// that owner is gone, at which point the rows leave the manifest too.
+	if difference.MigrationTracked != migrationCarriersStillPresent {
+		t.Fatalf("migration carriers still present = %d, want %d (re-pin only with the census that moved it)",
+			difference.MigrationTracked, migrationCarriersStillPresent)
+	}
+}
+
+// migrationCarriersStillPresent is the live count of manifest migration
+// identities the scan still finds: the 27 RV2-DEBT-318 paths, all resolving to
+// `Frame.Locals -> LocalSlot.V -> Value`. Pinned 2026-09-03.
+const migrationCarriersStillPresent = 27
+
+// TestLiveCarrierRatchetSeesAMigrationCarrierMove is the negative control for
+// the pin above: a tracked identity appearing once more, or one leaving, is a
+// different number, never an absorbed change.
+func TestLiveCarrierRatchetSeesAMigrationCarrierMove(t *testing.T) {
+	manifest, err := LoadManifest(legacyManifestPath)
+	if err != nil {
+		t.Fatalf("load legacy carrier manifest: %v", err)
+	}
+	actual, err := Scan(repositoryRoot(t))
+	if err != nil {
+		t.Fatalf("scan live repository: %v", err)
+	}
+	var tracked *Finding
+	for i := range manifest.Categories {
+		category := &manifest.Categories[i]
+		for j := range category.Migration {
+			key := keyFor(&category.Migration[j].Finding)
+			for k := range actual {
+				if keyFor(&actual[k]) == key {
+					tracked = &actual[k]
+					break
+				}
+			}
+			if tracked != nil {
+				break
+			}
+		}
+		if tracked != nil {
+			break
+		}
+	}
+	if tracked == nil {
+		t.Fatal("no tracked migration carrier is present in the live scan; the pin above must read zero")
+	}
+	fewer := make([]Finding, 0, len(actual)-1)
+	for i := range actual {
+		if keyFor(&actual[i]) != keyFor(tracked) {
+			fewer = append(fewer, actual[i])
+		}
+	}
+	if got := Compare(&manifest, fewer).MigrationTracked; got != migrationCarriersStillPresent-1 {
+		t.Fatalf("one tracked carrier removed reads %d, want %d", got, migrationCarriersStillPresent-1)
+	}
+	if got := Compare(&manifest, actual).MigrationTracked; got != migrationCarriersStillPresent {
+		t.Fatalf("live scan reads %d tracked carriers, want %d", got, migrationCarriersStillPresent)
 	}
 }
 

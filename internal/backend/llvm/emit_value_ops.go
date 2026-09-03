@@ -273,7 +273,7 @@ func (e *Emitter) valueOpsOperand(entry *valueops.Entry, slot string, filler val
 		if slot == "drop_in_place" {
 			// Named on the RESOLVED type, because that is the namespace glue
 			// bodies live in: requireDropGlue resolves on the way in and
-			// emitDropGlueBody resolves again before printing its own name.
+			// emitReleaseGlueBody resolves again before printing its own name.
 			// The descriptor stays keyed on the exact type, the way move_init
 			// is -- the two namespaces meet here rather than being merged.
 			return "ptr @" + dropGlueName(resolveValueType(e.types, entry.Type))

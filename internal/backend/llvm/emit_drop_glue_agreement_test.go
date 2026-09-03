@@ -343,7 +343,7 @@ func TestNoDroppableTypeGetsAnEmptyGlueBody(t *testing.T) {
 		}
 
 		before := e.buf.Len()
-		if err := e.emitDropGlueBody(id); err != nil {
+		if err := e.emitReleaseGlueBody(id); err != nil {
 			t.Errorf("%s: this compiler emitted no drop glue body for it at all: %v",
 				row.typeName, err)
 			continue

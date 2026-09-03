@@ -337,7 +337,7 @@ func (e *Emitter) emitDropGlue() error {
 	for {
 		progressed := false
 		for _, id := range takePendingGlue(e.dropGlueNeeded, done) {
-			if err := e.emitDropGlueBody(id); err != nil {
+			if err := e.emitReleaseGlueBody(id); err != nil {
 				return err
 			}
 			progressed = true
@@ -403,7 +403,7 @@ func (e *Emitter) arrayElemSlotAlign(elem types.TypeID) (uint64, error) {
 	return align, err
 }
 
-// emitDropGlueBody emits `@drop.typeN(ptr %p)`: release everything the value
+// emitReleaseGlueBody emits `@drop.typeN(ptr %p)`: release everything the value
 // whose storage is at %p owns, and leave the storage alone.
 //
 // The `rt_free` that used to close this body is gone with the box it freed. A
@@ -417,7 +417,7 @@ func (e *Emitter) arrayElemSlotAlign(elem types.TypeID) (uint64, error) {
 // same contract emitDropAt states for a member, and it is why the arm loads
 // before it releases — calling a leaf helper on %p itself would hand the
 // allocator the address of the slot instead of the block the slot names.
-func (e *Emitter) emitDropGlueBody(id types.TypeID) error {
+func (e *Emitter) emitReleaseGlueBody(id types.TypeID) error {
 	id = resolveValueType(e.types, id)
 	layoutInfo, err := e.layoutOf(id)
 	if err != nil {

@@ -140,7 +140,7 @@ func TestResourceIsNotAValueCompositeAndClonesByCountingAReference(t *testing.T)
 	if vmErr != nil {
 		t.Fatalf("building a resource must succeed: %v", vmErr)
 	}
-	cloned, vmErr := machine.cloneValueComposite(value)
+	cloned, vmErr := machine.duplicateValue(value)
 	if vmErr != nil {
 		t.Fatalf("cloning a resource must succeed: %v", vmErr)
 	}

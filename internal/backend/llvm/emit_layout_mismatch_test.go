@@ -56,9 +56,9 @@ func TestAggregateCloneAndDropGlueFailClosedOnLayoutMetadataMismatch(t *testing.
 				emitter, id := mismatchedAggregateEmitter(t, kind)
 				var err error
 				if operation == "clone" {
-					err = emitter.emitCloneGlueBody(id)
+					err = emitter.emitDuplicateGlueBody(id)
 				} else {
-					err = emitter.emitDropGlueBody(id)
+					err = emitter.emitReleaseGlueBody(id)
 				}
 				if err == nil || !strings.Contains(err.Error(), "finalized "+kind+" layout") || !strings.Contains(err.Error(), "field offsets") {
 					t.Fatalf("%s %s mismatch error = %v", kind, operation, err)

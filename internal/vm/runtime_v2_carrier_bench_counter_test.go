@@ -197,7 +197,7 @@ func TestRuntimeV2CarrierBenchCounterMatrix(t *testing.T) {
 		"bytes_copied":         11,
 		"bytes_moved":          12,
 		"callback_count":       1,
-		"data_slot_stalls":        1,
+		"data_slot_stalls":     1,
 		"peak_transport_bytes": 9,
 	}
 	if !reflect.DeepEqual(valid.Metrics, wantMetrics) {

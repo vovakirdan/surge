@@ -4,7 +4,7 @@ import (
 	"surge/internal/types"
 )
 
-// cloneValueComposite produces an INDEPENDENT value of a value composite:
+// duplicateValue produces an INDEPENDENT value of a value composite:
 // mutating the result must not be visible through the original, and dropping
 // both must free exactly twice.
 //
@@ -34,7 +34,7 @@ import (
 // Cycles are impossible: only the composite cases recurse, and a composite
 // cannot contain itself by value — the layout would be infinite. Everything
 // that could close a loop is handle-backed and is retained rather than walked.
-func (vm *VM) cloneValueComposite(v Value) (Value, *VMError) {
+func (vm *VM) duplicateValue(v Value) (Value, *VMError) {
 	if vm == nil || vm.Heap == nil {
 		return v, nil
 	}
@@ -111,7 +111,7 @@ func (vm *VM) cloneMembers(in []Value) ([]Value, *VMError) {
 	}
 	out := make([]Value, len(in))
 	for i := range in {
-		cloned, vmErr := vm.cloneValueComposite(in[i])
+		cloned, vmErr := vm.duplicateValue(in[i])
 		if vmErr != nil {
 			for j := range i {
 				vm.dropValue(out[j])

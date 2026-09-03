@@ -75,9 +75,9 @@ func TestFixedCompositeArrayCloneAndDropUseCanonicalStride(t *testing.T) {
 			emitter, fixed, _ := fixedCompositeArrayEmitter(t)
 			var err error
 			if operation.name == "clone" {
-				err = emitter.emitCloneGlueBody(fixed)
+				err = emitter.emitDuplicateGlueBody(fixed)
 			} else {
-				err = emitter.emitDropGlueBody(fixed)
+				err = emitter.emitReleaseGlueBody(fixed)
 			}
 			if err != nil {
 				t.Fatalf("emit %s glue: %v", operation.name, err)

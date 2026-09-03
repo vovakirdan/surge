@@ -161,7 +161,7 @@ func (vm *VM) evalOperand(frame *Frame, op *mir.Operand) (Value, *VMError) {
 			// two names for one extent would be one value where the language
 			// says there are two.
 			if val.Kind == VKComposite || op.Kind == mir.OperandCopyValue {
-				return vm.cloneValueComposite(val)
+				return vm.duplicateValue(val)
 			}
 			if val.IsHeap() && val.H != 0 {
 				vm.Heap.Retain(val.H)

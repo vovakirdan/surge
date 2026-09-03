@@ -13737,3 +13737,75 @@ physical under its base). The runner holds `.wt-6bd6fd22`; `queue_p6.sh`
 waits behind `4e5bf4c8`'s queue and runs baseline, W8 ×5, the lifecycle,
 transport-contract and crossing gates, then the freeze set with the
 campaign.
+
+### F6, what the census still counts, and what "0 of 683" would take (2026-09-03)
+
+**The live census, taken by category** (a scratch test over `Scan` +
+`keyFor` against the frozen manifest, at `5fefcaa5` before this step):
+
+| category | live legacy | live migration |
+| --- | ---: | ---: |
+| `composite-box-marker` | 7 | 0 |
+| `llvm-pointer-word-ir` | 1 | 0 |
+| `vm-async-any-carrier` | 14 | 0 |
+| `vm-universal-owner` | 40 | 27 |
+| the other eight | 0 | 0 |
+
+62 of 683 live, plus the 27 tracked paths.
+
+**The rename (ruled 2026-08-28, DEBT-246).** The seven `composite-box-marker`
+findings were three names: `emitCloneGlueBody` → `emitDuplicateGlueBody`,
+`emitDropGlueBody` → `emitReleaseGlueBody`, `cloneValueComposite` →
+`duplicateValue` (`duplicateComposite(frame, v)` already existed in
+`storage_value.go` as the composite half the VM call delegates to -- the
+first sed produced two methods of one name, caught by the build). Ten Go
+files, scanner rule and manifest untouched; the live ratchet retires the
+seven. After: `composite-box-marker` 0, **55 of 683** live.
+
+**The migration count is asserted.** `Difference.MigrationTracked` was
+"reported rather than asserted on". `TestLiveCarrierRatchetAgainstRepository`
+now pins it at 27 (`migrationCarriersStillPresent`, Rule 15) and
+`TestLiveCarrierRatchetSeesAMigrationCarrierMove` removes one tracked
+identity from the live scan and reads 26. That is the "MigrationTracked
+assertable" half of F6b.
+
+**What the other 55 are, read at the scanner.** `isRootCarrierName`
+(`scan_go_owner_identity.go:153`) makes the leaf of `vm-universal-owner`
+the TYPE NAMED `Value` in `internal/vm`, and of `vm-async-any-carrier` the
+type `any` in `internal/asyncrt`. Every one of the 40 + 27 VM findings is a
+struct field path that reaches a `Value` -- `Frame.Locals -> LocalSlot.V`,
+`VM.Stack`, `VM.Globals`, `Location.FrameRef`, `Object.Range`,
+`asyncExit.state`, `LocalWrite.Value`, `pollExecResult.storeVal`, the
+tracer, the inspector, the debugger, the pin collector -- and the 14
+asyncrt findings are `Task.State`, `Task.ResultValue`, `Channel.buf`,
+`chanWaiter.value`, `PollOutcome.Value` and the timer heap's `any`. `Value`
+today is `{TypeID, Kind, Int, Bool, H Handle, Loc Location, Sym}`: a tagged
+word with no composite ownership left in it (VKComposite carries a
+`StorageRef` into an arena an activation or container owns, D1). What the
+census counts is not a box; it is the NAME of the VM's interchange type,
+reachable from every VM structure because every VM structure holds values.
+
+**F6a, the design note.** A typed frame owner is `LocalSlot` without a
+`Value`: scalar immediates as a `word` (`Int`/`Bool`/`Nothing`/`Sym`),
+handles as typed ids, references as `Location`, composites as the
+`StorageRef` into `Frame.storage` they already are -- the slot's `TypeID`
+picks the reading, exactly as the arena's layout picks a composite's. That
+is representable without a language or model change, and it is a rewrite
+of the VM's interchange type at every one of the 41 `.V` sites and the
+several hundred `Value`-typed signatures behind them (`internal/asyncrt`
+would take the same for `any`). It is an epic, not a wave item, and the
+plan says so already: `PLAN.md:229` lists `vm-universal-owner` and
+`vm-async-any-carrier` under "not worked -- neither wave's owner; a VM
+representation change with no epic", while `PLAN.md:210` exits Wave F at
+"0 of 683". The two lines contradict each other, and the contradiction is
+not this lane's to resolve. Recorded as an owner question below.
+
+**Owner question (F6/F7, not pre-named in the plan).** Wave F's exit reads
+"the census reads 0 of 683"; 55 of the 683 are the VM's `Value` and the
+async runtime's `any`, which the same plan says no wave owns. Either (a)
+the exit is restated as "0 in every wave-owned category, the permanent
+fixnum allow, and the VM/asyncrt representation counted and pinned (55 +
+27) under an epic of its own", or (b) the VM representation epic is opened
+now and Wave F waits for it. (c), teaching the scanner not to see `Value`,
+is not on the table: it would be the census agreeing with what it is asked
+to say. Until answered, F7 and F8 proceed on (a) and say so.
