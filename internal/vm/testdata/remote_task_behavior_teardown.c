@@ -175,7 +175,7 @@ int rtb_mode_shutdown_waiters(void) {
         failure = "executor shutdown failed";
     }
     for (uint32_t shard = 0; failure == NULL && shard < 2; shard++) {
-        if (rt_remote_task_pending_snapshot(pending[shard], NULL, NULL) !=
+        if (rt_remote_task_pending_snapshot(pending[shard], NULL) !=
             RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN) {
             failure = "shutdown did not fail remote reply waiter";
             break;

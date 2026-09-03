@@ -15,11 +15,10 @@
 // entry, binds the token into the shared pending, and replies exactly once.
 rt_remote_task_status rt_far_channel_create(uint64_t placement,
                                             uint64_t capacity,
-                                            uint64_t payload_drop_fn_id,
+                                            uint64_t payload_type_id,
                                             rt_remote_task_pending** pending,
                                             rt_far_task_handle* out_handle,
-                                            uint8_t* out_kind,
-                                            uint64_t* out_bits) {
+                                            uint8_t* out_kind) {
     rt_executor* ex = ensure_exec();
     rt_task* current = rt_current_task();
     if (ex == NULL || pending == NULL || out_handle == NULL || current == NULL ||
@@ -27,13 +26,12 @@ rt_remote_task_status rt_far_channel_create(uint64_t placement,
         return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
     }
     if (*pending != NULL) {
-        rt_remote_task_status status =
-            rt_remote_task_pending_snapshot(*pending, out_kind, out_bits);
+        rt_remote_task_status status = rt_remote_task_pending_snapshot(*pending, out_kind);
         if (status == RT_REMOTE_TASK_STATUS_PENDING) {
             if (rt_remote_task_prepare_reply_wait(ex, current, *pending) == 0) {
                 return RT_REMOTE_TASK_STATUS_PENDING;
             }
-            status = rt_remote_task_pending_snapshot(*pending, out_kind, out_bits);
+            status = rt_remote_task_pending_snapshot(*pending, out_kind);
         }
         if (status == RT_REMOTE_TASK_STATUS_OK) {
             *out_handle = (*pending)->handle;
@@ -74,7 +72,7 @@ rt_remote_task_status rt_far_channel_create(uint64_t placement,
     request->handle.generation = request->request_id;
     request->caller_task_id = current->id;
     request->body_poll_fn_id = capacity;
-    request->payload_drop_fn_id = payload_drop_fn_id;
+    request->payload_type_id = payload_type_id;
     *pending = request;
     (void)rt_remote_task_prepare_reply_wait(ex, current, request);
     rt_remote_task_pending_add_ref(request);
@@ -120,18 +118,17 @@ void rt_far_channel_dispatch_create(rt_executor* ex, const rt_transport_msg* msg
                                        pending,
                                        RT_REMOTE_TASK_STATUS_STALE_TOKEN,
                                        2,
-                                       0,
                                        RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REPLY);
         return;
     }
-    if (rt_remote_task_pending_snapshot(pending, NULL, NULL) != RT_REMOTE_TASK_STATUS_PENDING) {
+    if (rt_remote_task_pending_snapshot(pending, NULL) != RT_REMOTE_TASK_STATUS_PENDING) {
         rt_remote_task_pending_release(pending);
         return;
     }
     // The payload type arrived as a number, which is the only form that
     // survives the boundary; the descriptor is looked up on this side.
-    const rt_value_ops* ops = rt_channel_element_ops_for(pending->payload_drop_fn_id);
-    void* channel = rt_channel_new(pending->body_poll_fn_id, ops, pending->payload_drop_fn_id);
+    const rt_value_ops* ops = rt_channel_element_ops_for(pending->payload_type_id);
+    void* channel = rt_channel_new(pending->body_poll_fn_id, ops, pending->payload_type_id);
     if (channel != NULL) {
         rt_channel_bind_owner_shard(channel, msg->target_shard_id);
     }
@@ -140,7 +137,6 @@ void rt_far_channel_dispatch_create(rt_executor* ex, const rt_transport_msg* msg
                                        pending,
                                        RT_REMOTE_TASK_STATUS_REFUSED,
                                        2,
-                                       0,
                                        RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REPLY);
         return;
     }
@@ -151,7 +147,6 @@ void rt_far_channel_dispatch_create(rt_executor* ex, const rt_transport_msg* msg
                                        pending,
                                        RT_REMOTE_TASK_STATUS_REFUSED,
                                        2,
-                                       0,
                                        RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REPLY);
         return;
     }
@@ -160,12 +155,8 @@ void rt_far_channel_dispatch_create(rt_executor* ex, const rt_transport_msg* msg
     pthread_mutex_lock(&tokens->lock);
     pending->handle = minted;
     pthread_mutex_unlock(&tokens->lock);
-    rt_remote_task_reply_or_finish(ex,
-                                   pending,
-                                   RT_REMOTE_TASK_STATUS_OK,
-                                   1,
-                                   minted.task_id,
-                                   RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REPLY);
+    rt_remote_task_reply_or_finish(
+        ex, pending, RT_REMOTE_TASK_STATUS_OK, 1, RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REPLY);
 }
 
 // Caller-side share: the execute/reply discipline of the create path with
@@ -174,8 +165,7 @@ void rt_far_channel_dispatch_create(rt_executor* ex, const rt_transport_msg* msg
 rt_remote_task_status rt_far_channel_share(const rt_far_task_handle* source,
                                            rt_remote_task_pending** pending,
                                            rt_far_task_handle* out_handle,
-                                           uint8_t* out_kind,
-                                           uint64_t* out_bits) {
+                                           uint8_t* out_kind) {
     rt_executor* ex = ensure_exec();
     rt_task* current = rt_current_task();
     if (ex == NULL || pending == NULL || out_handle == NULL || current == NULL ||
@@ -183,13 +173,12 @@ rt_remote_task_status rt_far_channel_share(const rt_far_task_handle* source,
         return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
     }
     if (*pending != NULL) {
-        rt_remote_task_status status =
-            rt_remote_task_pending_snapshot(*pending, out_kind, out_bits);
+        rt_remote_task_status status = rt_remote_task_pending_snapshot(*pending, out_kind);
         if (status == RT_REMOTE_TASK_STATUS_PENDING) {
             if (rt_remote_task_prepare_reply_wait(ex, current, *pending) == 0) {
                 return RT_REMOTE_TASK_STATUS_PENDING;
             }
-            status = rt_remote_task_pending_snapshot(*pending, out_kind, out_bits);
+            status = rt_remote_task_pending_snapshot(*pending, out_kind);
         }
         if (status == RT_REMOTE_TASK_STATUS_OK) {
             *out_handle = (*pending)->handle;
@@ -263,11 +252,10 @@ void rt_far_channel_dispatch_share(rt_executor* ex, const rt_transport_msg* msg)
                                        pending,
                                        RT_REMOTE_TASK_STATUS_STALE_TOKEN,
                                        2,
-                                       0,
                                        RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY);
         return;
     }
-    if (rt_remote_task_pending_snapshot(pending, NULL, NULL) != RT_REMOTE_TASK_STATUS_PENDING) {
+    if (rt_remote_task_pending_snapshot(pending, NULL) != RT_REMOTE_TASK_STATUS_PENDING) {
         rt_remote_task_pending_release(pending);
         return;
     }
@@ -275,16 +263,12 @@ void rt_far_channel_dispatch_share(rt_executor* ex, const rt_transport_msg* msg)
     rt_remote_task_status minted = rt_far_channel_mint_sibling(ex, &pending->anchor, &sibling);
     if (minted != RT_REMOTE_TASK_STATUS_OK) {
         rt_remote_task_reply_or_finish(
-            ex, pending, minted, 2, 0, RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY);
+            ex, pending, minted, 2, RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY);
         return;
     }
     pthread_mutex_lock(&tokens->lock);
     pending->handle = sibling;
     pthread_mutex_unlock(&tokens->lock);
-    rt_remote_task_reply_or_finish(ex,
-                                   pending,
-                                   RT_REMOTE_TASK_STATUS_OK,
-                                   1,
-                                   sibling.task_id,
-                                   RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY);
+    rt_remote_task_reply_or_finish(
+        ex, pending, RT_REMOTE_TASK_STATUS_OK, 1, RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY);
 }

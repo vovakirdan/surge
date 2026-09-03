@@ -22,8 +22,7 @@ rt_remote_task_status rt_far_channel_mint_sibling(rt_executor* ex,
 rt_remote_task_status rt_far_channel_share(const rt_far_task_handle* source,
                                            rt_remote_task_pending** pending,
                                            rt_far_task_handle* out_handle,
-                                           uint8_t* out_kind,
-                                           uint64_t* out_bits);
+                                           uint8_t* out_kind);
 void rt_far_channel_dispatch_share(rt_executor* ex, const rt_transport_msg* msg);
 // Caller-side remote select (execute/reply discipline; destination = the
 // arms' shared owner shard; the reply names the winner index) and its
@@ -48,7 +47,7 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anc
                                             void* state,
                                             rt_remote_task_pending** pending,
                                             uint8_t* out_kind,
-                                            uint64_t* out_bits);
+                                            uint64_t* out_winner);
 void rt_far_channel_dispatch_select(rt_executor* ex, const rt_transport_msg* msg);
 // Init-rollback pair; mirrors the remote-task state convention.
 rt_runtime_status rt_far_channel_state_init(rt_executor* ex);
@@ -67,13 +66,15 @@ void rt_far_channel_release_all(rt_executor* ex);
 rt_remote_task_status rt_far_channel_handle_alloc(rt_far_task_handle** out);
 void rt_far_channel_handle_free(rt_far_task_handle* handle);
 void rt_far_channel_handle_drop(rt_far_task_handle* handle);
+// `payload_type_id` names the element type -- every element type, a scalar
+// included -- as the id the crossing lowering resolves it to; the owner shard
+// turns it back into the exact descriptor before it sizes a cell.
 rt_remote_task_status rt_far_channel_create(uint64_t placement,
                                             uint64_t capacity,
-                                            uint64_t payload_drop_fn_id,
+                                            uint64_t payload_type_id,
                                             rt_remote_task_pending** pending,
                                             rt_far_task_handle* out_handle,
-                                            uint8_t* out_kind,
-                                            uint64_t* out_bits);
+                                            uint8_t* out_kind);
 void rt_far_channel_dispatch_create(rt_executor* ex, const rt_transport_msg* msg);
 
 #endif

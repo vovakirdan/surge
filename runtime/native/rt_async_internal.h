@@ -77,8 +77,11 @@ typedef enum {
     BLOCKING_JOB_CANCELLED = 2,
 } blocking_job_status;
 
+// A ring of TASK IDS -- the ready queue's own bookkeeping, never a value's
+// bytes: the name says what the words are so the carrier census can tell
+// an id from a payload that rides a word.
 typedef struct {
-    uint64_t* buf;
+    uint64_t* task_ids;
     size_t cap;
     size_t head;
     size_t len;
@@ -491,7 +494,7 @@ struct rt_executor {
 //   (rt_task_park.c), and scope-object bookkeeping on the scope's pinned owner
 //   shard.
 // - Atomic, no lock held: task->status (acquire/release; the TASK_DONE release
-//   store publishes result_kind/result_bits written before it),
+//   store publishes result_kind and the result cell written before it),
 //   enqueued/cancelled/wake_token/polling/handle_refs, next_id/next_scope_id/
 //   remote_handle_state, now_ms/shutdown, the task and scope table slots (acquire-loaded by
 //   get_task/get_scope), the sleep_store min_deadline mirror, done_waiters, and

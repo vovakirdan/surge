@@ -136,7 +136,8 @@ int rtb_mode_caller_abandon_copy_inert(void) {
         return rtb_fail("caller-abandon-copy-inert: pending creation failed");
     }
     pending->result_kind = 1;
-    pending->result_bits = 42; // inert Copy bits, not a heap pointer
+    // An inert Copy result: no capability, no block -- nothing rides beside
+    // the kind any more, so there is nothing here for a release to touch.
     pending->result_type_id = 0;
     rt_remote_task_release_owned(ex, caller);
     if (atomic_load_explicit(&rtb_result_drop_calls, memory_order_acquire) != 0) {
@@ -167,7 +168,6 @@ int rtb_mode_caller_abandon_consumed_no_double_drop(void) {
         return rtb_fail("caller-abandon-consumed: block alloc failed");
     }
     pending->result_kind = 1;
-    pending->result_bits = (uint64_t)(uintptr_t)block;
     pending->result_type_id = RTB_CALLER_ABANDON_MARK_ID;
     // Simulate finish_retry's own clear-before-consume ordering: ownership
     // already moved to the caller, which frees the value itself. The store

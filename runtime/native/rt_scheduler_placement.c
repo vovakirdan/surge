@@ -202,11 +202,11 @@ scheduler_has_queued_work_for(rt_executor* ex, const rt_scheduler* scheduler, ui
         if (dq->len == 0) {
             continue;
         }
-        if (i == worker_id || dq->buf == NULL || dq->cap == 0) {
+        if (i == worker_id || dq->task_ids == NULL || dq->cap == 0) {
             return 1;
         }
         for (size_t k = 0; k < dq->len; k++) {
-            const rt_task* task = get_task(ex, dq->buf[(dq->head + k) % dq->cap]);
+            const rt_task* task = get_task(ex, dq->task_ids[(dq->head + k) % dq->cap]);
             // A stale entry -- a task already DONE, or RUNNING under a
             // duplicate entry, or freed -- is work for nobody: a pop discards
             // it. It used to be discarded by the steal scan itself before the

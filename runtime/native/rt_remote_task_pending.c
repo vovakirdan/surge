@@ -161,8 +161,7 @@ void rt_remote_task_pending_consume(rt_remote_task_pending* pending) {
 }
 
 rt_remote_task_status rt_remote_task_pending_snapshot(const rt_remote_task_pending* pending,
-                                                      uint8_t* out_kind,
-                                                      uint64_t* out_bits) {
+                                                      uint8_t* out_kind) {
     rt_remote_task_state* state =
         pending != NULL ? rt_remote_task_state_get(pending->executor) : NULL;
     if (state == NULL) {
@@ -173,17 +172,17 @@ rt_remote_task_status rt_remote_task_pending_snapshot(const rt_remote_task_pendi
     if (out_kind != NULL) {
         *out_kind = pending->result_kind;
     }
-    if (out_bits != NULL) {
-        *out_bits = pending->result_bits;
-    }
     pthread_mutex_unlock(&state->lock);
     return status;
 }
 
+// A reply carries a status and a kind; a VALUE it names through
+// `result_source` -- the producer's own typed slot -- and never as a word. The
+// word that used to ride beside the kind carried nothing any caller read once
+// results went typed (Wave E).
 void rt_remote_task_pending_set_reply(rt_remote_task_pending* pending,
                                       rt_remote_task_status status,
                                       uint8_t result_kind,
-                                      uint64_t result_bits,
                                       const rt_result_source* result_source) {
     rt_remote_task_state* state =
         pending != NULL ? rt_remote_task_state_get(pending->executor) : NULL;
@@ -193,7 +192,6 @@ void rt_remote_task_pending_set_reply(rt_remote_task_pending* pending,
     pthread_mutex_lock(&state->lock);
     pending->reply_status = (uint8_t)status;
     pending->result_kind = result_kind;
-    pending->result_bits = result_bits;
     if (result_source != NULL) {
         pending->result_source = *result_source;
     }
@@ -239,7 +237,6 @@ void rt_remote_task_pending_finish(rt_executor* ex,
                                    rt_remote_task_pending* pending,
                                    rt_remote_task_status status,
                                    uint8_t result_kind,
-                                   uint64_t result_bits,
                                    const rt_result_source* result_source) {
     rt_remote_task_state* state = rt_remote_task_state_get(ex);
     if (pending == NULL || state == NULL || pending->executor != ex) {
@@ -250,7 +247,6 @@ void rt_remote_task_pending_finish(rt_executor* ex,
     if (pending->status == RT_REMOTE_TASK_STATUS_PENDING) {
         pending->status = (uint8_t)status;
         pending->result_kind = result_kind;
-        pending->result_bits = result_bits;
         if (result_source != NULL) {
             pending->result_source = *result_source;
         }

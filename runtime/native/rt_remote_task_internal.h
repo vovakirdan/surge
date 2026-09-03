@@ -112,16 +112,17 @@ struct rt_remote_task_pending {
     // written once inside that same critical section
     // (rt_far_channel_select.c) and RT_FAR_CHANNEL_SELECT_NO_COMMIT until
     // then. Immutable after that single write — in particular, the
-    // shutdown/cancel-inflight sweep that stomps result_kind/result_bits on
+    // shutdown/cancel-inflight sweep that stomps result_kind on
     // any still-pending entry (rt_remote_task_wait.c) must never touch this
     // field, or the free path could wrongly skip-or-drop the wrong arm.
     uint64_t select_committed_index;
-    // Channel-create only: drop obligation for the channel's own element
-    // type (0 for Copy/inert elements, never dispatched), threaded from the
-    // channel_on::<T> crossing lowering site to rt_channel_new on the
-    // owner shard.
-    uint64_t payload_drop_fn_id;
-    uint64_t result_bits;
+    // Channel-create only: the channel's element TYPE, as the id the
+    // channel_on::<T> crossing lowering site names it by -- the one form that
+    // crosses the boundary -- turned back into its descriptor on the owner
+    // shard (rt_channel_element_ops_for) before rt_channel_new sizes a cell.
+    // Never 0 from compiled code: every payload type, a scalar included, has
+    // the exact descriptor its storage was laid out with.
+    uint64_t payload_type_id;
     // Where a task RESULT is, for the reply kinds that carry one. It names the
     // producer's slot rather than copying a value out of it: the transport is
     // in-process, the lease already decides who may adopt, and a value that
@@ -133,7 +134,7 @@ struct rt_remote_task_pending {
     // never consumed. Threaded from the far Task<T> await/cancel
     // lowering site (the payload type is known there, mirroring
     // result_type_id on rt_task's own owner-side release path);
-    // cleared the moment compiled code actually reads result_bits out
+    // cleared the moment compiled code actually moves the result out
     // of a resolved pending (rt_remote_task_api.c's finish_retry), so a
     // consumed result is never dropped twice. The free path
     // (rt_remote_task_pending_release) is the single drop site while
@@ -179,8 +180,7 @@ void rt_remote_task_pending_add_ref(rt_remote_task_pending* pending);
 void rt_remote_task_pending_release(rt_remote_task_pending* pending);
 void rt_remote_task_pending_consume(rt_remote_task_pending* pending);
 rt_remote_task_status rt_remote_task_pending_snapshot(const rt_remote_task_pending* pending,
-                                                      uint8_t* out_kind,
-                                                      uint64_t* out_bits);
+                                                      uint8_t* out_kind);
 // The capability this reply carries, if any. Copied out under the state lock,
 // because the pending is shared with the shard that published it.
 rt_result_source rt_remote_task_pending_result_source(const rt_remote_task_pending* pending);
@@ -190,13 +190,11 @@ void rt_remote_task_pending_clear_result_source(rt_remote_task_pending* pending)
 void rt_remote_task_pending_set_reply(rt_remote_task_pending* pending,
                                       rt_remote_task_status status,
                                       uint8_t result_kind,
-                                      uint64_t result_bits,
                                       const rt_result_source* result_source);
 void rt_remote_task_pending_finish(rt_executor* ex,
                                    rt_remote_task_pending* pending,
                                    rt_remote_task_status status,
                                    uint8_t result_kind,
-                                   uint64_t result_bits,
                                    const rt_result_source* result_source);
 void rt_remote_task_pending_retire_reply_wait(rt_executor* ex, rt_remote_task_pending* pending);
 void rt_remote_task_pending_set_owner_registered(rt_remote_task_pending* pending, int value);
@@ -252,14 +250,12 @@ void rt_remote_task_reply_or_finish_with_result(rt_executor* ex,
                                                 rt_remote_task_pending* pending,
                                                 rt_remote_task_status status,
                                                 uint8_t result_kind,
-                                                uint64_t result_bits,
                                                 const rt_result_source* result_source,
                                                 rt_transport_msg_kind reply_kind);
 void rt_remote_task_reply_or_finish(rt_executor* ex,
                                     rt_remote_task_pending* pending,
                                     rt_remote_task_status status,
                                     uint8_t result_kind,
-                                    uint64_t result_bits,
                                     rt_transport_msg_kind reply_kind);
 
 #endif

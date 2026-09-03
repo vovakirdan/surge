@@ -26,12 +26,21 @@ extern const rt_value_ops* __surge_value_ops_for(uint64_t type_id) __attribute__
 
 const rt_value_ops* rt_channel_element_ops_for(uint64_t element_type_id) {
     if (element_type_id == 0 || __surge_value_ops_for == NULL) {
+        // No type named at all -- a C stand's inert element, or the select
+        // body's winner index, which really is one word -- or a stand that
+        // links no compiled lookup and can only have meant a word.
         return rt_channel_opaque_word_ops();
     }
     const rt_value_ops* ops = __surge_value_ops_for(element_type_id);
-    // A type this process never compiled a descriptor for still crossed the
-    // boundary as a word, so that is what it is treated as here.
-    return ops != NULL ? ops : rt_channel_opaque_word_ops();
+    if (ops == NULL) {
+        // A type WAS named and this process compiled no descriptor for it.
+        // Answering "a word" here used to size the cell wrong for anything
+        // narrower or wider than one, and every compiled crossing now names
+        // its element, so an unknown id is a compiler defect, not a payload.
+        panic_msg("async: no descriptor compiled for the crossing's element type");
+        return NULL;
+    }
+    return ops;
 }
 
 void* rt_channel_new(uint64_t capacity, const rt_value_ops* ops, uint64_t element_type_id) {

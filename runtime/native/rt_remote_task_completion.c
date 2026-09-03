@@ -44,7 +44,6 @@ void rt_remote_task_reply_owner_done(rt_executor* ex,
                                        pending,
                                        RT_REMOTE_TASK_STATUS_OK,
                                        rt_remote_task_result_kind(task),
-                                       0,
                                        RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_ACK);
     } else if (pending->op == RT_REMOTE_TASK_OP_AWAIT) {
         // The reply NAMES the result rather than carrying it: the transport is
@@ -56,7 +55,6 @@ void rt_remote_task_reply_owner_done(rt_executor* ex,
                                                    pending,
                                                    RT_REMOTE_TASK_STATUS_OK,
                                                    rt_remote_task_result_kind(task),
-                                                   0,
                                                    &source,
                                                    RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION);
     } else if (pending->op == RT_REMOTE_TASK_OP_EXECUTE ||
@@ -69,7 +67,6 @@ void rt_remote_task_reply_owner_done(rt_executor* ex,
                                                    pending,
                                                    RT_REMOTE_TASK_STATUS_OK,
                                                    rt_remote_task_result_kind(task),
-                                                   0,
                                                    &execute_source,
                                                    RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY);
     } else if (pending->op == RT_REMOTE_TASK_OP_CHANNEL_SELECT) {
@@ -84,7 +81,6 @@ void rt_remote_task_reply_owner_done(rt_executor* ex,
                                                    pending,
                                                    RT_REMOTE_TASK_STATUS_OK,
                                                    rt_remote_task_result_kind(task),
-                                                   0,
                                                    &select_source,
                                                    RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY);
     }

@@ -13,7 +13,8 @@ import (
 // execute/reply runtime call: the destination is the far channel token (the
 // runtime routes to the anchor's owner shard and pins the registry entry
 // before the body exists), one request, one reply, suspend on the reply,
-// and `TaskResult<T>` materialization from the reply's result kind/bits.
+// and `TaskResult<T>` materialization from the reply's result kind and the
+// typed result slot the reply names.
 func (fe *funcEmitter) emitAnchoredOnCrossing(ins *mir.CrossingInstr) error {
 	if ins == nil {
 		return nil

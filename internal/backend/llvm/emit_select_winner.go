@@ -36,15 +36,15 @@ func (fe *funcEmitter) selectWinnerIndexType() types.TypeID {
 	return fe.emitter.types.Builtins().Int32
 }
 
-// emitSelectWinnerIndex narrows the winner index the runtime returned in `bits`
-// and stores it into `dst`.
+// emitSelectWinnerIndex narrows the winner index the runtime returned in
+// `index` and stores it into `dst`.
 //
-// `bits` is rt_select_poll's i64 return on the local path and the anchored
-// reply's out_bits on the crossing path. Both already hold the index -- the
+// `index` is rt_select_poll's i64 return on the local path and the anchored
+// reply's out_winner on the crossing path. Both already hold the index -- the
 // local caller has PASSED the pending test and is inside the ready block, and
 // the crossing caller is inside the winner block -- so the narrowing is the
 // whole of the conversion.
-func (fe *funcEmitter) emitSelectWinnerIndex(bits string, dst mir.Place) error {
+func (fe *funcEmitter) emitSelectWinnerIndex(index string, dst mir.Place) error {
 	if fe == nil || fe.emitter == nil || fe.emitter.types == nil {
 		return fmt.Errorf("missing type info")
 	}
@@ -62,7 +62,7 @@ func (fe *funcEmitter) emitSelectWinnerIndex(bits string, dst mir.Place) error {
 		return err
 	}
 	narrowed := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = trunc i64 %s to %s\n", narrowed, bits, indexTy)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = trunc i64 %s to %s\n", narrowed, index, indexTy)
 	ptr, _, align, err := fe.emitPlaceStorage(dst)
 	if err != nil {
 		return err

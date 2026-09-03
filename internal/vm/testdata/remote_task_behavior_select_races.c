@@ -308,7 +308,7 @@ int rtb_mode_select_owner_teardown(void) {
     if (rt_executor_request_shutdown(ex) != RT_RUNTIME_STATUS_OK) {
         return rtb_fail("owner-teardown shutdown failed");
     }
-    if (rt_remote_task_pending_snapshot(pending, NULL, NULL) !=
+    if (rt_remote_task_pending_snapshot(pending, NULL) !=
         RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN) {
         return rtb_fail("owner-teardown left the caller without a deterministic failure");
     }

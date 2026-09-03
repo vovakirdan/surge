@@ -10,7 +10,8 @@ import (
 // emitImmediateOnCrossing lowers `on placement { ... }` to the dedicated
 // immediate execute/reply runtime call: one request, one reply, suspend on
 // the reply, and `TaskResult<T>` materialization from the reply's result
-// kind/bits. No far Task handle is materialized.
+// kind and the typed result slot the reply names. No far Task handle is
+// materialized.
 func (fe *funcEmitter) emitImmediateOnCrossing(ins *mir.CrossingInstr) error {
 	if ins == nil {
 		return nil

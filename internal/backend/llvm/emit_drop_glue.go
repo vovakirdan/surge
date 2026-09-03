@@ -180,13 +180,15 @@ func (e *Emitter) registerAbandonedStateDrop(stateType types.TypeID) types.TypeI
 	return resolveValueType(e.types, stateType)
 }
 
-// registerCrossingDropResult answers with the resolved TypeID a crossing names
-// its result by. The runtime turns that number back into the type's descriptor
-// -- there is no dispatch table between the two any more -- so all this does is
-// resolve, and it stays a named step because the CALL SITES read better for
-// saying which id they mean.
-func (e *Emitter) registerCrossingDropResult(resultType types.TypeID) types.TypeID {
-	return resolveValueType(e.types, resultType)
+// registerCrossingPayloadType answers with the resolved TypeID a crossing names
+// a PAYLOAD by -- a far channel's element, a far task's result, a select arm's
+// value -- for every type, a scalar included. The far side turns the id back
+// into the type's exact descriptor; a payload named by no id used to be given a
+// machine word, which is the wrong width for anything narrower than one. The
+// operation root census (internal/mir/layout_finalize.go) records every
+// crossing payload type, so the descriptor the id names is always emitted.
+func (e *Emitter) registerCrossingPayloadType(payloadType types.TypeID) types.TypeID {
+	return resolveValueType(e.types, payloadType)
 }
 
 func (e *Emitter) requireDropElemGlue(id types.TypeID) string {

@@ -47,9 +47,8 @@ static int run_far_select_cancel_vs_commit(void) {
 
     if (!wait_task_refs(req, 1, 5000)) return fail("select reply never resolved");
     uint8_t result_kind = 0;
-    uint64_t result_bits = 0;
-    rt_remote_task_status status = rt_remote_task_pending_snapshot(req, &result_kind, &result_bits);
-    if (status != RT_REMOTE_TASK_STATUS_OK || result_kind != 1 || result_bits != 0) {
+    rt_remote_task_status status = rt_remote_task_pending_snapshot(req, &result_kind);
+    if (status != RT_REMOTE_TASK_STATUS_OK || result_kind != 1) {
         return fail("commit-vs-cancel race must still resolve kind=1 with the committed winner");
     }
     if (!channel_recv_once(ex, channel, 42)) {
@@ -195,9 +194,8 @@ static int run_far_select_double_cancel(void) {
 
     if (!wait_task_refs(req, 1, 5000)) return fail("select reply never resolved");
     uint8_t result_kind = 0;
-    uint64_t result_bits = 0;
-    rt_remote_task_status status = rt_remote_task_pending_snapshot(req, &result_kind, &result_bits);
-    if (status != RT_REMOTE_TASK_STATUS_OK || result_kind != 1 || result_bits != 0) {
+    rt_remote_task_status status = rt_remote_task_pending_snapshot(req, &result_kind);
+    if (status != RT_REMOTE_TASK_STATUS_OK || result_kind != 1) {
         return fail("double-cancel must still resolve exactly once with the committed winner");
     }
     if (!channel_recv_once(ex, channel, 91)) {

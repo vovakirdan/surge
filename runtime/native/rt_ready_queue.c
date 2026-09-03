@@ -430,9 +430,9 @@ int ready_claim_current_local_tail(rt_executor* ex, uint64_t id) {
     rt_shard_lock(owner_shard);
     rt_deque* local = current_local_queue(ex, scheduler);
     int taken = 0;
-    if (local != NULL && local->len > 0 && local->buf != NULL) {
+    if (local != NULL && local->len > 0 && local->task_ids != NULL) {
         size_t idx = local->head + local->len - 1;
-        if (local->buf[idx] == id) {
+        if (local->task_ids[idx] == id) {
             local->len--;
             if (local->len == 0) {
                 local->head = 0;

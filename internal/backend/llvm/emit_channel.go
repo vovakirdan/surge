@@ -55,11 +55,6 @@ func (fe *funcEmitter) channelElementTypeID(channelDstType types.TypeID) types.T
 	if elem == types.NoTypeID {
 		return types.NoTypeID
 	}
-	if fe.emitter.payloadNeedsRuntimeRelease(elem) {
-		// Keeps the crossing drop dispatch able to name this type, which the
-		// far select arms still use until D5.
-		fe.emitter.registerCrossingDropResult(elem)
-	}
 	return elem
 }
 

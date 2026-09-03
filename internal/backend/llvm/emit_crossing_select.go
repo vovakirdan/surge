@@ -37,7 +37,7 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 	}
 
 	kindPtr := fe.nextTemp()
-	bitsPtr := fe.nextTemp()
+	winnerPtr := fe.nextTemp()
 	statusSlot := fe.nextTemp()
 	anchorsPtr := fe.nextTemp()
 	armKindsPtr := fe.nextTemp()
@@ -49,7 +49,7 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 	armValuesPtr := fe.nextTemp()
 	armTypeIDsPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i8, align %d\n", kindPtr, 1)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", winnerPtr, alignWord)
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i32, align %d\n", statusSlot, 4)
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x ptr], align %d\n", anchorsPtr, armCount, alignPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca [%d x i8], align %d\n", armKindsPtr, armCount, 1)
@@ -59,7 +59,7 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 	// The arm tables are built ONCE, on the true first attempt. A resumed
 	// retry re-enters this same block, and rt_far_channel_select's own retry
 	// branch returns on `*pending != NULL` before it reads anchors, kinds,
-	// send_bits, or send_drop_fn_ids at all — so anything re-evaluated here
+	// send addresses, or payload type ids at all — so anything re-evaluated here
 	// per round is silently discarded.
 	//
 	// What actually gets re-evaluated is narrower than it looks, and the
@@ -177,7 +177,7 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 		ins.BodyFuncID,
 		pendingPtr,
 		kindPtr,
-		bitsPtr)
+		winnerPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  store i32 %s, ptr %s\n", initStatus, statusSlot)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", statusBB)
 
@@ -207,7 +207,7 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 		armCount,
 		pendingPtr,
 		kindPtr,
-		bitsPtr)
+		winnerPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  store i32 %s, ptr %s\n", retryStatus, statusSlot)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", statusBB)
 
@@ -248,13 +248,13 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%bb%d\n", ins.PendBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", winnerBB)
-	winnerBits := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", winnerBits, bitsPtr)
+	winnerIndex := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", winnerIndex, winnerPtr)
 	// No handback to emit: every losing payload was MOVED back into its own MIR
 	// place by the call above, which is the place sema's losing-arm drops
 	// already name. The winner's place was emptied by the staging move and
 	// stays empty, so nothing there is dropped twice.
-	if err := fe.emitSelectWinnerIndex(winnerBits, ins.Dst); err != nil {
+	if err := fe.emitSelectWinnerIndex(winnerIndex, ins.Dst); err != nil {
 		return err
 	}
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%bb%d\n", ins.ReadyBB)

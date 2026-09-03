@@ -31,7 +31,7 @@ rt_remote_task_status rt_immediate_on_execute_anchored(const rt_far_task_handle*
         return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
     }
     if (*pending != NULL) {
-        rt_remote_task_status status = rt_remote_task_pending_snapshot(*pending, out_kind, NULL);
+        rt_remote_task_status status = rt_remote_task_pending_snapshot(*pending, out_kind);
         if (status != RT_REMOTE_TASK_STATUS_PENDING) {
             return rt_immediate_on_finish_retry(pending, out_kind, out_dst);
         }

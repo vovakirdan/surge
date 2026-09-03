@@ -16,8 +16,8 @@ struct rt_remote_spawn_pending {
     // PUBLICATION-ACCEPTED HANDOFF, the dispatch-lane store that clears
     // state_owned immediately after rt_remote_spawn_publish_body_task
     // succeeds. Every exit BEFORE the handoff leaves state_owned set, so
-    // the final pending release is the single pre-handoff drop site
-    // (__surge_drop_call frees captures and envelope together). Every
+    // the final pending release is the single pre-handoff drop site (the
+    // state type's own descriptor frees captures and envelope together). Every
     // exit AFTER the handoff reclaims compiled-side: the body unpacks
     // the captures at entry and releases the envelope at its return. No
     // path sees both releases because the dispatch lane still holds a
@@ -26,8 +26,9 @@ struct rt_remote_spawn_pending {
     // release ends up final observes the cleared flag.
     uint64_t state_type_id;
     uint8_t state_owned;
-    // Owner-side drop obligation for the body's heap-carried RESULT,
-    // carried from the crossing to the created body task (0 = Copy/inert).
+    // The body's RESULT type, carried from the crossing to the created body
+    // task for every result type, a scalar included: the result slot is
+    // sized, moved and destroyed through the descriptor this id names.
     // Stamped onto task->result_type_id at the publication-accepted
     // handoff; never a caller-side drop site (RV2-DEBT-053a).
     uint64_t result_type_id;

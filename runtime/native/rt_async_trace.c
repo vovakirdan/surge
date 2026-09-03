@@ -510,8 +510,8 @@ static void trace_exec_snapshot_dump(const char* reason) {
                 uint64_t tail_id = 0;
                 uint64_t tail_pinned = 0;
                 uint64_t tail_carrier = 0;
-                if (dq->len > 0 && dq->buf != NULL) {
-                    tail_id = dq->buf[dq->head + dq->len - 1];
+                if (dq->len > 0 && dq->task_ids != NULL) {
+                    tail_id = dq->task_ids[dq->head + dq->len - 1];
                     const rt_task* tail = get_task(ex, tail_id);
                     if (tail != NULL) {
                         tail_pinned = tail->carrier_valid;

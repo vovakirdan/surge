@@ -22,7 +22,7 @@ static uint32_t current_source_shard(const rt_task* current) {
 
 static rt_remote_task_status
 finish_retry(rt_remote_task_pending** slot, uint8_t* out_kind, void* out_dst) {
-    rt_remote_task_status status = rt_remote_task_pending_snapshot(*slot, out_kind, NULL);
+    rt_remote_task_status status = rt_remote_task_pending_snapshot(*slot, out_kind);
     if (status != RT_REMOTE_TASK_STATUS_PENDING) {
         // The terminal call is the ONLY one that may touch out_dst: it is the
         // caller's live storage on this poll, and a park between polls would
@@ -59,7 +59,7 @@ static rt_remote_task_status start_remote_task(rt_remote_task_op op,
         return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
     }
     if (*pending != NULL) {
-        rt_remote_task_status status = rt_remote_task_pending_snapshot(*pending, out_kind, NULL);
+        rt_remote_task_status status = rt_remote_task_pending_snapshot(*pending, out_kind);
         if (status != RT_REMOTE_TASK_STATUS_PENDING) {
             return finish_retry(pending, out_kind, out_dst);
         }

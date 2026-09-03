@@ -446,7 +446,7 @@ func (fe *funcEmitter) emitInstrSelect(ins *mir.Instr) error {
 	return nil
 }
 
-// abandonedStateDropID resolves the number a yield hands the runtime for the
+// abandonedStateTypeID resolves the number a yield hands the runtime for the
 // frame it may be abandoning: a cancellation completes the task without ever
 // resuming compiled code, so nothing here can give the frame back and the
 // runtime turns this number into the frame type's DESCRIPTOR to do it
@@ -456,7 +456,7 @@ func (fe *funcEmitter) emitInstrSelect(ins *mir.Instr) error {
 // The state is always a heap frame (buildAsyncPendingBlocks packs live locals
 // into one every time), so — unlike a task result, which may be inert Copy bits
 // with no storage of its own at all — there is always something to name here.
-func (fe *funcEmitter) abandonedStateDropID(state *mir.Operand) (types.TypeID, error) {
+func (fe *funcEmitter) abandonedStateTypeID(state *mir.Operand) (types.TypeID, error) {
 	stateType, err := fe.suspensionFrameTypeOf(state)
 	if err != nil {
 		return types.NoTypeID, err
@@ -484,11 +484,11 @@ func (fe *funcEmitter) emitTermAsyncYield(term *mir.Terminator) error {
 	if stateTy != "ptr" {
 		return fmt.Errorf("async_yield expects state pointer, got %s", stateTy)
 	}
-	dropID, err := fe.abandonedStateDropID(&term.AsyncYield.State)
+	stateTypeID, err := fe.abandonedStateTypeID(&term.AsyncYield.State)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_async_yield(ptr %s, i64 %d)\n", stateVal, dropID)
+	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_async_yield(ptr %s, i64 %d)\n", stateVal, stateTypeID)
 	fmt.Fprintf(&fe.emitter.buf, "  unreachable\n")
 	return nil
 }

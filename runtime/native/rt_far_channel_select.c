@@ -21,7 +21,7 @@
 static void
 select_answer(rt_executor* ex, rt_remote_task_pending* pending, rt_remote_task_status status) {
     rt_remote_task_reply_or_finish(
-        ex, pending, status, 2, 0, RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY);
+        ex, pending, status, 2, RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY);
 }
 
 static int select_request_matches(const rt_transport_msg* msg,
@@ -100,21 +100,21 @@ static rt_remote_task_status select_finish_retry(rt_remote_task_pending** slot,
                                                  void* const* out_values,
                                                  uint64_t out_count,
                                                  uint8_t* out_kind,
-                                                 uint64_t* out_bits) {
+                                                 uint64_t* out_winner) {
     uint8_t kind = 0;
     if (*slot != NULL &&
-        rt_remote_task_pending_snapshot(*slot, &kind, NULL) == RT_REMOTE_TASK_STATUS_OK &&
+        rt_remote_task_pending_snapshot(*slot, &kind) == RT_REMOTE_TASK_STATUS_OK &&
         kind == RT_REMOTE_TASK_REPLY_KIND_SUCCESS) {
         if (!select_return_arms(*slot, out_values, out_count)) {
             // A success without storage for the returned losing payloads
             // cannot be exposed to compiled arm dispatch. Leave every value in
             // its cell for the cleanup to destroy, consume the pending, and
             // fail closed.
-            (void)rt_immediate_on_finish_retry(slot, out_kind, out_bits);
+            (void)rt_immediate_on_finish_retry(slot, out_kind, out_winner);
             return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
         }
     }
-    return rt_immediate_on_finish_retry(slot, out_kind, out_bits);
+    return rt_immediate_on_finish_retry(slot, out_kind, out_winner);
 }
 
 // A select that never armed still owns every SEND payload the caller handed
@@ -146,23 +146,22 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anc
                                             void* state,
                                             rt_remote_task_pending** pending,
                                             uint8_t* out_kind,
-                                            uint64_t* out_bits) {
+                                            uint64_t* out_winner) {
     rt_executor* ex = ensure_exec();
     rt_task* current = rt_current_task();
     if (ex == NULL || pending == NULL || current == NULL || rt_current_task_id() == 0) {
         return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
     }
     if (*pending != NULL) {
-        rt_remote_task_status status =
-            rt_remote_task_pending_snapshot(*pending, out_kind, out_bits);
+        rt_remote_task_status status = rt_remote_task_pending_snapshot(*pending, out_kind);
         if (status != RT_REMOTE_TASK_STATUS_PENDING) {
-            return select_finish_retry(pending, send_values, count, out_kind, out_bits);
+            return select_finish_retry(pending, send_values, count, out_kind, out_winner);
         }
         if (task_cancelled_load(current) != 0) {
             rt_immediate_on_cancel_inflight(ex, *pending);
         }
         if (rt_remote_task_prepare_reply_wait(ex, current, *pending) != 0) {
-            return select_finish_retry(pending, send_values, count, out_kind, out_bits);
+            return select_finish_retry(pending, send_values, count, out_kind, out_winner);
         }
         return RT_REMOTE_TASK_STATUS_PENDING;
     }
@@ -333,7 +332,7 @@ void rt_far_channel_dispatch_select(rt_executor* ex, const rt_transport_msg* msg
         select_answer(ex, pending, RT_REMOTE_TASK_STATUS_STALE_TOKEN);
         return;
     }
-    if (rt_remote_task_pending_snapshot(pending, NULL, NULL) != RT_REMOTE_TASK_STATUS_PENDING) {
+    if (rt_remote_task_pending_snapshot(pending, NULL) != RT_REMOTE_TASK_STATUS_PENDING) {
         rt_remote_task_pending_release(pending);
         return;
     }
@@ -431,7 +430,7 @@ int rt_remote_task_select_binding_current(rt_far_channel_select_arm** out_arms,
 
 // Records which arm rt_select_poll committed, under the same lock the
 // shutdown/cancel-inflight sweep (rt_remote_task_wait.c) uses to stomp
-// result_kind/result_bits on a pending — that sweep never touches
+// result_kind on a pending — that sweep never touches
 // select_committed_index, but the write itself still needs the lock to
 // avoid racing a concurrent unlink/free of the same pending. Called once,
 // immediately after rt_select_poll's own critical section has already

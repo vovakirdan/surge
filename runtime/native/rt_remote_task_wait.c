@@ -10,7 +10,7 @@ int rt_remote_task_prepare_reply_wait(rt_executor* ex,
     (void)rt_transport_reply_wait_before_task_suspend();
     prepare_park(ex, current, key, 0);
     pending_key = key;
-    if (rt_remote_task_pending_snapshot(pending, NULL, NULL) == RT_REMOTE_TASK_STATUS_PENDING) {
+    if (rt_remote_task_pending_snapshot(pending, NULL) == RT_REMOTE_TASK_STATUS_PENDING) {
         return 0;
     }
     rt_remote_task_clear_reply_wait(ex, current, pending);
@@ -50,7 +50,6 @@ void rt_remote_task_fail_all_pending(rt_executor* ex, rt_remote_task_status stat
             }
             it->status = (uint8_t)status;
             it->result_kind = 2;
-            it->result_bits = 0;
             release_owner_ref = it->owner_registered != 0;
             it->owner_registered = 0;
             should_wake = it->reply_wait_retired == 0;

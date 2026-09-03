@@ -35,10 +35,8 @@ func (fe *funcEmitter) emitChannelShareCrossing(ins *mir.CrossingInstr) error {
 	}
 
 	kindPtr := fe.nextTemp()
-	bitsPtr := fe.nextTemp()
 	statusSlot := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i8, align %d\n", kindPtr, 1)
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", bitsPtr, alignWord)
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i32, align %d\n", statusSlot, 4)
 
 	pendingVal := fe.nextTemp()
@@ -77,13 +75,12 @@ func (fe *funcEmitter) emitChannelShareCrossing(ins *mir.CrossingInstr) error {
 	}
 	initStatus := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
-		"  %s = call i32 @rt_far_channel_share(ptr %s, ptr %s, ptr %s, ptr %s, ptr %s)\n",
+		"  %s = call i32 @rt_far_channel_share(ptr %s, ptr %s, ptr %s, ptr %s)\n",
 		initStatus,
 		sourceVal,
 		pendingPtr,
 		handlePtr,
-		kindPtr,
-		bitsPtr)
+		kindPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  store i32 %s, ptr %s\n", initStatus, statusSlot)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", statusBB)
 
@@ -92,12 +89,11 @@ func (fe *funcEmitter) emitChannelShareCrossing(ins *mir.CrossingInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", retryHandlePtr, handleSlot)
 	retryStatus := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
-		"  %s = call i32 @rt_far_channel_share(ptr null, ptr %s, ptr %s, ptr %s, ptr %s)\n",
+		"  %s = call i32 @rt_far_channel_share(ptr null, ptr %s, ptr %s, ptr %s)\n",
 		retryStatus,
 		pendingPtr,
 		retryHandlePtr,
-		kindPtr,
-		bitsPtr)
+		kindPtr)
 	fmt.Fprintf(&fe.emitter.buf, "  store i32 %s, ptr %s\n", retryStatus, statusSlot)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", statusBB)
 

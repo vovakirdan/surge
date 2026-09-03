@@ -138,7 +138,7 @@ int rtb_mode_immediate_stale(void) {
         .payload = bad,
     };
     (void)rt_remote_task_dispatch_message(ex, &msg);
-    if (rt_remote_task_pending_snapshot(bad, NULL, NULL) != RT_REMOTE_TASK_STATUS_STALE_TOKEN) {
+    if (rt_remote_task_pending_snapshot(bad, NULL) != RT_REMOTE_TASK_STATUS_STALE_TOKEN) {
         return rtb_fail("stale execute request was not rejected");
     }
     if (atomic_load_explicit(&child.ran, memory_order_acquire) != 0) {
@@ -258,7 +258,7 @@ int rtb_mode_shutdown(void) {
     if (rt_executor_request_shutdown(ex) != RT_RUNTIME_STATUS_OK) {
         return rtb_fail("executor shutdown failed");
     }
-    if (rt_remote_task_pending_snapshot(pending, NULL, NULL) !=
+    if (rt_remote_task_pending_snapshot(pending, NULL) !=
         RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN) {
         return rtb_fail("shutdown did not fail the execute reply waiter");
     }

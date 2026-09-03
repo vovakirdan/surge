@@ -24,7 +24,6 @@ void rt_remote_task_reply_or_finish_with_result(rt_executor* ex,
                                                 rt_remote_task_pending* pending,
                                                 rt_remote_task_status status,
                                                 uint8_t result_kind,
-                                                uint64_t result_bits,
                                                 const rt_result_source* result_source,
                                                 rt_transport_msg_kind reply_kind) {
     if (pending == NULL) {
@@ -33,7 +32,7 @@ void rt_remote_task_reply_or_finish_with_result(rt_executor* ex,
         rt_remote_task_release_result_source(ex, result_source);
         return;
     }
-    rt_remote_task_pending_set_reply(pending, status, result_kind, result_bits, result_source);
+    rt_remote_task_pending_set_reply(pending, status, result_kind, result_source);
     if (status == RT_REMOTE_TASK_STATUS_OK) {
         rt_remote_task_status enqueue_status = enqueue_reply(ex, pending, reply_kind);
         if (enqueue_status == RT_REMOTE_TASK_STATUS_OK) {
@@ -43,7 +42,7 @@ void rt_remote_task_reply_or_finish_with_result(rt_executor* ex,
     }
     // The reply never reached its caller. Finishing with the capability still
     // set keeps the pin accounted for: whoever releases the pending releases it.
-    rt_remote_task_pending_finish(ex, pending, status, result_kind, result_bits, result_source);
+    rt_remote_task_pending_finish(ex, pending, status, result_kind, result_source);
     rt_remote_task_pending_release(pending);
 }
 
@@ -51,10 +50,8 @@ void rt_remote_task_reply_or_finish(rt_executor* ex,
                                     rt_remote_task_pending* pending,
                                     rt_remote_task_status status,
                                     uint8_t result_kind,
-                                    uint64_t result_bits,
                                     rt_transport_msg_kind reply_kind) {
-    rt_remote_task_reply_or_finish_with_result(
-        ex, pending, status, result_kind, result_bits, NULL, reply_kind);
+    rt_remote_task_reply_or_finish_with_result(ex, pending, status, result_kind, NULL, reply_kind);
 }
 
 static int request_matches(const rt_transport_msg* msg, const rt_remote_task_pending* pending) {
@@ -109,14 +106,14 @@ static rt_task* take_valid_request(rt_executor* ex,
     if (!request_matches(msg, pending)) {
         record_stale_drop(ex, msg);
         rt_remote_task_reply_or_finish(
-            ex, pending, RT_REMOTE_TASK_STATUS_STALE_TOKEN, 2, 0, reply_kind);
+            ex, pending, RT_REMOTE_TASK_STATUS_STALE_TOKEN, 2, reply_kind);
         return NULL;
     }
     rt_task* task = get_task(ex, pending->handle.task_id);
     if (!owner_matches(&pending->handle, task, msg->target_shard_id)) {
         record_stale_drop(ex, msg);
         rt_remote_task_reply_or_finish(
-            ex, pending, RT_REMOTE_TASK_STATUS_STALE_TOKEN, 2, 0, reply_kind);
+            ex, pending, RT_REMOTE_TASK_STATUS_STALE_TOKEN, 2, reply_kind);
         return NULL;
     }
     return task;
@@ -187,7 +184,7 @@ static void dispatch_request(rt_executor* ex, const rt_transport_msg* msg, rt_re
         op == RT_REMOTE_TASK_OP_CANCEL ? RT_REMOTE_TASK_HANDLE_CANCEL : RT_REMOTE_TASK_HANDLE_AWAIT;
     rt_remote_task_status consumed = consume_handle(task, next_state);
     if (consumed != RT_REMOTE_TASK_STATUS_OK) {
-        rt_remote_task_reply_or_finish(ex, pending, consumed, 2, 0, reply_kind);
+        rt_remote_task_reply_or_finish(ex, pending, consumed, 2, reply_kind);
         return;
     }
     if (task_status_load(task) == TASK_DONE) {
@@ -203,7 +200,6 @@ static void dispatch_request(rt_executor* ex, const rt_transport_msg* msg, rt_re
                                                    pending,
                                                    RT_REMOTE_TASK_STATUS_OK,
                                                    rt_remote_task_result_kind(task),
-                                                   0,
                                                    &source,
                                                    reply_kind);
         task_release_lane_aware(ex, task);
@@ -254,7 +250,6 @@ static void dispatch_reply(rt_executor* ex, const rt_transport_msg* msg) {
                                   pending,
                                   (rt_remote_task_status)pending->reply_status,
                                   pending->result_kind,
-                                  pending->result_bits,
                                   &pending->result_source);
     // Consume (unlink + release): an orphaned reply — the caller already
     // resumed through the cancel path and dropped its reference — must not

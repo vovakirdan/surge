@@ -8,8 +8,13 @@ static int wait_pending(rt_executor* ex,
                         rt_remote_task_status* status,
                         uint8_t* kind,
                         uint64_t* bits) {
+    // A reply carries no word any more (Wave E): the kind is the answer, and a
+    // value travels through the producer's typed slot.
+    if (bits != NULL) {
+        *bits = 0;
+    }
     for (uint32_t i = 0; i < 5000; i++) {
-        *status = rt_remote_task_pending_snapshot(pending, kind, bits);
+        *status = rt_remote_task_pending_snapshot(pending, kind);
         if (*status != RT_REMOTE_TASK_STATUS_PENDING) {
             return 1;
         }
@@ -75,7 +80,7 @@ int rtb_mode_stale(void) {
         .payload = bad,
     };
     (void)rt_remote_task_dispatch_message(ex, &bad_request);
-    if (rt_remote_task_pending_snapshot(bad, NULL, NULL) != RT_REMOTE_TASK_STATUS_STALE_TOKEN) {
+    if (rt_remote_task_pending_snapshot(bad, NULL) != RT_REMOTE_TASK_STATUS_STALE_TOKEN) {
         return rtb_fail("stale request was not rejected");
     }
     rt_remote_task_pending_consume(bad);
@@ -99,7 +104,7 @@ int rtb_mode_stale(void) {
         .payload = pending,
     };
     (void)rt_remote_task_dispatch_message(ex, &bad_reply);
-    if (rt_remote_task_pending_snapshot(pending, NULL, NULL) != RT_REMOTE_TASK_STATUS_PENDING) {
+    if (rt_remote_task_pending_snapshot(pending, NULL) != RT_REMOTE_TASK_STATUS_PENDING) {
         return rtb_fail("stale reply completed the valid pending request");
     }
     uint64_t source_stale_after = rt_transport_debug_snapshot(source).remote_task_stale_drops;

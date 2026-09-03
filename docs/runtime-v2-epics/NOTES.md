@@ -12744,3 +12744,91 @@ Gates on the split tree: `c-check`, sync-points, panicgate, file-size
 far-channel, remote, transport and remote-publication rows re-run green.
 `remote_task_behavior_anchored.c` (485) is left alone until a change
 touches it.
+
+### E2, a far crossing carries its payload at the payload's own width (2026-09-03)
+
+The plan's E2 named five things: a real `plan_cross`, an envelope with a
+header in the transport queue, a channel that owns its payload bytes, a
+typed select winner, and the removal of `out_bits`/`result_bits` and the
+numeric drop dispatch. Read against the tree after Wave D, three of the five
+were already there under other names and one is not needed in-process; what
+was left is narrower than the plan's text and is recorded exactly.
+
+**What the tree already did.** A far task's result, an immediate-`on` reply
+and a select winner reach the caller through the canonical typed slot
+(`rt_result_source`, D-side), a channel cell is sized by its element's
+descriptor (`rt_channel_new(capacity, ops, element_type_id)`), and a far
+select's SEND arms already cross with the channel's element type id. The
+transport message still carries `void* payload` into owner-side storage,
+and that is correct in-process: the payload never leaves the storage its
+owner shard sized for it -- the channel cell, the result slot -- so there
+is no second copy for an envelope to own. `rt_envelope_header` and
+`rt_cross_plan` stay reserved for a serialized transport; E4's reservation
+token goes on the pending and the message, not on a byte envelope. That is
+the E2 deviation from the plan, and E5 measures resident bytes on this
+shape.
+
+**What was word-only, and what replaced it.** Four residues, all named by
+the census: `rt_remote_task_pending.result_bits` threaded through the
+reply/finish signatures of four files (`set_reply(pending, status, kind,
+source)`, `finish(...)`, `reply_or_finish*(...)` lost the word);
+`payload_drop_fn_id` on the pending, which was already a type id in all but
+name (`payload_type_id`); the two `out_bits` scratch words of far create and
+share that nothing ever read; the select reply's `out_bits`, which is a
+winner INDEX and is now called one (`out_winner`); and the scheduler
+deque's `uint64_t* buf` of task ids (`task_ids`). On the emitter side the
+heap-only gate went: `registerCrossingDropResult`, which registered nothing
+and was called only for a payload that owned heap, is deleted, and every
+far crossing names its payload type through `registerCrossingPayloadType`
+-- channel create, far task await and cancel -- for every type, a scalar
+included. `abandonedStateDropID` became `abandonedStateTypeID`: it carries
+the frame type's id, which the runtime turns into the frame's descriptor,
+and never was a drop id.
+
+**The runtime stops answering "a word".** `rt_channel_element_ops_for`
+used to hand `rt_channel_opaque_word_ops` to any id it could not resolve.
+That was the width defect: a `bool` or `int8` channel got eight-byte cells
+and eight-byte moves out of a one-byte place, and a sixteen-byte `@copy`
+composite lost its second field. Now a nonzero id with no compiled
+descriptor panics (`async: no descriptor compiled for the crossing's
+element type`, panicgate row `PG-INVARIANT`), and every compiled crossing
+names its element, so the panic is a compiler defect's, not a payload's.
+Id 0 keeps one meaning, "no type named at all": a C stand that links no
+compiled lookup, or the select body's winner index, which really is one
+word. Both get the opaque-word descriptor with every slot filled -- the
+capability question RV2-DEBT-164 asked for is answered by the id, not by a
+null slot.
+
+**Witnesses.** `TestEmitCrossingsNameEveryPayloadType`: a `bool` channel
+and a `bool` far task cross with a nonzero id that `__surge_value_ops_for`
+resolves, share crosses with four pointers and no payload word, and the
+retry calls still pass 0 because the runtime reads none of those arguments
+on a retry. `TestRuntimeV2FarPayloadWidth`, the corpus's first crossing
+payload wider than a word: a sixteen-byte `@copy` composite through a far
+channel (`on ch` send and recv, sum 42) and as a far task result (`spawn on
+distributed`, sum 42), and an `int8` through a far channel, at
+`SURGE_SHARDS=1` and `2`, then under valgrind: no memcheck error,
+definitely lost 0 bytes in 0 blocks. Rule 13: the old gate back in
+`registerCrossingPayloadType` (`if !typeOwnsHeap { return 0 }`) turns the IR
+test red (`channel_on::<bool>: payload type crossed as id "0"`) and the e2e
+into `signal: segmentation fault` at 52 ms on both shard counts.
+
+**What E2 did not lift.** `TriviallyTransportableBits` is still "Copy and
+no counted scalar": a move-only composite is refused as a reply or an
+awaited result with `FUT7020`, and this row's composite is `@copy` for that
+reason. The move-only case is a question of who owns the value on each
+side, which is E3's owning anchor, not a width question.
+
+**Census.** The live ratchet reads `native-payload-bits` 0,
+`native-word-carrier` 0, `numeric-drop-dispatch` 0 and
+`llvm-erased-word-bridge` 0; what remains live is `composite-box-marker` 7,
+`llvm-pointer-word-ir` 1 (the fixnum allow), `vm-async-any-carrier` 14 and
+`vm-universal-owner` 67 (F6b). The allow `scheduler-deque-task-id-buffer`
+is removed: its token no longer matches anything and the ratchet refuses a
+stale allow. The frozen migration rows stay -- they are the census of the
+commit they describe. RV2-DEBT-164 is closed on this.
+
+**Gates.** `c-check`, sync-points, panicgate (one row added), carriergate,
+the `llvm`/`abimanifest`/`mir` units, and the far-channel, far-select,
+far-task, remote-task, immediate-on, anchored and crossing e2e family
+locally (233 s, green) before the runner rows.

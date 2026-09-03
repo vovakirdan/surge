@@ -2448,21 +2448,7 @@
           "ordinal": 1
         }
       ],
-      "allow": [
-        {
-          "id": "scheduler-deque-task-id-buffer",
-          "finding": {
-            "category": "native-word-carrier",
-            "path": "runtime/native/rt_async_internal.h",
-            "token": "buf",
-            "evidence": "uint64_t* buf;",
-            "ordinal": 1
-          },
-          "reason": "rt_deque stores scheduler task identifiers as machine words.",
-          "safe_because": "the buffer contains scheduler IDs, not erased language values or owned payloads.",
-          "invalidated_when": "rt_deque begins carrying language values, payload pointers, or ownership obligations."
-        }
-      ],
+      "allow": [],
       "migration": [
         {
           "finding": {

@@ -810,6 +810,11 @@
       "group": "PG-ALLOC-FAILURE"
     },
     {
+      "site": "runtime/native/rt_async_channel.c::rt_channel_element_ops_for#1",
+      "message": "async: no descriptor compiled for the crossing's element type",
+      "group": "PG-INVARIANT"
+    },
+    {
       "site": "runtime/native/rt_async_channel.c::rt_channel_new#1",
       "message": "async: channel needs its element descriptor",
       "group": "PG-INVARIANT"

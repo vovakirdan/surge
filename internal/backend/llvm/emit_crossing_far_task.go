@@ -23,15 +23,15 @@ func (fe *funcEmitter) emitFarTaskLifecycleCrossing(ins *mir.CrossingInstr, meth
 		return fmt.Errorf("far Task.%s pending slot must lower as ptr, got %s", method, pendingTy)
 	}
 
-	// A heap-carried reply the caller never consumes must reclaim
-	// exactly once (rt_remote_task_pending_release's free path). The
-	// payload type is known here, at the await/cancel lowering site,
-	// the same way the owner-side result_drop_fn_id is known at the
-	// spawn-on lowering site (emit_crossing.go) -- mirrors that
-	// registration exactly, just keyed off this call's own result type
-	// instead of the body's declared return type. Both far Task.await()
-	// and far Task.cancel() register it: a cancelled caller's body may
-	// still run to completion and land a result nobody will ever read.
+	// A reply the caller never consumes must reclaim exactly once
+	// (rt_remote_task_pending_release's free path), and a reply the caller
+	// does consume must be moved at its own width. Both need the result's
+	// TYPE, known here at the await/cancel lowering site the same way the
+	// owner-side result type is known at the spawn-on lowering site
+	// (emit_crossing.go) -- keyed off this call's own result type instead
+	// of the body's declared return type. Both far Task.await() and far
+	// Task.cancel() register it: a cancelled caller's body may still run to
+	// completion and land a result nobody will ever read.
 	resultType := ins.ResultType
 	if resultType == types.NoTypeID {
 		resultType, err = fe.placeBaseType(ins.Dst)
@@ -43,10 +43,10 @@ func (fe *funcEmitter) emitFarTaskLifecycleCrossing(ins *mir.CrossingInstr, meth
 	if err != nil {
 		return err
 	}
-	resultDropID := types.TypeID(0)
-	if fe.emitter.typeOwnsHeap(resultPayloadType) {
-		resultDropID = fe.emitter.registerCrossingDropResult(resultPayloadType)
-	}
+	// Every result type, a scalar included: the id is what the runtime keeps
+	// on the pending for a landed reply nobody consumed, and a result named
+	// by no id used to be treated as a machine word.
+	resultTypeID := fe.emitter.registerCrossingPayloadType(resultPayloadType)
 
 	kindPtr := fe.nextTemp()
 	statusSlot := fe.nextTemp()
@@ -88,7 +88,7 @@ func (fe *funcEmitter) emitFarTaskLifecycleCrossing(ins *mir.CrossingInstr, meth
 		initStatus,
 		runtimeFn,
 		receiverVal,
-		resultDropID,
+		resultTypeID,
 		pendingPtr,
 		kindPtr,
 		payloadPtr)

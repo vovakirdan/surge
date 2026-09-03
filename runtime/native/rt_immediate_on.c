@@ -17,7 +17,7 @@
 static void immediate_on_answer(rt_executor* ex,
                                 rt_remote_task_pending* pending,
                                 rt_remote_task_status status) {
-    rt_remote_task_reply_or_finish(ex, pending, status, 2, 0, RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY);
+    rt_remote_task_reply_or_finish(ex, pending, status, 2, RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY);
 }
 
 uint32_t rt_immediate_on_source_shard(const rt_task* current) {
@@ -30,7 +30,7 @@ uint32_t rt_immediate_on_source_shard(const rt_task* current) {
 
 rt_remote_task_status
 rt_immediate_on_finish_retry(rt_remote_task_pending** slot, uint8_t* out_kind, void* out_dst) {
-    rt_remote_task_status status = rt_remote_task_pending_snapshot(*slot, out_kind, NULL);
+    rt_remote_task_status status = rt_remote_task_pending_snapshot(*slot, out_kind);
     if (status != RT_REMOTE_TASK_STATUS_PENDING) {
         // Terminal call only: out_dst is live storage on this poll and nothing
         // may keep its address across one. See finish_retry in
@@ -118,7 +118,7 @@ rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
         return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
     }
     if (*pending != NULL) {
-        rt_remote_task_status status = rt_remote_task_pending_snapshot(*pending, out_kind, NULL);
+        rt_remote_task_status status = rt_remote_task_pending_snapshot(*pending, out_kind);
         if (status != RT_REMOTE_TASK_STATUS_PENDING) {
             return rt_immediate_on_finish_retry(pending, out_kind, out_dst);
         }
@@ -227,7 +227,7 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
         immediate_on_answer(ex, pending, RT_REMOTE_TASK_STATUS_STALE_TOKEN);
         return;
     }
-    if (rt_remote_task_pending_snapshot(pending, NULL, NULL) != RT_REMOTE_TASK_STATUS_PENDING) {
+    if (rt_remote_task_pending_snapshot(pending, NULL) != RT_REMOTE_TASK_STATUS_PENDING) {
         rt_remote_task_pending_release(pending);
         return;
     }
@@ -346,7 +346,7 @@ void rt_immediate_on_release_owned(rt_executor* ex, const rt_task* caller) {
             rt_immediate_on_cancel_inflight(ex, pending);
             rt_remote_task_pending_release(pending);
         } else {
-            rt_remote_task_pending_finish(ex, pending, RT_REMOTE_TASK_STATUS_REFUSED, 2, 0, NULL);
+            rt_remote_task_pending_finish(ex, pending, RT_REMOTE_TASK_STATUS_REFUSED, 2, NULL);
             rt_remote_task_pending_consume(pending);
         }
     }

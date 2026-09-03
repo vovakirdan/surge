@@ -311,16 +311,14 @@ int rtb_mode_select_seq0_retry_terminal_drain(void) {
     }
     if (!rtb_wait_task_done(ex, caller_task->id, 250)) {
         uint8_t pending_kind = 0;
-        uint64_t pending_bits = 0;
         rt_remote_task_status pending_status = RT_REMOTE_TASK_STATUS_PENDING;
         for (uint32_t i = 0; i < 4000 && pending_status == RT_REMOTE_TASK_STATUS_PENDING; i++) {
-            pending_status =
-                rt_remote_task_pending_snapshot(pending, &pending_kind, &pending_bits);
+            pending_status = rt_remote_task_pending_snapshot(pending, &pending_kind);
             if (pending_status == RT_REMOTE_TASK_STATUS_PENDING) {
                 rtb_sleep_us(1000);
             }
         }
-        if (pending_status != RT_REMOTE_TASK_STATUS_OK || pending_kind != 1 || pending_bits != 0) {
+        if (pending_status != RT_REMOTE_TASK_STATUS_OK || pending_kind != 1) {
             rt_remote_task_pending_release(pending);
             return rtb_fail("seq0 stand did not observe the committed terminal pending snapshot");
         }
