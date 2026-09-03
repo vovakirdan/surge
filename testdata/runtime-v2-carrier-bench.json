@@ -152,7 +152,7 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_model_test.py",
-      "sha256": "a57780f2c7d499fba029e8c3f04512e1d8fdf3c80f6c453e30cff45b99592585"
+      "sha256": "ffd8c75797c43c1f46b9ac5625f2fccb11f8069940a7204021458c46502ea650"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_protocol.py",
