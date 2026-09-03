@@ -12832,3 +12832,91 @@ commit they describe. RV2-DEBT-164 is closed on this.
 the `llvm`/`abimanifest`/`mir` units, and the far-channel, far-select,
 far-task, remote-task, immediate-on, anchored and crossing e2e family
 locally (233 s, green) before the runner rows.
+
+### E3, a far handle has one owner across a crossing (2026-09-03)
+
+Two rows, one ownership question each.
+
+**RV2-DEBT-198, the far half: a far handle held as a field is released.**
+`typeOwnsHeap` answers YES for a far channel handle and `emitDropHandle`
+reaches `rt_far_channel_handle_drop`, the release a far LOCAL's scope-exit
+drop has always made; widened together, as the channel was on 2026-08-26.
+The agreement gate's `unreclaimedFamilies` is empty and stays declared,
+`far Channel<int>` and `FarGate` are ordinary rows in both legs, and the
+helper map names the release. Witness
+`TestRuntimeV2FarHandleFieldDropReleasesTheLease`: a holder dropped at the
+end of the frame that built it and one moved into a callee that drops it;
+valgrind strict zero. Rule 13, the walk's far arm removed: exit 0 and
+`definitely lost: 48 bytes in 2 blocks`, the two caller-side tokens.
+
+**RV2-DEBT-082: the anchor is a lease, spelled by not being a capture.**
+The ownership map, read before any code: the anchored block took the
+caller's token THREE ways -- a struct copy into the pending
+(`rt_immediate_on_anchored.c`), a consuming read into the crossing state
+(MIR's capture loop), and the caller's own binding left live (sema's
+deliberate exception) -- and exactly one of the three ever released a lease,
+the caller's scope exit. The probe: `let held = ch;` inside
+`on ch { ch.send(1); ... }` compiled without a word on `1fdd6383`. Under
+valgrind it produced no invalid access, which is itself the finding: the
+body's binding consumed the CALLER's handle (the shipped pointer was the
+caller's box, the body's drop released it, sema's body-side move marked the
+caller's symbol moved), so the two owners were one owner chosen by whichever
+side moved first. Incoherent, not corrupting.
+
+Now the anchor of an `on far_handle` block crosses in its own mode,
+`CrossingCaptureAnchorLease`, the row's first candidate: the caller keeps the
+handle and its drop (`checkOnCaptures` observes no move,
+`registerCrossingBodyOwnership` registers nothing for it), MIR lowers it as a
+BORROWING read rather than the consuming read every other capture gets, and
+the body's copy of the token is a lease view it never dereferences and never
+drops; the body reaches the channel only through the pin
+`rt_far_channel_pin` takes at dispatch and gives back at the reply edge, the
+same path the anchored ops always used (`rt_anchored_channel_*` resolve
+through the pending, never through a token). The first cut left the anchor
+out of the capture list altogether; the `far TcpConn` control form lowers
+its `close()` as an ordinary call on the receiver and needs the body local,
+so the mode is what states the rule, not absence. `checkAnchorLeaseUses` walks
+every identifier in the block (the capture scanner, refactored into
+`scanCapturedIdents` so the first-occurrence dedupe is the caller's, not the
+walker's) and refuses any use of the anchor that is not the receiver of the
+block's channel operation: `SEM3210`, fixture
+`on_negative_anchor_lease_misuse.sg`, `TestAnchorLeaseMisuseIsRejected`
+(bound inside the block; passed to a function inside the block).
+`anchored_far_channel_still_usable` stays green and
+`anchor_still_usable_after_the_block` -- two blocks on one handle -- is new,
+because a lease is not a move.
+
+A far handle captured into a NON-anchored crossing is the other case, and it
+is a move: `observeMove` at the crossing, so a later use is `SEM3130`, and
+the body owns the lease (`registerCrossingBodyOwnership` registers far
+captures). The row that pins the crossing-site observation is
+`far_handle_read_after_capture` with a WILDCARD binding in the body: a body
+that binds the handle to a name moves it itself and marks the caller's symbol
+moved either way, which is why the first version of that row passed the
+mutant (`observeMove` skipped for far handles) and had to be rewritten; the
+wildcard moves nothing sema can see, and the mutant accepts the program.
+
+Runtime, the same map's findings: the pending records `anchor_pinned`, every
+unpin path goes through `rt_immediate_on_anchor_unpin` (once per pin,
+whichever of the four paths runs), and `rt_far_channel_unpin` refuses a
+non-channel token and an entry with no pin left -- it used to subtract from
+an unsigned counter unconditionally, and a share request rides the same
+pending slot with a channel token. Panicgate row `PG-INVARIANT`. What the
+map also found and E3 did not fix: `rt_remote_task_fail_all_pending` severs
+the owner registration that the reply-edge unpin depends on, so a pin held
+by a body that shutdown prevented from completing is never given back and
+`rt_far_channel_release_all` leaves the entry (RV2-DEBT-322, with the reason
+the safe place is not obvious).
+
+**Controls, both valgrind strict zero at shards 1 and 2.**
+`TestRuntimeV2FarHandleHasOneOwnerAcrossACrossing/anchored`: create, share a
+sibling, a block on each handle, two recv blocks, scope exit.
+`/move_in`: a handle moved into a `spawn on distributed` body that binds and
+drops it. The anchored behaviour rows (`TestRuntimeV2RemoteTaskBehavior`,
+the self-deadlock row, the on-ch, non-copy, drop-far-channel and far-select
+e2e rows) re-run green on the pin flag.
+
+**Not lifted.** `FUT7020` still refuses a move-only composite as a reply or
+awaited result (E2's note); the far TASK handle as a struct field has no
+release in the glue (a never-awaited far task's lease), which no row names
+yet and this one does not claim.

@@ -352,15 +352,27 @@ size_t rt_far_channel_debug_live_count(rt_executor* ex) {
     return count;
 }
 
+// Drops one pin. The pin was validated when it was taken, so this needs
+// only the entry -- but it refuses what a pin could never have produced: a
+// token of another kind (a share request rides the same pending slot with a
+// channel token; a far TASK token never pins), and an entry with no pin
+// left. An unpin without a pin used to subtract from an unsigned counter
+// and park the entry at UINT32_MAX in-flight, which no release could ever
+// reclaim; it is a caller defect and is told as one.
 void rt_far_channel_unpin(rt_executor* ex, const rt_far_task_handle* handle) {
     rt_far_channel_state* state = rt_far_channel_state_get(ex);
-    if (state == NULL || handle == NULL) {
+    if (state == NULL || handle == NULL || handle->kind != RT_FAR_HANDLE_KIND_CHANNEL) {
         return;
     }
     pthread_mutex_lock(&state->lock);
     rt_far_channel_entry* entry = find_locked(state, handle);
     rt_far_channel_entry* reclaim = NULL;
     if (entry != NULL) {
+        if (atomic_load_explicit(&entry->inflight, memory_order_acquire) == 0) {
+            pthread_mutex_unlock(&state->lock);
+            panic_msg("async: far channel unpinned more times than it was pinned");
+            return;
+        }
         (void)atomic_fetch_sub_explicit(&entry->inflight, 1, memory_order_acq_rel);
         if (reclaim_ready_locked(entry)) {
             reclaim = entry;

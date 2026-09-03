@@ -113,6 +113,10 @@ const (
 	// SemaSelectFarArmsSingleOwner rejects a select that mixes far channel arms
 	// with any other arm kind: a remote select ships to one owner shard whole.
 	SemaSelectFarArmsSingleOwner Code = 3176
+	// SemaOnAnchorLeaseMisuse rejects using the anchor of an `on far_handle`
+	// block as a value inside the block: the body holds it as a lease for its
+	// channel operation only, and the handle stays with the caller.
+	SemaOnAnchorLeaseMisuse Code = 3210
 
 	// --- Parse-level crossing diagnostics (SYN 2031-2036) ---
 

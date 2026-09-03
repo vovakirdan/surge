@@ -1869,6 +1869,15 @@ Crossing captures obey the shard-movement contract:
 * Borrows cannot cross.
 * `@nosend` and `@shard_pinned` values cannot cross as owned payloads.
 * `@send` and `@copy` alone do not imply shard mobility for owned user values.
+* A `far` handle captured into a block is moved into it: the block owns the
+  lease from then on, and the caller's binding cannot be used afterwards
+  (call `share()` first to keep a lease of your own).
+* The handle an `on far_handle { ... }` block is anchored on is not moved
+  into it. The caller keeps it, and the block holds it as a lease for its single
+  channel operation only: inside the block the anchor may appear as nothing
+  but that operation's receiver — binding it, passing it on or returning it
+  is rejected (SEM3210). After the block the caller's handle is still its own,
+  so a second block may anchor on it.
 
 Accepted crossing forms currently compile through parser and semantic analysis.
 Backends that cannot lower Phase 4 crossing transport must emit deterministic

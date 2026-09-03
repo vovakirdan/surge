@@ -55,8 +55,17 @@ const (
 	CrossingCaptureCopy CrossingCaptureMode = iota
 	// CrossingCaptureMoveOwned records an owned value move.
 	CrossingCaptureMoveOwned
-	// CrossingCaptureMoveFarHandle records a far-handle move.
+	// CrossingCaptureMoveFarHandle records a far-handle move: the caller's
+	// binding ends at the crossing and the body owns the lease, giving it
+	// back at its own exit.
 	CrossingCaptureMoveFarHandle
+	// CrossingCaptureAnchorLease records the anchor of an `on far_handle`
+	// block: the caller KEEPS the handle and its drop, the body holds it as a
+	// lease for its channel operation only (checkAnchorLeaseUses), and the
+	// runtime's owner-side pin is what keeps the channel alive for the
+	// block. It is lowered as a borrowing read, never as a move, and the body
+	// never drops it.
+	CrossingCaptureAnchorLease
 )
 
 // CrossingCaptureVerdict records the exact sema rule that accepted a capture.
@@ -73,6 +82,9 @@ const (
 	CrossingCaptureOwnedShardMovable
 	// CrossingCaptureOwnedBuiltinCopy records an owned builtin Copy verdict.
 	CrossingCaptureOwnedBuiltinCopy
+	// CrossingCaptureAnchorLeased records the anchor of an `on far_handle`
+	// block: accepted because it IS the destination, held as a lease.
+	CrossingCaptureAnchorLeased
 )
 
 // CrossingDestinationInfo is the sema-checked destination for an `on` or

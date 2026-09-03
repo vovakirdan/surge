@@ -51,9 +51,10 @@ const (
 	leafMap           = "map"
 	leafRange         = "range"
 
-	// The one family a carrier descriptor will have to release and today's
-	// glue has no call for at all. It is named so that a fixture reaching it
-	// fails loudly instead of comparing two empty sets and passing.
+	// The lease a far channel handle holds on the owner shard's registry
+	// entry; its release is `rt_far_channel_handle_drop`, reached by the glue
+	// since 2026-09-03 (before that only a far LOCAL's scope-exit drop reached
+	// it, and a far handle held as a FIELD was never released).
 	leafFarLease = "far lease"
 )
 
@@ -65,8 +66,12 @@ const (
 // A family leaves this list only when a reclamation for it is emitted, and the
 // day it does, both legs start failing until their rows are updated — which is
 // the intended amount of noise for a carrier family becoming real. The channel
-// left it on 2026-08-26: its release is `rt_channel_handle_drop`.
-var unreclaimedFamilies = []string{leafFarLease}
+// left it on 2026-08-26: its release is `rt_channel_handle_drop`. The far lease
+// left it on 2026-09-03: its release is `rt_far_channel_handle_drop`. The list
+// is empty and stays declared: a family that loses its release goes back in
+// here with a recorded excuse, and both legs read the list rather than assume
+// it.
+var unreclaimedFamilies = []string{}
 
 func isUnreclaimedFamily(family string) bool {
 	for _, unreclaimed := range unreclaimedFamilies {
@@ -110,15 +115,17 @@ fn build() -> int {
 
 // The carrier families. The channel is reclaimed -- by the handle release,
 // as a root and as the field of Gate, the composite that HOLDS a carrier, in
-// the shape core/sync.sg gives every primitive. The far
-// handle is the one family this backend still has no reclamation for; it is
-// in the fixture so that the second leg asks about it by name instead of
-// leaving it to a future reader to discover.
+// the shape core/sync.sg gives every primitive. The far handle is reclaimed
+// the same way -- by its lease release, as a root and as the field of
+// FarGate -- and both are in the fixture so that the legs ask about them by
+// name instead of leaving them to a future reader to discover.
 //
-// watcher is never called and touches nothing: a far handle only takes an
-// operation inside an accepted remote context, and the leg needs the far TYPE
-// to exist with a frozen layout, not a remote call.
+// watcher and keeper are never called and touch nothing: a far handle only
+// takes an operation inside an accepted remote context, and the legs need
+// the far TYPES to exist with a frozen layout, not a remote call.
 @copy type Gate = { ch: Channel<int> }
+
+type FarGate = { ch: far Channel<int> }
 
 fn carriers() -> int {
 	let ch: own Channel<int> = Channel::<int>::new(1:uint);
@@ -130,6 +137,10 @@ fn carriers() -> int {
 
 async fn watcher(remote: far Channel<int>) -> nothing {
 	print("watching\n");
+}
+
+async fn keeper(held: FarGate) -> nothing {
+	print("keeping\n");
 }
 
 @entrypoint
@@ -188,6 +199,10 @@ func TestDropGlueReachesTheLeavesSemaSaysAreThere(t *testing.T) {
 		// destroy through its own descriptor, not this glue's to walk.
 		{typeName: "Channel<int>", families: []string{leafChannelHandle}},
 		{typeName: "Gate", families: []string{leafChannelHandle}},
+		// The far handle as a root and one level down: both reach the lease
+		// release and nothing else, for the same reason as the channel.
+		{typeName: "far Channel<int>", families: []string{leafFarLease}},
+		{typeName: "FarGate", families: []string{leafFarLease}},
 	}
 
 	e, result := prepareEmitterAndResultForTest(t, dropGlueAgreementSource)
@@ -299,16 +314,11 @@ func TestNoDroppableTypeGetsAnEmptyGlueBody(t *testing.T) {
 		{typeName: "Point"},
 		{typeName: "Channel<int>"},
 		{typeName: "Gate"},
-		{
-			typeName: "far Channel<int>",
-			excused: "far lease. A far handle holds a lease the owning shard has to be told about, " +
-				"and returning it is a remote message, not a free: `emitInstrDrop` reaches " +
-				"`rt_far_channel_handle_drop` for a far channel LOCAL, and no glue body has ever " +
-				"called it — which is also why a far channel stored as a FIELD is never released " +
-				"today. Emitting the lease return from this glue would make the body reclaim " +
-				"something the structural walk does not count as owned, so it belongs with the " +
-				"far-carrier work, not here",
-		},
+		// The far handle and the composite holding one were the last excused
+		// row and the last unrepresentable shape; ordinary rows since the glue
+		// reaches `rt_far_channel_handle_drop` and the walk counts the lease.
+		{typeName: "far Channel<int>"},
+		{typeName: "FarGate"},
 	}
 
 	e, result := prepareEmitterAndResultForTest(t, dropGlueAgreementSource)
@@ -527,14 +537,15 @@ var runtimeCall = regexp.MustCompile(`call [^@]*@(rt_[A-Za-z0-9_]+)\(`)
 // this test rather than being ignored, because a new leaf family the glue
 // learns to reclaim is precisely what the comparison must be extended for.
 var leafFamilyByHelper = map[string]string{
-	"rt_string_free":         leafString,
-	"rt_bigfloat_release":    leafCountedScalar,
-	"rt_array_free":          leafElementBuffer,
-	"rt_array_free_elems":    leafElementBuffer,
-	"rt_channel_handle_drop": leafChannelHandle,
-	"rt_task_handle_drop":    leafTaskHandle,
-	"rt_map_free":            leafMap,
-	"rt_range_free":          leafRange,
+	"rt_string_free":             leafString,
+	"rt_bigfloat_release":        leafCountedScalar,
+	"rt_array_free":              leafElementBuffer,
+	"rt_array_free_elems":        leafElementBuffer,
+	"rt_channel_handle_drop":     leafChannelHandle,
+	"rt_task_handle_drop":        leafTaskHandle,
+	"rt_far_channel_handle_drop": leafFarLease,
+	"rt_map_free":                leafMap,
+	"rt_range_free":              leafRange,
 }
 
 // emittedLeafFamilies is the backend's side: the families the emitted glue

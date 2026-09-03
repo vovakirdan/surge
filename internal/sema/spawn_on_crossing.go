@@ -61,7 +61,7 @@ func (tc *typeChecker) typeExprSpawnOn(id ast.ExprID, span source.Span) types.Ty
 	// function: a `ret` frees what the BODY built and what MOVED into it,
 	// never the caller's bindings.
 	tc.pushDropScope(true)
-	tc.registerCrossingBodyOwnership(data.Body)
+	tc.registerCrossingBodyOwnership(data.Body, symbols.NoSymbolID)
 	tc.walkStmt(data.Body)
 	tc.popDropScope()
 	last := len(tc.onCrossingStack) - 1
@@ -70,7 +70,7 @@ func (tc *typeChecker) typeExprSpawnOn(id ast.ExprID, span source.Span) types.Ty
 	tc.popReturnContext()
 
 	// Capture legality across the shard boundary (C01-C10).
-	captures, capturesOK := tc.checkOnCaptures(data.Body)
+	captures, capturesOK := tc.checkOnCaptures(data.Body, symbols.NoSymbolID)
 	if !capturesOK {
 		siteOK = false
 	}

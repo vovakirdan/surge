@@ -1360,6 +1360,11 @@
       "group": "PG-INVARIANT"
     },
     {
+      "site": "runtime/native/rt_far_channel.c::rt_far_channel_unpin#1",
+      "message": "async: far channel unpinned more times than it was pinned",
+      "group": "PG-INVARIANT"
+    },
+    {
       "site": "runtime/native/rt_far_channel_select.c::rt_anchored_channel_select#1",
       "message": "anchored select outside a remote-select block body",
       "group": "PG-INVARIANT"

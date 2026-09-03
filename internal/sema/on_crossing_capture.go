@@ -141,7 +141,16 @@ func (tc *typeChecker) recordActiveOnRemoteOp(op CrossingRemoteOpInfo) {
 // checkOnCaptures enforces capture legality for values crossing an `on`
 // boundary (ON-CAP rows). The capture-effect diagnostics are owned by Block 4;
 // Block 2 emits them at the crossing site so the invariants hold now.
-func (tc *typeChecker) checkOnCaptures(body ast.StmtID) ([]CrossingCaptureInfo, bool) {
+//
+// anchorSym is the destination handle of an `on far_handle` block, or invalid.
+// The anchor crosses in its own mode, CrossingCaptureAnchorLease: the caller
+// keeps the handle and its drop, the body reaches the channel through the
+// lease the runtime pins on the owner shard for the block's lifetime
+// (rt_far_channel_pin, taken at dispatch and dropped at the reply edge), and
+// the body's copy of the token is a borrowing read it never dereferences and
+// never drops. One owner; checkAnchorLeaseUses keeps the body from treating
+// the lease as a value.
+func (tc *typeChecker) checkOnCaptures(body ast.StmtID, anchorSym symbols.SymbolID) ([]CrossingCaptureInfo, bool) {
 	ok := true
 	var captures []CrossingCaptureInfo
 	for _, cap := range tc.collectBlockingCaptures(body) {
@@ -149,25 +158,41 @@ func (tc *typeChecker) checkOnCaptures(body ast.StmtID) ([]CrossingCaptureInfo, 
 		if capType == types.NoTypeID {
 			continue
 		}
+		if anchorSym.IsValid() && cap.symID == anchorSym {
+			name := ""
+			if sym := tc.symbolFromID(cap.symID); sym != nil {
+				name = tc.lookupName(sym.Name)
+			}
+			captures = append(captures, CrossingCaptureInfo{
+				Symbol:  cap.symID,
+				Name:    name,
+				Expr:    cap.exprID,
+				Span:    cap.span,
+				Type:    capType,
+				Mode:    CrossingCaptureAnchorLease,
+				Verdict: CrossingCaptureAnchorLeased,
+			})
+			continue
+		}
 		mode, verdict, accepted := tc.classifyOnCapture(capType, cap.span)
 		if !accepted {
 			ok = false
 			continue
 		}
-		// An owned capture MOVES across the boundary, and until this was
-		// written that was true of the lowering only: the state took the
-		// value, the body unpacked it, and the caller's binding stayed live
-		// anyway. So the caller could still read it, mutate it — giving two
-		// answers for one value — or move it a second time, all without a
-		// diagnostic, and it was the caller's scope-exit drop that happened to
-		// reclaim the capture.
+		// A capture that MOVES across the boundary ends the caller's binding
+		// here, and until this was written that was true of the lowering
+		// only: the state took the value, the body unpacked it, and the
+		// caller's binding stayed live anyway. So the caller could still read
+		// it, mutate it — giving two answers for one value — or move it a
+		// second time, all without a diagnostic, and it was the caller's
+		// scope-exit drop that happened to reclaim the capture.
 		//
-		// Restricted to owned moves. A Copy capture leaves the caller's
-		// binding intact by definition. A far handle is affine, but the `on ch`
-		// anchor form USES the destination handle inside the body it was
-		// captured for, so consuming it here would reject every anchored
-		// channel operation; that case is left alone.
-		if mode == CrossingCaptureMoveOwned {
+		// A Copy capture leaves the caller's binding intact by definition. An
+		// owned value and a far handle both move: the body owns what it
+		// unpacks (registerCrossingBodyOwnership), and for a far handle that
+		// is the lease itself, given back by the body's drop of it. The one
+		// far handle that is not moved is the anchor, filtered out above.
+		if mode == CrossingCaptureMoveOwned || mode == CrossingCaptureMoveFarHandle {
 			tc.observeMove(cap.exprID, cap.span)
 		}
 		name := ""
@@ -273,14 +298,59 @@ func (tc *typeChecker) classifyOnCapture(capType types.TypeID, span source.Span)
 // threaded from checkOnCaptures, which runs after the walk: collectBlockingCaptures
 // is a pure syntactic scan, and moving the classification earlier would reorder
 // its diagnostics.
-func (tc *typeChecker) registerCrossingBodyOwnership(body ast.StmtID) {
+func (tc *typeChecker) registerCrossingBodyOwnership(body ast.StmtID, anchorSym symbols.SymbolID) {
 	for _, cap := range tc.collectBlockingCaptures(body) {
+		if anchorSym.IsValid() && cap.symID == anchorSym {
+			// The anchor is leased to the body, not moved into it; the caller
+			// keeps the handle and its drop (checkOnCaptures).
+			continue
+		}
 		capType := tc.bindingType(cap.symID)
+		// A far handle moves in like an owned value: the body is the one
+		// holder of the lease from here on, and its scope exit gives it back.
+		if tc.isFarType(capType) {
+			tc.registerDroppableBinding(cap.symID)
+			continue
+		}
 		if !tc.isOwnType(capType) || !tc.paramTransfersOwnership(capType) {
 			continue
 		}
 		tc.registerDroppableBinding(cap.symID)
 	}
+}
+
+// checkAnchorLeaseUses enforces what the anchor of an `on far_handle` block is
+// inside the block: the receiver of its channel operation, and nothing else.
+//
+// The body reaches the channel through the owner-side pin, never through the
+// caller's handle; the handle is not shipped and the caller keeps its drop.
+// Reading the anchor as a VALUE inside the block -- binding it, passing it on,
+// returning it -- would give the body a second holder of a lease it does not
+// own, released twice or after the caller freed it.
+func (tc *typeChecker) checkAnchorLeaseUses(body ast.StmtID, frame onAnchorFrame) bool {
+	if !frame.anchorSym.IsValid() {
+		return true
+	}
+	receivers := make(map[ast.ExprID]struct{}, len(frame.remoteOps))
+	for i := range frame.remoteOps {
+		receivers[frame.remoteOps[i].ReceiverExpr] = struct{}{}
+	}
+	ok := true
+	tc.scanCapturedIdents(body, func(symID symbols.SymbolID, exprID ast.ExprID, span source.Span) {
+		if symID != frame.anchorSym {
+			return
+		}
+		if _, isReceiver := receivers[exprID]; isReceiver {
+			return
+		}
+		if ok {
+			tc.report(diag.SemaOnAnchorLeaseMisuse, span,
+				"the `on` block holds this handle as a lease for its channel operation only; "+
+					"it cannot be bound, passed on or returned inside the block -- the handle stays with the caller")
+		}
+		ok = false
+	})
+	return ok
 }
 
 // registerAsyncBodyOwnership is registerCrossingBodyOwnership for a local async

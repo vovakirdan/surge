@@ -12,16 +12,41 @@ type blockingCapture struct {
 	span   source.Span
 }
 
+// collectBlockingCaptures lists the enclosing-scope bindings a body mentions,
+// once each, at their first occurrence.
 func (tc *typeChecker) collectBlockingCaptures(stmtID ast.StmtID) []blockingCapture {
-	if tc == nil || tc.builder == nil || !stmtID.IsValid() {
-		return nil
+	seen := make(map[symbols.SymbolID]struct{})
+	var captures []blockingCapture
+	tc.scanCapturedIdents(stmtID, func(symID symbols.SymbolID, exprID ast.ExprID, span source.Span) {
+		if _, ok := seen[symID]; ok {
+			return
+		}
+		seen[symID] = struct{}{}
+		captures = append(captures, blockingCapture{
+			symID:  symID,
+			exprID: exprID,
+			span:   span,
+		})
+	})
+	return captures
+}
+
+// scanCapturedIdents visits EVERY identifier in the body that names a let,
+// const or parameter binding of an enclosing scope -- a capture candidate --
+// once per occurrence, in source order. collectBlockingCaptures keeps the
+// first occurrence of each; the anchor-lease check needs all of them, because
+// what it asks is where else the anchor is used.
+func (tc *typeChecker) scanCapturedIdents(
+	stmtID ast.StmtID,
+	visit func(symID symbols.SymbolID, exprID ast.ExprID, span source.Span),
+) {
+	if tc == nil || tc.builder == nil || !stmtID.IsValid() || visit == nil {
+		return
 	}
 	scopeSet := make(map[symbols.ScopeID]struct{}, len(tc.scopeStack))
 	for _, scope := range tc.scopeStack {
 		scopeSet[scope] = struct{}{}
 	}
-	seen := make(map[symbols.SymbolID]struct{})
-	var captures []blockingCapture
 
 	var scanExpr func(ast.ExprID)
 	var scanStmt func(ast.StmtID)
@@ -40,9 +65,6 @@ func (tc *typeChecker) collectBlockingCaptures(stmtID ast.StmtID) []blockingCapt
 			if !symID.IsValid() {
 				return
 			}
-			if _, ok := seen[symID]; ok {
-				return
-			}
 			sym := tc.symbolFromID(symID)
 			if sym == nil {
 				return
@@ -55,12 +77,7 @@ func (tc *typeChecker) collectBlockingCaptures(stmtID ast.StmtID) []blockingCapt
 			if _, ok := scopeSet[sym.Scope]; !ok {
 				return
 			}
-			seen[symID] = struct{}{}
-			captures = append(captures, blockingCapture{
-				symID:  symID,
-				exprID: exprID,
-				span:   expr.Span,
-			})
+			visit(symID, exprID, expr.Span)
 			return
 		case ast.ExprBinary:
 			if data, ok := tc.builder.Exprs.Binary(exprID); ok && data != nil {
@@ -267,7 +284,6 @@ func (tc *typeChecker) collectBlockingCaptures(stmtID ast.StmtID) []blockingCapt
 	}
 
 	scanStmt(stmtID)
-	return captures
 }
 
 func (tc *typeChecker) recordAsyncCaptures(exprID ast.ExprID, captures []blockingCapture) {

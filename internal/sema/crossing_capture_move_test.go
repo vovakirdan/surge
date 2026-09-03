@@ -57,6 +57,22 @@ fn f() -> int {
 	     + compare rb { Success(x) => x; Cancelled() => 0; };
 }`,
 		},
+		{
+			// A far handle captured into a NON-anchored crossing moves like an
+			// owned value: the body owns the lease from here on, and the caller
+			// reading the handle afterwards reads what it gave away. The move is
+			// observed AT THE CROSSING, which is what this body shape tests: a
+			// wildcard binding inside the body moves nothing sema can see, so a
+			// rule that relied on the body's own use marking the handle moved
+			// (the shape before RV2-DEBT-082 closed) accepts this program.
+			name: "far_handle_read_after_capture",
+			src: `fn f(ch: far Channel<int>) -> int {
+	let t: far Task<int> = spawn on distributed { let _ = ch; ret 0; };
+	let s: TaskResult<nothing> = on ch { ch.send(1); ret nothing; };
+	let got: TaskResult<int> = t.await();
+	return compare got { Success(x) => x; Cancelled() => 0; };
+}`,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -117,13 +133,35 @@ fn f() -> int {
 		},
 		{
 			// The anchored form USES the destination handle inside the body it
-			// was captured for. Far-handle captures are deliberately outside
-			// the move, and this is the row that fails if they are folded in:
+			// anchors. The anchor is not a capture: the caller keeps it and the
+			// body works through the owner-side pin, so it is neither moved nor
+			// registered as the body's to drop. This is the row that fails if
+			// far handles are folded into the move without that exception:
 			// every anchored channel operation would be rejected.
 			name: "anchored_far_channel_still_usable",
 			src: `fn f(ch: far Channel<int>) -> nothing {
 	let _ = on ch { ch.send(1); ret nothing; };
 	return nothing;
+}`,
+		},
+		{
+			// The anchor stays the caller's after the block: a second block on
+			// the same handle is legal, because a lease is not a move.
+			name: "anchor_still_usable_after_the_block",
+			src: `fn f(ch: far Channel<int>) -> nothing {
+	let _ = on ch { ch.send(1); ret nothing; };
+	let _ = on ch { ch.send(2); ret nothing; };
+	return nothing;
+}`,
+		},
+		{
+			// A far handle moved into a non-anchored body and never touched
+			// again by the caller: the ordinary move shape.
+			name: "far_handle_moved_into_body_untouched_after",
+			src: `fn f(ch: far Channel<int>) -> int {
+	let t: far Task<int> = spawn on distributed { let held = ch; ret 0; };
+	let got: TaskResult<int> = t.await();
+	return compare got { Success(x) => x; Cancelled() => 0; };
 }`,
 		},
 	}
@@ -132,6 +170,43 @@ fn f() -> int {
 			codes := onCrossingCodes(t, tc.src)
 			if len(codes) != 0 {
 				t.Fatalf("a legal capture shape was rejected: %v", codes)
+			}
+		})
+	}
+}
+
+// The anchor of an `on far_handle` block is a lease, and inside the block it
+// may only be the receiver of the block's channel operation. Binding it,
+// passing it on or returning it would hand the body a second holder of a
+// lease it does not own -- released twice, or after the caller freed the
+// handle. Until this test existed `let held = ch;` inside `on ch` compiled
+// without a word (RV2-DEBT-082).
+func TestAnchorLeaseMisuseIsRejected(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+	}{
+		{
+			name: "anchor_bound_inside_block",
+			src: `fn f(ch: far Channel<int>) -> nothing {
+	let _ = on ch { ch.send(1); let held = ch; ret nothing; };
+	return nothing;
+}`,
+		},
+		{
+			name: "anchor_passed_on_inside_block",
+			src: `fn take(h: far Channel<int>) -> nothing { return nothing; }
+fn f(ch: far Channel<int>) -> nothing {
+	let _ = on ch { ch.send(1); take(ch); ret nothing; };
+	return nothing;
+}`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			codes := onCrossingCodes(t, tc.src)
+			if !codes["SEM3210"] {
+				t.Fatalf("expected the anchor-lease misuse diagnostic, got %v", codes)
 			}
 		})
 	}

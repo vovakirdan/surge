@@ -87,7 +87,14 @@ func (l *funcLowerer) lowerCrossingExpr(e *hir.Expr, consume bool) (Operand, err
 		// rather than transfers. Blocking captures have always read this way
 		// (`captureOperand`); the two mechanisms disagreed, and this settles it
 		// in favour of the one that was right.
-		capOp, err := l.lowerExpr(data.Captures[i].Value, true)
+		//
+		// The one exception is the block's own anchor: a LEASE, not a value.
+		// The caller keeps the handle, the body reaches the channel through
+		// the owner-side pin and never dereferences or drops its copy of the
+		// token, so the read borrows -- a consuming read here would end the
+		// caller's binding for a handle it still owns.
+		consume := data.Captures[i].Mode != sema.CrossingCaptureAnchorLease
+		capOp, err := l.lowerExpr(data.Captures[i].Value, consume)
 		if err != nil {
 			return Operand{}, err
 		}

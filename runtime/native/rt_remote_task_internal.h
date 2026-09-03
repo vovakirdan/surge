@@ -104,6 +104,12 @@ struct rt_remote_task_pending {
     // Anchored blocks only: the local channel resolved atomically with the
     // dispatch-time pin; valid until the reply-edge unpin.
     void* anchored_channel;
+    // Anchored blocks only: whether this pending currently holds the pin
+    // rt_far_channel_pin took on the anchor. Every path that gives the pin
+    // back goes through rt_immediate_on_anchor_unpin, which clears it, so a
+    // second call on the same pending is a no-op rather than a second
+    // decrement, and a pending that never pinned never unpins.
+    uint8_t anchor_pinned;
     // Remote select only: the arm table copied at request time (owned by the
     // pending, freed with it); channels filled by the dispatch-time pins.
     rt_far_channel_select_arm* select_arms;
@@ -244,6 +250,8 @@ uint32_t rt_immediate_on_source_shard(const rt_task* current);
 rt_remote_task_status
 rt_immediate_on_finish_retry(rt_remote_task_pending** slot, uint8_t* out_kind, void* out_dst);
 void rt_immediate_on_cancel_inflight(rt_executor* ex, rt_remote_task_pending* pending);
+// Gives back an anchored pending's pin on its anchor, once (see anchor_pinned).
+void rt_immediate_on_anchor_unpin(rt_executor* ex, rt_remote_task_pending* pending);
 // The reply that NAMES a task result rather than carrying one. `result_source`
 // may be NULL for replies that carry no value at all.
 void rt_remote_task_reply_or_finish_with_result(rt_executor* ex,

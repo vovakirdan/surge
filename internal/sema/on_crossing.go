@@ -68,7 +68,7 @@ func (tc *typeChecker) typeExprOn(id ast.ExprID, span source.Span) types.TypeID 
 	// function, and the body owns what moved into it — the caller's binding is
 	// marked moved by checkOnCaptures, so nobody else will release it.
 	tc.pushDropScope(true)
-	tc.registerCrossingBodyOwnership(data.Body)
+	tc.registerCrossingBodyOwnership(data.Body, frame.anchorSym)
 	tc.walkStmt(data.Body)
 	tc.popDropScope()
 	last := len(tc.onCrossingStack) - 1
@@ -77,10 +77,15 @@ func (tc *typeChecker) typeExprOn(id ast.ExprID, span source.Span) types.TypeID 
 	tc.onCrossingStack = tc.onCrossingStack[:last]
 	tc.popReturnContext()
 
-	// ON-CAP rows: capture legality across the crossing boundary.
-	captures, capturesOK := tc.checkOnCaptures(data.Body)
+	// ON-CAP rows: capture legality across the crossing boundary. The anchor
+	// of a far-handle destination is leased, not captured, and may only be
+	// the receiver of the block's channel operation.
+	captures, capturesOK := tc.checkOnCaptures(data.Body, frame.anchorSym)
 	if destInfo.Kind == CrossingDestinationFarHandle &&
 		!tc.checkAnchoredBodyShape(data.Body, frame.remoteOps) {
+		siteOK = false
+	}
+	if destInfo.Kind == CrossingDestinationFarHandle && !tc.checkAnchorLeaseUses(data.Body, frame) {
 		siteOK = false
 	}
 	if !capturesOK {

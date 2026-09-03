@@ -59,9 +59,7 @@ void rt_remote_task_reply_owner_done(rt_executor* ex,
                                                    RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION);
     } else if (pending->op == RT_REMOTE_TASK_OP_EXECUTE ||
                pending->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED) {
-        if (pending->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED) {
-            rt_far_channel_unpin(ex, &pending->anchor);
-        }
+        rt_immediate_on_anchor_unpin(ex, pending);
         rt_result_source execute_source = rt_remote_task_pin_result(task);
         rt_remote_task_reply_or_finish_with_result(ex,
                                                    pending,

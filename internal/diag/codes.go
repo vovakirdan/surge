@@ -846,6 +846,7 @@ var ( // todo расширить описания и использовать к
 		SemaOnBodyMissingRet:               "an `on` crossing block must produce its value with `ret`",
 		SemaOnResultTaskResult:             "`on` evaluates to `TaskResult<T>`, not `T`",
 		SemaOnAnchorUnproven:               "this remote handle is not anchored by the current `on` destination",
+		SemaOnAnchorLeaseMisuse:            "the `on` block holds this handle as a lease for its channel operation only",
 		SemaOnTcpRemoteIO:                  "remote socket I/O through `far TcpConn` is not supported yet",
 		SemaOnSuspendContext:               "`on` is allowed only where suspension is legal",
 		SemaOnNested:                       "nested `on` crossing blocks are not allowed",

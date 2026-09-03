@@ -93,6 +93,15 @@ func (e *Emitter) typeOwnsHeapRec(id types.TypeID, seen map[types.TypeID]struct{
 	if isTaskType(e.types, id) {
 		return true
 	}
+	// A far channel handle holds a lease on the owner shard's registry entry,
+	// and giving it back is `rt_far_channel_handle_drop` -- the same release
+	// the scope-exit drop of a far LOCAL has always reached. Until this arm
+	// existed the walk answered NO here, so a composite holding a far handle
+	// got a body that reclaimed nothing and the lease outlived its holder
+	// (RV2-DEBT-198's far half).
+	if isFarChannelType(e.types, id) {
+		return true
+	}
 	// A map owns its entry storage and every key and value in it, and until
 	// this arm existed it answered NO: no glue was emitted, so a dropped map
 	// reclaimed nothing at all and neither did a struct holding one
@@ -252,6 +261,13 @@ func (e *Emitter) emitDropHandle(val string, ty types.TypeID) {
 		// cancelled: the task finishes on its own, and the last reference on
 		// a finished task is what frees it and the result nobody took.
 		fmt.Fprintf(&e.buf, "  call void @rt_task_handle_drop(ptr %s)\n", val)
+		return
+	}
+	if isFarChannelType(e.types, ty) {
+		// The holder gives back its lease on the owner shard's registry
+		// entry and frees the token; the entry itself goes when the last
+		// lease does. The same call the scope-exit drop of a far local makes.
+		fmt.Fprintf(&e.buf, "  call void @rt_far_channel_handle_drop(ptr %s)\n", val)
 	}
 }
 

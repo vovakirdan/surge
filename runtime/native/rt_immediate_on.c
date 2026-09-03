@@ -204,6 +204,19 @@ rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
     return status;
 }
 
+// Gives back the pin an anchored pending holds on its anchor, once. Every
+// path that ends the block's claim on the channel -- the three dispatch
+// refusals, the reply edge -- calls this rather than rt_far_channel_unpin
+// directly, so the pin is dropped exactly as many times as it was taken
+// whichever of them runs, and a pending that never pinned drops nothing.
+void rt_immediate_on_anchor_unpin(rt_executor* ex, rt_remote_task_pending* pending) {
+    if (pending == NULL || pending->anchor_pinned == 0) {
+        return;
+    }
+    pending->anchor_pinned = 0;
+    rt_far_channel_unpin(ex, &pending->anchor);
+}
+
 static int immediate_on_request_matches(const rt_transport_msg* msg,
                                         const rt_remote_task_pending* pending) {
     return msg != NULL && pending != NULL && msg->route_id == pending->request_id &&
@@ -239,6 +252,7 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
             immediate_on_answer(ex, pending, RT_REMOTE_TASK_STATUS_STALE_TOKEN);
             return;
         }
+        pending->anchor_pinned = 1;
     }
     rt_task* task = NULL;
     rt_remote_spawn_status created = rt_remote_spawn_create_body_task(ex,
@@ -248,9 +262,7 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
                                                                       pending->result_type_id,
                                                                       &task);
     if (created != RT_REMOTE_SPAWN_STATUS_OK) {
-        if (pending->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED) {
-            rt_far_channel_unpin(ex, &pending->anchor);
-        }
+        rt_immediate_on_anchor_unpin(ex, pending);
         immediate_on_answer(ex, pending, RT_REMOTE_TASK_STATUS_REFUSED);
         return;
     }
@@ -261,9 +273,7 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
     pthread_mutex_lock(&state->lock);
     if (pending->status != RT_REMOTE_TASK_STATUS_PENDING) {
         pthread_mutex_unlock(&state->lock);
-        if (pending->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED) {
-            rt_far_channel_unpin(ex, &pending->anchor);
-        }
+        rt_immediate_on_anchor_unpin(ex, pending);
         rt_remote_spawn_free_unpublished_task(ex, task);
         rt_remote_task_pending_release(pending);
         return;
@@ -287,9 +297,7 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
     RT_SYNC_POINT(SP_IMMEDIATE_ON_BEFORE_PUBLISH);
     rt_remote_spawn_status published = rt_remote_spawn_publish_body_task(ex, task);
     if (published != RT_REMOTE_SPAWN_STATUS_OK) {
-        if (pending->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED) {
-            rt_far_channel_unpin(ex, &pending->anchor);
-        }
+        rt_immediate_on_anchor_unpin(ex, pending);
         rt_remote_task_pending_set_owner_registered(pending, 0);
         task_release_lane_aware(ex, task);
         rt_remote_spawn_free_unpublished_task(ex, task);
