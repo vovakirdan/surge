@@ -13477,3 +13477,26 @@ charge moved to the bind. Noted and not fixed: the sweep's non-pins branch
 severs a registration without releasing the registration's task reference,
 so that body task leaks at process exit -- the same class as the parked
 pin, recorded under RV2-DEBT-322's residual.
+
+### F5, the wave's own debts, re-taken (2026-09-03)
+
+The plan's list: 031, 056, 062, 080, 082, 125, 126, 133. Three closed
+earlier in this closeout on their own evidence: 031 (E4, the reply
+reservation and the park), 062 (E4, the far-select cancel copy control
+re-taken to strict zero), 082 (E3, the far handle's one owner). This pass:
+
+- **056** -- re-measured, not fixed: the three-element `Foo[]` literal with
+  a string field reads 0 bytes in 0 blocks under valgrind on LLVM, against
+  the 48 in 3 the row recorded; `TestRuntimeV2StructArrayElementsReclaimed`
+  is the leaf row (strict zero, memcheck clean). Closed by the fact, with no
+  commit to name, and the row says so.
+- **080** -- the rework of 2026-08-26 (a-1..a-4) closed on "the lead's green
+  run" of its valgrind and lifecycle rows, which sit in
+  `runtime-v2-heap-check` and `runtime-v2-lifecycle-check`; W8 has read
+  5/5 on every integration point since, the freeze candidate included.
+  Closed; the two shutdown-exit residues stay under 322's residual.
+- **133** -- the rows its 2026-08-26 text called open had landed after it
+  was written (the entitlement cancel/shutdown/stale rows on 08-28 and
+  09-01, the exact-drop behaviour rows, the far-routed result capability
+  in E2). Closed with the list.
+- **125** and **126** are F3 and F8 respectively and are not touched here.
