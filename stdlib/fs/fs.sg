@@ -9,8 +9,8 @@ fn fs_error(code: uint, msg: string) -> FsError {
 
 fn dir_entry_copy(entry: &DirEntry) -> DirEntry {
     return {
-        name: entry.name.__clone(),
-        path: entry.path.__clone(),
+        name: clone(entry.name),
+        path: clone(entry.path),
         file_type: entry.file_type
     };
 }
@@ -376,7 +376,7 @@ pub fn tail(path: string, n: uint) -> Erring<byte[], FsError> {
     compare meta_res {
         Success(meta) => {
             if meta.size <= n {
-                out_res = read_to_bytes(path.__clone());
+                out_res = read_to_bytes(clone(path));
             } else {
                 let opened = rt_fs_open(&path, FS_O::READ);
                 compare opened {
@@ -445,7 +445,7 @@ fn walkdir_collect(root: &string, out: &mut DirEntry[]) -> nothing {
                 let is_dir: bool = e.file_type == FileTypes::DIR;
                 let mut sub_path: string = "";
                 if is_dir {
-                    sub_path = e.path.__clone();
+                    sub_path = clone(e.path);
                 }
                 // `e` is the loop's read of an entry `sorted` still owns:
                 // pushing it would leave the same words in both arrays.

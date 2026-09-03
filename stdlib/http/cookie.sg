@@ -237,12 +237,12 @@ fn serialize_set_cookie(cookie: &SetCookie) -> Erring<string, HttpError> {
         return http_error(HTTP_ERR_HEADER, "invalid cookie SameSite");
     }
 
-    let mut out: string = cookie.name.__clone() + "=" + cookie.value.__clone();
+    let mut out: string = clone(cookie.name) + "=" + clone(cookie.value);
     if cookie.path.__len() != 0:uint {
-        out = out + "; Path=" + cookie.path.__clone();
+        out = out + "; Path=" + clone(cookie.path);
     }
     if cookie.domain.__len() != 0:uint {
-        out = out + "; Domain=" + cookie.domain.__clone();
+        out = out + "; Domain=" + clone(cookie.domain);
     }
     if cookie.max_age >= 0 {
         out = out + "; Max-Age=" + (cookie.max_age to string);
@@ -254,7 +254,7 @@ fn serialize_set_cookie(cookie: &SetCookie) -> Erring<string, HttpError> {
         out = out + "; HttpOnly";
     }
     if cookie.same_site.__len() != 0:uint {
-        out = out + "; SameSite=" + cookie.same_site.__clone();
+        out = out + "; SameSite=" + clone(cookie.same_site);
     }
     return Success(out);
 }

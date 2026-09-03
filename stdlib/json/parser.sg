@@ -1077,7 +1077,7 @@ pub fn parse_bytes(input: byte[]) -> Erring<JsonValue, JsonError> {
 }
 
 pub fn parse(input: &string) -> Erring<JsonValue, JsonError> {
-    let bytes: byte[] = input.__clone() to byte[];
+    let bytes: byte[] = clone(input) to byte[];
     return parse_bytes(bytes);
 }
 

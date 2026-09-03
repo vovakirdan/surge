@@ -4,7 +4,7 @@ type Entry = {
 
 fn add_borrower(entry: &mut Entry, client_id: &string) -> nothing {
     if !entry.borrowers.contains(client_id) {
-        entry.borrowers.push(client_id.__clone());
+        entry.borrowers.push(clone(client_id));
     }
     return nothing;
 }

@@ -24,7 +24,7 @@ pub contract JsonEncodable<T> {
 
 extern<string> {
     pub fn to_json(self: &string) -> JsonValue {
-        return JsonString(self.__clone());
+        return JsonString(clone(self));
     }
 }
 
@@ -60,11 +60,11 @@ fn json_clone(value: &JsonValue) -> JsonValue {
             0:int;
         }
         JsonNumber(text) => {
-            out_val = JsonNumber(text.__clone());
+            out_val = JsonNumber(clone(text));
             0:int;
         }
         JsonString(text) => {
-            out_val = JsonString(text.__clone());
+            out_val = JsonString(clone(text));
             0:int;
         }
         JsonArray(values) => {

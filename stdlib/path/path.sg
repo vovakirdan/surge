@@ -3,18 +3,18 @@
 
 pub fn join(a: &string, b: &string) -> string {
     if b.__len() == 0:uint {
-        return a.__clone();
+        return clone(a);
     }
     if a.__len() == 0:uint {
-        return b.__clone();
+        return clone(b);
     }
     if b.starts_with("/") {
-        return b.__clone();
+        return clone(b);
     }
     if a.ends_with("/") {
-        return a.__clone() + b.__clone();
+        return clone(a) + clone(b);
     }
-    return a.__clone() + "/" + b.__clone();
+    return clone(a) + "/" + clone(b);
 }
 
 pub fn basename(p: &string) -> string {
@@ -120,19 +120,19 @@ pub fn normalize(p: &string) -> string {
                     if last == ".." {
                         let _ = stack.push(last);
                         if !abs {
-                            let _ = stack.push(part.__clone());
+                            let _ = stack.push(clone(part));
                         }
                     }
                 }
                 nothing => {
                     if !abs {
-                        let _ = stack.push(part.__clone());
+                        let _ = stack.push(clone(part));
                     }
                 }
             };
             continue;
         }
-        let _ = stack.push(part.__clone());
+        let _ = stack.push(clone(part));
     }
 
     let count: int = stack.__len() to int;

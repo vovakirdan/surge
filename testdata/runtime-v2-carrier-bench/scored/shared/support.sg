@@ -312,7 +312,7 @@ pub fn emit_result(
     allocations: uint64,
 ) -> nothing {
     let output: string = "SURGE_CARRIER_BENCH {\"schema_version\":1"
-        + ",\"probe\":\"" + probe.__clone() + "\""
+        + ",\"probe\":\"" + clone(probe) + "\""
         + ",\"operations\":64"
         + ",\"elapsed_ns\":" + (elapsed_ns to string)
         + ",\"operation_latencies_ns\":" + render_latencies(samples)

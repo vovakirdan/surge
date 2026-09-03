@@ -258,7 +258,7 @@
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/shared/support.sg",
-      "sha256": "2e2755c5808cc8a924df1f60a07949b37d98fcff8ddc1dfcd5830c562f04117c"
+      "sha256": "a9bcf89607feed35145cb73d99182f7a83d7b190e35ad6d3a39dd4a5a2b52587"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/task-composite/main.sg",

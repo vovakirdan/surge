@@ -22,9 +22,9 @@ fn main() -> int {
         let nested = &entry;
         print(entry.key + "=" + entry.value);
         print(";");
-        print(key.__clone());
+        print(clone(key));
         print(";");
-        print(nested.key.__clone() + "=" + nested.value.__clone());
+        print(clone(nested.key) + "=" + clone(nested.value));
         print("\n");
         i = i + 1;
     }

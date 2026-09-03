@@ -226,13 +226,13 @@ extern<Context> {
     }
 
     pub fn text(self: &mut Context, status: int, body: &string) -> nothing {
-        self.bytes(status, body.__clone() to byte[]);
+        self.bytes(status, clone(body) to byte[]);
         context_set_content_type(self, "text/plain; charset=utf-8");
         return nothing;
     }
 
     pub fn html(self: &mut Context, status: int, body: &string) -> nothing {
-        self.bytes(status, body.__clone() to byte[]);
+        self.bytes(status, clone(body) to byte[]);
         context_set_content_type(self, "text/html; charset=utf-8");
         return nothing;
     }
