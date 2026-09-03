@@ -226,8 +226,8 @@ rt_transport_push_locked(rt_transport_state* state, const rt_transport_msg* msg,
         if (control) {
             state->control_reserve_stalls++;
         } else {
-            state->data_credit_stalls++;
-            rt_carrier_bench_record_credit_stall();
+            state->data_slot_stalls++;
+            rt_carrier_bench_record_data_slot_stall();
         }
         return RT_TRANSPORT_STATUS_QUEUE_FULL;
     }
@@ -253,8 +253,8 @@ rt_transport_status rt_transport_reserve_reply_slot_locked(rt_transport_state* s
         return RT_TRANSPORT_STATUS_INVALID_ARGUMENT;
     }
     if (state->data_len + state->reply_reserved >= RT_TRANSPORT_DATA_SLOT_CREDITS) {
-        state->data_credit_stalls++;
-        rt_carrier_bench_record_credit_stall();
+        state->data_slot_stalls++;
+        rt_carrier_bench_record_data_slot_stall();
         return RT_TRANSPORT_STATUS_QUEUE_FULL;
     }
     state->reply_reserved++;

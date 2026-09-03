@@ -158,13 +158,13 @@ int rtb_mode_anchored_saturation_parks(void) {
             "saturation: parks=%llu wakes=%llu data_stalls=%llu/%llu reserved=%zu/%zu\n",
             (unsigned long long)destination.data_admission_parks,
             (unsigned long long)destination.data_admission_wakes,
-            (unsigned long long)source.data_credit_stalls,
-            (unsigned long long)destination.data_credit_stalls,
+            (unsigned long long)source.data_slot_stalls,
+            (unsigned long long)destination.data_slot_stalls,
             source.reply_reserved,
             destination.reply_reserved);
     // The saturated lane refused a data envelope, so the data budget must say
     // so; the reserve must not, because no volume of data traffic may spend it.
-    if (source.data_credit_stalls + destination.data_credit_stalls == 0) {
+    if (source.data_slot_stalls + destination.data_slot_stalls == 0) {
         return rtb_fail("saturated data budget recorded no slot-credit stall");
     }
     if (destination.data_admission_parks != 1) {

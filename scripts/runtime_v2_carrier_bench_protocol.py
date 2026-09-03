@@ -38,7 +38,7 @@ class LivenessRecord:
     probe_id: str
     status: str
     syncpoint: str | None
-    credit_balance: int | None
+    reply_reserved: int | None
     peak_transport_bytes: int | None
     park_transitions: int | None
     reason: str | None = None
@@ -77,7 +77,7 @@ def _parse_liveness_record(
         "nonce",
         "protocol_sha256",
         "syncpoint",
-        "credit_balance",
+        "reply_reserved",
         "peak_transport_bytes",
         "park_transitions",
         "error",
@@ -101,8 +101,8 @@ def _parse_liveness_record(
         or raw["syncpoint"] != probe.syncpoint
     ):
         raise GateFailure(f"liveness probe {probe.probe_id} identity/status mismatch")
-    credit_balance = _non_negative_integer(
-        raw["credit_balance"], f"{probe.probe_id}.credit_balance"
+    reply_reserved = _non_negative_integer(
+        raw["reply_reserved"], f"{probe.probe_id}.reply_reserved"
     )
     peak = _non_negative_integer(
         raw["peak_transport_bytes"], f"{probe.probe_id}.peak_transport_bytes"
@@ -110,10 +110,10 @@ def _parse_liveness_record(
     parks = _non_negative_integer(
         raw["park_transitions"], f"{probe.probe_id}.park_transitions"
     )
-    if credit_balance != probe.expected_credit_balance:
+    if reply_reserved != probe.expected_reply_reserved:
         raise GateFailure(
-            f"liveness probe {probe.probe_id} credit balance {credit_balance}, "
-            f"want {probe.expected_credit_balance}"
+            f"liveness probe {probe.probe_id} credit balance {reply_reserved}, "
+            f"want {probe.expected_reply_reserved}"
         )
     # `peak` is READ AND RECORDED but no longer bounded. The window it used to
     # be checked against was derived from a payload size plus a per-message
@@ -130,7 +130,7 @@ def _parse_liveness_record(
         probe_id=probe.probe_id,
         status="passed",
         syncpoint=probe.syncpoint,
-        credit_balance=credit_balance,
+        reply_reserved=reply_reserved,
         peak_transport_bytes=peak,
         park_transitions=parks,
     )

@@ -12760,6 +12760,24 @@ the campaign's final count and on that differential; the wave's freeze
 condition (§1.8, the campaign) is not met by a 3.5 % red whatever its
 provenance, and the fix runs through the open scope-serializer decision.
 
+**The queue's tail, read after it ended (05:51).** W8 ×2 after the
+campaign: green, 1704 s. `rate312`: `pass=200 fail=0 of_attempted=200`,
+1719 s -- 200 iterations of `http-owner-check` at `SURGE_SHARDS=8` on the
+box alone, with the live `SIGUSR1` dump armed for the first red, and no red
+came. RV2-DEBT-312 has no named mechanism (311 was withdrawn), so this is
+the plan's stop №2 and the question is the owner's: close 312 as not
+reproduced in 200 (with the return condition "a red on this instrument
+reopens it"), or keep it Open. The row is not changed here. **The two
+re-done rows** (`queue_topo.sh` over `TestRuntimeV2*` at 1×8 and 8×8,
+`queue_tagged.sh` as the tagged package without a backend override plus the
+`TestRuntimeV2*` family under llvm) are still queued behind the Wave E
+counts and land here when they finish. **And the scope serializer is
+decided**: the owner's Р6 ruling of 2026-09-03 (owner-shard lane; a
+cross-owner child completion is a generation-qualified scope event on the
+owner shard's existing inbound path; no scope mailbox; the atomic word is
+not the serializer) is what the DEBT-261/263/280 fix is built against, and
+the freeze of Wave D's candidate waits on that fix and a green campaign.
+
 ### E1, the splits before the change (2026-09-03)
 
 Wave E rewrites the far channel and the transport, and the file-size gate
@@ -13187,6 +13205,55 @@ frozen six-metric contract, the manifest's numbers and the two deferred
 liveness probes are untouched until the owner says which of (a) keep the
 old windows, (b) re-pin them to the measured one-unit peaks, (c) drop the
 byte assertions and keep slots, they want.
+
+**The owner's answer (2026-09-03): (c), and the reasoning is the ruling.**
+"Carrier benchmark manifest no longer asserts payload-derived transport byte
+windows or byte-credit stall counts for Epic 23b slot transport.
+`peak_transport_bytes` and physical move counters remain reported
+telemetry. Acceptance gates slot occupancy, lifecycle balance, ownership
+correctness and deterministic liveness. Contention is proven by dedicated
+deterministic stands. Payload-byte/jumbo resource bounds return only with
+the future transport-owned-buffer protocol." Why not (b): 8424/4328/320 are
+the current pipeline shape, not a contract; two admitted records resident
+at once would read as a regression under them. Why the names go too: a
+manifest that drops the byte model but keeps `credit_stalls`,
+`expected_credit_balance` and `far-jumbo-contention` has kept the dead
+model in its vocabulary. E5 was not a failed experiment: it showed three
+"metrics" were structural zeros and accidental numbers.
+
+**What landed for it.** The manifest loses every invariant on a
+runtime-exit metric -- 114 row invariants (`credit_stalls eq`, the
+`peak_transport_bytes` windows, `bytes_moved`/`callback_count`/
+`bytes_copied eq`) and the one cross-row `bytes_moved` proportion -- and
+the loader now REFUSES one ("reported telemetry and not a gate"); the five
+metrics stay required, parsed and written to the report. The transport
+byte budget block (`data_bytes`, `control_bytes`, `jumbo_threshold_bytes`,
+`max_inline_overhead_bytes`) is gone from the manifest, the model, the
+report and the runner's environment (nothing in the runtime ever read the
+four variables). Renamed: `credit_stalls` → `data_slot_stalls` (the bench
+bridge, its JSON record, the counter matrix test, the transport's own
+`data_credit_stalls` beside it), `far-jumbo-contention` →
+`far-large-payload-contention` (row, probe, fixture directory),
+`jumbo-credit-cancel`/`jumbo-global-shutdown` →
+`large-payload-park-cancel`/`-shutdown`, `expected_credit_balance` →
+`expected_reply_reserved` (the slot-model invariant the probe actually has:
+every reply-slot reservation given back). The manifest file test that
+pinned the jumbo row's three exact byte numbers now pins the opposite: the
+five runtime-exit metrics are required everywhere and gated nowhere. The
+carrier-liveness intrinsics keep their `jumbo` spelling: they name a large
+payload's admission, not a byte credit, and are wired into the compiler.
+Harness digests re-taken for the edited files; the fixture digests for the
+renamed directory and the renamed probes likewise.
+
+**What it means for E6's three numeric rows.** They are not numeric rows any
+more. "Two producers at an exhausted DATA lane, the second parks" is E4's
+`anchored-saturation-parks-the-producer-and-a-freed-slot-wakes-it`
+(`parks=1 wakes=1`, the window reached once) with its Rule-13 control; an
+oversized reply and an under-budget mutant presuppose a byte budget there
+is no longer a model for, and stay out until a transport-owned buffer
+exists. The two deferred liveness probes keep waiting on
+`SP_TRANSPORT_DATA_SLOT_TASK_PARKED`, which E4 armed; making them live is a
+harness task the owner's answer now permits, and it is not this pass.
 
 **Stands and controls.** `resident-bytes-of-one-crossing-are-exact-and-
 given-back` (behaviour table, 2×2): one immediate execute with a typed 8-byte

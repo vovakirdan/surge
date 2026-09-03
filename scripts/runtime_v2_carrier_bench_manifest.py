@@ -31,7 +31,6 @@ from runtime_v2_carrier_bench_model import (
     Row,
     Side,
     StrictJSONError,
-    TransportBudget,
     strict_json_loads,
 )
 from runtime_v2_carrier_bench_manifest_validation import validate_manifest
@@ -63,7 +62,6 @@ def load_manifest(path: Path) -> Manifest:
             "epic_base",
             "reference_host",
             "protocol",
-            "transport_budget",
             "backend",
             "profile",
             "shards",
@@ -83,7 +81,6 @@ def load_manifest(path: Path) -> Manifest:
         epic_base=_commit(root["epic_base"], "epic_base"),
         reference=_reference(root["reference_host"]),
         protocol=_protocol(root["protocol"]),
-        transport=_transport_budget(root["transport_budget"]),
         backend=_choice(root["backend"], "backend", {"llvm"}),
         profile=_choice(root["profile"], "profile", {"release"}),
         shards=_integer(root["shards"], "shards", 1),
@@ -173,34 +170,9 @@ def _protocol(raw: Any) -> Protocol:
     return protocol
 
 
-def _transport_budget(raw: Any) -> TransportBudget:
-    obj = _object(raw, "transport_budget")
-    _keys(
-        obj,
-        "transport_budget",
-        {
-            "data_bytes",
-            "control_bytes",
-            "jumbo_threshold_bytes",
-            "max_inline_overhead_bytes",
-        },
-    )
-    return TransportBudget(
-        data_bytes=_integer(obj["data_bytes"], "transport_budget.data_bytes", 1),
-        control_bytes=_integer(
-            obj["control_bytes"], "transport_budget.control_bytes", 1
-        ),
-        jumbo_threshold_bytes=_integer(
-            obj["jumbo_threshold_bytes"],
-            "transport_budget.jumbo_threshold_bytes",
-            1,
-        ),
-        max_inline_overhead_bytes=_integer(
-            obj["max_inline_overhead_bytes"],
-            "transport_budget.max_inline_overhead_bytes",
-            0,
-        ),
-    )
+# No transport byte budget: the slot transport owns no bytes to budget (owner
+# rulings 2026-08-29 and 2026-09-03), and the four SURGE_CARRIER_BENCH_*_BYTES
+# environment variables the runner used to export were read by nothing.
 
 
 def _rows(raw: Any) -> tuple[Row, ...]:
@@ -395,7 +367,7 @@ def _liveness_probes(raw: Any) -> tuple[LivenessProbe, ...]:
         "probe",
         "syncpoint",
         "timeout_seconds",
-        "expected_credit_balance",
+        "expected_reply_reserved",
         "expected_park_transitions",
         "wave_a",
         "final",
@@ -413,9 +385,9 @@ def _liveness_probes(raw: Any) -> tuple[LivenessProbe, ...]:
                 timeout_seconds=_integer(
                     item["timeout_seconds"], f"{label}.timeout_seconds", 1
                 ),
-                expected_credit_balance=_integer(
-                    item["expected_credit_balance"],
-                    f"{label}.expected_credit_balance",
+                expected_reply_reserved=_integer(
+                    item["expected_reply_reserved"],
+                    f"{label}.expected_reply_reserved",
                     0,
                 ),
                 expected_park_transitions=_integer(

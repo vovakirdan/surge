@@ -139,7 +139,7 @@ typedef struct rt_transport_state {
     uint64_t far_channel_share_replies;
     uint64_t far_channel_select_requests;
     uint64_t far_channel_select_replies;
-    uint64_t data_credit_stalls;
+    uint64_t data_slot_stalls;
     uint64_t control_reserve_stalls;
     uint64_t unsupported_fallback_attempts;
     uint64_t transport_wake_writes;
@@ -180,7 +180,7 @@ struct rt_transport_debug_snapshot {
     uint64_t far_channel_share_replies;
     uint64_t far_channel_select_requests;
     uint64_t far_channel_select_replies;
-    uint64_t data_credit_stalls;
+    uint64_t data_slot_stalls;
     uint64_t control_reserve_stalls;
     uint64_t unsupported_fallback_attempts;
     uint64_t transport_wake_writes;

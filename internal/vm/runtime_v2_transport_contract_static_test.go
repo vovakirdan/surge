@@ -104,7 +104,7 @@ _Static_assert(sizeof(((struct rt_transport_debug_snapshot*)0)->transport_wake_e
 _Static_assert(sizeof(((struct rt_transport_debug_snapshot*)0)->shutdown_wakes) ==
                    sizeof(uint64_t),
                "shutdown transport wakes must be counted separately");
-_Static_assert(sizeof(((struct rt_transport_debug_snapshot*)0)->data_credit_stalls) ==
+_Static_assert(sizeof(((struct rt_transport_debug_snapshot*)0)->data_slot_stalls) ==
                    sizeof(uint64_t),
                "a refused data envelope must be counted, not merely returned");
 _Static_assert(sizeof(((struct rt_transport_debug_snapshot*)0)->control_reserve_stalls) ==

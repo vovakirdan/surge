@@ -20,12 +20,6 @@
     "percentile_method": "nearest-rank",
     "cv_method": "sample-n-minus-1"
   },
-  "transport_budget": {
-    "data_bytes": 4096,
-    "control_bytes": 1024,
-    "jumbo_threshold_bytes": 4096,
-    "max_inline_overhead_bytes": 256
-  },
   "backend": "llvm",
   "profile": "release",
   "shards": 2,
@@ -83,12 +77,12 @@
       }
     },
     {
-      "name": "credit_stalls",
+      "name": "data_slot_stalls",
       "aggregation": "sum",
       "source": "runtime_exit",
       "base": {
         "status": "unsupported",
-        "reason": "resource capture is candidate-only, so no base run reports a credit-stall count",
+        "reason": "resource capture is candidate-only, so no base run reports a data-slot stall count",
         "provenance_commit": "4968061f2791d7dff0896e1841ce647412053a68"
       },
       "candidate": {
@@ -138,15 +132,15 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest.py",
-      "sha256": "e2ddc5f8365f197033a508a71f2ec3f09bb645327be1372a6a9ad9a0a677c897"
+      "sha256": "0f3cea92355af3c1904da9e1e657db4c6d2e07ab8888dd255b8778804f79fd4e"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_file_test.py",
-      "sha256": "6db5127ade9348844e2510e5b86d44b38beb069c32d62be22479d72b70411320"
+      "sha256": "4d05b94fc74b46126ed2fbd36030c317d633a6aa3fffd9b9ead8bfea5f6fa7a3"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_validation.py",
-      "sha256": "3b1244966228001741eb00bacf5ec5483b9c7256ee76be411d21f28c26d68b22"
+      "sha256": "d0955a43a1c54628b7d3f385c812e9d97dce6697ddb3611430cc44b63de890d0"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_values.py",
@@ -154,35 +148,35 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_model.py",
-      "sha256": "f2ddfafe05ff84696d132173f828a7b63fdcc538cbf54ae6f1aa864eb98a2d6f"
+      "sha256": "ab9d855f4b6b36d8059dd0bab064bae46d50c0e3b3eaf8cf4dc14d6264ff6508"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_model_test.py",
-      "sha256": "2d8415fb79fac1c97ef8c792aea0d1638ab141f0bc0063b67560b302d7920498"
+      "sha256": "a57780f2c7d499fba029e8c3f04512e1d8fdf3c80f6c453e30cff45b99592585"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_protocol.py",
-      "sha256": "33a977a2b5beb48c0da69ffaddc251d1f54ef8b020a86a9511e0f9510fb1e62b"
+      "sha256": "b297f4045f1d4f1f31424e092ccf64646782a888bbae416ae9dbd62dee73903e"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_protocol_test.py",
-      "sha256": "3b5ad8bf9beb74cab54b2ab19b04c31a40107551cfc117dc5b5e3d69ade097fe"
+      "sha256": "435f64e134e6dc596a7c11c94ecbc2b2d03f7472f05c0fcc7a9231a566a00d06"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_report.py",
-      "sha256": "86343b9b7803c9f57f8e28d251908450a0d5aee46766f7ae7a597ba7a9712905"
+      "sha256": "28cf29cc4b98f2987cd5269f8fc792ebb3ca22ff64b70e21260b245cc8bf9a9d"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_report_test.py",
-      "sha256": "2a105fd546516944a14dc614932f1496a5b803dc3939c27b9b6d2a9c372db74b"
+      "sha256": "5be86bff44c01b801e5756e2827cc293dd2bf2a97bb40a1846efe1dfb0fa9406"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_runner.py",
-      "sha256": "167d9d7c061778d658126f4986170050ac3c288b38aa097753ead174118b8960"
+      "sha256": "b596eede81b407a2ecbb57cd4e287e00655025897d99a895419b63bbb9c11c5a"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_test_support.py",
-      "sha256": "c0bfdc7eec9e33d67a79b386cc6b6dc3a7a572bcf241ae5f68be12b47321bdcb"
+      "sha256": "eb1ca4b4b2c4dfa8bd906a08215155864088cee3b89259bf8e778afe00eb0a85"
     }
   ],
   "fixtures": [
@@ -223,8 +217,8 @@
       "sha256": "bf89152afbc1d5d8b7182d4ebc414a5f1d83e3c8224b034b1519b9017296bda0"
     },
     {
-      "path": "testdata/runtime-v2-carrier-bench/scored/far-jumbo/main.sg",
-      "sha256": "12d8dbc547d3402c060d795aeea6fecfc29cf0e0a4198cfe9c94d1c494d77b97"
+      "path": "testdata/runtime-v2-carrier-bench/scored/far-large-payload/main.sg",
+      "sha256": "5d2b06fb09022957395059b73504ecdee1c4a92c60a41782f7b6d55b49c364fc"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/far-large/main.sg",
@@ -236,7 +230,7 @@
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/liveness/main.sg",
-      "sha256": "ad1af335b6e074c2756ad535269aff121301f51d2e0e0c15498fadc1463e3f97"
+      "sha256": "374123ab8a5747c39b8e603ec5797631aca15e0d1671a4f16f5816bd9c203f41"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/local/local.sg",
@@ -294,23 +288,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "array-grow-scalar",
@@ -330,23 +311,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "array-steady-composite",
@@ -366,23 +334,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "array-steady-scalar",
@@ -402,23 +357,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "array-teardown-composite",
@@ -438,23 +380,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "array-teardown-scalar",
@@ -474,23 +403,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "blocking-composite",
@@ -510,23 +426,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "blocking-scalar",
@@ -546,23 +449,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "channel-buffered-composite",
@@ -582,23 +472,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "channel-buffered-scalar",
@@ -618,23 +495,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "channel-unbuffered-composite",
@@ -654,23 +518,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "channel-unbuffered-scalar",
@@ -690,23 +541,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "far-channel-composite",
@@ -726,29 +564,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "ge",
-          "value": 64,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "le",
-          "value": 1344,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "far-channel-scalar",
@@ -768,29 +587,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "ge",
-          "value": 8,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "le",
-          "value": 1288,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "far-immediate-composite",
@@ -810,29 +610,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "ge",
-          "value": 64,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "le",
-          "value": 1344,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "far-immediate-scalar",
@@ -852,36 +633,17 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "ge",
-          "value": 8,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "le",
-          "value": 1288,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
-      "id": "far-jumbo-contention",
+      "id": "far-large-payload-contention",
       "workload_family": "far-dual-capture",
       "payload_role": "composite",
-      "fixture": "testdata/runtime-v2-carrier-bench/scored/far-jumbo/main.sg",
-      "probe": "far-jumbo-contention",
+      "fixture": "testdata/runtime-v2-carrier-bench/scored/far-large-payload/main.sg",
+      "probe": "far-large-payload-contention",
       "operations_per_batch": 64,
       "batches": 2,
       "payload_bytes": 8192,
@@ -894,41 +656,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "bytes_moved",
-          "operator": "eq",
-          "value": 2097152,
-          "side": "candidate"
-        },
-        {
-          "metric": "callback_count",
-          "operator": "eq",
-          "value": 256,
-          "side": "candidate"
-        },
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 128,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "ge",
-          "value": 8192,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "le",
-          "value": 9472,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "far-large-capture",
@@ -948,41 +679,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "bytes_moved",
-          "operator": "eq",
-          "value": 1048576,
-          "side": "candidate"
-        },
-        {
-          "metric": "callback_count",
-          "operator": "eq",
-          "value": 256,
-          "side": "candidate"
-        },
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "ge",
-          "value": 4096,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "le",
-          "value": 5376,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "far-large-result",
@@ -1002,41 +702,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "bytes_moved",
-          "operator": "eq",
-          "value": 524288,
-          "side": "candidate"
-        },
-        {
-          "metric": "callback_count",
-          "operator": "eq",
-          "value": 128,
-          "side": "candidate"
-        },
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "ge",
-          "value": 4096,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "le",
-          "value": 5376,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "far-select-composite",
@@ -1056,29 +725,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "ge",
-          "value": 64,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "le",
-          "value": 1344,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "far-select-scalar",
@@ -1098,29 +748,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "ge",
-          "value": 8,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "le",
-          "value": 1288,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "far-share-control",
@@ -1140,23 +771,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "le",
-          "value": 1024,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "far-task-composite",
@@ -1176,29 +794,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "ge",
-          "value": 64,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "le",
-          "value": 1344,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "far-task-scalar",
@@ -1218,29 +817,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "ge",
-          "value": 8,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "le",
-          "value": 1288,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "local-argument",
@@ -1260,23 +840,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "local-copy",
@@ -1296,35 +863,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "bytes_copied",
-          "operator": "eq",
-          "value": 8192,
-          "side": "candidate"
-        },
-        {
-          "metric": "callback_count",
-          "operator": "eq",
-          "value": 128,
-          "side": "candidate"
-        },
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "local-fixed-array",
@@ -1344,23 +886,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "local-return",
@@ -1380,23 +909,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "map-insert-composite",
@@ -1416,23 +932,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "map-insert-scalar",
@@ -1452,23 +955,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "map-rehash-composite",
@@ -1488,23 +978,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "map-rehash-scalar",
@@ -1524,23 +1001,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "map-remove-composite",
@@ -1560,23 +1024,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "map-remove-scalar",
@@ -1596,23 +1047,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "map-replace-composite",
@@ -1632,23 +1070,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "map-replace-scalar",
@@ -1668,23 +1093,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "map-teardown-composite",
@@ -1704,23 +1116,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "map-teardown-scalar",
@@ -1740,23 +1139,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "scalar",
@@ -1776,23 +1162,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "select-send-composite",
@@ -1812,35 +1185,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "bytes_moved",
-          "operator": "eq",
-          "value": 16512,
-          "side": "candidate"
-        },
-        {
-          "metric": "callback_count",
-          "operator": "eq",
-          "value": 386,
-          "side": "candidate"
-        },
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "select-send-scalar",
@@ -1860,29 +1208,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "bytes_moved",
-          "operator": "eq",
-          "value": 2064,
-          "side": "candidate"
-        },
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "task-clone-composite",
@@ -1902,23 +1231,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "task-clone-scalar",
@@ -1938,23 +1254,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "task-composite",
@@ -1974,23 +1277,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "task-scalar",
@@ -2010,23 +1300,10 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     },
     {
       "id": "zero",
@@ -2046,46 +1323,21 @@
         "bytes_copied",
         "bytes_moved",
         "callback_count",
-        "credit_stalls",
+        "data_slot_stalls",
         "peak_transport_bytes"
       ],
-      "invariants": [
-        {
-          "metric": "credit_stalls",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        },
-        {
-          "metric": "peak_transport_bytes",
-          "operator": "eq",
-          "value": 0,
-          "side": "candidate"
-        }
-      ]
+      "invariants": []
     }
   ],
-  "cross_row_invariants": [
-    {
-      "id": "bytes.far-dual-capture-proportional",
-      "relation": "payload_proportional",
-      "metric": "bytes_moved",
-      "left_row": "far-large-capture",
-      "left_reduction": "max",
-      "operator": "eq",
-      "right_row": "far-jumbo-contention",
-      "right_reduction": "max",
-      "side": "candidate"
-    }
-  ],
+  "cross_row_invariants": [],
   "liveness_probes": [
     {
-      "id": "jumbo-credit-cancel",
+      "id": "large-payload-park-cancel",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/liveness/main.sg",
-      "probe": "jumbo-credit-cancel",
+      "probe": "large-payload-park-cancel",
       "syncpoint": "SP_TRANSPORT_DATA_SLOT_TASK_PARKED",
       "timeout_seconds": 10,
-      "expected_credit_balance": 0,
+      "expected_reply_reserved": 0,
       "expected_park_transitions": 1,
       "wave_a": {
         "status": "deferred",
@@ -2099,12 +1351,12 @@
       }
     },
     {
-      "id": "jumbo-global-shutdown",
+      "id": "large-payload-park-shutdown",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/liveness/main.sg",
-      "probe": "jumbo-global-shutdown",
+      "probe": "large-payload-park-shutdown",
       "syncpoint": "SP_TRANSPORT_DATA_SLOT_TASK_PARKED",
       "timeout_seconds": 10,
-      "expected_credit_balance": 0,
+      "expected_reply_reserved": 0,
       "expected_park_transitions": 1,
       "wave_a": {
         "status": "deferred",

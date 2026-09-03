@@ -138,8 +138,8 @@ void rt_carrier_bench_record_callback(void) {
     record_add(&rt_carrier_bench_state.counters.callback_count, 1);
 }
 
-void rt_carrier_bench_record_credit_stall(void) {
-    record_add(&rt_carrier_bench_state.counters.credit_stalls, 1);
+void rt_carrier_bench_record_data_slot_stall(void) {
+    record_add(&rt_carrier_bench_state.counters.data_slot_stalls, 1);
 }
 
 void rt_carrier_bench_transport_acquire(uint64_t bytes) {

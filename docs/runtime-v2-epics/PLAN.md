@@ -8,7 +8,9 @@ roadmap, `DEBT.md` the ledger, `23b-*.md` the wave definitions, `RULES.md` the
 rules every lane obeys. Read those to know why; read this to know what.
 
 **State line, 2026-08-30 at `45c54b22`.** Live carrier census **60 against a
-frozen base of 626**, ratchet green. Epics 1–25 are closed except three: 21
+frozen base of 626** (the number as written that day; the manifest
+`legacy_carriers.json` froze **683** on `7df10725`, and 683 is the base every
+later census reads against -- corrected 2026-09-03, Wave F F3), ratchet green. Epics 1–25 are closed except three: 21
 (closeout only), 22 (parked until 23b closes), 23b (in flight — the whole
 remaining migration).
 
@@ -205,7 +207,7 @@ Taken in order, not in parallel with the above.
 | | What | Size | Closes when |
 | --- | --- | ---: | --- |
 | **Wave E** | Far carriers, leases, byte credits — six items, all in `rt_remote_task_*` and `rt_far_channel*`. Transport rulings already given 2026-08-28. | ~12 | `native-payload-bits`, `native-word-carrier` and `numeric-drop-dispatch` read live zero, and saturation is proven to park a producer without busy retry. |
-| **Wave F** | Diagnostics, then deletion of the legacy symbols, then the closeout gates. | ~8 | The census reads **0 of 626**, the symbols are deleted rather than unused, and `make runtime-v2-check` reports twenty passes on one tree. |
+| **Wave F** | Diagnostics, then deletion of the legacy symbols, then the closeout gates. | ~8 | The census reads **0 of 683** (the manifest's frozen base on `7df10725`; "626" here was stale, corrected 2026-09-03), the symbols are deleted rather than unused, and `make runtime-v2-check` reports every sub-gate on its roster passing on one tree (the roster is the Makefile's `RUNTIME_V2_SUBGATES`, twenty today, and the three Epic 21 e2e proofs ride inside `runtime-v2-crossing-check` rather than as rows of their own). |
 | **Epic 22 ph. 2** | `int`/`uint` reclamation. | ~5 | — |
 | **Epic 21** | Bench, matrix, seam, debt closeout. | ~2 | — |
 

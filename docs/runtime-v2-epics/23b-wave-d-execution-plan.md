@@ -217,7 +217,8 @@ lineage — the base commit is a required field in any worktree handoff.
 
 The instrument that answers most of this in one number is the carrier scanner
 itself, run live against `03379549`: **83 findings against a frozen base census
-of 626**, and `go test ./internal/carriergate -run
+of 626** (as counted that day; the manifest's frozen base is 683 on
+`7df10725` -- corrected 2026-09-03, Wave F F3), and `go test ./internal/carriergate -run
 '^TestLiveCarrierRatchetAgainstRepository$'` is green, so nothing live is
 outside the manifest's legacy-plus-migration allowance. Per category, live
 against base:

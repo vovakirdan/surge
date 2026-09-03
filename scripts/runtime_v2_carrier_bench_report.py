@@ -212,12 +212,6 @@ def render_report(
         "shards": manifest.shards,
         "threads": manifest.threads,
         "blocking_threads": manifest.blocking_threads,
-        "transport_budget": {
-            "data_bytes": manifest.transport.data_bytes,
-            "control_bytes": manifest.transport.control_bytes,
-            "jumbo_threshold_bytes": manifest.transport.jumbo_threshold_bytes,
-            "max_inline_overhead_bytes": manifest.transport.max_inline_overhead_bytes,
-        },
         "reference_host": {
             "system": manifest.reference.system,
             "machine": manifest.reference.machine,
@@ -391,7 +385,7 @@ def _liveness_json(record: LivenessRecord) -> dict[str, Any]:
         "id": record.probe_id,
         "status": record.status,
         "syncpoint": record.syncpoint,
-        "credit_balance": record.credit_balance,
+        "reply_reserved": record.reply_reserved,
         "peak_transport_bytes": record.peak_transport_bytes,
         "park_transitions": record.park_transitions,
         "reason": record.reason,

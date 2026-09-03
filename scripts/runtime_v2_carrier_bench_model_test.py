@@ -118,11 +118,18 @@ class ModelTests(unittest.TestCase):
         bad_counter[3] = replace(
             bad_counter[3],
             counters=CounterSample(
-                {**counter_values("candidate"), "credit_stalls": 1}
+                {**counter_values("candidate"), "data_slot_stalls": 1}
             ),
         )
+        # The machinery, on a row that carries an invariant of its own: the
+        # shared fake row carries none, because the loader refuses one on a
+        # runtime-exit metric (owner ruling 2026-09-03).
+        gated = replace(
+            manifest.rows[0],
+            invariants=(Invariant("data_slot_stalls", "le", 0, "candidate"),),
+        )
         with self.assertRaisesRegex(GateFailure, "violates le 0"):
-            validate_row_results(manifest, manifest.rows[0], base, bad_counter)
+            validate_row_results(manifest, gated, base, bad_counter)
 
 
 class ManifestTests(unittest.TestCase):
@@ -300,8 +307,7 @@ class ManifestTests(unittest.TestCase):
         # What a probe still freezes is the point it waits on, which is what
         # licenses its final phase to defer.
         mutations = (
-            ("transport_budget", "max_inline_overhead_bytes", 255, "transport budget"),
-            ("liveness_probes", "expected_credit_balance", 1, "zero credit"),
+            ("liveness_probes", "expected_reply_reserved", 1, "reply-slot reservation"),
             ("liveness_probes", "syncpoint", "SP_CARRIER_CREDIT_PARKED", "must wait on"),
         )
         with tempfile.TemporaryDirectory() as temporary:
@@ -309,11 +315,7 @@ class ManifestTests(unittest.TestCase):
             for section, field, value, expected in mutations:
                 with self.subTest(section=section, field=field):
                     raw = manifest_json()
-                    target = (
-                        raw[section]
-                        if section == "transport_budget"
-                        else raw[section][0]
-                    )
+                    target = raw[section][0]
                     target[field] = value
                     path.write_text(json.dumps(raw), encoding="utf-8")
                     with self.assertRaisesRegex(ManifestError, expected):

@@ -431,7 +431,7 @@ class ProtocolTests(unittest.TestCase):
                 "bytes_copied": 0,
                 "bytes_moved": 0,
                 "callback_count": 0,
-                "credit_stalls": 0,
+                "data_slot_stalls": 0,
                 "peak_transport_bytes": 0,
             },
             "error": None,
@@ -554,7 +554,7 @@ class ProtocolTests(unittest.TestCase):
                 "bytes_copied": None,
                 "bytes_moved": None,
                 "callback_count": None,
-                "credit_stalls": None,
+                "data_slot_stalls": None,
                 "peak_transport_bytes": None,
             },
         )
@@ -568,7 +568,7 @@ class ProtocolTests(unittest.TestCase):
                 "bytes_copied": 42,
                 "bytes_moved": 41,
                 "callback_count": 7,
-                "credit_stalls": 0,
+                "data_slot_stalls": 0,
                 "peak_transport_bytes": 4096,
             },
             "error": None,
@@ -630,7 +630,7 @@ class ProtocolTests(unittest.TestCase):
             "bytes_copied": 42,
             "bytes_moved": 41,
             "callback_count": 7,
-            "credit_stalls": 0,
+            "data_slot_stalls": 0,
             "peak_transport_bytes": 4096,
         }
         record["nonce"] = "c" * 32

@@ -57,7 +57,6 @@ from runtime_v2_carrier_bench_model import (
     Row,
     Side,
     TimingSample,
-    TransportBudget,
     aggregate_counters,
     nearest_rank,
     paired_order,
@@ -141,17 +140,19 @@ def make_manifest() -> Manifest:
             "bytes_copied",
             "bytes_moved",
             "callback_count",
-            "credit_stalls",
+            "data_slot_stalls",
             "peak_transport_bytes",
         ),
-        invariants=(Invariant("credit_stalls", "le", 0, "candidate"),),
+        # No invariant on a runtime-exit metric: those are telemetry (owner
+        # ruling 2026-09-03) and the loader refuses one. A test that wants to
+        # exercise the invariant machinery attaches its own.
+        invariants=(),
     )
     return Manifest(
         schema_version=2,
         epic_base="0" * 40,
         reference=ReferenceHost("Linux", "x86_64", "kernel", "cpu", 4, "0,2", "go", "clang"),
         protocol=Protocol(2, 7, 0.05, 0.95, 1.10, "nearest-rank", "sample-n-minus-1"),
-        transport=TransportBudget(4096, 1024, 4096, 256),
         backend="llvm",
         profile="release",
         shards=2,
@@ -186,7 +187,7 @@ def make_manifest() -> Manifest:
                 ),
             ),
             metric(
-                "credit_stalls",
+                "data_slot_stalls",
                 "sum",
                 "runtime_exit",
                 base=MetricAvailability(
@@ -213,12 +214,12 @@ def make_manifest() -> Manifest:
         cross_row_invariants=(),
         liveness_probes=(
             LivenessProbe(
-                probe_id="jumbo-credit-cancel",
+                probe_id="large-payload-park-cancel",
                 fixture="fixture.sg",
-                probe="jumbo-credit-cancel",
+                probe="large-payload-park-cancel",
                 syncpoint="SP_TRANSPORT_DATA_SLOT_TASK_PARKED",
                 timeout_seconds=5,
-                expected_credit_balance=0,
+                expected_reply_reserved=0,
                 expected_park_transitions=1,
                 wave_a=LivenessAvailability(
                     "deferred", "requires Wave E shutdown", "0" * 40
@@ -226,12 +227,12 @@ def make_manifest() -> Manifest:
                 final=LivenessAvailability("required"),
             ),
             LivenessProbe(
-                probe_id="jumbo-global-shutdown",
+                probe_id="large-payload-park-shutdown",
                 fixture="fixture.sg",
-                probe="jumbo-global-shutdown",
+                probe="large-payload-park-shutdown",
                 syncpoint="SP_TRANSPORT_DATA_SLOT_TASK_PARKED",
                 timeout_seconds=5,
-                expected_credit_balance=0,
+                expected_reply_reserved=0,
                 expected_park_transitions=1,
                 wave_a=LivenessAvailability(
                     "deferred", "requires Wave E shutdown", "0" * 40
@@ -251,7 +252,7 @@ def counter_values(
         "bytes_copied": physical,
         "bytes_moved": physical,
         "callback_count": physical,
-        "credit_stalls": physical,
+        "data_slot_stalls": physical,
         "peak_transport_bytes": physical,
     }
 
@@ -329,10 +330,10 @@ def records_with_batch_metric(
 
 def deferred_liveness() -> LivenessRecord:
     return LivenessRecord(
-        probe_id="jumbo-credit-cancel",
+        probe_id="large-payload-park-cancel",
         status="deferred",
         syncpoint=None,
-        credit_balance=None,
+        reply_reserved=None,
         peak_transport_bytes=None,
         park_transitions=None,
         reason="requires Wave E shutdown",
@@ -362,12 +363,6 @@ def manifest_json() -> dict[str, object]:
             "p95_max_ratio": 1.10,
             "percentile_method": "nearest-rank",
             "cv_method": "sample-n-minus-1",
-        },
-        "transport_budget": {
-            "data_bytes": 4096,
-            "control_bytes": 1024,
-            "jumbo_threshold_bytes": 4096,
-            "max_inline_overhead_bytes": 256,
         },
         "backend": "llvm",
         "profile": "release",
@@ -422,7 +417,7 @@ def manifest_json() -> dict[str, object]:
                 "candidate": {"status": "required"},
             },
             {
-                "name": "credit_stalls",
+                "name": "data_slot_stalls",
                 "aggregation": "sum",
                 "source": "runtime_exit",
                 "base": {
@@ -465,28 +460,21 @@ def manifest_json() -> dict[str, object]:
                     "bytes_copied",
                     "bytes_moved",
                     "callback_count",
-                    "credit_stalls",
+                    "data_slot_stalls",
                     "peak_transport_bytes",
                 ],
-                "invariants": [
-                    {
-                        "metric": "credit_stalls",
-                        "operator": "le",
-                        "value": 0,
-                        "side": "candidate",
-                    }
-                ],
+                "invariants": [],
             }
         ],
         "cross_row_invariants": [],
         "liveness_probes": [
             {
-                "id": "jumbo-credit-cancel",
+                "id": "large-payload-park-cancel",
                 "fixture": "fixture.sg",
-                "probe": "jumbo-credit-cancel",
+                "probe": "large-payload-park-cancel",
                 "syncpoint": "SP_TRANSPORT_DATA_SLOT_TASK_PARKED",
                 "timeout_seconds": 5,
-                "expected_credit_balance": 0,
+                "expected_reply_reserved": 0,
                 "expected_park_transitions": 1,
                 "wave_a": {
                     "status": "deferred",
@@ -496,12 +484,12 @@ def manifest_json() -> dict[str, object]:
                 "final": {"status": "required"},
             },
             {
-                "id": "jumbo-global-shutdown",
+                "id": "large-payload-park-shutdown",
                 "fixture": "fixture.sg",
-                "probe": "jumbo-global-shutdown",
+                "probe": "large-payload-park-shutdown",
                 "syncpoint": "SP_TRANSPORT_DATA_SLOT_TASK_PARKED",
                 "timeout_seconds": 5,
-                "expected_credit_balance": 0,
+                "expected_reply_reserved": 0,
                 "expected_park_transitions": 1,
                 "wave_a": {
                     "status": "deferred",

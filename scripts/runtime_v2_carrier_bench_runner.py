@@ -397,7 +397,7 @@ def execute_liveness_probes(
                     probe_id=probe.probe_id,
                     status="deferred",
                     syncpoint=None,
-                    credit_balance=None,
+                    reply_reserved=None,
                     peak_transport_bytes=None,
                     park_transitions=None,
                     reason=availability.reason,
@@ -448,7 +448,6 @@ def _run_liveness_probe(
         cwd=fixture.binary.parent,
         timeout_seconds=probe.timeout_seconds,
         environment={
-            **_transport_environment(manifest),
             "SURGE_CARRIER_LIVENESS": "1",
             "SURGE_CARRIER_LIVENESS_PROBE": probe.probe,
             "SURGE_CARRIER_BENCH_NONCE": nonce,
@@ -739,12 +738,6 @@ def _run_batch(
         "SURGE_THREADS": str(manifest.threads),
         "SURGE_BLOCKING_THREADS": str(manifest.blocking_threads),
     }
-    if side == "candidate":
-        environment.update(
-            {
-                **_transport_environment(manifest),
-            }
-        )
     if capture_kind == "resource":
         if side != "candidate":
             raise GateFailure("resource capture is candidate-only")
@@ -891,19 +884,3 @@ def _expected_timing_attempt_sequence(
         if attempt["capture_kind"] == "timing"
     ]
 
-
-def _transport_environment(manifest: Manifest) -> dict[str, str]:
-    return {
-        "SURGE_CARRIER_BENCH_DATA_BUDGET_BYTES": str(
-            manifest.transport.data_bytes
-        ),
-        "SURGE_CARRIER_BENCH_CONTROL_BUDGET_BYTES": str(
-            manifest.transport.control_bytes
-        ),
-        "SURGE_CARRIER_BENCH_JUMBO_THRESHOLD_BYTES": str(
-            manifest.transport.jumbo_threshold_bytes
-        ),
-        "SURGE_CARRIER_BENCH_MAX_INLINE_OVERHEAD_BYTES": str(
-            manifest.transport.max_inline_overhead_bytes
-        ),
-    }

@@ -40,7 +40,7 @@ class CanonicalManifestTests(unittest.TestCase):
         # So this asserts the SHAPE the manifest actually has, from the loaded
         # object, and would have failed the moment the two came apart.
         probes = {probe.probe_id: probe for probe in self.manifest.liveness_probes}
-        self.assertEqual(set(probes), {"jumbo-credit-cancel", "jumbo-global-shutdown"})
+        self.assertEqual(set(probes), {"large-payload-park-cancel", "large-payload-park-shutdown"})
         for probe_id, probe in sorted(probes.items()):
             with self.subTest(probe=probe_id):
                 self.assertEqual(probe.syncpoint, "SP_TRANSPORT_DATA_SLOT_TASK_PARKED")
@@ -74,10 +74,10 @@ class CanonicalManifestTests(unittest.TestCase):
         self.assertEqual(rows["select-send-scalar"].expected_checksum, "11432")
         self.assertEqual(rows["select-send-composite"].expected_checksum, "15947")
         self.assertEqual(rows["far-large-capture"].payload_bytes, 4096)
-        self.assertEqual(rows["far-jumbo-contention"].payload_bytes, 8192)
+        self.assertEqual(rows["far-large-payload-contention"].payload_bytes, 8192)
         self.assertEqual(
             {probe.probe_id for probe in self.manifest.liveness_probes},
-            {"jumbo-credit-cancel", "jumbo-global-shutdown"},
+            {"large-payload-park-cancel", "large-payload-park-shutdown"},
         )
 
         # A SECOND, DELIBERATE COPY of every nonzero structural allocation
@@ -119,7 +119,7 @@ class CanonicalManifestTests(unittest.TestCase):
                 "far-channel-scalar": 410,
                 "far-immediate-composite": 277,
                 "far-immediate-scalar": 149,
-                "far-jumbo-contention": 657,
+                "far-large-payload-contention": 657,
                 "far-large-capture": 661,
                 "far-large-result": 405,
                 "far-select-composite": 415,
@@ -153,24 +153,32 @@ class CanonicalManifestTests(unittest.TestCase):
             )
         )
 
-    def test_required_red_endpoints_are_machine_checked(self) -> None:
-        rows = {row.row_id: row for row in self.manifest.rows}
-        exact = {
-            (item.metric, item.operator, item.value, item.side)
-            for item in rows["far-jumbo-contention"].invariants
-        }
-        self.assertIn(("bytes_moved", "eq", 2097152, "candidate"), exact)
-        self.assertIn(("callback_count", "eq", 256, "candidate"), exact)
-        self.assertIn(("credit_stalls", "eq", 128, "candidate"), exact)
-        proportional = {
-            (item.left_row, item.right_row, item.metric)
-            for item in self.manifest.cross_row_invariants
-            if item.relation == "payload_proportional"
+    def test_runtime_exit_metrics_are_reported_and_never_gated(self) -> None:
+        # OWNER RULING 2026-09-03 (Wave E, E5): the five runtime-exit metrics
+        # are telemetry. Every row still REQUIRES them -- the record is read,
+        # parsed and written to the report -- and no row or cross-row invariant
+        # may name one. The old `credit_stalls eq 128` and the payload-derived
+        # `peak_transport_bytes` windows asserted a byte-credit transport this
+        # tree does not have; the measured table (NOTES, E5) is the record of
+        # why.
+        telemetry = {
+            metric.name for metric in self.manifest.metrics if metric.source == "runtime_exit"
         }
         self.assertEqual(
-            proportional,
-            {("far-large-capture", "far-jumbo-contention", "bytes_moved")},
+            telemetry,
+            {"bytes_copied", "bytes_moved", "callback_count", "data_slot_stalls", "peak_transport_bytes"},
         )
+        for row in self.manifest.rows:
+            with self.subTest(row=row.row_id):
+                self.assertTrue(telemetry <= set(row.required_metrics))
+                self.assertFalse(
+                    any(item.metric in telemetry for item in row.invariants),
+                    "a runtime-exit metric is gated",
+                )
+        self.assertFalse(
+            any(item.metric in telemetry for item in self.manifest.cross_row_invariants)
+        )
+        self.assertNotIn("far-jumbo-contention", {row.row_id for row in self.manifest.rows})
 
     def test_canonical_make_gate_selects_final_phase(self) -> None:
         direct = subprocess.run(

@@ -136,7 +136,7 @@ int main(int argc, char** argv) {
         }
         rt_carrier_bench_record_move(12);
         rt_carrier_bench_record_callback();
-        rt_carrier_bench_record_credit_stall();
+        rt_carrier_bench_record_data_slot_stall();
         rt_carrier_bench_transport_acquire(9);
         rt_carrier_bench_transport_release(9);
     }
@@ -197,7 +197,7 @@ func TestRuntimeV2CarrierBenchCounterMatrix(t *testing.T) {
 		"bytes_copied":         11,
 		"bytes_moved":          12,
 		"callback_count":       1,
-		"credit_stalls":        1,
+		"data_slot_stalls":        1,
 		"peak_transport_bytes": 9,
 	}
 	if !reflect.DeepEqual(valid.Metrics, wantMetrics) {

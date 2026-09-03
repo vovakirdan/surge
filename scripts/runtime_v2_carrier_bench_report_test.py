@@ -209,7 +209,7 @@ class ReportTests(unittest.TestCase):
             "nonce": nonce,
             "protocol_sha256": protocol,
             "syncpoint": probe.syncpoint,
-            "credit_balance": 0,
+            "reply_reserved": 0,
             "peak_transport_bytes": 0,
             "park_transitions": 1,
             "error": None,

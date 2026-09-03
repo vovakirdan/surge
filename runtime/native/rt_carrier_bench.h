@@ -17,7 +17,7 @@ void rt_carrier_bench_marker(void);
 void rt_carrier_bench_record_copy(uint64_t bytes);
 void rt_carrier_bench_record_move(uint64_t bytes);
 void rt_carrier_bench_record_callback(void);
-void rt_carrier_bench_record_credit_stall(void);
+void rt_carrier_bench_record_data_slot_stall(void);
 void rt_carrier_bench_transport_acquire(uint64_t bytes);
 void rt_carrier_bench_transport_release(uint64_t bytes);
 #else
@@ -27,7 +27,7 @@ void rt_carrier_bench_transport_release(uint64_t bytes);
 #define rt_carrier_bench_record_copy(bytes) ((void)0)
 #define rt_carrier_bench_record_move(bytes) ((void)0)
 #define rt_carrier_bench_record_callback() ((void)0)
-#define rt_carrier_bench_record_credit_stall() ((void)0)
+#define rt_carrier_bench_record_data_slot_stall() ((void)0)
 #define rt_carrier_bench_transport_acquire(bytes) ((void)0)
 #define rt_carrier_bench_transport_release(bytes) ((void)0)
 #endif

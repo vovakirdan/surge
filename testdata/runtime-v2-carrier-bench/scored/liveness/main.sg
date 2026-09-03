@@ -10,7 +10,7 @@ fn consume(value: own bench.Payload8192) -> uint64 {
 }
 
 async fn run(probe: &string) -> bool {
-    let cancel_waiter: bool = probe == "jumbo-credit-cancel";
+    let cancel_waiter: bool = probe == "large-payload-park-cancel";
     let first_value: bench.Payload8192 = bench.payload8192(1:uint64);
     let first: far Task<uint64> = spawn on shard(1:ShardId) {
         ret consume(own first_value);
@@ -42,12 +42,12 @@ async fn run(probe: &string) -> bool {
 
 @entrypoint("argv")
 fn main(probe: string) -> int {
-    if probe != "jumbo-credit-cancel" && probe != "jumbo-global-shutdown" {
+    if probe != "large-payload-park-cancel" && probe != "large-payload-park-shutdown" {
         return 92;
     }
     let ok: bool = compare run(&probe).await() {
         Success(value) => value;
-        Cancelled() => probe == "jumbo-global-shutdown";
+        Cancelled() => probe == "large-payload-park-shutdown";
     };
     if !ok { return 1; }
     return 0;

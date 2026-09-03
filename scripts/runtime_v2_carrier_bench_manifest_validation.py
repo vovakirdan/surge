@@ -8,7 +8,6 @@ from runtime_v2_carrier_bench_model import (
     Manifest,
     ManifestError,
     MetricSource,
-    TransportBudget,
 )
 
 FROZEN_METRIC_CONTRACT: dict[
@@ -18,7 +17,7 @@ FROZEN_METRIC_CONTRACT: dict[
     "bytes_copied": ("runtime_exit", "sum", "unsupported"),
     "bytes_moved": ("runtime_exit", "sum", "unsupported"),
     "callback_count": ("runtime_exit", "sum", "unsupported"),
-    "credit_stalls": ("runtime_exit", "sum", "unsupported"),
+    "data_slot_stalls": ("runtime_exit", "sum", "unsupported"),
     "peak_transport_bytes": ("runtime_exit", "max", "unsupported"),
 }
 
@@ -33,11 +32,6 @@ def validate_manifest(manifest: Manifest) -> None:
         raise ManifestError("protocol.max_cv must be exactly 0.05")
     if protocol.throughput_min_ratio != 0.95 or protocol.p95_max_ratio != 1.10:
         raise ManifestError("protocol relative budgets must be exactly 0.95 throughput / 1.10 p95")
-    if manifest.transport != TransportBudget(4096, 1024, 4096, 256):
-        raise ManifestError(
-            "transport budget must freeze data=4096 control=1024 "
-            "jumbo_threshold=4096 max_inline_overhead=256"
-        )
     if manifest.shards != 2 or manifest.threads != 2:
         raise ManifestError("benchmark topology must freeze shards=2 threads=2")
     if manifest.blocking_threads != 1:
@@ -185,11 +179,32 @@ def validate_manifest(manifest: Manifest) -> None:
                 f"cross-row invariant {invariant.invariant_id} payload_proportional "
                 "must pointwise-eq unequal candidate composite byte payloads"
             )
-    expected_liveness = {"jumbo-credit-cancel", "jumbo-global-shutdown"}
+    # OWNER RULING 2026-09-03: the runtime-exit metrics -- bytes copied and
+    # moved, callback counts, data-slot stalls, the peak of transport bytes --
+    # are reported telemetry, not gates. A payload-derived byte window or a
+    # stall count asserts the byte-credit model the 2026-08-29 ruling withdrew,
+    # and base and candidate share this manifest, so an assertion here must mean
+    # the same thing on both sides. Contention is proven by dedicated
+    # deterministic stands, not by a number in a throughput benchmark.
+    telemetry = {metric.name for metric in manifest.metrics if metric.source == "runtime_exit"}
+    for row in manifest.rows:
+        for invariant in row.invariants:
+            if invariant.metric in telemetry:
+                raise ManifestError(
+                    f"row {row.row_id} asserts {invariant.metric}, which is reported "
+                    "telemetry and not a gate (owner ruling 2026-09-03)"
+                )
+    for invariant in manifest.cross_row_invariants:
+        if invariant.metric in telemetry:
+            raise ManifestError(
+                f"cross-row invariant {invariant.invariant_id} asserts {invariant.metric}, "
+                "which is reported telemetry and not a gate (owner ruling 2026-09-03)"
+            )
+    expected_liveness = {"large-payload-park-cancel", "large-payload-park-shutdown"}
     actual_liveness = {probe.probe_id for probe in manifest.liveness_probes}
     if actual_liveness != expected_liveness:
         raise ManifestError(
-            "liveness probes must freeze cancel and global-shutdown jumbo rows"
+            "liveness probes must freeze the large-payload park's cancel and shutdown rows"
         )
     for probe in manifest.liveness_probes:
         if probe.fixture not in fixture_set:
@@ -232,9 +247,10 @@ def validate_manifest(manifest: Manifest) -> None:
                     f"liveness probe {probe.probe_id} {phase_name} deferred "
                     "provenance must equal epic_base"
                 )
-        if probe.expected_credit_balance != 0:
+        if probe.expected_reply_reserved != 0:
             raise ManifestError(
-                f"liveness probe {probe.probe_id} must restore exact zero credit balance"
+                f"liveness probe {probe.probe_id} must leave every reply-slot reservation "
+                "given back (expected_reply_reserved must be zero)"
             )
         if probe.syncpoint != unarmed:
             raise ManifestError(

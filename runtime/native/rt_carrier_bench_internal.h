@@ -32,7 +32,7 @@ struct rt_carrier_bench_counters {
     uint64_t bytes_copied;
     uint64_t bytes_moved;
     uint64_t callback_count;
-    uint64_t credit_stalls;
+    uint64_t data_slot_stalls;
     uint64_t transport_bytes;
     uint64_t peak_transport_bytes;
 };

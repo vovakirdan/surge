@@ -852,8 +852,8 @@ A byte budget is a measurement only where the transport owns the bytes: a
 serialized message, or a buffer explicitly handed over at enqueue and held until
 the target drains it. No such path exists yet, and until one does a physical
 byte credit is false precision rather than an unfinished feature.
-The transport's own counters are `data_credit_stalls` and
-`control_reserve_stalls`, one per lane; the carrier bench's `credit_stalls` is
+The transport's own counters are `data_slot_stalls` and
+`control_reserve_stalls`, one per lane; the carrier bench's `data_slot_stalls` is
 a separate instrument over the data lane's stalls and neither names a byte
 credit.
 
@@ -877,11 +877,34 @@ the copy is already inside the payload. The exec trace prints all of it as
 one `TRACE_RESIDENT` line beside `TRACE_NET`; a resource-capture build of the
 carrier bench sees the same acquires and releases as `transport_acquire` /
 `transport_release`, its `bytes_moved` at every physical move
-(`rt_value_move_init_detached`) and its `credit_stalls` at every data-lane
+(`rt_value_move_init_detached`) and its `data_slot_stalls` at every data-lane
 stall. What the far result does NOT add: the reply names the producer's typed
 slot and pins it, so a far task's result is resident in the producer's task,
-not in the transport, and reads as zero here. The slot budgets stay 64/16;
-no byte limit is derived from these figures without an owner ruling.
+not in the transport, and reads as zero here. The slot budgets stay 64/16.
+
+**Owner ruling 2026-09-03 -- the benchmark manifest asserts no byte
+window.** Read against the measured table, the manifest's payload-derived
+windows (`peak_transport_bytes ge payload`) asserted that the transport
+physically owns a payload, which the slot transport does not; and pinning the
+measured peaks instead would have frozen today's pipeline shape (one envelope,
+one pending, one state block resident per producer) as a contract, so that
+two admitted records resident at once would read as a regression. The carrier
+benchmark manifest therefore asserts no payload-derived transport byte window
+and no byte-credit stall count for the slot transport. `peak_transport_bytes`,
+the physical move and copy counters and `data_slot_stalls` are reported
+telemetry: written into every report and read against the previous one, never
+pass/fail. Acceptance gates slot occupancy, lifecycle balance, ownership
+correctness and deterministic liveness; contention and backpressure are proven
+by dedicated deterministic stands (a sync point forces the exhausted lane, and
+the row reads WAITING → PARKED → ADMITTED), not by a stall count inside a
+throughput benchmark. Payload-byte and large-payload resource bounds return
+only with a transport-owned-buffer protocol, when there is an answer to which
+bytes the transport must own. The names of the withdrawn model went with it:
+the benchmark's `credit_stalls` is `data_slot_stalls`, the transport's
+`data_credit_stalls` likewise, the `far-jumbo-contention` row is
+`far-large-payload-contention`, and a liveness probe expects
+`expected_reply_reserved` (every reply-slot reservation given back) where it
+used to expect a credit balance.
 
 The bound therefore carries two budgets, a data-slot credit for each pointer
 envelope and a separate control reserve, and the reserve is what a data backlog
@@ -1520,7 +1543,7 @@ Whether
 `payload_len` stays on the pointer path as the length of a transport-owned
 buffer, zero for every message the tree builds, or leaves that path until a
 serialized transport needs it. And whether `RT_TRANSPORT_MSG_CREDIT_CONTROL` and
-`credit_stalls` are held as reserved names for that transport or removed until
+`data_slot_stalls` are held as reserved names for that transport or removed until
 it exists. Each names a mechanism the transport must have before a bound can be
 claimed, so each waits for the owner rather than for whoever writes the lane.
 

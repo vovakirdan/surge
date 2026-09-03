@@ -36,7 +36,7 @@ async fn run(samples: &mut ArrayFixed<int64, 64>) -> uint64 {
 
 @entrypoint("argv")
 fn main(probe: string) -> int {
-    if probe != "far-jumbo-contention" { return 92; }
+    if probe != "far-large-payload-contention" { return 92; }
     let mut samples: int64[64] = default::<int64[64]>();
     let _: uint64 = bench.allocation_observer();
     let c0: uint64 = bench.allocation_observer();

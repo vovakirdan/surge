@@ -80,14 +80,6 @@ class Protocol:
 
 
 @dataclass(frozen=True, slots=True)
-class TransportBudget:
-    data_bytes: int
-    control_bytes: int
-    jumbo_threshold_bytes: int
-    max_inline_overhead_bytes: int
-
-
-@dataclass(frozen=True, slots=True)
 class MetricAvailability:
     status: AvailabilityStatus
     reason: str | None = None
@@ -164,7 +156,7 @@ class LivenessProbe:
     probe: str
     syncpoint: str
     timeout_seconds: int
-    expected_credit_balance: int
+    expected_reply_reserved: int
     expected_park_transitions: int
     wave_a: LivenessAvailability
     final: LivenessAvailability
@@ -176,7 +168,6 @@ class Manifest:
     epic_base: str
     reference: ReferenceHost
     protocol: Protocol
-    transport: TransportBudget
     backend: str
     profile: str
     shards: int

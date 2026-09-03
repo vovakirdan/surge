@@ -139,7 +139,7 @@ int main(void) {
     if (require_int(rt_transport_enqueue(shard, &overflow) == RT_TRANSPORT_STATUS_QUEUE_FULL,
                     "data budget at its bound did not refuse")) return 9;
     snap = rt_transport_debug_snapshot(shard);
-    if (require_int(snap.data_credit_stalls == 1,
+    if (require_int(snap.data_slot_stalls == 1,
                     "refused data envelope was not counted as a slot-credit stall")) return 10;
     if (require_int(snap.control_len == 1,
                     "a refused data envelope fell back onto the control reserve")) return 11;
@@ -158,7 +158,7 @@ int main(void) {
                     "release messages did not land in the reserve")) return 13;
     if (require_int(snap.control_reserve_stalls == 0,
                     "a data backlog stalled the control reserve")) return 14;
-    if (require_int(snap.data_credit_stalls == 1,
+    if (require_int(snap.data_slot_stalls == 1,
                     "a control admission was charged to the data budget")) return 15;
 
     // A reply reaching the target is only half of getting through: it must
@@ -182,7 +182,7 @@ int main(void) {
                     "the reserve did not fill to its own bound")) return 18;
     if (require_int(snap.control_reserve_stalls == 1,
                     "a refused control envelope was not counted")) return 19;
-    if (require_int(snap.data_credit_stalls == 1,
+    if (require_int(snap.data_slot_stalls == 1,
                     "a control refusal was charged to the data budget")) return 20;
 
     rt_shard_lock(shard);
