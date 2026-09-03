@@ -8,21 +8,37 @@ import (
 	"time"
 )
 
-// RV2-DEBT-261, the program-level row. Two @failfast blocks, each with a child
-// that is cancelled and awaited, each expected to resolve Cancelled -- the
-// shapes that gave TestMTStructuredConcurrency its exit 12 and exit 13 under
-// pinned CPUs. The block resolves Success when rt_scope_join_all's verify
-// answers "drained" with a fail-fast flag read before the cancelled child's
-// completion landed (rt_async_scope.c), and that window is a few instructions
-// wide against a completion that is itself waiting on the control lane, so a
-// single green run says nothing: this row is meant to be run many times, on
-// both lanes, at one worker and at four. Exit 12 names the first block, 13 the
-// second, 99 the driver itself; the eight rounds widen the chance per run.
+// RV2-DEBT-261, the program-level row. Four @failfast blocks per round, eight
+// rounds, on both lanes, at one worker and at four. The property under test
+// is fail-fast propagation itself: a block resolves Cancelled exactly when at
+// least one member answered Cancelled, and Success exactly when every member
+// answered Success. Each block reports through a witness channel which of the
+// two it saw from the inside, and the driver holds the block's own answer
+// against that witness.
 //
-// The first block also tolerates the fast child winning the race against its
-// own cancel (it returns 10 from inside the block): the early return cancels
-// the slow sibling through rt_scope_cancel_all, and the block must still
-// resolve Cancelled -- which is exactly the interleaving exit 12 came from.
+// The first two blocks race a cancel against children that need only a few
+// checkpoints (the shapes that gave TestMTStructuredConcurrency its exit 12
+// and exit 13 under pinned CPUs). The race can go either way: on an
+// oversubscribed host the block's owner is descheduled between spawn and
+// cancel, the children run to completion first, and the cancel is refused
+// against a committed result (the 2026-08 ruling: a cancel never revokes an
+// answer already committed). Then no member answered Cancelled, nothing owes
+// fail-fast, and the block MUST resolve Success. The previous version of this
+// row asserted that the cancel always wins that race; the 2026-09-03 campaign
+// read that as exit 12/13 in about one run in seventy on the shared runner,
+// and every one of those was a child that had finished before its cancel.
+//
+// The last two blocks take the schedule out of the question. Two children park
+// on channels nobody sends into, so a cancel always finds them alive: the
+// block must resolve Cancelled. The control block lets two sleeping children
+// finish untouched: the block must resolve Success. A runtime that drops the
+// fail-fast flag turns the parked row into exit 15 on every run, which is what
+// makes this row a judge rather than a witness of one schedule.
+//
+// Exit codes: 12/13 a racing block resolved Success although a member answered
+// Cancelled; 14 a racing block resolved Cancelled although no member did; 15
+// the parked block resolved Success or a parked child answered Success; 16 the
+// control block resolved Cancelled; 17 a witness went missing; 99 the driver.
 const runtimeV2FailfastJoinSource = `async fn spin(count: int) -> int {
     let mut i = 0;
     while i < count {
@@ -32,9 +48,37 @@ const runtimeV2FailfastJoinSource = `async fn spin(count: int) -> int {
     return count;
 }
 
+async fn parked(stop: Channel<int>) -> int {
+    let _ = stop.recv();
+    return 1;
+}
+
+async fn napping() -> int {
+    sleep(1).await();
+    return 1;
+}
+
+fn is_cancelled(r: TaskResult<int>) -> bool {
+    return compare r {
+        Cancelled() => true;
+        Success(_) => false;
+    };
+}
+
+fn take_witness(w: Channel<int>) -> int {
+    let seen: Option<int> = w.try_recv();
+    return compare seen { Some(v) => v; nothing => 0 - 1; };
+}
+
 async fn main_async() -> int {
+    let witness = Channel::<int>::new(8:uint);
     let mut round = 0;
+    let mut race_cancelled = 0;
     while round < 8 {
+        // Race 1: witness 1 = a member answered Cancelled; 0 = both answered
+        // Success; 2 = fast answered Success and the block returned early,
+        // cancelling slow through rt_scope_cancel_all, so slow's answer is
+        // whatever that cancel found and the block may resolve either way.
         let ff = (@failfast async {
             let slow = spawn async {
                 let _ = spin(200).await();
@@ -45,32 +89,36 @@ async fn main_async() -> int {
                 ret 2;
             };
             fast.cancel();
-            let r_fast = fast.await();
-            let fast_cancelled = compare r_fast {
-                Cancelled() => true;
-                Success(_) => false;
-            };
+            let fast_cancelled = is_cancelled(fast.await());
             if !fast_cancelled {
+                witness.try_send(2);
                 ret 10;
             }
-            let r_slow = slow.await();
-            let slow_cancelled = compare r_slow {
-                Cancelled() => true;
-                Success(_) => false;
-            };
-            if !slow_cancelled {
-                ret 11;
+            let slow_cancelled = is_cancelled(slow.await());
+            if fast_cancelled || slow_cancelled {
+                witness.try_send(1);
+            } else {
+                witness.try_send(0);
             }
             ret 0;
         }).await();
-        let ff_ok = compare ff {
-            Cancelled() => true;
-            Success(_) => false;
-        };
-        if !ff_ok {
-            return 12;
+        let w1 = take_witness(witness);
+        let ff_cancelled = is_cancelled(ff);
+        if w1 == 1 {
+            race_cancelled = race_cancelled + 1;
+            if !ff_cancelled {
+                return 12;
+            }
+        } else if w1 == 0 {
+            if ff_cancelled {
+                return 14;
+            }
+        } else if w1 != 2 {
+            return 17;
         }
 
+        // Race 2: both children cancelled right after spawn; witness 1 = at
+        // least one answered Cancelled, 0 = both had already finished.
         let ff2 = (@failfast async {
             let a = spawn async {
                 let _ = spin(50).await();
@@ -82,20 +130,75 @@ async fn main_async() -> int {
             };
             a.cancel();
             b.cancel();
-            let _ = a.await();
-            let _ = b.await();
+            let a_cancelled = is_cancelled(a.await());
+            let b_cancelled = is_cancelled(b.await());
+            if a_cancelled || b_cancelled {
+                witness.try_send(1);
+            } else {
+                witness.try_send(0);
+            }
             ret 0;
         }).await();
-        let ff2_ok = compare ff2 {
-            Cancelled() => true;
-            Success(_) => false;
-        };
-        if !ff2_ok {
-            return 13;
+        let w2 = take_witness(witness);
+        let ff2_cancelled = is_cancelled(ff2);
+        if w2 == 1 {
+            race_cancelled = race_cancelled + 1;
+            if !ff2_cancelled {
+                return 13;
+            }
+        } else if w2 == 0 {
+            if ff2_cancelled {
+                return 14;
+            }
+        } else {
+            return 17;
+        }
+
+        // Parked: the children wait on channels nobody sends into, so the
+        // cancel always finds them alive. Witness 1 = both answered Cancelled.
+        let stop_a = Channel::<int>::new(0:uint);
+        let stop_b = Channel::<int>::new(0:uint);
+        let ff3 = (@failfast async {
+            let a = spawn parked(stop_a);
+            let b = spawn parked(stop_b);
+            checkpoint().await();
+            a.cancel();
+            b.cancel();
+            let a_cancelled = is_cancelled(a.await());
+            let b_cancelled = is_cancelled(b.await());
+            if a_cancelled && b_cancelled {
+                witness.try_send(1);
+            } else {
+                witness.try_send(0);
+            }
+            ret 0;
+        }).await();
+        let w3 = take_witness(witness);
+        if w3 != 1 || !is_cancelled(ff3) {
+            return 15;
+        }
+
+        // Control: nobody is cancelled, so fail-fast must stay quiet and the
+        // block must resolve Success.
+        let ff4 = (@failfast async {
+            let a = spawn napping();
+            let b = spawn napping();
+            let a_cancelled = is_cancelled(a.await());
+            let b_cancelled = is_cancelled(b.await());
+            if a_cancelled || b_cancelled {
+                witness.try_send(1);
+            } else {
+                witness.try_send(0);
+            }
+            ret 0;
+        }).await();
+        let w4 = take_witness(witness);
+        if w4 != 0 || is_cancelled(ff4) {
+            return 16;
         }
         round = round + 1;
     }
-    print("failfast-join-ok");
+    print("failfast-join-ok race-cancelled=" + (race_cancelled to string));
     return 0;
 }
 
@@ -144,8 +247,12 @@ func TestRuntimeV2FailfastJoinAnswersCancelled(t *testing.T) {
 func assertFailfastJoinRun(t *testing.T, lane, threads string, exitCode int, dur time.Duration, stdout, stderr string) {
 	t.Helper()
 	reasons := map[int]string{
-		12: "the first @failfast block (fast cancelled, slow cancelled by fail-fast) resolved Success",
-		13: "the second @failfast block (both children cancelled before they ran) resolved Success",
+		12: "the first racing @failfast block resolved Success although a member answered Cancelled",
+		13: "the second racing @failfast block resolved Success although a member answered Cancelled",
+		14: "a racing @failfast block resolved Cancelled although no member answered Cancelled",
+		15: "the parked @failfast block resolved Success, or a parked child answered Success despite its cancel",
+		16: "the control @failfast block resolved Cancelled although nobody was cancelled",
+		17: "a block's witness went missing from the witness channel",
 		99: "main_async itself resolved Cancelled",
 	}
 	if exitCode != 0 {

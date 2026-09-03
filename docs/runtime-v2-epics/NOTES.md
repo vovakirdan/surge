@@ -14306,3 +14306,101 @@ any Memcheck error report (`valgrindMemcheckErrorRE`) while accepting the
 328 leak; 13.9 s. All three on `runtime-v2-crossing-check` (the LLVM line
 and the e2e line). The VM lane runs anchored bodies on one executor and
 never drops an unshipped state, so it has no such path.
+
+### D8, the campaign's judge asserted a schedule, not the property (2026-09-03)
+
+The 1000-run campaign on `43ae205a` (`SURGE_SKIP_TIMEOUT_TESTS=0
+taskset -c 8-15 go test ./internal/vm -run
+'^TestRuntimeV2(FailfastJoinAnswersCancelled|TimeoutTargetAnswersCancelledToEveryHandle)$'`,
+runner, 8 cores next to the test's own compile) read red at 13 of 651 when
+this was written, every one `FailfastJoinAnswersCancelled/llvm/threads-4`,
+exit 12 or 13, and every one inside the first 1.4 ms of the program. Same
+two signatures as before Wave D (`c38e4275`: 13 of 300; `6bd6fd22`: 27 of
+1000), so the first reading was "Р6 narrowed the window and did not close
+it". That reading was wrong, and the way it was found is the useful part.
+
+**The stand.** The program as a bare binary (`surge build`, then the
+binary in a loop with `SURGE_THREADS=4 SURGE_TRACE_EXEC=1`) runs at about
+one hundred programs a second, against seven and a half seconds per
+`go test` run. Unpinned on 32 logical CPUs: 0 red in 20 000. `taskset -c
+0-7`: 0 in 2998. `taskset -c 8-11`: 0 in 3232. `taskset -c 12-13` -- four
+carriers, the blocking thread and main on two CPUs -- 276 red in 4461,
+6.2 %, 117 exit 12 and 159 exit 13. The window is opened by the kernel
+descheduling a carrier, and by nothing else; "it does not reproduce on
+WSL" was a wrong topology, not a property of the box.
+
+**What the exec trace ruled out first, at zero code.** All 276 reds carry
+`scope_failfast_after_drained_answer=0` and `scope_identity_rewritten=0`:
+no cancelled member reached the scope uncounted, no provenance rewrite.
+
+**What an instrumented copy showed.** A scratch worktree at `43ae205a`
+with `fprintf` at five points -- `rt_scope_enter`,
+`rt_scope_publish_creation_locked`, `cancel_task` (landed / refused
+already-done), `scope_on_child_done` (task, scope, kind, registered), and
+every exit of `rt_scope_join_all` that answers drained without fail-fast --
+and the program's exit 12 split three ways (12 for `ret 0`, 22 for `ret
+10`, 23 for `ret 11`). 3000 runs on two CPUs, 174 red: 90 exit 13, 84
+exit 22, zero 12, zero 23. In all 174 the failing block's children
+completed with `kind=1` (Success), none with `kind=2`; the cancels read
+`refused=already-done`; `join_all` saw a live scope (`null=0`) with
+`active=0 ff=0`. One exit-22 trace end to end:
+
+    DBG created task=91 scope=1        <- the block itself
+    DBG scope_enter scope=56 owner=91 failfast=1
+    DBG created task=92 scope=56       <- slow (200 checkpoints)
+    DBG created task=93 scope=56       <- fast (1 checkpoint)
+    DBG child_done task=93 scope=56 kind=1 registered=1
+    ... 206 lines of other carriers' work ...
+    DBG child_done task=92 scope=56 kind=1 registered=1
+    DBG cancel task=93 refused=already-done kind=1
+    DBG join_all R3 drained-no-failfast scope=56 null=0 active=0 ff=0
+
+Between `spawn fast` and `fast.cancel()` the owner has no suspension
+point; its thread simply did not get a CPU while the children ran to
+completion on other carriers, slow's 200 checkpoints included. The cancel
+then met a committed result and was refused, which is the ruling
+(23-storage-model: a cancel never revokes an answer already committed).
+No member answered Cancelled, nothing owed fail-fast, the block resolved
+Success. The runtime did exactly what the model says; the row asserted
+that the cancel always wins a race against a child that needs one or
+fifty checkpoints, and on an oversubscribed host it does not.
+
+Hypotheses that the two review agents ranked and that the data closed:
+the `scope_registered` gate swallowing a completion (would hang, not
+answer Success, and the counter above is zero); the scope torn down before
+its own join (`null=0` in every red; the invalid-key exit fired twice in
+300 in a separate batch, on a different scope); a double retirement of one
+child (the children really did answer Success, the cancel really was
+late).
+
+**The judge, rewritten.** `runtimeV2FailfastJoinSource` now asserts the
+property rather than the schedule. Each block reports through a witness
+channel what it saw from the inside, and the driver holds the block's own
+answer against it: a member answered Cancelled -> the block must be
+Cancelled (exit 12/13 otherwise); every member answered Success -> the
+block must be Success (exit 14 otherwise). Two racing blocks keep the old
+shapes, and are allowed to go either way. Two new blocks take the schedule
+out: children parked on channels nobody sends into (a cancel always finds
+them alive; the block must be Cancelled, exit 15 otherwise) and a control
+with two sleeping children nobody cancels (the block must be Success, exit
+16 otherwise). The witness count of racing blocks that saw a Cancelled
+member is printed, not gated (`race-cancelled=N`, 16 on a quiet box).
+
+Before, on the two-CPU stand: 174 red in 3000. After, the same stand,
+the same binary shape:
+
+    taskset -c 12-13   5000 runs   0 red
+    taskset -c 0-3     5000 runs   0 red
+    go test, both lanes, threads 1 and 4: PASS (8.8 s)
+
+Rule 13: a scratch worktree at `43ae205a` with the one line
+`scope->failfast_triggered = 1;` removed from
+`rt_scope_take_child_done_locked` (a cancelled member no longer raises
+fail-fast) exits 12 on six of six runs at threads 1 and 4 -- the racing
+block already catches it, and the parked block would as exit 15.
+
+The old judge's reds on `43ae205a`, `6bd6fd22` and `c38e4275` are the
+same premise; the four `program timeout` hangs on `8b12beb3` were real and
+are the membership fix. The golden `vm_async_suite/t07_failfast.sg`
+carries the same race and expects `parent=cancelled`; it runs on the VM
+lane's single executor where the schedule is fixed, so it stays.
