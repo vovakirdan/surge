@@ -12760,6 +12760,36 @@ the campaign's final count and on that differential; the wave's freeze
 condition (§1.8, the campaign) is not met by a 3.5 % red whatever its
 provenance, and the fix runs through the open scope-serializer decision.
 
+**The differential, first half (read 2026-09-03 07:16 UTC+1).** `8b12beb3`,
+the pre-wave base: `pass=295 fail=5 vacuous=0 wall=2383s`, 1.7 %. Its
+signatures are NOT the wave's: four of the five are
+`runtime_v2_failfast_join_e2e_test.go:120: program timeout after 1m0s` --
+a HANG of the failfast program, not an exit 13 -- and the fifth a run
+diagnostic. So before Wave D the same instrument read a hang at 1.3 % and
+no exit 13; on `c38e4275` it reads exit 13 at 2.7 % and no hang. The wave
+did not raise a red from zero; it changed which red the program dies of,
+and the scope-serializer window (DEBT-261/263/280) is the one that now
+answers Success instead of hanging. Р6's fix (`6bd6fd22`) targets exactly
+that window; its 1000-run campaign is `queue_p6`'s judge. The second half
+(`c38e4275`, 300 rounds) lands below when it ends.
+
+**The differential, second half (07:53 UTC+1).** `c38e4275`: `pass=287
+fail=13 vacuous=0 wall=2211s`, 4.3 %; every one of the 13 an exit code --
+7 × exit 13 (the second block), 6 × exit 12 (the first) -- and no hang.
+Read together, same command, same cores, back to back:
+
+| SHA | red | of which hang | exit 12 | exit 13 |
+| --- | ---: | ---: | ---: | ---: |
+| `8b12beb3` (pre-wave) | 5 / 300 = 1.7 % | 4 | 0 | 1 |
+| `c38e4275` (Wave D freeze) | 13 / 300 = 4.3 % | 0 | 6 | 7 |
+
+Wave D did raise the rate, 1.7 % → 4.3 %, and it replaced the pre-wave hang
+with the Success-instead-of-Cancelled answer in both blocks. The
+mechanism behind the answer is the scope-serializer window Р6 closes
+(`6bd6fd22`); whether the rate follows it to zero is `queue_p6`'s
+1000-run campaign, and the freeze of a Wave D SHA is not claimed on the
+4.3 %.
+
 **The queue's tail, read after it ended (05:51).** W8 ×2 after the
 campaign: green, 1704 s. `rate312`: `pass=200 fail=0 of_attempted=200`,
 1719 s -- 200 iterations of `http-owner-check` at `SURGE_SHARDS=8` on the
