@@ -36,8 +36,16 @@ def validate_manifest(manifest: Manifest) -> None:
         raise ManifestError("benchmark topology must freeze shards=2 threads=2")
     if manifest.blocking_threads != 1:
         raise ManifestError("benchmark topology must freeze blocking_threads=1")
-    if manifest.reference.cpuset != "0,2":
-        raise ManifestError("benchmark reference cpuset must freeze distinct cores 0,2")
+    # Two distinct cores, whichever host the manifest names: the fixture and
+    # its blocking thread each get a core of their own and share nothing.
+    # The rule used to spell the first reference host's "0,2"; it says what
+    # it always meant now that the host is the dedicated runner (2026-09-03).
+    cores = manifest.reference.cpuset.split(",")
+    if len(cores) != 2 or any(not core.isdigit() for core in cores) or cores[0] == cores[1]:
+        raise ManifestError(
+            "benchmark reference cpuset must freeze two distinct cores, "
+            f"got {manifest.reference.cpuset!r}"
+        )
     metric_set = {metric.name for metric in manifest.metrics}
     if metric_set != set(FROZEN_METRIC_CONTRACT):
         raise ManifestError(

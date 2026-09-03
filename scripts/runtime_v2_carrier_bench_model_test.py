@@ -267,6 +267,30 @@ class ManifestTests(unittest.TestCase):
                     ):
                         load_manifest(path)
 
+    def test_loader_freezes_two_distinct_reference_cores(self) -> None:
+        # The reference host's cpuset is two distinct cores, whichever host the
+        # manifest names (the rule used to spell the workstation's "0,2"; the
+        # host moved to the runner on 2026-09-03 and the rule says what it
+        # always meant). One core, a repeated core and a range are refused.
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "manifest.json"
+            for label, cpuset, ok in (
+                ("two", "8,10", True),
+                ("workstation", "0,2", True),
+                ("one", "8", False),
+                ("repeated", "8,8", False),
+                ("range", "8-10", False),
+            ):
+                with self.subTest(label=label):
+                    raw = manifest_json()
+                    raw["reference_host"]["cpuset"] = cpuset
+                    path.write_text(json.dumps(raw), encoding="utf-8")
+                    if ok:
+                        self.assertEqual(load_manifest(path).reference.cpuset, cpuset)
+                    else:
+                        with self.assertRaisesRegex(ManifestError, "two distinct cores"):
+                            load_manifest(path)
+
     def test_loader_freezes_cross_row_relation_shapes(self) -> None:
         def proportional() -> dict[str, object]:
             raw = manifest_json()
