@@ -357,11 +357,26 @@ def _commit_root(repository: Path, commit: str, label: str) -> Iterator[Path]:
 
 
 def _require_descendant(root: Path, base: str, candidate: str) -> None:
-    run_checked(
-        ["git", "merge-base", "--is-ancestor", base, candidate],
-        cwd=root,
-        timeout_seconds=30,
-    )
+    # A benchmark of a commit against itself measures nothing and passes
+    # every relative gate by construction: `git merge-base --is-ancestor X X`
+    # answers yes, so the equality has to be refused by name (RV2 Wave F,
+    # F4). A base that is not an ancestor is refused here, during the run,
+    # rather than only by the manifest's own validation.
+    if base == candidate:
+        raise GateFailure(
+            f"candidate {candidate} is the manifest's epic_base: a benchmark of a "
+            "commit against itself measures nothing"
+        )
+    try:
+        run_checked(
+            ["git", "merge-base", "--is-ancestor", base, candidate],
+            cwd=root,
+            timeout_seconds=30,
+        )
+    except GateFailure as error:
+        raise GateFailure(
+            f"manifest epic_base {base} is not an ancestor of candidate {candidate}: {error}"
+        ) from error
 
 
 def _require_canonical_manifest(root: Path, manifest_path: Path) -> None:

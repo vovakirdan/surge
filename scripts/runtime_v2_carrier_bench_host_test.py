@@ -1,8 +1,50 @@
 """Focused Runtime V2 carrier benchmark tests."""
 
 from runtime_v2_carrier_bench_test_support import *
+from runtime_v2_carrier_bench import _require_descendant
 
 class HostTests(unittest.TestCase):
+    def test_candidate_must_descend_from_and_differ_from_the_base(self) -> None:
+        # RV2 Wave F, F4: `git merge-base --is-ancestor X X` answers yes, so a
+        # benchmark of the epic base against itself passed every relative gate
+        # by construction; the guard refuses the equality by name, refuses a
+        # base that is not an ancestor during the run, and admits a descendant.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            run_checked(["git", "init", "-q"], cwd=root, timeout_seconds=5)
+            run_checked(
+                ["git", "config", "user.name", "Carrier Test"],
+                cwd=root,
+                timeout_seconds=5,
+            )
+            run_checked(
+                ["git", "config", "user.email", "carrier@example.invalid"],
+                cwd=root,
+                timeout_seconds=5,
+            )
+            (root / "one").write_text("one\n", encoding="utf-8")
+            run_checked(["git", "add", "."], cwd=root, timeout_seconds=5)
+            run_checked(["git", "commit", "-q", "-m", "base"], cwd=root, timeout_seconds=5)
+            base = run_checked(
+                ["git", "rev-parse", "HEAD"], cwd=root, timeout_seconds=5
+            ).stdout.strip()
+            (root / "two").write_text("two\n", encoding="utf-8")
+            run_checked(["git", "add", "."], cwd=root, timeout_seconds=5)
+            run_checked(
+                ["git", "commit", "-q", "-m", "candidate"], cwd=root, timeout_seconds=5
+            )
+            candidate = run_checked(
+                ["git", "rev-parse", "HEAD"], cwd=root, timeout_seconds=5
+            ).stdout.strip()
+
+            with self.assertRaises(GateFailure) as same:
+                _require_descendant(root, base, base)
+            self.assertIn("measures nothing", str(same.exception))
+            with self.assertRaises(GateFailure) as reversed_roles:
+                _require_descendant(root, candidate, base)
+            self.assertIn("not an ancestor", str(reversed_roles.exception))
+            _require_descendant(root, base, candidate)
+
     def test_detached_commit_root_excludes_ignored_live_inputs(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

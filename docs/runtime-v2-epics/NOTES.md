@@ -13354,3 +13354,22 @@ from `rt_alloc` on those exact sites is not injectable without a test hook
 the runtime does not have, and adding one is not this pass. The three
 numeric rows (oversized reply, under-budget mutant, two jumbo producers)
 wait on the owner's E5 answer, as the plan says.
+
+### F4, the benchmark refuses to compare a commit with itself (2026-09-03)
+
+**The hole.** `scripts/runtime_v2_carrier_bench.py`'s `_require_descendant`
+was `git merge-base --is-ancestor base candidate` and nothing else, and
+`git merge-base --is-ancestor X X` answers yes: a run whose candidate WAS
+the manifest's `epic_base` passed the descent check, built the same tree
+twice, and satisfied every relative gate (throughput ≥ 95 %, p95 ≤ 110 %)
+by construction. No other line compared the two commits. **The guard.**
+The equality is refused by name ("a benchmark of a commit against itself
+measures nothing"), and a base that is not an ancestor is refused during
+the run with the base and candidate spelled out, not only by the manifest's
+own validation. **The proof.** `HostTests.test_candidate_must_descend_
+from_and_differ_from_the_base` (a two-commit repository: base against
+itself refused, roles reversed refused, the descendant admitted). The two
+edited harness files carry new digests in the manifest's `harness_files`,
+which is the frozen inventory's own way of admitting a harness change; the
+manifest's `protocol_sha256` moves with it, as it must. Nothing in the
+metric contract, the rows or the fixtures changed.
