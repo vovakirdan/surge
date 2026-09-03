@@ -13373,3 +13373,107 @@ edited harness files carry new digests in the manifest's `harness_files`,
 which is the frozen inventory's own way of admitting a harness change; the
 manifest's `protocol_sha256` moves with it, as it must. Nothing in the
 metric contract, the rows or the fixtures changed.
+
+### F1, the Rule-14 audit of P5, re-taken row by row (2026-09-03)
+
+P5 landed 2026-08-26 (eight commits, this file's 8132-8180); the audit
+re-takes each row's own evidence, and a row whose premise is gone is the
+deliverable. The four P5 properties are goldens, not new code:
+`testdata/golden/sema/invalid/clone_semantics/task_clone_{non_clonable_
+payload,generic_instantiated}` (SEM3116, notes, no unsafe fix) with their
+positive twins `task_clone_{string_payload,user_clone,uninstantiated_
+generic}`, and they are green wherever `golden-check` is green: `ba7f13e4`
+and `341f1978` locally, the D8 rows on `c38e4275`, and the runner's freeze
+set on the Wave E candidate. Row by row:
+
+- RV2-DEBT-133: the status cell was a 760-character paragraph ending in
+  "Open"; it is now the token, and the paragraph (diagnostic half closed
+  by C2, runtime half progressed by D4b, far-routed and
+  cancel/shutdown/exact-drop rows still open) lives in the description.
+  Premise holds: the far-routed rows are Wave F's own item, F5.
+- RV2-DEBT-134: Closed 2026-08-26 (one `CloneState` authority, the
+  second-classifier census). Nothing to re-take.
+- RV2-DEBT-135: the LSP stale-fix remainder (a disk-only semantic
+  dependency changing without an open-document version transition). The
+  narrowing of C6b stands, the remainder is exactly as written, and it is
+  outside the runtime; stays Open, unchanged.
+- RV2-DEBT-136: the compiler-wide fix-emitter census is not done; `fix
+  once` applies only AlwaysSafe and the engine refuses edits without
+  `OldText`. Premise holds; stays Open, unchanged.
+- RV2-DEBT-254: the corpus still writes `x.__clone()` where the advice
+  teaches `clone(x)` -- 63 sites today, in `stdlib/{json,http,fs,path}`,
+  the llvm parity and smoke fixtures, and the vm/sema/mir goldens (some of
+  the sema goldens spell it on purpose, as the thing under test). Both
+  forms are legal and `clone` is a sema builtin (`type_expr_calls.go`), so
+  the rewrite is mechanical and its goldens regenerate; it is scheduled
+  behind F2 and F5 in this pass, and the row stays Open until it lands or
+  the owner records the two-forms decision the row also allows.
+
+### F2, the thirty-one entry points report their refusal (2026-09-03)
+
+**What the row said, and what the tree did.** RV2-DEBT-309 classified
+every pointer-answering declaration in the LLVM ABI roster and found 31
+whose block generated code stores UNTESTED: the FsResult builders (17
+entry points), the NetResult builders (9), and five blocks that carry their
+own answer (entropy, argv, heap stats, string bytes view, terminal event).
+Each answered NULL when `rt_tag_alloc` / `rt_alloc` refused, and the
+compiled `compare` then read a discriminant through it. The model's answer
+(RUNTIME_V2.md, "Refusal Of A Result Type's Own Storage") is that there is
+no third answer: a valid block or a terminal RT_OOM.
+
+**The pattern, once.** Two reporters, not thirty-one fatal sites:
+`rt_alloc_or_report` and `rt_tag_alloc_or_report` take the block or end
+the process with the caller's message, exactly as `string_alloc_or_report`
+already did for the string family. The builders lose their NULL checks and
+gain a per-file message (`FS_RESULT_ALLOC`, `NET_RESULT_ALLOC`,
+`TERM_EVENT_ALLOC`; the entropy, argv, heap-stats and bytes-view sites call
+the reporters directly). Two disguises went with it: a refused byte-array
+header under a NetResult used to come back as `NET_ERR_IO`, and a refused
+entropy block as `ENTROPY_ERR_BACKEND` -- an out-of-memory reported as an
+I/O or backend error is the same lie the NULL was. `rt_heap_stats` also
+panics on an accounting snapshot it cannot take, where it used to answer
+NULL for that too. `rt_string_bytes_view` keeps its two NULLs for a handle
+that is not there; the census classifies them as the language's own
+answer, not a refusal. The panic ledger gains eleven `PG-ALLOC-FAILURE`
+rows (and one `PG-INVARIANT`) at the sites the scanner sees -- the macro
+sites it does not see are the same two reporters.
+
+**The census.** `untestedRuntimeAnswers` moves 31 → 0 and the thirty-one
+are reclassified `refusalIsReported` with the reporter named; the
+swallowed count (25, the bignum promotions) is untouched, as its comment
+demands. **The witness.** A stand-only seam, `rt_test_alloc_refusals`
+(rt_alloc.c under `RT_TEST_SYNC_POINTS`): while positive, each `rt_alloc`
+decrements it and answers NULL, so a refusal lands on the exact next
+allocation. `TestRuntimeV2RemoteTaskPointerAnswersReport` arms one refusal
+before `rt_argv` (the plain path) and before `rt_fs_metadata` of a missing
+path (the tagged path: the error block is the first allocation, its message
+string the second) and reads `surge: fatal [RT_OOM]: argv allocation
+failed` and `... fs result allocation failed`. Rule 13:
+`RV2_DEBT_309_NEGATIVE_CONTROL` hands the NULL back from both reporters,
+and the callers -- which no longer test for it -- carry on the way
+generated code would: the argv array header and the FsResult block are
+written through the NULL and the process dies of that, silently, without a
+report. The first cut of the control expected the old "answered NULL" and
+read the wrong reason on both rows (the stand has no argv, so the refused
+block is the header itself); the control now asserts what the mutant
+actually does. Both on the remote task acceptance roster.
+The seam is also the injection E6 noted the runtime lacked for a
+partial-allocation row; it exists now, for stands only.
+
+**Review of E5/E6 (the E7 lens "find the second owner of a payload").**
+An adversarial read of `ba7f13e4..6b98cc26` found one double release and
+one bookkeeping slip, both fixed here: (1) the anchored/select dispatch's
+publish-failure path unpinned BEFORE it unregistered, and the shutdown
+sweep's non-pins branch could release the owner reference in that gap
+while the dispatch's answer released it again -- the plain EXECUTE op had
+the same double release over the whole register-to-answer window,
+pre-existing. `rt_remote_task_pending_unregister_owner` now answers whether
+the registration was still held, the dispatch unregisters BEFORE it unpins,
+and only the path that held the registration answers and releases; a sweep
+that took it has answered the caller already. (2) A select arm's PAYLOAD
+charge sat after the commit while its release sat on `owns_block`, so a
+staging that stopped between bind and move underflowed the ledger; the
+charge moved to the bind. Noted and not fixed: the sweep's non-pins branch
+severs a registration without releasing the registration's task reference,
+so that body task leaks at process exit -- the same class as the parked
+pin, recorded under RV2-DEBT-322's residual.

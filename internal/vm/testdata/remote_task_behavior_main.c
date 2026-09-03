@@ -143,6 +143,10 @@ int main(int argc, char** argv) {
         return rtb_mode_drop_handoff_not_dropped();
     if (strcmp(argv[1], "resident-handoff-balance") == 0)
         return rtb_mode_resident_handoff_balance();
+    if (strcmp(argv[1], "pointer-answer-alloc") == 0)
+        return rtb_mode_pointer_answer_alloc();
+    if (strcmp(argv[1], "pointer-answer-tag") == 0)
+        return rtb_mode_pointer_answer_tag();
     if (strcmp(argv[1], "drop-zero-id-never-dispatches") == 0)
         return rtb_mode_drop_zero_id_never_dispatches();
     if (strcmp(argv[1], "drop-bound-cancel-no-pending-drop") == 0)

@@ -77,13 +77,19 @@ uint64_t net_error_code_from_errno(int err) {
 // the string.
 #define NET_RESULT_ERROR_CASE 1u
 
+// Every NetResult block is handed to generated code, which stores it into the
+// result slot and reads the discriminant through it untested (RV2-DEBT-309):
+// a refused block ends the process here instead of answering NULL, and a
+// refused byte-array header is the same refusal, not an I/O error.
+static const uint8_t net_result_oom[] = "net result allocation failed";
+#define NET_RESULT_ALLOC(tag, align, size)                                                         \
+    ((uint8_t*)rt_tag_alloc_or_report(                                                             \
+        (tag), (align), (size), net_result_oom, sizeof(net_result_oom) - 1))
+
 void* net_make_error(uint64_t code) {
     size_t payload_align = alignof(NetError);
     size_t payload_offset = rt_tag_payload_offset(payload_align);
-    uint8_t* mem = (uint8_t*)rt_tag_alloc(NET_RESULT_ERROR_CASE, payload_align, sizeof(NetError));
-    if (mem == NULL) {
-        return NULL;
-    }
+    uint8_t* mem = NET_RESULT_ALLOC(NET_RESULT_ERROR_CASE, payload_align, sizeof(NetError));
     NetError err;
     const char* msg = net_error_message(code);
     err.message = rt_string_from_bytes((const uint8_t*)msg, (uint64_t)strlen(msg));
@@ -99,10 +105,7 @@ void* net_make_success_ptr(void* payload) {
         payload_size = sizeof(void*);
     }
     size_t payload_offset = rt_tag_payload_offset(payload_align);
-    uint8_t* mem = (uint8_t*)rt_tag_alloc(0, payload_align, payload_size);
-    if (mem == NULL) {
-        return NULL;
-    }
+    uint8_t* mem = NET_RESULT_ALLOC(0, payload_align, payload_size);
     memcpy(mem + payload_offset, (const void*)&payload, sizeof(payload));
     return mem;
 }
@@ -121,10 +124,7 @@ void* net_make_success_handle(uint64_t handle_id) {
         payload_size = sizeof(handle_id);
     }
     size_t payload_offset = rt_tag_payload_offset(payload_align);
-    uint8_t* mem = (uint8_t*)rt_tag_alloc(0, payload_align, payload_size);
-    if (mem == NULL) {
-        return NULL;
-    }
+    uint8_t* mem = NET_RESULT_ALLOC(0, payload_align, payload_size);
     memcpy(mem + payload_offset, &handle_id, sizeof(handle_id));
     return mem;
 }
@@ -133,37 +133,21 @@ void* net_make_success_nothing(void) {
     size_t payload_align = alignof(void*);
     size_t payload_size = sizeof(NetError);
     size_t payload_offset = rt_tag_payload_offset(payload_align);
-    uint8_t* mem = (uint8_t*)rt_tag_alloc(0, payload_align, payload_size);
-    if (mem == NULL) {
-        return NULL;
-    }
+    uint8_t* mem = NET_RESULT_ALLOC(0, payload_align, payload_size);
     mem[payload_offset] = 0;
     return mem;
 }
 
 void* net_make_success_bytes(uint8_t* data, uint64_t len, uint64_t cap) {
-    SurgeArrayHeader* header = (SurgeArrayHeader*)rt_alloc((uint64_t)sizeof(SurgeArrayHeader),
-                                                           (uint64_t)alignof(SurgeArrayHeader));
-    if (header == NULL) {
-        if (data != NULL) {
-            rt_free(data, cap, (uint64_t)alignof(uint8_t));
-        }
-        return net_make_error(NET_ERR_IO);
-    }
+    SurgeArrayHeader* header =
+        (SurgeArrayHeader*)rt_alloc_or_report((uint64_t)sizeof(SurgeArrayHeader),
+                                              (uint64_t)alignof(SurgeArrayHeader),
+                                              net_result_oom,
+                                              sizeof(net_result_oom) - 1);
     header->len = len;
     header->cap = cap;
     header->data = data;
-    void* out = net_make_success_ptr((void*)header);
-    if (out == NULL) {
-        if (data != NULL) {
-            rt_free(data, cap, (uint64_t)alignof(uint8_t));
-        }
-        rt_free((uint8_t*)header,
-                (uint64_t)sizeof(SurgeArrayHeader),
-                (uint64_t)alignof(SurgeArrayHeader));
-        return net_make_error(NET_ERR_IO);
-    }
-    return out;
+    return net_make_success_ptr((void*)header);
 }
 
 char* net_copy_addr(void* addr, uint64_t* out_len, uint64_t* err_code) {

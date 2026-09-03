@@ -451,11 +451,12 @@ void* rt_string_bytes_view(void* s) {
     if (str == NULL) {
         return NULL;
     }
-    SurgeBytesView* view = (SurgeBytesView*)rt_alloc((uint64_t)sizeof(SurgeBytesView),
-                                                     (uint64_t)alignof(SurgeBytesView));
-    if (view == NULL) {
-        return NULL;
-    }
+    // Generated code stores the view untested (RV2-DEBT-309): a refused
+    // block is reported here; the NULLs above answer a handle that is not
+    // there, which is not a refusal.
+    static const uint8_t oom[] = "string bytes view allocation failed";
+    SurgeBytesView* view = (SurgeBytesView*)rt_alloc_or_report(
+        (uint64_t)sizeof(SurgeBytesView), (uint64_t)alignof(SurgeBytesView), oom, sizeof(oom) - 1);
     view->owner = (void*)(uintptr_t)str;
     view->ptr = str->data;
     view->len = rt_biguint_from_u64(str->len_bytes);

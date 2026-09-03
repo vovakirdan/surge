@@ -218,8 +218,12 @@ void rt_remote_task_pending_retire_reply_wait(rt_executor* ex, rt_remote_task_pe
 // The body task becomes the pending's registered owner: the completion path
 // finds the pending through the task (rt_task.remote_owner_pending) and
 // answers the reply. Registration holds the owner reference on the pending.
+// Unregistering answers whether the registration was still held: the
+// shutdown sweep may have taken it -- and released its reference, and
+// answered the caller -- in between, in which case the dispatch that
+// registered owns neither the answer nor that reference any more.
 void rt_remote_task_pending_register_owner(rt_remote_task_pending* pending, rt_task* task);
-void rt_remote_task_pending_unregister_owner(rt_remote_task_pending* pending, rt_task* task);
+int rt_remote_task_pending_unregister_owner(rt_remote_task_pending* pending, rt_task* task);
 rt_remote_task_pending* rt_remote_task_pending_take_owner(rt_task* task);
 
 rt_remote_task_status rt_far_task_lease_consume(const rt_far_task_handle* handle);

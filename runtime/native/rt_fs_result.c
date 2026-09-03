@@ -88,13 +88,17 @@ void fs_release_dir_entries(DirEntry* entries, size_t count) {
 // at all -- see the note on net_make_error for what the caller then read.
 #define FS_RESULT_ERROR_CASE 1u
 
+// Every FsResult block is handed to generated code, which stores it into the
+// result slot and reads the discriminant through it untested (RV2-DEBT-309):
+// a refused block ends the process here instead of answering NULL.
+static const uint8_t fs_result_oom[] = "fs result allocation failed";
+#define FS_RESULT_ALLOC(tag, align, size)                                                          \
+    ((uint8_t*)rt_tag_alloc_or_report((tag), (align), (size), fs_result_oom, sizeof(fs_result_oom) - 1))
+
 void* fs_make_error(uint64_t code) {
     size_t payload_align = alignof(FsError);
     size_t payload_offset = rt_tag_payload_offset(payload_align);
-    uint8_t* mem = (uint8_t*)rt_tag_alloc(FS_RESULT_ERROR_CASE, payload_align, sizeof(FsError));
-    if (mem == NULL) {
-        return NULL;
-    }
+    uint8_t* mem = FS_RESULT_ALLOC(FS_RESULT_ERROR_CASE, payload_align, sizeof(FsError));
     FsError err;
     const char* msg = fs_error_message(code);
     err.message = rt_string_from_bytes((const uint8_t*)msg, (uint64_t)strlen(msg));
@@ -113,10 +117,7 @@ void* fs_make_success_ptr(void* payload) {
         payload_size = sizeof(void*);
     }
     size_t payload_offset = rt_tag_payload_offset(payload_align);
-    uint8_t* mem = (uint8_t*)rt_tag_alloc(0, payload_align, payload_size);
-    if (mem == NULL) {
-        return NULL;
-    }
+    uint8_t* mem = FS_RESULT_ALLOC(0, payload_align, payload_size);
     memcpy(mem + payload_offset, (const void*)&payload, sizeof(payload));
     return mem;
 }
@@ -136,10 +137,7 @@ void* fs_make_success_meta(const Metadata* meta) {
         payload_size = sizeof(void*);
     }
     size_t payload_offset = rt_tag_payload_offset(payload_align);
-    uint8_t* mem = (uint8_t*)rt_tag_alloc(0, payload_align, payload_size);
-    if (mem == NULL) {
-        return NULL;
-    }
+    uint8_t* mem = FS_RESULT_ALLOC(0, payload_align, payload_size);
     memcpy(mem + payload_offset, (const void*)meta, sizeof(Metadata));
     return mem;
 }
@@ -151,10 +149,7 @@ void* fs_make_success_nothing(void) {
         payload_size = sizeof(Metadata);
     }
     size_t payload_offset = rt_tag_payload_offset(payload_align);
-    uint8_t* mem = (uint8_t*)rt_tag_alloc(0, payload_align, payload_size);
-    if (mem == NULL) {
-        return NULL;
-    }
+    uint8_t* mem = FS_RESULT_ALLOC(0, payload_align, payload_size);
     mem[payload_offset] = 0;
     return mem;
 }
@@ -169,10 +164,7 @@ void* fs_make_success_u8(uint8_t value) {
         payload_size = sizeof(void*);
     }
     size_t payload_offset = rt_tag_payload_offset(payload_align);
-    uint8_t* mem = (uint8_t*)rt_tag_alloc(0, payload_align, payload_size);
-    if (mem == NULL) {
-        return NULL;
-    }
+    uint8_t* mem = FS_RESULT_ALLOC(0, payload_align, payload_size);
     mem[payload_offset] = value;
     return mem;
 }

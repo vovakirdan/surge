@@ -165,27 +165,39 @@ func runtimePointerAnswers() map[string]runtimeAnswer {
 				"(internal/abimanifest/render_c.go); it allocates nothing",
 			"rt_typed_carrier_abi_manifest_hash"),
 
-		classified(refusalIsUntested,
-			"answers NULL when the tagged result block is refused (runtime/native/rt_fs_result.c: "+
-				"fs_make_error, fs_make_success_*); the generated code stores it into the FsResult slot "+
-				"and the match reads the discriminant through it",
+		classified(refusalIsReported,
+			"a refused FsResult block stops the process in rt_tag_alloc_or_report "+
+				"(runtime/native/rt_fs_result.c: fs_make_error, fs_make_success_*, through "+
+				"FS_RESULT_ALLOC); the generated code stores the answer into the FsResult slot "+
+				"untested, and since Wave F F2 that answer is never NULL",
 			"rt_fs_open", "rt_fs_read", "rt_fs_write", "rt_fs_seek", "rt_fs_close", "rt_fs_flush",
 			"rt_fs_read_file", "rt_fs_write_file", "rt_fs_cwd", "rt_fs_metadata", "rt_fs_mkdir",
 			"rt_fs_read_dir", "rt_fs_remove_dir", "rt_fs_remove_file", "rt_fs_file_metadata",
 			"rt_fs_file_name", "rt_fs_file_type"),
-		classified(refusalIsUntested,
-			"answers NULL when the tagged result block is refused (runtime/native/rt_net_result.c: "+
-				"net_make_error, net_make_success_*); the generated code stores it into the NetResult slot "+
-				"and the match reads the discriminant through it",
+		classified(refusalIsReported,
+			"a refused NetResult block, or the refused byte-array header behind one, stops the "+
+				"process in rt_tag_alloc_or_report / rt_alloc_or_report (runtime/native/"+
+				"rt_net_result.c: net_make_error, net_make_success_*, through NET_RESULT_ALLOC); "+
+				"the generated code stores the answer untested, and since Wave F F2 it is never NULL",
 			"rt_net_accept", "rt_net_connect", "rt_net_listen", "rt_net_read", "rt_net_read_bytes",
 			"rt_net_write", "rt_net_write_bytes", "rt_net_close_conn", "rt_net_close_listener"),
-		classified(refusalIsUntested,
-			"answers NULL when its own block is refused (runtime/native/rt_entropy.c: entropy_make_*, "+
-				"rt_io.c: rt_argv, rt_alloc.c: rt_heap_stats, rt_string.c: rt_string_bytes_view)",
-			"rt_entropy_bytes", "rt_argv", "rt_heap_stats", "rt_string_bytes_view"),
-		classified(refusalIsUntested,
-			"answers NULL when the tagged event block is refused (runtime/native/rt_term.c: "+
-				"term_make_event_key, term_make_event_resize)",
+		classified(refusalIsReported,
+			"a refused block stops the process in rt_alloc_or_report / rt_tag_alloc_or_report "+
+				"(runtime/native/rt_entropy.c: entropy_make_*, rt_io.c: rt_argv, rt_alloc.c: "+
+				"rt_heap_stats, which also reports an accounting snapshot it cannot take); the "+
+				"generated code stores the answer untested, and since Wave F F2 it is never NULL",
+			"rt_entropy_bytes", "rt_argv", "rt_heap_stats"),
+		classified(nullIsNotARefusal,
+			"a refused view block stops the process in rt_alloc_or_report (runtime/native/rt_string.c: "+
+				"rt_string_bytes_view); the NULL it still answers is for a string handle that is not "+
+				"there, which is the language's own answer and not a refusal",
+			"rt_string_bytes_view"),
+		classified(refusalIsReported,
+			"a refused event block, at any of the levels an event is built from, stops the process "+
+				"in rt_tag_alloc_or_report / rt_alloc_or_report (runtime/native/rt_term.c: "+
+				"term_make_key, term_make_key_event, term_make_event_key, term_make_event_resize, "+
+				"term_make_event_eof, through TERM_EVENT_ALLOC); the generated code stores the answer "+
+				"untested, and since Wave F F2 it is never NULL",
 			"rt_term_read_event"),
 	}
 	out := map[string]runtimeAnswer{}
@@ -205,7 +217,13 @@ func runtimePointerAnswers() map[string]runtimeAnswer {
 // 31 on 2026-08-29: the filesystem result (17), the socket result (9), and five
 // blocks that carry their own answer. The string family left this count on the
 // same day it was measured, by reporting at the allocation instead.
-const untestedRuntimeAnswers = 31
+//
+// 0 on 2026-09-03 (Wave F, F2, RV2-DEBT-309): every one of the 31 reports at
+// the allocation through rt_alloc_or_report / rt_tag_alloc_or_report, the way
+// the string family already did, so generated code that stores their answer
+// untested stores a block or nothing at all. A lane that moves this UP is
+// adding an entry point that answers NULL untested, and must say why.
+const untestedRuntimeAnswers = 0
 
 // swallowedRuntimeAnswers pins the other open surface, which no test in the
 // generated code can close because the refusal is not a null by the time it

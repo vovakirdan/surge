@@ -37,3 +37,26 @@ void* rt_tag_alloc(uint32_t tag, size_t payload_align, size_t payload_size) {
     memcpy(mem, &tag, sizeof(tag));
     return mem;
 }
+
+// The tagged twin of rt_alloc_or_report (rt_alloc.c): the result blocks the
+// filesystem, socket, entropy and terminal entry points hand generated code
+// are built here, and a refused one is reported here rather than answered
+// as NULL. Rule 13 as there: RV2_DEBT_309_NEGATIVE_CONTROL hands the NULL
+// back.
+void* rt_tag_alloc_or_report(uint32_t tag,
+                             size_t payload_align,
+                             size_t payload_size,
+                             const uint8_t* message,
+                             uint64_t message_length) {
+    void* mem = rt_tag_alloc(tag, payload_align, payload_size);
+    if (mem == NULL) {
+#ifdef RV2_DEBT_309_NEGATIVE_CONTROL
+        (void)message;
+        (void)message_length;
+        return NULL;
+#else
+        rt_fatal_static(RT_OOM, message, message_length);
+#endif
+    }
+    return mem;
+}

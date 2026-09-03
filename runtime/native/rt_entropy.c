@@ -51,14 +51,19 @@ static const char* entropy_error_message(uint64_t code) {
 // what an untagged return left the caller reading.
 #define ENTROPY_RESULT_ERROR_CASE 1u
 
+// The EntropyResult block is handed to generated code untested
+// (RV2-DEBT-309): a refused block, or a refused byte array behind it, ends
+// the process here rather than answering NULL or a backend error it was not.
+static const uint8_t entropy_result_oom[] = "entropy result allocation failed";
+
 static void* entropy_make_error(uint64_t code) {
     size_t payload_align = alignof(EntropyError);
     size_t payload_offset = rt_tag_payload_offset(payload_align);
-    uint8_t* mem =
-        (uint8_t*)rt_tag_alloc(ENTROPY_RESULT_ERROR_CASE, payload_align, sizeof(EntropyError));
-    if (mem == NULL) {
-        return NULL;
-    }
+    uint8_t* mem = (uint8_t*)rt_tag_alloc_or_report(ENTROPY_RESULT_ERROR_CASE,
+                                                    payload_align,
+                                                    sizeof(EntropyError),
+                                                    entropy_result_oom,
+                                                    sizeof(entropy_result_oom) - 1);
     EntropyError err;
     const char* msg = entropy_error_message(code);
     err.message = rt_string_from_bytes((const uint8_t*)msg, (uint64_t)strlen(msg));
@@ -70,21 +75,16 @@ static void* entropy_make_error(uint64_t code) {
 static void* entropy_make_success_bytes(const uint8_t* bytes, uint64_t len) {
     void* data = NULL;
     if (len > 0) {
-        data = rt_alloc(len, (uint64_t)alignof(uint8_t));
-        if (data == NULL) {
-            return entropy_make_error(ENTROPY_ERR_BACKEND);
-        }
+        data = rt_alloc_or_report(
+            len, (uint64_t)alignof(uint8_t), entropy_result_oom, sizeof(entropy_result_oom) - 1);
         memcpy(data, bytes, (size_t)len);
     }
 
-    SurgeArrayHeader* header = (SurgeArrayHeader*)rt_alloc((uint64_t)sizeof(SurgeArrayHeader),
-                                                           (uint64_t)alignof(SurgeArrayHeader));
-    if (header == NULL) {
-        if (data != NULL) {
-            rt_free((uint8_t*)data, len, (uint64_t)alignof(uint8_t));
-        }
-        return entropy_make_error(ENTROPY_ERR_BACKEND);
-    }
+    SurgeArrayHeader* header =
+        (SurgeArrayHeader*)rt_alloc_or_report((uint64_t)sizeof(SurgeArrayHeader),
+                                              (uint64_t)alignof(SurgeArrayHeader),
+                                              entropy_result_oom,
+                                              sizeof(entropy_result_oom) - 1);
     header->len = len;
     header->cap = len;
     header->data = data;
@@ -95,16 +95,8 @@ static void* entropy_make_success_bytes(const uint8_t* bytes, uint64_t len) {
         payload_size = sizeof(void*);
     }
     size_t payload_offset = rt_tag_payload_offset(payload_align);
-    uint8_t* mem = (uint8_t*)rt_tag_alloc(0, payload_align, payload_size);
-    if (mem == NULL) {
-        if (data != NULL) {
-            rt_free((uint8_t*)data, len, (uint64_t)alignof(uint8_t));
-        }
-        rt_free((uint8_t*)header,
-                (uint64_t)sizeof(SurgeArrayHeader),
-                (uint64_t)alignof(SurgeArrayHeader));
-        return entropy_make_error(ENTROPY_ERR_BACKEND);
-    }
+    uint8_t* mem = (uint8_t*)rt_tag_alloc_or_report(
+        0, payload_align, payload_size, entropy_result_oom, sizeof(entropy_result_oom) - 1);
     void* payload = (void*)header;
     memcpy(mem + payload_offset, (const void*)&payload, sizeof(payload));
     return mem;

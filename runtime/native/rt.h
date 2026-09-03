@@ -20,6 +20,18 @@ extern "C" {
 #endif
 
 void* rt_alloc(uint64_t size, uint64_t align);
+// rt_alloc with the refusal reported here: a block that cannot be had ends
+// the process with `message` as the RT_OOM report, so the caller never sees
+// NULL. For the entry points whose answer generated code stores untested.
+void* rt_alloc_or_report(uint64_t size,
+                         uint64_t align,
+                         const uint8_t* message,
+                         uint64_t message_length);
+#ifdef RT_TEST_SYNC_POINTS
+// Test seam, stands only: while positive, each rt_alloc decrements it and
+// answers NULL, so a refusal can be forced on an exact site.
+extern _Atomic uint32_t rt_test_alloc_refusals;
+#endif
 void rt_free(uint8_t* ptr, uint64_t size, uint64_t align);
 void* rt_realloc(uint8_t* ptr, uint64_t old_size, uint64_t new_size, uint64_t align);
 void rt_memcpy(uint8_t* dst, const uint8_t* src, uint64_t n);
@@ -57,6 +69,12 @@ bool rt_byte_parse_uint64_token(
     const void* array, uint64_t start, uint64_t end, uint64_t* value_out, uint64_t* next_out);
 size_t rt_tag_payload_offset(size_t payload_align);
 void* rt_tag_alloc(uint32_t tag, size_t payload_align, size_t payload_size);
+// rt_tag_alloc with the refusal reported here (see rt_alloc_or_report).
+void* rt_tag_alloc_or_report(uint32_t tag,
+                             size_t payload_align,
+                             size_t payload_size,
+                             const uint8_t* message,
+                             uint64_t message_length);
 
 uint64_t rt_write_stdout(const uint8_t* ptr, uint64_t length);
 uint64_t rt_write_stderr(const uint8_t* ptr, uint64_t length);

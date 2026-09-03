@@ -33,7 +33,30 @@ static void record_free(uint64_t size) {
     rt_heap_accounting_record_free(rt_heap_accounting_current_cell(), size);
 }
 
+#ifdef RT_TEST_SYNC_POINTS
+_Atomic uint32_t rt_test_alloc_refusals = 0;
+
+static int test_refuses_allocation(void) {
+    uint32_t left = atomic_load_explicit(&rt_test_alloc_refusals, memory_order_relaxed);
+    while (left > 0) {
+        if (atomic_compare_exchange_weak_explicit(&rt_test_alloc_refusals,
+                                                  &left,
+                                                  left - 1,
+                                                  memory_order_relaxed,
+                                                  memory_order_relaxed)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+#else
+#define test_refuses_allocation() 0
+#endif
+
 void* rt_alloc(uint64_t size, uint64_t align) {
+    if (test_refuses_allocation()) {
+        return NULL;
+    }
     size = alloc_size(size);
     void* ptr = NULL;
     if (align <= sizeof(void*)) {
@@ -47,6 +70,28 @@ void* rt_alloc(uint64_t size, uint64_t align) {
         return NULL;
     }
     record_alloc(size);
+    return ptr;
+}
+
+// The one report for every entry point that hands generated code a block it
+// stores untested (RV2-DEBT-309): a refused block ends the process here, so
+// the answer those callers store is never NULL. Rule 13:
+// RV2_DEBT_309_NEGATIVE_CONTROL hands the NULL back instead, and the
+// pointer-answer stand reads the refusal where it must read the report.
+void* rt_alloc_or_report(uint64_t size,
+                         uint64_t align,
+                         const uint8_t* message,
+                         uint64_t message_length) {
+    void* ptr = rt_alloc(size, align);
+    if (ptr == NULL) {
+#ifdef RV2_DEBT_309_NEGATIVE_CONTROL
+        (void)message;
+        (void)message_length;
+        return NULL;
+#else
+        rt_fatal_static(RT_OOM, message, message_length);
+#endif
+    }
     return ptr;
 }
 
@@ -107,14 +152,15 @@ void* rt_heap_stats(void) {
     rt_heap_accounting_status status =
         rt_heap_accounting_snapshot(rt_runtime_global_heap_accounting(), &snapshot);
     if (status != RT_HEAP_ACCOUNTING_OK) {
-        return NULL;
+        // Generated code stores this answer untested; a snapshot the
+        // accounting cannot take is not a value it can be given.
+        static const uint8_t unavailable[] = "heap stats: accounting snapshot unavailable";
+        rt_fatal_static(RT_FATAL_PANIC, unavailable, sizeof(unavailable) - 1);
     }
 
-    SurgeHeapStats* stats = (SurgeHeapStats*)rt_alloc((uint64_t)sizeof(SurgeHeapStats),
-                                                      (uint64_t) _Alignof(SurgeHeapStats));
-    if (stats == NULL) {
-        return NULL;
-    }
+    static const uint8_t oom[] = "heap stats allocation failed";
+    SurgeHeapStats* stats = (SurgeHeapStats*)rt_alloc_or_report(
+        (uint64_t)sizeof(SurgeHeapStats), (uint64_t) _Alignof(SurgeHeapStats), oom, sizeof(oom) - 1);
     stats->alloc_count = rt_biguint_from_u64(snapshot.alloc_count);
     stats->free_count = rt_biguint_from_u64(snapshot.free_count);
     stats->live_blocks = rt_biguint_from_u64(snapshot.live_blocks);

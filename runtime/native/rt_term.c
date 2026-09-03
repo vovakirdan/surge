@@ -173,14 +173,19 @@ static void term_debug_printf(const char* fmt, ...) {
     rt_write_stderr((const uint8_t*)buf, len);
 }
 
+// The event blocks rt_term_read_event hands generated code are stored
+// untested (RV2-DEBT-309): a refused block, at any of the four levels an
+// event is built from, ends the process here instead of answering NULL.
+static const uint8_t term_event_oom[] = "term event allocation failed";
+#define TERM_EVENT_ALLOC(tag, align, size)                                                         \
+    ((uint8_t*)rt_tag_alloc_or_report(                                                             \
+        (tag), (align), (size), term_event_oom, sizeof(term_event_oom) - 1))
+
 static void* term_make_key(TermKeyData key) {
     size_t payload_align = alignof(uint32_t);
     size_t payload_size = sizeof(uint32_t);
     size_t payload_offset = rt_tag_payload_offset(payload_align);
-    uint8_t* mem = (uint8_t*)rt_tag_alloc((uint32_t)key.kind, payload_align, payload_size);
-    if (mem == NULL) {
-        return NULL;
-    }
+    uint8_t* mem = TERM_EVENT_ALLOC((uint32_t)key.kind, payload_align, payload_size);
     switch (key.kind) {
         case TERM_KEY_KIND_CHAR:
             memcpy(mem + payload_offset, &key.ch, sizeof(key.ch));
@@ -195,11 +200,10 @@ static void* term_make_key(TermKeyData key) {
 }
 
 static void* term_make_key_event(TermKeyData key, uint8_t mods) {
-    TermKeyEvent* ev =
-        (TermKeyEvent*)rt_alloc((uint64_t)sizeof(TermKeyEvent), (uint64_t)alignof(TermKeyEvent));
-    if (ev == NULL) {
-        return NULL;
-    }
+    TermKeyEvent* ev = (TermKeyEvent*)rt_alloc_or_report((uint64_t)sizeof(TermKeyEvent),
+                                                         (uint64_t)alignof(TermKeyEvent),
+                                                         term_event_oom,
+                                                         sizeof(term_event_oom) - 1);
     ev->key = term_make_key(key);
     ev->mods = mods;
     term_debug_printf(
@@ -214,14 +218,8 @@ static void* term_make_event_key(TermKeyData key, uint8_t mods) {
         payload_size = sizeof(TermKeyEventPayload);
     }
     size_t payload_offset = rt_tag_payload_offset(payload_align);
-    uint8_t* mem = (uint8_t*)rt_tag_alloc(TERM_EVENT_TAG_KEY, payload_align, payload_size);
-    if (mem == NULL) {
-        return NULL;
-    }
+    uint8_t* mem = TERM_EVENT_ALLOC(TERM_EVENT_TAG_KEY, payload_align, payload_size);
     void* key_event = term_make_key_event(key, mods);
-    if (key_event == NULL) {
-        return NULL;
-    }
     if (term_debug_enabled()) {
         TermKeyEvent* ev = (TermKeyEvent*)key_event;
         uint32_t key_tag = 0;
@@ -248,10 +246,7 @@ static void* term_make_event_resize(int64_t cols, int64_t rows) {
         payload_size = sizeof(TermKeyEventPayload);
     }
     size_t payload_offset = rt_tag_payload_offset(payload_align);
-    uint8_t* mem = (uint8_t*)rt_tag_alloc(TERM_EVENT_TAG_RESIZE, payload_align, payload_size);
-    if (mem == NULL) {
-        return NULL;
-    }
+    uint8_t* mem = TERM_EVENT_ALLOC(TERM_EVENT_TAG_RESIZE, payload_align, payload_size);
     TermResizePayload payload = {0};
     payload.cols = rt_bigint_from_i64(cols);
     payload.rows = rt_bigint_from_i64(rows);
@@ -265,7 +260,7 @@ static void* term_make_event_eof(void) {
     if (payload_size < sizeof(TermKeyEventPayload)) {
         payload_size = sizeof(TermKeyEventPayload);
     }
-    return rt_tag_alloc(TERM_EVENT_TAG_EOF, payload_align, payload_size);
+    return TERM_EVENT_ALLOC(TERM_EVENT_TAG_EOF, payload_align, payload_size);
 }
 
 static bool term_parse_i64(const char* text, int64_t* out) {

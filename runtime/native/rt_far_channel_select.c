@@ -239,17 +239,19 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anc
         if (rt_value_cell_bind(&arms[staged].payload, rt_channel_element_ops_for(type_id)) ==
             RT_SLOT_CONTROL_OK) {
             cell_storage = rt_value_cell_publish_storage(&arms[staged].payload);
+            if (arms[staged].payload.owns_block) {
+                // A payload too wide for the arm's inline run: its block is
+                // resident beside the table until the table is freed --
+                // charged with the bind, where the block is, so a staging
+                // that stops short of the move still balances at the free.
+                rt_resident_payload_acquire(arms[staged].payload.operations);
+            }
         }
         if (cell_storage == NULL || source == NULL) {
             break;
         }
         rt_value_move_init_detached(arms[staged].payload.operations, cell_storage, source);
         (void)rt_value_cell_commit(&arms[staged].payload);
-        if (arms[staged].payload.owns_block) {
-            // A payload too wide for the arm's inline run: its block is
-            // resident beside the table until the table is freed.
-            rt_resident_payload_acquire(arms[staged].payload.operations);
-        }
     }
     if (staged != count) {
         // One arm could not be staged. What was already staged lives in its
@@ -390,11 +392,15 @@ void rt_far_channel_dispatch_select(rt_executor* ex, const rt_transport_msg* msg
     rt_remote_task_pending_add_ref(pending);
     rt_remote_spawn_status published = rt_remote_spawn_publish_body_task(ex, task);
     if (published != RT_REMOTE_SPAWN_STATUS_OK) {
+        // Registration before pins, and an answer only from the path that
+        // still held the registration: see the immediate-on dispatch.
+        int held = rt_remote_task_pending_unregister_owner(pending, task);
         rt_far_channel_select_unpin_arms(ex, pending, pending->select_count);
-        rt_remote_task_pending_unregister_owner(pending, task);
         task_release_lane_aware(ex, task);
         rt_remote_spawn_free_unpublished_task(ex, task);
-        select_answer(ex, pending, RT_REMOTE_TASK_STATUS_REFUSED);
+        if (held) {
+            select_answer(ex, pending, RT_REMOTE_TASK_STATUS_REFUSED);
+        }
         rt_remote_task_pending_release(pending);
         return;
     }

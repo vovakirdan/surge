@@ -308,11 +308,19 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
     RT_SYNC_POINT(SP_IMMEDIATE_ON_BEFORE_PUBLISH);
     rt_remote_spawn_status published = rt_remote_spawn_publish_body_task(ex, task);
     if (published != RT_REMOTE_SPAWN_STATUS_OK) {
+        // The registration goes BEFORE the pin: the sweep keeps the
+        // registration of a pinned body and severs an unpinned one, so a
+        // pin dropped first would let it release the owner reference this
+        // path is about to release too. And only the path that still held
+        // the registration answers; a sweep that took it has answered the
+        // caller and released that reference already.
+        int held = rt_remote_task_pending_unregister_owner(pending, task);
         rt_immediate_on_anchor_unpin(ex, pending);
-        rt_remote_task_pending_unregister_owner(pending, task);
         task_release_lane_aware(ex, task);
         rt_remote_spawn_free_unpublished_task(ex, task);
-        immediate_on_answer(ex, pending, RT_REMOTE_TASK_STATUS_REFUSED);
+        if (held) {
+            immediate_on_answer(ex, pending, RT_REMOTE_TASK_STATUS_REFUSED);
+        }
         rt_remote_task_pending_release(pending);
         return;
     }

@@ -590,6 +590,16 @@
       "group": "PG-OPERAND-RANGE"
     },
     {
+      "site": "runtime/native/rt_alloc.c::rt_heap_stats#1",
+      "message": "heap stats: accounting snapshot unavailable",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_alloc.c::rt_heap_stats#2",
+      "message": "heap stats allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
       "site": "runtime/native/rt_array.c::array_alloc_view#1",
       "message": "array allocation failed",
       "group": "PG-ALLOC-FAILURE"
@@ -1325,6 +1335,26 @@
       "group": "PG-INVARIANT"
     },
     {
+      "site": "runtime/native/rt_entropy.c::entropy_make_error#1",
+      "message": "entropy result allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_entropy.c::entropy_make_success_bytes#1",
+      "message": "entropy result allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_entropy.c::entropy_make_success_bytes#2",
+      "message": "entropy result allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_entropy.c::entropy_make_success_bytes#3",
+      "message": "entropy result allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
       "site": "runtime/native/rt_far_channel.c::rt_far_channel_unpin#1",
       "message": "async: far channel unpinned more times than it was pinned",
       "group": "PG-INVARIANT"
@@ -1343,6 +1373,16 @@
       "site": "runtime/native/rt_immediate_on_anchored.c::anchored_binding_or_die#1",
       "message": "anchored channel operation outside an anchored block body",
       "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_io.c::rt_argv#1",
+      "message": "argv allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_io.c::rt_argv#2",
+      "message": "argv allocation failed",
+      "group": "PG-ALLOC-FAILURE"
     },
     {
       "site": "runtime/native/rt_io.c::rt_readline#1",
@@ -1483,6 +1523,11 @@
       "site": "runtime/native/rt_net_accept_group.c::rt_net_wait_accept#1",
       "message": "async net wait outside task",
       "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_net_result.c::net_make_success_bytes#1",
+      "message": "net result allocation failed",
+      "group": "PG-ALLOC-FAILURE"
     },
     {
       "site": "runtime/native/rt_ready_queue.c::pop_task_from_deque#1",
@@ -1645,6 +1690,11 @@
       "group": "PG-ALLOC-FAILURE"
     },
     {
+      "site": "runtime/native/rt_string.c::rt_string_bytes_view#1",
+      "message": "string bytes view allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
       "site": "runtime/native/rt_string.c::rt_string_concat#1",
       "message": "string concat length out of range",
       "group": "PG-SIZE-LIMIT"
@@ -1717,6 +1767,11 @@
     {
       "site": "runtime/native/rt_term.c::rt_term_size#1",
       "message": "term_size allocation failed",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_term.c::term_make_key_event#1",
+      "message": "term event allocation failed",
       "group": "PG-ALLOC-FAILURE"
     },
     {

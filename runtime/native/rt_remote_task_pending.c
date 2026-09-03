@@ -331,16 +331,18 @@ void rt_remote_task_pending_register_owner(rt_remote_task_pending* pending, rt_t
     pthread_mutex_unlock(&state->lock);
 }
 
-void rt_remote_task_pending_unregister_owner(rt_remote_task_pending* pending, rt_task* task) {
+int rt_remote_task_pending_unregister_owner(rt_remote_task_pending* pending, rt_task* task) {
     rt_remote_task_state* state =
         pending != NULL ? rt_remote_task_state_get(pending->executor) : NULL;
     if (state == NULL) {
-        return;
+        return 0;
     }
     pthread_mutex_lock(&state->lock);
+    int held = pending->owner_registered != 0;
     pending->owner_registered = 0;
     if (task != NULL && task->remote_owner_pending == pending) {
         task->remote_owner_pending = NULL;
     }
     pthread_mutex_unlock(&state->lock);
+    return held;
 }

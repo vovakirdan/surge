@@ -103,18 +103,18 @@ void* rt_argv(void) {
     if (argc > 1) {
         count = argc - 1;
     }
+    // Generated code stores the array untested (RV2-DEBT-309): a refused
+    // block is reported here, never answered as NULL.
+    static const uint8_t oom[] = "argv allocation failed";
     void* data = NULL;
     if (count > 0) {
-        data = rt_alloc((uint64_t)count * (uint64_t)sizeof(void*), (uint64_t)alignof(void*));
-        if (data == NULL) {
-            return NULL;
-        }
+        data = rt_alloc_or_report((uint64_t)count * (uint64_t)sizeof(void*),
+                                  (uint64_t)alignof(void*),
+                                  oom,
+                                  sizeof(oom) - 1);
     }
-    SurgeArrayHeader* header = (SurgeArrayHeader*)rt_alloc((uint64_t)sizeof(SurgeArrayHeader),
-                                                           (uint64_t)alignof(SurgeArrayHeader));
-    if (header == NULL) {
-        return NULL;
-    }
+    SurgeArrayHeader* header = (SurgeArrayHeader*)rt_alloc_or_report(
+        (uint64_t)sizeof(SurgeArrayHeader), (uint64_t)alignof(SurgeArrayHeader), oom, sizeof(oom) - 1);
     header->len = (uint64_t)count;
     header->cap = (uint64_t)count;
     header->data = data;
