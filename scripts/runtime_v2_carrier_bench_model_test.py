@@ -211,6 +211,62 @@ class ManifestTests(unittest.TestCase):
                     with self.assertRaisesRegex(ManifestError, expected):
                         load_manifest(path)
 
+    def test_loader_refuses_a_gate_on_a_runtime_exit_metric(self) -> None:
+        # OWNER RULING 2026-09-03 (E5): the five runtime-exit metrics are
+        # reported telemetry and never a gate. The canonical manifest carries
+        # no such invariant, so the shape test on it cannot fail when this
+        # refusal is deleted from the loader; this one can. A row invariant
+        # and a cross-row invariant on a telemetry metric are both refused,
+        # each with the message that names the metric.
+        def row_gate() -> dict[str, object]:
+            raw = manifest_json()
+            raw["rows"][0]["invariants"].append(
+                {
+                    "metric": "data_slot_stalls",
+                    "operator": "eq",
+                    "value": 0,
+                    "side": "candidate",
+                }
+            )
+            return raw
+
+        def cross_row_gate() -> dict[str, object]:
+            raw = manifest_json()
+            second = json.loads(json.dumps(raw["rows"][0]))
+            second["id"] = "composite.channel"
+            second["payload_role"] = "composite"
+            second["payload_bytes"] = 8192
+            raw["rows"][0]["payload_role"] = "composite"
+            raw["rows"][0]["payload_bytes"] = 64
+            raw["rows"].append(second)
+            raw["cross_row_invariants"] = [
+                {
+                    "id": "channel-byte-scaling",
+                    "relation": "payload_proportional",
+                    "metric": "bytes_moved",
+                    "left_row": "scalar.channel",
+                    "left_reduction": "max",
+                    "operator": "eq",
+                    "right_row": "composite.channel",
+                    "right_reduction": "max",
+                    "side": "candidate",
+                }
+            ]
+            return raw
+
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "manifest.json"
+            for label, build, metric in (
+                ("row", row_gate, "data_slot_stalls"),
+                ("cross-row", cross_row_gate, "bytes_moved"),
+            ):
+                with self.subTest(label=label):
+                    path.write_text(json.dumps(build()), encoding="utf-8")
+                    with self.assertRaisesRegex(
+                        ManifestError, f"{metric}.*reported telemetry and not a gate"
+                    ):
+                        load_manifest(path)
+
     def test_loader_freezes_cross_row_relation_shapes(self) -> None:
         def proportional() -> dict[str, object]:
             raw = manifest_json()

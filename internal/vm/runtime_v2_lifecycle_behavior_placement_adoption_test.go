@@ -144,18 +144,19 @@ static int mode_placement_adopt_negative(rt_executor* ex) {
 // TestRuntimeV2LifecycleScopeCrossOwnerChildDone
 // (runtime_v2_lifecycle_behavior_scope_test.go) for the contract.
 const lifecycleHarnessScopeCrossOwner = `
-// RV2-DEBT-021: the cross-owner scope_on_child_done control fallback
-// (rt_async_scope.c:340-377) is the sole producer of the residual ctrl_scope
-// on the 8x1024 net bench, but before this test only that benchmark and the
-// no-keepalive completion-pin TSan stress exercised it -- neither
-// deterministic in CI. This drives it deterministically via the REAL F2
-// machinery: a scope owner pinned to shard 0 registers a scope-child while it
-// is still same-owner (shard 0), then parks in join_all; the scope-child then
-// adopts a shard-1 CONNECTION placement by consuming a connection-placed
+// RV2-DEBT-021: the cross-owner scope_on_child_done path was a control-lane
+// fallback and the sole producer of the residual ctrl_scope on the 8x1024 net
+// bench; since Р6 (2026-09-02) it is a SCOPE_CHILD_DONE event on the owner
+// shard's inbound control lane (rt_scope_event.c). Before this test only that
+// benchmark and the no-keepalive completion-pin TSan stress exercised it --
+// neither deterministic in CI. This drives it deterministically via the REAL
+// F2 machinery: a scope owner pinned to shard 0 registers a scope-child while
+// it is still same-owner (shard 0), then parks in join_all; the scope-child
+// then adopts a shard-1 CONNECTION placement by consuming a connection-placed
 // grandchild through rt_task_poll (rt_task_poll_adopt_placement, exactly the
 // production F2 path), so when it completes its owner_shard_id (1) != the
-// scope's pinned shard (0) and scope_on_child_done takes the counted
-// cross-owner control fallback, waking the owner cross-shard. Needs
+// scope's pinned shard (0), its completion is published as an event and the
+// owner lane wakes the owner cross-shard. Needs
 // SURGE_SHARDS>=2; at SHARDS=1 the grandchild clamps to shard 0 and the
 // completion stays same-owner, so the test only sweeps 2 and 8.
 

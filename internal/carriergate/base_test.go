@@ -155,6 +155,10 @@ func TestLiveCarrierRatchetSeesAMigrationCarrierMove(t *testing.T) {
 	if got := Compare(&manifest, fewer).MigrationTracked; got != migrationCarriersStillPresent-1 {
 		t.Fatalf("one tracked carrier removed reads %d, want %d", got, migrationCarriersStillPresent-1)
 	}
+	more := append(append([]Finding(nil), actual...), *tracked)
+	if got := Compare(&manifest, more).MigrationTracked; got != migrationCarriersStillPresent+1 {
+		t.Fatalf("one tracked carrier appearing once more reads %d, want %d", got, migrationCarriersStillPresent+1)
+	}
 	if got := Compare(&manifest, actual).MigrationTracked; got != migrationCarriersStillPresent {
 		t.Fatalf("live scan reads %d tracked carriers, want %d", got, migrationCarriersStillPresent)
 	}

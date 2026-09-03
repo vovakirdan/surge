@@ -13809,3 +13809,130 @@ fixnum allow, and the VM/asyncrt representation counted and pinned (55 +
 now and Wave F waits for it. (c), teaching the scanner not to see `Value`,
 is not on the table: it would be the census agreeing with what it is asked
 to say. Until answered, F7 and F8 proceed on (a) and say so.
+
+### F7, the final Sentrux against D0's baseline, and the tagged queue (2026-09-03)
+
+**Sentrux final**, on a clean detached worktree of `ab89e591`, all four
+policy scopes, `sentrux check` then `sentrux gate` against the baseline
+saved at `8882ff00` (D0):
+
+| scope | rules | quality D0 → D8 (`c38e4275`) → final | gate vs D0 |
+| --- | --- | --- | --- |
+| `.` (advisory) | 10/10 pass | 6165 → 6157 → 6164 | complex functions 713 → 717 |
+| `internal` (enforced) | 7/7 pass | 6459 → 6446 → 6445 | complex functions 652 → 654 |
+| `runtime` (enforced) | 7/7 pass | 5282 → 5287 → 5314 | complex functions 23 → 25 |
+| `runtime/native` (enforced) | 7/7 pass | 5419 → 5415 → 5441 | coupling 0.13 → 0.52; complex 23 → 25 |
+
+Every rule passes in every scope. The gate reports DEGRADED in all four,
+and a bisect of the gate over `c38e4275`, `4e5bf4c8`, `5fefcaa5` places
+each regression: `runtime/native`'s coupling 0.13 → 0.52 and its two
+complex functions are ALREADY at `c38e4275` -- Wave D's, recorded by D8 as
+quality only (its Sentrux paragraph ran `check`, not `gate`); `internal`'s
+two complex functions appear between `c38e4275` and `4e5bf4c8` -- Wave E's
+window. Sentrux does not name them; gocyclo over `internal/` on both
+trees places two NEW functions at or above 15 in that window,
+`TestRuntimeV2ResidentBytesTelemetry` (16) and
+`TestEmitSpawnOnCrossingUsesRemotePublicationPath` (15 → 17), and raises
+`emitAnchoredOnCrossing` 21 → 22, `emitImmediateOnCrossing` 20 → 21,
+`typeExprOn` 23 → 25. The policy's blocking condition, as D0 recorded it,
+is an enforced scope's quality moving DOWN: `internal` is 14 below D0, 13
+of them Wave D's (D8 read 6446) and one this wave's; `runtime` and
+`runtime/native` are up. The `internal/` rules file has no complexity
+ceiling (`min_quality`/`min_equality` only), so the two functions trip
+nothing but the gate's own delta, which is reported here rather than
+absorbed. Full output `scratchpad/sentrux-ab89e591.log`, bisect
+`sentrux-bisect.log`.
+
+**Tagged queue on the runner** (`queue_tagged.sh`, alone on the box,
+2026-09-03 06:04 → 06:36 UTC+1): `tagged-vm-suite-plain` rc=0 in 1056 s,
+`tagged-rv2-llvm` rc=0 in 852 s. The failfast differential (`queue_ff.sh`,
+300 + 300 on `8b12beb3` vs `c38e4275`) started 06:36 and is followed by
+`queue_e4`, `queue_e5b` (`4e5bf4c8`: baseline, W8 ×5, four gates, the
+freeze set) and `queue_p6` (`6bd6fd22`: baseline, W8 ×5, lifecycle,
+transport-contract and crossing gates, the freeze set with the 1000-run
+campaign). Their numbers land in NOTES as they finish.
+
+### F7, the five review lenses over `c38e4275..ab89e591` (2026-09-03)
+
+Five independent readers, each with named objects, each forbidden to
+edit, each asked for CONFIRMED findings with file:line or PLAUSIBLE ones
+with the step they could not close (reports in the session scratchpad,
+`lens-*.md`). What they found and what was done with it, the same day:
+
+**Runtime ABI.** `runtime-v2-panic-surface-check` was RED on HEAD: the
+three panic sites of `rt_scope_event.c` had no allowlist rows, and the Р6
+local checks had not run that gate. Three `PG-INVARIANT` rows added, sorted
+by site (the gate refuses an unsorted ledger); `go test ./internal/panicgate`
+green. Kind 17 covered in every switch and list; `rt_task` reorder loses no
+field; the F2 seam `rt_test_alloc_refusals` is inside `RT_TEST_SYNC_POINTS`
+but the tag-off symbol check named only `rt_sync_point_|rt_carrier_liveness_`
+-- the token is in the regex now (`check_sync_points.sh`). Flagged for the
+model lens: a cross-owner publish from `mark_done`'s `need_control` window
+rescue-drains the owner's inbound under the process control lock.
+
+**Tests and gates.** 21 new `Test*` in the range; 15 were on a
+`runtime-v2-check` sub-gate, 6 rode only `go test ./...`. Rostered now:
+`ResidentBytesLedger` on the crossing e2e line, `TestAnchorLeaseMisuseIsRejected`
+on the crossing sema line, and a new crossing line for the three LLVM
+emitter rows (`EmitCrossingChargesCopyCapturesOnce`,
+`EmitCrossingDoesNotChargeMovedCaptures`, `EmitCrossingsNameEveryPayloadType`).
+Six Rule-13 mutants are real code-path changes and five negative rows
+assert a specific failure text; DEBT-309's asserted only "no report", so
+it now also refuses the stand's own judgement messages (the death must be
+the NULL write). The carriergate migration pin's control exercised removal
+only; it reads 28 on a duplicate now too. The E5b manifest refusal (an
+invariant on a runtime-exit metric) had NO test that fails without it --
+`test_loader_refuses_a_gate_on_a_runtime_exit_metric` (row and cross-row)
+is that test; 15/15 in the model suite.
+
+**Performance and docs.** Three test comments still said the cross-owner
+completion "takes the counted control fallback" -- reworded to the event.
+`PLAN.md:229-230` said 7 and 2 live for the two VM categories; they say 40
+(+27) and 14 with the date. DEBT-280's exit column named a counter
+(`scope_accounting_unserialized`) that never had a writer -- replaced by
+the two instruments that exist. Model paragraphs §1/§8 and the E5 ruling
+match the tree. The finding with no fix: the resident-byte ledger costs
+~12 contended RMWs per push inside the shard lock and no gate prices it --
+RV2-DEBT-327. Soft mismatch corrected here: the lifecycle roster has 78
+names, not 91 (63 + 15 ran, all green); `rt_async_scope.c` is 396 lines at
+`7df10725` by `wc -l`, 378 effective.
+
+**Ownership and types.** CONFIRMED by reading, no red yet: E3's anchored
+block packs the `AnchorLease` capture into the crossing state as a field of
+type `far Channel<T>`, and E3's own drop-glue arm makes a far-handle member
+an OWNED one, so `@drop.<state>` releases the caller's lease and frees the
+caller's token on every UNSHIPPED path (refusal, teardown, shutdown sweep,
+STALE/REFUSED answers) while the caller still owns `ch` -- a double drop
+the happy-path valgrind rows cannot see. RV2-DEBT-324, with the fix shape
+(the state carries no owning far field for a lease; the runtime already
+holds the anchor by value in the pending) and the negative control. E5
+resident accounting balanced on every path traced, with the caveat that
+`underflows` only fires when the balance is already short -- `live == 0`
+per kind after drain is the assertion, which is what the harness checks.
+E6 select commit: no double move or free. PLAUSIBLE, not closed: a double
+`release_entry` between `release_all` and an unpin-to-zero on the same
+far-channel entry during shutdown -- the step not closed is whether a
+body can still complete while `rt_shutdown_release_far_tasks` runs;
+noted under DEBT-322's residual, not a row of its own until a stand shows
+it.
+
+**Model and liveness.** Two CONFIRMED shutdown findings, both rows:
+RV2-DEBT-325 (a scope event published by a carrier's exit sweep after the
+target's carrier has left is never drained, and the model's "recorded at
+shutdown" clause has no writer) and RV2-DEBT-326 (a producer parked on a
+data slot when shutdown arrives is unregistered by `abandon` but never
+woken, so its pending keeps `body_state`; the comment beside
+`wake_all_parked` is false for a listed pending). PLAUSIBLE: E4's
+reserve-then-park is hold-and-wait across two lanes; the lens could not
+build the all-reserved/zero-queued schedule without an application cycle,
+and `rt_remote_task_deadlock.c` would report that cycle -- the model
+should state the bound (64 outstanding replies per lane, a detected
+deadlock beyond it), which it does not yet. Every Р6 interleaving asked
+for -- stale event, double retire, wake before both words, exit with an
+event queued, teardown vs event, rescue drain on the sender's carrier, the
+64-attempt panic -- was traced and closed.
+
+Five lenses, ~900 k tokens, four defects that were not in the ledger
+(323, 324, 325, 326), one cost with no gate (327), one red gate the wave
+would have shipped (panic surface), six unrostered tests, and one vacuous
+manifest test. None of the five found a second owner on a shipped path.

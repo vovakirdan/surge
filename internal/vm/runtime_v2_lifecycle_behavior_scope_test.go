@@ -98,17 +98,21 @@ func TestRuntimeV2LifecycleScopeCancelledPollTeardownAcrossShards(t *testing.T) 
 
 // TestRuntimeV2LifecycleScopeCrossOwnerChildDone is the deterministic
 // cross-owner scope-completion regression test (RV2-DEBT-021). The
-// cross-owner scope_on_child_done control fallback (rt_async_scope.c:340-377)
-// is the sole producer of the residual ctrl_scope on the 8x1024 net benchmark
-// ); before this test it was exercised only by the benchmark
-// and the no-keepalive completion-pin TSan stress, neither deterministic in
-// CI. Here a scope owner pinned to shard 0 creates a scope-child while it is
-// same-owner, then parks in join_all; the scope-child adopts a shard-1
-// CONNECTION placement via the real F2 machinery (rt_task_poll_adopt_placement
-// consuming a connection-placed grandchild) and completes cross-owner, so
-// scope_on_child_done takes the counted control fallback and wakes the owner
-// cross-shard (the harness driver holds the owner parked until then, so the
-// wake, not a self-consume, is what completes it). The mode driver asserts the
+// cross-owner scope_on_child_done path used to be a control-lane fallback and
+// the sole producer of the residual ctrl_scope on the 8x1024 net benchmark;
+// since the owner ruling of 2026-09-02 (Р6) it is a SCOPE_CHILD_DONE event the
+// child's lane publishes into the owner shard's inbound control lane and the
+// owner lane applies (rt_scope_event.c). Before this test it was exercised
+// only by the benchmark and the no-keepalive completion-pin TSan stress,
+// neither deterministic in CI. Here a scope owner pinned to shard 0 creates a
+// scope-child while it is same-owner, then parks in join_all; the scope-child
+// adopts a shard-1 CONNECTION placement via the real F2 machinery
+// (rt_task_poll_adopt_placement consuming a connection-placed grandchild) and
+// completes cross-owner, so its completion travels as an event and the owner
+// lane wakes the owner cross-shard (the harness driver holds the owner parked
+// until then, so the wake, not a self-consume, is what completes it). The
+// Debt280ScopeEventOwnerLane rows hold the owner open and read the event
+// itself; this row only needs the completion to arrive. The mode driver asserts the
 // scope-child actually adopted the cross-owner shard. Cross-owner needs
 // SURGE_SHARDS>=2 (at SHARDS=1 the grandchild clamps to shard 0 and the
 // completion is same-owner, so the branch is unreachable), so this sweeps only

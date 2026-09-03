@@ -190,7 +190,7 @@ else
             cat "$tmp/err"
             continue
         fi
-        if nm "$obj" 2>/dev/null | grep -Eq 'rt_sync_point_|rt_carrier_liveness_'; then
+        if nm "$obj" 2>/dev/null | grep -Eq 'rt_sync_point_|rt_carrier_liveness_|rt_test_alloc_refusals'; then
             note_fail "$(basename "$src") contains a test rendezvous symbol in the tag-off build"
             sym_leak=1
         fi

@@ -226,8 +226,8 @@ them by mistake:
 
 | | Why not |
 | --- | --- |
-| `vm-universal-owner`, 7 live | The VM's `Value` frame slot. Neither wave's owner; a VM representation change with no epic. |
-| `vm-async-any-carrier`, 2 live | `heap.Interface` in `internal/asyncrt/timer.go`. Not a carrier the model describes. |
+| `vm-universal-owner`, 7 live when written; 40 live plus 27 RV2-DEBT-318 migration paths on 2026-09-03, after the 2026-09-01 structural walk (NOTES F6) | The VM's `Value` frame slot. Neither wave's owner; a VM representation change with no epic. |
+| `vm-async-any-carrier`, 2 live when written; 14 on 2026-09-03 (the structural walk counts `Task.State`, `Channel.buf` and their kin as well) | `heap.Interface` in `internal/asyncrt/timer.go`. Not a carrier the model describes. |
 | RV2-DEBT-306 | `TestLLVMParity/random_pcg32` and `/hash_xxh64`, red since 2026-08-26, bisected. VM-lane value model. |
 | RV2-DEBT-302 | Sixteen stdlib modules do not reach MIR under the corpus profile. A monomorphization use-site loss, explicitly not a stdlib source defect. |
 | RV2-DEBT-307 | A borrow captured by an ordinary `spawn` crosses a carrier boundary with no diagnostic. Real, and a LANGUAGE change rather than a runtime one. Unblocked by the affinity ruling but outside 23b. |

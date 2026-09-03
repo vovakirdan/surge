@@ -1660,6 +1660,21 @@
       "group": "PG-INVARIANT"
     },
     {
+      "site": "runtime/native/rt_scope_event.c::rt_scope_apply_child_done_at_shutdown_locked#1",
+      "message": "async: scope event applied at shutdown outside its owner lane",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_scope_event.c::rt_scope_publish_child_done#1",
+      "message": "async: scope id does not fit the scope event envelope",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_scope_event.c::rt_scope_publish_child_done#2",
+      "message": "async: a scope child-done event could not reach the scope's owner lane",
+      "group": "PG-INVARIANT"
+    },
+    {
       "site": "runtime/native/rt_scope_membership.h::rt_scope_publish_creation_locked#1",
       "message": "async: scope membership published outside its owner lane",
       "group": "PG-INVARIANT"

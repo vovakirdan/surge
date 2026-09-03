@@ -63,6 +63,17 @@ func TestRuntimeV2RemoteTaskPointerAnswersNegativeControl(t *testing.T) {
 			if strings.Contains(stderr, "surge: fatal [RT_OOM]") {
 				t.Fatalf("negative control still reported the refusal\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
 			}
+			// The death must be the NULL write, not the stand's own assertion:
+			// a harness that got as far as judging the answer would name it.
+			for _, judged := range []string{
+				"answered NULL where it must report the refusal",
+				"neither reported nor answered NULL",
+			} {
+				if strings.Contains(stderr, judged) {
+					t.Fatalf("negative control died of the stand's judgement, not of the NULL write (%q)\nstdout:\n%s\nstderr:\n%s",
+						judged, stdout, stderr)
+				}
+			}
 		})
 	}
 }
