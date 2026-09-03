@@ -411,11 +411,17 @@ int main(void) {
 	runFDRegistryBehaviorCheck(t, "net handle box/canonical ownership", source)
 }
 
-// TestRuntimeV2NetHandleResultAllocationRollback injects failure into each
-// allocation performed by net_make_success_handle. The first failure returns
-// without ownership; the second frees the intermediate public handle box.
+// TestRuntimeV2NetHandleResultAllocationRollback injects failure into the
+// allocation net_make_success_handle performs. Since RV2-DEBT-309 a refused
+// block is not answered as NULL: the builder hands it to rt_tag_alloc_or_report,
+// which ends the process with the refusal reported, and nothing is left to
+// roll back. The stand's reporter records the call and unwinds to the driver
+// instead of exiting, so the row can read what the contract now promises --
+// exactly one attempt, one report, no free -- and the success arm still
+// pins one allocation and the id published inline.
 func TestRuntimeV2NetHandleResultAllocationRollback(t *testing.T) {
 	const source = `
+#include <setjmp.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -426,6 +432,8 @@ func TestRuntimeV2NetHandleResultAllocationRollback(t *testing.T) {
 static uint64_t alloc_calls;
 static uint64_t free_calls;
 static uint64_t fail_on_alloc;
+static uint64_t report_calls;
+static jmp_buf report_jump;
 
 void* rt_alloc(uint64_t size, uint64_t align) {
     (void)align;
@@ -474,25 +482,58 @@ uint64_t rt_string_len_bytes(void* value) {
     return 0;
 }
 
+// The reporters the builders reach for a refused block. In the runtime they
+// end the process; here they count the report and unwind to run_failure,
+// which is the only way a stand can read "reported, not answered" and go on.
+void* rt_alloc_or_report(uint64_t size, uint64_t align, const uint8_t* message, uint64_t length) {
+    (void)message;
+    (void)length;
+    void* out = rt_alloc(size, align);
+    if (out == NULL) {
+        report_calls++;
+        longjmp(report_jump, 1);
+    }
+    return out;
+}
+
+void* rt_tag_alloc_or_report(uint32_t tag, size_t payload_align, size_t payload_size,
+                             const uint8_t* message, uint64_t length) {
+    (void)message;
+    (void)length;
+    void* out = rt_tag_alloc(tag, payload_align, payload_size);
+    if (out == NULL) {
+        report_calls++;
+        longjmp(report_jump, 1);
+    }
+    return out;
+}
+
 #include "rt_net_result.c"
 
 static int run_failure(uint64_t fail_at, uint64_t want_allocs, uint64_t want_frees) {
     alloc_calls = 0;
     free_calls = 0;
+    report_calls = 0;
     fail_on_alloc = fail_at;
-    if (net_make_success_handle(73) != NULL) return 1;
+    if (setjmp(report_jump) == 0) {
+        // The builder must not come back with an answer: the refusal is
+        // reported, and the report is what unwinds us here.
+        (void)net_make_success_handle(73);
+        return 1;
+    }
+    if (report_calls != 1) return 6;
     if (alloc_calls != want_allocs) return 2;
     if (free_calls != want_frees) return 3;
     return 0;
 }
 
 int main(void) {
-    // ONE allocation to fail, and nothing to roll back when it does. The second
-    // arm used to assert the rollback of a separate handle box: fail the second
-    // allocation, expect two attempts and one free. There is no second
-    // allocation now, because the id lives in the payload the first one
-    // returned — so the rollback it tested no longer has anything to undo, and
-    // asserting it would pin the representation this change removes.
+    // ONE allocation to fail, ONE report, and nothing to roll back when it
+    // does. The second arm used to assert the rollback of a separate handle
+    // box: fail the second allocation, expect two attempts and one free. There
+    // is no second allocation now, because the id lives in the payload the
+    // first one returned — so the rollback it tested no longer has anything to
+    // undo, and asserting it would pin the representation this change removes.
     if (run_failure(1, 1, 0) != 0) return 1;
 
     alloc_calls = 0;

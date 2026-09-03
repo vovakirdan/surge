@@ -365,6 +365,27 @@ uint64_t rt_string_len_bytes(void* value) {
     return 0;
 }
 
+// The result builders no longer answer NULL for a refused block: they hand
+// the refusal to a reporter that ends the process (RV2-DEBT-309). This
+// stand never refuses, so its reporters delegate and abort if they ever
+// would have to report.
+void* rt_alloc_or_report(uint64_t size, uint64_t align, const uint8_t* message, uint64_t length) {
+    (void)message;
+    (void)length;
+    void* out = rt_alloc(size, align);
+    if (out == NULL) abort();
+    return out;
+}
+
+void* rt_tag_alloc_or_report(uint32_t tag, size_t payload_align, size_t payload_size,
+                             const uint8_t* message, uint64_t length) {
+    (void)message;
+    (void)length;
+    void* out = rt_tag_alloc(tag, payload_align, payload_size);
+    if (out == NULL) abort();
+    return out;
+}
+
 #include "rt_net_result.c"
 
 int main(void) {

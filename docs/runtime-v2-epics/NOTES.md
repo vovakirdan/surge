@@ -14120,6 +14120,24 @@ both -- it greps the per-gate progress lines for `FAIL`, and the verdict
 block spells them differently -- so its `red_rows=none` beside `rc=2` is
 not a contradiction, it is a blind pattern; read the verdict block.
 
+**W8 on `2a3693b6`, the first count with the pin, read two more.**
+`runtime-v2-fd-registry-check` and `runtime-v2-net-handle-check`, one
+stand each: `FDRegistryHandleWordPublishedInline` and
+`NetHandleResultAllocationRollback` are self-contained C programs that
+`#include "rt_net_result.c"` over their own counting allocator stubs, and
+F2 (`799d2f75`) made that file reach `rt_alloc_or_report` /
+`rt_tag_alloc_or_report` -- so both stands have failed to LINK since F2,
+on every aggregate count, and neither of the two gates was ever run
+locally: they are network gates, and the rule that network rows never
+share the runner had been read as "never run them here". The rule is
+about sharing a box, not about which box. Both stands now stub the two
+reporters; the rollback stand's reporter counts the report and unwinds to
+the driver, and the row reads what RV2-DEBT-309's contract promises -- one
+attempt, one report, nothing to roll back -- where it used to read an
+answered NULL. Both gate lines green locally (73.9 s and 7.8 s). The
+other eighteen sub-gates of that count passed, so the next count is the
+first with every red of the wave found and named.
+
 **Queues re-cut.** With that red on every SHA from E3 to `1165aef6`, the
 W8 ×5 and freeze sets of `queue_e5b` and `queue_p6` (some fourteen counts
 of 14 min each) would have measured a known red for hours before the
