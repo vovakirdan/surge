@@ -14139,7 +14139,27 @@ where the executor initialises), the schedule-placed growths are the -1,
 and the "11 to 13 fewer" the barrier sweep read was the barrier moving
 the `before` read past the setup's in-flight work -- a real effect of a
 barrier, and exactly why the fixture and the budget must be measured
-with the observer they ship with. Two instrument notes
+with the observer they ship with.
+
+**The fourth and fifth full runs died on the first row's timing, not on
+a count.** `array-grow-composite base throughput CV 0.099330` and then
+`base p95 CV 0.428207`, both against 0.05, on a box with nothing of
+this work running. Fifteen single runs of that row read `elapsed_ns`
+29 159 .. 39 122, median 30 086: the whole batch is thirty microseconds,
+so one scheduler hiccup inside seven samples is a third of the p95. The
+one CPU user was this session's own process, eighteen percent of a
+core, unpinned -- the reference host is the operator's workstation, and
+the operator was on it. The session was pinned off cores 0,2 for the
+sixth run, which read `base throughput CV 0.210786` on the same row.
+Three readings of one row, 9.9 %, 42.8 % (p95) and 21.1 %, on a host
+whose only other user is the workstation itself; the run at 10:56 had
+passed the same row and nine more. The paired benchmark is not run
+again today: its CV gate wants an idle reference host for two hours, and
+a thirty-microsecond batch on WSL2 is at the edge of what that gate can
+read. Two ways out, neither this lane's to pick: run it when the
+workstation is not in use, or give the array rows a longer batch in the
+manifest -- the owner's number. DEBT-125's bench evidence remains "not
+completed on this tree", with the reason. Two instrument notes
 from the same runs: the pre-wave SHA, past the budget, died of
 `array-grow-composite base throughput CV 0.081921 exceeds 0.050000`
 because valgrind rows were running beside it on cores 4-7 -- the protocol
