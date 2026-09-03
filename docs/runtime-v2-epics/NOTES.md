@@ -14159,7 +14159,22 @@ a thirty-microsecond batch on WSL2 is at the edge of what that gate can
 read. Two ways out, neither this lane's to pick: run it when the
 workstation is not in use, or give the array rows a longer batch in the
 manifest -- the owner's number. DEBT-125's bench evidence remains "not
-completed on this tree", with the reason. Two instrument notes
+completed on this tree", with the reason.
+
+**Owner, 2026-09-03: "на этой WSL мы тишину не поймаем; планировать на
+ryzen."** The manifest's reference host moves to the dedicated runner:
+`Linux 6.8.0-138-generic`, `AMD Ryzen 9 9950X 16-Core Processor`, 16
+logical CPUs (no SMT pairing on the cores used), cpuset `8,10` -- two
+cores of the exclusive half the campaigns already own -- the same
+`go1.26.1` and `clang 18.1.3`. The harness's host check
+(`require_reference_host`) refuses any other box from now on, this
+workstation included, which is the point. The runner holds `epic_base`
+(`4968061f`, full clone, ancestor of the closeout tree), no stray
+`/tmp/.git`, and 1.8 TB free. The benchmark queues behind the freeze set
+(`queue_bench.sh`), alone on the box by construction, and its report
+lands in NOTES when it ends. The structural budgets are host-independent
+by construction (the topology is the manifest's own 2/2/1) and are
+re-read there before any timing. Two instrument notes
 from the same runs: the pre-wave SHA, past the budget, died of
 `array-grow-composite base throughput CV 0.081921 exceeds 0.050000`
 because valgrind rows were running beside it on cores 4-7 -- the protocol
