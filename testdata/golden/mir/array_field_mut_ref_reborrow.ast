@@ -15,8 +15,8 @@ array_field_mut_ref_reborrow.sg (span: 1:1-18:1)
 │        │  ├─ Cond: expr#6: !entry.borrowers.contains(client_id)
 │        │  ├─ Then:
 Block (span: 6:45-8:6)
-│        │  │  └─ Stmt[0]: Expr (span: 7:9-7:51)
-│        │  │     └─ Expr: expr#13: entry.borrowers.push(client_id.__clone())
+│        │  │  └─ Stmt[0]: Expr (span: 7:9-7:48)
+│        │  │     └─ Expr: expr#13: entry.borrowers.push(clone(client_id))
 │        │  └─ Else: <none>
 │        └─ Stmt[1]: Return (span: 9:5-9:20)
 │           └─ Expr: expr#14: nothing

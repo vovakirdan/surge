@@ -146,8 +146,8 @@ Block (span: 30:17-33:6)
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
          │  └─ Value: expr#115: r.reverse()
-         ├─ Stmt[19]: Expr (span: 51:5-51:31)
-         │  └─ Expr: expr#120: write_line(rev.__clone())
+         ├─ Stmt[19]: Expr (span: 51:5-51:28)
+         │  └─ Expr: expr#120: write_line(clone(rev))
          ├─ Stmt[20]: Let (span: 53:5-53:39)
          │  ├─ Name: last_cp
          │  ├─ Mutable: false

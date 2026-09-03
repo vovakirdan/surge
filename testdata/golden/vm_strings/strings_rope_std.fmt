@@ -48,7 +48,7 @@ fn main() -> int {
 
     write_line(r.replace("hi", "yo"));
     let rev = r.reverse();
-    write_line(rev.__clone());
+    write_line(clone(rev));
 
     let last_cp: uint = r[-1] to uint;
     print_uint(last_cp);

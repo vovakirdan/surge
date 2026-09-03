@@ -313,224 +313,223 @@
 313: Semicolon       ";" at 50:26-50:27
 314: Ident           "write_line" at 51:5-51:15 (leading: Newline, Space)
 315: LParen          "(" at 51:15-51:16
-316: Ident           "rev" at 51:16-51:19
-317: Dot             "." at 51:19-51:20
-318: Ident           "__clone" at 51:20-51:27
-319: LParen          "(" at 51:27-51:28
-320: RParen          ")" at 51:28-51:29
-321: RParen          ")" at 51:29-51:30
-322: Semicolon       ";" at 51:30-51:31
-323: KwLet           "let" at 53:5-53:8 (leading: Newline, Space)
-324: Ident           "last_cp" at 53:9-53:16 (leading: Space)
-325: Colon           ":" at 53:16-53:17
-326: Ident           "uint" at 53:18-53:22 (leading: Space)
-327: Assign          "=" at 53:23-53:24 (leading: Space)
-328: Ident           "r" at 53:25-53:26 (leading: Space)
-329: LBracket        "[" at 53:26-53:27
-330: Minus           "-" at 53:27-53:28
-331: IntLit          "1" at 53:28-53:29
-332: RBracket        "]" at 53:29-53:30
-333: KwTo            "to" at 53:31-53:33 (leading: Space)
-334: Ident           "uint" at 53:34-53:38 (leading: Space)
-335: Semicolon       ";" at 53:38-53:39
-336: Ident           "print_uint" at 54:5-54:15 (leading: Newline, Space)
-337: LParen          "(" at 54:15-54:16
-338: Ident           "last_cp" at 54:16-54:23
-339: RParen          ")" at 54:23-54:24
-340: Semicolon       ";" at 54:24-54:25
-341: Ident           "write_line" at 55:5-55:15 (leading: Newline, Space)
-342: LParen          "(" at 55:15-55:16
-343: Ident           "rev" at 55:16-55:19
-344: LBracket        "[" at 55:19-55:20
-345: LBracket        "[" at 55:20-55:21
-346: DotDot          ".." at 55:21-55:23
-347: Minus           "-" at 55:23-55:24
-348: IntLit          "1" at 55:24-55:25
-349: RBracket        "]" at 55:25-55:26
-350: RBracket        "]" at 55:26-55:27
-351: RParen          ")" at 55:27-55:28
-352: Semicolon       ";" at 55:28-55:29
-353: KwLet           "let" at 57:5-57:8 (leading: Newline, Space)
-354: KwMut           "mut" at 57:9-57:12 (leading: Space)
-355: Ident           "left" at 57:13-57:17 (leading: Space)
-356: Colon           ":" at 57:17-57:18
-357: Ident           "string" at 57:19-57:25 (leading: Space)
-358: Assign          "=" at 57:26-57:27 (leading: Space)
-359: StringLit       "\"\"" at 57:28-57:30 (leading: Space)
-360: Semicolon       ";" at 57:30-57:31
-361: KwLet           "let" at 58:5-58:8 (leading: Newline, Space)
-362: Ident           "ab" at 58:9-58:11 (leading: Space)
-363: Colon           ":" at 58:11-58:12
-364: Ident           "string" at 58:13-58:19 (leading: Space)
-365: Assign          "=" at 58:20-58:21 (leading: Space)
-366: StringLit       "\"ab\"" at 58:22-58:26 (leading: Space)
-367: Semicolon       ";" at 58:26-58:27
-368: KwLet           "let" at 59:5-59:8 (leading: Newline, Space)
-369: Ident           "cd" at 59:9-59:11 (leading: Space)
-370: Colon           ":" at 59:11-59:12
-371: Ident           "string" at 59:13-59:19 (leading: Space)
-372: Assign          "=" at 59:20-59:21 (leading: Space)
-373: StringLit       "\"cd\"" at 59:22-59:26 (leading: Space)
-374: Semicolon       ";" at 59:26-59:27
-375: Ident           "left" at 60:5-60:9 (leading: Newline, Space)
-376: Assign          "=" at 60:10-60:11 (leading: Space)
-377: Ident           "left" at 60:12-60:16 (leading: Space)
-378: Plus            "+" at 60:17-60:18 (leading: Space)
-379: Ident           "ab" at 60:19-60:21 (leading: Space)
-380: Semicolon       ";" at 60:21-60:22
-381: Ident           "left" at 61:5-61:9 (leading: Newline, Space)
-382: Assign          "=" at 61:10-61:11 (leading: Space)
-383: Ident           "left" at 61:12-61:16 (leading: Space)
-384: Plus            "+" at 61:17-61:18 (leading: Space)
-385: Ident           "cd" at 61:19-61:21 (leading: Space)
-386: Semicolon       ";" at 61:21-61:22
-387: Ident           "print_uint" at 62:5-62:15 (leading: Newline, Space)
-388: LParen          "(" at 62:15-62:16
-389: Ident           "left" at 62:16-62:20
-390: Dot             "." at 62:20-62:21
-391: Ident           "levenshtein" at 62:21-62:32
-392: LParen          "(" at 62:32-62:33
-393: StringLit       "\"abxd\"" at 62:33-62:39
-394: RParen          ")" at 62:39-62:40
-395: RParen          ")" at 62:40-62:41
-396: Semicolon       ";" at 62:41-62:42
-397: KwLet           "let" at 64:5-64:8 (leading: Newline, Space)
-398: Ident           "bv" at 64:9-64:11 (leading: Space)
-399: Assign          "=" at 64:12-64:13 (leading: Space)
-400: Ident           "r" at 64:14-64:15 (leading: Space)
-401: Dot             "." at 64:15-64:16
-402: Ident           "bytes" at 64:16-64:21
-403: LParen          "(" at 64:21-64:22
-404: RParen          ")" at 64:22-64:23
-405: Semicolon       ";" at 64:23-64:24
-406: Ident           "print_uint" at 65:5-65:15 (leading: Newline, Space)
-407: LParen          "(" at 65:15-65:16
-408: Ident           "bv" at 65:16-65:18
-409: Dot             "." at 65:18-65:19
-410: Ident           "__len" at 65:19-65:24
-411: LParen          "(" at 65:24-65:25
-412: RParen          ")" at 65:25-65:26
-413: RParen          ")" at 65:26-65:27
-414: Semicolon       ";" at 65:27-65:28
-415: KwLet           "let" at 66:5-66:8 (leading: Newline, Space)
-416: Ident           "first" at 66:9-66:14 (leading: Space)
-417: Colon           ":" at 66:14-66:15
-418: Ident           "uint" at 66:16-66:20 (leading: Space)
-419: Assign          "=" at 66:21-66:22 (leading: Space)
-420: Ident           "bv" at 66:23-66:25 (leading: Space)
-421: LBracket        "[" at 66:25-66:26
-422: IntLit          "0" at 66:26-66:27
-423: RBracket        "]" at 66:27-66:28
-424: KwTo            "to" at 66:29-66:31 (leading: Space)
-425: Ident           "uint" at 66:32-66:36 (leading: Space)
-426: Semicolon       ";" at 66:36-66:37
-427: Ident           "print_uint" at 67:5-67:15 (leading: Newline, Space)
-428: LParen          "(" at 67:15-67:16
-429: Ident           "first" at 67:16-67:21
-430: RParen          ")" at 67:21-67:22
-431: Semicolon       ";" at 67:22-67:23
-432: KwLet           "let" at 69:5-69:8 (leading: Newline, Space)
-433: Ident           "r2" at 69:9-69:11 (leading: Space)
-434: Assign          "=" at 69:12-69:13 (leading: Space)
-435: Ident           "r" at 69:14-69:15 (leading: Space)
-436: Dot             "." at 69:15-69:16
-437: Ident           "replace" at 69:16-69:23
-438: LParen          "(" at 69:23-69:24
-439: StringLit       "\"hi\"" at 69:24-69:28
-440: Comma           "," at 69:28-69:29
-441: StringLit       "\"ha\"" at 69:30-69:34 (leading: Space)
-442: RParen          ")" at 69:34-69:35
-443: Semicolon       ";" at 69:35-69:36
-444: Ident           "rt_string_force_flatten" at 70:5-70:28 (leading: Newline, Space)
-445: LParen          "(" at 70:28-70:29
-446: Amp             "&" at 70:29-70:30
-447: Ident           "r2" at 70:30-70:32
-448: RParen          ")" at 70:32-70:33
-449: Semicolon       ";" at 70:33-70:34
-450: KwLet           "let" at 71:5-71:8 (leading: Newline, Space)
-451: Ident           "bv2" at 71:9-71:12 (leading: Space)
-452: Assign          "=" at 71:13-71:14 (leading: Space)
-453: Ident           "r2" at 71:15-71:17 (leading: Space)
-454: Dot             "." at 71:17-71:18
-455: Ident           "bytes" at 71:18-71:23
-456: LParen          "(" at 71:23-71:24
-457: RParen          ")" at 71:24-71:25
-458: Semicolon       ";" at 71:25-71:26
-459: Ident           "print_uint" at 72:5-72:15 (leading: Newline, Space)
-460: LParen          "(" at 72:15-72:16
-461: Ident           "bv2" at 72:16-72:19
-462: Dot             "." at 72:19-72:20
-463: Ident           "__len" at 72:20-72:25
-464: LParen          "(" at 72:25-72:26
-465: RParen          ")" at 72:26-72:27
-466: RParen          ")" at 72:27-72:28
-467: Semicolon       ";" at 72:28-72:29
-468: KwLet           "let" at 73:5-73:8 (leading: Newline, Space)
-469: Ident           "last_idx" at 73:9-73:17 (leading: Space)
-470: Colon           ":" at 73:17-73:18
-471: Ident           "int" at 73:19-73:22 (leading: Space)
-472: Assign          "=" at 73:23-73:24 (leading: Space)
-473: LParen          "(" at 73:25-73:26 (leading: Space)
-474: Ident           "bv2" at 73:26-73:29
-475: Dot             "." at 73:29-73:30
-476: Ident           "__len" at 73:30-73:35
-477: LParen          "(" at 73:35-73:36
-478: RParen          ")" at 73:36-73:37
-479: Minus           "-" at 73:38-73:39 (leading: Space)
-480: IntLit          "1" at 73:40-73:41 (leading: Space)
-481: Colon           ":" at 73:41-73:42
-482: Ident           "uint" at 73:42-73:46
-483: RParen          ")" at 73:46-73:47
-484: KwTo            "to" at 73:48-73:50 (leading: Space)
-485: Ident           "int" at 73:51-73:54 (leading: Space)
-486: Semicolon       ";" at 73:54-73:55
-487: KwLet           "let" at 74:5-74:8 (leading: Newline, Space)
-488: Ident           "last_byte" at 74:9-74:18 (leading: Space)
-489: Colon           ":" at 74:18-74:19
-490: Ident           "uint" at 74:20-74:24 (leading: Space)
-491: Assign          "=" at 74:25-74:26 (leading: Space)
-492: Ident           "bv2" at 74:27-74:30 (leading: Space)
-493: LBracket        "[" at 74:30-74:31
-494: Ident           "last_idx" at 74:31-74:39
-495: RBracket        "]" at 74:39-74:40
-496: KwTo            "to" at 74:41-74:43 (leading: Space)
-497: Ident           "uint" at 74:44-74:48 (leading: Space)
-498: Semicolon       ";" at 74:48-74:49
-499: Ident           "print_uint" at 75:5-75:15 (leading: Newline, Space)
-500: LParen          "(" at 75:15-75:16
-501: Ident           "last_byte" at 75:16-75:25
-502: RParen          ")" at 75:25-75:26
-503: Semicolon       ";" at 75:26-75:27
-504: KwLet           "let" at 77:5-77:8 (leading: Newline, Space)
-505: Ident           "small" at 77:9-77:14 (leading: Space)
-506: Assign          "=" at 77:15-77:16 (leading: Space)
-507: StringLit       "\"ok\"" at 77:17-77:21 (leading: Space)
-508: Semicolon       ";" at 77:21-77:22
-509: KwLet           "let" at 78:5-78:8 (leading: Newline, Space)
-510: Ident           "from" at 78:9-78:13 (leading: Space)
-511: Assign          "=" at 78:14-78:15 (leading: Space)
-512: Ident           "rt_string_from_bytes" at 78:16-78:36 (leading: Space)
-513: LParen          "(" at 78:36-78:37
-514: Ident           "rt_string_ptr" at 78:37-78:50
-515: LParen          "(" at 78:50-78:51
-516: Amp             "&" at 78:51-78:52
-517: Ident           "small" at 78:52-78:57
-518: RParen          ")" at 78:57-78:58
-519: Comma           "," at 78:58-78:59
-520: Ident           "rt_string_len_bytes" at 78:60-78:79 (leading: Space)
-521: LParen          "(" at 78:79-78:80
-522: Amp             "&" at 78:80-78:81
-523: Ident           "small" at 78:81-78:86
-524: RParen          ")" at 78:86-78:87
-525: RParen          ")" at 78:87-78:88
-526: Semicolon       ";" at 78:88-78:89
-527: Ident           "write_line" at 79:5-79:15 (leading: Newline, Space)
-528: LParen          "(" at 79:15-79:16
-529: Ident           "from" at 79:16-79:20
-530: RParen          ")" at 79:20-79:21
-531: Semicolon       ";" at 79:21-79:22
-532: KwReturn        "return" at 81:5-81:11 (leading: Newline, Space)
-533: IntLit          "0" at 81:12-81:13 (leading: Space)
-534: Semicolon       ";" at 81:13-81:14
-535: RBrace          "}" at 82:1-82:2 (leading: Newline)
-536: EOF             at 83:1-83:1
+316: Ident           "clone" at 51:16-51:21
+317: LParen          "(" at 51:21-51:22
+318: Ident           "rev" at 51:22-51:25
+319: RParen          ")" at 51:25-51:26
+320: RParen          ")" at 51:26-51:27
+321: Semicolon       ";" at 51:27-51:28
+322: KwLet           "let" at 53:5-53:8 (leading: Newline, Space)
+323: Ident           "last_cp" at 53:9-53:16 (leading: Space)
+324: Colon           ":" at 53:16-53:17
+325: Ident           "uint" at 53:18-53:22 (leading: Space)
+326: Assign          "=" at 53:23-53:24 (leading: Space)
+327: Ident           "r" at 53:25-53:26 (leading: Space)
+328: LBracket        "[" at 53:26-53:27
+329: Minus           "-" at 53:27-53:28
+330: IntLit          "1" at 53:28-53:29
+331: RBracket        "]" at 53:29-53:30
+332: KwTo            "to" at 53:31-53:33 (leading: Space)
+333: Ident           "uint" at 53:34-53:38 (leading: Space)
+334: Semicolon       ";" at 53:38-53:39
+335: Ident           "print_uint" at 54:5-54:15 (leading: Newline, Space)
+336: LParen          "(" at 54:15-54:16
+337: Ident           "last_cp" at 54:16-54:23
+338: RParen          ")" at 54:23-54:24
+339: Semicolon       ";" at 54:24-54:25
+340: Ident           "write_line" at 55:5-55:15 (leading: Newline, Space)
+341: LParen          "(" at 55:15-55:16
+342: Ident           "rev" at 55:16-55:19
+343: LBracket        "[" at 55:19-55:20
+344: LBracket        "[" at 55:20-55:21
+345: DotDot          ".." at 55:21-55:23
+346: Minus           "-" at 55:23-55:24
+347: IntLit          "1" at 55:24-55:25
+348: RBracket        "]" at 55:25-55:26
+349: RBracket        "]" at 55:26-55:27
+350: RParen          ")" at 55:27-55:28
+351: Semicolon       ";" at 55:28-55:29
+352: KwLet           "let" at 57:5-57:8 (leading: Newline, Space)
+353: KwMut           "mut" at 57:9-57:12 (leading: Space)
+354: Ident           "left" at 57:13-57:17 (leading: Space)
+355: Colon           ":" at 57:17-57:18
+356: Ident           "string" at 57:19-57:25 (leading: Space)
+357: Assign          "=" at 57:26-57:27 (leading: Space)
+358: StringLit       "\"\"" at 57:28-57:30 (leading: Space)
+359: Semicolon       ";" at 57:30-57:31
+360: KwLet           "let" at 58:5-58:8 (leading: Newline, Space)
+361: Ident           "ab" at 58:9-58:11 (leading: Space)
+362: Colon           ":" at 58:11-58:12
+363: Ident           "string" at 58:13-58:19 (leading: Space)
+364: Assign          "=" at 58:20-58:21 (leading: Space)
+365: StringLit       "\"ab\"" at 58:22-58:26 (leading: Space)
+366: Semicolon       ";" at 58:26-58:27
+367: KwLet           "let" at 59:5-59:8 (leading: Newline, Space)
+368: Ident           "cd" at 59:9-59:11 (leading: Space)
+369: Colon           ":" at 59:11-59:12
+370: Ident           "string" at 59:13-59:19 (leading: Space)
+371: Assign          "=" at 59:20-59:21 (leading: Space)
+372: StringLit       "\"cd\"" at 59:22-59:26 (leading: Space)
+373: Semicolon       ";" at 59:26-59:27
+374: Ident           "left" at 60:5-60:9 (leading: Newline, Space)
+375: Assign          "=" at 60:10-60:11 (leading: Space)
+376: Ident           "left" at 60:12-60:16 (leading: Space)
+377: Plus            "+" at 60:17-60:18 (leading: Space)
+378: Ident           "ab" at 60:19-60:21 (leading: Space)
+379: Semicolon       ";" at 60:21-60:22
+380: Ident           "left" at 61:5-61:9 (leading: Newline, Space)
+381: Assign          "=" at 61:10-61:11 (leading: Space)
+382: Ident           "left" at 61:12-61:16 (leading: Space)
+383: Plus            "+" at 61:17-61:18 (leading: Space)
+384: Ident           "cd" at 61:19-61:21 (leading: Space)
+385: Semicolon       ";" at 61:21-61:22
+386: Ident           "print_uint" at 62:5-62:15 (leading: Newline, Space)
+387: LParen          "(" at 62:15-62:16
+388: Ident           "left" at 62:16-62:20
+389: Dot             "." at 62:20-62:21
+390: Ident           "levenshtein" at 62:21-62:32
+391: LParen          "(" at 62:32-62:33
+392: StringLit       "\"abxd\"" at 62:33-62:39
+393: RParen          ")" at 62:39-62:40
+394: RParen          ")" at 62:40-62:41
+395: Semicolon       ";" at 62:41-62:42
+396: KwLet           "let" at 64:5-64:8 (leading: Newline, Space)
+397: Ident           "bv" at 64:9-64:11 (leading: Space)
+398: Assign          "=" at 64:12-64:13 (leading: Space)
+399: Ident           "r" at 64:14-64:15 (leading: Space)
+400: Dot             "." at 64:15-64:16
+401: Ident           "bytes" at 64:16-64:21
+402: LParen          "(" at 64:21-64:22
+403: RParen          ")" at 64:22-64:23
+404: Semicolon       ";" at 64:23-64:24
+405: Ident           "print_uint" at 65:5-65:15 (leading: Newline, Space)
+406: LParen          "(" at 65:15-65:16
+407: Ident           "bv" at 65:16-65:18
+408: Dot             "." at 65:18-65:19
+409: Ident           "__len" at 65:19-65:24
+410: LParen          "(" at 65:24-65:25
+411: RParen          ")" at 65:25-65:26
+412: RParen          ")" at 65:26-65:27
+413: Semicolon       ";" at 65:27-65:28
+414: KwLet           "let" at 66:5-66:8 (leading: Newline, Space)
+415: Ident           "first" at 66:9-66:14 (leading: Space)
+416: Colon           ":" at 66:14-66:15
+417: Ident           "uint" at 66:16-66:20 (leading: Space)
+418: Assign          "=" at 66:21-66:22 (leading: Space)
+419: Ident           "bv" at 66:23-66:25 (leading: Space)
+420: LBracket        "[" at 66:25-66:26
+421: IntLit          "0" at 66:26-66:27
+422: RBracket        "]" at 66:27-66:28
+423: KwTo            "to" at 66:29-66:31 (leading: Space)
+424: Ident           "uint" at 66:32-66:36 (leading: Space)
+425: Semicolon       ";" at 66:36-66:37
+426: Ident           "print_uint" at 67:5-67:15 (leading: Newline, Space)
+427: LParen          "(" at 67:15-67:16
+428: Ident           "first" at 67:16-67:21
+429: RParen          ")" at 67:21-67:22
+430: Semicolon       ";" at 67:22-67:23
+431: KwLet           "let" at 69:5-69:8 (leading: Newline, Space)
+432: Ident           "r2" at 69:9-69:11 (leading: Space)
+433: Assign          "=" at 69:12-69:13 (leading: Space)
+434: Ident           "r" at 69:14-69:15 (leading: Space)
+435: Dot             "." at 69:15-69:16
+436: Ident           "replace" at 69:16-69:23
+437: LParen          "(" at 69:23-69:24
+438: StringLit       "\"hi\"" at 69:24-69:28
+439: Comma           "," at 69:28-69:29
+440: StringLit       "\"ha\"" at 69:30-69:34 (leading: Space)
+441: RParen          ")" at 69:34-69:35
+442: Semicolon       ";" at 69:35-69:36
+443: Ident           "rt_string_force_flatten" at 70:5-70:28 (leading: Newline, Space)
+444: LParen          "(" at 70:28-70:29
+445: Amp             "&" at 70:29-70:30
+446: Ident           "r2" at 70:30-70:32
+447: RParen          ")" at 70:32-70:33
+448: Semicolon       ";" at 70:33-70:34
+449: KwLet           "let" at 71:5-71:8 (leading: Newline, Space)
+450: Ident           "bv2" at 71:9-71:12 (leading: Space)
+451: Assign          "=" at 71:13-71:14 (leading: Space)
+452: Ident           "r2" at 71:15-71:17 (leading: Space)
+453: Dot             "." at 71:17-71:18
+454: Ident           "bytes" at 71:18-71:23
+455: LParen          "(" at 71:23-71:24
+456: RParen          ")" at 71:24-71:25
+457: Semicolon       ";" at 71:25-71:26
+458: Ident           "print_uint" at 72:5-72:15 (leading: Newline, Space)
+459: LParen          "(" at 72:15-72:16
+460: Ident           "bv2" at 72:16-72:19
+461: Dot             "." at 72:19-72:20
+462: Ident           "__len" at 72:20-72:25
+463: LParen          "(" at 72:25-72:26
+464: RParen          ")" at 72:26-72:27
+465: RParen          ")" at 72:27-72:28
+466: Semicolon       ";" at 72:28-72:29
+467: KwLet           "let" at 73:5-73:8 (leading: Newline, Space)
+468: Ident           "last_idx" at 73:9-73:17 (leading: Space)
+469: Colon           ":" at 73:17-73:18
+470: Ident           "int" at 73:19-73:22 (leading: Space)
+471: Assign          "=" at 73:23-73:24 (leading: Space)
+472: LParen          "(" at 73:25-73:26 (leading: Space)
+473: Ident           "bv2" at 73:26-73:29
+474: Dot             "." at 73:29-73:30
+475: Ident           "__len" at 73:30-73:35
+476: LParen          "(" at 73:35-73:36
+477: RParen          ")" at 73:36-73:37
+478: Minus           "-" at 73:38-73:39 (leading: Space)
+479: IntLit          "1" at 73:40-73:41 (leading: Space)
+480: Colon           ":" at 73:41-73:42
+481: Ident           "uint" at 73:42-73:46
+482: RParen          ")" at 73:46-73:47
+483: KwTo            "to" at 73:48-73:50 (leading: Space)
+484: Ident           "int" at 73:51-73:54 (leading: Space)
+485: Semicolon       ";" at 73:54-73:55
+486: KwLet           "let" at 74:5-74:8 (leading: Newline, Space)
+487: Ident           "last_byte" at 74:9-74:18 (leading: Space)
+488: Colon           ":" at 74:18-74:19
+489: Ident           "uint" at 74:20-74:24 (leading: Space)
+490: Assign          "=" at 74:25-74:26 (leading: Space)
+491: Ident           "bv2" at 74:27-74:30 (leading: Space)
+492: LBracket        "[" at 74:30-74:31
+493: Ident           "last_idx" at 74:31-74:39
+494: RBracket        "]" at 74:39-74:40
+495: KwTo            "to" at 74:41-74:43 (leading: Space)
+496: Ident           "uint" at 74:44-74:48 (leading: Space)
+497: Semicolon       ";" at 74:48-74:49
+498: Ident           "print_uint" at 75:5-75:15 (leading: Newline, Space)
+499: LParen          "(" at 75:15-75:16
+500: Ident           "last_byte" at 75:16-75:25
+501: RParen          ")" at 75:25-75:26
+502: Semicolon       ";" at 75:26-75:27
+503: KwLet           "let" at 77:5-77:8 (leading: Newline, Space)
+504: Ident           "small" at 77:9-77:14 (leading: Space)
+505: Assign          "=" at 77:15-77:16 (leading: Space)
+506: StringLit       "\"ok\"" at 77:17-77:21 (leading: Space)
+507: Semicolon       ";" at 77:21-77:22
+508: KwLet           "let" at 78:5-78:8 (leading: Newline, Space)
+509: Ident           "from" at 78:9-78:13 (leading: Space)
+510: Assign          "=" at 78:14-78:15 (leading: Space)
+511: Ident           "rt_string_from_bytes" at 78:16-78:36 (leading: Space)
+512: LParen          "(" at 78:36-78:37
+513: Ident           "rt_string_ptr" at 78:37-78:50
+514: LParen          "(" at 78:50-78:51
+515: Amp             "&" at 78:51-78:52
+516: Ident           "small" at 78:52-78:57
+517: RParen          ")" at 78:57-78:58
+518: Comma           "," at 78:58-78:59
+519: Ident           "rt_string_len_bytes" at 78:60-78:79 (leading: Space)
+520: LParen          "(" at 78:79-78:80
+521: Amp             "&" at 78:80-78:81
+522: Ident           "small" at 78:81-78:86
+523: RParen          ")" at 78:86-78:87
+524: RParen          ")" at 78:87-78:88
+525: Semicolon       ";" at 78:88-78:89
+526: Ident           "write_line" at 79:5-79:15 (leading: Newline, Space)
+527: LParen          "(" at 79:15-79:16
+528: Ident           "from" at 79:16-79:20
+529: RParen          ")" at 79:20-79:21
+530: Semicolon       ";" at 79:21-79:22
+531: KwReturn        "return" at 81:5-81:11 (leading: Newline, Space)
+532: IntLit          "0" at 81:12-81:13 (leading: Space)
+533: Semicolon       ";" at 81:13-81:14
+534: RBrace          "}" at 82:1-82:2 (leading: Newline)
+535: EOF             at 83:1-83:1
