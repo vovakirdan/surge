@@ -40,7 +40,14 @@ void rt_remote_task_reply_or_finish_with_result(rt_executor* ex,
         rt_remote_task_release_result_source(ex, result_source);
         return;
     }
-    rt_remote_task_pending_set_reply(pending, status, result_kind, result_source);
+    if (!rt_remote_task_pending_set_reply(pending, status, result_kind, result_source)) {
+        // A second reply edge: the first already named the result and went
+        // its way. Nothing is written; the capability minted for this one is
+        // given back, and so is the reference this edge holds.
+        rt_remote_task_release_result_source(ex, result_source);
+        rt_remote_task_pending_release(pending);
+        return;
+    }
     if (status == RT_REMOTE_TASK_STATUS_OK) {
         rt_remote_task_status enqueue_status = enqueue_reply(ex, pending, reply_kind);
         if (enqueue_status == RT_REMOTE_TASK_STATUS_OK) {
@@ -215,7 +222,7 @@ static void dispatch_request(rt_executor* ex, const rt_transport_msg* msg, rt_re
     }
     RT_SYNC_POINT(SP_REMOTE_TASK_BEFORE_OWNER_REGISTER);
     task_add_ref(task);
-    rt_remote_task_pending_set_owner_registered(pending, 1);
+    rt_remote_task_pending_register_owner(pending, task);
     RT_SYNC_POINT(SP_REMOTE_TASK_AFTER_OWNER_REGISTER);
     if (finish_registered_owner(ex, task)) {
         task_release_lane_aware(ex, task);

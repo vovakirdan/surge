@@ -293,7 +293,7 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
     pending->handle.generation = task->generation;
     pthread_mutex_unlock(&state->lock);
     task_add_ref(task);
-    rt_remote_task_pending_set_owner_registered(pending, 1);
+    rt_remote_task_pending_register_owner(pending, task);
     // Hold the pending across publication. The handoff contract
     // (rt_remote_spawn_internal.h) relies on the dispatch lane still owning
     // a reference when it clears state_owned: the plain store is ordered
@@ -309,7 +309,7 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
     rt_remote_spawn_status published = rt_remote_spawn_publish_body_task(ex, task);
     if (published != RT_REMOTE_SPAWN_STATUS_OK) {
         rt_immediate_on_anchor_unpin(ex, pending);
-        rt_remote_task_pending_set_owner_registered(pending, 0);
+        rt_remote_task_pending_unregister_owner(pending, task);
         task_release_lane_aware(ex, task);
         rt_remote_spawn_free_unpublished_task(ex, task);
         immediate_on_answer(ex, pending, RT_REMOTE_TASK_STATUS_REFUSED);

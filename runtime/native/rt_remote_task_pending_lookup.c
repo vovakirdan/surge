@@ -10,21 +10,29 @@
 // lock with that module but not its subject, and they are the part that grew it
 // past the module-size limit.
 
-rt_remote_task_pending* rt_remote_task_pending_take_owner(const rt_task* task) {
-    rt_executor* ex = task != NULL ? ensure_exec() : NULL;
-    rt_remote_task_state* state = rt_remote_task_state_get(ex);
+rt_remote_task_pending* rt_remote_task_pending_take_owner(rt_task* task) {
+    if (task == NULL) {
+        return NULL;
+    }
+    rt_remote_task_state* state = rt_remote_task_state_get(ensure_exec());
     if (state == NULL) {
         return NULL;
     }
     rt_remote_task_pending* target = NULL;
     pthread_mutex_lock(&state->lock);
-    for (rt_remote_task_pending* it = state->pending_head; it != NULL; it = it->next) {
-        if (it->status == RT_REMOTE_TASK_STATUS_PENDING && it->owner_registered != 0 &&
-            it->handle.task_id == task->id && it->handle.generation == task->generation &&
-            it->handle.owner_shard_id == task->owner_shard_id) {
+    // Through the task's own registration (rt_task.remote_owner_pending),
+    // not a registry scan: the caller consumes and unlists the pending on
+    // its own clock, and a pending the shutdown sweep already resolved keeps
+    // its registration when its body holds channel pins
+    // (rt_remote_task_wait.c), precisely so that this lookup still hands the
+    // completion the pending whose pins it must give back. The registration
+    // is taken exactly once, here.
+    rt_remote_task_pending* it = task->remote_owner_pending;
+    if (it != NULL) {
+        task->remote_owner_pending = NULL;
+        if (it->owner_registered != 0) {
             it->owner_registered = 0;
             target = it;
-            break;
         }
     }
     pthread_mutex_unlock(&state->lock);
@@ -45,20 +53,18 @@ int rt_remote_task_anchored_binding_current(void** out_channel, void** out_state
     }
     int bound = 0;
     pthread_mutex_lock(&state->lock);
-    for (rt_remote_task_pending* it = state->pending_head; it != NULL; it = it->next) {
-        if (it->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED &&
-            it->status == RT_REMOTE_TASK_STATUS_PENDING && it->handle.task_id == current->id &&
-            it->handle.generation == current->generation &&
-            it->handle.owner_shard_id == current->owner_shard_id) {
-            if (out_channel != NULL) {
-                *out_channel = it->anchored_channel;
-            }
-            if (out_state != NULL) {
-                *out_state = it->body_state;
-            }
-            bound = 1;
-            break;
+    // Through the task's own registration, for the same reason as
+    // rt_remote_task_pending_take_owner: a body still bound after the caller
+    // consumed, or after the shutdown sweep resolved, its pending.
+    rt_remote_task_pending* it = current->remote_owner_pending;
+    if (it != NULL && it->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED) {
+        if (out_channel != NULL) {
+            *out_channel = it->anchored_channel;
         }
+        if (out_state != NULL) {
+            *out_state = it->body_state;
+        }
+        bound = 1;
     }
     pthread_mutex_unlock(&state->lock);
     return bound;

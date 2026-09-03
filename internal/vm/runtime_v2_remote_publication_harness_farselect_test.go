@@ -71,6 +71,85 @@ static int run_far_select_cancel_vs_commit(void) {
     return 0;
 }
 
+// RV2-DEBT-069: the shutdown sweep resolves the pending INSIDE the window
+// between the local select's commit and the body's own bookkeeping. The
+// body is held at SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY with the send
+// already the channel's; the driver runs rt_remote_task_fail_all_pending
+// directly (the executor's own shutdown would wait for the parked worker)
+// and then opens the window. What must hold: the commit is still recorded
+// on the pending the body holds -- select_committed_index names arm 0,
+// where a registry scan keyed on PENDING finds nothing any more -- the
+// value lands in the channel exactly once, and no arm payload is dropped.
+// The driver's own reference is what lets it read the index after the
+// caller consumed the pending; the BODY's reference (the fix) is what keeps
+// the arm table alive until the winner's cell is marked moved.
+static int run_far_select_commit_vs_shutdown_sweep(void) {
+    rt_executor* ex = ensure_exec();
+    uint32_t dst = pin_shard(ex, 1);
+    rt_far_task_handle anchor = {0};
+    void* channel = mint_channel_anchor(ex, dst, 1, &anchor);
+    if (channel == NULL) return fail("select channel mint failed");
+
+    select_exec_state st;
+    memset(&st, 0, sizeof(st));
+    st.anchors[0] = anchor;
+    st.anchor_ptrs[0] = &st.anchors[0];
+    st.kinds[0] = SELECT_CHAN_SEND;
+    st.send_bits[0] = 69;
+    st.send_type_ids[0] = DROP_SELECT_PAYLOAD;
+    st.count = 1;
+    st.droppable = 1;
+    remote_child_state select_child;
+    memset(&select_child, 0, sizeof(select_child));
+    remote_state_box* state_box = remote_child_box(&select_child);
+    if (state_box == NULL) return fail("select state box alloc failed");
+    st.body_state = state_box;
+    drop_expected_state = state_box;
+
+    void* caller = __task_create(POLL_SELECT_CALLER, &st, rt_channel_opaque_word_ops());
+    if (caller == NULL) return fail("select caller create failed");
+    if (!wait_reached(RT_SYNC_POINT_SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY, 5000)) {
+        return fail("commit window was never reached");
+    }
+    rt_remote_task_pending* req = wait_select_pending_shared(&st, 5000);
+    if (req == NULL) return fail("select pending missing at commit window");
+    rt_remote_task_pending_add_ref(req);
+
+    rt_remote_task_fail_all_pending(ex, RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN);
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    rt_task_await(caller, &kind, &bits);
+    // The caller task itself returns normally; what it returns is the
+    // select's own answer, and the sweep decided that one.
+    if (st.status != RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN) {
+        return fail("the sweep did not resolve the select caller as destination-shutdown");
+    }
+    rt_sync_point_open();
+
+    if (!wait_task_refs(req, 1, 5000)) return fail("select body never let go of the pending");
+    if (req->select_committed_index != 0) {
+        return fail("the sweep took the commit record from the winner");
+    }
+    if (!channel_recv_once(ex, channel, 69)) {
+        return fail("committed send must land in the channel exactly once");
+    }
+    if (atomic_load_explicit(&drop_calls, memory_order_acquire) != 0) {
+        return fail("handed-off select state must not drop across the sweep");
+    }
+    if (atomic_load_explicit(&payload_drop_calls, memory_order_acquire) != 0) {
+        return fail("committed select payload was dropped although the channel owns it");
+    }
+    rt_remote_task_pending_release(req);
+    if (rt_far_channel_release(ex, &anchor) != RT_REMOTE_TASK_STATUS_OK) {
+        return fail("select anchor lease release failed");
+    }
+    if (rt_far_channel_debug_live_count(ex) != 0) {
+        return fail("commit-vs-sweep race leaked a pin");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
 // Row 3: cancel-before-dispatch. The select request is cancelled while
 // still UNBOUND, held at the new SP_FAR_SELECT_BEFORE_DISPATCH entry
 // window (the select twin of SP_IMMEDIATE_ON_BEFORE_DISPATCH). The

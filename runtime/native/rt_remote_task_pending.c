@@ -200,22 +200,31 @@ rt_remote_task_status rt_remote_task_pending_snapshot(const rt_remote_task_pendi
 // `result_source` -- the producer's own typed slot -- and never as a word. The
 // word that used to ride beside the kind carried nothing any caller read once
 // results went typed (Wave E).
-void rt_remote_task_pending_set_reply(rt_remote_task_pending* pending,
-                                      rt_remote_task_status status,
-                                      uint8_t result_kind,
-                                      const rt_result_source* result_source) {
+//
+// Exactly one reply edge writes here: the first. A second edge -- a reply
+// after a reply -- would flip the kind the winner gate already peeked at,
+// so it is refused and told so, and the caller gives back what it minted.
+int rt_remote_task_pending_set_reply(rt_remote_task_pending* pending,
+                                     rt_remote_task_status status,
+                                     uint8_t result_kind,
+                                     const rt_result_source* result_source) {
     rt_remote_task_state* state =
         pending != NULL ? rt_remote_task_state_get(pending->executor) : NULL;
     if (state == NULL) {
-        return;
+        return 0;
     }
     pthread_mutex_lock(&state->lock);
+    if (pending->reply_status != RT_REMOTE_TASK_STATUS_PENDING) {
+        pthread_mutex_unlock(&state->lock);
+        return 0;
+    }
     pending->reply_status = (uint8_t)status;
     pending->result_kind = result_kind;
     if (result_source != NULL) {
         pending->result_source = *result_source;
     }
     pthread_mutex_unlock(&state->lock);
+    return 1;
 }
 
 waker_key rt_remote_task_reply_key(uint64_t request_id, uint32_t source_shard_id) {
@@ -310,13 +319,28 @@ void rt_remote_task_pending_clear_result_source(rt_remote_task_pending* pending)
     pthread_mutex_unlock(&state->lock);
 }
 
-void rt_remote_task_pending_set_owner_registered(rt_remote_task_pending* pending, int value) {
+void rt_remote_task_pending_register_owner(rt_remote_task_pending* pending, rt_task* task) {
+    rt_remote_task_state* state =
+        pending != NULL ? rt_remote_task_state_get(pending->executor) : NULL;
+    if (state == NULL || task == NULL) {
+        return;
+    }
+    pthread_mutex_lock(&state->lock);
+    pending->owner_registered = 1;
+    task->remote_owner_pending = pending;
+    pthread_mutex_unlock(&state->lock);
+}
+
+void rt_remote_task_pending_unregister_owner(rt_remote_task_pending* pending, rt_task* task) {
     rt_remote_task_state* state =
         pending != NULL ? rt_remote_task_state_get(pending->executor) : NULL;
     if (state == NULL) {
         return;
     }
     pthread_mutex_lock(&state->lock);
-    pending->owner_registered = value != 0;
+    pending->owner_registered = 0;
+    if (task != NULL && task->remote_owner_pending == pending) {
+        task->remote_owner_pending = NULL;
+    }
     pthread_mutex_unlock(&state->lock);
 }

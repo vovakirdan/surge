@@ -296,6 +296,14 @@ typedef struct rt_task {
     // list threads through the tasks themselves, so keeping that rule costs no
     // allocation at all. NULL outside that list.
     struct rt_task* reclaim_next;
+    // The remote-task pending this task is the registered OWNER of -- the
+    // body of a far request, from its registration at dispatch to its
+    // completion. Written and read under the remote-task state lock only;
+    // the registration holds a reference on the pending, so the pointer is
+    // never dangling while set. A pointer rather than a registry scan keyed
+    // on PENDING: the caller consumes and unlists the pending on its own
+    // clock, and a body that completes after that still has pins to return.
+    struct rt_remote_task_pending* remote_owner_pending;
     // Every word narrower than a pointer, together, words before bytes: the
     // struct's padding is at its floor only while they stay in one run, and
     // clang-tidy reads that floor (optin.performance.Padding). A new narrow

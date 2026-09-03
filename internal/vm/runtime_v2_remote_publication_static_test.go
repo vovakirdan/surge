@@ -119,10 +119,15 @@ func TestRuntimeV2FarSelectInitialFailurePayloadOwnershipStaticContract(t *testi
 	}
 	requestFail := source[requestFailStart:requestFailEnd]
 	// The staged payloads are the arms' now, each in its own cell, so the one
-	// cleanup this path may run is the cells' own dispose. A second drop of the
-	// caller's storage would be destroying a value that has already moved.
-	if strings.Count(requestFail, "rt_value_cell_dispose(") != 1 {
-		t.Fatal("pending-allocation failure must have exactly one payload-dispose loop")
+	// cleanup this path may run is the arm table's own free, which disposes
+	// every cell (rt_remote_task_select_arms_free, the one free site for an
+	// arm table). A second drop of the caller's storage would be destroying a
+	// value that has already moved.
+	if strings.Count(requestFail, "rt_remote_task_select_arms_free(") != 1 {
+		t.Fatal("pending-allocation failure must free the arm table exactly once")
+	}
+	if strings.Contains(requestFail, "rt_value_cell_dispose(") {
+		t.Fatal("pending-allocation failure must not dispose cells beside the table's own free")
 	}
 	if strings.Contains(requestFail, "select_drop_input_payloads(") {
 		t.Fatal("pending-allocation failure must not also run the pre-arm payload cleanup")

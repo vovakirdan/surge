@@ -426,6 +426,10 @@ int rtb_mode_anchored_owner_teardown(void) {
         RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN) {
         return rtb_fail("teardown left the caller without a deterministic failure");
     }
+    // The body is parked on the full channel and no carrier polls an
+    // unpinned task once shutdown is set, so its pin stays until the process
+    // exits (RV2-DEBT-322, the residual): this row asserts the caller's
+    // answer, not the census.
     return 0;
 }
 

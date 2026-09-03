@@ -13224,3 +13224,99 @@ type or name, nothing reads the struct positionally (the only `sizeof`
 users allocate and zero it), the probe reads clean, and the static-shape,
 lifecycle, carrier-affinity and behaviour stands are green on the new
 layout.
+
+### E6, the P4 matrix, first pass: the shutdown column (2026-09-03)
+
+**What E6 asks, and what was already there.** The plan's matrix: values
+wider than a word through far task/channel/select; success, refusal, stale
+generation, cancel, shutdown and partial allocation; DATA exhaustion, two
+jumbo producers, an oversized reply; the under-budget Rule-13 mutant; exact
+return of request/reply slots and byte credits; Close-wins for detached far
+claims -- and the two reds it names, RV2-DEBT-181 and RV2-DEBT-069. The
+tree already carries most of the non-numeric rows: E2's `far-payload-width`
+(a sixteen-byte composite and a one-byte scalar through a far channel and
+as a far task result), the far-select `send-arm-carries-a-payload-wider-
+than-a-word` row, the refusal/stale/cancel/shutdown rows of the behaviour
+table and the publication harness, E4's slot-return rows. The three numeric
+rows (oversized reply, under-budget mutant, two jumbo producers) wait on
+the owner's E5 answer, as the plan says. What was NOT there is the row
+RV2-DEBT-069 recorded a recipe for and never kept, and it is the row this
+pass is about.
+
+**RV2-DEBT-069, reproduced and closed.** The recipe from the row, verbatim
+in shape: a one-arm SEND select on a capacity-1 far channel, the body held
+at `SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY` with the send already the
+channel's, `rt_remote_task_fail_all_pending` run from the driver inside the
+window (the executor's own shutdown would wait for the parked carrier), the
+window opened. Two things were wrong at once. The commit record went through
+a registry scan keyed on `status == PENDING`, and the sweep had changed the
+status, so `select_committed_index` stayed NO_COMMIT. And the body was the
+one reader of the arm table with no lock and no reference: the caller,
+answered by the sweep, consumed and unlisted the pending, and its final
+release could free the table before the body marked the winner's cell
+moved -- the cleanup then read INITIALIZED and destroyed a value the channel
+already owned. The row's assertion for the second half is the first half:
+with a driver reference holding the memory, the lost record is the
+deterministic witness, and the same reference that fixes the record is what
+makes the free wait. The fix: `rt_remote_task_select_binding_take` hands the
+body its pending WITH a reference, held from entry to the moment the cell is
+marked and the commit recorded through the pointer
+(`record_select_commit(pending, winner)`), and given back before every
+`longjmp` out of the poll. Rule 13: `RV2_DEBT_069_NEGATIVE_CONTROL` puts the
+scan back, and the row reads "the sweep took the commit record from the
+winner".
+
+**Then the row found the pin.** With the record kept and the payload safe,
+`rt_far_channel_debug_live_count` read 1 at the end: the sweep had severed
+the owner registration and released its reference, so the body's completion
+-- the one path that unpins the arms and answers -- found no pending. That
+is RV2-DEBT-322's mechanism (E3 wrote it down for the anchored block; the
+select is its twin), and the debt's own text names the fix: `fail_all` must
+leave a pin-holding body its registration, and the completion must find the
+pending whether or not the sweep resolved it. It did not, even with the
+registration kept: `take_owner` scanned the REGISTRY, and the caller's
+consume had unlisted the pending. So the lookup moved off the registry
+altogether: `rt_task.remote_owner_pending`, set at owner registration
+(`rt_remote_task_pending_register_owner`, holding the owner reference),
+taken exactly once by `rt_remote_task_pending_take_owner`, read by the
+anchored and select bindings, cleared by the sweep only where it severs.
+The sweep now keeps the registration of an anchored body with
+`anchor_pinned` and of a select body with an arm table, and cancels
+nothing; the completion unpins and answers, `set_reply` writes only the
+first edge (the row's second item), the reply the caller no longer waits
+for is drained by the shutdown drain or consumed as stale. Rule 13:
+`RV2_DEBT_322_NEGATIVE_CONTROL` severs every registration as before, and
+the same row reads "commit-vs-sweep race leaked a pin".
+
+**What 322 still owes, and why it is not paid here.** A body PARKED at
+shutdown -- the anchored teardown row's, on a full channel -- is never
+polled again: after `ex->shutdown` a carrier runs only the tasks pinned to
+it, and there is no join and no destroy at process exit, so its completion
+never runs and its pin stays until the OS reclaims it. A first cut of this
+pass asserted `live_count == 0` after `rt_executor_request_shutdown` on
+that row and waited five seconds for it; it read the pin in place, and the
+negative control read the deadlock detector's panic instead (with the
+registration severed, the detector no longer counts the body as a runnable
+holder). The sweep cannot unpin the parked body either: a carrier that
+popped it before it saw the flag may be about to run it, and
+`rt_far_channel_release_all` would reclaim the channel under it. The census
+reads zero after shutdown only when shutdown runs or cancels every
+remaining body -- the scheduler's shutdown contract, not this pending's --
+so the row went back to asserting the caller's answer, and 322 is narrowed,
+not closed.
+
+**RV2-DEBT-181, closed as bookkeeping.** Its second close branch had
+landed in `d06b40cb`: the row asserts the guarantee the model makes
+(publication promises the task exists and can be cancelled, not a first
+poll), keeps the shards=1 direction as the program's own arrangement, and
+`phase_sweep_publication_and_first_poll` pins the ordering question. The
+ledger row was never updated.
+
+**Found on the way.** E5 landed with one red the local gate runs of E5 did
+not include: `TestRuntimeV2FarSelectInitialFailurePayloadOwnershipStaticContract`
+counts the payload-dispose loop in the select's pending-allocation failure
+path, and E5 had folded that loop into `rt_remote_task_select_arms_free`
+(the one free site for an arm table, so the resident-byte balance leaves
+with the table). The contract now names the free instead of the loop; the
+property -- one cleanup, no second drop of the caller's storage -- is the
+same. The runner's E5 queue will show the red on `c631617a`/`10669a3d`.

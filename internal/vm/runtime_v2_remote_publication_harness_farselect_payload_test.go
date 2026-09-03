@@ -158,6 +158,9 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "far-select-cancel-vs-commit") == 0) {
         return run_far_select_cancel_vs_commit();
     }
+    if (strcmp(argv[1], "far-select-commit-vs-shutdown-sweep") == 0) {
+        return run_far_select_commit_vs_shutdown_sweep();
+    }
     if (strcmp(argv[1], "far-select-cancel-before-dispatch") == 0) {
         return run_far_select_cancel_before_dispatch();
     }

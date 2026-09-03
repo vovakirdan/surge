@@ -203,18 +203,24 @@ rt_result_source rt_remote_task_pending_result_source(const rt_remote_task_pendi
 // Clears it after the value has been fetched, so no later path can spend the
 // same capability twice.
 void rt_remote_task_pending_clear_result_source(rt_remote_task_pending* pending);
-void rt_remote_task_pending_set_reply(rt_remote_task_pending* pending,
-                                      rt_remote_task_status status,
-                                      uint8_t result_kind,
-                                      const rt_result_source* result_source);
+// Writes the reply the first edge brings and answers 1; a second edge is
+// refused with 0 and writes nothing.
+int rt_remote_task_pending_set_reply(rt_remote_task_pending* pending,
+                                     rt_remote_task_status status,
+                                     uint8_t result_kind,
+                                     const rt_result_source* result_source);
 void rt_remote_task_pending_finish(rt_executor* ex,
                                    rt_remote_task_pending* pending,
                                    rt_remote_task_status status,
                                    uint8_t result_kind,
                                    const rt_result_source* result_source);
 void rt_remote_task_pending_retire_reply_wait(rt_executor* ex, rt_remote_task_pending* pending);
-void rt_remote_task_pending_set_owner_registered(rt_remote_task_pending* pending, int value);
-rt_remote_task_pending* rt_remote_task_pending_take_owner(const rt_task* task);
+// The body task becomes the pending's registered owner: the completion path
+// finds the pending through the task (rt_task.remote_owner_pending) and
+// answers the reply. Registration holds the owner reference on the pending.
+void rt_remote_task_pending_register_owner(rt_remote_task_pending* pending, rt_task* task);
+void rt_remote_task_pending_unregister_owner(rt_remote_task_pending* pending, rt_task* task);
+rt_remote_task_pending* rt_remote_task_pending_take_owner(rt_task* task);
 
 rt_remote_task_status rt_far_task_lease_consume(const rt_far_task_handle* handle);
 void rt_far_task_lease_restore(const rt_far_task_handle* handle);
@@ -241,9 +247,14 @@ waker_key rt_remote_task_reply_key(uint64_t request_id, uint32_t source_shard_id
 int rt_remote_task_prepare_reply_wait(rt_executor* ex,
                                       rt_task* current,
                                       rt_remote_task_pending* pending);
-int rt_remote_task_select_binding_current(rt_far_channel_select_arm** out_arms,
-                                          uint64_t* out_count,
-                                          void** out_state);
+// The remote-select body's binding, with a reference on the pending that
+// carries it: the body holds that reference from its entry to the moment it
+// has marked the winner's cell moved and recorded the commit, so no sweep
+// that resolves the pending meanwhile can free the arm table under it.
+// NULL when no listed PENDING select names the current task.
+rt_remote_task_pending* rt_remote_task_select_binding_take(rt_far_channel_select_arm** out_arms,
+                                                           uint64_t* out_count,
+                                                           void** out_state);
 void rt_far_channel_select_unpin_arms(rt_executor* ex,
                                       const rt_remote_task_pending* pending,
                                       uint64_t pinned_count);

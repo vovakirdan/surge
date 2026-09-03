@@ -383,7 +383,7 @@ void rt_far_channel_dispatch_select(rt_executor* ex, const rt_transport_msg* msg
     pending->handle.generation = task->generation;
     pthread_mutex_unlock(&state->lock);
     task_add_ref(task);
-    rt_remote_task_pending_set_owner_registered(pending, 1);
+    rt_remote_task_pending_register_owner(pending, task);
     // Same publication window as the immediate-on dispatch: hold the pending
     // across it so the state_owned store below cannot land in memory a
     // completing body already freed (contract: rt_remote_spawn_internal.h).
@@ -391,7 +391,7 @@ void rt_far_channel_dispatch_select(rt_executor* ex, const rt_transport_msg* msg
     rt_remote_spawn_status published = rt_remote_spawn_publish_body_task(ex, task);
     if (published != RT_REMOTE_SPAWN_STATUS_OK) {
         rt_far_channel_select_unpin_arms(ex, pending, pending->select_count);
-        rt_remote_task_pending_set_owner_registered(pending, 0);
+        rt_remote_task_pending_unregister_owner(pending, task);
         task_release_lane_aware(ex, task);
         rt_remote_spawn_free_unpublished_task(ex, task);
         select_answer(ex, pending, RT_REMOTE_TASK_STATUS_REFUSED);
@@ -409,50 +409,72 @@ void rt_far_channel_dispatch_select(rt_executor* ex, const rt_transport_msg* msg
 
 // The remote-select body's binding: the dispatch-pinned arm table and the
 // shipped poll state, found through the pending that created this body (the
-// same scan discipline as the anchored single-channel binding).
-int rt_remote_task_select_binding_current(rt_far_channel_select_arm** out_arms,
-                                          uint64_t* out_count,
-                                          void** out_state) {
+// same scan discipline as the anchored single-channel binding), handed back
+// WITH a reference. The body is the one reader of the arm table that runs
+// with no lock and no reference of its own: between the local select's
+// commit and the body's own bookkeeping the shutdown sweep can resolve the
+// pending, the caller can consume it, and its final release can free the
+// table -- the winner's cell then reads INITIALIZED instead of MOVED and its
+// value, already the channel's, is destroyed a second time (RV2-DEBT-069).
+// The reference is what makes that release wait for the body.
+rt_remote_task_pending* rt_remote_task_select_binding_take(rt_far_channel_select_arm** out_arms,
+                                                           uint64_t* out_count,
+                                                           void** out_state) {
     rt_executor* ex = ensure_exec();
     rt_remote_task_state* state = rt_remote_task_state_get(ex);
     const rt_task* current = rt_current_task();
     if (state == NULL || current == NULL) {
-        return 0;
+        return NULL;
     }
-    int bound = 0;
+    rt_remote_task_pending* bound = NULL;
     pthread_mutex_lock(&state->lock);
-    for (rt_remote_task_pending* it = state->pending_head; it != NULL; it = it->next) {
-        if (it->op == RT_REMOTE_TASK_OP_CHANNEL_SELECT &&
-            it->status == RT_REMOTE_TASK_STATUS_PENDING && it->handle.task_id == current->id &&
-            it->handle.generation == current->generation &&
-            it->handle.owner_shard_id == current->owner_shard_id) {
-            if (out_arms != NULL) {
-                *out_arms = it->select_arms;
-            }
-            if (out_count != NULL) {
-                *out_count = it->select_count;
-            }
-            if (out_state != NULL) {
-                *out_state = it->body_state;
-            }
-            bound = 1;
-            break;
+    // Through the task's own registration, not a registry scan: the caller
+    // may have consumed and unlisted the pending by now, and a scan keyed on
+    // a PENDING status the shutdown sweep has changed finds nothing.
+    rt_remote_task_pending* it = current->remote_owner_pending;
+    if (it != NULL && it->op == RT_REMOTE_TASK_OP_CHANNEL_SELECT) {
+        if (out_arms != NULL) {
+            *out_arms = it->select_arms;
         }
+        if (out_count != NULL) {
+            *out_count = it->select_count;
+        }
+        if (out_state != NULL) {
+            *out_state = it->body_state;
+        }
+        rt_remote_task_pending_add_ref(it);
+        bound = it;
     }
     pthread_mutex_unlock(&state->lock);
     return bound;
 }
 
-// Records which arm rt_select_poll committed, under the same lock the
-// shutdown/cancel-inflight sweep (rt_remote_task_wait.c) uses to stomp
-// result_kind on a pending — that sweep never touches
-// select_committed_index, but the write itself still needs the lock to
-// avoid racing a concurrent unlink/free of the same pending. Called once,
-// immediately after rt_select_poll's own critical section has already
-// released (the window rt_anchored_channel_select's caller-facing comment
-// already documents), so there is nothing left to race on the commit
-// itself — only the registry lookup needs synchronizing.
-static void record_select_commit(int64_t winner) {
+// Records which arm rt_select_poll committed, through the pending the body
+// holds a reference on, under the same lock the shutdown/cancel-inflight
+// sweep (rt_remote_task_wait.c) uses to stomp result_kind -- that sweep
+// never touches select_committed_index, and a status it may already have
+// changed is no reason not to record what the channel already owns: the
+// caller's handback reads the index only on a success reply, and the
+// pending's cleanup reads the cell's own state. Called once, immediately
+// after rt_select_poll's critical section released.
+//
+// Rule 13: RV2_DEBT_069_NEGATIVE_CONTROL keeps the registry scan this
+// replaced, which finds nothing once the sweep has changed the status, so
+// the commit-vs-sweep row reads NO_COMMIT where it must read the winner.
+#ifndef RV2_DEBT_069_NEGATIVE_CONTROL
+static void record_select_commit(rt_remote_task_pending* pending, int64_t winner) {
+    rt_remote_task_state* state =
+        pending != NULL ? rt_remote_task_state_get(pending->executor) : NULL;
+    if (state == NULL) {
+        return;
+    }
+    pthread_mutex_lock(&state->lock);
+    pending->select_committed_index = (uint64_t)winner;
+    pthread_mutex_unlock(&state->lock);
+}
+#else
+static void record_select_commit(rt_remote_task_pending* pending, int64_t winner) {
+    (void)pending;
     rt_executor* ex = ensure_exec();
     rt_remote_task_state* state = rt_remote_task_state_get(ex);
     const rt_task* current = rt_current_task();
@@ -471,6 +493,7 @@ static void record_select_commit(int64_t winner) {
     }
     pthread_mutex_unlock(&state->lock);
 }
+#endif
 
 // The selector body's single operation: runs the local select over the
 // bound channels and returns the winner index. The parked path yields with
@@ -482,7 +505,8 @@ uint64_t rt_anchored_channel_select(void) {
     rt_far_channel_select_arm* arms = NULL;
     uint64_t count = 0;
     void* state = NULL;
-    if (!rt_remote_task_select_binding_current(&arms, &count, &state)) {
+    rt_remote_task_pending* pending = rt_remote_task_select_binding_take(&arms, &count, &state);
+    if (pending == NULL) {
         panic_msg("anchored select outside a remote-select block body");
         return 0;
     }
@@ -490,7 +514,10 @@ uint64_t rt_anchored_channel_select(void) {
     // obligation already transferred onto the body task's ordinary state
     // lifecycle at the publication-accepted handoff; passing 0 here
     // deliberately leaves the abandoned-suspend-state stash untouched.
+    // Every exit from here longjmps out of the poll, so the binding's
+    // reference is given back before each one.
     if (current_task_cancelled(ex)) {
+        rt_remote_task_pending_release(pending);
         rt_async_return_cancelled(state, 0);
     }
     uint8_t kinds[RT_FAR_CHANNEL_SELECT_MAX_ARMS];
@@ -502,6 +529,7 @@ uint64_t rt_anchored_channel_select(void) {
     // ends the arm's ownership of it.
     void* value_addrs[RT_FAR_CHANNEL_SELECT_MAX_ARMS];
     if (count > RT_FAR_CHANNEL_SELECT_MAX_ARMS) {
+        rt_remote_task_pending_release(pending);
         panic_msg("anchored select arm table exceeds the arm cap");
         return 0;
     }
@@ -512,6 +540,7 @@ uint64_t rt_anchored_channel_select(void) {
     }
     int64_t winner = rt_select_poll(count, kinds, handles, value_addrs, NULL, -1);
     if (winner < 0) {
+        rt_remote_task_pending_release(pending);
         rt_async_yield(state, 0);
     }
     // rt_select_poll's control-lock critical section (the commit) has
@@ -529,7 +558,9 @@ uint64_t rt_anchored_channel_select(void) {
     // The commit is final the moment rt_select_poll returns a non-negative
     // winner (see above); record it so a teardown that reaches the pending
     // before this reply lands knows exactly which SEND arm's payload was
-    // consumed and must be skipped, not dropped.
-    record_select_commit(winner);
+    // consumed and must be skipped, not dropped. Only now, with the cell
+    // marked and the commit recorded, may the pending's free path run.
+    record_select_commit(pending, winner);
+    rt_remote_task_pending_release(pending);
     return (uint64_t)winner;
 }

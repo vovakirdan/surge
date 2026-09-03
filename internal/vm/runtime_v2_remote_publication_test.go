@@ -341,6 +341,15 @@ func TestRuntimeV2RemoteSelectAbandonEdges(t *testing.T) {
 				"SURGE_SYNC_POINT=SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY:block"),
 		},
 		{
+			// RV2-DEBT-069: the shutdown sweep lands between the local
+			// select's commit and the body's bookkeeping; the commit record
+			// and the winner's payload both survive it.
+			name: "commit-vs-shutdown-sweep-keeps-the-record",
+			mode: "far-select-commit-vs-shutdown-sweep",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+				"SURGE_SYNC_POINT=SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY:block"),
+		},
+		{
 			name: "cancel-before-dispatch-refuses-body",
 			mode: "far-select-cancel-before-dispatch",
 			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
@@ -440,6 +449,14 @@ func TestRuntimeV2RemoteSpawnStaleGenerationRows(t *testing.T) {
 
 func buildRemotePublicationHarness(t *testing.T) string {
 	t.Helper()
+	return buildRemotePublicationHarnessWithFlags(t, nil)
+}
+
+// buildRemotePublicationHarnessWithFlags builds the harness with extra
+// compiler flags, for the Rule 13 controls that put a runtime mutant under
+// a row.
+func buildRemotePublicationHarnessWithFlags(t *testing.T, extraFlags []string) string {
+	t.Helper()
 	clang, err := exec.LookPath("clang")
 	if err != nil {
 		t.Fatalf("clang is required for Runtime V2 remote publication check: %v", err)
@@ -464,10 +481,9 @@ func buildRemotePublicationHarness(t *testing.T) string {
 		"-DRT_TEST_SYNC_POINTS",
 		"-pthread",
 		"-I" + filepath.Join(root, "runtime", "native"),
-		"-o",
-		bin,
-		harness,
 	}
+	args = append(args, extraFlags...)
+	args = append(args, "-o", bin, harness)
 	for _, src := range sources {
 		if filepath.Base(src) != "rt_entry.c" {
 			args = append(args, src)
