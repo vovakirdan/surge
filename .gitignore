@@ -60,6 +60,9 @@ surge
 
 *.o
 
+# The bench harness's unittest run compiles its modules; bytecode is not source.
+__pycache__/
+
 .security-key
 .claude-flow/
 .serena/

@@ -14,7 +14,7 @@ fn main() {
     let needle = "ell";
     let n1 = b.peek(&needle);
     let n2 = b.peek(needle);
-    let n3 = b.eat(clone(needle));
+    let n3 = b.eat(needle.__clone());
     let n4 = b.eat(needle);
     if n1 + n2 + n3 + n4 > 0 {
         print("ok");
