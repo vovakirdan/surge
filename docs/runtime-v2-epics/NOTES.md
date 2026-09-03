@@ -14188,6 +14188,19 @@ answered NULL. Both gate lines green locally (73.9 s and 7.8 s). The
 other eighteen sub-gates of that count passed, so the next count is the
 first with every red of the wave found and named.
 
+**A red that was the operator's, read as such.** The baseline of
+`ff7ec365` on the runner reported `exit=1 failing=142`, every failure a
+compile error of the kind "cannot resolve 'checkpoint'", "unknown type
+Task", "module imports missing module stdlib/net" -- the prelude and the
+stdlib gone from under the tests. They were: the queue for the next SHA
+was launched nine minutes into that baseline, its kill list named the
+queue leader, W8, `make` and `go test` but not the baseline script, and
+the worktree the surviving baseline was reading was removed under it.
+Not the tree's red; the procedure's. The kill list names every child
+script now, and a worktree is removed only when nothing on the box holds
+its path. The baseline of `d1341973` before it and of `43ae205a` after it
+are the readings that count.
+
 **Queues re-cut.** With that red on every SHA from E3 to `1165aef6`, the
 W8 ×5 and freeze sets of `queue_e5b` and `queue_p6` (some fourteen counts
 of 14 min each) would have measured a known red for hours before the
