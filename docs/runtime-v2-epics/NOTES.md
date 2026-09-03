@@ -13936,3 +13936,52 @@ Five lenses, ~900 k tokens, four defects that were not in the ledger
 (323, 324, 325, 326), one cost with no gate (327), one red gate the wave
 would have shipped (panic surface), six unrostered tests, and one vacuous
 manifest test. None of the five found a second owner on a shipped path.
+
+### F-tail, the corpus spells the clone the advice teaches, and what the borrow checker said (2026-09-03)
+
+**DEBT-254.** 72 `x.__clone()` spellings in 30 `.sg` files. Rewritten to
+`clone(x)` by sed on the receiver expression (18 files, every changed line
+read): the http, path, json and fs stdlib modules, the llvm parity and
+smoke programs, four golden programs, the bench's shared support file.
+Kept: `core/*.sg` and the `core_stdlib` mirrors (the free `clone` is
+declared in `core/base.sg`; the string methods are what it reaches), the
+sema/invalid programs (goldens pin their exact text), and
+`magic_methods_repro.sg`, a repro OF the magic methods.
+
+**What the rewrite found.** LLVM parity read 13 red leaves on the first
+pass -- every `http_*` row and `head_tail_text` -- all one diagnostic:
+
+    error SEM3020 parser.sg:163:17 cannot move 'target' while it is shared-borrowed
+      note parser.sg:74:34 previous borrow of 'target' occurs here
+
+`clone(target)` takes `&target` by autoref and sema holds that shared
+borrow to the end of the scope, so the move at `:163` is refused; the
+method spelling `target.__clone()` takes `self: &string` the same way and
+is not. Then the golden generator refused
+`sema/valid/owned_method_param_move_clone_ref.sg` as a valid case with
+diagnostics: `b.eat(clone(needle))` followed by `b.eat(needle)`, the same
+shape. Three sites reverted to the method form, named in 254; the sema
+defect is RV2-DEBT-323 (the advice's two "interchangeable" forms are not,
+wherever the value is moved later). 51 of 72 rewritten in the end.
+
+**Goldens.** `goldencheck update` over the committed corpus, 4 m 28 s
+(the first attempt refused the needle golden; the second ran clean): the
+`.ast`, `.fmt` and `.tokens` of the four rewritten golden programs moved,
+no `.mir`, `.out` or `.diag` did, and `golden.expectations.json`'s corpus
+digest followed. The determinism pair runs on the runner in the freeze
+set. Two things the update run surfaced: the F4 commit `6477e08a` had
+swept `scripts/__pycache__/*.pyc` into the tree with a `git add -A` --
+deleted and `__pycache__/` ignored -- and the bench manifest's harness
+digest for the model test the lens fixes changed had not been re-taken,
+so the paired benchmark refused to start; re-taken in `129ce2b2`.
+
+**The paired benchmark** (`runtime_v2_carrier_bench.py --phase=final`,
+cores 0,2, the manifest's reference host is THIS box, not the runner) is
+running detached on `129ce2b2` as this is written, with `TMPDIR` moved
+under `~/.cache`: under `/tmp` the harness's detached base worktree sits
+below the stray `/tmp/.git` and `go build` fails its VCS stamp, which is
+also the one local error of the bench python suite
+(`test_real_candidate_zero_fixture_contract`, environment, not code).
+Its report lands in NOTES when it finishes. The runner holds
+`.wt-129ce2b2`; `queue_f.sh` waits behind `queue_p6` and runs baseline,
+W8 ×5, the five gates the tail touched and the freeze set.
