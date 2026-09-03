@@ -700,6 +700,11 @@ void rt_blocking_request_cancel(rt_executor* ex, rt_task* task);
 rt_task* get_task(rt_executor* ex, uint64_t id);
 rt_scope* get_scope(rt_executor* ex, uint64_t id);
 
+// A deque's storage is reserved with its scheduler, not on its first push:
+// a first push that had to allocate landed wherever the schedule put it,
+// which made a batch's allocation count depend on which shard's queue was
+// touched first (RV2-DEBT-330). Idempotent below the reserved capacity.
+int deque_prepare(rt_deque* dq, size_t capacity);
 int deque_push_tail(rt_deque* dq, uint64_t id, const char* overflow_msg, const char* alloc_msg);
 int deque_push_head(rt_deque* dq, uint64_t id, const char* overflow_msg, const char* alloc_msg);
 int deque_pop_head(rt_deque* dq, uint64_t* out_id);

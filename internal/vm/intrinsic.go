@@ -77,6 +77,9 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 	case "rt_worker_count":
 		return vm.handleWorkerCount(frame, call, writes)
 
+	case "rt_debug_quiesce":
+		return vm.handleDebugQuiesce(frame, call, writes)
+
 	case "rt_range_int_new":
 		return vm.handleRangeIntNew(frame, call, writes)
 

@@ -335,6 +335,19 @@ rt_runtime_status rt_shard_scheduler_init(rt_shard* shard,
         return RT_RUNTIME_STATUS_ALLOCATION_FAILED;
     }
     memset(scheduler->local_queues, 0, (size_t)worker_count * sizeof(rt_deque));
+    // Every ready deque gets its first sixteen slots here, with the
+    // scheduler. Left to the first push, that allocation landed wherever the
+    // schedule put the first task on each queue, and a batch's allocation
+    // count moved with it (RV2-DEBT-330); reserved here it is structure, once,
+    // and the steady path pushes without allocating until a queue outgrows it.
+    if (!deque_prepare(&scheduler->inject, 16)) {
+        return RT_RUNTIME_STATUS_ALLOCATION_FAILED;
+    }
+    for (uint32_t i = 0; i < worker_count; i++) {
+        if (!deque_prepare(&scheduler->local_queues[i], 16)) {
+            return RT_RUNTIME_STATUS_ALLOCATION_FAILED;
+        }
+    }
     scheduler->worker_wake_pending = (uint32_t*)rt_alloc(
         (uint64_t)worker_count * (uint64_t)sizeof(uint32_t), _Alignof(uint32_t));
     if (scheduler->worker_wake_pending == NULL) {

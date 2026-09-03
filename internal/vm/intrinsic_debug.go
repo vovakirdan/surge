@@ -131,6 +131,34 @@ func (vm *VM) handleHeapDump(frame *Frame, call *mir.CallInstr, writes *[]LocalW
 	return nil
 }
 
+// handleDebugQuiesce is the VM's rt_debug_quiesce: the VM runs its tasks on
+// one thread, so an awaited completion is already at rest when the awaiter
+// observes it, and the barrier answers immediately with one sample -- the
+// number the native runtime answers when it did not have to wait.
+func (vm *VM) handleDebugQuiesce(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
+	if !call.HasDst {
+		return nil
+	}
+	if len(call.Args) != 0 {
+		return vm.eb.makeError(PanicTypeMismatch, "rt_debug_quiesce requires 0 arguments")
+	}
+	dstLocal := call.Dst.Local
+	dstType := frame.Locals[dstLocal].TypeID
+	val := MakeInt(1, dstType)
+	if kind, width, ok := vm.numericKind(dstType); ok && kind == types.KindUint && width == types.WidthAny {
+		val = vm.makeBigUint(dstType, bignum.UintFromUint64(1))
+	}
+	if vmErr := vm.writeLocal(frame, dstLocal, val); vmErr != nil {
+		return vmErr
+	}
+	*writes = append(*writes, LocalWrite{
+		LocalID: dstLocal,
+		Name:    frame.Locals[dstLocal].Name,
+		Value:   val,
+	})
+	return nil
+}
+
 func (vm *VM) handleWorkerCount(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) *VMError {
 	if !call.HasDst {
 		return nil

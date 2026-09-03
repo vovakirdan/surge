@@ -83,6 +83,8 @@ func (fe *funcEmitter) emitRuntimeIntrinsic(call *mir.CallInstr) (bool, error) {
 		return true, fe.emitRtUintCounter(call, "rt_worker_count")
 	case "rt_array_debug_deferred_base_drops":
 		return true, fe.emitRtUintCounter(call, "rt_array_debug_deferred_base_drops")
+	case "rt_debug_quiesce":
+		return true, fe.emitRtUintCounter(call, "rt_debug_quiesce")
 	case "rt_exit":
 		return true, fe.emitRtExit(call)
 	case "rt_string_index":

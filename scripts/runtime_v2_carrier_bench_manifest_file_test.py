@@ -112,6 +112,22 @@ class CanonicalManifestTests(unittest.TestCase):
         # child is counted by its scope since c9c083e2). Structure, not per-op
         # cost; named by an rt_alloc site census under gdb on 8b12beb3,
         # 71bd0674 and HEAD, so the twenty rows below move by exactly that.
+        #
+        # RE-CAPTURED AGAIN 2026-09-03, later (RV2-DEBT-330), and this time
+        # DOWN. The first full run after the re-pin above refused at
+        # channel-unbuffered-composite, 3 against 4, on one sample in eighteen:
+        # thirty single runs read 29 x 4 and 1 x 3, with IDENTICAL rt_alloc
+        # site histograms. The owner ruled the budget stays exact and the
+        # observer waits (variant (а)); allocation_observer() now calls
+        # rt_debug_quiesce() before every read. That alone left the twin at
+        # 189/11 of 200, and a census of the allocation SEQUENCE against the
+        # reads named the mover: deque_reserve, a ready deque's first growth
+        # from capacity 0, placed by the schedule. The deques are reserved with
+        # their scheduler now (deque_prepare, sixteen slots), so the lazy
+        # growths that used to be counted wherever the schedule put them are
+        # gone from every batch: 11 to 13 fewer on every row that starts the
+        # executor, one fewer on the rendezvous and select-send rows, and both
+        # unbuffered twins read 3 in 200 of 200 single runs.
         nonzero_allocations = {
             row.row_id: row.candidate_structural_allocations_per_batch
             for row in self.manifest.rows
@@ -122,34 +138,34 @@ class CanonicalManifestTests(unittest.TestCase):
             {
                 "array-grow-composite": 7,
                 "array-grow-scalar": 7,
-                "blocking-composite": 344,
-                "blocking-scalar": 216,
-                "channel-buffered-composite": 16,
-                "channel-buffered-scalar": 16,
-                "channel-unbuffered-composite": 4,
-                "channel-unbuffered-scalar": 4,
-                "far-channel-composite": 413,
-                "far-channel-scalar": 413,
-                "far-immediate-composite": 280,
-                "far-immediate-scalar": 152,
-                "far-large-payload-contention": 659,
-                "far-large-capture": 664,
-                "far-large-result": 408,
-                "far-select-composite": 418,
-                "far-select-scalar": 418,
-                "far-share-control": 220,
-                "far-task-composite": 408,
-                "far-task-scalar": 280,
+                "blocking-composite": 332,
+                "blocking-scalar": 204,
+                "channel-buffered-composite": 5,
+                "channel-buffered-scalar": 5,
+                "channel-unbuffered-composite": 3,
+                "channel-unbuffered-scalar": 3,
+                "far-channel-composite": 400,
+                "far-channel-scalar": 400,
+                "far-immediate-composite": 267,
+                "far-immediate-scalar": 139,
+                "far-large-payload-contention": 646,
+                "far-large-capture": 651,
+                "far-large-result": 395,
+                "far-select-composite": 405,
+                "far-select-scalar": 405,
+                "far-share-control": 208,
+                "far-task-composite": 395,
+                "far-task-scalar": 267,
                 "map-insert-composite": 4,
                 "map-insert-scalar": 4,
                 "map-rehash-composite": 4,
                 "map-rehash-scalar": 4,
-                "select-send-composite": 6,
-                "select-send-scalar": 6,
-                "task-clone-composite": 279,
-                "task-clone-scalar": 215,
-                "task-composite": 279,
-                "task-scalar": 215,
+                "select-send-composite": 5,
+                "select-send-scalar": 5,
+                "task-clone-composite": 267,
+                "task-clone-scalar": 203,
+                "task-composite": 267,
+                "task-scalar": 203,
             },
         )
         self.assertFalse(

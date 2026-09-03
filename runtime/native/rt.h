@@ -48,6 +48,12 @@ void rt_array_free_elems(void* array_header,
                          void (*drop_elem)(void*));
 // Debug observability for the deferred-reclamation float.
 uint64_t rt_array_debug_deferred_base_drops(void);
+// Debug barrier for an observer of a process-wide counter: returns once no
+// task but the caller's own is running, nothing is runnable or being
+// published on any shard, no inbound envelope is undrained and the blocking
+// pool is idle; answers the number of samples it took; fails closed after a
+// bounded wait (rt_debug_quiesce.c).
+uint64_t rt_debug_quiesce(void);
 // Joins two arrays into a third that owns its own buffer. `clone_elem`
 // duplicates one element slot (dst, src) for an element type that owns
 // heap; NULL means the bytes are the whole value and are moved as bytes.

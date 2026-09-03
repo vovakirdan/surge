@@ -47,6 +47,11 @@ deque_reserve(rt_deque* dq, size_t want, const char* overflow_msg, const char* a
     return 1;
 }
 
+int deque_prepare(rt_deque* dq, size_t capacity) {
+    return deque_reserve(dq, capacity, "async: ready queue capacity overflow at scheduler init",
+                         "async: ready queue allocation failed at scheduler init");
+}
+
 static int
 deque_ensure_space(rt_deque* dq, size_t extra, const char* overflow_msg, const char* alloc_msg) {
     if (dq == NULL) {

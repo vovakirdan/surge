@@ -885,6 +885,16 @@
       "group": "PG-ALLOC-FAILURE"
     },
     {
+      "site": "runtime/native/rt_async_deque.c::deque_prepare#1",
+      "message": "async: ready queue capacity overflow at scheduler init",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_async_deque.c::deque_prepare#2",
+      "message": "async: ready queue allocation failed at scheduler init",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
       "site": "runtime/native/rt_async_panic.c::rt_double_poll_panic#1",
       "message": "\u003ccomputed\u003e",
       "group": "PG-COMPUTED"
@@ -1332,6 +1342,16 @@
     {
       "site": "runtime/native/rt_channel_sync.c::rt_channel_try_send_status_owner_locked#1",
       "message": "async: channel try-send with nowhere to take the value from",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_debug_quiesce.c::rt_debug_quiesce#1",
+      "message": "rt_debug_quiesce: called under a lane lock",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_debug_quiesce.c::rt_debug_quiesce#2",
+      "message": "rt_debug_quiesce: the executor did not come to rest within 2 s",
       "group": "PG-INVARIANT"
     },
     {

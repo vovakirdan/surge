@@ -14089,7 +14089,37 @@ work runs on a carrier are the same class. That is an instrument defect --
 an exact count read without a barrier -- not a code one, and it is
 RV2-DEBT-330 with the two fix shapes (a quiescent read, or an owner's
 window on the manifest). The paired benchmark has not completed a
-protocol on this tree; DEBT-125's bench evidence says exactly that. Two instrument notes
+protocol on this tree; DEBT-125's bench evidence says exactly that.
+
+**Owner ruling, later that hour: variant (а), "точность и доказуемость
+важнее скорости".** The budget stays exact; the observer waits. Two parts,
+because the first did not close it:
+
+1. `rt_debug_quiesce` (`rt_debug_quiesce.c`; `@intrinsic` beside
+   `rt_heap_stats` in `core/intrinsics.sg`, an LLVM builtin through
+   `emitRtUintCounter`, the VM answers one sample): returns once no task
+   but the caller's own is running on any shard, nothing is runnable or
+   being published, no inbound envelope is undrained and the blocking
+   pool is idle; bounded at 2 s and fails closed; two panic rows in the
+   allowlist. `allocation_observer()` in the bench's shared support calls
+   it before every read. Measured alone: the unbuffered composite twin
+   read 3 in 11 of 200 -- the barrier had moved the read later, and the
+   mover moved with it. A second census, the allocation SEQUENCE against
+   the fixture's `rt_heap_stats` reads under gdb (13 runs to catch both),
+   named it: `deque_reserve @ rt_async_deque.c`, a ready deque's first
+   growth from capacity 0, which the schedule places inside the window
+   or outside it depending on which shard's queue is first pushed to
+   when. Not in-flight work; a lazy one-time growth.
+2. So the growth is not lazy any more: `deque_prepare` reserves sixteen
+   slots for the inject deque and every worker's local deque in
+   `rt_shard_scheduler_init`, and the steady path pushes without
+   allocating. After: both unbuffered twins read 3 in 200 of 200 single
+   runs; the sweep of all thirty budgeted rows reads 11 to 13 fewer per
+   batch on every row that starts the executor (those were the deques'
+   lazy growths, counted wherever the schedule put them), one fewer on
+   the rendezvous and select-send rows, unchanged on the ten that never
+   spawn. Twenty-four budgets re-pinned down, manifest and the test's
+   copy, with the reason beside them. DEBT-330 closed on that. Two instrument notes
 from the same runs: the pre-wave SHA, past the budget, died of
 `array-grow-composite base throughput CV 0.081921 exceeds 0.050000`
 because valgrind rows were running beside it on cores 4-7 -- the protocol

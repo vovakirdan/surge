@@ -297,7 +297,15 @@ fn render_latencies(samples: &ArrayFixed<int64, 64>) -> string {
     return result + "]";
 }
 
+// The allocation counter is process-wide and the batch's work runs on
+// carriers; an awaited completion is visible here while the completing
+// carrier may still be inside its turn. The barrier makes the read about the
+// work that was awaited and nothing in flight: it returns once no task but
+// this one is running, nothing is runnable anywhere and the blocking pool is
+// idle (owner ruling 2026-09-03, variant (а): the budget stays exact, the
+// observer waits). The barrier itself allocates nothing.
 pub fn allocation_observer() -> uint64 {
+    let _: uint64 = rt_debug_quiesce();
     let stats: HeapStats = rt_heap_stats();
     let value: uint64 = stats.alloc_count to uint64;
     @drop stats;

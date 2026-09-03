@@ -36,6 +36,7 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_array_free", ret: "void", params: []string{"ptr", "i64", "i64"}},
 		{name: "rt_array_free_elems", ret: "void", params: []string{"ptr", "i64", "i64", "ptr"}},
 		{name: "rt_array_debug_deferred_base_drops", ret: "i64", params: nil},
+		{name: "rt_debug_quiesce", ret: "i64", params: nil},
 		{name: "rt_carrier_liveness_jumbo_admitted", ret: "i1", params: nil},
 		{name: "rt_carrier_liveness_credit_parked", ret: "i1", params: nil},
 		{name: "rt_carrier_liveness_release_jumbo", ret: "void", params: nil},
