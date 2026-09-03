@@ -49,8 +49,15 @@ type corpusRootSpec struct {
 // task_created_in_current_scope, its accepted twin. The port landed without
 // this line, so the tripwire read 1057 against 1055 on every aggregate count
 // since; the run beside the new count again reports normalized_findings=0.
+//
+// Raised 1057 -> 1058 on 2026-09-03. The one is E3's fixture (ab8be7c1):
+// crossing/block02/invalid/on_negative_anchor_lease_misuse, the refusal of a
+// body that treats its `on far_handle` anchor as anything but a lease
+// (SEM3210). E3 landed without this line, so the tripwire read 1058 against
+// 1057 on every aggregate count from that commit on -- the runner's W8 on
+// ba7f13e4 is where it was finally read, four SHAs later. Nothing removed.
 var corpusRoots = []corpusRootSpec{
-	{Path: "testdata/golden", PinnedCount: 1057},
+	{Path: "testdata/golden", PinnedCount: 1058},
 	{Path: "showcases", PinnedCount: 38},
 	{Path: "core", PinnedCount: 10},
 	{Path: "stdlib", PinnedCount: 32},

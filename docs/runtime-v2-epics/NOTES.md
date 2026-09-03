@@ -14052,6 +14052,32 @@ The runner's queue for the tail is now `1165aef6` (the DEBT-324 fix
 included); `queue_f.sh` waits behind `queue_p6` and runs baseline, W8 ×5,
 the five gates the tail touched and the freeze set.
 
+**W8 on `ba7f13e4` read red, and the red was two known things.** The
+first count of `queue_e4` (E4's SHA, 856 s) failed two of twenty:
+`runtime-v2-transport-check` on `RemoteSpawnAbandonEdges/refusal-queue-full-drops-once`,
+the row E4 made impossible and `3aa12778`, the very next commit, removed;
+and `runtime-v2-ownership-check` on its inventory tripwire,
+`testdata/golden corpus count = 1058, want 1057`: E3 (`ab8be7c1`) added
+`crossing/block02/invalid/on_negative_anchor_lease_misuse.sg` and never
+raised the pin, so every aggregate count from E3 on carried this red, and
+it was first READ four SHAs later on the runner (locally the aggregate is
+refused by Rule 19 and the sub-gates were run one at a time, never the
+ownership corpus, 5 m 2 s on this box). Pin raised to 1058 with the
+fixture named; the gate line green locally (`ok 303.202s`,
+`normalized_findings=0`). The `w8count.sh` red-row extraction also missed
+both -- it greps the per-gate progress lines for `FAIL`, and the verdict
+block spells them differently -- so its `red_rows=none` beside `rc=2` is
+not a contradiction, it is a blind pattern; read the verdict block.
+
+**Queues re-cut.** With that red on every SHA from E3 to `1165aef6`, the
+W8 ×5 and freeze sets of `queue_e5b` and `queue_p6` (some fourteen counts
+of 14 min each) would have measured a known red for hours before the
+campaign ever started. Both queues and `queue_e4`'s remaining two counts
+are stopped; the freeze rows, the campaign and rate312 run once, on the
+SHA that carries the pin, in `queue_f`. Per-SHA baselines for E4/E5b/Р6
+are not re-run: the differential and the local checks already attribute
+each of those steps.
+
 ### DEBT-324, the anchored state gave the caller's handle back a second time (2026-09-03)
 
 The ownership lens read it; a program showed it. `probe/anchor_cancel.sg`:
