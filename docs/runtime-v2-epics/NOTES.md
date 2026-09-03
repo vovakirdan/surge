@@ -14406,3 +14406,89 @@ same premise; the four `program timeout` hangs on `8b12beb3` were real and
 are the membership fix. The golden `vm_async_suite/t07_failfast.sg`
 carries the same race and expects `parent=cancelled`; it runs on the VM
 lane's single executor where the schedule is fixed, so it stays.
+
+### D8 closed: the freeze set on `43ae205a`, the judge on `2b849208` (2026-09-03)
+
+Every row of EPICS_CLOSEOUT_PLAN step 8, on the dedicated runner, one row
+after another, alone on the box (`queue_f`, `queue_tagged2`, `queue_j`):
+
+    43ae205a  baseline go test ./...            rc=0
+    43ae205a  W8 x5 runtime-v2-check             970/960/960/960/961 s, 20/20 each
+    43ae205a  panic-surface / carrier / crossing / lifecycle / transport-contract
+              / ownership / ctidy                 rc=0 (23/26/62/254/80/88/37 s)
+    43ae205a  file-size --committed              rc=0   10 s
+    43ae205a  golden-check --runs 2 x2, determinism   rc=0   148 s each
+    43ae205a  behaviour-all (both backends)      rc=0   347 s
+    43ae205a  behaviour-mt 2,4,8 x5              rc=0   128 s
+    43ae205a  topology 1x1, 1x8                  rc=0   117 s each
+    43ae205a  topology 8x8                       rc=1   137 s  (14 parity leaves refuse
+              SURGE_THREADS != SURGE_SHARDS by construction; identical on c38e4275)
+    43ae205a  carrier census (two tests)         rc=0
+    43ae205a  tagged-vm-suite-plain              rc=0   1163 s
+    43ae205a  tagged rv2 under llvm              rc=0   951 s
+              (the d8.sh row `tagged-vm-suite rc=1` forced SURGE_BACKEND=llvm
+              over the whole package; same six reds on c38e4275; superseded
+              by the two rows above)
+    43ae205a  sanitizer (ASan/UBSan/TSan, 13 valgrind rows, -race)   rc=0   121 s
+    43ae205a  campaign 1000 (old judge)          pass=979 fail=21 vacuous=0, 7671 s
+              -- every red the race premise of the previous section
+    43ae205a  W8 x2 after the campaign           959/960 s, rc=0
+    43ae205a  rate312: http-owner-check x200     pass=200 fail=0, 1808 s
+    2b849208  runtime-v2-lifecycle-check         rc=0   260 s
+    2b849208  campaign 1000 (new judge)          pass=1000 fail=0 vacuous=0, 8128 s,
+              llvm_pass_leaves=6 in all 1000
+    2b849208  W8 x2 after the campaign           970/964 s, rc=0
+
+**RV2-DEBT-312 closes.** The row has no named mechanism (311's was
+withdrawn), the live-dump instrument is in the tree
+(`TestRuntimeV2AcceptFixtureAnswersALiveTraceRequest`), and the rate that
+would have fed it read 0 of 200 at eight shards on the machine that first
+failed it, after W8 counts of 5/5 and 2/2 and 2/2 on two SHAs. It closes as
+not reproduced under the instrument, with the return condition written in
+the row: the next red of `HTTPOwnerLocalBehavior/shards-8` arrives with
+its dump, and that dump reopens it.
+
+Wave D exits here: every step 8 row green or explained by construction,
+the campaign non-vacuous and clean under a judge that a runtime without
+fail-fast turns red on every run.
+
+### F7, the paired benchmark on the dedicated host, twice refused (2026-09-03)
+
+First attempt (`queue_bench`, `4fd9f0bb`): refused in one second before
+the first batch, `reference host mismatch: logical_cpus actual=24
+expected=16; cpuset actual='0-7,16-23' expected='8,10'`. The harness reads
+`os.cpu_count()`, which is the 24 online CPUs of the box; `nproc` inside
+the sshd shell says 16 because that shell carries the affinity mask
+`ff00ff` -- the number the manifest had been pinned from. And the cpuset
+is the process's own affinity, which the queue had never set. Fixed in
+`d217e487` (manifest `logical_cpus: 24`) and the queue runs the harness
+under `taskset -c 8,10`, two distinct physical cores whose SMT siblings
+24/26 are offline.
+
+Second attempt (`queue_bench2`, `d217e487`, box idle at load 0.64):
+refused at 151 s on the first row, `array-grow-scalar base p95 CV
+0.061619 exceeds 0.050000`. The report's numbers say what that CV is made
+of. Per-operation latencies come back quantized in ~10 ns steps (70, 80,
+81, 90, 101 ...), and a row whose operations take 60-300 ns has its p95
+land on one tick or the next: base p95 across the seven pairs
+`[50, 60, 60, 61, 60, 60, 60]` is CV 6.1 % from ONE sample one tick
+lower. Across the 29 rows of the report, 12 read a p95 CV above 5 % on at
+least one side, all but three of them with p95 under 400 ns; throughput CV
+(batch elapsed, ~10-30 us) is under 5 % on 26 rows and 5.2-8.0 % on three.
+The two clock reads around a 60 ns operation cost about as much as the
+operation, so a per-operation p95 at that scale measures the timer, and
+the frozen protocol -- 2+7 pairs, CV <= 5 % on p95 and throughput both --
+cannot be passed on this host by any runtime for those rows. The candidate
+is not the issue: on the rows that did measure, candidate p95 tracks base
+within the 1.10 ratio and throughput within 0.95.
+
+This is a numerical-protocol question and the plan's stop rule applies:
+the numbers 2+7 / 5 % / 0.95 / 1.10 are frozen by the validator on the
+owner's Task 1 protocol. The options put to the owner, with the evidence
+above: (a) the CV gate on p95 applies only where p95 is at least ten
+timer ticks (~1 us), sub-microsecond rows gate on throughput alone; (b)
+lengthen every batch (operations per batch x8 or more) so batch elapsed is
+hundreds of microseconds and re-pin the structural budgets from a sweep;
+(c) both. Until the ruling the benchmark evidence for DEBT-125 stands as
+"two attempts on the dedicated host, both refused before a verdict, the
+second by the protocol's own noise floor", and F8 waits on it.
