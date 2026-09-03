@@ -14312,9 +14312,11 @@ never drops an unshipped state, so it has no such path.
 The 1000-run campaign on `43ae205a` (`SURGE_SKIP_TIMEOUT_TESTS=0
 taskset -c 8-15 go test ./internal/vm -run
 '^TestRuntimeV2(FailfastJoinAnswersCancelled|TimeoutTargetAnswersCancelledToEveryHandle)$'`,
-runner, 8 cores next to the test's own compile) read red at 13 of 651 when
-this was written, every one `FailfastJoinAnswersCancelled/llvm/threads-4`,
-exit 12 or 13, and every one inside the first 1.4 ms of the program. Same
+runner, 8 cores next to the test's own compile) finished at pass=979
+fail=21 vacuous=0, wall 7671 s (12:48 to 14:55 runner time). Every red
+is `FailfastJoinAnswersCancelled/llvm/threads-4`, 9 exit 12 and 12 exit
+13, the timeout row never red, and every red inside the first 1.5 ms of
+the program (0.97 to 1.50 ms). Same
 two signatures as before Wave D (`c38e4275`: 13 of 300; `6bd6fd22`: 27 of
 1000), so the first reading was "Р6 narrowed the window and did not close
 it". That reading was wrong, and the way it was found is the useful part.
