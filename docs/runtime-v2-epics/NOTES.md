@@ -12741,10 +12741,11 @@ as two rows: the tagged package with no backend override, and the
 **The campaign is red, and the red is a known open window.** 1000 repeats of
 `TestRuntimeV2(FailfastJoinAnswersCancelled|TimeoutTargetAnswersCancelledToEveryHandle)`,
 llvm, `SURGE_SKIP_TIMEOUT_TESTS=0`, `taskset -c 8-15`, the rest of the box
-idle, every failing log kept: after 454 runs, 16 red (3.5 %), 0 vacuous,
-every one of them `FailfastJoinAnswersCancelled/llvm/threads-4: exit=13 --
-the second @failfast block (both children cancelled before they ran)
-resolved Success`. That is RV2-DEBT-261's program-level row and the
+idle, every failing log kept: 1000 runs, 973 pass, 27 red (2.7 %), 0
+vacuous, wall 7380 s, every red the same
+`FailfastJoinAnswersCancelled/llvm/threads-4: exit=13 -- the second
+@failfast block (both children cancelled before they ran) resolved
+Success` (interim reading at 454 runs: 16 red, 3.5 %). That is RV2-DEBT-261's program-level row and the
 RV2-DEBT-263 window (a cancelled child committing Success, so fail-fast
 never fires), both Open; 263 records a third window still open after
 RV2-DEBT-265 was refuted by measurement, and RV2-DEBT-266/280/283 name the
@@ -13320,3 +13321,36 @@ path, and E5 had folded that loop into `rt_remote_task_select_arms_free`
 with the table). The contract now names the free instead of the loop; the
 property -- one cleanup, no second drop of the caller's storage -- is the
 same. The runner's E5 queue will show the red on `c631617a`/`10669a3d`.
+
+**Second pass: the byte half of "returns exactly", on every edge at once.**
+E4 proved the slot half row by row. The byte half is one check after every
+mode of the publication harness: `main` runs the mode, and a mode that
+passed must also leave `rt_resident_bytes` reading zero RECORD, PAYLOAD and
+SIDECAR bytes (envelopes excluded: a shutdown wake can sit in a lane until
+exit) with no underflow, bounded-waiting two seconds for a release that
+runs on another carrier's turn. Every row of the harness -- publish, queue
+full, shutdown, the refusal edges, the three abandon windows, the
+stale-generation rows, the immediate and anchored cancel edges, the
+far-select cancel/commit/sweep/refusal/handback/wide-payload rows -- reads
+zero. Rule 13: `RV2_E5_RESIDENT_NEGATIVE_CONTROL` under the harness keeps
+the anchored happy path's state charged past the handoff, and the same
+main reads "bytes still resident after the mode ran"
+(`TestRuntimeV2RemotePublicationResidentBalanceNegativeControl`, on the
+transport contract roster).
+
+**What the matrix's remaining bullets read as, after this pass.**
+Close-wins for detached far claims: covered by construction, not by a new
+row -- a far body's recv is `rt_channel_recv` on the owner lane, and D7's
+claim registry is receiver-agnostic, so the claim-window and order rows
+(`TestRuntimeV2ChannelCloseWins*`) settle a far body's claim exactly as a
+local one's, and the far side of it is the behaviour table's
+`anchored-close-wakes-parked-recv-with-closed-outcome` and
+`select-close-wakes-the-parked-selector-exactly-once`. Partial allocation:
+there is no plan-limited allocator to run short of (`rt_cross_plan` is
+never populated, by the 2026-08-29 ruling), and the real allocation
+refusals a crossing can meet -- the pending, the arm table, the body task --
+are contracted statically and exercised through their refusal rows; a NULL
+from `rt_alloc` on those exact sites is not injectable without a test hook
+the runtime does not have, and adding one is not this pass. The three
+numeric rows (oversized reply, under-budget mutant, two jumbo producers)
+wait on the owner's E5 answer, as the plan says.

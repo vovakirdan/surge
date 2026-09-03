@@ -16,6 +16,7 @@ const remotePublicationHarnessCommon = `
 #include "rt_remote_spawn_internal.h"
 #include "rt_remote_task.h"
 #include "rt_remote_task_internal.h"
+#include "rt_resident_bytes.h"
 #include "rt_sync_point.h"
 #include "rt_value_ops.h"
 #include "rt_transport.h"
@@ -162,6 +163,42 @@ static int fail(const char* msg) {
         fputc('\n', stderr);
     }
     return 1;
+}
+
+// The byte half of "every reservation returns exactly": whatever a mode's
+// crossings kept resident on the source side -- pending records, shipped
+// state blocks, select arm tables (rt_resident_bytes.h) -- is given back by
+// the time the mode has run, on every edge the mode took: refusal, cancel,
+// stale generation, abandon, shutdown. Envelopes are not counted here: a
+// shutdown wake can sit in a lane until the process exits. Bounded wait,
+// because the last release may run on another carrier's turn.
+static int resident_quiescent_after(const char* mode) {
+    struct rt_resident_bytes_snapshot snap = rt_resident_bytes_snapshot();
+    for (uint32_t i = 0; i < 2000; i++) {
+        snap = rt_resident_bytes_snapshot();
+        if (snap.live[RT_RESIDENT_RECORD] == 0 && snap.live[RT_RESIDENT_PAYLOAD] == 0 &&
+            snap.live[RT_RESIDENT_SIDECAR] == 0) {
+            break;
+        }
+        sleep_us(1000);
+    }
+    if (snap.underflows != 0) {
+        fprintf(stderr, "mode %s: %llu resident releases outran their acquires\n",
+                mode, (unsigned long long)snap.underflows);
+        return 1;
+    }
+    if (snap.live[RT_RESIDENT_RECORD] != 0 || snap.live[RT_RESIDENT_PAYLOAD] != 0 ||
+        snap.live[RT_RESIDENT_SIDECAR] != 0) {
+        fprintf(stderr,
+                "mode %s: bytes still resident after the mode ran: record=%llu payload=%llu "
+                "sidecar=%llu\n",
+                mode,
+                (unsigned long long)snap.live[RT_RESIDENT_RECORD],
+                (unsigned long long)snap.live[RT_RESIDENT_PAYLOAD],
+                (unsigned long long)snap.live[RT_RESIDENT_SIDECAR]);
+        return 1;
+    }
+    return 0;
 }
 
 static int wait_child(remote_child_state* child, uint32_t attempts) {

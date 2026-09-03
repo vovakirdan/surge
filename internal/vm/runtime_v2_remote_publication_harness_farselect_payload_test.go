@@ -119,7 +119,7 @@ static int run_far_select_recv_winner_handback(void) {
     return 0;
 }
 
-int main(int argc, char** argv) {
+static int run_mode(int argc, char** argv) {
     if (argc != 2) return fail("usage: remote_publication_harness <mode>");
     if (strcmp(argv[1], "publish-other") == 0) return run_publish(1, 0);
     if (strcmp(argv[1], "self-crossing") == 0) return run_publish(0, 0);
@@ -184,5 +184,17 @@ int main(int argc, char** argv) {
         return run_far_select_wide_payload();
     }
     return fail("unknown mode");
+}
+
+// Every mode that passes also leaves nothing resident on the source side:
+// the resident-byte balance is the byte half of the exact-return contract,
+// and one check after every mode is how every edge the harness takes gets
+// it, rather than the edges somebody remembered to assert.
+int main(int argc, char** argv) {
+    int rc = run_mode(argc, argv);
+    if (rc != 0) {
+        return rc;
+    }
+    return resident_quiescent_after(argv[1]);
 }
 `
