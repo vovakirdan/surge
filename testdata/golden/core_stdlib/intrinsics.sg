@@ -176,6 +176,12 @@ pub type HeapStats = {
 // live_bytes sums per-object payload bytes (strings use UTF-8 byte length; arrays use len*elem_size;
 // views count 0; structs/tags/ranges use layout size; big numbers use limb bytes; raw uses alloc size).
 @intrinsic pub fn rt_heap_stats() -> HeapStats;
+// Debug barrier for an observer of a process-wide counter: returns once no
+// task but the caller's own is running anywhere, nothing is runnable or being
+// published on any shard, and the blocking pool is idle. Answers the number
+// of samples it took (one when it did not have to wait). Bounded; a runtime
+// that does not come to rest is reported, not waited for.
+@intrinsic pub fn rt_debug_quiesce() -> uint64;
 // Deterministic heap summary with no addresses or allocation IDs.
 @intrinsic pub fn rt_heap_dump() -> string;
 // Active async executor worker count (1 means single-worker mode).
