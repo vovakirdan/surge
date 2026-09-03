@@ -14067,7 +14067,29 @@ one-run sweep of all thirty budgeted rows on HEAD read the shape whole:
 +2 on the ten rows that start the executor without a scope, +3 on the ten
 whose task also joins one, 0 on the ten that never spawn a task. The
 twenty are re-pinned to what the structure is, manifest and the test's
-deliberate second copy together, and DEBT-329 is closed on that. Two instrument notes
+deliberate second copy together, and DEBT-329 is closed on that.
+
+**The full protocol, run on the re-pin (04848e11), 10:56 → 11:23.** Ten
+rows in -- the six array rows, both blocking rows, both buffered channel
+rows through all seven pairs -- it refused again:
+
+    channel-unbuffered-composite candidate pair 2 batch 1: allocation_count=3, want exact structural budget 4
+
+Thirty single runs of each unbuffered twin at the manifest's topology on
+the quiet box: 29 × 4, 1 × 3, both rows. Then the census that names
+things: an `rt_alloc` site histogram of a run that read 3 against one
+that read 4 -- captured under gdb on the 25th try -- is identical, every
+site, every count. The runtime allocates the same four blocks on both
+schedules; what moves is where the fixture's two `rt_heap_stats` reads on
+the main thread land against a carrier's last allocation of the batch.
+The 08-30 re-measure that lifted these rows' hold drew eighteen samples
+from a one-in-thirty tail; the protocol draws eighteen per row per run, so
+these two rows alone pass about half the runs, and the twenty rows whose
+work runs on a carrier are the same class. That is an instrument defect --
+an exact count read without a barrier -- not a code one, and it is
+RV2-DEBT-330 with the two fix shapes (a quiescent read, or an owner's
+window on the manifest). The paired benchmark has not completed a
+protocol on this tree; DEBT-125's bench evidence says exactly that. Two instrument notes
 from the same runs: the pre-wave SHA, past the budget, died of
 `array-grow-composite base throughput CV 0.081921 exceeds 0.050000`
 because valgrind rows were running beside it on cores 4-7 -- the protocol
