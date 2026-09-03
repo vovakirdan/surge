@@ -1,0 +1,1 @@
+error SEM3210 testdata/golden/crossing/block02/invalid/on_negative_anchor_lease_misuse.sg:4:44 the `on` block holds this handle as a lease for its channel operation only; it cannot be bound, passed on or returned inside the block -- the handle stays with the caller

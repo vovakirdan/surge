@@ -1,0 +1,42 @@
+  1: KwFn            "fn" at 3:1-3:3 (leading: LineComment, Newline, LineComment, Newline)
+  2: Ident           "run" at 3:4-3:7 (leading: Space)
+  3: LParen          "(" at 3:7-3:8
+  4: Ident           "ch" at 3:8-3:10
+  5: Colon           ":" at 3:10-3:11
+  6: KwFar           "far" at 3:12-3:15 (leading: Space)
+  7: Ident           "Channel" at 3:16-3:23 (leading: Space)
+  8: Lt              "<" at 3:23-3:24
+  9: Ident           "int" at 3:24-3:27
+ 10: Gt              ">" at 3:27-3:28
+ 11: RParen          ")" at 3:28-3:29
+ 12: Arrow           "->" at 3:30-3:32 (leading: Space)
+ 13: NothingLit      "nothing" at 3:33-3:40 (leading: Space)
+ 14: LBrace          "{" at 3:41-3:42 (leading: Space)
+ 15: KwLet           "let" at 4:5-4:8 (leading: Newline, Space)
+ 16: Underscore      "_" at 4:9-4:10 (leading: Space)
+ 17: Assign          "=" at 4:11-4:12 (leading: Space)
+ 18: Ident           "on" at 4:13-4:15 (leading: Space)
+ 19: Ident           "ch" at 4:16-4:18 (leading: Space)
+ 20: LBrace          "{" at 4:19-4:20 (leading: Space)
+ 21: Ident           "ch" at 4:21-4:23 (leading: Space)
+ 22: Dot             "." at 4:23-4:24
+ 23: Ident           "send" at 4:24-4:28
+ 24: LParen          "(" at 4:28-4:29
+ 25: IntLit          "1" at 4:29-4:30
+ 26: RParen          ")" at 4:30-4:31
+ 27: Semicolon       ";" at 4:31-4:32
+ 28: KwLet           "let" at 4:33-4:36 (leading: Space)
+ 29: Ident           "held" at 4:37-4:41 (leading: Space)
+ 30: Assign          "=" at 4:42-4:43 (leading: Space)
+ 31: Ident           "ch" at 4:44-4:46 (leading: Space)
+ 32: Semicolon       ";" at 4:46-4:47
+ 33: KwRet           "ret" at 4:48-4:51 (leading: Space)
+ 34: NothingLit      "nothing" at 4:52-4:59 (leading: Space)
+ 35: Semicolon       ";" at 4:59-4:60
+ 36: RBrace          "}" at 4:61-4:62 (leading: Space)
+ 37: Semicolon       ";" at 4:62-4:63
+ 38: KwReturn        "return" at 5:5-5:11 (leading: Newline, Space)
+ 39: NothingLit      "nothing" at 5:12-5:19 (leading: Space)
+ 40: Semicolon       ";" at 5:19-5:20
+ 41: RBrace          "}" at 6:1-6:2 (leading: Newline)
+ 42: EOF             at 7:1-7:1

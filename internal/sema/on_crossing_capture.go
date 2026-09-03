@@ -23,6 +23,7 @@ func (tc *typeChecker) typeFarHandleCall(callID ast.ExprID, member *ast.ExprMemb
 
 	// The destination far handle anchors operations through that same handle only.
 	frame := tc.onCrossingStack[len(tc.onCrossingStack)-1]
+	tc.noteAnchorOpReceiver(member.Target)
 	recvSym := tc.symbolForExpr(member.Target)
 	if !frame.isFar || !recvSym.IsValid() || recvSym != frame.anchorSym {
 		tc.report(diag.SemaOnAnchorUnproven, span, "this remote handle is not anchored by the current `on` destination")
@@ -331,9 +332,12 @@ func (tc *typeChecker) checkAnchorLeaseUses(body ast.StmtID, frame onAnchorFrame
 	if !frame.anchorSym.IsValid() {
 		return true
 	}
-	receivers := make(map[ast.ExprID]struct{}, len(frame.remoteOps))
+	receivers := make(map[ast.ExprID]struct{}, len(frame.remoteOps)+len(frame.opReceivers))
 	for i := range frame.remoteOps {
 		receivers[frame.remoteOps[i].ReceiverExpr] = struct{}{}
+	}
+	for _, receiver := range frame.opReceivers {
+		receivers[receiver] = struct{}{}
 	}
 	ok := true
 	tc.scanCapturedIdents(body, func(symID symbols.SymbolID, exprID ast.ExprID, span source.Span) {

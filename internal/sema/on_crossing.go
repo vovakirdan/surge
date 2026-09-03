@@ -22,6 +22,21 @@ type onAnchorFrame struct {
 	// returnRejected records that a `return` was rejected inside this crossing
 	// body (SEM3147), so the missing-`ret` and result-wrapping checks stay quiet.
 	returnRejected bool
+	// opReceivers records every receiver expression of a far-handle call in
+	// the body, accepted or not: a rejected operation already has its own
+	// diagnostic, and the anchor-lease check must not read its receiver as a
+	// second misuse.
+	opReceivers []ast.ExprID
+}
+
+// noteAnchorOpReceiver records the receiver of a far-handle call typed inside
+// the active crossing body, before the call is accepted or rejected.
+func (tc *typeChecker) noteAnchorOpReceiver(receiver ast.ExprID) {
+	if tc == nil || len(tc.onCrossingStack) == 0 || !receiver.IsValid() {
+		return
+	}
+	last := len(tc.onCrossingStack) - 1
+	tc.onCrossingStack[last].opReceivers = append(tc.onCrossingStack[last].opReceivers, receiver)
 }
 
 // typeExprOn type-checks an `on dst { ... }` placement crossing (Block 2)
