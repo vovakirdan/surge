@@ -298,14 +298,16 @@ fn render_latencies(samples: &ArrayFixed<int64, 64>) -> string {
 }
 
 // The allocation counter is process-wide and the batch's work runs on
-// carriers; an awaited completion is visible here while the completing
-// carrier may still be inside its turn. The barrier makes the read about the
-// work that was awaited and nothing in flight: it returns once no task but
-// this one is running, nothing is runnable anywhere and the blocking pool is
-// idle (owner ruling 2026-09-03, variant (а): the budget stays exact, the
-// observer waits). The barrier itself allocates nothing.
+// carriers. What made the read move between identical runs was not work in
+// flight but a ready deque's first growth, which the schedule placed inside
+// or outside the window; the deques are reserved with their scheduler now
+// and the count is one number, run after run (RV2-DEBT-330, owner ruling
+// 2026-09-03 variant (а): the budget stays exact). The runtime also has a
+// barrier for this read, rt_debug_quiesce, which returns once no task but
+// the caller's is running anywhere; this file is compiled by the BASE
+// compiler too, and the base (epic_base) does not know the intrinsic, so the
+// call lands here when the base advances to a tree that has it.
 pub fn allocation_observer() -> uint64 {
-    let _: uint64 = rt_debug_quiesce();
     let stats: HeapStats = rt_heap_stats();
     let value: uint64 = stats.alloc_count to uint64;
     @drop stats;

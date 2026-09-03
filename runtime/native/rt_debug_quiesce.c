@@ -37,14 +37,16 @@ static uint64_t debug_quiesce_now_ns(void) {
 }
 
 // Under the shard's lock. own_running is the number of running tasks this
-// shard is allowed to hold: one when the caller is a task owned by it, else
-// zero.
+// shard may hold on the caller's account: one when the caller is a task
+// owned by it, else zero. The caller itself may or may not be in
+// running_count (a poll driven from the main thread is not), so the test is
+// "no running task beyond the caller", not "exactly the caller".
 static int debug_quiesce_shard_at_rest_locked(const rt_shard* shard, uint32_t own_running) {
     const rt_scheduler* scheduler = rt_shard_scheduler_const(shard);
     if (scheduler == NULL) {
         return 1;
     }
-    if (scheduler->running_count != own_running || scheduler->publishing_count != 0) {
+    if (scheduler->running_count > own_running || scheduler->publishing_count != 0) {
         return 0;
     }
     if (scheduler->inject.len != 0) {

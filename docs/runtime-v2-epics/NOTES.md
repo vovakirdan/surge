@@ -14119,7 +14119,27 @@ because the first did not close it:
    lazy growths, counted wherever the schedule put them), one fewer on
    the rendezvous and select-send rows, unchanged on the ten that never
    spawn. Twenty-four budgets re-pinned down, manifest and the test's
-   copy, with the reason beside them. DEBT-330 closed on that. Two instrument notes
+   copy, with the reason beside them. DEBT-330 closed on that.
+
+The third full run (12:13) taught the protocol's other half: the shared
+fixture is compiled by the BASE compiler too, and the base at `epic_base`
+does not know the intrinsic -- `SEM3005 support.sg:308:21 cannot resolve
+'rt_debug_quiesce'` on the base side, before any row ran. So the barrier
+call is not in the fixture; the primitive stays in the runtime with a row
+of its own and joins the observer when the base advances. The determinism
+the ruling asked for is carried by the reserved deques alone: without the
+barrier, both unbuffered twins still read 3 in 200 of 200, and
+`blocking-composite` 346 in 30 of 30. The budgets were re-taken once more
+from the sweep of the observer AS SHIPPED: against the 329 re-pin, +2 on
+every row that starts the executor, +3 on the buffered channel rows, +1
+on `far-immediate-scalar`, -1 on the rendezvous and select-send rows.
+Read together with the barrier sweep, that names what each instrument
+saw: the four deques reserved at init are the +2..+3 (inside batch 0,
+where the executor initialises), the schedule-placed growths are the -1,
+and the "11 to 13 fewer" the barrier sweep read was the barrier moving
+the `before` read past the setup's in-flight work -- a real effect of a
+barrier, and exactly why the fixture and the budget must be measured
+with the observer they ship with. Two instrument notes
 from the same runs: the pre-wave SHA, past the budget, died of
 `array-grow-composite base throughput CV 0.081921 exceeds 0.050000`
 because valgrind rows were running beside it on cores 4-7 -- the protocol
