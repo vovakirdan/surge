@@ -129,6 +129,17 @@ type Module struct {
 	FuncBySym map[symbols.SymbolID]FuncID
 	Globals   []Global
 	Meta      *ModuleMeta
+
+	// CrossingLeaseFields names, per crossing state struct, the field indices
+	// (field 0 is the frame state word) that a state CARRIES but does not OWN:
+	// the anchor of an `on far_handle { ... }` block travels as a copy of the
+	// caller's token, the body reaches the channel through the owner-side pin,
+	// and the caller keeps the one release. A backend's drop glue for the
+	// state skips these fields; dropping one would be a second owner of the
+	// caller's handle on every unshipped path (RV2-DEBT-324). It lives on the
+	// module, not on Meta, because Meta is built after the functions are
+	// lowered and this is written while they are.
+	CrossingLeaseFields map[types.TypeID][]int
 }
 
 // SortedFuncIDs returns the module's function ids in ascending order.

@@ -471,6 +471,11 @@ func (e *Emitter) emitReleaseGlueBody(id types.TypeID) error {
 				return err
 			}
 			for i, f := range fields {
+				// A crossing state's anchor is carried, not owned: the
+				// caller keeps the one release of that handle.
+				if e.crossingLeaseField(id, i) {
+					continue
+				}
 				e.emitMemberDropAt(g, f.Type, "%p", align, fieldOffsets[i])
 			}
 		case types.KindTuple:

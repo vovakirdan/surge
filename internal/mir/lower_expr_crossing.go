@@ -266,6 +266,22 @@ func (l *funcLowerer) prepareImmediateBodyCrossing(ins *CrossingInstr, body *hir
 	if err != nil {
 		return err
 	}
+	// The anchor is packed like every other capture -- the body's `ch` is
+	// that field -- but the state does not own it: name the field so the
+	// state's drop glue leaves it to the caller (RV2-DEBT-324). Field 0 is
+	// the frame state word, so capture i is field i+1.
+	if l.out != nil {
+		for i := range ins.Captures {
+			if ins.Captures[i].Mode != sema.CrossingCaptureAnchorLease {
+				continue
+			}
+			if l.out.CrossingLeaseFields == nil {
+				l.out.CrossingLeaseFields = make(map[types.TypeID][]int)
+			}
+			l.out.CrossingLeaseFields[stateType] =
+				append(l.out.CrossingLeaseFields[stateType], i+1)
+		}
+	}
 	fl := l.forkLowerer()
 	if fl == nil {
 		return fmt.Errorf("mir: on: failed to fork lowerer")

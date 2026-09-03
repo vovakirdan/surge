@@ -13985,3 +13985,65 @@ also the one local error of the bench python suite
 Its report lands in NOTES when it finishes. The runner holds
 `.wt-129ce2b2`; `queue_f.sh` waits behind `queue_p6` and runs baseline,
 W8 ×5, the five gates the tail touched and the freeze set.
+
+### DEBT-324, the anchored state gave the caller's handle back a second time (2026-09-03)
+
+The ownership lens read it; a program showed it. `probe/anchor_cancel.sg`:
+a holder task mints `channel_on::<int>(shard(1), 1)` and runs two
+`on ch { ch.send(..); ret nothing; }` blocks (the second parks the body on
+the full channel), the parent spins 64 checkpoints, cancels the holder and
+awaits it. `SURGE_SHARDS=2 SURGE_THREADS=2`, `valgrind --leak-check=full
+--error-exitcode=99`, six runs on the tree at `129ce2b2`:
+
+    run=1 rc=99 out=holder-cancelled invalid=3 lost=0
+    run=2 rc=99 out=holder-cancelled invalid=0 lost=0
+    run=3 rc=99 out=holder-cancelled invalid=0 lost=0
+    run=4 rc=99 out=holder-cancelled invalid=3 lost=0
+    run=5 rc=99 out=holder-cancelled invalid=0 lost=2
+    run=6 rc=99 out=holder-cancelled invalid=3 lost=0
+
+    Invalid read of size 4
+       at rt_far_channel_handle_drop (rt_far_channel.c:410)
+       by drop.type1530
+       by rt_value_drop_in_place_detached (rt_value_ops.c:184)
+       by rt_value_release_owned_block (rt_value_cell.c:181)
+       by rt_remote_task_pending_release (rt_remote_task_pending.c:127)
+       by rt_immediate_on_dispatch_execute (rt_immediate_on.c:255)
+     Address 0x4abe544 is 20 bytes inside a block of size 24 free'd
+
+`drop.type1530` is the anchored block's state; the caller's own frame drop
+had already freed the token. Exactly the chain the lens named.
+
+**Fix.** The anchor stays in the state (the body's `ch` IS that field), and
+the state's release glue stops releasing it. MIR records, per crossing
+state struct, the field indices it carries but does not own
+(`Module.CrossingLeaseFields`, written in `lowerCrossingExpr` for
+`CrossingCaptureAnchorLease` captures; field 0 is the frame state word, so
+capture i is field i+1). The first cut wrote it into `ModuleMeta` and the
+probe stayed red at 3 of 6: `Meta` is created in `lower.go` AFTER the
+functions are lowered, so the map was written into an object that was
+then replaced -- the table lives on the `Module` now. The LLVM release
+glue's struct arm (`emitReleaseGlueBody`) skips a lease field
+(`crossingLeaseField`, `emit_lease_fields.go`); nothing else changes, and
+the caller's drop of `ch` remains the one release. After:
+
+    run=1..8 rc=99 out=holder-cancelled invalid=0 (all eight); lost=2 once (run 5)
+
+`rc=99` after the fix is valgrind's "possibly lost" on the blocking
+thread's TLS block (`rt_blocking_init`, process-exit residue the strict
+rows already discount), not an error. The `lost=2` once in eight is a
+DIFFERENT path -- the cancel landing while the far-channel CREATE is still
+in flight leaks the create's pending (280 B) and the token (24 B) -- and is
+RV2-DEBT-328, not absorbed into this row.
+
+**Rows.** `TestEmitAnchoredStateGlueLeavesTheCallersHandleAlone` reads the
+IR of a one-block program: `CrossingLeaseFields` has one state with field
+`[1]`, that state's `@drop.typeN` body has no `rt_far_channel_handle_drop`,
+and the module still has the caller's. `TestEmitAnchoredStateGlueNegativeControl`
+sets `dropLeaseFieldsNegativeControl` and reads exactly one more release,
+in that body. `TestRuntimeV2AnchoredCancelInFlightKeepsOneHandleOwner`
+runs the probe program six times under valgrind on two shards and refuses
+any Memcheck error report (`valgrindMemcheckErrorRE`) while accepting the
+328 leak; 13.9 s. All three on `runtime-v2-crossing-check` (the LLVM line
+and the e2e line). The VM lane runs anchored bodies on one executor and
+never drops an unshipped state, so it has no such path.
