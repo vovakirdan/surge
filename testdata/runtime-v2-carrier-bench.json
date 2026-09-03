@@ -6,7 +6,7 @@
     "machine": "x86_64",
     "kernel_contains": "6.8.0-138-generic",
     "cpu_model": "AMD Ryzen 9 9950X 16-Core Processor",
-    "logical_cpus": 16,
+    "logical_cpus": 24,
     "cpuset": "8,10",
     "go_version": "go version go1.26.1 linux/amd64",
     "clang_version": "Ubuntu clang version 18.1.3 (1ubuntu1)"
