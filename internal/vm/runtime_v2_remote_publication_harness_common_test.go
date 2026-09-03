@@ -237,6 +237,22 @@ static int wait_reached(rt_sync_point_id id, uint32_t attempts) {
     return 0;
 }
 
+// A producer parks from its own carrier, so a driver waits for the shard's
+// park count rather than for a status.
+static int wait_admission_parks(rt_executor* ex, uint32_t shard_id, uint64_t want, uint32_t attempts) {
+    rt_shard* shard = rt_runtime_shard(rt_executor_runtime(ex), shard_id);
+    for (uint32_t i = 0; i < attempts; i++) {
+        if (rt_transport_debug_snapshot(shard).data_admission_parks >= want) {
+            return 1;
+        }
+        // Under one carrier the driver is the pump: the caller parks from a
+        // poll only this loop gives it.
+        (void)run_ready_one(ex);
+        sleep_us(1000);
+    }
+    return 0;
+}
+
 static int wait_drops(uint32_t want, uint32_t attempts) {
     for (uint32_t i = 0; i < attempts; i++) {
         if (atomic_load_explicit(&drop_calls, memory_order_acquire) == want) {

@@ -54,9 +54,11 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 			),
 		},
 		{
-			name: "queue-failure-restores-lease",
+			// Two carriers: the driver waits for the park count while the
+			// caller parks from its own carrier, so the caller needs one.
+			name: "queue-failure-parks-then-shutdown-resolves-it",
 			mode: "queue-failure",
-			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1"),
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
 		},
 		{
 			name: "shutdown-wakes-reply-waiters-on-all-shards",
@@ -186,8 +188,8 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 			),
 		},
 		{
-			name: "anchored-queue-full-bounded-with-control-progress",
-			mode: "anchored-queue-full",
+			name: "anchored-saturation-parks-the-producer-and-a-freed-slot-wakes-it",
+			mode: "anchored-saturation-parks",
 			env: remotePublicationEnv(
 				"SURGE_SHARDS=2", "SURGE_THREADS=2",
 				// The parked block's counterparty is the harness main thread.
@@ -380,9 +382,12 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
 		},
 		{
-			name: "drop-synchronous-queue-full-refusal-drops-exactly-once",
+			// One carrier: the caller requests shutdown from inside its own
+			// poll once it parks, and the driver's await pumps the poll that
+			// observes the resolution.
+			name: "drop-parked-request-shut-down-drops-exactly-once",
 			mode: "drop-queue-full",
-			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1"),
 		},
 		{
 			name: "drop-mixed-owner-select-refusal-drops-exactly-once",

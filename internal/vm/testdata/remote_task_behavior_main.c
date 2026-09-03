@@ -63,8 +63,8 @@ int main(int argc, char** argv) {
         return rtb_mode_anchored_pin_vs_release();
     if (strcmp(argv[1], "anchored-helper-protocol") == 0)
         return rtb_mode_anchored_helper_protocol();
-    if (strcmp(argv[1], "anchored-queue-full") == 0)
-        return rtb_mode_anchored_queue_full();
+    if (strcmp(argv[1], "anchored-saturation-parks") == 0)
+        return rtb_mode_anchored_saturation_parks();
     if (strcmp(argv[1], "anchored-leak-audit") == 0)
         return rtb_mode_anchored_leak_audit();
     if (strcmp(argv[1], "anchored-cross-producer-order") == 0)

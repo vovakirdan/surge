@@ -38,6 +38,13 @@ typedef enum {
     // internal pin -- and close drains them with the ordinary two.
     WAKER_CHAN_SEND_RETRY = 12,
     WAKER_CHAN_RECV_RETRY = 13,
+    // A producer parked on a shard's exhausted data-slot budget: the key names
+    // the TARGET shard (id and owner both), the store is that shard's, and a
+    // data slot freed there by a drain wakes every producer registered on it,
+    // each of which retries its admission and re-parks if it lost the race.
+    // Not a channel key: no pin, no generation; the registration is drained
+    // by the wake or removed by the registrant when its request lands.
+    WAKER_TRANSPORT_SLOT = 14,
 } waker_kind;
 
 // ABI order predates Runtime V2 and is shared with generated/test code.
@@ -67,6 +74,11 @@ static inline int waker_seq0_retry_is_terminal_drained(waker_key key) {
 #ifndef RV2_SEQ0_RETRY_NEGATIVE_CONTROL
         case WAKER_REMOTE_TASK_REPLY:
 #endif
+        // The slot wake drains every entry on the key, and a registrant whose
+        // request landed on the verify retry removes its own entry, so a
+        // stale one lives at most until the next data slot frees on that
+        // shard.
+        case WAKER_TRANSPORT_SLOT:
             return 1;
         default:
             return 0;
@@ -219,6 +231,7 @@ waker_key net_write_key(int fd);
 int waker_is_net(waker_key key);
 waker_key blocking_key(uint64_t id);
 waker_key remote_spawn_reply_key(uint64_t id, uint32_t owner_shard_id);
+waker_key transport_slot_key(uint32_t shard_id);
 uint32_t rt_channel_owner_shard_id(const rt_channel* ch);
 void rt_channel_bind_owner_shard(void* channel, uint32_t shard_id);
 

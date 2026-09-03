@@ -28,7 +28,12 @@ rt_remote_task_status rt_far_channel_create(uint64_t placement,
     if (*pending != NULL) {
         rt_remote_task_status status = rt_remote_task_pending_snapshot(*pending, out_kind);
         if (status == RT_REMOTE_TASK_STATUS_PENDING) {
-            if (rt_remote_task_prepare_reply_wait(ex, current, *pending) == 0) {
+            int admission = rt_remote_task_retry_admission(ex, current, *pending);
+            if (admission == RT_REMOTE_ADMISSION_PARKED) {
+                return RT_REMOTE_TASK_STATUS_PENDING;
+            }
+            if (admission == RT_REMOTE_ADMISSION_ADMITTED &&
+                rt_remote_task_prepare_reply_wait(ex, current, *pending) == 0) {
                 return RT_REMOTE_TASK_STATUS_PENDING;
             }
             status = rt_remote_task_pending_snapshot(*pending, out_kind);
@@ -74,7 +79,6 @@ rt_remote_task_status rt_far_channel_create(uint64_t placement,
     request->body_poll_fn_id = capacity;
     request->payload_type_id = payload_type_id;
     *pending = request;
-    (void)rt_remote_task_prepare_reply_wait(ex, current, request);
     rt_remote_task_pending_add_ref(request);
     rt_transport_msg msg = {
         .kind = RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REQUEST,
@@ -84,10 +88,10 @@ rt_remote_task_status rt_far_channel_create(uint64_t placement,
         .generation = request->handle.generation,
         .payload = request,
     };
-    rt_remote_task_status status =
-        rt_remote_task_transport_status(rt_transport_enqueue(destination, &msg));
-    if (status == RT_REMOTE_TASK_STATUS_OK) {
-        return RT_REMOTE_TASK_STATUS_PENDING;
+    rt_remote_admission_init(&request->admission, &msg, 1);
+    rt_remote_task_status status = rt_remote_task_submit(ex, current, request);
+    if (status == RT_REMOTE_TASK_STATUS_PENDING) {
+        return status;
     }
     rt_remote_task_clear_reply_wait(ex, current, request);
     rt_remote_task_pending_consume(request);
@@ -175,7 +179,12 @@ rt_remote_task_status rt_far_channel_share(const rt_far_task_handle* source,
     if (*pending != NULL) {
         rt_remote_task_status status = rt_remote_task_pending_snapshot(*pending, out_kind);
         if (status == RT_REMOTE_TASK_STATUS_PENDING) {
-            if (rt_remote_task_prepare_reply_wait(ex, current, *pending) == 0) {
+            int admission = rt_remote_task_retry_admission(ex, current, *pending);
+            if (admission == RT_REMOTE_ADMISSION_PARKED) {
+                return RT_REMOTE_TASK_STATUS_PENDING;
+            }
+            if (admission == RT_REMOTE_ADMISSION_ADMITTED &&
+                rt_remote_task_prepare_reply_wait(ex, current, *pending) == 0) {
                 return RT_REMOTE_TASK_STATUS_PENDING;
             }
             status = rt_remote_task_pending_snapshot(*pending, out_kind);
@@ -216,7 +225,6 @@ rt_remote_task_status rt_far_channel_share(const rt_far_task_handle* source,
     // validates the lease it names before minting anything.
     request->anchor = *source;
     *pending = request;
-    (void)rt_remote_task_prepare_reply_wait(ex, current, request);
     rt_remote_task_pending_add_ref(request);
     rt_transport_msg msg = {
         .kind = RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REQUEST,
@@ -226,10 +234,10 @@ rt_remote_task_status rt_far_channel_share(const rt_far_task_handle* source,
         .generation = request->handle.generation,
         .payload = request,
     };
-    rt_remote_task_status status =
-        rt_remote_task_transport_status(rt_transport_enqueue(destination, &msg));
-    if (status == RT_REMOTE_TASK_STATUS_OK) {
-        return RT_REMOTE_TASK_STATUS_PENDING;
+    rt_remote_admission_init(&request->admission, &msg, 1);
+    rt_remote_task_status status = rt_remote_task_submit(ex, current, request);
+    if (status == RT_REMOTE_TASK_STATUS_PENDING) {
+        return status;
     }
     rt_remote_task_clear_reply_wait(ex, current, request);
     rt_remote_task_pending_consume(request);

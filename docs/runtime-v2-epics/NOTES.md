@@ -12920,3 +12920,106 @@ e2e rows) re-run green on the pin flag.
 awaited result (E2's note); the far TASK handle as a struct field has no
 release in the glue (a never-awaited far task's lease), which no row names
 yet and this one does not claim.
+
+### E4, the reply's slot is reserved with the request and a producer parks (2026-09-03)
+
+RV2-DEBT-031's two open halves, read against the tree: whether a reply takes
+an ordinary data slot or one reserved at admission, and the producer park in
+place of the caller-visible `QUEUE_FULL` that `rt_remote_spawn_enqueue_with_drain`
+turned into a drain-once-and-retry. The third half, a byte credit, stays
+where the 29.08 ruling put it: there is no transport-owned buffer to measure
+one over, and the model text no longer pretends otherwise.
+
+**The map first.** One admission site (`rt_transport_push_locked`'s
+`len >= cap`), one escape point for a refusal (`rt_transport_enqueue_locked`),
+five data-lane reply kinds carrying a live result pin when enqueued, seven
+request submission sites of one shape, four `enqueue_with_drain` callers,
+seven LLVM switch arms with eight string constants, and not two but nine test
+rows asserting the refusal -- the plan named two. `SP_TRANSPORT_DATA_SLOT_TASK_PARKED`
+was declared, allowlisted to `rt_transport.c` and armed by nothing;
+`docs/RUNTIME_V2.md` §8 named three identifiers that no longer exist.
+
+**Reservation.** `rt_transport_state.reply_reserved` counts data slots
+promised to replies. A request that expects a data-lane reply reserves one
+slot on ITS OWN shard's lane before it is enqueued anywhere
+(`rt_transport_reserve_reply_slot_locked`: refused when
+`data_len + reply_reserved >= cap`); ordinary data admission counts the
+reservations as occupied (`len + reply_reserved >= cap`); the reply spends
+the reservation (`rt_transport_push_reserved_reply_locked`, never refused,
+because the invariant makes a held reservation a free physical slot); a
+pending resolved without a reply gives it back. Exactly one of spend and
+release happens: `rt_remote_admission.reserved` is exchanged to 0 by the one
+that gets there (`rt_remote_admission_take_reservation`), and the pending's
+final free is the belt, counting an orphan rather than deadlocking if a lock
+forbids the release there. Control acks (spawn, cancel) reserve nothing.
+
+**Park.** `rt_remote_admit` (`rt_remote_admit.c`, new; the allowlist row
+for the sync point moved there) does both lanes in order. A refusal on
+either registers the task on that shard's slot key --
+`WAKER_TRANSPORT_SLOT`, id and store both the shard's, in the seq-0
+terminal-drained set -- through `prepare_park`, records the park, reaches
+the window, and retries once (register-then-verify); the crossing answers
+PENDING and the caller's next poll retries through
+`rt_remote_task_retry_admission`. A data pop on a lane wakes every producer
+parked on it (`rt_transport_wake_slot_waiters`, called in the drain loop
+with the shard lock dropped, before the message is dispatched); a released
+reservation does the same. Shutdown wakes every slot key and the retry
+answers `DESTINATION_SHUTDOWN` (`refused_by_shutdown`), outranking the
+caller's own cancellation; a cancelled caller abandons an unsent request as
+Cancelled; the teardown sweeps abandon a parked admission with the caller,
+and the abandonment is exchanged once between the producer's own retry and
+the sweep so the never-enqueued message reference is released exactly once.
+The spawn family got the same admission with `wants_reply = 0`.
+
+**What it cost to get the park to hold.** The first version registered the
+task and returned PENDING, and the flooded caller parked 1,054 times in a
+row with zero wakes (2,108 slot-credit stalls, two per attempt). A poll's
+terminator commits the park on the thread-local `pending_key`, which
+`rt_remote_task_prepare_reply_wait` sets and `slot_register` did not: the
+yield was a plain requeue and the "park" a spin against the lane. The second
+finding was the stand's: `poll_anchored_flooded_caller` re-saturated the lane
+on every poll, including the one it was woken for. The third was the
+topology's: under two carriers a producer woken by shutdown may never be
+polled again (its carrier has exited), so rows that resolve a park by
+shutdown read the pending and the registry, not the caller, and the one that
+needs the caller's own poll (`drop-queue-full`) requests shutdown from inside
+that poll under one carrier, where the driver's await is the pump.
+
+**Numbers.** `anchored-saturation-parks-the-producer-and-a-freed-slot-wakes-it`
+(2 shards): `parks=1 wakes=1 data_stalls=0/2 reserved=0/0`, the window
+reached once. Rule 13 (`TestRuntimeV2TransportSaturationParkNegativeControl`,
+`-DRV2_DEBT_031_NEGATIVE_CONTROL` restores drain-once-and-refuse): the stand
+goes red on its first assertion, `saturated data lane did not park the
+producer`. The nine rows: the anchored one above; `queue-failure` (await parks
+on its own reserved lane, shutdown resolves it, the reserved slot returns,
+the lease registry empties); `drop-queue-full` (parked request shut down
+from inside its poll, `DESTINATION_SHUTDOWN`, one drop); the publication
+harness's spawn/immediate/select refusal rows (park, shutdown, one drop, no
+body); `TestRuntimeV2TransportSlotCreditReserve` and the transport contract
+stand unchanged -- the lane still refuses, the park is above it; the far
+select static contract re-anchored on `rt_remote_task_submit`.
+
+**Compiled code.** No QUEUE_FULL arm in any of the seven crossing emitters and
+no "queue is full" panic text; the IR tests assert the arm's absence; the
+panicgate ledger lost seven positional rows and gained six for the new
+refusals (`PG-INVARIANT`: a reply spending a reservation nobody held, a
+release without a reservation, the lock-discipline panics of the new entry
+points). `rt_transport_park.c` keeps the queues and the shard park and holds
+no waiter dependency, so the transport's own stands still link without a
+scheduler; the wakes live in `rt_remote_admit.c`.
+
+**Also closed on the way.** RV2-DEBT-062: the far-select cancel copy control
+pinned its shape as a 48-byte-in-2-blocks baseline (the two far-channel tokens
+a cancelled task's abandoned frame held as fields); E3's far arm reclaimed
+them and the pin was re-taken to strict zero. `docs/RUNTIME_V2.md` §8 now
+describes the reservation and the park and names the counters that exist.
+`rt_immediate_on_release_owned` moved to `rt_immediate_on_teardown.c` for the
+360-line remote-task pin.
+
+**Deferred, and why.** The two carrier-bench liveness probes on
+`SP_TRANSPORT_DATA_SLOT_TASK_PARKED` (`jumbo-credit-cancel`,
+`jumbo-global-shutdown`) stay `deferred` until E5 runs the bench with its
+credit counters wired; the window they wait on is armed now. The slot wake
+is a wake-all of the parked producers on that lane, each re-parking if it
+lost the race; exactly-one holds for the one-parker stand and a wake-one is a
+refinement nobody has measured a need for.

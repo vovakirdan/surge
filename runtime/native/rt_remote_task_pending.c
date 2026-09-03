@@ -112,6 +112,12 @@ void rt_remote_task_pending_release(rt_remote_task_pending* pending) {
     }
     uint32_t refs = atomic_fetch_sub_explicit(&pending->refs, 1, memory_order_acq_rel);
     if (refs == 1) {
+        // A reservation nobody spent or released: every terminal path does
+        // one of the two, so this is the belt, and it says so when it has to
+        // act with a lock held that forbids the wake.
+        if (rt_remote_admission_take_reservation(&pending->admission)) {
+            rt_remote_admission_release_reservation_belt(pending->executor, &pending->admission);
+        }
         if (pending->state_owned != 0 && pending->state_type_id != 0 &&
             pending->body_state != NULL) {
             rt_value_release_owned_block(rt_channel_element_ops_for(pending->state_type_id),
@@ -257,6 +263,12 @@ void rt_remote_task_pending_finish(rt_executor* ex,
     if (should_wake) {
         wake_key_all_with_policy(
             ex, rt_remote_task_reply_key(pending->request_id, pending->source_shard_id), 0);
+    }
+    // Finished here, without a reply message: the slot the request reserved
+    // for one on its own lane is given back. A reply that was enqueued spent
+    // the reservation first and this takes nothing.
+    if (rt_remote_admission_take_reservation(&pending->admission)) {
+        rt_remote_admission_release_reservation(ex, &pending->admission);
     }
 }
 

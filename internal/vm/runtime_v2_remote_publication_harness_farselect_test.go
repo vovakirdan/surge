@@ -356,8 +356,11 @@ static int run_far_select_initial_null_anchors(void) {
 }
 
 // The arm table and pending both exist before the initial transport enqueue.
-// A saturated destination must therefore release through the pending exactly
-// once; calling the earlier input-payload cleanup as well would double-drop.
+// A saturated destination parks the selector rather than refusing it, and
+// the pending keeps the staged payload across the park; when shutdown wakes
+// the parked producer, the request finishes DESTINATION_SHUTDOWN and the
+// pending releases the payload exactly once -- never the earlier
+// input-payload cleanup as well, which would double-drop.
 static int run_far_select_enqueue_refusal(void) {
     rt_executor* ex = ensure_exec();
     uint32_t dst = pin_shard(ex, 0);
@@ -375,20 +378,29 @@ static int run_far_select_enqueue_refusal(void) {
     st.count = 1;
     st.fill_queue = 1;
 
-    if (!await_select(&st)) return fail("enqueue-refusal await failed");
-    if (st.status != RT_REMOTE_TASK_STATUS_QUEUE_FULL) {
-        return fail("enqueue-refusal select must report QUEUE_FULL");
+    void* caller = __task_create(POLL_SELECT_CALLER, &st, rt_channel_opaque_word_ops());
+    if (caller == NULL) return fail("enqueue-refusal caller create failed");
+    if (!wait_admission_parks(ex, dst, 1, 5000)) {
+        return fail("saturated destination did not park the selector");
     }
-    if (atomic_load_explicit(&payload_drop_calls, memory_order_acquire) != 1) {
-        return fail("enqueue-refusal pending must consume the payload exactly once");
+    if (atomic_load_explicit(&payload_drop_calls, memory_order_acquire) != 0) {
+        return fail("a parked select must keep its payload staged, not drop it");
     }
+    // Read while the channel is still there: shutdown reclaims the far
+    // channel registry, and a parked select must not have touched it.
     if (!channel_is_empty(ex, channel)) {
-        return fail("enqueue-refusal must not touch the channel");
-    }
-    if (rt_far_channel_release(ex, &anchor) != RT_REMOTE_TASK_STATUS_OK) {
-        return fail("enqueue-refusal lease release failed");
+        return fail("a parked select must not touch the channel");
     }
     (void)rt_executor_request_shutdown(ex);
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    rt_task_await(caller, &kind, &bits);
+    if (st.status != RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN) {
+        return fail("shutdown must resolve the parked select as destination-shutdown");
+    }
+    if (!wait_payload_drops(1, 5000)) {
+        return fail("the parked-then-shut-down select must consume the payload exactly once");
+    }
     return 0;
 }
 

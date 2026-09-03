@@ -122,6 +122,14 @@ rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
         if (status != RT_REMOTE_TASK_STATUS_PENDING) {
             return rt_immediate_on_finish_retry(pending, out_kind, out_dst);
         }
+        switch (rt_remote_task_retry_admission(ex, current, *pending)) {
+            case RT_REMOTE_ADMISSION_PARKED:
+                return RT_REMOTE_TASK_STATUS_PENDING;
+            case RT_REMOTE_ADMISSION_FINISHED:
+                return rt_immediate_on_finish_retry(pending, out_kind, out_dst);
+            default:
+                break;
+        }
         if (task_cancelled_load(current) != 0) {
             rt_immediate_on_cancel_inflight(ex, *pending);
         }
@@ -182,7 +190,6 @@ rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
     request->result_type_id = result_type_id;
     request->state_owned = state_type_id != 0;
     *pending = request;
-    (void)rt_remote_task_prepare_reply_wait(ex, current, request);
     rt_remote_task_pending_add_ref(request);
     rt_transport_msg msg = {
         .kind = RT_TRANSPORT_MSG_IMMEDIATE_ON_EXECUTE_REQUEST,
@@ -192,10 +199,10 @@ rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
         .generation = request->handle.generation,
         .payload = request,
     };
-    rt_remote_task_status status =
-        rt_remote_task_transport_status(rt_transport_enqueue(destination, &msg));
-    if (status == RT_REMOTE_TASK_STATUS_OK) {
-        return RT_REMOTE_TASK_STATUS_PENDING;
+    rt_remote_admission_init(&request->admission, &msg, 1);
+    rt_remote_task_status status = rt_remote_task_submit(ex, current, request);
+    if (status == RT_REMOTE_TASK_STATUS_PENDING) {
+        return status;
     }
     rt_remote_task_clear_reply_wait(ex, current, request);
     rt_remote_task_pending_consume(request);
@@ -318,44 +325,5 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
     // into the reply envelope when the body completes.
 }
 
-// Caller teardown: a caller that unwinds (cancel/failfast) while an immediate
-// execute or a remote select is in flight leaves the pending's caller-owned
-// reference behind. Bound requests get a routed cancel so the destination
-// body is not orphaned; unbound requests (still queued) are resolved so a
-// late dispatch refuses to create a body (and, for select, never pins the
-// arms). The reply edge still resolves exactly once.
-void rt_immediate_on_release_owned(rt_executor* ex, const rt_task* caller) {
-    rt_remote_task_state* state = rt_remote_task_state_get(ex);
-    if (state == NULL || caller == NULL) {
-        return;
-    }
-    for (;;) {
-        rt_remote_task_pending* pending = NULL;
-        int bound = 0;
-        pthread_mutex_lock(&state->lock);
-        for (rt_remote_task_pending* it = state->pending_head; it != NULL; it = it->next) {
-            if ((it->op == RT_REMOTE_TASK_OP_EXECUTE ||
-                 it->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED ||
-                 it->op == RT_REMOTE_TASK_OP_CHANNEL_SELECT) &&
-                it->caller_task_id == caller->id) {
-                pending = it;
-                bound = it->handle.task_id != 0;
-                it->caller_task_id = 0;
-                break;
-            }
-        }
-        pthread_mutex_unlock(&state->lock);
-        if (pending == NULL) {
-            return;
-        }
-        if (bound) {
-            // Keep the pending listed: the destination owner registration
-            // still routes the orphaned reply through it exactly once.
-            rt_immediate_on_cancel_inflight(ex, pending);
-            rt_remote_task_pending_release(pending);
-        } else {
-            rt_remote_task_pending_finish(ex, pending, RT_REMOTE_TASK_STATUS_REFUSED, 2, NULL);
-            rt_remote_task_pending_consume(pending);
-        }
-    }
-}
+// rt_immediate_on_release_owned, the caller-teardown sweep, lives in
+// rt_immediate_on_teardown.c.

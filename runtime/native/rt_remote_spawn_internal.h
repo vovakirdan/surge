@@ -2,6 +2,7 @@
 #define SURGE_RUNTIME_NATIVE_RT_REMOTE_SPAWN_INTERNAL_H
 
 #include "rt_async_internal.h"
+#include "rt_remote_admit.h"
 #include "rt_remote_spawn.h"
 
 struct rt_remote_spawn_pending {
@@ -35,6 +36,9 @@ struct rt_remote_spawn_pending {
     uint64_t caller_task_id;
     uint32_t source_shard_id;
     uint32_t target_shard_id;
+    // The request's admission onto the target's data lane; the spawn's
+    // answer is a CONTROL ack, so it reserves no reply slot.
+    rt_remote_admission admission;
     rt_remote_spawn_status status;
     rt_far_task_handle handle;
     rt_far_task_handle* out_handle;

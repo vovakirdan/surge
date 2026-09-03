@@ -50,6 +50,12 @@ static int run_publish(uint32_t wanted_dst, int stale) {
     return 0;
 }
 
+// A saturated data lane parks the publisher rather than refusing it: the
+// request is unsent, the caller PENDING on the destination's slot key with
+// the control lane still admitting behind the data backlog, and shutdown is
+// what resolves it -- the parked producer wakes, finds the executor shut
+// down, and the publication finishes DESTINATION_SHUTDOWN with the shipped
+// state dropped exactly once by the pending.
 static int run_queue_full(void) {
     rt_executor* ex = ensure_exec();
     remote_child_state child;
@@ -61,14 +67,32 @@ static int run_queue_full(void) {
     st.child = box;
     st.dst = 0;
     st.fill_queue = 1;
-    if (!await_parent(&st)) return fail("queue-full publisher await failed");
-    if (st.status != RT_REMOTE_SPAWN_STATUS_QUEUE_FULL) return fail("queue full status mismatch");
+    st.droppable = 1;
+    drop_expected_state = box;
+    void* caller = __task_create(POLL_REMOTE_PUBLISHER, &st, rt_channel_opaque_word_ops());
+    if (caller == NULL) return fail("queue-full publisher create failed");
+    if (!wait_admission_parks(ex, 0, 1, 5000)) {
+        return fail("saturated data lane did not park the publisher");
+    }
     rt_shard* shard = rt_runtime_shard(rt_executor_runtime(ex), 0);
     struct rt_transport_debug_snapshot snap = rt_transport_debug_snapshot(shard);
     if (snap.control_len == 0 || snap.data_len != RT_TRANSPORT_DATA_SLOT_CREDITS) {
         return fail("control lane was blocked by full data lane");
     }
+    if (snap.data_admission_parks != 1) return fail("the saturated lane recorded no park");
     (void)rt_executor_request_shutdown(ex);
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    rt_task_await(caller, &kind, &bits);
+    if (st.status != RT_REMOTE_SPAWN_STATUS_DESTINATION_SHUTDOWN) {
+        return fail("shutdown must resolve the parked publication as destination-shutdown");
+    }
+    if (!wait_drops(1, 5000)) {
+        return fail("the parked-then-shut-down publication must drop its state exactly once");
+    }
+    if (atomic_load_explicit(&child.ran, memory_order_acquire) != 0) {
+        return fail("a parked publication must not run a body");
+    }
     return 0;
 }
 

@@ -35,6 +35,14 @@ rt_remote_task_status rt_immediate_on_execute_anchored(const rt_far_task_handle*
         if (status != RT_REMOTE_TASK_STATUS_PENDING) {
             return rt_immediate_on_finish_retry(pending, out_kind, out_dst);
         }
+        switch (rt_remote_task_retry_admission(ex, current, *pending)) {
+            case RT_REMOTE_ADMISSION_PARKED:
+                return RT_REMOTE_TASK_STATUS_PENDING;
+            case RT_REMOTE_ADMISSION_FINISHED:
+                return rt_immediate_on_finish_retry(pending, out_kind, out_dst);
+            default:
+                break;
+        }
         if (task_cancelled_load(current) != 0) {
             rt_immediate_on_cancel_inflight(ex, *pending);
         }
@@ -78,7 +86,6 @@ rt_remote_task_status rt_immediate_on_execute_anchored(const rt_far_task_handle*
     request->state_owned = state_type_id != 0;
     request->anchor = *anchor;
     *pending = request;
-    (void)rt_remote_task_prepare_reply_wait(ex, current, request);
     rt_remote_task_pending_add_ref(request);
     rt_transport_msg msg = {
         .kind = RT_TRANSPORT_MSG_IMMEDIATE_ON_EXECUTE_REQUEST,
@@ -88,10 +95,10 @@ rt_remote_task_status rt_immediate_on_execute_anchored(const rt_far_task_handle*
         .generation = request->handle.generation,
         .payload = request,
     };
-    rt_remote_task_status status =
-        rt_remote_task_transport_status(rt_transport_enqueue(destination, &msg));
-    if (status == RT_REMOTE_TASK_STATUS_OK) {
-        return RT_REMOTE_TASK_STATUS_PENDING;
+    rt_remote_admission_init(&request->admission, &msg, 1);
+    rt_remote_task_status status = rt_remote_task_submit(ex, current, request);
+    if (status == RT_REMOTE_TASK_STATUS_PENDING) {
+        return status;
     }
     rt_remote_task_clear_reply_wait(ex, current, request);
     rt_remote_task_pending_consume(request);

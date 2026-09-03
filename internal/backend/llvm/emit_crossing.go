@@ -253,8 +253,10 @@ func (fe *funcEmitter) emitSpawnOnCrossing(ins *mir.CrossingInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", errorHandlePtr, handleSlot)
 	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_far_task_handle_free(ptr %s)\n", errorHandlePtr)
 	fmt.Fprintf(&fe.emitter.buf, "  store ptr null, ptr %s\n", handleSlot)
+	// No arm for a full transport queue: a saturated data lane parks the
+	// publishing task (it answers PENDING) rather than refusing it, so the
+	// status never reaches compiled code.
 	shutdownBB := fe.nextInlineBlock()
-	queueBB := fe.nextInlineBlock()
 	refusedBB := fe.nextInlineBlock()
 	unsupportedPlacementBB := fe.nextInlineBlock()
 	invalidPlacementBB := fe.nextInlineBlock()
@@ -263,7 +265,6 @@ func (fe *funcEmitter) emitSpawnOnCrossing(ins *mir.CrossingInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  switch i32 %s, label %%%s [\n", statusVal, defaultBB)
 	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteSpawnInvalidArgument, invalidBB)
 	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteSpawnDestinationShutdown, shutdownBB)
-	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteSpawnQueueFull, queueBB)
 	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteSpawnRefused, refusedBB)
 	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteSpawnUnsupportedPlacement, unsupportedPlacementBB)
 	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteSpawnInvalidPlacement, invalidPlacementBB)
@@ -272,9 +273,6 @@ func (fe *funcEmitter) emitSpawnOnCrossing(ins *mir.CrossingInstr) error {
 		return err
 	}
 	if err := fe.emitPanicBlock(shutdownBB, "spawn on destination is shut down"); err != nil {
-		return err
-	}
-	if err := fe.emitPanicBlock(queueBB, "spawn on remote publish queue is full"); err != nil {
 		return err
 	}
 	if err := fe.emitPanicBlock(refusedBB, "spawn on remote publish was refused"); err != nil {

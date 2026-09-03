@@ -57,6 +57,10 @@ rt_transport_msg_class rt_transport_msg_class_of(rt_transport_msg_kind kind) {
     return RT_TRANSPORT_MSG_CLASS_INVALID;
 }
 
+static void rt_transport_push_unchecked_locked(rt_transport_state* state,
+                                               const rt_transport_msg* msg,
+                                               int control);
+
 static void rt_transport_wake_init_empty(rt_transport_wake* wake) {
     if (wake == NULL) {
         return;
@@ -188,13 +192,14 @@ rt_transport_push_locked(rt_transport_state* state, const rt_transport_msg* msg,
     if (state == NULL || msg == NULL) {
         return RT_TRANSPORT_STATUS_INVALID_ARGUMENT;
     }
-    rt_transport_msg* queue = control ? state->control : state->data;
     size_t cap = control ? RT_TRANSPORT_CONTROL_SLOT_RESERVE : RT_TRANSPORT_DATA_SLOT_CREDITS;
-    const size_t* head = control ? &state->control_head : &state->data_head;
-    size_t* len = control ? &state->control_len : &state->data_len;
+    const size_t* len = control ? &state->control_len : &state->data_len;
     // One credit per envelope, spent from this class's own budget. The other
     // class's occupancy is not consulted, so neither can exhaust the other.
-    if (*len >= cap) {
+    // On the data lane a slot promised to a reply counts as occupied: the
+    // reply spends it later without asking, so nobody else may take it.
+    size_t promised = control ? 0 : state->reply_reserved;
+    if (*len + promised >= cap) {
         if (control) {
             state->control_reserve_stalls++;
         } else {
@@ -202,6 +207,72 @@ rt_transport_push_locked(rt_transport_state* state, const rt_transport_msg* msg,
         }
         return RT_TRANSPORT_STATUS_QUEUE_FULL;
     }
+    rt_transport_push_unchecked_locked(state, msg, control);
+    return RT_TRANSPORT_STATUS_OK;
+}
+
+int rt_transport_msg_kind_is_reply(rt_transport_msg_kind kind) {
+    switch (kind) {
+        case RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION:
+        case RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY:
+        case RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REPLY:
+        case RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY:
+        case RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY:
+            return 1;
+        default:
+            return 0;
+    }
+}
+
+rt_transport_status rt_transport_reserve_reply_slot_locked(rt_transport_state* state) {
+    if (state == NULL) {
+        return RT_TRANSPORT_STATUS_INVALID_ARGUMENT;
+    }
+    if (state->data_len + state->reply_reserved >= RT_TRANSPORT_DATA_SLOT_CREDITS) {
+        state->data_credit_stalls++;
+        return RT_TRANSPORT_STATUS_QUEUE_FULL;
+    }
+    state->reply_reserved++;
+    state->reply_reservations++;
+    return RT_TRANSPORT_STATUS_OK;
+}
+
+void rt_transport_release_reply_slot_locked(rt_transport_state* state) {
+    if (state == NULL) {
+        return;
+    }
+    if (state->reply_reserved == 0) {
+        panic_msg("transport: reply slot released more times than it was reserved");
+        return;
+    }
+    state->reply_reserved--;
+    state->reply_reservation_releases++;
+}
+
+rt_transport_status rt_transport_push_reserved_reply_locked(rt_transport_state* state,
+                                                            const rt_transport_msg* msg) {
+    if (state == NULL || msg == NULL || !rt_transport_msg_kind_is_reply(msg->kind)) {
+        return RT_TRANSPORT_STATUS_INVALID_ARGUMENT;
+    }
+    if (state->reply_reserved == 0) {
+        panic_msg("transport: a reply spent a reservation nobody held");
+        return RT_TRANSPORT_STATUS_INVALID_ARGUMENT;
+    }
+    // The invariant every admission keeps is data_len + reply_reserved <= cap,
+    // so a held reservation IS a free physical slot.
+    state->reply_reserved--;
+    state->reply_reservations_spent++;
+    rt_transport_push_unchecked_locked(state, msg, 0);
+    return RT_TRANSPORT_STATUS_OK;
+}
+
+static void rt_transport_push_unchecked_locked(rt_transport_state* state,
+                                               const rt_transport_msg* msg,
+                                               int control) {
+    rt_transport_msg* queue = control ? state->control : state->data;
+    size_t cap = control ? RT_TRANSPORT_CONTROL_SLOT_RESERVE : RT_TRANSPORT_DATA_SLOT_CREDITS;
+    const size_t* head = control ? &state->control_head : &state->data_head;
+    size_t* len = control ? &state->control_len : &state->data_len;
     size_t index = (*head + *len) % cap;
     queue[index] = *msg;
     (*len)++;
@@ -238,7 +309,6 @@ rt_transport_push_locked(rt_transport_state* state, const rt_transport_msg* msg,
     } else if (msg->kind == RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY) {
         state->far_channel_select_replies++;
     }
-    return RT_TRANSPORT_STATUS_OK;
 }
 
 rt_transport_status

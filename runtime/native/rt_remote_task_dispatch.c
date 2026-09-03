@@ -17,6 +17,14 @@ enqueue_reply(rt_executor* ex, rt_remote_task_pending* pending, rt_transport_msg
         .generation = pending->handle.generation,
         .payload = pending,
     };
+    // A data-lane reply spends the slot its request reserved on this lane
+    // before it was admitted anywhere, so it cannot be refused for want of
+    // one. A control ack, and a reply whose reservation a racing terminal
+    // transition already released, take the ordinary path.
+    if (rt_transport_msg_kind_is_reply(kind) &&
+        rt_remote_admission_take_reservation(&pending->admission)) {
+        return rt_remote_task_transport_status(rt_transport_enqueue_reserved_reply(source, &reply));
+    }
     return rt_remote_task_transport_status(rt_remote_spawn_enqueue_with_drain(ex, source, &reply));
 }
 

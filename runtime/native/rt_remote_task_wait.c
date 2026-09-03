@@ -66,6 +66,13 @@ void rt_remote_task_fail_all_pending(rt_executor* ex, rt_remote_task_status stat
             wake_key_all_with_policy(
                 ex, rt_remote_task_reply_key(pending->request_id, pending->source_shard_id), 0);
         }
+        // No reply will be enqueued for a pending resolved here, so the slot
+        // its request reserved goes back to the lane now; and a request still
+        // parked on a slot key never left, so its registration goes too, with
+        // the message reference nothing will ever enqueue.
+        if (rt_remote_admission_abandon(ex, pending->caller_task_id, &pending->admission)) {
+            rt_remote_task_pending_release(pending);
+        }
         if (release_owner_ref) {
             rt_remote_task_pending_release(pending);
         }

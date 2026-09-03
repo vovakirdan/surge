@@ -61,6 +61,11 @@ waker_key remote_spawn_reply_key(uint64_t id, uint32_t owner_shard_id) {
     return key;
 }
 
+waker_key transport_slot_key(uint32_t shard_id) {
+    waker_key key = {WAKER_TRANSPORT_SLOT, shard_id, shard_id};
+    return key;
+}
+
 // Channel keys carry the channel's owner shard, read HERE — the only place a
 // channel key is ever built, and a place every caller reaches while holding the
 // channel (send/recv/close/select all have it live in hand). Everything

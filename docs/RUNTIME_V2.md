@@ -852,10 +852,9 @@ A byte budget is a measurement only where the transport owns the bytes: a
 serialized message, or a buffer explicitly handed over at enqueue and held until
 the target drains it. No such path exists yet, and until one does a physical
 byte credit is false precision rather than an unfinished feature.
-`RT_TRANSPORT_MSG_CREDIT_CONTROL` and the `credit_stalls` counter are reserved
-names for that path -- no site in the runtime builds a credit-control message
-and nothing increments `credit_stalls` -- so neither is a partial implementation
-of this model and neither may be read as one.
+The transport's own counters are `data_credit_stalls` and
+`control_reserve_stalls`, one per lane; the carrier bench's `credit_stalls` is
+a separate instrument over the same events and neither names a byte credit.
 
 The bound therefore carries two budgets, a data-slot credit for each pointer
 envelope and a separate control reserve, and the reserve is what a data backlog
@@ -864,15 +863,27 @@ contract failure rather than a tuning mistake, because the messages that release
 backpressure -- the credit return, the completion, the cancellation ack, the
 shutdown wake -- are exactly the ones a backlog starves, and a larger number
 moves that deadlock without removing it. The reserve carries bounded protocol
-metadata only; a completion or reply carrying arbitrary `T` is data traffic and
-is budgeted as data. The tree does not hold this line today:
-`rt_transport_msg_is_control` routes `RT_TRANSPORT_MSG_REMOTE_TASK_COMPLETION`
-and `RT_TRANSPORT_MSG_IMMEDIATE_ON_REPLY` onto the same
-`RT_TRANSPORT_CONTROL_QUEUE_CAP` entries as `RT_TRANSPORT_MSG_CREDIT_CONTROL`
-and `RT_TRANSPORT_MSG_SHUTDOWN_WAKE`, so sixteen queued completions leave the
-transport refusing the next release message with
-`RT_TRANSPORT_STATUS_QUEUE_FULL`. Credit returns may be coalesced; cancellation
-and completion records remain distinct and generation-checked.
+metadata only -- the spawn ack, the cancel request and ack, the release
+request, the shutdown wake; a completion or reply carrying arbitrary `T` is
+data traffic and is budgeted as data (`rt_transport_msg_class_of`, one arm per
+kind, no default).
+
+A reply's data slot is not taken when the reply is made but when its request
+is admitted: a request that expects a data-lane reply reserves one slot on ITS
+OWN shard's lane before it is enqueued anywhere, ordinary data admission on
+that lane counts the reservations as occupied, and the reply spends the
+reservation instead of a free credit. A committed reply therefore never finds
+the lane full; a reservation nobody spends is released by the request's
+terminal transition. And a producer that finds a data lane exhausted -- the
+target's, for its request, or its own, for the reservation -- does not see a
+refusal: the task parks on that shard's slot key (`WAKER_TRANSPORT_SLOT`), the
+crossing answers PENDING, and a data slot freed on that lane by a drain or a
+released reservation wakes it to admit again, register-then-verify like every
+other park. `RT_TRANSPORT_STATUS_QUEUE_FULL` is the lane's answer, never the
+program's; the control reserve keeps its drain-once-and-retry, because a
+control message is issued from paths that cannot park. Credit returns may be
+coalesced; cancellation and completion records remain distinct and
+generation-checked.
 
 A same-shard publication is not transport and reserves nothing: it never enters
 the inbound queue, so this bound is a cost of crossing rather than a cost of

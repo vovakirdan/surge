@@ -61,6 +61,25 @@ int rtb_wait_u32(_Atomic uint32_t* value, uint32_t expected, uint32_t attempts) 
     return 0;
 }
 
+void rtb_drain_data_lane(rt_executor* ex, uint32_t shard_id) {
+    rt_shard* owner = rt_runtime_shard(rt_executor_runtime(ex), shard_id);
+    rt_shard_lock(owner);
+    memset(owner->transport.data, 0, sizeof(owner->transport.data));
+    owner->transport.data_head = 0;
+    owner->transport.data_len = 0;
+    rt_shard_unlock(owner);
+}
+
+int rtb_wait_admission_parks(rt_shard* shard, uint64_t want, uint32_t attempts) {
+    for (uint32_t i = 0; i < attempts; i++) {
+        if (rt_transport_debug_snapshot(shard).data_admission_parks >= want) {
+            return 1;
+        }
+        rtb_sleep_us(1000);
+    }
+    return 0;
+}
+
 int rtb_wait_task_done(rt_executor* ex, uint64_t task_id, uint32_t attempts) {
     for (uint32_t i = 0; i < attempts; i++) {
         const rt_task* task = get_task(ex, task_id);

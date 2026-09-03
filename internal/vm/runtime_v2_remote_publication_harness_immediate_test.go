@@ -5,6 +5,11 @@ package vm_test
 // Modes for immediate-on and anchored-on: refusal, cancellation against a
 // window, redelivery, and the anchored happy path.
 const remotePublicationHarnessImmediate = `
+// Two refusals, one drop each. With shutdown first the submission refuses
+// before any request exists. With the lane saturated instead, the caller
+// PARKS with its state still owned by the pending, and shutdown is what
+// resolves it: the parked producer wakes, the request finishes
+// DESTINATION_SHUTDOWN, and the pending drops the state exactly once.
 static int run_immediate_refusal_drop(int shutdown_first) {
     rt_executor* ex = ensure_exec();
     remote_child_state child;
@@ -19,18 +24,30 @@ static int run_immediate_refusal_drop(int shutdown_first) {
     st.shutdown_first = shutdown_first ? 1 : 0;
     st.droppable = 1;
     drop_expected_state = box;
-    if (!await_immediate(&st)) return fail("immediate refusal await failed");
-    rt_remote_task_status want = shutdown_first ? RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN
-                                                : RT_REMOTE_TASK_STATUS_QUEUE_FULL;
-    if (st.status != want) return fail("immediate refusal status mismatch");
-    if (atomic_load_explicit(&drop_calls, memory_order_acquire) != 1) {
+    if (shutdown_first) {
+        if (!await_immediate(&st)) return fail("immediate refusal await failed");
+    } else {
+        void* caller = __task_create(POLL_IMMEDIATE_CALLER, &st, rt_channel_opaque_word_ops());
+        if (caller == NULL) return fail("immediate caller create failed");
+        if (!wait_admission_parks(ex, 0, 1, 5000)) {
+            return fail("saturated data lane did not park the immediate caller");
+        }
+        if (atomic_load_explicit(&drop_calls, memory_order_acquire) != 0) {
+            return fail("a parked immediate execute must keep its state, not drop it");
+        }
+        (void)rt_executor_request_shutdown(ex);
+        uint8_t kind = 0;
+        uint64_t bits = 0;
+        rt_task_await(caller, &kind, &bits);
+    }
+    if (st.status != RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN) {
+        return fail("immediate refusal status mismatch");
+    }
+    if (!wait_drops(1, 5000)) {
         return fail("refused immediate execute must drop the shipped state exactly once");
     }
     if (atomic_load_explicit(&child.ran, memory_order_acquire) != 0) {
         return fail("refused immediate execute must not run a body");
-    }
-    if (!shutdown_first) {
-        (void)rt_executor_request_shutdown(ex);
     }
     return 0;
 }

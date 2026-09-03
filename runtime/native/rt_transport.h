@@ -103,6 +103,12 @@ typedef struct rt_transport_state {
     size_t data_len;
     size_t control_head;
     size_t control_len;
+    // Data slots promised to replies not yet enqueued: a request that expects
+    // a reply reserves one slot on ITS OWN shard's data lane before it is
+    // admitted anywhere, the reply spends that reservation instead of a free
+    // credit, and ordinary data admission counts the reservations as
+    // occupied. A committed reply can therefore never find the lane full.
+    size_t reply_reserved;
     _Atomic uint8_t park_state;
     rt_transport_wake wake;
     uint64_t enqueue_count;
@@ -132,6 +138,13 @@ typedef struct rt_transport_state {
     uint64_t transport_wake_elisions;
     uint64_t shutdown_wakes;
     uint64_t parked_with_work_violations;
+    uint64_t reply_reservations;
+    uint64_t reply_reservation_releases;
+    uint64_t reply_reservations_spent;
+    // Producers that parked on this shard's exhausted data lane, and the
+    // wakes a freed data slot sent them.
+    uint64_t data_admission_parks;
+    uint64_t data_admission_wakes;
 } rt_transport_state;
 
 struct rt_transport_debug_snapshot {
@@ -170,6 +183,12 @@ struct rt_transport_debug_snapshot {
     uint64_t wake_drain_bytes;
     uint64_t wake_write_failures;
     uint64_t wake_drain_calls;
+    size_t reply_reserved;
+    uint64_t reply_reservations;
+    uint64_t reply_reservation_releases;
+    uint64_t reply_reservations_spent;
+    uint64_t data_admission_parks;
+    uint64_t data_admission_wakes;
 };
 
 rt_runtime_status rt_transport_state_init(rt_transport_state* state);
@@ -184,5 +203,27 @@ void rt_transport_record_remote_task_stale(rt_shard* shard);
 size_t rt_transport_drain_inbound_locked(rt_shard* shard, size_t limit);
 size_t rt_transport_inbound_len_locked(const rt_shard* shard);
 int rt_transport_reply_wait_before_task_suspend(void);
+// The five data-lane kinds that answer a request: they spend the reservation
+// the request took on the lane they land on.
+int rt_transport_msg_kind_is_reply(rt_transport_msg_kind kind);
+// Whether a kind is budgeted on the data lane (the one producers park on).
+int rt_transport_msg_is_data(rt_transport_msg_kind kind);
+// Reserves one data slot on `shard` for a reply to come; QUEUE_FULL when the
+// lane's credits and reservations already fill it (the caller parks). The
+// release gives an unspent reservation back and wakes the shard's parked
+// producers, since a slot just became free for them.
+rt_transport_status rt_transport_reserve_reply_slot(rt_shard* shard);
+void rt_transport_release_reply_slot(rt_executor* ex, rt_shard* shard);
+// Enqueues a reply that holds a reservation: it spends it and cannot be
+// refused for want of a data slot.
+rt_transport_status rt_transport_enqueue_reserved_reply(rt_shard* shard,
+                                                        const rt_transport_msg* msg);
+// Wakes every producer parked on `shard`'s data lane. Called with no shard
+// lock held, after a data slot was freed on `shard` by a drain or a released
+// reservation.
+void rt_transport_wake_slot_waiters(rt_executor* ex, rt_shard* shard);
+// Records a producer park on `shard`'s data lane (the caller registered on
+// transport_slot_key(shard->shard_id)).
+void rt_transport_record_admission_park(rt_shard* shard);
 
 #endif

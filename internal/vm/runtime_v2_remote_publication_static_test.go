@@ -128,7 +128,10 @@ func TestRuntimeV2FarSelectInitialFailurePayloadOwnershipStaticContract(t *testi
 		t.Fatal("pending-allocation failure must not also run the pre-arm payload cleanup")
 	}
 
-	enqueueFailStart := strings.Index(source, "rt_remote_task_transport_status(rt_transport_enqueue(destination, &msg));")
+	// The submission goes through the admission (rt_remote_admit.c): a full
+	// lane parks the caller and answers PENDING, so the failure path below
+	// is reached only by a hard refusal.
+	enqueueFailStart := strings.Index(source, "rt_remote_task_submit(ex, current, request);")
 	enqueueFailEnd := strings.Index(source, "// Unpins every arm the dispatch pinned")
 	if enqueueFailStart < 0 || enqueueFailEnd <= enqueueFailStart {
 		t.Fatal("could not isolate far-select initial-enqueue failure path")

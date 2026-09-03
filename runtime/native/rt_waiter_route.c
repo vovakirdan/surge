@@ -58,6 +58,7 @@ rt_waiter_store* rt_waiter_store_for_key(rt_executor* ex, waker_key key) {
 #endif
         case WAKER_REMOTE_SPAWN_REPLY:
         case WAKER_REMOTE_TASK_REPLY:
+        case WAKER_TRANSPORT_SLOT:
             return rt_executor_waiter_store_for_shard(ex, key.owner_shard_id);
         case WAKER_CHAN_SEND:
         case WAKER_CHAN_RECV:
@@ -94,6 +95,7 @@ rt_shard* rt_waiter_key_shard(rt_executor* ex, waker_key key) {
 #endif
         case WAKER_REMOTE_SPAWN_REPLY:
         case WAKER_REMOTE_TASK_REPLY:
+        case WAKER_TRANSPORT_SLOT:
             return rt_runtime_shard(rt_executor_runtime(ex), key.owner_shard_id);
         case WAKER_CHAN_SEND:
         case WAKER_CHAN_RECV:

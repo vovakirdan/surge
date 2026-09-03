@@ -161,11 +161,17 @@ func TestRuntimeV2FarSelectCancelNonCopySendArm(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse copy-control valgrind leak summary: %v\nstderr:\n%s", err, controlStderr)
 		}
-		const controlBaselineBytes = 48
-		const controlBaselineBlocks = 2
+		// The control used to lose exactly its two far-channel tokens (48 bytes
+		// in 2 blocks): the cancelled task's abandoned frame held them as
+		// fields and the frame's drop glue reclaimed no far handle
+		// (RV2-DEBT-062's shape). Since the far lease became a family the glue
+		// releases (Wave E, E3) the frame gives both back, and the control is
+		// strict zero like the subject.
+		const controlBaselineBytes = 0
+		const controlBaselineBlocks = 0
 		if controlBytesLost != controlBaselineBytes || controlBlocksLost != controlBaselineBlocks {
 			t.Fatalf(
-				"copy-control RV2-DEBT-062 baseline changed: got %dB/%d blocks, want %dB/%d blocks\nstderr:\n%s",
+				"copy-control baseline changed: got %dB/%d blocks, want %dB/%d blocks (an abandoned frame's far handles are the glue's to release)\nstderr:\n%s",
 				controlBytesLost, controlBlocksLost, controlBaselineBytes, controlBaselineBlocks, controlStderr,
 			)
 		}

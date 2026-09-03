@@ -118,6 +118,27 @@ rt_remote_spawn_status rt_remote_spawn_publish(uint32_t dst_shard_id,
             *pending = NULL;
             return status;
         }
+        if (atomic_load_explicit(&(*pending)->admission.parked, memory_order_acquire) != 0) {
+            // Parked on the target's data lane: try again now that something
+            // woke this task, and park again if the lane still refuses. A
+            // hard refusal resolves the request here.
+            rt_transport_status admitted = rt_remote_admit(ex, current, &(*pending)->admission);
+            if (admitted == RT_TRANSPORT_STATUS_UNAVAILABLE) {
+                return RT_REMOTE_SPAWN_STATUS_PENDING;
+            }
+            if (admitted != RT_TRANSPORT_STATUS_OK) {
+                remote_spawn_pending_finish(
+                    ex,
+                    *pending,
+                    rt_remote_spawn_admission_refusal(&(*pending)->admission, admitted),
+                    NULL);
+                remote_spawn_pending_release(*pending);
+                status = remote_spawn_pending_snapshot(*pending, out_handle);
+                remote_spawn_pending_consume(*pending);
+                *pending = NULL;
+                return status;
+            }
+        }
         if (remote_spawn_prepare_reply_wait(ex, current, *pending) != 0) {
             status = remote_spawn_pending_snapshot(*pending, out_handle);
             remote_spawn_pending_consume(*pending);
@@ -162,7 +183,6 @@ rt_remote_spawn_status rt_remote_spawn_publish(uint32_t dst_shard_id,
     remote_spawn_pending_link(req);
 
     *pending = req;
-    (void)remote_spawn_prepare_reply_wait(ex, current, req);
     remote_spawn_pending_add_ref(req);
     rt_transport_msg msg = {
         .kind = RT_TRANSPORT_MSG_REMOTE_SPAWN_REQUEST,
@@ -172,16 +192,23 @@ rt_remote_spawn_status rt_remote_spawn_publish(uint32_t dst_shard_id,
         .generation = 0,
         .payload = req,
     };
-    rt_remote_spawn_status status = remote_spawn_transport_status(rt_transport_enqueue(dst, &msg));
-    if (status != RT_REMOTE_SPAWN_STATUS_OK) {
-        remote_spawn_clear_reply_wait(ex, current, req->request_id, req->source_shard_id);
-        remote_spawn_pending_consume(req);
-        remote_spawn_pending_release(req);
-        *pending = NULL;
-        return status;
+    // The spawn's answer is a control ACK: the target's data lane is the one
+    // resource, and its exhaustion parks the caller rather than refusing it.
+    rt_remote_admission_init(&req->admission, &msg, 0);
+    rt_transport_status admitted = rt_remote_admit(ex, current, &req->admission);
+    if (admitted == RT_TRANSPORT_STATUS_OK) {
+        (void)remote_spawn_prepare_reply_wait(ex, current, req);
+        return RT_REMOTE_SPAWN_STATUS_PENDING;
     }
-
-    return RT_REMOTE_SPAWN_STATUS_PENDING;
+    if (admitted == RT_TRANSPORT_STATUS_UNAVAILABLE) {
+        return RT_REMOTE_SPAWN_STATUS_PENDING;
+    }
+    rt_remote_spawn_status status = remote_spawn_transport_status(admitted);
+    remote_spawn_clear_reply_wait(ex, current, req->request_id, req->source_shard_id);
+    remote_spawn_pending_consume(req);
+    remote_spawn_pending_release(req);
+    *pending = NULL;
+    return status;
 }
 
 rt_remote_spawn_status rt_remote_spawn_publish_placement(rt_placement placement,
@@ -417,6 +444,13 @@ size_t rt_remote_spawn_drain_inbound_locked(rt_executor* ex, rt_shard* shard, si
         }
         drained++;
         rt_shard_unlock(shard);
+        // The pop freed a slot in the message's lane. A producer parked on an
+        // exhausted DATA lane is woken here, with no shard lock held, before
+        // the message is even dispatched: the slot is free now, and the
+        // dispatch below may itself block on another lane.
+        if (rt_transport_msg_is_data(msg.kind)) {
+            rt_transport_wake_slot_waiters(ex, shard);
+        }
         if (msg.kind == RT_TRANSPORT_MSG_REMOTE_SPAWN_REQUEST) {
             remote_spawn_dispatch_request(ex, &msg);
         } else if (msg.kind == RT_TRANSPORT_MSG_REMOTE_SPAWN_ACK) {
@@ -479,6 +513,9 @@ void rt_remote_spawn_fail_all_pending(rt_executor* ex, rt_remote_spawn_status st
         }
         rt_shard_unlock(shard);
     }
+    // A producer parked on a lane wakes to find the executor shut down and
+    // fails its request itself; nothing else would ever wake it now.
+    rt_remote_admission_wake_all_parked(ex);
 }
 
 rt_remote_spawn_status rt_remote_spawn_handle_validate(rt_executor* ex,

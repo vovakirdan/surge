@@ -65,13 +65,18 @@ async fn run(dst: Placement, n: int) -> far Task<int> {
 	for _, want := range []string{
 		"i32 2, label",
 		"i32 3, label",
-		"i32 4, label",
 		"i32 5, label",
 		"call void @rt_panic(",
 	} {
 		if !strings.Contains(runPoll, want) {
 			t.Fatalf("spawn_on status/error path missing %q:\n%s", want, runPoll)
 		}
+	}
+	// Status 4 is the transport's QUEUE_FULL. A saturated data lane parks the
+	// publishing task (PENDING) rather than refusing it, so compiled code has
+	// no arm for it and no panic text about a full queue.
+	if strings.Contains(runPoll, "i32 4, label") || strings.Contains(ir, "queue is full") {
+		t.Fatalf("spawn_on must not dispatch on a full transport queue; the runtime parks instead:\n%s", runPoll)
 	}
 	if !regexp.MustCompile(`br label %bb\d+`).MatchString(runPoll) {
 		t.Fatalf("spawn_on poll path must branch back to MIR ready/pending blocks:\n%s", runPoll)
@@ -131,7 +136,6 @@ async fn cancel_remote(t: far Task<int>) -> TaskResult<nothing> {
 		for _, want := range []string{
 			"i32 2, label",
 			"i32 3, label",
-			"i32 4, label",
 			"i32 5, label",
 			"i32 6, label",
 			"i32 7, label",
@@ -140,6 +144,11 @@ async fn cancel_remote(t: far Task<int>) -> TaskResult<nothing> {
 			if !strings.Contains(body.text, want) {
 				t.Fatalf("far Task %s status/error path missing %q:\n%s", body.name, want, body.text)
 			}
+		}
+		// Status 4 (QUEUE_FULL) parks the task in the runtime and never
+		// reaches compiled code.
+		if strings.Contains(body.text, "i32 4, label") {
+			t.Fatalf("far Task %s must not dispatch on a full transport queue:\n%s", body.name, body.text)
 		}
 		if strings.Contains(body.text, "call void @rt_task_await") ||
 			strings.Contains(body.text, "call void @rt_task_cancel") {

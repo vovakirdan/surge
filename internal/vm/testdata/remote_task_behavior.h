@@ -264,7 +264,13 @@ int rtb_mode_anchored_pin_vs_release(void);
 int rtb_mode_anchored_helper_protocol(void);
 int rtb_mint_channel(rtb_create_state* create, uint64_t placement, uint64_t capacity);
 void rtb_anchored_audit_poll_dispatch(uint64_t id);
-int rtb_mode_anchored_queue_full(void);
+int rtb_mode_anchored_saturation_parks(void);
+// Polls a shard's data-admission park count: a producer parks from its own
+// carrier, so a driver waits for the count rather than for a status.
+int rtb_wait_admission_parks(rt_shard* shard, uint64_t want, uint32_t attempts);
+// Empties a shard's data lane by hand (the inverse of a stand's by-hand
+// saturation); the wake a real pop would send is the caller's to send.
+void rtb_drain_data_lane(rt_executor* ex, uint32_t shard_id);
 int rtb_mode_anchored_leak_audit(void);
 int rtb_mode_anchored_cross_producer_order(void);
 int rtb_mode_anchored_freed_channel_waiter(void);

@@ -157,16 +157,16 @@ func (fe *funcEmitter) emitAnchoredOnCrossing(ins *mir.CrossingInstr) error {
 
 func (fe *funcEmitter) emitAnchoredOnErrorBlocks(errBB, statusVal string) error {
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", errBB)
+	// No arm for a full transport queue: a saturated lane parks the task
+	// (PENDING) rather than refusing it, so the status never reaches here.
 	invalidBB := fe.nextInlineBlock()
 	shutdownBB := fe.nextInlineBlock()
-	queueBB := fe.nextInlineBlock()
 	refusedBB := fe.nextInlineBlock()
 	staleBB := fe.nextInlineBlock()
 	defaultBB := fe.nextInlineBlock()
 	fmt.Fprintf(&fe.emitter.buf, "  switch i32 %s, label %%%s [\n", statusVal, defaultBB)
 	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteTaskInvalidArgument, invalidBB)
 	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteTaskDestinationShutdown, shutdownBB)
-	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteTaskQueueFull, queueBB)
 	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteTaskRefused, refusedBB)
 	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteTaskStaleToken, staleBB)
 	fmt.Fprintf(&fe.emitter.buf, "  ]\n")
@@ -174,9 +174,6 @@ func (fe *funcEmitter) emitAnchoredOnErrorBlocks(errBB, statusVal string) error 
 		return err
 	}
 	if err := fe.emitPanicBlock(shutdownBB, "anchored on destination shard is shut down"); err != nil {
-		return err
-	}
-	if err := fe.emitPanicBlock(queueBB, "anchored on transport queue is full"); err != nil {
 		return err
 	}
 	if err := fe.emitPanicBlock(refusedBB, "anchored on execute request was refused"); err != nil {

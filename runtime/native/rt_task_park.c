@@ -178,9 +178,9 @@ park_requeue_locked(const rt_executor* ex, rt_shard* owner_shard, rt_task* task,
     (void)ready_push_task_locked(ex, owner_shard, task, force_inject, 0, 1);
 }
 
-void wake_key_all_with_policy(rt_executor* ex, waker_key key, int front) {
+size_t wake_key_all_with_policy(rt_executor* ex, waker_key key, int front) {
     if (ex == NULL || !waker_valid(key)) {
-        return;
+        return 0;
     }
     // Collect-then-wake (D5): pop matches under the store's lane, release,
     // then wake each task under its owner's lock. Waking under a held store
@@ -249,10 +249,11 @@ void wake_key_all_with_policy(rt_executor* ex, waker_key key, int front) {
     if (batch != inline_batch) {
         rt_free((uint8_t*)batch, (uint64_t)(batch_cap * sizeof(uint64_t)), _Alignof(uint64_t));
     }
+    return batch_len;
 }
 
 void wake_key_all(rt_executor* ex, waker_key key) {
-    wake_key_all_with_policy(ex, key, 0);
+    (void)wake_key_all_with_policy(ex, key, 0);
 }
 
 void park_current(rt_executor* ex, waker_key key) {

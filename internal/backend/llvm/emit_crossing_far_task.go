@@ -201,9 +201,10 @@ func (fe *funcEmitter) emitFarTaskLifecycleResult(
 
 func (fe *funcEmitter) emitFarTaskLifecycleErrorBlocks(method, errBB, statusVal string) error {
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", errBB)
+	// No arm for a full transport queue: a saturated lane parks the task
+	// (PENDING) rather than refusing it, so the status never reaches here.
 	invalidBB := fe.nextInlineBlock()
 	shutdownBB := fe.nextInlineBlock()
-	queueBB := fe.nextInlineBlock()
 	refusedBB := fe.nextInlineBlock()
 	staleBB := fe.nextInlineBlock()
 	consumedBB := fe.nextInlineBlock()
@@ -211,7 +212,6 @@ func (fe *funcEmitter) emitFarTaskLifecycleErrorBlocks(method, errBB, statusVal 
 	fmt.Fprintf(&fe.emitter.buf, "  switch i32 %s, label %%%s [\n", statusVal, defaultBB)
 	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteTaskInvalidArgument, invalidBB)
 	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteTaskDestinationShutdown, shutdownBB)
-	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteTaskQueueFull, queueBB)
 	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteTaskRefused, refusedBB)
 	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteTaskStaleToken, staleBB)
 	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteTaskConsumed, consumedBB)
@@ -220,9 +220,6 @@ func (fe *funcEmitter) emitFarTaskLifecycleErrorBlocks(method, errBB, statusVal 
 		return err
 	}
 	if err := fe.emitPanicBlock(shutdownBB, fmt.Sprintf("far Task.%s owner shard is shut down", method)); err != nil {
-		return err
-	}
-	if err := fe.emitPanicBlock(queueBB, fmt.Sprintf("far Task.%s transport queue is full", method)); err != nil {
 		return err
 	}
 	if err := fe.emitPanicBlock(refusedBB, fmt.Sprintf("far Task.%s remote task request was refused", method)); err != nil {

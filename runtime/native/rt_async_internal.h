@@ -748,7 +748,9 @@ int channel_wake_force_inject_enabled(void);
 void wake_key_all(rt_executor* ex, waker_key key);
 // Extracted to rt_task_park.c; external because mark_done
 // (rt_async_state.c) drains join waiters across the module boundary.
-void wake_key_all_with_policy(rt_executor* ex, waker_key key, int front);
+// Answers how many tasks it woke, so a caller that wants to count the wakes
+// it caused (the transport's slot wake) can.
+size_t wake_key_all_with_policy(rt_executor* ex, waker_key key, int front);
 void park_current(rt_executor* ex, waker_key key);
 void tick_virtual(rt_executor* ex);
 int advance_time_to_next_timer(rt_executor* ex);

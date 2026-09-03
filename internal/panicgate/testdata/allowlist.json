@@ -111,26 +111,21 @@
     },
     {
       "site": "internal/backend/llvm/emit_crossing.go::emitSpawnOnCrossing#3",
-      "message": "spawn on remote publish queue is full",
-      "group": "PG-CROSSING"
-    },
-    {
-      "site": "internal/backend/llvm/emit_crossing.go::emitSpawnOnCrossing#4",
       "message": "spawn on remote publish was refused",
       "group": "PG-CROSSING"
     },
     {
-      "site": "internal/backend/llvm/emit_crossing.go::emitSpawnOnCrossing#5",
+      "site": "internal/backend/llvm/emit_crossing.go::emitSpawnOnCrossing#4",
       "message": "spawn on placement is not supported by this backend",
       "group": "PG-CROSSING"
     },
     {
-      "site": "internal/backend/llvm/emit_crossing.go::emitSpawnOnCrossing#6",
+      "site": "internal/backend/llvm/emit_crossing.go::emitSpawnOnCrossing#5",
       "message": "spawn on placement is invalid",
       "group": "PG-CROSSING"
     },
     {
-      "site": "internal/backend/llvm/emit_crossing.go::emitSpawnOnCrossing#7",
+      "site": "internal/backend/llvm/emit_crossing.go::emitSpawnOnCrossing#6",
       "message": "spawn on remote publish failed",
       "group": "PG-CROSSING"
     },
@@ -146,21 +141,16 @@
     },
     {
       "site": "internal/backend/llvm/emit_crossing_anchored_on.go::emitAnchoredOnErrorBlocks#3",
-      "message": "anchored on transport queue is full",
-      "group": "PG-CROSSING"
-    },
-    {
-      "site": "internal/backend/llvm/emit_crossing_anchored_on.go::emitAnchoredOnErrorBlocks#4",
       "message": "anchored on execute request was refused",
       "group": "PG-CROSSING"
     },
     {
-      "site": "internal/backend/llvm/emit_crossing_anchored_on.go::emitAnchoredOnErrorBlocks#5",
+      "site": "internal/backend/llvm/emit_crossing_anchored_on.go::emitAnchoredOnErrorBlocks#4",
       "message": "anchored channel is gone: the far channel was released before the block could run",
       "group": "PG-CROSSING"
     },
     {
-      "site": "internal/backend/llvm/emit_crossing_anchored_on.go::emitAnchoredOnErrorBlocks#6",
+      "site": "internal/backend/llvm/emit_crossing_anchored_on.go::emitAnchoredOnErrorBlocks#5",
       "message": "anchored on execute request failed",
       "group": "PG-CROSSING"
     },
@@ -181,21 +171,16 @@
     },
     {
       "site": "internal/backend/llvm/emit_crossing_channel_create.go::emitChannelCreateCrossing#4",
-      "message": "channel_on transport queue is full",
-      "group": "PG-CROSSING"
-    },
-    {
-      "site": "internal/backend/llvm/emit_crossing_channel_create.go::emitChannelCreateCrossing#5",
       "message": "channel_on create request was refused",
       "group": "PG-CROSSING"
     },
     {
-      "site": "internal/backend/llvm/emit_crossing_channel_create.go::emitChannelCreateCrossing#6",
+      "site": "internal/backend/llvm/emit_crossing_channel_create.go::emitChannelCreateCrossing#5",
       "message": "channel_on placement is not supported by this backend",
       "group": "PG-CROSSING"
     },
     {
-      "site": "internal/backend/llvm/emit_crossing_channel_create.go::emitChannelCreateCrossing#7",
+      "site": "internal/backend/llvm/emit_crossing_channel_create.go::emitChannelCreateCrossing#6",
       "message": "channel_on create request failed",
       "group": "PG-CROSSING"
     },
@@ -230,11 +215,6 @@
       "group": "PG-COMPUTED"
     },
     {
-      "site": "internal/backend/llvm/emit_crossing_far_task.go::emitFarTaskLifecycleErrorBlocks#7",
-      "message": "\u003ccomputed\u003e",
-      "group": "PG-COMPUTED"
-    },
-    {
       "site": "internal/backend/llvm/emit_crossing_immediate_on.go::emitImmediateOnErrorBlocks#1",
       "message": "on crossing requires an async task context",
       "group": "PG-CROSSING"
@@ -246,26 +226,21 @@
     },
     {
       "site": "internal/backend/llvm/emit_crossing_immediate_on.go::emitImmediateOnErrorBlocks#3",
-      "message": "on transport queue is full",
-      "group": "PG-CROSSING"
-    },
-    {
-      "site": "internal/backend/llvm/emit_crossing_immediate_on.go::emitImmediateOnErrorBlocks#4",
       "message": "on execute request was refused",
       "group": "PG-CROSSING"
     },
     {
-      "site": "internal/backend/llvm/emit_crossing_immediate_on.go::emitImmediateOnErrorBlocks#5",
+      "site": "internal/backend/llvm/emit_crossing_immediate_on.go::emitImmediateOnErrorBlocks#4",
       "message": "on execute token is stale",
       "group": "PG-CROSSING"
     },
     {
-      "site": "internal/backend/llvm/emit_crossing_immediate_on.go::emitImmediateOnErrorBlocks#6",
+      "site": "internal/backend/llvm/emit_crossing_immediate_on.go::emitImmediateOnErrorBlocks#5",
       "message": "on placement is not supported by this backend",
       "group": "PG-CROSSING"
     },
     {
-      "site": "internal/backend/llvm/emit_crossing_immediate_on.go::emitImmediateOnErrorBlocks#7",
+      "site": "internal/backend/llvm/emit_crossing_immediate_on.go::emitImmediateOnErrorBlocks#6",
       "message": "on execute request failed",
       "group": "PG-CROSSING"
     },
@@ -281,21 +256,16 @@
     },
     {
       "site": "internal/backend/llvm/emit_crossing_select.go::emitChannelSelectCrossing#3",
-      "message": "remote select transport queue is full",
-      "group": "PG-CROSSING"
-    },
-    {
-      "site": "internal/backend/llvm/emit_crossing_select.go::emitChannelSelectCrossing#4",
       "message": "remote select request was refused",
       "group": "PG-CROSSING"
     },
     {
-      "site": "internal/backend/llvm/emit_crossing_select.go::emitChannelSelectCrossing#5",
+      "site": "internal/backend/llvm/emit_crossing_select.go::emitChannelSelectCrossing#4",
       "message": "remote select arm lease was already released; a released holder cannot select",
       "group": "PG-CROSSING"
     },
     {
-      "site": "internal/backend/llvm/emit_crossing_select.go::emitChannelSelectCrossing#6",
+      "site": "internal/backend/llvm/emit_crossing_select.go::emitChannelSelectCrossing#5",
       "message": "remote select request failed",
       "group": "PG-CROSSING"
     },
@@ -311,21 +281,16 @@
     },
     {
       "site": "internal/backend/llvm/emit_crossing_share.go::emitChannelShareCrossing#3",
-      "message": "share transport queue is full",
-      "group": "PG-CROSSING"
-    },
-    {
-      "site": "internal/backend/llvm/emit_crossing_share.go::emitChannelShareCrossing#4",
       "message": "share request was refused",
       "group": "PG-CROSSING"
     },
     {
-      "site": "internal/backend/llvm/emit_crossing_share.go::emitChannelShareCrossing#5",
+      "site": "internal/backend/llvm/emit_crossing_share.go::emitChannelShareCrossing#4",
       "message": "share source lease was already released; a released holder cannot propagate access",
       "group": "PG-CROSSING"
     },
     {
-      "site": "internal/backend/llvm/emit_crossing_share.go::emitChannelShareCrossing#6",
+      "site": "internal/backend/llvm/emit_crossing_share.go::emitChannelShareCrossing#5",
       "message": "share request failed",
       "group": "PG-CROSSING"
     },
@@ -1610,6 +1575,16 @@
       "group": "PG-INVARIANT"
     },
     {
+      "site": "runtime/native/rt_remote_admit.c::rt_transport_release_reply_slot#1",
+      "message": "transport: reply slot release while holding a shard lock",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_remote_admit.c::rt_transport_wake_slot_waiters#1",
+      "message": "transport: slot wake while holding a shard lock",
+      "group": "PG-INVARIANT"
+    },
+    {
       "site": "runtime/native/rt_remote_spawn.c::rt_remote_spawn_drain_inbound_locked#1",
       "message": "remote spawn: unsupported transport message kind",
       "group": "PG-INVARIANT"
@@ -1745,12 +1720,22 @@
       "group": "PG-ALLOC-FAILURE"
     },
     {
+      "site": "runtime/native/rt_transport.c::rt_transport_push_reserved_reply_locked#1",
+      "message": "transport: a reply spent a reservation nobody held",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_transport.c::rt_transport_release_reply_slot_locked#1",
+      "message": "transport: reply slot released more times than it was reserved",
+      "group": "PG-INVARIANT"
+    },
+    {
       "site": "runtime/native/rt_transport_debug.c::rt_transport_debug_snapshot#1",
       "message": "transport: debug snapshot while holding another shard lock",
       "group": "PG-INVARIANT"
     },
     {
-      "site": "runtime/native/rt_transport_park.c::rt_transport_enqueue#1",
+      "site": "runtime/native/rt_transport_park.c::rt_transport_enqueue_with#1",
       "message": "transport: enqueue while holding another shard lock",
       "group": "PG-INVARIANT"
     },
@@ -1762,6 +1747,11 @@
     {
       "site": "runtime/native/rt_transport_park.c::rt_transport_prepare_shard_park#1",
       "message": "transport: park while holding another shard lock",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_transport_park.c::rt_transport_reserve_reply_slot#1",
+      "message": "transport: reply slot reservation while holding another shard lock",
       "group": "PG-INVARIANT"
     },
     {

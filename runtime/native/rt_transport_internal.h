@@ -16,5 +16,10 @@ rt_transport_status
 rt_transport_push_locked(rt_transport_state* state, const rt_transport_msg* msg, int control);
 rt_transport_status
 rt_transport_pop_locked(rt_transport_state* state, rt_transport_msg* out, int control);
+// A reply that holds a reservation on this lane: spends it, never refused.
+rt_transport_status rt_transport_push_reserved_reply_locked(rt_transport_state* state,
+                                                            const rt_transport_msg* msg);
+rt_transport_status rt_transport_reserve_reply_slot_locked(rt_transport_state* state);
+void rt_transport_release_reply_slot_locked(rt_transport_state* state);
 
 #endif // SURGE_RUNTIME_NATIVE_RT_TRANSPORT_INTERNAL_H

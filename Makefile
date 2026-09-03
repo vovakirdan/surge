@@ -436,7 +436,7 @@ runtime-v2-transport-check: runtime-v2-transport-contract-check
 runtime-v2-transport-contract-check:
 	$(GUARD) runtime-v2-transport-contract-check
 	@echo ">> Running Runtime V2 transport contract gate"
-	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Transport(SeamStaticShape|SpineBehavior|SyncPointAllowlistShape|ProbeRowsDocumented|SlotCreditReserve)$$' -count=1 -parallel=1 -p=1 -v --timeout 60s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Transport(SeamStaticShape|SpineBehavior|SyncPointAllowlistShape|ProbeRowsDocumented|SlotCreditReserve|SaturationParkNegativeControl)$$' -count=1 -parallel=1 -p=1 -v --timeout 180s
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_transport_spine ./internal/vm -run '^TestRuntimeV2TransportSpineAcceptanceRows$$' -count=1 -parallel=1 -p=1 -v --timeout 120s
 	@echo ">> Running Runtime V2 remote task acceptance gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2Remote(TaskBehavior|TaskReplyValidationIsGenerationQualified|TaskSourcesRespectFileLimit|TaskStateHasInitRollbackPair|ChannelSelfDeadlockPanics|StateHandoffStaticContract|SpawnAbandonEdges|SpawnStaleGenerationRows|SelectAbandonEdges|Publication(APIShape|Behavior|FailurePathStaticGuards))$$|^TestRuntimeV2FarSelectInitialFailurePayloadOwnershipStaticContract$$|^TestRuntimeV2ImmediateOnAbandonEdges$$|^TestRuntimeV2TransportReplyWaitersHaveExplicitShardRouting$$|^TestRemotePublicationHarness(ReportsCancellationRunError|CancellationConsumerHelper)$$' -count=1 -parallel=1 -p=1 -v --timeout 300s

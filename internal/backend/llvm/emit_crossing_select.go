@@ -260,16 +260,16 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%bb%d\n", ins.ReadyBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", errBB)
+	// No arm for a full transport queue: a saturated lane parks the task
+	// (PENDING) rather than refusing it, so the status never reaches here.
 	invalidBB := fe.nextInlineBlock()
 	shutdownBB := fe.nextInlineBlock()
-	queueBB := fe.nextInlineBlock()
 	refusedBB := fe.nextInlineBlock()
 	staleBB := fe.nextInlineBlock()
 	defaultBB := fe.nextInlineBlock()
 	fmt.Fprintf(&fe.emitter.buf, "  switch i32 %s, label %%%s [\n", statusVal, defaultBB)
 	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteTaskInvalidArgument, invalidBB)
 	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteTaskDestinationShutdown, shutdownBB)
-	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteTaskQueueFull, queueBB)
 	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteTaskRefused, refusedBB)
 	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteTaskStaleToken, staleBB)
 	fmt.Fprintf(&fe.emitter.buf, "  ]\n")
@@ -279,9 +279,6 @@ func (fe *funcEmitter) emitChannelSelectCrossing(ins *mir.CrossingInstr) error {
 		return err
 	}
 	if err := fe.emitPanicBlock(shutdownBB, "remote select destination shard is shut down"); err != nil {
-		return err
-	}
-	if err := fe.emitPanicBlock(queueBB, "remote select transport queue is full"); err != nil {
 		return err
 	}
 	if err := fe.emitPanicBlock(refusedBB, "remote select request was refused"); err != nil {

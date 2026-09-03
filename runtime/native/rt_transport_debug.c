@@ -42,6 +42,12 @@ static struct rt_transport_debug_snapshot snapshot_locked(const rt_shard* shard)
     snapshot.wake_drain_bytes = state->wake.drain_bytes;
     snapshot.wake_write_failures = state->wake.write_failures;
     snapshot.wake_drain_calls = state->wake.drain_calls;
+    snapshot.reply_reserved = state->reply_reserved;
+    snapshot.reply_reservations = state->reply_reservations;
+    snapshot.reply_reservation_releases = state->reply_reservation_releases;
+    snapshot.reply_reservations_spent = state->reply_reservations_spent;
+    snapshot.data_admission_parks = state->data_admission_parks;
+    snapshot.data_admission_wakes = state->data_admission_wakes;
     return snapshot;
 }
 

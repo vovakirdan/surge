@@ -132,6 +132,13 @@ void remote_spawn_pending_fail_all(rt_executor* ex, rt_remote_spawn_status statu
             return;
         }
         remote_spawn_pending_finish(ex, pending, status, NULL);
+        // A request still parked on the target's data lane never left: its
+        // registration goes, and so does the message reference nothing will
+        // ever enqueue -- once, between this sweep and the caller's own
+        // retry, whichever ends the park.
+        if (rt_remote_admission_abandon(ex, pending->caller_task_id, &pending->admission)) {
+            remote_spawn_pending_release(pending);
+        }
         remote_spawn_pending_release(pending);
     }
 }
@@ -145,6 +152,7 @@ int rt_remote_spawn_abandon_handle(const rt_far_task_handle* out_handle) {
     int drop_caller_ref = 0;
     int retire_reply_wait = 0;
     int drop_retire_ref = 0;
+    int abandon_admission = 0;
     pthread_mutex_lock(&remote_spawn_lock);
     for (rt_remote_spawn_pending* it = remote_spawn_pending_head; it != NULL; it = it->next) {
         if (it->out_handle != out_handle) {
@@ -152,6 +160,10 @@ int rt_remote_spawn_abandon_handle(const rt_far_task_handle* out_handle) {
         }
         found = it;
         it->out_handle = NULL;
+        // A request still parked on the target's data lane never left, and
+        // its caller is gone: nothing will enqueue it now. Resolved below,
+        // outside this lock, as a refusal nobody reads.
+        abandon_admission = atomic_load_explicit(&it->admission.parked, memory_order_acquire) != 0;
         // Abandon and terminal finish race under this one owner lock.  If
         // abandon observes PENDING it owns reply-wait retirement now; a later
         // finish sees `abandoned` and skips its wake.  If finish won first,
@@ -189,6 +201,13 @@ int rt_remote_spawn_abandon_handle(const rt_far_task_handle* out_handle) {
 #else
     (void)retire_reply_wait;
 #endif
+    if (abandon_admission &&
+        rt_remote_admission_abandon(found->executor, found->caller_task_id, &found->admission)) {
+        remote_spawn_pending_finish(found->executor, found, RT_REMOTE_SPAWN_STATUS_REFUSED, NULL);
+        // The message reference the submission took for an envelope that
+        // will never be enqueued.
+        remote_spawn_pending_release(found);
+    }
     if (drop_retire_ref) {
         remote_spawn_pending_release(found);
     }

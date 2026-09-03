@@ -63,6 +63,14 @@ static rt_remote_task_status start_remote_task(rt_remote_task_op op,
         if (status != RT_REMOTE_TASK_STATUS_PENDING) {
             return finish_retry(pending, out_kind, out_dst);
         }
+        switch (rt_remote_task_retry_admission(ex, current, *pending)) {
+            case RT_REMOTE_ADMISSION_PARKED:
+                return RT_REMOTE_TASK_STATUS_PENDING;
+            case RT_REMOTE_ADMISSION_FINISHED:
+                return finish_retry(pending, out_kind, out_dst);
+            default:
+                break;
+        }
         if (rt_remote_task_prepare_reply_wait(ex, current, *pending) != 0) {
             return finish_retry(pending, out_kind, out_dst);
         }
@@ -101,7 +109,6 @@ static rt_remote_task_status start_remote_task(rt_remote_task_op op,
     request->caller_task_id = current->id;
     request->result_type_id = result_type_id;
     *pending = request;
-    (void)rt_remote_task_prepare_reply_wait(ex, current, request);
     rt_remote_task_pending_add_ref(request);
     rt_transport_msg_kind kind = op == RT_REMOTE_TASK_OP_AWAIT
                                      ? RT_TRANSPORT_MSG_REMOTE_TASK_AWAIT_REQUEST
@@ -114,10 +121,12 @@ static rt_remote_task_status start_remote_task(rt_remote_task_op op,
         .generation = handle->generation,
         .payload = request,
     };
-    rt_remote_task_status status =
-        rt_remote_task_transport_status(rt_transport_enqueue(owner, &msg));
-    if (status == RT_REMOTE_TASK_STATUS_OK) {
-        return RT_REMOTE_TASK_STATUS_PENDING;
+    // An await is answered on the data lane and reserves its reply's slot; a
+    // cancel is answered by a control ack and reserves nothing.
+    rt_remote_admission_init(&request->admission, &msg, op == RT_REMOTE_TASK_OP_AWAIT);
+    rt_remote_task_status status = rt_remote_task_submit(ex, current, request);
+    if (status == RT_REMOTE_TASK_STATUS_PENDING) {
+        return status;
     }
     rt_remote_task_clear_reply_wait(ex, current, request);
     rt_remote_task_pending_consume(request);
@@ -225,6 +234,13 @@ void rt_remote_task_release_owned(rt_executor* ex, const rt_task* caller) {
         // its normal ref/cleanup route.  Retire only the independent reply-wait
         // lifecycle, then unlink the caller-owned registry reference.
         rt_remote_task_pending_retire_reply_wait(ex, pending);
+        // A request still parked on a slot key never left: nothing will
+        // enqueue it now, so its registration, its reservation and the
+        // message reference go with the caller.
+        if (rt_remote_admission_abandon(ex, caller->id, &pending->admission)) {
+            rt_remote_task_pending_finish(ex, pending, RT_REMOTE_TASK_STATUS_REFUSED, 2, NULL);
+            rt_remote_task_pending_release(pending);
+        }
         rt_remote_task_pending_consume(pending);
     }
 }

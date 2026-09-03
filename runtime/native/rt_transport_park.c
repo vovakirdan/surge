@@ -32,8 +32,8 @@ static void rt_transport_worker_wake_locked(rt_shard* shard) {
     pthread_cond_signal(&shard->worker_cv);
 }
 
-static rt_transport_status rt_transport_enqueue_locked(rt_shard* shard,
-                                                       const rt_transport_msg* msg) {
+static rt_transport_status
+rt_transport_enqueue_locked(rt_shard* shard, const rt_transport_msg* msg, int reserved_reply) {
     if (shard == NULL || msg == NULL) {
         return RT_TRANSPORT_STATUS_INVALID_ARGUMENT;
     }
@@ -42,7 +42,9 @@ static rt_transport_status rt_transport_enqueue_locked(rt_shard* shard,
         return RT_TRANSPORT_STATUS_INVALID_ARGUMENT;
     }
     rt_transport_status status =
-        rt_transport_push_locked(&shard->transport, msg, cls == RT_TRANSPORT_MSG_CLASS_CONTROL);
+        reserved_reply ? rt_transport_push_reserved_reply_locked(&shard->transport, msg)
+                       : rt_transport_push_locked(
+                             &shard->transport, msg, cls == RT_TRANSPORT_MSG_CLASS_CONTROL);
     if (status != RT_TRANSPORT_STATUS_OK) {
         return status;
     }
@@ -73,21 +75,70 @@ static rt_transport_status rt_transport_enqueue_locked(rt_shard* shard,
     return RT_TRANSPORT_STATUS_OK;
 }
 
-rt_transport_status rt_transport_enqueue(rt_shard* shard, const rt_transport_msg* msg) {
+static rt_transport_status
+rt_transport_enqueue_with(rt_shard* shard, const rt_transport_msg* msg, int reserved_reply) {
     if (shard == NULL || msg == NULL) {
         return RT_TRANSPORT_STATUS_INVALID_ARGUMENT;
     }
     if (rt_lane_holds_shard(shard->shard_id)) {
-        return rt_transport_enqueue_locked(shard, msg);
+        return rt_transport_enqueue_locked(shard, msg, reserved_reply);
     }
     if (rt_lane_holds_any_shard()) {
         panic_msg("transport: enqueue while holding another shard lock");
         return RT_TRANSPORT_STATUS_INVALID_ARGUMENT;
     }
     rt_shard_lock(shard);
-    rt_transport_status status = rt_transport_enqueue_locked(shard, msg);
+    rt_transport_status status = rt_transport_enqueue_locked(shard, msg, reserved_reply);
     rt_shard_unlock(shard);
     return status;
+}
+
+rt_transport_status rt_transport_enqueue(rt_shard* shard, const rt_transport_msg* msg) {
+    return rt_transport_enqueue_with(shard, msg, 0);
+}
+
+rt_transport_status rt_transport_enqueue_reserved_reply(rt_shard* shard,
+                                                        const rt_transport_msg* msg) {
+    return rt_transport_enqueue_with(shard, msg, 1);
+}
+
+rt_transport_status rt_transport_reserve_reply_slot(rt_shard* shard) {
+    if (shard == NULL) {
+        return RT_TRANSPORT_STATUS_INVALID_ARGUMENT;
+    }
+    if (rt_lane_holds_shard(shard->shard_id)) {
+        return rt_transport_reserve_reply_slot_locked(&shard->transport);
+    }
+    if (rt_lane_holds_any_shard()) {
+        panic_msg("transport: reply slot reservation while holding another shard lock");
+        return RT_TRANSPORT_STATUS_INVALID_ARGUMENT;
+    }
+    rt_shard_lock(shard);
+    rt_transport_status status = rt_transport_reserve_reply_slot_locked(&shard->transport);
+    rt_shard_unlock(shard);
+    return status;
+}
+
+int rt_transport_msg_is_data(rt_transport_msg_kind kind) {
+    return rt_transport_msg_class_of(kind) == RT_TRANSPORT_MSG_CLASS_DATA;
+}
+
+// rt_transport_wake_slot_waiters and rt_transport_release_reply_slot live in
+// rt_remote_admit.c: they wake tasks through the waiter store, and the
+// transport's own stands link the queues without a scheduler.
+
+void rt_transport_record_admission_park(rt_shard* shard) {
+    if (shard == NULL) {
+        return;
+    }
+    int need_lock = !rt_lane_holds_shard(shard->shard_id);
+    if (need_lock) {
+        rt_shard_lock(shard);
+    }
+    shard->transport.data_admission_parks++;
+    if (need_lock) {
+        rt_shard_unlock(shard);
+    }
 }
 
 // A wake byte is written only under this shard's lock, and only immediately

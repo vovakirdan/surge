@@ -151,9 +151,10 @@ func (fe *funcEmitter) emitImmediateOnCrossing(ins *mir.CrossingInstr) error {
 
 func (fe *funcEmitter) emitImmediateOnErrorBlocks(errBB, statusVal string) error {
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", errBB)
+	// No arm for a full transport queue: a saturated lane parks the task
+	// (PENDING) rather than refusing it, so the status never reaches here.
 	invalidBB := fe.nextInlineBlock()
 	shutdownBB := fe.nextInlineBlock()
-	queueBB := fe.nextInlineBlock()
 	refusedBB := fe.nextInlineBlock()
 	staleBB := fe.nextInlineBlock()
 	unsupportedBB := fe.nextInlineBlock()
@@ -161,7 +162,6 @@ func (fe *funcEmitter) emitImmediateOnErrorBlocks(errBB, statusVal string) error
 	fmt.Fprintf(&fe.emitter.buf, "  switch i32 %s, label %%%s [\n", statusVal, defaultBB)
 	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteTaskInvalidArgument, invalidBB)
 	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteTaskDestinationShutdown, shutdownBB)
-	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteTaskQueueFull, queueBB)
 	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteTaskRefused, refusedBB)
 	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteTaskStaleToken, staleBB)
 	fmt.Fprintf(&fe.emitter.buf, "    i32 %d, label %%%s\n", rtRemoteTaskUnsupportedPlacement, unsupportedBB)
@@ -170,9 +170,6 @@ func (fe *funcEmitter) emitImmediateOnErrorBlocks(errBB, statusVal string) error
 		return err
 	}
 	if err := fe.emitPanicBlock(shutdownBB, "on destination shard is shut down"); err != nil {
-		return err
-	}
-	if err := fe.emitPanicBlock(queueBB, "on transport queue is full"); err != nil {
 		return err
 	}
 	if err := fe.emitPanicBlock(refusedBB, "on execute request was refused"); err != nil {

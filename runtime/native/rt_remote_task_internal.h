@@ -2,6 +2,7 @@
 #define SURGE_RUNTIME_NATIVE_RT_REMOTE_TASK_INTERNAL_H
 
 #include "rt_async_internal.h"
+#include "rt_remote_admit.h"
 #include "rt_remote_task.h"
 #include "rt_task_result.h"
 
@@ -92,6 +93,10 @@ struct rt_remote_task_pending {
     uint8_t reply_wait_retired;
     uint8_t cancel_routed;
     uint64_t caller_task_id;
+    // How this request got, or is still getting, onto the transport: the
+    // envelope for a parked retry, the reply-slot reservation it holds on
+    // its own shard, and whether the caller is parked on a slot key.
+    rt_remote_admission admission;
     uint64_t body_poll_fn_id;
     void* body_state;
     // Drop obligation for a droppable shipped body state: the
@@ -252,6 +257,24 @@ rt_immediate_on_finish_retry(rt_remote_task_pending** slot, uint8_t* out_kind, v
 void rt_immediate_on_cancel_inflight(rt_executor* ex, rt_remote_task_pending* pending);
 // Gives back an anchored pending's pin on its anchor, once (see anchor_pinned).
 void rt_immediate_on_anchor_unpin(rt_executor* ex, rt_remote_task_pending* pending);
+// A request's first submission (rt_remote_admit.c): admitted -> the reply wait
+// is registered and PENDING is answered; parked -> PENDING, the caller polls
+// again on wake; refused -> the mapped status, the caller cleans up.
+rt_remote_task_status
+rt_remote_task_submit(rt_executor* ex, rt_task* current, rt_remote_task_pending* request);
+// The poll of a pending whose admission may still be parked. ADMITTED means
+// the request is on its way (now, or was already): register the reply wait
+// and answer PENDING as before. PARKED means answer PENDING. FINISHED means
+// the pending was resolved here (cancelled caller, hard refusal): consume it
+// through the family's finish_retry.
+enum {
+    RT_REMOTE_ADMISSION_ADMITTED = 0,
+    RT_REMOTE_ADMISSION_PARKED = 1,
+    RT_REMOTE_ADMISSION_FINISHED = 2,
+};
+int rt_remote_task_retry_admission(rt_executor* ex,
+                                   rt_task* current,
+                                   rt_remote_task_pending* pending);
 // The reply that NAMES a task result rather than carrying one. `result_source`
 // may be NULL for replies that carry no value at all.
 void rt_remote_task_reply_or_finish_with_result(rt_executor* ex,
