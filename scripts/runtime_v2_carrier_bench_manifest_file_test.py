@@ -99,6 +99,19 @@ class CanonicalManifestTests(unittest.TestCase):
         # unpinned, not the row: an unpinned binary reads 343 then 350 where a
         # binary given the manifest's own shards, threads and blocking threads
         # reads one number and repeats it.
+        #
+        # RE-CAPTURED 2026-09-03 (RV2-DEBT-329). The first paired run since the
+        # budgets were pinned on 2026-08-30 refused the tree at blocking-composite,
+        # 344 against 341, and a one-run sweep of every budgeted row read the
+        # same shape everywhere: +2 on every row that starts the executor, +3 on
+        # every row whose task also joins a scope, 0 on the rows that never
+        # spawn. The three are one-time allocations of the executor's lazy
+        # initialisation, which lands inside warmup batch 0: the two
+        # worker_wake_pending arrays (one per shard scheduler, D4.6, 1ba55ecd)
+        # and the first growth of the scope's children array (a connection
+        # child is counted by its scope since c9c083e2). Structure, not per-op
+        # cost; named by an rt_alloc site census under gdb on 8b12beb3,
+        # 71bd0674 and HEAD, so the twenty rows below move by exactly that.
         nonzero_allocations = {
             row.row_id: row.candidate_structural_allocations_per_batch
             for row in self.manifest.rows
@@ -109,34 +122,34 @@ class CanonicalManifestTests(unittest.TestCase):
             {
                 "array-grow-composite": 7,
                 "array-grow-scalar": 7,
-                "blocking-composite": 341,
-                "blocking-scalar": 213,
-                "channel-buffered-composite": 14,
-                "channel-buffered-scalar": 14,
+                "blocking-composite": 344,
+                "blocking-scalar": 216,
+                "channel-buffered-composite": 16,
+                "channel-buffered-scalar": 16,
                 "channel-unbuffered-composite": 4,
                 "channel-unbuffered-scalar": 4,
-                "far-channel-composite": 410,
-                "far-channel-scalar": 410,
-                "far-immediate-composite": 277,
-                "far-immediate-scalar": 149,
-                "far-large-payload-contention": 657,
-                "far-large-capture": 661,
-                "far-large-result": 405,
-                "far-select-composite": 415,
-                "far-select-scalar": 415,
-                "far-share-control": 217,
-                "far-task-composite": 405,
-                "far-task-scalar": 277,
+                "far-channel-composite": 413,
+                "far-channel-scalar": 413,
+                "far-immediate-composite": 280,
+                "far-immediate-scalar": 152,
+                "far-large-payload-contention": 659,
+                "far-large-capture": 664,
+                "far-large-result": 408,
+                "far-select-composite": 418,
+                "far-select-scalar": 418,
+                "far-share-control": 220,
+                "far-task-composite": 408,
+                "far-task-scalar": 280,
                 "map-insert-composite": 4,
                 "map-insert-scalar": 4,
                 "map-rehash-composite": 4,
                 "map-rehash-scalar": 4,
                 "select-send-composite": 6,
                 "select-send-scalar": 6,
-                "task-clone-composite": 277,
-                "task-clone-scalar": 213,
-                "task-composite": 277,
-                "task-scalar": 213,
+                "task-clone-composite": 279,
+                "task-clone-scalar": 215,
+                "task-composite": 279,
+                "task-scalar": 215,
             },
         )
         self.assertFalse(

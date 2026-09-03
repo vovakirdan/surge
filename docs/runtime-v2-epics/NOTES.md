@@ -14047,7 +14047,27 @@ changed count on an existing site, not yet named) and +2 at D4.6 (the
 `worker_wake_pending` array, once per scheduler, and the exit sweep's
 `pinned` scratch array, `rt_alloc(len * 8)` per carrier at exit).
 RV2-DEBT-329 holds it; the budget is not re-pinned here, because a pin
-moves only with a census that names what moved it. Two instrument notes
+moves only with a census that names what moved it.
+
+**Named, later the same day.** The census: `gdb -batch` with a breakpoint
+on `rt_alloc` and four frames per hit, one run of the fixture at the
+manifest's topology, on three trees:
+
+| tree | `rt_alloc` calls | what differs |
+| --- | ---: | --- |
+| `8b12beb3` | 638 | -- |
+| `71bd0674` | 639 | +1 `rt_realloc` in the scope child list's first growth (`rt_async_state.c`, `children_cap` 0 → 4) |
+| HEAD | 641 | +2 `rt_shard_scheduler_init` (`rt_runtime.c`) 2 → 4, one `worker_wake_pending` array per shard scheduler |
+
+All three are one-time allocations of the executor's lazy initialisation,
+which the first `__task_create` runs inside warmup batch 0 -- structure,
+not per-operation cost. The inline exit-sweep buffer (`c7c6447e`) moved
+nothing, as the census predicts (the sweep runs after the last read). A
+one-run sweep of all thirty budgeted rows on HEAD read the shape whole:
++2 on the ten rows that start the executor without a scope, +3 on the ten
+whose task also joins one, 0 on the ten that never spawn a task. The
+twenty are re-pinned to what the structure is, manifest and the test's
+deliberate second copy together, and DEBT-329 is closed on that. Two instrument notes
 from the same runs: the pre-wave SHA, past the budget, died of
 `array-grow-composite base throughput CV 0.081921 exceeds 0.050000`
 because valgrind rows were running beside it on cores 4-7 -- the protocol
