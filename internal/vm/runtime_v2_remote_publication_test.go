@@ -158,11 +158,10 @@ func TestRuntimeV2RemoteSpawnAbandonEdges(t *testing.T) {
 		env  []string
 	}{
 		{
-			name: "refusal-queue-full-drops-once",
-			mode: "refusal-drop-queue-full",
-			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1"),
-		},
-		{
+			// The queue-full twin of this row is gone with the refusal it
+			// asserted: a saturated lane parks the publisher, and the
+			// parked-then-shut-down drop-once is the behaviour table's
+			// queue-full row.
 			name: "refusal-shutdown-drops-once",
 			mode: "refusal-drop-shutdown",
 			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1"),

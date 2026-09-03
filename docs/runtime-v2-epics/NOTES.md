@@ -12707,6 +12707,58 @@ is 5/5 green on WSL2. Rule: a rate before a bisect. `http_diff.sh` runs the
 row twenty times on `479a75e6` and twenty on `91c41e43`, sequentially and
 alone on the box; the two counts decide whether D6 owns it.
 
+**The HTTP differential, read.** `479a75e6`: 1 fail of 20. `91c41e43`: 0 of
+20. The red predates D6 and is a pre-existing flake of the HTTP server row;
+D6 does not own it, and nothing in this wave does.
+
+**The rows on `c38e4275`, as they landed (all on the runner, one queue).**
+`baseline.sh` (`go test ./...`, SURGE_STDLIB at the root): 0 red. W8 ×5:
+5/5 green, 860/851/852/854/852 s. `file-size --committed`: PASS,
+`violations=0`. `golden-check` twice and `golden-corpus-determinism`: green,
+148/148/147 s. `behaviour-check-all`: green, 327 s. The MT corpus at
+2/4/8 × 5 repeats (llvm): green, 121 s. `TestLLVMParity` at 1×1: green.
+The carrier census pair: green. The sanitizer lane: green, 115 s -- it is
+`make runtime-v2-carrier-sanitizer-check`, six `go test` groups (ASan/UBSan,
+TSan, the realloc rows); the plan's "13 valgrind rows, 2100 s" describes no
+target in this tree, and the number is recorded here as what the target
+actually is.
+
+**Two instrument defects, found by the rows themselves.** The topology rows
+drove `TestLLVMParity` under `SURGE_SHARDS`/`SURGE_THREADS`, and the parity
+harness pins `SURGE_THREADS=1` for every program (`envForParity`): 1×8
+measured 1×1 and read green for nothing, 8×8 refused at runtime start on
+every program (`async: SURGE_THREADS must equal SURGE_SHARDS when
+SURGE_SHARDS>1`, rc=1, fourteen leaves). Neither was a runtime red. They are
+re-done by `queue_topo.sh` over the `TestRuntimeV2*` family, which inherits
+the environment unless a test sets its own matrix. The tagged-suite row
+forced `SURGE_BACKEND=llvm` over the WHOLE `internal/vm` package, and six
+VM-only tests (panic text, imported magic operators, the MT executor) read
+that as their own failure (rc=1, 1162 s); the Makefile's tagged sub-gates
+force the backend only over `TestRuntimeV2*`. Re-done by `queue_tagged.sh`
+as two rows: the tagged package with no backend override, and the
+`TestRuntimeV2*` family under llvm.
+
+**The campaign is red, and the red is a known open window.** 1000 repeats of
+`TestRuntimeV2(FailfastJoinAnswersCancelled|TimeoutTargetAnswersCancelledToEveryHandle)`,
+llvm, `SURGE_SKIP_TIMEOUT_TESTS=0`, `taskset -c 8-15`, the rest of the box
+idle, every failing log kept: after 454 runs, 16 red (3.5 %), 0 vacuous,
+every one of them `FailfastJoinAnswersCancelled/llvm/threads-4: exit=13 --
+the second @failfast block (both children cancelled before they ran)
+resolved Success`. That is RV2-DEBT-261's program-level row and the
+RV2-DEBT-263 window (a cancelled child committing Success, so fail-fast
+never fires), both Open; 263 records a third window still open after
+RV2-DEBT-265 was refuted by measurement, and RV2-DEBT-266/280/283 name the
+one remaining candidate -- scope teardown under the control lane against
+child-done under the pinned shard lock -- whose mechanism is owner question
+Р6. Before this wave the same instrument read roughly 0.5 % on this box
+(1–3 of 200, DEBT-261's own reading at `082ffae9`). Whether Wave D raised it
+is a rate question and is measured as one: `queue_ff.sh` runs 300 rounds on
+the pre-wave base `8b12beb3` and 300 on `c38e4275`, same command, same
+affinity, back to back with the box idle. The freeze of `c38e4275` waits on
+the campaign's final count and on that differential; the wave's freeze
+condition (§1.8, the campaign) is not met by a 3.5 % red whatever its
+provenance, and the fix runs through the open scope-serializer decision.
+
 ### E1, the splits before the change (2026-09-03)
 
 Wave E rewrites the far channel and the transport, and the file-size gate
@@ -13023,3 +13075,17 @@ credit counters wired; the window they wait on is armed now. The slot wake
 is a wake-all of the parked producers on that lane, each re-parking if it
 lost the race; exactly-one holds for the one-parker stand and a wake-one is a
 refinement nobody has measured a need for.
+
+**A row the park left behind, found by E5's gate run (2026-09-03).** The
+remote task acceptance gate (`Makefile` line 442's roster) was not run
+locally for E4, and its `TestRuntimeV2RemoteSpawnAbandonEdges/refusal-queue-
+full-drops-once` asserted the refusal E4 removed: it flooded shard 0's data
+lane under one carrier and awaited `QUEUE_FULL`; with the park, the publisher
+parks, nothing on the one carrier drains the lane, and the deadlock detector
+answers for the missing refusal -- `surge: fatal [PANIC]: async deadlock`,
+exit 1, red on `ba7f13e4` (2/2 alone, 3/3), green on `341f1978` (2/2). The
+premise is gone, not the property: the parked-then-shut-down publication and
+its exactly-once drop are `queue-full` in
+`TestRuntimeV2RemotePublicationBehavior` (`run_queue_full`, rewritten by
+E4). The row is removed; `run_refusal_drop` keeps its one remaining edge,
+destination shutdown, and says so. Same commit day, separate commit.

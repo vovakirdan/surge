@@ -143,12 +143,14 @@ static int run_shutdown(void) {
     return 0;
 }
 
-// Refusal edges with a droppable shipped state: the publish is refused
-// (queue full or destination shutdown), so the pending — or the pre-link
-// path — is the sole owner and must drop the state exactly once, before
-// the caller observes the refusal.
-static int run_refusal_drop(int shutdown_first) {
-    rt_executor* ex = ensure_exec();
+// The refusal edge with a droppable shipped state: the destination is
+// already shut down, so the publish is refused before it is linked and the
+// pre-link path is the sole owner of the state, which it drops exactly once
+// before the caller observes the refusal. A full data lane is not a refusal
+// any more -- it parks the publisher (run_queue_full), and the drop-once of
+// a parked-then-shut-down publication is proved there.
+static int run_refusal_drop_shutdown(void) {
+    (void)ensure_exec();
     remote_child_state child;
     memset(&child, 0, sizeof(child));
     remote_state_box* box = remote_child_box(&child);
@@ -157,22 +159,18 @@ static int run_refusal_drop(int shutdown_first) {
     memset(&st, 0, sizeof(st));
     st.child = box;
     st.dst = 0;
-    st.fill_queue = shutdown_first ? 0 : 1;
-    st.shutdown_first = shutdown_first ? 1 : 0;
+    st.shutdown_first = 1;
     st.droppable = 1;
     drop_expected_state = box;
     if (!await_parent(&st)) return fail("refusal publisher await failed");
-    rt_remote_spawn_status want = shutdown_first ? RT_REMOTE_SPAWN_STATUS_DESTINATION_SHUTDOWN
-                                                 : RT_REMOTE_SPAWN_STATUS_QUEUE_FULL;
-    if (st.status != want) return fail("refusal status mismatch");
+    if (st.status != RT_REMOTE_SPAWN_STATUS_DESTINATION_SHUTDOWN) {
+        return fail("refusal status mismatch");
+    }
     if (atomic_load_explicit(&drop_calls, memory_order_acquire) != 1) {
         return fail("refused publish must drop the shipped state exactly once");
     }
     if (atomic_load_explicit(&child.ran, memory_order_acquire) != 0) {
         return fail("refused publish must not run a body");
-    }
-    if (!shutdown_first) {
-        (void)rt_executor_request_shutdown(ex);
     }
     return 0;
 }

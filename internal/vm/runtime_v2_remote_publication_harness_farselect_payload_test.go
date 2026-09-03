@@ -127,8 +127,7 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "queue-full") == 0) return run_queue_full();
     if (strcmp(argv[1], "shutdown") == 0) return run_shutdown();
     if (strcmp(argv[1], "shutdown-queued-kinds") == 0) return run_shutdown_queued_kinds();
-    if (strcmp(argv[1], "refusal-drop-queue-full") == 0) return run_refusal_drop(0);
-    if (strcmp(argv[1], "refusal-drop-shutdown") == 0) return run_refusal_drop(1);
+    if (strcmp(argv[1], "refusal-drop-shutdown") == 0) return run_refusal_drop_shutdown();
     if (strcmp(argv[1], "abandon-before-dispatch") == 0) {
         return run_abandon_window(RT_SYNC_POINT_SP_REMOTE_SPAWN_BEFORE_DISPATCH);
     }
