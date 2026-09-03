@@ -13718,3 +13718,22 @@ the held owner blocked; the park is what makes the cross-shard commit real.
 this is that lane). DEBT-261 and 263 keep their own rows; the campaign
 number that says whether this window was the 2.7 % is the 1000-run row on
 the runner, queued after `4e5bf4c8`'s set (E7).
+
+**Local checks on `6bd6fd22`** (WSL2, the same `go test` lines the gates
+run, never `make` for the heavy ones -- Rule 19): the lifecycle roster in
+two runs, because the whole roster does not fit its 360 s budget on this
+box (63 green, 0 red, then the 6 m 0 s panic at the 64th with 5 s on the
+clock; the remaining 15 green in 204 s on their own; `ScopeCrossOwnerChildDone`
+2/8, `ScopeFailfastCancellationAcrossShards`, `Debt261*`, the provenance
+pair and the new pair among them); transport-contract lines 440 and 443:
+`ok 12.751s` and `ok 80.239s`; `check_sync_points.sh` green (no new
+point); `c-check-changed` on the seven touched C files green after one
+finding -- clang-tidy's `bugprone-branch-clone` on a `case
+SCOPE_CHILD_DONE: break;` beside `default: break;` in
+`rt_remote_task_release_msg_payload`, folded into the default with its
+comment; `runtime_v2_file_size_check.sh` `--worktree` and `--committed`
+PASS (`rt_scope_event.c` 95 effective lines, `rt_async_scope.c` 378→409
+physical under its base). The runner holds `.wt-6bd6fd22`; `queue_p6.sh`
+waits behind `4e5bf4c8`'s queue and runs baseline, W8 ×5, the lifecycle,
+transport-contract and crossing gates, then the freeze set with the
+campaign.
