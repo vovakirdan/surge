@@ -38,6 +38,9 @@ rt_transport_msg_class rt_transport_msg_class_of(rt_transport_msg_kind kind) {
         case RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_ACK:
         case RT_TRANSPORT_MSG_REMOTE_TASK_RELEASE_REQUEST:
         case RT_TRANSPORT_MSG_SHUTDOWN_WAKE:
+        // A child's completion is what lets its scope's join finish: release
+        // traffic, so a data backlog can never hold a scope open.
+        case RT_TRANSPORT_MSG_SCOPE_CHILD_DONE:
             return RT_TRANSPORT_MSG_CLASS_CONTROL;
         case RT_TRANSPORT_MSG_REMOTE_SPAWN_REQUEST:
         case RT_TRANSPORT_MSG_REMOTE_TASK_AWAIT_REQUEST:
@@ -334,6 +337,8 @@ static void rt_transport_push_unchecked_locked(rt_transport_state* state,
         state->far_channel_select_requests++;
     } else if (msg->kind == RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY) {
         state->far_channel_select_replies++;
+    } else if (msg->kind == RT_TRANSPORT_MSG_SCOPE_CHILD_DONE) {
+        state->scope_child_done_events++;
     }
 }
 

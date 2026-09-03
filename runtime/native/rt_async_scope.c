@@ -25,6 +25,14 @@
 // control-free walk would race that write and break owner-lock
 // invariant (rt_async_task.c). These walks are O(children) on rare
 // cancellation, never the steady request completion path.
+//
+// Owner ruling 2026-09-02 (Р6): the pinned owner shard lock is the ONLY
+// serializer of a scope's count, fail-fast flag and child list, and every
+// write of them runs on the owner lane. A completion on another shard never
+// takes that lock from its own lane and never goes through the control lane
+// to reach the scope: it publishes a scope event into the owner shard's
+// inbound control lane (rt_scope_event.c) and the owner lane applies it in
+// the same one critical section a same-shard completion uses.
 
 rt_shard* rt_scope_owner_shard(rt_executor* ex, const rt_scope* scope) {
     rt_runtime* runtime = rt_executor_runtime(ex);
@@ -308,11 +316,73 @@ void scope_exit_locked(rt_executor* ex, rt_scope* scope) {
     rt_free((uint8_t*)scope, sizeof(rt_scope), _Alignof(rt_scope));
 }
 
+// Caller holds the scope's pinned owner shard lock. One critical section
+// retires the child and, when its committed kind is a cancellation in a
+// fail-fast scope, raises the flag -- so no join, whose two answers come from
+// one observation under this same lock, sees the set drained and fail-fast
+// not fired when the draining child is the one that raised it. child_registered
+// is the child's own membership answer, taken on its lane before the
+// completion travelled; the scope never re-derives it.
+rt_scope_child_done_effects rt_scope_take_child_done_locked(rt_executor* ex, waker_key key,
+                                                            uint64_t child_id,
+                                                            uint8_t result_kind,
+                                                            int child_registered) {
+    rt_scope_child_done_effects fx = {0, 0};
+    rt_scope* scope = rt_scope_resolve_key_locked(ex, key);
+    if (scope == NULL) {
+        return fx;
+    }
+    if (result_kind == TASK_RESULT_CANCELLED && scope->failfast && !scope->failfast_triggered) {
+        if (!child_registered) {
+            rt_scope_trace_failfast_after_drained_answer();
+        }
+        scope->failfast_triggered = 1;
+        scope->failfast_child = child_id;
+        fx.owner_to_wake = scope->owner;
+    }
+    if (child_registered) {
+        (void)scope_remove_child(scope, child_id);
+        if (scope->active_children > 0) {
+            scope->active_children--;
+        }
+        fx.drained = scope->active_children == 0;
+    }
+    return fx;
+}
+
+// Runs with NO shard lock held, after the serializer released what the
+// completion decided. A raised fail-fast EXECUTES its cancel walk under the
+// control lane -- cancel_task routes each child by an owner word F2
+// self-replace writes there -- which is a cancellation being carried out, not
+// scope accounting being read; nothing about the scope is decided here.
+void rt_scope_child_done_effects_apply(rt_executor* ex, waker_key key,
+                                       rt_scope_child_done_effects fx) {
+    if (fx.owner_to_wake != 0) {
+        int need_control = !rt_lane_holds_control();
+        if (need_control) {
+            rt_control_lock(ex);
+            rt_trace_control_lock_site(RT_CTRL_SITE_SCOPE);
+        }
+        scope_cancel_children_controlled(ex, key);
+        wake_task(ex, fx.owner_to_wake, 1);
+        if (need_control) {
+            rt_control_unlock(ex);
+        }
+    }
+    if (fx.drained) {
+        wake_key_all(ex, key);
+    }
+}
+
 // Completion-side scope bookkeeping (S5-Q8), called from mark_done after the
-// TASK_DONE store. task is the completing child. Same-owner non-failfast
-// child-done runs control-free under the pinned shard lock (== the child's own
-// owner shard here); cross-owner (re-placed child) or failfast-triggering
-// completions take the counted control lane (file header re-derivation).
+// TASK_DONE store; task is the completing child. Every write to the scope's
+// accounting happens on the scope's owner lane in one critical section (owner
+// ruling 2026-09-02). A child that shares the scope's shard is already on that
+// lane and takes it directly; a child owned elsewhere (re-placed, F2) does not
+// reach across -- it publishes what it knows (which scope, which child, which
+// kind, whether it was counted) as an event into the owner shard's inbound
+// control lane, and the owner lane applies it (rt_scope_event.c). The
+// process-wide control lane is never taken to decide anything about a scope.
 void scope_on_child_done(rt_executor* ex, rt_task* task, uint8_t result_kind) {
     if (ex == NULL || task == NULL) {
         return;
@@ -322,75 +392,18 @@ void scope_on_child_done(rt_executor* ex, rt_task* task, uint8_t result_kind) {
     if (!waker_valid(key) || !RT_SCOPE_MEMBER_MAY_FAILFAST(task)) {
         return;
     }
-    rt_shard* child_shard = rt_task_owner_shard(ex, task);
-    int same_owner = key.owner_shard_id == task->owner_shard_id;
-    if (same_owner) {
-        rt_shard_lock(child_shard);
-        rt_scope* scope = rt_scope_resolve_key_locked(ex, key);
-        if (scope == NULL) {
-            rt_shard_unlock(child_shard);
-            return;
-        }
-        int may_failfast = result_kind == TASK_RESULT_CANCELLED && scope->failfast &&
-                           !scope->failfast_triggered && RT_SCOPE_MEMBER_MAY_FAILFAST(task);
-        if (may_failfast) {
-            rt_shard_unlock(child_shard);
-        } else {
-            int wake_owner = 0;
-            if (task->scope_registered) {
-                (void)scope_remove_child(scope, task->id);
-                if (scope->active_children > 0) {
-                    scope->active_children--;
-                }
-                wake_owner = scope->active_children == 0;
-                task->scope_registered = 0;
-            }
-            rt_shard_unlock(child_shard);
-            if (wake_owner) {
-                wake_key_all(ex, key);
-            }
-            return;
-        }
-    }
-    // Rare: cross-owner (re-placed child) or failfast-triggering completion.
-    int need_control = !rt_lane_holds_control();
-    if (need_control) {
-        rt_control_lock(ex);
-        rt_trace_control_lock_site(RT_CTRL_SITE_SCOPE);
+    // The child's own membership word, read and retired on the child's lane:
+    // the one fact the event carries that the owner lane cannot re-derive.
+    int registered = task->scope_registered != 0;
+    task->scope_registered = 0;
+    if (key.owner_shard_id != task->owner_shard_id) {
+        rt_scope_publish_child_done(ex, key, task, result_kind, registered);
+        return;
     }
     rt_shard* pinned = rt_waiter_key_shard(ex, key);
-    uint64_t owner_to_wake = 0;
-    int wake_owner = 0;
     rt_shard_lock(pinned);
-    rt_scope* scope = rt_scope_resolve_key_locked(ex, key);
-    if (scope != NULL) {
-        if (result_kind == TASK_RESULT_CANCELLED && scope->failfast && !scope->failfast_triggered &&
-            RT_SCOPE_MEMBER_MAY_FAILFAST(task)) {
-            if (!task->scope_registered) {
-                rt_scope_trace_failfast_after_drained_answer();
-            }
-            scope->failfast_triggered = 1;
-            scope->failfast_child = task->id;
-            owner_to_wake = scope->owner;
-        }
-        if (task->scope_registered) {
-            (void)scope_remove_child(scope, task->id);
-            if (scope->active_children > 0) {
-                scope->active_children--;
-            }
-            wake_owner = scope->active_children == 0;
-            task->scope_registered = 0;
-        }
-    }
+    rt_scope_child_done_effects fx =
+        rt_scope_take_child_done_locked(ex, key, task->id, result_kind, registered);
     rt_shard_unlock(pinned);
-    if (owner_to_wake != 0) {
-        scope_cancel_children_controlled(ex, key);
-        wake_task(ex, owner_to_wake, 1);
-    }
-    if (wake_owner) {
-        wake_key_all(ex, key);
-    }
-    if (need_control) {
-        rt_control_unlock(ex);
-    }
+    rt_scope_child_done_effects_apply(ex, key, fx);
 }

@@ -141,6 +141,15 @@ void __surge_poll_call(uint64_t id) {
         case POLL_DEBT261_SCOPE_OWNER:
             poll_debt261_scope_owner();
             break;
+        case POLL_DEBT280_SCOPE_OWNER:
+            poll_debt280_scope_owner();
+            break;
+        case POLL_DEBT280_SCOPE_CHILD:
+            poll_debt280_scope_child();
+            break;
+        case POLL_DEBT280_GRANDCHILD:
+            poll_debt280_grandchild();
+            break;
         case POLL_DEBT263_CANCELLED_CHILD:
             poll_debt263_cancelled_child();
             break;

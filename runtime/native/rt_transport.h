@@ -35,6 +35,10 @@ typedef enum rt_transport_msg_kind {
     RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY = 14,
     RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REQUEST = 15,
     RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY = 16,
+    // A child owned by another shard completed: its scope's owner lane retires
+    // it and decides fail-fast on receipt. route_id carries the scope id with
+    // the outcome in its top byte, generation the child id, payload nothing.
+    RT_TRANSPORT_MSG_SCOPE_CHILD_DONE = 17,
 } rt_transport_msg_kind;
 
 // Which budget an envelope spends. DATA is everything a caller asks for --
@@ -139,6 +143,7 @@ typedef struct rt_transport_state {
     uint64_t far_channel_share_replies;
     uint64_t far_channel_select_requests;
     uint64_t far_channel_select_replies;
+    uint64_t scope_child_done_events;
     uint64_t data_slot_stalls;
     uint64_t control_reserve_stalls;
     uint64_t unsupported_fallback_attempts;
@@ -180,6 +185,7 @@ struct rt_transport_debug_snapshot {
     uint64_t far_channel_share_replies;
     uint64_t far_channel_select_requests;
     uint64_t far_channel_select_replies;
+    uint64_t scope_child_done_events;
     uint64_t data_slot_stalls;
     uint64_t control_reserve_stalls;
     uint64_t unsupported_fallback_attempts;

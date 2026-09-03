@@ -109,6 +109,9 @@ static int run_shutdown_queued_kinds(void) {
         RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REQUEST,
         RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REQUEST,
         RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY,
+        // No payload and no scope behind route_id 0: the shutdown drain
+        // applies it as a no-op and must not panic.
+        RT_TRANSPORT_MSG_SCOPE_CHILD_DONE,
     };
     for (size_t i = 0; i < sizeof(kinds) / sizeof(kinds[0]); i++) {
         rt_transport_msg msg = {0};

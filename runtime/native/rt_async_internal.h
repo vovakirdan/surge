@@ -492,10 +492,12 @@ struct rt_executor {
 // there is no single executor lock; every mutation belongs to one lane:
 // - Control lane (ex->lock): task/scope TABLE GROWTH only (segment alloc); the
 //   external/main-thread await compatibility path (done_cv broadcast, gated on
-//   done_waiters, and compat_cv for the sync-channel lane); the cross-owner
-//   residuals that still keep a control fallback this epic (scope_on_child_done
-//   when a child's owner shard != the scope's pinned owner shard, failfast
-//   scope_cancel_children_controlled, and the cancel_task sibling walk);
+//   done_waiters, and compat_cv for the sync-channel lane); the cancel walks
+//   that route children by an owner word F2 self-replace writes under control
+//   (failfast scope_cancel_children_controlled and the cancel_task sibling
+//   walk -- a cancellation being carried out, never scope accounting: a
+//   cross-owner child-done is a scope EVENT on the owner shard's inbound
+//   control lane, rt_scope_event.c);
 //   checkpoint/sleep/blocking submit; and compensation-worker bookkeeping.
 //   control_waiters now backs only the unknown-waker-kind default and the
 //   diagnostic waiter dump.

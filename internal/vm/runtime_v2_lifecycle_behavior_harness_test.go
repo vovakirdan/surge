@@ -102,7 +102,7 @@ func buildRuntimeV2LifecycleHarnessWithFlags(t *testing.T, name string, extraFla
 		lifecycleHarnessScopeAndShutdown + lifecycleHarnessPlacementAdoption + lifecycleHarnessScopeCrossOwner +
 		lifecycleHarnessSyncPointModes + lifecycleHarnessReadyRequeueModes +
 		lifecycleHarnessSleepPublishModes + lifecycleHarnessParkAbortModes +
-		lifecycleHarnessFailfastJoinModes + lifecycleHarnessCancelCommitModes +
+		lifecycleHarnessFailfastJoinModes + lifecycleHarnessScopeEventModes + lifecycleHarnessCancelCommitModes +
 		lifecycleHarnessCancelSealModes + lifecycleHarnessBlockingCancelModes +
 		lifecycleHarnessStandHelpers + lifecycleHarnessInlineClaimModes +
 		lifecycleHarnessScopeMembershipModes + lifecycleHarnessTaskEntitlementModes + lifecycleHarnessTaskEntitlementTerminalModes +

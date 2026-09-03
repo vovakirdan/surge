@@ -377,6 +377,26 @@ section publishing the child, one acquisition instead of two; elsewhere it is a
 message. No rule here licenses a steady completion path reaching a scope on
 another shard through the process-wide control lane.
 
+**Owner ruling 2026-09-02 (Р6) -- the serializer of scope accounting is the
+owner-shard lane, and nothing else writes it.** The scope's owning shard lane
+is the sole writer and reader of the live-child count, the fail-fast state,
+membership and completion. A child's completion or cancellation on another
+shard does not take the owner's lock from its own lane and does not go
+through the process-wide control lane: it publishes a generation-qualified
+scope event -- scope identity, child identity, committed outcome, whether the
+child was counted -- into the owner shard's EXISTING inbound message path, in
+the release class, and the owner lane applies it in the one critical section a
+same-shard completion uses. There is no separate scope mailbox and no
+scope-side lock a foreign lane may take. Fail-fast is decided under that
+serialization; the cancellations it orders are executed after the lock is
+released, through the ordinary task routing by task identity and generation,
+which is why the control lane still appears there -- carrying out a
+cancellation, never deciding anything about a scope. An atomic count with a
+flag beside it is not this serializer: two words read at different instants
+are two observations, and a join must make one. At shutdown the drain applies
+every queued scope event under the owner shard's lock before the queue is
+released, so no scope is left counting a child that is gone.
+
 **Owner ruling 2026-08-31 -- a task's owning shard is decided at its creation
 and is never re-derived on the request path.** The rule above is stated of the
 scope; it holds of the shard in the same words. A task's owning shard is

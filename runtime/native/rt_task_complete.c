@@ -403,11 +403,10 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind) {
     RT_SYNC_POINT(SP_MARKDONE_BEFORE_DONEWAITERS_LOAD);
     task_enqueued_store(task, 0);
     task->state = NULL;
-    // Scope completion bookkeeping (S5-Q8): runs on the scope
-    // owner shard lane. The steady same-owner non-failfast child-done is
-    // control-free under the pinned shard lock; only a cross-owner (re-placed
-    // child) or a failfast-triggering completion takes the counted control
-    // fallback inside scope_on_child_done, so it no longer forces
+    // Scope completion bookkeeping (S5-Q8): runs on the scope owner shard
+    // lane, control-free. A child on the scope's own shard takes that lane
+    // here; a child owned elsewhere publishes a scope event the owner lane
+    // applies on drain (rt_scope_event.c). Neither forces
     // mark_done_needs_control on the request hot path.
     scope_on_child_done(ex, task, result_kind);
     wake_key_all_with_policy(ex, join_key(task->id), 0);

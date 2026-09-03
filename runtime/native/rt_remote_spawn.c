@@ -463,6 +463,8 @@ size_t rt_remote_spawn_drain_inbound_locked(rt_executor* ex, rt_shard* shard, si
             remote_spawn_dispatch_request(ex, &msg);
         } else if (msg.kind == RT_TRANSPORT_MSG_REMOTE_SPAWN_ACK) {
             remote_spawn_dispatch_ack(ex, &msg);
+        } else if (msg.kind == RT_TRANSPORT_MSG_SCOPE_CHILD_DONE) {
+            rt_scope_dispatch_child_done(ex, &msg);
         } else if (rt_remote_task_dispatch_message(ex, &msg)) {
             // Handled by the remote task lifecycle dispatcher.
         } else if (msg.kind != RT_TRANSPORT_MSG_NONE) {
@@ -512,6 +514,11 @@ void rt_remote_spawn_fail_all_pending(rt_executor* ex, rt_remote_spawn_status st
                 case RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY:
                 case RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REQUEST:
                 case RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY:
+                    break;
+                case RT_TRANSPORT_MSG_SCOPE_CHILD_DONE:
+                    // A completed child's accounting step is finished here,
+                    // under this shard's lock, which is the scope's own.
+                    rt_scope_apply_child_done_at_shutdown_locked(ex, &msg);
                     break;
                 default:
                     panic_msg("remote spawn: unknown transport message kind during shutdown");

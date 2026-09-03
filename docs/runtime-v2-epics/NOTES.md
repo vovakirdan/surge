@@ -12771,7 +12771,18 @@ reopens it"), or keep it Open. The row is not changed here. **The two
 re-done rows** (`queue_topo.sh` over `TestRuntimeV2*` at 1×8 and 8×8,
 `queue_tagged.sh` as the tagged package without a backend override plus the
 `TestRuntimeV2*` family under llvm) are still queued behind the Wave E
-counts and land here when they finish. **And the scope serializer is
+counts and land here when they finish. The topology pair landed 06:04:
+1×8 over the `TestRuntimeV2*` family green, 375 s; 8×8 red, 371 s, and red
+by construction again -- five tests carry their own thread matrix
+(`threads-1/4`, `SURGE_THREADS=2`) and inherit `SURGE_SHARDS=8` from the
+row, so the runtime refuses the mismatch at start (`SURGE_THREADS must
+equal SURGE_SHARDS when SURGE_SHARDS>1`: FailfastJoinAnswersCancelled,
+TimeoutTargetAnswersCancelledToEveryHandle, TaskHandleArrayDrainedByPop,
+HeapAccountingConcurrentWorkersContract, DropSelectSendArm). An
+environment-wide 8×8 row cannot be run over this family; the 8×8 evidence
+is the tests that carry a shard matrix of their own (the far-task
+caller-cancel and far-select rows at shards 1/2/8, the MT corpus at 8
+workers), which are green. **And the scope serializer is
 decided**: the owner's Р6 ruling of 2026-09-03 (owner-shard lane; a
 cross-owner child completion is a generation-qualified scope event on the
 owner shard's existing inbound path; no scope mailbox; the atomic word is
@@ -13545,6 +13556,52 @@ severs a registration without releasing the registration's task reference,
 so that body task leaks at process exit -- the same class as the parked
 pin, recorded under RV2-DEBT-322's residual.
 
+### F3, Epic 21 Task 9 and DEBT-125: the three proofs join the gate, the seams get their map (2026-09-03)
+
+Landed inside `4e5bf4c8` (its `git add -A` swept this work in with the E5b
+manifest ruling; recorded here rather than re-split, the diff is one
+lane's).
+
+- **The Epic 21 e2e proofs were not on any sub-gate.** The three programs the
+  plan names (`CancelledSuspendStateReclaimed`, `FarChannelNonCopyRoundTrip`,
+  `FarSelectNonCopySendArm`) plus the rows Wave E added beside them
+  (`FarSelectConstArmEvaluatedOnce`, `FarSelectCancelNonCopySendArm`,
+  `FarHandleFieldDropReleasesTheLease`, `FarHandleHasOneOwnerAcrossACrossing`,
+  `FarPayloadWidth`, `ResidentBytesTelemetry`) and two new leaf rows now run
+  as one `go test` line of `runtime-v2-crossing-check` (`Makefile:402`,
+  `SURGE_BACKEND=llvm`, 900 s), eleven names. The sub-gate roster itself
+  (`RUNTIME_V2_SUBGATES`) is unchanged: crossing-check was already on it,
+  and the plan's "adding a sub-gate means adding it here and nowhere else"
+  is respected by adding rows to a gate, not a gate.
+- **Two leaf rows for the two Open drop debts.**
+  `TestRuntimeV2StructArrayElementsReclaimed` (056: a struct holding an
+  array field, the elements reclaimed with the struct) and
+  `TestRuntimeV2WhileBodyLocalReclaimed` (054: `while outer < 2000 { let arr:
+  int[] = [1, 2, 3]; ... }`, once 2000 × 24 bytes leaked) both read
+  `in use at exit: 0 bytes in 0 blocks` under memcheck on the LLVM backend
+  at `SURGE_SHARDS=1`. Both rows are Closed by the fact, with no fixing
+  commit to name: the drop emission that landed between the rows' writing
+  and today already reclaims them, and the rows say so.
+- **The seam inventory** Epic 20 asked for and Task 9 listed as missing
+  exists now: `21-phase5-free-site-seams.md`, 53 lines, two tables --
+  Family 1, obligation-transfer sites (the owner changes, no bytes move:
+  nine rows, from the shipped state block's caller→pending→body handoff
+  through the arm cells of a select to the far handle's drop glue) and
+  Family 2, actual free sites (the bytes go back: envelope, the two pendings,
+  the state block on its three exits, the arm cells, the sidecar) -- and a
+  closing section on what a Phase 5 allocator would have to cut. Every line
+  is a reading of the code; E5's resident-byte ledger charges exactly these
+  seams, so the inventory and the ledger are one list read two ways.
+- **The stale exit numbers.** `PLAN.md:11-12` and `:208`, and
+  `23b-wave-d-execution-plan.md:220`, said Wave F exits at "0 of 626"; the
+  live manifest froze **683** on `7df10725`. The three places now carry 683
+  with 626 kept as "as counted that day". The count itself (F6b) is not
+  touched here.
+- **What F3 does not close.** DEBT-125's remaining evidence is the bench
+  side (the ×7 protocol runs on the runner, unblocked by the E5 ruling) and
+  the migration/share/select/non-copy matrix at three shard counts; both
+  are F7 rows and stay Open with 125.
+
 ### F5, the wave's own debts, re-taken (2026-09-03)
 
 The plan's list: 031, 056, 062, 080, 082, 125, 126, 133. Three closed
@@ -13567,3 +13624,97 @@ re-taken to strict zero), 082 (E3, the far handle's one owner). This pass:
   09-01, the exact-drop behaviour rows, the far-routed result capability
   in E2). Closed with the list.
 - **125** and **126** are F3 and F8 respectively and are not touched here.
+
+### Р6, a cross-owner completion is a scope event on the owner lane (2026-09-03)
+
+**Why now.** D8's 1000-run campaign on `c38e4275` read 973 pass / 27 red,
+every red `FailfastJoinAnswersCancelled/llvm/threads-4 exit=13` -- the
+second `@failfast` block answering Success after both children were
+cancelled -- the DEBT-261/263/280 window. The owner ruled Р6 on 2026-09-02:
+the serializer of scope accounting is the owner-shard lane; a cross-owner
+completion publishes a generation-qualified event into the owner shard's
+existing inbound path; no scope mailbox; cancel decided under the owner
+serialization and executed after unlock through task routing; an atomic
+count with a flag beside it is not the serializer.
+
+**What was there.** `scope_on_child_done` (`rt_async_scope.c`) had two
+shapes. Same-owner, non-fail-fast: retire under the pinned lock, wake. Every
+other completion -- a re-placed child owned by another shard, or ANY
+fail-fast-raising cancellation, same shard or not -- took the process-wide
+control lock and then the pinned lock (`RT_CTRL_SITE_SCOPE`), after having
+already read `scope->failfast` and `failfast_triggered` under the CHILD's
+lock to decide which shape to take. That is DEBT-280's three sites in one
+function: a read that decides the branch under the wrong mutex, and a
+steady completion path through the control lane.
+
+**What landed.**
+- `rt_scope_take_child_done_locked` (`rt_async_scope.c`): the one critical
+  section, under the pinned owner shard lock, that retires the child and
+  raises fail-fast; it takes the child's own membership answer as an
+  argument and never re-derives it. `rt_scope_child_done_effects_apply`
+  runs after the lock is released: a raised fail-fast takes control ONLY
+  to execute `scope_cancel_children_controlled` (the walk routes children
+  by an owner word F2 self-replace writes under control) and wake the
+  owner; a drained set wakes the scope key.
+- Same-owner completion of any kind: lock, take, unlock, effects. No
+  control lock on the completion path, fail-fast included.
+- Cross-owner completion: `rt_scope_publish_child_done`
+  (`rt_scope_event.c`, new) builds `RT_TRANSPORT_MSG_SCOPE_CHILD_DONE`
+  (kind 17, control class -- release traffic, a data backlog cannot hold
+  a scope open) with the scope id in `route_id`'s low 56 bits, the
+  committed kind and the counted bit in its top byte, the child id in
+  `generation`, no payload, and enqueues it on the owner shard through
+  `rt_remote_spawn_enqueue_with_drain` (rescue-drain then retry, 64
+  attempts, then the invariant panics). `rt_scope_dispatch_child_done`
+  applies it on the owner shard's drain, no shard lock held on entry, the
+  same take-then-effects. The shutdown drain applies a queued event under
+  the shard lock it already holds (`rt_scope_apply_child_done_at_shutdown_locked`)
+  before releasing the envelope, so no scope is left counting a gone
+  child; a stale event resolves no scope and is a no-op (scope ids are a
+  monotonic counter, so id + owner shard is the generation).
+- Transport: `rt_transport_msg_class_of` knows the kind (CONTROL), the
+  per-kind counter `scope_child_done_events` is in the state and the debug
+  snapshot, `rt_remote_task_release_msg_payload` and the shutdown drain
+  switch list it (the static test that enumerates the switch now asks for
+  it), the slot-credit stand's control-kind list and the queued-kinds
+  shutdown stand carry it.
+- The lane comment in `rt_async_internal.h`, `rt_task_complete.c` and
+  `rt_async_state.c` no longer name a "cross-owner control fallback";
+  `RUNTIME_V2.md` §1 carries the ruling as a dated paragraph after the
+  scope accounting rule.
+
+**Stand** `debt280-scope-event-owner-lane`
+(`runtime_v2_scope_event_owner_lane_test.go`, `runtime-v2-lifecycle-check`,
+`SURGE_SHARDS=SURGE_THREADS=2` and `8`). Owner on shard 0 enters a
+fail-fast scope and creates its child there; the child adopts shard 1
+through the real F2 path (it consumes a connection-placed grandchild) and
+then PARKS on a shard-1 spinner -- a yield loop would keep running on the
+carrier that adopted it, shard 0's, which the held owner blocks; a park is
+woken by the cancel through the child's owner shard, so the cancellation
+is observed and committed on shard 1. The owner is held at
+`SP_SCOPE_FAILFAST_JOIN_BEFORE_VERIFY` with that one live child counted.
+The driver cancels the child and, while the owner is still held, reads
+shard 0's transport counter and both scope answers under the pinned lock:
+
+    debt280 window: events=1 active=1 failfast_triggered=0
+    debt280 after: owner kind=2 (1=Success 2=Cancelled) scope_gone=1
+
+published, untouched; released, the owner's verify still sees the child,
+parks, its own lane applies the event, and the join answers Cancelled.
+Rule 13: `RV2_DEBT_280_NEGATIVE_CONTROL` restores the pre-ruling shape (the
+child's lane writes the scope under control + pinned) and the same read
+shows
+
+    debt280 window: events=0 active=0 failfast_triggered=1
+    debt280 cross-owner completion wrote the scope from its own lane instead of publishing a scope event
+
+Both rows 0.01 s per shard count; harness builds 5.6 s each. The first cut
+of the stand had the child yield after adoption and read "cancelled child
+never completed" at both counts -- the carrier that adopted it was the one
+the held owner blocked; the park is what makes the cross-shard commit real.
+
+**Ledger.** DEBT-266, 280, 283 closed together (the reconciliation of
+2026-08-27 said whichever lane serializes the teardown closes all three;
+this is that lane). DEBT-261 and 263 keep their own rows; the campaign
+number that says whether this window was the 2.7 % is the 1000-run row on
+the runner, queued after `4e5bf4c8`'s set (E7).

@@ -431,6 +431,9 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "debt261-failfast-join-verify") == 0) {
         return mode_debt261_failfast_join_verify(ex);
     }
+    if (strcmp(argv[1], "debt280-scope-event-owner-lane") == 0) {
+        return mode_debt280_scope_event_owner_lane(ex);
+    }
     if (strcmp(argv[1], "debt263-cancel-commit-boundary") == 0) {
         return mode_debt263_cancel_commit_boundary(ex);
     }

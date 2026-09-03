@@ -88,6 +88,7 @@ static const rt_transport_msg_kind control_kinds[] = {
     RT_TRANSPORT_MSG_REMOTE_TASK_CANCEL_ACK,
     RT_TRANSPORT_MSG_REMOTE_TASK_RELEASE_REQUEST,
     RT_TRANSPORT_MSG_SHUTDOWN_WAKE,
+    RT_TRANSPORT_MSG_SCOPE_CHILD_DONE,
 };
 
 int main(void) {

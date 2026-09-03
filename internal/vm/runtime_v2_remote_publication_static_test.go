@@ -51,6 +51,7 @@ func TestRuntimeV2RemotePublicationFailurePathStaticGuards(t *testing.T) {
 		"RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REQUEST",
 		"RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REQUEST",
 		"RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY",
+		"RT_TRANSPORT_MSG_SCOPE_CHILD_DONE",
 	} {
 		if !strings.Contains(source, "case "+kind+":") {
 			t.Fatalf("shutdown drain release switch must cover %s (RV2-DEBT-047)", kind)

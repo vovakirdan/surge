@@ -566,9 +566,10 @@ int scope_remove_child(rt_scope* scope, uint64_t child_id) {
 
 // scope_cancel_children_locked / scope_child_done_locked moved to
 // rt_async_scope.c: completion-side scope bookkeeping now runs
-// on the scope owner shard lane (scope_on_child_done) with a counted control
-// fallback for the rare cancel/failfast walk, replacing the old control-lane
-// helpers.
+// on the scope owner shard lane (scope_on_child_done; a cross-owner
+// completion arrives there as a scope event, rt_scope_event.c) with a
+// counted control lane only for the rare cancel walk, replacing the old
+// control-lane helpers.
 
 // Handle-lifetime cluster (task_add_ref, free_task, task_release,
 // task_release_lane_aware) moved to rt_task_lifetime.c:

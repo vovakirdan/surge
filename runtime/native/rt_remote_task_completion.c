@@ -30,6 +30,9 @@ void rt_remote_task_release_msg_payload(const rt_transport_msg* msg) {
             rt_remote_task_pending_release(msg->payload);
             break;
         default:
+            // SCOPE_CHILD_DONE lands here: it carries no payload, and its
+            // accounting is applied by the shutdown drain itself before this
+            // release helper runs.
             break;
     }
 }
