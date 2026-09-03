@@ -260,41 +260,11 @@ typedef struct rt_task {
     // the same release, so it names no type and leaves this empty.
     void* reclaim_frame;
     const rt_value_ops* reclaim_frame_ops;
-    uint8_t result_kind;
-    atomic_u8 status;
-    uint8_t kind;
-    uint8_t resume_kind;
-    uint8_t placement_class;
-    uint8_t owner_shard_valid;
-    // Carrier affinity: a task that borrows its creator's frame runs only on
-    // the worker carrying the creator when it was made. Publication addresses
-    // that worker's deque and token; every other worker refuses it on pop.
-    // Written once, at creation, before the task is published.
-    uint8_t carrier_valid;
-    uint32_t owner_shard_id;
-    uint32_t carrier_worker_id;
-    atomic_u32 join_owner_shard_id;
-    atomic_u8 cancelled;
-    atomic_u8 enqueued;
-    atomic_u8 wake_token;
-    atomic_u8 polling;
-    atomic_u8 remote_handle_state;
-    atomic_u8 far_task_result_state;
     _Atomic(struct rt_far_task_lease*) far_task_result_lease;
-    uint8_t checkpoint_polled;
-    uint8_t sleep_armed;
-    uint8_t park_prepared;
-    uint8_t scope_registered;
-    uint8_t cancel_pending;
     // Bounded channel-claim arbitration (rt_channel_retry.h): the one poll
     // operation executing this task owns these words; they survive a
     // republication and an ordinary park, and reset on progress or completion.
     rt_channel_retry_state channel_retry;
-    // Handle count in the low 31 bits, "this task has completed" in the top
-    // one: one word, because whether a drop may free the task is one question.
-    // The protocol, and why asking it as two reads was a double free, is in
-    // rt_task_refs.h.
-    atomic_u32 handle_refs;
     // Where a channel value delivered to this task is waiting.
     //
     // A capability token -- owner, index, generation -- and not the value: the
@@ -309,18 +279,10 @@ typedef struct rt_task {
     // Write-once provenance: the scope active at creation, or WAKER_NONE.
     // Placement, scheduling, wake and completion never rewrite it.
     waker_key creation_scope_key;
-    // Park generation for channel candidate/validate: bumped when a channel
-    // park registers and when this task consumes a delivered channel resume,
-    // so a popped entry from a superseded park validates false instead of
-    // redelivering into a reused mailbox.
-    uint32_t park_seq;
     waker_key park_key;
     waker_key* wait_keys;
     size_t wait_keys_len;
     size_t wait_keys_cap;
-    uint8_t net_ready_accept_valid;
-    int net_ready_accept_fd;
-    uint32_t net_ready_accept_owner_shard;
     uint64_t timeout_task_id;
     uint64_t* select_timers;
     size_t select_timers_len;
@@ -334,6 +296,49 @@ typedef struct rt_task {
     // list threads through the tasks themselves, so keeping that rule costs no
     // allocation at all. NULL outside that list.
     struct rt_task* reclaim_next;
+    // Every word narrower than a pointer, together, words before bytes: the
+    // struct's padding is at its floor only while they stay in one run, and
+    // clang-tidy reads that floor (optin.performance.Padding). A new narrow
+    // field joins this run rather than sitting beside the field it relates to.
+    uint32_t owner_shard_id;
+    // Carrier affinity: a task that borrows its creator's frame runs only on
+    // the worker carrying the creator when it was made. Publication addresses
+    // that worker's deque and token; every other worker refuses it on pop.
+    // Written once, at creation, before the task is published (carrier_valid
+    // says whether it was).
+    uint32_t carrier_worker_id;
+    atomic_u32 join_owner_shard_id;
+    // Handle count in the low 31 bits, "this task has completed" in the top
+    // one: one word, because whether a drop may free the task is one question.
+    // The protocol, and why asking it as two reads was a double free, is in
+    // rt_task_refs.h.
+    atomic_u32 handle_refs;
+    // Park generation for channel candidate/validate: bumped when a channel
+    // park registers and when this task consumes a delivered channel resume,
+    // so a popped entry from a superseded park validates false instead of
+    // redelivering into a reused mailbox.
+    uint32_t park_seq;
+    int net_ready_accept_fd;
+    uint32_t net_ready_accept_owner_shard;
+    uint8_t result_kind;
+    atomic_u8 status;
+    uint8_t kind;
+    uint8_t resume_kind;
+    uint8_t placement_class;
+    uint8_t owner_shard_valid;
+    uint8_t carrier_valid;
+    atomic_u8 cancelled;
+    atomic_u8 enqueued;
+    atomic_u8 wake_token;
+    atomic_u8 polling;
+    atomic_u8 remote_handle_state;
+    atomic_u8 far_task_result_state;
+    uint8_t checkpoint_polled;
+    uint8_t sleep_armed;
+    uint8_t park_prepared;
+    uint8_t scope_registered;
+    uint8_t cancel_pending;
+    uint8_t net_ready_accept_valid;
 } rt_task;
 
 static inline uint32_t rt_task_join_owner_shard_id_load(const rt_task* task) {

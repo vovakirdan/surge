@@ -13217,4 +13217,10 @@ on `341f1978` alike: `clang-analyzer-optin.performance.Padding` reports
 `struct rt_task` at 33 padding bytes where 1 is optimal, with a suggested
 field order. `git log -S carrier_worker_id` dates the tipping field to
 D4.6 (`1ba55ecd`), and `runtime-v2-check` does not run `ctidy`, so the D8
-rows could not see it. Its own commit follows E5.
+rows could not see it. Fixed in the commit after E5: every word narrower
+than a pointer moved into one run at the tail of the struct, words before
+bytes, with a comment that says why the run exists; no field changed its
+type or name, nothing reads the struct positionally (the only `sizeof`
+users allocate and zero it), the probe reads clean, and the static-shape,
+lifecycle, carrier-affinity and behaviour stands are green on the new
+layout.
