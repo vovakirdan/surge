@@ -14016,6 +14016,42 @@ Its report lands in NOTES when it finishes. The runner holds
 `.wt-129ce2b2`; `queue_f.sh` waits behind `queue_p6` and runs baseline,
 W8 ×5, the five gates the tail touched and the freeze set.
 
+**The paired benchmark, read.** It refused the tree before any timing:
+
+    blocking-composite candidate warmup 0 batch 0: allocation_count=344, want exact structural budget 341
+
+The budget is exact and fail-closed by design (`37bd759b`), so the number
+is a fact about structure, not noise, and it was bisected the same way the
+harness reports it, one detached worktree per SHA, each aborting at the
+mismatch in about three minutes:
+
+| SHA | what | `allocation_count` |
+| --- | --- | ---: |
+| `8b12beb3` | pre-wave base | passes the budget (341) |
+| `c9c083e2` | connection task in a scope stays on its fd's shard | 342 |
+| `71bd0674` | D5b, creation is the only writer of membership | 342 |
+| `1ba55ecd` | D4.6, carrier-addressed publication | 344 |
+| `69a83039` … `6bd6fd22` | D4.5 through Р6 | 344 |
+
+Wave D's, not E's or F's: +1 at `c9c083e2` (no `rt_alloc` of its own; a
+changed count on an existing site, not yet named) and +2 at D4.6 (the
+`worker_wake_pending` array, once per scheduler, and the exit sweep's
+`pinned` scratch array, `rt_alloc(len * 8)` per carrier at exit).
+RV2-DEBT-329 holds it; the budget is not re-pinned here, because a pin
+moves only with a census that names what moved it. Two instrument notes
+from the same runs: the pre-wave SHA, past the budget, died of
+`array-grow-composite base throughput CV 0.081921 exceeds 0.050000`
+because valgrind rows were running beside it on cores 4-7 -- the protocol
+wants the whole machine, and today it did not have it; and the first two
+attempts at HEAD died before the bench proper (a stale harness digest for
+the model test the lenses changed, then the `/tmp/.git` VCS stamp), both
+recorded above. The 2+7 protocol has therefore not run on this tree; it
+runs once 329 is answered, on a quiet reference host.
+
+The runner's queue for the tail is now `1165aef6` (the DEBT-324 fix
+included); `queue_f.sh` waits behind `queue_p6` and runs baseline, W8 ×5,
+the five gates the tail touched and the freeze set.
+
 ### DEBT-324, the anchored state gave the caller's handle back a second time (2026-09-03)
 
 The ownership lens read it; a program showed it. `probe/anchor_cancel.sg`:
