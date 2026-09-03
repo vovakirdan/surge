@@ -135,9 +135,18 @@ static int worker_drain_pinned_on_exit(rt_worker_ctx* ctx,
     if (len == 0) {
         return 0;
     }
-    uint64_t* pinned = (uint64_t*)rt_alloc((uint64_t)len * sizeof(uint64_t), _Alignof(uint64_t));
-    if (pinned == NULL) {
-        return 0;
+    // The ids are collected on the stack for the deque a carrier ordinarily
+    // exits with; only a deque longer than the inline run pays an allocation,
+    // the way scope_cancel_children_controlled already does. The exit sweep
+    // is one of the three allocations the paired benchmark's exact budget
+    // read on top of Wave D (RV2-DEBT-329).
+    uint64_t inline_pinned[64];
+    uint64_t* pinned = inline_pinned;
+    if (len > 64) {
+        pinned = (uint64_t*)rt_alloc((uint64_t)len * sizeof(uint64_t), _Alignof(uint64_t));
+        if (pinned == NULL) {
+            return 0;
+        }
     }
     size_t pinned_len = 0;
     uint64_t first = 0;
@@ -167,20 +176,24 @@ static int worker_drain_pinned_on_exit(rt_worker_ctx* ctx,
         }
     }
     if (pinned_len == 0) {
-        rt_free((uint8_t*)pinned, (uint64_t)len * sizeof(uint64_t), _Alignof(uint64_t));
+        if (pinned != inline_pinned) {
+            rt_free((uint8_t*)pinned, (uint64_t)len * sizeof(uint64_t), _Alignof(uint64_t));
+        }
         return 0;
     }
     rt_shard_unlock(shard);
     rt_control_lock(ex);
     for (size_t i = 0; i < pinned_len; i++) {
-        rt_task* task = get_task(ex, pinned[i]);
+        const rt_task* task = get_task(ex, pinned[i]);
         if (task != NULL && task_cancelled_load(task) == 0) {
             cancel_task(ex, pinned[i]);
             rt_trace_sched_carrier_shutdown_cancelled();
         }
     }
     rt_control_unlock(ex);
-    rt_free((uint8_t*)pinned, (uint64_t)len * sizeof(uint64_t), _Alignof(uint64_t));
+    if (pinned != inline_pinned) {
+        rt_free((uint8_t*)pinned, (uint64_t)len * sizeof(uint64_t), _Alignof(uint64_t));
+    }
     rt_shard_lock(shard);
     *out_id = first;
     return 1;
