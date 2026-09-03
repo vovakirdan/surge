@@ -219,6 +219,7 @@ int rtb_mode_drop_stale_anchor(void);
 int rtb_mode_drop_queue_full(void);
 int rtb_mode_drop_select_mixed_owners(void);
 int rtb_mode_drop_handoff_not_dropped(void);
+int rtb_mode_resident_handoff_balance(void);
 int rtb_mode_drop_zero_id_never_dispatches(void);
 int rtb_mode_drop_bound_cancel_no_pending_drop(void);
 int rtb_mode_result_owner_release(void);

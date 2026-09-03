@@ -4,6 +4,9 @@
 
 #include "rt_transport_internal.h"
 
+#include "rt_carrier_bench.h"
+#include "rt_resident_bytes.h"
+
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -171,11 +174,31 @@ rt_runtime_status rt_transport_state_init(rt_transport_state* state) {
     return RT_RUNTIME_STATUS_OK;
 }
 
+_Static_assert(sizeof(rt_transport_msg) >= RT_TRANSPORT_MSG_FIELD_BYTES,
+               "an envelope cannot be narrower than its fields");
+
+// One envelope's residency, entered at push and left at pop: its fields and,
+// beside them, the padding the struct layout inserts.
+static void envelope_resident_acquire(void) {
+    rt_resident_bytes_acquire(RT_RESIDENT_ENVELOPE, RT_TRANSPORT_MSG_FIELD_BYTES);
+    rt_resident_bytes_acquire(RT_RESIDENT_PADDING, RT_TRANSPORT_MSG_PADDING_BYTES);
+}
+
+static void envelope_resident_release(void) {
+    rt_resident_bytes_release(RT_RESIDENT_ENVELOPE, RT_TRANSPORT_MSG_FIELD_BYTES);
+    rt_resident_bytes_release(RT_RESIDENT_PADDING, RT_TRANSPORT_MSG_PADDING_BYTES);
+}
+
 void rt_transport_state_destroy(rt_transport_state* state) {
     if (state == NULL) {
         return;
     }
     rt_transport_wake_destroy(&state->wake);
+    // Envelopes still queued at teardown leave residency here: the lanes are
+    // about to be zeroed and nothing will pop them.
+    for (size_t left = state->data_len + state->control_len; left > 0; left--) {
+        envelope_resident_release();
+    }
     memset(state, 0, sizeof(*state));
     rt_transport_wake_init_empty(&state->wake);
 }
@@ -204,6 +227,7 @@ rt_transport_push_locked(rt_transport_state* state, const rt_transport_msg* msg,
             state->control_reserve_stalls++;
         } else {
             state->data_credit_stalls++;
+            rt_carrier_bench_record_credit_stall();
         }
         return RT_TRANSPORT_STATUS_QUEUE_FULL;
     }
@@ -230,6 +254,7 @@ rt_transport_status rt_transport_reserve_reply_slot_locked(rt_transport_state* s
     }
     if (state->data_len + state->reply_reserved >= RT_TRANSPORT_DATA_SLOT_CREDITS) {
         state->data_credit_stalls++;
+        rt_carrier_bench_record_credit_stall();
         return RT_TRANSPORT_STATUS_QUEUE_FULL;
     }
     state->reply_reserved++;
@@ -276,6 +301,7 @@ static void rt_transport_push_unchecked_locked(rt_transport_state* state,
     size_t index = (*head + *len) % cap;
     queue[index] = *msg;
     (*len)++;
+    envelope_resident_acquire();
     state->enqueue_count++;
     if (control) {
         state->control_enqueue_count++;
@@ -327,6 +353,7 @@ rt_transport_pop_locked(rt_transport_state* state, rt_transport_msg* out, int co
     memset(&queue[*head], 0, sizeof(queue[*head]));
     *head = (*head + 1U) % cap;
     (*len)--;
+    envelope_resident_release();
     state->drain_count++;
     if (control) {
         state->control_drain_count++;

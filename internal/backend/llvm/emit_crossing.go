@@ -101,6 +101,38 @@ func (fe *funcEmitter) crossingStateTypeID(stateType types.TypeID) (types.TypeID
 	return resolved, nil
 }
 
+// emitCrossingCloneCounter charges the one duplication a crossing performs.
+// A capture whose type is Copy is duplicated into the state block -- the
+// source stays usable, the block gets its own bytes -- and nothing else on a
+// crossing copies: owned captures move, an anchor is leased. The count is
+// emitted in the crossing's initial block only, because a retry poll ships
+// no state; it is the width of the copied captures, as the runtime's
+// resident-byte telemetry reports it (rt_resident_bytes.h).
+func (fe *funcEmitter) emitCrossingCloneCounter(ins *mir.CrossingInstr) error {
+	var total uint64
+	for i := range ins.Captures {
+		capture := &ins.Captures[i]
+		if capture.Mode != sema.CrossingCaptureCopy {
+			continue
+		}
+		resolved := resolveValueType(fe.emitter.types, capture.Type)
+		if resolved == types.NoTypeID {
+			continue
+		}
+		layoutInfo, err := fe.emitter.layoutOf(resolved)
+		if err != nil {
+			return err
+		}
+		total += layoutInfo.Size
+	}
+	if total == 0 {
+		return nil
+	}
+	fmt.Fprintf(&fe.emitter.buf,
+		"  call void @rt_resident_bytes_record_crossing_clone(i64 %d)\n", total)
+	return nil
+}
+
 func (fe *funcEmitter) emitSpawnOnCrossing(ins *mir.CrossingInstr) error {
 	if ins == nil {
 		return nil
@@ -145,6 +177,9 @@ func (fe *funcEmitter) emitSpawnOnCrossing(ins *mir.CrossingInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", isRetry, retryBB, initBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", initBB)
+	if err := fe.emitCrossingCloneCounter(ins); err != nil {
+		return err
+	}
 	allocStatus := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf,
 		"  %s = call i32 @rt_far_task_handle_alloc(ptr %s)\n", allocStatus, handleSlot)

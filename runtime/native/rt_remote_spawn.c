@@ -1,5 +1,6 @@
 #include "rt_remote_spawn_internal.h"
 #include "rt_remote_task.h"
+#include "rt_resident_bytes.h"
 #include "rt_sync_point.h"
 #include "rt_value_cell.h"
 
@@ -167,11 +168,15 @@ rt_remote_spawn_status rt_remote_spawn_publish(uint32_t dst_shard_id,
         return RT_REMOTE_SPAWN_STATUS_REFUSED;
     }
     memset(req, 0, sizeof(*req));
+    rt_resident_bytes_acquire(RT_RESIDENT_RECORD, sizeof(*req));
     req->executor = ex;
     req->poll_fn_id = (uint64_t)poll_fn_id;
     req->state = state;
     req->state_type_id = state_type_id;
     req->state_owned = state_type_id != 0;
+    if (req->state_owned) {
+        rt_resident_payload_acquire(rt_channel_element_ops_for(state_type_id));
+    }
     req->result_type_id = result_type_id;
     req->caller_task_id = current->id;
     req->source_shard_id = remote_spawn_current_source_shard(current);
@@ -391,6 +396,9 @@ static void remote_spawn_dispatch_request(rt_executor* ex, const rt_transport_ms
     // PUBLICATION-ACCEPTED HANDOFF (contract: rt_remote_spawn_internal.h):
     // from here the body owns the shipped state; the pending's final
     // release must no longer drop it.
+    if (req->state_owned) {
+        rt_resident_payload_release(rt_channel_element_ops_for(req->state_type_id));
+    }
     req->state_owned = 0;
 
     rt_shard* source = rt_runtime_shard(rt_executor_runtime(ex), req->source_shard_id);

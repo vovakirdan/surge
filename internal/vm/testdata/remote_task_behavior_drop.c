@@ -1,6 +1,7 @@
 #include "remote_task_behavior.h"
 #include "rt_far_channel.h"
 #include "rt_placement.h"
+#include "rt_resident_bytes.h"
 
 #include <string.h>
 
@@ -331,6 +332,66 @@ int rtb_mode_drop_handoff_not_dropped(void) {
     rtb_sleep_us(50000);
     if (atomic_load_explicit(&rtb_drop_calls, memory_order_acquire) != 0) {
         return rtb_fail("handoff row dropped through the pending despite a published body");
+    }
+    (void)rt_executor_request_shutdown(ex);
+    return 0;
+}
+
+// What one crossing keeps resident, read after it completed: a typed state
+// shipped by an immediate execute, handed off to the published body, the
+// reply consumed. Every width is exact because every byte has one owner --
+// the state block at its descriptor's width, one pending record, one request
+// and one reply envelope (fields and padding apart), no sidecar -- and every
+// balance is back at zero. RV2_E5_RESIDENT_NEGATIVE_CONTROL keeps the payload
+// charged past the handoff, and the zero-balance assertion goes red.
+int rtb_mode_resident_handoff_balance(void) {
+    rt_executor* ex = ensure_exec();
+    rtb_drop_reset();
+    static rtb_drop_state state;
+    memset(&state, 0, sizeof(state));
+    state.shipped_mark = rtb_shipped_state_new(RTB_DROP_MARK_ID);
+    state.placement = rt_placement_shard(1);
+    uint8_t kind = 0;
+    uint64_t bits = 0;
+    struct rt_resident_bytes_snapshot before = rt_resident_bytes_snapshot();
+    void* caller = __task_create(POLL_RTB_DROP_EXECUTE, &state, rt_channel_opaque_word_ops());
+    rt_task_await(caller, &kind, &bits);
+    if (state.status != RT_REMOTE_TASK_STATUS_OK) {
+        return rtb_fail("resident row did not complete");
+    }
+    rtb_sleep_us(50000);
+    struct rt_resident_bytes_snapshot after = rt_resident_bytes_snapshot();
+    if (after.live[RT_RESIDENT_PAYLOAD] != 0) {
+        return rtb_fail("payload bytes still resident after the crossing completed");
+    }
+    for (int i = 0; i < RT_RESIDENT_KIND_COUNT; i++) {
+        if (after.live[i] != 0) {
+            return rtb_fail("bytes still resident after the crossing completed");
+        }
+    }
+    if (after.underflows != 0) {
+        return rtb_fail("a release outran its acquire");
+    }
+    if (after.acquired[RT_RESIDENT_PAYLOAD] - before.acquired[RT_RESIDENT_PAYLOAD] !=
+        sizeof(rtb_shipped_state)) {
+        return rtb_fail("payload was not charged at the state descriptor's width");
+    }
+    if (after.acquired[RT_RESIDENT_RECORD] - before.acquired[RT_RESIDENT_RECORD] !=
+        sizeof(rt_remote_task_pending)) {
+        return rtb_fail("one crossing charged other than one pending record");
+    }
+    if (after.acquired[RT_RESIDENT_ENVELOPE] - before.acquired[RT_RESIDENT_ENVELOPE] !=
+            2 * RT_TRANSPORT_MSG_FIELD_BYTES ||
+        after.acquired[RT_RESIDENT_PADDING] - before.acquired[RT_RESIDENT_PADDING] !=
+            2 * RT_TRANSPORT_MSG_PADDING_BYTES) {
+        return rtb_fail("one request and one reply charged other than two envelopes");
+    }
+    if (after.acquired[RT_RESIDENT_SIDECAR] != before.acquired[RT_RESIDENT_SIDECAR]) {
+        return rtb_fail("an execute crossing charged a sidecar");
+    }
+    if (after.peak_total <
+        sizeof(rtb_shipped_state) + sizeof(rt_remote_task_pending) + sizeof(rt_transport_msg)) {
+        return rtb_fail("the peak never held the record, the state and the envelope together");
     }
     (void)rt_executor_request_shutdown(ex);
     return 0;

@@ -355,6 +355,7 @@ func runTransportCProgram(t *testing.T, label, source string, extraFlags []strin
 		filepath.Join(root, "runtime", "native", "rt_transport.c"),
 		filepath.Join(root, "runtime", "native", "rt_transport_park.c"),
 		filepath.Join(root, "runtime", "native", "rt_transport_debug.c"),
+		filepath.Join(root, "runtime", "native", "rt_resident_bytes.c"),
 		filepath.Join(root, "runtime", "native", "rt_lane.c"),
 		filepath.Join(root, "runtime", "native", "rt_sync_point.c"),
 		"-pthread",

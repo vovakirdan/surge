@@ -1,5 +1,6 @@
 #include "rt_async_internal.h"
 #include "rt_net_trace.h"
+#include "rt_resident_bytes.h"
 
 #include <signal.h>
 #include <stdlib.h>
@@ -624,6 +625,7 @@ static void trace_dump_all(const char* reason) {
     if (rt_exec_trace_enabled()) {
         rt_net_trace_runtime_shards(rt_runtime_shard_count(exec_state.runtime));
         rt_net_trace_dump(reason);
+        rt_resident_bytes_dump(reason);
     }
     trace_exec_snapshot_dump(reason);
 }

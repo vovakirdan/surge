@@ -1,5 +1,6 @@
 #include "rt_far_channel.h"
 #include "rt_remote_task_internal.h"
+#include "rt_resident_bytes.h"
 #include "rt_value_cell.h"
 
 // The anchored immediate execute: the destination is the anchor's owner
@@ -84,6 +85,9 @@ rt_remote_task_status rt_immediate_on_execute_anchored(const rt_far_task_handle*
     request->state_type_id = state_type_id;
     request->result_type_id = result_type_id;
     request->state_owned = state_type_id != 0;
+    if (request->state_owned) {
+        rt_resident_payload_acquire(rt_channel_element_ops_for(state_type_id));
+    }
     request->anchor = *anchor;
     *pending = request;
     rt_remote_task_pending_add_ref(request);

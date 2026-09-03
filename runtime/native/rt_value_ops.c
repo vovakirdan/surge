@@ -1,5 +1,7 @@
 #include "rt_value_ops.h"
 
+#include "rt_carrier_bench.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -124,6 +126,9 @@ void rt_value_move_init_detached(const rt_value_ops* operations, void* dst, void
                                  "needs non-null destination and source storage");
     }
     rt_value_refuse_if_locked("rt_value_move_init_detached");
+    // The physical move, at the descriptor's width: what the carrier bench
+    // counts as bytes moved, wherever the move is dispatched from.
+    rt_carrier_bench_record_move(operations->layout.size);
     operations->move_init(dst, src);
 }
 

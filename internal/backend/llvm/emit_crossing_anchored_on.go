@@ -78,6 +78,9 @@ func (fe *funcEmitter) emitAnchoredOnCrossing(ins *mir.CrossingInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", isRetry, retryBB, initBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", initBB)
+	if err := fe.emitCrossingCloneCounter(ins); err != nil {
+		return err
+	}
 	anchorVal, anchorTy, err := fe.emitValueOperand(&ins.Destination.Value)
 	if err != nil {
 		return err

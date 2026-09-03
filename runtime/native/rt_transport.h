@@ -69,6 +69,14 @@ typedef struct rt_transport_msg {
     void* payload;
 } rt_transport_msg;
 
+// The envelope's fields, and the alignment slack the struct layout inserts
+// between them: header bytes that carry nothing. The resident-byte telemetry
+// (rt_resident_bytes.h) counts the two apart, so a header figure reads as
+// fields plus padding.
+#define RT_TRANSPORT_MSG_FIELD_BYTES                                                               \
+    (sizeof(rt_transport_msg_kind) + 2 * sizeof(uint32_t) + 2 * sizeof(uint64_t) + sizeof(void*))
+#define RT_TRANSPORT_MSG_PADDING_BYTES (sizeof(rt_transport_msg) - RT_TRANSPORT_MSG_FIELD_BYTES)
+
 // The bound is SLOTS, not bytes. An envelope is a fixed record over a pointer
 // the transport does not own, so its whole cost to the target is one slot:
 // one credit per envelope, and the free slots ARE the credits -- there is no

@@ -13089,3 +13089,132 @@ its exactly-once drop are `queue-full` in
 `TestRuntimeV2RemotePublicationBehavior` (`run_queue_full`, rewritten by
 E4). The row is removed; `run_refusal_drop` keeps its one remaining edge,
 destination shutdown, and says so. Same commit day, separate commit.
+
+### E5, what a crossing keeps resident, measured at each byte's owner (2026-09-03)
+
+**What the plan asked, and what the tree had.** "Exact resident-byte
+telemetry: header, padding, payload, sidecars and crossing clone; slot
+budgets stay 64/16; normal and jumbo byte budgets are measured first; a new
+numeric limit stops for an owner decision." The carrier bench's bridge
+declared six recorders and reported five metrics, and only two had a
+production caller (`record_copy` and `record_callback`, in the clone glue);
+`record_move`, `record_credit_stall`, `transport_acquire` and
+`transport_release` were called from one unit test, so `bytes_moved`,
+`credit_stalls` and `peak_transport_bytes` were structural zeros in every
+run, and the manifest's numbers for them (`credit_stalls eq 128`,
+`peak_transport_bytes ge 8192 le 9472` on `far-jumbo-contention`) were
+written against the byte-credit model the 2026-08-29 ruling withdrew. The
+ABI's `rt_cross_plan` (envelope, payload offset, sidecar, total) is real and
+frozen, and nothing populates it: the one `plan_cross` in the tree refuses.
+E2 did not build the envelope-with-header the draft imagined; a message is
+still a fixed `rt_transport_msg` over a pointer, and that is what the ruling
+says it is charged for. So "header, padding, payload, sidecar" had to be
+defined on the tree that exists, one owner per byte, or they would have been
+numbers with no writer.
+
+**The definitions (`rt_resident_bytes.h`).** ENVELOPE: the fields of one
+`rt_transport_msg` per envelope in a lane, push to pop (36 bytes on x86-64).
+PADDING: the bytes of that envelope no field occupies, beside it (4; the
+static assert pins fields ≤ sizeof). RECORD: the pending that tracks the
+crossing on the source side, `rt_remote_task_pending` (280) or
+`rt_remote_spawn_pending`, allocation to last release. PAYLOAD: the shipped
+state block at its descriptor's width, from `state_owned = 1` to the
+publication-accepted handoff (`state_owned = 0`, the body's frame from
+there) or to the pending's drop of a state that never shipped; plus a
+remote select's staged SEND payload when it did not fit the arm cell's 16
+inline bytes, until the table is freed. SIDECAR: the arm table,
+`count × sizeof(rt_far_channel_select_arm)` (96 each), allocation to free.
+Each kind: live, peak, acquired-total; a process-wide live and peak; a
+release that outruns its acquire clamps to zero and counts an underflow.
+CROSSING CLONE: charged by the LLVM emitter in the crossing's initial block
+-- the width of every capture whose mode is `CrossingCaptureCopy`, once per
+crossing, never on the retry poll (`rt_resident_bytes_record_crossing_clone`
+is a total, since the copy lives inside the state block the PAYLOAD counts).
+The exec trace (`SURGE_TRACE_EXEC=1`) prints one `TRACE_RESIDENT` line
+beside `TRACE_NET`; a resource-capture bench build sees the same
+acquires/releases through `transport_acquire/release`, every physical move
+through `rt_value_move_init_detached` as `bytes_moved`, and every data-lane
+stall (admission and reservation) as a credit stall. The far task's result
+is NOT here: the reply pins the producer's slot, so a 4096-byte result reads
+as resident in the producer's task and as 16 bytes of transport payload
+(the index it captured plus the state word) -- exactly what §8 says.
+
+**The table, for the owner's decision.** `ba7f13e4`+E5, `SURGE_SHARDS=2
+SURGE_THREADS=2 SURGE_BLOCKING_THREADS=1`, release llvm, the manifest's own
+fixtures and probes, one run each, WSL2 (widths are layout facts, not host
+facts). Peaks are bytes; every row read `live_total=0 underflows=0` at exit.
+
+| probe | payload | envelope | padding | record | payload | sidecar | peak_total | clone bytes (clones) |
+|---|---|---|---|---|---|---|---|---|
+| far-channel-composite | 64 | 36 | 4 | 280 | 80 | 0 | 400 | 4096 (64) |
+| far-channel-scalar | 8 | 36 | 4 | 280 | 16 | 0 | 336 | 0 |
+| far-immediate-composite | 64 | 36 | 4 | 280 | 72 | 0 | 392 | 4096 (64) |
+| far-immediate-scalar | 8 | 36 | 4 | 280 | 0 | 0 | 320 | 0 |
+| far-jumbo-contention | 8192 | 36 | 4 | 280 | 8200 | 0 | 8424 | 1048576 (128) |
+| far-large-capture | 4096 | 36 | 4 | 280 | 4104 | 0 | 4328 | 524288 (128) |
+| far-large-result | 4096 | 36 | 4 | 280 | 16 | 0 | 320 | 512 (64) |
+| far-select-composite | 64 | 36 | 4 | 280 | 80 | 192 | 512 | 4096 (64) |
+| far-select-scalar | 8 | 36 | 4 | 280 | 16 | 192 | 512 | 0 |
+| far-share-control | 0 | 36 | 4 | 280 | 0 | 0 | 320 | 0 |
+| far-task-composite | 64 | 36 | 4 | 280 | 72 | 0 | 320 | 4096 (64) |
+| far-task-scalar | 8 | 36 | 4 | 280 | 0 | 0 | 320 | 0 |
+| select-send-composite (local) | 64 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| select-send-scalar (local) | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+
+What the table says. (1) The peak of every kind is ONE unit at every far
+row: one envelope, one pending, one state block. The handoff empties the
+transport before the next request is submitted, so `far-jumbo-contention`'s
+two producers never hold two 8200-byte blocks at once -- its whole resident
+cost is 8424 bytes, and 8200 of it is the caller's own capture, which was
+going to exist anyway. There is no accumulation to bound: the transport
+never owns more than one crossing's bytes per producer. (2) A state block is
+its captures plus 8 (poll state), plus 8 more for the channel anchor; a
+scalar capture that is not captured at all (`far-immediate-scalar`,
+`far-task-scalar`, `far-share-control`) ships no block, `payload 0`. (3)
+`peak_transport_bytes` under the manifest's `ge 8192 le 9472` for jumbo
+would read 8424 today, `ge 4096 le 5376` for large 4328 -- inside the old
+windows by accident of the pending's width, not by the model those windows
+came from; `far-scalar` `ge 8` reads 0 at two of its four probes, so that
+floor is false as written. (4) `credit_stalls eq 128` is unmeasured here:
+the fixture reaches no stall at 2×2 with one crossing in flight per
+producer, and E4's park makes a stall a park, so the number would have to
+be re-derived from the park counter in a saturation probe, which is E6's
+two-jumbo-producers row. (5) The local twins are zero: the instrument is far
+traffic only, by construction. OWNER STOP №1 is the plan's, and it is this
+table: the slot budgets stay 64/16 and no byte limit is derived here; the
+frozen six-metric contract, the manifest's numbers and the two deferred
+liveness probes are untouched until the owner says which of (a) keep the
+old windows, (b) re-pin them to the measured one-unit peaks, (c) drop the
+byte assertions and keep slots, they want.
+
+**Stands and controls.** `resident-bytes-of-one-crossing-are-exact-and-
+given-back` (behaviour table, 2×2): one immediate execute with a typed 8-byte
+state -- payload acquired exactly 8, record exactly `sizeof(pending)`,
+envelopes exactly two (request and reply, fields and padding apart), no
+sidecar, `peak_total` at least state+record+envelope together, every balance
+zero afterwards. Rule 13: `RV2_E5_RESIDENT_NEGATIVE_CONTROL` drops the one
+release at the handoff and the row reads "payload bytes still resident
+after the crossing completed"
+(`TestRuntimeV2RemoteTaskResidentBytesNegativeControl`, on the remote task
+acceptance gate). `TestRuntimeV2ResidentBytesTelemetry` (untagged, llvm):
+two crossings of a 64-byte Copy value, `crossing_clones=2`,
+`crossing_clone_bytes=128`, `payload_acquired ≥ 128`, every `*_live=0`.
+`TestRuntimeV2ResidentBytesLedger`: the module alone, peak 15 after 10+5,
+clamp on a 40-byte release of 36 with `underflows=1`, `peak_total=51`, one
+dump line. `TestEmitCrossingChargesCopyCapturesOnce` / `...DoesNotCharge-
+MovedCaptures`: the IR carries `(i64 64)` exactly once for a Copy capture
+and no call for an `own` one. Gates local: file-size `--committed` PASS
+(1200 files, 0 violations), llvm / mir / sema / panicgate / carriergate /
+gatecheck / abimanifest / buildpipeline units, the carrier-bench VM tests
+(the counter matrix is untouched, five keys), the transport contract roster
+(the two transport-only stands now link `rt_resident_bytes.c`), the remote
+task acceptance roster after the row fix above, strict-warning compile and
+cppcheck on every touched C file.
+
+**Found on the way, not fixed here.** `make ctidy` (CI's `c-check-clang`)
+is red on every file that includes `rt_async_internal.h`, on `ba7f13e4` and
+on `341f1978` alike: `clang-analyzer-optin.performance.Padding` reports
+`struct rt_task` at 33 padding bytes where 1 is optimal, with a suggested
+field order. `git log -S carrier_worker_id` dates the tipping field to
+D4.6 (`1ba55ecd`), and `runtime-v2-check` does not run `ctidy`, so the D8
+rows could not see it. Its own commit follows E5.

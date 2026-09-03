@@ -1,4 +1,5 @@
 #include "rt_remote_task_internal.h"
+#include "rt_resident_bytes.h"
 #include "rt_value_cell.h"
 
 #include <string.h>
@@ -81,6 +82,7 @@ rt_remote_task_pending* rt_remote_task_pending_new(rt_executor* ex,
         return NULL;
     }
     memset(pending, 0, sizeof(*pending));
+    rt_resident_bytes_acquire(RT_RESIDENT_RECORD, sizeof(*pending));
     pending->executor = ex;
     pending->request_id =
         atomic_fetch_add_explicit(&state->next_request_id, 1, memory_order_relaxed);
@@ -120,8 +122,9 @@ void rt_remote_task_pending_release(rt_remote_task_pending* pending) {
         }
         if (pending->state_owned != 0 && pending->state_type_id != 0 &&
             pending->body_state != NULL) {
-            rt_value_release_owned_block(rt_channel_element_ops_for(pending->state_type_id),
-                                         pending->body_state);
+            const rt_value_ops* operations = rt_channel_element_ops_for(pending->state_type_id);
+            rt_resident_payload_release(operations);
+            rt_value_release_owned_block(operations, pending->body_state);
             pending->body_state = NULL;
         }
         // A landed reply whose capability nobody spent: the caller tore down
@@ -132,23 +135,34 @@ void rt_remote_task_pending_release(rt_remote_task_pending* pending) {
             rt_remote_task_release_result_source(pending->executor, &pending->result_source);
             pending->result_source = (rt_result_source){0, 0, 0, 0};
         }
-        if (pending->select_arms != NULL) {
-            // Every SEND arm's payload is still owned here except the ones
-            // already moved out: the winner, which the destination's select
-            // took, and any the terminal retry handed back. Each of those left
-            // its cell MOVED, so disposing every cell destroys exactly what is
-            // still owned and nothing else -- the arm's own state answers the
-            // question that select_committed_index used to have to answer from
-            // outside.
-            for (uint64_t i = 0; i < pending->select_count; i++) {
-                rt_value_cell_dispose(&pending->select_arms[i].payload);
-            }
-            rt_free((uint8_t*)pending->select_arms,
-                    pending->select_count * sizeof(rt_far_channel_select_arm),
-                    _Alignof(rt_far_channel_select_arm));
-        }
+        rt_remote_task_select_arms_free(pending->select_arms, pending->select_count);
+        rt_resident_bytes_release(RT_RESIDENT_RECORD, sizeof(*pending));
         rt_free((uint8_t*)pending, sizeof(*pending), _Alignof(rt_remote_task_pending));
     }
+}
+
+void rt_remote_task_select_arms_free(rt_far_channel_select_arm* arms, uint64_t count) {
+    if (arms == NULL) {
+        return;
+    }
+    // Every SEND arm's payload is still owned here except the ones already
+    // moved out: the winner, which the destination's select took, and any the
+    // terminal retry handed back. Each of those left its cell MOVED, so
+    // disposing every cell destroys exactly what is still owned and nothing
+    // else -- the arm's own state answers the question that
+    // select_committed_index used to have to answer from outside. A cell's
+    // heap block, moved out of or not, is resident until this dispose frees
+    // it, and leaves the payload balance here.
+    for (uint64_t i = 0; i < count; i++) {
+        if (arms[i].payload.owns_block) {
+            rt_resident_payload_release(arms[i].payload.operations);
+        }
+        rt_value_cell_dispose(&arms[i].payload);
+    }
+    rt_resident_bytes_release(RT_RESIDENT_SIDECAR, count * sizeof(rt_far_channel_select_arm));
+    rt_free((uint8_t*)arms,
+            count * sizeof(rt_far_channel_select_arm),
+            _Alignof(rt_far_channel_select_arm));
 }
 
 void rt_remote_task_pending_consume(rt_remote_task_pending* pending) {

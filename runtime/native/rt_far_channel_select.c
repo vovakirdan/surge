@@ -1,6 +1,7 @@
 #include "rt_far_channel.h"
 #include "rt_remote_spawn_internal.h"
 #include "rt_remote_task_internal.h"
+#include "rt_resident_bytes.h"
 #include "rt_sync_point.h"
 #include "rt_value_ops.h"
 
@@ -219,6 +220,7 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anc
         return RT_REMOTE_TASK_STATUS_REFUSED;
     }
     memset(arms, 0, count * sizeof(rt_far_channel_select_arm));
+    rt_resident_bytes_acquire(RT_RESIDENT_SIDECAR, count * sizeof(rt_far_channel_select_arm));
     // Staging: each SEND payload MOVES out of the caller's storage into its
     // arm's cell, which is what makes the arm table the value's one owner from
     // here on. A staging that cannot reserve its storage leaves the value where
@@ -243,6 +245,11 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anc
         }
         rt_value_move_init_detached(arms[staged].payload.operations, cell_storage, source);
         (void)rt_value_cell_commit(&arms[staged].payload);
+        if (arms[staged].payload.owns_block) {
+            // A payload too wide for the arm's inline run: its block is
+            // resident beside the table until the table is freed.
+            rt_resident_payload_acquire(arms[staged].payload.operations);
+        }
     }
     if (staged != count) {
         // One arm could not be staged. What was already staged lives in its
@@ -268,12 +275,7 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anc
         // Nothing was ever handed to a pending -- either staging stopped short
         // or the pending itself could not be allocated -- so every staged
         // payload is still fully owned right here, in its own cell.
-        for (uint64_t i = 0; i < count; i++) {
-            rt_value_cell_dispose(&arms[i].payload);
-        }
-        rt_free((uint8_t*)arms,
-                count * sizeof(rt_far_channel_select_arm),
-                _Alignof(rt_far_channel_select_arm));
+        rt_remote_task_select_arms_free(arms, count);
         select_drop_unshipped_state(state_type_id, state);
         return RT_REMOTE_TASK_STATUS_REFUSED;
     }
@@ -283,6 +285,9 @@ rt_remote_task_status rt_far_channel_select(const rt_far_task_handle* const* anc
     request->body_state = state;
     request->state_type_id = state_type_id;
     request->state_owned = state_type_id != 0;
+    if (request->state_owned) {
+        rt_resident_payload_acquire(rt_channel_element_ops_for(state_type_id));
+    }
     request->select_arms = arms;
     request->select_count = count;
     *pending = request;
@@ -394,6 +399,9 @@ void rt_far_channel_dispatch_select(rt_executor* ex, const rt_transport_msg* msg
         return;
     }
     // PUBLICATION-ACCEPTED HANDOFF (contract: rt_remote_spawn_internal.h).
+    if (pending->state_owned) {
+        rt_resident_payload_release(rt_channel_element_ops_for(pending->state_type_id));
+    }
     pending->state_owned = 0;
     rt_remote_task_pending_release(pending);
     task_release_lane_aware(ex, task);

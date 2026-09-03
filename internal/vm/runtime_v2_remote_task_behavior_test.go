@@ -400,6 +400,11 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
 		},
 		{
+			name: "resident-bytes-of-one-crossing-are-exact-and-given-back",
+			mode: "resident-handoff-balance",
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+		},
+		{
 			name: "drop-zero-id-states-never-reach-the-dispatch",
 			mode: "drop-zero-id-never-dispatches",
 			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),

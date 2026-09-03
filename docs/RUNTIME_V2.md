@@ -839,14 +839,14 @@ admission, after which a cancellation or shutdown travels the reserved control
 lane and every data slot comes back. The word `CARRIER` is wrong in the old name
 for a second reason: an async crossing parks the TASK, not the carrier. A cross-shard message is a fixed `rt_transport_msg` envelope
 whose `payload` is a pointer into a refcount graph the transport neither copies
-nor owns, and every construction site in the tree sets `payload_len` to zero.
+nor owns, and the envelope carries no length field at all.
 An exact payload cannot be derived from such a pointer: the graph is shared, is
 not copied, and has no stable per-message cost, so the root's allocated size, a
 walk of the graph, and an alias estimate are three spellings of a number the
 transport does not have. What a pointer message actually spends is one envelope
 and one queue entry, so one envelope and one queue entry are what it is charged
-for. `payload_len` means the bytes of a buffer the transport itself owns, and
-on this path that is zero.
+for. A payload length would mean the bytes of a buffer the transport itself
+owns, and on this path that is zero.
 
 A byte budget is a measurement only where the transport owns the bytes: a
 serialized message, or a buffer explicitly handed over at enqueue and held until
@@ -854,7 +854,34 @@ the target drains it. No such path exists yet, and until one does a physical
 byte credit is false precision rather than an unfinished feature.
 The transport's own counters are `data_credit_stalls` and
 `control_reserve_stalls`, one per lane; the carrier bench's `credit_stalls` is
-a separate instrument over the same events and neither names a byte credit.
+a separate instrument over the data lane's stalls and neither names a byte
+credit.
+
+**What a crossing keeps resident is measured, not budgeted
+(`rt_resident_bytes.h`).** Every byte a crossing holds has one owner, and the
+telemetry charges it there: the ENVELOPE's fields and, apart from them, the
+PADDING its struct layout inserts, from push to pop of a lane; the RECORD --
+the pending that tracks the crossing on the source side -- from allocation
+to its last release; the PAYLOAD -- the shipped state block at its
+descriptor's width -- from submission to the publication-accepted handoff,
+after which it is the body's frame and not transport, or to the pending's
+drop of a state that never shipped, plus a remote select's staged SEND
+payloads that did not fit an arm cell inline; the SIDECAR -- a remote
+select's arm table -- from allocation to free. Each kind carries a live
+balance, a high-water mark and a running total, there is a process-wide
+balance with its own peak, and a release that outruns its acquire is clamped
+and counted rather than wrapped. A crossing CLONE is the one duplication a
+crossing performs: compiled code copies every Copy capture into the state
+block, and the crossing's initial block reports those bytes as a total, since
+the copy is already inside the payload. The exec trace prints all of it as
+one `TRACE_RESIDENT` line beside `TRACE_NET`; a resource-capture build of the
+carrier bench sees the same acquires and releases as `transport_acquire` /
+`transport_release`, its `bytes_moved` at every physical move
+(`rt_value_move_init_detached`) and its `credit_stalls` at every data-lane
+stall. What the far result does NOT add: the reply names the producer's typed
+slot and pins it, so a far task's result is resident in the producer's task,
+not in the transport, and reads as zero here. The slot budgets stay 64/16;
+no byte limit is derived from these figures without an owner ruling.
 
 The bound therefore carries two budgets, a data-slot credit for each pointer
 envelope and a separate control reserve, and the reserve is what a data backlog

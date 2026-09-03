@@ -2,6 +2,7 @@
 #include "rt_placement.h"
 #include "rt_remote_spawn_internal.h"
 #include "rt_remote_task_internal.h"
+#include "rt_resident_bytes.h"
 #include "rt_sync_point.h"
 #include "rt_value_cell.h"
 // Immediate `on placement` execute/reply: one request, one reply, one
@@ -189,6 +190,9 @@ rt_remote_task_status rt_immediate_on_execute(uint64_t placement,
     // destination shard, which is the only side that can name it.
     request->result_type_id = result_type_id;
     request->state_owned = state_type_id != 0;
+    if (request->state_owned) {
+        rt_resident_payload_acquire(rt_channel_element_ops_for(state_type_id));
+    }
     *pending = request;
     rt_remote_task_pending_add_ref(request);
     rt_transport_msg msg = {
@@ -315,6 +319,14 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
     RT_SYNC_POINT(SP_IMMEDIATE_ON_AFTER_PUBLISH);
     // PUBLICATION-ACCEPTED HANDOFF (contract: rt_remote_spawn_internal.h);
     // anchored bodies hand off here too — this dispatch is shared.
+#ifndef RV2_E5_RESIDENT_NEGATIVE_CONTROL
+    // The state leaves transport residency with the ownership: from here it
+    // is the body's frame. Rule 13: with the release gone, the resident-byte
+    // row reads the payload as still held after the crossing completed.
+    if (pending->state_owned) {
+        rt_resident_payload_release(rt_channel_element_ops_for(pending->state_type_id));
+    }
+#endif
     pending->state_owned = 0;
     rt_remote_task_pending_release(pending);
     // Drop the creation reference: no far handle exists for an immediate

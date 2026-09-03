@@ -1,6 +1,7 @@
 #include "rt_remote_spawn_internal.h"
 
 #include "rt_remote_task.h"
+#include "rt_resident_bytes.h"
 #include "rt_value_cell.h"
 
 static pthread_mutex_t remote_spawn_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -20,10 +21,12 @@ void remote_spawn_pending_release(rt_remote_spawn_pending* pending) {
     uint32_t refs = atomic_fetch_sub_explicit(&pending->refs, 1, memory_order_acq_rel);
     if (refs == 1) {
         if (pending->state_owned != 0 && pending->state_type_id != 0 && pending->state != NULL) {
-            rt_value_release_owned_block(rt_channel_element_ops_for(pending->state_type_id),
-                                         pending->state);
+            const rt_value_ops* operations = rt_channel_element_ops_for(pending->state_type_id);
+            rt_resident_payload_release(operations);
+            rt_value_release_owned_block(operations, pending->state);
             pending->state = NULL;
         }
+        rt_resident_bytes_release(RT_RESIDENT_RECORD, sizeof(*pending));
         rt_free((uint8_t*)pending, sizeof(*pending), _Alignof(rt_remote_spawn_pending));
     }
 }

@@ -46,6 +46,11 @@ typedef struct rt_far_channel_select_arm {
 // the cap keeps the dispatch pin loop and the body's stack arrays bounded.
 #define RT_FAR_CHANNEL_SELECT_MAX_ARMS 16U
 
+// Destroys what every arm still owns and frees the table: the one free site
+// for an arm table, whether the pending that would have owned it was never
+// made or is being released.
+void rt_remote_task_select_arms_free(rt_far_channel_select_arm* arms, uint64_t count);
+
 // select_committed_index sentinel: no arm has committed (yet, or the
 // pending never reaches a select commit at all, e.g. a channel_on/execute
 // op reusing this same struct). Any real committed index is < the arm cap.
