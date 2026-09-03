@@ -13840,6 +13840,15 @@ now and Wave F waits for it. (c), teaching the scanner not to see `Value`,
 is not on the table: it would be the census agreeing with what it is asked
 to say. Until answered, F7 and F8 proceed on (a) and say so.
 
+**Answered 2026-09-03, variant (а)** ("wave f - да, вариант "а""). Wave F
+exits at zero live legacy findings in every category a wave owned; the
+VM's `Value` (40 + the 27 migration paths) and the async runtime's `any`
+(14) are counted and pinned -- `liveLegacyByCategory` beside
+`migrationCarriersStillPresent` in `internal/carriergate/base_test.go`,
+every other category zero -- and belong to a VM-representation epic of
+their own. `PLAN.md:210` says so now; DEBT-318 stays Open under that
+epic. The COMPLETE headers (F8) wait for the freeze set on the runner.
+
 ### F7, the final Sentrux against D0's baseline, and the tagged queue (2026-09-03)
 
 **Sentrux final**, on a clean detached worktree of `ab89e591`, all four

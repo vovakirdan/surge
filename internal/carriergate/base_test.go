@@ -105,6 +105,40 @@ func TestLiveCarrierRatchetAgainstRepository(t *testing.T) {
 		t.Fatalf("migration carriers still present = %d, want %d (re-pin only with the census that moved it)",
 			difference.MigrationTracked, migrationCarriersStillPresent)
 	}
+	// Owner ruling 2026-09-03 (variant (а)): Wave F exits at zero live legacy
+	// findings in every category a wave owned; what stays live is the VM's
+	// `Value` interchange type and the async runtime's `any`, counted here
+	// and owned by a VM-representation epic of its own. A category outside
+	// this map that reads non-zero is a wave's category coming back.
+	legacy := make(map[findingKey]string)
+	for i := range manifest.Categories {
+		category := &manifest.Categories[i]
+		for j := range category.Legacy {
+			legacy[keyFor(&category.Legacy[j])] = category.ID
+		}
+	}
+	live := make(map[string]int)
+	for i := range actual {
+		if id, ok := legacy[keyFor(&actual[i])]; ok {
+			live[id]++
+		}
+	}
+	for i := range manifest.Categories {
+		id := manifest.Categories[i].ID
+		if got, want := live[id], liveLegacyByCategory[id]; got != want {
+			t.Fatalf("live legacy findings in %s = %d, want %d (re-pin only with the census that moved it)",
+				id, got, want)
+		}
+	}
+}
+
+// liveLegacyByCategory is the live legacy census the closeout exits on,
+// pinned 2026-09-03 after F6: the two VM-representation categories and the
+// permanent fixnum allow's own row, every other category zero.
+var liveLegacyByCategory = map[string]int{
+	"vm-universal-owner":   40,
+	"vm-async-any-carrier": 14,
+	"llvm-pointer-word-ir": 1,
 }
 
 // migrationCarriersStillPresent is the live count of manifest migration
