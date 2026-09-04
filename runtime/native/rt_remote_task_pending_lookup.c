@@ -70,6 +70,35 @@ int rt_remote_task_anchored_binding_current(void** out_channel, void** out_state
     return bound;
 }
 
+// The descriptor id of the bound body's poll state, for the body to hand to
+// rt_async_yield / rt_async_return_cancelled so a cancellation that lands
+// while the body is parked releases that state at mark_done like any other
+// task's suspend state. Until 2026-09-04 the anchored operations passed 0
+// there ("the state's drop obligation transferred onto the body task's
+// ordinary lifecycle"), but nothing on that lifecycle ever released it: a
+// body cancelled while parked in `on ch { ch.recv() }` kept its 16-byte
+// state alive on the channel until a close orphaned it (definitely lost),
+// and a far select cancelled while parked on another shard kept its staged
+// send payload the same way. Answers 0 when the caller is not a bound
+// anchored or select body, which keeps the stash untouched exactly as before.
+uint64_t rt_remote_task_anchored_state_type_id_current(void) {
+    rt_executor* ex = ensure_exec();
+    rt_remote_task_state* state = rt_remote_task_state_get(ex);
+    const rt_task* current = rt_current_task();
+    if (state == NULL || current == NULL) {
+        return 0;
+    }
+    uint64_t state_type_id = 0;
+    pthread_mutex_lock(&state->lock);
+    rt_remote_task_pending* it = current->remote_owner_pending;
+    if (it != NULL && (it->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED ||
+                       it->op == RT_REMOTE_TASK_OP_CHANNEL_SELECT)) {
+        state_type_id = it->state_type_id;
+    }
+    pthread_mutex_unlock(&state->lock);
+    return state_type_id;
+}
+
 void* rt_remote_task_anchored_channel_current(void) {
     void* channel = NULL;
     if (!rt_remote_task_anchored_binding_current(&channel, NULL)) {

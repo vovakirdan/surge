@@ -126,24 +126,28 @@ static void anchored_binding_or_die(void** out_channel, void** out_state) {
 }
 
 // The state passed to rt_async_yield/rt_async_return_cancelled below is the
-// anchored pending's body_state, not a freshly-built per-suspend-point box:
-// its drop obligation already transferred onto the body task's ordinary
-// task->state lifecycle at the publication-accepted handoff
-// (rt_immediate_on.c), which is a separate mechanism from the abandoned-
-// suspend-state stash these two runtime calls otherwise populate. Passing 0
-// here deliberately leaves that stash untouched for anchored bodies; wiring
-// a real id needs the anchored body's own per-suspend-point drop-fn id
-// threaded through the binding lookup, not yet done.
+// anchored pending's body_state, not a freshly-built per-suspend-point box.
+// Its descriptor id goes with it (rt_remote_task_anchored_state_type_id_current)
+// so a cancellation that lands while the body is parked stashes the state
+// as the body task's reclaim frame and mark_done releases it, exactly as an
+// ordinary task's suspend state. Until 2026-09-04 these calls passed 0 on
+// the reading that the state's drop obligation had "transferred onto the
+// body task's ordinary lifecycle" at the publication-accepted handoff; no
+// path on that lifecycle released it, and a body cancelled while parked in
+// `on ch { ch.recv() }` left its 16-byte state behind (RV2-DEBT-331). The
+// completing path is unchanged: a body that reaches its ready edge releases
+// the state itself and never comes through the stash.
 void rt_anchored_channel_send(void* src) {
     rt_executor* ex = ensure_exec();
     void* channel = NULL;
     void* state = NULL;
     anchored_binding_or_die(&channel, &state);
+    uint64_t state_type_id = rt_remote_task_anchored_state_type_id_current();
     if (current_task_cancelled(ex)) {
-        rt_async_return_cancelled(state, 0);
+        rt_async_return_cancelled(state, state_type_id);
     }
     if (!rt_channel_send(channel, src)) {
-        rt_async_yield(state, 0);
+        rt_async_yield(state, state_type_id);
     }
 }
 
@@ -154,12 +158,13 @@ uint8_t rt_anchored_channel_recv(void* dst) {
     void* channel = NULL;
     void* state = NULL;
     anchored_binding_or_die(&channel, &state);
+    uint64_t state_type_id = rt_remote_task_anchored_state_type_id_current();
     if (current_task_cancelled(ex)) {
-        rt_async_return_cancelled(state, 0);
+        rt_async_return_cancelled(state, state_type_id);
     }
     uint8_t status = rt_channel_recv(channel, dst);
     if (status == 0) {
-        rt_async_yield(state, 0);
+        rt_async_yield(state, state_type_id);
     }
     return status;
 }

@@ -86,6 +86,11 @@ void* rt_remote_task_anchored_channel_current(void);
 // Both halves of the calling anchored body's binding: the dispatch-cached
 // channel and the shipped poll state. Returns 0 outside a bound body.
 int rt_remote_task_anchored_binding_current(void** out_channel, void** out_state);
+// The descriptor id of the calling anchored or select body's poll state, for
+// the body to hand to rt_async_yield / rt_async_return_cancelled so a
+// cancellation that lands while it is parked releases the state at mark_done
+// (RV2-DEBT-331). 0 outside a bound body.
+uint64_t rt_remote_task_anchored_state_type_id_current(void);
 // Compiled anchored-body channel operations over the dispatch-cached
 // channel; parked send/recv yields inside (re-entry restarts the body), so
 // returning from a helper means the operation completed.
