@@ -151,11 +151,13 @@ def _protocol(raw: Any) -> Protocol:
         "percentile_method",
         "cv_method",
         "p95_cv_floor_ns",
+        "placements",
     }
     _keys(obj, "protocol", fields)
     protocol = Protocol(
         warmups=_integer(obj["warmups"], "protocol.warmups", 0),
         measured_pairs=_integer(obj["measured_pairs"], "protocol.measured_pairs", 2),
+        placements=_integer(obj["placements"], "protocol.placements", 1),
         max_cv=_number(obj["max_cv"], "protocol.max_cv"),
         throughput_min_ratio=_number(
             obj["throughput_min_ratio"], "protocol.throughput_min_ratio"

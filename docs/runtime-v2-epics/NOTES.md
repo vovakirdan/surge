@@ -14866,3 +14866,94 @@ three runs of the same SHA pair in a row give `select-send-scalar`
 a run, ±10-15 % on both sides between runs. That is the open question
 of the next section, and until it is answered no ratio the harness
 prints is a measurement of the tree.
+
+### F7, the paired benchmark's noise is the physical placement of each side's file (2026-09-04)
+
+First a correction that dissolves half of the previous section: a
+harness "run" is the SUM of `batches: 2` processes (its latency array
+has 1024 entries), so the 75-85 us it reports for `array-teardown-scalar`
+is two batches of ~40, exactly what the direct loop reads. Nothing runs
+slower under the harness. What remains is the part that is real: five
+full runs of the same SHA pair (`4968061f` / `f4676157`) in a row read
+`select-send-scalar` per process at 219/216, 235/237, 214/248, 251/204,
+213/250 and `zero` at 33/29, 27/29, 30/33, 29/28 -- flat within a run,
+each side shifted independently between runs -- for verdicts from 0.85
+to 1.23 on one and the same code.
+
+Every environmental explanation was tried against the harness's own
+binaries, snapped out of its temporary tree before it deleted them
+(`/srv/ci/tmp/queue_snap.sh`): the builds are identical across runs
+(`.text` hashes equal, function order and addresses equal, only the
+path strings differ); `/tmp` is ext4 and reads a hair faster than the
+disk copy; heating the CCD to Tctl 69 C changes nothing; the harness's
+`run_checked` environment, alternation of sides, and the parent's
+affinity read the same as the bare loop; `perf stat -a -C 8,10` shows
+both cores at ~5.3 GHz in the poll idle throughout; `strace` is not on
+the box and `perf record` over 46 rows names only the far rows' mutexes.
+
+**The experiment that answered:** the same fixture binary copied into six
+new files, twenty runs each, C1-C3 off, `taskset -c 8,10`:
+
+    array-teardown-scalar  candidate  37 37 37 40 43 50 us   base  37 37 37 38 40 42
+    select-send-scalar     candidate  213 214 217 220 243 253   base  213 225 230 234 236 239
+    zero                   candidate  27 28 28 31 32 33         base  27 28 28 31 31 33
+
+Byte-identical files, each copy flat to within a microsecond, and up to
++35 % between copies. The speed of a fixture is a property of the
+physical pages its file landed on (the caches past L1 are physically
+indexed; a fresh file gets whatever pages the page cache hands it),
+fixed for the life of the file. The harness builds fresh files for both
+sides on every run, so every run draws two independent placements and
+pairs them; the bare loop reads one copy and is stable; and the seven
+refusals since the fourth attempt, in three different rows, were seven
+draws. No estimator over one build per side can pass a 0.95 budget on
+this host except by luck, and the ruling of variant "в" (batch length,
+p95 floor) was about a different noise.
+
+The estimator that reads the tree instead of the draw: K physical copies
+per side, a per-copy median over its own batches, and the side's score as
+the minimum over copies (the placement tax is one-sided; the best
+placement is the intrinsic cost), with the within-copy CV as the
+protocol-cleanliness gate. On the six-copy data above that reads
+`select-send-scalar` 207 against 205 and `zero` 25 against 26. This is a
+protocol change and goes to the owner with the numbers; the
+implementation is prepared beside the question.
+
+The same six copies pinned to one core, 8 and then 10, keep their own
+speed on either (copy 2 reads 50 on both, copy 5 reads 38 on both), so
+the file, not the core, is the factor. An independent review (Codex,
+read-only) placed the independent unit of this experiment at the
+build/copy instance rather than the batch, named more pairs within one
+build and a wider budget as the two remedies that mask rather than
+measure, and pointed at Kalibera & Jones ("Rigorous Benchmarking in
+Reasonable Time") for the block design; its own first hypothesis, the
+cores inside the mask, is the one the pinned copies refute.
+
+### F7, owner ruling 2026-09-04: a side is scored on the fastest of six copies (2026-09-04)
+
+The owner chose the first of three: six physically distinct copies of
+each side's binary, one warmup and three measured pairs per copy, the
+side's score the copy with the highest median throughput, the row's CV
+gate that copy's own, the 0.95 / 1.10 budgets untouched. Declined: the
+block statistic with a bootstrap interval (more code and new numbers),
+and a wider budget (masks a regression of up to 15 %).
+
+**Implemented in the harness only** (`scripts/runtime_v2_carrier_bench_*`):
+`Protocol.placements` (frozen at 6 with warmups 1 and pairs 3 by
+`validate_manifest`), `pair_index` running across copies with the copy
+as `pair_index // measured_pairs`, `place_fixture_copies` writing each
+copy as a fresh file beside the built binary and checking its sha256
+against the original, the warmup and measured loops per copy with the
+side order still alternating, every attempt event carrying its
+`placement`, `score_side(runs, pairs_per_placement)` choosing the copy
+and reporting every copy's throughput (`placement`,
+`placement_throughputs` in the report's scores and `placement` on every
+run), and the expected attempt count multiplied by the copies. The
+manifest's digests are re-pinned. Rule 13: with every copy scored as one
+(`pairs_per_placement = len(runs)`), `test_side_score_is_the_fastest_copy`
+reads copy 0 where copy 1 is the fastest and
+`test_throughput_cv_still_gates_a_row_below_the_floor` raises nothing
+where the fastest copy wanders 9 %; `test_every_placement_is_a_distinct_file_of_the_same_bytes`
+pins the copies as three files of one content, and a stand whose binary
+was never built gets the same fixture for every copy. 70 harness tests
+green. The eighth paired attempt runs on this protocol.

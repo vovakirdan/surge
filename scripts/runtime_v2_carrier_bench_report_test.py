@@ -62,8 +62,8 @@ class ReportTests(unittest.TestCase):
         self.assertIsNotNone(failure)
         self.assertEqual(report["status"], "failed")
         self.assertIsNotNone(report["rows"][0]["scores"])
-        self.assertEqual(len(report["rows"][0]["base_runs"]), 7)
-        self.assertEqual(len(report["rows"][0]["candidate_runs"]), 7)
+        self.assertEqual(len(report["rows"][0]["base_runs"]), MEASURED_RUNS)
+        self.assertEqual(len(report["rows"][0]["candidate_runs"]), MEASURED_RUNS)
         availability = report["metrics"][1]["base"]
         self.assertEqual(availability["status"], "unsupported")
         self.assertIn("reason", availability)

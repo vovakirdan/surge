@@ -152,7 +152,9 @@ def make_manifest() -> Manifest:
         schema_version=2,
         epic_base="0" * 40,
         reference=ReferenceHost("Linux", "x86_64", "kernel", "cpu", 4, "0,2", "go", "clang"),
-        protocol=Protocol(2, 7, 0.05, 0.95, 1.10, "nearest-rank", "sample-n-minus-1", 1000),
+        protocol=Protocol(
+            1, MEASURED_PAIRS, 0.05, 0.95, 1.10, "nearest-rank", "sample-n-minus-1", 1000, PLACEMENTS
+        ),
         backend="llvm",
         profile="release",
         shards=2,
@@ -257,6 +259,27 @@ def counter_values(
     }
 
 
+# The protocol's shape as the test manifest freezes it: six copies of a
+# side's binary, three measured pairs each (owner ruling 2026-09-04), so a
+# side carries eighteen runs and pair_index // MEASURED_PAIRS is the copy.
+PLACEMENTS = 6
+MEASURED_PAIRS = 3
+MEASURED_RUNS = PLACEMENTS * MEASURED_PAIRS
+
+
+def per_copy(latencies: list[int]) -> list[int]:
+    """Spread one copy's worth of latencies over every copy.
+
+    A list of MEASURED_PAIRS values is one copy's runs, repeated for each
+    copy; a list of MEASURED_RUNS values is taken as it is; anything else is
+    cycled to MEASURED_RUNS so a test written for one copy's shape keeps
+    its shape on every copy.
+    """
+    if len(latencies) == MEASURED_RUNS:
+        return list(latencies)
+    return [latencies[index % len(latencies)] for index in range(MEASURED_RUNS)]
+
+
 def make_runs(side: str, latency: int) -> tuple[MeasuredRun, ...]:
     return tuple(
         MeasuredRun(
@@ -265,7 +288,7 @@ def make_runs(side: str, latency: int) -> tuple[MeasuredRun, ...]:
             timing=TimingSample(latency * 20, (latency,) * 20, 20),
             counters=CounterSample(counter_values(side)),
         )
-        for index in range(7)
+        for index in range(MEASURED_RUNS)
     )
 
 
@@ -273,7 +296,7 @@ def make_records(
     side: str, latencies: list[int], *, allocation_count: int = 0
 ) -> tuple[RunRecord, ...]:
     records: list[RunRecord] = []
-    for index, latency in enumerate(latencies):
+    for index, latency in enumerate(per_copy(latencies)):
         measured = MeasuredRun(
             side=side,
             pair_index=index,
@@ -356,8 +379,9 @@ def manifest_json() -> dict[str, object]:
             "clang_version": "clang",
         },
         "protocol": {
-            "warmups": 2,
-            "measured_pairs": 7,
+            "warmups": 1,
+            "measured_pairs": 3,
+            "placements": 6,
             "max_cv": 0.05,
             "throughput_min_ratio": 0.95,
             "p95_max_ratio": 1.10,

@@ -320,6 +320,8 @@ class ManifestTests(unittest.TestCase):
         # the tail value, so nearest-rank p95 (rank 19 of 20) IS the tail,
         # while elapsed_ns is set independently so throughput can hold still
         # or move on its own.
+        # A list shorter than the protocol's runs is one copy's shape, spread
+        # over every copy (per_copy); eighteen values are taken as they are.
         return tuple(
             MeasuredRun(
                 side=side,
@@ -327,8 +329,33 @@ class ManifestTests(unittest.TestCase):
                 timing=TimingSample(elapsed, (min(tail_ns),) * 18 + (tail, tail), 20),
                 counters=CounterSample(counter_values(side)),
             )
-            for index, (tail, elapsed) in enumerate(zip(tail_ns, elapsed_ns, strict=True))
+            for index, (tail, elapsed) in enumerate(
+                zip(per_copy(tail_ns), per_copy(elapsed_ns), strict=True)
+            )
         )
+
+    def test_side_score_is_the_fastest_copy(self) -> None:
+        # Owner ruling 2026-09-04: a fixture's speed is a property of the
+        # physical pages its file landed on (six byte-identical copies read
+        # 37..50 us per batch), so a side is scored on its fastest copy, and
+        # the CV that gates the row is that copy's own.
+        manifest = make_manifest()
+        by_copy = [1300, 1100, 1200, 1250, 1400, 1150]  # copy 1 is the fastest
+        elapsed = [value for value in by_copy for _ in range(MEASURED_PAIRS)]
+        elapsed[3:6] = [1100, 1100, 1210]  # copy 1 wanders 5.5 % on its own
+        runs = self._runs_with_p95("base", [70] * MEASURED_RUNS, elapsed_ns=elapsed)
+        score = score_side(runs, MEASURED_PAIRS)
+        self.assertEqual(score.placement, 1)
+        self.assertEqual(score.throughput, runs[3].timing.throughput())
+        self.assertEqual(len(score.placement_throughputs), PLACEMENTS)
+        self.assertEqual(
+            score.placement_throughputs[1], max(score.placement_throughputs)
+        )
+        self.assertGreater(score.throughput_cv, 0.05)
+        # Ungrouped (the pairs-per-copy left unsaid) the same runs are one
+        # copy, scored as before this ruling.
+        self.assertEqual(score_side(runs).placement, 0)
+        self.assertEqual(len(score_side(runs).placement_throughputs), 1)
 
     def test_p95_cv_gates_only_at_or_above_the_timer_floor(self) -> None:
         # The runner's own shape: seven p95 readings one clock tick apart,
@@ -359,11 +386,22 @@ class ManifestTests(unittest.TestCase):
         manifest = make_manifest()
         row = manifest.rows[0]
         candidate = self._runs_with_p95("candidate", [70] * 7, elapsed_ns=[1200] * 7)
+        # The wander sits in the fastest copy (copy 0: 1200, 1200, 1400 against
+        # 1300 everywhere else), because that copy is the one the row is read
+        # from (owner ruling 2026-09-04).
         wandering = self._runs_with_p95(
-            "base", [70] * 7, elapsed_ns=[1200, 1200, 1200, 1200, 1200, 1200, 1400]
+            "base", [70] * 7, elapsed_ns=[1200, 1200, 1400] + [1300] * (MEASURED_RUNS - 3)
         )
-        with self.assertRaisesRegex(GateFailure, "base throughput CV"):
+        with self.assertRaisesRegex(GateFailure, "base throughput CV .*copy 0"):
             validate_row_protocol(manifest, row, wandering, candidate)
+        # The same wander in a copy that is not the fastest is that copy's
+        # placement, not the row's, and does not gate.
+        elsewhere = self._runs_with_p95(
+            "base", [70] * 7, elapsed_ns=[1200] * 3 + [1300, 1300, 1500] + [1300] * (MEASURED_RUNS - 6)
+        )
+        base_score, _ = validate_row_protocol(manifest, row, elsewhere, candidate)
+        self.assertEqual(base_score.placement, 0)
+        self.assertEqual(base_score.throughput_cv, 0.0)
 
     def test_loader_freezes_cross_row_relation_shapes(self) -> None:
         def proportional() -> dict[str, object]:

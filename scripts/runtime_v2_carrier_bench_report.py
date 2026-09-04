@@ -85,8 +85,9 @@ def render_report(
             raise GateFailure(f"report is missing base/candidate records for {row.row_id}")
         base = row_records["base"]
         candidate = row_records["candidate"]
-        base_score = score_side([record.measured for record in base])
-        candidate_score = score_side([record.measured for record in candidate])
+        pairs = manifest.protocol.measured_pairs
+        base_score = score_side([record.measured for record in base], pairs)
+        candidate_score = score_side([record.measured for record in candidate], pairs)
         scores: dict[str, Any] = {
             "base": _score_json(base_score, manifest.protocol),
             "candidate": _score_json(candidate_score, manifest.protocol),
@@ -146,8 +147,12 @@ def render_report(
                 "invariant_status": "failed" if invariant_failures else "passed",
                 "invariant_failures": invariant_failures,
                 "scores": scores,
-                "base_runs": [_run_json(record) for record in base],
-                "candidate_runs": [_run_json(record) for record in candidate],
+                "base_runs": [
+                    _run_json(record, manifest.protocol.measured_pairs) for record in base
+                ],
+                "candidate_runs": [
+                    _run_json(record, manifest.protocol.measured_pairs) for record in candidate
+                ],
             }
         )
     comparison_reports, comparison_failures = _cross_row_invariant_reports(
@@ -168,7 +173,8 @@ def render_report(
         1 for event in (events or []) if event.get("attempt") is not None
     )
     expected_attempt_count = 2 + sum(
-        (
+        manifest.protocol.placements
+        * (
             2 * manifest.protocol.warmups
             + 3 * manifest.protocol.measured_pairs
         )
@@ -237,6 +243,7 @@ def render_report(
         "protocol": {
             "warmups": manifest.protocol.warmups,
             "measured_pairs": manifest.protocol.measured_pairs,
+            "placements": manifest.protocol.placements,
             "max_cv": manifest.protocol.max_cv,
             "throughput_min_ratio": manifest.protocol.throughput_min_ratio,
             "p95_max_ratio": manifest.protocol.p95_max_ratio,
@@ -518,10 +525,13 @@ def write_report(path: Path, report: Mapping[str, Any]) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def _run_json(record: RunRecord) -> dict[str, Any]:
+def _run_json(record: RunRecord, pairs_per_placement: int = 0) -> dict[str, Any]:
     measured = record.measured
     return {
         "pair_index": measured.pair_index,
+        "placement": (
+            measured.pair_index // pairs_per_placement if pairs_per_placement > 0 else 0
+        ),
         "throughput": measured.timing.throughput(),
         "p50_ns": measured.timing.p50_ns(),
         "p95_ns": measured.timing.p95_ns(),
@@ -564,6 +574,9 @@ def _allocation_mismatch_json(
 def _score_json(score: Any, protocol: Protocol) -> dict[str, float | bool]:
     # p95_cv_gated says whether the p95 CV above was a gate for this side
     # (owner ruling 2026-09-04: only at or above protocol.p95_cv_floor_ns).
+    # placement is the copy the score was read from (owner ruling 2026-09-04:
+    # the fastest of protocol.placements physically distinct copies), and
+    # placement_throughputs every copy's median throughput in copy order.
     return {
         "throughput": score.throughput,
         "p50_ns": score.p50_ns,
@@ -571,6 +584,8 @@ def _score_json(score: Any, protocol: Protocol) -> dict[str, float | bool]:
         "throughput_cv": score.throughput_cv,
         "p95_cv": score.p95_cv,
         "p95_cv_gated": p95_cv_gated(protocol, score),
+        "placement": score.placement,
+        "placement_throughputs": list(score.placement_throughputs),
     }
 
 

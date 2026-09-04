@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import secrets
 import shutil
 from dataclasses import dataclass, replace
@@ -250,38 +251,45 @@ def execute_timing_manifest(
         _validate_allocation_control(manifest, side, controls[side])
         ordinal += 1
 
+    placed = place_fixture_copies(timing_binaries, manifest.protocol.placements)
     records: dict[str, dict[Side, tuple[RunRecord, ...]]] = {}
     for row_index, row in enumerate(manifest.rows):
-        ordinal = _run_warmups(
-            manifest,
-            row_index,
-            row,
-            timing_binaries,
-            events,
-            protocol_sha256,
-            ordinal,
-            capture_expected_endpoint_red,
-            allocation_mismatches,
-        )
         per_side: dict[Side, list[RunRecord]] = {"base": [], "candidate": []}
-        for pair_index in range(manifest.protocol.measured_pairs):
-            for side in paired_order(row_index, pair_index):
-                fixture = timing_binaries[side][row.fixture]
-                per_side[side].append(
-                    _run_measured_timing(
-                        manifest,
-                        row,
-                        side,
-                        pair_index,
-                        fixture,
-                        events,
-                        protocol_sha256,
-                        ordinal,
-                        capture_expected_endpoint_red,
-                        allocation_mismatches,
+        for placement in range(manifest.protocol.placements):
+            fixtures: dict[Side, BuiltFixture] = {
+                side: placed[side][row.fixture][placement] for side in ("base", "candidate")
+            }
+            ordinal = _run_warmups(
+                manifest,
+                row_index,
+                row,
+                fixtures,
+                placement,
+                events,
+                protocol_sha256,
+                ordinal,
+                capture_expected_endpoint_red,
+                allocation_mismatches,
+            )
+            for local_pair in range(manifest.protocol.measured_pairs):
+                pair_index = placement * manifest.protocol.measured_pairs + local_pair
+                for side in paired_order(row_index, pair_index):
+                    per_side[side].append(
+                        _run_measured_timing(
+                            manifest,
+                            row,
+                            side,
+                            pair_index,
+                            placement,
+                            fixtures[side],
+                            events,
+                            protocol_sha256,
+                            ordinal,
+                            capture_expected_endpoint_red,
+                            allocation_mismatches,
+                        )
                     )
-                )
-                ordinal += row.batches
+                    ordinal += row.batches
         records[row.row_id] = {
             "base": tuple(
                 _finalize_timing_record(manifest, record, "base")
@@ -336,6 +344,7 @@ def execute_resource_manifest(
                         protocol_sha256=protocol_sha256,
                         capture_kind="resource",
                         ordinal=ordinal,
+                        placement=pair_index // manifest.protocol.measured_pairs,
                     )
                 )
                 ordinal += 1
@@ -474,16 +483,18 @@ def _run_warmups(
     manifest: Manifest,
     row_index: int,
     row: Row,
-    binaries: Mapping[Side, Mapping[str, BuiltFixture]],
+    fixtures: Mapping[Side, BuiltFixture],
+    placement: int,
     events: list[dict[str, object]],
     protocol_sha256: str,
     ordinal: int,
     capture_expected_endpoint_red: bool,
     allocation_mismatches: list[AllocationMismatch],
 ) -> int:
-    for warmup_index in range(manifest.protocol.warmups):
+    for local_warmup in range(manifest.protocol.warmups):
+        warmup_index = placement * manifest.protocol.warmups + local_warmup
         for side in paired_order(row_index, warmup_index):
-            fixture = binaries[side][row.fixture]
+            fixture = fixtures[side]
             for batch_index in range(row.batches):
                 batch = _run_recorded_batch(
                     manifest,
@@ -497,6 +508,7 @@ def _run_warmups(
                     protocol_sha256=protocol_sha256,
                     capture_kind="timing",
                     ordinal=ordinal,
+                    placement=placement,
                 )
                 if side == "candidate":
                     _capture_or_validate_structural_allocation(
@@ -517,6 +529,7 @@ def _run_measured_timing(
     row: Row,
     side: Side,
     pair_index: int,
+    placement: int,
     fixture: BuiltFixture,
     events: list[dict[str, object]],
     protocol_sha256: str,
@@ -537,6 +550,7 @@ def _run_measured_timing(
             protocol_sha256=protocol_sha256,
             capture_kind="timing",
             ordinal=ordinal + batch_index,
+            placement=placement,
         )
         for batch_index in range(row.batches)
     )
@@ -566,6 +580,50 @@ def _run_measured_timing(
         counters=CounterSample({}),
     )
     return RunRecord(measured=measured, batches=batches)
+
+
+def place_fixture_copies(
+    timing_binaries: Mapping[Side, Mapping[str, BuiltFixture]],
+    placements: int,
+) -> dict[Side, dict[str, tuple[BuiltFixture, ...]]]:
+    """Give every timing fixture `placements` physically distinct files.
+
+    A fixture's speed is a property of the physical pages its file landed on
+    (owner ruling 2026-09-04: byte-identical copies of one binary read up to
+    a third apart, each copy flat), so each side is measured on this many
+    copies of its binary and scored on the fastest. Copy 0 is the built
+    binary itself; the others are fresh files beside it, written through
+    the page cache so they take pages of their own, and each is checked to
+    be the same bytes as the original.
+    """
+    if placements < 1:
+        raise GateFailure("protocol.placements must be at least 1")
+    placed: dict[Side, dict[str, tuple[BuiltFixture, ...]]] = {}
+    for side, fixtures in timing_binaries.items():
+        placed[side] = {}
+        for source_path, fixture in fixtures.items():
+            if not fixture.binary.is_file():
+                # A stand that fakes the batch runner hands in a binary that
+                # was never built; there is nothing to copy, and every
+                # placement is that same fixture. A real run cannot get here:
+                # the build step handed the path over after linking it.
+                placed[side][source_path] = (fixture,) * placements
+                continue
+            original = hashlib.sha256(fixture.binary.read_bytes()).hexdigest()
+            copies = [fixture]
+            for index in range(1, placements):
+                target_dir = fixture.binary.parent.parent / f"placement-{index:02d}"
+                if target_dir.exists():
+                    shutil.rmtree(target_dir)
+                shutil.copytree(fixture.binary.parent, target_dir)
+                copy = target_dir / fixture.binary.name
+                if hashlib.sha256(copy.read_bytes()).hexdigest() != original:
+                    raise GateFailure(
+                        f"{side} {source_path} placement {index} is not the built binary's bytes"
+                    )
+                copies.append(replace(fixture, binary=copy))
+            placed[side][source_path] = tuple(copies)
+    return placed
 
 
 def _finalize_timing_record(
@@ -674,6 +732,7 @@ def _run_recorded_batch(
     protocol_sha256: str,
     capture_kind: str = "timing",
     ordinal: int = 0,
+    placement: int = 0,
 ) -> BatchResult:
     attempt = {
         "capture_kind": capture_kind,
@@ -684,6 +743,7 @@ def _run_recorded_batch(
         "pair_index": run_index if phase == "measured" else None,
         "batch_index": batch_index,
         "ordinal": ordinal,
+        "placement": placement,
     }
     event: dict[str, object] = {
         "row": row.row_id,
@@ -844,6 +904,7 @@ def _expected_attempt_sequence(manifest: Manifest) -> list[dict[str, object]]:
         phase: str,
         run_index: int,
         batch_index: int,
+        placement: int = 0,
     ) -> None:
         nonlocal ordinal
         expected.append(
@@ -856,25 +917,31 @@ def _expected_attempt_sequence(manifest: Manifest) -> list[dict[str, object]]:
                 "pair_index": run_index if phase == "measured" else None,
                 "batch_index": batch_index,
                 "ordinal": ordinal,
+                "placement": placement,
             }
         )
         ordinal += 1
 
+    protocol = manifest.protocol
     add("timing", "allocation-control", "base", "control", 0, 0)
     add("timing", "allocation-control", "candidate", "control", 0, 0)
     for row_index, row in enumerate(manifest.rows):
-        for warmup_index in range(manifest.protocol.warmups):
-            for side in paired_order(row_index, warmup_index):
-                for batch_index in range(row.batches):
-                    add("timing", row.row_id, side, "warmup", warmup_index, batch_index)
-        for pair_index in range(manifest.protocol.measured_pairs):
-            for side in paired_order(row_index, pair_index):
-                for batch_index in range(row.batches):
-                    add("timing", row.row_id, side, "measured", pair_index, batch_index)
+        for placement in range(protocol.placements):
+            for local_warmup in range(protocol.warmups):
+                warmup_index = placement * protocol.warmups + local_warmup
+                for side in paired_order(row_index, warmup_index):
+                    for batch_index in range(row.batches):
+                        add("timing", row.row_id, side, "warmup", warmup_index, batch_index, placement)
+            for local_pair in range(protocol.measured_pairs):
+                pair_index = placement * protocol.measured_pairs + local_pair
+                for side in paired_order(row_index, pair_index):
+                    for batch_index in range(row.batches):
+                        add("timing", row.row_id, side, "measured", pair_index, batch_index, placement)
     for row in manifest.rows:
-        for pair_index in range(manifest.protocol.measured_pairs):
+        for pair_index in range(protocol.measured_runs):
+            placement = pair_index // protocol.measured_pairs
             for batch_index in range(row.batches):
-                add("resource", row.row_id, "candidate", "measured", pair_index, batch_index)
+                add("resource", row.row_id, "candidate", "measured", pair_index, batch_index, placement)
     return expected
 
 

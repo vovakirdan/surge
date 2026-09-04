@@ -84,6 +84,18 @@ class Protocol:
     # a side whose median p95 reaches the floor; below it the row is gated on
     # throughput CV alone. The p95 RATIO gate is unchanged either way.
     p95_cv_floor_ns: int
+    # Owner ruling 2026-09-04 (the file effect): a fixture's speed is a
+    # property of the physical pages its file landed on -- six byte-identical
+    # copies of one binary read 37..50 us per batch, each copy flat -- so a
+    # side is measured on this many physically distinct copies of its
+    # binary, each copy over its own warmups and measured pairs, and the
+    # side's score is the copy that ran fastest (the placement tax is
+    # one-sided). pair_index runs across copies: copy = pair_index // pairs.
+    placements: int = 1
+
+    @property
+    def measured_runs(self) -> int:
+        return self.placements * self.measured_pairs
 
 
 @dataclass(frozen=True, slots=True)
@@ -231,6 +243,10 @@ class SideScore:
     p95_ns: float
     throughput_cv: float
     p95_cv: float
+    # The copy the score is read from, and every copy's median throughput
+    # in copy order, so a report shows the spread the file effect produced.
+    placement: int = 0
+    placement_throughputs: tuple[float, ...] = ()
 
 
 def paired_order(row_index: int, pair_index: int) -> tuple[Side, Side]:
@@ -264,12 +280,42 @@ def p95_cv_gated(protocol: Protocol, score: SideScore) -> bool:
     return score.p95_ns >= protocol.p95_cv_floor_ns
 
 
-def score_side(runs: Sequence[MeasuredRun]) -> SideScore:
+def score_side(runs: Sequence[MeasuredRun], pairs_per_placement: int | None = None) -> SideScore:
+    """Score a side: the medians and CVs of its fastest copy.
+
+    The runs are grouped into copies of `pairs_per_placement` consecutive
+    pair indexes (one group when it is None); each copy is scored on its own
+    runs, and the copy with the highest median throughput is the side's
+    score -- the file effect only ever adds cost, so the best placement is
+    the reading of the code. The CVs are the chosen copy's: they say whether
+    that copy's batches agreed, which is the protocol's cleanliness gate.
+    """
     if not runs:
         raise GateFailure("cannot score an empty side")
     side = runs[0].side
     if any(run.side != side for run in runs):
         raise GateFailure("side score mixes base and candidate runs")
+    if pairs_per_placement is None or pairs_per_placement <= 0:
+        pairs_per_placement = len(runs)
+    groups: dict[int, list[MeasuredRun]] = {}
+    for run in runs:
+        groups.setdefault(run.pair_index // pairs_per_placement, []).append(run)
+    scored = {index: _score_runs(group) for index, group in groups.items()}
+    ordered = sorted(scored)
+    best = max(ordered, key=lambda index: scored[index].throughput)
+    chosen = scored[best]
+    return SideScore(
+        throughput=chosen.throughput,
+        p50_ns=chosen.p50_ns,
+        p95_ns=chosen.p95_ns,
+        throughput_cv=chosen.throughput_cv,
+        p95_cv=chosen.p95_cv,
+        placement=best,
+        placement_throughputs=tuple(scored[index].throughput for index in ordered),
+    )
+
+
+def _score_runs(runs: Sequence[MeasuredRun]) -> SideScore:
     throughputs = [run.timing.throughput() for run in runs]
     p50s = [run.timing.p50_ns() for run in runs]
     p95s = [run.timing.p95_ns() for run in runs]
@@ -295,16 +341,16 @@ def validate_row_results(
 def validate_row_protocol(
     manifest: Manifest, row: Row, base: Sequence[MeasuredRun], candidate: Sequence[MeasuredRun]
 ) -> tuple[SideScore, SideScore]:
-    expected = manifest.protocol.measured_pairs
+    expected = manifest.protocol.measured_runs
     _validate_run_set(row, "base", base, expected)
     _validate_run_set(row, "candidate", candidate, expected)
-    base_score = score_side(base)
-    candidate_score = score_side(candidate)
+    base_score = score_side(base, manifest.protocol.measured_pairs)
+    candidate_score = score_side(candidate, manifest.protocol.measured_pairs)
     for label, score in (("base", base_score), ("candidate", candidate_score)):
         if score.throughput_cv > manifest.protocol.max_cv:
             raise GateFailure(
                 f"{row.row_id} {label} throughput CV {score.throughput_cv:.6f} "
-                f"exceeds {manifest.protocol.max_cv:.6f}"
+                f"exceeds {manifest.protocol.max_cv:.6f} (copy {score.placement})"
             )
         # Owner ruling 2026-09-04 (variant "в"): below the floor a p95 is a
         # reading of the clock's tick, and its CV is not gated; the row still
@@ -314,7 +360,7 @@ def validate_row_protocol(
                 f"{row.row_id} {label} p95 CV {score.p95_cv:.6f} "
                 f"exceeds {manifest.protocol.max_cv:.6f} "
                 f"(p95 {score.p95_ns:.0f} ns is at or above the "
-                f"{manifest.protocol.p95_cv_floor_ns} ns floor)"
+                f"{manifest.protocol.p95_cv_floor_ns} ns floor; copy {score.placement})"
             )
     if row.relative_performance:
         throughput_ratio = candidate_score.throughput / base_score.throughput

@@ -168,9 +168,9 @@ class ProtocolTests(unittest.TestCase):
             )
             self.assertTrue(
                 all(
-                    len(row["base_runs"]) == manifest.protocol.measured_pairs
+                    len(row["base_runs"]) == manifest.protocol.measured_runs
                     and len(row["candidate_runs"])
-                    == manifest.protocol.measured_pairs
+                    == manifest.protocol.measured_runs
                     for row in capture_report["rows"]
                 )
             )
@@ -179,7 +179,8 @@ class ProtocolTests(unittest.TestCase):
                 _expected_attempt_sequence(manifest),
             )
             expected_mismatches = sum(
-                (manifest.protocol.warmups + manifest.protocol.measured_pairs)
+                manifest.protocol.placements
+                * (manifest.protocol.warmups + manifest.protocol.measured_pairs)
                 * row.batches
                 for row in manifest.rows
             )
@@ -225,6 +226,41 @@ class ProtocolTests(unittest.TestCase):
             self.assertFalse(
                 any(item[:2] == ("build", "resource") for item in strict_timeline)
             )
+
+    def test_every_placement_is_a_distinct_file_of_the_same_bytes(self) -> None:
+        # Owner ruling 2026-09-04: the copies a side is measured on must be
+        # physically distinct files (a fresh file takes pages of its own) and
+        # the built binary's exact bytes; a stand whose binary was never built
+        # gets the same fixture back for every placement.
+        from runtime_v2_carrier_bench_runner import place_fixture_copies
+
+        with tempfile.TemporaryDirectory() as temporary:
+            release = Path(temporary) / "target" / "release"
+            release.mkdir(parents=True)
+            binary = release / "main"
+            binary.write_bytes(b"\x7fELF fixture bytes")
+            built = BuiltFixture(binary, "fixture.sg")
+            placed = place_fixture_copies({"base": {"fixture.sg": built}}, 3)
+            copies = placed["base"]["fixture.sg"]
+            self.assertEqual(len(copies), 3)
+            self.assertIs(copies[0], built)
+            paths = {copy.binary.resolve() for copy in copies}
+            self.assertEqual(len(paths), 3)
+            for copy in copies:
+                self.assertTrue(copy.binary.is_file())
+                self.assertEqual(copy.binary.read_bytes(), binary.read_bytes())
+                self.assertEqual(copy.source_path, "fixture.sg")
+            self.assertEqual(
+                sorted(copy.binary.parent.name for copy in copies[1:]),
+                ["placement-01", "placement-02"],
+            )
+            with self.assertRaisesRegex(GateFailure, "placements must be at least 1"):
+                place_fixture_copies({"base": {"fixture.sg": built}}, 0)
+        fake = BuiltFixture(Path("/never-built"), "fixture.sg")
+        self.assertEqual(
+            place_fixture_copies({"candidate": {"fixture.sg": fake}}, 6)["candidate"]["fixture.sg"],
+            (fake,) * 6,
+        )
 
     def test_execution_finishes_all_timing_before_candidate_resource_capture(self) -> None:
         manifest = make_manifest()
