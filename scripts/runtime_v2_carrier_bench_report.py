@@ -582,9 +582,10 @@ def _allocation_mismatch_json(
 def _score_json(score: Any, protocol: Protocol) -> dict[str, float | bool]:
     # p95_cv_gated says whether the p95 CV above was a gate for this side
     # (owner ruling 2026-09-04: only at or above protocol.p95_cv_floor_ns).
-    # placement is the copy the score was read from (owner ruling 2026-09-04:
-    # the fastest of protocol.placements physically distinct copies), and
-    # placement_throughputs every copy's median throughput in copy order.
+    # placement is the copy the score was read from (owner rulings 2026-09-04:
+    # the median of the clean ones among protocol.placements physically
+    # distinct copies), placement_throughputs every copy's median throughput
+    # in copy order, and placement_clean which of them were clean.
     return {
         "throughput": score.throughput,
         "p50_ns": score.p50_ns,

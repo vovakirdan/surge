@@ -26,17 +26,18 @@ def validate_manifest(manifest: Manifest) -> None:
     if manifest.schema_version != 2:
         raise ManifestError(f"unsupported schema_version {manifest.schema_version}")
     protocol = manifest.protocol
-    # Owner ruling 2026-09-04 (the file effect): six physically distinct
+    # Owner rulings 2026-09-04 (the file effect): eight physically distinct
     # copies per side, each with one warmup and five measured pairs; the
-    # side is scored on the fastest copy whose own batches agree. Six copies
-    # leave a chance of about one in a thousand that every copy drew a slow
-    # placement (a third of the copies did on the runner); five pairs are
-    # the second half of the ruling, after three read a CV of 0.055-0.061 on
-    # rows whose ratios were all in budget. The numbers are the ruling's,
-    # not tunables.
-    if protocol.warmups != 1 or protocol.measured_pairs != 5 or protocol.placements != 6:
+    # side is scored on the median copy among those whose own batches agree.
+    # Five pairs came after three read a CV of 0.055-0.061 on rows whose
+    # ratios were all in budget; the median came after the fastest copy read
+    # select-send-scalar 0.960 / 0.939 / 0.898 on three runs of one SHA pair
+    # (a single unusually fast base copy) where the median read 0.976 /
+    # 0.968 / 0.983; eight copies steady the median itself. The numbers are
+    # the ruling's, not tunables.
+    if protocol.warmups != 1 or protocol.measured_pairs != 5 or protocol.placements != 8:
         raise ManifestError(
-            "protocol must freeze exactly 1 warmup, 5 measured pairs and 6 placements per side "
+            "protocol must freeze exactly 1 warmup, 5 measured pairs and 8 placements per side "
             "(owner ruling 2026-09-04)"
         )
     if protocol.max_cv != 0.05:

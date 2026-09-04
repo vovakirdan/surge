@@ -339,33 +339,42 @@ class ManifestTests(unittest.TestCase):
             )
         )
 
-    def test_side_score_is_the_fastest_copy(self) -> None:
-        # Owner ruling 2026-09-04: a fixture's speed is a property of the
-        # physical pages its file landed on (six byte-identical copies read
-        # 37..50 us per batch), so a side is scored on its fastest copy, and
-        # the CV that gates the row is that copy's own.
+    def test_side_score_is_the_median_clean_copy(self) -> None:
+        # Owner rulings 2026-09-04: a fixture's speed is a property of the
+        # physical pages its file landed on (byte-identical copies read 37..50
+        # us per batch, and one base copy read 406 us where five read
+        # 448-485), so a side is scored on the MEDIAN of its copies -- the
+        # lower one of an even count -- and the CV that gates the row is that
+        # copy's own.
         manifest = make_manifest()
-        by_copy = [1300, 1100, 1200, 1250, 1400, 1150]  # copy 1 is the fastest
+        by_copy = [1300, 1100, 1200, 1250, 1400, 1150, 1350, 1275]
+        # Ascending elapsed (descending throughput): 1100 (copy 1), 1150 (5),
+        # 1200 (2), 1250 (3), 1275 (7), 1300 (0), 1350 (6), 1400 (4). Median
+        # throughput of eight, the lower one: copy 7 at 1275 (the fifth
+        # fastest is the fourth slowest).
         elapsed = [value for value in by_copy for _ in range(MEASURED_PAIRS)]
-        # Copy 1 wanders 9 % on its own: its last pair reads 1330.
-        elapsed[2 * MEASURED_PAIRS - 1] = 1330
         runs = self._runs_with_p95("base", [70] * MEASURED_RUNS, elapsed_ns=elapsed)
         score = score_side(runs, MEASURED_PAIRS)
-        self.assertEqual(score.placement, 1)
-        self.assertEqual(score.throughput, runs[MEASURED_PAIRS].timing.throughput())
+        self.assertEqual(score.placement, 7)
+        self.assertEqual(score.throughput, runs[7 * MEASURED_PAIRS].timing.throughput())
         self.assertEqual(len(score.placement_throughputs), PLACEMENTS)
-        self.assertEqual(
-            score.placement_throughputs[1], max(score.placement_throughputs)
-        )
-        self.assertGreater(score.throughput_cv, 0.05)
-        # With the protocol in hand the wandering copy is not a reading: the
-        # score is the fastest CLEAN copy, copy 5, and the report says which
-        # copies were clean (the second half of the ruling).
-        clean = score_side(runs, MEASURED_PAIRS, manifest.protocol)
-        self.assertEqual(clean.placement, 5)
-        self.assertEqual(clean.throughput, runs[5 * MEASURED_PAIRS].timing.throughput())
+        self.assertEqual(score.throughput_cv, 0.0)
+        # Copy 7 wanders 9 % on its own (its last pair reads 1480): with the
+        # protocol in hand it is not a reading, the median is taken over the
+        # seven clean copies -- ascending throughput 1400, 1350, 1300, 1250,
+        # 1200, 1150, 1100, the fourth of seven is copy 3 at 1250 -- and the
+        # report says which copies were clean.
+        elapsed[8 * MEASURED_PAIRS - 1] = 1480
+        wandering = self._runs_with_p95("base", [70] * MEASURED_RUNS, elapsed_ns=elapsed)
+        clean = score_side(wandering, MEASURED_PAIRS, manifest.protocol)
+        self.assertEqual(clean.placement, 3)
+        self.assertEqual(clean.throughput, wandering[3 * MEASURED_PAIRS].timing.throughput())
         self.assertEqual(clean.throughput_cv, 0.0)
-        self.assertEqual(clean.placement_clean, (True, False, True, True, True, True))
+        self.assertEqual(clean.placement_clean, (True,) * 7 + (False,))
+        # Without the protocol the wandering copy still counts, and the
+        # median of eight lands on it (1275 is still the fifth fastest).
+        self.assertEqual(score_side(wandering, MEASURED_PAIRS).placement, 7)
+        self.assertGreater(score_side(wandering, MEASURED_PAIRS).throughput_cv, 0.05)
         # Ungrouped (the pairs-per-copy left unsaid) the same runs are one
         # copy, scored as before this ruling.
         self.assertEqual(score_side(runs).placement, 0)
@@ -432,16 +441,17 @@ class ManifestTests(unittest.TestCase):
         # it (owner ruling 2026-09-04, both halves).
         one_copy = [1200] * (MEASURED_PAIRS - 1) + [1400]
         wandering = self._runs_with_p95("base", [70] * 7, elapsed_ns=one_copy)
-        with self.assertRaisesRegex(GateFailure, "base throughput CV .*copy 0"):
+        with self.assertRaisesRegex(GateFailure, r"base throughput CV .*copy \d"):
             validate_row_protocol(manifest, row, wandering, candidate)
-        # The same wander in the fastest copy alone is that copy's, not the
-        # row's: the row is read from the fastest CLEAN copy (copy 1, at
+        # The same wander in one copy alone is that copy's, not the row's:
+        # the row is read from the median CLEAN copy (one of the seven at
         # 1300) and does not gate.
         elsewhere = self._runs_with_p95(
             "base", [70] * 7, elapsed_ns=one_copy + [1300] * (MEASURED_RUNS - MEASURED_PAIRS)
         )
         base_score, _ = validate_row_protocol(manifest, row, elsewhere, candidate)
-        self.assertEqual(base_score.placement, 1)
+        self.assertNotEqual(base_score.placement, 0)
+        self.assertEqual(base_score.throughput, elsewhere[MEASURED_PAIRS].timing.throughput())
         self.assertEqual(base_score.throughput_cv, 0.0)
         self.assertEqual(base_score.placement_clean[0], False)
 

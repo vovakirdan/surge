@@ -15040,3 +15040,36 @@ with the inline reset never calling the slow one,
 tagged `TestRuntimeV2ChannelClaimRetry*` stand and every
 `TestRuntimeV2ChannelCloseWins*` stand (which build the overtake and wake
 negative controls) is green. The tenth paired attempt reads the ratio.
+
+**Tenth attempt, `35cbad03` (file-size rc=0, ctidy rc=0, harness tests
+rc=0, crossing-check 122 s rc=0, the retry and close-wins stands 47 s
+rc=0, W8 20/20 in 1035 s; the bench 193 s):** every CV gate green, the
+p95 ratio gated where the floor says, and two rows under 0.95 --
+`select-send-scalar` 0.898 and `channel-buffered-scalar` 0.946. The
+copies say what happened: the base's six select-send copies read 448,
+453, **406**, 451, 484, 485 us per run and the candidate's 462, 476, 456,
+451, 458, 479; the "fastest copy" compared one unusually fast base
+placement with the candidate's ordinary one. The placement effect is
+two-sided -- a copy can land fast as well as slow -- and the fastest of
+six draws is an extreme, not a reading. Across the three runs of the
+copies protocol, the fastest-copy ratio of `select-send-scalar` read
+0.960, 0.939, 0.898; the median-copy ratio of the same reports 0.976,
+0.968, 0.983, and by the median the tenth attempt has no red row at all
+(`/srv/ci/tmp/compare_copies.py`).
+
+### F7, the fourth ruling of 2026-09-04: the median clean copy, eight copies (2026-09-04)
+
+**Owner ruling:** the side's score is the copy whose median throughput
+is the median of the clean copies' (the lower of an even count), and
+there are eight copies per side, five measured pairs each, so the median
+itself stands on enough draws. Budgets unchanged. Implemented in
+`score_side` (the eligible copies sorted by throughput, the lower median
+taken; ties by copy index), the manifest frozen at 1 / 5 / 8, digests
+re-pinned; `test_side_score_is_the_median_clean_copy` reads the lower
+median of eight and the median of the seven clean ones when the eighth
+wanders, and the CV gate names whichever copy the median lands on.
+Rule 13: with the fastest copy taken instead of the median, the test
+reads copy 1 (1100 us) where the median is copy 7 (1275). The eleventh
+paired attempt runs on this protocol: a harness-only change on
+`35cbad03`'s tree, so the queue runs the file-size gate, the harness
+tests and the bench.

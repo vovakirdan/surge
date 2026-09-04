@@ -90,9 +90,10 @@ class Protocol:
     # copies of one binary read 37..50 us per batch, each copy flat -- so a
     # side is measured on this many physically distinct copies of its
     # binary, each copy over its own warmups and measured pairs, and the
-    # side's score is the fastest copy whose own batches agree (the
-    # placement tax is one-sided; a copy whose batches disagree is not a
-    # reading). pair_index runs across copies: copy = pair_index // pairs.
+    # side's score is the median of the copies whose own batches agree (the
+    # placement effect is two-sided, so the typical copy is the reading; a
+    # copy whose batches disagree is not a reading). pair_index runs across
+    # copies: copy = pair_index // pairs.
     placements: int = 1
 
     @property
@@ -250,7 +251,7 @@ class SideScore:
     placement: int = 0
     placement_throughputs: tuple[float, ...] = ()
     # Which copies were clean (their own batches within the CV budget); the
-    # chosen copy is the fastest of these, or the fastest of all when none is.
+    # chosen copy is the median of these, or the median of all when none is.
     placement_clean: tuple[bool, ...] = ()
 
 
@@ -295,18 +296,21 @@ def score_side(
     pairs_per_placement: int | None = None,
     protocol: Protocol | None = None,
 ) -> SideScore:
-    """Score a side: the medians and CVs of its fastest clean copy.
+    """Score a side: the medians and CVs of its median clean copy.
 
     The runs are grouped into copies of `pairs_per_placement` consecutive
     pair indexes (one group when it is None); each copy is scored on its own
     runs. A copy is clean when its own batches agree -- throughput CV within
     the protocol's budget, and p95 CV too where the p95 is gated -- and the
-    side's score is the clean copy with the highest median throughput: the
-    file effect only ever adds cost, so the best placement is the reading of
-    the code, and a copy whose batches disagree is not a reading at all
-    (owner ruling 2026-09-04, both halves). Without a protocol every copy
-    counts as clean; a side with no clean copy scores its fastest copy, so
-    the row's CV gate refuses it with that copy named.
+    side's score is the clean copy whose median throughput is the median of
+    the clean copies' (the lower one of an even count): the file effect is
+    two-sided -- a copy can land fast as well as slow (the tenth attempt's
+    base read 406 us on one copy against 448-485 on the other five) -- so
+    the typical placement is the reading of the code, and a copy whose
+    batches disagree is not a reading at all (owner rulings 2026-09-04).
+    Without a protocol every copy counts as clean; a side with no clean copy
+    scores the median of all its copies, so the row's CV gate refuses it
+    with that copy named.
     """
     if not runs:
         raise GateFailure("cannot score an empty side")
@@ -324,7 +328,8 @@ def score_side(
         index for index in ordered if protocol is None or copy_is_clean(protocol, scored[index])
     }
     eligible = [index for index in ordered if index in clean] or ordered
-    best = max(eligible, key=lambda index: scored[index].throughput)
+    by_throughput = sorted(eligible, key=lambda index: (scored[index].throughput, index))
+    best = by_throughput[(len(by_throughput) - 1) // 2]
     chosen = scored[best]
     return SideScore(
         throughput=chosen.throughput,
