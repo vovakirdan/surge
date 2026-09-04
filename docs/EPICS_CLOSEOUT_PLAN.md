@@ -276,8 +276,21 @@ liveness-проб, которые не могли пройти никогда: �
 
 ## Этап 4 — Epic 22 Phase 2
 
-1. Исправить устаревшую строку DEBT-035: authority — non-atomic RC + отсутствие shared heap block между shards.
-2. Подтвердить, что шесть float/composite crossing barriers из Wave E закрыты, затем добавить int/uint.
+1. ~~Исправить устаревшую строку DEBT-035~~ **СДЕЛАНО 04.09.2026.** Колонка Owner говорила «atomic RC for
+   MT-native» — ровно тот вариант, который эпик отверг. Authority теперь записана как non-atomic RC + отсутствие
+   shared heap block между shards, и вместе с ней записано, чем эта предпосылка держится сегодня: не барьером,
+   а отказом (см. п. 2).
+2. ~~Подтвердить, что шесть float/composite crossing barriers из Wave E закрыты~~ **ПРОВЕРЕНО 04.09.2026: они НЕ
+   закрыты, ни один.** Это был пункт-проверка, и проверка вернула «нет», поэтому он превращается в работу. Что
+   говорит дерево: `internal/valueops/flags.go` оставляет `cross_move_init` и `cross_clone_init` `filledNowhere`,
+   их биты отказываются напрямую, а `plan_cross` для любого дескриптора связывается с trap'ом;
+   `FlagShardMovable`/`FlagCrossClonable` не выставляются нигде в non-test коде; `runtime/native/rt_value_ops.c`
+   пишет «crossing has no descriptor support yet»; `rt_bigfloat_clone` объявлен, зарегистрирован и не вызывается
+   ниоткуда; все пять точек отказа живы, а `TestRefCountedScalarCrossingsAreRefused` не менялся с `3e9eb684`
+   (24.07.2026). Следствие для объёма: `float` может оставаться отказанным, потому что программа может написать
+   `float64`, а `int` — не может, отказ отверг бы `@copy`-структуры stdlib и crossing-фикстуры. Значит перед
+   добавлением int/uint нужно решение владельца: строить барьер только для heap-половины int/uint, строить все
+   шесть для всех трёх типов, или отвечать на вопрос разделения иначе.
 3. Ownership:
     - fixnum не выделяет память и не вызывает retain/release;
     - heap local copy — O(1) retain;
@@ -290,10 +303,17 @@ liveness-проб, которые не могли пройти никогда: �
 4. Проверить VM/LLVM parity, boundary integers, overflow, return/argument/local/container paths, cancellation и
    crossing cleanup.
 
-5. Performance:
+5. Performance (протокол обновлён 04.09.2026 — ниже была записана редакция, которую решения того же дня заменили):
     - baseline — точный закрытый 23b SHA; candidate — отдельный Phase 2 SHA; равные SHA запрещены;
-    - int/uint fixnum и fixed-width controls: 2 warmup + 7 alternating paired runs, CV каждой стороны ≤5%, throughput
-      ≥95%, p95 ≤110%, zero allocations после setup;
+    - протокол замера — тот, что принял владелец 04.09.2026 и под который уже написан харнес
+      (`scripts/runtime_v2_carrier_bench_*.py`): скорость фикстуры определяется физическими страницами её файла,
+      сторона меряется на шести копиях, в счёт идёт лучшая копия, батчи ×8, а p95-гейт применяется только когда
+      p95 ≥ ~1 мкс — на более коротких рядах он мерил шум протокола, а не субъект. Прежняя редакция этого пункта
+      («2 warmup + 7 alternating paired runs, CV каждой стороны ≤5%») описывала протокол до этих решений;
+    - пороги сравнения остаются: throughput ≥95%, p95 ≤110% там, где p95-гейт вообще применяется, zero
+      allocations после setup для int/uint fixnum и fixed-width controls;
+    - обе стороны собираются одинаково. Пока RV2-DEBT-333 не разрешён, это `-O0` с обеих сторон: отношения
+      сравнимы, абсолютные числа — числа сборки без оптимизации, и так их и надо публиковать;
 
     - heap-bignum: zero allocation на local copy, один retain на дополнительного owner, один eventual release,
       отсутствие local deep clone, crossing clone пропорционален limb payload, strict-zero и точный checksum;
