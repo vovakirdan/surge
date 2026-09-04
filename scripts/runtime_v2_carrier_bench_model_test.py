@@ -342,16 +342,25 @@ class ManifestTests(unittest.TestCase):
         manifest = make_manifest()
         by_copy = [1300, 1100, 1200, 1250, 1400, 1150]  # copy 1 is the fastest
         elapsed = [value for value in by_copy for _ in range(MEASURED_PAIRS)]
-        elapsed[3:6] = [1100, 1100, 1210]  # copy 1 wanders 5.5 % on its own
+        # Copy 1 wanders 9 % on its own: its last pair reads 1330.
+        elapsed[2 * MEASURED_PAIRS - 1] = 1330
         runs = self._runs_with_p95("base", [70] * MEASURED_RUNS, elapsed_ns=elapsed)
         score = score_side(runs, MEASURED_PAIRS)
         self.assertEqual(score.placement, 1)
-        self.assertEqual(score.throughput, runs[3].timing.throughput())
+        self.assertEqual(score.throughput, runs[MEASURED_PAIRS].timing.throughput())
         self.assertEqual(len(score.placement_throughputs), PLACEMENTS)
         self.assertEqual(
             score.placement_throughputs[1], max(score.placement_throughputs)
         )
         self.assertGreater(score.throughput_cv, 0.05)
+        # With the protocol in hand the wandering copy is not a reading: the
+        # score is the fastest CLEAN copy, copy 5, and the report says which
+        # copies were clean (the second half of the ruling).
+        clean = score_side(runs, MEASURED_PAIRS, manifest.protocol)
+        self.assertEqual(clean.placement, 5)
+        self.assertEqual(clean.throughput, runs[5 * MEASURED_PAIRS].timing.throughput())
+        self.assertEqual(clean.throughput_cv, 0.0)
+        self.assertEqual(clean.placement_clean, (True, False, True, True, True, True))
         # Ungrouped (the pairs-per-copy left unsaid) the same runs are one
         # copy, scored as before this ruling.
         self.assertEqual(score_side(runs).placement, 0)
@@ -366,11 +375,14 @@ class ManifestTests(unittest.TestCase):
         row = manifest.rows[0]
         steady = [1200] * 7
         candidate = self._runs_with_p95("candidate", [70] * 7, elapsed_ns=steady)
-        quantized = self._runs_with_p95("base", [60] + [70] * 6, elapsed_ns=steady)
+        # One copy's shape (MEASURED_PAIRS readings, the first a tick lower),
+        # repeated on every copy so no copy is cleaner than another.
+        tick = [60] + [70] * (MEASURED_PAIRS - 1)
+        quantized = self._runs_with_p95("base", tick, elapsed_ns=steady)
         base_score, _ = validate_row_protocol(manifest, row, quantized, candidate)
         self.assertGreater(base_score.p95_cv, 0.05)
         self.assertFalse(p95_cv_gated(manifest.protocol, base_score))
-        real = self._runs_with_p95("base", [6000] + [7000] * 6, elapsed_ns=steady)
+        real = self._runs_with_p95("base", [100 * value for value in tick], elapsed_ns=steady)
         real_candidate = self._runs_with_p95("candidate", [7000] * 7, elapsed_ns=steady)
         with self.assertRaisesRegex(GateFailure, "base p95 CV .* at or above the 1000 ns floor"):
             validate_row_protocol(manifest, row, real, real_candidate)
@@ -386,22 +398,23 @@ class ManifestTests(unittest.TestCase):
         manifest = make_manifest()
         row = manifest.rows[0]
         candidate = self._runs_with_p95("candidate", [70] * 7, elapsed_ns=[1200] * 7)
-        # The wander sits in the fastest copy (copy 0: 1200, 1200, 1400 against
-        # 1300 everywhere else), because that copy is the one the row is read
-        # from (owner ruling 2026-09-04).
-        wandering = self._runs_with_p95(
-            "base", [70] * 7, elapsed_ns=[1200, 1200, 1400] + [1300] * (MEASURED_RUNS - 3)
-        )
+        # Every copy wanders (one pair in five at 1400 against 1200), so no
+        # copy is clean, the fastest is the row's reading, and the gate names
+        # it (owner ruling 2026-09-04, both halves).
+        one_copy = [1200] * (MEASURED_PAIRS - 1) + [1400]
+        wandering = self._runs_with_p95("base", [70] * 7, elapsed_ns=one_copy)
         with self.assertRaisesRegex(GateFailure, "base throughput CV .*copy 0"):
             validate_row_protocol(manifest, row, wandering, candidate)
-        # The same wander in a copy that is not the fastest is that copy's
-        # placement, not the row's, and does not gate.
+        # The same wander in the fastest copy alone is that copy's, not the
+        # row's: the row is read from the fastest CLEAN copy (copy 1, at
+        # 1300) and does not gate.
         elsewhere = self._runs_with_p95(
-            "base", [70] * 7, elapsed_ns=[1200] * 3 + [1300, 1300, 1500] + [1300] * (MEASURED_RUNS - 6)
+            "base", [70] * 7, elapsed_ns=one_copy + [1300] * (MEASURED_RUNS - MEASURED_PAIRS)
         )
         base_score, _ = validate_row_protocol(manifest, row, elsewhere, candidate)
-        self.assertEqual(base_score.placement, 0)
+        self.assertEqual(base_score.placement, 1)
         self.assertEqual(base_score.throughput_cv, 0.0)
+        self.assertEqual(base_score.placement_clean[0], False)
 
     def test_loader_freezes_cross_row_relation_shapes(self) -> None:
         def proportional() -> dict[str, object]:

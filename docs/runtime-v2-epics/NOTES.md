@@ -14957,3 +14957,31 @@ where the fastest copy wanders 9 %; `test_every_placement_is_a_distinct_file_of_
 pins the copies as three files of one content, and a stand whose binary
 was never built gets the same fixture for every copy. 70 harness tests
 green. The eighth paired attempt runs on this protocol.
+
+**Eighth attempt, `795a614b`, six copies of three pairs (gates first:
+file-size rc=0, harness tests rc=0, crossing-check 122 s rc=0, W8 20/20
+in 1025 s; the bench 176 s):** not one ratio outside its budget.
+Every relative row at or above 0.95 -- `select-send-scalar` 0.960,
+`array-teardown-scalar` 0.981, `channel-buffered-scalar` 0.968, `scalar`
+0.960, `zero` 1.039, `map-teardown-scalar` 1.107 -- the far rows 1.03
+to 1.13, the blocking rows 1.04 to 1.05, and the copies' spread on show
+in the report (`array-teardown-scalar` base 84/75/83/76/75/84 us per
+run, candidate 77/77/87/87/77/87). Three rows red, all on the CV of the
+chosen copy over its three pairs: `blocking-composite` candidate p95 CV
+0.0585 (copy 4, a 14 us thread hand-off), `local-argument` base
+throughput CV 0.0545, `local-copy` candidate 0.061 -- a sample CV of
+three readings against a budget that was set for seven.
+
+**Owner ruling 2026-09-04, the second half ("оба сразу"):** the side's
+score is the fastest copy WHOSE OWN BATCHES AGREE (a copy over the CV
+budget is not a reading and cannot be the score; a side with no clean
+copy scores its fastest and the gate refuses it with that copy named),
+and each copy runs five measured pairs instead of three. Implemented:
+`score_side(runs, pairs, protocol)` with `copy_is_clean`,
+`placement_clean` beside `placement_throughputs` in the report, the
+manifest frozen at 1 warmup / 5 pairs / 6 copies, digests re-pinned.
+Rule 13: with every copy counted clean, `test_side_score_is_the_fastest_copy`
+scores the wandering copy 1 instead of copy 5 and
+`test_throughput_cv_still_gates_a_row_below_the_floor` reads copy 0 where
+copy 1 is the clean one. 70 harness tests green; the ninth attempt runs
+on this protocol.

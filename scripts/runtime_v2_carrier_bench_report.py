@@ -86,8 +86,10 @@ def render_report(
         base = row_records["base"]
         candidate = row_records["candidate"]
         pairs = manifest.protocol.measured_pairs
-        base_score = score_side([record.measured for record in base], pairs)
-        candidate_score = score_side([record.measured for record in candidate], pairs)
+        base_score = score_side([record.measured for record in base], pairs, manifest.protocol)
+        candidate_score = score_side(
+            [record.measured for record in candidate], pairs, manifest.protocol
+        )
         scores: dict[str, Any] = {
             "base": _score_json(base_score, manifest.protocol),
             "candidate": _score_json(candidate_score, manifest.protocol),
@@ -586,6 +588,7 @@ def _score_json(score: Any, protocol: Protocol) -> dict[str, float | bool]:
         "p95_cv_gated": p95_cv_gated(protocol, score),
         "placement": score.placement,
         "placement_throughputs": list(score.placement_throughputs),
+        "placement_clean": list(score.placement_clean),
     }
 
 

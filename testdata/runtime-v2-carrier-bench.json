@@ -13,7 +13,7 @@
   },
   "protocol": {
     "warmups": 1,
-    "measured_pairs": 3,
+    "measured_pairs": 5,
     "placements": 6,
     "max_cv": 0.05,
     "throughput_min_ratio": 0.95,
@@ -142,7 +142,7 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_validation.py",
-      "sha256": "c20a721dfff627a1d870c73abd074947057c9182b2e39f21385aacec3fa22aae"
+      "sha256": "9e6797d103a747c75cb1cb0b5ac12c7142cc28ccf2b227cf739bb024bfdc8497"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_values.py",
@@ -150,11 +150,11 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_model.py",
-      "sha256": "c6ee7f0c98310b39632891fa7a113c54f31b8d196c556130092408f636bf7e15"
+      "sha256": "02b1f7ea22ab335fd9e0d1522089404f555a5d5148c9e8a588930120cd00a0b6"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_model_test.py",
-      "sha256": "cdbc63329b7c6ebc9ef7a1b60e86c61e44d26f928504a444b1098e430309dd4e"
+      "sha256": "5ff70097a5811ed5f12525c5e98c78ab7e99b8959fd9c1a4bd8840ee0f4c639d"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_protocol.py",
@@ -166,7 +166,7 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_report.py",
-      "sha256": "a2e0680702605b3860edd7e72f5c5329e6b338ec68966e02c40bcf234a45c402"
+      "sha256": "696cc4c5b6a983b0ed6f2824c26e6bcc629c302e6449046b5990888128117e4f"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_report_test.py",
@@ -178,7 +178,7 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_test_support.py",
-      "sha256": "22ce8a8309b094c1aad3a7f8dc727e984086fe1208c3440e4b7d063fec40045b"
+      "sha256": "90d5e6b106642a3c8a5cbf86932ca5b6ff53657ffed20baedd20ea0f3eb2fedd"
     }
   ],
   "fixtures": [

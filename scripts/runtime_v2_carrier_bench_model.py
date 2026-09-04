@@ -89,8 +89,9 @@ class Protocol:
     # copies of one binary read 37..50 us per batch, each copy flat -- so a
     # side is measured on this many physically distinct copies of its
     # binary, each copy over its own warmups and measured pairs, and the
-    # side's score is the copy that ran fastest (the placement tax is
-    # one-sided). pair_index runs across copies: copy = pair_index // pairs.
+    # side's score is the fastest copy whose own batches agree (the
+    # placement tax is one-sided; a copy whose batches disagree is not a
+    # reading). pair_index runs across copies: copy = pair_index // pairs.
     placements: int = 1
 
     @property
@@ -247,6 +248,9 @@ class SideScore:
     # in copy order, so a report shows the spread the file effect produced.
     placement: int = 0
     placement_throughputs: tuple[float, ...] = ()
+    # Which copies were clean (their own batches within the CV budget); the
+    # chosen copy is the fastest of these, or the fastest of all when none is.
+    placement_clean: tuple[bool, ...] = ()
 
 
 def paired_order(row_index: int, pair_index: int) -> tuple[Side, Side]:
@@ -280,15 +284,23 @@ def p95_cv_gated(protocol: Protocol, score: SideScore) -> bool:
     return score.p95_ns >= protocol.p95_cv_floor_ns
 
 
-def score_side(runs: Sequence[MeasuredRun], pairs_per_placement: int | None = None) -> SideScore:
-    """Score a side: the medians and CVs of its fastest copy.
+def score_side(
+    runs: Sequence[MeasuredRun],
+    pairs_per_placement: int | None = None,
+    protocol: Protocol | None = None,
+) -> SideScore:
+    """Score a side: the medians and CVs of its fastest clean copy.
 
     The runs are grouped into copies of `pairs_per_placement` consecutive
     pair indexes (one group when it is None); each copy is scored on its own
-    runs, and the copy with the highest median throughput is the side's
-    score -- the file effect only ever adds cost, so the best placement is
-    the reading of the code. The CVs are the chosen copy's: they say whether
-    that copy's batches agreed, which is the protocol's cleanliness gate.
+    runs. A copy is clean when its own batches agree -- throughput CV within
+    the protocol's budget, and p95 CV too where the p95 is gated -- and the
+    side's score is the clean copy with the highest median throughput: the
+    file effect only ever adds cost, so the best placement is the reading of
+    the code, and a copy whose batches disagree is not a reading at all
+    (owner ruling 2026-09-04, both halves). Without a protocol every copy
+    counts as clean; a side with no clean copy scores its fastest copy, so
+    the row's CV gate refuses it with that copy named.
     """
     if not runs:
         raise GateFailure("cannot score an empty side")
@@ -302,7 +314,11 @@ def score_side(runs: Sequence[MeasuredRun], pairs_per_placement: int | None = No
         groups.setdefault(run.pair_index // pairs_per_placement, []).append(run)
     scored = {index: _score_runs(group) for index, group in groups.items()}
     ordered = sorted(scored)
-    best = max(ordered, key=lambda index: scored[index].throughput)
+    clean = {
+        index for index in ordered if protocol is None or copy_is_clean(protocol, scored[index])
+    }
+    eligible = [index for index in ordered if index in clean] or ordered
+    best = max(eligible, key=lambda index: scored[index].throughput)
     chosen = scored[best]
     return SideScore(
         throughput=chosen.throughput,
@@ -312,7 +328,15 @@ def score_side(runs: Sequence[MeasuredRun], pairs_per_placement: int | None = No
         p95_cv=chosen.p95_cv,
         placement=best,
         placement_throughputs=tuple(scored[index].throughput for index in ordered),
+        placement_clean=tuple(index in clean for index in ordered),
     )
+
+
+def copy_is_clean(protocol: Protocol, score: SideScore) -> bool:
+    """Whether a copy's batches agree within the protocol's CV budget."""
+    if score.throughput_cv > protocol.max_cv:
+        return False
+    return not (p95_cv_gated(protocol, score) and score.p95_cv > protocol.max_cv)
 
 
 def _score_runs(runs: Sequence[MeasuredRun]) -> SideScore:
@@ -344,8 +368,8 @@ def validate_row_protocol(
     expected = manifest.protocol.measured_runs
     _validate_run_set(row, "base", base, expected)
     _validate_run_set(row, "candidate", candidate, expected)
-    base_score = score_side(base, manifest.protocol.measured_pairs)
-    candidate_score = score_side(candidate, manifest.protocol.measured_pairs)
+    base_score = score_side(base, manifest.protocol.measured_pairs, manifest.protocol)
+    candidate_score = score_side(candidate, manifest.protocol.measured_pairs, manifest.protocol)
     for label, score in (("base", base_score), ("candidate", candidate_score)):
         if score.throughput_cv > manifest.protocol.max_cv:
             raise GateFailure(
