@@ -47,7 +47,6 @@ func testEntry(id types.TypeID) Entry {
 		Flags: FlagCopy | FlagClonable,
 		Capabilities: Capabilities{
 			Traceable:     true,
-			ShardMovable:  false,
 			CrossClonable: true,
 		},
 		CloneInit:   symbols.SymbolID(42),

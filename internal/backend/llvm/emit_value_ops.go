@@ -97,6 +97,12 @@ func (e *Emitter) emitValueOpsDescriptors() error {
 			return backingErr
 		}
 		e.emitMoveInitBody(&entry)
+		// A shard-movable entry also gets its plan and its cross move. Both are
+		// derived from the same facts the descriptor constant will carry, so the
+		// plan a body writes and the layout the runtime preflights cannot drift.
+		if e.backedFlags(&entry)&valueops.FlagShardMovable != 0 {
+			e.emitCrossMoveBodies(&entry)
+		}
 	}
 	for _, id := range registry.TypeIDs() {
 		entry, err := registry.Value(id)
@@ -133,6 +139,15 @@ func (e *Emitter) valueOpsBacking(entry *valueops.Entry) error {
 		if err != nil {
 			return fmt.Errorf("llvm: operation registry entry type#%d has no filler for %s: %w",
 				entry.Type, slot, err)
+		}
+		if filler.Kind == valueops.FillBackendDerivedBody && slot == "cross_clone_init" {
+			// The clone half is not built. The registry refuses the bit today,
+			// so this is unreachable -- and the day it is un-staged without a
+			// body this is the refusal that stops the build here rather than
+			// shipping a null the runtime preflight rejects far from the cause.
+			return fmt.Errorf(
+				"llvm: operation registry entry type#%d claims %s and this backend emits no body for it yet",
+				entry.Type, slot)
 		}
 		if filler.Kind != valueops.FillRegistryNamedBody {
 			continue
@@ -278,10 +293,16 @@ func (e *Emitter) valueOpsOperand(entry *valueops.Entry, slot string, filler val
 			// is -- the two namespaces meet here rather than being merged.
 			return "ptr @" + dropGlueName(resolveValueType(e.types, entry.Type))
 		}
-		// The only other backend-derived body is plan_cross for a type that can
-		// cross, and no such descriptor is reachable while both cross bits are
-		// filled nowhere. Reaching here means a bit was un-staged without giving
-		// this writer the body it now needs.
+		if slot == "plan_cross" {
+			return "ptr @" + crossPlanName(entry.Type)
+		}
+		if slot == "cross_move_init" {
+			return "ptr @" + crossMoveName(entry.Type)
+		}
+		// Only cross_clone_init is left, and it is still filled nowhere, so no
+		// entry can reach here with it: checkSlots refuses the bit. If one does,
+		// valueOpsBacking has already refused the module with a legible reason
+		// rather than letting this null ship against a set flag.
 		return "ptr null"
 	case valueops.FillRegistryNamedBody:
 		if name := e.registryNamedSymbol(entry, slot); name != "" {

@@ -23,11 +23,13 @@ import (
 type Capabilities struct {
 	// Traceable is the root-visiting verdict destined for RT_VALUE_FLAG_TRACEABLE.
 	Traceable bool
-	// ShardMovable is the owned-move crossing verdict destined for
-	// RT_VALUE_FLAG_SHARD_MOVABLE.
-	ShardMovable bool
 	// CrossClonable is the crossing-duplicate verdict destined for
 	// RT_VALUE_FLAG_CROSS_CLONABLE.
+	//
+	// ShardMovable used to sit beside it and left when its slot got a body: it
+	// is RT_VALUE_FLAG_SHARD_MOVABLE now, an ABI bit like Droppable, and a
+	// verdict recorded here as well would be the second statement of one fact
+	// the owner's 2026-09-04 ruling forbids.
 	CrossClonable bool
 }
 

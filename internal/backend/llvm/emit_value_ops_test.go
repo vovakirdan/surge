@@ -11,12 +11,19 @@ import (
 	"surge/internal/valueops"
 )
 
+// valueOpsProbeProgram pulls in both kinds of descriptor: a shard-movable one
+// (int, which Epic 22's move half backs with a per-type plan body) and one with
+// neither cross bit (a stdlib copy type, which binds the shared unavailable
+// stub). The probes below select by capability rather than by position, because
+// since the move half landed the two are no longer interchangeable.
 const valueOpsProbeProgram = `
+@shard_pinned
+type Pinned = { fd: int };
+
 @entrypoint
 fn main() -> int {
-    let a = 7;
-    let b = "hello";
-    return a;
+    let p = Pinned { fd = 3 };
+    return p.fd;
 }
 `
 
@@ -116,17 +123,37 @@ func TestEmittedValueOpsDescriptorsAgreeWithTheOperationRegistry(t *testing.T) {
 			}
 			want := "ptr null"
 			switch filler.Kind {
+			case valueops.FillRegistryNamedBody:
+				// The registry carries a symbol the backend maps to a function
+				// of this module; the descriptor must name it and the module
+				// must define it. The exact name is the emitter's to choose,
+				// so what is pinned is the pairing, not the spelling.
+				operand := got.operands[index]
+				if !strings.HasPrefix(operand, "ptr @") {
+					t.Errorf("type#%d slot %s = %q, want a named body", id, slot, operand)
+					continue
+				}
+				if !strings.Contains(ir, "define ") || !strings.Contains(ir, "@"+strings.TrimPrefix(operand, "ptr @")+"(") {
+					t.Errorf("type#%d slot %s names %q, which this module never defines", id, slot, operand)
+				}
+				continue
 			case valueops.FillRuntimeSymbol, valueops.FillModuleStub:
 				want = "ptr @" + filler.Symbol
 			case valueops.FillBackendDerivedBody:
-				// Two slots are backend-derived, and they are named in two
-				// namespaces on purpose: move_init on the exact type, the drop
-				// body on the resolved one, because that is where glue bodies
-				// live. Asserting one name for both would be asserting the
+				// The backend-derived slots are named in two namespaces on
+				// purpose: move_init and the two cross bodies on the EXACT type,
+				// the drop body on the resolved one, because that is where glue
+				// bodies live. Asserting one name for all would be asserting the
 				// namespaces are the same, which they are not.
-				want = "ptr @" + moveInitName(id)
-				if slot == "drop_in_place" {
+				switch slot {
+				case "drop_in_place":
 					want = "ptr @" + dropGlueName(resolveValueType(result.Sema.TypeInterner, id))
+				case "plan_cross":
+					want = "ptr @" + crossPlanName(id)
+				case "cross_move_init":
+					want = "ptr @" + crossMoveName(id)
+				default:
+					want = "ptr @" + moveInitName(id)
 				}
 			}
 			if got.operands[index] != want {

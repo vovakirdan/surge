@@ -41,7 +41,10 @@ func TestFinalizeSharesOneEntryForIndistinguishablePlans(t *testing.T) {
 func TestFinalizeSeparatesPlansThatDifferOnlyInCapabilities(t *testing.T) {
 	pinned := testEntry(types.TypeID(32))
 	movable := testEntry(types.TypeID(33))
-	movable.Capabilities.ShardMovable = true
+	// The staged verdict that still exists is cross_clonable; shard_movable is
+	// an ABI flag now and would be an inequality in Flags, which the other
+	// test covers.
+	movable.Capabilities.CrossClonable = !pinned.Capabilities.CrossClonable
 
 	registry := mustFinalize(t, valueInput(pinned, movable))
 
@@ -56,7 +59,7 @@ func TestFinalizeSeparatesPlansThatDifferOnlyInCapabilities(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Value(type#33) failed: %v", err)
 	}
-	if first.Capabilities.ShardMovable == second.Capabilities.ShardMovable {
+	if first.Capabilities.CrossClonable == second.Capabilities.CrossClonable {
 		t.Fatal("two entries collapsed into one capability verdict")
 	}
 }
@@ -318,7 +321,7 @@ func TestDumpStatesTheStaging(t *testing.T) {
 		StagingNotice,
 		"abi-true bits only",
 		"flags=copy|clonable",
-		"caps=traceable,!shard_movable,cross_clonable",
+		"caps=traceable,cross_clonable",
 		"clone_init=sym#42",
 		"key type#80 hash=none equal=none",
 		"alias type#81 -> type#80",

@@ -35,7 +35,7 @@ import (
 // would print a second line after it: the test requires the first present and
 // the second absent. Reaching the stub and not coming back is the claim.
 func TestPlanCrossUnavailableStubIsTerminalWhenCalled(t *testing.T) {
-	text, signalled, runErr := dispatchPlanCrossStub(t, defectNone)
+	text, signalled, runErr := dispatchPlanCross(t, defectNone, false, 0)
 	if runErr == nil {
 		t.Fatalf("the probe returned normally; the stub is not terminal\n%s", text)
 	}
@@ -62,7 +62,7 @@ func TestPlanCrossUnavailableStubIsTerminalWhenCalled(t *testing.T) {
 // with a status — and if this test cannot tell that apart from a trap, it was
 // never proving terminality in the first place.
 func TestAReturningPlanCrossStubIsCaught(t *testing.T) {
-	text, _, runErr := dispatchPlanCrossStub(t, defectReturningPlanCrossStub)
+	text, _, runErr := dispatchPlanCross(t, defectReturningPlanCrossStub, false, 0)
 	if runErr != nil {
 		t.Fatalf("a returning stub should let the probe finish, but it failed: %v\n%s", runErr, text)
 	}
@@ -71,10 +71,57 @@ func TestAReturningPlanCrossStubIsCaught(t *testing.T) {
 	}
 }
 
+// TestShardMovablePlanCrossAnswersAMove is the move half of Epic 22 dispatched
+// through a REAL emitted descriptor: a shard-movable type's plan_cross slot is
+// its own per-type body, and asked for a move it returns OK with a plan that
+// describes the type and charges no sidecars. This is the claim the unit rows in
+// emit_cross_glue_test.go make about the emitted TEXT, made about what runs.
+func TestShardMovablePlanCrossAnswersAMove(t *testing.T) {
+	text, signalled, runErr := dispatchPlanCross(t, defectNone, true, 0)
+	if runErr != nil || signalled {
+		t.Fatalf("a shard-movable plan_cross asked for a move must return, not trap: %v\n%s", runErr, text)
+	}
+	if !strings.Contains(text, "plan_cross returned status=0") {
+		t.Fatalf("a move plan must answer OK:\n%s", text)
+	}
+	for _, want := range []string{"plan ops=self", "mode=0", "sidecar_bytes=0", "sidecar_count=0"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("the move plan is missing %q -- it must name its own descriptor and charge no sidecars:\n%s", want, text)
+		}
+	}
+}
+
+// TestShardMovablePlanCrossTrapsAnUnservableMode: the same descriptor asked for
+// a CLONE has no legal answer -- its clone slot is filled nowhere -- and the
+// storage model says a call outside a descriptor's cross capability is a
+// protocol violation rather than a refusal. A status here would assert the call
+// was legal and merely declined; so it must not return, exactly like the stub.
+func TestShardMovablePlanCrossTrapsAnUnservableMode(t *testing.T) {
+	text, signalled, runErr := dispatchPlanCross(t, defectNone, true, 1)
+	if runErr == nil {
+		t.Fatalf("a shard-movable plan_cross asked for a clone returned normally; an unservable mode must not return\n%s", text)
+	}
+	if !strings.Contains(text, "about to dispatch") {
+		t.Fatalf("the probe died before the dispatch, so this proves nothing: %v\n%s", runErr, text)
+	}
+	if strings.Contains(text, "plan_cross returned status=") {
+		t.Fatalf("an unservable mode RETURNED a status instead of trapping\n%s", text)
+	}
+	if !signalled {
+		t.Fatalf("the process ended without a fault (%v); an invariant trap must not exit cleanly\n%s", runErr, text)
+	}
+}
+
 // dispatchPlanCrossStub emits a module with the given defect, links the
 // descriptor slice against the real slot control, dispatches through the
 // descriptor's plan_cross slot, and reports what the child did.
-func dispatchPlanCrossStub(t *testing.T, defect descriptorDefect) (string, bool, error) {
+// dispatchPlanCross picks the descriptor by what it CAN do, because since Epic
+// 22's move half the fixture's descriptors are not all alike: a shard-movable
+// one binds its own per-type plan body, while one with neither cross bit binds
+// the shared unavailable stub. A test about the stub must dispatch the latter,
+// and a test about the move plan the former -- picking "the first descriptor"
+// would let either test prove its claim against the wrong slot.
+func dispatchPlanCross(t *testing.T, defect descriptorDefect, crossCapable bool, mode int) (string, bool, error) {
 	t.Helper()
 	clang, lookErr := exec.LookPath("clang")
 	if lookErr != nil {
@@ -94,10 +141,33 @@ func dispatchPlanCrossStub(t *testing.T, defect descriptorDefect) (string, bool,
 	if len(emitted) == 0 {
 		t.Fatal("nothing was emitted to dispatch through")
 	}
+	// The cross bits are RT_VALUE_FLAG_SHARD_MOVABLE (16) and
+	// RT_VALUE_FLAG_CROSS_CLONABLE (32). A descriptor carrying either binds a
+	// per-type plan; one carrying neither binds the stub.
+	//
+	// The descriptor must also have a NULL clone_init: the slice carries the
+	// move, drop and cross bodies but not the registry's per-type clone bodies
+	// (`@fn.N`), so a clonable descriptor would name a symbol the linked slice
+	// lacks. clone_init is operand index 2 in valueOpsSlotOrder. This is a
+	// property of the PROBE's slice, not of the claim; picking a clone-free
+	// descriptor keeps the linked module self-contained without weakening what
+	// is dispatched.
+	const crossBits = 16 | 32
 	var probeID uint64
-	for id := range emitted {
+	found := false
+	for id, descriptor := range emitted {
+		if (descriptor.flags&crossBits != 0) != crossCapable {
+			continue
+		}
+		if len(descriptor.operands) > 2 && descriptor.operands[2] != "ptr null" {
+			continue
+		}
 		probeID = uint64(id)
+		found = true
 		break
+	}
+	if !found {
+		t.Fatalf("the fixture emits no clone-free descriptor with crossCapable=%v; the test's premise is not in the module", crossCapable)
 	}
 
 	temp := t.TempDir()
@@ -134,12 +204,15 @@ int main(void) {
     }
     fprintf(stderr, "about to dispatch\n");
     fflush(stderr);
-    rt_carrier_status status = ops->plan_cross((const void*)storage, (rt_cross_mode)0, &plan);
+    rt_carrier_status status = ops->plan_cross((const void*)storage, (rt_cross_mode)%d, &plan);
     fprintf(stderr, "plan_cross returned status=%%u\n", (unsigned)status);
+    fprintf(stderr, "plan ops=%%s mode=%%u payload_bytes=%%zu payload_align=%%zu sidecar_bytes=%%zu sidecar_count=%%zu total_bytes=%%zu\n",
+            plan.ops == ops ? "self" : "other", (unsigned)plan.mode, plan.payload_bytes,
+            plan.payload_align, plan.sidecar_bytes, plan.sidecar_count, plan.total_bytes);
     fflush(stderr);
     return 0;
 }
-`, probeID, stubs.String(), probeID)
+`, probeID, stubs.String(), probeID, mode)
 	probePath := filepath.Join(temp, "probe.c")
 	if err := os.WriteFile(probePath, []byte(probeSrc), 0o600); err != nil {
 		t.Fatal(err)

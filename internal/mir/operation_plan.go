@@ -162,13 +162,21 @@ func (in *OperationPlanInput) entryFor(
 	if capability.CarrierDroppable {
 		flags |= valueops.FlagDroppable
 	}
+	// ShardMovable is an ABI bit too, since Epic 22's move half gave its slot a
+	// body. The verdict is the classifier's alone (owned `own` move hands over
+	// one obligation rather than sharing a counted block, so `float` keeps it),
+	// and it is NOT also recorded in Capabilities: the owner's ruling of
+	// 2026-09-04 is that flag, descriptor, registry hash and Dump derive from
+	// one backed state, never from a verdict plus a late mask in the backend.
+	if capability.ShardMovable {
+		flags |= valueops.FlagShardMovable
+	}
 	return valueops.Entry{
 		Type:  id,
 		Facts: facts,
 		Flags: flags,
 		Capabilities: valueops.Capabilities{
 			Traceable:     capability.Traceable,
-			ShardMovable:  capability.ShardMovable,
 			CrossClonable: capability.CrossClonable,
 		},
 		CloneInit:   cloneInit,

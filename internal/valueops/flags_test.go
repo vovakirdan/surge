@@ -398,10 +398,20 @@ func TestPlanCrossFallsBackToTheModuleStubForEveryDescriptorThisWaveCanHold(t *t
 		if crossing.Kind != FillBackendDerivedBody {
 			t.Errorf("plan_cross with a cross bit = %+v, want a real per-type body", crossing)
 		}
-		entry := Entry{Type: 1, Flags: bit}
-		if err := entry.checkSlots(); err == nil {
-			t.Errorf("checkSlots accepted %v while its slot is filled nowhere", bit)
-		}
+	}
+
+	// The two cross bits are no longer in the same state, and the split is the
+	// point. cross_move_init has a backend body (Epic 22's move half), so a
+	// shard-movable entry is legal; cross_clone_init is still filled nowhere, so
+	// an entry claiming it is refused -- the same refusal that kept both out
+	// until the move half landed.
+	movable := Entry{Type: 1, Flags: FlagShardMovable}
+	if err := movable.checkSlots(); err != nil {
+		t.Errorf("checkSlots refused FlagShardMovable although cross_move_init is backend-derived: %v", err)
+	}
+	clonable := Entry{Type: 1, Flags: FlagCrossClonable}
+	if err := clonable.checkSlots(); err == nil {
+		t.Errorf("checkSlots accepted FlagCrossClonable while cross_clone_init is filled nowhere")
 	}
 }
 

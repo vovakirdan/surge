@@ -190,7 +190,11 @@ func sliceDescriptorIR(t *testing.T, ir string) string {
 		case strings.HasPrefix(line, "define void @move_init.type"),
 			strings.HasPrefix(line, "define void @drop.type"),
 			strings.HasPrefix(line, "define void @drop_elem.type"),
-			strings.HasPrefix(line, "define internal zeroext i32 @__surge_value_plan_cross_unavailable"):
+			strings.HasPrefix(line, "define internal zeroext i32 @__surge_value_plan_cross_unavailable"),
+			// A shard-movable descriptor binds its own plan and cross move; the
+			// slice has to carry them or the constant names an undefined body.
+			strings.HasPrefix(line, "define internal zeroext i32 @plan_cross.type"),
+			strings.HasPrefix(line, "define internal zeroext i32 @cross_move.type"):
 			for ; index < len(lines); index++ {
 				out.WriteString(lines[index] + "\n")
 				if lines[index] == "}" {
