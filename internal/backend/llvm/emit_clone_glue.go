@@ -3,7 +3,6 @@ package llvm
 import (
 	"fmt"
 
-	"surge/internal/layout"
 	"surge/internal/types"
 )
 
@@ -117,43 +116,13 @@ func (e *Emitter) emitDuplicateGlueBody(id types.TypeID) error {
 	e.emitCloneCopyCounter(layoutInfo.Size)
 
 	g := &glueTmp{}
-	// A value that owns something DIRECTLY is fixed up at offset zero: the byte
-	// copy above left its word pointing at the source's storage, and this is
-	// the only place that can give the destination its own.
-	if e.emitLeafCloneAt(g, id, align, 0) {
-		fmt.Fprintf(&e.buf, "  br label %%ret\n")
-		fmt.Fprintf(&e.buf, "ret:\n")
-		fmt.Fprintf(&e.buf, "  ret void\n}\n")
-		return nil
-	}
-	if elem, length, ok := arrayFixedInfo(e.types, id); ok {
-		e.emitFixedArrayElemClones(g, elem, align, int(length))
-	} else if tt, ok := e.types.Lookup(id); ok {
-		switch tt.Kind {
-		case types.KindStruct:
-			fields := e.types.StructFields(id)
-			fieldOffsets, err := requireAggregateFieldOffsets(e.types, &layoutInfo, len(fields), "struct", id)
-			if err != nil {
-				return err
-			}
-			for i, f := range fields {
-				e.emitFieldCloneAt(g, f.Type, align, fieldOffsets[i])
-			}
-		case types.KindTuple:
-			if info, ok := e.types.TupleInfo(id); ok && info != nil {
-				fieldOffsets, err := requireAggregateFieldOffsets(e.types, &layoutInfo, len(info.Elems), "tuple", id)
-				if err != nil {
-					return err
-				}
-				for i, el := range info.Elems {
-					e.emitFieldCloneAt(g, el, align, fieldOffsets[i])
-				}
-			}
-		case types.KindUnion:
-			if err := e.emitUnionPayloadClones(g, id, &layoutInfo, align); err != nil {
-				return err
-			}
-		}
+	// The member enumeration lives in emit_glue_walk.go, shared with the
+	// crossing bodies: a value that owns something DIRECTLY is finished at
+	// offset zero, because the byte copy above left its word pointing at the
+	// source's storage and this is the only place that can give the destination
+	// its own; everything else is visited member by member.
+	if err := e.walkGlueValue(g, id, &layoutInfo, align, cloneWalk{e: e}); err != nil {
+		return err
 	}
 
 	fmt.Fprintf(&e.buf, "  br label %%ret\n")
@@ -173,24 +142,42 @@ func (e *Emitter) emitGlueStorageCopy(dst, src string, size, align uint64) {
 		align, dst, align, src, size)
 }
 
+// cloneWalk is the clone half of the shared member walk: where drop glue
+// releases a member, this gives the destination its own claim on it.
+type cloneWalk struct{ e *Emitter }
+
+func (cloneWalk) labelPrefix() string { return "cl" }
+
+// The discriminant is read from the DESTINATION because the memcpy already
+// carried it there.
+func (cloneWalk) tagStorage() string { return "%dst" }
+
+func (w cloneWalk) needsFixup(resolved types.TypeID) bool {
+	return w.e.memberNeedsCloneFixup(resolved)
+}
+
+func (w cloneWalk) leafAt(g *glueTmp, resolved types.TypeID, baseAlign, off uint64) bool {
+	return w.e.emitLeafCloneAt(g, resolved, baseAlign, off)
+}
+
+// compositeAt clones a nested composite onto itself. The byte copy carried this
+// member's bits verbatim, which is right for everything it owns outright and
+// wrong for anything it shares; recursing lets its own glue decide, member by
+// member.
+func (w cloneWalk) compositeAt(g *glueTmp, resolved types.TypeID, baseAlign, off uint64) {
+	dstField := g.next()
+	fmt.Fprintf(&w.e.buf, "  %s = getelementptr inbounds i8, ptr %%dst, i64 %d\n", dstField, off)
+	srcField := g.next()
+	fmt.Fprintf(&w.e.buf, "  %s = getelementptr inbounds i8, ptr %%src, i64 %d\n", srcField, off)
+	fmt.Fprintf(&w.e.buf, "  call void @%s(ptr %s, ptr %s)\n",
+		w.e.requireCloneGlue(resolved), dstField, srcField)
+}
+
 // emitFieldCloneAt fixes up one member of the freshly copied destination at
 // byte offset `off`. A member the byte copy already finished emits nothing.
+// The per-element array glue reaches the walk through here.
 func (e *Emitter) emitFieldCloneAt(g *glueTmp, fieldType types.TypeID, baseAlign, off uint64) {
-	resolved := resolveValueType(e.types, fieldType)
-	if e.emitLeafCloneAt(g, resolved, baseAlign, off) {
-		return
-	}
-	if e.isCloneableComposite(resolved) {
-		// The byte copy carried this member's bits verbatim, which is right for
-		// everything it owns outright and wrong for anything it shares. Cloning
-		// it onto itself lets its own glue decide, member by member.
-		dstField := g.next()
-		fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds i8, ptr %%dst, i64 %d\n", dstField, off)
-		srcField := g.next()
-		fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds i8, ptr %%src, i64 %d\n", srcField, off)
-		fmt.Fprintf(&e.buf, "  call void @%s(ptr %s, ptr %s)\n",
-			e.requireCloneGlue(resolved), dstField, srcField)
-	}
+	e.walkGlueMemberAt(g, fieldType, baseAlign, off, cloneWalk{e: e})
 }
 
 // emitLeafCloneAt fixes up a copied value that owns something DIRECTLY, as
@@ -243,88 +230,6 @@ func (e *Emitter) emitLeafCloneAt(g *glueTmp, resolved types.TypeID, baseAlign, 
 		return false
 	}
 	return true
-}
-
-// emitFixedArrayElemClones fixes up each element of a copied fixed array.
-func (e *Emitter) emitFixedArrayElemClones(g *glueTmp, elem types.TypeID, baseAlign uint64, length int) {
-	if length <= 0 {
-		return
-	}
-	resolved := resolveValueType(e.types, elem)
-	if !e.memberNeedsCloneFixup(resolved) {
-		return
-	}
-	stride, err := e.arrayElemStride(elem)
-	if err != nil {
-		return
-	}
-	for i := range length {
-		e.emitFieldCloneAt(g, elem, baseAlign, uint64(i)*stride)
-	}
-}
-
-// emitUnionPayloadClones reads the discriminant — already carried over by the
-// memcpy — and fixes up only the ACTIVE arm's payload. Walking every arm would
-// read payload bytes that were never written for the arms that are not live.
-func (e *Emitter) emitUnionPayloadClones(g *glueTmp, id types.TypeID, facts *layout.PhysicalFacts, baseAlign uint64) error {
-	cases, _, err := e.unionCases(id)
-	if err != nil {
-		return err
-	}
-	type cloneCase struct {
-		idx           int
-		payloadOffset uint64
-		offsets       []uint64
-		payloadTys    []types.TypeID
-	}
-	var needsFixup []cloneCase
-	for _, c := range cases {
-		if len(c.PayloadTypes) == 0 {
-			continue
-		}
-		ci := c.PhysicalCaseIndex
-		needsWork := false
-		for _, pt := range c.PayloadTypes {
-			if e.memberNeedsCloneFixup(resolveValueType(e.types, pt)) {
-				needsWork = true
-				break
-			}
-		}
-		if !needsWork {
-			continue
-		}
-		caseLayout, ok := facts.UnionCase(ci)
-		if !ok {
-			return fmt.Errorf("missing finalized union case %d for type#%d", ci, id)
-		}
-		offs := caseLayout.FieldOffsets()
-		if len(offs) != len(c.PayloadTypes) {
-			return fmt.Errorf("finalized union case %d for type#%d has %d payload offsets, want %d", ci, id, len(offs), len(c.PayloadTypes))
-		}
-		needsFixup = append(needsFixup, cloneCase{idx: ci, payloadOffset: caseLayout.PayloadOffset, offsets: offs, payloadTys: c.PayloadTypes})
-	}
-	if len(needsFixup) == 0 {
-		return nil
-	}
-
-	tag := g.next()
-	fmt.Fprintf(&e.buf, "  %s = load i32, ptr %%dst, align %d\n", tag, memberAccessAlign(baseAlign, 0))
-	joinLabel := fmt.Sprintf("cl%d.join", g.n)
-	fmt.Fprintf(&e.buf, "  switch i32 %s, label %%%s [", tag, joinLabel)
-	for _, dc := range needsFixup {
-		fmt.Fprintf(&e.buf, " i32 %d, label %%cl%d.c%d", dc.idx, g.n, dc.idx)
-	}
-	fmt.Fprintf(&e.buf, " ]\n")
-	base := g.n
-	for _, dc := range needsFixup {
-		fmt.Fprintf(&e.buf, "cl%d.c%d:\n", base, dc.idx)
-		for i, pt := range dc.payloadTys {
-			e.emitFieldCloneAt(g, pt, baseAlign, dc.payloadOffset+dc.offsets[i])
-		}
-		fmt.Fprintf(&e.buf, "  br label %%%s\n", joinLabel)
-	}
-	fmt.Fprintf(&e.buf, "%s:\n", joinLabel)
-	return nil
 }
 
 // emitGlueRetain bumps a reference count from inside generated glue. The
