@@ -14545,3 +14545,54 @@ in a worktree under `~/.cache`, where `go build`'s VCS stamp works).
 
 Third attempt on the dedicated host queued: `queue_bench2.sh <sha>` under
 `taskset -c 8,10`, box idle by construction.
+
+### F7, third attempt: the second mode of a batch is the other core's C3 (2026-09-04)
+
+`ec1da1eb` refused at 158 s, and this time the shape was new:
+`channel-buffered-composite candidate throughput CV 0.081926`, one pair of
+seven at 1225 us against six at 955-982. Every other row that ran read
+throughput CV 0.3-4.5 % on both sides; the p95 CVs above 5 % were all on
+sub-floor rows and no longer gates. So (a) and (b) did what they were
+asked, and the residue is a heavy tail.
+
+The tail was measured rather than argued, on the runner, through the
+harness's own `build_fixtures` and `_run_batch` (`/srv/ci/tail_probe.py`,
+300 batches per row): `channel-buffered-composite` median 509 us, p10 416,
+p90 526 -- BIMODAL, a batch is either ~415 or ~515 us, one in four fast;
+`map-teardown-composite` 105/133 us, 122 of 300 above the median by 10 %.
+The runtime's exec trace is IDENTICAL in both modes (`park_committed=0
+wake_enqueued=0 worker_sleep=3 worker_wake=1`, no handoff, no steal): the
+batch is one task on one worker doing send/recv on a capacity-1 buffered
+channel, and nothing the scheduler does differs between 415 and 515.
+cpufreq is not it either: the governor is already `performance` on
+`amd-pstate-epp`, and pinning `scaling_min_freq` to the maximum changed
+nothing (median 511, CV 8.2 % either way).
+
+What decides the mode is the CORE COUNT the process may use:
+
+    taskset -c 8            median 416 us  CV 0.031
+    taskset -c 10           median 414 us  CV 0.023
+    taskset -c 12           median 417 us  CV 0.052
+    taskset -c 8,10         median 516 us  CV 0.081   (bimodal 415/515)
+    taskset -c 8,10,12      median 516 us  CV 0.087
+    SHARDS=1 THREADS=1 on 8,10   median 464 us  CV 0.062
+
+On one core the batch is 415 us and tight. On two, the main thread waits
+for the task in a condvar on the OTHER core, that core drops into C3
+(`cpuidle/state3`, exit latency 350 us on this box), and the wake at the
+end of the batch costs ~100 us -- a fixed cost that is 25 % of a 400 us
+batch and 1 % of a 10 ms one, which is why only the short rows showed it.
+With `cpuidle/state2` and `state3` disabled on cores 8 and 10:
+
+    taskset -c 8,10, C2/C3 off   median 415 us  CV 0.042
+    taskset -c 8,10, restored    median 511 us  CV 0.084
+
+The box already runs cores 9 and 11-15 with C2/C3 disabled (isolcpus and
+nohz_full cover 8-15); core 8 was disabled too and core 10 was NOT, which
+is the asymmetry the bimodality came from: which of the two cores the
+waiting thread lands on. (The A/B's "restore" step wrote 0 to both;
+core 8 was put back to 1 by hand, core 10 left at 0 as found -- the box's
+setting is the owner's, not this note's to change.) `queue_bench2.sh` now
+disables the deep states on 8 and 10 for the duration of the run and puts
+the saved values back after it. Fourth attempt queued on `ec1da1eb`; the
+runtime and the manifest are unchanged by this finding.
