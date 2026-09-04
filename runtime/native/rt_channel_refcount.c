@@ -200,13 +200,24 @@ static rt_channel* channel_from_key(waker_key key) {
 }
 
 void rt_channel_key_registered(waker_key key) {
-    rt_channel_pin(channel_from_key(key));
+    rt_channel* ch = channel_from_key(key);
+    if (ch != NULL && rt_channel_key_is_retry(key)) {
+        // Every retry-key entry passes through here exactly once (the two
+        // append sites), under the owner lock; the count is what lets a
+        // claim release skip the store walk when nobody waits on a retry.
+        ch->retry_waiters++;
+    }
+    rt_channel_pin(ch);
 }
 
 void rt_channel_key_retired(waker_key key, size_t count) {
     rt_channel* ch = channel_from_key(key);
     if (ch == NULL) {
         return;
+    }
+    // Before the unpins: the last of them may reclaim the object.
+    if (rt_channel_key_is_retry(key)) {
+        ch->retry_waiters = ch->retry_waiters > count ? ch->retry_waiters - (uint32_t)count : 0;
     }
     for (size_t i = 0; i < count; i++) {
         rt_channel_unpin(ch);

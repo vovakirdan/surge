@@ -67,11 +67,24 @@ struct rt_channel {
     // two against each other.
     _Atomic uint32_t pin_state;
     _Atomic uint8_t reclaiming;
+    // How many waiters stand on this channel's two RETRY keys (RV2-DEBT-277:
+    // an operation whose claim budget is exhausted parks there, to be woken by
+    // the release of the claim that refused it). Kept under the owner lock,
+    // where every registration and every retirement of those keys happens,
+    // so a claim release can answer "nobody is waiting on a retry" in one
+    // read instead of walking the owner store four times -- which it did on
+    // every send and receive, refused or not, and which was the largest
+    // single share of a local select's cost (2026-09-04, select-send-scalar).
+    uint32_t retry_waiters;
     // The one receiver popped for a rendezvous whose value is still on its
     // way: owner-visible until the sender commits or aborts, or close settles
     // it (rt_channel_claim.h).
     rt_channel_recv_claim recv_claim;
 };
+
+static inline int rt_channel_key_is_retry(waker_key key) {
+    return key.kind == WAKER_CHAN_SEND_RETRY || key.kind == WAKER_CHAN_RECV_RETRY;
+}
 
 // The seal bit, and the mask of the count beside it. 2^31 simultaneous pins is
 // not a quantity of live operations any machine can hold, so the count cannot

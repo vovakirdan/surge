@@ -102,6 +102,14 @@ void rt_channel_retry_reset(rt_task* task) {
     if (task == NULL) {
         return;
     }
+    // Every successful claim resets the budget; a task that was never
+    // refused has nothing to reset, and clearing the prefix array here on
+    // every channel operation was a measurable share of a local select's
+    // cost (2026-09-04, select-send-scalar).
+    if (task->channel_retry.count == 0 && task->channel_retry.prefix_len == 0 &&
+        task->channel_retry.operation == RT_CHANNEL_RETRY_NONE) {
+        return;
+    }
     task->channel_retry = (rt_channel_retry_state){0};
 }
 
@@ -217,6 +225,13 @@ static void channel_wake_retry_waiter_locked(rt_executor* ex, rt_shard* ch_shard
 
 void rt_channel_claim_released_locked(rt_executor* ex, rt_shard* ch_shard, const rt_channel* ch) {
     rt_channel_trace_claim_released();
+    // Nobody stands on either retry key: the walk below would find nothing,
+    // and it walked the whole owner store four times on every send and
+    // receive (2026-09-04, select-send-scalar). The count is exact under the
+    // owner lock this is called with (rt_channel_key_registered/retired).
+    if (ch->retry_waiters == 0) {
+        return;
+    }
 #ifdef RV2_DEBT_277_WAKE_NEGATIVE_CONTROL
     // Rule 13: a release that wakes nobody. The waker stays compiled so the
     // mutant differs from the tree by this one call.
