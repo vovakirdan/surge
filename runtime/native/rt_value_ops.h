@@ -86,6 +86,28 @@ void rt_value_duplicate_detached(rt_value_clone_init_fn duplicate, void* dst, co
 // the move helper's contract: fail closed on a lock, dispatch otherwise.
 void rt_value_drop_in_place_detached(const rt_value_ops* operations, void* value);
 
+// Cross a value into an empty destination, outside the owner lock. Both return
+// the descriptor's own status rather than void, because a crossing apply can
+// refuse -- PLAN_MISMATCH from the re-walk, or a checked layout failure -- and
+// the caller rolls its claim back on anything but OK. The flag and the callback
+// are one statement in the manifest, so a descriptor that does not admit the
+// mode is a caller protocol error, refused here rather than dispatched.
+//
+// A move transfers the single obligation from an exclusively-claimed source,
+// which the caller empties after commit. A clone duplicates from an immutable
+// pinned source -- a READ claim, not an exclusive one -- and leaves it owned.
+// Neither runs under a scheduler, channel, task, map or transport lock.
+rt_carrier_status rt_value_cross_move_init_detached(const rt_value_ops* operations,
+                                                    void* dst,
+                                                    void* src,
+                                                    const rt_cross_plan* plan,
+                                                    rt_cross_allocator* allocator);
+rt_carrier_status rt_value_cross_clone_init_detached(const rt_value_ops* operations,
+                                                     void* dst,
+                                                     const void* src,
+                                                     const rt_cross_plan* plan,
+                                                     rt_cross_allocator* allocator);
+
 // The descriptor for an opaque machine word: what a far channel holds today,
 // and what a C stand uses when no compiled code supplies one.
 const rt_value_ops* rt_channel_opaque_word_ops(void);

@@ -184,6 +184,50 @@ void rt_value_drop_in_place_detached(const rt_value_ops* operations, void* value
     operations->drop_in_place(value);
 }
 
+rt_carrier_status rt_value_cross_move_init_detached(const rt_value_ops* operations,
+                                                    void* dst,
+                                                    void* src,
+                                                    const rt_cross_plan* plan,
+                                                    rt_cross_allocator* allocator) {
+    if (operations == NULL) {
+        rt_value_dispatch_refuse("rt_value_cross_move_init_detached", "needs a descriptor");
+    }
+    if ((operations->layout.flags & RT_VALUE_FLAG_SHARD_MOVABLE) == 0 ||
+        operations->cross_move_init == NULL) {
+        rt_value_dispatch_refuse("rt_value_cross_move_init_detached",
+                                 "needs a descriptor that admits a shard move; the flag and the "
+                                 "callback are one statement in the manifest");
+    }
+    if (dst == NULL || src == NULL || plan == NULL || allocator == NULL) {
+        rt_value_dispatch_refuse("rt_value_cross_move_init_detached",
+                                 "needs non-null destination, source, plan and allocator");
+    }
+    rt_value_refuse_if_locked("rt_value_cross_move_init_detached");
+    return operations->cross_move_init(dst, src, plan, allocator);
+}
+
+rt_carrier_status rt_value_cross_clone_init_detached(const rt_value_ops* operations,
+                                                     void* dst,
+                                                     const void* src,
+                                                     const rt_cross_plan* plan,
+                                                     rt_cross_allocator* allocator) {
+    if (operations == NULL) {
+        rt_value_dispatch_refuse("rt_value_cross_clone_init_detached", "needs a descriptor");
+    }
+    if ((operations->layout.flags & RT_VALUE_FLAG_CROSS_CLONABLE) == 0 ||
+        operations->cross_clone_init == NULL) {
+        rt_value_dispatch_refuse("rt_value_cross_clone_init_detached",
+                                 "needs a descriptor that admits a crossing clone; the flag and "
+                                 "the callback are one statement in the manifest");
+    }
+    if (dst == NULL || src == NULL || plan == NULL || allocator == NULL) {
+        rt_value_dispatch_refuse("rt_value_cross_clone_init_detached",
+                                 "needs non-null destination, source, plan and allocator");
+    }
+    rt_value_refuse_if_locked("rt_value_cross_clone_init_detached");
+    return operations->cross_clone_init(dst, src, plan, allocator);
+}
+
 static void rt_value_opaque_word_move(void* destination, void* source) {
     memcpy(destination, source, sizeof(uint64_t));
     *(uint64_t*)source = 0;

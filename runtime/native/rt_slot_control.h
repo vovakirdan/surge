@@ -204,4 +204,11 @@ rt_slot_control_status rt_slot_cross_move_failed_locked(rt_slot_control* source,
                                                         int source_unchanged,
                                                         int destination_empty);
 
+// A crossing CLONE has no exclusive rollback of its own, because it is a READ
+// claim, not an exclusive one: it reads an immutable pinned source and never
+// empties it (rt_slot_kind_is_read includes CROSS_CLONE). Its claim is taken and
+// retired through the read path, and its destination reservation is cleared the
+// way COPY's and CLONE's are -- so the crossing site wires it there, not here.
+// The exclusive rollback above is the MOVE's alone.
+
 #endif

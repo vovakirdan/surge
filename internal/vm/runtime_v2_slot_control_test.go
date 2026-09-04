@@ -15,7 +15,7 @@ import (
 
 var slotControlModes = []string{
 	"read", "exclusive", "stale", "ordering", "storage", "zst", "descriptor", "identity", "copy",
-	"fifo", "park",
+	"fifo", "park", "cross-clone",
 }
 
 func TestRuntimeV2SlotControlProtocol(t *testing.T) {
@@ -321,6 +321,7 @@ func buildRuntimeV2SlotControlHarness(
 		filepath.Join(root, "internal", "vm", "testdata", "slot_control_copy_cases.c"),
 		filepath.Join(root, "internal", "vm", "testdata", "slot_control_fifo_cases.c"),
 		filepath.Join(root, "internal", "vm", "testdata", "slot_control_park_cases.c"),
+		filepath.Join(root, "internal", "vm", "testdata", "slot_control_cross_clone_cases.c"),
 		filepath.Join(root, "runtime", "native", "rt_slot_control.c"),
 		filepath.Join(root, "runtime", "native", "rt_slot_claim.c"),
 		filepath.Join(root, "runtime", "native", "rt_slot_exclusive.c"),

@@ -222,6 +222,9 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "park") == 0) {
         return harness_case_park();
     }
+    if (strcmp(argv[1], "cross-clone") == 0) {
+        return harness_case_cross_clone();
+    }
     // Terminates the process on purpose; it is never in the passing mode list.
     if (strcmp(argv[1], "copy-direct") == 0) {
         return harness_case_copy_direct();

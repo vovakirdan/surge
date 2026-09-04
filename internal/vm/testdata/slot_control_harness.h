@@ -51,6 +51,7 @@ int harness_case_copy(void);
 int harness_case_copy_direct(void);
 int harness_case_fifo(void);
 int harness_case_park(void);
+int harness_case_cross_clone(void);
 
 #define REQUIRE(expression)                                                                        \
     do {                                                                                           \
