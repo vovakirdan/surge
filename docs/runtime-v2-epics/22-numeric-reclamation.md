@@ -417,6 +417,17 @@ whole run). **Do not benchmark this epic against anything older than commit
   returning a fresh value, and a function returning its own parameter.
   Negative control: disabling the retain emission fails it.
 
+  **It was not wired to any gate until 2026-09-04, and calling it "the gate"
+  here is what hid that.** No `Makefile` target selected it; `make check`
+  skipped it, because `SURGE_SKIP_TIMEOUT_TESTS` defaults to 1 and CI sets it
+  to 1 explicitly; and the only thing that ran it was the nightly tagged sweep,
+  which walks `./internal/vm` with no `-run` and therefore names nothing it
+  runs. Meanwhile `runtime-v2-heap-check` carried a comment claiming every
+  valgrind leak row in the repository ran from there — true of fifteen rows and
+  false of this one. Both float rows are on that line now. The lesson is Global
+  Rule 13's own: a test is not a gate until a named target selects it, and a
+  document that calls it a gate does not make it one.
+
   The shape that fell out, and the rule that made it simple: **ownership
   transfers on a move, not on a copy.** A `string` parameter is owned because
   passing it moved it; a `float` parameter is BORROWED because passing it
@@ -599,12 +610,30 @@ whole run). **Do not benchmark this epic against anything older than commit
   2^63−1 inline uint vs 2^63 heap).
 - **Existing gates.** `make check`, then `make runtime-v2-transport-check`,
   `runtime-v2-crossing-check`, `runtime-v2-heap-check`, `make golden-check`.
-- **Heap-census recalibration is expected.** Several tests assert exact
-  alloc/free deltas (`TestRuntimeV2DropSelectSendArm`,
-  `TestRuntimeV2DropScopeExit`, `TestLLVMNativeBufferedChannelAllocatesSingleBlock`,
-  the crossing censuses). When a delta moves, PROVE the change is balanced
-  churn — allocations falling with frees, valgrind A/B byte-identical — before
-  updating the number. Do not silence a census.
+- **Heap-census recalibration is expected, and this list is longer than it
+  used to be.** It named four tests; an enumeration on 2026-09-04 found at
+  least fifteen pinning exact alloc/free deltas. That matters because the
+  bullet exists as a warning, and a short list reads as a small blast radius.
+  The four originally named: `TestRuntimeV2DropSelectSendArm`,
+  `TestRuntimeV2DropScopeExit`,
+  `TestLLVMNativeBufferedChannelAllocatesSingleBlock`, and the crossing
+  censuses (`TestRuntimeV2CrossingHeapCaptureCensusBalanced`,
+  `TestRuntimeV2CrossingStrictCensusBalanced`). The rest, all with the same
+  kind of exact pin: `TestRuntimeV2DropComposite` (twelve windows),
+  `TestRuntimeV2DropLeafReclamation` (thirteen),
+  `TestRuntimeV2DropUnionCastReclamation`,
+  `TestRuntimeV2IterProtocolReclamationCensusBalanced`,
+  `TestRuntimeV2CompareScrutineeReleaseCensusBalanced`,
+  `TestRuntimeV2CompositeBorrowReadDoesNotDuplicate`,
+  `TestRuntimeV2TaskCohortCensus`, `TestRuntimeV2MapEntryCensusBalanced`,
+  `TestRuntimeV2RangeForIntegerHead` and `TestRuntimeV2RangeForStoredValue`.
+  Three more should be expected to move FIRST, because they pin the integer
+  representation itself rather than a neighbour of it:
+  `TestRuntimeV2FixnumHotLoopHeapBalanced`, `TestRuntimeV2FixnumBoundaryValues`
+  (which pins 2^62-1 inline against 2^62 on the heap, and 2^63-1 against 2^63),
+  and `TestRuntimeV2InRangeLiteralsFoldToFixnum`. When a delta moves, PROVE the
+  change is balanced churn — allocations falling with frees, valgrind A/B
+  byte-identical — before updating the number. Do not silence a census.
 - **Known flakes, not yours:**
   `TestRuntimeV2RemoteTaskBehavior/shutdown-wakes-reply-waiters-on-all-shards`
   fails roughly 1 run in 8 on a clean tree, measured both ways.
