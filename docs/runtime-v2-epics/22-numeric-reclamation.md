@@ -428,6 +428,12 @@ whole run). **Do not benchmark this epic against anything older than commit
   Rule 13's own: a test is not a gate until a named target selects it, and a
   document that calls it a gate does not make it one.
 
+  Proven on the dedicated host at `8e5b4504`, from a detached worktree, before
+  the wiring was believed: the row PASSES in 2.65 s as selected, and with its
+  strict-zero assertion inverted in a scratch copy it FAILS (`exit 1`). A gate
+  trusted for the first time is broken on purpose first — a row that passes
+  both ways would have proven nothing about what it pins.
+
   The shape that fell out, and the rule that made it simple: **ownership
   transfers on a move, not on a copy.** A `string` parameter is owned because
   passing it moved it; a `float` parameter is BORROWED because passing it
@@ -592,9 +598,61 @@ whole run). **Do not benchmark this epic against anything older than commit
   while captures and sends are genuine sharing and need the copy.
 
 - **Phase 2 — `int`/`uint`.** Adds only the fixnum-tag branch to a mechanism
-  already proven by float.
+  already proven by float — LOCALLY. Across a shard boundary it adds a
+  question instead, and that question is open. See "Phase 2's scope question"
+  below; do not start Phase 2 with it unanswered, because every answer implies
+  a different amount of work and the wrong one is discovered late.
 - **Phase 3 — inline arithmetic in IR.** Independent of this epic; see trap 5
   for the one constraint it places on Phase 1.
+
+## Phase 2's Scope Question
+
+**For the owner. Written 2026-09-04, when re-deriving this epic's premises
+before starting Phase 2 found one of them gone.**
+
+The count is non-atomic. Its soundness rests on no counted block being
+reachable from two shards, and the two things meant to uphold that are a
+module-level `let` ban (shipped) and a deep copy at every crossing (NOT
+shipped — the six barriers under "Phase 1 remainder" are unbuilt, and
+`README.md` said otherwise until this date; the evidence is in
+`RV2-DEBT-038`'s 2026-09-04 note). What upholds it today is the fourth thing:
+every crossing that would share such a block is REFUSED.
+
+That refusal is affordable for `float` because a program that needs to cross
+can spell `float64`. **It is not affordable for `int`.** Refusing `int` at a
+boundary rejects `stdlib/bytes`' `ByteRange = {start: uint, end: uint}`,
+`stdlib/hash`, `stdlib/time`, `stdlib/term` and `core/sync.sg`, and it rejects
+the crossing fixtures, one of which is literally
+`@copy @shard_movable type Point = { x: int, y: int }`. So Phase 2 cannot
+simply widen `IsRefCountedScalar` and inherit Phase 1's narrowing with it.
+
+Three answers, with what each costs:
+
+1. **Build the barrier for the heap half of `int`/`uint` only.** A fixnum is
+   not a pointer and crosses as bits with no barrier at all, so only values
+   beyond ±2^62 need a clone — a rare path, and one whose test is already
+   load-bearing for representation. `float` keeps its refusal and the Phase 1
+   remainder stays open as its own row. This is the narrowest slice that
+   leaves the language usable, and it is closest to the ~5 lane-days
+   `PLAN.md` estimates.
+2. **Build all six barriers for all three types first, then add `int`/`uint`
+   to a finished mechanism.** Architecturally cleaner and it lifts the `float`
+   narrowing too. But the cross slots are empty — `cross_move_init` and
+   `cross_clone_init` are `filledNowhere`, their bits refuse outright, and the
+   runtime has no descriptor support — so this builds a mechanism from
+   nothing, and the five-day estimate does not survive it.
+3. **Close the local leak only, and do not widen
+   `ContainsRefCountedScalar`.** Cheapest, and it reclaims what a single shard
+   leaks. But a heap bignum that crosses then puts two shards on one
+   non-atomic count, which is a RACE rather than a leak — strictly worse than
+   today's leak — so this only holds if that path is refused separately, and
+   naming which path that is turns out to be most of option 1's work anyway.
+
+The recommendation is (1), on the grounds that it is the only one whose cost
+matches the value: the leak is real and bounded, the barrier is needed only on
+the rare heap path, and it does not spend an epic's budget building crossing
+machinery that a later representation change might replace. But this is the
+owner's call, because it decides how much of Epic 22 Phase 2 is Epic 22 Phase 2.
 
 ## Verification
 
