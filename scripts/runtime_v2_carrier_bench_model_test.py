@@ -443,6 +443,41 @@ class ManifestTests(unittest.TestCase):
         low_score, mixed_score = validate_row_protocol(manifest, row, low, mixed)
         self.assertFalse(p95_ratio_gated(manifest.protocol, low_score, mixed_score))
 
+    def test_a_row_reads_its_own_throughput_budget_where_the_owner_set_one(self) -> None:
+        # Owner ruling 2026-09-04 (the sixth): select-send-scalar carries a
+        # 0.90 budget of its own; every other row reads the protocol's 0.95,
+        # and the loader refuses a row budget anywhere else or at any other
+        # number.
+        manifest = make_manifest()
+        row = manifest.rows[0]
+        base = make_runs("base", latency=1_000)
+        candidate = make_runs("candidate", latency=1_080)  # 0.926
+        with self.assertRaisesRegex(GateFailure, "throughput ratio 0.92.* below 0.950000"):
+            validate_row_protocol(manifest, row, base, candidate)
+        budgeted = replace(row, row_id="select-send-scalar", throughput_min_ratio=0.90)
+        validate_row_protocol(manifest, budgeted, base, candidate)
+        slower = make_runs("candidate", latency=1_120)  # 0.893
+        with self.assertRaisesRegex(GateFailure, "below 0.900000 \\(the row's own budget\\)"):
+            validate_row_protocol(manifest, budgeted, base, slower)
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "manifest.json"
+            for label, row_id, budget in (
+                ("another row", "scalar.channel", 0.90),
+                ("another number", "select-send-scalar", 0.85),
+            ):
+                with self.subTest(label=label):
+                    raw = manifest_json()
+                    raw["rows"][0]["id"] = row_id
+                    raw["rows"][0]["throughput_min_ratio"] = budget
+                    path.write_text(json.dumps(raw), encoding="utf-8")
+                    with self.assertRaisesRegex(ManifestError, "throughput budget of its own"):
+                        load_manifest(path)
+            raw = manifest_json()
+            raw["rows"][0]["id"] = "select-send-scalar"
+            raw["rows"][0]["throughput_min_ratio"] = 0.90
+            path.write_text(json.dumps(raw), encoding="utf-8")
+            self.assertEqual(load_manifest(path).rows[0].throughput_min_ratio, 0.90)
+
     def test_throughput_cv_still_gates_a_row_below_the_floor(self) -> None:
         # Rule 13 in the other direction: waiving the p95 CV below the floor
         # does not waive the row. A sub-microsecond row whose batch elapsed

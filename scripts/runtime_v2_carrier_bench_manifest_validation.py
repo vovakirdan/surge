@@ -134,6 +134,17 @@ def validate_manifest(manifest: Manifest) -> None:
                     f"row {row.row_id} invariant references unsupported "
                     f"{invariant.side} metric {invariant.metric}"
                 )
+        # Owner ruling 2026-09-04 (the sixth): one row carries its own
+        # throughput budget, select-send-scalar at exactly 0.90 (the front
+        # end's residual at -O0, RV2-DEBT-333); every other row reads the
+        # protocol's 0.95. The row and the number are the ruling's.
+        if row.throughput_min_ratio is not None and (
+            row.row_id != "select-send-scalar" or row.throughput_min_ratio != 0.90
+        ):
+            raise ManifestError(
+                f"row {row.row_id} carries a throughput budget of its own; only "
+                "select-send-scalar may, at exactly 0.90 (owner ruling 2026-09-04)"
+            )
     rows_by_id = {row.row_id: row for row in manifest.rows}
     for invariant in manifest.cross_row_invariants:
         if invariant.metric == "allocation_count":

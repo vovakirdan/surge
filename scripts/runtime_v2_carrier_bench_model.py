@@ -141,6 +141,19 @@ class Row:
     candidate_structural_allocations_per_batch: int
     required_metrics: tuple[str, ...]
     invariants: tuple[Invariant, ...]
+    # A row's own throughput budget where the owner set one; None reads the
+    # protocol's. Owner ruling 2026-09-04 (the sixth): select-send-scalar
+    # carries 0.90 -- its residual over the epic base is the front end's
+    # (+12 % L1I misses at +0.2 % instructions, the typed-carrier select's
+    # code at -O0, RV2-DEBT-333), read at 0.936 by 24 copies and at 1.00
+    # by a 12-copy loop on the same tree, inside the host's +-5 % placement
+    # clusters -- and validate_manifest freezes the row and the number.
+    throughput_min_ratio: float | None = None
+
+    def throughput_budget(self, protocol: "Protocol") -> float:
+        if self.throughput_min_ratio is not None:
+            return self.throughput_min_ratio
+        return protocol.throughput_min_ratio
 
 
 @dataclass(frozen=True, slots=True)
@@ -400,10 +413,12 @@ def validate_row_protocol(
     if row.relative_performance:
         throughput_ratio = candidate_score.throughput / base_score.throughput
         latency_ratio = candidate_score.p95_ns / base_score.p95_ns
-        if throughput_ratio < manifest.protocol.throughput_min_ratio:
+        budget = row.throughput_budget(manifest.protocol)
+        if throughput_ratio < budget:
             raise GateFailure(
                 f"{row.row_id} throughput ratio {throughput_ratio:.6f} below "
-                f"{manifest.protocol.throughput_min_ratio:.6f}"
+                f"{budget:.6f}"
+                + (" (the row's own budget)" if row.throughput_min_ratio is not None else "")
             )
         # Owner ruling 2026-09-04 (the third): below the floor a p95 is a
         # tick of the clock on both sides, and the ratio of two ticks (41

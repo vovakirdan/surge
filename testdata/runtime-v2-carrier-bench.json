@@ -134,7 +134,7 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest.py",
-      "sha256": "d9fe6d7598873119e250903903bc4c8241dd9552c39959bee4e395cf2392a6d7"
+      "sha256": "b6d5f5946f75902c7954e43873d8dc9af3de1c4bb25624bbc4e3d86c8fef9e57"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_file_test.py",
@@ -142,7 +142,7 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_validation.py",
-      "sha256": "f042fcbf2b84ae36a81d6ad62d55b6fc8e1328b2c1584b060c01315dc96150ae"
+      "sha256": "e15f308e0a8cf93134ec8e99e830666eef1466bee3aa03cfacf6b974b2b0a34a"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_values.py",
@@ -150,11 +150,11 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_model.py",
-      "sha256": "d751f989e514f061989f810f169ac7465946e257a4e7cfa342257b65613d5470"
+      "sha256": "18bb1cd1323025c15917e26a4217ef8a5faa9b255779579f27467e4fb41f6a9f"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_model_test.py",
-      "sha256": "80674f2323ac9f5bb0ea799be3ccb19ab8be82f3222ba8b3b01051d75a42c622"
+      "sha256": "a575de36a0ce684d1a9057ddbd1e59c2694ebbf69bcfc03a74774f8e21e41d63"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_protocol.py",
@@ -166,7 +166,7 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_report.py",
-      "sha256": "d914a25c8f2a550d78baef7d8fa104a6a7383553590409a917f84e6f6783324d"
+      "sha256": "3ebc5a2eee0213c27417203b263536eb539baf253e3ef48fc1bffc294d60f86d"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_report_test.py",
@@ -1203,6 +1203,7 @@
       "payload_bytes": 8,
       "timeout_seconds": 15,
       "relative_performance": true,
+      "throughput_min_ratio": 0.9,
       "expected_checksum": "313832",
       "candidate_structural_allocations_per_batch": 5,
       "required_metrics": [

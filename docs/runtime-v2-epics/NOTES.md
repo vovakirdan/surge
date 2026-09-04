@@ -15100,3 +15100,44 @@ Implemented as the frozen number in `validate_manifest` and the
 manifest; the estimator test now derives the expected median copy from
 the protocol's own rule for any copy count. The twelfth paired attempt
 runs on this protocol.
+
+**Twelfth attempt, `fb3b7710` (file-size rc=0, harness tests rc=0, the
+bench 325 s, 37,538 attempts):** one row under budget, `select-send-scalar`
+0.936 (medians of 24 copies, base 455 us per run, candidate 487);
+`array-teardown-scalar` 0.972, `channel-buffered-scalar` 0.962, `zero`
+0.987, `scalar` 0.994, every other relative row at or above 0.95, every
+CV gate green, every p95 gate green or below the floor. (`3bc11b2a`,
+the commit before, went to the runner with a red harness test of its
+own -- the test's wandering copy was a throughput CV of 0.049, still
+clean -- and was stopped; `fb3b7710` is that test made to wander.)
+
+**The residual named at the hardware:** `perf stat` over the whole
+process, base against candidate, one copy each, twenty runs: cycles
+5.70 M against 5.82 M (+2 %), instructions 9.53 M against 9.55 M (+0.2 %),
+branch misses equal, D-cache misses equal (102 K / 101 K), **L1
+instruction-cache misses 44.3 K against 49.6 K (+12 %)**, page faults
+equal. The candidate's select is front-end bound: more code bytes per
+operation at -O0 (the binary is 1.61 MB against 1.36 MB), which is
+RV2-DEBT-333's, not an algorithm's. And the placement structure is
+discrete, not a bell: the twelve-copy loop (`/srv/ci/tmp/mini_copies.sh`,
+12 copies, 10 runs each, medians of copy medians, us per batch) reads
+the base at 233 with copies at 213-220, 233-241 and 250-252 -- three
+clusters -- `5993963a` (before the inline fast paths) at 250, and
+`fb3b7710` at **232**, equal to the base; the same tree the harness read
+at 0.936 an hour earlier. A median of 24 draws from three clusters five
+percent apart moves between them, and no count of copies makes a 0.95
+budget resolve a row whose true ratio sits at 0.94-1.00.
+
+### F7, the sixth ruling of 2026-09-04: a budget of the row's own for `select-send-scalar` (2026-09-04)
+
+**Owner ruling:** `select-send-scalar` carries a throughput budget of its
+own, 0.90, and the other forty-five rows keep the protocol's 0.95.
+Declined: closing on the twelfth attempt's red report; hand-shrinking
+the select's hot code at -O0 (open-ended, each check eleven minutes at a
+resolution of +-5 %). Implemented as `Row.throughput_min_ratio`
+(optional in the manifest, echoed on every row of the report as
+`throughput_min_ratio`), `validate_manifest` refusing a row budget on any
+other row or at any other number, the gate's message naming "the row's
+own budget"; Rule 13: with the row's budget ignored the budgeted row is
+refused at 0.926 and the loader test cannot tell 0.85 from 0.90. The
+thirteenth paired attempt runs on this manifest.

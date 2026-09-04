@@ -137,6 +137,7 @@ def render_report(
                 "fixture": row.fixture,
                 "payload_bytes": row.payload_bytes,
                 "relative_performance": row.relative_performance,
+                "throughput_min_ratio": row.throughput_budget(manifest.protocol),
                 "failure": (
                     protocol_failure
                     or next(iter(allocation_failures), None)

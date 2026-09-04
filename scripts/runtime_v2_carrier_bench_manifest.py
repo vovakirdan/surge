@@ -186,26 +186,28 @@ def _rows(raw: Any) -> tuple[Row, ...]:
     for index, value in enumerate(raw):
         label = f"rows[{index}]"
         obj = _object(value, label)
-        _keys(
-            obj,
-            label,
-            {
-                "id",
-                "workload_family",
-                "payload_role",
-                "fixture",
-                "probe",
-                "operations_per_batch",
-                "batches",
-                "payload_bytes",
-                "timeout_seconds",
-                "relative_performance",
-                "expected_checksum",
-                "candidate_structural_allocations_per_batch",
-                "required_metrics",
-                "invariants",
-            },
-        )
+        fields = {
+            "id",
+            "workload_family",
+            "payload_role",
+            "fixture",
+            "probe",
+            "operations_per_batch",
+            "batches",
+            "payload_bytes",
+            "timeout_seconds",
+            "relative_performance",
+            "expected_checksum",
+            "candidate_structural_allocations_per_batch",
+            "required_metrics",
+            "invariants",
+        }
+        # A row's own throughput budget is optional (owner ruling 2026-09-04,
+        # the sixth); validate_manifest says which row may carry one.
+        has_budget = "throughput_min_ratio" in obj
+        if has_budget:
+            fields.add("throughput_min_ratio")
+        _keys(obj, label, fields)
         rows.append(
             Row(
                 row_id=_string(obj["id"], f"{label}.id"),
@@ -243,6 +245,11 @@ def _rows(raw: Any) -> tuple[Row, ...]:
                     obj["required_metrics"], f"{label}.required_metrics"
                 ),
                 invariants=_invariants(obj["invariants"], f"{label}.invariants"),
+                throughput_min_ratio=(
+                    _number(obj["throughput_min_ratio"], f"{label}.throughput_min_ratio")
+                    if has_budget
+                    else None
+                ),
             )
         )
     return tuple(rows)
