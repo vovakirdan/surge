@@ -68,7 +68,6 @@ declare -A WINDOW_FILE=(
     [SP_WAKE_BEFORE_STALE_REMOVAL]="rt_task_park.c"
     [SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY]="rt_far_channel_select.c"
     [SP_FAR_SELECT_BEFORE_DISPATCH]="rt_far_channel_select.c"
-    [SP_CARRIER_JUMBO_ADMITTED]="rt_transport.c"
     [SP_TRANSPORT_DATA_SLOT_TASK_PARKED]="rt_remote_admit.c"
     [SP_SLEEP_FIRED_BEFORE_WAKE]="rt_async_sleep.c"
     [SP_SCOPE_FAILFAST_JOIN_BEFORE_VERIFY]="rt_async_scope.c"

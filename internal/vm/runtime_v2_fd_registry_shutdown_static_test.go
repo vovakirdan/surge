@@ -211,9 +211,12 @@ rt_runtime* rt_executor_runtime(rt_executor* ex) {
     return NULL;
 }
 
-int rt_exec_trace_enabled(void) {
-    return 1;
-}
+// The stand arms tracing through the FLAG, not by defining the predicate.
+// rt_exec_trace_enabled became a static inline in rt_async_trace.h when the
+// trace check was inlined (35cbad03), so a stub of the same name is a
+// redefinition and this stand stopped compiling. Setting the flag says the same
+// thing -- tracing on -- through the interface the header now owns.
+volatile sig_atomic_t rt_exec_trace_enabled_flag = 1;
 
 void rt_net_trace_shutdown_poller_wakeups_enabled(uint64_t wakeups) {
     trace_shutdown_wakeups = wakeups;
