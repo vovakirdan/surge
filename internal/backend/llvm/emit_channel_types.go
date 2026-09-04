@@ -33,6 +33,17 @@ func channelElemType(typesIn *types.Interner, channelType types.TypeID) types.Ty
 	if typesIn == nil || channelType == types.NoTypeID {
 		return types.NoTypeID
 	}
+	// A far channel's element is the element of the channel under the far
+	// qualifier: resolveValueType stops at the KindFar node, so without this
+	// step every `far Channel<T>` answered NoTypeID here, and a far select's
+	// SEND arm shipped its payload under type id 0 -- the opaque-word
+	// descriptor, whose drop is a no-op -- so a staged non-copy payload the
+	// select never committed (the caller cancelled, the arm lost) was never
+	// destroyed (RV2-DEBT-332, 2026-09-04). The committing path never
+	// noticed: it moves through the channel's own descriptor.
+	if tt, ok := typesIn.Lookup(channelType); ok && tt.Kind == types.KindFar {
+		return channelElemType(typesIn, resolveValueType(typesIn, tt.Elem))
+	}
 	if info, ok := typesIn.StructInfo(channelType); ok && info != nil && typesIn.Strings != nil {
 		if name, nameOK := typesIn.Strings.Lookup(info.Name); nameOK && name == "Channel" {
 			if args := typesIn.StructArgs(channelType); len(args) == 1 {
