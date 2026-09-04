@@ -472,11 +472,12 @@ class ManifestTests(unittest.TestCase):
                     path.write_text(json.dumps(raw), encoding="utf-8")
                     with self.assertRaisesRegex(ManifestError, "throughput budget of its own"):
                         load_manifest(path)
-            raw = manifest_json()
-            raw["rows"][0]["id"] = "select-send-scalar"
-            raw["rows"][0]["throughput_min_ratio"] = 0.90
-            path.write_text(json.dumps(raw), encoding="utf-8")
-            self.assertEqual(load_manifest(path).rows[0].throughput_min_ratio, 0.90)
+            for row_id in ("select-send-scalar", "array-teardown-scalar"):
+                raw = manifest_json()
+                raw["rows"][0]["id"] = row_id
+                raw["rows"][0]["throughput_min_ratio"] = 0.90
+                path.write_text(json.dumps(raw), encoding="utf-8")
+                self.assertEqual(load_manifest(path).rows[0].throughput_min_ratio, 0.90)
 
     def test_throughput_cv_still_gates_a_row_below_the_floor(self) -> None:
         # Rule 13 in the other direction: waiving the p95 CV below the floor

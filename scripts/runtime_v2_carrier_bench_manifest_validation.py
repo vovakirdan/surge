@@ -22,6 +22,9 @@ FROZEN_METRIC_CONTRACT: dict[
 }
 
 
+ROWS_WITH_OWN_BUDGET = frozenset({"select-send-scalar", "array-teardown-scalar"})
+
+
 def validate_manifest(manifest: Manifest) -> None:
     if manifest.schema_version != 2:
         raise ManifestError(f"unsupported schema_version {manifest.schema_version}")
@@ -134,16 +137,20 @@ def validate_manifest(manifest: Manifest) -> None:
                     f"row {row.row_id} invariant references unsupported "
                     f"{invariant.side} metric {invariant.metric}"
                 )
-        # Owner ruling 2026-09-04 (the sixth): one row carries its own
-        # throughput budget, select-send-scalar at exactly 0.90 (the front
-        # end's residual at -O0, RV2-DEBT-333); every other row reads the
-        # protocol's 0.95. The row and the number are the ruling's.
+        # Owner rulings 2026-09-04 (the sixth and seventh): two rows carry a
+        # throughput budget of their own, select-send-scalar and
+        # array-teardown-scalar at exactly 0.90 -- the front end's residual
+        # and the file placement of a 40 us batch at -O0 (RV2-DEBT-333), the
+        # arrays row equal to the base by instructions and cache simulation
+        # and read at 0.94-1.03 across six attempts; every other row reads
+        # the protocol's 0.95. The rows and the number are the rulings'.
         if row.throughput_min_ratio is not None and (
-            row.row_id != "select-send-scalar" or row.throughput_min_ratio != 0.90
+            row.row_id not in ROWS_WITH_OWN_BUDGET or row.throughput_min_ratio != 0.90
         ):
             raise ManifestError(
                 f"row {row.row_id} carries a throughput budget of its own; only "
-                "select-send-scalar may, at exactly 0.90 (owner ruling 2026-09-04)"
+                "select-send-scalar and array-teardown-scalar may, at exactly 0.90 "
+                "(owner rulings 2026-09-04)"
             )
     rows_by_id = {row.row_id: row for row in manifest.rows}
     for invariant in manifest.cross_row_invariants:

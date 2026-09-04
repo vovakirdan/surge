@@ -142,12 +142,15 @@ class Row:
     required_metrics: tuple[str, ...]
     invariants: tuple[Invariant, ...]
     # A row's own throughput budget where the owner set one; None reads the
-    # protocol's. Owner ruling 2026-09-04 (the sixth): select-send-scalar
-    # carries 0.90 -- its residual over the epic base is the front end's
-    # (+12 % L1I misses at +0.2 % instructions, the typed-carrier select's
-    # code at -O0, RV2-DEBT-333), read at 0.936 by 24 copies and at 1.00
-    # by a 12-copy loop on the same tree, inside the host's +-5 % placement
-    # clusters -- and validate_manifest freezes the row and the number.
+    # protocol's. Owner rulings 2026-09-04 (the sixth and seventh):
+    # select-send-scalar and array-teardown-scalar carry 0.90 -- the
+    # select's residual over the epic base is the front end's (+12 % L1I
+    # misses at +0.2 % instructions, the typed-carrier select's code at
+    # -O0, RV2-DEBT-333), read at 0.936 by 24 copies and at 1.00 by a
+    # 12-copy loop on the same tree; the arrays row is equal to the base by
+    # instructions and cache simulation and read at 0.94-1.03 across six
+    # attempts, a 40 us batch inside the host's +-5 % placement clusters --
+    # and validate_manifest freezes the rows and the number.
     throughput_min_ratio: float | None = None
 
     def throughput_budget(self, protocol: "Protocol") -> float:

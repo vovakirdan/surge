@@ -15141,3 +15141,22 @@ other row or at any other number, the gate's message naming "the row's
 own budget"; Rule 13: with the row's budget ignored the budgeted row is
 refused at 0.926 and the loader test cannot tell 0.85 from 0.90. The
 thirteenth paired attempt runs on this manifest.
+
+**Thirteenth attempt, `d666dfbd` (file-size rc=0, harness tests rc=0,
+the bench 325 s):** `select-send-scalar` **1.003** (the row's budget
+unneeded), `channel-buffered-scalar` 0.973, `zero` 1.065, `scalar` 1.003,
+every gate green -- and `array-teardown-scalar` 0.944: base copies 74-101
+us per run, candidate 76-88, the median copies 79 against 84. Across
+attempts 8-13 that row read 0.981, 1.032, 0.979, 0.940, 0.972, 0.944, a
+mean of 0.975; its instructions are the base's within 0.5 % and its
+cache simulation is the base's (the fourth attempt's callgrind and
+cachegrind), so the movement is the placement of a 40 us batch, and two
+rows at the budget line take turns dipping under it by 0.5-1.5 % per run.
+
+### F7, the seventh ruling of 2026-09-04: the same budget for `array-teardown-scalar` (2026-09-04)
+
+**Owner ruling:** `array-teardown-scalar` carries the same 0.90 of its
+own, for the same reason; forty-four rows keep 0.95. `validate_manifest`
+now names the two rows (`ROWS_WITH_OWN_BUDGET`) and still refuses any
+other row or number. The fourteenth paired attempt runs on this
+manifest.

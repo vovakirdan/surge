@@ -142,7 +142,7 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_validation.py",
-      "sha256": "e15f308e0a8cf93134ec8e99e830666eef1466bee3aa03cfacf6b974b2b0a34a"
+      "sha256": "b3e255840339197a202240af26bd24c8e2d442eb6d7907406d4ca52b460ca938"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_values.py",
@@ -150,11 +150,11 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_model.py",
-      "sha256": "18bb1cd1323025c15917e26a4217ef8a5faa9b255779579f27467e4fb41f6a9f"
+      "sha256": "05158531996b4b6e3eed41249fc3b61e94d34bccb2cb22b32b2554e93e1a6a64"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_model_test.py",
-      "sha256": "a575de36a0ce684d1a9057ddbd1e59c2694ebbf69bcfc03a74774f8e21e41d63"
+      "sha256": "530b1b341798a0ec4c865c710ace2a8ea7acebd7c2755f7fdc039c19e5203db0"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_protocol.py",
@@ -398,6 +398,7 @@
       "payload_bytes": 8,
       "timeout_seconds": 10,
       "relative_performance": true,
+      "throughput_min_ratio": 0.9,
       "expected_checksum": "130816",
       "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
