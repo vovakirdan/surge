@@ -17,6 +17,7 @@ from runtime_v2_carrier_bench_model import (
     ReferenceHost,
     Side,
     p95_cv_gated,
+    p95_ratio_gated,
     row_invariant_failures,
     score_side,
     validate_row_protocol,
@@ -95,6 +96,11 @@ def render_report(
             "candidate": _score_json(candidate_score, manifest.protocol),
             "throughput_ratio": candidate_score.throughput / base_score.throughput,
             "p95_ratio": candidate_score.p95_ns / base_score.p95_ns,
+            # Owner ruling 2026-09-04 (the third): the p95 ratio is a gate only
+            # where both sides' p95 reach the floor.
+            "p95_ratio_gated": p95_ratio_gated(
+                manifest.protocol, base_score, candidate_score
+            ),
         }
         protocol_failure: str | None = None
         try:

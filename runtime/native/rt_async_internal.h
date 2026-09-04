@@ -557,7 +557,6 @@ void panic_msg(const char* msg);
 void fatal_oom_msg(const char* msg);
 int rt_async_debug_enabled(void);
 void rt_async_debug_printf(const char* fmt, ...);
-int rt_exec_trace_enabled(void);
 void rt_exec_trace_init(void);
 int rt_trace_dump_requested(void);
 void rt_trace_wake_called(void);

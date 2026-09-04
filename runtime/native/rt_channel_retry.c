@@ -98,16 +98,11 @@ void rt_channel_retry_republished(void) {
     trace_increment(&retry_republications);
 }
 
-void rt_channel_retry_reset(rt_task* task) {
+// Every successful claim resets the budget. The common case -- a task that
+// was never refused -- is answered inline by rt_channel_retry_reset
+// (rt_channel_lane.h) without this call; this is the reset itself.
+void rt_channel_retry_reset_slow(rt_task* task) {
     if (task == NULL) {
-        return;
-    }
-    // Every successful claim resets the budget; a task that was never
-    // refused has nothing to reset, and clearing the prefix array here on
-    // every channel operation was a measurable share of a local select's
-    // cost (2026-09-04, select-send-scalar).
-    if (task->channel_retry.count == 0 && task->channel_retry.prefix_len == 0 &&
-        task->channel_retry.operation == RT_CHANNEL_RETRY_NONE) {
         return;
     }
     task->channel_retry = (rt_channel_retry_state){0};
@@ -223,15 +218,13 @@ static void channel_wake_retry_waiter_locked(rt_executor* ex, rt_shard* ch_shard
 #endif
 }
 
-void rt_channel_claim_released_locked(rt_executor* ex, rt_shard* ch_shard, const rt_channel* ch) {
-    rt_channel_trace_claim_released();
-    // Nobody stands on either retry key: the walk below would find nothing,
-    // and it walked the whole owner store four times on every send and
-    // receive (2026-09-04, select-send-scalar). The count is exact under the
-    // owner lock this is called with (rt_channel_key_registered/retired).
-    if (ch->retry_waiters == 0) {
-        return;
-    }
+// The release with somebody standing on a retry key. The common case --
+// nobody is (`retry_waiters == 0`, exact under the owner lock this is called
+// with) -- is answered inline by rt_channel_claim_released_locked
+// (rt_channel_lane.h): the walk below found nothing and walked the whole
+// owner store four times on every send and receive (2026-09-04,
+// select-send-scalar), and then the call itself was the next share.
+void rt_channel_claim_released_slow(rt_executor* ex, rt_shard* ch_shard, const rt_channel* ch) {
 #ifdef RV2_DEBT_277_WAKE_NEGATIVE_CONTROL
     // Rule 13: a release that wakes nobody. The waker stays compiled so the
     // mutant differs from the tree by this one call.

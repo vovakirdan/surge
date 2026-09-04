@@ -3,7 +3,8 @@
 
 #include <stdint.h>
 
-int rt_exec_trace_enabled(void);
+#include "rt_async_trace.h"
+
 void rt_net_trace_dump(const char* reason);
 void rt_net_trace_direct_wait_enabled(void);
 void rt_net_trace_poll_alloc_enabled(void);

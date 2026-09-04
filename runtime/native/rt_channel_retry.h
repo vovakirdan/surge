@@ -81,7 +81,9 @@ int rt_channel_retry_refused(rt_task* task,
                              rt_channel_retry_operation arm,
                              rt_channel_claim_refusal_cause cause);
 void rt_channel_retry_republished(void);
-void rt_channel_retry_reset(rt_task* task);
+// The reset itself; rt_channel_retry_reset (rt_channel_lane.h) is the inline
+// fast path that skips it for a task that was never refused.
+void rt_channel_retry_reset_slow(rt_task* task);
 
 // Direct send/receive: the refusal is counted, and the operation either
 // republishes (owner lane released, no key) or, exhausted, parks on the
@@ -94,8 +96,10 @@ void rt_channel_wait_after_claim_refusal_locked(rt_shard* channel_shard,
 
 // A claim was released on this channel: wake at most one exhausted retrier
 // per direction, without touching the ordinary sender/receiver FIFOs. Called
-// with the channel owner lane held.
-void rt_channel_claim_released_locked(rt_executor* ex, rt_shard* ch_shard, const rt_channel* ch);
+// with the channel owner lane held. rt_channel_claim_released_locked
+// (rt_channel_lane.h) is the inline entry that comes here only when
+// somebody stands on a retry key.
+void rt_channel_claim_released_slow(rt_executor* ex, rt_shard* ch_shard, const rt_channel* ch);
 
 void rt_channel_trace_claim_released(void);
 size_t rt_channel_trace_append(char* buf, size_t* pos, size_t cap);

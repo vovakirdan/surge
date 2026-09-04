@@ -82,7 +82,8 @@ class Protocol:
     # latencies come back quantized in ~10 ns ticks and two clock reads cost
     # about as much as a 60 ns operation -- so the p95 CV gate applies only to
     # a side whose median p95 reaches the floor; below it the row is gated on
-    # throughput CV alone. The p95 RATIO gate is unchanged either way.
+    # throughput CV alone. The same floor gates the p95 RATIO since the third
+    # ruling of 2026-09-04: only where both sides' p95 reach it.
     p95_cv_floor_ns: int
     # Owner ruling 2026-09-04 (the file effect): a fixture's speed is a
     # property of the physical pages its file landed on -- six byte-identical
@@ -284,6 +285,11 @@ def p95_cv_gated(protocol: Protocol, score: SideScore) -> bool:
     return score.p95_ns >= protocol.p95_cv_floor_ns
 
 
+def p95_ratio_gated(protocol: Protocol, base: SideScore, candidate: SideScore) -> bool:
+    """Whether a row's p95 ratio is a gate: both sides' p95 reach the floor."""
+    return p95_cv_gated(protocol, base) and p95_cv_gated(protocol, candidate)
+
+
 def score_side(
     runs: Sequence[MeasuredRun],
     pairs_per_placement: int | None = None,
@@ -394,7 +400,14 @@ def validate_row_protocol(
                 f"{row.row_id} throughput ratio {throughput_ratio:.6f} below "
                 f"{manifest.protocol.throughput_min_ratio:.6f}"
             )
-        if latency_ratio > manifest.protocol.p95_max_ratio:
+        # Owner ruling 2026-09-04 (the third): below the floor a p95 is a
+        # tick of the clock on both sides, and the ratio of two ticks (41
+        # against 50 ns reads 1.22) is not a reading; the p95 ratio is gated
+        # only where both sides' p95 reach the floor. The throughput ratio
+        # above answers for the row either way.
+        if p95_ratio_gated(manifest.protocol, base_score, candidate_score) and (
+            latency_ratio > manifest.protocol.p95_max_ratio
+        ):
             raise GateFailure(
                 f"{row.row_id} p95 ratio {latency_ratio:.6f} above "
                 f"{manifest.protocol.p95_max_ratio:.6f}"

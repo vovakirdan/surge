@@ -33,7 +33,8 @@ typedef struct {
 } rt_channel_recv_claim;
 
 // All of these run with the channel owner's shard lock held.
-int channel_recv_claim_blocks(const rt_channel* ch);
+// channel_recv_claim_blocks, the admission check, is inline in
+// rt_channel_lane.h beside the struct it reads.
 int channel_recv_claim_open_locked(rt_channel* ch, const waiter* receiver);
 // Commit: non-zero when the claim is still the sender's to deliver on; zero
 // when close settled the receiver first (the sender destroys its payload).

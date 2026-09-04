@@ -86,6 +86,50 @@ static inline int rt_channel_key_is_retry(waker_key key) {
     return key.kind == WAKER_CHAN_SEND_RETRY || key.kind == WAKER_CHAN_RECV_RETRY;
 }
 
+// The fast paths of the claim-retry budget (rt_channel_retry.c), inline
+// because they run on every send, receive and select poll and their common
+// answer is "nothing to do": a task that was never refused has no budget to
+// reset, and a channel nobody waits on for a retry has nobody to wake. Out
+// of line the three were a third of the +187 instructions per operation the
+// local select paid over the epic base (2026-09-04, select-send-scalar).
+// always_inline because the runtime is compiled without -O
+// (internal/buildpipeline: `clang -c -std=c11 -g`), where a plain inline is
+// a call like any other.
+#define RT_CHANNEL_FAST_PATH static inline __attribute__((always_inline))
+
+RT_CHANNEL_FAST_PATH void rt_channel_retry_reset(rt_task* task) {
+    // rt_channel_retry_refused names the operation on the first refusal it
+    // counts, and only the reset clears it, so a NONE operation is exactly
+    // the untouched budget.
+    if (task != NULL && task->channel_retry.operation != RT_CHANNEL_RETRY_NONE) {
+        rt_channel_retry_reset_slow(task);
+    }
+}
+
+RT_CHANNEL_FAST_PATH void rt_channel_claim_released_locked(rt_executor* ex,
+                                                           rt_shard* ch_shard,
+                                                           const rt_channel* ch) {
+    if (rt_exec_trace_enabled()) {
+        rt_channel_trace_claim_released();
+    }
+    if (ch->retry_waiters != 0) {
+        rt_channel_claim_released_slow(ex, ch_shard, ch);
+    }
+}
+
+// The receive claim blocks admission while it is open (rt_channel_claim.h);
+// inline for the same reason, one byte read per admission check.
+RT_CHANNEL_FAST_PATH int channel_recv_claim_blocks(const rt_channel* ch) {
+#ifdef RV2_CLAIM_OVERTAKE_NEGATIVE_CONTROL
+    // Rule 13: an open claim admits later sends, and the value the claimed
+    // receiver was promised is overtaken by one that arrived after it.
+    (void)ch;
+    return 0;
+#else
+    return ch != NULL && ch->recv_claim.active != 0;
+#endif
+}
+
 // The seal bit, and the mask of the count beside it. 2^31 simultaneous pins is
 // not a quantity of live operations any machine can hold, so the count cannot
 // reach the bit.

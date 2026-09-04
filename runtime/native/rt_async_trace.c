@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-static volatile sig_atomic_t trace_exec_enabled_flag = 0;
+volatile sig_atomic_t rt_exec_trace_enabled_flag = 0;
 static _Atomic uint64_t trace_wake_called_total;
 static _Atomic uint64_t trace_wake_enqueued_total;
 static _Atomic uint64_t trace_wake_ignored_completed_total;
@@ -28,10 +28,6 @@ static _Atomic uint64_t trace_owner_replaced_total;
 static _Atomic uint64_t trace_placement_adoption_total;
 static _Atomic uint64_t trace_control_lock_site_total[RT_CTRL_SITE_COUNT];
 static _Atomic sig_atomic_t trace_dump_requested_flag;
-
-int rt_exec_trace_enabled(void) {
-    return trace_exec_enabled_flag != 0;
-}
 
 static void trace_inc_atomic(_Atomic uint64_t* counter) {
     if (!rt_exec_trace_enabled() || counter == NULL) {
@@ -647,7 +643,7 @@ void rt_exec_trace_init(void) {
     if (value == NULL || value[0] == '\0' || (value[0] == '0' && value[1] == '\0')) {
         return;
     }
-    trace_exec_enabled_flag = 1;
+    rt_exec_trace_enabled_flag = 1;
 #ifdef SIGUSR1
     (void)signal(SIGUSR1, trace_exec_signal_handler);
 #endif

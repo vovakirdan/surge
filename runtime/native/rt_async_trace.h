@@ -1,11 +1,26 @@
 #ifndef SURGE_RT_ASYNC_TRACE_H
 #define SURGE_RT_ASYNC_TRACE_H
 
+#include <signal.h>
 #include <stddef.h>
 #include <stdint.h>
 
 #include "rt_sched_trace.h"
 #include "rt_scope_provenance_trace.h"
+
+// Whether SURGE_TRACE_EXEC asked for the execution trace. Set once at init
+// (rt_async_trace.c), read at every trace point; the read is inline because
+// forty trace points sit on the send/receive/select paths and a call per
+// point was a measurable share of a local select's cost (2026-09-04,
+// select-send-scalar: rt_exec_trace_enabled +18 instructions per operation).
+// always_inline because the runtime is compiled without -O
+// (internal/buildpipeline: `clang -c -std=c11 -g`), where a plain inline is
+// still a call.
+extern volatile sig_atomic_t rt_exec_trace_enabled_flag;
+
+static inline __attribute__((always_inline)) int rt_exec_trace_enabled(void) {
+    return rt_exec_trace_enabled_flag != 0;
+}
 
 // What the scheduler REPORTS about itself.
 //

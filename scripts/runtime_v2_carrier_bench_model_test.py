@@ -1,7 +1,12 @@
 """Focused Runtime V2 carrier benchmark tests."""
 
 from runtime_v2_carrier_bench_test_support import *
-from runtime_v2_carrier_bench_model import p95_cv_gated, score_side, validate_row_protocol
+from runtime_v2_carrier_bench_model import (
+    p95_cv_gated,
+    p95_ratio_gated,
+    score_side,
+    validate_row_protocol,
+)
 
 class ModelTests(unittest.TestCase):
     def test_wave_a_baseline_capture_preserves_red_and_protocol_boundary(self) -> None:
@@ -390,6 +395,30 @@ class ManifestTests(unittest.TestCase):
         floor_score = score_side(at_floor)
         self.assertEqual(floor_score.p95_ns, 1000.0)
         self.assertTrue(p95_cv_gated(manifest.protocol, floor_score))
+
+    def test_p95_ratio_gates_only_where_both_sides_reach_the_floor(self) -> None:
+        # The runner's own reading (attempts 7 and 9): array-grow-scalar's p95
+        # is 41 ns on the base and 50 on the candidate, one tick of the clock
+        # apart, and their ratio 1.22 is not a reading (owner ruling
+        # 2026-09-04, the third). The same shape at 4100 / 5000 ns is the
+        # runtime's and still refuses.
+        manifest = make_manifest()
+        row = manifest.rows[0]
+        steady = [1200] * 7
+        base = self._runs_with_p95("base", [41] * 7, elapsed_ns=steady)
+        candidate = self._runs_with_p95("candidate", [50] * 7, elapsed_ns=steady)
+        base_score, candidate_score = validate_row_protocol(manifest, row, base, candidate)
+        self.assertGreater(candidate_score.p95_ns / base_score.p95_ns, 1.1)
+        self.assertFalse(p95_ratio_gated(manifest.protocol, base_score, candidate_score))
+        real_base = self._runs_with_p95("base", [4100] * 7, elapsed_ns=steady)
+        real_candidate = self._runs_with_p95("candidate", [5000] * 7, elapsed_ns=steady)
+        with self.assertRaisesRegex(GateFailure, "p95 ratio 1.2195.. above"):
+            validate_row_protocol(manifest, row, real_base, real_candidate)
+        # One side at the floor and the other below it is still below it.
+        mixed = self._runs_with_p95("candidate", [1200] * 7, elapsed_ns=steady)
+        low = self._runs_with_p95("base", [900] * 7, elapsed_ns=steady)
+        low_score, mixed_score = validate_row_protocol(manifest, row, low, mixed)
+        self.assertFalse(p95_ratio_gated(manifest.protocol, low_score, mixed_score))
 
     def test_throughput_cv_still_gates_a_row_below_the_floor(self) -> None:
         # Rule 13 in the other direction: waiving the p95 CV below the floor

@@ -14985,3 +14985,58 @@ scores the wandering copy 1 instead of copy 5 and
 `test_throughput_cv_still_gates_a_row_below_the_floor` reads copy 0 where
 copy 1 is the clean one. 70 harness tests green; the ninth attempt runs
 on this protocol.
+
+**Ninth attempt, `5993963a` (file-size rc=0, harness tests rc=0, the bench
+191 s):** every CV gate green on every row. Two reds. `array-grow-scalar
+p95 ratio 1.219512` -- the base's p95 operation 41 ns, the candidate's 50,
+one tick of the runner's 10 ns clock apart, the same reading as the
+seventh attempt's; and `select-send-scalar` 0.939 (0.960 on the eighth,
+0.937 in the bare loop on one pair of copies): the compiled select's
+residual sits on the budget line.
+
+### F7, the third ruling of 2026-09-04, and the select's residual named and halved (2026-09-04)
+
+**Owner ruling, the third of the day:** the 1 us floor of variant "в"
+gates the p95 RATIO as it gates the p95 CV -- only where both sides' p95
+reach it. Below the floor the ratio is two ticks of the clock (41 / 50 ns
+is 1.22 and says nothing), and the row still answers for its throughput
+ratio. `p95_ratio_gated` in the model, `p95_ratio_gated` on every row's
+scores in the report, and the test that reads the runner's own numbers:
+41 against 50 passes, 4100 against 5000 refuses at 1.2195, one side at
+the floor and the other below it is below it.
+
+**The residual, named by callgrind at the instruction** (`select-send-scalar`,
+512 operations, this tree against the epic base): +187 instructions per
+operation, of which `rt_channel_retry_reset` +44, `rt_channel_claim_released_locked`
++28, `trace_increment` +20 with `rt_exec_trace_enabled` +18,
+`channel_recv_claim_blocks` +17, `rt_channel_trace_claim_released` +12,
+`rt_select_poll` +13. Not the retry walk any more (that was the +148
+removed on `3dfd905c`) but the CALLS: the reset called two or three times
+per operation to find nothing to reset, the release called twice to find
+nobody to wake, and every trace point paying a call into
+`rt_async_trace.c` to read one flag -- forty trace points sit on these
+paths. The reason a call is that expensive here is the build:
+`internal/buildpipeline/build.go` compiles the runtime with
+`clang -c -std=c11 -g` and no `-O`, and the IR with `clang -c -x ir` and
+no `-O`, so a `static inline` is a call like any other and nothing is
+ever hoisted. That is the tree's shape on both sides of every paired
+attempt and it is recorded as RV2-DEBT-333, not changed here.
+
+**Removed:** the flag is `rt_exec_trace_enabled_flag` with an
+`always_inline` reader in `rt_async_trace.h` (the two extern prototypes
+in `rt_async_internal.h` and `rt_net_trace.h` go); the retry reset and the
+claim release keep their out-of-line bodies as `rt_channel_retry_reset_slow`
+/ `rt_channel_claim_released_slow` and gain `always_inline` fast paths in
+`rt_channel_lane.h` beside the struct they read (a NONE operation is
+exactly the untouched budget, since only a counted refusal names one and
+only the reset clears it); `channel_recv_claim_blocks` moves there too,
+its negative control with it. After a first pass with plain `inline`
+callgrind still read the four as calls (+139 per operation, -O0 does not
+inline); with `always_inline` it reads **+77** per operation against the
+base (was +187), the remainder inside the callers themselves. Rule 13:
+with the inline reset never calling the slow one,
+`TestRuntimeV2ChannelClaimRetryBudgetAndWake` and
+`...IdentityAndReset` are red (stand code=1 on every arm); restored, every
+tagged `TestRuntimeV2ChannelClaimRetry*` stand and every
+`TestRuntimeV2ChannelCloseWins*` stand (which build the overtake and wake
+negative controls) is green. The tenth paired attempt reads the ratio.

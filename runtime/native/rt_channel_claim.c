@@ -17,17 +17,6 @@ static void claim_trace_increment(_Atomic uint64_t* counter) {
     }
 }
 
-int channel_recv_claim_blocks(const rt_channel* ch) {
-#ifdef RV2_CLAIM_OVERTAKE_NEGATIVE_CONTROL
-    // Rule 13: an open claim admits later sends, and the value the claimed
-    // receiver was promised is overtaken by one that arrived after it.
-    (void)ch;
-    return 0;
-#else
-    return ch != NULL && ch->recv_claim.active != 0;
-#endif
-}
-
 static int claim_names(const rt_channel_recv_claim* claim, const waiter* receiver) {
     return claim->receiver.task_id == receiver->task_id && claim->receiver.seq == receiver->seq;
 }
