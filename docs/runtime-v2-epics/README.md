@@ -8,11 +8,11 @@ The working mode is real-time and evidence-driven:
 
 1. write the next epic as a standalone document;
 2. agree on its design, bounded workstreams, and acceptance gates;
-3. update `NOTES.md` with current context before starting a workstream;
+3. update agentmemory with current context before starting a workstream;
 4. implement in isolated worktrees, review intended commits, and integrate only
    non-overlapping or dependency-ordered changes;
 5. verify the integrated result and run independent non-author review;
-6. update `NOTES.md` with evidence and record nonblocking findings in `DEBT.md`;
+6. update agentmemory with evidence and record nonblocking findings in `DEBT.md`;
 7. consolidate durable decisions into the epic and linked docs before closing;
 8. use the new evidence to shape the next epic.
 
@@ -104,8 +104,10 @@ detailed current chain is maintained in the roadmap and Detour Chain below.
 - `LIVENESS_PROBES.md`: required liveness probes by changed runtime surface.
 - `OPEN_DECISIONS_BEFORE_EPIC_2.md`: explicit blockers and deferrals before
   structural `N=1` work.
-- `NOTES.md`: live handoff log; durable decisions must move into the owning
-  document before an epic closes.
+- `NOTES.md`: retired tombstone marker. Live handoff notes now live in
+  agentmemory; durable decisions still move into the owning document before an
+  epic closes. The waves' own evidence is in this file's git history, up to and
+  including the Wave D-F closeout of 2026-09-04.
 - `23-storage-model-and-typed-carrier-abi.md`: accepted normative storage,
   place, ordinary-call, carrier, `Task<T>.clone()`, and byte-credit design.
 - `23b-inline-storage-and-typed-carriers.md`: executable end-to-end Epic 23
@@ -178,7 +180,7 @@ Every epic should move the runtime toward these goals:
   compiler can decide an invalid program;
 - keep compiler goldens reviewed and deterministic even when AST/MIR trees
   legitimately rebuild;
-- keep `NOTES.md` current enough for fast task switching;
+- keep the agentmemory notes current enough for fast task switching;
 - reduce or contain legacy files that exceed the 500-line Runtime V2 limit.
 
 ## Epic Roadmap

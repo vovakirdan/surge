@@ -223,11 +223,14 @@ worktree. Review findings are classified as blockers or durable debt; memory
 safety, ownership/lifetime, liveness, accepted semantics, required diagnostics,
 golden stability, and mandatory-gate failures are blockers.
 
-## Global Rule 10: Keep Working Notes Current
+## Global Rule 10: Keep Working Notes In Agentmemory
 
-Runtime V2 work must keep a live notes file. The notes file is
-`docs/runtime-v2-epics/NOTES.md` unless an epic names a more specific notes
-file.
+Runtime V2 work must keep its live notes in agentmemory.
+`docs/runtime-v2-epics/NOTES.md` is retired and exists only as a tombstone
+marker: a file is not shared, does not survive a cleared machine, and cannot be
+searched from another session, which is what a working memory has to do.
+Durable decisions still move into the owning document -- the epic, `README.md`,
+`RULES.md`, `DEBT.md` -- before an epic closes.
 
 Update notes:
 

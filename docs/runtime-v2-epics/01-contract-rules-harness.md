@@ -239,8 +239,9 @@ This epic is complete when:
 
 - a Runtime V2 rules document exists and is linked from this epic;
 - the status-code policy for new V2 C primitives is recorded in the rules;
-- `docs/runtime-v2-epics/NOTES.md` exists and captures current state, tested
-  paths, untested paths, dead ends, and open decisions;
+- the agentmemory notes capture current state, tested paths, untested paths,
+  dead ends, and open decisions (`docs/runtime-v2-epics/NOTES.md`, which used
+  to hold them, is a retired tombstone since 2026-09-04);
 - the language-contract questions above are answered or explicitly recorded as
   later blockers;
 - the baseline command set runs or has recorded local blockers;
@@ -363,9 +364,11 @@ decision register lives in `OPEN_DECISIONS_BEFORE_EPIC_2.md`.
 
 ### Task 8: Maintain Working Notes And Close The Epic
 
-Keep `docs/runtime-v2-epics/NOTES.md` current during the epic. At close, move
-durable decisions and evidence from notes into the epic document and linked
-docs, leaving notes as a handoff summary for the next task. Task 8 closeout
+Keep the agentmemory notes current during the epic. At close, move durable
+decisions and evidence from them into the epic document and linked docs,
+leaving the notes as a handoff summary for the next task. (Written when the
+notes lived in `docs/runtime-v2-epics/NOTES.md`; that file is a retired
+tombstone since 2026-09-04 and the duty is unchanged.) Task 8 closeout
 kept the target architecture unchanged, so `docs/RUNTIME_V2.md` was not edited.
 
 ## Exit Criteria For Starting Epic 2
