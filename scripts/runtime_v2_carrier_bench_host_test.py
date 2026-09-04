@@ -2,8 +2,30 @@
 
 from runtime_v2_carrier_bench_test_support import *
 from runtime_v2_carrier_bench import _require_descendant
+import runtime_v2_carrier_bench_host as host_module
+from unittest import mock
 
 class HostTests(unittest.TestCase):
+    def test_host_cpuset_is_the_fixtures_cores_only_when_the_harness_sits_elsewhere(self) -> None:
+        # 2026-09-04: with the harness on the fixtures' two cores its wait is a
+        # fifth runnable thread against the fixture's four, and the batch reads
+        # 25-35 % slower; the candidate lost more to that neighbour than the
+        # base and a pairing read a regression a bare run could not reproduce.
+        # So the run's cpuset is the fixtures' exactly when the harness's own
+        # affinity is disjoint from it and the cores can be taken; any overlap
+        # reports the harness's own affinity, which the reference check refuses.
+        with mock.patch.object(host_module.os, "sched_getaffinity", return_value={0, 1, 2}), \
+                mock.patch.object(host_module, "_fixture_cores_usable", return_value=True):
+            self.assertEqual(host_module.host_cpuset("8,10"), "8,10")
+        with mock.patch.object(host_module.os, "sched_getaffinity", return_value={8, 9}), \
+                mock.patch.object(host_module, "_fixture_cores_usable", return_value=True):
+            self.assertEqual(host_module.host_cpuset("8,10"), "8-9")
+        with mock.patch.object(host_module.os, "sched_getaffinity", return_value={0, 1}), \
+                mock.patch.object(host_module, "_fixture_cores_usable", return_value=False):
+            self.assertEqual(host_module.host_cpuset("8,10"), "0-1")
+        with mock.patch.object(host_module.os, "sched_getaffinity", return_value={8, 10}):
+            self.assertEqual(host_module.host_cpuset(None), "8,10")
+
     def test_candidate_must_descend_from_and_differ_from_the_base(self) -> None:
         # RV2 Wave F, F4: `git merge-base --is-ancestor X X` answers yes, so a
         # benchmark of the epic base against itself passed every relative gate

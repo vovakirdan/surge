@@ -170,15 +170,67 @@ def require_clean_worktree(root: Path) -> None:
         raise GateFailure(f"benchmark worktree is dirty: {root}\n{result.stdout}")
 
 
-def detect_host() -> ReferenceHost:
-    affinity = sorted(os.sched_getaffinity(0))
+def _parse_cpuset(cpuset: str) -> set[int]:
+    cores: set[int] = set()
+    for part in cpuset.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if "-" in part:
+            low, high = part.split("-", 1)
+            cores.update(range(int(low), int(high) + 1))
+        else:
+            cores.add(int(part))
+    return cores
+
+
+def _fixture_cores_usable(cpuset: str) -> bool:
+    try:
+        return (
+            subprocess.run(
+                ["taskset", "-c", cpuset, "true"],
+                capture_output=True,
+                check=False,
+                timeout=10,
+            ).returncode
+            == 0
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def host_cpuset(fixture_cpuset: str | None) -> str:
+    """The cores the RUN happens on.
+
+    Every fixture is pinned to the manifest's cpuset by `taskset` when it is
+    launched, so the run's cores are the fixture's, and the harness process
+    itself must sit ELSEWHERE: with the harness on the same two cores its
+    wait for the child is a fifth runnable thread against four in the
+    fixture, and the batch reads 25-35 % slower for that alone (2026-09-04,
+    select-send-scalar 351 us with the harness on 8,10 against 263 us with
+    it off them; the candidate lost more than the base to the neighbour and
+    the pairing read a regression that a bare run could not reproduce).
+    So the run's cpuset is the fixture cpuset exactly when the harness's own
+    affinity is disjoint from it and the cores can be taken; otherwise it is
+    the harness's own affinity, which then fails the reference check with
+    the sharing visible in the message.
+    """
+    own = set(os.sched_getaffinity(0))
+    if fixture_cpuset is not None:
+        cores = _parse_cpuset(fixture_cpuset)
+        if cores and not (own & cores) and _fixture_cores_usable(fixture_cpuset):
+            return fixture_cpuset
+    return _format_cpuset(sorted(own))
+
+
+def detect_host(fixture_cpuset: str | None = None) -> ReferenceHost:
     return ReferenceHost(
         system=platform.system(),
         machine=platform.machine(),
         kernel_contains=platform.release(),
         cpu_model=_cpu_model(),
         logical_cpus=os.cpu_count() or 0,
-        cpuset=_format_cpuset(affinity),
+        cpuset=host_cpuset(fixture_cpuset),
         go_version=_first_line(["go", "version"]),
         clang_version=_first_line(["clang", "--version"]),
     )

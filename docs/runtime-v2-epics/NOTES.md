@@ -14596,3 +14596,80 @@ setting is the owner's, not this note's to change.) `queue_bench2.sh` now
 disables the deep states on 8 and 10 for the duration of the run and puts
 the saved values back after it. Fourth attempt queued on `ec1da1eb`; the
 runtime and the manifest are unchanged by this finding.
+
+### F7, fourth attempt: every CV gate passes, and the verdict is a real one (2026-09-04)
+
+`ec1da1eb` with C2/C3 off on cores 8 and 10, 159 s to the verdict: all 46
+rows measured on both sides, the protocol's CV gates green on every gated
+row, and the refusal is `array-teardown-scalar throughput ratio 0.730599
+below 0.950000` -- a comparison, not noise. The candidate against the base
+(`epic_base` 4968061f, the tree before Waves D-F), medians of seven pairs:
+
+    row                        thr ratio  p95 ratio  base us  cand us
+    array-teardown-scalar        0.731      1.392       82      112   RED
+    map-teardown-scalar          0.908      1.056      187      206   RED
+    select-send-scalar           0.816      1.381      566      694   RED
+    zero                         0.911      1.429       58       63   RED
+    select-send-composite        0.837      1.252      698      834   (not gated)
+    channel-buffered-composite   0.888      1.398      874      984   (not gated)
+    every far/blocking/task row  1.02-1.06  0.94-1.01                 green
+    the other 36 rows            0.98-1.06                            green
+
+The rows that lost are the LOCAL ones -- dropping 512 arrays or maps, a
+local select's send, and `zero`, whose batch is nothing but the fixed
+cost of spawning and awaiting one task (+5 us of 58). The far, blocking
+and task rows are faster than the base. So the transport's resident-byte
+ledger (RV2-DEBT-327) is not the mover -- it is not on these paths -- and
+what moved is the local drop path and the per-batch overhead somewhere in
+Waves D-F. Localised next by building the same 512-operation fixtures with
+the compiler and runtime of six trees (4968061f, 8b12beb3, c38e4275,
+6bd6fd22, 43ae205a, ec1da1eb; `/srv/ci/xtree_probe.py`, 60 batches per
+row on the runner with the deep idle states off) -- the numbers follow.
+
+**The same fixtures, six compilers, one batch per process (medians, us):**
+
+    row                     4968061f 8b12beb3 c38e4275 6bd6fd22 43ae205a ec1da1eb
+    array-teardown-scalar       47       43       43       39       42       40
+    map-teardown-scalar         86       89       87       88       91       90
+    select-send-scalar         216      248      252      283      280      278
+    zero                        28       28       33       31       27       29
+    array-grow-scalar           48       47       49       47       50       47
+
+So `array-teardown-scalar`, the row that refused at 0.73, is FASTER on the
+candidate than on the base when each is run alone (40 against 47); `zero`
+and the map teardown are within a microsecond or two; and the one real
+movement is `select-send-scalar`, +29 % in two steps of about +30 us per
+512 operations, between the epic base and `8b12beb3` (before Wave D) and
+between `c38e4275` and `6bd6fd22` (Р6, the scope event lane). That one is
+the runtime's and is recorded below; it does not explain 82 -> 112 on a
+row the probe reads at 47 -> 40.
+
+**What did: the harness was sharing the fixtures' cores.** The queue ran
+the harness under `taskset -c 8,10`, the same two cores every fixture is
+pinned to, so during every batch the harness's wait for its child was a
+fifth runnable thread against the fixture's four. The A/B, on the runner,
+same binaries, same rows, C-states off:
+
+    parent on 8,10 (as the harness ran)    select-send-scalar 351   zero 34   array-teardown 43
+    parent off the cores                   select-send-scalar 263   zero 28   array-teardown 42
+
+The candidate loses more to that neighbour than the base does (its idle
+carriers keep more runnable at the batch's edges), and the pairing turned
+that into a "regression" no bare run reproduces. The reference-host check
+had encoded the mistake: it read the cpuset from the harness's OWN
+affinity, so the only way to satisfy "cpuset 8,10" was to sit on 8,10.
+`host_cpuset` (`runtime_v2_carrier_bench_host.py`) now reads the run's
+cpuset as the fixtures' -- the cores `_run_batch` pins them to -- exactly
+when the harness's own affinity is disjoint from it and the cores can be
+taken, and as the harness's own affinity otherwise, which the reference
+check then refuses with the sharing in the message
+(`test_host_cpuset_is_the_fixtures_cores_only_when_the_harness_sits_elsewhere`).
+`queue_bench2.sh` runs the harness on 12,14 with C2/C3 off on 8,10,12,14.
+Fifth attempt queued.
+
+**The one runtime movement, for the record: `select-send-scalar` +29 %.**
+Not this benchmark's verdict to give -- the row must first be measured
+without the neighbour -- but the two steps are the localisation a fix will
+start from: `4968061f..8b12beb3` (+32 us) and `c38e4275..6bd6fd22` (+31
+us). Both windows are small and `git log -S` over the local select's send
+path is the next move if the fifth attempt confirms the ratio.

@@ -93,7 +93,9 @@ def main() -> int:
         manifest_sha256 = manifest_digest(manifest_path)
         manifest = load_manifest(manifest_path)
         phase = "host_identity"
-        actual_host = detect_host()
+        # The run's cores are the fixtures' (taskset to the manifest cpuset);
+        # the harness itself must sit off them (host_cpuset, 2026-09-04).
+        actual_host = detect_host(fixture_cpuset=manifest.reference.cpuset)
         require_reference_host(manifest.reference, actual_host)
         phase = "candidate_identity"
         require_clean_worktree(candidate_root)
