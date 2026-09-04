@@ -323,10 +323,8 @@ void scope_exit_locked(rt_executor* ex, rt_scope* scope) {
 // not fired when the draining child is the one that raised it. child_registered
 // is the child's own membership answer, taken on its lane before the
 // completion travelled; the scope never re-derives it.
-rt_scope_child_done_effects rt_scope_take_child_done_locked(rt_executor* ex, waker_key key,
-                                                            uint64_t child_id,
-                                                            uint8_t result_kind,
-                                                            int child_registered) {
+rt_scope_child_done_effects rt_scope_take_child_done_locked(
+    rt_executor* ex, waker_key key, uint64_t child_id, uint8_t result_kind, int child_registered) {
     rt_scope_child_done_effects fx = {0, 0};
     rt_scope* scope = rt_scope_resolve_key_locked(ex, key);
     if (scope == NULL) {
@@ -355,7 +353,8 @@ rt_scope_child_done_effects rt_scope_take_child_done_locked(rt_executor* ex, wak
 // control lane -- cancel_task routes each child by an owner word F2
 // self-replace writes there -- which is a cancellation being carried out, not
 // scope accounting being read; nothing about the scope is decided here.
-void rt_scope_child_done_effects_apply(rt_executor* ex, waker_key key,
+void rt_scope_child_done_effects_apply(rt_executor* ex,
+                                       waker_key key,
                                        rt_scope_child_done_effects fx) {
     if (fx.owner_to_wake != 0) {
         int need_control = !rt_lane_holds_control();

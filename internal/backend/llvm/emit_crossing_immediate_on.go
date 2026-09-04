@@ -72,8 +72,8 @@ func (fe *funcEmitter) emitImmediateOnCrossing(ins *mir.CrossingInstr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", isRetry, retryBB, initBB)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", initBB)
-	if err := fe.emitCrossingCloneCounter(ins); err != nil {
-		return err
+	if counterErr := fe.emitCrossingCloneCounter(ins); counterErr != nil {
+		return counterErr
 	}
 	placementVal, placementTy, err := fe.emitValueOperand(&ins.Destination.Value)
 	if err != nil {

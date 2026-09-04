@@ -115,35 +115,6 @@ func (e *Emitter) hasInlineStorage(id types.TypeID) bool {
 	return mir.LivesInInlineStorage(e.types, id)
 }
 
-// valueSizeAlign is how many bytes one value of id occupies, and the alignment
-// an access to it must state, whichever representation it has.
-//
-// A composite answers from the layout registry; everything else is a machine
-// word whose size its own spelling carries. Asking the spelling in both cases
-// is what breaks — a composite is spelled as its byte run, and a byte run is
-// not a size a table of scalar spellings can look up.
-func (e *Emitter) valueSizeAlign(id types.TypeID) (size, align uint64, err error) {
-	if e.hasInlineStorage(id) {
-		facts, factsErr := e.storageFactsOf(id)
-		if factsErr != nil {
-			return 0, 0, factsErr
-		}
-		return facts.Size, facts.Align, nil
-	}
-	llvmTy, typeErr := e.llvmValueType(id)
-	if typeErr != nil {
-		return 0, 0, typeErr
-	}
-	rawSize, rawAlign, sizeErr := llvmTypeSizeAlign(llvmTy)
-	if sizeErr != nil {
-		return 0, 0, sizeErr
-	}
-	if rawSize < 0 || rawAlign < 0 {
-		return 0, 0, fmt.Errorf("LLVM type %s reported size %d align %d", llvmTy, rawSize, rawAlign)
-	}
-	return uint64(rawSize), uint64(rawAlign), nil
-}
-
 // memberAccessAlign is the alignment an access to a member at an offset may
 // claim, given the alignment of the storage it sits in.
 //

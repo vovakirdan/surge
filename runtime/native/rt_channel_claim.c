@@ -15,8 +15,7 @@ static _Atomic uint64_t values_destroyed_in_recovery;
 // opens and retires on every rendezvous send that finds a waiting receiver,
 // the runtime is compiled without -O (RV2-DEBT-333), and out of line this is
 // a call that reads one flag which is off by default and returns.
-static inline __attribute__((always_inline)) void
-claim_trace_increment(_Atomic uint64_t* counter) {
+static inline __attribute__((always_inline)) void claim_trace_increment(_Atomic uint64_t* counter) {
     if (rt_exec_trace_enabled()) {
         (void)atomic_fetch_add_explicit(counter, 1, memory_order_relaxed);
     }

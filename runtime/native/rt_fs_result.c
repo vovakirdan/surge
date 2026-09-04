@@ -93,7 +93,8 @@ void fs_release_dir_entries(DirEntry* entries, size_t count) {
 // a refused block ends the process here instead of answering NULL.
 static const uint8_t fs_result_oom[] = "fs result allocation failed";
 #define FS_RESULT_ALLOC(tag, align, size)                                                          \
-    ((uint8_t*)rt_tag_alloc_or_report((tag), (align), (size), fs_result_oom, sizeof(fs_result_oom) - 1))
+    ((uint8_t*)rt_tag_alloc_or_report(                                                             \
+        (tag), (align), (size), fs_result_oom, sizeof(fs_result_oom) - 1))
 
 void* fs_make_error(uint64_t code) {
     size_t payload_align = alignof(FsError);

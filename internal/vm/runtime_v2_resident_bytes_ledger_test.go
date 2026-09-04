@@ -56,8 +56,8 @@ func TestRuntimeV2ResidentBytesLedger(t *testing.T) {
 	temporary := t.TempDir()
 	harness := filepath.Join(temporary, "resident_bytes_ledger.c")
 	binary := filepath.Join(temporary, "resident_bytes_ledger")
-	if err := os.WriteFile(harness, []byte(residentBytesLedgerHarness), 0o600); err != nil {
-		t.Fatalf("write ledger harness: %v", err)
+	if writeErr := os.WriteFile(harness, []byte(residentBytesLedgerHarness), 0o600); writeErr != nil {
+		t.Fatalf("write ledger harness: %v", writeErr)
 	}
 	compile := exec.Command(clang,
 		"-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-pthread",
@@ -65,8 +65,8 @@ func TestRuntimeV2ResidentBytesLedger(t *testing.T) {
 		filepath.Join(root, "runtime", "native", "rt_resident_bytes.c"),
 		harness, "-o", binary,
 	)
-	if output, err := compile.CombinedOutput(); err != nil {
-		t.Fatalf("compile ledger harness: %v\n%s", err, output)
+	if compileOutput, compileErr := compile.CombinedOutput(); compileErr != nil {
+		t.Fatalf("compile ledger harness: %v\n%s", compileErr, compileOutput)
 	}
 	output, err := exec.Command(binary).CombinedOutput()
 	if err != nil {

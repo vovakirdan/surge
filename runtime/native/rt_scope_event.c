@@ -54,8 +54,11 @@ static int scope_event_child_registered(const rt_transport_msg* msg) {
 // own), so the enqueue may take the owner shard's lock for the push and the
 // rescue drain may run other shards' traffic on this carrier -- both are the
 // transport's ordinary admission path.
-void rt_scope_publish_child_done(rt_executor* ex, waker_key key, const rt_task* child,
-                                 uint8_t result_kind, int child_registered) {
+void rt_scope_publish_child_done(rt_executor* ex,
+                                 waker_key key,
+                                 const rt_task* child,
+                                 uint8_t result_kind,
+                                 int child_registered) {
     if (ex == NULL || child == NULL || !waker_valid(key)) {
         return;
     }
@@ -134,6 +137,6 @@ void rt_scope_apply_child_done_at_shutdown_locked(rt_executor* ex, const rt_tran
         panic_msg("async: scope event applied at shutdown outside its owner lane");
         return;
     }
-    (void)rt_scope_take_child_done_locked(ex, key, msg->generation, scope_event_result_kind(msg),
-                                          scope_event_child_registered(msg));
+    (void)rt_scope_take_child_done_locked(
+        ex, key, msg->generation, scope_event_result_kind(msg), scope_event_child_registered(msg));
 }

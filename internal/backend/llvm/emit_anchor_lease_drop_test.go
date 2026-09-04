@@ -25,7 +25,7 @@ async fn holder() -> int {
 }
 `
 
-func anchorLeaseStateGlue(t *testing.T) (ir string, glue string, everywhere int) {
+func anchorLeaseStateGlue(t *testing.T) (glue string, everywhere int) {
 	t.Helper()
 	mirMod, result := lowerCrossingMIRFromSource(
 		t, anchorLeaseSource, sema.CrossingLoweringOnFarHandle, sema.CrossingLoweringChannelCreate)
@@ -54,11 +54,11 @@ func anchorLeaseStateGlue(t *testing.T) (ir string, glue string, everywhere int)
 		t.Fatalf("release glue %s has no end:\n%s", glueName, ir)
 	}
 	glue = ir[start : start+end]
-	return ir, glue, strings.Count(ir, "call void @rt_far_channel_handle_drop(")
+	return glue, strings.Count(ir, "call void @rt_far_channel_handle_drop(")
 }
 
 func TestEmitAnchoredStateGlueLeavesTheCallersHandleAlone(t *testing.T) {
-	_, glue, everywhere := anchorLeaseStateGlue(t)
+	glue, everywhere := anchorLeaseStateGlue(t)
 	if strings.Contains(glue, "rt_far_channel_handle_drop") {
 		t.Fatalf("the anchored block's state releases the caller's handle:\n%s", glue)
 	}
@@ -72,10 +72,10 @@ func TestEmitAnchoredStateGlueLeavesTheCallersHandleAlone(t *testing.T) {
 // Rule 13: the pre-fix glue, restored under the negative-control switch, must
 // release the lease field -- the same body, one more far-handle drop.
 func TestEmitAnchoredStateGlueNegativeControl(t *testing.T) {
-	_, fixed, fixedEverywhere := anchorLeaseStateGlue(t)
+	fixed, fixedEverywhere := anchorLeaseStateGlue(t)
 	dropLeaseFieldsNegativeControl = true
 	defer func() { dropLeaseFieldsNegativeControl = false }()
-	_, mutant, mutantEverywhere := anchorLeaseStateGlue(t)
+	mutant, mutantEverywhere := anchorLeaseStateGlue(t)
 	if strings.Count(mutant, "rt_far_channel_handle_drop") != 1 {
 		t.Fatalf("negative control did not restore the lease field's release:\n%s", mutant)
 	}

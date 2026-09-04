@@ -327,8 +327,7 @@ var spellingSizers = regexp.MustCompile(`\b(llvmTypeSizeAlign|llvmTypeStrideAlig
 // enclosing `func` and does not follow dataflow, so it proves that no NEW site
 // asks the question — not that each listed site still guards correctly. The
 // guards themselves are pinned by their own tests: `naturalAlign` refuses a byte
-// run outright (TestNaturalAlignRefusesAnUnknownType), and `valueSizeAlign`
-// branches on `hasInlineStorage` before it asks. A reviewer adding a caller has
+// run outright (TestNaturalAlignRefusesAnUnknownType). A reviewer adding a caller has
 // to add it here, which is the point — the list is where the question gets
 // asked, so it is where the answer gets checked.
 var spellingSizerCallers = map[string]bool{
@@ -339,7 +338,6 @@ var spellingSizerCallers = map[string]bool{
 	"llvmTypeSizeAlign": true,
 
 	// Ask only after establishing the value is NOT carried inline.
-	"valueSizeAlign":  true, // branches on hasInlineStorage first
 	"arrayElemStride": true, // returns the registry's stride for an inline element first
 	"storageAlignOf":  true, // asks only when the spelling is not a storage run
 

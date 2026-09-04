@@ -95,7 +95,8 @@ uint64_t rt_debug_quiesce(void) {
         return 0;
     }
     if (rt_lane_holds_any_shard() || rt_lane_holds_control()) {
-        rt_fatal_static(RT_FATAL_PANIC, (const uint8_t*)"rt_debug_quiesce: called under a lane lock",
+        rt_fatal_static(RT_FATAL_PANIC,
+                        (const uint8_t*)"rt_debug_quiesce: called under a lane lock",
                         sizeof("rt_debug_quiesce: called under a lane lock") - 1);
         return 0;
     }
@@ -109,9 +110,10 @@ uint64_t rt_debug_quiesce(void) {
             return samples;
         }
         if (debug_quiesce_now_ns() - started > RT_DEBUG_QUIESCE_BUDGET_NS) {
-            rt_fatal_static(RT_FATAL_PANIC,
-                            (const uint8_t*)"rt_debug_quiesce: the executor did not come to rest within 2 s",
-                            sizeof("rt_debug_quiesce: the executor did not come to rest within 2 s") - 1);
+            rt_fatal_static(
+                RT_FATAL_PANIC,
+                (const uint8_t*)"rt_debug_quiesce: the executor did not come to rest within 2 s",
+                sizeof("rt_debug_quiesce: the executor did not come to rest within 2 s") - 1);
             return samples;
         }
         sched_yield();

@@ -194,19 +194,20 @@ int rt_carrier_bench_finish(void) {
         (void)emit_error(rt_carrier_bench_error_name(error));
         return 1;
     }
-    int result = fprintf(stderr,
-                         RECORD_PREFIX "{\"schema_version\":1,\"status\":\"ok\",\"probe\":\"%s\","
-                                       "\"nonce\":\"%s\",\"protocol_sha256\":\"%s\",\"metrics\":{"
-                                       "\"bytes_copied\":%" PRIu64 ",\"bytes_moved\":%" PRIu64
-                                       ",\"callback_count\":%" PRIu64 ",\"data_slot_stalls\":%" PRIu64
-                                       ",\"peak_transport_bytes\":%" PRIu64 "},\"error\":null}\n",
-                         rt_carrier_bench_state.probe,
-                         rt_carrier_bench_state.nonce,
-                         rt_carrier_bench_state.protocol_sha256,
-                         counters.bytes_copied,
-                         counters.bytes_moved,
-                         counters.callback_count,
-                         counters.data_slot_stalls,
-                         counters.peak_transport_bytes);
+    int result =
+        fprintf(stderr,
+                RECORD_PREFIX "{\"schema_version\":1,\"status\":\"ok\",\"probe\":\"%s\","
+                              "\"nonce\":\"%s\",\"protocol_sha256\":\"%s\",\"metrics\":{"
+                              "\"bytes_copied\":%" PRIu64 ",\"bytes_moved\":%" PRIu64
+                              ",\"callback_count\":%" PRIu64 ",\"data_slot_stalls\":%" PRIu64
+                              ",\"peak_transport_bytes\":%" PRIu64 "},\"error\":null}\n",
+                rt_carrier_bench_state.probe,
+                rt_carrier_bench_state.nonce,
+                rt_carrier_bench_state.protocol_sha256,
+                counters.bytes_copied,
+                counters.bytes_moved,
+                counters.callback_count,
+                counters.data_slot_stalls,
+                counters.peak_transport_bytes);
     return result < 0 ? 1 : 0;
 }

@@ -106,9 +106,8 @@ RT_CHANNEL_FAST_PATH void rt_channel_retry_reset(rt_task* task) {
     }
 }
 
-RT_CHANNEL_FAST_PATH void rt_channel_claim_released_locked(rt_executor* ex,
-                                                           rt_shard* ch_shard,
-                                                           const rt_channel* ch) {
+RT_CHANNEL_FAST_PATH void
+rt_channel_claim_released_locked(rt_executor* ex, rt_shard* ch_shard, const rt_channel* ch) {
     if (rt_exec_trace_enabled()) {
         rt_channel_trace_claim_released();
     }

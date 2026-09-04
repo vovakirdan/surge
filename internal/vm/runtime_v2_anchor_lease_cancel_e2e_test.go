@@ -73,7 +73,7 @@ func TestRuntimeV2AnchoredCancelInFlightKeepsOneHandleOwner(t *testing.T) {
 		"SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1")
 	// Six rounds: the double drop showed in three of six before the fix, so
 	// one green run would say nothing.
-	for round := 0; round < 6; round++ {
+	for round := range 6 {
 		stdout, stderr, exitCode := runBinaryUnderValgrind(t, outputPath, env, 60*time.Second)
 		if m := valgrindMemcheckErrorRE.FindString(stderr); m != "" {
 			t.Fatalf("round %d: memcheck reported %q\nstdout:\n%s\nstderr:\n%s", round, m, stdout, stderr)

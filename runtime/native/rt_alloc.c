@@ -159,8 +159,10 @@ void* rt_heap_stats(void) {
     }
 
     static const uint8_t oom[] = "heap stats allocation failed";
-    SurgeHeapStats* stats = (SurgeHeapStats*)rt_alloc_or_report(
-        (uint64_t)sizeof(SurgeHeapStats), (uint64_t) _Alignof(SurgeHeapStats), oom, sizeof(oom) - 1);
+    SurgeHeapStats* stats = (SurgeHeapStats*)rt_alloc_or_report((uint64_t)sizeof(SurgeHeapStats),
+                                                                (uint64_t) _Alignof(SurgeHeapStats),
+                                                                oom,
+                                                                sizeof(oom) - 1);
     stats->alloc_count = rt_biguint_from_u64(snapshot.alloc_count);
     stats->free_count = rt_biguint_from_u64(snapshot.free_count);
     stats->live_blocks = rt_biguint_from_u64(snapshot.live_blocks);

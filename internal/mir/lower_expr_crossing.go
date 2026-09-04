@@ -93,8 +93,8 @@ func (l *funcLowerer) lowerCrossingExpr(e *hir.Expr, consume bool) (Operand, err
 		// the owner-side pin and never dereferences or drops its copy of the
 		// token, so the read borrows -- a consuming read here would end the
 		// caller's binding for a handle it still owns.
-		consume := data.Captures[i].Mode != sema.CrossingCaptureAnchorLease
-		capOp, err := l.lowerExpr(data.Captures[i].Value, consume)
+		captureConsume := data.Captures[i].Mode != sema.CrossingCaptureAnchorLease
+		capOp, err := l.lowerExpr(data.Captures[i].Value, captureConsume)
 		if err != nil {
 			return Operand{}, err
 		}

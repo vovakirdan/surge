@@ -19,19 +19,21 @@ typedef struct rt_scope_child_done_effects {
     int drained;
 } rt_scope_child_done_effects;
 
-rt_scope_child_done_effects rt_scope_take_child_done_locked(rt_executor* ex, waker_key key,
-                                                            uint64_t child_id,
-                                                            uint8_t result_kind,
-                                                            int child_registered);
-void rt_scope_child_done_effects_apply(rt_executor* ex, waker_key key,
+rt_scope_child_done_effects rt_scope_take_child_done_locked(
+    rt_executor* ex, waker_key key, uint64_t child_id, uint8_t result_kind, int child_registered);
+void rt_scope_child_done_effects_apply(rt_executor* ex,
+                                       waker_key key,
                                        rt_scope_child_done_effects fx);
 
 // Cross-owner completion (rt_scope_event.c): the child's lane publishes,
 // the scope's owner lane applies on drain; shutdown applies under the lock
 // the drain already holds so no scope reads a child it still counts.
 struct rt_transport_msg;
-void rt_scope_publish_child_done(rt_executor* ex, waker_key key, const rt_task* child,
-                                 uint8_t result_kind, int child_registered);
+void rt_scope_publish_child_done(rt_executor* ex,
+                                 waker_key key,
+                                 const rt_task* child,
+                                 uint8_t result_kind,
+                                 int child_registered);
 void rt_scope_dispatch_child_done(rt_executor* ex, const struct rt_transport_msg* msg);
 void rt_scope_apply_child_done_at_shutdown_locked(rt_executor* ex,
                                                   const struct rt_transport_msg* msg);

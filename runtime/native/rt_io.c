@@ -113,8 +113,11 @@ void* rt_argv(void) {
                                   oom,
                                   sizeof(oom) - 1);
     }
-    SurgeArrayHeader* header = (SurgeArrayHeader*)rt_alloc_or_report(
-        (uint64_t)sizeof(SurgeArrayHeader), (uint64_t)alignof(SurgeArrayHeader), oom, sizeof(oom) - 1);
+    SurgeArrayHeader* header =
+        (SurgeArrayHeader*)rt_alloc_or_report((uint64_t)sizeof(SurgeArrayHeader),
+                                              (uint64_t)alignof(SurgeArrayHeader),
+                                              oom,
+                                              sizeof(oom) - 1);
     header->len = (uint64_t)count;
     header->cap = (uint64_t)count;
     header->data = data;

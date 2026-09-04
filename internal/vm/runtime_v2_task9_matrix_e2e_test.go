@@ -57,11 +57,9 @@ func TestRuntimeV2Task9Matrix(t *testing.T) {
 	root := repoRoot(t)
 	baseEnv := envWithStdlib(root)
 	for _, cell := range runtimeV2Task9Cells() {
-		cell := cell
 		t.Run(cell.vertical+"/"+cell.edge, func(t *testing.T) {
 			outputPath := buildRuntimeV2CrossingSource(t, cell.source, nil)
 			for _, shards := range []string{"1", "2", "8"} {
-				shards := shards
 				t.Run("shards-"+shards, func(t *testing.T) {
 					env := overrideEnvVar(baseEnv, "SURGE_SHARDS", shards)
 					env = overrideEnvVar(env, "SURGE_THREADS", shards)
