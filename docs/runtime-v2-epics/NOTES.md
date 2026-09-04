@@ -14731,3 +14731,62 @@ DEBT rows). The method that found them is the one from the fail-fast
 judge: a bare probe under valgrind, then `rt_alloc`/`rt_free` and
 `rt_frame_alloc`/`rt_frame_release` paired under gdb to name the block
 nobody freed, then the cell's descriptor read at the free site.
+
+### F7, `select-send-scalar`'s +29 % named by function, and the larger half removed (2026-09-04)
+
+The same 512-operation fixture built by the epic base's compiler and by
+HEAD's, six trees between them on the runner (`/srv/ci/xtree2.log`,
+C-states off, 60 batches, medians in us):
+
+    4e4ec572  cb78703a  72212d65  8b12beb3  c38e4275  1fdd6383  ba7f13e4  6bd6fd22  ec1da1eb
+       215       214       234       248       268       275       255       273       278
+
+Three steps: +20 at `72212d65` (the serialised scope teardown), +34
+inside Wave D between `8b12beb3` and `c38e4275`, +18 at `6bd6fd22` (the
+scope event lane); the seq-0 retry primitive `cb78703a` costs nothing.
+Locally the two builds differ by the same ratio at every topology --
+`SHARDS=1 THREADS=1` 442 -> 501 us, `2/2` 546 -> 613 -- so it is not
+cross-thread contention, and the exec trace agrees: no park, no wake,
+two `control_lock_acquired` per operation on both.
+
+Callgrind on the two builds names it (instructions per operation, same
+input, deterministic): total +6.4 %, and the top of the difference is the
+RV2-DEBT-277 claim-retry machinery running on every send and receive,
+refused or not -- `channel_wake_retry_waiter_locked` +148/op,
+`rt_channel_claim_released_locked` +88, `channel_pop_retry_class_locked`
++84, `channel_retry_select_count_locked` +68, `rt_channel_retry_reset`
++44, its trace increment +20: a release walked the whole owner waiter
+store four times (a select count and a pop per retry key, two keys) to
+find nobody, and a reset cleared the prefix array of a budget nobody had
+spent. Beside it, the compiled select itself (`fn.12` +170/op, `fn.8`
++97, `fn.10` +63, the typed carriers' generated code), and small change:
+`rt_channel_owner_shard_id` +48, `task_cancelled_load` +40, the key
+constructors +38 each.
+
+**Removed:** the channel counts its retry-key waiters (`retry_waiters`,
+kept under the owner lock in the one pair every retry registration and
+retirement passes through, `rt_channel_key_registered` /
+`rt_channel_key_retired`), and `rt_channel_claim_released_locked` returns
+before the walk when the count is zero; `rt_channel_retry_reset` returns
+before the clear when the budget was never touched. Rule 13: with the
+registration never counted, `TestRuntimeV2ChannelClaimRetryBudgetAndWake`
+is red on all three arms (direct-send, direct-recv, select-send: the
+exhausted retrier is never woken) and `...NegativeControls` fails for the
+wrong reason on both recovery rows; with the count in place every tagged
+`TestRuntimeV2ChannelClaimRetry*` stand is green (85 s). After, callgrind
+reads +1.6 % instructions against the base and the local A/B:
+
+    SHARDS=1 THREADS=1   base 442   before 501   after 465   (+13 % -> +5 %)
+    SHARDS=2 THREADS=2   base 546   before 613   after 579   (+12 % -> +6 %)
+
+What remains is mostly the compiled select's own code -- the typed
+carrier's cell staging, an ownership question the language answers per
+arm now -- and it is the runtime's honest price on this row, to be read
+by the seventh paired attempt against the 0.95 budget.
+
+`array-teardown-scalar`, the other gated red, does not move with the
+tree: 38, 37, 43, 38, 43, 43, 42 us across the same seven commits, two
+modes five microseconds apart with no trend, and the pairing read the
+base in one mode and the candidate in the other; it is the harness's
+comparison of two binaries' layouts on a 40 us batch, not a cost the
+runtime added, and it is recorded as such.
