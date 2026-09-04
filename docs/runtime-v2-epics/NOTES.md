@@ -14673,3 +14673,61 @@ without the neighbour -- but the two steps are the localisation a fix will
 start from: `4968061f..8b12beb3` (+32 us) and `c38e4275..6bd6fd22` (+31
 us). Both windows are small and `git log -S` over the local select's send
 path is the next move if the fifth attempt confirms the ratio.
+
+### F7, fifth attempt: the protocol is clean and two rows are the runtime's (2026-09-04)
+
+`f22b1c9d`, harness on 12,14, fixtures on 8,10, C2/C3 off on all four:
+every CV gate green, `zero` 0.993 and `map-teardown-scalar` 1.202 -- the
+two "reds" of the fourth attempt that were the neighbour -- and two gated
+rows still under 0.95:
+
+    array-teardown-scalar   0.889   base 39 us/batch, candidate 44, all seven pairs
+    select-send-scalar      0.855   base 460 us/run,  candidate 538
+
+Ungated but of the same shape: `array-teardown-composite` 0.945,
+`channel-buffered-composite` 0.935. These are the runtime's numbers now,
+and they stand until either the cost is named and removed or the owner
+rules on the row's budget; F8 waits on them.
+
+### F3/F7, the Epic 21 Task 9 matrix lands, and finds two leaks (2026-09-04)
+
+`TestRuntimeV2Task9Matrix` (`internal/vm/runtime_v2_task9_matrix_e2e_test.go`,
+on `runtime-v2-crossing-check`): four verticals -- an owned
+`@shard_movable` capture migrating into a far task, a far channel shared
+across tasks, a far select with a non-copy send arm, a non-copy far
+channel -- against four edge classes -- happy, cancel, refusal,
+teardown-buffered -- each program at `SURGE_SHARDS=1, 2, 8`, correctness
+plus memcheck with "definitely lost: 0 bytes in 0 blocks" and no error
+report. Fifteen program cells; migration x refusal is not a program (a
+refused admission is decided below the language) and the table says so,
+pointing at the C stands that pin it. The cancel cells accept either
+answer of the race they start and hold the reclamation; the refusal cells
+are the receive's refusal by close, because a send that meets a closed
+channel is a program panic before or after parking, `try_send` is not an
+anchored operation (SEM3175), and one anchored operation per block.
+
+The first green matrix was 45 of 60 leaves; the fifteen reds were three
+program shapes the language refused (SEM3107 a task dropped unawaited,
+FUT7020 a non-copy far result, SEM3168 an owned string captured into an
+on-block, SEM3175 two operations in one block, the send-on-closed panic)
+and TWO leaks the runtime's own rows had never reached:
+
+- **RV2-DEBT-331**, share x cancel, 16 bytes at every shard count: a body
+  cancelled while parked in `on ch { ch.recv() }` never released its
+  anchored state, because the anchored operations passed `state_type_id
+  = 0` to the yield/cancel calls and the stash that `mark_done` releases
+  stayed empty. Hidden until a close of the channel orphaned the state;
+  reachable, not lost, without it. Fixed by handing the state's real
+  descriptor id through (`rt_remote_task_anchored_state_type_id_current`).
+- **RV2-DEBT-332**, select x cancel, 28 bytes at two and eight shards (and
+  at one shard once the cancel is allowed to land): the far select's SEND
+  arm shipped its payload as type id 0 -- `channelElemType` did not unwrap
+  `far Channel<T>` -- so the arm's cell wore the opaque-word descriptor and
+  its dispose destroyed nothing. Fixed in the emitter; the send arm now
+  names the channel's element (`TestEmitFarSelectSendArmNamesTheChannelsElementType`).
+
+After both: 60 of 60 leaves green locally (the run's numbers are in the
+DEBT rows). The method that found them is the one from the fail-fast
+judge: a bare probe under valgrind, then `rt_alloc`/`rt_free` and
+`rt_frame_alloc`/`rt_frame_release` paired under gdb to name the block
+nobody freed, then the cell's descriptor read at the free site.
