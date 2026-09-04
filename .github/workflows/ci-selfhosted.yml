@@ -55,11 +55,15 @@ jobs:
           valgrind --version | grep -q '3\.22\.0'
       - name: Голден-корпус
         run: make golden-check
-      - name: make check
+      - name: make check-full
+        # check-full, а не check: `make check` — это полоса pre-commit хука, она
+        # намеренно пропускает девять корпусных/e2e пакетов ради секунд на
+        # коммит. Гейтом остаётся CI, и он обязан гонять всё.
+        #
         # -p=6 намеренно: при полном параллелизме пакет internal/goldencheck
         # конкурирует с internal/vm, и нагрузочно-чувствительный ряд HUP
         # (RV2-DEBT-223) падает по таймингу, а не по существу.
-        run: make check GO="go" GOFLAGS=-p=6
+        run: make check-full GO="go" GOFLAGS=-p=6
       - name: Размеры файлов
         run: ./scripts/runtime_v2_file_size_check.sh --committed
         env:

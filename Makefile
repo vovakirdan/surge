@@ -1,6 +1,7 @@
 .PHONY: build run test runtime-v2-check runtime-v2-abi-manifest-check runtime-v2-slot-control-check runtime-v2-liveness-check runtime-v2-ownership-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-owned-storage-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-sched-trace-check runtime-v2-syncpoint-check runtime-v2-panic-surface-check runtime-v2-transport-contract-check runtime-v2-transport-check runtime-v2-carrier-check runtime-v2-carrier-sanitizer-check runtime-v2-place-overwrite-check runtime-v2-carrier-bench runtime-v2-carrier-baseline-capture runtime-v2-carrier-bench-final vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
 .PHONY: golden golden-update golden-check golden-corpus-determinism behaviour-check behaviour-check-all behaviour-check-mt stats
 .PHONY: c-check cfmt-check c-warnings ctidy cppcheck c-check-changed
+.PHONY: check check-full test-fast
 
 # ===== Variables =====
 GO ?= go
@@ -101,6 +102,29 @@ sec:
 test:
 	@echo ">> Running tests"
 	SURGE_STDLIB="$(CURDIR)" SURGE_SKIP_TIMEOUT_TESTS=$(SURGE_SKIP_TIMEOUT_TESTS) $(GO) test ./... --timeout 300s
+
+# The packages the pre-commit lane does not run, and why this list and not
+# another. Measured 2026-09-04 on a cold cache: `go test ./...` spends 433
+# seconds, and these nine account for 345 of them -- internal/vm 118.7,
+# crossinggate 71.4, gatecheck 67.8, driver 44.6, lsp 14.8, and
+# ownershipgate/stdlibgate/carriergate/goldencheck 28.8 between them.
+#
+# The line is drawn at what a package DOES, not at how slow it is: every one of
+# these compiles and runs programs or walks a fixture corpus, so it answers the
+# same thing on every commit that does not touch a compiler stage. The two
+# expensive packages that stay -- internal/backend/llvm (41.1s) and
+# internal/buildpipeline (28.8s) -- are compiler LOGIC, which is exactly what a
+# local edit is most likely to break, so paying for them at commit time buys
+# something.
+#
+# Nothing here is dropped from the tree's answer: `make check-full` runs every
+# package and is what CI runs. A commit is a local claim; CI is the gate.
+CHECK_FAST_SKIP_RE := /internal/(vm|crossinggate|gatecheck|driver|lsp|ownershipgate|stdlibgate|carriergate|goldencheck)$$
+
+test-fast:
+	@echo ">> Running tests (fast lane; 'make check-full' runs every package)"
+	SURGE_STDLIB="$(CURDIR)" SURGE_SKIP_TIMEOUT_TESTS=$(SURGE_SKIP_TIMEOUT_TESTS) \
+		$(GO) test $$($(GO) list ./... | grep -Ev '$(CHECK_FAST_SKIP_RE)') --timeout 300s
 
 # --committed is not a default repeated here, it is the gate's contract: a gate
 # must answer the same thing for the same commits no matter what is lying in
@@ -629,8 +653,21 @@ behaviour-check-mt:
 	@echo ">> Running the async corpus on the native backend, multi-worker"
 	SURGE_BEHAVIOUR_MT=1 SURGE_BEHAVIOUR_BACKENDS=llvm $(GO) test ./internal/vm -run 'BehaviourCorpusMT' -count=1 --timeout 3600s
 
+# `check` is the PRE-COMMIT lane and is deliberately not the whole answer: it
+# runs the fast package set (see CHECK_FAST_SKIP_RE) so a commit costs seconds
+# rather than the five minutes a cold `go test ./...` costs. `check-full` is the
+# same lane with every package, and it is what CI runs.
 check:
-	@echo ">> Checking code"
+	@echo ">> Checking code (fast lane; CI runs 'make check-full')"
+	$(MAKE) test-fast
+	$(MAKE) lint
+	$(MAKE) c-check
+	@echo ">> Checking file sizes"
+	@echo "It may take a while... please wait..."
+	./check_file_sizes.sh
+
+check-full:
+	@echo ">> Checking code (every package)"
 	$(MAKE) test
 	$(MAKE) lint
 	$(MAKE) c-check
