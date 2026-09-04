@@ -247,59 +247,29 @@ def validate_manifest(manifest: Manifest) -> None:
                 f"cross-row invariant {invariant.invariant_id} asserts {invariant.metric}, "
                 "which is reported telemetry and not a gate (owner ruling 2026-09-03)"
             )
-    expected_liveness = {"large-payload-park-cancel", "large-payload-park-shutdown"}
-    actual_liveness = {probe.probe_id for probe in manifest.liveness_probes}
-    if actual_liveness != expected_liveness:
+    # Owner ruling 2026-09-04: the manifest carries NO liveness probe, and the
+    # two it used to freeze are withdrawn. They waited on
+    # SP_CARRIER_JUMBO_ADMITTED -- a point of the byte-credit model the
+    # 2026-08-29 ruling withdrew, which no RT_SYNC_POINT ever reached -- so
+    # their fixture spun on a flag that could not turn and timed out ten
+    # seconds at a time; and nothing anywhere emitted the SURGE_CARRIER_LIVENESS
+    # record their parser reads, so no probe of that shape could ever have
+    # passed. Meanwhile the report refuses a final phase that carries a
+    # deferred probe, which together made a green final benchmark impossible.
+    # The property they were to show -- a producer parks on an exhausted data
+    # lane and a freed slot wakes it -- is held by E4's behaviour row
+    # anchored-saturation-parks-the-producer-and-a-freed-slot-wakes-it
+    # (parks=1, wakes=1) with its Rule-13 control. A probe naming a point the
+    # runtime reaches may be added back; this refusal is what keeps a
+    # never-armed one from coming back by inertia.
+    if manifest.liveness_probes:
         raise ManifestError(
-            "liveness probes must freeze the large-payload park's cancel and shutdown rows"
+            "liveness probes must be empty: the withdrawn large-payload park rows "
+            "waited on a point nothing arms and no code emits their record "
+            "(owner ruling 2026-09-04)"
         )
-    for probe in manifest.liveness_probes:
-        if probe.fixture not in fixture_set:
-            raise ManifestError(
-                f"liveness probe {probe.probe_id} references unknown fixture"
-            )
-        if probe.wave_a.status != "deferred":
-            raise ManifestError(
-                f"liveness probe {probe.probe_id} must be Wave-A deferred"
-            )
-        # THE FINAL PHASE MAY DEFER, AND ONLY WHILE THE POINT IS UNARMED. The
-        # rule used to say final is always required, which is what a probe
-        # SHOULD be; it is false today because nothing reaches the point these
-        # two wait on -- admission parks a sender on an exhausted data-slot
-        # budget and the tree still drain-and-retries -- and a probe waiting on
-        # a point nothing reaches does not fail, it times out ten seconds at a
-        # time in the middle of a benchmark.
-        #
-        # This pairs with the sync-point rule below and neither is redundant:
-        # that one pins the NAME, this one ties the licence to defer to that
-        # exact name. The day the far-carrier work arms the park and the probes
-        # move to a point that is reached, the name changes, this rule stops
-        # granting the licence, and final goes back to required by refusal
-        # rather than by anyone remembering.
-        unarmed = "SP_TRANSPORT_DATA_SLOT_TASK_PARKED"
-        if probe.final.status == "deferred" and probe.syncpoint != unarmed:
-            raise ManifestError(
-                f"liveness probe {probe.probe_id} may defer its final phase only "
-                f"while it waits on {unarmed}, which nothing arms"
-            )
-        for phase_name, availability in (
-            ("wave_a", probe.wave_a),
-            ("final", probe.final),
-        ):
-            if (
-                availability.status == "deferred"
-                and availability.provenance_commit != manifest.epic_base
-            ):
-                raise ManifestError(
-                    f"liveness probe {probe.probe_id} {phase_name} deferred "
-                    "provenance must equal epic_base"
-                )
-        if probe.expected_reply_reserved != 0:
-            raise ManifestError(
-                f"liveness probe {probe.probe_id} must leave every reply-slot reservation "
-                "given back (expected_reply_reserved must be zero)"
-            )
-        if probe.syncpoint != unarmed:
-            raise ManifestError(
-                f"liveness probe {probe.probe_id} must wait on {unarmed}"
-            )
+    # The rules that used to shape a probe -- its fixture, its Wave-A
+    # deferral, its provenance, its reply-slot balance, the point it waits on
+    # -- are gone with the probes: a rule that can never be reached is not a
+    # rule, and the one above refuses every probe. A row added back brings its
+    # own, written against the point it actually waits on.

@@ -21,31 +21,32 @@ class BuildAndIRTests(unittest.TestCase):
         with self.assertRaisesRegex(GateFailure, "resource binary is missing"):
             _verify_carrier_symbols("", "fixture.sg", "resource")
 
-    def test_liveness_fixture_waits_on_reached_counts_before_actions(self) -> None:
-        source = (
-            SCRIPT_DIR.parent
-            / "testdata"
-            / "runtime-v2-carrier-bench"
-            / "scored"
-            / "liveness"
-            / "main.sg"
-        ).read_text(encoding="utf-8")
-        admitted = "while !rt_carrier_liveness_jumbo_admitted()"
-        parked = "while !rt_carrier_liveness_credit_parked()"
-        first_spawn = source.index("let first: far Task<uint64>")
-        admitted_wait = source.index(admitted)
-        second_spawn = source.index("let second: far Task<uint64>")
-        parked_wait = source.index(parked)
-        cancel = source.index("let _ = second.cancel()")
-        shutdown = source.index("else if !rt_carrier_liveness_request_shutdown()")
-        release = source.index("rt_carrier_liveness_release_jumbo();")
-        self.assertLess(first_spawn, admitted_wait)
-        self.assertLess(admitted_wait, second_spawn)
-        self.assertLess(second_spawn, parked_wait)
-        self.assertLess(parked_wait, cancel)
-        self.assertLess(parked_wait, shutdown)
-        self.assertLess(cancel, release)
-        self.assertLess(shutdown, release)
+    def test_no_liveness_fixture_and_no_intrinsics_survive_the_withdrawal(self) -> None:
+        # The probes are withdrawn (owner ruling 2026-09-04) and so is
+        # everything only they used: the fixture, the four rt_carrier_liveness
+        # intrinsics, and the SP_CARRIER_JUMBO_ADMITTED point they waited on --
+        # which no RT_SYNC_POINT ever reached. This row is what keeps a dead
+        # intrinsic from coming back with nothing to call it.
+        root = SCRIPT_DIR.parent
+        self.assertFalse(
+            (root / "testdata" / "runtime-v2-carrier-bench" / "scored" / "liveness").exists()
+        )
+        for path in (
+            root / "runtime" / "native" / "rt_carrier_liveness.c",
+            root / "runtime" / "native" / "rt_carrier_liveness.h",
+        ):
+            self.assertFalse(path.exists(), f"{path.name} still exists")
+        for path, name, allowed in (
+            (root / "internal" / "backend" / "llvm" / "builtins.go", "rt_carrier_liveness", 0),
+            (root / "runtime" / "native" / "rt_sync_point.c", "SP_CARRIER_JUMBO_ADMITTED", 0),
+            # rt_sync_point.h keeps ONE mention: the note in its neighbour's
+            # comment saying the point was removed and why.
+            (root / "runtime" / "native" / "rt_sync_point.h", "SP_CARRIER_JUMBO_ADMITTED", 1),
+        ):
+            body = path.read_text(encoding="utf-8")
+            self.assertLessEqual(
+                body.count(name), allowed, f"{path.name} still names {name}"
+            )
 
     def test_build_log_ignores_timing_line_named_built(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -165,7 +166,7 @@ class BuildAndIRTests(unittest.TestCase):
                 build_root / "fixture-00",
             )
 
-    def test_liveness_build_is_armed_and_runner_blocks_first_jumbo(self) -> None:
+    def test_liveness_build_is_armed_and_the_runner_pins_the_probe(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             harness = root / "harness"
@@ -176,10 +177,10 @@ class BuildAndIRTests(unittest.TestCase):
             side_root.mkdir()
             build_root = root / "build"
             surge = root / "surge"
+            # The machinery still runs a probe; the manifest carries none
+            # (owner ruling 2026-09-04), so the probe is handed in directly.
             manifest = make_manifest()
-            probe = replace(
-                manifest.liveness_probes[0], fixture="fixture/main.sg"
-            )
+            probe = make_probe(fixture="fixture/main.sg")
             manifest = replace(manifest, liveness_probes=(probe,))
 
             def fake_build(command: object, **kwargs: object) -> CommandResult:
@@ -225,10 +226,12 @@ class BuildAndIRTests(unittest.TestCase):
                 )
             self.assertIs(result, sentinel)
             environment = checked.call_args.kwargs["environment"]
-            self.assertEqual(
-                environment["SURGE_SYNC_POINT"],
-                "SP_CARRIER_JUMBO_ADMITTED:block",
-            )
+            # No SURGE_SYNC_POINT: the one it used to arm named a point that
+            # no longer exists, and a probe that needs a thread held at a
+            # window will say which one when it is written.
+            self.assertNotIn("SURGE_SYNC_POINT", environment)
+            self.assertEqual(environment["SURGE_CARRIER_LIVENESS_PROBE"], probe.probe)
+            self.assertEqual(environment["SURGE_SHARDS"], str(manifest.shards))
 
     def test_fixture_source_requires_exact_marker_window_and_native_timer(self) -> None:
         source = """\

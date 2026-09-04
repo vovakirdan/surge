@@ -595,25 +595,44 @@ class ManifestTests(unittest.TestCase):
                     ):
                         load_manifest(path)
 
-    def test_loader_freezes_transport_and_liveness_boundaries(self) -> None:
-        # No peak-byte bound rows here any more: a probe carries no byte figure
-        # to freeze, because pointer transport charges no per-message bytes.
-        # What a probe still freezes is the point it waits on, which is what
-        # licenses its final phase to defer.
-        mutations = (
-            ("liveness_probes", "expected_reply_reserved", 1, "reply-slot reservation"),
-            ("liveness_probes", "syncpoint", "SP_CARRIER_CREDIT_PARKED", "must wait on"),
-        )
+    def test_loader_refuses_a_liveness_probe_and_holds_a_probes_shape(self) -> None:
+        # Owner ruling 2026-09-04: the manifest carries NO probe -- the two it
+        # had waited on a point nothing armed and emitted a record nothing
+        # wrote -- so ANY probe in the file is refused. The shape rules that
+        # outlive them are exercised through the validator directly, on the
+        # probe a future row would have to satisfy.
+        probe_json = {
+            "id": "park-probe",
+            "fixture": "fixture.sg",
+            "probe": "park-probe",
+            "syncpoint": "SP_TRANSPORT_DATA_SLOT_TASK_PARKED",
+            "timeout_seconds": 5,
+            "expected_reply_reserved": 0,
+            "expected_park_transitions": 1,
+            "wave_a": {
+                "status": "deferred",
+                "reason": "requires Wave E shutdown",
+                "provenance_commit": "0" * 40,
+            },
+            "final": {"status": "required"},
+        }
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "manifest.json"
-            for section, field, value, expected in mutations:
-                with self.subTest(section=section, field=field):
-                    raw = manifest_json()
-                    target = raw[section][0]
-                    target[field] = value
-                    path.write_text(json.dumps(raw), encoding="utf-8")
-                    with self.assertRaisesRegex(ManifestError, expected):
-                        load_manifest(path)
+            raw = manifest_json()
+            raw["liveness_probes"] = [probe_json]
+            path.write_text(json.dumps(raw), encoding="utf-8")
+            with self.assertRaisesRegex(ManifestError, "liveness probes must be empty"):
+                load_manifest(path)
+
+            # Every probe is refused, whatever its shape: a well-formed one
+            # and a malformed one read the same refusal, which is the point.
+            raw["liveness_probes"] = [
+                {**probe_json, "expected_reply_reserved": 1, "final": {"status": "deferred",
+                 "reason": "not yet", "provenance_commit": "0" * 40}}
+            ]
+            path.write_text(json.dumps(raw), encoding="utf-8")
+            with self.assertRaisesRegex(ManifestError, "liveness probes must be empty"):
+                load_manifest(path)
 
     def test_loader_rejects_duplicate_json_keys(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

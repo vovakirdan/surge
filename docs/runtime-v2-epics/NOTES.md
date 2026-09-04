@@ -15160,3 +15160,60 @@ own, for the same reason; forty-four rows keep 0.95. `validate_manifest`
 now names the two rows (`ROWS_WITH_OWN_BUDGET`) and still refuses any
 other row or number. The fourteenth paired attempt runs on this
 manifest.
+
+### F7, the fourteenth attempt: every row green, and the liveness probes nobody could ever have run (2026-09-04)
+
+`fa3dada9`: **every one of the forty-six rows passed** -- `protocol_status`
+green, no red row, every CV and p95 gate green or below its floor -- and
+the benchmark still refused, on `final benchmark phase contains deferred
+liveness`. That refusal was not reachable before, because a row had always
+failed first; with the rows quiet it showed what had been true all along.
+
+**Two rules that could not both be satisfied.** The manifest validator
+LICENSED a deferred final phase while a probe waited on
+`SP_TRANSPORT_DATA_SLOT_TASK_PARKED`; the report REFUSES a final phase
+carrying a deferred probe. Both probes were frozen into the manifest by a
+third rule. So a green final benchmark was impossible on this tree at any
+numbers.
+
+**And the probes could never have passed anyway.** Three findings, each
+checked rather than argued:
+
+- `SP_CARRIER_JUMBO_ADMITTED`, the point the fixture waits on FIRST
+  (`while !rt_carrier_liveness_jumbo_admitted()`), is **armed nowhere**:
+  the enum entry, its name in `rt_sync_point.c` and the read in
+  `rt_carrier_liveness.c` are its only three mentions, and no
+  `RT_SYNC_POINT(...)` in any `.c` reaches it. Run locally through the
+  harness's own path, both probes hang and time out at ten seconds.
+- **Nothing emits the record their parser reads.** `SURGE_CARRIER_LIVENESS`
+  appears in the harness that sets it and nowhere else in the tree: no
+  runtime, no compiler, no fixture writes the `SURGE_CARRIER_LIVENESS {…}`
+  line, so `_parse_liveness_record` could only ever have read zero records.
+- The scenario is the withdrawn one. The fixture spawns TWO far tasks
+  against sixty-four data slots (`RT_TRANSPORT_DATA_SLOT_CREDITS`), so
+  nothing exhausts a lane even with the jumbo wait removed; "jumbo" is the
+  byte-credit model the 2026-08-29 ruling withdrew.
+
+**Owner ruling (the eighth of the day): withdraw the probes.** The property
+they were to show -- a producer parks on an exhausted data lane and a freed
+slot wakes it -- is held where it can be shown deterministically: E4's
+behaviour row `anchored-saturation-parks-the-producer-and-a-freed-slot-wakes-it`
+(parks=1, wakes=1) with its Rule-13 control `RV2_DEBT_031_NEGATIVE_CONTROL`
+(`internal/vm/runtime_v2_transport_admission_park_test.go`), on the point
+E4 did arm (`rt_remote_admit.c`, `slot_register`). Declined: building the
+whole liveness path (a record emitter, new counters and intrinsics, a
+fixture that saturates a lane) for a second copy of a proven property.
+
+**Removed:** the two probes and the fixture; the freeze that named them,
+and the shape rules that could no longer be reached; the dead
+`SP_CARRIER_JUMBO_ADMITTED` and the four `rt_carrier_liveness_*` intrinsics
+with the file that defined them and their declarations in the emitter's
+builtins (the graph reads zero callers for all four); the
+`SURGE_SYNC_POINT` the runner set for the dead point. The machinery that
+RUNS a probe stays, and a new row brings its own rules. Rule 13 in the
+shape this deletion admits: `test_no_liveness_fixture_and_no_intrinsics_survive_the_withdrawal`
+counts the mentions in five files and is red the moment a dead intrinsic
+or the dead point comes back; `test_the_manifest_carries_no_liveness_probe`
+reads the loaded manifest, and the loader refuses any probe whatever its
+shape. 72 harness tests green, `go build ./...` clean, the fixtures still
+build and run. The fifteenth paired attempt is the first that can be green.

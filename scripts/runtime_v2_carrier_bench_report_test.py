@@ -227,7 +227,7 @@ class ReportTests(unittest.TestCase):
         # assertion: a probe reports peak transport bytes and nothing refuses on
         # the figure, because pointer transport charges no per-message bytes to
         # bound. Any peak parses; only the park count is a contract.
-        probe = make_manifest().liveness_probes[0]
+        probe = make_probe()
         nonce = "b" * 32
         protocol = "a" * 64
         record = {

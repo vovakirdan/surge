@@ -26,7 +26,7 @@ class CanonicalManifestTests(unittest.TestCase):
             cls.root / "testdata" / "runtime-v2-carrier-bench.json"
         )
 
-    def test_liveness_probes_are_deferred_on_the_point_nothing_arms(self) -> None:
+    def test_the_manifest_carries_no_liveness_probe(self) -> None:
         # THIS ROW EXISTS BECAUSE THE MANIFEST AND ITS LOADER CAME APART. The
         # commit that renamed the sync point, dropped the probes' byte figures
         # and deferred their final phase changed only the JSON; the loader went
@@ -39,27 +39,20 @@ class CanonicalManifestTests(unittest.TestCase):
         #
         # So this asserts the SHAPE the manifest actually has, from the loaded
         # object, and would have failed the moment the two came apart.
-        probes = {probe.probe_id: probe for probe in self.manifest.liveness_probes}
-        self.assertEqual(set(probes), {"large-payload-park-cancel", "large-payload-park-shutdown"})
-        for probe_id, probe in sorted(probes.items()):
-            with self.subTest(probe=probe_id):
-                self.assertEqual(probe.syncpoint, "SP_TRANSPORT_DATA_SLOT_TASK_PARKED")
-                self.assertEqual(probe.wave_a.status, "deferred")
-                self.assertEqual(probe.final.status, "deferred")
-                for availability in (probe.wave_a, probe.final):
-                    self.assertTrue(availability.reason)
-                    self.assertEqual(
-                        availability.provenance_commit, self.manifest.epic_base
-                    )
-                # A byte figure on a probe is what the transport ruling
-                # retired: the field is gone from the model, so asking for it
-                # is an AttributeError rather than a stale number.
-                for gone in (
-                    "payload_bytes",
-                    "min_peak_transport_bytes",
-                    "max_peak_transport_bytes",
-                ):
-                    self.assertFalse(hasattr(probe, gone), gone)
+        #
+        # The shape today is NO PROBE (owner ruling 2026-09-04). The two it
+        # carried waited on SP_CARRIER_JUMBO_ADMITTED, a point of the withdrawn
+        # byte-credit model that no RT_SYNC_POINT ever reached, and no code
+        # anywhere emitted the SURGE_CARRIER_LIVENESS record their parser
+        # reads -- so they could only ever time out, while the report refuses
+        # a final phase carrying a deferred probe. Their property is held by
+        # E4's anchored-saturation-parks-the-producer-and-a-freed-slot-wakes-it
+        # (parks=1, wakes=1) with its Rule-13 control.
+        self.assertEqual(self.manifest.liveness_probes, ())
+        self.assertNotIn(
+            "liveness",
+            " ".join(entry.path for entry in self.manifest.fixtures),
+        )
 
     def test_file_inventories_and_hashes_are_exact(self) -> None:
         verify_file_digests(self.root, self.manifest.harness_files, "harness file")
@@ -75,10 +68,7 @@ class CanonicalManifestTests(unittest.TestCase):
         self.assertEqual(rows["select-send-composite"].expected_checksum, "349707")
         self.assertEqual(rows["far-large-capture"].payload_bytes, 4096)
         self.assertEqual(rows["far-large-payload-contention"].payload_bytes, 8192)
-        self.assertEqual(
-            {probe.probe_id for probe in self.manifest.liveness_probes},
-            {"large-payload-park-cancel", "large-payload-park-shutdown"},
-        )
+        self.assertEqual(self.manifest.liveness_probes, ())
 
         # A SECOND, DELIBERATE COPY of every nonzero structural allocation
         # budget in the manifest. It is duplicated on purpose: the manifest is

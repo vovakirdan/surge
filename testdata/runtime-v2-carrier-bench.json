@@ -118,7 +118,7 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_build_test.py",
-      "sha256": "44842d235217d1a8139ee9beaccf3e581f53eafafd89cb05af64dd9c83087af1"
+      "sha256": "cac420a25bbe91a08c00596b1cadea72aadbdcd2a9744f88f205f60a7e8210dc"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_host.py",
@@ -134,15 +134,15 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest.py",
-      "sha256": "b6d5f5946f75902c7954e43873d8dc9af3de1c4bb25624bbc4e3d86c8fef9e57"
+      "sha256": "d018be55b05ff0ce8396ca9bb79c6f85bcf9cde87491aed14efa426d3fa99341"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_file_test.py",
-      "sha256": "d16d2306a4245923d7d44a1d8ec8b3b889f62ec6a680830f98a23eedff76589c"
+      "sha256": "ae8e7e0237c4efa2ce90b74393ec84d1ecb0a69587c8020cecd0a3f7c2835769"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_validation.py",
-      "sha256": "b3e255840339197a202240af26bd24c8e2d442eb6d7907406d4ca52b460ca938"
+      "sha256": "d46858b9f71c36796d4f1db7f1cd76c735a513048a75388ac9df350372190d3a"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_values.py",
@@ -154,7 +154,7 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_model_test.py",
-      "sha256": "530b1b341798a0ec4c865c710ace2a8ea7acebd7c2755f7fdc039c19e5203db0"
+      "sha256": "62fff79853be405cd72478247666a608fbfad66b6ca436bc45f58cb72d1d5c19"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_protocol.py",
@@ -170,15 +170,15 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_report_test.py",
-      "sha256": "f3328cb19d4b9d115bb781fd240db4ead33c98dcb7480c1aa7244c1c3db52c1d"
+      "sha256": "199606f1afffb2e25eb394fbe2fcfee12c0cd2dae7cf4ff035eb31ad62854093"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_runner.py",
-      "sha256": "ba63e2af5e3b25d8ef98555766dd4424a388bb2b344d61e2eeaa6116a6a6f566"
+      "sha256": "cbef5aa95ed99ac67d28206d5cc3ef9d293b07fb33348f744f3f57f1c5296ded"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_test_support.py",
-      "sha256": "b7cb4265a0fe916d4ecc1a036a8bf85f01ffbc861e904af575d80ea2eb670804"
+      "sha256": "3dbfa466756679fa59546364292e9d5b70af25005cf58b16538b2a45156e6377"
     }
   ],
   "fixtures": [
@@ -229,10 +229,6 @@
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/far-scalar/main.sg",
       "sha256": "f5bc37f5882fb3d43c2480ceb4f67e32368ef480872eb1b0fd57e57c3ee24596"
-    },
-    {
-      "path": "testdata/runtime-v2-carrier-bench/scored/liveness/main.sg",
-      "sha256": "374123ab8a5747c39b8e603ec5797631aca15e0d1671a4f16f5816bd9c203f41"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/local/local.sg",
@@ -1334,44 +1330,5 @@
     }
   ],
   "cross_row_invariants": [],
-  "liveness_probes": [
-    {
-      "id": "large-payload-park-cancel",
-      "fixture": "testdata/runtime-v2-carrier-bench/scored/liveness/main.sg",
-      "probe": "large-payload-park-cancel",
-      "syncpoint": "SP_TRANSPORT_DATA_SLOT_TASK_PARKED",
-      "timeout_seconds": 10,
-      "expected_reply_reserved": 0,
-      "expected_park_transitions": 1,
-      "wave_a": {
-        "status": "deferred",
-        "reason": "Wave A has no byte-credit park transition; Wave E must reach the frozen sync point.",
-        "provenance_commit": "4968061f2791d7dff0896e1841ce647412053a68"
-      },
-      "final": {
-        "status": "deferred",
-        "reason": "The byte-credit model this probe asserted does not exist: pointer transport carries a pointer into a refcount graph it neither copies nor owns, so there is no per-message byte cost and the budget is SLOTS. Renamed to the scenario that is real -- a task parked on exhausted data-slot admission, after which a cancellation or shutdown travels the reserved control lane and every data slot comes back -- and deferred because nothing arms that sync point yet: the tree still drain-and-retries where the model now parks, and building the park is the far-carrier work. Deferred rather than left to run, because a probe waiting on a point nothing reaches TIMES OUT instead of failing, and a ten-second hang in the middle of a benchmark reads as a broken instrument rather than as absent work.",
-        "provenance_commit": "4968061f2791d7dff0896e1841ce647412053a68"
-      }
-    },
-    {
-      "id": "large-payload-park-shutdown",
-      "fixture": "testdata/runtime-v2-carrier-bench/scored/liveness/main.sg",
-      "probe": "large-payload-park-shutdown",
-      "syncpoint": "SP_TRANSPORT_DATA_SLOT_TASK_PARKED",
-      "timeout_seconds": 10,
-      "expected_reply_reserved": 0,
-      "expected_park_transitions": 1,
-      "wave_a": {
-        "status": "deferred",
-        "reason": "Wave A has no byte-credit shutdown drain; Wave E must reach the frozen sync point.",
-        "provenance_commit": "4968061f2791d7dff0896e1841ce647412053a68"
-      },
-      "final": {
-        "status": "deferred",
-        "reason": "The byte-credit model this probe asserted does not exist: pointer transport carries a pointer into a refcount graph it neither copies nor owns, so there is no per-message byte cost and the budget is SLOTS. Renamed to the scenario that is real -- a task parked on exhausted data-slot admission, after which a cancellation or shutdown travels the reserved control lane and every data slot comes back -- and deferred because nothing arms that sync point yet: the tree still drain-and-retries where the model now parks, and building the park is the far-carrier work. Deferred rather than left to run, because a probe waiting on a point nothing reaches TIMES OUT instead of failing, and a ten-second hang in the middle of a benchmark reads as a broken instrument rather than as absent work.",
-        "provenance_commit": "4968061f2791d7dff0896e1841ce647412053a68"
-      }
-    }
-  ]
+  "liveness_probes": []
 }

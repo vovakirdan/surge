@@ -214,34 +214,30 @@ def make_manifest() -> Manifest:
         fixtures=(),
         rows=(row,),
         cross_row_invariants=(),
-        liveness_probes=(
-            LivenessProbe(
-                probe_id="large-payload-park-cancel",
-                fixture="fixture.sg",
-                probe="large-payload-park-cancel",
-                syncpoint="SP_TRANSPORT_DATA_SLOT_TASK_PARKED",
-                timeout_seconds=5,
-                expected_reply_reserved=0,
-                expected_park_transitions=1,
-                wave_a=LivenessAvailability(
-                    "deferred", "requires Wave E shutdown", "0" * 40
-                ),
-                final=LivenessAvailability("required"),
-            ),
-            LivenessProbe(
-                probe_id="large-payload-park-shutdown",
-                fixture="fixture.sg",
-                probe="large-payload-park-shutdown",
-                syncpoint="SP_TRANSPORT_DATA_SLOT_TASK_PARKED",
-                timeout_seconds=5,
-                expected_reply_reserved=0,
-                expected_park_transitions=1,
-                wave_a=LivenessAvailability(
-                    "deferred", "requires Wave E shutdown", "0" * 40
-                ),
-                final=LivenessAvailability("required"),
-            ),
-        ),
+        # No probe: the manifest carries none since the owner withdrew the two
+        # that waited on a point nothing arms (2026-09-04). make_probe() below
+        # builds one for the tests that exercise the machinery itself.
+        liveness_probes=(),
+    )
+
+
+def make_probe(probe_id: str = "park-probe", fixture: str = "fixture.sg") -> LivenessProbe:
+    """One well-formed probe, for tests of the liveness machinery.
+
+    It is not in make_manifest(): a manifest that carries a probe is refused
+    by the loader today, and these tests hand the probe straight to the
+    runner or the parser.
+    """
+    return LivenessProbe(
+        probe_id=probe_id,
+        fixture=fixture,
+        probe=probe_id,
+        syncpoint="SP_TRANSPORT_DATA_SLOT_TASK_PARKED",
+        timeout_seconds=5,
+        expected_reply_reserved=0,
+        expected_park_transitions=1,
+        wave_a=LivenessAvailability("deferred", "requires Wave E shutdown", "0" * 40),
+        final=LivenessAvailability("required"),
     )
 
 
@@ -352,8 +348,14 @@ def records_with_batch_metric(
 
 
 def deferred_liveness() -> LivenessRecord:
+    """A deferred record, for the report tests that assert what one does.
+
+    No manifest produces one now (the probes that could be deferred are
+    withdrawn), and the report still refuses a final phase carrying one --
+    that rule is what these tests pin.
+    """
     return LivenessRecord(
-        probe_id="large-payload-park-cancel",
+        probe_id="park-probe",
         status="deferred",
         syncpoint=None,
         reply_reserved=None,
@@ -492,38 +494,7 @@ def manifest_json() -> dict[str, object]:
             }
         ],
         "cross_row_invariants": [],
-        "liveness_probes": [
-            {
-                "id": "large-payload-park-cancel",
-                "fixture": "fixture.sg",
-                "probe": "large-payload-park-cancel",
-                "syncpoint": "SP_TRANSPORT_DATA_SLOT_TASK_PARKED",
-                "timeout_seconds": 5,
-                "expected_reply_reserved": 0,
-                "expected_park_transitions": 1,
-                "wave_a": {
-                    "status": "deferred",
-                    "reason": "requires Wave E shutdown",
-                    "provenance_commit": "0" * 40,
-                },
-                "final": {"status": "required"},
-            },
-            {
-                "id": "large-payload-park-shutdown",
-                "fixture": "fixture.sg",
-                "probe": "large-payload-park-shutdown",
-                "syncpoint": "SP_TRANSPORT_DATA_SLOT_TASK_PARKED",
-                "timeout_seconds": 5,
-                "expected_reply_reserved": 0,
-                "expected_park_transitions": 1,
-                "wave_a": {
-                    "status": "deferred",
-                    "reason": "requires Wave E shutdown",
-                    "provenance_commit": "0" * 40,
-                },
-                "final": {"status": "required"},
-            },
-        ],
+        "liveness_probes": [],
     }
 
 __all__ = [name for name in globals() if not name.startswith("__")]

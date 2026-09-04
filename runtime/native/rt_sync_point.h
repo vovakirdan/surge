@@ -151,22 +151,23 @@ typedef enum rt_sync_point_id {
     // UNBOUND request and the late dispatch refuses to pin any arm (Epic
     // 20 Task 7 row 3).
     RT_SYNC_POINT_SP_FAR_SELECT_BEFORE_DISPATCH,
-    // Hold the first exclusive jumbo reservation, then prove the competing
-    // sender parked.
-    //
-    // The second name says TRANSPORT DATA SLOT and not CARRIER CREDIT, and
-    // both halves of that were wrong before. A physical BYTE credit does not
+    // The name says TRANSPORT DATA SLOT and not CARRIER CREDIT, and both
+    // halves of that were wrong before. A physical BYTE credit does not
     // exist for pointer transport -- a cross-shard message carries a pointer
     // into a refcount graph the transport neither copies nor owns, so there is
     // no per-message byte cost to charge -- and the budget that does exist is
     // slots. And an async crossing parks the TASK, not the carrier: the
     // carrier goes on to run other work.
     //
-    // The second point is armed by rt_remote_admit.c: reached by a producer
-    // task that found its target's data lane (or its own lane's reply
-    // reservation) exhausted, registered on the shard's slot key and is about
-    // to suspend on it, before the verify retry. A freed data slot wakes it.
-    RT_SYNC_POINT_SP_CARRIER_JUMBO_ADMITTED,
+    // Armed by rt_remote_admit.c: reached by a producer task that found its
+    // target's data lane (or its own lane's reply reservation) exhausted,
+    // registered on the shard's slot key and is about to suspend on it,
+    // before the verify retry. A freed data slot wakes it.
+    //
+    // Its neighbour SP_CARRIER_JUMBO_ADMITTED is gone (2026-09-04): it named
+    // the admission of a "jumbo" payload under the byte-credit model the
+    // 2026-08-29 ruling withdrew, no RT_SYNC_POINT ever reached it, and the
+    // two benchmark liveness probes that waited on it were withdrawn with it.
     RT_SYNC_POINT_SP_TRANSPORT_DATA_SLOT_TASK_PARKED,
     // rt_sleep_fire_due_on_shard: reached after the due batch has been popped
     // out of the sleep store and the shard lock released, before the first

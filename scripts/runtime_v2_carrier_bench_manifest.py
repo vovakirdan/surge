@@ -363,8 +363,13 @@ def _cross_row_invariants(raw: Any) -> tuple[CrossRowInvariant, ...]:
 
 
 def _liveness_probes(raw: Any) -> tuple[LivenessProbe, ...]:
-    if not isinstance(raw, list) or not raw:
-        raise ManifestError("liveness_probes must be a non-empty array")
+    # The list may be empty, and today it is: the two probes it carried
+    # waited on a sync point nothing armed, and no code ever emitted the
+    # record their parser reads (owner ruling 2026-09-04). The machinery
+    # stays -- a probe that names a point the runtime reaches can be added
+    # back by writing the row.
+    if not isinstance(raw, list):
+        raise ManifestError("liveness_probes must be an array")
     out: list[LivenessProbe] = []
     # No byte figures here, and that is the transport model rather than an
     # omission: a cross-shard message carries a POINTER into a refcount graph

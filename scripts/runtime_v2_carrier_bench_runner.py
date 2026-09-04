@@ -464,7 +464,11 @@ def _run_liveness_probe(
             "SURGE_CARRIER_LIVENESS_PROBE": probe.probe,
             "SURGE_CARRIER_BENCH_NONCE": nonce,
             "SURGE_CARRIER_BENCH_PROTOCOL_SHA256": protocol_sha256,
-            "SURGE_SYNC_POINT": "SP_CARRIER_JUMBO_ADMITTED:block",
+            # No SURGE_SYNC_POINT. It used to hold a thread at
+            # SP_CARRIER_JUMBO_ADMITTED, a point of the withdrawn byte-credit
+            # model that nothing ever reached; the point is gone with the two
+            # probes that waited on it (owner ruling 2026-09-04). A probe that
+            # needs a thread held at a window names the window itself.
             "SURGE_SHARDS": str(manifest.shards),
             "SURGE_THREADS": str(manifest.threads),
             "SURGE_BLOCKING_THREADS": str(manifest.blocking_threads),
