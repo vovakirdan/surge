@@ -15217,3 +15217,63 @@ or the dead point comes back; `test_the_manifest_carries_no_liveness_probe`
 reads the loaded manifest, and the loader refuses any probe whatever its
 shape. 72 harness tests green, `go build ./...` clean, the fixtures still
 build and run. The fifteenth paired attempt is the first that can be green.
+
+### F7, the five review lenses, and the two things they found worth fixing (2026-09-04)
+
+Five independent readings of `7df10725..HEAD`, each with its own object and
+none of them allowed to edit: model and liveness, ownership and types,
+runtime ABI, tests and gates, performance and docs.
+
+**Model and liveness — clean, with one note.** Register-then-verify holds
+everywhere it was checked (scope join and teardown, admission park,
+transport park, blocking poll); the cancel wake sits after the child walk as
+`e34b7db8` left it; the fail-fast judge asserts both directions of its
+equivalence. One more declared-but-unreached sync point exists,
+`SP_WAKEKEY_MID_DRAIN` -- and unlike the jumbo point it is a DOCUMENTED
+deferral (`09-evidence.md:124`, "hook remains allowlisted but unused; no
+separate correctness debt was opened"), so it stays as recorded.
+
+**Ownership and types — clean.** The convention "type id 0 travels only with
+a null state" holds at every site on both sides; `crossingStateTypeID`
+refuses an unregistered type rather than falling through to zero; the
+RV2-DEBT-331 and RV2-DEBT-332 fixes are in the shared helper each path goes
+through, not at one call site.
+
+**Runtime ABI — two records, no defect.** `plan_cross` is live;
+`cross_move_init` / `cross_clone_init`, `rt_cross_allocator`,
+`rt_envelope_header` and `rt_descriptor_table_entry` are declared and
+unbuilt -- the aspirational half of the typed-carrier ABI, which the
+transport ruling left where it is. `rt_value_clone_init_detached`
+(`rt_value_ops.h:69`) is exported with no caller anywhere, the same shape as
+the liveness intrinsics just removed; recorded rather than removed, because
+its three siblings are called and the asymmetry is the interesting part.
+`rt_string_from_utf16` is emitted but has no runtime symbol -- already
+recorded in `emit_alloc_guard_test.go`.
+
+**Tests and gates — one real gap, fixed here.** Every sub-gate on the roster
+can go red, every tagged test is reached by some gate, and the withdrawn
+liveness rows left nothing vacuous behind. But **RV2-DEBT-331 had no named
+mutant**: its sibling RV2-DEBT-332 got one in the emitter, while 331's only
+evidence was a valgrind run written out in prose and one cell of the matrix.
+Fixed: `RV2_DEBT_331_NEGATIVE_CONTROL` in
+`rt_remote_task_anchored_state_type_id_current` answers 0 the way the defect
+did, and `TestRuntimeV2Task9AnchoredStateReleaseNegativeControl` builds the
+share x cancel program with it and requires memcheck to LOSE the state
+(7.8 s, on `runtime-v2-crossing-check`). The control reaches the program's
+own runtime through `SURGE_INTERNAL_RUNTIME_NEGATIVE_CONTROL`
+(`internal/buildpipeline`), a third test-only build hook beside the
+sync-point and carrier-bench ones, which refuses any name that is not
+`RV2_*_NEGATIVE_CONTROL`; a C stand cannot reach this defect, because it is
+only observable through a compiled crossing. Not vacuous: with the control
+named wrongly the test reads a strict zero and fails on its own message.
+
+**Performance and docs — one line fixed, the rest is F8.**
+`claim_trace_increment` (`rt_channel_claim.c`) was the last of that family
+still out of line, on the rendezvous send path; it is `always_inline` now,
+like its twin in `rt_channel_retry.c`. The resident-byte and scope-event
+work stays off the local send/recv/select paths, and the retry walk is
+already behind its counter. The documentation findings -- `PLAN.md`'s top
+block still describing Wave D as in flight, `README.md`'s 23b row still
+reading READY FOR IMPLEMENTATION and naming byte credits, and the 23b
+document's own Done Definition still requiring them -- are exactly F8's
+work and are done there.

@@ -82,6 +82,13 @@ int rt_remote_task_anchored_binding_current(void** out_channel, void** out_state
 // send payload the same way. Answers 0 when the caller is not a bound
 // anchored or select body, which keeps the stash untouched exactly as before.
 uint64_t rt_remote_task_anchored_state_type_id_current(void) {
+#ifdef RV2_DEBT_331_NEGATIVE_CONTROL
+    // Rule 13: the answer this call used to give. With 0 here the yield and
+    // the cancelled return stash nothing, mark_done releases nothing, and the
+    // cancelled anchored body leaks its state again -- which is what the
+    // matrix's share x cancel cell reads under memcheck.
+    return 0;
+#else
     rt_executor* ex = ensure_exec();
     rt_remote_task_state* state = rt_remote_task_state_get(ex);
     const rt_task* current = rt_current_task();
@@ -97,6 +104,7 @@ uint64_t rt_remote_task_anchored_state_type_id_current(void) {
     }
     pthread_mutex_unlock(&state->lock);
     return state_type_id;
+#endif
 }
 
 void* rt_remote_task_anchored_channel_current(void) {

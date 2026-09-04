@@ -366,6 +366,10 @@ func compileRuntime(runtimeDir string, sources []string, printCommands bool) ([]
 	if err != nil {
 		return nil, err
 	}
+	negativeControlFlags, err := runtimeNegativeControlFlags()
+	if err != nil {
+		return nil, err
+	}
 	objs := make([]string, 0, len(sources))
 	for _, src := range sources {
 		base := strings.TrimSuffix(filepath.Base(src), filepath.Ext(src))
@@ -379,6 +383,7 @@ func compileRuntime(runtimeDir string, sources []string, printCommands bool) ([]
 		}
 		args = append(args, testSyncPointFlags...)
 		args = append(args, carrierBenchFlags...)
+		args = append(args, negativeControlFlags...)
 		args = append(args, src, "-o", obj)
 		if err := runCommand(printCommands, "clang", args...); err != nil {
 			return nil, err
@@ -400,6 +405,33 @@ func runtimeCarrierBenchFlags() (flags []string, enabled bool, err error) {
 			"SURGE_INTERNAL_CARRIER_BENCH_COUNTERS must be unset or exactly 1",
 		)
 	}
+}
+
+// runtimeNegativeControlFlags carries a Rule-13 mutant into a program's own
+// runtime build. A defect that lives in the native runtime but is only
+// observable through a compiled program -- an anchored body's state released
+// on cancel, say -- has no other way to be shown red: the C stands cannot
+// reach it, and rebuilding the runtime by hand beside the test would measure
+// a different tree. So a test names the control here, exactly as
+// SURGE_INTERNAL_TEST_SYNC_POINTS names the sync-point build, and the shape
+// is refused rather than trusted: only RV2_*_NEGATIVE_CONTROL.
+func runtimeNegativeControlFlags() ([]string, error) {
+	value := os.Getenv("SURGE_INTERNAL_RUNTIME_NEGATIVE_CONTROL")
+	if value == "" {
+		return nil, nil
+	}
+	flags := make([]string, 0, 2)
+	for _, name := range strings.Split(value, ",") {
+		name = strings.TrimSpace(name)
+		if !strings.HasPrefix(name, "RV2_") || !strings.HasSuffix(name, "_NEGATIVE_CONTROL") {
+			return nil, fmt.Errorf(
+				"SURGE_INTERNAL_RUNTIME_NEGATIVE_CONTROL names %q; every entry must be "+
+					"RV2_*_NEGATIVE_CONTROL", name,
+			)
+		}
+		flags = append(flags, "-D"+name)
+	}
+	return flags, nil
 }
 
 func runtimeTestSyncPointFlags() ([]string, error) {
