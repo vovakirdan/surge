@@ -318,9 +318,14 @@ void* rt_bigfloat_neg(const void* a);
 void* rt_bigfloat_abs(const void* a);
 int32_t rt_bigfloat_cmp(const void* a, const void* b);
 // Deep-copy a heap bigfloat (WidthAny `float`). NULL-safe: NULL is the zero
-// float and needs no allocation. The copy starts at count 1 and shares nothing
-// with its source, which is what makes it usable as the deep copy a crossing
-// installs at a shard boundary.
+// float and needs no allocation -- which is why a cross plan that charges a
+// fixed sidecar for a float leaf is wrong for the zero, and why a non-zero
+// float costs TWO allocations (the block and its mantissa). The copy starts at
+// count 1 and shares nothing with its source, which is what would make it the
+// leaf of the deep copy a crossing installs at a shard boundary.
+//
+// NO CALLER YET. The crossing barrier is unbuilt, so this is declared,
+// registered with the LLVM backend, and dead -- RV2-DEBT-038.
 void* rt_bigfloat_clone(const void* a);
 
 // Destroy a bigfloat block unconditionally, IGNORING its count. This is the
@@ -332,7 +337,10 @@ void rt_bigfloat_free(void* a);
 
 // Ownership operations on a reference-counted bigfloat. Both are NULL-safe.
 // The count is NON-ATOMIC, so these are sound only while a block stays within
-// one shard; every crossing deep-copies at the boundary to keep that true.
+// one shard. What keeps that true today is REFUSAL, not a barrier: a crossing
+// that would share a counted block is rejected at compile time. The deep copy
+// this comment used to claim happens is unbuilt -- RV2-DEBT-038, corrected
+// 2026-09-04.
 //
 // The LLVM backend inlines both as IR at the use site rather than calling
 // these, so that a float copy costs a predictable not-taken branch instead of

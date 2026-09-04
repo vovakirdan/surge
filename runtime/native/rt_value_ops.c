@@ -205,14 +205,26 @@ rt_value_opaque_word_plan(const void* source, rt_cross_mode mode, rt_cross_plan*
 // would have to be weakened to allow it. Keeping every hand-written descriptor
 // in the descriptor file keeps that scan strict everywhere else.
 //
-// This is what a FAR channel actually holds today: a payload that crossed the
-// boundary arrived as a word, and crossing has no descriptor support yet, so
-// there is nothing wider it could be. It is also what a C stand builds when it
-// exercises the scheduler with no compiled Surge code to supply descriptors.
+// This is the FALLBACK a far channel holds when no descriptor is available, not
+// what a far channel holds in general: rt_far_channel_crossing.c resolves the
+// element descriptor from the payload type id that crossed with the message
+// ("the payload type arrived as a number ... the descriptor is looked up on this
+// side"), and only an absent lookup or a zero id lands here. It is also what a C
+// stand builds when it exercises the scheduler with no compiled Surge code to
+// supply descriptors. This paragraph used to say a crossed payload arrives as a
+// word because crossing has no descriptor support; the typed-carrier cutover
+// (Epic 23b) made that false, and it was corrected 2026-09-04.
 //
 // It claims no capability beyond the two the ABI makes mandatory: the move is a
 // word copy that empties its source, and plan_cross refuses. Nothing here can
 // be mistaken for an element that owns something.
+//
+// KNOWN DEVIATION, recorded rather than papered over: the storage model says a
+// plan_cross for a type admitting neither cross mode must NOT RETURN, because a
+// status would assert the call was legal and merely declined (section 5). This
+// one returns RT_CARRIER_STATUS_INVALID_STATE. It is unreachable today -- no
+// caller dispatches plan_cross anywhere in the runtime -- and it is fixed with
+// the dispatcher that gives it its first caller. RV2-DEBT-038.
 const rt_value_ops* rt_channel_opaque_word_ops(void) {
     static const rt_value_ops ops = {
         .layout = {.size = sizeof(uint64_t),

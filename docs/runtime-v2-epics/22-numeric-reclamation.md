@@ -1,15 +1,24 @@
 # Epic 22 — Numeric Reclamation (heap bignum ownership)
 
-Status: PARTIAL — PARKED. Phases 0a, 0b and 1 shipped: the ownership axes were
-split out of `IsCopy`, and `float` is a reference-counted scalar with a
-strict-zero valgrind gate (`TestRuntimeV2FloatReclamationValgrindZero`). NOT
-done: the six crossing deep-copy barriers listed under "Phase 1 remainder" — the
-runtime helper `rt_bigfloat_clone` exists but is unwired, and crossings still
-REFUSE a composite carrying a `float` — and Phase 2 (`int`/`uint`), not started.
+Status: PARTIAL — RESUMED 2026-09-04, scope chosen. Phases 0a, 0b and 1 shipped:
+the ownership axes were split out of `IsCopy`, and `float` is a
+reference-counted scalar with a strict-zero valgrind gate
+(`TestRuntimeV2FloatReclamationValgrindZero`). NOT done: the crossing deep-copy
+barriers listed under "Phase 1 remainder" — the runtime helper
+`rt_bigfloat_clone` exists but is unwired, and crossings still REFUSE a
+composite carrying a `float` — and Phase 2 (`int`/`uint`), not started.
 
-Parked to take Epic 23, then Epic 24. See the detour chain in `README.md` for
-why, and for the resumption order: this epic resumes LAST, because inline
-composites (Epic 23 Phase 2) simplify exactly the barriers it has left.
+**The owner answered this epic's open question on 2026-09-04: variant (2) —
+build the barriers for all three types first, then add `int`/`uint` to a
+finished mechanism.** With it came a second ruling on what the capability
+verdicts mean, and the two together decide the order. Both are recorded under
+"Phase 2's Scope Question" below; read that section before the phase list.
+
+Parked to take Epic 23, then Epic 24, and unparked when Epic 23b closed. See the
+detour chain in `README.md` for why, and note what that chain got wrong: 23b was
+assigned these barriers and did NOT deliver them, so this epic inherited a
+question rather than a mechanism. What 23b DID deliver is the typed-carrier
+plumbing the barriers hang on — the slots are empty, the transport is not.
 
 This document is the onboarding brief — read it end to end before touching
 anything; it is written so a reader with no prior context can start work
@@ -110,22 +119,49 @@ shards. Shards are OS threads in ONE address space (`docs/RUNTIME_V2.md`), so
 a copied pointer is always dereferenceable by the other side — **only a clone
 at each boundary prevents sharing**.
 
-**Six paths have a clone point** (work is real but bounded). Each ships a raw
-pointer word today and needs a deep copy inserted:
+**The paths that need a clone point — MAP RE-DERIVED 2026-09-04 (Global Rule
+14).** The list below used to cite `rt_channel_send(void*, uint64_t value_bits)`,
+a result crossing as raw `result_bits`, and `send_bits` by pointer. **That ABI is
+dead.** Epic 23b replaced it with typed carriers: `rt.h` now declares
+`bool rt_channel_send(void* channel, void* src)`, and `value_bits` /
+`result_bits` / `send_bits` survive only in the legacy-carrier scanner
+(`internal/carriergate`) and in test harnesses — i.e. as strings a gate hunts
+for. The consequence is in the epic's favour and must not be lost: **the
+plumbing is not being built from nothing.** Every one of these sites already has
+an exact typed source pointer and a payload type id, which is precisely the
+argument `cross_clone_init` takes. What is empty is the cross SLOTS, not the
+transport.
 
-- `on` / `spawn on` captures — `internal/mir/lower_expr_crossing.go` lowers
-  `CrossingCaptureCopy` with `consume=false`, and
-  `runtime/native/rt_immediate_on.c` ships `body_state` by pointer.
-  `spawn on` is the sharpest case: it returns `far Task<T>` and does not
-  suspend the caller, so two shards hold independently-droppable refs.
-- `blocking { }` — `internal/mir/lower_blocking.go` passes `consume=true`, but
-  `placeOperand` (`internal/mir/lower_expr_helpers.go`) downgrades to
-  `OperandCopy` for Copy types, neutering the flag. State goes to a
-  `pthread_create`'d worker.
-- far channel send — `rt_channel_send(void*, uint64_t value_bits)`.
-- crossing reply / `far Task.await()` — result crosses as raw `result_bits`.
-- remote select SEND arms — `rt_far_channel_select.c`, `send_bits` and
-  `body_state` both by pointer.
+"Six barriers" is a count of BOUNDARIES, not of edits. They are **three shapes
+over four MIR paths**, and they reopen **four** gates, not six:
+
+- **capture (`on` and `spawn on`) — one shared path.** Sema classifies both
+  through `classifyOnCapture` (`internal/sema/on_crossing_capture.go`), and MIR
+  prepares both operands in one loop (`internal/mir/lower_expr_crossing.go`,
+  the `captureConsume` line). `spawn on` is still the sharpest case: it returns
+  `far Task<T>` and does not suspend the caller, so two shards hold
+  independently-droppable refs. In the RUNTIME the same shape lands at three
+  separate state-entry points — `rt_immediate_on.c`, `rt_remote_spawn.c` and
+  `rt_immediate_on_anchored.c` — which is why a runtime-side barrier is six
+  sites where MIR sees one.
+- **`blocking { }` — its own path**, `internal/mir/lower_blocking.go`. Its only
+  runtime touch point is `rt_value_cell_adopt` inside `rt_blocking_submit`, and
+  that call sits **inside `rt_control_lock`**. The storage model forbids running
+  a generated cross callback under an owner lock (section 5), so this one either
+  splits the lock region or takes its barrier in the caller's frame. It is the
+  single reason the barrier cannot be a uniform runtime change.
+- **far channel send and the remote `select` SEND arm — one decision, two
+  lowerings.** The arm has its own lowering (`lower_expr_select_far.go`) but no
+  refusal of its own: `crossing_transport.go` admits a select unconditionally on
+  the stated ground that "the arms' send payloads are plain-copy by channel
+  construction", and the only thing enforcing that is the check at channel
+  CREATION. So these two share a gate and must gain their barriers together.
+- **crossing reply / `far Task.await()` — a TRANSFER, not a sharing.** The
+  producing shard keeps no reference, so this edge may need only a handoff
+  (`cross_move`) rather than a copy. Measured, not assumed: a bare `float`
+  reply is definitely-lost ZERO at 1, 2 and 8 shards, while a COMPOSITE of
+  floats still loses 32 blocks — which is why the gate stayed closed instead of
+  reopening on a split rule.
 - (`@shard_movable` owned moves need no clone — exclusive transfer.
   `share()` publishes only a sibling handle, no payload.)
 
@@ -313,12 +349,18 @@ and the crossing goldens print the shippability diagnostics.
    Note the VM EMBEDS the mantissa by value (`internal/vm/bignum/float.go`), so
    VM bignums are pure leaves — the VM is a spec for retain/release PLACEMENT
    but NOT for mantissa ownership.
-3. **BLOCKER to schedule, not discover.** `internal/sema/drop_obligations.go`
-   (~56-63) SUPPRESSES drop obligations inside `on` / `spawn on` / `blocking`
-   bodies, pending RV2-DEBT-034. Today that is free because scalars are not
-   droppable. The moment they are, **every bignum created inside a crossing
-   body leaks** — and crossing bodies are where server loops live. RV2-DEBT-034
-   must land with or before Phase 1.
+3. ~~**BLOCKER to schedule, not discover.**~~ **GONE — verified 2026-09-04, and
+   it was gone twice over.** This trap said `internal/sema/drop_obligations.go`
+   SUPPRESSES drop obligations inside `on` / `spawn on` / `blocking` bodies
+   pending RV2-DEBT-034, so that every bignum created inside a crossing body
+   would leak the moment scalars became droppable. Neither half is true any
+   more. **Crossings:** RV2-DEBT-034 CLOSED 2026-07-20 at the Epic 20 closeout,
+   and the crossing suppression was lifted when that closure was found.
+   **Blocking:** RV2-DEBT-080 CLOSED 2026-09-03 (Wave F, F5), and its a-3 step
+   DELETED `dropObligationsSuppressed` outright, giving blocking bodies the same
+   treatment `typeExprAsync` gives async ones. The file now states the result
+   directly: *"There is no body whose obligations are suppressed any more."*
+   Nothing has to land with or before Phase 1 on this account.
 4. **`OperandCopy` cannot express "retain".** `internal/mir/lower_expr_helpers.go`
    makes a raw bit copy and cannot distinguish storing `a` into `b` (retain)
    from passing `a` to `rt_bigint_add(const void*,...)` (borrow). No type
@@ -409,7 +451,8 @@ whole run). **Do not benchmark this epic against anything older than commit
   layout repair → `OperandRetain` emission → drop-obligation rewiring →
   cross-clone glue → **the six crossing barriers and the globals rule**
   (these are in Phase 1 because the count is non-atomic from day one).
-  RV2-DEBT-034 must be resolved by here.
+  RV2-DEBT-034 must be resolved by here — and it IS: closed 2026-07-20, with
+  the blocking half following as RV2-DEBT-080 on 2026-09-03. See trap 3.
   **Landed so far: the LOCAL vertical.** A `float` value now carries a
   reference count end to end within one shard, and the reclamation gate
   (`TestRuntimeV2FloatReclamationValgrindZero`) is strict zero across
@@ -605,10 +648,52 @@ whole run). **Do not benchmark this epic against anything older than commit
 - **Phase 3 — inline arithmetic in IR.** Independent of this epic; see trap 5
   for the one constraint it places on Phase 1.
 
-## Phase 2's Scope Question
+## Phase 2's Scope Question — ANSWERED 2026-09-04, variant (2)
 
-**For the owner. Written 2026-09-04, when re-deriving this epic's premises
-before starting Phase 2 found one of them gone.**
+**The owner chose (2): build the barriers for all three types first, then add
+`int`/`uint` to a finished mechanism.** The recommendation below was (1); it is
+left as written because the reasoning is what the answer was chosen against, not
+because it stands. Two things the answer turns on, neither of them in the
+argument below:
+
+- Choosing (2) is not scope EXPANSION, it is this epic returning to its own
+  Owner Decision 1 above, which already rejected "ship an atomic count and flip
+  it later" in favour of doing the barrier work up front, and already recorded
+  the barriers as **Phase 1** work.
+- The estimate the recommendation leaned on is withdrawn: the owner called
+  `PLAN.md`'s lane-days stale. Cost is no longer the discriminator.
+
+**And a second ruling, on what the capability verdicts MEAN**, because the bits
+could not simply be promoted: `evaluateShardMovable` and `evaluateCrossClonable`
+(`internal/sema/capability_axes.go`) already answer TRUE for `float` with the
+reason "plain bits", and a test pins it. A heap-backed value with a non-atomic
+count is not plain bits.
+
+- `ShardMovable(float)` STAYS true — V2 admits the crossing by exclusive `own`
+  move, which hands over a single ownership obligation rather than sharing a
+  counted block.
+- `CrossClonable` means "possible **via deep clone**", not "raw bits are
+  copyable". The pinned `"plain bits"` reason is replaced.
+- Until `cross_clone` is wired recursively, the ABI flag is NOT set: there is no
+  slot, no operation body, and no right to emit cross code.
+- **Flag, descriptor, registry hash and `Dump` all derive from ONE backed
+  state.** A late mask in `backedFlags` is refused: it would manufacture exactly
+  the hidden divergence between a claim and the tree that this revision exists
+  to remove.
+- Promotion happens in ONE change per capability, after the operation is built
+  and proven.
+
+The consequence for ordering is that the move half and the clone half separate.
+`ShardMovable` is legitimately true and its claim protocol already EXISTS
+(`RT_SLOT_CLAIM_CROSS_MOVE`, `rt_slot_cross_move_failed_locked`, with the
+claim-under-lock → unlock → apply → relock sequence demonstrated in
+`internal/vm/testdata/slot_control_protocol_cases.c`). The clone half has no
+`rt_slot_cross_clone_*` counterpart at all; that is built here.
+
+---
+
+**The question as it was put. Written 2026-09-04, when re-deriving this epic's
+premises before starting Phase 2 found one of them gone.**
 
 The count is non-atomic. Its soundness rests on no counted block being
 reachable from two shards, and the two things meant to uphold that are a
@@ -619,12 +704,28 @@ shipped — the six barriers under "Phase 1 remainder" are unbuilt, and
 every crossing that would share such a block is REFUSED.
 
 That refusal is affordable for `float` because a program that needs to cross
-can spell `float64`. **It is not affordable for `int`.** Refusing `int` at a
-boundary rejects `stdlib/bytes`' `ByteRange = {start: uint, end: uint}`,
-`stdlib/hash`, `stdlib/time`, `stdlib/term` and `core/sync.sg`, and it rejects
-the crossing fixtures, one of which is literally
-`@copy @shard_movable type Point = { x: int, y: int }`. So Phase 2 cannot
+can spell `float64`. **It is not affordable for `int`.** So Phase 2 cannot
 simply widen `IsRefCountedScalar` and inherit Phase 1's narrowing with it.
+
+**The blast radius, counted rather than asserted — corrected 2026-09-04.** This
+paragraph named five stdlib modules. The tree says **two**: `stdlib/bytes`
+(`ByteRange = {start: uint, end: uint}`, and through its fields `ByteLine`,
+`ByteSplit`, `ByteUint64`) and `core/sync.sg` (`BarrierState`, `Barrier`).
+`stdlib/hash` is already fixed width (`Hash64 = {value: uint64}`, `Xxh64Lanes`
+all `uint64`); so is `stdlib/time` (`Duration = {__opaque: int64}`) and
+`stdlib/term` (`TermMods = uint8`, `KeyEvent`, `TermKey`). `term.TermEvent` does
+carry a bare `int` in `Resize(int, int)`, but it is a UNION, and
+`ContainsRefCountedScalar` deliberately does not walk unions — a union is not
+Copy, so it can only cross as an owned `@shard_movable` move. Two modules, six
+types.
+
+The crossing fixtures are a weaker argument than they look, too. **No crossing
+fixture uses `float` at all**, and the one this section quotes —
+`@copy @shard_movable type Point = { x: int, y: int }`, in
+`testdata/golden/crossing/block04/valid/locality_positive_copy_and_movable_on.sg`
+— captures `own Point`, i.e. a MOVE, and an owned `@shard_movable` move is
+exempt at every refusal point. The argument for (2) does not rest on this
+paragraph; see the ruling above.
 
 Three answers, with what each costs:
 

@@ -86,7 +86,15 @@ row in `DEBT.md` with its own owner; none is a wave's exit condition.
 ## Next, in this order
 
 1. **Epic 22 Phase 2** — `int`/`uint` reclamation, the successor the detour
-   chain was taken for.
+   chain was taken for. **Scope settled 2026-09-04, variant (2): the crossing
+   barriers come FIRST, for all three arbitrary-precision types, and `int`/`uint`
+   then joins a finished mechanism.** The barriers were assigned to Epic 23b and
+   never built, so this is 23b's undelivered half arriving under Epic 22's name;
+   what 23b DID build is the typed-carrier plumbing they hang on. A second
+   ruling the same day fixed what the capability verdicts mean — `CrossClonable`
+   is "possible via deep clone", not "raw bits copy", and flag, descriptor,
+   registry hash and `Dump` must derive from one backed state rather than a late
+   mask. Both are in `22-numeric-reclamation.md`, "Phase 2's Scope Question".
 2. **The VM representation epic** — `vm-universal-owner` and
    `vm-async-any-carrier`, the 55 live carriers the 2026-09-03 ruling pinned
    and sent here rather than to Wave F.
@@ -127,7 +135,7 @@ Taken in order, not in parallel with the above.
 | --- | --- | ---: | --- |
 | **Wave E** | ~~Far carriers, leases, byte credits.~~ **CLOSED 2026-09-04.** Byte credits are not part of it and never will be: the 2026-08-29 ruling found pointer transport charges no per-message bytes, and the budget that exists is slots. | — | `native-payload-bits`, `native-word-carrier` and `numeric-drop-dispatch` read live zero, and saturation parks a producer without busy retry. **Met.** |
 | **Wave F** | ~~Diagnostics, deletion of the legacy symbols, the closeout gates.~~ **CLOSED 2026-09-04.** | — | The census reads **0 in every category a wave owned** (owner ruling 2026-09-03, variant (а): of the manifest's frozen 683 on `7df10725`, the 55 that remain live are the VM's `Value` interchange type and the async runtime's `any`, counted and pinned by `TestLiveCarrierRatchetAgainstRepository`, and their removal is a VM-representation epic of its own), the symbols are deleted rather than unused, and `make runtime-v2-check` reports every sub-gate on its roster passing on one tree. **Met.** |
-| **Epic 22 ph. 2** | `int`/`uint` reclamation. | ~5 | — |
+| **Epic 22 ph. 2** | Crossing barriers for all three types, then `int`/`uint` reclamation (owner ruling 2026-09-04, variant 2). | — | — |
 | **Epic 21** | ~~Bench, matrix, seam, debt closeout.~~ **CLOSED 2026-09-04** with Wave F: RV2-DEBT-125. | — | — |
 
 Sizes are lane-days: one focused worker, one day. What remains of this
