@@ -15298,6 +15298,52 @@ and the loader now refuses a row that carries a budget. Rule 13: with the
 threshold removed, a 900/972 us pair reads 0.926 and the row is refused at
 0.95. 72 harness tests green.
 
+### F7 CLOSED: the sixteenth attempt is green, and the closing set with it (2026-09-04)
+
+`ea50ca0b`, one tree, one sitting on the dedicated host:
+
+    row                     verdict   wall
+    file-size --committed   rc=0        10 s
+    ctidy                   rc=0        37 s
+    harness tests (72)      rc=0        33 s
+    runtime-v2-crossing     rc=0       125 s   (the Task 9 matrix and its new 331 mutant)
+    carrier sanitizer       rc=0       135 s   (13 valgrind rows, -race, ASan/UBSan, TSan, each named by --expect)
+    golden-check --runs 2   rc=0       151 s
+    golden determinism      rc=0       148 s
+    W8 aggregate            rc=0      1039 s   (20 of 20; and 20 of 20 again at 1047 s on 0027b3d8)
+    paired benchmark        rc=0       322 s
+
+**The benchmark report reads `passed`** -- `protocol_status`,
+`endpoint_invariant_status`, `allocation_budget_status`,
+`allocation_control_status` and `attempt_sequence_status` all green,
+`measurement_status: complete`, `execution_mode: strict`, 46 rows of 46,
+**37,538 attempts of 37,538**, no liveness probe. The relative rows, worst
+first:
+
+    row                        ratio   budget   batch
+    array-teardown-scalar      0.914    0.90      78 us
+    select-send-scalar         0.946    0.90     454 us
+    scalar                     0.976    0.90      66 us
+    task-scalar                0.988    0.95    1580 us
+    channel-buffered-scalar    0.991    0.90     721 us
+    zero                       0.996    0.90      61 us
+    ... every other row        >= 1.00
+    map-teardown-scalar        1.180    0.95     ...
+
+Every row that runs longer than the short-row threshold is at or above
+0.988 against the epic base: the waves cost nothing measurable on the
+rows long enough to measure. The three rows below one are all short ones,
+and they sit where six runs said they sit.
+
+**What closed F7, beside the benchmark.** The census reads 0 in every
+category a wave owned (`TestW8CarrierCensusReportsEachExitCategory`,
+`TestLiveCarrierRatchetAgainstRepository`). Sentrux passes every rule on
+both trees, and the quality signal moved 5438 -> 5448 for `runtime/native`
+and 6146 -> 6167 for the repository, with `internal` 6452 -> 6445 -- a
+tenth of a percent against the files the waves added, recorded rather than
+waved past. The five review lenses are above. The Phase-5 free-site seam
+inventory is `21-phase5-free-site-seams.md`.
+
 **Performance and docs — one line fixed, the rest is F8.**
 `claim_trace_increment` (`rt_channel_claim.c`) was the last of that family
 still out of line, on the rendezvous send path; it is `always_inline` now,
