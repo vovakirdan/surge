@@ -52,7 +52,6 @@ func TestSlotInvariantRefusesStagedFlagBits(t *testing.T) {
 		// backend-derived now, so the bit is legal to set and its own test
 		// (TestPlanCrossFallsBackToTheModuleStub...) asserts it is ACCEPTED.
 		{bit: FlagTraceable, flag: "RT_VALUE_FLAG_TRACEABLE", slot: "trace"},
-		{bit: FlagCrossClonable, flag: "RT_VALUE_FLAG_CROSS_CLONABLE", slot: "cross_clone_init"},
 	} {
 		t.Run(tc.flag, func(t *testing.T) {
 			entry := testEntry(types.TypeID(13))
@@ -92,7 +91,7 @@ func TestSlotInvariantAcceptsDroppableWithoutARegistrySymbol(t *testing.T) {
 // staging: the verdicts still staged are recorded, just not as ABI bits.
 func TestSlotInvariantAcceptsStagedVerdictsInCapabilities(t *testing.T) {
 	entry := testEntry(types.TypeID(14))
-	entry.Capabilities = Capabilities{Traceable: true, CrossClonable: true}
+	entry.Capabilities = Capabilities{Traceable: true}
 	if err := entry.checkSlots(); err != nil {
 		t.Fatalf("checkSlots refused staged verdicts held in Capabilities: %v", err)
 	}
@@ -139,7 +138,7 @@ func TestSharesWithComparesEveryFieldButType(t *testing.T) {
 		{"flag droppable", func(e *Entry) { e.Flags |= FlagDroppable }},
 		{"capability traceable", func(e *Entry) { e.Capabilities.Traceable = false }},
 		{"flag shard movable", func(e *Entry) { e.Flags |= FlagShardMovable }},
-		{"capability cross clonable", func(e *Entry) { e.Capabilities.CrossClonable = false }},
+		{"flag cross clonable", func(e *Entry) { e.Flags |= FlagCrossClonable }},
 		{"clone init symbol", func(e *Entry) { e.CloneInit = symbols.SymbolID(43) }},
 		{"recipe index", func(e *Entry) { e.RecipeIndex = 4 }},
 		{"evidence clone method key", func(e *Entry) { e.Evidence.CloneMethodKey = "other" }},

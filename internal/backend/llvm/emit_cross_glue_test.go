@@ -9,9 +9,11 @@ import (
 	"surge/internal/valueops"
 )
 
-// crossMoveBodiesFor emits the two move-half bodies for a synthetic entry and
-// returns the text. The entry carries physical facts directly because the
-// bodies read nothing else: a move's plan IS its layout.
+// crossMoveBodiesFor emits the crossing bodies for a synthetic shard-movable
+// (and not cross-clonable) entry and returns the text. The entry carries
+// physical facts directly because the bodies read nothing else: a move's plan
+// IS its layout. A bare-scalar entry has no members, so the clone demand it
+// would raise stays empty and only the plan and move apply are written.
 func crossMoveBodiesFor(t *testing.T, id types.TypeID, size, align uint64) string {
 	t.Helper()
 	emitter := &Emitter{}
@@ -19,7 +21,10 @@ func crossMoveBodiesFor(t *testing.T, id types.TypeID, size, align uint64) strin
 		Type:  id,
 		Facts: layout.PhysicalFacts{Size: size, Align: align},
 	}
-	emitter.emitCrossMoveBodies(entry)
+	emitter.emitCrossBodies(entry, valueops.FlagShardMovable)
+	if err := emitter.emitCrossGlue(); err != nil {
+		t.Fatalf("emit cross glue: %v", err)
+	}
 	return emitter.buf.String()
 }
 
@@ -35,9 +40,10 @@ func TestCrossMovePlanChargesNoSidecars(t *testing.T) {
 
 	for _, want := range []string{
 		"define internal zeroext i32 @plan_cross.type7(ptr %src, i8 zeroext %mode, ptr %out)",
-		// ops, then mode, then the layout the plan describes.
+		// ops, then the caller's own mode (one body serves both modes), then the
+		// layout the plan describes.
 		"store ptr @__surge_value_ops_type7",
-		"store i8 0, ptr %p1",
+		"store i8 %mode, ptr %p1",
 		"store i64 24, ptr %p4", // payload_bytes
 		"store i64 8, ptr %p5",  // payload_align
 		"store i64 0, ptr %p6",  // sidecar_bytes

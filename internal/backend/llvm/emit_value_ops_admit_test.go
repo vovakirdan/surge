@@ -91,8 +91,12 @@ func admitEmittedDescriptor(t *testing.T, defect descriptorDefect) int {
 	// linking the reclamation half of the runtime: what is being proven is that
 	// the descriptor is ADMITTED, not what its drop does when dispatched.
 	var stubs strings.Builder
-	for _, symbol := range dropBodyRuntimeCallees(ir) {
-		fmt.Fprintf(&stubs, "void %s(void* unused) { (void)unused; }\n", symbol)
+	for _, callee := range dropBodyRuntimeCallees(ir) {
+		if callee.returnsPtr {
+			fmt.Fprintf(&stubs, "void* %s(void* unused) { (void)unused; return 0; }\n", callee.name)
+		} else {
+			fmt.Fprintf(&stubs, "void %s(void* unused) { (void)unused; }\n", callee.name)
+		}
 	}
 	probeSrc := fmt.Sprintf(`#include "rt_slot_control.h"
 #include <stdalign.h>
@@ -145,25 +149,40 @@ int main(void) {
 // sliceDescriptorIR keeps the emitted struct declarations, move bodies, the
 // plan_cross stub and the descriptor constants, and adds only the declarations
 // LLVM needs for the intrinsics those bodies call.
-// dropBodyRuntimeCallees lists the runtime functions the sliced drop bodies
-// call, so the slice can declare exactly those and no more.
-func dropBodyRuntimeCallees(ir string) []string {
+// runtimeCallee is a runtime function a sliced body calls, carried with its
+// return type so the slice can declare it and the probe can stub it with a
+// matching signature. A cross-clone body's rt_bigfloat_clone returns a pointer,
+// where a drop body's rt_string_free returns void; declaring either as the other
+// leaves the sliced module unparseable.
+type runtimeCallee struct {
+	name       string
+	returnsPtr bool
+}
+
+// dropBodyRuntimeCallees lists the runtime functions the sliced drop and
+// cross-clone bodies call, so the slice can declare exactly those and no more.
+func dropBodyRuntimeCallees(ir string) []runtimeCallee {
 	seen := map[string]struct{}{}
-	var out []string
+	var out []runtimeCallee
 	inBody := false
 	for _, line := range strings.Split(ir, "\n") {
 		switch {
 		case strings.HasPrefix(line, "define void @drop.type"),
-			strings.HasPrefix(line, "define void @drop_elem.type"):
+			strings.HasPrefix(line, "define void @drop_elem.type"),
+			// A cross-clone body calls the runtime duplicators too -- today
+			// rt_bigfloat_clone for a counted-scalar leaf, rt_string_clone and
+			// rt_channel_handle_retain for the shared leaves. The slice stubs
+			// whatever it finds, so it stays self-contained as the leaf set grows.
+			strings.HasPrefix(line, "define internal zeroext i32 @cross_clone.type"):
 			inBody = true
 		case line == "}":
 			inBody = false
 		case inBody:
-			index := strings.Index(line, "call void @rt_")
+			index := strings.Index(line, "@rt_")
 			if index < 0 {
 				continue
 			}
-			name := line[index+len("call void @"):]
+			name := line[index+len("@"):]
 			if cut := strings.IndexAny(name, "( "); cut >= 0 {
 				name = name[:cut]
 			}
@@ -171,7 +190,7 @@ func dropBodyRuntimeCallees(ir string) []string {
 				continue
 			}
 			seen[name] = struct{}{}
-			out = append(out, name)
+			out = append(out, runtimeCallee{name: name, returnsPtr: strings.Contains(line, "call ptr @"+name)})
 		}
 	}
 	return out
@@ -191,10 +210,12 @@ func sliceDescriptorIR(t *testing.T, ir string) string {
 			strings.HasPrefix(line, "define void @drop.type"),
 			strings.HasPrefix(line, "define void @drop_elem.type"),
 			strings.HasPrefix(line, "define internal zeroext i32 @__surge_value_plan_cross_unavailable"),
-			// A shard-movable descriptor binds its own plan and cross move; the
-			// slice has to carry them or the constant names an undefined body.
+			// A cross-capable descriptor binds its own plan and one apply per
+			// admitted mode; the slice has to carry them or the constant names an
+			// undefined body.
 			strings.HasPrefix(line, "define internal zeroext i32 @plan_cross.type"),
-			strings.HasPrefix(line, "define internal zeroext i32 @cross_move.type"):
+			strings.HasPrefix(line, "define internal zeroext i32 @cross_move.type"),
+			strings.HasPrefix(line, "define internal zeroext i32 @cross_clone.type"):
 			for ; index < len(lines); index++ {
 				out.WriteString(lines[index] + "\n")
 				if lines[index] == "}" {
@@ -209,8 +230,12 @@ func sliceDescriptorIR(t *testing.T, ir string) string {
 	// Declared here so the module verifies, defined empty by the probe so the
 	// link resolves: preflight never dispatches a drop, so what its body would
 	// have called is not part of this claim.
-	for _, symbol := range dropBodyRuntimeCallees(ir) {
-		out.WriteString("declare void @" + symbol + "(ptr)\n")
+	for _, callee := range dropBodyRuntimeCallees(ir) {
+		ret := "void"
+		if callee.returnsPtr {
+			ret = "ptr"
+		}
+		fmt.Fprintf(&out, "declare %s @%s(ptr)\n", ret, callee.name)
 	}
 	return out.String()
 }

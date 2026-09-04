@@ -171,13 +171,19 @@ func (in *OperationPlanInput) entryFor(
 	if capability.ShardMovable {
 		flags |= valueops.FlagShardMovable
 	}
+	// CrossClonable is an ABI bit too, since Epic 22's clone half gave its slot
+	// a body. Same one-backed-state rule as ShardMovable: the verdict is the
+	// classifier's, set into Flags and recorded nowhere else. Only Traceable
+	// remains staged.
+	if capability.CrossClonable {
+		flags |= valueops.FlagCrossClonable
+	}
 	return valueops.Entry{
 		Type:  id,
 		Facts: facts,
 		Flags: flags,
 		Capabilities: valueops.Capabilities{
-			Traceable:     capability.Traceable,
-			CrossClonable: capability.CrossClonable,
+			Traceable: capability.Traceable,
 		},
 		CloneInit:   cloneInit,
 		RecipeIndex: noDescriptorRecipeIndex,

@@ -46,8 +46,7 @@ func testEntry(id types.TypeID) Entry {
 		Facts: scalarFacts(16, 8),
 		Flags: FlagCopy | FlagClonable,
 		Capabilities: Capabilities{
-			Traceable:     true,
-			CrossClonable: true,
+			Traceable: true,
 		},
 		CloneInit:   symbols.SymbolID(42),
 		RecipeIndex: 3,

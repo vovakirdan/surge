@@ -125,9 +125,11 @@ func TestCompilePublishesAClonableTypeNamingItsEmittedCloneInit(t *testing.T) {
 // registry that recorded them as bare false would be indistinguishable from one
 // that never asked.
 //
-// Droppable is on the other side of that line now: it rides in Flags, and its
-// evidence is still required, because a bit whose reason went missing is a bit
-// nobody can argue with.
+// The line has moved with Epic 22: droppable, shard_movable and cross_clonable
+// all ride in Flags now, each with its evidence still required, because a bit
+// whose reason went missing is a bit nobody can argue with. Traceable is the one
+// verdict still staged -- trace has no body -- so it is the only one that must
+// stay OUT of the flag set while its reason stays present.
 func TestCompilePublishesStagedCapabilitiesWithTheirEvidence(t *testing.T) {
 	result := compileOperationProbe(t)
 	typesIn := result.Diagnose.Sema.TypeInterner
@@ -145,9 +147,8 @@ func TestCompilePublishesStagedCapabilitiesWithTheirEvidence(t *testing.T) {
 			t.Errorf("the %s verdict was published with no evidence", name)
 		}
 	}
-	if entry.Flags&(valueops.FlagTraceable|
-		valueops.FlagShardMovable|valueops.FlagCrossClonable) != 0 {
-		t.Fatalf("a staged verdict reached the ABI flag set: %s", entry.Flags)
+	if entry.Flags&valueops.FlagTraceable != 0 {
+		t.Fatalf("the still-staged traceable verdict reached the ABI flag set: %s", entry.Flags)
 	}
 }
 

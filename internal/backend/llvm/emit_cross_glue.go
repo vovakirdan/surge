@@ -15,31 +15,34 @@ import (
 // difference as PLAN_MISMATCH before the source commits. Both halves are frozen
 // in `runtime/abi/typed_carrier_v2.json` and this file emits them.
 //
-// THE MOVE HALF IS HERE; THE CLONE HALF IS NOT, and the asymmetry is the point
-// rather than an unfinished edge. A move across a shard boundary transfers one
-// ownership obligation: the destination takes the bits and the source is
-// logically empty afterwards, which is byte-for-byte what the local `move_init`
-// already does. It allocates nothing, so it needs no member walk and no
-// sidecars. A cross CLONE is the opposite -- it must deep-copy every counted
-// scalar, because the bignum refcount is NON-ATOMIC and a block reachable from
-// two shards is a race rather than a leak -- and that one walks members, charges
-// sidecars, and needs a runtime that can price a leaf before copying it.
+// One descriptor carries ONE plan_cross that serves whichever modes its flags
+// admit, and one apply body per admitted mode:
 //
-// So the move half lands first and on its own. Its slot-claim protocol already
-// exists (`RT_SLOT_CLAIM_CROSS_MOVE`, `rt_slot_cross_move_failed_locked`);
-// the clone half's does not, and that is built with it.
+//   - MOVE transfers a single ownership obligation: the destination takes the
+//     bits and the source is logically empty afterwards, which is byte-for-byte
+//     what the local move_init does. It walks nothing and charges no sidecars.
+//   - CLONE deep-copies. It is the local clone walk with one arm changed: a
+//     counted scalar is DUPLICATED rather than retained, because the bignum
+//     refcount is non-atomic and a block reachable from two shards is a race,
+//     not a leak. A string is cloned and a handle retained exactly as the local
+//     clone does; a nested composite recurses into its own cross-clone.
+//
+// Neither plan charges sidecars. The owner's ruling of 2026-08-29 found that
+// pointer transport takes no per-message byte cost and the budget that exists is
+// SLOTS, so the deep-copy allocations a clone makes are TARGET-OWNER memory from
+// the moment they exist, not transport credit reached through the plan
+// allocator. total_bytes is the payload alone and the allocator allowances start
+// and end at zero. The frozen sidecar fields stay and are filled truthfully.
 
-// The three cross bodies are keyed on the EXACT registry type id, like
-// move_init and unlike drop glue. Resolving here would let two registry entries
-// carrying different physical facts collide on one body, and the plan a body
-// writes is made of those facts.
-func crossPlanName(id types.TypeID) string { return fmt.Sprintf("plan_cross.type%d", id) }
-func crossMoveName(id types.TypeID) string { return fmt.Sprintf("cross_move.type%d", id) }
+// The cross bodies are keyed on the EXACT registry type id, like move_init and
+// unlike drop glue. Resolving here would let two registry entries carrying
+// different physical facts collide on one body, and the plan a body writes is
+// made of those facts.
+func crossPlanName(id types.TypeID) string  { return fmt.Sprintf("plan_cross.type%d", id) }
+func crossMoveName(id types.TypeID) string  { return fmt.Sprintf("cross_move.type%d", id) }
+func crossCloneName(id types.TypeID) string { return fmt.Sprintf("cross_clone.type%d", id) }
 
 // Field indices into `%struct.rt_cross_plan`, in the frozen record's order.
-// Named rather than spelled inline because a body that stores into the wrong
-// index produces a plan the apply will refuse, and the refusal names neither
-// field.
 const (
 	crossPlanFieldOps = iota
 	crossPlanFieldMode
@@ -60,49 +63,95 @@ const (
 	crossAllocFieldRemainingAllocations
 )
 
-// rt_carrier_status values this file returns. The full enumeration is in the
-// frozen manifest; these are the two a move can answer.
+// rt_carrier_status and rt_cross_mode values this file uses. The full
+// enumerations are in the frozen manifest.
 const (
 	carrierStatusOK           = 0
 	carrierStatusPlanMismatch = 5
 	crossModeMove             = 0
+	crossModeClone            = 1
 )
 
 // crossPlanEnvelopeBytes is what a TYPE charges for the transport envelope:
-// nothing. The envelope is transport's own record and transport is the only
-// thing that knows how big its header is; a per-type body that guessed would be
-// inventing a number the reservation then trusts. So the plan a type writes
-// describes the type -- payload offset, bytes and alignment, and the sidecars
-// the apply will allocate -- and `total_bytes` is that payload alone. If
-// transport later needs its header charged, it adds it to a plan it received
-// rather than asking each type to know it.
-//
-// Nothing gates on these bytes today in any case: the owner's ruling of
-// 2026-08-29 found that pointer transport carries no per-message byte cost and
-// the budget that exists is SLOTS. The fields stay because the record is frozen
-// and they must be filled truthfully, not because a reservation reads them.
+// nothing. The envelope is transport's own record and only transport knows its
+// header size; a per-type body that guessed would invent a number the
+// reservation then trusts.
 const crossPlanEnvelopeBytes = 0
 
-// emitCrossMoveBodies emits `plan_cross.typeN` and `cross_move.typeN` for one
-// registry entry. The caller decides which entries get them; this only writes
-// the two bodies.
-func (e *Emitter) emitCrossMoveBodies(entry *valueops.Entry) {
-	e.emitCrossPlanBody(entry)
-	e.emitCrossMoveBody(entry)
+// requireCrossCloneGlue records that `id` needs a cross-clone body and returns
+// its name. The fixpoint (emitCrossGlue) walks what the recursion adds.
+func (e *Emitter) requireCrossCloneGlue(id types.TypeID) string {
+	id = resolveValueType(e.types, id)
+	if e.crossCloneGlueNeeded == nil {
+		e.crossCloneGlueNeeded = make(map[types.TypeID]struct{})
+	}
+	e.crossCloneGlueNeeded[id] = struct{}{}
+	return crossCloneName(id)
 }
 
-// emitCrossPlanBody emits the read-only preflight.
+// emitCrossBodies writes the crossing bodies one descriptor entry needs: the
+// mode-branching plan, the move apply if it is shard-movable, and a demand for
+// the clone body if it is cross-clonable. It runs in the descriptor pass's first
+// loop, so the bodies exist before the constant that names them.
 //
-// A move charges no sidecars: it allocates nothing, so `sidecar_bytes` and
-// `sidecar_count` are zero and the apply's allowances start and end at zero.
-// The payload is the value's own exact layout.
+// The clone body is DEMANDED rather than emitted here because it recurses: the
+// fixpoint below drains the demand, and a nested composite adds its own.
+func (e *Emitter) emitCrossBodies(entry *valueops.Entry, flags valueops.Flags) {
+	movable := flags&valueops.FlagShardMovable != 0
+	clonable := flags&valueops.FlagCrossClonable != 0
+	if !movable && !clonable {
+		return
+	}
+	e.emitCrossPlanBody(entry, movable, clonable)
+	if movable {
+		e.emitCrossMoveBody(entry)
+	}
+	if clonable {
+		e.requireCrossCloneGlue(entry.Type)
+	}
+}
+
+// emitCrossGlue drains the cross-clone demand set, emitting each body and the
+// nested bodies it recurses into. Same fixpoint the clone glue uses, because a
+// composite arm asks for the cross-clone of a nested composite.
+func (e *Emitter) emitCrossGlue() error {
+	done := make(map[types.TypeID]struct{})
+	for {
+		pending := takePendingGlue(e.crossCloneGlueNeeded, done)
+		if len(pending) == 0 {
+			return nil
+		}
+		for _, id := range pending {
+			if err := e.emitCrossCloneBody(e.crossCloneEntry(id)); err != nil {
+				return err
+			}
+		}
+	}
+}
+
+// crossCloneEntry builds the minimal entry a nested cross-clone body needs: its
+// type and physical facts. A nested composite is not a registry root, so it has
+// no Entry of its own; the body reads only Type and Facts.
+func (e *Emitter) crossCloneEntry(id types.TypeID) *valueops.Entry {
+	facts, err := e.layoutOf(id)
+	if err != nil {
+		// A composite reached by the walk has a finalized layout by
+		// construction; a missing one is a builder bug, surfaced when the body
+		// emits an empty memcpy rather than by a panic here.
+		return &valueops.Entry{Type: id}
+	}
+	return &valueops.Entry{Type: id, Facts: facts}
+}
+
+// emitCrossPlanBody emits the one read-only preflight, branching on mode and
+// answering only for the modes this descriptor's flags admit.
 //
-// A mode this descriptor cannot serve does NOT return a status. The storage
+// A mode the descriptor cannot serve does NOT return a status. The storage
 // model is explicit that a call outside a descriptor's cross capability is a
-// protocol violation by the caller rather than a recoverable refusal, and that
-// giving it a status would assert the call was legal and merely declined. So it
-// takes the same treatment as the unavailable stub: it does not return.
-func (e *Emitter) emitCrossPlanBody(entry *valueops.Entry) {
+// protocol violation by the caller, and that a status would assert the call was
+// legal and merely declined. So an unadmitted mode traps, like the unavailable
+// stub a non-cross descriptor binds.
+func (e *Emitter) emitCrossPlanBody(entry *valueops.Entry, movable, clonable bool) {
 	size := entry.Facts.Size
 	align := entry.Facts.Align
 	if align == 0 {
@@ -111,12 +160,24 @@ func (e *Emitter) emitCrossPlanBody(entry *valueops.Entry) {
 
 	fmt.Fprintf(&e.buf, "define internal zeroext i32 @%s(ptr %%src, i8 zeroext %%mode, ptr %%out) {\nentry:\n",
 		crossPlanName(entry.Type))
-	fmt.Fprintf(&e.buf, "  %%ismove = icmp eq i8 %%mode, %d\n", crossModeMove)
-	fmt.Fprintf(&e.buf, "  br i1 %%ismove, label %%plan, label %%badmode\n")
-	fmt.Fprintf(&e.buf, "plan:\n")
+	if movable {
+		fmt.Fprintf(&e.buf, "  %%ismove = icmp eq i8 %%mode, %d\n", crossModeMove)
+		fmt.Fprintf(&e.buf, "  br i1 %%ismove, label %%serve, label %%tryclone\n")
+		fmt.Fprintf(&e.buf, "tryclone:\n")
+	}
+	if clonable {
+		fmt.Fprintf(&e.buf, "  %%isclone = icmp eq i8 %%mode, %d\n", crossModeClone)
+		fmt.Fprintf(&e.buf, "  br i1 %%isclone, label %%serve, label %%badmode\n")
+	} else {
+		fmt.Fprintf(&e.buf, "  br label %%badmode\n")
+	}
 
+	fmt.Fprintf(&e.buf, "serve:\n")
+	// Both admitted modes describe the same physical payload and charge no
+	// sidecars; only the mode field differs, and it is the caller's own `mode`
+	// rather than a constant, because one body serves both.
 	e.storeCrossPlanPtr(crossPlanFieldOps, "@"+valueOpsSymbol(entry.Type))
-	e.storeCrossPlanI8(crossPlanFieldMode, crossModeMove)
+	e.storeCrossPlanModeFromArg()
 	e.storeCrossPlanWord(crossPlanFieldEnvelopeBytes, crossPlanEnvelopeBytes)
 	e.storeCrossPlanWord(crossPlanFieldPayloadOffset, 0)
 	e.storeCrossPlanWord(crossPlanFieldPayloadBytes, size)
@@ -124,8 +185,8 @@ func (e *Emitter) emitCrossPlanBody(entry *valueops.Entry) {
 	e.storeCrossPlanWord(crossPlanFieldSidecarBytes, 0)
 	e.storeCrossPlanWord(crossPlanFieldTotalBytes, size)
 	e.storeCrossPlanWord(crossPlanFieldSidecarCount, 0)
-
 	fmt.Fprintf(&e.buf, "  ret i32 %d\n", carrierStatusOK)
+
 	fmt.Fprintf(&e.buf, "badmode:\n")
 	fmt.Fprintf(&e.buf, "  call void @llvm.trap()\n")
 	fmt.Fprintf(&e.buf, "  unreachable\n}\n\n")
@@ -142,10 +203,13 @@ func (e *Emitter) storeCrossPlanWord(field int, value uint64) {
 	fmt.Fprintf(&e.buf, "  store i64 %d, ptr %s\n", value, name)
 }
 
-func (e *Emitter) storeCrossPlanI8(field int, value uint64) {
-	name := fmt.Sprintf("%%p%d", field)
-	e.crossPlanFieldPtr(field, name)
-	fmt.Fprintf(&e.buf, "  store i8 %d, ptr %s\n", value, name)
+// storeCrossPlanModeFromArg writes the caller's own mode into the plan, so one
+// body serves both admitted modes and the apply's mode check sees exactly what
+// was asked for.
+func (e *Emitter) storeCrossPlanModeFromArg() {
+	name := fmt.Sprintf("%%p%d", crossPlanFieldMode)
+	e.crossPlanFieldPtr(crossPlanFieldMode, name)
+	fmt.Fprintf(&e.buf, "  store i8 %%mode, ptr %s\n", name)
 }
 
 func (e *Emitter) storeCrossPlanPtr(field int, value string) {
@@ -154,19 +218,8 @@ func (e *Emitter) storeCrossPlanPtr(field int, value string) {
 	fmt.Fprintf(&e.buf, "  store ptr %s, ptr %s\n", value, name)
 }
 
-// emitCrossMoveBody emits the apply.
-//
-// It re-derives what the plan claims and refuses a disagreement BEFORE touching
-// the source, which is the frozen contract: ops, mode, layout and the exact
-// byte totals must match, and success requires both allocator allowances to be
-// zero. For a move all of that is a comparison against constants this same
-// compiler wrote into the plan, so a mismatch means the plan came from another
-// descriptor or another mode -- exactly the confusion the check exists to
-// catch.
-//
-// The transfer itself is the byte move `move_init` performs. The source is left
-// as it is: emptying it is the caller's commit step, and the storage model puts
-// that after destination commit rather than inside this body.
+// emitCrossMoveBody emits the move apply: check the plan, then transfer the
+// bytes. The source is left as it is; emptying it is the caller's commit step.
 func (e *Emitter) emitCrossMoveBody(entry *valueops.Entry) {
 	size := entry.Facts.Size
 	align := entry.Facts.Align
@@ -179,22 +232,67 @@ func (e *Emitter) emitCrossMoveBody(entry *valueops.Entry) {
 		crossMoveName(entry.Type))
 
 	g := &glueTmp{}
-	e.checkCrossPlanPtrField(g, crossPlanFieldOps, "@"+valueOpsSymbol(entry.Type))
-	e.checkCrossPlanI8Field(g, crossPlanFieldMode, crossModeMove)
-	e.checkCrossPlanWordField(g, crossPlanFieldPayloadBytes, size)
-	e.checkCrossPlanWordField(g, crossPlanFieldPayloadAlign, align)
-	e.checkCrossPlanWordField(g, crossPlanFieldSidecarBytes, 0)
-	e.checkCrossPlanWordField(g, crossPlanFieldSidecarCount, 0)
-	e.checkCrossAllocatorAllowance(g, crossAllocFieldRemainingBytes)
-	e.checkCrossAllocatorAllowance(g, crossAllocFieldRemainingAllocations)
-
+	e.checkCommonCrossPlan(g, entry, crossModeMove, size, align)
 	e.emitGlueStorageCopy("%dst", "%src", size, align)
 	fmt.Fprintf(&e.buf, "  ret i32 %d\n", carrierStatusOK)
 	fmt.Fprintf(&e.buf, "mismatch:\n")
 	fmt.Fprintf(&e.buf, "  ret i32 %d\n}\n\n", carrierStatusPlanMismatch)
 }
 
-// checkCrossPlanWordField refuses unless the plan's field holds `want`.
+// emitCrossCloneBody emits the clone apply: check the plan, memcpy the value,
+// then fix up every counted-scalar leaf with a DEEP copy rather than a retain.
+//
+// There is no rollback block. The only recoverable failure is PLAN_MISMATCH,
+// which is answered before any copy; the deep copies themselves cannot
+// recoverably fail, because allocator exhaustion is process-terminal and never a
+// returned status. So the body either mismatches before touching anything or
+// succeeds.
+func (e *Emitter) emitCrossCloneBody(entry *valueops.Entry) error {
+	size := entry.Facts.Size
+	align := entry.Facts.Align
+	if align == 0 {
+		align = 1
+	}
+
+	fmt.Fprintf(&e.buf,
+		"define internal zeroext i32 @%s(ptr %%dst, ptr %%src, ptr %%plan, ptr %%alloc) {\nentry:\n",
+		crossCloneName(entry.Type))
+
+	g := &glueTmp{}
+	e.checkCommonCrossPlan(g, entry, crossModeClone, size, align)
+	e.emitGlueStorageCopy("%dst", "%src", size, align)
+	// A value that owns no heap is finished by the byte copy: it has no counted
+	// scalar to duplicate, no string to clone, no handle to retain, and so no
+	// member to walk. Skipping the walk is not only cheaper -- it avoids asking
+	// for aggregate field offsets a plain struct's layout need not carry, which
+	// is the difference between a clone that memcpys and one that must fix up.
+	if e.typeOwnsHeap(entry.Type) {
+		if err := e.walkGlueValue(g, entry.Type, &entry.Facts, align, crossCloneWalk{e: e}); err != nil {
+			return err
+		}
+	}
+	fmt.Fprintf(&e.buf, "  ret i32 %d\n", carrierStatusOK)
+	fmt.Fprintf(&e.buf, "mismatch:\n")
+	fmt.Fprintf(&e.buf, "  ret i32 %d\n}\n\n", carrierStatusPlanMismatch)
+	return nil
+}
+
+// checkCommonCrossPlan emits the plan checks both applies share: ops, mode,
+// layout and the exact byte totals must agree, and both allocator allowances
+// must be zero. Every check sits before the caller's copy, because a body that
+// copied first and refused after would have written a destination its caller was
+// told stayed empty.
+func (e *Emitter) checkCommonCrossPlan(g *glueTmp, entry *valueops.Entry, mode, size, align uint64) {
+	e.checkCrossPlanPtrField(g, crossPlanFieldOps, "@"+valueOpsSymbol(entry.Type))
+	e.checkCrossPlanI8Field(g, crossPlanFieldMode, mode)
+	e.checkCrossPlanWordField(g, crossPlanFieldPayloadBytes, size)
+	e.checkCrossPlanWordField(g, crossPlanFieldPayloadAlign, align)
+	e.checkCrossPlanWordField(g, crossPlanFieldSidecarBytes, 0)
+	e.checkCrossPlanWordField(g, crossPlanFieldSidecarCount, 0)
+	e.checkCrossAllocatorAllowance(g, crossAllocFieldRemainingBytes)
+	e.checkCrossAllocatorAllowance(g, crossAllocFieldRemainingAllocations)
+}
+
 func (e *Emitter) checkCrossPlanWordField(g *glueTmp, field int, want uint64) {
 	ptr := g.next()
 	fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds %%struct.rt_cross_plan, ptr %%plan, i32 0, i32 %d\n", ptr, field)
@@ -228,9 +326,6 @@ func (e *Emitter) checkCrossPlanPtrField(g *glueTmp, field int, want string) {
 	fmt.Fprintf(&e.buf, "  br i1 %s, label %%%s, label %%mismatch\n%s:\n", ok, next, next)
 }
 
-// checkCrossAllocatorAllowance refuses unless the allowance is already zero. A
-// move consumes nothing, so anything else means the plan was built for a
-// different operation.
 func (e *Emitter) checkCrossAllocatorAllowance(g *glueTmp, field int) {
 	ptr := g.next()
 	fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds %%struct.rt_cross_allocator, ptr %%alloc, i32 0, i32 %d\n", ptr, field)
@@ -240,4 +335,63 @@ func (e *Emitter) checkCrossAllocatorAllowance(g *glueTmp, field int) {
 	fmt.Fprintf(&e.buf, "  %s = icmp eq i64 %s, 0\n", ok, got)
 	next := fmt.Sprintf("agree%d", g.n)
 	fmt.Fprintf(&e.buf, "  br i1 %s, label %%%s, label %%mismatch\n%s:\n", ok, next, next)
+}
+
+// crossCloneWalk is the clone half of the shared member walk, differing from
+// cloneWalk in exactly one arm: a counted scalar is DEEP-COPIED, not retained.
+type crossCloneWalk struct{ e *Emitter }
+
+func (crossCloneWalk) labelPrefix() string { return "xc" }
+
+// The discriminant is read from the DESTINATION, already carried there by the
+// memcpy, exactly as the local clone walk does.
+func (crossCloneWalk) tagStorage() string { return "%dst" }
+
+func (w crossCloneWalk) needsFixup(resolved types.TypeID) bool {
+	return w.e.memberNeedsCloneFixup(resolved)
+}
+
+// leafAt fixes up a value that owns something directly. It is emitLeafCloneAt
+// with the counted-scalar arm replaced: local clone RETAINS a shared block,
+// crossing must DUPLICATE it, because the count is non-atomic and sharing it
+// across shards is a race. The string and handle arms are identical to the
+// local clone -- a string is single-owner bytes that get their own copy either
+// way, and a channel handle's count is atomic and runtime-owned.
+func (w crossCloneWalk) leafAt(g *glueTmp, resolved types.TypeID, baseAlign, off uint64) bool {
+	e := w.e
+	switch {
+	case e.types.IsRefCountedScalar(resolved):
+		// The one counted scalar today is WidthAny float, so the duplicate is
+		// rt_bigfloat_clone: NULL-safe (NULL is the zero float and clones to
+		// NULL), and its allocation is target-owner memory rather than a
+		// transport sidecar. When int/uint join, this arm dispatches by which
+		// counted scalar the leaf is; there is only one now.
+		fp := g.next()
+		fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds i8, ptr %%dst, i64 %d\n", fp, off)
+		fv := g.next()
+		fmt.Fprintf(&e.buf, "  %s = load ptr, ptr %s, align %d\n", fv, fp, memberAccessAlign(baseAlign, off))
+		dup := g.next()
+		fmt.Fprintf(&e.buf, "  %s = call ptr @rt_bigfloat_clone(ptr %s)\n", dup, fv)
+		fmt.Fprintf(&e.buf, "  store ptr %s, ptr %s, align %d\n", dup, fp, memberAccessAlign(baseAlign, off))
+		return true
+	default:
+		// Everything else the crossing duplicates exactly as the local clone
+		// does, so it goes through the shared leaf and cannot drift from it.
+		return e.emitLeafCloneAt(g, resolved, baseAlign, off)
+	}
+}
+
+// compositeAt recurses into the nested composite's own CROSS clone, not its
+// local one: a nested member's counted scalars must be duplicated too.
+func (w crossCloneWalk) compositeAt(g *glueTmp, resolved types.TypeID, baseAlign, off uint64) {
+	e := w.e
+	dstField := g.next()
+	fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds i8, ptr %%dst, i64 %d\n", dstField, off)
+	srcField := g.next()
+	fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds i8, ptr %%src, i64 %d\n", srcField, off)
+	// A nested cross-clone is dispatched with the same plan and allocator; both
+	// are the whole value's, and a nested body charges no sidecars of its own,
+	// so the allowances it checks are the same zeros.
+	fmt.Fprintf(&e.buf, "  call i32 @%s(ptr %s, ptr %s, ptr %%plan, ptr %%alloc)\n",
+		e.requireCrossCloneGlue(resolved), dstField, srcField)
 }

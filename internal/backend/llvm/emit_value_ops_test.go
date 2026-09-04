@@ -152,6 +152,8 @@ func TestEmittedValueOpsDescriptorsAgreeWithTheOperationRegistry(t *testing.T) {
 					want = "ptr @" + crossPlanName(id)
 				case "cross_move_init":
 					want = "ptr @" + crossMoveName(id)
+				case "cross_clone_init":
+					want = "ptr @" + crossCloneName(resolveValueType(result.Sema.TypeInterner, id))
 				default:
 					want = "ptr @" + moveInitName(id)
 				}

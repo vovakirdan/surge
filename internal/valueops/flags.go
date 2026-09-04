@@ -59,9 +59,9 @@ const (
 // StagingNotice is the sentence Dump prints so that every reader of a dump, and
 // every reader of a hash mismatch, is told which bits this registry can carry
 // before they reach the entries.
-const StagingNotice = "flags carry abi-true bits only (copy, clonable, droppable, shard_movable); " +
-	"traceable and cross_clonable are recorded as " +
-	"non-abi capabilities and become flags only once their rt_value_ops slots are filled"
+const StagingNotice = "flags carry abi-true bits only (copy, clonable, droppable, shard_movable, cross_clonable); " +
+	"traceable is recorded as a " +
+	"non-abi capability and becomes a flag only once its rt_value_ops slot is filled"
 
 // applicability says WHEN the frozen manifest requires a slot to be non-null.
 //
@@ -225,8 +225,13 @@ var slotRules = [...]slotRule{
 	// plus a late mask.
 	{slot: "cross_move_init", when: capabilitySlot, bit: FlagShardMovable, flag: "RT_VALUE_FLAG_SHARD_MOVABLE",
 		fill: filledByBackendDerivedBody},
+	// cross_clone_init became backend-derived with Epic 22's clone half: the
+	// body is the local clone walk with its counted-scalar arm changed to a deep
+	// copy, so every clonable-across type can be backed. Promoted from a staged
+	// verdict to an ABI flag in the same change, one backed state throughout,
+	// per the owner's ruling of 2026-09-04.
 	{slot: "cross_clone_init", when: capabilitySlot, bit: FlagCrossClonable, flag: "RT_VALUE_FLAG_CROSS_CLONABLE",
-		fill: filledNowhere},
+		fill: filledByBackendDerivedBody},
 
 	// The two the manifest declares non-null, which no capability bit names.
 	// They are mandatory alike and mandatory for DIFFERENT reasons.
@@ -245,10 +250,10 @@ var slotRules = [...]slotRule{
 	// The gate reads FLAGS and not Capabilities on purpose. The runtime sees
 	// only layout.flags, and a staged verdict must imply no ABI obligation until
 	// its bit can be set — letting one choose an ABI slot's filler is the
-	// coupling staging exists to prevent. With cross_move_init backed, a
-	// shard-movable descriptor resolves here to its own per-type plan body;
-	// cross_clone_init is still filledNowhere, so a descriptor that could only
-	// clone across still cannot exist and still binds the trap.
+	// coupling staging exists to prevent. Both cross bits are backed now, so a
+	// descriptor carrying either resolves here to its own per-type plan body; a
+	// descriptor carrying neither still binds the trap, since it has no legal
+	// mode to answer.
 	{slot: "plan_cross", when: unconditionalSlot,
 		gate:      FlagShardMovable | FlagCrossClonable,
 		fill:      filledByBackendDerivedBody,

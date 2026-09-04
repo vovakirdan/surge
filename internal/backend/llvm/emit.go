@@ -89,6 +89,12 @@ type Emitter struct {
 	// (emit_clone_array.go).
 	cloneGlueNeeded     map[types.TypeID]struct{}
 	cloneElemGlueNeeded map[types.TypeID]struct{}
+	// Recursive crossing clone glue (emit_cross_glue.go). It is its own demand
+	// set rather than the clone one above because a nested composite must
+	// cross-clone -- deep-copying its counted scalars -- where an ordinary clone
+	// only retains them; sharing the set would emit the wrong body for a nested
+	// member.
+	crossCloneGlueNeeded map[types.TypeID]struct{}
 }
 
 type funcEmitter struct {

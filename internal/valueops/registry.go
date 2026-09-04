@@ -346,7 +346,6 @@ func formatCapabilities(c Capabilities) string {
 		out = append(out, name...)
 	}
 	appendVerdict("traceable", c.Traceable)
-	appendVerdict("cross_clonable", c.CrossClonable)
 	return string(out)
 }
 

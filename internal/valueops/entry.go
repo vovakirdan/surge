@@ -22,15 +22,13 @@ import (
 // string has exactly one home.
 type Capabilities struct {
 	// Traceable is the root-visiting verdict destined for RT_VALUE_FLAG_TRACEABLE.
-	Traceable bool
-	// CrossClonable is the crossing-duplicate verdict destined for
-	// RT_VALUE_FLAG_CROSS_CLONABLE.
 	//
-	// ShardMovable used to sit beside it and left when its slot got a body: it
-	// is RT_VALUE_FLAG_SHARD_MOVABLE now, an ABI bit like Droppable, and a
-	// verdict recorded here as well would be the second statement of one fact
-	// the owner's 2026-09-04 ruling forbids.
-	CrossClonable bool
+	// It is the last staged verdict: trace has no body yet. ShardMovable and
+	// CrossClonable used to sit beside it and left when Epic 22's move and clone
+	// halves gave their slots bodies -- they are ABI bits now, and a verdict
+	// recorded here as well would be the second statement of one fact the
+	// owner's 2026-09-04 ruling forbids.
+	Traceable bool
 }
 
 // Evidence is the frozen explanation of why one entry's flags and capabilities

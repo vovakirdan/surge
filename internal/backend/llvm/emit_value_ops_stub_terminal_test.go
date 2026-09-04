@@ -91,15 +91,34 @@ func TestShardMovablePlanCrossAnswersAMove(t *testing.T) {
 	}
 }
 
-// TestShardMovablePlanCrossTrapsAnUnservableMode: the same descriptor asked for
-// a CLONE has no legal answer -- its clone slot is filled nowhere -- and the
+// TestCrossCapablePlanCrossAnswersAClone is the clone half dispatched through a
+// real descriptor: a cross-clonable type's plan_cross asked for a clone returns
+// OK, and — like the move — charges no sidecars, because the deep-copy
+// allocations are target-owner memory rather than transport credit.
+func TestCrossCapablePlanCrossAnswersAClone(t *testing.T) {
+	text, signalled, runErr := dispatchPlanCross(t, defectNone, true, 1)
+	if runErr != nil || signalled {
+		t.Fatalf("a cross-clonable plan_cross asked for a clone must return, not trap: %v\n%s", runErr, text)
+	}
+	if !strings.Contains(text, "plan_cross returned status=0") {
+		t.Fatalf("a clone plan must answer OK:\n%s", text)
+	}
+	for _, want := range []string{"plan ops=self", "mode=1", "sidecar_bytes=0", "sidecar_count=0"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("the clone plan is missing %q:\n%s", want, text)
+		}
+	}
+}
+
+// TestCrossPlanTrapsAnUnservableMode: a mode the descriptor admits neither of --
+// mode 2 is neither move (0) nor clone (1) -- has no legal answer, and the
 // storage model says a call outside a descriptor's cross capability is a
 // protocol violation rather than a refusal. A status here would assert the call
 // was legal and merely declined; so it must not return, exactly like the stub.
-func TestShardMovablePlanCrossTrapsAnUnservableMode(t *testing.T) {
-	text, signalled, runErr := dispatchPlanCross(t, defectNone, true, 1)
+func TestCrossPlanTrapsAnUnservableMode(t *testing.T) {
+	text, signalled, runErr := dispatchPlanCross(t, defectNone, true, 2)
 	if runErr == nil {
-		t.Fatalf("a shard-movable plan_cross asked for a clone returned normally; an unservable mode must not return\n%s", text)
+		t.Fatalf("plan_cross asked for mode 2 returned normally; an unservable mode must not return\n%s", text)
 	}
 	if !strings.Contains(text, "about to dispatch") {
 		t.Fatalf("the probe died before the dispatch, so this proves nothing: %v\n%s", runErr, text)
@@ -182,8 +201,12 @@ func dispatchPlanCross(t *testing.T, defect descriptorDefect, crossCapable bool,
 	// Same reason as the admit probe: a sliced drop body names its reclamation,
 	// which this claim never dispatches.
 	var stubs strings.Builder
-	for _, symbol := range dropBodyRuntimeCallees(ir) {
-		fmt.Fprintf(&stubs, "void %s(void* unused) { (void)unused; }\n", symbol)
+	for _, callee := range dropBodyRuntimeCallees(ir) {
+		if callee.returnsPtr {
+			fmt.Fprintf(&stubs, "void* %s(void* unused) { (void)unused; return 0; }\n", callee.name)
+		} else {
+			fmt.Fprintf(&stubs, "void %s(void* unused) { (void)unused; }\n", callee.name)
+		}
 	}
 	probeSrc := fmt.Sprintf(`#include "rt_slot_control.h"
 #include <stdalign.h>

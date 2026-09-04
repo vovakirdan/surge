@@ -97,12 +97,19 @@ func (e *Emitter) emitValueOpsDescriptors() error {
 			return backingErr
 		}
 		e.emitMoveInitBody(&entry)
-		// A shard-movable entry also gets its plan and its cross move. Both are
-		// derived from the same facts the descriptor constant will carry, so the
-		// plan a body writes and the layout the runtime preflights cannot drift.
-		if e.backedFlags(&entry)&valueops.FlagShardMovable != 0 {
-			e.emitCrossMoveBodies(&entry)
-		}
+		// A cross-capable entry also gets its crossing bodies: one mode-branching
+		// plan, the move apply if it is shard-movable, and a DEMAND for the clone
+		// apply if it is cross-clonable. All are derived from the same facts the
+		// descriptor constant will carry, so the plan a body writes and the
+		// layout the runtime preflights cannot drift.
+		flags := e.backedFlags(&entry)
+		e.emitCrossBodies(&entry, flags)
+	}
+	// Drain the cross-clone demand before the constant loop names those bodies:
+	// a clone apply recurses into a nested composite's own clone, and the
+	// fixpoint follows that recursion.
+	if err := e.emitCrossGlue(); err != nil {
+		return err
 	}
 	for _, id := range registry.TypeIDs() {
 		entry, err := registry.Value(id)
@@ -139,15 +146,6 @@ func (e *Emitter) valueOpsBacking(entry *valueops.Entry) error {
 		if err != nil {
 			return fmt.Errorf("llvm: operation registry entry type#%d has no filler for %s: %w",
 				entry.Type, slot, err)
-		}
-		if filler.Kind == valueops.FillBackendDerivedBody && slot == "cross_clone_init" {
-			// The clone half is not built. The registry refuses the bit today,
-			// so this is unreachable -- and the day it is un-staged without a
-			// body this is the refusal that stops the build here rather than
-			// shipping a null the runtime preflight rejects far from the cause.
-			return fmt.Errorf(
-				"llvm: operation registry entry type#%d claims %s and this backend emits no body for it yet",
-				entry.Type, slot)
 		}
 		if filler.Kind != valueops.FillRegistryNamedBody {
 			continue
@@ -299,10 +297,12 @@ func (e *Emitter) valueOpsOperand(entry *valueops.Entry, slot string, filler val
 		if slot == "cross_move_init" {
 			return "ptr @" + crossMoveName(entry.Type)
 		}
-		// Only cross_clone_init is left, and it is still filled nowhere, so no
-		// entry can reach here with it: checkSlots refuses the bit. If one does,
-		// valueOpsBacking has already refused the module with a legible reason
-		// rather than letting this null ship against a set flag.
+		if slot == "cross_clone_init" {
+			// The exact type, like move: the clone plan a body writes is made of
+			// this entry's facts, and the demand fixpoint emitted the body keyed
+			// the same way.
+			return "ptr @" + crossCloneName(resolveValueType(e.types, entry.Type))
+		}
 		return "ptr null"
 	case valueops.FillRegistryNamedBody:
 		if name := e.registryNamedSymbol(entry, slot); name != "" {
