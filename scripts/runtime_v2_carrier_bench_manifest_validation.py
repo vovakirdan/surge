@@ -26,18 +26,20 @@ def validate_manifest(manifest: Manifest) -> None:
     if manifest.schema_version != 2:
         raise ManifestError(f"unsupported schema_version {manifest.schema_version}")
     protocol = manifest.protocol
-    # Owner rulings 2026-09-04 (the file effect): eight physically distinct
-    # copies per side, each with one warmup and five measured pairs; the
-    # side is scored on the median copy among those whose own batches agree.
-    # Five pairs came after three read a CV of 0.055-0.061 on rows whose
-    # ratios were all in budget; the median came after the fastest copy read
-    # select-send-scalar 0.960 / 0.939 / 0.898 on three runs of one SHA pair
-    # (a single unusually fast base copy) where the median read 0.976 /
-    # 0.968 / 0.983; eight copies steady the median itself. The numbers are
-    # the ruling's, not tunables.
-    if protocol.warmups != 1 or protocol.measured_pairs != 5 or protocol.placements != 8:
+    # Owner rulings 2026-09-04 (the file effect): twenty-four physically
+    # distinct copies per side, each with one warmup and five measured
+    # pairs; the side is scored on the median copy among those whose own
+    # batches agree. Five pairs came after three read a CV of 0.055-0.061
+    # on rows whose ratios were all in budget; the median came after the
+    # fastest copy read select-send-scalar 0.960 / 0.939 / 0.898 on three
+    # runs of one SHA pair (a single unusually fast base copy); twenty-four
+    # copies came after the median of eight still swung +-3-4 % between runs
+    # (0.968 / 0.983 / 0.930 on the same rows, copies of one side spread
+    # +-10 % within a run), which puts a row at the budget line on a coin
+    # toss. The numbers are the ruling's, not tunables.
+    if protocol.warmups != 1 or protocol.measured_pairs != 5 or protocol.placements != 24:
         raise ManifestError(
-            "protocol must freeze exactly 1 warmup, 5 measured pairs and 8 placements per side "
+            "protocol must freeze exactly 1 warmup, 5 measured pairs and 24 placements per side "
             "(owner ruling 2026-09-04)"
         )
     if protocol.max_cv != 0.05:

@@ -15073,3 +15073,30 @@ reads copy 1 (1100 us) where the median is copy 7 (1275). The eleventh
 paired attempt runs on this protocol: a harness-only change on
 `35cbad03`'s tree, so the queue runs the file-size gate, the harness
 tests and the bench.
+
+**Eleventh attempt, `e4f2d23e` (file-size rc=0, harness tests rc=0, the
+bench 211 s):** `select-send-scalar` 0.909 and `array-teardown-scalar`
+0.940 under the median of eight; everything else in budget. The base's
+eight select-send copies read 507, 409, 445, 432, 438, 418, 453, 463 us
+per run -- a spread of +-10 % within one run -- and a median of eight
+such draws moves +-3-4 % from run to run: across the three runs of the
+median protocol the row read 0.968, 0.983, 0.930 and `array-teardown-scalar`
+1.048, 0.966, 0.936. Their means, 0.960 and 0.983, sit inside the budget;
+a single run lands outside it one time in three or four. The
+instructions do not explain the residual (+1.3 % on select-send by
+callgrind, +0.5 % on the arrays); what remains is the placement of a
+larger binary, which no estimator over eight draws resolves to the
+budget's 5 %.
+
+### F7, the fifth ruling of 2026-09-04: twenty-four copies (2026-09-04)
+
+**Owner ruling:** twenty-four copies per side, the median of the clean
+ones as before, five pairs each, budgets unchanged -- the median's own
+noise falls to about +-1.5-2 %, below the budget's step, at the price of
+a run of about eleven minutes. Declined: a 0.90 budget for the
+sub-millisecond rows (masks a regression of up to 10 % on them) and
+closing on the expectation over attempts 8-11 without one green run.
+Implemented as the frozen number in `validate_manifest` and the
+manifest; the estimator test now derives the expected median copy from
+the protocol's own rule for any copy count. The twelfth paired attempt
+runs on this protocol.

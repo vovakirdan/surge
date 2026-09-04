@@ -259,10 +259,10 @@ def counter_values(
     }
 
 
-# The protocol's shape as the test manifest freezes it: eight copies of a
-# side's binary, five measured pairs each (owner rulings 2026-09-04), so a
-# side carries forty runs and pair_index // MEASURED_PAIRS is the copy.
-PLACEMENTS = 8
+# The protocol's shape as the test manifest freezes it: twenty-four copies
+# of a side's binary, five measured pairs each (owner rulings 2026-09-04),
+# so a side carries 120 runs and pair_index // MEASURED_PAIRS is the copy.
+PLACEMENTS = 24
 MEASURED_PAIRS = 5
 MEASURED_RUNS = PLACEMENTS * MEASURED_PAIRS
 
@@ -381,7 +381,7 @@ def manifest_json() -> dict[str, object]:
         "protocol": {
             "warmups": 1,
             "measured_pairs": 5,
-            "placements": 8,
+            "placements": 24,
             "max_cv": 0.05,
             "throughput_min_ratio": 0.95,
             "p95_max_ratio": 1.10,

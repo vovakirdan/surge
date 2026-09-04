@@ -347,33 +347,46 @@ class ManifestTests(unittest.TestCase):
         # lower one of an even count -- and the CV that gates the row is that
         # copy's own.
         manifest = make_manifest()
-        by_copy = [1300, 1100, 1200, 1250, 1400, 1150, 1350, 1275]
-        # Ascending elapsed (descending throughput): 1100 (copy 1), 1150 (5),
-        # 1200 (2), 1250 (3), 1275 (7), 1300 (0), 1350 (6), 1400 (4). Median
-        # throughput of eight, the lower one: copy 7 at 1275 (the fifth
-        # fastest is the fourth slowest).
+        # One distinct elapsed per copy, in no particular order, so the
+        # median is a definite copy: a pseudo-random permutation of
+        # 1100, 1110, ..., 1100 + 10 * (PLACEMENTS - 1).
+        by_copy = [1100 + 10 * ((7 * index + 3) % PLACEMENTS) for index in range(PLACEMENTS)]
+        self.assertEqual(len(set(by_copy)), PLACEMENTS)
+
+        def median_copy(elapsed_by_copy: list[int], exclude: set[int] = frozenset()) -> int:
+            # The protocol's own reading of "median": the copies eligible,
+            # ascending by throughput (descending by elapsed, ties by copy
+            # index), the lower middle one.
+            eligible = [index for index in range(PLACEMENTS) if index not in exclude]
+            ascending = sorted(eligible, key=lambda index: (-elapsed_by_copy[index], index))
+            return ascending[(len(ascending) - 1) // 2]
+
         elapsed = [value for value in by_copy for _ in range(MEASURED_PAIRS)]
         runs = self._runs_with_p95("base", [70] * MEASURED_RUNS, elapsed_ns=elapsed)
         score = score_side(runs, MEASURED_PAIRS)
-        self.assertEqual(score.placement, 7)
-        self.assertEqual(score.throughput, runs[7 * MEASURED_PAIRS].timing.throughput())
+        expected = median_copy(by_copy)
+        self.assertEqual(score.placement, expected)
+        self.assertEqual(score.throughput, runs[expected * MEASURED_PAIRS].timing.throughput())
         self.assertEqual(len(score.placement_throughputs), PLACEMENTS)
         self.assertEqual(score.throughput_cv, 0.0)
-        # Copy 7 wanders 9 % on its own (its last pair reads 1480): with the
-        # protocol in hand it is not a reading, the median is taken over the
-        # seven clean copies -- ascending throughput 1400, 1350, 1300, 1250,
-        # 1200, 1150, 1100, the fourth of seven is copy 3 at 1250 -- and the
-        # report says which copies were clean.
-        elapsed[8 * MEASURED_PAIRS - 1] = 1480
+        self.assertNotEqual(expected, by_copy.index(min(by_copy)))  # not the fastest
+        # The median copy wanders 9 % on its own (its last pair reads 12 %
+        # slower): with the protocol in hand it is not a reading, the median
+        # is taken over the clean copies, and the report says which were.
+        elapsed[(expected + 1) * MEASURED_PAIRS - 1] = int(by_copy[expected] * 1.12)
         wandering = self._runs_with_p95("base", [70] * MEASURED_RUNS, elapsed_ns=elapsed)
         clean = score_side(wandering, MEASURED_PAIRS, manifest.protocol)
-        self.assertEqual(clean.placement, 3)
-        self.assertEqual(clean.throughput, wandering[3 * MEASURED_PAIRS].timing.throughput())
+        rechosen = median_copy(by_copy, exclude={expected})
+        self.assertNotEqual(rechosen, expected)
+        self.assertEqual(clean.placement, rechosen)
+        self.assertEqual(clean.throughput, wandering[rechosen * MEASURED_PAIRS].timing.throughput())
         self.assertEqual(clean.throughput_cv, 0.0)
-        self.assertEqual(clean.placement_clean, (True,) * 7 + (False,))
+        self.assertEqual(
+            clean.placement_clean, tuple(index != expected for index in range(PLACEMENTS))
+        )
         # Without the protocol the wandering copy still counts, and the
-        # median of eight lands on it (1275 is still the fifth fastest).
-        self.assertEqual(score_side(wandering, MEASURED_PAIRS).placement, 7)
+        # median lands on it again (its median pair did not move).
+        self.assertEqual(score_side(wandering, MEASURED_PAIRS).placement, expected)
         self.assertGreater(score_side(wandering, MEASURED_PAIRS).throughput_cv, 0.05)
         # Ungrouped (the pairs-per-copy left unsaid) the same runs are one
         # copy, scored as before this ruling.
