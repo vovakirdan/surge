@@ -14790,3 +14790,79 @@ modes five microseconds apart with no trend, and the pairing read the
 base in one mode and the candidate in the other; it is the harness's
 comparison of two binaries' layouts on a 40 us batch, not a cost the
 runtime added, and it is recorded as such.
+
+### F7, sixth and seventh attempts: `select-send-scalar` closes, and the Option that called libc (2026-09-04)
+
+Sixth attempt, `6b24a16a` (before the retry early-out), refused on the
+base side's own noise (`array-teardown-composite base throughput CV
+0.051869`); under it the gated rows read `array-teardown-scalar` 0.664
+(base 75 us x7, candidate 113/85/111/113/116/115/99), `channel-buffered-scalar`
+0.874 (701 -> 802), `select-send-scalar` 0.872 (480 -> 550), and a new
+kind of red the variant-"в" gate can give: `blocking-composite` /
+`blocking-scalar` candidate p95 CV 0.057 / 0.055 at a p95 of 13-14 us,
+above the 1 us floor. A correction to the fifth attempt's record above:
+its `array-teardown-scalar` elapsed was base 77 us, candidate 87, not
+39/44 -- those were the sums of the per-operation windows.
+
+Seventh attempt, `f4676157` (gates on the runner first: file-size
+`EPIC_BASE=7df10725` rc=0, crossing-check 122 s rc=0, the tagged
+`TestRuntimeV2ChannelClaimRetry*` stands 32 s rc=0, ctidy rc=0, W8 20/20
+in 1025 s): `select-send-scalar` **1.015** (base 439 us, candidate 433),
+`channel-buffered-scalar` 1.063 (750 -> 706), `array-teardown-scalar`
+1.052, `zero` 1.126. The early-out closed the select row entirely. The
+refusal moved to `array-grow-scalar p95 ratio 1.219512 above 1.100000`,
+with `blocking-scalar` p95 CV 0.0547 and `map-teardown-scalar` 0.888
+(191 -> 215) beside it.
+
+**What the sixth attempt's `array-teardown-scalar` was.** Its per-operation
+latencies have no spikes (none above 300 ns on either side); the
+candidate's median operation is 60 ns where the base's is 40, uniformly,
+and the mode is chosen once per process (85 / 99 / 113 us batches). On
+this machine the same fixture built by the two compilers reads 77 us
+(base) against 88 (candidate) at `SHARDS=1 THREADS=1` and at `2/2` alike,
+so it is not contention. Callgrind counts the two within 0.5 % and every
+hot runtime function (`free`, `_int_free`, `malloc`, `rt_free`,
+`rt_heap_accounting_record_free`, `rt_monotonic_now`) at exactly the same
+instructions; cachegrind's D1/LL misses and branch mispredictions are the
+same or better on the candidate; the runtime's hot functions are
+byte-identical modulo addresses. What differs is the fixture's own
+generated code: the Option materialisation on the `pop` path carries
+`call memset@plt` twice per function on the candidate and nothing on the
+base. `b7493eae` (Wave D, RV2-DEBT-315) zeroes a union's whole storage
+with `llvm.memset` before writing its discriminant -- correct, and the
+object step compiles the IR with `clang -c -x ir` and no `-O`
+(`internal/buildpipeline/build.go`), where a memset intrinsic of any size
+is a libc call. Callgrind at 2/2 reads `__memset_avx2_unaligned_erms`
+11,286 -> 22,561 instructions, +22 per operation, one call each.
+
+**Removed:** `emitUnionStorageInit` writes the zero bytes as word stores
+(`i64` at 8-byte alignment, narrower where the alignment or a tail says
+so) below `unionZeroStoreLimit` = 256 bytes and keeps the memset above it;
+the six emitters (tags, bare members, casts, the map Option) go through
+it unchanged. The three tests that pinned the memset now pin the stores
+(`unionZeroStoresIn`), and `TestUnionStorageBelowTheLimitIsClearedByWordStores`
+pins the shapes at 16/8, 12/4, 20/8 (a 4-byte tail), 248 and the limit
+itself. Rule 13: with every union back on memset, the bare-member row,
+the map-Option row and all five shapes are red ("bytes 0..8 are never
+cleared"). After the change `fn.3`'s `memset@plt` calls are 0 (were 2),
+the LLVM parity suite is green (458 s), and the local fixture reads 85 us
+(was 88; base 77) -- the memset was a third of the local gap, and the
+rest is not this machine's to name: on the runner, where it matters, the
+same candidate and base fixtures read equal (below).
+
+**The modes are the fixture cores' C1, and the harness's numbers are not the
+fixture's.** On the runner (`/srv/ci/tmp/at_modes*.sh`, C2/C3 off), the
+candidate's arrays fixture under `taskset -c 8,10` is exactly bimodal --
+40 / 52 us, forty runs, at `SHARDS=2 THREADS=2` and at `1/1` alike --
+and pinned to core 8 alone, or 10 alone, reads 41 us forty times; the
+maps fixture 95 / 120 against 93. With C1 (`state1`) off on 8 and 10 as
+well, the pair of cores reads 41 and 94 flat, and the base's fixtures
+beside it 42 and 99: **no regression on either row on the runner.** The
+same forty batches through the harness's own `_run_batch` and
+`run_checked` environment read 39 and 92. Yet the full harness, in the
+same C-state shape, reads the same rows at 75-85 and 176-201 us, and
+three runs of the same SHA pair in a row give `select-send-scalar`
+439/433, 470/475, 428/496 and `zero` 66/59, 55/59, 60/67 -- flat within
+a run, ±10-15 % on both sides between runs. That is the open question
+of the next section, and until it is answered no ratio the harness
+prints is a measurement of the tree.

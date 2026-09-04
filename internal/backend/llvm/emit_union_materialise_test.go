@@ -115,13 +115,100 @@ func TestBareMemberIsMaterialisedWithItsDiscriminant(t *testing.T) {
 			wantIndex, extractMain(ir))
 		return
 	}
-	zero := "call void @llvm.memset.p0.i64(ptr align " + itoa(int(wantAlign)) + " " + stored[1] +
-		", i8 0, i64 " + itoa(int(wantSize)) + ", i1 false)"
-	zeroAt := strings.Index(ir, zero)
+	zeroAt, missing := unionZeroStoresIn(ir, stored[1], wantSize, wantAlign)
 	tagAt := strings.Index(ir, stored[0])
-	if zeroAt < 0 || zeroAt > tagAt {
-		t.Errorf("the %d-byte union destination was not deterministically initialized before case %d:\n%s",
-			wantSize, wantIndex, extractMain(ir))
+	if missing != "" || zeroAt > tagAt {
+		t.Errorf("the %d-byte union destination was not deterministically initialized before case %d (%s):\n%s",
+			wantSize, wantIndex, missing, extractMain(ir))
+	}
+}
+
+// unionZeroStoresIn finds the word stores that clear `size` bytes at dst (the
+// shape emitUnionStorageInit writes below unionZeroStoreLimit): a store at
+// offset 0 through dst itself, and one through a getelementptr for every
+// further word. It returns where the earliest of them sits, and names the
+// first byte range no store covers, "" when every byte is cleared.
+func unionZeroStoresIn(ir, dst string, size, align uint64) (first int, missing string) {
+	width := min(align, 8)
+	if width == 0 {
+		width = 1
+	}
+	first = -1
+	for offset := uint64(0); offset < size; {
+		store := width
+		for store > 1 && offset+store > size {
+			store /= 2
+		}
+		storeText := `store i` + itoa(int(store*8)) + ` 0, ptr `
+		var loc []int
+		if offset == 0 {
+			loc = regexp.MustCompile(storeText + regexp.QuoteMeta(dst) + `, align ` + itoa(int(store)) + `\n`).
+				FindStringIndex(ir)
+		} else {
+			via := regexp.MustCompile(`(%t\d+) = getelementptr inbounds i8, ptr ` + regexp.QuoteMeta(dst) +
+				`, i64 ` + itoa(int(offset)) + `\n\s*` + storeText + `(%t\d+), align ` + itoa(int(store)) + `\n`)
+			if m := via.FindStringSubmatchIndex(ir); m != nil && ir[m[2]:m[3]] == ir[m[4]:m[5]] {
+				loc = m[:2]
+			}
+		}
+		if loc == nil {
+			return first, "bytes " + itoa(int(offset)) + ".." + itoa(int(offset+store)) + " are never cleared"
+		}
+		if first < 0 || loc[0] < first {
+			first = loc[0]
+		}
+		offset += store
+	}
+	return first, ""
+}
+
+// TestUnionStorageBelowTheLimitIsClearedByWordStores pins the two shapes of
+// emitUnionStorageInit at the boundary between them. The object step compiles
+// the IR without optimisation, where a memset intrinsic of any size is a libc
+// call; the bench's array-teardown row paid one per operation for it
+// (+21 ns of 40), so a union of ordinary size is cleared by stores instead.
+func TestUnionStorageBelowTheLimitIsClearedByWordStores(t *testing.T) {
+	cases := []struct {
+		size, align uint64
+		want        string
+	}{
+		{16, 8, "  store i64 0, ptr %l0, align 8\n" +
+			"  %t1 = getelementptr inbounds i8, ptr %l0, i64 8\n" +
+			"  store i64 0, ptr %t1, align 8\n"},
+		{12, 4, "  store i32 0, ptr %l0, align 4\n" +
+			"  %t1 = getelementptr inbounds i8, ptr %l0, i64 4\n" +
+			"  store i32 0, ptr %t1, align 4\n" +
+			"  %t2 = getelementptr inbounds i8, ptr %l0, i64 8\n" +
+			"  store i32 0, ptr %t2, align 4\n"},
+		// A tail narrower than the word is written at its own width.
+		{20, 8, "  store i64 0, ptr %l0, align 8\n" +
+			"  %t1 = getelementptr inbounds i8, ptr %l0, i64 8\n" +
+			"  store i64 0, ptr %t1, align 8\n" +
+			"  %t2 = getelementptr inbounds i8, ptr %l0, i64 16\n" +
+			"  store i32 0, ptr %t2, align 4\n"},
+		{unionZeroStoreLimit - 8, 8, ""},
+		{unionZeroStoreLimit, 8, "  call void @llvm.memset.p0.i64(ptr align 8 %l0, i8 0, i64 " +
+			itoa(unionZeroStoreLimit) + ", i1 false)\n"},
+	}
+	for _, c := range cases {
+		fe := &funcEmitter{emitter: &Emitter{}}
+		if err := fe.emitUnionStorageInit("%l0", c.size, c.align); err != nil {
+			t.Fatalf("size %d align %d: %v", c.size, c.align, err)
+		}
+		got := fe.emitter.buf.String()
+		if c.want == "" {
+			// The largest size below the limit: every byte by stores, no memset.
+			if strings.Contains(got, "llvm.memset") {
+				t.Errorf("size %d is below the limit but was cleared by memset:\n%s", c.size, got)
+			}
+			if _, missing := unionZeroStoresIn(got, "%l0", c.size, c.align); missing != "" {
+				t.Errorf("size %d: %s:\n%s", c.size, missing, got)
+			}
+			continue
+		}
+		if got != c.want {
+			t.Errorf("size %d align %d:\n got %q\nwant %q", c.size, c.align, got, c.want)
+		}
 	}
 }
 

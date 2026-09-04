@@ -132,14 +132,18 @@ func assertBareErrorMemberLayout(t *testing.T, body string, arm conversionErrorA
 	temporaryAlign := strconv.FormatUint(arm.temporaryAlign, 10)
 	tagStores := regexp.MustCompile(`store i32 `+caseIndex+`, ptr (%[lt][0-9]+), align [0-9]+`).FindAllStringSubmatch(body, -1)
 	for _, store := range tagStores {
+		// The storage is cleared word by word before the tag, so the payload
+		// offset may be addressed more than once; the payload's own address is
+		// the one the memcpy fills.
 		payloadPattern := `(%t[0-9]+) = getelementptr inbounds i8, ptr ` + regexp.QuoteMeta(store[1]) + `, i64 ` + payloadOffset
-		payload := regexp.MustCompile(payloadPattern).FindStringSubmatch(body)
-		if len(payload) != 2 {
-			continue
+		var copy []string
+		for _, payload := range regexp.MustCompile(payloadPattern).FindAllStringSubmatch(body, -1) {
+			copyPattern := `call void @llvm\.memcpy\.p0\.p0\.i64\(ptr align [0-9]+ ` +
+				regexp.QuoteMeta(payload[1]) + `, ptr align [0-9]+ (%[lt][0-9]+), i64 ` + payloadSize + `, i1 false\)`
+			if copy = regexp.MustCompile(copyPattern).FindStringSubmatch(body); len(copy) == 2 {
+				break
+			}
 		}
-		copyPattern := `call void @llvm\.memcpy\.p0\.p0\.i64\(ptr align [0-9]+ ` +
-			regexp.QuoteMeta(payload[1]) + `, ptr align [0-9]+ (%[lt][0-9]+), i64 ` + payloadSize + `, i1 false\)`
-		copy := regexp.MustCompile(copyPattern).FindStringSubmatch(body)
 		if len(copy) != 2 {
 			continue
 		}

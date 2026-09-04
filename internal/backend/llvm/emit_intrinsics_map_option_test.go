@@ -2,6 +2,7 @@ package llvm
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -128,13 +129,13 @@ func assertMapOptionWrittenInPlace(t *testing.T, ir, intrinsic string) {
 	if alloc == nil {
 		t.Fatalf("%s: the payload address %s is not inside a reserved Option:\n%s", intrinsic, payload, before)
 	}
-	zero := "call void @llvm.memset.p0.i64(ptr align " + alloc[2] + " " + option +
-		", i8 0, i64 " + alloc[1] + ", i1 false)"
-	zeroAt := strings.Index(before, zero)
+	optionSize, _ := strconv.ParseUint(alloc[1], 10, 64)
+	optionAlign, _ := strconv.ParseUint(alloc[2], 10, 64)
+	zeroAt, missing := unionZeroStoresIn(before, option, optionSize, optionAlign)
 	payloadAt := strings.Index(before, payloadMatch[0])
-	if zeroAt < 0 || zeroAt > payloadAt {
-		t.Fatalf("%s: the Option storage %s is not deterministically initialized before its payload is exposed:\n%s",
-			intrinsic, option, before)
+	if missing != "" || zeroAt > payloadAt {
+		t.Fatalf("%s: the Option storage %s is not deterministically initialized before its payload is exposed (%s):\n%s",
+			intrinsic, option, missing, before)
 	}
 
 	after := ir[call[1]:]

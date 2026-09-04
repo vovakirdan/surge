@@ -27,6 +27,18 @@ func (fe *funcEmitter) emitStructStorageZero(dst string, size, align uint64) err
 	return nil
 }
 
+// unionZeroStoreLimit divides the two ways a union's storage is cleared. Below
+// it the bytes are written as word stores; from it up, as one llvm.memset.
+//
+// The object step compiles the IR unoptimised (`clang -c -x ir`, no -O, in
+// buildpipeline), and at that level every memset intrinsic is a call into
+// libc whatever its size: the carrier bench's array-teardown row, which
+// materialises one Option per operation, read +21 ns per operation against a
+// base that wrote its Option with plain stores. A word store is one
+// instruction, and the storage sizes the union layouts produce are a few of
+// them.
+const unionZeroStoreLimit = 256
+
 func (fe *funcEmitter) emitUnionStorageInit(dst string, size, align uint64) error {
 	if fe == nil || fe.emitter == nil {
 		return fmt.Errorf("missing emitter for union storage initialization")
@@ -37,10 +49,38 @@ func (fe *funcEmitter) emitUnionStorageInit(dst string, size, align uint64) erro
 	if align == 0 {
 		align = 1
 	}
-	fmt.Fprintf(&fe.emitter.buf,
-		"  call void @llvm.memset.p0.i64(ptr align %d %s, i8 0, i64 %d, i1 false)\n",
-		align, dst, size)
+	if size >= unionZeroStoreLimit {
+		fmt.Fprintf(&fe.emitter.buf,
+			"  call void @llvm.memset.p0.i64(ptr align %d %s, i8 0, i64 %d, i1 false)\n",
+			align, dst, size)
+		return nil
+	}
+	fe.emitZeroWordStores(dst, size, align)
 	return nil
+}
+
+// emitZeroWordStores writes `size` zero bytes at dst as the widest stores the
+// alignment admits (at most 8 bytes each), narrowing only for a tail the
+// layout would not normally leave.
+func (fe *funcEmitter) emitZeroWordStores(dst string, size, align uint64) {
+	width := min(align, 8)
+	if width == 0 {
+		width = 1
+	}
+	for offset := uint64(0); offset < size; {
+		store := width
+		for store > 1 && offset+store > size {
+			store /= 2
+		}
+		ptr := dst
+		if offset != 0 {
+			ptr = fe.nextTemp()
+			fmt.Fprintf(&fe.emitter.buf,
+				"  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", ptr, dst, offset)
+		}
+		fmt.Fprintf(&fe.emitter.buf, "  store i%d 0, ptr %s, align %d\n", store*8, ptr, store)
+		offset += store
+	}
 }
 
 func (fe *funcEmitter) emitUnionDiscriminant(dst string, size, align uint64, caseIndex int) error {
