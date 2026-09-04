@@ -276,7 +276,17 @@ func TestRuntimeV2RemoteTaskBehavior(t *testing.T) {
 		{
 			name: "select-cancel-before-binding-resumes-cancelled",
 			mode: "select-cancel-unbound",
-			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2"),
+			env: remotePublicationEnv(
+				"SURGE_SHARDS=2", "SURGE_THREADS=2",
+				// The row parks the selector and then acts from the main
+				// thread, which is invisible to the quiescence scan — the
+				// documented external-feeder blind spot, so the detector's
+				// documented opt-out applies. Its two neighbours below have
+				// carried this since they were written; this row is the same
+				// shape and was missing it, which is why it panicked with
+				// "remote channel deadlock: an anchored select over 2 arms is
+				// parked ... while every shard is idle" in roughly half of runs.
+				"SURGE_REMOTE_DEADLOCK_DETECT=0"),
 		},
 		{
 			name: "select-cancel-of-a-parked-selector-resumes-cancelled",

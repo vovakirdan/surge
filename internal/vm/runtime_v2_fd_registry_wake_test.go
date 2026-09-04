@@ -208,7 +208,35 @@ func requireFDRegistryWakeFDTrace(
 	return values
 }
 
-func requireFDRegistryWakeFDDeltaFromBaseline(
+// requireFDRegistryParkedBaselineAndCleanDumps checks what the two trace dumps
+// can actually witness: the baseline reached the intended state (two parked fd
+// rows), and neither dump shows a legacy poll-build counter.
+//
+// IT DELIBERATELY DOES NOT ASSERT A DELTA ON io_poll_wake_fd, and restoring one
+// would restore a test that cannot fail for the right reason. Three separate
+// facts say so, and they are recorded here because the assertion looks
+// reasonable and was there for two months.
+//
+//  1. THE COUNTER IS PROCESS-GLOBAL. `net_poll_wake_fd_total` is one
+//     `_Atomic uint64_t` in rt_net_trace.c, not a per-shard value, so "it grew
+//     between two dumps" is satisfied by any wake-fd event on any shard from
+//     any cause in the window. The delta cannot name its cause.
+//  2. IT MEASURED THE SHARD COUNT, NOT THE CANCELLATION. Twenty repeats per
+//     configuration on the dedicated runner: SURGE_SHARDS unset 8/20, 2 -> 0/20,
+//     4 -> 20/20, 8 -> 0/20. Non-monotonic, so "a dedicated poller is more
+//     likely to be blocked" does not explain it; the 4-shard green is
+//     unrelated traffic in the window.
+//  3. THE MODEL DOES NOT PROMISE IT. The runtime notifies the poller as the
+//     explicit "in-flight poll snapshot may be stale" signal. When the
+//     cancellation removes the LAST interest there is by construction no poll
+//     pass left to observe anything, and RUNTIME_V2.md section 4 says of
+//     cancellation only that cleanup is proportional to registrations.
+//
+// What is still owed is NOT this assertion: whether the removed poller nudge
+// matters when OTHER interests remain, and a live poll is blocked on a snapshot
+// that still lists the removed one. That needs a proof which first establishes
+// a poll is in flight. RV2-DEBT-335 and RV2-DEBT-336.
+func requireFDRegistryParkedBaselineAndCleanDumps(
 	t *testing.T,
 	baselineLine, stderr, label string,
 ) {
@@ -219,10 +247,6 @@ func requireFDRegistryWakeFDDeltaFromBaseline(
 	if got := before["io_poll_waiters_max"]; got < 2 {
 		t.Fatalf("expected two parked fd rows before %s release, got io_poll_waiters_max=%d:\n%s",
 			label, got, baselineLine)
-	}
-	if after["io_poll_wake_fd"] <= before["io_poll_wake_fd"] {
-		t.Fatalf("expected io_poll_wake_fd to increase after %s, before=%d after=%d\nsigusr1:\n%s\nexit:\n%s",
-			label, before["io_poll_wake_fd"], after["io_poll_wake_fd"], baselineLine, afterLine)
 	}
 }
 
@@ -439,7 +463,7 @@ func TestRuntimeV2FDRegistryCancelledInterestWakesPoller(t *testing.T) {
 	dialAndCloseFDRegistryPorts(t, srv, gatePort)
 
 	stderr := srv.waitExitZero(10 * time.Second)
-	requireFDRegistryWakeFDDeltaFromBaseline(t, baselineLine, stderr, "cancellation")
+	requireFDRegistryParkedBaselineAndCleanDumps(t, baselineLine, stderr, "cancellation")
 	if !strings.Contains(srv.outBuf.String(), "ok") {
 		t.Fatalf("unexpected stdout: %q\nstderr:\n%s", srv.outBuf.String(), stderr)
 	}
