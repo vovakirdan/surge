@@ -152,12 +152,21 @@ def _protocol(raw: Any) -> Protocol:
         "cv_method",
         "p95_cv_floor_ns",
         "placements",
+        "short_row_budget_ns",
+        "short_row_throughput_min_ratio",
     }
     _keys(obj, "protocol", fields)
     protocol = Protocol(
         warmups=_integer(obj["warmups"], "protocol.warmups", 0),
         measured_pairs=_integer(obj["measured_pairs"], "protocol.measured_pairs", 2),
         placements=_integer(obj["placements"], "protocol.placements", 1),
+        short_row_budget_ns=_integer(
+            obj["short_row_budget_ns"], "protocol.short_row_budget_ns", 1
+        ),
+        short_row_throughput_min_ratio=_number(
+            obj["short_row_throughput_min_ratio"],
+            "protocol.short_row_throughput_min_ratio",
+        ),
         max_cv=_number(obj["max_cv"], "protocol.max_cv"),
         throughput_min_ratio=_number(
             obj["throughput_min_ratio"], "protocol.throughput_min_ratio"
@@ -202,11 +211,6 @@ def _rows(raw: Any) -> tuple[Row, ...]:
             "required_metrics",
             "invariants",
         }
-        # A row's own throughput budget is optional (owner ruling 2026-09-04,
-        # the sixth); validate_manifest says which row may carry one.
-        has_budget = "throughput_min_ratio" in obj
-        if has_budget:
-            fields.add("throughput_min_ratio")
         _keys(obj, label, fields)
         rows.append(
             Row(
@@ -245,11 +249,6 @@ def _rows(raw: Any) -> tuple[Row, ...]:
                     obj["required_metrics"], f"{label}.required_metrics"
                 ),
                 invariants=_invariants(obj["invariants"], f"{label}.invariants"),
-                throughput_min_ratio=(
-                    _number(obj["throughput_min_ratio"], f"{label}.throughput_min_ratio")
-                    if has_budget
-                    else None
-                ),
             )
         )
     return tuple(rows)

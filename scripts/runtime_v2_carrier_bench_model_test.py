@@ -443,41 +443,70 @@ class ManifestTests(unittest.TestCase):
         low_score, mixed_score = validate_row_protocol(manifest, row, low, mixed)
         self.assertFalse(p95_ratio_gated(manifest.protocol, low_score, mixed_score))
 
-    def test_a_row_reads_its_own_throughput_budget_where_the_owner_set_one(self) -> None:
-        # Owner ruling 2026-09-04 (the sixth): select-send-scalar carries a
-        # 0.90 budget of its own; every other row reads the protocol's 0.95,
-        # and the loader refuses a row budget anywhere else or at any other
-        # number.
+    def test_a_short_batch_answers_to_the_short_row_budget(self) -> None:
+        # Owner ruling 2026-09-04 (the ninth): a row whose batch runs shorter
+        # than a millisecond on BOTH sides answers to 0.90; a longer one
+        # answers to 0.95. The threshold replaced two per-row budgets that
+        # were the same finding written one row at a time.
         manifest = make_manifest()
         row = manifest.rows[0]
-        base = make_runs("base", latency=1_000)
-        candidate = make_runs("candidate", latency=1_080)  # 0.926
-        with self.assertRaisesRegex(GateFailure, "throughput ratio 0.92.* below 0.950000"):
-            validate_row_protocol(manifest, row, base, candidate)
-        budgeted = replace(row, row_id="select-send-scalar", throughput_min_ratio=0.90)
-        validate_row_protocol(manifest, budgeted, base, candidate)
-        slower = make_runs("candidate", latency=1_120)  # 0.893
-        with self.assertRaisesRegex(GateFailure, "below 0.900000 \\(the row's own budget\\)"):
-            validate_row_protocol(manifest, budgeted, base, slower)
+
+        def runs(side: str, elapsed_ns: int) -> tuple[MeasuredRun, ...]:
+            # Twenty operations, so throughput is 20 / elapsed: the ratio is
+            # the base's elapsed over the candidate's.
+            return tuple(
+                MeasuredRun(
+                    side=side,
+                    pair_index=index,
+                    timing=TimingSample(elapsed_ns, (elapsed_ns // 20,) * 20, 20),
+                    counters=CounterSample(counter_values(side)),
+                )
+                for index in range(MEASURED_RUNS)
+            )
+
+        # Short batches (900 us against 972 us, ratio 0.926): inside 0.90.
+        short_base, short_candidate = runs("base", 900_000), runs("candidate", 972_000)
+        base_score, candidate_score = validate_row_protocol(
+            manifest, row, short_base, short_candidate
+        )
+        self.assertEqual(
+            row.throughput_budget(manifest.protocol, base_score, candidate_score), 0.90
+        )
+        # The same ratio on batches over the threshold is refused, and the
+        # message does not blame the short-row rule.
+        long_base, long_candidate = runs("base", 1_100_000), runs("candidate", 1_188_000)
+        with self.assertRaisesRegex(GateFailure, r"throughput ratio 0\.92.* below 0\.950000$"):
+            validate_row_protocol(manifest, row, long_base, long_candidate)
+        # One side over the threshold is enough to read the ordinary budget:
+        # the rule asks that BOTH be short.
+        mixed_candidate = runs("candidate", 1_100_000)
+        mixed_base = runs("base", 1_017_000)
+        with self.assertRaisesRegex(GateFailure, r"below 0\.950000$"):
+            validate_row_protocol(manifest, row, mixed_base, mixed_candidate)
+        # And a short row still answers for a real regression under 0.90:
+        # 880 us against 990, both short, ratio 0.889.
+        with self.assertRaisesRegex(GateFailure, "short-row threshold"):
+            validate_row_protocol(manifest, row, runs("base", 880_000), runs("candidate", 990_000))
+
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "manifest.json"
-            for label, row_id, budget in (
-                ("another row", "scalar.channel", 0.90),
-                ("another number", "select-send-scalar", 0.85),
+            for field, value in (
+                ("short_row_budget_ns", 2_000_000),
+                ("short_row_throughput_min_ratio", 0.85),
             ):
-                with self.subTest(label=label):
+                with self.subTest(field=field):
                     raw = manifest_json()
-                    raw["rows"][0]["id"] = row_id
-                    raw["rows"][0]["throughput_min_ratio"] = budget
+                    raw["protocol"][field] = value
                     path.write_text(json.dumps(raw), encoding="utf-8")
-                    with self.assertRaisesRegex(ManifestError, "throughput budget of its own"):
+                    with self.assertRaisesRegex(ManifestError, field):
                         load_manifest(path)
-            for row_id in ("select-send-scalar", "array-teardown-scalar"):
-                raw = manifest_json()
-                raw["rows"][0]["id"] = row_id
-                raw["rows"][0]["throughput_min_ratio"] = 0.90
-                path.write_text(json.dumps(raw), encoding="utf-8")
-                self.assertEqual(load_manifest(path).rows[0].throughput_min_ratio, 0.90)
+            # A row may not carry a budget of its own any more: the rule
+            # covers the case those two rows were added for.
+            raw = manifest_json()
+            raw["rows"][0]["throughput_min_ratio"] = 0.90
+            path.write_text(json.dumps(raw), encoding="utf-8")
+            with self.assertRaisesRegex(ManifestError, "throughput_min_ratio"):
+                load_manifest(path)
 
     def test_throughput_cv_still_gates_a_row_below_the_floor(self) -> None:
         # Rule 13 in the other direction: waiving the p95 CV below the floor

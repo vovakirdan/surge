@@ -22,9 +22,6 @@ FROZEN_METRIC_CONTRACT: dict[
 }
 
 
-ROWS_WITH_OWN_BUDGET = frozenset({"select-send-scalar", "array-teardown-scalar"})
-
-
 def validate_manifest(manifest: Manifest) -> None:
     if manifest.schema_version != 2:
         raise ManifestError(f"unsupported schema_version {manifest.schema_version}")
@@ -49,6 +46,22 @@ def validate_manifest(manifest: Manifest) -> None:
         raise ManifestError("protocol.max_cv must be exactly 0.05")
     if protocol.throughput_min_ratio != 0.95 or protocol.p95_max_ratio != 1.10:
         raise ManifestError("protocol relative budgets must be exactly 0.95 throughput / 1.10 p95")
+    # Owner ruling 2026-09-04 (the ninth): a row whose batch runs shorter than
+    # a millisecond on both sides answers to 0.90 instead of 0.95. On this host
+    # a fixture's speed is a property of the physical pages its file landed on
+    # and placements spread about five percent, which on a batch of tens of
+    # microseconds is the budget itself: six runs of one SHA pair read `zero`
+    # from 0.938 to 1.065 with no trend. The threshold and the number are the
+    # ruling's, and they replaced the two per-row budgets that preceded them.
+    if protocol.short_row_budget_ns != 1_000_000:
+        raise ManifestError(
+            "protocol.short_row_budget_ns must be exactly 1000000 (owner ruling 2026-09-04)"
+        )
+    if protocol.short_row_throughput_min_ratio != 0.90:
+        raise ManifestError(
+            "protocol.short_row_throughput_min_ratio must be exactly 0.90 "
+            "(owner ruling 2026-09-04)"
+        )
     # Owner ruling 2026-09-04, variant "в": the p95 CV gate applies only where
     # the side's median p95 is at least ten timer ticks (the runner's latencies
     # are quantized in ~10 ns steps; a 60 ns row's p95 moves one tick and reads
@@ -137,21 +150,6 @@ def validate_manifest(manifest: Manifest) -> None:
                     f"row {row.row_id} invariant references unsupported "
                     f"{invariant.side} metric {invariant.metric}"
                 )
-        # Owner rulings 2026-09-04 (the sixth and seventh): two rows carry a
-        # throughput budget of their own, select-send-scalar and
-        # array-teardown-scalar at exactly 0.90 -- the front end's residual
-        # and the file placement of a 40 us batch at -O0 (RV2-DEBT-333), the
-        # arrays row equal to the base by instructions and cache simulation
-        # and read at 0.94-1.03 across six attempts; every other row reads
-        # the protocol's 0.95. The rows and the number are the rulings'.
-        if row.throughput_min_ratio is not None and (
-            row.row_id not in ROWS_WITH_OWN_BUDGET or row.throughput_min_ratio != 0.90
-        ):
-            raise ManifestError(
-                f"row {row.row_id} carries a throughput budget of its own; only "
-                "select-send-scalar and array-teardown-scalar may, at exactly 0.90 "
-                "(owner rulings 2026-09-04)"
-            )
     rows_by_id = {row.row_id: row for row in manifest.rows}
     for invariant in manifest.cross_row_invariants:
         if invariant.metric == "allocation_count":

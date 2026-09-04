@@ -1,12 +1,19 @@
 # Epic 21: Owner-Routed Frees (vertical 3 of the reclamation arc)
 
-**Status:** CORE VERTICAL COMPLETE; TASK 9 ACCEPTANCE CLOSEOUT OPEN
-(tracked by RV2-DEBT-125). The owner-routed reclamation path shipped,
-including RV2-DEBT-059's fix in `bdcc0695`;
-Task 9's benchmark, named probe matrix, Phase-5 seam, and final debt
-dispositions were not performed, and Task 4's RV2-DEBT-054/056 tails
-remain open. RV2-DEBT-061 and RV2-DEBT-062 also remain separate
-residuals, so this status must not be read as full charter closeout.
+**Status:** COMPLETE (2026-09-04). The owner-routed reclamation path shipped,
+including RV2-DEBT-059's fix in `bdcc0695`, and Task 9's acceptance closeout
+was performed inside Epic 23b's Wave F, which replaced the representation this
+epic's evidence rested on: the named vertical x edge-class matrix at
+`SURGE_SHARDS=1, 2 and 8` (`TestRuntimeV2Task9Matrix`, on
+`runtime-v2-crossing-check`, which found and closed RV2-DEBT-331 and
+RV2-DEBT-332), the paired benchmark under the protocol the owner ruled on
+2026-09-04, the Phase-5 free-site seam inventory
+(`21-phase5-free-site-seams.md`), the RV2-DEBT-054..058 dispositions, the
+three named e2e proofs wired into the composed gate, and the live `send_bits`
+ABI gone through the semantic absence gate. RV2-DEBT-125 closes with them.
+RV2-DEBT-061 (a rare invalid free on the immediate-`on` retry path, found
+2026-07-20 and pre-existing) stays open as a separate residual, so this status
+is the charter's closeout rather than a claim that every named tail is gone.
 Design review concluded 2026-07-20 via a
 tier-based sequencing decision (user-approved): Tier 0 first (057,
 055 — census-poisoning and compile-breaking bugs, independent of

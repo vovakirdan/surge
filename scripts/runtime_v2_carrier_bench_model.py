@@ -85,6 +85,12 @@ class Protocol:
     # throughput CV alone. The same floor gates the p95 RATIO since the third
     # ruling of 2026-09-04: only where both sides' p95 reach it.
     p95_cv_floor_ns: int
+    # Owner ruling 2026-09-04 (the ninth): the batch length below which a
+    # row answers to short_row_throughput_min_ratio instead of
+    # throughput_min_ratio. See Row.throughput_budget for why a short batch
+    # cannot resolve the ordinary budget on this host.
+    short_row_budget_ns: int = 0
+    short_row_throughput_min_ratio: float = 0.0
     # Owner ruling 2026-09-04 (the file effect): a fixture's speed is a
     # property of the physical pages its file landed on -- six byte-identical
     # copies of one binary read 37..50 us per batch, each copy flat -- so a
@@ -141,21 +147,26 @@ class Row:
     candidate_structural_allocations_per_batch: int
     required_metrics: tuple[str, ...]
     invariants: tuple[Invariant, ...]
-    # A row's own throughput budget where the owner set one; None reads the
-    # protocol's. Owner rulings 2026-09-04 (the sixth and seventh):
-    # select-send-scalar and array-teardown-scalar carry 0.90 -- the
-    # select's residual over the epic base is the front end's (+12 % L1I
-    # misses at +0.2 % instructions, the typed-carrier select's code at
-    # -O0, RV2-DEBT-333), read at 0.936 by 24 copies and at 1.00 by a
-    # 12-copy loop on the same tree; the arrays row is equal to the base by
-    # instructions and cache simulation and read at 0.94-1.03 across six
-    # attempts, a 40 us batch inside the host's +-5 % placement clusters --
-    # and validate_manifest freezes the rows and the number.
-    throughput_min_ratio: float | None = None
+    def throughput_budget(
+        self, protocol: "Protocol", base: "SideScore", candidate: "SideScore"
+    ) -> float:
+        """The ratio this row answers to, given how long its batch runs.
 
-    def throughput_budget(self, protocol: "Protocol") -> float:
-        if self.throughput_min_ratio is not None:
-            return self.throughput_min_ratio
+        Owner ruling 2026-09-04 (the ninth): a row whose batch is shorter
+        than the protocol's short-row threshold on BOTH sides answers to the
+        short-row budget instead of the ordinary one. The reason is the
+        host's, not the tree's: a fixture's speed is a property of the
+        physical pages its file landed on, the spread between placements is
+        about five percent, and on a batch of a few tens of microseconds
+        that spread is the same size as the ordinary budget. Six runs of one
+        SHA pair read `zero` at 1.039, 1.035, 0.987, 1.065, 1.003 and 0.938,
+        `scalar` 0.960 to 1.003, `select-send-scalar` 0.936 to 1.017 --
+        no trend, means near one, and a single run outside the budget about
+        one time in three. The rule replaced the two per-row budgets that
+        preceded it, which were the same finding written one row at a time.
+        """
+        if max(base.elapsed_ns, candidate.elapsed_ns) < protocol.short_row_budget_ns:
+            return protocol.short_row_throughput_min_ratio
         return protocol.throughput_min_ratio
 
 
@@ -262,6 +273,10 @@ class SideScore:
     p95_ns: float
     throughput_cv: float
     p95_cv: float
+    # The chosen copy's median batch wall time. It is what decides whether
+    # this row is short enough to answer to the short-row budget, and it is
+    # reported so a reader can see which side of the threshold a row sat on.
+    elapsed_ns: float = 0.0
     # The copy the score is read from, and every copy's median throughput
     # in copy order, so a report shows the spread the file effect produced.
     placement: int = 0
@@ -353,6 +368,7 @@ def score_side(
         p95_ns=chosen.p95_ns,
         throughput_cv=chosen.throughput_cv,
         p95_cv=chosen.p95_cv,
+        elapsed_ns=chosen.elapsed_ns,
         placement=best,
         placement_throughputs=tuple(scored[index].throughput for index in ordered),
         placement_clean=tuple(index in clean for index in ordered),
@@ -376,6 +392,7 @@ def _score_runs(runs: Sequence[MeasuredRun]) -> SideScore:
         p95_ns=float(statistics.median(p95s)),
         throughput_cv=sample_cv(throughputs),
         p95_cv=sample_cv(p95s),
+        elapsed_ns=float(statistics.median(run.timing.elapsed_ns for run in runs)),
     )
 
 
@@ -416,12 +433,19 @@ def validate_row_protocol(
     if row.relative_performance:
         throughput_ratio = candidate_score.throughput / base_score.throughput
         latency_ratio = candidate_score.p95_ns / base_score.p95_ns
-        budget = row.throughput_budget(manifest.protocol)
+        budget = row.throughput_budget(manifest.protocol, base_score, candidate_score)
         if throughput_ratio < budget:
+            short = budget != manifest.protocol.throughput_min_ratio
             raise GateFailure(
                 f"{row.row_id} throughput ratio {throughput_ratio:.6f} below "
                 f"{budget:.6f}"
-                + (" (the row's own budget)" if row.throughput_min_ratio is not None else "")
+                + (
+                    f" (a batch of {max(base_score.elapsed_ns, candidate_score.elapsed_ns) / 1000:.0f} us "
+                    f"is under the {manifest.protocol.short_row_budget_ns / 1000:.0f} us "
+                    "short-row threshold)"
+                    if short
+                    else ""
+                )
             )
         # Owner ruling 2026-09-04 (the third): below the floor a p95 is a
         # tick of the clock on both sides, and the ratio of two ticks (41

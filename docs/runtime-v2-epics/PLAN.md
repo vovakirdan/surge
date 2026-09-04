@@ -63,118 +63,37 @@ No scheduled work waits on an owner decision.
 
 ## In flight
 
-**Wave D — the only thing that closes the wave.**
+**Nothing. Waves D, E and F are closed** (2026-09-04), and with them the
+whole of Epic 23b. The board keeps the shape of what closed them so a reader
+can tell a finished wave from an abandoned one.
 
-| | State |
-| --- | --- |
-| Carrier categories | **MET.** `suspension-frame-owner` 0, `llvm-erased-word-bridge` 0, `llvm-pointer-word-ir` 1 allowed. Census 83 -> 60. |
-| W6 — D2 closed by measurement | **MET.** Valgrind zero on the five map-teardown shapes, 10 of 10 on the dedicated machine, is the proof; the eight stale budgets are re-captured and re-pinned. See item 3 below for the premise that did not survive. |
-| W8 — aggregate as a COUNT | **3 green, 2 red of 5** at `45c54b22`, and the two reds are different gates (`runtime-v2-heap-check`, `runtime-v2-http-owner-check`). See the state line: four distinct gates over two counts, all topology-sensitive. Counted again once the class is closed, not once a row is. |
-
-**Contract debt from the 2026-08-29 rulings — PARKED, none of it closes the
-wave.** Four lanes ran; their branches hold the work and their reviews hold the
-reasons. Nothing here is abandoned and nothing here is progress on the epic.
-
-| Branch | Verdict | What must happen before it lands |
+| Wave | Closed by | The evidence that closed it |
 | --- | --- | --- |
-| `w-scope` | LAND_WITH_NOTES | The `creation_scope_key` refusal. Closest to landing of the four. |
-| `w-result` | **DO_NOT_LAND** | Two blockers: `runtime-v2-net-handle-check` is RED on its tree and that gate is on the aggregate roster, and `internal/buildpipeline/build.go` crossed 500 effective LOC. It changes a runtime C ABI signature (`rt_tag_alloc` gains a parameter) and every result constructor's NULL contract -- a protocol change that did not run the full suite, which is what Rule 16 exists for. |
-| `w-bench` | **DO_NOT_LAND** | A false fact in a committed comment, in a digest-pinned harness file. Rule 14's deliverable -- correcting the ledger row whose premise it disproved -- was not done. And it deferred the `final` phase on its own authority: the ruling renames the sync point and retires the byte assertions, and says nothing about deferral. |
-| `w-farcancel` | **DO_NOT_LAND** | The row is VACUOUS: it observed `withdrawn_before_first_poll = 0` in 7 of 7 runs, entering the body 1024 times of 1024 -- it never takes the path it is about. It also claims a transport credit the header does not have, and one of its comments contradicts its own sibling row. |
+| **D** | `625926c4` | The freeze set on `43ae205a` with the judge on `2b849208`: the 1000-repeat fail-fast campaign green after the judge was rewritten to assert the PROPERTY ("a block answers Cancelled exactly when a member did") instead of a schedule, W8 twice, the rate stand at 200 of 200, RV2-DEBT-312 closed by measurement. |
+| **E** | the far-carrier and transport work | The three census categories the wave owned -- `native-payload-bits`, `native-word-carrier`, `numeric-drop-dispatch` -- read live zero, and saturation parks a producer without busy retry (`anchored-saturation-parks-the-producer-and-a-freed-slot-wakes-it`, parks=1 wakes=1, with its Rule-13 control). |
+| **F** | this closeout | The census reads 0 in every category a wave owned; the roster is green as a COUNT on the dedicated machine; the Epic 21 Task 9 matrix runs at 1, 2 and 8 shards under memcheck; the paired benchmark passes under the protocol the owner ruled on 2026-09-04; five review lenses, Sentrux, the sanitizer gate and golden twice. |
+
+**What the waves left open, and why none of it blocks a closeout.** Each is a
+row in `DEBT.md` with its own owner; none is a wave's exit condition.
+
+| | What stays open |
+| --- | --- |
+| RV2-DEBT-061 | A rare invalid free under valgrind on the immediate-`on` retry path, 10-25 % of runs. Pre-existing, found 2026-07-20, not a crossing-representation defect. |
+| RV2-DEBT-318 | The VM's 27 migration paths, counted and pinned by the live ratchet. The owner ruled 2026-09-03 that removing them is a VM-representation epic of its own, not this wave's. |
+| RV2-DEBT-323, 325-328 | The shutdown family and its neighbours, opened by wave work and scheduled after it. |
+| RV2-DEBT-333 | The release build compiles the runtime and the program's IR with no `-O`. Both sides of every paired benchmark are built that way, so the ratios compare like with like; the optimisation level is an owner decision with its own re-measurement. |
 
 ## Next, in this order
 
-1. **The two SOUND_WITH_GAPS lanes get their gaps closed and land** — the frame
-   leak (`lane-d7-1`) and the channel pins (`lane-d7-3`). Both have real,
-   measured findings; neither is integrable while its critic's list stands.
-2. **The two UNSOUND lanes are re-sent, not repaired.** `lane-d7-2`'s field is
-   right and its writers are not; `lane-scope-refusal` asks about the spelling
-   of a binding where it must ask about the task. Each re-sent lane carries its
-   critic's findings as part of the brief.
-3. ~~**W6 — D2's measurement close.**~~ — **DONE 2026-08-30 by measurement.**
-   Eight budgets were re-captured in ONE run of
-   `make runtime-v2-carrier-baseline-capture`, which reports every mismatch
-   instead of stopping at the first, and each read one number across all
-   eighteen samples the protocol takes.
+1. **Epic 22 Phase 2** — `int`/`uint` reclamation, the successor the detour
+   chain was taken for.
+2. **The VM representation epic** — `vm-universal-owner` and
+   `vm-async-any-carrier`, the 55 live carriers the 2026-09-03 ruling pinned
+   and sent here rather than to Wave F.
+3. **RV2-DEBT-333's ruling** — the optimisation level for the runtime and the
+   emitted IR, with a paired benchmark on both sides of whatever is chosen.
 
-   **The premise this item used to carry was false and is corrected here rather
-   than deleted.** It said `channel-unbuffered-composite` and `-scalar` "read 4
-   in warmup and 3 in every measured pair, repeatably", and the 2026-08-29
-   two-phase ruling was taken on that reading. The instrument says otherwise:
-   both rows answer **4 in warmup and 4 in every measured pair**, eighteen of
-   eighteen, on two separate capture runs a day apart. There is no phase split
-   in any row. The wobble that was seen is the runtime TOPOLOGY going unpinned —
-   one binary reads 343 then 350 for the same commit with no
-   `SURGE_SHARDS`/`SURGE_THREADS`/`SURGE_BLOCKING_THREADS`, and 341 three times
-   running with them. That is `RUNTIME_V2.md`'s own rule about a difference of
-   two summed lane counters, and it is the ruling's SECOND half — per-lane
-   counters and a named quiet lane set — that answers it, not its first.
-
-   One budget ROSE: `blocking-composite` 277 → 341, exactly one allocation per
-   operation over a batch of 64. Bisected across the 327 commits since the pin
-   was taken, to `66c2f156` — "a blocking body's result keeps its width". The
-   row was cheaper before because it was WRONG: the composite result was cut
-   into a word, and the three commits before the fix cannot run the fixture at
-   all, panicking `VM1101: integer overflow` in `sum64`.
-
-   `epic_base` moved to `4968061f`, and the cost is stated rather than hidden:
-   the base compiler at the frozen commit refuses today's fixtures outright
-   (`'ret' is not supported inside async/blocking payloads`), so no run of any
-   kind reached the candidate side. The allocation half is candidate-only and is
-   unaffected. **The relative-performance half now asserts nothing** — base and
-   candidate are one tree — and the twenty rows carrying `relative_performance`
-   are green by identity until a base worth comparing against exists.
-4. ~~**The cancelled-scope reclamation defect**~~ — **LANDED** as `9c7b9b3e`,
-   closing the ledger row that had proposed exactly this fix from a code
-   reading and never reproduced it.
-6. **The allocation test** the clone ruling obliges: every generated
-   move/copy/clone body tests its `rt_alloc` and panics naming the type. Lands
-   in W4's files, so it follows W4. *~2 days.*
-7. **W5 — D8's adopt leg**, after W4 is integrated. *~1 day.*
-8. **W8 — wave closeout** when D2, D7, D8, D3b and the cancellation window are
-   all closed on one tree. *~1 day.*
-
-**Wave D's exit condition, restated 2026-08-29 against what was measured.** The
-first form asked for three categories at live zero and for the whole remainder
-to sit in `rt_remote_task_*` and `rt_far_channel*`. Both halves were wrong, in
-opposite directions, and both are corrected here rather than declared met.
-
-The FIRST half asked one category for a number it cannot reach.
-`llvm-pointer-word-ir`'s last finding is `emit_term.go`'s
-`inttoptr (i64 N to ptr)` — an LLVM CONSTANT EXPRESSION building the fixnum
-tagged immediate from a compile-time constant, carrying the reviewed permanent
-allowance `fixnum-inline-tagged-word`, which retires only if fixnums stop using
-pointer-typed tagged immediates. That is Epic 22's representation, not this
-wave's, and spelling the same reinterpretation another way to move the count
-would be gaming the instrument.
-
-The SECOND half asked the remainder to be confined to two file families, and
-this document's own §5 already exempts nine of those findings from every wave.
-It also mislocated Wave E: `numeric-drop-dispatch` and `native-word-carrier`
-live partly in the CROSSING EMITTERS (`emit_async.go`, `emit_channel.go`,
-`emit_crossing_*.go`) and in `rt_async_internal.h`, not only in the far files —
-seven findings, all Wave E's by category and none of them Wave D's.
-
-**So Wave D closes when, and this is checkable:**
-
-| what | required | measured 2026-08-29 |
-| --- | ---: | ---: |
-| `suspension-frame-owner` | 0 | **0** |
-| `llvm-erased-word-bridge` | 0 | **0** |
-| `llvm-pointer-word-ir` | 1 allowed | **1** |
-| everything else | Wave E's by category, or named in §5 as no wave's | 42 + 17 |
-
-and D2 is closed by measurement, and the aggregate roster is green as a COUNT OF
-RUNS rather than one exit code.
-
-**The carrier half is met. The wave is not closed until the last two are.** `llvm-erased-word-bridge` reached zero on 2026-08-29 and
-`llvm-pointer-word-ir` reached its one; the one is `emit_term.go`'s
-`inlineFixnumWord`, an LLVM constant expression building the tagged immediate
-`fixi_box` builds, held by the reviewed permanent allowance
-`fixnum-inline-tagged-word`. Raw zero for that category means the fixnum
-representation has changed, which is what the allowance's `invalidated_when`
-names and is nobody's work in this wave; the condition was written before anyone
-re-read the site, and this is the re-read.
+---
 
 ## File claims — who may touch what
 
@@ -200,21 +119,22 @@ neighbour's load.
 
 ---
 
-## After Wave D
+## After the waves
 
 Taken in order, not in parallel with the above.
 
 | | What | Size | Closes when |
 | --- | --- | ---: | --- |
-| **Wave E** | Far carriers, leases, byte credits — six items, all in `rt_remote_task_*` and `rt_far_channel*`. Transport rulings already given 2026-08-28. | ~12 | `native-payload-bits`, `native-word-carrier` and `numeric-drop-dispatch` read live zero, and saturation is proven to park a producer without busy retry. |
-| **Wave F** | Diagnostics, then deletion of the legacy symbols, then the closeout gates. | ~8 | The census reads **0 in every category a wave owned** (owner ruling 2026-09-03, variant (а): of the manifest's frozen 683 on `7df10725`, the 55 that remain live are the VM's `Value` interchange type -- `vm-universal-owner` 40, plus the 27 RV2-DEBT-318 migration paths -- and the async runtime's `any` -- `vm-async-any-carrier` 14 -- with the one permanent `fixnum` allow; those are counted and pinned by `TestLiveCarrierRatchetAgainstRepository`, and their removal is a VM-representation epic of its own, not this wave's; "0 of 683" as first written asked for that epic), the symbols are deleted rather than unused, and `make runtime-v2-check` reports every sub-gate on its roster passing on one tree (the roster is the Makefile's `RUNTIME_V2_SUBGATES`, twenty today, and the three Epic 21 e2e proofs ride inside `runtime-v2-crossing-check` rather than as rows of their own). |
+| **Wave E** | ~~Far carriers, leases, byte credits.~~ **CLOSED 2026-09-04.** Byte credits are not part of it and never will be: the 2026-08-29 ruling found pointer transport charges no per-message bytes, and the budget that exists is slots. | — | `native-payload-bits`, `native-word-carrier` and `numeric-drop-dispatch` read live zero, and saturation parks a producer without busy retry. **Met.** |
+| **Wave F** | ~~Diagnostics, deletion of the legacy symbols, the closeout gates.~~ **CLOSED 2026-09-04.** | — | The census reads **0 in every category a wave owned** (owner ruling 2026-09-03, variant (а): of the manifest's frozen 683 on `7df10725`, the 55 that remain live are the VM's `Value` interchange type and the async runtime's `any`, counted and pinned by `TestLiveCarrierRatchetAgainstRepository`, and their removal is a VM-representation epic of its own), the symbols are deleted rather than unused, and `make runtime-v2-check` reports every sub-gate on its roster passing on one tree. **Met.** |
 | **Epic 22 ph. 2** | `int`/`uint` reclamation. | ~5 | — |
-| **Epic 21** | Bench, matrix, seam, debt closeout. | ~2 | — |
+| **Epic 21** | ~~Bench, matrix, seam, debt closeout.~~ **CLOSED 2026-09-04** with Wave F: RV2-DEBT-125. | — | — |
 
-Sizes are lane-days: one focused worker, one day. Wave D's tail is ~12 more, W2 having been measured out.
-**~39 lane-days remain — about six calendar weeks at three lanes, eight with a
-blocker allowance**, which the history justifies: this migration has hit one
-parking blocker per epic.
+Sizes are lane-days: one focused worker, one day. What remains of this
+migration is Epic 22 Phase 2 and the VM representation epic; the ~39 lane-days
+this table used to project were spent, and the blocker allowance it asked for
+was used twice -- once on the fail-fast judge's premise, once on the paired
+benchmark's protocol.
 
 ---
 

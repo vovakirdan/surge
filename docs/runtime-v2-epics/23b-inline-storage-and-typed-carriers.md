@@ -1,6 +1,17 @@
 # Epic 23b — Inline Storage And Typed Carriers
 
-Status: **ACCEPTED — READY FOR END-TO-END IMPLEMENTATION**
+Status: **COMPLETE — 2026-09-04, waves A through F**
+
+Physical BYTE credits are named all through the plan below and are NOT part of
+what shipped: the owner's ruling of 2026-08-29 found that pointer transport
+carries a pointer into a refcount graph it neither copies nor owns, so there is
+no per-message byte cost to charge and the budget that exists is SLOTS. What
+answers the saturation question is the admission park (RV2-DEBT-031, closed
+2026-09-03) and its behaviour row
+`anchored-saturation-parks-the-producer-and-a-freed-slot-wakes-it`. The
+paragraphs that ask for byte credits, including the Done Definition's, are left
+as written -- they are the design as it was accepted, and the ruling that
+withdrew that half is recorded here rather than by editing the history.
 
 Design authority:
 `23-storage-model-and-typed-carrier-abi.md`

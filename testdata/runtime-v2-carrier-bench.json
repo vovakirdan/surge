@@ -20,7 +20,9 @@
     "p95_max_ratio": 1.1,
     "percentile_method": "nearest-rank",
     "cv_method": "sample-n-minus-1",
-    "p95_cv_floor_ns": 1000
+    "p95_cv_floor_ns": 1000,
+    "short_row_budget_ns": 1000000,
+    "short_row_throughput_min_ratio": 0.9
   },
   "backend": "llvm",
   "profile": "release",
@@ -134,7 +136,7 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest.py",
-      "sha256": "d018be55b05ff0ce8396ca9bb79c6f85bcf9cde87491aed14efa426d3fa99341"
+      "sha256": "11a39d0891849e380d2f64d9122084de2a742a632cb044277c53fde3d99fbe90"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_file_test.py",
@@ -142,7 +144,7 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_validation.py",
-      "sha256": "d46858b9f71c36796d4f1db7f1cd76c735a513048a75388ac9df350372190d3a"
+      "sha256": "3c2b1668c8b783084498968325030ac8464e953df8e9c356dbc607bcb2882182"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_values.py",
@@ -150,11 +152,11 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_model.py",
-      "sha256": "05158531996b4b6e3eed41249fc3b61e94d34bccb2cb22b32b2554e93e1a6a64"
+      "sha256": "dae1f2017e5482cc8de63434abc50cc4e610e8b50040dc48c11ebcaa3fdbfb29"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_model_test.py",
-      "sha256": "62fff79853be405cd72478247666a608fbfad66b6ca436bc45f58cb72d1d5c19"
+      "sha256": "215541589123571e4142cb25bafa38b066d4d69c1017b20873ab078b7104225e"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_protocol.py",
@@ -166,7 +168,7 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_report.py",
-      "sha256": "3ebc5a2eee0213c27417203b263536eb539baf253e3ef48fc1bffc294d60f86d"
+      "sha256": "bce3199417bc009a66f37eca98da0459396b35ce1cf644da9cf5c10c6ad98f20"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_report_test.py",
@@ -178,7 +180,7 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_test_support.py",
-      "sha256": "3dbfa466756679fa59546364292e9d5b70af25005cf58b16538b2a45156e6377"
+      "sha256": "a07fe7aa5bdd66d450c635d000563ee780dab234fe17993d8b6c8417ad6ad074"
     }
   ],
   "fixtures": [
@@ -394,7 +396,6 @@
       "payload_bytes": 8,
       "timeout_seconds": 10,
       "relative_performance": true,
-      "throughput_min_ratio": 0.9,
       "expected_checksum": "130816",
       "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
@@ -1200,7 +1201,6 @@
       "payload_bytes": 8,
       "timeout_seconds": 15,
       "relative_performance": true,
-      "throughput_min_ratio": 0.9,
       "expected_checksum": "313832",
       "candidate_structural_allocations_per_batch": 5,
       "required_metrics": [

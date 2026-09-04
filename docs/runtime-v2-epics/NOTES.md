@@ -15267,6 +15267,37 @@ sync-point and carrier-bench ones, which refuses any name that is not
 only observable through a compiled crossing. Not vacuous: with the control
 named wrongly the test reads a strict zero and fails on its own message.
 
+### F7, the fifteenth attempt and the ninth ruling: one budget for short rows (2026-09-04)
+
+`0027b3d8`, the first tree where a green report was possible: file-size,
+ctidy, harness tests, crossing-check and the tagged stands green, **W8 20 of
+20 in 1047 s**, and the benchmark refused on one row -- `zero`, at 0.938.
+
+`zero` is the shortest row there is: 512 spawn-and-await operations in a
+batch of about sixty microseconds. Its history across the six runs of the
+copies protocol reads 1.039, 1.035, 0.987, 1.065, 1.003, 0.938 -- no trend,
+mean near one. Beside it `scalar` reads 0.960 to 1.003, `local-copy` 0.988
+to 1.053, `select-send-scalar` 0.936 to 1.017, `array-teardown-scalar` 0.944
+to 1.032. Every one of them is a batch under a millisecond, and every one
+of them wanders by about the width of the budget, because the placement
+spread between physically distinct copies of one binary is about five
+percent on this host and a short batch has nothing else in it. Two of these
+rows had already been given a budget of their own, one per attempt; a third
+was about to be.
+
+**Owner ruling (the ninth): the threshold, not the list.** A row whose
+median batch runs shorter than one millisecond ON BOTH SIDES answers to a
+throughput budget of 0.90; every other row keeps 0.95. `Protocol` carries
+`short_row_budget_ns` and `short_row_throughput_min_ratio`, frozen at
+1 ms and 0.90 by `validate_manifest`; `SideScore` carries the chosen copy's
+median `elapsed_ns`, which is what decides the question and is reported;
+`Row.throughput_budget` takes both sides' scores; the refusal names the
+threshold when it applied. The two per-row budgets and the machinery that
+allowed them are gone -- they were this finding written one row at a time,
+and the loader now refuses a row that carries a budget. Rule 13: with the
+threshold removed, a 900/972 us pair reads 0.926 and the row is refused at
+0.95. 72 harness tests green.
+
 **Performance and docs — one line fixed, the rest is F8.**
 `claim_trace_increment` (`rt_channel_claim.c`) was the last of that family
 still out of line, on the rendezvous send path; it is `always_inline` now,

@@ -153,7 +153,17 @@ def make_manifest() -> Manifest:
         epic_base="0" * 40,
         reference=ReferenceHost("Linux", "x86_64", "kernel", "cpu", 4, "0,2", "go", "clang"),
         protocol=Protocol(
-            1, MEASURED_PAIRS, 0.05, 0.95, 1.10, "nearest-rank", "sample-n-minus-1", 1000, PLACEMENTS
+            warmups=1,
+            measured_pairs=MEASURED_PAIRS,
+            max_cv=0.05,
+            throughput_min_ratio=0.95,
+            p95_max_ratio=1.10,
+            percentile_method="nearest-rank",
+            cv_method="sample-n-minus-1",
+            p95_cv_floor_ns=1000,
+            short_row_budget_ns=SHORT_ROW_BUDGET_NS,
+            short_row_throughput_min_ratio=0.90,
+            placements=PLACEMENTS,
         ),
         backend="llvm",
         profile="release",
@@ -260,6 +270,11 @@ def counter_values(
 # so a side carries 120 runs and pair_index // MEASURED_PAIRS is the copy.
 PLACEMENTS = 24
 MEASURED_PAIRS = 5
+# The batch length under which a row answers to the short-row budget of 0.90
+# instead of 0.95 (owner ruling 2026-09-04). The fake rows below run a
+# 20 ns batch, so every one of them is a short row unless a test says
+# otherwise by giving it a longer elapsed time.
+SHORT_ROW_BUDGET_NS = 1_000_000
 MEASURED_RUNS = PLACEMENTS * MEASURED_PAIRS
 
 
@@ -390,6 +405,8 @@ def manifest_json() -> dict[str, object]:
             "percentile_method": "nearest-rank",
             "cv_method": "sample-n-minus-1",
             "p95_cv_floor_ns": 1000,
+            "short_row_budget_ns": 1000000,
+            "short_row_throughput_min_ratio": 0.90,
         },
         "backend": "llvm",
         "profile": "release",

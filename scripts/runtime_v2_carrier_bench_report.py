@@ -137,7 +137,11 @@ def render_report(
                 "fixture": row.fixture,
                 "payload_bytes": row.payload_bytes,
                 "relative_performance": row.relative_performance,
-                "throughput_min_ratio": row.throughput_budget(manifest.protocol),
+                # The budget this row actually answered to, which the
+                # short-row rule may have lowered (owner ruling 2026-09-04).
+                "throughput_min_ratio": row.throughput_budget(
+                    manifest.protocol, base_score, candidate_score
+                ),
                 "failure": (
                     protocol_failure
                     or next(iter(allocation_failures), None)
@@ -255,6 +259,8 @@ def render_report(
             "placements": manifest.protocol.placements,
             "max_cv": manifest.protocol.max_cv,
             "throughput_min_ratio": manifest.protocol.throughput_min_ratio,
+            "short_row_budget_ns": manifest.protocol.short_row_budget_ns,
+            "short_row_throughput_min_ratio": manifest.protocol.short_row_throughput_min_ratio,
             "p95_max_ratio": manifest.protocol.p95_max_ratio,
             "percentile_method": manifest.protocol.percentile_method,
             "cv_method": manifest.protocol.cv_method,
@@ -594,6 +600,7 @@ def _score_json(score: Any, protocol: Protocol) -> dict[str, float | bool]:
         "throughput_cv": score.throughput_cv,
         "p95_cv": score.p95_cv,
         "p95_cv_gated": p95_cv_gated(protocol, score),
+        "elapsed_ns": score.elapsed_ns,
         "placement": score.placement,
         "placement_throughputs": list(score.placement_throughputs),
         "placement_clean": list(score.placement_clean),
