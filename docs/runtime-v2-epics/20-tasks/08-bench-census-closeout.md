@@ -78,7 +78,7 @@ of weakening the epic's bar to the far==local differential form.
   init state+payload pair (minimal local repro, no far machinery) —
   the deferred-abandon path never drains. First Go test in the repo
   to drive valgrind directly (self-skips without it).
-- Row 2 DONE (`TestRuntimeV2CrossingStrictCensus{Balanced,ValgrindBounded}`,
+- Row 2 DONE (`TestRuntimeV2CrossingStrictCensus{Balanced,ValgrindZero}`,
   heap-check gate): the Epics 16-18 verticals under the two-tier
   discipline — in-program HeapStats windows at 1 shard, valgrind
   definitely-lost as the shard-independent witness at 1/2/8. The

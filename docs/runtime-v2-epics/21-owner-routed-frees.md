@@ -747,7 +747,7 @@ owns). All census rows carry execution witnesses.
   measured values (not re-derived): `TestRuntimeV2CrossingStrictCensusBalanced`'s
   share/select growth figures (11→7, 67→35, 14→9, 91→51, matching
   exactly 1 fewer unit per `.share()` call × call count × iteration
-  count) and `TestRuntimeV2CrossingStrictCensusValgrindBounded`'s
+  count) and `TestRuntimeV2CrossingStrictCensusValgrindZero`'s
   documented bound (1,280B/52blk → 344B/13blk) — both still
   nonzero, pinned to the KNOWN, deferred lease-struct residual (each
   `.share()`'s `rt_far_channel_lease` record accumulates until the

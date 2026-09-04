@@ -289,7 +289,7 @@ var requiredSanitizerCoverage = []string{
 	"TestRuntimeV2SlotControlRequiredSanitizersFailClosed",
 	// Valgrind over far-channel handle/object reclamation and the crossing census.
 	"TestRuntimeV2DropFarChannelHandleAndObjectValgrindZero",
-	"TestRuntimeV2CrossingStrictCensusValgrindBounded",
+	"TestRuntimeV2CrossingStrictCensusValgrindZero",
 	// Valgrind over a map's teardown, at one shard and at four: a map owns its
 	// keys and values, and reclaiming them is what RV2-DEBT-156 was about.
 	"TestRuntimeV2MapOwnedEntriesValgrindZero",

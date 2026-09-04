@@ -283,7 +283,7 @@ fn main() -> int {
 // function already does internally (acc == expected sum) -- it carries
 // none of the n=1-vs-n=8 HeapStats comparisons above, which are pinned to
 // exact values that only hold at SURGE_SHARDS=1 (see the comment on those
-// checks). This is the program TestRuntimeV2CrossingStrictCensusValgrindBounded
+// checks). This is the program TestRuntimeV2CrossingStrictCensusValgrindZero
 // runs under valgrind at SURGE_SHARDS=1, 2, and 8: valgrind's own
 // definitely-lost accounting doesn't care about the wrapped program's exit
 // code, but the program still needs to reach an honest completion marker
@@ -369,7 +369,7 @@ func parseValgrindDefinitelyLost(stderr string) (bytesLost, blocksLost int, err 
 // exit code (not valgrind's). Deliberately does NOT pass --error-exitcode:
 // valgrind's default `--errors-for-leak-kinds=definite,possible` folds leak
 // loss records into its own error count, which would make an accepted,
-// documented leak residual (see TestRuntimeV2CrossingStrictCensusValgrindBounded)
+// documented leak residual (see TestRuntimeV2CrossingStrictCensusValgrindZero)
 // indistinguishable from a genuine memory-safety bug (invalid free,
 // use-after-free, uninitialized read). Callers that need to catch real
 // memcheck errors should scan stderr with hasValgrindMemcheckError instead,
@@ -429,7 +429,7 @@ func hasValgrindMemcheckError(stderr string) bool {
 	return valgrindMemcheckErrorRE.MatchString(stderr)
 }
 
-// TestRuntimeV2CrossingStrictCensusValgrindBounded is the timing-independent
+// TestRuntimeV2CrossingStrictCensusValgrindZero is the timing-independent
 // multi-shard witness, run against runtimeV2CrossingStrictCensusValgrindSource
 // rather than the pinned SHARDS=1-only program above (that program's own
 // sh1v/sh8v/se1v/se8v exit-code checks are NOT shard-agnostic -- reusing it
@@ -454,7 +454,7 @@ func hasValgrindMemcheckError(stderr string) bool {
 // to 4, hence 56/7 -> 28/7 with identical allocation count and stacks.
 // Wave D replaces this boxed task-result carrier; that migration must tighten
 // the row to strict zero rather than recalibrate it again.
-func TestRuntimeV2CrossingStrictCensusValgrindBounded(t *testing.T) {
+func TestRuntimeV2CrossingStrictCensusValgrindZero(t *testing.T) {
 	if _, err := exec.LookPath("valgrind"); err != nil {
 		t.Skip("valgrind not installed; skipping valgrind leak-check census")
 	}
