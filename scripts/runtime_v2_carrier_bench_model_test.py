@@ -370,10 +370,11 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(len(score.placement_throughputs), PLACEMENTS)
         self.assertEqual(score.throughput_cv, 0.0)
         self.assertNotEqual(expected, by_copy.index(min(by_copy)))  # not the fastest
-        # The median copy wanders 9 % on its own (its last pair reads 12 %
-        # slower): with the protocol in hand it is not a reading, the median
-        # is taken over the clean copies, and the report says which were.
-        elapsed[(expected + 1) * MEASURED_PAIRS - 1] = int(by_copy[expected] * 1.12)
+        # The median copy wanders on its own (its last pair reads 25 %
+        # slower, a throughput CV of about 0.09 over its five pairs): with
+        # the protocol in hand it is not a reading, the median is taken over
+        # the clean copies, and the report says which were.
+        elapsed[(expected + 1) * MEASURED_PAIRS - 1] = int(by_copy[expected] * 1.25)
         wandering = self._runs_with_p95("base", [70] * MEASURED_RUNS, elapsed_ns=elapsed)
         clean = score_side(wandering, MEASURED_PAIRS, manifest.protocol)
         rechosen = median_copy(by_copy, exclude={expected})
