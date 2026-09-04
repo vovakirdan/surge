@@ -208,9 +208,9 @@ Every epic should move the runtime toward these goals:
 | 19 | `19-drop-emission.md` (`19-candidates.md`) | Complete. Drop emission for non-Copy owned values. |
 | 20 | `20-crossing-drop-activation.md` | Complete. Crossing drop activation. |
 | 21 | `21-owner-routed-frees.md` | **Complete 2026-09-04.** The owner-routed reclamation path shipped, and Task 9's acceptance closeout was performed inside Epic 23b's Wave F, against the representation that replaced this epic's: the named matrix at 1, 2 and 8 shards under memcheck, the paired benchmark, the Phase-5 seam inventory, and the 054-058 dispositions. RV2-DEBT-125 closed with it; RV2-DEBT-061 stays a separate residual. |
-| 22 | `22-numeric-reclamation.md` | **PARTIAL — parked.** Phases 0a/0b/1 shipped: the ownership axes were split out of `IsCopy`, and `float` became a reference-counted scalar with a strict-zero valgrind gate. The six `float`/composite crossing deep-copy barriers are now absorbed by Epic 23b's generic cross operations; after 23b, Epic 22 resumes with Phase 2 `int`/`uint` reclamation. |
+| 22 | `22-numeric-reclamation.md` | **PARTIAL — parked.** Phases 0a/0b/1 shipped: the ownership axes were split out of `IsCopy`, and `float` became a reference-counted scalar with a strict-zero valgrind gate. The six `float`/composite crossing deep-copy barriers are NOT closed — none of them. This line said Epic 23b's generic cross operations had absorbed them; the tree refutes that, and the epic's own header (`22-numeric-reclamation.md:1-12`) was right all along. `internal/valueops/flags.go` leaves `cross_move_init` and `cross_clone_init` `filledNowhere`, so `FlagShardMovable`/`FlagCrossClonable` are refused outright and `plan_cross` binds the trap for every descriptor the registry can hold; `runtime/native/rt_value_ops.c` states "crossing has no descriptor support yet" and leaves both cross slots NULL; and `rt_bigfloat_clone` is still declared, registered and never called. A crossing carrying an arbitrary-precision scalar is REFUSED, not copied, and `TestRefCountedScalarCrossingsAreRefused` has pinned that unchanged since `3e9eb684` (2026-07-24). Epic 22 resumes with Phase 2 `int`/`uint` reclamation, whose scope depends on how those barriers are answered: `int` cannot take the refusal `float` takes, because the stdlib `@copy` structs and the crossing fixtures are built on it. |
 | 23 | `23-value-composites.md` | **Phase 1 COMPLETE.** A struct/tuple/union/fixed-array is a value: copy duplicates, the transitional box is reclaimed, and every crossing route carries one. Its former Phase 2 placeholder is superseded by the accepted storage design and executable Epic 23b. Phase 1 history and semantic tests remain authoritative. |
-| 23b | `23-storage-model-and-typed-carrier-abi.md`; `23b-inline-storage-and-typed-carriers.md` | **COMPLETE 2026-09-04.** Phase 2 end to end, waves A through F: inline value storage, destination-oriented calls, typed arrays/maps/tasks/channels/select/blocking/far transport, generic `float`/composite cross-clone barriers, result-entitlement cloning, diagnostics, and deletion of the old erased ABI. The census reads 0 in every category a wave owned. Physical BYTE credits are not part of what shipped and are not deferred: the 2026-08-29 ruling found pointer transport charges no per-message bytes -- the message carries a pointer into a refcount graph the transport neither copies nor owns -- so the budget is SLOTS, and the admission park (RV2-DEBT-031) is what answers saturation. |
+| 23b | `23-storage-model-and-typed-carrier-abi.md`; `23b-inline-storage-and-typed-carriers.md` | **COMPLETE 2026-09-04.** Phase 2 end to end, waves A through F: inline value storage, destination-oriented calls, typed arrays/maps/tasks/channels/select/blocking/far transport, result-entitlement cloning, diagnostics, and deletion of the old erased ABI. The census reads 0 in every category a wave owned. The generic `float`/composite cross-clone barriers were IN SCOPE here and DID NOT ship, which this row used to claim they had: the frozen ABI declares `cross_move_init` and `cross_clone_init`, but both are `filledNowhere` in `internal/valueops/flags.go` and NULL in the runtime's only hand-written descriptor, so no cross operation is dispatchable and Epic 22's six barriers stay open (see the Epic 22 row, and `RV2-DEBT-038`). Physical BYTE credits are not part of what shipped and are not deferred: the 2026-08-29 ruling found pointer transport charges no per-message bytes -- the message carries a pointer into a refcount graph the transport neither copies nor owns -- so the budget is SLOTS, and the admission park (RV2-DEBT-031) is what answers saturation. |
 | 24 | `24-partial-moves.md` | **Complete 2026-07-29** (steps 0-9), residuals closed 2026-07-31. Full partial-move tracking: the moved-set is keyed by PLACE, use-after-move answers per place, a partially-moved value drops only what it still holds, a reinitialized place comes back, and a capture takes a projection. `RV2-DEBT-077` closed, with nine defects found and closed on the way. Step 8 covers STRUCT FIELDS only (array elements and union payloads stay rejected, settled with the owner) — that residual stands. Step 0's tail — converting the compiler-generated field reads to the explicit transfer mode — is CLOSED: it was one real site (the crossing capture unpack, not three), asserted at the MIR level in `internal/crossinggate`; the single-suspend async lowering the other two sites were attributed to had no caller and was deleted. |
 | 25 | `25-ownership-verifier-and-tooling.md` | **Complete 2026-08-02.** MIR ownership verification is live behind `build --dev`, with a fast `make check` sample, the exact 1046-fixture corpus gate, opt-in annotated MIR, and a typed four-axis VM+LLVM/Valgrind harness. Steps 0-5 shipped; the optional highest-risk/lowest-priority heap-site census is intentionally deferred as RV2-DEBT-120. This epic remains outside and does not block the 22→23→24 detour chain. |
 
@@ -247,11 +247,22 @@ Its physical model is now accepted in
   Phase 2 (inline storage) makes that worse rather than better: the alias
   becomes a bitwise duplicate with two owners. That is Epic 24.
 
-**Resumption order, now live:** Epic 23b (inline storage, all typed carriers,
-and the current `float`/composite cross-clone barriers), then Epic 22's
-`int`/`uint` reclamation. Epic 22 is last on purpose — its remaining work is
-simplified by one type-directed carrier model instead of having to support both
-composite boxes and inline values.
+**Resumption order, now live:** Epic 23b (inline storage and all typed
+carriers) — DONE 2026-09-04 — then Epic 22's `int`/`uint` reclamation. Epic 22
+is last on purpose: its remaining work is simplified by one type-directed
+carrier model instead of having to support both composite boxes and inline
+values.
+
+This sentence used to list the `float`/composite cross-clone barriers among what
+Epic 23b would carry. It did not carry them, so they are still Epic 22's, and
+Phase 2 inherits the question rather than a mechanism. That matters for scope
+rather than for order: `float` can stay refused at a boundary because a program
+can spell `float64` instead, while `int` cannot — the refusal would reject the
+stdlib `@copy` structs (`stdlib/bytes`, `stdlib/hash`, `stdlib/time`,
+`stdlib/term`, `core/sync.sg`) and the crossing fixtures, which are built on
+`int`. So Phase 2 either builds the barrier for the heap half of `int`/`uint` or
+answers the sharing question another way, and that is an owner decision taken on
+the corrected picture, not an inherited given.
 
 The two prerequisites previously recorded for Phase 2 are now both resolved:
 
@@ -265,9 +276,11 @@ The two prerequisites previously recorded for Phase 2 are now both resolved:
    byte-credit model is `23-storage-model-and-typed-carrier-abi.md`; Epic 23b
    implements it without a compatibility layer.
 
-Debt disposition: Epic 23b absorbs the crossing-barrier portion of
-RV2-DEBT-038; RV2-DEBT-035/068 keep the later `int`/`uint` reclamation. The
-historical 036/037 rows and Epic 24's RV2-DEBT-077/078 are closed.
+Debt disposition: Epic 23b took the crossing-barrier portion of RV2-DEBT-038
+and did NOT close it — the row is still Open and the barriers are still
+unbuilt, so "absorbs" (what this line said) has to be read as "was assigned",
+not as "delivered". RV2-DEBT-035/068 keep the later `int`/`uint` reclamation.
+The historical 036/037 rows and Epic 24's RV2-DEBT-077/078 are closed.
 
 ## Language Syntax Gate
 

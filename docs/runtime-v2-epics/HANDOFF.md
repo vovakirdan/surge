@@ -5,8 +5,15 @@ board; this is the state at the moment of handing over, including the things a
 board does not carry: what is running, what was tried and abandoned, and where
 the previous session was wrong.
 
-**Read `AGENTS.md` first.** It is new, it is the working rules, and every one of
-them was learned by getting it wrong in this session.
+**Read `RULES.md` first.** It is the working rules, and the ones added around
+this handoff were each learned by getting it wrong in the session that wrote it
+— Global Rules 17 and 19 in particular, which is why a lane is a worktree and
+why a heavy row refuses to start outside its stand.
+
+(This line used to point at `AGENTS.md`. No such file has ever been committed to
+this repository — `git log --diff-filter=A` finds no addition of it on any
+branch — so the instruction was unfollowable from the day it was written. Left
+uncorrected it teaches the next reader that a missing file is normal here.)
 
 ---
 
