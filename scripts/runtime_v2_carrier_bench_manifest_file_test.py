@@ -71,8 +71,8 @@ class CanonicalManifestTests(unittest.TestCase):
         rows = {row.row_id: row for row in self.manifest.rows}
         self.assertEqual(len(rows), 46)
         self.assertEqual(self.manifest.blocking_threads, 1)
-        self.assertEqual(rows["select-send-scalar"].expected_checksum, "11432")
-        self.assertEqual(rows["select-send-composite"].expected_checksum, "15947")
+        self.assertEqual(rows["select-send-scalar"].expected_checksum, "313832")
+        self.assertEqual(rows["select-send-composite"].expected_checksum, "349707")
         self.assertEqual(rows["far-large-capture"].payload_bytes, 4096)
         self.assertEqual(rows["far-large-payload-contention"].payload_bytes, 8192)
         self.assertEqual(
@@ -130,6 +130,19 @@ class CanonicalManifestTests(unittest.TestCase):
         # barrier is not in this fixture, because the base compiler that also
         # builds it does not know the intrinsic. The numbers below are the
         # no-barrier sweep on the reserved-deque tree.
+        #
+        # RE-CAPTURED 2026-09-04 (owner ruling, variant "в"): every batch is
+        # 512 operations instead of 64, so a batch is hundreds of microseconds
+        # and its throughput is a measurement rather than a reading of the
+        # timer. The per-operation rows move by eight times their per-op cost
+        # on top of the fixed executor start (blocking 346 -> 2589, far-channel
+        # 414 -> 3102, task 217 -> 1564); the array rows gain the extra grow
+        # steps of a 512-element array (7 -> 10, and the steady/teardown rows
+        # 0 -> 3 because a 512-element setup grows past the inline capacity);
+        # the buffered/unbuffered channel and select-send rows do not move,
+        # because their cost is per batch, not per operation. Forty-six rows,
+        # three batches each on the candidate tree, one number per row all
+        # three times (pin512 pass, 2026-09-04).
         nonzero_allocations = {
             row.row_id: row.candidate_structural_allocations_per_batch
             for row in self.manifest.rows
@@ -138,38 +151,41 @@ class CanonicalManifestTests(unittest.TestCase):
         self.assertEqual(
             nonzero_allocations,
             {
-                "array-grow-composite": 7,
-                "array-grow-scalar": 7,
-                "blocking-composite": 346,
-                "blocking-scalar": 218,
+                "array-grow-composite": 10,
+                "array-grow-scalar": 10,
+                "array-steady-composite": 3,
+                "array-steady-scalar": 3,
+                "blocking-composite": 2589,
+                "blocking-scalar": 1565,
                 "channel-buffered-composite": 19,
                 "channel-buffered-scalar": 19,
                 "channel-unbuffered-composite": 3,
                 "channel-unbuffered-scalar": 3,
-                "far-channel-composite": 414,
-                "far-channel-scalar": 414,
-                "far-immediate-composite": 281,
-                "far-immediate-scalar": 153,
-                "far-large-payload-contention": 660,
-                "far-large-capture": 665,
-                "far-large-result": 409,
-                "far-select-composite": 419,
-                "far-select-scalar": 419,
-                "far-share-control": 222,
-                "far-task-composite": 409,
-                "far-task-scalar": 281,
-                "map-insert-composite": 4,
-                "map-insert-scalar": 4,
-                "map-rehash-composite": 4,
-                "map-rehash-scalar": 4,
+                "far-channel-composite": 3102,
+                "far-channel-scalar": 3102,
+                "far-immediate-composite": 2073,
+                "far-immediate-scalar": 1049,
+                "far-large-capture": 5145,
+                "far-large-payload-contention": 5140,
+                "far-large-result": 3097,
+                "far-select-composite": 3107,
+                "far-select-scalar": 3107,
+                "far-share-control": 1566,
+                "far-task-composite": 3097,
+                "far-task-scalar": 2073,
+                "map-insert-composite": 7,
+                "map-insert-scalar": 7,
+                "map-rehash-composite": 7,
+                "map-rehash-scalar": 7,
                 "select-send-composite": 5,
                 "select-send-scalar": 5,
-                "task-clone-composite": 281,
-                "task-clone-scalar": 217,
-                "task-composite": 281,
-                "task-scalar": 217,
+                "task-clone-composite": 2076,
+                "task-clone-scalar": 1564,
+                "task-composite": 2076,
+                "task-scalar": 1564,
             },
         )
+        self.assertTrue(all(row.operations_per_batch == 512 for row in self.manifest.rows))
         self.assertFalse(
             any(
                 invariant.metric == "allocation_count"

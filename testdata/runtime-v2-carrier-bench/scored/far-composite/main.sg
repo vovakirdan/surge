@@ -2,10 +2,10 @@ import shared/support as bench;
 
 @intrinsic fn rt_array_debug_deferred_base_drops() -> uint64;
 
-async fn run_task(samples: &mut ArrayFixed<int64, 64>) -> uint64 {
+async fn run_task(samples: &mut ArrayFixed<int64, 512>) -> uint64 {
     let mut checksum: uint64 = 0:uint64;
     let mut i: int = 0;
-    while i < 64 {
+    while i < 512 {
         let started: int64 = bench.now();
         let value: bench.Payload64 = bench.payload64(1:uint64);
         let task: far Task<bench.Payload64> = spawn on shard(1:ShardId) {
@@ -21,10 +21,10 @@ async fn run_task(samples: &mut ArrayFixed<int64, 64>) -> uint64 {
     return checksum;
 }
 
-async fn run_immediate(samples: &mut ArrayFixed<int64, 64>) -> uint64 {
+async fn run_immediate(samples: &mut ArrayFixed<int64, 512>) -> uint64 {
     let mut checksum: uint64 = 0:uint64;
     let mut i: int = 0;
-    while i < 64 {
+    while i < 512 {
         let started: int64 = bench.now();
         let value: bench.Payload64 = bench.payload64(1:uint64);
         let result: TaskResult<bench.Payload64> = on shard(1:ShardId) {
@@ -42,11 +42,11 @@ async fn run_immediate(samples: &mut ArrayFixed<int64, 64>) -> uint64 {
 
 async fn run_channel(
     ch: far Channel<bench.Payload64>,
-    samples: &mut ArrayFixed<int64, 64>,
+    samples: &mut ArrayFixed<int64, 512>,
 ) -> uint64 {
     let mut checksum: uint64 = 0:uint64;
     let mut i: int = 0;
-    while i < 64 {
+    while i < 512 {
         let started: int64 = bench.now();
         let value: bench.Payload64 = bench.payload64(1:uint64);
         let sent: TaskResult<nothing> = on ch {
@@ -78,11 +78,11 @@ async fn run_channel(
 async fn run_select(
     first: far Channel<bench.Payload64>,
     second: far Channel<bench.Payload64>,
-    samples: &mut ArrayFixed<int64, 64>,
+    samples: &mut ArrayFixed<int64, 512>,
 ) -> uint64 {
     let mut checksum: uint64 = 0:uint64;
     let mut i: int = 0;
-    while i < 64 {
+    while i < 512 {
         let started: int64 = bench.now();
         let value: bench.Payload64 = bench.payload64(1:uint64);
         let fed: TaskResult<nothing> = on second {
@@ -107,7 +107,7 @@ async fn run_select(
 
 async fn dispatch(
     row_code: int,
-    samples: &mut ArrayFixed<int64, 64>,
+    samples: &mut ArrayFixed<int64, 512>,
 ) -> uint64 {
     if row_code == 0 {
         return compare run_task(samples).await() {
@@ -147,7 +147,7 @@ fn main(probe: string) -> int {
     else if probe == "far-channel-composite" { row_code = 2; }
     else if probe == "far-select-composite" { row_code = 3; }
     if row_code < 0 { return 92; }
-    let mut samples: int64[64] = default::<int64[64]>();
+    let mut samples: int64[512] = default::<int64[512]>();
     let _: uint64 = bench.allocation_observer();
     let c0: uint64 = bench.allocation_observer();
     let c1: uint64 = bench.allocation_observer();

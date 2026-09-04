@@ -5,11 +5,11 @@ import shared/support as bench;
 async fn run(
     win: Channel<uint64>,
     lose: Channel<uint64>,
-    samples: &mut ArrayFixed<int64, 64>,
+    samples: &mut ArrayFixed<int64, 512>,
 ) -> uint64 {
     let mut checksum: uint64 = 0:uint64;
     let mut i: int = 0;
-    while i < 64 {
+    while i < 512 {
         let started: int64 = bench.now();
         let a: uint64 = i to uint64;
         let b: uint64 = (100 + i) to uint64;
@@ -42,7 +42,7 @@ fn main(probe: string) -> int {
     let win: own Channel<uint64> = Channel::<uint64>::new(1:uint);
     let lose: own Channel<uint64> = Channel::<uint64>::new(1:uint);
     lose.send(1000:uint64);
-    let mut samples: int64[64] = default::<int64[64]>();
+    let mut samples: int64[512] = default::<int64[512]>();
     let _: uint64 = bench.allocation_observer();
     let c0: uint64 = bench.allocation_observer();
     let c1: uint64 = bench.allocation_observer();

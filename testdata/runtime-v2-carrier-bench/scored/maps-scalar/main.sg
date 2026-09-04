@@ -6,11 +6,11 @@ fn run(
     row_code: int,
     values: &mut Map<uint64, uint64>,
     sets: &mut Map<uint64, uint64>[],
-    samples: &mut ArrayFixed<int64, 64>,
+    samples: &mut ArrayFixed<int64, 512>,
 ) -> uint64 {
     let mut checksum: uint64 = 0:uint64;
     let mut i: int = 0;
-    while i < 64 {
+    while i < 512 {
         let started: int64 = bench.now();
         let mut offset: int = 0;
         if row_code == 1 { offset = 8; }
@@ -30,7 +30,7 @@ fn run(
                 nothing => 0:uint64;
             };
         } else {
-            let key_to_remove: uint64 = (63 - i) to uint64;
+            let key_to_remove: uint64 = (511 - i) to uint64;
             let inner_opt: Option<Map<uint64, uint64>> = sets.pop();
             checksum = checksum + compare inner_opt {
                 Some(inner) => {
@@ -48,8 +48,8 @@ fn run(
     }
     if row_code <= 2 {
         let mut key: uint64 = 0:uint64;
-        let mut limit: uint64 = 64:uint64;
-        if row_code == 1 { limit = 72:uint64; }
+        let mut limit: uint64 = 512:uint64;
+        if row_code == 1 { limit = 520:uint64; }
         while key < limit {
             checksum = checksum + compare values.remove(&key) {
                 Some(value) => value;
@@ -75,7 +75,7 @@ fn main(probe: string) -> int {
     let mut sets: Map<uint64, uint64>[] = [];
     if row_code == 0 {
         let mut setup_index: int = 0;
-        while setup_index < 64 {
+        while setup_index < 512 {
             let key: uint64 = setup_index to uint64;
             let _ = values.insert(key, key);
             let _ = values.remove(&key);
@@ -90,14 +90,14 @@ fn main(probe: string) -> int {
         }
     } else if row_code == 2 || row_code == 3 {
         let mut setup_index: int = 0;
-        while setup_index < 64 {
+        while setup_index < 512 {
             let key: uint64 = setup_index to uint64;
             let _ = values.insert(key, key);
             setup_index = setup_index + 1;
         }
     } else {
         let mut setup_index: int = 0;
-        while setup_index < 64 {
+        while setup_index < 512 {
             let key: uint64 = setup_index to uint64;
             let mut inner: Map<uint64, uint64> = Map::<uint64, uint64>.new();
             let _ = inner.insert(key, key);
@@ -106,7 +106,7 @@ fn main(probe: string) -> int {
         }
     }
 
-    let mut samples: int64[64] = default::<int64[64]>();
+    let mut samples: int64[512] = default::<int64[512]>();
     let _: uint64 = bench.allocation_observer();
     let c0: uint64 = bench.allocation_observer();
     let c1: uint64 = bench.allocation_observer();

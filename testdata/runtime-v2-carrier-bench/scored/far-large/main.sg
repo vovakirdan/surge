@@ -6,10 +6,10 @@ fn consume(value: own bench.Payload4096) -> uint64 {
     return value.p000.a + value.p063.h;
 }
 
-async fn run_capture(samples: &mut ArrayFixed<int64, 64>) -> uint64 {
+async fn run_capture(samples: &mut ArrayFixed<int64, 512>) -> uint64 {
     let mut checksum: uint64 = 0:uint64;
     let mut i: int = 0;
-    while i < 64 {
+    while i < 512 {
         let started: int64 = bench.now();
         let mut first: bench.Payload4096 = default::<bench.Payload4096>();
         first.p000.a = i to uint64;
@@ -35,10 +35,10 @@ async fn run_capture(samples: &mut ArrayFixed<int64, 64>) -> uint64 {
     return checksum;
 }
 
-async fn run_result(samples: &mut ArrayFixed<int64, 64>) -> uint64 {
+async fn run_result(samples: &mut ArrayFixed<int64, 512>) -> uint64 {
     let mut checksum: uint64 = 0:uint64;
     let mut i: int = 0;
-    while i < 64 {
+    while i < 512 {
         let started: int64 = bench.now();
         let index: uint64 = i to uint64;
         let task: far Task<bench.Payload4096> = spawn on shard(1:ShardId) {
@@ -59,7 +59,7 @@ async fn run_result(samples: &mut ArrayFixed<int64, 64>) -> uint64 {
 
 async fn dispatch(
     result_row: bool,
-    samples: &mut ArrayFixed<int64, 64>,
+    samples: &mut ArrayFixed<int64, 512>,
 ) -> uint64 {
     if result_row {
         return compare run_result(samples).await() {
@@ -79,7 +79,7 @@ fn main(probe: string) -> int {
     if probe == "far-large-capture" { result_row = false; }
     else if probe == "far-large-result" { result_row = true; }
     else { return 92; }
-    let mut samples: int64[64] = default::<int64[64]>();
+    let mut samples: int64[512] = default::<int64[512]>();
     let _: uint64 = bench.allocation_observer();
     let c0: uint64 = bench.allocation_observer();
     let c1: uint64 = bench.allocation_observer();

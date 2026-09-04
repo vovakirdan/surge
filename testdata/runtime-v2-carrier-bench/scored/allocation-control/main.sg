@@ -6,7 +6,7 @@ import shared/support as bench;
 fn main(probe: string) -> int {
     if probe != "allocation-control" { return 92; }
     let mut values: uint64[] = [];
-    let mut samples: int64[64] = default::<int64[64]>();
+    let mut samples: int64[512] = default::<int64[512]>();
     let _: uint64 = bench.allocation_observer();
     let c0: uint64 = bench.allocation_observer();
     let c1: uint64 = bench.allocation_observer();
@@ -18,7 +18,7 @@ fn main(probe: string) -> int {
     rt_array_debug_deferred_base_drops();
     let batch_started: int64 = bench.now();
     let mut i: int = 0;
-    while i < 64 {
+    while i < 512 {
         let started: int64 = bench.now();
         if i == 0 { values.reserve(1:uint); }
         bench.store_latency(&mut samples, i, started);

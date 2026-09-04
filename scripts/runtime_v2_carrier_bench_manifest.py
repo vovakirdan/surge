@@ -150,6 +150,7 @@ def _protocol(raw: Any) -> Protocol:
         "p95_max_ratio",
         "percentile_method",
         "cv_method",
+        "p95_cv_floor_ns",
     }
     _keys(obj, "protocol", fields)
     protocol = Protocol(
@@ -164,6 +165,7 @@ def _protocol(raw: Any) -> Protocol:
             obj["percentile_method"], "protocol.percentile_method", {"nearest-rank"}
         ),
         cv_method=_choice(obj["cv_method"], "protocol.cv_method", {"sample-n-minus-1"}),
+        p95_cv_floor_ns=_integer(obj["p95_cv_floor_ns"], "protocol.p95_cv_floor_ns", 1),
     )
     if not 0.0 < protocol.max_cv < 1.0:
         raise ManifestError("protocol.max_cv must be in (0, 1)")

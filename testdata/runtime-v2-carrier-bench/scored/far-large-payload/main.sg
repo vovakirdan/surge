@@ -6,10 +6,10 @@ fn consume(value: own bench.Payload8192) -> uint64 {
     return bench.sum8192(&value);
 }
 
-async fn run(samples: &mut ArrayFixed<int64, 64>) -> uint64 {
+async fn run(samples: &mut ArrayFixed<int64, 512>) -> uint64 {
     let mut checksum: uint64 = 0:uint64;
     let mut i: int = 0;
-    while i < 64 {
+    while i < 512 {
         let started: int64 = bench.now();
         let first: bench.Payload8192 = bench.payload8192(i to uint64);
         let second: bench.Payload8192 =
@@ -37,7 +37,7 @@ async fn run(samples: &mut ArrayFixed<int64, 64>) -> uint64 {
 @entrypoint("argv")
 fn main(probe: string) -> int {
     if probe != "far-large-payload-contention" { return 92; }
-    let mut samples: int64[64] = default::<int64[64]>();
+    let mut samples: int64[512] = default::<int64[512]>();
     let _: uint64 = bench.allocation_observer();
     let c0: uint64 = bench.allocation_observer();
     let c1: uint64 = bench.allocation_observer();

@@ -2,10 +2,10 @@ import shared/support as bench;
 
 @intrinsic fn rt_array_debug_deferred_base_drops() -> uint64;
 
-async fn run(samples: &mut ArrayFixed<int64, 64>) -> uint64 {
+async fn run(samples: &mut ArrayFixed<int64, 512>) -> uint64 {
     let mut checksum: uint64 = 0:uint64;
     let mut i: int = 0;
-    while i < 64 {
+    while i < 512 {
         let started: int64 = bench.now();
         let value: uint64 = 37:uint64;
         let task: Task<uint64> = blocking {
@@ -24,7 +24,7 @@ async fn run(samples: &mut ArrayFixed<int64, 64>) -> uint64 {
 @entrypoint("argv")
 fn main(probe: string) -> int {
     if probe != "blocking-scalar" { return 92; }
-    let mut samples: int64[64] = default::<int64[64]>();
+    let mut samples: int64[512] = default::<int64[512]>();
     let _: uint64 = bench.allocation_observer();
     let c0: uint64 = bench.allocation_observer();
     let c1: uint64 = bench.allocation_observer();

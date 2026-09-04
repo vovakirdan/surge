@@ -4,11 +4,11 @@ import shared/support as bench;
 
 async fn run(
     ch: Channel<uint64>,
-    samples: &mut ArrayFixed<int64, 64>,
+    samples: &mut ArrayFixed<int64, 512>,
 ) -> uint64 {
     let mut checksum: uint64 = 0:uint64;
     let mut i: int = 0;
-    while i < 64 {
+    while i < 512 {
         let started: int64 = bench.now();
         ch.send(37:uint64);
         checksum = checksum + compare ch.recv() {
@@ -27,7 +27,7 @@ async fn run(
 fn main(probe: string) -> int {
     if probe != "channel-buffered-scalar" { return 92; }
     let ch: own Channel<uint64> = Channel::<uint64>::new(1:uint);
-    let mut samples: int64[64] = default::<int64[64]>();
+    let mut samples: int64[512] = default::<int64[512]>();
     let _: uint64 = bench.allocation_observer();
     let c0: uint64 = bench.allocation_observer();
     let c1: uint64 = bench.allocation_observer();

@@ -77,6 +77,13 @@ class Protocol:
     p95_max_ratio: float
     percentile_method: str
     cv_method: str
+    # Owner ruling 2026-09-04 (variant "в"): a per-operation p95 below this
+    # many nanoseconds is a reading of the clock, not of the runtime -- the
+    # latencies come back quantized in ~10 ns ticks and two clock reads cost
+    # about as much as a 60 ns operation -- so the p95 CV gate applies only to
+    # a side whose median p95 reaches the floor; below it the row is gated on
+    # throughput CV alone. The p95 RATIO gate is unchanged either way.
+    p95_cv_floor_ns: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -252,6 +259,11 @@ def sample_cv(values: Sequence[float]) -> float:
     return statistics.stdev(values) / mean
 
 
+def p95_cv_gated(protocol: Protocol, score: SideScore) -> bool:
+    """Whether a side's p95 CV is a gate: its median p95 reaches the floor."""
+    return score.p95_ns >= protocol.p95_cv_floor_ns
+
+
 def score_side(runs: Sequence[MeasuredRun]) -> SideScore:
     if not runs:
         raise GateFailure("cannot score an empty side")
@@ -294,10 +306,15 @@ def validate_row_protocol(
                 f"{row.row_id} {label} throughput CV {score.throughput_cv:.6f} "
                 f"exceeds {manifest.protocol.max_cv:.6f}"
             )
-        if score.p95_cv > manifest.protocol.max_cv:
+        # Owner ruling 2026-09-04 (variant "в"): below the floor a p95 is a
+        # reading of the clock's tick, and its CV is not gated; the row still
+        # answers to the throughput CV above and to the p95 ratio below.
+        if p95_cv_gated(manifest.protocol, score) and score.p95_cv > manifest.protocol.max_cv:
             raise GateFailure(
                 f"{row.row_id} {label} p95 CV {score.p95_cv:.6f} "
-                f"exceeds {manifest.protocol.max_cv:.6f}"
+                f"exceeds {manifest.protocol.max_cv:.6f} "
+                f"(p95 {score.p95_ns:.0f} ns is at or above the "
+                f"{manifest.protocol.p95_cv_floor_ns} ns floor)"
             )
     if row.relative_performance:
         throughput_ratio = candidate_score.throughput / base_score.throughput

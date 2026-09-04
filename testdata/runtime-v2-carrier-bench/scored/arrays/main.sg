@@ -2,10 +2,10 @@ import shared/support as bench;
 
 @intrinsic fn rt_array_debug_deferred_base_drops() -> uint64;
 
-fn push_scalar(values: &mut uint64[], samples: &mut ArrayFixed<int64, 64>) -> uint64 {
+fn push_scalar(values: &mut uint64[], samples: &mut ArrayFixed<int64, 512>) -> uint64 {
     let mut checksum: uint64 = 0:uint64;
     let mut i: int = 0;
-    while i < 64 {
+    while i < 512 {
         let started: int64 = bench.now();
         values.push(i to uint64);
         checksum = checksum + values[i];
@@ -21,10 +21,10 @@ fn push_scalar(values: &mut uint64[], samples: &mut ArrayFixed<int64, 64>) -> ui
     return checksum;
 }
 
-fn push_composite(values: &mut bench.Payload64[], samples: &mut ArrayFixed<int64, 64>) -> uint64 {
+fn push_composite(values: &mut bench.Payload64[], samples: &mut ArrayFixed<int64, 512>) -> uint64 {
     let mut checksum: uint64 = 0:uint64;
     let mut i: int = 0;
-    while i < 64 {
+    while i < 512 {
         let started: int64 = bench.now();
         values.push(bench.payload64(i to uint64));
         checksum = checksum + bench.sum64(&values[i]);
@@ -40,10 +40,10 @@ fn push_composite(values: &mut bench.Payload64[], samples: &mut ArrayFixed<int64
     return checksum;
 }
 
-fn teardown_scalar(values: &mut uint64[][], samples: &mut ArrayFixed<int64, 64>) -> uint64 {
+fn teardown_scalar(values: &mut uint64[][], samples: &mut ArrayFixed<int64, 512>) -> uint64 {
     let mut checksum: uint64 = 0:uint64;
     let mut i: int = 0;
-    while i < 64 {
+    while i < 512 {
         let started: int64 = bench.now();
         checksum = checksum + compare values.pop() {
             Some(inner) => {
@@ -61,10 +61,10 @@ fn teardown_scalar(values: &mut uint64[][], samples: &mut ArrayFixed<int64, 64>)
     return checksum;
 }
 
-fn teardown_composite(values: &mut bench.Payload64[][], samples: &mut ArrayFixed<int64, 64>) -> uint64 {
+fn teardown_composite(values: &mut bench.Payload64[][], samples: &mut ArrayFixed<int64, 512>) -> uint64 {
     let mut checksum: uint64 = 0:uint64;
     let mut i: int = 0;
-    while i < 64 {
+    while i < 512 {
         let started: int64 = bench.now();
         checksum = checksum + compare values.pop() {
             Some(inner) => {
@@ -101,7 +101,7 @@ fn main(probe: string) -> int {
     else if row_code == 3 { composite_values.reserve(64:uint); }
     else if row_code == 4 || row_code == 5 {
         let mut setup_index: int = 0;
-        while setup_index < 64 {
+        while setup_index < 512 {
             if row_code == 4 {
                 let mut inner: uint64[] = [];
                 inner.push(setup_index to uint64);
@@ -115,7 +115,7 @@ fn main(probe: string) -> int {
         }
     }
 
-    let mut samples: int64[64] = default::<int64[64]>();
+    let mut samples: int64[512] = default::<int64[512]>();
     let _: uint64 = bench.allocation_observer();
     let c0: uint64 = bench.allocation_observer();
     let c1: uint64 = bench.allocation_observer();

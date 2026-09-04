@@ -358,7 +358,10 @@ def _allocation_control_row(manifest: Manifest) -> Row:
         payload_role="control",
         fixture=control.fixture,
         probe=control.probe,
-        operations_per_batch=64,
+        # The control fixture runs the same 512-operation batch as every
+        # scored row (owner ruling 2026-09-04); its one deliberate allocation
+        # and checksum "1" do not depend on the count.
+        operations_per_batch=512,
         batches=1,
         payload_bytes=0,
         timeout_seconds=30,

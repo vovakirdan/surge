@@ -1,6 +1,7 @@
 """Focused Runtime V2 carrier benchmark tests."""
 
 from runtime_v2_carrier_bench_test_support import *
+from runtime_v2_carrier_bench_model import p95_cv_gated, score_side, validate_row_protocol
 
 class ModelTests(unittest.TestCase):
     def test_wave_a_baseline_capture_preserves_red_and_protocol_boundary(self) -> None:
@@ -290,6 +291,79 @@ class ManifestTests(unittest.TestCase):
                     else:
                         with self.assertRaisesRegex(ManifestError, "two distinct cores"):
                             load_manifest(path)
+
+    def test_loader_freezes_the_p95_cv_floor(self) -> None:
+        # Owner ruling 2026-09-04 (variant "в"): the floor under which a p95
+        # CV is a reading of the clock is 1000 ns, and the manifest cannot
+        # move it or leave it out.
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "manifest.json"
+            raw = manifest_json()
+            path.write_text(json.dumps(raw), encoding="utf-8")
+            self.assertEqual(load_manifest(path).protocol.p95_cv_floor_ns, 1000)
+            for label, floor in (("lower", 999), ("higher", 1001), ("zero", 0)):
+                with self.subTest(label=label):
+                    raw = manifest_json()
+                    raw["protocol"]["p95_cv_floor_ns"] = floor
+                    path.write_text(json.dumps(raw), encoding="utf-8")
+                    with self.assertRaisesRegex(ManifestError, "p95_cv_floor_ns"):
+                        load_manifest(path)
+            raw = manifest_json()
+            del raw["protocol"]["p95_cv_floor_ns"]
+            path.write_text(json.dumps(raw), encoding="utf-8")
+            with self.assertRaises(ManifestError):
+                load_manifest(path)
+
+    @staticmethod
+    def _runs_with_p95(side: str, tail_ns: list[int], *, elapsed_ns: list[int]) -> tuple[MeasuredRun, ...]:
+        # Twenty operations per run: eighteen at the tail's floor and two at
+        # the tail value, so nearest-rank p95 (rank 19 of 20) IS the tail,
+        # while elapsed_ns is set independently so throughput can hold still
+        # or move on its own.
+        return tuple(
+            MeasuredRun(
+                side=side,
+                pair_index=index,
+                timing=TimingSample(elapsed, (min(tail_ns),) * 18 + (tail, tail), 20),
+                counters=CounterSample(counter_values(side)),
+            )
+            for index, (tail, elapsed) in enumerate(zip(tail_ns, elapsed_ns, strict=True))
+        )
+
+    def test_p95_cv_gates_only_at_or_above_the_timer_floor(self) -> None:
+        # The runner's own shape: seven p95 readings one clock tick apart,
+        # [60, 70, 70, 70, 70, 70, 70] ns, are a 5.5 % CV of a 10 ns tick. Below
+        # the floor that is not a gate; the same seven readings scaled a
+        # hundredfold, 6000/7000 ns, are the runtime's and still are.
+        manifest = make_manifest()
+        row = manifest.rows[0]
+        steady = [1200] * 7
+        candidate = self._runs_with_p95("candidate", [70] * 7, elapsed_ns=steady)
+        quantized = self._runs_with_p95("base", [60] + [70] * 6, elapsed_ns=steady)
+        base_score, _ = validate_row_protocol(manifest, row, quantized, candidate)
+        self.assertGreater(base_score.p95_cv, 0.05)
+        self.assertFalse(p95_cv_gated(manifest.protocol, base_score))
+        real = self._runs_with_p95("base", [6000] + [7000] * 6, elapsed_ns=steady)
+        real_candidate = self._runs_with_p95("candidate", [7000] * 7, elapsed_ns=steady)
+        with self.assertRaisesRegex(GateFailure, "base p95 CV .* at or above the 1000 ns floor"):
+            validate_row_protocol(manifest, row, real, real_candidate)
+        at_floor = self._runs_with_p95("base", [900] + [1000] * 6, elapsed_ns=steady)
+        floor_score = score_side(at_floor)
+        self.assertEqual(floor_score.p95_ns, 1000.0)
+        self.assertTrue(p95_cv_gated(manifest.protocol, floor_score))
+
+    def test_throughput_cv_still_gates_a_row_below_the_floor(self) -> None:
+        # Rule 13 in the other direction: waiving the p95 CV below the floor
+        # does not waive the row. A sub-microsecond row whose batch elapsed
+        # wanders 6 % is red on throughput CV exactly as before.
+        manifest = make_manifest()
+        row = manifest.rows[0]
+        candidate = self._runs_with_p95("candidate", [70] * 7, elapsed_ns=[1200] * 7)
+        wandering = self._runs_with_p95(
+            "base", [70] * 7, elapsed_ns=[1200, 1200, 1200, 1200, 1200, 1200, 1400]
+        )
+        with self.assertRaisesRegex(GateFailure, "base throughput CV"):
+            validate_row_protocol(manifest, row, wandering, candidate)
 
     def test_loader_freezes_cross_row_relation_shapes(self) -> None:
         def proportional() -> dict[str, object]:

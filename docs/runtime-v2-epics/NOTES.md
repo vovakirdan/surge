@@ -14492,3 +14492,56 @@ hundreds of microseconds and re-pin the structural budgets from a sweep;
 (c) both. Until the ruling the benchmark evidence for DEBT-125 stands as
 "two attempts on the dedicated host, both refused before a verdict, the
 second by the protocol's own noise floor", and F8 waits on it.
+
+### F7, owner ruling 2026-09-04 on the benchmark protocol: variant "в" (2026-09-04)
+
+The owner chose (c), both halves; neither EPICS_CLOSEOUT_PLAN.md nor the
+memory held an answer, the plan freezes only the four numbers. The numbers
+stay: 2 warmups, 7 pairs, CV <= 5 %, 0.95 throughput, 1.10 p95. What
+changes is what the p95 CV is a gate OF, and how long a batch is.
+
+**(a) The p95 CV floor.** `protocol.p95_cv_floor_ns: 1000`, parsed by the
+loader, frozen by the validator ("must be exactly 1000, owner ruling
+2026-09-04"), applied in `validate_row_protocol`: a side's p95 CV is held
+to `max_cv` only when its median p95 is at or above the floor
+(`p95_cv_gated`); below it the row still answers to its throughput CV and
+to the p95 ratio, and the report's score carries `p95_cv_gated` so a
+reader knows which. Stands: `test_loader_freezes_the_p95_cv_floor` (999,
+1001, 0 and a missing field refused), `test_p95_cv_gates_only_at_or_above_the_timer_floor`
+(the runner's own shape, seven p95 readings one 10 ns tick apart, 5.5 %
+CV, passes below the floor and the same shape at 6000/7000 ns is red with
+"at or above the 1000 ns floor"; a side whose median p95 is exactly 1000
+is gated), `test_throughput_cv_still_gates_a_row_below_the_floor` (Rule 13
+the other way: a sub-microsecond row whose batch elapsed wanders 6 % is red
+on throughput CV as before), `test_report_says_whether_a_p95_cv_was_a_gate`.
+
+**(b) 512 operations per batch.** Every fixture spelled 64 in five shapes
+(`int64[64]`, `ArrayFixed<int64, 64>`, `while i < 64`, the maps' setup
+loop and cleanup bounds 64/72 and `63 - i`, and `"operations":64` in
+`support.sg`'s record, whose escaped quotes the first mechanical rewrite
+missed -- the harness caught it: "result operation count drifted", the
+record said 64 with 512 samples). 22 fixture files rewritten by sed,
+recorded here as the mechanical corpus rewrite it is; the maps' bounds
+become 512/520 and `511 - i`; the control fixture's checksum "1" and one
+allocation do not depend on the count, and the runner's synthetic control
+row says 512 too. Manifest: every row `operations_per_batch: 512`.
+
+**Re-pin.** A one-off pass through the harness's own `build_fixtures` and
+`_run_batch` on the candidate tree, three batches per row, 46 rows: one
+allocation count per row in all three batches on every row; 45 of 46
+checksums move (`zero` alone does not), 26 of 46 budgets move, and the
+shape is the arithmetic of the change -- per-operation rows by eight times
+their per-op cost over the fixed executor start (blocking 346 -> 2589,
+far-channel 414 -> 3102, task 217 -> 1564), the array rows by the extra
+grow steps of a 512-element array (7 -> 10; steady/teardown 0 -> 3), the
+channel-buffered/unbuffered and select-send rows not at all (per batch,
+not per op). Median p95 on the candidate: 18 of 46 rows below the 1000 ns
+floor (57 ns to 986 ns), 28 above (2.2 us to 395 us). The second copy of
+every nonzero budget in `test_matrix_and_blocking_topology_are_frozen`
+re-stated, with the two select-send checksums; 28 harness/fixture digests
+re-taken; `python3 -m unittest discover -s scripts -p
+'runtime_v2_carrier_bench*_test.py'`: 67 of 67 (the build test now runs
+in a worktree under `~/.cache`, where `go build`'s VCS stamp works).
+
+Third attempt on the dedicated host queued: `queue_bench2.sh <sha>` under
+`taskset -c 8,10`, box idle by construction.

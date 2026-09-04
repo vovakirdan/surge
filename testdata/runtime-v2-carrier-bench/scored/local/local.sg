@@ -8,10 +8,10 @@ fn returned_payload() -> bench.Payload64 {
     return bench.payload64(1:uint64);
 }
 
-pub fn run(row_code: int, samples: &mut ArrayFixed<int64, 64>) -> uint64 {
+pub fn run(row_code: int, samples: &mut ArrayFixed<int64, 512>) -> uint64 {
     let mut checksum: uint64 = 0:uint64;
     let mut index: int = 0;
-    while index < 64 {
+    while index < 512 {
         let started: int64 = bench.now();
         if row_code == 0 {
             checksum = checksum + (0):uint64;

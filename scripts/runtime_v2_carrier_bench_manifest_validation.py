@@ -32,6 +32,13 @@ def validate_manifest(manifest: Manifest) -> None:
         raise ManifestError("protocol.max_cv must be exactly 0.05")
     if protocol.throughput_min_ratio != 0.95 or protocol.p95_max_ratio != 1.10:
         raise ManifestError("protocol relative budgets must be exactly 0.95 throughput / 1.10 p95")
+    # Owner ruling 2026-09-04, variant "в": the p95 CV gate applies only where
+    # the side's median p95 is at least ten timer ticks (the runner's latencies
+    # are quantized in ~10 ns steps; a 60 ns row's p95 moves one tick and reads
+    # 6 % CV of the clock, not of the runtime). Sub-microsecond rows are gated
+    # on throughput CV alone. The number is the ruling's, not a tunable.
+    if protocol.p95_cv_floor_ns != 1000:
+        raise ManifestError("protocol.p95_cv_floor_ns must be exactly 1000 (owner ruling 2026-09-04)")
     if manifest.shards != 2 or manifest.threads != 2:
         raise ManifestError("benchmark topology must freeze shards=2 threads=2")
     if manifest.blocking_threads != 1:

@@ -5,7 +5,7 @@ import shared/support as bench;
 async fn receive(ch: own Channel<bench.Payload64>) -> uint64 {
     let mut checksum: uint64 = 0:uint64;
     let mut i: int = 0;
-    while i < 64 {
+    while i < 512 {
         checksum = checksum + compare ch.recv() {
             Some(value) => bench.sum64(&value);
             nothing => 0:uint64;
@@ -18,10 +18,10 @@ async fn receive(ch: own Channel<bench.Payload64>) -> uint64 {
 
 async fn send_all(
     ch: own Channel<bench.Payload64>,
-    samples: &mut ArrayFixed<int64, 64>,
+    samples: &mut ArrayFixed<int64, 512>,
 ) -> nothing {
     let mut i: int = 0;
-    while i < 64 {
+    while i < 512 {
         let started: int64 = bench.now();
         let value: bench.Payload64 = bench.payload64(1:uint64);
         ch.send(own value);
@@ -42,7 +42,7 @@ fn main(probe: string) -> int {
     let receiver: Task<uint64> = spawn receive(receiver_ch);
     let _ = checkpoint().await();
     let _ = checkpoint().await();
-    let mut samples: int64[64] = default::<int64[64]>();
+    let mut samples: int64[512] = default::<int64[512]>();
     let _: uint64 = bench.allocation_observer();
     let c0: uint64 = bench.allocation_observer();
     let c1: uint64 = bench.allocation_observer();

@@ -316,7 +316,7 @@ entry:
             row_id="zero",
             fixture="testdata/runtime-v2-carrier-bench/scored/local/main.sg",
             probe="zero",
-            operations_per_batch=64,
+            operations_per_batch=512,
             payload_bytes=0,
             relative_performance=False,
             expected_checksum="0",

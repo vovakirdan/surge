@@ -18,7 +18,8 @@
     "throughput_min_ratio": 0.95,
     "p95_max_ratio": 1.1,
     "percentile_method": "nearest-rank",
-    "cv_method": "sample-n-minus-1"
+    "cv_method": "sample-n-minus-1",
+    "p95_cv_floor_ns": 1000
   },
   "backend": "llvm",
   "profile": "release",
@@ -116,7 +117,7 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_build_test.py",
-      "sha256": "eedd9be654340e80382324cb78dbee2323cb4eb872b07cf1605511c3a546f482"
+      "sha256": "44842d235217d1a8139ee9beaccf3e581f53eafafd89cb05af64dd9c83087af1"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_host.py",
@@ -132,15 +133,15 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest.py",
-      "sha256": "0f3cea92355af3c1904da9e1e657db4c6d2e07ab8888dd255b8778804f79fd4e"
+      "sha256": "319aa72d9213b949dba89e2dedfe5fe3ce8d1a5659a0663a9105b89e9f3d4957"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_file_test.py",
-      "sha256": "b9ac03af06cf18dcb86554cf68868cb0853ac6bb94e5647a8ab4dd77b9f486f1"
+      "sha256": "d16d2306a4245923d7d44a1d8ec8b3b889f62ec6a680830f98a23eedff76589c"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_validation.py",
-      "sha256": "61ad4d46422f52070cd3f0e91a89908e0b2413221429f111094b8555f21c0de7"
+      "sha256": "d151f11f7013b00d5d4bc82bdb08fb91f525463bab6c89a1f6ca8143f66935af"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_manifest_values.py",
@@ -148,11 +149,11 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_model.py",
-      "sha256": "ab9d855f4b6b36d8059dd0bab064bae46d50c0e3b3eaf8cf4dc14d6264ff6508"
+      "sha256": "413d153348f4551adb191c945649bb3a00a5c6d181f7d41c7054ef66e41e8993"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_model_test.py",
-      "sha256": "fa54f2092f4e34cd2af96230a83e8ec02f90aa9805fd8b8ee637944843003cdd"
+      "sha256": "1e701aa34fad83d2d0aad38057e85a97dae886d950a5f88e238b721b37fcb650"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_protocol.py",
@@ -164,69 +165,69 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_report.py",
-      "sha256": "28cf29cc4b98f2987cd5269f8fc792ebb3ca22ff64b70e21260b245cc8bf9a9d"
+      "sha256": "7b62735bfcb91d1046424f83fab7477c12b5ea86af53a565760bf710ea28d04e"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_report_test.py",
-      "sha256": "5be86bff44c01b801e5756e2827cc293dd2bf2a97bb40a1846efe1dfb0fa9406"
+      "sha256": "dd4b700f405ce597b9bf16fbcab9d12b36635b4a2ece4139ea10451eb98633c8"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_runner.py",
-      "sha256": "b596eede81b407a2ecbb57cd4e287e00655025897d99a895419b63bbb9c11c5a"
+      "sha256": "311bf631128a615bbe77b7dc515accb862d4bb314cf2ca633caccac178e2caad"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_test_support.py",
-      "sha256": "eb1ca4b4b2c4dfa8bd906a08215155864088cee3b89259bf8e778afe00eb0a85"
+      "sha256": "aa291046b2ce227b85ae7b02ff8b2b1b26f983632cb56913386a7dc8e7246916"
     }
   ],
   "fixtures": [
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/allocation-control/main.sg",
-      "sha256": "04686ddd7399d5ddf63aa9a1d70d5da6271e82a3f63e18a59b415ff6c6f88ff9"
+      "sha256": "d8a01c0f2f21b389904752b42272f5da86615235b151c84ca948afdcd6438df1"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/arrays/main.sg",
-      "sha256": "98ae9d367dfe6bc7209c7d7ba8030e403522e6219082f64a1da0c9b08c95997f"
+      "sha256": "67dfd4b87d5958186f14fb8ecc8408c729876a2f59d833b50178db1468f14bab"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/blocking-composite/main.sg",
-      "sha256": "33696f69a1292c175315ad22790baf827a3506066675ebce71655d366f74797f"
+      "sha256": "c43e09f58f8c7ce8e3be9c84c31561482afa879514a7af1e66b346b636c32b48"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/blocking-scalar/main.sg",
-      "sha256": "f785c6b3fe81a8bad9380d0c5ff879c946956304ed9f38205f077f2be8274abf"
+      "sha256": "a7b01e315021442e38fcf78802864dd5c29ea80c1dfcb67737016581cf669a1e"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/channel-buffered-composite/main.sg",
-      "sha256": "fde2f2936fc34e9cf94591feec936b77c75155efc6247ba6148ae0bedc11db11"
+      "sha256": "17f7c6cdbadbd9c386ff12589c2a1d8b0162c47e14477bb3bacf1448c0b9efbb"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/channel-buffered-scalar/main.sg",
-      "sha256": "3d8961cd0dd2e3f72d778e1284fc0f874ac9f5022af66e1c219627b61654a38b"
+      "sha256": "502263cc774cbfb4a8b07f30dc02915b2ff06a03d50cdf25431379bebd608c8a"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/channel-unbuffered-composite/main.sg",
-      "sha256": "46b4b787c9ff77b193f0f84413feb342d0a04dfbbb338f5389c5f749e3bb171b"
+      "sha256": "528ab6766e5dcba721c187de6961791e7ab301b3604d1fdd94052386e2d572ac"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/channel-unbuffered-scalar/main.sg",
-      "sha256": "7cac404afb3a14af2554318b31791ff9da91d3cc52ad85e9f31ae4a318ebbd8c"
+      "sha256": "2903931cd031e3850434c3aa3cd310c92948245b394274a65f57a7f412eeed4d"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/far-composite/main.sg",
-      "sha256": "bf89152afbc1d5d8b7182d4ebc414a5f1d83e3c8224b034b1519b9017296bda0"
+      "sha256": "03d59fcc84bc8d81cf9e70664b8bf452f8f87c565cb7ec2f54c81eafe84a50b9"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/far-large-payload/main.sg",
-      "sha256": "5d2b06fb09022957395059b73504ecdee1c4a92c60a41782f7b6d55b49c364fc"
+      "sha256": "4632fd86a2999cf9b1c842b2041ad8ec871283a09f9dd4267eb81db13c1ac00a"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/far-large/main.sg",
-      "sha256": "87d991d13aa7d4a2f8b338dd8d796bd189783e213170936bcc5e36c741dc578c"
+      "sha256": "6b0eadaab129cd2c36481ff31d7525b3e69328d8b4124352725a86f2201abb19"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/far-scalar/main.sg",
-      "sha256": "85de16e42b9a706472ea56a49f5b2053a6fdc7f7b73dbec0c63be67fbb30a3fd"
+      "sha256": "f5bc37f5882fb3d43c2480ceb4f67e32368ef480872eb1b0fd57e57c3ee24596"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/liveness/main.sg",
@@ -234,39 +235,39 @@
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/local/local.sg",
-      "sha256": "b143cdaf384b1a372d6150ae48363d1dacbda27a4028976e21cd3dbb373063a8"
+      "sha256": "d9cdf99b0a4f16973e838649b06b258bad70c931141e4ef4bc3fc63df6db5aa7"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/local/main.sg",
-      "sha256": "8cd2165ae3f92fe233b12c3276898e644ebf181ce2ab427070c11f07428696d7"
+      "sha256": "e88d8e1a206a7984dbf875568363036a00174cad0a72e325b21e606eb48c6cd2"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/maps-composite/main.sg",
-      "sha256": "a218aa5de1da945344265e27a850389ce258ca6d038ee1ee91c09915fa3cf9d5"
+      "sha256": "7503b6ecfaab313325cbf0c80edaa503c470eadeaf474e8ccf32d744f04edca4"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/maps-scalar/main.sg",
-      "sha256": "1d8314b5b6451790fcfef0cdcb5cb180f6b098000ccc6528135ecd4e0241be9e"
+      "sha256": "c37c46576dd9ff53467a6223ac7dc1c47b84aff1e014b703b697788c1c8cdf13"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/select-send-composite/main.sg",
-      "sha256": "a2bea899d994a2a7a5cf9e989da0686fc9dee3848f835485e8fb53651b061549"
+      "sha256": "fd8ac57290c74eb16d55d6ee2666c08798652abe5bf5b756107e85b16c79d4dc"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/select-send-scalar/main.sg",
-      "sha256": "16cbc4e982e4132213ee48b30b799ed169de04984dac6005d14e539f13cb376d"
+      "sha256": "db1dd01aac1c79e8918c5b9d4b6249adf1f2146b08d9b5361dfd3c0cbf448366"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/shared/support.sg",
-      "sha256": "81490009095fa034a5b65da95cdfb51197c593102c069efbed19c3185c03f564"
+      "sha256": "db3c96079b46082a2674286a4fedb82ece416653e8c3d1598acd1a808f6af968"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/task-composite/main.sg",
-      "sha256": "b2bcb9c369d91ba3079b6396ca781346cdf7ca84f2be74b072bb78616f90b99f"
+      "sha256": "b5b76dabbd5cce7692a086098a6536f1e6af848c63c68599bd09cdd79fc2177c"
     },
     {
       "path": "testdata/runtime-v2-carrier-bench/scored/task-scalar/main.sg",
-      "sha256": "20691f0999fdd159cf448cb4aa4529a12148281959e54154db71997f69a120c6"
+      "sha256": "986c9b031d94a6e51c862754c1fcf17875a65427474d0df16386d133caaff2d7"
     }
   ],
   "rows": [
@@ -276,13 +277,13 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/arrays/main.sg",
       "probe": "array-grow-composite",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 64,
       "timeout_seconds": 10,
       "relative_performance": false,
-      "expected_checksum": "8512",
-      "candidate_structural_allocations_per_batch": 7,
+      "expected_checksum": "297472",
+      "candidate_structural_allocations_per_batch": 10,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -299,13 +300,13 @@
       "payload_role": "scalar",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/arrays/main.sg",
       "probe": "array-grow-scalar",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 8,
       "timeout_seconds": 10,
       "relative_performance": true,
-      "expected_checksum": "4032",
-      "candidate_structural_allocations_per_batch": 7,
+      "expected_checksum": "261632",
+      "candidate_structural_allocations_per_batch": 10,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -322,13 +323,13 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/arrays/main.sg",
       "probe": "array-steady-composite",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 64,
       "timeout_seconds": 10,
       "relative_performance": false,
-      "expected_checksum": "8512",
-      "candidate_structural_allocations_per_batch": 0,
+      "expected_checksum": "297472",
+      "candidate_structural_allocations_per_batch": 3,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -345,13 +346,13 @@
       "payload_role": "scalar",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/arrays/main.sg",
       "probe": "array-steady-scalar",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 8,
       "timeout_seconds": 10,
       "relative_performance": true,
-      "expected_checksum": "4032",
-      "candidate_structural_allocations_per_batch": 0,
+      "expected_checksum": "261632",
+      "candidate_structural_allocations_per_batch": 3,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -368,12 +369,12 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/arrays/main.sg",
       "probe": "array-teardown-composite",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 64,
       "timeout_seconds": 10,
       "relative_performance": false,
-      "expected_checksum": "4256",
+      "expected_checksum": "148736",
       "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
@@ -391,12 +392,12 @@
       "payload_role": "scalar",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/arrays/main.sg",
       "probe": "array-teardown-scalar",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 8,
       "timeout_seconds": 10,
       "relative_performance": true,
-      "expected_checksum": "2016",
+      "expected_checksum": "130816",
       "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
@@ -414,13 +415,13 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/blocking-composite/main.sg",
       "probe": "blocking-composite",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 64,
       "timeout_seconds": 20,
       "relative_performance": false,
-      "expected_checksum": "2304",
-      "candidate_structural_allocations_per_batch": 346,
+      "expected_checksum": "18432",
+      "candidate_structural_allocations_per_batch": 2589,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -437,13 +438,13 @@
       "payload_role": "scalar",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/blocking-scalar/main.sg",
       "probe": "blocking-scalar",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 8,
       "timeout_seconds": 20,
       "relative_performance": true,
-      "expected_checksum": "2368",
-      "candidate_structural_allocations_per_batch": 218,
+      "expected_checksum": "18944",
+      "candidate_structural_allocations_per_batch": 1565,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -460,12 +461,12 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/channel-buffered-composite/main.sg",
       "probe": "channel-buffered-composite",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 64,
       "timeout_seconds": 15,
       "relative_performance": false,
-      "expected_checksum": "2304",
+      "expected_checksum": "18432",
       "candidate_structural_allocations_per_batch": 19,
       "required_metrics": [
         "allocation_count",
@@ -483,12 +484,12 @@
       "payload_role": "scalar",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/channel-buffered-scalar/main.sg",
       "probe": "channel-buffered-scalar",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 8,
       "timeout_seconds": 15,
       "relative_performance": true,
-      "expected_checksum": "2368",
+      "expected_checksum": "18944",
       "candidate_structural_allocations_per_batch": 19,
       "required_metrics": [
         "allocation_count",
@@ -506,12 +507,12 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/channel-unbuffered-composite/main.sg",
       "probe": "channel-unbuffered-composite",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 64,
       "timeout_seconds": 15,
       "relative_performance": false,
-      "expected_checksum": "2304",
+      "expected_checksum": "18432",
       "candidate_structural_allocations_per_batch": 3,
       "required_metrics": [
         "allocation_count",
@@ -529,12 +530,12 @@
       "payload_role": "scalar",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/channel-unbuffered-scalar/main.sg",
       "probe": "channel-unbuffered-scalar",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 8,
       "timeout_seconds": 15,
       "relative_performance": true,
-      "expected_checksum": "2368",
+      "expected_checksum": "18944",
       "candidate_structural_allocations_per_batch": 3,
       "required_metrics": [
         "allocation_count",
@@ -552,13 +553,13 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/far-composite/main.sg",
       "probe": "far-channel-composite",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 64,
       "timeout_seconds": 20,
       "relative_performance": false,
-      "expected_checksum": "2368",
-      "candidate_structural_allocations_per_batch": 414,
+      "expected_checksum": "18944",
+      "candidate_structural_allocations_per_batch": 3102,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -575,13 +576,13 @@
       "payload_role": "scalar",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/far-scalar/main.sg",
       "probe": "far-channel-scalar",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 8,
       "timeout_seconds": 20,
       "relative_performance": true,
-      "expected_checksum": "2432",
-      "candidate_structural_allocations_per_batch": 414,
+      "expected_checksum": "19456",
+      "candidate_structural_allocations_per_batch": 3102,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -598,13 +599,13 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/far-composite/main.sg",
       "probe": "far-immediate-composite",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 64,
       "timeout_seconds": 20,
       "relative_performance": false,
-      "expected_checksum": "2304",
-      "candidate_structural_allocations_per_batch": 281,
+      "expected_checksum": "18432",
+      "candidate_structural_allocations_per_batch": 2073,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -621,13 +622,13 @@
       "payload_role": "scalar",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/far-scalar/main.sg",
       "probe": "far-immediate-scalar",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 8,
       "timeout_seconds": 20,
       "relative_performance": true,
-      "expected_checksum": "2368",
-      "candidate_structural_allocations_per_batch": 153,
+      "expected_checksum": "18944",
+      "candidate_structural_allocations_per_batch": 1049,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -644,13 +645,13 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/far-large-payload/main.sg",
       "probe": "far-large-payload-contention",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 8192,
       "timeout_seconds": 20,
       "relative_performance": false,
-      "expected_checksum": "68928",
-      "candidate_structural_allocations_per_batch": 660,
+      "expected_checksum": "780800",
+      "candidate_structural_allocations_per_batch": 5140,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -667,13 +668,13 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/far-large/main.sg",
       "probe": "far-large-capture",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 4096,
       "timeout_seconds": 20,
       "relative_performance": false,
-      "expected_checksum": "68032",
-      "candidate_structural_allocations_per_batch": 665,
+      "expected_checksum": "773632",
+      "candidate_structural_allocations_per_batch": 5145,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -690,13 +691,13 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/far-large/main.sg",
       "probe": "far-large-result",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 4096,
       "timeout_seconds": 20,
       "relative_performance": false,
-      "expected_checksum": "68032",
-      "candidate_structural_allocations_per_batch": 409,
+      "expected_checksum": "773632",
+      "candidate_structural_allocations_per_batch": 3097,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -713,13 +714,13 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/far-composite/main.sg",
       "probe": "far-select-composite",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 64,
       "timeout_seconds": 20,
       "relative_performance": false,
-      "expected_checksum": "1344",
-      "candidate_structural_allocations_per_batch": 419,
+      "expected_checksum": "10752",
+      "candidate_structural_allocations_per_batch": 3107,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -736,13 +737,13 @@
       "payload_role": "scalar",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/far-scalar/main.sg",
       "probe": "far-select-scalar",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 8,
       "timeout_seconds": 20,
       "relative_performance": true,
-      "expected_checksum": "1344",
-      "candidate_structural_allocations_per_batch": 419,
+      "expected_checksum": "10752",
+      "candidate_structural_allocations_per_batch": 3107,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -759,13 +760,13 @@
       "payload_role": "control",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/far-scalar/main.sg",
       "probe": "far-share-control",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 0,
       "timeout_seconds": 20,
       "relative_performance": false,
-      "expected_checksum": "64",
-      "candidate_structural_allocations_per_batch": 222,
+      "expected_checksum": "512",
+      "candidate_structural_allocations_per_batch": 1566,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -782,13 +783,13 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/far-composite/main.sg",
       "probe": "far-task-composite",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 64,
       "timeout_seconds": 20,
       "relative_performance": false,
-      "expected_checksum": "2304",
-      "candidate_structural_allocations_per_batch": 409,
+      "expected_checksum": "18432",
+      "candidate_structural_allocations_per_batch": 3097,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -805,13 +806,13 @@
       "payload_role": "scalar",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/far-scalar/main.sg",
       "probe": "far-task-scalar",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 8,
       "timeout_seconds": 20,
       "relative_performance": true,
-      "expected_checksum": "2368",
-      "candidate_structural_allocations_per_batch": 281,
+      "expected_checksum": "18944",
+      "candidate_structural_allocations_per_batch": 2073,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -828,12 +829,12 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/local/main.sg",
       "probe": "local-argument",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 64,
       "timeout_seconds": 10,
       "relative_performance": false,
-      "expected_checksum": "2304",
+      "expected_checksum": "18432",
       "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
@@ -851,12 +852,12 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/local/main.sg",
       "probe": "local-copy",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 64,
       "timeout_seconds": 10,
       "relative_performance": false,
-      "expected_checksum": "5120",
+      "expected_checksum": "40960",
       "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
@@ -874,12 +875,12 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/local/main.sg",
       "probe": "local-fixed-array",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 64,
       "timeout_seconds": 10,
       "relative_performance": false,
-      "expected_checksum": "2304",
+      "expected_checksum": "18432",
       "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
@@ -897,12 +898,12 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/local/main.sg",
       "probe": "local-return",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 64,
       "timeout_seconds": 10,
       "relative_performance": false,
-      "expected_checksum": "2304",
+      "expected_checksum": "18432",
       "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
@@ -920,13 +921,13 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/maps-composite/main.sg",
       "probe": "map-insert-composite",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 64,
       "timeout_seconds": 10,
       "relative_performance": false,
-      "expected_checksum": "8512",
-      "candidate_structural_allocations_per_batch": 4,
+      "expected_checksum": "297472",
+      "candidate_structural_allocations_per_batch": 7,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -943,13 +944,13 @@
       "payload_role": "scalar",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/maps-scalar/main.sg",
       "probe": "map-insert-scalar",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 8,
       "timeout_seconds": 10,
       "relative_performance": true,
-      "expected_checksum": "4032",
-      "candidate_structural_allocations_per_batch": 4,
+      "expected_checksum": "261632",
+      "candidate_structural_allocations_per_batch": 7,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -966,13 +967,13 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/maps-composite/main.sg",
       "probe": "map-rehash-composite",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 64,
       "timeout_seconds": 10,
       "relative_performance": false,
-      "expected_checksum": "9844",
-      "candidate_structural_allocations_per_batch": 4,
+      "expected_checksum": "305972",
+      "candidate_structural_allocations_per_batch": 7,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -989,13 +990,13 @@
       "payload_role": "scalar",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/maps-scalar/main.sg",
       "probe": "map-rehash-scalar",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 8,
       "timeout_seconds": 10,
       "relative_performance": true,
-      "expected_checksum": "5084",
-      "candidate_structural_allocations_per_batch": 4,
+      "expected_checksum": "269852",
+      "candidate_structural_allocations_per_batch": 7,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1012,12 +1013,12 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/maps-composite/main.sg",
       "probe": "map-remove-composite",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 64,
       "timeout_seconds": 10,
       "relative_performance": false,
-      "expected_checksum": "4256",
+      "expected_checksum": "148736",
       "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
@@ -1035,12 +1036,12 @@
       "payload_role": "scalar",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/maps-scalar/main.sg",
       "probe": "map-remove-scalar",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 8,
       "timeout_seconds": 10,
       "relative_performance": true,
-      "expected_checksum": "2016",
+      "expected_checksum": "130816",
       "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
@@ -1058,12 +1059,12 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/maps-composite/main.sg",
       "probe": "map-replace-composite",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 64,
       "timeout_seconds": 10,
       "relative_performance": false,
-      "expected_checksum": "25568",
+      "expected_checksum": "548608",
       "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
@@ -1081,12 +1082,12 @@
       "payload_role": "scalar",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/maps-scalar/main.sg",
       "probe": "map-replace-scalar",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 8,
       "timeout_seconds": 10,
       "relative_performance": true,
-      "expected_checksum": "18848",
+      "expected_checksum": "494848",
       "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
@@ -1104,12 +1105,12 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/maps-composite/main.sg",
       "probe": "map-teardown-composite",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 64,
       "timeout_seconds": 10,
       "relative_performance": false,
-      "expected_checksum": "4256",
+      "expected_checksum": "148736",
       "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
@@ -1127,12 +1128,12 @@
       "payload_role": "scalar",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/maps-scalar/main.sg",
       "probe": "map-teardown-scalar",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 8,
       "timeout_seconds": 10,
       "relative_performance": true,
-      "expected_checksum": "2016",
+      "expected_checksum": "130816",
       "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
@@ -1150,12 +1151,12 @@
       "payload_role": "scalar",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/local/main.sg",
       "probe": "scalar",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 8,
       "timeout_seconds": 10,
       "relative_performance": true,
-      "expected_checksum": "2368",
+      "expected_checksum": "18944",
       "candidate_structural_allocations_per_batch": 0,
       "required_metrics": [
         "allocation_count",
@@ -1173,12 +1174,12 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/select-send-composite/main.sg",
       "probe": "select-send-composite",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 64,
       "timeout_seconds": 15,
       "relative_performance": false,
-      "expected_checksum": "15947",
+      "expected_checksum": "349707",
       "candidate_structural_allocations_per_batch": 5,
       "required_metrics": [
         "allocation_count",
@@ -1196,12 +1197,12 @@
       "payload_role": "scalar",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/select-send-scalar/main.sg",
       "probe": "select-send-scalar",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 8,
       "timeout_seconds": 15,
       "relative_performance": true,
-      "expected_checksum": "11432",
+      "expected_checksum": "313832",
       "candidate_structural_allocations_per_batch": 5,
       "required_metrics": [
         "allocation_count",
@@ -1219,13 +1220,13 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/task-composite/main.sg",
       "probe": "task-clone-composite",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 64,
       "timeout_seconds": 15,
       "relative_performance": false,
-      "expected_checksum": "4608",
-      "candidate_structural_allocations_per_batch": 281,
+      "expected_checksum": "36864",
+      "candidate_structural_allocations_per_batch": 2076,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1242,13 +1243,13 @@
       "payload_role": "scalar",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/task-scalar/main.sg",
       "probe": "task-clone-scalar",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 8,
       "timeout_seconds": 15,
       "relative_performance": true,
-      "expected_checksum": "4736",
-      "candidate_structural_allocations_per_batch": 217,
+      "expected_checksum": "37888",
+      "candidate_structural_allocations_per_batch": 1564,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1265,13 +1266,13 @@
       "payload_role": "composite",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/task-composite/main.sg",
       "probe": "task-composite",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 64,
       "timeout_seconds": 15,
       "relative_performance": false,
-      "expected_checksum": "2304",
-      "candidate_structural_allocations_per_batch": 281,
+      "expected_checksum": "18432",
+      "candidate_structural_allocations_per_batch": 2076,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1288,13 +1289,13 @@
       "payload_role": "scalar",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/task-scalar/main.sg",
       "probe": "task-scalar",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 8,
       "timeout_seconds": 15,
       "relative_performance": true,
-      "expected_checksum": "2368",
-      "candidate_structural_allocations_per_batch": 217,
+      "expected_checksum": "18944",
+      "candidate_structural_allocations_per_batch": 1564,
       "required_metrics": [
         "allocation_count",
         "bytes_copied",
@@ -1311,7 +1312,7 @@
       "payload_role": "zero",
       "fixture": "testdata/runtime-v2-carrier-bench/scored/local/main.sg",
       "probe": "zero",
-      "operations_per_batch": 64,
+      "operations_per_batch": 512,
       "batches": 2,
       "payload_bytes": 0,
       "timeout_seconds": 10,

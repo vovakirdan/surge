@@ -14,7 +14,7 @@ fn main(probe: string) -> int {
     else if probe == "local-fixed-array" { row_code = 5; }
     if row_code < 0 { return 92; }
 
-    let mut samples: int64[64] = default::<int64[64]>();
+    let mut samples: int64[512] = default::<int64[512]>();
     let _: uint64 = bench.allocation_observer();
     let c0: uint64 = bench.allocation_observer();
     let c1: uint64 = bench.allocation_observer();

@@ -69,6 +69,34 @@ class ReportTests(unittest.TestCase):
         self.assertIn("reason", availability)
         self.assertEqual(availability["provenance_commit"], manifest.epic_base)
 
+    def test_report_says_whether_a_p95_cv_was_a_gate(self) -> None:
+        # Owner ruling 2026-09-04: a side's score carries p95_cv_gated so a
+        # reader of the report knows whether the p95 CV printed next to it
+        # was held to max_cv (median p95 at or above the 1000 ns floor) or
+        # was a reading of the clock's tick and only reported.
+        manifest = make_manifest()
+        row = manifest.rows[0]
+        base = make_records("base", [60] * 7)
+        candidate = make_records("candidate", [1000] * 7)
+        report, _ = render_report(
+            attempt_id="attempt-1",
+            started_at="2026-09-04T00:00:00.000000Z",
+            ended_at="2026-09-04T00:00:01.000000Z",
+            manifest=manifest,
+            manifest_sha256="a" * 64,
+            base_commit="1" * 40,
+            candidate_commit="2" * 40,
+            actual_host=manifest.reference,
+            records={row.row_id: {"base": base, "candidate": candidate}},
+            benchmark_phase="wave-a",
+            liveness_records=(deferred_liveness(),),
+        )
+        scores = report["rows"][0]["scores"]
+        self.assertEqual(scores["base"]["p95_ns"], 60.0)
+        self.assertFalse(scores["base"]["p95_cv_gated"])
+        self.assertEqual(scores["candidate"]["p95_ns"], 1000.0)
+        self.assertTrue(scores["candidate"]["p95_cv_gated"])
+
     def test_report_separates_protocol_from_cross_row_endpoint_failure(self) -> None:
         manifest = make_manifest()
         scalar = replace(

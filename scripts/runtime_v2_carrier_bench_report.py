@@ -13,8 +13,10 @@ from runtime_v2_carrier_bench_model import (
     GateFailure,
     Manifest,
     MetricAvailability,
+    Protocol,
     ReferenceHost,
     Side,
+    p95_cv_gated,
     row_invariant_failures,
     score_side,
     validate_row_protocol,
@@ -86,8 +88,8 @@ def render_report(
         base_score = score_side([record.measured for record in base])
         candidate_score = score_side([record.measured for record in candidate])
         scores: dict[str, Any] = {
-            "base": _score_json(base_score),
-            "candidate": _score_json(candidate_score),
+            "base": _score_json(base_score, manifest.protocol),
+            "candidate": _score_json(candidate_score, manifest.protocol),
             "throughput_ratio": candidate_score.throughput / base_score.throughput,
             "p95_ratio": candidate_score.p95_ns / base_score.p95_ns,
         }
@@ -559,13 +561,16 @@ def _allocation_mismatch_json(
     }
 
 
-def _score_json(score: Any) -> dict[str, float]:
+def _score_json(score: Any, protocol: Protocol) -> dict[str, float | bool]:
+    # p95_cv_gated says whether the p95 CV above was a gate for this side
+    # (owner ruling 2026-09-04: only at or above protocol.p95_cv_floor_ns).
     return {
         "throughput": score.throughput,
         "p50_ns": score.p50_ns,
         "p95_ns": score.p95_ns,
         "throughput_cv": score.throughput_cv,
         "p95_cv": score.p95_cv,
+        "p95_cv_gated": p95_cv_gated(protocol, score),
     }
 
 

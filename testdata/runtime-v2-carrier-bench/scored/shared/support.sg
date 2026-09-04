@@ -272,7 +272,7 @@ pub fn now() -> int64 {
 }
 
 pub fn store_latency(
-    samples: &mut ArrayFixed<int64, 64>,
+    samples: &mut ArrayFixed<int64, 512>,
     index: int,
     started: int64,
 ) -> nothing {
@@ -284,10 +284,10 @@ pub fn store_latency(
     samples[index] = elapsed;
 }
 
-fn render_latencies(samples: &ArrayFixed<int64, 64>) -> string {
+fn render_latencies(samples: &ArrayFixed<int64, 512>) -> string {
     let mut result: string = "[";
     let mut index: int = 0;
-    while index < 64 {
+    while index < 512 {
         if index != 0 {
             result = result + ",";
         }
@@ -317,13 +317,13 @@ pub fn allocation_observer() -> uint64 {
 pub fn emit_result(
     probe: &string,
     elapsed_ns: int64,
-    samples: &ArrayFixed<int64, 64>,
+    samples: &ArrayFixed<int64, 512>,
     checksum: uint64,
     allocations: uint64,
 ) -> nothing {
     let output: string = "SURGE_CARRIER_BENCH {\"schema_version\":1"
         + ",\"probe\":\"" + clone(probe) + "\""
-        + ",\"operations\":64"
+        + ",\"operations\":512"
         + ",\"elapsed_ns\":" + (elapsed_ns to string)
         + ",\"operation_latencies_ns\":" + render_latencies(samples)
         + ",\"checksum\":\"" + (checksum to string) + "\""

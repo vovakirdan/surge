@@ -2,10 +2,10 @@ import shared/support as bench;
 
 @intrinsic fn rt_array_debug_deferred_base_drops() -> uint64;
 
-async fn run_task(samples: &mut ArrayFixed<int64, 64>) -> uint64 {
+async fn run_task(samples: &mut ArrayFixed<int64, 512>) -> uint64 {
     let mut checksum: uint64 = 0:uint64;
     let mut i: int = 0;
-    while i < 64 {
+    while i < 512 {
         let started: int64 = bench.now();
         let task: far Task<uint64> = spawn on shard(1:ShardId) {
             ret 37:uint64;
@@ -20,10 +20,10 @@ async fn run_task(samples: &mut ArrayFixed<int64, 64>) -> uint64 {
     return checksum;
 }
 
-async fn run_immediate(samples: &mut ArrayFixed<int64, 64>) -> uint64 {
+async fn run_immediate(samples: &mut ArrayFixed<int64, 512>) -> uint64 {
     let mut checksum: uint64 = 0:uint64;
     let mut i: int = 0;
-    while i < 64 {
+    while i < 512 {
         let started: int64 = bench.now();
         let result: TaskResult<uint64> = on shard(1:ShardId) {
             ret 37:uint64;
@@ -40,11 +40,11 @@ async fn run_immediate(samples: &mut ArrayFixed<int64, 64>) -> uint64 {
 
 async fn run_channel(
     ch: far Channel<uint64>,
-    samples: &mut ArrayFixed<int64, 64>,
+    samples: &mut ArrayFixed<int64, 512>,
 ) -> uint64 {
     let mut checksum: uint64 = 0:uint64;
     let mut i: int = 0;
-    while i < 64 {
+    while i < 512 {
         let started: int64 = bench.now();
         let sent: TaskResult<nothing> = on ch {
             ch.send(37:uint64);
@@ -75,11 +75,11 @@ async fn run_channel(
 async fn run_select(
     first: far Channel<uint64>,
     second: far Channel<uint64>,
-    samples: &mut ArrayFixed<int64, 64>,
+    samples: &mut ArrayFixed<int64, 512>,
 ) -> uint64 {
     let mut checksum: uint64 = 0:uint64;
     let mut i: int = 0;
-    while i < 64 {
+    while i < 512 {
         let started: int64 = bench.now();
         let fed: TaskResult<nothing> = on second {
             second.send(37:uint64);
@@ -103,11 +103,11 @@ async fn run_select(
 
 async fn run_share(
     ch: far Channel<uint64>,
-    samples: &mut ArrayFixed<int64, 64>,
+    samples: &mut ArrayFixed<int64, 512>,
 ) -> uint64 {
     let mut checksum: uint64 = 0:uint64;
     let mut i: int = 0;
-    while i < 64 {
+    while i < 512 {
         let started: int64 = bench.now();
         let sibling: far Channel<uint64> = ch.share();
         checksum = checksum + 1:uint64;
@@ -121,7 +121,7 @@ async fn run_share(
 
 async fn dispatch(
     row_code: int,
-    samples: &mut ArrayFixed<int64, 64>,
+    samples: &mut ArrayFixed<int64, 512>,
 ) -> uint64 {
     if row_code == 0 {
         return compare run_task(samples).await() {
@@ -170,7 +170,7 @@ fn main(probe: string) -> int {
     else if probe == "far-select-scalar" { row_code = 3; }
     else if probe == "far-share-control" { row_code = 4; }
     if row_code < 0 { return 92; }
-    let mut samples: int64[64] = default::<int64[64]>();
+    let mut samples: int64[512] = default::<int64[512]>();
     let _: uint64 = bench.allocation_observer();
     let c0: uint64 = bench.allocation_observer();
     let c1: uint64 = bench.allocation_observer();
