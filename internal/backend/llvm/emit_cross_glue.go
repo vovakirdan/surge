@@ -25,7 +25,7 @@ import (
 //     counted scalar is DUPLICATED rather than retained, because the bignum
 //     refcount is non-atomic and a block reachable from two shards is a race,
 //     not a leak. A string is cloned and a handle retained exactly as the local
-//     clone does; a nested composite recurses into its own cross-clone.
+//     clone does; a nested composite recurses into its own cross-clone walk.
 //
 // Neither plan charges sidecars. The owner's ruling of 2026-08-29 found that
 // pointer transport takes no per-message byte cost and the budget that exists is
@@ -34,13 +34,24 @@ import (
 // allocator. total_bytes is the payload alone and the allocator allowances start
 // and end at zero. The frozen sidecar fields stay and are filled truthfully.
 
-// The cross bodies are keyed on the EXACT registry type id, like move_init and
-// unlike drop glue. Resolving here would let two registry entries carrying
-// different physical facts collide on one body, and the plan a body writes is
-// made of those facts.
-func crossPlanName(id types.TypeID) string  { return fmt.Sprintf("plan_cross.type%d", id) }
-func crossMoveName(id types.TypeID) string  { return fmt.Sprintf("cross_move.type%d", id) }
-func crossCloneName(id types.TypeID) string { return fmt.Sprintf("cross_clone.type%d", id) }
+// Two namespaces, and the line between them is what a descriptor can name.
+//
+// The plan and BOTH applies are keyed on the EXACT registry type id, like
+// move_init and unlike drop glue. A descriptor constant is named after the exact
+// id, the plan a body writes is made of that entry's facts, and the apply checks
+// the plan's `ops` against that very constant -- so a body keyed on the RESOLVED
+// id would serve a descriptor whose constant is named after a different number
+// and compare against a symbol nothing defines. That is not hypothetical: it is
+// what the behaviour corpus found the first time a `byte[]` crossed.
+//
+// The clone WALK is keyed on the resolved id, like clone glue, because it reads
+// nothing but layout and is shared by every entry that resolves to that layout;
+// it takes no plan and checks nothing. A nested composite recurses into the walk,
+// never into an apply, for the same reason.
+func crossPlanName(id types.TypeID) string      { return fmt.Sprintf("plan_cross.type%d", id) }
+func crossMoveName(id types.TypeID) string      { return fmt.Sprintf("cross_move.type%d", id) }
+func crossCloneName(id types.TypeID) string     { return fmt.Sprintf("cross_clone.type%d", id) }
+func crossCloneWalkName(id types.TypeID) string { return fmt.Sprintf("cross_clone_walk.type%d", id) }
 
 // Field indices into `%struct.rt_cross_plan`, in the frozen record's order.
 const (
@@ -78,24 +89,26 @@ const (
 // reservation then trusts.
 const crossPlanEnvelopeBytes = 0
 
-// requireCrossCloneGlue records that `id` needs a cross-clone body and returns
-// its name. The fixpoint (emitCrossGlue) walks what the recursion adds.
+// requireCrossCloneGlue records that the resolved form of `id` needs a
+// cross-clone WALK body and returns its name. The fixpoint (emitCrossGlue)
+// drains what the recursion adds.
 func (e *Emitter) requireCrossCloneGlue(id types.TypeID) string {
 	id = resolveValueType(e.types, id)
 	if e.crossCloneGlueNeeded == nil {
 		e.crossCloneGlueNeeded = make(map[types.TypeID]struct{})
 	}
 	e.crossCloneGlueNeeded[id] = struct{}{}
-	return crossCloneName(id)
+	return crossCloneWalkName(id)
 }
 
 // emitCrossBodies writes the crossing bodies one descriptor entry needs: the
-// mode-branching plan, the move apply if it is shard-movable, and a demand for
-// the clone body if it is cross-clonable. It runs in the descriptor pass's first
-// loop, so the bodies exist before the constant that names them.
+// mode-branching plan, the move apply if it is shard-movable, and the clone
+// apply if it is cross-clonable. It runs in the descriptor pass's first loop, so
+// the bodies exist before the constant that names them.
 //
-// The clone body is DEMANDED rather than emitted here because it recurses: the
-// fixpoint below drains the demand, and a nested composite adds its own.
+// The clone apply is emitted here, keyed on the entry's exact id; the walk it
+// delegates to is DEMANDED, because the walk recurses and the fixpoint below is
+// what follows that recursion.
 func (e *Emitter) emitCrossBodies(entry *valueops.Entry, flags valueops.Flags) {
 	movable := flags&valueops.FlagShardMovable != 0
 	clonable := flags&valueops.FlagCrossClonable != 0
@@ -107,13 +120,13 @@ func (e *Emitter) emitCrossBodies(entry *valueops.Entry, flags valueops.Flags) {
 		e.emitCrossMoveBody(entry)
 	}
 	if clonable {
-		e.requireCrossCloneGlue(entry.Type)
+		e.emitCrossCloneApply(entry)
 	}
 }
 
-// emitCrossGlue drains the cross-clone demand set, emitting each body and the
+// emitCrossGlue drains the cross-clone walk demand, emitting each body and the
 // nested bodies it recurses into. Same fixpoint the clone glue uses, because a
-// composite arm asks for the cross-clone of a nested composite.
+// composite arm asks for the walk of a nested composite.
 func (e *Emitter) emitCrossGlue() error {
 	done := make(map[types.TypeID]struct{})
 	for {
@@ -122,25 +135,11 @@ func (e *Emitter) emitCrossGlue() error {
 			return nil
 		}
 		for _, id := range pending {
-			if err := e.emitCrossCloneBody(e.crossCloneEntry(id)); err != nil {
+			if err := e.emitCrossCloneWalkBody(id); err != nil {
 				return err
 			}
 		}
 	}
-}
-
-// crossCloneEntry builds the minimal entry a nested cross-clone body needs: its
-// type and physical facts. A nested composite is not a registry root, so it has
-// no Entry of its own; the body reads only Type and Facts.
-func (e *Emitter) crossCloneEntry(id types.TypeID) *valueops.Entry {
-	facts, err := e.layoutOf(id)
-	if err != nil {
-		// A composite reached by the walk has a finalized layout by
-		// construction; a missing one is a builder bug, surfaced when the body
-		// emits an empty memcpy rather than by a panic here.
-		return &valueops.Entry{Type: id}
-	}
-	return &valueops.Entry{Type: id, Facts: facts}
 }
 
 // emitCrossPlanBody emits the one read-only preflight, branching on mode and
@@ -239,15 +238,17 @@ func (e *Emitter) emitCrossMoveBody(entry *valueops.Entry) {
 	fmt.Fprintf(&e.buf, "  ret i32 %d\n}\n\n", carrierStatusPlanMismatch)
 }
 
-// emitCrossCloneBody emits the clone apply: check the plan, memcpy the value,
-// then fix up every counted-scalar leaf with a DEEP copy rather than a retain.
+// emitCrossCloneApply emits the clone apply for one registry entry: check the
+// plan against THIS entry's descriptor, then delegate the copy to the walk of
+// its resolved layout. The apply is the only clone body that sees the plan, and
+// the only one keyed on the exact id -- see the namespace note at the top.
 //
 // There is no rollback block. The only recoverable failure is PLAN_MISMATCH,
 // which is answered before any copy; the deep copies themselves cannot
 // recoverably fail, because allocator exhaustion is process-terminal and never a
-// returned status. So the body either mismatches before touching anything or
+// returned status. So the apply either mismatches before touching anything or
 // succeeds.
-func (e *Emitter) emitCrossCloneBody(entry *valueops.Entry) error {
+func (e *Emitter) emitCrossCloneApply(entry *valueops.Entry) {
 	size := entry.Facts.Size
 	align := entry.Facts.Align
 	if align == 0 {
@@ -260,20 +261,44 @@ func (e *Emitter) emitCrossCloneBody(entry *valueops.Entry) error {
 
 	g := &glueTmp{}
 	e.checkCommonCrossPlan(g, entry, crossModeClone, size, align)
-	e.emitGlueStorageCopy("%dst", "%src", size, align)
+	fmt.Fprintf(&e.buf, "  call void @%s(ptr %%dst, ptr %%src)\n", e.requireCrossCloneGlue(entry.Type))
+	fmt.Fprintf(&e.buf, "  ret i32 %d\n", carrierStatusOK)
+	fmt.Fprintf(&e.buf, "mismatch:\n")
+	fmt.Fprintf(&e.buf, "  ret i32 %d\n}\n\n", carrierStatusPlanMismatch)
+}
+
+// emitCrossCloneWalkBody emits the clone walk for one resolved layout: memcpy
+// the value, then fix up every counted-scalar leaf with a DEEP copy rather than
+// a retain. It takes no plan and checks nothing, so a nested composite can call
+// it with the field pointers alone, and the same body serves every registry
+// entry that resolves to this layout.
+//
+// The layout must be finalized: a missing one is a builder bug, and it is
+// returned as an error rather than papered over with an empty copy.
+func (e *Emitter) emitCrossCloneWalkBody(id types.TypeID) error {
+	layoutInfo, err := e.layoutOf(id)
+	if err != nil {
+		return err
+	}
+	align := layoutInfo.Align
+	if align == 0 {
+		align = 1
+	}
+
+	fmt.Fprintf(&e.buf, "define void @%s(ptr %%dst, ptr %%src) {\nentry:\n", crossCloneWalkName(id))
+	e.emitGlueStorageCopy("%dst", "%src", layoutInfo.Size, align)
 	// A value that owns no heap is finished by the byte copy: it has no counted
 	// scalar to duplicate, no string to clone, no handle to retain, and so no
 	// member to walk. Skipping the walk is not only cheaper -- it avoids asking
 	// for aggregate field offsets a plain struct's layout need not carry, which
 	// is the difference between a clone that memcpys and one that must fix up.
-	if e.typeOwnsHeap(entry.Type) {
-		if err := e.walkGlueValue(g, entry.Type, &entry.Facts, align, crossCloneWalk{e: e}); err != nil {
+	if e.typeOwnsHeap(id) {
+		g := &glueTmp{}
+		if err := e.walkGlueValue(g, id, &layoutInfo, align, crossCloneWalk{e: e}); err != nil {
 			return err
 		}
 	}
-	fmt.Fprintf(&e.buf, "  ret i32 %d\n", carrierStatusOK)
-	fmt.Fprintf(&e.buf, "mismatch:\n")
-	fmt.Fprintf(&e.buf, "  ret i32 %d\n}\n\n", carrierStatusPlanMismatch)
+	fmt.Fprintf(&e.buf, "  ret void\n}\n\n")
 	return nil
 }
 
@@ -381,17 +406,15 @@ func (w crossCloneWalk) leafAt(g *glueTmp, resolved types.TypeID, baseAlign, off
 	}
 }
 
-// compositeAt recurses into the nested composite's own CROSS clone, not its
-// local one: a nested member's counted scalars must be duplicated too.
+// compositeAt recurses into the nested composite's own CROSS clone walk, not
+// its local one: a nested member's counted scalars must be duplicated too. It
+// is the walk and never the apply, because the plan belongs to the whole value
+// and a nested member has no descriptor of its own to check it against.
 func (w crossCloneWalk) compositeAt(g *glueTmp, resolved types.TypeID, baseAlign, off uint64) {
 	e := w.e
 	dstField := g.next()
 	fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds i8, ptr %%dst, i64 %d\n", dstField, off)
 	srcField := g.next()
 	fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds i8, ptr %%src, i64 %d\n", srcField, off)
-	// A nested cross-clone is dispatched with the same plan and allocator; both
-	// are the whole value's, and a nested body charges no sidecars of its own,
-	// so the allowances it checks are the same zeros.
-	fmt.Fprintf(&e.buf, "  call i32 @%s(ptr %s, ptr %s, ptr %%plan, ptr %%alloc)\n",
-		e.requireCrossCloneGlue(resolved), dstField, srcField)
+	fmt.Fprintf(&e.buf, "  call void @%s(ptr %s, ptr %s)\n", e.requireCrossCloneGlue(resolved), dstField, srcField)
 }

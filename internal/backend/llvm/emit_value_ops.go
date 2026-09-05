@@ -298,10 +298,12 @@ func (e *Emitter) valueOpsOperand(entry *valueops.Entry, slot string, filler val
 			return "ptr @" + crossMoveName(entry.Type)
 		}
 		if slot == "cross_clone_init" {
-			// The exact type, like move: the clone plan a body writes is made of
-			// this entry's facts, and the demand fixpoint emitted the body keyed
-			// the same way.
-			return "ptr @" + crossCloneName(resolveValueType(e.types, entry.Type))
+			// The EXACT type, like move and the plan: this constant is named
+			// after the exact id and the apply checks the plan's ops against
+			// it, so resolving here would name a body that compares against a
+			// constant nothing defines. Only the walk beneath the apply is
+			// keyed on the resolved id (emit_cross_glue.go).
+			return "ptr @" + crossCloneName(entry.Type)
 		}
 		return "ptr null"
 	case valueops.FillRegistryNamedBody:

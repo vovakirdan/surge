@@ -169,11 +169,11 @@ func dropBodyRuntimeCallees(ir string) []runtimeCallee {
 		switch {
 		case strings.HasPrefix(line, "define void @drop.type"),
 			strings.HasPrefix(line, "define void @drop_elem.type"),
-			// A cross-clone body calls the runtime duplicators too -- today
+			// A cross-clone WALK calls the runtime duplicators too -- today
 			// rt_bigfloat_clone for a counted-scalar leaf, rt_string_clone and
 			// rt_channel_handle_retain for the shared leaves. The slice stubs
 			// whatever it finds, so it stays self-contained as the leaf set grows.
-			strings.HasPrefix(line, "define internal zeroext i32 @cross_clone.type"):
+			strings.HasPrefix(line, "define void @cross_clone_walk.type"):
 			inBody = true
 		case line == "}":
 			inBody = false
@@ -211,11 +211,12 @@ func sliceDescriptorIR(t *testing.T, ir string) string {
 			strings.HasPrefix(line, "define void @drop_elem.type"),
 			strings.HasPrefix(line, "define internal zeroext i32 @__surge_value_plan_cross_unavailable"),
 			// A cross-capable descriptor binds its own plan and one apply per
-			// admitted mode; the slice has to carry them or the constant names an
-			// undefined body.
+			// admitted mode, and the clone apply delegates to a walk; the slice
+			// has to carry all of them or the constant names an undefined body.
 			strings.HasPrefix(line, "define internal zeroext i32 @plan_cross.type"),
 			strings.HasPrefix(line, "define internal zeroext i32 @cross_move.type"),
-			strings.HasPrefix(line, "define internal zeroext i32 @cross_clone.type"):
+			strings.HasPrefix(line, "define internal zeroext i32 @cross_clone.type"),
+			strings.HasPrefix(line, "define void @cross_clone_walk.type"):
 			for ; index < len(lines); index++ {
 				out.WriteString(lines[index] + "\n")
 				if lines[index] == "}" {
