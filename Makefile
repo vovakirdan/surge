@@ -793,20 +793,34 @@ cppcheck:
 		--suppress=missingIncludeSystem \
 		--suppress=unusedFunction \
 		--std=c11 \
+		$(CPPCHECK_PRODUCTION_CONFIGS) \
 		$(C_INCLUDES) \
 		$(C_SOURCES) || exit 1
 	@echo ">> cppcheck OK"
+
+# cppcheck explores every #ifdef configuration it can see, and the negative
+# controls Global Rule 13 asks for are configurations that are WRONG on purpose:
+# a claim predicate that returns 0 so a send overtakes a promised value, a pin
+# flag forced to 0 so a teardown row reads the pin still in place. Analysed as
+# code, each is a dead branch, an always-false condition or a needlessly
+# non-const pointer -- and every one of those findings is the stand working.
+# Undefining the family keeps the analyser on the configurations a program can
+# actually run, and the list is derived from the tree so a new stand's macro
+# needs no registration here.
+CPPCHECK_PRODUCTION_CONFIGS := $(shell grep -rhoE 'RV2_[A-Z0-9_]+_NEGATIVE_CONTROL' runtime/native | sort -u | sed 's/^/-U/')
 
 # C checks narrowed to a named list of files (C_CHANGED). This exists so the
 # pre-commit hook can hold a C edit to cppcheck and clang-tidy, which Global
 # Rule 6 has always required and which nothing enforced: the rule asked for the
 # checks to be RECORDED, and a report can simply go unwritten.
 #
-# The list is narrowed on purpose. Whole-tree `make cppcheck` and `make ctidy`
-# are red today on accumulated findings (RV2-DEBT-228), most of them against a
-# GENERATED ABI header whose reserved identifier is the proof's requirement, so
-# a whole-tree gate in the hook would refuse every C commit rather than the
-# wrong ones. An edit answers for itself; the backlog is a separate row.
+# The list is narrowed on purpose. Whole-tree `make ctidy` is red on accumulated
+# findings (RV2-DEBT-228), most of them against a GENERATED ABI header whose
+# reserved identifier is the proof's requirement, so a whole-tree gate in the
+# hook would refuse every C commit rather than the wrong ones. An edit answers
+# for itself; the backlog is a separate row. (Whole-tree `make cppcheck` was
+# cleared on 2026-09-05; CI runs it, and the hook's narrowed run below uses the
+# same production-configuration list.)
 #
 # clang-tidy findings are filtered by the PATH THEY POINT AT, not by the file
 # handed to it: `.clang-tidy` sets HeaderFilterRegex to all of runtime/native,
@@ -837,6 +851,7 @@ c-check-changed:
 	if ! cppcheck --enable=warning,style,performance,portability --error-exitcode=1 \
 		--inline-suppr \
 		--suppress=missingIncludeSystem --suppress=unusedFunction --std=c11 \
+		$(CPPCHECK_PRODUCTION_CONFIGS) \
 		$(C_INCLUDES) $(C_STAND_FLAGS) $$files; then \
 		echo "cppcheck failed on changed files"; failed=1; \
 	fi; \

@@ -186,7 +186,7 @@ int rt_remote_admission_take_reservation(rt_remote_admission* adm) {
     return atomic_exchange_explicit(&adm->reserved, 0, memory_order_acq_rel) != 0;
 }
 
-void rt_remote_admission_release_reservation(rt_executor* ex, rt_remote_admission* adm) {
+void rt_remote_admission_release_reservation(rt_executor* ex, const rt_remote_admission* adm) {
     if (ex == NULL || adm == NULL) {
         return;
     }
@@ -202,7 +202,7 @@ uint64_t rt_remote_admission_orphan_count(void) {
     return atomic_load_explicit(&admission_orphans, memory_order_relaxed);
 }
 
-void rt_remote_admission_release_reservation_belt(rt_executor* ex, rt_remote_admission* adm) {
+void rt_remote_admission_release_reservation_belt(rt_executor* ex, const rt_remote_admission* adm) {
     if (ex == NULL || adm == NULL) {
         return;
     }

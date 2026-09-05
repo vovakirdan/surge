@@ -97,7 +97,7 @@ uint64_t rt_remote_task_anchored_state_type_id_current(void) {
     }
     uint64_t state_type_id = 0;
     pthread_mutex_lock(&state->lock);
-    rt_remote_task_pending* it = current->remote_owner_pending;
+    const rt_remote_task_pending* it = current->remote_owner_pending;
     if (it != NULL && (it->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED ||
                        it->op == RT_REMOTE_TASK_OP_CHANNEL_SELECT)) {
         state_type_id = it->state_type_id;

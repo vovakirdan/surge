@@ -60,14 +60,14 @@ int rt_remote_admission_abandon(rt_executor* ex, uint64_t task_id, rt_remote_adm
 int rt_remote_admission_take_reservation(rt_remote_admission* adm);
 // Gives an unspent reservation back to the source lane (after a successful
 // take) and wakes producers parked there. Must not run under a shard lock.
-void rt_remote_admission_release_reservation(rt_executor* ex, rt_remote_admission* adm);
+void rt_remote_admission_release_reservation(rt_executor* ex, const rt_remote_admission* adm);
 
 // The belt for a reservation no terminal path spent or released, run from
 // the pending's final free: releases it if no shard lock forbids the wake,
 // releases it without the wake if the source's own lock is held (the next
 // data pop on that lane wakes its parked producers anyway), and otherwise
 // counts an orphan rather than deadlock. Every stand asserts the count is 0.
-void rt_remote_admission_release_reservation_belt(rt_executor* ex, rt_remote_admission* adm);
+void rt_remote_admission_release_reservation_belt(rt_executor* ex, const rt_remote_admission* adm);
 uint64_t rt_remote_admission_orphan_count(void);
 
 // Wakes every producer parked on every shard's data lane: shutdown's way of
