@@ -66,15 +66,27 @@ func TestGateSelectionsAreLiveAndComplete(t *testing.T) {
 	}
 
 	// Bootstrap canary: this package runs under the default tags of
-	// `go test ./...`, which the test target must keep running and the
-	// check root must keep invoking — otherwise the integrity check itself
-	// is unreachable and cannot report anything.
+	// `go test ./...`, which the test target must keep running and a check
+	// root must keep invoking — otherwise the integrity check itself is
+	// unreachable and cannot report anything.
+	//
+	// There are two check roots since 2026-09-04. `check` is the pre-commit
+	// lane and runs `test-fast`, which skips this package on purpose (it
+	// costs a cold minute of `go test -list`); `check-full` is what CI runs
+	// and is the old `check` under a new name, so it is the root this
+	// invariant was written against. The pre-commit root is still held to
+	// running SOME test lane, so a hook that quietly ran no tests would be
+	// refused here rather than discovered by the next red CI.
 	if !strings.Contains(makefile, "$(GO) test ./...") {
 		t.Fatal("the test target no longer runs `go test ./...`; the integrity check would be unreachable")
 	}
-	reachable := ReachableTargets(makefile, "check", "runtime-v2-check")
+	reachable := ReachableTargets(makefile, "check", "check-full", "runtime-v2-check")
 	if !reachable["test"] {
-		t.Fatal("the check root no longer reaches the test target; the integrity check would be unreachable")
+		t.Fatal("no check root reaches the test target; the integrity check would be unreachable")
+	}
+	hook := ReachableTargets(makefile, "check")
+	if !hook["test"] && !hook["test-fast"] {
+		t.Fatal("the pre-commit check root reaches no test lane at all")
 	}
 
 	// Every gate is reachable or exempted with an owner.
