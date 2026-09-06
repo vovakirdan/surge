@@ -138,6 +138,89 @@ fn main() -> int { return 0; }
 	assertUnshareBodiesDefinedOnce(t, ir, body)
 }
 
+// A capture is un-shared in the frame that gives it up, before the runtime
+// call that publishes the state: the `spawn on` caller's poll body un-shares
+// the moved `own P{ v: a }` -- whose field still shares `a`'s block with the
+// caller's live `a` -- once, before rt_remote_spawn_publish_placement, and
+// not on the retry re-entry.
+func TestEmitSpawnOnUnsharesTheCaptureBeforePublish(t *testing.T) {
+	sourceCode := `
+@shard_movable
+type P = { v: float };
+
+fn use(p: own P) -> int { return 1; }
+
+async fn run() -> int {
+    let a: float = 1.5;
+    let p: own P = own P{ v: a };
+    let task: far Task<int> = spawn on shard(1:ShardId) { ret use(own p); };
+    let b: float = a;
+    return compare task.await() { Success(v) => v; Cancelled() => 0; };
+}
+`
+	mod, result := lowerCrossingMIRFromSource(
+		t, sourceCode, sema.CrossingLoweringSpawnOn, sema.CrossingLoweringFarTaskAwait)
+	ir, err := EmitModule(mod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
+	if err != nil {
+		t.Fatalf("emit LLVM IR: %v", err)
+	}
+	body := findLLVMFuncBody(t, ir, "fn."+itoaMIRFuncID(findMIRFunc(t, mod, "run$poll").ID))
+	assertUnshareCallPrecedes(t, body, "@rt_remote_spawn_publish_placement(")
+	assertUnshareBodiesDefinedOnce(t, ir, body)
+}
+
+// The immediate `on` form, with a Copy capture: the caller's binding stays
+// live, so the capture is RETAINED into a transfer temp and that temp is
+// un-shared -- a clone, since the block then has two holders -- before
+// rt_immediate_on_execute takes the state.
+func TestEmitImmediateOnUnsharesTheCopyCaptureBeforeExecute(t *testing.T) {
+	sourceCode := `
+async fn run() -> int {
+    let f: float = 1.5;
+    let r: TaskResult<int> = on shard(1:ShardId) { let g: float = f; ret 1; };
+    let h: float = f;
+    return compare r { Success(v) => v; Cancelled() => 0; };
+}
+`
+	mod, result := lowerCrossingMIRFromSource(t, sourceCode, sema.CrossingLoweringOnPlacement)
+	ir, err := EmitModule(mod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
+	if err != nil {
+		t.Fatalf("emit LLVM IR: %v", err)
+	}
+	body := findLLVMFuncBody(t, ir, "fn."+itoaMIRFuncID(findMIRFunc(t, mod, "run$poll").ID))
+	assertUnshareCallPrecedes(t, body, "@rt_immediate_on_execute(")
+	assertUnshareBodiesDefinedOnce(t, ir, body)
+}
+
+// A blocking capture is un-shared on the submitting thread before
+// rt_blocking_submit hands the frame to the pool.
+func TestEmitBlockingUnsharesTheCaptureBeforeSubmit(t *testing.T) {
+	sourceCode := `
+type P = { v: float };
+
+fn sink(p: own P) -> int { return 1; }
+
+async fn run() -> int {
+    let a: float = 1.5;
+    let p: P = P{ v: a };
+    let job: Task<int> = blocking { ret sink(own p); };
+    let b: float = a;
+    return compare job.await() { Success(v) => v; Cancelled() => 0; };
+}
+
+@entrypoint
+fn main() -> int { return 0; }
+`
+	mod, result := lowerMIRFromSource(t, sourceCode)
+	ir, err := EmitModule(mod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
+	if err != nil {
+		t.Fatalf("emit LLVM IR: %v", err)
+	}
+	body := findLLVMFuncBody(t, ir, "fn."+itoaMIRFuncID(findMIRFunc(t, mod, "run$poll").ID))
+	assertUnshareCallPrecedes(t, body, "@rt_blocking_submit(")
+	assertUnshareBodiesDefinedOnce(t, ir, body)
+}
+
 // A module that emits an un-share assembles: the body the call names is
 // defined, with the signature the call uses, and the runtime leaf it names is
 // declared. The text rows above say WHAT is defined; the toolchain is the only
@@ -327,8 +410,16 @@ fn main() -> int { return 0; }
 		if share != want.share {
 			t.Errorf("%s: typeMayShareCountedBlock=%v, want %v", label, share, want.share)
 		}
-		if got := e.canUnshareValue(id); got != want.private {
-			t.Errorf("%s: canUnshareValue=%v, want %v", label, got, want.private)
+		private := e.canUnshareValue(id)
+		if private != want.private {
+			t.Errorf("%s: canUnshareValue=%v, want %v", label, private, want.private)
+		}
+		// The second predicate in lock step: sema's crossing gate admits a
+		// shape when this answers true, so a disagreement here is a program
+		// that sema lets through and the emitter refuses with a build error.
+		if semaPrivate := result.Sema.CountedBlockCanBeMadePrivate(id); semaPrivate != private {
+			t.Errorf("%s (type#%d): emitter canUnshareValue=%v, sema CountedBlockCanBeMadePrivate=%v",
+				label, id, private, semaPrivate)
 		}
 	}
 	for label := range rows {

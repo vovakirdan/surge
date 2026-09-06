@@ -361,29 +361,20 @@ func (tc *typeChecker) typeExprBlocking(id ast.ExprID, span source.Span) types.T
 		}
 		// `blocking` ships its state to a worker thread while this one keeps
 		// running, so a captured arbitrary-precision value would leave both
-		// threads pointing at one counted block. The count is deliberately not
-		// atomic, so that is a race, not just a sharing question. A Copy
-		// capture cannot be made exclusive — the caller keeps its binding by
-		// definition — and a MOVED capture is no better: `P{ v: a }` retains
-		// `a`'s block into the field, so the job's state and the live `a` name
-		// one block from two threads. Refused until the relinquishing operand
-		// makes every counted leaf private (Epic 22 step 4).
-		if tc.result != nil && tc.result.MayShareCountedBlock(capType) {
-			if tc.isCopyType(capType) {
-				tc.report(diag.SemaCrossNotShardMovable, cap.span,
-					"`%s` cannot be captured into `blocking` yet: it carries an arbitrary-precision "+
-						"value, which is a reference into a counted heap block, and the count is not "+
-						"safe to share with the worker thread. Use a fixed-width type (`float64`) for the "+
-						"captured value",
-					tc.typeLabel(capType))
-				continue
-			}
+		// threads pointing at one counted block, and the count is deliberately
+		// not atomic. The state literal's operand makes every counted leaf the
+		// walk can reach private before the job is submitted -- a Copy capture
+		// is retained and then un-shared into a block of its own, a moved
+		// `P{ v: a }` has its field un-shared while `a` keeps the original --
+		// so only the shapes the walk cannot reach are refused: a dynamic
+		// array's buffer, a channel's ring.
+		if tc.result != nil && tc.result.CountedBlockStaysShared(capType) {
 			tc.report(diag.SemaCrossNotShardMovable, cap.span,
-				"`%s` cannot be captured into `blocking` yet: it carries an arbitrary-precision "+
-					"value, which is a reference into a counted heap block, and moving it would not "+
-					"make that block private — a copy taken before the move may still be held by "+
-					"this thread, and the count is not safe to share with the worker thread. Use a "+
-					"fixed-width type (`float64`) for the captured value",
+				"`%s` cannot be captured into `blocking`: it holds arbitrary-precision values in "+
+					"storage this thread keeps (a dynamic array's buffer, a channel's ring), so the "+
+					"counted heap blocks behind them cannot be made private before the job is "+
+					"submitted, and the count is not safe to share with the worker thread. Use a "+
+					"fixed-width type (`float64`) for the elements, or capture the values themselves",
 				tc.typeLabel(capType))
 			continue
 		}

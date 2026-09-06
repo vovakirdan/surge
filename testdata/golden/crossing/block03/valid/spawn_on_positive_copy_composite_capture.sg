@@ -4,9 +4,10 @@
 // The capture is now duplicated at its operand, so the destination's state
 // holds a box of its own and the caller keeps writing to a different one.
 //
-// A composite carrying an arbitrary-precision value is still refused: its
-// block has a non-atomic count, and the duplication here RETAINS such a field
-// rather than deep-copying it — right on one shard, wrong across two.
+// A composite carrying an arbitrary-precision value crosses too: its block has
+// a non-atomic count and the duplication here RETAINS such a field, so the
+// relinquishing operand un-shares every counted leaf — a duplicate for a block
+// with a second holder — before the state ships (Epic 22 step 4).
 @copy
 type Digest = {
     value: uint64,

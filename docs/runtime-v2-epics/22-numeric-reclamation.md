@@ -677,6 +677,40 @@ whole run). **Do not benchmark this epic against anything older than commit
   without it. What stays refused at the end is what the walk cannot serve: a
   container of counted elements, whose buffer walk is unbuilt.
 
+  **Landed 2026-09-06, all three sites.** The un-share is a MIR instruction
+  (`InstrUnshare`) that `relinquishOperand` (`internal/mir/lower_relinquish.go`)
+  emits on the operand of every relinquishing sink — a MOVE out of a bare
+  local is un-shared in place, anything else (a RETAIN of a live binding, a
+  CopyValue of a `@copy` composite, a global read) is first materialised into
+  a transfer temp, un-shared there and moved — and `validate_relinquish.go`
+  refuses a sink the act did not reach (checked before the async split, where
+  the act and the sink still share a block) or an operand of the wrong shape
+  (after it). The backend's one case turns the instruction into
+  `call @unshare.typeN(ptr)` over the place's storage. Sites: the far-select
+  SEND payload (`lower_expr_select_far.go`), the `ret` of `spawn on` and
+  `blocking` bodies (`lower_expr_crossing_spawn_poll.go`, `lower_blocking.go`),
+  and the capture state fields of `on`, `spawn on`, anchored `on ch` and
+  `blocking` (`relinquishCapture`; the block's anchor is a lease and is left
+  alone by both the lowering and the validator). The capture refusal is
+  narrowed from `MayShareCountedBlock` to `CountedBlockStaysShared` — may
+  share AND the walk cannot make it private (`CountedBlockCanBeMadePrivate`,
+  held in lock step with the emitter's `canUnshareValue` by a labelled table):
+  a bare `float`, a struct, a union, a fixed array cross; a dynamic array's
+  buffer and a channel's ring stay refused in words that say why. Measured:
+  `unshare_clones` on the TRACE_RESIDENT exit line reads 4 for a program that
+  crosses four times with a sibling holder alive each time (moved `own P{v:a}`
+  into `spawn on`, a Copy `float` and a Copy `@copy C{v:d}` into `on`, a moved
+  `Q{v:c}` into `blocking`), on 2 and on 8 shards; 0 when every block is
+  minted at its crossing; 0 with `RV2_BIGFLOAT_UNSHARE_NEGATIVE_CONTROL` (the
+  leaf compiled as the identity); valgrind definitely-lost 0 on the shared
+  program. Rows: `TestRuntimeV2UnshareClones*` and
+  `TestRuntimeV2UnshareCapturesLeakNothing` (`runtime-v2-crossing-check`,
+  `runtime-v2-heap-check`), `TestRefCountedScalarCapturesCross` (five capture
+  rows red by the validator when the site is removed), the `TestEmit*Unshares*`
+  IR rows, and `TestUnsharePredicatesAgreeWithSema`. Not narrowed here, by
+  the plan: the reply gate (`far Task<float>.await()`) and the channel element
+  gate (`far Channel<float>`) — step 5 — and the two shapes named above.
+
 - **Phase 2 — `int`/`uint`.** Adds only the fixnum-tag branch to a mechanism
   already proven by float — LOCALLY. Across a shard boundary it adds a
   question instead, and that question is open. See "Phase 2's scope question"

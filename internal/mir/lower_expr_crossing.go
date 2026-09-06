@@ -202,7 +202,7 @@ func (l *funcLowerer) prepareSpawnOnCrossing(ins *CrossingInstr, body *hir.Block
 		}
 		stateLit.Fields = append(stateLit.Fields, StructLitField{
 			Name:  captures[i].FieldName,
-			Value: ins.Captures[i].Value,
+			Value: l.relinquishCapture(&ins.Captures[i], span),
 		})
 	}
 
@@ -303,7 +303,7 @@ func (l *funcLowerer) prepareImmediateBodyCrossing(ins *CrossingInstr, body *hir
 		}
 		stateLit.Fields = append(stateLit.Fields, StructLitField{
 			Name:  captures[i].FieldName,
-			Value: ins.Captures[i].Value,
+			Value: l.relinquishCapture(&ins.Captures[i], span),
 		})
 	}
 

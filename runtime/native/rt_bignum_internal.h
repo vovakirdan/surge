@@ -49,13 +49,15 @@ typedef struct SurgeBigInt {
 //
 // The count is NON-ATOMIC. That is sound only while a block is never reachable
 // from two shards at once. Three things uphold it: the module-level `let` ban
-// (shipped), the compile-time REFUSAL of any crossing that would share a
-// counted block, and -- being wired in by Epic 22 step 4 -- a barrier that
-// makes the counted leaves of a relinquished value private before it travels
-// (rt_bigfloat_unshare, whose duplicate is rt_bigfloat_clone). The refusal is
-// the wider of the three today and narrows as the barrier reaches each path;
-// it is a narrowing `int`/`uint` cannot take, which is why the barrier comes
-// first -- RV2-DEBT-038.
+// (shipped); the barrier the compiler emits in the relinquishing operand of
+// every capture, far-select SEND payload and crossing or blocking result,
+// which makes the counted leaves of the value private before it travels
+// (rt_bigfloat_unshare, whose duplicate is rt_bigfloat_clone); and the
+// compile-time REFUSAL of the shapes that walk cannot reach -- a container's
+// buffer, a channel's ring -- plus, until their gates are narrowed, replies
+// and channel elements as a whole (Epic 22 step 5). The barrier is a
+// narrowing `int`/`uint` cannot take, which is why it comes first --
+// RV2-DEBT-038.
 typedef struct SurgeBigFloat {
     uint32_t rc;
     int32_t exp;

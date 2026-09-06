@@ -393,6 +393,13 @@ fn probe(p: Pair, pf: Pf, m: Mixed, pl: Plain, tg: Tagged, o: Outer, d: Deep, bx
 // question, and the Traceable axis's leg) deliberately does not — so the two
 // are pinned side by side, and a union carrying a float is exactly where they
 // part company.
+//
+// The third column is CountedBlockCanBeMadePrivate: whether the relinquishing
+// walk can make every counted leaf private before the value crosses. Together
+// with the first it is the refusal, CountedBlockStaysShared: only a shape that
+// may share AND cannot be made private is turned away. A dynamic array and a
+// channel are the two such shapes; everything else that shares is un-shared
+// in the operand and crosses.
 func TestMayShareCountedBlockWalksUnionPayloads(t *testing.T) {
 	src := `
 @shard_movable
@@ -422,28 +429,30 @@ fn probe(p: own P, u: own U, v: own V, w: own Plain, f: float, arr: float[], s: 
 	res := coreSnippetResult(t, src)
 	in := res.TypeInterner
 
-	rows := map[string]struct{ share, contains bool }{
-		"float":        {true, true},
-		"P":            {true, true},
-		"own P":        {true, true},
-		"Array<float>": {true, false},
-		"U":            {true, false},
-		"own U":        {true, false},
-		"V":            {false, false},
-		"Plain":        {false, false},
-		"own Plain":    {false, false},
-		"string":       {false, false},
+	rows := map[string]struct{ share, contains, private bool }{
+		"float":        {true, true, true},
+		"P":            {true, true, true},
+		"own P":        {true, true, true},
+		"Array<float>": {true, false, false},
+		"U":            {true, false, true},
+		"own U":        {true, false, true},
+		"V":            {false, false, true},
+		"Plain":        {false, false, true},
+		"own Plain":    {false, false, true},
+		"string":       {false, false, true},
 		// A runtime handle shares whenever its payload does: the handle's own
 		// count is atomic so a copy may live on another shard, and a send from
-		// there retains a block into a ring the creator's shard owns.
-		"Channel<float>": {true, false},
-		"Channel<int>":   {false, false},
+		// there retains a block into a ring the creator's shard owns. No walk
+		// over the handle's bytes reaches that ring, so it cannot be made
+		// private either.
+		"Channel<float>": {true, false, false},
+		"Channel<int>":   {false, false, true},
 		// A fixed array is a nominal struct with no declared fields; its
 		// element type lives only in ArrayFixedInfo. BOTH questions must see
 		// through it: a Copy `float[4]` copied as bits duplicates four
-		// references.
-		"ArrayFixed<float, const 4, 4>": {true, true},
-		"ArrayFixed<int, const 4, 4>":   {false, false},
+		// references. Its elements are inline, so the walk reaches them.
+		"ArrayFixed<float, const 4, 4>": {true, true, true},
+		"ArrayFixed<int, const 4, 4>":   {false, false, true},
 	}
 	seen := make(map[string]bool, len(rows))
 	for id := types.TypeID(1); ; id++ {
@@ -461,6 +470,12 @@ fn probe(p: own P, u: own U, v: own V, w: own Plain, f: float, arr: float[], s: 
 		}
 		if got := res.ContainsRefCountedScalar(id); got != want.contains {
 			t.Errorf("%s: ContainsRefCountedScalar=%v, want %v", label, got, want.contains)
+		}
+		if got := res.CountedBlockCanBeMadePrivate(id); got != want.private {
+			t.Errorf("%s: CountedBlockCanBeMadePrivate=%v, want %v", label, got, want.private)
+		}
+		if got := res.CountedBlockStaysShared(id); got != (want.share && !want.private) {
+			t.Errorf("%s: CountedBlockStaysShared=%v, want %v", label, got, want.share && !want.private)
 		}
 	}
 	for label := range rows {

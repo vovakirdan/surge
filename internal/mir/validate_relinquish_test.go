@@ -259,6 +259,26 @@ func TestRelinquishedOperandShapesAfterTheSplit(t *testing.T) {
 			t.Fatalf("%s at a boundary must be refused by shape, got %v", kind, err)
 		}
 	}
+	// A bare local a live child borrows is rewritten by the split into a
+	// RESIDENT field of the frame (`__state.__resident$p$N`); the act was
+	// checked on the bare local before the split, and the field is the same
+	// storage, so the post-split shape rule reads a MOVE out of it as a bare
+	// local. Found by the refuter of 2026-09-06: a `spawn on` capture of an
+	// `own P{ v: a }` whose address had entered a child task was refused with
+	// this validator's text instead of building. Any other projection stays
+	// refused.
+	resident := Place{Local: 0, Proj: []PlaceProj{{Kind: PlaceProjField, FieldName: residentFieldName(3, "p"), FieldIdx: -1}}}
+	f = relinquishFixture(ot, []Instr{relinquishSelect(Operand{Kind: OperandMove, Type: ot.flt, Place: resident})},
+		Terminator{Kind: TermUnreachable}, false)
+	if err := validateRelinquishedOperandShapes(f, ot.in); err != nil {
+		t.Fatalf("a MOVE out of a resident field is the bare local under its post-split name: %v", err)
+	}
+	projected := Place{Local: 0, Proj: []PlaceProj{{Kind: PlaceProjField, FieldName: "v", FieldIdx: 0}}}
+	f = relinquishFixture(ot, []Instr{relinquishSelect(Operand{Kind: OperandMove, Type: ot.flt, Place: projected})},
+		Terminator{Kind: TermUnreachable}, false)
+	if err := validateRelinquishedOperandShapes(f, ot.in); err == nil || !strings.Contains(err.Error(), "reaches the boundary as Move L0.#0") {
+		t.Fatalf("a MOVE out of an ordinary field projection must stay refused by shape, got %v", err)
+	}
 	// The structural validator carries the shape rule, so a hand-built module
 	// reaches it through the public entry point too.
 	f = relinquishFixture(ot, []Instr{relinquishSelect(Operand{Kind: OperandCopy, Type: ot.flt, Place: relinquishLocal(0)})},

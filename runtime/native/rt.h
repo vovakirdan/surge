@@ -357,11 +357,13 @@ void rt_bigfloat_free(void* a);
 
 // Ownership operations on a reference-counted bigfloat. Both are NULL-safe.
 // The count is NON-ATOMIC, so these are sound only while a block stays within
-// one shard. Two things keep that true: a crossing that would SHARE a counted
-// block is refused at compile time, and a value relinquished across a boundary
-// has its counted leaves made private first (rt_bigfloat_unshare above). The
-// refusal is the wider of the two today and narrows as the barrier is wired in
-// -- RV2-DEBT-038, Epic 22 step 4.
+// one shard. Two things keep that true: a value relinquished across a boundary
+// -- a capture, a far-select SEND payload, a crossing or blocking body's
+// result -- has its counted leaves made private first (rt_bigfloat_unshare
+// above), and a shape that walk cannot reach (a container's buffer, a
+// channel's ring) is refused at compile time. Replies and channel elements are
+// still refused wholesale until their gates are narrowed -- RV2-DEBT-038,
+// Epic 22 step 5.
 //
 // The LLVM backend inlines both as IR at the use site rather than calling
 // these, so that a float copy costs a predictable not-taken branch instead of

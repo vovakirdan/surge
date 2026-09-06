@@ -1,6 +1,29 @@
 package mir
 
-import "surge/internal/source"
+import (
+	"surge/internal/sema"
+	"surge/internal/source"
+)
+
+// relinquishCapture is relinquishOperand for a crossing capture: the value
+// becomes a field of the state the crossing ships, and the state's field and
+// the capture record are kept as ONE operand, because the ownership verifier
+// reads both positions and the emitter reads the field.
+//
+// The block's own anchor is the exception. It is a LEASE, not a value: the
+// caller keeps the handle, the body reaches the channel through the owner-side
+// pin, and the capture read borrowed it for that reason. Un-sharing it would
+// walk a handle whose storage is not this frame's to give up.
+func (l *funcLowerer) relinquishCapture(c *CrossingCapture, span source.Span) Operand {
+	if c == nil {
+		return Operand{}
+	}
+	if c.Mode == sema.CrossingCaptureAnchorLease {
+		return c.Value
+	}
+	c.Value = l.relinquishOperand(&c.Value, span)
+	return c.Value
+}
 
 // relinquishOperand prepares an operand that is about to be given up across a
 // thread boundary — staged as a far-select SEND payload, moved into a

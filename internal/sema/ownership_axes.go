@@ -274,13 +274,116 @@ func (r *Result) ContainsRefCountedScalar(id types.TypeID) bool {
 // it is not answered by exclusivity. `own P{ v: a }` retains `a`'s block into
 // the field, so the moved value and the live `a` name one block: moving the
 // value transfers ONE of the references, and the non-atomic count is then
-// raced from two shards. Until the relinquishing operand makes every counted
-// leaf private, a type for which this answers true cannot cross by move.
+// raced from two shards. A type for which this answers true is un-shared in
+// the relinquishing operand before it crosses -- when the walk can reach its
+// leaves (CountedBlockCanBeMadePrivate) -- and refused otherwise.
 func (r *Result) MayShareCountedBlock(id types.TypeID) bool {
 	if r == nil || r.TypeInterner == nil {
 		return false
 	}
 	return r.containsRefCountedScalar(id, make(map[types.TypeID]struct{}), true)
+}
+
+// CountedBlockCanBeMadePrivate reports whether the relinquishing walk can make
+// every counted leaf of a value of this type private before the value is
+// given up across a shard or thread boundary: a scalar, a struct, a tuple, a
+// fixed array, a union of those. It is the other half of MayShareCountedBlock:
+// a shape that MAY share and CAN be made private is un-shared in the
+// relinquishing operand and crosses; a shape that may share and cannot is
+// refused, and this is the question the refusal asks.
+//
+// What answers false is every RUNTIME HANDLE whose payload may share: a
+// container of counted elements (`float[]`, a map keyed or valued by one),
+// whose buffer would have to be walked at runtime and that walk is not built,
+// and a `Channel<float>`, whose ring stays on the creator's shard, so no walk
+// over the handle's own bytes could reach it. Placement carries nothing.
+//
+// It is the same walk the backend runs on its side (canUnshareValue in
+// internal/backend/llvm); the two are held in lock step by a labelled table
+// there, because a shape sema admits and the emitter cannot serve is a build
+// failure instead of a diagnostic.
+func (r *Result) CountedBlockCanBeMadePrivate(id types.TypeID) bool {
+	if r == nil || r.TypeInterner == nil {
+		return true
+	}
+	return r.countedBlockCanBeMadePrivate(id, make(map[types.TypeID]struct{}))
+}
+
+// CountedBlockStaysShared is the crossing refusal: the type may share a
+// counted block and the relinquishing walk cannot make it private.
+func (r *Result) CountedBlockStaysShared(id types.TypeID) bool {
+	return r.MayShareCountedBlock(id) && !r.CountedBlockCanBeMadePrivate(id)
+}
+
+func (r *Result) countedBlockCanBeMadePrivate(id types.TypeID, seen map[types.TypeID]struct{}) bool {
+	if id == types.NoTypeID {
+		return true
+	}
+	in := r.TypeInterner
+	id = resolveAlias(in, id)
+	if in.IsRefCountedScalar(id) {
+		return true
+	}
+	if _, ok := seen[id]; ok {
+		return true
+	}
+	seen[id] = struct{}{}
+	if payloads, ok := in.RuntimeHandlePayloads(id); ok && !in.IsRuntimePlacementType(id) {
+		for _, payload := range payloads {
+			if r.MayShareCountedBlock(payload) {
+				return false
+			}
+		}
+		return true
+	}
+	if elem, _, ok := in.ArrayFixedInfo(id); ok {
+		return r.countedBlockCanBeMadePrivate(elem, seen)
+	}
+	tt, ok := in.Lookup(id)
+	if !ok {
+		return true
+	}
+	switch tt.Kind {
+	case types.KindOwn:
+		return r.countedBlockCanBeMadePrivate(tt.Elem, seen)
+	case types.KindArray:
+		return !r.MayShareCountedBlock(tt.Elem)
+	case types.KindStruct:
+		for _, f := range in.StructFields(id) {
+			if !r.countedBlockCanBeMadePrivate(f.Type, seen) {
+				return false
+			}
+		}
+		return true
+	case types.KindTuple:
+		if info, ok := in.TupleInfo(id); ok && info != nil {
+			for _, el := range info.Elems {
+				if !r.countedBlockCanBeMadePrivate(el, seen) {
+					return false
+				}
+			}
+		}
+		return true
+	case types.KindUnion:
+		info, ok := in.UnionInfo(id)
+		if !ok || info == nil {
+			return false
+		}
+		for i := range info.Members {
+			m := &info.Members[i]
+			if m.Kind == types.UnionMemberType && !r.countedBlockCanBeMadePrivate(m.Type, seen) {
+				return false
+			}
+			for _, arg := range m.TagArgs {
+				if !r.countedBlockCanBeMadePrivate(arg, seen) {
+					return false
+				}
+			}
+		}
+		return true
+	default:
+		return true
+	}
 }
 
 func (r *Result) containsRefCountedScalar(id types.TypeID, seen map[types.TypeID]struct{}, throughUnions bool) bool {

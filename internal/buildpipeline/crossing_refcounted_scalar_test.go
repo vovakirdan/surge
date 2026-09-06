@@ -15,23 +15,20 @@ import (
 // count is deliberately NON-ATOMIC, which is only sound while a block stays on
 // one shard. The barrier is an un-share in the relinquishing operand: before a
 // value crosses, the compiler makes every counted block it carries private on
-// the source thread. Until the refusals are lifted, every path that would hand
-// a second shard the same word is refused.
+// the source thread.
 //
-// These rows pin that closure so reopening it is a deliberate act rather than a
-// silent regression. They split in two when the refusals are lifted: a shape
-// whose blocks CAN be made private (a scalar, a struct, a tuple, a fixed array,
-// a union of those) flips to "compiles", with the un-share clone count as the
-// gate; a shape whose blocks cannot -- a dynamic array's buffer, a channel's
-// ring, both reachable by their handle from the source -- stays refused with a
-// message that says so.
+// The rows split by what that walk can reach. A CAPTURE whose counted blocks
+// live inline -- a scalar, a struct, a tuple, a fixed array, a union of those
+// -- is un-shared in the operand and crosses; those shapes are in
+// TestRefCountedScalarCapturesCross below, and the e2e row that counts the
+// clones is the gate (internal/vm, unshare_clones). A shape whose blocks the
+// walk cannot reach stays refused with a message that says so: a dynamic
+// array's buffer and a channel's ring are both storage this shard keeps and
+// the handle merely names. The reply and the channel element are refused on
+// their own gates, untouched here (step 5).
 //
-// The owned `@shard_movable` MOVE used to be left out on the argument that a
-// move transfers the references instead of sharing them. It transfers ONE
-// reference — the value's own — and a sibling holder on the source shard keeps
-// the block alive, so those rows are here too now. The one shape that is NOT
-// here, on purpose: fixed-width `float64`, a machine word with no block behind
-// it (TestFixedWidthFloatStillCrosses).
+// The one shape that is NOT here, on purpose: fixed-width `float64`, a machine
+// word with no block behind it (TestFixedWidthFloatStillCrosses).
 func TestRefCountedScalarCrossingsAreRefused(t *testing.T) {
 	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
 	cases := []struct {
@@ -39,33 +36,6 @@ func TestRefCountedScalarCrossingsAreRefused(t *testing.T) {
 		src      string
 		contains []string
 	}{
-		{
-			name: "bare float captured into a crossing body",
-			src: `
-async fn go(dst: Placement) -> int {
-    let f: float = 1.5;
-    let r: TaskResult<int> = on dst { let g: float = f; ret 1; };
-    print(f to string);
-    return 0;
-}
-`,
-			contains: []string{"`float`", "counted heap block", "not", "safe to share"},
-		},
-		{
-			name: "copy struct carrying a float field",
-			src: `
-@copy
-type P = { v: float };
-
-async fn go(dst: Placement) -> int {
-    let p: P = P { v: 1.5 };
-    let r: TaskResult<int> = on dst { let q: P = p; ret 1; };
-    print(p.v to string);
-    return 0;
-}
-`,
-			contains: []string{"`P`", "arbitrary-precision"},
-		},
 		{
 			name: "float riding the reply",
 			src: `
@@ -87,69 +57,11 @@ async fn go() -> int {
 `,
 			contains: []string{"remote channel cannot carry `float`", "sender's copy alive"},
 		},
-		// The owned-move rows. An owned `@shard_movable` value used to be exempt
-		// on the argument that a move transfers the reference instead of sharing
-		// it — true only while the block has exactly one holder. `own P{ v: a }`
-		// retains `a`'s block into the field, so after the move the destination
-		// shard holds a block the source shard still holds through `a`, and the
-		// non-atomic count is raced from two threads. Refused until the operand
-		// makes its counted leaves private (Epic 22 step 4).
-		{
-			name: "owned struct carrying a float field moved into an on body",
-			src: `
-@shard_movable
-type P = { v: float };
-
-async fn go(dst: Placement) -> int {
-    let a: float = 1.5;
-    let p: own P = own P{ v: a };
-    let r: TaskResult<int> = on dst { let x: float = p.v; ret 1; };
-    print(a to string);
-    return 0;
-}
-`,
-			contains: []string{"`P`", "arbitrary-precision", "moving it"},
-		},
-		{
-			name: "owned struct carrying a float field moved into a spawn on body",
-			src: `
-@shard_movable
-type P = { v: float };
-
-fn use(p: own P) -> int { return 1; }
-
-async fn start(dst: Placement) -> far Task<int> {
-    let a: float = 1.5;
-    let p: own P = own P{ v: a };
-    return spawn on dst { ret use(own p); };
-}
-`,
-			contains: []string{"`P`", "arbitrary-precision", "moving it"},
-		},
-		{
-			name: "owned union carrying a float payload moved into an on body",
-			src: `
-@shard_movable
-type P = { v: float };
-
-tag Held(P);
-tag Empty();
-@shard_movable
-type U = Held(P) | Empty();
-
-fn use(u: own U) -> int { return 1; }
-
-async fn go(dst: Placement) -> int {
-    let a: float = 1.5;
-    let held: U = Held(P{ v: a });
-    let u: own U = own held;
-    let r: TaskResult<int> = on dst { ret use(own u); };
-    print(a to string);
-    return 0;
-}
-`,
-			contains: []string{"`U`", "arbitrary-precision", "moving it"},
-		},
+		// A dynamic array's elements are counted blocks in a buffer the handle
+		// names and this shard keeps; an owned move hands over one reference
+		// per element while every pusher keeps its own, and the relinquishing
+		// walk has no buffer walk to make them private. Refused for that
+		// reason, in those words.
 		{
 			name: "owned float array moved into an on body",
 			src: `
@@ -163,7 +75,23 @@ async fn go(dst: Placement) -> int {
     return 0;
 }
 `,
-			contains: []string{"arbitrary-precision", "moving it"},
+			contains: []string{"`Array<float>`", "cannot be made private"},
+		},
+		{
+			name: "float array captured into a blocking body",
+			src: `
+fn use(xs: own float[]) -> int { return 1; }
+
+async fn go() -> int {
+    let a: float = 1.5;
+    let xs: float[] = [a];
+    let job: Task<int> = blocking { ret use(own xs); };
+    let r: TaskResult<int> = job.await();
+    print(a to string);
+    return 0;
+}
+`,
+			contains: []string{"`[float]`", "cannot be made private"},
 		},
 		// A far channel whose element is a union carrying a float. The element
 		// gate asked ContainsRefCountedScalar, which stops at unions on purpose,
@@ -192,7 +120,8 @@ async fn go() -> int {
 		// the body's local `ch.send(f)` then retained f's block into a ring the
 		// creator's shard owns, and the creator's `recv` held that block on one
 		// thread while the body dropped `f` on another -- a non-atomic count
-		// under two threads with no float captured at all. Same panel.
+		// under two threads with no float captured at all. Same panel. The
+		// walk cannot reach the ring through the handle, so this stays refused.
 		{
 			name: "local channel of floats captured into a crossing body",
 			src: `
@@ -202,7 +131,7 @@ async fn go(dst: Placement) -> int {
     return 0;
 }
 `,
-			contains: []string{"`Channel<float>`", "arbitrary-precision"},
+			contains: []string{"`Channel<float>`", "cannot be made private"},
 		},
 		// A fixed array of floats is a nominal struct with no declared fields,
 		// so the walk that asks a struct's members answered "nothing inside"
@@ -268,24 +197,6 @@ async fn go() -> int {
 `,
 			contains: []string{"remote channel cannot carry `U`"},
 		},
-		{
-			name: "struct carrying a float field moved into a blocking body",
-			src: `
-type P = { v: float };
-
-fn sink(p: own P) -> int { return 1; }
-
-async fn go() -> int {
-    let a: float = 1.5;
-    let p: P = P{ v: a };
-    let job: Task<int> = blocking { ret sink(own p); };
-    let r: TaskResult<int> = job.await();
-    print(a to string);
-    return 0;
-}
-`,
-			contains: []string{"`P`", "arbitrary-precision", "moving it"},
-		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -317,37 +228,229 @@ async fn go() -> int {
 	}
 }
 
+// compileCleanly builds one program through the LLVM pipeline, all the way
+// to the MIR validators, and fails on any error: a source that fails for an
+// unrelated reason would satisfy a check for one code while proving nothing.
+// The program is given an entrypoint so the pipeline runs past sema.
+func compileCleanly(t *testing.T, src string) {
+	t.Helper()
+	src += "\n@entrypoint\nfn main() -> int { return 0; }\n"
+	path := filepath.Join(t.TempDir(), "main.sg")
+	if err := os.WriteFile(path, []byte(src), 0o600); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	res, err := Compile(context.Background(), &CompileRequest{
+		TargetPath: path, Backend: BackendLLVM, MaxDiagnostics: 200,
+	})
+	if res.Diagnose == nil || res.Diagnose.Bag == nil {
+		t.Fatalf("missing diagnostics bag (err=%v)", err)
+	}
+	if found := findDiagnostic(res.Diagnose.Bag.Items(), diag.FutCrossingPayloadNotShippable); found != nil {
+		t.Fatalf("crossing was refused: %s", found.Message)
+	}
+	for _, item := range res.Diagnose.Bag.Items() {
+		if item.Severity == diag.SevError {
+			t.Fatalf("did not compile cleanly: [%s] %s", item.Code, item.Message)
+		}
+	}
+	// The MIR validators report through the error, not the bag: a capture
+	// that reached its boundary without an un-share is refused there.
+	if err != nil {
+		t.Fatalf("did not compile cleanly: %v", err)
+	}
+}
+
+// The captures whose counted blocks live inline: each is un-shared in the
+// relinquishing operand and crosses. Every program keeps a sibling holder of
+// the block alive on the source side (`a` is printed after the crossing), so
+// what these rows admit is exactly the shape the stop-gap refused: the block
+// has two holders at the boundary, and the operand's un-share is what makes
+// the shipped one private. The count of those clones is asserted end to end
+// in internal/vm (unshare_clones on the TRACE_RESIDENT exit line); here the
+// rows pin that the gate no longer turns the shape away.
+//
+// Red on the tree before the narrowing: every row here was refused with
+// SEM3168 (TestRefCountedScalarCrossingsAreRefused held them).
+func TestRefCountedScalarCapturesCross(t *testing.T) {
+	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
+	cases := []struct {
+		name string
+		src  string
+	}{
+		{
+			name: "bare float captured by copy into an on body",
+			src: `
+async fn go(dst: Placement) -> int {
+    let f: float = 1.5;
+    let r: TaskResult<int> = on dst { let g: float = f; ret 1; };
+    print(f to string);
+    return 0;
+}
+`,
+		},
+		{
+			name: "copy struct carrying a float field captured into an on body",
+			src: `
+@copy
+type P = { v: float };
+
+async fn go(dst: Placement) -> int {
+    let p: P = P { v: 1.5 };
+    let r: TaskResult<int> = on dst { let q: P = p; ret 1; };
+    print(p.v to string);
+    return 0;
+}
+`,
+		},
+		{
+			name: "owned struct carrying a float field moved into an on body",
+			src: `
+@shard_movable
+type P = { v: float };
+
+async fn go(dst: Placement) -> int {
+    let a: float = 1.5;
+    let p: own P = own P{ v: a };
+    let r: TaskResult<int> = on dst { let x: float = p.v; ret 1; };
+    print(a to string);
+    return 0;
+}
+`,
+		},
+		{
+			name: "owned struct carrying a float field moved into a spawn on body",
+			src: `
+@shard_movable
+type P = { v: float };
+
+fn use(p: own P) -> int { return 1; }
+
+async fn start(dst: Placement) -> far Task<int> {
+    let a: float = 1.5;
+    let p: own P = own P{ v: a };
+    return spawn on dst { ret use(own p); };
+}
+`,
+		},
+		{
+			name: "owned union carrying a float payload moved into an on body",
+			src: `
+@shard_movable
+type P = { v: float };
+
+tag Held(P);
+tag Empty();
+@shard_movable
+type U = Held(P) | Empty();
+
+fn use(u: own U) -> int { return 1; }
+
+async fn go(dst: Placement) -> int {
+    let a: float = 1.5;
+    let held: U = Held(P{ v: a });
+    let u: own U = own held;
+    let r: TaskResult<int> = on dst { ret use(own u); };
+    print(a to string);
+    return 0;
+}
+`,
+		},
+		// The moved local had its address handed to a child task first, so the
+		// async split rewrites it into a RESIDENT field of the frame. The
+		// un-share was emitted on the bare local before the split and the
+		// post-split shape rule reads the resident field as that local. Found
+		// by the refuter of 2026-09-06: refused with the validator's own text
+		// ("reaches the boundary as Move L44.__resident$p$3") instead of
+		// building.
+		{
+			name: "owned struct borrowed by a child task, then moved into a spawn on body",
+			src: `
+@shard_movable
+type P = { v: float };
+
+fn use(p: own P) -> int { return 1; }
+
+async fn peek(p: &P) -> int { return 0; }
+
+async fn run(dst: Placement) -> int {
+    let a: float = 1.5;
+    let p: own P = own P{ v: a };
+    let t: Task<int> = spawn peek(&p);
+    let seen: int = compare t.await() { Success(x) => x; Cancelled() => 0 - 2; };
+    let task: far Task<int> = spawn on dst { ret use(own p); };
+    let b: float = a;
+    let r: TaskResult<int> = task.await();
+    print(b to string);
+    return seen;
+}
+`,
+		},
+		{
+			name: "struct borrowed by a child task, then moved into a blocking body",
+			src: `
+type Q = { v: float };
+
+fn sink(q: own Q) -> int { return 1; }
+
+async fn peek(q: &Q) -> int { return 0; }
+
+async fn run() -> int {
+    let c: float = 3.5;
+    let q: Q = Q{ v: c };
+    let t: Task<int> = spawn peek(&q);
+    let seen: int = compare t.await() { Success(x) => x; Cancelled() => 0 - 2; };
+    let job: Task<int> = blocking { ret sink(own q); };
+    let r: TaskResult<int> = job.await();
+    print(c to string);
+    return seen;
+}
+`,
+		},
+		{
+			name: "struct carrying a float field moved into a blocking body",
+			src: `
+type P = { v: float };
+
+fn sink(p: own P) -> int { return 1; }
+
+async fn go() -> int {
+    let a: float = 1.5;
+    let p: P = P{ v: a };
+    let job: Task<int> = blocking { ret sink(own p); };
+    let r: TaskResult<int> = job.await();
+    print(a to string);
+    return 0;
+}
+`,
+		},
+		{
+			name: "bare float captured into a blocking body",
+			src: `
+async fn go() -> int {
+    let a: float = 1.5;
+    let job: Task<int> = blocking { let b: float = a; ret 1; };
+    let r: TaskResult<int> = job.await();
+    print(a to string);
+    return 0;
+}
+`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) { compileCleanly(t, tc.src) })
+	}
+}
+
 // The refusal must not spill onto fixed-width floats: `float64` is a machine word
 // with no heap block and no count, and it has always crossed. If this breaks,
 // the widening reached a type it was never meant to.
 func TestFixedWidthFloatStillCrosses(t *testing.T) {
 	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
-	src := `
+	compileCleanly(t, `
 async fn go(dst: Placement) -> int {
     let f: float64 = 1.5;
     let r: TaskResult<float64> = on dst { let g: float64 = f; ret g; };
     return 0;
 }
-`
-	path := filepath.Join(t.TempDir(), "main.sg")
-	if err := os.WriteFile(path, []byte(src), 0o600); err != nil {
-		t.Fatalf("write source: %v", err)
-	}
-	res, _ := Compile(context.Background(), &CompileRequest{
-		TargetPath: path, Backend: BackendLLVM, MaxDiagnostics: 200,
-	})
-	if res.Diagnose == nil || res.Diagnose.Bag == nil {
-		t.Fatal("missing diagnostics bag")
-	}
-	if found := findDiagnostic(res.Diagnose.Bag.Items(), diag.FutCrossingPayloadNotShippable); found != nil {
-		t.Fatalf("float64 crossing was refused: %s", found.Message)
-	}
-	// Assert the program is CLEAN, not merely free of this one code: a source
-	// that fails to compile for an unrelated reason would satisfy the check
-	// above while proving nothing.
-	for _, item := range res.Diagnose.Bag.Items() {
-		if item.Severity == diag.SevError {
-			t.Fatalf("float64 crossing did not compile cleanly: [%s] %s", item.Code, item.Message)
-		}
-	}
+`)
 }

@@ -3,6 +3,7 @@ package mir
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"surge/internal/sema"
 	"surge/internal/types"
@@ -62,6 +63,16 @@ func bareLocalOf(p Place) (LocalID, bool) {
 	return p.Local, true
 }
 
+// residentPlace reports whether a place is a RESIDENT field of an async
+// frame: the storage a bare local was rewritten into by the split because a
+// live child borrows it (async_resident_places.go). The lowering un-shared
+// the bare local and moved out of it; after the split both name this one
+// field, so the post-split shape rule reads it as the same bare local.
+func residentPlace(p Place) bool {
+	return p.Kind == PlaceLocal && len(p.Proj) == 1 && p.Proj[0].Kind == PlaceProjField &&
+		strings.HasPrefix(p.Proj[0].FieldName, asyncResidentFieldPrefix)
+}
+
 type relinquishSink struct {
 	block BlockID
 	// instr indexes the sink within its block; len(Instrs) names the
@@ -82,6 +93,15 @@ func relinquishSinks(f *Func) []relinquishSink {
 			switch ins.Kind {
 			case InstrCrossing:
 				for fi := range ins.Crossing.State.Fields {
+					// Field 0 is the frame state word; capture i is field i+1.
+					// The block's anchor is leased, not given up: the caller
+					// keeps the handle and the body borrows it, so it is not a
+					// sink (relinquishCapture leaves it alone for the same
+					// reason).
+					if ci := fi - 1; ci >= 0 && ci < len(ins.Crossing.Captures) &&
+						ins.Crossing.Captures[ci].Mode == sema.CrossingCaptureAnchorLease {
+						continue
+					}
 					field := &ins.Crossing.State.Fields[fi]
 					out = append(out, relinquishSink{BlockID(bi), ii, &field.Value, "state field " + field.Name})
 				}
@@ -131,9 +151,16 @@ func sinkOperandType(f *Func, op *Operand) types.TypeID {
 
 // relinquishedLocal applies the shape rule to one sink operand: a constant is
 // minted at the site and needs nothing; anything else must be a MOVE out of a
-// bare local, which is then the local whose act the caller looks for.
+// bare local, which is then the local whose act the caller looks for. After
+// the async split the bare local may have become a resident field of the
+// frame; that is the same storage under another name, and the act was
+// already checked before the split, so the post-split caller accepts it and
+// gets no local back.
 func relinquishedLocal(s *relinquishSink, ctx string) (LocalID, bool, error) {
 	if s.op.Kind == OperandConst {
+		return NoLocalID, false, nil
+	}
+	if s.op.Kind == OperandMove && residentPlace(s.op.Place) {
 		return NoLocalID, false, nil
 	}
 	local, ok := bareLocalOf(s.op.Place)

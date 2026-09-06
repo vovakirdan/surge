@@ -67,7 +67,7 @@ func (l *funcLowerer) lowerBlockingExpr(e *hir.Expr, consume bool) (Operand, err
 		l.out.Funcs[blockingID] = fn
 	}
 
-	stateLit, err := l.blockingStateLiteral(stateType, captures)
+	stateLit, err := l.blockingStateLiteral(stateType, captures, e.Span)
 	if err != nil {
 		return Operand{}, err
 	}
@@ -126,7 +126,7 @@ func (l *funcLowerer) blockingCaptureInfo(captures []hir.CapturedBinding) ([]blo
 	return out, nil
 }
 
-func (l *funcLowerer) blockingStateLiteral(stateType types.TypeID, captures []blockingCaptureInfo) (StructLit, error) {
+func (l *funcLowerer) blockingStateLiteral(stateType types.TypeID, captures []blockingCaptureInfo, span source.Span) (StructLit, error) {
 	if stateType == types.NoTypeID {
 		return StructLit{}, fmt.Errorf("mir: blocking: missing state type")
 	}
@@ -145,6 +145,12 @@ func (l *funcLowerer) blockingStateLiteral(stateType types.TypeID, captures []bl
 	// descriptor — a walk, which is what PACKED asks for. The window closes at
 	// the body's first instructions, where the captures come back out and
 	// lowerBlockingFunc writes the other word.
+	//
+	// Either route then passes through relinquishOperand: the frame is handed
+	// to a pool thread while this one keeps its bindings, so every counted
+	// block the capture holds is made private here, on this thread, before the
+	// submission. A retained capture that may share is carried through a
+	// transfer temp and moved; the field still holds exactly one reference.
 	fields = append(fields, frameStatePackedField(l.types.Builtins().Int))
 	for _, cap := range captures {
 		val, err := l.captureOperand(cap)
@@ -153,7 +159,7 @@ func (l *funcLowerer) blockingStateLiteral(stateType types.TypeID, captures []bl
 		}
 		fields = append(fields, StructLitField{
 			Name:  cap.FieldName,
-			Value: val,
+			Value: l.relinquishOperand(&val, span),
 		})
 	}
 	return StructLit{TypeID: stateType, Fields: fields}, nil
@@ -251,21 +257,23 @@ func (l *funcLowerer) lowerBlockingFunc(id FuncID, name string, body *hir.Block,
 		// plain read leaves the field looking initialized, which is a second
 		// owner for anything the state is later destroyed through.
 		//
-		// A RETAINED capture stays a plain read, and the plain read is what
-		// hands the frame's reference on. `Channel<T>` is the whole of this
-		// family here: the literal retained a reference into the field
-		// (captureOperand reads it consuming, which for a reference-counted
-		// value is OperandRetain), and the job never gives that one back — the
-		// worker spends the state cell before calling this body, so the release
-		// frees the block without walking a field. Copying the handle word out
-		// therefore moves that reference to the local, and the local owes it
-		// back at every return — which is a drop obligation sema registers, in
-		// registerBlockingBodyOwnership, beside the one it registers for the
-		// transferring captures above.
+		// A RETAINED capture is taken out the same way, because the field holds
+		// one reference of its own either way. The literal retained a reference
+		// into the field (captureOperand reads it consuming, which for a
+		// reference-counted value is OperandRetain; relinquishOperand then
+		// carries it through a transfer temp, un-shares it and MOVES it in), and
+		// the job never gives that one back — the worker spends the state cell
+		// before calling this body, so the release frees the block without
+		// walking a field. Taking the word out therefore moves that reference to
+		// the local, and the local owes it back at every return — which is a
+		// drop obligation sema registers, in registerBlockingBodyOwnership,
+		// beside the one it registers for the transferring captures above.
 		//
-		// The reference-counted SCALAR the predicate also admits cannot arrive:
-		// sema refuses a `float`-carrying blocking capture outright, because the
-		// count is not atomic and the worker is another thread.
+		// Two families arrive this way: a handle (`Channel<T>`), and a
+		// reference-counted SCALAR or a composite holding one, whose counted
+		// blocks the un-share made private on the submitting thread -- which is
+		// what lets a `float` reach a worker thread under a count that is not
+		// atomic.
 		l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
 			Dst: Place{Local: localID},
 			Src: RValue{Kind: RValueField, Field: FieldAccess{

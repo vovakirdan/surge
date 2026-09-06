@@ -1,16 +1,16 @@
-spawn_on_positive_copy_composite_capture.sg (span: 10:1-20:1)
-├─ Item[0]: Type (span: 10:1-13:3)
+spawn_on_positive_copy_composite_capture.sg (span: 11:1-21:1)
+├─ Item[0]: Type (span: 11:1-14:3)
 │  ├─ Name: Digest
 │  ├─ Kind: Struct
 │  ├─ Visibility: private
 │  ├─ Attributes: @copy
 │  └─ Struct:
 │     └─ Field[0]: value: uint64
-└─ Item[1]: Fn (span: 15:1-19:2)
+└─ Item[1]: Fn (span: 16:1-20:2)
    ├─ Name: start
    ├─ Params: (d: Digest)
    ├─ Return: far Task<int>
    └─ Body:
-      └─ Stmt[0]: Block (span: 15:38-19:2)
-         └─ Stmt[0]: Return (span: 16:5-18:7)
+      └─ Stmt[0]: Block (span: 16:38-20:2)
+         └─ Stmt[0]: Return (span: 17:5-19:7)
             └─ Expr: expr#5: spawn on pool { 1 stmt(s) }

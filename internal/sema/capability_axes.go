@@ -118,11 +118,12 @@ func (c *CapabilityClassifier) evaluateTraceable(
 // VALUE being captured may still share a counted block with a holder on this
 // shard. A reference-counted scalar's word is a reference into a non-atomic
 // count, and an owned MOVE transfers only the one reference the value holds —
-// `own P{ v: a }` keeps `a`'s reference alive on the source shard — so the
-// use site refuses such a capture (MayShareCountedBlock) until the
-// relinquishing operand makes every counted leaf private. That refusal is a
-// property of the VALUE and its siblings, not of the TYPE: the type stays
-// shard-movable, which is what keeps the move possible once the operand is
+// `own P{ v: a }` keeps `a`'s reference alive on the source shard. So the
+// relinquishing operand un-shares every counted leaf the walk can reach before
+// the state ships, and the use site refuses only what the walk cannot reach
+// (CountedBlockStaysShared: a container's buffer, a channel's ring). That is
+// a property of the VALUE and its siblings, not of the TYPE: the type is
+// shard-movable, which is what makes the move possible once the operand is
 // private.
 func (c *CapabilityClassifier) evaluateShardMovable(
 	id types.TypeID,

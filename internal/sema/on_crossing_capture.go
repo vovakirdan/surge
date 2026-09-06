@@ -225,33 +225,25 @@ func (tc *typeChecker) classifyOnCapture(capType types.TypeID, span source.Span)
 	}
 	owned := tc.isOwnType(capType)
 	// An arbitrary-precision scalar is Copy, but its word is a reference into a
-	// counted heap block. COPYING one into the crossing state would leave the
-	// caller's binding and the body's state pointing at one block from two
-	// shards, racing a count that is deliberately not atomic.
+	// counted heap block, and the count is deliberately not atomic. A capture
+	// that holds one -- copied, or moved while a sibling binding still holds
+	// the block (`own P{ v: a }` retains `a`'s block into the field) -- is made
+	// PRIVATE in the relinquishing operand before the state ships: the lowering
+	// un-shares every counted leaf the walk can reach, so the body's state and
+	// the caller's bindings never name one block from two shards.
 	//
-	// An owned MOVE used to be exempt on the argument that it transfers the
-	// references instead of sharing them. That is true only while the block
-	// has exactly one holder, and `own P{ v: a }` retains `a`'s block into the
-	// field: after the move the body's state and the caller's live `a` name one
-	// block from two shards. So the owned shape is refused as well, until the
-	// relinquishing operand makes every counted leaf private (Epic 22 step 4).
-	// Union payloads count: MayShareCountedBlock walks them, the Copy-only
-	// ContainsRefCountedScalar does not.
-	if tc.result != nil && tc.result.MayShareCountedBlock(capType) {
-		if owned {
-			tc.report(diag.SemaCrossNotShardMovable, span,
-				"`%s` cannot cross a shard boundary yet: it carries an arbitrary-precision value, "+
-					"which is a reference into a counted heap block, and moving it would not make "+
-					"that block private — a copy taken before the move may still be held on this "+
-					"shard, and the count is not safe to share between shards. Use a fixed-width "+
-					"type (`float64`) for the value that crosses",
-				types.Label(tc.types, tc.valueType(capType)))
-			return 0, 0, false
-		}
+	// What the walk cannot reach is refused here, in words that say why: a
+	// dynamic array's buffer and a channel's ring are storage this shard keeps
+	// and the handle only names, so no walk over the captured value's own bytes
+	// makes their blocks private. Union payloads count on both sides of that
+	// question; the Copy-only ContainsRefCountedScalar does not walk them.
+	if tc.result != nil && tc.result.CountedBlockStaysShared(capType) {
 		tc.report(diag.SemaCrossNotShardMovable, span,
-			"`%s` cannot cross a shard boundary yet: it carries an arbitrary-precision value, "+
-				"which is a reference into a counted heap block, and the count is not safe to "+
-				"share between shards. Use a fixed-width type (`float64`) for the value that crosses",
+			"`%s` cannot cross a shard boundary: it holds arbitrary-precision values in storage "+
+				"this shard keeps (a dynamic array's buffer, a channel's ring), so the counted "+
+				"heap blocks behind them cannot be made private before the value ships, and the "+
+				"count is not safe to share between shards. Use a fixed-width type (`float64`) "+
+				"for the elements, or capture the values themselves",
 			types.Label(tc.types, tc.valueType(capType)))
 		return 0, 0, false
 	}
@@ -431,10 +423,12 @@ func (tc *typeChecker) registerBlockingBodyOwnership(body ast.StmtID) {
 // frame that outlives the read.
 //
 // It takes no function, because unlike a parameter there is no non-frame case to
-// exclude -- a capture is by definition read into a frame. Of the two
-// reference-counted families only the HANDLE reaches an ACCEPTED program: the
-// loop below this one refuses a `float`-carrying blocking capture, so a scalar
-// is registered here and the program is then rejected anyway.
+// exclude -- a capture is by definition read into a frame. Both reference-counted
+// families reach an accepted program: a HANDLE, and a SCALAR whose block the
+// relinquishing operand makes private before the frame is submitted (the loop
+// in typeExprBlocking refuses only a scalar the walk cannot reach, inside a
+// container's buffer or a channel's ring). Either way the body owes the field's
+// one reference back, and this registration is what makes it pay.
 //
 // Deliberately not shared with registerAsyncBodyOwnership above, which still
 // asks only the transfer predicate. A local `async` block's frame is reclaimed
