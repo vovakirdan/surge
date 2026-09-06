@@ -264,23 +264,38 @@ int rtb_mode_select_seq0_retry_terminal_drain(void) {
     if (pending->handle.task_id == 0) {
         return rtb_fail("seq0 stand pending state did not name its one body");
     }
+    // The window is armed HERE, once setup is over, and not from the
+    // environment for the whole process. Armed from the start, the point held
+    // the first thread to reach it, and in one schedule in ~50 that was a
+    // setup-phase wake carrying a removable stale key: a runtime thread blocked
+    // in the mint's reply, rtb_mint_channel's unbounded await never returned,
+    // and the block timed out into an abort that printed none of the messages
+    // below. Only a wake that arrives after this line can be the one held.
     unsigned before =
         rt_sync_point_reached_count(RT_SYNC_POINT_SP_WAKE_BEFORE_STALE_REMOVAL);
+    rt_sync_point_arm_block(RT_SYNC_POINT_SP_WAKE_BEFORE_STALE_REMOVAL);
     rtb_seq0_waker waker = {ex, caller_task->id, 0};
     pthread_t thread;
     if (pthread_create(&thread, NULL, rtb_seq0_wake_thread, &waker) != 0) {
+        rt_sync_point_disarm(RT_SYNC_POINT_SP_WAKE_BEFORE_STALE_REMOVAL);
         return rtb_fail("seq0 stand could not start the spurious waker");
     }
     if (!rt_sync_point_wait_until_after(RT_SYNC_POINT_SP_WAKE_BEFORE_STALE_REMOVAL, before)) {
+        rt_sync_point_disarm(RT_SYNC_POINT_SP_WAKE_BEFORE_STALE_REMOVAL);
         rt_sync_point_open();
         (void)pthread_join(thread, NULL);
         return rtb_fail("seq0 stand missed the stale-removal window");
     }
     if (!rtb_seq0_wait_entries(ex, key, caller_task, 2)) {
+        rt_sync_point_disarm(RT_SYNC_POINT_SP_WAKE_BEFORE_STALE_REMOVAL);
         rt_sync_point_open();
         (void)pthread_join(thread, NULL);
         return rtb_fail("seq0 stand did not observe the two-entry retry park");
     }
+    // Disarm BEFORE opening: the held wake resumes into the deferred removal,
+    // and the terminal reply after it must run free rather than block a second
+    // time with nobody left to open.
+    rt_sync_point_disarm(RT_SYNC_POINT_SP_WAKE_BEFORE_STALE_REMOVAL);
     rt_sync_point_open();
     (void)pthread_join(thread, NULL);
     if (atomic_load_explicit(&waker.done, memory_order_acquire) != 1) {

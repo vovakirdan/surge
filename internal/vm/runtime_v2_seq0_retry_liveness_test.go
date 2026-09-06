@@ -58,13 +58,19 @@ func buildRemoteTaskBehaviorHarnessWithFlags(t *testing.T, name string, extraFla
 	return bin
 }
 
+// The stale-removal window is NOT armed from the environment. Armed for the
+// whole process it held the first thread to reach it, and in roughly one
+// schedule in fifty that was a setup-phase wake in the channel mint rather
+// than the stand's spurious waker: rtb_mint_channel's unbounded await never
+// returned and the block timed out into an abort with none of the stand's
+// messages (2 of 93 runs on the dedicated host, 2026-09-06). The stand arms
+// the point itself once its setup is over -- rt_sync_point_arm_block.
 func runSeq0RetryStand(t *testing.T, bin string) (string, string, int) {
 	t.Helper()
 	env := remotePublicationEnv(
 		"SURGE_SHARDS=2",
 		"SURGE_THREADS=2",
-		"SURGE_REMOTE_DEADLOCK_DETECT=0",
-		"SURGE_SYNC_POINT=SP_WAKE_BEFORE_STALE_REMOVAL:block")
+		"SURGE_REMOTE_DEADLOCK_DETECT=0")
 	return runRemotePublicationHarness(t, bin, "select-seq0-retry-terminal-drain", env)
 }
 

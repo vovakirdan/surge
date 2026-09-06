@@ -329,9 +329,21 @@ void rt_sync_point_reach(rt_sync_point_id id);
 //                                block the driver until a point's reached
 //                                count exceeds a captured value; returns zero
 //                                only on the bounded deadlock guard.
+//   rt_sync_point_arm_block      arm a `block` window from the driver, AFTER
+//                                setup: SURGE_SYNC_POINT arms for the whole
+//                                process and holds the FIRST thread to reach
+//                                the point, which in a schedule the stand did
+//                                not intend is a setup-phase wake, not the
+//                                driver's own; the setup's unbounded await then
+//                                never returns and the block times out into an
+//                                abort. Arming once setup is over makes "the
+//                                first reach after `before` is mine" true.
+//   rt_sync_point_disarm         the other half, once the window is used.
 unsigned rt_sync_point_reached_count(rt_sync_point_id id);
 int rt_sync_point_wait_until_after(rt_sync_point_id id, unsigned before);
 void rt_sync_point_open(void);
+void rt_sync_point_arm_block(rt_sync_point_id id);
+void rt_sync_point_disarm(rt_sync_point_id id);
 
 #define RT_SYNC_POINT(name) rt_sync_point_reach(RT_SYNC_POINT_##name)
 #define RT_SYNC_POINT_IF(cond, name)                                                               \

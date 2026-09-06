@@ -60,7 +60,10 @@ typedef struct rt_sp_sem {
 } rt_sp_sem;
 
 static pthread_once_t rt_sp_once = PTHREAD_ONCE_INIT;
-static rt_sp_action rt_sp_armed[RT_SYNC_POINT_COUNT];
+// Atomic because a driver may arm a point while runtime threads are already
+// reaching it (rt_sync_point_arm_block below); the reach side reads relaxed,
+// which is all an on/off switch needs.
+static _Atomic rt_sp_action rt_sp_armed[RT_SYNC_POINT_COUNT];
 static _Atomic unsigned rt_sp_reached[RT_SYNC_POINT_COUNT];
 static rt_sp_barrier rt_sp_barrier_state = {
     PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, 0, 0, 0};
@@ -199,7 +202,7 @@ static void rt_sp_arm(const char* name, size_t name_len, rt_sp_action action) {
     for (int id = 1; id < RT_SYNC_POINT_COUNT; id++) {
         const char* known = rt_sp_name((rt_sync_point_id)id);
         if (strlen(known) == name_len && strncmp(known, name, name_len) == 0) {
-            rt_sp_armed[id] = action;
+            atomic_store_explicit(&rt_sp_armed[id], action, memory_order_relaxed);
             if (action == RT_SP_ACTION_BARRIER) {
                 rt_sp_barrier_state.needed++;
             }
@@ -293,7 +296,7 @@ void rt_sync_point_reach(rt_sync_point_id id) {
     atomic_fetch_add_explicit(&rt_sp_reached[id], 1u, memory_order_relaxed);
     pthread_cond_broadcast(&rt_sp_reached_cond);
     pthread_mutex_unlock(&rt_sp_reached_mtx);
-    switch (rt_sp_armed[id]) {
+    switch (atomic_load_explicit(&rt_sp_armed[id], memory_order_relaxed)) {
         case RT_SP_ACTION_BARRIER:
             rt_sp_barrier_wait();
             break;
@@ -343,6 +346,36 @@ int rt_sync_point_wait_until_after(rt_sync_point_id id, unsigned before) {
 // (hold the target at its window, perform the racing action, then release it).
 void rt_sync_point_open(void) {
     rt_sp_sem_open();
+}
+
+// Driver-callable arming of a `block` window AFTER the process has started.
+//
+// SURGE_SYNC_POINT arms a point for the whole process, from the first reach
+// on. A stand whose window comes after a setup phase -- mint a channel, park a
+// caller, observe a registration -- then holds the FIRST thread to reach the
+// point, whichever that is. When the setup phase itself reaches it (a wake
+// carrying a removable stale key, in a schedule the stand did not intend), a
+// runtime thread blocks there, the setup's unbounded await never returns, and
+// the block times out into an abort with none of the stand's own messages: the
+// driver never got as far as its window. Arming from the driver, once setup
+// is over, is what makes "the first reach after `before` is mine" true.
+void rt_sync_point_arm_block(rt_sync_point_id id) {
+    if (id <= RT_SYNC_POINT_NONE || id >= RT_SYNC_POINT_COUNT) {
+        return;
+    }
+    pthread_once(&rt_sp_once, rt_sp_init);
+    atomic_store_explicit(&rt_sp_armed[id], RT_SP_ACTION_BLOCK, memory_order_relaxed);
+}
+
+// The other half: a stand that has finished with its window disarms it, so a
+// later wake through the same point runs free rather than blocking with nobody
+// left to open it.
+void rt_sync_point_disarm(rt_sync_point_id id) {
+    if (id <= RT_SYNC_POINT_NONE || id >= RT_SYNC_POINT_COUNT) {
+        return;
+    }
+    pthread_once(&rt_sp_once, rt_sp_init);
+    atomic_store_explicit(&rt_sp_armed[id], RT_SP_ACTION_NONE, memory_order_relaxed);
 }
 
 #else

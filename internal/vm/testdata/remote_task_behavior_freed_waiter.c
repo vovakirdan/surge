@@ -143,16 +143,26 @@ int rtb_mode_anchored_freed_channel_waiter(void) {
     if (rt_far_channel_debug_live_count(ex) == 0) {
         return rtb_fail("freed-waiter entry was reclaimed while pinned");
     }
+    // Armed here, after the mint and the anchored send, for the same reason
+    // the seq-0 retry stand arms late: a process-wide arming holds the first
+    // reach, and a setup-phase wake through this point would leave the mint's
+    // unbounded await hanging with nobody to open the block.
     unsigned before = rt_sync_point_reached_count(RT_SYNC_POINT_SP_WAKE_BEFORE_STALE_REMOVAL);
+    rt_sync_point_arm_block(RT_SYNC_POINT_SP_WAKE_BEFORE_STALE_REMOVAL);
     freed_waiter_canceller canceller = {ex, body_task_id};
     pthread_t thread;
     if (pthread_create(&thread, NULL, freed_waiter_cancel_thread, &canceller) != 0) {
+        rt_sync_point_disarm(RT_SYNC_POINT_SP_WAKE_BEFORE_STALE_REMOVAL);
         return rtb_fail("freed-waiter cancel thread failed to start");
     }
     if (!rt_sync_point_wait_until_after(RT_SYNC_POINT_SP_WAKE_BEFORE_STALE_REMOVAL, before)) {
+        rt_sync_point_disarm(RT_SYNC_POINT_SP_WAKE_BEFORE_STALE_REMOVAL);
         (void)pthread_join(thread, NULL);
         return rtb_fail("freed-waiter wake never reached the stale-removal gap");
     }
+    // One reach is held; nothing after it may block again, and the count check
+    // below (exactly `before + 1`) is what a second hold would break.
+    rt_sync_point_disarm(RT_SYNC_POINT_SP_WAKE_BEFORE_STALE_REMOVAL);
     // The wake is parked in the gap holding the captured channel key. Let the
     // woken body complete: its reply edge unpins the last hold on the entry,
     // release_entry runs, and rt_channel_free releases the object the key
