@@ -51,6 +51,8 @@ func (fe *funcEmitter) emitInstr(ins *mir.Instr) error {
 		return fe.emitInstrDrop(ins)
 	case mir.InstrEnvelopeRelease:
 		return fe.emitInstrEnvelopeRelease(ins)
+	case mir.InstrUnshare:
+		return fe.emitInstrUnshare(ins)
 	case mir.InstrEndBorrow, mir.InstrNop:
 		return nil
 	default:

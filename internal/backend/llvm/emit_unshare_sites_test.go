@@ -1,0 +1,411 @@
+package llvm
+
+import (
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"testing"
+
+	"surge/internal/mir"
+	"surge/internal/sema"
+	"surge/internal/types"
+)
+
+// The relinquishing sites, seen from the emitted IR.
+//
+// The MIR side decided WHERE an un-share sits (lower_relinquish.go) and refuses
+// a boundary it did not reach (validate_relinquish.go); these rows pin what
+// the backend makes of the instruction: one `call void @unshare.typeN(ptr)` on
+// the value's storage, placed before the runtime call that takes the value,
+// and never on a retry re-entry, plus the body the module must define for it.
+//
+// The programs compile through the crossing harness (driver + sema + HIR +
+// MIR, no buildpipeline gate), the way the MIR rows do: sema admits a Copy
+// float as a far-select SEND payload and as a crossing or blocking RESULT, and
+// buildpipeline's channel-element and result gates are what refuse them at the
+// surface today. Nothing here is hand-inserted.
+
+// unshareCallRe matches a call of any relinquishing walk body.
+var unshareCallRe = regexp.MustCompile(`call void @unshare\.type\d+\(ptr %[^)]+\)`)
+
+// unshareBodyRe matches the definition line of a relinquishing walk body.
+var unshareBodyRe = regexp.MustCompile(`(?m)^define void @unshare\.type\d+\(ptr %val\) \{$`)
+
+// A far-select SEND payload that may share a counted block is un-shared in the
+// crossing's initial block, once, before the FIRST rt_far_channel_select --
+// the one that ships the arm table -- and not on the retry re-entry, which
+// ships `ptr null, ptr null` and no payload. The mutant is an un-share emitted
+// where the retry can reach it: the private temp would be walked again on
+// every poll of a pending select, after the runtime already consumed it.
+func TestEmitFarSelectUnsharesTheSendPayloadOnce(t *testing.T) {
+	sourceCode := `
+async fn counted_far_select(ch: far Channel<float>, stop: far Channel<int>) -> float {
+    let value: float = 1.5;
+    let winner = select {
+        ch.send(value) => 1;
+        stop.recv() => 2;
+    };
+    return value;
+}
+`
+	mod, result := lowerCrossingMIRFromSource(t, sourceCode, sema.CrossingLoweringChannelSelect)
+	ir, err := EmitModule(mod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
+	if err != nil {
+		t.Fatalf("emit LLVM IR: %v", err)
+	}
+	body := findLLVMFuncBody(t, ir, "fn."+itoaMIRFuncID(findMIRFunc(t, mod, "counted_far_select$poll").ID))
+
+	calls := unshareCallRe.FindAllStringIndex(body, -1)
+	if len(calls) != 1 {
+		t.Fatalf("the SEND payload is un-shared %d time(s), want exactly once in the poll body:\n%s", len(calls), body)
+	}
+	first := strings.Index(body, "@rt_far_channel_select(")
+	if first < 0 {
+		t.Fatalf("the poll body never calls rt_far_channel_select:\n%s", body)
+	}
+	if calls[0][0] > first {
+		t.Fatalf("the un-share sits after the first rt_far_channel_select; the runtime took the payload first:\n%s", body)
+	}
+	retry := regexp.MustCompile(`call i32 @rt_far_channel_select\(ptr null, ptr null,`).FindStringIndex(body)
+	if retry == nil {
+		t.Fatalf("the poll body has no retry re-entry of rt_far_channel_select:\n%s", body)
+	}
+	if unshareCallRe.MatchString(body[retry[0]:]) {
+		t.Fatalf("an un-share is reachable from the retry re-entry:\n%s", body)
+	}
+	assertUnshareBodiesDefinedOnce(t, ir, body)
+}
+
+// A spawn-on body's result is un-shared before rt_async_return moves it into
+// the far task's slot: the body's own frame is on the destination shard, the
+// asker on another, and the result travels back across that boundary.
+func TestEmitSpawnOnUnsharesTheResultBeforeAsyncReturn(t *testing.T) {
+	sourceCode := `
+async fn run(n: int) -> float {
+    let task: far Task<float> = spawn on shard(1:ShardId) {
+        let x: float = 1.5;
+        let y: float = x;
+        let z: int = n;
+        ret y;
+    };
+    return compare task.await() { Success(v) => v; Cancelled() => 0.0; };
+}
+`
+	mod, result := lowerCrossingMIRFromSource(
+		t, sourceCode, sema.CrossingLoweringSpawnOn, sema.CrossingLoweringFarTaskAwait)
+	ir, err := EmitModule(mod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
+	if err != nil {
+		t.Fatalf("emit LLVM IR: %v", err)
+	}
+	poll := findSpawnOnPollFunc(t, mod)
+	body := findLLVMFuncBody(t, ir, "fn."+itoaMIRFuncID(poll.ID))
+	assertUnshareCallPrecedes(t, body, "@rt_async_return(")
+	assertUnshareBodiesDefinedOnce(t, ir, body)
+}
+
+// A blocking body's `ret` moves a private value: the un-share precedes the
+// body's own return, whose value the blocking dispatch stores into the
+// runtime's result destination.
+func TestEmitBlockingUnsharesTheResultBeforeItReturns(t *testing.T) {
+	sourceCode := `
+async fn runs_a_counted_blocking_body(seed: int) -> float {
+    let job: Task<float> = blocking {
+        let x: float = 1.5;
+        let y: float = x;
+        ret y;
+    };
+    return compare job.await() { Success(v) => v; Cancelled() => 0.0; };
+}
+
+@entrypoint
+fn main() -> int { return 0; }
+`
+	mod, result := lowerMIRFromSource(t, sourceCode)
+	ir, err := EmitModule(mod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
+	if err != nil {
+		t.Fatalf("emit LLVM IR: %v", err)
+	}
+	blocking := findFuncByPrefix(t, mod, "__blocking_block$")
+	body := findLLVMFuncBody(t, ir, "fn."+itoaMIRFuncID(blocking.ID))
+	assertUnshareCallPrecedes(t, body, "ret ptr ")
+	dispatch := findLLVMFuncBody(t, ir, "__surge_blocking_call")
+	if !strings.Contains(dispatch, "call ptr @fn."+itoaMIRFuncID(blocking.ID)+"(") ||
+		!strings.Contains(dispatch, "store ptr %") || !strings.Contains(dispatch, ", ptr %out, align") {
+		t.Fatalf("the blocking dispatch does not store the body's returned value into %%out:\n%s", dispatch)
+	}
+	assertUnshareBodiesDefinedOnce(t, ir, body)
+}
+
+// A module that emits an un-share assembles: the body the call names is
+// defined, with the signature the call uses, and the runtime leaf it names is
+// declared. The text rows above say WHAT is defined; the toolchain is the only
+// judge of whether it links.
+func TestEmittedModuleWithAnUnshareAssembles(t *testing.T) {
+	clang, err := exec.LookPath("clang")
+	if err != nil {
+		t.Skip("clang unavailable")
+	}
+	sourceCode := `
+async fn runs_a_counted_blocking_body(seed: int) -> float {
+    let job: Task<float> = blocking {
+        let x: float = 1.5;
+        ret x;
+    };
+    return compare job.await() { Success(v) => v; Cancelled() => 0.0; };
+}
+
+@entrypoint
+fn main() -> int { return 0; }
+`
+	mod, result := lowerMIRFromSource(t, sourceCode)
+	ir, emitErr := EmitModule(mod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
+	if emitErr != nil {
+		t.Fatalf("emit LLVM IR: %v", emitErr)
+	}
+	if !unshareCallRe.MatchString(ir) {
+		t.Fatalf("the module emits no un-share, so assembling it proves nothing:\n%s", ir)
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "module.ll")
+	if writeErr := os.WriteFile(path, []byte(ir), 0o600); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	out, assembleErr := exec.Command(clang, "-x", "ir", "-c", "-o", filepath.Join(dir, "module.o"), path).CombinedOutput()
+	if assembleErr != nil {
+		t.Fatalf("the emitted module does not assemble: %v\n%s", assembleErr, out)
+	}
+}
+
+// A module with no relinquishing site defines no walk body: the drain writes
+// only what a function body demanded, so a program that never crosses pays
+// nothing for the walk.
+func TestEmitDefinesNoUnshareBodyWithoutDemand(t *testing.T) {
+	mod, result := lowerMIRFromSource(t, `
+@entrypoint
+fn main() -> int {
+    let a: float = 1.5;
+    let b: float = a;
+    return 0;
+}
+`)
+	ir, err := EmitModule(mod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
+	if err != nil {
+		t.Fatalf("emit LLVM IR: %v", err)
+	}
+	if strings.Contains(ir, "@unshare.type") {
+		t.Fatalf("a program with no relinquishing site names a walk:\n%s", ir)
+	}
+}
+
+// The walk over a BARE counted scalar: the layout registry carries an entry
+// for `float` itself, and the body reads the handle at offset zero of the slot
+// it is handed, makes it private, and writes it back. This is the shape every
+// relinquished float local takes, and the synthesis had it unverified.
+func TestUnshareWalkOfABareCountedScalar(t *testing.T) {
+	ir, ids, e := unshareProbe(t, "float")
+	if !e.typeMayShareCountedBlock(ids["float"]) || !e.canUnshareValue(ids["float"]) {
+		t.Fatal("a bare float must be reported as sharing and as one the walk can make private")
+	}
+	body := bodyOf(t, ir, unshareWalkName(ids["float"]))
+	if n := strings.Count(body, "@rt_bigfloat_unshare("); n != 1 {
+		t.Fatalf("a bare float is one counted leaf; the walk called rt_bigfloat_unshare %d times:\n%s", n, body)
+	}
+	if !strings.Contains(body, "getelementptr inbounds i8, ptr %val, i64 0\n") {
+		t.Fatalf("the walk did not read the handle at offset zero of the slot:\n%s", body)
+	}
+	if !strings.Contains(body, "load ptr, ptr ") || !strings.Contains(body, "store ptr ") {
+		t.Fatalf("the walk must load the handle and store the private one back:\n%s", body)
+	}
+}
+
+// An un-share of a shape the walk cannot make private is a build failure that
+// names sema's predicate, never a silent no-op. Nothing compilable reaches it:
+// sema refuses to cross a value that may share a counted block, and a
+// container of counted elements is one. The row hands the emitter a hand-built
+// instruction so the backstop is a fact rather than an intention.
+func TestUnshareOfAContainerIsRefusedNamingSemasPredicate(t *testing.T) {
+	mirMod, result := lowerMIRFromSource(t, `
+@entrypoint
+fn main() -> int {
+    let xs: float[] = [];
+    return 0;
+}
+`)
+	main := findMIRFunc(t, mirMod, "main")
+	xs := findMIRLocal(t, main, "xs")
+	main.Blocks[0].Instrs = append([]mir.Instr{{
+		Kind:    mir.InstrUnshare,
+		Unshare: mir.UnshareInstr{Place: mir.Place{Kind: mir.PlaceLocal, Local: xs}},
+	}}, main.Blocks[0].Instrs...)
+	_, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
+	if err == nil {
+		t.Fatal("an un-share of float[] emitted; the walk has no buffer walk and must refuse")
+	}
+	if !strings.Contains(err.Error(), "MayShareCountedBlock") {
+		t.Fatalf("the refusal must name sema's predicate, got: %v", err)
+	}
+}
+
+// The emitter's two predicates and sema's, in lock step over one interner. The
+// emitter decides whether a relinquishing site emits a call and whether the
+// walk can serve it; sema decides whether the shape may cross at all. Two
+// walks that disagreed would either ship a shared block (sema admits, the
+// emitter sees nothing) or refuse with a backend error instead of a diagnostic
+// (sema admits, the emitter cannot serve). The label table is the second
+// belt: two predicates wrong the same way still do not read as green.
+//
+// The agreement is asserted over the labelled shapes, not the whole interner:
+// on a union whose layout was never finalized -- a stdlib instantiation the
+// program never touches -- the emitter fails CLOSED on purpose, where sema
+// reads the membership structurally. No such type reaches a relinquishing
+// site, because every type a function touches is finalized.
+func TestUnsharePredicatesAgreeWithSema(t *testing.T) {
+	mirMod, result := lowerMIRFromSource(t, `
+@copy
+type C = { v: float };
+
+@shard_movable
+type P = { v: float };
+
+tag Held(P);
+tag Empty();
+type U = Held(P) | Empty();
+
+type WithArray = { xs: float[] };
+
+fn probe(f: float, c: C, p: own P, t: (float, int), u: U, xs: float[], w: WithArray,
+         fx: float[4], s: string, ch: Channel<float>, ci: Channel<int>, r: &float) -> int {
+    return 0;
+}
+
+@entrypoint
+fn main() -> int { return 0; }
+`)
+	in := result.Sema.TypeInterner
+	e := &Emitter{mod: mirMod, types: in}
+
+	rows := map[string]struct{ share, private bool }{
+		"float":                         {true, true},
+		"C":                             {true, true},
+		"P":                             {true, true},
+		"own P":                         {true, true},
+		"(float, int)":                  {true, true},
+		"U":                             {true, true},
+		"Array<float>":                  {true, false},
+		"WithArray":                     {true, false},
+		"ArrayFixed<float, const 4, 4>": {true, true},
+		"string":                        {false, true},
+		"Channel<float>":                {true, false},
+		"Channel<int>":                  {false, true},
+		// A borrow names storage it does not carry. The emitter's kind switch
+		// answers for it only if the borrow is not stripped first; it was.
+		"&float": {false, true},
+	}
+	// Where sema is known to answer WRONG today, the row pins the wrong answer
+	// by name so the disagreement is a fact with an owner rather than a
+	// silence: sema.Result.containsRefCountedScalar has no ArrayFixedInfo arm,
+	// and the nominal ArrayFixed<T, N> struct declares no fields, so a
+	// `float[4]` -- four counted handles inline, which the walk above visits
+	// one by one -- reads as sharing nothing. The fix is sema's, beside its
+	// KindArray arm; when it lands this entry goes red and is deleted.
+	semaMisses := map[string]bool{
+		"ArrayFixed<float, const 4, 4>": true,
+	}
+	seen := make(map[string]bool, len(rows))
+	for id := types.TypeID(1); ; id++ {
+		if _, ok := in.Lookup(id); !ok {
+			break
+		}
+		label := types.Label(in, id)
+		want, ok := rows[label]
+		if !ok {
+			continue
+		}
+		seen[label] = true
+		share := e.typeMayShareCountedBlock(id)
+		semaShare := result.Sema.MayShareCountedBlock(id)
+		switch {
+		case semaMisses[label] && semaShare:
+			t.Errorf("%s (type#%d): sema MayShareCountedBlock now answers %v; delete its semaMisses entry", label, id, semaShare)
+		case !semaMisses[label] && share != semaShare:
+			t.Errorf("%s (type#%d): emitter typeMayShareCountedBlock=%v, sema MayShareCountedBlock=%v", label, id, share, semaShare)
+		}
+		if share != want.share {
+			t.Errorf("%s: typeMayShareCountedBlock=%v, want %v", label, share, want.share)
+		}
+		if got := e.canUnshareValue(id); got != want.private {
+			t.Errorf("%s: canUnshareValue=%v, want %v", label, got, want.private)
+		}
+	}
+	for label := range rows {
+		if !seen[label] {
+			t.Errorf("%s: the program never produced this type, so its row pinned nothing", label)
+		}
+	}
+}
+
+// assertUnshareCallPrecedes pins exactly one un-share call in a body, placed
+// before the first occurrence of the runtime call (or return) that takes the
+// value.
+func assertUnshareCallPrecedes(t *testing.T, body, sink string) {
+	t.Helper()
+	calls := unshareCallRe.FindAllStringIndex(body, -1)
+	if len(calls) != 1 {
+		t.Fatalf("the result is un-shared %d time(s), want exactly once:\n%s", len(calls), body)
+	}
+	at := strings.Index(body, sink)
+	if at < 0 {
+		t.Fatalf("the body never reaches %q:\n%s", sink, body)
+	}
+	if calls[0][0] > at {
+		t.Fatalf("the un-share sits after %q; the value left first:\n%s", sink, body)
+	}
+}
+
+// assertUnshareBodiesDefinedOnce pins the drain: every walk a body calls is
+// defined exactly once in the module, and the module defines no walk nobody
+// called. It also pins that the defined body reaches the runtime leaf, so a
+// walk emitted for the wrong layout -- one with nothing counted in it -- would
+// not read as green.
+func assertUnshareBodiesDefinedOnce(t *testing.T, ir, body string) {
+	t.Helper()
+	nameRe := regexp.MustCompile(`@(unshare\.type\d+)\(`)
+	called := map[string]bool{}
+	for _, m := range nameRe.FindAllStringSubmatch(body, -1) {
+		called[m[1]] = true
+	}
+	if len(called) == 0 {
+		t.Fatalf("the body calls no walk:\n%s", body)
+	}
+	defined := map[string]int{}
+	for _, line := range unshareBodyRe.FindAllString(ir, -1) {
+		defined[nameRe.FindStringSubmatch(line)[1]]++
+	}
+	for name := range called {
+		if defined[name] != 1 {
+			t.Fatalf("%s is called and defined %d time(s), want exactly once:\n%s", name, defined[name], ir)
+		}
+		walk := bodyOf(t, ir, name)
+		if !strings.Contains(walk, "@rt_bigfloat_unshare(") {
+			t.Fatalf("%s never reaches the runtime leaf; it was emitted for a layout with nothing counted in it:\n%s", name, walk)
+		}
+	}
+	for name := range defined {
+		if !called[name] {
+			t.Fatalf("%s is defined but nothing in the site's body calls it:\n%s", name, ir)
+		}
+	}
+}
+
+func findFuncByPrefix(t *testing.T, mod *mir.Module, prefix string) *mir.Func {
+	t.Helper()
+	for _, fn := range mod.Funcs {
+		if fn != nil && strings.HasPrefix(fn.Name, prefix) {
+			return fn
+		}
+	}
+	t.Fatalf("missing MIR function with prefix %q", prefix)
+	return nil
+}

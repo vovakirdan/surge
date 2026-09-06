@@ -3,6 +3,7 @@ package llvm
 import (
 	"fmt"
 
+	"surge/internal/mir"
 	"surge/internal/types"
 )
 
@@ -65,6 +66,63 @@ func (e *Emitter) emitUnshareGlue() error {
 	}
 }
 
+// emitInstrUnshare is the one call site of the walk: the MIR `unshare P`
+// instruction the relinquishing operand emitted before a value is given up
+// across a thread boundary. The lowering decided WHERE the act sits and its
+// validator that every boundary was reached; this side only runs the walk on
+// the place's storage, in place.
+//
+// A type that cannot hold a counted block emits nothing: its walk body would
+// be empty, and the instruction is then the no-op it means.
+//
+// The refusal below is the last line of defence, not a gate. A value that may
+// share a counted block the walk cannot reach -- a container of counted
+// elements, whose buffer is walked at runtime and that walk is unbuilt -- must
+// have been refused by sema's crossing gate, where the shape is still legible
+// and the diagnostic has a code. Reaching here with one means that gate
+// admitted a shape the emitter cannot make private, and the honest answer is
+// a build failure naming the predicate that disagreed, never a silent no-op
+// that would ship the shared block.
+func (fe *funcEmitter) emitInstrUnshare(ins *mir.Instr) error {
+	if ins == nil {
+		return nil
+	}
+	e := fe.emitter
+	place := ins.Unshare.Place
+	valueType, err := fe.droppedPlaceType(place)
+	if err != nil {
+		return err
+	}
+	if valueType == types.NoTypeID || !e.typeMayShareCountedBlock(valueType) {
+		return nil
+	}
+	if !e.canUnshareValue(valueType) {
+		return fmt.Errorf("unshare of %s (type#%d): the value may share a counted block that the walk "+
+			"cannot make private (a container of counted elements has no buffer walk); "+
+			"sema.Result.MayShareCountedBlock admits the shape and the crossing gate that "+
+			"reads it must refuse it -- the refusal belongs there, not in the emitter",
+			types.Label(e.types, valueType), valueType)
+	}
+	ptr, slotTy, _, err := fe.emitPlaceStorage(place)
+	if err != nil {
+		return err
+	}
+	// The walk reads the value's own bytes through %val. For a counted scalar
+	// those bytes ARE the handle word in the slot, and for an inline composite
+	// the slot is the value. A slot that holds the ADDRESS of the value instead
+	// -- a suspension frame's -- is a shape no relinquishing site produces, and
+	// handing the walk the slot would have it un-share the address word; it is
+	// refused rather than guessed at.
+	resolved := resolveValueType(e.types, valueType)
+	if slotTy == handleType && !e.types.IsRefCountedScalar(resolved) && !e.hasInlineStorage(resolved) {
+		return fmt.Errorf("unshare of %s (type#%d): the place's slot holds the value's address, "+
+			"not the value, and the walk reads the value's own bytes",
+			types.Label(e.types, valueType), valueType)
+	}
+	fmt.Fprintf(&e.buf, "  call void @%s(ptr %s)\n", e.requireUnshareGlue(valueType), ptr)
+	return nil
+}
+
 // typeMayShareCountedBlock reports whether a value of this type can hold, at
 // any depth, a reference into a counted block that another holder on this
 // shard may hold too. It is what decides whether a relinquishing site emits a
@@ -86,7 +144,10 @@ func (e *Emitter) mayShareCountedBlockRec(id types.TypeID, seen map[types.TypeID
 	if e == nil || e.types == nil || id == types.NoTypeID {
 		return false
 	}
-	resolved := resolveValueType(e.types, id)
+	// Aliases and `own` are looked through; a borrow or pointer is NOT, so the
+	// kind switch below can answer for it. resolveValueType would strip it to
+	// its pointee and report a `&float` as sharing what it only names.
+	resolved := resolveAliasAndOwn(e.types, id)
 	if e.types.IsRefCountedScalar(resolved) {
 		return true
 	}
@@ -229,7 +290,7 @@ func (e *Emitter) canUnshareValueRec(id types.TypeID, seen map[types.TypeID]stru
 	if e == nil || e.types == nil || id == types.NoTypeID {
 		return true
 	}
-	resolved := resolveValueType(e.types, id)
+	resolved := resolveAliasAndOwn(e.types, id)
 	if e.types.IsRefCountedScalar(resolved) {
 		return true
 	}
