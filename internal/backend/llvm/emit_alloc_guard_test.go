@@ -104,6 +104,7 @@ func runtimePointerAnswers() map[string]runtimeAnswer {
 			"rt_bigint_from_i64", "rt_bigint_from_literal", "rt_bigint_from_u64",
 			"rt_biguint_from_literal", "rt_biguint_from_u64", "rt_biguint_to_bigint",
 			"rt_bigfloat_abs", "rt_bigfloat_add", "rt_bigfloat_clone", "rt_bigfloat_div",
+			"rt_bigfloat_unshare",
 			"rt_bigfloat_from_f64", "rt_bigfloat_from_i64", "rt_bigfloat_from_literal",
 			"rt_bigfloat_from_u64", "rt_bigfloat_mod", "rt_bigfloat_mul", "rt_bigfloat_neg",
 			"rt_bigfloat_sub", "rt_bigfloat_to_bigint", "rt_bigfloat_to_biguint"),

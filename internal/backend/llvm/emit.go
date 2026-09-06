@@ -95,6 +95,11 @@ type Emitter struct {
 	// only retains them; sharing the set would emit the wrong body for a nested
 	// member.
 	crossCloneGlueNeeded map[types.TypeID]struct{}
+	// The relinquishing walk (emit_cross_move_walk.go): a value about to cross a
+	// boundary has its counted leaves made private in place. Its own set again,
+	// because it neither copies nor retains -- it rewrites the value the caller
+	// is giving up.
+	unshareGlueNeeded map[types.TypeID]struct{}
 }
 
 type funcEmitter struct {

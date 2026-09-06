@@ -48,16 +48,14 @@ typedef struct SurgeBigInt {
 // so a prefix field is safe here in a way it would not be there.
 //
 // The count is NON-ATOMIC. That is sound only while a block is never reachable
-// from two shards at once. TWO things were meant to uphold that: the
-// module-level `let` ban (shipped) and a deep copy at every crossing. The
-// second is NOT BUILT -- `cross_move_init` and `cross_clone_init` are
-// `filledNowhere` in internal/valueops/flags.go and NULL in every descriptor,
-// and rt_bigfloat_clone has no caller. What upholds it today is a THIRD thing
-// this comment used to hide by claiming the barrier existed: every crossing
-// that would share a counted block is REFUSED at compile time. That is a
-// narrowing, not a solution, and it is one `int`/`uint` cannot take. Epic 22
-// Phase 2 builds the barrier and lifts the refusal -- RV2-DEBT-038. Corrected
-// 2026-09-04.
+// from two shards at once. Three things uphold it: the module-level `let` ban
+// (shipped), the compile-time REFUSAL of any crossing that would share a
+// counted block, and -- being wired in by Epic 22 step 4 -- a barrier that
+// makes the counted leaves of a relinquished value private before it travels
+// (rt_bigfloat_unshare, whose duplicate is rt_bigfloat_clone). The refusal is
+// the wider of the three today and narrows as the barrier reaches each path;
+// it is a narrowing `int`/`uint` cannot take, which is why the barrier comes
+// first -- RV2-DEBT-038.
 typedef struct SurgeBigFloat {
     uint32_t rc;
     int32_t exp;

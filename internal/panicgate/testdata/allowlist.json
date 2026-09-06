@@ -1190,6 +1190,11 @@
       "group": "PG-UNFIXTURED"
     },
     {
+      "site": "runtime/native/rt_bignum_api.c::rt_bigfloat_unshare#1",
+      "message": "bigfloat unshare below zero",
+      "group": "PG-INVARIANT"
+    },
+    {
       "site": "runtime/native/rt_bignum_api.c::rt_bigint_to_biguint#1",
       "message": "cannot convert negative int to uint",
       "group": "PG-UNFIXTURED"

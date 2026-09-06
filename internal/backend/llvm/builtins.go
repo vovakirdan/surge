@@ -179,6 +179,7 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_bigfloat_abs", ret: "ptr", params: []string{"ptr"}},
 		{name: "rt_bigfloat_cmp", ret: "i32", params: []string{"ptr", "ptr"}},
 		{name: "rt_bigfloat_clone", ret: "ptr", params: []string{"ptr"}},
+		{name: "rt_bigfloat_unshare", ret: "ptr", params: []string{"ptr"}},
 		{name: "rt_bigfloat_free", ret: "void", params: []string{"ptr"}},
 		{name: "rt_bigfloat_retain", ret: "void", params: []string{"ptr"}},
 		{name: "rt_bigfloat_release", ret: "void", params: []string{"ptr"}},

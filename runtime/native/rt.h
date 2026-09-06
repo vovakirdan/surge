@@ -324,9 +324,24 @@ int32_t rt_bigfloat_cmp(const void* a, const void* b);
 // count 1 and shares nothing with its source, which is what would make it the
 // leaf of the deep copy a crossing installs at a shard boundary.
 //
-// NO CALLER YET. The crossing barrier is unbuilt, so this is declared,
-// registered with the LLVM backend, and dead -- RV2-DEBT-038.
+// Its caller is rt_bigfloat_unshare below and the emitted crossing-clone walk.
 void* rt_bigfloat_clone(const void* a);
+
+// Make a bigfloat reference PRIVATE, for a value about to be relinquished
+// across a shard or thread boundary. NULL-safe.
+//
+// At count one the caller holds the only reference and the block travels with
+// the value: the same pointer comes back. Above one somebody else on this
+// shard still holds it, so the caller receives a duplicate at count one and
+// the reference it held is given up here -- on this thread, which is the only
+// one allowed to touch a count that is not atomic.
+//
+// This is the crossing barrier's leaf. It reads the count without atomics, and
+// may: the invariant it rests on is that a block is not reachable from two
+// shards BEFORE the barrier runs, which is what the barrier itself preserves.
+// A caller that is not the owning thread would be reading a count somebody
+// else may be writing, so the relinquishing frame is the only correct site.
+void* rt_bigfloat_unshare(void* a);
 
 // Destroy a bigfloat block unconditionally, IGNORING its count. This is the
 // zero-count tail of a release, not an ownership operation: the runtime's own
@@ -337,10 +352,11 @@ void rt_bigfloat_free(void* a);
 
 // Ownership operations on a reference-counted bigfloat. Both are NULL-safe.
 // The count is NON-ATOMIC, so these are sound only while a block stays within
-// one shard. What keeps that true today is REFUSAL, not a barrier: a crossing
-// that would share a counted block is rejected at compile time. The deep copy
-// this comment used to claim happens is unbuilt -- RV2-DEBT-038, corrected
-// 2026-09-04.
+// one shard. Two things keep that true: a crossing that would SHARE a counted
+// block is refused at compile time, and a value relinquished across a boundary
+// has its counted leaves made private first (rt_bigfloat_unshare above). The
+// refusal is the wider of the two today and narrows as the barrier is wired in
+// -- RV2-DEBT-038, Epic 22 step 4.
 //
 // The LLVM backend inlines both as IR at the use site rather than calling
 // these, so that a float copy costs a predictable not-taken branch instead of
