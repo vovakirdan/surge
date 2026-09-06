@@ -632,13 +632,50 @@ whole run). **Do not benchmark this epic against anything older than commit
   stays closed rather than reopening on a split rule ("a float may cross but a
   struct of floats may not") that would then have to change again.
 
-- **Phase 1 remainder — the six crossing barriers.** Install a deep copy
-  (`rt_bigfloat_clone`, recursive for composites — the mirror of the drop-glue
-  walk) at: `on`/`spawn on` captures, `blocking`, far channel send, crossing
-  reply / `far Task.await()`, remote select SEND arms. Then reopen the four
-  gates above. Note the reply edge is a TRANSFER rather than sharing (the
-  producing shard keeps no reference), so it may need only the handoff barrier,
-  while captures and sends are genuine sharing and need the copy.
+- **Phase 1 remainder — the crossing barriers. RE-PLANNED 2026-09-06; the
+  paragraph below is kept because the correction is easier to read against it.**
+  It said: install a deep copy (`rt_bigfloat_clone`, recursive for composites)
+  at `on`/`spawn on` captures, `blocking`, far channel send, crossing reply /
+  `far Task.await()`, remote select SEND arms; the reply edge is a TRANSFER
+  rather than sharing, so it may need only the handoff barrier, while captures
+  and sends are genuine sharing and need the copy.
+
+  **What the tree says instead.** Captures and sends are transfers too: a
+  capture leaves as a bare pointer to the state block (`rt_immediate_on.c:187`,
+  `rt_remote_spawn.c:174`, `rt_immediate_on_anchored.c:84`), a SEND arm is a
+  `move_init` out of the caller's storage (`rt_far_channel_select.c:253`), and
+  the far result is moved out by its single asker. Nothing in this runtime
+  hands a value across while the source keeps holding it. So the barrier is not
+  a deep copy of the whole value at the boundary; it is narrower and it sits
+  elsewhere.
+
+  **The sharing is one level down, and it is real.** `float` is Copy, so
+  `let b = a` and `P{ v: a }` RETAIN (`internal/mir/lower_expr_helpers.go:80-87`).
+  A value being relinquished can therefore hold a block a sibling binding on
+  this shard still holds, and moving it hands the destination one reference
+  while the source keeps another. That was reachable with no barrier at all —
+  `let a = 1.5; let p: own P = own P{ v: a }; spawn on pool { … p.v … }` — and
+  is what the stop-gap now refuses.
+
+  **The barrier: UN-SHARE, in the relinquishing operand, on the compiler side**
+  (owner's ruling 2026-09-06, variant г). Each counted leaf of the value being
+  given up is made private first: at count one the pointer travels, above one
+  the frame takes a duplicate and drops the reference it held
+  (`rt_bigfloat_unshare`, walked per layout by `unshare.typeN`). It belongs to
+  the compiler because the runtime cannot tell the case apart — at a far
+  select's SEND arm a Copy payload arrives as the bare address of a live local
+  with no reference taken, so a count of one there means "one holder and it is
+  still yours", not "yours alone to give". A consequence worth stating: the
+  frozen cross ABI needs no revision, `cross_move` stays a byte transfer, and
+  `rt_blocking_submit`'s lock span is left alone.
+
+  **Order.** The stop-gap (д) refuses every crossing of a value that may share
+  a counted block — wider than the final rule, and it comes first so the race
+  is closed while the machinery is built. Each relinquishing site then gains
+  its barrier AND narrows the refusal in the same landing, because while the
+  refusal stands no compilable program reaches the site and no row could go red
+  without it. What stays refused at the end is what the walk cannot serve: a
+  container of counted elements, whose buffer walk is unbuilt.
 
 - **Phase 2 — `int`/`uint`.** Adds only the fixnum-tag branch to a mechanism
   already proven by float — LOCALLY. Across a shard boundary it adds a
