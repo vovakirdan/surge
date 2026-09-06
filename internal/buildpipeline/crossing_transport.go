@@ -120,7 +120,14 @@ func crossingRecordExecutable(res *sema.Result, info *sema.CrossingLoweringInfo)
 		// A COPY value composite element ships again: the send duplicates it,
 		// so the channel carries a box of its own and the sender keeps its
 		// binding on a different one.
-		return !res.ContainsRefCountedScalar(info.PayloadType)
+		//
+		// The question is the MOVE one, not the Copy-bits one: a non-Copy
+		// element is sent by `send(own v)`, and `own Held(P{ v: a })` carries
+		// a block the sender's `a` still holds. ContainsRefCountedScalar stops
+		// at unions on purpose and let that channel be created; the union
+		// element was found by reading in the G1 planning of 2026-09-06 and is
+		// the shape MayShareCountedBlock reaches.
+		return !res.MayShareCountedBlock(info.PayloadType)
 	case sema.CrossingLoweringChannelSelect:
 		// The reply is the winner index (plain bits); the arms' send payloads
 		// are plain-copy by channel construction. Async context is the sole

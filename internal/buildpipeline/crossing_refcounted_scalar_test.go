@@ -160,6 +160,45 @@ async fn go(dst: Placement) -> int {
 `,
 			contains: []string{"arbitrary-precision", "moving it"},
 		},
+		// A far channel whose element is a union carrying a float. The element
+		// gate asked ContainsRefCountedScalar, which stops at unions on purpose,
+		// so `far Channel<Held(P) | Empty()>` was created, and a `send(own held)`
+		// then moved a retained float block to the owner shard while the
+		// sender's `a` kept holding it. Found by the G1 planning panel 06.09.
+		{
+			name: "remote channel with a union element carrying a float",
+			src: `
+type P = { v: float };
+
+tag Held(P);
+tag Empty();
+type U = Held(P) | Empty();
+
+async fn go() -> int {
+    let ch: far Channel<U> = channel_on::<U>(shard(0:ShardId), 4);
+    return 0;
+}
+`,
+			contains: []string{"remote channel cannot carry `U`"},
+		},
+		// A LOCAL channel handle captured by Copy into a crossing body. Runtime
+		// handles are skipped by ContainsRefCountedScalar and were skipped by the
+		// stop-gap too, so a `Channel<float>` rode into the body as plain bits;
+		// the body's local `ch.send(f)` then retained f's block into a ring the
+		// creator's shard owns, and the creator's `recv` held that block on one
+		// thread while the body dropped `f` on another -- a non-atomic count
+		// under two threads with no float captured at all. Same panel.
+		{
+			name: "local channel of floats captured into a crossing body",
+			src: `
+async fn go(dst: Placement) -> int {
+    let ch: Channel<float> = Channel::<float>::new(4:uint);
+    let r: TaskResult<int> = on dst { let f: float = 1.5; ch.send(f); let g: float = f; ret 0; };
+    return 0;
+}
+`,
+			contains: []string{"`Channel<float>`", "arbitrary-precision"},
+		},
 		{
 			name: "struct carrying a float field moved into a blocking body",
 			src: `

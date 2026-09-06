@@ -411,15 +411,15 @@ type U = Held(P) | Empty();
 @shard_movable
 type V = Bare(Plain) | Empty();
 
-fn probe(p: own P, u: own U, v: own V, w: own Plain, f: float, arr: float[], s: string) -> int {
+@copy
+@intrinsic
+type Channel<T> = { __opaque: int };
+
+fn probe(p: own P, u: own U, v: own V, w: own Plain, f: float, arr: float[], s: string, ch: Channel<float>, ci: Channel<int>) -> int {
     return 0;
 }
 `
-	parseBag, semaBag, res := runSemaOnSnippetResult(t, src)
-	requireNoSemaErrors(t, parseBag, semaBag)
-	if res == nil || res.TypeInterner == nil {
-		t.Fatalf("expected a sema result")
-	}
+	res := coreSnippetResult(t, src)
 	in := res.TypeInterner
 
 	rows := map[string]struct{ share, contains bool }{
@@ -433,6 +433,11 @@ fn probe(p: own P, u: own U, v: own V, w: own Plain, f: float, arr: float[], s: 
 		"Plain":        {false, false},
 		"own Plain":    {false, false},
 		"string":       {false, false},
+		// A runtime handle shares whenever its payload does: the handle's own
+		// count is atomic so a copy may live on another shard, and a send from
+		// there retains a block into a ring the creator's shard owns.
+		"Channel<float>": {true, false},
+		"Channel<int>":   {false, false},
 	}
 	seen := make(map[string]bool, len(rows))
 	for id := types.TypeID(1); ; id++ {

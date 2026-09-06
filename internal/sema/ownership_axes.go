@@ -304,13 +304,18 @@ func (r *Result) containsRefCountedScalar(id types.TypeID, seen map[types.TypeID
 		return false
 	}
 	if throughUnions {
-		// The owned-MOVE question reaches into element containers too: a
-		// `float[]` is a handle whose elements are counted blocks, each
-		// retained from whatever was pushed, so moving the array moves one
-		// reference per element while the pushers keep theirs. The Copy-bits
-		// question never gets here — a container is not Copy.
-		if payloads, ok := in.RuntimeHandlePayloads(id); ok &&
-			!in.IsRuntimeHandleType(id) && !in.IsRuntimePlacementType(id) {
+		// The owned-MOVE question reaches into every runtime handle's payload,
+		// containers and resources alike. A `float[]` is a handle whose
+		// elements are counted blocks, each retained from whatever was pushed,
+		// so moving the array moves one reference per element while the
+		// pushers keep theirs. A `Channel<float>` is worse: its own count is
+		// atomic precisely so a copy of the HANDLE may live on another shard,
+		// and a `send` from that shard retains a block into a ring the
+		// creator's shard owns -- one non-atomic count under two threads with
+		// no float captured at all. So a handle counts as sharing whenever its
+		// payload does; only Placement carries nothing. The Copy-bits question
+		// never gets here.
+		if payloads, ok := in.RuntimeHandlePayloads(id); ok && !in.IsRuntimePlacementType(id) {
 			for _, payload := range payloads {
 				if r.containsRefCountedScalar(payload, seen, throughUnions) {
 					return true

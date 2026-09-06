@@ -64,7 +64,11 @@ func classifyCrossingPayload(
 	label := func(t types.TypeID) string { return types.Label(semaRes.TypeInterner, t) }
 	switch info.Kind {
 	case sema.CrossingLoweringChannelCreate:
-		if semaRes.ContainsRefCountedScalar(info.PayloadType) {
+		// The same predicate the guard asks (crossing_transport.go), so the
+		// refusal and the diagnostic cannot disagree on a shape: a union or a
+		// container element that carries a float is refused here, not left to
+		// fail later without a code.
+		if semaRes.MayShareCountedBlock(info.PayloadType) {
 			return crossingGuardFinding{
 				Code: diag.FutCrossingPayloadNotShippable,
 				Span: info.Span,
