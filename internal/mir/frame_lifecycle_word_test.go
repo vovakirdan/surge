@@ -239,6 +239,126 @@ func TestSpawnOnPollMarksTheFrameSpentAtEveryReturn(t *testing.T) {
 	}
 }
 
+// A crossing body whose result may share a counted block un-shares `__result`
+// at every return: after the owned-capture drops, so the body's own holders
+// are already gone and the un-share clones only when a holder OUTSIDE the
+// frame exists, and before the SPENT word, which stays the last instruction.
+// The value itself reaches rt_async_return as `move __result`.
+//
+// Red on the base tree: no un-share instruction existed. Compiles here because
+// only buildpipeline's result gate refuses a counted crossing result; sema and
+// the MIR lowering do not.
+const spawnOnCountedResultSource = crossingMIRPrelude + `
+fn run(dst: Placement, n: int) -> far Task<float> {
+    return spawn on dst {
+        let x: float = 1.5;
+        let y: float = x;
+        let z: int = n;
+        ret y;
+    };
+}
+
+fn main() -> int { return 0; }
+`
+
+func TestSpawnOnPollUnsharesTheResultBeforeSpent(t *testing.T) {
+	compiled := compileCrossingMIR(t, spawnOnCountedResultSource,
+		map[sema.CrossingLoweringKind]bool{sema.CrossingLoweringSpawnOn: true})
+	poll := requireSyntheticBody(t, compiled.mod, "__spawn_on_block$")
+	if !poll.ResultCrossesThreads {
+		t.Fatalf("%s does not say its result crosses threads; the validator would not treat its return as a boundary", poll.Name)
+	}
+	result := namedLocal(t, poll, "__result")
+	returns := 0
+	for bi := range poll.Blocks {
+		bb := &poll.Blocks[bi]
+		if bb.Term.Kind != mir.TermAsyncReturn {
+			continue
+		}
+		returns++
+		value := bb.Term.AsyncReturn.Value
+		if !bb.Term.AsyncReturn.HasValue || value.Kind != mir.OperandMove ||
+			!sameBareLocal(value.Place, mir.Place{Kind: mir.PlaceLocal, Local: result}) {
+			t.Fatalf("%s bb%d returns %+v, want `move L%d(__result)`", poll.Name, bi, value, result)
+		}
+		n := len(bb.Instrs)
+		if n < 2 {
+			t.Fatalf("%s bb%d returns after %d instruction(s); want [..., unshare __result, SPENT]", poll.Name, bi, n)
+		}
+		if word, ok := frameStateWord(&bb.Instrs[n-1]); !ok || word != mir.FrameStateSpent {
+			t.Fatalf("%s bb%d: the last instruction (%s) is not the SPENT word", poll.Name, bi, bb.Instrs[n-1].Kind)
+		}
+		unshare := &bb.Instrs[n-2]
+		if unshare.Kind != mir.InstrUnshare ||
+			!sameBareLocal(unshare.Unshare.Place, mir.Place{Kind: mir.PlaceLocal, Local: result}) {
+			t.Fatalf("%s bb%d: the instruction before the word is %s, want `unshare L%d(__result)`",
+				poll.Name, bi, unshare.Kind, result)
+		}
+	}
+	if returns == 0 {
+		t.Fatalf("%s has no returning block: the probe stopped measuring what it claims to", poll.Name)
+	}
+}
+
+// A blocking body whose result may share a counted block hands
+// __surge_blocking_call a private value: every `ret` moves out of a local
+// whose last touch before the terminator is an un-share. The exit drops ran
+// before it, so a `ret y` that had to be detached from them un-shares the
+// transfer temp, not the binding the drop released.
+//
+// Red on the base tree: no un-share instruction existed and the terminator
+// read the retained binding directly. Nothing refuses a counted blocking
+// RESULT anywhere, so this program compiles through sema.
+func TestBlockingReturnOfACountedValueIsUnshared(t *testing.T) {
+	compiled := compileCrossingMIR(t, crossingMIRPrelude+`
+async fn runs_a_counted_blocking_body(seed: int) -> float {
+    let job: Task<float> = blocking {
+        let x: float = 1.5;
+        let y: float = x;
+        ret y;
+    };
+    return compare job.await() {
+        Success(v) => v;
+        Cancelled() => 0.0;
+    };
+}
+
+fn main() -> int { return 0; }
+`, nil)
+	body := requireSyntheticBody(t, compiled.mod, "__blocking_block$")
+	if !body.ResultCrossesThreads {
+		t.Fatalf("%s does not say its result crosses threads", body.Name)
+	}
+	returns := 0
+	for bi := range body.Blocks {
+		bb := &body.Blocks[bi]
+		if bb.Term.Kind != mir.TermReturn || !bb.Term.Return.HasValue {
+			continue
+		}
+		returns++
+		value := bb.Term.Return.Value
+		if value.Kind != mir.OperandMove || value.Place.Kind != mir.PlaceLocal || len(value.Place.Proj) != 0 {
+			t.Fatalf("%s bb%d returns %+v, want a MOVE out of a bare local", body.Name, bi, value)
+		}
+		lastTouch := -1
+		for ii := range bb.Instrs {
+			ins := &bb.Instrs[ii]
+			touches := (ins.Kind == mir.InstrUnshare && sameBareLocal(ins.Unshare.Place, value.Place)) ||
+				(ins.Kind == mir.InstrAssign && sameBareLocal(ins.Assign.Dst, value.Place)) ||
+				(ins.Kind == mir.InstrDrop && sameBareLocal(ins.Drop.Place, value.Place))
+			if touches {
+				lastTouch = ii
+			}
+		}
+		if lastTouch < 0 || bb.Instrs[lastTouch].Kind != mir.InstrUnshare {
+			t.Fatalf("%s bb%d: the last touch of the returned local L%d is not an un-share", body.Name, bi, value.Place.Local)
+		}
+	}
+	if returns == 0 {
+		t.Fatalf("%s has no returning block: the probe stopped measuring what it claims to", body.Name)
+	}
+}
+
 // A blocking job's frame is born PACKED and is SPENT from the body's entry.
 //
 // Both halves matter and they are two different windows. Before the body runs,

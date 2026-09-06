@@ -210,6 +210,9 @@ func instrPlaces(instr *Instr, visit func(*Place)) error { //nolint:gocyclo
 	case InstrEnvelopeRelease:
 		visit(&instr.EnvelopeRelease.Place)
 		return nil
+	case InstrUnshare:
+		visit(&instr.Unshare.Place)
+		return nil
 	case InstrAwait:
 		visit(&instr.Await.Dst)
 		return operandPlace(&instr.Await.Task, visit)

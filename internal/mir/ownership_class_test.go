@@ -470,6 +470,7 @@ func TestInstrMintsDestCoversEveryKind(t *testing.T) {
 		{kind: InstrSelect, instr: Instr{Kind: InstrSelect, Select: SelectInstr{Dst: dst}}, wantDst: true},
 		{kind: InstrNop, instr: Instr{Kind: InstrNop}, wantDst: false},
 		{kind: InstrEnvelopeRelease, instr: Instr{Kind: InstrEnvelopeRelease, EnvelopeRelease: EnvelopeReleaseInstr{Place: dst}}, wantDst: false},
+		{kind: InstrUnshare, instr: Instr{Kind: InstrUnshare, Unshare: UnshareInstr{Place: dst}}, wantDst: false},
 	}
 
 	if len(cases) != int(instrKindCount) {

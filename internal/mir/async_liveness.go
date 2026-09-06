@@ -88,6 +88,12 @@ func computeBlockUseDef(bb *Block) (use, def localSet) {
 		case InstrEnvelopeRelease:
 			addUsesFromPlace(ins.EnvelopeRelease.Place, addUse)
 			addDefFromPlace(ins.EnvelopeRelease.Place, addDef)
+		case InstrUnshare:
+			// Reads the place and writes it back private: a use, then a
+			// definition, exactly like a drop that leaves the slot dead behind
+			// it — except the slot is live again, defined here.
+			addUsesFromPlace(ins.Unshare.Place, addUse)
+			addDefFromPlace(ins.Unshare.Place, addDef)
 		case InstrEndBorrow:
 			addUsesFromPlace(ins.EndBorrow.Place, addUse)
 			addDefFromPlace(ins.EndBorrow.Place, addDef)

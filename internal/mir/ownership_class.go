@@ -344,7 +344,10 @@ func instrMintsDest(ins *Instr) (Place, bool) {
 	case InstrSelect:
 		return ins.Select.Dst, true
 	case InstrAssign, InstrDrop, InstrEndBorrow, InstrSpawn, InstrChanSend,
-		InstrNetWait, InstrNop, InstrEnvelopeRelease:
+		InstrNetWait, InstrNop, InstrEnvelopeRelease, InstrUnshare:
+		// An un-share rewrites its place in-place and mints nothing: the
+		// holder is the same holder afterwards, only now the sole one, so the
+		// definition reaching the sink stays the one that put the value there.
 		return Place{}, false
 	}
 	return Place{}, false

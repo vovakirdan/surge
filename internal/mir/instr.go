@@ -49,6 +49,10 @@ const (
 	// `compare` expression's boxed-union scrutinee temp. See
 	// EnvelopeReleaseInstr.
 	InstrEnvelopeRelease
+	// InstrUnshare makes every counted block a place holds private to that
+	// place, before the value is given up across a thread boundary. See
+	// UnshareInstr.
+	InstrUnshare
 	// instrKindCount bounds the enum so a test can walk every kind by value
 	// and fail on one no ownership classification covers. It must stay LAST;
 	// the same test pins that by checking the kind before it names itself and
@@ -92,6 +96,8 @@ func (k InstrKind) String() string {
 		return "Nop"
 	case InstrEnvelopeRelease:
 		return "EnvelopeRelease"
+	case InstrUnshare:
+		return "Unshare"
 	default:
 		return "Unknown"
 	}
@@ -117,6 +123,7 @@ type Instr struct {
 	Timeout         TimeoutInstr
 	Select          SelectInstr
 	EnvelopeRelease EnvelopeReleaseInstr
+	Unshare         UnshareInstr
 }
 
 // AssignInstr represents an assignment instruction.
@@ -264,6 +271,32 @@ type DropInstr struct {
 type EnvelopeReleaseInstr struct {
 	Place  Place
 	Cursor bool
+}
+
+// Mnemonic is the instruction's spelling in a dump. The flag changes what is
+// freed, so the two shapes print apart; both printers read it from here.
+func (r *EnvelopeReleaseInstr) Mnemonic() string {
+	if r.Cursor {
+		return "release_cursor"
+	}
+	return "release_box"
+}
+
+// UnshareInstr rewrites a place so that every reference-counted leaf it holds
+// is a reference nobody else holds: a leaf whose count is already 1 is kept,
+// any other is replaced by a clone and the shared block loses this holder.
+//
+// It is the relinquishing operand's act before a thread boundary — a capture
+// moved into a crossing's state, a far-select SEND payload, the `ret` of a
+// crossing or blocking body. The count is not atomic, so a block reachable
+// from two threads is a race, and the runtime consumes what it is handed
+// without knowing who else holds it; the value has to arrive private.
+//
+// The place must OWN its reference. An un-share of an alias would take a
+// holder away from a block the alias never counted, which is why the
+// ownership verifier reads this instruction the way it reads a drop.
+type UnshareInstr struct {
+	Place Place
 }
 
 // EndBorrowInstr represents an end borrow instruction.

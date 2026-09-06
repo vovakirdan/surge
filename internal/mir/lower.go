@@ -152,6 +152,17 @@ func LowerModuleWithOptions(mm *mono.MonoModule, semaRes *sema.Result, opts Lowe
 		// __surge_start has no symbol, so don't add to FuncBySym
 	}
 
+	// The relinquishing act is checked here, on the shape the lowering built,
+	// because the async split moves a crossing away from the un-share that
+	// precedes it (validate_relinquish.go). A site that forgot the act is a
+	// lowering bug and refuses to build, exactly like any other internal
+	// invariant.
+	for _, id := range out.SortedFuncIDs() {
+		if err := validateRelinquishedOperandsArePrivate(out.Funcs[id], typesIn); err != nil {
+			return nil, fmt.Errorf("function %s: %w", out.Funcs[id].Name, err)
+		}
+	}
+
 	out.Meta = &ModuleMeta{
 		FuncTypeArgs: funcTypeArgs,
 	}

@@ -40,6 +40,9 @@ func (l *funcLowerer) lowerSpawnOnPollFunc(id FuncID, name string, body *hir.Blo
 		Result:   result,
 		IsAsync:  false,
 		Failfast: false,
+		// The value a `ret` hands to rt_async_return is adopted by the
+		// awaiter on its own shard, so the return is a thread boundary.
+		ResultCrossesThreads: true,
 	}
 
 	stateLocal := addLocal(l.f, "__state", stateType, localFlagsFor(l.types, l.sema, stateType))
@@ -136,7 +139,8 @@ func (l *funcLowerer) lowerSpawnOnPollFunc(id FuncID, name string, body *hir.Blo
 	} else {
 		l.setTerm(&Terminator{Kind: TermReturn})
 	}
-	rewriteSpawnOnPollReturns(l.f, stateLocal, ownedCaptures, len(captures) > 0, l.types.Builtins().Int)
+	rewriteSpawnOnPollReturns(l.f, stateLocal, ownedCaptures, len(captures) > 0,
+		mayShareCountedBlockIn(l.types, result), l.types.Builtins().Int)
 	for i := range l.f.Blocks {
 		if l.f.Blocks[i].Term.Kind == TermNone {
 			l.f.Blocks[i].Term.Kind = TermUnreachable
@@ -147,8 +151,9 @@ func (l *funcLowerer) lowerSpawnOnPollFunc(id FuncID, name string, body *hir.Blo
 
 // rewriteSpawnOnPollReturns closes every return of a crossing body. hasFrame is
 // false for a capture-less crossing, which is handed a null state and therefore
-// has no word to write.
-func rewriteSpawnOnPollReturns(f *Func, stateLocal LocalID, ownedCaptures []LocalID, hasFrame bool, intType types.TypeID) {
+// has no word to write. resultPrivate says the result type may share a counted
+// block, so the value is un-shared before it leaves.
+func rewriteSpawnOnPollReturns(f *Func, stateLocal LocalID, ownedCaptures []LocalID, hasFrame, resultPrivate bool, intType types.TypeID) {
 	if f == nil {
 		return
 	}
@@ -170,6 +175,17 @@ func rewriteSpawnOnPollReturns(f *Func, stateLocal LocalID, ownedCaptures []Loca
 		// nothing.
 		for _, localID := range ownedCaptures {
 			bb.Instrs = append(bb.Instrs, Instr{Kind: InstrDrop, Drop: DropInstr{Place: Place{Local: localID}}})
+		}
+		// The result is un-shared AFTER those drops and the body's own exit
+		// drops (which ran before the goto here): every holder this frame had
+		// is gone by now, so the only other holders of the result's block are
+		// outside this frame, and the un-share clones exactly when one of those
+		// exists — never for a reference the body itself was about to release.
+		// It stays BEFORE the word: SPENT is the last instruction of a return.
+		if resultPrivate && term.HasValue && term.Value.Kind == OperandMove {
+			if _, bare := bareLocalOf(term.Value.Place); bare {
+				bb.Instrs = append(bb.Instrs, Instr{Kind: InstrUnshare, Unshare: UnshareInstr{Place: term.Value.Place}})
+			}
 		}
 		if hasFrame {
 			bb.Instrs = append(bb.Instrs, frameStateWrite(stateLocal, FrameStateSpent, intType))

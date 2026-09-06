@@ -44,6 +44,10 @@ const (
 	// OwnershipSinkTaskConsume is the task handle consumed by await, or by the
 	// ready edge of poll/timeout. Pending retains the handle for the retry.
 	OwnershipSinkTaskConsume
+	// OwnershipSinkUnshare makes a place's counted blocks private before the
+	// value crosses a thread boundary; a shared leaf is cloned and the shared
+	// block loses THIS holder, so the place must own the reference it gives up.
+	OwnershipSinkUnshare
 )
 
 func (k OwnershipSinkKind) String() string {
@@ -78,6 +82,8 @@ func (k OwnershipSinkKind) String() string {
 		return "global_assign"
 	case OwnershipSinkTaskConsume:
 		return "task_consume"
+	case OwnershipSinkUnshare:
+		return "unshare"
 	default:
 		return "unknown"
 	}
@@ -133,6 +139,11 @@ func (v *ownershipFuncVerifier) checkInstr(ins *Instr, at ownershipPoint) []Owne
 		return v.checkReleasedPlace(ins.Drop.Place, ins.Drop.Shallow, at, OwnershipSinkDrop, "place")
 	case InstrEnvelopeRelease:
 		return v.checkReleasedPlace(ins.EnvelopeRelease.Place, false, at, OwnershipSinkEnvelopeRelease, "place")
+	case InstrUnshare:
+		// Not a release, but it asks the release's question: a shared leaf is
+		// cloned and the shared block loses this holder, so an un-share of an
+		// alias takes away a reference the alias never owned.
+		return v.checkReleasedPlace(ins.Unshare.Place, false, at, OwnershipSinkUnshare, "place")
 	case InstrAwait:
 		return v.checkTaskConsume(&ins.Await.Task, at)
 	case InstrPoll:

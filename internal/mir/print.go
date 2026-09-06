@@ -140,11 +140,9 @@ func formatInstr(typesIn *types.Interner, ins *Instr) string {
 		}
 		return fmt.Sprintf("drop %s", formatPlace(ins.Drop.Place))
 	case InstrEnvelopeRelease:
-		kind := "box"
-		if ins.EnvelopeRelease.Cursor {
-			kind = "cursor"
-		}
-		return fmt.Sprintf("release_%s %s", kind, formatPlace(ins.EnvelopeRelease.Place))
+		return fmt.Sprintf("%s %s", ins.EnvelopeRelease.Mnemonic(), formatPlace(ins.EnvelopeRelease.Place))
+	case InstrUnshare:
+		return fmt.Sprintf("unshare %s", formatPlace(ins.Unshare.Place))
 	case InstrEndBorrow:
 		return fmt.Sprintf("end_borrow %s", formatPlace(ins.EndBorrow.Place))
 	case InstrAwait:

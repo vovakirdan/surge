@@ -24,7 +24,7 @@ func (c *layoutRootCollector) walkInstr(instr *Instr) error { //nolint:gocyclo
 				return err
 			}
 		}
-	case InstrDrop, InstrEndBorrow, InstrNop, InstrEnvelopeRelease:
+	case InstrDrop, InstrEndBorrow, InstrNop, InstrEnvelopeRelease, InstrUnshare:
 	case InstrAwait:
 		return c.walkOperand(&instr.Await.Task)
 	case InstrSpawn:

@@ -37,6 +37,18 @@ type Func struct {
 	// looking at and wrong for the one that is there.
 	CapturesArriveOwned bool
 
+	// ResultCrossesThreads says this function's return value is consumed on
+	// another thread: it is the body of a crossing (`on`, `spawn on`, anchored
+	// `on ch`) or of a `blocking` job, and what its `ret` hands to the runtime
+	// is adopted by whoever awaits it on their own shard or the pool thread.
+	//
+	// It makes the return a relinquishing sink. A local `async` body shares
+	// TermAsyncReturn with the crossing bodies but stays on one shard, so its
+	// return value may keep sharing a counted block with the caller; a
+	// crossing's may not, and the validator asks this flag rather than guessing
+	// from the function's name. Set by the crossing and blocking lowerings.
+	ResultCrossesThreads bool
+
 	Locals []Local
 	Blocks []Block
 	Entry  BlockID

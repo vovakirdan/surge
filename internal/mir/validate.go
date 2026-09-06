@@ -115,6 +115,14 @@ func validateFunc(f *Func, typesIn *types.Interner, globals []Global, opts Valid
 		errs = append(errs, err)
 	}
 
+	// 11. A value that may share a counted block reaches a thread boundary
+	// only as the runtime can consume it: a constant, or a MOVE out of a bare
+	// local. The act that made the local private is checked before the async
+	// split, by the lowering (validate_relinquish.go says why not here).
+	if err := validateRelinquishedOperandShapes(f, typesIn); err != nil {
+		errs = append(errs, err)
+	}
+
 	return errors.Join(errs...)
 }
 
@@ -356,6 +364,8 @@ func validateLocalIDs(f *Func, globals []Global) error {
 				checkPlace(ins.Drop.Place, ctx)
 			case InstrEndBorrow:
 				checkPlace(ins.EndBorrow.Place, ctx)
+			case InstrUnshare:
+				checkPlace(ins.Unshare.Place, ctx)
 			case InstrAwait:
 				checkPlace(ins.Await.Dst, ctx)
 				checkOperand(ins.Await.Task, ctx)

@@ -76,7 +76,14 @@ func (l *funcLowerer) lowerRemoteSelect(
 				returnPlace := candidate.place
 				op.ReturnPlace = &returnPlace
 			} else {
-				val, err := l.lowerExpr(crossing.RemoteOps[i].Value, false)
+				// A payload that may share a counted block is read CONSUMING,
+				// so the read is a retain (or a clone) the relinquish below
+				// materializes into a private temp of its own. Every other
+				// payload keeps the borrowing read it had: the runtime moves
+				// plain bits out of the caller's storage and nothing here
+				// changes for an `int` arm.
+				value := crossing.RemoteOps[i].Value
+				val, err := l.lowerExpr(value, mayShareCountedBlockIn(l.types, value.Type))
 				if err != nil {
 					return err
 				}
@@ -105,6 +112,14 @@ func (l *funcLowerer) lowerRemoteSelect(
 		},
 	})
 	ins.Pending = Place{Local: pendingLocal}
+	// Every SEND payload is relinquished HERE, adjacent to the crossing, and
+	// not where its arm was lowered: an arm lowered later could open a block,
+	// and the un-share has to sit in the block the crossing consumes it from.
+	// A candidate keeps its MOVE and its ReturnPlace and only gains the
+	// un-share; a payload that cannot share is left exactly as it was.
+	for i := range ins.RemoteOps {
+		ins.RemoteOps[i].Value = l.relinquishOperand(&ins.RemoteOps[i].Value, span)
+	}
 	l.emit(&Instr{Kind: InstrCrossing, Crossing: ins})
 	return nil
 }

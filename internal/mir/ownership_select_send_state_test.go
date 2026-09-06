@@ -118,6 +118,123 @@ async fn copy_heap_far_select(ch: far Channel<float>, stop: far Channel<int>) ->
 	})
 }
 
+// A far-select SEND payload that may share a counted block is handed to the
+// runtime as a PRIVATE transfer temp: retained out of the live binding,
+// un-shared, and moved — never the binding's own address. The runtime consumes
+// the staged reference on every path (winner, loser cell, failed submission),
+// so a bare COPY of `value` would have it release the binding's reference; and
+// the temp must be outside the drop frames, or a region flush would release it
+// a second time.
+//
+// Red on the base tree: the payload was `copy value` (lowerExpr with consume
+// false) and no un-share existed. Compiles here because this harness runs sema
+// but not buildpipeline's channel-element gate.
+func TestFarSelectCountedSendPayloadIsAPrivateTemp(t *testing.T) {
+	compiled := compileCrossingMIR(t, crossingMIRPrelude+`
+async fn counted_far_select(ch: far Channel<float>, stop: far Channel<int>) -> float {
+    let value: float = 1.5;
+    let winner = select {
+        ch.send(value) => 1;
+        stop.recv() => 2;
+    };
+    return value;
+}
+`, crossingForms(sema.CrossingLoweringChannelSelect))
+	crossing := findCrossingInstr(t, compiled.mod)
+	fn := compiled.mod.Funcs[crossingFuncID(t, compiled.mod, crossing)]
+	value := namedLocal(t, fn, "value")
+	if len(crossing.RemoteOps) != 2 || crossing.RemoteOps[0].Method != "send" {
+		t.Fatalf("unexpected far select shape: %+v", crossing.RemoteOps)
+	}
+	payload := crossing.RemoteOps[0].Value
+	if payload.Kind != mir.OperandMove || payload.Place.Kind != mir.PlaceLocal || len(payload.Place.Proj) != 0 {
+		t.Fatalf("SEND payload = %+v, want MOVE out of a bare local", payload)
+	}
+	temp := payload.Place.Local
+	if temp == value {
+		t.Fatalf("SEND payload moves the live binding L%d(value) itself", value)
+	}
+	if crossing.RemoteOps[0].ReturnPlace != nil {
+		t.Fatalf("a private temp has no losing-arm handback; the runtime destroys it in its cell: %+v", crossing.RemoteOps[0])
+	}
+	assertPrivateTempBeforeCrossing(t, fn, temp, value)
+
+	for _, f := range compiled.mod.Funcs {
+		mir.SimplifyCFG(f)
+	}
+	if err := mir.LowerAsyncStateMachine(compiled.mod, compiled.sema, compiled.symbols.Table); err != nil {
+		t.Fatalf("lower async state machine: %v", err)
+	}
+	if err := mir.ValidateStructureWithOptions(compiled.mod, compiled.types,
+		mir.ValidateOptions{CrossingForms: crossingForms(sema.CrossingLoweringChannelSelect)}); err != nil {
+		t.Fatalf("the split shape must pass the boundary shape rule: %v", err)
+	}
+	poll := findNamedMIRFunc(t, compiled.mod, "counted_far_select$poll")
+	split := channelSelectCrossingIn(t, poll)
+	if n := pendingStateStores(t, poll, split.PendBB, temp); n != 0 {
+		t.Fatalf("the private temp is packed into the pending state %d time(s); it is consumed by the "+
+			"crossing and must never gain a second owner in the frame", n)
+	}
+	if got := findingsIn(mir.VerifyOwnership(compiled.mod, compiled.types, compiled.sema),
+		"counted_far_select$poll"); len(got) != 0 {
+		t.Fatalf("a private SEND payload must be verifier-clean:\n%s", joinLines(got))
+	}
+}
+
+// assertPrivateTempBeforeCrossing pins the prelude the relinquish builds in
+// the crossing's own block: `temp = retain value`, and after it `unshare temp`,
+// both before the crossing. That the un-share is the temp's LAST touch is the
+// lowering-time validator's rule, which this program already passed to get
+// here.
+func assertPrivateTempBeforeCrossing(t *testing.T, fn *mir.Func, temp, value mir.LocalID) {
+	t.Helper()
+	tempPlace := mir.Place{Kind: mir.PlaceLocal, Local: temp}
+	for bi := range fn.Blocks {
+		bb := &fn.Blocks[bi]
+		crossingAt, retainAt, unshareAt := -1, -1, -1
+		for ii := range bb.Instrs {
+			ins := &bb.Instrs[ii]
+			switch {
+			case ins.Kind == mir.InstrCrossing:
+				crossingAt = ii
+			case ins.Kind == mir.InstrUnshare && sameBareLocal(ins.Unshare.Place, tempPlace):
+				unshareAt = ii
+			case ins.Kind == mir.InstrAssign && sameBareLocal(ins.Assign.Dst, tempPlace):
+				use := ins.Assign.Src
+				if use.Kind != mir.RValueUse || use.Use.Kind != mir.OperandRetain ||
+					!sameBareLocal(use.Use.Place, mir.Place{Kind: mir.PlaceLocal, Local: value}) {
+					t.Fatalf("%s bb%d#%d defines the private temp as %+v, want `retain L%d(value)`",
+						fn.Name, bi, ii, use, value)
+				}
+				retainAt = ii
+			}
+		}
+		if crossingAt < 0 {
+			continue
+		}
+		if retainAt < 0 || unshareAt < 0 || retainAt >= unshareAt || unshareAt >= crossingAt {
+			t.Fatalf("%s bb%d: want `L%d = retain L%d` (#%d), then `unshare L%d` (#%d), then the crossing (#%d)",
+				fn.Name, bi, temp, value, retainAt, temp, unshareAt, crossingAt)
+		}
+		return
+	}
+	t.Fatalf("%s has no crossing", fn.Name)
+}
+
+func channelSelectCrossingIn(t *testing.T, fn *mir.Func) *mir.CrossingInstr {
+	t.Helper()
+	for bi := range fn.Blocks {
+		for ii := range fn.Blocks[bi].Instrs {
+			ins := &fn.Blocks[bi].Instrs[ii]
+			if ins.Kind == mir.InstrCrossing && ins.Crossing.Kind == sema.CrossingLoweringChannelSelect {
+				return &ins.Crossing
+			}
+		}
+	}
+	t.Fatalf("%s has no channel-select crossing", fn.Name)
+	return nil
+}
+
 func assertNotExactSelectMove(t *testing.T, label string, op mir.Operand, local mir.LocalID) {
 	t.Helper()
 	if op.Kind == mir.OperandMove && op.Place.Kind == mir.PlaceLocal &&
@@ -204,6 +321,16 @@ func assertLocalSelectChannelRoots(
 
 func assertPendingStateStoresRootOnce(t *testing.T, fn *mir.Func, pending mir.BlockID, job mir.LocalID) {
 	t.Helper()
+	if count := pendingStateStores(t, fn, pending, job); count != 1 {
+		t.Fatalf("%s pending state stores L%d(job) %d times, want exactly 1", fn.Name, job, count)
+	}
+}
+
+// pendingStateStores counts how many times the suspend block packs local into
+// the state payload, and checks each such store is a MOVE under a STORE
+// contract.
+func pendingStateStores(t *testing.T, fn *mir.Func, pending mir.BlockID, local mir.LocalID) int {
+	t.Helper()
 	if pending == mir.NoBlockID || int(pending) < 0 || int(pending) >= len(fn.Blocks) {
 		t.Fatalf("%s select has invalid pending block bb%d", fn.Name, pending)
 	}
@@ -215,20 +342,18 @@ func assertPendingStateStoresRootOnce(t *testing.T, fn *mir.Func, pending mir.Bl
 		}
 		for i := range ins.Call.Args {
 			arg := ins.Call.Args[i]
-			if arg.Place.Kind != mir.PlaceLocal || len(arg.Place.Proj) != 0 || arg.Place.Local != job {
+			if arg.Place.Kind != mir.PlaceLocal || len(arg.Place.Proj) != 0 || arg.Place.Local != local {
 				continue
 			}
 			count++
 			if arg.Kind != mir.OperandMove || i >= len(ins.Call.ArgContracts) ||
 				ins.Call.ArgContracts[i] != mir.ArgContractStore {
 				t.Fatalf("%s pending state stores L%d as %+v/%v, want MOVE/STORE",
-					fn.Name, job, arg, ins.Call.ArgContracts)
+					fn.Name, local, arg, ins.Call.ArgContracts)
 			}
 		}
 	}
-	if count != 1 {
-		t.Fatalf("%s pending state stores L%d(job) %d times, want exactly 1", fn.Name, job, count)
-	}
+	return count
 }
 
 func assertLosingArmUsesRoot(t *testing.T, fn *mir.Func, job mir.LocalID) {

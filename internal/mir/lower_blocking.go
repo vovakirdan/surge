@@ -232,6 +232,9 @@ func (l *funcLowerer) lowerBlockingFunc(id FuncID, name string, body *hir.Block,
 		// frame before this body existed, so what arrives here is owned and
 		// the release at each return is the other half of that retain.
 		CapturesArriveOwned: true,
+		// The body runs on a pool thread and its `ret` value is stored into
+		// the job's result cell for the awaiter's shard to adopt.
+		ResultCrossesThreads: true,
 	}
 
 	stateLocal := addLocal(l.f, "__state", stateType, localFlagsFor(l.types, l.sema, stateType))
@@ -308,6 +311,39 @@ func (l *funcLowerer) lowerBlockingFunc(id FuncID, name string, body *hir.Block,
 			l.f.Blocks[i].Term.Kind = TermUnreachable
 		}
 	}
+	l.rewriteBlockingReturns(result, span)
 
 	return l.f, nil
+}
+
+// rewriteBlockingReturns un-shares the value of every `ret` of a blocking body
+// whose result type may share a counted block, so what __surge_blocking_call
+// stores into the job's result cell is private to the cell.
+//
+// It runs over the finished body rather than at each `ret`, because an
+// implicit tail return reaches TermReturn without passing through
+// lowerRetStmt. The returning block already ran its exit drops before the
+// terminator, so appending here is after every release the body owed; a value
+// still named by a live binding was read RETAINING (or moved out of a
+// transfer temp, when exit drops forced one), and relinquishOperand turns
+// either into a private temp the terminator moves out of.
+func (l *funcLowerer) rewriteBlockingReturns(result types.TypeID, span source.Span) {
+	if l == nil || l.f == nil || !mayShareCountedBlockIn(l.types, result) {
+		return
+	}
+	saved := l.cur
+	for bi := range l.f.Blocks {
+		bb := &l.f.Blocks[bi]
+		if bb.Term.Kind != TermReturn || !bb.Term.Return.HasValue {
+			continue
+		}
+		// emit refuses a terminated block, so the terminator is lifted while
+		// the relinquish appends and put back with only its value replaced.
+		term := bb.Term
+		bb.Term = Terminator{Kind: TermNone}
+		l.cur = BlockID(bi) //nolint:gosec // bounded by block count
+		term.Return.Value = l.relinquishOperand(&term.Return.Value, span)
+		l.f.Blocks[bi].Term = term
+	}
+	l.cur = saved
 }

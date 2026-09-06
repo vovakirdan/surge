@@ -206,7 +206,7 @@ func TestFinalizeModuleMetaSkipsConstFunctionTypeArgument(t *testing.T) {
 }
 
 func TestLayoutRootWalkerCoversEveryNodeKind(t *testing.T) {
-	if instrKindCount != InstrEnvelopeRelease+1 ||
+	if instrKindCount != InstrUnshare+1 ||
 		rvalueKindCount != RValueHeirTest+1 ||
 		operandKindCount != OperandCopyValue+1 ||
 		termKindCount != TermUnreachable+1 ||

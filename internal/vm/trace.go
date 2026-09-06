@@ -297,11 +297,9 @@ func (t *Tracer) formatInstr(instr *mir.Instr) string {
 	case mir.InstrNop:
 		return "nop"
 	case mir.InstrEnvelopeRelease:
-		kind := "box"
-		if instr.EnvelopeRelease.Cursor {
-			kind = "cursor"
-		}
-		return fmt.Sprintf("release_%s %s", kind, t.formatPlace(instr.EnvelopeRelease.Place))
+		return fmt.Sprintf("%s %s", instr.EnvelopeRelease.Mnemonic(), t.formatPlace(instr.EnvelopeRelease.Place))
+	case mir.InstrUnshare:
+		return fmt.Sprintf("unshare %s", t.formatPlace(instr.Unshare.Place))
 	default:
 		return fmt.Sprintf("<?instr:%d>", instr.Kind)
 	}
