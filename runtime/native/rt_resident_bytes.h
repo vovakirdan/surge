@@ -33,6 +33,14 @@ typedef struct rt_value_ops rt_value_ops;
 // copies every capture whose type is Copy into the state block. That is a
 // total, not a balance -- the copy is owned by the state block and its bytes
 // are already inside PAYLOAD.
+//
+// An UNSHARE CLONE is the duplication the crossing barrier performs on a
+// counted scalar leaf (a heap `float`) that the relinquishing frame still
+// shared with a sibling: rt_bigfloat_unshare hands the crossing a block of its
+// own and gives up the shared one. A total as well, and one with a single
+// writer -- the clone branch of that function -- so a row reading it counts
+// exactly the blocks the barrier had to duplicate: 0 when the value travelled
+// at count one, 1 per leaf that had a sibling holder.
 typedef enum rt_resident_kind {
     RT_RESIDENT_ENVELOPE = 0,
     RT_RESIDENT_PADDING = 1,
@@ -50,6 +58,7 @@ struct rt_resident_bytes_snapshot {
     uint64_t peak_total;
     uint64_t crossing_clone_bytes;
     uint64_t crossing_clones;
+    uint64_t unshare_clones;
     // Releases that found less held than they gave back. Always zero on a
     // correct runtime; the balance is clamped rather than wrapped so a
     // reader sees one number that says "the bookkeeping disagreed".
@@ -63,6 +72,9 @@ void rt_resident_bytes_release(rt_resident_kind kind, uint64_t bytes);
 void rt_resident_payload_acquire(const rt_value_ops* operations);
 void rt_resident_payload_release(const rt_value_ops* operations);
 void rt_resident_bytes_record_crossing_clone(uint64_t bytes);
+// One counted block the barrier duplicated because a sibling still held it.
+// Called from rt_bigfloat_unshare's clone branch and nowhere else.
+void rt_resident_bytes_record_unshare_clone(void);
 struct rt_resident_bytes_snapshot rt_resident_bytes_snapshot(void);
 const char* rt_resident_kind_name(rt_resident_kind kind);
 // One TRACE_RESIDENT line on stderr, with the exec trace's other dumps.

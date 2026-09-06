@@ -24,6 +24,7 @@ int main(void) {
     rt_resident_bytes_release(RT_RESIDENT_ENVELOPE, 40);
     rt_resident_bytes_record_crossing_clone(64);
     rt_resident_bytes_record_crossing_clone(0);
+    rt_resident_bytes_record_unshare_clone();
     struct rt_resident_bytes_snapshot s = rt_resident_bytes_snapshot();
     if (s.live[RT_RESIDENT_PAYLOAD] != 0 || s.peak[RT_RESIDENT_PAYLOAD] != 15 ||
         s.acquired[RT_RESIDENT_PAYLOAD] != 15) {
@@ -41,6 +42,9 @@ int main(void) {
     }
     if (s.crossing_clone_bytes != 64 || s.crossing_clones != 1) {
         return 15;
+    }
+    if (s.unshare_clones != 1) {
+        return 16;
     }
     rt_resident_bytes_dump("ledger");
     return 0;
@@ -79,7 +83,7 @@ func TestRuntimeV2ResidentBytesLedger(t *testing.T) {
 	for _, want := range []string{
 		" payload_live=0 ", " payload_peak=15 ", " payload_acquired=15 ",
 		" envelope_peak=36 ", " live_total=0 ", " peak_total=51 ",
-		" crossing_clone_bytes=64 ", " crossing_clones=1 ", " underflows=1",
+		" crossing_clone_bytes=64 ", " crossing_clones=1 ", " unshare_clones=1 ", " underflows=1",
 	} {
 		if !strings.Contains(line+" ", want+" ") && !strings.Contains(line, want) {
 			t.Fatalf("dump lacks %q:\n%s", strings.TrimSpace(want), line)

@@ -341,6 +341,11 @@ void* rt_bigfloat_clone(const void* a);
 // shards BEFORE the barrier runs, which is what the barrier itself preserves.
 // A caller that is not the owning thread would be reading a count somebody
 // else may be writing, so the relinquishing frame is the only correct site.
+//
+// Defined in rt_bigfloat_unshare.c. Its clone branch is the sole writer of
+// the `unshare_clones` field on the TRACE_RESIDENT line (rt_resident_bytes.h),
+// and RV2_BIGFLOAT_UNSHARE_NEGATIVE_CONTROL makes it the identity, which is how
+// a row shows the barrier is what keeps a shared block off two threads.
 void* rt_bigfloat_unshare(void* a);
 
 // Destroy a bigfloat block unconditionally, IGNORING its count. This is the

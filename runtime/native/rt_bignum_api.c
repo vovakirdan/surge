@@ -530,33 +530,8 @@ void* rt_bigfloat_clone(const void* a) {
     return (void*)out;
 }
 
-void* rt_bigfloat_unshare(void* a) {
-    if (a == NULL) {
-        return NULL; // NULL is the zero float: no block, nothing shared.
-    }
-    SurgeBigFloat* f = (SurgeBigFloat*)a;
-    if (f->rc == 1) {
-        // The caller holds the only reference, so relinquishing the value
-        // relinquishes the block with it. Cloning here would allocate a
-        // duplicate and free the original for nothing.
-        return a;
-    }
-    if (f->rc == 0) {
-        bignum_panic("bigfloat unshare below zero");
-    }
-    // Somebody else on this shard still holds the block. The caller gets a
-    // duplicate at count one and gives up the reference it held, which is what
-    // leaves each side with a block of its own -- the crossing's precondition,
-    // since the count is not atomic and the two sides are about to be on
-    // different threads.
-    bn_err err = BN_OK;
-    SurgeBigFloat* out = bf_clone(f, &err);
-    if (err != BN_OK) {
-        bignum_panic_err(err);
-    }
-    f->rc--;
-    return (void*)out;
-}
+// rt_bigfloat_unshare, the crossing barrier's leaf, lives in
+// rt_bigfloat_unshare.c: this file is over the size limit and may not grow.
 
 void rt_bigfloat_free(void* a) {
     if (a == NULL) {

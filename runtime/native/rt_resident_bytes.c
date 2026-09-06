@@ -23,6 +23,7 @@ static _Atomic uint64_t resident_live_total;
 static _Atomic uint64_t resident_peak_total;
 static _Atomic uint64_t resident_crossing_clone_bytes;
 static _Atomic uint64_t resident_crossing_clones;
+static _Atomic uint64_t resident_unshare_clones;
 static _Atomic uint64_t resident_underflows;
 
 static void raise_peak(_Atomic uint64_t* peak, uint64_t value) {
@@ -94,6 +95,10 @@ void rt_resident_bytes_record_crossing_clone(uint64_t bytes) {
     (void)atomic_fetch_add_explicit(&resident_crossing_clones, 1, memory_order_relaxed);
 }
 
+void rt_resident_bytes_record_unshare_clone(void) {
+    (void)atomic_fetch_add_explicit(&resident_unshare_clones, 1, memory_order_relaxed);
+}
+
 struct rt_resident_bytes_snapshot rt_resident_bytes_snapshot(void) {
     struct rt_resident_bytes_snapshot snapshot = {0};
     for (int kind = 0; kind < RT_RESIDENT_KIND_COUNT; kind++) {
@@ -108,6 +113,7 @@ struct rt_resident_bytes_snapshot rt_resident_bytes_snapshot(void) {
         atomic_load_explicit(&resident_crossing_clone_bytes, memory_order_relaxed);
     snapshot.crossing_clones =
         atomic_load_explicit(&resident_crossing_clones, memory_order_relaxed);
+    snapshot.unshare_clones = atomic_load_explicit(&resident_unshare_clones, memory_order_relaxed);
     snapshot.underflows = atomic_load_explicit(&resident_underflows, memory_order_relaxed);
     return snapshot;
 }
@@ -160,11 +166,12 @@ void rt_resident_bytes_dump(const char* reason) {
         int written = snprintf(&buf[pos],
                                sizeof(buf) - (size_t)pos,
                                " live_total=%llu peak_total=%llu crossing_clone_bytes=%llu "
-                               "crossing_clones=%llu underflows=%llu\n",
+                               "crossing_clones=%llu unshare_clones=%llu underflows=%llu\n",
                                (unsigned long long)snapshot.live_total,
                                (unsigned long long)snapshot.peak_total,
                                (unsigned long long)snapshot.crossing_clone_bytes,
                                (unsigned long long)snapshot.crossing_clones,
+                               (unsigned long long)snapshot.unshare_clones,
                                (unsigned long long)snapshot.underflows);
         if (written < 0) {
             return;
