@@ -56,9 +56,9 @@ void remote_spawn_pending_link(rt_remote_spawn_pending* pending) {
     }
     pending->request_id =
         atomic_fetch_add_explicit(&remote_spawn_next_request_id, 1, memory_order_relaxed);
-    pthread_mutex_lock(&remote_spawn_lock);
+    rt_token_lock(&remote_spawn_lock);
     pending_link_locked(pending);
-    pthread_mutex_unlock(&remote_spawn_lock);
+    rt_token_unlock(&remote_spawn_lock);
 }
 
 void remote_spawn_pending_finish(rt_executor* ex,
@@ -68,7 +68,7 @@ void remote_spawn_pending_finish(rt_executor* ex,
     int should_wake = 0;
     int drop_caller_ref = 0;
     rt_far_task_handle release_handle = {0};
-    pthread_mutex_lock(&remote_spawn_lock);
+    rt_token_lock(&remote_spawn_lock);
     if (pending != NULL && pending->status == RT_REMOTE_SPAWN_STATUS_PENDING) {
         pending->status = status;
         if (handle != NULL) {
@@ -86,7 +86,7 @@ void remote_spawn_pending_finish(rt_executor* ex,
             should_wake = 1;
         }
     }
-    pthread_mutex_unlock(&remote_spawn_lock);
+    rt_token_unlock(&remote_spawn_lock);
     if (should_wake) {
         wake_key_all_with_policy(
             ex, remote_spawn_reply_key(pending->request_id, pending->source_shard_id), 0);
@@ -102,35 +102,35 @@ void remote_spawn_pending_finish(rt_executor* ex,
 rt_remote_spawn_status remote_spawn_pending_snapshot(const rt_remote_spawn_pending* pending,
                                                      rt_far_task_handle* out) {
     rt_remote_spawn_status status = RT_REMOTE_SPAWN_STATUS_INVALID_ARGUMENT;
-    pthread_mutex_lock(&remote_spawn_lock);
+    rt_token_lock(&remote_spawn_lock);
     if (pending != NULL) {
         status = pending->status;
         if (out != NULL) {
             *out = pending->handle;
         }
     }
-    pthread_mutex_unlock(&remote_spawn_lock);
+    rt_token_unlock(&remote_spawn_lock);
     return status;
 }
 
 void remote_spawn_pending_consume(rt_remote_spawn_pending* pending) {
-    pthread_mutex_lock(&remote_spawn_lock);
+    rt_token_lock(&remote_spawn_lock);
     if (pending != NULL && pending->listed != 0) {
         pending_unlink_locked(pending);
     }
-    pthread_mutex_unlock(&remote_spawn_lock);
+    rt_token_unlock(&remote_spawn_lock);
     remote_spawn_pending_release(pending);
 }
 
 void remote_spawn_pending_fail_all(rt_executor* ex, rt_remote_spawn_status status) {
     for (;;) {
-        pthread_mutex_lock(&remote_spawn_lock);
+        rt_token_lock(&remote_spawn_lock);
         rt_remote_spawn_pending* pending = remote_spawn_pending_head;
         while (pending != NULL && pending->status != RT_REMOTE_SPAWN_STATUS_PENDING) {
             pending = pending->next;
         }
         remote_spawn_pending_add_ref(pending);
-        pthread_mutex_unlock(&remote_spawn_lock);
+        rt_token_unlock(&remote_spawn_lock);
         if (pending == NULL) {
             return;
         }
@@ -156,7 +156,7 @@ int rt_remote_spawn_abandon_handle(const rt_far_task_handle* out_handle) {
     int retire_reply_wait = 0;
     int drop_retire_ref = 0;
     int abandon_admission = 0;
-    pthread_mutex_lock(&remote_spawn_lock);
+    rt_token_lock(&remote_spawn_lock);
     for (rt_remote_spawn_pending* it = remote_spawn_pending_head; it != NULL; it = it->next) {
         if (it->out_handle != out_handle) {
             continue;
@@ -191,7 +191,7 @@ int rt_remote_spawn_abandon_handle(const rt_far_task_handle* out_handle) {
         }
         break;
     }
-    pthread_mutex_unlock(&remote_spawn_lock);
+    rt_token_unlock(&remote_spawn_lock);
 #ifndef RV2_SEQ0_TERMINAL_RETIRE_NEGATIVE_CONTROL
     if (retire_reply_wait) {
         // request_id never aliases another pending, and source_shard_id is

@@ -146,6 +146,41 @@ func TestRuntimeV2LifecycleDebt080ReleaseRefusesUnderLock(t *testing.T) {
 	}
 }
 
+// The lock guard has a third family to see: TOKEN locks, the per-object
+// mutexes outside the scheduler hierarchy that the storage model counts as
+// owner locks (section 5) -- the transport state's mutex above all. Before
+// RV2-DEBT-038 the lane recorded only control and shard, so a generated
+// callback dispatched under a token lock passed the guard and became a silent
+// deadlock instead of this abort. The row holds one and dispatches a drop.
+func TestRuntimeV2Debt038TokenLockRefusesDispatch(t *testing.T) {
+	binPath := buildRuntimeV2LifecycleHarnessDebt080(t, "")
+	stdout, stderr, exitCode := runDebt080Row(t, binPath, "debt038-token-lock-refuses-dispatch", "")
+	if exitCode == 0 {
+		t.Fatalf("a drop ran under a token lock and nothing refused it\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+	if !strings.Contains(stderr, "rt_value_drop_in_place_detached was dispatched while a runtime lock is held") {
+		t.Fatalf("token-lock row failed for the wrong reason (code=%d)\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+	}
+	if strings.Contains(stderr, "token-lock probe: the drop ran under the lock") {
+		t.Fatalf("the drop ran before the guard refused it\nstderr:\n%s", stderr)
+	}
+}
+
+// The control for the row above: with the lane's token record removed, the
+// same dispatch goes through. It reads a different exit and a different line,
+// so "the guard refused it" cannot be satisfied by a harness that simply fails.
+func TestRuntimeV2Debt038TokenLockRecordNegativeControl(t *testing.T) {
+	binPath := buildRuntimeV2LifecycleHarnessDebt080(t, "RV2_TOKEN_LANE_RECORD_NEGATIVE_CONTROL")
+	stdout, stderr, exitCode := runDebt080Row(t, binPath, "debt038-token-lock-refuses-dispatch", "")
+	if !strings.Contains(stderr, "token-lock probe: the drop ran under the lock") {
+		t.Fatalf("the negative control did not reach the dispatch (code=%d)\nstdout:\n%s\nstderr:\n%s",
+			exitCode, stdout, stderr)
+	}
+	if strings.Contains(stderr, "was dispatched while a runtime lock is held") {
+		t.Fatalf("the guard still fired with the token record removed\nstderr:\n%s", stderr)
+	}
+}
+
 // lifecycleHarnessBlockingCancelModes is concatenated into the shared lifecycle
 // harness (buildRuntimeV2LifecycleHarnessWithFlags). The descriptor, the bodies
 // and `__surge_value_ops_for` build in every configuration -- the dispatcher in
@@ -261,6 +296,37 @@ static int blocking_cancel_call(uint64_t id, void* state, void* out_dst) {
         default:
             return 0;
     }
+}
+
+// The lock guard's THIRD family. rt_value_refuse_if_locked reads the lane's
+// record, and that record used to hold only the scheduler locks -- control and
+// shard. The storage model's owner locks (section 5) include the transport
+// state's mutex, a TOKEN lock: a per-object mutex outside the scheduler
+// hierarchy, now taken through rt_token_lock so the lane counts it. A
+// generated callback dispatched under one used to pass the guard and deadlock
+// or re-enter somewhere else instead of aborting here (RV2-DEBT-038).
+//
+// The row holds a token lock and dispatches a drop, which is generated code.
+// The guard must abort naming the operation, so reaching the return below is
+// the failure. Under RV2_TOKEN_LANE_RECORD_NEGATIVE_CONTROL the lane stops
+// counting token locks and this row exits 0 -- the number the control reads.
+void rt_value_drop_in_place_detached(const rt_value_ops* operations, void* value);
+
+static int mode_debt038_token_lock_refuses_dispatch(rt_executor* ex) {
+    (void)ex;
+    static pthread_mutex_t probe_lock = PTHREAD_MUTEX_INITIALIZER;
+    counted_state* state = (counted_state*)rt_alloc(sizeof(counted_state), _Alignof(counted_state));
+    if (state == NULL) {
+        return fail("token-lock probe allocation failed");
+    }
+    state->marker = COUNTED_STATE_LIVE;
+    state->text = NULL;
+    rt_token_lock(&probe_lock);
+    rt_value_drop_in_place_detached(&counted_state_ops, state);
+    rt_token_unlock(&probe_lock);
+    rt_free((uint8_t*)state, sizeof(counted_state), _Alignof(counted_state));
+    fputs("token-lock probe: the drop ran under the lock\n", stderr);
+    return 1;
 }
 
 #ifdef RT_TEST_SYNC_POINTS

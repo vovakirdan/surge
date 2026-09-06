@@ -64,14 +64,14 @@ void rt_immediate_on_cancel_inflight(rt_executor* ex, rt_remote_task_pending* pe
         return;
     }
     rt_far_task_handle handle;
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     int route = pending->cancel_routed == 0 && pending->status == RT_REMOTE_TASK_STATUS_PENDING &&
                 pending->handle.task_id != 0;
     if (route) {
         pending->cancel_routed = 1;
     }
     handle = pending->handle;
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     if (!route) {
         return;
     }
@@ -90,9 +90,9 @@ void rt_immediate_on_cancel_inflight(rt_executor* ex, rt_remote_task_pending* pe
     };
     if (rt_remote_task_transport_status(rt_remote_spawn_enqueue_with_drain(ex, owner, &msg)) !=
         RT_REMOTE_TASK_STATUS_OK) {
-        pthread_mutex_lock(&state->lock);
+        rt_token_lock(&state->lock);
         pending->cancel_routed = 0;
-        pthread_mutex_unlock(&state->lock);
+        rt_token_unlock(&state->lock);
         rt_remote_task_pending_release(pending);
     }
 }
@@ -281,9 +281,9 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
     // the body can run; the owner-done hook then answers exactly once. The
     // status re-check under the same lock closes the race against a caller
     // teardown that resolved the pending between the snapshot and the bind.
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     if (pending->status != RT_REMOTE_TASK_STATUS_PENDING) {
-        pthread_mutex_unlock(&state->lock);
+        rt_token_unlock(&state->lock);
         rt_immediate_on_anchor_unpin(ex, pending);
         rt_remote_spawn_free_unpublished_task(ex, task);
         rt_remote_task_pending_release(pending);
@@ -291,7 +291,7 @@ void rt_immediate_on_dispatch_execute(rt_executor* ex, const rt_transport_msg* m
     }
     pending->handle.task_id = task->id;
     pending->handle.generation = task->generation;
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     task_add_ref(task);
     rt_remote_task_pending_register_owner(pending, task);
     // Hold the pending across publication. The handoff contract

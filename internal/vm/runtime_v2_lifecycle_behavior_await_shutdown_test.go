@@ -391,6 +391,9 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "stand-helper-held-poll-trap") == 0) {
         return mode_stand_helper_held_poll_trap(ex);
     }
+    if (strcmp(argv[1], "debt038-token-lock-refuses-dispatch") == 0) {
+        return mode_debt038_token_lock_refuses_dispatch(ex);
+    }
 	#ifdef RT_TEST_SYNC_POINTS
     if (strcmp(argv[1], "debt020-migrate-gap-proof") == 0) {
         return mode_debt020_migrate_gap_proof(ex);

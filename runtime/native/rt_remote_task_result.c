@@ -30,14 +30,14 @@ int rt_far_task_adopt_result(rt_task* producer, rt_task* holder) {
     if (state == NULL) {
         return 0;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     rt_far_task_lease* taken = result_lease_take_locked(producer);
     if (taken == lease) {
         lease->result_owner = NULL;
         lease->holder = holder;
         atomic_store_explicit(&lease->state, RT_FAR_TASK_LEASE_OPEN, memory_order_release);
     }
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     return taken == lease;
 }
 
@@ -52,13 +52,13 @@ void rt_far_task_release_result(rt_executor* ex, rt_task* producer) {
     if (state == NULL) {
         return;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     rt_far_task_lease* taken = result_lease_take_locked(producer);
     if (taken == lease) {
         lease->result_owner = NULL;
         atomic_store_explicit(&lease->state, RT_FAR_TASK_LEASE_RELEASING, memory_order_release);
     }
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     if (taken == lease) {
         rt_far_task_lease_release_route(lease);
         rt_far_task_lease_drop_ref(lease);

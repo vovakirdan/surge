@@ -1430,6 +1430,11 @@
       "group": "PG-INVARIANT"
     },
     {
+      "site": "runtime/native/rt_lane.c::rt_token_unlock#1",
+      "message": "lane: a token lock was released while the lane held none",
+      "group": "PG-INVARIANT"
+    },
+    {
       "site": "runtime/native/rt_map.c::map_key_eq#1",
       "message": "map: unsupported key kind",
       "group": "PG-INVARIANT"

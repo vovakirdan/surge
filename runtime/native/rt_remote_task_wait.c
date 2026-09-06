@@ -43,7 +43,7 @@ void rt_remote_task_fail_all_pending(rt_executor* ex, rt_remote_task_status stat
         rt_remote_task_pending* pending = NULL;
         int release_owner_ref = 0;
         int should_wake = 0;
-        pthread_mutex_lock(&state->lock);
+        rt_token_lock(&state->lock);
         for (rt_remote_task_pending* it = state->pending_head; it != NULL; it = it->next) {
             if (it->status != RT_REMOTE_TASK_STATUS_PENDING) {
                 continue;
@@ -87,7 +87,7 @@ void rt_remote_task_fail_all_pending(rt_executor* ex, rt_remote_task_status stat
             pending = it;
             break;
         }
-        pthread_mutex_unlock(&state->lock);
+        rt_token_unlock(&state->lock);
         if (pending == NULL) {
             return;
         }

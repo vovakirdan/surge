@@ -36,13 +36,13 @@ rt_runtime_status rt_remote_task_state_destroy(rt_executor* ex) {
     if (state == NULL) {
         return RT_RUNTIME_STATUS_OK;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     if (state->pending_head != NULL || state->lease_head != NULL) {
-        pthread_mutex_unlock(&state->lock);
+        rt_token_unlock(&state->lock);
         return RT_RUNTIME_STATUS_INVALID_ARGUMENT;
     }
     ex->remote_tasks = NULL;
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     pthread_mutex_destroy(&state->lock);
     rt_free((uint8_t*)state, sizeof(*state), _Alignof(rt_remote_task_state));
     return RT_RUNTIME_STATUS_OK;
@@ -95,9 +95,9 @@ rt_remote_task_pending* rt_remote_task_pending_new(rt_executor* ex,
     pending->select_committed_index = RT_FAR_CHANNEL_SELECT_NO_COMMIT;
     atomic_store_explicit(&pending->refs, 1, memory_order_relaxed);
     if (listed) {
-        pthread_mutex_lock(&state->lock);
+        rt_token_lock(&state->lock);
         pending_link_locked(state, pending);
-        pthread_mutex_unlock(&state->lock);
+        rt_token_unlock(&state->lock);
     }
     return pending;
 }
@@ -172,11 +172,11 @@ void rt_remote_task_pending_consume(rt_remote_task_pending* pending) {
         rt_remote_task_pending_release(pending);
         return;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     if (pending->listed != 0) {
         pending_unlink_locked(state, pending);
     }
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     rt_remote_task_pending_release(pending);
 }
 
@@ -187,12 +187,12 @@ rt_remote_task_status rt_remote_task_pending_snapshot(const rt_remote_task_pendi
     if (state == NULL) {
         return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     rt_remote_task_status status = (rt_remote_task_status)pending->status;
     if (out_kind != NULL) {
         *out_kind = pending->result_kind;
     }
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     return status;
 }
 
@@ -213,9 +213,9 @@ int rt_remote_task_pending_set_reply(rt_remote_task_pending* pending,
     if (state == NULL) {
         return 0;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     if (pending->reply_status != RT_REMOTE_TASK_STATUS_PENDING) {
-        pthread_mutex_unlock(&state->lock);
+        rt_token_unlock(&state->lock);
         return 0;
     }
     pending->reply_status = (uint8_t)status;
@@ -223,7 +223,7 @@ int rt_remote_task_pending_set_reply(rt_remote_task_pending* pending,
     if (result_source != NULL) {
         pending->result_source = *result_source;
     }
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     return 1;
 }
 
@@ -246,9 +246,9 @@ void rt_remote_task_pending_retire_reply_wait(rt_executor* ex, rt_remote_task_pe
         return;
     }
     int should_wake = 0;
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     should_wake = reply_wait_retire_locked(pending);
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
 #ifndef RV2_SEQ0_TERMINAL_RETIRE_NEGATIVE_CONTROL
     if (should_wake) {
         // Both key fields are immutable from pending_new until final release;
@@ -272,7 +272,7 @@ void rt_remote_task_pending_finish(rt_executor* ex,
         return;
     }
     int should_wake = 0;
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     if (pending->status == RT_REMOTE_TASK_STATUS_PENDING) {
         pending->status = (uint8_t)status;
         pending->result_kind = result_kind;
@@ -282,7 +282,7 @@ void rt_remote_task_pending_finish(rt_executor* ex,
         pending->owner_registered = 0;
         should_wake = reply_wait_retire_locked(pending);
     }
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     if (should_wake) {
         wake_key_all_with_policy(
             ex, rt_remote_task_reply_key(pending->request_id, pending->source_shard_id), 0);
@@ -302,9 +302,9 @@ rt_result_source rt_remote_task_pending_result_source(const rt_remote_task_pendi
     if (state == NULL) {
         return source;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     source = pending->result_source;
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     return source;
 }
 
@@ -314,9 +314,9 @@ void rt_remote_task_pending_clear_result_source(rt_remote_task_pending* pending)
     if (state == NULL) {
         return;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     pending->result_source = (rt_result_source){0, 0, 0, 0};
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
 }
 
 void rt_remote_task_pending_register_owner(rt_remote_task_pending* pending, rt_task* task) {
@@ -325,10 +325,10 @@ void rt_remote_task_pending_register_owner(rt_remote_task_pending* pending, rt_t
     if (state == NULL || task == NULL) {
         return;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     pending->owner_registered = 1;
     task->remote_owner_pending = pending;
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
 }
 
 int rt_remote_task_pending_unregister_owner(rt_remote_task_pending* pending, rt_task* task) {
@@ -337,12 +337,12 @@ int rt_remote_task_pending_unregister_owner(rt_remote_task_pending* pending, rt_
     if (state == NULL) {
         return 0;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     int held = pending->owner_registered != 0;
     pending->owner_registered = 0;
     if (task != NULL && task->remote_owner_pending == pending) {
         task->remote_owner_pending = NULL;
     }
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     return held;
 }

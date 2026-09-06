@@ -13,6 +13,16 @@ typedef struct {
     uint8_t holds_control;
     // 0 = none; otherwise shard_id + 1, so shard 0 is distinguishable.
     uint32_t shard_id_plus_one;
+    // How many TOKEN locks this lane holds. A token lock is a per-object mutex
+    // outside the scheduler hierarchy -- the transport state's lock is the one
+    // the storage model names as the transport owner lock -- and it is counted
+    // rather than pinned to one identity, because these guard objects the lane
+    // discipline does not order among themselves.
+    //
+    // A COUNT rather than a flag, and no panic on a second: this record exists
+    // to answer "may a generated callback run here", not to legislate an order
+    // the D2 spike never decided for this family.
+    uint32_t token_depth;
 } rt_lane_tls_state;
 
 static _Thread_local rt_lane_tls_state lane_state;
@@ -42,6 +52,43 @@ int rt_lane_holds_any_shard(void) {
 
 int rt_lane_holds_shard(uint32_t shard_id) {
     return lane_state.shard_id_plus_one == shard_id + 1U;
+}
+
+int rt_lane_holds_token_lock(void) {
+    return lane_state.token_depth != 0;
+}
+
+// A token lock: a per-object mutex outside the scheduler hierarchy, taken
+// through here so the lane RECORDS it. Without the record a generated
+// operation dispatched under one would not abort at rt_value_refuse_if_locked;
+// it would deadlock or re-enter somewhere far from the call that caused it,
+// which is the failure the record exists to convert into a stack trace
+// (RV2-DEBT-038).
+//
+// The mutex itself is the caller's; this file neither owns nor names it, the
+// same way it neither owns the executor lock nor the shard's.
+void rt_token_lock(pthread_mutex_t* mutex) {
+    if (mutex == NULL) {
+        return;
+    }
+    pthread_mutex_lock(mutex);
+#ifndef RV2_TOKEN_LANE_RECORD_NEGATIVE_CONTROL
+    lane_state.token_depth++;
+#endif
+}
+
+void rt_token_unlock(pthread_mutex_t* mutex) {
+    if (mutex == NULL) {
+        return;
+    }
+#ifndef RV2_TOKEN_LANE_RECORD_NEGATIVE_CONTROL
+    if (lane_state.token_depth == 0) {
+        panic_msg("lane: a token lock was released while the lane held none");
+        return;
+    }
+    lane_state.token_depth--;
+#endif
+    pthread_mutex_unlock(mutex);
 }
 
 void rt_control_lock(rt_executor* ex) {

@@ -5,10 +5,10 @@ rt_remote_task_status rt_far_task_lease_consume(const rt_far_task_handle* handle
     if (state == NULL || handle == NULL) {
         return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     rt_far_task_lease* lease = rt_far_task_lease_find_locked(state, handle);
     if (lease == NULL) {
-        pthread_mutex_unlock(&state->lock);
+        rt_token_unlock(&state->lock);
         return RT_REMOTE_TASK_STATUS_OK;
     }
     uint8_t expected = RT_FAR_TASK_LEASE_OPEN;
@@ -24,12 +24,12 @@ rt_remote_task_status rt_far_task_lease_consume(const rt_far_task_handle* handle
                                                      RT_FAR_TASK_LEASE_CONSUMED,
                                                      memory_order_acq_rel,
                                                      memory_order_acquire)) {
-            pthread_mutex_unlock(&state->lock);
+            rt_token_unlock(&state->lock);
             return RT_REMOTE_TASK_STATUS_CONSUMED;
         }
     }
     lease->holder = NULL;
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     return RT_REMOTE_TASK_STATUS_OK;
 }
 
@@ -38,7 +38,7 @@ void rt_far_task_lease_restore(const rt_far_task_handle* handle) {
     if (state == NULL || handle == NULL) {
         return;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     rt_far_task_lease* lease = rt_far_task_lease_find_locked(state, handle);
     uint8_t expected = RT_FAR_TASK_LEASE_CONSUMED;
     if (lease != NULL && atomic_compare_exchange_strong_explicit(&lease->state,
@@ -48,5 +48,5 @@ void rt_far_task_lease_restore(const rt_far_task_handle* handle) {
                                                                  memory_order_acquire)) {
         lease->holder = rt_current_task();
     }
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
 }

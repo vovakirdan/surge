@@ -79,6 +79,52 @@ func TestRuntimeV2SlotControlIsOwnerPrivateAndCallbackFree(t *testing.T) {
 	}
 }
 
+// The lane has to SEE a token lock for rt_value_refuse_if_locked to refuse a
+// dispatch under one, and it sees only what goes through rt_token_lock. A file
+// that takes one of these mutexes with a raw pthread call is invisible to the
+// record, so a generated callback dispatched under it deadlocks somewhere else
+// instead of aborting at the dispatch (RV2-DEBT-038).
+//
+// The families named here are the owner locks of section 5 that live outside
+// the scheduler hierarchy: the transport state's mutex, the remote-spawn
+// pending registry, and the far-channel token table. The scheduler's own locks
+// keep their own record and their own entry points (rt_control_lock,
+// rt_shard_lock); rt_lane.c is where every raw call legitimately lives.
+func TestRuntimeV2TokenLocksGoThroughTheLaneRecord(t *testing.T) {
+	root := repoRoot(t)
+	sources, err := filepath.Glob(filepath.Join(root, "runtime", "native", "*.c"))
+	if err != nil || len(sources) == 0 {
+		t.Fatalf("no runtime sources to scan (err=%v, found=%d)", err, len(sources))
+	}
+	families := []string{"&state->lock", "&remote_spawn_lock", "&tokens->lock"}
+	scanned := 0
+	wrapped := 0
+	for _, path := range sources {
+		if filepath.Base(path) == "rt_lane.c" {
+			continue
+		}
+		source := readSlotControlFile(t, path)
+		scanned++
+		for _, family := range families {
+			for _, raw := range []string{"pthread_mutex_lock(", "pthread_mutex_unlock("} {
+				if strings.Contains(source, raw+family+")") {
+					t.Errorf("%s takes %s with %s; use rt_token_lock/rt_token_unlock so the lane records it",
+						filepath.Base(path), family, raw)
+				}
+			}
+			wrapped += strings.Count(source, "rt_token_lock("+family+")")
+		}
+	}
+	if scanned < 20 {
+		t.Fatalf("the scan saw only %d runtime sources; it cannot have covered the token families", scanned)
+	}
+	// Guard against the scan passing because nothing takes a token lock any
+	// more: the wrappers must actually be in use, or this pins nothing.
+	if wrapped == 0 {
+		t.Fatal("no file takes a token lock through the lane record; the scan proved nothing")
+	}
+}
+
 // allValueOpsSlots is every rt_value_ops callback field, as the owner-private
 // slot control may never invoke any of them.
 const allValueOpsSlots = `move_init|copy_init|clone_init|drop_in_place|trace|plan_cross|` +

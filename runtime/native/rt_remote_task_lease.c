@@ -32,13 +32,13 @@ void rt_far_task_lease_drop_ref(rt_far_task_lease* lease) {
         return;
     }
     int free_lease = 0;
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     uint32_t refs = atomic_fetch_sub_explicit(&lease->refs, 1, memory_order_acq_rel);
     if (refs == 1) {
         lease_unlink_locked(state, lease);
         free_lease = 1;
     }
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     if (free_lease) {
         rt_free((uint8_t*)lease, sizeof(*lease), _Alignof(rt_far_task_lease));
     }
@@ -76,10 +76,10 @@ rt_remote_spawn_status rt_far_task_handle_alloc(rt_far_task_handle** out_handle)
     lease->holder = rt_current_task();
     atomic_store_explicit(&lease->state, RT_FAR_TASK_LEASE_OPEN, memory_order_relaxed);
     atomic_store_explicit(&lease->refs, 1, memory_order_relaxed);
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     lease->next = state->lease_head;
     state->lease_head = lease;
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     *out_handle = &lease->handle;
     return RT_REMOTE_SPAWN_STATUS_OK;
 }
@@ -91,7 +91,7 @@ void rt_far_task_handle_free(const rt_far_task_handle* handle) {
         return;
     }
     int release_route = 0;
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     rt_far_task_lease* lease = rt_far_task_lease_find_locked(state, handle);
     if (lease != NULL) {
         uint8_t lease_state = atomic_load_explicit(&lease->state, memory_order_acquire);
@@ -101,7 +101,7 @@ void rt_far_task_handle_free(const rt_far_task_handle* handle) {
             release_route = 1;
         }
     }
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     if (lease == NULL) {
         return;
     }
@@ -128,14 +128,14 @@ void rt_far_task_begin_transfer(const rt_far_task_handle* handle) {
     if (state == NULL || handle == NULL) {
         return;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     rt_far_task_lease* lease = rt_far_task_lease_find_locked(state, handle);
     if (lease != NULL && lease->holder == rt_current_task() &&
         lease_state_transition(lease, RT_FAR_TASK_LEASE_OPEN, RT_FAR_TASK_LEASE_TRANSFERRING)) {
         lease->holder = NULL;
         (void)atomic_fetch_add_explicit(&lease->refs, 1, memory_order_relaxed);
     }
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
 }
 
 void rt_far_task_finish_transfer(const rt_far_task_handle* handle, void* child_task) {
@@ -146,7 +146,7 @@ void rt_far_task_finish_transfer(const rt_far_task_handle* handle, void* child_t
     rt_task* child = task_from_handle(child_task);
     int release_route = 0;
     int drop_value_ref = 0;
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     rt_far_task_lease* lease = rt_far_task_lease_find_locked(state, handle);
     uint8_t lease_state =
         lease != NULL ? atomic_load_explicit(&lease->state, memory_order_acquire) : 0;
@@ -161,7 +161,7 @@ void rt_far_task_finish_transfer(const rt_far_task_handle* handle, void* child_t
             drop_value_ref = 1;
         }
     }
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     if (lease == NULL) {
         return;
     }
@@ -180,7 +180,7 @@ void rt_far_task_prepare_return(const rt_far_task_handle* handle) {
     if (state == NULL || producer == NULL || handle == NULL) {
         return;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     rt_far_task_lease* lease = rt_far_task_lease_find_locked(state, handle);
     // Either the producer still holds an OPEN lease, or the lease was handed to
     // it and sits at TRANSFERRING. Both become RETURNING; the second attempt
@@ -195,7 +195,7 @@ void rt_far_task_prepare_return(const rt_far_task_handle* handle) {
         atomic_store_explicit(&producer->far_task_result_lease, lease, memory_order_release);
         atomic_store_explicit(&producer->far_task_result_state, 1, memory_order_release);
     }
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
 }
 
 // holder == NULL selects every live lease (shutdown); otherwise only OPEN
@@ -225,7 +225,7 @@ static void release_matching_leases(rt_executor* ex, const rt_task* holder) {
         return;
     }
     for (;;) {
-        pthread_mutex_lock(&state->lock);
+        rt_token_lock(&state->lock);
         rt_far_task_lease* lease = lease_next_releasable_locked(state, holder);
         if (lease != NULL) {
             if (holder == NULL) {
@@ -240,7 +240,7 @@ static void release_matching_leases(rt_executor* ex, const rt_task* holder) {
             lease->holder = NULL;
             atomic_store_explicit(&lease->state, RT_FAR_TASK_LEASE_RELEASING, memory_order_release);
         }
-        pthread_mutex_unlock(&state->lock);
+        rt_token_unlock(&state->lock);
         if (lease == NULL) {
             return;
         }

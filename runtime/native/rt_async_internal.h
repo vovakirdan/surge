@@ -692,6 +692,12 @@ int rt_lane_holds_control(void);
 void rt_lane_run_deferred_now(void);
 int rt_lane_holds_any_shard(void);
 int rt_lane_holds_shard(uint32_t shard_id);
+// Token locks: per-object mutexes outside the scheduler hierarchy. Taken
+// through these so the lane records them and rt_value_refuse_if_locked can
+// see them; the mutex stays the caller's.
+void rt_token_lock(pthread_mutex_t* mutex);
+void rt_token_unlock(pthread_mutex_t* mutex);
+int rt_lane_holds_token_lock(void);
 rt_runtime_status rt_shard_sync_init(rt_shard* shard);
 void rt_shard_sync_destroy(rt_shard* shard);
 void rt_blocking_init(rt_executor* ex);

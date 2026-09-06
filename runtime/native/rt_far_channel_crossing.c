@@ -156,9 +156,9 @@ void rt_far_channel_dispatch_create(rt_executor* ex, const rt_transport_msg* msg
     }
     // Bind the minted token into the shared pending under the token lock so
     // the caller-side copy after the terminal snapshot reads a full token.
-    pthread_mutex_lock(&tokens->lock);
+    rt_token_lock(&tokens->lock);
     pending->handle = minted;
-    pthread_mutex_unlock(&tokens->lock);
+    rt_token_unlock(&tokens->lock);
     rt_remote_task_reply_or_finish(
         ex, pending, RT_REMOTE_TASK_STATUS_OK, 1, RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REPLY);
 }
@@ -274,9 +274,9 @@ void rt_far_channel_dispatch_share(rt_executor* ex, const rt_transport_msg* msg)
             ex, pending, minted, 2, RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY);
         return;
     }
-    pthread_mutex_lock(&tokens->lock);
+    rt_token_lock(&tokens->lock);
     pending->handle = sibling;
-    pthread_mutex_unlock(&tokens->lock);
+    rt_token_unlock(&tokens->lock);
     rt_remote_task_reply_or_finish(
         ex, pending, RT_REMOTE_TASK_STATUS_OK, 1, RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY);
 }

@@ -78,9 +78,9 @@ select_return_arms(rt_remote_task_pending* pending, void* const* out_values, uin
         out_count != pending->select_count) {
         return 0;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     uint64_t committed = pending->select_committed_index;
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     for (uint64_t i = 0; i < pending->select_count; i++) {
         rt_far_channel_select_arm* arm = &pending->select_arms[i];
         if (arm->kind != SELECT_CHAN_SEND || i == committed) {
@@ -373,9 +373,9 @@ void rt_far_channel_dispatch_select(rt_executor* ex, const rt_transport_msg* msg
         select_answer(ex, pending, RT_REMOTE_TASK_STATUS_REFUSED);
         return;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     if (pending->status != RT_REMOTE_TASK_STATUS_PENDING) {
-        pthread_mutex_unlock(&state->lock);
+        rt_token_unlock(&state->lock);
         rt_far_channel_select_unpin_arms(ex, pending, pending->select_count);
         rt_remote_spawn_free_unpublished_task(ex, task);
         rt_remote_task_pending_release(pending);
@@ -383,7 +383,7 @@ void rt_far_channel_dispatch_select(rt_executor* ex, const rt_transport_msg* msg
     }
     pending->handle.task_id = task->id;
     pending->handle.generation = task->generation;
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     task_add_ref(task);
     rt_remote_task_pending_register_owner(pending, task);
     // Same publication window as the immediate-on dispatch: hold the pending
@@ -433,7 +433,7 @@ rt_remote_task_pending* rt_remote_task_select_binding_take(rt_far_channel_select
         return NULL;
     }
     rt_remote_task_pending* bound = NULL;
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     // Through the task's own registration, not a registry scan: the caller
     // may have consumed and unlisted the pending by now, and a scan keyed on
     // a PENDING status the shutdown sweep has changed finds nothing.
@@ -451,7 +451,7 @@ rt_remote_task_pending* rt_remote_task_select_binding_take(rt_far_channel_select
         rt_remote_task_pending_add_ref(it);
         bound = it;
     }
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     return bound;
 }
 
@@ -474,9 +474,9 @@ static void record_select_commit(rt_remote_task_pending* pending, int64_t winner
     if (state == NULL) {
         return;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     pending->select_committed_index = (uint64_t)winner;
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
 }
 #else
 static void record_select_commit(rt_remote_task_pending* pending, int64_t winner) {
@@ -487,7 +487,7 @@ static void record_select_commit(rt_remote_task_pending* pending, int64_t winner
     if (state == NULL || current == NULL) {
         return;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     for (rt_remote_task_pending* it = state->pending_head; it != NULL; it = it->next) {
         if (it->op == RT_REMOTE_TASK_OP_CHANNEL_SELECT &&
             it->status == RT_REMOTE_TASK_STATUS_PENDING && it->handle.task_id == current->id &&
@@ -497,7 +497,7 @@ static void record_select_commit(rt_remote_task_pending* pending, int64_t winner
             break;
         }
     }
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
 }
 #endif
 

@@ -87,6 +87,12 @@ void rt_value_copy_init(const rt_value_ops* operations, void* dst, const void* s
 // "locked" is the violation, and it aborts.
 extern int rt_lane_holds_control(void) __attribute__((weak));
 extern int rt_lane_holds_any_shard(void) __attribute__((weak));
+// The third family: TOKEN locks, the per-object mutexes outside the scheduler
+// hierarchy. The storage model's "scheduler, channel, task, map, or transport
+// owner lock" (section 5) names the transport state's lock, and a lane record
+// that saw only the scheduler two would let a barrier placed under one become
+// a silent deadlock instead of this abort — RV2-DEBT-038.
+extern int rt_lane_holds_token_lock(void) __attribute__((weak));
 
 // The lane refusal the header promises, shared by both detached helpers.
 //
@@ -98,7 +104,8 @@ extern int rt_lane_holds_any_shard(void) __attribute__((weak));
 static void rt_value_refuse_if_locked(const char* operation) {
     int control = rt_lane_holds_control != NULL && rt_lane_holds_control();
     int shard = rt_lane_holds_any_shard != NULL && rt_lane_holds_any_shard();
-    if (control || shard) {
+    int token = rt_lane_holds_token_lock != NULL && rt_lane_holds_token_lock();
+    if (control || shard || token) {
         fprintf(stderr,
                 "rt_value_ops: %s was dispatched while a runtime lock is held; every "
                 "generated operation runs detached from the owner lock\n",

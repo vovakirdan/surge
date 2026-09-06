@@ -140,7 +140,7 @@ static uint64_t find_channel_parked_body(rt_executor* ex,
         uint64_t arm_counts[RT_DEADLOCK_CANDIDATE_BATCH];
         size_t body_count = 0;
         size_t seen = 0;
-        pthread_mutex_lock(&state->lock);
+        rt_token_lock(&state->lock);
         for (rt_remote_task_pending* it = state->pending_head; it != NULL; it = it->next) {
             if (it->status != RT_REMOTE_TASK_STATUS_PENDING) {
                 continue;
@@ -182,7 +182,7 @@ static uint64_t find_channel_parked_body(rt_executor* ex,
                 break;
             }
         }
-        pthread_mutex_unlock(&state->lock);
+        rt_token_unlock(&state->lock);
         uint64_t suspect_id = 0;
         for (size_t i = 0; i < body_count; i++) {
             rt_task* body = bodies[i];

@@ -89,13 +89,13 @@ rt_runtime_status rt_far_channel_state_destroy(rt_executor* ex) {
     if (state == NULL) {
         return RT_RUNTIME_STATUS_OK;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     if (state->head != NULL) {
-        pthread_mutex_unlock(&state->lock);
+        rt_token_unlock(&state->lock);
         return RT_RUNTIME_STATUS_INVALID_ARGUMENT;
     }
     ex->far_channels = NULL;
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     pthread_mutex_destroy(&state->lock);
     rt_free((uint8_t*)state, sizeof(*state), _Alignof(rt_far_channel_state));
     return RT_RUNTIME_STATUS_OK;
@@ -132,10 +132,10 @@ rt_remote_task_status rt_far_channel_mint(rt_executor* ex,
     }
     entry->leases = first;
     entry->active_leases = 1;
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     entry->next = state->head;
     state->head = entry;
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     *out = (rt_far_task_handle){.task_id = entry->id,
                                 .generation = first->generation,
                                 .owner_shard_id = owner_shard_id,
@@ -196,13 +196,13 @@ void* rt_far_channel_resolve(rt_executor* ex, const rt_far_task_handle* handle) 
     if (state == NULL || handle == NULL || handle->kind != RT_FAR_HANDLE_KIND_CHANNEL) {
         return NULL;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     rt_far_channel_entry* entry = live_lease_locked(state, handle);
     void* channel = NULL;
     if (entry != NULL) {
         channel = entry->channel;
     }
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     return channel;
 }
 
@@ -219,14 +219,14 @@ static int reclaim_ready_locked(const rt_far_channel_entry* entry) {
 static void release_entry(rt_far_channel_state* state, rt_far_channel_entry* entry);
 
 static void unlock_then_reclaim(rt_far_channel_state* state, rt_far_channel_entry* target) {
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     if (target != NULL) {
         release_entry(state, target);
     }
 }
 
 static void release_entry(rt_far_channel_state* state, rt_far_channel_entry* entry) {
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     rt_far_channel_entry** cursor = &state->head;
     while (*cursor != NULL && *cursor != entry) {
         cursor = &(*cursor)->next;
@@ -234,7 +234,7 @@ static void release_entry(rt_far_channel_state* state, rt_far_channel_entry* ent
     if (*cursor == entry) {
         *cursor = entry->next;
     }
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     rt_far_channel_lease* lease = entry->leases;
     while (lease != NULL) {
         rt_far_channel_lease* next = lease->next;
@@ -269,11 +269,11 @@ rt_remote_task_status rt_far_channel_release(rt_executor* ex, const rt_far_task_
     if (state == NULL || handle == NULL || handle->kind != RT_FAR_HANDLE_KIND_CHANNEL) {
         return RT_REMOTE_TASK_STATUS_INVALID_ARGUMENT;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     rt_far_channel_lease* lease = NULL;
     rt_far_channel_entry* entry = lease_checked_locked(state, handle, &lease);
     if (entry == NULL || lease->released != 0) {
-        pthread_mutex_unlock(&state->lock);
+        rt_token_unlock(&state->lock);
         return RT_REMOTE_TASK_STATUS_STALE_TOKEN;
     }
     lease->released = 1;
@@ -291,7 +291,7 @@ void rt_far_channel_release_all(rt_executor* ex) {
         return;
     }
     for (;;) {
-        pthread_mutex_lock(&state->lock);
+        rt_token_lock(&state->lock);
         rt_far_channel_entry* target = NULL;
         for (rt_far_channel_entry* it = state->head; it != NULL; it = it->next) {
             for (rt_far_channel_lease* lease = it->leases; lease != NULL; lease = lease->next) {
@@ -322,7 +322,7 @@ int rt_far_channel_pin(rt_executor* ex, const rt_far_task_handle* handle, void**
     if (state == NULL || handle == NULL || handle->kind != RT_FAR_HANDLE_KIND_CHANNEL) {
         return 0;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     rt_far_channel_entry* entry = live_lease_locked(state, handle);
     int pinned = 0;
     if (entry != NULL) {
@@ -332,7 +332,7 @@ int rt_far_channel_pin(rt_executor* ex, const rt_far_task_handle* handle, void**
         }
         pinned = 1;
     }
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     return pinned;
 }
 
@@ -344,11 +344,11 @@ size_t rt_far_channel_debug_live_count(rt_executor* ex) {
         return 0;
     }
     size_t count = 0;
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     for (const rt_far_channel_entry* it = state->head; it != NULL; it = it->next) {
         count++;
     }
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     return count;
 }
 
@@ -364,12 +364,12 @@ void rt_far_channel_unpin(rt_executor* ex, const rt_far_task_handle* handle) {
     if (state == NULL || handle == NULL || handle->kind != RT_FAR_HANDLE_KIND_CHANNEL) {
         return;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     rt_far_channel_entry* entry = find_locked(state, handle);
     rt_far_channel_entry* reclaim = NULL;
     if (entry != NULL) {
         if (atomic_load_explicit(&entry->inflight, memory_order_acquire) == 0) {
-            pthread_mutex_unlock(&state->lock);
+            rt_token_unlock(&state->lock);
             panic_msg("async: far channel unpinned more times than it was pinned");
             return;
         }
@@ -439,10 +439,10 @@ size_t rt_far_channel_active_lease_count(rt_executor* ex, const rt_far_task_hand
     if (state == NULL || handle == NULL || handle->kind != RT_FAR_HANDLE_KIND_CHANNEL) {
         return 0;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     rt_far_channel_entry* entry = find_locked(state, handle);
     size_t count = entry != NULL ? entry->active_leases : 0;
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     return count;
 }
 
@@ -454,13 +454,13 @@ size_t rt_far_channel_debug_lease_count(rt_executor* ex) {
         return 0;
     }
     size_t count = 0;
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     for (const rt_far_channel_entry* it = state->head; it != NULL; it = it->next) {
         for (const rt_far_channel_lease* lease = it->leases; lease != NULL; lease = lease->next) {
             count++;
         }
     }
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     return count;
 }
 
@@ -484,17 +484,17 @@ rt_remote_task_status rt_far_channel_mint_sibling(rt_executor* ex,
     if (sibling == NULL) {
         return RT_REMOTE_TASK_STATUS_REFUSED;
     }
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     rt_far_channel_entry* entry = live_lease_locked(state, source);
     if (entry == NULL) {
-        pthread_mutex_unlock(&state->lock);
+        rt_token_unlock(&state->lock);
         rt_free((uint8_t*)sibling, sizeof(*sibling), _Alignof(rt_far_channel_lease));
         return RT_REMOTE_TASK_STATUS_STALE_TOKEN;
     }
     sibling->next = entry->leases;
     entry->leases = sibling;
     entry->active_leases++;
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     *out = (rt_far_task_handle){.task_id = entry->id,
                                 .generation = sibling->generation,
                                 .owner_shard_id = entry->owner_shard_id,

@@ -19,7 +19,7 @@ rt_remote_task_pending* rt_remote_task_pending_take_owner(rt_task* task) {
         return NULL;
     }
     rt_remote_task_pending* target = NULL;
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     // Through the task's own registration (rt_task.remote_owner_pending),
     // not a registry scan: the caller consumes and unlists the pending on
     // its own clock, and a pending the shutdown sweep already resolved keeps
@@ -35,7 +35,7 @@ rt_remote_task_pending* rt_remote_task_pending_take_owner(rt_task* task) {
             target = it;
         }
     }
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     return target;
 }
 
@@ -52,7 +52,7 @@ int rt_remote_task_anchored_binding_current(void** out_channel, void** out_state
         return 0;
     }
     int bound = 0;
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     // Through the task's own registration, for the same reason as
     // rt_remote_task_pending_take_owner: a body still bound after the caller
     // consumed, or after the shutdown sweep resolved, its pending.
@@ -66,7 +66,7 @@ int rt_remote_task_anchored_binding_current(void** out_channel, void** out_state
         }
         bound = 1;
     }
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     return bound;
 }
 
@@ -96,13 +96,13 @@ uint64_t rt_remote_task_anchored_state_type_id_current(void) {
         return 0;
     }
     uint64_t state_type_id = 0;
-    pthread_mutex_lock(&state->lock);
+    rt_token_lock(&state->lock);
     const rt_remote_task_pending* it = current->remote_owner_pending;
     if (it != NULL && (it->op == RT_REMOTE_TASK_OP_EXECUTE_ANCHORED ||
                        it->op == RT_REMOTE_TASK_OP_CHANNEL_SELECT)) {
         state_type_id = it->state_type_id;
     }
-    pthread_mutex_unlock(&state->lock);
+    rt_token_unlock(&state->lock);
     return state_type_id;
 #endif
 }

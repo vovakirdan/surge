@@ -216,7 +216,7 @@ void rt_remote_task_release_owned(rt_executor* ex, const rt_task* caller) {
     }
     for (;;) {
         rt_remote_task_pending* pending = NULL;
-        pthread_mutex_lock(&state->lock);
+        rt_token_lock(&state->lock);
         for (rt_remote_task_pending* it = state->pending_head; it != NULL; it = it->next) {
             if ((it->op == RT_REMOTE_TASK_OP_AWAIT || it->op == RT_REMOTE_TASK_OP_CANCEL) &&
                 it->caller_task_id == caller->id) {
@@ -225,7 +225,7 @@ void rt_remote_task_release_owned(rt_executor* ex, const rt_task* caller) {
                 break;
             }
         }
-        pthread_mutex_unlock(&state->lock);
+        rt_token_unlock(&state->lock);
         if (pending == NULL) {
             return;
         }
