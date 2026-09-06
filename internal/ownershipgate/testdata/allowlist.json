@@ -254,7 +254,7 @@
     },
     {
       "fixture": "testdata/golden/crossing/block03/valid/spawn_on_positive_copy_composite_capture.sg",
-      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block03/valid/spawn_on_positive_copy_composite_capture.sg:16:12-18:6",
+      "signature": "diagnostics:FUT7019@testdata/golden/crossing/block03/valid/spawn_on_positive_copy_composite_capture.sg:17:12-19:6",
       "group": "CF-001"
     },
     {
