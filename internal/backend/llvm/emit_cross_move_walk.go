@@ -277,11 +277,13 @@ func (w unshareWalk) leafAt(g *glueTmp, resolved types.TypeID, baseAlign, off ui
 // "nothing to do" for a shape the walk cannot reach is how a shared block
 // would travel unnoticed.
 //
-// The one shape it refuses is a container of counted elements. Making those
-// private means walking a buffer at runtime, which is not built. Nothing
-// compilable reaches it today: sema refuses to cross any value that may share
-// a counted block, and `float[]` is one. It is built when step 5 lifts that
-// refusal and a red row becomes possible -- RV2-DEBT-038.
+// Two shapes are refused. A container of counted elements: making those
+// private means walking a buffer at runtime, which is not built, and is built
+// when step 5 lifts sema's refusal of `float[]` and a red row becomes
+// possible -- RV2-DEBT-038. A runtime handle whose payload may share a block
+// (`Channel<float>`): the handle names storage that stays on the creator's
+// shard, so no walk on the value's own bytes can make it private; that shape
+// stays refused at sema for good, and this answer is its second belt.
 func (e *Emitter) canUnshareValue(id types.TypeID) bool {
 	return e.canUnshareValueRec(id, map[types.TypeID]struct{}{})
 }

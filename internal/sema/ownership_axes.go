@@ -303,6 +303,15 @@ func (r *Result) containsRefCountedScalar(id types.TypeID, seen map[types.TypeID
 	if !ok {
 		return false
 	}
+	// A fixed array is a NOMINAL struct that declares no fields -- its
+	// elements live inline and the element type is only in ArrayFixedInfo, so
+	// the struct walk below would answer "nothing inside" for `float[4]` and
+	// let four counted handles ship as plain bits. Both questions ask it: a
+	// Copy `float[4]` copied across a boundary duplicates four references as
+	// surely as a bare float does. Found by the G1 reviewers of 2026-09-06.
+	if elem, _, ok := in.ArrayFixedInfo(id); ok {
+		return r.containsRefCountedScalar(elem, seen, throughUnions)
+	}
 	if throughUnions {
 		// The owned-MOVE question reaches into every runtime handle's payload,
 		// containers and resources alike. A `float[]` is a handle whose

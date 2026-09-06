@@ -415,7 +415,7 @@ type V = Bare(Plain) | Empty();
 @intrinsic
 type Channel<T> = { __opaque: int };
 
-fn probe(p: own P, u: own U, v: own V, w: own Plain, f: float, arr: float[], s: string, ch: Channel<float>, ci: Channel<int>) -> int {
+fn probe(p: own P, u: own U, v: own V, w: own Plain, f: float, arr: float[], s: string, ch: Channel<float>, ci: Channel<int>, fixed: float[4], fixedi: int[4]) -> int {
     return 0;
 }
 `
@@ -438,6 +438,12 @@ fn probe(p: own P, u: own U, v: own V, w: own Plain, f: float, arr: float[], s: 
 		// there retains a block into a ring the creator's shard owns.
 		"Channel<float>": {true, false},
 		"Channel<int>":   {false, false},
+		// A fixed array is a nominal struct with no declared fields; its
+		// element type lives only in ArrayFixedInfo. BOTH questions must see
+		// through it: a Copy `float[4]` copied as bits duplicates four
+		// references.
+		"ArrayFixed<float, const 4, 4>": {true, true},
+		"ArrayFixed<int, const 4, 4>":   {false, false},
 	}
 	seen := make(map[string]bool, len(rows))
 	for id := types.TypeID(1); ; id++ {

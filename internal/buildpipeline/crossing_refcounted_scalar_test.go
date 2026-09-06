@@ -13,13 +13,18 @@ import (
 // An arbitrary-precision scalar is Copy, so copying its bits duplicates a
 // reference into a counted heap block without touching the count — and the
 // count is deliberately NON-ATOMIC, which is only sound while a block stays on
-// one shard. Until each boundary installs a deep copy, every path that would
-// hand a second shard the same word is refused.
+// one shard. The barrier is an un-share in the relinquishing operand: before a
+// value crosses, the compiler makes every counted block it carries private on
+// the source thread. Until the refusals are lifted, every path that would hand
+// a second shard the same word is refused.
 //
 // These rows pin that closure so reopening it is a deliberate act rather than a
-// silent regression. When the deep-copy barriers land, each row here should
-// flip to "compiles", and the leak witness plus a cross-shard census take over
-// as the gate.
+// silent regression. They split in two when the refusals are lifted: a shape
+// whose blocks CAN be made private (a scalar, a struct, a tuple, a fixed array,
+// a union of those) flips to "compiles", with the un-share clone count as the
+// gate; a shape whose blocks cannot -- a dynamic array's buffer, a channel's
+// ring, both reachable by their handle from the source -- stays refused with a
+// message that says so.
 //
 // The owned `@shard_movable` MOVE used to be left out on the argument that a
 // move transfers the references instead of sharing them. It transfers ONE
@@ -198,6 +203,70 @@ async fn go(dst: Placement) -> int {
 }
 `,
 			contains: []string{"`Channel<float>`", "arbitrary-precision"},
+		},
+		// A fixed array of floats is a nominal struct with no declared fields,
+		// so the walk that asks a struct's members answered "nothing inside"
+		// and `float[4]` shipped as plain bits -- four counted references in a
+		// Copy value. Found by the G1 reviewers 06.09; red on the tree before
+		// the ArrayFixedInfo arm (the program compiled).
+		{
+			name: "remote channel with a fixed float array element",
+			src: `
+async fn go() -> int {
+    let ch: far Channel<float[4]> = channel_on::<float[4]>(shard(0:ShardId), 4);
+    return 0;
+}
+`,
+			contains: []string{"remote channel cannot carry", "arbitrary-precision"},
+		},
+		// Two shapes the first attempt at NARROWING the element gate admitted
+		// and the reviewers caught (06.09): a `@copy` union carrying a float --
+		// its anchored `send` hands the ring the union's bits with no retain --
+		// and a far select whose two SEND arms are fed by ONE owned binding, so
+		// the runtime stages the same block into two cells. Both are refused
+		// on this tree; these rows pin that so a later narrowing cannot reopen
+		// them silently.
+		{
+			name: "remote channel with a copy union element carrying a float",
+			src: `
+@copy
+type P = { v: float };
+
+tag Held(P);
+tag Empty();
+@copy
+type U = Held(P) | Empty();
+
+async fn go() -> int {
+    let ch: far Channel<U> = channel_on::<U>(shard(0:ShardId), 4);
+    return 0;
+}
+`,
+			contains: []string{"remote channel cannot carry `U`"},
+		},
+		{
+			name: "one owned union fed to two far-select send arms",
+			src: `
+type P = { v: float };
+
+tag Held(P);
+tag Empty();
+type U = Held(P) | Empty();
+
+async fn go() -> int {
+    let ch: far Channel<U> = channel_on::<U>(shard(0:ShardId), 4);
+    let ch2: far Channel<U> = channel_on::<U>(shard(0:ShardId), 4);
+    let a: float = 2.5;
+    let held: U = Held(P{ v: a });
+    let won: int = select {
+        ch.send(own held) => 1;
+        ch2.send(own held) => 2;
+    };
+    print(a to string);
+    return won;
+}
+`,
+			contains: []string{"remote channel cannot carry `U`"},
 		},
 		{
 			name: "struct carrying a float field moved into a blocking body",

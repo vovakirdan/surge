@@ -303,16 +303,11 @@ fn main() -> int { return 0; }
 		// answers for it only if the borrow is not stripped first; it was.
 		"&float": {false, true},
 	}
-	// Where sema is known to answer WRONG today, the row pins the wrong answer
-	// by name so the disagreement is a fact with an owner rather than a
-	// silence: sema.Result.containsRefCountedScalar has no ArrayFixedInfo arm,
-	// and the nominal ArrayFixed<T, N> struct declares no fields, so a
-	// `float[4]` -- four counted handles inline, which the walk above visits
-	// one by one -- reads as sharing nothing. The fix is sema's, beside its
-	// KindArray arm; when it lands this entry goes red and is deleted.
-	semaMisses := map[string]bool{
-		"ArrayFixed<float, const 4, 4>": true,
-	}
+	// `float[4]` is in the table on purpose: the nominal ArrayFixed<T, N>
+	// struct declares no fields, so a walker that reads only declared fields
+	// sees four counted handles inline as sharing nothing. Both predicates
+	// have an ArrayFixedInfo arm now; this row is where a walker that loses
+	// it goes red.
 	seen := make(map[string]bool, len(rows))
 	for id := types.TypeID(1); ; id++ {
 		if _, ok := in.Lookup(id); !ok {
@@ -326,10 +321,7 @@ fn main() -> int { return 0; }
 		seen[label] = true
 		share := e.typeMayShareCountedBlock(id)
 		semaShare := result.Sema.MayShareCountedBlock(id)
-		switch {
-		case semaMisses[label] && semaShare:
-			t.Errorf("%s (type#%d): sema MayShareCountedBlock now answers %v; delete its semaMisses entry", label, id, semaShare)
-		case !semaMisses[label] && share != semaShare:
+		if share != semaShare {
 			t.Errorf("%s (type#%d): emitter typeMayShareCountedBlock=%v, sema MayShareCountedBlock=%v", label, id, share, semaShare)
 		}
 		if share != want.share {
