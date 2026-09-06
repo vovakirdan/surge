@@ -113,13 +113,17 @@ func (c *CapabilityClassifier) evaluateTraceable(
 // rewritten against the merged fact table because the original needs a live
 // checker holding one file's attributes.
 //
-// The use-site branches that judge a BORROWED or COPIED capture
-// (on_crossing_capture.go) are deliberately not folded in. They answer a
-// different question and reach a different verdict: a copied capture of a
-// reference-counted scalar is refused there, because copying its word would
-// leave two shards racing one non-atomic count — while an owned MOVE of the
-// same value is fine, since it transfers the reference instead of sharing it.
-// Folding the copy refusal in here would make the move impossible.
+// The use-site branches that judge a capture (on_crossing_capture.go) are
+// deliberately not folded in. They answer a different question: whether the
+// VALUE being captured may still share a counted block with a holder on this
+// shard. A reference-counted scalar's word is a reference into a non-atomic
+// count, and an owned MOVE transfers only the one reference the value holds —
+// `own P{ v: a }` keeps `a`'s reference alive on the source shard — so the
+// use site refuses such a capture (MayShareCountedBlock) until the
+// relinquishing operand makes every counted leaf private. That refusal is a
+// property of the VALUE and its siblings, not of the TYPE: the type stays
+// shard-movable, which is what keeps the move possible once the operand is
+// private.
 func (c *CapabilityClassifier) evaluateShardMovable(
 	id types.TypeID,
 	at capabilityLookup,

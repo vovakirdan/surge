@@ -386,3 +386,75 @@ fn probe(p: Pair, pf: Pf, m: Mixed, pl: Plain, tg: Tagged, o: Outer, d: Deep, bx
 		}
 	}
 }
+
+// MayShareCountedBlock is the owned-MOVE crossing question: can a value of this
+// type hold a counted block that a sibling holder on this shard still holds?
+// It walks union payloads, which ContainsRefCountedScalar (the Copy-bits
+// question, and the Traceable axis's leg) deliberately does not — so the two
+// are pinned side by side, and a union carrying a float is exactly where they
+// part company.
+func TestMayShareCountedBlockWalksUnionPayloads(t *testing.T) {
+	src := `
+@shard_movable
+type P = { v: float };
+
+@shard_movable
+type Plain = { a: int };
+
+tag Held(P);
+tag Bare(Plain);
+tag Empty();
+
+@shard_movable
+type U = Held(P) | Empty();
+
+@shard_movable
+type V = Bare(Plain) | Empty();
+
+fn probe(p: own P, u: own U, v: own V, w: own Plain, f: float, arr: float[], s: string) -> int {
+    return 0;
+}
+`
+	parseBag, semaBag, res := runSemaOnSnippetResult(t, src)
+	requireNoSemaErrors(t, parseBag, semaBag)
+	if res == nil || res.TypeInterner == nil {
+		t.Fatalf("expected a sema result")
+	}
+	in := res.TypeInterner
+
+	rows := map[string]struct{ share, contains bool }{
+		"float":        {true, true},
+		"P":            {true, true},
+		"own P":        {true, true},
+		"Array<float>": {true, false},
+		"U":            {true, false},
+		"own U":        {true, false},
+		"V":            {false, false},
+		"Plain":        {false, false},
+		"own Plain":    {false, false},
+		"string":       {false, false},
+	}
+	seen := make(map[string]bool, len(rows))
+	for id := types.TypeID(1); ; id++ {
+		if _, ok := in.Lookup(id); !ok {
+			break
+		}
+		label := types.Label(in, id)
+		want, ok := rows[label]
+		if !ok {
+			continue
+		}
+		seen[label] = true
+		if got := res.MayShareCountedBlock(id); got != want.share {
+			t.Errorf("%s: MayShareCountedBlock=%v, want %v", label, got, want.share)
+		}
+		if got := res.ContainsRefCountedScalar(id); got != want.contains {
+			t.Errorf("%s: ContainsRefCountedScalar=%v, want %v", label, got, want.contains)
+		}
+	}
+	for label := range rows {
+		if !seen[label] {
+			t.Errorf("%s: the snippet never produced this type, so its row pinned nothing", label)
+		}
+	}
+}

@@ -227,12 +227,27 @@ func (tc *typeChecker) classifyOnCapture(capType types.TypeID, span source.Span)
 	// An arbitrary-precision scalar is Copy, but its word is a reference into a
 	// counted heap block. COPYING one into the crossing state would leave the
 	// caller's binding and the body's state pointing at one block from two
-	// shards, racing a count that is deliberately not atomic. Refuse until the
-	// boundary installs a deep copy.
+	// shards, racing a count that is deliberately not atomic.
 	//
-	// An owned MOVE is exempt: it transfers the references instead of sharing
-	// them, so exactly one shard ends up holding each.
-	if !owned && tc.result != nil && tc.result.ContainsRefCountedScalar(capType) {
+	// An owned MOVE used to be exempt on the argument that it transfers the
+	// references instead of sharing them. That is true only while the block
+	// has exactly one holder, and `own P{ v: a }` retains `a`'s block into the
+	// field: after the move the body's state and the caller's live `a` name one
+	// block from two shards. So the owned shape is refused as well, until the
+	// relinquishing operand makes every counted leaf private (Epic 22 step 4).
+	// Union payloads count: MayShareCountedBlock walks them, the Copy-only
+	// ContainsRefCountedScalar does not.
+	if tc.result != nil && tc.result.MayShareCountedBlock(capType) {
+		if owned {
+			tc.report(diag.SemaCrossNotShardMovable, span,
+				"`%s` cannot cross a shard boundary yet: it carries an arbitrary-precision value, "+
+					"which is a reference into a counted heap block, and moving it would not make "+
+					"that block private — a copy taken before the move may still be held on this "+
+					"shard, and the count is not safe to share between shards. Use a fixed-width "+
+					"type (`float64`) for the value that crosses",
+				types.Label(tc.types, tc.valueType(capType)))
+			return 0, 0, false
+		}
 		tc.report(diag.SemaCrossNotShardMovable, span,
 			"`%s` cannot cross a shard boundary yet: it carries an arbitrary-precision value, "+
 				"which is a reference into a counted heap block, and the count is not safe to "+

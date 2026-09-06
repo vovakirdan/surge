@@ -256,17 +256,34 @@ func (r *Result) IsCopyValueComposite(id types.TypeID) bool {
 // floats is itself Copy, ships as plain bits today, and would hand a second
 // shard a pointer into the same counted block.
 //
-// Unions are deliberately not walked. A union is not Copy, so it can only
-// cross as an owned `@shard_movable` MOVE, which transfers the references
-// rather than sharing them and needs no copy at the boundary.
+// Unions are deliberately not walked here. A union is not Copy, so it never
+// ships as plain bits; the Traceable axis reaches its payloads through its
+// own fixpoint. The owned-MOVE question is MayShareCountedBlock's, below.
 func (r *Result) ContainsRefCountedScalar(id types.TypeID) bool {
 	if r == nil || r.TypeInterner == nil {
 		return false
 	}
-	return r.containsRefCountedScalar(id, make(map[types.TypeID]struct{}))
+	return r.containsRefCountedScalar(id, make(map[types.TypeID]struct{}), false)
 }
 
-func (r *Result) containsRefCountedScalar(id types.TypeID, seen map[types.TypeID]struct{}) bool {
+// MayShareCountedBlock reports whether a value of this type can hold, at any
+// depth — union payloads included — a reference into a counted heap block
+// that another holder on this shard may still hold too.
+//
+// This is the question an owned MOVE across a shard boundary has to ask, and
+// it is not answered by exclusivity. `own P{ v: a }` retains `a`'s block into
+// the field, so the moved value and the live `a` name one block: moving the
+// value transfers ONE of the references, and the non-atomic count is then
+// raced from two shards. Until the relinquishing operand makes every counted
+// leaf private, a type for which this answers true cannot cross by move.
+func (r *Result) MayShareCountedBlock(id types.TypeID) bool {
+	if r == nil || r.TypeInterner == nil {
+		return false
+	}
+	return r.containsRefCountedScalar(id, make(map[types.TypeID]struct{}), true)
+}
+
+func (r *Result) containsRefCountedScalar(id types.TypeID, seen map[types.TypeID]struct{}, throughUnions bool) bool {
 	if id == types.NoTypeID {
 		return false
 	}
@@ -286,16 +303,32 @@ func (r *Result) containsRefCountedScalar(id types.TypeID, seen map[types.TypeID
 	if !ok {
 		return false
 	}
+	if throughUnions {
+		// The owned-MOVE question reaches into element containers too: a
+		// `float[]` is a handle whose elements are counted blocks, each
+		// retained from whatever was pushed, so moving the array moves one
+		// reference per element while the pushers keep theirs. The Copy-bits
+		// question never gets here — a container is not Copy.
+		if payloads, ok := in.RuntimeHandlePayloads(id); ok &&
+			!in.IsRuntimeHandleType(id) && !in.IsRuntimePlacementType(id) {
+			for _, payload := range payloads {
+				if r.containsRefCountedScalar(payload, seen, throughUnions) {
+					return true
+				}
+			}
+			return false
+		}
+	}
 	switch tt.Kind {
 	case types.KindOwn, types.KindArray:
-		return r.containsRefCountedScalar(tt.Elem, seen)
+		return r.containsRefCountedScalar(tt.Elem, seen, throughUnions)
 	case types.KindReference, types.KindPointer:
 		// A borrow names storage it does not carry; the pointee crosses (or
 		// fails to) on its own terms, and borrows cannot cross at all.
 		return false
 	case types.KindStruct:
 		for _, f := range in.StructFields(id) {
-			if r.containsRefCountedScalar(f.Type, seen) {
+			if r.containsRefCountedScalar(f.Type, seen, throughUnions) {
 				return true
 			}
 		}
@@ -303,7 +336,31 @@ func (r *Result) containsRefCountedScalar(id types.TypeID, seen map[types.TypeID
 	case types.KindTuple:
 		if info, ok := in.TupleInfo(id); ok && info != nil {
 			for _, el := range info.Elems {
-				if r.containsRefCountedScalar(el, seen) {
+				if r.containsRefCountedScalar(el, seen, throughUnions) {
+					return true
+				}
+			}
+		}
+		return false
+	case types.KindUnion:
+		if !throughUnions {
+			return false
+		}
+		// The full membership, as ownsHeapWalk reads it: a bare type member
+		// holds whatever its type holds, a tag member whatever its payloads
+		// hold. A union whose membership cannot be read fails CLOSED — the
+		// refusal is the safe answer, and a spare one is a validator's to lift.
+		info, ok := in.UnionInfo(id)
+		if !ok || info == nil {
+			return true
+		}
+		for i := range info.Members {
+			m := &info.Members[i]
+			if m.Kind == types.UnionMemberType && r.containsRefCountedScalar(m.Type, seen, throughUnions) {
+				return true
+			}
+			for _, arg := range m.TagArgs {
+				if r.containsRefCountedScalar(arg, seen, throughUnions) {
 					return true
 				}
 			}

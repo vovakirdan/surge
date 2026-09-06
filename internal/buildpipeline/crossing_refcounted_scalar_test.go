@@ -21,10 +21,12 @@ import (
 // flip to "compiles", and the leak witness plus a cross-shard census take over
 // as the gate.
 //
-// The two shapes that are NOT here, on purpose:
-//   - an owned `@shard_movable` MOVE, which transfers the references instead of
-//     sharing them, so exactly one shard ends up holding each;
-//   - fixed-width `float64`, which is a machine word with no block behind it.
+// The owned `@shard_movable` MOVE used to be left out on the argument that a
+// move transfers the references instead of sharing them. It transfers ONE
+// reference — the value's own — and a sibling holder on the source shard keeps
+// the block alive, so those rows are here too now. The one shape that is NOT
+// here, on purpose: fixed-width `float64`, a machine word with no block behind
+// it (TestFixedWidthFloatStillCrosses).
 func TestRefCountedScalarCrossingsAreRefused(t *testing.T) {
 	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
 	cases := []struct {
@@ -79,6 +81,102 @@ async fn go() -> int {
 }
 `,
 			contains: []string{"remote channel cannot carry `float`", "sender's copy alive"},
+		},
+		// The owned-move rows. An owned `@shard_movable` value used to be exempt
+		// on the argument that a move transfers the reference instead of sharing
+		// it — true only while the block has exactly one holder. `own P{ v: a }`
+		// retains `a`'s block into the field, so after the move the destination
+		// shard holds a block the source shard still holds through `a`, and the
+		// non-atomic count is raced from two threads. Refused until the operand
+		// makes its counted leaves private (Epic 22 step 4).
+		{
+			name: "owned struct carrying a float field moved into an on body",
+			src: `
+@shard_movable
+type P = { v: float };
+
+async fn go(dst: Placement) -> int {
+    let a: float = 1.5;
+    let p: own P = own P{ v: a };
+    let r: TaskResult<int> = on dst { let x: float = p.v; ret 1; };
+    print(a to string);
+    return 0;
+}
+`,
+			contains: []string{"`P`", "arbitrary-precision", "moving it"},
+		},
+		{
+			name: "owned struct carrying a float field moved into a spawn on body",
+			src: `
+@shard_movable
+type P = { v: float };
+
+fn use(p: own P) -> int { return 1; }
+
+async fn start(dst: Placement) -> far Task<int> {
+    let a: float = 1.5;
+    let p: own P = own P{ v: a };
+    return spawn on dst { ret use(own p); };
+}
+`,
+			contains: []string{"`P`", "arbitrary-precision", "moving it"},
+		},
+		{
+			name: "owned union carrying a float payload moved into an on body",
+			src: `
+@shard_movable
+type P = { v: float };
+
+tag Held(P);
+tag Empty();
+@shard_movable
+type U = Held(P) | Empty();
+
+fn use(u: own U) -> int { return 1; }
+
+async fn go(dst: Placement) -> int {
+    let a: float = 1.5;
+    let held: U = Held(P{ v: a });
+    let u: own U = own held;
+    let r: TaskResult<int> = on dst { ret use(own u); };
+    print(a to string);
+    return 0;
+}
+`,
+			contains: []string{"`U`", "arbitrary-precision", "moving it"},
+		},
+		{
+			name: "owned float array moved into an on body",
+			src: `
+fn use(xs: own float[]) -> int { return 1; }
+
+async fn go(dst: Placement) -> int {
+    let a: float = 1.5;
+    let xs: own float[] = own [a];
+    let r: TaskResult<int> = on dst { ret use(own xs); };
+    print(a to string);
+    return 0;
+}
+`,
+			contains: []string{"arbitrary-precision", "moving it"},
+		},
+		{
+			name: "struct carrying a float field moved into a blocking body",
+			src: `
+type P = { v: float };
+
+fn sink(p: own P) -> int { return 1; }
+
+async fn go() -> int {
+    let a: float = 1.5;
+    let p: P = P{ v: a };
+    let job: Task<int> = blocking { ret sink(own p); };
+    let r: TaskResult<int> = job.await();
+    print(a to string);
+    return 0;
+}
+`,
+			contains: []string{"`P`", "arbitrary-precision", "moving it"},
 		},
 	}
 	for _, tc := range cases {
