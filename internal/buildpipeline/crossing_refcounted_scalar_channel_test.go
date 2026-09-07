@@ -24,11 +24,17 @@ import (
 // Red on the tree before the narrowing: every row here was refused with
 // FUT7020 ("remote channel cannot carry ..."); the first two of them had
 // been refused since the element gate was widened to unions on 2026-09-06.
+//
+// A row whose element is a dynamic array reads the emitted IR and demands the
+// buffer walk. Compiling cleanly says the element gate let the shape through;
+// it says nothing about what the send's relinquishing operand emits, and an
+// un-share whose body is empty builds just as quietly.
 func TestRefCountedScalarChannelElementsShip(t *testing.T) {
 	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
 	cases := []struct {
 		name string
 		src  string
+		walk *bufferWalk
 	}{
 		{
 			name: "remote channel with a float element, fed by an anchored send",
@@ -118,42 +124,103 @@ async fn go() -> int {
 }
 `,
 		},
+		// The array's elements are one reference each into blocks `a` still
+		// holds; the send's relinquishing operand hands the buffer to the
+		// runtime's element walk, which makes each private before the ring
+		// takes the array. Refused before that walk existed, with the buffer
+		// named as the reason.
+		{
+			name: "remote channel with a float array element, fed by a far-select send arm",
+			src: `
+async fn go() -> int {
+    let ch: far Channel<float[]> = channel_on::<float[]>(shard(0:ShardId), 4);
+    let a: float = 1.5;
+    let xs: float[] = [a];
+    let won: int = select {
+        ch.send(own xs) => 1;
+    };
+    print(a to string);
+    return won;
+}
+`,
+			walk: &bufferWalk{stride: 8, elem: []string{"call ptr @rt_bigfloat_unshare("}},
+		},
+		// Built empty, so the element union `Option<float>` is named by the
+		// array's type and by nothing else in the function; the send's walk
+		// switches on its tag per slot and reads a membership the module has
+		// to publish from the type alone.
+		{
+			name: "remote channel with an element of optional floats, the array built empty and sent by a far-select arm",
+			src: `
+async fn go() -> int {
+    let ch: far Channel<Option<float>[]> = channel_on::<Option<float>[]>(shard(0:ShardId), 4);
+    let xs: Option<float>[] = [];
+    let won: int = select {
+        ch.send(own xs) => 1;
+    };
+    return won;
+}
+`,
+			walk: &bufferWalk{
+				stride: 16,
+				elem:   []string{"switch i32", "call ptr @rt_bigfloat_unshare("},
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			compileCleanly(t, tc.src)
+			ir := compileCleanly(t, tc.src)
+			if tc.walk != nil {
+				requireBufferWalk(t, ir, *tc.walk)
+			}
 		})
 	}
 }
 
-// What the walk cannot make private stays refused at the channel's creation,
-// in words that say why: a dynamic array's buffer is storage the sender keeps.
+// What no walk can make private stays refused at the channel's creation, in
+// words that say why: a map's table is storage the sender keeps, and no
+// per-element walk reaches it the way the array's buffer walk reaches a
+// buffer.
 func TestRefCountedScalarChannelElementsStayRefused(t *testing.T) {
 	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
-	src := `
+	cases := []struct {
+		name     string
+		src      string
+		contains []string
+	}{
+		{
+			name: "remote channel with a map element valued by floats",
+			src: `
 async fn go() -> int {
-    let ch: far Channel<float[]> = channel_on::<float[]>(shard(0:ShardId), 4);
+    let ch: far Channel<Map<int, float>> = channel_on::<Map<int, float>>(shard(0:ShardId), 4);
     return 0;
 }
-`
-	path := filepath.Join(t.TempDir(), "main.sg")
-	if err := os.WriteFile(path, []byte(src), 0o600); err != nil {
-		t.Fatalf("write source: %v", err)
+`,
+			contains: []string{"remote channel cannot carry `", "map's table"},
+		},
 	}
-	res, _ := Compile(context.Background(), &CompileRequest{
-		TargetPath: path, Backend: BackendLLVM, MaxDiagnostics: 200,
-	})
-	if res.Diagnose == nil || res.Diagnose.Bag == nil {
-		t.Fatal("missing diagnostics bag")
-	}
-	found := findDiagnostic(res.Diagnose.Bag.Items(), diag.FutCrossingPayloadNotShippable)
-	if found == nil {
-		t.Fatalf("the dynamic array element was not refused; got %s", summarizeCodes(res.Diagnose.Bag.Items()))
-	}
-	for _, want := range []string{"remote channel cannot carry `", "dynamic array's buffer"} {
-		if !strings.Contains(found.Message, want) {
-			t.Fatalf("refusal does not say %q: %s", want, found.Message)
-		}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "main.sg")
+			if err := os.WriteFile(path, []byte(tc.src), 0o600); err != nil {
+				t.Fatalf("write source: %v", err)
+			}
+			res, _ := Compile(context.Background(), &CompileRequest{
+				TargetPath: path, Backend: BackendLLVM, MaxDiagnostics: 200,
+			})
+			if res.Diagnose == nil || res.Diagnose.Bag == nil {
+				t.Fatal("missing diagnostics bag")
+			}
+			found := findDiagnostic(res.Diagnose.Bag.Items(), diag.FutCrossingPayloadNotShippable)
+			if found == nil {
+				t.Fatalf("the element was not refused; got %s", summarizeCodes(res.Diagnose.Bag.Items()))
+			}
+			for _, want := range tc.contains {
+				if !strings.Contains(found.Message, want) {
+					t.Fatalf("refusal does not say %q: %s", want, found.Message)
+				}
+			}
+		})
 	}
 }
 

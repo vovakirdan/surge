@@ -232,21 +232,23 @@ func (tc *typeChecker) classifyOnCapture(capType types.TypeID, span source.Span)
 	// that holds one -- copied, or moved while a sibling binding still holds
 	// the block (`own P{ v: a }` retains `a`'s block into the field) -- is made
 	// PRIVATE in the relinquishing operand before the state ships: the lowering
-	// un-shares every counted leaf the walk can reach, so the body's state and
-	// the caller's bindings never name one block from two shards.
+	// un-shares every counted leaf the walk can reach, and a dynamic array's
+	// buffer is walked element by element by the runtime in that operand, so
+	// the body's state and the caller's bindings never name one block from two
+	// shards.
 	//
-	// What the walk cannot reach is refused here, in words that say why: a
-	// dynamic array's buffer and a channel's ring are storage this shard keeps
-	// and the handle only names, so no walk over the captured value's own bytes
-	// makes their blocks private. Union payloads count on both sides of that
-	// question; the Copy-only ContainsRefCountedScalar does not walk them.
+	// What no walk reaches is refused here, in words that say why: a map's
+	// table and a channel's ring are storage this shard keeps and the handle
+	// only names, with no per-element walk into them. Union payloads count on
+	// both sides of that question; the Copy-only ContainsRefCountedScalar does
+	// not walk them.
 	if tc.result != nil && tc.result.CountedBlockStaysShared(capType) {
 		tc.report(diag.SemaCrossNotShardMovable, span,
 			"`%s` cannot cross a shard boundary: it holds arbitrary-precision values in storage "+
-				"this shard keeps (a dynamic array's buffer, a channel's ring), so the counted "+
+				"this shard keeps (a map's table, a channel's ring), so the counted "+
 				"heap blocks behind them cannot be made private before the value ships, and the "+
 				"count is not safe to share between shards. Use a fixed-width type (`float64`) "+
-				"for the elements, or capture the values themselves",
+				"for the values it holds, or capture the values themselves",
 			types.Label(tc.types, tc.valueType(capType)))
 		return 0, 0, false
 	}
@@ -429,9 +431,10 @@ func (tc *typeChecker) registerBlockingBodyOwnership(body ast.StmtID) {
 // exclude -- a capture is by definition read into a frame. Both reference-counted
 // families reach an accepted program: a HANDLE, and a SCALAR whose block the
 // relinquishing operand makes private before the frame is submitted (the loop
-// in typeExprBlocking refuses only a scalar the walk cannot reach, inside a
-// container's buffer or a channel's ring). Either way the body owes the field's
-// one reference back, and this registration is what makes it pay.
+// in typeExprBlocking refuses only a scalar no walk reaches, inside a map's
+// table or a channel's ring; an array's buffer is walked by the runtime).
+// Either way the body owes the field's one reference back, and this
+// registration is what makes it pay.
 //
 // Deliberately not shared with registerAsyncBodyOwnership above, which still
 // asks only the transfer predicate. A local `async` block's frame is reclaimed

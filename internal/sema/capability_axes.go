@@ -120,8 +120,9 @@ func (c *CapabilityClassifier) evaluateTraceable(
 // count, and an owned MOVE transfers only the one reference the value holds —
 // `own P{ v: a }` keeps `a`'s reference alive on the source shard. So the
 // relinquishing operand un-shares every counted leaf the walk can reach before
-// the state ships, and the use site refuses only what the walk cannot reach
-// (CountedBlockStaysShared: a container's buffer, a channel's ring). That is
+// the state ships -- a dynamic array's buffer among them, walked element by
+// element by the runtime -- and the use site refuses only what no walk
+// reaches (CountedBlockStaysShared: a map's table, a channel's ring). That is
 // a property of the VALUE and its siblings, not of the TYPE: the type is
 // shard-movable, which is what makes the move possible once the operand is
 // private.

@@ -26,13 +26,15 @@ import (
 // registerBlockingBodyOwnership, so this row reads the drops MIR emitted for it
 // rather than a shape MIR invented.
 //
-// `Channel<T>` is the reachable shape and, today, the only one. The predicate
-// that decides the unpack mode says "does not transfer" for exactly two
-// families: a capture owning no heap, which has nothing to hand on, and a
-// reference-counted one. Of the reference-counted pair the SCALAR (`float`)
-// never arrives — sema refuses a blocking capture carrying one, because its
-// count is not atomic and the worker is another thread — which leaves the
-// handle.
+// `Channel<T>` is the shape this row reads, and it is no longer the only one
+// that arrives. The predicate that decides the unpack mode says "does not
+// transfer" for exactly two families: a capture owning no heap, which has
+// nothing to hand on, and a reference-counted one. Both members of the
+// reference-counted pair reach an accepted program today — the HANDLE, and
+// the SCALAR (`float`), whose block the state literal's relinquishing operand
+// makes private before the job is submitted, so the worker thread's
+// non-atomic count is the frame's alone. The handle is the one here because
+// this row needs the real `Channel<T>`, for the reason below.
 //
 // The runtime cannot cover for the compiler here, and that is the point. The
 // worker CLAIMS the job's state cell immediately before it calls this body, so

@@ -1,6 +1,7 @@
 package llvm
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -11,10 +12,10 @@ import (
 // registry: it reads member offsets and union case layouts, so a synthetic
 // entry the way the plan rows use would prove nothing about the shapes here.
 //
-// The program declares the shapes and nothing crosses in it. That is on
-// purpose for now: sema refuses to cross a value that may share a counted
-// block (the stop-gap of Epic 22 step 4), so the walk has no call site yet and
-// these rows pin the BODY it will emit when the relinquishing sites are wired.
+// The program declares the shapes and nothing crosses in it, on purpose: the
+// relinquishing sites are wired (emit_unshare_sites_test.go pins where each
+// call sits), and these rows pin the BODY a shape gets, in isolation from any
+// site, so a body that drifts is red by its own name.
 const unshareWalkProbeProgram = `
 type Counted = { v: float, n: int };
 
@@ -28,7 +29,10 @@ type Sum = Held(Counted) | Bare(Plain);
 
 type WithArray = { xs: float[], n: int };
 
-fn probe(c: Counted, p: Plain, n: Nested, s: Sum, w: WithArray, f: float) -> int {
+type WithChannel = { ch: Channel<float>, n: int };
+
+fn probe(c: Counted, p: Plain, n: Nested, s: Sum, w: WithArray, f: float, xss: float[][], wc: WithChannel, m: Map<int, float>,
+         xo: Option<float>[]) -> int {
     return p.a;
 }
 
@@ -165,17 +169,104 @@ func TestUnshareWalkReachesAUnionArm(t *testing.T) {
 	}
 }
 
-// The one shape the walk cannot serve is refused at the caller, not skipped in
-// silence. A container of counted elements needs a runtime iteration over its
-// buffer, which is unbuilt; the pair below is what keeps a future call site
-// from emitting a no-op for it and calling the value private.
-func TestUnshareRefusesAContainerOfCountedElements(t *testing.T) {
-	_, ids, e := unshareProbe(t, "WithArray", "Counted", "Plain")
-	if !e.typeMayShareCountedBlock(ids["WithArray"]) {
-		t.Fatal("a struct holding float[] must be reported as possibly sharing a counted block")
+// A dynamic array's elements sit in a buffer the runtime owns, at no offset
+// this walk can address, so the body hands the array's SLOT to the runtime
+// together with the element stride and the element's own walk body, and the
+// runtime makes each element private in place. The member is not read out:
+// the runtime's array helpers take the slot, never the handle word. Exactly
+// one such call per array member, and no inline counted-leaf work for it --
+// an inline rt_bigfloat_unshare here would be un-sharing the handle word.
+func TestUnshareWalkHandsAContainersBufferToTheRuntime(t *testing.T) {
+	ir, ids, e := unshareProbe(t, "WithArray", "float")
+	if !e.typeMayShareCountedBlock(ids["WithArray"]) || !e.canUnshareValue(ids["WithArray"]) {
+		t.Fatal("a struct holding float[] must be reported as sharing and as one the walk can make private")
 	}
-	if e.canUnshareValue(ids["WithArray"]) {
-		t.Fatal("the walk claimed it can make a container of counted elements private; it has no buffer walk")
+	body := bodyOf(t, ir, unshareWalkName(ids["WithArray"]))
+	elemBody := unshareWalkName(ids["float"])
+	walkCall := regexp.MustCompile(`call void @rt_array_unshare_walk\(ptr %g\d+, i64 8, ptr @` + regexp.QuoteMeta(elemBody) + `\)`)
+	if n := len(walkCall.FindAllString(body, -1)); n != 1 {
+		t.Fatalf("WithArray has one array member; the walk handed the runtime a buffer %d times (want one call with stride 8 and the float body):\n%s", n, body)
+	}
+	if strings.Contains(body, "@rt_bigfloat_unshare(") {
+		t.Fatalf("the struct's walk un-shared inline where only the runtime can reach the elements:\n%s", body)
+	}
+	if strings.Contains(body, "load ptr") {
+		t.Fatalf("the walk read the handle word out; the runtime takes the slot:\n%s", body)
+	}
+	elem := bodyOf(t, ir, elemBody)
+	if !strings.Contains(elem, "load ptr, ptr ") || !strings.Contains(elem, "call ptr @rt_bigfloat_unshare(") || !strings.Contains(elem, "store ptr ") {
+		t.Fatalf("the element body the runtime calls per slot must load, un-share and store back:\n%s", elem)
+	}
+}
+
+// Nesting drains through the one worklist: the outer array's body walks its
+// buffer with the inner array's body, whose own body walks ITS buffer with the
+// float body. Three bodies, two runtime calls, each naming the next one down.
+func TestUnshareWalkNestsThroughAnArrayOfArrays(t *testing.T) {
+	ir, ids, e := unshareProbe(t, "Array<Array<float>>", "Array<float>", "float")
+	if !e.canUnshareValue(ids["Array<Array<float>>"]) {
+		t.Fatal("the walk must serve an array of arrays of floats through nesting")
+	}
+	outer := bodyOf(t, ir, unshareWalkName(ids["Array<Array<float>>"]))
+	innerName := unshareWalkName(ids["Array<float>"])
+	if n := strings.Count(outer, "call void @rt_array_unshare_walk("); n != 1 || !strings.Contains(outer, "ptr @"+innerName+")") {
+		t.Fatalf("the outer body must hand its buffer to the runtime once, with the inner array's body (%d calls):\n%s", n, outer)
+	}
+	inner := bodyOf(t, ir, innerName)
+	if !strings.Contains(inner, "getelementptr inbounds i8, ptr %val, i64 0\n") {
+		t.Fatalf("the inner body receives one element slot and must walk it at offset zero:\n%s", inner)
+	}
+	floatName := unshareWalkName(ids["float"])
+	if n := strings.Count(inner, "call void @rt_array_unshare_walk("); n != 1 || !strings.Contains(inner, "ptr @"+floatName+")") {
+		t.Fatalf("the inner body must hand its buffer to the runtime once, with the float body (%d calls):\n%s", n, inner)
+	}
+	if !strings.Contains(ir, "define void @"+floatName+"(ptr %val) {") {
+		t.Fatalf("the fixpoint did not emit the float body %s:\n%s", floatName, ir)
+	}
+}
+
+// The element body of an array whose element is a UNION the program never
+// builds: `Option<float>[]` reaches the probe only as a parameter, no
+// expression in it names `Option<float>`, and the union's membership is
+// therefore something the module must publish from the array's TYPE alone.
+// The walk reads that membership to switch on the tag, and it fails closed
+// without it -- so before the lowering looked through a handle to its
+// payload, this shape was admitted by sema and refused by the emitter. The
+// outer body hands the buffer to the runtime with the union's stride; the
+// union body switches on the discriminant and un-shares the float payload.
+func TestUnshareWalkReadsAnElementUnionTheFunctionNeverBuilds(t *testing.T) {
+	ir, ids, e := unshareProbe(t, "Array<Option<float>>", "Option<float>")
+	if !e.canUnshareValue(ids["Array<Option<float>>"]) {
+		t.Fatal("the walk must serve an array of optional floats; its element union's membership comes from the array's type, not from an expression that builds one")
+	}
+	outer := bodyOf(t, ir, unshareWalkName(ids["Array<Option<float>>"]))
+	elemBody := unshareWalkName(ids["Option<float>"])
+	walkCall := regexp.MustCompile(`call void @rt_array_unshare_walk\(ptr %g\d+, i64 16, ptr @` + regexp.QuoteMeta(elemBody) + `\)`)
+	if n := len(walkCall.FindAllString(outer, -1)); n != 1 {
+		t.Fatalf("the outer body must hand its buffer to the runtime once, with the union's 16-byte stride and the union body (%d such calls):\n%s", n, outer)
+	}
+	elem := bodyOf(t, ir, elemBody)
+	if !strings.Contains(elem, "switch i32") {
+		t.Fatalf("the union body read no discriminant, so it cannot know which slot holds a float:\n%s", elem)
+	}
+	if n := strings.Count(elem, "call ptr @rt_bigfloat_unshare("); n != 1 {
+		t.Fatalf("Option<float> holds one counted payload; the union body un-shared %d:\n%s", n, elem)
+	}
+}
+
+// What the walk still cannot serve is refused at the caller, not skipped in
+// silence: a handle whose payload may share and whose storage no per-element
+// walk reaches -- a channel's ring, a map's table. The pair below keeps a
+// relinquishing site from emitting a no-op for one and calling it private.
+func TestUnshareRefusesAHandleWhoseRingStaysBehind(t *testing.T) {
+	_, ids, e := unshareProbe(t, "WithChannel", "Map<int, float>", "Counted", "Plain")
+	for _, label := range []string{"WithChannel", "Map<int, float>"} {
+		if !e.typeMayShareCountedBlock(ids[label]) {
+			t.Fatalf("%s must be reported as possibly sharing a counted block", label)
+		}
+		if e.canUnshareValue(ids[label]) {
+			t.Fatalf("the walk claimed it can make %s private; nothing reaches a ring or a table", label)
+		}
 	}
 	if !e.canUnshareValue(ids["Counted"]) || !e.canUnshareValue(ids["Plain"]) {
 		t.Fatal("the refusal spread to shapes the walk does serve")

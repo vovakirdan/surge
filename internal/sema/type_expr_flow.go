@@ -365,16 +365,17 @@ func (tc *typeChecker) typeExprBlocking(id ast.ExprID, span source.Span) types.T
 		// not atomic. The state literal's operand makes every counted leaf the
 		// walk can reach private before the job is submitted -- a Copy capture
 		// is retained and then un-shared into a block of its own, a moved
-		// `P{ v: a }` has its field un-shared while `a` keeps the original --
-		// so only the shapes the walk cannot reach are refused: a dynamic
-		// array's buffer, a channel's ring.
+		// `P{ v: a }` has its field un-shared while `a` keeps the original, a
+		// moved `float[]` has its buffer walked element by element by the
+		// runtime -- so only the shapes no walk reaches are refused: a map's
+		// table, a channel's ring.
 		if tc.result != nil && tc.result.CountedBlockStaysShared(capType) {
 			tc.report(diag.SemaCrossNotShardMovable, cap.span,
 				"`%s` cannot be captured into `blocking`: it holds arbitrary-precision values in "+
-					"storage this thread keeps (a dynamic array's buffer, a channel's ring), so the "+
+					"storage this thread keeps (a map's table, a channel's ring), so the "+
 					"counted heap blocks behind them cannot be made private before the job is "+
 					"submitted, and the count is not safe to share with the worker thread. Use a "+
-					"fixed-width type (`float64`) for the elements, or capture the values themselves",
+					"fixed-width type (`float64`) for the values it holds, or capture the values themselves",
 				tc.typeLabel(capType))
 			continue
 		}

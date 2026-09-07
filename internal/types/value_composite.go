@@ -76,10 +76,7 @@ func (in *Interner) RuntimeHandlePayloads(id TypeID) ([]TypeID, bool) {
 	if t.Kind == KindString {
 		return nil, true
 	}
-	if t.Kind == KindArray && t.Count == ArrayDynamicLength {
-		return []TypeID{t.Elem}, true
-	}
-	if elem, ok := in.ArrayInfo(resolved); ok {
+	if elem, ok := in.DynamicArrayElem(resolved); ok {
 		return []TypeID{elem}, true
 	}
 	if key, value, ok := in.MapInfo(resolved); ok {
@@ -93,4 +90,31 @@ func (in *Interner) RuntimeHandlePayloads(id TypeID) ([]TypeID, bool) {
 		return nil, true
 	}
 	return nil, false
+}
+
+// DynamicArrayElem reports whether id is a DYNAMIC array -- a handle to a
+// buffer the runtime owns -- and returns the element type that buffer holds.
+// Both spellings answer, the structural `[T]` and the nominal `Array<T>`, and
+// an alias or `own` wrapper is looked through, so every asker sees one array
+// however the source spelled it.
+//
+// It is the one question the relinquishing walk, sema's crossing predicate
+// and the handle roster ask of an array, and it lives here so they cannot
+// drift on which element a buffer holds: the walk hands that element's own
+// body to the runtime, which calls it once per slot. A FIXED array is not a
+// dynamic one -- its elements live inline and ArrayFixedInfo answers for them
+// -- and a map, a string or a channel is a handle whose storage no
+// per-element walk reaches.
+func (in *Interner) DynamicArrayElem(id TypeID) (TypeID, bool) {
+	if in == nil || id == NoTypeID {
+		return NoTypeID, false
+	}
+	resolved := resolveAliasAndOwn(in, id)
+	if t, ok := in.Lookup(resolved); ok && t.Kind == KindArray && t.Count == ArrayDynamicLength {
+		return t.Elem, true
+	}
+	if elem, ok := in.ArrayInfo(resolved); ok {
+		return elem, true
+	}
+	return NoTypeID, false
 }

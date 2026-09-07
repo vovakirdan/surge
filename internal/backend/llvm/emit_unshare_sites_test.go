@@ -22,10 +22,17 @@ import (
 // and never on a retry re-entry, plus the body the module must define for it.
 //
 // The programs compile through the crossing harness (driver + sema + HIR +
-// MIR, no buildpipeline gate), the way the MIR rows do: sema admits a Copy
-// float as a far-select SEND payload and as a crossing or blocking RESULT, and
-// buildpipeline's channel-element and result gates are what refuse them at the
-// surface today. Nothing here is hand-inserted.
+// MIR, no buildpipeline gate), the way the MIR rows do. What these rows read
+// is the IR the emitter makes of the instruction, so the surface question --
+// may this shape cross at all -- is deliberately left to the crossing tables
+// in `buildpipeline`, where a counted float now rides a capture, a channel
+// element and a reply alike.
+//
+// Most rows get their un-share from the lowering. Two hand-build one
+// (unshareOfLocalInMain), and say so where they stand: one pins the walk a
+// dynamic array's local emits with no crossing around it, and one pins the
+// emitter's last line of defence over a map, which no compilable program is
+// meant to reach and which has no other way to be shown to work.
 
 // unshareCallRe matches a call of any relinquishing walk body.
 var unshareCallRe = regexp.MustCompile(`call void @unshare\.type\d+\(ptr %[^)]+\)`)
@@ -259,15 +266,20 @@ fn main() -> int { return 0; }
 }
 
 // A module that emits an un-share assembles: the body the call names is
-// defined, with the signature the call uses, and the runtime leaf it names is
-// declared. The text rows above say WHAT is defined; the toolchain is the only
-// judge of whether it links.
+// defined, with the signature the call uses, and the runtime leaf it CALLS is
+// declared -- the counted scalar's un-share for a float result, the buffer
+// walk for a float array captured into a blocking body. The leaf is pinned as
+// a call, not as a symbol: every module declares both runtime symbols, so an
+// empty walk body would otherwise assemble and read as green. The text rows
+// above say WHAT is defined; the toolchain is the only judge of whether it
+// links.
 func TestEmittedModuleWithAnUnshareAssembles(t *testing.T) {
 	clang, err := exec.LookPath("clang")
 	if err != nil {
 		t.Skip("clang unavailable")
 	}
-	sourceCode := `
+	cases := []struct{ name, src, leaf string }{
+		{"a float result", `
 async fn runs_a_counted_blocking_body(seed: int) -> float {
     let job: Task<float> = blocking {
         let x: float = 1.5;
@@ -278,23 +290,52 @@ async fn runs_a_counted_blocking_body(seed: int) -> float {
 
 @entrypoint
 fn main() -> int { return 0; }
-`
-	mod, result := lowerMIRFromSource(t, sourceCode)
-	ir, emitErr := EmitModule(mod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
-	if emitErr != nil {
-		t.Fatalf("emit LLVM IR: %v", emitErr)
+`, "call ptr @rt_bigfloat_unshare("},
+		{"a float array capture", `
+fn use(xs: own float[]) -> int { return 1; }
+
+async fn run() -> int {
+    let xs: float[] = [1.5];
+    let job: Task<int> = blocking { ret use(own xs); };
+    return compare job.await() { Success(v) => v; Cancelled() => 0; };
+}
+
+@entrypoint
+fn main() -> int { return 0; }
+`, "call void @rt_array_unshare_walk("},
+		{"an array of optional floats built empty", `
+fn use(xs: own Option<float>[]) -> int { return 1; }
+
+async fn run() -> int {
+    let xs: Option<float>[] = [];
+    let job: Task<int> = blocking { ret use(own xs); };
+    return compare job.await() { Success(v) => v; Cancelled() => 0; };
+}
+
+@entrypoint
+fn main() -> int { return 0; }
+`, "call void @rt_array_unshare_walk("},
 	}
-	if !unshareCallRe.MatchString(ir) {
-		t.Fatalf("the module emits no un-share, so assembling it proves nothing:\n%s", ir)
-	}
-	dir := t.TempDir()
-	path := filepath.Join(dir, "module.ll")
-	if writeErr := os.WriteFile(path, []byte(ir), 0o600); writeErr != nil {
-		t.Fatal(writeErr)
-	}
-	out, assembleErr := exec.Command(clang, "-x", "ir", "-c", "-o", filepath.Join(dir, "module.o"), path).CombinedOutput()
-	if assembleErr != nil {
-		t.Fatalf("the emitted module does not assemble: %v\n%s", assembleErr, out)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mod, result := lowerMIRFromSource(t, tc.src)
+			ir, emitErr := EmitModule(mod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
+			if emitErr != nil {
+				t.Fatalf("emit LLVM IR: %v", emitErr)
+			}
+			if !unshareCallRe.MatchString(ir) || !strings.Contains(ir, tc.leaf) {
+				t.Fatalf("the module emits no un-share reaching `%s` (a declaration alone is not a walk), so assembling it proves nothing:\n%s", tc.leaf, ir)
+			}
+			dir := t.TempDir()
+			path := filepath.Join(dir, "module.ll")
+			if writeErr := os.WriteFile(path, []byte(ir), 0o600); writeErr != nil {
+				t.Fatal(writeErr)
+			}
+			out, assembleErr := exec.Command(clang, "-x", "ir", "-c", "-o", filepath.Join(dir, "module.o"), path).CombinedOutput()
+			if assembleErr != nil {
+				t.Fatalf("the emitted module does not assemble: %v\n%s", assembleErr, out)
+			}
+		})
 	}
 }
 
@@ -340,28 +381,62 @@ func TestUnshareWalkOfABareCountedScalar(t *testing.T) {
 	}
 }
 
-// An un-share of a shape the walk cannot make private is a build failure that
-// names sema's predicate, never a silent no-op. Nothing compilable reaches it:
-// sema refuses to cross a value that may share a counted block, and a
-// container of counted elements is one. The row hands the emitter a hand-built
-// instruction so the backstop is a fact rather than an intention.
-func TestUnshareOfAContainerIsRefusedNamingSemasPredicate(t *testing.T) {
-	mirMod, result := lowerMIRFromSource(t, `
+// unshareOfLocalInMain hands the emitter a hand-built `unshare` of one local
+// of `main`, so a row can pin the site guard and the walk for a shape without
+// finding a program whose relinquishing site produces it.
+func unshareOfLocalInMain(t *testing.T, src, local string) (string, string, error) {
+	t.Helper()
+	mirMod, result := lowerMIRFromSource(t, src)
+	main := findMIRFunc(t, mirMod, "main")
+	xs := findMIRLocal(t, main, local)
+	main.Blocks[0].Instrs = append([]mir.Instr{{
+		Kind:    mir.InstrUnshare,
+		Unshare: mir.UnshareInstr{Place: mir.Place{Kind: mir.PlaceLocal, Local: xs}},
+	}}, main.Blocks[0].Instrs...)
+	ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
+	if err != nil {
+		return "", "", err
+	}
+	return ir, findLLVMFuncBody(t, ir, "fn."+itoaMIRFuncID(main.ID)), nil
+}
+
+// An un-share of a dynamic array's local EMITS: the local's slot holds the
+// handle word, which is the value the runtime's buffer walk takes, so the
+// site guard passes it through, and the body the site calls hands the buffer
+// to rt_array_unshare_walk with the float body. This is the shape a blocking
+// capture of `own xs` produces, pinned here without a crossing around it.
+func TestUnshareOfAFloatArrayCallsTheBufferWalk(t *testing.T) {
+	ir, body, err := unshareOfLocalInMain(t, `
 @entrypoint
 fn main() -> int {
     let xs: float[] = [];
     return 0;
 }
-`)
-	main := findMIRFunc(t, mirMod, "main")
-	xs := findMIRLocal(t, main, "xs")
-	main.Blocks[0].Instrs = append([]mir.Instr{{
-		Kind:    mir.InstrUnshare,
-		Unshare: mir.UnshareInstr{Place: mir.Place{Kind: mir.PlaceLocal, Local: xs}},
-	}}, main.Blocks[0].Instrs...)
-	_, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
+`, "xs")
+	if err != nil {
+		t.Fatalf("an un-share of float[] did not emit: %v", err)
+	}
+	if calls := unshareCallRe.FindAllString(body, -1); len(calls) != 1 {
+		t.Fatalf("main un-shares the array %d time(s), want exactly once:\n%s", len(calls), body)
+	}
+	assertUnshareBodiesDefinedOnce(t, ir, body)
+}
+
+// An un-share of a shape the walk cannot make private is a build failure that
+// names sema's predicate, never a silent no-op. Nothing compilable reaches it:
+// sema refuses to cross a value that may share a counted block no walk
+// reaches, and a map's table is one. The hand-built instruction is what makes
+// the backstop a fact rather than an intention.
+func TestUnshareOfAMapIsRefusedNamingSemasPredicate(t *testing.T) {
+	_, _, err := unshareOfLocalInMain(t, `
+@entrypoint
+fn main() -> int {
+    let m: Map<int, float> = Map::<int, float>.new();
+    return 0;
+}
+`, "m")
 	if err == nil {
-		t.Fatal("an un-share of float[] emitted; the walk has no buffer walk and must refuse")
+		t.Fatal("an un-share of Map<int, float> emitted; nothing walks a map's table and the emitter must refuse")
 	}
 	if !strings.Contains(err.Error(), "MayShareCountedBlock") {
 		t.Fatalf("the refusal must name sema's predicate, got: %v", err)
@@ -377,10 +452,13 @@ fn main() -> int {
 // belt: two predicates wrong the same way still do not read as green.
 //
 // The agreement is asserted over the labelled shapes, not the whole interner:
-// on a union whose layout was never finalized -- a stdlib instantiation the
-// program never touches -- the emitter fails CLOSED on purpose, where sema
-// reads the membership structurally. No such type reaches a relinquishing
-// site, because every type a function touches is finalized.
+// on a union whose membership the module never published -- a stdlib
+// instantiation the program never touches -- the emitter fails CLOSED on
+// purpose, where sema reads the membership structurally. A relinquishing site
+// CAN reach a type no expression builds: the element of an array built empty
+// (`let xs: Option<float>[] = []`) is named by the array's type alone, and
+// the lowering publishes it by looking through the handle to its payload.
+// The `Array<Option<float>>` row is where that stops holding.
 func TestUnsharePredicatesAgreeWithSema(t *testing.T) {
 	mirMod, result := lowerMIRFromSource(t, `
 @copy
@@ -396,7 +474,8 @@ type U = Held(P) | Empty();
 type WithArray = { xs: float[] };
 
 fn probe(f: float, c: C, p: own P, t: (float, int), u: U, xs: float[], w: WithArray,
-         fx: float[4], s: string, ch: Channel<float>, ci: Channel<int>, r: &float) -> int {
+         fx: float[4], s: string, ch: Channel<float>, ci: Channel<int>, r: &float,
+         xss: float[][], chs: Channel<float>[], m: Map<int, float>, xo: Option<float>[]) -> int {
     return 0;
 }
 
@@ -407,14 +486,23 @@ fn main() -> int { return 0; }
 	e := &Emitter{mod: mirMod, types: in}
 
 	rows := map[string]struct{ share, private bool }{
-		"float":                         {true, true},
-		"C":                             {true, true},
-		"P":                             {true, true},
-		"own P":                         {true, true},
-		"(float, int)":                  {true, true},
-		"U":                             {true, true},
-		"Array<float>":                  {true, false},
-		"WithArray":                     {true, false},
+		"float":        {true, true},
+		"C":            {true, true},
+		"P":            {true, true},
+		"own P":        {true, true},
+		"(float, int)": {true, true},
+		"U":            {true, true},
+		// A dynamic array is served by the runtime's buffer walk, through
+		// nesting; it answers for its element, so an array of channels is
+		// refused for the ring no walk reaches, and a map for its table. The
+		// optional-float element is named by the array's type and built
+		// nowhere; its membership has to reach the emitter through the array.
+		"Array<float>":                  {true, true},
+		"WithArray":                     {true, true},
+		"Array<Array<float>>":           {true, true},
+		"Array<Channel<float>>":         {true, false},
+		"Map<int, float>":               {true, false},
+		"Array<Option<float>>":          {true, true},
 		"ArrayFixed<float, const 4, 4>": {true, true},
 		"string":                        {false, true},
 		"Channel<float>":                {true, false},
@@ -484,37 +572,51 @@ func assertUnshareCallPrecedes(t *testing.T, body, sink string) {
 	}
 }
 
-// assertUnshareBodiesDefinedOnce pins the drain: every walk a body calls is
-// defined exactly once in the module, and the module defines no walk nobody
-// called. It also pins that the defined body reaches the runtime leaf, so a
-// walk emitted for the wrong layout -- one with nothing counted in it -- would
-// not read as green.
+// assertUnshareBodiesDefinedOnce pins the drain: every walk the site's body
+// names, and every walk those bodies name in turn -- a nested composite's by
+// a call, an array element's as the function pointer handed to the runtime --
+// is defined exactly once in the module, and the module defines no walk
+// nobody reaches. It also pins that each body CALLS a runtime leaf (the
+// counted scalar's un-share or the buffer walk), so a walk emitted for the
+// wrong layout -- one with nothing counted in it -- would not read as green.
 func assertUnshareBodiesDefinedOnce(t *testing.T, ir, body string) {
 	t.Helper()
-	nameRe := regexp.MustCompile(`@(unshare\.type\d+)\(`)
-	called := map[string]bool{}
-	for _, m := range nameRe.FindAllStringSubmatch(body, -1) {
-		called[m[1]] = true
-	}
-	if len(called) == 0 {
-		t.Fatalf("the body calls no walk:\n%s", body)
-	}
+	nameRe := regexp.MustCompile(`@(unshare\.type\d+)\b`)
 	defined := map[string]int{}
 	for _, line := range unshareBodyRe.FindAllString(ir, -1) {
 		defined[nameRe.FindStringSubmatch(line)[1]]++
 	}
-	for name := range called {
+	reached := map[string]bool{}
+	pending := []string{}
+	for _, m := range nameRe.FindAllStringSubmatch(body, -1) {
+		pending = append(pending, m[1])
+	}
+	if len(pending) == 0 {
+		t.Fatalf("the body calls no walk:\n%s", body)
+	}
+	for len(pending) > 0 {
+		name := pending[0]
+		pending = pending[1:]
+		if reached[name] {
+			continue
+		}
+		reached[name] = true
 		if defined[name] != 1 {
-			t.Fatalf("%s is called and defined %d time(s), want exactly once:\n%s", name, defined[name], ir)
+			t.Fatalf("%s is reached and defined %d time(s), want exactly once:\n%s", name, defined[name], ir)
 		}
 		walk := bodyOf(t, ir, name)
-		if !strings.Contains(walk, "@rt_bigfloat_unshare(") {
-			t.Fatalf("%s never reaches the runtime leaf; it was emitted for a layout with nothing counted in it:\n%s", name, walk)
+		if !strings.Contains(walk, "call ptr @rt_bigfloat_unshare(") && !strings.Contains(walk, "call void @rt_array_unshare_walk(") {
+			t.Fatalf("%s never calls a runtime leaf; it was emitted for a layout with nothing counted in it:\n%s", name, walk)
+		}
+		for _, m := range nameRe.FindAllStringSubmatch(walk, -1) {
+			if m[1] != name {
+				pending = append(pending, m[1])
+			}
 		}
 	}
 	for name := range defined {
-		if !called[name] {
-			t.Fatalf("%s is defined but nothing in the site's body calls it:\n%s", name, ir)
+		if !reached[name] {
+			t.Fatalf("%s is defined but nothing reachable from the site's body names it:\n%s", name, ir)
 		}
 	}
 }

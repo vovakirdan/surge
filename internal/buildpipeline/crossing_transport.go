@@ -120,14 +120,17 @@ func crossingRecordExecutable(res *sema.Result, info *sema.CrossingLoweringInfo)
 		// (site 2), and an anchored body's `ch.send(own f)` gives the capture's
 		// own reference away, one the caller made private when the capture
 		// entered the state (site 1; sema holds the send to that shape). So a
-		// bare `float`, a struct, a union, a fixed array of them cross.
+		// bare `float`, a struct, a union, a fixed array of them cross, and so
+		// does a dynamic array of them: the send's operand hands its buffer to
+		// the runtime's element walk, which makes each element private in
+		// place before the ring takes the array.
 		//
-		// What stays refused is what no walk over the element's own bytes can
-		// make private — a dynamic array's buffer, a nested channel's ring —
-		// asked as the MOVE question through unions (MayShareCountedBlock) and
-		// answered by the walk (CountedBlockCanBeMadePrivate), the same pair the
-		// capture gate asks. Refused at the channel's creation rather than at
-		// each send, so the diagnostic lands where the element type was chosen.
+		// What stays refused is what no walk can make private — a map's table,
+		// a nested channel's ring — asked as the MOVE question through unions
+		// (MayShareCountedBlock) and answered by the walk
+		// (CountedBlockCanBeMadePrivate), the same pair the capture gate asks.
+		// Refused at the channel's creation rather than at each send, so the
+		// diagnostic lands where the element type was chosen.
 		return !res.CountedBlockStaysShared(info.PayloadType)
 	case sema.CrossingLoweringChannelSelect:
 		// The reply is the winner index (plain bits); the arms' send payloads

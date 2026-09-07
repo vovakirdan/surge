@@ -80,6 +80,22 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (tagLa
 		if tt.Kind == types.KindUnion {
 			typeIDs[id] = struct{}{}
 		}
+		// A handle's payload is not a field. The nominal Array<T>, Map<K, V>,
+		// Channel<T> and Task<T> declare none, so the struct arm below would
+		// pass over the element a buffer holds, and an array built empty
+		// (`let xs: Option<float>[] = []`) puts that element in no operand the
+		// function touches. The relinquishing walk reads the element union's
+		// membership when the array crosses, and a membership missing here
+		// fails that walk closed on a shape sema admitted. A fixed array's
+		// element lives inline and is reached the same way.
+		if payloads, ok := typesIn.RuntimeHandlePayloads(id); ok {
+			for _, payload := range payloads {
+				visitTypeDeep(payload)
+			}
+		}
+		if elem, _, ok := typesIn.ArrayFixedInfo(id); ok {
+			visitTypeDeep(elem)
+		}
 		switch tt.Kind {
 		case types.KindUnion:
 			if info, ok := typesIn.UnionInfo(id); ok && info != nil {

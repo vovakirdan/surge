@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"surge/internal/backend/llvm"
 	"surge/internal/diag"
 )
 
@@ -19,14 +20,15 @@ import (
 //
 // The rows split by what that walk can reach. A CAPTURE whose counted blocks
 // live inline -- a scalar, a struct, a tuple, a fixed array, a union of those
-// -- is un-shared in the operand and crosses; those shapes are in
-// TestRefCountedScalarCapturesCross below, and the e2e row that counts the
-// clones is the gate (internal/vm, unshare_clones). A shape whose blocks the
-// walk cannot reach stays refused with a message that says so: a dynamic
-// array's buffer and a channel's ring are both storage this shard keeps and
-// the handle merely names. The channel ELEMENT is asked the same question at
-// the channel's creation (crossing_refcounted_scalar_channel_test.go), and
-// the crossing RESULT at its reply (crossing_refcounted_scalar_reply_test.go).
+// -- is un-shared in the operand and crosses, and so is a dynamic array: the
+// runtime walks its buffer element by element in the same operand. Those
+// shapes are in TestRefCountedScalarCapturesCross below, and the e2e row that
+// counts the clones is the gate (internal/vm, unshare_clones). A shape whose
+// blocks no walk reaches stays refused with a message that says so: a map's
+// table and a channel's ring are storage this shard keeps and the handle
+// merely names. The channel ELEMENT is asked the same question at the
+// channel's creation (crossing_refcounted_scalar_channel_test.go), and the
+// crossing RESULT at its reply (crossing_refcounted_scalar_reply_test.go).
 //
 // The one shape that is NOT here, on purpose: fixed-width `float64`, a machine
 // word with no block behind it (TestFixedWidthFloatStillCrosses).
@@ -37,41 +39,57 @@ func TestRefCountedScalarCrossingsAreRefused(t *testing.T) {
 		src      string
 		contains []string
 	}{
-		// A dynamic array's elements are counted blocks in a buffer the handle
-		// names and this shard keeps; an owned move hands over one reference
-		// per element while every pusher keeps its own, and the relinquishing
-		// walk has no buffer walk to make them private. Refused for that
-		// reason, in those words.
+		// The counted-block gate lets an owned float array through now, so the
+		// row reaches the capture rule behind it: an owned user value crosses
+		// into an `on` body only when its type is marked `@shard_movable`, and
+		// `Array<T>` carries no marker. That rule is not this file's subject;
+		// the row pins that this is the refusal the shape meets today.
 		{
-			name: "owned float array moved into an on body",
+			name: "owned float array moved into an on body still waits on the shard-movable capture rule",
 			src: `
 fn use(xs: own float[]) -> int { return 1; }
 
 async fn go(dst: Placement) -> int {
     let a: float = 1.5;
-    let xs: own float[] = own [a];
+    let xs: float[] = [a];
     let r: TaskResult<int> = on dst { ret use(own xs); };
     print(a to string);
     return 0;
 }
 `,
-			contains: []string{"`Array<float>`", "cannot be made private"},
+			contains: []string{"not shard-movable", "`@shard_movable`"},
 		},
+		// A map keyed or valued by a counted scalar shares like an array does,
+		// and its table has no per-element walk: refused for that reason, in
+		// those words.
 		{
-			name: "float array captured into a blocking body",
+			name: "map keyed by int and valued by float moved into an on body",
 			src: `
-fn use(xs: own float[]) -> int { return 1; }
+fn use(m: own Map<int, float>) -> int { return 1; }
 
-async fn go() -> int {
-    let a: float = 1.5;
-    let xs: float[] = [a];
-    let job: Task<int> = blocking { ret use(own xs); };
-    let r: TaskResult<int> = job.await();
-    print(a to string);
+async fn go(dst: Placement) -> int {
+    let m: Map<int, float> = Map::<int, float>.new();
+    let r: TaskResult<int> = on dst { ret use(own m); };
     return 0;
 }
 `,
-			contains: []string{"`[float]`", "cannot be made private"},
+			contains: []string{"`Map<int, float>`", "map's table", "cannot be made private"},
+		},
+		// An array answers for its element: the buffer walk reaches each
+		// channel handle, but nothing reaches the ring behind it.
+		{
+			name: "array of float channels captured into a blocking body",
+			src: `
+fn use(chs: own Channel<float>[]) -> int { return 1; }
+
+async fn go() -> int {
+    let chs: Channel<float>[] = [];
+    let job: Task<int> = blocking { ret use(own chs); };
+    let r: TaskResult<int> = job.await();
+    return 0;
+}
+`,
+			contains: []string{"cannot be captured into `blocking`", "channel's ring"},
 		},
 		// A LOCAL channel handle captured by Copy into a crossing body. Runtime
 		// handles are skipped by ContainsRefCountedScalar and were skipped by the
@@ -156,10 +174,12 @@ async fn go() -> int {
 }
 
 // compileCleanly builds one program through the LLVM pipeline, all the way
-// to the MIR validators, and fails on any error: a source that fails for an
-// unrelated reason would satisfy a check for one code while proving nothing.
-// The program is given an entrypoint so the pipeline runs past sema.
-func compileCleanly(t *testing.T, src string) {
+// through the MIR validators and the LLVM emitter, and fails on any error: a
+// source that fails for an unrelated reason would satisfy a check for one
+// code while proving nothing. The program is given an entrypoint so the
+// pipeline runs past sema. It returns the emitted IR so a row can pin what
+// the module names.
+func compileCleanly(t *testing.T, src string) string {
 	t.Helper()
 	src += "\n@entrypoint\nfn main() -> int { return 0; }\n"
 	path := filepath.Join(t.TempDir(), "main.sg")
@@ -185,6 +205,14 @@ func compileCleanly(t *testing.T, src string) {
 	if err != nil {
 		t.Fatalf("did not compile cleanly: %v", err)
 	}
+	// The emitter is the last judge: a shape sema admits and the walk cannot
+	// serve is a build failure there, and a row that stopped at MIR would
+	// call it green.
+	ir, emitErr := llvm.EmitModule(res.MIR, res.Diagnose.Sema.TypeInterner, res.Diagnose.Symbols.Table, res.Diagnose.FileSet)
+	if emitErr != nil {
+		t.Fatalf("did not emit cleanly: %v", emitErr)
+	}
+	return ir
 }
 
 // The captures whose counted blocks live inline: each is un-shared in the
@@ -198,11 +226,18 @@ func compileCleanly(t *testing.T, src string) {
 //
 // Red on the tree before the narrowing: every row here was refused with
 // SEM3168 (TestRefCountedScalarCrossingsAreRefused held them).
+//
+// A row whose NAME claims the buffer walk reads the emitted IR and demands
+// it. Compiling cleanly says the gate let the shape through; it says nothing
+// about what the relinquishing operand emits. Cut the emitter's dynamic-array
+// leaf arm out and the walk body is empty, the module still builds, and a row
+// that only compiled would call that green.
 func TestRefCountedScalarCapturesCross(t *testing.T) {
 	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
 	cases := []struct {
 		name string
 		src  string
+		walk *bufferWalk
 	}{
 		{
 			name: "bare float captured by copy into an on body",
@@ -362,9 +397,85 @@ async fn go() -> int {
 }
 `,
 		},
+		// The array's elements are counted blocks in a buffer the handle names,
+		// one reference per element while `a` keeps its own; the runtime walks
+		// that buffer in the relinquishing operand and makes each private.
+		// Refused before the walk existed, with the buffer named as the reason.
+		{
+			name: "float array captured into a blocking body, its buffer walked element by element",
+			src: `
+fn use(xs: own float[]) -> int { return 1; }
+
+async fn go() -> int {
+    let a: float = 1.5;
+    let xs: float[] = [a];
+    let job: Task<int> = blocking { ret use(own xs); };
+    let r: TaskResult<int> = job.await();
+    print(a to string);
+    return 0;
+}
+`,
+			walk: &bufferWalk{stride: 8, elem: []string{"call ptr @rt_bigfloat_unshare("}},
+		},
+		// The array is built EMPTY, so no expression in the function names its
+		// element union: `Option<float>` reaches the module through the array's
+		// type alone. The walk switches on that union's tag per slot and needs
+		// its membership published; sema admitted this shape while the emitter
+		// refused it as a build error naming sema's predicate, until the
+		// lowering looked through the handle to the payload it holds.
+		{
+			name: "array of optional floats built empty and captured into a blocking body, its element union read from the type alone",
+			src: `
+fn use(xs: own Option<float>[]) -> int { return 1; }
+
+async fn go() -> int {
+    let xs: Option<float>[] = [];
+    let job: Task<int> = blocking { ret use(own xs); };
+    let r: TaskResult<int> = job.await();
+    return 0;
+}
+`,
+			walk: &bufferWalk{
+				stride: 16,
+				elem:   []string{"switch i32", "call ptr @rt_bigfloat_unshare("},
+			},
+		},
+		// The element union's own arm holds a dynamic array, so the walk the
+		// runtime is handed hands a second buffer back to it: the outer body
+		// steps the union's 16-byte slots, and the union's body steps the
+		// float's 8-byte ones. That nesting drains through the one worklist.
+		{
+			name: "array of a user union with a float array arm, built empty and captured into a blocking body",
+			src: `
+tag HeldArr(float[]);
+tag HeldNone();
+type U = HeldArr(float[]) | HeldNone();
+
+fn use(xs: own U[]) -> int { return 1; }
+
+async fn go() -> int {
+    let xs: U[] = [];
+    let job: Task<int> = blocking { ret use(own xs); };
+    let r: TaskResult<int> = job.await();
+    return 0;
+}
+`,
+			walk: &bufferWalk{
+				stride: 16,
+				elem: []string{
+					"switch i32",
+					"call void @rt_array_unshare_walk(",
+				},
+			},
+		},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) { compileCleanly(t, tc.src) })
+		t.Run(tc.name, func(t *testing.T) {
+			ir := compileCleanly(t, tc.src)
+			if tc.walk != nil {
+				requireBufferWalk(t, ir, *tc.walk)
+			}
+		})
 	}
 }
 

@@ -309,8 +309,10 @@ func EmitModule(mod *mir.Module, typesIn *types.Interner, symTable *symbols.Tabl
 		return "", err
 	}
 	// The relinquishing walks: every `unshare` a function body emitted named
-	// one, and a body names only rt_bigfloat_unshare and nested walks, so no
-	// descriptor waits on this pass.
+	// one, and a body names only rt_bigfloat_unshare, rt_array_unshare_walk
+	// and nested walks -- an element's walk travels to the runtime as a
+	// function pointer, not through a descriptor -- so no descriptor waits on
+	// this pass.
 	if err := e.emitUnshareGlue(); err != nil {
 		return "", err
 	}

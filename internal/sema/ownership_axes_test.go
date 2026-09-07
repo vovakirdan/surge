@@ -39,9 +39,15 @@ import (
 // composite was excluded too while no crossing route gave the far side an
 // owner, and rejoined once they did; the reference-counted scalars were
 // excluded while the crossing copy RETAINED such a field rather than
-// deep-copying it, and rejoined when every crossing began to un-share its
-// operand (Epic 22 steps 4 and 5). What stays out is a Copy handle whose
-// payload lives in storage this shard keeps — a channel's ring.
+// deep-copying it, and rejoined once every crossing began to un-share its
+// relinquishing operand. What CountedBlockStaysShared keeps out of this
+// Copy-only axis is a Copy handle whose ring no walk reaches —
+// `Channel<float>`. A map and a dynamic array never reach the axis at all:
+// neither is Copy. The map's table is refused by the same predicate wherever
+// a crossing asks it; the array's buffer is walked by the runtime where an
+// owned MOVE relinquishes it — a capture, a channel element, a `blocking`
+// body's `ret`, which crosses no shard — never on a crossing reply, which
+// takes only plain-copy data.
 func TestOwnershipAxesAgreeWithCopyToday(t *testing.T) {
 	src := `
 type Plain = { a: int, b: int };
@@ -82,9 +88,12 @@ fn probe(r: &int, m: &mut int, s: string, p: Plain, c: CopyPair, cc: CopyCounted
 		// with a non-atomic count — and it rides, because the producer of a
 		// crossing result un-shares the value in its relinquishing operand
 		// before the reply names it (`float` and `CopyCounted` are those rows).
-		// What does not ride is what no walk over the value's own bytes can
-		// make private: a container's buffer (`arr`, were its element counted),
-		// a channel's ring — the same shapes the capture gate refuses.
+		// What does not ride is what no walk can make private: a channel's
+		// ring (`Channel<float>` is Copy, and this predicate is what keeps it
+		// out), a map's table (the predicate refuses it first; a map is not
+		// Copy either) — the same shapes the capture gate refuses. A dynamic
+		// array (`arr`) is not Copy, so it never reaches this axis; its buffer
+		// is walked by the runtime where an owned move relinquishes it.
 		//
 		// Any other value composite rides: each crossing route gives the far
 		// side an owner — a capture is duplicated at its operand, a channel
@@ -402,9 +411,12 @@ fn probe(p: Pair, pf: Pf, m: Mixed, pl: Plain, tg: Tagged, o: Outer, d: Deep, bx
 // The third column is CountedBlockCanBeMadePrivate: whether the relinquishing
 // walk can make every counted leaf private before the value crosses. Together
 // with the first it is the refusal, CountedBlockStaysShared: only a shape that
-// may share AND cannot be made private is turned away. A dynamic array and a
-// channel are the two such shapes; everything else that shares is un-shared
-// in the operand and crosses.
+// may share AND cannot be made private is turned away. A map and a channel are
+// the two such shapes -- the table and the ring are storage no per-element
+// walk reaches. A dynamic array is NOT among them: the runtime walks its
+// buffer element by element in the relinquishing operand, so `float[]` and
+// `float[][]` are made private and cross, while an array of channels answers
+// for its element's ring and stays refused.
 func TestMayShareCountedBlockWalksUnionPayloads(t *testing.T) {
 	src := `
 @shard_movable
@@ -427,7 +439,7 @@ type V = Bare(Plain) | Empty();
 @intrinsic
 type Channel<T> = { __opaque: int };
 
-fn probe(p: own P, u: own U, v: own V, w: own Plain, f: float, arr: float[], s: string, ch: Channel<float>, ci: Channel<int>, fixed: float[4], fixedi: int[4]) -> int {
+fn probe(p: own P, u: own U, v: own V, w: own Plain, f: float, arr: float[], s: string, ch: Channel<float>, ci: Channel<int>, fixed: float[4], fixedi: int[4], xss: float[][], chs: Channel<float>[], m: Map<int, float>, mi: Map<int, int>) -> int {
     return 0;
 }
 `
@@ -435,16 +447,27 @@ fn probe(p: own P, u: own U, v: own V, w: own Plain, f: float, arr: float[], s: 
 	in := res.TypeInterner
 
 	rows := map[string]struct{ share, contains, private bool }{
-		"float":        {true, true, true},
-		"P":            {true, true, true},
-		"own P":        {true, true, true},
-		"Array<float>": {true, false, false},
-		"U":            {true, false, true},
-		"own U":        {true, false, true},
-		"V":            {false, false, true},
-		"Plain":        {false, false, true},
-		"own Plain":    {false, false, true},
-		"string":       {false, false, true},
+		"float":     {true, true, true},
+		"P":         {true, true, true},
+		"own P":     {true, true, true},
+		"U":         {true, false, true},
+		"own U":     {true, false, true},
+		"V":         {false, false, true},
+		"Plain":     {false, false, true},
+		"own Plain": {false, false, true},
+		"string":    {false, false, true},
+		// A dynamic array's elements are counted blocks in a buffer the handle
+		// names; the runtime walks that buffer element by element in the
+		// relinquishing operand, so the array is made private and crosses,
+		// through nesting. An array answers for its ELEMENT: an array of
+		// channels stays refused because no walk reaches a ring.
+		"Array<float>":          {true, false, true},
+		"Array<Array<float>>":   {true, false, true},
+		"Array<Channel<float>>": {true, false, false},
+		// A map keyed or valued by a counted scalar shares like an array does
+		// and, unlike one, has no per-element walk: its table stays refused.
+		"Map<int, float>": {true, false, false},
+		"Map<int, int>":   {false, false, true},
 		// A runtime handle shares whenever its payload does: the handle's own
 		// count is atomic so a copy may live on another shard, and a send from
 		// there retains a block into a ring the creator's shard owns. No walk

@@ -65,19 +65,22 @@ func classifyCrossingPayload(
 	switch info.Kind {
 	case sema.CrossingLoweringChannelCreate:
 		// The same predicate the guard asks (crossing_transport.go), so the
-		// refusal and the diagnostic cannot disagree on a shape: a container
-		// element whose counted blocks live in storage the sender keeps is
-		// refused here, not left to fail later without a code.
+		// refusal and the diagnostic cannot disagree on a shape: an element
+		// whose counted blocks live in storage the sender keeps and no walk
+		// reaches -- a map's table, a nested channel's ring -- is refused here,
+		// not left to fail later without a code. An array element is not one:
+		// its buffer is walked element by element where the send relinquishes
+		// it.
 		if semaRes.CountedBlockStaysShared(info.PayloadType) {
 			return crossingGuardFinding{
 				Code: diag.FutCrossingPayloadNotShippable,
 				Span: info.Span,
 				Message: fmt.Sprintf(
 					"a remote channel cannot carry `%s` yet: it holds arbitrary-precision values "+
-						"in storage the sender keeps (a dynamic array's buffer, a channel's ring), so "+
+						"in storage the sender keeps (a map's table, a channel's ring), so "+
 						"a send cannot make the counted heap blocks behind them private before the "+
 						"receiving shard takes the value, and the count is not safe to share. Use a "+
-						"fixed-width type (`float64`) for the elements, or send the values themselves",
+						"fixed-width type (`float64`) for the values it holds, or send the values themselves",
 					label(info.PayloadType)),
 			}, true
 		}
@@ -218,22 +221,28 @@ func dedupeCrossingGuardFindings(in []crossingGuardFinding) []crossingGuardFindi
 
 // refCountedCrossingMessage names the real reason a result carrying
 // arbitrary-precision values cannot ride the reply. Saying "not plain-copy
-// data" would be wrong and confusing here: a `float[]` of them is refused for
-// its representation, not its copyability — the elements are references into
-// counted blocks whose count is not atomic, they live in a buffer the producer
-// keeps, and no walk over the result's own bytes makes them private before the
-// asker takes the value. A bare `float` and a `@copy` composite of them ride,
-// un-shared by the producer's `ret`; a bare fixed array or tuple is refused
-// one rule earlier, as not Copy at all, and rides inside a `@copy` struct.
+// data" would be wrong and confusing here: a `Channel<float>` is Copy and is
+// refused for its representation alone — the values are references into
+// counted blocks whose count is not atomic, they live in a ring the producer
+// keeps, and no walk makes them private before the asker takes the value. A
+// `Map<K, float>` is not Copy, but its table is the same kind of storage, and
+// that is the reason a reader can act on, so it is named first. A bare
+// `float` and a `@copy` composite of them ride, un-shared by the producer's
+// `ret`. A fixed array, a tuple and a dynamic array are refused as not Copy
+// at all, and a `@copy` struct cannot hold one either (its fields must be
+// Copy by the interner's rule or `@copy` themselves). The dynamic array's
+// buffer IS walked where an owned move relinquishes it — a capture, a channel
+// element, a `blocking` body's `ret`, which crosses no shard — but a crossing
+// reply takes only plain-copy data, so the walk never serves one.
 func refCountedCrossingMessage(semaRes *sema.Result, t types.TypeID, subject string) (string, bool) {
 	if semaRes == nil || semaRes.TypeInterner == nil || !semaRes.CountedBlockStaysShared(t) {
 		return "", false
 	}
 	return fmt.Sprintf(
 		"%s `%s` cannot cross a shard boundary yet: it holds arbitrary-precision values in "+
-			"storage this shard keeps (a dynamic array's buffer, a channel's ring, a task's result "+
+			"storage this shard keeps (a map's table, a channel's ring, a task's result "+
 			"slot), so the counted heap blocks behind them cannot be made private before the asker "+
 			"takes the value, and the count is not safe to share between shards. Use a fixed-width "+
-			"type (`float64`) for the elements, or cross the values themselves",
+			"type (`float64`) for the values it holds, or cross the values themselves",
 		subject, types.Label(semaRes.TypeInterner, t)), true
 }

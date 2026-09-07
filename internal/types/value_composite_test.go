@@ -121,6 +121,74 @@ func TestIsValueCompositeResolvesAliases(t *testing.T) {
 	}
 }
 
+// DynamicArrayElem is the one question the relinquishing walk, sema's
+// crossing predicate and the handle roster all ask of a dynamic array: which
+// element type does its buffer hold. Both spellings of the array answer --
+// the structural `[T]` and the nominal `Array<T>` -- through `own` and through
+// an alias, and every OTHER handle answers false: a fixed array lives inline,
+// and a map, a string or a channel is a handle whose storage no per-element
+// walk reaches.
+func TestDynamicArrayElemNamesTheBufferElement(t *testing.T) {
+	in := NewInterner()
+	in.Strings = source.NewInterner()
+	b := in.Builtins()
+
+	structural := in.Intern(MakeArray(b.Int32, ArrayDynamicLength))
+	if base, _ := in.EnsureArrayNominal(in.Strings.Intern("Array"), in.Strings.Intern("T"), source.Span{}, 0); base == NoTypeID {
+		t.Fatalf("failed to register the nominal Array")
+	}
+	nominal := in.RegisterStructInstance(in.Strings.Intern("Array"), source.Span{}, []TypeID{b.Int32})
+	owned := in.Intern(MakeOwn(structural))
+	alias := in.RegisterAlias(in.Strings.Intern("Ints"), source.Span{})
+	in.SetAliasTarget(alias, nominal)
+	fixed := in.Intern(MakeArray(b.Int32, 4))
+	if base, _ := in.EnsureMapNominal(in.Strings.Intern("Map"), in.Strings.Intern("K"), in.Strings.Intern("V"), source.Span{}, 0); base == NoTypeID {
+		t.Fatalf("failed to register the nominal Map")
+	}
+	mapped := in.RegisterStructInstance(in.Strings.Intern("Map"), source.Span{}, []TypeID{b.Int32, b.Int32})
+	if _, _, ok := in.MapInfo(mapped); !ok {
+		t.Fatalf("registered instance is not recognised as Map<K, V>; its row would pin nothing")
+	}
+	payload := in.RegisterStruct(in.Strings.Intern("Payload"), source.Span{})
+	channelDecl := source.Span{File: 1, Start: 10, End: 20}
+	in.MarkRuntimeHandleType(in.RegisterStruct(in.Strings.Intern("Channel"), channelDecl))
+	channel := in.RegisterStructInstance(in.Strings.Intern("Channel"), channelDecl, []TypeID{payload})
+
+	cases := []struct {
+		name     string
+		id       TypeID
+		wantElem TypeID
+		want     bool
+	}{
+		{"structural [int32]", structural, b.Int32, true},
+		{"nominal Array<int32>", nominal, b.Int32, true},
+		{"own [int32]", owned, b.Int32, true},
+		{"alias of Array<int32>", alias, b.Int32, true},
+		{"fixed [int32; 4]", fixed, NoTypeID, false},
+		{"Map<int32, int32>", mapped, NoTypeID, false},
+		{"string", in.Intern(Type{Kind: KindString}), NoTypeID, false},
+		{"Channel<Payload>", channel, NoTypeID, false},
+		{"invalid", NoTypeID, NoTypeID, false},
+	}
+	for _, tc := range cases {
+		elem, ok := in.DynamicArrayElem(tc.id)
+		if ok != tc.want || elem != tc.wantElem {
+			t.Errorf("%s: DynamicArrayElem = (%d, %v), want (%d, %v)", tc.name, elem, ok, tc.wantElem, tc.want)
+		}
+	}
+	if elem, ok := (*Interner)(nil).DynamicArrayElem(structural); ok || elem != NoTypeID {
+		t.Errorf("nil interner: DynamicArrayElem = (%d, %v), want (0, false)", elem, ok)
+	}
+	// The handle roster still answers for both spellings through the same
+	// helper, so the two cannot drift on which element a buffer holds.
+	for _, id := range []TypeID{structural, nominal} {
+		payloads, ok := in.RuntimeHandlePayloads(id)
+		if !ok || len(payloads) != 1 || payloads[0] != b.Int32 {
+			t.Errorf("type %d: RuntimeHandlePayloads = %v, %v; want [%d], true", id, payloads, ok, b.Int32)
+		}
+	}
+}
+
 func TestRuntimeHandlePayloadsAreAuthoritativeAndOwned(t *testing.T) {
 	in := NewInterner()
 	in.Strings = source.NewInterner()

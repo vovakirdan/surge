@@ -207,10 +207,12 @@ func (r *Result) TriviallyTransportableBits(id types.TypeID) bool {
 	// `on` or `blocking` body un-shares the result in its relinquishing
 	// operand before the reply names it (rewriteSpawnOnPollReturns,
 	// rewriteBlockingReturns), and the asker moves it exactly once. What no
-	// walk over the result's own bytes can make private — a dynamic array's
-	// buffer, a channel's ring — stays refused, in the same words the capture
-	// gate uses (CountedBlockStaysShared, held in lock step with the emitter's
-	// walk).
+	// walk can make private — a map's table, a channel's ring — stays refused,
+	// in the same words the capture gate uses (CountedBlockStaysShared, held in
+	// lock step with the emitter's walk). A dynamic array's buffer is walked
+	// element by element by the runtime where an owned move relinquishes it,
+	// so this predicate admits `float[]`; the plain-copy rule below still
+	// refuses it on a crossing reply, because an array is not Copy.
 	if r.CountedBlockStaysShared(id) {
 		return false
 	}
@@ -255,9 +257,9 @@ func (r *Result) IsCopyValueComposite(id types.TypeID) bool {
 // depth, an arbitrary-precision scalar — i.e. whether copying its bits would
 // duplicate a reference into a counted heap block without touching the count.
 //
-// This is the Copy-bits question, not the drop question, and since step 5
-// of Epic 22 no crossing gate asks it: a `@copy` struct of floats is itself
-// Copy and would hand a second shard a pointer into the same counted block
+// This is the Copy-bits question, not the drop question, and no crossing
+// gate asks it any more: a `@copy` struct of floats is itself Copy and
+// would hand a second shard a pointer into the same counted block
 // if it shipped as plain bits — which is why every crossing now makes the
 // value private in its relinquishing operand and asks CountedBlockStaysShared
 // instead. What still asks this question is the traceable axis
@@ -294,16 +296,18 @@ func (r *Result) MayShareCountedBlock(id types.TypeID) bool {
 // CountedBlockCanBeMadePrivate reports whether the relinquishing walk can make
 // every counted leaf of a value of this type private before the value is
 // given up across a shard or thread boundary: a scalar, a struct, a tuple, a
-// fixed array, a union of those. It is the other half of MayShareCountedBlock:
-// a shape that MAY share and CAN be made private is un-shared in the
-// relinquishing operand and crosses; a shape that may share and cannot is
-// refused, and this is the question the refusal asks.
+// fixed array, a union of those -- and a dynamic array, whose buffer the
+// runtime walks slot by slot with the element's own walk
+// (rt_array_unshare_walk), through nesting. It is the other half of
+// MayShareCountedBlock: a shape that MAY share and CAN be made private is
+// un-shared in the relinquishing operand and crosses; a shape that may share
+// and cannot is refused, and this is the question the refusal asks.
 //
-// What answers false is every RUNTIME HANDLE whose payload may share: a
-// container of counted elements (`float[]`, a map keyed or valued by one),
-// whose buffer would have to be walked at runtime and that walk is not built,
-// and a `Channel<float>`, whose ring stays on the creator's shard, so no walk
-// over the handle's own bytes could reach it. Placement carries nothing.
+// What answers false is a RUNTIME HANDLE whose payload may share and whose
+// storage no per-element walk reaches: a map's table (`Map<K, V>` keyed or
+// valued by a counted scalar), a channel's ring (`Channel<float>`, which stays
+// on the creator's shard), a task's slot. An array of such handles answers as
+// its element does. Placement carries nothing.
 //
 // It is the same walk the backend runs on its side (canUnshareValue in
 // internal/backend/llvm); the two are held in lock step by a labelled table
@@ -335,6 +339,14 @@ func (r *Result) countedBlockCanBeMadePrivate(id types.TypeID, seen map[types.Ty
 		return true
 	}
 	seen[id] = struct{}{}
+	// A dynamic array answers for its element: the runtime walks the buffer
+	// slot by slot with the element's own walk, so the array can be made
+	// private exactly when its element can. Asked BEFORE the handle arm below,
+	// which would otherwise answer for the array as for any handle whose
+	// payload may share.
+	if elem, ok := in.DynamicArrayElem(id); ok {
+		return r.countedBlockCanBeMadePrivate(elem, seen)
+	}
 	if payloads, ok := in.RuntimeHandlePayloads(id); ok && !in.IsRuntimePlacementType(id) {
 		for _, payload := range payloads {
 			if r.MayShareCountedBlock(payload) {
@@ -353,8 +365,6 @@ func (r *Result) countedBlockCanBeMadePrivate(id types.TypeID, seen map[types.Ty
 	switch tt.Kind {
 	case types.KindOwn:
 		return r.countedBlockCanBeMadePrivate(tt.Elem, seen)
-	case types.KindArray:
-		return !r.MayShareCountedBlock(tt.Elem)
 	case types.KindStruct:
 		for _, f := range in.StructFields(id) {
 			if !r.countedBlockCanBeMadePrivate(f.Type, seen) {
@@ -427,13 +437,16 @@ func (r *Result) containsRefCountedScalar(id types.TypeID, seen map[types.TypeID
 		// containers and resources alike. A `float[]` is a handle whose
 		// elements are counted blocks, each retained from whatever was pushed,
 		// so moving the array moves one reference per element while the
-		// pushers keep theirs. A `Channel<float>` is worse: its own count is
-		// atomic precisely so a copy of the HANDLE may live on another shard,
-		// and a `send` from that shard retains a block into a ring the
-		// creator's shard owns -- one non-atomic count under two threads with
-		// no float captured at all. So a handle counts as sharing whenever its
-		// payload does; only Placement carries nothing. The Copy-bits question
-		// never gets here.
+		// pushers keep theirs -- which is why the runtime walks its buffer
+		// element by element in the relinquishing operand (the other half,
+		// countedBlockCanBeMadePrivate, says so). A `Channel<float>` is worse:
+		// its own count is atomic precisely so a copy of the HANDLE may live on
+		// another shard, and a `send` from that shard retains a block into a
+		// ring the creator's shard owns -- one non-atomic count under two
+		// threads with no float captured at all, and no walk reaches that ring
+		// or a map's table. So a handle counts as sharing whenever its payload
+		// does; only Placement carries nothing. The Copy-bits question never
+		// gets here.
 		if payloads, ok := in.RuntimeHandlePayloads(id); ok && !in.IsRuntimePlacementType(id) {
 			for _, payload := range payloads {
 				if r.containsRefCountedScalar(payload, seen, throughUnions) {

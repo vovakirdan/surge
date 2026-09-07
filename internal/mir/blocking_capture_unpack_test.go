@@ -6,6 +6,7 @@ import (
 
 	"surge/internal/mir"
 	"surge/internal/sema"
+	"surge/internal/types"
 )
 
 // A blocking body reads its captures out of a state struct the submission
@@ -21,10 +22,12 @@ import (
 //
 // The third answer the predicate can give — owns heap AND is a
 // reference-counted scalar, where the state retained a count of its own and
-// the body only borrows — has no row here because sema refuses the capture
-// before MIR sees it: "SEM3168: `float` cannot be captured into `blocking`
-// yet". The clause stays in the predicate as the guard it is; a row asserting
-// it would be asserting a program that does not compile.
+// the body only borrows — has no row in this table, and no longer because
+// sema refuses it: a `float` captured into `blocking` compiles today, since
+// the state literal's relinquishing operand makes the capture's block private
+// before the job is submitted. That shape is pinned where it compiles end to
+// end, in buildpipeline's crossing table; the clause stays in the predicate
+// as the guard it is, and this table stays the by-value answers above.
 const blockingCaptureUnpackSource = crossingMIRPrelude + `
 @shard_movable
 type Note = { text: string };
@@ -133,6 +136,55 @@ func TestBlockingCaptureUnpackDeclaresTheTransfer(t *testing.T) {
 					tc.capture, got, tc.want, tc.why)
 			}
 		})
+	}
+}
+
+// The membership a relinquishing walk reads is published from the capture's
+// TYPE. An array built empty names its element union nowhere else in the
+// function, and a module that published memberships only for the unions an
+// operand touched left the walk without one: sema admitted `own xs`, the
+// emitter refused it as a build error naming sema's predicate. The lowering
+// looks through a handle to its payload, so the element union is on the
+// module with every member and the index the layout stamps on it.
+func TestBlockingCaptureOfAnArrayBuiltEmptyPublishesItsElementUnion(t *testing.T) {
+	compiled := compileCrossingMIR(t, crossingMIRPrelude+`
+fn use(xs: own Option<float>[]) -> int { return 1; }
+
+async fn runs_a_blocking_body(seed: int) -> int {
+    let xs: Option<float>[] = [];
+    let job: Task<int> = blocking { ret use(own xs); };
+    return compare job.await() {
+        Success(v) => v;
+        Cancelled() => 0;
+    };
+}
+
+fn main() -> int { return 0; }
+`, nil)
+	elem := types.NoTypeID
+	for id := types.TypeID(1); ; id++ {
+		tt, ok := compiled.types.Lookup(id)
+		if !ok {
+			break
+		}
+		if tt.Kind == types.KindUnion && types.Label(compiled.types, id) == "Option<float>" {
+			elem = id
+			break
+		}
+	}
+	if elem == types.NoTypeID {
+		t.Fatal("the program never produced Option<float>, so this row pins nothing")
+	}
+	if compiled.mod.Meta == nil {
+		t.Fatal("the lowering published no module metadata")
+	}
+	cases, ok := compiled.mod.Meta.UnionCases[elem]
+	if !ok {
+		t.Fatalf("the module publishes no membership for Option<float> (type#%d), the element of an array the function builds empty; the walk that un-shares the capture cannot switch on its tag (published: %d unions)",
+			elem, len(compiled.mod.Meta.UnionCases))
+	}
+	if len(cases) != 2 {
+		t.Fatalf("Option<float> has two members, Some(float) and None; the module published %d", len(cases))
 	}
 }
 

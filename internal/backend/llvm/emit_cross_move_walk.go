@@ -28,6 +28,13 @@ import (
 //     when the block has one holder and otherwise duplicates it and gives up
 //     the reference this value held;
 //   - a nested value composite: recurse, because its own members may hold one;
+//   - a dynamic array whose element may share: rt_array_unshare_walk, handed
+//     the array's slot, the element stride and the element's own walk body,
+//     which the runtime calls once per slot of the buffer it owns. The walk
+//     cannot address those slots itself -- they are at no fixed offset from
+//     the value -- so the runtime iterates and this body says what to do at
+//     each one. Nesting drains through the one worklist: `float[][]` walks
+//     with the `float[]` body, which walks with the `float` body;
 //   - a string, a channel handle, a plain word: nothing. A move transfers the
 //     single reference the value holds and the source stops owning it, so
 //     there is nothing to make private.
@@ -76,13 +83,12 @@ func (e *Emitter) emitUnshareGlue() error {
 // be empty, and the instruction is then the no-op it means.
 //
 // The refusal below is the last line of defence, not a gate. A value that may
-// share a counted block the walk cannot reach -- a container of counted
-// elements, whose buffer is walked at runtime and that walk is unbuilt -- must
-// have been refused by sema's crossing gate, where the shape is still legible
-// and the diagnostic has a code. Reaching here with one means that gate
-// admitted a shape the emitter cannot make private, and the honest answer is
-// a build failure naming the predicate that disagreed, never a silent no-op
-// that would ship the shared block.
+// share a counted block no walk reaches -- a map's table, a channel's ring --
+// must have been refused by sema's crossing gate, where the shape is still
+// legible and the diagnostic has a code. Reaching here with one means that
+// gate admitted a shape the emitter cannot make private, and the honest
+// answer is a build failure naming the predicate that disagreed, never a
+// silent no-op that would ship the shared block.
 func (fe *funcEmitter) emitInstrUnshare(ins *mir.Instr) error {
 	if ins == nil {
 		return nil
@@ -98,7 +104,7 @@ func (fe *funcEmitter) emitInstrUnshare(ins *mir.Instr) error {
 	}
 	if !e.canUnshareValue(valueType) {
 		return fmt.Errorf("unshare of %s (type#%d): the value may share a counted block that the walk "+
-			"cannot make private (a container of counted elements has no buffer walk); "+
+			"cannot make private (a map's table or a channel's ring has no walk); "+
 			"sema.Result.MayShareCountedBlock admits the shape and the crossing gate that "+
 			"reads it must refuse it -- the refusal belongs there, not in the emitter",
 			types.Label(e.types, valueType), valueType)
@@ -107,16 +113,20 @@ func (fe *funcEmitter) emitInstrUnshare(ins *mir.Instr) error {
 	if err != nil {
 		return err
 	}
-	// The walk reads the value's own bytes through %val. For a counted scalar
-	// those bytes ARE the handle word in the slot, and for an inline composite
-	// the slot is the value. A slot that holds the ADDRESS of the value instead
-	// -- a suspension frame's -- is a shape no relinquishing site produces, and
-	// handing the walk the slot would have it un-share the address word; it is
-	// refused rather than guessed at.
+	// The walk reads the value's own bytes through %val: a counted scalar's
+	// handle word in the slot, an inline composite's storage, a dynamic
+	// array's handle word, whose buffer the runtime walks from that slot. A
+	// slot that holds the ADDRESS of the value instead -- a suspension frame's
+	// -- is a shape no relinquishing site produces, and handing the walk the
+	// slot would have it un-share the address word; it is refused rather than
+	// guessed at.
 	resolved := resolveValueType(e.types, valueType)
-	if slotTy == handleType && !e.types.IsRefCountedScalar(resolved) && !e.hasInlineStorage(resolved) {
-		return fmt.Errorf("unshare of %s (type#%d): the place's slot holds the value's address, "+
-			"not the value, and the walk reads the value's own bytes",
+	_, isDynamicArray := e.types.DynamicArrayElem(resolved)
+	if slotTy == handleType && !e.types.IsRefCountedScalar(resolved) && !e.hasInlineStorage(resolved) && !isDynamicArray {
+		return fmt.Errorf("unshare of %s (type#%d): the walk reads a value's own bytes -- a counted "+
+			"scalar's handle word, an inline composite's storage, or a dynamic array's handle word "+
+			"whose buffer the runtime walks -- and this slot holds the value's address instead, "+
+			"a shape no relinquishing site produces",
 			types.Label(e.types, valueType), valueType)
 	}
 	fmt.Fprintf(&e.buf, "  call void @%s(ptr %s)\n", e.requireUnshareGlue(valueType), ptr)
@@ -225,8 +235,12 @@ func (e *Emitter) emitUnshareWalkBody(id types.TypeID) error {
 	}
 	fmt.Fprintf(&e.buf, "define void @%s(ptr %%val) {\nentry:\n", unshareWalkName(id))
 	g := &glueTmp{}
-	if err := e.walkGlueValue(g, id, &layoutInfo, align, unshareWalk{e: e}); err != nil {
+	var walkErr error
+	if err := e.walkGlueValue(g, id, &layoutInfo, align, unshareWalk{e: e, err: &walkErr}); err != nil {
 		return err
+	}
+	if walkErr != nil {
+		return walkErr
 	}
 	fmt.Fprintf(&e.buf, "  ret void\n}\n\n")
 	return nil
@@ -235,7 +249,15 @@ func (e *Emitter) emitUnshareWalkBody(id types.TypeID) error {
 // unshareWalk is the per-member half. It shares the enumeration with the clone
 // and cross-clone walks, so a member shape one of them learns cannot go
 // unvisited here.
-type unshareWalk struct{ e *Emitter }
+//
+// err is where a member arm that cannot finish -- an element stride the
+// layout cannot give -- records the failure, because the walker's per-member
+// answer is a bool. The body's emitter reads it and fails CLOSED: a body
+// missing one member's walk would ship that member's blocks shared.
+type unshareWalk struct {
+	e   *Emitter
+	err *error
+}
 
 func (unshareWalk) labelPrefix() string { return "us" }
 
@@ -262,12 +284,33 @@ func (w unshareWalk) leafAt(g *glueTmp, resolved types.TypeID, baseAlign, off ui
 		fmt.Fprintf(&e.buf, "  store ptr %s, ptr %s, align %d\n", private, fp, memberAccessAlign(baseAlign, off))
 		return true
 	}
+	if elem, ok := e.types.DynamicArrayElem(resolved); ok {
+		// A dynamic array's elements sit in a buffer the runtime owns, at no
+		// offset this walk can address, so the runtime iterates: it takes the
+		// SLOT holding the handle word (the convention every array helper
+		// uses, never the word itself), the element stride, and the element's
+		// own body, and calls that body once per slot. An element that cannot
+		// share -- `int[]` today -- gets no call at all: a walk over plain
+		// words would cost every crossing and make nothing private.
+		if !e.typeMayShareCountedBlock(elem) {
+			return false
+		}
+		stride, _, err := e.handleArrayElemStrideAlign(elem)
+		if err != nil {
+			*w.err = err
+			return true
+		}
+		fp := g.next()
+		fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds i8, ptr %%val, i64 %d\n", fp, off)
+		fmt.Fprintf(&e.buf, "  call void @rt_array_unshare_walk(ptr %s, i64 %d, ptr @%s)\n",
+			fp, stride, e.requireUnshareGlue(elem))
+		return true
+	}
 	// Everything else the move carries by its bytes: the single reference the
-	// value held travels with it, and the source stops owning it. A CONTAINER
-	// of counted elements is the one shape that would need more -- a runtime
-	// iteration over a buffer this walk cannot address at a fixed offset -- and
-	// it is refused at the caller rather than silently skipped here; see
-	// canUnshareValue.
+	// value held travels with it, and the source stops owning it. A handle
+	// whose payload may share and whose storage no per-element walk reaches --
+	// a map's table, a channel's ring -- is refused at the caller rather than
+	// silently skipped here; see canUnshareValue.
 	return false
 }
 
@@ -277,13 +320,13 @@ func (w unshareWalk) leafAt(g *glueTmp, resolved types.TypeID, baseAlign, off ui
 // "nothing to do" for a shape the walk cannot reach is how a shared block
 // would travel unnoticed.
 //
-// Two shapes are refused. A container of counted elements: making those
-// private means walking a buffer at runtime, which is not built, and is built
-// when step 5 lifts sema's refusal of `float[]` and a red row becomes
-// possible -- RV2-DEBT-038. A runtime handle whose payload may share a block
-// (`Channel<float>`): the handle names storage that stays on the creator's
-// shard, so no walk on the value's own bytes can make it private; that shape
-// stays refused at sema for good, and this answer is its second belt.
+// A dynamic array answers for its element, because the runtime walks its
+// buffer with the element's body. What is refused is a runtime handle whose
+// payload may share a block and whose storage no per-element walk reaches: a
+// `Map<K, float>`'s table, a `Channel<float>`'s ring, which stays on the
+// creator's shard. Those shapes stay refused at sema for good, and this
+// answer is their second belt; the two predicates are held in lock step by a
+// labelled table (TestUnsharePredicatesAgreeWithSema).
 func (e *Emitter) canUnshareValue(id types.TypeID) bool {
 	return e.canUnshareValueRec(id, map[types.TypeID]struct{}{})
 }
@@ -300,6 +343,11 @@ func (e *Emitter) canUnshareValueRec(id types.TypeID, seen map[types.TypeID]stru
 		return true
 	}
 	seen[resolved] = struct{}{}
+	// Before the handle arm, which would otherwise answer for the array as
+	// for any handle whose payload may share.
+	if elem, ok := e.types.DynamicArrayElem(resolved); ok {
+		return e.canUnshareValueRec(elem, seen)
+	}
 	if payloads, ok := e.types.RuntimeHandlePayloads(resolved); ok {
 		for _, payload := range payloads {
 			if e.mayShareCountedBlockRec(payload, map[types.TypeID]struct{}{}) {
