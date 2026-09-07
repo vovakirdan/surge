@@ -25,8 +25,8 @@ import (
 // walk cannot reach stays refused with a message that says so: a dynamic
 // array's buffer and a channel's ring are both storage this shard keeps and
 // the handle merely names. The channel ELEMENT is asked the same question at
-// the channel's creation (crossing_refcounted_scalar_channel_test.go); the
-// reply is refused on its own gate, untouched here (step 5, S2).
+// the channel's creation (crossing_refcounted_scalar_channel_test.go), and
+// the crossing RESULT at its reply (crossing_refcounted_scalar_reply_test.go).
 //
 // The one shape that is NOT here, on purpose: fixed-width `float64`, a machine
 // word with no block behind it (TestFixedWidthFloatStillCrosses).
@@ -37,17 +37,6 @@ func TestRefCountedScalarCrossingsAreRefused(t *testing.T) {
 		src      string
 		contains []string
 	}{
-		{
-			name: "float riding the reply",
-			src: `
-async fn go(dst: Placement) -> int {
-    let t: far Task<float> = spawn on dst { ret 1.5; };
-    let r: TaskResult<float> = t.await();
-    return 0;
-}
-`,
-			contains: []string{"`float`", "cannot cross a shard boundary yet"},
-		},
 		// A dynamic array's elements are counted blocks in a buffer the handle
 		// names and this shard keeps; an owned move hands over one reference
 		// per element while every pusher keeps its own, and the relinquishing

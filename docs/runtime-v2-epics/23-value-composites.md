@@ -308,7 +308,7 @@ of its own that agrees with it; a leg answering otherwise breaks the build
 | LLVM structural leg | `internal/backend/llvm/emit_drop_glue.go` (`typeOwnsHeap`) | walks composites itself — the leg that answered from the members first, which sema's lagged behind until `a262d8a6` |
 | VM drop | `internal/vm/drop.go` | reached for a `@copy` composite exactly when a member owns |
 | crossing drop-fn registration | `internal/backend/llvm/emit_crossing_channel_create.go` | keyed off `typeOwnsHeap`: a composite payload of ints registers no drop fn, one holding a string or a float does |
-| transport axis | `internal/sema/ownership_axes.go` (`TriviallyTransportableBits`) | `IsCopy` minus `ContainsRefCountedScalar`: a Copy value composite rides as bits, one holding a counted scalar does not, because the crossing copy retains the field on one shard's non-atomic count |
+| transport axis | `internal/sema/ownership_axes.go` (`TriviallyTransportableBits`) | `IsCopy` minus `CountedBlockStaysShared` (since Epic 22 step 5; it was minus `ContainsRefCountedScalar` while no crossing un-shared its operand): a Copy value composite rides as bits, one holding a counted scalar rides too because the relinquishing operand makes the block private, and a Copy handle whose payload lives in storage the shard keeps (a channel's ring) does not |
 
 What follows is the design record written before the flip — the validator
 question and the Phase 1 crossing gate — kept as the reasoning the rows above

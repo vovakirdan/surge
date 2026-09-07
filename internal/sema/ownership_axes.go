@@ -188,22 +188,30 @@ func ownsHeapWalk(in *types.Interner, isCopy func(types.TypeID) bool, id types.T
 // crossing as raw bits — copied into the state struct or the reply word with no
 // per-shard fixup. Answers question 2 above.
 //
-// Present definition: exactly the Copy types. A type that owns heap becomes
-// shippable only once the crossing installs a deep copy at the boundary, which
-// is why this is its own axis rather than a synonym for OwnsHeap's negation:
-// "not heap-owning" and "safe to memcpy across a shard" are different claims,
-// and a `&T` satisfies the first but never the second.
+// Present definition: the Copy types whose counted blocks, if any, the
+// relinquishing walk can make private (a `float`, a `@copy` composite of
+// them) — not a Copy handle whose payload lives in storage this shard keeps.
+// A type that owns heap becomes shippable only once the crossing installs a
+// deep copy at the boundary, which is why this is its own axis rather than a
+// synonym for OwnsHeap's negation: "not heap-owning" and "safe to memcpy
+// across a shard" are different claims, and a `&T` satisfies the first but
+// never the second.
 func (r *Result) TriviallyTransportableBits(id types.TypeID) bool {
 	if r == nil || r.TypeInterner == nil {
 		return false
 	}
 	// A reference-counted scalar is Copy, but its bits are a pointer to a
-	// counted block, and the count is non-atomic. Letting the raw word cross
-	// would put two shards on one counter. It becomes shippable again once the
-	// boundary installs a deep copy. The test is RECURSIVE because a `@copy`
-	// struct of floats is Copy as a whole and would otherwise carry them across
-	// one level down.
-	if r.ContainsRefCountedScalar(id) {
+	// counted block, and the count is non-atomic. The word may cross only
+	// once the block behind it is PRIVATE to the value that travels, and the
+	// producer of a crossing result makes it so: the `ret` of a `spawn on`,
+	// `on` or `blocking` body un-shares the result in its relinquishing
+	// operand before the reply names it (rewriteSpawnOnPollReturns,
+	// rewriteBlockingReturns), and the asker moves it exactly once. What no
+	// walk over the result's own bytes can make private — a dynamic array's
+	// buffer, a channel's ring — stays refused, in the same words the capture
+	// gate uses (CountedBlockStaysShared, held in lock step with the emitter's
+	// walk).
+	if r.CountedBlockStaysShared(id) {
 		return false
 	}
 	// A value composite rides again. It lives inline, so its bits ARE the
@@ -217,11 +225,6 @@ func (r *Result) TriviallyTransportableBits(id types.TypeID) bool {
 	// time and needs no copy at all; a channel ELEMENT is duplicated at the
 	// send. This axis only answers whether the bits may travel, and once each
 	// route has an owner on the far side, they may.
-	//
-	// What still may NOT travel is a composite carrying a reference-counted
-	// scalar — `ContainsRefCountedScalar` above turns that away, because the
-	// count is non-atomic and the copy these routes perform RETAINS such a
-	// field rather than deep-copying it. Right on one shard, wrong across two.
 	return r.IsCopyType(id)
 }
 
@@ -252,9 +255,13 @@ func (r *Result) IsCopyValueComposite(id types.TypeID) bool {
 // depth, an arbitrary-precision scalar — i.e. whether copying its bits would
 // duplicate a reference into a counted heap block without touching the count.
 //
-// This is the crossing question, not the drop question: a `@copy` struct of
-// floats is itself Copy, ships as plain bits today, and would hand a second
-// shard a pointer into the same counted block.
+// This is the Copy-bits question, not the drop question, and since step 5
+// of Epic 22 no crossing gate asks it: a `@copy` struct of floats is itself
+// Copy and would hand a second shard a pointer into the same counted block
+// if it shipped as plain bits — which is why every crossing now makes the
+// value private in its relinquishing operand and asks CountedBlockStaysShared
+// instead. What still asks this question is the traceable axis
+// (capability_axes.go) and the heap-owning leg of a Copy composite.
 //
 // Unions are deliberately not walked here. A union is not Copy, so it never
 // ships as plain bits; the Traceable axis reaches its payloads through its

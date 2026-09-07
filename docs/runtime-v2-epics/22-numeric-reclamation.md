@@ -3,10 +3,13 @@
 Status: PARTIAL — RESUMED 2026-09-04, scope chosen. Phases 0a, 0b and 1 shipped:
 the ownership axes were split out of `IsCopy`, and `float` is a
 reference-counted scalar with a strict-zero valgrind gate
-(`TestRuntimeV2FloatReclamationValgrindZero`). NOT done: the crossing deep-copy
-barriers listed under "Phase 1 remainder" — the runtime helper
-`rt_bigfloat_clone` exists but is unwired, and crossings still REFUSE a
-composite carrying a `float` — and Phase 2 (`int`/`uint`), not started.
+(`TestRuntimeV2FloatReclamationValgrindZero`). The crossing barriers landed as
+steps 4 and 5 (2026-09-06/07): every crossing un-shares its relinquishing
+operand, and a `float` or a `@copy` composite carrying one crosses as a
+capture, a channel element and a reply; what stays refused, at every gate, is
+a value whose counted blocks live in storage the shard keeps (a dynamic
+array's buffer, a channel's ring). NOT done: that buffer walk, and Phase 2
+(`int`/`uint`), not started.
 
 **The owner answered this epic's open question on 2026-09-04: variant (2) —
 build the barriers for all three types first, then add `int`/`uint` to a
@@ -513,17 +516,20 @@ whole run). **Do not benchmark this epic against anything older than commit
   - MIR's `validate.go` drop-on-copy-local check gained the refcounted-scalar
     exception, one of the three legs Phase 0b flagged.
 
-  **Cross-shard paths are CLOSED, not solved.** A non-atomic count is only
-  sound while a block stays on one shard, and the barriers do not exist yet, so
-  every path that would hand a second shard the same word is now REFUSED. This
-  is a deliberate, temporary narrowing: before this work a float crossing
-  compiled and leaked, and after the count landed it would have RACED. It
-  reopens when the barriers land.
+  **Cross-shard paths were CLOSED first, then solved.** A non-atomic count is
+  only sound while a block stays on one shard, so while the barriers did not
+  exist every path that would hand a second shard the same word was REFUSED —
+  a deliberate, temporary narrowing: before this work a float crossing
+  compiled and leaked, and after the count landed it would have RACED. The
+  barriers landed as steps 4 and 5 (see "Landed 2026-09-06" and "Landed
+  2026-09-07" below), and the gates now refuse only what no walk can make
+  private.
 
   Four gates, each with a diagnostic that names the real reason rather than
   saying "not plain-copy data" — which would be false, since `float` IS Copy:
 
   - reply / `far Task.await()` payload — `TriviallyTransportableBits`
+    (narrowed 2026-09-07 to `CountedBlockStaysShared`: see the step 5 landing)
   - `on` / `spawn on` capture — `classifyOnCapture`
   - `blocking` capture — `typeExprBlocking`
   - remote channel element — `crossingRecordExecutable` +
@@ -759,8 +765,29 @@ whole run). **Do not benchmark this epic against anything older than commit
   `TestEmitAnchoredSendLeavesTheGivenCaptureUntouchedBeforeTheRing` (the
   anchored rows red by the validator when an un-share is put back into the
   body's prefix, 2/2), the
-  `select_send_*` and `on_anchored_send_*` golden fixtures. Not narrowed
-  here: the reply gate — S2.
+  `select_send_*` and `on_anchored_send_*` golden fixtures.
+
+  **Landed 2026-09-07, step 5, the reply — and step 5 is closed.** The reply
+  gate (`TriviallyTransportableBits`, the four consumers in
+  `crossing_transport.go` and `crossing_guard_classify.go`) asks
+  `CountedBlockStaysShared` where it asked `ContainsRefCountedScalar`: a bare
+  `float`, a `@copy` composite carrying one, ride `far Task<float>` and an
+  `on` block's `TaskResult<float>`, because the producer's `ret` un-shares the
+  result in its relinquishing operand (site 3) before the reply names it and
+  the asker moves it exactly once; a `float[]` result stays refused in words
+  that name the buffer, and a result that is not Copy stays refused as
+  before. Measured: `unshare_clones` reads 1 for a `spawn on` returning its
+  capture, its immediate-`on` twin, and both bodies returning a value derived
+  beside the capture — the poll function drops the body's captures BEFORE the
+  result's un-share, so a sibling the body kept dies first and site 3 finds a
+  count of one; `blocking` reads the same, having carried the un-share since
+  step 4; 0 under the negative control; valgrind definitely-lost 0 on all
+  four. Rows: `TestRefCountedScalarResults{RideTheReply,StayRefused}`,
+  `TestRuntimeV2UnshareClonesOnTheWayBackAsAReply*`,
+  `TestRuntimeV2UnshareReplyLeaksNothing`. What step 5 leaves refused is what
+  no walk over a value's own bytes can serve: a dynamic array's buffer and a
+  channel's ring, wherever they appear — the buffer walk is the next thing
+  on RV2-DEBT-038.
 
 - **Phase 2 — `int`/`uint`.** Adds only the fixnum-tag branch to a mechanism
   already proven by float — LOCALLY. Across a shard boundary it adds a

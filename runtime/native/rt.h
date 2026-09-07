@@ -362,9 +362,9 @@ void rt_bigfloat_free(void* a);
 // result, an anchored body's `ch.send(own f)` (which gives away the capture
 // the caller already made private) -- has its counted leaves made private
 // first (rt_bigfloat_unshare above), and a shape that walk cannot reach (a
-// container's buffer, a channel's ring) is refused at compile time. Replies
-// are still refused wholesale until their gate is narrowed -- RV2-DEBT-038,
-// Epic 22 step 5.
+// container's buffer, a channel's ring) is refused at compile time, at every
+// gate -- capture, channel element and reply alike (Epic 22 step 5;
+// RV2-DEBT-038 keeps the buffer walk).
 //
 // The LLVM backend inlines both as IR at the use site rather than calling
 // these, so that a float copy costs a predictable not-taken branch instead of

@@ -124,7 +124,8 @@ func classifyCrossingPayload(
 				Span: info.Span,
 				Message: fmt.Sprintf(
 					"the awaited result `%s` is not plain-copy data%s and cannot cross "+
-						"back to the caller yet", label(info.PayloadType),
+						"back to the caller yet; have the `spawn on` body `ret` plain-copy data "+
+						"(unwrap or derive it inside the body)", label(info.PayloadType),
 					nonCopyDetail(semaRes, strings, info.PayloadType)),
 			}, true
 		}
@@ -215,20 +216,24 @@ func dedupeCrossingGuardFindings(in []crossingGuardFinding) []crossingGuardFindi
 	return out
 }
 
-// refCountedCrossingMessage names the real reason an arbitrary-precision scalar
-// cannot cross yet. Saying "not plain-copy data" would be wrong and confusing
-// here: `float` IS a Copy type and behaves like one everywhere else in the
-// language. What stops it is its representation — the word is a pointer into a
-// block whose reference count is not atomic, so letting the raw bits cross
-// would put two shards on one counter.
+// refCountedCrossingMessage names the real reason a result carrying
+// arbitrary-precision values cannot ride the reply. Saying "not plain-copy
+// data" would be wrong and confusing here: a `float[]` of them is refused for
+// its representation, not its copyability — the elements are references into
+// counted blocks whose count is not atomic, they live in a buffer the producer
+// keeps, and no walk over the result's own bytes makes them private before the
+// asker takes the value. A bare `float` and a `@copy` composite of them ride,
+// un-shared by the producer's `ret`; a bare fixed array or tuple is refused
+// one rule earlier, as not Copy at all, and rides inside a `@copy` struct.
 func refCountedCrossingMessage(semaRes *sema.Result, t types.TypeID, subject string) (string, bool) {
-	if semaRes == nil || semaRes.TypeInterner == nil || !semaRes.TypeInterner.IsRefCountedScalar(t) {
+	if semaRes == nil || semaRes.TypeInterner == nil || !semaRes.CountedBlockStaysShared(t) {
 		return "", false
 	}
 	return fmt.Sprintf(
-		"%s `%s` cannot cross a shard boundary yet: it is arbitrary-precision, so the "+
-			"value is a reference into a counted heap block, and the count is not safe to "+
-			"share between shards. Convert to a fixed-width type (`float64`) for the crossing, "+
-			"or keep the value on one shard and cross a result derived from it",
+		"%s `%s` cannot cross a shard boundary yet: it holds arbitrary-precision values in "+
+			"storage this shard keeps (a dynamic array's buffer, a channel's ring, a task's result "+
+			"slot), so the counted heap blocks behind them cannot be made private before the asker "+
+			"takes the value, and the count is not safe to share between shards. Use a fixed-width "+
+			"type (`float64`) for the elements, or cross the values themselves",
 		subject, types.Label(semaRes.TypeInterner, t)), true
 }

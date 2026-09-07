@@ -34,11 +34,14 @@ import (
 // follow, they join it — and NOTHING ELSE may move. Another shape breaking
 // this means the widening reached a type it was not meant to.
 //
-// TriviallyTransportableBits tracks `IsCopy` minus the reference-counted
-// scalars, and ONLY those: a composite was excluded too while no crossing route
-// gave the far side an owner, and rejoined once they did. What keeps the
-// scalars out is that the crossing copy RETAINS such a field rather than
-// deep-copying it, and the count is not atomic.
+// TriviallyTransportableBits tracks `IsCopy` minus what the relinquishing
+// walk cannot make private (CountedBlockStaysShared), and ONLY that: a
+// composite was excluded too while no crossing route gave the far side an
+// owner, and rejoined once they did; the reference-counted scalars were
+// excluded while the crossing copy RETAINED such a field rather than
+// deep-copying it, and rejoined when every crossing began to un-share its
+// operand (Epic 22 steps 4 and 5). What stays out is a Copy handle whose
+// payload lives in storage this shard keeps — a channel's ring.
 func TestOwnershipAxesAgreeWithCopyToday(t *testing.T) {
 	src := `
 type Plain = { a: int, b: int };
@@ -75,18 +78,20 @@ fn probe(r: &int, m: &mut int, s: string, p: Plain, c: CopyPair, cc: CopyCounted
 		checked++
 
 		copyable := res.IsCopyType(id)
-		// A reference-counted scalar is Copy but ships a pointer to a block
-		// with a non-atomic count, so it is not raw-bits transportable until
-		// the boundary installs a deep copy — and neither is a Copy composite
-		// HOLDING one, because the crossing copy retains the field rather than
-		// deep-copying it (`CopyCounted` is that row).
+		// A reference-counted scalar is Copy and ships a pointer to a block
+		// with a non-atomic count — and it rides, because the producer of a
+		// crossing result un-shares the value in its relinquishing operand
+		// before the reply names it (`float` and `CopyCounted` are those rows).
+		// What does not ride is what no walk over the value's own bytes can
+		// make private: a container's buffer (`arr`, were its element counted),
+		// a channel's ring — the same shapes the capture gate refuses.
 		//
 		// Any other value composite rides: each crossing route gives the far
 		// side an owner — a capture is duplicated at its operand, a channel
 		// element at the send, and a RESULT is a transfer with one owner at a
 		// time and needs no copy. This axis only says whether the bits may
 		// travel.
-		wantBits := copyable && !res.ContainsRefCountedScalar(id)
+		wantBits := copyable && !res.CountedBlockStaysShared(id)
 		if got := res.TriviallyTransportableBits(id); got != wantBits {
 			t.Errorf("type %d (%v): TriviallyTransportableBits=%v, want %v",
 				id, tt.Kind, got, wantBits)
