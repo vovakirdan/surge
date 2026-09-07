@@ -745,6 +745,16 @@
       "group": "PG-ALLOC-FAILURE"
     },
     {
+      "site": "runtime/native/rt_array_reclaim.c::rt_array_unshare_walk#1",
+      "message": "array view cannot cross a shard boundary: its elements live in the base's buffer, which the origin shard keeps; cross an owned array instead",
+      "group": "PG-CROSSING"
+    },
+    {
+      "site": "runtime/native/rt_array_reclaim.c::rt_array_unshare_walk#2",
+      "message": "array with a live view cannot cross a shard boundary: a view on this shard still reads its buffer",
+      "group": "PG-CROSSING"
+    },
+    {
       "site": "runtime/native/rt_async_blocking.c::rt_blocking_init#1",
       "message": "async: blocking context allocation failed",
       "group": "PG-ALLOC-FAILURE"

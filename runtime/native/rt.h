@@ -46,6 +46,16 @@ void rt_array_free_elems(void* array_header,
                          uint64_t elem_stride,
                          uint64_t elem_align,
                          void (*drop_elem)(void*));
+// Relinquish-emission barrier for an OWNED dynamic array about to leave its
+// shard: hands every element slot (data + i * stride, i < len) to `walk`,
+// which makes that one element's counted leaves private, with no lock held.
+// `array_slot` addresses the slot holding the header, as rt_array_concat's
+// slots do; a NULL slot or a NULL header walks nothing. A view, or a base
+// some view still reads, is refused by name (VM1003): their slots are read by
+// a holder on the origin shard, and no in-place rewrite can make those
+// private to the destination. RV2_ARRAY_UNSHARE_WALK_NEGATIVE_CONTROL cuts the
+// refusal and never the walk. Defined in rt_array_reclaim.c.
+void rt_array_unshare_walk(void* array_slot, uint64_t elem_stride, void (*walk)(void*));
 // Debug observability for the deferred-reclamation float.
 uint64_t rt_array_debug_deferred_base_drops(void);
 // Debug barrier for an observer of a process-wide counter: returns once no
@@ -361,10 +371,10 @@ void rt_bigfloat_free(void* a);
 // -- a capture, a far-select SEND payload, a crossing or blocking body's
 // result, an anchored body's `ch.send(own f)` (which gives away the capture
 // the caller already made private) -- has its counted leaves made private
-// first (rt_bigfloat_unshare above), and a shape that walk cannot reach (a
-// container's buffer, a channel's ring) is refused at compile time, at every
-// gate -- capture, channel element and reply alike (Epic 22 step 5;
-// RV2-DEBT-038 keeps the buffer walk).
+// first (rt_bigfloat_unshare above, reaching a dynamic array's elements one by
+// one through rt_array_unshare_walk), and a shape that walk cannot reach (a
+// map's table, a channel's ring) is refused at compile time, at every gate --
+// capture, channel element and reply alike.
 //
 // The LLVM backend inlines both as IR at the use site rather than calling
 // these, so that a float copy costs a predictable not-taken branch instead of

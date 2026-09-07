@@ -52,13 +52,14 @@ typedef struct SurgeBigInt {
 // (shipped); the barrier the compiler emits in the relinquishing operand of
 // every capture, far-select SEND payload and crossing or blocking result,
 // which makes the counted leaves of the value private before it travels
-// (rt_bigfloat_unshare, whose duplicate is rt_bigfloat_clone) -- an anchored
-// body's send gives away a capture that barrier already made private, and
-// makes nothing itself, because its prefix replays; and the compile-time
-// REFUSAL of the shapes that walk cannot reach -- a container's buffer, a
-// channel's ring -- at every gate: capture, channel element and reply (Epic
-// 22 step 5). The barrier is a narrowing `int`/`uint` cannot take, which is
-// why it comes first -- RV2-DEBT-038.
+// (rt_bigfloat_unshare, whose duplicate is rt_bigfloat_clone; a dynamic
+// array's elements are reached one by one through rt_array_unshare_walk) --
+// an anchored body's send gives away a capture that barrier already made
+// private, and makes nothing itself, because its prefix replays; and the
+// compile-time REFUSAL of the shapes that walk cannot reach -- a map's table,
+// a channel's ring -- at every gate: capture, channel element and reply. The
+// barrier is a narrowing `int`/`uint` cannot take, which is why it comes
+// first -- RV2-DEBT-038.
 typedef struct SurgeBigFloat {
     uint32_t rc;
     int32_t exp;

@@ -30,6 +30,17 @@
 // process-global and tasks on different workers mutate it concurrently;
 // drop emission turns that latent race hot, so every registry touch now
 // serializes here (see rt_array_internal.h).
+//
+// Relinquish emission's buffer walk lives here too (rt_array_unshare_walk):
+// before a value leaves its shard, every element slot of an owned array is
+// handed to the crossing barrier's per-element step, and the two questions a
+// drop asks the registry -- is this a view, does a view still read this base
+// -- are the same two questions the walk asks, with a refusal by name instead
+// of a deferral as the answer. The check runs under the lock and the walk
+// runs after it is released, for the reason above (the step re-enters the
+// allocator, and rt_free re-enters the registry); the answer cannot go stale
+// in between, because only the owning thread slices an array and the moving
+// value is private by the compiler's guarantee.
 
 typedef void (*SurgeArrayDropElem)(void*);
 
@@ -89,6 +100,75 @@ static bool array_base_has_views_locked(const SurgeArrayHeader* base) {
         }
     }
     return false;
+}
+
+// A crossing refusal is reported under VM1003: the emitter hands over a value
+// whose static type says "owned array" and whose header says otherwise, and
+// that is the code the VM gives a value that is not what its type promised.
+// rt_array.c answers the sibling condition, resizing a view, with the same
+// code, so the two backends cannot disagree about what class of thing this is.
+//
+// A NULL span, as for every panic raised inside the runtime: this code has no
+// source location of its own, and the reporter takes the line from the
+// innermost Surge frame instead (rt_backtrace.c), so the program still sees
+// where it crossed.
+static void array_panic_cannot_cross(const char* msg) {
+    static const char code[] = "VM1003";
+    rt_panic_code((const uint8_t*)code,
+                  (uint64_t)(sizeof(code) - 1),
+                  (const uint8_t*)msg,
+                  (uint64_t)strlen(msg),
+                  NULL,
+                  0);
+}
+
+// Relinquish emission: the crossing barrier's buffer walk. Runs `walk` on
+// every element slot (data + i * stride, i < len) of an OWNED dynamic array,
+// with no lock held: the step re-enters the allocator, and rt_free re-enters
+// the registry. A VIEW, or a BASE with live views, is refused by name instead
+// of walked: a view's slots ARE the base's slots, and a base with a live view
+// has a reader of its slots on this shard, so no in-place rewrite of either
+// can make the elements private to the destination. The check is taken under
+// the registry lock and acted on after it; nothing can slip in between,
+// because only the owning thread slices an array and the moving value is
+// private by the compiler's guarantee.
+//
+// RV2_ARRAY_UNSHARE_WALK_NEGATIVE_CONTROL cuts the check and leaves the walk,
+// which is how a row shows the refusal is what keeps a view off two shards.
+void rt_array_unshare_walk(void* array_slot, uint64_t elem_stride, void (*walk)(void*)) {
+    if (array_slot == NULL) {
+        return;
+    }
+    SurgeArrayHeader* header = *(SurgeArrayHeader**)array_slot;
+    if (header == NULL) {
+        return;
+    }
+
+    rt_array_registry_lock();
+    bool refuse_view = rt_array_header_is_view(header);
+    bool refuse_base = !refuse_view && array_base_has_views_locked(header);
+    rt_array_registry_unlock();
+#ifdef RV2_ARRAY_UNSHARE_WALK_NEGATIVE_CONTROL
+    // The mutant: the registry was asked and its answer is thrown away.
+    refuse_view = false;
+    refuse_base = false;
+#endif
+
+    if (refuse_view) {
+        array_panic_cannot_cross("array view cannot cross a shard boundary: its elements live in "
+                                 "the base's buffer, which the origin shard keeps; cross an owned "
+                                 "array instead");
+    }
+    if (refuse_base) {
+        array_panic_cannot_cross("array with a live view cannot cross a shard boundary: a view on "
+                                 "this shard still reads its buffer");
+    }
+    if (walk == NULL || header->data == NULL) {
+        return;
+    }
+    for (uint64_t i = 0; i < header->len; i++) {
+        walk((uint8_t*)header->data + i * elem_stride);
+    }
 }
 
 static void array_orphan_push_locked(SurgeArrayHeader* base,
