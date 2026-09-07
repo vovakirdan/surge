@@ -1,0 +1,27 @@
+on_negative_array_of_handles_capture.sg (span: 3:1-17:1)
+├─ Item[0]: Fn (span: 3:1-5:2)
+│  ├─ Name: count
+│  ├─ Params: (chs: own Channel<int>[])
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 3:42-5:2)
+│        └─ Stmt[0]: Return (span: 4:5-4:28)
+│           └─ Expr: expr#4: len(chs) to int
+└─ Item[1]: Fn (span: 7:1-16:2)
+   ├─ Name: run
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:23-16:2)
+         ├─ Stmt[0]: Let (span: 8:5-8:34)
+         │  ├─ Name: chs
+         │  ├─ Mutable: false
+         │  ├─ Type: Channel<int>[]
+         │  └─ Value: expr#5: <ExprKind(8)>
+         ├─ Stmt[1]: Let (span: 9:5-11:7)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: TaskResult<int>
+         │  └─ Value: expr#11: on pool { 1 stmt(s) }
+         └─ Stmt[2]: Return (span: 12:5-15:7)
+            └─ Expr: expr#20: compare r { 2 arms }

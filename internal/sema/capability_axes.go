@@ -157,6 +157,13 @@ func (c *CapabilityClassifier) evaluateShardMovable(
 		return c.allComponents(id, at, (*capabilityNode).isShardMovable,
 			arrayTravelsReason, shardComponentRefusedReason)
 	}
+	// `Placement` travels as itself: a tagged word with no storage on either
+	// shard. The checker-side leg has the same arm, for the same reason, and by
+	// the same identity test rather than by `@copy` -- `Channel<T>` carries
+	// `@intrinsic @copy` as well and its ring may not be duplicated.
+	if kind, _ := c.handleKind(id); kind == handlePlacement {
+		return true, placementTravelsReason, types.NoTypeID
+	}
 	facts := c.facts[id]
 	switch {
 	case facts.ShardPinned:

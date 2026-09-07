@@ -39,6 +39,7 @@ const (
 	functionPointerTravelsReason = "a function pointer names code every shard in this process shares"
 	tupleTravelsReason           = "every element may move between shards"
 	arrayTravelsReason           = "every element may move between shards"
+	placementTravelsReason       = "`Placement` is a tagged word with no storage of its own, so it travels as itself"
 	markedMovableReason          = "the type is `@shard_movable` and every member may move with it"
 	shardPinnedReason            = "the type is `@shard_pinned`, so it stays in the shard that holds it"
 	noSendReason                 = "the type is `@nosend`, so it may not leave the shard that holds it"

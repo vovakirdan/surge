@@ -65,12 +65,16 @@ func (tc *typeChecker) fixedViewBaseOfExpr(expr ast.ExprID) symbols.SymbolID {
 }
 
 // bindArrayView records what a `let` bound to an array-derived value
-// establishes: that the binding IS a view, which array a fixed view points
-// into, and which array a `__range()` cursor walks. One call because they are
-// one event — a binding that is a view or a cursor without provenance is a
-// binding the escape rules cannot reason about.
+// establishes: that the binding IS a view, that it MAY be one on some path,
+// that it HOLDS one inside the value, which array a fixed view points into, and
+// which array a `__range()` cursor walks. One call because they are one event —
+// a binding that is a view or a cursor without provenance is a binding the
+// escape rules cannot reason about. The first two are separate facts read by
+// different rules; type_array_view_may.go says which is which and why.
 func (tc *typeChecker) bindArrayView(symID symbols.SymbolID, valueExpr ast.ExprID) {
 	tc.markArrayViewBinding(symID, tc.isArrayViewExpr(valueExpr))
+	tc.markArrayViewMayBinding(symID, tc.mayBeArrayView(valueExpr))
+	tc.noteArrayViewHolding(symID, valueExpr)
 	tc.noteFixedViewBinding(symID, valueExpr)
 	tc.bindRangeCursor(symID, valueExpr)
 }

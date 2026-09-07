@@ -141,10 +141,13 @@ func crossingRecordExecutable(res *sema.Result, info *sema.CrossingLoweringInfo)
 		//
 		// One send is outside that "wherever", and this gate does not cover it:
 		// the anchored body's `ch.send`, which no walk may precede because the
-		// body's prefix replays (validate_relinquish.go sinkIsSubject). Its
-		// counted-block half is closed by the shape sema holds the payload to;
-		// there is no such shape for an array, so an array sent from an
-		// anchored body reaches the ring unexamined.
+		// body's prefix replays (validate_relinquish.go sinkIsSubject). What
+		// closes it, where it is closed at all, is the SHAPE sema holds the
+		// payload to: `own <captured binding>`, asked of a counted element and
+		// now of a payload that names a captured dynamic array. A payload that
+		// names no capture -- one built inside the block, or sliced out of a
+		// `@shard_movable` capture's field -- still reaches the ring
+		// unexamined (RV2-DEBT-349).
 		return !res.CountedBlockStaysShared(info.PayloadType) &&
 			!res.DynamicArrayStaysUnchecked(info.PayloadType)
 	case sema.CrossingLoweringChannelSelect:

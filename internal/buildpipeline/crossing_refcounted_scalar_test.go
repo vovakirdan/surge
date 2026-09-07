@@ -30,6 +30,21 @@ import (
 // channel's creation (crossing_refcounted_scalar_channel_test.go), and the
 // crossing RESULT at its reply (crossing_refcounted_scalar_reply_test.go).
 //
+// A crossing INTO an `on` body is asked a second question, and the order
+// between them is what several rows here exist to hold. For a dynamic ARRAY the
+// ELEMENT answers first -- `Channel<float>[]`, `Channel<int>[]`, an array of an
+// unmarked struct, an array of a `@nosend` type -- and the message names the
+// element, because `Array<T>` is a spelling and carries no marker for anyone to
+// add. For everything else the counted block answers: a bare `Channel<float>`
+// and a `Map<int, float>` keep the ring / table words.
+//
+// That order is a correction, and the reason is that the counted-block wording
+// carries a way OUT the array cannot take. Asked first it told the reader of a
+// `Channel<float>[]` to "use a fixed-width type (`float64`) for the values it
+// holds", and `Channel<float64>[]` is refused all over again -- what refuses an
+// array of channels is that NO array of channels crosses, whatever the payload.
+// The element is the declaration a reader can change, so the element answers.
+//
 // The one shape that is NOT here, on purpose: fixed-width `float64`, a machine
 // word with no block behind it (TestFixedWidthFloatStillCrosses).
 func TestRefCountedScalarCrossingsAreRefused(t *testing.T) {
@@ -39,25 +54,110 @@ func TestRefCountedScalarCrossingsAreRefused(t *testing.T) {
 		src      string
 		contains []string
 	}{
-		// The counted-block gate lets an owned float array through now, so the
-		// row reaches the capture rule behind it: an owned user value crosses
-		// into an `on` body only when its type is marked `@shard_movable`, and
-		// `Array<T>` carries no marker. That rule is not this file's subject;
-		// the row pins that this is the refusal the shape meets today.
+		// An array of float CHANNELS answers TWO questions and must answer the
+		// element one. Its ring holds counted values, so the counted-block arm
+		// has something true to say about it -- but its way out, "use `float64`
+		// for the values it holds", produces `Channel<float64>[]`, which this
+		// gate refuses again. Move the element arm back behind the counted-block
+		// arm and this row goes red on the ring wording.
 		{
-			name: "owned float array moved into an on body still waits on the shard-movable capture rule",
+			name: "array of float channels captured into an on body is refused for its element, not for the ring",
 			src: `
-fn use(xs: own float[]) -> int { return 1; }
+fn use(chs: own Channel<float>[]) -> int { return 1; }
 
 async fn go(dst: Placement) -> int {
-    let a: float = 1.5;
-    let xs: float[] = [a];
-    let r: TaskResult<int> = on dst { ret use(own xs); };
-    print(a to string);
+    let chs: Channel<float>[] = [];
+    let r: TaskResult<int> = on dst { ret use(own chs); };
     return 0;
 }
 `,
-			contains: []string{"not shard-movable", "`@shard_movable`"},
+			contains: []string{"`Array<Channel<float>>`", "`Channel<float>`", "may not move between shards"},
+		},
+		// The way out the ring wording used to offer, taken. It has to be
+		// refused too, or the reordering above would have been a matter of taste
+		// rather than of the reader reaching a fix.
+		{
+			name: "array of float64 channels is refused for its element as well, so the ring's way out was no way out",
+			src: `
+fn use(chs: own Channel<float64>[]) -> int { return 1; }
+
+async fn go(dst: Placement) -> int {
+    let chs: Channel<float64>[] = [];
+    let r: TaskResult<int> = on dst { ret use(own chs); };
+    return 0;
+}
+`,
+			contains: []string{"`Array<Channel<float64>>`", "`Channel<float64>`", "may not move between shards"},
+		},
+		// A bare channel is NOT an array, so the counted-block arm still answers
+		// for it, in the ring's words. The contrast with the two rows above is
+		// the whole point of the ordering: where the reader can act on the
+		// element, the element speaks; where the value IS the handle whose ring
+		// no walk enters, the ring does.
+		{
+			name: "an owned float channel captured into an on body keeps the ring wording",
+			src: `
+fn use(ch: own Channel<float>) -> int { return 1; }
+
+async fn go(dst: Placement) -> int {
+    let ch: Channel<float> = Channel::<float>::new(4:uint);
+    let r: TaskResult<int> = on dst { ret use(own ch); };
+    return 0;
+}
+`,
+			contains: []string{"`Channel<float>`", "channel's ring", "cannot be made private"},
+		},
+		// An array whose element cannot travel is refused HERE, and names the
+		// element. `Channel<int>` holds no counted scalar at all, so nothing
+		// above this arm has anything to say about it; before the element rule
+		// it fell to the unmarked-owned-value default and was told to mark
+		// `Array<Channel<int>>` -- a spelling nobody can mark.
+		{
+			name: "array of int channels captured into an on body names the element it cannot move",
+			src: `
+fn use(chs: own Channel<int>[]) -> int { return 1; }
+
+async fn go(dst: Placement) -> int {
+    let chs: Channel<int>[] = [];
+    let r: TaskResult<int> = on dst { ret use(own chs); };
+    return 0;
+}
+`,
+			contains: []string{"`Array<Channel<int>>`", "`Channel<int>`", "may not move between shards"},
+		},
+		// The unmarked-owned-value rule keeps its MEANING for arrays: an
+		// element nobody marked still cannot travel, and the refusal now points
+		// at the type whose declaration the reader can actually change.
+		{
+			name: "array of an unmarked user struct captured into an on body",
+			src: `
+type P = { id: int };
+
+fn use(ps: own P[]) -> int { return 1; }
+
+async fn go(dst: Placement) -> int {
+    let ps: P[] = [];
+    let r: TaskResult<int> = on dst { ret use(own ps); };
+    return 0;
+}
+`,
+			contains: []string{"`Array<P>`", "`P`", "may not move between shards"},
+		},
+		{
+			name: "array of a nosend type captured into an on body",
+			src: `
+@nosend
+type L = { id: int };
+
+fn use(ls: own L[]) -> int { return 1; }
+
+async fn go(dst: Placement) -> int {
+    let ls: L[] = [];
+    let r: TaskResult<int> = on dst { ret use(own ls); };
+    return 0;
+}
+`,
+			contains: []string{"`Array<L>`", "`L`", "may not move between shards"},
 		},
 		// A map keyed or valued by a counted scalar shares like an array does,
 		// and its table has no per-element walk: refused for that reason, in
@@ -213,282 +313,4 @@ func compileCleanly(t *testing.T, src string) string {
 		t.Fatalf("did not emit cleanly: %v", emitErr)
 	}
 	return ir
-}
-
-// The captures whose counted blocks live inline: each is un-shared in the
-// relinquishing operand and crosses. Every program keeps a sibling holder of
-// the block alive on the source side (`a` is printed after the crossing), so
-// what these rows admit is exactly the shape the stop-gap refused: the block
-// has two holders at the boundary, and the operand's un-share is what makes
-// the shipped one private. The count of those clones is asserted end to end
-// in internal/vm (unshare_clones on the TRACE_RESIDENT exit line); here the
-// rows pin that the gate no longer turns the shape away.
-//
-// Red on the tree before the narrowing: every row here was refused with
-// SEM3168 (TestRefCountedScalarCrossingsAreRefused held them).
-//
-// A row whose NAME claims the buffer walk reads the emitted IR and demands
-// it. Compiling cleanly says the gate let the shape through; it says nothing
-// about what the relinquishing operand emits. Cut the emitter's dynamic-array
-// leaf arm out and the walk body is empty, the module still builds, and a row
-// that only compiled would call that green.
-func TestRefCountedScalarCapturesCross(t *testing.T) {
-	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
-	cases := []struct {
-		name string
-		src  string
-		walk *bufferWalk
-	}{
-		{
-			name: "bare float captured by copy into an on body",
-			src: `
-async fn go(dst: Placement) -> int {
-    let f: float = 1.5;
-    let r: TaskResult<int> = on dst { let g: float = f; ret 1; };
-    print(f to string);
-    return 0;
-}
-`,
-		},
-		{
-			name: "copy struct carrying a float field captured into an on body",
-			src: `
-@copy
-type P = { v: float };
-
-async fn go(dst: Placement) -> int {
-    let p: P = P { v: 1.5 };
-    let r: TaskResult<int> = on dst { let q: P = p; ret 1; };
-    print(p.v to string);
-    return 0;
-}
-`,
-		},
-		{
-			name: "owned struct carrying a float field moved into an on body",
-			src: `
-@shard_movable
-type P = { v: float };
-
-async fn go(dst: Placement) -> int {
-    let a: float = 1.5;
-    let p: own P = own P{ v: a };
-    let r: TaskResult<int> = on dst { let x: float = p.v; ret 1; };
-    print(a to string);
-    return 0;
-}
-`,
-		},
-		{
-			name: "owned struct carrying a float field moved into a spawn on body",
-			src: `
-@shard_movable
-type P = { v: float };
-
-fn use(p: own P) -> int { return 1; }
-
-async fn start(dst: Placement) -> far Task<int> {
-    let a: float = 1.5;
-    let p: own P = own P{ v: a };
-    return spawn on dst { ret use(own p); };
-}
-`,
-		},
-		{
-			name: "owned union carrying a float payload moved into an on body",
-			src: `
-@shard_movable
-type P = { v: float };
-
-tag Held(P);
-tag Empty();
-@shard_movable
-type U = Held(P) | Empty();
-
-fn use(u: own U) -> int { return 1; }
-
-async fn go(dst: Placement) -> int {
-    let a: float = 1.5;
-    let held: U = Held(P{ v: a });
-    let u: own U = own held;
-    let r: TaskResult<int> = on dst { ret use(own u); };
-    print(a to string);
-    return 0;
-}
-`,
-		},
-		// The moved local had its address handed to a child task first, so the
-		// async split rewrites it into a RESIDENT field of the frame. The
-		// un-share was emitted on the bare local before the split and the
-		// post-split shape rule reads the resident field as that local. Found
-		// by the refuter of 2026-09-06: refused with the validator's own text
-		// ("reaches the boundary as Move L44.__resident$p$3") instead of
-		// building.
-		{
-			name: "owned struct borrowed by a child task, then moved into a spawn on body",
-			src: `
-@shard_movable
-type P = { v: float };
-
-fn use(p: own P) -> int { return 1; }
-
-async fn peek(p: &P) -> int { return 0; }
-
-async fn run(dst: Placement) -> int {
-    let a: float = 1.5;
-    let p: own P = own P{ v: a };
-    let t: Task<int> = spawn peek(&p);
-    let seen: int = compare t.await() { Success(x) => x; Cancelled() => 0 - 2; };
-    let task: far Task<int> = spawn on dst { ret use(own p); };
-    let b: float = a;
-    let r: TaskResult<int> = task.await();
-    print(b to string);
-    return seen;
-}
-`,
-		},
-		{
-			name: "struct borrowed by a child task, then moved into a blocking body",
-			src: `
-type Q = { v: float };
-
-fn sink(q: own Q) -> int { return 1; }
-
-async fn peek(q: &Q) -> int { return 0; }
-
-async fn run() -> int {
-    let c: float = 3.5;
-    let q: Q = Q{ v: c };
-    let t: Task<int> = spawn peek(&q);
-    let seen: int = compare t.await() { Success(x) => x; Cancelled() => 0 - 2; };
-    let job: Task<int> = blocking { ret sink(own q); };
-    let r: TaskResult<int> = job.await();
-    print(c to string);
-    return seen;
-}
-`,
-		},
-		{
-			name: "struct carrying a float field moved into a blocking body",
-			src: `
-type P = { v: float };
-
-fn sink(p: own P) -> int { return 1; }
-
-async fn go() -> int {
-    let a: float = 1.5;
-    let p: P = P{ v: a };
-    let job: Task<int> = blocking { ret sink(own p); };
-    let r: TaskResult<int> = job.await();
-    print(a to string);
-    return 0;
-}
-`,
-		},
-		{
-			name: "bare float captured into a blocking body",
-			src: `
-async fn go() -> int {
-    let a: float = 1.5;
-    let job: Task<int> = blocking { let b: float = a; ret 1; };
-    let r: TaskResult<int> = job.await();
-    print(a to string);
-    return 0;
-}
-`,
-		},
-		// The array's elements are counted blocks in a buffer the handle names,
-		// one reference per element while `a` keeps its own; the runtime walks
-		// that buffer in the relinquishing operand and makes each private.
-		// Refused before the walk existed, with the buffer named as the reason.
-		{
-			name: "float array captured into a blocking body, its buffer walked element by element",
-			src: `
-fn use(xs: own float[]) -> int { return 1; }
-
-async fn go() -> int {
-    let a: float = 1.5;
-    let xs: float[] = [a];
-    let job: Task<int> = blocking { ret use(own xs); };
-    let r: TaskResult<int> = job.await();
-    print(a to string);
-    return 0;
-}
-`,
-			walk: &bufferWalk{stride: 8, elem: []string{"call ptr @rt_bigfloat_unshare("}},
-		},
-		// The array is built EMPTY, so no expression in the function names its
-		// element union: `Option<float>` reaches the module through the array's
-		// type alone. The walk switches on that union's tag per slot and needs
-		// its membership published; sema admitted this shape while the emitter
-		// refused it as a build error naming sema's predicate, until the
-		// lowering looked through the handle to the payload it holds.
-		{
-			name: "array of optional floats built empty and captured into a blocking body, its element union read from the type alone",
-			src: `
-fn use(xs: own Option<float>[]) -> int { return 1; }
-
-async fn go() -> int {
-    let xs: Option<float>[] = [];
-    let job: Task<int> = blocking { ret use(own xs); };
-    let r: TaskResult<int> = job.await();
-    return 0;
-}
-`,
-			walk: &bufferWalk{
-				stride: 16,
-				elem:   []string{"switch i32", "call ptr @rt_bigfloat_unshare("},
-			},
-		},
-		// The element union's own arm holds a dynamic array, so the walk the
-		// runtime is handed hands a second buffer back to it: the outer body
-		// steps the union's 16-byte slots, and the union's body steps the
-		// float's 8-byte ones. That nesting drains through the one worklist.
-		{
-			name: "array of a user union with a float array arm, built empty and captured into a blocking body",
-			src: `
-tag HeldArr(float[]);
-tag HeldNone();
-type U = HeldArr(float[]) | HeldNone();
-
-fn use(xs: own U[]) -> int { return 1; }
-
-async fn go() -> int {
-    let xs: U[] = [];
-    let job: Task<int> = blocking { ret use(own xs); };
-    let r: TaskResult<int> = job.await();
-    return 0;
-}
-`,
-			walk: &bufferWalk{
-				stride: 16,
-				elem: []string{
-					"switch i32",
-					"call void @rt_array_unshare_walk(",
-				},
-			},
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			ir := compileCleanly(t, tc.src)
-			if tc.walk != nil {
-				requireBufferWalk(t, ir, *tc.walk)
-			}
-		})
-	}
-}
-
-// The refusal must not spill onto fixed-width floats: `float64` is a machine word
-// with no heap block and no count, and it has always crossed. If this breaks,
-// the widening reached a type it was never meant to.
-func TestFixedWidthFloatStillCrosses(t *testing.T) {
-	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
-	compileCleanly(t, `
-async fn go(dst: Placement) -> int {
-    let f: float64 = 1.5;
-    let r: TaskResult<float64> = on dst { let g: float64 = f; ret g; };
-    return 0;
-}
-`)
 }

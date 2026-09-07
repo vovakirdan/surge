@@ -49,9 +49,16 @@ func capabilityWorld(t *testing.T) (*CapabilityClassifier, map[string]types.Type
 	shapes["far Text"] = in.Intern(types.Type{Kind: types.KindFar, Elem: shapes["Text"]})
 	shapes["own Text"] = in.Intern(types.Type{Kind: types.KindOwn, Elem: shapes["Text"]})
 
+	// `Placement`: an intrinsic nominal that is handle-SHAPED and owns nothing,
+	// which is why it answers three axes differently from `Channel` beside it.
+	shapes["Placement"] = in.RegisterStructInstance(
+		in.Strings.Intern("Placement"), source.Span{File: 1, Start: 9, End: 10}, nil)
+	in.MarkRuntimePlacementType(shapes["Placement"])
+
 	shapes["[]int"] = capabilityDynamicArray(in, shapes["int"])
 	shapes["[]string"] = capabilityDynamicArray(in, shapes["string"])
 	shapes["[]Channel"] = capabilityDynamicArray(in, shapes["Channel"])
+	shapes["[]Placement"] = capabilityDynamicArray(in, shapes["Placement"])
 	shapes["[4]int"] = in.Intern(types.Type{Kind: types.KindArray, Elem: shapes["int"], Count: 4})
 	shapes["[4]string"] = in.Intern(types.Type{Kind: types.KindArray, Elem: shapes["string"], Count: 4})
 	shapes["(int, string)"] = in.RegisterTuple([]types.TypeID{shapes["int"], shapes["string"]})
@@ -211,9 +218,114 @@ func TestCapabilityShardMovableAxis(t *testing.T) {
 		{shape: "(int, Pinned)", want: false, reason: "may not move between shards",
 			path: []string{"(int, Pinned)", "Pinned"}},
 		{shape: "[4]int", want: true, reason: "every element may move"},
+		// The dynamic-array rows the capture gate now depends on. The axis has
+		// answered an array by its element since it was written; nothing pinned
+		// it, and the `on` capture rule reads exactly these three answers.
+		{shape: "[]int", want: true, reason: "every element may move"},
+		{shape: "[]string", want: true, reason: "every element may move"},
+		{shape: "[]Channel", want: false, reason: "may not move between shards",
+			path: []string{"[Channel<int>]", "Channel<int>"}},
+		// `Placement` travels as itself -- a tagged word with no storage on
+		// either shard -- so an array of them travels too. Without the arm that
+		// says so the axis fell through to "not marked `@shard_movable`", and an
+		// `on` capture of `Placement[]` was refused by a sentence naming a core
+		// `@intrinsic` type the reader cannot mark, one program away from a bare
+		// `Placement` that crosses.
+		{shape: "Placement", want: true, reason: "travels as itself"},
+		{shape: "[]Placement", want: true, reason: "every element may move"},
 	}, func(c Capability) (bool, string, []types.TypeID) {
 		return c.ShardMovable, c.ShardReason, c.ShardPath
 	})
+}
+
+// TestShardMovableCaptureGateAgreesWithTheAxis holds the two legs of the
+// ShardMovable question to one answer, the way TestCapabilityDroppableAgreesWithOwnsHeap
+// holds Droppable and ownsHeap.
+//
+// The legs exist because they are asked at different times. The whole-program
+// CapabilityClassifier reads a merged fact table that is not populated until
+// the scope stack finalizes, so a capture site cannot consult it; the checker
+// leg (isShardMovableMemberType) walks one file's live attributes and is what
+// `on`'s capture gate asks. Both are compared here on ONE program, and on both
+// halves of what the gate does with the answer: the ELEMENT the gate looks up,
+// and the ARRAY the axis answers about as a whole. Only the array-level column
+// catches the two legs drifting on the array rule itself.
+//
+// The table carries no function-pointer shape on purpose. `(fn(int) -> int)[]`
+// is a KNOWN divergence -- the classifier calls a function pointer movable and
+// the checker leg has no KindFn arm, so it says no -- and closing it means
+// widening the `@shard_movable` FIELD validator at every declaration site,
+// which is a different change on different evidence. It is carried in the debt
+// ledger rather than left as a note here.
+func TestShardMovableCaptureGateAgreesWithTheAxis(t *testing.T) {
+	tc, _, syms := newContractChecker(t, `
+type Plain = { id: int }
+@nosend type LocalOnly = { id: int }
+@shard_pinned type Pinned = { id: int }
+@shard_movable type Movable = { id: int }
+type Placed = { __opaque: int }
+
+type Shapes = {
+    ints: int[],
+    strs: string[],
+    plains: Plain[],
+    locals: LocalOnly[],
+    pins: Pinned[],
+    movables: Movable[],
+    places: Placed[],
+}
+`)
+	// `Placement` is registered by identity in core rather than by an attribute,
+	// so the row that carries it is registered the same way here. It is the one
+	// unmarked nominal both legs must call movable, and before they did an `on`
+	// capture of `Placement[]` was refused with advice -- mark it
+	// `@shard_movable` -- that names a core `@intrinsic` type nobody can edit.
+	placedSym := lookupSymbolByName(syms, tc.builder.StringsInterner.Intern("Placed"))
+	if !placedSym.IsValid() {
+		t.Fatal("Placed was not resolved")
+	}
+	tc.types.MarkRuntimePlacementType(syms.Table.Symbols.Get(placedSym).Type)
+
+	shapesSym := lookupSymbolByName(syms, tc.builder.StringsInterner.Intern("Shapes"))
+	if !shapesSym.IsValid() {
+		t.Fatal("Shapes was not resolved")
+	}
+	shapes := syms.Table.Symbols.Get(shapesSym).Type
+	fields := tc.types.StructFields(shapes)
+	if len(fields) != 7 {
+		t.Fatalf("Shapes has %d fields, want 7", len(fields))
+	}
+	classifier := mustClassifier(t, tc.result)
+	accepted, refused := 0, 0
+	for _, field := range fields {
+		name := tc.lookupName(field.Name)
+		elem, ok := tc.types.DynamicArrayElem(field.Type)
+		if !ok {
+			t.Fatalf("field %s of type %s is not a dynamic array", name, tc.typeLabel(field.Type))
+		}
+		gate := tc.shardMovableElement(elem)
+		axisElem := mustClassify(t, classifier, elem).ShardMovable
+		axisArray := mustClassify(t, classifier, field.Type).ShardMovable
+		if gate != axisElem {
+			t.Errorf("%s: capture gate says element %s is movable=%t, the axis says %t",
+				name, tc.typeLabel(elem), gate, axisElem)
+		}
+		if gate != axisArray {
+			t.Errorf("%s: capture gate accepts %s = %t, the axis answers the whole array %t",
+				name, tc.typeLabel(field.Type), gate, axisArray)
+		}
+		if gate {
+			accepted++
+		} else {
+			refused++
+		}
+	}
+	// Two legs that both answered "yes" to everything would agree here too, so
+	// the table has to reach both verdicts to mean anything.
+	if accepted != 4 || refused != 3 {
+		t.Fatalf("table answered %d accepted / %d refused, want 4 / 3; agreement on one verdict proves nothing",
+			accepted, refused)
+	}
 }
 
 // TestCapabilityShardMovableIsOnlyTheOwnedMoveVerdict pins that the use-site

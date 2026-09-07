@@ -1,0 +1,1 @@
+error SEM3199 testdata/golden/sema/invalid/ownership/range_cursor_escapes_after_view_rebind.sg:27:12 cannot return a range over local 'out': the cursor walks storage this call frame frees

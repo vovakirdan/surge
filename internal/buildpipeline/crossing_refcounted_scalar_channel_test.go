@@ -278,23 +278,248 @@ async fn go() -> int {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "main.sg")
-			if err := os.WriteFile(path, []byte(tc.src), 0o600); err != nil {
-				t.Fatalf("write source: %v", err)
-			}
-			res, _ := Compile(context.Background(), &CompileRequest{
-				TargetPath: path, Backend: BackendLLVM, MaxDiagnostics: 200,
-			})
-			if res.Diagnose == nil || res.Diagnose.Bag == nil {
-				t.Fatal("missing diagnostics bag")
-			}
-			found := findDiagnostic(res.Diagnose.Bag.Items(), tc.code)
-			if found == nil {
-				t.Fatalf("no %s; got %s", tc.code.ID(), summarizeCodes(res.Diagnose.Bag.Items()))
-			}
-			if !strings.Contains(found.Message, tc.want) {
-				t.Fatalf("message does not say %q: %s", tc.want, found.Message)
-			}
+			requireAnchoredSendDiagnostic(t, tc.src, tc.code, tc.want)
 		})
 	}
+}
+
+// The anchored send of a captured DYNAMIC ARRAY is held to the same shape, by
+// the second arm of the same rule. `[int]` shares no counted block, so the
+// element question says nothing about it -- while the body owes the capture's
+// header and its buffer a drop from the moment the capture moved in
+// (registerCrossingBodyOwnership). A payload that is not that binding, given
+// away, therefore leaves the ring and the body's scope exit owning one buffer.
+//
+// Red before the arm, measured rather than argued: the first row below BUILT
+// and died with "free(): double free detected in tcache 2" at SURGE_SHARDS and
+// THREADS 2 and at 8, and under valgrind reported 2 invalid frees, 6 invalid
+// reads and an array header freed twice. Its `float[]` twin was already clean,
+// because a float element makes the FIRST arm fire.
+//
+// Every row here is refused only because the capture gate admits a bare `[T]`
+// at all: at 63ecd58b all four failed to compile one line earlier, at the
+// capture, with SEM3168 "this owned value is not shard-movable" -- re-measured,
+// including the `own` window, rather than carried over.
+func TestAnchoredSendOfACapturedArrayMustGiveTheBindingAway(t *testing.T) {
+	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
+	cases := []struct {
+		name string
+		src  string
+		code diag.Code
+		want string
+	}{
+		{
+			name: "a plain read of the capture",
+			src: `
+async fn go() -> int {
+    let ch: far Channel<int[]> = channel_on::<int[]>(shard(0:ShardId), 4);
+    let xs: int[] = [1, 2, 3];
+    let sent: TaskResult<nothing> = on ch { ch.send(xs); ret nothing; };
+    return 0;
+}
+`,
+			code: diag.SemaAnchoredSendGiveAway,
+			want: "must give a captured binding away",
+		},
+		{
+			// The shape that would hand the ring a window into a buffer the
+			// body frees on its way out.
+			name: "a window sliced out of the capture",
+			src: `
+async fn go() -> int {
+    let ch: far Channel<int[]> = channel_on::<int[]>(shard(0:ShardId), 4);
+    let xs: int[] = [1, 2, 3, 4];
+    let sent: TaskResult<nothing> = on ch { ch.send(xs[[1..3]]); ret nothing; };
+    return 0;
+}
+`,
+			code: diag.SemaAnchoredSendGiveAway,
+			want: "must give a captured binding away",
+		},
+		{
+			// The same window with `own` in front of it. `own` names a place
+			// here rather than a whole binding, and the shape rule says so --
+			// this is the row that keeps that arm of the message alive now that
+			// `own xss[0]` is answered a step earlier, for its reference.
+			name: "a window sliced out of the capture and given away",
+			src: `
+async fn go() -> int {
+    let ch: far Channel<int[]> = channel_on::<int[]>(shard(0:ShardId), 4);
+    let xs: int[] = [1, 2, 3, 4];
+    let sent: TaskResult<nothing> = on ch { ch.send(own xs[[1..3]]); ret nothing; };
+    return 0;
+}
+`,
+			code: diag.SemaAnchoredSendGiveAway,
+			want: "must name a whole binding the block captured",
+		},
+		{
+			name: "the capture read after it was given away",
+			src: `
+async fn go() -> int {
+    let ch: far Channel<int[]> = channel_on::<int[]>(shard(0:ShardId), 4);
+    let xs: int[] = [1, 2, 3];
+    let sent: TaskResult<nothing> = on ch { ch.send(own xs); print(xs[0] to string); ret nothing; };
+    return 0;
+}
+`,
+			code: diag.SemaUseAfterMove,
+			want: "use of moved value 'xs'",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			requireAnchoredSendDiagnostic(t, tc.src, tc.code, tc.want)
+		})
+	}
+}
+
+// The admission the four refusals above are worth having: the shape the rule
+// names compiles, for the element types ON-CAP-V005 admits. Without this row a
+// rule that refused every array payload would pass the refusal rows too.
+//
+// The `float[]` row is the control on the ORDER of the two arms: its element
+// shares a counted block, so the first arm answers it, and the second must not
+// answer it again.
+func TestAnchoredSendOfACapturedArrayIsAccepted(t *testing.T) {
+	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
+	for _, tc := range []struct{ name, elem, literal string }{
+		{"an int array", "int[]", "[1, 2, 3]"},
+		{"an array of arrays", "int[][]", "[[1, 2], [3, 4]]"},
+		{"a string array", "string[]", `["ab", "cde"]`},
+		{"a float array, answered by the counted arm", "float[]", "[1.5, 2.5]"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			compileCleanly(t, `
+async fn go() -> int {
+    let ch: far Channel<`+tc.elem+`> = channel_on::<`+tc.elem+`>(shard(0:ShardId), 4);
+    let xs: `+tc.elem+` = `+tc.literal+`;
+    let sent: TaskResult<nothing> = on ch { ch.send(own xs); ret nothing; };
+    return 0;
+}
+`)
+		})
+	}
+}
+
+// The other half of that rule's gate: the array question is asked only when the
+// ELEMENT is an array, because only then is there a buffer in the ring for the
+// body and the ring to own between them.
+//
+// A VALUE read out of a captured array and sent is that half's business only in
+// the sense that it is none of it: the body drops the array exactly as it always
+// did, and the ring keeps nothing of it. Each row here is a value -- computed by
+// a callee, computed in place, bound to a name before the block, or read out of
+// an element's FIELD -- and each one, run, prints the number it was given at
+// SURGE_SHARDS/THREADS 2 and at 8.
+//
+// The last row is why the element half exists at all, and it is measured rather
+// than argued: `ch.send(xs[0].a)` on a captured `Pair[]` over a far
+// `Channel<int>` is a value whose place resolves to the captured array, and with
+// the element question deleted from anchoredSendIsOfACapturedArray this program
+// is refused SEM3212. It prints 11 at both widths as it stands.
+//
+// The shape that is NOT here is `ch.send(xs[0])`, with or without `own`. An
+// index read is a BORROW, not a value, and it is refused a step earlier now; the
+// table below owns it.
+func TestAnchoredSendOfAValueReadOutOfACapturedArrayIsNotRefused(t *testing.T) {
+	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
+	for _, tc := range []struct{ name, src string }{
+		{
+			name: "a value computed from the captured array",
+			src: `
+fn total(xs: own int[]) -> int { return xs[0] + xs[1] + xs[2]; }
+
+async fn go() -> int {
+    let ch: far Channel<int> = channel_on::<int>(shard(0:ShardId), 4);
+    let xs: int[] = [1, 2, 3];
+    let sent: TaskResult<nothing> = on ch { ch.send(total(own xs)); ret nothing; };
+    return 0;
+}
+`,
+		},
+		{
+			name: "a value computed in place from the captured array",
+			src: `
+async fn go() -> int {
+    let ch: far Channel<int> = channel_on::<int>(shard(0:ShardId), 4);
+    let xs: int[] = [1, 2, 3];
+    let sent: TaskResult<nothing> = on ch { ch.send(xs[0] + 0); ret nothing; };
+    return 0;
+}
+`,
+		},
+		{
+			name: "an element copied out under a name before the block",
+			src: `
+async fn go() -> int {
+    let ch: far Channel<int> = channel_on::<int>(shard(0:ShardId), 4);
+    let xs: int[] = [1, 2, 3];
+    let v: int = xs[0];
+    let sent: TaskResult<nothing> = on ch { ch.send(v); ret nothing; };
+    return 0;
+}
+`,
+		},
+		{
+			name: "a field read out of an element of the captured array",
+			src: `
+@shard_movable
+type Pair = { a: int, b: int };
+
+async fn go() -> int {
+    let ch: far Channel<int> = channel_on::<int>(shard(0:ShardId), 4);
+    let xs: Pair[] = [Pair{ a: 1, b: 2 }];
+    let sent: TaskResult<nothing> = on ch { ch.send(xs[0].a); ret nothing; };
+    return 0;
+}
+`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			compileCleanly(t, tc.src)
+		})
+	}
+}
+
+// requireAnchoredSendDiagnostic compiles src and demands one diagnostic with
+// the given code whose message says want.
+func requireAnchoredSendDiagnostic(t *testing.T, src string, code diag.Code, want string) {
+	t.Helper()
+	requireAnchoredSendDiagnosticWithHelp(t, src, code, want, "")
+}
+
+// requireAnchoredSendDiagnosticWithHelp is the same demand plus the way out.
+// A refusal whose help is not asserted is a refusal whose help can rot into
+// advice that does not compile, which is what a reader meets first.
+func requireAnchoredSendDiagnosticWithHelp(t *testing.T, src string, code diag.Code, want, help string) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "main.sg")
+	if err := os.WriteFile(path, []byte(src), 0o600); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	res, _ := Compile(context.Background(), &CompileRequest{
+		TargetPath: path, Backend: BackendLLVM, MaxDiagnostics: 200,
+	})
+	if res.Diagnose == nil || res.Diagnose.Bag == nil {
+		t.Fatal("missing diagnostics bag")
+	}
+	found := findDiagnostic(res.Diagnose.Bag.Items(), code)
+	if found == nil {
+		t.Fatalf("no %s; got %s", code.ID(), summarizeCodes(res.Diagnose.Bag.Items()))
+	}
+	if !strings.Contains(found.Message, want) {
+		t.Fatalf("message does not say %q: %s", want, found.Message)
+	}
+	if help == "" {
+		return
+	}
+	var offered []string
+	for _, note := range found.Help {
+		offered = append(offered, note.Msg)
+		if strings.Contains(note.Msg, help) {
+			return
+		}
+	}
+	t.Fatalf("no help says %q; the diagnostic offers %q", help, offered)
 }

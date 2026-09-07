@@ -148,11 +148,129 @@ fixture metadata.
 | ON-CAP-V002 | `own @shard_movable` value | `on_positive_shard_movable_capture.sg` | `TaskResult<T>` | N/A | Owned shard-movable values may cross. |
 | ON-CAP-V003 | `far T` handle by move (affine) | `on_positive_far_handle_capture.sg` | `TaskResult<T>` | N/A | The local handle is moved in; the remote resource is not moved. |
 | ON-CAP-V004 | `Placement` value (captured or computed in body) | `on_positive_placement_capture.sg` | `TaskResult<T>` | N/A | `Placement` is `Copy` and shard-movable; e.g. calling `shard(id)` inside the body. |
+| ON-CAP-V005 | dynamic array `T[]` whose elements may move between shards | `on_positive_dynamic_array_capture.sg` | `TaskResult<T>` | N/A | An array crosses when every element it holds may. It carries no marker of its own — `[T]` is a spelling, not a declaration — so its element is the only thing there is to ask about. |
 | ON-CAP-N001 | `&T` capture | `on_negative_shared_borrow_capture.sg` | `SEM3165` (Block 4) | Fixable: copy or move an allowed owned value. | Borrowed captures cannot cross. |
 | ON-CAP-N002 | `&mut T` capture | `on_negative_mut_borrow_capture.sg` | `SEM3165` (Block 4) | Fixable: move an allowed owned value after ending the borrow. | Mutable borrowed captures cannot cross. |
 | ON-CAP-N003 | `@nosend` value capture | `on_negative_nosend_capture.sg` | `SEM3166` (Block 4) | Not safely fixable automatically. | `@nosend` forbids crossing task boundaries. |
 | ON-CAP-N004 | owned `@shard_pinned` value capture | `on_negative_shard_pinned_capture.sg` | `SEM3167` (Block 4) | Fixable only by using an accepted `far T` handle. | Shard-pinned resources cannot cross as owned values. |
 | ON-CAP-N005 | non-`@shard_movable` user value moved as `own T` | `on_negative_unmarked_owned_capture.sg` | `SEM3168` (Block 4) | Fixable: mark and validate the type as `@shard_movable` or avoid crossing it. | User-defined owned values need shard-movable eligibility. |
+| ON-CAP-N006 | dynamic array `T[]` whose element may not move between shards | `on_negative_array_of_handles_capture.sg` | `SEM3168` (Block 4) | Fixable: hold an element that travels, or mark the element type `@shard_movable`. | The refusal names the ELEMENT, because that is the declaration the reader can change. |
+| ON-CAP-N007 | a binding whose value may BE an array VIEW (a slice) whose elements would otherwise travel | `on_negative_array_view_capture.sg` | `SEM3168` (Block 4) | Fixable: build an array of your own holding a copy of every element in the window, and cross that. | A view is a window onto ANOTHER array's buffer, and that array stays on the origin shard. |
+| ON-CAP-N008 | a binding whose value HOLDS an array view — an element of the array or tuple it was built from | `on_negative_array_view_element_capture.sg` | `SEM3168` (Block 4) | Fixable: replace the view element with an array of its own. | The capture owns its buffer; the window it holds points into one the origin shard keeps. |
+
+ON-CAP-V005, N006 and V004's array form read the type axis rather than a rule of
+their own, and the axis was already right: the `@shard_movable` FIELD validator
+has read an array field as the element it holds since Block 4
+(`movable_negative_array_of_unmarked_user_type` pins ``non-shard-movable field
+`items` of type `[Payload]` ``), so the only thing missing was the capture gate
+asking the same question at the crossing. One arm was added to both legs of that
+axis at the same time: `Placement` travels as itself — a tagged word with no
+storage on either shard, which is what V004 has said since Block 2 — so
+`Placement[]` crosses by V005 instead of being refused by a sentence telling the
+reader to mark `@shard_movable` on a core `@intrinsic` type nobody can edit.
+
+ON-CAP-N006 is asked FIRST for an array, before the counted-block refusal.
+`Channel<float>[]` answers both — a channel's ring holds counted values — and the
+counted-block wording carries a way out the array cannot take: "use a fixed-width
+type (`float64`) for the values it holds" produces `Channel<float64>[]`, which is
+refused all over again, because what refuses an array of channels is that NO
+array of channels crosses, whatever the payload. The element is the declaration
+a reader can change, so the element answers. A shape that is not an array — a
+bare `Channel<float>`, a `Map<int, float>` — is still answered by the
+counted-block arm, where the ring / table words and their way out are both true.
+
+The gate's full order at a dynamic array, and what each arm owns:
+
+1. **the element (N006)** — the operative fact about an array, and the only way
+   out an array can take;
+2. **the counted block no walk reaches** — owns every shape that is NOT an array
+   (`Map<int, float>`, an owned `Channel<float>`);
+3. **the dynamic array behind a handle** — owns the CONTAINER an array hides in
+   (`Map<int, int[]>`, `Channel<int[]>`), and never fires on an array itself,
+   because the walk steps a buffer and cannot step a table or a ring;
+4. **the two view arms (N007, N008)**.
+
+Arms 2 and 3 own the shapes an array is not, and arm 1 gets to the array first,
+so in practice an array does not reach them: a container whose storage hides an
+array is not itself shard-movable, so arm 1 has already refused any array of one.
+Measured — `Map<int, int[]>` captured by `on` is refused by arm 3 naming the
+table, while `Array<Box>` for a `@shard_movable Box` holding such a map never
+gets that far, the field validator having refused `Box` at its declaration and
+arm 1 the array for its element. N007 and N008 sit LAST of the four, and that
+order is the message: an array whose element cannot travel is refused for the
+element even when the binding is a view, because "cross an array of your own
+instead" would be a lie about a shape no owned array can fix either.
+
+Accepting a capture is one obligation; the OTHER is that somebody drops it. The
+body does, because the caller's binding ended
+(`registerCrossingBodyOwnership`) — and that makes one use of a captured array a
+rule of its own. An anchored body's `ch.send` hands the ring storage the ring
+keeps after the block ends, so a captured array given to it must be given AWAY:
+`ch.send(own xs)`, the whole binding, dead from then on. When the channel's
+element IS an array, any other payload that names the capture — a plain read, a
+window sliced out of it, one of its elements — is refused with `SEM3212`,
+because the ring and the body's scope exit would otherwise own one buffer. That
+is the shape the counted-block half of this sink has demanded since Block 5,
+asked here of the BINDING as well as the element. Both halves of that question
+are needed: `ch.send(xs[0])` over a far `Channel<int>` keeps nothing of the
+array and is not refused, and a payload that names no capture at all — a literal
+built inside the block, or a window out of a `@shard_movable` capture's field —
+still crosses this sink unexamined, as it did before this gate opened
+(RV2-DEBT-349).
+
+The ELEMENT question and the STORAGE question are different questions, and V005
+answers only the first. A view's elements travel exactly as its base's do; what
+does not travel is the buffer they live in, which the origin shard keeps, reads
+through the base and frees.
+
+That refusal is the RUNTIME's, and it is fail-closed. Every crossing of a dynamic
+array hands the array's header to `rt_array_unshare_walk`, whatever its element
+type, and the walk asks the view registry and refuses a view — or a base some
+view still reads — by name:
+
+    panic VM1003: array view cannot cross a shard boundary: its elements live in
+    the base's buffer, which the origin shard keeps; cross an owned array instead
+
+N007 and N008 are the KINDNESS in front of that, not the guarantee. What they buy
+is the moment and the words: a compile error naming the binding the reader wrote
+and a way out they can take, at the point they can still change it, rather than a
+panic on a machine with a shard count. Nothing about safety rests on them. A view
+they cannot see stops all the same — one laundered through a call's return value,
+a struct field or a parameter, and one written into a holder by `xs.push(v)`,
+`xs[0] = v` or `pair.0 = v`, all of which build and then die with the panic above
+at 2 and at 8 shards, through `on`, through `spawn on` and through an anchored
+`on ch` alike.
+
+They read a MAY fact of their OWN, kept in a map only they consult, and a MAY
+fact is never withdrawn. That map marks a binding when a `let` binds it to a
+slice, when any assignment rebinds it to one, when any arm of a `compare`, a
+ternary or a block tail is one, and when it is read back out of a value that
+holds one — an array literal's element, or the tuple position a literal wrote a
+window into. Withdrawing the marker on an assignment used to clear a live view
+from a branch that never ran; it is only ever added now, so the answer is the
+join of the paths rather than the last one the walk saw.
+
+The map is theirs alone because the guess is affordable only where the registry
+stands behind it. Three other rules in the checker ask about views with nothing
+behind them — the resize rule (`push`/`pop`/`reserve` on a view), the decision
+whether an index expression MINTS a value or only reads one the container keeps,
+and the range-cursor escape rule that refuses returning a cursor over storage the
+frame frees — and each acts on a yes with no way back: a wrong yes turns a
+correct program into a compile error, and a wrong no drops a refusal that stands
+in front of a segfault. Both of those were measured when the wide fact was handed
+to them: `v = [9, 9]` followed by `v.push(5)` stopped compiling with `SEM3015`
+though `v` owns its buffer by then, and a `__range()` cursor returned over a
+reassigned view binding lost `SEM3199` and dumped core, eight runs out of eight.
+Those three read the narrow fact, the one a reader can follow by eye, and an
+assignment withdraws it. Two questions, two maps, told apart by whether a wrong
+answer is caught later.
+
+So the compile-time set and the run-time set are not one inside the other, and
+neither is the authority on the other. This one over-approximates on purpose — a
+binding a later assignment ALWAYS overwrites is still refused at the crossing,
+and the reader clears it by giving the replacement its own name — while the
+runtime reads the header actually in hand. Any future reading of these two rules
+starts there: they are a message, and the registry is the rule.
 
 ## Far-Handle Owner Anchor Matrix
 
@@ -251,7 +369,7 @@ leaking, or falling through to an ambiguous backend error.
 
 The capture diagnostics used by Block 2 are owned by Block 4, not allocated here:
 `SEM3165` (ON-CAP-N001/N002), `SEM3166` (ON-CAP-N003), `SEM3167` (ON-CAP-N004),
-and `SEM3168` (ON-CAP-N005). The crossing-effect diagnostic `SEM3162`
+and `SEM3168` (ON-CAP-N005/N006/N007/N008). The crossing-effect diagnostic `SEM3162`
 (ON-CROSS-N001) is RETIRED (D17): `crosses` removed, effect inferred. See the
 shared-diagnostics ownership table in `11-tasks/README.md`.
 
@@ -273,6 +391,7 @@ shared-diagnostics ownership table in `11-tasks/README.md`.
 | `on_positive_shard_movable_capture.sg` | ON-CAP-V002 |
 | `on_positive_far_handle_capture.sg` | ON-CAP-V003 |
 | `on_positive_placement_capture.sg` | ON-CAP-V004 |
+| `on_positive_dynamic_array_capture.sg` | ON-CAP-V005 |
 | `on_positive_crosses_fn.sg` | ON-CROSS-V001 |
 | `on_positive_async_crosses_fn.sg` | ON-CROSS-V002 |
 | `on_positive_on_identifier_let.sg` | ON-KW-V001 |
@@ -300,6 +419,9 @@ shared-diagnostics ownership table in `11-tasks/README.md`.
 | `on_negative_nosend_capture.sg` | ON-CAP-N003 | `SEM3166` (Block 4) | Not safely fixable automatically |
 | `on_negative_shard_pinned_capture.sg` | ON-CAP-N004 | `SEM3167` (Block 4) | Fixable only through accepted `far T` handle use |
 | `on_negative_unmarked_owned_capture.sg` | ON-CAP-N005 | `SEM3168` (Block 4) | Fixable |
+| `on_negative_array_of_handles_capture.sg` | ON-CAP-N006 | `SEM3168` (Block 4) | Fixable |
+| `on_negative_array_view_capture.sg` | ON-CAP-N007 | `SEM3168` (Block 4) | Fixable |
+| `on_negative_array_view_element_capture.sg` | ON-CAP-N008 | `SEM3168` (Block 4) | Fixable |
 | `on_negative_unanchored_far_channel.sg` | ON-ANCHOR-N001 | `SEM3150` | Not safely fixable automatically |
 | `on_negative_unanchored_far_tcpconn.sg` | ON-ANCHOR-N002 | `SEM3150` | Not safely fixable automatically |
 | `on_negative_far_operation_outside_on.sg` | ON-ANCHOR-N003 | `SEM3194` | Fixable |

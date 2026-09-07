@@ -1,0 +1,1 @@
+error SEM3168 testdata/golden/crossing/block02/invalid/on_negative_array_view_capture.sg:11:23 `v` is a view of another array: its elements live in that array's buffer, which this shard keeps, reads through and frees, so a view cannot cross a shard boundary. Cross an array of your own instead -- build one holding a copy of every element in the window, and cross that

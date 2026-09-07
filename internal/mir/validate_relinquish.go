@@ -75,6 +75,20 @@ func needsRelinquishWalkIn(typesIn *types.Interner, id types.TypeID) bool {
 	return (&sema.Result{TypeInterner: typesIn}).NeedsRelinquishWalk(id)
 }
 
+// dynamicArrayIn asks whether this value IS a dynamic array — a header and a
+// buffer the body owes a drop for — rather than whether one is reachable from
+// it. The anchored send's give-away is the one place that wants the narrow
+// question: it hands a whole capture to the ring, and a value that merely
+// CONTAINS an array (a struct field, a map's table) is not a capture this gate
+// opened.
+func dynamicArrayIn(typesIn *types.Interner, id types.TypeID) bool {
+	if typesIn == nil || id == types.NoTypeID {
+		return false
+	}
+	_, isArray := typesIn.DynamicArrayElem(id)
+	return isArray
+}
+
 // bareLocalOf reports the local a place names directly: no projection, no
 // global.
 func bareLocalOf(p Place) (LocalID, bool) {
@@ -223,8 +237,8 @@ func relinquishSinkContext(s *relinquishSink, f *Func) string {
 // sinkIsSubject reports whether the two rules apply to this sink's operand.
 //
 // Every sink but one asks the full question. The exception is the anchored
-// body's send, and the honest account of it is that this sink is UNGUARDED for
-// arrays — not that its array was checked somewhere else.
+// body's send, and the honest account of it is that this sink is only PARTLY
+// guarded for arrays — not that its array was checked somewhere else.
 //
 // Why the rules cannot be asked here: relinquishOperand does not serve this
 // sink and must not, because the body's prefix replays from its first
@@ -233,15 +247,25 @@ func relinquishSinkContext(s *relinquishSink, f *Func) string {
 // satisfy the act rule at this sink, so asking the widened question would turn
 // every array anchored send into a validator's error rather than a diagnostic.
 //
-// What that costs, and why the counted-block half does not pay it: sema holds
-// the payload of an anchored send to `own <captured binding>`
-// (checkAnchoredSendGivesCountedPayloadAway) only when the element MAY SHARE A
-// COUNTED BLOCK, and the lowering that gives the capture's own reference away
-// (anchoredSendGivenAway) asks the same question. An `int[]` answers no to
-// both, so an array payload is held to no shape at all: it may be a literal
-// built inside the body, or a view sliced out of a capture, and no walk on
-// either thread ever sees it. Closing that route belongs to the same sema gate
-// the counted half uses, and it is not closed today.
+// WHAT IS GUARDED, and where. Sema holds the payload of an anchored send to
+// `own <captured binding>` (checkAnchoredSendGivesThePayloadAway) when the
+// element may share a counted block, and now also when the element IS a dynamic
+// array and the payload names a binding the crossing captured as one; the
+// lowering that gives the capture's own reference away (anchoredSendGivenAway)
+// recognizes the same two. So an array capture reaches the ring as the body's
+// only reference, with the body's drop withheld, exactly as a counted capture
+// does. The act is not re-checked here, because this predicate reads a type
+// while the array half is also a fact about the BINDING; the shape is by
+// construction, the lowering building the operand as a move out of the
+// capture's local.
+//
+// WHAT IS STILL OPEN, stated rather than argued away: a payload that names no
+// captured array — a literal built inside the body, a window sliced out of a
+// `@shard_movable` capture's field, or a whole struct capture that merely
+// CONTAINS an array — is held to no shape and takes no walk on either thread.
+// All three crash, and all three crashed the same way before the capture gate
+// admitted a bare array, so this is the sink's older debt (RV2-DEBT-349), not
+// the widening's.
 func sinkIsSubject(s *relinquishSink, typesIn *types.Interner, id types.TypeID) bool {
 	if s.privateByProvenance {
 		return mayShareCountedBlockIn(typesIn, id)

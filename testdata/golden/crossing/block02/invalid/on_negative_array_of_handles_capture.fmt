@@ -1,0 +1,16 @@
+// EXPECT-DIAG: SEM3168
+// negative: dynamic array whose element may not move between shards
+fn count(chs: own Channel<int>[]) -> int {
+    return len(chs) to int;
+}
+
+async fn run() -> int {
+    let chs: Channel<int>[] = [];
+    let r: TaskResult<int> = on pool {
+        ret count(own chs);
+    };
+    return compare r {
+        Success(v) => v;
+        Cancelled() => 0;
+    };
+}

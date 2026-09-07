@@ -1,0 +1,37 @@
+// A view binding REASSIGNED to an array of its own is an array of its own, and
+// the cursor rule has to see that: after the assignment `out.__range()` walks
+// storage this frame owns and frees, so returning it is the same mistake as
+// returning a cursor over any other local.
+//
+// The row exists because the rule stopped seeing it. The crossing capture gate
+// wants a view fact that is never withdrawn — a name that holds a window on ANY
+// path — and for one commit that widened fact was the same map this rule reads.
+// The marker survived the assignment, `rangeCursorBaseOfExpr` went silent on
+// what it took for a view, the program compiled, and the native lane printed a
+// garbage arbitrary-precision integer and then segfaulted, eight runs out of
+// eight. The gate keeps its own map now; this is the shape that says so.
+type Item = { n: int };
+
+fn source() -> Item[] {
+    let mut b: Item[] = [];
+    b.push(Item { n = 1 });
+    b.push(Item { n = 2 });
+    b.push(Item { n = 3 });
+    return b;
+}
+
+fn escaped() -> Range<Item> {
+    let src: Item[] = source();
+    let mut out: Item[] = src[[0..2]];
+    out = [Item { n = 33 }];
+    return out.__range();
+}
+
+@entrypoint
+fn main() -> int {
+    let mut total: int = 0;
+    for it in escaped() {
+        total = total + it.n;
+    }
+    return total;
+}

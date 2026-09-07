@@ -114,16 +114,29 @@ func (tc *typeChecker) typeAnchoredChannelOp(
 			return types.NoTypeID
 		}
 		argType := tc.typeExprWithExpected(call.Args[0].Value, element)
-		// The local signature takes `own T`: moved owned values match the
-		// element on their nominal type.
-		if argType != types.NoTypeID && !tc.typesAssignable(element, argType, true) &&
-			!tc.typesAssignable(element, tc.valueType(argType), true) {
+		// Asked BEFORE assignability, because the question below would not stop
+		// a reference and the reference is the whole defect: typesAssignable
+		// DEREFS a reference to a Copy element, so `&int` and `own &int` both
+		// satisfy `int` outright.
+		if !tc.checkAnchoredSendPayloadIsAValue(argType, element, tc.exprSpan(call.Args[0].Value)) {
+			return types.NoTypeID
+		}
+		// The local signature takes `own T`, and typesAssignable already reads a
+		// moved owned value at its nominal type. It used to be asked a second
+		// time of `tc.valueType(argType)`, which strips `&` as well as `own`;
+		// censused rather than reasoned about, the only payloads that fallback
+		// admitted ALONE were `own &T` for a non-Copy `T` -- `own &string`,
+		// `own &Pair`, `own &[int]` -- and the question above now refuses all
+		// three for their reference. Everything else it was carrying it was not
+		// carrying: `ch.send(own xs)` over a far `Channel<int[]>`, `ch.send(own
+		// name)` and `ch.send(own f)` all still compile with it gone.
+		if argType != types.NoTypeID && !tc.typesAssignable(element, argType, true) {
 			tc.report(diag.SemaTypeMismatch, tc.exprSpan(call.Args[0].Value),
 				"anchored `send` value must be `%s` (the channel element type), got `%s`",
 				tc.typeLabel(element), tc.typeLabel(argType))
 			return types.NoTypeID
 		}
-		if !tc.checkAnchoredSendGivesCountedPayloadAway(call.Args[0].Value, element, tc.exprSpan(call.Args[0].Value)) {
+		if !tc.checkAnchoredSendGivesThePayloadAway(call.Args[0].Value, element, tc.exprSpan(call.Args[0].Value)) {
 			return types.NoTypeID
 		}
 		record()
@@ -200,7 +213,7 @@ func (tc *typeChecker) checkOnCaptures(body ast.StmtID, anchorSym symbols.Symbol
 			})
 			continue
 		}
-		mode, verdict, accepted := tc.classifyOnCapture(capType, cap.span)
+		mode, verdict, accepted := tc.classifyOnCapture(capType, cap)
 		if !accepted {
 			ok = false
 			continue
@@ -238,7 +251,8 @@ func (tc *typeChecker) checkOnCaptures(body ast.StmtID, anchorSym symbols.Symbol
 	return captures, ok
 }
 
-func (tc *typeChecker) classifyOnCapture(capType types.TypeID, span source.Span) (CrossingCaptureMode, CrossingCaptureVerdict, bool) {
+func (tc *typeChecker) classifyOnCapture(capType types.TypeID, capture blockingCapture) (CrossingCaptureMode, CrossingCaptureVerdict, bool) {
+	span := capture.span
 	// Borrowed captures are rejected on the surface type (ON-CAP-N001/N002).
 	if tc.isReferenceType(capType) {
 		tc.report(diag.SemaCrossBorrowCapture, span, "borrowed values cannot cross shard boundaries")
@@ -249,6 +263,38 @@ func (tc *typeChecker) classifyOnCapture(capType types.TypeID, span source.Span)
 		return CrossingCaptureMoveFarHandle, CrossingCaptureFarHandle, true
 	}
 	owned := tc.isOwnType(capType)
+	// Owned captures are judged on their nominal type (strip the `own` wrapper).
+	nominal := tc.valueType(capType)
+	// A dynamic array carries no attribute of its own, so the attribute arms
+	// below can only ever say "unmarked" about one. The question an array
+	// actually answers is about its ELEMENT, and the type axis has answered it
+	// that way since the `@shard_movable` field validator first read an array
+	// field as the element it holds (isShardMovableMemberType).
+	arrayElem, isDynArray := types.NoTypeID, false
+	if tc.types != nil {
+		arrayElem, isDynArray = tc.types.DynamicArrayElem(nominal)
+	}
+	// ON-CAP-N006, and it is asked FIRST for an array because it is the operative
+	// fact about one. `Channel<float>[]` answers the counted-block question below
+	// as well -- a channel's ring holds counted values -- and answering there
+	// named a reason a reader cannot act on: "use `float64` for the values it
+	// holds" produces `Channel<float64>[]`, which is refused all over again,
+	// because what refuses an array of channels is that no array of channels
+	// crosses, whatever the payload. The element is the declaration a reader can
+	// change, so the element answers.
+	//
+	// `Array<T>` is a spelling rather than a declaration, so the refusal never
+	// blames the array for carrying no marker -- there is nothing to mark.
+	if isDynArray && !tc.shardMovableElement(arrayElem) {
+		tc.report(diag.SemaCrossNotShardMovable, span,
+			"`%s` cannot cross a shard boundary: its element `%s` may not move between "+
+				"shards, and an array crosses only when every element it holds may. Hold "+
+				"elements that travel -- a fixed-width value, a `string`, or a type you have "+
+				"marked `@shard_movable` -- or leave the array on this shard and cross what "+
+				"you need out of it",
+			types.Label(tc.types, nominal), types.Label(tc.types, arrayElem))
+		return 0, 0, false
+	}
 	// An arbitrary-precision scalar is Copy, but its word is a reference into a
 	// counted heap block, and the count is deliberately not atomic. A capture
 	// that holds one -- copied, or moved while a sibling binding still holds
@@ -294,8 +340,6 @@ func (tc *typeChecker) classifyOnCapture(capType types.TypeID, span source.Span)
 		}
 		return CrossingCaptureCopy, CrossingCaptureCopyValue, true
 	}
-	// Owned captures are judged on their nominal type (strip the `own` wrapper).
-	nominal := tc.valueType(capType)
 	switch {
 	case tc.typeHasAttr(nominal, "shard_pinned"):
 		// ON-CAP-N004: shard-pinned resources cannot cross as owned values.
@@ -323,6 +367,69 @@ func (tc *typeChecker) classifyOnCapture(capType types.TypeID, span source.Span)
 	case owned && tc.result != nil && tc.result.IsCopyType(nominal):
 		// Owned builtin Copy values do not need a user shard-movement marker.
 		return CrossingCaptureMoveOwned, CrossingCaptureOwnedBuiltinCopy, true
+	case isDynArray && tc.isArrayViewBinding(capture.symID):
+		// ON-CAP-N007: a VIEW is a window onto ANOTHER array's buffer, and that
+		// array stays here. ON-CAP-V005 below accepts an array because its
+		// ELEMENTS may travel; for a view that is true of the elements and false
+		// of the storage they live in, so crossing one would hand the destination
+		// shard a pointer into a buffer the origin shard still owns, still reads
+		// through its base, and still frees. Two shards, one mutable buffer.
+		//
+		// This rule is KINDNESS, not the guarantee. The guarantee is the
+		// runtime's: every crossing of a dynamic array hands its header to
+		// `rt_array_unshare_walk`, whatever the element type, and the walk asks
+		// the view registry and refuses a view -- and a base some view still
+		// reads -- by name. So a view this checker cannot see still stops: one a
+		// callee returned, one read out of a struct field or passed in as a
+		// parameter, one pushed or assigned into a holder. What THIS arm buys is
+		// the moment and the words: a compile error naming the binding, before
+		// the program is built and run into a VM1003 panic.
+		//
+		// The two do not answer about the same set, and neither is the other's
+		// subset. This one reads a MAY fact over every path, so it refuses a
+		// binding a later assignment always overwrites; the runtime reads the
+		// header in hand.
+		tc.reportCrossingViewCapture(capture.symID, span)
+		return 0, 0, false
+	case isDynArray && tc.holdsAnArrayView(capture.symID):
+		// ON-CAP-N008: the capture is not a view; it HOLDS one. `let v: int[] =
+		// base[[1..3]]; let xs: int[][] = [v];` builds a fresh outer array whose
+		// ELEMENT windows a buffer the origin shard keeps, and moving `xs` moves
+		// that window with it.
+		//
+		// V005 asks about the element TYPE, which is the travel question, and a
+		// view answers it the same way its base does. This is the STORAGE
+		// question, and only the VALUE can answer that one.
+		//
+		// Kindness in front of the same guarantee N007 stands in front of: the
+		// walk recurses into an inner array, so the held window meets the view
+		// registry at run time whether or not this arm saw it. The routes it
+		// cannot see -- `xs.push(v)`, `xs[0] = v`, `pair.0 = v` -- are exactly
+		// the ones the runtime now catches, each with a VM1003 panic at 2 and at
+		// 8 shards.
+		tc.reportCrossingHeldViewCapture(capture.symID, span)
+		return 0, 0, false
+	case isDynArray:
+		// ON-CAP-V005: a dynamic array crosses when every element it holds may
+		// move between shards. The array itself needs no marker -- there is
+		// nothing to mark, `[T]` being a spelling rather than a declaration --
+		// and the counted blocks its buffer holds were already made private
+		// above, element by element, by the walk the relinquishing operand runs.
+		//
+		// Reaching here means four questions were already answered, in this
+		// order and for this reason: the ELEMENT question (ON-CAP-N006) first,
+		// because for an array it is the operative fact and its way out is the
+		// only one an array can take; then the counted-block one, which owns
+		// every shape that is NOT an array; then the array-behind-a-handle one,
+		// which owns the container an array hides in and never fires on an array
+		// itself; then the two view arms. So every element travels, no storage
+		// the walk cannot step is in the way, and the value is neither a view nor
+		// the holder of one this checker can see.
+		//
+		// The verdict is its own, not the `@shard_movable` one: recording an
+		// `int[]` as accepted "because its type is marked" would be false at the
+		// one place the record is read to explain the decision.
+		return CrossingCaptureMoveOwned, CrossingCaptureOwnedMovableElements, true
 	default:
 		// ON-CAP-N005: unmarked owned user values are not shard-movable.
 		tc.report(diag.SemaCrossNotShardMovable, span,
@@ -340,6 +447,17 @@ func (tc *typeChecker) classifyOnCapture(capType types.TypeID, span source.Span)
 // leaves the caller's binding intact and its duplicate is reclaimed by the
 // unpacking site (`rewriteSpawnOnPollReturns`); a far handle's lease travels
 // with the handle.
+//
+// "Matching the move marking exactly" is a claim about a set, and the set is
+// what ON-CAP-V005 widened: a dynamic array moves into the body under a binding
+// whose type is `[T]`, not `own [T]` -- an array literal cannot even be bound as
+// `own int[]` -- so asking `isOwnType` about it says no, the body registers
+// nothing, and NOBODY drops what the caller has just stopped owning. A body that
+// only READS its captured array leaked the header, the buffer, and every private
+// clone the un-share walk had just made (24 direct + 24 indirect bytes for a
+// bare `int[]`, 228 for a `float[3]`, measured); a body that handed the array to
+// an owning callee happened to be clean, which is why the first measurements
+// missed it. The question is asked here the way the gate asks it.
 //
 // This must run BEFORE the body is walked so a `ret` inside it collects the
 // capture as a live obligation. The capture set is recomputed here rather than
@@ -360,11 +478,53 @@ func (tc *typeChecker) registerCrossingBodyOwnership(body ast.StmtID, anchorSym 
 			tc.registerDroppableBinding(cap.symID)
 			continue
 		}
+		// A dynamic array accepted by ON-CAP-V005 moves in the same way, under a
+		// binding that never wore the `own` wrapper.
+		if tc.crossingCaptureMovesAsDynamicArray(capType) {
+			tc.registerDroppableBinding(cap.symID)
+			continue
+		}
 		if !tc.isOwnType(capType) || !tc.paramTransfersOwnership(capType) {
 			continue
 		}
 		tc.registerDroppableBinding(cap.symID)
 	}
+}
+
+// crossingCaptureMovesAsDynamicArray is ON-CAP-V005's question asked without a
+// diagnostic, so the gate that ACCEPTS the capture and the registration that
+// makes the body drop it read one predicate rather than two that can drift.
+//
+// It repeats the arms classifyOnCapture reaches first, because reaching V005 is
+// what it means to be accepted by it: a borrow is refused on its surface type, a
+// far handle moves in its own mode, an element that may not travel is refused
+// for the element, a counted block no walk reaches is refused after that, and an
+// array behind a handle after that again. The attribute arms in between need no
+// repeating -- `[T]` is a spelling, so it carries no attribute and is not Copy,
+// and none of them can claim a dynamic array.
+//
+// A capture this answers true about but the gate then refuses (a view,
+// ON-CAP-N007, or the holder of one, ON-CAP-N008) registers a drop for a program
+// that does not compile, which costs nothing; answering false about one the gate
+// accepts is the leak, so the doubt falls that way on purpose.
+func (tc *typeChecker) crossingCaptureMovesAsDynamicArray(capType types.TypeID) bool {
+	if tc == nil || tc.types == nil || capType == types.NoTypeID {
+		return false
+	}
+	if tc.isReferenceType(capType) || tc.isFarType(capType) {
+		return false
+	}
+	elem, isDynArray := tc.types.DynamicArrayElem(tc.valueType(capType))
+	if !isDynArray {
+		return false
+	}
+	if tc.result != nil && tc.result.CountedBlockStaysShared(capType) {
+		return false
+	}
+	if tc.result != nil && tc.result.DynamicArrayStaysUnchecked(capType) {
+		return false
+	}
+	return tc.shardMovableElement(elem)
 }
 
 // checkAnchorLeaseUses enforces what the anchor of an `on far_handle` block is

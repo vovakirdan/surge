@@ -246,6 +246,40 @@ fn run(dst: Placement, m: own Movable) -> far Task<int> {
 	}
 }
 
+// A dynamic array is accepted for its ELEMENT, and the record has to say so.
+// The verdict is what a later stage reads to explain why a capture was let
+// through; recording `int[]` as CrossingCaptureOwnedShardMovable would name a
+// marker the array does not carry, at exactly the place the record is read.
+// This is the one site that reads the new constant, and what keeps it from
+// being decorative.
+func TestCrossingLoweringOnDynamicArrayCaptureRecord(t *testing.T) {
+	res, symRes := checkCrossingLowering(t, `
+fn sum(xs: own int[]) -> int {
+	return xs[0];
+}
+
+fn run(dst: Placement, xs: own int[]) -> TaskResult<int> {
+	return on dst {
+		ret sum(own xs);
+	};
+}
+`)
+	info := requireCrossingLowering(t, res, CrossingLoweringOnPlacement)
+	if len(info.Captures) != 1 {
+		t.Fatalf("captures = %d, want 1", len(info.Captures))
+	}
+	cap := info.Captures[0]
+	if got := symbolNameForTest(t, symRes, cap.Symbol); got != "xs" {
+		t.Fatalf("capture symbol = %q, want xs", got)
+	}
+	if got := typeLabelForTest(res, cap.Type); got != "own Array<int>" {
+		t.Fatalf("capture type = %q, want own Array<int>", got)
+	}
+	if cap.Mode != CrossingCaptureMoveOwned || cap.Verdict != CrossingCaptureOwnedMovableElements {
+		t.Fatalf("capture mode/verdict = %d/%d, want move-owned/owned-movable-elements", cap.Mode, cap.Verdict)
+	}
+}
+
 func TestCrossingLoweringFarTaskAwaitRecord(t *testing.T) {
 	res, symRes := checkCrossingLowering(t, `
 fn wait_remote(t: far Task<int>) -> TaskResult<int> {

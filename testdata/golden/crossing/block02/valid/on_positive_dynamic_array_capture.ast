@@ -1,0 +1,27 @@
+on_positive_dynamic_array_capture.sg (span: 2:1-16:1)
+├─ Item[0]: Fn (span: 2:1-4:2)
+│  ├─ Name: total
+│  ├─ Params: (xs: own int[])
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 2:32-4:2)
+│        └─ Stmt[0]: Return (span: 3:5-3:26)
+│           └─ Expr: expr#7: (xs[0] + xs[1])
+└─ Item[1]: Fn (span: 6:1-15:2)
+   ├─ Name: run
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 6:23-15:2)
+         ├─ Stmt[0]: Let (span: 7:5-7:28)
+         │  ├─ Name: xs
+         │  ├─ Mutable: false
+         │  ├─ Type: int[]
+         │  └─ Value: expr#10: <ExprKind(8)>
+         ├─ Stmt[1]: Let (span: 8:5-10:7)
+         │  ├─ Name: r
+         │  ├─ Mutable: false
+         │  ├─ Type: TaskResult<int>
+         │  └─ Value: expr#16: on pool { 1 stmt(s) }
+         └─ Stmt[2]: Return (span: 11:5-14:7)
+            └─ Expr: expr#25: compare r { 2 arms }

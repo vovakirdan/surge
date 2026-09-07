@@ -124,6 +124,19 @@ func TestOnCrossingDiagnostics(t *testing.T) {
 		{"pinned_capture", `fn f(c: own TcpConn) -> TaskResult<int> { return on pool { let _ = c; ret 1; }; }`, "SEM3167"},
 		{"unmarked_capture", `fn use(p: own Plain) -> int { return p.id; } fn f(p: own Plain) -> TaskResult<int> { return on pool { ret use(own p); }; }`, "SEM3168"},
 
+		// A dynamic array is judged by its ELEMENT (ON-CAP-V005/N006). `[T]` is
+		// a spelling rather than a declaration, so there is no attribute on it
+		// for the arms above to read, and the only question it can answer is
+		// whether the elements it holds may travel. `spawn on` shares the gate
+		// with `on` (both call checkOnCaptures), and the row below is what says
+		// so rather than the call graph.
+		{"dynamic_array_of_copy_capture_ok", `fn sum(xs: own int[]) -> int { return xs[0]; } fn f(xs: own int[]) -> TaskResult<int> { return on pool { ret sum(own xs); }; }`, ""},
+		{"dynamic_array_of_movable_capture_ok", `fn use(ms: own Movable[]) -> int { return ms[0].id; } fn f(ms: own Movable[]) -> TaskResult<int> { return on pool { ret use(own ms); }; }`, ""},
+		{"spawn_on_dynamic_array_capture_ok", `fn sum(xs: own int[]) -> int { return xs[0]; } fn f(xs: own int[]) -> far Task<int> { return spawn on pool { ret sum(own xs); }; }`, ""},
+		{"dynamic_array_of_unmarked_capture", `fn use(ps: own Plain[]) -> int { return ps[0].id; } fn f(ps: own Plain[]) -> TaskResult<int> { return on pool { ret use(own ps); }; }`, "SEM3168"},
+		{"dynamic_array_of_nosend_capture", `fn use(ls: own LocalOnly[]) -> int { return ls[0].id; } fn f(ls: own LocalOnly[]) -> TaskResult<int> { return on pool { ret use(own ls); }; }`, "SEM3168"},
+		{"dynamic_array_of_pinned_capture", `fn use(cs: own TcpConn[]) -> int { return cs[0].__opaque; } fn f(cs: own TcpConn[]) -> TaskResult<int> { return on pool { ret use(own cs); }; }`, "SEM3168"},
+
 		// Anchor + control-only (ON-ANCHOR / ON-TCP).
 		{"unanchored_far", `fn f(a: far Channel<int>, b: far Channel<int>) -> TaskResult<nothing> { return on a { b.close(); ret nothing; }; }`, "SEM3150"},
 		{"tcp_close_ok", `fn f(conn: far TcpConn) -> TaskResult<nothing> { return on conn { conn.close(); ret nothing; }; }`, ""},

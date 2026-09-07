@@ -67,7 +67,7 @@ surfaces use the `FUT` 7xxx range.
 | `SEM3165` | Block 4 | Borrowed value captured into a crossing boundary. | Block 2 (ON-CAP-N001/N002), Block 3 (C03, C04) |
 | `SEM3166` | Block 4 | `@nosend` value crosses outside `@local spawn`. | Block 2 (ON-CAP-N003), Block 3 (C06) |
 | `SEM3167` | Block 4 | `@shard_pinned` value crosses as `own T`. | Block 2 (ON-CAP-N004), Block 3 (C07) |
-| `SEM3168` | Block 4 | Unmarked owned user value (incl. local `Task<T>`) crosses as `own T`. | Block 2 (ON-CAP-N005), Block 3 (C05, B07) |
+| `SEM3168` | Block 4 | Unmarked owned user value (incl. local `Task<T>`) crosses as `own T`, or a dynamic array whose element may not move between shards, or a value that is an array view or holds one. | Block 2 (ON-CAP-N005/N006/N007/N008), Block 3 (C05, B07) |
 | `SEM3169` | Block 4 | `@send`-only user type crosses as `own T`. | Block 3 (C08) |
 | `SEM3170` | Block 4 | `@copy`-only user type crosses as `own T`. | Block 4 locality fixtures |
 | `SEM3171` | Block 4 | `@shard_movable` type contains a non-shard-movable field/member. | Block 4 movable fixtures |

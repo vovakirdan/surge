@@ -32,12 +32,22 @@ import (
 // drop the poll function synthesizes for a Copy capture is withheld for this
 // one (givenAwayCaptures). Any other payload — an `int`, a `float64`, a value
 // that owns no counted block — is not this function's and lowers as before.
+//
+// A DYNAMIC ARRAY payload answers here for the same reason and by the second
+// question, because the first one does not see it: an `int` has no count, so
+// `mayShareCountedBlockIn` says no about `[int]` while the body owes that
+// capture's header and buffer a drop all the same
+// (registerCrossingBodyOwnership). Withholding it here is what makes the ring
+// the only owner; without it the ring's reclaim frees the buffer the body's
+// scope exit already freed. Sema's second arm accepts exactly the payloads
+// this one recognizes — `own <captured binding>`, nothing else — so the two
+// sides give the same value away.
 func (l *funcLowerer) anchoredSendGivenAway(data hir.CallData) (Operand, bool) {
 	if l == nil || l.f == nil || len(data.Args) != 1 || data.Args[0] == nil {
 		return Operand{}, false
 	}
 	value := data.Args[0]
-	if !mayShareCountedBlockIn(l.types, value.Type) {
+	if !mayShareCountedBlockIn(l.types, value.Type) && !dynamicArrayIn(l.types, value.Type) {
 		return Operand{}, false
 	}
 	unary, ok := value.Data.(hir.UnaryOpData)

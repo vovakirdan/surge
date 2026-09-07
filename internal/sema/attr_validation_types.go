@@ -346,11 +346,31 @@ func (tc *typeChecker) validateShardMovableTypes() {
 		if span == (source.Span{}) {
 			span = tc.fallbackTypeSpan(typeID)
 		}
-		tc.validateShardMovableType(typeID, span, make(map[types.TypeID]bool))
+		tc.validateShardMovableType(typeID, span, make(map[types.TypeID]bool), true)
 	}
 }
 
-func (tc *typeChecker) validateShardMovableType(typeID types.TypeID, span source.Span, visiting map[types.TypeID]bool) bool {
+// shardMovableElement asks the checker-side ShardMovable leg about one type and
+// says nothing: may a value of this type move between shards?
+//
+// It exists because a USE SITE needs the answer the DECLARATION validator
+// computes, and the validator speaks as it walks -- `validateShardMovableType`
+// emits SEM3171 for every field that cannot travel. That is right at the
+// declaration, where the fix is; asked again at a capture it would say the same
+// thing a second time, at a span whose author did not write the type. So the
+// `report` flag below is threaded down the same walk: one answer, told once.
+//
+// This is the leg the whole-program `CapabilityClassifier` cannot serve here.
+// The classifier answers from the merged fact table, which is not populated
+// until the scope stack finalizes, i.e. after every capture site has been
+// judged; a classifier built mid-check would read an empty table and call every
+// `@shard_movable` type immovable. The two legs are held to one answer by
+// TestShardMovableCaptureGateAgreesWithTheAxis.
+func (tc *typeChecker) shardMovableElement(typeID types.TypeID) bool {
+	return tc.isShardMovableMemberType(typeID, source.Span{}, make(map[types.TypeID]bool), false)
+}
+
+func (tc *typeChecker) validateShardMovableType(typeID types.TypeID, span source.Span, visiting map[types.TypeID]bool, report bool) bool {
 	resolved := tc.resolveAlias(typeID)
 	if resolved == types.NoTypeID {
 		return false
@@ -364,12 +384,14 @@ func (tc *typeChecker) validateShardMovableType(typeID types.TypeID, span source
 	ok := true
 	if structInfo, found := tc.types.StructInfo(resolved); found && structInfo != nil {
 		for _, field := range structInfo.Fields {
-			if tc.isShardMovableMemberType(field.Type, span, visiting) {
+			if tc.isShardMovableMemberType(field.Type, span, visiting, report) {
 				continue
 			}
-			tc.report(diag.SemaShardMovableField, span,
-				"`@shard_movable` type has non-shard-movable field `%s` of type `%s`",
-				tc.lookupName(field.Name), tc.typeLabel(field.Type))
+			if report {
+				tc.report(diag.SemaShardMovableField, span,
+					"`@shard_movable` type has non-shard-movable field `%s` of type `%s`",
+					tc.lookupName(field.Name), tc.typeLabel(field.Type))
+			}
 			ok = false
 		}
 		return ok
@@ -378,21 +400,25 @@ func (tc *typeChecker) validateShardMovableType(typeID types.TypeID, span source
 		for _, member := range unionInfo.Members {
 			switch member.Kind {
 			case types.UnionMemberType:
-				if tc.isShardMovableMemberType(member.Type, span, visiting) {
+				if tc.isShardMovableMemberType(member.Type, span, visiting, report) {
 					continue
 				}
-				tc.report(diag.SemaShardMovableField, span,
-					"`@shard_movable` union has non-shard-movable member of type `%s`",
-					tc.typeLabel(member.Type))
+				if report {
+					tc.report(diag.SemaShardMovableField, span,
+						"`@shard_movable` union has non-shard-movable member of type `%s`",
+						tc.typeLabel(member.Type))
+				}
 				ok = false
 			case types.UnionMemberTag:
 				for _, arg := range member.TagArgs {
-					if tc.isShardMovableMemberType(arg, span, visiting) {
+					if tc.isShardMovableMemberType(arg, span, visiting, report) {
 						continue
 					}
-					tc.report(diag.SemaShardMovableField, span,
-						"`@shard_movable` union tag `%s` has non-shard-movable payload type `%s`",
-						tc.lookupName(member.TagName), tc.typeLabel(arg))
+					if report {
+						tc.report(diag.SemaShardMovableField, span,
+							"`@shard_movable` union tag `%s` has non-shard-movable payload type `%s`",
+							tc.lookupName(member.TagName), tc.typeLabel(arg))
+					}
 					ok = false
 				}
 			}
@@ -401,13 +427,13 @@ func (tc *typeChecker) validateShardMovableType(typeID types.TypeID, span source
 	return ok
 }
 
-func (tc *typeChecker) isShardMovableMemberType(typeID types.TypeID, span source.Span, visiting map[types.TypeID]bool) bool {
+func (tc *typeChecker) isShardMovableMemberType(typeID types.TypeID, span source.Span, visiting map[types.TypeID]bool, report bool) bool {
 	if typeID == types.NoTypeID || tc.types == nil {
 		return false
 	}
 	resolved := tc.resolveAlias(typeID)
 	if elem, _, _, ok := tc.arrayInfo(resolved); ok {
-		return tc.isShardMovableMemberType(elem, span, visiting)
+		return tc.isShardMovableMemberType(elem, span, visiting, report)
 	}
 	tt, ok := tc.types.Lookup(resolved)
 	if !ok {
@@ -419,26 +445,40 @@ func (tc *typeChecker) isShardMovableMemberType(typeID types.TypeID, span source
 	case types.KindFar:
 		return true
 	case types.KindOwn:
-		return tc.isShardMovableMemberType(tt.Elem, span, visiting)
+		return tc.isShardMovableMemberType(tt.Elem, span, visiting, report)
 	case types.KindTuple:
-		return tc.isTupleShardMovable(resolved, span, visiting)
+		return tc.isTupleShardMovable(resolved, span, visiting, report)
 	}
 	if tc.typeHasAttr(resolved, "shard_pinned") || tc.typeHasAttr(resolved, "nosend") {
 		return false
 	}
+	// `Placement` is the one intrinsic nominal that travels as itself. It is a
+	// tagged word -- the kind in the low bits, the payload above them -- with no
+	// storage on either shard, which is why an `on` capture of one crosses as a
+	// Copy value (ON-CAP-V004) and why core says so in as many words. Without
+	// this arm the same value crossed alone and was refused inside an array, by a
+	// sentence telling the reader to mark `@shard_movable` on a core `@intrinsic`
+	// type they cannot edit.
+	//
+	// It is asked by identity rather than by `@copy`, because `Channel<T>` is
+	// `@intrinsic @copy` too and its ring is exactly the storage no crossing may
+	// duplicate.
+	if tc.isPlacementType(resolved) {
+		return true
+	}
 	if tc.typeHasAttr(resolved, "shard_movable") {
-		return tc.validateShardMovableType(resolved, span, visiting)
+		return tc.validateShardMovableType(resolved, span, visiting, report)
 	}
 	return false
 }
 
-func (tc *typeChecker) isTupleShardMovable(typeID types.TypeID, span source.Span, visiting map[types.TypeID]bool) bool {
+func (tc *typeChecker) isTupleShardMovable(typeID types.TypeID, span source.Span, visiting map[types.TypeID]bool, report bool) bool {
 	info, ok := tc.types.TupleInfo(typeID)
 	if !ok || info == nil {
 		return false
 	}
 	for _, elem := range info.Elems {
-		if !tc.isShardMovableMemberType(elem, span, visiting) {
+		if !tc.isShardMovableMemberType(elem, span, visiting, report) {
 			return false
 		}
 	}

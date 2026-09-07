@@ -28,7 +28,7 @@ type onAnchorFrame struct {
 	// second misuse.
 	opReceivers []ast.ExprID
 	// givenAway names the bindings the body's anchored `send` gave away
-	// (checkAnchoredSendGivesCountedPayloadAway). The move holds inside the
+	// (checkAnchoredSendGivesThePayloadAway). The move holds inside the
 	// body, where the ring now owns the reference; a Copy capture's outer
 	// binding is the caller's own copy, made private when the capture entered
 	// the state, and is revived once the body is walked.

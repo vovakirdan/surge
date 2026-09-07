@@ -85,6 +85,14 @@ const (
 	// CrossingCaptureAnchorLeased records the anchor of an `on far_handle`
 	// block: accepted because it IS the destination, held as a lease.
 	CrossingCaptureAnchorLeased
+	// CrossingCaptureOwnedMovableElements records a dynamic array accepted for
+	// its ELEMENT (ON-CAP-V005): every element it holds may move between
+	// shards, which is the only question `[T]` can be asked -- an array carries
+	// no attribute of its own. Deliberately not folded into
+	// CrossingCaptureOwnedShardMovable: this enum records the rule that
+	// accepted a capture, and `int[]` carries no `@shard_movable` marker to be
+	// accepted for.
+	CrossingCaptureOwnedMovableElements
 )
 
 // CrossingDestinationInfo is the sema-checked destination for an `on` or

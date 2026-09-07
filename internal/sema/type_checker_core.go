@@ -126,6 +126,8 @@ type typeChecker struct {
 	addressOfOperands         map[ast.ExprID]struct{} // Tracks operands of & expressions (for @atomic validation)
 	arrayViewExprs            map[ast.ExprID]struct{}
 	arrayViewBindings         map[symbols.SymbolID]struct{}
+	arrayViewMayBindings      map[symbols.SymbolID]struct{}         // binding -> may be a view on SOME path; read by the crossing gate only
+	arrayViewHolders          map[symbols.SymbolID]arrayViewHolding // binding -> the view held INSIDE its value
 	fixedViewExprBase         map[ast.ExprID]symbols.SymbolID       // slice expr -> the FIXED array it points into
 	fixedViewBindingBase      map[symbols.SymbolID]symbols.SymbolID // binding holding such a slice -> same
 	rangeCursorExprBase       map[ast.ExprID]symbols.SymbolID       // __range() call -> the array its cursor walks
@@ -348,6 +350,8 @@ func (tc *typeChecker) run() {
 	tc.blockResultExprs = make(map[ast.ExprID][]ast.ExprID)
 	tc.arrayViewExprs = make(map[ast.ExprID]struct{})
 	tc.arrayViewBindings = make(map[symbols.SymbolID]struct{})
+	tc.arrayViewMayBindings = make(map[symbols.SymbolID]struct{})
+	tc.arrayViewHolders = make(map[symbols.SymbolID]arrayViewHolding)
 	tc.fixedViewExprBase = make(map[ast.ExprID]symbols.SymbolID)
 	tc.fixedViewBindingBase = make(map[symbols.SymbolID]symbols.SymbolID)
 	tc.rangeCursorExprBase = make(map[ast.ExprID]symbols.SymbolID)

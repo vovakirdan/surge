@@ -130,13 +130,15 @@ func TestRelinquishedArrayOperandsAreSubjectToBothRules(t *testing.T) {
 // to a rule nothing can meet fails the build with a validator's name instead of
 // a diagnostic.
 //
-// What this row does NOT assert is that the payload was checked elsewhere. It
-// was not. Sema holds an anchored send's payload to `own <captured binding>`
-// only when the element may share a counted block, so an ARRAY payload is held
-// to no shape: it may be built inside the block -- as it is here, an assignment
-// rather than an unpack from `__state` -- or sliced out of a capture, and no
-// walk on either thread sees it. That is the state this row pins, not a
-// guarantee; closing it belongs to the sema gate the counted half uses.
+// What this row does NOT assert is that the payload was checked elsewhere.
+// Sema holds an anchored send's payload to `own <captured binding>` in two
+// cases now -- when the element may share a counted block, and when the payload
+// NAMES a binding the crossing captured as a dynamic array -- and the fixture
+// below is neither: its payload is BUILT in the block, an assignment rather
+// than an unpack from `__state`, so it names no capture and no rule reaches it.
+// A payload built inside the block, and one sliced out of a `@shard_movable`
+// capture's field, still cross this sink with no walk on either thread. That is
+// the state this row pins, not a guarantee (RV2-DEBT-349).
 func TestAnchoredSendOfAnArrayIsNotHeldToTheActRule(t *testing.T) {
 	f, in, arrayTy, _ := arrayRelinquishFixture(t)
 	f.Blocks[0].Instrs = []Instr{

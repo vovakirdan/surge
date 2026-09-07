@@ -80,8 +80,44 @@ type corpusRootSpec struct {
 // the refusal of an anchored body's `send` of a counted scalar that does not
 // give a captured binding away (SEM3212): a plain read of the capture and a
 // literal built inside the block. Nothing removed.
+// Raised 1065 -> 1067 on 2026-09-07, with the `on` capture gate learning to
+// ask about a dynamic array's element. The two are
+// crossing/block02/valid/on_positive_dynamic_array_capture, an `int[]` captured
+// by an `on pool` body and accepted because its elements travel (ON-CAP-V005),
+// and crossing/block02/invalid/on_negative_array_of_handles_capture, a
+// `Channel<int>[]` refused with the ELEMENT named rather than the array
+// (ON-CAP-N006, SEM3168). The positive is written `async` deliberately: every
+// non-async `on pool` positive in this directory carries a CF-001 allowance
+// with a positional span, and an async one needs none. Nothing removed, and the
+// run beside the new count reports normalized_findings=0.
+// Raised 1067 -> 1068 on 2026-09-07, in the same landing, once the reviewers'
+// programs showed what else that gate had opened. The one is
+// crossing/block02/invalid/on_negative_array_view_capture, a VIEW of another
+// array refused at the capture (ON-CAP-N007, SEM3168): its elements answer the
+// element question the same way an owned array's do, and the buffer they live
+// in stays on the origin shard. Nothing removed.
+// Raised 1068 -> 1069 on 2026-09-08, in the same landing, once a second round of
+// reviewers showed that the view question was asked of the CAPTURE and never of
+// what the capture HOLDS. The one is
+// crossing/block02/invalid/on_negative_array_view_element_capture, an `int[][]`
+// whose element is a window, refused at the capture (ON-CAP-N008, SEM3168): the
+// outer array owns its buffer and the element does not, and the program crossed
+// and wrote 777 back into the origin shard's `base` before this rule existed.
+// Nothing removed.
+// Raised 1069 -> 1071 on 2026-09-08, in the same landing, when a third round of
+// reviewers showed the price of the never-withdrawn view fact: it had been put
+// in the map three OTHER rules read, and those rules have no runtime behind
+// them. The two are sema/invalid/ownership/range_cursor_escapes_after_view_rebind,
+// a `__range()` cursor returned over a binding reassigned away from a view --
+// SEM3199 went silent and the native lane segfaulted, eight runs out of eight --
+// and sema/valid/array_view_facts_a_resize_rule_withdraws, an EMPTY .diag
+// holding the two resize shapes that stopped compiling: a rebound binding grown
+// with push/pop/reserve, and an element that owns its buffer grown inside a
+// holder whose OTHER element is a window. The gate keeps its own map now, and
+// these two rows are what fails if the maps are ever merged again. Nothing
+// removed.
 var corpusRoots = []corpusRootSpec{
-	{Path: "testdata/golden", PinnedCount: 1065},
+	{Path: "testdata/golden", PinnedCount: 1071},
 	{Path: "showcases", PinnedCount: 38},
 	{Path: "core", PinnedCount: 10},
 	{Path: "stdlib", PinnedCount: 32},
