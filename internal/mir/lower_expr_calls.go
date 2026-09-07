@@ -275,6 +275,16 @@ func (l *funcLowerer) lowerCallExpr(e *hir.Expr, consume bool) (Operand, error) 
 			l.isFarChannelType(fa.Object.Type) {
 			switch fa.FieldName {
 			case "send":
+				if given, ok := l.anchoredSendGivenAway(data); ok {
+					// A payload that may share a counted block leaves with the
+					// capture's only reference; see anchoredSendGivenAway.
+					l.emit(&Instr{Kind: InstrCall, Call: CallInstr{
+						Callee:       Callee{Kind: CalleeValue, Name: "rt_anchored_channel_send"},
+						Args:         []Operand{given},
+						ArgContracts: []ArgContract{ArgContractStore},
+					}})
+					return l.constNothing(e.Type), nil
+				}
 				opArgs, opContracts, argErr := l.lowerCallArgs(e, data)
 				if argErr != nil {
 					return Operand{}, argErr

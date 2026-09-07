@@ -321,7 +321,7 @@ const (
 	// this language does not have.
 	SemaPartialMoveNotEnumerable Code = 3143
 
-	// Numbers up to 3211 are taken; the crossing blocks live in codes_crossing.go.
+	// Numbers up to 3212 are taken; the crossing blocks live in codes_crossing.go.
 
 	// SemaModuleLevelLet rejects `let` / `let mut` declared at module scope.
 	// A module-level binding is one slot every shard reads, which is exactly
@@ -848,6 +848,7 @@ var ( // todo расширить описания и использовать к
 		SemaOnAnchorUnproven:               "this remote handle is not anchored by the current `on` destination",
 		SemaOnAnchorLeaseMisuse:            "the `on` block holds this handle as a lease for its channel operation only",
 		SemaSelectSendPayloadGivenTwice:    "one binding cannot be given away by two SEND arms of the same `select`",
+		SemaAnchoredSendGiveAway:           "an anchored `send` of a value that may share a counted block must give a captured binding away",
 		SemaOnTcpRemoteIO:                  "remote socket I/O through `far TcpConn` is not supported yet",
 		SemaOnSuspendContext:               "`on` is allowed only where suspension is legal",
 		SemaOnNested:                       "nested `on` crossing blocks are not allowed",

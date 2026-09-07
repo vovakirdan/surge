@@ -197,8 +197,11 @@ func retainStoredRefCountedArgs(l *funcLowerer, args []Operand, contracts []ArgC
 // temp's own reference exactly as it takes an `own` binding's.
 //
 // Every other operand is handed back untouched: a moved binding already
-// carries its own reference, a constant is minted at the sink, and a plain
-// copy has nothing to bump.
+// carries its own reference, a plain copy has nothing to bump, and a constant
+// is minted at the sink — which is only sound because no COUNTED constant can
+// arrive here: materializeOwnedConst pins every counted-scalar literal into a
+// region temp, so a `float` literal reaches this function as a Copy of that
+// temp and takes the retain branch.
 func (l *funcLowerer) storedChannelSendValue(value *Operand, span source.Span) Operand {
 	if l == nil || value == nil {
 		return Operand{}

@@ -1,0 +1,16 @@
+// An anchored body's `send` of a value that may share a counted block must
+// give a captured binding away: `ch.send(own f)`. The ring takes the value's
+// only reference and the receiving shard may hold it before this block ends,
+// so the block cannot keep a reference of its own; and it cannot take a fresh
+// one on the spot, because a parked send re-enters the block from the top and
+// would take it again. A plain read of the capture and a literal built inside
+// the block are both refused with the way out.
+async fn plain_read(ch: far Channel<float>) -> nothing {
+    let f: float = 1.5;
+    let sent: TaskResult<nothing> = on ch { ch.send(f); ret nothing; };
+    print(f to string);
+}
+
+async fn literal(ch: far Channel<float>) -> nothing {
+    let sent: TaskResult<nothing> = on ch { ch.send(1.5); ret nothing; };
+}

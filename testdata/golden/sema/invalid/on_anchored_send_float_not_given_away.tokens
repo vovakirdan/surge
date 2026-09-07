@@ -1,0 +1,93 @@
+  1: KwAsync         "async" at 8:1-8:6 (leading: LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline)
+  2: KwFn            "fn" at 8:7-8:9 (leading: Space)
+  3: Ident           "plain_read" at 8:10-8:20 (leading: Space)
+  4: LParen          "(" at 8:20-8:21
+  5: Ident           "ch" at 8:21-8:23
+  6: Colon           ":" at 8:23-8:24
+  7: KwFar           "far" at 8:25-8:28 (leading: Space)
+  8: Ident           "Channel" at 8:29-8:36 (leading: Space)
+  9: Lt              "<" at 8:36-8:37
+ 10: Ident           "float" at 8:37-8:42
+ 11: Gt              ">" at 8:42-8:43
+ 12: RParen          ")" at 8:43-8:44
+ 13: Arrow           "->" at 8:45-8:47 (leading: Space)
+ 14: NothingLit      "nothing" at 8:48-8:55 (leading: Space)
+ 15: LBrace          "{" at 8:56-8:57 (leading: Space)
+ 16: KwLet           "let" at 9:5-9:8 (leading: Newline, Space)
+ 17: Ident           "f" at 9:9-9:10 (leading: Space)
+ 18: Colon           ":" at 9:10-9:11
+ 19: Ident           "float" at 9:12-9:17 (leading: Space)
+ 20: Assign          "=" at 9:18-9:19 (leading: Space)
+ 21: FloatLit        "1.5" at 9:20-9:23 (leading: Space)
+ 22: Semicolon       ";" at 9:23-9:24
+ 23: KwLet           "let" at 10:5-10:8 (leading: Newline, Space)
+ 24: Ident           "sent" at 10:9-10:13 (leading: Space)
+ 25: Colon           ":" at 10:13-10:14
+ 26: Ident           "TaskResult" at 10:15-10:25 (leading: Space)
+ 27: Lt              "<" at 10:25-10:26
+ 28: NothingLit      "nothing" at 10:26-10:33
+ 29: Gt              ">" at 10:33-10:34
+ 30: Assign          "=" at 10:35-10:36 (leading: Space)
+ 31: Ident           "on" at 10:37-10:39 (leading: Space)
+ 32: Ident           "ch" at 10:40-10:42 (leading: Space)
+ 33: LBrace          "{" at 10:43-10:44 (leading: Space)
+ 34: Ident           "ch" at 10:45-10:47 (leading: Space)
+ 35: Dot             "." at 10:47-10:48
+ 36: Ident           "send" at 10:48-10:52
+ 37: LParen          "(" at 10:52-10:53
+ 38: Ident           "f" at 10:53-10:54
+ 39: RParen          ")" at 10:54-10:55
+ 40: Semicolon       ";" at 10:55-10:56
+ 41: KwRet           "ret" at 10:57-10:60 (leading: Space)
+ 42: NothingLit      "nothing" at 10:61-10:68 (leading: Space)
+ 43: Semicolon       ";" at 10:68-10:69
+ 44: RBrace          "}" at 10:70-10:71 (leading: Space)
+ 45: Semicolon       ";" at 10:71-10:72
+ 46: Ident           "print" at 11:5-11:10 (leading: Newline, Space)
+ 47: LParen          "(" at 11:10-11:11
+ 48: Ident           "f" at 11:11-11:12
+ 49: KwTo            "to" at 11:13-11:15 (leading: Space)
+ 50: Ident           "string" at 11:16-11:22 (leading: Space)
+ 51: RParen          ")" at 11:22-11:23
+ 52: Semicolon       ";" at 11:23-11:24
+ 53: RBrace          "}" at 12:1-12:2 (leading: Newline)
+ 54: KwAsync         "async" at 14:1-14:6 (leading: Newline)
+ 55: KwFn            "fn" at 14:7-14:9 (leading: Space)
+ 56: Ident           "literal" at 14:10-14:17 (leading: Space)
+ 57: LParen          "(" at 14:17-14:18
+ 58: Ident           "ch" at 14:18-14:20
+ 59: Colon           ":" at 14:20-14:21
+ 60: KwFar           "far" at 14:22-14:25 (leading: Space)
+ 61: Ident           "Channel" at 14:26-14:33 (leading: Space)
+ 62: Lt              "<" at 14:33-14:34
+ 63: Ident           "float" at 14:34-14:39
+ 64: Gt              ">" at 14:39-14:40
+ 65: RParen          ")" at 14:40-14:41
+ 66: Arrow           "->" at 14:42-14:44 (leading: Space)
+ 67: NothingLit      "nothing" at 14:45-14:52 (leading: Space)
+ 68: LBrace          "{" at 14:53-14:54 (leading: Space)
+ 69: KwLet           "let" at 15:5-15:8 (leading: Newline, Space)
+ 70: Ident           "sent" at 15:9-15:13 (leading: Space)
+ 71: Colon           ":" at 15:13-15:14
+ 72: Ident           "TaskResult" at 15:15-15:25 (leading: Space)
+ 73: Lt              "<" at 15:25-15:26
+ 74: NothingLit      "nothing" at 15:26-15:33
+ 75: Gt              ">" at 15:33-15:34
+ 76: Assign          "=" at 15:35-15:36 (leading: Space)
+ 77: Ident           "on" at 15:37-15:39 (leading: Space)
+ 78: Ident           "ch" at 15:40-15:42 (leading: Space)
+ 79: LBrace          "{" at 15:43-15:44 (leading: Space)
+ 80: Ident           "ch" at 15:45-15:47 (leading: Space)
+ 81: Dot             "." at 15:47-15:48
+ 82: Ident           "send" at 15:48-15:52
+ 83: LParen          "(" at 15:52-15:53
+ 84: FloatLit        "1.5" at 15:53-15:56
+ 85: RParen          ")" at 15:56-15:57
+ 86: Semicolon       ";" at 15:57-15:58
+ 87: KwRet           "ret" at 15:59-15:62 (leading: Space)
+ 88: NothingLit      "nothing" at 15:63-15:70 (leading: Space)
+ 89: Semicolon       ";" at 15:70-15:71
+ 90: RBrace          "}" at 15:72-15:73 (leading: Space)
+ 91: Semicolon       ";" at 15:73-15:74
+ 92: RBrace          "}" at 16:1-16:2 (leading: Newline)
+ 93: EOF             at 17:1-17:1

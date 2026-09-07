@@ -80,6 +80,14 @@ type relinquishSink struct {
 	instr int
 	op    *Operand
 	what  string
+	// privateByProvenance marks a sink whose act is NOT an un-share in this
+	// function but the origin of the local: an anchored body's send gives away
+	// a capture the CALLER made private when it entered the state, and the
+	// body's replayed prefix may not touch the value at all — not even to read
+	// its count (anchoredSendGivenAway). The act checked for such a sink is
+	// that the local's only touch before the sink is the unpack from the
+	// state, and that no un-share was emitted on it.
+	privateByProvenance bool
 }
 
 // relinquishSinks lists every position in f whose operand is consumed on
@@ -103,19 +111,30 @@ func relinquishSinks(f *Func) []relinquishSink {
 						continue
 					}
 					field := &ins.Crossing.State.Fields[fi]
-					out = append(out, relinquishSink{BlockID(bi), ii, &field.Value, "state field " + field.Name})
+					out = append(out, relinquishSink{block: BlockID(bi), instr: ii, op: &field.Value, what: "state field " + field.Name})
 				}
 				for oi := range ins.Crossing.RemoteOps {
 					op := &ins.Crossing.RemoteOps[oi]
 					if op.Method != "send" {
 						continue
 					}
-					out = append(out, relinquishSink{BlockID(bi), ii, &op.Value, fmt.Sprintf("remote op %d send payload", oi)})
+					out = append(out, relinquishSink{block: BlockID(bi), instr: ii, op: &op.Value, what: fmt.Sprintf("remote op %d send payload", oi)})
 				}
 			case InstrBlocking:
 				for fi := range ins.Blocking.State.Fields {
 					field := &ins.Blocking.State.Fields[fi]
-					out = append(out, relinquishSink{BlockID(bi), ii, &field.Value, "blocking state field " + field.Name})
+					out = append(out, relinquishSink{block: BlockID(bi), instr: ii, op: &field.Value, what: "blocking state field " + field.Name})
+				}
+			case InstrCall:
+				// The anchored body's send: the ring takes the payload's bits
+				// and the receiving shard may hold them before this body ends
+				// (anchoredSendGivenAway).
+				if ins.Call.Callee.Kind == CalleeValue && ins.Call.Callee.Name == "rt_anchored_channel_send" &&
+					len(ins.Call.Args) == 1 {
+					out = append(out, relinquishSink{
+						block: BlockID(bi), instr: ii, op: &ins.Call.Args[0],
+						what: "anchored send payload", privateByProvenance: true,
+					})
 				}
 			}
 		}
@@ -125,11 +144,11 @@ func relinquishSinks(f *Func) []relinquishSink {
 		switch bb.Term.Kind {
 		case TermReturn:
 			if bb.Term.Return.HasValue {
-				out = append(out, relinquishSink{BlockID(bi), len(bb.Instrs), &bb.Term.Return.Value, "return value"})
+				out = append(out, relinquishSink{block: BlockID(bi), instr: len(bb.Instrs), op: &bb.Term.Return.Value, what: "return value"})
 			}
 		case TermAsyncReturn:
 			if bb.Term.AsyncReturn.HasValue {
-				out = append(out, relinquishSink{BlockID(bi), len(bb.Instrs), &bb.Term.AsyncReturn.Value, "async return value"})
+				out = append(out, relinquishSink{block: BlockID(bi), instr: len(bb.Instrs), op: &bb.Term.AsyncReturn.Value, what: "async return value"})
 			}
 		}
 	}
@@ -218,13 +237,58 @@ func validateRelinquishedOperandsArePrivate(f *Func, typesIn *types.Interner) er
 			errs = append(errs, err)
 			continue
 		}
-		if !need || unsharedBeforeSink(&f.Blocks[s.block], s.instr, local) {
+		if !need {
+			continue
+		}
+		if s.privateByProvenance {
+			if !unpackedFromStateBeforeSink(f, &f.Blocks[s.block], s.instr, local) {
+				errs = append(errs, fmt.Errorf("%s: %s (L%d, %s) reaches the ring from a local that is not the "+
+					"capture's own unpack from the state, or was touched between the unpack and the send; "+
+					"the body's prefix replays and may not touch the value",
+					ctx, s.what, local, types.Label(typesIn, ty)))
+			}
+			continue
+		}
+		if unsharedBeforeSink(&f.Blocks[s.block], s.instr, local) {
 			continue
 		}
 		errs = append(errs, fmt.Errorf("%s: %s (L%d, %s) reaches the boundary without an un-share in its block",
 			ctx, s.what, local, types.Label(typesIn, ty)))
 	}
 	return errors.Join(errs...)
+}
+
+// stateLocalName is the local a crossing or blocking body's poll function
+// unpacks its captures from (lowerSpawnOnPollFunc, lowerBlockingFunc).
+const stateLocalName = "__state"
+
+// unpackedFromStateBeforeSink is the act for a sink private by provenance:
+// scanning the sink's block backwards, the first instruction that touches
+// local is the unpack of a state field into it — an assignment from a field of
+// the `__state` local — and nothing on the way is an un-share of it. The
+// unpack is the entry block's first business, so the same block holds both.
+func unpackedFromStateBeforeSink(f *Func, bb *Block, sink int, local LocalID) bool {
+	for i := sink - 1; i >= 0; i-- {
+		ins := &bb.Instrs[i]
+		if ins.Kind == InstrUnshare {
+			if got, ok := bareLocalOf(ins.Unshare.Place); ok && got == local {
+				return false
+			}
+		}
+		if !instrTouchesLocal(ins, local) {
+			continue
+		}
+		if ins.Kind != InstrAssign || ins.Assign.Src.Kind != RValueField {
+			return false
+		}
+		dst, ok := bareLocalOf(ins.Assign.Dst)
+		if !ok || dst != local {
+			return false
+		}
+		state, ok := bareLocalOf(ins.Assign.Src.Field.Object.Place)
+		return ok && int(state) < len(f.Locals) && f.Locals[state].Name == stateLocalName
+	}
+	return false
 }
 
 // unsharedBeforeSink reports whether the last instruction before index sink

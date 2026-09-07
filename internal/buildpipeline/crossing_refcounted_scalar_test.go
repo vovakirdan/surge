@@ -24,8 +24,9 @@ import (
 // clones is the gate (internal/vm, unshare_clones). A shape whose blocks the
 // walk cannot reach stays refused with a message that says so: a dynamic
 // array's buffer and a channel's ring are both storage this shard keeps and
-// the handle merely names. The reply and the channel element are refused on
-// their own gates, untouched here (step 5).
+// the handle merely names. The channel ELEMENT is asked the same question at
+// the channel's creation (crossing_refcounted_scalar_channel_test.go); the
+// reply is refused on its own gate, untouched here (step 5, S2).
 //
 // The one shape that is NOT here, on purpose: fixed-width `float64`, a machine
 // word with no block behind it (TestFixedWidthFloatStillCrosses).
@@ -46,16 +47,6 @@ async fn go(dst: Placement) -> int {
 }
 `,
 			contains: []string{"`float`", "cannot cross a shard boundary yet"},
-		},
-		{
-			name: "remote channel with a float element",
-			src: `
-async fn go() -> int {
-    let ch: far Channel<float> = channel_on::<float>(shard(0:ShardId), 4);
-    return 0;
-}
-`,
-			contains: []string{"remote channel cannot carry `float`", "sender's copy alive"},
 		},
 		// A dynamic array's elements are counted blocks in a buffer the handle
 		// names and this shard keeps; an owned move hands over one reference
@@ -93,27 +84,6 @@ async fn go() -> int {
 `,
 			contains: []string{"`[float]`", "cannot be made private"},
 		},
-		// A far channel whose element is a union carrying a float. The element
-		// gate asked ContainsRefCountedScalar, which stops at unions on purpose,
-		// so `far Channel<Held(P) | Empty()>` was created, and a `send(own held)`
-		// then moved a retained float block to the owner shard while the
-		// sender's `a` kept holding it. Found by the G1 planning panel 06.09.
-		{
-			name: "remote channel with a union element carrying a float",
-			src: `
-type P = { v: float };
-
-tag Held(P);
-tag Empty();
-type U = Held(P) | Empty();
-
-async fn go() -> int {
-    let ch: far Channel<U> = channel_on::<U>(shard(0:ShardId), 4);
-    return 0;
-}
-`,
-			contains: []string{"remote channel cannot carry `U`"},
-		},
 		// A LOCAL channel handle captured by Copy into a crossing body. Runtime
 		// handles are skipped by ContainsRefCountedScalar and were skipped by the
 		// stop-gap too, so a `Channel<float>` rode into the body as plain bits;
@@ -133,49 +103,14 @@ async fn go(dst: Placement) -> int {
 `,
 			contains: []string{"`Channel<float>`", "cannot be made private"},
 		},
-		// A fixed array of floats is a nominal struct with no declared fields,
-		// so the walk that asks a struct's members answered "nothing inside"
-		// and `float[4]` shipped as plain bits -- four counted references in a
-		// Copy value. Found by the G1 reviewers 06.09; red on the tree before
-		// the ArrayFixedInfo arm (the program compiled).
-		{
-			name: "remote channel with a fixed float array element",
-			src: `
-async fn go() -> int {
-    let ch: far Channel<float[4]> = channel_on::<float[4]>(shard(0:ShardId), 4);
-    return 0;
-}
-`,
-			contains: []string{"remote channel cannot carry", "arbitrary-precision"},
-		},
-		// Two shapes the first attempt at NARROWING the element gate admitted
-		// and the reviewers caught (06.09): a `@copy` union carrying a float --
-		// its anchored `send` hands the ring the union's bits with no retain --
-		// and a far select whose two SEND arms are fed by ONE owned binding, so
-		// the runtime stages the same block into two cells. The first is still
-		// refused by the element gate; the second is refused by sema since
-		// 2026-09-07 (SemaSelectSendPayloadGivenTwice, RV2-DEBT-338), which is
-		// the refusal that survives the element gate's narrowing -- the gate
-		// never looked at the two arms, which is how the same program with a
-		// `string` element built and double-freed.
-		{
-			name: "remote channel with a copy union element carrying a float",
-			src: `
-@copy
-type P = { v: float };
-
-tag Held(P);
-tag Empty();
-@copy
-type U = Held(P) | Empty();
-
-async fn go() -> int {
-    let ch: far Channel<U> = channel_on::<U>(shard(0:ShardId), 4);
-    return 0;
-}
-`,
-			contains: []string{"remote channel cannot carry `U`"},
-		},
+		// A far select whose two SEND arms are fed by ONE owned binding, so the
+		// runtime would stage the same block into two cells: the reviewers'
+		// counterexample of 06.09, refused by sema since 2026-09-07
+		// (SemaSelectSendPayloadGivenTwice, RV2-DEBT-338). That is the refusal
+		// that survived the element gate's narrowing -- the gate never looked at
+		// the two arms, which is how the same program with a `string` element
+		// built and double-freed. The channel-element rows that flipped when the
+		// gate narrowed live in crossing_refcounted_scalar_channel_test.go.
 		{
 			name: "one owned union fed to two far-select send arms",
 			src: `

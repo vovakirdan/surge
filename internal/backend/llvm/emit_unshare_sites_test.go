@@ -192,6 +192,43 @@ async fn run() -> int {
 	assertUnshareBodiesDefinedOnce(t, ir, body)
 }
 
+// Site 4, the anchored body's `ch.send(own f)`: the capture's own reference
+// leaves for the ring and NOTHING in the body touches it first. The body's
+// prefix replays on every wake after a park, over a block the ring or a
+// receiver may already own, so the un-share of that capture is the CALLER's
+// (site 1, in the caller's poll function, once) and the anchored body holds
+// none at all — the validator's act for this sink is the local's provenance
+// (unpacked from the state, untouched since), not an un-share.
+func TestEmitAnchoredSendLeavesTheGivenCaptureUntouchedBeforeTheRing(t *testing.T) {
+	sourceCode := `
+async fn run() -> int {
+    let ch: far Channel<float> = channel_on::<float>(shard(1:ShardId), 4);
+    let a: float = 1.5;
+    let f: float = a;
+    let sent: TaskResult<nothing> = on ch { ch.send(own f); ret nothing; };
+    let h: float = a;
+    return 0;
+}
+`
+	mod, result := lowerCrossingMIRFromSource(t, sourceCode,
+		sema.CrossingLoweringOnFarHandle, sema.CrossingLoweringChannelCreate)
+	ir, err := EmitModule(mod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
+	if err != nil {
+		t.Fatalf("emit LLVM IR: %v", err)
+	}
+	anchored := findFuncByPrefix(t, mod, "__on_anchored_block$")
+	body := findLLVMFuncBody(t, ir, "fn."+itoaMIRFuncID(anchored.ID))
+	if !strings.Contains(body, "@rt_anchored_channel_send(") {
+		t.Fatalf("the anchored body never reaches the ring:\n%s", body)
+	}
+	if calls := unshareCallRe.FindAllStringIndex(body, -1); len(calls) != 0 {
+		t.Fatalf("the anchored body un-shares %d time(s); its prefix replays and may not touch the value:\n%s",
+			len(calls), body)
+	}
+	caller := findLLVMFuncBody(t, ir, "fn."+itoaMIRFuncID(findMIRFunc(t, mod, "run$poll").ID))
+	assertUnshareCallPrecedes(t, caller, "@rt_immediate_on_execute_anchored(")
+}
+
 // A blocking capture is un-shared on the submitting thread before
 // rt_blocking_submit hands the frame to the pool.
 func TestEmitBlockingUnsharesTheCaptureBeforeSubmit(t *testing.T) {

@@ -521,6 +521,13 @@ func (tc *typeChecker) handleAssignment(exprID ast.ExprID, op ast.ExprBinaryOp, 
 	if tc.refuseDisallowedStore(desc, span) {
 		return
 	}
+	// A capture an anchored body's send gave away has no release left in the
+	// body: the drop the poll function would synthesize for it is withheld
+	// because the ring took its reference. A store would revive the binding
+	// with a value nothing releases, so it is refused rather than tracked.
+	if tc.refuseStoreIntoGivenAwayCapture(desc, span) {
+		return
+	}
 	if desc.Base.IsValid() && len(desc.Segments) == 0 {
 		// The RHS is fully evaluated by now, so moved-ness decides the
 		// overwritten-value drop (x = f(x) suppresses it); the store

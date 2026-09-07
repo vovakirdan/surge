@@ -65,18 +65,19 @@ func classifyCrossingPayload(
 	switch info.Kind {
 	case sema.CrossingLoweringChannelCreate:
 		// The same predicate the guard asks (crossing_transport.go), so the
-		// refusal and the diagnostic cannot disagree on a shape: a union or a
-		// container element that carries a float is refused here, not left to
-		// fail later without a code.
-		if semaRes.MayShareCountedBlock(info.PayloadType) {
+		// refusal and the diagnostic cannot disagree on a shape: a container
+		// element whose counted blocks live in storage the sender keeps is
+		// refused here, not left to fail later without a code.
+		if semaRes.CountedBlockStaysShared(info.PayloadType) {
 			return crossingGuardFinding{
 				Code: diag.FutCrossingPayloadNotShippable,
 				Span: info.Span,
 				Message: fmt.Sprintf(
-					"a remote channel cannot carry `%s` yet: it holds an arbitrary-precision "+
-						"value, which is a reference into a counted heap block. A send leaves the "+
-						"sender's copy alive, so both shards would share one count, and the count "+
-						"is not safe to share. Use a fixed-width element type (`float64`)",
+					"a remote channel cannot carry `%s` yet: it holds arbitrary-precision values "+
+						"in storage the sender keeps (a dynamic array's buffer, a channel's ring), so "+
+						"a send cannot make the counted heap blocks behind them private before the "+
+						"receiving shard takes the value, and the count is not safe to share. Use a "+
+						"fixed-width type (`float64`) for the elements, or send the values themselves",
 					label(info.PayloadType)),
 			}, true
 		}

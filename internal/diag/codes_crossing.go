@@ -123,6 +123,12 @@ const (
 	// two cells: the loser's cell is destroyed and the winner's is committed,
 	// and the one block behind them is freed twice.
 	SemaSelectSendPayloadGivenTwice Code = 3211
+	// SemaAnchoredSendGiveAway holds the payload of an anchored body's `send`
+	// to `own <captured binding>` when the element may share a counted block:
+	// the ring takes the only reference, the body cannot keep one (the count is
+	// not atomic across shards) and cannot make a fresh one on the spot (a
+	// parked send re-enters the body from the top and would make it again).
+	SemaAnchoredSendGiveAway Code = 3212
 
 	// --- Parse-level crossing diagnostics (SYN 2031-2036) ---
 

@@ -89,9 +89,12 @@ func (l *funcLowerer) lowerSpawnOnPollFunc(id FuncID, name string, body *hir.Blo
 		// CONSUMED by the body (`take(own x)` is the whole point of moving one
 		// in), and a synthesized drop cannot see that: move tracking is sema's,
 		// and this local was never sema's to track. Dropping it unconditionally
-		// double-frees whatever the body handed on. A Copy capture cannot be
-		// consumed in that sense — a Copy read duplicates and leaves the source
-		// intact — so nothing can have taken it away by the time this runs.
+		// double-frees whatever the body handed on. A Copy read duplicates and
+		// leaves the source intact, so a Copy capture is taken away by one thing
+		// only: the anchored body's `ch.send(own f)` of a counted scalar, which
+		// gives the capture's reference to the ring. The lowering of that send
+		// names the capture it took (givenAwayCaptures) and the list below is
+		// pruned by it once the body is lowered.
 		if cap.CopyCapture && l.ownsHeap(cap.Type) {
 			ownedCaptures = append(ownedCaptures, localID)
 		}
@@ -129,6 +132,18 @@ func (l *funcLowerer) lowerSpawnOnPollFunc(id FuncID, name string, body *hir.Blo
 	l.returnStack = l.returnStack[:len(l.returnStack)-1]
 	if !l.curBlock().Terminated() {
 		l.setTerm(&Terminator{Kind: TermUnreachable})
+	}
+	// A Copy capture the anchored send GAVE AWAY (anchoredSendGivenAway) has
+	// no reference left for the synthesized drop to release: the ring took
+	// it. Withheld here, once the body has said which ones.
+	if len(l.givenAwayCaptures) > 0 {
+		kept := ownedCaptures[:0]
+		for _, localID := range ownedCaptures {
+			if _, given := l.givenAwayCaptures[localID]; !given {
+				kept = append(kept, localID)
+			}
+		}
+		ownedCaptures = kept
 	}
 	l.startBlock(exitBB)
 	if hasResult {

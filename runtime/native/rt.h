@@ -359,10 +359,11 @@ void rt_bigfloat_free(void* a);
 // The count is NON-ATOMIC, so these are sound only while a block stays within
 // one shard. Two things keep that true: a value relinquished across a boundary
 // -- a capture, a far-select SEND payload, a crossing or blocking body's
-// result -- has its counted leaves made private first (rt_bigfloat_unshare
-// above), and a shape that walk cannot reach (a container's buffer, a
-// channel's ring) is refused at compile time. Replies and channel elements are
-// still refused wholesale until their gates are narrowed -- RV2-DEBT-038,
+// result, an anchored body's `ch.send(own f)` (which gives away the capture
+// the caller already made private) -- has its counted leaves made private
+// first (rt_bigfloat_unshare above), and a shape that walk cannot reach (a
+// container's buffer, a channel's ring) is refused at compile time. Replies
+// are still refused wholesale until their gate is narrowed -- RV2-DEBT-038,
 // Epic 22 step 5.
 //
 // The LLVM backend inlines both as IR at the use site rather than calling

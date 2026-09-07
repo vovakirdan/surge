@@ -27,6 +27,12 @@ type onAnchorFrame struct {
 	// diagnostic, and the anchor-lease check must not read its receiver as a
 	// second misuse.
 	opReceivers []ast.ExprID
+	// givenAway names the bindings the body's anchored `send` gave away
+	// (checkAnchoredSendGivesCountedPayloadAway). The move holds inside the
+	// body, where the ring now owns the reference; a Copy capture's outer
+	// binding is the caller's own copy, made private when the capture entered
+	// the state, and is revived once the body is walked.
+	givenAway []symbols.SymbolID
 }
 
 // noteAnchorOpReceiver records the receiver of a far-handle call typed inside
@@ -91,6 +97,14 @@ func (tc *typeChecker) typeExprOn(id ast.ExprID, span source.Span) types.TypeID 
 	returnRejected := frame.returnRejected
 	tc.onCrossingStack = tc.onCrossingStack[:last]
 	tc.popReturnContext()
+	// What the body's anchored send gave away is gone inside the body only.
+	// The caller keeps its own copy of a Copy capture (an owned capture is
+	// marked moved by checkOnCaptures below regardless).
+	for _, sym := range frame.givenAway {
+		if tc.result != nil && tc.result.IsCopyType(tc.bindingType(sym)) {
+			tc.clearPlaceMoved(wholePlace(sym))
+		}
+	}
 
 	// ON-CAP rows: capture legality across the crossing boundary. The anchor
 	// of a far-handle destination is leased, not captured, and may only be
@@ -100,7 +114,7 @@ func (tc *typeChecker) typeExprOn(id ast.ExprID, span source.Span) types.TypeID 
 		!tc.checkAnchoredBodyShape(data.Body, frame.remoteOps) {
 		siteOK = false
 	}
-	if destInfo.Kind == CrossingDestinationFarHandle && !tc.checkAnchorLeaseUses(data.Body, frame) {
+	if destInfo.Kind == CrossingDestinationFarHandle && !tc.checkAnchorLeaseUses(data.Body, &frame) {
 		siteOK = false
 	}
 	if !capturesOK {

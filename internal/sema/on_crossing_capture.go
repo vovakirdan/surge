@@ -101,6 +101,9 @@ func (tc *typeChecker) typeAnchoredChannelOp(
 				tc.typeLabel(element), tc.typeLabel(argType))
 			return types.NoTypeID
 		}
+		if !tc.checkAnchoredSendGivesCountedPayloadAway(call.Args[0].Value, element, tc.exprSpan(call.Args[0].Value)) {
+			return types.NoTypeID
+		}
 		record()
 		return tc.types.Builtins().Nothing
 	case "recv":
@@ -335,8 +338,8 @@ func (tc *typeChecker) registerCrossingBodyOwnership(body ast.StmtID, anchorSym 
 // Reading the anchor as a VALUE inside the block -- binding it, passing it on,
 // returning it -- would give the body a second holder of a lease it does not
 // own, released twice or after the caller freed it.
-func (tc *typeChecker) checkAnchorLeaseUses(body ast.StmtID, frame onAnchorFrame) bool {
-	if !frame.anchorSym.IsValid() {
+func (tc *typeChecker) checkAnchorLeaseUses(body ast.StmtID, frame *onAnchorFrame) bool {
+	if frame == nil || !frame.anchorSym.IsValid() {
 		return true
 	}
 	receivers := make(map[ast.ExprID]struct{}, len(frame.remoteOps)+len(frame.opReceivers))

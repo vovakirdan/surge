@@ -74,8 +74,14 @@ type corpusRootSpec struct {
 // an async body) and vm_async/select_send_float_retains_its_reference (the
 // SEND arm of a local select, winning and losing), both `.backends: llvm` like
 // their sibling. Nothing removed.
+//
+// Raised 1064 -> 1065 on 2026-09-07, with the channel-element gate's
+// narrowing. The one is sema/invalid/on_anchored_send_float_not_given_away,
+// the refusal of an anchored body's `send` of a counted scalar that does not
+// give a captured binding away (SEM3212): a plain read of the capture and a
+// literal built inside the block. Nothing removed.
 var corpusRoots = []corpusRootSpec{
-	{Path: "testdata/golden", PinnedCount: 1064},
+	{Path: "testdata/golden", PinnedCount: 1065},
 	{Path: "showcases", PinnedCount: 38},
 	{Path: "core", PinnedCount: 10},
 	{Path: "stdlib", PinnedCount: 32},

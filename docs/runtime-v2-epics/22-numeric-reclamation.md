@@ -529,6 +529,7 @@ whole run). **Do not benchmark this epic against anything older than commit
   - remote channel element — `crossingRecordExecutable` +
     `classifyCrossingPayload` at `CrossingLoweringChannelCreate`, so the
     diagnostic lands where the element type was chosen rather than at each send
+    (narrowed 2026-09-07 to `CountedBlockStaysShared`: see the step 5 landing)
 
   **The test is RECURSIVE** (`Result.ContainsRefCountedScalar`), and that is
   load-bearing rather than defensive: `@copy type P = { v: float }` is itself
@@ -710,6 +711,56 @@ whole run). **Do not benchmark this epic against anything older than commit
   IR rows, and `TestUnsharePredicatesAgreeWithSema`. Not narrowed here, by
   the plan: the reply gate (`far Task<float>.await()`) and the channel element
   gate (`far Channel<float>`) — step 5 — and the two shapes named above.
+
+  **Landed 2026-09-07, step 5, the channel element.** Three landings, in
+  this order. RV2-DEBT-338 first, as the precondition: sema types every
+  `select` arm's await before any body and ledgers the payloads of one select
+  across its arms, so one binding given away by two SEND arms, or staged by
+  one arm and consumed by another arm's await, is refused (SEM3211) instead
+  of being freed twice — the shape that sank the first narrowing. Then the
+  local sends: the suspending send of an async body takes the channel's
+  reference once, in the prelude, into a transfer temp (a retain there on the
+  re-polled instruction would be one bump per park); the winning SEND arm of
+  a local select takes its own reference at the head of its body, the runtime
+  having moved the temp's bits out of the caller's storage; and a `@copy`
+  composite's clone is what the runtime moves from, not the caller's original.
+  Then the gate. Every entry into a remote channel's ring now hands over a
+  PRIVATE reference: a far-select SEND payload is un-shared in the
+  relinquishing operand (site 2, step 4), and the anchored body's
+  `ch.send(own f)` — site 4 — gives away the capture's own reference, made
+  private by the caller when the capture entered the state (site 1). The
+  anchored body cannot make the payload private on the spot: it has no async
+  split, a send that parks re-enters the body from its first instruction, and
+  a retain or a clone made there would be made again on every wake while the
+  runtime consumed the first (only an empty prefix replays safely — the
+  DEBT-030 doctrine). So sema holds the send to `own <captured binding>`
+  (SEM3212, with the way out), marks the binding moved inside the body (and
+  refuses a later store to it there), the lowering moves the capture out of
+  its own local and touches it in no other way — not even the read of the
+  count an un-share would make, because by the next wake the block may be
+  the ring's, a receiver's, or already released — and the validator's act
+  for this sink is the local's provenance: unpacked from the state, untouched
+  since. The poll function withholds the drop it would synthesize for that
+  Copy capture. The element gate (`crossingRecordExecutable`, `classifyCrossingPayload`)
+  asks `CountedBlockStaysShared` like the capture gate: a bare `float`, a
+  union of structs carrying one, a fixed array, a `@copy` union mint a remote
+  channel and ship; a dynamic array's buffer stays refused in words that say
+  why. Measured: `unshare_clones` reads 1 for a far-select send of a float
+  with a sibling alive, 1 for an anchored `own f` captured beside a sibling,
+  1 for a `@copy` union and 1 for a union given the same way, 3 for three
+  anchored producers parking on a capacity-1 channel (one clone per capture,
+  none per park), 0 for a union that is its block's only holder — on 2 and on
+  8 shards; 0 under `RV2_BIGFLOAT_UNSHARE_NEGATIVE_CONTROL`; valgrind
+  definitely-lost 0 on the float and parking programs. Rows:
+  `TestRuntimeV2UnshareClonesOnTheWayIntoARemoteChannel*`,
+  `TestRuntimeV2UnshareIntoARemoteChannelLeaksNothing`,
+  `TestRefCountedScalarChannelElements{Ship,StayRefused}`,
+  `TestAnchoredSendOfACountedScalarMustGiveTheBindingAway`,
+  `TestEmitAnchoredSendLeavesTheGivenCaptureUntouchedBeforeTheRing` (the
+  anchored rows red by the validator when an un-share is put back into the
+  body's prefix, 2/2), the
+  `select_send_*` and `on_anchored_send_*` golden fixtures. Not narrowed
+  here: the reply gate — S2.
 
 - **Phase 2 — `int`/`uint`.** Adds only the fixnum-tag branch to a mechanism
   already proven by float — LOCALLY. Across a shard boundary it adds a

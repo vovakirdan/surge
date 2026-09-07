@@ -1,0 +1,30 @@
+on_anchored_send_float_not_given_away.sg (span: 8:1-17:1)
+├─ Item[0]: Fn (span: 8:1-12:2)
+│  ├─ Name: plain_read
+│  ├─ Params: (ch: far Channel<float>)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 8:56-12:2)
+│        ├─ Stmt[0]: Let (span: 9:5-9:24)
+│        │  ├─ Name: f
+│        │  ├─ Mutable: false
+│        │  ├─ Type: float
+│        │  └─ Value: expr#1: 1.5
+│        ├─ Stmt[1]: Let (span: 10:5-10:72)
+│        │  ├─ Name: sent
+│        │  ├─ Mutable: false
+│        │  ├─ Type: TaskResult<nothing>
+│        │  └─ Value: expr#8: on ch { 2 stmt(s) }
+│        └─ Stmt[2]: Expr (span: 11:5-11:24)
+│           └─ Expr: expr#12: print(f to string)
+└─ Item[1]: Fn (span: 14:1-16:2)
+   ├─ Name: literal
+   ├─ Params: (ch: far Channel<float>)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 14:53-16:2)
+         └─ Stmt[0]: Let (span: 15:5-15:74)
+            ├─ Name: sent
+            ├─ Mutable: false
+            ├─ Type: TaskResult<nothing>
+            └─ Value: expr#19: on ch { 2 stmt(s) }

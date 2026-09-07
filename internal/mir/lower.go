@@ -247,6 +247,12 @@ type funcLowerer struct {
 	// reclamation census reports as a leak; missing one in the other direction
 	// is a use-after-free.
 	owningTemps map[LocalID]struct{}
+	// givenAwayCaptures names the Copy captures of an anchored body that its
+	// channel send GAVE AWAY: the send moved the capture's only reference
+	// into the ring, so the drop the poll function synthesizes for a Copy
+	// capture at its returns must not run for these. Filled by the anchored
+	// send intercept, read once the body is lowered.
+	givenAwayCaptures map[LocalID]struct{}
 
 	symToLocal  map[symbols.SymbolID]LocalID
 	symToGlobal map[symbols.SymbolID]GlobalID

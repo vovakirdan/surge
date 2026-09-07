@@ -110,28 +110,29 @@ func crossingRecordExecutable(res *sema.Result, info *sema.CrossingLoweringInfo)
 		// SEND arm now carry a payload_drop_fn_id (Task 8), so a non-Copy
 		// element reclaims correctly; any element type may mint remotely.
 		//
-		// The exception is an element carrying an arbitrary-precision value.
-		// It is Copy, so a send leaves the sender's binding alive while the
-		// receiving shard takes the same word — one counted block, two shards,
-		// and the count is not atomic. Refuse the channel at its creation
-		// rather than at each send, so the diagnostic lands where the element
-		// type was chosen.
+		// The exception is an element whose counted heap blocks the sender
+		// cannot make private before the ring takes them. An element carrying
+		// an arbitrary-precision value is Copy, so a send would leave the
+		// sender's binding on the same block the receiving shard takes — one
+		// counted block, two shards, and the count is not atomic. Every entry
+		// into a remote channel's ring now hands over a PRIVATE reference: a
+		// far-select SEND payload is un-shared in the relinquishing operand
+		// (site 2), and an anchored body's `ch.send(own f)` gives the capture's
+		// own reference away, one the caller made private when the capture
+		// entered the state (site 1; sema holds the send to that shape). So a
+		// bare `float`, a struct, a union, a fixed array of them cross.
 		//
-		// A COPY value composite element ships again: the send duplicates it,
-		// so the channel carries a box of its own and the sender keeps its
-		// binding on a different one.
-		//
-		// The question is the MOVE one, not the Copy-bits one: a non-Copy
-		// element is sent by `send(own v)`, and `own Held(P{ v: a })` carries
-		// a block the sender's `a` still holds. ContainsRefCountedScalar stops
-		// at unions on purpose and let that channel be created; the union
-		// element was found by reading in the G1 planning of 2026-09-06 and is
-		// the shape MayShareCountedBlock reaches.
-		return !res.MayShareCountedBlock(info.PayloadType)
+		// What stays refused is what no walk over the element's own bytes can
+		// make private — a dynamic array's buffer, a nested channel's ring —
+		// asked as the MOVE question through unions (MayShareCountedBlock) and
+		// answered by the walk (CountedBlockCanBeMadePrivate), the same pair the
+		// capture gate asks. Refused at the channel's creation rather than at
+		// each send, so the diagnostic lands where the element type was chosen.
+		return !res.CountedBlockStaysShared(info.PayloadType)
 	case sema.CrossingLoweringChannelSelect:
 		// The reply is the winner index (plain bits); the arms' send payloads
-		// are plain-copy by channel construction. Async context is the sole
-		// shape requirement.
+		// are made private in the relinquishing operand. Async context is the
+		// sole shape requirement.
 		return true
 	default:
 		return false
