@@ -49,6 +49,13 @@ func (l *funcLowerer) lowerSelectExpr(e *hir.Expr, data hir.SelectData, isRace, 
 	}
 
 	lowered := make([]loweredSelectArm, len(data.Arms))
+	// Every SEND arm's payload is staged before the select runs, so one
+	// binding moved by two arms would sit in two arm cells and be freed once
+	// per cell. Sema refuses the shape (SemaSelectSendPayloadGivenTwice); a
+	// direct `own binding` payload keeps the binding's own local as its
+	// valueLocal, every other payload gets a fresh temp, so a repeated
+	// valueLocal is exactly that shape arriving here anyway.
+	sendPayloads := make(map[LocalID]struct{})
 	for i, arm := range data.Arms {
 		if arm.IsDefault {
 			lowered[i] = loweredSelectArm{
@@ -60,6 +67,12 @@ func (l *funcLowerer) lowerSelectExpr(e *hir.Expr, data hir.SelectData, isRace, 
 		armInstr, info, err := l.lowerSelectAwaitExpr(arm.Await)
 		if err != nil {
 			return Operand{}, err
+		}
+		if info.kind == SelectArmChanSend && info.valueLocal != NoLocalID {
+			if _, seen := sendPayloads[info.valueLocal]; seen {
+				return Operand{}, fmt.Errorf("mir: select: one owned binding is given away by two SEND arms; sema is expected to refuse this shape")
+			}
+			sendPayloads[info.valueLocal] = struct{}{}
 		}
 		lowered[i] = info
 		lowered[i].arm = armInstr

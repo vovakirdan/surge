@@ -117,6 +117,12 @@ const (
 	// block as a value inside the block: the body holds it as a lease for its
 	// channel operation only, and the handle stays with the caller.
 	SemaOnAnchorLeaseMisuse Code = 3210
+	// SemaSelectSendPayloadGivenTwice rejects one binding named by `send(own x)`
+	// in two arms of the same `select`, far or local. Every arm's payload is
+	// staged before the select runs, so two arms would stage one value into
+	// two cells: the loser's cell is destroyed and the winner's is committed,
+	// and the one block behind them is freed twice.
+	SemaSelectSendPayloadGivenTwice Code = 3211
 
 	// --- Parse-level crossing diagnostics (SYN 2031-2036) ---
 

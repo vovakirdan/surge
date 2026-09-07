@@ -140,7 +140,15 @@ type typeChecker struct {
 	// place rather than by binding so a field can be tracked apart from its
 	// container; at present only whole-binding places (empty path) are
 	// reachable, because the partial-move gate rejects the rest.
-	movedPlaces        map[Place]source.Span
+	movedPlaces map[Place]source.Span
+	// selectSendPayloads is the ledger of the `select` currently being typed:
+	// the binding each SEND arm gives away and the arm that took it. It is
+	// NOT flow state: every arm's await is evaluated before the select runs,
+	// so two arms naming one binding would both stage it before any winner
+	// exists, and the per-arm rollback of movedPlaces (each arm is a branch)
+	// cannot see that. Fresh per select, restored to the enclosing select's
+	// ledger after the join; nil outside a select.
+	selectSendPayloads *selectPayloadLedger
 	dropScopes         []dropScope                     // lexical scopes' droppable bindings (drop obligations)
 	loopDropMarks      []int                           // dropScopes depth at each enclosing loop body
 	tempFrames         []tempFrame                     // per-statement owned-rvalue candidates (temp drops)

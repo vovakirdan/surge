@@ -1,0 +1,69 @@
+  1: KwAsync         "async" at 7:1-7:6 (leading: LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline, LineComment, Newline)
+  2: KwFn            "fn" at 7:7-7:9 (leading: Space)
+  3: Ident           "fan_out" at 7:10-7:17 (leading: Space)
+  4: LParen          "(" at 7:17-7:18
+  5: Ident           "ch" at 7:18-7:20
+  6: Colon           ":" at 7:20-7:21
+  7: KwFar           "far" at 7:22-7:25 (leading: Space)
+  8: Ident           "Channel" at 7:26-7:33 (leading: Space)
+  9: Lt              "<" at 7:33-7:34
+ 10: Ident           "string" at 7:34-7:40
+ 11: Gt              ">" at 7:40-7:41
+ 12: Comma           "," at 7:41-7:42
+ 13: Ident           "ch2" at 7:43-7:46 (leading: Space)
+ 14: Colon           ":" at 7:46-7:47
+ 15: KwFar           "far" at 7:48-7:51 (leading: Space)
+ 16: Ident           "Channel" at 7:52-7:59 (leading: Space)
+ 17: Lt              "<" at 7:59-7:60
+ 18: Ident           "string" at 7:60-7:66
+ 19: Gt              ">" at 7:66-7:67
+ 20: RParen          ")" at 7:67-7:68
+ 21: Arrow           "->" at 7:69-7:71 (leading: Space)
+ 22: NothingLit      "nothing" at 7:72-7:79 (leading: Space)
+ 23: LBrace          "{" at 7:80-7:81 (leading: Space)
+ 24: KwLet           "let" at 8:5-8:8 (leading: Newline, Space)
+ 25: KwMut           "mut" at 8:9-8:12 (leading: Space)
+ 26: Ident           "s" at 8:13-8:14 (leading: Space)
+ 27: Assign          "=" at 8:15-8:16 (leading: Space)
+ 28: StringLit       "\"hello-\"" at 8:17-8:25 (leading: Space)
+ 29: Semicolon       ";" at 8:25-8:26
+ 30: Ident           "s" at 9:5-9:6 (leading: Newline, Space)
+ 31: Assign          "=" at 9:7-9:8 (leading: Space)
+ 32: Ident           "s" at 9:9-9:10 (leading: Space)
+ 33: Plus            "+" at 9:11-9:12 (leading: Space)
+ 34: StringLit       "\"world\"" at 9:13-9:20 (leading: Space)
+ 35: Semicolon       ";" at 9:20-9:21
+ 36: KwLet           "let" at 10:5-10:8 (leading: Newline, Space)
+ 37: Ident           "v" at 10:9-10:10 (leading: Space)
+ 38: Assign          "=" at 10:11-10:12 (leading: Space)
+ 39: KwSelect        "select" at 10:13-10:19 (leading: Space)
+ 40: LBrace          "{" at 10:20-10:21 (leading: Space)
+ 41: Ident           "ch" at 11:9-11:11 (leading: Newline, Space)
+ 42: Dot             "." at 11:11-11:12
+ 43: Ident           "send" at 11:12-11:16
+ 44: LParen          "(" at 11:16-11:17
+ 45: KwOwn           "own" at 11:17-11:20
+ 46: Ident           "s" at 11:21-11:22 (leading: Space)
+ 47: RParen          ")" at 11:22-11:23
+ 48: FatArrow        "=>" at 11:24-11:26 (leading: Space)
+ 49: IntLit          "1" at 11:27-11:28 (leading: Space)
+ 50: Semicolon       ";" at 11:28-11:29
+ 51: Ident           "ch2" at 12:9-12:12 (leading: Newline, Space)
+ 52: Dot             "." at 12:12-12:13
+ 53: Ident           "send" at 12:13-12:17
+ 54: LParen          "(" at 12:17-12:18
+ 55: KwOwn           "own" at 12:18-12:21
+ 56: Ident           "s" at 12:22-12:23 (leading: Space)
+ 57: RParen          ")" at 12:23-12:24
+ 58: FatArrow        "=>" at 12:25-12:27 (leading: Space)
+ 59: IntLit          "2" at 12:28-12:29 (leading: Space)
+ 60: Semicolon       ";" at 12:29-12:30
+ 61: RBrace          "}" at 13:5-13:6 (leading: Newline, Space)
+ 62: Semicolon       ";" at 13:6-13:7
+ 63: Ident           "print" at 14:5-14:10 (leading: Newline, Space)
+ 64: LParen          "(" at 14:10-14:11
+ 65: StringLit       "\"done\\n\"" at 14:11-14:19
+ 66: RParen          ")" at 14:19-14:20
+ 67: Semicolon       ";" at 14:20-14:21
+ 68: RBrace          "}" at 15:1-15:2 (leading: Newline)
+ 69: EOF             at 16:1-16:1

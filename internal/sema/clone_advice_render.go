@@ -30,6 +30,7 @@ const (
 	adviceMoveOutOfSharedBorrow
 	adviceCompareArmPayload
 	adviceMoveOutOfLoopBinding
+	adviceSelectSendSecondArm
 )
 
 // cloneAdvice is what one site is allowed to say.
@@ -260,6 +261,13 @@ func cloneAdviceSentence(site cloneAdviceSite, state CloneState, name string) st
 			return fmt.Sprintf("read `%s` where it is, through a borrow (`&%s`): a `for` binding lends what the container owns", name, name)
 		}
 		return fmt.Sprintf("to keep the container, read %s where it is or pass a copy: %s", subject, call)
+	case adviceSelectSendSecondArm:
+		// Both arms stage their payload before the select runs, so the second
+		// arm cannot share the first arm's value: it needs one of its own.
+		if state == CloneNonClonable {
+			return fmt.Sprintf("give this arm a value of its own, or drop one of the two arms that send %s", subject)
+		}
+		return fmt.Sprintf("give this arm a value of its own: bind a copy first (%s) and send that", call)
 	default:
 		return ""
 	}

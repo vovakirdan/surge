@@ -42,12 +42,14 @@ func (l *funcLowerer) lowerRemoteSelect(
 		PendBB:      NoBlockID,
 	}
 	// A far select cannot know which `own binding` arm wins until the owner
-	// shard commits it. Identify the exact bare-local shapes up front so only
-	// UNIQUE roots enter the conditional-transfer protocol below. Reusing one
-	// root in multiple SEND arms needs ownership-group semantics in the runtime;
-	// leave that unsupported shape on the ordinary aliasing path so the
-	// ownership verifier keeps reporting it instead of silently blessing two
-	// pending owners of one value.
+	// shard commits it. Identify the exact bare-local shapes up front: each
+	// root enters the conditional-transfer protocol below exactly once. One
+	// root named by several SEND arms would be staged into several arm cells
+	// at once and freed once per cell; sema refuses that shape
+	// (SemaSelectSendPayloadGivenTwice), and this count is the lowering's own
+	// refusal to build should it ever arrive here. Until 2026-09-07 the shape
+	// fell back to two consuming reads of one local on the belief that the
+	// ownership verifier reports it — it never did, and the program built.
 	returnCandidates := make([]farSelectReturnCandidate, len(crossing.RemoteOps))
 	returnCounts := make(map[LocalID]int)
 	for i := range crossing.RemoteOps {
@@ -57,6 +59,9 @@ func (l *funcLowerer) lowerRemoteSelect(
 		}
 		returnCandidates[i] = candidate
 		returnCounts[candidate.place.Local]++
+		if returnCounts[candidate.place.Local] > 1 {
+			return fmt.Errorf("mir: remote select: one owned binding is given away by two SEND arms; sema is expected to refuse this shape")
+		}
 	}
 	for i := range crossing.RemoteOps {
 		recv, err := l.lowerExpr(crossing.RemoteOps[i].Receiver, false)
@@ -71,7 +76,7 @@ func (l *funcLowerer) lowerRemoteSelect(
 		}
 		if crossing.RemoteOps[i].Value != nil {
 			candidate := returnCandidates[i]
-			if candidate.ok && returnCounts[candidate.place.Local] == 1 {
+			if candidate.ok {
 				op.Value = candidate.value
 				returnPlace := candidate.place
 				op.ReturnPlace = &returnPlace

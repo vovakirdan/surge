@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"surge/internal/diag"
 	"surge/internal/mir"
 	"surge/internal/sema"
 )
@@ -112,8 +113,16 @@ func TestFarSelectReturnPlaceValidationFailsClosed(t *testing.T) {
 	})
 }
 
-func TestFarSelectDuplicateOwnedRootDoesNotEnterReturnProtocol(t *testing.T) {
-	compiled := compileCrossingMIR(t, crossingMIRPrelude+`
+// One owned root named by two SEND arms never reaches the lowering: sema
+// refuses the second taker (SemaSelectSendPayloadGivenTwice), naming both
+// arms. Until 2026-09-07 this test pinned the opposite arrangement -- the
+// duplicate root stayed OUT of the conditional-transfer protocol and was left
+// for the ownership verifier to report -- but the verifier's finding is a gate
+// report, not a build failure, so the program built and double-freed
+// (RV2-DEBT-338). The lowering keeps a count of its own and refuses to build
+// the shape should it ever arrive there.
+func TestFarSelectDuplicateOwnedRootIsRefusedBeforeLowering(t *testing.T) {
+	front := checkCrossingSource(t, crossingMIRPrelude+`
 async fn duplicate_root(a: far Channel<string>, b: far Channel<string>) -> nothing {
     let job = "payload";
     let v = select {
@@ -121,22 +130,19 @@ async fn duplicate_root(a: far Channel<string>, b: far Channel<string>) -> nothi
         b.send(own job) => 2;
     };
 }
-`, crossingForms(sema.CrossingLoweringChannelSelect))
-	crossing := findCrossingInstr(t, compiled.mod)
-	for i := range crossing.RemoteOps {
-		if crossing.RemoteOps[i].ReturnPlace != nil {
-			t.Fatalf("duplicate ownership root must stay outside conditional-transfer protocol: op %d", i)
+`)
+	var refusal *diag.Diagnostic
+	for _, d := range front.bag.Items() {
+		if d.Code == diag.SemaSelectSendPayloadGivenTwice {
+			refusal = d
+			break
 		}
 	}
-	for _, fn := range compiled.mod.Funcs {
-		mir.SimplifyCFG(fn)
+	if refusal == nil {
+		t.Fatalf("the second SEND arm was not refused; diagnostics: %s", crossingDiagSummary(front.bag))
 	}
-	if err := mir.LowerAsyncStateMachine(compiled.mod, compiled.sema, compiled.symbols.Table); err != nil {
-		t.Fatalf("lower duplicate-root async state machine: %v", err)
-	}
-	got := findingsIn(mir.VerifyOwnership(compiled.mod, compiled.types, compiled.sema), "duplicate_root$poll")
-	if len(got) == 0 || !strings.Contains(strings.Join(got, "\n"), "crossing_remote_value") {
-		t.Fatalf("unsupported duplicate root must remain a verifier finding, got:\n%s", strings.Join(got, "\n"))
+	if !strings.Contains(refusal.Message, "'job' is given away by two arms") {
+		t.Fatalf("refusal does not name the binding and the shape: %s", refusal.Message)
 	}
 }
 

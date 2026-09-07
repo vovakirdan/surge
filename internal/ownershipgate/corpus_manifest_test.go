@@ -56,8 +56,19 @@ type corpusRootSpec struct {
 // (SEM3210). E3 landed without this line, so the tripwire read 1058 against
 // 1057 on every aggregate count from that commit on -- the runner's W8 on
 // ba7f13e4 is where it was finally read, four SHAs later. Nothing removed.
+//
+// Raised 1058 -> 1062 on 2026-09-07. The four are RV2-DEBT-338's fixtures:
+// sema/invalid/select_send_far_same_binding_two_arms and
+// sema/invalid/select_send_same_binding_two_arms, the refusal of one owned
+// binding given away by two SEND arms of one `select` (SEM3211), far and
+// local; sema/invalid/select_send_payload_consumed_by_another_await, the
+// refusal of a staged payload that another arm's await consumes before the
+// select runs (the reviewers' probe, same code); and its accepted twin
+// sema/valid/select_send_payload_borrowed_by_another_await, where the other
+// await only borrows. The three refused programs built with zero diagnostics
+// before and double-freed at run. Nothing removed.
 var corpusRoots = []corpusRootSpec{
-	{Path: "testdata/golden", PinnedCount: 1058},
+	{Path: "testdata/golden", PinnedCount: 1062},
 	{Path: "showcases", PinnedCount: 38},
 	{Path: "core", PinnedCount: 10},
 	{Path: "stdlib", PinnedCount: 32},

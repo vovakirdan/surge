@@ -1,0 +1,1 @@
+error SEM3211 testdata/golden/sema/invalid/select_send_far_same_binding_two_arms.sg:12:18 's' is given away by two arms of this `select`: every arm stages its payload before the select runs, so one value would sit in two arms' cells and be freed twice

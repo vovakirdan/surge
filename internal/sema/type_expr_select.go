@@ -63,10 +63,37 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 	// the snapshot silently starts capturing body moves, at which point
 	// merging it for a closed arm stops meaning anything.
 	movedAwait := make([]map[Place]source.Span, len(data.Arms))
+	pinsAwait := make([]map[taskBorrowPinKey]taskBorrowPin, len(data.Arms))
+	// The awaits are typed FIRST, all of them, and the bodies after: an
+	// await runs before the select does, whichever arm wins, so what an
+	// await moves is gone for every arm's body and for every later await.
+	// Two kinds of move happen there and they are kept apart:
+	//
+	//   - a SEND arm's own `own x` payload is CONDITIONAL: the runtime hands
+	//     it back when the arm loses, so it is moved only in that arm's body
+	//     and maybe-moved after the join (the snapshot discipline below);
+	//   - anything else an await moves — `send(eat(x))` with `eat` taking by
+	//     value — is UNCONDITIONAL: nothing hands it back, so it accumulates
+	//     in awaitBase and every body starts from it.
+	//
+	// The payloads are ledgered across arms on the side, fresh for this
+	// select and handed back to the enclosing one (a select nested in an
+	// arm body keeps its own): the per-arm rollback is what let one binding
+	// be named by two SEND arms, and what let a later await consume the
+	// binding an earlier arm had already staged.
+	ledgerOuter := tc.selectSendPayloads
+	keyword := "select"
+	if isRace {
+		keyword = "race"
+	}
+	tc.selectSendPayloads = &selectPayloadLedger{keyword: keyword, taken: make(map[symbols.SymbolID]source.Span)}
+	defer func() { tc.selectSendPayloads = ledgerOuter }()
+	awaitBase := movedBefore
 
 	for i, arm := range data.Arms {
-		tc.restoreMovedPlaces(movedBefore)
+		tc.restoreMovedPlaces(awaitBase)
 		tc.restoreTaskBorrowPins(pinsBefore)
+		tc.selectSendPayloads.arm = symbols.NoSymbolID
 		if arm.IsDefault {
 			defaultCount++
 			if i != len(data.Arms)-1 {
@@ -81,6 +108,16 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 		}
 
 		movedAwait[i] = tc.snapshotMovedPlaces()
+		pinsAwait[i] = tc.snapshotTaskBorrowPins()
+		awaitBase = mergeMovedPlaces(awaitBase, unconditionalAwaitMoves(movedAwait[i], tc.selectSendPayloads.arm))
+	}
+	tc.refuseStagedPayloadsConsumedByAnAwait(awaitBase)
+
+	for i, arm := range data.Arms {
+		// This arm's body: everything every await gave away for good, plus
+		// this arm's own payload, which is gone exactly where this arm won.
+		tc.restoreMovedPlaces(mergeMovedPlaces(awaitBase, movedAwait[i]))
+		tc.restoreTaskBorrowPins(pinsAwait[i])
 
 		armResult := tc.typeExpr(arm.Result)
 		armClosed[i] = tc.compareArmAbruptExit(arm.Result)
@@ -501,6 +538,23 @@ func (tc *typeChecker) checkSelectSendPayloadOwnership(chanType types.TypeID, va
 			"select send payload is borrowed from a container and cannot be given away: "+
 				"this binding reads out of a field, element, or deref, so the container still owns "+
 				"the value — copy or move it out of the container first, then `send(own ...)` that")
+		return
+	}
+	// Every arm stages its payload before the select runs, so a binding two
+	// arms name is staged into two cells at once; the runtime destroys the
+	// loser's cell and commits the winner's, and the one block behind them
+	// is freed twice. The per-arm move rollback in typeSelectExpr cannot see
+	// this (arm 2 is typed as if arm 1 never ran), so the payloads of one
+	// select are ledgered on the side and the second taker is refused there,
+	// with both arms named. Both lowerings count the same thing and refuse
+	// to build should this ever be missed.
+	// A binding an earlier arm's await already consumed was reported as a
+	// use-after-move by the read just above; ledgering it would report the
+	// same consumption a second time from the other side.
+	if _, _, gone := tc.movedPlaceCovering(wholePlace(desc.Base)); gone {
+		return
+	}
+	if !tc.recordSelectSendPayload(desc.Base, span) {
 		return
 	}
 	// This move happens while the arm's AWAIT is being typed, which is

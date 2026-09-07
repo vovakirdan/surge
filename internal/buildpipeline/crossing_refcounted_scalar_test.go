@@ -152,9 +152,12 @@ async fn go() -> int {
 		// and the reviewers caught (06.09): a `@copy` union carrying a float --
 		// its anchored `send` hands the ring the union's bits with no retain --
 		// and a far select whose two SEND arms are fed by ONE owned binding, so
-		// the runtime stages the same block into two cells. Both are refused
-		// on this tree; these rows pin that so a later narrowing cannot reopen
-		// them silently.
+		// the runtime stages the same block into two cells. The first is still
+		// refused by the element gate; the second is refused by sema since
+		// 2026-09-07 (SemaSelectSendPayloadGivenTwice, RV2-DEBT-338), which is
+		// the refusal that survives the element gate's narrowing -- the gate
+		// never looked at the two arms, which is how the same program with a
+		// `string` element built and double-freed.
 		{
 			name: "remote channel with a copy union element carrying a float",
 			src: `
@@ -195,7 +198,7 @@ async fn go() -> int {
     return won;
 }
 `,
-			contains: []string{"remote channel cannot carry `U`"},
+			contains: []string{"'held' is given away by two arms"},
 		},
 	}
 	for _, tc := range cases {

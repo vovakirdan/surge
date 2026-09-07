@@ -1,0 +1,21 @@
+// Every arm's await is evaluated before the select runs, whichever arm wins.
+// Arm 1 stages `s`; arm 2's await hands `s` to a function that takes it by
+// value, which consumes it for good — nothing hands a consumed argument back
+// the way a losing SEND arm's payload is handed back. The select would then
+// stage a value an await had already freed. Refused at the giving arm, with
+// the consuming await named.
+fn eat(x: string) -> int {
+    return len(x) to int;
+}
+
+async fn stage_then_consume() -> nothing {
+    let ch = Channel::<string>::new(1:uint);
+    let chi = Channel::<int>::new(1:uint);
+    let mut s = "s-";
+    s = s + "x";
+    let v = select {
+        ch.send(own s) => 1;
+        chi.send(eat(s)) => 2;
+    };
+    print("done\n");
+}

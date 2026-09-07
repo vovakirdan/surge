@@ -1,0 +1,1 @@
+error SEM3211 testdata/golden/sema/invalid/select_send_payload_consumed_by_another_await.sg:17:17 's' is given away by this arm, but another arm's await consumes it before the `select` runs: every await is evaluated first, whichever arm wins, so the value would be staged after it was freed

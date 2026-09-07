@@ -1,0 +1,15 @@
+// Every SEND arm stages its payload before the select runs, so one binding
+// named by two arms would sit in two arms' cells at once: the loser's cell is
+// destroyed, the winner's is committed, and the one block behind them is freed
+// twice. Each arm's move is rolled back before the next arm is typed (an arm is
+// a branch), which is exactly what let this compile before the payloads of one
+// select were ledgered across its arms.
+async fn fan_out(ch: far Channel<string>, ch2: far Channel<string>) -> nothing {
+    let mut s = "hello-";
+    s = s + "world";
+    let v = select {
+        ch.send(own s) => 1;
+        ch2.send(own s) => 2;
+    };
+    print("done\n");
+}

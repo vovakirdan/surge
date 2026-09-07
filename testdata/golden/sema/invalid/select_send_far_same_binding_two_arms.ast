@@ -1,0 +1,21 @@
+select_send_far_same_binding_two_arms.sg (span: 7:1-16:1)
+└─ Item[0]: Fn (span: 7:1-15:2)
+   ├─ Name: fan_out
+   ├─ Params: (ch: far Channel<string>, ch2: far Channel<string>)
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 7:80-15:2)
+         ├─ Stmt[0]: Let (span: 8:5-8:26)
+         │  ├─ Name: s
+         │  ├─ Mutable: true
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#1: "hello-"
+         ├─ Stmt[1]: Expr (span: 9:5-9:21)
+         │  └─ Expr: expr#6: (s = ((s + "world")))
+         ├─ Stmt[2]: Let (span: 10:5-13:7)
+         │  ├─ Name: v
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#19: <ExprKind(20)>
+         └─ Stmt[3]: Expr (span: 14:5-14:21)
+            └─ Expr: expr#22: print("done\n")

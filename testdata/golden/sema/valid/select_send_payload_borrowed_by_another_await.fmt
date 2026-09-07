@@ -1,0 +1,19 @@
+// The control for select_send_payload_consumed_by_another_await: arm 2's
+// await only BORROWS the binding arm 1 stages. Every arm's await is evaluated
+// before the select runs, and a borrow leaves the value where it is, so the
+// staged payload is intact when the select takes it. Accepted.
+fn measure(x: &string) -> int {
+    return len(*x) to int;
+}
+
+async fn stage_then_borrow() -> nothing {
+    let ch = Channel::<string>::new(1:uint);
+    let chi = Channel::<int>::new(1:uint);
+    let mut s = "s-";
+    s = s + "x";
+    let v = select {
+        ch.send(own s) => 1;
+        chi.send(measure(&s)) => 2;
+    };
+    print("done\n");
+}

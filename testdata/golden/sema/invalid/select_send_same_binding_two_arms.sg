@@ -1,0 +1,14 @@
+// The local select stages every SEND arm's payload up front just as the far one
+// does, so the same binding in two arms is refused on the same rule; the local
+// lowering never even counted the roots.
+async fn fan_out() -> nothing {
+    let ch = Channel::<string>::new(1:uint);
+    let ch2 = Channel::<string>::new(1:uint);
+    let mut s = "hello-";
+    s = s + "world";
+    let v = select {
+        ch.send(own s) => 1;
+        ch2.send(own s) => 2;
+    };
+    print("done\n");
+}

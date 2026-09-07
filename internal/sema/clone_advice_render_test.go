@@ -108,6 +108,7 @@ func TestCloneAdviceCoversEverySiteByEveryCapability(t *testing.T) {
 		{adviceMoveOutOfSharedBorrow, "move out of shared borrow"},
 		{adviceCompareArmPayload, "compare arm payload"},
 		{adviceMoveOutOfLoopBinding, "move out of loop binding"},
+		{adviceSelectSendSecondArm, "select send second arm"},
 	}
 	states := []CloneState{CloneCopy, CloneValidMethod, CloneNonClonable}
 

@@ -144,12 +144,18 @@ func (tc *typeChecker) bindingMovedPlace(symID symbols.SymbolID) bool {
 // scope. If that ever stops being small, index it by base rather than making
 // the relation cheaper — the relation is the part that has to stay exact.
 func (tc *typeChecker) movedPlaceCovering(place Place) (Place, source.Span, bool) {
-	if !place.IsValid() || tc.movedPlaces == nil {
+	return movedPlaceCoveringIn(tc.movedPlaces, place)
+}
+
+// movedPlaceCoveringIn is movedPlaceCovering over a moved-set that is not the
+// checker's current one — a snapshot a join is reading, say.
+func movedPlaceCoveringIn(moved map[Place]source.Span, place Place) (Place, source.Span, bool) {
+	if !place.IsValid() || moved == nil {
 		return Place{}, source.Span{}, false
 	}
 	// Exact match first: when a place was moved as itself, that is the span the
 	// reader wants, even if a wider place also covers it.
-	if span, ok := tc.movedPlaces[place]; ok {
+	if span, ok := moved[place]; ok {
 		return place, span, true
 	}
 	var (
@@ -157,7 +163,7 @@ func (tc *typeChecker) movedPlaceCovering(place Place) (Place, source.Span, bool
 		bestSpan source.Span
 		found    bool
 	)
-	for candidate, span := range tc.movedPlaces {
+	for candidate, span := range moved {
 		if !placesOverlap(candidate, place) {
 			continue
 		}

@@ -45,7 +45,21 @@ type crossingMIRCompileResult struct {
 	symbols *symbols.Result
 }
 
-func compileCrossingMIR(t *testing.T, src string, forms map[sema.CrossingLoweringKind]bool) crossingMIRCompileResult {
+// crossingFrontResult is the front of the pipeline up to and including sema,
+// with the bag every stage reported into. It stops there on purpose: a test
+// that pins a sema refusal reads the bag, and only a clean front goes on to
+// HIR, mono and MIR in compileCrossingMIR.
+type crossingFrontResult struct {
+	bag     *diag.Bag
+	builder *ast.Builder
+	file    ast.FileID
+	types   *types.Interner
+	instMap *mono.InstantiationMap
+	symbols symbols.Result
+	sema    sema.Result
+}
+
+func checkCrossingSource(t *testing.T, src string) crossingFrontResult {
 	t.Helper()
 	fs := source.NewFileSet()
 	fileID := fs.AddVirtual("test.sg", []byte(src))
@@ -82,12 +96,23 @@ func compileCrossingMIR(t *testing.T, src string, forms map[sema.CrossingLowerin
 		ModulePath:     builder.StringsInterner.Intern("core"),
 		Instantiations: mono.NewInstantiationMapRecorder(instMap),
 	})
+	return crossingFrontResult{
+		bag: bag, builder: builder, file: parsed.File, types: typesIn, instMap: instMap,
+		symbols: symbolsRes, sema: semaRes,
+	}
+}
+
+func compileCrossingMIR(t *testing.T, src string, forms map[sema.CrossingLoweringKind]bool) crossingMIRCompileResult {
+	t.Helper()
+	front := checkCrossingSource(t, src)
+	bag, builder, typesIn, instMap := front.bag, front.builder, front.types, front.instMap
+	symbolsRes, semaRes := front.symbols, front.sema
 	if bag.HasErrors() {
 		t.Fatalf("sema diagnostics: %s", crossingDiagSummary(bag))
 	}
 	finalizeTestInstantiationClosure(t, typesIn, &symbolsRes, &semaRes)
 
-	hirMod, err := hir.LowerWithOptions(context.Background(), builder, parsed.File, &semaRes, &symbolsRes, hir.LowerOptions{
+	hirMod, err := hir.LowerWithOptions(context.Background(), builder, front.file, &semaRes, &symbolsRes, hir.LowerOptions{
 		CrossingForms: forms,
 	})
 	if err != nil {
