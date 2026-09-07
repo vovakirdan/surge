@@ -165,6 +165,9 @@ func (l *funcLowerer) lowerSelectArmDispatch(
 				}})
 			}
 		}
+		if lowered != nil && i < len(lowered) {
+			l.replaceCopySentByWinningArm(&lowered[i])
+		}
 		if arm.Result != nil {
 			if hasResult {
 				op, err := l.lowerExpr(arm.Result, true)
@@ -427,6 +430,38 @@ func (l *funcLowerer) localSelectOwnedBindingOperand(value *hir.Expr) (Operand, 
 		Type:  localType,
 		Place: Place{Local: local},
 	}, true
+}
+
+// replaceCopySentByWinningArm runs at the head of a winning SEND arm's body.
+// The local select moves only the winner's value into the channel, from the
+// caller's own storage, and every losing arm's value stays where it was
+// (rt_select_poll, SELECT_CHAN_SEND); a counted SCALAR payload therefore
+// rides a region temp that is released at the statement's end whichever arm
+// won, and that release and the channel's would free the block twice: the
+// channel took the temp's reference by moving its bits, and the temp still
+// answers for one. So the winner takes a reference of its own here, in
+// place — a retain, stored back over the bits the channel now owns. A losing
+// arm never reaches here, and its temp keeps the one reference it had. A
+// moved `own` binding is not a temp and needs nothing.
+//
+// Counted scalars only. The `select_val` temp of a `@copy` composite is never
+// released at all (the lowering does not count a Copy composite as owning
+// what its counted leaves hold: RV2-DEBT-340), so today the channel leaves
+// with the temp's clone and the count balances by that omission — a clone
+// taken here on top of it would be one nobody releases (measured: one block
+// per winning send). The composite's own release belongs with that row.
+func (l *funcLowerer) replaceCopySentByWinningArm(arm *loweredSelectArm) {
+	if l == nil || arm == nil || arm.kind != SelectArmChanSend || arm.valueLocal == NoLocalID {
+		return
+	}
+	value := arm.arm.Value
+	if value.Kind == OperandMove || value.Kind == OperandConst || !l.isRefCounted(value.Type) {
+		return
+	}
+	l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
+		Dst: Place{Local: arm.valueLocal},
+		Src: RValue{Kind: RValueUse, Use: l.placeOperand(Place{Local: arm.valueLocal}, value.Type, true)},
+	}})
 }
 
 func (l *funcLowerer) unwrapSelectAwaitExpr(expr *hir.Expr) *hir.Expr {

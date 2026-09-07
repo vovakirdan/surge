@@ -1,0 +1,52 @@
+channel_float_retains_its_reference_async.sg (span: 7:1-39:1)
+├─ Item[0]: Fn (span: 7:1-29:2)
+│  ├─ Name: run
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 7:23-29:2)
+│        ├─ Stmt[0]: Let (span: 8:5-8:44)
+│        │  ├─ Name: ch
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#5: Channel.new(2 to uint)
+│        ├─ Stmt[1]: Let (span: 11:5-11:20)
+│        │  ├─ Name: kept
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#6: 1.5
+│        ├─ Stmt[2]: Expr (span: 12:5-12:19)
+│        │  └─ Expr: expr#10: ch.send(kept)
+│        ├─ Stmt[3]: Expr (span: 15:5-15:18)
+│        │  └─ Expr: expr#14: ch.send(2.5)
+│        ├─ Stmt[4]: Let (span: 17:5-17:27)
+│        │  ├─ Name: first
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#17: ch.recv()
+│        ├─ Stmt[5]: Expr (span: 18:5-21:6)
+│        │  └─ Expr: expr#36: compare first { 2 arms }
+│        ├─ Stmt[6]: Let (span: 22:5-22:28)
+│        │  ├─ Name: second
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#39: ch.recv()
+│        ├─ Stmt[7]: Expr (span: 23:5-26:6)
+│        │  └─ Expr: expr#58: compare second { 2 arms }
+│        ├─ Stmt[8]: Expr (span: 27:5-27:27)
+│        │  └─ Expr: expr#62: print(kept to string)
+│        └─ Stmt[9]: Return (span: 28:5-28:14)
+│           └─ Expr: expr#63: 0
+└─ Item[1]: Fn (span: 31:1-38:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 32:18-38:2)
+         ├─ Stmt[0]: Let (span: 33:5-33:28)
+         │  ├─ Name: task
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#66: spawn run()
+         └─ Stmt[1]: Return (span: 34:5-37:7)
+            └─ Expr: expr#77: compare task.await() { 2 arms }

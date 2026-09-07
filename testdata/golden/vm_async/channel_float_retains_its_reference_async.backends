@@ -1,0 +1,4 @@
+# The VM lane refuses this program with VM3301 use-after-free on the value taken
+# out of the channel, as it does the sync fixture beside it (see its DEBT row);
+# the defect pinned here is the native lane's.
+llvm

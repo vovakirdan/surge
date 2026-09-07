@@ -2,6 +2,7 @@ package mir
 
 import (
 	"surge/internal/sema"
+	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
@@ -161,6 +162,13 @@ func (l *funcLowerer) applyChannelSendContracts(name string, args []Operand, con
 // This runs after the contract tables because a sink is a sink whatever the
 // callee's own parameters say, and it can only ever upgrade Copy to Retain:
 // a moved or borrowed position is left exactly as classified.
+//
+// It reaches the NAMED runtime calls only. Two channel sends return from
+// lowerCallExpr before this point and had the same defect on their own paths
+// until 2026-09-07: the suspending send of an async body takes its reference
+// in the prelude (storedChannelSendValue), and a local select's SEND arm
+// takes it at the head of the winning arm (replaceCopySentByWinningArm) —
+// each on the shape its own re-entry allows.
 func retainStoredRefCountedArgs(l *funcLowerer, args []Operand, contracts []ArgContract) {
 	if l == nil {
 		return
@@ -174,4 +182,40 @@ func retainStoredRefCountedArgs(l *funcLowerer, args []Operand, contracts []ArgC
 		}
 		args[i].Kind = OperandRetain
 	}
+}
+
+// storedChannelSendValue is retainStoredRefCountedArgs for the SUSPENDING
+// channel send of an async body (InstrChanSend), where the upgrade cannot be
+// an OperandRetain on the instruction itself. The async split isolates the
+// send in a poll block that is re-entered on every poll after a park, and
+// whatever the emitter materializes for the operand it materializes on every
+// entry — a retain there is one bump per park, a clone one box per park, and
+// the runtime consumed the value on the first one. So the value the channel
+// takes is made ONCE, in the prelude, in a transfer temp the instruction moves
+// out of: a retain of a counted scalar, a clone of a `@copy` composite. The
+// prelude runs once, a resume enters the poll block, and the channel takes the
+// temp's own reference exactly as it takes an `own` binding's.
+//
+// Every other operand is handed back untouched: a moved binding already
+// carries its own reference, a constant is minted at the sink, and a plain
+// copy has nothing to bump.
+func (l *funcLowerer) storedChannelSendValue(value *Operand, span source.Span) Operand {
+	if l == nil || value == nil {
+		return Operand{}
+	}
+	var read Operand
+	switch {
+	case value.Kind == OperandCopy && l.isRefCounted(value.Type):
+		read = Operand{Kind: OperandRetain, Type: value.Type, Place: value.Place}
+	case value.Kind == OperandCopyValue:
+		read = *value
+	default:
+		return *value
+	}
+	tmp := l.markOwningTemp(l.newTransferTemp(value.Type, "send", span))
+	l.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
+		Dst: Place{Local: tmp},
+		Src: RValue{Kind: RValueUse, Use: read},
+	}})
+	return Operand{Kind: OperandMove, Type: value.Type, Place: Place{Local: tmp}}
 }

@@ -1,0 +1,38 @@
+// The async twin of channel_float_retains_its_reference: the same two sends,
+// inside an `async fn`, where `ch.send(...)` lowers to the suspending channel
+// send rather than the named runtime call. A float is Copy at the surface and
+// reference counted underneath, so the channel becomes a second owner of the
+// block and the send has to bump the count -- on this path it did not, and the
+// native lane freed the block under the channel.
+async fn run() -> int {
+    let ch = Channel::<float>::new(2:uint);
+
+    // The sender's binding outlives the send: two owners, one block.
+    let kept = 1.5;
+    ch.send(kept);
+
+    // The sender is a temporary: its release lands before the receive.
+    ch.send(2.5);
+
+    let first = ch.recv();
+    compare first {
+        Some(x) => { if x > 1.0 { print("first=big"); } else { print("first=small"); } }
+        nothing => print("first=none");
+    }
+    let second = ch.recv();
+    compare second {
+        Some(y) => { if y > 2.0 { print("second=big"); } else { print("second=small"); } }
+        nothing => print("second=none");
+    }
+    print(kept to string);
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let task = spawn run();
+    return compare task.await() {
+        Success(code) => code;
+        Cancelled() => 90;
+    };
+}

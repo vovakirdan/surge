@@ -443,7 +443,7 @@ func (l *funcLowerer) lowerCallExpr(e *hir.Expr, consume bool) (Operand, error) 
 			if len(args) == 2 && l.isChannelType(args[0].Type) {
 				l.emit(&Instr{Kind: InstrChanSend, ChanSend: ChanSendInstr{
 					Channel: args[0],
-					Value:   args[1],
+					Value:   l.storedChannelSendValue(&args[1], e.Span),
 					ReadyBB: NoBlockID,
 					PendBB:  NoBlockID,
 				}})

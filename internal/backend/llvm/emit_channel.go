@@ -156,20 +156,7 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 		if err != nil {
 			return true, err
 		}
-		val, valTy, err := fe.emitValueOperand(&call.Args[1])
-		if err != nil {
-			return true, err
-		}
-		valueType := operandValueType(fe.emitter.types, &call.Args[1])
-		if valueType == types.NoTypeID && call.Args[1].Kind != mir.OperandConst {
-			if baseType, baseErr := fe.placeBaseType(call.Args[1].Place); baseErr == nil {
-				valueType = baseType
-			}
-		}
-		_ = val
-		_ = valTy
-		_ = valueType
-		srcPtr, err := fe.emitChannelValueAddress(&call.Args[1])
+		srcPtr, err := fe.emitChannelSendSource(&call.Args[1])
 		if err != nil {
 			return true, err
 		}
@@ -264,20 +251,7 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 		if err != nil {
 			return true, err
 		}
-		val, valTy, err := fe.emitValueOperand(&call.Args[1])
-		if err != nil {
-			return true, err
-		}
-		valueType := operandValueType(fe.emitter.types, &call.Args[1])
-		if valueType == types.NoTypeID && call.Args[1].Kind != mir.OperandConst {
-			if baseType, baseErr := fe.placeBaseType(call.Args[1].Place); baseErr == nil {
-				valueType = baseType
-			}
-		}
-		_ = val
-		_ = valTy
-		_ = valueType
-		srcPtr, err := fe.emitChannelValueAddress(&call.Args[1])
+		srcPtr, err := fe.emitChannelSendSource(&call.Args[1])
 		if err != nil {
 			return true, err
 		}
@@ -369,6 +343,56 @@ func (fe *funcEmitter) emitChannelIntrinsic(call *mir.CallInstr) (bool, error) {
 	}
 }
 
+// emitChannelSendSource materializes what a NON-suspending send hands the
+// runtime and answers with its address. The runtime moves the bits it is
+// pointed at and never retains, so the reference the channel ends up owning
+// has to be made here, once, on the one execution this call site gets:
+//
+//   - a RETAIN of a counted scalar bumps the count and points the runtime at
+//     the caller's own storage — the caller keeps its reference, the channel
+//     leaves with the bump;
+//   - a clone (CopyValue) of a `@copy` composite is built into storage of its
+//     own, and THAT storage is what the runtime moves from: the composite the
+//     caller holds is left exactly as it was, and the box the clone allocated
+//     leaves with the value instead of being dropped on the floor;
+//   - a move, a plain copy, a constant: the operand's storage as it stands.
+//
+// Not for InstrChanSend, which is polled again after every park and takes its
+// value from a temp the lowering filled in the prelude.
+func (fe *funcEmitter) emitChannelSendSource(op *mir.Operand) (string, error) {
+	if op == nil {
+		return "", fmt.Errorf("nil channel send operand")
+	}
+	switch op.Kind {
+	case mir.OperandRetain:
+		if _, _, err := fe.emitValueOperand(op); err != nil {
+			return "", err
+		}
+		return fe.emitChannelValueAddress(op)
+	case mir.OperandCopyValue:
+		// The same question emitOperand asks before it clones: a shape the
+		// backend keeps flat is read as its word, and the word's storage is
+		// the operand's own.
+		cloneTy := op.Type
+		if cloneTy == types.NoTypeID {
+			if base, baseErr := fe.placeBaseType(op.Place); baseErr == nil {
+				cloneTy = base
+			}
+		}
+		resolved := resolveValueType(fe.emitter.types, cloneTy)
+		if !fe.emitter.hasInlineStorage(resolved) || !fe.emitter.isCloneableComposite(resolved) {
+			return fe.emitChannelValueAddress(op)
+		}
+		clonePtr, _, err := fe.emitValueOperand(op)
+		if err != nil {
+			return "", err
+		}
+		return clonePtr, nil
+	default:
+		return fe.emitChannelValueAddress(op)
+	}
+}
+
 func (fe *funcEmitter) emitInstrChanSend(ins *mir.Instr) error {
 	if ins == nil {
 		return nil
@@ -377,19 +401,11 @@ func (fe *funcEmitter) emitInstrChanSend(ins *mir.Instr) error {
 	if err != nil {
 		return err
 	}
-	val, valTy, err := fe.emitValueOperand(&ins.ChanSend.Value)
-	if err != nil {
-		return err
-	}
-	valueType := operandValueType(fe.emitter.types, &ins.ChanSend.Value)
-	if valueType == types.NoTypeID && ins.ChanSend.Value.Kind != mir.OperandConst {
-		if baseType, baseErr := fe.placeBaseType(ins.ChanSend.Value.Place); baseErr == nil {
-			valueType = baseType
-		}
-	}
-	_ = val
-	_ = valTy
-	_ = valueType
+	// This instruction is polled again after every park, so nothing may be
+	// materialized for its operand here: the lowering took the channel's
+	// reference (or clone) once, in the prelude, into the transfer temp this
+	// operand moves out of (storedChannelSendValue), and the runtime moves
+	// from that storage on the poll that commits.
 	srcPtr, err := fe.emitChannelValueAddress(&ins.ChanSend.Value)
 	if err != nil {
 		return err

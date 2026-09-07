@@ -67,8 +67,15 @@ type corpusRootSpec struct {
 // sema/valid/select_send_payload_borrowed_by_another_await, where the other
 // await only borrows. The three refused programs built with zero diagnostics
 // before and double-freed at run. Nothing removed.
+//
+// Raised 1062 -> 1064 on 2026-09-07, later the same day. The two are the
+// native-lane twins of vm_async/channel_float_retains_its_reference:
+// vm_async/channel_float_retains_its_reference_async (the suspending send of
+// an async body) and vm_async/select_send_float_retains_its_reference (the
+// SEND arm of a local select, winning and losing), both `.backends: llvm` like
+// their sibling. Nothing removed.
 var corpusRoots = []corpusRootSpec{
-	{Path: "testdata/golden", PinnedCount: 1062},
+	{Path: "testdata/golden", PinnedCount: 1064},
 	{Path: "showcases", PinnedCount: 38},
 	{Path: "core", PinnedCount: 10},
 	{Path: "stdlib", PinnedCount: 32},

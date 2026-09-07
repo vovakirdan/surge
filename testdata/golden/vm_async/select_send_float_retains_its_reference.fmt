@@ -1,0 +1,44 @@
+// A local select whose SEND arm carries a float, twice: once the arm wins,
+// once it loses. The runtime moves only the winner's value into the channel,
+// out of the caller's own storage; a losing arm's value stays where it was.
+// A float is Copy at the surface and reference counted underneath, so the
+// winner has to leave the channel with a reference of its own and the loser
+// has to keep the one it had -- before, the winner's block was freed once by
+// the sender's temp and once by the receiver, and the native lane died reading
+// it.
+async fn run() -> int {
+    let ch = Channel::<float>::new(1:uint);
+    let stop = Channel::<int>::new(1:uint);
+    let kept = 1.5;
+
+    // Room in the channel: the send arm wins.
+    let first = select {
+        ch.send(kept) => 1;
+        stop.recv() => 2;
+    };
+    print(first to string);
+
+    // No room, and `stop` has a value: the send arm loses.
+    stop.send(7);
+    let second = select {
+        ch.send(kept) => 1;
+        stop.recv() => 2;
+    };
+    print(second to string);
+
+    compare ch.recv() {
+        Some(x) => print(x to string);
+        nothing => print("none");
+    }
+    print(kept to string);
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let task = spawn run();
+    return compare task.await() {
+        Success(code) => code;
+        Cancelled() => 90;
+    };
+}
