@@ -1,6 +1,8 @@
 package sema
 
 import (
+	"fmt"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
@@ -377,6 +379,17 @@ func (tc *typeChecker) typeExprBlocking(id ast.ExprID, span source.Span) types.T
 					"submitted, and the count is not safe to share with the worker thread. Use a "+
 					"fixed-width type (`float64`) for the values it holds, or capture the values themselves",
 				tc.typeLabel(capType))
+			continue
+		}
+		// And the same stop asked about arrays. `blocking` is a real worker
+		// thread, so a view that reaches it is written through into a buffer
+		// this thread is still reading; where the walk reaches the array the
+		// runtime refuses it by name, and where it does not -- a map's table, a
+		// channel's ring -- nothing would ever look, so the refusal is here.
+		if tc.result != nil && tc.result.DynamicArrayStaysUnchecked(capType) {
+			tc.report(diag.SemaCrossNotShardMovable, cap.span, "%s", crossingArrayBehindHandleMessage(
+				fmt.Sprintf("`%s` cannot be captured into `blocking`", tc.typeLabel(capType)),
+				"thread", "the job is submitted"))
 			continue
 		}
 		tc.checkSpawnSendability(cap.symID, cap.span)

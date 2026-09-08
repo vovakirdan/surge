@@ -1,12 +1,34 @@
 package sema
 
 import (
+	"fmt"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
+
+// crossingArrayBehindHandleMessage is the one sentence both crossing gates say
+// when a value reaches a dynamic array only through storage the relinquishing
+// walk cannot step. subject is the clause that names the value and the thing it
+// cannot do; keeper is who keeps the storage ("shard" for a crossing, "thread"
+// for `blocking`); moment is the point the header would have had to be read by.
+//
+// One function because the two gates refuse ONE shape for one reason, and a
+// reader who meets it at `blocking` and again at `on` should not have to decide
+// whether two differently worded sentences mean the same thing.
+func crossingArrayBehindHandleMessage(subject, keeper, moment string) string {
+	return fmt.Sprintf(
+		"%s: it holds a dynamic array in storage this %s keeps (a map's table, a channel's "+
+			"ring, a task's result slot), so the runtime is never shown that array's header "+
+			"before %s and cannot tell a view into another array's buffer from an array of its "+
+			"own -- whoever takes it out on the far side would write through the view into the "+
+			"buffer this %s is still reading. Take the array out of the container and cross it "+
+			"on its own, or in a field of the value that crosses",
+		subject, keeper, moment, keeper)
+}
 
 // typeFarHandleCall types a method call whose receiver is a `far T` handle and
 // returns the call's result type. Outside a crossing it keeps Block 1's
@@ -250,6 +272,19 @@ func (tc *typeChecker) classifyOnCapture(capType types.TypeID, span source.Span)
 				"count is not safe to share between shards. Use a fixed-width type (`float64`) "+
 				"for the values it holds, or capture the values themselves",
 			types.Label(tc.types, tc.valueType(capType)))
+		return 0, 0, false
+	}
+	// The same stop, asked about arrays. An array carries no count, so the
+	// question above never named one -- and a SLICE of an array is a header
+	// pointing into somebody else's buffer, a fact only the runtime's view
+	// registry holds. Where the walk reaches the array it hands the runtime
+	// the slot and the refusal is the runtime's; where the array sits behind a
+	// handle the walk never reaches it, so the refusal has to be here.
+	if tc.result != nil && tc.result.DynamicArrayStaysUnchecked(capType) {
+		tc.report(diag.SemaCrossNotShardMovable, span, "%s", crossingArrayBehindHandleMessage(
+			fmt.Sprintf("`%s` cannot cross a shard boundary",
+				types.Label(tc.types, tc.valueType(capType))),
+			"shard", "the value ships"))
 		return 0, 0, false
 	}
 	// Copy values, including `Placement`, may cross freely (ON-CAP-V001/V004).

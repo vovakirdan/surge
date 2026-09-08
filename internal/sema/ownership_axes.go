@@ -216,6 +216,14 @@ func (r *Result) TriviallyTransportableBits(id types.TypeID) bool {
 	if r.CountedBlockStaysShared(id) {
 		return false
 	}
+	// The array twin of the same stop. A `Channel<int[]>` is Copy, so its
+	// handle word would ride the reply as raw bits while its ring keeps arrays
+	// the producing shard sliced -- and the asker, taking one out, would write
+	// through a view into a buffer the producer still reads. No walk reaches a
+	// ring, so the bits may not travel.
+	if r.DynamicArrayStaysUnchecked(id) {
+		return false
+	}
 	// A value composite rides again. It lives inline, so its bits ARE the
 	// value; what each crossing has to settle is who owns, on each side, what
 	// those bits own in turn.
@@ -293,6 +301,34 @@ func (r *Result) MayShareCountedBlock(id types.TypeID) bool {
 	return r.containsRefCountedScalar(id, make(map[types.TypeID]struct{}), true)
 }
 
+// NeedsRelinquishWalk reports whether a value of this type must be handed to
+// the relinquishing walk before it is given up across a thread boundary. TWO
+// reasons put a value there, and they are different obligations:
+//
+//   - it MAY SHARE A COUNTED BLOCK, and the walk makes that block private, so
+//     the receiving thread's release cannot race a holder left behind;
+//   - it CARRIES A DYNAMIC ARRAY, and only the runtime can say whether that
+//     array is a view into a buffer this shard keeps reading, or a base some
+//     live view still reads. Nothing about privacy is at stake there: the
+//     elements may be plain words. The array's header is a run-time fact, so
+//     the walk hands the slot to rt_array_unshare_walk, which asks the view
+//     registry and refuses by name. An element that needs no walk of its own
+//     rides a null callback and the runtime performs the two refusals alone.
+//
+// The second reason is why an `int[]` reaches the runtime at all: it shares no
+// count, so the first reason never named it, and a view of it crossed into
+// another thread that then wrote through it into the origin's buffer.
+//
+// Sema's view rules stay kindness rather than the guarantee -- a slice handed
+// back by a callee or carried out in a field draws no diagnostic -- so the
+// runtime is the fail-closed side and this predicate is what arms it.
+func (r *Result) NeedsRelinquishWalk(id types.TypeID) bool {
+	if r == nil || r.TypeInterner == nil {
+		return false
+	}
+	return r.MayShareCountedBlock(id) || r.TypeInterner.ContainsDynamicArray(id)
+}
+
 // CountedBlockCanBeMadePrivate reports whether the relinquishing walk can make
 // every counted leaf of a value of this type private before the value is
 // given up across a shard or thread boundary: a scalar, a struct, a tuple, a
@@ -324,6 +360,33 @@ func (r *Result) CountedBlockCanBeMadePrivate(id types.TypeID) bool {
 // counted block and the relinquishing walk cannot make it private.
 func (r *Result) CountedBlockStaysShared(id types.TypeID) bool {
 	return r.MayShareCountedBlock(id) && !r.CountedBlockCanBeMadePrivate(id)
+}
+
+// DynamicArrayStaysUnchecked is the SECOND crossing refusal, and it is the
+// array twin of the one above: the value reaches a dynamic array only through
+// storage the relinquishing walk cannot step -- a map's table, a channel's
+// ring, a task's result slot -- so the runtime is never handed that array's
+// slot and can never say whether it is a view into a buffer this shard keeps
+// reading.
+//
+// The two refusals are the same sentence about two different things. The
+// counted one is about PRIVACY: a block with two holders, one of them left
+// behind. This one is about a fact no type carries: whether the array in hand
+// is a slice of somebody else's buffer. Nothing about the elements is at
+// stake, which is why `Map<int, int[]>` is refused where `Map<int, float>` was
+// already refused for its floats -- the int map crossed a `blocking` boundary
+// unexamined, the worker took the view out of the table and wrote 777 through
+// it into the buffer the origin shard was still reading.
+//
+// Where the walk CAN reach the array, nothing is refused: the crossing emits
+// the call and the runtime answers. So `int[]`, `{ xs: int[] }`, `int[][]` and
+// `(int[], int)` all still cross, and only the value whose array sits behind a
+// handle meets this.
+func (r *Result) DynamicArrayStaysUnchecked(id types.TypeID) bool {
+	if r == nil || r.TypeInterner == nil {
+		return false
+	}
+	return r.TypeInterner.ContainsDynamicArrayBehindHandle(id)
 }
 
 func (r *Result) countedBlockCanBeMadePrivate(id types.TypeID, seen map[types.TypeID]struct{}) bool {

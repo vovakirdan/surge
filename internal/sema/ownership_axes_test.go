@@ -512,3 +512,103 @@ fn probe(p: own P, u: own U, v: own V, w: own Plain, f: float, arr: float[], s: 
 		}
 	}
 }
+
+// NeedsRelinquishWalk is the question a crossing actually asks, and it is the
+// OR of two obligations that are not the same thing. The counted half makes a
+// block private; the array half makes the RUNTIME look at a header, because
+// nothing in the type says whether the array in hand is a view into a buffer
+// the origin shard keeps reading. The rows that carry the change are the ones
+// where the halves disagree: `int[]` shares no count and must still be walked,
+// and `Map<int, int[]>` carries an array no walk reaches and must NOT be.
+//
+// A shape the walk cannot reach is REFUSED instead, and the third column says
+// which rows meet that: `Map<int, int[]>`, `Channel<int[]>`, `Task<int[]>`.
+// The last check in the loop is the one that carries the most: every row is
+// held to "walked OR refused", so no shape can carry an array and be admitted
+// in silence -- which is what the map and the channel did until 2026-09-08,
+// when both crossed a `blocking` boundary with a view in them and the worker
+// wrote through it into the buffer the origin shard was still reading.
+//
+// The COUNTED admission set does not move with any of it: CountedBlockStaysShared
+// is asked of every row here and still answers from the counted half alone.
+func TestNeedsRelinquishWalkArmsEveryArrayCrossing(t *testing.T) {
+	src := `
+type Holder = { n: int, xs: int[] };
+
+@copy
+@intrinsic
+type Channel<T> = { __opaque: int };
+
+@intrinsic
+type Task<T> = { __opaque: int };
+
+fn probe(h: own Holder, xs: int[], fs: float[], xss: int[][], t: (int[], int),
+         s: string, n: int, ch: Channel<int>, cf: Channel<float>, m: Map<int, int[]>,
+         ca: Channel<int[]>, ta: Task<int[]>, ms: Map<int, string>) -> int {
+    return 0;
+}
+`
+	res := coreSnippetResult(t, src)
+	in := res.TypeInterner
+
+	rows := map[string]struct{ share, array, refused bool }{
+		// The defect the walk closes: no count anywhere, and the walk is armed
+		// anyway so the runtime can refuse a view.
+		"Array<int>":        {false, true, false},
+		"Array<Array<int>>": {false, true, false},
+		"Holder":            {false, true, false},
+		"own Holder":        {false, true, false},
+		"(Array<int>, int)": {false, true, false},
+		"Array<float>":      {true, true, false},
+		"Channel<float>":    {true, false, false},
+		"int":               {false, false, false},
+		"string":            {false, false, false},
+		"Channel<int>":      {false, false, false},
+		"Map<int, string>":  {false, false, false},
+		// The three storages no per-element walk steps. An array inside one is
+		// not armed -- there is nothing to hand the runtime -- so the crossing
+		// gate refuses the whole shape and the third column is where that is
+		// pinned.
+		"Map<int, Array<int>>": {false, false, true},
+		"Channel<Array<int>>":  {false, false, true},
+		"Task<Array<int>>":     {false, false, true},
+	}
+	seen := make(map[string]bool, len(rows))
+	for id := types.TypeID(1); ; id++ {
+		if _, ok := in.Lookup(id); !ok {
+			break
+		}
+		label := types.Label(in, id)
+		want, ok := rows[label]
+		if !ok {
+			continue
+		}
+		seen[label] = true
+		if got := res.MayShareCountedBlock(id); got != want.share {
+			t.Errorf("%s: MayShareCountedBlock=%v, want %v", label, got, want.share)
+		}
+		if got := in.ContainsDynamicArray(id); got != want.array {
+			t.Errorf("%s: ContainsDynamicArray=%v, want %v", label, got, want.array)
+		}
+		if got := res.NeedsRelinquishWalk(id); got != (want.share || want.array) {
+			t.Errorf("%s: NeedsRelinquishWalk=%v, want %v", label, got, want.share || want.array)
+		}
+		if got := res.DynamicArrayStaysUnchecked(id); got != want.refused {
+			t.Errorf("%s: DynamicArrayStaysUnchecked=%v, want %v", label, got, want.refused)
+		}
+		if got := res.CountedBlockStaysShared(id); got != (want.share && !res.CountedBlockCanBeMadePrivate(id)) {
+			t.Errorf("%s: CountedBlockStaysShared=%v; the widening moved sema's admission set", label, got)
+		}
+		// Walked or refused, never neither: a row carrying an array anywhere
+		// its bytes reach has to meet one of the two, and this is the check a
+		// future container type must not slip past.
+		if (want.array || want.refused) != (in.ContainsDynamicArray(id) || res.DynamicArrayStaysUnchecked(id)) {
+			t.Errorf("%s: the row's two array columns do not match the predicates", label)
+		}
+	}
+	for label := range rows {
+		if !seen[label] {
+			t.Errorf("%s: the snippet never produced this type, so its row pinned nothing", label)
+		}
+	}
+}

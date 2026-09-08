@@ -81,14 +81,20 @@ func (l *funcLowerer) lowerRemoteSelect(
 				returnPlace := candidate.place
 				op.ReturnPlace = &returnPlace
 			} else {
-				// A payload that may share a counted block is read CONSUMING,
-				// so the read is a retain (or a clone) the relinquish below
-				// materializes into a private temp of its own. Every other
-				// payload keeps the borrowing read it had: the runtime moves
-				// plain bits out of the caller's storage and nothing here
-				// changes for an `int` arm.
+				// A payload the walk must see -- it may share a counted block,
+				// or it carries a dynamic array the runtime has to classify --
+				// is read CONSUMING, so the read is a retain (or a clone) the
+				// relinquish below materializes into a private temp of its own.
+				// The array half is load-bearing and not cosmetic: a borrowing
+				// read hands back a COPY operand for every type, so an array
+				// payload built at the send site would be assigned into the
+				// transfer temp as a bare alias of a live local and the sink
+				// would move out of the temp while the original still owned it.
+				// Every other payload keeps the borrowing read it had: the
+				// runtime moves plain bits out of the caller's storage and
+				// nothing here changes for an `int` arm.
 				value := crossing.RemoteOps[i].Value
-				val, err := l.lowerExpr(value, mayShareCountedBlockIn(l.types, value.Type))
+				val, err := l.lowerExpr(value, needsRelinquishWalkIn(l.types, value.Type))
 				if err != nil {
 					return err
 				}

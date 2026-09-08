@@ -131,7 +131,22 @@ func crossingRecordExecutable(res *sema.Result, info *sema.CrossingLoweringInfo)
 		// (CountedBlockCanBeMadePrivate), the same pair the capture gate asks.
 		// Refused at the channel's creation rather than at each send, so the
 		// diagnostic lands where the element type was chosen.
-		return !res.CountedBlockStaysShared(info.PayloadType)
+		//
+		// The array question is asked at the same stop and for the same
+		// reason. An element that IS an array -- `int[]`, `float[]` -- is
+		// walked wherever a relinquishing sink hands it over, and the runtime
+		// refuses a view of it by name; an element that merely holds one behind
+		// a handle, a `Map<int, int[]>` or a `Channel<int[]>`, hands the ring an
+		// array no walk on either shard will ever look at.
+		//
+		// One send is outside that "wherever", and this gate does not cover it:
+		// the anchored body's `ch.send`, which no walk may precede because the
+		// body's prefix replays (validate_relinquish.go sinkIsSubject). Its
+		// counted-block half is closed by the shape sema holds the payload to;
+		// there is no such shape for an array, so an array sent from an
+		// anchored body reaches the ring unexamined.
+		return !res.CountedBlockStaysShared(info.PayloadType) &&
+			!res.DynamicArrayStaysUnchecked(info.PayloadType)
 	case sema.CrossingLoweringChannelSelect:
 		// The reply is the winner index (plain bits); the arms' send payloads
 		// are made private in the relinquishing operand. Async context is the

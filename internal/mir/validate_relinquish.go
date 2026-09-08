@@ -17,6 +17,15 @@ import (
 // block with a holder left behind here must arrive PRIVATE, and the
 // instruction that made it private is InstrUnshare.
 //
+// The same instruction carries a SECOND obligation, which is not about privacy
+// at all: a value that carries a DYNAMIC ARRAY must be shown to the runtime,
+// because only the view registry knows whether that array is a view into a
+// buffer this shard keeps reading, or a base a live view still reads. An
+// `int[]` shares no count and so was never named by the first reason, and a
+// view of one crossed and was written through from the other thread. Both
+// reasons are asked by one predicate, needsRelinquishWalkIn, and either one
+// makes a sink subject to the two rules below.
+//
 // Two rules, checked at two times, because the async split moves them apart.
 //
 // The ACT — "the un-share is the last thing that touched the operand's local
@@ -52,6 +61,18 @@ func mayShareCountedBlockIn(typesIn *types.Interner, id types.TypeID) bool {
 		return false
 	}
 	return (&sema.Result{TypeInterner: typesIn}).MayShareCountedBlock(id)
+}
+
+// needsRelinquishWalkIn is the same wrapping for the question every sink but
+// one actually asks: may this value share a counted block, OR does it carry a
+// dynamic array whose header only the runtime can classify. It is what the
+// lowering gates on and what both validators below check, so the instruction
+// and the rules about it cannot disagree on which values are subject.
+func needsRelinquishWalkIn(typesIn *types.Interner, id types.TypeID) bool {
+	if typesIn == nil || id == types.NoTypeID {
+		return false
+	}
+	return (&sema.Result{TypeInterner: typesIn}).NeedsRelinquishWalk(id)
 }
 
 // bareLocalOf reports the local a place names directly: no projection, no
@@ -185,7 +206,8 @@ func relinquishedLocal(s *relinquishSink, ctx string) (LocalID, bool, error) {
 	local, ok := bareLocalOf(s.op.Place)
 	if s.op.Kind != OperandMove || !ok {
 		return NoLocalID, false, fmt.Errorf("%s: %s reaches the boundary as %s %s; a value that may share a counted "+
-			"block is handed over only as a MOVE out of a bare local made private first",
+			"block, or that carries a dynamic array the runtime must inspect, is handed over only as a MOVE "+
+			"out of a bare local walked first",
 			ctx, s.what, s.op.Kind, formatPlace(s.op.Place))
 	}
 	return local, true, nil
@@ -198,15 +220,44 @@ func relinquishSinkContext(s *relinquishSink, f *Func) string {
 	return fmt.Sprintf("bb%d instr %d", s.block, s.instr)
 }
 
-// validateRelinquishedOperandShapes is the post-split half: every may-share
-// sink operand is a constant or a MOVE out of a bare local.
+// sinkIsSubject reports whether the two rules apply to this sink's operand.
+//
+// Every sink but one asks the full question. The exception is the anchored
+// body's send, and the honest account of it is that this sink is UNGUARDED for
+// arrays — not that its array was checked somewhere else.
+//
+// Why the rules cannot be asked here: relinquishOperand does not serve this
+// sink and must not, because the body's prefix replays from its first
+// instruction on every wake, so a walk emitted before the send would run again
+// over storage the ring already owns. There is no instruction that could
+// satisfy the act rule at this sink, so asking the widened question would turn
+// every array anchored send into a validator's error rather than a diagnostic.
+//
+// What that costs, and why the counted-block half does not pay it: sema holds
+// the payload of an anchored send to `own <captured binding>`
+// (checkAnchoredSendGivesCountedPayloadAway) only when the element MAY SHARE A
+// COUNTED BLOCK, and the lowering that gives the capture's own reference away
+// (anchoredSendGivenAway) asks the same question. An `int[]` answers no to
+// both, so an array payload is held to no shape at all: it may be a literal
+// built inside the body, or a view sliced out of a capture, and no walk on
+// either thread ever sees it. Closing that route belongs to the same sema gate
+// the counted half uses, and it is not closed today.
+func sinkIsSubject(s *relinquishSink, typesIn *types.Interner, id types.TypeID) bool {
+	if s.privateByProvenance {
+		return mayShareCountedBlockIn(typesIn, id)
+	}
+	return needsRelinquishWalkIn(typesIn, id)
+}
+
+// validateRelinquishedOperandShapes is the post-split half: every subject sink
+// operand is a constant or a MOVE out of a bare local.
 func validateRelinquishedOperandShapes(f *Func, typesIn *types.Interner) error {
 	if f == nil {
 		return nil
 	}
 	var errs []error
 	for _, s := range relinquishSinks(f) {
-		if !mayShareCountedBlockIn(typesIn, sinkOperandType(f, s.op)) {
+		if !sinkIsSubject(&s, typesIn, sinkOperandType(f, s.op)) {
 			continue
 		}
 		if _, _, err := relinquishedLocal(&s, relinquishSinkContext(&s, f)); err != nil {
@@ -228,7 +279,7 @@ func validateRelinquishedOperandsArePrivate(f *Func, typesIn *types.Interner) er
 	var errs []error
 	for _, s := range relinquishSinks(f) {
 		ty := sinkOperandType(f, s.op)
-		if !mayShareCountedBlockIn(typesIn, ty) {
+		if !sinkIsSubject(&s, typesIn, ty) {
 			continue
 		}
 		ctx := relinquishSinkContext(&s, f)
@@ -252,7 +303,8 @@ func validateRelinquishedOperandsArePrivate(f *Func, typesIn *types.Interner) er
 		if unsharedBeforeSink(&f.Blocks[s.block], s.instr, local) {
 			continue
 		}
-		errs = append(errs, fmt.Errorf("%s: %s (L%d, %s) reaches the boundary without an un-share in its block",
+		errs = append(errs, fmt.Errorf("%s: %s (L%d, %s) reaches the boundary without an un-share in its block; "+
+			"it may share a counted block, or it carries a dynamic array the runtime must inspect",
 			ctx, s.what, local, types.Label(typesIn, ty)))
 	}
 	return errors.Join(errs...)

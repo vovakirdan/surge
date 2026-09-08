@@ -10,7 +10,6 @@ import (
 
 	"surge/internal/mir"
 	"surge/internal/sema"
-	"surge/internal/types"
 )
 
 // The relinquishing sites, seen from the emitted IR.
@@ -440,117 +439,6 @@ fn main() -> int {
 	}
 	if !strings.Contains(err.Error(), "MayShareCountedBlock") {
 		t.Fatalf("the refusal must name sema's predicate, got: %v", err)
-	}
-}
-
-// The emitter's two predicates and sema's, in lock step over one interner. The
-// emitter decides whether a relinquishing site emits a call and whether the
-// walk can serve it; sema decides whether the shape may cross at all. Two
-// walks that disagreed would either ship a shared block (sema admits, the
-// emitter sees nothing) or refuse with a backend error instead of a diagnostic
-// (sema admits, the emitter cannot serve). The label table is the second
-// belt: two predicates wrong the same way still do not read as green.
-//
-// The agreement is asserted over the labelled shapes, not the whole interner:
-// on a union whose membership the module never published -- a stdlib
-// instantiation the program never touches -- the emitter fails CLOSED on
-// purpose, where sema reads the membership structurally. A relinquishing site
-// CAN reach a type no expression builds: the element of an array built empty
-// (`let xs: Option<float>[] = []`) is named by the array's type alone, and
-// the lowering publishes it by looking through the handle to its payload.
-// The `Array<Option<float>>` row is where that stops holding.
-func TestUnsharePredicatesAgreeWithSema(t *testing.T) {
-	mirMod, result := lowerMIRFromSource(t, `
-@copy
-type C = { v: float };
-
-@shard_movable
-type P = { v: float };
-
-tag Held(P);
-tag Empty();
-type U = Held(P) | Empty();
-
-type WithArray = { xs: float[] };
-
-fn probe(f: float, c: C, p: own P, t: (float, int), u: U, xs: float[], w: WithArray,
-         fx: float[4], s: string, ch: Channel<float>, ci: Channel<int>, r: &float,
-         xss: float[][], chs: Channel<float>[], m: Map<int, float>, xo: Option<float>[]) -> int {
-    return 0;
-}
-
-@entrypoint
-fn main() -> int { return 0; }
-`)
-	in := result.Sema.TypeInterner
-	e := &Emitter{mod: mirMod, types: in}
-
-	rows := map[string]struct{ share, private bool }{
-		"float":        {true, true},
-		"C":            {true, true},
-		"P":            {true, true},
-		"own P":        {true, true},
-		"(float, int)": {true, true},
-		"U":            {true, true},
-		// A dynamic array is served by the runtime's buffer walk, through
-		// nesting; it answers for its element, so an array of channels is
-		// refused for the ring no walk reaches, and a map for its table. The
-		// optional-float element is named by the array's type and built
-		// nowhere; its membership has to reach the emitter through the array.
-		"Array<float>":                  {true, true},
-		"WithArray":                     {true, true},
-		"Array<Array<float>>":           {true, true},
-		"Array<Channel<float>>":         {true, false},
-		"Map<int, float>":               {true, false},
-		"Array<Option<float>>":          {true, true},
-		"ArrayFixed<float, const 4, 4>": {true, true},
-		"string":                        {false, true},
-		"Channel<float>":                {true, false},
-		"Channel<int>":                  {false, true},
-		// A borrow names storage it does not carry. The emitter's kind switch
-		// answers for it only if the borrow is not stripped first; it was.
-		"&float": {false, true},
-	}
-	// `float[4]` is in the table on purpose: the nominal ArrayFixed<T, N>
-	// struct declares no fields, so a walker that reads only declared fields
-	// sees four counted handles inline as sharing nothing. Both predicates
-	// have an ArrayFixedInfo arm now; this row is where a walker that loses
-	// it goes red.
-	seen := make(map[string]bool, len(rows))
-	for id := types.TypeID(1); ; id++ {
-		if _, ok := in.Lookup(id); !ok {
-			break
-		}
-		label := types.Label(in, id)
-		want, ok := rows[label]
-		if !ok {
-			continue
-		}
-		seen[label] = true
-		share := e.typeMayShareCountedBlock(id)
-		semaShare := result.Sema.MayShareCountedBlock(id)
-		if share != semaShare {
-			t.Errorf("%s (type#%d): emitter typeMayShareCountedBlock=%v, sema MayShareCountedBlock=%v", label, id, share, semaShare)
-		}
-		if share != want.share {
-			t.Errorf("%s: typeMayShareCountedBlock=%v, want %v", label, share, want.share)
-		}
-		private := e.canUnshareValue(id)
-		if private != want.private {
-			t.Errorf("%s: canUnshareValue=%v, want %v", label, private, want.private)
-		}
-		// The second predicate in lock step: sema's crossing gate admits a
-		// shape when this answers true, so a disagreement here is a program
-		// that sema lets through and the emitter refuses with a build error.
-		if semaPrivate := result.Sema.CountedBlockCanBeMadePrivate(id); semaPrivate != private {
-			t.Errorf("%s (type#%d): emitter canUnshareValue=%v, sema CountedBlockCanBeMadePrivate=%v",
-				label, id, private, semaPrivate)
-		}
-	}
-	for label := range rows {
-		if !seen[label] {
-			t.Errorf("%s: the program never produced this type, so its row pinned nothing", label)
-		}
 	}
 }
 

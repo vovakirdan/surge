@@ -45,7 +45,16 @@ fn main() -> int { return 0; }
 // label-to-id map, and the emitter, so a row can also ask the predicates.
 func unshareProbe(t *testing.T, labels ...string) (string, map[string]types.TypeID, *Emitter) {
 	t.Helper()
-	mirMod, result := lowerMIRFromSource(t, unshareWalkProbeProgram)
+	return unshareProbeFrom(t, unshareWalkProbeProgram, labels...)
+}
+
+// unshareProbeFrom is unshareProbe over a caller-supplied program, so a family
+// of shapes that needs its own declarations -- the arrays whose elements have
+// nothing to make private -- gets them without growing the program above, whose
+// rows are about counted members.
+func unshareProbeFrom(t *testing.T, program string, labels ...string) (string, map[string]types.TypeID, *Emitter) {
+	t.Helper()
+	mirMod, result := lowerMIRFromSource(t, program)
 	if mirMod.Meta == nil || mirMod.Meta.Layouts == nil {
 		t.Fatal("no finalized layout registry was published")
 	}

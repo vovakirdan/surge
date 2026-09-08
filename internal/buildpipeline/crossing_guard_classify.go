@@ -84,6 +84,19 @@ func classifyCrossingPayload(
 					label(info.PayloadType)),
 			}, true
 		}
+		// The array half of the same stop: an element whose dynamic array sits
+		// behind a handle is put in the ring without the runtime ever being
+		// shown its header, so a view of the sender's buffer would arrive on
+		// the receiving shard as an ordinary array.
+		if semaRes.DynamicArrayStaysUnchecked(info.PayloadType) {
+			return crossingGuardFinding{
+				Code: diag.FutCrossingPayloadNotShippable,
+				Span: info.Span,
+				Message: arrayBehindHandleCrossingMessage(
+					fmt.Sprintf("a remote channel cannot carry `%s` yet", label(info.PayloadType)),
+					"the receiving shard takes the value"),
+			}, true
+		}
 	case sema.CrossingLoweringSpawnOn, sema.CrossingLoweringOnPlacement,
 		sema.CrossingLoweringOnFarHandle:
 		for i := range info.Captures {
@@ -100,7 +113,7 @@ func classifyCrossingPayload(
 			}
 		}
 		if !semaRes.TriviallyTransportableBits(info.PayloadType) {
-			if msg, ok := refCountedCrossingMessage(semaRes, info.PayloadType, "the crossing result"); ok {
+			if msg, ok := crossingPayloadRefusalMessage(semaRes, info.PayloadType, "the crossing result"); ok {
 				return crossingGuardFinding{Code: diag.FutCrossingPayloadNotShippable, Span: info.Span, Message: msg}, true
 			}
 			hint := "return plain-copy data from the block"
@@ -119,7 +132,7 @@ func classifyCrossingPayload(
 		}
 	case sema.CrossingLoweringFarTaskAwait:
 		if !semaRes.TriviallyTransportableBits(info.PayloadType) {
-			if msg, ok := refCountedCrossingMessage(semaRes, info.PayloadType, "the awaited result"); ok {
+			if msg, ok := crossingPayloadRefusalMessage(semaRes, info.PayloadType, "the awaited result"); ok {
 				return crossingGuardFinding{Code: diag.FutCrossingPayloadNotShippable, Span: info.Span, Message: msg}, true
 			}
 			return crossingGuardFinding{
@@ -245,4 +258,43 @@ func refCountedCrossingMessage(semaRes *sema.Result, t types.TypeID, subject str
 			"takes the value, and the count is not safe to share between shards. Use a fixed-width "+
 			"type (`float64`) for the values it holds, or cross the values themselves",
 		subject, types.Label(semaRes.TypeInterner, t)), true
+}
+
+// crossingPayloadRefusalMessage names the real reason a payload cannot ride the
+// reply, when there is one. Both named reasons outrank "not plain-copy data",
+// and for the array one that phrase would be simply false: a `Channel<int[]>`
+// IS plain-copy data -- one handle word -- and what keeps it here is the ring
+// behind the word.
+func crossingPayloadRefusalMessage(semaRes *sema.Result, t types.TypeID, subject string) (string, bool) {
+	if msg, ok := refCountedCrossingMessage(semaRes, t, subject); ok {
+		return msg, true
+	}
+	if semaRes == nil || semaRes.TypeInterner == nil || !semaRes.DynamicArrayStaysUnchecked(t) {
+		return "", false
+	}
+	return arrayBehindHandleCrossingMessage(
+		fmt.Sprintf("%s `%s` cannot cross a shard boundary yet",
+			subject, types.Label(semaRes.TypeInterner, t)),
+		"the asker takes the value"), true
+}
+
+// arrayBehindHandleCrossingMessage is the one sentence this package says when a
+// crossing payload reaches a dynamic array only through storage the
+// relinquishing walk cannot step. subject is the clause naming the payload and
+// what it cannot do; moment is the point by which the runtime would have had to
+// see the array's header.
+//
+// It is deliberately the same sentence sema's capture gates say
+// (crossingArrayBehindHandleMessage), because it is the same refusal for the
+// same reason arriving by another route, and a reader who meets it twice should
+// not have to work out whether the two mean one thing.
+func arrayBehindHandleCrossingMessage(subject, moment string) string {
+	return fmt.Sprintf(
+		"%s: it holds a dynamic array in storage this shard keeps (a map's table, a "+
+			"channel's ring, a task's result slot), so the runtime is never shown that array's "+
+			"header before %s and cannot tell a view into another array's buffer from an array "+
+			"of its own -- whoever takes it out on the far side would write through the view "+
+			"into the buffer this shard is still reading. Take the array out of the container "+
+			"and cross it on its own, or in a field of the value that crosses",
+		subject, moment)
 }

@@ -326,7 +326,9 @@ func (l *funcLowerer) lowerBlockingFunc(id FuncID, name string, body *hir.Block,
 
 // rewriteBlockingReturns un-shares the value of every `ret` of a blocking body
 // whose result type may share a counted block, so what __surge_blocking_call
-// stores into the job's result cell is private to the cell.
+// stores into the job's result cell is private to the cell -- and of every
+// `ret` whose result CARRIES a dynamic array, so the runtime gets to say
+// whether that array is a view whose buffer belongs to the shard left behind.
 //
 // It runs over the finished body rather than at each `ret`, because an
 // implicit tail return reaches TermReturn without passing through
@@ -336,7 +338,7 @@ func (l *funcLowerer) lowerBlockingFunc(id FuncID, name string, body *hir.Block,
 // transfer temp, when exit drops forced one), and relinquishOperand turns
 // either into a private temp the terminator moves out of.
 func (l *funcLowerer) rewriteBlockingReturns(result types.TypeID, span source.Span) {
-	if l == nil || l.f == nil || !mayShareCountedBlockIn(l.types, result) {
+	if l == nil || l.f == nil || !needsRelinquishWalkIn(l.types, result) {
 		return
 	}
 	saved := l.cur

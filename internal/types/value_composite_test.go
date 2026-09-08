@@ -189,6 +189,285 @@ func TestDynamicArrayElemNamesTheBufferElement(t *testing.T) {
 	}
 }
 
+// ContainsDynamicArray is the structural half of the question a value answers
+// before it is given up across a thread boundary, and the rows below are the
+// shapes a relinquishing walk actually meets. Two of them are the whole point
+// of the predicate: a struct that merely CARRIES an array answers true, and a
+// map that carries one answers FALSE -- no per-element walk steps a map's
+// table, so arming the runtime's view check there would ask it to walk storage
+// it cannot address.
+//
+// Every row carries the companion answer too, because the pair is what makes a
+// shape safe. `walk` says the runtime is handed this array's slot; `behind`
+// says there is an array here it will never be handed, which the crossing gate
+// turns into a refusal. A row with neither carries no array at all. A row with
+// BOTH -- the struct holding a plain array and a map of arrays -- is the shape
+// that proves these are not each other's negation: they answer about different
+// arrays inside one value. What must never exist is a value carrying an array
+// with false in both columns; that is the silent admission the map and the
+// channel used to be, and the last loop below is what forbids it.
+func TestContainsDynamicArray(t *testing.T) {
+	in := NewInterner()
+	in.Strings = source.NewInterner()
+	b := in.Builtins()
+	str := in.Intern(Type{Kind: KindString})
+
+	dyn := in.Intern(MakeArray(b.Int32, ArrayDynamicLength))
+	nested := in.Intern(MakeArray(dyn, ArrayDynamicLength))
+	fixedOfPlain := in.Intern(MakeArray(b.Int32, 4))
+	fixedOfArrays := in.Intern(MakeArray(dyn, 4))
+
+	holder := in.RegisterStruct(in.Strings.Intern("Holder"), source.Span{})
+	in.SetStructFields(holder, []StructField{{Type: b.Int32}, {Type: dyn}})
+	plainStruct := in.RegisterStruct(in.Strings.Intern("Plain"), source.Span{})
+	in.SetStructFields(plainStruct, []StructField{{Type: b.Int32}, {Type: b.Bool}})
+	deep := in.RegisterStruct(in.Strings.Intern("Deep"), source.Span{})
+	in.SetStructFields(deep, []StructField{{Type: holder}})
+
+	tupleWithArray := in.RegisterTuple([]TypeID{dyn, b.Int32})
+	tuplePlain := in.RegisterTuple([]TypeID{b.Int32, b.Bool})
+
+	unionWithArray := in.RegisterUnion(in.Strings.Intern("Maybe"), source.Span{})
+	in.SetUnionMembers(unionWithArray, []UnionMember{
+		{Kind: UnionMemberTag, TagName: in.Strings.Intern("Some"), TagArgs: []TypeID{dyn}},
+		{Kind: UnionMemberNothing},
+	})
+	unionPlain := in.RegisterUnion(in.Strings.Intern("Flag"), source.Span{})
+	in.SetUnionMembers(unionPlain, []UnionMember{
+		{Kind: UnionMemberType, Type: b.Int32},
+		{Kind: UnionMemberNothing},
+	})
+
+	if base, _ := in.EnsureMapNominal(in.Strings.Intern("Map"), in.Strings.Intern("K"), in.Strings.Intern("V"), source.Span{}, 0); base == NoTypeID {
+		t.Fatalf("failed to register the nominal Map")
+	}
+	mapOfArrays := in.RegisterStructInstance(in.Strings.Intern("Map"), source.Span{}, []TypeID{str, dyn})
+	if _, _, ok := in.MapInfo(mapOfArrays); !ok {
+		t.Fatalf("registered instance is not recognised as Map<K, V>; its row would pin nothing")
+	}
+	mapOfPlain := in.RegisterStructInstance(in.Strings.Intern("Map"), source.Span{}, []TypeID{str, b.Int32})
+	channelDecl := source.Span{File: 1, Start: 10, End: 20}
+	in.MarkRuntimeHandleType(in.RegisterStruct(in.Strings.Intern("Channel"), channelDecl))
+	channelOfArrays := in.RegisterStructInstance(in.Strings.Intern("Channel"), channelDecl, []TypeID{dyn})
+	channelOfPlain := in.RegisterStructInstance(in.Strings.Intern("Channel"), channelDecl, []TypeID{b.Int32})
+
+	arrayOfMaps := in.Intern(MakeArray(mapOfArrays, ArrayDynamicLength))
+	bothKinds := in.RegisterStruct(in.Strings.Intern("Both"), source.Span{})
+	in.SetStructFields(bothKinds, []StructField{{Type: dyn}, {Type: mapOfArrays}})
+	unionWithMap := in.RegisterUnion(in.Strings.Intern("Boxed"), source.Span{})
+	in.SetUnionMembers(unionWithMap, []UnionMember{
+		{Kind: UnionMemberTag, TagName: in.Strings.Intern("In"), TagArgs: []TypeID{mapOfArrays}},
+		{Kind: UnionMemberNothing},
+	})
+
+	alias := in.RegisterAlias(in.Strings.Intern("Ints"), source.Span{})
+	in.SetAliasTarget(alias, dyn)
+
+	cases := []struct {
+		name         string
+		id           TypeID
+		walk, behind bool
+	}{
+		{"dynamic array", dyn, true, false},
+		{"array of arrays", nested, true, false},
+		{"own array", in.Intern(MakeOwn(dyn)), true, false},
+		{"alias of an array", alias, true, false},
+		{"struct carrying an array", holder, true, false},
+		{"struct carrying a struct carrying an array", deep, true, false},
+		{"tuple carrying an array", tupleWithArray, true, false},
+		{"union arm carrying an array", unionWithArray, true, false},
+		{"fixed array of arrays", fixedOfArrays, true, false},
+
+		{"int", b.Int32, false, false},
+		{"bool", b.Bool, false, false},
+		{"string", str, false, false},
+		{"plain struct", plainStruct, false, false},
+		{"plain tuple", tuplePlain, false, false},
+		{"plain union", unionPlain, false, false},
+		{"fixed array of plain words", fixedOfPlain, false, false},
+		{"reference to an array", in.Intern(MakeReference(dyn, false)), false, false},
+		{"pointer to an array", in.Intern(MakePointer(dyn)), false, false},
+		{"invalid", NoTypeID, false, false},
+
+		// The two shapes the walk stops at. It still stops -- their storage is
+		// reachable by no per-element callback -- and the companion says so out
+		// loud, which is what turns the stop into a refusal at the crossing
+		// gate instead of a silent admission.
+		{"Map<string, int32[]>", mapOfArrays, false, true},
+		{"Channel<int32[]>", channelOfArrays, false, true},
+		// A handle whose payload carries no array is nothing to refuse.
+		{"Map<string, int32>", mapOfPlain, false, false},
+		{"Channel<int32>", channelOfPlain, false, false},
+		// The stop travels outward: through an array's element, through a
+		// struct field, through a union arm.
+		{"array of maps of arrays", arrayOfMaps, true, true},
+		{"struct holding both an array and a map of arrays", bothKinds, true, true},
+		{"union arm carrying a map of arrays", unionWithMap, false, true},
+	}
+	for _, tc := range cases {
+		if got := in.ContainsDynamicArray(tc.id); got != tc.walk {
+			t.Errorf("%s: ContainsDynamicArray = %v, want %v", tc.name, got, tc.walk)
+		}
+		if got := in.ContainsDynamicArrayBehindHandle(tc.id); got != tc.behind {
+			t.Errorf("%s: ContainsDynamicArrayBehindHandle = %v, want %v", tc.name, got, tc.behind)
+		}
+	}
+	// No shape in the table carries an array that neither predicate names. A
+	// row that did would be a value crossing with an array nothing ever looks
+	// at, which is exactly the defect both predicates exist to end.
+	for _, tc := range cases {
+		if !tc.walk && !tc.behind && carriesAnArrayAnywhere(in, tc.id) {
+			t.Errorf("%s: carries a dynamic array and is neither walked nor refused", tc.name)
+		}
+	}
+	if (*Interner)(nil).ContainsDynamicArray(dyn) {
+		t.Errorf("nil interner: ContainsDynamicArray = true, want false")
+	}
+	if (*Interner)(nil).ContainsDynamicArrayBehindHandle(dyn) {
+		t.Errorf("nil interner: ContainsDynamicArrayBehindHandle = true, want false")
+	}
+}
+
+// carriesAnArrayAnywhere is the test's own reading of the type graph, written
+// without the predicates it audits: it descends every edge -- inline members,
+// handle payloads, aliases and `own` -- and says whether a dynamic array is
+// reachable at all. A predicate bug that answered false twice would still be
+// caught, because this walk shares no code with either answer.
+func carriesAnArrayAnywhere(in *Interner, id TypeID) bool {
+	seen := map[TypeID]bool{}
+	var walk func(TypeID) bool
+	walk = func(t TypeID) bool {
+		if t == NoTypeID || seen[t] {
+			return false
+		}
+		seen[t] = true
+		resolved := resolveAliasAndOwn(in, t)
+		if resolved != t && walk(resolved) {
+			return true
+		}
+		if _, ok := in.DynamicArrayElem(resolved); ok {
+			return true
+		}
+		tt, ok := in.Lookup(resolved)
+		if !ok {
+			return false
+		}
+		switch tt.Kind {
+		case KindReference, KindPointer, KindFar, KindFn:
+			return false
+		}
+		if payloads, handleBacked := in.RuntimeHandlePayloads(resolved); handleBacked {
+			for _, p := range payloads {
+				if walk(p) {
+					return true
+				}
+			}
+			return false
+		}
+		if elem, _, isFixed := in.ArrayFixedInfo(resolved); isFixed && walk(elem) {
+			return true
+		}
+		for _, f := range in.StructFields(resolved) {
+			if walk(f.Type) {
+				return true
+			}
+		}
+		if info, ok := in.TupleInfo(resolved); ok && info != nil {
+			for _, el := range info.Elems {
+				if walk(el) {
+					return true
+				}
+			}
+		}
+		if info, ok := in.UnionInfo(resolved); ok && info != nil {
+			for i := range info.Members {
+				m := &info.Members[i]
+				if m.Kind == UnionMemberType && walk(m.Type) {
+					return true
+				}
+				for _, arg := range m.TagArgs {
+					if walk(arg) {
+						return true
+					}
+				}
+			}
+		}
+		return walk(tt.Elem)
+	}
+	return walk(id)
+}
+
+// A recursive shape must terminate, and its answer must come from its other
+// members rather than from the edge that closed the loop. `Node` holds a
+// `Chain`, and `Chain`'s tag arm holds a `Node` again: without the seen set
+// the walk never returns. The pair is built twice, once with an array field on
+// the node and once without, so the row shows the cycle guard ends the walk
+// without also swallowing a real answer.
+func TestContainsDynamicArrayTerminatesOnACycleThroughAUnion(t *testing.T) {
+	build := func(withArray bool) (*Interner, TypeID) {
+		in := NewInterner()
+		in.Strings = source.NewInterner()
+		b := in.Builtins()
+		node := in.RegisterStruct(in.Strings.Intern("Node"), source.Span{})
+		chain := in.RegisterUnion(in.Strings.Intern("Chain"), source.Span{})
+		fields := []StructField{{Type: chain}}
+		if withArray {
+			fields = append(fields, StructField{Type: in.Intern(MakeArray(b.Int32, ArrayDynamicLength))})
+		}
+		in.SetStructFields(node, fields)
+		in.SetUnionMembers(chain, []UnionMember{
+			{Kind: UnionMemberTag, TagName: in.Strings.Intern("More"), TagArgs: []TypeID{node}},
+			{Kind: UnionMemberNothing},
+		})
+		return in, node
+	}
+
+	plain, node := build(false)
+	if plain.ContainsDynamicArray(node) {
+		t.Errorf("a cyclic Node with no array: ContainsDynamicArray = true, want false")
+	}
+	withArray, nodeWithArray := build(true)
+	if !withArray.ContainsDynamicArray(nodeWithArray) {
+		t.Errorf("a cyclic Node with an array field: ContainsDynamicArray = false, want true")
+	}
+}
+
+// The companion walk crosses a handle and then walks freely, which is a second
+// place a cycle can close: `Node` holds a `Map<int32, Node>`, so stepping the
+// table lands back on `Node`. Built twice again -- once with an array behind
+// the table, once without -- so the guard is shown to end the walk without
+// eating the answer.
+func TestContainsDynamicArrayBehindHandleTerminatesOnACycleThroughAHandle(t *testing.T) {
+	build := func(withArray bool) (*Interner, TypeID) {
+		in := NewInterner()
+		in.Strings = source.NewInterner()
+		b := in.Builtins()
+		if base, _ := in.EnsureMapNominal(in.Strings.Intern("Map"), in.Strings.Intern("K"),
+			in.Strings.Intern("V"), source.Span{}, 0); base == NoTypeID {
+			t.Fatalf("failed to register the nominal Map")
+		}
+		node := in.RegisterStruct(in.Strings.Intern("Node"), source.Span{})
+		table := in.RegisterStructInstance(in.Strings.Intern("Map"), source.Span{}, []TypeID{b.Int32, node})
+		fields := []StructField{{Type: table}}
+		if withArray {
+			inner := in.RegisterStructInstance(in.Strings.Intern("Map"), source.Span{},
+				[]TypeID{b.Int32, in.Intern(MakeArray(b.Int32, ArrayDynamicLength))})
+			fields = append(fields, StructField{Type: inner})
+		}
+		in.SetStructFields(node, fields)
+		return in, node
+	}
+
+	plain, node := build(false)
+	if plain.ContainsDynamicArrayBehindHandle(node) {
+		t.Errorf("a cyclic Node with no array: ContainsDynamicArrayBehindHandle = true, want false")
+	}
+	withArray, nodeWithArray := build(true)
+	if !withArray.ContainsDynamicArrayBehindHandle(nodeWithArray) {
+		t.Errorf("a cyclic Node with an array behind a table: ContainsDynamicArrayBehindHandle = false, want true")
+	}
+}
+
 func TestRuntimeHandlePayloadsAreAuthoritativeAndOwned(t *testing.T) {
 	in := NewInterner()
 	in.Strings = source.NewInterner()

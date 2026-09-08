@@ -155,7 +155,7 @@ func (l *funcLowerer) lowerSpawnOnPollFunc(id FuncID, name string, body *hir.Blo
 		l.setTerm(&Terminator{Kind: TermReturn})
 	}
 	rewriteSpawnOnPollReturns(l.f, stateLocal, ownedCaptures, len(captures) > 0,
-		mayShareCountedBlockIn(l.types, result), l.types.Builtins().Int)
+		needsRelinquishWalkIn(l.types, result), l.types.Builtins().Int)
 	for i := range l.f.Blocks {
 		if l.f.Blocks[i].Term.Kind == TermNone {
 			l.f.Blocks[i].Term.Kind = TermUnreachable
@@ -166,8 +166,9 @@ func (l *funcLowerer) lowerSpawnOnPollFunc(id FuncID, name string, body *hir.Blo
 
 // rewriteSpawnOnPollReturns closes every return of a crossing body. hasFrame is
 // false for a capture-less crossing, which is handed a null state and therefore
-// has no word to write. resultPrivate says the result type may share a counted
-// block, so the value is un-shared before it leaves.
+// has no word to write. resultPrivate says the result must be walked before it
+// leaves -- it may share a counted block, or it carries a dynamic array whose
+// header only the runtime can classify.
 func rewriteSpawnOnPollReturns(f *Func, stateLocal LocalID, ownedCaptures []LocalID, hasFrame, resultPrivate bool, intType types.TypeID) {
 	if f == nil {
 		return

@@ -28,13 +28,19 @@ import (
 //     when the block has one holder and otherwise duplicates it and gives up
 //     the reference this value held;
 //   - a nested value composite: recurse, because its own members may hold one;
-//   - a dynamic array whose element may share: rt_array_unshare_walk, handed
-//     the array's slot, the element stride and the element's own walk body,
-//     which the runtime calls once per slot of the buffer it owns. The walk
-//     cannot address those slots itself -- they are at no fixed offset from
-//     the value -- so the runtime iterates and this body says what to do at
-//     each one. Nesting drains through the one worklist: `float[][]` walks
-//     with the `float[]` body, which walks with the `float` body;
+//   - a dynamic array, ALWAYS: rt_array_unshare_walk, handed the array's slot,
+//     the element stride and -- when the element has a walk of its own -- that
+//     element's body, which the runtime calls once per slot of the buffer it
+//     owns. The walk cannot address those slots itself, they are at no fixed
+//     offset from the value, so the runtime iterates and this body says what to
+//     do at each one. Nesting drains through the one worklist: `float[][]`
+//     walks with the `float[]` body, which walks with the `float` body. An
+//     element with nothing to make private -- `int` -- rides a NULL callback,
+//     and the call is still made: the runtime asks its view registry whether
+//     this array is a view into a buffer the origin shard keeps reading, or a
+//     base a live view still reads, and refuses by name if it is. Nothing in
+//     the type says which, so the question is the runtime's whatever the
+//     element holds;
 //   - a string, a channel handle, a plain word: nothing. A move transfers the
 //     single reference the value holds and the source stops owning it, so
 //     there is nothing to make private.
@@ -79,8 +85,10 @@ func (e *Emitter) emitUnshareGlue() error {
 // validator that every boundary was reached; this side only runs the walk on
 // the place's storage, in place.
 //
-// A type that cannot hold a counted block emits nothing: its walk body would
-// be empty, and the instruction is then the no-op it means.
+// A type that can neither hold a counted block nor reach a dynamic array emits
+// nothing: its walk body would be empty, and the instruction is then the no-op
+// it means. It never even arrives -- the lowering gates on the same question --
+// so the silence is guaranteed twice.
 //
 // The refusal below is the last line of defence, not a gate. A value that may
 // share a counted block no walk reaches -- a map's table, a channel's ring --
@@ -99,7 +107,7 @@ func (fe *funcEmitter) emitInstrUnshare(ins *mir.Instr) error {
 	if err != nil {
 		return err
 	}
-	if valueType == types.NoTypeID || !e.typeMayShareCountedBlock(valueType) {
+	if valueType == types.NoTypeID || !e.typeNeedsRelinquishWalk(valueType) {
 		return nil
 	}
 	if !e.canUnshareValue(valueType) {
@@ -148,6 +156,23 @@ func (fe *funcEmitter) emitInstrUnshare(ins *mir.Instr) error {
 // reaching a crossing.
 func (e *Emitter) typeMayShareCountedBlock(id types.TypeID) bool {
 	return e.mayShareCountedBlockRec(id, map[types.TypeID]struct{}{})
+}
+
+// typeNeedsRelinquishWalk is the question a relinquishing site actually asks:
+// may this value share a counted block, OR does it carry a dynamic array
+// somewhere its bytes reach. It is sema.Result.NeedsRelinquishWalk on this
+// side of the wall.
+//
+// Only the counted half is duplicated here, for the reason above. The array
+// half is types.Interner.ContainsDynamicArray, the SAME function sema and the
+// MIR lowering call, because it reads nothing but the type graph -- so the two
+// sides cannot drift on which values carry an array, and the labelled table
+// that polices this pair has only the counted column left to police.
+func (e *Emitter) typeNeedsRelinquishWalk(id types.TypeID) bool {
+	if e == nil || e.types == nil {
+		return false
+	}
+	return e.typeMayShareCountedBlock(id) || e.types.ContainsDynamicArray(id)
 }
 
 func (e *Emitter) mayShareCountedBlockRec(id types.TypeID, seen map[types.TypeID]struct{}) bool {
@@ -265,8 +290,12 @@ func (unshareWalk) labelPrefix() string { return "us" }
 // one storage this walk has.
 func (unshareWalk) tagStorage() string { return "%val" }
 
+// A member is worth visiting when it may share a counted block OR when it can
+// reach a dynamic array: a fixed-array element or a union arm that merely
+// CONTAINS an array still has to reach the runtime's view check, and the old
+// counted-only answer skipped the whole element loop or arm for it.
 func (w unshareWalk) needsFixup(resolved types.TypeID) bool {
-	return w.e.typeMayShareCountedBlock(resolved)
+	return w.e.typeNeedsRelinquishWalk(resolved)
 }
 
 func (w unshareWalk) leafAt(g *glueTmp, resolved types.TypeID, baseAlign, off uint64) bool {
@@ -288,12 +317,21 @@ func (w unshareWalk) leafAt(g *glueTmp, resolved types.TypeID, baseAlign, off ui
 		// A dynamic array's elements sit in a buffer the runtime owns, at no
 		// offset this walk can address, so the runtime iterates: it takes the
 		// SLOT holding the handle word (the convention every array helper
-		// uses, never the word itself), the element stride, and the element's
-		// own body, and calls that body once per slot. An element that cannot
-		// share -- `int[]` today -- gets no call at all: a walk over plain
-		// words would cost every crossing and make nothing private.
-		if !e.typeMayShareCountedBlock(elem) {
-			return false
+		// uses, never the word itself), the element stride, and a per-element
+		// callback, and calls that callback once per slot.
+		//
+		// The call is made for EVERY array, whatever its element holds. When
+		// the element needs no walk of its own -- an `int`, a plain word -- the
+		// callback is `ptr null` and the runtime iterates nothing; what it
+		// still does is ask its view registry the two questions no type can
+		// answer: is this header a view into a base's buffer, and does a live
+		// view still read this base. Either one is refused by name. Skipping
+		// the call for such an element is what let a slice of an `int[]` cross
+		// into a worker thread and be written through into the buffer the
+		// origin shard kept reading.
+		callback := "null"
+		if e.typeNeedsRelinquishWalk(elem) {
+			callback = "@" + e.requireUnshareGlue(elem)
 		}
 		stride, _, err := e.handleArrayElemStrideAlign(elem)
 		if err != nil {
@@ -302,8 +340,8 @@ func (w unshareWalk) leafAt(g *glueTmp, resolved types.TypeID, baseAlign, off ui
 		}
 		fp := g.next()
 		fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds i8, ptr %%val, i64 %d\n", fp, off)
-		fmt.Fprintf(&e.buf, "  call void @rt_array_unshare_walk(ptr %s, i64 %d, ptr @%s)\n",
-			fp, stride, e.requireUnshareGlue(elem))
+		fmt.Fprintf(&e.buf, "  call void @rt_array_unshare_walk(ptr %s, i64 %d, ptr %s)\n",
+			fp, stride, callback)
 		return true
 	}
 	// Everything else the move carries by its bytes: the single reference the
@@ -319,6 +357,12 @@ func (w unshareWalk) leafAt(g *glueTmp, resolved types.TypeID, baseAlign, off ui
 // a call, exactly as a duplicating site asks canDuplicateValue: answering
 // "nothing to do" for a shape the walk cannot reach is how a shared block
 // would travel unnoticed.
+//
+// It is now asked at more sites than before -- a value reaches the walk for a
+// second reason, its dynamic array, and not only for a counted block. That
+// widens nothing here: a value whose only business is an array has no handle
+// payload that may share, so it cannot reach the one answer this predicate
+// gives back, and the refusal below still names only the counted question.
 //
 // A dynamic array answers for its element, because the runtime walks its
 // buffer with the element's body. What is refused is a runtime handle whose

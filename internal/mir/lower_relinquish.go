@@ -36,8 +36,18 @@ func (l *funcLowerer) relinquishCapture(c *CrossingCapture, span source.Span) Op
 // underneath: the count is not atomic, and the other thread's release would
 // race any holder left on this one.
 //
-// Nothing is emitted for a type that cannot share a counted block, or for a
-// constant, which is minted fresh at the site. Otherwise:
+// A dynamic array is here for a second reason, and it is not about privacy: a
+// view's elements live in the base's buffer, which the origin shard keeps
+// reading, and nothing in the type says whether the array in hand is a view or
+// a base some live view still reads. Only the runtime's view registry knows,
+// so every crossing of a value that CARRIES an array is handed to the walk,
+// whatever its element type -- an `int[]` shares no count and would otherwise
+// reach the other thread unexamined, which is exactly how a slice came to be
+// written through from a worker thread.
+//
+// Nothing is emitted for a type that can neither share a counted block nor
+// reach an array, or for a constant, which is minted fresh at the site.
+// Otherwise:
 //
 //   - a MOVE out of a bare local already hands over the local's own reference;
 //     only the un-share is added, on that local, so a far-select candidate's
@@ -58,7 +68,7 @@ func (l *funcLowerer) relinquishCapture(c *CrossingCapture, span source.Span) Op
 // runs it on every function, so a site that forgot to call this refuses to
 // build instead of shipping a shared block.
 func (l *funcLowerer) relinquishOperand(op *Operand, span source.Span) Operand {
-	if l == nil || op.Kind == OperandConst || !mayShareCountedBlockIn(l.types, op.Type) {
+	if l == nil || op.Kind == OperandConst || !needsRelinquishWalkIn(l.types, op.Type) {
 		return *op
 	}
 	if _, bare := bareLocalOf(op.Place); bare && op.Kind == OperandMove {
