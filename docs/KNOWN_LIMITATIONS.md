@@ -22,7 +22,7 @@ References (`&T`, `&mut T`) are second-class values: they live in locals,
 parameters, and returns, never inside data. With lexical lifetimes and no
 lifetime parameters, a reference stored in data could outlive the value it
 borrows, so the compiler rejects (kindness-first diagnostics with owned/
-`.__clone()` alternatives):
+`clone(x)` alternatives — the free function, which is what they print):
 
 - Reference types in aggregates — struct fields, tag payloads, tuple/array
   element types, and tuple/array/map literal elements (`SEM3138`). Store an
@@ -41,6 +41,29 @@ borrows, so the compiler rejects (kindness-first diagnostics with owned/
   handle whose spawn borrowed frame-locals cannot be returned
   (`return spawn worker(&l)` — the caller could await it after the local is
   freed). Spawning with borrows and awaiting in the same function stays legal.
+  The send rule is asked UNDERNEATH `own`, and that word is load-bearing:
+  `own` says who releases a value, never that the value was copied out of where
+  it lived, so `own &T` still names a place. `ch.send(own xs[0])` is refused
+  exactly as `ch.send(xs[0])` is, at a plain send and at a local or far select
+  arm (`SEM3105`) and inside an anchored `on ch` block (`SEM3015`, a sink with
+  a rule of its own); `&mut T` is a borrow for this rule too. Asking only the
+  payload's surface type left `own` a one-token bypass, and what crossed was an
+  ADDRESS: a `@copy @shard_movable` pair of `int`s read in place as `ps[0]` and
+  sent as `{ a: 11, b: 22 }` arrived on the far side answering `b == 11` with
+  exit 0 and no diagnostic, at 2 shards and at 8, while a reader that touched
+  the field the address landed on dereferenced it and crashed. Silent wrong
+  answer and segmentation fault were the same corruption seen through different
+  fields, and the silent half is the dangerous one.
+  What `SEM3105` offers depends on the shape it refused: an element read is told
+  to bind the element to a name and send the name, a payload that NAMES a borrow
+  is told to read through it or to bind a copy out first (a borrow itself can
+  never be given away — that is the rule), and a payload that borrows a value
+  the author owns is told to send that value. `SEM3015` does NOT branch that
+  way: it names an element read (`let v: T = xs[0];`) for every payload it
+  refuses, so `ch.send(own p)` for a `p: &T` parameter is told to bind an
+  element out of a container its program need not have. That is a rough edge in
+  the wording and not in the rule — the payload is refused either way — and it
+  is recorded as `RV2-DEBT-353`.
 
 Not yet caught (future escape analysis): a local borrow deep-laundered through
 several call frames before being returned, a local-borrowing task handle

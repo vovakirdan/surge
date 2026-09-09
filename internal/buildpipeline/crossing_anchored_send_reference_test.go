@@ -207,7 +207,7 @@ async fn go() -> int {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			requireAnchoredSendDiagnosticWithHelp(t, tc.src, diag.SemaTypeMismatch, tc.want, tc.help)
+			requireSendPayloadDiagnosticWithHelp(t, tc.src, diag.SemaTypeMismatch, tc.want, tc.help)
 		})
 	}
 }

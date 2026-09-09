@@ -26,6 +26,7 @@ const (
 	adviceTaskBorrowsFrameLocal
 	adviceReferenceInAggregate
 	adviceChannelBorrow
+	adviceChannelBorrowBinding
 	advicePartialMove
 	adviceMoveOutOfSharedBorrow
 	adviceCompareArmPayload
@@ -174,7 +175,7 @@ func (tc *typeChecker) cloneAdviceFor(site cloneAdviceSite, subject types.TypeID
 	return cloneAdvice{State: state, Help: cloneAdviceSentence(site, state, name)}
 }
 
-//nolint:gocyclo // one table, read as a table: twelve sites by four capabilities.
+//nolint:gocyclo // one table, read as a table: every site by four capabilities.
 func cloneAdviceSentence(site cloneAdviceSite, state CloneState, name string) string {
 	if state == CloneDeferred {
 		// The gate lives HERE rather than in the caller so the property holds
@@ -230,10 +231,40 @@ func cloneAdviceSentence(site cloneAdviceSite, state CloneState, name string) st
 		}
 		return fmt.Sprintf("store an owned value instead: move %s in, or copy it with %s", subject, call)
 	case adviceChannelBorrow:
+		// Reached with NO name: the payload borrowed something it does not name
+		// at this position, `ch.send(&v)` being the shape measured getting here.
+		// Giving that thing away is the way out and its author knows what it is.
+		// A payload that DOES name the borrow goes to the site below, where this
+		// give-away clause would name no program that builds.
 		if state == CloneNonClonable {
 			return fmt.Sprintf("send %s itself to give it away, or restructure who owns it", subject)
 		}
 		return fmt.Sprintf("send %s itself to give it away, or send a copy: %s", subject, call)
+	case adviceChannelBorrowBinding:
+		// The payload NAMES the borrow, so the name is the reference and there is
+		// nothing here to give away: for a `p: &Pair` at a far select's send arm,
+		// `ch.send(p)` and `ch.send(own p)` are both refused by the rule that
+		// prints this. Every clause below was compiled at that arm and at a plain
+		// local send, and the three states take three different ways out because
+		// measurement put them there: `send(own *p)` builds for a Copy referent
+		// and is refused SEM3143 ("cannot take `p.*` out of `p`") for one that is
+		// not, while `send(clone(p))` builds for a Copy referent and is refused
+		// SEM3140 at a select arm for one that is not, the arm wanting a whole
+		// owned binding. Binding the copy out first satisfies both sinks.
+		//
+		// This site is reached only where the payload names the borrow, which is
+		// why every sentence spells that name.
+		if state == CloneCopy {
+			return fmt.Sprintf("`%s` is the borrow and not the value: read through it and send what "+
+				"it points at -- `send(own *%s)`", name, name)
+		}
+		if state == CloneNonClonable {
+			return fmt.Sprintf("`%s` is the borrow and not the value, and nothing copies this one out "+
+				"from behind it: send the value from the binding that owns it, or give this task an "+
+				"owned value of its own", name)
+		}
+		return fmt.Sprintf("`%s` is the borrow and not the value, and a value does not move out from "+
+			"behind a reference: bind a copy first -- `let v = %s;` -- then `send(own v)`", name, call)
 	case advicePartialMove:
 		if state == CloneNonClonable {
 			return fmt.Sprintf("if you did not mean to empty it, borrow the field instead (`&%s`)", name)

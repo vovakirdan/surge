@@ -49,21 +49,27 @@ func (tc *typeChecker) ownStripped(id types.TypeID) types.TypeID {
 // `63ecd58b`. Asking only the surface type left `own` a one-token bypass of
 // this whole rule.
 //
-// WHAT THIS SINK ANSWERING LIKE THE CROSSING DOES NOT MEAN. It does not mean
-// the reference is out of the language, and the claim that it was has been
-// withdrawn: the far SELECT's send arm still takes `own <place>` and delivers
-// it wrong. `select { ch.send(own ps[0]) => 1; stop.recv() => 2; }` over a far
-// `Channel<Pair>`, `Pair` a `@copy @shard_movable` pair of `int`s, compiles and
-// answers 11 where the two fields sum to 33 -- and 0 where they sum to 22 --
-// with exit 0 and no diagnostic, at SURGE_SHARDS/THREADS 2 and at 8, on this
-// tree and at `63ecd58b` alike; the same program with the element bound out
-// first answers 33 at both widths. That arm refuses the bare `ps[0]` for its
-// borrow (SEM3105), but it asks the payload's SURFACE type, which `own &Pair`
-// is not; and the whole-binding rule that does refuse the `string[]` spelling
-// (SEM3141) returns early when the element is Copy. So `own` walks past both,
-// exactly as it walked past this sink. That is a second sink with payload rules
-// of its own, it predates the capture gate this lane widened, and it is
-// recorded rather than closed here (RV2-DEBT-351).
+// THE SIBLING SINK NOW ANSWERS THE SAME WAY, and it did not always. The far
+// SELECT's send arm took `own <place>` and delivered it wrong: `select {
+// ch.send(own ps[0]) => 1; stop.recv() => 2; }` over a far `Channel<Pair>`,
+// `Pair` a `@copy @shard_movable` pair of `int`s, compiled with exit 0 and no
+// diagnostic and answered 11 where the two fields sum to 33 -- and 0 where they
+// sum to 22 -- at SURGE_SHARDS/THREADS 2 and at 8. It refused the bare `ps[0]`
+// for its borrow (SEM3105) but asked the payload's SURFACE type, which `own
+// &Pair` is not, while the whole-binding rule that does refuse the `string[]`
+// spelling (SEM3141) returns early when the element is Copy; so `own` walked
+// past both, exactly as it walked past this sink. That was never the arm's
+// alone -- a plain local `Channel<Pair>.send(own ps[0])` was accepted the same
+// way -- so it was closed in checkChannelSendValue, the rule those sinks share,
+// by asking ITS question underneath `own` as well.
+//
+// TWO FUNCTIONS, ONE QUESTION, AND THAT IS DELIBERATE. This sink is reached
+// from typeAnchoredChannelOp, which never calls the shared rule, and it answers
+// before assignability for the reason recorded below. Its message names the
+// channel's ELEMENT type and its help branches on the element family for a
+// give-away rule (SemaAnchoredSendGiveAway) that is anchored-only. Do not
+// "unify" the two by deleting this one: the shared rule would have to carry
+// per-family advice for a single caller's benefit.
 //
 // Measured at SURGE_SHARDS/THREADS 2 and at 8, each on the last tree that still
 // built the program. WITHOUT `own`, before this refusal existed: `ch.send(xs[0])`

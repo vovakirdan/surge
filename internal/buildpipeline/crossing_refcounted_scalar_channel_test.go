@@ -278,7 +278,7 @@ async fn go() -> int {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			requireAnchoredSendDiagnostic(t, tc.src, tc.code, tc.want)
+			requireSendPayloadDiagnostic(t, tc.src, tc.code, tc.want)
 		})
 	}
 }
@@ -369,7 +369,7 @@ async fn go() -> int {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			requireAnchoredSendDiagnostic(t, tc.src, tc.code, tc.want)
+			requireSendPayloadDiagnostic(t, tc.src, tc.code, tc.want)
 		})
 	}
 }
@@ -482,17 +482,17 @@ async fn go() -> int {
 	}
 }
 
-// requireAnchoredSendDiagnostic compiles src and demands one diagnostic with
+// requireSendPayloadDiagnostic compiles src and demands one diagnostic with
 // the given code whose message says want.
-func requireAnchoredSendDiagnostic(t *testing.T, src string, code diag.Code, want string) {
+func requireSendPayloadDiagnostic(t *testing.T, src string, code diag.Code, want string) {
 	t.Helper()
-	requireAnchoredSendDiagnosticWithHelp(t, src, code, want, "")
+	requireSendPayloadDiagnosticWithHelp(t, src, code, want, "")
 }
 
-// requireAnchoredSendDiagnosticWithHelp is the same demand plus the way out.
+// requireSendPayloadDiagnosticWithHelp is the same demand plus the way out.
 // A refusal whose help is not asserted is a refusal whose help can rot into
 // advice that does not compile, which is what a reader meets first.
-func requireAnchoredSendDiagnosticWithHelp(t *testing.T, src string, code diag.Code, want, help string) {
+func requireSendPayloadDiagnosticWithHelp(t *testing.T, src string, code diag.Code, want, help string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "main.sg")
 	if err := os.WriteFile(path, []byte(src), 0o600); err != nil {
