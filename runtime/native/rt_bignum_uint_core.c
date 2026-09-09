@@ -25,6 +25,10 @@ SurgeBigUint* bu_alloc(uint32_t len, bn_err* err) {
         return NULL;
     }
     out->len = len;
+    // rt_alloc hands back uninitialised bytes, so a fresh block's count is
+    // whatever the allocator left there until it is written. One is the count
+    // of a block whose only reference is the one being returned.
+    out->rc = 1;
     memset(out->limbs, 0, (size_t)len * sizeof(uint32_t));
     return out;
 }

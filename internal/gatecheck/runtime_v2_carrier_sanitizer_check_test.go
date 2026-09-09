@@ -332,6 +332,16 @@ var requiredSanitizerCoverage = []string{
 	// ASan row catches the write through a stale one. Same omission as above.
 	"TestRuntimeV2ReallocReleaseIsForgottenByTheViewRegistry",
 	"TestRuntimeV2ReallocReleaseUnderAddressAndUndefinedSanitizers",
+	// ASan/UBSan over the count a heap bignum now carries, and over the branch
+	// that decides whether a word is a pointer at all. Every entry point reads
+	// the tag before it reads memory, so the row that matters most is the one
+	// where the tag branch is CUT: a retain applied to an inline fixnum then
+	// writes through a word that was never an address. The negative-control row
+	// is listed beside it because a count is the kind of thing a test can watch
+	// without ever proving it moved -- each control cuts one branch of one kind,
+	// and its own row is the only one that goes red.
+	"TestRuntimeV2BignumRefcountUnderAddressAndUndefinedSanitizers",
+	"TestRuntimeV2BignumRefcountNegativeControlsCutEachBranch",
 	// Valgrind over a blocking job's captured state, at one iteration and at
 	// eight, and over the zero-sized state a capture-less body still gets.
 	// RV2-DEBT-080 recorded its loss as CONSTANT in the iteration count and

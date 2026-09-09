@@ -242,13 +242,36 @@ SURGE_RT_STATIC_ASSERT(offsetof(SurgeRangeArrayIter, length) == 32,
 // Null-safe: a released slot is nulled and a second release must not read a
 // kind byte out of nothing.
 //
-// It does NOT release the bounds. `start`/`end` are words that are either
-// fixnum-tagged integers, which own nothing, or heap bignums, which have no
-// exported lifecycle in this runtime at all - `bi_free` is a static inline in
-// rt_bignum_internal.h and only `float` is reference counted. There is nothing
-// this function could legally call, so a bignum-bounded range still leaks its
-// two bound boxes and that belongs to the bignum-lifecycle debt rather than
-// here.
+// It does NOT release the bounds, and the reason is no longer that it has
+// nothing to call: `rt_bigint_release` and `rt_biguint_release` are declared
+// below and both answer a fixnum-tagged word without touching it. Three
+// blockers survive that export, and all three are compiler-side work:
+//
+//   - `start`/`end` are stored by the constructors below WITHOUT a retain, so a
+//     release here would give back a block the creating frame still points at.
+//     That is a use-after-free, which is worse than the leak it would replace;
+//   - nothing in this struct says which KIND a bound is. One constructor family
+//     serves every element type, so a bound may be a SurgeBigInt, a SurgeBigUint
+//     or a SurgeBigFloat, and their counts sit at three different offsets (8, 4
+//     and 0). `_pad` has room for a discriminator byte, but the emitter has to
+//     write it. The float arm is the one that punishes a guess: it is the only
+//     bound kind that is ALREADY reference counted, so a discriminator written
+//     for the integer pair alone would read a float bound through the wrong
+//     offset. A `Range<float>` does not even reach that question today -- it
+//     compiles, and the integer iteration path then reads its bound as a
+//     SurgeBigInt and dereferences a wild address (see RV2-DEBT-357);
+//   - for SURGE_RANGE_KIND_ARRAY_ITER the same two fields hold the element DATA
+//     POINTER and the element STRIDE (see the cursor below). A release added
+//     without a `kind` guard would hand a raw stride integer to a bignum free,
+//     which is a wild free rather than a double one -- so the discriminator is
+//     needed for the shape as well as for the element type.
+//
+// A fourth fact belongs with them: the for-loop cursor is a BYTE COPY of the
+// range that shares those same bound pointers, so releasing in both places
+// would release twice from one set of blocks.
+//
+// Until all four are answered a bignum-bounded range still leaks its two bound
+// boxes.
 void rt_range_free(void* handle);
 
 void* rt_string_from_bytes(const uint8_t* ptr, uint64_t len);
@@ -352,10 +375,11 @@ void* rt_bigfloat_clone(const void* a);
 // A caller that is not the owning thread would be reading a count somebody
 // else may be writing, so the relinquishing frame is the only correct site.
 //
-// Defined in rt_bigfloat_unshare.c. Its clone branch is the sole writer of
-// the `unshare_clones` field on the TRACE_RESIDENT line (rt_resident_bytes.h),
-// and RV2_BIGFLOAT_UNSHARE_NEGATIVE_CONTROL makes it the identity, which is how
-// a row shows the barrier is what keeps a shared block off two threads.
+// Defined in rt_bigfloat_unshare.c. Its clone branch writes the
+// `unshare_clones` field on the TRACE_RESIDENT line (rt_resident_bytes.h), as
+// does the clone branch of every other counted scalar leaf's unshare;
+// RV2_BIGFLOAT_UNSHARE_NEGATIVE_CONTROL makes this one the identity, which is
+// how a row shows the barrier is what keeps a shared block off two threads.
 void* rt_bigfloat_unshare(void* a);
 
 // Destroy a bigfloat block unconditionally, IGNORING its count. This is the
@@ -382,6 +406,50 @@ void rt_bigfloat_free(void* a);
 // are the reference semantics and the out-of-line form.
 void rt_bigfloat_retain(void* a);
 void rt_bigfloat_release(void* a);
+
+// The same lifecycle for the heap halves of `int` and `uint`, all ten defined
+// in rt_bignum_lifecycle.c. Read the bigfloat block above for what retain,
+// release, free and unshare each mean; everything there applies here, including
+// that the count is NON-ATOMIC and sound only while a block stays on one shard.
+//
+// What is different, and what makes these ten functions rather than five casts
+// away from the bigfloat ones: an `int` or `uint` arrives as a TAGGED WORD. Low
+// bit set means the value rode inline and there is no block; low bit clear
+// means a heap block or NULL, which is the canonical zero. Every one of these
+// tests that tag BEFORE it touches memory, so all ten are safe on an inline
+// word as well as on NULL -- and a caller must not "optimise" the guard down to
+// a NULL test the way the bigfloat emitter can, because an inline word is not a
+// pointer and is neither aligned nor mapped.
+//
+// The counts sit at DIFFERENT OFFSETS per kind -- bigfloat 0, biguint 4,
+// bigint 8 -- because a biguint view of a bigint's tail (bi_as_uint) has to
+// keep matching field for field, which a count in the prefix position would
+// break. rt_bignum_internal.h pins all three with _Static_assert. Those
+// assertions pin the C side only: a backend that inlines retain and release as
+// IR prints the offsets as literals, and nothing yet holds those literals
+// against these numbers. Whichever lane teaches the emitter to call or inline
+// these owes that test, as `internal/backend/llvm/range_layout_test.go` already
+// does for the Range layout.
+//
+// Free is unconditional and IGNORES the count, exactly as rt_bigfloat_free
+// does: it is the zero-count tail of a release and the reclamation the
+// runtime's own arithmetic performs on temporaries it exclusively owns
+// (bi_finish, bu_finish and the operand releases in rt_bignum_api.c still call
+// the internal inlines on blocks that now start at count one, which is correct
+// because those blocks never escape the call that made them). Compiled code
+// gives up a reference with release and never with free; unifying the two would
+// be a double free.
+void* rt_bigint_clone(const void* a);
+void rt_bigint_free(void* a);
+void rt_bigint_retain(void* a);
+void rt_bigint_release(void* a);
+void* rt_bigint_unshare(void* a);
+void* rt_biguint_clone(const void* a);
+void rt_biguint_free(void* a);
+void rt_biguint_retain(void* a);
+void rt_biguint_release(void* a);
+void* rt_biguint_unshare(void* a);
+
 void* rt_bigint_to_biguint(const void* a);
 void* rt_biguint_to_bigint(const void* a);
 void* rt_bigint_to_bigfloat(const void* a);

@@ -4,49 +4,9 @@
 #include <string.h>
 
 // Signed integers are stored as sign + magnitude. Bitwise ops use two's complement.
-SurgeBigInt* bi_alloc(uint32_t len, bn_err* err) {
-    if (err != NULL) {
-        *err = BN_OK;
-    }
-    if (len == 0) {
-        return NULL;
-    }
-    if (len > SURGE_BIGNUM_MAX_LIMBS) {
-        if (err != NULL) {
-            *err = BN_ERR_MAX_LIMBS;
-        }
-        return NULL;
-    }
-    size_t size = sizeof(SurgeBigInt) + (size_t)len * sizeof(uint32_t);
-    SurgeBigInt* out = (SurgeBigInt*)rt_alloc((uint64_t)size, (uint64_t)alignof(SurgeBigInt));
-    if (out == NULL) {
-        if (err != NULL) {
-            *err = BN_ERR_MAX_LIMBS;
-        }
-        return NULL;
-    }
-    out->len = len;
-    out->neg = 0;
-    memset(out->limbs, 0, (size_t)len * sizeof(uint32_t));
-    return out;
-}
-
-static SurgeBigInt* bi_clone(const SurgeBigInt* i, bn_err* err) {
-    if (err != NULL) {
-        *err = BN_OK;
-    }
-    if (i == NULL || i->len == 0) {
-        return NULL;
-    }
-    SurgeBigInt* out = bi_alloc(i->len, err);
-    if (out == NULL) {
-        return NULL;
-    }
-    out->neg = i->neg;
-    memcpy(out->limbs, i->limbs, (size_t)i->len * sizeof(uint32_t));
-    return out;
-}
-
+//
+// bi_alloc and bi_clone live in rt_bignum_int_alloc.c; both are declared in
+// rt_bignum_internal.h and the call sites below reach them from there.
 bool bi_is_zero(const SurgeBigInt* i) {
     if (i == NULL || i->len == 0) {
         return true;

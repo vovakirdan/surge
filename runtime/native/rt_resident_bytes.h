@@ -35,12 +35,19 @@ typedef struct rt_value_ops rt_value_ops;
 // are already inside PAYLOAD.
 //
 // An UNSHARE CLONE is the duplication the crossing barrier performs on a
-// counted scalar leaf (a heap `float`) that the relinquishing frame still
-// shared with a sibling: rt_bigfloat_unshare hands the crossing a block of its
-// own and gives up the shared one. A total as well, and one with a single
-// writer -- the clone branch of that function -- so a row reading it counts
-// exactly the blocks the barrier had to duplicate: 0 when the value travelled
-// at count one, 1 per leaf that had a sibling holder.
+// counted scalar leaf that the relinquishing frame still shared with a sibling:
+// the leaf's unshare hands the crossing a block of its own and gives up the
+// shared one. A total as well, so a row reading it counts exactly the blocks
+// the barrier had to duplicate: 0 when every value travelled at count one, 1
+// per leaf that had a sibling holder.
+//
+// Its writers are the clone branches of the counted scalar leaves -- one per
+// kind (rt_bigfloat_unshare, rt_bigint_unshare, rt_biguint_unshare) -- and
+// nothing else. The figure is therefore a count of blocks and not of floats: a
+// crossing that carries more than one kind of counted scalar sums them here,
+// and a row that needs to know which kind duplicated has to say so some other
+// way. A field per kind would say it, at the cost of changing the
+// TRACE_RESIDENT line, which has readers on the Go side.
 typedef enum rt_resident_kind {
     RT_RESIDENT_ENVELOPE = 0,
     RT_RESIDENT_PADDING = 1,
@@ -73,7 +80,8 @@ void rt_resident_payload_acquire(const rt_value_ops* operations);
 void rt_resident_payload_release(const rt_value_ops* operations);
 void rt_resident_bytes_record_crossing_clone(uint64_t bytes);
 // One counted block the barrier duplicated because a sibling still held it.
-// Called from rt_bigfloat_unshare's clone branch and nowhere else.
+// Called from the clone branch of a counted scalar leaf's unshare, and from
+// nowhere else.
 void rt_resident_bytes_record_unshare_clone(void);
 struct rt_resident_bytes_snapshot rt_resident_bytes_snapshot(void);
 const char* rt_resident_kind_name(rt_resident_kind kind);

@@ -8,9 +8,12 @@
 //
 // Two things a reader of a program's trace needs to know about this body:
 //
-//   - the clone branch is the only writer of the `unshare_clones` field on the
-//     TRACE_RESIDENT line, so a row that reads that field is counting exactly
-//     the blocks this barrier had to duplicate, and nothing else;
+//   - the clone branch writes the `unshare_clones` field on the TRACE_RESIDENT
+//     line, as the int and uint leaves in rt_bignum_lifecycle.c do for their
+//     kinds, so a row that reads that field is counting the blocks the barrier
+//     had to duplicate summed over every counted scalar kind the crossing
+//     carried -- for a float-only crossing that is this branch and nothing
+//     else;
 //   - Rule 13: RV2_BIGFLOAT_UNSHARE_NEGATIVE_CONTROL cuts the clone branch out,
 //     so a shared block travels shared and that same field reads 0 where the
 //     row expects 1. The count-below-zero check stays in both configurations,

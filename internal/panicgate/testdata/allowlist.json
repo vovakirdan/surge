@@ -1230,6 +1230,36 @@
       "group": "PG-SIZE-LIMIT"
     },
     {
+      "site": "runtime/native/rt_bignum_lifecycle.c::rt_bigint_release#1",
+      "message": "bigint release below zero",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_bignum_lifecycle.c::rt_bigint_retain#1",
+      "message": "bigint reference count overflow",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_bignum_lifecycle.c::rt_bigint_unshare#1",
+      "message": "bigint unshare below zero",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_bignum_lifecycle.c::rt_biguint_release#1",
+      "message": "biguint release below zero",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_bignum_lifecycle.c::rt_biguint_retain#1",
+      "message": "biguint reference count overflow",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_bignum_lifecycle.c::rt_biguint_unshare#1",
+      "message": "biguint unshare below zero",
+      "group": "PG-INVARIANT"
+    },
+    {
       "site": "runtime/native/rt_bignum_panic.c::bignum_panic_err#1",
       "message": "numeric size limit exceeded",
       "group": "PG-SIZE-LIMIT"

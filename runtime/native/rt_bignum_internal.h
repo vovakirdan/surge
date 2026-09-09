@@ -24,8 +24,26 @@
 // Clamp for parsing exponent to keep intermediate sizes bounded.
 #define SURGE_BIGNUM_MAX_EXP10 1000000
 
+// The heap halves of `int` and `uint` are reference counted, the way a bigfloat
+// block is: a copy that outlives its source retains, a scope exit releases, and
+// the block frees when the count reaches zero. A value small enough to ride
+// inline in the word (see rt_bignum_tag.h) owns no block and is never counted,
+// which is why every exported entry point asks the tag before it touches
+// memory -- an inline word is not a pointer and dereferencing one is a wild
+// access, not a miscount.
+//
+// `rc` sits AFTER `len` rather than before it, and that placement is what keeps
+// `bi_as_uint` below honest. That helper hands out a `SurgeBigUint` view of a
+// `SurgeBigInt`'s TAIL; a count in the prefix position would sit at the base of
+// a uint and at no matching place in an int, so the view would read a count
+// where the int keeps its length. Suffixed, the tail matches the uint field for
+// field -- asserted below, so the trap cannot come back silently. The price is
+// that the three counts sit at three different offsets (float 0, uint 4,
+// int 8), which the emitter prints per kind; that costs nothing, because it
+// must already branch per kind to test the fixnum tag.
 typedef struct SurgeBigUint {
     uint32_t len;
+    uint32_t rc;
     uint32_t limbs[];
 } SurgeBigUint;
 
@@ -33,6 +51,7 @@ typedef struct SurgeBigInt {
     uint8_t neg;
     uint8_t _pad[3];
     uint32_t len;
+    uint32_t rc;
     uint32_t limbs[];
 } SurgeBigInt;
 
@@ -57,9 +76,13 @@ typedef struct SurgeBigInt {
 // an anchored body's send gives away a capture that barrier already made
 // private, and makes nothing itself, because its prefix replays; and the
 // compile-time REFUSAL of the shapes that walk cannot reach -- a map's table,
-// a channel's ring -- at every gate: capture, channel element and reply. The
-// barrier is a narrowing `int`/`uint` cannot take, which is why it comes
-// first -- RV2-DEBT-038.
+// a channel's ring -- at every gate: capture, channel element and reply.
+//
+// `int` and `uint` now take that same barrier through their own leaves
+// (rt_bigint_unshare, rt_biguint_unshare), on the same non-atomic terms. Float
+// keeps its count at offset zero because its emitter form was written before
+// the pair existed and nothing aliases its tail; the pair pays a per-kind
+// offset instead, for the aliasing reason spelled out above the two structs.
 typedef struct SurgeBigFloat {
     uint32_t rc;
     int32_t exp;
@@ -82,6 +105,39 @@ _Static_assert(alignof(SurgeBigFloat) >= 2,
 // comment on the emitter.
 _Static_assert(offsetof(SurgeBigFloat, rc) == 0, "bigfloat refcount must stay at offset 0");
 _Static_assert(sizeof(((SurgeBigFloat*)0)->rc) == 4, "bigfloat refcount must stay a 32-bit word");
+
+// The same pin for the pair, and it does two jobs.
+//
+// First the absolute offsets, which the LLVM backend prints as literals the way
+// it prints float's zero: a uint's count is 4 bytes into the block and an int's
+// is 8. Moving either one silently miscompiles every int or uint copy, so the
+// numbers live here, where the field order that produces them is visible.
+_Static_assert(offsetof(SurgeBigUint, len) == 0, "biguint length must stay at offset 0");
+_Static_assert(offsetof(SurgeBigUint, rc) == 4, "biguint refcount must stay at offset 4");
+_Static_assert(offsetof(SurgeBigUint, limbs) == 8, "biguint limbs must stay at offset 8");
+_Static_assert(offsetof(SurgeBigInt, len) == 4, "bigint length must stay at offset 4");
+_Static_assert(offsetof(SurgeBigInt, rc) == 8, "bigint refcount must stay at offset 8");
+_Static_assert(offsetof(SurgeBigInt, limbs) == 12, "bigint limbs must stay at offset 12");
+_Static_assert(sizeof(((SurgeBigUint*)0)->rc) == 4, "biguint refcount must stay a 32-bit word");
+_Static_assert(sizeof(((SurgeBigInt*)0)->rc) == 4, "bigint refcount must stay a 32-bit word");
+
+// Then the alias itself, stated as the relation rather than as three numbers
+// that happen to line up. `bi_as_uint` below reinterprets a bigint's tail --
+// everything from `len` onward -- as a biguint, so every field of the view must
+// sit the same distance past `len` in both structs. Written this way the pair
+// of asserts survives a future change to the absolute offsets and still refuses
+// the one change that matters: a field added to, removed from, or reordered
+// within either tail, which would make the view read one member where the int
+// keeps another. That is the trap a prefix count would have introduced, and
+// these two lines are what stop it coming back without a compiler error.
+_Static_assert(offsetof(SurgeBigInt, rc) - offsetof(SurgeBigInt, len) ==
+                   offsetof(SurgeBigUint, rc) - offsetof(SurgeBigUint, len),
+               "a bigint's tail must place rc exactly where a biguint does");
+_Static_assert(offsetof(SurgeBigInt, limbs) - offsetof(SurgeBigInt, len) ==
+                   offsetof(SurgeBigUint, limbs) - offsetof(SurgeBigUint, len),
+               "a bigint's tail must place limbs exactly where a biguint does");
+_Static_assert(sizeof(SurgeBigInt) - offsetof(SurgeBigInt, len) == sizeof(SurgeBigUint),
+               "a bigint's tail must be exactly one biguint header long");
 
 #include "rt_bignum_tag.h"
 
@@ -119,6 +175,17 @@ typedef enum {
     BN_ERR_NEG_SHIFT,
 } bn_err;
 
+// A biguint VIEW of a bigint's magnitude. The result is a pointer INTO the int's
+// block, not a block of its own, and the assertions above are what make the
+// reinterpretation legal field by field.
+//
+// A view is a READ and never an owner, and since the count moved into the tail
+// that rule has teeth: the view's `rc` is the same address as the int's own
+// count. Retaining or releasing through a view would mutate the int's count
+// behind its back, and freeing one would hand the allocator an interior pointer
+// four bytes past the block it was given. Every caller here passes the view
+// straight to a magnitude helper that returns a fresh block; the `const` return
+// discourages the rest but does not enforce it, so the rule is written down.
 static inline const SurgeBigUint* bi_as_uint(const SurgeBigInt* i) {
     if (i == NULL) {
         return NULL;
@@ -179,8 +246,13 @@ SurgeBigUint* bu_pow5(int n, bn_err* err);
 SurgeBigUint* bu_low_bits(const SurgeBigUint* u, int bits, bn_err* err);
 bool shift_count_from_biguint(const SurgeBigUint* u, int* out);
 
-// BigInt helpers.
+// BigInt helpers. bi_alloc and bi_clone are defined in rt_bignum_int_alloc.c
+// rather than beside the rest of them: bi_alloc has to initialise the new count
+// and rt_bignum_int.c is a legacy-size file the size gate forbids growing.
+// bi_clone travelled with it because the exported lifecycle needs a duplicate
+// and open-coding a second copy loop would be the same function twice.
 SurgeBigInt* bi_alloc(uint32_t len, bn_err* err);
+SurgeBigInt* bi_clone(const SurgeBigInt* i, bn_err* err);
 static inline void bi_free(SurgeBigInt* i) {
     if (i == NULL) {
         return;
