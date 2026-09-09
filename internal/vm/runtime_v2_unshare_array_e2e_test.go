@@ -368,15 +368,18 @@ func TestRuntimeV2UnshareWalksAnArrayFieldMovedBySpawnOn(t *testing.T) {
 // shard.
 //
 // An array whose element is a UNION is deliberately not in this row, and the
-// reason is a measurement, not a hunch. A purely local program -- no crossing
-// anywhere in it -- that builds `let xs: Option<float>[] = [Some(1.5),
-// Some(2.5), Some(3.5)];` and reads the three elements back through a
-// reference loses 72 bytes in 3 blocks, one per populated arm, while the same
-// program with a plain `float[]` loses nothing. So the loss belongs to the
-// union payload's own reclamation, the same defect the far-channel family
-// already keeps out of its valgrind row, and a union element here would
-// measure that rather than this barrier. (A mixed literal is not the spelling
-// to reach for: `[Some(a), nothing, Some(a)]` is refused by
+// reason is a measurement, not a hunch -- though a first write-up of it named
+// the wrong half. A purely local program -- no crossing anywhere in it -- that
+// builds `let xs: Option<float>[] = [Some(1.5), Some(2.5), Some(3.5)];` and
+// reads the elements BY VALUE through a compare arm
+// (`let v: float = compare xs[i] { Some(x) => x; nothing => 0.0; };`) loses 72
+// bytes in 3 blocks, one per extraction. The same array read through a BORROW,
+// and the same array never read at all, lose nothing: five spellings, every one
+// answering `All heap blocks were freed`. So the array's drop pays what it
+// owes, and what goes missing is the block the arm's payload binding takes out
+// -- a binding that carries no drop obligation. A union element here would
+// measure THAT and not this barrier. (A mixed literal is not the spelling to
+// reach for: `[Some(a), nothing, Some(a)]` is refused by
 // `error SEM3015 array elements must have the same type`.)
 func TestRuntimeV2UnshareOfAFloatArrayLeaksNothing(t *testing.T) {
 	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2UnshareArraySinksSource, nil)

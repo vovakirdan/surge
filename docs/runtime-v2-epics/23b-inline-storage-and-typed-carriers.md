@@ -869,6 +869,21 @@ Adjacent debts:
   22's `int`/`uint` reclamation (`RV2-DEBT-035`/`068`) remains separate;
   `ValueOps` must support that future value class without performing its COW/RC
   migration here.
+
+  **Correction 2026-09-09, so this closed-epic plan is not read as the tree:**
+  23b did NOT absorb those barriers and did not deliver them, which is the
+  historical fact the README's row 23b exists to record. They landed under Epic
+  22's own name, as steps 4 (`66e09d66..342795c7`), 5 (`a7f2eac9..4d1749ca`) and
+  6 (`06b61e24..671ae266`), and `RV2-DEBT-038` owns them there. The close
+  condition above is superseded with them: it is not "six deep-copy/exact-drop
+  proofs" any more, because the mechanism that shipped is not six deep copies —
+  a crossing UN-SHARES its relinquishing operand, and the runtime walks a
+  dynamic array's buffer element by element. What is left on `RV2-DEBT-038` is
+  the two clauses those steps do not discharge (the single-threaded runners
+  polling under the control lock, and the unattributed `spawn on` state type)
+  plus Epic 22's Phase 2, `int`/`uint`. The `int`/`uint` sentence above is
+  unaffected and still holds. The bullet is kept as the dated assignment 23b was
+  planned against.
 - `RV2-DEBT-120` and unrelated backend/test-matrix debt remain nonblocking
   unless they directly prevent a required 23b proof.
 

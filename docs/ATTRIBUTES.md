@@ -347,10 +347,15 @@ and a tagged-union payload binding. A copy is reclaimed on its own; two copies
 free exactly twice.
 
 A `@copy` composite may also cross a shard boundary — the destination receives
-its own value — with one exception: a composite carrying an
-arbitrary-precision `int`, `uint` or `float` is refused there, because such a
-field is shared by counting and the count is not safe across shards. Use a
-fixed-width field type (`int64`, `float64`) for the value that crosses.
+its own value. A field holding an arbitrary-precision `float` crosses with it:
+the count behind such a value is not safe between shards, so the compiler makes
+every counted block the value reaches private before it ships, cloning any
+block a sibling on this shard still holds. `int` and `uint` are not counted
+yet, so nothing is asked of them.
+
+What still cannot cross is a value whose counted storage no walk over its own
+bytes can reach — a map's table, a channel's ring, a task's result slot. Those
+are refused by name, and the refusal says which of them it found.
 
 A type that is not `@copy` duplicates through a `__clone` implementation instead.
 Exactly one implementation is chosen for the whole program, and it must be `pub`

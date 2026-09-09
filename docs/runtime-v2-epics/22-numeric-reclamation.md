@@ -3,13 +3,22 @@
 Status: PARTIAL — RESUMED 2026-09-04, scope chosen. Phases 0a, 0b and 1 shipped:
 the ownership axes were split out of `IsCopy`, and `float` is a
 reference-counted scalar with a strict-zero valgrind gate
-(`TestRuntimeV2FloatReclamationValgrindZero`). The crossing barriers landed as
-steps 4 and 5 (2026-09-06/07): every crossing un-shares its relinquishing
-operand, and a `float` or a `@copy` composite carrying one crosses as a
-capture, a channel element and a reply; what stays refused, at every gate, is
-a value whose counted blocks live in storage the shard keeps (a dynamic
-array's buffer, a channel's ring). NOT done: that buffer walk, and Phase 2
-(`int`/`uint`), not started.
+(`TestRuntimeV2FloatReclamationValgrindZero`). **The crossing barriers are
+BUILT — steps 4, 5 and 6, 2026-09-06/09, and the buffer walk closed with
+step 6.** Every crossing un-shares its relinquishing operand; a `float` or a
+`@copy` composite carrying one crosses as a capture, a channel element and a
+reply; and a DYNAMIC ARRAY's buffer is now walked element by element by the
+runtime before it leaves its shard, so `float[]` rides an `own` capture of `on`,
+`spawn on` or `blocking`, a `blocking` result and a remote channel — but never
+an `on`/`spawn on` REPLY, which takes plain-copy data only — and a VIEW — or a
+base a live view still reads — is refused by name. What stays refused is narrower and different
+in kind from what this line used to say: a value whose counted blocks OR whose
+dynamic array sit BEHIND A HANDLE, where no per-element walk on either side
+ever looks — a map's table, a channel's ring, a task's result slot
+(`CountedBlockStaysShared` and `DynamicArrayStaysUnchecked`,
+`internal/sema/ownership_axes.go`). NOT done: Phase 2 (`int`/`uint`), not
+started. That is now the whole of what is left on this epic, and it joins a
+finished mechanism rather than an open question.
 
 **The owner answered this epic's open question on 2026-09-04: variant (2) —
 build the barriers for all three types first, then add `int`/`uint` to a
@@ -681,8 +690,13 @@ whole run). **Do not benchmark this epic against anything older than commit
   is closed while the machinery is built. Each relinquishing site then gains
   its barrier AND narrows the refusal in the same landing, because while the
   refusal stands no compilable program reaches the site and no row could go red
-  without it. What stays refused at the end is what the walk cannot serve: a
-  container of counted elements, whose buffer walk is unbuilt.
+  without it. What stays refused at the end is what the walk cannot serve —
+  written here, while the plan was being made, as "a container of counted
+  elements, whose buffer walk is unbuilt". Step 6 built that walk, so the
+  sentence is corrected rather than kept: what stays refused at the end is a
+  value whose counted blocks, or whose dynamic array, sit BEHIND A HANDLE — a
+  map's table, a channel's ring, a task's result slot — where no per-element
+  walk is ever handed the storage. A container of counted elements crosses.
 
   **Landed 2026-09-06, all three sites.** The un-share is a MIR instruction
   (`InstrUnshare`) that `relinquishOperand` (`internal/mir/lower_relinquish.go`)
@@ -789,11 +803,177 @@ whole run). **Do not benchmark this epic against anything older than commit
   channel's ring, wherever they appear — the buffer walk is the next thing
   on RV2-DEBT-038.
 
-- **Phase 2 — `int`/`uint`.** Adds only the fixnum-tag branch to a mechanism
-  already proven by float — LOCALLY. Across a shard boundary it adds a
-  question instead, and that question is open. See "Phase 2's scope question"
-  below; do not start Phase 2 with it unanswered, because every answer implies
-  a different amount of work and the wrong one is discovered late.
+  **Landed 2026-09-07/09, step 6, the buffer walk — and the barriers are
+  closed.** Six commits, in the order they landed. Each was gated on the
+  project's dedicated judge before it was pushed; that per-commit gate record
+  lives with the lane rather than in these documents, so it is named here and
+  not quoted. Every number below IS quoted — from the commit messages and from
+  the tree, which is where a reader should go for the rest.
+
+  *(1) `06b61e24`, the runtime.* `rt_array_unshare_walk`
+  (`runtime/native/rt_array_reclaim.c`) runs the element's own walk on every
+  slot of an OWNED dynamic array — `data + i * stride`, `i < len` — with no
+  lock held, because the step re-enters the allocator and `rt_free` re-enters
+  the registry. A VIEW, or a BASE some live view still reads, is refused BY
+  NAME instead of walked: a view's slots ARE the base's slots, and a base with
+  a live view has a reader of its slots on this shard, so no in-place rewrite
+  of either can make the elements private to the destination. The check is
+  taken under the array view registry lock and acted on after releasing it;
+  nothing can slip in between, because only the owning thread slices an array
+  and the moving value is private by the compiler's guarantee.
+  `RV2_ARRAY_UNSHARE_WALK_NEGATIVE_CONTROL` cuts the check and leaves the
+  walk. The C stand `internal/vm/testdata/array_unshare_walk.c` drives six
+  rows: an owned base of 3 walks `calls=3 misplaced=0`; an empty base and a
+  NULL header walk `calls=0`; a view dies `VM1003 "array view cannot cross"`;
+  a base with a live view dies naming the live view; after the view drops, the
+  base walks again `calls=3`; a view of a view dies. Every base the stand
+  builds carries two spare slots past its length and a slot past the run counts
+  as misplaced, so a walk over the CAPACITY reads `calls=5 misplaced=2` — the
+  row can tell the right bound from the wrong one rather than only counting.
+
+  *(2) `520f8835`, the compiler.* `countedBlockCanBeMadePrivate` answers a
+  dynamic array BY ITS ELEMENT (`types.DynamicArrayElem`, shared with the
+  emitter's `canUnshareValue`), so a `float[]` can be made private; the emitter
+  hands the array's SLOT to `rt_array_unshare_walk` with the element stride and
+  the element's own walk body as the callback, and nesting drains through the
+  one worklist (`float[][]` → the outer body walks with
+  `@unshare.type<float[]>`, whose body walks with `@unshare.type<float>`). The
+  slot address travels, not the handle word, which is the runtime's
+  `array_slot` convention. The four gate texts stopped naming a dynamic array's
+  buffer among the shapes no walk reaches and now name a map's table and a
+  channel's ring alone. FLIP rows: a `float[]` captured into `blocking` and a
+  remote channel carrying a `float[]` element went from SEM3168 and FUT7020 to
+  compiling and emitting; the `blocking` `float[]` result went from an emitter
+  build error naming sema's predicate to a module that calls the walk. The rows
+  that prove the walk pin the CALL and its stride, not the symbol — every
+  module declares `rt_array_unshare_walk` in its builtin roster, so a leaf
+  pinned as a name was met by the declaration and read an empty body as green.
+
+  *(3) `5bd5e27f`, the measurement.* Twelve end-to-end rows reading
+  `unshare_clones` off the TRACE_RESIDENT exit line at SURGE_SHARDS/THREADS 2
+  and 8, taken by RUNNING the programs rather than off the emitted IR, because
+  a run-time iterator's trip count is decided at run time. Three sinks in one
+  program — a `blocking` capture beside a live float, a far `Channel<float[]>`
+  sent from a select arm and read back on the other shard, and a `blocking`
+  result — read 6 clones with underflows 0 (3, 3 and 0 per sink alone, the last
+  because its elements are literals nothing else holds); the same three with
+  every element minted at its literal read 0; `float[][]` built from two rows
+  over one live float reads 3; an array of three PADDED `@copy` structs with
+  two counted fields each reads 6. The padding is the row and not decoration: a
+  one-field `@copy` struct is eight bytes wide, exactly a bare `float[]`'s
+  element, so an array of those cannot tell a right stride from a wrong one.
+  The `float[]` FIELD of a `@shard_movable` composite moved by `spawn on` reads
+  3, spelled `{ mark: int, xs: float[] }` so the emitter must step a non-zero
+  member offset before handing the slot over. A view given to a `blocking`
+  capture exits 1 with `panic VM1003: array view cannot cross a shard
+  boundary`; a base crossing while a view of it is still live exits 1 naming
+  the live view — the slice is taken inside a callee and handed back, so the
+  borrow sema tracks dies with the callee's frame and the program draws no
+  diagnostic at all; a view taken and dropped before the base crosses draws no
+  refusal and walks 3. Valgrind on the three-sink program: definitely lost 0
+  bytes in 0 blocks and no memcheck error, at both widths. Rule 13, each mutant
+  run and then reverted: the emitter's dynamic-array leaf disabled reads 0
+  where 6, 3, 6 and 3 are meant AND lets the view cross unrefused (exit 0); the
+  walk handed a counted scalar's width instead of the element's kills ONLY the
+  padded row, and by segmentation fault rather than by miscount; the clone
+  branch compiled as the identity reads 0 with the marker still printed, which
+  is why the negative-control row asserts the count and says in words that the
+  marker alone would be green; and the registry check cut lets both refused
+  programs exit 0 and report the clones their walks cost — 2 for the view's own
+  slots, 3 for the base's — taken in a buffer a holder on this shard was still
+  reading. That is the work the refusals prevent.
+
+  *(4) `63ecd58b`, the widening — and the aliasing it closed.* `InstrUnshare`
+  was emitted only where a refcount had to be made private, and an `int` has no
+  count, so an `int[]` reached the runtime NOWHERE and the view check never ran
+  for it. Seven aliasing routes were measured at `5bd5e27f` writing another
+  thread's 777 into a buffer the origin shard still owns and reads: a
+  `blocking` capture, an immediate `on` twin and its `spawn on` twin (each
+  `remote=777 base1=777`), the holder routes `xs.push(v)` and `xs[0] = v` on an
+  `int[][]` (1665), `pair.0 = v` on a `(int[], int)` (555), and a far
+  `Channel<int[]>` select SEND arm. All seven now exit 1 by name. The gate is
+  now "may share a counted block OR carries a dynamic array anywhere its bytes
+  reach" — `types.Interner.ContainsDynamicArray`, wrapped as
+  `sema.Result.NeedsRelinquishWalk` (`internal/sema/ownership_axes.go`) and
+  asked identically by the MIR lowering, both relinquish validators and the
+  emitter's twin (`internal/backend/llvm/emit_cross_move_walk.go`). The runtime
+  was untouched: `rt_array_unshare_walk` already performs both refusals when
+  its callback is null. TWO ROUTES THE WALK CANNOT SERVE were measured aliasing
+  the same way and are refused at the gates instead: an array stored in a map's
+  TABLE or a channel's RING sits at an offset no per-element callback is ever
+  handed, so no walk can show the runtime its header — `Map<int, int[]>`
+  through `blocking` printed 7770777 at 2 shards and at 8 with zero
+  `rt_array_unshare_walk` call sites in its module, and a `Channel<int[]>`
+  whose ring held the same view did likewise. `ContainsDynamicArrayBehindHandle`
+  wrapped as `DynamicArrayStaysUnchecked` is asked at the four sites that
+  already ask `CountedBlockStaysShared`, so the array refusal lands wherever the
+  counted one lands and the counted admission set does not move. Cost, measured
+  rather than argued: the emitted IR of both linked cost probes is
+  byte-identical to the parent's, and the WALK's own cost is +18 ms (+4.0 %,
+  69 ns a check) at 2 shards and +15 ms (+3.4 %) at 8 on the 260 000-check
+  amplifier, below the resolution of the single-array probe. Goldens moved: 0
+  of 5301.
+
+  *(5) `492f001b`, the `on` gate.* An owned dynamic array crosses into an `on`
+  body when its elements may move between shards — which the shard-movable AXIS
+  already said, and which the `@shard_movable` FIELD validator has read that way
+  since block 4; the capture gate simply never asked the same question. `int[]`,
+  `float[]`, `string[]`, `int[][]`, `Placement[]` and an array of a
+  `@shard_movable` type now cross on their own as ON-CAP-V005, with a record of
+  their own so nothing says a capture was accepted for a marker it does not
+  carry; a wrapper struct is no longer the way in, and `spawn on` shares the
+  gate and the rule.
+
+  *(6) `671ae266`, the send rule.* `checkChannelSendValue` asks its borrow
+  question UNDERNEATH `own` (`ownStripped(valueType)`), which closes three sinks
+  at once: a far select arm, a local select arm and a plain local send. An index
+  read yields a REFERENCE — `ps[0]` where `ps: Pair[]` has type `&Pair` — and
+  `own &Pair` is a `KindOwn`, so one keyword walked past the whole rule and what
+  crossed was an ADDRESS. Measured before the fix at 2 and 8 shards, forty runs
+  and identical every time: a `@copy @shard_movable` pair sent as
+  `{ a: 11, b: 22 }` was read back as `b == 11` with exit 0 and NO diagnostic,
+  while a reader that touched the field the address landed on dereferenced it
+  and crashed. The silent half is the dangerous one, and it is why this landed
+  with the barriers rather than after them.
+
+  **What step 6 leaves refused, and why.** Only what sits BEHIND A HANDLE: a
+  map's table, a channel's ring, a task's result slot. The two refusals there
+  are the same sentence about two different things. `CountedBlockStaysShared`
+  is about PRIVACY — a counted block with two holders, one of them left behind.
+  `DynamicArrayStaysUnchecked` is about a fact no type carries — whether the
+  array in hand is a slice of somebody else's buffer, which only the runtime's
+  view registry holds. Where the walk reaches the array, nothing is refused:
+  `int[]`, `{ xs: int[] }`, `int[][]` and `(int[], int)` all cross, and the
+  runtime answers. What is NOT closed is the anchored body's send, which is the
+  one relinquishing sink no walk may precede on either thread — its prefix
+  replays from the first instruction on every wake, so a walk before the send
+  would run again over storage the ring already owns. That is recorded, with
+  three measured crashing shapes, as RV2-DEBT-349, and it is unchanged by this
+  step: all three build and die identically at `63ecd58b` and at head.
+
+  **What step 6 leaves open.** RV2-DEBT-348 (sema's view diagnostics are
+  kindness in front of the runtime rule and do not cover every route),
+  RV2-DEBT-349 (above), RV2-DEBT-350, RV2-DEBT-352 and RV2-DEBT-353. And three
+  PRE-EXISTING defects the work measured on its way past, none of them
+  introduced by it and none of them in the barrier: RV2-DEBT-354 (an array of a
+  union holding a counted scalar leaks one block per populated arm at DROP),
+  RV2-DEBT-355 (an empty dynamic array leaks one byte, any element type, no
+  crossing) and RV2-DEBT-356 (a `blocking` body's RESULT reaches neither of the
+  two refusals its CAPTURE reaches).
+
+- **Phase 2 — `int`/`uint`. THIS IS THE NEXT STEP, and it is the only work
+  this epic has left.** It adds only the fixnum-tag branch to a mechanism
+  already proven by float — LOCALLY, and now across a shard boundary too. The
+  question this bullet used to hold open is CLOSED by steps 4, 5 and 6: the
+  barriers exist, so Phase 2 joins a finished relinquishing walk instead of
+  inheriting a question, which is exactly the outcome the owner's variant (2)
+  ruling of 2026-09-04 was chosen to produce. Read "Phase 2's scope question"
+  below for why the order was taken; read it as settled history rather than as
+  a gate. What Phase 2 must still answer is narrower and is `int`'s own: a
+  refusal at a boundary is affordable for `float`, because a program can spell
+  `float64` instead, and is not affordable for `int`, whose stdlib `@copy`
+  structs and crossing fixtures would be rejected by one. The mechanism it
+  needs for that is built.
 - **Phase 3 — inline arithmetic in IR.** Independent of this epic; see trap 5
   for the one constraint it places on Phase 1.
 

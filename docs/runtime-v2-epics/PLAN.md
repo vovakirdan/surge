@@ -86,11 +86,15 @@ row in `DEBT.md` with its own owner; none is a wave's exit condition.
 ## Next, in this order
 
 1. **Epic 22 Phase 2** — `int`/`uint` reclamation, the successor the detour
-   chain was taken for. **Scope settled 2026-09-04, variant (2): the crossing
-   barriers come FIRST, for all three arbitrary-precision types, and `int`/`uint`
-   then joins a finished mechanism.** The barriers were assigned to Epic 23b and
-   never built, so this is 23b's undelivered half arriving under Epic 22's name;
-   what 23b DID build is the typed-carrier plumbing they hang on. A second
+   chain was taken for, and now the ONLY thing left on that epic. **The scope
+   condition settled 2026-09-04 as variant (2) — the crossing barriers come
+   FIRST, for all three arbitrary-precision types, and `int`/`uint` then joins a
+   finished mechanism — is DISCHARGED, not pending: the barriers landed as steps
+   4, 5 and 6 across 2026-09-06/09, the last of them the dynamic array's buffer
+   walk.** So this item is `int`/`uint` reclamation alone, against a mechanism
+   that exists. The barriers had been assigned to Epic 23b and never built, so
+   they arrived under Epic 22's name as 23b's undelivered half; what 23b DID
+   build is the typed-carrier plumbing they hang on. A second
    ruling the same day fixed what the capability verdicts mean — `CrossClonable`
    is "possible via deep clone", not "raw bits copy", and flag, descriptor,
    registry hash and `Dump` must derive from one backed state rather than a late
@@ -135,7 +139,7 @@ Taken in order, not in parallel with the above.
 | --- | --- | ---: | --- |
 | **Wave E** | ~~Far carriers, leases, byte credits.~~ **CLOSED 2026-09-04.** Byte credits are not part of it and never will be: the 2026-08-29 ruling found pointer transport charges no per-message bytes, and the budget that exists is slots. | — | `native-payload-bits`, `native-word-carrier` and `numeric-drop-dispatch` read live zero, and saturation parks a producer without busy retry. **Met.** |
 | **Wave F** | ~~Diagnostics, deletion of the legacy symbols, the closeout gates.~~ **CLOSED 2026-09-04.** | — | The census reads **0 in every category a wave owned** (owner ruling 2026-09-03, variant (а): of the manifest's frozen 683 on `7df10725`, the 55 that remain live are the VM's `Value` interchange type and the async runtime's `any`, counted and pinned by `TestLiveCarrierRatchetAgainstRepository`, and their removal is a VM-representation epic of its own), the symbols are deleted rather than unused, and `make runtime-v2-check` reports every sub-gate on its roster passing on one tree. **Met.** |
-| **Epic 22 ph. 2** | Crossing barriers for all three types, then `int`/`uint` reclamation (owner ruling 2026-09-04, variant 2). | — | — |
+| **Epic 22 ph. 2** | ~~Crossing barriers for all three types~~ **DELIVERED 2026-09-06/09** as steps 4, 5 and 6 — step 4 `66e09d66`…`342795c7`, step 5 `a7f2eac9`…`4d1749ca`, step 6 `06b61e24`…`671ae266`, named per step because a single span starting at `a7f2eac9` would begin AFTER step 4 closed and leave its thirteen commits outside — the last of them the dynamic array's buffer walk; what stays refused is a value whose counted blocks or whose dynamic array sit behind a handle. Then `int`/`uint` reclamation (owner ruling 2026-09-04, variant 2), **which is what remains and has not started**. | — | `int`/`uint` are reclaimed types with a strict-zero valgrind gate, and they cross every sink `float` crosses today without the stdlib `@copy` structs or the crossing fixtures being refused. |
 | **Epic 21** | ~~Bench, matrix, seam, debt closeout.~~ **CLOSED 2026-09-04** with Wave F: RV2-DEBT-125. | — | — |
 
 Sizes are lane-days: one focused worker, one day. What remains of this

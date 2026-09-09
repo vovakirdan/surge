@@ -503,6 +503,13 @@ What remains staged, and what D3 therefore may not assume: `trace`,
 whose leaf this backend cannot reclaim — far leases and opaque runtime resources
 — get no descriptor at all rather than a drop bit over an empty body.
 
+**Correction 2026-09-09, so this closed-wave plan is not read as the tree:** of
+those three slots only `trace` is still `filledNowhere`
+(`internal/valueops/flags.go:217-218`). Both cross slots are
+`filledByBackendDerivedBody` (`:226-234`), filled by Epic 22's barrier work
+across steps 4, 5 and 6. The paragraph above is kept as the dated entry
+condition D3 was planned against.
+
 ### The original ruling, kept as the record — owner ruling 2026-08-20
 
 D3 was opened, its code read, and the step stopped before any line was written.
