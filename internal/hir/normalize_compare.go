@@ -517,7 +517,7 @@ func lowerTagArm(ctx *normCtx, span source.Span, subject *Expr, tag string, payl
 			Span: span,
 			Data: TagPayloadData{Value: subject, TagName: tag, Index: i, SubjectBorrowed: owned != scrutineeMoved},
 		}
-		current = lowerTagPayloadPattern(ctx, span, payloadExpr, payloadType, pat, current, &ownedBindings, owned != scrutineeMoved)
+		current = lowerTagPayloadPattern(ctx, span, payloadExpr, payloadType, pat, current, owned != scrutineeMoved)
 		if current == nil {
 			current = &Block{Span: span}
 		}
@@ -569,7 +569,7 @@ func lowerTagArm(ctx *normCtx, span source.Span, subject *Expr, tag string, payl
 // subjectBorrowed propagates the enclosing compare's ownership answer down
 // through nested tag patterns: a payload read out of a borrowed union is
 // itself borrowed, however deep the pattern nests.
-func lowerTagPayloadPattern(ctx *normCtx, span source.Span, subject *Expr, subjectTy types.TypeID, pat *Expr, body *Block, owned *[]DropLocal, subjectBorrowed bool) *Block {
+func lowerTagPayloadPattern(ctx *normCtx, span source.Span, subject *Expr, subjectTy types.TypeID, pat *Expr, body *Block, subjectBorrowed bool) *Block {
 	if ctx == nil || subject == nil || body == nil || pat == nil {
 		return body
 	}
@@ -605,7 +605,7 @@ func lowerTagPayloadPattern(ctx *normCtx, span source.Span, subject *Expr, subje
 				Span: span,
 				Data: TagPayloadData{Value: subject, TagName: tagName, Index: i, SubjectBorrowed: subjectBorrowed},
 			}
-			thenB = lowerTagPayloadPattern(ctx, span, payloadExpr, payloadType, subPat, thenB, owned, subjectBorrowed)
+			thenB = lowerTagPayloadPattern(ctx, span, payloadExpr, payloadType, subPat, thenB, subjectBorrowed)
 			if thenB == nil {
 				thenB = &Block{Span: span}
 			}
@@ -630,15 +630,13 @@ func lowerTagPayloadPattern(ctx *normCtx, span source.Span, subject *Expr, subje
 				Ownership: ctx.inferOwnership(ty),
 			},
 		})
-		// A pattern binding is introduced HERE, long after sema, so it carries
-		// no scope-exit obligation. For a reference-counted value — a scalar
-		// or a channel handle — its initialization RETAINS — it is a genuine
-		// second owner — and the reference would otherwise never be given
-		// back. Hand it to the arm's return, which frees it after the result
-		// has been evaluated.
-		if owned != nil && ctx.isRefCounted(ty) {
-			*owned = append(*owned, DropLocal{SymbolID: sym, Type: ty, Span: span})
-		}
+		// No drop is attached here. This only spells, as a `let` MIR can read,
+		// the binding sema already typed: the symbol is the pattern's own, so
+		// its scope-exit obligation was decided one pass ago, by the drop scope
+		// a compare arm opens around its pattern, and it rides to the same
+		// `ret` this arm returns through. A second obligation minted here would
+		// ride there beside it and the arm would free the payload twice — which
+		// it did, for the reference-counted types, until this was measured.
 		return body
 	}
 
@@ -739,14 +737,4 @@ func lowerTupleArm(ctx *normCtx, span source.Span, subject *Expr, subjectTy type
 	}
 
 	return Stmt{Kind: StmtBlock, Span: span, Data: BlockStmtData{Block: body}}
-}
-
-// isRefCounted reports whether values of this type carry a reference count —
-// an arbitrary-precision scalar or a channel handle — i.e. whether a binding
-// of it owns something to give back.
-func (ctx *normCtx) isRefCounted(ty types.TypeID) bool {
-	if ctx == nil || ctx.mod == nil || ctx.mod.TypeInterner == nil || ty == types.NoTypeID {
-		return false
-	}
-	return ctx.mod.TypeInterner.IsRefCounted(resolveAlias(ctx.mod.TypeInterner, ty, 0))
 }

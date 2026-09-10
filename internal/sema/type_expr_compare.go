@@ -225,6 +225,13 @@ func (tc *typeChecker) subjectReadsThroughBorrow(value ast.ExprID) bool {
 // is what keeps a borrowed subject out of it: `compare *arg { Payload(s) => s }`
 // binds a payload the union still owns, that binding earns no obligation, and
 // nothing here is its to hand out.
+//
+// "Hands out" is not "gives away" for a reference-counted value. Those are Copy,
+// so reading the binding RETAINS instead of moving: the compare's result gets a
+// reference of its own and the binding's is still outstanding. The arm mints —
+// the mint IS that retain — and keeps its obligation, because the two answer for
+// two different references. Withdrawing it there is the one shape a payload
+// binding leaks, one counted block per evaluation of `Some(x) => x`.
 func (tc *typeChecker) armHandsOutItsPayload(
 	result ast.ExprID,
 	bindings []symbols.SymbolID,
@@ -241,10 +248,10 @@ func (tc *typeChecker) armHandsOutItsPayload(
 	if idx < 0 {
 		return drops, false
 	}
-	kept := make([]symbols.SymbolID, 0, len(drops)-1)
-	kept = append(kept, drops[:idx]...)
-	kept = append(kept, drops[idx+1:]...)
-	return kept, true
+	if tc.payloadTakesItsOwnReference(symID) {
+		return drops, true
+	}
+	return slices.Delete(slices.Clone(drops), idx, idx+1), true
 }
 
 // releaseArmResultObligations takes back the obligation an arm earned for a
@@ -268,6 +275,13 @@ func (tc *typeChecker) armHandsOutItsPayload(
 // arms' results onward by the same argument. An arm whose result is a BLOCK
 // needs nothing here — a block's tail expression already observes its own move
 // while the arm is being typed, so the binding never earned the obligation.
+//
+// A reference-counted binding is exempt, by the same argument armHandsOutItsPayload
+// makes and deliberately in the same words: reading one RETAINS, so what the
+// consumer received is a SECOND reference and the binding still holds its own.
+// The two decisions must not drift — one withdrawing the obligation while the
+// other keeps it is the difference between a leak and a double free — so they
+// ask one predicate.
 func (tc *typeChecker) releaseArmResultObligations(expr ast.ExprID) {
 	if tc.builder == nil || tc.result == nil {
 		return
@@ -301,7 +315,7 @@ func (tc *typeChecker) releaseArmResultObligations(expr ast.ExprID) {
 			continue
 		}
 		symID := tc.symbolForExpr(arm.Result)
-		if !symID.IsValid() {
+		if !symID.IsValid() || tc.payloadTakesItsOwnReference(symID) {
 			continue
 		}
 		drops := tc.result.ArmDropsExpr[arm.Result]
