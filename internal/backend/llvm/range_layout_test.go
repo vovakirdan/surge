@@ -30,11 +30,35 @@ func TestRangeLayoutMatchesTheRuntimeHeader(t *testing.T) {
 		{"sizeof(SurgeRangeArrayIter)", arrayIterSize, 40, "_Static_assert in rt.h"},
 		{"offsetof(SurgeRangeArrayIter, index)", arrayIterIndexOff, 24, "_Static_assert in rt.h"},
 		{"offsetof(SurgeRangeArrayIter, length)", arrayIterLengthOff, 32, "_Static_assert in rt.h"},
+		// The bound-kind byte. It went into the padding the struct already
+		// carried, which is why the four sizes above did not move; the
+		// assertion in rt.h holds it there for the same reason this row does.
+		{"offsetof(SurgeRange, bound)", rangeBoundOff, 20, "_Static_assert in rt.h"},
+		{"SURGE_RANGE_BOUND_INT", rangeBoundInt, 0, "#define in rt.h"},
+		{"SURGE_RANGE_BOUND_UINT", rangeBoundUint, 1, "#define in rt.h"},
+		{"SURGE_RANGE_BOUND_FLOAT", rangeBoundFloat, 2, "#define in rt.h"},
+		{"SURGE_RANGE_KIND_BOUNDS", rangeKindBounds, 0, "#define in rt.h"},
+		{"SURGE_RANGE_KIND_ARRAY_ITER", rangeKindArrayIter, 1, "#define in rt.h"},
 	}
 	for _, c := range cases {
 		if c.got != c.want {
 			t.Fatalf("%s: emitter says %d, %s says %d", c.name, c.got, c.field, c.want)
 		}
+	}
+
+	// The byte must not land on the cursor's index, and must not push the
+	// object past the size both sides allocate. Stated as a relation as well as
+	// a number, because the numbers above would still agree with each other if
+	// somebody moved the field and both assertions together, and the thing that
+	// would break then is the cursor.
+	if rangeBoundOff >= arrayIterIndexOff {
+		t.Fatalf("the bound byte at %d overlaps the cursor's index at %d", rangeBoundOff, arrayIterIndexOff)
+	}
+	if rangeBoundOff >= rangeBoundsSize {
+		t.Fatalf("the bound byte at %d is outside the %d bytes a bounds range occupies", rangeBoundOff, rangeBoundsSize)
+	}
+	if rangeBoundOff == rangeKindOff {
+		t.Fatalf("the shape byte and the bound byte must be different bytes; both are at %d", rangeBoundOff)
 	}
 
 	// The cursor deliberately REUSES the two bound slots for its data pointer

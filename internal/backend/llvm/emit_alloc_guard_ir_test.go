@@ -121,9 +121,13 @@ type allocGuardProgram struct {
 func allocGuardPrograms() []allocGuardProgram {
 	return []allocGuardProgram{
 		{
+			// The operator spelling reaches the GENERAL constructor, the one
+			// that takes the bound kind, because emitBinary is the only caller
+			// that knows it; `a[[1..]]` is the literal spelling and reaches the
+			// `int` name, as its bounds are held to `int`.
 			name:    "operator_range_and_array_growth",
 			source:  allocGuardArrayProgram,
-			reaches: []string{"rt_alloc", "rt_realloc", "rt_range_int_new", "rt_range_int_from_start"},
+			reaches: []string{"rt_alloc", "rt_realloc", "rt_range_bounds_new", "rt_range_int_from_start"},
 		},
 		{
 			name:    "bracketed_range_literals",

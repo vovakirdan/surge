@@ -410,6 +410,16 @@ func (r *Result) countedBlockCanBeMadePrivate(id types.TypeID, seen map[types.Ty
 	if elem, ok := in.DynamicArrayElem(id); ok {
 		return r.countedBlockCanBeMadePrivate(elem, seen)
 	}
+	// A range answers for its two bound words, for the same reason and in the
+	// same place: they sit at fixed offsets inside one runtime object, the
+	// object's own bound byte says which of the three lifecycles they belong
+	// to, and rt_range_unshare steps both. Asked BEFORE the handle arm, which
+	// would otherwise refuse a `Range<float>` as it refuses a map's table --
+	// and the difference between them is exactly that nothing can step a
+	// table's storage, while a range's is two slots at a known offset.
+	if in.RangeBoundsAreArbitraryPrecision(id) {
+		return true
+	}
 	if payloads, ok := in.RuntimeHandlePayloads(id); ok && !in.IsRuntimePlacementType(id) {
 		for _, payload := range payloads {
 			if r.MayShareCountedBlock(payload) {

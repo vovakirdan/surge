@@ -130,10 +130,13 @@ func (fe *funcEmitter) emitInstrUnshare(ins *mir.Instr) error {
 	// guessed at.
 	resolved := resolveValueType(e.types, valueType)
 	_, isDynamicArray := e.types.DynamicArrayElem(resolved)
-	if slotTy == handleType && !e.types.IsRefCountedScalar(resolved) && !e.hasInlineStorage(resolved) && !isDynamicArray {
+	isRange := e.types.RangeBoundsAreArbitraryPrecision(resolved)
+	if slotTy == handleType && !e.types.IsRefCountedScalar(resolved) && !e.hasInlineStorage(resolved) &&
+		!isDynamicArray && !isRange {
 		return fmt.Errorf("unshare of %s (type#%d): the walk reads a value's own bytes -- a counted "+
-			"scalar's handle word, an inline composite's storage, or a dynamic array's handle word "+
-			"whose buffer the runtime walks -- and this slot holds the value's address instead, "+
+			"scalar's handle word, an inline composite's storage, a dynamic array's handle word "+
+			"whose buffer the runtime walks, or a range's handle word whose two bound slots it "+
+			"steps -- and this slot holds the value's address instead, "+
 			"a shape no relinquishing site produces",
 			types.Label(e.types, valueType), valueType)
 	}
@@ -344,6 +347,25 @@ func (w unshareWalk) leafAt(g *glueTmp, resolved types.TypeID, baseAlign, off ui
 			fp, stride, callback)
 		return true
 	}
+	if e.types.RangeBoundsAreArbitraryPrecision(resolved) {
+		// A range's two bound words sit at fixed offsets inside an object the
+		// handle names, and this walk cannot address inside a handle. So the
+		// runtime steps them, taking the SLOT the way the array walk does --
+		// but with no per-element callback, because a range's payload is by
+		// construction one of exactly three counted scalars and the object's
+		// own bound byte says which. That is the middle shape between the
+		// array's callback and the inline pair of slots above.
+		//
+		// The call is made whatever the bound kind, for the same reason the
+		// array's is: the runtime is asked a question no type can answer, here
+		// whether this Range is a CURSOR over an array's elements, which it
+		// refuses by name. `arr.__range()` and a for-loop both build one, and
+		// nothing in the static type Range<T> tells it from a pair of bounds.
+		fp := g.next()
+		fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds i8, ptr %%val, i64 %d\n", fp, off)
+		fmt.Fprintf(&e.buf, "  call void @rt_range_unshare(ptr %s)\n", fp)
+		return true
+	}
 	// Everything else the move carries by its bytes: the single reference the
 	// value held travels with it, and the source stops owning it. A handle
 	// whose payload may share and whose storage no per-element walk reaches --
@@ -391,6 +413,13 @@ func (e *Emitter) canUnshareValueRec(id types.TypeID, seen map[types.TypeID]stru
 	// for any handle whose payload may share.
 	if elem, ok := e.types.DynamicArrayElem(resolved); ok {
 		return e.canUnshareValueRec(elem, seen)
+	}
+	// And before it for the same reason: a range IS a handle whose payload may
+	// share, and the arm below would refuse it. What makes it different from a
+	// map's table is that its payload sits at a fixed offset inside one object
+	// the runtime can step -- rt_range_unshare -- so the walk reaches it.
+	if e.types.RangeBoundsAreArbitraryPrecision(resolved) {
+		return true
 	}
 	if payloads, ok := e.types.RuntimeHandlePayloads(resolved); ok {
 		for _, payload := range payloads {

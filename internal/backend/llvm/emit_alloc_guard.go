@@ -110,14 +110,16 @@ func allocGuardedSites() []allocSite {
 // and it is checked rather than remembered, in
 // TestATestedAnswerIsGuardedOnEveryPathThatReachesIt.
 //
-// rt_range_int_new is on this list AND written by emitCheckedRangeNew, because a
-// bounded range has two spellings that share no lowering: `a..b` is a binary
-// operator this package lowers itself, and `[a..b]` is lowered by
-// internal/hir/lower_expr_range.go to an ordinary call to this same symbol. The
-// two paths never meet — emitBinary does not go through emitCallSite — so
-// neither test can double-test the other's call. Reading the list off the
-// emitters instead of off the ABI is what hid the second spelling: no emitter
-// writes it.
+// All four range constructors are on this list because a bounded range has two
+// spellings that share no lowering, and only ONE of them is written by an
+// emitter: `a..b` is a binary operator this package lowers itself, through
+// emitCheckedRangeNew, which reaches the general constructor because it is the
+// only caller that knows the bound KIND; `[a..b]` and its open-ended forms are
+// lowered by internal/hir/lower_expr_range.go to ordinary calls to the four
+// names below, whose bounds the type checker holds to `int`. The two paths
+// never meet — emitBinary does not go through emitCallSite — so neither test
+// can double-test the other's call. Reading the list off the emitters instead
+// of off the ABI is what hid the second spelling: no emitter writes it.
 func runtimeAnswersTestedAtTheCallSite() map[string]bool {
 	return map[string]bool{
 		"rt_range_int_new":        true,
@@ -253,10 +255,17 @@ func (fe *funcEmitter) emitCheckedRealloc(site allocSite, id types.TypeID, data,
 // what this did first, and a refused `0..3` then reported `panic: Range<int>` —
 // a bare type name, no reason, nothing the reader could act on — beside a
 // sibling site reporting the whole sentence for the same object.
-func (fe *funcEmitter) emitCheckedRangeNew(typeLabel, start, end, inclusive string) string {
+//
+// `bound` says which kind the two bound words are, and the constructor takes a
+// reference to each of them as it stores it. The operator spelling `a..b` is
+// the one path that is generic over the bound type, so it is the one that has
+// to say; the language's range-literal intrinsics keep their `rt_range_int_*`
+// names because the type checker holds THEIR bounds to `int`, and they name the
+// same kind from the C side.
+func (fe *funcEmitter) emitCheckedRangeNew(typeLabel string, bound int, start, end, inclusive string) string {
 	ptr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_range_int_new(ptr %s, ptr %s, i1 %s)\n",
-		ptr, start, end, inclusive)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_range_bounds_new(ptr %s, ptr %s, i1 %s, i8 %d)\n",
+		ptr, start, end, inclusive, bound)
 	fe.emitRefusalTest(allocFailureMessageFor(typeLabel), ptr)
 	return ptr
 }

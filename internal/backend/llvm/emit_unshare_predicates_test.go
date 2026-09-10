@@ -61,7 +61,8 @@ fn probe(f: float, c: C, p: own P, t: (float, int), u: U, xs: float[], w: WithAr
          xss: float[][], chs: Channel<float>[], m: Map<int, float>, xo: Option<float>[],
          ns: int[], nss: int[][], ss: string[], h: IntHolder, nt: (int[], int),
          nfx: Array<int>[4], nch: Channel<int>[], mi: Map<int, int[]>,
-         cai: Channel<int[]>, tai: Task<int[]>, n: int) -> int {
+         cai: Channel<int[]>, tai: Task<int[]>, rf: Range<float>, ri: Range<int>,
+         ru: Range<uint>, rs: Range<string>, n: int) -> int {
     return n;
 }
 
@@ -116,6 +117,30 @@ fn main() -> int { return 0; }
 		"Map<int, Array<int>>": {false, true, false, true},
 		"Channel<Array<int>>":  {false, true, false, true},
 		"Task<Array<int>>":     {false, true, false, true},
+
+		// A range is the one handle whose payload the walk CAN reach: its two
+		// bound words sit at fixed offsets inside one object, the object's own
+		// bound byte says which of the three lifecycles they belong to, and
+		// rt_range_unshare steps both. So `Range<float>` shares a counted
+		// block, can be made private, and crosses -- where `Channel<float>`,
+		// three rows up, shares one and cannot.
+		//
+		// `Range<int>` and `Range<uint>` share nothing today and are here to
+		// pin that the private column is answered by the RANGE arm rather than
+		// by the generic handle arm below it: both would read true either way,
+		// and the day `int` becomes a counted scalar the first column flips and
+		// the second must not.
+		//
+		// `Range<string>` is the shape no constructor builds and the type graph
+		// can still spell. Its bound is not one of the three the byte can name,
+		// so nothing here admits it: the range arm declines and the handle arm
+		// answers as it does for any other handle. A predicate written as "is
+		// this a Range" rather than "can the byte name its bounds" reads true
+		// on this row.
+		"Range<float>":  {true, true, true, false},
+		"Range<int>":    {false, true, false, false},
+		"Range<uint>":   {false, true, false, false},
+		"Range<string>": {false, true, false, false},
 	}
 	// `float[4]` is in the table on purpose: the nominal ArrayFixed<T, N>
 	// struct declares no fields, so a walker that reads only declared fields

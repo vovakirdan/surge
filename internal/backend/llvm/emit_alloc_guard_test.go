@@ -92,8 +92,11 @@ func runtimePointerAnswers() map[string]runtimeAnswer {
 			"rt_frame_alloc"),
 		classified(refusalIsTested,
 			"emitCheckedRangeNew for the bounded form and emitRuntimeAnswerTest for the open-ended ones, "+
-				"which are reached as ordinary calls to a runtime symbol; all four share alloc_range "+
-				"(runtime/native/rt_range.c)",
+				"which are reached as ordinary calls to a runtime symbol; all five share alloc_range "+
+				"(runtime/native/rt_range.c). rt_range_int_new is rt_range_bounds_new with the `int` "+
+				"bound kind, which is the kind the type checker holds a range LITERAL's bounds to; the "+
+				"operator spelling `a..b` is generic over its bound type and reaches the general one",
+			"rt_range_bounds_new",
 			"rt_range_int_new", "rt_range_int_from_start", "rt_range_int_to_end", "rt_range_int_full"),
 
 		classified(refusalIsReported,
@@ -304,7 +307,8 @@ var indirectPointerCallEmitters = map[string]string{
 	"emit_intrinsics_fs.go":      "rt_fs_close, rt_fs_flush, rt_fs_file_name, rt_fs_file_type, rt_fs_file_metadata",
 	"emit_intrinsics_net.go":     "rt_net_close_listener, rt_net_close_conn",
 	"emit_intrinsics_runtime.go": "rt_string_from_bytes, rt_string_from_utf16",
-	"emit_iter.go":               "rt_bigint_from_i64, rt_biguint_from_u64, rt_bigint_add, rt_biguint_add",
+	"emit_iter_bounds_step.go": "rt_bigint_from_i64, rt_biguint_from_u64, rt_bigfloat_from_i64, " +
+		"rt_bigint_add, rt_biguint_add, rt_bigfloat_add",
 }
 
 // genericCallPathEmitters write a call statement whose callee AND result type
@@ -544,6 +548,9 @@ func TestATestedAnswerIsGuardedOnEveryPathThatReachesIt(t *testing.T) {
 func emitterOnlyPointerAnswers() map[string]string {
 	return map[string]string{
 		"rt_frame_alloc": "a suspension frame is reserved by emitFrameStorage and by nothing a program can write",
+		"rt_range_bounds_new": "the operator spelling `a..b` is lowered by emitBinary, which is the only " +
+			"caller that knows the bound KIND; the four names a program can write are the range-literal " +
+			"spelling, whose bounds the type checker holds to `int`",
 	}
 }
 

@@ -195,6 +195,23 @@ bool rt_net_wait_writable(const void* conn);
 #define SURGE_RANGE_KIND_BOUNDS 0
 #define SURGE_RANGE_KIND_ARRAY_ITER 1
 
+// Which KIND the two bound words hold, for the bounds shape. One constructor
+// family serves every element type -- the bounds arrive as bare void* -- so
+// without this byte nothing in the object says whether a word is a SurgeBigInt,
+// a SurgeBigUint or a SurgeBigFloat, whose counts sit at three different
+// offsets (8, 4 and 0). Every reader of a bound word needs the answer: a
+// release has to pick a lifecycle entry point, and a relinquishing walk has to
+// pick an unshare.
+//
+// INT is 0 so that it is also what a forgotten write leaves behind. That is the
+// honest default rather than the safe-looking one: the language's range-literal
+// constructors are declared `-> Range<int>`, and `int`'s entry points test the
+// fixnum tag before any load, so a bound that is a small integer is not touched
+// at all.
+#define SURGE_RANGE_BOUND_INT 0
+#define SURGE_RANGE_BOUND_UINT 1
+#define SURGE_RANGE_BOUND_FLOAT 2
+
 typedef struct SurgeRange {
     void* start;
     void* end;
@@ -208,7 +225,12 @@ typedef struct SurgeRange {
     // read start or end, so a cursor reaching one of them reads as an unbounded
     // range rather than as a pair of bounds it never had.
     uint8_t kind;
-    uint8_t _pad[4];
+    // SURGE_RANGE_BOUND_*. Meaningful only for SURGE_RANGE_KIND_BOUNDS: a
+    // cursor's two slots hold an element data pointer and a stride, which are
+    // neither counted nor a bound. It costs no growth -- the four padding bytes
+    // the struct already carried are where it went.
+    uint8_t bound;
+    uint8_t _pad[3];
 } SurgeRange;
 
 // The array cursor, spelled out on this side because C already depends on it:
@@ -237,41 +259,72 @@ SURGE_RT_STATIC_ASSERT(offsetof(SurgeRangeArrayIter, index) == 24,
                        "cursor index offset must match the emitter");
 SURGE_RT_STATIC_ASSERT(offsetof(SurgeRangeArrayIter, length) == 32,
                        "cursor length offset must match the emitter");
+SURGE_RT_STATIC_ASSERT(offsetof(SurgeRange, bound) == 20,
+                       "the bound-kind byte must match the emitter, and must stay inside the "
+                       "padding so the cursor's index at 24 is untouched");
+
+// Builds one bounded range, taking a reference to each bound as it stores it.
+//
+// The retain and the kind are written by ONE hand on purpose. A constructor
+// that stored the words and left the retain to its caller is what this family
+// used to be, and it made the range a borrower of two blocks the creating frame
+// was about to release: `let r = 1.5..2.5` released both bounds before the loop
+// began, and the first comparison read freed memory. And a retain cannot be
+// fixed up after the call, because picking WHICH retain needs the kind -- which
+// is the same byte this stores.
+//
+// The four `rt_range_int_*` entry points below are the language's range-literal
+// spelling, `[a..b]` and its open-ended forms. Their name is not decoration:
+// the type checker holds those bounds to `int`, so they are this constructor
+// with SURGE_RANGE_BOUND_INT bound, and they are the only shape whose bounds
+// the compiler does not spell at the call. The operator spelling `a..b` is
+// generic over its bound type and reaches this one directly.
+void* rt_range_bounds_new(void* start, void* end, bool inclusive, uint8_t bound);
+
+// Takes a second reference to each bound a bounds-shaped range holds.
+//
+// The for-loop cursor is a BYTE COPY of the range it walks, so the copy names
+// the same two blocks. That sharing is not transient -- the step overwrites
+// only `start`, so range and cursor hold the same `end` for the whole loop, and
+// both objects are freed at the end of it. Without this the second free is a
+// double release; with it each object owns what it points at and frees it once.
+//
+// A cursor is returned untouched, by the shape test: its two slots hold an
+// element data pointer and a stride, and retaining a stride is a wild write.
+// The emitter cannot make that test itself -- the static type Range<T> covers
+// both shapes -- so it calls this unconditionally and the byte decides.
+void rt_range_bounds_retain(void* handle);
+
+// Relinquish emission: makes a range's bounds private before the range is given
+// up across a shard or thread boundary. Takes the SLOT holding the handle, the
+// convention the array walk uses, though it needs no per-element callback: a
+// range's payload is by construction one of exactly three counted scalars, all
+// of which export `_unshare`, and the bound byte says which.
+//
+// An ARRAY_ITER cursor is REFUSED BY NAME rather than walked, the way
+// rt_array_unshare_walk refuses a view. A cursor holds a raw interior pointer
+// into an array buffer the origin shard keeps reading; no rewrite of the two
+// slots can make those elements private, and the type cannot tell the two
+// shapes apart, so the runtime is the only place the question can be asked.
+void rt_range_unshare(void* range_slot);
 
 // Reclaims ONE Range object, of either shape, sizing it off its own kind byte.
 // Null-safe: a released slot is nulled and a second release must not read a
 // kind byte out of nothing.
 //
-// It does NOT release the bounds, and the reason is no longer that it has
-// nothing to call: `rt_bigint_release` and `rt_biguint_release` are declared
-// below and both answer a fixnum-tagged word without touching it. Three
-// blockers survive that export, and all three are compiler-side work:
+// It RELEASES each bound it holds, through the bound byte. Four facts had to be
+// true before it could, and all four now are: the constructors above take a
+// reference with the kind rather than storing a borrowed word; the byte says
+// which of the three lifecycles to call; the shape byte keeps a cursor's data
+// pointer and stride away from a bignum release, which would be a wild free
+// rather than a double one; and the for-loop cursor takes its own references
+// through rt_range_bounds_retain, so the two objects that share a bound release
+// it once each.
 //
-//   - `start`/`end` are stored by the constructors below WITHOUT a retain, so a
-//     release here would give back a block the creating frame still points at.
-//     That is a use-after-free, which is worse than the leak it would replace;
-//   - nothing in this struct says which KIND a bound is. One constructor family
-//     serves every element type, so a bound may be a SurgeBigInt, a SurgeBigUint
-//     or a SurgeBigFloat, and their counts sit at three different offsets (8, 4
-//     and 0). `_pad` has room for a discriminator byte, but the emitter has to
-//     write it. The float arm is the one that punishes a guess: it is the only
-//     bound kind that is ALREADY reference counted, so a discriminator written
-//     for the integer pair alone would read a float bound through the wrong
-//     offset. A `Range<float>` does not even reach that question today -- it
-//     compiles, and the integer iteration path then reads its bound as a
-//     SurgeBigInt and dereferences a wild address (see RV2-DEBT-357);
-//   - for SURGE_RANGE_KIND_ARRAY_ITER the same two fields hold the element DATA
-//     POINTER and the element STRIDE (see the cursor below). A release added
-//     without a `kind` guard would hand a raw stride integer to a bignum free,
-//     which is a wild free rather than a double one -- so the discriminator is
-//     needed for the shape as well as for the element type.
-//
-// A fourth fact belongs with them: the for-loop cursor is a BYTE COPY of the
-// range that shares those same bound pointers, so releasing in both places
-// would release twice from one set of blocks.
-//
-// Until all four are answered a bignum-bounded range still leaks its two bound
-// boxes.
+// The has_start/has_end flags are consulted first, so an open-ended range never
+// hands a null to a lifecycle entry point, and a cursor -- whose flags are both
+// clear -- would read as holding no bounds even if the shape test above it were
+// ever removed.
 void rt_range_free(void* handle);
 
 void* rt_string_from_bytes(const uint8_t* ptr, uint64_t len);

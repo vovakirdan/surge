@@ -23,9 +23,23 @@ const (
 	rangeHasEndOff    = 17
 	rangeInclusiveOff = 18
 	rangeKindOff      = 19
+	// Which KIND the two bound words hold. The shape byte above says whether
+	// they are bounds at all; this one says which of the three
+	// arbitrary-precision scalars a bound is, because one constructor family
+	// serves every element type and their reference counts sit at three
+	// different offsets. It is what lets the runtime release a bound, retain
+	// one into a cursor, and make one private at a crossing.
+	rangeBoundOff = 20
 
 	rangeKindBounds    = 0
 	rangeKindArrayIter = 1
+
+	// SURGE_RANGE_BOUND_* in rt.h. int is 0 so that it is also what a
+	// forgotten write leaves behind, which is the honest default for a
+	// constructor family declared `-> Range<int>`.
+	rangeBoundInt   = 0
+	rangeBoundUint  = 1
+	rangeBoundFloat = 2
 
 	rangeBoundsSize = 24
 	rangeAlign      = 8
@@ -67,8 +81,14 @@ func (fe *funcEmitter) emitIterInit(init *mir.IterInit) (val, ty string, err err
 // `for x in arr.__range()` work — the loop copies whatever shape it is given
 // rather than reading a cursor as if it were a pair of bounds.
 //
-// The bounds themselves are shared, not cloned: int and uint are Copy, so the
-// copy names the same tagged words and owns nothing new.
+// The bounds are shared, and the copy TAKES ITS OWN REFERENCE to each of them.
+// A byte copy cannot express "the range owns, the cursor borrows", and the
+// sharing is not transient: the step overwrites only `start`, so range and
+// cursor hold the same `end` for the whole loop, and both objects are freed at
+// the end of it. Without the retain the second free would be a release from a
+// block already given back. The runtime makes the call under its own shape
+// test, because the static type Range<T> covers both shapes and only the object
+// knows whether it is copying bounds or a cursor's data pointer and stride.
 func (fe *funcEmitter) emitRangeIterInit(op *mir.Operand, rangeType types.TypeID) (val, ty string, err error) {
 	if _, ok := rangeElemType(fe.emitter.types, rangeType); !ok {
 		return "", "", fmt.Errorf("range iter_init requires Range<T> type")
@@ -97,6 +117,7 @@ func (fe *funcEmitter) emitRangeIterInit(op *mir.Operand, rangeType types.TypeID
 	fmt.Fprintf(&fe.emitter.buf,
 		"  call void @llvm.memcpy.p0.p0.i64(ptr align %d %s, ptr align %d %s, i64 %s, i1 false)\n",
 		rangeAlign, iterPtr, rangeAlign, rangePtr, size)
+	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_range_bounds_retain(ptr %s)\n", iterPtr)
 	return iterPtr, "ptr", nil
 }
 
@@ -372,99 +393,6 @@ func (fe *funcEmitter) emitRangeStep(rangePtr string, elemType types.TypeID) (st
 	return out, nil
 }
 
-// emitRangeBoundsStep emits the bounds-descriptor arm of a range step: it
-// compares the current bound against the end (honoring inclusive), and on a hit
-// yields the current value and advances the bound by one via the tagged int or
-// uint runtime.
-//
-// A range with no start begins at zero and records that it now has one, and a
-// range with no end never runs out — both are what the VM's
-// rangeDescriptorNextValue does, and the second is why the end comparison sits
-// behind a branch rather than a select: the comparison helper would be handed a
-// null bound on a range that never had one.
-func (fe *funcEmitter) emitRangeBoundsStep(rangePtr string, elemType, optType types.TypeID, someIndex int, payloadType types.TypeID, resPtr, contBB string) error {
-	cmpFn, addFn, oneFn := "rt_bigint_cmp", "rt_bigint_add", "rt_bigint_from_i64"
-	if isBigUintType(fe.emitter.types, elemType) {
-		cmpFn, addFn, oneFn = "rt_biguint_cmp", "rt_biguint_add", "rt_biguint_from_u64"
-	}
-
-	curPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", curPtr, rangePtr, rangeStartOff)
-	startVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", startVal, curPtr)
-	hasStartPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", hasStartPtr, rangePtr, rangeHasStartOff)
-	hasStart := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i8, ptr %s\n", hasStart, hasStartPtr)
-	hasStartB := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp ne i8 %s, 0\n", hasStartB, hasStart)
-	zero := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @%s(i64 0)\n", zero, oneFn)
-	cur := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = select i1 %s, ptr %s, ptr %s\n", cur, hasStartB, startVal, zero)
-	// Writing the defaulted start back before the end is consulted is what
-	// turns an open-ended range into a walked one, exactly as the VM does it.
-	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", cur, curPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  store i8 1, ptr %s\n", hasStartPtr)
-
-	hasEndPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", hasEndPtr, rangePtr, rangeHasEndOff)
-	hasEnd := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i8, ptr %s\n", hasEnd, hasEndPtr)
-	hasEndB := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp ne i8 %s, 0\n", hasEndB, hasEnd)
-
-	boundedBB := fe.nextInlineBlock()
-	yieldBB := fe.nextInlineBlock()
-	doneBB := fe.nextInlineBlock()
-	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", hasEndB, boundedBB, yieldBB)
-
-	fmt.Fprintf(&fe.emitter.buf, "%s:\n", boundedBB)
-	endPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", endPtr, rangePtr, rangeEndOff)
-	end := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", end, endPtr)
-	inclPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", inclPtr, rangePtr, rangeInclusiveOff)
-	incl := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i8, ptr %s\n", incl, inclPtr)
-	cmp := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call i32 @%s(ptr %s, ptr %s)\n", cmp, cmpFn, cur, end)
-	inclB := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp ne i8 %s, 0\n", inclB, incl)
-	leCmp := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp sle i32 %s, 0\n", leCmp, cmp)
-	ltCmp := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp slt i32 %s, 0\n", ltCmp, cmp)
-	has := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = select i1 %s, i1 %s, i1 %s\n", has, inclB, leCmp, ltCmp)
-	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", has, yieldBB, doneBB)
-
-	// An exhausted range keeps answering nothing: the start it stopped at is
-	// still past the end, so asking again lands here again.
-	fmt.Fprintf(&fe.emitter.buf, "%s:\n", doneBB)
-	nothingVal, err := fe.emitTagValue(optType, "nothing", symbols.NoSymbolID, nil)
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", nothingVal, resPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
-
-	fmt.Fprintf(&fe.emitter.buf, "%s:\n", yieldBB)
-	one := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @%s(i64 1)\n", one, oneFn)
-	nextCur := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @%s(ptr %s, ptr %s)\n", nextCur, addFn, cur, one)
-	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", nextCur, curPtr)
-	someVal, err := fe.emitTagValueSinglePayload(optType, someIndex, payloadType, cur, handleType, elemType)
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", someVal, resPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", contBB)
-	return nil
-}
-
 func arrayIterStride(stride, fixedLength uint64, dynamic bool) (uint64, error) {
 	// A zero-length cursor never reaches element addressing, and a one-element
 	// cursor can only address offset zero. Recording stride zero is exact for
@@ -544,12 +472,20 @@ func (fe *funcEmitter) emitArrayIterInit(op *mir.Operand, arrType types.TypeID, 
 	// has no bounds. Both flags matter: they name the shape for the step
 	// routine, and they keep the slice helpers in the C runtime away from the
 	// data pointer and stride the cursor keeps in the two bound slots.
+	//
+	// The bound-kind byte is written for the same reason the two flags are,
+	// though nothing reads it here: a cursor's slots hold a data pointer and a
+	// stride, which are no kind at all, and every reader of that byte opens
+	// with the SHAPE test above it. Writing the default rather than leaving the
+	// byte as rt_alloc left it is what keeps "no field a reader consults is
+	// undefined" true of both shapes, not just the one the C constructors make.
 	fe.storeIterField(iterPtr, arrayIterDataOff, "ptr", dataPtr)
 	fe.storeIterField(iterPtr, arrayIterStrideOff, "i64", fmt.Sprintf("%d", strideVal))
 	fe.storeIterField(iterPtr, rangeHasStartOff, "i8", "0")
 	fe.storeIterField(iterPtr, rangeHasEndOff, "i8", "0")
 	fe.storeIterField(iterPtr, rangeInclusiveOff, "i8", "0")
 	fe.storeIterField(iterPtr, rangeKindOff, "i8", fmt.Sprintf("%d", rangeKindArrayIter))
+	fe.storeIterField(iterPtr, rangeBoundOff, "i8", fmt.Sprintf("%d", rangeBoundInt))
 	fe.storeIterField(iterPtr, arrayIterIndexOff, "i64", "0")
 	fe.storeIterField(iterPtr, arrayIterLengthOff, "i64", lenVal)
 

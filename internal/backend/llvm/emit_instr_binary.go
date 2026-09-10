@@ -30,7 +30,8 @@ func (fe *funcEmitter) emitBinary(op *mir.BinaryOp) (val, ty string, err error) 
 			inclusive = "1"
 		}
 		label := "Range<" + types.Label(fe.emitter.types, op.Left.Type) + ">"
-		return fe.emitCheckedRangeNew(label, leftVal, rightVal, inclusive), "ptr", nil
+		return fe.emitCheckedRangeNew(label, rangeBoundKindFor(fe.emitter.types, op.Left.Type),
+			leftVal, rightVal, inclusive), "ptr", nil
 	}
 	if op.Op == ast.ExprBinaryMul && isStringLike(fe.emitter.types, op.Left.Type) && !isStringLike(fe.emitter.types, op.Right.Type) {
 		strPtr, strErr := fe.emitHandleOperandPtr(&op.Left)
