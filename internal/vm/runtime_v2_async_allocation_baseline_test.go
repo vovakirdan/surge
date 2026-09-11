@@ -35,7 +35,16 @@ func buildAsyncAllocationProgram(t *testing.T, source string) string {
 			t.Fatalf("missing retained source-build object %s: %v", path, err)
 		}
 	}
-	bin := filepath.Join(tmp, "async-allocation-program")
+	// The ordinary build's successful-test cleanup removes tmp. Keep the
+	// measured binary, source and XML outside it for independent gate audits.
+	proofDir := filepath.Join(repoRoot(t), "target", "debug", ".proofs", filepath.Base(tmp))
+	if err := os.MkdirAll(proofDir, 0o700); err != nil {
+		t.Fatalf("create persistent allocation proof directory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(proofDir, "source.sg"), []byte(source), 0o600); err != nil {
+		t.Fatalf("retain allocation proof source: %v", err)
+	}
+	bin := filepath.Join(proofDir, "async-allocation-program")
 	args := []string{"-std=c11", "-g", "-O0", "-fno-omit-frame-pointer", "-Wall", "-Wextra", "-Werror", "-pthread", "-I" + runtimeDir,
 		filepath.Join(repoRoot(t), "internal", "vm", "testdata", "async_allocation_baseline.c"), object, archive, "-o", bin}
 	cmd := exec.Command("clang", args...)
