@@ -104,49 +104,60 @@ func TestVMTestArtifactsOverlapStress(t *testing.T) {
 
 func TestRunBinaryWithTimeoutReportsEmptyOutputDiagnostics(t *testing.T) {
 	root := repoRoot(t)
-	artifacts := newTestArtifacts(t, root)
-	binPath := filepath.Join(t.TempDir(), "empty-exit")
-	if err := os.WriteFile(binPath, []byte("#!/bin/sh\nexit 7\n"), 0o700); err != nil {
-		t.Fatalf("write empty-output probe: %v", err)
-	}
-	trackLLVMBuildArtifacts(root, artifacts, binPath)
+	for _, tt := range []struct {
+		scale       string
+		wantTimeout string
+	}{
+		{scale: "1", wantTimeout: "timeout: 1s"},
+		{scale: "3", wantTimeout: "timeout: 3s"},
+	} {
+		t.Run("scale_"+tt.scale, func(t *testing.T) {
+			t.Setenv("SURGE_MT_TIMEOUT_SCALE", tt.scale)
+			artifacts := newTestArtifacts(t, root)
+			binPath := filepath.Join(t.TempDir(), "empty-exit")
+			if err := os.WriteFile(binPath, []byte("#!/bin/sh\nexit 7\n"), 0o700); err != nil {
+				t.Fatalf("write empty-output probe: %v", err)
+			}
+			trackLLVMBuildArtifacts(root, artifacts, binPath)
 
-	_, res := runBinaryWithTimeout(t, binPath, envWithStdlib(root), time.Second)
-	if res.exitCode != 7 {
-		t.Fatalf("exit code: want 7, got %d", res.exitCode)
-	}
-	if res.stdout != "" {
-		t.Fatalf("stdout changed: %q", res.stdout)
-	}
-	if res.stderr != "" {
-		t.Fatalf("stderr changed: %q", res.stderr)
-	}
-	for _, want := range []string{
-		"run diagnostics:",
-		"command:",
-		"binary: " + binPath,
-		"exit_code: 7",
-		"stdout_len: 0",
-		"stderr_len: 0",
-		"timeout: 1s",
-	} {
-		if !strings.Contains(res.diagnostics, want) {
-			t.Fatalf("diagnostics missing %q:\n%s", want, res.diagnostics)
-		}
-	}
-	for name, want := range map[string]string{
-		"run.stdout":      "",
-		"run.stderr":      "",
-		"run.exit_code":   "7\n",
-		"run.diagnostics": res.diagnostics,
-	} {
-		gotBytes, err := os.ReadFile(filepath.Join(artifacts.Dir, name))
-		if err != nil {
-			t.Fatalf("read %s: %v", name, err)
-		}
-		if got := string(gotBytes); got != want {
-			t.Fatalf("%s mismatch:\nwant %q\ngot  %q", name, want, got)
-		}
+			_, res := runBinaryWithTimeout(t, binPath, envWithStdlib(root), time.Second)
+			if res.exitCode != 7 {
+				t.Fatalf("exit code: want 7, got %d", res.exitCode)
+			}
+			if res.stdout != "" {
+				t.Fatalf("stdout changed: %q", res.stdout)
+			}
+			if res.stderr != "" {
+				t.Fatalf("stderr changed: %q", res.stderr)
+			}
+			for _, want := range []string{
+				"run diagnostics:",
+				"command:",
+				"binary: " + binPath,
+				"exit_code: 7",
+				"stdout_len: 0",
+				"stderr_len: 0",
+				tt.wantTimeout,
+			} {
+				if !strings.Contains(res.diagnostics, want) {
+					t.Fatalf("diagnostics missing %q:\n%s", want, res.diagnostics)
+				}
+			}
+			for name, want := range map[string]string{
+				"run.stdout":      "",
+				"run.stderr":      "",
+				"run.exit_code":   "7\n",
+				"run.diagnostics": res.diagnostics,
+			} {
+				gotBytes, err := os.ReadFile(filepath.Join(artifacts.Dir, name))
+				if err != nil {
+					t.Fatalf("read %s: %v", name, err)
+				}
+				if got := string(gotBytes); got != want {
+					t.Fatalf("%s mismatch:\nwant %q\ngot  %q", name, want, got)
+				}
+			}
+		})
 	}
 }
 

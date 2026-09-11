@@ -30,7 +30,7 @@ func buildLLVMProgramFromSource(t *testing.T, source string) string {
 	writeArtifact(t, artifacts.Dir, "build.exit_code", fmt.Sprintf("%d\n", buildCode))
 	outputPath := llvmOutputPath(root, srcPath)
 	trackLLVMBuildArtifacts(root, artifacts, outputPath)
-	artifacts.Repro = llvmReproCommand(root, srcPath, outputPath, nil)
+	artifacts.Repro = llvmReproCommand(root, root, srcPath, outputPath, nil)
 	writeArtifact(t, artifacts.Dir, "repro.txt", artifacts.Repro+"\n")
 	writeArtifact(t, artifacts.Dir, "build.tmp_dir", artifacts.TmpDir+"\n")
 	if buildCode != 0 {

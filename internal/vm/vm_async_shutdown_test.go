@@ -45,8 +45,13 @@ fn main() -> int {
 	if result.exitCode != 1 {
 		t.Fatalf("expected exit code 1, got %d", result.exitCode)
 	}
-	if result.stderr != "" {
-		t.Fatalf("unexpected VM error:\n%s", result.stderr)
+	// The VM reports panic through its runtime; native writes it to stderr.
+	wantStderr := ""
+	if testBackend(t) == backendLLVM {
+		wantStderr = "panic: boom\n"
+	}
+	if result.stderr != wantStderr {
+		t.Fatalf("stderr: want %q, got %q", wantStderr, result.stderr)
 	}
 }
 
@@ -97,8 +102,13 @@ fn main() -> int {
 	if result.exitCode != 1 {
 		t.Fatalf("expected exit code 1, got %d", result.exitCode)
 	}
-	if result.stderr != "" {
-		t.Fatalf("unexpected VM error:\n%s", result.stderr)
+	// This proves termination with a buffered payload, not native cleanup after _exit.
+	wantStderr := ""
+	if testBackend(t) == backendLLVM {
+		wantStderr = "panic: boom\n"
+	}
+	if result.stderr != wantStderr {
+		t.Fatalf("stderr: want %q, got %q", wantStderr, result.stderr)
 	}
 }
 

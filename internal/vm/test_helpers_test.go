@@ -30,8 +30,9 @@ const (
 )
 
 type runOptions struct {
-	argv  []string
-	stdin string
+	argv       []string
+	stdin      string
+	stdlibRoot string
 }
 
 type runResult struct {
@@ -323,8 +324,12 @@ func runProgramFromSource(t *testing.T, source string, opts runOptions) runResul
 
 func runProgram(t *testing.T, root, srcPath string, opts runOptions, artifacts *testArtifacts) runResult {
 	t.Helper()
+	if opts.stdlibRoot == "" {
+		opts.stdlibRoot = root
+	}
 	backend := testBackend(t)
 	if backend == backendVM {
+		t.Setenv("SURGE_STDLIB", opts.stdlibRoot)
 		mirMod, files, typesInterner := compileToMIR(t, srcPath)
 		rt := vm.NewTestRuntime(opts.argv, opts.stdin)
 		exitCode, vmErr := runVM(mirMod, rt, files, typesInterner, nil)
@@ -345,7 +350,7 @@ func runProgram(t *testing.T, root, srcPath string, opts runOptions, artifacts *
 	surge := buildSurgeBinary(t, root)
 
 	buildArgs := []string{"build", srcPath, "--emit-mir", "--emit-llvm", "--keep-tmp", "--print-commands"}
-	buildOut, buildErr, buildCode := runSurgeWithInput(t, root, surge, "", buildArgs...)
+	buildOut, buildErr, buildCode := runSurgeWithInputEnv(t, root, surge, "", envWithStdlib(opts.stdlibRoot), buildArgs...)
 	if artifacts != nil {
 		writeArtifact(t, artifacts.Dir, "build.stdout", buildOut)
 		writeArtifact(t, artifacts.Dir, "build.stderr", buildErr)
@@ -356,7 +361,7 @@ func runProgram(t *testing.T, root, srcPath string, opts runOptions, artifacts *
 	if artifacts != nil {
 		trackLLVMBuildArtifacts(root, artifacts, outputPath)
 	}
-	repro := llvmReproCommand(root, srcPath, outputPath, opts.argv)
+	repro := llvmReproCommand(root, opts.stdlibRoot, srcPath, outputPath, opts.argv)
 	if artifacts != nil {
 		artifacts.Repro = repro
 		writeArtifact(t, artifacts.Dir, "repro.txt", repro+"\n")
@@ -373,6 +378,7 @@ func runProgram(t *testing.T, root, srcPath string, opts runOptions, artifacts *
 	// #nosec G204 -- test executes build output with controlled args
 	cmd := exec.Command(outputPath, opts.argv...)
 	cmd.Dir = root
+	cmd.Env = envWithStdlib(opts.stdlibRoot)
 	runRes := runCommandResult(t, cmd, opts.stdin)
 	stdout, stderr, exitCode := runRes.stdout, runRes.stderr, runRes.exitCode
 	diagnostics := ""
@@ -458,18 +464,6 @@ func readRunDiagnostics(artifactsDir string) string {
 		return ""
 	}
 	return string(data)
-}
-
-func llvmReproCommand(root, srcPath, outputPath string, argv []string) string {
-	relPath, err := filepath.Rel(root, srcPath)
-	if err != nil {
-		relPath = srcPath
-	}
-	var args string
-	if len(argv) > 0 {
-		args = " " + strings.Join(argv, " ")
-	}
-	return fmt.Sprintf("cd %s && SURGE_STDLIB=%s go run ./cmd/surge build %s --emit-mir --emit-llvm --keep-tmp --print-commands && %s%s", root, root, relPath, outputPath, args)
 }
 
 func formatBinaryStat(path string) string {
