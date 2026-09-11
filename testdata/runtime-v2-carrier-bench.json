@@ -1,12 +1,12 @@
 {
   "schema_version": 2,
-  "epic_base": "4968061f2791d7dff0896e1841ce647412053a68",
+  "epic_base": "ea50ca0b6f22164bd2c615d73aff5d31670f2611",
   "reference_host": {
     "system": "Linux",
     "machine": "x86_64",
-    "kernel_contains": "6.8.0-138-generic",
+    "kernel_contains": "6.8.0-139-generic",
     "cpu_model": "AMD Ryzen 9 9950X 16-Core Processor",
-    "logical_cpus": 24,
+    "logical_cpus": 32,
     "cpuset": "8,10",
     "go_version": "go version go1.26.1 linux/amd64",
     "clang_version": "Ubuntu clang version 18.1.3 (1ubuntu1)"
@@ -48,7 +48,7 @@
       "base": {
         "status": "unsupported",
         "reason": "resource capture is candidate-only, so no base run reports a physical-copy count",
-        "provenance_commit": "4968061f2791d7dff0896e1841ce647412053a68"
+        "provenance_commit": "ea50ca0b6f22164bd2c615d73aff5d31670f2611"
       },
       "candidate": {
         "status": "required"
@@ -61,7 +61,7 @@
       "base": {
         "status": "unsupported",
         "reason": "resource capture is candidate-only, so no base run reports a physical-move count",
-        "provenance_commit": "4968061f2791d7dff0896e1841ce647412053a68"
+        "provenance_commit": "ea50ca0b6f22164bd2c615d73aff5d31670f2611"
       },
       "candidate": {
         "status": "required"
@@ -74,7 +74,7 @@
       "base": {
         "status": "unsupported",
         "reason": "resource capture is candidate-only, so no base run reports a ValueOps callback count",
-        "provenance_commit": "4968061f2791d7dff0896e1841ce647412053a68"
+        "provenance_commit": "ea50ca0b6f22164bd2c615d73aff5d31670f2611"
       },
       "candidate": {
         "status": "required"
@@ -87,7 +87,7 @@
       "base": {
         "status": "unsupported",
         "reason": "resource capture is candidate-only, so no base run reports a data-slot stall count",
-        "provenance_commit": "4968061f2791d7dff0896e1841ce647412053a68"
+        "provenance_commit": "ea50ca0b6f22164bd2c615d73aff5d31670f2611"
       },
       "candidate": {
         "status": "required"
@@ -100,7 +100,7 @@
       "base": {
         "status": "unsupported",
         "reason": "resource capture is candidate-only, so no base run reports a peak transport-byte figure",
-        "provenance_commit": "4968061f2791d7dff0896e1841ce647412053a68"
+        "provenance_commit": "ea50ca0b6f22164bd2c615d73aff5d31670f2611"
       },
       "candidate": {
         "status": "required"
