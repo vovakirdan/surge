@@ -114,24 +114,6 @@ func (b *surgeStartBuilder) emitCallIntrinsic(dst LocalID, name string, args []O
 	})
 }
 
-func (b *surgeStartBuilder) emitIndex(dst, arr LocalID, idx int) {
-	b.emitAssign(dst, &RValue{
-		Kind: RValueIndex,
-		Index: IndexAccess{
-			Object: Operand{Kind: OperandCopy, Place: Place{Local: arr}},
-			Index: Operand{
-				Kind: OperandConst,
-				Type: b.intType(),
-				Const: Const{
-					Kind:     ConstInt,
-					Type:     b.intType(),
-					IntValue: int64(idx),
-				},
-			},
-		},
-	})
-}
-
 func (b *surgeStartBuilder) emitTagTest(dst, val LocalID, tag string) {
 	b.emitAssign(dst, &RValue{
 		Kind: RValueTagTest,

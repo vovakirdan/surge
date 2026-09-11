@@ -6,8 +6,8 @@ import (
 	"surge/internal/sema"
 )
 
-func (b *surgeStartBuilder) emitFromArgvCall(dst, stringLocal LocalID, paramIndex uint32) {
-	arg := Operand{Kind: OperandAddrOf, Type: b.refType(b.stringType(), false), Place: Place{Local: stringLocal}}
+func (b *surgeStartBuilder) emitFromArgvCall(dst LocalID, text Place, paramIndex uint32) {
+	arg := Operand{Kind: OperandAddrOf, Type: b.refType(b.stringType(), false), Place: text}
 	target, ok := b.fromArgv[paramIndex]
 	if !ok {
 		b.setEntrypointParseError("missing from_str binding for parameter %d", paramIndex)
