@@ -166,15 +166,15 @@ This document lists all the intrinsics available in the Surge language, grouped 
 
 *   `@intrinsic pub fn rt_worker_count() -> uint`
     *   Returns the number of active async executor workers.
-*   `@intrinsic fn rt_scope_enter(failfast: bool) -> uint`
+*   `@intrinsic fn rt_scope_enter(failfast: bool) -> uint64`
     *   Enters a new async scope.
-*   `@intrinsic fn rt_scope_register_child<T>(scope: uint, child: Task<T>) -> nothing`
-    *   Registers a child task with the current scope.
-*   `@intrinsic fn rt_scope_cancel_all(scope: uint) -> nothing`
+*   `@intrinsic fn rt_scope_register_child<T>(scope: uint64, child: Task<T>) -> nothing`
+    *   Validates that the child's creation scope is the current scope.
+*   `@intrinsic fn rt_scope_cancel_all(scope: uint64) -> nothing`
     *   Cancels all tasks in the scope.
-*   `@intrinsic fn rt_scope_join_all(scope: uint) -> bool`
+*   `@intrinsic fn rt_scope_join_all(scope: uint64) -> bool`
     *   Waits for all tasks in the scope to complete.
-*   `@intrinsic fn rt_scope_exit(scope: uint) -> nothing`
+*   `@intrinsic fn rt_scope_exit(scope: uint64) -> nothing`
     *   Exits the async scope.
 *   `@intrinsic pub fn checkpoint() -> Task<nothing>`
     *   Yields control to the scheduler, allowing other tasks to run.

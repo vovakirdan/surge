@@ -122,7 +122,7 @@ const lifecycleHarnessInlineClaimModes = `
 #define POLL_INLINE_CLAIM_CHILD 4041
 
 static _Atomic uint32_t g_inline_claim_owner_entered;
-static _Atomic(void*) g_inline_claim_scope;
+static _Atomic uint64_t g_inline_claim_scope;
 static _Atomic(void*) g_inline_claim_child;
 static _Atomic uint32_t g_inline_claim_child_polls;
 static _Atomic uint32_t g_inline_claim_child_release;
@@ -161,7 +161,7 @@ static void poll_inline_claim_child(void) {
 // the window, not just whether the queue does.
 static void poll_inline_claim_owner(void) {
     if (atomic_load_explicit(&g_inline_claim_owner_entered, memory_order_acquire) == 0) {
-        void* handle = rt_scope_enter(true);
+        uint64_t handle = rt_scope_enter(true);
         void* child = __task_create(POLL_INLINE_CLAIM_CHILD, NULL, rt_channel_opaque_word_ops());
         rt_scope_register_child(handle, child);
         atomic_store_explicit(&g_inline_claim_scope, handle, memory_order_release);
@@ -173,7 +173,7 @@ static void poll_inline_claim_owner(void) {
             return;
         }
     }
-    void* handle = atomic_load_explicit(&g_inline_claim_scope, memory_order_acquire);
+    uint64_t handle = atomic_load_explicit(&g_inline_claim_scope, memory_order_acquire);
     uint64_t pending = 0;
     bool failfast = false;
     if (!rt_scope_join_all(handle, &pending, &failfast)) {
@@ -190,7 +190,7 @@ static void poll_inline_claim_owner(void) {
 
 static int mode_inline_claim_off_queue(rt_executor* ex) {
     atomic_store_explicit(&g_inline_claim_owner_entered, 0, memory_order_release);
-    atomic_store_explicit(&g_inline_claim_scope, NULL, memory_order_release);
+    atomic_store_explicit(&g_inline_claim_scope, 0, memory_order_release);
     atomic_store_explicit(&g_inline_claim_child, NULL, memory_order_release);
     atomic_store_explicit(&g_inline_claim_child_polls, 0, memory_order_release);
     atomic_store_explicit(&g_inline_claim_child_release, 0, memory_order_release);

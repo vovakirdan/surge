@@ -303,7 +303,7 @@ func (l *funcLowerer) lowerFunc(id FuncID, fn *hir.Func) (*Func, error) {
 		addLocal(l.f, name, p.Type, l.localFlags(p.Type))
 	}
 	if l.f.IsAsync && l.types != nil {
-		scopeType := l.types.Builtins().Uint
+		scopeType := l.types.Builtins().Uint64
 		l.scopeLocal = addLocal(l.f, "__scope", scopeType, localFlagsFor(l.types, l.sema, scopeType))
 		l.f.ScopeLocal = l.scopeLocal
 	}
@@ -369,7 +369,7 @@ func (l *funcLowerer) lowerSyntheticFunc(id FuncID, name string, body *hir.Block
 	l.cur = entry
 
 	if l.f.IsAsync && l.types != nil {
-		scopeType := l.types.Builtins().Uint
+		scopeType := l.types.Builtins().Uint64
 		l.scopeLocal = addLocal(l.f, "__scope", scopeType, localFlagsFor(l.types, l.sema, scopeType))
 		l.f.ScopeLocal = l.scopeLocal
 	}

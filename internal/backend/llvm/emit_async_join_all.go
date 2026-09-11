@@ -18,8 +18,8 @@ func (fe *funcEmitter) emitInstrJoinAll(ins *mir.Instr) error {
 	if err != nil {
 		return err
 	}
-	if scopeTy != "ptr" {
-		return fmt.Errorf("join_all expects scope handle, got %s", scopeTy)
+	if scopeTy != "i64" {
+		return fmt.Errorf("join_all expects uint64 scope id, got %s", scopeTy)
 	}
 	pendingPtr := fe.nextTemp()
 	failfastPtr := fe.nextTemp()
@@ -33,7 +33,7 @@ func (fe *funcEmitter) emitInstrJoinAll(ins *mir.Instr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s, align %d\n", pendingPtr, alignWord)
 	fmt.Fprintf(&fe.emitter.buf, "  store i1 false, ptr %s, align %d\n", failfastPtr, 1)
 	doneVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_scope_join_all(ptr %s, ptr %s, ptr %s)\n", doneVal, scopeVal, pendingPtr, failfastPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_scope_join_all(i64 %s, ptr %s, ptr %s)\n", doneVal, scopeVal, pendingPtr, failfastPtr)
 	readyBB := fmt.Sprintf("bb.inline.join_ready%d", fe.inlineBlock)
 	fe.inlineBlock++
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%bb%d\n", doneVal, readyBB, ins.JoinAll.PendBB)
