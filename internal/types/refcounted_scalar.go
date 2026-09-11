@@ -1,18 +1,16 @@
 package types
 
 // IsRefCountedScalar reports whether values of this type are arbitrary-precision
-// scalars represented out of line by a reference-counted heap block.
+// scalars whose heap form owns a reference-counted block.
 //
 // These are the types that break the coincidence `IsCopy` used to rely on: a
 // value is freely duplicable at the surface, yet duplicating one has to bump a
 // count and abandoning one has to drop it. Recognising them is what makes them
 // reclaimable without changing what `let b = a` means.
 //
-// Only WidthAny `float` qualifies today. `float` has no inline form at all —
-// every value is a heap block and every operation allocates one — which is why
-// it goes first. `int` and `uint` follow once the same mechanism is proven:
-// they carry an inline fixnum form (odd low bit) that a count must skip, so
-// they add a branch to a mechanism rather than a mechanism.
+// WidthAny int, uint and float qualify. An int or uint may instead be an
+// inline fixnum (odd low bit), and NULL is canonical zero. Their lifecycle
+// must test for a non-NULL heap word before any count access or lifecycle call.
 //
 // The fixed-width types are deliberately NOT included: `f32`/`float64`, `i8..i64`
 // and `u8..u64` are machine words with no heap behind them and must keep
@@ -25,5 +23,5 @@ func (in *Interner) IsRefCountedScalar(id TypeID) bool {
 	if !ok {
 		return false
 	}
-	return tt.Kind == KindFloat && tt.Width == WidthAny
+	return tt.Width == WidthAny && (tt.Kind == KindInt || tt.Kind == KindUint || tt.Kind == KindFloat)
 }

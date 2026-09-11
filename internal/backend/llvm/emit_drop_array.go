@@ -49,7 +49,7 @@ func (e *Emitter) emitMemberDropAt(g *glueTmp, memberType types.TypeID, base str
 	word := g.next()
 	fmt.Fprintf(&e.buf, "  %s = load ptr, ptr %s, align %d\n",
 		word, memberPtr, memberAccessAlign(baseAlign, off))
-	e.emitDropHandle(word, memberType)
+	e.emitDropHandle(g, word, memberType)
 }
 
 // emitFixedArrayElemDrops drops each owning element of a fixed array's inline

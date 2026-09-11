@@ -190,8 +190,9 @@ func (e *Emitter) emitFieldCloneAt(g *glueTmp, fieldType types.TypeID, baseAlign
 // and a body that only fixed up members left that string's word pointing at the
 // source's bytes -- two owners, one buffer, one double free.
 func (e *Emitter) emitLeafCloneAt(g *glueTmp, resolved types.TypeID, baseAlign, off uint64) bool {
+	ops, scalar := scalarLifecycleFor(e.types, resolved)
 	switch {
-	case e.types.IsRefCountedScalar(resolved):
+	case scalar:
 		// Immutable and counted: the copy shares the block and takes its own
 		// reference. A deep copy would be waste, and it would also make two
 		// values that must compare equal live at two addresses.
@@ -199,7 +200,7 @@ func (e *Emitter) emitLeafCloneAt(g *glueTmp, resolved types.TypeID, baseAlign, 
 		fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds i8, ptr %%dst, i64 %d\n", fp, off)
 		fv := g.next()
 		fmt.Fprintf(&e.buf, "  %s = load ptr, ptr %s, align %d\n", fv, fp, memberAccessAlign(baseAlign, off))
-		e.emitGlueRetain(g, fv)
+		e.emitGlueRetain(g, fv, ops)
 
 	case e.types.IsRefCountedHandle(resolved):
 		// Shared and counted by the runtime: the copy names the same channel
@@ -235,7 +236,13 @@ func (e *Emitter) emitLeafCloneAt(g *glueTmp, resolved types.TypeID, baseAlign, 
 // emitGlueRetain bumps a reference count from inside generated glue. The
 // funcEmitter's inline retain cannot be reused here: it allocates SSA names
 // from the enclosing function's counter, and glue bodies have their own.
-func (e *Emitter) emitGlueRetain(g *glueTmp, val string) {
+func (e *Emitter) emitGlueRetain(g *glueTmp, val string, ops scalarLifecycle) {
+	if ops.tagged {
+		done := e.beginGlueScalarHeap(g, val, ops)
+		emitNumericHeapRetain(&e.buf, val, ops.rcOffset, g.next)
+		endScalarHeap(&e.buf, done)
+		return
+	}
 	isNull := g.next()
 	slot := g.next()
 	count := g.next()

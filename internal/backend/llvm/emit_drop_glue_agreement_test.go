@@ -99,7 +99,7 @@ type Holder = {
 	scale: float,
 }
 
-@copy type Point = { x: int, y: int }
+@copy type Point = { x: int64, y: int64 }
 
 fn build() -> int {
 	let h: Holder = Holder{
@@ -110,7 +110,7 @@ fn build() -> int {
 		scale: 1.5,
 	};
 	let p: Point = Point{ x: 1, y: 2 };
-	return len(h.label):int + p.x;
+	return len(h.label):int + (p.x:int);
 }
 
 // The carrier families. The channel is reclaimed -- by the handle release,
@@ -306,11 +306,8 @@ func TestNoDroppableTypeGetsAnEmptyGlueBody(t *testing.T) {
 		{typeName: "Array<string>"},
 		{typeName: "Text"},
 		{typeName: "Holder"},
-		// Point is the control. A Copy struct of two integers is NOT droppable,
-		// so the empty body it receives is the right answer — and observing
-		// that this run really did produce one proves the emptiness detector
-		// can still say "empty". Without it a detector that had quietly stopped
-		// recognising the shape would report no violation and read as a pass.
+		// Fixed-width Point owns no heap. Its empty body proves the detector
+		// still distinguishes an empty body from counted arbitrary integers.
 		{typeName: "Point"},
 		{typeName: "Channel<int>"},
 		{typeName: "Gate"},
@@ -539,6 +536,8 @@ var runtimeCall = regexp.MustCompile(`call [^@]*@(rt_[A-Za-z0-9_]+)\(`)
 var leafFamilyByHelper = map[string]string{
 	"rt_string_free":             leafString,
 	"rt_bigfloat_release":        leafCountedScalar,
+	"rt_bigint_release":          leafCountedScalar,
+	"rt_biguint_release":         leafCountedScalar,
 	"rt_array_free":              leafElementBuffer,
 	"rt_array_free_elems":        leafElementBuffer,
 	"rt_channel_handle_drop":     leafChannelHandle,
