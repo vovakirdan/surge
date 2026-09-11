@@ -90,7 +90,7 @@ static void release_word(int kind, void* word) {
         rt_bigfloat_release(word);
 }
 
-static void check_value(int kind, void* word, void* expected) {
+static void check_value(int kind, const void* word, const void* expected) {
     int cmp = kind == 0   ? rt_bigint_cmp(word, expected)
               : kind == 1 ? rt_biguint_cmp(word, expected)
                           : rt_bigfloat_cmp(word, expected);
