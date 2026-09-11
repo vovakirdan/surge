@@ -135,6 +135,12 @@ void __surge_poll_call(uint64_t id) {
             poll_stand_trap_owner();
             break;
 	#ifdef RT_TEST_SYNC_POINTS
+        case POLL_LOCAL_PEER_RECEIVER:
+            poll_local_peer_receiver();
+            break;
+        case POLL_LOCAL_PEER_PRODUCER:
+            poll_local_peer_producer();
+            break;
         case POLL_DEBT020_ADOPT_JOINER:
             poll_debt020_adopt_joiner();
             break;

@@ -395,6 +395,9 @@ int main(int argc, char** argv) {
         return mode_debt038_token_lock_refuses_dispatch(ex);
     }
 	#ifdef RT_TEST_SYNC_POINTS
+    if (strcmp(argv[1], "local-peer-wake") == 0) {
+        return mode_local_peer_wake(ex);
+    }
     if (strcmp(argv[1], "debt020-migrate-gap-proof") == 0) {
         return mode_debt020_migrate_gap_proof(ex);
     }
