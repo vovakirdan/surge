@@ -98,6 +98,11 @@ func (fe *funcEmitter) emitFromStrIntrinsic(call *mir.CallInstr) (bool, error) {
 	if name != "from_str" {
 		return false, nil
 	}
+	if call.Callee.Sym.IsValid() && fe.emitter != nil && fe.emitter.mod != nil {
+		if _, ok := fe.emitter.mod.FuncBySym[call.Callee.Sym]; ok {
+			return false, nil
+		}
+	}
 	if len(call.Args) != 1 {
 		return true, fmt.Errorf("from_str requires 1 argument")
 	}
