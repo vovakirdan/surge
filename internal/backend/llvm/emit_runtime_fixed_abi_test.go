@@ -61,8 +61,10 @@ fn main() -> int {
     let conn: TcpConn = { __opaque = 0 };
     let accept_task = net.accept(&listener);
     let read_task = net.read_some(&conn, 0:uint);
-    let write_task = net.write_some(&conn, []);
-    let all_task = net.write_all(&conn, []);
+    let some_bytes: byte[] = [];
+    let all_bytes: byte[] = [];
+    let write_task = net.write_some(&conn, some_bytes);
+    let all_task = net.write_all(&conn, all_bytes);
     let _ = accept_task;
     let _ = read_task;
     let _ = write_task;
