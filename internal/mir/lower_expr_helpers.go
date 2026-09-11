@@ -162,7 +162,8 @@ func (l *funcLowerer) isValueComposite(ty types.TypeID) bool {
 // Routing it through a temp gives it exactly the ownership every other float
 // value has.
 func (l *funcLowerer) materializeOwnedConst(op *Operand, span source.Span, consume bool) Operand {
-	if op.Kind != OperandConst || !l.isRefCountedScalar(op.Type) {
+	if op.Kind != OperandConst || !l.isRefCountedScalar(op.Type) ||
+		(op.Const.Type == op.Type && ConstFoldsToFixnum(l.types, &op.Const)) {
 		return *op
 	}
 	tmp := l.newTemp(op.Type, "const", span)

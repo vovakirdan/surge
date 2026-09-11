@@ -1,6 +1,9 @@
 package mir
 
-import "surge/internal/types"
+import (
+	"surge/internal/sema"
+	"surge/internal/types"
+)
 
 func (b *surgeStartBuilder) erringType(elemType types.TypeID) types.TypeID {
 	if b.typesIn == nil || b.mm == nil || b.mm.Source == nil || b.mm.Source.Symbols == nil || b.mm.Source.Symbols.Table == nil {
@@ -64,10 +67,8 @@ func (b *surgeStartBuilder) localFlags(ty types.TypeID) LocalFlags {
 	if b.isCopyType(ty) {
 		out |= LocalFlagCopy
 	}
-	// The entrypoint builder has no sema result, so it uses the same fallback
-	// `funcLowerer.ownsHeap` uses without one: the interner's Copy bit, which
-	// is the answer the drop sites read before the ownership axis was named.
-	if ty != types.NoTypeID && !b.isCopyType(ty) {
+	// Copy describes duplication; counted Copy still owns a heap obligation.
+	if sema.OwnsHeapIn(b.typesIn, ty) {
 		out |= LocalFlagOwnsHeap
 	}
 	return out
