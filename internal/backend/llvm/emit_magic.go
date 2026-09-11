@@ -29,7 +29,7 @@ func (fe *funcEmitter) emitMagicIntrinsic(call *mir.CallInstr) (bool, error) {
 				return true, err
 			}
 		}
-		if !fe.canEmitMagicBinary(call) {
+		if !fe.canEmitMagicBinary(call, name) {
 			return false, nil
 		}
 		return true, fe.emitMagicBinaryIntrinsic(call, name)
@@ -43,12 +43,15 @@ func (fe *funcEmitter) emitMagicIntrinsic(call *mir.CallInstr) (bool, error) {
 	}
 }
 
-func (fe *funcEmitter) canEmitMagicBinary(call *mir.CallInstr) bool {
+func (fe *funcEmitter) canEmitMagicBinary(call *mir.CallInstr, name string) bool {
 	if call == nil || len(call.Args) != 2 {
 		return false
 	}
 	leftType := operandValueType(fe.emitter.types, &call.Args[0])
 	rightType := operandValueType(fe.emitter.types, &call.Args[1])
+	if isBoolType(fe.emitter.types, leftType) && isBoolType(fe.emitter.types, rightType) {
+		return name == "__eq" || name == "__ne"
+	}
 	if isStringLike(fe.emitter.types, leftType) || isStringLike(fe.emitter.types, rightType) {
 		if isStringLike(fe.emitter.types, leftType) && isStringLike(fe.emitter.types, rightType) {
 			return true
