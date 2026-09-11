@@ -26,7 +26,7 @@ func numericIteratorAsyncSource(cancel bool) string {
 	return fmt.Sprintf(`
 fn numeric_async_values() -> float[] { return [1.5, 2.5, 3.5]; }
 
-async fn numeric_suspended_loop(ready: own Channel<int>, gate: own Channel<int>) -> float {
+async fn numeric_suspended_loop(ready: Channel<int>, gate: Channel<int>) -> float {
     for x in numeric_async_values() {
         ready.send(1);
         let token: int = compare gate.recv() { Some(value) => value; nothing => -1; };

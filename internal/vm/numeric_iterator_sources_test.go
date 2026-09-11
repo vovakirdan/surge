@@ -148,13 +148,13 @@ fn main() -> int {
     let mut normal: int = 0;
     for x in 0..4 { normal = normal + x; }
     if normal != 6 { return 1; }
+    if numeric_fast_expression_continue() != 9 { return 4; }
     let mut cont: int = 0;
     for x in 0..5 { if x == 1 { continue; } cont = cont + x; }
     if cont != 9 { return 2; }
     let mut stop: int = 0;
     for x in 0..5 { stop = stop + x; if x == 2 { break; } }
     if stop != 3 { return 3; }
-    if numeric_fast_expression_continue() != 9 { return 4; }
     let mut unsigned: uint = 0:uint;
     for x: uint in 0:uint..4:uint { unsigned = unsigned + x; }
     if unsigned != 6:uint { return 5; }
