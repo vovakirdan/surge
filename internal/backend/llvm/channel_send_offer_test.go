@@ -104,7 +104,7 @@ fn main() -> int {
 func TestChannelSendConsumingPollKeepsItsAPI(t *testing.T) {
 	for _, row := range []struct{ name, typ, param, initial, declaration string }{
 		{"plain", "int32", "int32", "17:int32", ""},
-		{"owning", "string", "own string", `"owned"`, ""},
+		{"owning", "string", "own string", `own "owned"`, ""},
 		{"composite", "P", "P", "P{ value: 1.5 }", "@copy\ntype P = { value: float };"},
 	} {
 		for _, yield := range []bool{false, true} {

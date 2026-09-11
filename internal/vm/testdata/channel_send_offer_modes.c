@@ -53,6 +53,14 @@ static void offer_drop(void* value) {
     }
 }
 
+static rt_carrier_status
+offer_plan_cross(const void* source, rt_cross_mode mode, rt_cross_plan* out) {
+    (void)source;
+    (void)mode;
+    (void)out;
+    return RT_CARRIER_STATUS_INVALID_STATE;
+}
+
 static const rt_value_ops offer_ops = {
     .layout = {.size = sizeof(uint64_t),
                .align = _Alignof(uint64_t),
@@ -60,6 +68,7 @@ static const rt_value_ops offer_ops = {
                .flags = RT_VALUE_FLAG_DROPPABLE},
     .move_init = offer_move,
     .drop_in_place = offer_drop,
+    .plan_cross = offer_plan_cross,
 };
 
 static int call_offer(retry_fixture* f, int yield, unsigned take, int ready) {
@@ -166,7 +175,10 @@ void run_send_offer_mode(const char* mode) {
         (void)call_offer(&f, yield, 0, 1);
         release_held_claim(&f);
     } else if (strcmp(mode, "cancel-before-take") == 0) {
-        (void)task_cancel_gate_request(f.task);
+        rt_task_cancel(f.task);
+        if (!task_cancelled_load(f.task)) {
+            stand_fail("offer cancel request was not published");
+        }
         (void)call_offer(&f, yield, 0, 0);
         release_held_claim(&f);
     } else if (strcmp(mode, "claim-refusal") == 0) {

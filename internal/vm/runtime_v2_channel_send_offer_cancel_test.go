@@ -55,11 +55,20 @@ static void offer_cancel_drop(void* value) {
     }
 }
 
+static rt_carrier_status
+offer_cancel_plan_cross(const void* source, rt_cross_mode mode, rt_cross_plan* out) {
+    (void)source;
+    (void)mode;
+    (void)out;
+    return RT_CARRIER_STATUS_INVALID_STATE;
+}
+
 static const rt_value_ops offer_cancel_ops = {
     .layout = {.size = sizeof(void*), .align = _Alignof(void*),
                .stride = sizeof(void*), .flags = RT_VALUE_FLAG_DROPPABLE},
     .move_init = offer_cancel_move,
     .drop_in_place = offer_cancel_drop,
+    .plan_cross = offer_cancel_plan_cross,
 };
 
 static void poll_send_offer_cancel(void) {
