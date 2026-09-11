@@ -40,7 +40,7 @@ func assertCheckRejectsFrozenUntrackedEntry(t *testing.T, repo testRepository, e
 	}
 	expectations.EntryCount = len(snapshot.Entries)
 	expectations.CorpusSHA256 = snapshot.Digest()
-	if err := WriteExpectations(repo.expectations, &expectations); err != nil {
+	if err = WriteExpectations(repo.expectations, &expectations); err != nil {
 		t.Fatal(err)
 	}
 	changes, err := GitChanges(context.Background(), repo.root, repo.goldenRoot)
