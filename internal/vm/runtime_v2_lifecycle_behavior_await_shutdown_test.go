@@ -270,16 +270,9 @@ static int mode_shutdown_parked(rt_executor* ex) {
         return fail("scope owner did not park before shutdown");
     }
 
-    // A long rt_sleep is not a stable "stays parked" state in this runtime:
-    // tick_virtual/advance_time_to_next_timer (rt_async_state.c:1199-1257)
-    // fast-forwards the virtual clock to the next timer deadline once
-    // workers go idle, so this task may legitimately observe TASK_WAITING
-    // only briefly before completing -- confirmed by direct observation
-    // while developing this harness (a 3600000ms sleep fired within ~200ms
-    // of real time once nothing else was ready). The shutdown-liveness
-    // property this probe actually needs is "no hang", so WAITING or DONE
-    // are both acceptable; only getting stuck at TASK_READY forever (a lost
-    // wakeup or scheduling bug) would be a real failure.
+    // Idle workers fast-forward virtual time to the next timer deadline, so a
+    // long sleep may briefly WAIT and then finish. Either state proves this
+    // shutdown probe's required progress; a permanently READY task does not.
     rt_task* timer_task = spawn_pinned(ex, POLL_TIMER_PARK, 0);
     if (timer_task == NULL) {
         return fail("timer-parked task allocation failed");
@@ -339,6 +332,9 @@ int main(int argc, char** argv) {
     rt_executor* ex = ensure_exec();
     if (ex == NULL) {
         return fail("missing executor");
+    }
+    if (strcmp(argv[1], "send-offer-cancel") == 0) {
+        return mode_send_offer_cancel(ex);
     }
     if (strcmp(argv[1], "owner-local-create") == 0) {
         return mode_owner_local_create(ex);
