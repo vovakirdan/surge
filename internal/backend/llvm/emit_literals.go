@@ -208,7 +208,11 @@ func (fe *funcEmitter) emitArrayLit(lit *mir.ArrayLit, dstType types.TypeID) (va
 		// Both allocations name the ARRAY, not the element: a refused header is
 		// as much a failure to build this array as a refused element buffer, and
 		// the reader is holding one literal either way.
-		dataPtr := fe.emitCheckedAlloc(allocSiteArrayElements, dstType, fmt.Sprintf("%d", dataSize), elemAlign)
+		// Empty arrays use null data: reclaim has no element storage to free.
+		dataPtr := "null"
+		if length > 0 {
+			dataPtr = fe.emitCheckedAlloc(allocSiteArrayElements, dstType, fmt.Sprintf("%d", dataSize), elemAlign)
+		}
 		headPtr := fe.emitCheckedAlloc(allocSiteArrayHeader, dstType, fmt.Sprintf("%d", arrayHeaderSize), arrayHeaderAlign)
 
 		lenPtr := fe.nextTemp()
