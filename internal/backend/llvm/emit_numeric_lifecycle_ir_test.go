@@ -87,7 +87,7 @@ func numericGlueBody(t *testing.T, e *Emitter, id types.TypeID, operation string
 // another case label is emitted. Fixed arrays exercise successive guards in
 // one straight-line walk; the ordinary function bodies also copy these types.
 func TestEmitNumericLifecycleNestedControlFlow(t *testing.T) {
-	e := prepareEmitterForTest(t, `
+	e, result := prepareEmitterAndResultForTest(t, `
 @copy type NumericStruct = { a: int, b: int };
 tag NumericOne(int);
 tag NumericTwo(int, int);
@@ -98,6 +98,10 @@ fn keep_tuple(x: (int, int)) -> (int, int) { return x; }
 fn keep_fixed(x: int[3]) -> int[3] { return x; }
 fn keep_union(x: NumericUnion) -> NumericUnion { return x; }
 `)
+	ir, err := EmitModule(e.mod, e.types, e.syms, result.FileSet)
+	if err != nil {
+		t.Fatalf("emit nested numeric source: %v", err)
+	}
 	for _, row := range []struct {
 		name, function string
 		leaves         int
@@ -119,13 +123,9 @@ fn keep_union(x: NumericUnion) -> NumericUnion { return x; }
 				body := numericGlueBody(t, e, id, op.glue)
 				requireNumericOperation(t, assertNumericHeapGuards(t, body, "int"), op.leaf, row.leaves)
 			}
-			// Emitting a whole source function checks that a completed guard
-			// resumes before the MIR block's own terminator, without extra phis.
-			e.buf.Reset()
-			if err := e.emitFunction(f); err != nil {
-				t.Fatalf("emit source function %s: %v", row.function, err)
-			}
-			numericIRBlocks(t, e.buf.String())
+			// Read the whole source function from the normal module emitter;
+			// guards must resume before the MIR block's own terminator.
+			numericIRBlocks(t, findLLVMFuncBody(t, ir, "fn."+itoaMIRFuncID(f.ID)))
 		})
 	}
 }
@@ -140,16 +140,19 @@ func TestEmitNumericBoundsStepSkipsOnlyIntegerOneRelease(t *testing.T) {
 			} else if kind == "float" {
 				zero, constructor = "0.0", "rt_bigfloat_from_i64"
 			}
-			e := prepareEmitterForTest(t, fmt.Sprintf(`
+			e, result := prepareEmitterAndResultForTest(t, fmt.Sprintf(`
 fn step(r: Range<%s>) -> %s {
     for n: %s in r { return n; }
     return %s;
 }
 `, kind, kind, kind, zero))
-			if err := e.emitFunction(findMIRFunc(t, e.mod, "step")); err != nil {
+			ir, err := EmitModule(e.mod, e.types, e.syms, result.FileSet)
+			if err != nil {
 				t.Fatalf("emit bounds step: %v", err)
 			}
-			assertNumericOneRelease(t, e.buf.String(), kind, constructor)
+			f := findMIRFunc(t, e.mod, "step")
+			body := findLLVMFuncBody(t, ir, "fn."+itoaMIRFuncID(f.ID))
+			assertNumericOneRelease(t, body, kind, constructor)
 		})
 	}
 }

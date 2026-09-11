@@ -52,7 +52,12 @@ func TestRefCountedNumericScalarKindsAndQualifiers(t *testing.T) {
 			if got := in.IsRefCounted(row.id); got != row.counted {
 				t.Errorf("ownership predicate = %v, want %v", got, row.counted)
 			}
-			if !in.IsCopy(row.id) {
+			// IsCopy does not resolve aliases; these fixtures alias one value.
+			copyID := row.id
+			if target, alias := in.AliasTarget(copyID); alias {
+				copyID = target
+			}
+			if !in.IsCopy(copyID) {
 				t.Error("numeric ownership must preserve Copy")
 			}
 		})

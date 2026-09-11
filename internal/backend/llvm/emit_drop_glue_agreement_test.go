@@ -428,11 +428,9 @@ func TestNoDroppableTypeGetsAnEmptyGlueBody(t *testing.T) {
 	}
 }
 
-// semaLeafFamilies is the classifier's side: the families of every owning leaf
-// reachable from id through the component relation sema publishes.
-//
-// The walk asks `Classify` at each node and never re-derives a verdict, so a
-// classifier that stops calling strings droppable takes this set down with it.
+// semaLeafFamilies compares direct drops, stopping at declared runtime handles.
+// Their payloads are runtime-owned; array elements remain compiler-walked.
+// Every visited node still asks Classify for its published droppable verdict.
 func semaLeafFamilies(
 	t *testing.T,
 	classifier *sema.CapabilityClassifier,
@@ -469,7 +467,9 @@ func semaLeafFamilies(
 				found[family] = struct{}{}
 			}
 		}
-		queue = append(queue, classifier.Components(at)...)
+		if !typesIn.IsRuntimeHandleType(at) {
+			queue = append(queue, classifier.Components(at)...)
+		}
 	}
 	return found
 }

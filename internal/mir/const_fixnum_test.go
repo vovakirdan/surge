@@ -81,8 +81,13 @@ func TestMaterializeNumericLiteralOwnership(t *testing.T) {
 				}
 				return
 			}
-			if got.Kind != OperandRetain || len(l.f.Locals) != 1 || len(l.curBlock().Instrs) != 1 || !l.hasPendingTempDrops() {
-				t.Fatalf("allocating literal lacks one retained temporary owner: operand=%v locals=%d instructions=%d", got.Kind, len(l.f.Locals), len(l.curBlock().Instrs))
+			// consume=false reads the owner without transferring another count.
+			// The consuming read is checked separately against the same place.
+			if got.Kind != OperandCopy || len(l.f.Locals) != 1 || len(l.curBlock().Instrs) != 1 || !l.hasPendingTempDrops() {
+				t.Fatalf("allocating literal lacks one temporary owner: operand=%v locals=%d instructions=%d", got.Kind, len(l.f.Locals), len(l.curBlock().Instrs))
+			}
+			if l.placeOperand(got.Place, got.Type, true).Kind != OperandRetain {
+				t.Fatal("consuming the counted literal did not acquire its reference")
 			}
 			local := l.f.Locals[got.Place.Local]
 			if local.Flags&(LocalFlagCopy|LocalFlagOwnsHeap) != LocalFlagCopy|LocalFlagOwnsHeap {

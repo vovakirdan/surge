@@ -78,7 +78,7 @@ func (b *surgeStartBuilder) isCopyType(ty types.TypeID) bool {
 	if b.typesIn == nil || ty == types.NoTypeID {
 		return false
 	}
-	return b.typesIn.IsCopy(ty)
+	return b.typesIn.IsCopy(b.resolveAlias(ty))
 }
 
 func (b *surgeStartBuilder) isNothingType(ty types.TypeID) bool {
