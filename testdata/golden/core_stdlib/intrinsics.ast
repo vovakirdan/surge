@@ -551,30 +551,30 @@ intrinsics.sg (span: 1:1-900:1)
 │  ├─ Params: (dst: Placement, capacity: uint)
 │  ├─ Return: far Channel<T>
 │  └─ Body: <none>
-├─ Item[102]: Fn (span: 221:1-221:54)
+├─ Item[102]: Fn (span: 221:1-221:56)
 │  ├─ Name: rt_scope_enter
 │  ├─ Params: (failfast: bool)
-│  ├─ Return: uint
+│  ├─ Return: uint64
 │  └─ Body: <none>
-├─ Item[103]: Fn (span: 222:1-222:82)
+├─ Item[103]: Fn (span: 222:1-222:84)
 │  ├─ Name: rt_scope_register_child
 │  ├─ Generics: <T>
-│  ├─ Params: (scope: uint, child: Task<T>)
+│  ├─ Params: (scope: uint64, child: Task<T>)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[104]: Fn (span: 223:1-223:59)
+├─ Item[104]: Fn (span: 223:1-223:61)
 │  ├─ Name: rt_scope_cancel_all
-│  ├─ Params: (scope: uint)
+│  ├─ Params: (scope: uint64)
 │  ├─ Return: nothing
 │  └─ Body: <none>
-├─ Item[105]: Fn (span: 224:1-224:54)
+├─ Item[105]: Fn (span: 224:1-224:56)
 │  ├─ Name: rt_scope_join_all
-│  ├─ Params: (scope: uint)
+│  ├─ Params: (scope: uint64)
 │  ├─ Return: bool
 │  └─ Body: <none>
-├─ Item[106]: Fn (span: 225:1-225:53)
+├─ Item[106]: Fn (span: 225:1-225:55)
 │  ├─ Name: rt_scope_exit
-│  ├─ Params: (scope: uint)
+│  ├─ Params: (scope: uint64)
 │  ├─ Return: nothing
 │  └─ Body: <none>
 ├─ Item[107]: Extern (span: 227:1-231:2)
