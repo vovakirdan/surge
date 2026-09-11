@@ -32,15 +32,15 @@
 
 ## 🧪 Test files
 
-- **Files:** 746
-- **Lines of code:** 154722
+- **Files:** 749
+- **Lines of code:** 155333
 
 ## 📈 Total volume (code + tests)
 
-- **Files:** 1898
-- **Lines of code:** 407992
+- **Files:** 1901
+- **Lines of code:** 408603
 
 ## 📊 Percentage breakdown
 
-- **Main code (Go + C):** 62% (Go: 51%, C: 10%)
-- **Tests:** 37%
+- **Main code (Go + C):** 61% (Go: 51%, C: 10%)
+- **Tests:** 38%

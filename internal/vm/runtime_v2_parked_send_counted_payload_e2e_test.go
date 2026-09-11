@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 )
 
 // These are compiler-to-runtime checks of real counted families. The native
@@ -12,6 +11,10 @@ import (
 // cancellation at one/eight workers; checkpoints alone do not prove that
 // ordering with multiple workers.
 func channelSendOfferProgram(handle, cancel bool) (string, string) {
+	return channelSendOfferSource(handle, cancel, false)
+}
+
+func channelSendOfferSource(handle, cancel, countFromArgv bool) (string, string) {
 	typ, initial, post, checkGot, checkOriginal := "float", "1.5",
 		"if kept != 1.5 { return 8; }",
 		"if got != 1.5 { return 7; }",
@@ -52,23 +55,33 @@ func channelSendOfferProgram(handle, cancel bool) (string, string) {
     %s
 }
 `, typ, initial, finish)
+	runParameter, runArgument := "", ""
+	entrypoint := "@entrypoint\nfn main() -> int"
+	workload := strings.Repeat(body, repeats)
+	witness := fmt.Sprintf("print(%q);", marker)
+	if countFromArgv {
+		runParameter, runArgument = "rounds: uint", "rounds"
+		entrypoint = "@entrypoint(\"argv\")\nfn main(rounds: uint) -> int"
+		workload = "let mut round: uint = 0:uint;\nwhile round < rounds {\n" + body +
+			"round = round + 1:uint;\n}\n"
+		witness = fmt.Sprintf("print(%q + (round to string));", marker+" rounds=")
+	}
 	src := fmt.Sprintf(`
 async fn producer(ch: Channel<%s>, kept: %s) -> int {
     ch.send(kept);
     %s
     return 0;
 }
-async fn run() -> int {
+async fn run(%s) -> int {
     %s
-    print("%s");
+    %s
     return 0;
 }
-@entrypoint
-fn main() -> int {
-    let task = spawn run();
+%s {
+    let task = spawn run(%s);
     return compare task.await() { Success(code) => code; Cancelled() => 90; };
 }
-`, typ, typ, post, strings.Repeat(body, repeats), marker)
+`, typ, typ, post, runParameter, workload, witness, entrypoint, runArgument)
 	return src, marker
 }
 
@@ -91,32 +104,20 @@ func TestRuntimeV2ChannelSendOfferPreservesOriginal(t *testing.T) {
 	}
 }
 
-func TestRuntimeV2ChannelSendOfferValgrindZero(t *testing.T) {
+// Physical runtime bootstrap and worker TLS survive process exit. This checks
+// zero additional allocations against a fully attributed control in the SAME
+// executable, with full symbolic stacks and an independent logical census.
+// Park-slot reclamation before channel teardown is proved by the parked native
+// cancellation stand; process XML alone cannot witness an interior pool slot.
+func TestRuntimeV2ChannelSendOfferValgrindBaseline(t *testing.T) {
 	for _, handle := range []bool{false, true} {
 		for _, cancel := range []bool{false, true} {
-			src, marker := channelSendOfferProgram(handle, cancel)
+			src, marker := channelSendOfferSource(handle, cancel, true)
 			t.Run(marker, func(t *testing.T) {
-				bin := buildRuntimeV2CrossingSource(t, src, nil)
+				bin := buildAsyncAllocationProgram(t, src)
 				for _, workers := range []string{"1", "8"} {
 					t.Run("workers-"+workers, func(t *testing.T) {
-						env := overrideEnvVar(envWithStdlib(repoRoot(t)), "SURGE_SHARDS", "1")
-						env = overrideEnvVar(env, "SURGE_THREADS", workers)
-						stdout, stderr, code := runBinaryUnderValgrind(t, bin, env, 120*time.Second)
-						if code != 0 || hasValgrindMemcheckError(stderr) || !strings.Contains(stdout, marker) {
-							t.Fatalf("offer valgrind failed (code=%d)\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
-						}
-						if strings.Count(stderr, "ERROR SUMMARY:") != 1 ||
-							!strings.Contains(stderr, "ERROR SUMMARY: 0 errors from 0 contexts") {
-							t.Fatalf("offer valgrind requires exactly one zero-error summary\nstderr:\n%s", stderr)
-						}
-						inUseBytes, inUseBlocks := parseValgrindInUseAtExit(t, stderr)
-						if inUseBytes != 0 || inUseBlocks != 0 {
-							t.Fatalf("offer physical heap at exit: bytes=%d blocks=%d, want zero\nstderr:\n%s", inUseBytes, inUseBlocks, stderr)
-						}
-						bytes, blocks, err := parseValgrindDefinitelyLost(stderr)
-						if err != nil || bytes != 0 || blocks != 0 {
-							t.Fatalf("offer leak census: bytes=%d blocks=%d err=%v\nstderr:\n%s", bytes, blocks, err, stderr)
-						}
+						runAsyncAllocationBaseline(t, bin, marker, asyncAllocationEnvironment(t, workers))
 					})
 				}
 			})
