@@ -216,15 +216,15 @@ class ProtocolTests(unittest.TestCase):
                     if item[:2] == ("build", "timing")
                 )
             )
-            self.assertLess(last_timing_run, resource_build)
-            self.assertLess(resource_build, first_resource_run)
-
+            self.assertLess(resource_build, first_timing_run)
+            self.assertLess(last_timing_run, first_resource_run)
             strict_result, strict_report, strict_timeline = run(False)
             self.assertEqual(strict_result, 1)
             self.assertEqual(strict_report["status"], "aborted")
             self.assertIn("want exact structural budget", strict_report["failure"])
+            self.assertIn(("build", "resource", "candidate"), strict_timeline)
             self.assertFalse(
-                any(item[:2] == ("build", "resource") for item in strict_timeline)
+                any(item[:2] == ("run", "resource") for item in strict_timeline)
             )
 
     def test_every_placement_is_a_distinct_file_of_the_same_bytes(self) -> None:

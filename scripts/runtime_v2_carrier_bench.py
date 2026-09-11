@@ -272,13 +272,6 @@ def _build_and_run(
             include_allocation_control=True,
         ),
     }
-    timing = execute_timing_manifest(
-        manifest,
-        timing_binaries,
-        events,
-        protocol_sha256,
-        capture_expected_endpoint_red=capture_expected_endpoint_red,
-    )
     resource_binaries = build_fixtures(
         side_root=candidate_root,
         harness_root=harness_root,
@@ -286,6 +279,13 @@ def _build_and_run(
         manifest=manifest,
         build_root=temporary / "candidate" / "resource-fixtures",
         capture_kind="resource",
+    )
+    timing = execute_timing_manifest(
+        manifest,
+        timing_binaries,
+        events,
+        protocol_sha256,
+        capture_expected_endpoint_red=capture_expected_endpoint_red,
     )
     records = execute_resource_manifest(
         manifest,
