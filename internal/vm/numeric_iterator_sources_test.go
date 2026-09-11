@@ -109,7 +109,7 @@ fn main() -> int {
     let caller = numeric_values();
     if numeric_borrowed(&caller) != 7.5 { return 3; }
     if caller[1] != 2.5 { return 4; }
-    if numeric_generic_count<float>(&caller) != 3 { return 5; }
+    if numeric_generic_count::<float>(&caller) != 3 { return 5; }
     if numeric_fixed_forms() != 15.0 { return 6; }
     if numeric_break() != 1.5 { return 7; }
     if numeric_continue() != 5.0 { return 8; }
