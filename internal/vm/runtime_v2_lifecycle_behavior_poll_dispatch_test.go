@@ -35,6 +35,12 @@ void __surge_drop_abandoned_state_call(uint64_t id, void* state) {
 
 void __surge_poll_call(uint64_t id) {
     switch (id) {
+        case POLL_SEND_OFFER_CLAIM:
+            poll_send_offer_claim();
+            break;
+        case POLL_RECV_OFFER_CLAIM:
+            poll_recv_offer_claim();
+            break;
         case POLL_SEND_OFFER_CANCEL:
             poll_send_offer_cancel();
             break;

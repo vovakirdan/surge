@@ -336,6 +336,9 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "send-offer-cancel") == 0) {
         return mode_send_offer_cancel(ex);
     }
+    if (strcmp(argv[1], "send-offer-claim") == 0) {
+        return mode_send_offer_claim(ex);
+    }
     if (strcmp(argv[1], "owner-local-create") == 0) {
         return mode_owner_local_create(ex);
     }
