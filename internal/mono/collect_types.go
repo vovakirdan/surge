@@ -80,6 +80,7 @@ func collectTypesFromStmt(st *hir.Stmt, visit func(id types.TypeID)) {
 			return
 		}
 		collectTypesFromExpr(data.Cond, visit)
+		collectTypesFromExpr(data.Post, visit)
 		collectTypesFromBlock(data.Body, visit)
 	case hir.StmtFor:
 		data, ok := st.Data.(hir.ForData)

@@ -4,7 +4,6 @@ package hir
 import (
 	"fmt"
 
-	"surge/internal/ast"
 	"surge/internal/source"
 	"surge/internal/types"
 )
@@ -109,44 +108,6 @@ func normalizeForIn(ctx *normCtx, span source.Span, data ForData) ([]Stmt, error
 	return normalizeIterFor(ctx, span, data)
 }
 
-func isNumericRangeFor(ctx *normCtx, iterable *Expr, elemTy types.TypeID) bool {
-	if ctx == nil || iterable == nil {
-		return false
-	}
-	// Drop-emission wraps an owned range value in ExprOwnedTemp before the loop
-	// is normalized; peel it so the range binary-op shape is visible. Without
-	// this the fast path never matched and every integer `for i in a..=b` fell
-	// into the generic iterator protocol.
-	iterable = unwrapOwnedTemp(iterable)
-	if iterable.Kind != ExprBinaryOp {
-		return false
-	}
-	bin := iterable.Data.(BinaryOpData)
-	if bin.Op != ast.ExprBinaryRange && bin.Op != ast.ExprBinaryRangeInclusive {
-		return false
-	}
-	// A finite numeric range desugars to a `while` loop, so both bounds must be
-	// present; open-bounded ranges keep the iterator protocol.
-	if bin.Left == nil || bin.Right == nil {
-		return false
-	}
-	// Prefer the loop variable's type; fall back to the range bound types.
-	return isIntOrUintKind(ctx, elemTy) ||
-		isIntOrUintKind(ctx, bin.Left.Type) ||
-		isIntOrUintKind(ctx, bin.Right.Type)
-}
-
-func isIntOrUintKind(ctx *normCtx, ty types.TypeID) bool {
-	if ctx == nil || ctx.mod == nil || ctx.mod.TypeInterner == nil || ty == types.NoTypeID {
-		return false
-	}
-	tt, ok := ctx.mod.TypeInterner.Lookup(ty)
-	if !ok {
-		return false
-	}
-	return tt.Kind == types.KindInt || tt.Kind == types.KindUint
-}
-
 // unwrapOwnedTemp peels drop-emission's owned-temporary wrapper so range-shape
 // checks and the range desugar see the underlying expression.
 func unwrapOwnedTemp(e *Expr) *Expr {
@@ -194,115 +155,6 @@ func iterableElementType(ctx *normCtx, iterable *Expr) types.TypeID {
 	return types.NoTypeID
 }
 
-func normalizeNumericRangeFor(ctx *normCtx, span source.Span, data ForData) ([]Stmt, error) {
-	iterable := unwrapOwnedTemp(data.Iterable)
-	if iterable == nil || iterable.Kind != ExprBinaryOp {
-		return normalizeIterFor(ctx, span, data)
-	}
-	bin := iterable.Data.(BinaryOpData)
-
-	start := bin.Left
-	end := bin.Right
-	if start != nil {
-		if err := normalizeExpr(ctx, start); err != nil {
-			return nil, err
-		}
-	}
-	if end != nil {
-		if err := normalizeExpr(ctx, end); err != nil {
-			return nil, err
-		}
-	}
-
-	loopName := data.VarName
-	loopSym := data.VarSym
-	loopTy := data.VarType
-
-	if loopName == "" || loopName == "_" || !loopSym.IsValid() {
-		loopSym, loopName = ctx.newTemp("i")
-	}
-	if loopTy == types.NoTypeID {
-		if start != nil && start.Type != types.NoTypeID {
-			loopTy = start.Type
-		} else if end != nil {
-			loopTy = end.Type
-		}
-	}
-
-	iLet := Stmt{
-		Kind: StmtLet,
-		Span: span,
-		Data: LetData{
-			Name:      loopName,
-			SymbolID:  loopSym,
-			Type:      loopTy,
-			Value:     start,
-			IsMut:     true,
-			IsConst:   false,
-			Ownership: ctx.inferOwnership(loopTy),
-		},
-	}
-
-	endSym, endName := ctx.newTemp("end")
-	endTy := loopTy
-	if end != nil && end.Type != types.NoTypeID {
-		endTy = end.Type
-	}
-	endLet := Stmt{
-		Kind: StmtLet,
-		Span: span,
-		Data: LetData{
-			Name:      endName,
-			SymbolID:  endSym,
-			Type:      endTy,
-			Value:     end,
-			IsMut:     false,
-			IsConst:   false,
-			Ownership: ctx.inferOwnership(endTy),
-		},
-	}
-
-	condOp := ast.ExprBinaryLess
-	if bin.Op == ast.ExprBinaryRangeInclusive {
-		condOp = ast.ExprBinaryLessEq
-	}
-	cond := ctx.binary(condOp, ctx.varRef(loopName, loopSym, loopTy, span), ctx.varRef(endName, endSym, endTy, span), ctx.boolType(), span)
-
-	incr := Stmt{
-		Kind: StmtAssign,
-		Span: span,
-		Data: AssignData{
-			Target: ctx.varRef(loopName, loopSym, loopTy, span),
-			Value: ctx.binary(
-				ast.ExprBinaryAdd,
-				ctx.varRef(loopName, loopSym, loopTy, span),
-				ctx.intLit(1, loopTy, span),
-				loopTy,
-				span,
-			),
-		},
-	}
-
-	if data.Body == nil {
-		data.Body = &Block{Span: span}
-	}
-	rewriteContinues(data.Body, []Stmt{incr}, 0)
-	data.Body.Stmts = append(data.Body.Stmts, incr)
-
-	whileStmt := Stmt{
-		Kind: StmtWhile,
-		Span: span,
-		Data: WhileData{
-			Cond: cond,
-			Body: data.Body,
-		},
-	}
-
-	outer := &Block{Span: span}
-	outer.Stmts = append(outer.Stmts, iLet, endLet, whileStmt)
-	return []Stmt{{Kind: StmtBlock, Span: span, Data: BlockStmtData{Block: outer}}}, nil
-}
-
 func normalizeIterFor(ctx *normCtx, span source.Span, data ForData) ([]Stmt, error) {
 	if ctx == nil {
 		return nil, nil
@@ -325,13 +177,14 @@ func normalizeIterFor(ctx *normCtx, span source.Span, data ForData) ([]Stmt, err
 		Kind: StmtLet,
 		Span: span,
 		Data: LetData{
-			Name:      iterName,
-			SymbolID:  iterSym,
-			Type:      iterTy,
-			Value:     &Expr{Kind: ExprIterInit, Type: iterTy, Span: span, Data: IterInitData{Iterable: iterableRef}},
-			IsMut:     true,
-			IsConst:   false,
-			Ownership: ctx.inferOwnership(iterTy),
+			Name:          iterName,
+			SymbolID:      iterSym,
+			Type:          iterTy,
+			Value:         &Expr{Kind: ExprIterInit, Type: iterTy, Span: span, Data: IterInitData{Iterable: iterableRef}},
+			IsMut:         true,
+			IsConst:       false,
+			Ownership:     ctx.inferOwnership(iterTy),
+			GeneratedDrop: GeneratedDropNumericIterableResource,
 		},
 	}
 
@@ -358,17 +211,21 @@ func normalizeIterFor(ctx *normCtx, span source.Span, data ForData) ([]Stmt, err
 		if bindTy == types.NoTypeID {
 			bindTy = ctx.bindingType(data.VarSym)
 		}
+		if bindTy == types.NoTypeID {
+			bindTy = elemTy
+		}
 		bindVarStmt = &Stmt{
 			Kind: StmtLet,
 			Span: span,
 			Data: LetData{
-				Name:      data.VarName,
-				SymbolID:  data.VarSym,
-				Type:      bindTy,
-				Value:     &Expr{Kind: ExprTagPayload, Type: bindTy, Span: span, Data: TagPayloadData{Value: nextRef, TagName: "Some", Index: 0}},
-				IsMut:     false,
-				IsConst:   false,
-				Ownership: ctx.inferOwnership(bindTy),
+				Name:          data.VarName,
+				SymbolID:      data.VarSym,
+				Type:          bindTy,
+				Value:         &Expr{Kind: ExprTagPayload, Type: bindTy, Span: span, Data: TagPayloadData{Value: nextRef, TagName: "Some", Index: 0}},
+				IsMut:         false,
+				IsConst:       false,
+				Ownership:     ctx.inferOwnership(bindTy),
+				GeneratedDrop: GeneratedDropCountedScalar,
 			},
 		}
 	}
@@ -410,18 +267,9 @@ func normalizeIterFor(ctx *normCtx, span source.Span, data ForData) ([]Stmt, err
 		data.Body = &Block{Span: span}
 	}
 
-	// An array iteration always allocates a real, fixed-shape cursor
-	// (emitArrayIterInit never takes a shortcut). A Range<T> iteration
-	// only does when T is pointer-shaped at the backend (the default,
-	// unsized int/uint, or another bignum-style type); a FIXED-WIDTH
-	// int/uint element (i32, u8, ...) makes the backend hand back the
-	// original SurgeRange pointer instead of allocating a cursor (see
-	// emit_iter.go's range/array iterator layout notes). That pointer is
-	// owned by the range value itself, not by this loop, so freeing it
-	// here would double-free it. When this can't be proven safe, skip
-	// the cursor release entirely: the historical leak for
-	// that narrow case is unchanged, which is the safe direction — a
-	// wrong free is not.
+	// Preserve the legacy release selection for nonnumeric iterables. MIR
+	// replaces it with a lexical typed Drop only for a registered numeric
+	// resource, after its actual element type is known.
 	var cursorRelease Stmt
 	hasCursorRelease := iterCursorReleaseIsSafe(ctx, data.Iterable, elemTy)
 	if hasCursorRelease {
