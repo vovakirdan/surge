@@ -21,7 +21,7 @@ fn surviving_copy() -> $K {
     let original: $K = large:$K;
     let copied: $K = original;
     let cloned: $K = clone(&copied);
-    if (original:uint64) != large || (copied:uint64) != large || (cloned:uint64) != large {
+    if ((original:uint64) != large || (copied:uint64) != large || (cloned:uint64) != large) {
         panic("numeric shared owners changed");
     }
     return cloned;
@@ -29,7 +29,7 @@ fn surviving_copy() -> $K {
 @entrypoint
 fn main() {
     let survivor: $K = surviving_copy();
-    if (survivor:uint64) != 9223372036854775811:uint64 {
+    if ((survivor:uint64) != 9223372036854775811:uint64) {
         panic("numeric copy did not outlive its original");
     }
     print("$MARKER");
@@ -41,10 +41,10 @@ fn main() {
 		body = `
 fn surviving_copy() -> $K[] {
     let large: uint64 = 9223372036854775811:uint64;
-    let original: $K[] = [large:$K, 7];
+    let original: $K[] = [large:$K, 7:$K];
     let empty: $K[] = [];
     let copied: $K[] = original + empty;
-    if (original[0]:uint64) != large || (copied[0]:uint64) != large {
+    if ((original[0]:uint64) != large || (copied[0]:uint64) != large) {
         panic("numeric array copy changed its caller");
     }
     let tail: $K[] = [large:$K];
@@ -55,11 +55,11 @@ fn main() {
     let survivor: $K[] = surviving_copy();
     let empty: $K[] = [];
     let another: $K[] = survivor + empty;
-    if len(survivor) != 3 || len(another) != 3 {
+    if (len(survivor) != 3 || len(another) != 3) {
         panic("numeric array copy changed its length");
     }
-    if (survivor[0]:uint64) != 9223372036854775811:uint64 ||
-       (another[2]:uint64) != 9223372036854775811:uint64 || another[1] != 7 {
+    if ((survivor[0]:uint64) != 9223372036854775811:uint64 ||
+       (another[2]:uint64) != 9223372036854775811:uint64 || another[1] != 7:$K) {
         panic("numeric array leaves did not outlive their originals");
     }
     print("$MARKER");
