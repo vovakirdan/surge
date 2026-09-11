@@ -286,6 +286,7 @@ void rt_async_yield(void* state, uint64_t state_type_id) {
     }
     poll_result.state = state;
     if (current_task_cancelled(&exec_state)) {
+        rt_channel_cancel_resume(rt_current_task(), &exec_state);
         stash_reclaim_frame(state, state_type_id);
         poll_result.kind = POLL_DONE_CANCELLED;
         poll_result.park_key = waker_none();

@@ -582,6 +582,9 @@ void rt_async_return_cancelled(void* state, uint64_t state_type_id);
 
 void* rt_channel_new(uint64_t capacity, const rt_value_ops* ops, uint64_t element_type_id);
 const rt_value_ops* rt_channel_opaque_word_ops(void);
+// Async send/recv callers keep the channel live across Pending and repolls,
+// through Ready or the cancelled rt_async_yield boundary. Compiled code keeps
+// that hold in its suspension frame or a structurally held owning activation.
 bool rt_channel_send(void* channel, void* src);
 bool rt_channel_send_yield(void* channel, void* src);
 // Requires a live typed channel and writable disposable storage of its element
@@ -602,11 +605,8 @@ void rt_channel_handle_drop(void* channel);
 // Reclaims the header and inline buffer, dropping buffered and parked payloads
 // exactly once through their element descriptor.
 //
-// Callers must already know no other holder can reach this channel — never
-// call this on a channel another live handle, waiter, subscription or
-// in-flight operation can still resolve. It does not take that on trust: it
-// refuses, naming what it found, and the ordinary way to reach it is to drop
-// the last handle rather than to call it.
+// Requires no live handle, waiter, subscription or in-flight operation; refuses
+// and names any remaining holder. Normally reached by dropping the last handle.
 //
 // Takes the channel owner's shard lock for the detaching half of its teardown,
 // so it must be called with NO scheduler lock held. Callers that cannot

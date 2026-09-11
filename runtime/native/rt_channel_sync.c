@@ -198,28 +198,28 @@ void rt_channel_finish_take_owner_locked(rt_executor* ex,
             if (!channel_candidate_valid(sender, &cand)) {
                 continue;
             }
-            // Moving the sender's value into the freed cell runs the
-            // element's move, and this core is ALSO reached from the
-            // control-lane wrappers (select, and a blocking helper called
-            // outside a task). A generated operation may not run with control
-            // held, and releasing the channel shard does not release control,
-            // so where control is held the sender is woken to place its own
-            // value instead of having it moved for it.
+            // Select/blocking callers may hold control: releasing the shard
+            // would not make a generated move legal. Wake those senders to retry.
             rt_park_token sender_slot = sender->resume_slot;
-            if (rt_lane_holds_control() || !rt_park_pool_token_is_live(&ch->parks, &sender_slot) ||
-                !channel_stage_into_ring_locked(ex, ch_shard, ch, &sender_slot, NULL)) {
-                // Parked with nothing staged, the buffer refused, or the move
-                // has nowhere legal to run: wake it to retry rather than
-                // leaving it asleep, and leave it UNACKED -- nothing of its was
-                // delivered, and an ack would tell it otherwise.
+            if (rt_lane_holds_control() || !rt_park_pool_token_is_live(&ch->parks, &sender_slot)) {
                 (void)wake_task_on_shard_locked(
                     ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
+                continue;
+            }
+            // The detached move may cancel and await this sender.
+            task_add_ref(sender);
+            if (!channel_stage_into_ring_locked(ex, ch_shard, ch, &sender_slot, NULL)) {
+                // A consumed registration must be woken, unacked, on refusal.
+                (void)wake_task_on_shard_locked(
+                    ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
+                task_release_lane_aware(ex, sender);
                 continue;
             }
             sender->resume_kind = RESUME_CHAN_SEND_ACK;
             sender->resume_slot = (rt_park_token){0};
             (void)wake_task_on_shard_locked(
                 ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
+            task_release_lane_aware(ex, sender);
             channel_end_park_locked(ex, ch_shard, ch, &sender_slot);
             break;
         }
