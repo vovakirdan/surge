@@ -42,7 +42,7 @@ func compileNumericEmitModule(t *testing.T) numericEmitModule {
 		TargetPath: sourcePath, BaseDir: root, Analysis: true,
 		MaxDiagnostics: 200, Backend: buildpipeline.BackendLLVM,
 	})
-	if err != nil || compiled == nil || compiled.MIR == nil || compiled.Diagnose == nil {
+	if err != nil || compiled.MIR == nil || compiled.Diagnose == nil {
 		t.Fatalf("compile emitted numeric stand source: %v", err)
 	}
 	d := compiled.Diagnose
@@ -146,7 +146,7 @@ func buildNumericEmitStand(t *testing.T, m numericEmitModule, ir string, flags [
 	if code != 0 {
 		t.Fatalf("compile emitted numeric IR failed (not a lifecycle witness): code=%d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	link := []string{"-O0", "-g", "-I" + m.dir, object}
+	link := []string{"-O0", "-g", "-include", filepath.Join(m.dir, "numeric_emit_symbols.h"), object}
 	link = append(link, flags...)
 	for _, kind := range []string{"int", "uint"} {
 		for _, op := range []string{"retain", "release", "clone", "unshare"} {

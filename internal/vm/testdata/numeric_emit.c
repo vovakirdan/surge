@@ -2,12 +2,29 @@
 #include "rt_bignum_internal.h"
 #include "rt_heap_accounting.h"
 #include "rt_resident_bytes.h"
-#include "numeric_emit_symbols.h"
 
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+// Native builds force-include the checked MIR-to-symbol mapping. These real
+// declarations also let changed-C checks type-check the stand on its own;
+// incompatible generated signatures fail when both declarations are present.
+#define NUMERIC_DECLARATIONS(kind)                                      \
+    void* numeric_##kind##_copy(void*);                                 \
+    void* numeric_##kind##_explicit_clone(void*);                       \
+    void numeric_##kind##_discard(void*);                              \
+    void numeric_##kind##_clone(void*, void*);                          \
+    void numeric_##kind##_box_clone(void*, void*);                      \
+    void numeric_##kind##_clone_elem(void*, void*);                     \
+    void numeric_##kind##_drop(void*);                                 \
+    void numeric_##kind##_box_drop(void*);                             \
+    void numeric_##kind##_drop_elem(void*);                            \
+    void numeric_##kind##_unshare(void*);                              \
+    void numeric_##kind##_cross_clone(void*, void*);
+NUMERIC_DECLARATIONS(int)
+NUMERIC_DECLARATIONS(uint)
 
 // The emitted object supplies both dispatch hooks. No executor is started.
 int rt_argc = 0;
@@ -25,12 +42,14 @@ static const char* current_row;
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 #define WRAP_VOID(kind, index, op, counter)                         \
     extern void __real_rt_big##kind##_##op(void*);                  \
+    void __wrap_rt_big##kind##_##op(void*);                         \
     void __wrap_rt_big##kind##_##op(void* value) {                   \
         if (measuring) calls[index][counter]++;                    \
         __real_rt_big##kind##_##op(value);                          \
     }
 #define WRAP_VALUE(kind, index, op, counter, qualifier)             \
     extern void* __real_rt_big##kind##_##op(qualifier void*);        \
+    void* __wrap_rt_big##kind##_##op(qualifier void*);               \
     void* __wrap_rt_big##kind##_##op(qualifier void* value) {        \
         if (measuring) calls[index][counter]++;                    \
         return __real_rt_big##kind##_##op(value);                   \
@@ -153,7 +172,7 @@ static void inline_row(int kind, int operation) {
         printf("%s: word=%" PRIxPTR "\n", current_row, (uintptr_t)value);
         OperationMark mark = operation_begin();
         if (operation == 0 || operation == 2) {
-            void* copied = operation == 0 ? ops->copy(value) : ops->explicit_clone(value);
+            const void* copied = operation == 0 ? ops->copy(value) : ops->explicit_clone(value);
             check(copied == value, "inline source Copy preserves the word");
         } else if (operation == 1) {
             ops->discard(value);
@@ -161,17 +180,17 @@ static void inline_row(int kind, int operation) {
             for (int shape = 0; shape < 3; shape++) {
                 void* source = value;
                 void* copied = NULL;
-                ops->clone[shape](&copied, &source);
+                ops->clone[shape]((void*)&copied, (void*)&source);
                 check(copied == value && source == value, "inline glue Copy preserves both words");
-                ops->drop[shape](&copied);
+                ops->drop[shape]((void*)&copied);
             }
         } else if (operation == 4) {
             void* slot = value;
-            ops->unshare(&slot);
+            ops->unshare((void*)&slot);
             check(slot == value, "inline unshare preserves the word");
         } else {
             void* copied = value;
-            ops->cross_clone(&copied, &value);
+            ops->cross_clone((void*)&copied, (void*)&value);
             check(copied == value, "inline crossing preserves the copied word");
         }
         operation_end(mark, 0, 0, 0, 1);
@@ -184,13 +203,13 @@ static void heap_copy_row(int kind, int glue) {
         void* source = make_heap(kind);
         void* copied = NULL;
         OperationMark mark = operation_begin();
-        if (glue) ops->clone[shape](&copied, &source);
+        if (glue) ops->clone[shape]((void*)&copied, (void*)&source);
         else copied = shape == 0 ? ops->copy(source) : ops->explicit_clone(source);
         check(copied == source && heap_rc(kind, source) == 2,
               "heap Copy retains exactly one shared owner");
         check(expected_heap_value(kind, source), "heap Copy preserves the value");
         if (glue) {
-            ops->drop[shape](&copied);
+            ops->drop[shape]((void*)&copied);
             copied = NULL;
             check(heap_rc(kind, source) == 1, "dropping glue Copy preserves its caller");
         }
@@ -208,21 +227,21 @@ static void heap_private_row(int kind, int operation) {
     if (operation == 10) ops->retain(source); // The sibling stays on this shard.
     OperationMark mark = operation_begin();
     if (operation == 8) {
-        ops->drop[0](&slot);
+        ops->drop[0]((void*)&slot);
         // Do not dereference the last owner's freed block. A removed release
         // intentionally leaks it; both the named failure and Valgrind see it.
         source = NULL;
         slot = NULL;
         operation_end(mark, 0, 1, 0, 0);
     } else if (operation == 9) {
-        ops->unshare(&slot);
+        ops->unshare((void*)&slot);
         check(slot == source && heap_rc(kind, source) == 1,
               "unique unshare transfers the existing block");
         operation_end(mark, 0, 0, 0, 0);
         ops->release(slot);
     } else {
-        if (operation == 10) ops->unshare(&slot);
-        else ops->cross_clone(&slot, &source);
+        if (operation == 10) ops->unshare((void*)&slot);
+        else ops->cross_clone((void*)&slot, (void*)&source);
         check(slot != source, "private sibling not detached");
         check(expected_heap_value(kind, slot), "private copy preserves the value");
         check(heap_rc(kind, source) == 1 && heap_rc(kind, slot) == 1,
