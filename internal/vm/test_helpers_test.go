@@ -30,9 +30,10 @@ const (
 )
 
 type runOptions struct {
-	argv       []string
-	stdin      string
-	stdlibRoot string
+	argv          []string
+	stdin         string
+	stdlibRoot    string
+	captureStdout bool
 }
 
 type runResult struct {
@@ -332,8 +333,16 @@ func runProgram(t *testing.T, root, srcPath string, opts runOptions, artifacts *
 		t.Setenv("SURGE_STDLIB", opts.stdlibRoot)
 		mirMod, files, typesInterner := compileToMIR(t, srcPath)
 		rt := vm.NewTestRuntime(opts.argv, opts.stdin)
-		exitCode, vmErr := runVM(mirMod, rt, files, typesInterner, nil)
-		res := runResult{exitCode: exitCode}
+		var exitCode int
+		var vmErr *vm.VMError
+		run := func() { exitCode, vmErr = runVM(mirMod, rt, files, typesInterner, nil) }
+		var stdout string
+		if opts.captureStdout {
+			stdout = captureVMStdout(t, run)
+		} else {
+			run()
+		}
+		res := runResult{exitCode: exitCode, stdout: stdout}
 		if artifacts != nil {
 			res.artifactsDir = artifacts.Dir
 		}
@@ -492,4 +501,29 @@ func exitSignal(exitErr *exec.ExitError) string {
 		return ""
 	}
 	return status.Signal().String()
+}
+
+// captureVMStdout is opt-in because os.Stdout is process-global. Callers must
+// run serially, with no parallel ancestor or concurrent stdout writer. A file
+// avoids a bounded pipe filling while the synchronous VM is still running.
+func captureVMStdout(t *testing.T, run func()) string {
+	t.Helper()
+	file, err := os.CreateTemp(t.TempDir(), "vm-stdout-*")
+	if err != nil {
+		t.Fatalf("create VM stdout capture: %v", err)
+	}
+	previous := os.Stdout
+	os.Stdout = file
+	defer func() {
+		os.Stdout = previous
+		if closeErr := file.Close(); closeErr != nil {
+			t.Errorf("close VM stdout capture: %v", closeErr)
+		}
+	}()
+	run()
+	output, err := os.ReadFile(file.Name())
+	if err != nil {
+		t.Fatalf("read VM stdout capture: %v", err)
+	}
+	return string(output)
 }
