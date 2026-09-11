@@ -62,8 +62,11 @@ func asyncAllocationEnvironment(t *testing.T, workers string) []string {
 func runAsyncAllocationXML(t *testing.T, bin string, env []string, mode, rounds, marker string) []asyncAllocationRecord {
 	t.Helper()
 	xmlPath := filepath.Join(filepath.Dir(bin), sanitizeTestName(t.Name())+"-"+mode+"-"+rounds+".xml")
+	// Keep every workload frame through main. Unwinding below process entry on
+	// this toolchain reads argc/argv as callers after _start; those have no symbols.
+	// The parser still rejects any missing frame inside the measured call chain.
 	args := []string{"--leak-check=full", "--show-leak-kinds=all", "--leak-resolution=high",
-		"--num-callers=" + strconv.Itoa(asyncAllocationStackLimit), "--show-below-main=yes",
+		"--num-callers=" + strconv.Itoa(asyncAllocationStackLimit), "--show-below-main=no",
 		"--default-suppressions=no", "--error-limit=no", "--errors-for-leak-kinds=definite,indirect",
 		"--error-exitcode=97", "--xml=yes", "--xml-file=" + xmlPath, bin, mode, rounds}
 	cmd := exec.Command("valgrind", args...)
