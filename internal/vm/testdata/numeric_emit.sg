@@ -5,8 +5,8 @@
 
 fn copy_int(value: int) -> int { return value; }
 fn copy_uint(value: uint) -> uint { return value; }
-fn explicit_clone_int(value: int) -> int { return value.clone(); }
-fn explicit_clone_uint(value: uint) -> uint { return value.clone(); }
+fn explicit_clone_int(value: int) -> int { return clone(&value); }
+fn explicit_clone_uint(value: uint) -> uint { return clone(&value); }
 fn discard_int(value: int) { let other: int = value; }
 fn discard_uint(value: uint) { let other: uint = value; }
 fn copy_box_int(value: NumericIntBox) -> NumericIntBox { return value; }
@@ -35,8 +35,12 @@ fn main() -> int {
     discard_uint(explicit_clone_uint(u));
     let ib: NumericIntBox = copy_box_int(NumericIntBox{ value: i });
     let ub: NumericUintBox = copy_box_uint(NumericUintBox{ value: u });
-    let ia: int[] = concat_int([ib.value], [i]);
-    let ua: uint[] = concat_uint([ub.value], [u]);
+    let i_left: int[] = [ib.value];
+    let i_right: int[] = [i];
+    let u_left: uint[] = [ub.value];
+    let u_right: uint[] = [u];
+    let ia: int[] = concat_int(i_left, i_right);
+    let ua: uint[] = concat_uint(u_left, u_right);
     let im: Map<int, int64> = Map::<int, int64>::new();
     let um: Map<uint, int64> = Map::<uint, int64>::new();
     let ik: int[] = keys_int(im);

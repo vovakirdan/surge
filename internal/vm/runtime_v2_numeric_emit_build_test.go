@@ -14,6 +14,7 @@ import (
 
 	"surge/internal/backend/llvm"
 	"surge/internal/buildpipeline"
+	"surge/internal/diag"
 	"surge/internal/mir"
 	"surge/internal/types"
 )
@@ -43,6 +44,9 @@ func compileNumericEmitModule(t *testing.T) numericEmitModule {
 		MaxDiagnostics: 200, Backend: buildpipeline.BackendLLVM,
 	})
 	if err != nil || compiled.MIR == nil || compiled.Diagnose == nil {
+		if d := compiled.Diagnose; d != nil && d.Bag != nil {
+			t.Logf("numeric source diagnostics:\n%s", diag.FormatShortDiagnostics(d.Bag.Items(), d.FileSet, true))
+		}
 		t.Fatalf("compile emitted numeric stand source: %v", err)
 	}
 	d := compiled.Diagnose

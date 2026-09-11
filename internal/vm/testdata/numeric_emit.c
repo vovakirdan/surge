@@ -47,21 +47,28 @@ static const char* current_row;
         if (measuring) calls[index][counter]++;                    \
         __real_rt_big##kind##_##op(value);                          \
     }
-#define WRAP_VALUE(kind, index, op, counter, qualifier)             \
-    extern void* __real_rt_big##kind##_##op(qualifier void*);        \
-    void* __wrap_rt_big##kind##_##op(qualifier void*);               \
-    void* __wrap_rt_big##kind##_##op(qualifier void* value) {        \
-        if (measuring) calls[index][counter]++;                    \
-        return __real_rt_big##kind##_##op(value);                   \
+#define WRAP_CLONE(kind, index)                                    \
+    extern void* __real_rt_big##kind##_clone(const void*);          \
+    void* __wrap_rt_big##kind##_clone(const void*);                 \
+    void* __wrap_rt_big##kind##_clone(const void* value) {           \
+        if (measuring) calls[index][CLONE]++;                      \
+        return __real_rt_big##kind##_clone(value);                 \
+    }
+#define WRAP_UNSHARE(kind, index)                                  \
+    extern void* __real_rt_big##kind##_unshare(void*);               \
+    void* __wrap_rt_big##kind##_unshare(void*);                      \
+    void* __wrap_rt_big##kind##_unshare(void* value) {               \
+        if (measuring) calls[index][UNSHARE]++;                    \
+        return __real_rt_big##kind##_unshare(value);               \
     }
 WRAP_VOID(int, 0, retain, RETAIN)
 WRAP_VOID(int, 0, release, RELEASE)
-WRAP_VALUE(int, 0, clone, CLONE, const)
-WRAP_VALUE(int, 0, unshare, UNSHARE, )
+WRAP_CLONE(int, 0)
+WRAP_UNSHARE(int, 0)
 WRAP_VOID(uint, 1, retain, RETAIN)
 WRAP_VOID(uint, 1, release, RELEASE)
-WRAP_VALUE(uint, 1, clone, CLONE, const)
-WRAP_VALUE(uint, 1, unshare, UNSHARE, )
+WRAP_CLONE(uint, 1)
+WRAP_UNSHARE(uint, 1)
 // NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 
 typedef struct NumericOps {
