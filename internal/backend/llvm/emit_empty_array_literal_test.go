@@ -74,8 +74,8 @@ fn main() -> int {
 			requireArrayLiteralFieldStore(t, body, header, 8, "i64", fmt.Sprint(tc.length), 8)
 			requireArrayLiteralFieldStore(t, body, header, 16, "ptr", data, 8)
 			if tc.length > 0 {
-				requireArrayLiteralFieldStore(t, body, data, 0, "i32", "17", 4)
-				requireArrayLiteralFieldStore(t, body, data, 4, "i32", "23", 4)
+				requireArrayLiteralFieldStore(t, body, data, 0, "i32", arrayLiteralInt32Operand(t, body, 17), 4)
+				requireArrayLiteralFieldStore(t, body, data, 4, "i32", arrayLiteralInt32Operand(t, body, 23), 4)
 			}
 		})
 	}
@@ -115,13 +115,15 @@ func requireFixedInt32LiteralStorage(t *testing.T, body string) {
 	if strings.Contains(body, "call ptr @rt_alloc(") {
 		t.Fatalf("fixed array literal allocated a header or element buffer:\n%s", body)
 	}
+	first := arrayLiteralInt32Operand(t, body, 17)
+	second := arrayLiteralInt32Operand(t, body, 23)
 	// The literal has its own inline slot; return-value storage may add others.
 	allocas := regexp.MustCompile(`(?m)^  (%t\d+) = alloca \[8 x i8\], align 4$`).FindAllStringSubmatch(body, -1)
 	var literalSlots []string
 	for _, alloca := range allocas {
 		pattern := `(?m)^  (%t\d+) = getelementptr inbounds i8, ptr ` + regexp.QuoteMeta(alloca[1]) + `, i64 0$`
 		for _, field := range regexp.MustCompile(pattern).FindAllStringSubmatch(body, -1) {
-			if strings.Contains(body, "  store i32 17, ptr "+field[1]+", align 4\n") {
+			if strings.Contains(body, "  store i32 "+first+", ptr "+field[1]+", align 4\n") {
 				literalSlots = append(literalSlots, alloca[1])
 			}
 		}
@@ -129,6 +131,27 @@ func requireFixedInt32LiteralStorage(t *testing.T, body string) {
 	if len(literalSlots) != 1 {
 		t.Fatalf("want one inline literal slot storing the first element, got %d:\n%s", len(literalSlots), body)
 	}
-	requireArrayLiteralFieldStore(t, body, literalSlots[0], 0, "i32", "17", 4)
-	requireArrayLiteralFieldStore(t, body, literalSlots[0], 4, "i32", "23", 4)
+	requireArrayLiteralFieldStore(t, body, literalSlots[0], 0, "i32", first, 4)
+	requireArrayLiteralFieldStore(t, body, literalSlots[0], 4, "i32", second, 4)
+}
+
+// Typed literal elements are initialized in locals before the array is built.
+// Follow their unique definitions so a different value cannot satisfy the slot check.
+func arrayLiteralInt32Operand(t *testing.T, body string, value int) string {
+	t.Helper()
+	initPattern := fmt.Sprintf(`(?m)^  store i32 %d, ptr (%%l\d+), align 4$`, value)
+	initializers := regexp.MustCompile(initPattern).FindAllStringSubmatch(body, -1)
+	if len(initializers) != 1 {
+		t.Fatalf("want one local initialized to i32 %d, got %d:\n%s", value, len(initializers), body)
+	}
+	local := regexp.QuoteMeta(initializers[0][1])
+	writes := regexp.MustCompile(`(?m)^  store [^\n]*, ptr `+local+`, align \d+$`).FindAllString(body, -1)
+	if len(writes) != 1 {
+		t.Fatalf("literal local %s has %d writes, want exactly one:\n%s", initializers[0][1], len(writes), body)
+	}
+	loads := regexp.MustCompile(`(?m)^  (%t\d+) = load i32, ptr `+local+`, align 4$`).FindAllStringSubmatch(body, -1)
+	if len(loads) != 1 {
+		t.Fatalf("literal local %s has %d loads, want exactly one:\n%s", initializers[0][1], len(loads), body)
+	}
+	return loads[0][1]
 }
