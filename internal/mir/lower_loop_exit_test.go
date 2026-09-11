@@ -62,9 +62,9 @@ func TestGeneratedLoopLexicalDropOrderAndInitializerFrontier(t *testing.T) {
 				if entry.Term.Kind != TermReturn {
 					t.Fatal("initializer did not return on the entry path")
 				}
-				requireLoopDrops(t, l, entry, "current")
+				requireLoopDrops(t, l, entry, "tmp_const1", "tmp_const3", "current")
 			} else {
-				requireLoopDrops(t, l, l.curBlock(), "x", "end", "current")
+				requireLoopDrops(t, l, l.curBlock(), "tmp_const1", "tmp_const2", "tmp_const3", "x", "end", "current")
 			}
 		})
 	}
@@ -84,13 +84,13 @@ func TestGeneratedLoopReturnDetachesValueBeforeDrops(t *testing.T) {
 		t.Fatal(err)
 	}
 	b := l.curBlock()
-	requireLoopDrops(t, l, b, "x", "end", "current")
+	requireLoopDrops(t, l, b, "tmp_const1", "tmp_const2", "tmp_const3", "x", "end", "current")
 	if b.Term.Kind != TermReturn || b.Term.Return.Value.Kind != OperandMove || b.Term.Return.Value.Place.Local == l.symToLocal[3] {
 		t.Fatal("return did not transfer a detached result")
 	}
 	retained := false
 	for _, ins := range b.Instrs {
-		if ins.Kind == InstrDrop {
+		if ins.Kind == InstrDrop && ins.Drop.Place.Local == l.symToLocal[3] {
 			break
 		}
 		if ins.Kind == InstrAssign && ins.Assign.Dst.Local == b.Term.Return.Value.Place.Local &&
@@ -129,13 +129,13 @@ func TestGeneratedLoopBlockReturnsReleaseOnlyExitedFrames(t *testing.T) {
 				t.Fatal(err)
 			}
 			b := l.curBlock()
-			requireLoopDrops(t, l, b, "x")
+			requireLoopDrops(t, l, b, "tmp_const2", "x")
 			if b.Term.Kind != TermGoto || b.Term.Goto.Target != exit {
 				t.Fatal("block return missed its exit")
 			}
 			stored := false
 			for _, ins := range b.Instrs {
-				if ins.Kind == InstrDrop {
+				if ins.Kind == InstrDrop && ins.Drop.Place.Local == l.symToLocal[2] {
 					break
 				}
 				if ins.Kind == InstrAssign && ins.Assign.Dst.Local == result && ins.Assign.Src.Kind == RValueUse {
@@ -193,7 +193,7 @@ func TestNumericLoopLatchAndExitOwnership(t *testing.T) {
 				t.Fatal("missing while condition")
 			}
 			loopBody := &l.f.Blocks[header.Term.If.Then]
-			requireLoopDrops(t, l, loopBody, "x")
+			requireLoopDrops(t, l, loopBody, "tmp_const3", "x")
 			exit := header.Term.If.Else
 			if loopBody.Term.Kind != TermGoto {
 				t.Fatal("body exit is not a jump")
