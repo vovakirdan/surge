@@ -111,12 +111,18 @@ func TestLiveCarrierRatchetAgainstRepository(t *testing.T) {
 	// and owned by a VM-representation epic of its own. A category outside
 	// this map that reads non-zero is a wave's category coming back.
 	legacy := make(map[findingKey]string)
+	expectedPostBaselineAllowed := 0
 	for i := range manifest.Categories {
 		category := &manifest.Categories[i]
+		expectedPostBaselineAllowed += len(category.PostBaselineAllow)
 		for j := range category.Legacy {
 			legacy[keyFor(&category.Legacy[j])] = category.ID
 		}
 	}
+	if difference.PostBaselineAllowed != expectedPostBaselineAllowed {
+		t.Fatalf("live post-baseline allowance count = %d, want %d", difference.PostBaselineAllowed, expectedPostBaselineAllowed)
+	}
+	t.Logf("live post-baseline allowances: %d", difference.PostBaselineAllowed)
 	live := make(map[string]int)
 	for i := range actual {
 		if id, ok := legacy[keyFor(&actual[i])]; ok {
