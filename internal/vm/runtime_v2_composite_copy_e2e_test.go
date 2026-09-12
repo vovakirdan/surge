@@ -272,12 +272,10 @@ func TestRuntimeV2CompositeCopyIsIndependent(t *testing.T) {
 			t.Run(variant.prefix+backend, func(t *testing.T) {
 				t.Setenv(backendEnvVar, backend)
 				res := runProgramFromSource(t, variant.source, runOptions{})
-				// The exit code IS the assertion: each row returns its own number
-				// on failure and the program returns 0 only after all of them
-				// passed. That is deliberate, because the VM runner does not
-				// capture the program's stdout — so the marker below is checked
-				// only where stdout is available, and the row number carries the
-				// diagnosis on both backends.
+				// Row failures return a nonzero exit code; VM execution errors
+				// arrive in stderr and can leave the exit code at zero. Check both.
+				// This run does not capture VM stdout, so the completion marker
+				// is checked only for LLVM.
 				if res.exitCode != 0 || res.stderr != "" {
 					t.Fatalf("composite copy contract failed at row %d\nstdout:\n%s\nstderr:\n%s",
 						res.exitCode, res.stdout, res.stderr)
