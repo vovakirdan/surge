@@ -9,8 +9,11 @@ import (
 	"strings"
 	"testing"
 
+	"surge/internal/buildpipeline"
+	"surge/internal/diag"
 	"surge/internal/mir"
 	"surge/internal/sema"
+	"surge/internal/source"
 	"surge/internal/types"
 	"surge/internal/vm"
 )
@@ -71,6 +74,29 @@ func spawnCopyWritesSpent(instruction *mir.Instr, state mir.LocalID) bool {
 		dst.Proj[0].Kind == mir.PlaceProjField && dst.Proj[0].FieldName == mir.FrameStateField &&
 		src.Kind == mir.RValueUse && src.Use.Kind == mir.OperandConst &&
 		src.Use.Const.Kind == mir.ConstInt && src.Use.Const.IntValue == mir.FrameStateSpent
+}
+
+// Use the executable pipeline so the public backend grants the crossing
+// capabilities before HIR lowering. The syntax-only helper cannot do that.
+func compileSpawnCopyCapture(t *testing.T, sourceCode string) (*mir.Module, *source.FileSet, *types.Interner) {
+	t.Helper()
+	root := repoRoot(t)
+	artifacts := newTestArtifacts(t, root)
+	path := artifactSourcePath(artifacts)
+	if err := os.WriteFile(path, []byte(sourceCode), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	compiled, err := buildpipeline.Compile(t.Context(), &buildpipeline.CompileRequest{
+		TargetPath: path, BaseDir: root, MaxDiagnostics: 200,
+		Analysis: true, Backend: buildpipeline.BackendVM,
+	})
+	if err != nil || compiled.MIR == nil || compiled.Diagnose == nil || compiled.Diagnose.Sema == nil {
+		if d := compiled.Diagnose; d != nil && d.Bag != nil {
+			t.Logf("spawn-copy source diagnostics:\n%s", diag.FormatShortDiagnostics(d.Bag.Items(), d.FileSet, true))
+		}
+		t.Fatalf("compile spawn-copy witness: %v; artifacts=%s", err, artifacts.Dir)
+	}
+	return compiled.MIR, compiled.Diagnose.FileSet, compiled.Diagnose.Sema.TypeInterner
 }
 
 func requireSpawnCopyCaptureMIR(t *testing.T, module *mir.Module, in *types.Interner, kind string, heap bool) {
@@ -174,7 +200,7 @@ func TestRuntimeV2SpawnOnCountedCopyCaptureCensus(t *testing.T) {
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			source := spawnCopyCaptureCensusSource(row.name, row.kind, row.literal)
-			module, files, in := compileToMIRFromSource(t, source)
+			module, files, in := compileSpawnCopyCapture(t, source)
 			requireSpawnCopyCaptureMIR(t, module, in, row.kind, row.heap)
 			t.Logf("capture source_SHA256=%x", sha256.Sum256([]byte(source)))
 			// Like stdout, VM stderr is process-global. This test and its
