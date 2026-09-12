@@ -105,7 +105,7 @@ func TestDumpModuleOwnershipAnnotationsAreOptInAndReadOnly(t *testing.T) {
 		"    L1: string [owns_heap] name=alias\n" +
 		"    L2: string [owns_heap] name=transfer\n" +
 		"    L3: string [owns_heap] name=flag_only\n" +
-		"    L4: int [copy] name=plain\n" +
+		"    L4: int64 [copy] name=plain\n" +
 		"    L5: string name=call_result\n" +
 		"    L6: string [owns_heap] name=move_source\n" +
 		"  bb0:\n" +
@@ -147,7 +147,7 @@ func TestDumpModuleOwnershipAnnotationsAreOptInAndReadOnly(t *testing.T) {
 		"    L1: string [owns_heap, owes_release] name=alias\n" +
 		"    L2: string [owns_heap, owes_release] name=transfer\n" +
 		"    L3: string [owns_heap] name=flag_only\n" +
-		"    L4: int [copy] name=plain\n" +
+		"    L4: int64 [copy] name=plain\n" +
 		"    L5: string name=call_result\n" +
 		"    L6: string [owns_heap] name=move_source\n" +
 		"  bb0:\n" +

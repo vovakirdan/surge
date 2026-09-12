@@ -18,25 +18,9 @@ func TestMoveOutOfSharedBorrowCodeNumber(t *testing.T) {
 	}
 }
 
-// An arm that hands its payload binding out of a compare over a BORROWED union
-// is refused (SEM3197) exactly when the payload owns heap — the union and the
-// caller would both free it. The gate is the OwnsHeap axis, and this pins the
-// gate's answer for the composite payloads RV2-DEBT-256 was filed on: the rule
-// used to refuse a `@copy` pair of ints because every value composite counted
-// as a heap box, and a pair of ints has nothing to double-free.
-//
-// One program shape, one condition varied per row. The refused rows are what
-// make the accepted rows more than a vacuous pass: the same template, through
-// the same harness, reaches the rule.
-//
-// The float row is the one the axis DECIDES rather than merely reports: a
-// `float` is a reference-counted scalar, so a `@copy` pair of floats owns two
-// counted blocks and the arm is refused. Whether that refusal is NECESSARY —
-// the extraction of a `@copy` composite through a borrow duplicates it, and the
-// duplicate retains its floats on the VM lane — is a question for the rule's
-// escape hatch (`payloadTakesItsOwnReference`, bare scalars only today), not
-// for the axis; the axis says what the value owns, and this row holds it to
-// that.
+// Borrowed union arms may hand out fixed-width Copy composites. Counted
+// composites own references, but the extraction retain exception covers only
+// directly refcounted values; this test preserves that admission policy.
 func TestArmHandingOutPayloadFollowsTheOwnsHeapAxis(t *testing.T) {
 	const shape = `
 %s
@@ -61,7 +45,7 @@ fn payload_of(h: &Held) -> %s {
 	}{
 		{
 			name:     "copy pair of ints is handed out",
-			decl:     "@copy type Pair = { a: int, b: int };",
+			decl:     "@copy type Pair = { a: int64, b: int64 };",
 			typeName: "Pair",
 			fallback: "Pair { a = 0, b = 0 }",
 			refused:  false,
@@ -75,10 +59,20 @@ fn payload_of(h: &Held) -> %s {
 		},
 		{
 			name:     "nested copy composite of ints is handed out",
-			decl:     "@copy type Inner = { x: int };\n@copy type Pair = { inner: Inner, label: int };",
+			decl:     "@copy type Inner = { x: int64 };\n@copy type Pair = { inner: Inner, label: int64 };",
 			typeName: "Pair",
 			fallback: "Pair { inner = Inner { x = 0 }, label = 0 }",
 			refused:  false,
+		},
+		{
+			name:     "counted_int_pair_is_refused",
+			decl:     "@copy type Pair = { a: int, b: int };",
+			typeName: "Pair", fallback: "Pair { a = 0, b = 0 }", refused: true,
+		},
+		{
+			name:     "counted_nested_int_composite_is_refused",
+			decl:     "@copy type Inner = { x: int };\n@copy type Pair = { inner: Inner, label: int };",
+			typeName: "Pair", fallback: "Pair { inner = Inner { x = 0 }, label = 0 }", refused: true,
 		},
 		{
 			name:     "copy pair of floats owns two counted blocks",

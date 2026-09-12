@@ -24,7 +24,7 @@ type ShardId = uint32;
 type Channel<T> = { __opaque: int };
 @shard_pinned
 type TcpConn = { __opaque: int };
-type Task<T> = { __opaque: int };
+type Task<T> = { __opaque: int64 };
 @shard_movable
 type Movable = { id: int };
 @nosend
@@ -145,7 +145,9 @@ func TestOnCrossingDiagnostics(t *testing.T) {
 
 		// Anchored channel operations carry the local surface (ON-CHAN):
 		// send(own T) -> nothing, recv() -> Option<T>, close() -> nothing.
-		{"anchored_send_ok", `fn f(ch: far Channel<int>) -> TaskResult<nothing> { return on ch { ch.send(1); ret nothing; }; }`, ""},
+		{"anchored_send_ok", `fn f(ch: far Channel<int64>) -> TaskResult<nothing> { return on ch { ch.send(1:int64); ret nothing; }; }`, ""},
+		{"anchored_counted_literal_requires_own_binding", `fn f(ch: far Channel<int>) -> TaskResult<nothing> { return on ch { ch.send(1); ret nothing; }; }`, "SEM3212"},
+		{"anchored_counted_owned_binding_ok", `fn f(ch: far Channel<int>) -> TaskResult<nothing> { let n: int = 1; return on ch { ch.send(own n); ret nothing; }; }`, ""},
 		{"anchored_recv_ok", `fn f(ch: far Channel<int>) -> TaskResult<int> { return on ch { let v: Option<int> = ch.recv(); let _ = v; ret 1; }; }`, ""},
 		{"anchored_close_ok", `fn f(ch: far Channel<int>) -> TaskResult<nothing> { return on ch { ch.close(); ret nothing; }; }`, ""},
 		{"anchored_send_missing_value", `fn f(ch: far Channel<int>) -> TaskResult<nothing> { return on ch { ch.send(); ret nothing; }; }`, "SEM3175"},
@@ -156,9 +158,9 @@ func TestOnCrossingDiagnostics(t *testing.T) {
 		// first statement's immediate expression; one operation per block.
 		{"anchored_op_first_stmt_let_ok", `fn f(ch: far Channel<int>) -> TaskResult<int> { return on ch { let v: Option<int> = ch.recv(); let _ = v; ret 1; }; }`, ""},
 		{"anchored_op_first_stmt_ret_ok", `fn f(ch: far Channel<int>) -> TaskResult<Option<int>> { return on ch { ret ch.recv(); }; }`, ""},
-		{"anchored_two_ops_rejected", `fn f(ch: far Channel<int>) -> TaskResult<nothing> { return on ch { ch.send(1); ch.close(); ret nothing; }; }`, "SEM3175"},
-		{"anchored_op_after_effect_rejected", `fn g() -> int { return 1; } fn f(ch: far Channel<int>) -> TaskResult<nothing> { return on ch { let x: int = g(); ch.send(x); ret nothing; }; }`, "SEM3175"},
-		{"anchored_op_under_if_rejected", `fn f(ch: far Channel<int>, c: bool) -> TaskResult<nothing> { return on ch { if c { ch.send(1); } ret nothing; }; }`, "SEM3175"},
+		{"anchored_two_ops_rejected", `fn f(ch: far Channel<int64>) -> TaskResult<nothing> { return on ch { ch.send(1:int64); ch.close(); ret nothing; }; }`, "SEM3175"},
+		{"anchored_op_after_effect_rejected", `fn g() -> int64 { return 1; } fn f(ch: far Channel<int64>) -> TaskResult<nothing> { return on ch { let x: int64 = g(); ch.send(x); ret nothing; }; }`, "SEM3175"},
+		{"anchored_op_under_if_rejected", `fn f(ch: far Channel<int64>, c: bool) -> TaskResult<nothing> { return on ch { if c { ch.send(1:int64); } ret nothing; }; }`, "SEM3175"},
 
 		// Sibling-lease mint surface (SHARE): borrowed receiver, zero args,
 		// result is the same far channel type; the original stays usable.
@@ -190,13 +192,16 @@ func TestOnCrossingDiagnostics(t *testing.T) {
 		{"on_without_crosses_ok", `fn f() -> TaskResult<int> { return on pool { ret 1; }; }`, ""},
 		{"nested_on", `fn f() -> TaskResult<int> { return on pool { let inner: TaskResult<int> = on distributed { ret 1; }; ret 1; }; }`, "SEM3153"},
 		{"suspend_in_blocking", `fn f() -> TaskResult<int> { blocking { let _ = on pool { ret 1; }; ret nothing; }; return on pool { ret 1; }; }`, "SEM3152"},
-		{"anchored_suspend_in_blocking", `fn f(ch: far Channel<int>) -> TaskResult<nothing> { blocking { let _ = on ch { ch.send(1); ret nothing; }; ret nothing; }; return on ch { ch.send(2); ret nothing; }; }`, "SEM3152"},
-		{"anchored_borrow_capture", `fn rd(r: &Plain) -> int { return r.id; } fn f(ch: far Channel<int>, p: Plain) -> TaskResult<nothing> { let r: &Plain = &p; return on ch { ch.send(1); let _ = rd(r); ret nothing; }; }`, "SEM3165"},
+		{"anchored_suspend_in_blocking", `fn f(ch: far Channel<int64>) -> TaskResult<nothing> { blocking { let _ = on ch { ch.send(1:int64); ret nothing; }; ret nothing; }; return on ch { ch.send(2:int64); ret nothing; }; }`, "SEM3152"},
+		{"anchored_borrow_capture", `fn rd(r: &Plain) -> int { return r.id; } fn f(ch: far Channel<int64>, p: Plain) -> TaskResult<nothing> { let r: &Plain = &p; return on ch { ch.send(1:int64); let _ = rd(r); ret nothing; }; }`, "SEM3165"},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			codes := onCrossingCodes(t, tc.src)
+			if tc.name == "anchored_counted_literal_requires_own_binding" && (len(codes) != 1 || !codes["SEM3212"]) {
+				t.Fatalf("expected only SEM3212, got %v", codes)
+			}
 			if tc.want == "" {
 				if len(codes) != 0 {
 					t.Fatalf("expected no errors, got: %s", joinCodes(codes))

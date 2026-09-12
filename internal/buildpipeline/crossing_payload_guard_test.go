@@ -19,6 +19,20 @@ func TestLLVMTransportPayloadGuard(t *testing.T) {
 		codes []diag.Code
 	}{
 		{
+			name: "counted_owned_send_preserves_far_task_refusal",
+			src: `
+async fn f(ch: far Channel<int>, task: far Task<int>) -> TaskResult<nothing> {
+    let value: int = 1;
+    return on ch {
+        ch.send(own value);
+        let _cancelled: TaskResult<nothing> = task.cancel();
+        ret nothing;
+    };
+}
+`,
+			codes: []diag.Code{diag.FutCrossingPayloadNotShippable},
+		},
+		{
 			name: "heap backed result and await",
 			src: `
 async fn start(dst: Placement) -> far Task<string> {
@@ -55,9 +69,9 @@ async fn take(ch: far Channel<int>) -> TaskResult<Option<int>> {
 		{
 			name: "captured far task lease in anchored body",
 			src: `
-async fn f(ch: far Channel<int>, task: far Task<int>) -> TaskResult<nothing> {
+async fn f(ch: far Channel<int64>, task: far Task<int>) -> TaskResult<nothing> {
     return on ch {
-        ch.send(1);
+        ch.send(1:int64);
         let _cancelled: TaskResult<nothing> = task.cancel();
         ret nothing;
     };
@@ -99,6 +113,13 @@ fn start(dst: Placement) -> far Task<int> {
 			if res.Diagnose == nil || res.Diagnose.Bag == nil {
 				t.Fatalf("missing diagnostics: %v", err)
 			}
+			if strings.HasPrefix(tc.name, "counted_") {
+				for _, d := range res.Diagnose.Bag.Items() {
+					if d.Severity == diag.SevError && d.Code != diag.FutCrossingPayloadNotShippable {
+						t.Fatalf("unrelated diagnostic %s", d.Code.ID())
+					}
+				}
+			}
 			for _, code := range tc.codes {
 				if findDiagnostic(res.Diagnose.Bag.Items(), code) == nil {
 					t.Errorf("missing %s; got %s", code.ID(), summarizeCodes(res.Diagnose.Bag.Items()))
@@ -118,6 +139,16 @@ func TestCrossingPayloadDiagnosticNamesTheField(t *testing.T) {
 		src      string
 		contains []string
 	}{
+		{
+			name: "counted_owned_send_preserves_task_binding_path",
+			src: `
+async fn f(ch: far Channel<int>, task: far Task<int>) -> TaskResult<nothing> {
+    let value: int = 1;
+    return on ch { ch.send(own value); let _c: TaskResult<nothing> = task.cancel(); ret nothing; };
+}
+`,
+			contains: []string{"capture `task`", "carries a `far Task` lease"},
+		},
 		{
 			name: "nested field path",
 			src: `
@@ -142,8 +173,8 @@ async fn take(ch: far Channel<int>) -> TaskResult<Option<int>> {
 		{
 			name: "far task capture names the binding",
 			src: `
-async fn f(ch: far Channel<int>, task: far Task<int>) -> TaskResult<nothing> {
-    return on ch { ch.send(1); let _c: TaskResult<nothing> = task.cancel(); ret nothing; };
+async fn f(ch: far Channel<int64>, task: far Task<int>) -> TaskResult<nothing> {
+    return on ch { ch.send(1:int64); let _c: TaskResult<nothing> = task.cancel(); ret nothing; };
 }
 `,
 			contains: []string{"capture `task`", "carries a `far Task` lease"},
@@ -160,6 +191,13 @@ async fn f(ch: far Channel<int>, task: far Task<int>) -> TaskResult<nothing> {
 			})
 			if res.Diagnose == nil || res.Diagnose.Bag == nil {
 				t.Fatal("missing diagnostics bag")
+			}
+			if strings.HasPrefix(tc.name, "counted_") {
+				for _, d := range res.Diagnose.Bag.Items() {
+					if d.Severity == diag.SevError && d.Code != diag.FutCrossingPayloadNotShippable {
+						t.Fatalf("unrelated diagnostic %s", d.Code.ID())
+					}
+				}
 			}
 			found := findDiagnostic(res.Diagnose.Bag.Items(), diag.FutCrossingPayloadNotShippable)
 			if found == nil {
@@ -199,9 +237,27 @@ type Movable = { id: int };
 
 fn use(m: own Movable) -> int { return m.id; }
 
-async fn f(ch: far Channel<int>, m: own Movable) -> TaskResult<nothing> {
+async fn f(ch: far Channel<int64>, m: own Movable) -> TaskResult<nothing> {
     return on ch {
-        ch.send(1);
+        ch.send(1:int64);
+        let _ = use(own m);
+        ret nothing;
+    };
+}
+
+@entrypoint
+fn main() -> int { return 0; }
+`,
+		`
+@shard_movable
+type Movable = { id: int };
+
+fn use(m: own Movable) -> int { return m.id; }
+
+async fn f(ch: far Channel<int>, m: own Movable) -> TaskResult<nothing> {
+    let value: int = 1;
+    return on ch {
+        ch.send(own value);
         let _ = use(own m);
         ret nothing;
     };

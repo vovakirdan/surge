@@ -1,6 +1,7 @@
 package mir_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -342,64 +343,79 @@ async fn cancel_remote(t: far Task<int>) -> TaskResult<nothing> {
 // the receive lowers to an anchored chan_recv (no suspend targets) whose
 // destination carries Option<T>.
 func TestMIRAnchoredChannelBodyLowersToReentryHelpers(t *testing.T) {
-	src := crossingMIRPrelude + `
-fn producer(ch: far Channel<int>, n: int) -> TaskResult<nothing> {
-    return on ch {
-        ch.send(n);
-        ret nothing;
-    };
-}
+	for _, row := range []struct {
+		name, payload string
+		kind          mir.OperandKind
+	}{
+		{"int64", "n", mir.OperandCopy},
+		{"int", "own n", mir.OperandMove},
+		{"uint", "own n", mir.OperandMove},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			src := crossingMIRPrelude + fmt.Sprintf(`
+		fn producer(ch: far Channel<%[1]s>, n: %[1]s) -> TaskResult<nothing> {
+		    return on ch {
+		        ch.send(%[2]s);
+		        ret nothing;
+		    };
+		}
 
-fn consumer(ch: far Channel<int>) -> TaskResult<Option<int>> {
-    return on ch {
-        ret ch.recv();
-    };
-}
-`
-	compiled := compileCrossingMIR(t, src, crossingForms(sema.CrossingLoweringOnFarHandle))
-	sendCalls := 0
-	anchoredRecvs := 0
-	bodyFns := 0
-	for _, fn := range compiled.mod.Funcs {
-		if fn == nil {
-			continue
+		fn consumer(ch: far Channel<%[1]s>) -> TaskResult<Option<%[1]s>> {
+		    return on ch {
+		        ret ch.recv();
+		    };
 		}
-		if strings.HasPrefix(fn.Name, "__on_anchored_block$") && strings.HasSuffix(fn.Name, "$poll") {
-			bodyFns++
-		}
-		for bi := range fn.Blocks {
-			for ii := range fn.Blocks[bi].Instrs {
-				ins := &fn.Blocks[bi].Instrs[ii]
-				switch ins.Kind {
-				case mir.InstrCall:
-					if ins.Call.Callee.Name == "rt_anchored_channel_send" {
-						sendCalls++
-						if len(ins.Call.Args) != 1 {
-							t.Fatalf("anchored send helper call args = %d, want 1", len(ins.Call.Args))
-						}
-					}
-				case mir.InstrChanRecv:
-					if ins.ChanRecv.Anchored {
-						anchoredRecvs++
-						if ins.ChanRecv.ReadyBB != mir.NoBlockID || ins.ChanRecv.PendBB != mir.NoBlockID {
-							t.Fatal("anchored chan_recv must carry no suspend targets")
-						}
-						if got := types.Label(compiled.types, mustLocalType(t, fn, ins.ChanRecv.Dst)); got != "Option<int>" {
-							t.Fatalf("anchored recv dst type = %q, want Option<int>", got)
+		`, row.name, row.payload)
+			compiled := compileCrossingMIR(t, src, crossingForms(sema.CrossingLoweringOnFarHandle))
+			sendCalls := 0
+			anchoredRecvs := 0
+			bodyFns := 0
+			for _, fn := range compiled.mod.Funcs {
+				if fn == nil {
+					continue
+				}
+				if strings.HasPrefix(fn.Name, "__on_anchored_block$") && strings.HasSuffix(fn.Name, "$poll") {
+					bodyFns++
+				}
+				for bi := range fn.Blocks {
+					for ii := range fn.Blocks[bi].Instrs {
+						ins := &fn.Blocks[bi].Instrs[ii]
+						switch ins.Kind {
+						case mir.InstrCall:
+							if ins.Call.Callee.Name == "rt_anchored_channel_send" {
+								sendCalls++
+								if len(ins.Call.Args) != 1 {
+									t.Fatalf("anchored send helper call args = %d, want 1", len(ins.Call.Args))
+								}
+								arg := ins.Call.Args[0]
+								if arg.Kind != row.kind || types.Label(compiled.types, arg.Type) != row.name {
+									t.Fatalf("anchored send payload=%+v, want %s of %s", arg, row.kind, row.name)
+								}
+							}
+						case mir.InstrChanRecv:
+							if ins.ChanRecv.Anchored {
+								anchoredRecvs++
+								if ins.ChanRecv.ReadyBB != mir.NoBlockID || ins.ChanRecv.PendBB != mir.NoBlockID {
+									t.Fatal("anchored chan_recv must carry no suspend targets")
+								}
+								if got := types.Label(compiled.types, mustLocalType(t, fn, ins.ChanRecv.Dst)); got != "Option<"+row.name+">" {
+									t.Fatalf("anchored recv dst type = %q, want Option<%s>", got, row.name)
+								}
+							}
 						}
 					}
 				}
 			}
-		}
-	}
-	if bodyFns != 2 {
-		t.Fatalf("anchored body poll functions = %d, want 2", bodyFns)
-	}
-	if sendCalls != 1 {
-		t.Fatalf("anchored send helper calls = %d, want 1", sendCalls)
-	}
-	if anchoredRecvs != 1 {
-		t.Fatalf("anchored chan_recv instrs = %d, want 1", anchoredRecvs)
+			if bodyFns != 2 {
+				t.Fatalf("anchored body poll functions = %d, want 2", bodyFns)
+			}
+			if sendCalls != 1 {
+				t.Fatalf("anchored send helper calls = %d, want 1", sendCalls)
+			}
+			if anchoredRecvs != 1 {
+				t.Fatalf("anchored chan_recv instrs = %d, want 1", anchoredRecvs)
+			}
+		})
 	}
 }
 

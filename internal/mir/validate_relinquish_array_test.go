@@ -8,7 +8,7 @@ import (
 )
 
 // The second reason a value is subject to the relinquishing rules: it carries a
-// DYNAMIC ARRAY. Nothing about privacy is at stake -- an `int[]`'s elements are
+// DYNAMIC ARRAY. Nothing about privacy is at stake -- an `int64[]`'s elements are
 // plain words -- but only the runtime's view registry can say whether the array
 // in hand is a view into a buffer the origin shard keeps reading, so the sink
 // must still carry the instruction that shows it to the runtime.
@@ -17,21 +17,21 @@ import (
 // are: what they check is the RULE, and a passing program would only show one
 // lowering's habit.
 
-// arrayRelinquishFixture is one function whose L0 is an `int[]`, L1 an `int`
-// and L2 a second `int[]`; the caller fills bb0 with the instructions its row
+// arrayRelinquishFixture is one function whose L0 is an `int64[]`, L1 an `int64`
+// and L2 a second `int64[]`; the caller fills bb0 with the instructions its row
 // is about. It hands back the interner, the array type and the plain type.
 func arrayRelinquishFixture(t *testing.T) (*Func, *types.Interner, types.TypeID, types.TypeID) {
 	t.Helper()
 	ot := newOwnershipTestTypes(t)
-	intArray := ot.in.Intern(types.MakeArray(ot.in.Builtins().Int, types.ArrayDynamicLength))
+	intArray := ot.in.Intern(types.MakeArray(ot.plain, types.ArrayDynamicLength))
 	// The premise every row below rests on: the array is exactly the shape the
 	// old counted-block gate could not see, so a row that passed for the wrong
 	// reason would be caught here rather than read as green.
 	if mayShareCountedBlockIn(ot.in, intArray) {
-		t.Fatalf("int[] must share no counted block, or these rows pin the counted gate instead")
+		t.Fatalf("int64[] must share no counted block, or these rows pin the counted gate instead")
 	}
 	if !needsRelinquishWalkIn(ot.in, intArray) {
-		t.Fatalf("int[] must need the relinquishing walk; the widening is what these rows check")
+		t.Fatalf("int64[] must need the relinquishing walk; the widening is what these rows check")
 	}
 	f := &Func{
 		ID:   0,
@@ -57,11 +57,11 @@ func TestRelinquishedArrayOperandsAreSubjectToBothRules(t *testing.T) {
 		wantShp string
 	}{
 		{
-			name: "an int array capture with no walk is refused by the act rule",
+			name: "an int64 array capture with no walk is refused by the act rule",
 			instrs: func(arrayTy, _ types.TypeID) []Instr {
 				return []Instr{relinquishCrossing(StructLitField{Name: "__cap0", Value: move(arrayTy, 0)})}
 			},
-			wantAct: "bb0 instr 0: state field __cap0 (L0, [int]) reaches the boundary without an un-share " +
+			wantAct: "bb0 instr 0: state field __cap0 (L0, [int64]) reaches the boundary without an un-share " +
 				"in its block; it may share a counted block, or it carries a dynamic array the runtime must inspect",
 		},
 		{
@@ -86,10 +86,10 @@ func TestRelinquishedArrayOperandsAreSubjectToBothRules(t *testing.T) {
 					{Name: "__cap0", Value: move(arrayTy, 2)},
 				}}}}}
 			},
-			wantAct: "bb0 instr 0: blocking state field __cap0 (L2, [int]) reaches the boundary without an un-share",
+			wantAct: "bb0 instr 0: blocking state field __cap0 (L2, [int64]) reaches the boundary without an un-share",
 		},
 		{
-			name: "an int field carries no array and is not asked",
+			name: "an int64 field carries no array and is not asked",
 			instrs: func(_, plain types.TypeID) []Instr {
 				return []Instr{relinquishCrossing(StructLitField{Name: "__cap0",
 					Value: Operand{Kind: OperandCopy, Type: plain, Place: relinquishLocal(1)}})}

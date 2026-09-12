@@ -1,11 +1,13 @@
 package mir_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
 	"surge/internal/mir"
 	"surge/internal/sema"
+	"surge/internal/types"
 )
 
 // The lifecycle word on the two frame kinds that are NOT the async state
@@ -154,88 +156,88 @@ func TestSpawnOnPollMarksTheFrameSpentAtEntry(t *testing.T) {
 	requireSpentAfterTheUnpack(t, poll, "spawn on")
 }
 
-// Every return of a crossing body leaves the frame marked SPENT, and the word is
-// the LAST instruction of the block that returns.
-//
-// WHAT THE ORDERING HALF DOES AND DOES NOT SEE. rewriteSpawnOnPollReturns
-// appends the owned-capture drops and then the word, so ordering the word after
-// them is what would make the claim true on a body that has any: a Copy capture
-// carrying storage arrives as the crossing's own copy, the local is its only
-// holder, and a frame claiming to hold nothing while that local is still alive
-// would strand exactly that copy.
-//
-// THIS FIXTURE has none. Its two captures are an `own` shard-movable, which is
-// not a Copy capture and owns no heap either (`Movable` is a struct of one
-// `int`), and an `int`, which owns no heap — so the returning block holds the
-// word and nothing else, and "last" is true here for a reason that is not the
-// one above.
-//
-// THE SHAPE ITSELF IS REACHABLE, and an earlier draft of this comment said it
-// was not. It is reached by capturing a reference-counted handle directly
-// rather than through a shard-movable struct:
-//
-//	async fn work(ch: Channel<int>) -> int {
-//	    let t: far Task<int> = spawn on distributed { ch.close(); ret 7; };
-//	    ...
-//	}
-//
-// compiles with no diagnostics, and its poll emits `L1 = field copy
-// L0.__cap0` followed at the return by `drop L1` — the Copy-capture-owning-heap
-// leg. The two refusals that were cited as making it impossible fire only on
-// the OWNED spellings, so neither reaches this one. The crossing is therefore
-// the WORKING model of this rule, not a dead leg, and what the sema change in
-// this commit does is make `blocking` match it.
-//
-// The count below stays pinned at zero because it is true of THIS fixture, not
-// because the shape cannot exist. A fixture that captures a handle directly
-// would witness the ordering claim, and building one here needs the real
-// standard library — which is why the reachable version is pinned in
-// internal/crossinggate instead.
-const spawnOnOwnedCaptureDropsAtReturns = 0
-
+// The fixed-width capture keeps the original zero-drop control. Counted
+// captures have one drop at each return, before the result is unshared and the
+// final SPENT write. The owned Movable still transfers into use(own m), so no
+// synthesized capture drop may reclaim it a second time.
 func TestSpawnOnPollMarksTheFrameSpentAtEveryReturn(t *testing.T) {
-	compiled := compileCrossingMIR(t, spawnOnCaptureUnpackSource,
-		map[sema.CrossingLoweringKind]bool{sema.CrossingLoweringSpawnOn: true})
-	poll := requireSyntheticBody(t, compiled.mod, "__spawn_on_block$")
-
-	returns := 0
-	drops := 0
-	for bi := range poll.Blocks {
-		bb := &poll.Blocks[bi]
-		if bb.Term.Kind != mir.TermAsyncReturn {
-			continue
-		}
-		returns++
-		if len(bb.Instrs) == 0 {
-			t.Errorf("%s bb%d ends the activation with no instructions at all; nothing marks the frame "+
-				"empty and whoever reclaims it walks what the body already took", poll.Name, bi)
-			continue
-		}
-		for ii := range bb.Instrs {
-			if bb.Instrs[ii].Kind == mir.InstrDrop {
-				drops++
+	for _, row := range []struct {
+		name, expression string
+		drops            int
+	}{
+		{"int64", "(tally:int)", 0},
+		{"int", "tally", 1},
+		{"uint", "(tally:int)", 1},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			src := crossingMIRPrelude + fmt.Sprintf(`
+fn use(m: own Movable) -> int { return m.id; }
+fn run(dst: Placement, m: own Movable, tally: %s) -> far Task<int> {
+    return spawn on dst { ret use(own m) + %s; };
+}
+fn main() -> int { return 0; }
+`, row.name, row.expression)
+			compiled := compileCrossingMIR(t, src, crossingForms(sema.CrossingLoweringSpawnOn))
+			poll := requireSyntheticBody(t, compiled.mod, "__spawn_on_block$")
+			requireSpentAfterTheUnpack(t, poll, "spawn on "+row.name)
+			unpacks := stateUnpacksIn(t, compiled.mod, "__spawn_on_block$")
+			if moved, ok := unpacks["m"]; !ok || !moved {
+				t.Fatal("owned Movable capture must move out of its field")
 			}
-		}
-		word, ok := frameStateWord(&bb.Instrs[len(bb.Instrs)-1])
-		if !ok {
-			t.Errorf("%s bb%d ends the activation and its last instruction (%s) is not a lifecycle write; "+
-				"the frame it hands back still claims to hold the body's locals",
-				poll.Name, bi, bb.Instrs[len(bb.Instrs)-1].Kind)
-			continue
-		}
-		if word != mir.FrameStateSpent {
-			t.Errorf("%s bb%d ends the activation with the frame marked %q; a completed body left it empty",
-				poll.Name, bi, wordName(word))
-		}
-	}
-	if returns == 0 {
-		t.Fatalf("%s has no returning block: the probe stopped measuring what it claims to", poll.Name)
-	}
-	if drops != spawnOnOwnedCaptureDropsAtReturns {
-		t.Errorf("%s synthesizes %d owned-capture drop(s) at its returns, not %d. Something made a Copy "+
-			"crossing capture that owns heap reachable; re-derive what orders the word against a body "+
-			"that can now witness it, rather than leaving this row asserting a sequence of one",
-			poll.Name, drops, spawnOnOwnedCaptureDropsAtReturns)
+			if moved, ok := unpacks["tally"]; !ok || moved {
+				t.Fatal("Copy tally capture must remain a plain field read")
+			}
+			tally, moved := namedLocal(t, poll, "tally"), namedLocal(t, poll, "m")
+			typ := poll.Locals[tally].Type
+			if got := types.Label(compiled.types, typ); got != row.name {
+				t.Fatalf("tally type=%s, want %s", got, row.name)
+			}
+			if got := compiled.types.IsRefCountedScalar(typ); got != (row.drops == 1) {
+				t.Fatalf("tally counted=%v, want %v", got, row.drops == 1)
+			}
+			result := namedLocal(t, poll, "__result")
+			returns := 0
+			for bi := range poll.Blocks {
+				bb := &poll.Blocks[bi]
+				if bb.Term.Kind != mir.TermAsyncReturn {
+					continue
+				}
+				returns++
+				n := len(bb.Instrs)
+				if n < 2 {
+					t.Fatalf("bb%d has no result unshare followed by SPENT", bi)
+				}
+				if word, ok := frameStateWord(&bb.Instrs[n-1]); !ok || word != mir.FrameStateSpent {
+					t.Fatalf("bb%d final instruction must write SPENT", bi)
+				}
+				unshare := &bb.Instrs[n-2]
+				if unshare.Kind != mir.InstrUnshare || !sameBareLocal(unshare.Unshare.Place, mir.Place{Local: result}) {
+					t.Fatalf("bb%d must unshare __result immediately before SPENT", bi)
+				}
+				drops := 0
+				for ii := range bb.Instrs {
+					ins := &bb.Instrs[ii]
+					if ins.Kind != mir.InstrDrop {
+						continue
+					}
+					if sameBareLocal(ins.Drop.Place, mir.Place{Local: moved}) {
+						t.Fatalf("bb%d drops the Movable already consumed by use", bi)
+					}
+					if sameBareLocal(ins.Drop.Place, mir.Place{Local: tally}) {
+						drops++
+						if ii >= n-2 {
+							t.Fatalf("bb%d tally drop must precede result unshare and SPENT", bi)
+						}
+					}
+				}
+				if drops != row.drops {
+					t.Errorf("bb%d tally capture drops=%d, want %d", bi, drops, row.drops)
+				}
+			}
+			if returns == 0 {
+				t.Fatal("spawn poll has no returning block")
+			}
+		})
 	}
 }
 

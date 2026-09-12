@@ -17,23 +17,27 @@ import (
 // call sits), and these rows pin the BODY a shape gets, in isolation from any
 // site, so a body that drifts is red by its own name.
 const unshareWalkProbeProgram = `
-type Counted = { v: float, n: int };
+type Counted = { v: float, n: int64 };
 
-type Plain = { a: int, b: int };
+type Plain = { a: int64, b: int64 };
 
-type Nested = { inner: Counted, label: int };
+type Nested = { inner: Counted, label: int64 };
 
 tag Held(Counted);
 tag Bare(Plain);
 type Sum = Held(Counted) | Bare(Plain);
 
-type WithArray = { xs: float[], n: int };
+type WithArray = { xs: float[], n: int64 };
 
-type WithChannel = { ch: Channel<float>, n: int };
+type WithChannel = { ch: Channel<float>, n: int64 };
+
+type CountedInt = { v: int };
+type CountedUint = { v: uint };
+type WithCountedArraySibling = { xs: float[], n: int };
 
 fn probe(c: Counted, p: Plain, n: Nested, s: Sum, w: WithArray, f: float, xss: float[][], wc: WithChannel, m: Map<int, float>,
-         xo: Option<float>[]) -> int {
-    return p.a;
+         xo: Option<float>[], ci: CountedInt, cu: CountedUint, ca: WithCountedArraySibling) -> int {
+    return p.a to int;
 }
 
 @entrypoint
@@ -138,6 +142,49 @@ func TestUnshareWalkOfAPlainTypeDoesNothing(t *testing.T) {
 	body := bodyOf(t, ir, unshareWalkName(ids["Plain"]))
 	if strings.Contains(body, "call") {
 		t.Fatalf("a type with no counted member emitted a call:\n%s", body)
+	}
+}
+
+// Fixed-width neighbours preserve the old single-leaf/no-op probes above.
+// These twins retain the unbounded numeric shapes: their heap arm must still
+// update the original slot, including a counted sibling beside an array slot.
+func TestUnshareWalkKeepsCountedNumericFields(t *testing.T) {
+	for _, tc := range []struct{ label, kind string }{
+		{"CountedInt", "int"}, {"CountedUint", "uint"}, {"WithCountedArraySibling", "int"},
+	} {
+		t.Run(tc.label, func(t *testing.T) {
+			ir, ids, e := unshareProbe(t, tc.label)
+			if !e.typeMayShareCountedBlock(ids[tc.label]) || !e.typeNeedsRelinquishWalk(ids[tc.label]) || !e.canUnshareValue(ids[tc.label]) {
+				t.Fatalf("%s must demand a supported counted walk", tc.label)
+			}
+			body := bodyOf(t, ir, unshareWalkName(ids[tc.label]))
+			assertTaggedUnshareLeaf(t, body, tc.kind)
+			if tc.label == "WithCountedArraySibling" {
+				if calls := arrayWalkCalls(t, body); len(calls) != 1 || calls[0][3] == "null" {
+					t.Fatalf("the float array sibling must still pass its element walk: %v\n%s", calls, body)
+				}
+				if !strings.Contains(body, "getelementptr inbounds i8, ptr %val, i64 8\n") {
+					t.Fatalf("the counted sibling's slot must be at offset eight:\n%s", body)
+				}
+			}
+		})
+	}
+}
+
+func assertTaggedUnshareLeaf(t *testing.T, body, kind string) {
+	t.Helper()
+	callRe := regexp.MustCompile(`(%g\d+) = call ptr @rt_big` + kind + `_unshare\(ptr (%g\d+)\)`)
+	calls := callRe.FindAllStringSubmatch(body, -1)
+	if len(calls) != 1 {
+		t.Fatalf("want one %s unshare leaf, got %d:\n%s", kind, len(calls), body)
+	}
+	call := strings.Index(body, calls[0][0])
+	guard := body[:call]
+	if !strings.Contains(guard, "and i64 ") || !strings.Contains(guard, "icmp ne ptr "+calls[0][2]+", null") || !strings.Contains(guard, "br i1 ") {
+		t.Fatalf("the numeric leaf must be behind both tag and NULL guards:\n%s", body)
+	}
+	if !strings.Contains(body[call:], "store ptr "+calls[0][1]+",") {
+		t.Fatalf("the numeric leaf's private reference was not stored back:\n%s", body)
 	}
 }
 
