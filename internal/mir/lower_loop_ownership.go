@@ -26,6 +26,15 @@ func (l *funcLowerer) numericLoopPost(post *hir.Expr) *hir.Expr {
 	return &copyPost
 }
 
+// An owned temporary still lends its value to the initializer. Acquire the
+// generated scalar's reference before statement cleanup releases that temporary.
+func (l *funcLowerer) acquireGeneratedLoopValue(op Operand, kind hir.GeneratedDropKind) Operand {
+	if kind == hir.GeneratedDropCountedScalar && op.Kind == OperandCopy && l.isRefCountedScalar(op.Type) {
+		op.Kind = OperandRetain
+	}
+	return op
+}
+
 // registerGeneratedLoopLocal gives a synthesized binding its lexical owner.
 // Its statement frame is still open, so initializer temporaries release only
 // after the assignment has handed their value to this binding.

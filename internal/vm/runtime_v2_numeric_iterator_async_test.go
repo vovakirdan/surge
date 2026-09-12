@@ -17,13 +17,42 @@ func numericIteratorAsyncSource(cancel bool) string {
 }
 
 func numericIteratorAsyncProgram(cancel, countFromArgv bool) string {
+	return numericIteratorAsyncTypedProgram("float", "array", cancel, countFromArgv)
+}
+
+// Heap variants keep a caller seed alive across child cleanup. The shared
+// allocation baseline still separates process bootstrap from workload owners;
+// neither a scheduler census nor an unchanged byte total alone is the oracle.
+func numericIteratorAsyncTypedProgram(kind, form string, cancel, countFromArgv bool) string {
+	values := "fn numeric_async_values() -> float[] { return [1.5, 2.5, 3.5]; }"
+	loop := "for x in numeric_async_values()"
+	failedAnswer, tokenError, emptyError := "-1.0", "-2.0", "-3.0"
+	answerCheck, markerBase := "answer != 1.5", "numeric-iterator"
+	seedParameter, seedArgument, seedBefore, seedAfter := "", "", "", ""
+	if kind != "float" {
+		if kind != "int" && kind != "uint" || form != "array" && form != "fast" {
+			panic("invalid heap iterator async type or form")
+		}
+		values = fmt.Sprintf("fn numeric_async_values(seed: %s) -> %s[] { return [seed, (9223372036854775812:uint64):%s, (9223372036854775813:uint64):%s]; }", kind, kind, kind, kind)
+		loop = "for x in numeric_async_values(seed)"
+		if form == "fast" {
+			values = ""
+			loop = fmt.Sprintf("for x: %s in seed..((9223372036854775814:uint64):%s)", kind, kind)
+		}
+		failedAnswer, tokenError, emptyError = "0:"+kind, "0:"+kind, "0:"+kind
+		answerCheck = "((answer:uint64) != 9223372036854775811:uint64)"
+		markerBase += "-heap-" + kind + "-" + form
+		seedParameter, seedArgument = ", seed: "+kind, ", seed"
+		seedBefore = fmt.Sprintf("let seed: %s = (9223372036854775811:uint64):%s;\n    ", kind, kind)
+		seedAfter = "if ((seed:uint64) != 9223372036854775811:uint64) { return 4; }\n    "
+	}
 	action := "gate.send(9);"
-	outcome := "let answer: float = compare child.await() { Success(value) => value; Cancelled() => -1.0; };\n    if answer != 1.5 { return 2; }"
-	marker := "numeric-iterator-resumed-witness"
+	outcome := fmt.Sprintf("let answer: %s = compare child.await() { Success(value) => value; Cancelled() => %s; };\n    if %s { return 2; }", kind, failedAnswer, answerCheck)
+	marker := markerBase + "-resumed-witness"
 	if cancel {
 		action = "child.cancel();"
 		outcome = "let cancelled: bool = compare child.await() { Success(_) => false; Cancelled() => true; };\n    if !cancelled { return 3; }"
-		marker = "numeric-iterator-cancelled-witness"
+		marker = markerBase + "-cancelled-witness"
 	}
 	parameter, argument, loopStart, loopEnd := "", "", "", ""
 	entrypoint := "@entrypoint\nfn main() -> int"
@@ -36,28 +65,28 @@ func numericIteratorAsyncProgram(cancel, countFromArgv bool) string {
 		witness = fmt.Sprintf("print(%q + (round to string));", marker+" rounds=")
 	}
 	return fmt.Sprintf(`
-fn numeric_async_values() -> float[] { return [1.5, 2.5, 3.5]; }
+%s
 
-async fn numeric_suspended_loop(ready: Channel<int>, gate: Channel<int>) -> float {
-    for x in numeric_async_values() {
+async fn numeric_suspended_loop(ready: Channel<int>, gate: Channel<int>%s) -> %s {
+    %s {
         ready.send(1);
         let token: int = compare gate.recv() { Some(value) => value; nothing => -1; };
-        if token != 9 { return -2.0; }
+        if token != 9 { return %s; }
         return x;
     }
-    return -3.0;
+    return %s;
 }
 
 async fn numeric_async_driver(%s) -> int {
     %s
-    let ready = Channel::<int>::new(0:uint);
+    %slet ready = Channel::<int>::new(0:uint);
     let gate = Channel::<int>::new(0:uint);
-    let child: Task<float> = spawn numeric_suspended_loop(ready, gate);
+    let child: Task<%s> = spawn numeric_suspended_loop(ready, gate%s);
     let entered: int = compare ready.recv() { Some(value) => value; nothing => -1; };
     if entered != 1 { return 1; }
     %s
     %s
-    ready.close();
+    %sready.close();
     gate.close();
     %s
     %s
@@ -68,7 +97,7 @@ async fn numeric_async_driver(%s) -> int {
     let task = spawn numeric_async_driver(%s);
     return compare task.await() { Success(code) => code; Cancelled() => 90; };
 }
-`, parameter, loopStart, action, outcome, loopEnd, witness, entrypoint, argument)
+`, values, seedParameter, kind, loop, tokenError, emptyError, parameter, loopStart, seedBefore, kind, seedArgument, action, outcome, seedAfter, loopEnd, witness, entrypoint, argument)
 }
 
 func TestVMNumericIteratorSuspendLifecycle(t *testing.T) {
