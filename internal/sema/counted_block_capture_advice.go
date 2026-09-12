@@ -1,10 +1,13 @@
 package sema
 
-import "surge/internal/types"
+import (
+	"surge/internal/source"
+	"surge/internal/types"
+)
 
 // These queries predict only the remaining capture rules after a numeric-width
-// repair. Numeric width changes neither Copy nor the declaration attributes, so
-// no replacement TypeID or speculative type-checker invocation is needed.
+// repair. Numeric width changes neither Copy nor declaration validity, so no
+// replacement TypeID or speculative compilation is needed.
 func (tc *typeChecker) countedOnCaptureAllowsWidthRepair(capType types.TypeID, capture blockingCapture) bool {
 	if tc == nil || tc.types == nil || tc.result == nil || tc.isReferenceType(capType) || tc.isFarType(capType) {
 		return false
@@ -12,6 +15,9 @@ func (tc *typeChecker) countedOnCaptureAllowsWidthRepair(capType types.TypeID, c
 	nominal := tc.valueType(capType)
 	elem, array := tc.types.DynamicArrayElem(nominal)
 	if (array && !tc.shardMovableElement(elem)) || tc.result.DynamicArrayStaysUnchecked(capType) {
+		return false
+	}
+	if !tc.countedRepairHasValidDeclarations(capType) {
 		return false
 	}
 	owned := tc.isOwnType(capType)
@@ -41,7 +47,19 @@ func (tc *typeChecker) countedBlockingCaptureAllowsWidthRepair(capType types.Typ
 		tc.isLocalTaskBinding(capture.symID) || tc.result.DynamicArrayStaysUnchecked(capType) {
 		return false
 	}
-	return !tc.countedRepairHasNosend(tc.valueType(capType), make(map[types.TypeID]bool))
+	return tc.countedRepairHasValidDeclarations(capType) &&
+		!tc.countedRepairHasNosend(tc.valueType(capType), make(map[types.TypeID]bool))
+}
+
+// Declaration validation permits every numeric width. A rejection therefore
+// survives a width-only repair, including inside Copy values and handle payloads.
+// Use live attributes and report=false; TypeAttrFacts is not finalized here.
+func (tc *typeChecker) countedRepairHasValidDeclarations(id types.TypeID) bool {
+	culprit := tc.result.countedBlockCulpritWithTypeCheck(nil, id, func(member types.TypeID) bool {
+		return !tc.typeHasAttr(member, "shard_movable") ||
+			tc.validateShardMovableType(member, source.Span{}, make(map[types.TypeID]bool), false)
+	})
+	return culprit.complete
 }
 
 // Match checkSpawnSendability's nominal and nested-struct checks without

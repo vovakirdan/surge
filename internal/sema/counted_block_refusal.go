@@ -21,10 +21,11 @@ type countedBlockVisit struct {
 }
 
 type countedBlockPathWalk struct {
-	in     *types.Interner
-	names  *source.Interner
-	memo   map[countedBlockVisit]countedBlockCulprit
-	active map[countedBlockVisit]bool
+	in        *types.Interner
+	names     *source.Interner
+	memo      map[countedBlockVisit]countedBlockCulprit
+	active    map[countedBlockVisit]bool
+	checkType func(types.TypeID) bool
 }
 
 // CountedBlockRefusalMessage explains an already-refused crossing. It never
@@ -55,11 +56,15 @@ func (r *Result) CountedBlockRefusalMessage(names *source.Interner, id types.Typ
 }
 
 func (r *Result) countedBlockCulprit(names *source.Interner, id types.TypeID) countedBlockCulprit {
+	return r.countedBlockCulpritWithTypeCheck(names, id, nil)
+}
+
+func (r *Result) countedBlockCulpritWithTypeCheck(names *source.Interner, id types.TypeID, checkType func(types.TypeID) bool) countedBlockCulprit {
 	if r == nil || r.TypeInterner == nil {
 		return countedBlockCulprit{}
 	}
 	walk := countedBlockPathWalk{
-		in: r.TypeInterner, names: names,
+		in: r.TypeInterner, names: names, checkType: checkType,
 		memo: make(map[countedBlockVisit]countedBlockCulprit), active: make(map[countedBlockVisit]bool),
 	}
 	return walk.visit(id, false)
@@ -90,6 +95,11 @@ func (w *countedBlockPathWalk) visit(id types.TypeID, behindHandle bool) counted
 	}
 	w.active[key] = true
 	result := w.inspect(id, behindHandle)
+	// Validation can only withhold advice. Inspect still walks every sibling
+	// and retains the original culprit path and all required numeric widths.
+	if w.checkType != nil && !w.checkType(id) {
+		result.complete = false
+	}
 	delete(w.active, key)
 	w.memo[key] = result
 	return result
