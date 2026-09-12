@@ -37,6 +37,10 @@ extern<Parsed> {
     if value != 7:uint { panic("argv default changed"); }
     print("argv-default-ok");
 }`, "argv-default-ok\n", nil},
+	{"two-arguments", `@entrypoint("argv") fn main(first: string, second: uint) {
+    if second != 42:uint { panic("second argv number changed"); }
+    print(first);
+}`, "first argument must survive parsing the second\n", []string{"first argument must survive parsing the second", "42"}},
 }
 
 func TestRuntimeV2EntrypointArgvBorrowsAndReleasesStorage(t *testing.T) {
@@ -64,41 +68,11 @@ func TestRuntimeV2EntrypointArgvBorrowsAndReleasesStorage(t *testing.T) {
 			if argv == mir.NoLocalID {
 				t.Fatal("startup did not allocate the expected argv array")
 			}
-			parsers, mainCalls := 0, 0
-			for _, block := range start.Blocks {
-				dropped := false
-				for _, instruction := range block.Instrs {
-					if instruction.Kind == mir.InstrDrop && instruction.Drop.Place.Local == argv {
-						if dropped {
-							t.Fatal("startup drops argv twice on one path")
-						}
-						dropped = true
-					}
-					if instruction.Kind != mir.InstrCall {
-						continue
-					}
-					call := instruction.Call
-					if call.Callee.Name == "from_str" {
-						parsers++
-						if dropped || len(call.Args) != 1 || len(call.ArgContracts) != 1 || call.ArgContracts[0] != mir.ArgContractBorrow {
-							t.Fatalf("parser lost its live borrowing contract: %+v", call)
-						}
-						argument := call.Args[0]
-						if argument.Kind != mir.OperandAddrOf || argument.Place.Local != argv || len(argument.Place.Proj) != 1 || argument.Place.Proj[0].Kind != mir.PlaceProjIndex {
-							t.Fatalf("parser must borrow the actual argv member: %+v", argument)
-						}
-					}
-					if call.Callee.Name == "main" {
-						mainCalls++
-						if !dropped {
-							t.Fatal("argv remains owned when the user entrypoint begins")
-						}
-					}
-				}
+			wantParsers := 1
+			if row.name == "two-arguments" {
+				wantParsers = 2
 			}
-			if parsers != 1 || mainCalls != 1 {
-				t.Fatalf("source did not exercise parser/main: %d/%d", parsers, mainCalls)
-			}
+			requireEntrypointArgvPaths(t, start, argv, wantParsers)
 		})
 	}
 }
