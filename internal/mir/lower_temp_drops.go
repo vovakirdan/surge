@@ -199,6 +199,12 @@ func (l *funcLowerer) lowerOwnedTempExpr(e *hir.Expr, data hir.OwnedTempData, sp
 	if err != nil {
 		return Operand{}, err
 	}
+	// Inline numeric constants allocate nothing. Keep the immediate visible to
+	// fixed-width cast folding instead of inventing a temporary owner for it.
+	if inner.Kind == OperandConst && inner.Type == e.Type && inner.Const.Type == inner.Type &&
+		ConstFoldsToFixnum(l.types, &inner.Const) {
+		return inner, nil
+	}
 	// Minted OUT of the automatic registration every refcounted-scalar temp
 	// gets, because this temp gets its own entry below — one that carries the
 	// residual plan and the guard. Registered twice, it was released twice: the
