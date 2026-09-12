@@ -1,0 +1,34 @@
+// A loop only reads its container's counted union.
+// Whole comparison, value passing, and projected comparison cannot take it.
+type Holder = { opt: Option<int>, name: string };
+
+fn take_opt(o: Option<int>) -> nothing { return nothing; }
+
+fn sum_present(opts: Option<int>[]) -> int {
+    let mut total: int = 0;
+    for r in opts {
+        compare r {
+            Some(v) => { total = total + v; }
+            nothing => { total = total; }
+        }
+    }
+    return total;
+}
+
+fn pass_by_value(opts: Option<int>[]) -> nothing {
+    for r in opts {
+        take_opt(r);
+    }
+    return nothing;
+}
+
+fn read_field(hs: Holder[]) -> int {
+    let mut total: int = 0;
+    for h in hs {
+        compare own h.opt {
+            Some(v) => { total = total + v; }
+            nothing => { total = total; }
+        }
+    }
+    return total;
+}
