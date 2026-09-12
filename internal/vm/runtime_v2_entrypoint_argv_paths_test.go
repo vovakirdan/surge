@@ -3,6 +3,7 @@
 package vm_test
 
 import (
+	"os"
 	"testing"
 
 	"surge/internal/mir"
@@ -96,10 +97,43 @@ func TestRuntimeV2EntrypointArgvFailurePaths(t *testing.T) {
 		{"missing-second", "missing argv argument \"second\"\n", []string{"first"}},
 	} {
 		t.Run(row.name, func(t *testing.T) {
-			result := runProgramFromSource(t, source, runOptions{argv: row.argv, captureStdout: true})
-			if result.exitCode != 1 || result.stdout != row.want || result.stderr != "" {
+			var result runResult
+			if testBackend(t) == backendVM {
+				// Successful exit(ErrorLike) writes directly to os.Stderr and
+				// returns no VMError. Capture that stream for this serial test.
+				result = runArgvFailureVM(t, source, row.argv)
+			} else {
+				result = runProgramFromSource(t, source, runOptions{argv: row.argv, captureStdout: true})
+			}
+			if result.exitCode != 1 || result.stdout != "" || result.stderr != row.want {
 				t.Fatalf("argv failure path: code=%d stdout=%q stderr=%q", result.exitCode, result.stdout, result.stderr)
 			}
 		})
 	}
+}
+
+func runArgvFailureVM(t *testing.T, source string, argv []string) runResult {
+	t.Helper()
+	file, err := os.CreateTemp(t.TempDir(), "argv-stderr-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous := os.Stderr
+	os.Stderr = file
+	defer func() {
+		os.Stderr = previous
+		if err := file.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	result := runProgramFromSource(t, source, runOptions{argv: argv, captureStdout: true})
+	if result.stderr != "" {
+		t.Fatalf("startup produced a VM error instead of its known exit: %s", result.stderr)
+	}
+	output, err := os.ReadFile(file.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	result.stderr = string(output)
+	return result
 }
