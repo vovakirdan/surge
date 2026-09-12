@@ -175,7 +175,7 @@ func TestRuntimeV2TaskResultCensusBalanced(t *testing.T) {
 			t.Setenv(backendEnvVar, backend)
 			res := runProgramFromSource(t, runtimeV2TaskResultCountedValuesSource, runOptions{})
 			// VM stdout is unavailable; the exit code identifies a failed row.
-			if res.exitCode != 0 {
+			if res.exitCode != 0 || res.stderr != "" {
 				t.Fatalf("counted task result failed at row %d\nstdout:\n%s\nstderr:\n%s",
 					res.exitCode, res.stdout, res.stderr)
 			}

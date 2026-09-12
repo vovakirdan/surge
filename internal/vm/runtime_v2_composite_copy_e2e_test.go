@@ -278,7 +278,7 @@ func TestRuntimeV2CompositeCopyIsIndependent(t *testing.T) {
 				// capture the program's stdout — so the marker below is checked
 				// only where stdout is available, and the row number carries the
 				// diagnosis on both backends.
-				if res.exitCode != 0 {
+				if res.exitCode != 0 || res.stderr != "" {
 					t.Fatalf("composite copy contract failed at row %d\nstdout:\n%s\nstderr:\n%s",
 						res.exitCode, res.stdout, res.stderr)
 				}
