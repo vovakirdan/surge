@@ -22,7 +22,7 @@ func TestNumericIteratorGateCoverage(t *testing.T) {
 	heap := []string{
 		"TestRuntimeV2NumericIteratorFloatArraysValgrindZero",
 		"TestRuntimeV2NumericIteratorFloatBoundsValgrindZero",
-		"TestRuntimeV2NumericIteratorSuspendValgrindZero",
+		"TestRuntimeV2NumericIteratorSuspendValgrindBaseline",
 		"TestRuntimeV2RangeForFloatBoundsIterateAndAnswer",
 	}
 	for _, row := range []struct {

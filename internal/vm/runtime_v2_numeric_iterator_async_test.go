@@ -2,10 +2,8 @@ package vm_test
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
 	"testing"
-	"time"
 
 	"surge/internal/mir"
 )
@@ -15,6 +13,10 @@ import (
 // during the ready continuation or the gate wait; both suspend states must own
 // the live x/cursor/source. No delay or scheduler-speed guess is the witness.
 func numericIteratorAsyncSource(cancel bool) string {
+	return numericIteratorAsyncProgram(cancel, false)
+}
+
+func numericIteratorAsyncProgram(cancel, countFromArgv bool) string {
 	action := "gate.send(9);"
 	outcome := "let answer: float = compare child.await() { Success(value) => value; Cancelled() => -1.0; };\n    if answer != 1.5 { return 2; }"
 	marker := "numeric-iterator-resumed-witness"
@@ -22,6 +24,16 @@ func numericIteratorAsyncSource(cancel bool) string {
 		action = "child.cancel();"
 		outcome = "let cancelled: bool = compare child.await() { Success(_) => false; Cancelled() => true; };\n    if !cancelled { return 3; }"
 		marker = "numeric-iterator-cancelled-witness"
+	}
+	parameter, argument, loopStart, loopEnd := "", "", "", ""
+	entrypoint := "@entrypoint\nfn main() -> int"
+	witness := fmt.Sprintf("print(%q);", marker)
+	if countFromArgv {
+		parameter, argument = "rounds: uint", "rounds"
+		entrypoint = "@entrypoint(\"argv\")\nfn main(rounds: uint) -> int"
+		loopStart = "let mut round: uint = 0:uint;\n    while round < rounds {"
+		loopEnd = "round = round + 1:uint;\n    }"
+		witness = fmt.Sprintf("print(%q + (round to string));", marker+" rounds=")
 	}
 	return fmt.Sprintf(`
 fn numeric_async_values() -> float[] { return [1.5, 2.5, 3.5]; }
@@ -36,7 +48,8 @@ async fn numeric_suspended_loop(ready: Channel<int>, gate: Channel<int>) -> floa
     return -3.0;
 }
 
-async fn numeric_async_driver() -> int {
+async fn numeric_async_driver(%s) -> int {
+    %s
     let ready = Channel::<int>::new(0:uint);
     let gate = Channel::<int>::new(0:uint);
     let child: Task<float> = spawn numeric_suspended_loop(ready, gate);
@@ -46,16 +59,16 @@ async fn numeric_async_driver() -> int {
     %s
     ready.close();
     gate.close();
-    print("%s");
+    %s
+    %s
     return 0;
 }
 
-@entrypoint
-fn main() -> int {
-    let task = spawn numeric_async_driver();
+%s {
+    let task = spawn numeric_async_driver(%s);
     return compare task.await() { Success(code) => code; Cancelled() => 90; };
 }
-`, action, outcome, marker)
+`, parameter, loopStart, action, outcome, loopEnd, witness, entrypoint, argument)
 }
 
 func TestVMNumericIteratorSuspendLifecycle(t *testing.T) {
@@ -73,26 +86,19 @@ func TestVMNumericIteratorSuspendLifecycle(t *testing.T) {
 	}
 }
 
-func TestRuntimeV2NumericIteratorSuspendValgrindZero(t *testing.T) {
-	requireOwnershipValgrind(t, exec.LookPath)
+func TestRuntimeV2NumericIteratorSuspendValgrindBaseline(t *testing.T) {
 	for _, row := range []struct {
 		name, workers, marker string
 		cancel                bool
 	}{
-		{"workers_1_resume", "1", "numeric-iterator-resumed-witness\n", false},
-		{"workers_1_cancel", "1", "numeric-iterator-cancelled-witness\n", true},
-		{"workers_8_resume", "8", "numeric-iterator-resumed-witness\n", false},
-		{"workers_8_cancel", "8", "numeric-iterator-cancelled-witness\n", true},
+		{"workers_1_resume", "1", "numeric-iterator-resumed-witness", false},
+		{"workers_1_cancel", "1", "numeric-iterator-cancelled-witness", true},
+		{"workers_8_resume", "8", "numeric-iterator-resumed-witness", false},
+		{"workers_8_cancel", "8", "numeric-iterator-cancelled-witness", true},
 	} {
 		t.Run(row.name, func(t *testing.T) {
-			output := buildRuntimeV2CrossingSource(t, numericIteratorAsyncSource(row.cancel), nil)
-			env := overrideEnvVar(envWithStdlib(repoRoot(t)), "SURGE_SHARDS", "1")
-			env = overrideEnvVar(env, "SURGE_THREADS", row.workers)
-			stdout, stderr, code := runBinaryUnderValgrind(t, output, env, 120*time.Second)
-			if code != 0 || stdout != row.marker {
-				t.Fatalf("iterator %s: exit=%d stdout=%q\nstderr:\n%s", row.name, code, stdout, stderr)
-			}
-			requireNumericIteratorHeapZero(t, stderr)
+			output := buildAsyncAllocationProgram(t, numericIteratorAsyncProgram(row.cancel, true))
+			runAsyncAllocationBaseline(t, output, row.marker, asyncAllocationEnvironment(t, row.workers))
 		})
 	}
 }
