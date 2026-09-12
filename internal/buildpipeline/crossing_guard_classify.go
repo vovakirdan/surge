@@ -75,13 +75,9 @@ func classifyCrossingPayload(
 			return crossingGuardFinding{
 				Code: diag.FutCrossingPayloadNotShippable,
 				Span: info.Span,
-				Message: fmt.Sprintf(
-					"a remote channel cannot carry `%s` yet: it holds arbitrary-precision values "+
-						"in storage the sender keeps (a map's table, a channel's ring), so "+
-						"a send cannot make the counted heap blocks behind them private before the "+
-						"receiving shard takes the value, and the count is not safe to share. Use a "+
-						"fixed-width type (`float64`) for the values it holds, or send the values themselves",
-					label(info.PayloadType)),
+				Message: semaRes.CountedBlockRefusalMessage(strings, info.PayloadType,
+					fmt.Sprintf("a remote channel cannot carry `%s` yet", label(info.PayloadType)),
+					!semaRes.DynamicArrayStaysUnchecked(info.PayloadType)),
 			}, true
 		}
 		// The array half of the same stop: an element whose dynamic array sits
@@ -113,7 +109,7 @@ func classifyCrossingPayload(
 			}
 		}
 		if !semaRes.TriviallyTransportableBits(info.PayloadType) {
-			if msg, ok := crossingPayloadRefusalMessage(semaRes, info.PayloadType, "the crossing result"); ok {
+			if msg, ok := crossingPayloadRefusalMessage(semaRes, strings, info.PayloadType, "the crossing result"); ok {
 				return crossingGuardFinding{Code: diag.FutCrossingPayloadNotShippable, Span: info.Span, Message: msg}, true
 			}
 			hint := "return plain-copy data from the block"
@@ -132,7 +128,7 @@ func classifyCrossingPayload(
 		}
 	case sema.CrossingLoweringFarTaskAwait:
 		if !semaRes.TriviallyTransportableBits(info.PayloadType) {
-			if msg, ok := crossingPayloadRefusalMessage(semaRes, info.PayloadType, "the awaited result"); ok {
+			if msg, ok := crossingPayloadRefusalMessage(semaRes, strings, info.PayloadType, "the awaited result"); ok {
 				return crossingGuardFinding{Code: diag.FutCrossingPayloadNotShippable, Span: info.Span, Message: msg}, true
 			}
 			return crossingGuardFinding{
@@ -247,17 +243,13 @@ func dedupeCrossingGuardFindings(in []crossingGuardFinding) []crossingGuardFindi
 // buffer IS walked where an owned move relinquishes it — a capture, a channel
 // element, a `blocking` body's `ret`, which crosses no shard — but a crossing
 // reply takes only plain-copy data, so the walk never serves one.
-func refCountedCrossingMessage(semaRes *sema.Result, t types.TypeID, subject string) (string, bool) {
+func refCountedCrossingMessage(semaRes *sema.Result, strings *source.Interner, t types.TypeID, subject string) (string, bool) {
 	if semaRes == nil || semaRes.TypeInterner == nil || !semaRes.CountedBlockStaysShared(t) {
 		return "", false
 	}
-	return fmt.Sprintf(
-		"%s `%s` cannot cross a shard boundary yet: it holds arbitrary-precision values in "+
-			"storage this shard keeps (a map's table, a channel's ring, a task's result "+
-			"slot), so the counted heap blocks behind them cannot be made private before the asker "+
-			"takes the value, and the count is not safe to share between shards. Use a fixed-width "+
-			"type (`float64`) for the values it holds, or cross the values themselves",
-		subject, types.Label(semaRes.TypeInterner, t)), true
+	return semaRes.CountedBlockRefusalMessage(strings, t,
+		fmt.Sprintf("%s `%s` cannot cross a shard boundary yet", subject, types.Label(semaRes.TypeInterner, t)),
+		semaRes.IsCopyType(t) && !semaRes.DynamicArrayStaysUnchecked(t)), true
 }
 
 // crossingPayloadRefusalMessage names the real reason a payload cannot ride the
@@ -265,8 +257,8 @@ func refCountedCrossingMessage(semaRes *sema.Result, t types.TypeID, subject str
 // and for the array one that phrase would be simply false: a `Channel<int[]>`
 // IS plain-copy data -- one handle word -- and what keeps it here is the ring
 // behind the word.
-func crossingPayloadRefusalMessage(semaRes *sema.Result, t types.TypeID, subject string) (string, bool) {
-	if msg, ok := refCountedCrossingMessage(semaRes, t, subject); ok {
+func crossingPayloadRefusalMessage(semaRes *sema.Result, strings *source.Interner, t types.TypeID, subject string) (string, bool) {
+	if msg, ok := refCountedCrossingMessage(semaRes, strings, t, subject); ok {
 		return msg, true
 	}
 	if semaRes == nil || semaRes.TypeInterner == nil || !semaRes.DynamicArrayStaysUnchecked(t) {
