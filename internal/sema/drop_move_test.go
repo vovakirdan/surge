@@ -1,6 +1,7 @@
 package sema
 
 import (
+	"fmt"
 	"testing"
 
 	"surge/internal/diag"
@@ -43,16 +44,28 @@ fn bad() -> nothing {
 
 func TestDropOfCopyBindingDoesNotConsume(t *testing.T) {
 	parseBag, semaBag := runSemaOnSnippet(t, `
-fn ok() -> int {
-    let n: int = 4;
+fn ok() -> int64 {
+    let n: int64 = 4;
     @drop n;
     return n;
 }
 `)
-	if parseBag.HasErrors() {
-		t.Fatalf("unexpected parse diagnostics: %s", diagnosticsSummary(parseBag))
-	}
-	if hasCode(semaBag, diag.SemaUseAfterMove) {
-		t.Fatalf("copy drop must not consume the binding, got %s", diagnosticsSummary(semaBag))
+	requireNoSemaErrors(t, parseBag, semaBag)
+}
+
+func TestDropOfCountedCopyBindingConsumes(t *testing.T) {
+	for _, scalar := range []string{"int", "uint"} {
+		t.Run(scalar, func(t *testing.T) {
+			parseBag, semaBag := runSemaOnSnippet(t, fmt.Sprintf(`
+fn bad() -> %[1]s {
+    let n: %[1]s = 4;
+    @drop n;
+    return n;
+}`, scalar))
+			if parseBag.HasErrors() {
+				t.Fatalf("parse diagnostics: %s", diagnosticsSummary(parseBag))
+			}
+			requireSemaCodeCount(t, semaBag, diag.SemaUseAfterMove, 1)
+		})
 	}
 }

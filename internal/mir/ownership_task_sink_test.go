@@ -221,11 +221,51 @@ func TestOwnershipTaskConsumeKnownNonOwningCopyIsIgnored(t *testing.T) {
 			t.Run(kind.String()+"/"+tc.name, func(t *testing.T) {
 				op := mir.Operand{
 					Kind:  mir.OperandCopy,
-					Type:  env.typesIn.Builtins().Int,
+					Type:  env.typesIn.Builtins().Int64,
 					Place: tc.place,
 				}
 				requireClean(t, env.verify(buildTaskSinkOperandFunc("non_owning_task_copy", env, kind, op)))
 			})
+		}
+	}
+}
+
+// The fixed-width control is still ignored even at a missing place. WidthAny
+// int/uint own counted storage, so their malformed task operands must fail
+// closed, like the unknown-type rows above, instead of inheriting that exemption.
+func TestOwnershipTaskConsumeNumericCopyContracts(t *testing.T) {
+	env, _ := newTaskOwnershipEnv(t)
+	b := env.typesIn.Builtins()
+	for _, row := range []struct {
+		name    string
+		typ     types.TypeID
+		counted bool
+	}{
+		{"uint64", b.Uint64, false},
+		{"int", b.Int, true},
+		{"uint", b.Uint, true},
+	} {
+		if got := env.typesIn.IsRefCountedScalar(row.typ); got != row.counted {
+			t.Fatalf("%s counted=%v, want %v", row.name, got, row.counted)
+		}
+		for _, kind := range []mir.InstrKind{mir.InstrAwait, mir.InstrPoll, mir.InstrTimeout} {
+			for _, placeCase := range []struct {
+				name  string
+				place mir.Place
+			}{
+				{"missing_local", mir.Place{Kind: mir.PlaceLocal, Local: mir.NoLocalID}},
+				{"unresolved_global", mir.Place{Kind: mir.PlaceGlobal, Global: 0}},
+			} {
+				t.Run(row.name+"/"+kind.String()+"/"+placeCase.name, func(t *testing.T) {
+					op := mir.Operand{Kind: mir.OperandCopy, Type: row.typ, Place: placeCase.place}
+					got := env.verify(buildTaskSinkOperandFunc("numeric_task_copy", env, kind, op))
+					if !row.counted {
+						requireClean(t, got)
+					} else if len(got) != 1 || got[0].ConsumingKind != mir.OwnershipSinkTaskConsume || got[0].Local != mir.NoLocalID {
+						t.Fatalf("expected exactly one task_consume finding without a local, got:\n%s", formatFindings(got))
+					}
+				})
+			}
 		}
 	}
 }

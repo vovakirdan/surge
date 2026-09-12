@@ -139,8 +139,8 @@ fn f() -> int {
 			// far handles are folded into the move without that exception:
 			// every anchored channel operation would be rejected.
 			name: "anchored_far_channel_still_usable",
-			src: `fn f(ch: far Channel<int>) -> nothing {
-	let _ = on ch { ch.send(1); ret nothing; };
+			src: `fn f(ch: far Channel<int64>) -> nothing {
+	let _ = on ch { ch.send(1:int64); ret nothing; };
 	return nothing;
 }`,
 		},
@@ -148,10 +148,30 @@ fn f() -> int {
 			// The anchor stays the caller's after the block: a second block on
 			// the same handle is legal, because a lease is not a move.
 			name: "anchor_still_usable_after_the_block",
-			src: `fn f(ch: far Channel<int>) -> nothing {
-	let _ = on ch { ch.send(1); ret nothing; };
-	let _ = on ch { ch.send(2); ret nothing; };
+			src: `fn f(ch: far Channel<int64>) -> nothing {
+	let _ = on ch { ch.send(1:int64); ret nothing; };
+	let _ = on ch { ch.send(2:int64); ret nothing; };
 	return nothing;
+}`,
+		},
+		{
+			name: "counted_int_anchor_stays_usable_after_own_send",
+			src: `fn f(ch: far Channel<int>) -> nothing {
+    let first: int = 1;
+    let _ = on ch { ch.send(own first); ret nothing; };
+    let second: int = 2;
+    let _ = on ch { ch.send(own second); ret nothing; };
+    return nothing;
+}`,
+		},
+		{
+			name: "counted_uint_anchor_stays_usable_after_own_send",
+			src: `fn f(ch: far Channel<uint>) -> nothing {
+    let first: uint = 1;
+    let _ = on ch { ch.send(own first); ret nothing; };
+    let second: uint = 2;
+    let _ = on ch { ch.send(own second); ret nothing; };
+    return nothing;
 }`,
 		},
 		{

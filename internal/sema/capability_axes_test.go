@@ -17,16 +17,21 @@ func capabilityWorld(t *testing.T) (*CapabilityClassifier, map[string]types.Type
 	res := capabilityResult(in)
 	shapes := map[string]types.TypeID{
 		"int":     in.Builtins().Int,
+		"int64":   in.Builtins().Int64,
+		"uint":    in.Builtins().Uint,
+		"uint64":  in.Builtins().Uint64,
 		"string":  in.Builtins().String,
 		"float":   in.Builtins().Float,
 		"float64": in.Builtins().Float64,
 	}
 
-	// A `@copy` struct of two integers: duplicable, and with nothing at all
-	// behind it once storage is inline.
+	// Copy permits duplication; int fields still own counted references.
 	shapes["Point"] = capabilityStruct(in, "Point", shapes["int"], shapes["int"])
 	res.CopyTypes[shapes["Point"]] = struct{}{}
 	shapes["Named"] = capabilityStruct(in, "Named", shapes["int"])
+	shapes["Point64"] = capabilityStruct(in, "Point64", shapes["int64"], shapes["int64"])
+	res.CopyTypes[shapes["Point64"]] = struct{}{}
+	shapes["Named64"] = capabilityStruct(in, "Named64", shapes["int64"])
 	shapes["Text"] = capabilityStruct(in, "Text", shapes["string"])
 
 	shapes["Pinned"] = capabilityStruct(in, "Pinned", shapes["int"])
@@ -60,6 +65,7 @@ func capabilityWorld(t *testing.T) (*CapabilityClassifier, map[string]types.Type
 	shapes["[]Channel"] = capabilityDynamicArray(in, shapes["Channel"])
 	shapes["[]Placement"] = capabilityDynamicArray(in, shapes["Placement"])
 	shapes["[4]int"] = in.Intern(types.Type{Kind: types.KindArray, Elem: shapes["int"], Count: 4})
+	shapes["[4]int64"] = in.Intern(types.Type{Kind: types.KindArray, Elem: shapes["int64"], Count: 4})
 	shapes["[4]string"] = in.Intern(types.Type{Kind: types.KindArray, Elem: shapes["string"], Count: 4})
 	shapes["(int, string)"] = in.RegisterTuple([]types.TypeID{shapes["int"], shapes["string"]})
 	shapes["(int, Pinned)"] = in.RegisterTuple([]types.TypeID{shapes["int"], shapes["Pinned"]})
@@ -109,19 +115,25 @@ func runAxisRows(
 // stored inline, does releasing it have to run anything?
 func TestCapabilityDroppableAxis(t *testing.T) {
 	runAxisRows(t, []axisRow{
-		{shape: "int", want: false, reason: "nothing inside"},
+		{shape: "int", want: true, reason: "counted heap block"},
+		{shape: "uint", want: true, reason: "counted heap block"},
+		{shape: "int64", want: false, reason: "nothing inside"},
+		{shape: "uint64", want: false, reason: "nothing inside"},
+		{shape: "Point64", want: false, reason: "nothing inside"},
+		{shape: "Named64", want: false, reason: "nothing inside"},
+		{shape: "[4]int64", want: false, reason: "nothing inside"},
 		{shape: "float64", want: false, reason: "nothing inside"},
 		{shape: "float", want: true, reason: "counted heap block"},
 		{shape: "string", want: true, reason: "handle-backed value owns"},
-		{shape: "Point", want: false, reason: "nothing inside"},
-		{shape: "Named", want: false, reason: "nothing inside"},
+		{shape: "Point", want: true, reason: "requires reclamation"},
+		{shape: "Named", want: true, reason: "requires reclamation"},
 		{shape: "Text", want: true, reason: "requires reclamation"},
 		{shape: "own Text", want: true, reason: "requires reclamation"},
 		{shape: "&Text", want: false, reason: "borrow names storage it does not own"},
 		{shape: "far Text", want: true, reason: "lease"},
 		{shape: "Channel", want: true, reason: "handle-backed value owns"},
 		{shape: "[]int", want: true, reason: "handle-backed value owns"},
-		{shape: "[4]int", want: false, reason: "nothing inside"},
+		{shape: "[4]int", want: true, reason: "requires reclamation"},
 		{shape: "[4]string", want: true, reason: "requires reclamation"},
 		{shape: "(int, string)", want: true, reason: "requires reclamation"},
 	}, func(c Capability) (bool, string, []types.TypeID) {
@@ -129,38 +141,28 @@ func TestCapabilityDroppableAxis(t *testing.T) {
 	})
 }
 
-// TestCapabilityDroppableAgreesWithOwnsHeap is the requirement-6 row, run
-// in-package against a real checker so the two predicates answer about one type
-// in one program.
-//
-// The two were designed to DISAGREE here while a value composite was a heap
-// box: `ownsHeap` said a `@copy` struct of two integers owned heap (the box),
-// the classifier said the same struct was not carrier droppable (bytes in a
-// carrier, nothing to reclaim), and this test pinned the disagreement so that
-// nobody merged the predicates before the storage moved. The box is gone and
-// the axis answers from the members (RV2-DEBT-256), so the same row now pins
-// the agreement from both sides — a drop obligation on a struct of integers
-// would be a release of bits.
+// The live checker and post-check classifier agree on both counted and fixed fields.
 func TestCapabilityDroppableAgreesWithOwnsHeap(t *testing.T) {
 	tc, _, syms := newContractChecker(t, `
-@copy type Point = { x: int, y: int }
+@copy type Point = { x: int, y: int };
+@copy type Point64 = { x: int64, y: int64 };
 `)
-	pointSym := lookupSymbolByName(syms, tc.builder.StringsInterner.Intern("Point"))
-	if !pointSym.IsValid() {
-		t.Fatal("Point was not resolved")
-	}
-	point := syms.Table.Symbols.Get(pointSym).Type
-	if point == types.NoTypeID {
-		t.Fatal("Point has no type")
-	}
-
-	if tc.isDroppableType(point) {
-		t.Fatal("drop obligations treat a Copy struct of two integers as owning heap; " +
-			"the axis answers from the members (ownership_axes.go), so a composite of scalars is bits")
-	}
-	capability := mustClassify(t, mustClassifier(t, tc.result), point)
-	if capability.CarrierDroppable {
-		t.Fatalf("the classifier calls a Copy struct of integers carrier droppable: %+v", capability)
+	for name, want := range map[string]bool{"Point": true, "Point64": false} {
+		sym := lookupSymbolByName(syms, tc.builder.StringsInterner.Intern(name))
+		if !sym.IsValid() {
+			t.Fatalf("%s was not resolved", name)
+		}
+		ty := syms.Table.Symbols.Get(sym).Type
+		if ty == types.NoTypeID {
+			t.Fatalf("%s has no type", name)
+		}
+		if got := tc.isDroppableType(ty); got != want {
+			t.Fatalf("%s: live droppable=%v, want %v", name, got, want)
+		}
+		capability := mustClassify(t, mustClassifier(t, tc.result), ty)
+		if capability.CarrierDroppable != want {
+			t.Fatalf("%s: carrier droppable=%v, want %v", name, capability.CarrierDroppable, want)
+		}
 	}
 }
 
@@ -168,15 +170,21 @@ func TestCapabilityDroppableAgreesWithOwnsHeap(t *testing.T) {
 // enter this value to reach runtime-managed storage it owns?
 func TestCapabilityTraceableAxis(t *testing.T) {
 	runAxisRows(t, []axisRow{
-		{shape: "int", want: false, reason: "no reference into runtime-managed storage"},
+		{shape: "int", want: true, reason: "counted heap block"},
+		{shape: "uint", want: true, reason: "counted heap block"},
+		{shape: "int64", want: false, reason: "no reference into runtime-managed storage"},
+		{shape: "uint64", want: false, reason: "no reference into runtime-managed storage"},
+		{shape: "Point64", want: false, reason: "no reference into runtime-managed storage"},
+		{shape: "Named64", want: false, reason: "no reference into runtime-managed storage"},
+		{shape: "[4]int64", want: false, reason: "no reference into runtime-managed storage"},
 		{shape: "float", want: true, reason: "counted heap block"},
 		{shape: "string", want: true, reason: "runtime-managed storage a visitor has to enter"},
-		{shape: "Point", want: false, reason: "no reference into runtime-managed storage"},
+		{shape: "Point", want: true, reason: "counted heap block"},
 		{shape: "Text", want: true, reason: "names runtime-managed storage"},
 		{shape: "own Text", want: true, reason: "names runtime-managed storage"},
 		{shape: "&Text", want: false, reason: "reached through its owner"},
 		{shape: "Channel", want: true, reason: "runtime-managed storage a visitor has to enter"},
-		{shape: "[4]int", want: false, reason: "no reference into runtime-managed storage"},
+		{shape: "[4]int", want: true, reason: "counted heap block"},
 		{shape: "(int, string)", want: true, reason: "names runtime-managed storage"},
 	}, func(c Capability) (bool, string, []types.TypeID) {
 		return c.Traceable, c.TraceableReason, nil

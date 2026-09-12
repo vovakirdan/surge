@@ -15,19 +15,10 @@ import (
 // destroyed once the job is released, and a state whose field still looks
 // initialized will free a string the body has already handed on.
 //
-// The rows are the answers the type gives, and they are the same ones an
-// ordinary by-value argument position gives: a `string` and a struct holding
-// one own heap and are not reference-counted, so the state took them; an `int`
-// owns nothing at all and there is nothing to hand on.
-//
-// The third answer the predicate can give — owns heap AND is a
-// reference-counted scalar, where the state retained a count of its own and
-// the body only borrows — has no row in this table, and no longer because
-// sema refuses it: a `float` captured into `blocking` compiles today, since
-// the state literal's relinquishing operand makes the capture's block private
-// before the job is submitted. That shape is pinned where it compiles end to
-// end, in buildpipeline's crossing table; the clause stays in the predicate
-// as the guard it is, and this table stays the by-value answers above.
+// Strings and value structs transfer into the body. The int64 control owns
+// nothing. Counted int/uint captures also move out: the submitting state took
+// a private reference and the body owes its release. This differs from an
+// ordinary counted by-value parameter, which only borrows its caller's value.
 const blockingCaptureUnpackSource = crossingMIRPrelude + `
 @shard_movable
 type Note = { text: string };
@@ -37,10 +28,12 @@ fn read(n: &Note) -> int { return peek(n.text); }
 
 async fn runs_a_blocking_body(seed: int) -> int {
     let msg: string = "a capture wide enough to be a block";
-    let count: int = seed;
+    let count: int64 = seed:int64;
+    let count_int: int = seed;
+    let count_uint: uint = seed:uint;
     let note: Note = Note { text: "and a second one inside a struct" };
     let job: Task<int> = blocking {
-        ret peek(&msg) + count + read(&note);
+        ret peek(&msg) + (count:int) + count_int + (count_uint:int) + read(&note);
     };
     return compare job.await() {
         Success(v) => v;
@@ -114,6 +107,8 @@ func stateUnpacksIn(t *testing.T, mod *mir.Module, prefix string) map[string]boo
 func TestBlockingCaptureUnpackDeclaresTheTransfer(t *testing.T) {
 	compiled := compileCrossingMIR(t, blockingCaptureUnpackSource, nil)
 	unpacks := stateUnpacksIn(t, compiled.mod, "__blocking_block$")
+	body := requireSyntheticBody(t, compiled.mod, "__blocking_block$")
+	numericTypes := map[string]string{"count": "int64", "count_int": "int", "count_uint": "uint"}
 
 	cases := []struct {
 		capture string
@@ -123,9 +118,20 @@ func TestBlockingCaptureUnpackDeclaresTheTransfer(t *testing.T) {
 		{"msg", "owns heap, not reference-counted: the state took it", true},
 		{"note", "a struct holding a string: the state took that too", true},
 		{"count", "owns no heap: there is nothing to hand on", false},
+		{"count_int", "the state retained a private int reference for the body", true},
+		{"count_uint", "the state retained a private uint reference for the body", true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.capture, func(t *testing.T) {
+			if wantType, numeric := numericTypes[tc.capture]; numeric {
+				typ := body.Locals[namedLocal(t, body, tc.capture)].Type
+				if got := types.Label(compiled.types, typ); got != wantType {
+					t.Fatalf("capture %s type=%s, want %s", tc.capture, got, wantType)
+				}
+				if got := compiled.types.IsRefCountedScalar(typ); got != tc.want {
+					t.Fatalf("capture %s counted=%v, want %v", tc.capture, got, tc.want)
+				}
+			}
 			got, ok := unpacks[tc.capture]
 			if !ok {
 				t.Fatalf("capture %q was never unpacked from the blocking state (unpacks: %v)",
