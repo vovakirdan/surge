@@ -84,8 +84,8 @@ typedef struct TermKeyEvent {
 } TermKeyEvent;
 
 typedef struct TermResizePayload {
-    void* cols;
-    void* rows;
+    int64_t cols;
+    int64_t rows;
 } TermResizePayload;
 
 enum {
@@ -248,8 +248,8 @@ static void* term_make_event_resize(int64_t cols, int64_t rows) {
     size_t payload_offset = rt_tag_payload_offset(payload_align);
     uint8_t* mem = TERM_EVENT_ALLOC(TERM_EVENT_TAG_RESIZE, payload_align, payload_size);
     TermResizePayload payload = {0};
-    payload.cols = rt_bigint_from_i64(cols);
-    payload.rows = rt_bigint_from_i64(rows);
+    payload.cols = cols;
+    payload.rows = rows;
     memcpy(mem + payload_offset, &payload, sizeof(payload));
     return mem;
 }

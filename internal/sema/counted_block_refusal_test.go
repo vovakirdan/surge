@@ -22,6 +22,9 @@ func newCountedDiagnosticTypes(t *testing.T) countedDiagnosticTypes {
 	if id, _ := in.EnsureMapNominal(in.Strings.Intern("Map"), in.Strings.Intern("K"), in.Strings.Intern("V"), source.Span{}, 0); id == types.NoTypeID {
 		t.Fatal("missing authoritative Map identity")
 	}
+	if id, _ := in.EnsureArrayFixedNominal(in.Strings.Intern("ArrayFixed"), in.Strings.Intern("T"), in.Strings.Intern("N"), source.Span{}, 0, in.Builtins().Uint); id == types.NoTypeID {
+		t.Fatal("missing authoritative ArrayFixed identity")
+	}
 	for _, name := range []string{"Channel", "Task", "Range"} {
 		in.MarkRuntimeHandleType(in.RegisterStruct(in.Strings.Intern(name), source.Span{}))
 	}
@@ -30,6 +33,16 @@ func newCountedDiagnosticTypes(t *testing.T) countedDiagnosticTypes {
 
 func (f countedDiagnosticTypes) handle(name string, payloads ...types.TypeID) types.TypeID {
 	return f.in.RegisterStructInstance(f.names.Intern(name), source.Span{}, payloads)
+}
+
+func (f countedDiagnosticTypes) fixedArray(t *testing.T, elem types.TypeID, length uint32) types.TypeID {
+	t.Helper()
+	id := f.in.RegisterStructInstanceWithValues(f.names.Intern("ArrayFixed"), source.Span{},
+		[]types.TypeID{elem, f.in.Intern(types.MakeConstUint(length))}, []uint64{uint64(length)})
+	if gotElem, gotLength, ok := f.in.ArrayFixedInfo(id); !ok || gotElem != elem || gotLength != length {
+		t.Fatalf("fixed array fixture lost its nominal element/length: %d, %d, %t", gotElem, gotLength, ok)
+	}
+	return id
 }
 
 func (f countedDiagnosticTypes) structure(name string, fields ...types.StructField) types.TypeID {
@@ -74,7 +87,7 @@ func TestCountedBlockRefusalPaths(t *testing.T) {
 		{"map_key_before_value", mapBoth, "key", types.KindInt, 5},
 		{"nested_struct", outer, "meta.counts.key", types.KindUint, 3},
 		{"tuple", f.in.RegisterTuple([]types.TypeID{b.Bool, channelFloat}), "1.payload[0]", types.KindFloat, 4},
-		{"fixed_array", f.in.Intern(types.MakeArray(channelUint, 2)), "element.payload[0]", types.KindUint, 2},
+		{"fixed_array", f.fixedArray(t, channelUint, 2), "element.payload[0]", types.KindUint, 2},
 		{"dynamic_array", f.in.Intern(types.MakeArray(channelInt, types.ArrayDynamicLength)), "element.payload[0]", types.KindInt, 1},
 		{"tag_payload", tagged, "Held[0].key", types.KindUint, 6},
 		{"union_type_member", union, "member[1].key", types.KindInt, 5},
@@ -120,7 +133,7 @@ func TestCountedBlockRefusalPlainAndReachable(t *testing.T) {
 		ids  []types.TypeID
 	}{
 		{"numeric_scalars", []types.TypeID{b.Int, b.Uint, b.Float}},
-		{"inline_composites", []types.TypeID{inline, f.in.RegisterTuple([]types.TypeID{b.Int, b.Float}), f.in.Intern(types.MakeArray(b.Uint, 2))}},
+		{"inline_composites", []types.TypeID{inline, f.in.RegisterTuple([]types.TypeID{b.Int, b.Float}), f.fixedArray(t, b.Uint, 2)}},
 		{"dynamic_arrays", []types.TypeID{f.in.Intern(types.MakeArray(inline, types.ArrayDynamicLength))}},
 		{"range_bounds", []types.TypeID{f.handle("Range", b.Int), f.handle("Range", b.Uint), f.handle("Range", b.Float)}},
 		{"non_owning_edges", []types.TypeID{f.in.Intern(types.MakeReference(channel, false)), f.in.Intern(types.MakePointer(channel)), f.in.Intern(types.MakeFar(channel))}},

@@ -44,11 +44,12 @@ async fn probe(value: own Payload) -> bool {
     return compare job.await() { Success(v) => v; Cancelled() => false; };
 }`, diag.SemaCrossNotShardMovable, diag.SemaNosendInSpawn, "@nosend field"},
 		{"blocking_local_task", `
+fn relay(task: Task<Channel<$N>>) -> Task<Channel<$N>> { return task; }
 fn probe() -> Task<Task<Channel<$N>>> {
     let task: Task<Channel<$N>> = @local spawn async {
         ret Channel::<$N>::new(1:uint);
     };
-    return blocking { ret task; };
+    return blocking { ret relay(task); };
 }`, diag.SemaCrossNotShardMovable, diag.SemaNosendInSpawn, "local task handle"},
 		{"on_array_view", `
 fn use(values: own $N[]) -> bool { return true; }
