@@ -93,30 +93,26 @@ fn main() -> int { return 0; }
 		"ArrayFixed<float, const 4, 4>": {true, true, true, false},
 		"string":                        {false, true, false, false},
 		"Channel<float>":                {true, false, true, false},
-		"Channel<int>":                  {false, true, false, false},
+		"Channel<int>":                  {true, false, true, false},
 		// A borrow names storage it does not carry. The emitter's kind switch
 		// answers for it only if the borrow is not stripped first; it was.
 		"&float": {false, true, false, false},
 
-		// The rows this lane adds: nothing counted anywhere, and the walk is
-		// armed all the same, because only the runtime can say whether the
-		// array in hand is a view into a buffer the origin shard keeps.
-		"Array<int>":                         {false, true, true, false},
-		"Array<Array<int>>":                  {false, true, true, false},
+		// Integer leaves may now share blocks. Array<string> remains the
+		// uncounted control that still needs the runtime's array-view check.
+		"Array<int>":                         {true, true, true, false},
+		"Array<Array<int>>":                  {true, true, true, false},
 		"Array<string>":                      {false, true, true, false},
-		"IntHolder":                          {false, true, true, false},
-		"(Array<int>, int)":                  {false, true, true, false},
-		"ArrayFixed<Array<int>, const 4, 4>": {false, true, true, false},
-		"Array<Channel<int>>":                {false, true, true, false},
-		"int":                                {false, true, false, false},
-		// The three storages the walk cannot step. Nothing is armed for them --
-		// there is no slot to hand the runtime -- so sema REFUSES the shape at
-		// the crossing gate instead, and the fourth column is where that
-		// decision is pinned. All three used to be false in every column, which
-		// is exactly how a view inside one crossed unexamined.
-		"Map<int, Array<int>>": {false, true, false, true},
-		"Channel<Array<int>>":  {false, true, false, true},
-		"Task<Array<int>>":     {false, true, false, true},
+		"IntHolder":                          {true, true, true, false},
+		"(Array<int>, int)":                  {true, true, true, false},
+		"ArrayFixed<Array<int>, const 4, 4>": {true, true, true, false},
+		"Array<Channel<int>>":                {true, false, true, false},
+		"int":                                {true, true, true, false},
+		// These handles hide both counted leaves and an array-view check from
+		// the walk, so both independent crossing refusals apply.
+		"Map<int, Array<int>>": {true, false, true, true},
+		"Channel<Array<int>>":  {true, false, true, true},
+		"Task<Array<int>>":     {true, false, true, true},
 
 		// A range is the one handle whose payload the walk CAN reach: its two
 		// bound words sit at fixed offsets inside one object, the object's own
@@ -125,11 +121,8 @@ fn main() -> int { return 0; }
 		// block, can be made private, and crosses -- where `Channel<float>`,
 		// three rows up, shares one and cannot.
 		//
-		// `Range<int>` and `Range<uint>` share nothing today and are here to
-		// pin that the private column is answered by the RANGE arm rather than
-		// by the generic handle arm below it: both would read true either way,
-		// and the day `int` becomes a counted scalar the first column flips and
-		// the second must not.
+		// Integer ranges share counted leaves too; the private column must
+		// keep using the RANGE arm, since the generic handle arm would refuse.
 		//
 		// `Range<string>` is the shape no constructor builds and the type graph
 		// can still spell. Its bound is not one of the three the byte can name,
@@ -138,8 +131,8 @@ fn main() -> int { return 0; }
 		// this a Range" rather than "can the byte name its bounds" reads true
 		// on this row.
 		"Range<float>":  {true, true, true, false},
-		"Range<int>":    {false, true, false, false},
-		"Range<uint>":   {false, true, false, false},
+		"Range<int>":    {true, true, true, false},
+		"Range<uint>":   {true, true, true, false},
 		"Range<string>": {false, true, false, false},
 	}
 	// `float[4]` is in the table on purpose: the nominal ArrayFixed<T, N>

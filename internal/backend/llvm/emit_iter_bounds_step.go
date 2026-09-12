@@ -182,7 +182,9 @@ func (fe *funcEmitter) emitRangeBoundsStep(rangePtr string, elemType, optType ty
 	nextCur := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @%s(ptr %s, ptr %s)\n", nextCur, arith.add, cur, one)
 	fmt.Fprintf(&fe.emitter.buf, "  store ptr %s, ptr %s\n", nextCur, curPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  call void @%s(ptr %s)\n", arith.release, one)
+	if isBigFloatType(fe.emitter.types, elemType) {
+		fmt.Fprintf(&fe.emitter.buf, "  call void @%s(ptr %s)\n", arith.release, one)
+	}
 	someVal, err := fe.emitTagValueSinglePayload(optType, someIndex, payloadType, cur, handleType, elemType)
 	if err != nil {
 		return err

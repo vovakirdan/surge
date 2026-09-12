@@ -47,7 +47,7 @@ func (b *surgeStartBuilder) prepareArgsArgv() []Operand {
 	argvLocal := b.newLocal("argv", argvType, LocalFlags(0))
 	b.emitCallIntrinsic(argvLocal, "rt_argv", nil, nil)
 
-	argvLenLocal := b.newLocal("argv_len", b.uintType(), LocalFlagCopy)
+	argvLenLocal := b.newLocal("argv_len", b.uintType(), b.localFlags(b.uintType()))
 	b.emitCallIntrinsic(argvLenLocal, "__len", []Operand{
 		{Kind: OperandCopy, Place: Place{Local: argvLocal}},
 	}, borrowArgContracts(1))

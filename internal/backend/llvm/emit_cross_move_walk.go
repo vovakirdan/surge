@@ -303,17 +303,8 @@ func (w unshareWalk) needsFixup(resolved types.TypeID) bool {
 
 func (w unshareWalk) leafAt(g *glueTmp, resolved types.TypeID, baseAlign, off uint64) bool {
 	e := w.e
-	if e.types.IsRefCountedScalar(resolved) {
-		// The one counted scalar today is WidthAny float. When int and uint
-		// join they dispatch per kind here, because their fixnum form is a
-		// tagged word with no block behind it and no count to read.
-		fp := g.next()
-		fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds i8, ptr %%val, i64 %d\n", fp, off)
-		fv := g.next()
-		fmt.Fprintf(&e.buf, "  %s = load ptr, ptr %s, align %d\n", fv, fp, memberAccessAlign(baseAlign, off))
-		private := g.next()
-		fmt.Fprintf(&e.buf, "  %s = call ptr @rt_bigfloat_unshare(ptr %s)\n", private, fv)
-		fmt.Fprintf(&e.buf, "  store ptr %s, ptr %s, align %d\n", private, fp, memberAccessAlign(baseAlign, off))
+	if ops, scalar := scalarLifecycleFor(e.types, resolved); scalar {
+		e.emitGlueScalarUpdateAt(g, "%val", baseAlign, off, ops, "unshare")
 		return true
 	}
 	if elem, ok := e.types.DynamicArrayElem(resolved); ok {
@@ -324,7 +315,7 @@ func (w unshareWalk) leafAt(g *glueTmp, resolved types.TypeID, baseAlign, off ui
 		// callback, and calls that callback once per slot.
 		//
 		// The call is made for EVERY array, whatever its element holds. When
-		// the element needs no walk of its own -- an `int`, a plain word -- the
+		// the element needs no walk of its own -- an `int64`, a plain word -- the
 		// callback is `ptr null` and the runtime iterates nothing; what it
 		// still does is ask its view registry the two questions no type can
 		// answer: is this header a view into a base's buffer, and does a live

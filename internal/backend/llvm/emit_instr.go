@@ -103,7 +103,7 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 		return nil
 	}
 	typesIn := fe.emitter.types
-	isRefCounted := typesIn.IsRefCountedScalar(resolveValueType(typesIn, baseType))
+	scalarOps, isRefCounted := scalarLifecycleFor(typesIn, baseType)
 	// A local Channel<T> is the runtime-counted twin of the scalar above: this
 	// place gives back the one reference it held, and the object goes when the
 	// last holder does. A `far Channel<T>` is NOT one of these — its word is a
@@ -145,7 +145,7 @@ func (fe *funcEmitter) emitInstrDrop(ins *mir.Instr) error {
 		// Giving back this place's reference, not destroying the block: the
 		// same block may still be reachable from another binding, and only the
 		// last release frees it.
-		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_bigfloat_release(ptr %s)\n", handle)
+		fe.emitScalarRelease(handle, scalarOps)
 	case isChan:
 		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_channel_handle_drop(ptr %s)\n", handle)
 	case isString:

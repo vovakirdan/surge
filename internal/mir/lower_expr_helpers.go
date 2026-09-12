@@ -29,11 +29,9 @@ func (l *funcLowerer) lowerLiteral(ty types.TypeID, lit hir.LiteralData) Operand
 		}
 		if isUint {
 			out.Const.Kind = ConstUint
+			// Text remains authoritative when the fixed-width cache overflows.
 			if val, ok := parseLiteralUint64(lit); ok {
 				out.Const.UintValue = val
-			} else {
-				out.Const.Kind = ConstInt
-				out.Const.IntValue = lit.IntValue
 			}
 		} else {
 			out.Const.Kind = ConstInt
@@ -162,7 +160,8 @@ func (l *funcLowerer) isValueComposite(ty types.TypeID) bool {
 // Routing it through a temp gives it exactly the ownership every other float
 // value has.
 func (l *funcLowerer) materializeOwnedConst(op *Operand, span source.Span, consume bool) Operand {
-	if op.Kind != OperandConst || !l.isRefCountedScalar(op.Type) {
+	if op.Kind != OperandConst || !l.isRefCountedScalar(op.Type) ||
+		(op.Const.Type == op.Type && ConstFoldsToFixnum(l.types, &op.Const)) {
 		return *op
 	}
 	tmp := l.newTemp(op.Type, "const", span)

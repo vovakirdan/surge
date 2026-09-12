@@ -1,0 +1,49 @@
+// Compiled unchanged to LLVM. C calls the scalar functions and generated
+// lifecycle bodies; the source operations below demand every tested body.
+@copy type NumericIntBox = { value: int };
+@copy type NumericUintBox = { value: uint };
+
+fn copy_int(value: int) -> int { return value; }
+fn copy_uint(value: uint) -> uint { return value; }
+fn explicit_clone_int(value: int) -> int { return clone(&value); }
+fn explicit_clone_uint(value: uint) -> uint { return clone(&value); }
+fn discard_int(value: int) { let other: int = value; }
+fn discard_uint(value: uint) { let other: uint = value; }
+fn copy_box_int(value: NumericIntBox) -> NumericIntBox { return value; }
+fn copy_box_uint(value: NumericUintBox) -> NumericUintBox { return value; }
+fn concat_int(a: int[], b: int[]) -> int[] { return a + b; }
+fn concat_uint(a: uint[], b: uint[]) -> uint[] { return a + b; }
+fn keys_int(m: Map<int, int64>) -> int[] { return m.keys(); }
+fn keys_uint(m: Map<uint, int64>) -> uint[] { return m.keys(); }
+
+async fn private_int(value: int) -> int {
+    let job: Task<int> = blocking { ret value; };
+    return compare job.await() { Success(v) => v; Cancelled() => 0; };
+}
+async fn private_uint(value: uint) -> uint {
+    let job: Task<uint> = blocking { ret value; };
+    return compare job.await() { Success(v) => v; Cancelled() => 0; };
+}
+
+// A real source root keeps every helper reachable even when async poll roots
+// exist. The native stand calls its selected symbols, not __surge_start.
+@entrypoint
+fn main() -> int {
+    let i: int = copy_int(7);
+    let u: uint = copy_uint(7);
+    discard_int(explicit_clone_int(i));
+    discard_uint(explicit_clone_uint(u));
+    let ib: NumericIntBox = copy_box_int(NumericIntBox{ value: i });
+    let ub: NumericUintBox = copy_box_uint(NumericUintBox{ value: u });
+    let i_left: int[] = [ib.value];
+    let i_right: int[] = [i];
+    let u_left: uint[] = [ub.value];
+    let u_right: uint[] = [u];
+    let ia: int[] = concat_int(i_left, i_right);
+    let ua: uint[] = concat_uint(u_left, u_right);
+    let im: Map<int, int64> = Map::<int, int64>::new();
+    let um: Map<uint, int64> = Map::<uint, int64>::new();
+    let ik: int[] = keys_int(im);
+    let uk: uint[] = keys_uint(um);
+    return (len(ia) + len(ua) + len(ik) + len(uk)):int;
+}

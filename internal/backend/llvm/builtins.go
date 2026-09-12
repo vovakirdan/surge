@@ -184,12 +184,10 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_bigfloat_free", ret: "void", params: []string{"ptr"}},
 		{name: "rt_bigfloat_retain", ret: "void", params: []string{"ptr"}},
 		{name: "rt_bigfloat_release", ret: "void", params: []string{"ptr"}},
-		// The integer twins are here because a range step gives back the `one`
-		// it added, on every bound kind. On the two integer kinds that answer
-		// is usually a fixnum-tagged word with no block behind it, which is why
-		// the release was missing for as long as `float` did not reach the step
-		// at all -- and why declaring only the float one made a `Range<int>`
-		// program fail to link rather than fail to run.
+		{name: "rt_bigint_clone", ret: "ptr", params: []string{"ptr"}},
+		{name: "rt_bigint_unshare", ret: "ptr", params: []string{"ptr"}},
+		{name: "rt_biguint_clone", ret: "ptr", params: []string{"ptr"}},
+		{name: "rt_biguint_unshare", ret: "ptr", params: []string{"ptr"}},
 		{name: "rt_bigint_release", ret: "void", params: []string{"ptr"}},
 		{name: "rt_biguint_release", ret: "void", params: []string{"ptr"}},
 		{name: "rt_bigint_to_biguint", ret: "ptr", params: []string{"ptr"}},

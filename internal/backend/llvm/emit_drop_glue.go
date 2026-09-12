@@ -221,12 +221,12 @@ func (g *glueTmp) next() string { g.n++; return fmt.Sprintf("%%g%d", g.n) }
 // A value composite is not one of these and never reaches here. Its bytes are
 // not a word, so there is nothing to have loaded; it is dropped through
 // emitDropStorage, which is given where the bytes are.
-func (e *Emitter) emitDropHandle(val string, ty types.TypeID) {
-	ty = resolveValueType(e.types, ty)
-	if e.types.IsRefCountedScalar(ty) {
+func (e *Emitter) emitDropHandle(g *glueTmp, val string, ty types.TypeID) {
+	ty = resolveAliasAndOwn(e.types, ty)
+	if ops, scalar := scalarLifecycleFor(e.types, ty); scalar {
 		// The container is giving back the reference it held. Whether the block
 		// dies here depends on who else still points at it.
-		fmt.Fprintf(&e.buf, "  call void @rt_bigfloat_release(ptr %s)\n", val)
+		e.emitGlueScalarRelease(g, val, ops)
 		return
 	}
 	if e.types.IsRefCountedHandle(ty) {
@@ -290,7 +290,7 @@ func (e *Emitter) emitDropAt(g *glueTmp, ptr string, ty types.TypeID, align uint
 	}
 	word := g.next()
 	fmt.Fprintf(&e.buf, "  %s = load ptr, ptr %s, align %d\n", word, ptr, align)
-	e.emitDropHandle(word, ty)
+	e.emitDropHandle(g, word, ty)
 }
 
 // emitDropHandleRootAt reads the handle word out of the slot at `ptr` and
@@ -319,7 +319,7 @@ func (e *Emitter) emitDropHandleRootAt(g *glueTmp, ptr string, ty types.TypeID, 
 	}
 	word := g.next()
 	fmt.Fprintf(&e.buf, "  %s = load ptr, ptr %s, align %d\n", word, ptr, align)
-	e.emitDropHandle(word, ty)
+	e.emitDropHandle(g, word, ty)
 }
 
 // emitDropGlue emits every needed glue function, processing to a

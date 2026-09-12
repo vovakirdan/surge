@@ -38,11 +38,8 @@ import (
 // own, dispatching on the value's TYPE: a counted scalar takes the inline bump,
 // a channel handle takes the runtime's atomic retain.
 //
-// The scalar form is BRANCHLESS: instead of jumping over the bump when the value
-// is the NULL zero, it redirects the read-modify-write onto a thread-local
-// scratch word. That keeps a float copy as straight-line code and avoids
-// splitting the enclosing basic block mid-expression, which would disturb every
-// label the surrounding MIR block owns.
+// Float preserves its branchless NULL scratch word. Integer scalars branch
+// before every count access, leaving both fixnums and NULL completely uncounted.
 //
 // The inline form deliberately omits the overflow check that
 // `rt_bigfloat_retain` carries: the check exists to name a defect loudly, and
@@ -50,13 +47,23 @@ import (
 // without 2^32 live references would invert the tradeoff this whole mechanism
 // is for. The out-of-line entry point keeps it.
 func (fe *funcEmitter) emitRetainValue(val, ty string, typeID types.TypeID) {
-	if fe == nil || ty != "ptr" {
+	if fe == nil || fe.emitter == nil || ty != "ptr" {
 		return
 	}
 	if fe.emitter != nil && fe.emitter.types.IsRefCountedHandle(typeID) {
 		// NULL-safe in the runtime: a slot the handle was moved out of holds
 		// NULL and is retained as nothing.
 		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_channel_handle_retain(ptr %s)\n", val)
+		return
+	}
+	ops, ok := scalarLifecycleFor(fe.emitter.types, typeID)
+	if !ok {
+		return
+	}
+	if ops.tagged {
+		done := fe.beginScalarHeap(val, ops)
+		emitNumericHeapRetain(&fe.emitter.buf, val, ops.rcOffset, fe.nextTemp)
+		endScalarHeap(&fe.emitter.buf, done)
 		return
 	}
 	isNull := fe.nextTemp()
