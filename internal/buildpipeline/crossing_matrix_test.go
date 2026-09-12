@@ -4,6 +4,8 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"surge/internal/diag"
@@ -53,8 +55,9 @@ async fn fan_in(a: far Channel<int>, b: far Channel<int>) -> int {
 }
 
 async fn anchored(ch: far Channel<int>) -> int {
+    let value: int = 4;
     return compare on ch {
-        ch.send(4);
+        ch.send(own value);
         ret 4;
     } {
         Success(v) => v;
@@ -67,9 +70,6 @@ fn main() -> int {
     return 0;
 }
 `
-	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
-		t.Fatalf("write source: %v", err)
-	}
 	wantCodes := []diag.Code{
 		diag.FutOnBackendUnavailable,
 		diag.FutSpawnOnBackendUnavailable,
@@ -80,26 +80,45 @@ fn main() -> int {
 	}
 	for _, backend := range []Backend{BackendVM, Backend("future_backend")} {
 		t.Run(string(backend), func(t *testing.T) {
-			res, compileErr := Compile(context.Background(), &CompileRequest{
-				TargetPath:     path,
-				Backend:        backend,
-				MaxDiagnostics: 200,
-			})
-			if compileErr == nil {
-				t.Fatal("expected the async executable shapes to stay guarded off LLVM")
+			for _, lane := range []string{"counted", "fixed64"} {
+				t.Run(lane, func(t *testing.T) {
+					program := source
+					if lane == "fixed64" {
+						program = strings.Replace(program, "async fn anchored(ch: far Channel<int>)", "async fn anchored(ch: far Channel<int64>)", 1)
+						program = strings.Replace(program, "let value: int = 4;", "let value: int64 = 4;", 1)
+						program = strings.Replace(program, "ch.send(own value)", "ch.send(value)", 1)
+					}
+					if err := os.WriteFile(path, []byte(program), 0o600); err != nil {
+						t.Fatal(err)
+					}
+					res, compileErr := Compile(context.Background(), &CompileRequest{
+						TargetPath:     path,
+						Backend:        backend,
+						MaxDiagnostics: 200,
+					})
+					if compileErr == nil {
+						t.Fatal("expected the async executable shapes to stay guarded off LLVM")
+					}
+					if res.MIR != nil {
+						t.Fatal("expected no MIR for a guarded crossing compile")
+					}
+					if res.Diagnose == nil || res.Diagnose.Bag == nil {
+						t.Fatalf("missing diagnostics bag: %v", compileErr)
+					}
+					diags := res.Diagnose.Bag.Items()
+					for _, d := range diags {
+						if d.Severity == diag.SevError && !slices.Contains(wantCodes, d.Code) {
+							t.Fatalf("unrelated diagnostic %s: %s", d.Code.ID(), d.Message)
+						}
+					}
+					for _, code := range wantCodes {
+						if findDiagnostic(diags, code) == nil {
+							t.Errorf("missing %s on %s, got %s", code.ID(), backend, summarizeCodes(diags))
+						}
+					}
+				})
 			}
-			if res.MIR != nil {
-				t.Fatal("expected no MIR for a guarded crossing compile")
-			}
-			if res.Diagnose == nil || res.Diagnose.Bag == nil {
-				t.Fatalf("missing diagnostics bag: %v", compileErr)
-			}
-			diags := res.Diagnose.Bag.Items()
-			for _, code := range wantCodes {
-				if findDiagnostic(diags, code) == nil {
-					t.Errorf("missing %s on %s, got %s", code.ID(), backend, summarizeCodes(diags))
-				}
-			}
+
 		})
 	}
 }

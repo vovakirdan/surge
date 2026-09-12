@@ -429,7 +429,7 @@ type V = Bare(Plain) | Empty();
 @intrinsic
 type Channel<T> = { __opaque: int };
 
-fn probe(p: own P, u: own U, v: own V, w: own Plain, f: float, arr: float[], s: string, ch: Channel<float>, ci: Channel<int>, fixed: float[4], fixedi: int[4], xss: float[][], chs: Channel<float>[], m: Map<int, float>, mi: Map<int, int>, p64: own Plain64, v64: own V64, ci64: Channel<int64>, mi64: Map<int64, int64>, fixed64: int64[4], u: uint, u64: uint64) -> int {
+fn probe(p: own P, u: own U, v: own V, w: own Plain, f: float, arr: float[], s: string, ch: Channel<float>, ci: Channel<int>, fixed: float[4], fixedi: int[4], xss: float[][], chs: Channel<float>[], m: Map<int, float>, mi: Map<int, int>, p64: own Plain64, v64: own V64, ci64: Channel<int64>, mi64: Map<int64, int64>, fixed64: int64[4], unsigned: uint, u64: uint64) -> int {
     return 0;
 }
 `

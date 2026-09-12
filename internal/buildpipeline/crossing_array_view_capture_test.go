@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -342,26 +343,14 @@ async fn go(dst: Placement) -> int {
 	}
 }
 
-// The other half of accepting an array capture: SOMEBODY has to drop it.
-//
-// A capture that moves ends the caller's binding, so the body it moved into is
-// the only holder left, and registerCrossingBodyOwnership is where the body is
-// told so. It used to ask `isOwnType`, which a `[T]` binding answers no to -- an
-// array literal cannot even be bound as `own int[]` -- so for every array this
-// gate newly admits the body registered nothing, and the header, the buffer and
-// every private clone the un-share walk had just made were abandoned. A body
-// that hands the array to an owning callee is clean either way, which is why
-// only a READ-ONLY body shows it.
-//
-// The row reads the emitted module rather than a clean compile, because a
-// compile says the gate opened and nothing at all about who reclaims what: it
-// demands one crossing body -- a function that ends in `rt_async_return` -- that
-// also frees an array. Without the registration no function body holds both.
+// A moved array read by the crossing body must be released by that body.
+// Counted elements additionally require their exact element-drop callback.
 func TestCrossingArrayCaptureIsReclaimedByTheBodyThatReadsIt(t *testing.T) {
 	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
 	cases := []struct {
-		name string
-		src  string
+		name  string
+		src   string
+		fixed bool
 	}{
 		{
 			name: "an on body that only reads its captured array",
@@ -382,26 +371,112 @@ async fn start(dst: Placement) -> far Task<int> {
 }
 `,
 		},
+		{name: "fixed64_on_body_frees_array", fixed: true, src: `
+async fn go(dst: Placement) -> int64 {
+    let xs: int64[] = [11, 22, 33];
+    let r: TaskResult<int64> = on dst { let v: int64 = xs[0]; ret v; };
+    return 0;
+}
+`},
+		{name: "fixed64_spawn_on_body_frees_array", fixed: true, src: `
+async fn start(dst: Placement) -> far Task<int64> {
+    let xs: int64[] = [11, 22, 33];
+    return spawn on dst { let v: int64 = xs[0]; ret v; };
+}
+`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			requireCrossingBodyFreesAnArray(t, compileCleanly(t, tc.src))
+			requireCrossingBodyFreesAnArray(t, compileCleanly(t, tc.src), !tc.fixed)
 		})
 	}
 }
 
-// requireCrossingBodyFreesAnArray looks for ONE function body that both returns
-// through the async reply edge and frees a dynamic array. Splitting the module
-// into bodies is what keeps the claim honest: every module declares
-// `rt_array_free` and defines drop glue that calls it, so a whole-module search
-// for the call would pass on a body that reclaims nothing.
-func requireCrossingBodyFreesAnArray(t *testing.T, ir string) {
+// The array argument must be loaded from the same slot subsequently cleared
+// before this body's reply. An unrelated drop-glue definition is insufficient.
+func requireCrossingBodyFreesAnArray(t *testing.T, ir string, counted bool) {
 	t.Helper()
-	for _, body := range strings.Split(ir, "\ndefine ") {
-		if strings.Contains(body, "@rt_async_return(") && strings.Contains(body, "call void @rt_array_free(") {
-			return
-		}
+	call := regexp.MustCompile(`call void @rt_array_free\(ptr (%[\w.]+), i64 8, i64 8\)`)
+	if counted {
+		call = regexp.MustCompile(`call void @rt_array_free_elems\(ptr (%[\w.]+), i64 8, i64 8, ptr @([\w.]+)\)`)
 	}
-	t.Fatalf("no crossing body both returns and frees its captured array "+
-		"(the caller's binding moved and nobody drops it):\n%s", ir)
+	for _, section := range strings.Split(ir, "\ndefine ")[1:] {
+		end := strings.Index(section, "\n}")
+		if end < 0 {
+			continue
+		}
+		body := section[:end]
+		reply := strings.Index(body, "call void @rt_async_return(")
+		if reply < 0 {
+			continue
+		}
+		loc := call.FindStringSubmatchIndex(body[:reply])
+		if loc == nil {
+			continue
+		}
+		arg := body[loc[2]:loc[3]]
+		load := regexp.MustCompile(regexp.QuoteMeta(arg) + ` = load ptr, ptr (%[\w.]+), align 8`).FindStringSubmatch(body[:loc[0]])
+		if len(load) != 2 || !strings.Contains(body[loc[1]:reply], "store ptr null, ptr "+load[1]+", align 8") {
+			continue
+		}
+		if counted {
+			callback := body[loc[4]:loc[5]]
+			requireCountedArrayDropCallback(t, ir, callback)
+		}
+		return
+	}
+	t.Fatalf("no crossing body frees and clears its array before reply (counted=%v):\n%s", counted, ir)
+}
+
+func requireCountedArrayDropCallback(t *testing.T, ir, callback string) {
+	t.Helper()
+	start := strings.Index(ir, "define void @"+callback+"(ptr %slot) {")
+	if start < 0 {
+		t.Fatalf("missing element-drop callback %s", callback)
+	}
+	body := ir[start:]
+	end := strings.Index(body, "\n}")
+	if end < 0 {
+		t.Fatalf("unterminated element-drop callback %s", callback)
+	}
+	body = body[:end]
+	// Capture SSA identities to link the released pointer to its low-bit and
+	// null guards. The heap branch must contain the release of that pointer.
+	read := regexp.MustCompile(`(%[\w.]+) = load ptr, ptr %slot, align 8`).FindStringSubmatch(body)
+	if len(read) != 2 {
+		t.Fatalf("%s does not read its element slot", callback)
+	}
+	value := regexp.QuoteMeta(read[1])
+	bits := regexp.MustCompile(`(%[\w.]+) = ptrtoint ptr ` + value + ` to i64`).FindStringSubmatch(body)
+	if len(bits) != 2 {
+		t.Fatalf("%s does not inspect the numeric tag", callback)
+	}
+	tag := regexp.MustCompile(`(%[\w.]+) = and i64 ` + regexp.QuoteMeta(bits[1]) + `, 1`).FindStringSubmatch(body)
+	if len(tag) != 2 {
+		t.Fatalf("%s does not mask the numeric tag", callback)
+	}
+	heap := regexp.MustCompile(`(%[\w.]+) = icmp eq i64 ` + regexp.QuoteMeta(tag[1]) + `, 0`).FindStringSubmatch(body)
+	nonnull := regexp.MustCompile(`(%[\w.]+) = icmp ne ptr ` + value + `, null`).FindStringSubmatch(body)
+	if len(heap) != 2 || len(nonnull) != 2 {
+		t.Fatalf("%s lacks heap/null guards", callback)
+	}
+	guard := regexp.MustCompile(`(%[\w.]+) = and i1 ` + regexp.QuoteMeta(nonnull[1]) + `, ` + regexp.QuoteMeta(heap[1])).FindStringSubmatch(body)
+	if len(guard) != 2 {
+		t.Fatalf("%s does not combine heap/null guards", callback)
+	}
+	branch := regexp.MustCompile(`br i1 ` + regexp.QuoteMeta(guard[1]) + `, label %([\w.]+), label %[\w.]+`).FindStringSubmatch(body)
+	if len(branch) != 2 {
+		t.Fatalf("%s does not branch on its heap guard", callback)
+	}
+	blockStart := strings.Index(body, branch[1]+":\n")
+	if blockStart < 0 {
+		t.Fatalf("%s lacks its heap branch", callback)
+	}
+	block := body[blockStart:]
+	if next := regexp.MustCompile(`\n[\w.]+:`).FindStringIndex(block); next != nil {
+		block = block[:next[0]]
+	}
+	if !strings.Contains(block, "call void @rt_bigint_release(ptr "+read[1]+")") {
+		t.Fatalf("%s does not release the counted element on its heap branch", callback)
+	}
 }

@@ -406,33 +406,22 @@ async fn go() -> int {
 // ELEMENT is an array, because only then is there a buffer in the ring for the
 // body and the ring to own between them.
 //
-// A VALUE read out of a captured array and sent is that half's business only in
-// the sense that it is none of it: the body drops the array exactly as it always
-// did, and the ring keeps nothing of it. Each row here is a value -- computed by
-// a callee, computed in place, bound to a name before the block, or read out of
-// an element's FIELD -- and each one, run, prints the number it was given at
-// SURGE_SHARDS/THREADS 2 and at 8.
-//
-// The last row is why the element half exists at all, and it is measured rather
-// than argued: `ch.send(xs[0].a)` on a captured `Pair[]` over a far
-// `Channel<int>` is a value whose place resolves to the captured array, and with
-// the element question deleted from anchoredSendIsOfACapturedArray this program
-// is refused SEM3212. It prints 11 at both widths as it stands.
-//
-// The shape that is NOT here is `ch.send(xs[0])`, with or without `own`. An
-// index read is a BORROW, not a value, and it is refused a step earlier now; the
-// table below owns it.
+// Fixed64 computed values are independent of the captured array's ownership.
+// The matching counted sources must still give a whole captured binding away.
 func TestAnchoredSendOfAValueReadOutOfACapturedArrayIsNotRefused(t *testing.T) {
 	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
-	for _, tc := range []struct{ name, src string }{
+	for _, tc := range []struct {
+		name, src string
+		counted   bool
+	}{
 		{
 			name: "a value computed from the captured array",
 			src: `
-fn total(xs: own int[]) -> int { return xs[0] + xs[1] + xs[2]; }
+fn total(xs: own int64[]) -> int64 { return xs[0] + xs[1] + xs[2]; }
 
 async fn go() -> int {
-    let ch: far Channel<int> = channel_on::<int>(shard(0:ShardId), 4);
-    let xs: int[] = [1, 2, 3];
+    let ch: far Channel<int64> = channel_on::<int64>(shard(0:ShardId), 4);
+    let xs: int64[] = [1, 2, 3];
     let sent: TaskResult<nothing> = on ch { ch.send(total(own xs)); ret nothing; };
     return 0;
 }
@@ -442,8 +431,8 @@ async fn go() -> int {
 			name: "a value computed in place from the captured array",
 			src: `
 async fn go() -> int {
-    let ch: far Channel<int> = channel_on::<int>(shard(0:ShardId), 4);
-    let xs: int[] = [1, 2, 3];
+    let ch: far Channel<int64> = channel_on::<int64>(shard(0:ShardId), 4);
+    let xs: int64[] = [1, 2, 3];
     let sent: TaskResult<nothing> = on ch { ch.send(xs[0] + 0); ret nothing; };
     return 0;
 }
@@ -453,9 +442,9 @@ async fn go() -> int {
 			name: "an element copied out under a name before the block",
 			src: `
 async fn go() -> int {
-    let ch: far Channel<int> = channel_on::<int>(shard(0:ShardId), 4);
-    let xs: int[] = [1, 2, 3];
-    let v: int = xs[0];
+    let ch: far Channel<int64> = channel_on::<int64>(shard(0:ShardId), 4);
+    let xs: int64[] = [1, 2, 3];
+    let v: int64 = xs[0];
     let sent: TaskResult<nothing> = on ch { ch.send(v); ret nothing; };
     return 0;
 }
@@ -465,18 +454,29 @@ async fn go() -> int {
 			name: "a field read out of an element of the captured array",
 			src: `
 @shard_movable
-type Pair = { a: int, b: int };
+type Pair = { a: int64, b: int64 };
 
 async fn go() -> int {
-    let ch: far Channel<int> = channel_on::<int>(shard(0:ShardId), 4);
+    let ch: far Channel<int64> = channel_on::<int64>(shard(0:ShardId), 4);
     let xs: Pair[] = [Pair{ a: 1, b: 2 }];
     let sent: TaskResult<nothing> = on ch { ch.send(xs[0].a); ret nothing; };
     return 0;
 }
 `,
 		},
+		{name: "counted_field_read_requires_owned_binding", counted: true, src: `@shard_movable type Pair = { a: int, b: int }; async fn go() -> int { let ch: far Channel<int> = channel_on::<int>(shard(0:ShardId), 4); let xs: Pair[] = [Pair{ a: 1, b: 2 }]; let sent: TaskResult<nothing> = on ch { ch.send(xs[0].a); ret nothing; }; return 0; }`},
+		{name: "counted_bare_name_requires_own", counted: true, src: `async fn go() -> int { let ch: far Channel<int> = channel_on::<int>(shard(0:ShardId), 4); let xs: int[] = [1, 2, 3]; let v: int = xs[0]; let sent: TaskResult<nothing> = on ch { ch.send(v); ret nothing; }; return 0; }`},
+		{name: "counted_computed_in_place_requires_owned_binding", counted: true, src: `async fn go() -> int { let ch: far Channel<int> = channel_on::<int>(shard(0:ShardId), 4); let xs: int[] = [1, 2, 3]; let sent: TaskResult<nothing> = on ch { ch.send(xs[0] + 0); ret nothing; }; return 0; }`},
+		{name: "counted_computed_callee_requires_owned_binding", counted: true, src: `fn total(xs: own int[]) -> int { return xs[0] + xs[1] + xs[2]; } async fn go() -> int { let ch: far Channel<int> = channel_on::<int>(shard(0:ShardId), 4); let xs: int[] = [1, 2, 3]; let sent: TaskResult<nothing> = on ch { ch.send(total(own xs)); ret nothing; }; return 0; }`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.counted {
+				msg := requireCountedDiagnostic(t, tc.src, diag.SemaAnchoredSendGiveAway)
+				if !strings.Contains(msg, "must give a captured binding away") {
+					t.Fatalf("wrong refusal: %s", msg)
+				}
+				return
+			}
 			compileCleanly(t, tc.src)
 		})
 	}

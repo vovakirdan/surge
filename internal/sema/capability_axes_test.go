@@ -185,7 +185,7 @@ func TestCapabilityTraceableAxis(t *testing.T) {
 		{shape: "&Text", want: false, reason: "reached through its owner"},
 		{shape: "Channel", want: true, reason: "runtime-managed storage a visitor has to enter"},
 		{shape: "[4]int", want: true, reason: "counted heap block"},
-		{shape: "(int, string)", want: true, reason: "names runtime-managed storage"},
+		{shape: "(int, string)", want: true, reason: "counted heap block"},
 	}, func(c Capability) (bool, string, []types.TypeID) {
 		return c.Traceable, c.TraceableReason, nil
 	})
