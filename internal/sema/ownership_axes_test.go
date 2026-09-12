@@ -418,16 +418,14 @@ tag Bare64(Plain64);
 tag Held(P);
 tag Bare(Plain);
 tag Empty();
-
 @shard_movable
 type U = Held(P) | Empty();
-
 @shard_movable
 type V = Bare(Plain) | Empty();
 
 @copy
 @intrinsic
-type Channel<T> = { __opaque: int };
+type Channel<T> = { __opaque: *byte };
 
 fn probe(p: own P, u: own U, v: own V, w: own Plain, f: float, arr: float[], s: string, ch: Channel<float>, ci: Channel<int>, fixed: float[4], fixedi: int[4], xss: float[][], chs: Channel<float>[], m: Map<int, float>, mi: Map<int, int>, p64: own Plain64, v64: own V64, ci64: Channel<int64>, mi64: Map<int64, int64>, fixed64: int64[4], unsigned: uint, u64: uint64) -> int {
     return 0;
@@ -483,12 +481,14 @@ fn probe(p: own P, u: own U, v: own V, w: own Plain, f: float, arr: float[], s: 
 	}
 	seen := make(map[string]bool, len(rows))
 	for id := types.TypeID(1); ; id++ {
-		if _, ok := in.Lookup(id); !ok {
+		typ, ok := in.Lookup(id)
+		if !ok {
 			break
 		}
 		label := types.Label(in, id)
 		want, ok := rows[label]
-		if !ok {
+		// Map's generic V is not the nominal union V in this table.
+		if !ok || typ.Kind == types.KindGenericParam {
 			continue
 		}
 		seen[label] = true

@@ -433,7 +433,7 @@ async fn go() -> int {
 async fn go() -> int {
     let ch: far Channel<int64> = channel_on::<int64>(shard(0:ShardId), 4);
     let xs: int64[] = [1, 2, 3];
-    let sent: TaskResult<nothing> = on ch { ch.send(xs[0] + 0); ret nothing; };
+    let sent: TaskResult<nothing> = on ch { ch.send(*(xs[0]) + (0:int64)); ret nothing; };
     return 0;
 }
 `,
