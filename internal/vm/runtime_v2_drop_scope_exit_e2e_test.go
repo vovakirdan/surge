@@ -18,13 +18,11 @@ import (
 // window its own probe opened — so the fixture measures that cost at
 // runtime instead of folding it into the constants below.
 //
-// Two windows ride an int-storage cost: `a.push(1)` and
-// `a.slice(..)` move an int into typed array storage, and the free count
-// of that path is pinned into the scope-end and view-order rows. Those
-// two constants were re-pinned when small ints became inline (fixnum):
-// the value crossing into typed storage is no longer a heap bignum, so
-// the path frees a different number of blocks than it did while every
-// int was boxed. The view-order row's real teeth are the deferral counter:
+// The scope-end and view-order windows start with an empty array. Its data
+// pointer is null until push allocates element storage; there is no initial
+// zero-length buffer to allocate and free. Both windows therefore count one
+// fewer allocation/free than the former empty-array representation. The inline
+// int element owns no block. The view-order row also checks the deferral counter:
 // reverse-declaration order drops the view BEFORE its base, so nothing
 // defers. Loop rows compare a
 // scenario against a twin with the droppable removed: the loop
@@ -264,7 +262,7 @@ fn main() -> int {
     // fell by the same amount (balanced churn, verified: this test's own
     // valgrind runs stay definitely-lost zero), so no reclamation was lost
     // — the other six windows are unchanged.
-    let r1: int = check_frees("scope-end window", &w0, &w1, 4:uint);
+    let r1: int = check_frees("scope-end window", &w0, &w1, 3:uint);
     if r1 != 0 { return 11; }
     let r2: int = check_frees("early-return window", &w1, &w2, 1:uint);
     if r2 != 0 { return 12; }
@@ -282,7 +280,7 @@ fn main() -> int {
     // a Range and moves it into the slice sink, and that range is now released
     // at the call site. The window gained one free and no alloc, because the
     // allocation was always there and only the reclamation is new.
-    let r8: int = check_frees("view-order window", &w7, &w8, 6:uint);
+    let r8: int = check_frees("view-order window", &w7, &w8, 5:uint);
     if r8 != 0 { return 18; }
     if deferred_after != deferred_before {
         print("view dropped after its base: deferral counter moved");
