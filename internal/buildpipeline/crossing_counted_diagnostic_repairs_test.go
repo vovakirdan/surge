@@ -205,3 +205,23 @@ async fn probe(task: far Task<Channel<$U>>) -> TaskResult<Channel<$U>> {
 		})
 	}
 }
+
+func TestCountedBlockDiagnosticValidDeclarationsRepair(t *testing.T) {
+	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
+	for _, row := range []struct{ name, src string }{
+		{"on_capture", countedOnCaptureSource},
+		{"blocking_capture", countedBlockingCaptureSource},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			src := "@copy @shard_movable\ntype Number = { value: $N };\n" +
+				strings.ReplaceAll(row.src, "$N", "Number")
+			message := requireCountedDiagnostic(t, strings.ReplaceAll(src, "$N", "int"), diag.SemaCrossNotShardMovable)
+			for _, want := range []string{"`int` at `payload[0].value`", "replace `int` with `int64`"} {
+				if !strings.Contains(message, want) {
+					t.Fatalf("valid declaration lost proven width repair %q: %s", want, message)
+				}
+			}
+			requireCountedRepairEmits(t, strings.ReplaceAll(src, "$N", "int64"), row.name)
+		})
+	}
+}

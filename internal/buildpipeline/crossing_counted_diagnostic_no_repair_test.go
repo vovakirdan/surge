@@ -1,6 +1,7 @@
 package buildpipeline
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -123,12 +124,66 @@ async fn probe(ch: &Channel<$N>) -> bool {
 
 func requireCountedWidthAdviceDoesNotPromiseADeclarationRepair(t *testing.T) {
 	t.Helper()
-	src := countedOwnedCaptureSource("@shard_movable\n")
+	const invalid = "@shard_movable\ntype Payload = { ch: Channel<$N> };"
+	const invalidCopy = "@copy\n" + invalid
+	const nested = "@copy @shard_movable\ntype Bad = { ch: Channel<$N> };\n"
+	rows := []struct {
+		name, declarations, payload string
+		owned, blocking             bool
+	}{
+		{"declaration_on_owned", invalid, "Payload", true, false},
+		{"declaration_on_copy", invalidCopy, "Payload", false, false},
+		{"declaration_blocking_owned", invalid, "Payload", true, true},
+		{"declaration_nested_on_copy", nested + "@copy\ntype Payload = { bad: Bad };", "Payload", false, false},
+		{"declaration_nested_blocking_owned", nested + "type Payload = { bad: Bad };", "Payload", true, true},
+		{"declaration_handle_payload_on", invalidCopy, "Channel<Payload>", false, false},
+		{"declaration_tag_payload_on", nested + `
+tag Held(Bad);
+tag Empty();
+@copy
+type Payload = Held(Bad) | Empty();`, "Payload", false, false},
+		{"declaration_nonculprit_sibling_on", `
+@copy @shard_movable
+type Bad = { ch: Channel<int64> };
+@copy
+type Payload = { first: Channel<$N>, bad: Bad };`, "Payload", false, false},
+	}
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			src := countedDeclarationCaptureSource(row.declarations, row.payload, row.owned, row.blocking)
+			requireCountedDeclarationRefusal(t, src)
+		})
+	}
+}
+
+func countedDeclarationCaptureSource(declarations, payload string, owned, blocking bool) string {
+	argument := "value"
+	if owned {
+		payload = "own " + payload
+		argument = "own value"
+	}
+	use := fmt.Sprintf("\nfn use(value: %s) -> bool { return true; }\n", payload)
+	if blocking {
+		return declarations + use + fmt.Sprintf(`
+async fn probe(value: %s) -> bool {
+    let job: Task<bool> = blocking { ret use(%s); };
+    return compare job.await() { Success(v) => v; Cancelled() => false; };
+}`, payload, argument)
+	}
+	return declarations + use + fmt.Sprintf(`
+async fn probe(dst: Placement, value: %s) -> TaskResult<bool> {
+    return on dst { ret use(%s); };
+}`, payload, argument)
+}
+
+func requireCountedDeclarationRefusal(t *testing.T, src string) {
+	t.Helper()
 	res, err := countedDiagnosticCompile(t, strings.ReplaceAll(src, "$N", "int"))
 	if err == nil || res.MIR != nil || res.Diagnose == nil || res.Diagnose.Bag == nil {
 		t.Fatalf("invalid shard-movable declaration did not stop before MIR: %v", err)
 	}
 	seen := map[diag.Code]bool{}
+	var countedMessage string
 	for _, item := range res.Diagnose.Bag.Items() {
 		if item.Severity != diag.SevError {
 			continue
@@ -137,12 +192,17 @@ func requireCountedWidthAdviceDoesNotPromiseADeclarationRepair(t *testing.T) {
 			t.Fatalf("unrelated declaration diagnostic: %s: %s", item.Code.ID(), item.Message)
 		}
 		seen[item.Code] = true
-		if strings.Contains(item.Message, "If fixed precision is sufficient") {
-			t.Fatalf("width advice would leave the declared field non-shard-movable: %s", item.Message)
+		if item.Code == diag.SemaCrossNotShardMovable {
+			countedMessage += item.Message + "\n"
 		}
 	}
 	if !seen[diag.SemaCrossNotShardMovable] || !seen[diag.SemaShardMovableField] {
 		t.Fatalf("declaration control missed one of its independent refusals: %v", seen)
 	}
+	// Prove the width-only replacement reaches the same declaration error even
+	// on a baseline that still emits the false advice asserted below.
 	requireCountedDiagnostic(t, strings.ReplaceAll(src, "$N", "int64"), diag.SemaShardMovableField)
+	if strings.Contains(countedMessage, "If fixed precision is sufficient") {
+		t.Fatalf("width advice would leave the declared field non-shard-movable: %s", countedMessage)
+	}
 }
