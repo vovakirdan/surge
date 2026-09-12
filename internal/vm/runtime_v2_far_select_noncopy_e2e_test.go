@@ -230,29 +230,13 @@ func TestRuntimeV2FarSelectConstArmEvaluatedOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse valgrind leak summary: %v\nstderr:\n%s", err, stderr)
 	}
-	// ONE bigint, not two. The single remaining block is a SEPARATE,
-	// pre-existing gap and deliberately not this row's subject: typeOwnsHeap
-	// returns false for a bignum int, so the delivered payload gets drop-fn
-	// id 0 and the channel's teardown drain never reclaims it. What this row
-	// gates is the COUNT: without the init/retry split the crossing block
-	// evaluates the literal again on the resumed retry and orphans that
-	// second bigint, measured at 80 bytes in 2 blocks.
-	//
-	// The byte figure was 36 until the heap half of `int` gained its reference
-	// count. It reads 40 now, and the four bytes are the counter: a SurgeBigInt
-	// header grew from 8 to 12 (`sizeof(struct) + len*4` is unchanged
-	// otherwise), so every heap bignum in the tree measures four bytes larger.
-	// The BLOCK count -- which is what this row is actually about -- did not
-	// move, and the doubling signature it guards moved with it, from 72/2 to
-	// 80/2. Recorded here rather than silently bumped, because a leak figure
-	// that grows for a reason unrelated to leaking is exactly the kind of
-	// number that gets read as a regression a month from now.
-	const knownSingleEvaluationBytes = 40
-	const knownSingleEvaluationBlocks = 1
-	if bytesLost != knownSingleEvaluationBytes || blocksLost != knownSingleEvaluationBlocks {
+	// Numeric drop glue now reclaims the delivered heap bigint at channel
+	// teardown. Re-entering the initialization edge on a retry would mint
+	// another bigint which the pending operation never consumes.
+	if bytesLost != 0 || blocksLost != 0 {
 		t.Fatalf(
-			"const-arm far select leaked %d bytes in %d blocks, want exactly one un-reclaimed bigint (%d bytes in %d blocks); a doubling here means the crossing block evaluated the const operand on a retry round\nstderr:\n%s",
-			bytesLost, blocksLost, knownSingleEvaluationBytes, knownSingleEvaluationBlocks, stderr,
+			"const-arm far select leaked %d bytes in %d blocks, want zero; retry initialization must not orphan another bigint\nstderr:\n%s",
+			bytesLost, blocksLost, stderr,
 		)
 	}
 }
