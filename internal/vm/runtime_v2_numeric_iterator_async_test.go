@@ -40,11 +40,11 @@ func numericIteratorAsyncTypedProgram(kind, form string, cancel, countFromArgv b
 			loop = fmt.Sprintf("for x: %s in seed..((9223372036854775814:uint64):%s)", kind, kind)
 		}
 		failedAnswer, tokenError, emptyError = "0:"+kind, "0:"+kind, "0:"+kind
-		answerCheck = "(answer:uint64) != 9223372036854775811:uint64"
+		answerCheck = "((answer:uint64) != 9223372036854775811:uint64)"
 		markerBase += "-heap-" + kind + "-" + form
 		seedParameter, seedArgument = ", seed: "+kind, ", seed"
 		seedBefore = fmt.Sprintf("let seed: %s = (9223372036854775811:uint64):%s;\n    ", kind, kind)
-		seedAfter = "if (seed:uint64) != 9223372036854775811:uint64 { return 4; }\n    "
+		seedAfter = "if ((seed:uint64) != 9223372036854775811:uint64) { return 4; }\n    "
 	}
 	action := "gate.send(9);"
 	outcome := fmt.Sprintf("let answer: %s = compare child.await() { Success(value) => value; Cancelled() => %s; };\n    if %s { return 2; }", kind, failedAnswer, answerCheck)

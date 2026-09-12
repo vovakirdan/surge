@@ -60,7 +60,7 @@ fn heap_fixed_forms() -> int64 {
     let mut sum: int64 = 0:int64;
     for x in values { sum = sum + heap_offset(x); }
     for x in heap_fixed() { sum = sum + heap_offset(x); }
-    if (values[1]:uint64) != 9223372036854775812:uint64 { return -1:int64; }
+    if ((values[1]:uint64) != 9223372036854775812:uint64) { return -1:int64; }
     return sum;
 }
 
@@ -73,7 +73,7 @@ fn heap_break() -> $K {
 fn heap_continue() -> int64 {
     let mut sum: int64 = 0:int64;
     for x in heap_values() {
-        if (x:uint64) == 9223372036854775812:uint64 { continue; }
+        if ((x:uint64) == 9223372036854775812:uint64) { continue; }
         sum = sum + heap_offset(x);
     }
     return sum;
@@ -81,7 +81,7 @@ fn heap_continue() -> int64 {
 
 fn heap_return_x() -> $K {
     for x in heap_values() {
-        if (x:uint64) == 9223372036854775812:uint64 { return x; }
+        if ((x:uint64) == 9223372036854775812:uint64) { return x; }
     }
     return 0:$K;
 }
@@ -90,7 +90,7 @@ fn heap_nested_expression_return() -> $K {
     for x in heap_values() {
         for y in heap_values() {
             let ignored: int64 = {
-                if (y:uint64) == 9223372036854775812:uint64 { return x; }
+                if ((y:uint64) == 9223372036854775812:uint64) { return x; }
                 ret 0:int64;
             };
             if ignored != 0:int64 { return 0:$K; }
@@ -107,20 +107,20 @@ fn main() -> int {
     for x in caller { twice = twice + heap_offset(x); }
     for x in caller { twice = twice + heap_offset(x); }
     if twice != 6:int64 { return 2; }
-    if (caller[1]:uint64) != 9223372036854775812:uint64 { return 3; }
+    if ((caller[1]:uint64) != 9223372036854775812:uint64) { return 3; }
     if heap_borrowed(&caller) != 3:int64 { return 4; }
-    if (caller[1]:uint64) != 9223372036854775812:uint64 { return 4; }
+    if ((caller[1]:uint64) != 9223372036854775812:uint64) { return 4; }
     if heap_generic_count(&caller) != 3:int64 { return 5; }
-    if (caller[1]:uint64) != 9223372036854775812:uint64 { return 5; }
+    if ((caller[1]:uint64) != 9223372036854775812:uint64) { return 5; }
     if heap_fixed_forms() != 6:int64 { return 6; }
     let broken = heap_break();
-    if (broken:uint64) != 9223372036854775811:uint64 { return 7; }
+    if ((broken:uint64) != 9223372036854775811:uint64) { return 7; }
     if heap_continue() != 2:int64 { return 8; }
     let returned = heap_return_x();
-    if (returned:uint64) != 9223372036854775812:uint64 { return 9; }
+    if ((returned:uint64) != 9223372036854775812:uint64) { return 9; }
     let nested = heap_nested_expression_return();
-    if (nested:uint64) != 9223372036854775811:uint64 { return 10; }
-    if (caller[1]:uint64) != 9223372036854775812:uint64 { return 10; }
+    if ((nested:uint64) != 9223372036854775811:uint64) { return 10; }
+    if ((caller[1]:uint64) != 9223372036854775812:uint64) { return 10; }
     print("$MARKER");
     return 0;
 }
@@ -147,8 +147,8 @@ fn heap_fast_normal() -> int64 {
         count = count + 1:int64;
     }
     if count != 3:int64 { return -1:int64; }
-    if (start:uint64) != 9223372036854775811:uint64 { return -2:int64; }
-    if (end:uint64) != 9223372036854775814:uint64 { return -3:int64; }
+    if ((start:uint64) != 9223372036854775811:uint64) { return -2:int64; }
+    if ((end:uint64) != 9223372036854775814:uint64) { return -3:int64; }
     return sum;
 }
 
@@ -159,7 +159,7 @@ fn heap_fast_expression_continue() -> int64 {
         attempts = attempts + 1:int64;
         if attempts > 4:int64 { return -1:int64; }
         let ignored: int64 = {
-            if (x:uint64) == 9223372036854775812:uint64 { continue; }
+            if ((x:uint64) == 9223372036854775812:uint64) { continue; }
             ret 0:int64;
         };
         sum = sum + heap_offset(x) + ignored;
@@ -189,8 +189,8 @@ fn heap_saved_range() -> int64 {
     let mut sum: int64 = 0:int64;
     for x in saved { sum = sum + heap_offset(x); }
     for _ in saved { break; }
-    if (start:uint64) != 9223372036854775811:uint64 { return -1:int64; }
-    if (end:uint64) != 9223372036854775814:uint64 { return -2:int64; }
+    if ((start:uint64) != 9223372036854775811:uint64) { return -1:int64; }
+    if ((end:uint64) != 9223372036854775814:uint64) { return -2:int64; }
     return sum;
 }
 
@@ -208,7 +208,7 @@ fn heap_temporary_range() -> int64 {
 
 fn heap_return_bound() -> $K {
     for x in heap_range() {
-        if (x:uint64) == 9223372036854775812:uint64 { return x; }
+        if ((x:uint64) == 9223372036854775812:uint64) { return x; }
     }
     return 0:$K;
 }
@@ -225,16 +225,16 @@ fn main() -> int {
     if heap_fast_normal() != 3:int64 { return 21; }
     if heap_fast_expression_continue() != 2:int64 { return 22; }
     let broken = heap_fast_break();
-    if (broken:uint64) != 9223372036854775811:uint64 { return 23; }
+    if ((broken:uint64) != 9223372036854775811:uint64) { return 23; }
     let early = heap_end_initializer(true);
-    if (early:uint64) != 9223372036854775813:uint64 { return 24; }
+    if ((early:uint64) != 9223372036854775813:uint64) { return 24; }
     let entered = heap_end_initializer(false);
-    if (entered:uint64) != 9223372036854775811:uint64 { return 25; }
+    if ((entered:uint64) != 9223372036854775811:uint64) { return 25; }
     if heap_saved_range() != 3:int64 { return 26; }
     if heap_walk_range(heap_range()) != 3:int64 { return 27; }
     if heap_temporary_range() != 3:int64 { return 28; }
     let returned = heap_return_bound();
-    if (returned:uint64) != 9223372036854775812:uint64 { return 29; }
+    if ((returned:uint64) != 9223372036854775812:uint64) { return 29; }
     if heap_empty_count() != 0:int64 { return 30; }
     print("$MARKER");
     return 0;
