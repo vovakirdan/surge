@@ -10,6 +10,28 @@
 int rt_argc = 0;
 char** rt_argv_raw = NULL;
 
+// The full runtime references both generated dispatch hooks. This stand starts
+// no tasks: reaching either hook is a harness error, never a numeric answer.
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+void __surge_poll_call(uint64_t id);
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+void __surge_poll_call(uint64_t id) {
+    (void)id;
+    fputs("bigfloat-from-f64-exact: unexpected poll dispatch\n", stderr);
+    abort();
+}
+
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+void __surge_blocking_call(uint64_t id, void* state, void* out_dst);
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+void __surge_blocking_call(uint64_t id, void* state, void* out_dst) {
+    (void)id;
+    (void)state;
+    (void)out_dst;
+    fputs("bigfloat-from-f64-exact: unexpected blocking dispatch\n", stderr);
+    abort();
+}
+
 _Static_assert(FLT_RADIX == 2 && DBL_MANT_DIG == 53 && DBL_MIN_EXP == -1021 && DBL_MAX_EXP == 1024,
                "the exact input table requires binary64 doubles");
 _Static_assert(SURGE_BIGNUM_MANTISSA_BITS == 256, "the table requires 256-bit mantissas");
