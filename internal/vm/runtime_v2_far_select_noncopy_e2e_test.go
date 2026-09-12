@@ -168,18 +168,14 @@ func TestRuntimeV2FarSelectNonCopySendArm(t *testing.T) {
 	})
 }
 
-// A CONST arm operand is the one shape whose evaluation the crossing block
-// repeats per retry round. Place operands — a call result, a binding, a
-// lease-minting receiver — are temp'd into a preceding block by
-// splitAsyncAwaits, so a resumed retry only re-loads them; a const is
-// embedded in the crossing instruction itself and lowers inline, and
-// several const kinds ALLOCATE there (an int/uint/float literal outside the
-// fixnum inline range, a string const). This row pins the emitter's
-// init/retry split, which is what keeps that evaluation to one.
+// A heap-sized numeric literal gets an owning MIR temporary before the
+// remote select's poll block. The SEND receives a private reference through
+// the relinquishing handoff; both the temporary and the delivered channel
+// payload must be released. Resuming the select reloads the prepared storage.
 //
-// The literal MUST exceed the fixnum inline range: re-measured with a small
-// literal the leak is 0 both ways, so an obvious-looking `send(7)` row would
-// silently prove nothing.
+// Keep the heap-sized literal: an inline fixnum owns no allocation and cannot
+// expose missing numeric drop glue. This row checks reclamation of the owners
+// created for the original source literal.
 const runtimeV2FarSelectConstArmSource = `
 async fn run() -> int {
     let c: far Channel<int> = channel_on::<int>(shard(0:ShardId), 1);
@@ -210,7 +206,7 @@ fn main() -> int {
 }
 `
 
-func TestRuntimeV2FarSelectConstArmEvaluatedOnce(t *testing.T) {
+func TestRuntimeV2FarSelectHeapLiteralIsReclaimed(t *testing.T) {
 	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2FarSelectConstArmSource, nil)
 	baseEnv := envWithStdlib(repoRoot(t))
 	env := overrideEnvVar(baseEnv, "SURGE_SHARDS", "1")
@@ -230,13 +226,13 @@ func TestRuntimeV2FarSelectConstArmEvaluatedOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse valgrind leak summary: %v\nstderr:\n%s", err, stderr)
 	}
-	// Numeric drop glue now reclaims the delivered heap bigint at channel
-	// teardown. Re-entering the initialization edge on a retry would mint
-	// another bigint which the pending operation never consumes.
+	// Numeric drop glue reclaims the delivered heap bigint at channel teardown.
+	// Require zero definitely-lost storage; process bootstrap and worker
+	// allocations remain outside this census.
 	if bytesLost != 0 || blocksLost != 0 {
 		t.Fatalf(
-			"const-arm far select leaked %d bytes in %d blocks, want zero; retry initialization must not orphan another bigint\nstderr:\n%s",
-			bytesLost, blocksLost, stderr,
+			"far select heap literal leaked %d definitely-lost bytes in %d blocks, want zero; numeric owners must be reclaimed\nstdout:\n%s\nstderr:\n%s",
+			bytesLost, blocksLost, stdout, stderr,
 		)
 	}
 }
