@@ -228,6 +228,7 @@ func TestRuntimeV2CompositeCopyIsIndependent(t *testing.T) {
 		{"@copy type Outer = { inner: Inner, label: int };", "@copy type Outer = { inner: Inner, label: int64 };"},
 		{"fn choice_payload(c: &Choice) -> int {", "fn choice_payload(c: &Choice) -> int64 {"},
 		{"fn read_through(r: &Pair) -> int {", "fn read_through(r: &Pair) -> int64 {"},
+		{"_ => 0 - 1;", "_ => 0:int64 - 1:int64;"},
 	} {
 		if count := strings.Count(plain, edit[0]); count != 1 {
 			t.Fatalf("composite fixture has %d occurrences of %q, want 1", count, edit[0])
