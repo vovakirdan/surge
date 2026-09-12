@@ -1,8 +1,13 @@
 package vm_test
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"surge/internal/buildpipeline"
+	"surge/internal/diag"
 )
 
 // The frozen contract for value composites: these assert LANGUAGE SEMANTICS,
@@ -213,28 +218,73 @@ fn main() -> int {
 `
 
 func TestRuntimeV2CompositeCopyIsIndependent(t *testing.T) {
-	// Row 4's `Hold(p) => p` is the shape RV2-DEBT-256 was filed on: while
-	// `ownsHeap` called every value composite heap-owning, SEM3197 refused it,
-	// and the lane's helper (sized at zero diagnostics) let the refusal through
-	// as a vacuous pass. The axis answers from the storage model now, and row
-	// 10's binding is `active` rather than a second `p` (SEM3004).
-	for _, backend := range []string{backendVM, backendLLVM} {
-		t.Run(backend, func(t *testing.T) {
-			t.Setenv(backendEnvVar, backend)
-			res := runProgramFromSource(t, runtimeV2CompositeCopySource, runOptions{})
-			// The exit code IS the assertion: each row returns its own number
-			// on failure and the program returns 0 only after all of them
-			// passed. That is deliberate, because the VM runner does not
-			// capture the program's stdout — so the marker below is checked
-			// only where stdout is available, and the row number carries the
-			// diagnosis on both backends.
-			if res.exitCode != 0 {
-				t.Fatalf("composite copy contract failed at row %d\nstdout:\n%s\nstderr:\n%s",
-					res.exitCode, res.stdout, res.stderr)
-			}
-			if backend == backendLLVM && !strings.Contains(res.stdout, "composite-copy-contract-ok") {
-				t.Fatalf("composite copy contract missing completion marker; stdout=%q", res.stdout)
-			}
+	// Keep row 4's direct payload copy on plain fields. The original counted
+	// payload only borrows Held's storage, so its positive twin asks clone(p)
+	// for an independent value; every other frozen row is shared unchanged.
+	plain := runtimeV2CompositeCopySource
+	for _, edit := range [][2]string{
+		{"@copy type Pair = { a: int, b: int };", "@copy type Pair = { a: int64, b: int64 };"},
+		{"@copy type Inner = { x: int };", "@copy type Inner = { x: int64 };"},
+		{"@copy type Outer = { inner: Inner, label: int };", "@copy type Outer = { inner: Inner, label: int64 };"},
+		{"fn choice_payload(c: &Choice) -> int {", "fn choice_payload(c: &Choice) -> int64 {"},
+		{"fn read_through(r: &Pair) -> int {", "fn read_through(r: &Pair) -> int64 {"},
+	} {
+		if count := strings.Count(plain, edit[0]); count != 1 {
+			t.Fatalf("composite fixture has %d occurrences of %q, want 1", count, edit[0])
+		}
+		plain = strings.Replace(plain, edit[0], edit[1], 1)
+	}
+	const handout = "Hold(p) => p;"
+	if count := strings.Count(runtimeV2CompositeCopySource, handout); count != 1 {
+		t.Fatalf("composite fixture has %d borrowed payload handouts, want 1", count)
+	}
+	counted := strings.Replace(runtimeV2CompositeCopySource, handout, "Hold(p) => clone(p);", 1)
+	t.Run("counted_borrow_refused", func(t *testing.T) {
+		root := repoRoot(t)
+		t.Setenv("SURGE_STDLIB", root)
+		sourcePath := filepath.Join(t.TempDir(), "refused.sg")
+		if err := os.WriteFile(sourcePath, []byte(runtimeV2CompositeCopySource), 0o600); err != nil {
+			t.Fatalf("write counted composite: %v", err)
+		}
+		result, err := buildpipeline.Compile(t.Context(), &buildpipeline.CompileRequest{
+			TargetPath: sourcePath, BaseDir: root, MaxDiagnostics: 200,
 		})
+		if err == nil || result.Diagnose == nil || result.Diagnose.Bag == nil {
+			t.Fatalf("expected a diagnosed counted payload refusal, got %v", err)
+		}
+		errors := 0
+		for _, item := range result.Diagnose.Bag.Items() {
+			if item.Severity != diag.SevError {
+				continue
+			}
+			errors++
+			if item.Code != diag.SemaMoveOutOfSharedBorrow || !strings.Contains(item.Message, "cannot hand `p` out of this arm") {
+				t.Fatalf("unexpected counted payload error: %v %s", item.Code, item.Message)
+			}
+		}
+		if errors != 1 {
+			t.Fatalf("counted payload errors = %d, want exactly one SEM3197", errors)
+		}
+	})
+	for _, variant := range []struct{ prefix, source string }{{"", plain}, {"counted/", counted}} {
+		for _, backend := range []string{backendVM, backendLLVM} {
+			t.Run(variant.prefix+backend, func(t *testing.T) {
+				t.Setenv(backendEnvVar, backend)
+				res := runProgramFromSource(t, variant.source, runOptions{})
+				// The exit code IS the assertion: each row returns its own number
+				// on failure and the program returns 0 only after all of them
+				// passed. That is deliberate, because the VM runner does not
+				// capture the program's stdout — so the marker below is checked
+				// only where stdout is available, and the row number carries the
+				// diagnosis on both backends.
+				if res.exitCode != 0 {
+					t.Fatalf("composite copy contract failed at row %d\nstdout:\n%s\nstderr:\n%s",
+						res.exitCode, res.stdout, res.stderr)
+				}
+				if backend == backendLLVM && !strings.Contains(res.stdout, "composite-copy-contract-ok") {
+					t.Fatalf("composite copy contract missing completion marker; stdout=%q", res.stdout)
+				}
+			})
+		}
 	}
 }
