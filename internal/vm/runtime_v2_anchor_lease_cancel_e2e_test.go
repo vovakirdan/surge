@@ -36,9 +36,11 @@ const runtimeV2AnchorLeaseCancelSource = `async fn spin(count: int) -> int {
 async fn main_async() -> int {
     let holder = spawn async {
         let ch: far Channel<int> = channel_on::<int>(shard(1:ShardId), 1);
-        let s1: TaskResult<nothing> = on ch { ch.send(41); ret nothing; };
+        let first: int = 41;
+        let s1: TaskResult<nothing> = on ch { ch.send(own first); ret nothing; };
         let _ = s1;
-        let s2: TaskResult<nothing> = on ch { ch.send(42); ret nothing; };
+        let second: int = 42;
+        let s2: TaskResult<nothing> = on ch { ch.send(own second); ret nothing; };
         let _ = s2;
         ret 1;
     };

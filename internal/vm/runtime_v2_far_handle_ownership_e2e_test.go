@@ -29,9 +29,11 @@ const runtimeV2FarHandleAnchoredOwnerSource = `
 async fn run() -> int {
     let ch: far Channel<int> = channel_on::<int>(shard(0:ShardId), 2);
     let sib: far Channel<int> = ch.share();
-    let s1: TaskResult<nothing> = on ch { ch.send(41); ret nothing; };
+    let first: int = 41;
+    let s1: TaskResult<nothing> = on ch { ch.send(own first); ret nothing; };
     let _ = s1;
-    let s2: TaskResult<nothing> = on sib { sib.send(1); ret nothing; };
+    let second: int = 1;
+    let s2: TaskResult<nothing> = on sib { sib.send(own second); ret nothing; };
     let _ = s2;
     let r1: TaskResult<int> = on ch {
         let v: Option<int> = ch.recv();
