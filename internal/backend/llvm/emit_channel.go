@@ -393,34 +393,6 @@ func (fe *funcEmitter) emitChannelSendSource(op *mir.Operand) (string, error) {
 	}
 }
 
-func (fe *funcEmitter) emitInstrChanSend(ins *mir.Instr) error {
-	if ins == nil {
-		return nil
-	}
-	chVal, err := fe.emitChannelHandle(&ins.ChanSend.Channel)
-	if err != nil {
-		return err
-	}
-	// This instruction is polled again after every park, so nothing may be
-	// materialized for its operand here: the lowering took the channel's
-	// reference (or clone) once, in the prelude, into the transfer temp this
-	// operand moves out of (storedChannelSendValue), and the runtime moves
-	// from that storage on the poll that commits.
-	srcPtr, err := fe.emitChannelValueAddress(&ins.ChanSend.Value)
-	if err != nil {
-		return err
-	}
-	callee := "rt_channel_send"
-	if ins.ChanSend.YieldAfterHandoff {
-		callee = "rt_channel_send_yield"
-	}
-	okVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @%s(ptr %s, ptr %s)\n", okVal, callee, chVal, srcPtr)
-	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%bb%d, label %%bb%d\n", okVal, ins.ChanSend.ReadyBB, ins.ChanSend.PendBB)
-	fe.blockTerminated = true
-	return nil
-}
-
 func (fe *funcEmitter) emitInstrChanRecv(ins *mir.Instr) error {
 	if ins == nil {
 		return nil

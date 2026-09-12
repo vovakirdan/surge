@@ -118,7 +118,9 @@ void run_close_mode(void) {
 
 int main(void) {
     const char* mode = getenv("SURGE_CHANNEL_RETRY_MODE");
-    if (mode != NULL && strcmp(mode, "select") == 0) {
+    if (mode != NULL && strncmp(mode, "offer-", 6) == 0) {
+        run_send_offer_mode(mode + 6);
+    } else if (mode != NULL && strcmp(mode, "select") == 0) {
         run_select_mode();
     } else if (mode != NULL && strcmp(mode, "select-identity") == 0) {
         run_select_identity_mode();

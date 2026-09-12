@@ -266,13 +266,9 @@ static inline int channel_deliver_same_shard_locked(rt_executor* ex,
         return 0;
     }
     peer->resume_kind = resume_kind_value;
-    // RESUME_NONE means "wake up and look again", not "here is a value", so it
-    // must leave the peer's token alone. A parked SENDER keeps its staged value
-    // in a slot named by that token; overwriting it here strands the value and
-    // the sender waits for an ack that can never come. The word-shaped version
-    // could clear the field safely because the value lived in the sender's own
-    // frame -- it does not any more.
-    if (resume_kind_value != RESUME_NONE) {
+    // A wake or closed-send notification carries no replacement value. Keep
+    // the sender's staged token so cancellation can retire it before teardown.
+    if (resume_kind_value != RESUME_NONE && resume_kind_value != RESUME_CHAN_SEND_CLOSED) {
         peer->resume_slot = resume_slot;
     }
     int pushed = wake_task_on_shard_locked(
@@ -301,7 +297,7 @@ static inline int channel_deliver_foreign(rt_executor* ex,
         int pushed = 0;
         if (channel_candidate_valid(peer, w)) {
             peer->resume_kind = resume_kind_value;
-            if (resume_kind_value != RESUME_NONE) {
+            if (resume_kind_value != RESUME_NONE && resume_kind_value != RESUME_CHAN_SEND_CLOSED) {
                 peer->resume_slot = resume_slot;
             }
             pushed = wake_task_on_shard_locked(ex, peer_shard, peer, 1, 0, 1, NULL);

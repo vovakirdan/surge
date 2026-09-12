@@ -11,9 +11,9 @@ import (
 // caller's bits without a reference of their own:
 //
 //   - the SUSPENDING send of an async body (InstrChanSend), which never reached
-//     retainStoredRefCountedArgs and, being polled again after every park, could
-//     not carry a retain on the instruction either: the reference is taken once
-//     in the prelude, into a transfer temp the send moves out of;
+//     retainStoredRefCountedArgs: counted scalar/handle Copy now offers a fresh
+//     retained reference per poll, while composite Copy still uses its prelude
+//     clone in a transfer temp;
 //   - the SEND arm of a local select, whose winner's value the runtime moves out
 //     of the caller's own storage while a losing arm's stays put: the winning arm
 //     takes a reference of its own at the head of its body;

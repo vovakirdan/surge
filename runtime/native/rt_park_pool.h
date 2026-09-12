@@ -29,10 +29,10 @@
 // released, between a reserve and a commit.
 typedef struct rt_park_pool rt_park_pool;
 
-// A capability to act on one slot, for one park. Three integers, copied freely,
-// and inert the moment that park ends.
+// A capability issued only by acquiring a mutable pool under its owner lock.
+// Copied freely; inert once its slot generation ends. It does not pin the pool.
 typedef struct {
-    const rt_park_pool* owner;
+    rt_park_pool* owner;
     uint64_t index;
     uint64_t generation;
 } rt_park_token;

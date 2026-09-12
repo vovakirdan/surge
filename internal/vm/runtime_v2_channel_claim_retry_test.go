@@ -36,6 +36,7 @@ func buildChannelClaimRetryStand(t *testing.T, name string, extraFlags ...string
 	}
 	args = append(args, extraFlags...)
 	args = append(args, "-o", bin,
+		filepath.Join(root, "internal", "vm", "testdata", "channel_send_offer_modes.c"),
 		filepath.Join(root, "internal", "vm", "testdata", "channel_claim_retry.c"),
 		filepath.Join(root, "internal", "vm", "testdata", "channel_claim_retry_modes.c"),
 		filepath.Join(root, "internal", "vm", "testdata", "channel_claim_retry_state_modes.c"),

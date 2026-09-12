@@ -46,6 +46,13 @@ func (b *surgeStartBuilder) prepareArgsArgv() []Operand {
 	argvType := b.stringArrayType()
 	argvLocal := b.newLocal("argv", argvType, LocalFlags(0))
 	b.emitCallIntrinsic(argvLocal, "rt_argv", nil, nil)
+	dropArgv := func() {
+		b.emit(&Instr{Kind: InstrDrop, Drop: DropInstr{Place: Place{Local: argvLocal}}})
+	}
+	fail := func(message string) {
+		dropArgv()
+		b.emitExitWithMessage(message)
+	}
 
 	argvLenLocal := b.newLocal("argv_len", b.uintType(), b.localFlags(b.uintType()))
 	b.emitCallIntrinsic(argvLenLocal, "__len", []Operand{
@@ -56,7 +63,7 @@ func (b *surgeStartBuilder) prepareArgsArgv() []Operand {
 	for i, param := range params {
 		argIdx, err := safecast.Conv[uint64](i)
 		if err != nil {
-			b.emitExitWithMessage("argv index overflow")
+			fail("argv index overflow")
 			break
 		}
 
@@ -65,7 +72,7 @@ func (b *surgeStartBuilder) prepareArgsArgv() []Operand {
 
 		erringType := b.erringType(param.Type)
 		if erringType == types.NoTypeID {
-			b.emitExitWithMessage("missing Erring type for entrypoint parsing")
+			fail("missing Erring type for entrypoint parsing")
 			break
 		}
 
@@ -100,10 +107,17 @@ func (b *surgeStartBuilder) prepareArgsArgv() []Operand {
 		})
 
 		b.startBlock(hasArgBB)
-		argStrLocal := b.newLocal(fmt.Sprintf("arg_str%d", i), b.stringType(), LocalFlags(0))
-		b.emitIndex(argStrLocal, argvLocal, i)
+		// The parser borrows the array member itself. A value read would create
+		// another string owner in the VM for a temporary that has no scope.
+		indexType := b.typesIn.Builtins().Int64
+		indexLocal := b.newLocal(fmt.Sprintf("arg_index%d", i), indexType, LocalFlagCopy)
+		b.emitAssign(indexLocal, &RValue{Kind: RValueUse, Use: Operand{
+			Kind: OperandConst, Type: indexType,
+			Const: Const{Kind: ConstInt, Type: indexType, IntValue: int64(i)},
+		}})
+		argPlace := Place{Local: argvLocal, Proj: []PlaceProj{{Kind: PlaceProjIndex, IndexLocal: indexLocal}}}
 		parseLocal := b.newLocal(fmt.Sprintf("arg_parsed%d", i), erringType, LocalFlags(0))
-		b.emitFromArgvCall(parseLocal, argStrLocal, uint32(i)) //nolint:gosec // parameter count is bounded by the AST
+		b.emitFromArgvCall(parseLocal, argPlace, uint32(i)) //nolint:gosec // parameter count is bounded by the AST
 
 		okLocal := b.newLocal(fmt.Sprintf("arg_ok%d", i), b.boolType(), LocalFlagCopy)
 		b.emitTagTest(okLocal, parseLocal, "Success")
@@ -124,6 +138,7 @@ func (b *surgeStartBuilder) prepareArgsArgv() []Operand {
 		b.setTerm(&Terminator{Kind: TermGoto, Goto: GotoTerm{Target: nextBB}})
 
 		b.startBlock(errBB)
+		dropArgv()
 		b.emitCallIntrinsic(NoLocalID, "exit", []Operand{{Kind: OperandMove, Place: Place{Local: parseLocal}}},
 			[]ArgContract{ArgContractTransferOwned})
 		b.setTerm(&Terminator{Kind: TermReturn})
@@ -132,12 +147,12 @@ func (b *surgeStartBuilder) prepareArgsArgv() []Operand {
 		if param.HasDefault && param.Default != nil {
 			op, err := b.lowerDefaultExpr(param.Default, param.Type)
 			if err != nil {
-				b.emitExitWithMessage(fmt.Sprintf("failed to lower default for parameter %q", param.Name))
+				fail(fmt.Sprintf("failed to lower default for parameter %q", param.Name))
 			} else {
 				b.emitAssign(argLocal, &RValue{Kind: RValueUse, Use: op})
 			}
 		} else {
-			b.emitExitWithMessage(fmt.Sprintf("missing argv argument %q", param.Name))
+			fail(fmt.Sprintf("missing argv argument %q", param.Name))
 		}
 		if !b.curBlock().Terminated() {
 			b.setTerm(&Terminator{Kind: TermGoto, Goto: GotoTerm{Target: nextBB}})
@@ -147,6 +162,9 @@ func (b *surgeStartBuilder) prepareArgsArgv() []Operand {
 		args = append(args, Operand{Kind: OperandMove, Place: Place{Local: argLocal}})
 	}
 
+	// Successful parse results own their values independently of the borrowed
+	// text. No code after argument preparation needs the source array.
+	dropArgv()
 	return args
 }
 
