@@ -29,11 +29,9 @@ func (l *funcLowerer) lowerLiteral(ty types.TypeID, lit hir.LiteralData) Operand
 		}
 		if isUint {
 			out.Const.Kind = ConstUint
+			// Text remains authoritative when the fixed-width cache overflows.
 			if val, ok := parseLiteralUint64(lit); ok {
 				out.Const.UintValue = val
-			} else {
-				out.Const.Kind = ConstInt
-				out.Const.IntValue = lit.IntValue
 			}
 		} else {
 			out.Const.Kind = ConstInt
