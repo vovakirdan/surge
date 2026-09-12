@@ -5,10 +5,8 @@ import (
 	"surge/internal/types"
 )
 
-// The for-loop cursor-release half of normalizeIterFor: deciding WHETHER
-// the loop may free its iterator cursor (the backend's fast-path ranges
-// hand back the range value itself), and injecting the release before
-// every genuine return that escapes the loop.
+// The legacy cursor-release half of normalizeIterFor. Numeric resources gain
+// lexical typed drops in MIR; this path remains for the other iterable kinds.
 
 // iterCursorReleaseIsSafe reports whether normalizeIterFor may emit a
 // fixed-size release of this loop's iterator cursor (see the call site
@@ -25,11 +23,10 @@ func iterCursorReleaseIsSafe(ctx *normCtx, iterable *Expr, elemTy types.TypeID) 
 	return rangeElementIsPointerShaped(ctx, elemTy)
 }
 
-// rangeElementIsPointerShaped reports whether a Range<T>'s bound values
-// are pointer-shaped at the LLVM level — exactly the condition
-// emitRangeIterInit uses to decide between allocating a real cursor and
-// handing back the original SurgeRange pointer (its rangeTy/elemLLVM
-// check). Only a FIXED-WIDTH int/uint/float (i8/16/32/64, f16/32/64 —
+// rangeElementIsPointerShaped keeps the legacy cursor-release eligibility.
+// LLVM now copies every Range, but widening the nonnumeric release path is
+// separate from registering counted numeric resources. A FIXED-WIDTH numeric
+// element (i8/16/32/64, f16/32/64 —
 // never the default, unsized int/uint/float) is inline rather than
 // pointer-shaped; every other element representation this backend
 // produces (string, struct, union, array, tuple, or the default numeric
@@ -169,6 +166,7 @@ func injectIterCursorReleaseBeforeReturns(b *Block, release Stmt) {
 				continue
 			}
 			injectIterCursorReleaseInExpr(data.Cond, release)
+			injectIterCursorReleaseInExpr(data.Post, release)
 			injectIterCursorReleaseBeforeReturns(data.Body, release)
 			s.Data = data
 			out = append(out, s)
@@ -415,11 +413,12 @@ func hoistIterableTemporary(ctx *normCtx, iterable *Expr, span source.Span) (ite
 	sym, name := ctx.newTemp("src")
 	hoist := iterableHoist{
 		let: &Stmt{Kind: StmtLet, Span: span, Data: LetData{
-			Name:      name,
-			SymbolID:  sym,
-			Type:      ty,
-			Value:     data.Inner,
-			Ownership: ctx.inferOwnership(ty),
+			Name:          name,
+			SymbolID:      sym,
+			Type:          ty,
+			Value:         data.Inner,
+			Ownership:     ctx.inferOwnership(ty),
+			GeneratedDrop: GeneratedDropNumericIterableResource,
 		}},
 		drop: Stmt{Kind: StmtDrop, Span: span, Data: DropData{Value: ctx.varRef(name, sym, ty, span)}},
 		live: true,

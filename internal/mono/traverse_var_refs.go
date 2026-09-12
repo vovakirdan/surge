@@ -95,6 +95,9 @@ func rewriteVarRefsInStmt(st *hir.Stmt, f varRefRewriteFunc) error {
 		if err := rewriteVarRefsInExpr(data.Cond, f); err != nil {
 			return err
 		}
+		if err := rewriteVarRefsInExpr(data.Post, f); err != nil {
+			return err
+		}
 		if err := rewriteVarRefsInBlock(data.Body, f); err != nil {
 			return err
 		}

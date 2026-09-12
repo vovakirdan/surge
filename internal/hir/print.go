@@ -276,15 +276,7 @@ func (p *Printer) printStmt(s *Stmt) {
 		p.printf("\n")
 
 	case StmtWhile:
-		data := s.Data.(WhileData)
-		p.printf("while ")
-		p.printExpr(data.Cond)
-		p.printf(" {\n")
-		p.indent++
-		p.printBlock(data.Body)
-		p.indent--
-		p.printIndent()
-		p.printf("}\n")
+		p.printWhile(s.Data.(WhileData))
 
 	case StmtFor:
 		data := s.Data.(ForData)

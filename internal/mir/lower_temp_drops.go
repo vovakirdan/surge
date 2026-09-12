@@ -7,12 +7,14 @@ import (
 	"surge/internal/types"
 )
 
-// tempDropEntry is one statement-end temporary and the plan that reclaims it.
+// tempDropEntry is one temporary or generated lexical binding and its release.
 // A nil plan is the whole release, which is every temporary nothing was taken
 // out of — that is, all of them until a field could move on its own.
 type tempDropEntry struct {
 	local LocalID
 	steps []sema.DropStep
+	// numericResource replaces this generated local's legacy whole-local release.
+	numericResource bool
 	// guarded says the release fires only where `guard` is raised: a bool local
 	// the producing paths set, assigned BEFORE the branch that may raise it, so
 	// the read is dominated exactly like the value's own. See
@@ -102,14 +104,10 @@ func (l *funcLowerer) emitGuardedTempDrop(entry tempDropEntry) {
 // active-bit tracking, and the VM's uninitialized-slot check can never
 // fire on a skipped path.
 //
-// INVARIANT this file leans on: expressions cannot exit their region
-// early. return/break/continue are STATEMENTS, there is no try/`?`
-// propagation operator, and panic is process exit without unwinding —
-// so the only flush edges are normal completion and the return
-// statement's explicit flushTempDropsForExit. If a future surface adds
-// an expression-position early exit (a try operator), every frame open
-// at that exit must flush on its edge too, or skipped flushes become
-// leaks and — under unwinding — double frees.
+// Lexical block frames also hold generated loop bindings, registered only
+// after their initializers succeed. Statement frames still release evaluation
+// temps immediately. Return/ret/break/continue flush the frames their edge exits,
+// including exits nested in expression blocks; panic remains process exit.
 
 // hasPendingTempDrops reports whether any open frame holds temps: a
 // return operand projecting into one must detach before the exit flush.

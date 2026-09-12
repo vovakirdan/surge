@@ -21,15 +21,10 @@ import (
 
 // Every range below is EMPTY, and that is the measurement, not an accident.
 //
-// A step that yields hands its value to the `Some` the loop reads, and a
-// for-loop's pattern binding carries no drop obligation, so a yielded
-// arbitrary-precision value is leaked by the iterator protocol -- one block per
-// iteration, on every bound kind, before this lane and after it (measured on
-// `Range<int>` with bounds above the fixnum range: 3 iterations, 3 blocks from
-// `bi_add` inside the loop). That is the for-loop binding's business and not
-// the bounds'. A range that yields NOTHING separates the two: everything these
-// programs allocate is a bound or an object holding one, so the census below is
-// exactly the question this lane answers, and it answers strict zero.
+// A range that yields nothing separates ownership of the bounds and cursor
+// from ownership of each yielded value. The yielding float row below now also
+// requires strict zero: generated pattern bindings carry lexical drops, so
+// there is no remaining per-yield allowance to hide a missed release.
 //
 // What each shape reaches:
 //
@@ -137,11 +132,8 @@ func TestRuntimeV2RangeBoundLifecycleValgrindZero(t *testing.T) {
 // what a walk that steps by one and stops before the end produces; a step that
 // compared wrongly would still run and print something else.
 //
-// The leak this row tolerates is the iterator protocol's, described at the top
-// of this file: one block per yield, from the value the step hands to the loop
-// binding. It is pinned at exactly the iteration count so it cannot grow
-// silently, and it goes to zero when a for-loop's pattern binding gains a drop
-// obligation.
+// This same source now measures the yielded values' complete lifetime as well
+// as the answer; every bound, cursor and generated binding must be reclaimed.
 const runtimeV2RangeFloatIterationSource = `
 @entrypoint
 fn main() -> int {
@@ -175,15 +167,7 @@ func TestRuntimeV2RangeForFloatBoundsIterateAndAnswer(t *testing.T) {
 	if !strings.HasPrefix(stdout, "7.5E+0\n") {
 		t.Fatalf("the float range did not walk 1.5, 2.5, 3.5; want the sum 7.5 first, stdout=%q", stdout)
 	}
-	bytesLost, blocksLost, err := parseValgrindDefinitelyLost(stderr)
-	if err != nil {
-		t.Fatalf("parse valgrind leak summary: %v\nstderr:\n%s", err, stderr)
-	}
-	const yieldedValues = 3 // one block per yield, held by a binding that owes no drop
-	if blocksLost > yieldedValues {
-		t.Fatalf("the float range leaked MORE than the iterator protocol's recorded residual: %d bytes "+
-			"in %d blocks, want at most %d\nstderr:\n%s", bytesLost, blocksLost, yieldedValues, stderr)
-	}
+	requireNumericIteratorHeapZero(t, stderr)
 }
 
 // A range with counted bounds, given to a worker thread.

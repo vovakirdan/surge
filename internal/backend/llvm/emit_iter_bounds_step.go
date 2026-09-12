@@ -92,13 +92,8 @@ func rangeBoundKindFor(typesIn *types.Interner, elemType types.TypeID) int {
 // The stepped-past value is NOT released here. It is handed to the `Some` the
 // step answers with — the tag constructor STORES its payload rather than
 // retaining it, so this is a transfer, and a release here would free a block
-// the loop is about to read. What the loop then does with it is the iterator
-// protocol's business and not this arm's: a for-loop's pattern binding carries
-// no drop obligation, so a MINTED yield is leaked once per iteration, where an
-// array element's is not because the array goes on owning it. That residual is
-// measured and pinned at exactly the iteration count in internal/vm's
-// TestRuntimeV2RangeForFloatBoundsIterateAndAnswer, and it goes to zero when
-// that binding gains a drop — not here, where every fix is the wrong one.
+// the loop is about to read. The generated pattern binding owns the transferred
+// scalar and MIR registers its lexical drop; this arm must not retain it again.
 func (fe *funcEmitter) emitRangeBoundsStep(rangePtr string, elemType, optType types.TypeID, someIndex int, payloadType types.TypeID, resPtr, contBB string) error {
 	arith := boundsArithFor(fe.emitter.types, elemType)
 

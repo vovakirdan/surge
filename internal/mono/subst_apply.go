@@ -120,8 +120,8 @@ func (s *Subst) ApplyStmt(st *hir.Stmt) error {
 		if !ok {
 			return nil
 		}
-		if data.Cond != nil {
-			if err := s.ApplyExpr(data.Cond); err != nil {
+		for _, expr := range []*hir.Expr{data.Cond, data.Post} {
+			if err := s.ApplyExpr(expr); err != nil {
 				return err
 			}
 		}

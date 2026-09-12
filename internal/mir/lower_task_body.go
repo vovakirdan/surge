@@ -56,16 +56,9 @@ func (l *funcLowerer) lowerRetStmt(st *hir.Stmt, data hir.RetData) error {
 		if err != nil {
 			return err
 		}
-		// A ret that hands ON one of the bindings this exit would drop must
-		// not also free it: the result slot is the new owner.
-		//
-		// Guarded on there BEING exit drops. detachFromExitDrops also fires
-		// on pending temps alone, and every block-expression `ret` — compare
-		// arms, value blocks — reaches here with temps pending and no exit
-		// drops. Those already hand their result over safely (the flush
-		// below excludes the result local), so materializing a transfer temp
-		// for them would be an unrequested change to a working path.
-		if len(data.DropsAfterValue) > 0 {
+		// Preserve the result before either explicit or generated lexical
+		// drops release the binding from which it was read.
+		if len(data.DropsAfterValue) > 0 || l.hasPendingTempDrops() {
 			op = l.detachFromExitDrops(&op, data.DropsAfterValue, st.Span)
 		}
 		l.emit(&Instr{

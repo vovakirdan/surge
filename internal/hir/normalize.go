@@ -157,8 +157,8 @@ func normalizeStmt(ctx *normCtx, s *Stmt) ([]Stmt, error) {
 
 	case StmtWhile:
 		data := s.Data.(WhileData)
-		if data.Cond != nil {
-			if err := normalizeExpr(ctx, data.Cond); err != nil {
+		for _, expr := range []*Expr{data.Cond, data.Post} {
+			if err := normalizeExpr(ctx, expr); err != nil {
 				return nil, err
 			}
 		}
