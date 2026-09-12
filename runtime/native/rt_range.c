@@ -1,4 +1,5 @@
 #include "rt.h"
+#include "rt_bignum_tag.h"
 
 #include <stdalign.h>
 #include <stddef.h>
@@ -19,10 +20,12 @@ static SurgeRange* alloc_range(uint8_t bound) {
     return r;
 }
 
-// One bound word, through the byte that says what it is. Each of the three
-// tests the fixnum tag before any load, so a bound that is a small integer
-// carries no block and is not touched.
+// Inline integer bounds own no block: do not dispatch a numeric lifecycle
+// call for them. Float bounds keep their existing pointer lifecycle.
 static void range_bound_retain(void* word, uint8_t bound) {
+    if (bound != SURGE_RANGE_BOUND_FLOAT && !fix_is_heap(word)) {
+        return;
+    }
     switch (bound) {
         case SURGE_RANGE_BOUND_FLOAT:
             rt_bigfloat_retain(word);
@@ -37,6 +40,9 @@ static void range_bound_retain(void* word, uint8_t bound) {
 }
 
 static void range_bound_release(void* word, uint8_t bound) {
+    if (bound != SURGE_RANGE_BOUND_FLOAT && !fix_is_heap(word)) {
+        return;
+    }
     switch (bound) {
         case SURGE_RANGE_BOUND_FLOAT:
             rt_bigfloat_release(word);
@@ -51,6 +57,9 @@ static void range_bound_release(void* word, uint8_t bound) {
 }
 
 static void* range_bound_unshare(void* word, uint8_t bound) {
+    if (bound != SURGE_RANGE_BOUND_FLOAT && !fix_is_heap(word)) {
+        return word;
+    }
     switch (bound) {
         case SURGE_RANGE_BOUND_FLOAT:
             return rt_bigfloat_unshare(word);
