@@ -6,72 +6,58 @@ import (
 	"time"
 )
 
-// A task's result is stored at its own type, so a result WIDER than a
-// machine word no longer costs a box.
+// A task stores its result at its own type. Compare a scalar int64 with a
+// pair of int64 fields: neither payload requires a counted numeric block,
+// so their allocation windows isolate task machinery and result storage.
+// Both producers perform the same arithmetic and both consumers check the
+// returned values before adding them to a fixed-width accumulator.
 //
-// The representation this replaces could carry exactly one word. A
-// composite result did not fit, so it was boxed on the producing side and
-// read back through the pointer on the consuming one: one heap allocation
-// per completed task that the program never wrote, on a value whose two
-// fields are plain integers and touch the heap nowhere else.
-//
-// This windows that allocation directly. Both probes return a value of
-// the SAME shape from an async body and read it back through await; they
-// differ only in width:
-//
-//	narrow: one int -- fits a word, so it cost nothing before and costs
-//	        nothing now. It is the control: if the per-iteration figure
-//	        moved here too, the difference below would be about task
-//	        machinery rather than about the result's storage.
-//	wide:   two ints -- did NOT fit a word. Its box is what disappeared.
-//
-// The figures are pinned exactly rather than asserted flat, so a later
-// reduction collapses this loudly instead of passing quietly. Each is the
-// per-iteration allocation count, taken as the difference between an
-// eight-iteration window and a one-iteration window so that everything
-// paid once at the window edge cancels.
+// The contract is equality between narrow and wide allocation counts at
+// both one and eight iterations. It does not pin an absolute count or a
+// per-iteration slope. An extra allocation for every wide result must break
+// that equality. Counted int results have separate value checks below.
 const runtimeV2TaskResultCensusSource = `
-@copy type Pair = { a: int, b: int };
+@copy type Pair = { a: int64, b: int64 };
 
-async fn make_narrow(k: int) -> int {
-    return k + 1;
+async fn make_narrow(k: int64) -> int64 {
+    return k + 1:int64;
 }
 
-async fn make_wide(k: int) -> Pair {
-    return Pair { a = k, b = k + 1 };
+async fn make_wide(k: int64) -> Pair {
+    return Pair { a = k, b = k + 1:int64 };
 }
 
-async fn narrow_window(n: int) -> uint {
+async fn narrow_window(n: int64) -> uint {
     let c0: HeapStats = rt_heap_stats();
-    let mut i: int = 0;
-    let mut acc: int = 0;
+    let mut i: int64 = 0:int64;
+    let mut acc: int64 = 0:int64;
     while i < n {
-        let v: int = compare make_narrow(i).await() { Success(x) => x; Cancelled() => 0 - 1; };
-        if v != i + 1 { return 999999; }
+        let v: int64 = compare make_narrow(i).await() { Success(x) => x; Cancelled() => 0:int64 - 1:int64; };
+        if v != i + 1:int64 { return 999999; }
         acc = acc + v;
-        i = i + 1;
+        i = i + 1:int64;
     }
     let c1: HeapStats = rt_heap_stats();
-    if acc < 0 { return 999998; }
+    if acc < 0:int64 { return 999998; }
     return c1.alloc_count - c0.alloc_count;
 }
 
-async fn wide_window(n: int) -> uint {
+async fn wide_window(n: int64) -> uint {
     let c0: HeapStats = rt_heap_stats();
-    let mut i: int = 0;
-    let mut acc: int = 0;
+    let mut i: int64 = 0:int64;
+    let mut acc: int64 = 0:int64;
     while i < n {
         let p: Pair = compare make_wide(i).await() {
             Success(x) => x;
-            Cancelled() => Pair { a = 0 - 1, b = 0 - 1 };
+            Cancelled() => Pair { a = 0:int64 - 1:int64, b = 0:int64 - 1:int64 };
         };
         if p.a != i { return 999997; }
-        if p.b != i + 1 { return 999996; }
+        if p.b != i + 1:int64 { return 999996; }
         acc = acc + p.b;
-        i = i + 1;
+        i = i + 1:int64;
     }
     let c1: HeapStats = rt_heap_stats();
-    if acc < 0 { return 999995; }
+    if acc < 0:int64 { return 999995; }
     return c1.alloc_count - c0.alloc_count;
 }
 
@@ -86,10 +72,10 @@ fn report(label: string, narrow: uint, wide: uint) -> int {
 }
 
 async fn run() -> int {
-    let n1: uint = compare narrow_window(1).await() { Success(x) => x; Cancelled() => 999999; };
-    let n8: uint = compare narrow_window(8).await() { Success(x) => x; Cancelled() => 999999; };
-    let w1: uint = compare wide_window(1).await() { Success(x) => x; Cancelled() => 999999; };
-    let w8: uint = compare wide_window(8).await() { Success(x) => x; Cancelled() => 999999; };
+    let n1: uint = compare narrow_window(1:int64).await() { Success(x) => x; Cancelled() => 999999; };
+    let n8: uint = compare narrow_window(8:int64).await() { Success(x) => x; Cancelled() => 999999; };
+    let w1: uint = compare wide_window(1:int64).await() { Success(x) => x; Cancelled() => 999999; };
+    let w8: uint = compare wide_window(8:int64).await() { Success(x) => x; Cancelled() => 999999; };
     if n1 >= 999000 || n8 >= 999000 || w1 >= 999000 || w8 >= 999000 {
         print("FAIL task result value");
         return 1;
@@ -126,7 +112,79 @@ fn main() -> int {
 }
 `
 
+// Values beyond a machine word must survive both scalar and composite task
+// results. Check each field and each accumulated sum for both signs.
+const runtimeV2TaskResultCountedValuesSource = `
+@copy type Pair = { a: int, b: int };
+
+async fn make_narrow(k: int) -> int {
+    return k + 1;
+}
+
+async fn make_wide(k: int) -> Pair {
+    return Pair { a = k, b = k + 1 };
+}
+
+async fn window(start: int) -> int {
+    let mut i: int64 = 0:int64;
+    let mut narrow_acc: int = 0;
+    let mut wide_acc: int = 0;
+    while i < 8:int64 {
+        let k: int = start + (i to int);
+        let v: int = compare make_narrow(k).await() {
+            Success(x) => x;
+            Cancelled() => { return 91; };
+        };
+        let p: Pair = compare make_wide(k).await() {
+            Success(x) => x;
+            Cancelled() => { return 92; };
+        };
+        if v != k + 1 { return 1; }
+        if p.a != k { return 2; }
+        if p.b != k + 1 { return 3; }
+        narrow_acc = narrow_acc + v;
+        wide_acc = wide_acc + p.b;
+        i = i + 1:int64;
+    }
+    let expected: int = 8 * start + 36;
+    if narrow_acc != expected { return 4; }
+    if wide_acc != expected { return 5; }
+    return 0;
+}
+
+async fn run() -> int {
+    let start: int = 1208925819614629174706176;
+    let positive: int = compare window(start).await() { Success(x) => x; Cancelled() => 93; };
+    if positive != 0 { return positive; }
+    let negative: int = compare window(0 - start).await() { Success(x) => x; Cancelled() => 94; };
+    if negative != 0 { return negative; }
+    print("task-result-counted-values-ok");
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let t = spawn run();
+    return compare t.await() { Success(code) => code; Cancelled() => 90; };
+}
+`
+
 func TestRuntimeV2TaskResultCensusBalanced(t *testing.T) {
+	for _, backend := range []string{backendVM, backendLLVM} {
+		t.Run("counted_values/"+backend, func(t *testing.T) {
+			t.Setenv(backendEnvVar, backend)
+			res := runProgramFromSource(t, runtimeV2TaskResultCountedValuesSource, runOptions{})
+			// VM stdout is not captured. Row failures use exit codes; runtime
+			// errors may instead leave exit zero and report through stderr.
+			if res.exitCode != 0 || res.stderr != "" {
+				t.Fatalf("counted task result failed at row %d\nstdout:\n%s\nstderr:\n%s",
+					res.exitCode, res.stdout, res.stderr)
+			}
+			if backend == backendLLVM && !strings.Contains(res.stdout, "task-result-counted-values-ok") {
+				t.Fatalf("counted task result missing completion marker; stdout=%q", res.stdout)
+			}
+		})
+	}
 	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2TaskResultCensusSource, nil)
 	baseEnv := envWithStdlib(repoRoot(t))
 	duration, result := runBinaryWithTimeout(t, outputPath, baseEnv, 30*time.Second)
