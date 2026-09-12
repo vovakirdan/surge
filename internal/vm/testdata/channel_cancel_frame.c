@@ -165,9 +165,9 @@ static void payload_move(void* destination, void* source) {
 
 static void payload_drop(void* slot) {
     frame_payload* payload = *(frame_payload**)slot;
-    *(frame_payload**)slot = NULL;
     if (payload == NULL)
         frame_fail("empty payload drop");
+    *(frame_payload**)slot = NULL;
     frame_witness* witness = payload->witness;
     if (atomic_load_explicit(&witness->frame_drops, memory_order_acquire) == 0)
         atomic_fetch_add_explicit(&witness->staging_drops, 1, memory_order_relaxed);
@@ -223,7 +223,7 @@ static void frame_drop(void* value) {
         atomic_load_explicit(&frame->payload->refs, memory_order_acquire) != 1 ||
         atomic_fetch_add_explicit(&witness->frame_drops, 1, memory_order_acq_rel) != 0)
         frame_fail("frame did not hold the sole channel and original payload");
-    payload_drop(&frame->payload);
+    payload_drop((void*)&frame->payload);
     rt_channel* channel = frame->channel;
     frame->channel = NULL;
     rt_channel_handle_drop(channel);
@@ -267,7 +267,7 @@ void __surge_poll_call(uint64_t id) {
     if (poll == 0) {
         frame_payload* disposable = frame->payload;
         atomic_fetch_add_explicit(&disposable->refs, 1, memory_order_relaxed);
-        if (rt_channel_send_offer(frame->channel, &disposable) || disposable != NULL)
+        if (rt_channel_send_offer(frame->channel, (void*)&disposable) || disposable != NULL)
             frame_fail("initial offer did not park and consume the disposable");
         rt_shard_lock(witness->owner);
         frame->issued = current->resume_slot;
