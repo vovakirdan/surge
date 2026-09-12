@@ -168,18 +168,14 @@ func TestRuntimeV2FarSelectNonCopySendArm(t *testing.T) {
 	})
 }
 
-// A CONST arm operand is the one shape whose evaluation the crossing block
-// repeats per retry round. Place operands — a call result, a binding, a
-// lease-minting receiver — are temp'd into a preceding block by
-// splitAsyncAwaits, so a resumed retry only re-loads them; a const is
-// embedded in the crossing instruction itself and lowers inline, and
-// several const kinds ALLOCATE there (an int/uint/float literal outside the
-// fixnum inline range, a string const). This row pins the emitter's
-// init/retry split, which is what keeps that evaluation to one.
+// A heap-sized numeric literal gets an owning MIR temporary before the
+// remote select's poll block. The SEND receives a private reference through
+// the relinquishing handoff; both the temporary and the delivered channel
+// payload must be released. Resuming the select reloads the prepared storage.
 //
-// The literal MUST exceed the fixnum inline range: re-measured with a small
-// literal the leak is 0 both ways, so an obvious-looking `send(7)` row would
-// silently prove nothing.
+// Keep the heap-sized literal: an inline fixnum owns no allocation and cannot
+// expose missing numeric drop glue. This row checks reclamation of the owners
+// created for the original source literal.
 const runtimeV2FarSelectConstArmSource = `
 async fn run() -> int {
     let c: far Channel<int> = channel_on::<int>(shard(0:ShardId), 1);
@@ -210,7 +206,7 @@ fn main() -> int {
 }
 `
 
-func TestRuntimeV2FarSelectConstArmEvaluatedOnce(t *testing.T) {
+func TestRuntimeV2FarSelectHeapLiteralIsReclaimed(t *testing.T) {
 	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2FarSelectConstArmSource, nil)
 	baseEnv := envWithStdlib(repoRoot(t))
 	env := overrideEnvVar(baseEnv, "SURGE_SHARDS", "1")
@@ -230,29 +226,13 @@ func TestRuntimeV2FarSelectConstArmEvaluatedOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse valgrind leak summary: %v\nstderr:\n%s", err, stderr)
 	}
-	// ONE bigint, not two. The single remaining block is a SEPARATE,
-	// pre-existing gap and deliberately not this row's subject: typeOwnsHeap
-	// returns false for a bignum int, so the delivered payload gets drop-fn
-	// id 0 and the channel's teardown drain never reclaims it. What this row
-	// gates is the COUNT: without the init/retry split the crossing block
-	// evaluates the literal again on the resumed retry and orphans that
-	// second bigint, measured at 80 bytes in 2 blocks.
-	//
-	// The byte figure was 36 until the heap half of `int` gained its reference
-	// count. It reads 40 now, and the four bytes are the counter: a SurgeBigInt
-	// header grew from 8 to 12 (`sizeof(struct) + len*4` is unchanged
-	// otherwise), so every heap bignum in the tree measures four bytes larger.
-	// The BLOCK count -- which is what this row is actually about -- did not
-	// move, and the doubling signature it guards moved with it, from 72/2 to
-	// 80/2. Recorded here rather than silently bumped, because a leak figure
-	// that grows for a reason unrelated to leaking is exactly the kind of
-	// number that gets read as a regression a month from now.
-	const knownSingleEvaluationBytes = 40
-	const knownSingleEvaluationBlocks = 1
-	if bytesLost != knownSingleEvaluationBytes || blocksLost != knownSingleEvaluationBlocks {
+	// Numeric drop glue reclaims the delivered heap bigint at channel teardown.
+	// Require zero definitely-lost storage; process bootstrap and worker
+	// allocations remain outside this census.
+	if bytesLost != 0 || blocksLost != 0 {
 		t.Fatalf(
-			"const-arm far select leaked %d bytes in %d blocks, want exactly one un-reclaimed bigint (%d bytes in %d blocks); a doubling here means the crossing block evaluated the const operand on a retry round\nstderr:\n%s",
-			bytesLost, blocksLost, knownSingleEvaluationBytes, knownSingleEvaluationBlocks, stderr,
+			"far select heap literal leaked %d definitely-lost bytes in %d blocks, want zero; numeric owners must be reclaimed\nstdout:\n%s\nstderr:\n%s",
+			bytesLost, blocksLost, stdout, stderr,
 		)
 	}
 }
