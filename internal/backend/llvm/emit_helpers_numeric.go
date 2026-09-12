@@ -50,32 +50,44 @@ func (fe *funcEmitter) emitPanicCoded(code, msg string) error {
 }
 
 func (fe *funcEmitter) emitCheckedBigIntToI64(val, msg string) (string, error) {
-	outPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", outPtr, alignWord)
-	fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s\n", outPtr)
-	okVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_bigint_to_i64(ptr %s, ptr %s)\n", okVal, val, outPtr)
-	okBB := fe.nextInlineBlock()
-	badBB := fe.nextInlineBlock()
-	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", okVal, okBB, badBB)
-
-	fmt.Fprintf(&fe.emitter.buf, "%s:\n", badBB)
-	if err := fe.emitPanicNumeric(msg); err != nil {
-		return "", err
-	}
-
-	fmt.Fprintf(&fe.emitter.buf, "%s:\n", okBB)
-	outVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", outVal, outPtr)
-	return outVal, nil
+	return fe.emitCheckedNumericToFixed(val, numericInt, msg, false)
 }
 
 func (fe *funcEmitter) emitCheckedBigUintToU64(val, msg string) (string, error) {
+	return fe.emitCheckedNumericToFixed(val, numericUint, msg, false)
+}
+
+func (fe *funcEmitter) emitCheckedBigFloatToF64(val string) (string, error) {
+	return fe.emitCheckedNumericToFixed(val, numericFloat, "float overflow", false)
+}
+
+// Existing checked APIs borrow their input. Only an intermediate owner created
+// inside a cast opts into consumption: the runtime reader has finished before
+// release, and both its success and panic edges run after that release.
+func (fe *funcEmitter) emitCheckedNumericToFixed(val string, kind numericKind, msg string, consume bool) (string, error) {
+	builtins := fe.emitter.types.Builtins()
+	ty, llvmTy, suffix, zero := builtins.Int, "i64", "to_i64", "0"
+	switch kind {
+	case numericInt:
+	case numericUint:
+		ty, suffix = builtins.Uint, "to_u64"
+	case numericFloat:
+		ty, llvmTy, suffix, zero = builtins.Float, "double", "to_f64", "0.0"
+	default:
+		return "", fmt.Errorf("unsupported checked numeric kind %d", kind)
+	}
+	ops, ok := scalarLifecycleFor(fe.emitter.types, ty)
+	if !ok {
+		return "", fmt.Errorf("missing scalar lifecycle for checked numeric type %d", ty)
+	}
 	outPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca i64, align %d\n", outPtr, alignWord)
-	fmt.Fprintf(&fe.emitter.buf, "  store i64 0, ptr %s\n", outPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca %s, align %d\n", outPtr, llvmTy, alignWord)
+	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", llvmTy, zero, outPtr)
 	okVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_biguint_to_u64(ptr %s, ptr %s)\n", okVal, val, outPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @%s_%s(ptr %s, ptr %s)\n", okVal, ops.prefix, suffix, val, outPtr)
+	if consume {
+		fe.emitScalarRelease(val, ops)
+	}
 	okBB := fe.nextInlineBlock()
 	badBB := fe.nextInlineBlock()
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", okVal, okBB, badBB)
@@ -87,28 +99,7 @@ func (fe *funcEmitter) emitCheckedBigUintToU64(val, msg string) (string, error) 
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", okBB)
 	outVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i64, ptr %s\n", outVal, outPtr)
-	return outVal, nil
-}
-
-func (fe *funcEmitter) emitCheckedBigFloatToF64(val string) (string, error) {
-	outPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca double, align %d\n", outPtr, 8)
-	fmt.Fprintf(&fe.emitter.buf, "  store double 0.0, ptr %s\n", outPtr)
-	okVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_bigfloat_to_f64(ptr %s, ptr %s)\n", okVal, val, outPtr)
-	okBB := fe.nextInlineBlock()
-	badBB := fe.nextInlineBlock()
-	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%%s, label %%%s\n", okVal, okBB, badBB)
-
-	fmt.Fprintf(&fe.emitter.buf, "%s:\n", badBB)
-	if err := fe.emitPanicNumeric("float overflow"); err != nil {
-		return "", err
-	}
-
-	fmt.Fprintf(&fe.emitter.buf, "%s:\n", okBB)
-	outVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load double, ptr %s\n", outVal, outPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load %s, ptr %s\n", outVal, llvmTy, outPtr)
 	return outVal, nil
 }
 
