@@ -18,12 +18,18 @@ func TestNumericIteratorGateCoverage(t *testing.T) {
 		"TestVMNumericIteratorFloatArrays",
 		"TestVMNumericIteratorFastLatch",
 		"TestVMNumericIteratorSuspendLifecycle",
+		"TestVMNumericIteratorHeapArrays",
+		"TestVMNumericIteratorHeapRanges",
+		"TestVMNumericIteratorHeapSuspendLifecycle",
 	}
 	heap := []string{
 		"TestRuntimeV2NumericIteratorFloatArraysValgrindZero",
 		"TestRuntimeV2NumericIteratorFloatBoundsValgrindZero",
 		"TestRuntimeV2NumericIteratorSuspendValgrindBaseline",
 		"TestRuntimeV2RangeForFloatBoundsIterateAndAnswer",
+		"TestRuntimeV2NumericIteratorHeapArraysValgrindZero",
+		"TestRuntimeV2NumericIteratorHeapRangesValgrindZero",
+		"TestRuntimeV2NumericIteratorHeapSuspendValgrindBaseline",
 	}
 	for _, row := range []struct {
 		name, target, pkg, backend string
@@ -58,6 +64,8 @@ func TestNumericIteratorGateCoverage(t *testing.T) {
 		{"llvm_source", "runtime-v2-carrier-check", "./internal/vm", "llvm", functional},
 		{"suspend_frame", "runtime-v2-carrier-check", "./internal/vm", "vm", []string{
 			"TestNumericIteratorSuspendFrameOwnsLiveBindings",
+			"TestNumericRangeInitializerOwnsTemporaryBoundsSource",
+			"TestNumericRangeInitializerFixedWidthSource",
 		}},
 		{"heap", "runtime-v2-heap-check", "./internal/vm", "llvm", heap},
 		{"sanitizer_superset", carrierSanitizerTarget, "./internal/vm", "llvm", heap},
