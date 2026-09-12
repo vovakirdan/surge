@@ -1,7 +1,8 @@
 stopped: breakpoint #1
 at main bb0:ip0 @ testdata/golden/vm_debug/vmdb_next_over_call.sg:7:18
-step: main bb0:ip1 L0 = copy L1 @ testdata/golden/vm_debug/vmdb_next_over_call.sg:7:5
+step: main bb0:ip1 L0 = retain L1 @ testdata/golden/vm_debug/vmdb_next_over_call.sg:7:5
 locals:
   L0(x): <uninit>
   L1(tmp_call1): bigint(rc=1,value=3)
   L2(y): <uninit>
+  L3(tmp_retval2): <uninit>

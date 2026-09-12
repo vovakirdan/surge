@@ -5,15 +5,18 @@ locals:
   L1(y): <uninit>
   L2(z): <uninit>
   L3(tmp_call1): <uninit>
+  L4(tmp_retval2): <uninit>
 step: main bb0:ip1 L1 = const 2 @ testdata/golden/vm_debug/vmdb_step_through.sg:4:5
 locals:
   L0(x): bigint(rc=1,value=1)
   L1(y): <uninit>
   L2(z): <uninit>
   L3(tmp_call1): <uninit>
+  L4(tmp_retval2): <uninit>
 step: main bb0:ip2 L3 = call __add(copy L0, copy L1) @ testdata/golden/vm_debug/vmdb_step_through.sg:5:18
 locals:
   L0(x): bigint(rc=1,value=1)
   L1(y): bigint(rc=1,value=2)
   L2(z): <uninit>
   L3(tmp_call1): <uninit>
+  L4(tmp_retval2): <uninit>
