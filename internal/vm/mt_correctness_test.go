@@ -1038,7 +1038,7 @@ async fn manager_run(requests: Channel<RequestMsg>) -> nothing {
     return nothing;
 }
 
-async fn handle_client(handle: int, requests: Channel<RequestMsg>) -> nothing {
+async fn handle_client(handle: int64, requests: Channel<RequestMsg>) -> nothing {
     let conn: TcpConn = { __opaque: handle };
     while true {
         let read_res = net.read_some(&conn, 16:uint).await();
@@ -1072,7 +1072,7 @@ async fn handle_client(handle: int, requests: Channel<RequestMsg>) -> nothing {
     return nothing;
 }
 
-async fn serve_worker(clients: Channel<int>, requests: Channel<RequestMsg>) -> nothing {
+async fn serve_worker(clients: Channel<int64>, requests: Channel<RequestMsg>) -> nothing {
     let mut client_tasks: Task<nothing>[] = [];
     let mut done: bool = false;
     while !done {
@@ -1096,7 +1096,7 @@ async fn serve_worker(clients: Channel<int>, requests: Channel<RequestMsg>) -> n
 }
 
 async fn serve_one(listener: TcpListener) -> int {
-    let clients = Channel::<int>::new(1:uint);
+    let clients = Channel::<int64>::new(1:uint);
     let requests = Channel::<RequestMsg>::new(1:uint);
     let manager_requests = requests;
     let manager_task = spawn manager_run(manager_requests);

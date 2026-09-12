@@ -11,20 +11,18 @@ import (
 // The anchored-op vertical end to end under the production capability (no
 // test-scoped override): mint a channel, run `on ch` send/send/recv/recv/
 // close/recv blocks from a non-owner caller, and observe single-producer
-// FIFO plus the closed outcome. The handle is affine, so all blocks share
-// one sequential holder; the compiled park path (a second holder draining
-// a full channel) is blocked on copyable far handles and is covered at the
-// harness level by the helper-protocol row, which drives the exact helper
-// sequence compiled bodies emit. The recv result is unwrapped in-body: the
-// reply payload must stay plain-copy data (a union value would ship an
-// owner-heap pointer across shards), so `ret ch.recv()` stays behind the
-// payload gate until unions get a by-value wire representation.
+// FIFO plus the closed outcome. This fixture keeps one sequential holder;
+// sibling leases and parked sends are covered by the share fan-out fixture.
+// Payloads remain counted int: each send gives a captured binding away, and
+// each receive unwraps its Option in the body before returning the value.
 const runtimeV2OnChSource = `
 async fn run() -> int {
     let ch: far Channel<int> = channel_on::<int>(shard(0:ShardId), 4);
-    let s1: TaskResult<nothing> = on ch { ch.send(41); ret nothing; };
+    let first: int = 41;
+    let s1: TaskResult<nothing> = on ch { ch.send(own first); ret nothing; };
     let _ = s1;
-    let s2: TaskResult<nothing> = on ch { ch.send(42); ret nothing; };
+    let second: int = 42;
+    let s2: TaskResult<nothing> = on ch { ch.send(own second); ret nothing; };
     let _ = s2;
     let r1: TaskResult<int> = on ch {
         let v: Option<int> = ch.recv();
