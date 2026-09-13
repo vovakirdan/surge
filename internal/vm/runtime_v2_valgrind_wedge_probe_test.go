@@ -241,8 +241,8 @@ func firstToken(s string) string {
 func TestRuntimeV2ValgrindWedgeProbeSeparatesParkedFromSpinning(t *testing.T) {
 	t.Parallel()
 
-	parked := startProbeSubject(t, "sleep 30")
-	spinning := startProbeSubject(t, "while :; do :; done")
+	parked := startProbeSubject(t, "sleep", "30")
+	spinning := startProbeSubject(t, "sh", "-c", "while :; do :; done")
 
 	parkedReport := valgrindWedgeReport(parked, 42*time.Second, nil)
 	assertFlatProbeSubject(t, "parked", parked)
@@ -371,14 +371,14 @@ func assertFlatProbeSubject(t *testing.T, name string, pid int) {
 	}
 }
 
-// startProbeSubject runs script under sh, registers its teardown, and returns
-// its pid.
-func startProbeSubject(t *testing.T, script string) int {
+// startProbeSubject runs command directly, registers its teardown, and returns
+// the pid of the subject itself.
+func startProbeSubject(t *testing.T, command string, args ...string) int {
 	t.Helper()
-	// #nosec G204 -- fixed literal scripts from this test
-	cmd := exec.Command("sh", "-c", script)
+	// #nosec G204 -- fixed literal commands and arguments from this test
+	cmd := exec.Command(command, args...)
 	if err := cmd.Start(); err != nil {
-		t.Fatalf("start probe subject %q: %v", script, err)
+		t.Fatalf("start probe subject %q %q: %v", command, args, err)
 	}
 	t.Cleanup(func() {
 		_ = cmd.Process.Kill()
