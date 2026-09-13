@@ -56,6 +56,13 @@
       "disposition": "debt",
       "reason": "Reachable from an ordinary Surge program, and no fixture reaches it. This is the backlog the gate exists to make visible, not an excuse: the right response to a row here is to write the fixture and delete the row, and the right response to a NEW panic site is never to add one. Every row here is a place where the two backends could already disagree and nothing would say so.",
       "invalidated_when": "A fixture records the message on both backends - the gate then reports the row as redundant and it must be removed."
+    },
+    {
+      "id": "PG-NUMERIC-CAST-FAILURE",
+      "owner": "backend/llvm",
+      "disposition": "other_lane",
+      "reason": "The int/uint to float64 checked conversions are exercised by TestVMNumericCastFailureContract/int_f64_overflow and /uint_f64_overflow in internal/vm/runtime_v2_numeric_cast_e2e_test.go (runtime_v2_pending). Each passes a runtime parameter holding 10^310, requires the entered marker, exactly one VM3202 float-overflow report and the backend-specific exit contract. runtime-v2-panic-surface-check explicitly runs that test on VM and LLVM, and gatecheck pins both selections. These calls previously reached the same checked narrowing through emitCheckedBigFloatToF64; they now call emitCheckedNumericToFixed directly so their temporary is released before either continuation. TestRuntimeV2NumericCastTemporariesValgrindZero separately covers successful answers, live caller inputs and native reclamation. This is explicit Go-lane coverage, not a claim that a behavioural golden records either site.",
+      "invalidated_when": "Either named overflow case, its runtime-parameter construction, panic assertion or VM/LLVM gate selection is removed or skipped; the checked conversion stops sharing the same failure condition; or a two-backend behavioural golden covers the message, making these rows redundant."
     }
   ],
   "sites": [
@@ -186,32 +193,32 @@
     },
     {
       "site": "internal/backend/llvm/emit_crossing_far_task.go::emitFarTaskLifecycleErrorBlocks#1",
-      "message": "\u003ccomputed\u003e",
+      "message": "<computed>",
       "group": "PG-COMPUTED"
     },
     {
       "site": "internal/backend/llvm/emit_crossing_far_task.go::emitFarTaskLifecycleErrorBlocks#2",
-      "message": "\u003ccomputed\u003e",
+      "message": "<computed>",
       "group": "PG-COMPUTED"
     },
     {
       "site": "internal/backend/llvm/emit_crossing_far_task.go::emitFarTaskLifecycleErrorBlocks#3",
-      "message": "\u003ccomputed\u003e",
+      "message": "<computed>",
       "group": "PG-COMPUTED"
     },
     {
       "site": "internal/backend/llvm/emit_crossing_far_task.go::emitFarTaskLifecycleErrorBlocks#4",
-      "message": "\u003ccomputed\u003e",
+      "message": "<computed>",
       "group": "PG-COMPUTED"
     },
     {
       "site": "internal/backend/llvm/emit_crossing_far_task.go::emitFarTaskLifecycleErrorBlocks#5",
-      "message": "\u003ccomputed\u003e",
+      "message": "<computed>",
       "group": "PG-COMPUTED"
     },
     {
       "site": "internal/backend/llvm/emit_crossing_far_task.go::emitFarTaskLifecycleErrorBlocks#6",
-      "message": "\u003ccomputed\u003e",
+      "message": "<computed>",
       "group": "PG-COMPUTED"
     },
     {
@@ -246,7 +253,7 @@
     },
     {
       "site": "internal/backend/llvm/emit_crossing_select.go::emitChannelSelectCrossing#1",
-      "message": "\u003ccomputed\u003e",
+      "message": "<computed>",
       "group": "PG-COMPUTED"
     },
     {
@@ -495,36 +502,6 @@
       "group": "PG-OPERAND-RANGE"
     },
     {
-      "site": "internal/backend/llvm/emit_intrinsics_numeric.go::emitBigNumericCast#10",
-      "message": "unsigned overflow",
-      "group": "PG-OPERAND-RANGE"
-    },
-    {
-      "site": "internal/backend/llvm/emit_intrinsics_numeric.go::emitBigNumericCast#11",
-      "message": "unsigned overflow",
-      "group": "PG-OPERAND-RANGE"
-    },
-    {
-      "site": "internal/backend/llvm/emit_intrinsics_numeric.go::emitBigNumericCast#2",
-      "message": "unsigned overflow",
-      "group": "PG-UNFIXTURED"
-    },
-    {
-      "site": "internal/backend/llvm/emit_intrinsics_numeric.go::emitBigNumericCast#3",
-      "message": "float overflow",
-      "group": "PG-UNFIXTURED"
-    },
-    {
-      "site": "internal/backend/llvm/emit_intrinsics_numeric.go::emitBigNumericCast#4",
-      "message": "cannot convert negative int to uint",
-      "group": "PG-UNFIXTURED"
-    },
-    {
-      "site": "internal/backend/llvm/emit_intrinsics_numeric.go::emitBigNumericCast#9",
-      "message": "unsigned overflow",
-      "group": "PG-OPERAND-RANGE"
-    },
-    {
       "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtEntropyBytes#1",
       "message": "entropy length out of range",
       "group": "PG-OPERAND-RANGE"
@@ -541,7 +518,7 @@
     },
     {
       "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtPanic#2",
-      "message": "\u003ccomputed\u003e",
+      "message": "<computed>",
       "group": "PG-COMPUTED"
     },
     {
@@ -561,7 +538,7 @@
     },
     {
       "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRtPanicBounds#4",
-      "message": "\u003ccomputed\u003e",
+      "message": "<computed>",
       "group": "PG-COMPUTED"
     },
     {
@@ -582,6 +559,46 @@
     {
       "site": "internal/backend/llvm/emit_intrinsics_runtime.go::emitRuntimeIntrinsic#2",
       "message": "stderr write length out of range",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_numeric_cast_big.go::emitBigNumericCast#10",
+      "message": "unsigned overflow",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_numeric_cast_big.go::emitBigNumericCast#11",
+      "message": "unsigned overflow",
+      "group": "PG-OPERAND-RANGE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_numeric_cast_big.go::emitBigNumericCast#12",
+      "message": "float overflow",
+      "group": "PG-NUMERIC-CAST-FAILURE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_numeric_cast_big.go::emitBigNumericCast#13",
+      "message": "float overflow",
+      "group": "PG-NUMERIC-CAST-FAILURE"
+    },
+    {
+      "site": "internal/backend/llvm/emit_numeric_cast_big.go::emitBigNumericCast#2",
+      "message": "unsigned overflow",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_numeric_cast_big.go::emitBigNumericCast#3",
+      "message": "float overflow",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_numeric_cast_big.go::emitBigNumericCast#4",
+      "message": "cannot convert negative int to uint",
+      "group": "PG-UNFIXTURED"
+    },
+    {
+      "site": "internal/backend/llvm/emit_numeric_cast_big.go::emitBigNumericCast#9",
+      "message": "unsigned overflow",
       "group": "PG-OPERAND-RANGE"
     },
     {
@@ -906,7 +923,7 @@
     },
     {
       "site": "runtime/native/rt_async_panic.c::rt_double_poll_panic#1",
-      "message": "\u003ccomputed\u003e",
+      "message": "<computed>",
       "group": "PG-COMPUTED"
     },
     {
@@ -1086,12 +1103,12 @@
     },
     {
       "site": "runtime/native/rt_async_state.c::rt_scope_slot_store#1",
-      "message": "\u003ccomputed\u003e",
+      "message": "<computed>",
       "group": "PG-COMPUTED"
     },
     {
       "site": "runtime/native/rt_async_state.c::rt_scope_slot_store#2",
-      "message": "\u003ccomputed\u003e",
+      "message": "<computed>",
       "group": "PG-COMPUTED"
     },
     {
@@ -1121,12 +1138,12 @@
     },
     {
       "site": "runtime/native/rt_async_state.c::rt_task_slot_store#1",
-      "message": "\u003ccomputed\u003e",
+      "message": "<computed>",
       "group": "PG-COMPUTED"
     },
     {
       "site": "runtime/native/rt_async_state.c::rt_task_slot_store#2",
-      "message": "\u003ccomputed\u003e",
+      "message": "<computed>",
       "group": "PG-COMPUTED"
     },
     {
@@ -1716,7 +1733,7 @@
     },
     {
       "site": "runtime/native/rt_remote_task_deadlock.c::rt_remote_task_deadlock_check#1",
-      "message": "\u003ccomputed\u003e",
+      "message": "<computed>",
       "group": "PG-COMPUTED"
     },
     {
