@@ -297,6 +297,12 @@ func insertScopeJoins(f *Func, scopeLocal, joinResultLocal LocalID) {
 			Value:    term.Value,
 		}})
 
+		// A move already owns the prepared result. A failed join must consume
+		// that owner instead of transferring it to the caller. Constants and
+		// retaining/copying reads produce their result only on the success leg.
+		if term.HasValue && term.Value.Kind == OperandMove {
+			appendInstr(f, cancelBB, Instr{Kind: InstrDrop, Drop: DropInstr{Place: term.Value.Place}})
+		}
 		setBlockTerm(f, cancelBB, Terminator{Kind: TermReturn, Return: ReturnTerm{
 			Cancelled: true,
 		}})
