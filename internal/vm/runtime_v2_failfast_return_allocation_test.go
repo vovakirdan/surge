@@ -57,9 +57,10 @@ fn make_heap_result() -> RESULT_TYPE {
 }
 
 async fn wait_cancelled() -> int64 {
-    while true {
-        checkpoint().await();
-    }
+    // No sender or closer can complete this receive.
+    // One park avoids the checkpoint loop's repeated ready-queue work.
+    let parked = Channel::<int64>::new(0:uint);
+    parked.recv();
     return 0:int64;
 }
 
