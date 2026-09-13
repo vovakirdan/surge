@@ -28,7 +28,7 @@ func TestScopeJoinDropsTransferredReturnOnCancellation(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			original := ReturnTerm{HasValue: tc.hasValue, Value: tc.operand}
-			f := &Func{Blocks: []*Block{{Term: Terminator{Kind: TermReturn, Return: original}}}}
+			f := &Func{Blocks: []Block{{Term: Terminator{Kind: TermReturn, Return: original}}}}
 			insertScopeJoins(f, 0, 1)
 			if f.Blocks[0].Term.Kind != TermGoto {
 				t.Fatal("return did not pass through its implicit join")
