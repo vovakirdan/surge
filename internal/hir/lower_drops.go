@@ -55,7 +55,7 @@ func (l *lowerer) synthDropStmtWithPlan(symID symbols.SymbolID, span source.Span
 	return Stmt{
 		Kind: StmtDrop,
 		Span: span,
-		Data: DropData{Steps: steps, Value: &Expr{
+		Data: DropData{Synthetic: true, Steps: steps, Value: &Expr{
 			Kind: ExprVarRef,
 			Type: l.bindingDropType(symID),
 			Span: span,

@@ -103,9 +103,9 @@ func (tc *typeChecker) paramIsRetainedIntoFrame(fn *ast.FnItem, id types.TypeID)
 	return tc.isDroppableType(id) && tc.types.IsRefCounted(tc.resolveAlias(id))
 }
 
-// registerDroppableParams registers a function's by-value owned params
-// (including a by-value self) into the function-root drop scope: the callee
-// owns them and drops them on every exit unless it moved them onward.
+// registerDroppableParams registers by-value cleanup candidates in the root
+// scope before walking the body. Concrete HIR preparation removes readonly
+// borrowed candidates; a rebound or consumed borrowed param gets a local owner.
 func (tc *typeChecker) registerDroppableParams(fn *ast.FnItem, scope symbols.ScopeID) {
 	if tc.builder == nil || fn == nil {
 		return
@@ -115,7 +115,7 @@ func (tc *typeChecker) registerDroppableParams(fn *ast.FnItem, scope symbols.Sco
 			return
 		}
 		ty := tc.bindingType(symID)
-		if !tc.paramTransfersOwnership(ty) && !tc.paramIsRetainedIntoFrame(fn, ty) {
+		if !tc.isDroppableType(ty) {
 			return
 		}
 		tc.registerDroppableBinding(symID)

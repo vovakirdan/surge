@@ -273,6 +273,11 @@ func (l *funcLowerer) lowerFunc(id FuncID, fn *hir.Func) (*Func, error) {
 	if !fn.SymbolID.IsValid() {
 		return nil, fmt.Errorf("mir: function %q has no symbol id", fn.Name)
 	}
+	prepared, working, err := l.prepareBorrowedParams(fn)
+	if err != nil {
+		return nil, err
+	}
+	fn = prepared
 
 	l.f = &Func{
 		ID:       id,
@@ -285,28 +290,15 @@ func (l *funcLowerer) lowerFunc(id FuncID, fn *hir.Func) (*Func, error) {
 	}
 
 	// Locals: function parameters.
-	l.f.ParamCount = len(fn.Params)
-	for _, p := range fn.Params {
-		if p.SymbolID.IsValid() {
-			l.ensureLocal(p.SymbolID, p.Name, p.Type, p.Span)
-			continue
-		}
-		name := p.Name
-		if name == "" {
-			name = "_"
-		}
-		addLocal(l.f, name, p.Type, l.localFlags(p.Type))
-	}
-	if l.f.IsAsync && l.types != nil {
-		scopeType := l.types.Builtins().Uint64
-		l.scopeLocal = addLocal(l.f, "__scope", scopeType, localFlagsFor(l.types, l.sema, scopeType))
-		l.f.ScopeLocal = l.scopeLocal
-	}
+	l.bindFunctionParams(fn)
 
 	// Entry block.
 	entry := l.newBlock()
 	l.f.Entry = entry
 	l.cur = entry
+	if err := l.bindBorrowedParamOwners(working); err != nil {
+		return nil, err
+	}
 
 	// Body.
 	if fn.Body != nil {
