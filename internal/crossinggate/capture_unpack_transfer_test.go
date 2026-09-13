@@ -9,22 +9,13 @@ import (
 
 	"surge/internal/buildpipeline"
 	"surge/internal/mir"
+	"surge/internal/types"
 )
 
-// Unpacking a crossing capture says in the TREE whether it takes the value or
-// duplicates it.
-//
-// The two are the same shape — a field read out of the state box — and the
-// difference is invisible from the surface: an owned capture is moved into the
-// state and continues into the body, while a copy capture leaves the state
-// holding its own and makes the body a second holder. The envelope is released
-// SHALLOWLY afterwards on the premise that nothing but the box is left, so the
-// distinction decides whether a value is reclaimed once, twice, or never.
-//
-// It was carried by a comment until now, and a comment is not enough for what
-// comes next: with inline storage a "copy by convention" becomes a bitwise
-// duplicate with two owners, and the pass that has to know the difference reads
-// the tree, not the comment.
+// A crossing frame acquired its own counted Copy holder before publication.
+// Its unpack transfers that holder into the body, whose synthesized drop gives
+// it back. The caller keeping its original binding does not make this field
+// read a borrow. A heap-free int64 needs no transfer; an owned Job still moves.
 //
 // This lives at the MIR level rather than in the e2e corpus deliberately. The
 // native crossing censuses that would notice the consequence run only with
@@ -48,7 +39,11 @@ fn read_copied(n: int) -> int {
 async fn run() -> int {
     let j: own Job = own Job{ id: 4, note: "n" };
     let k: int = 7;
-    let t: far Task<int> = spawn on distributed { ret take_owned(own j) + read_copied(k); };
+    let k_uint: uint = 7:uint;
+    let k_plain: int64 = 7:int64;
+    let t: far Task<int> = spawn on distributed {
+        ret take_owned(own j) + read_copied(k) + (k_uint:int) + (k_plain:int);
+    };
     let got: TaskResult<int> = t.await();
     return compare got { Success(x) => x; Cancelled() => 0 - 1; };
 }
@@ -77,16 +72,26 @@ fn main() -> int {
 	if res.MIR == nil {
 		t.Fatal("compile produced no MIR")
 	}
+	if res.Diagnose == nil || res.Diagnose.Sema == nil || res.Diagnose.Sema.TypeInterner == nil {
+		t.Fatal("compile produced no semantic type authority")
+	}
+	interner := res.Diagnose.Sema.TypeInterner
+	for _, finding := range mir.VerifyOwnership(res.MIR, interner, res.Diagnose.Sema) {
+		// Preserve all findings without preventing the four typed children
+		// from running. Before the fix, the counted unpacks are the failures.
+		t.Errorf("ownership finding: %+v", finding)
+	}
 
 	// Every capture unpack in the module, keyed by the BINDING it lands in.
 	// The state's fields are positional (`__cap0`, `__cap1`), so the readable
 	// half of the pair is the destination local, which keeps the name the
 	// enclosing function gave it.
 	modes := map[string]bool{}
+	locals := map[string]mir.Local{}
 	seen := 0
 	for fi := range res.MIR.Funcs {
 		fn := res.MIR.Funcs[fi]
-		if fn == nil {
+		if fn == nil || !strings.HasPrefix(fn.Name, "__spawn_on_block$") {
 			continue
 		}
 		for bi := range fn.Blocks {
@@ -105,29 +110,51 @@ fn main() -> int {
 				if int(dst.Local) < 0 || int(dst.Local) >= len(fn.Locals) {
 					continue
 				}
-				modes[fn.Locals[dst.Local].Name] = ins.Assign.Src.Field.MoveOut
+				local := fn.Locals[dst.Local]
+				if _, duplicate := modes[local.Name]; duplicate {
+					t.Errorf("capture %q was unpacked more than once", local.Name)
+				}
+				modes[local.Name] = ins.Assign.Src.Field.MoveOut
+				locals[local.Name] = local
 				seen++
 			}
 		}
 	}
 
-	if seen == 0 {
-		t.Fatal("no capture unpack found: the probe stopped measuring what it claims to")
+	if seen != 4 {
+		t.Errorf("capture unpacks=%d, want exactly the four declared captures", seen)
 	}
-	moveOut, ok := modes["j"]
-	if !ok {
-		t.Fatal("the owned capture was never unpacked")
-	}
-	if !moveOut {
-		t.Error("an OWNED capture unpacks as a plain read: the state keeps nothing after this, " +
-			"so a second holder here is a reference nobody gives back")
-	}
-	copied, ok := modes["k"]
-	if !ok {
-		t.Fatal("the copy capture was never unpacked")
-	}
-	if copied {
-		t.Error("a COPY capture unpacks as a transfer: the state still holds its own, " +
-			"and taking it out leaves that one with no owner")
+	for _, row := range []struct {
+		name, typeLabel            string
+		copy, counted, owns, moved bool
+	}{
+		{"j", "", false, false, true, true},
+		{"k", "int", true, true, true, true},
+		{"k_uint", "uint", true, true, true, true},
+		{"k_plain", "int64", true, false, false, false},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			local, present := locals[row.name]
+			if !present {
+				t.Fatalf("capture %q was never unpacked", row.name)
+			}
+			label := types.Label(interner, local.Type)
+			t.Logf("capture=%s type_id=%d type=%s flags=%d", row.name, local.Type, label, local.Flags)
+			if row.typeLabel != "" && label != row.typeLabel {
+				t.Fatalf("type=%s, want %s", label, row.typeLabel)
+			}
+			if got := res.Diagnose.Sema.IsCopyType(local.Type); got != row.copy {
+				t.Fatalf("Copy=%v, want %v", got, row.copy)
+			}
+			if got := interner.IsRefCountedScalar(local.Type); got != row.counted {
+				t.Fatalf("counted=%v, want %v", got, row.counted)
+			}
+			if got := local.Flags&mir.LocalFlagOwnsHeap != 0; got != row.owns {
+				t.Fatalf("owns_heap=%v, want %v", got, row.owns)
+			}
+			if moved := modes[row.name]; moved != row.moved {
+				t.Errorf("MoveOut=%v, want %v", moved, row.moved)
+			}
+		})
 	}
 }
