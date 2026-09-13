@@ -547,13 +547,7 @@ func (l *funcLowerer) lowerCallExpr(e *hir.Expr, consume bool) (Operand, error) 
 	}
 
 	if e.Type == types.NoTypeID || l.isNothingType(e.Type) {
-		l.emit(&Instr{Kind: InstrCall, Call: CallInstr{
-			HasDst:       false,
-			Callee:       callee,
-			Args:         args,
-			ArgContracts: contracts,
-		}})
-		return l.constNothing(e.Type), nil
+		return l.emitNoResultCall(callee, args, contracts, e.Type), nil
 	}
 
 	// A call RESULT is materialized by the call: the callee handed it over and
