@@ -836,18 +836,8 @@ void task_add_ref(rt_task* task);
 void task_release(rt_executor* ex, rt_task* task);
 void task_release_lane_aware(rt_executor* ex, rt_task* task);
 
-void* rt_channel_new(uint64_t capacity, const rt_value_ops* ops, uint64_t element_type_id);
 // Resolves the element type ID carried by far create to its descriptor.
 const rt_value_ops* rt_channel_element_ops_for(uint64_t element_type_id);
-// Opaque-word descriptor for far channels and stands without compiled glue.
-const rt_value_ops* rt_channel_opaque_word_ops(void);
-bool rt_channel_send(void* channel, void* src);
-bool rt_channel_send_yield(void* channel, void* src);
-uint8_t rt_channel_recv(void* channel, void* dst);
-bool rt_channel_try_send(void* channel, void* src);
-bool rt_channel_try_recv(void* channel, void* dst);
-void rt_channel_close(void* channel);
-void rt_channel_free(void* channel);
 void rt_channel_free_when_unlocked(void* channel);
 void rt_channel_reclaim_drain(void);
 // Current cancelled poll, no locks held; its owning activation is still live.
