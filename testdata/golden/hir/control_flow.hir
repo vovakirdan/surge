@@ -8,6 +8,7 @@ fn abs(x: int [copy]) -> int (id=1, sym=1451) {
   } else {
     return x
   }
+  drop x
 }
 
 fn countdown(n: int [copy]) -> int (id=2, sym=1452) {
