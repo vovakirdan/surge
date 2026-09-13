@@ -45,7 +45,7 @@ func (l *funcLowerer) calleeIsCoreIntrinsicExit(callee Callee, argCount int) boo
 	if !ok || name != "exit" {
 		return false
 	}
-	for _, fn := range source.Funcs {
+	for _, fn := range l.mono.Source.Funcs {
 		if fn != nil && fn.SymbolID == mf.OrigSym {
 			return fn.IsIntrinsic() && len(fn.Params) == 1 && fn.Result != types.NoTypeID && l.isNothingType(fn.Result)
 		}
