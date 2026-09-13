@@ -255,6 +255,8 @@ func (BlockStmtData) stmtData() {}
 // DropData holds data for StmtDrop.
 type DropData struct {
 	Value *Expr
+	// Synthetic identifies cleanup emitted from sema's scope-exit obligations.
+	Synthetic bool
 	// Steps is the RESIDUAL plan when this drop reclaims a binding that is
 	// only partly moved: which places to release and in what order. Empty
 	// means the value drops whole, which is what an explicit `@drop` and
