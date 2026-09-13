@@ -18,12 +18,10 @@ import (
 // file's ignorance of them.
 //
 // What makes a site authoritative is WHICH SITE IT IS, not whether module
-// records happen to exist there. A single-file build reaches
-// CombineHIRWithModulesWithOptions with no records at all, and it is still the
-// whole program: with no imports, its own facts are already complete. Gating on
-// record presence would silently skip exactly that build and leave it with no
-// capability answers, or with a set of false ones — which is the same failure
-// wearing a more convincing face.
+// records happen to exist there. A complete typed input without imports can
+// enter CombineHIRWithModulesWithOptions without records; its own facts are
+// already the whole-program view. Gating on record presence would leave that
+// input without a capability authority.
 //
 // Records are an INPUT to the fact merge that runs just before this. They are
 // not a precondition for classifying what the merge produced.

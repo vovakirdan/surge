@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"surge/internal/hir"
 	"surge/internal/sema"
 	"surge/internal/types"
 )
@@ -112,14 +113,11 @@ func TestCapabilityClassificationRunsAtTheBuildAuthority(t *testing.T) {
 	}
 }
 
-// TestCapabilityClassificationRunsWithoutAnyModuleRecords is the site-identity
-// point. A single-file program reaches the same authority site holding no
-// module records at all, and it is still the whole program: with nothing
-// imported, its own facts are already complete. Gating classification on record
-// presence would skip exactly this build and leave it with no answers, or with
-// a set of false ones, which is the same failure wearing a better face.
+// A complete typed input can reach the build authority without module records.
+// Retain the real per-file artifacts for this self-contained program; ordinary
+// DiagnoseWithOptions always creates a root record, even without imports.
 func TestCapabilityClassificationRunsWithoutAnyModuleRecords(t *testing.T) {
-	result := capabilityBuildAuthority(t, map[string]string{
+	root := writeCloneProject(t, map[string]string{
 		"main.sg": `
 @shard_pinned type Pinned = { id: int }
 @entrypoint fn main() -> int {
@@ -128,15 +126,47 @@ func TestCapabilityClassificationRunsWithoutAnyModuleRecords(t *testing.T) {
 }
 `,
 	})
-	if result.rootRecord != nil || len(result.moduleRecords) != 0 {
-		t.Skip("this build grew module records, so it no longer covers the no-records shape")
+	ctx := context.Background()
+	files, retained, err := DiagnoseDirWithOptions(ctx, root, &DiagnoseOptions{
+		Stage: DiagnoseStageAll, MaxDiagnostics: 64, FullModuleGraph: false, KeepArtifacts: true,
+	}, 1)
+	if err != nil || len(retained) != 1 {
+		t.Fatalf("retain one typed file: results=%d err=%v", len(retained), err)
 	}
-	if result.Sema == nil || result.Sema.Capabilities == nil {
-		t.Fatal("a single-file build reached the whole-program site and produced no capability authority")
+	input := &retained[0]
+	if input.Bag == nil || input.Bag.HasErrors() || input.Symbols == nil || input.Sema == nil || input.Sema.TypeInterner == nil || input.Sema.TypeInterner.Strings == nil {
+		t.Fatal("per-file input lacks successful semantic artifacts")
+	}
+	file, err := parallelResultOwner(files, input)
+	if err != nil {
+		t.Fatalf("resolve retained AST owner: %v", err)
+	}
+	module, err := hir.Lower(ctx, input.Builder, input.ASTFile, input.Sema, input.Symbols)
+	if err != nil || module == nil {
+		t.Fatalf("lower retained typed file: module=%v err=%v", module != nil, err)
+	}
+	result := &DiagnoseResult{
+		FileSet: files, File: file, FileID: input.ASTFile, Builder: input.Builder,
+		Bag: input.Bag, Symbols: input.Symbols, Sema: input.Sema, HIR: module,
 	}
 	id, ok := result.Sema.TypeInterner.FindStructInstance(result.Sema.TypeInterner.Strings.Intern("Pinned"), nil)
-	if !ok {
-		t.Fatal("Pinned is absent from its own build")
+	if !ok || id == types.NoTypeID || !result.Sema.TypeAttrFacts[id].ShardPinned {
+		t.Fatal("retained input lacks Pinned's actual shard-pinned type fact")
+	}
+	t.Logf("no-records before: root=%t records=%d authority=%t classifier=%t pinned_type=%d shard_pinned=true",
+		result.rootRecord != nil, len(result.moduleRecords), result.wholeProgramAuthority, result.Sema.Capabilities != nil, id)
+	if result.rootRecord != nil || len(result.moduleRecords) != 0 || result.wholeProgramAuthority || result.Sema.Capabilities != nil {
+		t.Fatal("retained input is not the unclassified no-records shape")
+	}
+	combined, err := CombineHIRWithModulesWithOptions(ctx, result, HIRCombineOptions{})
+	if err != nil || combined == nil {
+		t.Fatalf("combine complete no-records input: module=%v err=%v", combined != nil, err)
+	}
+	requireNoCloneErrors(t, result)
+	t.Logf("no-records after: root=%t records=%d authority=%t classifier=%t",
+		result.rootRecord != nil, len(result.moduleRecords), result.wholeProgramAuthority, result.Sema.Capabilities != nil)
+	if result.rootRecord != nil || len(result.moduleRecords) != 0 || !result.wholeProgramAuthority || result.Sema.Capabilities == nil {
+		t.Fatal("no-records build site failed to publish capability authority")
 	}
 	capability, err := result.Sema.Capabilities.Classify(id)
 	if err != nil {
@@ -145,6 +175,7 @@ func TestCapabilityClassificationRunsWithoutAnyModuleRecords(t *testing.T) {
 	if capability.ShardMovable {
 		t.Fatalf("a `@shard_pinned` type classified as movable: %q", capability.ShardReason)
 	}
+	t.Log("no-records verdict: shard-movable=false")
 }
 
 // TestCapabilityClassificationSkipsThePerFilePath pins the other half of the
