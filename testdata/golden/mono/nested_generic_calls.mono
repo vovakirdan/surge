@@ -17,5 +17,6 @@ fn main() -> nothing (id=2147483651, sym=2415919107) {
   let a: int [copy] = wrap::<int>(1): int
   let b: string = wrap::<string>("\"x\""): string
   drop b
+  drop a
   return
 }

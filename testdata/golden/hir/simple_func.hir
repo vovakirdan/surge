@@ -9,6 +9,8 @@ fn add(a: int [copy], b: int [copy]) -> int (id=1, sym=1451) {
 fn main() -> nothing (id=2, sym=1452) {
   let x: int [copy] = add(1, 2): int
   let y: int [copy] = __add(x, 3): int
+  drop y
+  drop x
   return
 }
 

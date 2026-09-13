@@ -7,6 +7,8 @@ fn block_scope() -> int (id=1, sym=1451) {
   {
     let y: int [copy] = 2
     let z: int [copy] = __add(x, y): int
+    drop z
+    drop y
   }
   return x
 }
@@ -15,6 +17,8 @@ async fn with_async_block() -> nothing (id=2, sym=1452) {
   let t: type#752 = async {
     let x: int [copy] = 1
     let y: int [copy] = __add(x, 1): int
+    drop y
+    drop x
   }: type#752
   drop t
   return

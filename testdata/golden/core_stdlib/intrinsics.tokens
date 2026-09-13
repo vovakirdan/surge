@@ -253,8 +253,8 @@
 253: LBrace          "{" at 39:17-39:18 (leading: Space)
 254: Ident           "__opaque" at 40:5-40:13 (leading: Newline, Space)
 255: Colon           ":" at 40:13-40:14
-256: Ident           "int" at 40:15-40:18 (leading: Space)
-257: Comma           "," at 40:18-40:19
+256: Ident           "int64" at 40:15-40:20 (leading: Space)
+257: Comma           "," at 40:20-40:21
 258: RBrace          "}" at 41:1-41:2 (leading: Newline)
 259: Semicolon       ";" at 41:2-41:3
 260: KwPub           "pub" at 43:1-43:4 (leading: Newline)
@@ -679,8 +679,8 @@
 679: LBrace          "{" at 77:24-77:25 (leading: Space)
 680: Ident           "__opaque" at 78:5-78:13 (leading: Newline, Space)
 681: Colon           ":" at 78:13-78:14
-682: Ident           "int" at 78:15-78:18 (leading: Space)
-683: Comma           "," at 78:18-78:19
+682: Ident           "int64" at 78:15-78:20 (leading: Space)
+683: Comma           "," at 78:20-78:21
 684: RBrace          "}" at 79:1-79:2 (leading: Newline)
 685: Semicolon       ";" at 79:2-79:3
 686: At              "@" at 81:1-81:2 (leading: Newline)
@@ -696,8 +696,8 @@
 696: LBrace          "{" at 82:20-82:21 (leading: Space)
 697: Ident           "__opaque" at 83:5-83:13 (leading: Newline, Space)
 698: Colon           ":" at 83:13-83:14
-699: Ident           "int" at 83:15-83:18 (leading: Space)
-700: Comma           "," at 83:18-83:19
+699: Ident           "int64" at 83:15-83:20 (leading: Space)
+700: Comma           "," at 83:20-83:21
 701: RBrace          "}" at 84:1-84:2 (leading: Newline)
 702: Semicolon       ";" at 84:2-84:3
 703: KwPub           "pub" at 86:1-86:4 (leading: Newline)
@@ -1843,8 +1843,8 @@
 1843: LBrace          "{" at 191:20-191:21 (leading: Space)
 1844: Ident           "__opaque" at 192:5-192:13 (leading: Newline, Space)
 1845: Colon           ":" at 192:13-192:14
-1846: Ident           "int" at 192:15-192:18 (leading: Space)
-1847: Comma           "," at 192:18-192:19
+1846: Ident           "int64" at 192:15-192:20 (leading: Space)
+1847: Comma           "," at 192:20-192:21
 1848: RBrace          "}" at 193:1-193:2 (leading: Newline)
 1849: Semicolon       ";" at 193:2-193:3
 1850: KwPub           "pub" at 195:1-195:4 (leading: Newline)
@@ -1878,8 +1878,8 @@
 1878: LBrace          "{" at 204:22-204:23 (leading: Space)
 1879: Ident           "__opaque" at 205:5-205:13 (leading: Newline, Space)
 1880: Colon           ":" at 205:13-205:14
-1881: Ident           "int" at 205:15-205:18 (leading: Space)
-1882: Comma           "," at 205:18-205:19
+1881: Ident           "int64" at 205:15-205:20 (leading: Space)
+1882: Comma           "," at 205:20-205:21
 1883: RBrace          "}" at 206:1-206:2 (leading: Newline)
 1884: Semicolon       ";" at 206:2-206:3
 1885: KwPub           "pub" at 208:1-208:4 (leading: Newline)

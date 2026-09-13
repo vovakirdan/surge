@@ -5,12 +5,11 @@ module
 fn sum_range(n: int [copy]) -> int (id=1, sym=1451) {
   let mut total: int [copy] = 0
   {
-    let mut i: int [copy] = 0
+    let mut i: int [copy] = owned_temp(0): int
     let __end1: int [copy] = n
     while (i < __end1): bool {
       (total = __add(total, i)): int
-      i = (i + 1): int
-    }
+    } post (i = (i + 1)): int
   }
   return total
 }

@@ -5,11 +5,14 @@ module
 fn sum_to(n: int [copy]) -> int (id=1, sym=1451) {
   let mut total: int [copy] = 0
   {
-    let mut i: int [copy] = 0
-    while __lt(i, n): bool {
-      (total = __add(total, i)): int
-      (i = __add(i, 1)): int
+    {
+      let mut i: int [copy] = 0
+      while __lt(i, n): bool {
+        (total = __add(total, i)): int
+        (i = __add(i, 1)): int
+      }
     }
+    drop i
   }
   return total
 }

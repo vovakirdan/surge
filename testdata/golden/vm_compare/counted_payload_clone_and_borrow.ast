@@ -1,0 +1,96 @@
+counted_payload_clone_and_borrow.sg (span: 4:1-50:1)
+├─ Item[0]: Type (span: 4:1-4:38)
+│  ├─ Name: Pair
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  ├─ Attributes: @copy
+│  └─ Struct:
+│     ├─ Field[0]: a: int
+│     └─ Field[1]: b: int
+├─ Item[1]: Tag (span: 6:1-6:16)
+│  ├─ Name: Hold
+│  ├─ Visibility: private
+│  └─ Payload: Pair
+├─ Item[2]: Tag (span: 7:1-7:16)
+│  ├─ Name: Nothing_
+│  └─ Visibility: private
+├─ Item[3]: Type (span: 8:1-8:35)
+│  ├─ Name: Held
+│  ├─ Kind: Union
+│  ├─ Visibility: private
+│  └─ Union:
+│     ├─ Member[0]: Hold(Pair)
+│     └─ Member[1]: Nothing_
+├─ Item[4]: Fn (span: 10:1-15:2)
+│  ├─ Name: clone_payload
+│  ├─ Params: (h: &Held)
+│  ├─ Return: Pair
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 10:36-15:2)
+│        └─ Stmt[0]: Return (span: 11:5-14:7)
+│           └─ Expr: expr#15: compare *h { 2 arms }
+├─ Item[5]: Fn (span: 17:1-20:2)
+│  ├─ Name: sum_clone
+│  ├─ Params: (h: &Held)
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 17:31-20:2)
+│        ├─ Stmt[0]: Let (span: 18:5-18:30)
+│        │  ├─ Name: p
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#18: clone_payload(h)
+│        └─ Stmt[1]: Return (span: 19:5-19:22)
+│           └─ Expr: expr#23: (p.a + p.b)
+├─ Item[6]: Fn (span: 22:1-31:2)
+│  ├─ Name: sum_borrowed
+│  ├─ Params: (opts: &Option<int>[])
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 22:46-31:2)
+│        ├─ Stmt[0]: Let (span: 23:5-23:28)
+│        │  ├─ Name: total
+│        │  ├─ Mutable: true
+│        │  ├─ Type: int
+│        │  └─ Value: expr#24: 0
+│        ├─ Stmt[1]: ForIn (span: 24:5-29:6)
+│        │  ├─ Pattern: r
+│        │  ├─ Iterable: expr#25: opts
+│        │  └─ Body:
+Block (span: 24:19-29:6)
+│        │     └─ Stmt[0]: Expr (span: 25:9-28:10)
+│        │        └─ Expr: expr#42: compare &r { 2 arms }
+│        └─ Stmt[2]: Return (span: 30:5-30:18)
+│           └─ Expr: expr#43: total
+└─ Item[7]: Fn (span: 33:1-49:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 34:18-49:2)
+         ├─ Stmt[0]: Let (span: 35:5-38:8)
+         │  ├─ Name: h
+         │  ├─ Mutable: false
+         │  ├─ Type: Held
+         │  └─ Value: expr#50: Hold(<ExprKind(22)>)
+         ├─ Stmt[1]: Expr (span: 39:5-39:36)
+         │  └─ Expr: expr#57: print(sum_clone(&h) to string)
+         ├─ Stmt[2]: Expr (span: 40:5-40:36)
+         │  └─ Expr: expr#64: print(sum_clone(&h) to string)
+         ├─ Stmt[3]: Let (span: 42:5-42:38)
+         │  ├─ Name: opts
+         │  ├─ Mutable: true
+         │  ├─ Type: Option<int>[]
+         │  └─ Value: expr#65: <ExprKind(8)>
+         ├─ Stmt[4]: Expr (span: 43:5-43:48)
+         │  └─ Expr: expr#71: opts.push(Some(1208925819614629174706176))
+         ├─ Stmt[5]: Expr (span: 44:5-44:24)
+         │  └─ Expr: expr#75: opts.push(nothing)
+         ├─ Stmt[6]: Expr (span: 45:5-45:24)
+         │  └─ Expr: expr#81: opts.push(Some(7))
+         ├─ Stmt[7]: Expr (span: 46:5-46:42)
+         │  └─ Expr: expr#88: print(sum_borrowed(&opts) to string)
+         ├─ Stmt[8]: Expr (span: 47:5-47:42)
+         │  └─ Expr: expr#95: print(sum_borrowed(&opts) to string)
+         └─ Stmt[9]: Return (span: 48:5-48:14)
+            └─ Expr: expr#96: 0

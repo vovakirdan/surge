@@ -13,7 +13,9 @@ async fn test() -> int (id=2, sym=1452) {
     if tag_test(__cmp1, Success): bool {
       let v: int [copy] = tag_payload(__cmp1, Success, 0): int
       release_box __cmp1
-      return v
+      return {
+        ret v
+      }: int
     }
     if tag_test(__cmp1, Cancelled): bool {
       drop __cmp1

@@ -19,6 +19,7 @@ async fn t() -> nothing (id=2, sym=1452) {
   let r: &int [&] = (& x): &int
   let t: type#752 = spawn use_ref(r): type#752: type#752
   await(t): type#1508
+  drop x
   return
 }
 

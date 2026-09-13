@@ -4,26 +4,35 @@ funcs=1
 
 fn unwrap_or_zero:
   locals:
-    L0: type#1507 name=x
-    L1: int [copy] name=tmp_block1
-    L2: type#1507 name=__cmp1
+    L0: type#1507 [owns_heap] name=x
+    L1: int [copy,owns_heap] name=tmp_block1
+    L2: type#1507 [owns_heap] name=__cmp1
     L3: bool [copy] name=tmp_tagtest2
-    L4: int [copy] name=v
-    L5: int [copy] name=tmp_payload3
-    L6: bool [copy] name=tmp_tagtest4
+    L4: int [copy,owns_heap] name=v
+    L5: int [copy,owns_heap] name=tmp_payload3
+    L6: int [copy,owns_heap] name=tmp_block4
+    L7: int [copy,owns_heap] name=tmp_retval5
+    L8: bool [copy] name=tmp_tagtest6
   bb0:
     L2 = move L0
-    switch_tag copy L2 { Some -> bb2; nothing -> bb3; default -> bb4; }
+    switch_tag copy L2 { Some -> bb2; nothing -> bb4; default -> bb5; }
   bb1:
-    return copy L1
+    return move L1
   bb2:
     L5 = tag_payload_move copy L2.Some[0]
-    L4 = copy L5
+    L4 = retain L5
+    drop L5
     release_box L2
-    L1 = copy L4
-    goto bb1
+    L7 = retain L4
+    L6 = move L7
+    drop L4
+    goto bb3
   bb3:
-    L1 = const 0
+    L1 = move L6
     goto bb1
   bb4:
+    drop L2
+    L1 = const 0
+    goto bb1
+  bb5:
     unreachable

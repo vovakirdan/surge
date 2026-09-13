@@ -4,10 +4,11 @@ funcs=1
 
 fn main:
   locals:
-    L0: int [copy] name=x
-    L1: int [copy] name=y
+    L0: int [copy,owns_heap] name=x
+    L1: int [copy,owns_heap] name=y
     L2: bool [copy] name=tmp_call1
-    L3: int [copy] name=tmp_if2
+    L3: int [copy,owns_heap] name=tmp_if2
+    L4: int [copy,owns_heap] name=tmp_retval3
   bb0:
     L0 = const 1
     L2 = call __eq(copy L0, const 0)
@@ -19,5 +20,9 @@ fn main:
     L3 = const 20
     goto bb3
   bb3:
-    L1 = copy L3
-    return copy L1
+    L1 = retain L3
+    drop L3
+    L4 = retain L1
+    drop L1
+    drop L0
+    return move L4

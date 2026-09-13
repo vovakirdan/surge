@@ -4,7 +4,10 @@ funcs=1
 
 fn main:
   locals:
-    L0: int [copy] name=tmp_call1
+    L0: int [copy,owns_heap] name=tmp_call1
+    L1: int [copy,owns_heap] name=tmp_retval2
   bb0:
     L0 = call __add(const 1, const 2)
-    return copy L0
+    L1 = retain L0
+    drop L0
+    return move L1

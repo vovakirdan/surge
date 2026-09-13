@@ -7,7 +7,7 @@ module
 fn t() -> nothing (id=1, sym=1451) {
   let mut xs: type#82 = []: type#82
   push((&mut xs), "\"value-long-enough-to-heap-allocate-here\""): nothing
-  (xs[0] = __index((& xs), 0)): string
+  (xs[owned_temp(0): int] = __index((& xs), 0)): string
   drop xs
   return
 }

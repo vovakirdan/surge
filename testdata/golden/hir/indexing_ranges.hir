@@ -6,6 +6,6 @@ type Box <struct> (sym=1451, type=0)
 
 fn test() -> int (id=1, sym=1453) {
   let b: type#1507 =  { value = 1 }: type#1507
-  return __index(b, rt_range_int_new(1, 2, false)): int
+  return __index(b, rt_range_int_new(owned_temp(1), owned_temp(2), false)): int
 }
 

@@ -1,0 +1,49 @@
+// Counted Copy payloads need a clone before leaving a borrowed arm.
+// Each clone is dropped before the same union is read again.
+// A counted union in a container is inspected through a borrow twice.
+@copy type Pair = { a: int, b: int };
+
+tag Hold(Pair);
+tag Nothing_();
+type Held = Hold(Pair) | Nothing_;
+
+fn clone_payload(h: &Held) -> Pair {
+    return compare *h {
+        Hold(p) => clone(p);
+        _ => Pair { a = 0, b = 0 };
+    };
+}
+
+fn sum_clone(h: &Held) -> int {
+    let p = clone_payload(h);
+    return p.a + p.b;
+}
+
+fn sum_borrowed(opts: &Option<int>[]) -> int {
+    let mut total: int = 0;
+    for r in opts {
+        compare &r {
+            Some(v) => { total = total + v; }
+            nothing => { total = total; }
+        }
+    }
+    return total;
+}
+
+@entrypoint
+fn main() -> int {
+    let h: Held = Hold(Pair {
+        a = 1208925819614629174706176,
+        b = 3
+    });
+    print(sum_clone(&h) to string);
+    print(sum_clone(&h) to string);
+
+    let mut opts: Option<int>[] = [];
+    opts.push(Some(1208925819614629174706176));
+    opts.push(nothing);
+    opts.push(Some(7));
+    print(sum_borrowed(&opts) to string);
+    print(sum_borrowed(&opts) to string);
+    return 0;
+}

@@ -82,7 +82,7 @@ intrinsics.sg (span: 1:1-900:1)
 │  ├─ Visibility: public
 │  ├─ Attributes: @nosend, @intrinsic
 │  └─ Struct:
-│     └─ Field[0]: __opaque: int
+│     └─ Field[0]: __opaque: int64
 ├─ Item[15]: Type (span: 43:1-43:31)
 │  ├─ Name: FsOpenFlags
 │  ├─ Kind: Alias
@@ -192,14 +192,14 @@ intrinsics.sg (span: 1:1-900:1)
 │  ├─ Visibility: public
 │  ├─ Attributes: @intrinsic, @nosend, @shard_pinned
 │  └─ Struct:
-│     └─ Field[0]: __opaque: int
+│     └─ Field[0]: __opaque: int64
 ├─ Item[37]: Type (span: 81:1-84:3)
 │  ├─ Name: TcpConn
 │  ├─ Kind: Struct
 │  ├─ Visibility: public
 │  ├─ Attributes: @intrinsic, @nosend, @shard_pinned
 │  └─ Struct:
-│     └─ Field[0]: __opaque: int
+│     └─ Field[0]: __opaque: int64
 ├─ Item[38]: Type (span: 86:1-86:53)
 │  ├─ Name: NetError
 │  ├─ Kind: Struct
@@ -514,7 +514,7 @@ intrinsics.sg (span: 1:1-900:1)
 │  ├─ Generics: <T>
 │  ├─ Attributes: @intrinsic
 │  └─ Struct:
-│     └─ Field[0]: __opaque: int
+│     └─ Field[0]: __opaque: int64
 ├─ Item[94]: Tag (span: 195:1-195:21)
 │  ├─ Name: Cancelled
 │  └─ Visibility: public
@@ -532,7 +532,7 @@ intrinsics.sg (span: 1:1-900:1)
 │  ├─ Visibility: public
 │  ├─ Attributes: @intrinsic, @copy
 │  └─ Struct:
-│     └─ Field[0]: __opaque: int
+│     └─ Field[0]: __opaque: int64
 ├─ Item[97]: Type (span: 208:1-208:27)
 │  ├─ Name: ShardId
 │  ├─ Kind: Alias

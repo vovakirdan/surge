@@ -5,7 +5,7 @@ funcs=2
 fn __surge_start:
   locals:
     L0: int name=entry_ret
-    L1: int [copy] name=code
+    L1: int [copy,owns_heap] name=code
   bb0:
     L0 = call main()
     L1 = copy L0
