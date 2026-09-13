@@ -245,7 +245,9 @@ func TestRuntimeV2ValgrindWedgeProbeSeparatesParkedFromSpinning(t *testing.T) {
 	spinning := startProbeSubject(t, "while :; do :; done")
 
 	parkedReport := valgrindWedgeReport(parked, 42*time.Second, nil)
+	assertFlatProbeSubject(t, "parked", parked)
 	spinningReport := valgrindWedgeReport(spinning, 42*time.Second, nil)
+	assertFlatProbeSubject(t, "spinning", spinning)
 
 	for name, report := range map[string]string{"parked": parkedReport, "spinning": spinningReport} {
 		for _, want := range []string{"cpu ticks:", "tid=", "state=", "vgdb v.info scheduler"} {
@@ -349,6 +351,23 @@ func TestRuntimeV2ValgrindWedgeProbeTmpdirFallsBackToTmp(t *testing.T) {
 		if got := vgdbTmpdir(row.env); got != row.want {
 			t.Errorf("%s: vgdbTmpdir = %q, want %q", name, got, row.want)
 		}
+	}
+}
+
+// assertFlatProbeSubject checks the deliberately childless subjects while alive.
+func assertFlatProbeSubject(t *testing.T, name string, pid int) {
+	t.Helper()
+	path := fmt.Sprintf("/proc/%d/task/%d/children", pid, pid)
+	children, err := os.ReadFile(path) // #nosec G304 -- a /proc path for a process this test started
+	if err != nil {
+		t.Fatalf("read child PIDs for probe subject %s pid %d: %v", name, pid, err)
+	}
+	state := firstToken(procField(fmt.Sprintf("/proc/%d/status", pid), "State:"))
+	if state != "R" && state != "S" {
+		t.Fatalf("probe subject %s pid %d must be alive in state R or S; got %q", name, pid, state)
+	}
+	if len(strings.Fields(string(children))) != 0 {
+		t.Errorf("probe subject %s pid %d must be flat; child PIDs: %s", name, pid, strings.TrimSpace(string(children)))
 	}
 }
 
