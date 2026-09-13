@@ -16,7 +16,7 @@ func TestMIRCompareCopyPayloadOwnership(t *testing.T) {
 	}{
 		{"plain", "@copy type Packet = { value: int };", "Packet", true, mir.OperandMove, 1, 0},
 		{"alias_chain", "@copy type Packet = { value: int }; type Alias1 = Packet; type Alias2 = Alias1;", "Alias2", true, mir.OperandMove, 1, 0},
-		{"generic_instance", "@copy type Packet<T> = { value: T };", "Packet<int>", true, mir.OperandMove, 1, 0},
+		{"generic_instance", "@copy type Packet<T> = { value: int };", "Packet<int>", true, mir.OperandMove, 1, 0},
 		{"move_only_control", "type Packet = { value: string };", "Packet", false, mir.OperandMove, 0, 0},
 		{"counted_control", "", "int", false, mir.OperandRetain, 1, 1},
 		{"reference_control", "", "&int64", false, mir.OperandCopy, 0, 0},

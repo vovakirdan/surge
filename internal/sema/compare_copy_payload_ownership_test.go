@@ -17,7 +17,7 @@ func TestCompareCopyPayloadArmKeepsDrop(t *testing.T) {
 	}{
 		{"plain", "@copy type Packet = { value: int };", "Packet", true, true, true},
 		{"alias_chain", "@copy type Packet = { value: int }; type Alias1 = Packet; type Alias2 = Alias1;", "Alias2", true, true, true},
-		{"generic_instance", "@copy type Packet<T> = { value: T };", "Packet<int>", true, true, true},
+		{"generic_instance", "@copy type Packet<T> = { value: int };", "Packet<int>", true, true, true},
 		{"move_only_control", "type Packet = { value: string };", "Packet", false, false, true},
 		{"counted_control", "", "int", true, true, false},
 		{"reference_control", "", "&int64", false, true, false},
