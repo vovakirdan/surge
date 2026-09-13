@@ -1,22 +1,18 @@
 package vm_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 )
 
-// A task stores its result at its own type. Compare a scalar int64 with a
-// pair of int64 fields: neither payload requires a counted numeric block,
-// so their allocation windows isolate task machinery and result storage.
-// Both producers perform the same arithmetic and both consumers check the
-// returned values before adding them to a fixed-width accumulator.
-//
-// The contract is equality between narrow and wide allocation counts at
-// both one and eight iterations. It does not pin an absolute count or a
-// per-iteration slope. An extra allocation for every wide result must break
-// that equality. Counted int results have separate value checks below.
-const runtimeV2TaskResultCensusSource = `
+// One worker fixes the await order for exact narrow/wide allocation equality.
+// With multiple workers, a JOIN waiter store can first grow inside either
+// window even when both result types stay inline. That run checks values.
+// Both modes execute the same producers, awaits and value guards; only the
+// final allocation assertions differ. No absolute count or tolerance is used.
+const runtimeV2TaskResultCensusSourceTemplate = `
 @copy type Pair = { a: int64, b: int64 };
 
 async fn make_narrow(k: int64) -> int64 {
@@ -89,19 +85,13 @@ async fn run() -> int {
     print(" eight=");
     print(w8 to string);
 
-    // THE PROPERTY: a composite result costs exactly what a scalar one
-    // costs, at both window sizes. Both live in the task's own storage, and
-    // neither takes a block of its own.
-    //
-    // It is stated as an equality between the two probes rather than as a
-    // pinned absolute, because the absolute is task machinery -- which this
-    // step does not claim to have changed -- while the DIFFERENCE is the box,
-    // which it removed. On the representation this replaces the wide probe
-    // allocated one block per iteration that the narrow one did not.
-    if n1 != w1 { return report("one-iteration", n1, w1); }
-    if n8 != w8 { return report("eight-iterations", n8, w8); }
-
-    print("task-result-census-ok");
+    if %t {
+        if n1 != w1 { return report("one-iteration", n1, w1); }
+        if n8 != w8 { return report("eight-iterations", n8, w8); }
+        print("task-result-census-ok");
+    } else {
+        print("task-result-fixed-values-ok");
+    }
     return 0;
 }
 
@@ -185,14 +175,30 @@ func TestRuntimeV2TaskResultCensusBalanced(t *testing.T) {
 			}
 		})
 	}
-	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2TaskResultCensusSource, nil)
-	baseEnv := envWithStdlib(repoRoot(t))
-	duration, result := runBinaryWithTimeout(t, outputPath, baseEnv, 30*time.Second)
-	if result.exitCode != 0 {
-		t.Fatalf("task result census failed (exit=%d, duration=%s)\nstdout:\n%s\nstderr:\n%s",
-			result.exitCode, duration, result.stdout, result.stderr)
-	}
-	if !strings.Contains(result.stdout, "task-result-census-ok") {
-		t.Fatalf("task result census missing completion marker; stdout=%q", result.stdout)
+	for _, tc := range []struct {
+		name        string
+		workers     string
+		checkCensus bool
+		marker      string
+	}{
+		{"allocation_census/workers-1-shards-1", "1", true, "task-result-census-ok"},
+		{"fixed_values/workers-8-shards-8", "8", false, "task-result-fixed-values-ok"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("SURGE_THREADS", tc.workers)
+			t.Setenv("SURGE_SHARDS", tc.workers)
+			source := fmt.Sprintf(runtimeV2TaskResultCensusSourceTemplate, tc.checkCensus)
+			outputPath := buildRuntimeV2CrossingSource(t, source, nil)
+			baseEnv := envWithStdlib(repoRoot(t))
+			duration, result := runBinaryWithTimeout(t, outputPath, baseEnv, 30*time.Second)
+			if result.exitCode != 0 || result.stderr != "" {
+				t.Fatalf("task result failed (exit=%d, duration=%s)\nstdout:\n%s\nstderr:\n%s",
+					result.exitCode, duration, result.stdout, result.stderr)
+			}
+			if strings.Contains(result.stdout, "FAIL") || strings.Count(result.stdout, tc.marker) != 1 {
+				t.Fatalf("task result missing completion marker %q; stdout=%q", tc.marker, result.stdout)
+			}
+			t.Logf("task result output:\n%s", result.stdout)
+		})
 	}
 }

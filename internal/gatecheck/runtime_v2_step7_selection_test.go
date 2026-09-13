@@ -48,6 +48,8 @@ func step7GateRows() []step7GateRow {
 		{"offer_llvm", "runtime-v2-heap-check", "./internal/vm", "", "llvm", []string{"TestRuntimeV2ChannelSendOfferPreservesOriginal", "TestRuntimeV2ChannelSendOfferValgrindBaseline"}},
 		{"offer_native", "runtime-v2-heap-check", "./internal/vm", "runtime_v2_pending", "llvm", nativeOffer},
 		{"numeric_heap", "runtime-v2-heap-check", "./internal/vm", "runtime_v2_pending", "llvm", numericHeap},
+		{"failfast_return", "runtime-v2-heap-check", "./internal/vm", "runtime_v2_pending", "llvm", []string{"TestRuntimeV2FailfastReturnReleasesPreparedValue", "TestRuntimeV2FailfastReturnReleasesPreparedComposite"}},
+		{"task_result_census", "runtime-v2-heap-check", "./internal/vm", "", "llvm", []string{"TestRuntimeV2TaskResultCensusBalanced", "TestRuntimeV2AsyncPlainCompositeReturn"}},
 		{"allocation_negative", "runtime-v2-heap-check", "./internal/vm", "", "llvm", []string{"TestRuntimeV2AsyncAllocationBaselineRejectsRetainedChannel"}},
 		{"native_storage", "runtime-v2-owned-storage-check", "./internal/vm", "runtime_v2_pending", "llvm", nativeStorage},
 		{"panic_vm", "runtime-v2-panic-surface-check", "./internal/vm", "runtime_v2_pending", "vm", []string{"TestVMNumericCastFailureContract", "TestRuntimeV2EntrypointArgvFailurePaths"}},
