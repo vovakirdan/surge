@@ -68,6 +68,8 @@ func (l *funcLowerer) lowerTagPayloadExpr(e *hir.Expr, consume bool) (Operand, e
 		// Retaining unconditionally balances the borrowed case and leaks
 		// the owned one.
 		l.retainExtractedValue(tmp, e.Type)
+	} else {
+		l.markOwningTemp(tmp)
 	}
 	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
 }
