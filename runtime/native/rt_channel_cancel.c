@@ -14,7 +14,8 @@ void rt_channel_cancel_resume(rt_task* task, rt_executor* ex) {
     task->resume_kind = RESUME_NONE;
     rt_channel* ch = NULL;
     if (slot.owner != NULL) {
-        ch = (rt_channel*)((uint8_t*)slot.owner - offsetof(rt_channel, parks));
+        void* channel_storage = (uint8_t*)slot.owner - offsetof(rt_channel, parks);
+        ch = channel_storage;
         rt_channel_pin(ch);
     }
     // Clear the mailbox before unlocking: detached drops may re-enter the

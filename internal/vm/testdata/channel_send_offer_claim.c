@@ -180,12 +180,13 @@ static void offer_claim_move(void* dst, void* src) {
 
 static void offer_claim_drop(void* slot) {
     offer_claim_value* value = *(offer_claim_value**)slot;
-    *(offer_claim_value**)slot = NULL;
-    if (value != NULL) {
-        if (atomic_fetch_sub_explicit(&value->refs, 1, memory_order_acq_rel) == 0)
-            offer_claim_fail(value->owner, "value reference underflow");
-        atomic_fetch_add_explicit(&value->drops, 1, memory_order_relaxed);
+    if (value == NULL) {
+        return;
     }
+    *(offer_claim_value**)slot = NULL;
+    if (atomic_fetch_sub_explicit(&value->refs, 1, memory_order_acq_rel) == 0)
+        offer_claim_fail(value->owner, "value reference underflow");
+    atomic_fetch_add_explicit(&value->drops, 1, memory_order_relaxed);
 }
 
 static rt_carrier_status offer_claim_cross(const void* value, rt_cross_mode mode, rt_cross_plan* plan) {

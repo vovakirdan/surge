@@ -71,8 +71,7 @@ static const rt_value_ops offer_ops = {
     .plan_cross = offer_plan_cross,
 };
 
-static int call_offer(retry_fixture* f, int yield, unsigned take, int ready) {
-    uint64_t original = 1;
+static int call_offer(retry_fixture* f, uint64_t original, int yield, unsigned take, int ready) {
     uint64_t disposable = original;
     offer_refs++;
     offer_address = &disposable;
@@ -93,8 +92,8 @@ static int call_offer(retry_fixture* f, int yield, unsigned take, int ready) {
             stderr, "offer census: take=%u moves=%u drops=%u\n", take, offer_moves, offer_drops);
         stand_fail("offer must transfer or drop exactly one reference");
     }
-    if (done != ready || original != 1 || (offer_clear && disposable != 0)) {
-        stand_fail("offer changed readiness or its separate original owner");
+    if (done != ready || (offer_clear && disposable != 0)) {
+        stand_fail("offer changed readiness or failed to clear its disposable source");
     }
     return done;
 }
@@ -128,7 +127,7 @@ static void release_offer_slot(retry_fixture* f, rt_task* task) {
     rt_channel_unpin(f->handle);
 }
 
-static void offer_pool_full(retry_fixture* f, int yield) {
+static void offer_pool_full(retry_fixture* f, uint64_t original, int yield) {
     seed_offer_ring(f);
     size_t count = (size_t)f->channel->parks.capacity;
     rt_park_token* tokens = calloc(count, sizeof(*tokens));
@@ -142,7 +141,7 @@ static void offer_pool_full(retry_fixture* f, int yield) {
         }
     }
     rt_shard_unlock(f->owner);
-    (void)call_offer(f, yield, 0, 0);
+    (void)call_offer(f, original, yield, 0, 0);
     if (rt_park_pool_token_is_live(&f->channel->parks, &f->task->resume_slot)) {
         stand_fail("full park pool nevertheless took an offer");
     }
@@ -167,23 +166,24 @@ void run_send_offer_mode(const char* mode) {
     if (offer_clear) {
         mode += 6;
     }
+    uint64_t original = 1;
     offer_refs = 1; // The separate original binding's reference.
     retry_fixture f = make_fixture_with_ops(&offer_ops);
     rt_task* receiver = NULL;
     if (strcmp(mode, "ack") == 0) {
         f.task->resume_kind = RESUME_CHAN_SEND_ACK;
-        (void)call_offer(&f, yield, 0, 1);
+        (void)call_offer(&f, original, yield, 0, 1);
         release_held_claim(&f);
     } else if (strcmp(mode, "cancel-before-take") == 0) {
         rt_task_cancel(f.task);
         if (!task_cancelled_load(f.task)) {
             stand_fail("offer cancel request was not published");
         }
-        (void)call_offer(&f, yield, 0, 0);
+        (void)call_offer(&f, original, yield, 0, 0);
         release_held_claim(&f);
     } else if (strcmp(mode, "claim-refusal") == 0) {
         for (unsigned i = 0; i < RT_CHANNEL_RETRY_BUDGET; i++) {
-            (void)call_offer(&f, yield, 0, 0);
+            (void)call_offer(&f, original, yield, 0, 0);
         }
         if (!f.task->park_prepared || f.task->channel_retry.count != RT_CHANNEL_RETRY_BUDGET) {
             stand_fail("offer refusal lost the existing bounded retry protocol");
@@ -191,40 +191,40 @@ void run_send_offer_mode(const char* mode) {
         clear_prepared_waiter(&f);
         release_held_claim(&f);
     } else if (strcmp(mode, "pool-full") == 0) {
-        offer_pool_full(&f, yield);
+        offer_pool_full(&f, original, yield);
     } else if (strcmp(mode, "ring") == 0) {
         release_held_claim(&f);
-        (void)call_offer(&f, yield, 1, 1);
+        (void)call_offer(&f, original, yield, 1, 1);
     } else if (strcmp(mode, "rendezvous") == 0) {
         release_held_claim(&f);
         receiver = offer_receiver(&f);
-        (void)call_offer(&f, yield, 1, !yield);
+        (void)call_offer(&f, original, yield, 1, !yield);
         if (!rt_park_pool_token_is_live(&f.channel->parks, &receiver->resume_slot)) {
             stand_fail("rendezvous did not transfer its staged offer");
         }
         if (yield) {
-            (void)call_offer(&f, yield, 0, 1);
+            (void)call_offer(&f, original, yield, 0, 1);
         }
     } else if (strcmp(mode, "recovery-continue") == 0) {
         release_held_claim(&f);
         receiver = offer_receiver(&f);
         offer_receiver_to_kill = receiver;
-        (void)call_offer(&f, yield, 1, 0);
+        (void)call_offer(&f, original, yield, 1, 0);
         offer_receiver_to_kill = NULL;
         if (!rt_park_pool_token_is_live(&f.channel->parks, &f.task->resume_slot)) {
             stand_fail("dead-receiver recovery did not preserve the first take");
         }
         release_held_claim(&f);
-        (void)call_offer(&f, yield, 0, 1);
+        (void)call_offer(&f, original, yield, 0, 1);
     } else if (strcmp(mode, "staged-repoll") == 0) {
         seed_offer_ring(&f);
-        (void)call_offer(&f, yield, 1, 0);
+        (void)call_offer(&f, original, yield, 1, 0);
         if (!f.task->park_prepared ||
             !rt_park_pool_token_is_live(&f.channel->parks, &f.task->resume_slot)) {
             stand_fail("first offer did not stage and prepare a park");
         }
         clear_prepared_waiter(&f);
-        (void)call_offer(&f, yield, 0, 0);
+        (void)call_offer(&f, original, yield, 0, 0);
         clear_prepared_waiter(&f);
     } else {
         stand_fail("unknown offer mode");
@@ -242,7 +242,6 @@ void run_send_offer_mode(const char* mode) {
     if (offer_refs != 1) {
         stand_fail("offer cleanup did not leave exactly the original reference");
     }
-    uint64_t original = 1;
     offer_drop(&original);
     if (offer_refs != 0) {
         stand_fail("offer reference survived all owners");

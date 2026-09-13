@@ -353,7 +353,7 @@ static bool channel_send_pinned(void* channel, void* src, int yield_after_handof
         // The offer API requires a live typed channel. All normal returns from
         // inner released their locks; the pin keeps its descriptor alive even
         // when this callback releases the last handle or clears the source.
-        rt_channel* ch = channel_from_handle(channel);
+        const rt_channel* ch = channel_from_handle(channel);
         rt_value_drop_in_place_detached(ch->ops, src);
     }
     rt_channel_unpin(channel);

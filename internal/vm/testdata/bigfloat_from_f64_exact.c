@@ -71,9 +71,9 @@ static const ExactRow rows[] = {
     {"maximum_finite", 0x1.fffffffffffffp1023, false, 0, 768, 0xffffffff, 0xfffff800},
     {"positive_zero", 0.0, true, 0, 0, 0, 0},
     {"negative_zero", -0.0, true, 0, 0, 0, 0},
-    {"nan", NAN, true, 0, 0, 0, 0},
-    {"positive_infinity", INFINITY, true, 0, 0, 0, 0},
-    {"negative_infinity", -INFINITY, true, 0, 0, 0, 0},
+    {"nan", (double)NAN, true, 0, 0, 0, 0},
+    {"positive_infinity", (double)INFINITY, true, 0, 0, 0, 0},
+    {"negative_infinity", -(double)INFINITY, true, 0, 0, 0, 0},
 };
 
 static int run_row(const ExactRow* row) {

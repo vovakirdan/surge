@@ -859,10 +859,9 @@ cppcheck:
 # needs no registration here.
 CPPCHECK_PRODUCTION_CONFIGS := $(shell grep -rhoE 'RV2_[A-Z0-9_]+_NEGATIVE_CONTROL' runtime/native | sort -u | sed 's/^/-U/')
 
-# C checks narrowed to a named list of files (C_CHANGED). This exists so the
-# pre-commit hook can hold a C edit to cppcheck and clang-tidy, which Global
-# Rule 6 has always required and which nothing enforced: the rule asked for the
-# checks to be RECORDED, and a report can simply go unwritten.
+# C checks narrowed to C_CHANGED so pre-commit can enforce Global Rule 6.
+# Headers are included alone in an empty C translation unit: their static inline
+# functions are library definitions, not unused functions in a source file.
 #
 # The list is narrowed on purpose. Whole-tree `make ctidy` is red on accumulated
 # findings (RV2-DEBT-228), most of them against a GENERATED ABI header whose
@@ -894,7 +893,8 @@ c-check-changed:
 	echo ">> Checking changed C files:$$files"; \
 	failed=0; \
 	for f in $$files; do \
-		if ! $(CC) $(C_STD) $(C_WARN_FLAGS) $(C_INCLUDES) $(C_STAND_FLAGS) -fsyntax-only -x c "$$f"; then \
+		case "$$f" in *.h) set -- -include "$$f" /dev/null;; *) set -- "$$f";; esac; \
+		if ! $(CC) $(C_STD) $(C_WARN_FLAGS) $(C_INCLUDES) $(C_STAND_FLAGS) -fsyntax-only -x c "$$@"; then \
 			echo "strict-warning compile failed for $$f"; failed=1; \
 		fi; \
 	done; \
