@@ -184,9 +184,6 @@ fn main() -> int { return 0; }
 			if moved, ok := unpacks["m"]; !ok || !moved {
 				t.Fatal("owned Movable capture must move out of its field")
 			}
-			if moved, ok := unpacks["tally"]; !ok || moved {
-				t.Fatal("Copy tally capture must remain a plain field read")
-			}
 			tally, moved := namedLocal(t, poll, "tally"), namedLocal(t, poll, "m")
 			typ := poll.Locals[tally].Type
 			if got := types.Label(compiled.types, typ); got != row.name {
@@ -194,6 +191,10 @@ fn main() -> int { return 0; }
 			}
 			if got := compiled.types.IsRefCountedScalar(typ); got != (row.drops == 1) {
 				t.Fatalf("tally counted=%v, want %v", got, row.drops == 1)
+			}
+			requireSpawnOnTallyConstruction(t, compiled, poll, row.drops == 1)
+			if moved, ok := unpacks["tally"]; !ok || moved != (row.drops == 1) {
+				t.Errorf("tally capture MoveOut=%v present=%v, want %v", moved, ok, row.drops == 1)
 			}
 			result := namedLocal(t, poll, "__result")
 			returns := 0
