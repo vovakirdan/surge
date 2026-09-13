@@ -11,133 +11,134 @@ import (
 	"surge/internal/types"
 )
 
-// These sources pass through the existing strict parser/SEMA/HIR/mono helper.
-// In particular, deferred receivers must arrive as resolved concrete addresses;
-// building a synthetic &mut expression would not prove that producer contract.
-const borrowedParamEffectSource = `
-fn peek(x: &int) -> nothing { return nothing; }
-fn poke(x: &mut int) -> nothing { *x = 2; return nothing; }
-extern<int> {
-    fn Touch(self: &mut int) -> nothing { *self = 2; return nothing; }
-    fn Peek(self: &int) -> nothing { return nothing; }
-}
-contract Touches<T> { fn Touch(self: &mut T) -> nothing; }
-contract Peeks<T> { fn Peek(self: &T) -> nothing; }
-fn explicit_arg(p: int) -> int { poke(&mut p); return p; }
-fn implicit_arg(p: int) -> int { poke(p); return p; }
-fn implicit_self(p: int) -> int { p.Touch(); return p; }
-fn readonly_arg(p: int) -> int { peek(p); return p; }
-fn readonly_self(p: int) -> int { p.Peek(); return p; }
-fn deferred<T: Touches<T>>(p: T) -> nothing { p.Touch(); return nothing; }
-fn readonly_deferred<T: Peeks<T>>(p: T) -> nothing { p.Peek(); return nothing; }
-fn alias_creation(p: int) -> int { let r = &mut p; @drop r; return p; }
-fn direct(p: int) -> int { p = 2; return p; }
-fn compound(p: int) -> int { p += 2; return p; }
-fn conditional(p: int, flag: bool) -> int { if flag { p = 2; } return p; }
-fn loop_write(p: int, flag: bool) -> int { while flag { p = 2; break; } return p; }
-fn explicit_drop(p: int) { @drop p; }
-fn drop_rebind(p: int) -> int { @drop p; p = 2; return p; }
-fn incoming_ref(p: &mut int) { *p = 2; }
-fn main() {
-    let _ = explicit_arg(1); let _ = implicit_arg(1); let _ = implicit_self(1);
-    let _ = readonly_arg(1); let _ = readonly_self(1);
-    deferred::<int>(1); readonly_deferred::<int>(1);
-    let _ = alias_creation(1); let _ = direct(1); let _ = compound(1);
-    let _ = conditional(1, false); let _ = loop_write(1, false);
-    explicit_drop(1); let _ = drop_rebind(1);
-    let mut n: int = 1; incoming_ref(&mut n);
-}
-`
-
+// Each source case independently uses the strict parser/SEMA/HIR/mono helper.
+// Counted by-value parameters cannot be borrowed mutably in the current language;
+// the separate refusal cases pin that boundary without claiming public HIR proof.
 func TestPrepareBorrowedParamConcreteEffects(t *testing.T) {
-	mm, in, err := compileAndMonomorphize(t, borrowedParamEffectSource)
-	if err != nil {
-		t.Fatal(err)
-	}
 	cases := []struct {
-		name             string
-		working, address bool
-		deferred         bool
+		name, source, call, readonlyCallee string
+		working, incomingReference         bool
 	}{
-		{"explicit_arg", true, true, false},
-		{"implicit_arg", true, true, false},
-		{"implicit_self", true, true, false},
-		{"readonly_arg", false, false, false},
-		{"readonly_self", false, false, false},
-		{"deferred", true, true, true},
-		{"readonly_deferred", false, false, true},
-		{"alias_creation", true, true, false},
-		{"direct", true, false, false},
-		{"compound", true, false, false},
-		{"conditional", true, false, false},
-		{"loop_write", true, false, false},
-		{"explicit_drop", true, false, false},
-		{"drop_rebind", true, false, false},
+		{"readonly_arg", `fn peek(x: &int) {}
+fn readonly_arg(p: int) -> int { peek(p); return p; }`, "let _ = readonly_arg(1);", "peek", false, false},
+		{"readonly_self", `extern<int> { fn Peek(self: &int) {} }
+fn readonly_self(p: int) -> int { p.Peek(); return p; }`, "let _ = readonly_self(1);", "Peek", false, false},
+		{"direct", `fn direct(p: int) -> int { p = 2; return p; }`, "let _ = direct(1);", "", true, false},
+		{"compound", `fn compound(p: int) -> int { p += 2; return p; }`, "let _ = compound(1);", "", true, false},
+		{"conditional", `fn conditional(p: int, flag: bool) -> int { if flag { p = 2; } return p; }`, "let _ = conditional(1, false);", "", true, false},
+		{"loop_write", `fn loop_write(p: int, flag: bool) -> int { while flag { p = 2; break; } return p; }`, "let _ = loop_write(1, false);", "", true, false},
+		{"explicit_drop", `fn explicit_drop(p: int) { @drop p; }`, "explicit_drop(1);", "", true, false},
+		{"drop_rebind", `fn drop_rebind(p: int) -> int { @drop p; p = 2; return p; }`, "let _ = drop_rebind(1);", "", true, false},
+		{"incoming_ref", `fn incoming_ref(p: &mut int) { *p = 2; }`, "let mut n: int = 1; incoming_ref(&mut n);", "", false, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			mm, in, err := compileAndMonomorphize(t, tc.source+"\nfn main() { "+tc.call+" }\n")
+			if err != nil {
+				t.Fatal(err)
+			}
 			fn := borrowedConcreteFunc(t, mm, tc.name)
 			p := fn.Params[0]
+			candidates := []symbols.SymbolID{p.SymbolID}
+			if tc.incomingReference {
+				if in.IsRefCounted(p.Type) {
+					t.Fatal("incoming reference unexpectedly classified as counted")
+				}
+				candidates = nil
+			}
 			before := cloneBlock(fn.Body)
-			prepared, working, err := PrepareBorrowedParamBody(fn, in, []symbols.SymbolID{p.SymbolID})
+			prepared, working, err := PrepareBorrowedParamBody(fn, in, candidates)
 			if err != nil || slices.Contains(working, p.SymbolID) != tc.working || len(working) > 1 {
 				t.Fatalf("working=%v, want=%t, error=%v", working, tc.working, err)
 			}
 			if !reflect.DeepEqual(fn.Body, before) {
 				t.Fatal("preparation mutated concrete source HIR")
 			}
-			if tc.working && prepared != fn {
-				t.Fatal("working-only preparation unnecessarily copied the body")
+			if (tc.working || tc.incomingReference) && prepared != fn {
+				t.Fatal("preparation unnecessarily copied the body")
 			}
-			addresses, deferred := 0, 0
-			walk := borrowedBodyWalker{expr: func(e *hir.Expr) error {
-				if d, ok := e.Data.(hir.UnaryOpData); ok && d.Op == ast.ExprUnaryRefMut && borrowedParamSlot(d.Operand) == p.SymbolID {
-					tt, valid := in.Lookup(resolveAlias(in, e.Type))
-					if !valid || tt.Kind != types.KindReference || !tt.Mutable || tt.Elem != p.Type {
-						t.Fatalf("mutable slot address lacks exact concrete type: %+v", e)
-					}
-					addresses++
-				}
-				if d, ok := e.Data.(hir.CallData); ok && d.DeferredUseID != "" {
-					if !d.SymbolID.IsValid() || mm.FuncBySym[d.SymbolID] == nil {
-						t.Fatalf("deferred call has no concrete callable: %+v", d)
-					}
-					deferred++
-				}
-				return nil
-			}}
-			if err := walk.block(fn.Body); err != nil {
-				t.Fatal(err)
-			}
-			if (addresses > 0) != tc.address || (deferred > 0) != tc.deferred {
-				t.Fatalf("producer evidence: mutable addresses=%d, deferred calls=%d", addresses, deferred)
+			if tc.readonlyCallee != "" {
+				requireBorrowedReadonlyCall(t, mm, in, fn, p, tc.readonlyCallee)
 			}
 		})
 	}
-	t.Run("incoming_ref", func(t *testing.T) {
-		fn := borrowedConcreteFunc(t, mm, "incoming_ref")
-		prepared, working, err := PrepareBorrowedParamBody(fn, in, nil)
-		if err != nil || prepared != fn || len(working) != 0 || in.IsRefCounted(fn.Params[0].Type) {
-			t.Fatalf("incoming reference changed: working=%v error=%v", working, err)
+}
+
+func TestPrepareBorrowedParamRejectsImmutableSource(t *testing.T) {
+	for _, tc := range []struct{ name, body string }{
+		{"explicit_arg", "poke(&mut p);"},
+		{"implicit_arg", "poke(p);"},
+		{"implicit_self", "p.Touch();"},
+		{"alias_creation", "let r = &mut p; @drop r;"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			src := `fn poke(x: &mut int) { *x = 2; }
+extern<int> { fn Touch(self: &mut int) { *self = 2; } }
+fn ` + tc.name + "(p: int) { " + tc.body + " }\nfn main() { " + tc.name + "(1); }\n"
+			mm, in, err := compileAndMonomorphize(t, src)
+			const want = "sema errors: SEM3022: cannot take mutable borrow of 'p'"
+			if err == nil || err.Error() != want || mm != nil || in != nil {
+				t.Fatalf("want exactly one immutable-parameter refusal before HIR, got module=%v types=%v error=%v", mm, in, err)
+			}
+		})
+	}
+}
+
+// The address must be the actual argument of the selected callable, whose own
+// concrete parameter type is &int. An unrelated &p somewhere in the body cannot
+// prove the call contract, nor can the absence of a mutable-address expression.
+func requireBorrowedReadonlyCall(t *testing.T, mm *MonoModule, in *types.Interner, fn *hir.Func, p hir.Param, name string) {
+	t.Helper()
+	wantOriginal := borrowedOriginalFunc(t, mm, name).SymbolID
+	calls := 0
+	walk := borrowedBodyWalker{expr: func(e *hir.Expr) error {
+		d, ok := e.Data.(hir.CallData)
+		if !ok {
+			return nil
 		}
-	})
+		selected := mm.FuncBySym[d.SymbolID]
+		if selected == nil || selected.OrigSym != wantOriginal {
+			return nil
+		}
+		if selected.Func == nil || selected.Func.SymbolID != d.SymbolID || len(selected.Func.Params) != 1 || len(d.Args) != 1 {
+			t.Fatalf("selected readonly callable has no exact unary ABI: %+v", d)
+		}
+		expected := selected.Func.Params[0].Type
+		descriptor, valid := in.Lookup(resolveAlias(in, expected))
+		if !valid || descriptor.Kind != types.KindReference || descriptor.Mutable || descriptor.Elem != p.Type || p.Type != in.Builtins().Int {
+			t.Fatalf("selected callable parameter is not &int: type=%d descriptor=%+v", expected, descriptor)
+		}
+		arg := d.Args[0]
+		if arg == nil || arg.Kind != hir.ExprUnaryOp || arg.Type != expected {
+			t.Fatalf("selected call argument is not the exact typed reference: %+v", arg)
+		}
+		address, valid := arg.Data.(hir.UnaryOpData)
+		if !valid || address.Op != ast.ExprUnaryRef || address.Operand == nil || address.Operand.Type != p.Type || borrowedParamSlot(address.Operand) != p.SymbolID {
+			t.Fatalf("selected call did not borrow the exact parameter slot %d: %+v", p.SymbolID, arg)
+		}
+		calls++
+		return nil
+	}}
+	if err := walk.block(fn.Body); err != nil || calls != 1 {
+		t.Fatalf("readonly callable proof: matching calls=%d error=%v", calls, err)
+	}
 }
 
 func TestPrepareBorrowedParamConcreteCleanup(t *testing.T) {
-	mm, in, err := compileAndMonomorphize(t, `
-fn quiet<T>(p: T) {}
-fn read<T>(p: T) -> T { return p; }
-fn explicit<T>(p: T) { @drop p; }
-fn main() { quiet(1); let _ = read(1); explicit(1); }
-`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range []string{"quiet", "read", "explicit"} {
-		t.Run(name, func(t *testing.T) {
-			fn := borrowedConcreteFunc(t, mm, name)
+	for _, tc := range []struct{ name, source, call string }{
+		{"quiet", "fn quiet<T>(p: T) {}", "quiet(1);"},
+		{"read", "fn read<T>(p: T) -> int { let r: &T = &p; @drop r; return 0; }", "let _ = read(1);"},
+		{"explicit", "fn explicit<T>(p: T) { @drop p; }", "explicit(1);"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mm, in, err := compileAndMonomorphize(t, tc.source+"\nfn main() { "+tc.call+" }\n")
+			if err != nil {
+				t.Fatal(err)
+			}
+			fn := borrowedConcreteFunc(t, mm, tc.name)
 			p := fn.Params[0]
-			original := borrowedOriginalFunc(t, mm, name).Params[0]
+			originalFn := borrowedOriginalFunc(t, mm, tc.name)
+			original := originalFn.Params[0]
 			if original.SymbolID != p.SymbolID || !types.ContainsGenericParam(in, original.Type) {
 				t.Fatalf("generic parameter identity/type provenance was lost: original=%+v concrete=%+v", original, p)
 			}
@@ -146,7 +147,11 @@ fn main() { quiet(1); let _ = read(1); explicit(1); }
 			}
 			before := cloneBlock(fn.Body)
 			synthetic, explicit, exits := borrowedCleanupCounts(t, fn.Body, p.SymbolID)
-			if name == "quiet" && synthetic == 0 || name == "read" && exits == 0 || name == "explicit" && explicit != 1 {
+			originalSynthetic, originalExplicit, originalExits := borrowedCleanupCounts(t, originalFn.Body, original.SymbolID)
+			if synthetic != originalSynthetic || explicit != originalExplicit || exits != originalExits {
+				t.Fatal("monomorphization changed same-symbol cleanup provenance")
+			}
+			if tc.name == "quiet" && synthetic != 1 || tc.name == "read" && exits != 1 || tc.name == "explicit" && explicit != 1 {
 				t.Fatalf("missing producer witness: synthetic=%d explicit=%d exits=%d", synthetic, explicit, exits)
 			}
 			prepared, owners, err := PrepareBorrowedParamBody(fn, in, []symbols.SymbolID{p.SymbolID})
@@ -157,7 +162,7 @@ fn main() { quiet(1); let _ = read(1); explicit(1); }
 				t.Fatal("private preparation mutated original obligations")
 			}
 			gotSynthetic, gotExplicit, gotExits := borrowedCleanupCounts(t, prepared.Body, p.SymbolID)
-			if name == "explicit" {
+			if tc.name == "explicit" {
 				if prepared != fn || !slices.Equal(owners, []symbols.SymbolID{p.SymbolID}) || gotExplicit != 1 {
 					t.Fatal("explicit drop was filtered or failed to require an owner")
 				}
@@ -173,18 +178,14 @@ fn main() { quiet(1); let _ = read(1); explicit(1); }
 }
 
 func TestPrepareBorrowedParamConcreteActivationBoundaries(t *testing.T) {
-	mm, in, err := compileAndMonomorphize(t, `
-type Task<T> = { __opaque: int };
-fn host_async(p: int) -> Task<int> { return async { p = 2; ret p; }; }
-fn host_blocking(p: int) -> Task<int> { return blocking { p = 2; ret p; }; }
-fn main() { let _ = host_async(1); let _ = host_blocking(1); }
-`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range []string{"host_async", "host_blocking"} {
-		t.Run(name, func(t *testing.T) {
-			fn := borrowedConcreteFunc(t, mm, name)
+	for _, tc := range []struct{ name, activation string }{{"host_async", "async"}, {"host_blocking", "blocking"}} {
+		t.Run(tc.name, func(t *testing.T) {
+			src := "type Task<T> = { __opaque: int };\nfn " + tc.name + "(p: int) -> Task<int> { return " + tc.activation + " { p = 2; ret p; }; }\nfn main() { let _ = " + tc.name + "(1); }\n"
+			mm, in, err := compileAndMonomorphize(t, src)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fn := borrowedConcreteFunc(t, mm, tc.name)
 			p := fn.Params[0].SymbolID
 			children := 0
 			walk := borrowedBodyWalker{expr: func(e *hir.Expr) error {
