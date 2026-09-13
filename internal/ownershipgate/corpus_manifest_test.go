@@ -116,8 +116,14 @@ type corpusRootSpec struct {
 // holder whose OTHER element is a window. The gate keeps its own map now, and
 // these two rows are what fails if the maps are ever merged again. Nothing
 // removed.
+// Raised 1071 -> 1074 on 2026-09-13. a4b6a1b7 added the counted twins
+// sema/invalid/ownership/arm_hands_out_counted_copy_payload (SEM3197),
+// sema/invalid/ownership/for_in_takes_counted_union (SEM3205), and
+// vm_compare/counted_payload_clone_and_borrow, the clone/borrow positive.
+// The existing heap-free controls switched to int64 in that same commit;
+// their paths did not change. No .sg was removed; discovery is unchanged.
 var corpusRoots = []corpusRootSpec{
-	{Path: "testdata/golden", PinnedCount: 1071},
+	{Path: "testdata/golden", PinnedCount: 1074},
 	{Path: "showcases", PinnedCount: 38},
 	{Path: "core", PinnedCount: 10},
 	{Path: "stdlib", PinnedCount: 32},
