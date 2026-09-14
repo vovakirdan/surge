@@ -23,13 +23,14 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 	}
 	var callee *returnOriginFunction
 	var info *types.FnInfo
+	var signature *returnOriginSignature
 	var unresolved string
 	if sym != nil && sym.Kind == symbols.SymbolFunction {
 		callee, unresolved = b.resolveCallDeclaration(symID)
 		if callee != nil {
 			info = callee.info
 			if len(callee.candidate.TemplateParams) != 0 {
-				info, unresolved = b.genericCallInfo(id, callee)
+				signature, unresolved = b.genericCallInfo(id, callee)
 			}
 		}
 	}
@@ -103,6 +104,10 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		}
 		return returnOriginExprResult{flow: flow, value: value}, nil
 	}
+	params, result, effects := info.Params, info.Result, info.Params
+	if signature != nil {
+		params, result, effects = signature.params, signature.result, signature.effects
+	}
 	var slots []returnOriginArgument
 	if callback {
 		// Function-value calls retain only fixed positional ABI slots. Do not
@@ -120,7 +125,7 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 			return returnOriginExprResult{}, err
 		}
 	}
-	if len(slots) != len(info.Params) {
+	if len(slots) != len(params) {
 		return returnOriginExprResult{}, fmt.Errorf("return origins: call at %v has inconsistent formal arity", span)
 	}
 	actuals := make([]returnOriginValue, len(slots))
@@ -140,26 +145,26 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 			}
 		}
 		for _, expr := range slot.exprs {
-			value := b.callArgumentOrigin(expr, info.Params[i], values[expr])
-			if returnOriginFnInfo(u.Sema.TypeInterner, info.Params[i]) != nil || len(values[expr].value.callables) != 0 {
-				value = b.convertCallableArgument(callee, i, slot, expr, info.Params[i], value)
+			value := b.callArgumentOrigin(expr, params[i], values[expr])
+			if returnOriginFnInfo(u.Sema.TypeInterner, params[i]) != nil || len(values[expr].value.callables) != 0 {
+				value = b.convertCallableArgument(callee, i, slot, expr, params[i], value)
 			}
 			actuals[i] = actuals[i].join(value)
 		}
-		if kind, reference := returnOriginFormalBorrowKind(u.Sema.TypeInterner, info.Params[i]); reference && kind == BorrowMut {
-			if returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, []types.TypeID{info.Params[i]}) {
+		if kind, reference := returnOriginFormalBorrowKind(u.Sema.TypeInterner, params[i]); reference && kind == BorrowMut {
+			if returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, []types.TypeID{effects[i]}) {
 				b.pending(span, "mutable argument may replace reference-bearing contents")
 			}
 		}
 	}
-	if returnOriginFnInfo(u.Sema.TypeInterner, info.Result) != nil {
+	if returnOriginFnInfo(u.Sema.TypeInterner, result) != nil {
 		b.pending(span, "callable call result needs its destination and capture contract")
 		return returnOriginExprResult{flow: flow, value: returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})}, nil
 	}
 	var summary returnOriginValue
 	if callbackValue.normal {
 		summary = b.callableValueSources(callbackValue, span)
-		if returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, info.Params) {
+		if returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, effects) {
 			b.pending(span, "indirect call may change reference-bearing or callable contents")
 		}
 	} else if callee != nil && callee.item.Body.IsValid() {
@@ -173,10 +178,10 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 			declared, complete := b.declaredCallable(u.Sema.ExprTypes[call.Target], callbackType, span)
 			sources, valid = declared.slots, complete
 		} else {
-			sources, valid = b.declaredFunctionSources(callee, span)
+			sources, valid = b.declaredFunctionSources(callee, span, signature)
 		}
-		summary = b.opaqueReturnSources(info, sources, valid, span)
-		if returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, info.Params) {
+		summary = b.opaqueReturnSources(info, sources, valid, span, signature)
+		if returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, effects) {
 			b.pending(span, "opaque call may change reference-bearing or callable contents")
 		}
 	}
@@ -317,33 +322,10 @@ func returnOriginFormalBorrowKind(in *types.Interner, id types.TypeID) (BorrowKi
 	return BorrowShared, false
 }
 
-func (b *returnOriginBody) genericCallInfo(id ast.ExprID, callee *returnOriginFunction) (*types.FnInfo, string) {
-	u := b.function.unit
-	span := u.Builder.Exprs.Get(id).Span
-	closure := u.authority.InstantiationClosure
-	if closure == nil {
-		return nil, "generic call lacks its finalized concrete use"
-	}
-	var found *ConcreteInstantiationUse
-	for i := range closure.UseSites {
-		use := &closure.UseSites[i]
-		if use.CalleeTemplate != callee.candidate.Symbol || use.SourceKey != u.SourceKey || use.Site != span {
-			continue
-		}
-		if found != nil {
-			return nil, "generic call has ambiguous finalized concrete uses"
-		}
-		found = use
-	}
-	if found == nil {
-		return nil, "generic call lacks its finalized concrete use"
-	}
-	fn, info, reason := b.analyzer.genericUseInfo(*found)
+func (b *returnOriginBody) genericCallInfo(id ast.ExprID, callee *returnOriginFunction) (*returnOriginSignature, string) {
+	args, reason := b.function.originalInstantiation(id, InstantiationFunction, callee.candidate.Symbol)
 	if reason != "" {
 		return nil, reason
 	}
-	if fn != callee || found.CallerTemplate != b.function.candidate.Symbol {
-		return nil, "generic call disagrees with its selected source declaration"
-	}
-	return info, ""
+	return callee.originalSignature(b.function, id, args)
 }
