@@ -86,9 +86,9 @@ func labelDepth(typesIn *Interner, id TypeID, depth int) string {
 		}
 		params := make([]string, len(info.Params))
 		for i, param := range info.Params {
-			params[i] = labelDepth(typesIn, param, depth+1)
+			params[i] = info.returnSources.parameterLabel(i, labelDepth(typesIn, param, depth+1))
 		}
-		ret := labelDepth(typesIn, info.Result, depth+1)
+		ret := info.returnSources.resultLabel(labelDepth(typesIn, info.Result, depth+1))
 		return "fn(" + strings.Join(params, ", ") + ") -> " + ret
 	case KindGenericParam:
 		if info, ok := typesIn.TypeParamInfo(id); ok && info != nil {

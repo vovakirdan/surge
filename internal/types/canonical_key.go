@@ -131,6 +131,7 @@ func appendCanonicalTypeKey(out *strings.Builder, c CanonicalKeyContext, id Type
 			return fmt.Errorf("canonical type key: function type#%d has no metadata", id)
 		}
 		out.WriteString("fn")
+		info.returnSources.appendCanonicalKey(out)
 		if err := appendCanonicalTypeList(out, c, info.Params, depth); err != nil {
 			return err
 		}

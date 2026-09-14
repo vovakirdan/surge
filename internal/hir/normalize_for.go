@@ -448,7 +448,7 @@ func substTypeParamIndex(typesIn *types.Interner, id types.TypeID, args []types.
 		if !changed {
 			return id
 		}
-		return typesIn.RegisterFn(params, result)
+		return typesIn.RebuildFn(id, params, result)
 	default:
 		return id
 	}
