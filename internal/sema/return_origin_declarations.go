@@ -79,6 +79,12 @@ func (b *returnOriginBody) declaredSources(u *returnOriginUnitIndex, owner symbo
 		b.pending(span, "callable type lost its original declaration promise")
 		return nil, false
 	}
+	// Only the exact original body can prove a universal symbolic transfer.
+	// Concrete views and opaque callback types cannot inherit that permission.
+	symbolic := u.functions[owner]
+	if typeExpr.IsValid() || symbolic == nil || !symbolic.item.Body.IsValid() || symbolic.info != info {
+		symbolic = nil
+	}
 	if !info.ReturnSources().IsAllInputs() {
 		var original *ReturnSourceDeclarationRequest
 		for i := range u.Sema.ReturnSourceDeclarations {
@@ -104,7 +110,9 @@ func (b *returnOriginBody) declaredSources(u *returnOriginUnitIndex, owner symbo
 			return nil, false
 		}
 		validation := ValidateInstantiatedReturnSources(u.Sema.TypeInterner, *original, info.Params, info.Result)
-		if validation.Status != ReturnSourcesValid {
+		conditional := validation.Status == ReturnSourcesDeferred && symbolic != nil && symbolic.directTemplateParam(info.Result) &&
+			slices.Equal(original.Params(), info.Params) && original.Result() == info.Result
+		if validation.Status != ReturnSourcesValid && !conditional {
 			if validation.Status == ReturnSourcesInvalid {
 				b.returnSourceDiagnostic(validation.Span, validation.Reason, syntax.Markers())
 			} else {
@@ -130,6 +138,10 @@ func (b *returnOriginBody) declaredSources(u *returnOriginUnitIndex, owner symbo
 		case ReturnSourcesValid:
 			slots = append(slots, slot)
 		case ReturnSourcesDeferred:
+			if symbolic != nil && symbolic.directTemplateParam(param) {
+				slots = append(slots, slot)
+				continue
+			}
 			b.pending(span, "return-source input requires a concrete reference-bearing type")
 			return nil, false
 		}
@@ -201,4 +213,34 @@ func (b *returnOriginBody) returnSourceDiagnostic(span source.Span, message stri
 		d.Notes = append(d.Notes, diag.Note{Span: marker.Span, Msg: "this marker limits the possible input sources of returned references"})
 	}
 	b.analyzer.report.Diagnostics = append(b.analyzer.report.Diagnostics, d)
+}
+
+func (a *returnOriginAnalyzer) checkGenericPromise(fn *returnOriginFunction, info *types.FnInfo, use ConcreteInstantiationUse) string {
+	body := &returnOriginBody{analyzer: a, function: fn}
+	syntax := symbols.FunctionReturnSourceSyntax(fn.unit.Builder, fn.item)
+	allowed, valid := body.declaredSources(fn.unit, fn.symbol, ast.NoTypeID, syntax, info, fn.item.NameSpan)
+	if !valid {
+		return "generic use has an unresolved original return-source promise"
+	}
+	if !fn.item.Body.IsValid() {
+		body.opaqueReturnSources(info, allowed, true, fn.item.NameSpan)
+		return "generic opaque use requires its type-dependent effect transfer"
+	}
+	value := a.summaries[fn.key].clone()
+	for _, root := range value.roots {
+		if root.kind != returnOriginParam || root.expired || int64(root.param) >= int64(len(info.Params)) {
+			return "generic result contains an unproved source"
+		}
+	}
+	shape := returnOriginTypeShape(fn.unit.Sema.TypeInterner, info.Result, nil)
+	if shape == returnOriginShapeUnknown {
+		return "generic result requires concrete borrowed-content facts"
+	}
+	if shape != returnOriginRefFree && !info.ReturnSources().IsAllInputs() {
+		value.roots = slices.DeleteFunc(value.roots, func(root returnOrigin) bool {
+			return returnOriginTypeShape(fn.unit.Sema.TypeInterner, info.Params[root.param], nil) == returnOriginRefFree
+		})
+		body.checkDeclaredReturn(value, allowed, use.Site)
+	}
+	return ""
 }

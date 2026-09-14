@@ -114,6 +114,7 @@ func TestReturnOriginCallBorrowEvidence(t *testing.T) {
 				result.Borrows[matching].Life.FromExpr = call.Target
 			}
 			a := &returnOriginAnalyzer{ctx: t.Context(), functions: []*returnOriginFunction{callee},
+				units:  []*returnOriginUnitIndex{index},
 				bodies: map[string]*returnOriginFunction{callee.key: callee}, summaries: make(map[string]returnOriginValue), report: &ReturnOriginAnalysis{}}
 			if err := a.solveBodies(); err != nil {
 				t.Fatal(err)
