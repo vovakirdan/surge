@@ -393,6 +393,9 @@ func canonicalSignatureIdentity(sig *symbols.FunctionSignature) string {
 		parts = append(parts, string(param), strconv.FormatBool(variadic))
 	}
 	parts = append(parts, string(sig.Result), strconv.FormatBool(sig.HasSelf))
+	if key := sig.ReturnSourceSyntax.Sources().CanonicalKey(); key != "" {
+		parts = append(parts, key)
+	}
 	return encodeInstantiationIdentity(parts)
 }
 

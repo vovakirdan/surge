@@ -191,6 +191,7 @@ func callableCandidateRecordsEquivalent(a, b *CallableCandidate) bool {
 		a.Public == b.Public && a.FilePrivate == b.FilePrivate && a.Builtin == b.Builtin &&
 		a.Async == b.Async && a.Intrinsic == b.Intrinsic && a.ModulePath == b.ModulePath &&
 		a.Source == b.Source && a.SourceKey == b.SourceKey &&
+		a.ReturnSources.Equal(b.ReturnSources) &&
 		slices.Equal(a.Params, b.Params) && slices.Equal(a.ParamTypes, b.ParamTypes) &&
 		slices.Equal(a.TemplateParams, b.TemplateParams) && slices.Equal(a.TypeParams, b.TypeParams) &&
 		slices.Equal(a.Defaults, b.Defaults) && slices.Equal(a.Variadic, b.Variadic) &&

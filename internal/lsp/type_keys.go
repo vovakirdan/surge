@@ -211,17 +211,19 @@ func typeKeyForType(interner *types.Interner, id types.TypeID) symbols.TypeKey {
 		return symbols.TypeKey("()")
 	case types.KindFn:
 		if info, ok := interner.FnInfo(id); ok && info != nil {
-			params := make([]string, 0, len(info.Params))
+			params := make([]symbols.TypeKey, 0, len(info.Params))
 			for _, param := range info.Params {
 				if key := typeKeyForType(interner, param); key != "" {
-					params = append(params, string(key))
+					params = append(params, key)
+				} else {
+					return ""
 				}
 			}
 			resultKey := typeKeyForType(interner, info.Result)
 			if resultKey == "" {
 				resultKey = symbols.TypeKey("nothing")
 			}
-			return symbols.TypeKey("fn(" + strings.Join(params, ",") + ")->" + string(resultKey))
+			return symbols.FunctionTypeKey(params, resultKey, info.ReturnSources())
 		}
 		return symbols.TypeKey("fn()")
 	}

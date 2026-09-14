@@ -276,17 +276,19 @@ func (tc *typeChecker) typeKeyForType(id types.TypeID) symbols.TypeKey {
 		if !ok || info == nil {
 			return symbols.TypeKey("fn()")
 		}
-		params := make([]string, 0, len(info.Params))
+		params := make([]symbols.TypeKey, 0, len(info.Params))
 		for _, param := range info.Params {
 			if key := tc.typeKeyForType(param); key != "" {
-				params = append(params, string(key))
+				params = append(params, key)
+			} else {
+				return ""
 			}
 		}
 		resultKey := tc.typeKeyForType(info.Result)
 		if resultKey == "" {
 			resultKey = symbols.TypeKey("nothing")
 		}
-		return symbols.TypeKey("fn(" + strings.Join(params, ",") + ")->" + string(resultKey))
+		return symbols.FunctionTypeKey(params, resultKey, info.ReturnSources())
 	default:
 		return ""
 	}
@@ -346,32 +348,10 @@ func (tc *typeChecker) typeFromKey(key symbols.TypeKey) types.TypeID {
 		}
 		return tc.types.RegisterTuple(elems)
 	}
-	if strings.HasPrefix(s, "fn(") {
-		parts := strings.SplitN(strings.TrimPrefix(s, "fn("), ")->", 2)
-		if len(parts) != 2 {
-			return types.NoTypeID
-		}
-		paramsPart := strings.TrimSuffix(parts[0], ")")
-		resultPart := strings.TrimSpace(parts[1])
-
-		var paramTypes []types.TypeID
-		if trimmed := strings.TrimSpace(paramsPart); trimmed != "" {
-			paramKeys := splitTopLevel(trimmed)
-			paramTypes = make([]types.TypeID, 0, len(paramKeys))
-			for _, pk := range paramKeys {
-				paramType := tc.typeFromKey(symbols.TypeKey(pk))
-				if paramType == types.NoTypeID {
-					return types.NoTypeID
-				}
-				paramTypes = append(paramTypes, paramType)
-			}
-		}
-
-		resultType := tc.typeFromKey(symbols.TypeKey(resultPart))
-		if resultType == types.NoTypeID {
-			return types.NoTypeID
-		}
-		return tc.types.RegisterFn(paramTypes, resultType)
+	if symbols.IsFunctionTypeKey(symbols.TypeKey(s)) {
+		return tc.resolveFunctionTypeKey(symbols.TypeKey(s), types.NoTypeID, func(key symbols.TypeKey, _ types.TypeID) types.TypeID {
+			return tc.typeFromKey(key)
+		})
 	}
 	if strings.Contains(s, "::") {
 		if ty := tc.resolveQualifiedTypeKey(s); ty != types.NoTypeID {
@@ -579,38 +559,6 @@ func (tc *typeChecker) resolveQualifiedTypeKey(key string) types.TypeID {
 	return types.NoTypeID
 }
 
-func splitTopLevel(s string) []string {
-	if s == "" {
-		return nil
-	}
-	var parts []string
-	depth := 0
-	start := 0
-	for i, r := range s {
-		switch r {
-		case '<', '[', '(':
-			depth++
-		case '>', ']', ')':
-			if depth > 0 {
-				depth--
-			}
-		case ',':
-			if depth == 0 {
-				parts = append(parts, strings.TrimSpace(s[start:i]))
-				start = i + 1
-			}
-		}
-	}
-	parts = append(parts, strings.TrimSpace(s[start:]))
-	filtered := make([]string, 0, len(parts))
-	for _, p := range parts {
-		if p != "" {
-			filtered = append(filtered, p)
-		}
-	}
-	return filtered
-}
-
 func splitTypePathSegments(s string) []string {
 	if s == "" {
 		return nil
@@ -620,9 +568,12 @@ func splitTypePathSegments(s string) []string {
 	start := 0
 	for i := 0; i < len(s); i++ {
 		switch s[i] {
-		case '<', '[', '(':
+		case '<', '[', '(', '{':
 			depth++
-		case '>', ']', ')':
+		case '>', ']', ')', '}':
+			if s[i] == '>' && i > 0 && s[i-1] == '-' {
+				continue
+			}
 			if depth > 0 {
 				depth--
 			}
