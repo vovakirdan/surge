@@ -63,6 +63,7 @@ func (tc *typeChecker) instantiateAlias(typeItem *ast.TypeItem, symID symbols.Sy
 	if len(paramSpecs) == 0 && len(typeItem.Generics) > 0 {
 		paramSpecs = specsFromNames(typeItem.Generics)
 	}
+	tc.ensureReturnSourceAliasTemplate(aliasDecl.Target, scope, symID, paramSpecs)
 	pushed := tc.pushTypeParams(symID, paramSpecs, args)
 	defer func() {
 		if pushed {

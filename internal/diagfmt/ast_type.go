@@ -115,6 +115,10 @@ func formatTypeExprInline(builder *ast.Builder, typeID ast.TypeID) string {
 				name := builder.StringsInterner.MustLookup(param.Name)
 				paramType = fmt.Sprintf("%s: %s", name, paramType)
 			}
+			attrs := builder.Items.CollectAttrs(param.AttrStart, param.AttrCount)
+			for i := len(attrs) - 1; i >= 0; i-- {
+				paramType = formatAttrInline(builder, attrs[i]) + " " + paramType
+			}
 			paramStrs = append(paramStrs, paramType)
 		}
 		ret := formatTypeExprInline(builder, fn.Return)

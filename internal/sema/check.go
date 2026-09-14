@@ -43,6 +43,11 @@ func optionModulePath(builder *ast.Builder, opts Options) string {
 type Result struct {
 	TypeInterner *types.Interner
 	ExprTypes    map[ast.ExprID]types.TypeID
+	// ReturnSourceDeclarations retain typed source promises before substitution.
+	// Finalization must preserve the original owner when merging these records.
+	ReturnSourceDeclarations []ReturnSourceDeclarationRequest
+	// Concrete alias uses keep their original declaration, never a new promise.
+	ReturnSourceInstantiations []ReturnSourceInstantiationRequest
 	// IsOperands captures resolved right operands for `is` expressions.
 	IsOperands map[ast.ExprID]IsOperand
 	// HeirOperands captures resolved operands for `heir` expressions.

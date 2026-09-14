@@ -93,7 +93,7 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 			if fn.Flags&ast.FnModifierAsync != 0 {
 				resultType = tc.taskType(returnType, returnSpan)
 			}
-			fnType := tc.types.RegisterFn(paramTypes, resultType)
+			fnType := tc.registerDeclaredFnType(fn, paramTypes, resultType, scope, symID)
 			tc.assignSymbolType(symID, fnType)
 		}
 	}
