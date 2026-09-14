@@ -33,7 +33,7 @@ func TestFunctionValueFallbackReturnSources(t *testing.T) {
 			case "empty":
 				sources = types.ExplicitReturnSources()
 			case "concrete_substitution":
-				generic := in.RegisterTypeParam(in.Strings.Intern("T"), uint32(original), 0, false, types.NoTypeID)
+				generic := in.RegisterTypeParam(strs.Intern("T"), uint32(original), 0, false, types.NoTypeID)
 				originalParams, originalResult = []types.TypeID{generic, generic}, generic
 			}
 			originalSources := sources
