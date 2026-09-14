@@ -11,7 +11,7 @@ import (
 // Each entry is a declaration slot, including holes for omitted defaults.
 // A variadic slot owns all of its actual expressions; none shift later slots.
 type returnOriginArgument struct {
-	exprs   []ast.ExprID
+	exprs     []ast.ExprID
 	defaulted bool
 }
 
