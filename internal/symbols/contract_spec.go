@@ -7,13 +7,15 @@ import (
 
 // ContractMethod captures a single method requirement of a contract.
 type ContractMethod struct {
-	Name   source.StringID
-	Params []types.TypeID
-	Result types.TypeID
-	Span   source.Span
-	Attrs  []source.StringID
-	Public bool
-	Async  bool
+	Name               source.StringID
+	Params             []types.TypeID
+	Result             types.TypeID
+	Span               source.Span
+	Attrs              []source.StringID
+	Public             bool
+	Async              bool
+	ReturnSourceSyntax ReturnSourceSyntax
+	ReturnSourceOwner  SymbolID // Original owning unit, preserved across imported copies.
 }
 
 // ContractSpec aggregates field and method requirements for a contract.
@@ -49,13 +51,15 @@ func (c *ContractSpec) AddMethod(m *ContractMethod) {
 		return
 	}
 	clone := ContractMethod{
-		Name:   m.Name,
-		Params: append([]types.TypeID(nil), m.Params...),
-		Result: m.Result,
-		Span:   m.Span,
-		Attrs:  append([]source.StringID(nil), m.Attrs...),
-		Public: m.Public,
-		Async:  m.Async,
+		Name:               m.Name,
+		Params:             append([]types.TypeID(nil), m.Params...),
+		Result:             m.Result,
+		Span:               m.Span,
+		Attrs:              append([]source.StringID(nil), m.Attrs...),
+		Public:             m.Public,
+		Async:              m.Async,
+		ReturnSourceSyntax: m.ReturnSourceSyntax,
+		ReturnSourceOwner:  m.ReturnSourceOwner,
 	}
 	c.Methods[m.Name] = append(c.Methods[m.Name], clone)
 }

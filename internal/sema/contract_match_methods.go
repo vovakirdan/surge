@@ -66,14 +66,8 @@ func (tc *typeChecker) ensureMethodSatisfies(target types.TypeID, name source.St
 
 	attrMismatch := false
 	for _, cand := range actual {
-		var aligned methodRequirement
-		switch {
-		case len(cand.params) == len(req.params):
-			aligned = *req
-		case len(cand.params) == len(req.params)+1:
-			aligned = *req
-			aligned.params = append([]types.TypeID{target}, req.params...)
-		default:
+		aligned, ok := alignContractMethodRequirement(req, target, len(cand.params))
+		if !ok {
 			continue
 		}
 		if len(aligned.params) > 0 && !tc.contractTypesEqual(aligned.params[0], target) {
@@ -184,6 +178,7 @@ func (tc *typeChecker) signatureToTypes(sig *symbols.FunctionSignature) (methodS
 		}
 	}
 	ms.params = params
+	ms.returnSources = sig.ReturnSourceSyntax.Sources()
 	ms.result = tc.typeFromKey(sig.Result)
 	if ms.result == types.NoTypeID {
 		ok = false

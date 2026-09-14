@@ -63,7 +63,7 @@ func (tc *typeChecker) requirementsForBound(bound symbols.BoundInstance) (contra
 	if pushed {
 		defer tc.popTypeParams()
 	}
-	return tc.contractRequirementSet(contractDecl, scope)
+	return tc.contractRequirementSet(contractDecl, scope, bound.Contract)
 }
 
 // typeParamSatisfiesBound reports whether the given generic type parameter already has a bound
@@ -213,6 +213,10 @@ func (tc *typeChecker) boundMethodRequirement(id types.TypeID, name string, args
 						Attrs:     attrs,
 						Public:    req.pub,
 						Async:     req.async,
+						returnSourceRequirements: []ReturnSourceRequirement{{
+							Contract: req.returnSourceOwner, Member: req.span,
+							Sources: req.returnSources, ReceiverPrefix: req.receiverPrefix,
+						}},
 					}
 					if !found {
 						selected = candidate
@@ -222,6 +226,7 @@ func (tc *typeChecker) boundMethodRequirement(id types.TypeID, name string, args
 					if !deferredRequirementShapesEqual(&selected, &candidate) {
 						return types.NoTypeID, DeferredCallableRequirement{}, false
 					}
+					selected.returnSourceRequirements = mergeReturnSourceRequirements(selected.returnSourceRequirements, candidate.returnSourceRequirements)
 					selected.Contracts = append(selected.Contracts, candidate.Contracts...)
 				}
 			}
@@ -236,7 +241,8 @@ func (tc *typeChecker) boundMethodRequirement(id types.TypeID, name string, args
 }
 
 func deferredRequirementsEqual(left, right *DeferredCallableRequirement) bool {
-	return slices.Equal(left.Contracts, right.Contracts) && deferredRequirementShapesEqual(left, right)
+	return slices.Equal(left.Contracts, right.Contracts) && deferredRequirementShapesEqual(left, right) &&
+		slices.EqualFunc(left.returnSourceRequirements, right.returnSourceRequirements, returnSourceRequirementsEqual)
 }
 
 func deferredRequirementShapesEqual(left, right *DeferredCallableRequirement) bool {

@@ -101,7 +101,7 @@ func (tc *typeChecker) checkContract(id ast.ItemID, decl *ast.ContractDecl) {
 				}{span: fn.NameSpan, overload: currentOverload}
 			}
 			tc.validateAttrs(fn.AttrStart, fn.AttrCount, ast.AttrTargetFn, diag.SemaContractUnknownAttr)
-			method, okMethod := tc.checkContractMethod(fn, scope, markUsage)
+			method, okMethod := tc.checkContractMethod(fn, scope, symID, markUsage)
 			if contractSpec != nil && okMethod && method != nil {
 				contractSpec.AddMethod(method)
 			}
@@ -127,7 +127,7 @@ func (tc *typeChecker) checkContract(id ast.ItemID, decl *ast.ContractDecl) {
 	}
 }
 
-func (tc *typeChecker) checkContractMethod(fn *ast.ContractFnReq, scope symbols.ScopeID, markUsage func(ast.TypeID)) (*symbols.ContractMethod, bool) {
+func (tc *typeChecker) checkContractMethod(fn *ast.ContractFnReq, scope symbols.ScopeID, owner symbols.SymbolID, markUsage func(ast.TypeID)) (*symbols.ContractMethod, bool) {
 	if fn == nil {
 		return nil, false
 	}
@@ -137,11 +137,13 @@ func (tc *typeChecker) checkContractMethod(fn *ast.ContractFnReq, scope symbols.
 	}
 
 	method := &symbols.ContractMethod{
-		Name:   fn.Name,
-		Span:   fn.Span,
-		Attrs:  tc.attrNames(fn.AttrStart, fn.AttrCount),
-		Public: fn.Flags&ast.FnModifierPublic != 0,
-		Async:  fn.Flags&ast.FnModifierAsync != 0,
+		Name:               fn.Name,
+		Span:               fn.Span,
+		Attrs:              tc.attrNames(fn.AttrStart, fn.AttrCount),
+		Public:             fn.Flags&ast.FnModifierPublic != 0,
+		Async:              fn.Flags&ast.FnModifierAsync != 0,
+		ReturnSourceSyntax: symbols.ContractReturnSourceSyntax(tc.builder, fn),
+		ReturnSourceOwner:  owner,
 	}
 
 	if fn.ReturnType.IsValid() {
@@ -155,6 +157,9 @@ func (tc *typeChecker) checkContractMethod(fn *ast.ContractFnReq, scope symbols.
 	paramIDs := tc.getContractFnParamIDs(fn)
 	for _, pid := range paramIDs {
 		param := tc.builder.Items.FnParam(pid)
+		if param != nil {
+			tc.validateAttrs(param.AttrStart, param.AttrCount, ast.AttrTargetParam, diag.SemaError)
+		}
 		if param == nil || !param.Type.IsValid() {
 			method.Params = append(method.Params, types.NoTypeID)
 			ok = false
@@ -166,6 +171,13 @@ func (tc *typeChecker) checkContractMethod(fn *ast.ContractFnReq, scope symbols.
 		if paramType == types.NoTypeID {
 			ok = false
 		}
+	}
+	result := method.Result
+	if !fn.ReturnType.IsValid() {
+		result = tc.types.Builtins().Nothing
+	}
+	if !tc.checkReturnSourceDeclaration(method.ReturnSourceSyntax, method.Params, result, scope, owner, ast.NoTypeID) {
+		ok = false
 	}
 	return method, ok
 }
