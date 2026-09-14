@@ -69,6 +69,15 @@ func requireReturnOriginTyped(t *testing.T, res *DiagnoseResult) {
 
 func returnOriginModuleFixture(t *testing.T, imported bool, dependency string) *DiagnoseResult {
 	t.Helper()
+	text := "pragma module::dep, no_std;\npub fn second(value: &int64) -> &int64 { return value; }\n"
+	if dependency != "" {
+		text = "pragma module::dep, no_std;\n" + dependency
+	}
+	return returnOriginModuleSourceFixture(t, imported, text)
+}
+
+func returnOriginModuleSourceFixture(t *testing.T, imported bool, fullDependencySource string) *DiagnoseResult {
+	t.Helper()
 	root := t.TempDir()
 	texts := map[string]string{
 		"pkg/a.sg": "pragma module::pkg, no_std;\n" + returnOriginSafeSource,
@@ -77,10 +86,7 @@ func returnOriginModuleFixture(t *testing.T, imported bool, dependency string) *
 	if imported {
 		delete(texts, "pkg/b.sg")
 		texts["pkg/a.sg"] = "pragma module::pkg, no_std;\nimport dep as Other;\n" + returnOriginSafeSource
-		texts["dep/main.sg"] = "pragma module::dep, no_std;\npub fn second(value: &int64) -> &int64 { return value; }\n"
-		if dependency != "" {
-			texts["dep/main.sg"] = "pragma module::dep, no_std;\n" + dependency
-		}
+		texts["dep/main.sg"] = fullDependencySource
 	}
 	for name, text := range texts {
 		path := filepath.Join(root, name)

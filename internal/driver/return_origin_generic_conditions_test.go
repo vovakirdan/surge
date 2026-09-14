@@ -38,7 +38,7 @@ func genericConditionCases() []genericConditionCase {
 		{"inactive_owned_dependency", "string", "8a7c853b4caf4d52edd82e1271977dbdfacc8834cab0e9211258867a278c51a0"},
 		{"inactive_borrowed_dependency", "&string", "fbbef0845598672504565ec588aa5c5fe53ba895bbc56eb83ea8f1c97846fcc7"},
 		{"opaque_array_result", "uint64[]", "7c1522b47674f218ab323886a7a4f863860387555961c2e637eefbed63cfb8bf"},
-		{"opaque_range_result", "Range<uint64>", "670bc920addc5e26ff9782c472b5aed8de426fa105246fcfe0d13c470b4736f7"},
+		{"opaque_range_result", "Range<uint64>", "76b4b714002d4121f4a672aabdc07944ba9f6b6fb2a342c3cfa5a31c644bbd1b"},
 	} {
 		text := "pragma module::dep, no_std;\n" + genericP0Relay + fmt.Sprintf(`type Holder = { marker: int64 };
 extern<Holder> {
@@ -48,7 +48,7 @@ extern<Holder> {
 }
 `, tc.typ, tc.typ, tc.typ)
 		if tc.typ == "Range<uint64>" {
-			text = strings.Replace(text, "pragma module::dep, no_std;\n", "pragma module::dep, no_std;\nimport core::Range;\n", 1)
+			text = strings.Replace(text, "pragma module::dep, no_std;\n", "pragma module::dep;\n", 1)
 		}
 		if tc.typ == "uint64[]" {
 			text = strings.Replace(text, "type Holder", "type Wrapper = { items: uint64[] };\ntype Holder", 1)
@@ -236,6 +236,14 @@ func genericConditionConcreteType(t *testing.T, tc genericConditionCase, f origi
 		}
 	default:
 		info, found := in.StructInfo(id)
+		if tc.result == "Range<uint64>" {
+			bound, rangeKnown := in.RangeBoundType(id)
+			payloads, handleKnown := in.RuntimeHandlePayloads(id)
+			alias, isAlias := in.AliasTarget(id)
+			logReturnOriginCallEvidence(t, map[string]any{"stage": "generic_condition_range_descriptor", "case": tc.name,
+				"id": id, "type": typ, "nominal": info, "range_known": rangeKnown, "range_bound": bound,
+				"handle_known": handleKnown, "payloads": payloads, "alias": alias, "is_alias": isAlias, "expected_element": in.Builtins().Uint64})
+		}
 		if !found || info == nil || !slices.Equal(info.TypeArgs, []types.TypeID{in.Builtins().Uint64}) {
 			t.Fatal("PRECONDITION: hidden-state result lost its concrete nominal argument")
 		}
