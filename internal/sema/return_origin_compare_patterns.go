@@ -159,7 +159,7 @@ func (b *returnOriginBody) bindCompareOrigins(bindings []symbols.SymbolID, subje
 	for _, id := range bindings {
 		sym := u.Symbols.Table.Symbols.Get(id)
 		value := subject.clone()
-		switch returnOriginTypeShape(u.Sema.TypeInterner, sym.Type, nil) {
+		switch returnOriginView(b.function).shape(sym.Type) {
 		case returnOriginRefFree:
 			value = returnOriginValueOf()
 		case returnOriginShapeUnknown:

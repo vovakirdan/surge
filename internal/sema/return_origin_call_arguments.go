@@ -10,16 +10,27 @@ import (
 // The existing argument mapper supplies physical slots, including self and
 // named arguments. Read the selected body's original parameter in its owning
 // unit; a caller's same-shaped type or same-named declaration is not authority.
-func (b *returnOriginBody) convertCallableArgument(callee *returnOriginFunction, index int, slot returnOriginArgument, expr ast.ExprID, formal types.TypeID, actual returnOriginValue) returnOriginValue {
+func (b *returnOriginBody) convertCallableArgument(callee *returnOriginFunction, index int, slot returnOriginArgument, expr ast.ExprID, formal types.TypeID, actual returnOriginValue, signature ...*returnOriginSignature) returnOriginValue {
 	u := b.function.unit
 	span := u.Builder.Exprs.Get(expr).Span
 	unknown := actual.join(returnOriginValueOf(returnOrigin{kind: returnOriginUnknown}))
 	if callee == nil || callee.candidate == nil || !callee.candidate.HasBody || !callee.item.Body.IsValid() ||
-		len(callee.candidate.TemplateParams) != 0 || slot.defaulted || len(slot.exprs) != 1 ||
-		index < 0 || index >= len(callee.info.Params) || formal != callee.info.Params[index] {
+		slot.defaulted || len(slot.exprs) != 1 || index < 0 || index >= len(callee.info.Params) {
 		b.pending(span, "callable argument conversion needs its selected destination promise")
 		return unknown
 	}
+	view := returnOriginView(callee)
+	if len(callee.candidate.TemplateParams) != 0 {
+		if len(signature) == 0 || signature[0] == nil || signature[0].binding == nil || signature[0].params[index] != formal {
+			b.pending(span, "generic callable argument lacks its checked original binding view")
+			return unknown
+		}
+		view = signature[0].binding.clone()
+	} else if formal != callee.info.Params[index] {
+		b.pending(span, "callable argument disagrees with its original physical type")
+		return unknown
+	}
+	formal = callee.info.Params[index]
 	if index < len(callee.candidate.Variadic) && callee.candidate.Variadic[index] {
 		b.pending(span, "variadic callable arguments need their owning payload transfer")
 		return unknown
@@ -28,7 +39,7 @@ func (b *returnOriginBody) convertCallableArgument(callee *returnOriginFunction,
 		b.pending(span, "callable argument conversion needs its selected operation contract")
 		return unknown
 	}
-	if b.callableType(formal, span) == nil {
+	if b.callableType(formal, span, view) == nil {
 		return unknown
 	}
 	params := callee.unit.Builder.Items.GetFnParamIDs(callee.item)
@@ -41,11 +52,11 @@ func (b *returnOriginBody) convertCallableArgument(callee *returnOriginFunction,
 		b.pending(span, "callable argument destination lacks its original type syntax")
 		return unknown
 	}
-	contract := b.readCallableType(callee.unit, formal, param.Type, span, make(map[types.TypeID]bool))
+	contract := b.readCallableType(callee.unit, formal, param.Type, span, make(map[types.TypeID]bool), view)
 	if contract == nil {
 		return unknown
 	}
-	expected := returnOriginCallable{typ: formal, slots: slices.Clone(contract.slots), promise: contract.promise, contract: contract}
+	expected := returnOriginCallable{typ: formal, slots: slices.Clone(contract.slots), promise: contract.promise, contract: contract, view: view}
 	if !b.checkCallableDestination(actual, expected, span) {
 		return unknown
 	}

@@ -8,6 +8,7 @@ import (
 
 	"surge/internal/diag"
 	"surge/internal/source"
+	"surge/internal/types"
 )
 
 // The summaries form a finite may-source lattice. A recursive component starts
@@ -15,17 +16,26 @@ import (
 // Reconsidering every body is deliberately simple; it does not publish a
 // provisional empty source promise for a caller visited before its callee.
 func (a *returnOriginAnalyzer) solveBodies() error {
+	for _, fn := range a.declarations {
+		body := &returnOriginBody{analyzer: a, function: fn}
+		slots, valid := body.declaredFunctionSources(fn, fn.item.NameSpan)
+		value := body.opaqueReturnSources(fn.info, slots, valid, fn.item.NameSpan)
+		a.summaries[fn.key] = returnOriginSummaryFact{value: projectReturnOriginSummary(value),
+			conditions: body.conditions, required: body.required}
+	}
 	for {
 		changed := false
 		for _, fn := range a.functions {
 			if err := a.ctx.Err(); err != nil {
 				return err
 			}
-			value, err := (&returnOriginBody{analyzer: a, function: fn}).analyze()
+			body := &returnOriginBody{analyzer: a, function: fn}
+			value, err := body.analyze()
 			if err != nil {
 				return err
 			}
-			next := a.summaries[fn.key].join(projectReturnOriginSummary(value))
+			next := a.summaries[fn.key].join(returnOriginSummaryFact{value: projectReturnOriginSummary(value),
+				conditions: body.conditions, required: body.required})
 			if !next.equal(a.summaries[fn.key]) {
 				a.summaries[fn.key] = next
 				changed = true
@@ -46,7 +56,7 @@ func (a *returnOriginAnalyzer) solveBodies() error {
 		if _, err := body.analyze(); err != nil {
 			return err
 		}
-		value := a.summaries[fn.key]
+		value := a.summaries[fn.key].value
 		summary := ReturnOriginSummary{BodyKey: fn.key, Name: fn.name, Source: fn.item.NameSpan, NoNormalReturn: !value.normal}
 		for _, root := range value.roots {
 			if root.kind == returnOriginParam {
@@ -125,7 +135,7 @@ func (b *returnOriginBody) analyze() (returnOriginValue, error) {
 			env = env.assign(param, fn.scope, returnOriginValueOf(returnOrigin{kind: returnOriginParam, param: slot}))
 			continue
 		}
-		switch returnOriginTypeShape(fn.unit.Sema.TypeInterner, fn.info.Params[i], nil) {
+		switch returnOriginView(fn).shape(fn.info.Params[i]) {
 		case returnOriginCarriesRef:
 			slot, err := safecast.Conv[uint32](i)
 			if err != nil {
@@ -164,9 +174,9 @@ func (b *returnOriginBody) analyze() (returnOriginValue, error) {
 			b.pending(key.site, "function has an unresolved control-flow target")
 			continue
 		}
-		// A direct-T result may become reference-free. Its conditional promise
+		// A symbolic result may become reference-free. Its conditional promise
 		// is checked for every current concrete use after the fixed point.
-		if validPromise && !fn.info.ReturnSources().IsAllInputs() && !fn.directTemplateParam(fn.info.Result) {
+		if validPromise && !fn.info.ReturnSources().IsAllInputs() && !types.ContainsGenericParam(fn.unit.Sema.TypeInterner, fn.info.Result) {
 			b.checkDeclaredReturn(outcome.value, allowed, key.site)
 		}
 		value = value.join(outcome.value)

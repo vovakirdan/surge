@@ -11,11 +11,8 @@ import (
 // Only the original template's direct parameter has a universal content slot.
 // An arbitrary unknown shape is not a symbolic input, and storage stays Local.
 func (fn *returnOriginFunction) directTemplateParam(id types.TypeID) bool {
-	if fn.candidate == nil || !fn.item.Body.IsValid() || !slices.Contains(fn.candidate.TemplateParams, id) {
-		return false
-	}
-	typ, ok := fn.unit.Sema.TypeInterner.Lookup(id)
-	return ok && typ.Kind == types.KindGenericParam
+	_, valid := fn.templateSlot(id)
+	return valid && fn.item.Body.IsValid()
 }
 
 func (a *returnOriginAnalyzer) functionForTemplate(id symbols.SymbolID) *returnOriginFunction {
@@ -69,10 +66,14 @@ func (a *returnOriginAnalyzer) genericUseContext(use ConcreteInstantiationUse) (
 		if reason := a.genericInstance(use.Caller, use.CallerTemplate, use.CallerTemplateArgs); reason != "" {
 			return nil, nil, ast.NoExprID, "generic caller: " + reason
 		}
-		return nil, nil, ast.NoExprID, "generic caller requires its exact type-dependent use transfer"
+		if len(caller.candidate.TemplateParams) != len(use.CallerTemplateArgs) || !returnOriginConcreteArgs(authority.TypeInterner, use.CallerTemplateArgs) {
+			return nil, nil, ast.NoExprID, "generic caller lacks its concrete original bindings"
+		}
+	} else if len(caller.candidate.TemplateParams) != 0 || len(use.CallerTemplateArgs) != 0 ||
+		!slices.Contains(authority.InstantiationClosure.LiveCallables, use.CallerTemplate) {
+		return nil, nil, ast.NoExprID, "generic use disagrees with its owning caller"
 	}
-	if use.Kind != InstantiationFunction || len(caller.candidate.TemplateParams) != 0 || len(use.CallerTemplateArgs) != 0 ||
-		!slices.Contains(authority.InstantiationClosure.LiveCallables, use.CallerTemplate) || caller.unit.SourceKey != use.SourceKey ||
+	if use.Kind != InstantiationFunction || !returnOriginConcreteArgs(authority.TypeInterner, use.TemplateArgs) || caller.unit.SourceKey != use.SourceKey ||
 		use.Site.File != caller.item.Span.File || use.Site.Start < caller.item.Span.Start || use.Site.End > caller.item.Span.End {
 		return nil, nil, ast.NoExprID, "generic use disagrees with its owning caller"
 	}
@@ -84,7 +85,7 @@ func (a *returnOriginAnalyzer) genericUseContext(use ConcreteInstantiationUse) (
 			matched++
 		}
 	}
-	if matched != 1 {
+	if use.Caller == (InstanceKey{}) && matched != 1 {
 		return nil, nil, ast.NoExprID, "generic use lacks its unique original concrete root"
 	}
 	var expression ast.ExprID
@@ -106,6 +107,9 @@ func (a *returnOriginAnalyzer) genericUseContext(use ConcreteInstantiationUse) (
 // instance/root/caller checks. An original-body proof cannot supply a missing
 // finalized use, and a concrete use cannot replace the source request.
 func (a *returnOriginAnalyzer) genericCallUseInfo(fn, caller *returnOriginFunction, expression ast.ExprID, use ConcreteInstantiationUse) (*returnOriginSignature, string) {
+	if use.Caller != (InstanceKey{}) {
+		return a.currentCallBinding(fn, caller, expression, use)
+	}
 	args, reason := caller.originalInstantiation(expression, InstantiationFunction, fn.candidate.Symbol)
 	if reason != "" {
 		return nil, reason
@@ -113,7 +117,12 @@ func (a *returnOriginAnalyzer) genericCallUseInfo(fn, caller *returnOriginFuncti
 	if !slices.Equal(args, use.TemplateArgs) {
 		return nil, "generic use disagrees with its original call arguments"
 	}
-	return fn.originalSignature(caller, expression, args)
+	view, reason := fn.originalSignature(caller, expression, args)
+	if reason == "" {
+		binding := returnOriginBoundView(fn, nil, use.TemplateArgs)
+		view.binding = &binding
+	}
+	return view, reason
 }
 
 // Body flow may not visit a retained use. Check the finalized uses and their
@@ -197,6 +206,9 @@ func (a *returnOriginAnalyzer) checkGenericUses() error {
 		if matched != 1 {
 			pending(use, "generic call lacks its finalized concrete use")
 		}
+	}
+	if err := a.checkCurrentConditionEdges(pending); err != nil {
+		return err
 	}
 	for i, instance := range closure.Instances {
 		if instance.Kind != InstantiationFunction && instance.Kind != InstantiationTag {

@@ -147,7 +147,7 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		for _, expr := range slot.exprs {
 			value := b.callArgumentOrigin(expr, params[i], values[expr])
 			if returnOriginFnInfo(u.Sema.TypeInterner, params[i]) != nil || len(values[expr].value.callables) != 0 {
-				value = b.convertCallableArgument(callee, i, slot, expr, params[i], value)
+				value = b.convertCallableArgument(callee, i, slot, expr, params[i], value, signature)
 			}
 			actuals[i] = actuals[i].join(value)
 		}
@@ -170,7 +170,15 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 	} else if callee != nil && callee.item.Body.IsValid() {
 		// A recursive body legitimately starts at NoNormalReturn. Its private
 		// fixed point, not the declared upper bound, supplies actual precision.
-		summary = b.analyzer.summaries[callee.key]
+		view := returnOriginView(callee)
+		if signature != nil && signature.binding != nil {
+			view = *signature.binding
+		}
+		required := b.inheritRequirements(callee, view, span)
+		summary = b.analyzer.summaries[callee.key].value
+		if required.failed() && summary.normal {
+			summary = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
+		}
 	} else {
 		var sources []uint32
 		var valid bool
@@ -327,5 +335,10 @@ func (b *returnOriginBody) genericCallInfo(id ast.ExprID, callee *returnOriginFu
 	if reason != "" {
 		return nil, reason
 	}
-	return callee.originalSignature(b.function, id, args)
+	signature, reason := callee.originalSignature(b.function, id, args)
+	if reason == "" {
+		binding := returnOriginBoundView(callee, b.function, args)
+		signature.binding = &binding
+	}
+	return signature, reason
 }
