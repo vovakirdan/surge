@@ -18,21 +18,25 @@ type contractRequirements struct {
 }
 
 type methodRequirement struct {
-	name   source.StringID
-	params []types.TypeID
-	result types.TypeID
-	span   source.Span
-	attrs  []source.StringID
-	pub    bool
-	async  bool
+	name              source.StringID
+	params            []types.TypeID
+	result            types.TypeID
+	span              source.Span
+	attrs             []source.StringID
+	pub               bool
+	async             bool
+	returnSources     types.ReturnSources
+	returnSourceOwner symbols.SymbolID
+	receiverPrefix    uint8
 }
 
 type methodSignature struct {
-	params []types.TypeID
-	result types.TypeID
-	attrs  []source.StringID
-	pub    bool
-	async  bool
+	params        []types.TypeID
+	result        types.TypeID
+	attrs         []source.StringID
+	pub           bool
+	async         bool
+	returnSources types.ReturnSources
 }
 
 type bindingInfo struct {
@@ -103,7 +107,7 @@ func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symb
 		reqs = tc.instantiateContractRequirements(contractSym, contractSym.Contract, args)
 		okReqs = true
 	case okContract && contractDecl != nil:
-		reqs, okReqs = tc.contractRequirementSet(contractDecl, scope)
+		reqs, okReqs = tc.contractRequirementSet(contractDecl, scope, bound.Contract)
 	default:
 		return false
 	}
@@ -190,7 +194,7 @@ func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symb
 	return ok
 }
 
-func (tc *typeChecker) contractRequirementSet(contractDecl *ast.ContractDecl, scope symbols.ScopeID) (contractRequirements, bool) {
+func (tc *typeChecker) contractRequirementSet(contractDecl *ast.ContractDecl, scope symbols.ScopeID, owner symbols.SymbolID) (contractRequirements, bool) {
 	reqs := contractRequirements{
 		fields:     make(map[source.StringID]types.TypeID),
 		fieldAttrs: make(map[source.StringID][]source.StringID),
@@ -225,6 +229,7 @@ func (tc *typeChecker) contractRequirementSet(contractDecl *ast.ContractDecl, sc
 				continue
 			}
 			if req, okMethod := tc.contractMethodRequirement(fn, scope); okMethod {
+				req.returnSourceOwner = owner
 				reqs.methods[fn.Name] = append(reqs.methods[fn.Name], req)
 			} else {
 				ok = false
@@ -244,6 +249,7 @@ func (tc *typeChecker) contractMethodRequirement(fn *ast.ContractFnReq, scope sy
 	req.attrs = tc.attrNames(fn.AttrStart, fn.AttrCount)
 	req.pub = fn.Flags&ast.FnModifierPublic != 0
 	req.async = fn.Flags&ast.FnModifierAsync != 0
+	req.returnSources = symbols.ContractReturnSourceSyntax(tc.builder, fn).Sources()
 
 	paramIDs := tc.getContractFnParamIDs(fn)
 	req.params = make([]types.TypeID, 0, len(paramIDs))
@@ -289,13 +295,15 @@ func requirementsFromSpec(spec *symbols.ContractSpec) contractRequirements {
 	for name, methods := range spec.Methods {
 		for _, m := range methods {
 			reqs.methods[name] = append(reqs.methods[name], methodRequirement{
-				name:   m.Name,
-				params: append([]types.TypeID(nil), m.Params...),
-				result: m.Result,
-				span:   m.Span,
-				attrs:  append([]source.StringID(nil), m.Attrs...),
-				pub:    m.Public,
-				async:  m.Async,
+				name:              m.Name,
+				params:            append([]types.TypeID(nil), m.Params...),
+				result:            m.Result,
+				span:              m.Span,
+				attrs:             append([]source.StringID(nil), m.Attrs...),
+				pub:               m.Public,
+				async:             m.Async,
+				returnSources:     m.ReturnSourceSyntax.Sources(),
+				returnSourceOwner: m.ReturnSourceOwner,
 			})
 		}
 	}

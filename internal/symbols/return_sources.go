@@ -71,6 +71,17 @@ func FunctionReturnSourceSyntax(builder *ast.Builder, fn *ast.FnItem) ReturnSour
 	return syntax
 }
 
+// ContractReturnSourceSyntax keeps the original member's physical formal slots.
+func ContractReturnSourceSyntax(builder *ast.Builder, fn *ast.ContractFnReq) ReturnSourceSyntax {
+	if fn == nil {
+		return ReturnSourceSyntax{}
+	}
+	return FunctionReturnSourceSyntax(builder, &ast.FnItem{
+		ParamsStart: fn.ParamsStart, ParamsCount: fn.ParamsCount,
+		ReturnType: fn.ReturnType, Span: fn.Span,
+	})
+}
+
 // FunctionTypeReturnSourceSyntax captures an unnamed callback signature.
 func FunctionTypeReturnSourceSyntax(builder *ast.Builder, id ast.TypeID) ReturnSourceSyntax {
 	if builder == nil {
