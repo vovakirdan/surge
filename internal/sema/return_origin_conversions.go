@@ -54,16 +54,8 @@ func (b *returnOriginBody) bindCallable(value returnOriginValue, binding symbols
 }
 
 func (b *returnOriginBody) assignmentCallablePromise(typ types.TypeID, previous returnOriginValue, span source.Span) (returnOriginCallable, bool) {
-	u := b.function.unit
-	info := b.callableType(typ, span)
-	if info == nil {
+	if b.callableType(typ, span) == nil {
 		return returnOriginCallable{}, false
-	}
-	if info.ReturnSources().IsAllInputs() {
-		// A concrete unmarked function type has the owner-approved default.
-		// There is no explicit/generic marker whose original syntax is missing.
-		slots, valid := b.declaredSources(u, symbols.NoSymbolID, ast.NoTypeID, symbols.ReturnSourceSyntax{}, info, span)
-		return returnOriginCallable{typ: typ, slots: slices.Clone(slots), promise: span}, valid
 	}
 	for _, old := range previous.callables {
 		if old.typ != typ {
@@ -73,8 +65,10 @@ func (b *returnOriginBody) assignmentCallablePromise(typ types.TypeID, previous 
 			return cloneReturnOriginCallables([]returnOriginCallable{old})[0], true
 		}
 		if fn := b.callableFunction(old); fn != nil {
-			slots, valid := b.declaredFunctionSources(fn, span)
-			return returnOriginCallable{typ: typ, slots: slices.Clone(slots), promise: span}, valid
+			contract := b.functionCallableType(fn, span)
+			if contract != nil {
+				return returnOriginCallable{typ: typ, slots: slices.Clone(contract.slots), promise: span, contract: contract}, true
+			}
 		}
 	}
 	b.pending(span, "assigned callable lost its original destination promise")
@@ -95,6 +89,8 @@ func (b *returnOriginBody) checkCallableDestination(actual returnOriginValue, ex
 			mismatch = true
 		}
 	}
+	nestedValid, nestedMismatch := b.checkCallableNestedPromises(actual, expected, span)
+	valid, mismatch = valid && nestedValid, mismatch || nestedMismatch
 	if valid && mismatch && b.analyzer.collect {
 		const message = "callable return sources are not permitted by the destination promise"
 		for _, old := range b.analyzer.report.Diagnostics {
