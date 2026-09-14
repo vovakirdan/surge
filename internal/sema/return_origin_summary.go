@@ -143,6 +143,18 @@ func (b *returnOriginBody) analyze() (returnOriginValue, error) {
 	value := returnOriginValue{}
 	if flow.normal.reachable {
 		value = returnOriginValueOf()
+		result := fn.info.Result
+		for range 64 {
+			target, alias := fn.unit.Sema.TypeInterner.AliasTarget(result)
+			if !alias {
+				break
+			}
+			result = target
+		}
+		if result != fn.unit.Sema.TypeInterner.Builtins().Nothing {
+			b.pending(fn.item.ReturnSpan, "reachable function fallthrough has no proven value for its declared result")
+			value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
+		}
 	}
 	for key, outcome := range flow.exits {
 		if key.kind != returnOriginFunctionReturn || key.target != fn.scope {
