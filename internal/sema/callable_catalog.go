@@ -15,13 +15,14 @@ import (
 // DeferredCallableRequirement is the exact contract member approved while
 // checking a generic body. Attributes are part of the requirement identity.
 type DeferredCallableRequirement struct {
-	Contracts []symbols.SymbolID
-	Name      string
-	Params    []types.TypeID
-	Result    types.TypeID
-	Attrs     []string
-	Public    bool
-	Async     bool
+	Contracts                []symbols.SymbolID
+	Name                     string
+	Params                   []types.TypeID
+	Result                   types.TypeID
+	Attrs                    []string
+	Public                   bool
+	Async                    bool
+	returnSourceRequirements []ReturnSourceRequirement
 }
 
 // CallableCandidate is a detached, mergeable semantic description of one
@@ -85,6 +86,7 @@ func cloneDeferredCallableRequirement(req *DeferredCallableRequirement) Deferred
 	cloned.Contracts = slices.Clone(req.Contracts)
 	cloned.Params = slices.Clone(req.Params)
 	cloned.Attrs = slices.Clone(req.Attrs)
+	cloned.returnSourceRequirements = slices.Clone(req.returnSourceRequirements)
 	return cloned
 }
 
