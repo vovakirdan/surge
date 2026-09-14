@@ -159,7 +159,7 @@ func (b *returnOriginBody) callableSources(value returnOriginCallable, span sour
 	}
 	if fn.item.Body.IsValid() {
 		summary := b.analyzer.summaries[fn.key].value
-		if invoke && b.inheritRequirements(fn, view, span).failed() && summary.normal {
+		if invoke && b.inheritRequirements(fn, view, span).failed() {
 			return returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 		}
 		return summary.clone()
