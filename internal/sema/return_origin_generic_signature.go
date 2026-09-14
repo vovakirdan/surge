@@ -14,6 +14,7 @@ type returnOriginSignature struct {
 	params  []types.TypeID
 	effects []types.TypeID
 	result  types.TypeID
+	binding *returnOriginTypeView
 }
 
 func returnOriginSignatureTypes(info *types.FnInfo, view ...*returnOriginSignature) ([]types.TypeID, types.TypeID) {

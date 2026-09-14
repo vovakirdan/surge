@@ -20,12 +20,14 @@ type returnOriginCallable struct {
 	slots    []uint32
 	promise  source.Span
 	contract *returnOriginCallableType
+	view     returnOriginTypeView
 }
 
 func cloneReturnOriginCallables(values []returnOriginCallable) []returnOriginCallable {
 	out := slices.Clone(values)
 	for i := range out {
 		out[i].slots = slices.Clone(out[i].slots)
+		out[i].view = out[i].view.clone()
 	}
 	return out
 }
@@ -40,13 +42,20 @@ func compareReturnOriginCallables(a, b returnOriginCallable) int {
 	if order := slices.Compare(a.slots, b.slots); order != 0 {
 		return order
 	}
-	return compareReturnOriginSpans(a.promise, b.promise)
+	if order := compareReturnOriginSpans(a.promise, b.promise); order != 0 {
+		return order
+	}
+	return compareReturnOriginView(a.view, b.view)
 }
 
-func (b *returnOriginBody) callableType(typ types.TypeID, span source.Span) *types.FnInfo {
+func (b *returnOriginBody) callableType(typ types.TypeID, span source.Span, views ...returnOriginTypeView) *types.FnInfo {
 	in := b.function.unit.Sema.TypeInterner
 	info := returnOriginFnInfo(in, typ)
-	if info == nil || types.ContainsGenericParam(in, typ) {
+	view := returnOriginView(b.function)
+	if len(views) != 0 {
+		view = views[0]
+	}
+	if info == nil || !view.validType(typ) {
 		b.pending(span, "callable value needs its concrete original type and alias authority")
 		return nil
 	}
@@ -58,14 +67,15 @@ func (b *returnOriginBody) callableType(typ types.TypeID, span source.Span) *typ
 }
 
 func (b *returnOriginBody) declaredCallable(typ types.TypeID, typeExpr ast.TypeID, span source.Span) (returnOriginCallable, bool) {
-	if b.callableType(typ, span) == nil {
+	view := returnOriginView(b.function)
+	if b.callableType(typ, span, view) == nil {
 		return returnOriginCallable{}, false
 	}
 	contract := b.readCallableType(b.function.unit, typ, typeExpr, span, make(map[types.TypeID]bool))
 	if contract == nil {
 		return returnOriginCallable{}, false
 	}
-	return returnOriginCallable{typ: typ, slots: slices.Clone(contract.slots), promise: contract.promise, contract: contract}, true
+	return returnOriginCallable{typ: typ, slots: slices.Clone(contract.slots), promise: contract.promise, contract: contract, view: view}, true
 }
 
 func (b *returnOriginBody) callableIdent(id ast.ExprID, env returnOriginEnv) returnOriginExprResult {
@@ -123,13 +133,24 @@ func (b *returnOriginBody) callableFunction(value returnOriginCallable) *returnO
 	return fn
 }
 
-func (b *returnOriginBody) callableSources(value returnOriginCallable, span source.Span) returnOriginValue {
-	info := b.callableType(value.typ, span)
+func (b *returnOriginBody) callableSources(value returnOriginCallable, span source.Span, invoke bool) returnOriginValue {
+	view := value.view
+	if view.owner == nil {
+		view = returnOriginView(b.function)
+	}
+	info := b.callableType(value.typ, span, view)
 	if info == nil {
 		return returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 	}
 	if value.bodyKey == "" {
-		return b.opaqueReturnSources(info, value.slots, true, span)
+		if !invoke {
+			out := returnOriginValueOf()
+			for _, slot := range value.slots {
+				out = out.join(returnOriginValueOf(returnOrigin{kind: returnOriginParam, param: slot}))
+			}
+			return out
+		}
+		return b.opaqueReturnSources(info, value.slots, true, span, &returnOriginSignature{params: info.Params, result: info.Result, binding: &view})
 	}
 	fn := b.callableFunction(value)
 	if fn == nil {
@@ -137,16 +158,28 @@ func (b *returnOriginBody) callableSources(value returnOriginCallable, span sour
 		return returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 	}
 	if fn.item.Body.IsValid() {
-		return b.analyzer.summaries[fn.key].clone()
+		summary := b.analyzer.summaries[fn.key].value
+		if invoke && b.inheritRequirements(fn, view, span).failed() && summary.normal {
+			return returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
+		}
+		return summary.clone()
 	}
 	slots, valid := b.declaredFunctionSources(fn, span)
+	if !invoke && valid {
+		out := returnOriginValueOf()
+		for _, slot := range slots {
+			out = out.join(returnOriginValueOf(returnOrigin{kind: returnOriginParam, param: slot}))
+		}
+		return out
+	}
 	return b.opaqueReturnSources(info, slots, valid, span)
 }
 
-func (b *returnOriginBody) callableValueSources(value returnOriginValue, span source.Span) returnOriginValue {
+func (b *returnOriginBody) callableValueSources(value returnOriginValue, span source.Span, invocation ...bool) returnOriginValue {
+	invoke := len(invocation) == 0 || invocation[0]
 	out := returnOriginValue{}
 	for _, alternative := range value.callables {
-		out = out.join(b.callableSources(alternative, span))
+		out = out.join(b.callableSources(alternative, span, invoke))
 	}
 	unknown := len(value.callables) == 0
 	for _, root := range value.roots {
