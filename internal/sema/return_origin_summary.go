@@ -61,6 +61,9 @@ func (a *returnOriginAnalyzer) solveBodies() error {
 	if err := a.checkGenericUses(); err != nil {
 		return err
 	}
+	if err := a.checkDeferredClones(); err != nil {
+		return err
+	}
 	slices.SortFunc(a.report.Diagnostics, func(a, b diag.Diagnostic) int {
 		if order := compareReturnOriginSpans(a.Primary, b.Primary); order != 0 {
 			return order

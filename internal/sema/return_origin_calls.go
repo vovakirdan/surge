@@ -12,6 +12,9 @@ import (
 func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets returnOriginTargets) (returnOriginExprResult, error) {
 	u := b.function.unit
 	call, _ := u.Builder.Exprs.Call(id)
+	if out, handled, err := b.deferredClone(id, call, env, targets); handled || err != nil {
+		return out, err
+	}
 	span := u.Builder.Exprs.Get(id).Span
 	symID := u.Symbols.ExprSymbols[id]
 	sym := u.Symbols.Table.Symbols.Get(symID)
