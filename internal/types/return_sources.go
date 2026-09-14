@@ -40,6 +40,14 @@ func (s ReturnSources) Equal(other ReturnSources) bool {
 	return s.explicit == other.explicit && slices.Equal(s.slots, other.slots)
 }
 
+// CanonicalKey encodes only the declared relation. AllInputs has no suffix,
+// preserving existing keys; an explicit empty promise encodes as empty braces.
+func (s ReturnSources) CanonicalKey() string {
+	var out strings.Builder
+	s.appendCanonicalKey(&out)
+	return out.String()
+}
+
 func (s ReturnSources) validateArity(arity int) {
 	for _, slot := range s.slots {
 		if int64(slot) >= int64(arity) {

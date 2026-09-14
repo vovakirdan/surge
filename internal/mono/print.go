@@ -255,7 +255,7 @@ func formatType(typesIn *types.Interner, strs *source.Interner, id types.TypeID,
 			for _, p := range info.Params {
 				params = append(params, formatType(typesIn, strs, p, depth+1))
 			}
-			return "fn(" + strings.Join(params, ", ") + ") -> " + formatType(typesIn, strs, info.Result, depth+1)
+			return "fn" + info.ReturnSources().CanonicalKey() + "(" + strings.Join(params, ", ") + ") -> " + formatType(typesIn, strs, info.Result, depth+1)
 		}
 		return fmt.Sprintf("type#%d", id)
 	case types.KindStruct:
