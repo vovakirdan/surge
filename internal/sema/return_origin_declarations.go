@@ -66,15 +66,16 @@ func (u *returnOriginUnitIndex) owningCallableIdentity(fn *ast.FnItem, id symbol
 	return identity, fmt.Errorf("return origins: callable %d lacks mapped original declaration authority in %s", id, u.SourceKey)
 }
 
-func (b *returnOriginBody) declaredFunctionSources(fn *returnOriginFunction, span source.Span) ([]uint32, bool) {
+func (b *returnOriginBody) declaredFunctionSources(fn *returnOriginFunction, span source.Span, view ...*returnOriginSignature) ([]uint32, bool) {
 	syntax := symbols.FunctionReturnSourceSyntax(fn.unit.Builder, fn.item)
-	return b.declaredSources(fn.unit, fn.symbol, ast.NoTypeID, syntax, fn.info, span)
+	return b.declaredSources(fn.unit, fn.symbol, ast.NoTypeID, syntax, fn.info, span, view...)
 }
 
 // Eligibility belongs to the original declaration, not to an interned concrete
 // FnInfo. In particular, an owned specialization may discharge a conditional
 // generic promise without legalizing an originally invalid owned declaration.
-func (b *returnOriginBody) declaredSources(u *returnOriginUnitIndex, owner symbols.SymbolID, typeExpr ast.TypeID, syntax symbols.ReturnSourceSyntax, info *types.FnInfo, span source.Span) ([]uint32, bool) {
+func (b *returnOriginBody) declaredSources(u *returnOriginUnitIndex, owner symbols.SymbolID, typeExpr ast.TypeID, syntax symbols.ReturnSourceSyntax, info *types.FnInfo, span source.Span, view ...*returnOriginSignature) ([]uint32, bool) {
+	params, result := returnOriginSignatureTypes(info, view...)
 	if !syntax.Sources().Equal(info.ReturnSources()) {
 		b.pending(span, "callable type lost its original declaration promise")
 		return nil, false
@@ -109,7 +110,7 @@ func (b *returnOriginBody) declaredSources(u *returnOriginUnitIndex, owner symbo
 			b.pending(span, "return-source promise lacks its original typed declaration")
 			return nil, false
 		}
-		validation := ValidateInstantiatedReturnSources(u.Sema.TypeInterner, *original, info.Params, info.Result)
+		validation := ValidateInstantiatedReturnSources(u.Sema.TypeInterner, *original, params, result)
 		conditional := validation.Status == ReturnSourcesDeferred && symbolic != nil && symbolic.directTemplateParam(info.Result) &&
 			slices.Equal(original.Params(), info.Params) && original.Result() == info.Result
 		if validation.Status != ReturnSourcesValid && !conditional {
@@ -121,11 +122,11 @@ func (b *returnOriginBody) declaredSources(u *returnOriginUnitIndex, owner symbo
 			return nil, false
 		}
 	}
-	if returnOriginTypeShape(u.Sema.TypeInterner, info.Result, nil) == returnOriginRefFree {
+	if returnOriginTypeShape(u.Sema.TypeInterner, result, nil) == returnOriginRefFree {
 		return nil, true
 	}
 	var slots []uint32
-	for i, param := range info.Params {
+	for i, param := range params {
 		slot, err := safecast.Conv[uint32](i)
 		if err != nil {
 			b.pending(span, "return-source slot exceeds the canonical index range")
@@ -149,16 +150,17 @@ func (b *returnOriginBody) declaredSources(u *returnOriginUnitIndex, owner symbo
 	return slots, true
 }
 
-func (b *returnOriginBody) opaqueReturnSources(info *types.FnInfo, slots []uint32, valid bool, span source.Span) returnOriginValue {
+func (b *returnOriginBody) opaqueReturnSources(info *types.FnInfo, slots []uint32, valid bool, span source.Span, view ...*returnOriginSignature) returnOriginValue {
 	unknown := returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 	if !valid {
 		return unknown
 	}
 	in := b.function.unit.Sema.TypeInterner
-	if returnOriginTypeShape(in, info.Result, nil) == returnOriginRefFree {
+	_, result := returnOriginSignatureTypes(info, view...)
+	if returnOriginTypeShape(in, result, nil) == returnOriginRefFree {
 		return returnOriginValueOf()
 	}
-	if returnSourceBearing(in, info.Result, nil) != ReturnSourcesValid {
+	if returnSourceBearing(in, result, nil) != ReturnSourcesValid {
 		b.pending(span, "opaque result needs concrete borrowed-content or callable facts")
 		return unknown
 	}
@@ -215,30 +217,34 @@ func (b *returnOriginBody) returnSourceDiagnostic(span source.Span, message stri
 	b.analyzer.report.Diagnostics = append(b.analyzer.report.Diagnostics, d)
 }
 
-func (a *returnOriginAnalyzer) checkGenericPromise(fn *returnOriginFunction, info *types.FnInfo, use ConcreteInstantiationUse) string {
+func (a *returnOriginAnalyzer) checkGenericPromise(fn *returnOriginFunction, view *returnOriginSignature, use ConcreteInstantiationUse) string {
 	body := &returnOriginBody{analyzer: a, function: fn}
 	syntax := symbols.FunctionReturnSourceSyntax(fn.unit.Builder, fn.item)
-	allowed, valid := body.declaredSources(fn.unit, fn.symbol, ast.NoTypeID, syntax, info, fn.item.NameSpan)
+	allowed, valid := body.declaredSources(fn.unit, fn.symbol, ast.NoTypeID, syntax, fn.info, fn.item.NameSpan, view)
 	if !valid {
 		return "generic use has an unresolved original return-source promise"
 	}
 	if !fn.item.Body.IsValid() {
-		body.opaqueReturnSources(info, allowed, true, fn.item.NameSpan)
+		body.opaqueReturnSources(fn.info, allowed, true, fn.item.NameSpan, view)
+		if returnOriginTypeShape(fn.unit.Sema.TypeInterner, view.result, nil) == returnOriginRefFree &&
+			!returnOriginCallHasUnprovedEffects(fn.unit.Sema.TypeInterner, view.effects) {
+			return ""
+		}
 		return "generic opaque use requires its type-dependent effect transfer"
 	}
 	value := a.summaries[fn.key].clone()
 	for _, root := range value.roots {
-		if root.kind != returnOriginParam || root.expired || int64(root.param) >= int64(len(info.Params)) {
+		if root.kind != returnOriginParam || root.expired || int64(root.param) >= int64(len(view.params)) {
 			return "generic result contains an unproved source"
 		}
 	}
-	shape := returnOriginTypeShape(fn.unit.Sema.TypeInterner, info.Result, nil)
+	shape := returnOriginTypeShape(fn.unit.Sema.TypeInterner, view.result, nil)
 	if shape == returnOriginShapeUnknown {
 		return "generic result requires concrete borrowed-content facts"
 	}
-	if shape != returnOriginRefFree && !info.ReturnSources().IsAllInputs() {
+	if shape != returnOriginRefFree && !fn.info.ReturnSources().IsAllInputs() {
 		value.roots = slices.DeleteFunc(value.roots, func(root returnOrigin) bool {
-			return returnOriginTypeShape(fn.unit.Sema.TypeInterner, info.Params[root.param], nil) == returnOriginRefFree
+			return returnOriginTypeShape(fn.unit.Sema.TypeInterner, view.params[root.param], nil) == returnOriginRefFree
 		})
 		body.checkDeclaredReturn(value, allowed, use.Site)
 	}

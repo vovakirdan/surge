@@ -138,3 +138,76 @@ func (fn *returnOriginFunction) originalInstantiation(id ast.ExprID, kind Instan
 	}
 	return slices.Clone(args), ""
 }
+
+// originalSignature checks one source request against the exact selected
+// declaration. The view describes admitted operands; original FnInfo and its
+// promise remain immutable and authoritative throughout validation.
+func (fn *returnOriginFunction) originalSignature(caller *returnOriginFunction, id ast.ExprID, args []types.TypeID) (*returnOriginSignature, string) {
+	u := caller.unit
+	in := u.Sema.TypeInterner
+	params := fn.candidate.TemplateParams
+	if len(params) == 0 || len(params) != len(args) || fn.info == nil {
+		return nil, "generic original call has inconsistent template arity"
+	}
+	call, ok := u.Builder.Exprs.Call(id)
+	identity, err := u.callableIdentity(u.Symbols.ExprSymbols[id], "")
+	sym := u.Symbols.Table.Symbols.Get(u.Symbols.ExprSymbols[id])
+	original := fn.unit.Symbols.Table.Symbols.Get(fn.symbol)
+	if !ok || call == nil || err != nil || identity.BodyKey != fn.key || identity.SourceKey != fn.canonicalSourceKey ||
+		sym == nil || sym.Signature == nil || original == nil || original.Signature == nil ||
+		sym.Signature.HasSelf != fn.candidate.HasSelf || original.Signature.HasSelf != fn.candidate.HasSelf {
+		return nil, "generic original call lacks its selected declaration and physical formals"
+	}
+	var receiver ast.ExprID
+	member, memberCall := u.Builder.Exprs.Member(call.Target)
+	if fn.candidate.HasSelf {
+		if !memberCall || member == nil {
+			return nil, "generic original method call lacks its receiver expression"
+		}
+		receiver = member.Target
+	}
+	slots, err := mapReturnOriginArguments(original.Signature, call, receiver)
+	if err != nil || len(slots) != len(fn.info.Params) {
+		return nil, "generic original call lacks exact physical argument slots"
+	}
+	view := &returnOriginSignature{params: make([]types.TypeID, len(slots)), effects: make([]types.TypeID, len(slots)), result: u.Sema.ExprTypes[id]}
+	for i, slot := range slots {
+		if slot.defaulted || len(slot.exprs) != 1 || i < len(fn.candidate.Variadic) && fn.candidate.Variadic[i] {
+			return nil, "generic original call needs its exact default or variadic transfer"
+		}
+		expr := slot.exprs[0]
+		if _, converted := u.Sema.ImplicitConversions[expr]; converted {
+			return nil, "generic original call needs its selected argument conversion contract"
+		}
+		var reason string
+		view.params[i], reason = u.originalArgumentType(expr, fn.info.Params[i], params, args)
+		if reason != "" {
+			return nil, reason
+		}
+		view.effects[i] = u.Sema.ExprTypes[expr]
+	}
+	if matchReturnOriginSourceType(in, fn.info.Result, view.result, params, args) != "" {
+		// The existing static-method result reader can return the typed dispatch
+		// owner for an own Receiver<T> result. The syntactic type receiver has
+		// an exact SymbolType, not a runtime ExprTypes entry. Require that
+		// declaration plus the actual result; no general ownership erasure.
+		result, present := in.Lookup(fn.info.Result)
+		var staticOwner *symbols.Symbol
+		if memberCall && member != nil {
+			staticOwner = u.Symbols.Table.Symbols.Get(u.Symbols.ExprSymbols[member.Target])
+		}
+		dispatch, dispatchOK := in.StructInfo(fn.candidate.ReceiverType)
+		var target *types.StructInfo
+		if staticOwner != nil && staticOwner.Kind == symbols.SymbolType {
+			target, _ = in.StructInfo(staticOwner.Type)
+		}
+		if !present || result.Kind != types.KindOwn || fn.candidate.HasSelf || fn.candidate.ReceiverType == types.NoTypeID ||
+			!dispatchOK || dispatch == nil || target == nil || dispatch.Name != target.Name || dispatch.Decl != target.Decl ||
+			staticOwner.Decl.SourceFile != target.Decl.File || staticOwner.Span.File != target.Decl.File ||
+			staticOwner.Span.Start < target.Decl.Start || staticOwner.Span.End > target.Decl.End || result.Elem != fn.candidate.ReceiverType ||
+			matchReturnOriginSourceType(in, result.Elem, view.result, params, args) != "" {
+			return nil, "generic original call result disagrees with its substituted source signature"
+		}
+	}
+	return view, ""
+}
