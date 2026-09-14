@@ -40,6 +40,7 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 	}
 	callbackType := ast.NoTypeID
 	callback := false
+	var callbackValue returnOriginValue
 	if deferred == nil && callee == nil && (sym == nil || sym.Kind != symbols.SymbolFunction) {
 		info, callbackType, callback = b.callbackParameter(call.Target)
 	}
@@ -74,6 +75,13 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 	}
 	if !flow.normal.reachable {
 		return returnOriginExprResult{flow: flow}, nil
+	}
+	if info == nil && deferred == nil && (sym == nil || sym.Kind != symbols.SymbolFunction) {
+		value := values[call.Target].value
+		if len(value.callables) != 0 {
+			info = b.callableType(u.Sema.ExprTypes[call.Target], span)
+			callback, callbackValue = info != nil, value
+		}
 	}
 	if info == nil || unresolved != "" {
 		if unresolved == "" {
@@ -124,6 +132,9 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		}
 		for _, expr := range slot.exprs {
 			actuals[i] = actuals[i].join(b.callArgumentOrigin(expr, info.Params[i], values[expr]))
+			if returnOriginFnInfo(u.Sema.TypeInterner, info.Params[i]) != nil || len(values[expr].value.callables) != 0 {
+				b.pending(u.Builder.Exprs.Get(expr).Span, "callable argument conversion needs its selected destination promise")
+			}
 		}
 		if kind, reference := returnOriginFormalBorrowKind(u.Sema.TypeInterner, info.Params[i]); reference && kind == BorrowMut {
 			if returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, []types.TypeID{info.Params[i]}) {
@@ -131,8 +142,17 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 			}
 		}
 	}
+	if returnOriginFnInfo(u.Sema.TypeInterner, info.Result) != nil {
+		b.pending(span, "callable call result needs its destination and capture contract")
+		return returnOriginExprResult{flow: flow, value: returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})}, nil
+	}
 	var summary returnOriginValue
-	if callee != nil && callee.item.Body.IsValid() {
+	if callbackValue.normal {
+		summary = b.callableValueSources(callbackValue, span)
+		if returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, info.Params) {
+			b.pending(span, "indirect call may change reference-bearing or callable contents")
+		}
+	} else if callee != nil && callee.item.Body.IsValid() {
 		// A recursive body legitimately starts at NoNormalReturn. Its private
 		// fixed point, not the declared upper bound, supplies actual precision.
 		summary = b.analyzer.summaries[callee.key]
@@ -195,9 +215,9 @@ func (b *returnOriginBody) resolveCallDeclaration(id symbols.SymbolID) (*returnO
 	return nil, "selected callable has no canonical declaration authority"
 }
 
-// Only the incoming parameter itself is admitted here. A copied, captured,
-// returned or otherwise computed callable still goes through expr's Pending
-// path; the function type promises no return sources from hidden captures.
+// Recover the incoming parameter's actual source type syntax. Copies use the
+// evaluated callable alternatives instead; neither route permits hidden
+// captures to become explicit call-result sources.
 func (b *returnOriginBody) callbackParameter(id ast.ExprID) (*types.FnInfo, ast.TypeID, bool) {
 	fn := b.function
 	u := fn.unit

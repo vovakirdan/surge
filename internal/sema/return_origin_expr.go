@@ -38,13 +38,15 @@ func (b *returnOriginBody) expr(id ast.ExprID, env returnOriginEnv, targets retu
 		if sym == nil {
 			return b.unknownExpr(env, node.Span, "identifier has no resolved symbol"), nil
 		}
+		if returnOriginFnInfo(u.Sema.TypeInterner, u.Sema.ExprTypes[id]) != nil || sym.Kind == symbols.SymbolFunction {
+			return b.callableIdent(id, env), nil
+		}
 		value := env.value(symID)
 		if b.shape(id) == returnOriginRefFree {
 			value = returnOriginValueOf()
 		}
-		if returnOriginFnInfo(u.Sema.TypeInterner, u.Sema.ExprTypes[id]) != nil ||
-			sym.Kind == symbols.SymbolFunction || !b.within(sym.Scope, b.function.scope) {
-			return b.unknownExpr(env, node.Span, "callable value or captured binding requires origin finalization"), nil
+		if !b.within(sym.Scope, b.function.scope) {
+			return b.unknownExpr(env, node.Span, "captured binding requires origin finalization"), nil
 		}
 		b.checkExpired(value, node.Span)
 		out := originExprValue(env, value)
@@ -68,6 +70,8 @@ func (b *returnOriginBody) expr(id ast.ExprID, env returnOriginEnv, targets retu
 		return b.ternary(id, env, targets)
 	case ast.ExprCall:
 		return b.call(id, env, targets)
+	case ast.ExprArray, ast.ExprTuple, ast.ExprStruct:
+		return b.constructor(id, env, targets)
 	case ast.ExprMember:
 		data, _ := u.Builder.Exprs.Member(id)
 		out, err := b.expr(data.Target, env, targets)
@@ -182,6 +186,11 @@ func (b *returnOriginBody) binary(id ast.ExprID, env returnOriginEnv, targets re
 		if node.Kind != ast.ExprIdent || !symID.IsValid() {
 			b.pending(u.Builder.Exprs.Get(id).Span, "store through a place needs reference-content transfer")
 		} else if sym := u.Symbols.Table.Symbols.Get(symID); sym != nil {
+			annotation := ast.NoTypeID
+			if decl := u.Builder.Stmts.Get(sym.Decl.Stmt); decl != nil && decl.Kind == ast.StmtLet {
+				annotation = u.Builder.Stmts.Let(sym.Decl.Stmt).Type
+			}
+			right.value = b.bindCallable(right.value, symID, annotation, data.Right, right.flow.normal.value(symID), true)
 			right.flow.normal = right.flow.normal.assign(symID, sym.Scope, right.value)
 		}
 		right.storage = returnOriginValue{}
