@@ -137,7 +137,7 @@ func (s *instantiationSubstitution) typeIDAtDepth(id types.TypeID, depth int) (t
 			break
 		}
 		if changed || result != info.Result {
-			out = s.types.RegisterFn(params, result)
+			out = s.types.RebuildFn(id, params, result)
 		}
 	case types.KindStruct:
 		out, err = s.structType(id, depth)
