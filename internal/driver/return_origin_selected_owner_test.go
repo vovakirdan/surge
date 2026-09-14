@@ -44,7 +44,7 @@ func TestSelectedModuleOwnerAssociation(t *testing.T) {
 			wantKeys := strings.Fields("app/main.sg core/array.sg core/base.sg core/entrypoint.sg core/format.sg core/intrinsics.sg core/map.sg core/option.sg core/result.sg core/string.sg core/sync.sg dep/main.sg")
 			if name == "aliases_distinct_owner" {
 				text, calls = selectedOwnerAliases, []string{"Left.first(a, b)", "Again.first(a, b)", "Foreign.first(a, b)"}
-				wantKeys = append(wantKeys, "alt/main.sg")
+				wantKeys = append(wantKeys, "app/alt/main.sg")
 				slices.Sort(wantKeys)
 			}
 			if name == "missing_export_owner" {
@@ -175,7 +175,7 @@ func selectedCallableModuleFixture(t *testing.T, text string, ownerCase ...strin
 	root := t.TempDir()
 	sourceTexts := map[string]string{"app/main.sg": text, "dep/main.sg": selectedCallableDependency}
 	if len(ownerCase) > 0 && ownerCase[0] == "aliases_distinct_owner" {
-		sourceTexts["alt/main.sg"] = strings.Replace(selectedCallableDependency, "module::dep", "module::alt", 1)
+		sourceTexts["app/alt/main.sg"] = strings.Replace(selectedCallableDependency, "module::dep", "module::alt", 1)
 	}
 	for name, content := range sourceTexts {
 		path := filepath.Join(root, name)
@@ -198,17 +198,14 @@ func selectedCallableModuleFixture(t *testing.T, text string, ownerCase ...strin
 	opts := &DiagnoseOptions{Stage: DiagnoseStageAll, BaseDir: root, MaxDiagnostics: 64, KeepArtifacts: true}
 	exports, rec, records, err := runModuleGraph(t.Context(), files, file, builder, fileID, bag, opts, NewModuleCache(8), interner, texts)
 	logReturnOriginCallEvidence(t, map[string]any{"stage": "selected_module_graph", "bag": bag.Items(), "error": errorReturnOriginCallText(err)})
-	if err != nil || rec == nil {
-		t.Fatalf("PRECONDITION: actual module graph: %v", err)
+	if err != nil || rec == nil || bag.HasErrors() {
+		t.Fatalf("PRECONDITION: actual module graph: %v; bag=%+v", err, bag.Items())
 	}
 	original := exports["app/dep"]
 	if original == nil || original.Path != "dep" {
 		t.Fatal("PRECONDITION: actual dependency export owner missing")
 	}
 	before := selectedCallableDigest(t, original)
-	if len(ownerCase) > 0 && ownerCase[0] == "aliases_distinct_owner" && (exports["dep"] != original || exports["app/alt"] == original || exports["app/alt"] == nil) {
-		t.Fatal("PRECONDITION: aliases do not share their real owner container")
-	}
 	if len(ownerCase) > 0 && ownerCase[0] == "missing_export_owner" {
 		detached := *original
 		detached.Path, detached.Symbols = "", maps.Clone(original.Symbols)
@@ -234,6 +231,10 @@ func selectedCallableModuleFixture(t *testing.T, text string, ownerCase ...strin
 		}
 		slices.Sort(owners)
 		logReturnOriginCallEvidence(t, map[string]any{"stage": "selected_export_owner", "lookup_path": key, "exports_path": exp.Path, "same_container_owners": owners, "original_path": original.Path, "original_sha256": before})
+	}
+	logReturnOriginCallEvidence(t, map[string]any{"stage": "selected_export_guard", "dep_same": exports["dep"] == original, "foreign_present": exports["app/alt"] != nil, "foreign_same": exports["app/alt"] == original})
+	if len(ownerCase) > 0 && ownerCase[0] == "aliases_distinct_owner" && (exports["dep"] != original || exports["app/alt"] == original || exports["app/alt"] == nil) {
+		t.Fatal("PRECONDITION: aliases do not share their real owner container")
 	}
 	resolveModuleRecord(t.Context(), rec, root, exports, interner, opts, nil)
 	if original.Path != "dep" || before != selectedCallableDigest(t, original) {
