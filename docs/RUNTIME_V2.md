@@ -613,6 +613,39 @@ This is the central place where V2 should differ from a plain Seastar or
 Glommio clone. The scheduler supplies shard locality, but the language supplies
 the legal cross-shard ownership transfer.
 
+#### Borrowed Results And Normal Block Exit
+
+**Owner ruling 2026-09-14.** A normal block exit releases the local owners whose
+obligations remain in that block. A borrowed result, or a reference assigned to
+an outer binding, must not outlive its source. Returning an owned value transfers
+its obligation; it does not authorize keeping unrelated local owners alive.
+
+For a function with an available body, the compiler infers which explicit inputs
+may supply the borrowed content of its result. The zero-argument parameter
+attribute `@return_source` declares a checked upper bound on those sources:
+
+```surge
+fn first(@return_source a: &string, b: &string) -> &string {
+    return a;
+}
+type FirstRef = fn(@return_source &string, &string) -> &string;
+```
+
+Several marked parameters form a union for the whole borrowed result, including
+permitted tagged or optional payloads. An opaque callable without marks may
+return a borrow from any reference-bearing explicit input, including `self`.
+The default is resolved after generic substitution. A callable with fewer
+possible sources can satisfy a wider promise; an explicit widening remains in
+effect when the value is subsequently copied or called.
+
+The first version admits explicit parameters and `self` as result sources.
+Returning a borrow from a captured variable requires passing that source as an
+explicit parameter. A missing source proof is not an empty set of dependencies;
+a proven result without a reference, such as `None`, is a separate case. Source
+promises do not grant mutation rights or relax existing borrowing, ownership,
+or crossing rules. This contract adds no runtime lifetime tracking or ABI state.
+Implementation acceptance is tracked in the Epic 22 Phase 2 closeout plan.
+
 ### 6. Explicit Crossing
 
 Move-only and shard-movable typing decide what may cross a shard boundary. They
