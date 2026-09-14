@@ -1,0 +1,169 @@
+package sema
+
+import (
+	"cmp"
+	"slices"
+
+	"surge/internal/ast"
+	"surge/internal/source"
+	"surge/internal/symbols"
+	"surge/internal/types"
+)
+
+// A nonempty bodyKey preserves inferred precision. An empty key is a validated
+// declared promise, including explicit widening; copying it never restores a
+// body. Captured/incoming contents remain in value.roots, not in these call-result
+// slots. The alternatives are finite source/type identities and immutable.
+type returnOriginCallable struct {
+	bodyKey string
+	typ     types.TypeID
+	slots   []uint32
+	promise source.Span
+}
+
+func cloneReturnOriginCallables(values []returnOriginCallable) []returnOriginCallable {
+	out := slices.Clone(values)
+	for i := range out {
+		out[i].slots = slices.Clone(out[i].slots)
+	}
+	return out
+}
+
+func compareReturnOriginCallables(a, b returnOriginCallable) int {
+	if order := cmp.Compare(a.bodyKey, b.bodyKey); order != 0 {
+		return order
+	}
+	if order := cmp.Compare(a.typ, b.typ); order != 0 {
+		return order
+	}
+	if order := slices.Compare(a.slots, b.slots); order != 0 {
+		return order
+	}
+	return compareReturnOriginSpans(a.promise, b.promise)
+}
+
+func (b *returnOriginBody) callableType(typ types.TypeID, span source.Span) *types.FnInfo {
+	in := b.function.unit.Sema.TypeInterner
+	info, ok := in.FnInfo(typ)
+	if !ok || types.ContainsGenericParam(in, typ) {
+		b.pending(span, "callable value needs its concrete original type and alias authority")
+		return nil
+	}
+	for _, param := range info.Params {
+		if returnOriginFnInfo(in, param) != nil {
+			b.pending(span, "higher-order callable parameters need their conversion contracts")
+			return nil
+		}
+	}
+	if returnOriginFnInfo(in, info.Result) != nil {
+		b.pending(span, "callable return values need their destination and capture contracts")
+		return nil
+	}
+	return info
+}
+
+func (b *returnOriginBody) declaredCallable(typ types.TypeID, typeExpr ast.TypeID, span source.Span) (returnOriginCallable, bool) {
+	u := b.function.unit
+	info := b.callableType(typ, span)
+	node := u.Builder.Types.Get(typeExpr)
+	if info == nil || node == nil || node.Kind != ast.TypeExprFn {
+		b.pending(span, "callable promise needs its original function-type syntax")
+		return returnOriginCallable{}, false
+	}
+	syntax := symbols.FunctionTypeReturnSourceSyntax(u.Builder, typeExpr)
+	slots, valid := b.declaredSources(u, symbols.NoSymbolID, typeExpr, syntax, info, span)
+	return returnOriginCallable{typ: typ, slots: slices.Clone(slots), promise: node.Span}, valid
+}
+
+func (b *returnOriginBody) callableIdent(id ast.ExprID, env returnOriginEnv) returnOriginExprResult {
+	u := b.function.unit
+	node := u.Builder.Exprs.Get(id)
+	symID := u.Symbols.ExprSymbols[id]
+	sym := u.Symbols.Table.Symbols.Get(symID)
+	if sym == nil || b.callableType(u.Sema.ExprTypes[id], node.Span) == nil {
+		return b.unknownExpr(env, node.Span, "callable identifier lacks concrete source facts")
+	}
+	value := env.value(symID)
+	if sym.Kind == symbols.SymbolFunction {
+		fn, reason := b.resolveCallDeclaration(symID)
+		if fn == nil {
+			return b.unknownExpr(env, node.Span, reason)
+		}
+		value = returnOriginValueOf()
+		value.callables = []returnOriginCallable{{bodyKey: fn.key, typ: sym.Type}}
+	} else if !b.within(sym.Scope, b.function.scope) {
+		return b.unknownExpr(env, node.Span, "captured callable binding needs its owning content proof")
+	} else if len(value.callables) == 0 {
+		// Unused inputs retain their existing Param-content fact. Materialize
+		// the declared callable only when it is actually read, copied or called.
+		_, typeExpr, parameter := b.callbackParameter(id)
+		if !parameter {
+			return b.unknownExpr(env, node.Span, "callable binding has no evaluated source alternative")
+		}
+		declared, valid := b.declaredCallable(u.Sema.ExprTypes[id], typeExpr, node.Span)
+		if !valid {
+			return b.unknownExpr(env, node.Span, "incoming callable promise is not finalized")
+		}
+		value.callables = []returnOriginCallable{declared}
+		env = env.assign(symID, sym.Scope, value)
+	}
+	b.checkExpired(value, node.Span)
+	out := originExprValue(env, value)
+	if sym.Kind != symbols.SymbolFunction {
+		out.storage = returnOriginValueOf(returnOrigin{kind: returnOriginLocal, binding: symID, scope: sym.Scope})
+	}
+	return out
+}
+
+func (b *returnOriginBody) callableFunction(value returnOriginCallable) *returnOriginFunction {
+	fn := b.analyzer.bodies[value.bodyKey]
+	if fn == nil {
+		fn = b.analyzer.declarations[value.bodyKey]
+	}
+	if fn == nil {
+		return nil
+	}
+	sym := fn.unit.Symbols.Table.Symbols.Get(fn.symbol)
+	if sym == nil || sym.Type != value.typ {
+		return nil
+	}
+	return fn
+}
+
+func (b *returnOriginBody) callableSources(value returnOriginCallable, span source.Span) returnOriginValue {
+	info := b.callableType(value.typ, span)
+	if info == nil {
+		return returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
+	}
+	if value.bodyKey == "" {
+		return b.opaqueReturnSources(info, value.slots, true, span)
+	}
+	fn := b.callableFunction(value)
+	if fn == nil {
+		b.pending(span, "function value lost its exact original declaration/body")
+		return returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
+	}
+	if fn.item.Body.IsValid() {
+		return b.analyzer.summaries[fn.key].clone()
+	}
+	slots, valid := b.declaredFunctionSources(fn, span)
+	return b.opaqueReturnSources(info, slots, valid, span)
+}
+
+func (b *returnOriginBody) callableValueSources(value returnOriginValue, span source.Span) returnOriginValue {
+	out := returnOriginValue{}
+	for _, alternative := range value.callables {
+		out = out.join(b.callableSources(alternative, span))
+	}
+	unknown := len(value.callables) == 0
+	for _, root := range value.roots {
+		// Incoming opaque contents are allowed, but the call promise still
+		// permits references only from explicit arguments, never captures.
+		unknown = unknown || root.kind != returnOriginParam || root.expired
+	}
+	if unknown {
+		b.pending(span, "callable contents have unresolved or captured provenance")
+		out = out.join(returnOriginValueOf(returnOrigin{kind: returnOriginUnknown}))
+	}
+	return out
+}

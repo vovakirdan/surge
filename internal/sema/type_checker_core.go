@@ -73,6 +73,9 @@ type typeChecker struct {
 	structBases        map[types.TypeID]types.TypeID
 	externFields       map[symbols.TypeKey]*externFieldSet
 	externSealedBlocks map[ast.ItemID]struct{}
+
+	externMethodHeaders map[symbols.SymbolID]*externMethodHeader
+
 	// pendingCloneObligation labels the deferred edge rememberDeferredCallable
 	// is about to record. It is set only around that one call, because the edge
 	// builder is shared with the three deferred CALL kinds, which carry none.
@@ -399,6 +402,7 @@ func (tc *typeChecker) run() {
 		tc.collectExternFields(f)
 	}
 	tc.mergeExternFieldsIntoStructs()
+	tc.prepareExternMethodHeaders()
 	done()
 
 	done = phase("validate_shard_movable")
