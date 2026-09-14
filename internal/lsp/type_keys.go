@@ -221,7 +221,7 @@ func typeKeyForType(interner *types.Interner, id types.TypeID) symbols.TypeKey {
 			}
 			resultKey := typeKeyForType(interner, info.Result)
 			if resultKey == "" {
-				resultKey = symbols.TypeKey("nothing")
+				return ""
 			}
 			return symbols.FunctionTypeKey(params, resultKey, info.ReturnSources())
 		}
