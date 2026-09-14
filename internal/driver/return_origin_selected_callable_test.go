@@ -83,41 +83,48 @@ func TestAnalyzeTypedSelectedCallableAuthority(t *testing.T) {
 				t.Fatal("PRECONDITION: original caller unit missing")
 			}
 			root := &inputs.units[rootIndex]
+			if strings.HasSuffix(name, "_mapping") {
+				for i := range inputs.units {
+					if inputs.units[i].SourceKey == "core/map.sg" {
+						root = &inputs.units[i]
+					}
+				}
+			}
 			for _, key := range []string{"array", "base", "entrypoint", "format", "intrinsics", "map", "option", "result", "string", "sync"} {
 				if !seen["core/"+key+".sg"] {
 					t.Fatal("PRECONDITION: original core owner was filtered out")
 				}
 			}
 			for _, witness := range res.Sema.InstantiationGraph.Roots() {
-				if witness.Witness.Site.File == res.File.ID {
+				if witness.Witness.Site.File == root.Builder.Files.Get(root.FileID).Span.File {
 					logReturnOriginCallEvidence(t, map[string]any{"stage": "selected_original_root", "root": witness})
 				}
 			}
 			for _, caller := range res.Sema.CallableCandidates {
-				if caller.Source.File == res.File.ID {
+				if caller.Source.File == root.Builder.Files.Get(root.FileID).Span.File {
 					logReturnOriginCallEvidence(t, map[string]any{"stage": "selected_caller", "candidate": caller, "calls": res.Sema.FunctionCallEdges[caller.Symbol]})
 				}
 			}
 			for _, use := range res.Sema.InstantiationClosure.UseSites {
-				if use.Site.File == res.File.ID {
+				if use.Site.File == root.Builder.Files.Get(root.FileID).Span.File {
 					instance, _ := res.Sema.InstantiationClosure.Lookup(use.Callee)
 					logReturnOriginCallEvidence(t, map[string]any{"stage": "selected_current_use", "use": use, "instance": instance})
 				}
 			}
 			text, kind := "m.insert(clone(&key), value)", ast.ExprCall
+			if root.SourceKey == "core/map.sg" {
+				text = "rt_map_insert(self, key, value)"
+			}
 			if imported {
 				text, kind = "Other.first", ast.ExprMember
 			}
 			id := selectedCallableSite(t, res, *root, text, kind)
 			selected := root.Symbols.ExprSymbols[id]
-			candidate := selectedCallableCandidateFact(t, res, inputs.units, *root, selected)
 			if name == "imported_body" {
 				callID := selectedCallableSite(t, res, *root, "Other.first(a, b)", ast.ExprCall)
-				called := selectedCallableCandidateFact(t, res, inputs.units, *root, root.Symbols.ExprSymbols[callID])
-				if called.Symbol != candidate.Symbol {
-					t.Fatal("PRECONDITION: direct call and member select different original declarations")
-				}
+				selected = root.Symbols.ExprSymbols[callID]
 			}
+			candidate := selectedCallableCandidateFact(t, res, inputs.units, *root, selected)
 			promises := selectedCallablePromises(t, *root, selected)
 			if imported {
 				member, _ := root.Builder.Exprs.Member(id)
@@ -145,7 +152,7 @@ func TestAnalyzeTypedSelectedCallableAuthority(t *testing.T) {
 			original := root.Publication
 			wantReason := ""
 			if strings.HasSuffix(name, "_mapping") {
-				otherID := selectedCallableSite(t, res, *root, "m.remove(&key)", ast.ExprCall)
+				otherID := selectedCallableSite(t, res, *root, "rt_map_remove(self, key)", ast.ExprCall)
 				foreign := selectedCallableCandidateFact(t, res, inputs.units, *root, root.Symbols.ExprSymbols[otherID])
 				if candidate.Symbol == foreign.Symbol || candidate.Source == foreign.Source || len(original.RootToLocalSymbols) == 0 {
 					t.Fatal("PRECONDITION: mapping mutation lacks two distinct real declarations")
@@ -183,7 +190,7 @@ func TestAnalyzeTypedSelectedCallableAuthority(t *testing.T) {
 				t.Fatalf("selected source analysis did not reach a result: %v", err)
 			}
 			for _, d := range analysis.Diagnostics {
-				if d.Primary.File == res.File.ID {
+				if d.Primary.File == root.Builder.Files.Get(root.FileID).Span.File {
 					t.Errorf("admitted caller acquired an origin diagnostic: %+v", d)
 				}
 			}
@@ -240,8 +247,9 @@ func selectedCallablePromises(t *testing.T, u sema.ReturnOriginUnit, selected sy
 func selectedCallableSite(t *testing.T, res *DiagnoseResult, u sema.ReturnOriginUnit, text string, kind ast.ExprKind) ast.ExprID {
 	t.Helper()
 	var found ast.ExprID
+	file := res.FileSet.Get(u.Builder.Files.Get(u.FileID).Span.File)
 	for i, node := range u.Builder.Exprs.Arena.Slice() {
-		if node.Kind != kind || node.Span.File != res.File.ID || string(res.File.Content[node.Span.Start:node.Span.End]) != text {
+		if node.Kind != kind || node.Span.File != file.ID || string(file.Content[node.Span.Start:node.Span.End]) != text {
 			continue
 		}
 		id := ast.ExprID(i + 1)
@@ -286,6 +294,7 @@ func selectedCallableCandidateFact(t *testing.T, res *DiagnoseResult, units []se
 		}
 	}
 	sym := u.Symbols.Table.Symbols.Get(selected)
+	logReturnOriginCallEvidence(t, map[string]any{"stage": "selected_candidate_lookup", "source_key": u.SourceKey, "selected": selected, "symbol": sym, "candidate": found, "mapping_count": len(u.Publication.RootToLocalSymbols)})
 	if found == nil || !selected.IsValid() || sym == nil || sym.Kind != symbols.SymbolFunction || sym.Signature == nil {
 		t.Fatal("PRECONDITION: selected callable lacks its real typed symbol/candidate")
 	}

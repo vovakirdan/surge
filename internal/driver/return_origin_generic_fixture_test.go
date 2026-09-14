@@ -25,12 +25,13 @@ func originalGenericSignatureFixture(t *testing.T, text string, escape, dependen
 	var program *DiagnoseResult
 	wantUnits := 1
 	if dependency {
-		const prefix = "pragma module::dep, no_std;\n"
-		if !strings.HasPrefix(text, prefix) || escape {
+		noStd := strings.HasPrefix(text, "pragma module::dep, no_std;\n")
+		prelude := strings.HasPrefix(text, "pragma module::dep;\n")
+		if (!noStd && !prelude) || escape {
 			t.Fatal("PRECONDITION: dependency source lost its module declaration")
 		}
 		t.Setenv("SURGE_STDLIB", repoRootFromDriverTest(t))
-		program = returnOriginModuleFixture(t, true, strings.TrimPrefix(text, prefix))
+		program = returnOriginModuleSourceFixture(t, true, text)
 		wantUnits = 12
 		logReturnOriginCallEvidence(t, map[string]any{"stage": "generic_root_before_closure", "source": string(program.File.Content),
 			"sha256": sha256.Sum256(program.File.Content), "seeds": program.Sema.InstantiationCallableSeeds,
