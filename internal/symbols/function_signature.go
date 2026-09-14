@@ -35,14 +35,15 @@ func ArrayTypeKey(elem string, arr *ast.TypeArray) string {
 
 // FunctionSignature captures a simplified view of a function signature.
 type FunctionSignature struct {
-	Params     []TypeKey
-	ParamNames []source.StringID // Parameter names (for named arguments)
-	Variadic   []bool
-	Defaults   []bool // true if parameter has default value
-	AllowTo    []bool // true if parameter allows implicit __to conversion
-	Result     TypeKey
-	HasBody    bool
-	HasSelf    bool
+	Params             []TypeKey
+	ParamNames         []source.StringID // Parameter names (for named arguments)
+	Variadic           []bool
+	Defaults           []bool // true if parameter has default value
+	AllowTo            []bool // true if parameter allows implicit __to conversion
+	Result             TypeKey
+	HasBody            bool
+	HasSelf            bool
+	ReturnSourceSyntax ReturnSourceSyntax
 }
 
 func buildFunctionSignature(builder *ast.Builder, fn *ast.FnItem) *FunctionSignature {
@@ -59,14 +60,15 @@ func buildFunctionSignature(builder *ast.Builder, fn *ast.FnItem) *FunctionSigna
 		}
 	}
 	sig := &FunctionSignature{
-		Params:     make([]TypeKey, 0, len(ids)),
-		ParamNames: make([]source.StringID, 0, len(ids)),
-		Variadic:   make([]bool, 0, len(ids)),
-		Defaults:   make([]bool, 0, len(ids)),
-		AllowTo:    make([]bool, 0, len(ids)),
-		Result:     resultKey,
-		HasBody:    fn.Body.IsValid(),
-		HasSelf:    false,
+		Params:             make([]TypeKey, 0, len(ids)),
+		ParamNames:         make([]source.StringID, 0, len(ids)),
+		Variadic:           make([]bool, 0, len(ids)),
+		Defaults:           make([]bool, 0, len(ids)),
+		AllowTo:            make([]bool, 0, len(ids)),
+		Result:             resultKey,
+		HasBody:            fn.Body.IsValid(),
+		HasSelf:            false,
+		ReturnSourceSyntax: FunctionReturnSourceSyntax(builder, fn),
 	}
 	for i, pid := range ids {
 		param := builder.Items.FnParam(pid)

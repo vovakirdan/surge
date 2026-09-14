@@ -126,8 +126,8 @@ extern<TcpConn> {
 @intrinsic fn rt_array_reserve<T>(a: &mut Array<T>, new_cap: uint) -> nothing;
 @intrinsic fn rt_array_push<T>(a: &mut Array<T>, value: T) -> nothing;
 @intrinsic fn rt_array_pop<T>(a: &mut Array<T>) -> Option<T>;
-@intrinsic fn rt_array_get_mut<T>(a: &mut Array<T>, index: int) -> &mut T;
-@intrinsic @overload fn rt_array_get_mut<T, const N:int>(a: &mut ArrayFixed<T, N>, index: int) -> &mut T;
+@intrinsic fn rt_array_get_mut<T>(@return_source a: &mut Array<T>, index: int) -> &mut T;
+@intrinsic @overload fn rt_array_get_mut<T, const N:int>(@return_source a: &mut ArrayFixed<T, N>, index: int) -> &mut T;
 @intrinsic fn rt_array_append_raw_bytes(a: &mut byte[], ptr: *byte, length: uint64) -> nothing;
 @intrinsic fn rt_byte_array_append_range(dst: &mut byte[], src: &byte[], start: uint64, length: uint64) -> nothing;
 @intrinsic fn rt_byte_array_drop_prefix(a: &mut byte[], count: uint64) -> nothing;
@@ -137,8 +137,8 @@ extern<TcpConn> {
 @intrinsic fn rt_map_new<K, V>() -> Map<K, V>;
 @intrinsic fn rt_map_len<K, V>(m: &Map<K, V>) -> uint;
 @intrinsic fn rt_map_contains<K, V>(m: &Map<K, V>, key: &K) -> bool;
-@intrinsic fn rt_map_get_ref<K, V>(m: &Map<K, V>, key: &K) -> Option<&V>;
-@intrinsic fn rt_map_get_mut<K, V>(m: &mut Map<K, V>, key: &K) -> Option<&mut V>;
+@intrinsic fn rt_map_get_ref<K, V>(@return_source m: &Map<K, V>, key: &K) -> Option<&V>;
+@intrinsic fn rt_map_get_mut<K, V>(@return_source m: &mut Map<K, V>, key: &K) -> Option<&mut V>;
 @intrinsic fn rt_map_insert<K, V>(m: &mut Map<K, V>, key: K, value: V) -> Option<V>;
 @intrinsic fn rt_map_remove<K, V>(m: &mut Map<K, V>, key: &K) -> Option<V>;
 @intrinsic fn rt_map_keys<K, V>(m: &Map<K, V>) -> K[];
@@ -757,7 +757,7 @@ extern<bool> {
 
 extern<Array<T>> {
     @intrinsic fn __add(self: &Array<T>, other: &Array<T>) -> Array<T>;
-    @intrinsic fn __index(self: &Array<T>, index: int) -> &T;
+    @intrinsic fn __index(@return_source self: &Array<T>, index: int) -> &T;
     @intrinsic @overload fn __index(self: &Array<T>, index: Range<int>) -> Array<T>;
     @intrinsic fn __index_set(self: &mut Array<T>, index: int, value: T) -> nothing;
     @intrinsic fn __range(self: &Array<T>) -> Range<T>;
@@ -766,7 +766,7 @@ extern<Array<T>> {
 
 extern<ArrayFixed<T, N>> {
     @intrinsic fn __add(self: &ArrayFixed<T, N>, other: &ArrayFixed<T, N>) -> ArrayFixed<T, N>;
-    @intrinsic fn __index(self: &ArrayFixed<T, N>, index: int) -> &T;
+    @intrinsic fn __index(@return_source self: &ArrayFixed<T, N>, index: int) -> &T;
     @intrinsic @overload fn __index(self: &ArrayFixed<T, N>, index: Range<int>) -> Array<T>;
     @intrinsic fn __index_set(self: &mut ArrayFixed<T, N>, index: int, value: T) -> nothing;
     @intrinsic fn __range(self: &ArrayFixed<T, N>) -> Range<T>;

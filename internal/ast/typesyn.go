@@ -290,9 +290,11 @@ type TypeFn struct {
 
 // TypeFnParam represents a parameter in a function type.
 type TypeFnParam struct {
-	Type     TypeID
-	Name     source.StringID
-	Variadic bool
+	Type      TypeID
+	Name      source.StringID
+	Variadic  bool
+	AttrStart AttrID
+	AttrCount uint32
 }
 
 // TypeOptional represents an optional type (`?`).
