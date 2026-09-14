@@ -48,6 +48,8 @@ type Result struct {
 	ReturnSourceDeclarations []ReturnSourceDeclarationRequest
 	// Concrete alias uses keep their original declaration, never a new promise.
 	ReturnSourceInstantiations []ReturnSourceInstantiationRequest
+	// Conformance facts remain owned by this unit; finalization supplies verdicts.
+	returnSourceConformances []ReturnSourceConformance
 	// IsOperands captures resolved right operands for `is` expressions.
 	IsOperands map[ast.ExprID]IsOperand
 	// HeirOperands captures resolved operands for `heir` expressions.
