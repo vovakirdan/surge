@@ -134,10 +134,11 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 			}
 		}
 		for _, expr := range slot.exprs {
-			actuals[i] = actuals[i].join(b.callArgumentOrigin(expr, info.Params[i], values[expr]))
+			value := b.callArgumentOrigin(expr, info.Params[i], values[expr])
 			if returnOriginFnInfo(u.Sema.TypeInterner, info.Params[i]) != nil || len(values[expr].value.callables) != 0 {
-				b.pending(u.Builder.Exprs.Get(expr).Span, "callable argument conversion needs its selected destination promise")
+				value = b.convertCallableArgument(callee, i, slot, expr, info.Params[i], value)
 			}
+			actuals[i] = actuals[i].join(value)
 		}
 		if kind, reference := returnOriginFormalBorrowKind(u.Sema.TypeInterner, info.Params[i]); reference && kind == BorrowMut {
 			if returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, []types.TypeID{info.Params[i]}) {
@@ -163,8 +164,8 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		var sources []uint32
 		var valid bool
 		if callback {
-			syntax := symbols.FunctionTypeReturnSourceSyntax(u.Builder, callbackType)
-			sources, valid = b.declaredSources(u, symbols.NoSymbolID, callbackType, syntax, info, span)
+			declared, complete := b.declaredCallable(u.Sema.ExprTypes[call.Target], callbackType, span)
+			sources, valid = declared.slots, complete
 		} else {
 			sources, valid = b.declaredFunctionSources(callee, span)
 		}
