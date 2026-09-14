@@ -179,6 +179,17 @@ func (tc *typeChecker) refResultCanAliasParam(resultType types.TypeID, param sym
 	return strings.HasPrefix(paramStr, "&mut ")
 }
 
+// isSharedReferenceRebind identifies a store into the reference slot itself.
+// Its old loan may still belong to another binding that copied the reference.
+func (tc *typeChecker) isSharedReferenceRebind(op ast.ExprBinaryOp, desc placeDescriptor) bool {
+	if tc == nil || tc.types == nil || op != ast.ExprBinaryAssign ||
+		!desc.Base.IsValid() || len(desc.Segments) != 0 {
+		return false
+	}
+	tt, ok := tc.types.Lookup(tc.resolveAlias(tc.bindingType(desc.Base)))
+	return ok && tt.Kind == types.KindReference && !tt.Mutable
+}
+
 // isWriteThroughMutRef checks if the place descriptor represents a write through
 // a mutable reference binding (i.e., *r = value where r: &mut T).
 // This is allowed even when the underlying value has an active exclusive borrow,
