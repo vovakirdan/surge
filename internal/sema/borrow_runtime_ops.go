@@ -551,7 +551,7 @@ func (tc *typeChecker) handleAssignment(exprID ast.ExprID, op ast.ExprBinaryOp, 
 	// through &mut is allowed - that's the whole point of exclusive borrows.
 	writeThroughMutRef := tc.isWriteThroughMutRef(desc)
 
-	if !writeThroughMutRef {
+	if !writeThroughMutRef && !tc.isSharedReferenceRebind(op, desc) {
 		desc, _ = tc.expandPlaceDescriptor(desc)
 	}
 	place := tc.canonicalPlace(desc)
