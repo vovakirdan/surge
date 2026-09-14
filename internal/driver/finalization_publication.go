@@ -13,14 +13,37 @@ import (
 	"surge/internal/symbols"
 )
 
-func finalizeDiagnoseResult(ctx context.Context, res *DiagnoseResult) (bool, error) {
-	if res == nil || res.Sema == nil || res.Symbols == nil || res.Bag == nil || res.Bag.HasErrors() {
+func finalizeDiagnoseStage(ctx context.Context, res *DiagnoseResult, stage DiagnoseStage) (bool, error) {
+	if stage != DiagnoseStageSema && stage != DiagnoseStageAll {
 		return false, nil
 	}
-	if err := FinalizeInstantiationClosure(ctx, res, 64); err != nil {
-		return false, fmt.Errorf("instantiation closure: %w", err)
+	return finalizeDiagnoseResult(ctx, res)
+}
+
+func finalizeDiagnoseResult(ctx context.Context, res *DiagnoseResult) (bool, error) {
+	if res == nil || res.Bag == nil {
+		return true, fmt.Errorf("return origins: missing diagnosed result or diagnostic bag")
 	}
-	return res.Bag.HasErrors(), nil
+	if hasReturnOriginRefusal(res.Bag) {
+		return true, nil
+	}
+	if res.Bag.HasErrors() {
+		return true, nil
+	}
+	if res.Sema == nil || res.Symbols == nil || res.Builder == nil || !res.FileID.IsValid() {
+		return true, fmt.Errorf("return origins: missing original typed source artifacts")
+	}
+	if err := FinalizeInstantiationClosure(ctx, res, 64); err != nil {
+		return true, fmt.Errorf("instantiation closure: %w", err)
+	}
+	if res.Bag.HasErrors() {
+		return true, nil
+	}
+	outcome, err := analyzeReturnOriginResult(ctx, res, res.Bag, make(returnOriginReporters))
+	if err != nil {
+		return true, err
+	}
+	return returnOriginVerdict(outcome.analysis)
 }
 
 // ErrDiagnosticsReported is what the merge seam answers when the whole-program

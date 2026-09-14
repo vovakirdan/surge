@@ -328,7 +328,7 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts *DiagnoseOpt
 		rootRecord:        rootRec,
 		moduleRecords:     moduleRecords,
 	}
-	blockHIR, finalizeErr := finalizeDiagnoseResult(ctx, result)
+	blockHIR, finalizeErr := finalizeDiagnoseStage(ctx, result, opts.Stage)
 	if finalizeErr != nil {
 		return nil, finalizeErr
 	}

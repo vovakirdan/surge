@@ -38,7 +38,7 @@ func returnOriginTypeShape(interner *types.Interner, id types.TypeID, seen map[t
 	case types.KindReference:
 		return returnOriginCarriesRef
 	case types.KindUnit, types.KindNothing, types.KindBool, types.KindConst,
-		types.KindString, types.KindInt, types.KindUint, types.KindFloat, types.KindEnum:
+		types.KindString, types.KindInt, types.KindUint, types.KindFloat, types.KindEnum, types.KindPointer:
 		return returnOriginRefFree
 	case types.KindOwn, types.KindFar, types.KindArray:
 		return returnOriginTypeShape(interner, typ.Elem, seen)

@@ -123,9 +123,7 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 		if !req.Analysis {
 			printBuildDiagnostics(os.Stderr, diagRes)
 		}
-		if !req.AllowDiagnosticsError {
-			err = fmt.Errorf("diagnostics reported errors")
-		}
+		err = driver.ErrDiagnosticsReported
 	}
 	if err != nil {
 		emitStage(req.Progress, req.Files, StageDiagnose, StatusError, err, 0)

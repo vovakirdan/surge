@@ -18,9 +18,9 @@ import (
 	"surge/internal/types"
 )
 
-func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results []DiagnoseDirResult, opts *DiagnoseOptions) error {
+func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results []DiagnoseDirResult, opts *DiagnoseOptions) (returnOriginPass, error) {
 	if fileSet == nil || len(results) == 0 {
-		return nil
+		return nil, nil
 	}
 	if opts == nil {
 		opts = &DiagnoseOptions{}
@@ -113,7 +113,7 @@ func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results
 			if errors.Is(err, errModuleNotFound) {
 				continue
 			}
-			return err
+			return nil, err
 		}
 		reporter := &diag.BagReporter{Bag: bag}
 		meta, ok := buildModuleMeta(fileSet, builder, fileIDs, baseDir, opts.ModuleMapping, reporter)
@@ -189,7 +189,7 @@ func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results
 	}
 
 	if len(records) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	missing := make(map[string]struct{})
@@ -247,7 +247,7 @@ func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results
 					missing[imp.Path] = struct{}{}
 					continue
 				}
-				return err
+				return nil, err
 			}
 			importedPath := normalizeExportsKey(imp.Path)
 			actualPath := normalizeExportsKey(depRec.Meta.Path)
@@ -286,7 +286,7 @@ func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results
 	}
 
 	if err := ensureStdlibModules(ctx, fileSet, records, opts, cache, stdlibRoot, typeInterner, sharedStrings); err != nil {
-		return err
+		return nil, err
 	}
 
 	paths := make([]string, 0, len(records))
@@ -342,13 +342,13 @@ func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results
 		*opts.ExportsOut = exports
 	}
 
-	if err := finalizeParallelModuleRecords(ctx, fileSet, paths, records); err != nil {
-		return err
+	pass, err := finalizeParallelModuleRecords(ctx, fileSet, paths, records)
+	if err != nil {
+		return nil, err
 	}
 
 	publishParallelModuleResults(fileSet, baseDir, results, opts, pathToIndex, fileIDToIndex, records, normalizePathForIndex)
-
-	return nil
+	return pass, requireParallelReturnOriginPublication(pass, results)
 }
 
 // moduleIdentityForFiles keys a module record by its physical location, so

@@ -95,18 +95,33 @@ fn read(value: &string) -> int { return 1; }
 	}
 }
 
-func TestAnalyzeTypedReturnOriginsOpaqueCallStaysPending(t *testing.T) {
+func TestAnalyzeTypedReturnOriginsOpaqueCallUsesAllInputs(t *testing.T) {
 	const src = `fn invoke(f: fn(&string) -> &string, value: &string) -> &string {
     return f(value);
 }
 `
 	analysis := analyzeTypedReturnOriginSource(t, src, false)
-	if analysis.Complete() || len(analysis.Pending) == 0 {
-		t.Fatal("opaque callable became safe before its declaration contract was finalized")
+	if !analysis.Complete() || len(analysis.Diagnostics) != 0 {
+		t.Fatal("opaque callable lacks a complete clean declaration proof")
 	}
 	summary := requireReturnOriginSummary(t, analysis, "invoke")
-	if !summary.Unknown || summary.NoNormalReturn {
-		t.Fatalf("opaque result became RefFree or nonreturning: %+v", summary)
+	if summary.Unknown || summary.NoNormalReturn || !slices.Equal(summary.ParamSlots, []uint32{1}) {
+		t.Fatalf("opaque AllInputs result lost the caller's input source 1: %+v", summary)
+	}
+}
+
+func TestAnalyzeTypedReturnOriginsUnusedCallbackCrossesBlock(t *testing.T) {
+	const src = `fn invoke(f: fn(&string) -> &string) -> nothing {
+    let n = { ret 1; };
+}
+`
+	analysis := analyzeTypedReturnOriginSource(t, src, false)
+	if !analysis.Complete() || len(analysis.Diagnostics) != 0 {
+		t.Fatalf("unused incoming callback invented an escaping owner: %+v", analysis)
+	}
+	summary := requireReturnOriginSummary(t, analysis, "invoke")
+	if summary.Unknown || summary.NoNormalReturn || len(summary.ParamSlots) != 0 {
+		t.Fatalf("normal empty result confused unused incoming contents with an escape: %+v", summary)
 	}
 }
 
@@ -151,8 +166,17 @@ func analyzeTypedReturnOriginSource(t *testing.T, src string, allowOldEscape boo
 			t.Fatalf("unrelated existing refusal invalidates source proof: %+v", *d)
 		}
 	}
+	key, err := canonicalInstantiationSourceResolver(res)(res.File.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	local, captured := res.finalizationIndex[res.rootRecord]
+	if !captured {
+		t.Fatal("public finalization did not retain the pre-merge callable vocabulary")
+	}
 	analysis, err := sema.AnalyzeReturnOrigins(t.Context(), res.Sema, []sema.ReturnOriginUnit{{
-		Builder: res.Builder, FileID: res.FileID, Sema: res.Sema, Symbols: res.Symbols, SourceKey: path,
+		Builder: res.Builder, FileID: res.FileID, Sema: res.Sema, Symbols: res.Symbols, SourceKey: key,
+		Publication: sema.FinalizationPublication{SourceKey: key, LocalCallables: local},
 	}})
 	if err != nil {
 		t.Fatal(err)

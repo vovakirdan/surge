@@ -17,17 +17,43 @@ func prepareParallelFileResults(
 	results []DiagnoseDirResult,
 	opts *DiagnoseOptions,
 ) error {
-	if err := enrichModuleResults(ctx, baseDir, fileSet, results, opts); err != nil {
+	pass, err := enrichModuleResults(ctx, baseDir, fileSet, results, opts)
+	if err != nil {
 		return err
 	}
-	return finalizeParallelFileResults(ctx, fileSet, results)
+	return finalizeParallelFileResults(ctx, fileSet, results, pass)
 }
 
-func finalizeParallelFileResults(ctx context.Context, fileSet *source.FileSet, results []DiagnoseDirResult) error {
+func finalizeParallelFileResults(ctx context.Context, fileSet *source.FileSet, results []DiagnoseDirResult, passes ...returnOriginPass) error {
+	var pass returnOriginPass
+	if len(passes) > 0 {
+		pass = passes[0]
+	}
 	for i := range results {
 		result := &results[i]
-		if result.Sema == nil || result.Symbols == nil || result.Bag == nil || result.Bag.HasErrors() {
+		if result.Bag == nil {
+			return fmt.Errorf("%s return origins: missing diagnostic bag", result.Path)
+		}
+		if result.Sema == nil || result.Symbols == nil {
+			if result.Bag.HasErrors() {
+				return returnOriginBagRefusal(result.Path, result.Bag)
+			}
+			return fmt.Errorf("%s return origins: missing original typed source artifacts", result.Path)
+		}
+		if outcome, carried := pass[result.Sema]; carried {
+			if !outcome.matches(result.Sema) {
+				return fmt.Errorf("%s return-origin authority changed after module finalization", result.Path)
+			}
+			if err := requireReturnOriginPublication(outcome, result.Bag); err != nil {
+				return err
+			}
 			continue
+		}
+		if result.Bag.HasErrors() {
+			return returnOriginBagRefusal(result.Path, result.Bag)
+		}
+		if pass != nil {
+			return fmt.Errorf("%s has no return-origin outcome from its module pass", result.Path)
 		}
 		file, err := parallelResultOwner(fileSet, result)
 		if err != nil {
@@ -37,12 +63,13 @@ func finalizeParallelFileResults(ctx context.Context, fileSet *source.FileSet, r
 			FileSet: fileSet,
 			File:    file,
 			FileID:  result.ASTFile,
+			Builder: result.Builder,
 			Bag:     result.Bag,
 			Symbols: result.Symbols,
 			Sema:    result.Sema,
 		}
-		if err := FinalizeInstantiationClosure(ctx, diagnosed, 64); err != nil {
-			return fmt.Errorf("%s instantiation closure: %w", result.Path, err)
+		if _, err := finalizeDiagnoseResult(ctx, diagnosed); err != nil {
+			return fmt.Errorf("%s finalization: %w", result.Path, err)
 		}
 	}
 	return nil
@@ -82,11 +109,26 @@ func finalizeParallelModuleRecords(
 	fileSet *source.FileSet,
 	paths []string,
 	records map[string]*moduleRecord,
-) error {
+) (returnOriginPass, error) {
+	pass := make(returnOriginPass)
+	reporters := make(returnOriginReporters)
+	for _, modulePath := range paths {
+		rec := records[modulePath]
+		if rec == nil || rec.Bag == nil {
+			return nil, fmt.Errorf("%s return origins: missing module or diagnostic bag", modulePath)
+		}
+		if rec.Bag.HasErrors() {
+			return nil, returnOriginBagRefusal(modulePath, rec.Bag)
+		}
+		aggregate, aggregateSymbols, _ := parallelModuleAuthority(rec)
+		if aggregate == nil || aggregateSymbols == nil {
+			return nil, fmt.Errorf("%s return origins: missing module semantic authority", modulePath)
+		}
+	}
 	publicationSeed := &DiagnoseResult{FileSet: fileSet, moduleRecords: records}
 	publicationIndex, err := buildFinalizationPublicationIndex(publicationSeed)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// One authority for every module below, built before the loop for the same
 	// reason the publication index is: what a type can do is a property of the
@@ -94,21 +136,18 @@ func finalizeParallelModuleRecords(
 	// question is asked.
 	capabilities, err := wholeProgramCapabilityAuthority(records)
 	if err != nil {
-		return fmt.Errorf("capability classification: %w", err)
+		return nil, fmt.Errorf("capability classification: %w", err)
 	}
 	finalized := make(map[*moduleRecord]struct{}, len(records))
 	for _, modulePath := range paths {
 		rec := records[modulePath]
-		if rec == nil || rec.Bag == nil || rec.Bag.HasErrors() {
-			continue
-		}
 		if _, done := finalized[rec]; done {
 			continue
 		}
 		finalized[rec] = struct{}{}
 		aggregate, aggregateSymbols, aggregateFile := parallelModuleAuthority(rec)
 		if aggregate == nil || aggregateSymbols == nil {
-			continue
+			return nil, fmt.Errorf("%s return origins: missing module semantic authority", modulePath)
 		}
 		diagnosed := &DiagnoseResult{
 			FileSet: fileSet, File: aggregateFile, Bag: rec.Bag,
@@ -117,14 +156,14 @@ func finalizeParallelModuleRecords(
 			wholeProgramAuthority: true,
 		}
 		if err := mergeTypeAttrFactsFromRecords(diagnosed); err != nil {
-			return fmt.Errorf("%s type attribute facts: %w", modulePath, err)
+			return nil, fmt.Errorf("%s type attribute facts: %w", modulePath, err)
 		}
 		aggregate.Capabilities = capabilities
 		if err := FinalizeInstantiationClosure(ctx, diagnosed, 64); err != nil {
-			return fmt.Errorf("%s instantiation closure: %w", modulePath, err)
+			return nil, fmt.Errorf("%s instantiation closure: %w", modulePath, err)
 		}
 		if err := reachRequiredValueOperations(diagnosed); err != nil {
-			return fmt.Errorf("%s required value operations: %w", modulePath, err)
+			return nil, fmt.Errorf("%s required value operations: %w", modulePath, err)
 		}
 		for _, astFile := range rec.FileIDs {
 			if fileSema := rec.Sema[astFile]; fileSema != nil && fileSema != aggregate {
@@ -132,10 +171,19 @@ func finalizeParallelModuleRecords(
 			}
 		}
 		if err := publishFinalizationDecisions(diagnosed); err != nil {
-			return fmt.Errorf("%s finalization publication: %w", modulePath, err)
+			return nil, fmt.Errorf("%s finalization publication: %w", modulePath, err)
+		}
+		outcome, err := analyzeReturnOriginResult(ctx, diagnosed, nil, reporters)
+		if err != nil {
+			return nil, err
+		}
+		for _, astFile := range rec.FileIDs {
+			if checked := rec.Sema[astFile]; checked != nil {
+				pass[checked] = returnOriginOutcome{analysis: outcome.analysis, identity: checked.InstantiationIdentity, closure: checked.InstantiationClosure}
+			}
 		}
 	}
-	return nil
+	return pass, nil
 }
 
 func parallelModuleAuthority(rec *moduleRecord) (semaResult *sema.Result, symbolsResult *symbols.Result, sourceFile *source.File) {
