@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"surge/internal/ast"
+	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
@@ -108,12 +109,39 @@ func (fn *returnOriginFunction) originalClone(edge *DeferredCallableEdge) (ast.E
 	}
 	for _, binding := range edge.CallerBindings {
 		info, ok := u.Sema.TypeInterner.TypeParamInfo(binding.Param)
-		if !ok || info == nil || info.Owner != uint32(binding.Owner) || info.Index != binding.ParamIndex ||
+		var owner symbols.SymbolID
+		if ok && info != nil {
+			owner, ok = u.canonicalParameterOwner(symbols.SymbolID(info.Owner))
+		}
+		if !ok || info == nil || owner != binding.Owner || info.Index != binding.ParamIndex ||
 			fn.candidate.TemplateParams[binding.ArgIndex] != binding.Param {
 			return id, "deferred clone disagrees with its original parameter owner"
 		}
 	}
 	return id, ""
+}
+
+// Parameter descriptors retain local owners while graph bindings are merged.
+// Only an empty publication shares that vocabulary; otherwise the reverse
+// mapping must identify exactly one canonical owner in this original unit.
+func (u *returnOriginUnitIndex) canonicalParameterOwner(local symbols.SymbolID) (symbols.SymbolID, bool) {
+	if !local.IsValid() {
+		return symbols.NoSymbolID, false
+	}
+	if len(u.Publication.RootToLocalSymbols) == 0 {
+		return local, true
+	}
+	var canonical symbols.SymbolID
+	for root, locals := range u.Publication.RootToLocalSymbols {
+		if !slices.Contains(locals, local) {
+			continue
+		}
+		if !root.IsValid() || canonical.IsValid() {
+			return symbols.NoSymbolID, false
+		}
+		canonical = root
+	}
+	return canonical, canonical.IsValid()
 }
 
 // Ordinary & evaluation keeps the address in argument and the binding's
