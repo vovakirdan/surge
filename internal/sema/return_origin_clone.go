@@ -100,7 +100,7 @@ func (fn *returnOriginFunction) originalClone(edge *DeferredCallableEdge) (ast.E
 		return id, "deferred clone disagrees with its original typed call"
 	}
 	arg, ok := u.Sema.TypeInterner.Lookup(u.Sema.ExprTypes[call.Args[0].Value])
-	if !ok || arg.Kind != types.KindReference || arg.Mutable || arg.Elem != edge.Receiver || !fn.directTemplateParam(edge.Receiver) {
+	if !ok || arg.Kind != types.KindReference || arg.Mutable || arg.Elem != edge.Receiver {
 		return id, "deferred clone requires its direct template shared receiver"
 	}
 	if int(edge.CallerTemplateArity) != len(fn.candidate.TemplateParams) || validateInstantiationBindings(&InstantiationEdge{
@@ -117,6 +117,9 @@ func (fn *returnOriginFunction) originalClone(edge *DeferredCallableEdge) (ast.E
 			fn.candidate.TemplateParams[binding.ArgIndex] != binding.Param {
 			return id, "deferred clone disagrees with its original parameter owner"
 		}
+	}
+	if !fn.directTemplateParam(edge.Receiver) {
+		return id, "deferred clone requires its direct template shared receiver"
 	}
 	return id, ""
 }
