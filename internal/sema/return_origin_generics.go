@@ -49,28 +49,28 @@ func (a *returnOriginAnalyzer) genericInstance(key InstanceKey, template symbols
 	return ""
 }
 
-// The view substitutes exact direct parameters without interning or changing
-// the original FnInfo. More complicated substitution remains an obligation.
-func (a *returnOriginAnalyzer) genericUseInfo(use ConcreteInstantiationUse) (*returnOriginFunction, *types.FnInfo, string) {
+// Both calls and selected index operations must retain the same exact current
+// instance, original producing root and owning typed expression.
+func (a *returnOriginAnalyzer) genericUseContext(use ConcreteInstantiationUse) (*returnOriginFunction, *returnOriginFunction, ast.ExprID, string) {
 	if reason := a.genericInstance(use.Callee, use.CalleeTemplate, use.TemplateArgs); reason != "" {
-		return nil, nil, reason
+		return nil, nil, ast.NoExprID, reason
 	}
 	fn := a.functionForTemplate(use.CalleeTemplate)
 	caller := a.functionForTemplate(use.CallerTemplate)
 	if fn == nil || caller == nil || len(fn.candidate.TemplateParams) != len(use.TemplateArgs) || len(use.TemplateArgs) == 0 {
-		return nil, nil, "generic use lacks its exact original callable declarations"
+		return nil, nil, ast.NoExprID, "generic use lacks its exact original callable declarations"
 	}
 	authority := caller.unit.authority
 	if use.Caller != (InstanceKey{}) {
 		if reason := a.genericInstance(use.Caller, use.CallerTemplate, use.CallerTemplateArgs); reason != "" {
-			return nil, nil, "generic caller: " + reason
+			return nil, nil, ast.NoExprID, "generic caller: " + reason
 		}
-		return nil, nil, "generic caller requires its exact type-dependent use transfer"
+		return nil, nil, ast.NoExprID, "generic caller requires its exact type-dependent use transfer"
 	}
 	if use.Kind != InstantiationFunction || len(caller.candidate.TemplateParams) != 0 || len(use.CallerTemplateArgs) != 0 ||
 		!slices.Contains(authority.InstantiationClosure.LiveCallables, use.CallerTemplate) || caller.unit.SourceKey != use.SourceKey ||
 		use.Site.File != caller.item.Span.File || use.Site.Start < caller.item.Span.Start || use.Site.End > caller.item.Span.End {
-		return nil, nil, "generic use disagrees with its owning caller"
+		return nil, nil, ast.NoExprID, "generic use disagrees with its owning caller"
 	}
 	matched := 0
 	for _, root := range authority.InstantiationGraph.Roots() {
@@ -81,8 +81,36 @@ func (a *returnOriginAnalyzer) genericUseInfo(use ConcreteInstantiationUse) (*re
 		}
 	}
 	if matched != 1 {
-		return nil, nil, "generic use lacks its unique original concrete root"
+		return nil, nil, ast.NoExprID, "generic use lacks its unique original concrete root"
 	}
+	var expression ast.ExprID
+	for id, typ := range caller.unit.Sema.ExprTypes {
+		if node := caller.unit.Builder.Exprs.Get(id); node != nil && node.Span == use.Site {
+			if expression.IsValid() || typ == types.NoTypeID || (node.Kind != ast.ExprCall && node.Kind != ast.ExprIndex) {
+				return nil, nil, ast.NoExprID, "generic use disagrees with its original typed operation"
+			}
+			expression = id
+		}
+	}
+	if !expression.IsValid() {
+		return nil, nil, ast.NoExprID, "generic use lacks its original typed operation"
+	}
+	return fn, caller, expression, ""
+}
+
+func (a *returnOriginAnalyzer) genericUseInfo(use ConcreteInstantiationUse) (*returnOriginFunction, *types.FnInfo, string) {
+	fn, caller, expression, reason := a.genericUseContext(use)
+	if reason != "" {
+		return nil, nil, reason
+	}
+	info, reason := a.genericCallUseInfo(fn, caller, expression, use)
+	return fn, info, reason
+}
+
+// The call view substitutes exact direct parameters without interning or
+// changing FnInfo. Index primitives validate their element/length separately.
+func (a *returnOriginAnalyzer) genericCallUseInfo(fn, caller *returnOriginFunction, expression ast.ExprID, use ConcreteInstantiationUse) (*types.FnInfo, string) {
+	authority := caller.unit.authority
 	bind := func(id types.TypeID) types.TypeID {
 		if slot := slices.Index(fn.candidate.TemplateParams, id); slot >= 0 {
 			id = use.TemplateArgs[slot]
@@ -99,21 +127,15 @@ func (a *returnOriginAnalyzer) genericUseInfo(use ConcreteInstantiationUse) (*re
 		view.Params[i] = bind(param)
 	}
 	if view.Result == types.NoTypeID || slices.Contains(view.Params, types.NoTypeID) {
-		return nil, nil, "generic use requires a type-dependent signature substitution"
+		return nil, "generic use requires a type-dependent signature substitution"
 	}
-	var expression ast.ExprID
-	for id, typ := range caller.unit.Sema.ExprTypes {
-		if node := caller.unit.Builder.Exprs.Get(id); node != nil && node.Span == use.Site {
-			if expression.IsValid() || node.Kind != ast.ExprCall || typ != view.Result {
-				return nil, nil, "generic use disagrees with its original typed call"
-			}
-			expression = id
-		}
+	if caller.unit.Sema.ExprTypes[expression] != view.Result {
+		return nil, "generic use disagrees with its original typed call"
 	}
 	call, ok := caller.unit.Builder.Exprs.Call(expression)
 	identity, err := caller.unit.callableIdentity(caller.unit.Symbols.ExprSymbols[expression], "")
 	if !ok || call == nil || err != nil || identity.BodyKey != fn.key || identity.SourceKey != fn.canonicalSourceKey {
-		return nil, nil, "generic use lacks its original selected call"
+		return nil, "generic use lacks its original selected call"
 	}
 	var receiver ast.ExprID
 	sym := caller.unit.Symbols.Table.Symbols.Get(caller.unit.Symbols.ExprSymbols[expression])
@@ -123,18 +145,18 @@ func (a *returnOriginAnalyzer) genericUseInfo(use ConcreteInstantiationUse) (*re
 		}
 	}
 	if sym == nil {
-		return nil, nil, "generic call lacks original formal metadata"
+		return nil, "generic call lacks original formal metadata"
 	}
 	slots, err := mapReturnOriginArguments(sym.Signature, call, receiver)
 	if err != nil || len(slots) != len(view.Params) {
-		return nil, nil, "generic call lacks exact physical argument slots"
+		return nil, "generic call lacks exact physical argument slots"
 	}
 	for i, slot := range slots {
 		if slot.defaulted || len(slot.exprs) != 1 || caller.unit.Sema.ExprTypes[slot.exprs[0]] != view.Params[i] {
-			return nil, nil, "generic call needs its exact default, variadic or implicit argument transfer"
+			return nil, "generic call needs its exact default, variadic or implicit argument transfer"
 		}
 	}
-	return fn, &view, ""
+	return &view, ""
 }
 
 // Body flow may not visit a retained use. Check the finalized uses and their
@@ -172,9 +194,17 @@ func (a *returnOriginAnalyzer) checkGenericUses() error {
 			pending(use, "generic use has duplicate or contradictory finalized authority")
 			continue
 		}
-		fn, info, reason := a.genericUseInfo(use)
+		fn, caller, expression, reason := a.genericUseContext(use)
 		if reason == "" {
-			reason = a.checkGenericPromise(fn, info, use)
+			if caller.unit.Builder.Exprs.Get(expression).Kind == ast.ExprIndex {
+				reason = a.checkIndexUse(fn, caller, expression, use)
+			} else {
+				var info *types.FnInfo
+				info, reason = a.genericCallUseInfo(fn, caller, expression, use)
+				if reason == "" {
+					reason = a.checkGenericPromise(fn, info, use)
+				}
+			}
 		}
 		if reason != "" {
 			pending(use, reason)
