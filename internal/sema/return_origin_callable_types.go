@@ -18,9 +18,13 @@ type returnOriginCallableType struct {
 	result  *returnOriginCallableType
 }
 
-func (b *returnOriginBody) readCallableType(u *returnOriginUnitIndex, typ types.TypeID, expr ast.TypeID, span source.Span, active map[types.TypeID]bool) *returnOriginCallableType {
+func (b *returnOriginBody) readCallableType(u *returnOriginUnitIndex, typ types.TypeID, expr ast.TypeID, span source.Span, active map[types.TypeID]bool, views ...returnOriginTypeView) *returnOriginCallableType {
 	in := u.Sema.TypeInterner
-	if active[typ] || types.ContainsGenericParam(in, typ) {
+	view := returnOriginView(b.function)
+	if len(views) != 0 {
+		view = views[0]
+	}
+	if active[typ] || !view.validType(typ) {
 		b.pending(span, "callable type needs a finite concrete original declaration")
 		return nil
 	}
@@ -31,7 +35,7 @@ func (b *returnOriginBody) readCallableType(u *returnOriginUnitIndex, typ types.
 		if owner == nil {
 			return nil
 		}
-		return b.readCallableType(owner, alias.Target, target, span, active)
+		return b.readCallableType(owner, alias.Target, target, span, active, view)
 	}
 	info, ok := in.FnInfo(typ)
 	node := u.Builder.Types.Get(expr)
@@ -40,7 +44,7 @@ func (b *returnOriginBody) readCallableType(u *returnOriginUnitIndex, typ types.
 		return nil
 	}
 	syntax := symbols.FunctionTypeReturnSourceSyntax(u.Builder, expr)
-	return b.buildCallableType(u, symbols.NoSymbolID, expr, syntax, info, span, active)
+	return b.buildCallableType(u, symbols.NoSymbolID, expr, syntax, info, span, active, view)
 }
 
 // Nominal identity supplies the source file and full declaration span. Resolve
@@ -87,21 +91,25 @@ func (b *returnOriginBody) callableAliasOwner(typ types.TypeID, alias *types.Ali
 
 func (b *returnOriginBody) functionCallableType(fn *returnOriginFunction, span source.Span) *returnOriginCallableType {
 	sym := fn.unit.Symbols.Table.Symbols.Get(fn.symbol)
-	if sym == nil || b.callableType(sym.Type, span) == nil {
+	if sym == nil || b.callableType(sym.Type, span, returnOriginView(fn)) == nil {
 		return nil
 	}
 	return b.buildCallableType(fn.unit, fn.symbol, ast.NoTypeID,
-		symbols.FunctionReturnSourceSyntax(fn.unit.Builder, fn.item), fn.info, span, make(map[types.TypeID]bool))
+		symbols.FunctionReturnSourceSyntax(fn.unit.Builder, fn.item), fn.info, span, make(map[types.TypeID]bool), returnOriginView(fn))
 }
 
-func (b *returnOriginBody) buildCallableType(u *returnOriginUnitIndex, owner symbols.SymbolID, expr ast.TypeID, syntax symbols.ReturnSourceSyntax, info *types.FnInfo, span source.Span, active map[types.TypeID]bool) *returnOriginCallableType {
+func (b *returnOriginBody) buildCallableType(u *returnOriginUnitIndex, owner symbols.SymbolID, expr ast.TypeID, syntax symbols.ReturnSourceSyntax, info *types.FnInfo, span source.Span, active map[types.TypeID]bool, views ...returnOriginTypeView) *returnOriginCallableType {
+	view := returnOriginView(b.function)
+	if len(views) != 0 {
+		view = views[0]
+	}
 	params := syntax.Params()
 	if len(params) != len(info.Params) || !syntax.Sources().Equal(info.ReturnSources()) {
 		b.pending(span, "callable syntax does not match its original typed signature")
 		return nil
 	}
-	// This packet admits concrete source declarations only. Do not interpret a
-	// substituted FnInfo as the original request of a conditional generic type.
+	// The immutable original request remains authoritative under a read view;
+	// a substituted descriptor never impersonates its source declaration.
 	if !syntax.Sources().IsAllInputs() {
 		for _, request := range u.Sema.ReturnSourceDeclarations {
 			if request.Owner == owner && request.TypeExpr == expr && request.Syntax.Span() == syntax.Span() &&
@@ -111,7 +119,7 @@ func (b *returnOriginBody) buildCallableType(u *returnOriginUnitIndex, owner sym
 			}
 		}
 	}
-	slots, valid := b.declaredSources(u, owner, expr, syntax, info, span)
+	slots, valid := b.declaredSources(u, owner, expr, syntax, info, span, &returnOriginSignature{params: info.Params, result: info.Result, binding: &view})
 	if !valid {
 		return nil
 	}
@@ -121,13 +129,13 @@ func (b *returnOriginBody) buildCallableType(u *returnOriginUnitIndex, owner sym
 		if returnOriginFnInfo(u.Sema.TypeInterner, typ) == nil {
 			continue
 		}
-		out.params[i] = b.readCallableType(u, typ, params[i], span, active)
+		out.params[i] = b.readCallableType(u, typ, params[i], span, active, view)
 		if out.params[i] == nil {
 			return nil
 		}
 	}
 	if returnOriginFnInfo(u.Sema.TypeInterner, info.Result) != nil {
-		out.result = b.readCallableType(u, info.Result, syntax.Result(), span, active)
+		out.result = b.readCallableType(u, info.Result, syntax.Result(), span, active, view)
 		if out.result == nil {
 			return nil
 		}

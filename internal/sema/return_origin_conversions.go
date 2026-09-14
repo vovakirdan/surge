@@ -78,7 +78,7 @@ func (b *returnOriginBody) assignmentCallablePromise(typ types.TypeID, previous 
 // A provisional recursive bottom remains private. Only the final collection
 // walk emits diagnostics, after every actual body summary has stabilized.
 func (b *returnOriginBody) checkCallableDestination(actual returnOriginValue, expected returnOriginCallable, span source.Span) bool {
-	possible := b.callableValueSources(actual, span)
+	possible := b.callableValueSources(actual, span, false)
 	valid := true
 	mismatch := false
 	for _, root := range possible.roots {

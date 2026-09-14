@@ -92,14 +92,16 @@ type returnOriginAnalyzer struct {
 	units        []*returnOriginUnitIndex
 	bodies       map[string]*returnOriginFunction
 	declarations map[string]*returnOriginFunction
-	summaries    map[string]returnOriginValue
+	summaries    map[string]returnOriginSummaryFact
 	report       *ReturnOriginAnalysis
 	collect      bool
 }
 
 type returnOriginBody struct {
-	analyzer *returnOriginAnalyzer
-	function *returnOriginFunction
+	analyzer   *returnOriginAnalyzer
+	function   *returnOriginFunction
+	conditions []returnOriginCondition
+	required   returnOriginRequirements
 }
 
 type returnOriginTargets struct {
@@ -124,7 +126,7 @@ func AnalyzeReturnOrigins(ctx context.Context, authority *Result, units []Return
 	a := &returnOriginAnalyzer{ctx: ctx,
 		bodies:       make(map[string]*returnOriginFunction),
 		declarations: make(map[string]*returnOriginFunction),
-		summaries:    make(map[string]returnOriginValue), report: &ReturnOriginAnalysis{}}
+		summaries:    make(map[string]returnOriginSummaryFact), report: &ReturnOriginAnalysis{}}
 	seen := make(map[string]struct{}, len(units))
 	declarations := 0
 	for _, unit := range units {
