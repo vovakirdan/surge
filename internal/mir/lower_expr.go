@@ -99,20 +99,9 @@ func (l *funcLowerer) lowerExpr(e *hir.Expr, consume bool) (Operand, error) {
 				ty = sym.Type
 			}
 		}
-		if ty == types.NoTypeID && l.mono != nil && l.mono.FuncBySym != nil && l.types != nil {
-			if mf := l.mono.FuncBySym[data.SymbolID]; mf != nil {
-				if mf.Func != nil {
-					paramTypes := make([]types.TypeID, 0, len(mf.Func.Params))
-					for _, p := range mf.Func.Params {
-						paramTypes = append(paramTypes, p.Type)
-					}
-					ty = l.types.RegisterFn(paramTypes, mf.Func.Result)
-				} else if ty == types.NoTypeID && l.symbols != nil && l.symbols.Table != nil && l.symbols.Table.Symbols != nil {
-					if sym := l.symbols.Table.Symbols.Get(mf.OrigSym); sym != nil && sym.Type != types.NoTypeID {
-						ty = sym.Type
-					}
-				}
-			}
+		ty, err := l.lowerFunctionValueType(data.SymbolID, ty)
+		if err != nil {
+			return Operand{}, err
 		}
 		if l.types != nil && ty != types.NoTypeID {
 			if tt, ok := l.types.Lookup(resolveAlias(l.types, ty)); ok && tt.Kind == types.KindFn {
