@@ -276,3 +276,39 @@ func genericP0InnerAuthority(t *testing.T, fixture originalGenericFixture) {
 		t.Fatal("original authority mutated during detached observations")
 	}
 }
+
+func genericP0NoReturn(t *testing.T, fixture originalGenericFixture, candidate sema.CallableCandidate) {
+	t.Helper()
+	res, unit := fixture.owner, fixture.unit
+	local := originalGenericSignatureLocal(t, unit, candidate)
+	sym := res.Symbols.Table.Symbols.Get(local)
+	fn, ok := res.Builder.Items.Fn(sym.Decl.Item)
+	if !ok || fn == nil || len(candidate.ParamTypes) != 1 || candidate.ParamTypes[0] != candidate.ResultType {
+		t.Fatal("PRECONDITION: no-return body lost original borrowed input/result")
+	}
+	body := res.Builder.Stmts.Block(fn.Body)
+	if body == nil || len(body.Stmts) != 2 {
+		t.Fatal("PRECONDITION: no-return body must contain exactly loop then return")
+	}
+	loop, returned := res.Builder.Stmts.While(body.Stmts[0]), res.Builder.Stmts.Return(body.Stmts[1])
+	if loop == nil || returned == nil {
+		t.Fatal("PRECONDITION: no-return body lost loop/return order")
+	}
+	cond, literal := res.Builder.Exprs.Literal(loop.Cond)
+	loopBody := res.Builder.Stmts.Block(loop.Body)
+	paramID := res.Symbols.ExprSymbols[returned.Expr]
+	param := res.Symbols.Table.Symbols.Get(paramID)
+	if !literal || cond.Kind != ast.ExprLitTrue || loopBody == nil || len(loopBody.Stmts) != 0 ||
+		res.Sema.ExprTypes[loop.Cond] != res.Sema.TypeInterner.Builtins().Bool || param == nil || param.Kind != symbols.SymbolParam ||
+		param.Decl.Item != sym.Decl.Item || param.Decl.ASTFile != res.FileID || param.Type != candidate.ParamTypes[0] ||
+		res.Sema.ExprTypes[returned.Expr] != param.Type || res.Builder.Stmts.Get(body.Stmts[0]).Span.End >= res.Builder.Stmts.Get(body.Stmts[1]).Span.Start {
+		t.Fatal("PRECONDITION: literal infinite loop/unreachable return lost exact typed parameter evidence")
+	}
+	id := genericP0Expression(t, res, "never(value)", "never(value)")
+	if res.Symbols.ExprSymbols[id] != local || res.Sema.ExprTypes[id] != candidate.ResultType {
+		t.Fatal("PRECONDITION: probe lost selected no-return body/result")
+	}
+	logReturnOriginCallEvidence(t, map[string]any{"stage": "generic_p0_noreturn", "candidate": candidate,
+		"loop": loop, "condition": cond, "loop_body": loopBody, "unreachable_return": returned, "parameter": param,
+		"selected_call": id, "call_type": res.Sema.ExprTypes[id]})
+}

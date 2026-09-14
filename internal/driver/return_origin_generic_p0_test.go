@@ -58,8 +58,8 @@ fn probe() -> string { return relay::<string>(make, false); }
 		{name: "known_nothing", digest: "cb7de55a5d0765dd247ea4b78b4b6ede8b529580d74c0acaa2b0db946fc0d532", subject: "none", text: genericP0Option + `fn none() -> Maybe<&string> { return nothing; }
 fn probe() -> Maybe<&string> { return none(); }
 `},
-		{name: "known_noreturn", digest: "dbf34a486ce697aff6b0ff96b147304bac7c2a71a6f8f39242a6aa6894d1e9c0", subject: "never", text: `fn never() -> &string { return never(); }
-fn probe() -> &string { return never(); }
+		{name: "known_noreturn", digest: "ee296d04dd627b4cd74f295d9cdb5ca20c37fe85247d7c347b4ba6d862b08c5e", subject: "never", text: `fn never(value: &string) -> &string { while true {} return value; }
+fn probe(value: &string) -> &string { return never(value); }
 `},
 		{name: "nested_option_payload", digest: "53962029a90fd6651286b85390fb8b31f8539db2eecfad19b41e86088b317ba7", subject: "project", templates: 1, pattern: true, text: genericP0Option + `fn project<T>(value: Maybe<T>, fallback: T) -> T {
     return compare value { Carry(v) => v; _ => fallback; };
@@ -124,11 +124,7 @@ func TestCaptureGenericConditionsP0(t *testing.T) {
 					t.Fatal("PRECONDITION: optional payload lost its borrowed string descriptor")
 				}
 			case tc.name == "known_noreturn":
-				id := genericP0Expression(t, res, "return never(); }\nfn probe", "never()")
-				if res.Symbols.ExprSymbols[id] != originalGenericSignatureLocal(t, unit, caller) ||
-					res.Sema.ExprTypes[id] != caller.ResultType {
-					t.Fatal("PRECONDITION: nonreturn candidate lost its exact recursive source call")
-				}
+				genericP0NoReturn(t, fixture, caller)
 			}
 			if tc.name == "local_escape_in_template" || tc.name == "pattern_storage_escape" {
 				fragment, address := "ret &owned;", "&owned"

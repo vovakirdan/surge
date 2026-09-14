@@ -14,7 +14,7 @@ type storageP0Target struct {
 	text     string
 	kind     ast.ExprKind
 	count    int
-	selected string // Required canonical selected declaration, when applicable.
+	selected string // Canonical declaration, or the one native_array_range observation.
 }
 
 var storageP0Cases = []storageP0Case{
@@ -63,7 +63,7 @@ fn full(value: &string) -> Option<&string>[2] {
 			{"core/array.sg", "self[i] = clone(self[j])", ast.ExprBinary, 1, ""},
 			{"core/array.sg", "self[j] = tmp", ast.ExprBinary, 1, ""},
 			{"core/array.sg", "out[i] = clone(&value)", ast.ExprBinary, 1, ""},
-			{"core/array.sg", "self[r]", ast.ExprIndex, 1, "__index"},
+			{"core/array.sg", "self[r]", ast.ExprIndex, 1, "native_array_range"},
 			{"core/map.sg", "rt_map_keys(self)", ast.ExprCall, 1, "rt_map_keys"},
 		},
 	},
@@ -150,16 +150,15 @@ fn returned_alias(dst: &mut &string, replacement: &string) -> &mut &string {
     *dst = replacement;
     return dst;
 }
-fn probe(value: &string, replacement: &string) -> &string {
-    let mut cell: &string = value;
-    let alias: &mut &string = returned_alias(&mut cell, replacement);
+fn probe(dst: &mut &string, value: &string, replacement: &string) -> &string {
+    let alias: &mut &string = returned_alias(dst, replacement);
     *alias = value;
     return *alias;
 }
 `,
 		targets: []storageP0Target{
 			{"", "*dst = replacement", ast.ExprBinary, 3, ""},
-			{"", "returned_alias(&mut cell, replacement)", ast.ExprCall, 1, "returned_alias"},
+			{"", "returned_alias(dst, replacement)", ast.ExprCall, 1, "returned_alias"},
 			{"", "*alias = value", ast.ExprBinary, 1, ""},
 		},
 	},
@@ -169,17 +168,14 @@ fn probe(value: &string, replacement: &string) -> &string {
     dst[0] = replacement;
     return clone(src[0]);
 }
-fn probe(value: uint64, replacement: uint64) -> uint64 {
-    let mut base: uint64[] = [value];
-    let view: uint64[] = base[[0..1]];
-    return write_then_read::<uint64, uint64>(&mut base, view, replacement);
+fn probe(dst: &mut Array<uint64>, src: Array<uint64>, replacement: uint64) -> uint64 {
+    return write_then_read::<uint64, uint64>(dst, src, replacement);
 }
 `,
 		targets: []storageP0Target{
 			{"", "dst[0] = replacement", ast.ExprBinary, 1, ""},
 			{"", "clone(src[0])", ast.ExprCall, 1, ""},
-			{"", "base[[0..1]]", ast.ExprIndex, 1, "__index"},
-			{"", "write_then_read::<uint64, uint64>(&mut base, view, replacement)", ast.ExprCall, 1, "write_then_read"},
+			{"", "write_then_read::<uint64, uint64>(dst, src, replacement)", ast.ExprCall, 1, "write_then_read"},
 		},
 	},
 	{

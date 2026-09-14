@@ -156,13 +156,49 @@ func captureStorageP0Target(t *testing.T, res *DiagnoseResult, units []sema.Retu
 			if typ == types.NoTypeID || !known {
 				t.Fatalf("PRECONDITION: %s/%s target %q lacks its actual type", name, key, target.text)
 			}
-			if target.selected != "" {
+			if target.selected == "native_array_range" {
+				captureStorageP0NativeArrayRange(t, unit, name, id)
+			} else if target.selected != "" {
 				captureStorageP0Selection(t, res, units, unit, name, selected, target.selected)
 			}
 		}
 	}
 	if count != target.count {
 		t.Fatalf("PRECONDITION: %s/%s target %q count=%d, want %d", name, key, target.text, count, target.count)
+	}
+}
+
+// The original core self[r] has a native typed index, not a selected magic call.
+// A present but invalid entry is a different fact and must never pass this probe.
+func captureStorageP0NativeArrayRange(t *testing.T, unit sema.ReturnOriginUnit, name string, id ast.ExprID) {
+	t.Helper()
+	selected, present := unit.Sema.IndexSymbols[id]
+	index, indexed := unit.Builder.Exprs.Index(id)
+	logReturnOriginCallEvidence(t, map[string]any{"p0_case": name, "stage": "native_index_selection",
+		"source_key": unit.SourceKey, "expr_id": id, "selection_present": present, "selected_symbol_id": selected})
+	if present || unit.SourceKey != "core/array.sg" || !indexed || index == nil {
+		t.Fatal("PRECONDITION: original core native index must have absent selection")
+	}
+	in := unit.Sema.TypeInterner
+	result := unit.Sema.ExprTypes[id]
+	receiver, receiverKnown := in.Lookup(unit.Sema.ExprTypes[index.Target])
+	array, arrayKnown := in.StructInfo(result)
+	originalArray, originalKnown := in.StructInfo(in.ArrayNominalType())
+	indexType := unit.Sema.ExprTypes[index.Index]
+	bound, rangeKnown := in.RangeBoundType(indexType)
+	rangeInfo, _ := in.StructInfo(indexType)
+	logReturnOriginCallEvidence(t, map[string]any{"p0_case": name, "stage": "native_array_range_shape",
+		"source_key": unit.SourceKey, "expr_id": id, "span": unit.Builder.Exprs.Get(id).Span,
+		"receiver": receiver, "result_type": result, "array": array, "original_array": originalArray,
+		"range_type": indexType, "range": rangeInfo, "range_bound": bound})
+	if !receiverKnown || receiver.Kind != types.KindReference || receiver.Mutable || receiver.Elem != result ||
+		!arrayKnown || array == nil || !originalKnown || originalArray == nil ||
+		array.Name != originalArray.Name || array.Decl != originalArray.Decl || len(array.TypeArgs) != 1 ||
+		!rangeKnown || bound != in.Builtins().Int || rangeInfo == nil {
+		t.Fatal("PRECONDITION: native core index lost its original Array<T>/Range<int>/Array<T> shape")
+	}
+	if _, known := in.Lookup(array.TypeArgs[0]); !known || array.TypeArgs[0] == types.NoTypeID {
+		t.Fatal("PRECONDITION: native core index lost its exact original element descriptor")
 	}
 }
 
