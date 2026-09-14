@@ -15,6 +15,7 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 	if !ok || cmp == nil {
 		return types.NoTypeID
 	}
+	checkpoint := tc.errorCheckpoint()
 	movedBefore := tc.snapshotMovedPlaces()
 	pinsBefore := tc.snapshotTaskBorrowPins()
 	movedArms := make([]map[Place]source.Span, len(cmp.Arms))
@@ -281,6 +282,22 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		}
 	}
 	tc.checkCompareExhausiveness(cmp, valueType, span)
+	// With no normal arm, unification above has no value to select. Retain
+	// the established Nothing type only after the whole compare is valid.
+	if resultType == types.NoTypeID && valueType != types.NoTypeID && nothingType != types.NoTypeID &&
+		len(armTypes) > 0 && valueArms == 0 && tc.reporter != nil &&
+		!tc.hasErrorsSince(checkpoint) && tc.compareAlwaysMatches(cmp) {
+		allNothing := true
+		for _, armType := range armTypes {
+			if armType != nothingType {
+				allNothing = false
+				break
+			}
+		}
+		if allNothing {
+			resultType = nothingType
+		}
+	}
 	return resultType
 }
 

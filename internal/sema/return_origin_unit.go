@@ -83,11 +83,13 @@ type returnOriginFunction struct {
 	name               string
 	params             []symbols.SymbolID
 	info               *types.FnInfo
+	candidate          *CallableCandidate
 }
 
 type returnOriginAnalyzer struct {
 	ctx          context.Context
 	functions    []*returnOriginFunction
+	units        []*returnOriginUnitIndex
 	bodies       map[string]*returnOriginFunction
 	declarations map[string]*returnOriginFunction
 	summaries    map[string]returnOriginValue
@@ -134,6 +136,7 @@ func AnalyzeReturnOrigins(ctx context.Context, authority *Result, units []Return
 		if err != nil {
 			return nil, err
 		}
+		a.units = append(a.units, index)
 		for _, function := range index.functions {
 			if a.bodies[function.key] != nil || a.declarations[function.key] != nil {
 				return nil, fmt.Errorf("return origins: duplicate owning body %q", function.key)
@@ -261,6 +264,13 @@ func (u *returnOriginUnitIndex) addFunction(fn *ast.FnItem, id symbols.SymbolID,
 	name, _ := u.Builder.StringsInterner.Lookup(fn.Name)
 	f := &returnOriginFunction{unit: u, item: fn, symbol: id, scope: scope, key: identity.BodyKey,
 		canonicalSourceKey: identity.SourceKey, name: name, info: info}
+	for i := range u.authority.CallableCandidates {
+		candidate := &u.authority.CallableCandidates[i]
+		if candidate.BodyKey == f.key && candidate.SourceKey == f.canonicalSourceKey {
+			f.candidate = candidate
+			break
+		}
+	}
 	if !fn.Body.IsValid() {
 		u.functions[id] = f
 		return nil
