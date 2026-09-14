@@ -59,7 +59,7 @@ fn second(flag: bool, a: &string, b: &string) -> &string {
 }
 
 func TestAnalyzeTypedReturnOriginsDefaultSlotDoesNotShift(t *testing.T) {
-	const header = `fn choose(a: &string, ignored: int = 1, b: &string) -> &string { return b; }
+	const header = `fn choose(a: &string, b: &string, ignored: int = 1) -> &string { return b; }
 fn read(value: &string) -> int { return 1; }
 `
 	for _, tc := range []struct {
@@ -71,7 +71,7 @@ fn read(value: &string) -> int { return 1; }
     let outside: string = "outside";
     let escaped: &string = {
         let owned: string = "owned";
-        ret choose(a: &outside, b: &owned);
+        ret choose(b: &owned, a: &outside);
     };
     return read(escaped);
 }
@@ -80,7 +80,7 @@ fn read(value: &string) -> int { return 1; }
     let outside: string = "outside";
     let escaped: &string = {
         let owned: string = "owned";
-        ret choose(a: &owned, b: &outside);
+        ret choose(b: &outside, a: &owned);
     };
     return read(escaped);
 }
@@ -89,7 +89,7 @@ fn read(value: &string) -> int { return 1; }
 		t.Run(tc.name, func(t *testing.T) {
 			analysis := analyzeTypedReturnOriginSource(t, tc.src, tc.bad)
 			if (len(analysis.Diagnostics) != 0) != tc.bad || (!tc.bad && !analysis.Complete()) {
-				t.Fatalf("default hole changed source slot 2: %+v", analysis)
+				t.Fatalf("named arguments or trailing default changed source slot 1: %+v", analysis)
 			}
 		})
 	}
@@ -111,7 +111,7 @@ func TestAnalyzeTypedReturnOriginsOpaqueCallStaysPending(t *testing.T) {
 }
 
 func TestAnalyzeTypedReturnOriginsNoReturnIsNotRefFree(t *testing.T) {
-	const src = `fn never(value: &string) -> &string { while true {} }
+	const src = `fn never(value: &string) -> &string { while true {} return value; }
 fn empty() -> nothing { return; }
 `
 	analysis := analyzeTypedReturnOriginSource(t, src, false)
