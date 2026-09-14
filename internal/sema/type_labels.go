@@ -286,7 +286,7 @@ func (tc *typeChecker) typeKeyForType(id types.TypeID) symbols.TypeKey {
 		}
 		resultKey := tc.typeKeyForType(info.Result)
 		if resultKey == "" {
-			resultKey = symbols.TypeKey("nothing")
+			return ""
 		}
 		return symbols.FunctionTypeKey(params, resultKey, info.ReturnSources())
 	default:
