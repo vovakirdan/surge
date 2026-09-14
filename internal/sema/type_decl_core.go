@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"surge/internal/ast"
+	"surge/internal/diag"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
@@ -164,6 +165,9 @@ func (tc *typeChecker) populateTypeDecls(file *ast.File) {
 		typeItem, ok := tc.builder.Items.Type(itemID)
 		if !ok || typeItem == nil {
 			continue
+		}
+		if typeItem.Kind != ast.TypeDeclStruct {
+			tc.validateAttrs(typeItem.AttrStart, typeItem.AttrCount, ast.AttrTargetType, diag.SemaError)
 		}
 		switch typeItem.Kind {
 		case ast.TypeDeclStruct:
