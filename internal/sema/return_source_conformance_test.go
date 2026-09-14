@@ -40,7 +40,7 @@ func TestReturnSourceDirectConformanceTransport(t *testing.T) {
 				prefix = "@overload "
 				overload = "@overload fn choose(self: Foo, left: int64, @return_source right: &string) -> &string { return right; }"
 			}
-			src := "contract C<T> { " + prefix + "fn choose(" + required + ") -> &string; }\n" +
+			src := "contract C<T> { fn choose(" + required + ") -> &string; }\n" +
 				"type Foo = {}\nextern<Foo> { " + overload + prefix + "fn choose(" + actual + ") -> &string { return left; } }\n" +
 				"fn require<E: C<E>>(e: E) {}\n"
 			if name == "generic_entailment" {
