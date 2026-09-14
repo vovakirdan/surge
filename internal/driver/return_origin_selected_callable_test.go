@@ -4,19 +4,13 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"maps"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"surge/internal/ast"
-	"surge/internal/diag"
-	"surge/internal/parser"
 	"surge/internal/sema"
-	"surge/internal/source"
 	"surge/internal/symbols"
-	"surge/internal/types"
 )
 
 const selectedCallableDependency = "pragma module::dep, no_std;\npub fn first(a: &string, b: &string) -> &string { return a; }\n"
@@ -123,6 +117,10 @@ func TestAnalyzeTypedSelectedCallableAuthority(t *testing.T) {
 			if name == "imported_body" {
 				callID := selectedCallableSite(t, res, *root, "Other.first(a, b)", ast.ExprCall)
 				selected = root.Symbols.ExprSymbols[callID]
+				captureSelectedOwner(t, res, *root, callID)
+			}
+			if imported {
+				captureSelectedOwner(t, res, *root, id)
 			}
 			candidate := selectedCallableCandidateFact(t, res, inputs.units, *root, selected)
 			promises := selectedCallablePromises(t, *root, selected)
@@ -306,43 +304,4 @@ func selectedCallableCandidateFact(t *testing.T, res *DiagnoseResult, units []se
 	}
 	captureStorageP0Selection(t, res, units, u, "selected_callable", selected, found.Name)
 	return *found
-}
-
-// Fixed two-file variant of the existing real alias module fixture; no stubbed
-// FnInfo/publication, no component filtering and no bypass of source diagnostics.
-func selectedCallableModuleFixture(t *testing.T, text string) *DiagnoseResult {
-	t.Helper()
-	t.Setenv("SURGE_STDLIB", repoRootFromDriverTest(t))
-	root := t.TempDir()
-	for name, content := range map[string]string{"app/main.sg": text, "dep/main.sg": selectedCallableDependency} {
-		path := filepath.Join(root, name)
-		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		logReturnOriginCallEvidence(t, map[string]any{"stage": "selected_module_source", "path": name, "source": content, "sha256": sha256.Sum256([]byte(content))})
-	}
-	files := source.NewFileSetWithBase(root)
-	id, err := files.Load(filepath.Join(root, "app/main.sg"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	file, bag := files.Get(id), diag.NewBag(64)
-	interner, texts := types.NewInterner(), source.NewInterner()
-	builder, fileID := diagnoseParseWithStrings(t.Context(), files, file, bag, texts, parser.DirectiveModeOff)
-	opts := &DiagnoseOptions{Stage: DiagnoseStageAll, BaseDir: root, MaxDiagnostics: 64, KeepArtifacts: true}
-	exports, rec, records, err := runModuleGraph(t.Context(), files, file, builder, fileID, bag, opts, NewModuleCache(8), interner, texts)
-	logReturnOriginCallEvidence(t, map[string]any{"stage": "selected_module_graph", "bag": bag.Items(), "error": errorReturnOriginCallText(err)})
-	if err != nil || rec == nil {
-		t.Fatalf("PRECONDITION: actual module graph: %v", err)
-	}
-	resolveModuleRecord(t.Context(), rec, root, exports, interner, opts, nil)
-	resolved := rec.Symbols[fileID]
-	res := &DiagnoseResult{FileSet: files, File: file, FileID: fileID, Builder: rec.Builder, Bag: rec.Bag,
-		Symbols: &resolved, Sema: rec.Sema[fileID], rootRecord: rec, moduleRecords: records}
-	checkReturnOriginStdlibBags(t, res, false)
-	requireReturnOriginTyped(t, res)
-	return res
 }
