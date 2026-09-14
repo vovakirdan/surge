@@ -34,6 +34,10 @@ func (a *returnOriginAnalyzer) functionForTemplate(id symbols.SymbolID) *returnO
 }
 
 func (a *returnOriginAnalyzer) genericInstance(key InstanceKey, template symbols.SymbolID, args []types.TypeID) string {
+	return a.genericInstanceKind(key, template, args, InstantiationFunction)
+}
+
+func (a *returnOriginAnalyzer) genericInstanceKind(key InstanceKey, template symbols.SymbolID, args []types.TypeID, kind InstantiationTemplateKind) string {
 	authority := a.units[0].authority
 	if authority.InstantiationIdentity == nil || authority.InstantiationClosure == nil {
 		return "generic use lacks finalized instance authority"
@@ -43,7 +47,7 @@ func (a *returnOriginAnalyzer) genericInstance(key InstanceKey, template symbols
 		return "generic use lacks its finalized callee instance"
 	}
 	want, err := NewInstanceKey(*authority.InstantiationIdentity, template, args)
-	if err != nil || want != key || instance.Template != template || instance.Kind != InstantiationFunction || !slices.Equal(instance.TemplateArgs, args) {
+	if err != nil || want != key || instance.Template != template || instance.Kind != kind || !slices.Equal(instance.TemplateArgs, args) {
 		return "generic use disagrees with its finalized callee instance"
 	}
 	return ""
@@ -180,8 +184,8 @@ func (a *returnOriginAnalyzer) checkGenericUses() error {
 		if err := a.ctx.Err(); err != nil {
 			return err
 		}
-		if use.Kind != InstantiationFunction {
-			pending(use, "generic constructor authority needs its owning payload transfer")
+		if use.Kind != InstantiationFunction && use.Kind != InstantiationTag {
+			pending(use, "generic use has an unknown template kind")
 			continue
 		}
 		duplicates := 0
@@ -192,6 +196,12 @@ func (a *returnOriginAnalyzer) checkGenericUses() error {
 		}
 		if duplicates != 1 {
 			pending(use, "generic use has duplicate or contradictory finalized authority")
+			continue
+		}
+		if use.Kind == InstantiationTag {
+			if reason := a.checkTagUse(use); reason != "" {
+				pending(use, reason)
+			}
 			continue
 		}
 		fn, caller, expression, reason := a.genericUseContext(use)
@@ -211,7 +221,11 @@ func (a *returnOriginAnalyzer) checkGenericUses() error {
 		}
 	}
 	for _, root := range authority.InstantiationGraph.Roots() {
-		if root.Kind != InstantiationFunction || (root.Witness.Caller.IsValid() && !slices.Contains(closure.LiveCallables, root.Witness.Caller)) {
+		if root.Kind != InstantiationFunction && root.Kind != InstantiationTag {
+			pending(ConcreteInstantiationUse{SourceKey: root.Witness.SourceKey, Site: root.Witness.Site}, "generic root has an unknown template kind")
+			continue
+		}
+		if root.Witness.Caller.IsValid() && !slices.Contains(closure.LiveCallables, root.Witness.Caller) {
 			continue
 		}
 		witness, err := canonicalInstantiationWitness(&root.Witness, *authority.InstantiationIdentity)
@@ -222,7 +236,8 @@ func (a *returnOriginAnalyzer) checkGenericUses() error {
 		matched := 0
 		for _, actual := range closure.UseSites {
 			if actual.Caller == (InstanceKey{}) && actual.CallerTemplate == use.CallerTemplate && actual.CalleeTemplate == use.CalleeTemplate &&
-				actual.Kind == root.Kind && actual.SourceKey == use.SourceKey && actual.Site == use.Site {
+				actual.Kind == root.Kind && actual.SourceKey == use.SourceKey && actual.Site == use.Site &&
+				(root.Kind != InstantiationTag || slices.Equal(actual.TemplateArgs, root.TemplateArgs)) {
 				matched++
 			}
 		}
@@ -231,11 +246,12 @@ func (a *returnOriginAnalyzer) checkGenericUses() error {
 		}
 	}
 	for i, instance := range closure.Instances {
-		if instance.Kind != InstantiationFunction {
+		if instance.Kind != InstantiationFunction && instance.Kind != InstantiationTag {
+			pending(ConcreteInstantiationUse{SourceKey: instance.Witness.SourceKey, Site: instance.Witness.Site}, "generic instance has an unknown template kind")
 			continue
 		}
 		use := ConcreteInstantiationUse{SourceKey: instance.Witness.SourceKey, Site: instance.Witness.Site}
-		if reason := a.genericInstance(instance.Key, instance.Template, instance.TemplateArgs); reason != "" {
+		if reason := a.genericInstanceKind(instance.Key, instance.Template, instance.TemplateArgs, instance.Kind); reason != "" {
 			pending(use, reason)
 		}
 		if i > 0 && compareInstanceKey(closure.Instances[i-1].Key, instance.Key) >= 0 {

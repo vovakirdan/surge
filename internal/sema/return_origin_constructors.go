@@ -19,6 +19,11 @@ func (b *returnOriginBody) constructor(id ast.ExprID, env returnOriginEnv, targe
 			children = append(children, field.Value)
 		}
 	}
+	return b.constructorChildren(id, children, env, targets, "")
+}
+
+func (b *returnOriginBody) constructorChildren(id ast.ExprID, children []ast.ExprID, env returnOriginEnv, targets returnOriginTargets, reason string) (returnOriginExprResult, error) {
+	node := b.function.unit.Builder.Exprs.Get(id)
 	out := originExprValue(env, returnOriginValueOf())
 	contents := returnOriginValueOf()
 	for _, child := range children {
@@ -33,6 +38,11 @@ func (b *returnOriginBody) constructor(id ast.ExprID, env returnOriginEnv, targe
 			return out, nil
 		}
 		contents = contents.join(next.value)
+	}
+	if reason != "" {
+		b.pending(node.Span, reason)
+		out.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
+		return out, nil
 	}
 	// Even a reference-free result must retain all child effects and abrupt
 	// exits. Its type can discard contents only after evaluating those children.
