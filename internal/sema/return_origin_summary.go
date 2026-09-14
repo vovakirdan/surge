@@ -36,6 +36,11 @@ func (a *returnOriginAnalyzer) solveBodies() error {
 		}
 	}
 	a.collect = true
+	for _, fn := range a.declarations {
+		body := &returnOriginBody{analyzer: a, function: fn}
+		sources, valid := body.declaredFunctionSources(fn, fn.item.NameSpan)
+		body.opaqueReturnSources(fn.info, sources, valid, fn.item.NameSpan)
+	}
 	for _, fn := range a.functions {
 		body := &returnOriginBody{analyzer: a, function: fn}
 		if _, err := body.analyze(); err != nil {
@@ -90,15 +95,25 @@ func projectReturnOriginSummary(value returnOriginValue) returnOriginValue {
 
 func (b *returnOriginBody) analyze() (returnOriginValue, error) {
 	fn := b.function
-	if !fn.info.ReturnSources().IsAllInputs() {
-		b.pending(fn.item.NameSpan, "declared return sources require original-declaration validation")
-	}
+	allowed, validPromise := b.declaredFunctionSources(fn, fn.item.NameSpan)
 	env := newReturnOriginEnv()
 	for i, param := range fn.params {
 		if !param.IsValid() {
 			continue
 		}
 		value := returnOriginValueOf()
+		// Incoming callable contents belong to the caller. Merely keeping or
+		// dropping that input cannot escape our locals; ordinary value uses
+		// still require callable/capture analysis in expr. This is not a claim
+		// that a closure has no captures or that f is a return-source slot.
+		if returnOriginFnInfo(fn.unit.Sema.TypeInterner, fn.info.Params[i]) != nil {
+			slot, err := safecast.Conv[uint32](i)
+			if err != nil {
+				return returnOriginValue{}, err
+			}
+			env = env.assign(param, fn.scope, returnOriginValueOf(returnOrigin{kind: returnOriginParam, param: slot}))
+			continue
+		}
 		switch returnOriginTypeShape(fn.unit.Sema.TypeInterner, fn.info.Params[i], nil) {
 		case returnOriginCarriesRef:
 			slot, err := safecast.Conv[uint32](i)
@@ -125,6 +140,9 @@ func (b *returnOriginBody) analyze() (returnOriginValue, error) {
 		if key.kind != returnOriginFunctionReturn || key.target != fn.scope {
 			b.pending(key.site, "function has an unresolved control-flow target")
 			continue
+		}
+		if validPromise && !fn.info.ReturnSources().IsAllInputs() {
+			b.checkDeclaredReturn(outcome.value, allowed, key.site)
 		}
 		value = value.join(outcome.value)
 	}

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"slices"
 
+	"fortio.org/safecast"
+
 	"surge/internal/types"
 )
 
@@ -57,6 +59,36 @@ func newInstantiationSubstitution(typesIn *types.Interner, bindings []Instantiat
 
 func (s *instantiationSubstitution) typeID(id types.TypeID) (types.TypeID, error) {
 	return s.typeIDAtDepth(id, 0)
+}
+
+// Source method results bind exact selected receiver parameters. Leave binds
+// nil: owner/index equivalence belongs to concrete closure publication, and can
+// capture an unrelated descriptor in an open generic source body.
+func substituteSourceMethodResult(typesIn *types.Interner, result types.TypeID, params, args []types.TypeID) (types.TypeID, error) {
+	if typesIn == nil || len(params) == 0 || len(params) != len(args) {
+		return types.NoTypeID, fmt.Errorf("source method substitution: missing receiver bindings")
+	}
+	s := &instantiationSubstitution{
+		types: typesIn, exact: make(map[types.TypeID]uint32, len(params)), args: slices.Clone(args),
+		cache: make(map[types.TypeID]types.TypeID), active: make(map[types.TypeID]struct{}),
+	}
+	for i, param := range params {
+		if info, ok := typesIn.TypeParamInfo(param); !ok || info == nil {
+			return types.NoTypeID, fmt.Errorf("source method substitution: type#%d is not a receiver parameter", param)
+		}
+		if _, ok := typesIn.Lookup(args[i]); !ok || args[i] == types.NoTypeID {
+			return types.NoTypeID, fmt.Errorf("source method substitution: missing receiver argument %d", i)
+		}
+		if previous, ok := s.exact[param]; ok && args[previous] != args[i] {
+			return types.NoTypeID, fmt.Errorf("source method substitution: receiver parameter type#%d has conflicting arguments", param)
+		}
+		index, err := safecast.Conv[uint32](i)
+		if err != nil {
+			return types.NoTypeID, fmt.Errorf("source method substitution: receiver arity overflow: %w", err)
+		}
+		s.exact[param] = index
+	}
+	return s.typeID(result)
 }
 
 func (s *instantiationSubstitution) typeIDAtDepth(id types.TypeID, depth int) (types.TypeID, error) {
@@ -220,9 +252,12 @@ func (s *instantiationSubstitution) unionType(id types.TypeID, depth int) (types
 	s.cache[id] = out
 	members := slices.Clone(info.Members)
 	for i := range members {
-		members[i].Type, err = s.typeIDAtDepth(members[i].Type, depth+1)
-		if err != nil {
-			return types.NoTypeID, err
+		// Tagged members carry payloads in TagArgs; their Type slot may be zero.
+		if members[i].Kind != types.UnionMemberTag || members[i].Type != types.NoTypeID {
+			members[i].Type, err = s.typeIDAtDepth(members[i].Type, depth+1)
+			if err != nil {
+				return types.NoTypeID, err
+			}
 		}
 		members[i].TagArgs, _, err = s.typeList(members[i].TagArgs, depth)
 		if err != nil {

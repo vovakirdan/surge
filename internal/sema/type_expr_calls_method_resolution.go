@@ -28,6 +28,11 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 	}
 	sig, recvCand, subst, borrowInfo, sawReceiverMatch := tc.matchMethodSignature(name, recv, recvExpr, args, argExprs, staticReceiver)
 	if sig != nil {
+		if !staticReceiver {
+			if res, handled := tc.selectedReceiverMethodResult(name, sig, recvCand, span); handled {
+				return tc.adjustAliasUnaryResult(res, recvCand)
+			}
+		}
 		resultKey := substituteTypeKeyParams(sig.Result, subst)
 		res := tc.typeFromKey(resultKey)
 		if res == types.NoTypeID && staticReceiver && recv != types.NoTypeID {
@@ -51,6 +56,66 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 	}
 	tc.report(diag.SemaUnresolvedSymbol, span, "%s has no method %s", tc.typeLabel(recv), name)
 	return types.NoTypeID
+}
+
+// selectedReceiverMethodResult preserves caller descriptors in methods whose
+// generic parameters all come directly from a nominal struct receiver. Method
+// parameters independent of self need call-argument bindings not available here.
+func (tc *typeChecker) selectedReceiverMethodResult(name string, sig *symbols.FunctionSignature, recvCand typeKeyCandidate, span source.Span) (types.TypeID, bool) {
+	if tc.types == nil || sig == nil || !sig.HasSelf {
+		return types.NoTypeID, false
+	}
+	sym := tc.selectedMethodResultSymbol(sig)
+	if sym == nil {
+		return types.NoTypeID, false
+	}
+	fn, ok := tc.types.FnInfo(sym.Type)
+	if !ok || fn == nil || len(fn.Params) == 0 {
+		return types.NoTypeID, false
+	}
+	formal, ok := tc.types.StructInfo(tc.valueType(fn.Params[0]))
+	if !ok || formal == nil || len(formal.TypeArgs) == 0 || len(sym.TypeParams) != len(formal.TypeArgs) {
+		return types.NoTypeID, false
+	}
+	for _, param := range formal.TypeArgs {
+		info, known := tc.types.TypeParamInfo(param)
+		if !known || info == nil || info.IsConst {
+			return types.NoTypeID, false
+		}
+	}
+	// Use the already selected alias/base candidate, not another dispatch search.
+	actual, ok := tc.types.StructInfo(tc.valueType(recvCand.base))
+	if !ok || actual == nil || actual.Name != formal.Name || actual.Decl != formal.Decl || len(actual.TypeArgs) != len(formal.TypeArgs) {
+		tc.report(diag.SemaTypeMismatch, span, "selected method %s has no matching receiver descriptor", name)
+		return types.NoTypeID, true
+	}
+	res, err := substituteSourceMethodResult(tc.types, fn.Result, formal.TypeArgs, actual.TypeArgs)
+	if err != nil {
+		tc.report(diag.SemaTypeMismatch, span, "cannot determine selected method %s result: %s", name, err)
+		return types.NoTypeID, true
+	}
+	return res, true
+}
+
+func (tc *typeChecker) selectedMethodResultSymbol(sig *symbols.FunctionSignature) *symbols.Symbol {
+	if sym := tc.symbolFromID(tc.magicSymbolForSignature(sig)); sym != nil {
+		return sym
+	}
+	// Exported magic entries have no local SymbolID. Recover only the exact
+	// selected declaration; equal signature spellings are not type authority.
+	for modulePath, exports := range tc.exports {
+		if exports == nil {
+			continue
+		}
+		for _, list := range exports.Symbols {
+			for i := range list {
+				if list[i].Kind == symbols.SymbolFunction && list[i].Signature == sig {
+					return tc.exportedSymbolToSymbol(&list[i], modulePath)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func (tc *typeChecker) matchMethodSignature(name string, recv types.TypeID, recvExpr ast.ExprID, args []types.TypeID, argExprs []ast.ExprID, staticReceiver bool) (*symbols.FunctionSignature, typeKeyCandidate, map[string]symbols.TypeKey, borrowMatchInfo, bool) {
