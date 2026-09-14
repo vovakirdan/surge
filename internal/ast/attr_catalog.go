@@ -27,6 +27,8 @@ const (
 	AttrTargetStmt // statement-level attributes (e.g. expression statements)
 	// AttrTargetLet indicates let and const declarations.
 	AttrTargetLet // let and const declarations
+	// AttrTargetFnTypeParam identifies an unnamed parameter in a function type.
+	AttrTargetFnTypeParam
 )
 
 // AttrFlag captures special handling rules beyond the basic applicability matrix.
@@ -67,6 +69,7 @@ var attrRegistry = map[string]AttrSpec{
 	"intrinsic":     {Name: "intrinsic", Targets: AttrTargetFn | AttrTargetType | AttrTargetLet, Flags: AttrFlagFnDeclOnly},
 	"entrypoint":    {Name: "entrypoint", Targets: AttrTargetFn},
 	"allow_to":      {Name: "allow_to", Targets: AttrTargetFn | AttrTargetParam},
+	"return_source": {Name: "return_source", Targets: AttrTargetParam | AttrTargetFnTypeParam},
 	"backend":       {Name: "backend", Targets: AttrTargetFn | AttrTargetBlock},
 	"deprecated":    {Name: "deprecated", Targets: AttrTargetFn | AttrTargetType | AttrTargetField | AttrTargetLet},
 	"packed":        {Name: "packed", Targets: AttrTargetType | AttrTargetField},

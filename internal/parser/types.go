@@ -205,6 +205,11 @@ func (p *Parser) parseFunctionType(startSpan source.Span, isAsync bool) (ast.Typ
 
 	if !p.at(token.RParen) {
 		for {
+			attrs, _, attrsOK := p.parseAttributes()
+			if !attrsOK {
+				return ast.NoTypeID, false
+			}
+			attrStart, attrCount := p.arenas.Items.AllocateAttrs(attrs)
 			if p.at(token.DotDotDot) {
 				p.advance()
 				elemType, ok := p.parseTypePrefix()
@@ -212,9 +217,11 @@ func (p *Parser) parseFunctionType(startSpan source.Span, isAsync bool) (ast.Typ
 					return ast.NoTypeID, false
 				}
 				params = append(params, ast.TypeFnParam{
-					Type:     elemType,
-					Name:     source.NoStringID,
-					Variadic: true,
+					Type:      elemType,
+					Name:      source.NoStringID,
+					Variadic:  true,
+					AttrStart: attrStart,
+					AttrCount: attrCount,
 				})
 				if p.at(token.Comma) {
 					p.err(diag.SynVariadicMustBeLast, "variadic parameter must be last in function type")
@@ -228,9 +235,11 @@ func (p *Parser) parseFunctionType(startSpan source.Span, isAsync bool) (ast.Typ
 				return ast.NoTypeID, false
 			}
 			params = append(params, ast.TypeFnParam{
-				Type:     elemType,
-				Name:     source.NoStringID,
-				Variadic: false,
+				Type:      elemType,
+				Name:      source.NoStringID,
+				Variadic:  false,
+				AttrStart: attrStart,
+				AttrCount: attrCount,
 			})
 
 			if !p.at(token.Comma) {

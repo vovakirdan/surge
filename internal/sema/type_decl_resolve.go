@@ -85,34 +85,7 @@ func (tc *typeChecker) resolveTypeExprWithScope(id ast.TypeID, scope symbols.Sco
 	case ast.TypeExprTuple:
 		result = tc.resolveTupleTypeExpr(id, scope)
 	case ast.TypeExprFn:
-		if fnType, ok := tc.builder.Types.Fn(id); ok && fnType != nil {
-			// Resolve parameter types
-			params := make([]types.TypeID, 0, len(fnType.Params))
-			allValid := true
-			for _, param := range fnType.Params {
-				resolved := tc.resolveTypeExprWithScope(param.Type, scope)
-				if resolved == types.NoTypeID {
-					allValid = false
-					break
-				}
-				if param.Variadic {
-					resolved = tc.instantiateArrayType(resolved)
-				}
-				params = append(params, resolved)
-			}
-			if !allValid {
-				break
-			}
-
-			// Resolve return type
-			retType := tc.resolveTypeExprWithScope(fnType.Return, scope)
-			if retType == types.NoTypeID {
-				// Default to unit if return type resolution fails
-				retType = tc.types.Builtins().Unit
-			}
-
-			result = tc.types.RegisterFn(params, retType)
-		}
+		result = tc.resolveFunctionTypeExpr(id, scope)
 	default:
 		// other type forms are not supported yet
 	}
