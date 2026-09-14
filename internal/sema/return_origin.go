@@ -31,8 +31,9 @@ type returnOrigin struct {
 // The zero value means NoNormalReturn. A normal value with no roots is proven
 // RefFree; an unresolved reference has an explicit Unknown root instead.
 type returnOriginValue struct {
-	normal bool
-	roots  []returnOrigin
+	normal    bool
+	roots     []returnOrigin
+	callables []returnOriginCallable
 }
 
 func returnOriginValueOf(roots ...returnOrigin) returnOriginValue {
@@ -64,11 +65,12 @@ func compareReturnOrigins(a, b returnOrigin) int {
 }
 
 func (v returnOriginValue) clone() returnOriginValue {
-	return returnOriginValue{normal: v.normal, roots: slices.Clone(v.roots)}
+	return returnOriginValue{normal: v.normal, roots: slices.Clone(v.roots), callables: cloneReturnOriginCallables(v.callables)}
 }
 
 func (v returnOriginValue) equal(other returnOriginValue) bool {
-	return v.normal == other.normal && slices.Equal(v.roots, other.roots)
+	return v.normal == other.normal && slices.Equal(v.roots, other.roots) &&
+		slices.EqualFunc(v.callables, other.callables, func(a, b returnOriginCallable) bool { return compareReturnOriginCallables(a, b) == 0 })
 }
 
 func (v returnOriginValue) join(other returnOriginValue) returnOriginValue {
@@ -78,7 +80,11 @@ func (v returnOriginValue) join(other returnOriginValue) returnOriginValue {
 	if !other.normal {
 		return v.clone()
 	}
-	return returnOriginValueOf(append(slices.Clone(v.roots), other.roots...)...)
+	out := returnOriginValueOf(append(slices.Clone(v.roots), other.roots...)...)
+	out.callables = append(cloneReturnOriginCallables(v.callables), cloneReturnOriginCallables(other.callables)...)
+	slices.SortFunc(out.callables, compareReturnOriginCallables)
+	out.callables = slices.CompactFunc(out.callables, func(a, b returnOriginCallable) bool { return compareReturnOriginCallables(a, b) == 0 })
+	return out
 }
 
 // Expiration persists on references carried out of a scope. A later iteration
@@ -97,7 +103,8 @@ func (v returnOriginValue) expire(scope symbols.ScopeID, within func(symbols.Sco
 	if !out.normal {
 		return out
 	}
-	return returnOriginValueOf(out.roots...)
+	out.roots = returnOriginValueOf(out.roots...).roots
+	return out
 }
 
 type returnOriginBinding struct {

@@ -112,8 +112,8 @@ func (tc *typeChecker) typesAssignable(expected, actual types.TypeID, allowAlias
 	}
 
 	// Function type compatibility: parameter and return types must match
-	expFn, expOk := tc.types.FnInfo(expected)
-	actFn, actOk := tc.types.FnInfo(actual)
+	expFn, expOk := tc.types.FnInfo(expectedResolved)
+	actFn, actOk := tc.types.FnInfo(actualResolved)
 	if expOk && actOk {
 		if len(expFn.Params) != len(actFn.Params) {
 			return false

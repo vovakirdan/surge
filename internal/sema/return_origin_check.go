@@ -61,6 +61,9 @@ func returnOriginTypeShape(interner *types.Interner, id types.TypeID, seen map[t
 		}
 	case types.KindStruct:
 		if info, found := interner.StructInfo(id); found && info != nil {
+			if shape, logical := returnOriginNominalShape(interner, id, info, seen); logical {
+				return shape
+			}
 			shape := returnOriginRefFree
 			for _, field := range info.Fields {
 				shape = max(shape, returnOriginTypeShape(interner, field.Type, seen))
@@ -77,6 +80,44 @@ func returnOriginTypeShape(interner *types.Interner, id types.TypeID, seen map[t
 		}
 	}
 	return returnOriginShapeUnknown
+}
+
+func returnOriginNominalShape(interner *types.Interner, id types.TypeID, info *types.StructInfo, seen map[types.TypeID]bool) (returnOriginShape, bool) {
+	runtimeHandle := interner.IsRuntimeHandleType(id)
+	for _, base := range [...]types.TypeID{interner.ArrayNominalType(), interner.ArrayFixedNominalType(), interner.MapNominalType()} {
+		original, ok := interner.StructInfo(base)
+		if !ok || original == nil || info.Name != original.Name || info.Decl != original.Decl {
+			continue
+		}
+		if len(info.TypeArgs) == 0 {
+			return returnOriginShapeUnknown, true
+		}
+		if base == interner.ArrayFixedNominalType() {
+			// The element exists even when the length is still a generic N.
+			return returnOriginTypeShape(interner, info.TypeArgs[0], seen), true
+		}
+		arity := 1
+		if base == interner.MapNominalType() {
+			arity = 2
+		}
+		if len(info.TypeArgs) != arity {
+			return returnOriginShapeUnknown, true
+		}
+		runtimeHandle = true
+		break
+	}
+	if !runtimeHandle {
+		return returnOriginRefFree, false
+	}
+	payloads, ok := interner.RuntimeHandlePayloads(id)
+	if !ok || len(payloads) == 0 && len(info.TypeParams) != 0 {
+		return returnOriginShapeUnknown, true
+	}
+	shape := returnOriginRefFree
+	for _, payload := range payloads {
+		shape = max(shape, returnOriginTypeShape(interner, payload, seen))
+	}
+	return shape, true
 }
 
 func (b *returnOriginBody) pending(span source.Span, reason string) {

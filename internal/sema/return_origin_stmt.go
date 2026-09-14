@@ -47,14 +47,16 @@ func (b *returnOriginBody) stmt(id ast.StmtID, env returnOriginEnv, targets retu
 		return b.closeFlow(flow, scope, node.Span), nil
 	case ast.StmtLet, ast.StmtConst:
 		var value ast.ExprID
+		var annotation ast.TypeID
 		if node.Kind == ast.StmtLet {
 			decl := u.Builder.Stmts.Let(id)
-			value = decl.Value
+			value, annotation = decl.Value, decl.Type
 			if decl.Pattern.IsValid() {
 				b.pending(node.Span, "destructuring needs projected origin facts")
 			}
 		} else {
-			value = u.Builder.Stmts.Const(id).Value
+			decl := u.Builder.Stmts.Const(id)
+			value, annotation = decl.Value, decl.Type
 		}
 		out := originExprValue(env, returnOriginValueOf())
 		if value.IsValid() {
@@ -70,6 +72,9 @@ func (b *returnOriginBody) stmt(id ast.StmtID, env returnOriginEnv, targets retu
 		id := u.stmtSymbols[id]
 		if id.IsValid() {
 			sym := u.Symbols.Table.Symbols.Get(id)
+			if value.IsValid() && out.flow.normal.reachable {
+				out.value = b.bindCallable(out.value, id, annotation, value, returnOriginValue{}, false)
+			}
 			out.flow.normal = out.flow.normal.assign(id, sym.Scope, out.value)
 		}
 		return out.flow, nil
@@ -95,6 +100,11 @@ func (b *returnOriginBody) stmt(id ast.StmtID, env returnOriginEnv, targets retu
 			if err != nil {
 				return returnOriginFlow{}, err
 			}
+		}
+		if node.Kind == ast.StmtReturn && out.flow.normal.reachable &&
+			(len(out.value.callables) != 0 || returnOriginFnInfo(u.Sema.TypeInterner, b.function.info.Result) != nil) {
+			b.pending(node.Span, "callable return conversion needs its destination and capture contract")
+			out.value = out.value.join(returnOriginValueOf(returnOrigin{kind: returnOriginUnknown}))
 		}
 		return out.flow.end(key, out.value), nil
 	case ast.StmtBreak, ast.StmtContinue:

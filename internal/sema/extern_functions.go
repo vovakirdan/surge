@@ -39,12 +39,20 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 	}
 	scope := tc.scopeOrFile(tc.scopeForExtern(memberID))
 	symID := tc.symbolForExtern(memberID)
+	header := tc.externMethodHeaders[symID]
+	var bindings []types.TypeID
+	if header != nil {
+		scope, bindings = header.scope, header.bindings
+	}
 	popFn := tc.pushFnSym(symID)
 	defer popFn()
 	popParams := tc.pushFnParams(tc.fnParamSymbols(fn, scope))
 	defer popParams()
 
-	receiverParamsPushed := tc.pushTypeParams(receiverOwner, receiverSpecs, nil)
+	receiverParamsPushed := tc.pushTypeParams(receiverOwner, receiverSpecs, bindings)
+	if header != nil && receiverParamsPushed {
+		tc.typeParamEnv[len(tc.typeParamEnv)-1] = header.env
+	}
 	if receiverOwner.IsValid() && receiverParamsPushed {
 		tc.applyTypeParamBounds(receiverOwner)
 	}
@@ -65,38 +73,20 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 		tc.rememberInstantiationCallableSeed(symID)
 	}
 
-	returnType := tc.functionReturnType(fn, scope, true)
+	if header == nil {
+		header = tc.resolveExternMethodHeader(fn, scope, symID, false)
+	} else {
+		for _, diagnostic := range header.diagnostics {
+			diag.ForwardDiagnostic(tc.reporter, diagnostic)
+		}
+	}
+	returnType := header.result
 	returnSpan := fn.ReturnSpan
 	if returnSpan == (source.Span{}) {
 		returnSpan = fn.Span
 	}
 
 	tc.registerExternParamTypes(scope, fn, true)
-	if symID.IsValid() && tc.types != nil {
-		paramIDs := tc.builder.Items.GetFnParamIDs(fn)
-		paramTypes := make([]types.TypeID, 0, len(paramIDs))
-		allParamsValid := true
-		for _, pid := range paramIDs {
-			param := tc.builder.Items.FnParam(pid)
-			if param == nil {
-				continue
-			}
-			paramType := tc.resolveTypeExprWithScopeAllowPointer(param.Type, scope, true)
-			if paramType == types.NoTypeID {
-				allParamsValid = false
-				break
-			}
-			paramTypes = append(paramTypes, paramType)
-		}
-		if allParamsValid {
-			resultType := returnType
-			if fn.Flags&ast.FnModifierAsync != 0 {
-				resultType = tc.taskType(returnType, returnSpan)
-			}
-			fnType := tc.registerDeclaredFnType(fn, paramTypes, resultType, scope, symID)
-			tc.assignSymbolType(symID, fnType)
-		}
-	}
 
 	if fn.Body.IsValid() {
 		tc.pushReturnContext(returnCtxFunction, returnType, returnSpan, nil, nil)

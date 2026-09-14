@@ -101,6 +101,23 @@ func (tc *typeChecker) selectedMethodResultSymbol(sig *symbols.FunctionSignature
 	if sym := tc.symbolFromID(tc.magicSymbolForSignature(sig)); sym != nil {
 		return sym
 	}
+	// Builtin source declarations can omit magic IDs. The already selected
+	// signature must identify exactly one original table entry.
+	if tc.symbols != nil && tc.symbols.Table != nil {
+		var found *symbols.Symbol
+		for i := range tc.symbols.Table.Symbols.Data() {
+			sym := tc.symbols.Table.Symbols.Get(symbols.SymbolID(i + 1))
+			if sym.Kind == symbols.SymbolFunction && sym.Signature == sig {
+				if found != nil {
+					return nil
+				}
+				found = sym
+			}
+		}
+		if found != nil {
+			return found
+		}
+	}
 	// Exported magic entries have no local SymbolID. Recover only the exact
 	// selected declaration; equal signature spellings are not type authority.
 	for modulePath, exports := range tc.exports {

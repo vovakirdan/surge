@@ -81,6 +81,11 @@ func projectReturnOriginSummary(value returnOriginValue) returnOriginValue {
 		return returnOriginValue{}
 	}
 	roots := make([]returnOrigin, 0, len(value.roots))
+	if len(value.callables) != 0 {
+		// Function-result conversion is still an explicit pending boundary;
+		// dropping callable facts must not publish a RefFree/empty summary.
+		roots = append(roots, returnOrigin{kind: returnOriginUnknown})
+	}
 	for _, root := range value.roots {
 		if root.kind == returnOriginParam && !root.expired {
 			roots = append(roots, returnOrigin{kind: returnOriginParam, param: root.param})
@@ -103,8 +108,8 @@ func (b *returnOriginBody) analyze() (returnOriginValue, error) {
 		}
 		value := returnOriginValueOf()
 		// Incoming callable contents belong to the caller. Merely keeping or
-		// dropping that input cannot escape our locals; ordinary value uses
-		// still require callable/capture analysis in expr. This is not a claim
+		// dropping that input cannot escape our locals; value uses materialize
+		// their declared callable fact in expr. This is not a claim
 		// that a closure has no captures or that f is a return-source slot.
 		if returnOriginFnInfo(fn.unit.Sema.TypeInterner, fn.info.Params[i]) != nil {
 			slot, err := safecast.Conv[uint32](i)
