@@ -43,7 +43,7 @@ func (b *returnOriginBody) index(id ast.ExprID, env returnOriginEnv, targets ret
 		out.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 		return out, nil
 	}
-	// Scalar string results discard reference facts only after both operands'
+	// String scalar and slice results discard facts only after both operands'
 	// effects and exits have passed through the ordinary flow transfer.
 	if primitive.family == u.Sema.TypeInterner.Builtins().String {
 		out.value = returnOriginValueOf()

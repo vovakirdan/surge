@@ -101,6 +101,9 @@ func (a *returnOriginAnalyzer) indexDeclaration(fn *returnOriginFunction, actual
 func (a *returnOriginAnalyzer) indexOperation(caller *returnOriginFunction, id ast.ExprID) (returnOriginIndexType, string) {
 	u := caller.unit
 	primitive, reason := returnOriginTypedIndex(u, id)
+	if reason == "index requires a non-scalar index transfer" {
+		return a.stringRangeIndex(caller, id)
+	}
 	if reason != "" {
 		return primitive, reason
 	}
