@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -38,10 +39,14 @@ func TestDiagnoseReturnOriginEscape(t *testing.T) {
 						res.Symbols == nil || res.Sema.TypeInterner == nil || len(res.Sema.ExprTypes) == 0 {
 						t.Fatal("source did not reach typed semantic analysis")
 					}
-					t.Logf("RETURN_ORIGIN_DIAGNOSTICS=%+v", res.Bag.Items())
+					diagnostics, err := json.Marshal(res.Bag.Items())
+					if err != nil {
+						t.Fatalf("encode diagnostics: %v", err)
+					}
+					t.Logf("RETURN_ORIGIN_DIAGNOSTICS=%s", diagnostics)
 					if !tc.escapes {
 						if res.Bag.HasErrors() {
-							t.Fatalf("external owner must remain legal: %+v", res.Bag.Items())
+							t.Fatalf("external owner must remain legal: %s", diagnostics)
 						}
 						if emitHIR && res.HIR == nil {
 							t.Fatal("accepted source did not produce requested HIR")
