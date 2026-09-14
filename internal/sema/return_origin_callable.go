@@ -15,10 +15,11 @@ import (
 // body. Captured/incoming contents remain in value.roots, not in these call-result
 // slots. The alternatives are finite source/type identities and immutable.
 type returnOriginCallable struct {
-	bodyKey string
-	typ     types.TypeID
-	slots   []uint32
-	promise source.Span
+	bodyKey  string
+	typ      types.TypeID
+	slots    []uint32
+	promise  source.Span
+	contract *returnOriginCallableType
 }
 
 func cloneReturnOriginCallables(values []returnOriginCallable) []returnOriginCallable {
@@ -44,16 +45,10 @@ func compareReturnOriginCallables(a, b returnOriginCallable) int {
 
 func (b *returnOriginBody) callableType(typ types.TypeID, span source.Span) *types.FnInfo {
 	in := b.function.unit.Sema.TypeInterner
-	info, ok := in.FnInfo(typ)
-	if !ok || types.ContainsGenericParam(in, typ) {
+	info := returnOriginFnInfo(in, typ)
+	if info == nil || types.ContainsGenericParam(in, typ) {
 		b.pending(span, "callable value needs its concrete original type and alias authority")
 		return nil
-	}
-	for _, param := range info.Params {
-		if returnOriginFnInfo(in, param) != nil {
-			b.pending(span, "higher-order callable parameters need their conversion contracts")
-			return nil
-		}
 	}
 	if returnOriginFnInfo(in, info.Result) != nil {
 		b.pending(span, "callable return values need their destination and capture contracts")
@@ -63,16 +58,14 @@ func (b *returnOriginBody) callableType(typ types.TypeID, span source.Span) *typ
 }
 
 func (b *returnOriginBody) declaredCallable(typ types.TypeID, typeExpr ast.TypeID, span source.Span) (returnOriginCallable, bool) {
-	u := b.function.unit
-	info := b.callableType(typ, span)
-	node := u.Builder.Types.Get(typeExpr)
-	if info == nil || node == nil || node.Kind != ast.TypeExprFn {
-		b.pending(span, "callable promise needs its original function-type syntax")
+	if b.callableType(typ, span) == nil {
 		return returnOriginCallable{}, false
 	}
-	syntax := symbols.FunctionTypeReturnSourceSyntax(u.Builder, typeExpr)
-	slots, valid := b.declaredSources(u, symbols.NoSymbolID, typeExpr, syntax, info, span)
-	return returnOriginCallable{typ: typ, slots: slices.Clone(slots), promise: node.Span}, valid
+	contract := b.readCallableType(b.function.unit, typ, typeExpr, span, make(map[types.TypeID]bool))
+	if contract == nil {
+		return returnOriginCallable{}, false
+	}
+	return returnOriginCallable{typ: typ, slots: slices.Clone(contract.slots), promise: contract.promise, contract: contract}, true
 }
 
 func (b *returnOriginBody) callableIdent(id ast.ExprID, env returnOriginEnv) returnOriginExprResult {
