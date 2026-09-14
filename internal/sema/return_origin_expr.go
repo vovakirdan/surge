@@ -42,7 +42,8 @@ func (b *returnOriginBody) expr(id ast.ExprID, env returnOriginEnv, targets retu
 		if b.shape(id) == returnOriginRefFree {
 			value = returnOriginValueOf()
 		}
-		if sym.Kind == symbols.SymbolFunction || !b.within(sym.Scope, b.function.scope) {
+		if returnOriginFnInfo(u.Sema.TypeInterner, u.Sema.ExprTypes[id]) != nil ||
+			sym.Kind == symbols.SymbolFunction || !b.within(sym.Scope, b.function.scope) {
 			return b.unknownExpr(env, node.Span, "callable value or captured binding requires origin finalization"), nil
 		}
 		b.checkExpired(value, node.Span)

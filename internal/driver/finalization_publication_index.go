@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"surge/internal/sema"
+	"surge/internal/source"
 )
 
 type finalizationPublicationIndex map[*moduleRecord][]sema.FinalizationCallableIdentity
@@ -16,42 +17,57 @@ func buildFinalizationPublicationIndex(res *DiagnoseResult) (finalizationPublica
 	}
 	resolveSource := canonicalInstantiationSourceResolver(res)
 	for _, rec := range finalizationPublicationRecords(res) {
-		seen := make(map[sema.FinalizationCallableIdentity]struct{})
+		results := make([]*sema.Result, 0, len(rec.FileIDs))
 		for _, fileID := range rec.FileIDs {
-			fileResult := rec.Sema[fileID]
-			if fileResult == nil {
-				continue
-			}
-			if err := sema.CanonicalizeInstantiationGraphSources(fileResult, resolveSource); err != nil {
-				return nil, fmt.Errorf("finalization publication index: %w", err)
-			}
-			for i := range fileResult.CallableCandidates {
-				candidate := &fileResult.CallableCandidates[i]
-				identity := sema.FinalizationCallableIdentity{
-					Symbol: candidate.Symbol, BodyKey: candidate.BodyKey, SourceKey: candidate.SourceKey,
-				}
-				if !identity.Symbol.IsValid() || identity.BodyKey == "" {
-					continue
-				}
+			results = append(results, rec.Sema[fileID])
+		}
+		callables, err := captureFinalizationCallables(results, resolveSource)
+		if err != nil {
+			return nil, err
+		}
+		index[rec] = callables
+	}
+	if res.rootRecord == nil && res.Sema != nil {
+		callables, err := captureFinalizationCallables([]*sema.Result{res.Sema}, resolveSource)
+		if err != nil {
+			return nil, err
+		}
+		index[nil] = callables
+	}
+	return index, nil
+}
+
+// Capture before merge or CopyInstantiationAuthority changes local candidates.
+func captureFinalizationCallables(results []*sema.Result, resolveSource func(source.FileID) (string, error)) ([]sema.FinalizationCallableIdentity, error) {
+	seen := make(map[sema.FinalizationCallableIdentity]struct{})
+	for _, fileResult := range results {
+		if fileResult == nil {
+			continue
+		}
+		if err := sema.CanonicalizeInstantiationGraphSources(fileResult, resolveSource); err != nil {
+			return nil, fmt.Errorf("finalization publication index: %w", err)
+		}
+		for _, candidate := range fileResult.CallableCandidates {
+			identity := sema.FinalizationCallableIdentity{Symbol: candidate.Symbol, BodyKey: candidate.BodyKey, SourceKey: candidate.SourceKey}
+			if identity.Symbol.IsValid() && identity.BodyKey != "" {
 				seen[identity] = struct{}{}
 			}
 		}
-		callables := make([]sema.FinalizationCallableIdentity, 0, len(seen))
-		for identity := range seen {
-			callables = append(callables, identity)
-		}
-		sort.Slice(callables, func(i, j int) bool {
-			if callables[i].BodyKey != callables[j].BodyKey {
-				return callables[i].BodyKey < callables[j].BodyKey
-			}
-			if callables[i].Symbol != callables[j].Symbol {
-				return callables[i].Symbol < callables[j].Symbol
-			}
-			return callables[i].SourceKey < callables[j].SourceKey
-		})
-		index[rec] = callables
 	}
-	return index, nil
+	callables := make([]sema.FinalizationCallableIdentity, 0, len(seen))
+	for identity := range seen {
+		callables = append(callables, identity)
+	}
+	sort.Slice(callables, func(i, j int) bool {
+		if callables[i].BodyKey != callables[j].BodyKey {
+			return callables[i].BodyKey < callables[j].BodyKey
+		}
+		if callables[i].Symbol != callables[j].Symbol {
+			return callables[i].Symbol < callables[j].Symbol
+		}
+		return callables[i].SourceKey < callables[j].SourceKey
+	})
+	return callables, nil
 }
 
 func finalizationPublicationRecords(res *DiagnoseResult) []*moduleRecord {

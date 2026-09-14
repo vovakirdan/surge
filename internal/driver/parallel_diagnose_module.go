@@ -10,15 +10,15 @@ import (
 
 // enrichModuleResults runs a full module-graph pass for directory diagnostics
 // when module directories are present.
-func enrichModuleResults(ctx context.Context, _ string, fileSet *source.FileSet, results []DiagnoseDirResult, opts *DiagnoseOptions) error {
+func enrichModuleResults(ctx context.Context, _ string, fileSet *source.FileSet, results []DiagnoseDirResult, opts *DiagnoseOptions) (returnOriginPass, error) {
 	if fileSet == nil {
-		return nil
+		return nil, nil
 	}
 	if opts == nil {
 		opts = &DiagnoseOptions{}
 	}
 	if !hasModulePragmaInResults(fileSet, results) {
-		return nil
+		return nil, nil
 	}
 	return resolveDirModuleGraph(ctx, fileSet, results, opts)
 }

@@ -518,7 +518,7 @@ func DiagnoseFilesWithOptions(ctx context.Context, baseDir string, files []strin
 
 	if opts.Stage == DiagnoseStageSema || opts.Stage == DiagnoseStageAll {
 		if opts.FullModuleGraph {
-			if err := resolveDirModuleGraph(ctx, fileSet, results, opts); err != nil {
+			if _, err := resolveDirModuleGraph(ctx, fileSet, results, opts); err != nil {
 				return nil, nil, err
 			}
 		} else if err := prepareParallelFileResults(ctx, baseDir, fileSet, results, opts); err != nil {
