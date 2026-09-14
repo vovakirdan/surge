@@ -110,7 +110,7 @@ func (s *Subst) typeNoCache(id types.TypeID) types.TypeID {
 		if !changed {
 			return id
 		}
-		return s.Types.RegisterFn(params, result)
+		return s.Types.RebuildFn(id, params, result)
 
 	case types.KindStruct:
 		info, ok := s.Types.StructInfo(id)

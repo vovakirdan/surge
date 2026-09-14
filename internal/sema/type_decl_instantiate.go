@@ -341,7 +341,7 @@ func (tc *typeChecker) substituteImportedType(id types.TypeID, args []types.Type
 				cache[t] = t
 				return t
 			}
-			out := tc.types.RegisterFn(params, result)
+			out := tc.types.RebuildFn(t, params, result)
 			cache[t] = out
 			return out
 		case types.KindStruct:
