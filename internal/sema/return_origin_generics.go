@@ -102,65 +102,18 @@ func (a *returnOriginAnalyzer) genericUseContext(use ConcreteInstantiationUse) (
 	return fn, caller, expression, ""
 }
 
-func (a *returnOriginAnalyzer) genericUseInfo(use ConcreteInstantiationUse) (*returnOriginFunction, *types.FnInfo, string) {
-	fn, caller, expression, reason := a.genericUseContext(use)
+// Current uses reuse the original signature reader after their independent
+// instance/root/caller checks. An original-body proof cannot supply a missing
+// finalized use, and a concrete use cannot replace the source request.
+func (a *returnOriginAnalyzer) genericCallUseInfo(fn, caller *returnOriginFunction, expression ast.ExprID, use ConcreteInstantiationUse) (*returnOriginSignature, string) {
+	args, reason := caller.originalInstantiation(expression, InstantiationFunction, fn.candidate.Symbol)
 	if reason != "" {
-		return nil, nil, reason
+		return nil, reason
 	}
-	info, reason := a.genericCallUseInfo(fn, caller, expression, use)
-	return fn, info, reason
-}
-
-// The call view substitutes exact direct parameters without interning or
-// changing FnInfo. Index primitives validate their element/length separately.
-func (a *returnOriginAnalyzer) genericCallUseInfo(fn, caller *returnOriginFunction, expression ast.ExprID, use ConcreteInstantiationUse) (*types.FnInfo, string) {
-	authority := caller.unit.authority
-	bind := func(id types.TypeID) types.TypeID {
-		if slot := slices.Index(fn.candidate.TemplateParams, id); slot >= 0 {
-			id = use.TemplateArgs[slot]
-		}
-		if _, ok := authority.TypeInterner.Lookup(id); !ok || types.ContainsGenericParam(authority.TypeInterner, id) {
-			return types.NoTypeID
-		}
-		return id
+	if !slices.Equal(args, use.TemplateArgs) {
+		return nil, "generic use disagrees with its original call arguments"
 	}
-	view := *fn.info
-	view.Params = slices.Clone(fn.info.Params)
-	view.Result = bind(fn.info.Result)
-	for i, param := range view.Params {
-		view.Params[i] = bind(param)
-	}
-	if view.Result == types.NoTypeID || slices.Contains(view.Params, types.NoTypeID) {
-		return nil, "generic use requires a type-dependent signature substitution"
-	}
-	if caller.unit.Sema.ExprTypes[expression] != view.Result {
-		return nil, "generic use disagrees with its original typed call"
-	}
-	call, ok := caller.unit.Builder.Exprs.Call(expression)
-	identity, err := caller.unit.callableIdentity(caller.unit.Symbols.ExprSymbols[expression], "")
-	if !ok || call == nil || err != nil || identity.BodyKey != fn.key || identity.SourceKey != fn.canonicalSourceKey {
-		return nil, "generic use lacks its original selected call"
-	}
-	var receiver ast.ExprID
-	sym := caller.unit.Symbols.Table.Symbols.Get(caller.unit.Symbols.ExprSymbols[expression])
-	if sym != nil && sym.Signature != nil && sym.Signature.HasSelf {
-		if member, ok := caller.unit.Builder.Exprs.Member(call.Target); ok && member != nil {
-			receiver = member.Target
-		}
-	}
-	if sym == nil {
-		return nil, "generic call lacks original formal metadata"
-	}
-	slots, err := mapReturnOriginArguments(sym.Signature, call, receiver)
-	if err != nil || len(slots) != len(view.Params) {
-		return nil, "generic call lacks exact physical argument slots"
-	}
-	for i, slot := range slots {
-		if slot.defaulted || len(slot.exprs) != 1 || caller.unit.Sema.ExprTypes[slot.exprs[0]] != view.Params[i] {
-			return nil, "generic call needs its exact default, variadic or implicit argument transfer"
-		}
-	}
-	return &view, ""
+	return fn.originalSignature(caller, expression, args)
 }
 
 // Body flow may not visit a retained use. Check the finalized uses and their
@@ -209,7 +162,7 @@ func (a *returnOriginAnalyzer) checkGenericUses() error {
 			if caller.unit.Builder.Exprs.Get(expression).Kind == ast.ExprIndex {
 				reason = a.checkIndexUse(fn, caller, expression, use)
 			} else {
-				var info *types.FnInfo
+				var info *returnOriginSignature
 				info, reason = a.genericCallUseInfo(fn, caller, expression, use)
 				if reason == "" {
 					reason = a.checkGenericPromise(fn, info, use)
