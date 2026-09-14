@@ -122,7 +122,7 @@ func (b *returnOriginBody) checkExpired(value returnOriginValue, span source.Spa
 			b.analyzer.report.Diagnostics = append(b.analyzer.report.Diagnostics, diag.Diagnostic{
 				Severity: diag.SevError, Code: diag.SemaBorrowEscapesReturn, Primary: span, Message: message,
 				Notes: []diag.Note{{Span: owner.Span, Msg: fmt.Sprintf("'%s' owns storage that ends in this scope", name)}},
-				Help: []diag.Note{{Span: span, Msg: "keep the owner outside this scope, or return an owned value instead"}},
+				Help:  []diag.Note{{Span: span, Msg: "keep the owner outside this scope, or return an owned value instead"}},
 			})
 		}
 	}
