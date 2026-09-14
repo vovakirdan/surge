@@ -152,15 +152,15 @@ func makeTypeKey(builder *ast.Builder, typeID ast.TypeID) TypeKey {
 		}
 	case ast.TypeExprFn:
 		if fn, ok := builder.Types.Fn(typeID); ok {
-			params := make([]string, 0, len(fn.Params))
+			params := make([]TypeKey, 0, len(fn.Params))
 			for _, p := range fn.Params {
 				paramKey := string(makeTypeKey(builder, p.Type))
 				if p.Variadic {
 					paramKey = "[" + paramKey + "]"
 				}
-				params = append(params, paramKey)
+				params = append(params, TypeKey(paramKey))
 			}
-			return TypeKey("fn(" + strings.Join(params, ",") + ")->" + string(makeTypeKey(builder, fn.Return)))
+			return FunctionTypeKey(params, makeTypeKey(builder, fn.Return), FunctionTypeReturnSourceSyntax(builder, typeID).Sources())
 		}
 	case ast.TypeExprArray:
 		if arr, ok := builder.Types.Array(typeID); ok {
@@ -195,14 +195,14 @@ func signaturesEqual(a, b *FunctionSignature) bool {
 	if a == nil || b == nil {
 		return a == b
 	}
-	if a.Result != b.Result {
+	if functionShapeKey(a.Result) != functionShapeKey(b.Result) {
 		return false
 	}
 	if len(a.Params) != len(b.Params) {
 		return false
 	}
 	for i := range a.Params {
-		if a.Params[i] != b.Params[i] || a.Variadic[i] != b.Variadic[i] {
+		if functionShapeKey(a.Params[i]) != functionShapeKey(b.Params[i]) || a.Variadic[i] != b.Variadic[i] {
 			return false
 		}
 	}

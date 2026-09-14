@@ -108,6 +108,7 @@ func signatureKey(sig *FunctionSignature) string {
 	}
 	b.WriteString("->")
 	b.WriteString(string(sig.Result))
+	b.WriteString(sig.ReturnSourceSyntax.Sources().CanonicalKey())
 	return b.String()
 }
 

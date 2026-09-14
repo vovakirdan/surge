@@ -28,12 +28,13 @@ type DeferredCallableRequirement struct {
 // callable body. Deferred resolution never reconstructs candidates from the
 // post-merge symbol table.
 type CallableCandidate struct {
-	Symbol      symbols.SymbolID
-	BodyKey     string
-	Name        string
-	ReceiverKey symbols.TypeKey
-	Params      []symbols.TypeKey
-	Result      symbols.TypeKey
+	Symbol        symbols.SymbolID
+	BodyKey       string
+	Name          string
+	ReceiverKey   symbols.TypeKey
+	Params        []symbols.TypeKey
+	Result        symbols.TypeKey
+	ReturnSources types.ReturnSources
 	// ReceiverType is the declared dispatch owner (the extern receiver), while
 	// ParamTypes[0] is the self ABI for instance methods. ParamTypes,
 	// ResultType, and TemplateParams are the exact shared-interner descriptors
@@ -153,6 +154,7 @@ func (tc *typeChecker) rememberCallableCandidate(symID symbols.SymbolID, fn *ast
 		ReceiverKey:           sym.ReceiverKey,
 		Params:                slices.Clone(sym.Signature.Params),
 		Result:                sym.Signature.Result,
+		ReturnSources:         sym.Signature.ReturnSourceSyntax.Sources(),
 		ReceiverType:          receiverType,
 		ParamTypes:            slices.Clone(paramTypes),
 		ResultType:            resultType,
@@ -201,7 +203,7 @@ func canonicalCallableBodyKey(candidate *CallableCandidate) string {
 		strings.Join(candidate.Attrs, ","),
 		candidate.Async,
 		candidate.Intrinsic,
-	)
+	) + candidate.ReturnSources.CanonicalKey()
 }
 
 func joinTypeKeys(keys []symbols.TypeKey) string {
