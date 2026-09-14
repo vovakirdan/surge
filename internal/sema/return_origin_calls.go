@@ -18,6 +18,9 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 	span := u.Builder.Exprs.Get(id).Span
 	symID := u.Symbols.ExprSymbols[id]
 	sym := u.Symbols.Table.Symbols.Get(symID)
+	if sym != nil && sym.Kind == symbols.SymbolTag {
+		return b.tagCall(id, env, targets)
+	}
 	var callee *returnOriginFunction
 	var info *types.FnInfo
 	var unresolved string
