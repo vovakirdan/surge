@@ -68,6 +68,8 @@ func (b *returnOriginBody) expr(id ast.ExprID, env returnOriginEnv, targets retu
 		return b.blockExpr(id, env, targets)
 	case ast.ExprTernary:
 		return b.ternary(id, env, targets)
+	case ast.ExprCompare:
+		return b.compareExpr(id, env, targets)
 	case ast.ExprCall:
 		return b.call(id, env, targets)
 	case ast.ExprArray, ast.ExprTuple, ast.ExprStruct:
