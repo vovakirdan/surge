@@ -22,6 +22,9 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		callee, unresolved = b.resolveCallDeclaration(symID)
 		if callee != nil {
 			info = callee.info
+			if len(callee.candidate.TemplateParams) != 0 {
+				info, unresolved = b.genericCallInfo(id, callee)
+			}
 		}
 	}
 	deferred, err := u.deferredMethod(id, call)
@@ -196,7 +199,7 @@ func (b *returnOriginBody) resolveCallDeclaration(id symbols.SymbolID) (*returnO
 	if fn == nil {
 		fn = b.analyzer.declarations[identity.BodyKey]
 	}
-	if fn == nil || fn.canonicalSourceKey != identity.SourceKey {
+	if fn == nil || fn.candidate == nil || fn.canonicalSourceKey != identity.SourceKey {
 		return nil, "selected callable lacks its owning source declaration/body"
 	}
 	for _, candidate := range u.authority.CallableCandidates {
@@ -206,9 +209,6 @@ func (b *returnOriginBody) resolveCallDeclaration(id symbols.SymbolID) (*returnO
 		if candidate.HasBody != fn.item.Body.IsValid() || !candidate.ReturnSources.Equal(fn.info.ReturnSources()) ||
 			!slices.Equal(candidate.ParamTypes, fn.info.Params) || candidate.ResultType != fn.info.Result {
 			return nil, "selected callable disagrees with its owning typed declaration"
-		}
-		if len(candidate.TemplateParams) != 0 {
-			return nil, "generic call requires its exact concrete instance authority"
 		}
 		return fn, ""
 	}
@@ -308,4 +308,35 @@ func returnOriginFormalBorrowKind(in *types.Interner, id types.TypeID) (BorrowKi
 		return BorrowShared, true
 	}
 	return BorrowShared, false
+}
+
+func (b *returnOriginBody) genericCallInfo(id ast.ExprID, callee *returnOriginFunction) (*types.FnInfo, string) {
+	u := b.function.unit
+	span := u.Builder.Exprs.Get(id).Span
+	closure := u.authority.InstantiationClosure
+	if closure == nil {
+		return nil, "generic call lacks its finalized concrete use"
+	}
+	var found *ConcreteInstantiationUse
+	for i := range closure.UseSites {
+		use := &closure.UseSites[i]
+		if use.CalleeTemplate != callee.candidate.Symbol || use.SourceKey != u.SourceKey || use.Site != span {
+			continue
+		}
+		if found != nil {
+			return nil, "generic call has ambiguous finalized concrete uses"
+		}
+		found = use
+	}
+	if found == nil {
+		return nil, "generic call lacks its finalized concrete use"
+	}
+	fn, info, reason := b.analyzer.genericUseInfo(*found)
+	if reason != "" {
+		return nil, reason
+	}
+	if fn != callee || found.CallerTemplate != b.function.candidate.Symbol {
+		return nil, "generic call disagrees with its selected source declaration"
+	}
+	return info, ""
 }

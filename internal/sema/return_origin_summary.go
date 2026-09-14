@@ -58,6 +58,9 @@ func (a *returnOriginAnalyzer) solveBodies() error {
 		}
 		a.report.Summaries = append(a.report.Summaries, summary)
 	}
+	if err := a.checkGenericUses(); err != nil {
+		return err
+	}
 	slices.SortFunc(a.report.Diagnostics, func(a, b diag.Diagnostic) int {
 		if order := compareReturnOriginSpans(a.Primary, b.Primary); order != 0 {
 			return order
@@ -107,11 +110,11 @@ func (b *returnOriginBody) analyze() (returnOriginValue, error) {
 			continue
 		}
 		value := returnOriginValueOf()
-		// Incoming callable contents belong to the caller. Merely keeping or
-		// dropping that input cannot escape our locals; value uses materialize
-		// their declared callable fact in expr. This is not a claim
-		// that a closure has no captures or that f is a return-source slot.
-		if returnOriginFnInfo(fn.unit.Sema.TypeInterner, fn.info.Params[i]) != nil {
+		// Incoming callable or direct-T contents belong to the caller; the
+		// parameter's own storage remains Local. Their operations still need
+		// callable or type-dependent transfer. This does not prove a callable
+		// has no captures or make its function type a borrowed source slot.
+		if returnOriginFnInfo(fn.unit.Sema.TypeInterner, fn.info.Params[i]) != nil || fn.directTemplateParam(fn.info.Params[i]) {
 			slot, err := safecast.Conv[uint32](i)
 			if err != nil {
 				return returnOriginValue{}, err
@@ -146,7 +149,9 @@ func (b *returnOriginBody) analyze() (returnOriginValue, error) {
 			b.pending(key.site, "function has an unresolved control-flow target")
 			continue
 		}
-		if validPromise && !fn.info.ReturnSources().IsAllInputs() {
+		// A direct-T result may become reference-free. Its conditional promise
+		// is checked for every current concrete use after the fixed point.
+		if validPromise && !fn.info.ReturnSources().IsAllInputs() && !fn.directTemplateParam(fn.info.Result) {
 			b.checkDeclaredReturn(outcome.value, allowed, key.site)
 		}
 		value = value.join(outcome.value)
