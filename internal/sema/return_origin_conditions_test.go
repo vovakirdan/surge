@@ -2,10 +2,12 @@ package sema
 
 import (
 	"crypto/sha256"
+	"fmt"
 	"slices"
 	"testing"
 
 	"surge/internal/ast"
+	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
@@ -44,6 +46,7 @@ func returnOriginConditionAnalyzer(t *testing.T, text string) *returnOriginAnaly
 	t.Helper()
 	t.Logf("RETURN_ORIGIN_CONDITION_SOURCE sha256=%x source=%q", sha256.Sum256([]byte(text)), text)
 	result, unit := returnOriginPublicationFixture(t, text, false)
+	finalizeReturnOriginConditionFixture(t, result, unit)
 	index, err := indexReturnOriginUnit(unit, result)
 	if err != nil {
 		t.Fatal(err)
@@ -72,6 +75,62 @@ func returnOriginConditionAnalyzer(t *testing.T, text string) *returnOriginAnaly
 		t.Fatal(err)
 	}
 	return a
+}
+
+func finalizeReturnOriginConditionFixture(t *testing.T, result *Result, unit ReturnOriginUnit) {
+	t.Helper()
+	file := unit.Builder.Files.Get(unit.FileID)
+	if file == nil || unit.SourceKey == "" || unit.Sema != result {
+		t.Fatal("PRECONDITION: missing original single-unit source authority")
+	}
+	var seeds []symbols.SymbolID
+	for _, itemID := range file.Items {
+		fn, ok := unit.Builder.Items.Fn(itemID)
+		if !ok || fn == nil || !fn.Body.IsValid() {
+			continue
+		}
+		for _, id := range unit.Symbols.ItemSymbols[itemID] {
+			sym := unit.Symbols.Table.Symbols.Get(id)
+			if sym != nil && sym.Kind == symbols.SymbolFunction && len(sym.TypeParams) == 0 {
+				seeds = append(seeds, id)
+			}
+		}
+	}
+	slices.Sort(seeds)
+	seeds = slices.Compact(seeds)
+	if len(seeds) == 0 {
+		t.Fatal("PRECONDITION: source fixture has no ordinary root body")
+	}
+	AddInstantiationCallableSeeds(result, seeds)
+	identity, err := NewInstantiationKeyContext(result.TypeInterner, unit.Symbols, func(id source.FileID) (string, error) {
+		if id != file.Span.File {
+			return "", fmt.Errorf("unknown condition fixture source file %d", id)
+		}
+		return unit.SourceKey, nil
+	})
+	if err != nil {
+		t.Fatalf("PRECONDITION: source instantiation identity: %v", err)
+	}
+	result.InstantiationIdentity = &identity
+	for _, stage := range []struct {
+		name string
+		run  func() error
+	}{
+		{"entrypoint callables", result.FinalizeEntrypointCallables},
+		{"direct clone bindings", result.FinalizeDirectCloneBindings},
+		{"clone obligations", result.FinalizeCloneObligations},
+		{"instantiation closure", func() error { return result.FinalizeInstantiationClosure(identity, 64) }},
+	} {
+		if err := stage.run(); err != nil {
+			t.Fatalf("PRECONDITION: %s: %v", stage.name, err)
+		}
+	}
+	if result.InstantiationIdentity == nil || result.InstantiationClosure == nil {
+		t.Fatal("PRECONDITION: finalization did not publish actual identity and closure")
+	}
+	t.Logf("CONDITION_FINALIZATION source=%s file=%d seeds=%v roots=%d edges=%d instances=%d uses=%d",
+		unit.SourceKey, file.Span.File, seeds, len(result.InstantiationGraph.Roots()), len(result.InstantiationGraph.Edges()),
+		len(result.InstantiationClosure.Instances), len(result.InstantiationClosure.UseSites))
 }
 
 func TestReturnOriginConditionsSurviveExecutedOperations(t *testing.T) {
@@ -252,6 +311,7 @@ fn probe(g: fn() -> &string) -> nothing {
 	argSpan := u.Builder.Exprs.Get(call.Args[0].Value).Span
 	want := []ReturnOriginPending{
 		{SourceKey: u.SourceKey, Span: opaqueSpan, Reason: "opaque result type may carry borrowed state"},
+		{SourceKey: u.SourceKey, Span: opaqueSpan, Reason: "callee returned an unproved source"},
 		{SourceKey: u.SourceKey, Span: callSpan, Reason: "opaque result type may carry borrowed state"},
 		{SourceKey: u.SourceKey, Span: argSpan, Reason: "callable argument conversion needs its selected destination promise"},
 		{SourceKey: u.SourceKey, Span: callSpan, Reason: "indirect call may change reference-bearing or callable contents"},
