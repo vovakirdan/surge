@@ -72,6 +72,8 @@ func (b *returnOriginBody) expr(id ast.ExprID, env returnOriginEnv, targets retu
 		return b.compareExpr(id, env, targets)
 	case ast.ExprCall:
 		return b.call(id, env, targets)
+	case ast.ExprIndex:
+		return b.index(id, env, targets)
 	case ast.ExprArray, ast.ExprTuple, ast.ExprStruct:
 		return b.constructor(id, env, targets)
 	case ast.ExprMember:

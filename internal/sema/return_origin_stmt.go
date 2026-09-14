@@ -5,6 +5,7 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/symbols"
+	"surge/internal/types"
 )
 
 func (b *returnOriginBody) sequence(stmts []ast.StmtID, env returnOriginEnv, targets returnOriginTargets) (returnOriginFlow, error) {
@@ -106,6 +107,9 @@ func (b *returnOriginBody) stmt(id ast.StmtID, env returnOriginEnv, targets retu
 			b.pending(node.Span, "callable return conversion needs its destination and capture contract")
 			out.value = out.value.join(returnOriginValueOf(returnOrigin{kind: returnOriginUnknown}))
 		}
+		if node.Kind == ast.StmtReturn && b.canLoadScalarReturn(value, out.value, out.flow.normal, targets.scope) {
+			out.value = returnOriginValueOf()
+		}
 		return out.flow.end(key, out.value), nil
 	case ast.StmtBreak, ast.StmtContinue:
 		if !targets.loop.IsValid() {
@@ -136,6 +140,59 @@ func (b *returnOriginBody) stmt(id ast.StmtID, env returnOriginEnv, targets retu
 		b.pending(node.Span, fmt.Sprintf("statement kind %d needs an origin transfer", node.Kind))
 		return returnOriginFlow{normal: env}, nil
 	}
+}
+
+// MIR loads a scalar return through its reference before exit drops. Only
+// proven live origins may become the copied value; unresolved storage must
+// remain visible to the ordinary scope-exit checks.
+func (b *returnOriginBody) canLoadScalarReturn(expr ast.ExprID, value returnOriginValue, env returnOriginEnv, scope symbols.ScopeID) bool {
+	fn, u := b.function, b.function.unit
+	in := u.Sema.TypeInterner
+	if !expr.IsValid() || !env.reachable || !value.normal || len(value.roots) == 0 || len(value.callables) != 0 {
+		return false
+	}
+	expected := resolveAlias(in, fn.info.Result)
+	actual, ok := in.Lookup(resolveAlias(in, u.Sema.ExprTypes[expr]))
+	if !ok || actual.Kind != types.KindReference || resolveAlias(in, actual.Elem) != expected || !u.Sema.IsCopyType(expected) {
+		return false
+	}
+	want, ok := in.Lookup(expected)
+	if !ok {
+		return false
+	}
+	switch want.Kind {
+	case types.KindBool, types.KindInt, types.KindUint, types.KindFloat:
+	default:
+		return false
+	}
+	if _, converted := u.Sema.ImplicitConversions[expr]; converted {
+		return false
+	}
+	for _, root := range value.roots {
+		if root.expired {
+			return false
+		}
+		id, ownerScope := root.binding, root.scope
+		switch root.kind {
+		case returnOriginParam:
+			if int64(root.param) >= int64(len(fn.params)) || returnOriginTypeShape(in, fn.info.Params[root.param], nil) != returnOriginCarriesRef {
+				return false
+			}
+			id, ownerScope = fn.params[root.param], fn.scope
+		case returnOriginLocal:
+		default:
+			return false
+		}
+		symbol := u.Symbols.Table.Symbols.Get(id)
+		binding, live := env.bindings[id]
+		if symbol == nil || !live || symbol.Scope != ownerScope || binding.scope != ownerScope ||
+			symbol.Decl.ASTFile != u.FileID || symbol.Decl.SourceFile != fn.item.NameSpan.File ||
+			!b.within(ownerScope, fn.scope) || !b.within(scope, ownerScope) ||
+			(root.kind == returnOriginParam && symbol.Kind != symbols.SymbolParam) {
+			return false
+		}
+	}
+	return true
 }
 
 func (b *returnOriginBody) ifStmt(data *ast.IfStmt, env returnOriginEnv, targets returnOriginTargets) (returnOriginFlow, error) {
