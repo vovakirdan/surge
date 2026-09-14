@@ -2,6 +2,7 @@ package driver
 
 import (
 	"crypto/sha256"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -112,7 +113,7 @@ fn probe() -> int { let selected: fn(fn(&string, &string) -> &string) -> int = a
 			checkReturnOriginAliasTypes(t, res, inputs.units, tc.name)
 			selected := inputs.units
 			if tc.component {
-				selected = users // Explicit component proof; the full-unit leaf is retained separately.
+				selected = users // Deliberately omit core owners; this input cannot authorize the full graph.
 			}
 			analysis, err := sema.AnalyzeReturnOrigins(t.Context(), res.Sema, selected)
 			logReturnOriginCallEvidence(t, map[string]any{"stage": "alias_analysis", "case": tc.name,
@@ -121,7 +122,9 @@ fn probe() -> int { let selected: fn(fn(&string, &string) -> &string) -> int = a
 			if err != nil || analysis == nil {
 				t.Fatalf("PRECONDITION: analyzer could not complete its input traversal: %v", err)
 			}
-			if !analysis.Complete() {
+			if tc.component {
+				requireReturnOriginAliasMissingOwners(t, res, inputs, selected, analysis)
+			} else if !analysis.Complete() {
 				t.Fatalf("alias/callable source promises remain unfinished: %+v", analysis.Pending)
 			}
 			for _, item := range []struct {
@@ -159,6 +162,90 @@ fn probe() -> int { let selected: fn(fn(&string, &string) -> &string) -> int = a
 				requireReturnOriginAliasMismatch(t, res, analysis, tc.source, tc.rhs, tc.note)
 			}
 		})
+	}
+}
+
+func requireReturnOriginAliasMissingOwners(t *testing.T, res *DiagnoseResult, inputs returnOriginInputs, selected []sema.ReturnOriginUnit, analysis *sema.ReturnOriginAnalysis) {
+	t.Helper()
+	var core *sema.ReturnOriginUnit
+	for i := range inputs.units {
+		if inputs.units[i].SourceKey == "core/array.sg" {
+			core = &inputs.units[i]
+		}
+	}
+	if len(inputs.units) != 12 || len(selected) != 2 || core == nil || slices.ContainsFunc(selected, func(u sema.ReturnOriginUnit) bool { return u.SourceKey == core.SourceKey }) {
+		t.Fatal("PRECONDITION: partial input did not omit the original core owner from twelve units")
+	}
+	file := res.FileSet.Get(core.Builder.Files.Get(core.FileID).Span.File)
+	if file == nil || fmt.Sprintf("%x", sha256.Sum256(file.Content)) != "532a6cd1bc46d2d665d71f13f988358e42fe30dd39810117278afd46b967ffbc" {
+		t.Fatal("PRECONDITION: original core clone source differs from the frozen missing-owner witness")
+	}
+	var edges []sema.DeferredCallableEdge
+	for _, edge := range res.Sema.InstantiationGraph.DeferredCallables() {
+		if edge.Kind == sema.DeferredCloneCall {
+			edges = append(edges, edge)
+		}
+	}
+	spans := [][2]uint32{{1486, 1499}, {2762, 2777}, {3222, 3236}, {3260, 3274}, {7414, 7427}, {8033, 8047}}
+	if len(edges) != len(spans) {
+		t.Fatal("PRECONDITION: full canonical graph lost the six original clone edges")
+	}
+	var want []sema.ReturnOriginPending
+	for _, offsets := range spans {
+		span := source.Span{File: file.ID, Start: offsets[0], End: offsets[1]}
+		matched := 0
+		for _, edge := range edges {
+			if edge.Witness.SourceKey != core.SourceKey || edge.Witness.Site != span {
+				continue
+			}
+			owners, uses := 0, 0
+			for _, candidate := range res.Sema.CallableCandidates {
+				if candidate.Symbol != edge.Caller {
+					continue
+				}
+				for _, identity := range core.Publication.LocalCallables {
+					mapped := slices.Contains(core.Publication.LocalSymbols(candidate.Symbol), identity.Symbol)
+					if len(core.Publication.RootToLocalSymbols) == 0 {
+						mapped = identity.Symbol == candidate.Symbol // Existing shared-table publication contract.
+					}
+					if identity.BodyKey != candidate.BodyKey || identity.SourceKey != candidate.SourceKey || !mapped {
+						continue
+					}
+					owner := core.Symbols.Table.Symbols.Get(identity.Symbol)
+					logReturnOriginCallEvidence(t, map[string]any{"missing_owner_edge": edge, "canonical_caller": candidate, "original_identity": identity, "original_owner": owner})
+					if owner == nil || !candidate.HasBody || candidate.Source.File != file.ID || owner.Span != candidate.Source || owner.Decl.SourceFile != file.ID || owner.Decl.ASTFile != core.FileID || edge.Witness.Caller != candidate.Symbol {
+						t.Fatal("PRECONDITION: retained clone caller lost its original excluded source owner")
+					}
+					owners++
+				}
+			}
+			for ref, use := range core.Sema.DeferredCallableUses {
+				if ref.Kind != sema.DeferredCloneCall || use != edge.UseID {
+					continue
+				}
+				node := core.Builder.Exprs.Get(ref.Expr)
+				call, ok := core.Builder.Exprs.Call(ref.Expr)
+				logReturnOriginCallEvidence(t, map[string]any{"original_clone_ref": ref, "original_clone_use": use, "original_clone_node": node, "original_clone_type": core.Sema.ExprTypes[ref.Expr]})
+				if node == nil || node.Span != span || !ok || call == nil || len(call.Args) != 1 || edge.ExpectedResult == types.NoTypeID || core.Sema.ExprTypes[ref.Expr] != edge.ExpectedResult {
+					t.Fatal("PRECONDITION: retained clone edge lacks its actual original typed use")
+				}
+				uses++
+			}
+			if owners != 1 || uses != 1 {
+				t.Fatal("PRECONDITION: clone edge lacks one original caller and one original local use")
+			}
+			matched++
+		}
+		if matched != 1 {
+			t.Fatal("PRECONDITION: frozen original clone site lacks its unique retained edge")
+		}
+		want = append(want, sema.ReturnOriginPending{SourceKey: core.SourceKey, Span: span, Reason: "deferred clone lacks its original owning caller"})
+	}
+	block, err := returnOriginVerdict(analysis)
+	unfinished, ok := err.(*returnOriginUnfinishedError)
+	logReturnOriginCallEvidence(t, map[string]any{"expected_missing_owners": want, "partial_input_blocked": block, "verdict_error": errorReturnOriginCallText(err)})
+	if analysis.Complete() || !slices.Equal(analysis.Pending, want) || !block || !ok || !slices.Equal(unfinished.Pending, want) {
+		t.Fatalf("partial alias input lost its exact six missing-owner refusals: analysis=%+v block=%t error=%v", analysis, block, err)
 	}
 }
 
