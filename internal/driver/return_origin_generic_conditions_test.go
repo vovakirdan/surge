@@ -38,7 +38,7 @@ func genericConditionCases() []genericConditionCase {
 		{"inactive_owned_dependency", "string", "8a7c853b4caf4d52edd82e1271977dbdfacc8834cab0e9211258867a278c51a0"},
 		{"inactive_borrowed_dependency", "&string", "fbbef0845598672504565ec588aa5c5fe53ba895bbc56eb83ea8f1c97846fcc7"},
 		{"opaque_array_result", "uint64[]", "7c1522b47674f218ab323886a7a4f863860387555961c2e637eefbed63cfb8bf"},
-		{"opaque_range_result", "Range<uint64>", "af91438e3e8d90ed6a5352682f7b698caa2eaa4c0013e9ec5402bd1446d9e8d0"},
+		{"opaque_range_result", "Range<uint64>", "670bc920addc5e26ff9782c472b5aed8de426fa105246fcfe0d13c470b4736f7"},
 	} {
 		text := "pragma module::dep, no_std;\n" + genericP0Relay + fmt.Sprintf(`type Holder = { marker: int64 };
 extern<Holder> {
@@ -47,6 +47,9 @@ extern<Holder> {
     }
 }
 `, tc.typ, tc.typ, tc.typ)
+		if tc.typ == "Range<uint64>" {
+			text = strings.Replace(text, "pragma module::dep, no_std;\n", "pragma module::dep, no_std;\nimport core::Range;\n", 1)
+		}
 		if tc.typ == "uint64[]" {
 			text = strings.Replace(text, "type Holder", "type Wrapper = { items: uint64[] };\ntype Holder", 1)
 			text = strings.TrimSuffix(text, "}\n") + `    fn wrapped(self: &Holder, g: fn() -> Wrapper) -> Wrapper { return relay::<Wrapper>(g); }
