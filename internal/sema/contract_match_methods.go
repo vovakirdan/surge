@@ -3,6 +3,8 @@ package sema
 import (
 	"fmt"
 
+	"fortio.org/safecast"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/source"
@@ -50,18 +52,18 @@ func (tc *typeChecker) collectFieldAttrs(target types.TypeID) map[source.StringI
 }
 
 // returns 1 if satisfied, 0 if signature mismatch, -1 if missing entirely, -2 if only attrs/modifiers mismatch
-func (tc *typeChecker) ensureMethodSatisfies(target types.TypeID, name source.StringID, req *methodRequirement, reportSpan source.Span, contractName string) int {
+func (tc *typeChecker) ensureMethodSatisfies(target types.TypeID, name source.StringID, req *methodRequirement, reportSpan source.Span, contractName string) (int, *contractMethodMatch) {
 	if req == nil {
-		return 0
+		return 0, nil
 	}
 	if len(req.params) > 0 && !tc.contractTypesEqual(req.params[0], target) {
 		tc.report(diag.SemaContractSelfType, reportSpan, "type %s method '%s' must have self %s per contract %s, got %s", tc.contractTypeLabel(target), tc.lookupName(name), tc.typeLabel(target), contractName, tc.typeLabel(req.params[0]))
-		return 0
+		return 0, nil
 	}
 
 	actual := tc.methodsForType(target, name)
 	if len(actual) == 0 {
-		return -1
+		return -1, nil
 	}
 
 	attrMismatch := false
@@ -74,15 +76,15 @@ func (tc *typeChecker) ensureMethodSatisfies(target types.TypeID, name source.St
 			continue
 		}
 		if match, attrBad := tc.contractSignatureMatches(&aligned, cand); match {
-			return 1
+			return 1, &contractMethodMatch{requirement: aligned, actual: cand}
 		} else if attrBad {
 			attrMismatch = true
 		}
 	}
 	if attrMismatch {
-		return -2
+		return -2, nil
 	}
-	return 0
+	return 0, nil
 }
 
 func (tc *typeChecker) methodsForType(target types.TypeID, name source.StringID) []methodSignature {
@@ -118,6 +120,7 @@ func (tc *typeChecker) methodsForType(target types.TypeID, name source.StringID)
 				continue
 			}
 			if ms, ok := tc.signatureToTypes(sig); ok {
+				ms.origin.Symbol = tc.magicSymbolForSignature(sig)
 				ms.pub = false
 				ms.async = false
 				methods = append(methods, ms)
@@ -143,6 +146,11 @@ func (tc *typeChecker) methodsForType(target types.TypeID, name source.StringID)
 						continue
 					}
 					if ms, ok := tc.signatureToTypes(sym.Signature); ok {
+						id, err := safecast.Conv[uint32](i + 1)
+						if err != nil {
+							panic(fmt.Errorf("sema: symbol id overflow: %w", err))
+						}
+						ms.origin.Symbol = symbols.SymbolID(id)
 						ms.pub = sym.Flags&symbols.SymbolFlagPublic != 0
 						if fn, okFn := tc.builder.Items.Fn(sym.Decl.Item); okFn && fn != nil {
 							ms.attrs = tc.attrNames(fn.AttrStart, fn.AttrCount)
@@ -179,6 +187,7 @@ func (tc *typeChecker) signatureToTypes(sig *symbols.FunctionSignature) (methodS
 	}
 	ms.params = params
 	ms.returnSources = sig.ReturnSourceSyntax.Sources()
+	ms.origin = ReturnSourceConformanceActual{Declaration: sig.ReturnSourceSyntax.Span(), Sources: ms.returnSources}
 	ms.result = tc.typeFromKey(sig.Result)
 	if ms.result == types.NoTypeID {
 		ok = false

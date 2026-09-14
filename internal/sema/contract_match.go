@@ -37,6 +37,7 @@ type methodSignature struct {
 	pub           bool
 	async         bool
 	returnSources types.ReturnSources
+	origin        ReturnSourceConformanceActual
 }
 
 type bindingInfo struct {
@@ -46,6 +47,10 @@ type bindingInfo struct {
 }
 
 func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symbols.BoundInstance, hintSpan source.Span, typeName string) bool {
+	return tc.checkContractSatisfactionWithOrigin(target, bound, bound, hintSpan, typeName)
+}
+
+func (tc *typeChecker) checkContractSatisfactionWithOrigin(target types.TypeID, bound, original symbols.BoundInstance, hintSpan source.Span, typeName string) bool {
 	// Трассировка проверки контракта
 	var span *trace.Span
 	if tc.tracer != nil && tc.tracer.Level() >= trace.LevelDebug {
@@ -146,12 +151,16 @@ func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symb
 	var missingMethods []string
 	var mismatchedMethods []string
 	var attrMismatchedMethods []string
+	var conformances []ReturnSourceConformance
 	methodCount := 0
 	for name, methods := range reqs.methods {
 		for idx := range methods {
 			methodCount++
 			req := &methods[idx]
-			switch tc.ensureMethodSatisfies(target, name, req, reportSpan, tc.lookupName(contractSym.Name)) {
+			status, match := tc.ensureMethodSatisfies(target, name, req, reportSpan, tc.lookupName(contractSym.Name))
+			switch status {
+			case 1:
+				conformances = append(conformances, tc.returnSourceConformance(target, bound, original, reportSpan, match.requirement, match.actual))
 			case -1:
 				missingMethods = append(missingMethods, tc.lookupName(name))
 				ok = false
@@ -191,6 +200,9 @@ func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symb
 		tc.report(diag.SemaContractMethodAttrMismatch, reportSpan, "type `%s` has attribute/modifier mismatch for %s in contract `%s`: %s", typeLabel, methodLabel, tc.lookupName(contractSym.Name), joinNames(attrMismatchedMethods))
 	}
 
+	if ok {
+		tc.retainReturnSourceConformances(conformances)
+	}
 	return ok
 }
 

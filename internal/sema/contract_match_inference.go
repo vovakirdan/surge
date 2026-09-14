@@ -99,9 +99,10 @@ func (tc *typeChecker) enforceContractBounds(params []symbols.TypeParamSymbol, b
 			inst := bound
 			inst.GenericArgs = tc.substituteBoundArgs(bound.GenericArgs, bindings)
 			if tc.typeParamSatisfiesBound(concrete, inst, bindings) {
+				tc.retainReturnSourceEntailment(concrete, inst, bound, reportSpan)
 				continue
 			}
-			tc.checkContractSatisfaction(concrete, inst, reportSpan, typeLabel)
+			tc.checkContractSatisfactionWithOrigin(concrete, inst, bound, reportSpan, typeLabel)
 		}
 	}
 }
