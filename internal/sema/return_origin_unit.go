@@ -22,6 +22,9 @@ type ReturnOriginUnit struct {
 	Sema      *Result
 	Symbols   *symbols.Result
 	SourceKey string
+	// Publication preserves the existing canonical/local callable vocabulary
+	// before a merged authority replaces per-file callable candidates.
+	Publication FinalizationPublication
 }
 
 // ReturnOriginPending is an obligation not answered by the private C2 pass.
@@ -98,8 +101,8 @@ type returnOriginTargets struct {
 }
 
 type returnOriginExprResult struct {
-	flow  returnOriginFlow
-	value returnOriginValue
+	flow    returnOriginFlow
+	value   returnOriginValue
 	storage returnOriginValue
 }
 
