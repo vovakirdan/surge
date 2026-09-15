@@ -162,6 +162,9 @@ func (fn *returnOriginFunction) templateParameterAuthority(slot int, id types.Ty
 	if owner == nil || owner.Kind != symbols.SymbolType {
 		return false
 	}
+	if handled, proven := returnOriginUnionReceiverParameter(u, owner, candidate, prefix, slot, info); handled {
+		return proven
+	}
 	original, found := u.Sema.TypeInterner.StructInfo(owner.Type)
 	receiver, hasReceiver := u.Sema.TypeInterner.StructInfo(candidate.ReceiverType)
 	if !found || original == nil || !hasReceiver || receiver == nil || original.Name != receiver.Name || original.Decl != receiver.Decl ||
@@ -170,5 +173,25 @@ func (fn *returnOriginFunction) templateParameterAuthority(slot int, id types.Ty
 	}
 	declared, hasDeclared := u.Sema.TypeInterner.TypeParamInfo(original.TypeParams[info.Index])
 	return hasDeclared && declared != nil && uint64(info.Index) == uint64(slot) &&
+		info.IsConst == declared.IsConst && info.ConstType == declared.ConstType
+}
+
+// A generic union records its declared parameters on its type symbol
+// (attachTypeParamSymbols), not in UnionInfo, so its receiver parameters are proven
+// from that symbol vector with the same identity facts as the struct branch.
+func returnOriginUnionReceiverParameter(u *returnOriginUnitIndex, owner *symbols.Symbol,
+	candidate *CallableCandidate, prefix, slot int, info *types.TypeParamInfo) (handled, ok bool) {
+	ou, isUnion := u.Sema.TypeInterner.UnionInfo(owner.Type)
+	if !isUnion || ou == nil {
+		return false, false
+	}
+	ru, hasRU := u.Sema.TypeInterner.UnionInfo(candidate.ReceiverType)
+	if !hasRU || ru == nil || ou.Name != ru.Name || ou.Decl != ru.Decl ||
+		!slices.Equal(ru.TypeArgs, candidate.TemplateParams[:prefix]) ||
+		int64(info.Index) >= int64(len(owner.TypeParamSymbols)) {
+		return true, false
+	}
+	declared := owner.TypeParamSymbols[info.Index]
+	return true, uint64(info.Index) == uint64(slot) &&
 		info.IsConst == declared.IsConst && info.ConstType == declared.ConstType
 }
