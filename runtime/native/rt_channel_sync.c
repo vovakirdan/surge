@@ -1,4 +1,5 @@
 #include "rt_channel_lane.h"
+#include "rt_channel_refill.h"
 
 // Channel sync lanes (peel B2): try/compat wrappers, the blocking helper
 // loops, and close. Same owner-lock protocol as the async fast lanes; the
@@ -200,28 +201,12 @@ void rt_channel_finish_take_owner_locked(rt_executor* ex,
             }
             // Select/blocking callers may hold control: releasing the shard
             // would not make a generated move legal. Wake those senders to retry.
-            rt_park_token sender_slot = sender->resume_slot;
-            if (rt_lane_holds_control() || !rt_park_pool_token_is_live(&ch->parks, &sender_slot)) {
-                (void)wake_task_on_shard_locked(
-                    ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
-                continue;
+            // A retried or refused sender leaves the next candidate to be tried.
+            if (channel_refill_from_parked_sender_locked(
+                    ex, ch_shard, ch, sender, rt_lane_holds_control()) ==
+                RT_CHANNEL_REFILL_STAGED) {
+                break;
             }
-            // The detached move may cancel and await this sender.
-            task_add_ref(sender);
-            if (!channel_stage_into_ring_locked(ex, ch_shard, ch, &sender_slot, NULL)) {
-                // A consumed registration must be woken, unacked, on refusal.
-                (void)wake_task_on_shard_locked(
-                    ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
-                task_release_lane_aware(ex, sender);
-                continue;
-            }
-            sender->resume_kind = RESUME_CHAN_SEND_ACK;
-            sender->resume_slot = (rt_park_token){0};
-            (void)wake_task_on_shard_locked(
-                ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
-            task_release_lane_aware(ex, sender);
-            channel_end_park_locked(ex, ch_shard, ch, &sender_slot);
-            break;
         }
         return;
     }
