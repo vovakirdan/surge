@@ -123,6 +123,9 @@ func (tc *typeChecker) moduleFunctionResult(callID ast.ExprID, module *symbols.S
 		sym *symbols.Symbol
 	}
 	candidates := make([]moduleCandidate, 0, len(exported))
+	// The same container the lookup above read. The alias keeps the requested
+	// path for lookup and diagnostics; the selected symbol takes its owner's.
+	moduleExports := tc.exports[module.ModulePath]
 	for _, exp := range tc.publicModuleValueExports(exported) {
 		if exp == nil || (exp.Kind != symbols.SymbolFunction && exp.Kind != symbols.SymbolTag) {
 			continue
@@ -134,10 +137,11 @@ func (tc *typeChecker) moduleFunctionResult(callID ast.ExprID, module *symbols.S
 		// Dropping them again here discarded exactly the fallback the helper
 		// had just selected, so a module whose only export of that name is a
 		// method reported it as "not public or not a function".
-		symID := tc.ensureImportedModuleExportSymbol(module.ModulePath, name, exp, span)
+		symbolPath := symbols.ExportSymbolPath(module.ModulePath, moduleExports, exp)
+		symID := tc.ensureImportedModuleExportSymbol(symbolPath, name, exp, span)
 		sym := tc.symbolFromID(symID)
 		if sym == nil {
-			sym = tc.exportedSymbolToSymbol(exp, module.ModulePath)
+			sym = tc.exportedSymbolToSymbol(exp, symbolPath)
 		}
 		candidates = append(candidates, moduleCandidate{id: symID, sym: sym})
 	}

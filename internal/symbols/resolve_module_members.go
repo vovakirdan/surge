@@ -64,7 +64,8 @@ func (fr *fileResolver) resolveModuleMember(exprID ast.ExprID, member *ast.ExprM
 		if candidate == nil {
 			continue
 		}
-		symID := fr.syntheticSymbolForExport(modulePath, memberName, candidate, useSpan)
+		symbolPath := ExportSymbolPath(modulePath, exports, candidate)
+		symID := fr.syntheticSymbolForExport(symbolPath, memberName, candidate, useSpan)
 		if symID.IsValid() && !first.IsValid() {
 			first = symID
 		}
@@ -76,6 +77,19 @@ func (fr *fileResolver) resolveModuleMember(exprID ast.ExprID, member *ast.ExprM
 
 func receiverBoundExport(exp *ExportedSymbol) bool {
 	return exp != nil && exp.Kind == SymbolFunction && (exp.ReceiverKey != "" || exp.Flags&SymbolFlagMethod != 0)
+}
+
+// ExportSymbolPath names the module a selected export's symbol belongs to. A
+// free function reached through an import alias takes the path of the module
+// that actually exports it, so every alias of one module selects one owner and
+// two modules never share one. Everything else keeps the requested path, and so
+// does an export whose container resolved no path: nothing proves an owner there.
+func ExportSymbolPath(requested string, exports *ModuleExports, exp *ExportedSymbol) string {
+	if exports == nil || exports.Path == "" || exp == nil || exp.Kind != SymbolFunction ||
+		exp.Signature == nil || exp.Signature.HasSelf || receiverBoundExport(exp) {
+		return requested
+	}
+	return exports.Path
 }
 
 func publicModuleValueExports(exported []ExportedSymbol) []*ExportedSymbol {
