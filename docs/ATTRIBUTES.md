@@ -65,6 +65,7 @@ Status legend:
 | `@weak` | field | none | Parsed | Reserved. |
 | `@atomic` | field | none | Enforced | Type restrictions + access rules. |
 | `@readonly` | field | none | Enforced | Forbids writes after init. |
+| `@return_source` | param, fn-type param | none | Enforced | Bounds which inputs a returned borrow may come from. |
 | `@requires_lock` | fn | string | Enforced | Caller must hold lock. |
 | `@acquires_lock` | fn | string | Enforced | Callee acquires lock. |
 | `@releases_lock` | fn | string | Enforced | Callee releases lock. |
@@ -418,6 +419,36 @@ Parsed only; no semantic effect yet.
 
 See function attribute description; enables implicit `__to` for that parameter.
 
+### `@return_source`
+
+Declares which inputs the borrowed content of a function's result may come
+from. It takes no arguments and is written on each parameter the result may
+borrow from, in a function declaration or a function type:
+
+```sg
+fn first(@return_source a: &string, b: &string) -> &string {
+    return a;
+}
+type FirstRef = fn(@return_source &string, &string) -> &string;
+```
+
+- Several marked parameters form one union for the whole borrowed result,
+  including tagged or optional payloads.
+- The marked parameter and the result must carry a reference. For a generic
+  parameter or result the check waits for the concrete type; a specialization
+  whose result owns its value has nothing to constrain.
+- Without any mark, a function body's sources are inferred, and an opaque
+  callable may return a borrow from any reference-bearing explicit input,
+  including `self`.
+- A callable with fewer possible sources converts to a wider promise; a
+  narrower destination is rejected.
+- The first version admits explicit parameters and `self` only. To return a
+  borrow of a captured variable, pass that source as an explicit parameter.
+- The promise grants no mutation rights and adds no runtime state.
+
+The normative rules are in `RUNTIME_V2.md`, "Borrowed Results And Normal
+Block Exit".
+
 ### `@arena`
 
 Parsed only; no semantic effect yet.
@@ -465,5 +496,9 @@ let r = &mut value;
 - `SemaAttrCopyNonCopyField` / `SemaAttrCopyCyclicDep` `@copy` validation failures
 - `SemaEntrypointModeInvalid` / `SemaEntrypointNoModeRequiresNoArgs` / `SemaEntrypointReturnNotConvertible` / `SemaEntrypointParamNoFromArgv` / `SemaEntrypointParamNoFromStdin` / `SemaEntrypointStdinArity` / `SemaEntrypointStdinDefault` entrypoint validation
 - `FutEntrypointModeEnv` / `FutEntrypointModeConfig` reserved entrypoint modes
+- `SemaReturnSourceArgument` (SEM3213) `@return_source` written with arguments
+- `SemaReturnSourceMissingParam` (SEM3214) marker outside the signature
+- `SemaReturnSourceOwnedParam` (SEM3215) / `SemaReturnSourceOwnedResult` (SEM3216) marked parameter or result carries no reference
+- `SemaReturnSourceIncompatible` (SEM3217) callable converted to a narrower source promise
 
 See `internal/diag/codes.go` for the full list.
