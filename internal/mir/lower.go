@@ -187,11 +187,6 @@ func LowerModuleWithOptions(mm *mono.MonoModule, semaRes *sema.Result, opts Lowe
 	return out, nil
 }
 
-type loopCtx struct {
-	breakTarget    BlockID
-	continueTarget BlockID
-}
-
 type returnCtx struct {
 	exit      BlockID
 	hasResult bool

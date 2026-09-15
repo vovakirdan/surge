@@ -98,6 +98,9 @@ func rewriteCallsInStmt(st *hir.Stmt, f callRewriteFunc) error {
 		if err := rewriteCallsInExpr(data.Cond, f); err != nil {
 			return err
 		}
+		if err := rewriteCallsInExpr(data.Post, f); err != nil {
+			return err
+		}
 		if err := rewriteCallsInBlock(data.Body, f); err != nil {
 			return err
 		}

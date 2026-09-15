@@ -97,16 +97,31 @@ type StmtData interface {
 	stmtData()
 }
 
+// GeneratedDropKind marks bindings synthesized after sema computed lexical
+// drops. MIR decides from the monomorphized local type whether they own a value.
+type GeneratedDropKind uint8
+
+// Generated binding classes, resolved against the monomorphized type in MIR.
+const (
+	// GeneratedDropNone is an ordinary binding with no generated obligation.
+	GeneratedDropNone GeneratedDropKind = iota
+	// GeneratedDropCountedScalar may own a counted int, uint or float block.
+	GeneratedDropCountedScalar
+	// GeneratedDropNumericIterableResource may own a numeric Range or array cursor.
+	GeneratedDropNumericIterableResource
+)
+
 // LetData holds data for StmtLet.
 type LetData struct {
-	Name      string           // Variable name (empty for pattern destructuring)
-	SymbolID  symbols.SymbolID // Symbol for this binding
-	Type      types.TypeID     // Declared or inferred type
-	Value     *Expr            // Initializer (nil if none)
-	IsMut     bool             // true for 'let mut'
-	IsConst   bool             // true for 'const' (treated as immutable let)
-	Ownership Ownership        // Ownership of the binding
-	Pattern   *Expr            // For tuple destructuring (nil for simple let)
+	Name          string            // Variable name (empty for pattern destructuring)
+	SymbolID      symbols.SymbolID  // Symbol for this binding
+	Type          types.TypeID      // Declared or inferred type
+	Value         *Expr             // Initializer (nil if none)
+	IsMut         bool              // true for 'let mut'
+	IsConst       bool              // true for 'const' (treated as immutable let)
+	Ownership     Ownership         // Ownership of the binding
+	Pattern       *Expr             // For tuple destructuring (nil for simple let)
+	GeneratedDrop GeneratedDropKind // Internal loop ownership candidate, not a source annotation.
 }
 
 func (LetData) stmtData() {}
@@ -197,6 +212,8 @@ func (IfStmtData) stmtData() {}
 type WhileData struct {
 	Cond *Expr
 	Body *Block
+	// Post is the latch of a generated numeric loop; continue reaches it too.
+	Post *Expr
 }
 
 func (WhileData) stmtData() {}

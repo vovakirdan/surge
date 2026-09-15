@@ -146,6 +146,7 @@ func cloneStmt(s hir.Stmt) hir.Stmt {
 			data.Cond = cloneExpr(data.Cond)
 		}
 		data.Body = cloneBlock(data.Body)
+		data.Post = cloneExpr(data.Post)
 		out.Data = data
 	case hir.StmtFor:
 		data, ok := s.Data.(hir.ForData)

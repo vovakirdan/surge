@@ -385,6 +385,7 @@ func collectCallSymsFrom(defaults []*hir.Expr, b *hir.Block) []symbols.SymbolID 
 				return
 			}
 			walkExpr(data.Cond)
+			walkExpr(data.Post)
 			walkBlock(data.Body)
 		case hir.StmtFor:
 			data, ok := st.Data.(hir.ForData)
