@@ -40,14 +40,9 @@
 // channel exists for an instant with a count of zero.
 void rt_channel_handle_refs_init(void* channel);
 
-// One more copy of the handle exists. NULL is a no-op: a container slot the
-// handle was moved out of holds NULL and the container's glue still visits it.
-void rt_channel_handle_retain(void* channel);
-
-// A copy of the handle the program will never send or receive through again.
-// When it was the last thing naming the object -- no handle and no pin left --
-// the object is reclaimed, which drops every payload it still owns.
-void rt_channel_handle_drop(void* channel);
+// The handle half -- rt_channel_handle_retain and rt_channel_handle_drop -- is
+// compiled code's ABI and is declared once, in rt.h. A drop that finds no handle
+// and no pin left reclaims the object, which drops every payload it still owns.
 
 // The runtime's own hold, for the span of one operation: a registered waiter,
 // a select subscription, a claimed detached operation. A pin is NOT a handle:

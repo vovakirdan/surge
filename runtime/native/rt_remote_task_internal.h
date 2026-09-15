@@ -245,7 +245,6 @@ int rt_remote_task_take_result_source(rt_executor* ex,
 // Releases the pin without taking the value, for a caller that will never
 // fetch. What the slot still holds is destroyed by the producer's own dispose.
 void rt_remote_task_release_result_source(rt_executor* ex, const rt_result_source* source);
-void rt_far_task_release_result(rt_executor* ex, rt_task* producer);
 
 waker_key rt_remote_task_reply_key(uint64_t request_id, uint32_t source_shard_id);
 int rt_remote_task_prepare_reply_wait(rt_executor* ex,

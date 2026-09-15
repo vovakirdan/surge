@@ -5,7 +5,6 @@
 
 #include "rt_async_trace.h"
 
-void rt_net_trace_dump(const char* reason);
 void rt_net_trace_direct_wait_enabled(void);
 void rt_net_trace_poll_alloc_enabled(void);
 void rt_net_trace_poll_start_enabled(int timeout_ms, uint64_t waiter_count);
