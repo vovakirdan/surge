@@ -56,7 +56,14 @@ func (b *returnOriginBody) constructorChildren(id ast.ExprID, children []ast.Exp
 	}
 	// Even a reference-free result must retain all child effects and abrupt
 	// exits. Its type can discard contents only after evaluating those children.
-	switch b.shape(id) {
+	shape := b.shape(id)
+	// A tag built in its own template keeps every payload once that template's
+	// view proves the payload slots may carry references.
+	if shape == returnOriginShapeUnknown && node.Kind == ast.ExprCall &&
+		returnOriginView(b.function).shape(b.function.unit.Sema.ExprTypes[id]) == returnOriginCarriesRef {
+		shape = returnOriginCarriesRef
+	}
+	switch shape {
 	case returnOriginRefFree:
 		out.value = returnOriginValueOf()
 	case returnOriginCarriesRef:

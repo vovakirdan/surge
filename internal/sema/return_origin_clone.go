@@ -22,7 +22,7 @@ func (b *returnOriginBody) deferredClone(id ast.ExprID, call *ast.ExprCallData, 
 		}
 	}
 	if use == "" && len(edges) == 0 {
-		return returnOriginExprResult{}, false, nil
+		return b.selectedClone(id, call, env, targets)
 	}
 	reason := "deferred clone lacks its unique original typed edge"
 	if len(edges) == 1 {
