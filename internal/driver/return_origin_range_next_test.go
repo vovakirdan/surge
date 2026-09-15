@@ -11,8 +11,8 @@ import (
 )
 
 // A certified Range step copies the walked element out of its base and never borrows the cursor
-// variable; an array or cursor element keeps a refusal. Outside core a template cannot type such a
-// call (type_labels.go:490–503), so core's own Array<T>.from_range witnesses the template step.
+// variable; an array or cursor element keeps a refusal. Core's own Array<T>.from_range witnesses the
+// template step here; TestAnalyzeImportedGenericMethodResults types a dependency template's own step.
 const (
 	rangeNextMutableEffect = "mutable argument may replace reference-bearing contents"
 	rangeNextOpaqueEffect  = "opaque call may change reference-bearing or callable contents"
