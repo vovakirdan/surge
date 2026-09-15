@@ -1,7 +1,8 @@
 # Epic 22 Phase 2: Step 7 execution contract
 
 Accepted 2026-09-11 after research rounds R1–R6. This document specifies the
-implementation and its proof; it does not claim the work has passed. The owning
+implementation and its proof. The contract sections do not claim the work
+passed; the Outcome section at the end records what D1 actually landed. The owning
 model is `docs/RUNTIME_V2.md`; `RULES.md` and `EPICS_CLOSEOUT_PLAN.md` apply.
 
 ## Boundaries and order
@@ -215,11 +216,12 @@ the normal block-exit release of local owners.
 | `f66fc598` | Loop ownership preparation | Landed on its own. |
 | `ea5ce30e` | Atomic B | The validation tree `c50d1e93` plus six lint repairs the hook requires. |
 | `2a489721` | Gate hygiene | The async allocation proof skips outside its gate instead of failing the ordinary suite. |
-| `08702b64` | Performance | Emitted fixnum fast path for WidthAny int add/sub/compare and int/uint narrowing, with IR, Valgrind e2e and negative-fixnum controls. The C3/C4 owner-reuse steps were not needed. |
+| `08702b64` | Performance | Emitted fixnum fast path for WidthAny int add/sub/compare and int/uint narrowing, with IR, Valgrind e2e and negative-fixnum controls. The two further steps the recovery plan held in reserve — reusing a fresh call result as its own owner instead of retaining it into another temp, and moving it into a reassigned local instead of retain-then-drop — were not taken: the gate passed without them and the owner accepted that on 2026-09-15. |
 | `b935adce` | Gate census | The numeric heap census names the fast-path witness in both homes. |
 | `ff83f830`..`40831757` | Structure | Channel refill helper, scope entry prologue, range bound predicate, four duplicate declarations, test helper split (Rule 4: 529 -> 471 lines). |
 | `735e2907` | Sentrux baseline | Retaken on the candidate by the owner's acceptance of the remainder. |
-| `a8e8d3d2` | Records | Debt closures by re-measurement and the boards. |
+| `a8e8d3d2`, `7c2a04a6` | Records | Debt closures by re-measurement, the boards, and this section. |
+| `3ba42fcb` | Post-review repair | The five-lens review found that a branch leaving a loop or a function by `break`, `continue` or `return` released the result slot of its enclosing `if`, ternary or `select` before writing it (VM3301/VM1001 on the VM; the first three shapes were a Step 7 regression). The slot's release is now registered at the join; `TestLoopExitBeforeChoiceWritesItsResult` fails 4/4 without the change and passes on the VM and LLVM with it. |
 
 **Performance.** The frozen 46-row paired gate (`--phase=final`, base
 `ea50ca0b`, fixture CPUs 8,10, harness 0,2, no CI worker present) passed on
@@ -244,6 +246,19 @@ either side) still stands.
   budget on `b935adce` and on `735e2907` with no failing row (982 PASS, 0
   FAIL); that is RV2-DEBT-337, not a D1 regression. Every other hosted job and
   the whole self-hosted workflow passed.
+
+**Review.** Five non-author lenses read `ab0a7395..7c2a04a6` from a clean
+worktree, read-only, and returned five verdicts. Runtime model and liveness,
+runtime ABI and emitter, and tests and gates: PASS. Ownership and types: PASS,
+with a concern that proved to be a real Step 7 regression when measured (the
+result-slot release on `break`/`continue`, repaired by `3ba42fcb`). Documents
+and debt: BLOCK, because three debt closures named witnesses that did not test
+what they closed; each row now names the rows re-measured on the candidate,
+states which evidence is a probe, and says where a close condition's control
+does not apply. Non-blocking concerns kept for later work: stale lifecycle
+comments in `rt.h` and two emitter files, peer-wake credits that can accumulate
+on a busy multi-worker shard, and the peer-wake proof living in a gate row
+without `--expect`.
 
 **Debts.** Closed by measurement on the candidate: RV2-DEBT-035, 068, 363.
 Narrowed: 357 (the crash is gone; `Range<float>` iterates once natively and

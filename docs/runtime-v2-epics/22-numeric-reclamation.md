@@ -970,7 +970,7 @@ whole run). **Do not benchmark this epic against anything older than commit
 - **Phase 2 — `int`/`uint`. NUMERIC HALF (D1) DELIVERED 2026-09-15 on
   `codex/step7-d1-r2`; the second delivery (D2: `@return_source` and the
   normal block-exit release of local owners such as `Map`) is in flight.** D1
-  is the commit series `1b744189..735e2907` (prerequisites, send offer, loop
+  is the commit series after `ab0a7395` (prerequisites, send offer, loop
   ownership, the atomic counted-scalar commit `ea5ce30e`, the emitted fixnum
   fast path `08702b64`, and structural follow-ups); its contract and outcome are
   `22-step7-execution.md`. It closes RV2-DEBT-035, 068 and 363, narrows 357,

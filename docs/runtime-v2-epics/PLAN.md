@@ -66,7 +66,7 @@ No scheduled work waits on an owner decision.
 **Epic 22 Phase 2, second delivery (D2)** — `@return_source` and the normal
 block-exit release of local owners such as `Map`, carried onto the D1 landing
 from the validation lane `c50d1e93..5bcaeb9a`. **D1 landed 2026-09-15**
-(`1b744189..735e2907` on `codex/step7-d1-r2`): `int`/`uint` are counted scalars,
+(the commits after `ab0a7395` on `codex/step7-d1-r2`): `int`/`uint` are counted scalars,
 the emitted code keeps a fixnum on an inline fast path, RV2-DEBT-035/068/363 are
 closed and 357 is narrowed. The Sentrux remainder of that delivery (runtime
 5308 against 5313, internal 6440 against 6445, root 6165 against 6169) was
