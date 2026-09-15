@@ -5,14 +5,18 @@ funcs=7
 fn __bool:
   locals:
     L0: &type#1508 [copy,ref] name=self
-    L1: type#1508 name=tmp_un1
-    L2: int [copy] name=tmp_field2
+    L1: type#1508 [owns_heap] name=tmp_un1
+    L2: int [copy,owns_heap] name=tmp_field2
     L3: bool [copy] name=tmp_call3
+    L4: bool [copy] name=tmp_retval4
   bb0:
     L1 = (* copy L0)
     L2 = field copy L1.value
+    L2 = retain L2
     L3 = call __ne(copy L2, const 0)
-    return copy L3
+    L4 = copy L3
+    drop L2
+    return copy L4
 
 fn __clone:
   locals:
@@ -27,21 +31,25 @@ fn __clone:
 fn __index:
   locals:
     L0: &type#1509 [copy,ref] name=self
-    L1: int [copy] name=index
+    L1: int [copy,owns_heap] name=index
     L2: &int [copy,ref] name=tmp_call1
-    L3: int [copy] name=tmp_un2
+    L3: int [copy,owns_heap] name=tmp_un2
+    L4: int [copy,owns_heap] name=tmp_retval3
   bb0:
     L2 = call __index::<int>(addr_of (*L0).values, copy L1)
     L3 = (* copy L2)
-    return copy L3
+    L3 = retain L3
+    L4 = retain L3
+    drop L3
+    return move L4
 
 fn __index_set:
   locals:
     L0: &mut type#1509 [refmut] name=self
-    L1: int [copy] name=index
-    L2: int [copy] name=value
+    L1: int [copy,owns_heap] name=index
+    L2: int [copy,owns_heap] name=value
   bb0:
-    call __index_set::<int>(addr_of_mut (*L0).values, copy L1, copy L2)
+    call __index_set::<int>(addr_of_mut (*L0).values, copy L1, retain L2)
     return
 
 fn __not:
@@ -68,6 +76,6 @@ fn __range:
 fn __to:
   locals:
     L0: &type#1507 [copy,ref] name=self
-    L1: int [copy] name=_
+    L1: int [copy,owns_heap] name=_
   bb0:
     return const 7

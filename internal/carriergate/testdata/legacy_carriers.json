@@ -763,6 +763,21 @@
           "retired_by": "wave-d",
           "tracked_as": "RV2-DEBT-151"
         }
+      ],
+      "post_baseline_allow": [
+        {
+          "id": "numeric-lifecycle-heap-tag-test",
+          "finding": {
+            "category": "llvm-pointer-word-ir",
+            "path": "internal/backend/llvm/emit_numeric_lifecycle.go",
+            "token": "ptrtoint",
+            "evidence": "fmt.Fprintf(out, \"  %s = ptrtoint ptr %s to i64\\n\", word, val)",
+            "ordinal": 1
+          },
+          "reason": "Step 7 represents arbitrary-precision int/uint as pointer-typed tagged words. The shared lifecycle guard reads the tag before any heap reference-count access.",
+          "safe_because": "Only WidthAny int/uint selected through aliases and own reach this guard. The converted i64 is used only to test the low tag bit; a separate nonnull test and their conjunction dominate heap RC addressing and lifecycle calls. NULL and inline fixnums bypass the heap arm; no pointer is reconstructed, no composite is erased and no new owner is created. Float keeps its existing untagged lifecycle.",
+          "invalidated_when": "The tag or pointer width, NULL/alignment convention, numeric ownership selection, or RC layout changes; integer bits escape the tag test; heap addressing or lifecycle calls become reachable before the guard; or the finding's category/path/token/evidence/ordinal changes."
+        }
       ]
     },
     {

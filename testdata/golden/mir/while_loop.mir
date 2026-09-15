@@ -4,13 +4,16 @@ funcs=1
 
 fn main:
   locals:
-    L0: int [copy] name=i
-    L1: int [copy] name=sum
+    L0: int [copy,owns_heap] name=i
+    L1: int [copy,owns_heap] name=sum
     L2: bool [copy] name=tmp_call1
-    L3: int [copy] name=tmp_call2
-    L4: bool [copy] name=tmp_call3
+    L3: int [copy,owns_heap] name=tmp_call2
+    L4: int [copy,owns_heap] name=tmp_reassign3
     L5: bool [copy] name=tmp_call4
-    L6: int [copy] name=tmp_call5
+    L6: bool [copy] name=tmp_call5
+    L7: int [copy,owns_heap] name=tmp_call6
+    L8: int [copy,owns_heap] name=tmp_reassign7
+    L9: int [copy,owns_heap] name=tmp_retval8
   bb0:
     L0 = const 0
     L1 = const 0
@@ -20,15 +23,24 @@ fn main:
     if copy L2 then bb2 else bb3
   bb2:
     L3 = call __add(copy L0, const 1)
-    L0 = copy L3
-    L4 = call __eq(copy L0, const 3)
-    if copy L4 then bb1 else bb4
+    L4 = retain L3
+    drop L0
+    L0 = move L4
+    drop L3
+    L5 = call __eq(copy L0, const 3)
+    if copy L5 then bb1 else bb4
   bb3:
-    return copy L1
+    L9 = retain L1
+    drop L1
+    drop L0
+    return move L9
   bb4:
-    L5 = call __eq(copy L0, const 5)
-    if copy L5 then bb3 else bb5
+    L6 = call __eq(copy L0, const 5)
+    if copy L6 then bb3 else bb5
   bb5:
-    L6 = call __add(copy L1, copy L0)
-    L1 = copy L6
+    L7 = call __add(copy L1, copy L0)
+    L8 = retain L7
+    drop L1
+    L1 = move L8
+    drop L7
     goto bb1

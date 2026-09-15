@@ -37,7 +37,7 @@ import (
 // Three element families, because the three take DIFFERENT ways out and a
 // diagnostic that offers the wrong one sends its reader to a second refusal. A
 // Copy element that shares no counted block copies out under a name and sends
-// bare; a Copy element that MAY share one (a `float`) copies out under a name and
+// bare; a Copy element that MAY share one (`int`, `uint`, `float`) copies out and
 // must then be GIVEN AWAY, or the give-away rule refuses it one build later; a
 // `string` does not copy out under a name at all (`let v: string = xs[0];` is
 // refused for the same reference), so its help names the whole-array give-away.
@@ -51,6 +51,17 @@ func TestAnchoredSendOfABorrowedReadIsRefused(t *testing.T) {
 		help string
 	}{
 		{
+			name: "fixed64_element_remains_a_borrowed_read",
+			src: `async fn go() -> int {
+    let ch: far Channel<int64> = channel_on::<int64>(shard(0:ShardId), 4);
+    let xs: int64[] = [1, 2, 3];
+    let sent: TaskResult<nothing> = on ch { ch.send(xs[0]); ret nothing; };
+    return 0;
+}`,
+			want: "`&int64` is a borrowed read",
+			help: "`let v: int64 = xs[0];` outside the block, then `ch.send(v)`",
+		},
+		{
 			name: "an element of a captured int array",
 			src: `
 async fn go() -> int {
@@ -61,7 +72,7 @@ async fn go() -> int {
 }
 `,
 			want: "`&int` is a borrowed read",
-			help: "`let v: int = xs[0];` outside the block, then `ch.send(v)`",
+			help: "`let v: int = xs[0];` outside the block, then `ch.send(own v)`",
 		},
 		{
 			name: "an element of a captured string array",
@@ -125,7 +136,7 @@ async fn go() -> int {
 }
 `,
 			want: "`&int` is a borrowed read",
-			help: "`let v: int = xs[0];` outside the block, then `ch.send(v)`",
+			help: "`let v: int = xs[0];` outside the block, then `ch.send(own v)`",
 		},
 		{
 			name: "an element of a captured int array, given away",
@@ -138,7 +149,7 @@ async fn go() -> int {
 }
 `,
 			want: "`own &int` is a borrowed read",
-			help: "`let v: int = xs[0];` outside the block, then `ch.send(v)`",
+			help: "`let v: int = xs[0];` outside the block, then `ch.send(own v)`",
 		},
 		{
 			name: "an element of a captured string array, given away",
@@ -202,7 +213,7 @@ async fn go() -> int {
 }
 `,
 			want: "`own &int` is a borrowed read",
-			help: "`let v: int = xs[0];` outside the block, then `ch.send(v)`",
+			help: "`let v: int = xs[0];` outside the block, then `ch.send(own v)`",
 		},
 	}
 	for _, tc := range cases {
@@ -222,13 +233,23 @@ func TestAnchoredSendRefusalHelpCompiles(t *testing.T) {
 	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
 	for _, tc := range []struct{ name, src string }{
 		{
+			name: "fixed64_element_help_sends_bare_name",
+			src: `async fn go() -> int {
+    let ch: far Channel<int64> = channel_on::<int64>(shard(0:ShardId), 4);
+    let xs: int64[] = [1, 2, 3];
+    let v: int64 = xs[0];
+    let sent: TaskResult<nothing> = on ch { ch.send(v); ret nothing; };
+    return 0;
+}`,
+		},
+		{
 			name: "the int element's help: bind it out and send the name",
 			src: `
 async fn go() -> int {
     let ch: far Channel<int> = channel_on::<int>(shard(0:ShardId), 4);
     let xs: int[] = [1, 2, 3];
     let v: int = xs[0];
-    let sent: TaskResult<nothing> = on ch { ch.send(v); ret nothing; };
+    let sent: TaskResult<nothing> = on ch { ch.send(own v); ret nothing; };
     return 0;
 }
 `,

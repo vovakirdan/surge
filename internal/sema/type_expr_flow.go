@@ -372,13 +372,10 @@ func (tc *typeChecker) typeExprBlocking(id ast.ExprID, span source.Span) types.T
 		// runtime -- so only the shapes no walk reaches are refused: a map's
 		// table, a channel's ring.
 		if tc.result != nil && tc.result.CountedBlockStaysShared(capType) {
-			tc.report(diag.SemaCrossNotShardMovable, cap.span,
-				"`%s` cannot be captured into `blocking`: it holds arbitrary-precision values in "+
-					"storage this thread keeps (a map's table, a channel's ring), so the "+
-					"counted heap blocks behind them cannot be made private before the job is "+
-					"submitted, and the count is not safe to share with the worker thread. Use a "+
-					"fixed-width type (`float64`) for the values it holds, or capture the values themselves",
-				tc.typeLabel(capType))
+			tc.report(diag.SemaCrossNotShardMovable, cap.span, "%s", tc.result.CountedBlockRefusalMessage(
+				tc.builder.StringsInterner, capType,
+				fmt.Sprintf("`%s` cannot be captured into `blocking`", tc.typeLabel(capType)),
+				tc.countedBlockingCaptureAllowsWidthRepair(capType, cap)))
 			continue
 		}
 		// And the same stop asked about arrays. `blocking` is a real worker

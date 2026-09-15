@@ -150,6 +150,33 @@ func TestCloneAndSubstKeepExplicitDropPlan(t *testing.T) {
 	}
 }
 
+func TestCloneAndSubstKeepDropOrigin(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		synthetic bool
+	}{{"explicit", false}, {"synthetic", true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			original := hir.Stmt{Kind: hir.StmtDrop, Data: hir.DropData{
+				Synthetic: tc.synthetic,
+				Value:     &hir.Expr{Kind: hir.ExprVarRef, Type: 101, Data: hir.VarRefData{SymbolID: 9}},
+				Steps:     []sema.DropStep{{Shallow: true}},
+			}}
+			cloned := cloneStmt(original)
+			s := &Subst{Types: types.NewInterner(), cache: map[types.TypeID]types.TypeID{101: 202}}
+			if err := s.ApplyStmt(&cloned); err != nil {
+				t.Fatal(err)
+			}
+			got := cloned.Data.(hir.DropData)
+			if got.Synthetic != tc.synthetic || got.Value.Type != 202 || len(got.Steps) != 1 || !got.Steps[0].Shallow {
+				t.Fatalf("clone/substitution lost drop origin/type/plan: %+v", got)
+			}
+			if original.Data.(hir.DropData).Value.Type != 101 {
+				t.Fatal("substituting clone mutated original drop")
+			}
+		})
+	}
+}
+
 // An exit's drop list carries both a TYPE, which picks the drop glue, and a
 // PLAN, which narrows what the drop reclaims. `return` and `ret` are separate
 // statement kinds with separate handling, and a crossing body reaches its exit

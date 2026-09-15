@@ -311,13 +311,10 @@ func (tc *typeChecker) classifyOnCapture(capType types.TypeID, capture blockingC
 	// both sides of that question; the Copy-only ContainsRefCountedScalar does
 	// not walk them.
 	if tc.result != nil && tc.result.CountedBlockStaysShared(capType) {
-		tc.report(diag.SemaCrossNotShardMovable, span,
-			"`%s` cannot cross a shard boundary: it holds arbitrary-precision values in storage "+
-				"this shard keeps (a map's table, a channel's ring), so the counted "+
-				"heap blocks behind them cannot be made private before the value ships, and the "+
-				"count is not safe to share between shards. Use a fixed-width type (`float64`) "+
-				"for the values it holds, or capture the values themselves",
-			types.Label(tc.types, tc.valueType(capType)))
+		tc.report(diag.SemaCrossNotShardMovable, span, "%s", tc.result.CountedBlockRefusalMessage(
+			tc.builder.StringsInterner, capType,
+			fmt.Sprintf("`%s` cannot cross a shard boundary", types.Label(tc.types, tc.valueType(capType))),
+			tc.countedOnCaptureAllowsWidthRepair(capType, capture)))
 		return 0, 0, false
 	}
 	// The same stop, asked about arrays. An array carries no count, so the
@@ -618,9 +615,9 @@ func (tc *typeChecker) registerBlockingBodyOwnership(body ast.StmtID) {
 	}
 }
 
-// captureIsRetainedIntoBlockingFrame is paramIsRetainedIntoFrame for a
-// `blocking` capture: a reference-counted value the state literal read into a
-// frame that outlives the read.
+// captureIsRetainedIntoBlockingFrame is, for a `blocking` capture, the retention
+// an `async fn` frame has for a reference-counted parameter: a reference-counted
+// value the state literal read into a frame that outlives the read.
 //
 // It takes no function, because unlike a parameter there is no non-frame case to
 // exclude -- a capture is by definition read into a frame. Both reference-counted

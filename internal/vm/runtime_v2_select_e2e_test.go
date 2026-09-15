@@ -18,7 +18,7 @@ import (
 // producer wakes it.
 const runtimeV2SelectSource = `
 async fn feed(ch: far Channel<int>, value: int) -> int {
-    let sent: TaskResult<nothing> = on ch { ch.send(value); ret nothing; };
+    let sent: TaskResult<nothing> = on ch { ch.send(own value); ret nothing; };
     return compare sent { Success(_) => 0; Cancelled() => 1; };
 }
 
@@ -30,7 +30,8 @@ async fn pick(a: far Channel<int>, b: far Channel<int>) -> int {
 async fn run() -> int {
     let a: far Channel<int> = channel_on::<int>(shard(0:ShardId), 2);
     let b: far Channel<int> = channel_on::<int>(shard(0:ShardId), 2);
-    let fed: TaskResult<nothing> = on b { b.send(7); ret nothing; };
+    let seed: int = 7;
+    let fed: TaskResult<nothing> = on b { b.send(own seed); ret nothing; };
     let _ = fed;
     let first: int = compare pick(a.share(), b.share()).await() {
         Success(x) => x;

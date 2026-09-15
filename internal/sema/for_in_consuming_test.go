@@ -44,6 +44,7 @@ extern<string> {
 }
 type Item = { name: string, id: int };
 type Holder = { opt: Option<int>, name: string };
+type Holder64 = { opt: Option<int64>, name: string };
 async fn work() -> int { return 1; }
 fn take(s: string) -> nothing { return nothing; }
 fn peek(s: &string) -> nothing { return nothing; }
@@ -51,6 +52,8 @@ fn peek_task(t: &Task<int>) -> nothing { return nothing; }
 fn take_int(i: int) -> nothing { return nothing; }
 fn take_float(f: float) -> nothing { return nothing; }
 fn take_opt(o: Option<int>) -> nothing { return nothing; }
+fn take_int64(i: int64) -> nothing { return nothing; }
+fn take_opt64(o: Option<int64>) -> nothing { return nothing; }
 `
 
 func TestForInDoesNotConsumeItsElements(t *testing.T) {
@@ -80,9 +83,12 @@ func TestForInDoesNotConsumeItsElements(t *testing.T) {
 		// bits the container never frees, so there is no double free to refuse
 		// -- whole, by value, or through a field of an element that does own
 		// heap elsewhere.
-		{"compare_reads_copy_payload", `fn f(opts: Option<int>[]) -> nothing { for r in opts { compare r { Some(v) => take_int(v); nothing => take_int(0); } } return nothing; }`, nil},
-		{"heap_free_union_passed_by_value", `fn f(opts: Option<int>[]) -> nothing { for r in opts { take_opt(r); } return nothing; }`, nil},
-		{"compare_reads_heap_free_field", `fn f(hs: Holder[]) -> nothing { for h in hs { compare own h.opt { Some(v) => take_int(v); nothing => take_int(0); } } return nothing; }`, nil},
+		{"compare_reads_copy_payload", `fn f(opts: Option<int64>[]) -> nothing { for r in opts { compare r { Some(v) => take_int64(v); nothing => take_int64(0); } } return nothing; }`, nil},
+		{"counted_union_compare_is_refused", `fn f(opts: Option<int>[]) -> nothing { for r in opts { compare r { Some(v) => take_int(v); nothing => take_int(0); } } return nothing; }`, []string{"SEM3205"}},
+		{"heap_free_union_passed_by_value", `fn f(opts: Option<int64>[]) -> nothing { for r in opts { take_opt64(r); } return nothing; }`, nil},
+		{"counted_union_value_pass_is_refused", `fn f(opts: Option<int>[]) -> nothing { for r in opts { take_opt(r); } return nothing; }`, []string{"SEM3205"}},
+		{"compare_reads_heap_free_field", `fn f(hs: Holder64[]) -> nothing { for h in hs { compare own h.opt { Some(v) => take_int64(v); nothing => take_int64(0); } } return nothing; }`, nil},
+		{"counted_union_field_compare_is_refused", `fn f(hs: Holder[]) -> nothing { for h in hs { compare own h.opt { Some(v) => take_int(v); nothing => take_int(0); } } return nothing; }`, []string{"SEM3205"}},
 		// A payload the container owns -- a string, a task handle, and the
 		// reference-counted `float`, whose count an owned compare moves out of
 		// the envelope for the binding to release -- is refused however the arm

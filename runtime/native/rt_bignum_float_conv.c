@@ -1,9 +1,29 @@
 #include "rt_bignum_internal.h"
 
+#include <float.h>
 #include <limits.h>
+#include <math.h>
 #include <string.h>
 
 // BigFloat conversions, modulus, and ratio construction.
+void* rt_bigfloat_from_f64(double value) {
+    if (!isfinite(value) || value == 0.0) {
+        return NULL;
+    }
+    // Scaling the binary64 fraction by 2^53 gives an exact integer even for
+    // subnormals. Decimal round-trip formatting would change the value when
+    // promoted into the wider BigFloat mantissa.
+    int exponent = 0;
+    double fraction = frexp(fabs(value), &exponent);
+    uint64_t significand = (uint64_t)ldexp(fraction, DBL_MANT_DIG);
+    SurgeBigFloat* out = rt_bigfloat_from_u64(significand);
+    if (out != NULL) {
+        out->exp += exponent - DBL_MANT_DIG;
+        out->neg = signbit(value) ? 1 : 0;
+    }
+    return out;
+}
+
 SurgeBigInt* bf_to_int_trunc(const SurgeBigFloat* f, bn_err* err) {
     if (err != NULL) {
         *err = BN_OK;

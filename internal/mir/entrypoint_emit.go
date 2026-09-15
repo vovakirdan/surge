@@ -147,7 +147,7 @@ const entrypointFailureExitCode = 1
 func (b *surgeStartBuilder) emitExitWithMessage(msg string) {
 	errType := b.errorType()
 	if errType == types.NoTypeID {
-		codeLocal := b.newLocal("exit_code", b.intType(), LocalFlagCopy)
+		codeLocal := b.newLocal("exit_code", b.intType(), b.localFlags(b.intType()))
 		b.emitAssign(codeLocal, &RValue{
 			Kind: RValueUse,
 			Use: Operand{

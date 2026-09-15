@@ -1,0 +1,14 @@
+// Copy does not make a counted composite heap-free.
+// A borrowed arm cannot directly hand its payload to another owner.
+@copy type Pair = { a: int, b: int };
+
+tag Hold(Pair);
+tag Nothing_();
+type Held = Hold(Pair) | Nothing_;
+
+fn payload_of(h: &Held) -> Pair {
+    return compare *h {
+        Hold(p) => p;
+        _ => Pair { a = 0, b = 0 };
+    };
+}

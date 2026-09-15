@@ -36,9 +36,6 @@ import (
 // unshareCallRe matches a call of any relinquishing walk body.
 var unshareCallRe = regexp.MustCompile(`call void @unshare\.type\d+\(ptr %[^)]+\)`)
 
-// unshareBodyRe matches the definition line of a relinquishing walk body.
-var unshareBodyRe = regexp.MustCompile(`(?m)^define void @unshare\.type\d+\(ptr %val\) \{$`)
-
 // A far-select SEND payload that may share a counted block is un-shared in the
 // crossing's initial block, once, before the FIRST rt_far_channel_select --
 // the one that ships the arm table -- and not on the retry re-entry, which
@@ -457,55 +454,6 @@ func assertUnshareCallPrecedes(t *testing.T, body, sink string) {
 	}
 	if calls[0][0] > at {
 		t.Fatalf("the un-share sits after %q; the value left first:\n%s", sink, body)
-	}
-}
-
-// assertUnshareBodiesDefinedOnce pins the drain: every walk the site's body
-// names, and every walk those bodies name in turn -- a nested composite's by
-// a call, an array element's as the function pointer handed to the runtime --
-// is defined exactly once in the module, and the module defines no walk
-// nobody reaches. It also pins that each body CALLS a runtime leaf (the
-// counted scalar's un-share or the buffer walk), so a walk emitted for the
-// wrong layout -- one with nothing counted in it -- would not read as green.
-func assertUnshareBodiesDefinedOnce(t *testing.T, ir, body string) {
-	t.Helper()
-	nameRe := regexp.MustCompile(`@(unshare\.type\d+)\b`)
-	defined := map[string]int{}
-	for _, line := range unshareBodyRe.FindAllString(ir, -1) {
-		defined[nameRe.FindStringSubmatch(line)[1]]++
-	}
-	reached := map[string]bool{}
-	pending := []string{}
-	for _, m := range nameRe.FindAllStringSubmatch(body, -1) {
-		pending = append(pending, m[1])
-	}
-	if len(pending) == 0 {
-		t.Fatalf("the body calls no walk:\n%s", body)
-	}
-	for len(pending) > 0 {
-		name := pending[0]
-		pending = pending[1:]
-		if reached[name] {
-			continue
-		}
-		reached[name] = true
-		if defined[name] != 1 {
-			t.Fatalf("%s is reached and defined %d time(s), want exactly once:\n%s", name, defined[name], ir)
-		}
-		walk := bodyOf(t, ir, name)
-		if !strings.Contains(walk, "call ptr @rt_bigfloat_unshare(") && !strings.Contains(walk, "call void @rt_array_unshare_walk(") {
-			t.Fatalf("%s never calls a runtime leaf; it was emitted for a layout with nothing counted in it:\n%s", name, walk)
-		}
-		for _, m := range nameRe.FindAllStringSubmatch(walk, -1) {
-			if m[1] != name {
-				pending = append(pending, m[1])
-			}
-		}
-	}
-	for name := range defined {
-		if !reached[name] {
-			t.Fatalf("%s is defined but nothing reachable from the site's body names it:\n%s", name, ir)
-		}
 	}
 }
 

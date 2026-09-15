@@ -48,15 +48,14 @@ func findDiagnostic(diags []*diag.Diagnostic, code diag.Code) *diag.Diagnostic {
 }
 
 func TestCrossingBackendUnavailableMessages(t *testing.T) {
-	// Executable async shapes on a transportless backend: only there does the
-	// generic backend message survive. The synchronous variants of the same
-	// programs are pinned as FUT7019 by the crossinggate golden fixtures.
+	// Valid async shapes reach backend guards; synchronous shapes use FUT7019.
 	cases := []struct {
 		name    string
 		src     string
 		code    diag.Code
 		message string
 	}{
+		{name: "on far handle fixed64", src: `async fn send_job(ch: far Channel<int64>) -> TaskResult<nothing> { return on ch { ch.send(1:int64); ret nothing; }; }`, code: diag.FutOnBackendUnavailable, message: "`on` placement crossing cannot be executed: no available backend supports cross-shard transport"},
 		{
 			name: "on placement",
 			src: `async fn run(n: int) -> TaskResult<int> {
@@ -66,10 +65,8 @@ func TestCrossingBackendUnavailableMessages(t *testing.T) {
 			message: "`on` placement crossing cannot be executed: no available backend supports cross-shard transport",
 		},
 		{
-			name: "on far handle",
-			src: `async fn send_job(ch: far Channel<int>) -> TaskResult<nothing> {
-    return on ch { ch.send(1); ret nothing; };
-}`,
+			name:    "on far handle",
+			src:     `async fn send_job(ch: far Channel<int>) -> TaskResult<nothing> { let value: int = 1; return on ch { ch.send(own value); ret nothing; }; }`,
 			code:    diag.FutOnBackendUnavailable,
 			message: "`on` placement crossing cannot be executed: no available backend supports cross-shard transport",
 		},
@@ -114,6 +111,13 @@ func TestCrossingBackendUnavailableMessages(t *testing.T) {
 				t.Fatal("missing diagnostics bag")
 			}
 			diags := res.Diagnose.Bag.Items()
+			if strings.HasPrefix(tc.name, "on far handle") {
+				for _, d := range diags {
+					if d.Severity == diag.SevError && d.Code != tc.code {
+						t.Fatalf("unrelated diagnostic %s: %s", d.Code.ID(), d.Message)
+					}
+				}
+			}
 			got := findDiagnostic(diags, tc.code)
 			if got == nil {
 				t.Fatalf("expected %s, got %s", tc.code.ID(), summarizeCodes(diags))
@@ -129,15 +133,13 @@ func TestCrossingBackendUnavailableMessages(t *testing.T) {
 }
 
 func TestCrossingBackendGuardsAreDefaultClosed(t *testing.T) {
-	// Executable async shapes stay guarded with the generic backend code on
-	// every backend WITHOUT the transport capability. LLVM is deliberately
-	// absent: these forms are open there and the open behavior is pinned by
-	// the capability tests and the e2e suites.
+	// These valid forms are guarded on both backends without transport.
 	cases := []struct {
 		name string
 		src  string
 		code diag.Code
 	}{
+		{name: "on far handle fixed64", src: `async fn send_job(ch: far Channel<int64>) -> TaskResult<nothing> { return on ch { ch.send(1:int64); ret nothing; }; }`, code: diag.FutOnBackendUnavailable},
 		{
 			name: "on placement",
 			src: `async fn run(n: int) -> TaskResult<int> {
@@ -147,9 +149,7 @@ func TestCrossingBackendGuardsAreDefaultClosed(t *testing.T) {
 		},
 		{
 			name: "on far handle",
-			src: `async fn send_job(ch: far Channel<int>) -> TaskResult<nothing> {
-    return on ch { ch.send(1); ret nothing; };
-}`,
+			src:  `async fn send_job(ch: far Channel<int>) -> TaskResult<nothing> { let value: int = 1; return on ch { ch.send(own value); ret nothing; }; }`,
 			code: diag.FutOnBackendUnavailable,
 		},
 		{
@@ -192,6 +192,13 @@ func TestCrossingBackendGuardsAreDefaultClosed(t *testing.T) {
 						t.Fatal("missing diagnostics bag")
 					}
 					diags := res.Diagnose.Bag.Items()
+					if strings.HasPrefix(tc.name, "on far handle") {
+						for _, d := range diags {
+							if d.Severity == diag.SevError && d.Code != tc.code {
+								t.Fatalf("unrelated diagnostic %s: %s", d.Code.ID(), d.Message)
+							}
+						}
+					}
 					if got := findDiagnostic(diags, tc.code); got == nil {
 						t.Fatalf("expected default-closed %s, got %s", tc.code.ID(), summarizeCodes(diags))
 					}
@@ -237,16 +244,9 @@ func TestCrossingBackendGuardDoesNotMaskSemaErrors(t *testing.T) {
 func TestCrossingBackendGuardsCoverImportedModules(t *testing.T) {
 	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
 
-	// The project has to live in THIS package directory: resolution of the
-	// imported module is relative to it, and from t.TempDir or the build cache
-	// the same program reports PRJ5002 instead of the crossings this test is
-	// about. That makes the directory clean only when the test gets to run its
-	// Cleanup -- a process killed mid-gate leaves `rv2-crossing-xmod-*` behind,
-	// and a SHA-pinned worktree with an untracked path is a dirty tree, which
-	// the heavy-run guard refuses, so one interrupted run turned every later
-	// run of an aggregate count into an instant refusal. The name is therefore
-	// git-ignored: a project a killed process leaves here is invisible to
-	// `git status` and cannot poison the next run.
+	// Import resolution needs this package directory. The git-ignored temp
+	// prefix keeps an interrupted test's leftover from dirtying pinned trees.
+
 	dir, err := os.MkdirTemp(".", "rv2-crossing-xmod-")
 	if err != nil {
 		t.Fatalf("mkdir temp project: %v", err)

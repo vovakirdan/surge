@@ -199,33 +199,9 @@ fn probe(r: &int, m: &mut int, o: Owning) -> int {
 	}
 }
 
-// The two legs above were compared over a snippet whose interner held no
-// runtime handle and no generic `@copy` instantiation — exactly the types
-// where the two Copy authorities behind them are computed differently and
-// could part: a handle's answer IS `!isCopy` (a composite's never consults
-// its own Copy bit), and an instantiation is marked Copy by a separate step
-// (`type_decl_instantiate.go` → `MarkCopyType`) from the declaration's
-// attribute. So the agreement is asked again here over a `core` module
-// snippet, which is what makes `@intrinsic type Task<T>` a runtime handle
-// (`isRuntimeHandleTypeDecl`), with the answer each row must give:
-//
-//   - `Task<int>`, `Task<string>`: a handle, not Copy, owns the task — true;
-//   - `Channel<int>`: a handle declared `@copy` — true. The row used to be
-//     false, because the handle leg answered `!isCopy` and nothing else, and
-//     a Copy handle therefore owned nothing. It is a reference-counted handle
-//     now: a copy RETAINS and a drop RELEASES the runtime object the handle
-//     names (RUNTIME_V2 §7), so the value owns one reference and the axis
-//     must say so. This row and the emitted drop are one change: an axis
-//     answering true with no release emitted is a promise nothing keeps;
-//   - `Opt<int>` / `Opt<float>`: a generic `@copy` union, instantiated, owns
-//     what its payload owns — false, then true for the counted scalar;
-//   - `Pair<int>`: a generic `@copy` tuple alias. The Copy authorities DO
-//     part here — `in.IsCopy(Pair<int>)` is true (the instantiation marks
-//     the alias id), `Result.IsCopyType(Pair<int>)` is false (it resolves the
-//     alias to `(int, int)` first, and the tuple carries no mark) — and the
-//     axis must still answer alike, because a composite's answer never comes
-//     from its own Copy bit. The parting itself is not pinned: it is a defect
-//     of the Copy leg, recorded under RV2-DEBT-260's residue, not a contract.
+// Runtime handles and generic Copy instantiations must agree across all axis
+// implementations. Counted int/uint payloads own references; fixed64 payloads
+// do not. A composite's answer follows its members, not its Copy marker.
 func TestOwnsHeapLegsAgreeOverHandlesAndInstantiations(t *testing.T) {
 	src := `
 @intrinsic
@@ -237,7 +213,7 @@ tag SomeC<T>(T);
 @copy type Opt<T> = SomeC(T) | nothing;
 @copy type Pair<T> = (T, T);
 
-fn probe(t: Task<int>, ts: Task<string>, c: Channel<int>, oi: Opt<int>, of: Opt<float>, p: Pair<int>) -> int {
+fn probe(t: Task<int>, ts: Task<string>, c: Channel<int>, oi: Opt<int>, of: Opt<float>, p: Pair<int>, oi64: Opt<int64>, ou: Opt<uint>, ou64: Opt<uint64>, p64: Pair<int64>, pu: Pair<uint>, pu64: Pair<uint64>) -> int {
     return 0;
 }
 `
@@ -248,9 +224,15 @@ fn probe(t: Task<int>, ts: Task<string>, c: Channel<int>, oi: Opt<int>, of: Opt<
 		"Task<int>":    true,
 		"Task<string>": true,
 		"Channel<int>": true,
-		"Opt<int>":     false,
+		"Opt<int>":     true,
+		"Opt<int64>":   false,
+		"Opt<uint>":    true,
+		"Opt<uint64>":  false,
 		"Opt<float>":   true,
-		"Pair<int>":    false,
+		"Pair<int>":    true,
+		"Pair<int64>":  false,
+		"Pair<uint>":   true,
+		"Pair<uint64>": false,
 	}
 	seen := make(map[string]bool, len(rows))
 	sawHandle := false
@@ -325,6 +307,12 @@ func coreSnippetResult(t *testing.T, src string) *Result {
 func TestOwnsHeapFollowsTheMembers(t *testing.T) {
 	src := `
 @copy type Pair = { a: int, b: int };
+@copy type Pair64 = { a: int64, b: int64 };
+@copy type PairU = { a: uint, b: uint };
+@copy type PairU64 = { a: uint64, b: uint64 };
+type Plain64 = { a: int64, b: int64 };
+@copy type Inner64 = { x: int64 };
+@copy type Outer64 = { inner: Inner64, label: int64 };
 @copy type Pf = { a: float, b: float };
 @copy type Mixed = { flag: bool, f: float };
 type Plain = { a: int, b: int };
@@ -336,6 +324,8 @@ type Boxed = { items: int[] };
 type Fixed = { cells: float[2] };
 
 tag Hold(Pair);
+tag Hold64(Pair64);
+type HeldPair64 = Hold64(Pair64) | Nothing_;
 tag HoldF(Pf);
 tag HoldS(Tagged);
 tag Nothing_();
@@ -343,7 +333,7 @@ type HeldPair = Hold(Pair) | Nothing_;
 type HeldPf = HoldF(Pf) | Nothing_;
 type HeldTagged = HoldS(Tagged) | Nothing_;
 
-fn probe(p: Pair, pf: Pf, m: Mixed, pl: Plain, tg: Tagged, o: Outer, d: Deep, bx: Boxed, fx: Fixed, hp: HeldPair, hf: HeldPf, ht: HeldTagged, ai: int[3], af: float[2], strs: string[2], ti: (int, int), ts: (int, string), tf: (bool, float)) -> int {
+fn probe(p: Pair, pf: Pf, m: Mixed, pl: Plain, tg: Tagged, o: Outer, d: Deep, bx: Boxed, fx: Fixed, hp: HeldPair, hf: HeldPf, ht: HeldTagged, ai: int[3], af: float[2], strs: string[2], ti: (int, int), ts: (int, string), tf: (bool, float), p64: Pair64, pu: PairU, pu64: PairU64, pl64: Plain64, o64: Outer64, hp64: HeldPair64, ai64: int64[3], au: uint[3], au64: uint64[3], ti64: (int64, int64)) -> int {
     return 0;
 }
 `
@@ -355,24 +345,34 @@ fn probe(p: Pair, pf: Pf, m: Mixed, pl: Plain, tg: Tagged, o: Outer, d: Deep, bx
 	in := res.TypeInterner
 
 	rows := map[string]bool{
-		"Pair":          false,
-		"Pf":            true,
-		"Mixed":         true,
-		"Plain":         false,
-		"Tagged":        true,
-		"Outer":         false,
-		"Deep":          true,
-		"Boxed":         true,
-		"Fixed":         true,
-		"HeldPair":      false,
-		"HeldPf":        true,
-		"HeldTagged":    true,
-		"(int, int)":    false,
-		"(int, string)": true,
-		"(bool, float)": true,
+		"Pair64":                         false,
+		"PairU":                          true,
+		"PairU64":                        false,
+		"Plain64":                        false,
+		"Outer64":                        false,
+		"HeldPair64":                     false,
+		"(int64, int64)":                 false,
+		"ArrayFixed<int64, const 3, 3>":  false,
+		"ArrayFixed<uint, const 3, 3>":   true,
+		"ArrayFixed<uint64, const 3, 3>": false,
+		"Pair":                           true,
+		"Pf":                             true,
+		"Mixed":                          true,
+		"Plain":                          true,
+		"Tagged":                         true,
+		"Outer":                          true,
+		"Deep":                           true,
+		"Boxed":                          true,
+		"Fixed":                          true,
+		"HeldPair":                       true,
+		"HeldPf":                         true,
+		"HeldTagged":                     true,
+		"(int, int)":                     true,
+		"(int, string)":                  true,
+		"(bool, float)":                  true,
 		// A fixed array is the nominal `ArrayFixed<T, const N, N>` to the
 		// interner, and this is how its label spells it.
-		"ArrayFixed<int, const 3, 3>":    false,
+		"ArrayFixed<int, const 3, 3>":    true,
 		"ArrayFixed<float, const 2, 2>":  true,
 		"ArrayFixed<string, const 2, 2>": true,
 	}
@@ -401,22 +401,9 @@ fn probe(p: Pair, pf: Pf, m: Mixed, pl: Plain, tg: Tagged, o: Outer, d: Deep, bx
 	}
 }
 
-// MayShareCountedBlock is the owned-MOVE crossing question: can a value of this
-// type hold a counted block that a sibling holder on this shard still holds?
-// It walks union payloads, which ContainsRefCountedScalar (the Copy-bits
-// question, and the Traceable axis's leg) deliberately does not — so the two
-// are pinned side by side, and a union carrying a float is exactly where they
-// part company.
-//
-// The third column is CountedBlockCanBeMadePrivate: whether the relinquishing
-// walk can make every counted leaf private before the value crosses. Together
-// with the first it is the refusal, CountedBlockStaysShared: only a shape that
-// may share AND cannot be made private is turned away. A map and a channel are
-// the two such shapes -- the table and the ring are storage no per-element
-// walk reaches. A dynamic array is NOT among them: the runtime walks its
-// buffer element by element in the relinquishing operand, so `float[]` and
-// `float[][]` are made private and cross, while an array of channels answers
-// for its element's ring and stays refused.
+// MayShare walks union payloads; ContainsRefCountedScalar deliberately does
+// not. Counted blocks in arrays can be made private; blocks in maps/channels
+// cannot. Fixed64 siblings preserve the independent storage-shape controls.
 func TestMayShareCountedBlockWalksUnionPayloads(t *testing.T) {
 	src := `
 @shard_movable
@@ -424,22 +411,23 @@ type P = { v: float };
 
 @shard_movable
 type Plain = { a: int };
+@shard_movable type Plain64 = { a: int64 };
+tag Bare64(Plain64);
+@shard_movable type V64 = Bare64(Plain64) | Empty();
 
 tag Held(P);
 tag Bare(Plain);
 tag Empty();
-
 @shard_movable
 type U = Held(P) | Empty();
-
 @shard_movable
 type V = Bare(Plain) | Empty();
 
 @copy
 @intrinsic
-type Channel<T> = { __opaque: int };
+type Channel<T> = { __opaque: *uint8 };
 
-fn probe(p: own P, u: own U, v: own V, w: own Plain, f: float, arr: float[], s: string, ch: Channel<float>, ci: Channel<int>, fixed: float[4], fixedi: int[4], xss: float[][], chs: Channel<float>[], m: Map<int, float>, mi: Map<int, int>) -> int {
+fn probe(p: own P, u: own U, v: own V, w: own Plain, f: float, arr: float[], s: string, ch: Channel<float>, ci: Channel<int>, fixed: float[4], fixedi: int[4], xss: float[][], chs: Channel<float>[], m: Map<int, float>, mi: Map<int, int>, p64: own Plain64, v64: own V64, ci64: Channel<int64>, mi64: Map<int64, int64>, fixed64: int64[4], unsigned: uint, u64: uint64) -> int {
     return 0;
 }
 `
@@ -447,15 +435,24 @@ fn probe(p: own P, u: own U, v: own V, w: own Plain, f: float, arr: float[], s: 
 	in := res.TypeInterner
 
 	rows := map[string]struct{ share, contains, private bool }{
-		"float":     {true, true, true},
-		"P":         {true, true, true},
-		"own P":     {true, true, true},
-		"U":         {true, false, true},
-		"own U":     {true, false, true},
-		"V":         {false, false, true},
-		"Plain":     {false, false, true},
-		"own Plain": {false, false, true},
-		"string":    {false, false, true},
+		"Plain64":                       {false, false, true},
+		"own Plain64":                   {false, false, true},
+		"V64":                           {false, false, true},
+		"own V64":                       {false, false, true},
+		"Channel<int64>":                {false, false, true},
+		"Map<int64, int64>":             {false, false, true},
+		"ArrayFixed<int64, const 4, 4>": {false, false, true},
+		"uint":                          {true, true, true},
+		"uint64":                        {false, false, true},
+		"float":                         {true, true, true},
+		"P":                             {true, true, true},
+		"own P":                         {true, true, true},
+		"U":                             {true, false, true},
+		"own U":                         {true, false, true},
+		"V":                             {true, false, true},
+		"Plain":                         {true, true, true},
+		"own Plain":                     {true, true, true},
+		"string":                        {false, false, true},
 		// A dynamic array's elements are counted blocks in a buffer the handle
 		// names; the runtime walks that buffer element by element in the
 		// relinquishing operand, so the array is made private and crosses,
@@ -467,29 +464,31 @@ fn probe(p: own P, u: own U, v: own V, w: own Plain, f: float, arr: float[], s: 
 		// A map keyed or valued by a counted scalar shares like an array does
 		// and, unlike one, has no per-element walk: its table stays refused.
 		"Map<int, float>": {true, false, false},
-		"Map<int, int>":   {false, false, true},
+		"Map<int, int>":   {true, false, false},
 		// A runtime handle shares whenever its payload does: the handle's own
 		// count is atomic so a copy may live on another shard, and a send from
 		// there retains a block into a ring the creator's shard owns. No walk
 		// over the handle's bytes reaches that ring, so it cannot be made
 		// private either.
 		"Channel<float>": {true, false, false},
-		"Channel<int>":   {false, false, true},
+		"Channel<int>":   {true, false, false},
 		// A fixed array is a nominal struct with no declared fields; its
 		// element type lives only in ArrayFixedInfo. BOTH questions must see
 		// through it: a Copy `float[4]` copied as bits duplicates four
 		// references. Its elements are inline, so the walk reaches them.
 		"ArrayFixed<float, const 4, 4>": {true, true, true},
-		"ArrayFixed<int, const 4, 4>":   {false, false, true},
+		"ArrayFixed<int, const 4, 4>":   {true, true, true},
 	}
 	seen := make(map[string]bool, len(rows))
 	for id := types.TypeID(1); ; id++ {
-		if _, ok := in.Lookup(id); !ok {
+		typ, ok := in.Lookup(id)
+		if !ok {
 			break
 		}
 		label := types.Label(in, id)
 		want, ok := rows[label]
-		if !ok {
+		// Map's generic V is not the nominal union V in this table.
+		if !ok || typ.Kind == types.KindGenericParam {
 			continue
 		}
 		seen[label] = true
@@ -513,27 +512,13 @@ fn probe(p: own P, u: own U, v: own V, w: own Plain, f: float, arr: float[], s: 
 	}
 }
 
-// NeedsRelinquishWalk is the question a crossing actually asks, and it is the
-// OR of two obligations that are not the same thing. The counted half makes a
-// block private; the array half makes the RUNTIME look at a header, because
-// nothing in the type says whether the array in hand is a view into a buffer
-// the origin shard keeps reading. The rows that carry the change are the ones
-// where the halves disagree: `int[]` shares no count and must still be walked,
-// and `Map<int, int[]>` carries an array no walk reaches and must NOT be.
-//
-// A shape the walk cannot reach is REFUSED instead, and the third column says
-// which rows meet that: `Map<int, int[]>`, `Channel<int[]>`, `Task<int[]>`.
-// The last check in the loop is the one that carries the most: every row is
-// held to "walked OR refused", so no shape can carry an array and be admitted
-// in silence -- which is what the map and the channel did until 2026-09-08,
-// when both crossed a `blocking` boundary with a view in them and the worker
-// wrote through it into the buffer the origin shard was still reading.
-//
-// The COUNTED admission set does not move with any of it: CountedBlockStaysShared
-// is asked of every row here and still answers from the counted half alone.
+// Relinquishment must prepare counted leaves and inspect dynamic array views.
+// Fixed64 arrays need the view walk even without counts. Arrays behind a
+// handle remain refused; its table/ring/result storage cannot be traversed.
 func TestNeedsRelinquishWalkArmsEveryArrayCrossing(t *testing.T) {
 	src := `
 type Holder = { n: int, xs: int[] };
+type Holder64 = { n: int64, xs: int64[] };
 
 @copy
 @intrinsic
@@ -544,7 +529,7 @@ type Task<T> = { __opaque: int };
 
 fn probe(h: own Holder, xs: int[], fs: float[], xss: int[][], t: (int[], int),
          s: string, n: int, ch: Channel<int>, cf: Channel<float>, m: Map<int, int[]>,
-         ca: Channel<int[]>, ta: Task<int[]>, ms: Map<int, string>) -> int {
+         ca: Channel<int[]>, ta: Task<int[]>, ms: Map<int, string>, h64: own Holder64, xs64: int64[], xss64: int64[][], t64: (int64[], int64), ch64: Channel<int64>, m64: Map<int64, int64[]>, ca64: Channel<int64[]>, ta64: Task<int64[]>, ms64: Map<int64, string>, n64: int64, u: uint, u64: uint64) -> int {
     return 0;
 }
 `
@@ -552,26 +537,38 @@ fn probe(h: own Holder, xs: int[], fs: float[], xss: int[][], t: (int[], int),
 	in := res.TypeInterner
 
 	rows := map[string]struct{ share, array, refused bool }{
-		// The defect the walk closes: no count anywhere, and the walk is armed
-		// anyway so the runtime can refuse a view.
-		"Array<int>":        {false, true, false},
-		"Array<Array<int>>": {false, true, false},
-		"Holder":            {false, true, false},
-		"own Holder":        {false, true, false},
-		"(Array<int>, int)": {false, true, false},
-		"Array<float>":      {true, true, false},
-		"Channel<float>":    {true, false, false},
-		"int":               {false, false, false},
-		"string":            {false, false, false},
-		"Channel<int>":      {false, false, false},
-		"Map<int, string>":  {false, false, false},
+		// Both representations preserve the independent array-view check.
+		"Array<int64>":             {false, true, false},
+		"Array<Array<int64>>":      {false, true, false},
+		"Holder64":                 {false, true, false},
+		"own Holder64":             {false, true, false},
+		"(Array<int64>, int64)":    {false, true, false},
+		"int64":                    {false, false, false},
+		"uint":                     {true, false, false},
+		"uint64":                   {false, false, false},
+		"Channel<int64>":           {false, false, false},
+		"Map<int64, string>":       {false, false, false},
+		"Map<int64, Array<int64>>": {false, false, true},
+		"Channel<Array<int64>>":    {false, false, true},
+		"Task<Array<int64>>":       {false, false, true},
+		"Array<int>":               {true, true, false},
+		"Array<Array<int>>":        {true, true, false},
+		"Holder":                   {true, true, false},
+		"own Holder":               {true, true, false},
+		"(Array<int>, int)":        {true, true, false},
+		"Array<float>":             {true, true, false},
+		"Channel<float>":           {true, false, false},
+		"int":                      {true, false, false},
+		"string":                   {false, false, false},
+		"Channel<int>":             {true, false, false},
+		"Map<int, string>":         {true, false, false},
 		// The three storages no per-element walk steps. An array inside one is
 		// not armed -- there is nothing to hand the runtime -- so the crossing
 		// gate refuses the whole shape and the third column is where that is
 		// pinned.
-		"Map<int, Array<int>>": {false, false, true},
-		"Channel<Array<int>>":  {false, false, true},
-		"Task<Array<int>>":     {false, false, true},
+		"Map<int, Array<int>>": {true, false, true},
+		"Channel<Array<int>>":  {true, false, true},
+		"Task<Array<int>>":     {true, false, true},
 	}
 	seen := make(map[string]bool, len(rows))
 	for id := types.TypeID(1); ; id++ {

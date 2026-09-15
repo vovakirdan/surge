@@ -16,7 +16,7 @@ import (
 
 func relinquishLocal(id LocalID) Place { return Place{Kind: PlaceLocal, Local: id} }
 
-// relinquishFixture is one function with a float local (L0), an int local
+// relinquishFixture is one function with a float local (L0), an int64 local
 // (L1) and a float temp (L2); the caller supplies the instructions of bb0 and
 // its terminator.
 func relinquishFixture(ot ownershipTestTypes, instrs []Instr, term Terminator, resultCrosses bool) *Func {
@@ -153,7 +153,7 @@ func TestRelinquishedOperandsMustBeUnshared(t *testing.T) {
 			term: func(ownershipTestTypes) Terminator { return ret },
 		},
 		{
-			name: "an int field shares nothing and is not asked",
+			name: "an int64 field shares nothing and is not asked",
 			instrs: func(ot ownershipTestTypes) []Instr {
 				return []Instr{relinquishCrossing(StructLitField{Name: "__cap0",
 					Value: Operand{Kind: OperandCopy, Type: ot.plain, Place: relinquishLocal(1)}})}

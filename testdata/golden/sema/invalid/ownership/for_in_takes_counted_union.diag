@@ -1,0 +1,3 @@
+error SEM3205 testdata/golden/sema/invalid/ownership/for_in_takes_counted_union.sg:10:17 cannot move out of `r`: a `for` loop binding only reads the element
+error SEM3205 testdata/golden/sema/invalid/ownership/for_in_takes_counted_union.sg:20:18 cannot move out of `r`: a `for` loop binding only reads the element
+error SEM3205 testdata/golden/sema/invalid/ownership/for_in_takes_counted_union.sg:28:17 cannot move `h.opt` out of `h`: a `for` loop binding only reads the element

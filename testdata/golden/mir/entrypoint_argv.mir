@@ -5,30 +5,32 @@ funcs=2
 fn __surge_start:
   locals:
     L0: [string] name=argv
-    L1: uint [copy] name=argv_len
-    L2: int [copy] name=x
+    L1: uint [copy,owns_heap] name=argv_len
+    L2: int [copy,owns_heap] name=x
     L3: bool [copy] name=has_arg0
-    L4: string name=arg_str0
+    L4: int64 [copy] name=arg_index0
     L5: type#403 name=arg_parsed0
     L6: bool [copy] name=arg_ok0
     L7: type#50 name=entry_err
     L8: int name=entry_ret
-    L9: int [copy] name=code
+    L9: int [copy,owns_heap] name=code
   bb0:
     L0 = call rt_argv()
     L1 = call __len(copy L0)
     L3 = (const 0:uint < copy L1)
     if copy L3 then bb1 else bb2
   bb1:
-    L4 = index copy L0[const 0]
-    L5 = call from_str(addr_of L4)
+    L4 = const 0
+    L5 = call from_str(addr_of L0[L4])
     L6 = tag_test copy L5 is Success
     if copy L6 then bb4 else bb5
   bb2:
+    drop L0
     L7 = struct_lit type#50 {message=const "missing argv argument \"x\"", code=const 1:uint}
     call exit(move L7)
     return
   bb3:
+    drop L0
     L8 = call main(move L2)
     L9 = copy L8
     call rt_exit(copy L9)
@@ -37,11 +39,12 @@ fn __surge_start:
     L2 = tag_payload_move copy L5.Success[0]
     goto bb3
   bb5:
+    drop L0
     call exit(move L5)
     return
 
 fn main:
   locals:
-    L0: int [copy] name=x
+    L0: int [copy,owns_heap] name=x
   bb0:
-    return copy L0
+    return retain L0

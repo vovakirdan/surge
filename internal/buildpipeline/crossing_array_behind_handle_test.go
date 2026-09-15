@@ -6,30 +6,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"surge/internal/diag"
 )
 
-// A dynamic array carries a fact no type holds: whether the header in hand is a
-// VIEW into somebody else's buffer. The runtime's view registry holds it, and a
-// crossing reaches the registry by handing the array's slot to
-// rt_array_unshare_walk in the relinquishing operand.
-//
-// That works wherever the walk can reach the array. It cannot reach one stored
-// in a map's table, a channel's ring or a task's result slot: those keep their
-// entries at offsets no per-element callback is ever handed. So the array goes
-// across with nothing looking at it.
-//
-// Measured on this tree at 273ca202, before the rows below: a
-// `Map<int, int[]>` whose one value was `base[[1..3]]`, captured into
-// `blocking`, printed `7770777` at SURGE_SHARDS/THREADS 2 and 8 -- the worker
-// thread took the view out of the table and wrote 777 through it into slot 1
-// of the base the origin shard was still reading. A `Channel<int[]>` whose ring
-// held the same view printed the same number by the same route. Both compiled
-// with zero `rt_array_unshare_walk` call sites in the module.
-//
-// The answer for storage the walk cannot reach is a REFUSAL, and it is the one
-// the counted-block half has always given at this same stop: `Map<int, float>`
-// and `Channel<float>` have been refused here for the floats behind them. The
-// rows below are the array half of that sentence.
+// Inaccessible array headers remain refused even when their elements are
+// fixed-width. Counted counterparts below separately pin the earlier refusal.
 func TestArrayBehindAHandleIsRefusedAtEveryCrossingGate(t *testing.T) {
 	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
 	cases := []struct {
@@ -40,10 +22,10 @@ func TestArrayBehindAHandleIsRefusedAtEveryCrossingGate(t *testing.T) {
 		{
 			name: "map of arrays captured into a blocking body",
 			src: `
-fn use(m: own Map<int, int[]>) -> int { return 1; }
+fn use(m: own Map<int64, int64[]>) -> int { return 1; }
 
 async fn go() -> int {
-    let m: Map<int, int[]> = Map::<int, int[]>.new();
+    let m: Map<int64, int64[]> = Map::<int64, int64[]>.new();
     let job: Task<int> = blocking { ret use(own m); };
     let r: TaskResult<int> = job.await();
     return 0;
@@ -58,29 +40,29 @@ async fn go() -> int {
 		{
 			name: "local channel of arrays captured into a blocking body",
 			src: `
-fn use(c: own Channel<int[]>) -> int { return 1; }
+fn use(c: own Channel<int64[]>) -> int { return 1; }
 
 async fn go() -> int {
-    let ch: Channel<int[]> = Channel::<int[]>::new(4:uint);
+    let ch: Channel<int64[]> = Channel::<int64[]>::new(4:uint);
     let job: Task<int> = blocking { ret use(own ch); };
     let r: TaskResult<int> = job.await();
     return 0;
 }
 `,
 			contains: []string{
-				"`Channel<[int]>` cannot be captured into `blocking`",
+				"`Channel<[int64]>` cannot be captured into `blocking`",
 				"never shown that array's header",
 			},
 		},
 		{
 			name: "struct that merely holds a map of arrays captured into a blocking body",
 			src: `
-type Box = { m: Map<int, int[]>, n: int };
+type Box = { m: Map<int64, int64[]>, n: int };
 
 fn use(b: own Box) -> int { return 1; }
 
 async fn go() -> int {
-    let m: Map<int, int[]> = Map::<int, int[]>.new();
+    let m: Map<int64, int64[]> = Map::<int64, int64[]>.new();
     let b: Box = Box{ m: own m, n: 5 };
     let job: Task<int> = blocking { ret use(own b); };
     let r: TaskResult<int> = job.await();
@@ -92,10 +74,10 @@ async fn go() -> int {
 		{
 			name: "map of arrays moved into an on body",
 			src: `
-fn use(m: own Map<int, int[]>) -> int { return 1; }
+fn use(m: own Map<int64, int64[]>) -> int { return 1; }
 
 async fn go(dst: Placement) -> int {
-    let m: Map<int, int[]> = Map::<int, int[]>.new();
+    let m: Map<int64, int64[]> = Map::<int64, int64[]>.new();
     let r: TaskResult<int> = on dst { ret use(own m); };
     return 0;
 }
@@ -109,7 +91,7 @@ async fn go(dst: Placement) -> int {
 			name: "remote channel whose element is a map of arrays",
 			src: `
 async fn go() -> int {
-    let ch: far Channel<Map<int, int[]>> = channel_on::<Map<int, int[]>>(shard(0:ShardId), 4);
+    let ch: far Channel<Map<int64, int64[]>> = channel_on::<Map<int64, int64[]>>(shard(0:ShardId), 4);
     return 0;
 }
 `,
@@ -119,7 +101,7 @@ async fn go() -> int {
 			name: "remote channel whose element is a channel of arrays",
 			src: `
 async fn go() -> int {
-    let ch: far Channel<Channel<int[]>> = channel_on::<Channel<int[]>>(shard(0:ShardId), 4);
+    let ch: far Channel<Channel<int64[]>> = channel_on::<Channel<int64[]>>(shard(0:ShardId), 4);
     return 0;
 }
 `,
@@ -132,13 +114,13 @@ async fn go() -> int {
 			name: "local channel of arrays captured by copy into an on body",
 			src: `
 async fn go(dst: Placement) -> int {
-    let ch: Channel<int[]> = Channel::<int[]>::new(4:uint);
-    let r: TaskResult<int> = on dst { let c2: Channel<int[]> = ch; ret 1; };
+    let ch: Channel<int64[]> = Channel::<int64[]>::new(4:uint);
+    let r: TaskResult<int> = on dst { let c2: Channel<int64[]> = ch; ret 1; };
     return 0;
 }
 `,
 			contains: []string{
-				"`Channel<Array<int>>` cannot cross a shard boundary",
+				"`Channel<Array<int64>>` cannot cross a shard boundary",
 				"never shown that array's header",
 			},
 		},
@@ -151,15 +133,15 @@ async fn go(dst: Placement) -> int {
 			name: "channel of arrays riding a crossing reply",
 			src: `
 async fn go(dst: Placement) -> int {
-    let r: TaskResult<Channel<int[]>> = on dst {
-        let ch: Channel<int[]> = Channel::<int[]>::new(4:uint);
+    let r: TaskResult<Channel<int64[]>> = on dst {
+        let ch: Channel<int64[]> = Channel::<int64[]>::new(4:uint);
         ret ch;
     };
     return 0;
 }
 `,
 			contains: []string{
-				"the crossing result `Channel<Array<int>>` cannot cross a shard boundary yet",
+				"the crossing result `Channel<Array<int64>>` cannot cross a shard boundary yet",
 				"channel's ring",
 			},
 		},
@@ -186,10 +168,10 @@ func TestContainersWithoutAnArrayBehindThemStillCross(t *testing.T) {
 		{
 			name: "map of ints captured into a blocking body",
 			src: `
-fn use(m: own Map<int, int>) -> int { return 1; }
+fn use(m: own Map<int64, int64>) -> int { return 1; }
 
 async fn go() -> int {
-    let m: Map<int, int> = Map::<int, int>.new();
+    let m: Map<int64, int64> = Map::<int64, int64>.new();
     let job: Task<int> = blocking { ret use(own m); };
     let r: TaskResult<int> = job.await();
     return 0;
@@ -199,10 +181,10 @@ async fn go() -> int {
 		{
 			name: "map of strings captured into a blocking body",
 			src: `
-fn use(m: own Map<int, string>) -> int { return 1; }
+fn use(m: own Map<int64, string>) -> int { return 1; }
 
 async fn go() -> int {
-    let m: Map<int, string> = Map::<int, string>.new();
+    let m: Map<int64, string> = Map::<int64, string>.new();
     let job: Task<int> = blocking { ret use(own m); };
     let r: TaskResult<int> = job.await();
     return 0;
@@ -212,10 +194,10 @@ async fn go() -> int {
 		{
 			name: "local channel of ints captured into a blocking body",
 			src: `
-fn use(c: own Channel<int>) -> int { return 1; }
+fn use(c: own Channel<int64>) -> int { return 1; }
 
 async fn go() -> int {
-    let ch: Channel<int> = Channel::<int>::new(4:uint);
+    let ch: Channel<int64> = Channel::<int64>::new(4:uint);
     let job: Task<int> = blocking { ret use(own ch); };
     let r: TaskResult<int> = job.await();
     return 0;
@@ -264,8 +246,8 @@ async fn go() -> int {
 			name: "local channel of ints captured by copy into an on body",
 			src: `
 async fn go(dst: Placement) -> int {
-    let ch: Channel<int> = Channel::<int>::new(4:uint);
-    let r: TaskResult<int> = on dst { let c2: Channel<int> = ch; ret 1; };
+    let ch: Channel<int64> = Channel::<int64>::new(4:uint);
+    let r: TaskResult<int> = on dst { let c2: Channel<int64> = ch; ret 1; };
     return 0;
 }
 `,
@@ -274,8 +256,8 @@ async fn go(dst: Placement) -> int {
 			name: "channel of ints riding a crossing reply",
 			src: `
 async fn go(dst: Placement) -> int {
-    let r: TaskResult<Channel<int>> = on dst {
-        let ch: Channel<int> = Channel::<int>::new(4:uint);
+    let r: TaskResult<Channel<int64>> = on dst {
+        let ch: Channel<int64> = Channel::<int64>::new(4:uint);
         ret ch;
     };
     return 0;
@@ -319,4 +301,56 @@ func requireRefusalMentioning(t *testing.T, src string, contains []string) {
 		}
 	}
 	t.Fatalf("no diagnostic mentioning %v; got %s", contains, summarizeCodes(res.Diagnose.Bag.Items()))
+}
+
+// The original counted programs keep their first refusal after the fixed64
+// controls isolate the inaccessible-array axis. Width advice is useful only
+// when no inaccessible array remains after replacing all counted leaves.
+func TestCountedHandleFixturesKeepTheirFirstRefusal(t *testing.T) {
+	t.Setenv("SURGE_STDLIB", testRepoRoot(t))
+	for _, tc := range []struct {
+		name, src, path string
+		code            diag.Code
+		array           bool
+	}{
+		{name: "array_map_blocking", path: "key", code: diag.SemaCrossNotShardMovable, array: true,
+			src: `fn use(m: own Map<int, int[]>) -> int { return 1; } async fn go() -> int { let m: Map<int, int[]> = Map::<int, int[]>.new(); let job: Task<int> = blocking { ret use(own m); }; let r: TaskResult<int> = job.await(); return 0; }`},
+		{name: "array_channel_blocking", path: "payload[0].element", code: diag.SemaCrossNotShardMovable, array: true,
+			src: `fn use(c: own Channel<int[]>) -> int { return 1; } async fn go() -> int { let ch: Channel<int[]> = Channel::<int[]>::new(4:uint); let job: Task<int> = blocking { ret use(own ch); }; let r: TaskResult<int> = job.await(); return 0; }`},
+		{name: "array_map_wrapper_blocking", path: "m.key", code: diag.SemaCrossNotShardMovable, array: true,
+			src: `type Box = { m: Map<int, int[]>, n: int }; fn use(b: own Box) -> int { return 1; } async fn go() -> int { let m: Map<int, int[]> = Map::<int, int[]>.new(); let b: Box = Box{ m: own m, n: 5 }; let job: Task<int> = blocking { ret use(own b); }; let r: TaskResult<int> = job.await(); return 0; }`},
+		{name: "array_map_on", path: "key", code: diag.SemaCrossNotShardMovable, array: true,
+			src: `fn use(m: own Map<int, int[]>) -> int { return 1; } async fn go(dst: Placement) -> int { let m: Map<int, int[]> = Map::<int, int[]>.new(); let r: TaskResult<int> = on dst { ret use(own m); }; return 0; }`},
+		{name: "array_map_remote_channel", path: "key", code: diag.FutCrossingPayloadNotShippable, array: true,
+			src: `async fn go() -> int { let ch: far Channel<Map<int, int[]>> = channel_on::<Map<int, int[]>>(shard(0:ShardId), 4); return 0; }`},
+		{name: "array_channel_remote_channel", path: "payload[0].element", code: diag.FutCrossingPayloadNotShippable, array: true,
+			src: `async fn go() -> int { let ch: far Channel<Channel<int[]>> = channel_on::<Channel<int[]>>(shard(0:ShardId), 4); return 0; }`},
+		{name: "array_channel_copy_on", path: "payload[0].element", code: diag.SemaCrossNotShardMovable, array: true,
+			src: `async fn go(dst: Placement) -> int { let ch: Channel<int[]> = Channel::<int[]>::new(4:uint); let r: TaskResult<int> = on dst { let c2: Channel<int[]> = ch; ret 1; }; return 0; }`},
+		{name: "array_channel_reply", path: "payload[0].element", code: diag.FutCrossingPayloadNotShippable, array: true,
+			src: `async fn go(dst: Placement) -> int { let r: TaskResult<Channel<int[]>> = on dst { let ch: Channel<int[]> = Channel::<int[]>::new(4:uint); ret ch; }; return 0; }`},
+		{name: "scalar_map_int_blocking", path: "key", code: diag.SemaCrossNotShardMovable, array: false,
+			src: `fn use(m: own Map<int, int>) -> int { return 1; } async fn go() -> int { let m: Map<int, int> = Map::<int, int>.new(); let job: Task<int> = blocking { ret use(own m); }; let r: TaskResult<int> = job.await(); return 0; }`},
+		{name: "scalar_map_string_blocking", path: "key", code: diag.SemaCrossNotShardMovable, array: false,
+			src: `fn use(m: own Map<int, string>) -> int { return 1; } async fn go() -> int { let m: Map<int, string> = Map::<int, string>.new(); let job: Task<int> = blocking { ret use(own m); }; let r: TaskResult<int> = job.await(); return 0; }`},
+		{name: "scalar_channel_blocking", path: "payload[0]", code: diag.SemaCrossNotShardMovable, array: false,
+			src: `fn use(c: own Channel<int>) -> int { return 1; } async fn go() -> int { let ch: Channel<int> = Channel::<int>::new(4:uint); let job: Task<int> = blocking { ret use(own ch); }; let r: TaskResult<int> = job.await(); return 0; }`},
+		{name: "scalar_channel_copy_on", path: "payload[0]", code: diag.SemaCrossNotShardMovable, array: false,
+			src: `async fn go(dst: Placement) -> int { let ch: Channel<int> = Channel::<int>::new(4:uint); let r: TaskResult<int> = on dst { let c2: Channel<int> = ch; ret 1; }; return 0; }`},
+		{name: "scalar_channel_reply", path: "payload[0]", code: diag.FutCrossingPayloadNotShippable, array: false,
+			src: `async fn go(dst: Placement) -> int { let r: TaskResult<Channel<int>> = on dst { let ch: Channel<int> = Channel::<int>::new(4:uint); ret ch; }; return 0; }`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			msg := requireCountedDiagnostic(t, tc.src, tc.code)
+			for _, want := range []string{"arbitrary-precision `int`", "at `" + tc.path + "`"} {
+				if !strings.Contains(msg, want) {
+					t.Fatalf("missing %q in %s", want, msg)
+				}
+			}
+			advice := strings.Contains(msg, "If fixed precision is sufficient")
+			if advice == tc.array {
+				t.Fatalf("fixed-width advice=%v for inaccessible-array=%v: %s", advice, tc.array, msg)
+			}
+		})
+	}
 }

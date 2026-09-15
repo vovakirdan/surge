@@ -13,28 +13,21 @@ import (
 
 // A blocking body gives back the reference its frame was built holding.
 //
-// The frame's lifecycle word says SPENT from the instruction after the unpack,
-// and SPENT means nothing left in the frame owns anything. The unpack that is
-// meant to make that true takes out only the captures the state literal MOVED
-// in. A reference-counted capture is not one of those: the literal RETAINED it
-// into the field, and the unpack copies the handle word out without touching the
-// count. So the reference has to become the local's, and the local has to give
-// it back — otherwise the frame is the only thing left holding it while the word
-// says the frame holds nothing, and nothing anywhere releases it.
+// The frame's lifecycle word says SPENT from the instruction after the unpack.
+// The state literal RETAINED the channel into its field; unpacking must move
+// that reference to the body's local without another retain. The local must
+// give it back at every return because the spent frame no longer owns it.
 //
 // The release is a drop obligation, registered by sema for this body in
 // registerBlockingBodyOwnership, so this row reads the drops MIR emitted for it
 // rather than a shape MIR invented.
 //
-// `Channel<T>` is the shape this row reads, and it is no longer the only one
-// that arrives. The predicate that decides the unpack mode says "does not
-// transfer" for exactly two families: a capture owning no heap, which has
-// nothing to hand on, and a reference-counted one. Both members of the
-// reference-counted pair reach an accepted program today — the HANDLE, and
-// the SCALAR (`float`), whose block the state literal's relinquishing operand
-// makes private before the job is submitted, so the worker thread's
-// non-atomic count is the frame's alone. The handle is the one here because
-// this row needs the real `Channel<T>`, for the reason below.
+// `Channel<int64>` keeps the reference-counted handle while its ring payload
+// uses a fixed-width value. A counted payload behind that handle cannot be
+// made private at the crossing; the matching refusal remains covered by
+// TestCountedBlockDiagnosticRepairsAtAllSites/blocking_capture_int in
+// internal/buildpipeline. This row still requires a retained frame reference
+// and its transfer to the local, for the reason below.
 //
 // The runtime cannot cover for the compiler here, and that is the point. The
 // worker CLAIMS the job's state cell immediately before it calls this body, so
@@ -57,7 +50,7 @@ func TestBlockingRetainedCaptureIsGivenBackAtEveryReturn(t *testing.T) {
 fn peek(s: &string) -> int { return 1; }
 
 async fn run() -> int {
-    let ch: own Channel<int> = Channel::<int>::new(1:uint);
+    let ch: own Channel<int64> = Channel::<int64>::new(1:uint);
     let note: string = "moved in, and taken back out";
     let job: Task<int> = blocking {
         ch.close();
@@ -134,8 +127,8 @@ fn main() -> int {
 		returns++
 		if !blockDropsLocal(bb, capture.local) {
 			t.Errorf("%s bb%d returns without releasing the channel capture `ch`. The state literal "+
-				"retained a reference into the frame's field, the unpack copied the handle out "+
-				"without a retain, and the frame is marked spent — so nothing on this path gives "+
+				"retained a reference into the frame's field, the unpack transferred it to the local, "+
+				"and the frame is marked spent — so nothing on this path gives "+
 				"that reference back and the channel object is never destroyed", body.Name, bi)
 		}
 	}

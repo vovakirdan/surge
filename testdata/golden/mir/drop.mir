@@ -4,11 +4,13 @@ funcs=1
 
 fn main:
   locals:
-    L0: int [copy] name=x
+    L0: int [copy,owns_heap] name=x
     L1: &int [copy,ref] name=r
   bb0:
     L0 = const 1
     L1 = addr_of L0
     end_borrow L1
+    drop L0
     L0 = const 2
+    drop L0
     return

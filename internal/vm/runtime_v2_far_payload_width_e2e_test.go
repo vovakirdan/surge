@@ -87,7 +87,33 @@ fn main() -> int {
 `
 
 func TestRuntimeV2FarPayloadWidth(t *testing.T) {
-	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2FarPayloadWidthSource, nil)
+	// Plain fields keep the sixteen-byte payload off the ownsHeap branch the
+	// original width mutant used. The counted twin still transfers both fields.
+	plain := runtimeV2FarPayloadWidthSource
+	for _, edit := range [][2]string{
+		{"type Pair = { a: int, b: int };", "type Pair = { a: int64, b: int64 };"},
+		{"return p.a + p.b;", "return (p.a + p.b) to int;"},
+	} {
+		if count := strings.Count(plain, edit[0]); count != 1 {
+			t.Fatalf("width fixture has %d occurrences of %q, want 1", count, edit[0])
+		}
+		plain = strings.Replace(plain, edit[0], edit[1], 1)
+	}
+	runRuntimeV2FarPayloadWidth(t, plain)
+	t.Run("counted", func(t *testing.T) {
+		const send = "    let s1: TaskResult<nothing> = on ch { ch.send(Pair { a: 40, b: 2 }); ret nothing; };"
+		if count := strings.Count(runtimeV2FarPayloadWidthSource, send); count != 1 {
+			t.Fatalf("counted width fixture has %d send sites, want 1", count)
+		}
+		counted := strings.Replace(runtimeV2FarPayloadWidthSource, send,
+			"    let payload: Pair = Pair { a: 40, b: 2 };\n    let s1: TaskResult<nothing> = on ch { ch.send(own payload); ret nothing; };", 1)
+		runRuntimeV2FarPayloadWidth(t, counted)
+	})
+}
+
+func runRuntimeV2FarPayloadWidth(t *testing.T, source string) {
+	t.Helper()
+	outputPath := buildRuntimeV2CrossingSource(t, source, nil)
 	baseEnv := envWithStdlib(repoRoot(t))
 
 	for _, shardCount := range []int{1, 2} {

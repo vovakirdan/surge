@@ -37,6 +37,9 @@ import (
 // runtime's registry check, and there is no run left to cut. The control here
 // is the pairing below: the same programs with the array taken OUT of the
 // container still build, still cross, and still arrive with their values.
+// Counted int now meets the earlier counted-payload barrier. The original
+// programs remain refusal witnesses; explicit int64 counterparts below isolate
+// the array barrier and preserve the executable controls without an array.
 
 // Row (xii): a view stored in a map's table, the map captured into `blocking`.
 const runtimeV2UnshareIntArrayViewInAMapSource = `
@@ -100,8 +103,8 @@ fn main() -> int {
 }
 `
 
-// The control for row (xii): the SAME crossing, the same map, the same worker
-// -- with the array's value in the table instead of the array. It prints
+// The original control for row (xii): the SAME crossing, map, and worker
+// -- with the array's value in the table instead of the array. Its int64 twin prints
 // 20002: the worker read 2 out of the table, and `base[1]` is still the 2 the
 // origin put there.
 const runtimeV2UnshareIntMapStillCrossesSource = `
@@ -131,8 +134,8 @@ fn main() -> int {
 }
 `
 
-// The control for row (xiii), by the same construction through a channel's
-// ring, and printing the same 20002.
+// The original control for row (xiii), by the same construction through a
+// channel's ring. Its int64 twin prints the same 20002.
 const runtimeV2UnshareIntChannelStillCrossesSource = `
 fn drain_ints(c: own Channel<int>) -> int {
     let mut cc: Channel<int> = own c;
@@ -159,8 +162,121 @@ fn main() -> int {
 }
 `
 
+// Explicit plain payload counterparts isolate the array-header barrier from
+// the earlier counted-leaf barrier, and keep the no-array crossings executable.
+const runtimeV2UnshareInt64ArrayViewInAMapSource = `
+fn bump_map(m: own Map<int64, int64[]>) -> int {
+    let mut mm: Map<int64, int64[]> = own m;
+    let k: int64 = 0;
+    return compare mm.remove(&k) {
+        Some(a) => { let mut zs: int64[] = own a; zs[0] = 777; ret zs[0] to int; };
+        nothing => 0 - 3;
+    };
+}
+
+async fn run() -> int {
+    let base: int64[] = [1, 2, 3, 4];
+    let v: int64[] = base[[1..3]];
+    let mut m: Map<int64, int64[]> = Map::<int64, int64[]>.new();
+    let k: int64 = 0;
+    let _ = m.insert(k, own v);
+    let job: Task<int> = blocking { ret bump_map(own m); };
+    let r: int = compare job.await() { Success(x) => x; Cancelled() => 0 - 2; };
+    print("array-unshare-ok");
+    print(((r * 10000) + (base[1] to int)) to string);
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let task = spawn run();
+    return compare task.await() { Success(code) => code; Cancelled() => 90; };
+}
+`
+
+const runtimeV2UnshareInt64ArrayViewInAChannelSource = `
+fn drain(c: own Channel<int64[]>) -> int {
+    let mut cc: Channel<int64[]> = own c;
+    return compare cc.try_recv() {
+        Some(a) => { let mut zs: int64[] = own a; zs[0] = 777; ret zs[0] to int; };
+        nothing => 0 - 3;
+    };
+}
+
+async fn run() -> int {
+    let base: int64[] = [1, 2, 3, 4];
+    let v: int64[] = base[[1..3]];
+    let ch: Channel<int64[]> = Channel::<int64[]>::new(4:uint);
+    let _ = ch.try_send(own v);
+    let job: Task<int> = blocking { ret drain(own ch); };
+    let r: int = compare job.await() { Success(x) => x; Cancelled() => 0 - 2; };
+    print("array-unshare-ok");
+    print(((r * 10000) + (base[1] to int)) to string);
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let task = spawn run();
+    return compare task.await() { Success(code) => code; Cancelled() => 90; };
+}
+`
+
+const runtimeV2UnshareInt64MapStillCrossesSource = `
+fn read_map(m: own Map<int64, int64>) -> int {
+    let mut mm: Map<int64, int64> = own m;
+    let k: int64 = 0;
+    return compare mm.remove(&k) { Some(x) => x to int; nothing => 0 - 3; };
+}
+
+async fn run() -> int {
+    let base: int64[] = [1, 2, 3, 4];
+    let v: int64[] = base[[1..3]];
+    let mut m: Map<int64, int64> = Map::<int64, int64>.new();
+    let k: int64 = 0;
+    let _ = m.insert(k, v[0]);
+    let job: Task<int> = blocking { ret read_map(own m); };
+    let r: int = compare job.await() { Success(x) => x; Cancelled() => 0 - 2; };
+    print("array-unshare-ok");
+    print(((r * 10000) + (base[1] to int)) to string);
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let task = spawn run();
+    return compare task.await() { Success(code) => code; Cancelled() => 90; };
+}
+`
+
+const runtimeV2UnshareInt64ChannelStillCrossesSource = `
+fn drain_ints(c: own Channel<int64>) -> int {
+    let mut cc: Channel<int64> = own c;
+    return compare cc.try_recv() { Some(x) => x to int; nothing => 0 - 3; };
+}
+
+async fn run() -> int {
+    let base: int64[] = [1, 2, 3, 4];
+    let v: int64[] = base[[1..3]];
+    let ch: Channel<int64> = Channel::<int64>::new(4:uint);
+    let seen: int64 = v[0];
+    let _ = ch.try_send(seen);
+    let job: Task<int> = blocking { ret drain_ints(own ch); };
+    let r: int = compare job.await() { Success(x) => x; Cancelled() => 0 - 2; };
+    print("array-unshare-ok");
+    print(((r * 10000) + (base[1] to int)) to string);
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let task = spawn run();
+    return compare task.await() { Success(code) => code; Cancelled() => 90; };
+}
+`
+
 // assertCrossingRefusedAtCompileTime requires the program to be turned away by
-// sema, with a diagnostic that says which array and why. Compiling it and
+// sema, with a diagnostic that names the inaccessible stored value. Compiling it and
 // finding no binary would say the same thing for a typo, so the message is
 // pinned along with the code.
 func assertCrossingRefusedAtCompileTime(t *testing.T, source string, wantPhrases []string) {
@@ -177,12 +293,19 @@ func assertCrossingRefusedAtCompileTime(t *testing.T, source string, wantPhrases
 		MaxDiagnostics: 200,
 	})
 	if err == nil {
-		t.Fatal("the program compiled; the container carried a view across a thread boundary")
+		t.Fatal("the program compiled; expected the container's crossing to be refused")
 	}
 	if result.Diagnose == nil || result.Diagnose.Bag == nil {
 		t.Fatalf("compile failed without diagnostics: %v", err)
 	}
+	errors, matches := 0, 0
+	var got []string
 	for _, item := range result.Diagnose.Bag.Items() {
+		if item.Severity != diag.SevError {
+			continue
+		}
+		errors++
+		got = append(got, fmt.Sprintf("%v %s", item.Code, item.Message))
 		if item.Code != diag.SemaCrossNotShardMovable {
 			continue
 		}
@@ -194,14 +317,12 @@ func assertCrossingRefusedAtCompileTime(t *testing.T, source string, wantPhrases
 			}
 		}
 		if matched {
-			return
+			matches++
 		}
 	}
-	var got []string
-	for _, item := range result.Diagnose.Bag.Items() {
-		got = append(got, fmt.Sprintf("%v %s", item.Code, item.Message))
+	if errors != 1 || matches != 1 {
+		t.Fatalf("want exactly one SEM3168 saying %v; got %d errors:\n%s", wantPhrases, errors, strings.Join(got, "\n"))
 	}
-	t.Fatalf("no SEM3168 saying %v; got:\n%s", wantPhrases, strings.Join(got, "\n"))
 }
 
 // assertCrossingStillArrives builds a control and runs it at both shard counts,
@@ -229,24 +350,47 @@ func assertCrossingStillArrives(t *testing.T, source string, wantCode int) {
 }
 
 func TestRuntimeV2UnshareOfAnIntArrayViewInAMapIsRefusedAtCompileTime(t *testing.T) {
+	t.Run("plain64_array_refused", func(t *testing.T) {
+		assertCrossingRefusedAtCompileTime(t, runtimeV2UnshareInt64ArrayViewInAMapSource, []string{
+			"`Map<int64, [int64]>` cannot be captured into `blocking`",
+			"holds a dynamic array in storage this thread keeps", "map's table",
+		})
+	})
 	assertCrossingRefusedAtCompileTime(t, runtimeV2UnshareIntArrayViewInAMapSource, []string{
-		"cannot be captured into `blocking`",
-		"holds a dynamic array in storage this thread keeps",
-		"map's table",
+		"`Map<int, [int]>` cannot be captured into `blocking`",
+		"arbitrary-precision `int` at `key`",
 	})
 }
 
 func TestRuntimeV2UnshareOfAnIntArrayViewInAChannelIsRefusedAtCompileTime(t *testing.T) {
+	t.Run("plain64_array_refused", func(t *testing.T) {
+		assertCrossingRefusedAtCompileTime(t, runtimeV2UnshareInt64ArrayViewInAChannelSource, []string{
+			"`Channel<[int64]>` cannot be captured into `blocking`",
+			"never shown that array's header",
+		})
+	})
 	assertCrossingRefusedAtCompileTime(t, runtimeV2UnshareIntArrayViewInAChannelSource, []string{
 		"`Channel<[int]>` cannot be captured into `blocking`",
-		"never shown that array's header",
+		"arbitrary-precision `int` at `payload[0].element`",
 	})
 }
 
-func TestRuntimeV2UnshareIntMapWithoutAnArrayStillCrosses(t *testing.T) {
-	assertCrossingStillArrives(t, runtimeV2UnshareIntMapStillCrossesSource, 20002)
+func TestRuntimeV2UnshareInt64MapWithoutAnArrayStillCrosses(t *testing.T) {
+	t.Run("counted_int_refused", func(t *testing.T) {
+		assertCrossingRefusedAtCompileTime(t, runtimeV2UnshareIntMapStillCrossesSource, []string{
+			"`Map<int, int>` cannot be captured into `blocking`",
+			"arbitrary-precision `int` at `key`",
+		})
+	})
+	assertCrossingStillArrives(t, runtimeV2UnshareInt64MapStillCrossesSource, 20002)
 }
 
-func TestRuntimeV2UnshareIntChannelWithoutAnArrayStillCrosses(t *testing.T) {
-	assertCrossingStillArrives(t, runtimeV2UnshareIntChannelStillCrossesSource, 20002)
+func TestRuntimeV2UnshareInt64ChannelWithoutAnArrayStillCrosses(t *testing.T) {
+	t.Run("counted_int_refused", func(t *testing.T) {
+		assertCrossingRefusedAtCompileTime(t, runtimeV2UnshareIntChannelStillCrossesSource, []string{
+			"`Channel<int>` cannot be captured into `blocking`",
+			"arbitrary-precision `int` at `payload[0]`",
+		})
+	})
+	assertCrossingStillArrives(t, runtimeV2UnshareInt64ChannelStillCrossesSource, 20002)
 }

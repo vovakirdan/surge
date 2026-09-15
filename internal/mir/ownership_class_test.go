@@ -12,7 +12,7 @@ import (
 // ownershipTestTypes is the smallest set of types that separates every
 // type-dependent row of the classification: one that owns heap and is not a
 // reference-counted scalar (string), one that owns heap and IS one (float),
-// one that owns nothing (int), plus the reference and owning-pointer forms the
+// one that owns nothing (int64), plus the reference and owning-pointer forms the
 // deref rows turn on.
 type ownershipTestTypes struct {
 	in       *types.Interner
@@ -38,7 +38,7 @@ func newOwnershipTestTypes(t *testing.T) ownershipTestTypes {
 		sema:     &sema.Result{TypeInterner: in},
 		str:      b.String,
 		flt:      b.Float,
-		plain:    b.Int,
+		plain:    b.Int64,
 		strRef:   in.Intern(types.MakeReference(b.String, false)),
 		strOwn:   in.Intern(types.MakeOwn(b.String)),
 		strArray: in.Intern(types.MakeArray(b.String, 2)),
@@ -52,8 +52,8 @@ func newOwnershipTestTypes(t *testing.T) ownershipTestTypes {
 	if !ownsHeapFor(in, ot.sema, ot.flt) || !in.IsRefCountedScalar(ot.flt) {
 		t.Fatalf("float must own heap and be a reference-counted scalar")
 	}
-	if ownsHeapFor(in, ot.sema, ot.plain) {
-		t.Fatalf("int must own no heap")
+	if ownsHeapFor(in, ot.sema, ot.plain) || in.IsRefCountedScalar(ot.plain) {
+		t.Fatalf("int64 must own no heap or reference-counted block")
 	}
 	if ownsHeapFor(in, ot.sema, ot.strRef) {
 		t.Fatalf("&string must own no heap")

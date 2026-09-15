@@ -252,6 +252,14 @@ static inline void channel_wake_only(rt_executor* ex, rt_shard* ch_shard, const 
     rt_shard_lock(ch_shard);
 }
 
+// Wake/closed-send has no new slot; keep the staged token for cancellation.
+static inline void channel_set_resume_locked(rt_task* task, uint8_t kind, rt_park_token slot) {
+    task->resume_kind = kind;
+    if (kind != RESUME_NONE && kind != RESUME_CHAN_SEND_CLOSED) {
+        task->resume_slot = slot;
+    }
+}
+
 // Caller holds the channel owner's lock and the candidate's owner hint
 // equals that shard: validate and deliver inline.
 static inline int channel_deliver_same_shard_locked(rt_executor* ex,
@@ -265,12 +273,7 @@ static inline int channel_deliver_same_shard_locked(rt_executor* ex,
     if (!channel_candidate_valid(peer, w)) {
         return 0;
     }
-    peer->resume_kind = resume_kind_value;
-    // A wake or closed-send notification carries no replacement value. Keep
-    // the sender's staged token so cancellation can retire it before teardown.
-    if (resume_kind_value != RESUME_NONE && resume_kind_value != RESUME_CHAN_SEND_CLOSED) {
-        peer->resume_slot = resume_slot;
-    }
+    channel_set_resume_locked(peer, resume_kind_value, resume_slot);
     int pushed = wake_task_on_shard_locked(
         ex, owner_shard, peer, channel_wake_force_inject_enabled(), 0, signal_ready, NULL);
     if (out_pushed != NULL) {
@@ -296,10 +299,7 @@ static inline int channel_deliver_foreign(rt_executor* ex,
         rt_shard_lock(peer_shard);
         int pushed = 0;
         if (channel_candidate_valid(peer, w)) {
-            peer->resume_kind = resume_kind_value;
-            if (resume_kind_value != RESUME_NONE && resume_kind_value != RESUME_CHAN_SEND_CLOSED) {
-                peer->resume_slot = resume_slot;
-            }
+            channel_set_resume_locked(peer, resume_kind_value, resume_slot);
             pushed = wake_task_on_shard_locked(ex, peer_shard, peer, 1, 0, 1, NULL);
             live = 1;
         }

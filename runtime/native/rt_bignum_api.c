@@ -1,7 +1,6 @@
 #include "rt_bignum_internal.h"
 
 #include <errno.h>
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -387,21 +386,6 @@ void* rt_bigfloat_from_u64(uint64_t value) {
         bignum_panic_err(err);
     }
     return (void*)f;
-}
-
-void* rt_bigfloat_from_f64(double value) {
-    if (isnan(value) || isinf(value)) {
-        return NULL;
-    }
-    char buf[64];
-    int n = snprintf(buf, sizeof(buf), "%.17g", value);
-    if (n < 0) {
-        return NULL;
-    }
-    if (n >= (int)sizeof(buf)) {
-        n = (int)sizeof(buf) - 1;
-    }
-    return rt_bigfloat_from_literal((const uint8_t*)buf, (uint64_t)n);
 }
 
 bool rt_bigint_to_i64(void* v, int64_t* out) {

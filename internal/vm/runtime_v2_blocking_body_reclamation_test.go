@@ -231,15 +231,10 @@ func TestRuntimeV2BlockingCopyCompositeCaptureIsReclaimed(t *testing.T) {
 	runBlockingReclamationProgram(t, runtimeV2BlockingCopyCompositeSource, "blocking-copy-composite-witness")
 }
 
-// The fifth shape, and the one the four rows above cannot reach: a capture that
-// is Copy AND owns heap.
-//
-// The `@copy` composite row states the reason it is not that shape -- `@copy`
-// admits only Copy members, so the copy owns no heap. The family that is both is
-// the reference-counted one, and of its two members only the HANDLE arrives
-// here: sema refuses a blocking capture carrying a reference-counted scalar,
-// because that count is not atomic and the worker is another thread. So
-// `Channel<T>` is the whole of it.
+// The fifth shape is a retained channel handle. A Copy composite may also own
+// counted fields, but the channel's ring cannot be walked to make such fields
+// private before the worker starts. The executable control therefore carries
+// int64, while the original Channel<int> source below pins that refusal.
 //
 // The state literal RETAINS such a capture into the frame's field, and the
 // body's unpack copies the handle word out without touching the count -- which
@@ -351,7 +346,19 @@ fn main() -> int {
 `
 
 func TestRuntimeV2BlockingRetainedCaptureCensusBalanced(t *testing.T) {
-	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2BlockingRetainedCaptureSource, nil)
+	t.Run("counted_payload_refused", func(t *testing.T) {
+		assertCrossingRefusedAtCompileTime(t, runtimeV2BlockingRetainedCaptureSource, []string{
+			"`own Channel<int>` cannot be captured into `blocking`",
+			"arbitrary-precision `int` at `payload[0]`",
+		})
+	})
+	for _, spelling := range []string{"Channel<int>", "Channel::<int>"} {
+		if count := strings.Count(runtimeV2BlockingRetainedCaptureSource, spelling); count != 1 {
+			t.Fatalf("retained channel fixture has %d occurrences of %q, want 1", count, spelling)
+		}
+	}
+	plain := strings.NewReplacer("Channel<int>", "Channel<int64>", "Channel::<int>", "Channel::<int64>").Replace(runtimeV2BlockingRetainedCaptureSource)
+	outputPath := buildRuntimeV2CrossingSource(t, plain, nil)
 	// Two shards, because that is the configuration in which the count this row
 	// asserts is exactly zero; see the table above. The default is the host's,
 	// and pinning a number against it would pin the host.

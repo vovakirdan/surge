@@ -92,7 +92,8 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 	}
 	if pollFn.ScopeLocal != NoLocalID {
 		joinResultLocal := addLocal(pollFn, "__scope_join_failed", typesIn.Builtins().Bool, localFlagsFor(typesIn, semaRes, typesIn.Builtins().Bool))
-		insertScopeJoins(pollFn, pollFn.ScopeLocal, joinResultLocal)
+		resultFlags := localFlagsFor(typesIn, semaRes, pollFn.Result)
+		insertScopeJoins(pollFn, pollFn.ScopeLocal, joinResultLocal, resultFlags)
 	}
 
 	sites := collectSuspendSites(pollFn)
@@ -245,10 +246,12 @@ func pcVariantName(bb BlockID) string {
 	return fmt.Sprintf("Pc%d", bb)
 }
 
-func insertScopeJoins(f *Func, scopeLocal, joinResultLocal LocalID) {
+func insertScopeJoins(f *Func, scopeLocal, joinResultLocal LocalID, resultFlags LocalFlags) {
 	if f == nil || scopeLocal == NoLocalID || joinResultLocal == NoLocalID {
 		return
 	}
+	resultNeedsDrop := resultFlags&(LocalFlagRef|LocalFlagRefMut) == 0 &&
+		(resultFlags&LocalFlagCopy == 0 || resultFlags&LocalFlagOwnsHeap != 0)
 	origBlocks := len(f.Blocks)
 	for bi := range origBlocks {
 		if f.Blocks[bi].Term.Kind != TermReturn {
@@ -297,6 +300,12 @@ func insertScopeJoins(f *Func, scopeLocal, joinResultLocal LocalID) {
 			Value:    term.Value,
 		}})
 
+		// A move has prepared the result, but plain Copy payloads own nothing.
+		// Classify the returned payload, not a projected place's base binding.
+		// Constants and retaining/copying reads remain lazy on the success leg.
+		if term.HasValue && term.Value.Kind == OperandMove && resultNeedsDrop {
+			appendInstr(f, cancelBB, Instr{Kind: InstrDrop, Drop: DropInstr{Place: term.Value.Place}})
+		}
 		setBlockTerm(f, cancelBB, Terminator{Kind: TermReturn, Return: ReturnTerm{
 			Cancelled: true,
 		}})

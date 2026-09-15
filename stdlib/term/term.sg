@@ -33,10 +33,10 @@ pub type TermKey =
     PageUp() | PageDown() | Delete() | F(uint8);
 
 pub tag Key(KeyEvent);
-pub tag Resize(int, int);
+pub tag Resize(int64, int64);
 pub tag Eof();
 @copy
-pub type TermEvent = Key(KeyEvent) | Resize(int, int) | Eof();
+pub type TermEvent = Key(KeyEvent) | Resize(int64, int64) | Eof();
 
 pub fn enter() -> nothing {
     term_enter_alt_screen();

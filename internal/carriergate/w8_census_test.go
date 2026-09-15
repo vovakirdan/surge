@@ -88,8 +88,13 @@ func verifyW8CarrierCensus(manifest *Manifest, actual []Finding) (string, error)
 	if err := verifyW8FixnumAllowance(manifest); err != nil {
 		return "", err
 	}
+	if err := verifyStep7NumericHeapGuardAllowance(manifest); err != nil {
+		return "", err
+	}
 	wantFixnum := w8FixnumFindingKey()
+	wantNumericGuard := step7NumericHeapGuardFindingKey()
 	frameOwners, wordBridges, pointerAllowed, pointerUnallowed := 0, 0, 0, 0
+	pointerPostAllowed := 0
 	for i := range actual {
 		switch actual[i].Category {
 		case categoryFrameOwner:
@@ -99,16 +104,19 @@ func verifyW8CarrierCensus(manifest *Manifest, actual []Finding) (string, error)
 		case categoryLLVMPointerWord:
 			if keyFor(&actual[i]) == wantFixnum {
 				pointerAllowed++
+			} else if keyFor(&actual[i]) == wantNumericGuard {
+				pointerPostAllowed++
 			} else {
 				pointerUnallowed++
 			}
 		}
 	}
-	report := fmt.Sprintf("%s=%d\n%s=%d\n%s allowed=%d unallowed=%d",
+	report := fmt.Sprintf("%s=%d\n%s=%d\n%s allowed=%d unallowed=%d\n%s post-baseline-allowed=%d",
 		categoryFrameOwner, frameOwners,
 		categoryLLVMWordBridge, wordBridges,
-		categoryLLVMPointerWord, pointerAllowed, pointerUnallowed)
-	if report != w8CarrierCensusWant {
+		categoryLLVMPointerWord, pointerAllowed, pointerUnallowed,
+		categoryLLVMPointerWord, pointerPostAllowed)
+	if report != w8CarrierCensusWant+"\n"+step7NumericHeapGuardCensusWant {
 		return report, fmt.Errorf("W8 carrier census changed:\n%s", report)
 	}
 	return report, nil

@@ -35,7 +35,7 @@ import (
 // The fifth row is the scalar twin of the fourth. A reference-counted
 // parameter of an `async fn` is borrowed at the call, so the task's initial
 // frame takes a reference of its own -- and until the poll body owed that
-// reference back (`paramIsRetainedIntoFrame`), a `float` handed to an
+// reference back, a `float` handed to an
 // `async fn` kept its block alive for the rest of the process. The channel
 // rides the same leg, which is why the float row is pinned beside it.
 func runChannelHandleValgrindRow(t *testing.T, source, marker string) {

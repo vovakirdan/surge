@@ -42,9 +42,17 @@ func TestRangeWithCountedBoundsCrosses(t *testing.T) {
 		unshare bool
 	}{
 		{
-			// The subject. `float` is the one counted scalar today, so a
-			// `Range<float>` is the one range whose bounds a sibling holder can
-			// share -- `a` is still live on this side when the job is submitted.
+			name: "range_of_uints_makes_counted_bounds_private",
+			src: `async fn go() -> int {
+    let r: Range<uint> = (1:uint)..(4:uint);
+    let job: Task<int> = blocking { let s: Range<uint> = r; ret 1; };
+    let x: TaskResult<int> = job.await();
+    return 0;
+}`,
+			unshare: true,
+		},
+		{
+			// A sibling float holder remains live when the job is submitted.
 			name: "range of floats captured into a blocking body, its bounds made private",
 			src: `
 async fn go() -> int {
@@ -80,12 +88,8 @@ async fn go() -> int {
 			unshare: true,
 		},
 		{
-			// `Range<int>` carries no counted block on this tree, so nothing is
-			// armed for it and it crosses as it always did. The row is here so
-			// that the day `int` becomes a counted scalar, the first row above
-			// keeps holding and this one moves rather than silently changing
-			// meaning.
-			name: "range of ints crosses with nothing to make private",
+			// Integer bounds now require the same counted relinquishment.
+			name: "range of ints makes counted bounds private",
 			src: `
 async fn go() -> int {
     let r: Range<int> = 1..4;
@@ -94,7 +98,7 @@ async fn go() -> int {
     return 0;
 }
 `,
-			unshare: false,
+			unshare: true,
 		},
 	}
 	for _, tc := range cases {

@@ -4,139 +4,149 @@ funcs=6
 
 fn inc:
   locals:
-    L0: int [copy] name=x
+    L0: int [copy,owns_heap] name=x
     L1: uint64 [copy] name=__scope
-    L2: int [copy] name=tmp_call1
-    L3: type#1515 name=__state_init
-    L4: type#1514 name=__payload_init
-    L5: type#1507 [owns_heap] name=__task
+    L2: int [copy,owns_heap] name=tmp_call1
+    L3: int [copy,owns_heap] name=tmp_retval2
+    L4: type#1515 [owns_heap] name=__state_init
+    L5: type#1514 [owns_heap] name=__payload_init
+    L6: type#1507 [owns_heap] name=__task
   bb0:
-    L4 = call Pc0(copy L0)
-    L3 = struct_lit type#1515 {__frame_state=const 1346454347, __pc=const 0, __payload=move L4}
-    L5 = call const 0(const 4, move L3)
-    return move L5
+    L5 = call Pc0(retain L0)
+    L4 = struct_lit type#1515 {__frame_state=const 1346454347, __pc=const 0, __payload=move L5}
+    L6 = call const 0(const 4, move L4)
+    return move L6
 
 fn inc$poll:
   locals:
-    L0: int [copy] name=x
+    L0: int [copy,owns_heap] name=x
     L1: uint64 [copy] name=__scope
-    L2: int [copy] name=tmp_call1
-    L3: bool [copy] name=__scope_join_failed
-    L4: type#1515 name=__state
-    L5: int [copy] name=__pc
-    L6: type#1514 name=__payload
-    L7: bool [copy] name=__pc_match
+    L2: int [copy,owns_heap] name=tmp_call1
+    L3: int [copy,owns_heap] name=tmp_retval2
+    L4: bool [copy] name=__scope_join_failed
+    L5: type#1515 [owns_heap] name=__state
+    L6: int [copy,owns_heap] name=__pc
+    L7: type#1514 [owns_heap] name=__payload
+    L8: bool [copy] name=__pc_match
   bb0:
     L2 = call __add(copy L0, const 1)
+    L3 = retain L2
+    drop L2
+    drop L0
     goto bb1
   bb1:
-    L3 = join_all copy L1 ? bb2 : bb11
+    L4 = join_all copy L1 ? bb2 : bb11
     unreachable
   bb2:
     call const 0(copy L1)
-    if copy L3 then bb4 else bb3
+    if copy L4 then bb4 else bb3
   bb3:
-    L4.__frame_state = const 1397771860
-    async_return move L4, copy L2
+    L5.__frame_state = const 1397771860
+    async_return move L5, move L3
   bb4:
-    L4.__frame_state = const 1397771860
-    async_cancel move L4
+    drop L3
+    L5.__frame_state = const 1397771860
+    async_cancel move L5
   bb5:
-    L4 = call const 0()
-    L5 = field copy L4.__pc
-    L6 = field_move copy L4.__payload
-    L4.__frame_state = const 1397771860
+    L5 = call const 0()
+    L6 = field copy L5.__pc
+    L7 = field_move copy L5.__payload
+    L5.__frame_state = const 1397771860
     goto bb10
   bb6:
     unreachable
   bb7:
-    L1 = tag_payload_move copy L6.Pc1[0]
-    L2 = tag_payload_move copy L6.Pc1[1]
+    L1 = tag_payload_move copy L7.Pc1[0]
+    L3 = tag_payload_move copy L7.Pc1[1]
     goto bb1
   bb8:
-    L7 = (copy L5 == const 1)
-    if copy L7 then bb7 else bb6
+    L8 = (copy L6 == const 1)
+    if copy L8 then bb7 else bb6
   bb9:
-    L0 = tag_payload_move copy L6.Pc0[0]
+    L0 = tag_payload_move copy L7.Pc0[0]
     L1 = call const 0(const false)
     goto bb0
   bb10:
-    L7 = (copy L5 == const 0)
-    if copy L7 then bb9 else bb8
+    L8 = (copy L6 == const 0)
+    if copy L8 then bb9 else bb8
   bb11:
-    L6 = call Pc1(copy L1, copy L2)
-    L4.__pc = const 1
-    L4.__payload = move L6
-    L4.__frame_state = const 1346454347
-    async_yield move L4
+    L7 = call Pc1(copy L1, move L3)
+    L5.__pc = const 1
+    L5.__payload = move L7
+    L5.__frame_state = const 1346454347
+    async_yield move L5
 
 fn slow:
   locals:
-    L0: int [copy] name=n
+    L0: int [copy,owns_heap] name=n
     L1: uint64 [copy] name=__scope
     L2: bool [copy] name=tmp_call1
-    L3: type#1517 name=__state_init
-    L4: type#1516 name=__payload_init
-    L5: type#1509 [owns_heap] name=__task
+    L3: bool [copy] name=tmp_retval2
+    L4: type#1517 [owns_heap] name=__state_init
+    L5: type#1516 [owns_heap] name=__payload_init
+    L6: type#1509 [owns_heap] name=__task
   bb0:
-    L4 = call Pc0(copy L0)
-    L3 = struct_lit type#1517 {__frame_state=const 1346454347, __pc=const 0, __payload=move L4}
-    L5 = call const 0(const 5, move L3)
-    return move L5
+    L5 = call Pc0(retain L0)
+    L4 = struct_lit type#1517 {__frame_state=const 1346454347, __pc=const 0, __payload=move L5}
+    L6 = call const 0(const 5, move L4)
+    return move L6
 
 fn slow$poll:
   locals:
-    L0: int [copy] name=n
+    L0: int [copy,owns_heap] name=n
     L1: uint64 [copy] name=__scope
     L2: bool [copy] name=tmp_call1
-    L3: bool [copy] name=__scope_join_failed
-    L4: type#1517 name=__state
-    L5: int [copy] name=__pc
-    L6: type#1516 name=__payload
-    L7: bool [copy] name=__pc_match
+    L3: bool [copy] name=tmp_retval2
+    L4: bool [copy] name=__scope_join_failed
+    L5: type#1517 [owns_heap] name=__state
+    L6: int [copy,owns_heap] name=__pc
+    L7: type#1516 [owns_heap] name=__payload
+    L8: bool [copy] name=__pc_match
   bb0:
     L2 = call __gt(copy L0, const 0)
+    L3 = copy L2
+    drop L0
     goto bb1
   bb1:
-    L3 = join_all copy L1 ? bb2 : bb11
+    L4 = join_all copy L1 ? bb2 : bb11
     unreachable
   bb2:
     call const 0(copy L1)
-    if copy L3 then bb4 else bb3
+    if copy L4 then bb4 else bb3
   bb3:
-    L4.__frame_state = const 1397771860
-    async_return move L4, copy L2
+    L5.__frame_state = const 1397771860
+    async_return move L5, copy L3
   bb4:
-    L4.__frame_state = const 1397771860
-    async_cancel move L4
+    L5.__frame_state = const 1397771860
+    async_cancel move L5
   bb5:
-    L4 = call const 0()
-    L5 = field copy L4.__pc
-    L6 = field_move copy L4.__payload
-    L4.__frame_state = const 1397771860
+    L5 = call const 0()
+    L6 = field copy L5.__pc
+    L7 = field_move copy L5.__payload
+    L5.__frame_state = const 1397771860
     goto bb10
   bb6:
     unreachable
   bb7:
-    L1 = tag_payload_move copy L6.Pc1[0]
-    L2 = tag_payload_move copy L6.Pc1[1]
+    L1 = tag_payload_move copy L7.Pc1[0]
+    L3 = tag_payload_move copy L7.Pc1[1]
     goto bb1
   bb8:
-    L7 = (copy L5 == const 1)
-    if copy L7 then bb7 else bb6
+    L8 = (copy L6 == const 1)
+    if copy L8 then bb7 else bb6
   bb9:
-    L0 = tag_payload_move copy L6.Pc0[0]
+    L0 = tag_payload_move copy L7.Pc0[0]
     L1 = call const 0(const false)
     goto bb0
   bb10:
-    L7 = (copy L5 == const 0)
-    if copy L7 then bb9 else bb8
+    L8 = (copy L6 == const 0)
+    if copy L8 then bb9 else bb8
   bb11:
-    L6 = call Pc1(copy L1, copy L2)
-    L4.__pc = const 1
-    L4.__payload = move L6
-    L4.__frame_state = const 1346454347
-    async_yield move L4
+    L7 = call Pc1(copy L1, copy L3)
+    L5.__pc = const 1
+    L5.__payload = move L7
+    L5.__frame_state = const 1346454347
+    async_yield move L5
 
 fn test:
   locals:
@@ -147,12 +157,12 @@ fn test:
     L4: type#1509 [owns_heap] name=b
     L5: type#1509 [owns_heap] name=tmp_call3
     L6: type#1509 [owns_heap] name=tmp_spawn4
-    L7: int [copy] name=tmp_block5
-    L8: type#1512 name=__cmp2
-    L9: type#1512 name=tmp_await6
+    L7: int [copy,owns_heap] name=tmp_block5
+    L8: type#1512 [owns_heap] name=__cmp2
+    L9: type#1512 [owns_heap] name=tmp_await6
     L10: bool [copy] name=tmp_tagtest7
-    L11: int [copy] name=x
-    L12: int [copy] name=tmp_payload8
+    L11: int [copy,owns_heap] name=x
+    L12: int [copy,owns_heap] name=tmp_payload8
     L13: bool [copy] name=tmp_block9
     L14: type#1513 name=__cmp1
     L15: type#1513 name=tmp_await10
@@ -160,17 +170,20 @@ fn test:
     L17: bool [copy] name=v
     L18: bool [copy] name=tmp_payload12
     L19: bool [copy] name=tmp_tagtest13
-    L20: bool [copy] name=tmp_tagtest14
-    L21: int [copy] name=tmp_block15
-    L22: int [copy] name=tmp_call16
-    L23: type#1519 [owns_heap] name=__state_init
-    L24: type#1518 [owns_heap] name=__payload_init
-    L25: type#1507 [owns_heap] name=__task
+    L20: int [copy,owns_heap] name=tmp_block14
+    L21: int [copy,owns_heap] name=tmp_retval15
+    L22: bool [copy] name=tmp_tagtest16
+    L23: int [copy,owns_heap] name=tmp_block17
+    L24: int [copy,owns_heap] name=tmp_call18
+    L25: int [copy,owns_heap] name=tmp_retval19
+    L26: type#1519 [owns_heap] name=__state_init
+    L27: type#1518 [owns_heap] name=__payload_init
+    L28: type#1507 [owns_heap] name=__task
   bb0:
-    L24 = call Pc0()
-    L23 = struct_lit type#1519 {__frame_state=const 1346454347, __pc=const 0, __payload=move L24}
-    L25 = call const 0(const 6, move L23)
-    return move L25
+    L27 = call Pc0()
+    L26 = struct_lit type#1519 {__frame_state=const 1346454347, __pc=const 0, __payload=move L27}
+    L28 = call const 0(const 6, move L26)
+    return move L28
 
 fn test$poll:
   locals:
@@ -181,12 +194,12 @@ fn test$poll:
     L4: type#1509 [owns_heap] name=b
     L5: type#1509 [owns_heap] name=tmp_call3
     L6: type#1509 [owns_heap] name=tmp_spawn4
-    L7: int [copy] name=tmp_block5
-    L8: type#1512 name=__cmp2
-    L9: type#1512 name=tmp_await6
+    L7: int [copy,owns_heap] name=tmp_block5
+    L8: type#1512 [owns_heap] name=__cmp2
+    L9: type#1512 [owns_heap] name=tmp_await6
     L10: bool [copy] name=tmp_tagtest7
-    L11: int [copy] name=x
-    L12: int [copy] name=tmp_payload8
+    L11: int [copy,owns_heap] name=x
+    L12: int [copy,owns_heap] name=tmp_payload8
     L13: bool [copy] name=tmp_block9
     L14: type#1513 name=__cmp1
     L15: type#1513 name=tmp_await10
@@ -194,14 +207,17 @@ fn test$poll:
     L17: bool [copy] name=v
     L18: bool [copy] name=tmp_payload12
     L19: bool [copy] name=tmp_tagtest13
-    L20: bool [copy] name=tmp_tagtest14
-    L21: int [copy] name=tmp_block15
-    L22: int [copy] name=tmp_call16
-    L23: bool [copy] name=__scope_join_failed
-    L24: type#1519 [owns_heap] name=__state
-    L25: int [copy] name=__pc
-    L26: type#1518 [owns_heap] name=__payload
-    L27: bool [copy] name=__pc_match
+    L20: int [copy,owns_heap] name=tmp_block14
+    L21: int [copy,owns_heap] name=tmp_retval15
+    L22: bool [copy] name=tmp_tagtest16
+    L23: int [copy,owns_heap] name=tmp_block17
+    L24: int [copy,owns_heap] name=tmp_call18
+    L25: int [copy,owns_heap] name=tmp_retval19
+    L26: bool [copy] name=__scope_join_failed
+    L27: type#1519 [owns_heap] name=__state
+    L28: int [copy,owns_heap] name=__pc
+    L29: type#1518 [owns_heap] name=__payload
+    L30: bool [copy] name=__pc_match
   bb0:
     L2 = call inc(const 5)
     L3 = spawn move L2
@@ -209,14 +225,15 @@ fn test$poll:
     L5 = call slow(const 1)
     L6 = spawn move L5
     L4 = move L6
-    goto bb12
+    goto bb13
   bb1:
     L12 = tag_payload_move copy L8.Success[0]
-    L11 = copy L12
-    goto bb14
+    L11 = retain L12
+    drop L12
+    goto bb15
   bb2:
-    L20 = tag_test copy L8 is Cancelled
-    if copy L20 then bb8 else bb9
+    L22 = tag_test copy L8 is Cancelled
+    if copy L22 then bb9 else bb10
   bb3:
     if copy L13 then bb7 else bb2
   bb4:
@@ -232,96 +249,106 @@ fn test$poll:
     unreachable
   bb7:
     release_box L8
-    L7 = copy L11
-    goto bb15
+    L21 = retain L11
+    L20 = move L21
+    drop L11
+    goto bb8
   bb8:
-    L21 = const 0
-    drop L4
-    goto bb10
+    L7 = move L20
+    goto bb16
   bb9:
-    L22 = call default()
-    L7 = copy L22
-    goto bb15
+    drop L8
+    L23 = const 0
+    drop L4
+    goto bb11
   bb10:
-    L7 = copy L21
-    goto bb15
+    drop L8
+    L24 = call default()
+    L25 = retain L24
+    L7 = move L25
+    drop L24
+    goto bb16
   bb11:
-    L8 = move L9
-    switch_tag copy L8 { Success -> bb1; Cancelled -> bb8; default -> bb9; }
+    L7 = move L23
+    goto bb16
   bb12:
-    L9 = poll copy L1 ? bb11 : bb29
-    unreachable
+    L8 = move L9
+    switch_tag copy L8 { Success -> bb1; Cancelled -> bb9; default -> bb10; }
   bb13:
+    L9 = poll copy L1 ? bb12 : bb30
+    unreachable
+  bb14:
     L14 = move L15
     switch_tag copy L14 { Success -> bb4; Cancelled -> bb5; default -> bb6; }
-  bb14:
-    L15 = poll copy L4 ? bb13 : bb30
-    unreachable
   bb15:
-    L23 = join_all copy L0 ? bb16 : bb31
+    L15 = poll copy L4 ? bb14 : bb31
     unreachable
   bb16:
-    call const 0(copy L0)
-    if copy L23 then bb18 else bb17
-  bb17:
-    L24.__frame_state = const 1397771860
-    async_return move L24, copy L7
-  bb18:
-    L24.__frame_state = const 1397771860
-    async_cancel move L24
-  bb19:
-    L24 = call const 0()
-    L25 = field copy L24.__pc
-    L26 = field_move copy L24.__payload
-    L24.__frame_state = const 1397771860
-    goto bb28
-  bb20:
+    L26 = join_all copy L0 ? bb17 : bb32
     unreachable
+  bb17:
+    call const 0(copy L0)
+    if copy L26 then bb19 else bb18
+  bb18:
+    L27.__frame_state = const 1397771860
+    async_return move L27, move L7
+  bb19:
+    drop L7
+    L27.__frame_state = const 1397771860
+    async_cancel move L27
+  bb20:
+    L27 = call const 0()
+    L28 = field copy L27.__pc
+    L29 = field_move copy L27.__payload
+    L27.__frame_state = const 1397771860
+    goto bb29
   bb21:
-    L0 = tag_payload_move copy L26.Pc16[0]
-    L7 = tag_payload_move copy L26.Pc16[1]
-    goto bb15
+    unreachable
   bb22:
-    L27 = (copy L25 == const 16)
-    if copy L27 then bb21 else bb20
+    L0 = tag_payload_move copy L29.Pc17[0]
+    L7 = tag_payload_move copy L29.Pc17[1]
+    goto bb16
   bb23:
-    L0 = tag_payload_move copy L26.Pc15[0]
-    L4 = tag_payload_move copy L26.Pc15[1]
-    L8 = tag_payload_move copy L26.Pc15[2]
-    L11 = tag_payload_move copy L26.Pc15[3]
-    goto bb14
+    L30 = (copy L28 == const 17)
+    if copy L30 then bb22 else bb21
   bb24:
-    L27 = (copy L25 == const 15)
-    if copy L27 then bb23 else bb22
+    L0 = tag_payload_move copy L29.Pc16[0]
+    L4 = tag_payload_move copy L29.Pc16[1]
+    L8 = tag_payload_move copy L29.Pc16[2]
+    L11 = tag_payload_move copy L29.Pc16[3]
+    goto bb15
   bb25:
-    L0 = tag_payload_move copy L26.Pc13[0]
-    L1 = tag_payload_move copy L26.Pc13[1]
-    L4 = tag_payload_move copy L26.Pc13[2]
-    goto bb12
+    L30 = (copy L28 == const 16)
+    if copy L30 then bb24 else bb23
   bb26:
-    L27 = (copy L25 == const 13)
-    if copy L27 then bb25 else bb24
+    L0 = tag_payload_move copy L29.Pc14[0]
+    L1 = tag_payload_move copy L29.Pc14[1]
+    L4 = tag_payload_move copy L29.Pc14[2]
+    goto bb13
   bb27:
+    L30 = (copy L28 == const 14)
+    if copy L30 then bb26 else bb25
+  bb28:
     L0 = call const 0(const false)
     goto bb0
-  bb28:
-    L27 = (copy L25 == const 0)
-    if copy L27 then bb27 else bb26
   bb29:
-    L26 = call Pc13(copy L0, move L1, move L4)
-    L24.__pc = const 13
-    L24.__payload = move L26
-    L24.__frame_state = const 1346454347
-    async_yield move L24
+    L30 = (copy L28 == const 0)
+    if copy L30 then bb28 else bb27
   bb30:
-    L26 = call Pc15(copy L0, move L4, move L8, copy L11)
-    L24.__pc = const 15
-    L24.__payload = move L26
-    L24.__frame_state = const 1346454347
-    async_yield move L24
+    L29 = call Pc14(copy L0, move L1, move L4)
+    L27.__pc = const 14
+    L27.__payload = move L29
+    L27.__frame_state = const 1346454347
+    async_yield move L27
   bb31:
-    L26 = call Pc16(copy L0, copy L7)
-    L24.__pc = const 16
-    L24.__payload = move L26
-    L24.__frame_state = const 1346454347
-    async_yield move L24
+    L29 = call Pc16(copy L0, move L4, move L8, move L11)
+    L27.__pc = const 16
+    L27.__payload = move L29
+    L27.__frame_state = const 1346454347
+    async_yield move L27
+  bb32:
+    L29 = call Pc17(copy L0, move L7)
+    L27.__pc = const 17
+    L27.__payload = move L29
+    L27.__frame_state = const 1346454347
+    async_yield move L27

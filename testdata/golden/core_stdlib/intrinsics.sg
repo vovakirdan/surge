@@ -37,7 +37,7 @@ pub type DirEntry = {
 @nosend
 @intrinsic
 pub type File = {
-    __opaque: int,
+    __opaque: int64,
 };
 
 pub type FsOpenFlags = uint32;
@@ -75,12 +75,12 @@ pub enum SeekWhences: SeekWhence = { Start, Current, End }
 // 6 AddrInUse, 7 InvalidAddr, 8 Io, 9 Unsupported.
 @intrinsic @nosend @shard_pinned
 pub type TcpListener = {
-    __opaque: int,
+    __opaque: int64,
 };
 
 @intrinsic @nosend @shard_pinned
 pub type TcpConn = {
-    __opaque: int,
+    __opaque: int64,
 };
 
 pub type NetError = { message: string, code: uint };
@@ -189,7 +189,7 @@ pub type HeapStats = {
 
 @intrinsic
 pub type Task<T> = {
-    __opaque: int,
+    __opaque: int64,
 };
 
 pub tag Cancelled();
@@ -202,7 +202,7 @@ pub type TaskResult<T> = Success(T) | Cancelled;
 // and `shard(id)` selects a placement by shard.
 @intrinsic @copy
 pub type Placement = {
-    __opaque: int,
+    __opaque: int64,
 };
 
 pub type ShardId = uint32;

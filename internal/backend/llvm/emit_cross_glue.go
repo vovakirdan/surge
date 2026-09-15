@@ -384,26 +384,12 @@ func (w crossCloneWalk) needsFixup(resolved types.TypeID) bool {
 // way, and a channel handle's count is atomic and runtime-owned.
 func (w crossCloneWalk) leafAt(g *glueTmp, resolved types.TypeID, baseAlign, off uint64) bool {
 	e := w.e
-	switch {
-	case e.types.IsRefCountedScalar(resolved):
-		// The one counted scalar today is WidthAny float, so the duplicate is
-		// rt_bigfloat_clone: NULL-safe (NULL is the zero float and clones to
-		// NULL), and its allocation is target-owner memory rather than a
-		// transport sidecar. When int/uint join, this arm dispatches by which
-		// counted scalar the leaf is; there is only one now.
-		fp := g.next()
-		fmt.Fprintf(&e.buf, "  %s = getelementptr inbounds i8, ptr %%dst, i64 %d\n", fp, off)
-		fv := g.next()
-		fmt.Fprintf(&e.buf, "  %s = load ptr, ptr %s, align %d\n", fv, fp, memberAccessAlign(baseAlign, off))
-		dup := g.next()
-		fmt.Fprintf(&e.buf, "  %s = call ptr @rt_bigfloat_clone(ptr %s)\n", dup, fv)
-		fmt.Fprintf(&e.buf, "  store ptr %s, ptr %s, align %d\n", dup, fp, memberAccessAlign(baseAlign, off))
+	if ops, scalar := scalarLifecycleFor(e.types, resolved); scalar {
+		e.emitGlueScalarUpdateAt(g, "%dst", baseAlign, off, ops, "clone")
 		return true
-	default:
-		// Everything else the crossing duplicates exactly as the local clone
-		// does, so it goes through the shared leaf and cannot drift from it.
-		return e.emitLeafCloneAt(g, resolved, baseAlign, off)
 	}
+	// Other leaves keep the local clone operation.
+	return e.emitLeafCloneAt(g, resolved, baseAlign, off)
 }
 
 // compositeAt recurses into the nested composite's own CROSS clone walk, not

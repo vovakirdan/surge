@@ -105,8 +105,9 @@ func operandForAsyncStateStore(f *Func, id LocalID) Operand {
 // handoff. Unlike a resumed local, a reference-counted parameter — a scalar or
 // a channel handle — is borrowed at function entry: its caller keeps the
 // original reference. The initial task frame therefore needs a RETAIN of its
-// own, which the poll body gives back at its exits (sema registers the
-// obligation through `paramIsRetainedIntoFrame`). All other heap-owning
+// own, which the poll body gives back at its exits (sema registers every
+// droppable parameter in `registerDroppableParams`, and concrete ownership
+// filtering keeps this one). All other heap-owning
 // parameters are owned at entry and transfer their existing value with MOVE.
 func operandForAsyncInitialStateStore(f *Func, id LocalID, typesIn *types.Interner) Operand {
 	op := operandForAsyncStateStore(f, id)

@@ -24,13 +24,10 @@ import (
 // make the census confound the vertical under test with that unrelated,
 // already-ledgered gap.
 //
-// Only vertical (c) carries a heap-bearing (runtime-built string field)
-// capture: an owned `string` captured directly into an anchored `on`
-// block or ferried back as a bare return payload is rejected by sema
-// (ON-CAP-N005, "this owned value is not shard-movable") unless the
-// crossing type carries `@shard_movable` — verticals (a) and (b) stay on
-// plain `int` payloads for that reason, matching the working Epic 16/17
-// e2e sources exactly, just wrapped in a counting loop. Every TaskResult /
+// Vertical (c) carries a runtime-built string field in a @shard_movable Job.
+// Verticals (a) and (b) retain counted int payloads, matching the Epic 16/17
+// e2e sources inside a counting loop: an anchored send gives its captured
+// binding away so the ring and body cannot both own it. Every TaskResult /
 // union scrutinee is consumed directly by a moving compare arm
 // (`Success(x) => x`), never bound and locally discarded (RV2-DEBT-058)
 // and never routed through an explicitly-typed intermediate `let` for a
@@ -67,16 +64,11 @@ fn describe_job(j: own Job) -> int {
 
 // --- Vertical (a): share() fan-out over a far channel (Epic 16 shape) ---
 //
-// Payloads stay plain int (Copy) deliberately: an owned string capture
-// into an anchored "on ch {...}" block is rejected by sema
-// (ON-CAP-N005, "this owned value is not shard-movable") unless wrapped in
-// an @shard_movable type -- the on-ch e2e's own comment records the same
-// gate ("the reply payload must stay plain-copy data ... until unions get
-// a by-value wire representation"). Heap-bearing capture is vertical (c)'s
-// job, through the @shard_movable Job struct.
+// The counted payload is bound outside the anchored block and handed to the
+// ring once. Vertical (c) separately exercises an owned @shard_movable capture.
 
 async fn share_round(ch: far Channel<int>, value: int) -> int {
-    let sent: TaskResult<nothing> = on ch { ch.send(value); ret nothing; };
+    let sent: TaskResult<nothing> = on ch { ch.send(own value); ret nothing; };
     return compare sent { Success(_) => 0; Cancelled() => 1; };
 }
 
@@ -115,7 +107,7 @@ async fn share_window(n: int) -> uint {
 // --- Vertical (b): remote select over far channels (Epic 17 shape) ---
 
 async fn feed(ch: far Channel<int>, value: int) -> int {
-    let sent: TaskResult<nothing> = on ch { ch.send(value); ret nothing; };
+    let sent: TaskResult<nothing> = on ch { ch.send(own value); ret nothing; };
     return compare sent { Success(_) => 0; Cancelled() => 1; };
 }
 
@@ -131,7 +123,8 @@ async fn select_window(n: int) -> uint {
     let mut k = 0;
     let mut acc = 0;
     while k < n {
-        let seeded: TaskResult<nothing> = on b { b.send(7); ret nothing; };
+        let seed: int = 7;
+        let seeded: TaskResult<nothing> = on b { b.send(own seed); ret nothing; };
         let _ = seeded;
         let first: int = compare pick(a.share(), b.share()).await() { Success(x) => x; Cancelled() => 0 - 1; };
         if first != 20 { return 999999; }

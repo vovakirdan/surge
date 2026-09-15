@@ -19,7 +19,7 @@ import (
 // ends the run.
 const runtimeV2ShareSource = `
 async fn producer(ch: far Channel<int>, value: int) -> int {
-    let sent: TaskResult<nothing> = on ch { ch.send(value); ret nothing; };
+    let sent: TaskResult<nothing> = on ch { ch.send(own value); ret nothing; };
     return compare sent { Success(_) => 0; Cancelled() => 1; };
 }
 

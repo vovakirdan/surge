@@ -4,9 +4,9 @@ funcs=5
 
 fn id::<int>:
   locals:
-    L0: int [copy] name=x
+    L0: int [copy,owns_heap] name=x
   bb0:
-    return copy L0
+    return retain L0
 
 fn id::<string>:
   locals:
@@ -16,25 +16,30 @@ fn id::<string>:
 
 fn main:
   locals:
-    L0: int [copy] name=a
-    L1: int [copy] name=tmp_call1
+    L0: int [copy,owns_heap] name=a
+    L1: int [copy,owns_heap] name=tmp_call1
     L2: string [owns_heap] name=b
     L3: string [owns_heap] name=tmp_call2
   bb0:
     L1 = call wrap::<int>(const 1)
-    L0 = copy L1
+    L0 = retain L1
+    drop L1
     L3 = call wrap::<string>(const "\"x\"")
     L2 = move L3
     drop L2
+    drop L0
     return
 
 fn wrap::<int>:
   locals:
-    L0: int [copy] name=x
-    L1: int [copy] name=tmp_call1
+    L0: int [copy,owns_heap] name=x
+    L1: int [copy,owns_heap] name=tmp_call1
+    L2: int [copy,owns_heap] name=tmp_retval2
   bb0:
     L1 = call id::<int>(copy L0)
-    return copy L1
+    L2 = retain L1
+    drop L1
+    return move L2
 
 fn wrap::<string>:
   locals:

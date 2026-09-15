@@ -2,6 +2,7 @@ package sema
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"testing"
@@ -158,24 +159,20 @@ fn f() -> int {
 	}
 }
 
-// A `@copy` value composite is the one capture shape the caller keeps: the body
-// receives a copy, the caller's binding stays live, and -- because `@copy` is
-// admitted only over Copy fields, none of which own heap -- neither side has
-// anything to drop for it. The positive half is the local beside it: the body
-// still records what it builds, so the row cannot pass by never reaching the
-// walker.
+// Fixed-width Copy fields create no obligation on either side. The local
+// string proves that the blocking body still records its own releases.
 func TestBlockingBodyCopyCompositeCaptureIsNotAnObligation(t *testing.T) {
 	earlyExit, _ := blockingObligations(t, `
 @copy
-type Pair = { a: int, b: int };
+type Pair = { a: int64, b: int64 };
 fn len_of(s: &string) -> int { return 1; }
 fn f() -> int {
 	let p: Pair = Pair{ a: 4, b: 2 };
 	let t: Task<int> = blocking {
 		let local: string = "built inside";
-		ret p.a + len_of(&local);
+		ret (p.a to int) + len_of(&local);
 	};
-	return p.a + p.b;
+	return (p.a + p.b) to int;
 }`)
 	if !hasObligation(earlyExit, "local") {
 		t.Fatalf("the blocking body's return does not release the local it built; early-exit obligations: %v", earlyExit)
@@ -186,5 +183,27 @@ fn f() -> int {
 				t.Fatalf("a @copy composite capture was recorded as a drop obligation: %v", earlyExit)
 			}
 		}
+	}
+}
+
+// A counted Copy composite is independently owned by caller and blocking body.
+func TestBlockingBodyCountedCopyCompositeCaptureHasBothObligations(t *testing.T) {
+	for _, scalar := range []string{"int", "uint"} {
+		t.Run(scalar, func(t *testing.T) {
+			earlyExit, _ := blockingObligations(t, fmt.Sprintf(`
+@copy type Pair = { a: %[1]s, b: %[1]s };
+fn len_of(s: &string) -> int { return 1; }
+fn f() -> int {
+    let p: Pair = Pair{ a: 4, b: 2 };
+    let t: Task<int> = blocking {
+        let local: string = "built inside";
+        ret (p.a to int) + len_of(&local);
+    };
+    return (p.a + p.b) to int;
+}`, scalar))
+			if len(earlyExit) != 2 || !hasObligation(earlyExit, "local", "p") || !hasObligation(earlyExit, "p") {
+				t.Fatalf("body must own [local p], caller [p], got %v", earlyExit)
+			}
+		})
 	}
 }

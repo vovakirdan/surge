@@ -4,18 +4,14 @@ module
 
 fn find_first_positive(arr: type#1508) -> int (id=1, sym=1451) {
   {
-    let mut i: int [copy] = 0
-    let __end1: int [copy] = 5
+    let mut i: int [copy] = owned_temp(0): int
+    let __end1: int [copy] = owned_temp(5): int
     while (i < __end1): bool {
       if __lt((* __index((& arr), i)), 0): bool {
-        {
-          i = (i + 1): int
-          continue
-        }
+        continue
       }
       return __index((& arr), i): &int
-      i = (i + 1): int
-    }
+    } post (i = (i + 1)): int
   }
   return 0
 }
@@ -23,15 +19,14 @@ fn find_first_positive(arr: type#1508) -> int (id=1, sym=1451) {
 fn sum_until_zero(arr: type#1508) -> int (id=2, sym=1452) {
   let mut total: int [copy] = 0
   {
-    let mut i: int [copy] = 0
-    let __end1: int [copy] = 5
+    let mut i: int [copy] = owned_temp(0): int
+    let __end1: int [copy] = owned_temp(5): int
     while (i < __end1): bool {
       if __eq((* __index((& arr), i)), 0): bool {
         break
       }
       (total = __add(total, (* __index((& arr), i)))): int
-      i = (i + 1): int
-    }
+    } post (i = (i + 1)): int
   }
   return total
 }

@@ -44,7 +44,7 @@ func (l *funcLowerer) lowerStmt(st *hir.Stmt) error {
 					Kind: InstrAssign,
 					Assign: AssignInstr{
 						Dst: Place{Local: localID},
-						Src: RValue{Kind: RValueUse, Use: op},
+						Src: RValue{Kind: RValueUse, Use: l.acquireGeneratedLoopValue(&op, data.GeneratedDrop)},
 					},
 				})
 				if err := l.registerGeneratedLoopLocal(localID, data.GeneratedDrop); err != nil {

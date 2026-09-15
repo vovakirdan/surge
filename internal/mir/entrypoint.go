@@ -183,7 +183,7 @@ func (b *surgeStartBuilder) build() error {
 	b.emitCall(retLocal, b.entryMF.Func.SymbolID, b.entryMF.Func.Name, argOperands, entryContracts)
 
 	// Convert return to exit code
-	codeLocal := b.newLocal("code", b.intType(), LocalFlagCopy)
+	codeLocal := b.newLocal("code", b.intType(), b.localFlags(b.intType()))
 
 	switch {
 	case !hasReturn:

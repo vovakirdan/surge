@@ -7,6 +7,7 @@ fn t() -> nothing (id=1, sym=1451) {
   let r: &int [&] = (& x): &int
   drop r
   (x = 2): int
+  drop x
   return
 }
 
