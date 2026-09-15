@@ -1,0 +1,64 @@
+// Valid: a clone may leave the frame once the task it names has been joined on
+// every path to that exit, because the borrow of `l` ended with the child; and a
+// clone of a task that borrows nothing carries nothing out.
+
+async fn worker(x: &int64) -> int64 {
+    return *x;
+}
+
+async fn plain(x: int64) -> int64 {
+    return x;
+}
+
+fn hand_off(t: Task<int64>) -> nothing {
+    return nothing;
+}
+
+async fn joined_then_clone_returned() -> Task<int64> {
+    let l: int64 = 5;
+    let t = spawn worker(&l);
+    let c = t.clone();
+    let _ = t.await();
+    return c;
+}
+
+fn borrow_free_clone_returned() -> Task<int64> {
+    let v: int64 = 5;
+    let t = spawn plain(v);
+    let c = t.clone();
+    hand_off(t);
+    return c;
+}
+
+async fn joined_before_ret() -> Task<int64> {
+    let l: int64 = 5;
+    let t = spawn worker(&l);
+    let c = t.clone();
+    return {
+        let _ = t.await();
+        ret c;
+    };
+}
+
+async fn drained_then_clone_returned() -> Task<int64> {
+    let l: int64 = 5;
+    let t = spawn worker(&l);
+    let c = t.clone();
+    let mut tasks: Task<int64>[] = [];
+    tasks.push(t);
+    while tasks.__len() > 0:uint {
+        let x = tasks.pop().safe();
+        let _ = x.await();
+    }
+    return c;
+}
+
+async fn middle_clone_joined() -> Task<int64> {
+    let l: int64 = 5;
+    let t = spawn worker(&l);
+    let c1 = t.clone();
+    let c2 = c1.clone();
+    hand_off(t);
+    let _ = c1.await();
+    return c2;
+}

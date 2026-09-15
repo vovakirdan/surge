@@ -1,0 +1,180 @@
+task_clone_borrow_joined_then_returned.sg (span: 5:1-65:1)
+├─ Item[0]: Fn (span: 5:1-7:2)
+│  ├─ Name: worker
+│  ├─ Params: (x: &int64)
+│  ├─ Return: int64
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 5:37-7:2)
+│        └─ Stmt[0]: Return (span: 6:5-6:15)
+│           └─ Expr: expr#2: *x
+├─ Item[1]: Fn (span: 9:1-11:2)
+│  ├─ Name: plain
+│  ├─ Params: (x: int64)
+│  ├─ Return: int64
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 9:35-11:2)
+│        └─ Stmt[0]: Return (span: 10:5-10:14)
+│           └─ Expr: expr#3: x
+├─ Item[2]: Fn (span: 13:1-15:2)
+│  ├─ Name: hand_off
+│  ├─ Params: (t: Task<int64>)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 13:40-15:2)
+│        └─ Stmt[0]: Return (span: 14:5-14:20)
+│           └─ Expr: expr#4: nothing
+├─ Item[3]: Fn (span: 17:1-23:2)
+│  ├─ Name: joined_then_clone_returned
+│  ├─ Params: ()
+│  ├─ Return: Task<int64>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 17:54-23:2)
+│        ├─ Stmt[0]: Let (span: 18:5-18:22)
+│        │  ├─ Name: l
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int64
+│        │  └─ Value: expr#5: 5
+│        ├─ Stmt[1]: Let (span: 19:5-19:30)
+│        │  ├─ Name: t
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#10: spawn worker(&l)
+│        ├─ Stmt[2]: Let (span: 20:5-20:23)
+│        │  ├─ Name: c
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#13: t.clone()
+│        ├─ Stmt[3]: Let (span: 21:5-21:23)
+│        │  ├─ Name: _
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#16: t.await()
+│        └─ Stmt[4]: Return (span: 22:5-22:14)
+│           └─ Expr: expr#17: c
+├─ Item[4]: Fn (span: 25:1-31:2)
+│  ├─ Name: borrow_free_clone_returned
+│  ├─ Params: ()
+│  ├─ Return: Task<int64>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 25:48-31:2)
+│        ├─ Stmt[0]: Let (span: 26:5-26:22)
+│        │  ├─ Name: v
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int64
+│        │  └─ Value: expr#18: 5
+│        ├─ Stmt[1]: Let (span: 27:5-27:28)
+│        │  ├─ Name: t
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#22: spawn plain(v)
+│        ├─ Stmt[2]: Let (span: 28:5-28:23)
+│        │  ├─ Name: c
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#25: t.clone()
+│        ├─ Stmt[3]: Expr (span: 29:5-29:17)
+│        │  └─ Expr: expr#28: hand_off(t)
+│        └─ Stmt[4]: Return (span: 30:5-30:14)
+│           └─ Expr: expr#29: c
+├─ Item[5]: Fn (span: 33:1-41:2)
+│  ├─ Name: joined_before_ret
+│  ├─ Params: ()
+│  ├─ Return: Task<int64>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 33:45-41:2)
+│        ├─ Stmt[0]: Let (span: 34:5-34:22)
+│        │  ├─ Name: l
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int64
+│        │  └─ Value: expr#30: 5
+│        ├─ Stmt[1]: Let (span: 35:5-35:30)
+│        │  ├─ Name: t
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#35: spawn worker(&l)
+│        ├─ Stmt[2]: Let (span: 36:5-36:23)
+│        │  ├─ Name: c
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#38: t.clone()
+│        └─ Stmt[3]: Return (span: 37:5-40:7)
+│           └─ Expr: expr#43: <ExprKind(25)>
+├─ Item[6]: Fn (span: 43:1-54:2)
+│  ├─ Name: drained_then_clone_returned
+│  ├─ Params: ()
+│  ├─ Return: Task<int64>
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 43:55-54:2)
+│        ├─ Stmt[0]: Let (span: 44:5-44:22)
+│        │  ├─ Name: l
+│        │  ├─ Mutable: false
+│        │  ├─ Type: int64
+│        │  └─ Value: expr#44: 5
+│        ├─ Stmt[1]: Let (span: 45:5-45:30)
+│        │  ├─ Name: t
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#49: spawn worker(&l)
+│        ├─ Stmt[2]: Let (span: 46:5-46:23)
+│        │  ├─ Name: c
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#52: t.clone()
+│        ├─ Stmt[3]: Let (span: 47:5-47:39)
+│        │  ├─ Name: tasks
+│        │  ├─ Mutable: true
+│        │  ├─ Type: Task<int64>[]
+│        │  └─ Value: expr#53: <ExprKind(8)>
+│        ├─ Stmt[4]: Expr (span: 48:5-48:19)
+│        │  └─ Expr: expr#57: tasks.push(t)
+│        ├─ Stmt[5]: While (span: 49:5-52:6)
+│        │  ├─ Cond: expr#63: (tasks.__len() > (0 to uint))
+│        │  └─ Body:
+Block (span: 49:34-52:6)
+│        │     ├─ Stmt[0]: Let (span: 50:9-50:36)
+│        │     │  ├─ Name: x
+│        │     │  ├─ Mutable: false
+│        │     │  ├─ Type: <inferred>
+│        │     │  └─ Value: expr#68: tasks.pop().safe()
+│        │     └─ Stmt[1]: Let (span: 51:9-51:27)
+│        │        ├─ Name: _
+│        │        ├─ Mutable: false
+│        │        ├─ Type: <inferred>
+│        │        └─ Value: expr#71: x.await()
+│        └─ Stmt[6]: Return (span: 53:5-53:14)
+│           └─ Expr: expr#72: c
+└─ Item[7]: Fn (span: 56:1-64:2)
+   ├─ Name: middle_clone_joined
+   ├─ Params: ()
+   ├─ Return: Task<int64>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 56:47-64:2)
+         ├─ Stmt[0]: Let (span: 57:5-57:22)
+         │  ├─ Name: l
+         │  ├─ Mutable: false
+         │  ├─ Type: int64
+         │  └─ Value: expr#73: 5
+         ├─ Stmt[1]: Let (span: 58:5-58:30)
+         │  ├─ Name: t
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#78: spawn worker(&l)
+         ├─ Stmt[2]: Let (span: 59:5-59:24)
+         │  ├─ Name: c1
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#81: t.clone()
+         ├─ Stmt[3]: Let (span: 60:5-60:25)
+         │  ├─ Name: c2
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#84: c1.clone()
+         ├─ Stmt[4]: Expr (span: 61:5-61:17)
+         │  └─ Expr: expr#87: hand_off(t)
+         ├─ Stmt[5]: Let (span: 62:5-62:24)
+         │  ├─ Name: _
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#90: c1.await()
+         └─ Stmt[6]: Return (span: 63:5-63:15)
+            └─ Expr: expr#91: c2

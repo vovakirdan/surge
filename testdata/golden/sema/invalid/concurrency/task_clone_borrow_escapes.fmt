@@ -1,0 +1,79 @@
+// ERROR: a clone is a second handle on ONE task, so it holds the borrows that
+// task's spawn took. Handing the original away does not end the child, and a
+// caller awaiting the returned clone would read `l` after it is freed.
+
+async fn worker(x: &int64) -> int64 {
+    return *x;
+}
+
+fn hand_off(t: Task<int64>) -> nothing {
+    return nothing;
+}
+
+fn finished(r: TaskResult<int64>) -> bool {
+    return true;
+}
+
+fn clone_after_hand_off() -> Task<int64> {
+    let l: int64 = 5;
+    let t = spawn worker(&l);
+    let c = t.clone();
+    hand_off(t);
+    return c;
+}
+
+fn clone_of_clone() -> Task<int64> {
+    let l: int64 = 5;
+    let t = spawn worker(&l);
+    let c1 = t.clone();
+    let c2 = c1.clone();
+    hand_off(t);
+    hand_off(c1);
+    return c2;
+}
+
+fn clone_through_ret_block() -> Task<int64> {
+    let l: int64 = 5;
+    let t = spawn worker(&l);
+    return {
+        let c = t.clone();
+        hand_off(t);
+        ret c;
+    };
+}
+
+async fn joined_on_one_branch_only(cond: bool) -> Task<int64> {
+    let l: int64 = 5;
+    let t = spawn worker(&l);
+    let c = t.clone();
+    if (cond) {
+        let _ = t.await();
+    } else {
+        hand_off(t);
+    }
+    return c;
+}
+
+// The `ret` inside the arm leaves before the join written after the `if`.
+async fn handed_off_in_one_ret_arm(cond: bool) -> Task<int64> {
+    let l: int64 = 5;
+    let t = spawn worker(&l);
+    let c = t.clone();
+    return {
+        if (cond) {
+            hand_off(t);
+            ret c;
+        }
+        let _ = t.await();
+        ret c;
+    };
+}
+
+// The right operand of `&&` does not run when `cond` is false.
+async fn joined_only_if_cond(cond: bool) -> Task<int64> {
+    let l: int64 = 5;
+    let t = spawn worker(&l);
+    let c = t.clone();
+    let _ = cond && finished(t.await());
+    return c;
+}

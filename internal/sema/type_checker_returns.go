@@ -251,6 +251,7 @@ func (tc *typeChecker) validateRet(span source.Span, expr ast.ExprID, actual typ
 		return
 	}
 	ctx.retSites++
+	tc.noteRetExitTaskPins(expr)
 	if expr.IsValid() && actual == types.NoTypeID && ctx.expected != types.NoTypeID {
 		if tc.applyExpectedType(expr, ctx.expected) {
 			actual = tc.result.ExprTypes[expr]
