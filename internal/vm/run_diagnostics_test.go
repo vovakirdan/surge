@@ -2,10 +2,71 @@ package vm_test
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+	"syscall"
+	"testing"
 	"time"
 )
+
+func writeRunDiagnostics(t *testing.T, artifactsDir, diagnostics string) {
+	t.Helper()
+	if artifactsDir == "" || diagnostics == "" {
+		return
+	}
+	writeArtifact(t, artifactsDir, "run.diagnostics", diagnostics)
+}
+
+func writeRunOutputArtifacts(t *testing.T, artifactsDir, stdout, stderr string, exitCode int) {
+	t.Helper()
+	if artifactsDir == "" {
+		return
+	}
+	writeArtifact(t, artifactsDir, "run.stdout", stdout)
+	writeArtifact(t, artifactsDir, "run.stderr", stderr)
+	writeArtifact(t, artifactsDir, "run.exit_code", fmt.Sprintf("%d\n", exitCode))
+}
+
+func readRunDiagnostics(artifactsDir string) string {
+	if artifactsDir == "" {
+		return ""
+	}
+	data, err := os.ReadFile(filepath.Join(artifactsDir, "run.diagnostics"))
+	if err != nil || len(data) == 0 {
+		return ""
+	}
+	return string(data)
+}
+
+func formatBinaryStat(path string) string {
+	if path == "" {
+		return "<unknown>"
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Sprintf("%s (stat error: %v)", path, err)
+	}
+	return fmt.Sprintf("%s (mode=%s size=%d modtime=%s executable=%t)",
+		path,
+		info.Mode(),
+		info.Size(),
+		info.ModTime().Format(time.RFC3339Nano),
+		info.Mode().Perm()&0o111 != 0,
+	)
+}
+
+func exitSignal(exitErr *exec.ExitError) string {
+	if exitErr == nil {
+		return ""
+	}
+	status, ok := exitErr.Sys().(syscall.WaitStatus)
+	if !ok || !status.Signaled() {
+		return ""
+	}
+	return status.Signal().String()
+}
 
 type runDiagnostics struct {
 	cmd          *exec.Cmd
