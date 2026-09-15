@@ -7,7 +7,7 @@ import "testing"
 // Valgrind exposes a missing release that VM frame shutdown can conceal.
 const runtimeV2BlockExprEndDropSource = `
 type Pair = { left: string, right: string };
-@copy type Cell = { text: string };
+@copy type Cell = { number: int };
 type Reading = { value: float, text: string };
 
 fn build(prefix: string) -> string {
@@ -62,15 +62,17 @@ fn partial_owner() -> int {
     };
     return peek(&result);
 }
+// Past the fixnum range, so each value is a counted heap integer.
+fn heap(extra: int) -> int { return 4611686018427387904 * 4 + extra; }
 fn copied_owner() -> bool {
-    let original = Cell { text = build("copy-") };
+    let original = Cell { number = heap(3) };
     let observed = {
         let mut copied = original;
-        copied.text = build("changed-");
-        ret peek(&copied.text);
+        copied.number = heap(5);
+        ret copied.number - heap(0);
     };
     // The copied owner has already left its scope when the original is read.
-    return observed == 12 && peek(&original.text) == 9;
+    return observed == 5 && original.number - heap(0) == 3;
 }
 fn fresh_float(input: float) -> float {
     let result = {
