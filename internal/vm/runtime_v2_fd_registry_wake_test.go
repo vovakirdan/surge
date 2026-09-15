@@ -280,7 +280,7 @@ func pickDistinctFDRegistryPort(t *testing.T, first int) int {
 
 const fdRegistryWakeFDInterestBody = `import stdlib/net as net;
 
-async fn accept_one(handle: int) -> int {
+async fn accept_one(handle: int64) -> int {
     let listener: TcpListener = { __opaque: handle };
     let accept_res = net.accept(&listener).await();
     compare accept_res {
@@ -299,11 +299,11 @@ async fn accept_one(handle: int) -> int {
 }
 
 async fn serve_pair(first: TcpListener, second: TcpListener, delay_ms: uint) -> int {
-    let first_handle: int = first.__opaque;
+    let first_handle: int64 = first.__opaque;
     let first_task = spawn accept_one(first_handle);
     sleep(delay_ms).await();
 
-    let second_handle: int = second.__opaque;
+    let second_handle: int64 = second.__opaque;
     let second_task = spawn accept_one(second_handle);
 
     let first_res = first_task.await();
@@ -360,7 +360,7 @@ func TestRuntimeV2FDRegistryWakeFDObservedForInterestAddedDuringPoll(t *testing.
 
 const fdRegistryCancelReadWakeFDBody = `import stdlib/net as net;
 
-async fn read_until_cancel(handle: int) -> int {
+async fn read_until_cancel(handle: int64) -> int {
     let conn: TcpConn = { __opaque: handle };
     let read_res = net.read_some(&conn, 1:uint).await();
     return compare read_res {
@@ -393,7 +393,7 @@ async fn serve(data_listener: TcpListener, gate_listener: TcpListener) -> int {
         Success(conn_res) => {
             compare conn_res {
                 Success(conn) => {
-                    let handle: int = conn.__opaque;
+                    let handle: int64 = conn.__opaque;
                     let waiter = spawn read_until_cancel(handle);
                     checkpoint().await();
                     checkpoint().await();

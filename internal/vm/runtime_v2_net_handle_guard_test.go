@@ -43,7 +43,7 @@ async fn run() -> int {
             compare conn1_res {
                 Success(conn1) => {
                     let a1_res = net.accept(&listener).await();
-                    let mut a1_handle: int = 0;
+                    let mut a1_handle: int64 = 0;
                     let mut a1_ok: bool = false;
                     compare a1_res {
                         Success(res) => {
@@ -58,7 +58,7 @@ async fn run() -> int {
                         Cancelled() => {}
                     };
                     if !a1_ok { return 31; }
-	                    let stale_handle: int = a1_handle;
+	                    let stale_handle: int64 = a1_handle;
 	                    let stale_live: TcpConn = { __opaque: stale_handle };
 	                    let close1_res = net.close_conn(own stale_live);
 	                    let close1_ok: bool = compare close1_res { Success(_) => true; _ => false; };
@@ -68,7 +68,7 @@ async fn run() -> int {
                     compare conn2_res {
                         Success(conn2) => {
                             let a2_res = net.accept(&listener).await();
-                            let mut a2_handle: int = 0;
+                            let mut a2_handle: int64 = 0;
                             let mut a2_ok: bool = false;
                             compare a2_res {
                                 Success(res) => {

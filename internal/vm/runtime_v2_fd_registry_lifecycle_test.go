@@ -27,7 +27,7 @@ fn ack() -> byte[] {
     return out;
 }
 
-async fn read_and_ack(handle: int) -> int {
+async fn read_and_ack(handle: int64) -> int {
     let read_task = read_nonempty(handle).await();
     let read_ok: bool = compare read_task { Success(flag) => flag; Cancelled() => false; };
     if !read_ok { return 1; }
@@ -44,7 +44,7 @@ async fn serve_one(listener: TcpListener, arg: uint) -> int {
         Success(conn_res) => {
             compare conn_res {
                 Success(conn) => {
-                    let handle: int = conn.__opaque;
+                    let handle: int64 = conn.__opaque;
                     let first = spawn read_and_ack(handle);
                     checkpoint().await();
                     let second = spawn read_and_ack(handle);
@@ -117,14 +117,14 @@ func TestRuntimeV2FDRegistryCancelledDuplicateReadWaiterPreservesLiveAndReregist
 }
 
 const fdRegistryCancelReadPreserveWriteBody = `
-async fn read_one(handle: int) -> int {
+async fn read_one(handle: int64) -> int {
     let read_task = read_nonempty(handle).await();
     let read_ok: bool = compare read_task { Success(flag) => flag; Cancelled() => false; };
     if !read_ok { return 1; }
     return 0;
 }
 
-async fn write_bulk(handle: int, total: uint) -> int {
+async fn write_bulk(handle: int64, total: uint) -> int {
     let payload: byte[] = Array::<byte>.with_len(total);
     let write_task = write_all_ok(handle, payload).await();
     let write_ok: bool = compare write_task { Success(flag) => flag; Cancelled() => false; };
@@ -138,7 +138,7 @@ async fn serve_one(listener: TcpListener, arg: uint) -> int {
         Success(conn_res) => {
             compare conn_res {
                 Success(conn) => {
-                    let handle: int = conn.__opaque;
+                    let handle: int64 = conn.__opaque;
                     let reader = spawn read_one(handle);
                     checkpoint().await();
                     let writer = spawn write_bulk(handle, arg);
@@ -194,7 +194,7 @@ func TestRuntimeV2FDRegistryCancelledReadInterestPreservesWriteInterest(t *testi
 }
 
 const fdRegistryCloseAcceptBody = `import stdlib/net as net;
-async fn accept_error_after_close(handle: int) -> uint {
+async fn accept_error_after_close(handle: int64) -> uint {
     let listener: TcpListener = { __opaque: handle };
     let accept_task = net.accept(&listener).await();
     return compare accept_task {
@@ -205,7 +205,7 @@ async fn accept_error_after_close(handle: int) -> uint {
 
 async fn serve_one(listener: TcpListener, arg: uint) -> int {
     let _ = arg;
-    let handle: int = listener.__opaque;
+    let handle: int64 = listener.__opaque;
     let waiter = spawn accept_error_after_close(handle);
     checkpoint().await();
     checkpoint().await();
@@ -236,7 +236,7 @@ func TestRuntimeV2FDRegistryCloseWakesParkedAcceptWaiter(t *testing.T) {
 }
 
 const fdRegistryCloseReadBody = `import stdlib/net as net;
-async fn read_error_after_close(handle: int) -> uint {
+async fn read_error_after_close(handle: int64) -> uint {
     let conn: TcpConn = { __opaque: handle };
     let read_task = net.read_some(&conn, 1:uint).await();
     return compare read_task {
@@ -252,7 +252,7 @@ async fn serve_one(listener: TcpListener, arg: uint) -> int {
         Success(conn_res) => {
             compare conn_res {
                 Success(conn) => {
-                    let handle: int = conn.__opaque;
+                    let handle: int64 = conn.__opaque;
                     let waiter = spawn read_error_after_close(handle);
                     checkpoint().await();
                     checkpoint().await();

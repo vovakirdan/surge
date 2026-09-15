@@ -107,7 +107,7 @@ func requireFDRegistryExitTrace(t *testing.T, stderr string, minDirectWaits, min
 // copied conn handle, mirroring the stdlib net wrapper result shapes.
 const fdRegistryPrelude = `import stdlib/net as net;
 
-async fn read_nonempty(handle: int) -> bool {
+async fn read_nonempty(handle: int64) -> bool {
     let conn: TcpConn = { __opaque: handle };
     let read_res = net.read_some(&conn, 16:uint).await();
     return compare read_res {
@@ -116,7 +116,7 @@ async fn read_nonempty(handle: int) -> bool {
     };
 }
 
-async fn write_all_ok(handle: int, data: byte[]) -> bool {
+async fn write_all_ok(handle: int64, data: byte[]) -> bool {
     let conn: TcpConn = { __opaque: handle };
     let write_res = net.write_all(&conn, data).await();
     return compare write_res {
@@ -165,7 +165,7 @@ async fn serve_one(listener: TcpListener, arg: uint) -> int {
         Success(conn_res) => {
             compare conn_res {
                 Success(conn) => {
-                    let handle: int = conn.__opaque;
+                    let handle: int64 = conn.__opaque;
                     let mut seen: uint = 0:uint;
                     while seen < arg {
                         let read_task = read_nonempty(handle).await();
@@ -236,14 +236,14 @@ func TestRuntimeV2FDRegistryRepeatedReadinessSingleFD(t *testing.T) {
 // fdRegistryReadWriteBody parks a reader task (read interest) and a bulk
 // writer task (write interest, arg payload bytes) on the same accepted fd.
 const fdRegistryReadWriteBody = `
-async fn read_one(handle: int) -> int {
+async fn read_one(handle: int64) -> int {
     let read_task = read_nonempty(handle).await();
     let read_ok: bool = compare read_task { Success(flag) => flag; Cancelled() => false; };
     if !read_ok { return 1; }
     return 0;
 }
 
-async fn write_bulk(handle: int, total: uint) -> int {
+async fn write_bulk(handle: int64, total: uint) -> int {
     let payload: byte[] = Array::<byte>.with_len(total);
     let write_task = write_all_ok(handle, payload).await();
     let write_ok: bool = compare write_task { Success(flag) => flag; Cancelled() => false; };
@@ -257,7 +257,7 @@ async fn serve_one(listener: TcpListener, arg: uint) -> int {
         Success(conn_res) => {
             compare conn_res {
                 Success(conn) => {
-                    let handle: int = conn.__opaque;
+                    let handle: int64 = conn.__opaque;
                     let reader = spawn read_one(handle);
                     checkpoint().await();
                     let writer = spawn write_bulk(handle, arg);
@@ -329,7 +329,7 @@ fn ack() -> byte[] {
     return out;
 }
 
-async fn read_and_ack(handle: int) -> int {
+async fn read_and_ack(handle: int64) -> int {
     let read_task = read_nonempty(handle).await();
     let read_ok: bool = compare read_task { Success(flag) => flag; Cancelled() => false; };
     if !read_ok { return 1; }
@@ -346,7 +346,7 @@ async fn serve_one(listener: TcpListener, arg: uint) -> int {
         Success(conn_res) => {
             compare conn_res {
                 Success(conn) => {
-                    let handle: int = conn.__opaque;
+                    let handle: int64 = conn.__opaque;
                     let first = spawn read_and_ack(handle);
                     let second = spawn read_and_ack(handle);
                     let first_res = first.await();
