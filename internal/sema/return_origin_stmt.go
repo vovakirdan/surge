@@ -87,9 +87,13 @@ func (b *returnOriginBody) stmt(id ast.StmtID, env returnOriginEnv, targets retu
 		key := returnOriginExit{kind: returnOriginFunctionReturn, target: b.function.scope, site: node.Span}
 		if node.Kind == ast.StmtRet {
 			value = u.Builder.Stmts.Ret(id).Expr
-			key.kind, key.target = returnOriginBlockResult, targets.block
 		} else {
 			value = u.Builder.Stmts.Return(id).Expr
+		}
+		// A parser-synthesized arm tail is its block's value, exactly as sema and HIR read it.
+		function := node.Kind == ast.StmtReturn && (!targets.block.IsValid() || explicitReturnStmt(u.Builder, id))
+		if !function {
+			key.kind, key.target = returnOriginBlockResult, targets.block
 		}
 		if !key.target.IsValid() {
 			return returnOriginFlow{}, fmt.Errorf("return origins: return at %v has no target", node.Span)
@@ -102,12 +106,12 @@ func (b *returnOriginBody) stmt(id ast.StmtID, env returnOriginEnv, targets retu
 				return returnOriginFlow{}, err
 			}
 		}
-		if node.Kind == ast.StmtReturn && out.flow.normal.reachable &&
+		if function && out.flow.normal.reachable &&
 			(len(out.value.callables) != 0 || returnOriginFnInfo(u.Sema.TypeInterner, b.function.info.Result) != nil) {
 			b.pending(node.Span, "callable return conversion needs its destination and capture contract")
 			out.value = out.value.join(returnOriginValueOf(returnOrigin{kind: returnOriginUnknown}))
 		}
-		if node.Kind == ast.StmtReturn && b.canLoadScalarReturn(value, out.value, out.flow.normal, targets.scope) {
+		if function && b.canLoadScalarReturn(value, out.value, out.flow.normal, targets.scope) {
 			out.value = returnOriginValueOf()
 		}
 		return out.flow.end(key, out.value), nil

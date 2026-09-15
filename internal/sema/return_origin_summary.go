@@ -54,17 +54,21 @@ func (a *returnOriginAnalyzer) solveBodies() error {
 	}
 	for _, fn := range a.functions {
 		body := &returnOriginBody{analyzer: a, function: fn}
-		if _, err := body.analyze(); err != nil {
+		result, err := body.analyze()
+		if err != nil {
 			return err
 		}
 		value := a.summaries[fn.key].value
+		refused := returnOriginRefusedResult(result)
 		summary := ReturnOriginSummary{BodyKey: fn.key, Name: fn.name, Source: fn.item.NameSpan, NoNormalReturn: !value.normal}
 		for _, root := range value.roots {
 			if root.kind == returnOriginParam {
 				summary.ParamSlots = append(summary.ParamSlots, root.param)
 			} else {
 				summary.Unknown = true
-				body.pending(fn.item.ReturnSpan, "function result contains an unproved source")
+				if !refused {
+					body.pending(fn.item.ReturnSpan, "function result contains an unproved source")
+				}
 			}
 		}
 		// V(i) and R(i) are two private facts about one public input slot.

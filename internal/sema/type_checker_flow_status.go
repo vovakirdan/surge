@@ -138,21 +138,29 @@ func (tc *typeChecker) flowStatus(stmtID ast.StmtID, mode flowStatusMode) return
 }
 
 func (tc *typeChecker) isExplicitReturnStmt(stmtID ast.StmtID) bool {
-	if !stmtID.IsValid() || tc.builder == nil {
+	return explicitReturnStmt(tc.builder, stmtID)
+}
+
+// explicitReturnStmt separates a written `return` from the tail the parser
+// writes into a compare/select arm block: a written return starts at its
+// keyword, before its value; a synthetic one reuses its value's span, or is
+// zero-width when the block had no value.
+func explicitReturnStmt(builder *ast.Builder, stmtID ast.StmtID) bool {
+	if !stmtID.IsValid() || builder == nil {
 		return false
 	}
-	stmt := tc.builder.Stmts.Get(stmtID)
+	stmt := builder.Stmts.Get(stmtID)
 	if stmt == nil || stmt.Kind != ast.StmtReturn {
 		return false
 	}
-	ret := tc.builder.Stmts.Return(stmtID)
+	ret := builder.Stmts.Return(stmtID)
 	if ret == nil {
 		return false
 	}
 	if !ret.Expr.IsValid() {
 		return !stmt.Span.Empty()
 	}
-	retExpr := tc.builder.Exprs.Get(ret.Expr)
+	retExpr := builder.Exprs.Get(ret.Expr)
 	if retExpr == nil {
 		return true
 	}

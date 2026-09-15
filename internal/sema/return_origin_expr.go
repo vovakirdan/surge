@@ -214,7 +214,7 @@ func (b *returnOriginBody) binary(id ast.ExprID, env returnOriginEnv, targets re
 			} else if next, stored := b.indexStore(data.Left, left.storage, right.value, data.Right, right.flow.normal, u.Builder.Exprs.Get(id).Span); stored {
 				right.flow.normal = next
 			} else {
-				right.flow.normal = b.taintExternalCellEffects(right.flow.normal, u.Builder.Exprs.Get(id).Span, "store through a place needs reference-content transfer")
+				right.flow.normal, right.value = b.placeStore(data.Left, data.Right, right.value, right.flow.normal, u.Builder.Exprs.Get(id).Span)
 			}
 		} else if sym := u.Symbols.Table.Symbols.Get(symID); sym != nil {
 			annotation := ast.NoTypeID
@@ -252,7 +252,19 @@ func (b *returnOriginBody) blockExpr(id ast.ExprID, env returnOriginEnv, targets
 	}
 	targets.scope, targets.block = scope, scope
 	data, _ := u.Builder.Exprs.Block(id)
-	flow, err := b.sequence(data.Stmts, env, targets)
+	stmts, tail := data.Stmts, b.legacyExprTail(id, data.Stmts)
+	if tail.IsValid() {
+		stmts = stmts[:len(stmts)-1]
+	}
+	flow, err := b.sequence(stmts, env, targets)
+	if err == nil && tail.IsValid() {
+		// The legacy tail leaves the block like `ret`, so its value is checked where it exits.
+		flow, err = flow.then(func(next returnOriginEnv) (returnOriginFlow, error) {
+			out, tailErr := b.expr(u.Builder.Stmts.Expr(tail).Expr, next, targets)
+			key := returnOriginExit{kind: returnOriginBlockResult, target: scope, site: u.Builder.Stmts.Get(tail).Span}
+			return out.flow.end(key, out.value), tailErr
+		})
+	}
 	if err != nil {
 		return returnOriginExprResult{}, err
 	}
