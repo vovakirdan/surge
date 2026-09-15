@@ -80,6 +80,16 @@ func (b *returnOriginBody) expr(id ast.ExprID, env returnOriginEnv, targets retu
 		return b.constructor(id, env, targets)
 	case ast.ExprMember:
 		data, _ := u.Builder.Exprs.Member(id)
+		// A module-qualified free function is a function value, not a projection:
+		// its target is syntax naming a module and has no runtime value to read.
+		if target := u.Symbols.Table.Symbols.Get(u.Symbols.ExprSymbols[data.Target]); target != nil && target.Kind == symbols.SymbolModule {
+			selected := u.Symbols.Table.Symbols.Get(u.Symbols.ExprSymbols[id])
+			if selected != nil && selected.Kind == symbols.SymbolFunction && selected.Signature != nil && !selected.Signature.HasSelf &&
+				selected.ReceiverKey == "" && selected.Flags&symbols.SymbolFlagMethod == 0 && selected.Type == u.Sema.ExprTypes[id] {
+				return b.callableIdent(id, env), nil
+			}
+			return b.unknownExpr(env, node.Span, "module member value needs its selected free-function authority"), nil
+		}
 		out, err := b.expr(data.Target, env, targets)
 		if err != nil || !out.flow.normal.reachable {
 			return out, err
