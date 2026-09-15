@@ -75,13 +75,14 @@ func TestAnalyzeSelectedOperatorOrigins(t *testing.T) {
 	} {
 		t.Run(tc.function, func(t *testing.T) {
 			start := strings.Index(selectedOperatorSource, tc.site)
-			found := false
+			found, other := false, false
 			for _, pending := range local {
-				found = found || pending.SourceKey == f.unit.SourceKey && pending.Reason == tc.reason &&
-					int(pending.Span.Start) == start && int(pending.Span.End) == start+len(tc.site)
+				at := pending.SourceKey == f.unit.SourceKey && int(pending.Span.Start) == start && int(pending.Span.End) == start+len(tc.site)
+				found = found || at && pending.Reason == tc.reason
+				other = other || at && pending.Reason != tc.reason // a certified operation raises no loan-discard refusal
 			}
-			if found != tc.stays {
-				t.Errorf("%q refusal present=%v, want %v: %+v", tc.site, found, tc.stays, local)
+			if found != tc.stays || other {
+				t.Errorf("%q refusal present=%v, other reason present=%v, want %v and false: %+v", tc.site, found, other, tc.stays, local)
 			}
 			if !tc.stays && tc.function != "same_item" {
 				if s := requireReturnOriginSummary(t, analysis, tc.function); s.NoNormalReturn || s.Unknown || len(s.ParamSlots) != 0 {
