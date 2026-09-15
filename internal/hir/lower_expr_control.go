@@ -265,7 +265,11 @@ func (l *lowerer) lowerBlockExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Typ
 		}
 	}
 	l.rewriteLegacyBlockTailRet(block, ty)
-	l.appendBlockExprEndDrops(block, exprID, expr.Span)
+	sourceTail := ast.NoStmtID
+	if n := len(blockData.Stmts); n != 0 {
+		sourceTail = blockData.Stmts[n-1]
+	}
+	l.appendBlockExprEndDrops(block, exprID, sourceTail, expr.Span)
 
 	return &Expr{
 		Kind: ExprBlock,
