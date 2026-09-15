@@ -582,32 +582,31 @@ void rt_async_return_cancelled(void* state, uint64_t state_type_id);
 
 void* rt_channel_new(uint64_t capacity, const rt_value_ops* ops, uint64_t element_type_id);
 const rt_value_ops* rt_channel_opaque_word_ops(void);
+// Async send/recv callers keep the channel live across Pending and repolls,
+// through Ready or the cancelled rt_async_yield boundary. Compiled code keeps
+// that hold in its suspension frame or a structurally held owning activation.
 bool rt_channel_send(void* channel, void* src);
 bool rt_channel_send_yield(void* channel, void* src);
+// Requires a live typed channel and writable disposable storage of its element
+// type. Every normal return transfers or drops one offered reference; the bool
+// means Ready/Pending only. No source address survives the call.
+bool rt_channel_send_offer(void* channel, void* src);
+bool rt_channel_send_yield_offer(void* channel, void* src);
 uint8_t rt_channel_recv(void* channel, void* dst);
 void rt_channel_send_blocking(void* channel, void* src);
 uint8_t rt_channel_recv_blocking(void* channel, void* dst);
 bool rt_channel_try_send(void* channel, void* src);
 bool rt_channel_try_recv(void* channel, void* dst);
 void rt_channel_close(void* channel);
-// One more copy of a channel handle exists, and one fewer. `Channel<T>` is a
-// copyable handle at the language surface, so copying one retains, dropping a
-// copy releases, and the last release destroys the object -- which drops every
-// payload the channel still owns, because a channel is not a place values go
-// to be forgotten. NULL is a no-op at both entries: a container slot the
-// handle was moved out of holds NULL and the container's glue still visits it.
+// Handle copies retain; drops release. The last release destroys all remaining
+// payloads. NULL is a no-op for moved-from container slots.
 void rt_channel_handle_retain(void* channel);
 void rt_channel_handle_drop(void* channel);
-// Reclaims a channel object's memory (header + inline buffer, one allocation),
-// destroying everything it still holds first: the buffered values and whatever
-// a park slot was left holding, each exactly once through the element's own
-// drop.
+// Reclaims the header and inline buffer, dropping buffered and parked payloads
+// exactly once through their element descriptor.
 //
-// Callers must already know no other holder can reach this channel — never
-// call this on a channel another live handle, waiter, subscription or
-// in-flight operation can still resolve. It does not take that on trust: it
-// refuses, naming what it found, and the ordinary way to reach it is to drop
-// the last handle rather than to call it.
+// Requires no live handle, waiter, subscription or in-flight operation; refuses
+// and names any remaining holder. Normally reached by dropping the last handle.
 //
 // Takes the channel owner's shard lock for the detaching half of its teardown,
 // so it must be called with NO scheduler lock held. Callers that cannot

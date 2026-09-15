@@ -85,14 +85,32 @@ func TestFrameReleaseReadsTheFrameNotTheCallSite(t *testing.T) {
 	}
 }
 
-func buildFrameReleaseStand(t *testing.T) string {
+type frameReleaseStandBuild struct {
+	bin      string
+	fixtures []string
+	flags    []string
+}
+
+func buildFrameReleaseStand(t *testing.T, builds ...frameReleaseStandBuild) string {
 	t.Helper()
 	clang, err := exec.LookPath("clang")
 	if err != nil {
 		t.Skip("clang not installed; skipping the frame-release proof")
 	}
 	root := repoRoot(t)
-	bin := filepath.Join(t.TempDir(), "frame-release")
+	build := frameReleaseStandBuild{
+		bin:      filepath.Join(t.TempDir(), "frame-release"),
+		fixtures: []string{"frame_release_cases.c"},
+	}
+	if len(builds) > 1 {
+		t.Fatal("frame-release stand accepts one build description")
+	}
+	if len(builds) == 1 {
+		build = builds[0]
+		if build.bin == "" || len(build.fixtures) == 0 {
+			t.Fatal("frame-release stand requires a binary path and fixtures")
+		}
+	}
 	sources, err := filepath.Glob(filepath.Join(root, "runtime", "native", "*.c"))
 	if err != nil {
 		t.Fatalf("glob runtime sources: %v", err)
@@ -101,8 +119,11 @@ func buildFrameReleaseStand(t *testing.T) string {
 	args := []string{
 		"-std=c11", "-Wall", "-Wextra", "-Werror", "-pthread",
 		"-I" + filepath.Join(root, "runtime", "native"),
-		"-o", bin,
-		filepath.Join(root, "internal", "vm", "testdata", "frame_release_cases.c"),
+		"-o", build.bin,
+	}
+	args = append(args, build.flags...)
+	for _, fixture := range build.fixtures {
+		args = append(args, filepath.Join(root, "internal", "vm", "testdata", fixture))
 	}
 	for _, source := range sources {
 		if filepath.Base(source) != "rt_entry.c" {
@@ -116,5 +137,5 @@ func buildFrameReleaseStand(t *testing.T) string {
 		t.Fatalf("build frame-release stand failed (code=%d)\nstdout:\n%s\nstderr:\n%s",
 			code, stdout, stderr)
 	}
-	return bin
+	return build.bin
 }

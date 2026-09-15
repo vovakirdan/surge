@@ -20,7 +20,22 @@ static int prepare_channel_send_yield(rt_task* task) {
     return 1;
 }
 
-static bool rt_channel_send_inner(void* channel, void* src, int yield_after_handoff) {
+// A successful stage consumed this call's source even if a later iteration
+// recovers from a dead receiver. Never reset this fact on an internal retry.
+static int channel_send_stage_locked(rt_executor* ex,
+                                     rt_shard* shard,
+                                     rt_channel* ch,
+                                     void* src,
+                                     rt_park_token* staged,
+                                     bool* took) {
+    if (!rt_channel_stage_locked(ex, shard, ch, src, staged)) {
+        return 0;
+    }
+    *took = true;
+    return 1;
+}
+
+static bool rt_channel_send_inner(void* channel, void* src, int yield_after_handoff, bool* took) {
     rt_executor* ex = ensure_exec();
     rt_channel* ch = channel_from_handle(channel);
     if (ex == NULL || ch == NULL) {
@@ -110,7 +125,7 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
 #ifndef RV2_CLAIM_OPEN_AFTER_STAGE_NEGATIVE_CONTROL
             (void)channel_recv_claim_open_locked(ch, &cand);
 #endif
-            if (!staged_live && !rt_channel_stage_locked(ex, ch_shard, ch, src, &staged)) {
+            if (!staged_live && !channel_send_stage_locked(ex, ch_shard, ch, src, &staged, took)) {
                 // No slot to stage into. The candidate has already been POPPED,
                 // so dropping it here would strand a receiver that is still
                 // parked -- which showed up as a violated FIFO order rather
@@ -261,6 +276,7 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
             if (reserved == RT_SLOT_CONTROL_OK) {
                 rt_shard_unlock(ch_shard);
                 rt_value_move_init_detached(ch->ops, ticket.address, src);
+                *took = true;
                 rt_shard_lock(ch_shard);
                 if (rt_typed_fifo_commit_push_locked(&ch->ring, &ticket) != RT_SLOT_CONTROL_OK) {
                     rt_shard_unlock(ch_shard);
@@ -290,7 +306,7 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
         // nothing was registered to wake.
         if (!staged_live) {
             staged = (rt_park_token){0};
-            if (rt_channel_stage_locked(ex, ch_shard, ch, src, &staged)) {
+            if (channel_send_stage_locked(ex, ch_shard, ch, src, &staged, took)) {
                 // Staging released the lock across the move, and a receiver
                 // may have parked inside that window -- it would have found no
                 // value and no registration from us, because ours comes after.
@@ -329,17 +345,33 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
 // per window would have to be paired down each of the loop's dozen early
 // returns, and the first one missed is either a channel that leaks forever or
 // exactly the free this is here to stop.
-static bool channel_send_pinned(void* channel, void* src, int yield_after_handoff) {
+static bool channel_send_pinned(void* channel, void* src, int yield_after_handoff, bool offer) {
     rt_channel_pin(channel);
-    bool done = rt_channel_send_inner(channel, src, yield_after_handoff);
+    bool took = false;
+    bool done = rt_channel_send_inner(channel, src, yield_after_handoff, &took);
+    if (offer && !took) {
+        // The offer API requires a live typed channel. All normal returns from
+        // inner released their locks; the pin keeps its descriptor alive even
+        // when this callback releases the last handle or clears the source.
+        const rt_channel* ch = channel_from_handle(channel);
+        rt_value_drop_in_place_detached(ch->ops, src);
+    }
     rt_channel_unpin(channel);
     return done;
 }
 
 bool rt_channel_send(void* channel, void* src) {
-    return channel_send_pinned(channel, src, 0);
+    return channel_send_pinned(channel, src, 0, false);
 }
 
 bool rt_channel_send_yield(void* channel, void* src) {
-    return channel_send_pinned(channel, src, 1);
+    return channel_send_pinned(channel, src, 1, false);
+}
+
+bool rt_channel_send_offer(void* channel, void* src) {
+    return channel_send_pinned(channel, src, 0, true);
+}
+
+bool rt_channel_send_yield_offer(void* channel, void* src) {
+    return channel_send_pinned(channel, src, 1, true);
 }

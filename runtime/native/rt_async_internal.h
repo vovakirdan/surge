@@ -837,11 +837,9 @@ void task_release(rt_executor* ex, rt_task* task);
 void task_release_lane_aware(rt_executor* ex, rt_task* task);
 
 void* rt_channel_new(uint64_t capacity, const rt_value_ops* ops, uint64_t element_type_id);
-// Turns an element TYPE ID back into its descriptor. The far create path is
-// the caller this exists for: a payload type crosses the boundary as a number.
+// Resolves the element type ID carried by far create to its descriptor.
 const rt_value_ops* rt_channel_element_ops_for(uint64_t element_type_id);
-// The descriptor for a channel of opaque machine words: what a far channel
-// holds today, and what a C stand uses when no compiled code supplies one.
+// Opaque-word descriptor for far channels and stands without compiled glue.
 const rt_value_ops* rt_channel_opaque_word_ops(void);
 bool rt_channel_send(void* channel, void* src);
 bool rt_channel_send_yield(void* channel, void* src);
@@ -852,6 +850,8 @@ void rt_channel_close(void* channel);
 void rt_channel_free(void* channel);
 void rt_channel_free_when_unlocked(void* channel);
 void rt_channel_reclaim_drain(void);
+// Current cancelled poll, no locks held; its owning activation is still live.
+void rt_channel_cancel_resume(rt_task* task, rt_executor* ex);
 // Frees the tasks whose reclamation had to wait for this lane to hold no
 // scheduler lock, because freeing one destroys its result.
 void rt_task_reclaim_drain(void);

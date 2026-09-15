@@ -57,5 +57,6 @@ void run_handoff_direct_first_mode(int second_direct);
 void run_register_verify_mode(const char* action);
 void run_recv_mode(void);
 void run_close_mode(void);
+void run_send_offer_mode(const char* mode);
 
 #endif // SURGE_INTERNAL_VM_TESTDATA_CHANNEL_CLAIM_RETRY_STAND_H

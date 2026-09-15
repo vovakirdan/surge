@@ -312,6 +312,9 @@ static uint8_t rt_channel_recv_inner(void* channel, void* dst) {
                             ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
                         continue;
                     }
+                    // The detached move can cancel and await the sender. Keep
+                    // its mailbox alive until our final ack/wake below.
+                    task_add_ref(sender);
                     if (!channel_stage_into_ring_locked(ex, ch_shard, ch, &sender_slot, NULL)) {
                         // The buffer refused: its single transfer is in
                         // flight, or a receiver is taking this very value.
@@ -322,6 +325,7 @@ static uint8_t rt_channel_recv_inner(void* channel, void* dst) {
                         // forgotten it, which is exactly how this was found.
                         (void)wake_task_on_shard_locked(
                             ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
+                        task_release_lane_aware(ex, sender);
                         break;
                     }
                     sender->resume_kind = RESUME_CHAN_SEND_ACK;
@@ -331,6 +335,7 @@ static uint8_t rt_channel_recv_inner(void* channel, void* dst) {
                     // while RUNNING, so no compat fallback is needed.
                     (void)wake_task_on_shard_locked(
                         ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
+                    task_release_lane_aware(ex, sender);
                     channel_end_park_locked(ex, ch_shard, ch, &sender_slot);
                     break;
                 }
@@ -369,6 +374,9 @@ static uint8_t rt_channel_recv_inner(void* channel, void* dst) {
                     rt_shard_unlock(ch_shard);
                     continue;
                 }
+                // Claim admission is owner-locked; this ref spans the unlocked
+                // callback, which may cancel and consume the sender's handle.
+                task_add_ref(sender);
                 sender->resume_kind = RESUME_CHAN_SEND_ACK;
                 sender->resume_slot = (rt_park_token){0};
                 rt_shard_unlock(ch_shard);
@@ -383,6 +391,7 @@ static uint8_t rt_channel_recv_inner(void* channel, void* dst) {
                 rt_channel_claim_released_locked(ex, ch_shard, ch);
                 int pushed = wake_task_on_shard_locked(
                     ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
+                task_release_lane_aware(ex, sender);
                 channel_end_park_locked(ex, ch_shard, ch, &sender_slot);
                 rt_shard_unlock(ch_shard);
                 channel_compat_broadcast_if_needed(ex, pushed);

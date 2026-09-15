@@ -520,6 +520,9 @@ runtime-v2-heap-check:
 	SURGE_GATE_NAME=runtime-v2-heap-check SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 bash scripts/runtime_v2_carrier_sanitizer_check.sh run --expect TestRuntimeV2ChannelHandleRefcountValgrindZero,TestRuntimeV2BiguintSubValgrindZero -- $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2(ChannelHandleRefcountValgrindZero|BiguintSubValgrindZero)$$' -count=1 -parallel=1 -p=1 -v --timeout 600s
 	@echo ">> Running Runtime V2 channel payload reclamation gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2SelectReleasesA(String|Composite)PayloadExactlyOnce$$|^TestRuntimeV2ChannelSendOfACountedCopy(KeepsEveryOwnerHonest|ValgrindZero)$$' -count=1 -parallel=1 -p=1 -v --timeout 600s
+	SURGE_BACKEND=vm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2ChannelSendOfferPreservesOriginal$$' -count=1 -parallel=1 -p=1 -v --timeout 600s
+	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2ChannelSendOffer(PreservesOriginal|ValgrindZero)$$' -count=1 -parallel=1 -p=1 -v --timeout 1200s
+	SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test -tags runtime_v2_pending ./internal/vm -run '^TestRuntimeV2ChannelSendOffer(TakeOrDrop|OldAPINegativeControl|RepeatedParkedCancellation)$$' -count=1 -parallel=1 -p=1 -v --timeout 600s
 	@echo ">> Running Runtime V2 array-view reclamation gate"
 	SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 $(GO) test ./internal/vm -run '^TestRuntimeV2ArrayViewHeaderReclaimedPerSlice$$' -count=1 -parallel=1 -p=1 -v --timeout 300s
 	@echo ">> Running Runtime V2 fixnum inline-int gate"

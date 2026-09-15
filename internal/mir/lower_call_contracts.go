@@ -165,8 +165,8 @@ func (l *funcLowerer) applyChannelSendContracts(name string, args []Operand, con
 //
 // It reaches the NAMED runtime calls only. Two channel sends return from
 // lowerCallExpr before this point and had the same defect on their own paths
-// until 2026-09-07: the suspending send of an async body takes its reference
-// in the prelude (storedChannelSendValue), and a local select's SEND arm
+// until 2026-09-07: the suspending send of an async body offers a reference
+// per poll (storedChannelSendValue), and a local select's SEND arm
 // takes it at the head of the winning arm (replaceCopySentByWinningArm) —
 // each on the shape its own re-entry allows.
 func retainStoredRefCountedArgs(l *funcLowerer, args []Operand, contracts []ArgContract) {
@@ -184,17 +184,13 @@ func retainStoredRefCountedArgs(l *funcLowerer, args []Operand, contracts []ArgC
 	}
 }
 
-// storedChannelSendValue is retainStoredRefCountedArgs for the SUSPENDING
-// channel send of an async body (InstrChanSend), where the upgrade cannot be
-// an OperandRetain on the instruction itself. The async split isolates the
-// send in a poll block that is re-entered on every poll after a park, and
-// whatever the emitter materializes for the operand it materializes on every
-// entry — a retain there is one bump per park, a clone one box per park, and
-// the runtime consumed the value on the first one. So the value the channel
-// takes is made ONCE, in the prelude, in a transfer temp the instruction moves
-// out of: a retain of a counted scalar, a clone of a `@copy` composite. The
-// prelude runs once, a resume enters the poll block, and the channel takes the
-// temp's own reference exactly as it takes an `own` binding's.
+// storedChannelSendValue preserves the original counted Copy owner across
+// suspension. Each poll offers a fresh retained reference; the native offer
+// entry point transfers or drops that reference before returning. The VM
+// evaluates this operand only after reserving a send.
+//
+// Composite Copy keeps its existing one-time clone in a transfer temp. Its
+// parked-send lifecycle is a separate contract from the scalar offer API.
 //
 // Every other operand is handed back untouched: a moved binding already
 // carries its own reference, a plain copy has nothing to bump, and a constant
@@ -209,7 +205,7 @@ func (l *funcLowerer) storedChannelSendValue(value *Operand, span source.Span) O
 	var read Operand
 	switch {
 	case value.Kind == OperandCopy && l.isRefCounted(value.Type):
-		read = Operand{Kind: OperandRetain, Type: value.Type, Place: value.Place}
+		return Operand{Kind: OperandRetain, Type: value.Type, Place: value.Place}
 	case value.Kind == OperandCopyValue:
 		read = *value
 	default:
