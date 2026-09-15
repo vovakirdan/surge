@@ -12,9 +12,11 @@ import (
 	"surge/internal/types"
 )
 
-// A counted channel stores only its payloads, and `own X` holds what X holds.
-// Task and far channels are the controls that must keep their refusals. Only the
-// dependency module varies; every assertion is local to dep/main.sg.
+// A counted channel stores only its payloads, `own X` holds what X holds, and a
+// far core runtime handle holds what that handle holds. Task stays refused because
+// it is not counted; a core far TcpConn and a type made far by its name alone stay
+// refused because neither is a runtime handle. Only the dependency module varies;
+// every assertion is local to dep/main.sg.
 type channelPayloadCase struct {
 	name, text, digest string
 	// clean: no Pending may remain anywhere in the dependency source.
@@ -35,8 +37,14 @@ func channelPayloadCases() []channelPayloadCase {
 			text: "pragma module::dep;\nfn pass<T>(c: Channel<T>) -> Channel<T> {\n    return c;\n}\nfn use_pass() -> nothing {\n    let c = Channel::<uint>::new(1:uint);\n    let d = pass::<uint>(c);\n    return nothing;\n}\n"},
 		{name: "task_control", site: "t.clone()", reason: genericConditionUnsupported, digest: "adabfca351003d081c6218d789f6b9ea7654153914d9d6efcafc5bd0f953d50a",
 			text: "pragma module::dep;\nasync fn wait(s: &string) -> nothing {\n    return nothing;\n}\nfn start(s: &string) -> Task<nothing> {\n    return wait(s);\n}\nfn keep(s: &string) -> Task<nothing> {\n    let t = start(s);\n    return t.clone();\n}\n"},
-		{name: "far_control", declaration: "remote", digest: "f7ffea5d96542a0066be3d08b0550ad1f9247762ab570b0da95403fdd97d6ca5",
+		{name: "far_control", clean: true, digest: "f7ffea5d96542a0066be3d08b0550ad1f9247762ab570b0da95403fdd97d6ca5",
 			text: "pragma module::dep;\n@intrinsic fn remote() -> far Channel<uint>;\nfn use_remote() -> nothing {\n    let c = remote();\n    return nothing;\n}\n"},
+		{name: "far_task_control", declaration: "remote_task", digest: "53f62f8a3eb2910559778a5512f6f4741be4feae8b15af6547ace9971790a672",
+			text: "pragma module::dep;\n@intrinsic fn remote_task() -> far Task<int>;\n"},
+		{name: "far_conn_control", declaration: "remote_conn", digest: "43065341796dfa7226633e4ee9e5b3cab9387c2e4dba8ca7736e653569accb65",
+			text: "pragma module::dep;\n@intrinsic fn remote_conn() -> far TcpConn;\n"},
+		{name: "far_named_conn_control", declaration: "remote_named", digest: "bf39a12dd91b03b0c10da5d50b8a471da36dac885f293d10d459eab72d2f83c9",
+			text: "pragma module::dep, no_std;\ntype TcpConn = { n: int64 };\n@intrinsic fn remote_named() -> far TcpConn;\n"},
 	}
 }
 
