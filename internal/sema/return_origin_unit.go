@@ -72,6 +72,7 @@ type returnOriginUnitIndex struct {
 	functions    map[symbols.SymbolID]*returnOriginFunction
 	pending      []ReturnOriginPending
 	declarations int
+	peers        []*returnOriginUnitIndex // every owning unit, to prove a nominal where it is declared
 }
 
 type returnOriginFunction struct {
@@ -171,6 +172,9 @@ func AnalyzeReturnOrigins(ctx context.Context, authority *Result, units []Return
 		}
 		return 0
 	})
+	for _, index := range a.units {
+		index.peers = a.units
+	}
 	if err := a.solveBodies(); err != nil {
 		return nil, err
 	}
