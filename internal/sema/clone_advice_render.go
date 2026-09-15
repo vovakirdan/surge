@@ -222,9 +222,9 @@ func cloneAdviceSentence(site cloneAdviceSite, state CloneState, name string) st
 		return fmt.Sprintf("return %s itself to move it out, or return a copy: %s", subject, call)
 	case adviceTaskBorrowsFrameLocal:
 		if state == CloneNonClonable {
-			return fmt.Sprintf("await the task inside this function, or move %s into it", subject)
+			return fmt.Sprintf("await the task inside this function on every path to here, or move %s into it", subject)
 		}
-		return fmt.Sprintf("await the task inside this function, or spawn it with an owned value: %s itself or %s", subject, call)
+		return fmt.Sprintf("await the task inside this function on every path to here, or spawn it with an owned value: %s itself or %s", subject, call)
 	case adviceReferenceInAggregate:
 		if state == CloneNonClonable {
 			return fmt.Sprintf("store an owned value instead: move %s in, or redesign where it lives", subject)

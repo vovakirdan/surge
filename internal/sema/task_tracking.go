@@ -28,6 +28,7 @@ type TaskTracker struct {
 	exprTasks     map[ast.ExprID]uint32        // task expression -> taskID
 	pendingPassed map[ast.ExprID]struct{}      // task expressions marked passed before SpawnTask
 	cloneOrigin   map[uint32]uint32            // clone task id -> the task it names
+	exitPins      map[ast.ExprID][]uint32      // ret operand -> task identities still pinned where it leaves
 	nextID        uint32                       // Next task ID to assign
 }
 

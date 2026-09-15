@@ -142,7 +142,7 @@ func (tc *typeChecker) typeBinary(exprID ast.ExprID, span source.Span, data *ast
 	if data.Op == ast.ExprBinaryHeir {
 		return tc.typeHeirExpr(exprID, leftType, data.Right, data.Op)
 	}
-	rightType := tc.typeExpr(data.Right)
+	rightType := tc.typeBinaryRightOperand(data.Op, data.Right)
 	var ok bool
 	leftType, rightType, ok = tc.materializeNumericBinaryLiterals(data.Op, data.Left, data.Right, leftType, rightType)
 	if !ok {

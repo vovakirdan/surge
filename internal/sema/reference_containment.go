@@ -77,7 +77,7 @@ func (tc *typeChecker) checkBorrowEscapeOnReturn(expr ast.ExprID, ty types.TypeI
 // frame's locals are freed, so the task would read dangling memory (the VM
 // panics VM3301; native reads freed memory silently). Awaiting the task in
 // this function, or spawning with an owned value/clone, stays legal.
-func (tc *typeChecker) checkTaskBorrowEscapeOnReturn(expr ast.ExprID, ty types.TypeID, span source.Span) {
+func (tc *typeChecker) checkTaskBorrowEscapeOnReturn(expr ast.ExprID, ty types.TypeID, span source.Span, returned ast.ExprID) {
 	if tc.taskTracker == nil || tc.borrow == nil {
 		return
 	}
@@ -89,16 +89,9 @@ func (tc *typeChecker) checkTaskBorrowEscapeOnReturn(expr ast.ExprID, ty types.T
 	if node == nil {
 		return
 	}
-	spawnExpr := ast.NoExprID
-	if id, ok := tc.taskTracker.exprTasks[inner]; ok && int(id) < len(tc.taskTracker.tasks) {
-		spawnExpr = tc.taskTracker.tasks[id].SpawnExpr
-	}
-	if !spawnExpr.IsValid() && node.Kind == ast.ExprIdent {
-		if symID := tc.symbolForExpr(inner); symID.IsValid() {
-			if id, ok := tc.taskTracker.bindingTasks[symID]; ok && int(id) < len(tc.taskTracker.tasks) {
-				spawnExpr = tc.taskTracker.tasks[id].SpawnExpr
-			}
-		}
+	spawnExpr, cloneSpan, released := tc.taskReturnSpawn(inner, returned, node.Kind)
+	if released {
+		return
 	}
 	if !spawnExpr.IsValid() {
 		switch node.Kind {
@@ -146,6 +139,9 @@ func (tc *typeChecker) checkTaskBorrowEscapeOnReturn(expr ast.ExprID, ty types.T
 		if b != nil {
 			if argSpan != (source.Span{}) {
 				b.WithNote(argSpan, fmt.Sprintf("the task borrowed '%s' here", name))
+			}
+			if cloneSpan != (source.Span{}) && cloneSpan != span {
+				b.WithNote(cloneSpan, "this clone is a second handle on the same task, so it holds the same borrow")
 			}
 			if advice := tc.cloneAdviceFor(adviceTaskBorrowsFrameLocal, tc.bindingType(base), name); advice.Help != "" {
 				b.WithHelp(span, advice.Help)
