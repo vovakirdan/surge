@@ -118,6 +118,9 @@ func TestVMNumericCastFailureContract(t *testing.T) {
 		{"float_i8_overflow", "float", "int8", "256.75", "integer overflow"},
 		{"int_u8_overflow", "int", "uint8", "256", "unsigned overflow"},
 		{"f64_uint_negative", "float64", "uint", "-1.0", "negative float to uint"},
+		// A negative inline int must leave the fixnum fast path for the runtime
+		// conversion that owns the refusal, not decode into a huge uint64.
+		{"int_u64_negative_fixnum", "int", "uint64", "-1", "cannot convert negative int to uint"},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			// The conversion sees a runtime parameter. A rejected constant cast

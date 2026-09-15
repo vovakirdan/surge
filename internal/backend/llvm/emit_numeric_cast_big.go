@@ -249,9 +249,13 @@ func (fe *funcEmitter) emitBigNumericCast(srcVal, srcLLVM string, srcTypeID, dst
 		if dstInt.signed {
 			switch {
 			case srcBigInt:
-				val64, err = fe.emitCheckedBigIntToI64(srcVal, "integer overflow")
+				val64, err = fe.emitFixnumCastToI64(srcVal, true, false, func() (string, error) {
+					return fe.emitCheckedBigIntToI64(srcVal, "integer overflow")
+				})
 			case srcBigUint:
-				val64, err = fe.emitCheckedBigUintToU64(srcVal, "integer overflow")
+				val64, err = fe.emitFixnumCastToI64(srcVal, false, false, func() (string, error) {
+					return fe.emitCheckedBigUintToU64(srcVal, "integer overflow")
+				})
 				if err == nil {
 					maxInt := int64(^uint64(0) >> 1)
 					tooHigh := fe.nextTemp()
@@ -285,11 +289,17 @@ func (fe *funcEmitter) emitBigNumericCast(srcVal, srcLLVM string, srcTypeID, dst
 		}
 		switch {
 		case srcBigUint:
-			val64, err = fe.emitCheckedBigUintToU64(srcVal, "unsigned overflow")
+			val64, err = fe.emitFixnumCastToI64(srcVal, false, true, func() (string, error) {
+				return fe.emitCheckedBigUintToU64(srcVal, "unsigned overflow")
+			})
 		case srcBigInt:
-			tmp := fe.nextTemp()
-			fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_bigint_to_biguint(ptr %s)\n", tmp, srcVal)
-			val64, err = fe.emitCheckedNumericToFixed(tmp, numericUint, "unsigned overflow", true)
+			// A fixnum decodes in place; a heap value or a negative one still
+			// goes through the owned intermediate and its checked reader.
+			val64, err = fe.emitFixnumCastToI64(srcVal, true, true, func() (string, error) {
+				tmp := fe.nextTemp()
+				fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_bigint_to_biguint(ptr %s)\n", tmp, srcVal)
+				return fe.emitCheckedNumericToFixed(tmp, numericUint, "unsigned overflow", true)
+			})
 		case srcBigFloat:
 			tmp := fe.nextTemp()
 			fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_bigfloat_to_biguint(ptr %s)\n", tmp, srcVal)

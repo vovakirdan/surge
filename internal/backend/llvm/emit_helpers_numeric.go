@@ -81,7 +81,7 @@ func (fe *funcEmitter) emitCheckedNumericToFixed(val string, kind numericKind, m
 		return "", fmt.Errorf("missing scalar lifecycle for checked numeric type %d", ty)
 	}
 	outPtr := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca %s, align %d\n", outPtr, llvmTy, alignWord)
+	fe.emitAllocaAligned(outPtr, llvmTy, alignWord)
 	fmt.Fprintf(&fe.emitter.buf, "  store %s %s, ptr %s\n", llvmTy, zero, outPtr)
 	okVal := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @%s_%s(ptr %s, ptr %s)\n", okVal, ops.prefix, suffix, val, outPtr)

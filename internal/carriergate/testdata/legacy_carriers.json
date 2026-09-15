@@ -766,6 +766,32 @@
       ],
       "post_baseline_allow": [
         {
+          "id": "numeric-fixnum-fast-word-decode",
+          "finding": {
+            "category": "llvm-pointer-word-ir",
+            "path": "internal/backend/llvm/emit_numeric_fixnum_fast.go",
+            "token": "ptrtoint",
+            "evidence": "fmt.Fprintf(&fe.emitter.buf, \"  %s = ptrtoint ptr %s to i64\\n\", word, val)",
+            "ordinal": 1
+          },
+          "reason": "The inline fixnum fast paths for WidthAny int/uint conversions to fixed width and for int addition, subtraction and comparison read a counted integer word as an i64 to test its tag and decode an inline payload without a runtime call.",
+          "safe_because": "Only WidthAny int/uint operands reach it. The i64 feeds the tag test, the NULL test and a shift whose result is used only on the arm where every tested word is NULL or inline; a heap word never has its bits interpreted and always continues on the unchanged runtime arm with its original pointer. No address is derived from the integer, and the fast arm creates and releases no owner.",
+          "invalidated_when": "The fixnum tag, payload width, NULL-as-zero convention or pointer width changes; decoded bits are used on a path a heap word can reach; a fast arm starts creating or releasing an owner; or the finding's category/path/token/evidence/ordinal changes."
+        },
+        {
+          "id": "numeric-fixnum-fast-word-encode",
+          "finding": {
+            "category": "llvm-pointer-word-ir",
+            "path": "internal/backend/llvm/emit_numeric_fixnum_fast.go",
+            "token": "inttoptr",
+            "evidence": "fmt.Fprintf(&fe.emitter.buf, \"  %s = inttoptr i64 %s to ptr\\n\", word, boxed)",
+            "ordinal": 1
+          },
+          "reason": "The inline int addition and subtraction fast path returns its result in the runtime's own counted-integer word representation.",
+          "safe_because": "The converted integer is either 0, the canonical NULL zero, or (s << 1) | 1 for an exact i64 result s that was just proven to round-trip through the 63-bit fixnum payload, so the word has its low bit set or is NULL and is never used as an address: every lifecycle path tests the tag before any heap access. A heap operand or a result outside the inline range takes the runtime call instead.",
+          "invalidated_when": "The fixnum encoding, NULL-as-zero convention or pointer width changes; the round-trip range check before boxing is removed or weakened; a constructed nonzero word can have its low bit clear; or the finding's category/path/token/evidence/ordinal changes."
+        },
+        {
           "id": "numeric-lifecycle-heap-tag-test",
           "finding": {
             "category": "llvm-pointer-word-ir",

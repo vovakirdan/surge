@@ -124,10 +124,11 @@ var allocEmittersOutsideTheGuard = map[string]string{
 // parameter, so the name is not in the text this census reads. Each is recorded
 // with the entry points it can name; all of them are classified above.
 var indirectPointerCallEmitters = map[string]string{
-	"emit_task_result.go":        "__task_create, __task_create_affine",
-	"emit_intrinsics_fs.go":      "rt_fs_close, rt_fs_flush, rt_fs_file_name, rt_fs_file_type, rt_fs_file_metadata",
-	"emit_intrinsics_net.go":     "rt_net_close_listener, rt_net_close_conn",
-	"emit_intrinsics_runtime.go": "rt_string_from_bytes, rt_string_from_utf16",
+	"emit_task_result.go":         "__task_create, __task_create_affine",
+	"emit_intrinsics_fs.go":       "rt_fs_close, rt_fs_flush, rt_fs_file_name, rt_fs_file_type, rt_fs_file_metadata",
+	"emit_intrinsics_net.go":      "rt_net_close_listener, rt_net_close_conn",
+	"emit_intrinsics_runtime.go":  "rt_string_from_bytes, rt_string_from_utf16",
+	"emit_numeric_fixnum_fast.go": "rt_bigint_add, rt_bigint_sub",
 	"emit_iter_bounds_step.go": "rt_bigint_from_i64, rt_biguint_from_u64, rt_bigfloat_from_i64, " +
 		"rt_bigint_add, rt_biguint_add, rt_bigfloat_add",
 }

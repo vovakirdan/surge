@@ -92,7 +92,7 @@ func verifyW8CarrierCensus(manifest *Manifest, actual []Finding) (string, error)
 		return "", err
 	}
 	wantFixnum := w8FixnumFindingKey()
-	wantNumericGuard := step7NumericHeapGuardFindingKey()
+	wantPostBaseline := step7PostBaselineFindingKeys()
 	frameOwners, wordBridges, pointerAllowed, pointerUnallowed := 0, 0, 0, 0
 	pointerPostAllowed := 0
 	for i := range actual {
@@ -104,7 +104,7 @@ func verifyW8CarrierCensus(manifest *Manifest, actual []Finding) (string, error)
 		case categoryLLVMPointerWord:
 			if keyFor(&actual[i]) == wantFixnum {
 				pointerAllowed++
-			} else if keyFor(&actual[i]) == wantNumericGuard {
+			} else if wantPostBaseline[keyFor(&actual[i])] {
 				pointerPostAllowed++
 			} else {
 				pointerUnallowed++

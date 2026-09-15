@@ -13,27 +13,38 @@ import (
 // A bignum operand is a runtime object rather than an LLVM value, so every
 // operation here is a call and every result is owned — which is what separates
 // this from the machine-word arithmetic next door, not the operator spelling.
+// WidthAny int addition, subtraction and comparison first try the inline
+// fixnum path (emit_numeric_fixnum_fast.go) and call only for a heap operand
+// or a result outside the inline range.
 
-func (fe *funcEmitter) emitBigCompare(fn string, op ast.ExprBinaryOp, leftVal, rightVal string) (val, ty string, err error) {
-	cmp := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call i32 @%s(ptr %s, ptr %s)\n", cmp, fn, leftVal, rightVal)
-	pred := ""
+// bigComparePredicate maps a comparison onto the signed icmp predicate applied
+// to a runtime three-way answer or to two decoded fixnums.
+func bigComparePredicate(op ast.ExprBinaryOp) (string, error) {
 	switch op {
 	case ast.ExprBinaryEq:
-		pred = "eq"
+		return "eq", nil
 	case ast.ExprBinaryNotEq:
-		pred = "ne"
+		return "ne", nil
 	case ast.ExprBinaryLess:
-		pred = "slt"
+		return "slt", nil
 	case ast.ExprBinaryLessEq:
-		pred = "sle"
+		return "sle", nil
 	case ast.ExprBinaryGreater:
-		pred = "sgt"
+		return "sgt", nil
 	case ast.ExprBinaryGreaterEq:
-		pred = "sge"
+		return "sge", nil
 	default:
-		return "", "", fmt.Errorf("unsupported compare op %v", op)
+		return "", fmt.Errorf("unsupported compare op %v", op)
 	}
+}
+
+func (fe *funcEmitter) emitBigCompare(fn string, op ast.ExprBinaryOp, leftVal, rightVal string) (val, ty string, err error) {
+	pred, err := bigComparePredicate(op)
+	if err != nil {
+		return "", "", err
+	}
+	cmp := fe.nextTemp()
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call i32 @%s(ptr %s, ptr %s)\n", cmp, fn, leftVal, rightVal)
 	tmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = icmp %s i32 %s, 0\n", tmp, pred, cmp)
 	return tmp, "i1", nil
@@ -71,13 +82,11 @@ func (fe *funcEmitter) emitBigBinary(op *mir.BinaryOp, leftVal, rightVal string,
 	case leftBigInt:
 		switch op.Op {
 		case ast.ExprBinaryAdd:
-			tmp := fe.nextTemp()
-			fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_bigint_add(ptr %s, ptr %s)\n", tmp, leftVal, rightVal)
-			return tmp, "ptr", nil
+			tmp, arithErr := fe.emitFixnumIntArith("add", "rt_bigint_add", leftVal, rightVal)
+			return tmp, "ptr", arithErr
 		case ast.ExprBinarySub:
-			tmp := fe.nextTemp()
-			fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_bigint_sub(ptr %s, ptr %s)\n", tmp, leftVal, rightVal)
-			return tmp, "ptr", nil
+			tmp, arithErr := fe.emitFixnumIntArith("sub", "rt_bigint_sub", leftVal, rightVal)
+			return tmp, "ptr", arithErr
 		case ast.ExprBinaryMul:
 			tmp := fe.nextTemp()
 			fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_bigint_mul(ptr %s, ptr %s)\n", tmp, leftVal, rightVal)
@@ -111,7 +120,8 @@ func (fe *funcEmitter) emitBigBinary(op *mir.BinaryOp, leftVal, rightVal string,
 			fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_bigint_shr(ptr %s, ptr %s)\n", tmp, leftVal, rightVal)
 			return tmp, "ptr", nil
 		case ast.ExprBinaryEq, ast.ExprBinaryNotEq, ast.ExprBinaryLess, ast.ExprBinaryLessEq, ast.ExprBinaryGreater, ast.ExprBinaryGreaterEq:
-			return fe.emitBigCompare("rt_bigint_cmp", op.Op, leftVal, rightVal)
+			tmp, cmpErr := fe.emitFixnumIntCompare(op.Op, leftVal, rightVal)
+			return tmp, "i1", cmpErr
 		default:
 			return "", "", fmt.Errorf("unsupported big int op %v", op.Op)
 		}
