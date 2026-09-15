@@ -460,7 +460,7 @@ func requireReturnOriginAliasMismatch(t *testing.T, res *DiagnoseResult, analysi
 	d := analysis.Diagnostics[0]
 	start := strings.LastIndex(text, " = "+rhs+";") + len(" = ")
 	note := strings.LastIndex(text, noteText)
-	if d.Code != diag.SemaError || d.Severity != diag.SevError || d.Message != returnOriginCallableMismatch ||
+	if d.Code != diag.SemaReturnSourceIncompatible || d.Severity != diag.SevError || d.Message != returnOriginCallableMismatch ||
 		d.Primary.File != res.File.ID || int(d.Primary.Start) != start || int(d.Primary.End) != start+len(rhs) || len(d.Help) == 0 {
 		t.Fatalf("wrong callable RHS diagnostic: %+v", d)
 	}

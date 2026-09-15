@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"surge/internal/ast"
+	"surge/internal/diag"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
@@ -24,19 +25,19 @@ func (v returnOriginTypeView) validatePromise(request ReturnSourceDeclarationReq
 		if original.Status == ReturnSourcesDeferred {
 			return ReturnSourceValidation{Status: ReturnSourcesValid}
 		}
-		return invalidReturnSource(request.Syntax.Markers()[0], "@return_source requires a reference-bearing result")
+		return invalidReturnSource(request.Syntax.Markers()[0], diag.SemaReturnSourceOwnedResult, "@return_source requires a reference-bearing result")
 	}
 	for _, marker := range request.Syntax.Markers() {
 		params := request.Params()
 		if int64(marker.Slot) >= int64(len(params)) {
-			return invalidReturnSource(marker, "@return_source parameter is missing from the function signature")
+			return invalidReturnSource(marker, diag.SemaReturnSourceMissingParam, "@return_source parameter is missing from the function signature")
 		}
 		state, valid := v.bearing(params[marker.Slot], nil)
 		if !valid {
 			return deferred
 		}
 		if state == ReturnSourcesInvalid {
-			return invalidReturnSource(marker, "@return_source requires a reference-bearing parameter")
+			return invalidReturnSource(marker, diag.SemaReturnSourceOwnedParam, "@return_source requires a reference-bearing parameter")
 		}
 	}
 	return ReturnSourceValidation{Status: ReturnSourcesValid}

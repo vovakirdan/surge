@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"surge/internal/ast"
+	"surge/internal/diag"
 	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
@@ -68,6 +69,8 @@ type ReturnSourceValidation struct {
 	Slot   uint32
 	Span   source.Span
 	Reason string
+	// Code names the rule an Invalid decision broke; zero otherwise.
+	Code diag.Code
 }
 
 // ValidateDeclaredReturnSources checks the declaration before substitution.
@@ -80,21 +83,21 @@ func ValidateDeclaredReturnSources(in *types.Interner, request ReturnSourceDecla
 	deferred := false
 	for _, marker := range markers {
 		if marker.ArgumentCount != 0 {
-			return invalidReturnSource(marker, "@return_source does not accept arguments")
+			return invalidReturnSource(marker, diag.SemaReturnSourceArgument, "@return_source does not accept arguments")
 		}
 		if int64(marker.Slot) >= int64(len(request.params)) {
-			return invalidReturnSource(marker, "@return_source parameter is missing from the function signature")
+			return invalidReturnSource(marker, diag.SemaReturnSourceMissingParam, "@return_source parameter is missing from the function signature")
 		}
 		switch returnSourceBearing(in, request.params[marker.Slot], nil) {
 		case ReturnSourcesInvalid:
-			return invalidReturnSource(marker, "@return_source requires a reference-bearing parameter")
+			return invalidReturnSource(marker, diag.SemaReturnSourceOwnedParam, "@return_source requires a reference-bearing parameter")
 		case ReturnSourcesDeferred:
 			deferred = true
 		}
 	}
 	switch returnSourceBearing(in, request.result, nil) {
 	case ReturnSourcesInvalid:
-		return invalidReturnSource(markers[0], "@return_source requires a reference-bearing result")
+		return invalidReturnSource(markers[0], diag.SemaReturnSourceOwnedResult, "@return_source requires a reference-bearing result")
 	case ReturnSourcesDeferred:
 		deferred = true
 	}
@@ -113,20 +116,20 @@ func ValidateInstantiatedReturnSources(in *types.Interner, request ReturnSourceD
 		return original
 	}
 	if len(params) != len(request.params) {
-		return ReturnSourceValidation{Status: ReturnSourcesInvalid, Span: request.Syntax.Span(), Reason: "return-source instantiation has a different parameter count"}
+		return ReturnSourceValidation{Status: ReturnSourcesInvalid, Span: request.Syntax.Span(), Reason: "return-source instantiation has a different parameter count", Code: diag.SemaError}
 	}
 	if returnSourceBearing(in, result, nil) == ReturnSourcesInvalid {
 		if original.Status == ReturnSourcesDeferred {
 			return ReturnSourceValidation{Status: ReturnSourcesValid}
 		}
-		return invalidReturnSource(request.Syntax.Markers()[0], "@return_source requires a reference-bearing result")
+		return invalidReturnSource(request.Syntax.Markers()[0], diag.SemaReturnSourceOwnedResult, "@return_source requires a reference-bearing result")
 	}
 	concrete := NewReturnSourceDeclarationRequest(request.Syntax, params, result)
 	return ValidateDeclaredReturnSources(in, concrete)
 }
 
-func invalidReturnSource(marker symbols.ReturnSourceMarker, reason string) ReturnSourceValidation {
-	return ReturnSourceValidation{Status: ReturnSourcesInvalid, Slot: marker.Slot, Span: marker.Span, Reason: reason}
+func invalidReturnSource(marker symbols.ReturnSourceMarker, code diag.Code, reason string) ReturnSourceValidation {
+	return ReturnSourceValidation{Status: ReturnSourcesInvalid, Slot: marker.Slot, Span: marker.Span, Reason: reason, Code: code}
 }
 
 // Only references and the existing intrinsic union/tag payload exceptions carry

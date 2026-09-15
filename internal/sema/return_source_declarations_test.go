@@ -10,6 +10,14 @@ import (
 	"surge/internal/types"
 )
 
+// Each broken @return_source rule has its own code; attribute placement errors
+// stay with the general attribute check.
+var returnSourceRuleCodes = map[string]diag.Code{
+	"@return_source does not accept arguments":              diag.SemaReturnSourceArgument,
+	"@return_source requires a reference-bearing parameter": diag.SemaReturnSourceOwnedParam,
+	"@return_source requires a reference-bearing result":    diag.SemaReturnSourceOwnedResult,
+}
+
 func TestReturnSourceDeclarationValidation(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -40,11 +48,19 @@ func TestReturnSourceDeclarationValidation(t *testing.T) {
 			bag := diag.NewBag(64)
 			result := Check(context.Background(), builder, file, Options{Symbols: syms, Reporter: &diag.BagReporter{Bag: bag}})
 			if test.message != "" {
-				if bag.Len() != 1 || bag.Items()[0].Code != diag.SemaError || bag.Items()[0].Message != test.message {
-					t.Fatalf("want exactly %s %q, got %s", diag.SemaError, test.message, diagnosticsSummary(bag))
+				code, promise := returnSourceRuleCodes[test.message]
+				if !promise {
+					code = diag.SemaError
 				}
-				if span := bag.Items()[0].Primary; span.End <= span.Start {
+				if bag.Len() != 1 || bag.Items()[0].Code != code || bag.Items()[0].Message != test.message {
+					t.Fatalf("want exactly %s %q, got %s", code, test.message, diagnosticsSummary(bag))
+				}
+				item := bag.Items()[0]
+				if item.Primary.End <= item.Primary.Start {
 					t.Fatal("attribute diagnostic has no source location")
+				}
+				if promise && (len(item.Notes) != 1 || len(item.Help) != 1 || item.Notes[0].Span != item.Primary || item.Help[0].Msg == "") {
+					t.Fatalf("return-source diagnostic lacks its rule note or repair help: %+v", item)
 				}
 				return
 			}

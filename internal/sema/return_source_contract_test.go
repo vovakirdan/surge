@@ -23,10 +23,10 @@ func TestReturnSourceContractDeclarations(t *testing.T) {
 		{"explicit_source", "contract C { fn choose(a: &string, @return_source b: &string) -> &string; }", "", 0, 1},
 		{"explicit_self", "contract C<T> { fn choose(@return_source self: &T) -> &T; }", "", 0, 0},
 		{"generic_deferred", "contract C<T> { fn choose(@return_source self: T) -> T; }", "", 0, 0},
-		{"wrong_arity", "contract C { fn choose(@return_source(1) a: &string) -> &string; }", "@return_source does not accept arguments", diag.SemaError, 0},
+		{"wrong_arity", "contract C { fn choose(@return_source(1) a: &string) -> &string; }", "@return_source does not accept arguments", diag.SemaReturnSourceArgument, 0},
 		{"wrong_target", "contract C { @return_source fn choose(a: &string) -> &string; }", "attribute '@return_source' is not allowed here", diag.SemaContractUnknownAttr, 0},
-		{"owned_parameter", "contract C { fn choose(@return_source a: string) -> &string; }", "@return_source requires a reference-bearing parameter", diag.SemaError, 0},
-		{"owned_result", "contract C { fn choose(@return_source a: &string) -> string; }", "@return_source requires a reference-bearing result", diag.SemaError, 0},
+		{"owned_parameter", "contract C { fn choose(@return_source a: string) -> &string; }", "@return_source requires a reference-bearing parameter", diag.SemaReturnSourceOwnedParam, 0},
+		{"owned_result", "contract C { fn choose(@return_source a: &string) -> string; }", "@return_source requires a reference-bearing result", diag.SemaReturnSourceOwnedResult, 0},
 		{"original_owner", "contract C<T> { fn choose(@return_source self: T) -> T; } fn unrelated(x: int) {}", "", 0, 0},
 	}
 	for _, test := range cases {
@@ -44,6 +44,10 @@ func TestReturnSourceContractDeclarations(t *testing.T) {
 				}
 				if site := bag.Items()[0].Primary; site.File != builder.Files.Get(file).Span.File || site.End <= site.Start {
 					t.Fatal("declaration diagnostic lost its source location")
+				}
+				if item := bag.Items()[0]; test.code != diag.SemaContractUnknownAttr &&
+					(len(item.Notes) != 1 || len(item.Help) != 1 || item.Notes[0].Span != item.Primary || item.Help[0].Msg == "") {
+					t.Fatalf("return-source diagnostic lacks its rule note or repair help: %+v", item)
 				}
 				return
 			}

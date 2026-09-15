@@ -522,6 +522,27 @@ const (
 	// enrol an already-created task into the current scope.
 	SemaTaskCreatedOutsideScope Code = 3209
 
+	// SemaReturnSourceArgument rejects `@return_source(...)`: the marker names
+	// the parameter it is written on and has no argument form.
+	SemaReturnSourceArgument Code = 3213
+
+	// SemaReturnSourceMissingParam rejects a return-source marker whose slot is
+	// outside the declared signature.
+	SemaReturnSourceMissingParam Code = 3214
+
+	// SemaReturnSourceOwnedParam rejects `@return_source` on a parameter that
+	// carries no reference, so a borrowed result could not point into it.
+	SemaReturnSourceOwnedParam Code = 3215
+
+	// SemaReturnSourceOwnedResult rejects `@return_source` on a function whose
+	// result owns its value and therefore borrows from no parameter.
+	SemaReturnSourceOwnedResult Code = 3216
+
+	// SemaReturnSourceIncompatible rejects converting a callable to a
+	// destination whose return-source promise does not permit every source the
+	// callable's result may borrow from.
+	SemaReturnSourceIncompatible Code = 3217
+
 	// Ошибки I/O
 
 	// IOLoadFileError indicates file load error.
@@ -789,6 +810,11 @@ var ( // todo расширить описания и использовать к
 		SemaTaskBodyReturn:                 "cannot return from the enclosing function inside an async/blocking body; write `ret <expr>;`",
 		SemaTaskBodyNoValue:                "an async/blocking body gives its value with `ret`",
 		SemaTaskCreatedOutsideScope:        "a task can be spawned only by the scope that created it",
+		SemaReturnSourceArgument:           "`@return_source` takes no arguments",
+		SemaReturnSourceMissingParam:       "`@return_source` names a parameter the signature does not have",
+		SemaReturnSourceOwnedParam:         "`@return_source` needs a parameter that carries a reference",
+		SemaReturnSourceOwnedResult:        "`@return_source` needs a result that carries a reference",
+		SemaReturnSourceIncompatible:       "the callable may return a borrow the destination's `@return_source` promise does not permit",
 		SemaPartialMoveNeedsOwn:            "taking a field out of a live value must be written `own`",
 		SemaPartialMoveFromTemporary:       "cannot take a field out of a value nothing holds",
 		SemaStoreThroughSharedRef:          "cannot write through a shared reference",
