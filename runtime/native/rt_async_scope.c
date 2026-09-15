@@ -65,6 +65,23 @@ static waker_key current_scope_key(uint64_t scope_id) {
     return current->active_scope_key;
 }
 
+// Every scope entry point after enter acts only for the current task's own
+// active scope. False means there is no executor or the id no longer names
+// that scope; each caller answers that the way its own contract says.
+static bool scope_entry_key(uint64_t scope_id, rt_executor** ex_out, waker_key* key_out) {
+    rt_executor* ex = ensure_exec();
+    if (ex == NULL) {
+        return false;
+    }
+    waker_key key = current_scope_key(scope_id);
+    if (!waker_valid(key)) {
+        return false;
+    }
+    *ex_out = ex;
+    *key_out = key;
+    return true;
+}
+
 // Read both join answers together, initially and after waiter registration.
 static size_t scope_join_snapshot(rt_executor* ex, waker_key key, bool* failfast) {
     rt_shard* pinned = rt_waiter_key_shard(ex, key);
@@ -156,12 +173,9 @@ uint64_t rt_scope_enter(bool failfast) {
 }
 
 void rt_scope_register_child(uint64_t scope_id, void* task) {
-    rt_executor* ex = ensure_exec();
-    if (ex == NULL) {
-        return;
-    }
-    waker_key key = current_scope_key(scope_id);
-    if (!waker_valid(key)) {
+    rt_executor* ex = NULL;
+    waker_key key = waker_none();
+    if (!scope_entry_key(scope_id, &ex, &key)) {
         return;
     }
     uint64_t child_id = task_id_from_handle(task);
@@ -184,12 +198,9 @@ void rt_scope_register_child(uint64_t scope_id, void* task) {
 }
 
 void rt_scope_cancel_all(uint64_t scope_id) {
-    rt_executor* ex = ensure_exec();
-    if (ex == NULL) {
-        return;
-    }
-    waker_key key = current_scope_key(scope_id);
-    if (!waker_valid(key)) {
+    rt_executor* ex = NULL;
+    waker_key key = waker_none();
+    if (!scope_entry_key(scope_id, &ex, &key)) {
         return;
     }
     // Cross-owner cancel walk needs the control lane (re-derivation, file
@@ -207,21 +218,18 @@ void rt_scope_cancel_all(uint64_t scope_id) {
 
 bool rt_scope_join_all(uint64_t scope_id, uint64_t* pending, bool* failfast) {
     // Both answers are written before anything can return, so no exit can leave
-    // either one holding what the caller's stack happened to contain. The two
-    // early exits below say "drained" about a scope that is gone, and a scope
-    // that is gone has no fail-fast outstanding and nothing pending.
+    // either one holding what the caller's stack happened to contain. The early
+    // exit below says "drained" about a scope that is gone, and a scope that is
+    // gone has no fail-fast outstanding and nothing pending.
     if (pending != NULL) {
         *pending = 0;
     }
     if (failfast != NULL) {
         *failfast = false;
     }
-    rt_executor* ex = ensure_exec();
-    if (ex == NULL) {
-        return true;
-    }
-    waker_key key = current_scope_key(scope_id);
-    if (!waker_valid(key)) {
+    rt_executor* ex = NULL;
+    waker_key key = waker_none();
+    if (!scope_entry_key(scope_id, &ex, &key)) {
         return true;
     }
     size_t active = scope_join_snapshot(ex, key, failfast);
@@ -264,12 +272,9 @@ bool rt_scope_join_all(uint64_t scope_id, uint64_t* pending, bool* failfast) {
 }
 
 void rt_scope_exit(uint64_t scope_id) {
-    rt_executor* ex = ensure_exec();
-    if (ex == NULL) {
-        return;
-    }
-    waker_key key = current_scope_key(scope_id);
-    if (!waker_valid(key)) {
+    rt_executor* ex = NULL;
+    waker_key key = waker_none();
+    if (!scope_entry_key(scope_id, &ex, &key)) {
         return;
     }
     rt_shard* pinned = rt_waiter_key_shard(ex, key);
