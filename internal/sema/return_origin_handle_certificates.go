@@ -19,6 +19,7 @@ const (
 	freshUint
 	freshUint32
 	freshRefListener
+	freshRefConn
 )
 
 type returnOriginFreshHandleRow struct {
@@ -61,8 +62,11 @@ func returnOriginFreshHandleResidual(fn *returnOriginFunction, result types.Type
 	if fn == nil {
 		return nil, false
 	}
+	if subjects, fresh := returnOriginFreshContainerResidual(fn, result); fresh {
+		return subjects, true
+	}
 	row, known := returnOriginFreshHandleRows[fn.name]
-	if !known || !returnOriginCoreIntrinsic(fn, 0, 0) || fn.candidate.HasSelf || result != fn.info.Result || len(fn.info.Params) != len(row.params) {
+	if !known || !returnOriginCoreIntrinsic(fn, 0, 0) || fn.candidate.HasSelf || result != fn.info.Result || !returnOriginFreshParamsMatch(fn, row.params) {
 		return nil, false
 	}
 	if fn.candidate.ReceiverType != types.NoTypeID || row.receiver != "" {
@@ -71,26 +75,6 @@ func returnOriginFreshHandleResidual(fn *returnOriginFunction, result types.Type
 		}
 	}
 	in := fn.unit.Sema.TypeInterner
-	for i, kind := range row.params {
-		param := fn.info.Params[i]
-		typ, typed := in.Lookup(param)
-		switch kind {
-		case freshRefString, freshRefListener:
-			if !typed || typ.Kind != types.KindReference || typ.Mutable ||
-				kind == freshRefString && typ.Elem != in.Builtins().String ||
-				kind == freshRefListener && !returnOriginFreshHandleLeaf(fn, typ.Elem, "TcpListener", false) {
-				return nil, false
-			}
-		case freshUint:
-			if param != in.Builtins().Uint {
-				return nil, false
-			}
-		case freshUint32:
-			if returnOriginResolveAlias(in, param) != in.Builtins().Uint32 {
-				return nil, false
-			}
-		}
-	}
 	if !row.wrapped {
 		return nil, returnOriginFreshHandleLeaf(fn, result, row.leaf, row.pointer)
 	}
@@ -112,6 +96,36 @@ func returnOriginFreshHandleResidual(fn *returnOriginFunction, result types.Type
 		}
 	}
 	return residual, tagged && residual != nil
+}
+
+// returnOriginFreshParamsMatch answers whether the formals are exactly these kinds, in order.
+func returnOriginFreshParamsMatch(fn *returnOriginFunction, kinds []returnOriginFreshParam) bool {
+	if len(fn.info.Params) != len(kinds) {
+		return false
+	}
+	in := fn.unit.Sema.TypeInterner
+	for i, kind := range kinds {
+		param := fn.info.Params[i]
+		typ, typed := in.Lookup(param)
+		switch kind {
+		case freshRefString, freshRefListener, freshRefConn:
+			if !typed || typ.Kind != types.KindReference || typ.Mutable ||
+				kind == freshRefString && typ.Elem != in.Builtins().String ||
+				kind == freshRefListener && !returnOriginFreshHandleLeaf(fn, typ.Elem, "TcpListener", false) ||
+				kind == freshRefConn && !returnOriginFreshHandleLeaf(fn, typ.Elem, "TcpConn", false) {
+				return false
+			}
+		case freshUint:
+			if param != in.Builtins().Uint {
+				return false
+			}
+		case freshUint32:
+			if returnOriginResolveAlias(in, param) != in.Builtins().Uint32 {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // The leaf is the core struct of that name holding exactly one opaque word.
