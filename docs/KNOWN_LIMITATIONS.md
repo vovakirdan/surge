@@ -27,8 +27,8 @@ borrows, so the compiler rejects (kindness-first diagnostics with owned/
 - Reference types in aggregates — struct fields, tag payloads, tuple/array
   element types, and tuple/array/map literal elements (`SEM3138`). Store an
   owned value instead, or pass the reference as a function parameter.
-  (`@intrinsic` core types such as `BytesView` are exempt; the runtime pins
-  their storage.)
+  (`@intrinsic` core types such as `BytesView` are exempt, but a `BytesView` still borrows its string:
+  returning or keeping one past its string is `SEM3139`.)
 - Binding a borrow to an owned non-Copy destination — an owned function/method
   parameter (`b.eat(&needle)` where `eat` takes `x: string`) or an owned
   struct-literal field (`Box{ &l }`) (`SEM3137`). Both would make the callee

@@ -60,6 +60,9 @@ func returnOriginTypeShape(interner *types.Interner, id types.TypeID, seen map[t
 			return shape
 		}
 	case types.KindStruct:
+		if interner.IsBorrowedView(id) {
+			return returnOriginCarriesRef
+		}
 		if info, found := interner.StructInfo(id); found && info != nil {
 			if shape, logical := returnOriginNominalShape(interner, id, info, seen); logical {
 				return shape

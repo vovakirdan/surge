@@ -88,7 +88,7 @@ Other standard-library handle types are defined as opaque structs in
 
 `BytesView` is defined in `core/intrinsics.sg` and has a **stable field order**:
 
-1. `owner: string`
+1. `owner: *byte`
 2. `ptr: *byte`
 3. `len: uint`
 
@@ -96,9 +96,10 @@ Layout (x86_64): size `24`, align `8`.
 
 Semantics:
 
-- `owner` keeps bytes alive.
-- `ptr` points to contiguous UTF-8 bytes.
-- `len == rt_string_len_bytes(&owner)`.
+- `owner` is a non-owning back-reference to the source string's storage; the view never retains or frees it.
+- `ptr` points to contiguous UTF-8 bytes of that string.
+- `len` is the source string's byte length when the view was taken.
+- The view borrows its string: the string must outlive every use of the view. The compiler checks this as a borrow of the string given to `rt_string_bytes_view` / `string.bytes()`; returning or keeping a view past its string is `SEM3139`.
 
 Tests:
 

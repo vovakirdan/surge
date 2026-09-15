@@ -174,6 +174,9 @@ func (b *returnOriginBody) opaqueReturnSources(callee *returnOriginFunction, inf
 			}
 			return value
 		}
+		if returnOriginBytesViewConstructor(callee) {
+			return returnOriginValueOf(returnOrigin{kind: returnOriginParam, param: 0})
+		}
 		return b.requireOpaqueState(binding, result, span)
 	}
 	if binding.shape(result) == returnOriginShapeUnknown {

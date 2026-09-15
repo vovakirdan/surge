@@ -49,18 +49,20 @@ type Interner struct {
 	// the declaration set a new instantiation inherits the mark from.
 	refCountedHandles  map[TypeID]struct{}
 	refCountedFamilies map[runtimeHandleFamily]struct{}
-	params             []TypeParamInfo
-	unions             []UnionInfo
-	enums              []EnumInfo
-	tuples             []TupleInfo
-	tupleIndex         map[string]TypeID
-	fns                []FnInfo
-	arrayType          TypeID
-	arrayParam         TypeID
-	arrayFixedType     TypeID
-	arrayFixedParams   [2]TypeID
-	mapType            TypeID
-	mapParams          [2]TypeID
+	// borrowedViews marks the core view struct whose value borrows its source (borrowed_view.go).
+	borrowedViews    map[TypeID]struct{}
+	params           []TypeParamInfo
+	unions           []UnionInfo
+	enums            []EnumInfo
+	tuples           []TupleInfo
+	tupleIndex       map[string]TypeID
+	fns              []FnInfo
+	arrayType        TypeID
+	arrayParam       TypeID
+	arrayFixedType   TypeID
+	arrayFixedParams [2]TypeID
+	mapType          TypeID
+	mapParams        [2]TypeID
 }
 
 type runtimeHandleFamily struct {

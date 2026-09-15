@@ -221,7 +221,7 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 			sources, valid = b.declaredFunctionSources(callee, span, signature)
 		}
 		summary = b.opaqueReturnSources(callee, info, sources, valid, span, signature)
-		if returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, effects) {
+		if !returnOriginBytesViewReader(callee) && returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, effects) {
 			flow.normal = b.taintExternalCellEffects(flow.normal, span, "opaque call may change reference-bearing or callable contents")
 		}
 	}

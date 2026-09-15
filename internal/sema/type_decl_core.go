@@ -65,6 +65,9 @@ func (tc *typeChecker) registerTypeDecls(file *ast.File) {
 		if tc.isRuntimePlacementTypeDecl(itemID, typeItem) {
 			tc.types.MarkRuntimePlacementType(typeID)
 		}
+		if tc.isBorrowedViewTypeDecl(itemID, typeItem) {
+			tc.types.MarkBorrowedViewType(typeID)
+		}
 		if tc.isRuntimeHandleTypeDecl(itemID, typeItem) {
 			tc.types.MarkRuntimeHandleType(typeID)
 			// Of the runtime handle families only the channel's object is
@@ -109,6 +112,30 @@ func (tc *typeChecker) isRuntimePlacementTypeDecl(itemID ast.ItemID, typeItem *a
 		return false
 	}
 	if !isCoreRuntimeModulePath(tc.modulePath) {
+		return false
+	}
+	symID := tc.typeSymbolForItem(itemID)
+	if !symID.IsValid() {
+		return false
+	}
+	sym := tc.symbolFromID(symID)
+	return sym != nil && sym.Kind == symbols.SymbolType && sym.Flags&symbols.SymbolFlagBuiltin != 0
+}
+
+// isBorrowedViewTypeDecl selects the core view struct by its declaration: the builtin
+// `@intrinsic` struct `BytesView` of three fields in a core module. A namesake elsewhere
+// stays an ordinary struct.
+func (tc *typeChecker) isBorrowedViewTypeDecl(itemID ast.ItemID, typeItem *ast.TypeItem) bool {
+	if tc == nil || typeItem == nil || tc.builder == nil || typeItem.Kind != ast.TypeDeclStruct {
+		return false
+	}
+	if tc.lookupName(typeItem.Name) != "BytesView" || !isCoreRuntimeModulePath(tc.modulePath) {
+		return false
+	}
+	if _, ok := hasAttr(tc.collectAttrs(typeItem.AttrStart, typeItem.AttrCount), "intrinsic"); !ok {
+		return false
+	}
+	if decl := tc.builder.Items.TypeStruct(typeItem); decl == nil || decl.FieldsCount != 3 {
 		return false
 	}
 	symID := tc.typeSymbolForItem(itemID)

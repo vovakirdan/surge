@@ -74,6 +74,9 @@ func (v returnOriginTypeView) requirement(kind returnOriginConditionKind, id typ
 			}
 			return walk(view, target, active)
 		}
+		if typ.Kind == types.KindStruct && in.IsBorrowedView(id) {
+			return returnOriginRequirements{refuted: true}
+		}
 		if kind == returnOriginDefaultable {
 			if elem, array := returnOriginDefaultArrayElement(in, id); array {
 				return walk(view, elem, active)
