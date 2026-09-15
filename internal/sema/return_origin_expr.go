@@ -110,7 +110,8 @@ func (b *returnOriginBody) expr(id ast.ExprID, env returnOriginEnv, targets retu
 		if err != nil || !out.flow.normal.reachable {
 			return out, err
 		}
-		if b.shape(id) != returnOriginRefFree || u.Sema.ToSymbols[id].IsValid() {
+		// A present entry is a __to call even when invalid: HIR lowers it as one.
+		if b.shape(id) != returnOriginRefFree || !b.castProven(id, data.Value) {
 			b.pending(node.Span, "conversion retains its actual expression for origin finalization")
 			out.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 		} else {
@@ -218,7 +219,10 @@ func (b *returnOriginBody) binary(id ast.ExprID, env returnOriginEnv, targets re
 		right.storage = returnOriginValue{}
 		return right, nil
 	}
-	if b.shape(id) != returnOriginRefFree || b.shape(data.Left) != returnOriginRefFree || b.shape(data.Right) != returnOriginRefFree {
+	borrowFree := b.shape(id) == returnOriginRefFree && b.shape(data.Left) == returnOriginRefFree && b.shape(data.Right) == returnOriginRefFree
+	// A certified operation drops operand origins; the borrow-free path needs no proof.
+	if !borrowFree && (b.shape(id) != returnOriginRefFree ||
+		!b.selectedOperation(u.Sema.MagicBinarySymbols, id, magicNameForBinaryOp(data.Op), 2, data.Left, data.Right)) {
 		b.pending(u.Builder.Exprs.Get(id).Span, "binary callable needs an exact origin contract")
 		right.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 	} else {
