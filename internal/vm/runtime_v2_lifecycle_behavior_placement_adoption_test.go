@@ -196,7 +196,7 @@ static void poll_xowner_scope_child(void) {
 static void poll_xowner_owner(void) {
     uint32_t phase = atomic_load_explicit(&g_scope_owner_phase, memory_order_acquire);
     if (phase == 0) {
-        void* handle = rt_scope_enter(false);
+        uint64_t handle = rt_scope_enter(false);
         atomic_store_explicit(&g_scope_handle, handle, memory_order_release);
         // Same-owner at register time (child inherits the owner's shard 0);
         // the cross-owner placement is adopted only later, when the child
@@ -209,7 +209,7 @@ static void poll_xowner_owner(void) {
         rt_async_yield(NULL, 0);
         return;
     }
-    void* handle = atomic_load_explicit(&g_scope_handle, memory_order_acquire);
+    uint64_t handle = atomic_load_explicit(&g_scope_handle, memory_order_acquire);
     uint64_t pending = 0;
     bool failfast = false;
     bool done = rt_scope_join_all(handle, &pending, &failfast);
@@ -223,7 +223,7 @@ static void poll_xowner_owner(void) {
 
 static int mode_scope_cross_owner(rt_executor* ex) {
     atomic_store_explicit(&g_scope_owner_phase, 0, memory_order_relaxed);
-    atomic_store_explicit(&g_scope_handle, NULL, memory_order_relaxed);
+    atomic_store_explicit(&g_scope_handle, 0, memory_order_relaxed);
     atomic_store_explicit(&g_scope_child_a, NULL, memory_order_relaxed);
     atomic_store_explicit(&g_xowner_grandchild, NULL, memory_order_relaxed);
     atomic_store_explicit(&g_xowner_registered, 0, memory_order_relaxed);

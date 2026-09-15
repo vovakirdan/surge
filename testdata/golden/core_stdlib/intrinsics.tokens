@@ -1951,8 +1951,8 @@
 1951: Ident           "bool" at 221:40-221:44 (leading: Space)
 1952: RParen          ")" at 221:44-221:45
 1953: Arrow           "->" at 221:46-221:48 (leading: Space)
-1954: Ident           "uint" at 221:49-221:53 (leading: Space)
-1955: Semicolon       ";" at 221:53-221:54
+1954: Ident           "uint64" at 221:49-221:55 (leading: Space)
+1955: Semicolon       ";" at 221:55-221:56
 1956: At              "@" at 222:1-222:2 (leading: Newline)
 1957: Ident           "intrinsic" at 222:2-222:11
 1958: KwFn            "fn" at 222:12-222:14 (leading: Space)
@@ -1963,18 +1963,18 @@
 1963: LParen          "(" at 222:41-222:42
 1964: Ident           "scope" at 222:42-222:47
 1965: Colon           ":" at 222:47-222:48
-1966: Ident           "uint" at 222:49-222:53 (leading: Space)
-1967: Comma           "," at 222:53-222:54
-1968: Ident           "child" at 222:55-222:60 (leading: Space)
-1969: Colon           ":" at 222:60-222:61
-1970: Ident           "Task" at 222:62-222:66 (leading: Space)
-1971: Lt              "<" at 222:66-222:67
-1972: Ident           "T" at 222:67-222:68
-1973: Gt              ">" at 222:68-222:69
-1974: RParen          ")" at 222:69-222:70
-1975: Arrow           "->" at 222:71-222:73 (leading: Space)
-1976: NothingLit      "nothing" at 222:74-222:81 (leading: Space)
-1977: Semicolon       ";" at 222:81-222:82
+1966: Ident           "uint64" at 222:49-222:55 (leading: Space)
+1967: Comma           "," at 222:55-222:56
+1968: Ident           "child" at 222:57-222:62 (leading: Space)
+1969: Colon           ":" at 222:62-222:63
+1970: Ident           "Task" at 222:64-222:68 (leading: Space)
+1971: Lt              "<" at 222:68-222:69
+1972: Ident           "T" at 222:69-222:70
+1973: Gt              ">" at 222:70-222:71
+1974: RParen          ")" at 222:71-222:72
+1975: Arrow           "->" at 222:73-222:75 (leading: Space)
+1976: NothingLit      "nothing" at 222:76-222:83 (leading: Space)
+1977: Semicolon       ";" at 222:83-222:84
 1978: At              "@" at 223:1-223:2 (leading: Newline)
 1979: Ident           "intrinsic" at 223:2-223:11
 1980: KwFn            "fn" at 223:12-223:14 (leading: Space)
@@ -1982,11 +1982,11 @@
 1982: LParen          "(" at 223:34-223:35
 1983: Ident           "scope" at 223:35-223:40
 1984: Colon           ":" at 223:40-223:41
-1985: Ident           "uint" at 223:42-223:46 (leading: Space)
-1986: RParen          ")" at 223:46-223:47
-1987: Arrow           "->" at 223:48-223:50 (leading: Space)
-1988: NothingLit      "nothing" at 223:51-223:58 (leading: Space)
-1989: Semicolon       ";" at 223:58-223:59
+1985: Ident           "uint64" at 223:42-223:48 (leading: Space)
+1986: RParen          ")" at 223:48-223:49
+1987: Arrow           "->" at 223:50-223:52 (leading: Space)
+1988: NothingLit      "nothing" at 223:53-223:60 (leading: Space)
+1989: Semicolon       ";" at 223:60-223:61
 1990: At              "@" at 224:1-224:2 (leading: Newline)
 1991: Ident           "intrinsic" at 224:2-224:11
 1992: KwFn            "fn" at 224:12-224:14 (leading: Space)
@@ -1994,11 +1994,11 @@
 1994: LParen          "(" at 224:32-224:33
 1995: Ident           "scope" at 224:33-224:38
 1996: Colon           ":" at 224:38-224:39
-1997: Ident           "uint" at 224:40-224:44 (leading: Space)
-1998: RParen          ")" at 224:44-224:45
-1999: Arrow           "->" at 224:46-224:48 (leading: Space)
-2000: Ident           "bool" at 224:49-224:53 (leading: Space)
-2001: Semicolon       ";" at 224:53-224:54
+1997: Ident           "uint64" at 224:40-224:46 (leading: Space)
+1998: RParen          ")" at 224:46-224:47
+1999: Arrow           "->" at 224:48-224:50 (leading: Space)
+2000: Ident           "bool" at 224:51-224:55 (leading: Space)
+2001: Semicolon       ";" at 224:55-224:56
 2002: At              "@" at 225:1-225:2 (leading: Newline)
 2003: Ident           "intrinsic" at 225:2-225:11
 2004: KwFn            "fn" at 225:12-225:14 (leading: Space)
@@ -2006,11 +2006,11 @@
 2006: LParen          "(" at 225:28-225:29
 2007: Ident           "scope" at 225:29-225:34
 2008: Colon           ":" at 225:34-225:35
-2009: Ident           "uint" at 225:36-225:40 (leading: Space)
-2010: RParen          ")" at 225:40-225:41
-2011: Arrow           "->" at 225:42-225:44 (leading: Space)
-2012: NothingLit      "nothing" at 225:45-225:52 (leading: Space)
-2013: Semicolon       ";" at 225:52-225:53
+2009: Ident           "uint64" at 225:36-225:42 (leading: Space)
+2010: RParen          ")" at 225:42-225:43
+2011: Arrow           "->" at 225:44-225:46 (leading: Space)
+2012: NothingLit      "nothing" at 225:47-225:54 (leading: Space)
+2013: Semicolon       ";" at 225:54-225:55
 2014: KwExtern        "extern" at 227:1-227:7 (leading: Newline)
 2015: Lt              "<" at 227:7-227:8
 2016: Ident           "Task" at 227:8-227:12

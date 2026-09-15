@@ -37,7 +37,7 @@ func (vm *VM) handleScopeEnter(frame *Frame, call *mir.CallInstr, writes *[]Loca
 	scopeID := exec.EnterScope(owner, failfast)
 	dstLocal := call.Dst.Local
 	typeID := frame.Locals[dstLocal].TypeID
-	scopeVal := MakeInt(int64(scopeID), typeID) //nolint:gosec // ScopeID is bounded by executor
+	scopeVal := MakeInt(asInt64(uint64(scopeID)), typeID)
 	if vmErr := vm.writeLocal(frame, dstLocal, scopeVal); vmErr != nil {
 		return vmErr
 	}

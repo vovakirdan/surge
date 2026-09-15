@@ -296,8 +296,14 @@ SurgeBigUint* bu_sub(const SurgeBigUint* a, const SurgeBigUint* b, bn_err* err) 
         }
         return NULL;
     }
-    if (bu_cmp(a, b) < 0) {
-        if (err != NULL) {
+    int cmp = bu_cmp(a, b);
+#ifdef RV2_BIGUINT_SUB_EQUAL_NEGATIVE_CONTROL
+    if (cmp < 0) {
+#else
+    // Equal borrowed operands produce canonical zero without allocating it.
+    if (cmp <= 0) {
+#endif
+        if (cmp < 0 && err != NULL) {
             *err = BN_ERR_UNDERFLOW;
         }
         return NULL;

@@ -117,15 +117,15 @@ void scope_cancel_children_controlled(rt_executor* ex, waker_key key) {
     }
 }
 
-void* rt_scope_enter(bool failfast) {
+uint64_t rt_scope_enter(bool failfast) {
     rt_executor* ex = ensure_exec();
     if (ex == NULL) {
-        return NULL;
+        return 0;
     }
     rt_task* owner = rt_current_task();
     if (owner == NULL || rt_current_task_id() == 0) {
         panic_msg("rt_scope_enter without current task");
-        return NULL;
+        return 0;
     }
     // Owner-lane publish (S5-Q7 realization B, mirroring __task_create): id is a
     // lock-free fetch_add; the segmented scope table only takes control on rare
@@ -142,7 +142,7 @@ void* rt_scope_enter(bool failfast) {
     rt_scope* scope = (rt_scope*)rt_alloc(sizeof(rt_scope), _Alignof(rt_scope));
     if (scope == NULL) {
         fatal_oom_msg("async: scope allocation failed");
-        return NULL;
+        return 0;
     }
     memset(scope, 0, sizeof(rt_scope));
     scope->id = id;
@@ -152,15 +152,14 @@ void* rt_scope_enter(bool failfast) {
     scope->failfast = failfast ? 1 : 0;
     rt_scope_slot_store(ex, id, scope);
     owner->active_scope_key = scope_key(id, scope->owner_shard_id);
-    return (void*)(uintptr_t)id;
+    return id;
 }
 
-void rt_scope_register_child(const void* scope_handle, void* task) {
+void rt_scope_register_child(uint64_t scope_id, void* task) {
     rt_executor* ex = ensure_exec();
     if (ex == NULL) {
         return;
     }
-    uint64_t scope_id = (uint64_t)(uintptr_t)scope_handle;
     waker_key key = current_scope_key(scope_id);
     if (!waker_valid(key)) {
         return;
@@ -184,12 +183,11 @@ void rt_scope_register_child(const void* scope_handle, void* task) {
     }
 }
 
-void rt_scope_cancel_all(const void* scope_handle) {
+void rt_scope_cancel_all(uint64_t scope_id) {
     rt_executor* ex = ensure_exec();
     if (ex == NULL) {
         return;
     }
-    uint64_t scope_id = (uint64_t)(uintptr_t)scope_handle;
     waker_key key = current_scope_key(scope_id);
     if (!waker_valid(key)) {
         return;
@@ -207,7 +205,7 @@ void rt_scope_cancel_all(const void* scope_handle) {
     }
 }
 
-bool rt_scope_join_all(const void* scope_handle, uint64_t* pending, bool* failfast) {
+bool rt_scope_join_all(uint64_t scope_id, uint64_t* pending, bool* failfast) {
     // Both answers are written before anything can return, so no exit can leave
     // either one holding what the caller's stack happened to contain. The two
     // early exits below say "drained" about a scope that is gone, and a scope
@@ -222,7 +220,6 @@ bool rt_scope_join_all(const void* scope_handle, uint64_t* pending, bool* failfa
     if (ex == NULL) {
         return true;
     }
-    uint64_t scope_id = (uint64_t)(uintptr_t)scope_handle;
     waker_key key = current_scope_key(scope_id);
     if (!waker_valid(key)) {
         return true;
@@ -266,12 +263,11 @@ bool rt_scope_join_all(const void* scope_handle, uint64_t* pending, bool* failfa
     return false;
 }
 
-void rt_scope_exit(const void* scope_handle) {
+void rt_scope_exit(uint64_t scope_id) {
     rt_executor* ex = ensure_exec();
     if (ex == NULL) {
         return;
     }
-    uint64_t scope_id = (uint64_t)(uintptr_t)scope_handle;
     waker_key key = current_scope_key(scope_id);
     if (!waker_valid(key)) {
         return;

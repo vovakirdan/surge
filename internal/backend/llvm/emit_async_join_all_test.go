@@ -50,7 +50,28 @@ fn main() -> int {
 		t.Fatal("the program emitted no join_all call; the fixture no longer exercises a @failfast block")
 	}
 
-	callPattern := regexp.MustCompile(`call i1 @rt_scope_join_all\(ptr %\w+, ptr (%\w+), ptr (%\w+)\)`)
+	// Scope IDs are fixed-width words on both sides of every runtime call.
+	// Only the child argument and the two join out-parameters are pointers.
+	for _, declaration := range []string{
+		"declare i64 @rt_scope_enter(i1)",
+		"declare void @rt_scope_register_child(i64, ptr)",
+		"declare void @rt_scope_cancel_all(i64)",
+		"declare i1 @rt_scope_join_all(i64, ptr, ptr)",
+		"declare void @rt_scope_exit(i64)",
+	} {
+		if !strings.Contains(ir, declaration) {
+			t.Errorf("numeric scope ABI is missing %q", declaration)
+		}
+	}
+	if !strings.Contains(ir, "call i64 @rt_scope_enter(i1") {
+		t.Fatal("the program emitted no numeric scope-enter call")
+	}
+	for _, oldShape := range []string{"ptr @rt_scope_enter(", "@rt_scope_register_child(ptr", "@rt_scope_cancel_all(ptr", "@rt_scope_join_all(ptr", "@rt_scope_exit(ptr"} {
+		if strings.Contains(ir, oldShape) {
+			t.Errorf("scope ID still uses the pointer ABI: %s", oldShape)
+		}
+	}
+	callPattern := regexp.MustCompile(`call i1 @rt_scope_join_all\(i64 %\w+, ptr (%\w+), ptr (%\w+)\)`)
 	calls := callPattern.FindAllStringSubmatch(ir, -1)
 	if len(calls) == 0 {
 		t.Fatal("no join_all call matched the expected shape")

@@ -102,7 +102,7 @@ const lifecycleHarnessCancelCommitModes = `
 
 static _Atomic uint32_t g_debt263_child_release;
 static _Atomic uint32_t g_debt263_owner_entered;
-static _Atomic(void*) g_debt263_scope_handle;
+static _Atomic uint64_t g_debt263_scope_handle;
 static _Atomic(void*) g_debt263_child;
 
 // The child whose completion this proof is about. It yields until the driver
@@ -131,13 +131,13 @@ static void poll_debt263_cancelled_child(void) {
 // which is about to be held.
 static void poll_debt263_scope_owner(void) {
     if (atomic_load_explicit(&g_debt263_owner_entered, memory_order_acquire) == 0) {
-        void* handle = rt_scope_enter(true);
+        uint64_t handle = rt_scope_enter(true);
         rt_task* child = spawn_pinned_in_scope(ensure_exec(), POLL_DEBT263_CANCELLED_CHILD, 0);
         atomic_store_explicit(&g_debt263_child, child, memory_order_release);
         atomic_store_explicit(&g_debt263_scope_handle, handle, memory_order_release);
         atomic_store_explicit(&g_debt263_owner_entered, 1, memory_order_release);
     }
-    void* handle = atomic_load_explicit(&g_debt263_scope_handle, memory_order_acquire);
+    uint64_t handle = atomic_load_explicit(&g_debt263_scope_handle, memory_order_acquire);
     uint64_t pending = 0;
     bool failfast = false;
     if (!rt_scope_join_all(handle, &pending, &failfast)) {
@@ -172,7 +172,7 @@ static size_t debt263_scope_snapshot(rt_executor* ex, uint64_t scope_id, unsigne
 static int mode_debt263_cancel_commit_boundary(rt_executor* ex) {
     atomic_store_explicit(&g_debt263_child_release, 0, memory_order_release);
     atomic_store_explicit(&g_debt263_owner_entered, 0, memory_order_release);
-    atomic_store_explicit(&g_debt263_scope_handle, NULL, memory_order_release);
+    atomic_store_explicit(&g_debt263_scope_handle, 0, memory_order_release);
     atomic_store_explicit(&g_debt263_child, NULL, memory_order_release);
 
     // The owner creates the child from inside its own scope (creation is the
@@ -193,7 +193,7 @@ static int mode_debt263_cancel_commit_boundary(rt_executor* ex) {
         return fail("debt263 owner entered its scope but created no child");
     }
     uint64_t scope_id =
-        (uint64_t)(uintptr_t)atomic_load_explicit(&g_debt263_scope_handle, memory_order_acquire);
+        atomic_load_explicit(&g_debt263_scope_handle, memory_order_acquire);
     unsigned triggered = 0;
     size_t active = debt263_scope_snapshot(ex, scope_id, &triggered);
     fprintf(stderr, "debt263 registered: child=%llu active=%zu failfast_triggered=%u\n",

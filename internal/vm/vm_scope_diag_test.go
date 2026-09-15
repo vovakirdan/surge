@@ -12,7 +12,7 @@ import (
 
 func TestVMScopeExitInvariantBecomesVMError(t *testing.T) {
 	typesIn := types.NewInterner()
-	intTy := typesIn.Builtins().Int
+	scopeTy := typesIn.Builtins().Uint64
 	scopeID := int64(1)
 
 	fn := &mir.Func{
@@ -29,8 +29,8 @@ func TestVMScopeExitInvariantBecomesVMError(t *testing.T) {
 					Callee: mir.Callee{Kind: mir.CalleeSym, Sym: symbols.NoSymbolID, Name: "rt_scope_exit"},
 					Args: []mir.Operand{{
 						Kind:  mir.OperandConst,
-						Type:  intTy,
-						Const: mir.Const{Kind: mir.ConstInt, Type: intTy, IntValue: scopeID},
+						Type:  scopeTy,
+						Const: mir.Const{Kind: mir.ConstInt, Type: scopeTy, IntValue: scopeID},
 					}},
 				},
 			}},

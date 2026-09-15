@@ -40,6 +40,11 @@ import (
 // a reason that predates this lane.
 func buildBignumRefcountStand(t *testing.T, name string, extraFlags []string) string {
 	t.Helper()
+	return buildBignumNativeStand(t, name, "bignum_refcount.c", extraFlags)
+}
+
+func buildBignumNativeStand(t *testing.T, name, sourceName string, extraFlags []string) string {
+	t.Helper()
 	clang, err := exec.LookPath("clang")
 	if err != nil {
 		t.Skip("clang not installed; skipping the bignum refcount proof")
@@ -57,7 +62,7 @@ func buildBignumRefcountStand(t *testing.T, name string, extraFlags []string) st
 	}
 	args = append(args, extraFlags...)
 	args = append(args, "-o", bin,
-		filepath.Join(root, "internal", "vm", "testdata", "bignum_refcount.c"))
+		filepath.Join(root, "internal", "vm", "testdata", sourceName))
 	for _, source := range sources {
 		if filepath.Base(source) != "rt_entry.c" {
 			args = append(args, source)

@@ -5,7 +5,7 @@ funcs=6
 fn inc:
   locals:
     L0: int [copy] name=x
-    L1: uint [copy] name=__scope
+    L1: uint64 [copy] name=__scope
     L2: int [copy] name=tmp_call1
     L3: type#1515 name=__state_init
     L4: type#1514 name=__payload_init
@@ -19,7 +19,7 @@ fn inc:
 fn inc$poll:
   locals:
     L0: int [copy] name=x
-    L1: uint [copy] name=__scope
+    L1: uint64 [copy] name=__scope
     L2: int [copy] name=tmp_call1
     L3: bool [copy] name=__scope_join_failed
     L4: type#1515 name=__state
@@ -73,7 +73,7 @@ fn inc$poll:
 fn slow:
   locals:
     L0: int [copy] name=n
-    L1: uint [copy] name=__scope
+    L1: uint64 [copy] name=__scope
     L2: bool [copy] name=tmp_call1
     L3: type#1517 name=__state_init
     L4: type#1516 name=__payload_init
@@ -87,7 +87,7 @@ fn slow:
 fn slow$poll:
   locals:
     L0: int [copy] name=n
-    L1: uint [copy] name=__scope
+    L1: uint64 [copy] name=__scope
     L2: bool [copy] name=tmp_call1
     L3: bool [copy] name=__scope_join_failed
     L4: type#1517 name=__state
@@ -140,7 +140,7 @@ fn slow$poll:
 
 fn test:
   locals:
-    L0: uint [copy] name=__scope
+    L0: uint64 [copy] name=__scope
     L1: type#1507 [owns_heap] name=a
     L2: type#1507 [owns_heap] name=tmp_call1
     L3: type#1507 [owns_heap] name=tmp_spawn2
@@ -174,7 +174,7 @@ fn test:
 
 fn test$poll:
   locals:
-    L0: uint [copy] name=__scope
+    L0: uint64 [copy] name=__scope
     L1: type#1507 [owns_heap] name=a
     L2: type#1507 [owns_heap] name=tmp_call1
     L3: type#1507 [owns_heap] name=tmp_spawn2

@@ -288,6 +288,7 @@ void* rt_worker_main(void* arg) {
                     : NULL;
             while (scheduler->wake_pending == 0 && (own_credit == NULL || *own_credit == 0) &&
                    !ex->shutdown) {
+                RT_SYNC_POINT(SP_WORKER_BEFORE_CREDIT_WAIT);
                 pthread_cond_wait(&shard->worker_cv, &shard->lock);
             }
             if (own_credit != NULL && *own_credit > 0) {

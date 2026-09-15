@@ -102,35 +102,16 @@ func (vm *VM) scopeIDFromValue(val Value) (asyncrt.ScopeID, *VMError) {
 		}
 		val = loaded
 	}
-	switch val.Kind {
-	case VKInt:
-		if val.Int < 0 {
-			return 0, vm.eb.makeError(PanicInvalidHandle, "negative scope id")
-		}
-		return asyncrt.ScopeID(val.Int), nil
-	case VKBigInt:
-		i, vmErr := vm.mustBigInt(val)
-		if vmErr != nil {
-			return 0, vmErr
-		}
-		n, ok := i.Int64()
-		if !ok || n < 0 {
-			return 0, vm.eb.makeError(PanicInvalidHandle, "scope id out of range")
-		}
-		return asyncrt.ScopeID(n), nil
-	case VKBigUint:
-		u, vmErr := vm.mustBigUint(val)
-		if vmErr != nil {
-			return 0, vmErr
-		}
-		n, ok := u.Uint64()
-		if !ok || n > ^uint64(0)>>1 {
-			return 0, vm.eb.makeError(PanicInvalidHandle, "scope id out of range")
-		}
-		return asyncrt.ScopeID(n), nil
-	default:
-		return 0, vm.eb.typeMismatch("scope id", val.Kind.String())
+	if val.Kind != VKInt || vm.Types == nil {
+		return 0, vm.eb.makeError(PanicTypeMismatch, "scope id must be uint64")
 	}
+	// Resolve aliases only: a pointer/reference type must not become an ID
+	// merely because its element type is uint64. A real reference was read above.
+	tt, ok := vm.Types.Lookup(resolveAlias(vm.Types, val.TypeID))
+	if !ok || tt.Kind != types.KindUint || tt.Width != types.Width64 {
+		return 0, vm.eb.makeError(PanicTypeMismatch, "scope id must be uint64")
+	}
+	return asyncrt.ScopeID(asUint64(val.Int)), nil
 }
 
 func (vm *VM) int64FromValue(val Value, context string) (int64, *VMError) {

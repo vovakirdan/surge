@@ -20,9 +20,13 @@ type findingKey struct {
 
 // Difference describes every reviewed-baseline mismatch.
 type Difference struct {
-	Unexpected []Finding
-	Stale      []Finding
-	StaleAllow []Finding
+	Unexpected             []Finding
+	Stale                  []Finding
+	StaleAllow             []Finding
+	StalePostBaselineAllow []Finding
+	// PostBaselineAllowed counts exact reviewed identities introduced after
+	// the frozen census, independently of legacy and temporary migrations.
+	PostBaselineAllowed int
 	// MigrationTracked counts the carriers this epic introduced that are still
 	// present. It is reported rather than asserted on: they are known and
 	// scheduled, so they are not a mismatch — but a wave that grows this number
@@ -35,16 +39,18 @@ type Difference struct {
 // A tracked migration carrier does not make it non-empty. It is expected to be
 // there, and it is expected to leave.
 func (difference *Difference) Empty() bool {
-	return len(difference.Unexpected) == 0 && len(difference.Stale) == 0 && len(difference.StaleAllow) == 0
+	return len(difference.Unexpected) == 0 && len(difference.Stale) == 0 &&
+		len(difference.StaleAllow) == 0 && len(difference.StalePostBaselineAllow) == 0
 }
 
 // Compare applies the live monotonic ratchet. Legacy removals are progress;
-// new identities and stale allowances are failures.
+// unreviewed new identities and stale allowances are failures.
 func Compare(manifest *Manifest, actual []Finding) Difference {
 	return compare(manifest, actual, false)
 }
 
-// CompareExact requires every frozen base finding to remain present.
+// CompareExact requires every frozen base finding to remain present and rejects
+// new identities even when authorized by migration or post-baseline entries.
 func CompareExact(manifest *Manifest, actual []Finding) Difference {
 	return compare(manifest, actual, true)
 }
@@ -53,6 +59,7 @@ func compare(manifest *Manifest, actual []Finding, requireLegacy bool) Differenc
 	legacy := make(map[findingKey]Finding, manifest.BaselineCount)
 	allowed := make(map[findingKey]Finding)
 	migration := make(map[findingKey]Finding)
+	postAllowed := make(map[findingKey]Finding)
 	for categoryIndex := range manifest.Categories {
 		category := &manifest.Categories[categoryIndex]
 		for i := range category.Legacy {
@@ -72,6 +79,10 @@ func compare(manifest *Manifest, actual []Finding, requireLegacy bool) Differenc
 			finding := &category.Migration[i].Finding
 			migration[keyFor(finding)] = *finding
 		}
+		for i := range category.PostBaselineAllow {
+			finding := &category.PostBaselineAllow[i].Finding
+			postAllowed[keyFor(finding)] = *finding
+		}
 	}
 	observed := make(map[findingKey]Finding, len(actual))
 	difference := Difference{}
@@ -84,6 +95,10 @@ func compare(manifest *Manifest, actual []Finding, requireLegacy bool) Differenc
 		}
 		if _, tracked := migration[key]; tracked {
 			difference.MigrationTracked++
+			continue
+		}
+		if _, safe := postAllowed[key]; safe {
+			difference.PostBaselineAllowed++
 			continue
 		}
 		if _, safe := allowed[key]; !safe {
@@ -102,9 +117,15 @@ func compare(manifest *Manifest, actual []Finding, requireLegacy bool) Differenc
 			difference.StaleAllow = append(difference.StaleAllow, finding)
 		}
 	}
+	for key, finding := range postAllowed {
+		if _, exists := observed[key]; !exists {
+			difference.StalePostBaselineAllow = append(difference.StalePostBaselineAllow, finding)
+		}
+	}
 	sortFindings(difference.Unexpected)
 	sortFindings(difference.Stale)
 	sortFindings(difference.StaleAllow)
+	sortFindings(difference.StalePostBaselineAllow)
 	return difference
 }
 
@@ -119,10 +140,14 @@ func FormatDifference(difference *Difference) string {
 	write("unexpected", difference.Unexpected)
 	write("stale legacy", difference.Stale)
 	write("stale allow", difference.StaleAllow)
+	write("stale post-baseline allow", difference.StalePostBaselineAllow)
 	// Reported even when nothing is wrong, so that growing the tracked set is
 	// something a reader sees rather than something a diff hides.
 	if difference.MigrationTracked > 0 {
 		fmt.Fprintf(&out, "migration carriers still present: %d\n", difference.MigrationTracked)
+	}
+	if difference.PostBaselineAllowed > 0 {
+		fmt.Fprintf(&out, "post-baseline allowances present: %d\n", difference.PostBaselineAllowed)
 	}
 	return strings.TrimSpace(out.String())
 }

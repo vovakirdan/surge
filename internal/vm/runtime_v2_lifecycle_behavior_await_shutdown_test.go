@@ -58,7 +58,7 @@ const lifecycleHarnessMain = `
 
 static int mode_scope_basic(rt_executor* ex) {
     atomic_store_explicit(&g_scope_owner_phase, 0, memory_order_relaxed);
-    atomic_store_explicit(&g_scope_handle, NULL, memory_order_relaxed);
+    atomic_store_explicit(&g_scope_handle, 0, memory_order_relaxed);
     atomic_store_explicit(&g_scope_child_a, NULL, memory_order_relaxed);
     atomic_store_explicit(&g_scope_child_b, NULL, memory_order_relaxed);
     atomic_store_explicit(&g_scope_spin_steps, 0, memory_order_relaxed);
@@ -73,8 +73,8 @@ static int mode_scope_basic(rt_executor* ex) {
     if (!await_expect(ex, owner, 1, 0, "scope owner")) {
         return 1;
     }
-    void* handle = atomic_load_explicit(&g_scope_handle, memory_order_acquire);
-    uint64_t scope_id = (uint64_t)(uintptr_t)handle;
+    uint64_t handle = atomic_load_explicit(&g_scope_handle, memory_order_acquire);
+    uint64_t scope_id = handle;
     rt_control_lock(ex);
     rt_scope* scope_after_exit = get_scope(ex, scope_id);
     rt_control_unlock(ex);
@@ -88,7 +88,7 @@ static int mode_scope_basic(rt_executor* ex) {
 
 static int mode_scope_cancelled_poll_teardown(rt_executor* ex) {
     atomic_store_explicit(&g_cancel_owner_phase, 0, memory_order_relaxed);
-    atomic_store_explicit(&g_cancel_scope_handle, NULL, memory_order_relaxed);
+    atomic_store_explicit(&g_cancel_scope_handle, 0, memory_order_relaxed);
     atomic_store_explicit(&g_cancel_child, NULL, memory_order_relaxed);
     atomic_store_explicit(&g_park_forever_chan, NULL, memory_order_relaxed);
     rt_task* chan_maker = spawn_pinned(ex, POLL_MAKE_PARK_FOREVER_CHAN, 0);
@@ -114,8 +114,8 @@ static int mode_scope_cancelled_poll_teardown(rt_executor* ex) {
         (void)rt_executor_request_shutdown(ex);
         return fail("cancel-owner child did not park");
     }
-    void* handle = atomic_load_explicit(&g_cancel_scope_handle, memory_order_acquire);
-    uint64_t scope_id = (uint64_t)(uintptr_t)handle;
+    uint64_t handle = atomic_load_explicit(&g_cancel_scope_handle, memory_order_acquire);
+    uint64_t scope_id = handle;
     waker_key scope_wait_key = owner->active_scope_key;
 #ifdef RT_TEST_SYNC_POINTS
     if (!wait_sync_point_count(RT_SYNC_POINT_SP_SCOPE_TEARDOWN_BEFORE_REGISTER,
@@ -259,7 +259,7 @@ static int mode_shutdown_parked(rt_executor* ex) {
     }
 
     atomic_store_explicit(&g_scope_forever_phase, 0, memory_order_relaxed);
-    atomic_store_explicit(&g_scope_forever_handle, NULL, memory_order_relaxed);
+    atomic_store_explicit(&g_scope_forever_handle, 0, memory_order_relaxed);
     atomic_store_explicit(&g_scope_forever_child, NULL, memory_order_relaxed);
     rt_task* scope_owner = spawn_pinned(ex, POLL_SCOPE_OWNER_FOREVER, 1);
     if (scope_owner == NULL) {
@@ -395,6 +395,9 @@ int main(int argc, char** argv) {
         return mode_debt038_token_lock_refuses_dispatch(ex);
     }
 	#ifdef RT_TEST_SYNC_POINTS
+    if (strcmp(argv[1], "local-peer-wake") == 0) {
+        return mode_local_peer_wake(ex);
+    }
     if (strcmp(argv[1], "debt020-migrate-gap-proof") == 0) {
         return mode_debt020_migrate_gap_proof(ex);
     }
