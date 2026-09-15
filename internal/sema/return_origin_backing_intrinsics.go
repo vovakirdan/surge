@@ -153,10 +153,19 @@ func (b *returnOriginBody) applyCoreArrayIntrinsic(op returnOriginArrayOp, id as
 		// A native dynamic cursor does not retain the base header, so it keeps both.
 		return actuals[0].join(b.containerLoans(actuals[0], pre, span)), pre, true
 	case returnOriginArrayNext:
-		if _, ok := argument(0); !ok || returnOriginView(b.function).shape(u.Sema.ExprTypes[id]) != returnOriginRefFree {
+		// A step copies the walked element out of its base and never borrows the cursor variable.
+		elem, typed := returnOriginOptionElement(in, u.Sema.ExprTypes[id])
+		if _, ok := argument(0); !ok || !typed {
 			return returnOriginValue{}, pre, false
 		}
-		return returnOriginValueOf(), pre, true
+		switch {
+		case b.analyzer.loanCarrier(elem): // a copied array or cursor handle keeps its storage loans
+			b.pending(span, returnOriginCursorLoanElement)
+			return returnOriginValueOf(returnOrigin{kind: returnOriginUnknown}), pre, true
+		case returnOriginView(b.function).shape(elem) == returnOriginRefFree, b.freeTemplateElement(elem, span):
+			return returnOriginValueOf(), pre, true
+		}
+		return returnOriginValue{}, pre, false
 	}
 	return returnOriginValue{}, pre, false
 }
@@ -222,6 +231,9 @@ func (a *returnOriginAnalyzer) checkBackingIntrinsicUse(fn *returnOriginFunction
 	case returnOriginArrayRange, returnOriginArrayNext:
 		if len(use.TemplateArgs) == 0 || returnOriginTypeShape(in, use.TemplateArgs[0], nil) != returnOriginRefFree {
 			return false, ""
+		}
+		if op == returnOriginArrayNext && a.loanCarrier(use.TemplateArgs[0]) {
+			return true, returnOriginCursorLoanElement
 		}
 		return true, ""
 	}
