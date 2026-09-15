@@ -33,13 +33,16 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 				return tc.adjustAliasUnaryResult(res, recvCand)
 			}
 		}
-		resultKey := substituteTypeKeyParams(sig.Result, subst)
+		resultKey, checkpoint := substituteTypeKeyParams(sig.Result, subst), tc.errorCheckpoint()
 		res := tc.typeFromKey(resultKey)
 		if res == types.NoTypeID && staticReceiver && recv != types.NoTypeID {
 			recvKey := tc.typeKeyForType(recv)
 			if recvKey != "" && typeKeyMatchesWithGenerics(resultKey, recvKey) {
 				return tc.adjustAliasUnaryResult(recv, recvCand)
 			}
+		}
+		if res == types.NoTypeID {
+			res = tc.untypedReceiverMethodResult(name, sig, recv, recvCand, resultKey, span, checkpoint)
 		}
 		return tc.adjustAliasUnaryResult(res, recvCand)
 	}
@@ -65,7 +68,11 @@ func (tc *typeChecker) selectedReceiverMethodResult(name string, sig *symbols.Fu
 	if tc.types == nil || sig == nil || !sig.HasSelf {
 		return types.NoTypeID, false
 	}
-	sym := tc.selectedMethodResultSymbol(sig)
+	return tc.selectedSymbolResult(name, tc.selectedMethodResultSymbol(sig), recvCand, span)
+}
+
+// selectedSymbolResult substitutes one selected declaration's result for the receiver's descriptor.
+func (tc *typeChecker) selectedSymbolResult(name string, sym *symbols.Symbol, recvCand typeKeyCandidate, span source.Span) (types.TypeID, bool) {
 	if sym == nil {
 		return types.NoTypeID, false
 	}
