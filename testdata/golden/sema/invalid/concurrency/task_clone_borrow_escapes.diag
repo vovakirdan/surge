@@ -1,0 +1,6 @@
+error SEM3139 testdata/golden/sema/invalid/concurrency/task_clone_borrow_escapes.sg:22:12 cannot return this task: it borrows 'l', which is freed when the function returns while the task may still be running
+error SEM3139 testdata/golden/sema/invalid/concurrency/task_clone_borrow_escapes.sg:32:12 cannot return this task: it borrows 'l', which is freed when the function returns while the task may still be running
+error SEM3139 testdata/golden/sema/invalid/concurrency/task_clone_borrow_escapes.sg:41:13 cannot return this task: it borrows 'l', which is freed when the function returns while the task may still be running
+error SEM3139 testdata/golden/sema/invalid/concurrency/task_clone_borrow_escapes.sg:54:12 cannot return this task: it borrows 'l', which is freed when the function returns while the task may still be running
+error SEM3139 testdata/golden/sema/invalid/concurrency/task_clone_borrow_escapes.sg:65:17 cannot return this task: it borrows 'l', which is freed when the function returns while the task may still be running
+error SEM3139 testdata/golden/sema/invalid/concurrency/task_clone_borrow_escapes.sg:78:12 cannot return this task: it borrows 'l', which is freed when the function returns while the task may still be running

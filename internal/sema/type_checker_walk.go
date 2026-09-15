@@ -365,7 +365,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			}
 			beforeLoop := tc.snapshotFlow()
 			tc.ensureBoolContext(forStmt.Cond, tc.exprSpan(forStmt.Cond))
-			tc.typeExpr(forStmt.Post)
+			tc.typeExprMaybeSkipped(forStmt.Post)
 			tc.enterLoopDropScope()
 			tc.walkStmt(forStmt.Body)
 			tc.closeLoopFlow(beforeLoop, "for loop")
