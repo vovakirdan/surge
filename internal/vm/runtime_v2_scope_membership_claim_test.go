@@ -89,7 +89,7 @@ const lifecycleHarnessScopeMembershipModes = `
 #define POLL_SCOPE_MEMBERSHIP_CHILD 4043
 
 static _Atomic(void*) g_scope_provenance_foreign;
-static _Atomic(void*) g_scope_provenance_handle;
+static _Atomic uint64_t g_scope_provenance_handle;
 static _Atomic uint32_t g_scope_provenance_foreign_running;
 static _Atomic uint32_t g_scope_provenance_foreign_release;
 static _Atomic uint32_t g_scope_provenance_first_join;
@@ -106,7 +106,7 @@ static void poll_scope_membership_child(void) {
 }
 
 static void poll_scope_membership_owner(void) {
-    void* handle = rt_scope_enter(true);
+    uint64_t handle = rt_scope_enter(true);
     atomic_store_explicit(&g_scope_provenance_handle, handle, memory_order_release);
     rt_task_wake(atomic_load_explicit(&g_scope_provenance_foreign, memory_order_acquire));
 
@@ -141,7 +141,7 @@ static void poll_scope_membership_owner(void) {
 
 static int mode_scope_membership_claim(rt_executor* ex) {
     atomic_store_explicit(&g_scope_provenance_foreign, NULL, memory_order_release);
-    atomic_store_explicit(&g_scope_provenance_handle, NULL, memory_order_release);
+    atomic_store_explicit(&g_scope_provenance_handle, 0, memory_order_release);
     atomic_store_explicit(&g_scope_provenance_foreign_running, 0, memory_order_release);
     atomic_store_explicit(&g_scope_provenance_foreign_release, 0, memory_order_release);
     atomic_store_explicit(&g_scope_provenance_first_join, 0, memory_order_release);

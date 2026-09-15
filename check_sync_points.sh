@@ -65,6 +65,7 @@ declare -A WINDOW_FILE=(
     [SP_IMMEDIATE_ON_AFTER_PUBLISH]="rt_immediate_on.c"
     [SP_READY_REQUEUE_BEFORE_LOCK]="rt_ready_queue.c"
     [SP_CARRIER_PUBLISH_BEFORE_CREDIT]="rt_ready_queue.c"
+    [SP_WORKER_BEFORE_CREDIT_WAIT]="rt_worker_turn.c"
     [SP_WAKE_BEFORE_STALE_REMOVAL]="rt_task_park.c"
     [SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY]="rt_far_channel_select.c"
     [SP_FAR_SELECT_BEFORE_DISPATCH]="rt_far_channel_select.c"
@@ -171,6 +172,26 @@ for f in "${callers[@]}"; do
     )
 done
 [ "$fail" -eq 0 ] && note_ok "all RT_SYNC_POINT call sites are allowlisted and in their window"
+
+# This proof needs the real zero-credit wait transition, not an earlier idle
+# sample: its held peer must still own the mutex that publication will take.
+if awk '
+    /while \(scheduler->wake_pending == 0 / { guarded = 1 }
+    /RT_SYNC_POINT\(SP_WORKER_BEFORE_CREDIT_WAIT\);/ {
+        if (!guarded) bad = 1
+        hooks++; next_is_wait = 1; next
+    }
+    next_is_wait && /pthread_cond_wait\(&shard->worker_cv, &shard->lock\);/ {
+        matched++; next_is_wait = 0; next
+    }
+    next_is_wait && NF { bad = 1 }
+    guarded && /^[[:space:]]*}/ { guarded = 0 }
+    END { exit bad || hooks != 1 || matched != 1 }
+' "$NATIVE/rt_worker_turn.c"; then
+    note_ok "worker credit hook immediately precedes the guarded condvar wait"
+else
+    note_fail "worker credit hook left the zero-credit condvar wait window"
+fi
 
 # Check 1: negative-symbol. Compile the same source set the harness uses
 # (rt_entry.c excluded) WITHOUT the arming macro; no object may reference the

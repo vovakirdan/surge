@@ -31,16 +31,16 @@ import (
 // RUNNING, the claim left for afterwards still says READY.
 //
 // The negative control restores the split, and MUST be seen doing what the
-// split does: the wake queues the task, another worker picks it up, and the
-// two pollers collide inside the same task.
+// split does: the wake queues the task for a second worker.
 func TestRuntimeV2LifecycleInlineClaimIsOneObservation(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarnessInlineClaim(t, false)
 	// SURGE_SHARDS=1 so the child the owner creates from inside its own poll
 	// lands on a queue this same worker owns -- the only shape the inline claim
 	// accepts. Two workers and up so there IS a peer for a duplicate entry to
-	// be handed to; the stand quiesces first, and a single local push signals
-	// nobody (rt_ready_queue.c), so that peer stays parked unless a wake wakes
-	// it.
+	// be handed to. That same push requests a peer wake (rt_ready_queue.c), and
+	// an idle peer woken by it may steal the child before the owner claims it;
+	// the stand therefore holds every peer inside a poll of its own first, so
+	// the only worker that can reach the child is the one about to claim it.
 	for _, threads := range []string{"2", "4"} {
 		t.Run("threads-"+threads, func(t *testing.T) {
 			env := lifecycleEnv(
@@ -90,9 +90,10 @@ func TestRuntimeV2LifecycleInlineClaimSplitNegativeControl(t *testing.T) {
 		t.Fatalf("inline-claim negative control did not build the window (code=%d)\nstdout:\n%s\nstderr:\n%s",
 			exitCode, stdout, stderr)
 	}
-	// And it must fail for the right reason: the wake queued the task, and the
-	// worker that took the duplicate collided with the owner inside it. Either
-	// half is the defect; the runtime's own double-poll panic is the louder.
+	// And it must fail for the right reason: the wake queued the task for a
+	// second worker, or -- once the stand releases its peers -- a worker that
+	// took the duplicate collided with the owner inside it. Either half is the
+	// defect; the runtime's own double-poll panic is the louder.
 	queued := strings.Contains(stderr, "inline-claim after wake: enqueued=1")
 	collided := strings.Contains(stderr, "async: double poll")
 	if !queued && !collided {
@@ -120,12 +121,15 @@ const lifecycleHarnessInlineClaimModes = `
 #ifdef RT_TEST_SYNC_POINTS
 #define POLL_INLINE_CLAIM_OWNER 4040
 #define POLL_INLINE_CLAIM_CHILD 4041
+#define POLL_INLINE_CLAIM_PEER_HOLD 4054
 
 static _Atomic uint32_t g_inline_claim_owner_entered;
-static _Atomic(void*) g_inline_claim_scope;
+static _Atomic uint64_t g_inline_claim_scope;
 static _Atomic(void*) g_inline_claim_child;
 static _Atomic uint32_t g_inline_claim_child_polls;
 static _Atomic uint32_t g_inline_claim_child_release;
+static _Atomic uint32_t g_inline_claim_peers_held;
+static _Atomic uint32_t g_inline_claim_peer_release;
 
 // The child of an inline claim. It ends only by cancellation, so the scope's
 // answer depends on this task's completion and nothing else.
@@ -146,14 +150,33 @@ static void poll_inline_claim_child(void) {
     rt_async_yield(NULL, 0);
 }
 
+// A worker inside a poll takes nothing from any queue. The stand holds every
+// worker but one this way before it creates the owner, so the owner runs on the
+// one free worker and the peer wake its child's push requests has no idle
+// worker to reach. The hold is bounded like the child's.
+static void poll_inline_claim_peer_hold(void) {
+    atomic_fetch_add_explicit(&g_inline_claim_peers_held, 1, memory_order_acq_rel);
+    for (uint32_t i = 0; i < 20000; i++) {
+        if (atomic_load_explicit(&g_inline_claim_peer_release, memory_order_acquire) != 0) {
+            break;
+        }
+        sleep_us(1000);
+    }
+    rt_async_return(NULL, &(uint64_t){0});
+}
+
+// Every exit releases the held peers before shutdown, which joins the workers.
+static void inline_claim_release_peers(void) {
+    atomic_store_explicit(&g_inline_claim_peer_release, 1, memory_order_release);
+}
+
 // The owner creates its child with __task_create from inside its own poll ON
 // PURPOSE. That push lands on THIS worker's local deque tail
 // (ready_push_task_locked, rt_ready_queue.c), which is the one shape
 // rt_task_poll's inline-claim branch accepts -- so unlike every other stand
 // here, the child must NOT come from the driver: from the driver it would go to
-// the inject queue and no claim would ever happen. The owner is not held while
-// the child needs another worker, so the stand-helper's trap does not apply --
-// this owner polls the child itself, which is the whole point.
+// the inject queue and no claim would ever happen. This owner polls the child
+// itself, which is the whole point.
 //
 // The tail mirrors the generated tail of a @failfast block (insertScopeJoins):
 // join the set, exit the scope, Cancelled when fail-fast fired and Success
@@ -161,7 +184,7 @@ static void poll_inline_claim_child(void) {
 // the window, not just whether the queue does.
 static void poll_inline_claim_owner(void) {
     if (atomic_load_explicit(&g_inline_claim_owner_entered, memory_order_acquire) == 0) {
-        void* handle = rt_scope_enter(true);
+        uint64_t handle = rt_scope_enter(true);
         void* child = __task_create(POLL_INLINE_CLAIM_CHILD, NULL, rt_channel_opaque_word_ops());
         rt_scope_register_child(handle, child);
         atomic_store_explicit(&g_inline_claim_scope, handle, memory_order_release);
@@ -173,7 +196,7 @@ static void poll_inline_claim_owner(void) {
             return;
         }
     }
-    void* handle = atomic_load_explicit(&g_inline_claim_scope, memory_order_acquire);
+    uint64_t handle = atomic_load_explicit(&g_inline_claim_scope, memory_order_acquire);
     uint64_t pending = 0;
     bool failfast = false;
     if (!rt_scope_join_all(handle, &pending, &failfast)) {
@@ -190,37 +213,60 @@ static void poll_inline_claim_owner(void) {
 
 static int mode_inline_claim_off_queue(rt_executor* ex) {
     atomic_store_explicit(&g_inline_claim_owner_entered, 0, memory_order_release);
-    atomic_store_explicit(&g_inline_claim_scope, NULL, memory_order_release);
+    atomic_store_explicit(&g_inline_claim_scope, 0, memory_order_release);
     atomic_store_explicit(&g_inline_claim_child, NULL, memory_order_release);
     atomic_store_explicit(&g_inline_claim_child_polls, 0, memory_order_release);
     atomic_store_explicit(&g_inline_claim_child_release, 0, memory_order_release);
+    atomic_store_explicit(&g_inline_claim_peers_held, 0, memory_order_release);
+    atomic_store_explicit(&g_inline_claim_peer_release, 0, memory_order_release);
     unsigned before = rt_sync_point_reached_count(RT_SYNC_POINT_SP_INLINE_CHILD_TAKEN_OFF_QUEUE);
 
-    // Quiesce. The owner's child is pushed onto that worker's own local deque,
-    // and a single local entry signals nobody (rt_ready_queue.c) -- but an
-    // ALREADY AWAKE peer steals from a local deque without being signalled
-    // (worker_next_ready). One task driven to completion through the driver
-    // path, then a pause, leaves every other worker parked on worker_cv, so the
-    // only thread that can reach the child is the one about to claim it.
+    // Quiesce, then occupy the peers. The owner's child is pushed onto that
+    // worker's own local deque, and the push requests a peer wake whenever the
+    // scheduler has a peer (rt_ready_queue.c); an awake peer also steals from a
+    // local deque without being signalled (worker_next_ready). Holding every
+    // other worker inside a poll leaves exactly one free worker for the owner,
+    // so the only thread that can reach the child is the one about to claim it.
     rt_task* warm = spawn_child_for_stand(ex, POLL_JOIN_TARGET_QUICK, 0);
     if (warm == NULL || !wait_task_status(warm, TASK_DONE, 4000)) {
         (void)rt_executor_request_shutdown(ex);
         return fail("inline-claim stand: warm-up child never completed");
     }
     sleep_us(100000);
+    rt_scheduler* scheduler = rt_shard_scheduler(rt_runtime_shard0(rt_executor_runtime(ex)));
+    uint32_t peers = scheduler != NULL && scheduler->worker_count > 1 ? scheduler->worker_count - 1 : 0;
+    if (peers == 0) {
+        (void)rt_executor_request_shutdown(ex);
+        return fail("inline-claim stand: requires at least one peer worker");
+    }
+    for (uint32_t i = 0; i < peers; i++) {
+        if (spawn_child_for_stand(ex, POLL_INLINE_CLAIM_PEER_HOLD, 0) == NULL) {
+            inline_claim_release_peers();
+            (void)rt_executor_request_shutdown(ex);
+            return fail("inline-claim stand: peer hold allocation failed");
+        }
+    }
+    if (!wait_u32_at_least(&g_inline_claim_peers_held, peers, 4000)) {
+        inline_claim_release_peers();
+        (void)rt_executor_request_shutdown(ex);
+        return fail("inline-claim stand: the peers were not all held inside their polls");
+    }
 
     rt_task* owner = spawn_child_for_stand(ex, POLL_INLINE_CLAIM_OWNER, 0);
     if (owner == NULL) {
+        inline_claim_release_peers();
         (void)rt_executor_request_shutdown(ex);
         return fail("inline-claim stand: owner allocation failed");
     }
     if (!wait_sync_point_count(RT_SYNC_POINT_SP_INLINE_CHILD_TAKEN_OFF_QUEUE, before, 4000)) {
+        inline_claim_release_peers();
         (void)rt_executor_request_shutdown(ex);
         return fail("inline-claim stand: the owner never reached the claim window");
     }
     rt_task* child = (rt_task*)atomic_load_explicit(&g_inline_claim_child, memory_order_acquire);
     if (child == NULL) {
         rt_sync_point_open();
+        inline_claim_release_peers();
         (void)rt_executor_request_shutdown(ex);
         return fail("inline-claim stand: the owner reached the window without publishing a child");
     }
@@ -237,7 +283,8 @@ static int mode_inline_claim_off_queue(rt_executor* ex) {
     unsigned enq_after_wake = (unsigned)task_enqueued_load(child);
     fprintf(stderr, "inline-claim after wake: enqueued=%u\n", enq_after_wake);
     // A queue entry is only half of it: the entry has to be TAKEN for the
-    // damage to land, so wait for a second poller to actually enter the child.
+    // damage to land. With the peers held nobody takes it here, so this stays a
+    // bounded check that no second poller entered the child.
     int second_poller = wait_u32_at_least(&g_inline_claim_child_polls, 1, 500);
     fprintf(stderr, "inline-claim second poller: %d\n", second_poller);
 
@@ -245,6 +292,7 @@ static int mode_inline_claim_off_queue(rt_executor* ex) {
         // Nothing to collide with; let the owner's own poll run the child.
         atomic_store_explicit(&g_inline_claim_child_release, 1, memory_order_release);
         rt_sync_point_open();
+        inline_claim_release_peers();
         if (!wait_task_status(owner, TASK_DONE, 8000)) {
             (void)rt_executor_request_shutdown(ex);
             return fail("inline-claim stand: owner stranded after release");
@@ -260,10 +308,11 @@ static int mode_inline_claim_off_queue(rt_executor* ex) {
         return 0;
     }
 
-    // The wake got in. Release the OWNER first and leave the second poller
-    // inside the child, so the collision the split makes possible is the one
-    // that gets observed rather than a timing accident.
+    // The wake got in. Release the OWNER first and then the peers, so the
+    // collision the split makes possible is the one that gets observed rather
+    // than a timing accident.
     rt_sync_point_open();
+    inline_claim_release_peers();
     sleep_us(200000);
     atomic_store_explicit(&g_inline_claim_child_release, 1, memory_order_release);
     (void)rt_executor_request_shutdown(ex);

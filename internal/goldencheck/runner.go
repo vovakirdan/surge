@@ -40,6 +40,9 @@ func Check(ctx context.Context, options *Options) error {
 	if err != nil {
 		return err
 	}
+	if err := verifyIndexCensus(ctx, state.repoRoot, baseline); err != nil {
+		return fmt.Errorf("golden preflight: %w", err)
+	}
 	if err := state.expectations.VerifyCorpus(baseline); err != nil {
 		return fmt.Errorf("golden preflight rejected frozen corpus: %w", err)
 	}
@@ -53,8 +56,9 @@ func Check(ctx context.Context, options *Options) error {
 	for run := 1; run <= runs; run++ {
 		generatorErr := runGenerator(ctx, options, &state)
 		post, scanErr := Scan(state.goldenRoot)
-		var postErr error
+		var postErr, censusErr error
 		if scanErr == nil {
+			censusErr = verifyIndexCensus(ctx, state.repoRoot, post)
 			if changes := Diff(baseline, post); len(changes) != 0 {
 				postErr = formatSnapshotChanges(run, changes)
 			}
@@ -63,7 +67,7 @@ func Check(ctx context.Context, options *Options) error {
 		if gitErr == nil && len(gitChanges) != 0 {
 			gitErr = formatGitChanges(fmt.Sprintf("golden run %d changed repository state", run), gitChanges)
 		}
-		if err := errors.Join(generatorErr, scanErr, postErr, gitErr); err != nil {
+		if err := errors.Join(generatorErr, scanErr, postErr, censusErr, gitErr); err != nil {
 			return err
 		}
 	}

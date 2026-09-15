@@ -15,6 +15,28 @@ func TestCheckPostflightLeavesEveryProposedChange(t *testing.T) {
 		assert  func(*testing.T, testRepository)
 	}{
 		{
+			name: "added untracked sidecar",
+			command: func(repo testRepository) []string {
+				path := filepath.Join(repo.goldenRoot, "new.tokens")
+				return []string{"sh", "-c", `printf added > "$1"`, "generator", path}
+			},
+			want: "added",
+			assert: func(t *testing.T, repo testRepository) {
+				assertFileContent(t, filepath.Join(repo.goldenRoot, "new.tokens"), "added")
+			},
+		},
+		{
+			name: "added nested core output",
+			command: func(repo testRepository) []string {
+				path := filepath.Join(repo.goldenRoot, "core_stdlib", "new.tokens")
+				return []string{"sh", "-c", `mkdir -p "${1%/*}" && printf added > "$1"`, "generator", path}
+			},
+			want: "added",
+			assert: func(t *testing.T, repo testRepository) {
+				assertFileContent(t, filepath.Join(repo.goldenRoot, "core_stdlib", "new.tokens"), "added")
+			},
+		},
+		{
 			name: "added ignored file",
 			command: func(repo testRepository) []string {
 				path := filepath.Join(repo.goldenRoot, "added.ignored")

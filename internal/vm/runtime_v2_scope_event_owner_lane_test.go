@@ -109,7 +109,7 @@ const lifecycleHarnessScopeEventModes = `
 #define POLL_DEBT280_GRANDCHILD 4092
 
 static _Atomic uint32_t g_debt280_owner_entered;
-static _Atomic(void*) g_debt280_scope_handle;
+static _Atomic uint64_t g_debt280_scope_handle;
 static _Atomic(void*) g_debt280_child;
 static _Atomic(void*) g_debt280_grandchild;
 static _Atomic(void*) g_debt280_sleeper;
@@ -155,7 +155,7 @@ static void poll_debt280_scope_child(void) {
 // join below holds ONE live child that completes cross-owner.
 static void poll_debt280_scope_owner(void) {
     if (atomic_load_explicit(&g_debt280_owner_entered, memory_order_acquire) == 0) {
-        void* handle = rt_scope_enter(true);
+        uint64_t handle = rt_scope_enter(true);
         void* child = __task_create(POLL_DEBT280_SCOPE_CHILD, NULL, rt_channel_opaque_word_ops());
         rt_scope_register_child(handle, child);
         atomic_store_explicit(&g_debt280_child, child, memory_order_release);
@@ -168,7 +168,7 @@ static void poll_debt280_scope_owner(void) {
         rt_async_yield(NULL, 0);
         return;
     }
-    void* handle = atomic_load_explicit(&g_debt280_scope_handle, memory_order_acquire);
+    uint64_t handle = atomic_load_explicit(&g_debt280_scope_handle, memory_order_acquire);
     uint64_t pending = 0;
     bool failfast = false;
     if (!rt_scope_join_all(handle, &pending, &failfast)) {
@@ -212,7 +212,7 @@ static int debt280_fail_open(rt_executor* ex, const char* msg) {
 
 static int mode_debt280_scope_event_owner_lane(rt_executor* ex) {
     atomic_store_explicit(&g_debt280_owner_entered, 0, memory_order_release);
-    atomic_store_explicit(&g_debt280_scope_handle, NULL, memory_order_release);
+    atomic_store_explicit(&g_debt280_scope_handle, 0, memory_order_release);
     atomic_store_explicit(&g_debt280_child, NULL, memory_order_release);
     atomic_store_explicit(&g_debt280_grandchild, NULL, memory_order_release);
     atomic_store_explicit(&g_debt280_sleeper, NULL, memory_order_release);
@@ -261,7 +261,7 @@ static int mode_debt280_scope_event_owner_lane(rt_executor* ex) {
     }
     rt_task* child = (rt_task*)atomic_load_explicit(&g_debt280_child, memory_order_acquire);
     uint64_t scope_id =
-        (uint64_t)(uintptr_t)atomic_load_explicit(&g_debt280_scope_handle, memory_order_acquire);
+        atomic_load_explicit(&g_debt280_scope_handle, memory_order_acquire);
     unsigned triggered = 0;
     size_t active = debt280_scope_snapshot(ex, scope_id, &triggered);
     uint64_t events_before = debt280_scope_events(ex, scope_shard);

@@ -101,7 +101,7 @@ const lifecycleHarnessFailfastJoinModes = `
 #define POLL_DEBT261_SCOPE_OWNER 4035
 
 static _Atomic uint32_t g_debt261_owner_entered;
-static _Atomic(void*) g_debt261_scope_handle;
+static _Atomic uint64_t g_debt261_scope_handle;
 static _Atomic(void*) g_debt261_child;
 
 // The generated tail of a @failfast block (insertScopeJoins): join the set,
@@ -122,13 +122,13 @@ static _Atomic(void*) g_debt261_child;
 // being the held worker, and its cancellation could never be observed.
 static void poll_debt261_scope_owner(void) {
     if (atomic_load_explicit(&g_debt261_owner_entered, memory_order_acquire) == 0) {
-        void* handle = rt_scope_enter(true);
+        uint64_t handle = rt_scope_enter(true);
         rt_task* child = spawn_pinned_in_scope(ensure_exec(), POLL_SPIN_FOREVER, 0);
         atomic_store_explicit(&g_debt261_child, child, memory_order_release);
         atomic_store_explicit(&g_debt261_scope_handle, handle, memory_order_release);
         atomic_store_explicit(&g_debt261_owner_entered, 1, memory_order_release);
     }
-    void* handle = atomic_load_explicit(&g_debt261_scope_handle, memory_order_acquire);
+    uint64_t handle = atomic_load_explicit(&g_debt261_scope_handle, memory_order_acquire);
     uint64_t pending = 0;
     bool failfast = false;
     if (!rt_scope_join_all(handle, &pending, &failfast)) {
@@ -161,7 +161,7 @@ static size_t debt261_scope_snapshot(rt_executor* ex, uint64_t scope_id, unsigne
 
 static int mode_debt261_failfast_join_verify(rt_executor* ex) {
     atomic_store_explicit(&g_debt261_owner_entered, 0, memory_order_release);
-    atomic_store_explicit(&g_debt261_scope_handle, NULL, memory_order_release);
+    atomic_store_explicit(&g_debt261_scope_handle, 0, memory_order_release);
     atomic_store_explicit(&g_debt261_child, NULL, memory_order_release);
     unsigned before =
         rt_sync_point_reached_count(RT_SYNC_POINT_SP_SCOPE_FAILFAST_JOIN_BEFORE_VERIFY);
@@ -187,7 +187,7 @@ static int mode_debt261_failfast_join_verify(rt_executor* ex) {
     // The owner is held between its first snapshot (one live child, fail-fast
     // not fired) and the verify. Everything below lands inside that gap.
     uint64_t scope_id =
-        (uint64_t)(uintptr_t)atomic_load_explicit(&g_debt261_scope_handle, memory_order_acquire);
+        atomic_load_explicit(&g_debt261_scope_handle, memory_order_acquire);
     unsigned triggered = 0;
     size_t active = debt261_scope_snapshot(ex, scope_id, &triggered);
     fprintf(stderr, "debt261 window: child=%llu active=%zu failfast_triggered=%u\n",

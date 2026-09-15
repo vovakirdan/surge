@@ -3,6 +3,48 @@
 from runtime_v2_carrier_bench_test_support import *
 
 class BuildAndIRTests(unittest.TestCase):
+    def test_resource_build_failure_prevents_any_timing_execution(self) -> None:
+        root = Path("/prebuild-proof")
+        events: list[dict[str, object]] = []
+        with (
+            mock.patch("runtime_v2_carrier_bench.build_surge"),
+            mock.patch(
+                "runtime_v2_carrier_bench.build_fixtures",
+                side_effect=[{}, {}, GateFailure("candidate resource build failed")],
+            ) as builds,
+            mock.patch(
+                "runtime_v2_carrier_bench.execute_timing_manifest",
+                return_value=object(),
+            ) as timing,
+            mock.patch("runtime_v2_carrier_bench.execute_resource_manifest") as resource,
+        ):
+            with self.assertRaisesRegex(GateFailure, "candidate resource build failed"):
+                _build_and_run(
+                    manifest=make_manifest(),
+                    harness_root=root / "candidate",
+                    base_root=root / "base",
+                    candidate_root=root / "candidate",
+                    temporary=root / "build",
+                    events=events,
+                    protocol_sha256="a" * 64,
+                    benchmark_phase="final",
+                    capture_expected_endpoint_red=False,
+                )
+        self.assertEqual(
+            [
+                (call.kwargs["capture_kind"], call.kwargs["side_root"])
+                for call in builds.call_args_list
+            ],
+            [
+                ("timing", root / "base"),
+                ("timing", root / "candidate"),
+                ("resource", root / "candidate"),
+            ],
+        )
+        timing.assert_not_called()
+        resource.assert_not_called()
+        self.assertEqual(events, [])
+
     def test_timing_and_resource_binary_symbol_contract_is_fail_closed(self) -> None:
         symbols = """\
 00000000 T rt_carrier_bench_init

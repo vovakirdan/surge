@@ -651,11 +651,11 @@ void* rt_map_keys(const void* map,
 // slot that never held one, and is not an error.
 void rt_map_free(void* map);
 
-void* rt_scope_enter(bool failfast);
-void rt_scope_register_child(const void* scope, void* task);
-void rt_scope_cancel_all(const void* scope);
-bool rt_scope_join_all(const void* scope, uint64_t* pending, bool* failfast);
-void rt_scope_exit(const void* scope);
+uint64_t rt_scope_enter(bool failfast);
+void rt_scope_register_child(uint64_t scope_id, void* task);
+void rt_scope_cancel_all(uint64_t scope_id);
+bool rt_scope_join_all(uint64_t scope_id, uint64_t* pending, bool* failfast);
+void rt_scope_exit(uint64_t scope_id);
 
 void* checkpoint(void);
 void* rt_sleep(uint64_t ms);

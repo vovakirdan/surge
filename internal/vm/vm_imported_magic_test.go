@@ -8,10 +8,10 @@ import (
 
 func TestVMImportedStdlibMagicBinaryOperator(t *testing.T) {
 	root := repoRoot(t)
-	stdlibRoot := t.TempDir()
+	artifacts := newTestArtifacts(t, root)
+	stdlibRoot := filepath.Join(artifacts.Dir, "stdlib-root")
 	copyCoreForTempStdlib(t, root, stdlibRoot)
 	writeOperatorReproModule(t, stdlibRoot)
-	t.Setenv("SURGE_STDLIB", stdlibRoot)
 
 	sourceCode := `import stdlib/operator_repro as repro;
 
@@ -43,9 +43,13 @@ fn main() -> int {
 }
 `
 
-	result := runProgramFromSource(t, sourceCode, runOptions{})
+	writeArtifact(t, artifacts.Dir, artifacts.SourceBase+".sg", sourceCode)
+	result := runProgram(t, root, artifactSourcePath(artifacts), runOptions{stdlibRoot: stdlibRoot}, artifacts)
 	if result.exitCode != 0 {
 		t.Fatalf("expected imported stdlib operator overload to exit 0, got %d", result.exitCode)
+	}
+	if result.stderr != "" {
+		t.Fatalf("unexpected stderr: %q", result.stderr)
 	}
 }
 
@@ -56,10 +60,10 @@ func TestVMImportedStdlibMagicMethods(t *testing.T) {
 	// diagnostic bag at zero and saw no refusal; the tagged run had it red.
 	t.Skip("RV2-DEBT-255: refused by SEM3018 (a magic __index read's borrow outlives its statement); was passing vacuously")
 	root := repoRoot(t)
-	stdlibRoot := t.TempDir()
+	artifacts := newTestArtifacts(t, root)
+	stdlibRoot := filepath.Join(artifacts.Dir, "stdlib-root")
 	copyCoreForTempStdlib(t, root, stdlibRoot)
 	writeMagicReproModule(t, stdlibRoot)
-	t.Setenv("SURGE_STDLIB", stdlibRoot)
 
 	sourceCode := `import stdlib/magic_repro as repro;
 
@@ -124,7 +128,8 @@ fn main() -> int {
 }
 `
 
-	result := runProgramFromSource(t, sourceCode, runOptions{})
+	writeArtifact(t, artifacts.Dir, artifacts.SourceBase+".sg", sourceCode)
+	result := runProgram(t, root, artifactSourcePath(artifacts), runOptions{stdlibRoot: stdlibRoot}, artifacts)
 	if result.exitCode != 0 {
 		t.Fatalf("expected imported stdlib magic methods to exit 0, got %d", result.exitCode)
 	}

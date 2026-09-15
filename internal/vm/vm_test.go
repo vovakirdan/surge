@@ -213,6 +213,9 @@ func TestVMEntrypointArgvInt(t *testing.T) {
 	if result.exitCode != 7 {
 		t.Errorf("expected exit code 7, got %d", result.exitCode)
 	}
+	if result.stderr != "" {
+		t.Errorf("unexpected stderr: %q", result.stderr)
+	}
 }
 
 func TestVMEntrypointArgvUsesResolvedUserFromStr(t *testing.T) {
@@ -224,9 +227,13 @@ extern<Wrapped> {
 }
 @entrypoint("argv") fn main(value: Wrapped) -> int { return value.value; }
 `
+	// Nonnumeric input must reach the resolved user parser, which returns 23.
 	result := runProgramFromSource(t, sourceCode, runOptions{argv: []string{"ignored"}})
 	if result.exitCode != 23 {
 		t.Errorf("expected exit code 23, got %d", result.exitCode)
+	}
+	if result.stderr != "" {
+		t.Errorf("unexpected stderr: %q", result.stderr)
 	}
 }
 

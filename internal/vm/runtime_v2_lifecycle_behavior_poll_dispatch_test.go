@@ -131,10 +131,13 @@ void __surge_poll_call(uint64_t id) {
         case POLL_XOWNER_OWNER:
             poll_xowner_owner();
             break;
-        case POLL_STAND_TRAP_OWNER:
-            poll_stand_trap_owner();
-            break;
 	#ifdef RT_TEST_SYNC_POINTS
+        case POLL_LOCAL_PEER_RECEIVER:
+            poll_local_peer_receiver();
+            break;
+        case POLL_LOCAL_PEER_PRODUCER:
+            poll_local_peer_producer();
+            break;
         case POLL_DEBT020_ADOPT_JOINER:
             poll_debt020_adopt_joiner();
             break;
@@ -185,6 +188,9 @@ void __surge_poll_call(uint64_t id) {
             break;
         case POLL_INLINE_CLAIM_CHILD:
             poll_inline_claim_child();
+            break;
+        case POLL_INLINE_CLAIM_PEER_HOLD:
+            poll_inline_claim_peer_hold();
             break;
         case POLL_SCOPE_MEMBERSHIP_OWNER:
             poll_scope_membership_owner();

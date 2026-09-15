@@ -1,12 +1,12 @@
 {
   "schema_version": 2,
-  "epic_base": "4968061f2791d7dff0896e1841ce647412053a68",
+  "epic_base": "ea50ca0b6f22164bd2c615d73aff5d31670f2611",
   "reference_host": {
     "system": "Linux",
     "machine": "x86_64",
-    "kernel_contains": "6.8.0-138-generic",
+    "kernel_contains": "6.8.0-139-generic",
     "cpu_model": "AMD Ryzen 9 9950X 16-Core Processor",
-    "logical_cpus": 24,
+    "logical_cpus": 32,
     "cpuset": "8,10",
     "go_version": "go version go1.26.1 linux/amd64",
     "clang_version": "Ubuntu clang version 18.1.3 (1ubuntu1)"
@@ -48,7 +48,7 @@
       "base": {
         "status": "unsupported",
         "reason": "resource capture is candidate-only, so no base run reports a physical-copy count",
-        "provenance_commit": "4968061f2791d7dff0896e1841ce647412053a68"
+        "provenance_commit": "ea50ca0b6f22164bd2c615d73aff5d31670f2611"
       },
       "candidate": {
         "status": "required"
@@ -61,7 +61,7 @@
       "base": {
         "status": "unsupported",
         "reason": "resource capture is candidate-only, so no base run reports a physical-move count",
-        "provenance_commit": "4968061f2791d7dff0896e1841ce647412053a68"
+        "provenance_commit": "ea50ca0b6f22164bd2c615d73aff5d31670f2611"
       },
       "candidate": {
         "status": "required"
@@ -74,7 +74,7 @@
       "base": {
         "status": "unsupported",
         "reason": "resource capture is candidate-only, so no base run reports a ValueOps callback count",
-        "provenance_commit": "4968061f2791d7dff0896e1841ce647412053a68"
+        "provenance_commit": "ea50ca0b6f22164bd2c615d73aff5d31670f2611"
       },
       "candidate": {
         "status": "required"
@@ -87,7 +87,7 @@
       "base": {
         "status": "unsupported",
         "reason": "resource capture is candidate-only, so no base run reports a data-slot stall count",
-        "provenance_commit": "4968061f2791d7dff0896e1841ce647412053a68"
+        "provenance_commit": "ea50ca0b6f22164bd2c615d73aff5d31670f2611"
       },
       "candidate": {
         "status": "required"
@@ -100,7 +100,7 @@
       "base": {
         "status": "unsupported",
         "reason": "resource capture is candidate-only, so no base run reports a peak transport-byte figure",
-        "provenance_commit": "4968061f2791d7dff0896e1841ce647412053a68"
+        "provenance_commit": "ea50ca0b6f22164bd2c615d73aff5d31670f2611"
       },
       "candidate": {
         "status": "required"
@@ -116,11 +116,11 @@
   "harness_files": [
     {
       "path": "scripts/runtime_v2_carrier_bench.py",
-      "sha256": "fa8de443955344e26e59f0fb28890f84f8342e534422e465d188ff29722de06d"
+      "sha256": "22e4e941884a9795e1b73008dcecf5f721bd7574f397089e12854c0d8bd24679"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_build_test.py",
-      "sha256": "cac420a25bbe91a08c00596b1cadea72aadbdcd2a9744f88f205f60a7e8210dc"
+      "sha256": "1069feec273b19983a876310323bf6a9a2a3d27ab638ddc44344ea452aa0f0a5"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_host.py",
@@ -164,7 +164,7 @@
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_protocol_test.py",
-      "sha256": "9ed9197dd49b68cc03bd3478df82ef26414d6fa7154932c7aa0280a14d0b8c39"
+      "sha256": "59d6f0c698d270a481beab01eb8954ee31667b14501320c4c4fe2c58bce50e58"
     },
     {
       "path": "scripts/runtime_v2_carrier_bench_report.py",

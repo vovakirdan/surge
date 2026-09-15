@@ -169,14 +169,14 @@ static void poll_spin_forever(void) {
 }
 
 static _Atomic uint32_t g_scope_owner_phase;
-static _Atomic(void*) g_scope_handle;
+static _Atomic uint64_t g_scope_handle;
 static _Atomic(void*) g_scope_child_a;
 static _Atomic(void*) g_scope_child_b;
 
 static void poll_scope_owner(void) {
     uint32_t phase = atomic_load_explicit(&g_scope_owner_phase, memory_order_acquire);
     if (phase == 0) {
-        void* handle = rt_scope_enter(false);
+        uint64_t handle = rt_scope_enter(false);
         atomic_store_explicit(&g_scope_handle, handle, memory_order_release);
         void* child_a = __task_create(POLL_SCOPE_CHILD_QUICK, NULL, rt_channel_opaque_word_ops());
         void* child_b = __task_create(POLL_SCOPE_CHILD_SPIN, NULL, rt_channel_opaque_word_ops());
@@ -188,7 +188,7 @@ static void poll_scope_owner(void) {
         rt_async_yield(NULL, 0);
         return;
     }
-    void* handle = atomic_load_explicit(&g_scope_handle, memory_order_acquire);
+    uint64_t handle = atomic_load_explicit(&g_scope_handle, memory_order_acquire);
     uint64_t pending = 0;
     bool failfast = false;
     bool done = rt_scope_join_all(handle, &pending, &failfast);
@@ -201,13 +201,13 @@ static void poll_scope_owner(void) {
 }
 
 static _Atomic uint32_t g_cancel_owner_phase;
-static _Atomic(void*) g_cancel_scope_handle;
+static _Atomic uint64_t g_cancel_scope_handle;
 static _Atomic(void*) g_cancel_child;
 
 static void poll_scope_cancel_owner(void) {
     uint32_t phase = atomic_load_explicit(&g_cancel_owner_phase, memory_order_acquire);
     if (phase == 0) {
-        void* handle = rt_scope_enter(false);
+        uint64_t handle = rt_scope_enter(false);
         atomic_store_explicit(&g_cancel_scope_handle, handle, memory_order_release);
         void* child = __task_create(POLL_PARK_FOREVER, NULL, rt_channel_opaque_word_ops());
         atomic_store_explicit(&g_cancel_child, child, memory_order_release);
@@ -227,7 +227,7 @@ static void poll_scope_cancel_owner(void) {
 }
 
 static _Atomic uint32_t g_failfast_owner_phase;
-static _Atomic(void*) g_failfast_scope_handle;
+static _Atomic uint64_t g_failfast_scope_handle;
 static _Atomic(void*) g_failfast_victim;
 static _Atomic(void*) g_failfast_sibling;
 
@@ -240,7 +240,7 @@ static _Atomic(void*) g_failfast_sibling;
 static void poll_scope_owner_failfast(void) {
     uint32_t phase = atomic_load_explicit(&g_failfast_owner_phase, memory_order_acquire);
     if (phase == 0) {
-        void* handle = rt_scope_enter(true);
+        uint64_t handle = rt_scope_enter(true);
         atomic_store_explicit(&g_failfast_scope_handle, handle, memory_order_release);
         void* sibling = __task_create(POLL_SPIN_FOREVER, NULL, rt_channel_opaque_word_ops());
         void* victim = __task_create(POLL_SPIN_FOREVER, NULL, rt_channel_opaque_word_ops());
@@ -257,13 +257,13 @@ static void poll_scope_owner_failfast(void) {
             rt_async_yield(NULL, 0);
             return;
         }
-        void* handle = atomic_load_explicit(&g_failfast_scope_handle, memory_order_acquire);
+        uint64_t handle = atomic_load_explicit(&g_failfast_scope_handle, memory_order_acquire);
         rt_scope_register_child(handle, victim);
         atomic_store_explicit(&g_failfast_owner_phase, 2, memory_order_release);
         rt_async_yield(NULL, 0);
         return;
     }
-    void* handle = atomic_load_explicit(&g_failfast_scope_handle, memory_order_acquire);
+    uint64_t handle = atomic_load_explicit(&g_failfast_scope_handle, memory_order_acquire);
     uint64_t pending = 0;
     bool failfast = false;
     bool done = rt_scope_join_all(handle, &pending, &failfast);
@@ -276,7 +276,7 @@ static void poll_scope_owner_failfast(void) {
 }
 
 static _Atomic uint32_t g_scope_forever_phase;
-static _Atomic(void*) g_scope_forever_handle;
+static _Atomic uint64_t g_scope_forever_handle;
 static _Atomic(void*) g_scope_forever_child;
 
 // Used only by the shutdown-with-parked-tasks scenario: enters a scope,
@@ -286,14 +286,14 @@ static _Atomic(void*) g_scope_forever_child;
 static void poll_scope_owner_forever(void) {
     uint32_t phase = atomic_load_explicit(&g_scope_forever_phase, memory_order_acquire);
     if (phase == 0) {
-        void* handle = rt_scope_enter(false);
+        uint64_t handle = rt_scope_enter(false);
         atomic_store_explicit(&g_scope_forever_handle, handle, memory_order_release);
         void* child = __task_create(POLL_PARK_FOREVER, NULL, rt_channel_opaque_word_ops());
         atomic_store_explicit(&g_scope_forever_child, child, memory_order_release);
         rt_scope_register_child(handle, child);
         atomic_store_explicit(&g_scope_forever_phase, 1, memory_order_release);
     }
-    void* handle = atomic_load_explicit(&g_scope_forever_handle, memory_order_acquire);
+    uint64_t handle = atomic_load_explicit(&g_scope_forever_handle, memory_order_acquire);
     uint64_t pending = 0;
     bool failfast = false;
     (void)rt_scope_join_all(handle, &pending, &failfast);
@@ -401,7 +401,7 @@ void __surge_blocking_call(uint64_t id, void* state, void* out_dst) {
 
 static int mode_scope_failfast(rt_executor* ex) {
     atomic_store_explicit(&g_failfast_owner_phase, 0, memory_order_relaxed);
-    atomic_store_explicit(&g_failfast_scope_handle, NULL, memory_order_relaxed);
+    atomic_store_explicit(&g_failfast_scope_handle, 0, memory_order_relaxed);
     atomic_store_explicit(&g_failfast_victim, NULL, memory_order_relaxed);
     atomic_store_explicit(&g_failfast_sibling, NULL, memory_order_relaxed);
     rt_task* owner = spawn_pinned(ex, POLL_SCOPE_OWNER_FAILFAST, 0);

@@ -207,10 +207,9 @@ static int pop_task_from_deque(rt_executor* ex,
     return 0;
 }
 
-// Leaf enqueue: caller holds the owner shard's lock and has already
-// validated the task (owner == shard, not DONE/RUNNING, not enqueued). The
-// wake token for the shard's worker_cv is bumped and signaled under the
-// same lock hold, so a sleeping worker cannot miss the push.
+// Caller holds the task owner's shard lock and has validated owner, status,
+// and !enqueued. Publication and any requested worker credit/notification
+// share this lock, closing the waiter's check-to-sleep window.
 int ready_push_task_locked(const rt_executor* ex,
                            rt_shard* owner_shard,
                            rt_task* task,
@@ -221,10 +220,8 @@ int ready_push_task_locked(const rt_executor* ex,
     if (ex == NULL || task == NULL || scheduler == NULL) {
         return 0;
     }
-    // Injection policy:
-    // - Worker thread: enqueue locally (LIFO pop) to keep cache locality.
-    // - Non-worker thread (main/I/O/external): enqueue on the global injection queue.
-    // No last-worker affinity is tracked; wake/spawn follows the current thread.
+    // Unpinned wake/spawn follows the current worker's local deque; other
+    // threads and force-inject requests use the injection queue.
     rt_deque* local = NULL;
     if (!force_inject) {
         local = current_local_queue(ex, scheduler);
@@ -297,9 +294,12 @@ int ready_push_task_locked(const rt_executor* ex,
         if (!ok) {
             return 0;
         }
-        // A single local continuation is usually consumed by the current worker on its
-        // next scheduler turn; waking another worker often just creates steal/sleep churn.
+        // A requested peer wake must not depend on the local queue length.
+#ifdef RV2_LOCAL_PEER_WAKE_NEGATIVE_CONTROL
         signal_ready_now = signal_ready && local->len > 1;
+#else
+        signal_ready_now = signal_ready && (scheduler->worker_count > 1 || local->len > 1);
+#endif
     } else {
         int ok = front ? deque_push_head(&scheduler->inject,
                                          task->id,

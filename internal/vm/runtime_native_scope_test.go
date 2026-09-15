@@ -177,13 +177,13 @@ int main(void) {
     rt_set_current_task(owner);
     rt_control_unlock(ex);
 
-    void* scope_handle = rt_scope_enter(false);
-    if (scope_handle == NULL) {
+    uint64_t scope_handle = rt_scope_enter(false);
+    if (scope_handle == 0) {
         return fail("scope enter failed");
     }
 
     rt_control_lock(ex);
-    uint64_t scope_id = (uint64_t)(uintptr_t)scope_handle;
+    uint64_t scope_id = scope_handle;
     rt_scope* scope = get_scope(ex, scope_id);
     if (scope == NULL) {
         rt_control_unlock(ex);

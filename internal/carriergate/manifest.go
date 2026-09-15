@@ -51,15 +51,17 @@ type MigrationCarrier struct {
 
 // CategoryManifest freezes one independently ratcheted category. Legacy is
 // the immutable exact-base set; Allow references justified members of it;
-// Migration records what this epic added and who removes it.
+// Migration records what this epic added and who removes it. PostBaselineAllow
+// justifies exact new identities without adding them to the historical census.
 type CategoryManifest struct {
-	ID             string             `json:"id"`
-	RetireToZero   bool               `json:"retire_to_zero"`
-	BaselineCount  int                `json:"baseline_count"`
-	BaselineDigest string             `json:"baseline_digest"`
-	Legacy         []Finding          `json:"legacy"`
-	Allow          []Allowance        `json:"allow"`
-	Migration      []MigrationCarrier `json:"migration"`
+	ID                string             `json:"id"`
+	RetireToZero      bool               `json:"retire_to_zero"`
+	BaselineCount     int                `json:"baseline_count"`
+	BaselineDigest    string             `json:"baseline_digest"`
+	Legacy            []Finding          `json:"legacy"`
+	Allow             []Allowance        `json:"allow"`
+	Migration         []MigrationCarrier `json:"migration"`
+	PostBaselineAllow []Allowance        `json:"post_baseline_allow,omitempty"`
 }
 
 // Manifest is the reviewed exact-base legacy carrier census.
@@ -123,7 +125,7 @@ func ValidateManifest(manifest *Manifest) error {
 		if category.Legacy == nil || category.Allow == nil || category.Migration == nil {
 			return fmt.Errorf("carrier category %s requires explicit legacy, allow and migration arrays", category.ID)
 		}
-		if !findingsCanonical(category.Legacy) || !allowancesCanonical(category.Allow) ||
+		if !findingsCanonical(category.Legacy) || !allowancesCanonical(category.Allow) || !allowancesCanonical(category.PostBaselineAllow) ||
 			!migrationsCanonical(category.Migration) {
 			return fmt.Errorf("carrier category %s entries are not canonical", category.ID)
 		}
@@ -144,17 +146,7 @@ func ValidateManifest(manifest *Manifest) error {
 		allowedKeys := make(map[findingKey]struct{}, len(category.Allow))
 		for i := range category.Allow {
 			allowance := &category.Allow[i]
-			if !allowanceIDPattern.MatchString(allowance.ID) {
-				return fmt.Errorf("carrier allowance has invalid id %q", allowance.ID)
-			}
-			if _, exists := allowIDs[allowance.ID]; exists {
-				return fmt.Errorf("duplicate carrier allowance id %q", allowance.ID)
-			}
-			allowIDs[allowance.ID] = struct{}{}
-			if strings.TrimSpace(allowance.Reason) == "" || strings.TrimSpace(allowance.SafeBecause) == "" || strings.TrimSpace(allowance.InvalidatedWhen) == "" {
-				return fmt.Errorf("carrier allowance %s requires rationale and invalidation", allowance.ID)
-			}
-			if err := validateFinding(&allowance.Finding, category.ID); err != nil {
+			if err := validateAllowance(allowance, category.ID, allowIDs); err != nil {
 				return err
 			}
 			key := keyFor(&allowance.Finding)
@@ -186,9 +178,26 @@ func ValidateManifest(manifest *Manifest) error {
 			}
 			migrationKeys[key] = struct{}{}
 		}
-		// The migration set is deliberately absent from the count and the
-		// digest below: those describe the base commit, and these did not
-		// exist at it.
+		postKeys := make(map[findingKey]struct{}, len(category.PostBaselineAllow))
+		for i := range category.PostBaselineAllow {
+			allowance := &category.PostBaselineAllow[i]
+			if err := validateAllowance(allowance, category.ID, allowIDs); err != nil {
+				return err
+			}
+			key := keyFor(&allowance.Finding)
+			if _, exists := categoryKeys[key]; exists {
+				return fmt.Errorf("post-baseline allowance %s overlaps the frozen category baseline", allowance.ID)
+			}
+			if _, exists := migrationKeys[key]; exists {
+				return fmt.Errorf("post-baseline allowance %s overlaps a migration carrier", allowance.ID)
+			}
+			if _, exists := postKeys[key]; exists {
+				return fmt.Errorf("duplicate post-baseline allowance finding %s", formatFinding(&allowance.Finding))
+			}
+			postKeys[key] = struct{}{}
+		}
+		// Migration and post-baseline allowances are absent from this count and
+		// digest: neither set existed at the historical base commit.
 		if category.BaselineCount != len(categoryFindings) || category.BaselineDigest != Digest(categoryFindings) {
 			return fmt.Errorf("carrier category %s baseline count/digest mismatch", category.ID)
 		}
@@ -197,6 +206,23 @@ func ValidateManifest(manifest *Manifest) error {
 	if manifest.BaselineCount != len(all) || manifest.BaselineDigest != Digest(all) {
 		return fmt.Errorf("carrier manifest baseline count/digest mismatch")
 	}
+	return nil
+}
+
+func validateAllowance(allowance *Allowance, category string, ids map[string]struct{}) error {
+	if !allowanceIDPattern.MatchString(allowance.ID) {
+		return fmt.Errorf("carrier allowance has invalid id %q", allowance.ID)
+	}
+	if _, exists := ids[allowance.ID]; exists {
+		return fmt.Errorf("duplicate carrier allowance id %q", allowance.ID)
+	}
+	if strings.TrimSpace(allowance.Reason) == "" || strings.TrimSpace(allowance.SafeBecause) == "" || strings.TrimSpace(allowance.InvalidatedWhen) == "" {
+		return fmt.Errorf("carrier allowance %s requires rationale and invalidation", allowance.ID)
+	}
+	if err := validateFinding(&allowance.Finding, category); err != nil {
+		return err
+	}
+	ids[allowance.ID] = struct{}{}
 	return nil
 }
 

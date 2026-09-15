@@ -136,11 +136,11 @@ func runtimePointerAnswers() map[string]runtimeAnswer {
 				"(runtime/native/rt_array.c, rt_array_concat.c, rt_map.c)",
 			"rt_array_concat", "rt_array_slice", "rt_array_slice_fixed", "rt_map_new", "rt_map_keys"),
 		classified(refusalIsReported,
-			"panic_msg on a refused task, scope, job or channel block (runtime/native/rt_async_task.c, "+
-				"rt_async_scope.c, rt_async_blocking.c, rt_async_channel.c); the NULL beside it answers an "+
+			"panic_msg on a refused task, job or channel block (runtime/native/rt_async_task.c, "+
+				"rt_async_blocking.c, rt_async_channel.c); the NULL beside it answers an "+
 				"executor that ensure_exec returns a static for and never fails to give",
 			"__task_create", "__task_create_affine", "__task_state", "checkpoint", "rt_sleep",
-			"rt_blocking_submit", "rt_scope_enter", "rt_channel_new"),
+			"rt_blocking_submit", "rt_channel_new"),
 		classified(refusalIsReported,
 			"tests its own answer and reports (runtime/native/rt_io.c: rt_readline, rt_term.c: rt_term_size)",
 			"rt_readline", "rt_term_size"),
