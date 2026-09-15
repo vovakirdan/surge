@@ -50,7 +50,7 @@ fn probe(value: &string) -> &string {
     return compare value { alias => alias; };
 }
 `},
-		{name: "local_arm_escape", digest: "449e70f885b999d6e16ef76e141fc2f5bb0c2e6a99702f1febc1dee396af88df", owner: "owned", unknown: true, text: `pragma no_std;
+		{name: "local_arm_escape", digest: "449e70f885b999d6e16ef76e141fc2f5bb0c2e6a99702f1febc1dee396af88df", owner: "owned", unknown: true, complete: true, text: `pragma no_std;
 fn probe(flag: bool, outside: &string) -> &string {
     return compare flag {
         true => { let owned: string = "owned"; ret &owned; }
@@ -58,7 +58,7 @@ fn probe(flag: bool, outside: &string) -> &string {
     };
 }
 `},
-		{name: "binding_storage_escape", digest: "bde02c2067e2e9526411991aa64c2cb6effd8bfef0deed35043b0333bf1c818e", owner: "value", unknown: true, text: `pragma no_std;
+		{name: "binding_storage_escape", digest: "bde02c2067e2e9526411991aa64c2cb6effd8bfef0deed35043b0333bf1c818e", owner: "value", unknown: true, complete: true, text: `pragma no_std;
 fn probe(owned: string) -> &string {
     return compare owned { value => &value; };
 }

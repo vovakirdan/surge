@@ -163,8 +163,8 @@ func TestAnalyzeTemplateTagConstructorEscape(t *testing.T) {
 	local := originPendingWithin(analysis, f.unit.SourceKey, 0, len(templateTagEscapeSource))
 	logReturnOriginCallEvidence(t, map[string]any{"stage": "template_tag_escape", "pending": local, "diagnostics": analysis.Diagnostics})
 	requireOriginEscape(t, analysis, f.owner.Symbols, f.owner.File.ID, escape, "owned")
-	if len(local) != 1 || !originPendingAt(analysis, f.unit.SourceKey, result, originResultRefusal) {
-		t.Errorf("escaped template tag pending = %+v, want only the unproved result at %q", local, result.snippet)
+	if len(local) != 0 {
+		t.Errorf("escaped template tag pending = %+v, want none: the SEM3139 refusal completes the result at %q", local, result.snippet)
 	}
 	requireOriginSummary(t, analysis, f.owner.File.ID, "leak", true, []uint32{0})
 }

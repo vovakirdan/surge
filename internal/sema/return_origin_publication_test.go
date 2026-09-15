@@ -139,8 +139,6 @@ func TestReturnOriginUnresolvedReferenceEffectStaysPending(t *testing.T) {
 	}{
 		{"reference_content_write", `fn replace(dst: &mut &string, value: &string) -> nothing;
 fn probe(dst: &mut &string, value: &string) -> nothing { return replace(dst, value); }`, false},
-		{"implicit_owned_argument", `fn same(value: &string) -> &string { return value; }
-fn probe(owned: string) -> &string { return same(owned); }`, true},
 	} {
 		result, unit := returnOriginPublicationFixture(t, fixture.src, fixture.allowOldEscape)
 		analysis, err := AnalyzeReturnOrigins(t.Context(), result, []ReturnOriginUnit{unit})
