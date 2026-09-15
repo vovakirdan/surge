@@ -5,45 +5,21 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/source"
-	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
-// IndexSymbols stays in its owning unit's vocabulary after authority merge.
-// A synthetic selected symbol need not itself be an original LocalCallable.
+// The shared selected-callable reader certifies an index; it adds a receiver.
 func (a *returnOriginAnalyzer) selectedIndexFunction(u *returnOriginUnitIndex, id ast.ExprID) (*returnOriginFunction, string) {
 	selected, present := u.Sema.IndexSymbols[id]
 	if !present || !selected.IsValid() {
 		return nil, "selected index lacks a valid original symbol"
 	}
-	var candidate *CallableCandidate
-	for i := range u.authority.CallableCandidates {
-		c := &u.authority.CallableCandidates[i]
-		mapped := c.Symbol == selected
-		if len(u.Publication.RootToLocalSymbols) != 0 {
-			mapped = slices.Contains(u.Publication.LocalSymbols(c.Symbol), selected)
-		}
-		if mapped {
-			if candidate != nil {
-				return nil, "selected index has ambiguous canonical authority"
-			}
-			candidate = c
-		}
+	fn, reason := a.selectedCallableFunction(u, selected)
+	if reason != "" {
+		return nil, reason
 	}
-	sym := u.Symbols.Table.Symbols.Get(selected)
-	if candidate == nil || sym == nil || sym.Kind != symbols.SymbolFunction || sym.Signature == nil {
-		return nil, "selected index lacks its published callable authority"
-	}
-	info := returnOriginFnInfo(u.Sema.TypeInterner, sym.Type)
-	if info == nil || sym.Span != candidate.Source || !sym.Signature.HasSelf ||
-		!sym.Signature.ReturnSourceSyntax.Sources().Equal(candidate.ReturnSources) ||
-		!slices.Equal(info.Params, candidate.ParamTypes) || info.Result != candidate.ResultType ||
-		!info.ReturnSources().Equal(candidate.ReturnSources) {
-		return nil, "selected index disagrees with its original typed signature"
-	}
-	fn := a.functionForTemplate(candidate.Symbol)
-	if fn == nil || fn.key != candidate.BodyKey || fn.canonicalSourceKey != candidate.SourceKey {
-		return nil, "selected index lacks its indexed physical declaration"
+	if !fn.candidate.HasSelf {
+		return nil, "selected index lacks its receiver declaration"
 	}
 	return fn, ""
 }
