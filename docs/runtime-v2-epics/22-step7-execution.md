@@ -198,3 +198,54 @@ DEBT-333 remains open. Use 24 placements, one warmup, five measured pairs and
 the lower-median clean placement; CV ≤0.05, throughput ≥0.95 (≥0.90 for two
 sub-ms batches), p95 ratio ≤1.10 only when both reach 1000 ns. Never score heap
 reclamation against the leaking base as a relative performance obligation.
+
+## Outcome (D1, 2026-09-15)
+
+The contract above landed as the numeric delivery (D1) of Epic 22 Phase 2 on
+`codex/step7-d1-r2`. The return-origin work that followed it on the validation
+lane (`c50d1e93..5bcaeb9a`) is not part of D1; it continues as D2 together with
+the normal block-exit release of local owners.
+
+**Commits, in order.**
+
+| Commit | Stage | What it is |
+| --- | --- | --- |
+| `1b744189` | Baseline recovery and numeric prerequisites | `ab0a7395..3f3c7e33` as one commit: golden index census, fixture stdlib root, bench prebuild, bool equality, user `from_str`, first-local-task peer wake, equal heap-uint subtraction, carriergate post-baseline allowances, scope ids as `uint64`. Two lifecycle stands that the peer wake invalidated were repaired as stands (Rule 15): the held-poll trap stand was removed, and the inline-claim stand holds `worker_count-1` peers before it spawns its owner. |
+| `6ee22d1e` | Send offer | Closes RV2-DEBT-363. Landed on its own; the fallback into B was not needed. |
+| `f66fc598` | Loop ownership preparation | Landed on its own. |
+| `ea5ce30e` | Atomic B | The validation tree `c50d1e93` plus six lint repairs the hook requires. |
+| `2a489721` | Gate hygiene | The async allocation proof skips outside its gate instead of failing the ordinary suite. |
+| `08702b64` | Performance | Emitted fixnum fast path for WidthAny int add/sub/compare and int/uint narrowing, with IR, Valgrind e2e and negative-fixnum controls. The C3/C4 owner-reuse steps were not needed. |
+| `b935adce` | Gate census | The numeric heap census names the fast-path witness in both homes. |
+| `ff83f830`..`40831757` | Structure | Channel refill helper, scope entry prologue, range bound predicate, four duplicate declarations, test helper split (Rule 4: 529 -> 471 lines). |
+| `735e2907` | Sentrux baseline | Retaken on the candidate by the owner's acceptance of the remainder. |
+| `a8e8d3d2` | Records | Debt closures by re-measurement and the boards. |
+
+**Performance.** The frozen 46-row paired gate (`--phase=final`, base
+`ea50ca0b`, fixture CPUs 8,10, harness 0,2, no CI worker present) passed on
+`735e2907` with every protocol, invariant and allocation status `passed` and
+every throughput ratio at or above its minimum. `map-teardown-scalar`, the row
+that read 0.797 on the validation lane, reads **1.681** (minimum 0.90). The
+closest rows are `map-rehash-scalar` 0.961, `map-replace-scalar` 0.967 and
+`map-insert-scalar` 0.967 against 0.95. The recovery comes from the emitted
+fixnum path removing runtime calls that the base also makes, so the counted
+scalar's own cost is compensated rather than absent; RV2-DEBT-333 (no `-O` on
+either side) still stands.
+
+**Deviations from the contract.**
+
+- Sentrux does not meet "without regression": runtime 5308 against 5313,
+  internal 6440 against 6445, root 6165 against 6169 (MCP health, same paths).
+  The remainder is new ABI entry points reachable only from generated IR,
+  which the redundancy root counts as uncalled, and complexity spread across
+  the new counted-scalar code. The owner accepted it on 2026-09-15 and ranked
+  Sentrux below delivery.
+- The hosted "Runtime V2 liveness (llvm)" job was cancelled at its 45-minute
+  budget on `b935adce` and on `735e2907` with no failing row (982 PASS, 0
+  FAIL); that is RV2-DEBT-337, not a D1 regression. Every other hosted job and
+  the whole self-hosted workflow passed.
+
+**Debts.** Closed by measurement on the candidate: RV2-DEBT-035, 068, 363.
+Narrowed: 357 (the crash is gone; `Range<float>` iterates once natively and
+panics VM1003 on the VM). Opened: 361 (counted stop-gap behind a handle, Step
+8) and 362 (array cursor crossing). 360 was closed earlier by `a3b7015f`.
