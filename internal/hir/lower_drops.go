@@ -85,17 +85,21 @@ func (l *lowerer) appendScopeEndDrops(block *Block, stmtID ast.StmtID, span sour
 // dropLocalsFor converts a return's obligation list into the carried
 // form (MIR emits them between value evaluation and the terminator).
 func (l *lowerer) dropLocalsFor(stmtID ast.StmtID, span source.Span) []DropLocal {
-	syms := l.earlyExitDropSymbols(stmtID)
+	return l.dropLocalsAt(l.earlyExitDropSymbols(stmtID), sema.DropSite{Stmt: stmtID}, span)
+}
+
+func (l *lowerer) dropLocalsAt(syms []symbols.SymbolID, site sema.DropSite, span source.Span) []DropLocal {
 	if len(syms) == 0 {
 		return nil
 	}
 	out := make([]DropLocal, 0, len(syms))
 	for _, symID := range syms {
+		site.Symbol = symID
 		out = append(out, DropLocal{
 			SymbolID: symID,
 			Type:     l.bindingDropType(symID),
 			Span:     span,
-			Steps:    l.residualSteps(sema.DropSite{Stmt: stmtID, Symbol: symID}),
+			Steps:    l.residualSteps(site),
 		})
 	}
 	return out
@@ -134,12 +138,10 @@ func (l *lowerer) wrapLoopWithScopeDrops(loop *Stmt, stmtID ast.StmtID, span sou
 	return &Stmt{Kind: StmtBlock, Span: span, Data: BlockStmtData{Block: block}}
 }
 
-// appendBlockExprEndDrops adds a block EXPRESSION's normal-exit drops
-// after its last statement. Value-producing blocks end with a ret (the
-// value must escape before its scope frees) and are skipped — those
-// locals leak, the recorded safe-direction bound; statement-shaped arm
-// blocks reclaim normally.
-func (l *lowerer) appendBlockExprEndDrops(block *Block, exprID ast.ExprID, span source.Span) {
+// appendBlockExprEndDrops carries normal-tail obligations after result
+// evaluation. Source statement identity distinguishes a block value from
+// an explicit function return; existing statement-key plans stay authoritative.
+func (l *lowerer) appendBlockExprEndDrops(block *Block, exprID ast.ExprID, sourceTail ast.StmtID, span source.Span) {
 	if l.semaRes == nil || l.semaRes.BlockExprEndDrops == nil {
 		return
 	}
@@ -149,7 +151,35 @@ func (l *lowerer) appendBlockExprEndDrops(block *Block, exprID ast.ExprID, span 
 	}
 	if last := block.LastStmt(); last != nil {
 		switch last.Kind {
-		case StmtReturn, StmtRet, StmtBreak, StmtContinue:
+		case StmtReturn, StmtRet:
+			if l.builder == nil || !sourceTail.IsValid() {
+				return
+			}
+			tail := l.builder.Stmts.Get(sourceTail)
+			if tail == nil || tail.Span != last.Span {
+				return
+			}
+			if _, exists := l.semaRes.EarlyExitDrops[sourceTail]; exists {
+				return
+			}
+			switch last.Kind {
+			case StmtReturn:
+				data, ok := last.Data.(ReturnData)
+				if !ok || !data.IsImplicit || tail.Kind != ast.StmtReturn {
+					return
+				}
+				data.DropsAfterValue = l.dropLocalsAt(syms, sema.DropSite{Expr: exprID}, span)
+				last.Data = data
+			case StmtRet:
+				data, ok := last.Data.(RetData)
+				if !ok || (tail.Kind != ast.StmtExpr && tail.Kind != ast.StmtRet) {
+					return
+				}
+				data.DropsAfterValue = l.dropLocalsAt(syms, sema.DropSite{Expr: exprID}, span)
+				last.Data = data
+			}
+			return
+		case StmtBreak, StmtContinue:
 			return
 		}
 	}
