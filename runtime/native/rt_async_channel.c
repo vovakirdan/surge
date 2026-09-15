@@ -1,4 +1,5 @@
 #include "rt_channel_lane.h"
+#include "rt_channel_refill.h"
 #include "rt_sync_point.h"
 
 // Async channel fast lanes (peel B2): send and recv run on the channel
@@ -301,42 +302,13 @@ static uint8_t rt_channel_recv_inner(void* channel, void* dst) {
                     if (!channel_candidate_valid(sender, &cand)) {
                         continue;
                     }
-                    rt_park_token sender_slot = sender->resume_slot;
-                    if (!rt_park_pool_token_is_live(&ch->parks, &sender_slot)) {
-                        // Parked holding its own value, because the pool was
-                        // full when it parked. Wake it to retry -- and do NOT
-                        // ack it: an ack says "your send completed", and this
-                        // one delivered nothing, so the value would be dropped
-                        // by a sender that believed it had been sent.
-                        (void)wake_task_on_shard_locked(
-                            ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
+                    // A retry leaves the next candidate to be tried; a refused
+                    // or staged transfer ends this refill. Compat senders never
+                    // park entries while RUNNING, so no compat fallback exists.
+                    if (channel_refill_from_parked_sender_locked(ex, ch_shard, ch, sender, 0) ==
+                        RT_CHANNEL_REFILL_RETRY) {
                         continue;
                     }
-                    // The detached move can cancel and await the sender. Keep
-                    // its mailbox alive until our final ack/wake below.
-                    task_add_ref(sender);
-                    if (!channel_stage_into_ring_locked(ex, ch_shard, ch, &sender_slot, NULL)) {
-                        // The buffer refused: its single transfer is in
-                        // flight, or a receiver is taking this very value.
-                        // This sender's registration was consumed by the pop
-                        // above, so nothing else will ever call on it -- wake
-                        // it, unacked, to place its own value. Leaving it here
-                        // is a task parked forever on a channel that has
-                        // forgotten it, which is exactly how this was found.
-                        (void)wake_task_on_shard_locked(
-                            ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
-                        task_release_lane_aware(ex, sender);
-                        break;
-                    }
-                    sender->resume_kind = RESUME_CHAN_SEND_ACK;
-                    sender->resume_slot = (rt_park_token){0};
-                    // A parked sender has a waiter entry, so the leaf
-                    // enqueues it; compat senders never park entries
-                    // while RUNNING, so no compat fallback is needed.
-                    (void)wake_task_on_shard_locked(
-                        ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
-                    task_release_lane_aware(ex, sender);
-                    channel_end_park_locked(ex, ch_shard, ch, &sender_slot);
                     break;
                 }
                 rt_shard_unlock(ch_shard);
