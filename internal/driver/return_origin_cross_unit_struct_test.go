@@ -12,6 +12,8 @@ import (
 // A plain struct declared in one owning unit is certified in that unit when an
 // opaque result in another unit names it. Only the dependency module varies; the
 // full core input stays present, so every assertion is local to dep/main.sg.
+// A bare `@copy` counts as plain; any other attribute, alone or beside `@copy`,
+// keeps the refusal.
 type crossUnitStructCase struct {
 	name, text, digest string
 	// clean: no Pending may remain anywhere in the dependency source.
@@ -32,6 +34,24 @@ func crossUnitStructCases() []crossUnitStructCase {
 			text: "pragma module::dep;\ntype Local = { n: uint };\n@intrinsic fn local() -> Local;\nfn use_local() -> uint {\n    let l = local();\n    return l.n;\n}\n"},
 		{name: "generic_call_site", callSite: "wrap::<uint>(1:uint)", digest: "91bf6167d176fbbe0ef6fcbe1c92409958c82af88d1e5add625cedaf281c2db3",
 			text: "pragma module::dep;\n@intrinsic fn wrap<T>(v: T) -> Erring<T, Error>;\nfn use_wrap() -> uint {\n    let r = wrap::<uint>(1:uint);\n    return 0:uint;\n}\n"},
+		{name: "copy_struct", clean: true, digest: "d87614155026459fc0e687971e96c6b3b636c6c3cfee3f656f7713f37e4fc724",
+			text: "pragma module::dep;\n@copy type Held = { n: uint, gate: Channel<uint> };\n@intrinsic fn held() -> Held;\nfn use_held() -> uint {\n    let h = held();\n    return h.n;\n}\n"},
+		{name: "copy_channel_payload", clean: true, digest: "54a5f4e79b4c557576719c27c40963119ef2e35cbe85ebca466f0c0cd29e9089",
+			text: "pragma module::dep;\n@copy type Held = { n: uint, gate: Channel<uint> };\n@intrinsic fn ring() -> own Channel<Held>;\nfn use_ring() -> nothing {\n    let c = ring();\n    return nothing;\n}\n"},
+		{name: "sealed_control", unsupported: "sealed", digest: "72c56fc88e11502d9549cfbbda9fcd52d66fc25b339144b4bd0e3b658f75c993",
+			text: "pragma module::dep;\n@sealed type Sealed = { n: uint };\n@intrinsic fn sealed() -> Sealed;\nfn use_sealed() -> uint {\n    let s = sealed();\n    return s.n;\n}\n"},
+		{name: "copy_plus_attribute_control", unsupported: "both", digest: "c61297e8cd612d0fc0918335b3f424c1c3b0a53773a7db544ced5ba6cfbeadeb",
+			text: "pragma module::dep;\n@copy @shard_movable type Both = { n: uint };\n@intrinsic fn both() -> Both;\nfn use_both() -> uint {\n    let b = both();\n    return b.n;\n}\n"},
+		{name: "copy_placement_field_control", unsupported: "where_at", digest: "318169c7527ecffc87ad06253dbdfe8aa30ef8713d431482326f841775f0ba2d",
+			text: "pragma module::dep;\n@copy type Where = { p: Placement };\n@intrinsic fn where_at() -> Where;\nfn use_where() -> nothing {\n    let w = where_at();\n    return nothing;\n}\n"},
+		{name: "copy_counted_placement_field_control", unsupported: "relay", digest: "8ec637d9d76c33376e2fa9bed2a3fb6b9c5f19a357383bac1bdb191549f76022",
+			text: "pragma module::dep;\n@copy type Relay = { c: Channel<Placement> };\n@intrinsic fn relay() -> Relay;\nfn use_relay() -> nothing {\n    let r = relay();\n    return nothing;\n}\n"},
+		{name: "copy_argument_control", unsupported: "arg", digest: "99a8fe74b905c2d52298ca8e69669c25ee635a516d6f0703be74b8458560491b",
+			text: "pragma module::dep;\n@copy(1) type Arg = { n: uint };\n@intrinsic fn arg() -> Arg;\nfn use_arg() -> uint {\n    let a = arg();\n    return a.n;\n}\n"},
+		{name: "cross_unit_copy_struct", clean: true, digest: "c2cea51ab0b867151bc80a31395bdc8974416df2e5ccec7ee8943425e56f1252",
+			text: "pragma module::dep;\n@intrinsic fn mutex() -> Mutex;\nfn use_mutex() -> nothing {\n    let m = mutex();\n    return nothing;\n}\n"},
+		{name: "copy_fn_field_control", unsupported: "call", digest: "ed1e19264d8ac3227b04266a20f7fdef364744313b1f8783e3087349b415b84c",
+			text: "pragma module::dep;\n@copy type Call = { f: fn(uint) -> uint };\n@intrinsic fn call() -> Call;\nfn use_call() -> nothing {\n    let c = call();\n    return nothing;\n}\n"},
 	}
 }
 
