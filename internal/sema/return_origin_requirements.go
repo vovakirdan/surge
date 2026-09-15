@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"slices"
 
+	"surge/internal/ast"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
@@ -162,8 +163,8 @@ func (r returnOriginRequirements) rebase(view returnOriginTypeView) returnOrigin
 // field roster, rather than treating a zero ID or an empty physical layout as
 // a nominal certificate. A struct declared in another analyzed unit is proven in
 // that unit, found by its exact file among the peers; a unit that is missing or
-// ambiguous proves nothing. Inherited, attributed and opaque forms stay
-// unsupported.
+// ambiguous proves nothing. Inherited and opaque forms, and every attribute
+// except a bare `@copy`, stay unsupported.
 func returnOriginPlainStruct(fn *returnOriginFunction, info *types.StructInfo) bool {
 	u := fn.unit
 	if f := u.Builder.Files.Get(u.FileID); f == nil || f.Span.File != info.Decl.File {
@@ -192,7 +193,8 @@ func returnOriginPlainStruct(fn *returnOriginFunction, info *types.StructInfo) b
 		}
 		decl := u.Builder.Items.TypeStruct(item)
 		ids := u.Symbols.ItemSymbols[id]
-		if decl == nil || decl.Base.IsValid() || item.AttrCount != 0 || len(ids) != 1 || uint64(decl.FieldsCount) != uint64(len(info.Fields)) {
+		if decl == nil || decl.Base.IsValid() || !returnOriginCopyOnlyAttributes(u, item) || len(ids) != 1 ||
+			uint64(decl.FieldsCount) != uint64(len(info.Fields)) {
 			return false
 		}
 		sym := u.Symbols.Table.Symbols.Get(ids[0])
@@ -211,4 +213,24 @@ func returnOriginPlainStruct(fn *returnOriginFunction, info *types.StructInfo) b
 		return true
 	}
 	return false
+}
+
+// `@copy` only says a value may be duplicated because every field is Copy; it
+// adds no storage and hides no field, and the caller still walks every field.
+// Any other attribute, an argument, an unknown name or an unreadable entry refuses.
+func returnOriginCopyOnlyAttributes(u *returnOriginUnitIndex, item *ast.TypeItem) bool {
+	if item.AttrCount == 0 {
+		return true
+	}
+	attrs := u.Builder.Items.CollectAttrs(item.AttrStart, item.AttrCount)
+	if uint64(len(attrs)) != uint64(item.AttrCount) {
+		return false
+	}
+	for _, attr := range attrs {
+		spec, known := ast.LookupAttrID(u.Builder.StringsInterner, attr.Name)
+		if !known || spec.Name != "copy" || len(attr.Args) != 0 {
+			return false
+		}
+	}
+	return true
 }
