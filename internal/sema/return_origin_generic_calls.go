@@ -150,10 +150,13 @@ func (fn *returnOriginFunction) originalSignature(caller *returnOriginFunction, 
 		return nil, "generic original call has inconsistent template arity"
 	}
 	call, ok := u.Builder.Exprs.Call(id)
-	identity, err := u.callableIdentity(u.Symbols.ExprSymbols[id], "")
+	candidate, reason := u.selectedCallableCandidate(u.Symbols.ExprSymbols[id])
+	if reason != "" {
+		return nil, reason
+	}
 	sym := u.Symbols.Table.Symbols.Get(u.Symbols.ExprSymbols[id])
 	original := fn.unit.Symbols.Table.Symbols.Get(fn.symbol)
-	if !ok || call == nil || err != nil || identity.BodyKey != fn.key || identity.SourceKey != fn.canonicalSourceKey ||
+	if !ok || call == nil || candidate.Symbol != fn.candidate.Symbol || candidate.BodyKey != fn.key || candidate.SourceKey != fn.canonicalSourceKey ||
 		sym == nil || sym.Signature == nil || original == nil || original.Signature == nil ||
 		sym.Signature.HasSelf != fn.candidate.HasSelf || original.Signature.HasSelf != fn.candidate.HasSelf {
 		return nil, "generic original call lacks its selected declaration and physical formals"

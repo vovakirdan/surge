@@ -2,7 +2,6 @@ package sema
 
 import (
 	"fmt"
-	"slices"
 
 	"surge/internal/ast"
 	"surge/internal/symbols"
@@ -120,7 +119,15 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 			slots = append(slots, returnOriginArgument{exprs: []ast.ExprID{arg.Value}})
 		}
 	} else {
-		slots, err = mapReturnOriginArguments(sym.Signature, call, receiver)
+		// Named and default slots belong to the certified physical declaration;
+		// the selected symbol only chose it.
+		formals := sym.Signature
+		if callee != nil {
+			if original := callee.unit.Symbols.Table.Symbols.Get(callee.symbol); original != nil && original.Signature != nil {
+				formals = original.Signature
+			}
+		}
+		slots, err = mapReturnOriginArguments(formals, call, receiver)
 		if err != nil {
 			return returnOriginExprResult{}, err
 		}
@@ -209,30 +216,10 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 	return returnOriginExprResult{flow: flow, value: value}, nil
 }
 
+// Calls and function values share one reader, so a selection that one of them
+// could certify can never be refused by the other.
 func (b *returnOriginBody) resolveCallDeclaration(id symbols.SymbolID) (*returnOriginFunction, string) {
-	u := b.function.unit
-	identity, err := u.callableIdentity(id, "")
-	if err != nil {
-		return nil, err.Error()
-	}
-	fn := b.analyzer.bodies[identity.BodyKey]
-	if fn == nil {
-		fn = b.analyzer.declarations[identity.BodyKey]
-	}
-	if fn == nil || fn.candidate == nil || fn.canonicalSourceKey != identity.SourceKey {
-		return nil, "selected callable lacks its owning source declaration/body"
-	}
-	for _, candidate := range u.authority.CallableCandidates {
-		if candidate.BodyKey != identity.BodyKey || candidate.SourceKey != identity.SourceKey {
-			continue
-		}
-		if candidate.HasBody != fn.item.Body.IsValid() || !candidate.ReturnSources.Equal(fn.info.ReturnSources()) ||
-			!slices.Equal(candidate.ParamTypes, fn.info.Params) || candidate.ResultType != fn.info.Result {
-			return nil, "selected callable disagrees with its owning typed declaration"
-		}
-		return fn, ""
-	}
-	return nil, "selected callable has no canonical declaration authority"
+	return b.analyzer.selectedCallableFunction(b.function.unit, id)
 }
 
 // Recover the incoming parameter's actual source type syntax. Copies use the
