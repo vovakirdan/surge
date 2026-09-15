@@ -17,8 +17,12 @@ const asyncAllocationCensusMarker = "ASYNC_ALLOCATION_CENSUS: tasks=0 scopes=0 r
 // substitutes a test-only main; it does not rebuild or modify runtime code.
 func buildAsyncAllocationProgram(t *testing.T, source string) string {
 	t.Helper()
+	// An ordinary `go test ./...` (SURGE_SKIP_TIMEOUT_TESTS=1 by default, and in
+	// the hosted CI lanes) skips the proof. Vacuity stays closed where it matters:
+	// every row built on this helper is selected by a Makefile gate through
+	// runtime_v2_carrier_sanitizer_check.sh `--expect`, which refuses a skip.
 	if testing.Short() || strings.TrimSpace(os.Getenv("SURGE_SKIP_TIMEOUT_TESTS")) != "0" {
-		t.Fatal("async allocation proof requires non-short mode and explicit SURGE_SKIP_TIMEOUT_TESTS=0")
+		t.Skip("async allocation proof requires non-short mode and explicit SURGE_SKIP_TIMEOUT_TESTS=0")
 	}
 	for _, tool := range []string{"clang", "ar", "valgrind"} {
 		if _, err := exec.LookPath(tool); err != nil {
