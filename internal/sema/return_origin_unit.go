@@ -27,8 +27,9 @@ type ReturnOriginUnit struct {
 	Publication FinalizationPublication
 }
 
-// ReturnOriginPending is an obligation not answered by the private C2 pass.
-// It must be resolved before this analysis can authorize public publication.
+// ReturnOriginPending is an obligation the analysis could not answer. The
+// driver refuses to finish a build while any remains, so a missing proof is
+// never read as an empty set of sources.
 type ReturnOriginPending struct {
 	SourceKey string
 	Span      source.Span
@@ -120,9 +121,10 @@ type returnOriginExprResult struct {
 	storage returnOriginValue
 }
 
-// AnalyzeReturnOrigins examines already typed source without installing a
-// compiler hook. Unknown shapes remain explicit pending obligations; callers
-// must not treat the absence of a local-escape diagnostic as acceptance.
+// AnalyzeReturnOrigins examines already typed source; the driver runs it for
+// every owning unit before HIR and publishes its diagnostics. Unknown shapes
+// remain explicit pending obligations; callers must not treat the absence of a
+// local-escape diagnostic as acceptance.
 func AnalyzeReturnOrigins(ctx context.Context, authority *Result, units []ReturnOriginUnit) (*ReturnOriginAnalysis, error) {
 	if ctx == nil || authority == nil || authority.TypeInterner == nil || len(units) == 0 {
 		return nil, fmt.Errorf("return origins: missing context, typed authority, or source units")

@@ -1002,6 +1002,9 @@ Enforced highlights (v1):
   `@waits_on`, `@nonblocking`, `@send`, `@nosend`.
 - Field access: `@readonly`, `@atomic`.
 - Visibility and warnings: `@hidden`, `@deprecated`.
+- Borrowed results: `@return_source` on a parameter (or a function-type
+  parameter) bounds which inputs a returned borrow may come from; see
+  `docs/ATTRIBUTES.ru.md` and `RUNTIME_V2.md`, "Borrowed Results And Normal Block Exit".
 
 Parsed-only (no semantic effect yet):
 `@pure`, `@raii`, `@arena`, `@shared`, `@weak`, `@backend`.

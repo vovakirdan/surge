@@ -65,6 +65,7 @@ fn multiple() { return nothing; }
 | `@weak` | field | нет | Parsed | Зарезервировано. |
 | `@atomic` | field | нет | Enforced | Ограничения типа + правила доступа. |
 | `@readonly` | field | нет | Enforced | Запрещает запись после инициализации. |
+| `@return_source` | param, param функционального типа | нет | Enforced | Ограничивает, из каких входов может прийти возвращаемое заимствование. |
 | `@requires_lock` | fn | string | Enforced | Вызывающий должен держать блокировку. |
 | `@acquires_lock` | fn | string | Enforced | Вызываемая функция захватывает блокировку. |
 | `@releases_lock` | fn | string | Enforced | Вызываемая функция освобождает блокировку. |
@@ -418,6 +419,37 @@ q.x = 99;        // p.x по-прежнему 1
 
 См. описание атрибута функции; разрешает неявное `__to` для этого параметра.
 
+### `@return_source`
+
+Объявляет, из каких входов может прийти заимствованное содержимое результата
+функции. Аргументов не принимает и пишется на каждом параметре, из которого
+результат может заимствовать, — в объявлении функции или в функциональном типе:
+
+```sg
+fn first(@return_source a: &string, b: &string) -> &string {
+    return a;
+}
+type FirstRef = fn(@return_source &string, &string) -> &string;
+```
+
+- Несколько помеченных параметров образуют одно объединение для всего
+  заимствованного результата, включая payload тегов и optional.
+- Помеченный параметр и результат должны нести ссылку. Для generic-параметра
+  или результата проверка ждёт конкретного типа; специализация, чей результат
+  владеет своим значением, ничего не ограничивает.
+- Без пометок источники тела функции выводятся, а непрозрачный callable может
+  вернуть заимствование из любого явного входа со ссылкой, включая `self`.
+- Callable с меньшим набором источников преобразуется к более широкому
+  обещанию; более узкое назначение отвергается.
+- Первая версия допускает только явные параметры и `self`. Чтобы вернуть
+  заимствование захваченной переменной, передайте этот источник явным
+  параметром.
+- Обещание не даёт права на изменение и не добавляет состояния во время
+  выполнения.
+
+Нормативные правила — в `RUNTIME_V2.md`, раздел «Borrowed Results And Normal
+Block Exit».
+
 ### `@arena`
 
 Только парсится; пока нет семантического эффекта.
@@ -465,5 +497,9 @@ let r = &mut value;
 - `SemaAttrCopyNonCopyField` / `SemaAttrCopyCyclicDep` ошибки валидации `@copy`
 - `SemaEntrypointModeInvalid` / `SemaEntrypointNoModeRequiresNoArgs` / `SemaEntrypointReturnNotConvertible` / `SemaEntrypointParamNoFromArgv` / `SemaEntrypointParamNoFromStdin` / `SemaEntrypointStdinArity` / `SemaEntrypointStdinDefault` валидация entrypoint
 - `FutEntrypointModeEnv` / `FutEntrypointModeConfig` зарезервированные режимы entrypoint
+- `SemaReturnSourceArgument` (SEM3213) `@return_source` записан с аргументами
+- `SemaReturnSourceMissingParam` (SEM3214) пометка вне сигнатуры
+- `SemaReturnSourceOwnedParam` (SEM3215) / `SemaReturnSourceOwnedResult` (SEM3216) помеченный параметр или результат не несёт ссылки
+- `SemaReturnSourceIncompatible` (SEM3217) callable преобразован к более узкому обещанию источников
 
 См. `internal/diag/codes.go` для полного списка.
