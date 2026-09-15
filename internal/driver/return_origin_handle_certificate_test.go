@@ -148,10 +148,10 @@ func TestAnalyzeHandleCertificate(t *testing.T) {
 	}
 }
 
-// The core declarations themselves: certified constructors lose their refusal,
-// and core intrinsics of the same shapes keep it. Task results keep theirs until
-// the task check owns a clone's borrowed spawn arguments. Spans come from each
-// unique declaration text, not from frozen offsets into core.
+// The core declarations themselves: certified constructors and readers lose their
+// refusal, and core intrinsics of neighbouring shapes keep it. Task results keep
+// theirs until the task check owns a clone's borrowed spawn arguments. Spans come
+// from each unique declaration text, not from frozen offsets into core.
 func TestReturnOriginHandleCertificateCoreRows(t *testing.T) {
 	f, analysis, _ := analyzeHandleCertificate(t, "handle_certificate_core_rows", handleCertificateCaseNamed(t, "shard_placement"), nil)
 	var core *sema.ReturnOriginUnit
@@ -179,9 +179,13 @@ func TestReturnOriginHandleCertificateCoreRows(t *testing.T) {
 		{"@intrinsic pub fn shard(", "shard", true},
 		{"@intrinsic pub fn new() -> RwLock;", "new", true},
 		{"@intrinsic pub fn channel_on<", "channel_on", true},
-		{"@intrinsic fn rt_fs_read_dir(", "rt_fs_read_dir", false},
-		{"@intrinsic fn rt_fs_read_file(", "rt_fs_read_file", false},
-		{"@intrinsic fn rt_net_read_bytes(", "rt_net_read_bytes", false},
+		{"@intrinsic fn rt_fs_read_dir(", "rt_fs_read_dir", true},
+		{"@intrinsic fn rt_fs_read_file(", "rt_fs_read_file", true},
+		{"@intrinsic fn rt_net_read_bytes(", "rt_net_read_bytes", true},
+		{"pub fn rt_argv() -> string[];", "rt_argv", true},
+		// Map keys and array concatenation carry element contents; the container-content analysis flips them.
+		{"@intrinsic fn rt_map_keys<", "rt_map_keys", false},
+		{"@intrinsic fn __add(self: &Array<T>, other: &Array<T>) -> Array<T>;", "__add", false},
 		{"@intrinsic pub fn clone(self: &Task<T>) -> Task<T>;", "clone", false},
 		{"pub fn checkpoint() -> Task<nothing>;", "checkpoint", false},
 		{"@intrinsic pub fn sleep(", "sleep", false},
