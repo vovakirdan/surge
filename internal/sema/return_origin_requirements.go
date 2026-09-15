@@ -158,9 +158,27 @@ func (r returnOriginRequirements) rebase(view returnOriginTypeView) returnOrigin
 
 // FileID zero is a real source file. Prove the source declaration and completed
 // field roster, rather than treating a zero ID or an empty physical layout as
-// a nominal certificate. Foreign/inherited/opaque forms stay unsupported here.
+// a nominal certificate. A struct declared in another analyzed unit is proven in
+// that unit, found by its exact file among the peers; a unit that is missing or
+// ambiguous proves nothing. Inherited, attributed and opaque forms stay
+// unsupported.
 func returnOriginPlainStruct(fn *returnOriginFunction, info *types.StructInfo) bool {
 	u := fn.unit
+	if f := u.Builder.Files.Get(u.FileID); f == nil || f.Span.File != info.Decl.File {
+		var match *returnOriginUnitIndex
+		for _, peer := range u.peers {
+			if pf := peer.Builder.Files.Get(peer.FileID); pf != nil && pf.Span.File == info.Decl.File {
+				if match != nil {
+					return false
+				}
+				match = peer
+			}
+		}
+		if match == nil {
+			return false
+		}
+		u = match
+	}
 	file := u.Builder.Files.Get(u.FileID)
 	if file == nil || file.Span.File != info.Decl.File || info.Decl.End <= info.Decl.Start {
 		return false
