@@ -35,7 +35,7 @@ func (a *returnOriginAnalyzer) solveBodies() error {
 				return err
 			}
 			next := a.summaries[fn.key].join(returnOriginSummaryFact{value: projectReturnOriginSummary(value),
-				conditions: body.conditions, required: body.required})
+				conditions: body.conditions, required: body.required, postCells: projectReturnOriginCellPosts(body.postCells)})
 			if !next.equal(a.summaries[fn.key]) {
 				a.summaries[fn.key] = next
 				changed = true
@@ -66,6 +66,9 @@ func (a *returnOriginAnalyzer) solveBodies() error {
 				body.pending(fn.item.ReturnSpan, "function result contains an unproved source")
 			}
 		}
+		// V(i) and R(i) are two private facts about one public input slot.
+		slices.Sort(summary.ParamSlots)
+		summary.ParamSlots = slices.Compact(summary.ParamSlots)
 		a.report.Summaries = append(a.report.Summaries, summary)
 	}
 	if err := a.checkGenericUses(); err != nil {
@@ -104,7 +107,7 @@ func projectReturnOriginSummary(value returnOriginValue) returnOriginValue {
 	}
 	for _, root := range value.roots {
 		if root.kind == returnOriginParam && !root.expired {
-			roots = append(roots, returnOrigin{kind: returnOriginParam, param: root.param})
+			roots = append(roots, returnOrigin{kind: returnOriginParam, param: root.param, selector: root.selector})
 		} else {
 			// Forbidden origins never disappear merely because they are not
 			// formal inputs. The source check retains their owning locations.
@@ -148,11 +151,13 @@ func (b *returnOriginBody) analyze() (returnOriginValue, error) {
 		}
 		env = env.assign(param, fn.scope, value)
 	}
+	env = fn.initExternalCells(env)
 	flow, err := b.stmt(fn.item.Body, env, returnOriginTargets{scope: fn.scope})
 	if err != nil {
 		return returnOriginValue{}, err
 	}
 	flow = b.closeFlow(flow, fn.scope, fn.item.Span)
+	b.collectCellExit(flow.normal, fn.item.ReturnSpan)
 	value := returnOriginValue{}
 	if flow.normal.reachable {
 		value = returnOriginValueOf()
@@ -174,6 +179,7 @@ func (b *returnOriginBody) analyze() (returnOriginValue, error) {
 			b.pending(key.site, "function has an unresolved control-flow target")
 			continue
 		}
+		b.collectCellExit(outcome.env, key.site)
 		// A symbolic result may become reference-free. Its conditional promise
 		// is checked for every current concrete use after the fixed point.
 		if validPromise && !fn.info.ReturnSources().IsAllInputs() && !types.ContainsGenericParam(fn.unit.Sema.TypeInterner, fn.info.Result) {

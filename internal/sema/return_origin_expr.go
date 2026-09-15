@@ -152,6 +152,8 @@ func (b *returnOriginBody) unary(id ast.ExprID, env returnOriginEnv, targets ret
 		out.storage = out.value.clone()
 		if b.shape(id) == returnOriginRefFree {
 			out.value = returnOriginValueOf()
+		} else if loaded, handled := b.loadExternalCells(u.Sema.ExprTypes[data.Operand], out.storage, out.flow.normal, span); handled {
+			out.value = loaded
 		} else {
 			b.pending(span, "reference loaded through another reference needs content provenance")
 			out.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
@@ -200,7 +202,11 @@ func (b *returnOriginBody) binary(id ast.ExprID, env returnOriginEnv, targets re
 		symID := u.Symbols.ExprSymbols[data.Left]
 		node := u.Builder.Exprs.Get(data.Left)
 		if node.Kind != ast.ExprIdent || !symID.IsValid() {
-			b.pending(u.Builder.Exprs.Get(id).Span, "store through a place needs reference-content transfer")
+			if next, stored := b.storeExternalCells(data.Left, left.storage, right.value, right.flow.normal); stored {
+				right.flow.normal = next
+			} else {
+				right.flow.normal = b.taintExternalCellEffects(right.flow.normal, u.Builder.Exprs.Get(id).Span, "store through a place needs reference-content transfer")
+			}
 		} else if sym := u.Symbols.Table.Symbols.Get(symID); sym != nil {
 			annotation := ast.NoTypeID
 			if decl := u.Builder.Stmts.Get(sym.Decl.Stmt); decl != nil && decl.Kind == ast.StmtLet {

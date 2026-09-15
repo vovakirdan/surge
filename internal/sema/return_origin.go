@@ -16,16 +16,31 @@ const (
 	returnOriginCapture
 )
 
+// A Param root names one formal slot; the selector says WHICH of that slot's
+// two facts it is. V(slot) is the incoming payload itself — ordinarily a
+// borrowed value, and under a complete typed target certificate the address of
+// an external cell. R(slot) is a frozen snapshot of the contents that cell held
+// when it was read, never the address. The same public slot therefore does not
+// prove two private facts equal: `read_old` returns R0 and `returned_alias`
+// returns V0, and both project to ParamSlots [0].
+type returnOriginInputSelector uint8
+
+const (
+	returnOriginInputValue returnOriginInputSelector = iota
+	returnOriginInputContents
+)
+
 // Roots use one owning typed-AST unit's symbol/scope vocabulary. Local roots
 // never become a callee summary: escape checking precedes formal projection.
 // Param means incoming borrowed content. The address of a by-value parameter's
 // own storage is a Local root in the function scope, even for a Copy parameter.
 type returnOrigin struct {
-	kind    returnOriginKind
-	binding symbols.SymbolID
-	scope   symbols.ScopeID
-	param   uint32
-	expired bool
+	kind     returnOriginKind
+	binding  symbols.SymbolID
+	scope    symbols.ScopeID
+	param    uint32
+	selector returnOriginInputSelector
+	expired  bool
 }
 
 // The zero value means NoNormalReturn. A normal value with no roots is proven
@@ -53,6 +68,9 @@ func compareReturnOrigins(a, b returnOrigin) int {
 		return order
 	}
 	if order := cmp.Compare(a.param, b.param); order != 0 {
+		return order
+	}
+	if order := cmp.Compare(a.selector, b.selector); order != 0 {
 		return order
 	}
 	if a.expired == b.expired {
@@ -114,13 +132,20 @@ type returnOriginBinding struct {
 
 // An unreachable environment is distinct from a reachable empty environment.
 // Bindings must leave their lexical scope before environments join.
+//
+// `cells` holds the current contents of this function's admitted external
+// cells, keyed by the formal slot that names each one; the function's own
+// BodyKey/SourceKey namespaces those keys. A cell entry is flat — roots and
+// callables like any other value — and it outlives every lexical scope,
+// because the cell belongs to the caller, not to a block here.
 type returnOriginEnv struct {
 	reachable bool
 	bindings  map[symbols.SymbolID]returnOriginBinding
+	cells     map[uint32]returnOriginValue
 }
 
 func newReturnOriginEnv() returnOriginEnv {
-	return returnOriginEnv{reachable: true, bindings: make(map[symbols.SymbolID]returnOriginBinding)}
+	return returnOriginEnv{reachable: true, bindings: make(map[symbols.SymbolID]returnOriginBinding), cells: make(map[uint32]returnOriginValue)}
 }
 
 func (e returnOriginEnv) clone() returnOriginEnv {
@@ -130,6 +155,9 @@ func (e returnOriginEnv) clone() returnOriginEnv {
 	out := newReturnOriginEnv()
 	for id, binding := range e.bindings {
 		out.bindings[id] = returnOriginBinding{scope: binding.scope, value: binding.value.clone()}
+	}
+	for slot, value := range e.cells {
+		out.cells[slot] = value.clone()
 	}
 	return out
 }
@@ -142,6 +170,30 @@ func (e returnOriginEnv) value(id symbols.SymbolID) returnOriginValue {
 		return binding.value.clone()
 	}
 	return returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
+}
+
+// cell answers the contents of one admitted external cell. A reachable
+// environment that does not hold the slot knows nothing about it, which is
+// Unknown rather than an identity assumption.
+func (e returnOriginEnv) cell(slot uint32) returnOriginValue {
+	if !e.reachable {
+		return returnOriginValue{}
+	}
+	if value, ok := e.cells[slot]; ok {
+		return value.clone()
+	}
+	return returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
+}
+
+// withCell replaces one cell's contents. The caller decides whether the write
+// is a replacement or a weak union; this only stores what it is given.
+func (e returnOriginEnv) withCell(slot uint32, value returnOriginValue) returnOriginEnv {
+	if !e.reachable || !value.normal {
+		return returnOriginEnv{}
+	}
+	out := e.clone()
+	out.cells[slot] = value.clone()
+	return out
 }
 
 // The caller evaluates RHS first. NoNormalReturn kills the continuation; a
@@ -159,12 +211,18 @@ func (e returnOriginEnv) assign(id symbols.SymbolID, scope symbols.ScopeID, valu
 }
 
 func (e returnOriginEnv) equal(other returnOriginEnv) bool {
-	if e.reachable != other.reachable || len(e.bindings) != len(other.bindings) {
+	if e.reachable != other.reachable || len(e.bindings) != len(other.bindings) || len(e.cells) != len(other.cells) {
 		return false
 	}
 	for id, binding := range e.bindings {
 		peer, ok := other.bindings[id]
 		if !ok || binding.scope != peer.scope || !binding.value.equal(peer.value) {
+			return false
+		}
+	}
+	for slot, value := range e.cells {
+		peer, ok := other.cells[slot]
+		if !ok || !value.equal(peer) {
 			return false
 		}
 	}
@@ -190,6 +248,17 @@ func (e returnOriginEnv) join(other returnOriginEnv) returnOriginEnv {
 			out.bindings[id] = returnOriginBinding{scope: binding.scope, value: e.value(id).join(binding.value)}
 		}
 	}
+	// A cell one reachable arm never established is Unknown on the join, not
+	// the other arm's fact: nothing here proves the two arms wrote the same
+	// contents, and `cell` answers Unknown for the missing side.
+	for slot, value := range e.cells {
+		out.cells[slot] = value.join(other.cell(slot))
+	}
+	for slot, value := range other.cells {
+		if _, exists := out.cells[slot]; !exists {
+			out.cells[slot] = e.cell(slot).join(value)
+		}
+	}
 	return out
 }
 
@@ -202,6 +271,10 @@ type returnOriginScopeExit struct {
 // Check both the block result and surviving outer bindings. Deleting dying
 // bindings first would miss a side-effect assignment that exported their loan.
 // Expired facts stay in the output even when a consumer delays its diagnostic.
+//
+// Every external cell survives the scope — it is the caller's storage — so a
+// local loan stored into one stays visible here, expires with its owner, and is
+// reported even when this scope's result is `nothing`.
 func (e returnOriginEnv) leaveScope(scope symbols.ScopeID, value returnOriginValue, within func(symbols.ScopeID, symbols.ScopeID) bool) returnOriginScopeExit {
 	if within == nil {
 		panic("return origins: missing scope ancestry")
@@ -218,6 +291,11 @@ func (e returnOriginEnv) leaveScope(scope symbols.ScopeID, value returnOriginVal
 		binding.value = binding.value.expire(scope, within)
 		out.env.bindings[id] = binding
 		roots = append(roots, binding.value.roots...)
+	}
+	for slot, cell := range e.cells {
+		cell = cell.expire(scope, within)
+		out.env.cells[slot] = cell
+		roots = append(roots, cell.roots...)
 	}
 	for _, root := range returnOriginValueOf(roots...).roots {
 		if root.expired {
