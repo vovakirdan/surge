@@ -194,6 +194,7 @@ func (fn *returnOriginFunction) originalSignature(caller *returnOriginFunction, 
 		// owner for an own Receiver<T> result. The syntactic type receiver has
 		// an exact SymbolType, not a runtime ExprTypes entry. Require that
 		// declaration plus the actual result; no general ownership erasure.
+		// An imported owner is the resolver's copy of its export: declaration Span and Type, no local Decl.
 		result, present := in.Lookup(fn.info.Result)
 		var staticOwner *symbols.Symbol
 		if memberCall && member != nil {
@@ -206,7 +207,9 @@ func (fn *returnOriginFunction) originalSignature(caller *returnOriginFunction, 
 		}
 		if !present || result.Kind != types.KindOwn || fn.candidate.HasSelf || fn.candidate.ReceiverType == types.NoTypeID ||
 			!dispatchOK || dispatch == nil || target == nil || dispatch.Name != target.Name || dispatch.Decl != target.Decl ||
-			staticOwner.Decl.SourceFile != target.Decl.File || staticOwner.Span.File != target.Decl.File ||
+			(staticOwner.Decl.SourceFile != target.Decl.File &&
+				(staticOwner.Flags&symbols.SymbolFlagImported == 0 || staticOwner.Decl != (symbols.SymbolDecl{}))) ||
+			staticOwner.Span.File != target.Decl.File ||
 			staticOwner.Span.Start < target.Decl.Start || staticOwner.Span.End > target.Decl.End || result.Elem != fn.candidate.ReceiverType ||
 			matchReturnOriginSourceType(in, result.Elem, view.result, params, args) != "" {
 			return nil, "generic original call result disagrees with its substituted source signature"

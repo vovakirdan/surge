@@ -129,6 +129,10 @@ func returnOriginTypeChildren(owner *returnOriginFunction, id types.TypeID) ([]t
 		info, found := in.StructInfo(id)
 		if found && info != nil {
 			if _, nominal := returnOriginNominalShape(in, id, info, nil); nominal {
+				// A counted channel's ring holds only its payloads; other handles keep their loans.
+				if payloads, known := in.RuntimeHandlePayloads(id); known && len(payloads) != 0 && in.IsRuntimeHandleType(id) && in.IsRefCountedHandle(id) {
+					return payloads, true
+				}
 				return nil, false
 			}
 			out := make([]types.TypeID, 0, len(info.Fields))
