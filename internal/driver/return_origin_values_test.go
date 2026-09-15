@@ -254,7 +254,7 @@ func requireReturnOriginValueMismatch(t *testing.T, src, rhs string, res *Diagno
 	}
 	d := analysis.Diagnostics[0]
 	start := strings.LastIndex(src, " = "+rhs+";") + len(" = ")
-	if d.Code != diag.SemaError || d.Severity != diag.SevError || d.Message != returnOriginCallableMismatch ||
+	if d.Code != diag.SemaReturnSourceIncompatible || d.Severity != diag.SevError || d.Message != returnOriginCallableMismatch ||
 		d.Primary.File != res.File.ID || int(d.Primary.Start) != start || int(d.Primary.End) != start+len(rhs) || len(d.Help) == 0 {
 		t.Fatalf("callable mismatch lost its actual RHS/source reason: %+v", d)
 	}

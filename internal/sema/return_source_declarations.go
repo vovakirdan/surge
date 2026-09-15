@@ -69,7 +69,7 @@ func (tc *typeChecker) checkReturnSourceDeclaration(syntax symbols.ReturnSourceS
 		}
 		validation := ValidateInstantiatedReturnSources(tc.types, *original, params, result)
 		if validation.Status == ReturnSourcesInvalid {
-			tc.report(diag.SemaError, validation.Span, "%s", validation.Reason)
+			tc.reportInvalidReturnSource(validation)
 			return false
 		}
 		return true
@@ -87,10 +87,38 @@ func (tc *typeChecker) checkReturnSourceDeclaration(syntax symbols.ReturnSourceS
 	}
 	validation := ValidateDeclaredReturnSources(tc.types, request)
 	if validation.Status == ReturnSourcesInvalid {
-		tc.report(diag.SemaError, validation.Span, "%s", validation.Reason)
+		tc.reportInvalidReturnSource(validation)
 		return false
 	}
 	return true
+}
+
+// reportInvalidReturnSource keeps the broken rule as the message and says, at
+// the marker, what the promise means and how to repair the declaration.
+func (tc *typeChecker) reportInvalidReturnSource(validation ReturnSourceValidation) {
+	code := validation.Code
+	if code == 0 {
+		code = diag.SemaError
+	}
+	b := diag.ReportError(tc.reporter, code, validation.Span, validation.Reason)
+	if b == nil {
+		return
+	}
+	switch code {
+	case diag.SemaReturnSourceArgument:
+		b.WithNote(validation.Span, "`@return_source` marks the parameter it is written on; it has no argument form")
+		b.WithHelp(validation.Span, "write `@return_source` without parentheses on each parameter the result may borrow from")
+	case diag.SemaReturnSourceMissingParam:
+		b.WithNote(validation.Span, "the marker names a parameter position this signature does not have")
+		b.WithHelp(validation.Span, "put `@return_source` directly on one of the function's parameters")
+	case diag.SemaReturnSourceOwnedParam:
+		b.WithNote(validation.Span, "a borrowed result can only point into a parameter that itself carries a reference")
+		b.WithHelp(validation.Span, "take this parameter by reference (`&T`), or remove `@return_source` from it")
+	case diag.SemaReturnSourceOwnedResult:
+		b.WithNote(validation.Span, "a result that owns its value borrows from no parameter, so there is no source to declare")
+		b.WithHelp(validation.Span, "return a reference, or remove `@return_source`")
+	}
+	b.Emit()
 }
 
 func (tc *typeChecker) returnSourceDeclaration(typeExpr ast.TypeID, scope symbols.ScopeID) *ReturnSourceDeclarationRequest {

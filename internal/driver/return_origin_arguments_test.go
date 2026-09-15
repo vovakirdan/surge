@@ -361,7 +361,7 @@ func requireReturnOriginArgumentOutcome(t *testing.T, res *DiagnoseResult, analy
 		t.Fatalf("missing/extraneous frozen source diagnostic: %+v", analysis.Diagnostics)
 	}
 	for _, d := range analysis.Diagnostics {
-		code, message := diag.SemaError, returnOriginCallableMismatch
+		code, message := diag.SemaReturnSourceIncompatible, returnOriginCallableMismatch
 		start := strings.LastIndex(src, tc.call) + strings.LastIndex(tc.call, tc.rhs)
 		end := start + len(tc.rhs)
 		noteText := "fn(@return_source &string, &string) -> &string"

@@ -99,7 +99,7 @@ func (b *returnOriginBody) checkCallableDestination(actual returnOriginValue, ex
 			}
 		}
 		b.analyzer.report.Diagnostics = append(b.analyzer.report.Diagnostics, diag.Diagnostic{
-			Code: diag.SemaError, Severity: diag.SevError, Primary: span, Message: message,
+			Code: diag.SemaReturnSourceIncompatible, Severity: diag.SevError, Primary: span, Message: message,
 			Notes: []diag.Note{{Span: expected.promise, Msg: "the destination permits only the sources in this promise"}},
 			Help:  []diag.Note{{Span: span, Msg: "use a compatible callable or widen the destination promise"}},
 		})
