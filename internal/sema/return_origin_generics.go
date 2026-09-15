@@ -168,12 +168,19 @@ func (a *returnOriginAnalyzer) checkGenericUses() error {
 		}
 		fn, caller, expression, reason := a.genericUseContext(use)
 		if reason == "" {
-			if caller.unit.Builder.Exprs.Get(expression).Kind == ast.ExprIndex {
+			if _, store := caller.unit.Sema.IndexSetSymbols[expression]; store && caller.unit.Builder.Exprs.Get(expression).Kind == ast.ExprIndex {
+				reason = a.checkIndexStoreUse(fn, caller, expression, use)
+			} else if caller.unit.Builder.Exprs.Get(expression).Kind == ast.ExprIndex {
 				reason = a.checkIndexUse(fn, caller, expression, use)
+				if handled, view := a.checkArrayRangeIndexUse(fn, caller, expression, use); handled {
+					reason = view
+				}
 			} else {
 				var info *returnOriginSignature
 				info, reason = a.genericCallUseInfo(fn, caller, expression, use)
-				if reason == "" {
+				if handled, intrinsic := a.checkBackingIntrinsicUse(fn, use); reason == "" && handled {
+					reason = intrinsic
+				} else if reason == "" {
 					reason = a.checkGenericPromise(fn, info, use)
 				}
 			}

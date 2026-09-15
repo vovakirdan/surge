@@ -26,10 +26,14 @@ func (b *returnOriginBody) constructorChildren(id ast.ExprID, children []ast.Exp
 	node := b.function.unit.Builder.Exprs.Get(id)
 	out := originExprValue(env, returnOriginValueOf())
 	contents := returnOriginValueOf()
+	erased := b.shape(id) == returnOriginRefFree
 	for _, child := range children {
 		next, err := b.expr(child, out.flow.normal, targets)
 		if err != nil {
 			return returnOriginExprResult{}, err
+		}
+		if erased && b.shape(child) == returnOriginRefFree {
+			b.discardLoans(next.value, node.Span) // G6-i, per child
 		}
 		out.flow.normal = returnOriginEnv{}
 		out.flow = out.flow.join(next.flow)
@@ -42,6 +46,12 @@ func (b *returnOriginBody) constructorChildren(id ast.ExprID, children []ast.Exp
 	if reason != "" {
 		b.pending(node.Span, reason)
 		out.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
+		return out, nil
+	}
+	// An empty canonical array literal holds no element, whatever its element type.
+	if c, canonical := returnOriginContainer(b.function.unit.Sema.TypeInterner, b.function.unit.Sema.ExprTypes[id]); canonical && !c.reference &&
+		node.Kind == ast.ExprArray && len(children) == 0 {
+		out.value = returnOriginValueOf()
 		return out, nil
 	}
 	// Even a reference-free result must retain all child effects and abrupt

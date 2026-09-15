@@ -35,7 +35,8 @@ func (a *returnOriginAnalyzer) solveBodies() error {
 				return err
 			}
 			next := a.summaries[fn.key].join(returnOriginSummaryFact{value: projectReturnOriginSummary(value),
-				conditions: body.conditions, required: body.required, postCells: projectReturnOriginCellPosts(body.postCells)})
+				conditions: body.conditions, required: body.required, postCells: projectReturnOriginCellPosts(body.postCells),
+				postBackings: projectReturnOriginCellPosts(body.postBackings)})
 			if !next.equal(a.summaries[fn.key]) {
 				a.summaries[fn.key] = next
 				changed = true
@@ -151,13 +152,14 @@ func (b *returnOriginBody) analyze() (returnOriginValue, error) {
 		}
 		env = env.assign(param, fn.scope, value)
 	}
-	env = fn.initExternalCells(env)
+	env = fn.initBackings(fn.initExternalCells(env))
 	flow, err := b.stmt(fn.item.Body, env, returnOriginTargets{scope: fn.scope})
 	if err != nil {
 		return returnOriginValue{}, err
 	}
 	flow = b.closeFlow(flow, fn.scope, fn.item.Span)
 	b.collectCellExit(flow.normal, fn.item.ReturnSpan)
+	b.collectBackingExit(flow.normal, fn.item.ReturnSpan)
 	value := returnOriginValue{}
 	if flow.normal.reachable {
 		value = returnOriginValueOf()
@@ -180,6 +182,7 @@ func (b *returnOriginBody) analyze() (returnOriginValue, error) {
 			continue
 		}
 		b.collectCellExit(outcome.env, key.site)
+		b.collectBackingExit(outcome.env, key.site)
 		// A symbolic result may become reference-free. Its conditional promise
 		// is checked for every current concrete use after the fixed point.
 		if validPromise && !fn.info.ReturnSources().IsAllInputs() && !types.ContainsGenericParam(fn.unit.Sema.TypeInterner, fn.info.Result) {

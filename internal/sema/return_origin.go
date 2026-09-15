@@ -28,6 +28,10 @@ type returnOriginInputSelector uint8
 const (
 	returnOriginInputValue returnOriginInputSelector = iota
 	returnOriginInputContents
+	// E(slot) is what the container formal slot references holds as elements;
+	// L(slot) is the loan set of that container when its element is payload-free.
+	returnOriginInputElements
+	returnOriginInputLoans
 )
 
 // Roots use one owning typed-AST unit's symbol/scope vocabulary. Local roots
@@ -142,10 +146,14 @@ type returnOriginEnv struct {
 	reachable bool
 	bindings  map[symbols.SymbolID]returnOriginBinding
 	cells     map[uint32]returnOriginValue
+	// backings holds each container formal's element contents or loans, keyed
+	// by slot like cells; it outlives every scope and only ever gains facts.
+	backings map[uint32]returnOriginValue
 }
 
 func newReturnOriginEnv() returnOriginEnv {
-	return returnOriginEnv{reachable: true, bindings: make(map[symbols.SymbolID]returnOriginBinding), cells: make(map[uint32]returnOriginValue)}
+	return returnOriginEnv{reachable: true, bindings: make(map[symbols.SymbolID]returnOriginBinding), cells: make(map[uint32]returnOriginValue),
+		backings: make(map[uint32]returnOriginValue)}
 }
 
 func (e returnOriginEnv) clone() returnOriginEnv {
@@ -158,6 +166,9 @@ func (e returnOriginEnv) clone() returnOriginEnv {
 	}
 	for slot, value := range e.cells {
 		out.cells[slot] = value.clone()
+	}
+	for slot, value := range e.backings {
+		out.backings[slot] = value.clone()
 	}
 	return out
 }
@@ -211,8 +222,13 @@ func (e returnOriginEnv) assign(id symbols.SymbolID, scope symbols.ScopeID, valu
 }
 
 func (e returnOriginEnv) equal(other returnOriginEnv) bool {
-	if e.reachable != other.reachable || len(e.bindings) != len(other.bindings) || len(e.cells) != len(other.cells) {
+	if e.reachable != other.reachable || len(e.bindings) != len(other.bindings) || len(e.cells) != len(other.cells) || len(e.backings) != len(other.backings) {
 		return false
+	}
+	for slot, value := range e.backings {
+		if peer, ok := other.backings[slot]; !ok || !value.equal(peer) {
+			return false
+		}
 	}
 	for id, binding := range e.bindings {
 		peer, ok := other.bindings[id]
@@ -259,6 +275,14 @@ func (e returnOriginEnv) join(other returnOriginEnv) returnOriginEnv {
 			out.cells[slot] = e.cell(slot).join(value)
 		}
 	}
+	for slot, value := range e.backings {
+		out.backings[slot] = value.join(other.backing(slot))
+	}
+	for slot, value := range other.backings {
+		if _, exists := out.backings[slot]; !exists {
+			out.backings[slot] = e.backing(slot).join(value)
+		}
+	}
 	return out
 }
 
@@ -296,6 +320,11 @@ func (e returnOriginEnv) leaveScope(scope symbols.ScopeID, value returnOriginVal
 		cell = cell.expire(scope, within)
 		out.env.cells[slot] = cell
 		roots = append(roots, cell.roots...)
+	}
+	for slot, backing := range e.backings {
+		backing = backing.expire(scope, within)
+		out.env.backings[slot] = backing
+		roots = append(roots, backing.roots...)
 	}
 	for _, root := range returnOriginValueOf(roots...).roots {
 		if root.expired {

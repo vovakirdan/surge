@@ -56,7 +56,12 @@ func (b *returnOriginBody) deferredClone(id ast.ExprID, call *ast.ExprCallData, 
 	}
 	value := returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 	if reason == "" {
-		value, reason = b.cloneBindingContents(argument, flow.normal, edges[0].Receiver)
+		// The typed call has exactly one argument once its original edge is proven.
+		if contents, loaded := b.cloneElementContents(call.Args[0].Value, argument, flow.normal); loaded {
+			value = contents
+		} else {
+			value, reason = b.cloneBindingContents(argument, flow.normal, edges[0].Receiver)
+		}
 	}
 	if reason != "" {
 		b.pending(span, reason)

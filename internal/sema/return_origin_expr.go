@@ -42,7 +42,7 @@ func (b *returnOriginBody) expr(id ast.ExprID, env returnOriginEnv, targets retu
 			return b.callableIdent(id, env), nil
 		}
 		value := env.value(symID)
-		if b.shape(id) == returnOriginRefFree {
+		if b.shape(id) == returnOriginRefFree && !b.analyzer.loanCarrier(sym.Type) {
 			value = returnOriginValueOf()
 		}
 		if !b.within(sym.Scope, b.function.scope) {
@@ -114,8 +114,10 @@ func (b *returnOriginBody) expr(id ast.ExprID, env returnOriginEnv, targets retu
 		if b.shape(id) != returnOriginRefFree || !b.castProven(id, data.Value) {
 			b.pending(node.Span, "conversion retains its actual expression for origin finalization")
 			out.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
+		} else if _, selected := u.Sema.ToSymbols[id]; !selected && b.shape(data.Value) == returnOriginRefFree {
+			out.value = b.discardLoans(out.value, node.Span) // native cast, no certification: G6-iv
 		} else {
-			out.value = returnOriginValueOf()
+			out.value = returnOriginValueOf() // certified selection: no loan-discard refusal
 		}
 		out.storage = returnOriginValue{}
 		return out, nil
@@ -151,7 +153,9 @@ func (b *returnOriginBody) unary(id ast.ExprID, env returnOriginEnv, targets ret
 		out.storage = returnOriginValue{}
 	case ast.ExprUnaryDeref:
 		out.storage = out.value.clone()
-		if b.shape(id) == returnOriginRefFree {
+		if b.shape(id) == returnOriginRefFree && b.analyzer.loanCarrier(u.Sema.ExprTypes[id]) {
+			out.value = b.containerLoans(out.storage, out.flow.normal, span)
+		} else if b.shape(id) == returnOriginRefFree {
 			out.value = returnOriginValueOf()
 		} else if loaded, handled := b.loadExternalCells(u.Sema.ExprTypes[data.Operand], out.storage, out.flow.normal, span); handled {
 			out.value = loaded
@@ -163,7 +167,7 @@ func (b *returnOriginBody) unary(id ast.ExprID, env returnOriginEnv, targets ret
 		out.storage = returnOriginValue{}
 	default:
 		if b.shape(id) == returnOriginRefFree && b.shape(data.Operand) == returnOriginRefFree {
-			out.value = returnOriginValueOf()
+			out.value = b.discardLoans(out.value, span)
 		} else {
 			b.pending(span, "unary callable needs an exact origin contract")
 			out.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
@@ -205,6 +209,8 @@ func (b *returnOriginBody) binary(id ast.ExprID, env returnOriginEnv, targets re
 		if node.Kind != ast.ExprIdent || !symID.IsValid() {
 			if next, stored := b.storeExternalCells(data.Left, left.storage, right.value, right.flow.normal); stored {
 				right.flow.normal = next
+			} else if next, stored := b.indexStore(data.Left, left.storage, right.value, data.Right, right.flow.normal, u.Builder.Exprs.Get(id).Span); stored {
+				right.flow.normal = next
 			} else {
 				right.flow.normal = b.taintExternalCellEffects(right.flow.normal, u.Builder.Exprs.Get(id).Span, "store through a place needs reference-content transfer")
 			}
@@ -225,8 +231,12 @@ func (b *returnOriginBody) binary(id ast.ExprID, env returnOriginEnv, targets re
 		!b.selectedOperation(u.Sema.MagicBinarySymbols, id, magicNameForBinaryOp(data.Op), 2, data.Left, data.Right)) {
 		b.pending(u.Builder.Exprs.Get(id).Span, "binary callable needs an exact origin contract")
 		right.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
+	} else if borrowFree {
+		// No certification was computed: every operand is ref-free typed (G6-iv).
+		b.discardLoans(left.value, u.Builder.Exprs.Get(id).Span)
+		right.value = b.discardLoans(right.value, u.Builder.Exprs.Get(id).Span)
 	} else {
-		right.value = returnOriginValueOf()
+		right.value = returnOriginValueOf() // certified operation: no loan-discard refusal
 	}
 	right.storage = returnOriginValue{}
 	return right, nil

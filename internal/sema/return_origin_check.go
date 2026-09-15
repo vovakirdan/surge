@@ -178,10 +178,13 @@ func (b *returnOriginBody) closeOutcome(outcome returnOriginOutcome, scope symbo
 	for _, binding := range closed.env.bindings {
 		b.checkExpired(binding.value, span)
 	}
-	// A cell is the caller's storage, so a local loan stored in it is an escape
-	// even when this scope's result is `nothing`.
+	// Cells and container backings are the caller's storage, so a local loan
+	// stored in one is an escape even when this scope's result is `nothing`.
 	for _, cell := range closed.env.cells {
 		b.checkExpired(cell, span)
+	}
+	for _, backing := range closed.env.backings {
+		b.checkExpired(backing, span)
 	}
 	return returnOriginOutcome{env: closed.env, value: closed.value}
 }

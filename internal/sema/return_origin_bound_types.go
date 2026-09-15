@@ -187,6 +187,15 @@ func (v returnOriginTypeView) shape(id types.TypeID) returnOriginShape {
 		}
 		active[id] = true
 		defer delete(active, id)
+		// A canonical array's payload is its element; a fixed length is not a
+		// payload. A template never lets a container erase its loans.
+		if c, canonical := returnOriginIndexContainer(in, id); canonical && !c.reference && c.family != in.Builtins().String {
+			shape := walk(view, c.element, active)
+			if len(view.params) == 0 && !view.concrete {
+				shape = max(shape, returnOriginCarriesRef)
+			}
+			return shape
+		}
 		children, valid := returnOriginTypeChildren(view.owner, id)
 		if !valid {
 			return returnOriginShapeUnknown

@@ -138,7 +138,10 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 	}
 	actuals := make([]returnOriginValue, len(slots))
 	var mutableEffects []int
+	op, certified := b.analyzer.coreArrayIntrinsic(callee)
 	for i, slot := range slots {
+		// G6-ii; a certified push's value is guarded by its store instead.
+		guarded := b.loanGuardFormal(callee, signature, info, callback, i) && (!certified || op != returnOriginArrayPush || i != 1)
 		actuals[i] = returnOriginValueOf()
 		if slot.defaulted {
 			params := callee.unit.Builder.Items.GetFnParamIDs(callee.item)
@@ -159,6 +162,9 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 				value = b.convertCallableArgument(callee, i, slot, expr, params[i], value, signature)
 			}
 			actuals[i] = actuals[i].join(value)
+			if guarded && b.shape(expr) == returnOriginRefFree {
+				b.discardLoans(value, span)
+			}
 		}
 		if kind, reference := returnOriginFormalBorrowKind(u.Sema.TypeInterner, params[i]); reference && kind == BorrowMut {
 			if returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, []types.TypeID{effects[i]}) {
@@ -169,8 +175,17 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 	// A checked source-body cell call transfers its exact cell formals below;
 	// every other mutable formal keeps its unproved-effect obligation.
 	cellCall, cellChecked := b.cellCallTargets(callee, signature != nil || callback || deferred != nil, slots, actuals)
+	backingCall, backingChecked := b.backingCallTargets(callee, callback || deferred != nil, slots, actuals, flow.normal)
+	if certified && !callback && deferred == nil {
+		if value, next, handled := b.applyCoreArrayIntrinsic(op, id, slots, actuals, flow.normal, span); handled {
+			flow.normal = next
+			return returnOriginExprResult{flow: flow, value: value}, nil
+		}
+	}
 	for _, i := range mutableEffects {
-		if _, transferred := cellCall.targets[i]; !cellChecked || !transferred {
+		_, cellTransferred := cellCall.targets[i]
+		_, backingTransferred := backingCall.targets[i]
+		if (!cellChecked || !cellTransferred) && (!backingChecked || !backingTransferred) {
 			flow.normal = b.taintExternalCellEffects(flow.normal, span, "mutable argument may replace reference-bearing contents")
 		}
 	}
@@ -219,8 +234,17 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		flow.normal = next
 		return returnOriginExprResult{flow: flow, value: value}, nil
 	}
+	if backingChecked {
+		value, next := b.instantiateBackingCall(backingCall, summary, b.analyzer.summaries[callee.key].postBackings, actuals, flow.normal, span)
+		flow.normal = next
+		return returnOriginExprResult{flow: flow, value: value}, nil
+	}
 	// The substitution below reads every Param root as the incoming value.
 	if value, next, refused := b.refuseLegacyCellSummary(id, summary, flow.normal, span); refused {
+		flow.normal = next
+		return returnOriginExprResult{flow: flow, value: value}, nil
+	}
+	if value, next, refused := b.refuseLegacyBackingSummary(summary, flow.normal, span); refused {
 		flow.normal = next
 		return returnOriginExprResult{flow: flow, value: value}, nil
 	}

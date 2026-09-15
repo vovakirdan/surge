@@ -63,20 +63,27 @@ func (a *returnOriginAnalyzer) tagPayload(fn *returnOriginFunction, id ast.ExprI
 	var owner *returnOriginUnitIndex
 	var original *symbols.Symbol
 	var tag *ast.TagItem
+	// An imported copy of a tag carries no local declaration record, so the
+	// declaration is found in each owner's own vocabulary, over every unit.
 	for _, unit := range a.units {
-		file := unit.Builder.Files.Get(unit.FileID)
-		if unit.FileID != sym.Decl.ASTFile || file.Span.File != sym.Decl.SourceFile {
-			continue
+		locals := unit.Publication.RootToLocalSymbols[canonical]
+		if len(unit.Publication.RootToLocalSymbols) == 0 {
+			locals = nil
+			if unit == u {
+				locals = []symbols.SymbolID{canonical}
+			}
 		}
-		for _, local := range unit.Symbols.ItemSymbols[sym.Decl.Item] {
-			if len(unit.Publication.RootToLocalSymbols) != 0 && !slices.Contains(unit.Publication.RootToLocalSymbols[canonical], local) ||
-				len(unit.Publication.RootToLocalSymbols) == 0 && local != canonical {
+		file := unit.Builder.Files.Get(unit.FileID)
+		for _, local := range locals {
+			candidate := unit.Symbols.Table.Symbols.Get(local)
+			if file == nil || candidate == nil || candidate.Kind != symbols.SymbolTag ||
+				candidate.Decl.ASTFile != unit.FileID || candidate.Decl.SourceFile != file.Span.File ||
+				!slices.Contains(unit.Symbols.ItemSymbols[candidate.Decl.Item], local) {
 				continue
 			}
-			candidate := unit.Symbols.Table.Symbols.Get(local)
-			item, found := unit.Builder.Items.Tag(sym.Decl.Item)
-			if candidate == nil || candidate.Kind != symbols.SymbolTag || candidate.Decl != sym.Decl || candidate.Span != sym.Span ||
-				!found || item == nil || item.Name != candidate.Name || item.NameSpan != candidate.Span || unit.Symbols.Table.Scopes.Get(candidate.Scope) == nil {
+			item, found := unit.Builder.Items.Tag(candidate.Decl.Item)
+			if !found || item == nil || item.Name != candidate.Name || item.NameSpan != candidate.Span ||
+				unit.Symbols.Table.Scopes.Get(candidate.Scope) == nil {
 				continue
 			}
 			if owner != nil {

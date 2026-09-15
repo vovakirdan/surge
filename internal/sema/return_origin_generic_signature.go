@@ -75,8 +75,10 @@ func matchReturnOriginSourceType(in *types.Interner, original, actual types.Type
 		case types.KindStruct:
 			a, aok := in.StructInfo(left)
 			b, bok := in.StructInfo(right)
-			return aok && bok && a != nil && b != nil && a.Name == b.Name && a.Decl == b.Decl &&
-				slices.Equal(a.ValueArgs, b.ValueArgs) && children(a.TypeArgs, b.TypeArgs)
+			fixed, _ := in.StructInfo(in.ArrayFixedNominalType())
+			return aok && bok && a != nil && b != nil && a.Name == b.Name && a.Decl == b.Decl && children(a.TypeArgs, b.TypeArgs) &&
+				(slices.Equal(a.ValueArgs, b.ValueArgs) || bind && fixed != nil && a.Name == fixed.Name && a.Decl == fixed.Decl && // its const TypeArg binds the length
+					len(a.TypeArgs) == 2 && len(a.ValueArgs) == 0 && types.ContainsGenericParam(in, left))
 		case types.KindAlias:
 			a, aok := in.AliasInfo(left)
 			b, bok := in.AliasInfo(right)

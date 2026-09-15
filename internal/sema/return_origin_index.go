@@ -38,6 +38,12 @@ func (b *returnOriginBody) index(id ast.ExprID, env returnOriginEnv, targets ret
 	span := u.Builder.Exprs.Get(id).Span
 	primitive, reason := b.analyzer.indexOperation(b.function, id)
 	out.storage = returnOriginValue{}
+	if reason == "index requires a non-scalar index transfer" {
+		if view, handled := b.arrayRangeView(id, target, flow.normal, span); handled {
+			out.value = view
+			return out, nil
+		}
+	}
 	if reason != "" {
 		b.pending(span, reason)
 		out.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})

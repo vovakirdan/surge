@@ -89,6 +89,9 @@ type returnOriginFunction struct {
 	// Formal slots admitted as external cells, and their writable subset.
 	cellSlots        []uint32
 	mutableCellSlots []uint32
+	// Formal slots referencing a canonical container, and their writable subset.
+	backingSlots        []uint32
+	mutableBackingSlots []uint32
 }
 
 type returnOriginAnalyzer struct {
@@ -108,6 +111,8 @@ type returnOriginBody struct {
 	conditions []returnOriginCondition
 	required   returnOriginRequirements
 	postCells  map[uint32]returnOriginValue
+	// postBackings is the joined backing of each mutable container formal at exits.
+	postBackings map[uint32]returnOriginValue
 }
 
 type returnOriginTargets struct {
@@ -304,6 +309,7 @@ func (u *returnOriginUnitIndex) addFunction(fn *ast.FnItem, id symbols.SymbolID,
 		return fmt.Errorf("return origins: parameter arity mismatch at %v", fn.NameSpan)
 	}
 	f.cellSlots, f.mutableCellSlots = u.externalCellRoster(f)
+	f.backingSlots, f.mutableBackingSlots = u.backingRoster(f)
 	u.functions[id] = f
 	return nil
 }

@@ -23,6 +23,8 @@ type returnOriginSummaryFact struct {
 	// postCells holds what each mutable external cell may contain after a
 	// normal exit, in the callee's own V/R vocabulary.
 	postCells map[uint32]returnOriginValue
+	// postBackings is the same for mutable container formals' backings.
+	postBackings map[uint32]returnOriginValue
 }
 
 func compareReturnOriginCondition(a, b returnOriginCondition) int {
@@ -49,11 +51,12 @@ func (f returnOriginSummaryFact) join(other returnOriginSummaryFact) returnOrigi
 	slices.SortFunc(conditions, compareReturnOriginCondition)
 	conditions = slices.CompactFunc(conditions, func(a, b returnOriginCondition) bool { return compareReturnOriginCondition(a, b) == 0 })
 	return returnOriginSummaryFact{value: f.value.join(other.value), conditions: conditions, required: f.required.join(other.required),
-		postCells: joinReturnOriginCellPosts(&f, &other)}
+		postCells: joinReturnOriginCellPosts(&f, &other), postBackings: joinReturnOriginBackingPosts(&f, &other)}
 }
 
 func (f returnOriginSummaryFact) equal(other returnOriginSummaryFact) bool {
 	return f.value.equal(other.value) && f.required.equal(other.required) && equalReturnOriginCellPosts(f.postCells, other.postCells) &&
+		equalReturnOriginCellPosts(f.postBackings, other.postBackings) &&
 		slices.EqualFunc(f.conditions, other.conditions, func(a, b returnOriginCondition) bool { return compareReturnOriginCondition(a, b) == 0 })
 }
 

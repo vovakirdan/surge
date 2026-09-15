@@ -161,7 +161,9 @@ func (b *returnOriginBody) bindCompareOrigins(bindings []symbols.SymbolID, subje
 		value := subject.clone()
 		switch returnOriginView(b.function).shape(sym.Type) {
 		case returnOriginRefFree:
-			value = returnOriginValueOf()
+			if !b.analyzer.loanCarrier(sym.Type) {
+				value = returnOriginValueOf()
+			}
 		case returnOriginShapeUnknown:
 			b.pending(sym.Span, "pattern binding needs concrete reference contents")
 			value = value.join(returnOriginValueOf(returnOrigin{kind: returnOriginUnknown}))
