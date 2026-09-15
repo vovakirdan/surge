@@ -155,7 +155,7 @@ func (b *returnOriginBody) declaredSources(u *returnOriginUnitIndex, owner symbo
 	return slots, true
 }
 
-func (b *returnOriginBody) opaqueReturnSources(info *types.FnInfo, slots []uint32, valid bool, span source.Span, view ...*returnOriginSignature) returnOriginValue {
+func (b *returnOriginBody) opaqueReturnSources(callee *returnOriginFunction, info *types.FnInfo, slots []uint32, valid bool, span source.Span, view ...*returnOriginSignature) returnOriginValue {
 	unknown := returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 	if !valid {
 		return unknown
@@ -166,6 +166,14 @@ func (b *returnOriginBody) opaqueReturnSources(info *types.FnInfo, slots []uint3
 		binding, result = *view[0].binding, info.Result
 	}
 	if len(slots) == 0 {
+		// A certified core handle constructor keeps only what its handle word cannot hold.
+		if subjects, fresh := returnOriginFreshHandleResidual(callee, result); fresh {
+			value := returnOriginValueOf()
+			for _, subject := range subjects {
+				value = value.join(b.requireOpaqueState(binding, subject, span))
+			}
+			return value
+		}
 		return b.requireOpaqueState(binding, result, span)
 	}
 	if binding.shape(result) == returnOriginShapeUnknown {
@@ -226,7 +234,7 @@ func (a *returnOriginAnalyzer) checkGenericPromise(fn *returnOriginFunction, vie
 		return "generic use has an unresolved original return-source promise"
 	}
 	if !fn.item.Body.IsValid() {
-		body.opaqueReturnSources(fn.info, allowed, true, fn.item.NameSpan, view)
+		body.opaqueReturnSources(fn, fn.info, allowed, true, fn.item.NameSpan, view)
 		if returnOriginTypeShape(fn.unit.Sema.TypeInterner, view.result, nil) == returnOriginRefFree &&
 			!returnOriginCallHasUnprovedEffects(fn.unit.Sema.TypeInterner, view.effects) {
 			return ""

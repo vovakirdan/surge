@@ -110,9 +110,12 @@ func (v returnOriginTypeView) requirement(kind returnOriginConditionKind, id typ
 			return returnOriginRequirements{}
 		case types.KindReference:
 			return returnOriginRequirements{refuted: true}
-		case types.KindOwn:
+		case types.KindOwn, types.KindFar: // far X holds what the core runtime handle X holds
+			if typ.Kind == types.KindFar && !in.IsRuntimeHandleType(typ.Elem) {
+				return unknown
+			}
 			return walk(view, typ.Elem, active)
-		case types.KindFar, types.KindFn, types.KindArray:
+		case types.KindFn, types.KindArray:
 			return unknown
 		case types.KindStruct, types.KindTuple, types.KindUnion:
 			children, valid := returnOriginTypeChildren(view.owner, id)

@@ -19,7 +19,7 @@ func (a *returnOriginAnalyzer) solveBodies() error {
 	for _, fn := range a.declarations {
 		body := &returnOriginBody{analyzer: a, function: fn}
 		slots, valid := body.declaredFunctionSources(fn, fn.item.NameSpan)
-		value := body.opaqueReturnSources(fn.info, slots, valid, fn.item.NameSpan)
+		value := body.opaqueReturnSources(fn, fn.info, slots, valid, fn.item.NameSpan)
 		a.summaries[fn.key] = returnOriginSummaryFact{value: projectReturnOriginSummary(value),
 			conditions: body.conditions, required: body.required}
 	}
@@ -50,7 +50,7 @@ func (a *returnOriginAnalyzer) solveBodies() error {
 	for _, fn := range a.declarations {
 		body := &returnOriginBody{analyzer: a, function: fn}
 		sources, valid := body.declaredFunctionSources(fn, fn.item.NameSpan)
-		body.opaqueReturnSources(fn.info, sources, valid, fn.item.NameSpan)
+		body.opaqueReturnSources(fn, fn.info, sources, valid, fn.item.NameSpan)
 	}
 	for _, fn := range a.functions {
 		body := &returnOriginBody{analyzer: a, function: fn}

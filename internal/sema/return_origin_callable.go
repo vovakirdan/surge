@@ -150,7 +150,7 @@ func (b *returnOriginBody) callableSources(value returnOriginCallable, span sour
 			}
 			return out
 		}
-		return b.opaqueReturnSources(info, value.slots, true, span, &returnOriginSignature{params: info.Params, result: info.Result, binding: &view})
+		return b.opaqueReturnSources(nil, info, value.slots, true, span, &returnOriginSignature{params: info.Params, result: info.Result, binding: &view})
 	}
 	fn := b.callableFunction(value)
 	if fn == nil {
@@ -172,7 +172,7 @@ func (b *returnOriginBody) callableSources(value returnOriginCallable, span sour
 		}
 		return out
 	}
-	return b.opaqueReturnSources(info, slots, valid, span)
+	return b.opaqueReturnSources(nil, info, slots, valid, span)
 }
 
 func (b *returnOriginBody) callableValueSources(value returnOriginValue, span source.Span, invocation ...bool) returnOriginValue {
