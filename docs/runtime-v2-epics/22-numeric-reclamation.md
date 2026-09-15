@@ -1,6 +1,12 @@
 # Epic 22 — Numeric Reclamation (heap bignum ownership)
 
-Status: PARTIAL — RESUMED 2026-09-04, scope chosen. Phases 0a, 0b and 1 shipped:
+Status: PARTIAL — Phase 2's numeric delivery (D1: `int`/`uint` as counted
+scalars) landed 2026-09-15 on `codex/step7-d1-r2`; the second delivery (D2:
+`@return_source` and the normal block-exit release of local owners) is in
+flight and is now the whole of what is left. The paragraph below is the
+2026-09-09 status, kept as written.
+
+RESUMED 2026-09-04, scope chosen. Phases 0a, 0b and 1 shipped:
 the ownership axes were split out of `IsCopy`, and `float` is a
 reference-counted scalar with a strict-zero valgrind gate
 (`TestRuntimeV2FloatReclamationValgrindZero`). **The crossing barriers are
@@ -961,8 +967,16 @@ whole run). **Do not benchmark this epic against anything older than commit
   crossing) and RV2-DEBT-356 (a `blocking` body's RESULT reaches neither of the
   two refusals its CAPTURE reaches).
 
-- **Phase 2 — `int`/`uint`. THIS IS THE NEXT STEP, and it is the only work
-  this epic has left.** It adds only the fixnum-tag branch to a mechanism
+- **Phase 2 — `int`/`uint`. NUMERIC HALF (D1) DELIVERED 2026-09-15 on
+  `codex/step7-d1-r2`; the second delivery (D2: `@return_source` and the
+  normal block-exit release of local owners such as `Map`) is in flight.** D1
+  is the commit series `1b744189..735e2907` (prerequisites, send offer, loop
+  ownership, the atomic counted-scalar commit `ea5ce30e`, the emitted fixnum
+  fast path `08702b64`, and structural follow-ups); its contract and outcome are
+  `22-step7-execution.md`. It closes RV2-DEBT-035, 068 and 363, narrows 357,
+  and opens RV2-DEBT-361 (the counted stop-gap behind a handle, Step 8) and 362
+  (array cursor crossing). What follows is the pre-delivery text, kept as the
+  plan it was. It adds only the fixnum-tag branch to a mechanism
   already proven by float — LOCALLY, and now across a shard boundary too. The
   question this bullet used to hold open is CLOSED by steps 4, 5 and 6: the
   barriers exist, so Phase 2 joins a finished relinquishing walk instead of

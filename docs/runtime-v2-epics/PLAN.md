@@ -63,7 +63,16 @@ No scheduled work waits on an owner decision.
 
 ## In flight
 
-**Nothing. Waves D, E and F are closed** (2026-09-04), and with them the
+**Epic 22 Phase 2, second delivery (D2)** — `@return_source` and the normal
+block-exit release of local owners such as `Map`, carried onto the D1 landing
+from the validation lane `c50d1e93..5bcaeb9a`. **D1 landed 2026-09-15**
+(`1b744189..735e2907` on `codex/step7-d1-r2`): `int`/`uint` are counted scalars,
+the emitted code keeps a fixnum on an inline fast path, RV2-DEBT-035/068/363 are
+closed and 357 is narrowed. The Sentrux remainder of that delivery (runtime
+5308 against 5313, internal 6440 against 6445, root 6165 against 6169) was
+accepted by the owner the same day and can be improved after the fact.
+
+**Waves D, E and F are closed** (2026-09-04), and with them the
 whole of Epic 23b. The board keeps the shape of what closed them so a reader
 can tell a finished wave from an abandoned one.
 
@@ -85,8 +94,14 @@ row in `DEBT.md` with its own owner; none is a wave's exit condition.
 
 ## Next, in this order
 
-1. **Epic 22 Phase 2** — `int`/`uint` reclamation, the successor the detour
-   chain was taken for, and now the ONLY thing left on that epic. **The scope
+1. **Epic 22 Phase 2, D2** — the numeric half (D1) landed 2026-09-15 and the
+   epic now closes with D2: the `@return_source` contract, the return-origin
+   analysis carried from `c50d1e93..5bcaeb9a` until no owning unit in `core`
+   is Pending, and the normal block-exit release of local owners (the `Map`
+   leak of 69 632 bytes in 1024 blocks). Then the Epic 22 closeout. The text
+   below is the pre-D1 entry, kept as written: `int`/`uint` reclamation, the
+   successor the detour chain was taken for, and then the ONLY thing left on
+   that epic. **The scope
    condition settled 2026-09-04 as variant (2) — the crossing barriers come
    FIRST, for all three arbitrary-precision types, and `int`/`uint` then joins a
    finished mechanism — is DISCHARGED, not pending: the barriers landed as steps
