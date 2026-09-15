@@ -22,8 +22,12 @@ static SurgeRange* alloc_range(uint8_t bound) {
 
 // Inline integer bounds own no block: do not dispatch a numeric lifecycle
 // call for them. Float bounds keep their existing pointer lifecycle.
+static bool range_bound_owns_no_block(const void* word, uint8_t bound) {
+    return bound != SURGE_RANGE_BOUND_FLOAT && !fix_is_heap(word);
+}
+
 static void range_bound_retain(void* word, uint8_t bound) {
-    if (bound != SURGE_RANGE_BOUND_FLOAT && !fix_is_heap(word)) {
+    if (range_bound_owns_no_block(word, bound)) {
         return;
     }
     switch (bound) {
