@@ -42,11 +42,14 @@ func returnOriginConditionFixture(t *testing.T, text string) *returnOriginAnalyz
 	return a
 }
 
-func returnOriginConditionAnalyzer(t *testing.T, text string) *returnOriginAnalyzer {
+func returnOriginConditionAnalyzer(t *testing.T, text string, prepare ...func(*Result, ReturnOriginUnit)) *returnOriginAnalyzer {
 	t.Helper()
 	t.Logf("RETURN_ORIGIN_CONDITION_SOURCE sha256=%x source=%q", sha256.Sum256([]byte(text)), text)
 	result, unit := returnOriginPublicationFixture(t, text, false)
 	finalizeReturnOriginConditionFixture(t, result, unit)
+	for _, mutate := range prepare {
+		mutate(result, unit)
+	}
 	index, err := indexReturnOriginUnit(unit, result)
 	if err != nil {
 		t.Fatal(err)
