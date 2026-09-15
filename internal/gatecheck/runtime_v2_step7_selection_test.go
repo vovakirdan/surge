@@ -28,6 +28,7 @@ func step7GateRows() []step7GateRow {
 		"TestRuntimeV2EntrypointArgvStorageValgrindZero",
 		"TestRuntimeV2RangeNumericCallsValgrindZero",
 		"TestRuntimeV2ChannelCancelFrameValgrindBaseline",
+		"TestRuntimeV2FixnumFastPathHeapWitnessValgrindZero",
 	}
 	nativeStorage := []string{
 		"TestRuntimeV2BigfloatFromF64Exact",
