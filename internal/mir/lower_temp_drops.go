@@ -182,6 +182,32 @@ func (l *funcLowerer) flushTempDropsForRet(depth int, keep LocalID) {
 	}
 }
 
+// newResultTemp births the slot a choice (an `if`, a ternary, a select) writes
+// its result into, WITHOUT registering its release. The branch that runs assigns
+// the slot, but a branch may leave by break, continue, return or ret before it
+// does, and those exits flush every frame they leave: a release registered at
+// birth sits in one of those frames on a path that never wrote the slot, which
+// the VM reports as a use after free or an uninitialized read. The release is
+// added at the join instead, by resultJoinOperand, where every path that
+// arrives has assigned the slot.
+func (l *funcLowerer) newResultTemp(ty types.TypeID, hint string, span source.Span) LocalID {
+	id := l.newTemp(ty, hint, span)
+	if top := len(l.tempDropFrames) - 1; id != NoLocalID && top >= 0 {
+		frame := l.tempDropFrames[top]
+		if n := len(frame); n > 0 && frame[n-1].local == id {
+			l.tempDropFrames[top] = frame[:n-1]
+		}
+	}
+	return id
+}
+
+// resultJoinOperand registers a choice's result release at its join, then reads
+// the slot the way the choice was asked to deliver it.
+func (l *funcLowerer) resultJoinOperand(local LocalID, ty types.TypeID, consume bool) Operand {
+	l.registerRefCountedTemp(local, ty)
+	return l.placeOperand(Place{Local: local}, ty, consume)
+}
+
 // lowerOwnedTempExpr materializes the wrapped evaluation and registers
 // it for its region's flush.
 func (l *funcLowerer) lowerOwnedTempExpr(e *hir.Expr, data hir.OwnedTempData, span source.Span) (Operand, error) {

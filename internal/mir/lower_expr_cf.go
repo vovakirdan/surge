@@ -45,7 +45,7 @@ func (l *funcLowerer) lowerIfExpr(e *hir.Expr, data hir.IfData, consume bool) (O
 	hasResult := e.Type != types.NoTypeID && !l.isNothingType(e.Type)
 	resultLocal := NoLocalID
 	if hasResult {
-		resultLocal = l.newTemp(e.Type, "if", e.Span)
+		resultLocal = l.newResultTemp(e.Type, "if", e.Span)
 	}
 
 	thenBB := l.newBlock()
@@ -135,7 +135,7 @@ func (l *funcLowerer) lowerIfExpr(e *hir.Expr, data hir.IfData, consume bool) (O
 	if !hasResult {
 		return l.constNothing(e.Type), nil
 	}
-	return l.placeOperand(Place{Local: resultLocal}, e.Type, consume), nil
+	return l.resultJoinOperand(resultLocal, e.Type, consume), nil
 }
 
 func (l *funcLowerer) lowerLogicalShortCircuitExpr(e *hir.Expr, data hir.BinaryOpData, consume bool) (Operand, error) {

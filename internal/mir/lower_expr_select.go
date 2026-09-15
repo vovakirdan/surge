@@ -25,7 +25,7 @@ func (l *funcLowerer) lowerSelectExpr(e *hir.Expr, data hir.SelectData, isRace, 
 	hasResult := e.Type != types.NoTypeID && !l.isNothingType(e.Type)
 	resultLocal := NoLocalID
 	if hasResult {
-		resultLocal = l.newTemp(e.Type, "select", e.Span)
+		resultLocal = l.newResultTemp(e.Type, "select", e.Span)
 	}
 
 	selIndexType := types.NoTypeID
@@ -193,7 +193,7 @@ func (l *funcLowerer) lowerSelectArmDispatch(
 	if !hasResult {
 		return l.constNothing(e.Type), nil
 	}
-	return l.placeOperand(Place{Local: resultLocal}, e.Type, consume), nil
+	return l.resultJoinOperand(resultLocal, e.Type, consume), nil
 }
 
 func (l *funcLowerer) lowerSelectAwaitExpr(expr *hir.Expr) (SelectArm, loweredSelectArm, error) {
