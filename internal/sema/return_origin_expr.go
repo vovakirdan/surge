@@ -16,7 +16,7 @@ func originExprValue(env returnOriginEnv, value returnOriginValue) returnOriginE
 	return returnOriginExprResult{flow: returnOriginFlow{normal: env}, value: value}
 }
 
-func (b *returnOriginBody) expr(id ast.ExprID, env returnOriginEnv, targets returnOriginTargets) (returnOriginExprResult, error) {
+func (b *returnOriginBody) exprCore(id ast.ExprID, env returnOriginEnv, targets returnOriginTargets) (returnOriginExprResult, error) {
 	if !env.reachable {
 		return returnOriginExprResult{}, nil
 	}
