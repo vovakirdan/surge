@@ -12,6 +12,7 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 	u := b.function.unit
 	call, _ := u.Builder.Exprs.Call(id)
 	if out, handled, err := b.deferredClone(id, call, env, targets); handled || err != nil {
+		b.refuseUncheckedCellResult(id, &out)
 		return out, err
 	}
 	span := u.Builder.Exprs.Get(id).Span
@@ -96,7 +97,7 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		if unresolved == "" {
 			unresolved = "call needs an exact body, canonical core contract, or opaque declaration promise"
 		}
-		b.pending(span, unresolved)
+		flow.normal = b.taintExternalCellEffects(flow.normal, span, unresolved)
 		value := returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 		if b.shape(id) == returnOriginRefFree {
 			value = returnOriginValueOf()
@@ -112,7 +113,7 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		// Function-value calls retain only fixed positional ABI slots. Do not
 		// invent names/defaults from another declaration of the same FnInfo.
 		if call.HasNamedArgs() || len(call.Args) != len(info.Params) {
-			b.pending(span, "opaque call lacks exact positional argument slots")
+			flow.normal = b.taintExternalCellEffects(flow.normal, span, "opaque call lacks exact positional argument slots")
 			return returnOriginExprResult{flow: flow, value: returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})}, nil
 		}
 		for _, arg := range call.Args {
@@ -136,6 +137,7 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		return returnOriginExprResult{}, fmt.Errorf("return origins: call at %v has inconsistent formal arity", span)
 	}
 	actuals := make([]returnOriginValue, len(slots))
+	var mutableEffects []int
 	for i, slot := range slots {
 		actuals[i] = returnOriginValueOf()
 		if slot.defaulted {
@@ -160,8 +162,16 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		}
 		if kind, reference := returnOriginFormalBorrowKind(u.Sema.TypeInterner, params[i]); reference && kind == BorrowMut {
 			if returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, []types.TypeID{effects[i]}) {
-				b.pending(span, "mutable argument may replace reference-bearing contents")
+				mutableEffects = append(mutableEffects, i)
 			}
+		}
+	}
+	// A checked source-body cell call transfers its exact cell formals below;
+	// every other mutable formal keeps its unproved-effect obligation.
+	cellCall, cellChecked := b.cellCallTargets(callee, signature != nil || callback || deferred != nil, slots, actuals)
+	for _, i := range mutableEffects {
+		if _, transferred := cellCall.targets[i]; !cellChecked || !transferred {
+			flow.normal = b.taintExternalCellEffects(flow.normal, span, "mutable argument may replace reference-bearing contents")
 		}
 	}
 	if returnOriginFnInfo(u.Sema.TypeInterner, result) != nil {
@@ -172,7 +182,7 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 	if callbackValue.normal {
 		summary = b.callableValueSources(callbackValue, span)
 		if returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, effects) {
-			b.pending(span, "indirect call may change reference-bearing or callable contents")
+			flow.normal = b.taintExternalCellEffects(flow.normal, span, "indirect call may change reference-bearing or callable contents")
 		}
 	} else if callee != nil && callee.item.Body.IsValid() {
 		// A recursive body legitimately starts at NoNormalReturn. Its private
@@ -197,12 +207,22 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		}
 		summary = b.opaqueReturnSources(info, sources, valid, span, signature)
 		if returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, effects) {
-			b.pending(span, "opaque call may change reference-bearing or callable contents")
+			flow.normal = b.taintExternalCellEffects(flow.normal, span, "opaque call may change reference-bearing or callable contents")
 		}
 	}
 	if !summary.normal {
 		flow.normal = returnOriginEnv{}
 		return returnOriginExprResult{flow: flow}, nil
+	}
+	if cellChecked {
+		value, next := b.instantiateCellCall(cellCall, u.Sema.ExprTypes[id], summary, b.analyzer.summaries[callee.key].postCells, actuals, flow.normal, span)
+		flow.normal = next
+		return returnOriginExprResult{flow: flow, value: value}, nil
+	}
+	// The substitution below reads every Param root as the incoming value.
+	if value, next, refused := b.refuseLegacyCellSummary(id, summary, flow.normal, span); refused {
+		flow.normal = next
+		return returnOriginExprResult{flow: flow, value: value}, nil
 	}
 	value := returnOriginValueOf()
 	for _, root := range summary.roots {

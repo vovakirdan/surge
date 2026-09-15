@@ -32,9 +32,15 @@ fn probe(dst: &mut &string, value: &string, replacement: &string) -> &string {
 
 func TestReturnOriginExternalCellSource(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		slot uint32
-	}{{"read_old", 0}, {"read_new", 1}, {"returned_alias", 0}, {"probe", 1}} {
+		name     string
+		slot     uint32
+		selector returnOriginInputSelector
+	}{
+		{"read_old", 0, returnOriginInputContents},
+		{"read_new", 1, returnOriginInputValue},
+		{"returned_alias", 0, returnOriginInputValue},
+		{"probe", 1, returnOriginInputValue},
+	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// The non-strict helper retains actual Pending after real finalization.
 			a := returnOriginConditionAnalyzer(t, returnOriginExternalCellSource)
@@ -48,9 +54,9 @@ func TestReturnOriginExternalCellSource(t *testing.T) {
 					pending = append(pending, item)
 				}
 			}
-			t.Logf("CELL_FACT source=%s body=%s name=%s span=%+v present=%v normal=%v roots=%+v callables=%d required=%+v conditions=%+v pending=%+v diagnostics=%+v",
+			t.Logf("CELL_FACT source=%s body=%s name=%s span=%+v present=%v normal=%v roots=%+v callables=%d required=%+v conditions=%+v posts=%+v pending=%+v diagnostics=%+v",
 				fn.unit.SourceKey, fn.key, fn.name, fn.item.Span, present, fact.value.normal, fact.value.roots,
-				len(fact.value.callables), fact.required, fact.conditions, pending, a.report.Diagnostics)
+				len(fact.value.callables), fact.required, fact.conditions, fact.postCells, pending, a.report.Diagnostics)
 			if !present || !fact.value.normal || len(fact.value.callables) != 0 {
 				t.Error("external cell result lacks its normal, non-callable summary")
 			}
@@ -66,6 +72,19 @@ func TestReturnOriginExternalCellSource(t *testing.T) {
 			slots = slices.Compact(slots)
 			if !slices.Equal(slots, []uint32{tc.slot}) {
 				t.Errorf("external cell result slots=%v, want [%d]", slots, tc.slot)
+			}
+			// The public slot alone cannot tell the frozen contents R0 from the
+			// cell address V0; the private selector and the post-state can.
+			want := returnOriginValueOf(returnOrigin{kind: returnOriginParam, param: tc.slot, selector: tc.selector})
+			if !fact.value.equal(want) {
+				t.Errorf("external cell result roots=%+v, want %+v", fact.value.roots, want.roots)
+			}
+			post, written := fact.postCells[0]
+			if len(fact.postCells) != 1 || !written || !post.equal(returnOriginValueOf(returnOrigin{kind: returnOriginParam, param: 1})) {
+				t.Errorf("external cell post-state=%+v, want {0: V1}", fact.postCells)
+			}
+			if targets, reason := fn.externalCellTargets(fn.info.Result, fact.value); tc.name == "returned_alias" && (reason != "" || !slices.Equal(targets, []uint32{0})) {
+				t.Errorf("returned outer cell targets=%v reason=%q, want [0]", targets, reason)
 			}
 			if len(pending) != 0 || len(a.report.Diagnostics) != 0 {
 				t.Error("external cell body retains unresolved transfers or origin diagnostics")

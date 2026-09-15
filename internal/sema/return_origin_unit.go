@@ -84,6 +84,9 @@ type returnOriginFunction struct {
 	params             []symbols.SymbolID
 	info               *types.FnInfo
 	candidate          *CallableCandidate
+	// Formal slots admitted as external cells, and their writable subset.
+	cellSlots        []uint32
+	mutableCellSlots []uint32
 }
 
 type returnOriginAnalyzer struct {
@@ -102,6 +105,7 @@ type returnOriginBody struct {
 	function   *returnOriginFunction
 	conditions []returnOriginCondition
 	required   returnOriginRequirements
+	postCells  map[uint32]returnOriginValue
 }
 
 type returnOriginTargets struct {
@@ -293,6 +297,7 @@ func (u *returnOriginUnitIndex) addFunction(fn *ast.FnItem, id symbols.SymbolID,
 	if len(f.params) != len(info.Params) {
 		return fmt.Errorf("return origins: parameter arity mismatch at %v", fn.NameSpan)
 	}
+	f.cellSlots, f.mutableCellSlots = u.externalCellRoster(f)
 	u.functions[id] = f
 	return nil
 }
