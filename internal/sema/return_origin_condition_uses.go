@@ -122,6 +122,7 @@ func (a *returnOriginAnalyzer) currentCallBinding(fn, caller *returnOriginFuncti
 	if reason == "" {
 		binding := returnOriginBoundView(fn, nil, use.TemplateArgs)
 		view.binding = &binding
+		reason = returnOriginConcreteEffects(caller.unit.Sema.TypeInterner, view, caller.candidate.TemplateParams, use.CallerTemplateArgs)
 	}
 	return view, reason
 }

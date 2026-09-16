@@ -86,6 +86,9 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 	if !flow.normal.reachable {
 		return returnOriginExprResult{flow: flow}, nil
 	}
+	if value, handled := b.deferredMethodCall(id, deferred, call, receiver, values, span); handled {
+		return returnOriginExprResult{flow: flow, value: value}, nil
+	}
 	if info == nil && deferred == nil && (sym == nil || sym.Kind != symbols.SymbolFunction) {
 		value := values[call.Target].value
 		if len(value.callables) != 0 {
@@ -221,6 +224,7 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 			sources, valid = b.declaredFunctionSources(callee, span, signature)
 		}
 		summary = b.opaqueReturnSources(callee, info, sources, valid, span, signature)
+		effects = b.opaqueCallEffects(signature, params, effects, span)
 		if !returnOriginBytesViewReader(callee) && returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, effects) {
 			flow.normal = b.taintExternalCellEffects(flow.normal, span, "opaque call may change reference-bearing or callable contents")
 		}

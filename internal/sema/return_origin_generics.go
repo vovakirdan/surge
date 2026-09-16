@@ -128,6 +128,9 @@ func (a *returnOriginAnalyzer) genericCallUseInfo(fn, caller *returnOriginFuncti
 // Body flow may not visit a retained use. Check the finalized uses and their
 // producing roots independently; summaries do not stand in for this coverage.
 func (a *returnOriginAnalyzer) checkGenericUses() error {
+	if err := a.checkDeferredMethods(); err != nil {
+		return err
+	}
 	authority := a.units[0].authority
 	pending := func(use ConcreteInstantiationUse, reason string) {
 		item := ReturnOriginPending{SourceKey: use.SourceKey, Span: use.Site, Reason: reason}
