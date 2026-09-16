@@ -12,8 +12,8 @@ import (
 // A plain struct declared in one owning unit is certified in that unit when an
 // opaque result in another unit names it. Only the dependency module varies; the
 // full core input stays present, so every assertion is local to dep/main.sg.
-// A bare `@copy` counts as plain; any other attribute, alone or beside `@copy`,
-// keeps the refusal.
+// A bare `@copy` or `@shard_movable` counts as plain; any other attribute, alone
+// or beside them, keeps the refusal.
 type crossUnitStructCase struct {
 	name, text, digest string
 	// clean: no Pending may remain anywhere in the dependency source.
@@ -40,7 +40,7 @@ func crossUnitStructCases() []crossUnitStructCase {
 			text: "pragma module::dep;\n@copy type Held = { n: uint, gate: Channel<uint> };\n@intrinsic fn ring() -> own Channel<Held>;\nfn use_ring() -> nothing {\n    let c = ring();\n    return nothing;\n}\n"},
 		{name: "sealed_control", unsupported: "sealed", digest: "72c56fc88e11502d9549cfbbda9fcd52d66fc25b339144b4bd0e3b658f75c993",
 			text: "pragma module::dep;\n@sealed type Sealed = { n: uint };\n@intrinsic fn sealed() -> Sealed;\nfn use_sealed() -> uint {\n    let s = sealed();\n    return s.n;\n}\n"},
-		{name: "copy_plus_attribute_control", unsupported: "both", digest: "c61297e8cd612d0fc0918335b3f424c1c3b0a53773a7db544ced5ba6cfbeadeb",
+		{name: "copy_shard_movable_struct", clean: true, digest: "c61297e8cd612d0fc0918335b3f424c1c3b0a53773a7db544ced5ba6cfbeadeb",
 			text: "pragma module::dep;\n@copy @shard_movable type Both = { n: uint };\n@intrinsic fn both() -> Both;\nfn use_both() -> uint {\n    let b = both();\n    return b.n;\n}\n"},
 		{name: "copy_placement_field_control", unsupported: "where_at", digest: "318169c7527ecffc87ad06253dbdfe8aa30ef8713d431482326f841775f0ba2d",
 			text: "pragma module::dep;\n@copy type Where = { p: Placement };\n@intrinsic fn where_at() -> Where;\nfn use_where() -> nothing {\n    let w = where_at();\n    return nothing;\n}\n"},
@@ -52,6 +52,12 @@ func crossUnitStructCases() []crossUnitStructCase {
 			text: "pragma module::dep;\n@intrinsic fn mutex() -> Mutex;\nfn use_mutex() -> nothing {\n    let m = mutex();\n    return nothing;\n}\n"},
 		{name: "copy_fn_field_control", unsupported: "call", digest: "ed1e19264d8ac3227b04266a20f7fdef364744313b1f8783e3087349b415b84c",
 			text: "pragma module::dep;\n@copy type Call = { f: fn(uint) -> uint };\n@intrinsic fn call() -> Call;\nfn use_call() -> nothing {\n    let c = call();\n    return nothing;\n}\n"},
+		{name: "shard_movable_struct", clean: true, digest: "6b7ddfa51c70bc7e7fd2688e1d66ef30e16ec336ee3c8cde9edb19482b7b04eb",
+			text: "pragma module::dep;\n@shard_movable type Job = { id: uint64, payload: string };\n@intrinsic fn job() -> Job;\nfn use_job() -> uint64 {\n    let j = job();\n    return j.id;\n}\n"},
+		{name: "send_beside_movable_control", unsupported: "sent", digest: "be00d564881cfac2d3e97b560833860b94a3672e082cda007e8abc34dc7ce5c5",
+			text: "pragma module::dep;\n@send @shard_movable type Sent = { id: int };\n@intrinsic fn sent() -> Sent;\nfn use_sent() -> int {\n    let s = sent();\n    return s.id;\n}\n"},
+		{name: "copy_plus_pinned_control", unsupported: "pin", digest: "a85f5d602fb258fc5bbb7aa6ff38ad0c13763dcae192c4bb663fb35a1bc6fb13",
+			text: "pragma module::dep;\n@copy @shard_pinned type Pin = { n: uint };\n@intrinsic fn pin() -> Pin;\nfn use_pin() -> uint {\n    let p = pin();\n    return p.n;\n}\n"},
 	}
 }
 

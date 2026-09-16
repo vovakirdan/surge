@@ -17,6 +17,8 @@ import (
 // it is not counted; a core far TcpConn and a type made far by its name alone stay
 // refused because neither is a runtime handle. Only the dependency module varies;
 // every assertion is local to dep/main.sg.
+// A struct payload is classified through its fields when its only attributes are
+// bare `@copy` or `@shard_movable`; an array field and a borrowed view keep their refusals.
 type channelPayloadCase struct {
 	name, text, digest string
 	// clean: no Pending may remain anywhere in the dependency source.
@@ -45,6 +47,14 @@ func channelPayloadCases() []channelPayloadCase {
 			text: "pragma module::dep;\n@intrinsic fn remote_conn() -> far TcpConn;\n"},
 		{name: "far_named_conn_control", declaration: "remote_named", digest: "bf39a12dd91b03b0c10da5d50b8a471da36dac885f293d10d459eab72d2f83c9",
 			text: "pragma module::dep, no_std;\ntype TcpConn = { n: int64 };\n@intrinsic fn remote_named() -> far TcpConn;\n"},
+		{name: "movable_payload_channel", clean: true, digest: "f98156d943583044407df33e09934cb728f93f9b8f1b80ad92d965909d1b14d9",
+			text: "pragma module::dep;\n@copy @shard_movable type Pack = { a: uint64, b: uint64 };\nfn make() -> nothing {\n    let c = Channel::<Pack>::new(2:uint);\n    return nothing;\n}\nfn round(c: Channel<Pack>, n: uint64) -> uint64 {\n    let p: Pack = Pack { a = n, b = 2:uint64 };\n    c.send(own p);\n    let first: uint64 = compare c.recv() {\n        Some(v) => v.a;\n        nothing => 0:uint64;\n    };\n    let second: uint64 = compare c.try_recv() {\n        Some(v) => v.b;\n        nothing => 0:uint64;\n    };\n    return first + second;\n}\n"},
+		{name: "scalar_payload_channel", clean: true, digest: "86dd991001600d1485e4306a0bcf440c6d58e7fa0931f5ac6777646d0ff44111",
+			text: "pragma module::dep;\nfn make() -> nothing {\n    let c = Channel::<uint64>::new(2:uint);\n    return nothing;\n}\nfn round(c: Channel<uint64>, n: uint64) -> uint64 {\n    c.send(n);\n    let first: uint64 = compare c.recv() {\n        Some(v) => v;\n        nothing => 0:uint64;\n    };\n    let second: uint64 = compare c.try_recv() {\n        Some(v) => v;\n        nothing => 0:uint64;\n    };\n    return first + second;\n}\n"},
+		{name: "movable_array_payload_control", declaration: "batch_ring", digest: "756bd076ef611f3b905e2d3f0237e35c7c642985827ed0bd803bfc401fe04841",
+			text: "pragma module::dep;\n@shard_movable type Batch = { xs: uint64[] };\n@intrinsic fn batch_ring() -> own Channel<Batch>;\n"},
+		{name: "view_payload_control", site: "views", reason: genericConditionRefuted, digest: "9355e3c98529e11f6b6e11989e119893286041df735bf0f7e80c7951e07b2d9c",
+			text: "pragma module::dep;\n@intrinsic fn views() -> own Channel<BytesView>;\n"},
 	}
 }
 
