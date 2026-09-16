@@ -15,7 +15,11 @@ func (b *returnOriginBody) expr(id ast.ExprID, env returnOriginEnv, targets retu
 	out.storage = returnOriginValue{} // the converted value is a new temporary
 	switch conversion.Kind {
 	case ImplicitConversionSome, ImplicitConversionSuccess, ImplicitConversionTagUnion:
-		// A wrapper holds the payload itself, with every loan it carries.
+		// A wrapper holds the payload itself, with every loan it carries. An erased
+		// wrapper would hand a loan to readers that drop it: refuse it, keep the roots.
+		if b.erasedType(conversion.Target) && returnOriginTypeShape(u.Sema.TypeInterner, conversion.Source, nil) == returnOriginRefFree {
+			b.discardLoans(out.value, u.Builder.Exprs.Get(id).Span)
+		}
 	case ImplicitConversionTo:
 		if b.selectedOperation(u.Sema.ToSymbols, id, "__to", 2) {
 			// As for a certified operator: no container formal and no borrowed

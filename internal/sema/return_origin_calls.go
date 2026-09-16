@@ -229,6 +229,7 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 			flow.normal = b.taintExternalCellEffects(flow.normal, span, "opaque call may change reference-bearing or callable contents")
 		}
 	}
+	b.guardErasedResult(id, summary, params, slots, actuals, span)
 	if !summary.normal {
 		flow.normal = returnOriginEnv{}
 		return returnOriginExprResult{flow: flow}, nil
