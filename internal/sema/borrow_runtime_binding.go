@@ -33,6 +33,7 @@ func (tc *typeChecker) updateBindingValue(symID symbols.SymbolID, expr ast.ExprI
 	if !symID.IsValid() || tc.bindingBorrow == nil {
 		return
 	}
+	tc.refuseStatementTemporaryBinding(symID, expr)
 	if tc.borrow == nil {
 		tc.bindingBorrow[symID] = NoBorrowID
 		return
