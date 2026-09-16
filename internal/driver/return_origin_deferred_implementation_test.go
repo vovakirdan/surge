@@ -12,8 +12,9 @@ import (
 
 const implementationUseRefusal = "generic original call disagrees with its selected canonical template"
 
-// Measured before P1p-G and outside it: len(x) calls a self function with no receiver expression.
-const genericReceiverExprRefusal = "generic original method call lacks its receiver expression"
+// `len(x)` used to leave "generic original method call lacks its receiver expression"
+// here, pinned as pre-existing by P1p-G. P1x-B certifies the free-form `self` call,
+// so those spans are clean and the `cleared` lists below carry them instead.
 
 type deferredImplementationLeaf struct {
 	name, text, digest, edgeKey string
@@ -53,18 +54,18 @@ func TestAnalyzeDeferredGenericImplementationUses(t *testing.T) {
 	for _, leaf := range []deferredImplementationLeaf{
 		{name: "g1_array_len", digest: "f92dec8b718f1c19b154beb7b8a97514ba907712338ebf470d2d583322439a47",
 			text:    "fn probe() -> uint {\n    let arr: int[] = [1, 2, 3];\n    let len_arr = len(arr);\n    return len_arr;\n}\n",
-			edgeKey: "core/base.sg", edge: coreLen, rootRows: []originRefusal{{originSpan{71, 79, "len(arr)"}, genericReceiverExprRefusal}}},
+			edgeKey: "core/base.sg", edge: coreLen, cleared: []originSpan{{71, 79, "len(arr)"}}},
 		{name: "g2_fixed_len", digest: "4e355ef13236ec11eae2c9ba34b6da90da577b9fc4bfedfb8c6c2202c988b47e",
 			text:    "fn probe() -> uint {\n    let arr_fixed: ArrayFixed<int, 3> = [1, 2, 3];\n    return len(arr_fixed);\n}\n",
-			edgeKey: "core/base.sg", edge: coreLen, rootRows: []originRefusal{{originSpan{83, 97, "len(arr_fixed)"}, genericReceiverExprRefusal}}},
+			edgeKey: "core/base.sg", edge: coreLen, cleared: []originSpan{{83, 97, "len(arr_fixed)"}}},
 		{name: "g3_view_len", digest: "96b0857936b21d082147843264d4386fdd3dab5fa287c481b28a3bfb6ac1cc60",
 			text:    "fn probe() -> uint {\n    let mut base: int[] = [10, 20, 30, 40, 50];\n    let mut view = base[[1..4]];\n    let vlen: uint = len(&view);\n    return vlen;\n}\n",
-			edgeKey: "core/base.sg", edge: coreLen, rootRows: []originRefusal{{originSpan{123, 133, "len(&view)"}, genericReceiverExprRefusal}}},
+			edgeKey: "core/base.sg", edge: coreLen, cleared: []originSpan{{123, 133, "len(&view)"}}},
 		{name: "g4_string_and_array", digest: "0397d255d296fffb05b04e1e1ec844c93e64ac37752484efab76792d5c899f9e",
 			text: "fn probe() -> uint {\n    let mut a: int[] = [];\n    a.push(1);\n    let n: uint = len(a);\n    let s: string = \"hi\";\n    let m: uint = len(s);\n    return n + m;\n}\n",
 			// Two instances share the one edge: len<Array<int>> is generic, len<string> is not.
 			edgeKey: "core/base.sg", edge: coreLen, others: 1,
-			rootRows: []originRefusal{{originSpan{81, 87, "len(a)"}, genericReceiverExprRefusal}, {originSpan{133, 139, "len(s)"}, genericReceiverExprRefusal}}},
+			cleared: []originSpan{{81, 87, "len(a)"}, {133, 139, "len(s)"}}},
 		// A user generic implementation, measured admitted.
 		{name: "g5_user_generic_impl", digest: "8b644bab4d4e496a14c5e91ff7329a83a5e713c2cbf0d5aa0c99b8070784799e",
 			text:    "contract Countable<T> {\n    fn count(self: &T) -> uint;\n}\ntype Bag<T> = { items: T[] };\nextern<Bag<T>> {\n    fn count(self: &Bag<T>) -> uint {\n        return 0:uint;\n    }\n}\nfn total<T: Countable<T>>(x: &T) -> uint {\n    return x.count();\n}\nfn probe(b: &Bag<int>) -> uint {\n    return total(b);\n}\n",

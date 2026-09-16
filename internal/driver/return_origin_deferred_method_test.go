@@ -203,11 +203,10 @@ func TestAnalyzeDeferredMethodInstances(t *testing.T) {
 			},
 			check: func(t *testing.T, f originalGenericFixture, analysis *sema.ReturnOriginAnalysis) {
 				deferredCleared(t, analysis, "core/base.sg", baseLen(t, f))
-				// Measured before P1p and outside it: len(s) calls a self function with no receiver expression.
-				if root := originPendingWithin(analysis, f.unit.SourceKey, 0, 1<<30); len(root) != 1 ||
-					!originPendingAt(analysis, f.unit.SourceKey, originSpan{42, 48, "len(s)"}, "generic original method call lacks its receiver expression") {
-					t.Errorf("root Pending is not exactly the receiver-expression row at len(s): %+v", root)
-				}
+				// P1x-B certifies the free-form `self` call, so the receiver-expression row
+				// this leaf used to pin is gone: len(s) is clean and the root unit is empty.
+				deferredCleared(t, analysis, f.unit.SourceKey, originSpan{42, 48, "len(s)"})
+				rootClean(t, f, analysis)
 			}},
 		{name: "i2_max_int32", digest: "bb52e1f8c4433221ced15e3098d79edb7188f575ae998a3e4658a7065b6d7ad8",
 			text: "fn probe() -> int32 {\n    return max_value::<int32>();\n}\n", spans: []originSpan{{33, 53, "max_value::<int32>()"}},
@@ -254,8 +253,8 @@ func TestAnalyzeDeferredMethodInstances(t *testing.T) {
 				}
 				deferredCleared(t, analysis, f.unit.SourceKey, originSpan{76, 84, "stash(v)"})
 			}},
-		// B1 is closed by P1p-G: the generic implementation's own use is routed, and only the
-		// pre-existing root receiver-expression row stays.
+		// B1 is closed by P1p-G: the generic implementation's own use is routed. The
+		// receiver-expression row that used to stay is closed by P1x-B, so the root is clean.
 		{name: "i5_generic_impl_len", digest: "82d9d5484d2375c9bbee4b3b3c66771b487b95745810f460b54148324c058b7c",
 			text: "fn probe(xs: &int[]) -> uint {\n    return len(xs);\n}\n", spans: []originSpan{{42, 49, "len(xs)"}},
 			prepare: func(t *testing.T, f originalGenericFixture) {
@@ -266,10 +265,10 @@ func TestAnalyzeDeferredMethodInstances(t *testing.T) {
 			},
 			check: func(t *testing.T, f originalGenericFixture, analysis *sema.ReturnOriginAnalysis) {
 				deferredCleared(t, analysis, "core/base.sg", baseLen(t, f))
-				if root := originPendingWithin(analysis, f.unit.SourceKey, 0, 1<<30); len(root) != 1 ||
-					!originPendingAt(analysis, f.unit.SourceKey, originSpan{42, 49, "len(xs)"}, "generic original method call lacks its receiver expression") {
-					t.Errorf("root Pending is not exactly the receiver-expression row at len(xs): %+v", root)
-				}
+				// P1x-B certifies the free-form `self` call, so the receiver-expression row
+				// this leaf used to pin is gone: len(xs) is clean and the root unit is empty.
+				deferredCleared(t, analysis, f.unit.SourceKey, originSpan{42, 49, "len(xs)"})
+				rootClean(t, f, analysis)
 			}},
 	} {
 		t.Run(leaf.name, func(t *testing.T) {
