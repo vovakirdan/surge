@@ -66,6 +66,9 @@ func (b *returnOriginBody) stmt(id ast.StmtID, env returnOriginEnv, targets retu
 			if err != nil {
 				return returnOriginFlow{}, err
 			}
+		} else if decl := u.Builder.Stmts.Let(id); node.Kind == ast.StmtLet && !decl.Pattern.IsValid() && decl.Type.IsValid() {
+			// HIR synthesizes `default::<T>()` for exactly this shape (internal/hir/lower_stmt.go:204-205).
+			out.value = b.defaultInitValue(id, node.Span)
 		} else {
 			b.pending(node.Span, "uninitialized binding has no proven reference contents")
 			out.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})

@@ -61,10 +61,6 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		flow, err = flow.then(func(next returnOriginEnv) (returnOriginFlow, error) {
 			out, evalErr := b.expr(expr, next, targets)
 			values[expr] = returnOriginCallValue{value: out.value.clone(), storage: out.storage.clone()}
-			if _, implicit := u.Sema.ImplicitConversions[expr]; implicit {
-				b.pending(span, "implicit argument conversion needs its resolved callable origin contract")
-				values[expr] = returnOriginCallValue{value: returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})}
-			}
 			return out.flow, evalErr
 		})
 		return err

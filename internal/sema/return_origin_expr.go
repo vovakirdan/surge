@@ -46,6 +46,11 @@ func (b *returnOriginBody) exprCore(id ast.ExprID, env returnOriginEnv, targets 
 			value = returnOriginValueOf()
 		}
 		if !b.within(sym.Scope, b.function.scope) {
+			// A const read is its initializer evaluated afresh (internal/mir/lower_expr_helpers.go:349-383);
+			// a placement const is a constant operand (:391-421), and a const is never a place (:55-58).
+			if sym.Kind == symbols.SymbolConst && b.shape(id) == returnOriginRefFree && !b.analyzer.loanCarrier(u.Sema.ExprTypes[id]) {
+				return originExprValue(env, returnOriginValueOf()), nil
+			}
 			return b.unknownExpr(env, node.Span, "captured binding requires origin finalization"), nil
 		}
 		b.checkExpired(value, node.Span)
@@ -88,6 +93,11 @@ func (b *returnOriginBody) exprCore(id ast.ExprID, env returnOriginEnv, targets 
 				selected.ReceiverKey == "" && selected.Flags&symbols.SymbolFlagMethod == 0 && selected.Type == u.Sema.ExprTypes[id] {
 				return b.callableIdent(id, env), nil
 			}
+			// A module-qualified const is the same fresh evaluation as a local one.
+			if selected != nil && selected.Kind == symbols.SymbolConst && b.shape(id) == returnOriginRefFree &&
+				!b.analyzer.loanCarrier(u.Sema.ExprTypes[id]) {
+				return originExprValue(env, returnOriginValueOf()), nil
+			}
 			return b.unknownExpr(env, node.Span, "module member value needs its selected free-function authority"), nil
 		}
 		out, err := b.expr(data.Target, env, targets)
@@ -111,6 +121,12 @@ func (b *returnOriginBody) exprCore(id ast.ExprID, env returnOriginEnv, targets 
 		out, err := b.expr(data.Value, env, targets)
 		if err != nil || !out.flow.normal.reachable {
 			return out, err
+		}
+		// A body `__to` selected on this node is a call whose checked summary names
+		// nothing; an implicit `To` here would overwrite that selection (operators.go:48-50).
+		if _, implicit := u.Sema.ImplicitConversions[id]; !implicit &&
+			b.bodyOperation(&out, u.Sema.ToSymbols, id, u.Sema.ExprTypes[id], "__to", 2, data.Value) {
+			return out, nil
 		}
 		// A present entry is a __to call even when invalid: HIR lowers it as one.
 		if b.shape(id) != returnOriginRefFree || !b.castProven(id, data.Value) {
@@ -233,6 +249,10 @@ func (b *returnOriginBody) binary(id ast.ExprID, env returnOriginEnv, targets re
 	// A certified operation drops operand origins; the borrow-free path needs no proof.
 	if !borrowFree && (b.shape(id) != returnOriginRefFree ||
 		!b.selectedOperation(u.Sema.MagicBinarySymbols, id, magicNameForBinaryOp(data.Op), 2, data.Left, data.Right)) {
+		if b.bodyOperation(&right, u.Sema.MagicBinarySymbols, id, u.Sema.ExprTypes[id],
+			magicNameForBinaryOp(data.Op), 2, data.Left, data.Right) {
+			return right, nil
+		}
 		b.pending(u.Builder.Exprs.Get(id).Span, "binary callable needs an exact origin contract")
 		right.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 	} else if borrowFree {

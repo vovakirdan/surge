@@ -118,10 +118,13 @@ func (b *returnOriginBody) applyCoreArrayIntrinsic(op returnOriginArrayOp, id as
 	switch op {
 	case returnOriginArrayDefault:
 		result := u.Sema.ExprTypes[id]
-		if c, canonical := returnOriginContainer(in, result); !canonical || c.reference {
+		view := returnOriginView(b.function)
+		// A canonical container keeps its existing arm; any other T is answered only
+		// when its Defaultable requirement holds, so this never replaces a refusal.
+		if c, canonical := returnOriginContainer(in, result); (!canonical || c.reference) && view.requirement(returnOriginDefaultable, result).failed() {
 			return returnOriginValue{}, pre, false
 		}
-		return b.requireDefaultable(returnOriginView(b.function), result, span), pre, true
+		return b.requireDefaultable(view, result, span), pre, true
 	case returnOriginArrayLen, returnOriginArrayReserve:
 		expr, ok := argument(0)
 		if _, canonical := returnOriginContainer(in, u.Sema.ExprTypes[expr]); !ok || !canonical {
@@ -219,10 +222,13 @@ func (a *returnOriginAnalyzer) checkBackingIntrinsicUse(fn *returnOriginFunction
 		if len(use.TemplateArgs) != 1 {
 			return false, ""
 		}
-		if c, canonical := returnOriginContainer(in, use.TemplateArgs[0]); !canonical || c.reference {
+		// `coreArrayIntrinsic` pins `result == elem` (:56), so the requirement over the
+		// declared result and the container test over the argument name one type.
+		required := returnOriginBoundView(fn, nil, use.TemplateArgs).requirement(returnOriginDefaultable, fn.info.Result)
+		if c, canonical := returnOriginContainer(in, use.TemplateArgs[0]); (!canonical || c.reference) && required.failed() {
 			return false, ""
 		}
-		if returnOriginBoundView(fn, nil, use.TemplateArgs).requirement(returnOriginDefaultable, fn.info.Result).failed() {
+		if required.failed() {
 			return true, "default result is not proven Defaultable"
 		}
 		return true, ""

@@ -25,7 +25,7 @@ func (b *returnOriginBody) expr(id ast.ExprID, env returnOriginEnv, targets retu
 			// As for a certified operator: no container formal and no borrowed
 			// state in the result, so no operand origin or loan can leave.
 			out.value = returnOriginValueOf()
-		} else {
+		} else if !b.bodyOperation(&out, u.Sema.ToSymbols, id, conversion.Target, "__to", 2) {
 			b.pending(u.Builder.Exprs.Get(id).Span, "implicit conversion needs its selected __to origin contract")
 			out.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 		}

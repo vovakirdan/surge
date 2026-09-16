@@ -92,13 +92,13 @@ func (a *returnOriginAnalyzer) genericUseContext(use ConcreteInstantiationUse) (
 	for id, typ := range caller.unit.Sema.ExprTypes {
 		if node := caller.unit.Builder.Exprs.Get(id); node != nil && node.Span == use.Site {
 			if expression.IsValid() || typ == types.NoTypeID || (node.Kind != ast.ExprCall && node.Kind != ast.ExprIndex) {
-				return nil, nil, ast.NoExprID, "generic use disagrees with its original typed operation"
+				return fn, caller, ast.NoExprID, returnOriginUseOtherOperation
 			}
 			expression = id
 		}
 	}
 	if !expression.IsValid() {
-		return nil, nil, ast.NoExprID, "generic use lacks its original typed operation"
+		return fn, caller, ast.NoExprID, returnOriginUseWithoutOperation
 	}
 	return fn, caller, expression, ""
 }
@@ -173,6 +173,12 @@ func (a *returnOriginAnalyzer) checkGenericUses() error {
 			continue
 		}
 		fn, caller, expression, reason := a.genericUseContext(use)
+		if handled, synthesized := a.checkSynthesizedUse(fn, caller, use, reason); handled {
+			if synthesized != "" {
+				pending(use, synthesized)
+			}
+			continue
+		}
 		if reason == "" {
 			if _, store := caller.unit.Sema.IndexSetSymbols[expression]; store && caller.unit.Builder.Exprs.Get(expression).Kind == ast.ExprIndex {
 				reason = a.checkIndexStoreUse(fn, caller, expression, use)

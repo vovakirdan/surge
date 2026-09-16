@@ -135,6 +135,9 @@ func returnOriginBoundType(id types.TypeID, params, args []types.TypeID) types.T
 func (u *returnOriginUnitIndex) originalArgumentType(expr ast.ExprID, original types.TypeID, params, args []types.TypeID) (types.TypeID, string) {
 	in := u.Sema.TypeInterner
 	actual := u.Sema.ExprTypes[expr]
+	// G3: a non-generic alias denotes its target for the match only. `a` below stays
+	// the unresolved descriptor, so the own-actual arms keep reading what they read today.
+	resolvedActual := returnOriginResolveAlias(in, actual)
 	formal := returnOriginBoundType(original, params, args)
 	f, fok := in.Lookup(formal)
 	a, aok := in.Lookup(actual)
@@ -159,7 +162,7 @@ func (u *returnOriginUnitIndex) originalArgumentType(expr ast.ExprID, original t
 			if !f.Mutable && a.Mutable && match(f.Elem, a.Elem) {
 				return formal, ""
 			}
-		} else if match(f.Elem, actual) {
+		} else if match(f.Elem, resolvedActual) || a.Kind == types.KindOwn && match(f.Elem, a.Elem) { // G2: an own binding is autoborrowed as a place
 			kind, _ := returnOriginFormalBorrowKind(in, formal)
 			var evidence *BorrowInfo
 			for i := range u.Sema.Borrows {
