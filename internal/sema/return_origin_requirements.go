@@ -170,7 +170,7 @@ func (r returnOriginRequirements) rebase(view returnOriginTypeView) returnOrigin
 // a nominal certificate. A struct declared in another analyzed unit is proven in
 // that unit, found by its exact file among the peers; a unit that is missing or
 // ambiguous proves nothing. Inherited and opaque forms, and every attribute
-// except a bare `@copy`, stay unsupported.
+// except a bare `@copy` or `@shard_movable`, stay unsupported.
 func returnOriginPlainStruct(fn *returnOriginFunction, info *types.StructInfo) bool {
 	u := fn.unit
 	if f := u.Builder.Files.Get(u.FileID); f == nil || f.Span.File != info.Decl.File {
@@ -199,7 +199,7 @@ func returnOriginPlainStruct(fn *returnOriginFunction, info *types.StructInfo) b
 		}
 		decl := u.Builder.Items.TypeStruct(item)
 		ids := u.Symbols.ItemSymbols[id]
-		if decl == nil || decl.Base.IsValid() || !returnOriginCopyOnlyAttributes(u, item) || len(ids) != 1 ||
+		if decl == nil || decl.Base.IsValid() || !returnOriginCapabilityOnlyAttributes(u, item) || len(ids) != 1 ||
 			uint64(decl.FieldsCount) != uint64(len(info.Fields)) {
 			return false
 		}
@@ -221,10 +221,10 @@ func returnOriginPlainStruct(fn *returnOriginFunction, info *types.StructInfo) b
 	return false
 }
 
-// `@copy` only says a value may be duplicated because every field is Copy; it
-// adds no storage and hides no field, and the caller still walks every field.
-// Any other attribute, an argument, an unknown name or an unreadable entry refuses.
-func returnOriginCopyOnlyAttributes(u *returnOriginUnitIndex, item *ast.TypeItem) bool {
+// `@copy` (every field is Copy) and `@shard_movable` (every field may cross a shard
+// boundary) only permit uses of a value: neither adds storage nor hides a field, so the
+// caller still walks every field. Any other, unknown or unreadable attribute, or an argument, refuses.
+func returnOriginCapabilityOnlyAttributes(u *returnOriginUnitIndex, item *ast.TypeItem) bool {
 	if item.AttrCount == 0 {
 		return true
 	}
@@ -234,7 +234,7 @@ func returnOriginCopyOnlyAttributes(u *returnOriginUnitIndex, item *ast.TypeItem
 	}
 	for _, attr := range attrs {
 		spec, known := ast.LookupAttrID(u.Builder.StringsInterner, attr.Name)
-		if !known || spec.Name != "copy" || len(attr.Args) != 0 {
+		if !known || (spec.Name != "copy" && spec.Name != "shard_movable") || len(attr.Args) != 0 {
 			return false
 		}
 	}
