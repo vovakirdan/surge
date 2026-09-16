@@ -227,13 +227,13 @@ func TestReturnOriginBackingFacts(t *testing.T) {
 		loans, _ := b.instantiateBackingCall(call, returnOriginValueOf(l(1)), posts, actuals, pre, span)
 		checkCell(t, "L1 result read from PRE", loans, v(2))
 		for _, root := range []returnOrigin{e(0), l(1)} {
-			refused, _, ok := b.refuseLegacyBackingSummary(returnOriginValueOf(root), pre, span)
+			refused, _, ok := b.refuseLegacyBackingSummary(nil, returnOriginValueOf(root), nil, nil, pre, types.NoTypeID, span)
 			if !ok || !cellPendingAt(a, span, "container-content result lacks its checked backing call transfer") {
 				t.Errorf("an unconsumed %+v reached the legacy V substitution", root)
 			}
 			checkCell(t, "refused legacy result", refused, unknown)
 		}
-		if _, _, ok := b.refuseLegacyBackingSummary(returnOriginValueOf(v(0)), pre, span); ok {
+		if _, _, ok := b.refuseLegacyBackingSummary(nil, returnOriginValueOf(v(0)), nil, nil, pre, types.NoTypeID, span); ok {
 			t.Error("a callee V0 was refused as container contents")
 		}
 	})

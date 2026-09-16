@@ -59,12 +59,12 @@ func (b *returnOriginBody) backingCallTargets(callee *returnOriginFunction, indi
 func (b *returnOriginBody) instantiateBackingCall(call returnOriginBackingCall, summary returnOriginValue, posts map[uint32]returnOriginValue,
 	actuals []returnOriginValue, pre returnOriginEnv, span source.Span,
 ) (returnOriginValue, returnOriginEnv) {
-	value := b.substituteBackingCall(call, summary, actuals, pre, span)
+	value := b.substituteBackingCall(call, summary, actuals, pre, span, -1)
 	env := pre
 	for _, slot := range call.callee.mutableBackingSlots {
 		post, present := posts[slot]
 		if present {
-			post = b.substituteBackingCall(call, post, actuals, pre, span)
+			post = b.substituteBackingCall(call, post, actuals, pre, span, int(slot))
 		} else {
 			b.pending(span, "container call lacks its callee's complete post-state")
 			post = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
@@ -78,7 +78,7 @@ func (b *returnOriginBody) instantiateBackingCall(call returnOriginBackingCall, 
 // captured actual, E(i) what i's targets held before the call, and L(i) the
 // loans those targets carried; any other root stays an explicit refusal.
 func (b *returnOriginBody) substituteBackingCall(call returnOriginBackingCall, payload returnOriginValue, actuals []returnOriginValue, pre returnOriginEnv,
-	span source.Span,
+	span source.Span, self int,
 ) returnOriginValue {
 	unknown := returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 	out := returnOriginValueOf()
@@ -95,10 +95,11 @@ func (b *returnOriginBody) substituteBackingCall(call returnOriginBackingCall, p
 			out = out.join(unknown)
 		case root.selector == returnOriginInputValue:
 			out = out.join(actuals[root.param])
+		case backed && (root.selector == returnOriginInputLoans || root.selector == returnOriginInputElements && i != self && b.loanElement(call.containers[i])):
+			// I1: a loan element's loans live in its container's value, as L(i) does; guardLoanResult checks an erased result.
+			out = out.join(returnOriginTargetLoans(pre, targets))
 		case root.selector == returnOriginInputElements && backed:
 			out = out.join(b.loadBackingContents(pre, call.containers[i], targets, span))
-		case root.selector == returnOriginInputLoans && backed:
-			out = out.join(returnOriginTargetLoans(pre, targets))
 		default:
 			b.pending(span, "container-content result lacks its checked backing call transfer")
 			out = out.join(unknown)
@@ -140,14 +141,35 @@ func (b *returnOriginBody) loanGuardFormal(callee *returnOriginFunction, signatu
 	}
 }
 
-// refuseLegacyBackingSummary guards the old substitution, which reads every
-// Param root as the incoming value: E and L roots need a checked backing call.
-func (b *returnOriginBody) refuseLegacyBackingSummary(summary returnOriginValue, env returnOriginEnv, span source.Span) (returnOriginValue, returnOriginEnv, bool) {
-	for _, root := range summary.roots {
-		if root.kind == returnOriginParam && (root.selector == returnOriginInputElements || root.selector == returnOriginInputLoans) {
-			return returnOriginValueOf(returnOrigin{kind: returnOriginUnknown}),
-				b.taintExternalCellEffects(env, span, "container-content result lacks its checked backing call transfer"), true
+// refuseLegacyBackingSummary answers a call that proved no backing targets. Each
+// writable container formal keeps its obligation first: a reference-bearing element
+// keeps the mutable-argument Pending, and a payload-free one refuses a loan its
+// callee's post-state stored (G6-iii); the result is then answered by legacyBackingValue.
+func (b *returnOriginBody) refuseLegacyBackingSummary(callee *returnOriginFunction, summary returnOriginValue, slots []returnOriginArgument,
+	actuals []returnOriginValue, env returnOriginEnv, result types.TypeID, span source.Span,
+) (returnOriginValue, returnOriginEnv, bool) {
+	if callee != nil && callee.item.Body.IsValid() {
+		b.guardLoanResult(callee, slots, nil, env, result, span)
+		for _, slot := range callee.mutableBackingSlots {
+			post, present := b.analyzer.summaries[callee.key].postBackings[slot]
+			stored, reason := b.legacyBackingValue(post, slots, actuals, int(slot))
+			if c, canonical := b.callSiteContainer(slots, int(slot)); !canonical || !b.elementsFree(c) {
+				b.pending(span, "mutable argument may replace reference-bearing contents")
+			} else if !present || reason != "" {
+				b.pending(span, "container call lacks its callee's complete post-state")
+			} else {
+				b.discardLoans(stored, span)
+			}
 		}
 	}
-	return returnOriginValue{}, env, false
+	if !slices.ContainsFunc(summary.roots, func(root returnOrigin) bool {
+		return root.kind == returnOriginParam && (root.selector == returnOriginInputElements || root.selector == returnOriginInputLoans)
+	}) {
+		return returnOriginValue{}, env, false
+	}
+	value, reason := b.legacyBackingValue(summary, slots, actuals, -1)
+	if reason == "" {
+		return value, env, true
+	}
+	return returnOriginValueOf(returnOrigin{kind: returnOriginUnknown}), b.taintExternalCellEffects(env, span, reason), true
 }

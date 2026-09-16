@@ -231,11 +231,13 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		return returnOriginExprResult{flow: flow}, nil
 	}
 	if cellChecked {
+		b.guardLoanResult(callee, slots, nil, flow.normal, u.Sema.ExprTypes[id], span)
 		value, next := b.instantiateCellCall(cellCall, u.Sema.ExprTypes[id], summary, b.analyzer.summaries[callee.key].postCells, actuals, flow.normal, span)
 		flow.normal = next
 		return returnOriginExprResult{flow: flow, value: value}, nil
 	}
 	if backingChecked {
+		b.guardLoanResult(callee, slots, backingCall.targets, flow.normal, u.Sema.ExprTypes[id], span)
 		value, next := b.instantiateBackingCall(backingCall, summary, b.analyzer.summaries[callee.key].postBackings, actuals, flow.normal, span)
 		flow.normal = next
 		return returnOriginExprResult{flow: flow, value: value}, nil
@@ -245,7 +247,7 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		flow.normal = next
 		return returnOriginExprResult{flow: flow, value: value}, nil
 	}
-	if value, next, refused := b.refuseLegacyBackingSummary(summary, flow.normal, span); refused {
+	if value, next, refused := b.refuseLegacyBackingSummary(callee, summary, slots, actuals, flow.normal, u.Sema.ExprTypes[id], span); refused {
 		flow.normal = next
 		return returnOriginExprResult{flow: flow, value: value}, nil
 	}

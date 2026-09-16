@@ -257,6 +257,39 @@ func (b *returnOriginBody) discardLoans(value returnOriginValue, span source.Spa
 	return returnOriginValueOf()
 }
 
+// legacyBackingValue rebases a payload at a call without proven targets: V(i) is
+// the actual, and E(i) is empty where argument i's element is payload-free and
+// keeps no storage loan, or where i is the written slot itself (self). Any other
+// root has no transfer, and the answer names the refusal.
+func (b *returnOriginBody) legacyBackingValue(payload returnOriginValue, slots []returnOriginArgument, actuals []returnOriginValue, self int) (returnOriginValue, string) {
+	out := returnOriginValueOf()
+	for _, root := range payload.roots {
+		i := int(root.param)
+		c, canonical := b.callSiteContainer(slots, i)
+		live := root.kind == returnOriginParam && !root.expired
+		switch {
+		case live && root.selector == returnOriginInputValue && i < len(actuals):
+			out = out.join(actuals[i])
+		case !live || root.selector != returnOriginInputElements || !canonical || !b.elementsFree(c):
+			return returnOriginValue{}, "container-content result lacks its checked backing call transfer"
+		case i != self && b.loanElement(c):
+			return returnOriginValue{}, returnOriginCursorLoanElement
+		}
+	}
+	if !payload.normal || len(payload.callables) != 0 {
+		return returnOriginValue{}, "container-content result lacks its checked backing call transfer"
+	}
+	return out, ""
+}
+
+// callSiteContainer answers argument i's single canonical container expression at this call.
+func (b *returnOriginBody) callSiteContainer(slots []returnOriginArgument, i int) (returnOriginIndexType, bool) {
+	if i < 0 || i >= len(slots) || len(slots[i].exprs) != 1 {
+		return returnOriginIndexType{}, false
+	}
+	return returnOriginContainer(b.function.unit.Sema.TypeInterner, b.function.unit.Sema.ExprTypes[slots[i].exprs[0]])
+}
+
 // joinReturnOriginBackingPosts keeps the Cell rule: bottom has no posts, and two
 // normal vectors that disagree on an entry join it with Unknown.
 func joinReturnOriginBackingPosts(f, other *returnOriginSummaryFact) map[uint32]returnOriginValue {

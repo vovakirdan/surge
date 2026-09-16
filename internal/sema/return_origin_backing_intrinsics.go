@@ -17,11 +17,14 @@ const (
 	returnOriginArrayPush
 	returnOriginArrayRange
 	returnOriginArrayNext
+	returnOriginArrayPop
+	returnOriginArrayGetMut
 )
 
 // coreArrayIntrinsic certifies one retained core array declaration by its
 // original body-less builtin declaration, its template arity and its exact
 // structural descriptors. A name alone selects nothing.
+// Only get_mut carries a declared promise, and only its container slot.
 func (a *returnOriginAnalyzer) coreArrayIntrinsic(fn *returnOriginFunction) (returnOriginArrayOp, bool) {
 	if fn == nil || fn.info == nil || fn.item == nil || fn.candidate == nil {
 		return 0, false
@@ -31,7 +34,7 @@ func (a *returnOriginAnalyzer) coreArrayIntrinsic(fn *returnOriginFunction) (ret
 	if !c.Builtin || !c.Intrinsic || c.HasBody || c.Async || fn.item.Body.IsValid() || c.Name != fn.name ||
 		c.SourceKey != "builtin" || c.ModulePath != "core/intrinsics" || u.SourceKey != "core/intrinsics.sg" ||
 		len(c.TemplateParams) == 0 || len(c.Defaults) != len(fn.info.Params) || len(c.Variadic) != len(fn.info.Params) ||
-		slices.Contains(c.Defaults, true) || slices.Contains(c.Variadic, true) || !fn.info.ReturnSources().IsAllInputs() {
+		slices.Contains(c.Defaults, true) || slices.Contains(c.Variadic, true) || !(fn.info.ReturnSources().IsAllInputs() || fn.name == "rt_array_get_mut") {
 		return 0, false
 	}
 	if identity, err := u.owningCallableIdentity(fn.item, fn.symbol, fn.info); err != nil || identity.BodyKey != fn.key || identity.SourceKey != fn.canonicalSourceKey {
@@ -50,6 +53,7 @@ func (a *returnOriginAnalyzer) coreArrayIntrinsic(fn *returnOriginFunction) (ret
 		}
 		return len(c.TemplateParams) == 1
 	}
+	_, lent, resolved := returnOriginIndexResolve(in, result)
 	free := !c.HasSelf && c.ReceiverTemplateArity == 0 && len(c.TemplateParams) == 1
 	receiver := c.HasSelf && c.ReceiverTemplateArity == len(c.TemplateParams) && len(params) == 1
 	switch {
@@ -67,6 +71,12 @@ func (a *returnOriginAnalyzer) coreArrayIntrinsic(fn *returnOriginFunction) (ret
 		return returnOriginArrayRange, true
 	case fn.name == "next" && receiver && len(c.TemplateParams) == 1 && a.rangeReference(params[0], elem) && returnOriginOptionOf(in, result, elem):
 		return returnOriginArrayNext, true
+	case fn.name == "rt_array_pop" && free && len(params) == 1 && container(params[0], true) && returnOriginOptionOf(in, result, elem):
+		return returnOriginArrayPop, true
+	case fn.name == "rt_array_get_mut" && !c.HasSelf && c.ReceiverTemplateArity == 0 && len(params) == 2 && container(params[0], true) &&
+		params[1] == in.Builtins().Int && resolved && lent.Kind == types.KindReference && lent.Mutable && lent.Elem == elem &&
+		slices.Equal(fn.info.ReturnSources().Slots(), []uint32{0}):
+		return returnOriginArrayGetMut, true
 	}
 	return 0, false
 }
@@ -140,9 +150,32 @@ func (b *returnOriginBody) applyCoreArrayIntrinsic(op returnOriginArrayOp, id as
 		}
 		targets, proven := b.backingTargets(c, actuals[0], pre, true)
 		if !proven {
+			// The store is skipped, so its value keeps the G6 guard calls.go:147 left to it.
+			b.storeBackingContents(pre, c, returnOriginBackingTargets{}, actuals[1], []ast.ExprID{stored}, span)
 			return returnOriginValue{}, pre, false
 		}
 		return returnOriginValueOf(), b.storeBackingContents(pre, c, targets, actuals[1], []ast.ExprID{stored}, span), true
+	case returnOriginArrayPop, returnOriginArrayGetMut:
+		// pop moves one element out (a weak read, never a kill); get_mut lends a slot of the storage.
+		expr, ok := argument(0)
+		c, canonical := returnOriginContainer(in, u.Sema.ExprTypes[expr])
+		targets, proven := b.backingTargets(c, actuals[0], pre, true)
+		switch {
+		case !ok || !canonical || !proven && (op == returnOriginArrayGetMut || !b.loanElement(c)):
+			return returnOriginValue{}, pre, false
+		case !proven: // a loan element without a target set has no loans to load (as legacyBackingValue)
+			b.pending(span, returnOriginCursorLoanElement)
+			return returnOriginValueOf(returnOrigin{kind: returnOriginUnknown}), pre, true
+		case op == returnOriginArrayGetMut:
+			return actuals[0].clone(), pre, true
+		case b.loanElement(c): // I1: a moved-out array or cursor keeps the loans its container's value records
+			loans := returnOriginTargetLoans(pre, targets)
+			if b.erasedType(u.Sema.ExprTypes[id]) && localLoan(loans) { // a formal's L(slot) is guarded at each caller
+				b.pending(span, "storage loan would be discarded by a payload-free value")
+			}
+			return loans, pre, true
+		}
+		return b.loadBackingContents(pre, c, targets, span), pre, true
 	case returnOriginArrayRange:
 		// A cursor over reference-bearing elements stays on its existing refusal.
 		expr, ok := argument(0)
@@ -232,7 +265,7 @@ func (a *returnOriginAnalyzer) checkBackingIntrinsicUse(fn *returnOriginFunction
 			return true, "default result is not proven Defaultable"
 		}
 		return true, ""
-	case returnOriginArrayLen, returnOriginArrayReserve, returnOriginArrayPush:
+	case returnOriginArrayLen, returnOriginArrayReserve, returnOriginArrayPush, returnOriginArrayPop, returnOriginArrayGetMut:
 		return true, ""
 	case returnOriginArrayRange, returnOriginArrayNext:
 		if len(use.TemplateArgs) == 0 || returnOriginTypeShape(in, use.TemplateArgs[0], nil) != returnOriginRefFree {
