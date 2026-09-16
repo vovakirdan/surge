@@ -189,7 +189,8 @@ fn probe<T: Read<T>>(self: &T) -> int { return self.read(); }`
 				}
 				return
 			}
-			if err != nil || analysis == nil || analysis.Complete() || len(analysis.Pending) == 0 {
+			want := ReturnOriginPending{SourceKey: unit.SourceKey, Span: unit.Builder.Exprs.Get(id).Span, Reason: "deferred method lacks finalized instance authority"}
+			if err != nil || analysis == nil || analysis.Complete() || len(analysis.Pending) == 0 || !slices.Contains(analysis.Pending, want) {
 				t.Fatalf("selector syntax hid or aborted an unresolved call: analysis=%+v error=%v", analysis, err)
 			}
 		})

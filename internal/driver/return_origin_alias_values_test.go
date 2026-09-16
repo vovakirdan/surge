@@ -241,11 +241,28 @@ func requireReturnOriginAliasMissingOwners(t *testing.T, res *DiagnoseResult, in
 		}
 		want = append(want, sema.ReturnOriginPending{SourceKey: core.SourceKey, Span: span, Reason: "deferred clone lacks its original owning caller"})
 	}
+	// The same partial input cannot authorize core's deferred contract method edges either.
+	for _, site := range []struct {
+		key        string
+		start, end uint32
+	}{{"core/base.sg", 2225, 2237}, {"core/intrinsics.sg", 11606, 11621}, {"core/intrinsics.sg", 11678, 11693}} {
+		var found []sema.DeferredCallableEdge
+		for _, edge := range res.Sema.InstantiationGraph.DeferredCallables() {
+			if edge.Kind == sema.DeferredMethodCall && edge.Witness.SourceKey == site.key && edge.Witness.Site.Start == site.start && edge.Witness.Site.End == site.end {
+				found = append(found, edge)
+			}
+		}
+		if len(found) != 1 || slices.ContainsFunc(selected, func(u sema.ReturnOriginUnit) bool { return u.SourceKey == site.key }) ||
+			!slices.ContainsFunc(res.Sema.CallableCandidates, func(c sema.CallableCandidate) bool { return c.Symbol == found[0].Caller && c.HasBody }) {
+			t.Fatalf("PRECONDITION: core method edge %s %d:%d lacks its unique excluded body owner", site.key, site.start, site.end)
+		}
+		want = append(want, sema.ReturnOriginPending{SourceKey: site.key, Span: found[0].Witness.Site, Reason: "deferred method lacks its original owning caller"})
+	}
 	block, err := returnOriginVerdict(analysis)
 	unfinished, ok := err.(*returnOriginUnfinishedError)
 	logReturnOriginCallEvidence(t, map[string]any{"expected_missing_owners": want, "partial_input_blocked": block, "verdict_error": errorReturnOriginCallText(err)})
 	if analysis.Complete() || !slices.Equal(analysis.Pending, want) || !block || !ok || !slices.Equal(unfinished.Pending, want) {
-		t.Fatalf("partial alias input lost its exact six missing-owner refusals: analysis=%+v block=%t error=%v", analysis, block, err)
+		t.Fatalf("partial alias input lost its exact nine missing-owner refusals: analysis=%+v block=%t error=%v", analysis, block, err)
 	}
 }
 

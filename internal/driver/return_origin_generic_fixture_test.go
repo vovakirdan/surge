@@ -77,6 +77,11 @@ func originalGenericSignatureFixture(t *testing.T, text string, escape, dependen
 				"publication": unit.Publication, "expr_types": unit.Sema.ExprTypes, "expr_symbols": unit.Symbols.ExprSymbols,
 				"symbols": unit.Symbols.Table.Symbols.Data(), "borrows": unit.Sema.Borrows, "binding_types": unit.Sema.BindingTypes})
 			if bag.HasErrors() {
+				for _, d := range bag.Items() {
+					if d != nil {
+						t.Logf("PRECONDITION_DIAGNOSTIC source_key=%s diagnostic=%+v", unit.SourceKey, *d)
+					}
+				}
 				t.Fatal("PRECONDITION: complete module input has source diagnostics")
 			}
 		}
