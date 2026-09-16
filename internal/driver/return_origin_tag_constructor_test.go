@@ -193,8 +193,12 @@ fn probe() -> int {
 					t.Errorf("RefFree result has unfinished constructor transfer: %+v pending=%+v", summary, analysis.Pending)
 				}
 			case "non_tag_global_const":
-				if !foundCaptured || analysis.Complete() || !summary.Unknown || len(summary.ParamSlots) != 0 {
-					t.Errorf("non-tag global refusal was weakened: %+v pending=%+v", summary, analysis.Pending)
+				// A global const read is its initializer evaluated afresh, so a
+				// reference-free one carries no origin (P1w W1). What this case pins
+				// is the shape asserted above: a non-tag global is read as a const,
+				// not routed through the tag or callable path (wantKind, wantCalls=0).
+				if foundCaptured || !analysis.Complete() || summary.Unknown || len(summary.ParamSlots) != 0 {
+					t.Errorf("reference-free global const did not read as a fresh value: %+v pending=%+v", summary, analysis.Pending)
 				}
 			}
 			if tc.exit == "" {

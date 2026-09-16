@@ -82,7 +82,13 @@ func TestReturnOriginSelectedOperationContract(t *testing.T) {
 		{name: "convert", function: "convert", site: "p to int", reason: returnOriginCastRefusal},
 		{name: "touches", function: "touches", site: "a == dst", reason: returnOriginBinaryRefusal, stays: true},
 		{name: "attributed_result_control", function: "minus", site: "a - b", reason: returnOriginBinaryRefusal, stays: true},
-		{name: "body_control", function: "times", site: "a * b", reason: returnOriginBinaryRefusal, stays: true},
+		// A body operator whose result is erased and whose checked summary names
+		// nothing is certified (P1w W5 C-d), so this row now runs the clean-body
+		// assertions below instead of pinning the refusal. The operand-shape
+		// question it used to double as a discriminator for is answered by
+		// attributed_result_control (a `@sealed` result) and container_formal_control
+		// (a `&mut Array<int>` formal), neither of which C-d can certify.
+		{name: "body_certified", function: "times", site: "a * b", reason: returnOriginBinaryRefusal},
 		{name: "container_formal_control", function: "cut", site: "a / xs", reason: returnOriginBinaryRefusal, stays: true},
 		{name: "wrong_name_control", function: "plus", site: "a + b", reason: returnOriginBinaryRefusal, stays: true,
 			mutate: func(r *Result, _ ReturnOriginUnit, ops map[string]ast.ExprID) {
