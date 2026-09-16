@@ -277,11 +277,19 @@ model below is the agreed way to lift the boundary later. It is tracked as
 `RV2-DEBT-364`. Two alternatives were declined for D2: building the whole model
 now, and building only its cursor half.
 
-**What is refused, and why refusing is the sound choice.** The shapes are
-`xs[[a..b]]`, `xs.slice(r)`, `for x in xs`, `xs.__range()` with `next()`, and
-`Array::<T>::from_range(r)`, when the element is reference-bearing (`&T`, or a
-struct, union or tuple holding one) or a loan carrier (a canonical `Array` or
-`ArrayFixed`, whose value may itself be a view into other storage). `for` is the
+**What is refused, and why refusing is the sound choice.** When the element is
+reference-bearing (`&T`, or a struct, union or tuple holding one), the refused
+shapes are `xs[[a..b]]`, `xs.slice(r)`, `for x in xs`, `xs.__range()` with
+`next()`, and `Array::<T>::from_range(r)`. When the element is a loan carrier (a
+canonical `Array` or `ArrayFixed`, whose value may itself be a view into other
+storage), the refused shapes are `for x in xs`, `xs.__range()` with `next()`,
+the generic `xs.slice(r)` and `from_range`, and storing a borrowing value into
+the array through a view or directly (`storage loan would be discarded by a
+payload-free value`); a concrete read-only view `xs[[a..b]]` over such an array
+is accepted, because P1b tracks the loans it carries — measured on 2026-09-16:
+a read-only view has no unfinished row, and returning a view whose element holds
+a dying local's storage gets `SEM3139` "borrow of 'local' outlives its owner".
+`for` is the
 same cursor: `internal/hir/normalize_for.go` lowers it to an iterator init and
 `next`. A view shares its base's buffer on both backends: native slicing
 returns a pointer into `base->data` and registers the view on the base
@@ -293,9 +301,11 @@ per-site allocation"), so it cannot see that a write through a view reaches the
 base. Treating a view as a copy would accept the program shown in
 `KNOWN_LIMITATIONS`, whose returned array points at a dead local. Today the
 shapes are refused at a cursor step over a loan-carrier element (`cursor
-element that can hold storage loans needs its backing loan transfer`) and at a
-non-scalar index over such a container (`index requires a non-scalar index
-transfer`); the P1c-2 and P1c-3 packets are designed to keep that refusal when
+element that can hold storage loans needs its backing loan transfer`), at a
+non-scalar index over a container of reference elements (`index requires a
+non-scalar index transfer`), and at a store that would drop a loan into a
+payload-free element (`storage loan would be discarded by a payload-free
+value`); the P1c-2 and P1c-3 packets are designed to keep that refusal when
 they prove the generic core bodies (`from_range`, `__range`, `slice`) for
 borrow-free elements.
 

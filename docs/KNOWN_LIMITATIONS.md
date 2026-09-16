@@ -96,11 +96,16 @@ captures (not loan-tracked yet).
   time is the fix; until then the two backends disagree about what happens, and
   the VM is the one telling the truth.
 - A view, a slice or a walk over an array whose ELEMENTS can themselves hold a
-  borrow is refused at build time, by decision rather than by accident. The
-  shapes are `xs[[a..b]]`, `xs.slice(...)`, `for x in xs` and `xs.__range()`
-  when the element is a reference (`Array<&string>`) or an array that may be a
-  view into other storage (`Array<uint64[]>`, `int[][]`); the build stops with
-  `return-origin analysis unfinished`. A view is not a copy — native slicing
+  borrow is refused at build time, by decision rather than by accident; the
+  build stops with `return-origin analysis unfinished`. When the element is a
+  reference (`Array<&string>`), every one of `xs[[a..b]]`, `xs.slice(...)`,
+  `for x in xs` and `xs.__range()` is refused. When the element is an array that
+  may be a view into other storage (`Array<uint64[]>`, `int[][]`), a concrete
+  read-only view `xs[[a..b]]` IS accepted — the analysis tracks the loans it
+  carries, and returning one that holds a dying local's storage gets the precise
+  `SEM3139` — while `for x in xs`, `xs.__range()`, the generic `xs.slice(...)`
+  and storing a borrowing value into the array, through a view or directly, are
+  refused. A view is not a copy — native slicing
   hands out a pointer into the base's buffer and registers the view on the
   base, and the VM's slice keeps the base alive — so a write through the view
   lands in the base, and the analysis has no model of two names reaching one
