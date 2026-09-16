@@ -107,6 +107,9 @@ func (a *returnOriginAnalyzer) genericUseContext(use ConcreteInstantiationUse) (
 // instance/root/caller checks. An original-body proof cannot supply a missing
 // finalized use, and a concrete use cannot replace the source request.
 func (a *returnOriginAnalyzer) genericCallUseInfo(fn, caller *returnOriginFunction, expression ast.ExprID, use ConcreteInstantiationUse) (*returnOriginSignature, string) {
+	if view, reason, deferred := a.deferredImplementationUse(fn, caller, expression, use); deferred {
+		return view, reason
+	}
 	if use.Caller != (InstanceKey{}) {
 		return a.currentCallBinding(fn, caller, expression, use)
 	}
