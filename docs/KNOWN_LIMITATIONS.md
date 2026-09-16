@@ -95,6 +95,45 @@ captures (not loan-tracked yet).
   the array, or copy out of it before returning. Refusing the shape at compile
   time is the fix; until then the two backends disagree about what happens, and
   the VM is the one telling the truth.
+- A view, a slice or a walk over an array whose ELEMENTS can themselves hold a
+  borrow is refused at build time, by decision rather than by accident. The
+  shapes are `xs[[a..b]]`, `xs.slice(...)`, `for x in xs` and `xs.__range()`
+  when the element is a reference (`Array<&string>`) or an array that may be a
+  view into other storage (`Array<uint64[]>`, `int[][]`); the build stops with
+  `return-origin analysis unfinished`. A view is not a copy — native slicing
+  hands out a pointer into the base's buffer and registers the view on the
+  base, and the VM's slice keeps the base alive — so a write through the view
+  lands in the base, and the analysis has no model of two names reaching one
+  buffer. Without that model it would accept:
+
+  ```sg
+  let mut v: Array<&string> = xs.slice(0..1);
+  {
+      let s: string = "x";
+      v[0] = &s;      // writes into xs's buffer
+  }
+  return xs;          // xs[0] points at the dead s
+  ```
+
+  When the boundary was chosen (2026-09-16), a scan of the golden corpus,
+  `core`, `stdlib`, the benchmarks, the showcases and the Surge sources inside
+  Go tests found no program outside the analysis's own probes that uses these
+  shapes. Rewrites the analysis already answers (measured at `5d83577e`, each
+  leaving no unfinished row of its own):
+  - store owned elements — `Array<string>` rather than `Array<&string>`; a view
+    or an index read over it is accepted;
+  - walk by index — `let n: int = xs.__len() to int; let mut i: int = 0;
+    while i < n { let v = xs[i]; ... i = i + 1; }` — which is accepted over
+    `Array<uint64[]>` as long as no element leaves the function;
+  - write through the array, not through a view — `xs[0] = &s` is refused with
+    the precise `SEM3139` ("borrow of `s` outlives its owner") when it is wrong,
+    and accepted when the stored reference lives long enough;
+  - for a nested array, replace a whole row (`grid[1] = row;`) or flatten it
+    (`grid[r * width + c]`).
+
+  The way to lift the boundary — a buffer-alias model in the analysis — is
+  written down in `docs/runtime-v2-epics/22-step7-execution.md` ("D2 boundary")
+  and tracked as `RV2-DEBT-364`.
 
 ## Concurrency / Runtime
 

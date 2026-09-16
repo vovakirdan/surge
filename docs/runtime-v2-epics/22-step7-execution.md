@@ -264,3 +264,126 @@ without `--expect`.
 Narrowed: 357 (the crash is gone; `Range<float>` iterates once natively and
 panics VM1003 on the VM). Opened: 361 (counted stop-gap behind a handle, Step
 8) and 362 (array cursor crossing). 360 was closed earlier by `a3b7015f`.
+
+## D2 boundary: views and walks over loan-bearing elements (owner decision, 2026-09-16)
+
+**Decision.** For D2, a view, a slice or a walk over an array whose elements
+can hold a borrow stays refused, and the refusal is recorded as a boundary of
+the admitted language instead of being left silent (`docs/KNOWN_LIMITATIONS.md`,
+Arrays). The owner chose this over building an alias model now, on two
+measurements: nothing in the corpus needs these shapes, and every safe program
+that was measured has a rewrite the analysis already answers. The buffer-alias
+model below is the agreed way to lift the boundary later. It is tracked as
+`RV2-DEBT-364`. Two alternatives were declined for D2: building the whole model
+now, and building only its cursor half.
+
+**What is refused, and why refusing is the sound choice.** The shapes are
+`xs[[a..b]]`, `xs.slice(r)`, `for x in xs`, `xs.__range()` with `next()`, and
+`Array::<T>::from_range(r)`, when the element is reference-bearing (`&T`, or a
+struct, union or tuple holding one) or a loan carrier (a canonical `Array` or
+`ArrayFixed`, whose value may itself be a view into other storage). `for` is the
+same cursor: `internal/hir/normalize_for.go` lowers it to an iterator init and
+`next`. A view shares its base's buffer on both backends: native slicing
+returns a pointer into `base->data` and registers the view on the base
+(`runtime/native/rt_array.c`, `array_register_view`), and the VM's slice
+records `ArrSliceBase` and retains it (`internal/vm/heap_alloc_container.go`).
+The analysis keys storage by a formal slot or an owning local
+(`internal/sema/return_origin_backing.go`: "nothing tracks a per-call or
+per-site allocation"), so it cannot see that a write through a view reaches the
+base. Treating a view as a copy would accept the program shown in
+`KNOWN_LIMITATIONS`, whose returned array points at a dead local. Today the
+shapes are refused at a cursor step over a loan-carrier element (`cursor
+element that can hold storage loans needs its backing loan transfer`) and at a
+non-scalar index over such a container (`index requires a non-scalar index
+transfer`); the P1c-2 and P1c-3 packets are designed to keep that refusal when
+they prove the generic core bodies (`from_range`, `__range`, `slice`) for
+borrow-free elements.
+
+**Measured exposure (2026-09-16, `5d83577e`).** The scan covered the golden
+corpus (617 programs expected to compile, 423 expected to be rejected), `core`,
+`stdlib`, the carrier benches, `benchmarks`, `showcases`, and the Surge sources
+embedded in Go tests. One site applies these shapes to reference elements: the
+return-origin probe `use_ref` in
+`internal/driver/return_origin_range_next_test.go`, which is written to be
+refused. Three apply them to array elements: two more probes of that kind, and
+`testdata/golden/vm_arrays/arrays_drop_nested.sg:125-126`. That program's
+refused row, `outer_view[1][0] = 88`, is not this boundary: the same row appears
+for `grid[1][0] = 88` with no view at all, and belongs to the store-through-a-
+place gap below. The same shapes over borrow-free elements occur at 408 sites
+in 204 programs and are outside the boundary.
+
+**Measured rewrites.** Each program below was analysed on its own with the full
+imported `core` at `5d83577e`, through the same analysis the core census runs.
+"Clean" means no unfinished row of the program's own; the build as a whole stays
+refused until the core census itself reaches zero.
+
+| Refused shape | Rewrite | Result |
+| --- | --- | --- |
+| `for s in names` over `Array<&string>` | `Array<string>` walked by index | clean |
+| `names[[0..1]]` over `Array<&string>` | a view or an index read over `Array<string>` | clean |
+| `let mut v = xs[[0..1]]; v[0] = &s;` then `return xs;` (a real bug) | `xs[0] = &s;` | `SEM3139` "borrow of 's' outlives its owner", at the block and at the return |
+| the same with a reference that lives long enough | `xs[0] = b;` with `b: &string` a parameter | clean |
+| `views.__range()` or `for v in views` over `Array<uint64[]>` | an index walk in which no element leaves the function | clean |
+| returning an element of `views` | `return *views[0];` | refused before the analysis, `SEM3197` (a value cannot be taken out of a shared reference) |
+| `outer_view[1][0] = 88` over `int[][]` | `grid[1] = row;`, or a flat `int[]` with a computed index | clean |
+
+**Gaps seen on the way that are not this boundary.** They are ordinary D2
+work, not part of the decision: every `for … in` is unfinished today, even over
+`int[]` (`statement kind 12 needs an origin transfer`; packet P1c-5); a
+reference read out of an `Array<&string>` by index and dereferenced, `*names[i]`
+(`reference loaded through another reference needs content provenance`; the
+N-PROJ gap); and a store through a nested index place, `grid[1][0] = 88` (`store
+through a place needs reference-content transfer`; the N-STORE gap). When they
+close, `for s in names` over `Array<string>` and an index walk over
+`Array<&string>` should join the rewrites above; that is to be re-measured then,
+not assumed.
+
+**How to lift the boundary: the buffer-alias model.** A packet of its own,
+after the D2 core census reaches zero (after P1c-3, P1k H2, and P1x-I, since a
+write through a view is a store through an index place). The design:
+
+1. **A new root kind, `A(b)`, "aliases the buffer of `b`"**, where `b` is a
+   local or a formal slot. It sits beside the existing roots and never replaces
+   a loan.
+2. **Creation.** A view or a slice over a loan-bearing container yields
+   `contents(x) ∪ {A(base)}`, where `base` is the owner root (`Local(xs)` or
+   `Param(slot)`). A cursor yields `{A(base)}` only.
+3. **Store.** A store into a target whose value holds `A(b)` also weakly unions
+   into `b`. A store into `b` weakly unions into every live binding that holds
+   `A(b)`. This is a closure over the finite set of environment bindings and
+   formal slots, not a general referent graph.
+4. **Load.** The contents of a binding are its non-`A` roots joined with the
+   contents of each `A(b)`, recursively over that finite set.
+5. **Scope exit.** When `b` dies, each `A(b)` is replaced by `b`'s contents at
+   that point instead of being expired, because the runtime keeps the buffer
+   alive while a view exists (VM retain, native view registry).
+6. **Calls.** A callee's `A(slot)` substitutes to the actual argument's target
+   roots, keeping the `A`.
+
+What that changes for programs (by design; each row becomes a witness):
+
+| Program | With the boundary | With the model |
+| --- | --- | --- |
+| read-only `for` walk over `Array<&string>` | refused | accepted |
+| read-only view over `Array<&string>` | refused | accepted |
+| write `&s` through a view, then return the base | refused as unfinished | `SEM3139` naming `s` at the inner block |
+| cursor over an `Array<uint64[]>` holding a view of a local, whose element is returned | refused as unfinished | `SEM3139` on that local |
+
+**Size and a smaller variant.** About 250 production lines: a new
+`return_origin_backing_alias.go` (at most 250) and roughly +20 in
+`return_origin_backing.go`, +15 in `return_origin_backing_calls.go`, +10 in
+`return_origin.go`, +5 in `return_origin_index_store.go` and +10 in
+`return_origin_backing_intrinsics.go` (estimates from reading the design, not
+from an implementation). A cursors-only variant is about 80 lines: a cursor
+never writes, so only rules 2 (the cursor half), 4 and 6 are needed, and a
+native cursor holds no base, so today's expiry of `Local(xs)` stays right. It
+admits walks and cursors and leaves views refused.
+
+**What the packet must answer.** The model touches store, load, scope exit and
+calls, which is where a misplaced early return once silenced a real `SEM3139`
+(the withdrawn P1u packet). Each rule needs a counterfactual that turns a named
+witness red, and every FAIL to PASS row in the driver roster must be explained
+before landing. It must not weaken the invariant that `NoBorrowedState` of a
+canonical container stays unsupported (`internal/sema/return_origin_backing_facts_test.go`),
+which is what stops an opaque container result from being read as free of
+borrows.
