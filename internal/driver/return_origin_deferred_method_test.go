@@ -254,9 +254,10 @@ func TestAnalyzeDeferredMethodInstances(t *testing.T) {
 				}
 				deferredCleared(t, analysis, f.unit.SourceKey, originSpan{76, 84, "stash(v)"})
 			}},
-		// B1: a deferred method resolved to a generic implementation stays refused until P1p-G.
-		{name: "i5_generic_impl_blocker", digest: "82d9d5484d2375c9bbee4b3b3c66771b487b95745810f460b54148324c058b7c",
-			text: "fn probe(xs: &int[]) -> uint {\n    return len(xs);\n}\n",
+		// B1 is closed by P1p-G: the generic implementation's own use is routed, and only the
+		// pre-existing root receiver-expression row stays.
+		{name: "i5_generic_impl_len", digest: "82d9d5484d2375c9bbee4b3b3c66771b487b95745810f460b54148324c058b7c",
+			text: "fn probe(xs: &int[]) -> uint {\n    return len(xs);\n}\n", spans: []originSpan{{42, 49, "len(xs)"}},
 			prepare: func(t *testing.T, f originalGenericFixture) {
 				calls := deferredMethodOutcomes(t, f, "core/base.sg", baseLen(t, f))
 				if len(calls) != 1 || len(calls[0].CalleeTemplateArgs) == 0 {
@@ -264,9 +265,10 @@ func TestAnalyzeDeferredMethodInstances(t *testing.T) {
 				}
 			},
 			check: func(t *testing.T, f originalGenericFixture, analysis *sema.ReturnOriginAnalysis) {
-				site := baseLen(t, f)
-				if !originPendingAt(analysis, "core/base.sg", site, "") || originPendingAt(analysis, "core/base.sg", site, originCallRefusal) {
-					t.Errorf("generic implementation use changed its refusal: %+v", originPendingWithin(analysis, "core/base.sg", site.start, site.end))
+				deferredCleared(t, analysis, "core/base.sg", baseLen(t, f))
+				if root := originPendingWithin(analysis, f.unit.SourceKey, 0, 1<<30); len(root) != 1 ||
+					!originPendingAt(analysis, f.unit.SourceKey, originSpan{42, 49, "len(xs)"}, "generic original method call lacks its receiver expression") {
+					t.Errorf("root Pending is not exactly the receiver-expression row at len(xs): %+v", root)
 				}
 			}},
 	} {
