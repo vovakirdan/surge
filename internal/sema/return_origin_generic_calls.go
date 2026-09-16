@@ -164,10 +164,12 @@ func (fn *returnOriginFunction) originalSignature(caller *returnOriginFunction, 
 	var receiver ast.ExprID
 	member, memberCall := u.Builder.Exprs.Member(call.Target)
 	if fn.candidate.HasSelf {
-		if !memberCall || member == nil {
+		switch {
+		case memberCall && member != nil:
+			receiver = member.Target
+		case !returnOriginFreeSelfFunction(sym, original):
 			return nil, "generic original method call lacks its receiver expression"
 		}
-		receiver = member.Target
 	}
 	slots, err := mapReturnOriginArguments(original.Signature, call, receiver)
 	if err != nil || len(slots) != len(fn.info.Params) {
@@ -216,4 +218,28 @@ func (fn *returnOriginFunction) originalSignature(caller *returnOriginFunction, 
 		}
 	}
 	return view, ""
+}
+
+// returnOriginFreeSelfFunction answers whether a HasSelf declaration is a
+// top-level function whose first parameter is only spelled `self`, so a call
+// written without a receiver expression is that function's ordinary positional
+// form. `len` in core/base.sg is the one such declaration the corpus calls.
+//
+// The discriminator is the declaration, never the receiver type: the catalog
+// synthesizes ReceiverType from parameter 0 for exactly these functions
+// (callable_catalog.go:144-147), so it is never NoTypeID here. Only an extern
+// member carries Receiver, ReceiverKey and SymbolFlagMethod
+// (symbols/resolve_declarations.go:318-324), and every export or import copy
+// carries ReceiverKey with it, so an imported method still answers false.
+//
+// Both the selected symbol and the original declaration must answer, because
+// they are two vocabularies for one callable and only their agreement proves
+// the caller resolved the same free function the body owns.
+func returnOriginFreeSelfFunction(selected, original *symbols.Symbol) bool {
+	for _, sym := range [...]*symbols.Symbol{selected, original} {
+		if sym == nil || sym.Receiver.IsValid() || sym.ReceiverKey != "" || sym.Flags&symbols.SymbolFlagMethod != 0 {
+			return false
+		}
+	}
+	return true
 }

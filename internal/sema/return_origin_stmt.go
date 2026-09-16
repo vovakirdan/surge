@@ -135,11 +135,20 @@ func (b *returnOriginBody) stmt(id ast.StmtID, env returnOriginEnv, targets retu
 		data := u.Builder.Stmts.ForClassic(id)
 		return b.classicLoop(id, data, env, targets)
 	case ast.StmtDrop:
-		out, err := b.expr(u.Builder.Stmts.Drop(id).Expr, env, targets)
-		if err == nil {
-			b.pending(node.Span, "explicit drop needs owner-incarnation invalidation")
+		target := u.Builder.Stmts.Drop(id).Expr
+		out, err := b.expr(target, env, targets)
+		if err != nil {
+			return out.flow, err
 		}
-		return out.flow, err
+		owner, releases, admitted := b.droppedBinding(target)
+		if !admitted {
+			b.pending(node.Span, "explicit drop needs owner-incarnation invalidation")
+			return out.flow, nil
+		}
+		if releases && out.flow.normal.reachable {
+			out.flow.normal = out.flow.normal.expireBinding(owner)
+		}
+		return out.flow, nil
 	default:
 		b.pending(node.Span, fmt.Sprintf("statement kind %d needs an origin transfer", node.Kind))
 		return returnOriginFlow{normal: env}, nil
