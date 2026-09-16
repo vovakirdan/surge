@@ -1,0 +1,53 @@
+// The operator shapes the extended escape rule must NOT touch.
+//
+// `through_ref` returns the operator's window over a REFERENCE parameter: the
+// referent is the caller's and outlives this frame, exactly as the direct slice
+// of a `&T[N]` parameter does. `via_ref` does the same through a reference
+// BINDING, which names the caller's storage and not this frame's. `fresh`
+// returns an operator result that owns its own buffer, which no provenance
+// connects to any local. `in_frame` uses the window and drops it here.
+type Arr = { items: uint64[4] };
+
+extern<Arr> {
+    fn __add(self: &Arr, other: &Arr) -> uint64[] {
+        return self.items[[0..2]];
+    }
+    fn __mul(self: &Arr, other: &Arr) -> uint64[] {
+        let mut out: uint64[] = [];
+        out.push(self.items[0] + other.items[0]);
+        return out;
+    }
+}
+
+fn through_ref(a: &Arr, b: &Arr) -> uint64[] {
+    return a + b;
+}
+
+fn via_ref(p: &Arr) -> uint64[] {
+    let r: &Arr = p;
+    return r + r;
+}
+
+fn fresh() -> uint64[] {
+    let a: Arr = Arr { items = [11:uint64, 22:uint64, 33:uint64, 44:uint64] };
+    let b: Arr = Arr { items = [55:uint64, 66:uint64, 77:uint64, 88:uint64] };
+    return a * b;
+}
+
+fn in_frame() -> uint64 {
+    let a: Arr = Arr { items = [11:uint64, 22:uint64, 33:uint64, 44:uint64] };
+    let b: Arr = Arr { items = [55:uint64, 66:uint64, 77:uint64, 88:uint64] };
+    let v = a + b;
+    return v[0];
+}
+
+@entrypoint
+fn main() -> int {
+    let a: Arr = Arr { items = [11:uint64, 22:uint64, 33:uint64, 44:uint64] };
+    let b: Arr = Arr { items = [55:uint64, 66:uint64, 77:uint64, 88:uint64] };
+    let borrowed = through_ref(&a, &b);
+    let aliased = via_ref(&a);
+    let owned = fresh();
+    let scalar = in_frame();
+    return (borrowed[0] to int) + (aliased[0] to int) + (owned[0] to int) + (scalar to int) - 99;
+}

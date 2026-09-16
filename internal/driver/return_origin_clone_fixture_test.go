@@ -72,7 +72,13 @@ func checkReturnOriginStdlibBags(t *testing.T, res *DiagnoseResult, allowEscape 
 		slices.Sort(owners)
 		logReturnOriginCallEvidence(t, map[string]any{"bag_owners": owners, "original_bag": bag.Items(), "bag_cap": bag.Cap(), "bag_len": bag.Len()})
 		for _, d := range bag.Items() {
-			if d != nil && d.Severity >= diag.SevError && !(allowEscape && d.Code == diag.SemaBorrowEscapesReturn && d.Primary.File == res.File.ID) {
+			// A fixture that deliberately leaks is refused by the eager checker too, now
+			// that a window handed back through a call is refused where it escapes. Both
+			// refusals are the fixture's own subject, so `allowEscape` tolerates both --
+			// in the ROOT file only, so an unrelated refusal still stops the run.
+			expected := d != nil && allowEscape && d.Primary.File == res.File.ID &&
+				(d.Code == diag.SemaBorrowEscapesReturn || d.Code == diag.SemaFixedArrayViewEscapes)
+			if d != nil && d.Severity >= diag.SevError && !expected {
 				t.Fatalf("PRECONDITION: real stdlib fixture has an unrelated source refusal: %+v", *d)
 			}
 		}

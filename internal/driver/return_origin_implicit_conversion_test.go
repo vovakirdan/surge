@@ -48,8 +48,10 @@ type implicitConversionLeaf struct {
 	operands           []implicitConversionOperand
 	role               implicitConversionRole
 	cleanRoot          bool
-	summary            string
-	slots              []uint32
+	// eagerEscape: the leaf's program is a leak, and the eager checker now refuses it too.
+	eagerEscape bool
+	summary     string
+	slots       []uint32
 }
 
 func implicitConversionLeaves() []implicitConversionLeaf {
@@ -57,13 +59,16 @@ func implicitConversionLeaves() []implicitConversionLeaf {
 		return implicitConversionOperand{start, end, text, sema.ImplicitConversionTo}
 	}
 	return []implicitConversionLeaf{
-		// Holes: each form is admitted by the eager checker and returns a view of src.
+		// Holes: each form returns a view of src. The eager checker admitted them until the
+		// fixed-array view rule landed; the two that return the value are refused there now.
 		{name: "return_converted_view", digest: "b332b5728d0adc172897d842ab488c34a66ff566f833d84cf54d2a1e0ede6f71",
-			text:     implicitConversionPrefix + "fn leak() -> uint64[] {\n" + implicitConversionLocal + "    return src;\n}\n",
-			operands: []implicitConversionOperand{to(253, 256, "src")}},
+			text:        implicitConversionPrefix + "fn leak() -> uint64[] {\n" + implicitConversionLocal + "    return src;\n}\n",
+			operands:    []implicitConversionOperand{to(253, 256, "src")},
+			eagerEscape: true},
 		{name: "let_converted_view", digest: "aeb33b940523f0f9a8127c701e3b731652f1ec21de2f401141ea3da93284b4c1",
-			text:     implicitConversionPrefix + "fn leak() -> uint64[] {\n" + implicitConversionLocal + "    let v: uint64[] = src;\n    return v;\n}\n",
-			operands: []implicitConversionOperand{to(264, 267, "src")}},
+			text:        implicitConversionPrefix + "fn leak() -> uint64[] {\n" + implicitConversionLocal + "    let v: uint64[] = src;\n    return v;\n}\n",
+			operands:    []implicitConversionOperand{to(264, 267, "src")},
+			eagerEscape: true},
 		{name: "struct_child_converted_view", digest: "c45a69c7aff4bf6a1eac37c31d1d1f272ff3456baabbc4c4558ff17aca05841a",
 			text: "type Holder = { view: uint64[] };\n" + implicitConversionPrefix + "fn leak() -> Holder {\n" + implicitConversionLocal +
 				"    return Holder { view = src };\n}\n",
@@ -110,7 +115,7 @@ func checkImplicitConversionLeaf(t *testing.T, leaf implicitConversionLeaf) {
 			t.Fatalf("PRECONDITION: operand span [%d,%d) does not hold %q", operand.start, operand.end, operand.text)
 		}
 	}
-	res := returnOriginStdlibFixture(t, leaf.text, false)
+	res := returnOriginStdlibFixture(t, leaf.text, leaf.eagerEscape)
 	if err := FinalizeInstantiationClosure(t.Context(), res, 64); err != nil {
 		t.Fatalf("PRECONDITION: closure failed: %v", err)
 	}
