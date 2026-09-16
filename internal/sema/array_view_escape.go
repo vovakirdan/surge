@@ -1,10 +1,7 @@
 package sema
 
 import (
-	"fmt"
-
 	"surge/internal/ast"
-	"surge/internal/diag"
 	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
@@ -86,6 +83,7 @@ func (tc *typeChecker) noteFixedViewBinding(symID symbols.SymbolID, valueExpr as
 	if !symID.IsValid() || tc.fixedViewBindingBase == nil {
 		return
 	}
+	tc.noteFixedViewCallBinding(symID, valueExpr)
 	if base, ok := tc.fixedViewExprBase[tc.unwrapArrayViewExpr(valueExpr)]; ok {
 		tc.fixedViewBindingBase[symID] = base
 		return
@@ -111,6 +109,7 @@ func (tc *typeChecker) checkFixedArrayViewEscapeOnReturn(expr ast.ExprID, span s
 	}
 	base := tc.fixedViewEscapeBase(expr)
 	if !base.IsValid() {
+		tc.noteFixedViewReturnCall(expr, span)
 		return
 	}
 	sym := tc.symbolFromID(base)
@@ -119,32 +118,10 @@ func (tc *typeChecker) checkFixedArrayViewEscapeOnReturn(expr ast.ExprID, span s
 	}
 	storage, ok := tc.frameLocalStorageLabel(base)
 	if !ok {
+		tc.recordFixedViewReturnParam(base)
 		return
 	}
-	name := tc.lookupName(sym.Name)
-	headline := fmt.Sprintf(
-		"cannot return a slice of %s '%s': it is a fixed array, so the slice points at this call frame",
-		storage, name)
-	if tc.reporter == nil {
-		tc.report(diag.SemaFixedArrayViewEscapes, span, "%s", headline)
-		return
-	}
-	b := diag.ReportError(tc.reporter, diag.SemaFixedArrayViewEscapes, span, headline)
-	if b == nil {
-		return
-	}
-	if sym.Span != (source.Span{}) {
-		b.WithNote(sym.Span, fmt.Sprintf(
-			"'%s' is a fixed array: its elements ARE this frame's storage, and a slice of it "+
-				"carries no header that could keep them alive", name))
-	}
-	b.WithNote(span,
-		"slicing a dynamic array may be returned - the runtime registers that view against its "+
-			"base and defers the base's reclamation - but a fixed array has no base header to register against")
-	b.WithNote(span,
-		"hint: build an owned array first: "+
-			"`let mut out: T[] = []; for i: int in 0..(xs.__len() to int) { out.push(xs[i]); }` and return `out`")
-	b.Emit()
+	tc.reportFixedArrayViewEscape(sym, storage, span, nil)
 }
 
 // fixedViewEscapeBase resolves the returned expression to the fixed array it

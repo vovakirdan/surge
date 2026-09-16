@@ -168,7 +168,8 @@ func (b *returnOriginBody) unary(id ast.ExprID, env returnOriginEnv, targets ret
 	case ast.ExprUnaryOwn:
 		out.storage = returnOriginValue{}
 	default:
-		if b.shape(id) == returnOriginRefFree && b.shape(data.Operand) == returnOriginRefFree {
+		if b.shape(id) == returnOriginRefFree && b.shape(data.Operand) == returnOriginRefFree &&
+			!b.selectedCarrierResult(u.Sema.MagicUnarySymbols, id) {
 			out.value = b.discardLoans(out.value, span)
 		} else {
 			b.pending(span, "unary callable needs an exact origin contract")
@@ -227,7 +228,8 @@ func (b *returnOriginBody) binary(id ast.ExprID, env returnOriginEnv, targets re
 		right.storage = returnOriginValue{}
 		return right, nil
 	}
-	borrowFree := b.shape(id) == returnOriginRefFree && b.shape(data.Left) == returnOriginRefFree && b.shape(data.Right) == returnOriginRefFree
+	borrowFree := b.shape(id) == returnOriginRefFree && b.shape(data.Left) == returnOriginRefFree && b.shape(data.Right) == returnOriginRefFree &&
+		!b.selectedCarrierResult(u.Sema.MagicBinarySymbols, id)
 	// A certified operation drops operand origins; the borrow-free path needs no proof.
 	if !borrowFree && (b.shape(id) != returnOriginRefFree ||
 		!b.selectedOperation(u.Sema.MagicBinarySymbols, id, magicNameForBinaryOp(data.Op), 2, data.Left, data.Right)) {

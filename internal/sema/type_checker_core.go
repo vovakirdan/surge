@@ -76,6 +76,15 @@ type typeChecker struct {
 
 	externMethodHeaders map[symbols.SymbolID]*externMethodHeader
 
+	// A call-like result can be a window into what a REFERENCE formal points at, and
+	// its type says only `T[]`. The callee proves the fact about itself where it
+	// returns, the call site keeps which actual fills that formal, and the answer is
+	// read after every body has been walked -- so it does not depend on the order the
+	// functions happen to be written in.
+	fixedViewReturnParams map[symbols.SymbolID]map[int]fixedViewFormal
+	fixedViewBindingCall  map[symbols.SymbolID]fixedViewCall
+	fixedViewReturnCalls  []fixedViewReturn
+
 	// pendingCloneObligation labels the deferred edge rememberDeferredCallable
 	// is about to record. It is set only around that one call, because the edge
 	// builder is shared with the three deferred CALL kinds, which carry none.
@@ -357,6 +366,9 @@ func (tc *typeChecker) run() {
 	tc.arrayViewHolders = make(map[symbols.SymbolID]arrayViewHolding)
 	tc.fixedViewExprBase = make(map[ast.ExprID]symbols.SymbolID)
 	tc.fixedViewBindingBase = make(map[symbols.SymbolID]symbols.SymbolID)
+	tc.fixedViewReturnParams = make(map[symbols.SymbolID]map[int]fixedViewFormal)
+	tc.fixedViewBindingCall = make(map[symbols.SymbolID]fixedViewCall)
+	tc.fixedViewReturnCalls = nil
 	tc.rangeCursorExprBase = make(map[ast.ExprID]symbols.SymbolID)
 	tc.rangeCursorBindingBase = make(map[symbols.SymbolID]symbols.SymbolID)
 	tc.movedPlaces = make(map[Place]source.Span)
@@ -426,6 +438,9 @@ func (tc *typeChecker) run() {
 		tc.leaveScope()
 	}
 	tc.result.rebuildFunctionInstantiations()
+	done()
+	done = phase("check_fixed_view_calls")
+	tc.resolveFixedViewReturnCalls()
 	done()
 	done = phase("infer_function_effects")
 	tc.finalizeFunctionEffects()

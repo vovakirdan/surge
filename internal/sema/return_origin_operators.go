@@ -1,6 +1,8 @@
 package sema
 
 import (
+	"slices"
+
 	"surge/internal/ast"
 	"surge/internal/symbols"
 	"surge/internal/types"
@@ -75,4 +77,84 @@ func returnOriginContainerFormal(in *types.Interner, params []types.TypeID) bool
 		}
 	}
 	return false
+}
+
+// A selection proves nothing on the borrow-free path unless this analysis can NAME
+// the declaration it chose. `borrowFree` is a statement about SHAPES, and a carrier
+// is RefFree-shaped: a body can hand back a view of what a reference formal points
+// at, and so can an OPAQUE body-less declaration, whose implementation is elsewhere
+// and which cannot even announce the fact -- `@return_source` is refused on a result
+// that is not reference-bearing. Only the two core concatenation intrinsics are
+// exempt, and they are certified by identity, not by the absence of a body.
+func (b *returnOriginBody) selectedCarrierResult(selections map[ast.ExprID]symbols.SymbolID, id ast.ExprID) bool {
+	u := b.function.unit
+	selected, present := selections[id]
+	if !present || !b.analyzer.loanCarrier(u.Sema.ExprTypes[id]) {
+		return false
+	}
+	fn, reason := b.analyzer.selectedCallableFunction(u, selected)
+	if reason != "" {
+		return true
+	}
+	return !b.analyzer.coreArrayConcat(fn)
+}
+
+// coreArrayConcat certifies `Array<T> + Array<T>` and `ArrayFixed<T, N> + ArrayFixed<T, N>`
+// the way coreArrayIntrinsic certifies the retained array declarations: by the original
+// body-less builtin declaration, its owning source, its template arity and its exact
+// structural descriptors. A name alone selects nothing, and neither does a missing body.
+func (a *returnOriginAnalyzer) coreArrayConcat(fn *returnOriginFunction) bool {
+	if fn == nil || fn.info == nil || fn.item == nil || fn.candidate == nil {
+		return false
+	}
+	c, u := fn.candidate, fn.unit
+	in := u.Sema.TypeInterner
+	if !c.Builtin || !c.Intrinsic || c.HasBody || c.Async || fn.item.Body.IsValid() ||
+		c.Name != "__add" || c.Name != fn.name || !c.HasSelf ||
+		c.SourceKey != "builtin" || c.ModulePath != "core/intrinsics" || u.SourceKey != "core/intrinsics.sg" ||
+		len(c.TemplateParams) == 0 || c.ReceiverTemplateArity != len(c.TemplateParams) ||
+		len(fn.info.Params) != 2 || len(c.Defaults) != 2 || len(c.Variadic) != 2 ||
+		slices.Contains(c.Defaults, true) || slices.Contains(c.Variadic, true) ||
+		!fn.info.ReturnSources().IsAllInputs() {
+		return false
+	}
+	identity, err := u.owningCallableIdentity(fn.item, fn.symbol, fn.info)
+	if err != nil || identity.BodyKey != fn.key || identity.SourceKey != fn.canonicalSourceKey {
+		return false
+	}
+	// `elem` is T in both families. ArrayFixed carries a second template parameter,
+	// the const length N, and it must be the SAME N in both formals and in the result:
+	// the model checks exactly this, and without it a concat whose lengths disagreed
+	// would certify. The formals are shared references; the result is owned.
+	elem := c.TemplateParams[0]
+	shaped := func(id types.TypeID, wantReference bool) bool {
+		ct, ok := returnOriginContainer(in, id)
+		if !ok || ct.element != elem || ct.reference != wantReference {
+			return false
+		}
+		if wantReference {
+			if mutable, reference := returnOriginBackingDescriptor(in, id); !reference || mutable {
+				return false
+			}
+		}
+		info, present := in.StructInfo(ct.container)
+		if !present || info == nil {
+			return false
+		}
+		switch ct.family {
+		case in.ArrayFixedNominalType():
+			return len(c.TemplateParams) == 2 && len(info.TypeArgs) == 2 && info.TypeArgs[1] == c.TemplateParams[1]
+		case in.ArrayNominalType():
+			return len(c.TemplateParams) == 1
+		default:
+			return false
+		}
+	}
+	if !shaped(fn.info.Params[0], true) || !shaped(fn.info.Params[1], true) || !shaped(fn.info.Result, false) {
+		return false
+	}
+	left, _ := returnOriginContainer(in, fn.info.Params[0])
+	right, _ := returnOriginContainer(in, fn.info.Params[1])
+	out, _ := returnOriginContainer(in, fn.info.Result)
+	return left.family == right.family && left.family == out.family
 }
