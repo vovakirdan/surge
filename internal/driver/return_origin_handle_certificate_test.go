@@ -148,9 +148,9 @@ func TestAnalyzeHandleCertificate(t *testing.T) {
 	}
 }
 
-// The core declarations themselves: certified constructors and readers lose their
-// refusal, and core intrinsics of neighbouring shapes keep it. Task results keep
-// theirs until the task check owns a clone's borrowed spawn arguments. Spans come
+// The core declarations themselves: every certified constructor and reader loses its
+// refusal, the task constructors included; what a running task borrows belongs to the task
+// check. The refusal controls are the dependency cases of TestAnalyzeHandleCertificate. Spans come
 // from each unique declaration text, not from frozen offsets into core.
 func TestReturnOriginHandleCertificateCoreRows(t *testing.T) {
 	f, analysis, _ := analyzeHandleCertificate(t, "handle_certificate_core_rows", handleCertificateCaseNamed(t, "shard_placement"), nil)
@@ -186,9 +186,9 @@ func TestReturnOriginHandleCertificateCoreRows(t *testing.T) {
 		{"@intrinsic fn rt_map_keys<", "rt_map_keys", true},
 		// Array concatenation copies both runs into fresh storage; its declaration row answers it.
 		{"@intrinsic fn __add(self: &Array<T>, other: &Array<T>) -> Array<T>;", "__add", true},
-		{"@intrinsic pub fn clone(self: &Task<T>) -> Task<T>;", "clone", false},
-		{"pub fn checkpoint() -> Task<nothing>;", "checkpoint", false},
-		{"@intrinsic pub fn sleep(", "sleep", false},
+		{"@intrinsic pub fn clone(self: &Task<T>) -> Task<T>;", "clone", true},
+		{"pub fn checkpoint() -> Task<nothing>;", "checkpoint", true},
+		{"@intrinsic pub fn sleep(", "sleep", true},
 	}
 	observed := make(map[string]any, len(rows))
 	for _, row := range rows {

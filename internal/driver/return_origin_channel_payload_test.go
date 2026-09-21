@@ -13,7 +13,7 @@ import (
 )
 
 // A counted channel stores only its payloads, `own X` holds what X holds, and a
-// far core runtime handle holds what that handle holds. Task stays refused because
+// far core runtime handle holds what that handle holds. A far Task stays refused as
 // it is not counted; a core far TcpConn and a type made far by its name alone stay
 // refused because neither is a runtime handle. Only the dependency module varies;
 // every assertion is local to dep/main.sg.
@@ -37,7 +37,7 @@ func channelPayloadCases() []channelPayloadCase {
 			text: "pragma module::dep;\n@intrinsic fn fresh() -> own Channel<uint>;\nfn use_fresh() -> nothing {\n    let c = fresh();\n    return nothing;\n}\n"},
 		{name: "generic_channel_shape", clean: true, digest: "3bc093570e82473a64484f86a1866af82f07cc7ad36be0778bd38c7181d5679c",
 			text: "pragma module::dep;\nfn pass<T>(c: Channel<T>) -> Channel<T> {\n    return c;\n}\nfn use_pass() -> nothing {\n    let c = Channel::<uint>::new(1:uint);\n    let d = pass::<uint>(c);\n    return nothing;\n}\n"},
-		{name: "task_control", site: "t.clone()", reason: genericConditionUnsupported, digest: "adabfca351003d081c6218d789f6b9ea7654153914d9d6efcafc5bd0f953d50a",
+		{name: "task_control", clean: true, digest: "adabfca351003d081c6218d789f6b9ea7654153914d9d6efcafc5bd0f953d50a",
 			text: "pragma module::dep;\nasync fn wait(s: &string) -> nothing {\n    return nothing;\n}\nfn start(s: &string) -> Task<nothing> {\n    return wait(s);\n}\nfn keep(s: &string) -> Task<nothing> {\n    let t = start(s);\n    return t.clone();\n}\n"},
 		{name: "far_control", clean: true, digest: "f7ffea5d96542a0066be3d08b0550ad1f9247762ab570b0da95403fdd97d6ca5",
 			text: "pragma module::dep;\n@intrinsic fn remote() -> far Channel<uint>;\nfn use_remote() -> nothing {\n    let c = remote();\n    return nothing;\n}\n"},
