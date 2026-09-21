@@ -394,3 +394,29 @@ func (tc *typeChecker) reportFixedArrayViewEscape(sym *symbols.Symbol, storage s
 			"`let mut out: T[] = []; for i: int in 0..(xs.__len() to int) { out.push(xs[i]); }` and return `out`")
 	b.Emit()
 }
+
+// refuseFixedViewCapture refuses moving a window into a fixed array of this frame into an
+// `async` or `blocking` body. The window is a bare pointer into the frame slot, the body is a
+// task of its own -- a `blocking` one runs on another thread -- and nothing ties the task's
+// life to the frame's: a body has no identity a borrow pin could be keyed by. It is the rule
+// `return v` already has (RV2-DEBT-206), read at the other way out of the frame.
+func (tc *typeChecker) refuseFixedViewCapture(symID symbols.SymbolID, span source.Span, body string) bool {
+	base, isView := tc.fixedViewBindingBase[symID]
+	sym := tc.symbolFromID(base)
+	if !isView || sym == nil || !tc.isFrameLocalStorage(base) || tc.reporter == nil {
+		return false
+	}
+	name := tc.lookupName(sym.Name)
+	b := diag.ReportError(tc.reporter, diag.SemaFixedArrayViewEscapes, span, fmt.Sprintf(
+		"cannot capture '%s' into this %s: it is a slice of the fixed array '%s', so it points at this call frame, and the body is a task that can outlive the frame",
+		tc.captureName(symID), body, name))
+	if b == nil {
+		return true
+	}
+	if sym.Span != (source.Span{}) {
+		b.WithNote(sym.Span, fmt.Sprintf("'%s' is a fixed array: its elements ARE this frame's storage, and a slice of it carries no header that could keep them alive", name))
+	}
+	b.WithHelp(span, "copy the elements the body needs into an array of its own, and capture that")
+	b.Emit()
+	return true
+}

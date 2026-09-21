@@ -69,6 +69,32 @@ func (tt *TaskTracker) SpawnTask(expr ast.ExprID, span source.Span, scope symbol
 	return id
 }
 
+// NoteCallTask records the task a plain call answered, so its handle has an identity wherever it
+// goes. It is filed under NO scope: leaving such a handle unused is legal, because the task
+// does not run until it is awaited or spawned, so EndScope must never see it.
+func (tt *TaskTracker) NoteCallTask(expr ast.ExprID, span source.Span, scope symbols.ScopeID, inAsyncBlock bool) uint32 {
+	id := tt.nextID
+	tt.nextID++
+	tt.tasks = append(tt.tasks, TaskInfo{ID: id, SpawnExpr: expr, Span: span, Scope: scope, InAsyncBlock: inAsyncBlock})
+	tt.exprTasks[expr] = id
+	if _, ok := tt.pendingPassed[expr]; ok {
+		tt.tasks[id].Returned = true
+		delete(tt.pendingPassed, expr)
+	}
+	return id
+}
+
+// RebindTask records that an assignment replaced the handle a binding holds. The binding
+// names the task the NEW value is a handle on, or none: an `.await()` on it must not join,
+// or release the borrows of, the task it held before.
+func (tt *TaskTracker) RebindTask(binding symbols.SymbolID, value ast.ExprID) {
+	if !binding.IsValid() {
+		return
+	}
+	delete(tt.bindingTasks, binding)
+	tt.BindTaskByExpr(value, binding)
+}
+
 // BindTask associates a task with a variable binding for await tracking.
 func (tt *TaskTracker) BindTask(taskID uint32, binding symbols.SymbolID) {
 	if taskID == 0 || !binding.IsValid() {

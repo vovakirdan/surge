@@ -93,7 +93,7 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 		pushed := tc.pushScope(scope)
 		tc.pushDropScope(true)
 		tc.registerDroppableParams(fn, scope)
-		tc.walkStmt(fn.Body)
+		tc.walkCallableBody(fn.Body)
 		if returnType != tc.types.Builtins().Nothing && tc.returnStatus(fn.Body) != returnClosed {
 			tc.report(diag.SemaMissingReturn, returnSpan, "function returning %s is missing a return", tc.typeLabel(returnType))
 		}

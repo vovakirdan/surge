@@ -619,7 +619,7 @@ func (tc *typeChecker) handleDrop(expr ast.ExprID, span source.Span) {
 	// Asking about the axis MIR actually gates on makes the two agree, and
 	// makes reading a dropped scalar a use-after-move diagnostic instead of a
 	// runtime panic.
-	if exprType != types.NoTypeID && tc.ownsHeap(exprType) {
+	if exprType != types.NoTypeID && tc.ownsHeap(exprType) && !tc.refuseDropUnderTaskPin(symID, span) {
 		tc.markBindingMoved(symID, span)
 	}
 	bid := tc.bindingBorrow[symID]

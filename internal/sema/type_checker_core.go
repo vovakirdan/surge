@@ -180,6 +180,10 @@ type typeChecker struct {
 	// spawn operand currently being typed. It is filled by scanSpawn and consumed
 	// by typeSpawnExpr once the task has an id to key its pins by.
 	spawnBorrowCaptures []spawnBorrowCapture
+	// fnTaskBorrows accumulates, over the returns of the callable being walked, what the
+	// Task it hands back can hold of what it was lent. walkCallableBody commits it to the
+	// signature once, after the body, so no call can read a half-written answer.
+	fnTaskBorrows symbols.TaskBorrowFact
 	// spawnReachingExprs names the positions in that operand from which a borrow
 	// actually travels into the child -- the spawned call's arguments and its
 	// receiver. nil means every borrow in the operand reaches, which is the right
@@ -253,6 +257,9 @@ type returnContext struct {
 	// collects no result, and without this count the body would be read as
 	// one that never gives a value — a second diagnosis of the first error.
 	retSites int
+	// entryPins is the task-borrow pin state where a returnCtxTaskPayload body began.
+	// Those pins are the host's: the body's own exits must not answer for them.
+	entryPins map[taskBorrowPinKey]taskBorrowPin
 }
 
 type collectedResult struct {

@@ -232,6 +232,9 @@ func (tc *typeChecker) typeSpawnExpr(exprID ast.ExprID, span source.Span, value 
 		// borrow the operand carried is pinned to the child's completion rather
 		// than to its own lexical region. task_borrow_pin.go carries the rule.
 		tc.openTaskBorrowPins(taskID, tc.spawnBorrowCaptures)
+		// `spawn t` starts the task `t` already names: one task, two handles, so a join
+		// on either releases what that task borrowed when the call made it.
+		tc.taskTracker.NoteCloneOrigin(taskID, tc.taskIDForAwaitTarget(value, tc.symbolForExpr(tc.unwrapGroupExpr(value))))
 	}
 	tc.spawnBorrowCaptures = prevSpawnCaptures
 

@@ -343,6 +343,9 @@ func (tc *typeChecker) typeExprAsync(id ast.ExprID, span source.Span) types.Type
 		}
 	}
 	for _, cap := range captures {
+		if tc.refuseFixedViewCapture(cap.symID, cap.span, "async body") {
+			continue
+		}
 		// The caller stops owning what moves in, which is what pairs with the
 		// registration above. observeMove is Copy-gated internally, so it fires
 		// on exactly the move-only captures — a `@copy` value composite leaves
@@ -376,6 +379,9 @@ func (tc *typeChecker) typeExprBlocking(id ast.ExprID, span source.Span) types.T
 		if tc.isReferenceType(capType) {
 			tc.report(diag.SemaBlockingBorrowCapture, cap.span,
 				"blocking captures must be by value; cannot capture reference %s", tc.typeLabel(capType))
+			continue
+		}
+		if tc.refuseFixedViewCapture(cap.symID, cap.span, "blocking body") {
 			continue
 		}
 		// `blocking` ships its state to a worker thread while this one keeps

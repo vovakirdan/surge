@@ -42,6 +42,9 @@ func (tc *typeChecker) updateLocalTaskBindingFromAssign(left, right ast.ExprID) 
 		return
 	}
 	symID := tc.symbolForExpr(left)
+	if tc.taskTracker != nil {
+		tc.taskTracker.RebindTask(symID, right)
+	}
 	tc.updateLocalTaskBindingFromExpr(symID, right)
 }
 

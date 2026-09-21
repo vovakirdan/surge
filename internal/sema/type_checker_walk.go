@@ -141,7 +141,7 @@ func (tc *typeChecker) walkItem(id ast.ItemID) {
 			pushed := tc.pushScope(scope)
 			tc.pushDropScope(true)
 			tc.registerDroppableParams(fnItem, scope)
-			tc.walkStmt(fnItem.Body)
+			tc.walkCallableBody(fnItem.Body)
 			if returnType != tc.types.Builtins().Nothing && tc.returnStatus(fnItem.Body) != returnClosed {
 				tc.maybeRecordRustImplicitReturn(fnItem, returnType, returnSpan)
 				tc.report(diag.SemaMissingReturn, returnSpan, "function returning %s is missing a return", tc.typeLabel(returnType))
@@ -315,7 +315,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			if explicitReturn || tc.currentBlockReturnContext() == nil {
 				// The frame is about to go, and a child still reading one of its
 				// places would read storage nobody owns.
-				tc.refuseLivePinsAtReturn(valueType)
+				tc.refuseLivePinsAtReturn(ret.Expr)
 				tc.noteTaskContainerLoopReturn(stmt.Span)
 				tc.validateReturn(stmt.Span, ret.Expr, valueType)
 				tc.recordEarlyExitDrops(id, false)

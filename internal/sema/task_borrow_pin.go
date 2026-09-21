@@ -8,7 +8,6 @@ import (
 	"surge/internal/diag"
 	"surge/internal/source"
 	"surge/internal/symbols"
-	"surge/internal/types"
 )
 
 // A child task that captured a borrow of its parent keeps reading that place for
@@ -106,7 +105,7 @@ func (tc *typeChecker) currentLoopDepth() int {
 func (tc *typeChecker) rejectLoopBackEdgePins(loopLabel string) {
 	tc.refuseLivePinsAtEdge(tc.currentLoopDepth(), func(label string) string {
 		return fmt.Sprintf(
-			"a task spawned in this %s still borrows %s at the end of the body; the next iteration would run beside it",
+			"a task started in this %s still borrows %s at the end of the body; the next iteration would run beside it",
 			loopLabel, label)
 	})
 }
@@ -118,7 +117,7 @@ func (tc *typeChecker) rejectLoopBackEdgePins(loopLabel string) {
 // them releases a pin on a path that never reached it.
 func (tc *typeChecker) refuseLivePinsAtAbruptExit(depth int, what string) {
 	tc.refuseLivePinsAtEdge(depth, func(label string) string {
-		return fmt.Sprintf("a spawned task still borrows %s at this %s", label, what)
+		return fmt.Sprintf("a task still borrows %s at this %s", label, what)
 	})
 }
 
@@ -375,14 +374,12 @@ func (tc *typeChecker) resetTaskBorrowPinsForCallable() {
 }
 
 // refuseLivePinsAtReturn is the return edge's form of refuseLivePinsAtAbruptExit.
-// It steps aside when the return HANDS THE TASK BACK, because SEM3139 already
-// answers that and with the better sentence -- it names the binding that dies and
-// why the caller cannot fix it. Two messages for one defect is worse than one.
-func (tc *typeChecker) refuseLivePinsAtReturn(valueType types.TypeID) {
-	if tc.isTaskType(valueType) {
-		return
-	}
-	tc.refuseLivePinsAtAbruptExit(0, "return")
+// It steps aside only for the task the return NAMES, because SEM3139 has judged
+// that one already and with the better sentence. It used to step aside for ANY
+// returned Task, so `return pass(t)` left with the frame still borrowed by `t`.
+func (tc *typeChecker) refuseLivePinsAtReturn(returned ast.ExprID) {
+	tc.noteReturnedTaskBorrows(returned)
+	tc.refuseLivePinsAtExit(returned, nil, "return")
 }
 
 // taskBorrowPinFor reports the pin covering a place, if any child still holds it.
@@ -457,7 +454,7 @@ func (tc *typeChecker) reportTaskBorrowPinConflict(place Place, span source.Span
 		return
 	}
 	builder.WithNote(pin.Span,
-		fmt.Sprintf("a spawned task captured this borrow of %s and is not joined on every path to here", label))
+		fmt.Sprintf("a task captured this borrow of %s and is not joined on every path to here", label))
 	builder.WithHelp(pin.Span,
 		"join the task before this line, on every path that can reach it")
 	builder.Emit()
@@ -512,7 +509,7 @@ func (tc *typeChecker) refuseBorrowOfPinnedPlace(place Place, span source.Span, 
 		return true
 	}
 	builder.WithNote(pin.Span,
-		fmt.Sprintf("a spawned task captured this borrow of %s and is not joined on every path to here", label))
+		fmt.Sprintf("a task captured this borrow of %s and is not joined on every path to here", label))
 	builder.WithHelp(pin.Span,
 		"join the task before this line, on every path that can reach it")
 	builder.Emit()

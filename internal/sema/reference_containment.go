@@ -119,37 +119,43 @@ func (tc *typeChecker) checkTaskBorrowEscapeOnReturn(expr ast.ExprID, ty types.T
 		return
 	}
 	for _, arg := range call.Args {
-		base := tc.borrowedFrameLocalBase(arg.Value)
-		if !base.IsValid() {
-			continue
-		}
-		sym := tc.symbolFromID(base)
-		if sym == nil {
-			continue
-		}
-		name := tc.lookupName(sym.Name)
-		argSpan := tc.exprSpan(arg.Value)
-		if tc.reporter == nil {
-			tc.report(diag.SemaBorrowEscapesReturn, span,
-				"cannot return this task: it borrows '%s', which is freed when the function returns while the task may still be running", name)
+		if base := tc.borrowedFrameLocalBase(arg.Value); base.IsValid() && tc.symbolFromID(base) != nil {
+			tc.reportTaskBorrowEscape(span, base, tc.exprSpan(arg.Value), cloneSpan)
 			return
 		}
-		b := diag.ReportError(tc.reporter, diag.SemaBorrowEscapesReturn, span,
-			fmt.Sprintf("cannot return this task: it borrows '%s', which is freed when the function returns while the task may still be running", name))
-		if b != nil {
-			if argSpan != (source.Span{}) {
-				b.WithNote(argSpan, fmt.Sprintf("the task borrowed '%s' here", name))
-			}
-			if cloneSpan != (source.Span{}) && cloneSpan != span {
-				b.WithNote(cloneSpan, "this clone is a second handle on the same task, so it holds the same borrow")
-			}
-			if advice := tc.cloneAdviceFor(adviceTaskBorrowsFrameLocal, tc.bindingType(base), name); advice.Help != "" {
-				b.WithHelp(span, advice.Help)
-			}
-			b.Emit()
-		}
+	}
+	// A receiver is lent without an `&` to read, so the arguments are not the whole answer.
+	if base, at := tc.taskPinnedFrameLocal(inner); base.IsValid() && tc.symbolFromID(base) != nil {
+		tc.reportTaskBorrowEscape(span, base, at, cloneSpan)
+	}
+}
+
+// reportTaskBorrowEscape is SEM3139 for a task handle. lentAt is where the task took the
+// borrow; cloneSpan, when set, is the second handle the borrow is leaving through.
+func (tc *typeChecker) reportTaskBorrowEscape(span source.Span, base symbols.SymbolID, lentAt, cloneSpan source.Span) {
+	name := tc.lookupName(tc.symbolFromID(base).Name)
+	freed := "when the function returns"
+	if tc.enclosingTaskBody() != nil {
+		freed = "when this body finishes"
+	}
+	msg := fmt.Sprintf("cannot return this task: it borrows '%s', which is freed %s while the task may still be running", name, freed)
+	if tc.reporter == nil {
 		return
 	}
+	b := diag.ReportError(tc.reporter, diag.SemaBorrowEscapesReturn, span, msg)
+	if b == nil {
+		return
+	}
+	if lentAt != (source.Span{}) {
+		b.WithNote(lentAt, fmt.Sprintf("the task borrowed '%s' here", name))
+	}
+	if cloneSpan != (source.Span{}) && cloneSpan != span {
+		b.WithNote(cloneSpan, "this clone is a second handle on the same task, so it holds the same borrow")
+	}
+	if advice := tc.cloneAdviceFor(adviceTaskBorrowsFrameLocal, tc.bindingType(base), name); advice.Help != "" {
+		b.WithHelp(span, advice.Help)
+	}
+	b.Emit()
 }
 
 // borrowedFrameLocalBase classifies an argument expression: when it lends

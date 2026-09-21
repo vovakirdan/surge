@@ -134,6 +134,7 @@ func (tc *typeChecker) leaveScope() {
 		}
 	}
 	tc.checkTaskContainersAtScopeExit(top)
+	tc.refusePinsOfEndedScope(top)
 	tc.releaseScopeBindings(top)
 }
 

@@ -51,8 +51,13 @@ func (tc *typeChecker) taskBlockPayload(id ast.ExprID, span source.Span, body as
 	// the block owns a frame, so a place a child of the BLOCK borrows constrains
 	// the BLOCK's storage and not its host's.
 	pinsOutsideBody := tc.snapshotTaskBorrowPins()
+	tc.returnStack[len(tc.returnStack)-1].entryPins = pinsOutsideBody
 	tc.activationBlocks = append(tc.activationBlocks, span)
 	tc.walkStmt(body)
+	// The body is a frame, and it can end without a `ret`: that edge is judged like the rest.
+	if tc.returnStatus(body) != returnClosed {
+		tc.refuseLivePinsAtExit(ast.NoExprID, pinsOutsideBody, label+" end")
+	}
 	tc.activationBlocks = tc.activationBlocks[:len(tc.activationBlocks)-1]
 	tc.restoreTaskBorrowPins(pinsOutsideBody)
 	if async {
@@ -108,6 +113,7 @@ func (tc *typeChecker) recordRetExit(id ast.StmtID) {
 		}
 		tc.noteTaskContainerLoopReturn(retSpan)
 		tc.recordEarlyExitDrops(id, false)
+		tc.refuseTaskBorrowsAtRet(id, ctx.entryPins)
 		return
 	}
 	if tc.insideOnCrossing() {

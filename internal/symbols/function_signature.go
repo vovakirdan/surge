@@ -33,6 +33,20 @@ func ArrayTypeKey(elem string, arr *ast.TypeArray) string {
 	return "[" + elem + "]"
 }
 
+// TaskBorrowFact is what the type checker learned, from a plain function's own returns, about
+// the Task that function hands back. It is written while the function's body is checked and
+// read at its call sites; the signature is shared with importers, so they read it too.
+type TaskBorrowFact uint8
+
+const (
+	// TaskBorrowsUnknown means the function was not judged yet: a caller must assume the task holds what it was lent.
+	TaskBorrowsUnknown TaskBorrowFact = iota
+	// TaskBorrowsNothing means every return hands back a task built from owned values only.
+	TaskBorrowsNothing
+	// TaskBorrowsLent means some return hands back a task that may hold a reference it was lent.
+	TaskBorrowsLent
+)
+
 // FunctionSignature captures a simplified view of a function signature.
 type FunctionSignature struct {
 	Params             []TypeKey
@@ -44,6 +58,7 @@ type FunctionSignature struct {
 	HasBody            bool
 	HasSelf            bool
 	ReturnSourceSyntax ReturnSourceSyntax
+	TaskBorrows        TaskBorrowFact
 }
 
 func buildFunctionSignature(builder *ast.Builder, fn *ast.FnItem) *FunctionSignature {
