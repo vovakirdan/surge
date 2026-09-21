@@ -15,6 +15,9 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		b.refuseUncheckedCellResult(id, &out)
 		return out, err
 	}
+	if out, handled, err := b.farSelector(id, call, env, targets); handled || err != nil {
+		return out, err
+	}
 	span := u.Builder.Exprs.Get(id).Span
 	symID := u.Symbols.ExprSymbols[id]
 	sym := u.Symbols.Table.Symbols.Get(symID)
