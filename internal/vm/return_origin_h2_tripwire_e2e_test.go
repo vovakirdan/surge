@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"surge/internal/diag"
 	"surge/internal/driver"
 	"surge/internal/layout"
 	"surge/internal/mir"
@@ -18,8 +19,9 @@ import (
 	"surge/internal/vm"
 )
 
-// RV2-DEBT-365 tripwire, runtime rows. Each program leaks a task that borrows a dead frame,
-// builds with no refusal, and is stopped only because its runner works on no backend. A row
+// RV2-DEBT-365 tripwire, runtime rows. The leaking programs are refused by the task check
+// (TestH2TripwireTaskCheckRefusesLeakedRuns). Each row below runs the same runner over a twin whose
+// task borrows nothing: it builds with no refusal and its runner works on no backend. A row
 // pins that exact outcome on the backend SURGE_BACKEND names; anything else - the task ran, a
 // different fault, a compile-time refusal - is red. The frozen sources and digests are in
 // return_origin_h2_tripwire_sources_test.go.
@@ -173,33 +175,33 @@ func checkH2TripwireBarrier(t *testing.T, name, text, digest string, barrier h2T
 
 // RV2-DEBT-365: `.await()` on an `own Task` receiver is supported on no backend.
 func TestH2TripwireNotRunnableG1OwnBinding(t *testing.T) {
-	checkH2TripwireBarrier(t, "g1_own_binding", h2TripwireG1OwnBinding, h2TripwireG1OwnBindingDigest, h2BarrierOwnAwait)
+	checkH2TripwireBarrier(t, "g1_own_binding", h2TripwireG1OwnBindingTwin, h2TripwireG1OwnBindingTwinDigest, h2BarrierOwnAwait)
 }
 
 // RV2-DEBT-365: the same receiver as a unary `own` expression.
 func TestH2TripwireNotRunnableG1bOwnExpr(t *testing.T) {
-	checkH2TripwireBarrier(t, "g1b_own_expr", h2TripwireG1bOwnExpr, h2TripwireG1bOwnExprDigest, h2BarrierOwnAwait)
+	checkH2TripwireBarrier(t, "g1b_own_expr", h2TripwireG1bOwnExprTwin, h2TripwireG1bOwnExprTwinDigest, h2BarrierOwnAwait)
 }
 
 // RV2-DEBT-365: a scope join from a sync main has no current task.
 func TestH2TripwireNotRunnableG3ScopeJoin(t *testing.T) {
-	checkH2TripwireBarrier(t, "g3_scope_join", h2TripwireG3ScopeJoin, h2TripwireG3ScopeJoinDigest, h2BarrierScopeJoin)
+	checkH2TripwireBarrier(t, "g3_scope_join", h2TripwireG3ScopeJoinTwin, h2TripwireG3ScopeJoinTwinDigest, h2BarrierScopeJoin)
 }
 
 // RV2-DEBT-365: an async entrypoint's body does not run (RV2-DEBT-050). The arms end the
 // process with rt_exit, so a body that runs is seen even while the entry drops its result.
 func TestH2TripwireNotRunnableG4xAsyncEntry(t *testing.T) {
-	checkH2TripwireBarrier(t, "g4x_async_entry", h2TripwireG4xAsyncEntry, h2TripwireG4xAsyncEntryDigest, h2BarrierAsyncEntry)
+	checkH2TripwireBarrier(t, "g4x_async_entry", h2TripwireG4xAsyncEntryTwin, h2TripwireG4xAsyncEntryTwinDigest, h2BarrierAsyncEntry)
 }
 
 // RV2-DEBT-365: the same runner over a task forwarded through a by-value formal.
 func TestH2TripwireNotRunnableRo6xAsyncEntry(t *testing.T) {
-	checkH2TripwireBarrier(t, "ro6x_async_entry", h2TripwireRo6xAsyncEntry, h2TripwireRo6xAsyncEntryDigest, h2BarrierAsyncEntry)
+	checkH2TripwireBarrier(t, "ro6x_async_entry", h2TripwireRo6xAsyncEntryTwin, h2TripwireRo6xAsyncEntryTwinDigest, h2BarrierAsyncEntry)
 }
 
 // RV2-DEBT-365: the same runner over a task stored through a `&mut` formal.
 func TestH2TripwireNotRunnableRo7xAsyncEntry(t *testing.T) {
-	checkH2TripwireBarrier(t, "ro7x_async_entry", h2TripwireRo7xAsyncEntry, h2TripwireRo7xAsyncEntryDigest, h2BarrierAsyncEntry)
+	checkH2TripwireBarrier(t, "ro7x_async_entry", h2TripwireRo7xAsyncEntryTwin, h2TripwireRo7xAsyncEntryTwinDigest, h2BarrierAsyncEntry)
 }
 
 // The same entry and arms over a task that borrows nothing. While RV2-DEBT-050 stands it is
@@ -269,5 +271,60 @@ func TestH2TripwireMatcherRejectsRecordedFaults(t *testing.T) {
 		if h2HarnessExit.holds(backend, h2TripwireOutcome{}) == "" {
 			t.Errorf("the harness control accepted exit 0 on %s", backend)
 		}
+	}
+}
+
+// h2TripwireTaskCheckVerdict answers "" when the frozen leaking program is refused by the task
+// check and by nothing else: exactly one error, with this code, whose primary span reads at.
+func h2TripwireTaskCheckVerdict(t *testing.T, name, text, digest, code, at string) string {
+	t.Helper()
+	if got := fmt.Sprintf("%x", sha256.Sum256([]byte(text))); got != digest {
+		t.Fatalf("PRECONDITION: frozen probe changed: %s", got)
+	}
+	t.Setenv("SURGE_STDLIB", repoRoot(t))
+	src := filepath.Join(t.TempDir(), "h2tw_"+name+".sg")
+	if err := os.WriteFile(src, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	opts := driver.DiagnoseOptions{Stage: driver.DiagnoseStageSema}
+	result, err := driver.DiagnoseWithOptions(context.Background(), src, &opts)
+	if err != nil || result == nil || result.Bag == nil {
+		t.Fatalf("PRECONDITION: the probe did not reach the task check: %v", err)
+	}
+	var verdicts []string
+	for _, d := range result.Bag.Items() {
+		if d.Severity < diag.SevError {
+			continue
+		}
+		got := ""
+		if int(d.Primary.End) <= len(text) {
+			got = text[d.Primary.Start:d.Primary.End]
+		}
+		verdicts = append(verdicts, d.Code.ID()+"@"+got)
+	}
+	if want := code + "@" + at; len(verdicts) != 1 || verdicts[0] != want {
+		return fmt.Sprintf("the leaked task is not refused by the task check alone: errors %q, want exactly [%q]", verdicts, want)
+	}
+	return ""
+}
+
+// RV2-DEBT-365, the first line: each leaking program the rows above are twins of is refused by
+// the task check, on either backend, before any runner is reached. A handle that leaves by
+// `return t` is SEM3139 at the handle; one that leaves through `pass(t)` or `*out =` is SEM3021
+// at the borrow the task took.
+func TestH2TripwireTaskCheckRefusesLeakedRuns(t *testing.T) {
+	for _, row := range []struct{ name, text, digest, code, at string }{
+		{"g1_own_binding", h2TripwireG1OwnBinding, h2TripwireG1OwnBindingDigest, "SEM3139", "t"},
+		{"g1b_own_expr", h2TripwireG1bOwnExpr, h2TripwireG1bOwnExprDigest, "SEM3139", "t"},
+		{"g3_scope_join", h2TripwireG3ScopeJoin, h2TripwireG3ScopeJoinDigest, "SEM3139", "t"},
+		{"g4x_async_entry", h2TripwireG4xAsyncEntry, h2TripwireG4xAsyncEntryDigest, "SEM3139", "t"},
+		{"ro6x_async_entry", h2TripwireRo6xAsyncEntry, h2TripwireRo6xAsyncEntryDigest, "SEM3021", "&l"},
+		{"ro7x_async_entry", h2TripwireRo7xAsyncEntry, h2TripwireRo7xAsyncEntryDigest, "SEM3021", "&l"},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			if verdict := h2TripwireTaskCheckVerdict(t, row.name, row.text, row.digest, row.code, row.at); verdict != "" {
+				t.Error(verdict)
+			}
+		})
 	}
 }

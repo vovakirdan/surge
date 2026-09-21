@@ -46,6 +46,7 @@ func step7GateRows() []step7GateRow {
 		"TestH2TripwireRefusedG5ModuleTimeout",
 		"TestH2TripwireImportAddsCoreRowsG5b",
 		"TestH2TripwireImportDifferentialRejectsTheTwin",
+		"TestH2TripwireTaskCheckRefusesLeaks",
 	}
 	tripwireRuntime := []string{
 		"TestH2TripwireNotRunnableG1OwnBinding",
@@ -57,6 +58,7 @@ func step7GateRows() []step7GateRow {
 		"TestH2TripwireWitnessControl",
 		"TestH2TripwireHarnessObservesExit",
 		"TestH2TripwireMatcherRejectsRecordedFaults",
+		"TestH2TripwireTaskCheckRefusesLeakedRuns",
 	}
 	return []step7GateRow{
 		{"cast_offer_ir", "runtime-v2-carrier-check", "./internal/backend/llvm", "", "llvm", []string{"TestEmitNumericCastTemporaryCleanup", "TestEmitNumericCastBorrowedAndFixedControls", "TestChannelSendOfferUsesDisposablePollStorage"}},

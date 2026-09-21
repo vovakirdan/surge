@@ -10,14 +10,15 @@ import (
 	"strings"
 	"testing"
 
+	"surge/internal/diag"
 	"surge/internal/sema"
 )
 
 // RV2-DEBT-365 tripwire, compile rows. Return-origin does not model what a running task
-// borrows, and the task check that owns it has a measured hole. Each program below leaks a
-// task that borrows a dead frame and would run it; it is refused today by exactly one
-// incidental rule. A row pins that rule's exact rows, so the change that removes the rule
-// turns the row red before the task check has closed the hole.
+// borrows; the task check does, and it refuses every leaking program of this file
+// (TestH2TripwireTaskCheckRefusesLeaks). The incidental rule that stopped each of them
+// before is still pinned, row for row, on a twin whose task borrows nothing, so the change
+// that removes the rule turns a row red and sends its author to the ledger row first.
 //
 // The three core Task rows may still be present (a tree below census 0); no other core row may.
 
@@ -131,35 +132,35 @@ const h2TripwireG1 = "generic original call argument disagrees with its substitu
 
 // RV2-DEBT-365: the G1 row on a non-own `.await()` receiver (removed by W4-G1).
 func TestH2TripwireRefusedG0Await(t *testing.T) {
-	checkH2TripwireRefused(t, h2TripwireG0Await, h2TripwireG0AwaitDigest,
-		[]h2TripwireOwnRow{{232, 241, "t.await()", h2TripwireG1}}, true)
+	checkH2TripwireRefused(t, h2TripwireG0AwaitTwin, h2TripwireG0AwaitTwinDigest,
+		[]h2TripwireOwnRow{{230, 239, "t.await()", h2TripwireG1}}, true)
 }
 
 // RV2-DEBT-365: the same G1 row, with the result carried in the exit code.
 func TestH2TripwireRefusedG0dAwaitDisc(t *testing.T) {
-	checkH2TripwireRefused(t, h2TripwireG0dAwaitDisc, h2TripwireG0dAwaitDiscDigest,
-		[]h2TripwireOwnRow{{232, 241, "t.await()", h2TripwireG1}}, true)
+	checkH2TripwireRefused(t, h2TripwireG0dAwaitDiscTwin, h2TripwireG0dAwaitDiscTwinDigest,
+		[]h2TripwireOwnRow{{230, 239, "t.await()", h2TripwireG1}}, true)
 }
 
 // RV2-DEBT-365: a module-qualified core `timeout` has no callable identity.
 func TestH2TripwireRefusedG5ModuleTimeout(t *testing.T) {
-	checkH2TripwireRefused(t, h2TripwireG5ModuleTimeout, h2TripwireG5ModuleTimeoutDigest, []h2TripwireOwnRow{
-		{243, 267, "ci.timeout(leak(), 1000)", "generic use lacks its exact original callable declarations"},
-		{243, 267, "ci.timeout(leak(), 1000)", "selected callable lacks its published callable authority"},
+	checkH2TripwireRefused(t, h2TripwireG5ModuleTimeoutTwin, h2TripwireG5ModuleTimeoutTwinDigest, []h2TripwireOwnRow{
+		{241, 265, "ci.timeout(leak(), 1000)", "generic use lacks its exact original callable declarations"},
+		{241, 265, "ci.timeout(leak(), 1000)", "selected callable lacks its published callable authority"},
 	}, false)
 }
 
 // RV2-DEBT-365: an explicit `import core/intrinsics` re-adds core rows, so an aliased
 // `timeout` called from a sync main does not build. The twin is the same leak without the import.
 func TestH2TripwireImportAddsCoreRowsG5b(t *testing.T) {
-	twinOwn, twinCore, _ := h2TripwirePending(t, h2TripwireG4dTwin, h2TripwireG4dTwinDigest)
+	twinOwn, twinCore, _ := h2TripwirePending(t, h2TripwireG4dTwinTwin, h2TripwireG4dTwinTwinDigest)
 	if len(twinOwn) != 0 {
 		t.Fatalf("PRECONDITION: the import-free twin has rows of its own: %+v", twinOwn)
 	}
 	if verdict := h2TripwireOnlyTaskCore(twinCore); verdict != "" {
 		t.Fatalf("PRECONDITION: %s", verdict)
 	}
-	own, core, built := h2TripwirePending(t, h2TripwireG5bAliasTimeout, h2TripwireG5bAliasTimeoutDigest)
+	own, core, built := h2TripwirePending(t, h2TripwireG5bAliasTimeoutTwin, h2TripwireG5bAliasTimeoutTwinDigest)
 	if built {
 		t.Fatal("the importing program builds: its barrier is gone (RV2-DEBT-365)")
 	}
@@ -194,4 +195,68 @@ func TestH2TripwireImportDifferentialRejectsTheTwin(t *testing.T) {
 			}
 		})
 	}
+}
+
+// h2TripwireTaskCheckVerdict answers "" when the frozen leaking program is refused by the task
+// check and by nothing else: exactly one error, with this code, whose primary span reads at.
+func h2TripwireTaskCheckVerdict(t *testing.T, text, digest, code, at string) string {
+	t.Helper()
+	if got := fmt.Sprintf("%x", sha256.Sum256([]byte(text))); got != digest {
+		t.Fatalf("PRECONDITION: frozen probe changed: %s", got)
+	}
+	t.Setenv("SURGE_STDLIB", repoRootFromDriverTest(t))
+	dir := t.TempDir()
+	path := filepath.Join(dir, "origin.sg")
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	opts := DiagnoseOptions{Stage: DiagnoseStageSema, BaseDir: dir, MaxDiagnostics: 64, IgnoreWarnings: true}
+	res, err := DiagnoseWithOptions(t.Context(), path, &opts)
+	var unfinished *returnOriginUnfinishedError
+	if err != nil && !errors.As(err, &unfinished) {
+		t.Fatalf("PRECONDITION: the probe did not reach the task check: %v", err)
+	}
+	var verdicts []string
+	for _, d := range h2TripwireBagItems(res) {
+		if d.Severity < diag.SevError {
+			continue
+		}
+		got := ""
+		if int(d.Primary.End) <= len(text) {
+			got = text[d.Primary.Start:d.Primary.End]
+		}
+		verdicts = append(verdicts, d.Code.ID()+"@"+got)
+	}
+	if want := code + "@" + at; len(verdicts) != 1 || verdicts[0] != want {
+		return fmt.Sprintf("the leaked task is not refused by the task check alone: errors %q, want exactly [%q]", verdicts, want)
+	}
+	return ""
+}
+
+// RV2-DEBT-365, the first line: each leaking program the rows above are twins of is refused by
+// the task check. This is what stops a leaked task now; the barriers above are what is left if
+// it regresses, so neither half of this file may go red alone without the ledger row being read.
+func TestH2TripwireTaskCheckRefusesLeaks(t *testing.T) {
+	for _, row := range []struct{ name, text, digest string }{
+		{"g0_await", h2TripwireG0Await, h2TripwireG0AwaitDigest},
+		{"g0d_await_disc", h2TripwireG0dAwaitDisc, h2TripwireG0dAwaitDiscDigest},
+		{"g5_module_timeout", h2TripwireG5ModuleTimeout, h2TripwireG5ModuleTimeoutDigest},
+		{"g5b_alias_timeout", h2TripwireG5bAliasTimeout, h2TripwireG5bAliasTimeoutDigest},
+		{"g4d_twin", h2TripwireG4dTwin, h2TripwireG4dTwinDigest},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			if verdict := h2TripwireTaskCheckVerdict(t, row.text, row.digest, "SEM3139", "t"); verdict != "" {
+				t.Error(verdict)
+			}
+		})
+	}
+}
+
+// h2TripwireBagItems is the diagnostics of a result that may be nil: an unfinished return-origin
+// analysis hands back no result, and that happens only when the bag held no error.
+func h2TripwireBagItems(res *DiagnoseResult) []*diag.Diagnostic {
+	if res == nil || res.Bag == nil {
+		return nil
+	}
+	return res.Bag.Items()
 }

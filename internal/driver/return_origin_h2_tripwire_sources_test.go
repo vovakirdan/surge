@@ -105,3 +105,110 @@ async fn main() -> int {
 }
 `
 )
+
+// The same runners over a task that borrows nothing: `worker` takes its string by value. The task
+// check refuses the leaking originals above (TestH2TripwireTaskCheckRefusesLeaks), so each
+// barrier is pinned on the twin it would stop in exactly the same way.
+const (
+	h2TripwireG0AwaitTwinDigest = "c042898a9f9005d457e1abff68dbe85745beb587e575bc43ad7d946d1545455a"
+	h2TripwireG0AwaitTwin       = `async fn worker(x: string) -> int {
+    return len(x) to int;
+}
+
+fn leak() -> Task<int> {
+    let l: string = "abcdef";
+    let t = worker(l);
+    return t;
+}
+
+@entrypoint
+fn main() -> int {
+    let t = leak();
+    return compare t.await() {
+        Success(n) => n - 6;
+        Cancelled() => 100;
+    };
+}
+`
+	h2TripwireG0dAwaitDiscTwinDigest = "9e05a2bdb77555a2afcf37261691de94aa00c267743bcc102dd68b600003fb4f"
+	h2TripwireG0dAwaitDiscTwin       = `async fn worker(x: string) -> int {
+    return len(x) to int;
+}
+
+fn leak() -> Task<int> {
+    let l: string = "abcdef";
+    let t = worker(l);
+    return t;
+}
+
+@entrypoint
+fn main() -> int {
+    let t = leak();
+    return compare t.await() {
+        Success(n) => n + 40;
+        Cancelled() => 100;
+    };
+}
+`
+	h2TripwireG5ModuleTimeoutTwinDigest = "36e58f322c593f2e814e2df95cd4ac0b7abdb9254b428af05fa75baf13d121d4"
+	h2TripwireG5ModuleTimeoutTwin       = `import core/intrinsics as ci;
+
+async fn worker(x: string) -> int {
+    return len(x) to int;
+}
+
+fn leak() -> Task<int> {
+    let l: string = "abcdef";
+    let t = worker(l);
+    return t;
+}
+
+@entrypoint
+fn main() -> int {
+    return compare ci.timeout(leak(), 1000) {
+        Success(n) => n - 6;
+        Cancelled() => 100;
+    };
+}
+`
+	h2TripwireG5bAliasTimeoutTwinDigest = "e275f740b486d8a6035f7ca58f5a4aaaa34b68e3f95624e5403f459c45b12cd0"
+	h2TripwireG5bAliasTimeoutTwin       = `import core/intrinsics::{timeout as tm};
+
+async fn worker(x: string) -> int {
+    return len(x) to int;
+}
+
+fn leak() -> Task<int> {
+    let l: string = "abcdef";
+    let t = worker(l);
+    return t;
+}
+
+@entrypoint
+fn main() -> int {
+    return compare tm(leak(), 1000) {
+        Success(n) => n - 6;
+        Cancelled() => 100;
+    };
+}
+`
+	h2TripwireG4dTwinTwinDigest = "92e065aea53c758e86f3a523011565a7aaab21755d98d780d2e3315a42c76da6"
+	h2TripwireG4dTwinTwin       = `async fn worker(x: string) -> int {
+    return len(x) to int;
+}
+
+fn leak() -> Task<int> {
+    let l: string = "abcdef";
+    let t = worker(l);
+    return t;
+}
+
+@entrypoint
+async fn main() -> int {
+    return compare timeout(leak(), 1000) {
+        Success(n) => n + 40;
+        Cancelled() => 100;
+    };
+}
+`
+)

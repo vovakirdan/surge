@@ -182,6 +182,7 @@ fn main() -> int {
         let mut inner: int = 0;
         let t = spawn resident_worker(&inner);
         checkpoint().await();
+        let _ = t.await();
         ret 0;
     }).await();
     return compare res {
