@@ -338,15 +338,18 @@ refused until the core census itself reaches zero.
 | `outer_view[1][0] = 88` over `int[][]` | `grid[1] = row;`, or a flat `int[]` with a computed index | clean |
 
 **Gaps seen on the way that are not this boundary.** They are ordinary D2
-work, not part of the decision: every `for … in` is unfinished today, even over
-`int[]` (`statement kind 12 needs an origin transfer`; packet P1c-5); a
-reference read out of an `Array<&string>` by index and dereferenced, `*names[i]`
-(`reference loaded through another reference needs content provenance`; the
-N-PROJ gap); and a store through a nested index place, `grid[1][0] = 88` (`store
-through a place needs reference-content transfer`; the N-STORE gap). When they
-close, `for s in names` over `Array<string>` and an index walk over
+work, not part of the decision: a reference read out of an `Array<&string>` by
+index and dereferenced, `*names[i]` (`reference loaded through another reference
+needs content provenance`; the N-PROJ gap); and a store through a nested index
+place, `grid[1][0] = 88` (`store through a place needs reference-content
+transfer`; the N-STORE gap). When they close, an index walk over
 `Array<&string>` should join the rewrites above; that is to be re-measured then,
-not assumed.
+not assumed. The third gap recorded here on 2026-09-16 is closed: `for … in` has
+its origin transfer, so a walk over elements that hold no borrow and can keep no
+storage loan (`int[]`, `Array<string>`, a plain struct of them) leaves no
+unfinished row of its own, while `for x in xs` over `Array<&string>`, over
+`Array<uint64[]>` or over any element that stores an array or a cursor is refused
+by name at the statement, which is this boundary and not a gap.
 
 **How to lift the boundary: the buffer-alias model.** A packet of its own,
 after the D2 core census reaches zero (after P1c-3, P1k H2, and P1x-I, since a

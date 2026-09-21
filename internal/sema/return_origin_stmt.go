@@ -137,6 +137,8 @@ func (b *returnOriginBody) stmt(id ast.StmtID, env returnOriginEnv, targets retu
 	case ast.StmtForClassic:
 		data := u.Builder.Stmts.ForClassic(id)
 		return b.classicLoop(id, data, env, targets)
+	case ast.StmtForIn:
+		return b.forIn(id, env, targets)
 	case ast.StmtDrop:
 		target := u.Builder.Stmts.Drop(id).Expr
 		out, err := b.expr(target, env, targets)
