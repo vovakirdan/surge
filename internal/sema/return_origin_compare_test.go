@@ -104,20 +104,13 @@ func checkReturnOriginCompare(t *testing.T, fixture returnOriginCompareFixture) 
 		}
 	}
 	record["nodes"], record["type_descriptors"], record["statements"] = nodes, descriptors, b.Stmts.Arena.Slice()
-	compares, calls, isRHS := captureReturnOriginCompareMetadata(t, unit, fixture.name)
+	compares, calls, _ := captureReturnOriginCompareMetadata(t, unit, fixture.name)
 	record["compares"], record["calls"] = compares, calls
 	if t.Failed() {
 		t.Fatal("PRECONDITION: actual typed compare metadata is incomplete")
 	}
 	analysis, analysisErr := AnalyzeReturnOrigins(t.Context(), &checked, []ReturnOriginUnit{unit})
 	record["analysis"], record["analysis_error"] = analysis, fmt.Sprint(analysisErr)
-	if fixture.name == "unsupported_guard_is" {
-		want := fmt.Sprintf("return origins: expression %d is not typed in %s", isRHS, key)
-		if analysisErr == nil || analysisErr.Error() != want || analysis != nil {
-			t.Errorf("unsupported is RHS requires exact refusal %q and nil analysis; got %v, %+v", want, analysisErr, analysis)
-		}
-		return
-	}
 	if analysisErr != nil || analysis == nil {
 		t.Fatalf("origin analysis unexpectedly aborted: %v", analysisErr)
 	}
@@ -217,7 +210,7 @@ func captureReturnOriginCompareMetadata(t *testing.T, unit ReturnOriginUnit, nam
 				}
 			}
 			arms = append(arms, map[string]any{"arm": arm, "scope": scopeID, "bindings": bindings, "result_type": res.ExprTypes[arm.Result], "guard_type": res.ExprTypes[arm.Guard]})
-			if name == "unsupported_guard_is" && arm.Guard.IsValid() {
+			if name == "guard_is_type_operand" && arm.Guard.IsValid() {
 				binary, present := b.Exprs.Binary(arm.Guard)
 				if !present || binary == nil || binary.Op != ast.ExprBinaryIs {
 					t.Fatal("PRECONDITION: guard lost its actual binary-is shape")
@@ -239,7 +232,7 @@ func captureReturnOriginCompareMetadata(t *testing.T, unit ReturnOriginUnit, nam
 	if name == "direct_panic_fallthrough" {
 		want = 0
 	}
-	if len(compares) != want || name == "unsupported_guard_is" && !isRHS.IsValid() {
+	if len(compares) != want || name == "guard_is_type_operand" && !isRHS.IsValid() {
 		t.Error("PRECONDITION: frozen compare/guard census changed")
 	}
 	return compares, calls, isRHS

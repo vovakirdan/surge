@@ -54,8 +54,10 @@ type Result struct {
 	IsOperands map[ast.ExprID]IsOperand
 	// HeirOperands captures resolved operands for `heir` expressions.
 	HeirOperands map[ast.ExprID]HeirOperand
-	ExprBorrows  map[ast.ExprID]BorrowID
-	Borrows      []BorrowInfo
+	// EnumVariantUses marks Enum::Variant members whose target is type syntax.
+	EnumVariantUses map[ast.ExprID]EnumVariantUse
+	ExprBorrows     map[ast.ExprID]BorrowID
+	Borrows         []BorrowInfo
 	// BorrowBindings maps an active borrow (BorrowID) to the binding symbol that
 	// holds the reference value (best-effort, for debug/analysis passes).
 	BorrowBindings map[BorrowID]symbols.SymbolID
@@ -251,6 +253,7 @@ func Check(ctx context.Context, builder *ast.Builder, fileID ast.FileID, opts Op
 		ExprTypes:                   make(map[ast.ExprID]types.TypeID),
 		IsOperands:                  make(map[ast.ExprID]IsOperand),
 		HeirOperands:                make(map[ast.ExprID]HeirOperand),
+		EnumVariantUses:             make(map[ast.ExprID]EnumVariantUse),
 		ExprBorrows:                 make(map[ast.ExprID]BorrowID),
 		FunctionInstantiations:      make(map[symbols.SymbolID][][]types.TypeID),
 		FunctionInstantiationSites:  make(map[symbols.SymbolID][]source.Span),

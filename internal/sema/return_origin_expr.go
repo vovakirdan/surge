@@ -100,6 +100,9 @@ func (b *returnOriginBody) exprCore(id ast.ExprID, env returnOriginEnv, targets 
 			}
 			return b.unknownExpr(env, node.Span, "module member value needs its selected free-function authority"), nil
 		}
+		if use, ok := u.Sema.EnumVariantUses[id]; ok {
+			return b.enumVariant(id, data, use, env), nil
+		}
 		out, err := b.expr(data.Target, env, targets)
 		if err != nil || !out.flow.normal.reachable {
 			return out, err
@@ -202,6 +205,9 @@ func (b *returnOriginBody) binary(id ast.ExprID, env returnOriginEnv, targets re
 	left, err := b.expr(data.Left, env, targets)
 	if err != nil || !left.flow.normal.reachable {
 		return left, err
+	}
+	if out, handled := b.typeTest(id, data, &left); handled {
+		return out, nil
 	}
 	if (data.Op == ast.ExprBinaryLogicalAnd && b.literalBool(data.Left, false)) ||
 		(data.Op == ast.ExprBinaryLogicalOr && b.literalBool(data.Left, true)) {

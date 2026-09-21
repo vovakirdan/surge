@@ -92,7 +92,7 @@ fn probe(flag: bool) -> &string {
     compare flag { true => panic(); false => panic(); };
 }
 `},
-		{name: "unsupported_guard_is", digest: "ada5b603c73d545690377000bdf51739af4bb939958776944431c01429e59044", text: `pragma no_std;
+		{name: "guard_is_type_operand", digest: "ada5b603c73d545690377000bdf51739af4bb939958776944431c01429e59044", slots: []uint32{1, 2}, checkSlots: true, complete: true, text: `pragma no_std;
 fn probe(value: int, a: &string, b: &string) -> &string {
     return compare value { _ if value is int => a; _ => b; };
 }

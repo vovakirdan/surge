@@ -446,7 +446,7 @@ func (tc *typeChecker) typeExprMember(id ast.ExprID, span source.Span) types.Typ
 		return result
 	}
 	if enumType := tc.enumTypeForExpr(member.Target); enumType != types.NoTypeID {
-		return tc.typeOfEnumVariant(enumType, member.Field, span)
+		return tc.typeOfEnumVariantUse(id, member.Target, enumType, member.Field, span)
 	}
 	targetType := tc.typeExprAsPlaceBase(member.Target)
 	if tc.reportFarLocalOp(targetType, span) {

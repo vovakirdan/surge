@@ -311,6 +311,24 @@ func (tc *typeChecker) typeOfEnumVariant(enumType types.TypeID, variantName sour
 	return tc.types.Builtins().Int
 }
 
+// EnumVariantUse records that a member expression names Enum::Variant: its
+// target is the enum's type name, which the checker never types as a value.
+type EnumVariantUse struct {
+	Target ast.ExprID
+	Enum   types.TypeID
+}
+
+func (tc *typeChecker) typeOfEnumVariantUse(id, target ast.ExprID, enumType types.TypeID, variant source.StringID, span source.Span) types.TypeID {
+	ty := tc.typeOfEnumVariant(enumType, variant, span)
+	if ty != types.NoTypeID && tc.result != nil {
+		if tc.result.EnumVariantUses == nil { // a hand-made Result, as recordIsOperand allows for
+			tc.result.EnumVariantUses = make(map[ast.ExprID]EnumVariantUse)
+		}
+		tc.result.EnumVariantUses[id] = EnumVariantUse{Target: target, Enum: enumType}
+	}
+	return ty
+}
+
 // isValidEnumBaseType checks if the resolved type is a valid enum base type
 // Valid base types: int, uint, int8-64, uint8-64, string
 func (tc *typeChecker) isValidEnumBaseType(resolved types.TypeID) bool {
