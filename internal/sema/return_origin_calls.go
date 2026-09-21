@@ -140,6 +140,7 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 	loanSinks := false // a body-less or indirect `&mut` actual that can receive a storage loan
 	op, certified := b.analyzer.coreArrayIntrinsic(callee)
 	mapOp, mapCertified := returnOriginMapIntrinsic(callee)
+	confined := !callback && deferred == nil && returnOriginCoreDeclaration(callee) && b.callConfinesBorrows(params, effects, result)
 	for i, slot := range slots {
 		// G6-ii; a certified push's or Map insert's value is guarded by its store instead.
 		guarded := b.loanGuardFormal(callee, signature, info, callback, i) && (!certified || op != returnOriginArrayPush || i != 1) && (!mapCertified || mapOp != returnOriginMapInsert || i != 2)
@@ -158,7 +159,7 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 			}
 		}
 		for _, expr := range slot.exprs {
-			value := b.callArgumentOrigin(expr, params[i], values[expr])
+			value := b.callArgumentOrigin(expr, params[i], values[expr], confined)
 			if returnOriginFnInfo(u.Sema.TypeInterner, params[i]) != nil || len(values[expr].value.callables) != 0 {
 				value = b.convertCallableArgument(callee, i, slot, expr, params[i], value, signature)
 			}
@@ -314,7 +315,7 @@ type returnOriginCallValue struct {
 	storage returnOriginValue
 }
 
-func (b *returnOriginBody) callArgumentOrigin(expr ast.ExprID, formal types.TypeID, actual returnOriginCallValue) returnOriginValue {
+func (b *returnOriginBody) callArgumentOrigin(expr ast.ExprID, formal types.TypeID, actual returnOriginCallValue, confined bool) returnOriginValue {
 	u := b.function.unit
 	in := u.Sema.TypeInterner
 	if !returnOriginIsReference(in, formal) || returnOriginIsReference(in, u.Sema.ExprTypes[expr]) {
@@ -342,6 +343,9 @@ func (b *returnOriginBody) callArgumentOrigin(expr ast.ExprID, formal types.Type
 	}
 	if !reference || evidence == nil || evidence.ID == NoBorrowID || evidence.Kind != kind ||
 		evidence.Reserved || !evidence.Place.IsValid() {
+		if evidence == nil && confined && b.stringTemporary(expr, formal) {
+			return unknown // a statement temporary this call cannot keep
+		}
 		b.pending(span, "implicit borrow lacks an admitted borrow for this expression")
 		return unknown
 	}
