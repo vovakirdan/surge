@@ -81,3 +81,40 @@ func (b *returnOriginBody) guardLoanResult(callee *returnOriginFunction, slots [
 		}
 	}
 }
+
+// returnOriginRangeElement answers a Range instance's element. The family is the
+// certified rt_range_int_full result, cached once per analysis on every unit index;
+// without it (a core-free analysis) nothing is a Range and the caller stays Unknown.
+func returnOriginRangeElement(owner *returnOriginFunction, id types.TypeID) (types.TypeID, bool) {
+	in := owner.unit.Sema.TypeInterner
+	family, known := in.StructInfo(owner.unit.intRangeType)
+	info, typed := in.StructInfo(returnOriginResolveAlias(in, id))
+	if owner.unit.intRangeType == types.NoTypeID || !known || !typed || family == nil || info == nil ||
+		info.Name != family.Name || info.Decl != family.Decl || len(info.TypeArgs) != 1 {
+		return types.NoTypeID, false
+	}
+	return info.TypeArgs[0], true
+}
+
+// elementsFreeAt is elementsFree, or this body's own direct type parameter under a
+// recorded NoBorrowedState condition that every caller and finalized use discharges.
+func (b *returnOriginBody) elementsFreeAt(c returnOriginIndexType, span source.Span) bool {
+	return b.elementsFree(c) || b.freeTemplateElement(c.element, span)
+}
+
+// cursorDeclaration answers a core declaration whose result borrows its receiver.
+// A `__range` cursor over a fixed base points into that storage (emit_iter.go:342–347);
+// over a dynamic base it keeps the raw data pointer without retaining the header
+// (emit_iter.go:334–341), so it keeps the base value's loans as well. The element stays
+// a subject, so an element that can hold a borrow is refused wherever the row is read.
+func (a *returnOriginAnalyzer) cursorDeclaration(fn *returnOriginFunction) ([]returnOrigin, []types.TypeID, bool) {
+	op, certified := a.coreArrayIntrinsic(fn)
+	if !certified || op != returnOriginArrayRange {
+		return nil, nil, false
+	}
+	roots := []returnOrigin{{kind: returnOriginParam}}
+	if c, _ := returnOriginContainer(fn.unit.Sema.TypeInterner, fn.info.Params[0]); c.family == fn.unit.Sema.TypeInterner.ArrayNominalType() {
+		roots = append(roots, returnOrigin{kind: returnOriginParam, selector: returnOriginInputLoans})
+	}
+	return roots, []types.TypeID{fn.candidate.TemplateParams[0]}, true
+}

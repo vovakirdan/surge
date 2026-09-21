@@ -180,7 +180,7 @@ func (b *returnOriginBody) applyCoreArrayIntrinsic(op returnOriginArrayOp, id as
 		// A cursor over reference-bearing elements stays on its existing refusal.
 		expr, ok := argument(0)
 		c, canonical := returnOriginContainer(in, u.Sema.ExprTypes[expr])
-		if !ok || !canonical || !b.elementsFree(c) || !actuals[0].normal || len(actuals[0].roots) == 0 {
+		if !ok || !canonical || !actuals[0].normal || len(actuals[0].roots) == 0 || !b.elementsFreeAt(c, span) {
 			return returnOriginValue{}, pre, false
 		}
 		if c.family == in.ArrayFixedNominalType() {

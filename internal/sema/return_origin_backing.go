@@ -236,7 +236,7 @@ func (b *returnOriginBody) containerLoans(owner returnOriginValue, env returnOri
 			}
 		}
 		if root.kind == returnOriginParam && root.selector == returnOriginInputValue && !root.expired && slices.Contains(fn.backingSlots, root.param) {
-			if c, _ := returnOriginContainer(in, fn.info.Params[root.param]); b.elementsFree(c) {
+			if c, _ := returnOriginContainer(in, fn.info.Params[root.param]); b.elementsFreeAt(c, span) {
 				out = out.join(returnOriginValueOf(returnOrigin{kind: returnOriginParam, param: root.param, selector: returnOriginInputLoans}))
 				continue
 			}

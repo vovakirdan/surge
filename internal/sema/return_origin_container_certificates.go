@@ -94,6 +94,8 @@ func (a *returnOriginAnalyzer) containerDeclaration(fn *returnOriginFunction, re
 		return nil, nil, true // an empty fresh map (rt_map.c:249–278)
 	case certified && op == returnOriginMapKeys:
 		return nil, []types.TypeID{fn.candidate.TemplateParams[0]}, true // fresh owning key copies (rt_map.c:414–475)
+	case returnOriginRangeConstructor(fn):
+		return nil, nil, true // numeric bounds only, no base (rt_range.c:150–208)
 	}
-	return nil, nil, false
+	return a.cursorDeclaration(fn)
 }

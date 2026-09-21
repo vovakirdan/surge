@@ -196,6 +196,14 @@ func (v returnOriginTypeView) shape(id types.TypeID) returnOriginShape {
 			}
 			return shape
 		}
+		// A cursor's payload is its element; a template never lets it erase its loans.
+		if elem, cursor := returnOriginRangeElement(view.owner, id); cursor {
+			shape := walk(view, elem, active)
+			if len(view.params) == 0 && !view.concrete {
+				shape = max(shape, returnOriginCarriesRef)
+			}
+			return shape
+		}
 		children, valid := returnOriginTypeChildren(view.owner, id)
 		if !valid {
 			return returnOriginShapeUnknown

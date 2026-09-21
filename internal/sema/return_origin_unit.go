@@ -73,6 +73,7 @@ type returnOriginUnitIndex struct {
 	pending      []ReturnOriginPending
 	declarations int
 	peers        []*returnOriginUnitIndex // every owning unit, to prove a nominal where it is declared
+	intRangeType types.TypeID             // a.intRangeType(), cached for type views; NoTypeID without core
 }
 
 type returnOriginFunction struct {
@@ -177,8 +178,9 @@ func AnalyzeReturnOrigins(ctx context.Context, authority *Result, units []Return
 		}
 		return 0
 	})
+	family, _ := a.intRangeType() // declarations are complete; a type view has no analyzer to ask
 	for _, index := range a.units {
-		index.peers = a.units
+		index.peers, index.intRangeType = a.units, family
 	}
 	if err := a.solveBodies(); err != nil {
 		return nil, err
