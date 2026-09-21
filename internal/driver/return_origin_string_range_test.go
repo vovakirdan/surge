@@ -189,8 +189,8 @@ func TestAnalyzeTypedStringRangeOrigins(t *testing.T) {
 			if allowed.Reason != "" && !slices.Contains(analysis.Pending, allowed) {
 				t.Errorf("missing exact selected-operation refusal: %+v", allowed)
 			}
-			if !slices.Contains(analysis.Pending, facts.array) {
-				t.Errorf("separate Array<T> range obligation disappeared: %+v", facts.array)
+			if slices.Contains(analysis.Pending, facts.array) {
+				t.Errorf("separate Array<T> range obligation is still unfinished: %+v", facts.array)
 			}
 			if tc.name != "foreign_selected_range" {
 				var slots []uint32

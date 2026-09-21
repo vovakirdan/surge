@@ -184,8 +184,8 @@ func TestReturnOriginHandleCertificateCoreRows(t *testing.T) {
 		{"@intrinsic fn rt_net_read_bytes(", "rt_net_read_bytes", true},
 		{"pub fn rt_argv() -> string[];", "rt_argv", true},
 		{"@intrinsic fn rt_map_keys<", "rt_map_keys", true},
-		// Array concatenation carries element contents; the container-content analysis flips it.
-		{"@intrinsic fn __add(self: &Array<T>, other: &Array<T>) -> Array<T>;", "__add", false},
+		// Array concatenation copies both runs into fresh storage; its declaration row answers it.
+		{"@intrinsic fn __add(self: &Array<T>, other: &Array<T>) -> Array<T>;", "__add", true},
 		{"@intrinsic pub fn clone(self: &Task<T>) -> Task<T>;", "clone", false},
 		{"pub fn checkpoint() -> Task<nothing>;", "checkpoint", false},
 		{"@intrinsic pub fn sleep(", "sleep", false},
