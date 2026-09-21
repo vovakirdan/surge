@@ -1,4 +1,4 @@
-.PHONY: build run test runtime-v2-check runtime-v2-abi-manifest-check runtime-v2-slot-control-check runtime-v2-liveness-check runtime-v2-ownership-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-owned-storage-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-sched-trace-check runtime-v2-syncpoint-check runtime-v2-panic-surface-check runtime-v2-transport-contract-check runtime-v2-transport-check runtime-v2-carrier-check runtime-v2-carrier-sanitizer-check runtime-v2-place-overwrite-check runtime-v2-carrier-bench runtime-v2-carrier-baseline-capture runtime-v2-carrier-bench-final vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
+.PHONY: build run test runtime-v2-check runtime-v2-abi-manifest-check runtime-v2-slot-control-check runtime-v2-liveness-check runtime-v2-ownership-check runtime-v2-crossing-check runtime-v2-heap-check runtime-v2-owned-storage-check runtime-v2-waiter-check runtime-v2-fd-registry-check runtime-v2-net-handle-check runtime-v2-http-owner-check runtime-v2-accept-check runtime-v2-lock-check runtime-v2-lifecycle-check runtime-v2-perf-check runtime-v2-sched-trace-check runtime-v2-syncpoint-check runtime-v2-panic-surface-check runtime-v2-h2-tripwire-check runtime-v2-transport-contract-check runtime-v2-transport-check runtime-v2-carrier-check runtime-v2-carrier-sanitizer-check runtime-v2-place-overwrite-check runtime-v2-carrier-bench runtime-v2-carrier-baseline-capture runtime-v2-carrier-bench-final vet sec format fmt lint staticcheck pprof-cpu pprof-mem trace install install-system uninstall uninstall-system completion completion-install completion-install-system install-hooks
 .PHONY: golden golden-update golden-check golden-corpus-determinism behaviour-check behaviour-check-all behaviour-check-mt stats
 .PHONY: c-check cfmt-check c-warnings ctidy cppcheck c-check-changed
 .PHONY: check check-full test-fast
@@ -166,7 +166,8 @@ RUNTIME_V2_SUBGATES := \
 	runtime-v2-syncpoint-check \
 	runtime-v2-panic-surface-check \
 	runtime-v2-carrier-check \
-	runtime-v2-transport-check
+	runtime-v2-transport-check \
+	runtime-v2-h2-tripwire-check
 
 # The clang/ar preflight is the one thing that still stops the aggregate dead:
 # without a toolchain no sub-gate can produce an answer, so running the roster
@@ -483,6 +484,16 @@ runtime-v2-syncpoint-check:
 # rather than faulting. The last needs a real build and a real run, so it carries
 # SURGE_SKIP_TIMEOUT_TESTS=0: under `make check` it skips, and a gate that only
 # ever skipped would be green having proven nothing.
+# The RV2-DEBT-365 tripwire. Return-origin does not model what a running task borrows, and the task
+# check that owns it has a measured hole. These rows pin the incidental barriers that keep a leaked
+# task from running; a change that removes one turns a row red and waits for the task check.
+runtime-v2-h2-tripwire-check:
+	$(GUARD) runtime-v2-h2-tripwire-check
+	@echo ">> Running the task-borrow tripwire (RV2-DEBT-365)"
+	SURGE_GATE_NAME=runtime-v2-h2-tripwire-check SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 bash scripts/runtime_v2_carrier_sanitizer_check.sh run --expect TestH2TripwireRefusedG0Await,TestH2TripwireRefusedG0dAwaitDisc,TestH2TripwireRefusedG5ModuleTimeout,TestH2TripwireImportAddsCoreRowsG5b,TestH2TripwireImportDifferentialRejectsTheTwin -- $(GO) test ./internal/driver -run '^(TestH2TripwireRefusedG0Await|TestH2TripwireRefusedG0dAwaitDisc|TestH2TripwireRefusedG5ModuleTimeout|TestH2TripwireImportAddsCoreRowsG5b|TestH2TripwireImportDifferentialRejectsTheTwin)$$' -short=false -count=1 -parallel=1 -p=1 -v --timeout 300s
+	SURGE_GATE_NAME=runtime-v2-h2-tripwire-check SURGE_BACKEND=vm SURGE_SKIP_TIMEOUT_TESTS=0 bash scripts/runtime_v2_carrier_sanitizer_check.sh run --expect TestH2TripwireNotRunnableG1OwnBinding,TestH2TripwireNotRunnableG1bOwnExpr,TestH2TripwireNotRunnableG3ScopeJoin,TestH2TripwireNotRunnableG4xAsyncEntry,TestH2TripwireNotRunnableRo6xAsyncEntry,TestH2TripwireNotRunnableRo7xAsyncEntry,TestH2TripwireWitnessControl,TestH2TripwireHarnessObservesExit,TestH2TripwireMatcherRejectsRecordedFaults -- $(GO) test ./internal/vm -run '^(TestH2TripwireNotRunnableG1OwnBinding|TestH2TripwireNotRunnableG1bOwnExpr|TestH2TripwireNotRunnableG3ScopeJoin|TestH2TripwireNotRunnableG4xAsyncEntry|TestH2TripwireNotRunnableRo6xAsyncEntry|TestH2TripwireNotRunnableRo7xAsyncEntry|TestH2TripwireWitnessControl|TestH2TripwireHarnessObservesExit|TestH2TripwireMatcherRejectsRecordedFaults)$$' -short=false -count=1 -parallel=1 -p=1 -v --timeout 600s
+	SURGE_GATE_NAME=runtime-v2-h2-tripwire-check SURGE_BACKEND=llvm SURGE_SKIP_TIMEOUT_TESTS=0 bash scripts/runtime_v2_carrier_sanitizer_check.sh run --expect TestH2TripwireNotRunnableG1OwnBinding,TestH2TripwireNotRunnableG1bOwnExpr,TestH2TripwireNotRunnableG3ScopeJoin,TestH2TripwireNotRunnableG4xAsyncEntry,TestH2TripwireNotRunnableRo6xAsyncEntry,TestH2TripwireNotRunnableRo7xAsyncEntry,TestH2TripwireWitnessControl,TestH2TripwireHarnessObservesExit,TestH2TripwireMatcherRejectsRecordedFaults -- $(GO) test ./internal/vm -run '^(TestH2TripwireNotRunnableG1OwnBinding|TestH2TripwireNotRunnableG1bOwnExpr|TestH2TripwireNotRunnableG3ScopeJoin|TestH2TripwireNotRunnableG4xAsyncEntry|TestH2TripwireNotRunnableRo6xAsyncEntry|TestH2TripwireNotRunnableRo7xAsyncEntry|TestH2TripwireWitnessControl|TestH2TripwireHarnessObservesExit|TestH2TripwireMatcherRejectsRecordedFaults)$$' -short=false -count=1 -parallel=1 -p=1 -v --timeout 900s
+
 runtime-v2-panic-surface-check:
 	$(GUARD) runtime-v2-panic-surface-check
 	@echo ">> Running the panic-surface census gate"

@@ -40,6 +40,24 @@ func step7GateRows() []step7GateRow {
 		"TestRuntimeV2ChannelCancelKeepsLastFrameHandle",
 		"TestRuntimeV2ChannelCancelFrameUnderAddressAndUndefinedSanitizers",
 	}
+	tripwireCompile := []string{
+		"TestH2TripwireRefusedG0Await",
+		"TestH2TripwireRefusedG0dAwaitDisc",
+		"TestH2TripwireRefusedG5ModuleTimeout",
+		"TestH2TripwireImportAddsCoreRowsG5b",
+		"TestH2TripwireImportDifferentialRejectsTheTwin",
+	}
+	tripwireRuntime := []string{
+		"TestH2TripwireNotRunnableG1OwnBinding",
+		"TestH2TripwireNotRunnableG1bOwnExpr",
+		"TestH2TripwireNotRunnableG3ScopeJoin",
+		"TestH2TripwireNotRunnableG4xAsyncEntry",
+		"TestH2TripwireNotRunnableRo6xAsyncEntry",
+		"TestH2TripwireNotRunnableRo7xAsyncEntry",
+		"TestH2TripwireWitnessControl",
+		"TestH2TripwireHarnessObservesExit",
+		"TestH2TripwireMatcherRejectsRecordedFaults",
+	}
 	return []step7GateRow{
 		{"cast_offer_ir", "runtime-v2-carrier-check", "./internal/backend/llvm", "", "llvm", []string{"TestEmitNumericCastTemporaryCleanup", "TestEmitNumericCastBorrowedAndFixedControls", "TestChannelSendOfferUsesDisposablePollStorage"}},
 		{"uint_offer_mir", "runtime-v2-carrier-check", "./internal/mir", "", "llvm", []string{"TestLowerUintLiteralPreservesKindAndText", "TestChannelSendPollPreservesTheCountedCopyOwner"}},
@@ -62,6 +80,9 @@ func step7GateRows() []step7GateRow {
 		{"sweep_allocation", "runtime-v2-carrier-sanitizer-check", "./internal/vm", "", "llvm", []string{"TestRuntimeV2ChannelSendOfferValgrindBaseline", "TestRuntimeV2AsyncAllocationBaselineRejectsRetainedChannel"}},
 		{"sweep_numeric_heap", "runtime-v2-carrier-sanitizer-check", "./internal/vm", "runtime_v2_pending", "llvm", numericHeap},
 		{"sweep_native_storage", "runtime-v2-carrier-sanitizer-check", "./internal/vm", "runtime_v2_pending", "llvm", nativeStorage},
+		{"h2_tripwire_compile", "runtime-v2-h2-tripwire-check", "./internal/driver", "", "llvm", tripwireCompile},
+		{"h2_tripwire_vm", "runtime-v2-h2-tripwire-check", "./internal/vm", "", "vm", tripwireRuntime},
+		{"h2_tripwire_llvm", "runtime-v2-h2-tripwire-check", "./internal/vm", "", "llvm", tripwireRuntime},
 	}
 }
 

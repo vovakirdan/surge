@@ -48,6 +48,9 @@ func returnOriginFreshHandleResidual(fn *returnOriginFunction, result types.Type
 	if subjects, fresh := returnOriginFreshContainerResidual(fn, result); fresh {
 		return subjects, true
 	}
+	if subjects, fresh := returnOriginTaskHandleResidual(fn, result); fresh {
+		return subjects, true
+	}
 	row, known := returnOriginFreshHandleRows[fn.name]
 	if !known || !returnOriginCoreIntrinsic(fn, 0, 0) || fn.candidate.HasSelf || result != fn.info.Result || !returnOriginFreshParamsMatch(fn, row.params) {
 		return nil, false
