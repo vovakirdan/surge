@@ -166,5 +166,10 @@ func (a *returnOriginAnalyzer) methodOutcome(fn *returnOriginFunction, edge *Def
 	if returnOriginCallHasUnprovedEffects(in, found.CalleeParamTypes) {
 		return "deferred method may change reference-bearing or callable contents"
 	}
+	// A body-less implementation has no body that refuses a loan written through a `&mut` formal.
+	if callee := a.functionForTemplate(found.Callee); (callee == nil || !callee.item.Body.IsValid()) &&
+		(&returnOriginBody{analyzer: a, function: fn}).loanSinkEffects(found.CalleeParamTypes, found.CalleeParamTypes) {
+		return "deferred method may change reference-bearing or callable contents"
+	}
 	return ""
 }

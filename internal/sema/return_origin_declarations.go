@@ -239,7 +239,7 @@ func (a *returnOriginAnalyzer) checkGenericPromise(fn *returnOriginFunction, vie
 	if !fn.item.Body.IsValid() {
 		body.opaqueReturnSources(fn, fn.info, allowed, true, fn.item.NameSpan, view)
 		if returnOriginTypeShape(fn.unit.Sema.TypeInterner, view.result, nil) == returnOriginRefFree &&
-			!returnOriginCallHasUnprovedEffects(fn.unit.Sema.TypeInterner, view.effects) {
+			!returnOriginCallHasUnprovedEffects(fn.unit.Sema.TypeInterner, view.effects) && !body.loanSinkEffects(view.params, view.effects) {
 			return ""
 		}
 		return "generic opaque use requires its type-dependent effect transfer"

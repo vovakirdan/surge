@@ -32,7 +32,7 @@ func (b *returnOriginBody) selectedOperation(selections map[ast.ExprID]symbols.S
 	}
 	c, in := fn.candidate, u.Sema.TypeInterner
 	if c.Name != name || len(fn.info.Params) != arity || c.HasBody || fn.item.Body.IsValid() || c.Async || len(c.TemplateParams) != 0 ||
-		returnOriginContainerFormal(in, fn.info.Params) || returnOriginCallHasUnprovedEffects(in, fn.info.Params) {
+		returnOriginContainerFormal(in, fn.info.Params) || returnOriginCallHasUnprovedEffects(in, fn.info.Params) || b.loanSinkEffects(fn.info.Params, fn.info.Params) {
 		return false
 	}
 	required := returnOriginView(fn).requirement(returnOriginNoBorrowedState, fn.info.Result)
@@ -85,18 +85,25 @@ func returnOriginContainerFormal(in *types.Interner, params []types.TypeID) bool
 // at, and so can an OPAQUE body-less declaration, whose implementation is elsewhere
 // and which cannot even announce the fact -- `@return_source` is refused on a result
 // that is not reference-bearing. Only the two core concatenation intrinsics are
-// exempt, and they are certified by identity, not by the absence of a body.
+// exempt, and they are certified by identity, not by the absence of a body. Any other
+// result leaves the path only for a selection that can keep a loan with no body to
+// refuse it (return_origin_effect_sinks.go), or one this analysis cannot name.
 func (b *returnOriginBody) selectedCarrierResult(selections map[ast.ExprID]symbols.SymbolID, id ast.ExprID) bool {
 	u := b.function.unit
 	selected, present := selections[id]
-	if !present || !b.analyzer.loanCarrier(u.Sema.ExprTypes[id]) {
+	if !present {
+		return false
+	}
+	if b.analyzer.loanCarrier(u.Sema.ExprTypes[id]) {
+		fn, reason := b.analyzer.selectedCallableFunction(u, selected)
+		return reason != "" || !b.analyzer.coreArrayConcat(fn)
+	}
+	sym := u.Symbols.Table.Symbols.Get(selected)
+	if sym == nil || !b.operationLoanSink(returnOriginFnInfo(u.Sema.TypeInterner, sym.Type), u.Sema.ExprTypes[id]) {
 		return false
 	}
 	fn, reason := b.analyzer.selectedCallableFunction(u, selected)
-	if reason != "" {
-		return true
-	}
-	return !b.analyzer.coreArrayConcat(fn)
+	return reason != "" || !fn.candidate.HasBody && !fn.item.Body.IsValid()
 }
 
 // coreArrayConcat certifies `Array<T> + Array<T>` and `ArrayFixed<T, N> + ArrayFixed<T, N>`

@@ -137,6 +137,7 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 	}
 	actuals := make([]returnOriginValue, len(slots))
 	var mutableEffects []int
+	loanSinks := false // a body-less or indirect `&mut` actual that can receive a storage loan
 	op, certified := b.analyzer.coreArrayIntrinsic(callee)
 	for i, slot := range slots {
 		// G6-ii; a certified push's value is guarded by its store instead.
@@ -166,7 +167,10 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 			}
 		}
 		if kind, reference := returnOriginFormalBorrowKind(u.Sema.TypeInterner, params[i]); reference && kind == BorrowMut {
-			if returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, []types.TypeID{effects[i]}) {
+			sink := (callee == nil || !callee.item.Body.IsValid()) && b.loanSink(effects[i])
+			loanSinks = loanSinks || sink
+			if returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, []types.TypeID{effects[i]}) ||
+				sink && !certified && !returnOriginCertifiedByteSink(callee) {
 				mutableEffects = append(mutableEffects, i)
 			}
 		}
@@ -195,7 +199,7 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 	var summary returnOriginValue
 	if callbackValue.normal {
 		summary = b.callableValueSources(callbackValue, span)
-		if returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, effects) {
+		if returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, effects) || loanSinks {
 			flow.normal = b.taintExternalCellEffects(flow.normal, span, "indirect call may change reference-bearing or callable contents")
 		}
 	} else if callee != nil && callee.item.Body.IsValid() {
@@ -221,7 +225,8 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		}
 		summary = b.opaqueReturnSources(callee, info, sources, valid, span, signature)
 		effects = b.opaqueCallEffects(signature, params, effects, span)
-		if !returnOriginBytesViewReader(callee) && returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, effects) {
+		if !returnOriginBytesViewReader(callee) && (returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, effects) ||
+			loanSinks && !certified && !returnOriginCertifiedByteSink(callee)) {
 			flow.normal = b.taintExternalCellEffects(flow.normal, span, "opaque call may change reference-bearing or callable contents")
 		}
 	}
