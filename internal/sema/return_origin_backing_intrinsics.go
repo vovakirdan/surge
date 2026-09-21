@@ -195,7 +195,7 @@ func (b *returnOriginBody) applyCoreArrayIntrinsic(op returnOriginArrayOp, id as
 			return returnOriginValue{}, pre, false
 		}
 		switch {
-		case b.analyzer.loanCarrier(elem): // a copied array or cursor handle keeps its storage loans
+		case b.loanElement(returnOriginIndexType{element: elem}): // a copied array or cursor, or a value storing one, keeps its loans
 			b.pending(span, returnOriginCursorLoanElement)
 			return returnOriginValueOf(returnOrigin{kind: returnOriginUnknown}), pre, true
 		case returnOriginView(b.function).shape(elem) == returnOriginRefFree, b.freeTemplateElement(elem, span):
