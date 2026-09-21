@@ -139,9 +139,10 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 	var mutableEffects []int
 	loanSinks := false // a body-less or indirect `&mut` actual that can receive a storage loan
 	op, certified := b.analyzer.coreArrayIntrinsic(callee)
+	mapOp, mapCertified := returnOriginMapIntrinsic(callee)
 	for i, slot := range slots {
-		// G6-ii; a certified push's value is guarded by its store instead.
-		guarded := b.loanGuardFormal(callee, signature, info, callback, i) && (!certified || op != returnOriginArrayPush || i != 1)
+		// G6-ii; a certified push's or Map insert's value is guarded by its store instead.
+		guarded := b.loanGuardFormal(callee, signature, info, callback, i) && (!certified || op != returnOriginArrayPush || i != 1) && (!mapCertified || mapOp != returnOriginMapInsert || i != 2)
 		actuals[i] = returnOriginValueOf()
 		if slot.defaulted {
 			params := callee.unit.Builder.Items.GetFnParamIDs(callee.item)
@@ -170,7 +171,7 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 			sink := (callee == nil || !callee.item.Body.IsValid()) && b.loanSink(effects[i])
 			loanSinks = loanSinks || sink
 			if returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, []types.TypeID{effects[i]}) ||
-				sink && !certified && !returnOriginCertifiedByteSink(callee) {
+				sink && !certified && !mapCertified && !returnOriginCertifiedByteSink(callee) {
 				mutableEffects = append(mutableEffects, i)
 			}
 		}
@@ -181,6 +182,12 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 	backingCall, backingChecked := b.backingCallTargets(callee, callback || deferred != nil, slots, actuals, flow.normal)
 	if certified && !callback && deferred == nil {
 		if value, next, handled := b.applyCoreArrayIntrinsic(op, id, slots, actuals, flow.normal, span); handled {
+			flow.normal = next
+			return returnOriginExprResult{flow: flow, value: value}, nil
+		}
+	}
+	if mapCertified && !callback && deferred == nil {
+		if value, next, handled := b.applyCoreMapIntrinsic(mapOp, id, slots, actuals, flow.normal, span); handled {
 			flow.normal = next
 			return returnOriginExprResult{flow: flow, value: value}, nil
 		}
@@ -226,7 +233,7 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		summary = b.opaqueReturnSources(callee, info, sources, valid, span, signature)
 		effects = b.opaqueCallEffects(signature, params, effects, span)
 		if !returnOriginBytesViewReader(callee) && (returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, effects) ||
-			loanSinks && !certified && !returnOriginCertifiedByteSink(callee)) {
+			loanSinks && !certified && !mapCertified && !returnOriginCertifiedByteSink(callee)) {
 			flow.normal = b.taintExternalCellEffects(flow.normal, span, "opaque call may change reference-bearing or callable contents")
 		}
 	}

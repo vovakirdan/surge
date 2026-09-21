@@ -177,6 +177,13 @@ func (b *returnOriginBody) opaqueReturnSources(callee *returnOriginFunction, inf
 		if returnOriginBytesViewConstructor(callee) {
 			return returnOriginValueOf(returnOrigin{kind: returnOriginParam, param: 0})
 		}
+		if roots, subjects, certified := b.analyzer.containerDeclaration(callee, result); certified {
+			value := returnOriginValueOf(roots...)
+			for _, subject := range subjects {
+				value = value.join(b.requireOpaqueState(binding, subject, span))
+			}
+			return value
+		}
 		return b.requireOpaqueState(binding, result, span)
 	}
 	if binding.shape(result) == returnOriginShapeUnknown {
@@ -255,7 +262,7 @@ func (a *returnOriginAnalyzer) checkGenericPromise(fn *returnOriginFunction, vie
 	if view.binding != nil {
 		shape = view.binding.shape(fn.info.Result)
 	}
-	if shape == returnOriginShapeUnknown {
+	if shape == returnOriginShapeUnknown && (!value.normal || len(value.roots) != 0 || len(value.callables) != 0) { // a normal result that names no source has nothing to classify
 		return "generic result requires concrete borrowed-content facts"
 	}
 	if shape != returnOriginRefFree && !fn.info.ReturnSources().IsAllInputs() {

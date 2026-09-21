@@ -11,7 +11,7 @@ import (
 	"surge/internal/types"
 )
 
-// A backing is the element storage of a canonical Array or ArrayFixed. Its
+// A backing is the element storage of a canonical Array, ArrayFixed or Map. Its
 // identity is the formal slot that references it, or the local binding that
 // owns it; nothing tracks a per-call or per-site allocation. For a
 // reference-bearing element a backing value is the element contents; for a
@@ -24,9 +24,9 @@ func returnOriginContainer(in *types.Interner, id types.TypeID) (returnOriginInd
 	return c, ok && c.family != in.Builtins().String
 }
 
-// returnOriginBackingDescriptor admits `&C` and `&mut C` for a canonical container.
+// returnOriginBackingDescriptor admits `&C` and `&mut C` for a canonical container or Map.
 func returnOriginBackingDescriptor(in *types.Interner, id types.TypeID) (mutable, ok bool) {
-	c, canonical := returnOriginContainer(in, id)
+	c, canonical := returnOriginBackingContainer(in, id)
 	if !canonical || !c.reference {
 		return false, false
 	}
@@ -124,8 +124,8 @@ func (b *returnOriginBody) backingTargets(container returnOriginIndexType, owner
 		return out, false
 	}
 	same := func(id types.TypeID, reference bool) bool {
-		c, canonical := returnOriginContainer(in, id)
-		return canonical && c.reference == reference && c.family == container.family && c.element == container.element
+		c, canonical := returnOriginBackingContainer(in, id)
+		return canonical && c.reference == reference && c.family == container.family && c.element == container.element && (c.family != in.MapNominalType() || c.container == container.container)
 	}
 	for _, root := range owner.roots {
 		switch {
@@ -179,6 +179,7 @@ func (b *returnOriginBody) loadBackingContents(env returnOriginEnv, container re
 func (b *returnOriginBody) storeBackingContents(env returnOriginEnv, container returnOriginIndexType, t returnOriginBackingTargets, rhs returnOriginValue,
 	exprs []ast.ExprID, span source.Span,
 ) returnOriginEnv {
+	in := b.function.unit.Sema.TypeInterner
 	if !env.reachable || !rhs.normal {
 		return env
 	}
@@ -203,7 +204,7 @@ func (b *returnOriginBody) storeBackingContents(env returnOriginEnv, container r
 	}
 	if len(t.slots) != 0 {
 		for _, slot := range b.function.backingSlots {
-			if !slices.Contains(t.slots, slot) {
+			if other, _ := returnOriginBackingContainer(in, b.function.info.Params[slot]); !slices.Contains(t.slots, slot) && (other.family == in.MapNominalType()) == (container.family == in.MapNominalType()) {
 				out.backings[slot] = out.backing(slot).join(rhs)
 			}
 		}
@@ -287,7 +288,7 @@ func (b *returnOriginBody) callSiteContainer(slots []returnOriginArgument, i int
 	if i < 0 || i >= len(slots) || len(slots[i].exprs) != 1 {
 		return returnOriginIndexType{}, false
 	}
-	return returnOriginContainer(b.function.unit.Sema.TypeInterner, b.function.unit.Sema.ExprTypes[slots[i].exprs[0]])
+	return returnOriginBackingContainer(b.function.unit.Sema.TypeInterner, b.function.unit.Sema.ExprTypes[slots[i].exprs[0]])
 }
 
 // joinReturnOriginBackingPosts keeps the Cell rule: bottom has no posts, and two

@@ -192,6 +192,8 @@ func (a *returnOriginAnalyzer) checkGenericUses() error {
 				info, reason = a.genericCallUseInfo(fn, caller, expression, use)
 				if handled, intrinsic := a.checkBackingIntrinsicUse(fn, use); reason == "" && handled {
 					reason = intrinsic
+				} else if mapHandled, mapped := a.checkMapIntrinsicUse(fn, use); reason == "" && mapHandled {
+					reason = mapped
 				} else if reason == "" {
 					reason = a.checkGenericPromise(fn, info, use)
 				}

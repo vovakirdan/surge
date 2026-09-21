@@ -40,8 +40,8 @@ func (b *returnOriginBody) backingCallTargets(callee *returnOriginFunction, indi
 		if _, converted := u.Sema.ImplicitConversions[expr]; converted {
 			return returnOriginBackingCall{}, false
 		}
-		actual, canonical := returnOriginContainer(in, u.Sema.ExprTypes[expr])
-		formal, _ := returnOriginContainer(in, callee.info.Params[i])
+		actual, canonical := returnOriginBackingContainer(in, u.Sema.ExprTypes[expr])
+		formal, _ := returnOriginBackingContainer(in, callee.info.Params[i])
 		if !canonical || actual.family != formal.family {
 			return returnOriginBackingCall{}, false
 		}

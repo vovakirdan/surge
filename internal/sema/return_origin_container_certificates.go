@@ -79,3 +79,21 @@ func returnOriginFreshArray(fn *returnOriginFunction, id types.TypeID, element s
 	name, _ := fn.unit.Builder.StringsInterner.Lookup(info.Name)
 	return array.element, name == element
 }
+
+// Container results (P1c): fresh storage; E rows name input contents; borrowing
+// rows dispatch to return_origin_cursor.go.
+
+// containerDeclaration answers a certified body-less core container declaration by
+// the roots its result may hold and the parts that still need NoBorrowedState.
+func (a *returnOriginAnalyzer) containerDeclaration(fn *returnOriginFunction, result types.TypeID) (roots []returnOrigin, subjects []types.TypeID, ok bool) {
+	if fn == nil || fn.info == nil || result != fn.info.Result {
+		return nil, nil, false
+	}
+	switch op, certified := returnOriginMapIntrinsic(fn); {
+	case certified && op == returnOriginMapNew:
+		return nil, nil, true // an empty fresh map (rt_map.c:249–278)
+	case certified && op == returnOriginMapKeys:
+		return nil, []types.TypeID{fn.candidate.TemplateParams[0]}, true // fresh owning key copies (rt_map.c:414–475)
+	}
+	return nil, nil, false
+}
