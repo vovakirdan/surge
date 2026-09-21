@@ -96,6 +96,9 @@ func (a *returnOriginAnalyzer) containerDeclaration(fn *returnOriginFunction, re
 		return nil, []types.TypeID{fn.candidate.TemplateParams[0]}, true // fresh owning key copies (rt_map.c:414–475)
 	case returnOriginRangeConstructor(fn):
 		return nil, nil, true // numeric bounds only, no base (rt_range.c:150–208)
+	case a.coreArrayConcat(fn): // a fresh header and buffer holding copies of both runs (rt_array_concat.c:68–123)
+		return []returnOrigin{{kind: returnOriginParam, selector: returnOriginInputElements},
+			{kind: returnOriginParam, param: 1, selector: returnOriginInputElements}}, nil, true
 	}
 	return a.cursorDeclaration(fn)
 }

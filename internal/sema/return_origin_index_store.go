@@ -107,7 +107,7 @@ func (a *returnOriginAnalyzer) checkIndexStoreUse(fn, caller *returnOriginFuncti
 // view borrows its storage, a dynamic one carries the base value's loans.
 func (b *returnOriginBody) arrayRangeView(id ast.ExprID, target returnOriginExprResult, env returnOriginEnv, span source.Span) (returnOriginValue, bool) {
 	container, reason := b.analyzer.arrayRangeIndex(b.function, id)
-	if reason != "" || !b.elementsFree(container) {
+	if reason != "" || !b.elementsFreeAt(container, span) {
 		return returnOriginValue{}, false
 	}
 	owner := target.storage

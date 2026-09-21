@@ -108,6 +108,16 @@ func (b *returnOriginBody) elementsFreeAt(c returnOriginIndexType, span source.S
 // (emit_iter.go:334–341), so it keeps the base value's loans as well. The element stays
 // a subject, so an element that can hold a borrow is refused wherever the row is read.
 func (a *returnOriginAnalyzer) cursorDeclaration(fn *returnOriginFunction) ([]returnOrigin, []types.TypeID, bool) {
+	if fixed, view := a.arrayRangeIndexDeclaration(fn); view {
+		// A range index is a view: over a fixed base it points into that storage (rt_array.c:322–334);
+		// over a dynamic base it is registered on the base allocation (rt_array.c:280–315), so the
+		// base's loans are all it keeps.
+		roots := []returnOrigin{{kind: returnOriginParam, selector: returnOriginInputLoans}}
+		if fixed {
+			roots = []returnOrigin{{kind: returnOriginParam}}
+		}
+		return roots, []types.TypeID{fn.candidate.TemplateParams[0]}, true
+	}
 	op, certified := a.coreArrayIntrinsic(fn)
 	if !certified || op != returnOriginArrayRange {
 		return nil, nil, false
@@ -117,4 +127,30 @@ func (a *returnOriginAnalyzer) cursorDeclaration(fn *returnOriginFunction) ([]re
 		roots = append(roots, returnOrigin{kind: returnOriginParam, selector: returnOriginInputLoans})
 	}
 	return roots, []types.TypeID{fn.candidate.TemplateParams[0]}, true
+}
+
+// arrayRangeIndexDeclaration certifies `__index(self: &C, index: Range<int>) -> Array<T>`
+// on core Array (C = Array<T>) or ArrayFixed (C = ArrayFixed<T, N>) by the identity and
+// structure arrayRangeIndex requires of a selected one (index_store.go:162–171), read
+// from the declaration. The scalar `__index` carries a promise and fails the identity.
+func (a *returnOriginAnalyzer) arrayRangeIndexDeclaration(fn *returnOriginFunction) (fixed, ok bool) {
+	if fn == nil || fn.candidate == nil || fn.name != "__index" || !fn.candidate.HasSelf || len(fn.candidate.TemplateParams) == 0 ||
+		!returnOriginCoreIntrinsic(fn, len(fn.candidate.TemplateParams), len(fn.candidate.TemplateParams)) || len(fn.info.Params) != 2 {
+		return false, false
+	}
+	c, in := fn.candidate, fn.unit.Sema.TypeInterner
+	self, family := returnOriginContainer(in, fn.info.Params[0])
+	mutable, reference := returnOriginBackingDescriptor(in, fn.info.Params[0])
+	result, typed := returnOriginContainer(in, fn.info.Result)
+	info, _ := in.StructInfo(self.container)
+	rangeType, reason := a.intRangeType()
+	fixed = self.family == in.ArrayFixedNominalType()
+	arity := 1
+	if fixed {
+		arity = 2
+	}
+	return fixed, family && reference && !mutable && info != nil && c.ReceiverType == self.container && self.element == c.TemplateParams[0] &&
+		len(c.TemplateParams) == arity && len(info.TypeArgs) == arity && (!fixed || info.TypeArgs[1] == c.TemplateParams[1]) &&
+		reason == "" && fn.info.Params[1] == rangeType && typed && !result.reference && result.family == in.ArrayNominalType() &&
+		result.element == c.TemplateParams[0]
 }
