@@ -148,6 +148,8 @@ func (b *returnOriginBody) exprCore(id ast.ExprID, env returnOriginEnv, targets 
 			return b.onCrossing(id, data, env, targets)
 		}
 		return b.unknownExpr(env, node.Span, fmt.Sprintf("expression kind %d needs an origin transfer", node.Kind)), nil
+	case ast.ExprAsync, ast.ExprBlocking:
+		return b.taskBlockTransfer(id, node.Kind, env)
 	default:
 		return b.unknownExpr(env, node.Span, fmt.Sprintf("expression kind %d needs an origin transfer", node.Kind)), nil
 	}
