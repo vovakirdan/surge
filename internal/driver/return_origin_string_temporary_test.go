@@ -64,7 +64,9 @@ func stringTemporaryRows() []stringTemporaryRow {
 		// A Task holds its callee's borrowed formals; its type names only the result.
 		{name: "task_result", text: stringTemporaryWorker + "fn f(t: string) -> Task<int> { let k = worker(\"abc\" + t); return k; }\n",
 			kept: []string{"\"abc\" + t"}},
-		{name: "task_effect", text: stringTemporaryWorker + "fn arm(out: &mut Task<int>, s: &string) -> nothing { *out = worker(s); return nothing; }\n" +
+		// `arm` is a declaration: a body that parks the task, as it would have to, is refused by the task
+		// check itself (RV2-DEBT-365, R-b(call)), and this row asks only what the signature says.
+		{name: "task_effect", text: "@intrinsic fn arm(out: &mut Task<int>, s: &string) -> nothing;\n" +
 			"fn f(out: &mut Task<int>, t: string) -> nothing { arm(out, \"abd\" + t); return nothing; }\n", kept: []string{"\"abd\" + t"}},
 		// A raw pointer into the temporary's bytes outlives the statement that frees them.
 		{name: "pointer_result", text: "fn f(t: string) -> nothing { let _p = rt_string_ptr(\"p\" + t); return nothing; }\n", kept: []string{"\"p\" + t"}},
