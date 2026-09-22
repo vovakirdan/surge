@@ -11,6 +11,7 @@
 - NEVER add a `Co-Authored-By` trailer to user commits unless this project's `.claude/settings.json` has `attribution.commit` set (#2078). The Claude Code Bash tool may suggest one in its default commit-message template — ignore it. `Co-Authored-By` is semantic authorship attribution under git/GitHub convention; the tool is the facilitator, not a co-author.
 - Keep files under 500 lines
 - Validate input at system boundaries
+- ALWAYS check runtime-dependent claims against `docs/RUNTIME_V2.md`, `docs/RUNTIME_MODEL_EXPLAINED.ru.md`, `docs/runtime-v2-epics/` and `docs/RUNTIME.md` (never the v1 `docs/CONCURRENCY.md`), then against the code and a run on both backends; put the same requirement in every subagent brief. See `AGENTS.md`.
 
 ## Agent Comms (SendMessage-First Coordination)
 
