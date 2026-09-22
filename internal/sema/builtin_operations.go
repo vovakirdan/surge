@@ -15,20 +15,26 @@ import (
 // operation rather than rival implementations of it. A user declaration is
 // never builtin and never folds here.
 //
-// The catalog is ordered by canonical body key before this runs, so the record
-// that survives is the same one on every run.
+// The standard library's own record survives when one exists: its module path
+// is reserved for the standard library (driver/module_validation.go), so a copy
+// read from a path that sorts before `core/` cannot take its place. Otherwise
+// the first record in canonical body-key order survives, the same on every run.
 func dedupeBuiltinOperations(candidates []CallableCandidate) []CallableCandidate {
-	seen := make(map[string]struct{}, len(candidates))
+	chosen := make(map[string]int, len(candidates))
+	for i := range candidates {
+		if !candidates[i].Builtin {
+			continue
+		}
+		key := builtinOperationKey(&candidates[i])
+		if at, seen := chosen[key]; !seen || isCoreRuntimeModulePath(candidates[i].ModulePath) && !isCoreRuntimeModulePath(candidates[at].ModulePath) {
+			chosen[key] = i
+		}
+	}
 	kept := candidates[:0]
 	for i := range candidates {
-		if candidates[i].Builtin {
-			key := builtinOperationKey(&candidates[i])
-			if _, duplicate := seen[key]; duplicate {
-				continue
-			}
-			seen[key] = struct{}{}
+		if !candidates[i].Builtin || chosen[builtinOperationKey(&candidates[i])] == i {
+			kept = append(kept, candidates[i])
 		}
-		kept = append(kept, candidates[i])
 	}
 	return kept
 }

@@ -276,6 +276,9 @@ func (u *returnOriginUnitIndex) addFunction(fn *ast.FnItem, id symbols.SymbolID,
 	if fn.Body.IsValid() && !scope.IsValid() {
 		return fmt.Errorf("return origins: function body at %v has no owning scope", fn.NameSpan)
 	}
+	if !fn.Body.IsValid() && u.foldedBuiltinDeclaration(id, sym, info) {
+		return nil // the merged catalog answers this operation with the standard library's record
+	}
 	identity, err := u.owningCallableIdentity(fn, id, info)
 	if err != nil {
 		return err
