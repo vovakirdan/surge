@@ -40,7 +40,7 @@ func taskCheckErrorCodes(t *testing.T, probe taskCheckProbe) (string, []*diag.Di
 	opts := DiagnoseOptions{Stage: DiagnoseStageSema, BaseDir: dir, MaxDiagnostics: 64, IgnoreWarnings: true}
 	res, err := DiagnoseWithOptions(t.Context(), path, &opts)
 	// A program the task check accepts can still come back unfinished: return-origin does not
-	// answer `spawn`, `async`, `blocking` or a non-own `.await()` yet (RV2-DEBT-365). That is
+	// answer `spawn`, `select` or `race` yet (RV2-DEBT-365). That is
 	// not this row's question, and it is only ever asked of a program with a clean bag.
 	var unfinished *returnOriginUnfinishedError
 	if err != nil && !errors.As(err, &unfinished) {
