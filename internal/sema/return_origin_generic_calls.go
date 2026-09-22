@@ -186,9 +186,6 @@ func (fn *returnOriginFunction) originalSignature(caller *returnOriginFunction, 
 		}
 		var reason string
 		view.params[i], reason = u.originalArgumentType(expr, fn.info.Params[i], params, args)
-		if reason != "" && expr == receiver && fn.awaitMovesTask(u, expr, params, args) {
-			view.params[i], reason = u.Sema.ExprTypes[expr], "" // a Task written without `own` moves into await
-		}
 		if reason != "" {
 			return nil, reason
 		}

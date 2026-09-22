@@ -6,8 +6,8 @@ import (
 
 // A `&T` formal accepts an `own` binding through the same admitted borrow as any
 // other place, and a non-generic alias on the actual is matched through its
-// target. A Task written without `own` is moved into `.await()`, so both await
-// forms lose the row too and finish.
+// target. `.await()` keeps its refusal: the moved-receiver rule waits for the
+// task-borrow model, so these two leaves also pin that G1 has not landed.
 const movedReceiverSource = `type Ints = int[];
 async fn one() -> int {
     return 1;
@@ -53,12 +53,12 @@ func TestAnalyzeMovedReceivers(t *testing.T) {
 		{name: "alias_receiver", body: "alias_receiver",
 			function: originSpan{441, 538, "fn alias_receiver() -> nothing {\n    let mut xs: Ints = [];\n    xs.push(1);\n    return nothing;\n}"},
 			cleared:  []originRefusal{{originSpan{505, 515, "xs.push(1)"}, originSubstitutedRefusal}}},
-		// A non-own `.await()` receiver moves its handle into the call: both forms lose the row.
-		{name: "await_call", body: "await_call", clean: true,
+		// G1 is held until the task-borrow model lands: both await forms keep the row.
+		{name: "await_call_control", body: "await_call",
 			function: originSpan{59, 149, "async fn await_call() -> int {\n    let r: TaskResult<int> = one().await();\n    return 0;\n}"},
-			cleared:  []originRefusal{{originSpan{119, 132, "one().await()"}, originSubstitutedRefusal}}},
-		{name: "await_ident", body: "await_ident", clean: true,
+			stays:    []originRefusal{{originSpan{119, 132, "one().await()"}, originSubstitutedRefusal}}},
+		{name: "await_ident_control", body: "await_ident",
 			function: originSpan{150, 267, "async fn await_ident() -> int {\n    let t: Task<int> = one();\n    let r: TaskResult<int> = t.await();\n    return 0;\n}"},
-			cleared:  []originRefusal{{originSpan{241, 250, "t.await()"}, originSubstitutedRefusal}}},
+			stays:    []originRefusal{{originSpan{241, 250, "t.await()"}, originSubstitutedRefusal}}},
 	})
 }
