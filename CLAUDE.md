@@ -11,7 +11,27 @@
 - NEVER add a `Co-Authored-By` trailer to user commits unless this project's `.claude/settings.json` has `attribution.commit` set (#2078). The Claude Code Bash tool may suggest one in its default commit-message template — ignore it. `Co-Authored-By` is semantic authorship attribution under git/GitHub convention; the tool is the facilitator, not a co-author.
 - Keep files under 500 lines
 - Validate input at system boundaries
-- ALWAYS check runtime-dependent claims against `docs/RUNTIME_V2.md`, `docs/RUNTIME_MODEL_EXPLAINED.ru.md`, `docs/runtime-v2-epics/` and `docs/RUNTIME.md` (never the v1 `docs/CONCURRENCY.md`), then against the code and a run on both backends; put the same requirement in every subagent brief. See `AGENTS.md`.
+- ALWAYS check runtime-dependent claims against `docs/RUNTIME_V2.md`, `docs/RUNTIME_MODEL_EXPLAINED.ru.md`, `docs/runtime-v2-epics/` and `docs/RUNTIME.md` (never the v1 `docs/CONCURRENCY.md`), then against the code and a run on both backends; put the same requirement in every subagent brief. See "Runtime model check" below.
+
+## Runtime model check
+
+Runtime V2 work is judged against the V2 documents, not the v1 ones. Before designing, reviewing or
+landing anything whose soundness depends on how tasks, scopes, shards, carriers, handles, channels or
+cancellation behave at run time, read the relevant sections of `docs/RUNTIME_V2.md` (target
+architecture and owner rulings), `docs/RUNTIME_MODEL_EXPLAINED.ru.md` (V1, V2 and what lies
+between), `docs/runtime-v2-epics/` with the debt ledger `DEBT.md`, and `docs/RUNTIME.md` (the runtime
+today). `docs/CONCURRENCY.md` is the **v1** model and is not a contract for Runtime V2.
+
+Then check the claim against the code (MIR lowering, `runtime/native`, `internal/asyncrt`,
+`internal/vm`) and, when soundness depends on it, a run on both backends. A compiler rule that
+assumes a runtime property ("a task created by a call does not run until started", "dropping a
+handle cancels", "a join happens at scope exit") is a hypothesis until the model, the code and a run
+agree; when they disagree, write it up for the owner instead of picking a side. Every subagent brief
+that touches task, scope or runtime semantics names these documents and requires this check.
+
+Why: on 2026-09-22 a task-check rule rested on cold task creation (the model's promise) while the
+runtime publishes a task at once (RV2-DEBT-370); three reviews accepted it without reading the
+runtime, and a use-after-free built on the D2 line until W4-G1 was reverted.
 
 ## Agent Comms (SendMessage-First Coordination)
 
