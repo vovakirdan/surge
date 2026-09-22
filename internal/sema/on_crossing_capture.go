@@ -253,8 +253,8 @@ func (tc *typeChecker) checkOnCaptures(body ast.StmtID, anchorSym symbols.Symbol
 
 func (tc *typeChecker) classifyOnCapture(capType types.TypeID, capture blockingCapture) (CrossingCaptureMode, CrossingCaptureVerdict, bool) {
 	span := capture.span
-	// Borrowed captures are rejected on the surface type (ON-CAP-N001/N002).
-	if tc.isReferenceType(capType) {
+	// Borrowed captures are rejected under any `own` (ON-CAP-N001/N002): `own &T` is a borrow.
+	if tc.isReferenceType(tc.ownStripped(capType)) {
 		tc.report(diag.SemaCrossBorrowCapture, span, "borrowed values cannot cross shard boundaries")
 		return 0, 0, false
 	}

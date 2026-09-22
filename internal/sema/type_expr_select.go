@@ -63,7 +63,7 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 	// the snapshot silently starts capturing body moves, at which point
 	// merging it for a closed arm stops meaning anything.
 	movedAwait := make([]map[Place]source.Span, len(data.Arms))
-	pinsAwait := make([]map[taskBorrowPinKey]taskBorrowPin, len(data.Arms))
+	armJoins := make([][]uint32, len(data.Arms))
 	// The awaits are typed FIRST, all of them, and the bodies after: an
 	// await runs before the select does, whichever arm wins, so what an
 	// await moves is gone for every arm's body and for every later await.
@@ -88,11 +88,10 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 	}
 	tc.selectSendPayloads = &selectPayloadLedger{keyword: keyword, taken: make(map[symbols.SymbolID]source.Span)}
 	defer func() { tc.selectSendPayloads = ledgerOuter }()
-	awaitBase := movedBefore
+	awaitBase, pinsHeads := movedBefore, pinsBefore
 
 	for i, arm := range data.Arms {
 		tc.restoreMovedPlaces(awaitBase)
-		tc.restoreTaskBorrowPins(pinsBefore)
 		tc.selectSendPayloads.arm = symbols.NoSymbolID
 		if arm.IsDefault {
 			defaultCount++
@@ -103,12 +102,12 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 			if !tc.isSelectAwaitableExpr(arm.Await) {
 				tc.report(diag.SemaTypeMismatch, tc.exprSpan(arm.Await), "select arm expects awaitable expression")
 			} else {
-				tc.typeSelectAwaitExpr(arm.Await)
+				tc.typeSelectAwaitExpr(arm.Await, &armJoins[i])
 			}
 		}
 
 		movedAwait[i] = tc.snapshotMovedPlaces()
-		pinsAwait[i] = tc.snapshotTaskBorrowPins()
+		pinsHeads = tc.snapshotTaskBorrowPins()
 		awaitBase = mergeMovedPlaces(awaitBase, unconditionalAwaitMoves(movedAwait[i], tc.selectSendPayloads.arm))
 	}
 	tc.refuseStagedPayloadsConsumedByAnAwait(awaitBase)
@@ -117,7 +116,7 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 		// This arm's body: everything every await gave away for good, plus
 		// this arm's own payload, which is gone exactly where this arm won.
 		tc.restoreMovedPlaces(mergeMovedPlaces(awaitBase, movedAwait[i]))
-		tc.restoreTaskBorrowPins(pinsAwait[i])
+		tc.restoreArmPins(pinsHeads, armJoins[i])
 
 		armResult := tc.typeExpr(arm.Result)
 		armClosed[i] = tc.compareArmAbruptExit(arm.Result)
@@ -391,7 +390,7 @@ func (tc *typeChecker) isSelectAwaitableExpr(exprID ast.ExprID) bool {
 	return false
 }
 
-func (tc *typeChecker) typeSelectAwaitExpr(exprID ast.ExprID) {
+func (tc *typeChecker) typeSelectAwaitExpr(exprID ast.ExprID, joins *[]uint32) {
 	if !exprID.IsValid() || tc.builder == nil {
 		return
 	}
@@ -419,7 +418,7 @@ func (tc *typeChecker) typeSelectAwaitExpr(exprID ast.ExprID) {
 					tc.report(diag.SemaTypeMismatch, tc.exprSpan(member.Target), "await expects Task<T>, got %s", tc.typeLabel(recvType))
 				}
 				if tc.taskTracker != nil {
-					tc.trackTaskAwait(member.Target)
+					tc.trackArmHeadAwait(member.Target, joins)
 				}
 			case "recv":
 				recvType := tc.typeExpr(member.Target)
@@ -454,7 +453,7 @@ func (tc *typeChecker) typeSelectAwaitExpr(exprID ast.ExprID) {
 					tc.report(diag.SemaTypeMismatch, tc.exprSpan(call.Args[0].Value), "await expects Task<T>, got %s", tc.typeLabel(argType))
 				}
 				if tc.taskTracker != nil {
-					tc.trackTaskAwait(call.Args[0].Value)
+					tc.trackArmHeadAwait(call.Args[0].Value, joins)
 				}
 			case "timeout":
 				if len(call.Args) == 0 {
@@ -476,7 +475,7 @@ func (tc *typeChecker) typeSelectAwaitExpr(exprID ast.ExprID) {
 				tc.report(diag.SemaTypeMismatch, tc.exprSpan(data.Value), "await expects Task<T>, got %s", tc.typeLabel(argType))
 			}
 			if tc.taskTracker != nil {
-				tc.trackTaskAwait(data.Value)
+				tc.trackArmHeadAwait(data.Value, joins)
 			}
 		}
 	}

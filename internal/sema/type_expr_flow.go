@@ -354,6 +354,7 @@ func (tc *typeChecker) typeExprAsync(id ast.ExprID, span source.Span) types.Type
 		// reintroduces one of the two failures.
 		tc.observeMove(cap.exprID, cap.span)
 	}
+	tc.pinCapturedCursors(id, span)
 	return resultType
 }
 
@@ -376,7 +377,7 @@ func (tc *typeChecker) typeExprBlocking(id ast.ExprID, span source.Span) types.T
 	tc.recordBlockingCaptures(id, captures)
 	for _, cap := range captures {
 		capType := tc.bindingType(cap.symID)
-		if tc.isReferenceType(capType) {
+		if tc.isReferenceType(tc.ownStripped(capType)) {
 			tc.report(diag.SemaBlockingBorrowCapture, cap.span,
 				"blocking captures must be by value; cannot capture reference %s", tc.typeLabel(capType))
 			continue
@@ -415,5 +416,6 @@ func (tc *typeChecker) typeExprBlocking(id ast.ExprID, span source.Span) types.T
 		tc.checkSpawnSendability(cap.symID, cap.span)
 		tc.observeMove(cap.exprID, cap.span)
 	}
+	tc.pinCapturedCursors(id, span)
 	return resultType
 }

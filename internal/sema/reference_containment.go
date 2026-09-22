@@ -116,6 +116,7 @@ func (tc *typeChecker) checkTaskBorrowEscapeOnReturn(expr ast.ExprID, ty types.T
 	}
 	call, ok := tc.builder.Exprs.Call(tc.unwrapGroupExpr(payload))
 	if !ok || call == nil {
+		tc.refuseCapturedCursorEscape(inner, spawnExpr, span, cloneSpan)
 		return
 	}
 	for _, arg := range call.Args {

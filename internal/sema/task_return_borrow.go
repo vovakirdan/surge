@@ -160,14 +160,17 @@ func (tc *typeChecker) refuseTaskBorrowsAtRet(id ast.StmtID, entryPins map[taskB
 // the frame there exactly as a `return` does, and no `return` statement stands on that path to
 // ask the question. The record is committed ONCE, here: while the body is being walked the
 // signature still reads "unknown", so a call the function makes to itself -- or to a function
-// that calls it back -- is pinned, whichever of its returns has been seen so far.
+// that calls it back -- is pinned, whichever of its returns has been seen so far. The arrays of
+// unknown provenance its tasks were handed are judged here too, once the whole body is known.
 func (tc *typeChecker) walkCallableBody(body ast.StmtID) {
 	outer := tc.fnTaskBorrows
+	outerArrays := tc.beginUntracedArrays()
 	tc.fnTaskBorrows = symbols.TaskBorrowsUnknown
 	tc.walkStmt(body)
 	if tc.returnStatus(body) != returnClosed {
 		tc.refuseLivePinsAtAbruptExit(0, "function end")
 	}
+	tc.endUntracedArrays(outerArrays)
 	if sym := tc.symbolFromID(tc.currentFnSym()); sym != nil && sym.Signature != nil {
 		sym.Signature.TaskBorrows = symbols.TaskBorrowsLent
 		if tc.fnTaskBorrows == symbols.TaskBorrowsNothing {
@@ -224,6 +227,9 @@ func (tc *typeChecker) callBuildsTaskFromOwnedValues(candidate ast.ExprID) bool 
 		return false
 	}
 	if tc.taskTracker != nil && tc.taskTracker.TaskIDForExpr(candidate) != 0 {
+		return false
+	}
+	if tc.untracedArrayLent(candidate) {
 		return false
 	}
 	callee := tc.symbolFromID(tc.symbols.ExprSymbols[candidate])

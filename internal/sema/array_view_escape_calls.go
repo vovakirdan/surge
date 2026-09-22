@@ -399,11 +399,15 @@ func (tc *typeChecker) reportFixedArrayViewEscape(sym *symbols.Symbol, storage s
 // `async` or `blocking` body. The window is a bare pointer into the frame slot, the body is a
 // task of its own -- a `blocking` one runs on another thread -- and nothing ties the task's
 // life to the frame's: a body has no identity a borrow pin could be keyed by. It is the rule
-// `return v` already has (RV2-DEBT-206), read at the other way out of the frame.
+// `return v` already has (RV2-DEBT-206), read at the other way out of the frame. A binding that is
+// not a window the checker traced is refuseUntracedCapture's.
 func (tc *typeChecker) refuseFixedViewCapture(symID symbols.SymbolID, span source.Span, body string) bool {
 	base, isView := tc.fixedViewBindingBase[symID]
+	if !isView {
+		return tc.refuseUntracedCapture(symID, span, body)
+	}
 	sym := tc.symbolFromID(base)
-	if !isView || sym == nil || !tc.isFrameLocalStorage(base) || tc.reporter == nil {
+	if sym == nil || !tc.isFrameLocalStorage(base) || tc.reporter == nil {
 		return false
 	}
 	name := tc.lookupName(sym.Name)

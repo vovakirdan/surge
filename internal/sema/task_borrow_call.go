@@ -33,7 +33,7 @@ func (tc *typeChecker) typeTaskProducingCall(id ast.ExprID, span source.Span, ca
 		// The spawn collects for itself. What no borrow record in its operand shows is
 		// handed to it here: a reference a call gave back, and a fixed-array window.
 		tc.noteReachingLoans(call)
-		tc.spawnBorrowCaptures = append(tc.spawnBorrowCaptures, tc.reachingFixedViews(call)...)
+		tc.spawnBorrowCaptures = append(tc.spawnBorrowCaptures, tc.reachingFixedViews(id, call)...)
 		return ty
 	}
 	prevSpawnOperand := tc.spawnOperand
@@ -87,7 +87,7 @@ func (tc *typeChecker) typeTaskProducingCall(id ast.ExprID, span source.Span, ca
 	if tc.calleeTaskBorrowsNothing(id) {
 		captures = nil
 	}
-	captures = append(captures, tc.reachingFixedViews(call)...)
+	captures = append(captures, tc.reachingFixedViews(id, call)...)
 	// A call whose value is dropped where it stands (`m.lock();`) can be started
 	// by nobody, and stays unpinned.
 	if len(captures) == 0 || tc.taskTracker == nil || tc.isExprDiscarded(id) {
@@ -169,12 +169,15 @@ func (tc *typeChecker) carriedLoanSources(expr ast.ExprID) []ast.ExprID {
 // reachingFixedViews answers the windows into a FIXED array that a call hands to its task. A
 // fixed array has no header to retain: the window is a bare pointer into a frame slot
 // (array_view_escape.go), typed `T[]` like an array that owns its buffer. It is a borrow of that
-// slot in everything but spelling, so it pins the array it points into.
-func (tc *typeChecker) reachingFixedViews(call *ast.ExprCallData) []spawnBorrowCapture {
+// slot in everything but spelling, so it pins the array it points into. A position that is
+// not a window the checker traced is answered by untracedArrayCaptures.
+func (tc *typeChecker) reachingFixedViews(id ast.ExprID, call *ast.ExprCallData) []spawnBorrowCapture {
 	var views []spawnBorrowCapture
 	for _, lender := range tc.reachingPositions(call) {
 		if base := tc.fixedViewEscapeBase(lender); base.IsValid() {
 			views = append(views, spawnBorrowCapture{Place: Place{Base: base}, Kind: BorrowShared, Span: tc.exprSpan(lender)})
+		} else if untraced := tc.untracedArrayCaptures(id, lender); len(untraced) != 0 {
+			views = append(views, untraced...)
 		}
 	}
 	return views
