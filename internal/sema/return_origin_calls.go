@@ -18,6 +18,9 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 	if out, handled, err := b.farSelector(id, call, env, targets); handled || err != nil {
 		return out, err
 	}
+	if out, handled, err := b.anchoredOperation(id, call, env, targets); handled || err != nil {
+		return out, err
+	}
 	span := u.Builder.Exprs.Get(id).Span
 	symID := u.Symbols.ExprSymbols[id]
 	sym := u.Symbols.Table.Symbols.Get(symID)
