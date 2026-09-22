@@ -34,6 +34,7 @@ func (tc *typeChecker) updateBindingValue(symID symbols.SymbolID, expr ast.ExprI
 		return
 	}
 	tc.refuseStatementTemporaryBinding(symID, expr)
+	tc.noteCarriedValueSource(symID, expr)
 	if tc.borrow == nil {
 		tc.bindingBorrow[symID] = NoBorrowID
 		return

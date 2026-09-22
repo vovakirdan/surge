@@ -60,6 +60,7 @@ func (tc *typeChecker) typeBlockExpr(id ast.ExprID, block *ast.ExprBlockData) ty
 	}
 	tc.recordBlockExprEndDrops(id)
 	tc.popDropScope()
+	tc.refusePinsOfEndedBlockExpr(id)
 
 	tc.popReturnContext()
 

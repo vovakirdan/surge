@@ -21,6 +21,7 @@ func (tc *typeChecker) buildScopeIndex() {
 	}
 	tc.scopeByItem = make(map[ast.ItemID]symbols.ScopeID)
 	tc.scopeByStmt = make(map[ast.StmtID]symbols.ScopeID)
+	tc.exprScopes = make(map[ast.ExprID][]symbols.ScopeID)
 	for idx := range data {
 		scope := data[idx]
 		value, err := safecast.Conv[uint32](idx + 1)
@@ -47,6 +48,10 @@ func (tc *typeChecker) buildScopeIndex() {
 		case symbols.ScopeOwnerStmt:
 			if owner.Stmt.IsValid() {
 				tc.scopeByStmt[owner.Stmt] = id
+			}
+		case symbols.ScopeOwnerExpr:
+			if owner.Expr.IsValid() {
+				tc.exprScopes[owner.Expr] = append(tc.exprScopes[owner.Expr], id)
 			}
 		}
 	}

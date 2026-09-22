@@ -45,6 +45,7 @@ func (tc *typeChecker) typeTaskProducingCall(id ast.ExprID, span source.Span, ca
 
 	ty := tc.typeExprCall(id, span, call)
 	tc.noteReachingLoans(call)
+	lent := tc.lentValueCaptures(ty, call)
 
 	collected := tc.spawnBorrowCaptures
 	tc.spawnOperand = prevSpawnOperand
@@ -83,18 +84,23 @@ func (tc *typeChecker) typeTaskProducingCall(id ast.ExprID, span source.Span, ca
 	// A callee that recorded that the task it returns was built from owned values
 	// only (`net.accept(&listener)`) was lent nothing by a REFERENCE. That record
 	// is about references: a window into a fixed array is typed `T[]`, passes
-	// through any by-value formal, and is pinned whatever the callee says.
+	// through any by-value formal, and is pinned whatever the callee says. What a
+	// reaching value carries through a parameter or a `let`, and a window a
+	// parameter may have handed in, are flow-only pins (task_lent_value.go).
 	if tc.calleeTaskBorrowsNothing(id) {
 		captures = nil
+		lent = nil
 	}
 	captures = append(captures, tc.reachingFixedViews(id, call)...)
+	lent = append(lent, tc.windowParameterCaptures(call)...)
 	// A call whose value is dropped where it stands (`m.lock();`) can be started
 	// by nobody, and stays unpinned.
-	if len(captures) == 0 || tc.taskTracker == nil || tc.isExprDiscarded(id) {
+	if len(captures)+len(lent) == 0 || tc.taskTracker == nil || tc.isExprDiscarded(id) {
 		return ty
 	}
 	taskID := tc.taskTracker.NoteCallTask(id, span, tc.currentScope(), tc.asyncBlockDepth > 0)
 	tc.openTaskBorrowPins(taskID, captures)
+	tc.openLentValuePins(taskID, lent)
 	return ty
 }
 

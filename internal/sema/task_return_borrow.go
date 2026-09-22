@@ -133,7 +133,7 @@ func (tc *typeChecker) taskPinnedFrameLocal(exit ast.ExprID) (symbols.SymbolID, 
 		return symbols.NoSymbolID, source.Span{}
 	}
 	for _, key := range sortedTaskBorrowPinKeys(tc.taskBorrowPins) {
-		if key.Task == task && tc.isFrameLocalStorage(key.Place.Base) {
+		if key.Task == task && !tc.isFlowOnlyPin(key) && tc.isFrameLocalStorage(key.Place.Base) {
 			return key.Place.Base, tc.taskBorrowPins[key].Span
 		}
 	}
@@ -226,7 +226,7 @@ func (tc *typeChecker) callBuildsTaskFromOwnedValues(candidate ast.ExprID) bool 
 	if _, ok := tc.builder.Exprs.Call(candidate); !ok || tc.symbols == nil || tc.types == nil {
 		return false
 	}
-	if tc.taskTracker != nil && tc.taskTracker.TaskIDForExpr(candidate) != 0 {
+	if tc.callTaskCapturedAnything(candidate) {
 		return false
 	}
 	if tc.untracedArrayLent(candidate) {
@@ -283,12 +283,18 @@ func (tc *typeChecker) calleeTaskBorrowsNothing(call ast.ExprID) bool {
 // later" is no answer: a handle pushed into an outer container inside the block and drained
 // after it was exactly that, and the drain released a pin whose place was already gone.
 func (tc *typeChecker) refusePinsOfEndedScope(scope symbols.ScopeID) {
+	tc.refusePinsOfEndedScopeExcept(scope, nil)
+}
+
+// refusePinsOfEndedScopeExcept is that edge with a binding spared: spared, when set, names a binding
+// of the scope that does not die with it (task_block_expr_end.go).
+func (tc *typeChecker) refusePinsOfEndedScopeExcept(scope symbols.ScopeID, spared func(symbols.SymbolID) bool) {
 	if len(tc.taskBorrowPins) == 0 || tc.reporter == nil {
 		return
 	}
 	for _, key := range sortedTaskBorrowPinKeys(tc.taskBorrowPins) {
 		sym := tc.symbolFromID(key.Place.Base)
-		if sym == nil || sym.Kind != symbols.SymbolLet || sym.Scope != scope {
+		if sym == nil || sym.Kind != symbols.SymbolLet || sym.Scope != scope || (spared != nil && spared(key.Place.Base)) {
 			continue
 		}
 		pin := tc.taskBorrowPins[key]

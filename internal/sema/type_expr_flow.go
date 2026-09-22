@@ -80,6 +80,7 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		// the result moved out is already recorded when the obligations are read.
 		tc.pushDropScope(false)
 		tc.inferComparePatternTypes(arm.Pattern, armSubject, &armBindings)
+		tc.noteCarriedArmSources(armBindings, cmp.Value)
 		tupleElementsBorrowed := tc.compareTupleElementsAreBorrowed(cmp.Value, arm.Pattern, armSubject)
 		tc.registerComparePayloadDroppables(armBindings, subjectBorrowed, tupleElementsBorrowed)
 		if arm.Guard.IsValid() {
@@ -181,6 +182,7 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 			armResidualPlans[i] = tc.residualDropPlansFor(armPayloadDrops[i])
 		}
 		tc.popDropScope()
+		tc.refusePinsOfEndedArm(id, i, subjectBorrowed, tupleElementsBorrowed)
 		movedArms[i] = tc.snapshotMovedPlaces()
 		pinsArms[i] = tc.snapshotTaskBorrowPins()
 	}

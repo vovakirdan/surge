@@ -59,6 +59,7 @@ type typeChecker struct {
 	scopeByItem        map[ast.ItemID]symbols.ScopeID
 	scopeByStmt        map[ast.StmtID]symbols.ScopeID
 	scopeByExtern      map[ast.ExternMemberID]symbols.ScopeID
+	exprScopes         map[ast.ExprID][]symbols.ScopeID
 	stmtSymbols        map[ast.StmtID]symbols.SymbolID
 	externSymbols      map[ast.ExternMemberID]symbols.SymbolID
 	bindingBorrow      map[symbols.SymbolID]BorrowID
@@ -190,6 +191,9 @@ type typeChecker struct {
 	// selectArmJoins, while one select arm's head joins a task, receives that task: its
 	// pins end only in that arm (task_select_arm_joins.go).
 	selectArmJoins *[]uint32
+	// lentValues is what the task check knows of values lent through bindings
+	// (task_lent_value.go).
+	lentValues lentValueState
 	// spawnReachingExprs names the positions in that operand from which a borrow
 	// actually travels into the child -- the spawned call's arguments and its
 	// receiver. nil means every borrow in the operand reaches, which is the right
