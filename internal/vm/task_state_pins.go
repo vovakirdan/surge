@@ -1,6 +1,10 @@
 package vm
 
-import "fmt"
+import (
+	"fmt"
+
+	"surge/internal/types"
+)
 
 type pinnedLocal struct {
 	frame *Frame
@@ -31,10 +35,14 @@ type taskStatePinCollector struct {
 // storageExtent identifies one extent for the purpose of not walking it twice.
 // A composite can be reached by more than one path — a reference to it and the
 // slot that owns it — and walking it once per path would retain its members
-// once per path.
+// once per path. The type is part of the key because a composite and its first
+// member start at the same offset: keyed by position alone, a borrow of that
+// member walked first would hide the composite, and its other members would go
+// unretained.
 type storageExtent struct {
 	arena  *Arena
 	offset uint64
+	typeID types.TypeID
 }
 
 func (vm *VM) collectTaskStatePins(state Value) (taskStatePins, *VMError) {
@@ -262,12 +270,35 @@ func (c *taskStatePinCollector) visitStorage(ref StorageRef) *VMError {
 		ref.Arena.pin()
 		c.pins.arenas = append(c.pins.arenas, ref.Arena)
 	}
-	key := storageExtent{arena: ref.Arena, offset: ref.Offset}
+	key := storageExtent{arena: ref.Arena, offset: ref.Offset, typeID: ref.TypeID}
 	if _, ok := c.visitedExtents[key]; ok {
 		return nil
 	}
 	c.visitedExtents[key] = struct{}{}
+	if c.vm.storageCellKind(ref.TypeID) != cellComposite {
+		if _, err := c.vm.unionMembers(ref.TypeID); err != nil {
+			return c.visitStorageCell(ref)
+		}
+	}
 	return c.visitStorageMembers(ref)
+}
+
+// visitStorageCell retains what one cell holds when a reference names the cell
+// itself rather than a composite around it: a borrowed string field, or a local
+// of an async function that a child borrows and the split moved into the
+// parent's state. It is the rule visitStorageMembers applies to a cell inside a
+// composite, reached here without the composite.
+func (c *taskStatePinCollector) visitStorageCell(ref StorageRef) *VMError {
+	value, vmErr := c.vm.peekStorage(ref)
+	if vmErr != nil {
+		return vmErr
+	}
+	if value.IsHeap() && value.H != 0 {
+		if vmErr := c.retainHandle(value.H); vmErr != nil {
+			return vmErr
+		}
+	}
+	return c.visitValue(value)
 }
 
 func (c *taskStatePinCollector) visitStorageMembers(ref StorageRef) *VMError {
