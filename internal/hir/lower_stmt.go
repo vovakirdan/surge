@@ -418,7 +418,8 @@ func (l *lowerer) lowerBlockOrWrap(stmtID ast.StmtID) *Block {
 // - For functions returning a value: converts last expression to return (Rust-style tail return)
 //
 // Surge semantics: missing return means "return nothing", NOT "return last expression".
-// Tail return conversion only applies to non-nothing functions.
+// Tail return conversion only applies to non-nothing functions, and never to a last
+// expression typed `nothing`, which does not complete (see below).
 func (l *lowerer) ensureExplicitReturn(fn *Func) {
 	if fn.Body == nil || fn.Body.IsEmpty() {
 		return
@@ -453,7 +454,12 @@ func (l *lowerer) ensureExplicitReturn(fn *Func) {
 	// For non-nothing functions: convert last expression to return (tail return)
 	if lastStmt != nil && lastStmt.Kind == StmtExpr {
 		exprData, ok := lastStmt.Data.(ExprStmtData)
-		if ok && exprData.Expr != nil {
+		// A last statement typed `nothing` never falls through: sema gives a
+		// statement that type in a function with a result only because every
+		// arm of it returns or it diverges. It is not a value to return, so it
+		// stays a statement, and the end of the body is MIR's fall-through,
+		// which is unreachable in a function with a result.
+		if ok && exprData.Expr != nil && !l.isNothingType(exprData.Expr.Type) {
 			// Replace the last statement with a return
 			fn.Body.Stmts[len(fn.Body.Stmts)-1] = Stmt{
 				Kind: StmtReturn,
