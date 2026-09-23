@@ -40,7 +40,9 @@ func (vm *VM) handleTaskCreate(frame *Frame, call *mir.CallInstr, writes *[]Loca
 	if stateErr := vm.setUserTaskState(state, stateVal); stateErr != nil {
 		return stateErr
 	}
-	id := exec.Spawn(pollFnID, state)
+	// Created cold (RV2-DEBT-370): a member and a child, runnable only once a
+	// spawn, an await, a cancel or its scope's join publishes it.
+	id := exec.Create(pollFnID, state)
 	if registerErr := vm.registerAsyncTaskOwner(id, payloadType); registerErr != nil {
 		return registerErr
 	}

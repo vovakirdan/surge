@@ -99,7 +99,9 @@ func (e *Executor[P]) cancelRecursive(id TaskID) {
 	if !task.Cancelled {
 		task.Cancelled = true
 	}
-	if task.Status == TaskWaiting {
+	// A cold task is published by its cancel, as the native cancel_task wakes it
+	// (RV2-DEBT-370): it then observes the cancellation at its poll.
+	if task.Status == TaskWaiting || task.Cold {
 		e.Wake(id)
 	}
 	for _, child := range task.Children {

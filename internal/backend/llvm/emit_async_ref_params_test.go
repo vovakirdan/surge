@@ -49,8 +49,8 @@ fn main() -> int {
 	if !strings.Contains(body, "store ptr %p0, ptr %l0") {
 		t.Fatalf("async shared ref constructor should store the original pointer alias:\n%s", body)
 	}
-	if !strings.Contains(body, "call ptr @__task_create_affine(") {
-		t.Fatalf("a constructor holding a borrow must build its task through __task_create_affine:\n%s", body)
+	if !strings.Contains(body, "call ptr @__task_create_cold_affine(") {
+		t.Fatalf("a constructor holding a borrow must build its task through __task_create_cold_affine:\n%s", body)
 	}
 }
 

@@ -86,6 +86,9 @@ VM async execution is handled by `internal/asyncrt`:
 - default scheduling is deterministic FIFO;
 - fuzz scheduling can use a fixed seed for reproducible interleavings;
 - scopes track structured concurrency and child tasks;
+- a call of an `async fn` and an `async { }` block create a task cold
+  (`Executor.Create`): recorded, in no ready queue, published by its first
+  enqueue and ended unrun if its last handle goes first (RV2-DEBT-370);
 - channels, timers, joins, select, race, and cancellation park tasks rather than
   blocking an OS thread.
 
@@ -143,7 +146,11 @@ Important executor-owned state:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> READY: create or wake
+    [*] --> COLD: create (async fn call, async block)
+    COLD --> READY: first spawn, await, cancel or scope join
+    COLD --> DONE: last handle dropped, never polled
+    [*] --> READY: create published (blocking, checkpoint, sleep, stand drivers)
+    READY --> READY: wake
     READY --> RUNNING: worker polls
     RUNNING --> READY: yields
     RUNNING --> WAITING: parks on waker key
@@ -156,6 +163,11 @@ stateDiagram-v2
 Core invariants:
 
 - A task is never polled concurrently by more than one worker.
+- A task created by a call of an `async fn` or an `async { }` block is cold:
+  recorded -- scope membership, owning shard, carrier pin -- and in no ready
+  queue until its first `spawn`, await, cancel or scope join publishes it; a
+  last handle dropped first ends it without a poll (`rt_task_cold.c`,
+  RV2-DEBT-370).
 - `ex->lock` owns task transitions that touch queues, waiters, scopes, timers,
   and shutdown state.
 - Ready queues store task IDs with the task `enqueued` flag set; duplicate queue

@@ -521,10 +521,27 @@ void* __task_create(uint64_t poll_fn_id, void* state, const rt_value_ops* result
 // is pinned to the worker carrying the creator before it is published, so it
 // only ever runs where the borrowed frame is. Creation is the only point that
 // knows the carrier, because creation is a synchronous action of the running
-// parent and publishes the task at once -- a pin at the spawn's wake would
-// come after the first publication.
+// parent -- a pin at the spawn's wake would come from whatever thread spawns.
 // NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 void* __task_create_affine(uint64_t poll_fn_id, void* state, const rt_value_ops* result_ops);
+// The two above publish the task at once: they are a stand driver's "create
+// and spawn". Compiled code creates every task COLD (RV2-DEBT-370): recorded
+// exactly as the constructors above record it -- membership, owning shard,
+// parent, slot, and the carrier pin for the affine one -- and made runnable
+// only by its first spawn, await, cancel or scope join. `frame_ops` is the
+// start frame's descriptor: a task whose last handle is dropped while it is
+// still cold is ended without a poll, and its frame, PACKED since the
+// constructor built it, is released through it (rt_task_cold.c).
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+void* __task_create_cold(uint64_t poll_fn_id,
+                         void* state,
+                         const rt_value_ops* result_ops,
+                         const rt_value_ops* frame_ops);
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+void* __task_create_cold_affine(uint64_t poll_fn_id,
+                                void* state,
+                                const rt_value_ops* result_ops,
+                                const rt_value_ops* frame_ops);
 // NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 void* __task_state(void);
 void rt_task_wake(void* task);

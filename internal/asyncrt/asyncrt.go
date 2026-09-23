@@ -97,6 +97,7 @@ type Task[P Payload] struct {
 	Status           TaskStatus
 	Kind             TaskKind
 	Cancelled        bool
+	Cold             bool // created by Create, not yet enqueued (RV2-DEBT-370)
 	ScopeID          ScopeID
 	CreationScopeID  ScopeID
 	ScopeRegistered  bool
@@ -149,34 +150,10 @@ func NewExecutor[P Payload](cfg Config) *Executor[P] {
 	return exec
 }
 
-// Spawn registers a task and enqueues it for execution.
+// Spawn registers a task and enqueues it for execution: Create, then the
+// publication a `spawn` of the fresh task makes.
 func (e *Executor[P]) Spawn(pollFuncID int64, state TaskState) TaskID {
-	if e == nil {
-		return 0
-	}
-	if e.nextID == 0 {
-		e.nextID = 1
-	}
-	id := e.nextID
-	e.nextID++
-
-	task := &Task[P]{
-		ID:         id,
-		PollFuncID: pollFuncID,
-		State:      state,
-		Status:     TaskReady,
-		Kind:       TaskKindUser,
-	}
-	if e.tasks == nil {
-		e.tasks = make(map[TaskID]*Task[P])
-	}
-	e.tasks[id] = task
-	if e.current != 0 {
-		if parent := e.tasks[e.current]; parent != nil {
-			parent.Children = append(parent.Children, id)
-			e.registerCreatedScopeMember(parent, task)
-		}
-	}
+	id := e.Create(pollFuncID, state)
 	e.enqueue(id)
 	return id
 }
@@ -406,6 +383,7 @@ func (e *Executor[P]) enqueue(id TaskID) {
 	e.readySet[id] = struct{}{}
 	if task := e.tasks[id]; task != nil && task.Status != TaskDone {
 		task.Status = TaskReady
+		task.Cold = false
 	}
 }
 

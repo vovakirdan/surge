@@ -1767,6 +1767,16 @@
       "group": "PG-INVARIANT"
     },
     {
+      "site": "runtime/native/rt_scope_event.c::rt_scope_publish_cold_published#1",
+      "message": "async: scope id does not fit the scope event envelope",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_scope_event.c::rt_scope_publish_cold_published#2",
+      "message": "async: a scope cold-publication event could not reach the scope's owner lane",
+      "group": "PG-INVARIANT"
+    },
+    {
       "site": "runtime/native/rt_scope_membership.h::rt_scope_publish_creation_locked#1",
       "message": "async: scope membership published outside its owner lane",
       "group": "PG-INVARIANT"
@@ -1829,6 +1839,16 @@
     {
       "site": "runtime/native/rt_string.c::string_alloc_or_report#1",
       "message": "could not allocate String",
+      "group": "PG-ALLOC-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_task_cold.c::cold_discard#1",
+      "message": "async: a cold task was created without its frame's descriptor",
+      "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_task_cold.c::rt_scope_publish_cold_members#1",
+      "message": "async: scope publication snapshot allocation failed",
       "group": "PG-ALLOC-FAILURE"
     },
     {

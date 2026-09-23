@@ -1,5 +1,6 @@
 #include "rt_async_internal.h"
 #include "rt_sync_point.h"
+#include "rt_task_cold.h"
 
 // Task park/unpark primitive (extraction from rt_async_state.c).
 // Owner concept: how a RUNNING task suspends itself behind a waker_key
@@ -20,7 +21,7 @@
 // remove the stale store registration after releasing this lock (D5: never
 // hold two shard locks; a concurrent pop of that stale entry produces at
 // most one absorbed spurious wake).
-int wake_task_on_shard_locked(const rt_executor* ex,
+int wake_task_on_shard_locked(rt_executor* ex,
                               rt_shard* owner_shard,
                               rt_task* task,
                               int force_inject,
@@ -47,6 +48,13 @@ int wake_task_on_shard_locked(const rt_executor* ex,
     if (tls_worker_ctx != NULL && tls_worker_ctx->ex == ex &&
         tls_worker_ctx->shard != owner_shard) {
         rt_trace_cross_shard_wake();
+    }
+    // RV2-DEBT-370: the first wake of a cold task is its publication, and a
+    // task its last handle already discarded is never pushed. Both are decided
+    // here, under the owner shard lock the discard takes too; a cold task then
+    // reads READY and unqueued, and the push below publishes it.
+    if (rt_task_publication_take_locked(ex, task) == RT_TASK_DISCARDED) {
+        return 0;
     }
     uint8_t status = task_status_load(task);
     if (status == TASK_DONE || status == TASK_RUNNING || task_enqueued_load(task) != 0) {
@@ -107,6 +115,9 @@ static void wake_task_with_policy(rt_executor* ex,
     int pushed = wake_task_on_shard_locked(
         ex, owner_shard, task, force_inject, front, signal_ready, &stale_key);
     rt_shard_unlock(owner_shard);
+    // A cold task this wake published may owe its scope's owner lane a notice
+    // (RV2-DEBT-370); it is settled here, with no shard lock held.
+    rt_task_cold_settle_publication(ex);
     // A seq-0 retry registration whose terminal owner event drains the whole
     // key is exempt from this deferred removal.  Removing it is unqualified and
     // can sweep a fresh re-registration made after the task was republished;
@@ -124,19 +135,7 @@ static void wake_task_with_policy(rt_executor* ex,
                                                                memory_order_acquire) > 0;
     if (pushed) {
         rt_trace_wake_enqueued();
-        if (compat_active) {
-            // Compensation bookkeeping is control-lane state; a control-free
-            // (worker) wake takes the lane only when compat workers are
-            // actually parked.
-            int need_control = !rt_lane_holds_control();
-            if (need_control) {
-                rt_control_lock(ex);
-            }
-            maybe_start_compensation_worker_locked(ex);
-            if (need_control) {
-                rt_control_unlock(ex);
-            }
-        }
+        rt_compensation_check_after_push(ex);
     } else if (compat_active) {
         // The woken task is RUNNING inside a sync-channel compat wait: the
         // OS worker sleeps on compat_cv under the control lock, so this
@@ -151,6 +150,27 @@ static void wake_task_with_policy(rt_executor* ex,
         if (need_control) {
             rt_control_unlock(ex);
         }
+    }
+}
+
+// The compensation-worker check that follows a push: compensation bookkeeping
+// is control-lane state, and a control-free (worker) caller takes the lane only
+// when compat workers are actually parked, so the common case is one atomic
+// load. One helper for every push that needs it (wake_task_with_policy, the
+// cold task's cancel-won push in rt_task_cold.c).
+void rt_compensation_check_after_push(rt_executor* ex) {
+    const rt_channel_blocking_compat* compat = rt_executor_channel_blocking_compat_const(ex);
+    if (compat == NULL ||
+        atomic_load_explicit(&compat->channel_blocked_workers, memory_order_acquire) == 0) {
+        return;
+    }
+    int need_control = !rt_lane_holds_control();
+    if (need_control) {
+        rt_control_lock(ex);
+    }
+    maybe_start_compensation_worker_locked(ex);
+    if (need_control) {
+        rt_control_unlock(ex);
     }
 }
 

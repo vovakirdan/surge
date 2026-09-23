@@ -109,6 +109,62 @@ void rt_scope_publish_child_done(rt_executor* ex,
 #endif
 }
 
+// A cold member published on a lane that is not its scope's owner lane
+// (RV2-DEBT-370). The member stays and runs; the owner lane only retires its
+// entry in the join's cold_children hint, which no other lane may write (ruling
+// 2026-09-02, Р6). Same envelope, release class and generation as a child-done
+// event -- scope id with its owner shard, child id, counted -- with the outcome
+// RT_SCOPE_OUTCOME_COLD_PUBLISHED, which rt_scope_take_child_done_locked applies
+// and completes nothing with. The scope id is checked against the envelope as
+// rt_scope_publish_child_done checks it; a stale event resolves no scope and is
+// a no-op.
+void rt_scope_publish_cold_published(rt_executor* ex,
+                                     waker_key key,
+                                     uint64_t child_id,
+                                     uint32_t source_shard_id) {
+    if (ex == NULL || !waker_valid(key)) {
+        return;
+    }
+    if (key.id > SCOPE_EVENT_ID_MASK) {
+        panic_msg("async: scope id does not fit the scope event envelope");
+        return;
+    }
+#ifdef RV2_DEBT_280_NEGATIVE_CONTROL
+    (void)source_shard_id;
+    int need_control = !rt_lane_holds_control();
+    if (need_control) {
+        rt_control_lock(ex);
+        rt_trace_control_lock_site(RT_CTRL_SITE_SCOPE);
+    }
+    rt_shard* pinned = rt_waiter_key_shard(ex, key);
+    rt_shard_lock(pinned);
+    (void)rt_scope_take_child_done_locked(ex, key, child_id, RT_SCOPE_OUTCOME_COLD_PUBLISHED, 1);
+    rt_shard_unlock(pinned);
+    if (need_control) {
+        rt_control_unlock(ex);
+    }
+#else
+    rt_transport_msg msg = {0};
+    msg.kind = RT_TRANSPORT_MSG_SCOPE_CHILD_DONE;
+    msg.source_shard_id = source_shard_id;
+    msg.target_shard_id = key.owner_shard_id;
+    msg.route_id = scope_event_route(key.id, RT_SCOPE_OUTCOME_COLD_PUBLISHED, 1);
+    msg.generation = child_id;
+    msg.payload = NULL;
+    rt_shard* owner = rt_waiter_key_shard(ex, key);
+    for (unsigned attempt = 0; attempt < SCOPE_EVENT_PUBLISH_ATTEMPTS; attempt++) {
+        rt_transport_status status = rt_remote_spawn_enqueue_with_drain(ex, owner, &msg);
+        if (status == RT_TRANSPORT_STATUS_OK) {
+            return;
+        }
+        if (status != RT_TRANSPORT_STATUS_QUEUE_FULL) {
+            break;
+        }
+    }
+    panic_msg("async: a scope cold-publication event could not reach the scope's owner lane");
+#endif
+}
+
 // Owner lane, on drain, with no shard lock held (the drain released it around
 // dispatch). The one critical section, then the effects outside it.
 void rt_scope_dispatch_child_done(rt_executor* ex, const rt_transport_msg* msg) {

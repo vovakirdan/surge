@@ -131,6 +131,7 @@ func (e *Executor[P]) JoinAllChildrenBlocking(scopeID ScopeID) (done bool, pendi
 		return true, 0, false
 	}
 	e.compactScopeChildren(scope)
+	e.publishColdChildren(scope)
 	if len(scope.Children) > 0 {
 		return false, scope.Children[0], scope.FailfastTriggered
 	}

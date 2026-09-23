@@ -86,6 +86,9 @@ func (vm *VM) taskHandleReleased(id asyncrt.TaskID) {
 	}
 	cohort.live--
 	if !cohort.canStillClaim() {
+		if vm.discardColdTask(id) {
+			return
+		}
 		vm.releaseUnclaimableResult(id)
 	}
 }

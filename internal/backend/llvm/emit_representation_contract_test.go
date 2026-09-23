@@ -389,7 +389,7 @@ func TestPhysicalFactsAreNotReadOffASpelling(t *testing.T) {
 }
 
 var (
-	runtimeOwnedFrameSink = regexp.MustCompile(`call ptr @(__task_create|rt_blocking_submit)\(([^)]*)\)`)
+	runtimeOwnedFrameSink = regexp.MustCompile(`call ptr @(__task_create(?:_cold)?(?:_affine)?|rt_blocking_submit)\(([^)]*)\)`)
 	allocaTemp            = regexp.MustCompile(`^\s*(%\S+) = alloca `)
 )
 

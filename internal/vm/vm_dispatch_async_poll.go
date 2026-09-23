@@ -38,7 +38,10 @@ func (vm *VM) execInstrPoll(frame *Frame, instr *mir.Instr, writes []LocalWrite)
 	if current == taskID {
 		return res, vm.eb.makeError(PanicInvalidHandle, "task cannot await itself")
 	}
-	if targetTask.Status != asyncrt.TaskWaiting && targetTask.Status != asyncrt.TaskDone && !currentTask.Cancelled {
+	// An await publishes a cold target whatever the awaiter's own cancellation
+	// (RV2-DEBT-370), as the native rt_task_poll does and as it did when every
+	// target was published at creation.
+	if targetTask.Cold || (targetTask.Status != asyncrt.TaskWaiting && targetTask.Status != asyncrt.TaskDone && !currentTask.Cancelled) {
 		exec.Wake(taskID)
 	}
 	if targetTask.Status == asyncrt.TaskDone {

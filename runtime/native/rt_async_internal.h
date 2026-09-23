@@ -284,6 +284,11 @@ typedef struct rt_task {
     size_t wait_keys_len;
     size_t wait_keys_cap;
     uint64_t timeout_task_id;
+    // The id of the last task this task created cold while running, or 0: the
+    // one child its own await may poll inline (rt_task_claim_cold_inline) -- the
+    // cold counterpart of "on top of my local queue". Written and read only by
+    // this task's own running thread.
+    uint64_t last_cold_child;
     uint64_t* select_timers;
     size_t select_timers_len;
     size_t select_timers_cap;
@@ -341,6 +346,11 @@ typedef struct rt_task {
     atomic_u8 polling;
     atomic_u8 remote_handle_state;
     atomic_u8 far_task_result_state;
+    // Whether anything has made this task runnable (RV2-DEBT-370): zero, the
+    // zero-filled value, is RT_TASK_PUBLISHED; a task built by
+    // __task_create_cold[_affine] is RT_TASK_COLD until its first publication
+    // or RT_TASK_DISCARDED once its last handle ended it (rt_task_cold.c).
+    atomic_u8 publication;
     uint8_t checkpoint_polled;
     uint8_t sleep_armed;
     uint8_t park_prepared;
@@ -349,19 +359,7 @@ typedef struct rt_task {
     uint8_t net_ready_accept_valid;
 } rt_task;
 
-static inline uint32_t rt_task_join_owner_shard_id_load(const rt_task* task) {
-    if (task == NULL) {
-        return 0;
-    }
-    return atomic_load_explicit(&task->join_owner_shard_id, memory_order_acquire);
-}
-
-static inline void rt_task_join_owner_shard_id_store(rt_task* task, uint32_t shard_id) {
-    if (task == NULL) {
-        return;
-    }
-    atomic_store_explicit(&task->join_owner_shard_id, shard_id, memory_order_release);
-}
+// The join-owner route helpers live in rt_task_state.h with the other task words.
 
 typedef struct rt_scope {
     uint64_t id;
@@ -378,6 +376,14 @@ typedef struct rt_scope {
     uint8_t failfast_triggered;
     uint64_t failfast_child;
     size_t active_children;
+    // The join's publication hint (RV2-DEBT-370): an upper bound on the members
+    // still cold. Scope state, so written only on this scope's owner lane (ruling
+    // 2026-09-02, Р6): +1 at a cold member's creation beside the count, -1 by a
+    // publication made on this lane in the critical section it holds, and -1 by
+    // rt_scope_take_child_done_locked for a foreign publication's scope event and
+    // for a discarded member's retirement. A join that must wait publishes its
+    // cold members first when it is nonzero (rt_scope_publish_cold_members).
+    size_t cold_children;
     uint64_t* children;
     size_t children_len;
     size_t children_cap;
@@ -750,7 +756,7 @@ int ready_push_task_locked(const rt_executor* ex,
                            int force_inject,
                            int front,
                            int signal_ready);
-int wake_task_on_shard_locked(const rt_executor* ex,
+int wake_task_on_shard_locked(rt_executor* ex,
                               rt_shard* owner_shard,
                               rt_task* task,
                               int force_inject,
@@ -878,5 +884,6 @@ void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind);
 int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task);
 rt_scheduler* current_worker_scheduler(const rt_executor* ex);
 void maybe_start_compensation_worker_locked(rt_executor* ex);
+void rt_compensation_check_after_push(rt_executor* ex);
 
 #endif

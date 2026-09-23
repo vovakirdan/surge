@@ -181,6 +181,8 @@ static const char* rt_sp_name(rt_sync_point_id id) {
             return "SP_CHANNEL_SELECT_REFUSED_BEFORE_RETRY_REGISTER";
         case RT_SYNC_POINT_SP_CHANNEL_RENDEZVOUS_CLAIM_BEFORE_MOVE:
             return "SP_CHANNEL_RENDEZVOUS_CLAIM_BEFORE_MOVE";
+        case RT_SYNC_POINT_SP_COLD_JOIN_WALK_AFTER_GET_TASK:
+            return "SP_COLD_JOIN_WALK_AFTER_GET_TASK";
         default:
             return "";
     }

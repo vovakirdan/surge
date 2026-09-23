@@ -2,6 +2,7 @@
 #include "rt_remote_task.h"
 #include "rt_scope_membership.h"
 #include "rt_sync_point.h"
+#include "rt_task_cold.h"
 
 // Async runtime task API and task builtins.
 
@@ -10,13 +11,26 @@ static void poll_ready_child_inline(rt_executor* ex, rt_task* current, rt_task* 
 static void publish_created_task(rt_executor* ex, rt_task* task, rt_task* parent);
 static void rt_task_poll_adopt_placement(rt_executor* ex, rt_task* current, const rt_task* target);
 
-// The one constructor behind __task_create and __task_create_affine. `affine`
-// pins the task to the creating worker before anything can publish it: the
-// task borrows the creator's frame, and the frame is wherever the creator's
-// carrier is. Publication follows at once (publish_created_task pushes the
-// task READY), which is why the pin cannot wait for the spawn's wake.
-static void*
-task_create(uint64_t poll_fn_id, void* state, const rt_value_ops* result_ops, int affine) {
+// The one constructor behind the four entry points. `affine` pins the task to
+// the creating worker before anything can publish it: the task borrows the
+// creator's frame, and the frame is wherever the creator's carrier is.
+// Creation is the only point that knows that carrier, so the pin is written
+// here whether publication follows at once or not.
+//
+// `cold` is what a call of an `async fn` and an `async { }` block ask for
+// (RV2-DEBT-370; docs/RUNTIME_MODEL_EXPLAINED.ru.md 6.3): the task is recorded
+// exactly as a published one is -- provenance, owning shard, membership and
+// count, the parent's children, the slot, the pin -- and pushed nowhere. Its
+// first spawn, await, cancel or scope join publishes it, and a last handle
+// dropped first discards it through `frame_ops`, the start frame's descriptor
+// (rt_task_cold.c). The hot entry points publish at once and are what a stand
+// driver's "create and spawn" means; the compiler emits only the cold ones.
+static void* task_create(uint64_t poll_fn_id,
+                         void* state,
+                         const rt_value_ops* result_ops,
+                         const rt_value_ops* frame_ops,
+                         int affine,
+                         int cold) {
     rt_executor* ex = ensure_exec();
     if (ex == NULL) {
         return NULL;
@@ -56,12 +70,27 @@ task_create(uint64_t poll_fn_id, void* state, const rt_value_ops* result_ops, in
     atomic_store_explicit(&task->far_task_result_lease, NULL, memory_order_relaxed);
     atomic_store_explicit(&task->handle_refs, 1, memory_order_relaxed);
     rt_task_entitlements_init(&task->entitlements);
+    if (cold) {
+        task->reclaim_frame_ops = frame_ops;
+        atomic_store_explicit(&task->publication, RT_TASK_COLD, memory_order_relaxed);
+    }
 
     rt_task* parent = rt_current_task();
     if (affine) {
         rt_task_pin_carrier_current(task);
     }
     publish_created_task(ex, task, parent);
+    if (cold) {
+        // The creator's own await may poll this one inline, and no other: it
+        // is the creator's most recent creation, as a fresh child used to be
+        // the top of the creating worker's local queue. Nothing was pushed, so
+        // no runnable task waits for a compensation worker; the wake that
+        // publishes it makes the same check.
+        if (parent != NULL) {
+            parent->last_cold_child = task->id;
+        }
+        return task;
+    }
 
     // Lane-aware compensation-worker check, mirroring wake_task's identical
     // pattern (rt_async_state.c): only sync-channel-blocked-worker scenarios
@@ -86,14 +115,30 @@ void* __task_create( // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dc
     uint64_t poll_fn_id,
     void* state,
     const rt_value_ops* result_ops) {
-    return task_create(poll_fn_id, state, result_ops, 0);
+    return task_create(poll_fn_id, state, result_ops, NULL, 0, 0);
 }
 
 void* __task_create_affine( // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
     uint64_t poll_fn_id,
     void* state,
     const rt_value_ops* result_ops) {
-    return task_create(poll_fn_id, state, result_ops, 1);
+    return task_create(poll_fn_id, state, result_ops, NULL, 1, 0);
+}
+
+void* __task_create_cold( // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+    uint64_t poll_fn_id,
+    void* state,
+    const rt_value_ops* result_ops,
+    const rt_value_ops* frame_ops) {
+    return task_create(poll_fn_id, state, result_ops, frame_ops, 0, 1);
+}
+
+void* __task_create_cold_affine( // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+    uint64_t poll_fn_id,
+    void* state,
+    const rt_value_ops* result_ops,
+    const rt_value_ops* frame_ops) {
+    return task_create(poll_fn_id, state, result_ops, frame_ops, 1, 1);
 }
 
 static void publish_created_task(rt_executor* ex, rt_task* task, rt_task* parent) {
@@ -130,6 +175,9 @@ static void publish_created_task(rt_executor* ex, rt_task* task, rt_task* parent
     // call. cancel_task snapshots children[] under the same parent lane. If a
     // future path can re-place a RUNNING task from another thread, this lock
     // choice must be re-derived.
+    // A cold task (RV2-DEBT-370) takes every step below but the last: it is a
+    // member, a child and a slot, and in no ready queue.
+    int cold = rt_task_publication_load(task) == RT_TASK_COLD;
     rt_shard* owner_shard = rt_task_owner_shard(ex, task);
     rt_shard* parent_shard = parent != NULL ? rt_task_owner_shard(ex, parent) : NULL;
     rt_shard* scope_shard = owner_shard;
@@ -148,18 +196,22 @@ static void publish_created_task(rt_executor* ex, rt_task* task, rt_task* parent
     if (scope_shard != owner_shard) {
         rt_shard_lock(scope_shard);
         rt_scope_publish_creation_locked(ex, task);
+        rt_scope_note_cold_member_locked(ex, task);
         rt_shard_unlock(scope_shard);
     }
     rt_shard_lock(owner_shard);
     if (scope_shard == owner_shard) {
         rt_scope_publish_creation_locked(ex, task);
+        rt_scope_note_cold_member_locked(ex, task);
     }
     RT_SYNC_POINT(SP_SCOPE_MEMBERSHIP_DECIDED_BEFORE_PUBLISH);
     rt_task_slot_store(ex, task->id, task);
     if (parent != NULL && parent_shard == owner_shard) {
         task_add_child(parent, task->id);
     }
-    (void)ready_push_task_locked(ex, owner_shard, task, 0, 0, 1);
+    if (!cold) {
+        (void)ready_push_task_locked(ex, owner_shard, task, 0, 0, 1);
+    }
     rt_shard_unlock(owner_shard);
 }
 
@@ -184,7 +236,9 @@ void rt_task_wake(void* task) {
         return;
     }
     // Wake is scheduling only. Scope provenance was sealed by creation before
-    // publication; in particular, waking a foreign task never adopts it.
+    // publication; in particular, waking a foreign task never adopts it. The
+    // first wake of a task created cold is its publication (RV2-DEBT-370):
+    // `spawn t` starts it, and adopts nothing either.
     const rt_task* current = rt_current_task();
     if (current != NULL && waker_valid(current->active_scope_key)) {
         RT_SCOPE_WAKE_PROVENANCE(target, current->active_scope_key);
@@ -222,9 +276,13 @@ uint8_t rt_task_poll(void* task, void* out_dst) {
     // ready_claim_current_local_tail both takes the child off this worker's
     // local tail and claims it for the poll below, in one critical section, so
     // a true return means this thread already owns it: RUNNING, unqueued, wake
-    // token consumed.
+    // token consumed. A child created cold (RV2-DEBT-370) is in no queue at
+    // all; rt_task_claim_cold_inline makes the same claim on it under its owner
+    // lock when it is this awaiter's most recent creation and this worker may
+    // poll it, and otherwise the wake below publishes it.
     if (target->kind == TASK_KIND_USER && task_status_load(target) == TASK_READY &&
-        task_enqueued_load(target) != 0 && ready_claim_current_local_tail(ex, target->id)) {
+        (rt_task_claim_cold_inline(ex, current, target) ||
+         (task_enqueued_load(target) != 0 && ready_claim_current_local_tail(ex, target->id)))) {
         poll_ready_child_inline(ex, current, target);
     }
     if (task_status_load(target) != TASK_WAITING && task_status_load(target) != TASK_DONE) {
@@ -358,9 +416,12 @@ static void rt_task_poll_adopt_placement(rt_executor* ex, rt_task* current, cons
 }
 
 // S5-Q4: runs entirely on the child's owner shard lane, no
-// control. The only eligible child is the fresh, just-created child popped
-// off the CURRENT WORKER'S OWN local queue tail (ready_claim_current_local_tail,
-// guarded at the call site above); by construction (rt_task_inherit_placement
+// control. The eligible child is the fresh, just-created child popped off
+// the CURRENT WORKER'S OWN local queue tail (ready_claim_current_local_tail,
+// guarded at the call site above), or a child created cold, in no queue at
+// all, claimed under its owner lock by a worker of its owner shard and, when
+// it is carrier-affine, by its carrier (rt_task_claim_cold_inline,
+// RV2-DEBT-370); by construction (rt_task_inherit_placement
 // copies the parent's owner shard before publish, ) that child's owner
 // shard equals this worker's shard, and it is reachable from no other
 // queue - no other thread can be concurrently running or inline-polling it.

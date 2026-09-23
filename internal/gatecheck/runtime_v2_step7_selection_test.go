@@ -60,6 +60,23 @@ func step7GateRows() []step7GateRow {
 		"TestH2TripwireMatcherRejectsRecordedFaults",
 		"TestH2TripwireTaskCheckRefusesLeakedRuns",
 	}
+	coldTaskStand := []string{
+		"TestRuntimeV2ColdTaskDroppedNeverRuns",
+		"TestRuntimeV2ColdTaskSpawnedRuns",
+		"TestRuntimeV2ColdTaskAwaitedRuns",
+		"TestRuntimeV2ColdTaskCloneKeepsItAlive",
+		"TestRuntimeV2ColdTaskCancelPublishesIt",
+		"TestRuntimeV2ColdTaskDroppedMemberDoesNotHoldTheJoin",
+		"TestRuntimeV2ColdTaskJoinPublishesAnEscapedMember",
+		"TestRuntimeV2ColdTaskAffinePinHolds",
+		"TestRuntimeV2ColdTaskForeignLaneReachesTheScopeByEvent",
+		"TestRuntimeV2ColdTaskDiscardAndCancelRace",
+		"TestRuntimeV2ColdTaskConcurrentLastDrops",
+		"TestRuntimeV2ColdTaskJoinWalkRacesALastDrop",
+		"TestRuntimeV2ColdTaskUnderThreadSanitizer",
+		"TestRuntimeV2ColdTaskInlineClaimTakesOnlyTheLatest",
+		"TestRuntimeV2ColdTaskDropValgrindZero",
+	}
 	return []step7GateRow{
 		{"cast_offer_ir", "runtime-v2-carrier-check", "./internal/backend/llvm", "", "llvm", []string{"TestEmitNumericCastTemporaryCleanup", "TestEmitNumericCastBorrowedAndFixedControls", "TestChannelSendOfferUsesDisposablePollStorage"}},
 		{"uint_offer_mir", "runtime-v2-carrier-check", "./internal/mir", "", "llvm", []string{"TestLowerUintLiteralPreservesKindAndText", "TestChannelSendPollPreservesTheCountedCopyOwner"}},
@@ -85,6 +102,7 @@ func step7GateRows() []step7GateRow {
 		{"h2_tripwire_compile", "runtime-v2-h2-tripwire-check", "./internal/driver", "", "llvm", tripwireCompile},
 		{"h2_tripwire_vm", "runtime-v2-h2-tripwire-check", "./internal/vm", "", "vm", tripwireRuntime},
 		{"h2_tripwire_llvm", "runtime-v2-h2-tripwire-check", "./internal/vm", "", "llvm", tripwireRuntime},
+		{"rt_cold_task_stand", "runtime-v2-lifecycle-check", "./internal/vm", "", "llvm", coldTaskStand},
 	}
 }
 

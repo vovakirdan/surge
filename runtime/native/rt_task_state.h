@@ -1,4 +1,12 @@
 #ifndef SURGE_RUNTIME_NATIVE_RT_TASK_STATE_H
+#ifndef SURGE_RUNTIME_NATIVE_RT_ASYNC_INTERNAL_H
+// Compiled on its own -- the changed-C check compiles every header that way --
+// the fragment has no rt_task or rt_executor to work on, and a forward
+// declaration would not do: its helpers read the task's fields. So it brings in
+// the header it belongs to, which includes it again at the one point where
+// both are complete, and that inclusion takes the #else branch below.
+#include "rt_async_internal.h"
+#else
 #define SURGE_RUNTIME_NATIVE_RT_TASK_STATE_H
 // The per-task state words and the inline helpers that move them: status,
 // enqueued, the cancel gate, the wake token, the polling site, and the
@@ -162,4 +170,31 @@ static inline void task_polling_exit(rt_task* task) {
     atomic_store_explicit(&task->polling, 0, memory_order_release);
 }
 
+static inline uint32_t rt_task_join_owner_shard_id_load(const rt_task* task) {
+    if (task == NULL) {
+        return 0;
+    }
+    return atomic_load_explicit(&task->join_owner_shard_id, memory_order_acquire);
+}
+
+static inline void rt_task_join_owner_shard_id_store(rt_task* task, uint32_t shard_id) {
+    if (task == NULL) {
+        return;
+    }
+    atomic_store_explicit(&task->join_owner_shard_id, shard_id, memory_order_release);
+}
+
+// The publication word (RV2-DEBT-370). Every task built any other way is
+// PUBLISHED from its zero-filled allocation; only the cold constructors write
+// COLD, and only rt_task_cold.c moves a task out of it, under its owner shard
+// lock. A reader outside that lock uses the answer only as a hint for which
+// locked path to take.
+enum { RT_TASK_PUBLISHED = 0, RT_TASK_COLD = 1, RT_TASK_DISCARDED = 2 };
+
+static inline uint8_t rt_task_publication_load(const rt_task* task) {
+    return task == NULL ? RT_TASK_PUBLISHED
+                        : atomic_load_explicit(&task->publication, memory_order_acquire);
+}
+
+#endif // SURGE_RUNTIME_NATIVE_RT_ASYNC_INTERNAL_H
 #endif

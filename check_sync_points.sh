@@ -90,6 +90,7 @@ declare -A WINDOW_FILE=(
     [SP_RESULT_CAPABILITY_BEFORE_MATCH]="rt_task_result.c"
     [SP_CHANNEL_SELECT_REFUSED_BEFORE_RETRY_REGISTER]="rt_async_select.c"
     [SP_CHANNEL_RENDEZVOUS_CLAIM_BEFORE_MOVE]="rt_async_channel.c"
+    [SP_COLD_JOIN_WALK_AFTER_GET_TASK]="rt_task_cold.c"
 )
 
 # Cross-check the allowlist above against the enumerators actually declared in

@@ -59,6 +59,10 @@ func (fe *funcEmitter) taskResultType(taskType types.TypeID) (types.TypeID, erro
 // The lowering builds the call with the two arguments it can name from MIR --
 // the poll id and the state box -- and the descriptor is the emitter's to add,
 // because it is the emitter that knows the symbol a type's descriptor became.
+//
+// The task is created COLD (RV2-DEBT-370): the call goes to the runtime's cold
+// entry point, with the start frame's descriptor last, which is what ends a
+// task whose last handle is dropped before anything published it.
 func (fe *funcEmitter) emitTaskCreateIntrinsic(call *mir.CallInstr) (bool, error) {
 	if call == nil || call.Callee.Kind != mir.CalleeValue {
 		return false, nil
@@ -90,9 +94,17 @@ func (fe *funcEmitter) emitTaskCreateIntrinsic(call *mir.CallInstr) (bool, error
 	if err != nil {
 		return true, err
 	}
+	frameType, err := fe.suspensionFrameTypeOf(&call.Args[1])
+	if err != nil {
+		return true, err
+	}
+	frameOps, err := fe.emitter.frameOpsSymbol(frameType)
+	if err != nil {
+		return true, err
+	}
 	tmp := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @%s(i64 %s, ptr %s, %s)\n",
-		tmp, ctor, pollID, state, operand)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @%s(i64 %s, ptr %s, %s, ptr @%s)\n",
+		tmp, coldTaskConstructor(ctor), pollID, state, operand, frameOps)
 	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return true, err
@@ -102,6 +114,17 @@ func (fe *funcEmitter) emitTaskCreateIntrinsic(call *mir.CallInstr) (bool, error
 	}
 	fe.emitValueStore(dstTy, tmp, ptr, dstAlign)
 	return true, nil
+}
+
+// coldTaskConstructor names the runtime entry point that creates the task cold.
+// The MIR constructor says whether the task borrows its creator's frame; the
+// runtime keeps __task_create and __task_create_affine, which publish at once,
+// for its own stand drivers.
+func coldTaskConstructor(ctor string) string {
+	if ctor == "__task_create_affine" {
+		return "__task_create_cold_affine"
+	}
+	return "__task_create_cold"
 }
 
 // emitTaskPayloadSlot reserves storage for the value an await or a poll is about

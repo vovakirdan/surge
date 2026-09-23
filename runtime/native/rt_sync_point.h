@@ -306,6 +306,12 @@ typedef enum rt_sync_point_id {
     // driver holding the sender here and closing is what shows the pop and
     // the open were one hold, not two.
     RT_SYNC_POINT_SP_CHANNEL_RENDEZVOUS_CLAIM_BEFORE_MOVE,
+    // rt_scope_publish_cold_members (rt_task_cold.c): reached by a joining
+    // scope owner holding the control lane, after get_task handed it a member
+    // and before it reads the member's publication word. A last drop on another
+    // thread crossing here may decide and discard, and must not free until the
+    // walk lets control go (RV2-DEBT-370).
+    RT_SYNC_POINT_SP_COLD_JOIN_WALK_AFTER_GET_TASK,
     RT_SYNC_POINT_COUNT
 } rt_sync_point_id;
 

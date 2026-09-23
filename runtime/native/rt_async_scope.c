@@ -1,6 +1,7 @@
 #include "rt_async_internal.h"
 #include "rt_scope_membership.h"
 #include "rt_sync_point.h"
+#include "rt_task_cold.h"
 
 // Async runtime scope management.
 //
@@ -82,14 +83,19 @@ static bool scope_entry_key(uint64_t scope_id, rt_executor** ex_out, waker_key* 
     return true;
 }
 
-// Read both join answers together, initially and after waiter registration.
-static size_t scope_join_snapshot(rt_executor* ex, waker_key key, bool* failfast) {
+// Read both join answers together, initially and after waiter registration,
+// and, on the first read, whether the scope still has a member created cold
+// that the join must publish before it waits (RV2-DEBT-370).
+static size_t scope_join_snapshot(rt_executor* ex, waker_key key, bool* failfast, bool* cold) {
     rt_shard* pinned = rt_waiter_key_shard(ex, key);
     rt_shard_lock(pinned);
     const rt_scope* scope = rt_scope_resolve_key_locked(ex, key);
     size_t active = scope != NULL ? scope->active_children : 0;
     if (failfast != NULL) {
         *failfast = scope != NULL && scope->failfast_triggered ? true : false;
+    }
+    if (cold != NULL) {
+        *cold = scope != NULL && scope->cold_children > 0;
     }
     rt_shard_unlock(pinned);
     return active;
@@ -232,12 +238,20 @@ bool rt_scope_join_all(uint64_t scope_id, uint64_t* pending, bool* failfast) {
     if (!scope_entry_key(scope_id, &ex, &key)) {
         return true;
     }
-    size_t active = scope_join_snapshot(ex, key, failfast);
+    bool cold = false;
+    size_t active = scope_join_snapshot(ex, key, failfast, &cold);
     if (pending != NULL) {
         *pending = 0;
     }
     if (active == 0) {
         return true;
+    }
+    // A member created cold whose handle outlived the body -- returned, or
+    // stored where the body could not drop it -- is joined as an await joins
+    // it: published first, so the scope never waits on a task nothing will
+    // start (RV2-DEBT-370). Only a join that is about to wait reads this.
+    if (cold) {
+        rt_scope_publish_cold_members(ex, key);
     }
     rt_task* current = rt_current_task();
     if (current == NULL) {
@@ -260,7 +274,8 @@ bool rt_scope_join_all(uint64_t scope_id, uint64_t* pending, bool* failfast) {
     prepare_park(ex, current, key, 0);
     pending_key = key;
     RT_SYNC_POINT(SP_SCOPE_FAILFAST_JOIN_BEFORE_VERIFY);
-    size_t active_after = scope_join_snapshot(ex, key, RT_DEBT261_VERIFY_FAILFAST_OUT(failfast));
+    size_t active_after =
+        scope_join_snapshot(ex, key, RT_DEBT261_VERIFY_FAILFAST_OUT(failfast), NULL);
     if (active_after == 0) {
         remove_waiter(ex, key, current->id);
         current->park_prepared = 0;
@@ -330,6 +345,19 @@ rt_scope_child_done_effects rt_scope_take_child_done_locked(
     rt_scope* scope = rt_scope_resolve_key_locked(ex, key);
     if (scope == NULL) {
         return fx;
+    }
+    // RV2-DEBT-370. A cold member published on another lane stays a member
+    // and runs; its event retires only its entry in the join's hint. A member
+    // retired with no kind is always a discarded cold member, whose gate
+    // sealed NONE: it leaves the hint and the count, and raises nothing.
+    if (result_kind == RT_SCOPE_OUTCOME_COLD_PUBLISHED) {
+        if (scope->cold_children > 0) {
+            scope->cold_children--;
+        }
+        return fx;
+    }
+    if (result_kind == TASK_RESULT_NONE && child_registered && scope->cold_children > 0) {
+        scope->cold_children--;
     }
     if (result_kind == TASK_RESULT_CANCELLED && scope->failfast && !scope->failfast_triggered) {
         if (!child_registered) {

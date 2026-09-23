@@ -34,6 +34,14 @@ void rt_scope_publish_child_done(rt_executor* ex,
                                  const rt_task* child,
                                  uint8_t result_kind,
                                  int child_registered);
+// A cold member published on a lane that is not its scope's owner lane
+// (RV2-DEBT-370): the same event, with an outcome that completes nothing and
+// retires only the member's entry in the join's cold_children hint.
+#define RT_SCOPE_OUTCOME_COLD_PUBLISHED ((uint8_t)0x7F)
+void rt_scope_publish_cold_published(rt_executor* ex,
+                                     waker_key key,
+                                     uint64_t child_id,
+                                     uint32_t source_shard_id);
 void rt_scope_dispatch_child_done(rt_executor* ex, const struct rt_transport_msg* msg);
 void rt_scope_apply_child_done_at_shutdown_locked(rt_executor* ex,
                                                   const struct rt_transport_msg* msg);

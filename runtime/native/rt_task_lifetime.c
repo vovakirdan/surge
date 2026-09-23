@@ -8,6 +8,7 @@
 #include "rt_async_internal.h"
 #include "rt_remote_task.h"
 #include "rt_sync_point.h"
+#include "rt_task_cold.h"
 #include "rt_task_refs.h"
 #include "rt_value_ops.h"
 #ifdef RT_TASK_RELEASE_SPLIT_NEGATIVE_CONTROL
@@ -304,6 +305,15 @@ void rt_task_handle_drop(void* task) {
         return;
     }
     rt_task_entitlement_drop(ex, target);
+    // The last handle of a task nothing published (RV2-DEBT-370): no completion
+    // is coming to free it, so this drop ends it -- or finds that a spawn, a
+    // cancel or a join published it first (rt_task_cold.c).
+    if (rt_task_publication_load(target) == RT_TASK_COLD) {
+        if (rt_task_release_cold_handle(ex, target)) {
+            free_task_when_unlocked(ex, target);
+        }
+        return;
+    }
     task_release_lane_aware(ex, target);
 }
 
