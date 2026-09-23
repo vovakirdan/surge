@@ -167,7 +167,7 @@ func (b *returnOriginBody) analyze() (returnOriginValue, error) {
 	value := returnOriginValue{}
 	if flow.normal.reachable {
 		value = returnOriginValueOf()
-		result := fn.info.Result
+		result := returnOriginFallthroughResult(fn)
 		for range 64 {
 			target, alias := fn.unit.Sema.TypeInterner.AliasTarget(result)
 			if !alias {
