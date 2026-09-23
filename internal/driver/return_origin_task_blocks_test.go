@@ -15,7 +15,6 @@ const (
 	originTaskBlockPayloadRefusal = "an `async` or `blocking` block whose value can hold a reference, a storage loan or a task needs its payload origin"
 	originTaskBlockCaptureRefusal = "an `async` or `blocking` block that captures a value which can hold a reference, a storage loan or a task needs its capture origin"
 	originTaskBlockSpawnKind      = "expression kind 16 needs an origin transfer"
-	originTaskBlockAwaitG1        = "generic original call argument disagrees with its substituted source signature"
 )
 
 const originTaskBlockFinishSource = `fn score(n: int) -> Task<int> {
@@ -172,8 +171,8 @@ func originTaskBlockRows() []originTaskBlockRow {
 			fn: originSpan{143, 280, originTaskBlockWalkSource[143:280]}, want: []originRefusal{{span: originSpan{267, 276, "\"e\" + \"f\""}, reason: stringTemporaryReason}}, summary: false},
 		{name: "spawn_keeps_its_row", text: originTaskBlockWalkSource, digest: originTaskBlockWalkSourceDigest, body: "later",
 			fn: originSpan{282, 366, originTaskBlockWalkSource[282:366]}, want: []originRefusal{{span: originSpan{325, 363, "spawn async {\n        ret n + 1;\n    }"}, reason: originTaskBlockSpawnKind}, {span: originSpan{318, 364, "return spawn async {\n        ret n + 1;\n    };"}, reason: originOutgoingRefusal}, {span: originSpan{299, 311, "-> Task<int>"}, reason: originResultRefusal}}, summary: false},
-		{name: "await_keeps_its_g1_row", text: originTaskBlockWalkSource, digest: originTaskBlockWalkSourceDigest, body: "joined",
-			fn: originSpan{368, 536, originTaskBlockWalkSource[368:536]}, want: []originRefusal{{span: originSpan{465, 474, "t.await()"}, reason: originTaskBlockAwaitG1}}, summary: false},
+		{name: "joined_block_task_finishes", text: originTaskBlockWalkSource, digest: originTaskBlockWalkSourceDigest, body: "joined",
+			fn: originSpan{368, 536, originTaskBlockWalkSource[368:536]}, want: []originRefusal{}, summary: true},
 	}
 }
 

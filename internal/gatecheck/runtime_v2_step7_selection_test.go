@@ -41,8 +41,8 @@ func step7GateRows() []step7GateRow {
 		"TestRuntimeV2ChannelCancelFrameUnderAddressAndUndefinedSanitizers",
 	}
 	tripwireCompile := []string{
-		"TestH2TripwireRefusedG0Await",
-		"TestH2TripwireRefusedG0dAwaitDisc",
+		"TestH2TripwireAwaitRunnerBuilds",
+		"TestH2TripwireDroppedCallBuilds",
 		"TestH2TripwireRefusedG5ModuleTimeout",
 		"TestH2TripwireImportAddsCoreRowsG5b",
 		"TestH2TripwireImportDifferentialRejectsTheTwin",
@@ -59,6 +59,9 @@ func step7GateRows() []step7GateRow {
 		"TestH2TripwireHarnessObservesExit",
 		"TestH2TripwireMatcherRejectsRecordedFaults",
 		"TestH2TripwireTaskCheckRefusesLeakedRuns",
+		"TestH2TripwireAwaitRunnerRuns",
+		"TestH2TripwireDroppedCallNeverRuns",
+		"TestRuntimeV2BorrowedLocalTaskJoinedInItsFrame",
 	}
 	coldTaskStand := []string{
 		"TestRuntimeV2ColdTaskDroppedNeverRuns",

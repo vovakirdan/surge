@@ -290,4 +290,24 @@ async fn main() -> int {
     return 0;
 }
 `
+	h2TripwireG0dAwaitDiscTwinDigest = "9e05a2bdb77555a2afcf37261691de94aa00c267743bcc102dd68b600003fb4f"
+	h2TripwireG0dAwaitDiscTwin       = `async fn worker(x: string) -> int {
+    return len(x) to int;
+}
+
+fn leak() -> Task<int> {
+    let l: string = "abcdef";
+    let t = worker(l);
+    return t;
+}
+
+@entrypoint
+fn main() -> int {
+    let t = leak();
+    return compare t.await() {
+        Success(n) => n + 40;
+        Cancelled() => 100;
+    };
+}
+`
 )

@@ -18,7 +18,8 @@ import (
 // borrows; the task check does, and it refuses every leaking program of this file
 // (TestH2TripwireTaskCheckRefusesLeaks). The incidental rule that stopped each of them
 // before is still pinned, row for row, on a twin whose task borrows nothing, so the change
-// that removes the rule turns a row red and sends its author to the ledger row first.
+// that removes the rule turns a row red and sends its author to the ledger row first. The
+// non-own `.await()` row is gone: its two twins are pinned as a runner that builds.
 //
 // The three core Task rows may still be present (a tree below census 0); no other core row may.
 
@@ -128,18 +129,21 @@ func checkH2TripwireRefused(t *testing.T, text, digest string, want []h2Tripwire
 	}
 }
 
-const h2TripwireG1 = "generic original call argument disagrees with its substituted source signature"
-
-// RV2-DEBT-365: the G1 row on a non-own `.await()` receiver (removed by W4-G1).
-func TestH2TripwireRefusedG0Await(t *testing.T) {
-	checkH2TripwireRefused(t, h2TripwireG0AwaitTwin, h2TripwireG0AwaitTwinDigest,
-		[]h2TripwireOwnRow{{230, 239, "t.await()", h2TripwireG1}}, true)
-}
-
-// RV2-DEBT-365: the same G1 row, with the result carried in the exit code.
-func TestH2TripwireRefusedG0dAwaitDisc(t *testing.T) {
-	checkH2TripwireRefused(t, h2TripwireG0dAwaitDiscTwin, h2TripwireG0dAwaitDiscTwinDigest,
-		[]h2TripwireOwnRow{{230, 239, "t.await()", h2TripwireG1}}, true)
+// RV2-DEBT-365, flipped when a non-own `.await()` receiver was admitted: that receiver keeps no
+// row, so it is a runner. Both twins build with no row of their own and no core row; what stops
+// each leaking original is the task check alone (TestH2TripwireTaskCheckRefusesLeaks, rows
+// g0_await and g0d_await_disc), and TestH2TripwireAwaitRunnerRuns (vm) runs the runner.
+func TestH2TripwireAwaitRunnerBuilds(t *testing.T) {
+	for _, row := range []struct{ name, text, digest string }{
+		{"g0_await", h2TripwireG0AwaitTwin, h2TripwireG0AwaitTwinDigest},
+		{"g0d_await_disc", h2TripwireG0dAwaitDiscTwin, h2TripwireG0dAwaitDiscTwinDigest},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			if own, core, built := h2TripwirePending(t, row.text, row.digest); !built {
+				t.Errorf("the await runner does not build: own rows %+v, core rows %d", own, len(core))
+			}
+		})
+	}
 }
 
 // RV2-DEBT-365: a module-qualified core `timeout` has no callable identity.

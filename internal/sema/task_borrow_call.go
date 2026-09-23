@@ -93,9 +93,16 @@ func (tc *typeChecker) typeTaskProducingCall(id ast.ExprID, span source.Span, ca
 	}
 	captures = append(captures, tc.reachingFixedViews(id, call)...)
 	lent = append(lent, tc.windowParameterCaptures(call)...)
-	// A call whose value is dropped where it stands (`m.lock();`) can be started
-	// by nobody, and stays unpinned.
-	if len(captures)+len(lent) == 0 || tc.taskTracker == nil || tc.isExprDiscarded(id) {
+	if len(captures)+len(lent) == 0 || tc.taskTracker == nil {
+		return ty
+	}
+	// A call whose value is dropped where it stands can be joined by nobody. It stays unpinned when
+	// that drop discards the task unrun -- the value is the only handle on a task still cold, as a
+	// direct `async fn` call or `m.lock()` answers -- and is refused otherwise (task_discarded_call.go).
+	if tc.isExprDiscarded(id) {
+		if !tc.callReturnsSoleColdTask(id) {
+			tc.refuseDroppedRunningTask(id, append(captures, lent...))
+		}
 		return ty
 	}
 	taskID := tc.taskTracker.NoteCallTask(id, span, tc.currentScope(), tc.asyncBlockDepth > 0)

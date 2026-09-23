@@ -185,6 +185,9 @@ type typeChecker struct {
 	// Task it hands back can hold of what it was lent. walkCallableBody commits it to the
 	// signature once, after the body, so no call can read a half-written answer.
 	fnTaskBorrows symbols.TaskBorrowFact
+	// fnTaskCold accumulates, over the returns of the callable being walked, whether each hands back
+	// directly a call that answers a sole, still-cold task (task_discarded_call.go).
+	fnTaskCold symbols.TaskColdFact
 	// untracedArrays collects, over the callable being walked, the arrays of unknown
 	// provenance that reach a task (task_untraced_array.go).
 	untracedArrays *untracedArrays

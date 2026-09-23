@@ -47,6 +47,21 @@ const (
 	TaskBorrowsLent
 )
 
+// TaskColdFact is what the type checker learned, from a plain function's own returns, about whether the
+// Task it hands back is fresh, unpublished and the only handle: every return is directly a call of an
+// `async fn` (or of another such function). A caller may drop that value where it stands, and the
+// runtime discards the task unrun; any other dropped handle on a borrowing task is refused.
+type TaskColdFact uint8
+
+const (
+	// TaskReturnsUnknown means the function was not judged yet.
+	TaskReturnsUnknown TaskColdFact = iota
+	// TaskReturnsCold means every return is directly a call that answers a sole, still-cold task.
+	TaskReturnsCold
+	// TaskReturnsOther means some return may hand back a task that is already running, or another handle.
+	TaskReturnsOther
+)
+
 // FunctionSignature captures a simplified view of a function signature.
 type FunctionSignature struct {
 	Params             []TypeKey
@@ -59,6 +74,9 @@ type FunctionSignature struct {
 	HasSelf            bool
 	ReturnSourceSyntax ReturnSourceSyntax
 	TaskBorrows        TaskBorrowFact
+	TaskCold           TaskColdFact
+	// Async marks an `async fn`: a call of it creates a task that is cold and has no other handle.
+	Async bool
 }
 
 func buildFunctionSignature(builder *ast.Builder, fn *ast.FnItem) *FunctionSignature {
@@ -84,6 +102,7 @@ func buildFunctionSignature(builder *ast.Builder, fn *ast.FnItem) *FunctionSigna
 		HasBody:            fn.Body.IsValid(),
 		HasSelf:            false,
 		ReturnSourceSyntax: FunctionReturnSourceSyntax(builder, fn),
+		Async:              fn.Flags&ast.FnModifierAsync != 0,
 	}
 	for i, pid := range ids {
 		param := builder.Items.FnParam(pid)

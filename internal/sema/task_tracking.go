@@ -70,8 +70,9 @@ func (tt *TaskTracker) SpawnTask(expr ast.ExprID, span source.Span, scope symbol
 }
 
 // NoteCallTask records the task a plain call answered, so its handle has an identity wherever it
-// goes. It is filed under NO scope: leaving such a handle unused is legal, because the task
-// does not run until it is awaited or spawned, so EndScope must never see it.
+// goes. It is filed under NO scope, so EndScope never sees it: a handle dropped where the call
+// stands is either the only handle on a task still cold, which that drop discards unrun, or it is
+// refused there (task_discarded_call.go); a handle that is kept is pinned (task_borrow_pin.go).
 func (tt *TaskTracker) NoteCallTask(expr ast.ExprID, span source.Span, scope symbols.ScopeID, inAsyncBlock bool) uint32 {
 	id := tt.nextID
 	tt.nextID++

@@ -23,7 +23,8 @@ import (
 // (TestH2TripwireTaskCheckRefusesLeakedRuns). Each row below runs the same runner over a twin whose
 // task borrows nothing: it builds with no refusal and its runner works on no backend. A row
 // pins that exact outcome on the backend SURGE_BACKEND names; anything else - the task ran, a
-// different fault, a compile-time refusal - is red. The frozen sources and digests are in
+// different fault, a compile-time refusal - is red. TestH2TripwireAwaitRunnerRuns pins the
+// opposite: a non-own `.await()` runs its task. The frozen sources and digests are in
 // return_origin_h2_tripwire_sources_test.go.
 
 type h2TripwireOutcome struct {
@@ -214,6 +215,16 @@ func TestH2TripwireWitnessControl(t *testing.T) {
 // A harness that ran nothing, or lost the exit code, would otherwise look like a barrier.
 func TestH2TripwireHarnessObservesExit(t *testing.T) {
 	checkH2TripwireBarrier(t, "sync_rt_exit", h2TripwireSyncRtExit, h2TripwireSyncRtExitDigest, h2HarnessExit)
+}
+
+// RV2-DEBT-365, second line: a non-own `.await()` runs its task on this backend. The twin of the
+// driver's g0d_await_disc probe borrows nothing and exits 46 (len 6 + 40), so the leaking original
+// is stopped by the task check alone (TestH2TripwireTaskCheckRefusesLeaks, driver).
+func TestH2TripwireAwaitRunnerRuns(t *testing.T) {
+	out := h2TripwireRun(t, "g0d_await_runner", h2TripwireG0dAwaitDiscTwin, h2TripwireG0dAwaitDiscTwinDigest)
+	if verdict := h2HarnessExit.holds(testBackend(t), out); verdict != "" {
+		t.Errorf("the await runner did not run its task to exit 46: %s", verdict)
+	}
 }
 
 // Every barrier must refuse the recorded outcomes of a leaked task that ran, and of a program

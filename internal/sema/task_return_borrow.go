@@ -163,9 +163,10 @@ func (tc *typeChecker) refuseTaskBorrowsAtRet(id ast.StmtID, entryPins map[taskB
 // that calls it back -- is pinned, whichever of its returns has been seen so far. The arrays of
 // unknown provenance its tasks were handed are judged here too, once the whole body is known.
 func (tc *typeChecker) walkCallableBody(body ast.StmtID) {
-	outer := tc.fnTaskBorrows
+	outer, outerCold := tc.fnTaskBorrows, tc.fnTaskCold
 	outerArrays := tc.beginUntracedArrays()
 	tc.fnTaskBorrows = symbols.TaskBorrowsUnknown
+	tc.fnTaskCold = symbols.TaskReturnsUnknown
 	tc.walkStmt(body)
 	if tc.returnStatus(body) != returnClosed {
 		tc.refuseLivePinsAtAbruptExit(0, "function end")
@@ -176,8 +177,12 @@ func (tc *typeChecker) walkCallableBody(body ast.StmtID) {
 		if tc.fnTaskBorrows == symbols.TaskBorrowsNothing {
 			sym.Signature.TaskBorrows = symbols.TaskBorrowsNothing
 		}
+		sym.Signature.TaskCold = symbols.TaskReturnsOther
+		if tc.fnTaskCold == symbols.TaskReturnsCold {
+			sym.Signature.TaskCold = symbols.TaskReturnsCold
+		}
 	}
-	tc.fnTaskBorrows = outer
+	tc.fnTaskBorrows, tc.fnTaskCold = outer, outerCold
 }
 
 // noteReturnedTaskBorrows accumulates, over the returns of the plain function being walked,
@@ -186,6 +191,7 @@ func (tc *typeChecker) walkCallableBody(body ast.StmtID) {
 // and a caller checked earlier reads "unknown" and pins. Anything this does not recognise is
 // "lent", and "lent" is sticky.
 func (tc *typeChecker) noteReturnedTaskBorrows(returned ast.ExprID) {
+	tc.noteReturnedTaskCold(returned)
 	if tc.fnTaskBorrows == symbols.TaskBorrowsLent {
 		return
 	}
