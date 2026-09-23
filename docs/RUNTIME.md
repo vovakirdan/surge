@@ -149,6 +149,7 @@ stateDiagram-v2
     [*] --> COLD: create (async fn call, async block)
     COLD --> READY: first spawn, await, cancel or scope join
     COLD --> DONE: last handle dropped, never polled
+    COLD --> DONE: cancelled before any start (published, then answered Cancelled at its first poll; body never entered)
     [*] --> READY: create published (blocking, checkpoint, sleep, stand drivers)
     READY --> READY: wake
     READY --> RUNNING: worker polls
@@ -168,6 +169,17 @@ Core invariants:
   queue until its first `spawn`, await, cancel or scope join publishes it; a
   last handle dropped first ends it without a poll (`rt_task_cold.c`,
   RV2-DEBT-370).
+- A cancel that reaches a task while it is cold linearizes before anything
+  could start it: the publication it causes records `RT_TASK_CANCELLED_COLD`,
+  and the first poll answers `Cancelled()` without entering the body and gives
+  the start frame back through `mark_done`. A cancel after the publication is
+  cooperative and observed at a suspension, as before.
+- In compiled code a scope's implicit join runs after the frame's locals are
+  released: a return's drops come first and the join is inserted between them
+  and the terminator (`insertScopeJoins`, `internal/mir/async_lowering_state_machine.go`).
+  A member that could still read such a local at that join must therefore not
+  be runnable there: the task check refuses one that pins a local past its
+  block, and a cold member reached by a cancel is answered without running.
 - `ex->lock` owns task transitions that touch queues, waiters, scopes, timers,
   and shutdown state.
 - Ready queues store task IDs with the task `enqueued` flag set; duplicate queue

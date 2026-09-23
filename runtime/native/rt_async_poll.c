@@ -1,6 +1,7 @@
 #include "rt_async_internal.h"
 #include "rt_remote_spawn.h"
 #include "rt_sync_point.h"
+#include "rt_task_cold.h"
 #include "rt_value_ops.h"
 
 // Async runtime polling and scheduler logic.
@@ -145,6 +146,16 @@ poll_outcome poll_task(rt_executor* ex, rt_task* task) {
         case TASK_KIND_BLOCKING:
             return poll_blocking_task(ex, task);
         default:
+            // Only a user task is created cold. A cancel that reached it while
+            // it was cold linearized before it could start
+            // (RUNTIME_MODEL_EXPLAINED 6.3; RUNTIME_V2.md, owner ruling
+            // 2026-08-29): it answers Cancelled() and its body is never
+            // entered. mark_done gives the start frame back through the
+            // reclaim pair.
+            if (rt_task_take_cancelled_start(task)) {
+                out.kind = POLL_DONE_CANCELLED;
+                return out;
+            }
             return poll_user_task(ex, task);
     }
 }

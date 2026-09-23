@@ -108,3 +108,40 @@ func TestJoinPublishesAColdMemberItStillCounts(t *testing.T) {
 		t.Fatalf("the join did not publish its cold member: %+v, ready %v", task, exec.ready)
 	}
 }
+
+// A cancel that reaches a task while it is cold is recorded by the publication it
+// causes, and only then; a task published first and cancelled after keeps the cooperative rule.
+func TestCancelWhileColdIsRecordedByThePublication(t *testing.T) {
+	exec := NewExecutor[string](Config{Deterministic: true})
+	cold := exec.Create(1, nil)
+	exec.Cancel(cold)
+	if task := exec.Task(cold); !task.CancelledCold || task.Cold || !slices.Contains(exec.ready, cold) {
+		t.Fatalf("a task cancelled while cold = %+v, ready %v; want published and marked cancelled-cold", task, exec.ready)
+	}
+	published := exec.Create(1, nil)
+	exec.Wake(published)
+	exec.Cancel(published)
+	if task := exec.Task(published); task.CancelledCold || !task.Cancelled {
+		t.Fatalf("a task cancelled after its publication = %+v, want cancelled and not marked cancelled-cold", task)
+	}
+}
+
+// The fail-fast road: a member that ends Cancelled cancels every member of its scope, and a
+// member still cold when that cancel reaches it is published marked, to be answered unrun.
+func TestFailfastCancelAllMarksAColdMemberCancelledCold(t *testing.T) {
+	exec := NewExecutor[string](Config{Deterministic: true})
+	owner := exec.Spawn(1, nil)
+	scopeID := exec.EnterScope(owner, true)
+	exec.SetCurrent(owner)
+	sibling := exec.Create(2, nil)
+	member := exec.Create(3, nil)
+	exec.SetCurrent(0)
+	exec.Wake(sibling)
+	exec.MarkDone(sibling, TaskResultCancelled, "")
+	if task := exec.Task(member); !task.CancelledCold || !task.Cancelled || task.Cold {
+		t.Fatalf("a cold member reached by the fail-fast cancel-all = %+v, want published and marked cancelled-cold", task)
+	}
+	if done, _, failfast := exec.JoinAllChildrenBlocking(scopeID); done || !failfast {
+		t.Fatalf("join: done %v failfast %v, want to wait on the member with fail-fast raised", done, failfast)
+	}
+}

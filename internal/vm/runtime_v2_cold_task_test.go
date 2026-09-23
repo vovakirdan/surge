@@ -74,7 +74,9 @@ func TestRuntimeV2ColdTaskForeignLaneReachesTheScopeByEvent(t *testing.T) {
 }
 
 // A discard and a cancel by id: after the discard the cancel finds nothing to revive; a
-// cancel that took the gate first is owed its run, so the last drop publishes the task.
+// cancel that took the gate first is owed its answer, so the last drop publishes the task and
+// its first poll answers Cancelled() without entering the body; the row reads the publication
+// word inside the window, so a discard cannot pass for that publication.
 func TestRuntimeV2ColdTaskDiscardAndCancelRace(t *testing.T) {
 	runColdTaskStand(t, "drop-then-cancel", "1", "SURGE_THREADS=1")
 	bin := buildColdTaskStandWithFlags(t, "-DRT_TEST_SYNC_POINTS")
@@ -128,6 +130,67 @@ func TestRuntimeV2ColdTaskUnderThreadSanitizer(t *testing.T) {
 				t.Fatalf("cold task %s under ThreadSanitizer (code=%d)\nstdout:\n%s\nstderr:\n%s", row.mode, code, stdout, stderr)
 			}
 		})
+	}
+}
+
+// The fail-fast window: a cancel that reaches a cold member --
+// here the cancel-all a cancelled sibling raises, landing while the owner still holds the
+// member's handle -- linearizes before the member could start, so the member answers Cancelled()
+// without its body ever being entered (docs/RUNTIME_MODEL_EXPLAINED.ru.md 6.3: a cold task runs
+// only when spawned or awaited; docs/RUNTIME_V2.md, owner ruling 2026-08-29), although the owner
+// then drops the handle, releases the local the member borrows and joins. The owner waits for
+// the member's gate before its drop, so that order is fixed by construction.
+// Which road published the member is logged from the stand's OK line: recorded, not required.
+func TestRuntimeV2ColdTaskFailfastCancelsAColdMemberUnrun(t *testing.T) {
+	skipTimeoutTests(t)
+	bin := buildColdTaskStand(t)
+	for _, threads := range []string{"2", "4"} {
+		t.Run("threads-"+threads, func(t *testing.T) {
+			cmd := exec.Command(bin, "failfast-cold-member", "50")
+			cmd.Env = append(os.Environ(), "SURGE_BLOCKING_THREADS=1", "SURGE_SHARDS=1", "SURGE_THREADS="+threads)
+			stdout, stderr, code := runCommand(t, cmd, "")
+			if code != 0 || !strings.Contains(stdout, "COLD_STAND_OK failfast-cold-member") {
+				t.Fatalf("cold task stand failfast-cold-member failed (code=%d)\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+			}
+			t.Log(strings.TrimSpace(stdout))
+		})
+	}
+}
+
+// The cancelled-cold paths under ThreadSanitizer: the fail-fast member with four workers, and a
+// cancel of a cold task answered by an await from a thread that is no worker.
+func TestRuntimeV2ColdTaskCancelledColdUnderThreadSanitizer(t *testing.T) {
+	skipTimeoutTests(t)
+	requireUnlimitedAddressSpace(t)
+	bin := buildColdTaskStandWithFlags(t, "-fsanitize=thread", "-O1")
+	for _, row := range []struct{ mode, rounds string }{
+		{"failfast-cold-member", "100"},
+		{"cancel", "200"},
+	} {
+		t.Run(row.mode, func(t *testing.T) {
+			cmd := exec.Command(bin, row.mode, row.rounds)
+			cmd.Env = append(os.Environ(), "SURGE_BLOCKING_THREADS=1", "SURGE_SHARDS=1", "SURGE_THREADS=4")
+			stdout, stderr, code := runCommand(t, cmd, "")
+			if strings.Contains(stderr, "ThreadSanitizer") || code != 0 ||
+				!strings.Contains(stdout, "COLD_STAND_OK "+row.mode) {
+				t.Fatalf("cancelled cold task %s under ThreadSanitizer (code=%d)\nstdout:\n%s\nstderr:\n%s", row.mode, code, stdout, stderr)
+			}
+		})
+	}
+}
+
+// A task cancelled while cold, under Valgrind: no error and no allocation per task, at one and at
+// eight rounds -- its start frame goes back through mark_done's reclaim pair, not through a poll.
+func TestRuntimeV2ColdTaskCancelledColdValgrindZero(t *testing.T) {
+	skipTimeoutTests(t)
+	if _, err := exec.LookPath("valgrind"); err != nil {
+		t.Skip("valgrind not installed")
+	}
+	bin := buildColdTaskStand(t)
+	low := coldTaskValgrind(t, bin, "cancel", "1")
+	high := coldTaskValgrind(t, bin, "cancel", "8")
+	if high-low >= 2 {
+		t.Errorf("a task cancelled while cold leaks: %d outstanding at 1, %d at 8", low, high)
 	}
 }
 
@@ -234,7 +297,7 @@ func buildColdTaskStandWithFlags(t *testing.T, flags ...string) string {
 	dir := t.TempDir()
 	harness := filepath.Join(dir, "cold_task_stand.c")
 	bin := filepath.Join(dir, "cold_task_stand")
-	if writeErr := os.WriteFile(harness, []byte(coldTaskStand+coldTaskStandMain), 0o600); writeErr != nil {
+	if writeErr := os.WriteFile(harness, []byte(coldTaskStand+coldTaskStandFailfast+coldTaskStandMain), 0o600); writeErr != nil {
 		t.Fatalf("write stand: %v", writeErr)
 	}
 	sources, globErr := filepath.Glob(filepath.Join(root, "runtime", "native", "*.c"))

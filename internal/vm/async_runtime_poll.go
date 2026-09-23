@@ -41,9 +41,18 @@ func (vm *VM) pollTask(task *asyncrt.Task[asyncPayload]) (asyncrt.PollOutcome[as
 	case asyncrt.TaskKindTimeout:
 		return vm.pollTimeoutTask(task)
 	default:
-		outcome, vmErr := vm.pollUserTask(task)
-		if vmErr != nil {
-			return asyncrt.PollOutcome[asyncPayload]{}, vmErr
+		var outcome asyncrt.PollOutcome[asyncPayload]
+		if task.CancelledCold {
+			// Cancelled while cold: it answers Cancelled and its body is never
+			// entered; the release below drops its start state (rt_task_cold.c).
+			task.CancelledCold = false
+			outcome = asyncrt.PollOutcome[asyncPayload]{Kind: asyncrt.PollDoneCancelled}
+		} else {
+			var vmErr *VMError
+			outcome, vmErr = vm.pollUserTask(task)
+			if vmErr != nil {
+				return asyncrt.PollOutcome[asyncPayload]{}, vmErr
+			}
 		}
 		if outcome.Kind == asyncrt.PollDoneSuccess || outcome.Kind == asyncrt.PollDoneCancelled {
 			vm.releaseTaskState(task)

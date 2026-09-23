@@ -349,7 +349,9 @@ typedef struct rt_task {
     // Whether anything has made this task runnable (RV2-DEBT-370): zero, the
     // zero-filled value, is RT_TASK_PUBLISHED; a task built by
     // __task_create_cold[_affine] is RT_TASK_COLD until its first publication
-    // or RT_TASK_DISCARDED once its last handle ended it (rt_task_cold.c).
+    // or RT_TASK_DISCARDED once its last handle ended it (rt_task_cold.c); a
+    // publication that found a cancel in the gate writes RT_TASK_CANCELLED_COLD,
+    // which the task's first poll turns into Cancelled() and PUBLISHED.
     atomic_u8 publication;
     uint8_t checkpoint_polled;
     uint8_t sleep_armed;

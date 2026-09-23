@@ -188,8 +188,11 @@ static inline void rt_task_join_owner_shard_id_store(rt_task* task, uint32_t sha
 // PUBLISHED from its zero-filled allocation; only the cold constructors write
 // COLD, and only rt_task_cold.c moves a task out of it, under its owner shard
 // lock. A reader outside that lock uses the answer only as a hint for which
-// locked path to take.
-enum { RT_TASK_PUBLISHED = 0, RT_TASK_COLD = 1, RT_TASK_DISCARDED = 2 };
+// locked path to take. RT_TASK_CANCELLED_COLD is PUBLISHED with one more fact:
+// the publication found a cancel already in the gate, so the task was cancelled
+// before anything could start it and its first poll answers Cancelled() without
+// entering the body (rt_task_take_cancelled_start), then writes PUBLISHED.
+enum { RT_TASK_PUBLISHED = 0, RT_TASK_COLD = 1, RT_TASK_DISCARDED = 2, RT_TASK_CANCELLED_COLD = 3 };
 
 static inline uint8_t rt_task_publication_load(const rt_task* task) {
     return task == NULL ? RT_TASK_PUBLISHED

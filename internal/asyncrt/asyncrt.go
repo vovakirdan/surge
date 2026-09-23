@@ -98,6 +98,7 @@ type Task[P Payload] struct {
 	Kind             TaskKind
 	Cancelled        bool
 	Cold             bool // created by Create, not yet enqueued (RV2-DEBT-370)
+	CancelledCold    bool // published already cancelled: its first poll answers Cancelled unrun
 	ScopeID          ScopeID
 	CreationScopeID  ScopeID
 	ScopeRegistered  bool
@@ -382,6 +383,11 @@ func (e *Executor[P]) enqueue(id TaskID) {
 	e.ready = append(e.ready, id)
 	e.readySet[id] = struct{}{}
 	if task := e.tasks[id]; task != nil && task.Status != TaskDone {
+		// A cancel that reached a cold task came before anything could start it
+		// (runtime/native/rt_task_cold.c, RT_TASK_CANCELLED_COLD).
+		if task.Cold && task.Cancelled {
+			task.CancelledCold = true
+		}
 		task.Status = TaskReady
 		task.Cold = false
 	}

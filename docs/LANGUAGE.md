@@ -1921,6 +1921,9 @@ Surge uses **cooperative cancellation**:
 2. At the next suspension point (`.await()`, `checkpoint()`, channel send/recv, timeout),
    the task observes the flag.
 3. If cancelled, the awaited result is `Cancelled()`.
+4. A task cancelled before it was started -- created by a call of an `async fn` or an
+   `async { }` block, and neither spawned nor awaited yet -- never runs its body;
+   awaiting it answers `Cancelled()`.
 
 #### Checkpoint, Sleep, Timeout
 

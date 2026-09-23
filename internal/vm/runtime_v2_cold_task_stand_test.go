@@ -53,6 +53,8 @@ void __surge_blocking_call(uint64_t id, void* state, void* out_dst) {
 #define POLL_OWNER_WALK_DROP 7007
 #define POLL_OWNER_INLINE_SCOPE 7008
 #define POLL_CHILD_OLDER 7009
+#define POLL_MEMBER 7010
+#define POLL_OWNER_FAILFAST_COLD 7011
 
 // The start frame: field 0 is the lifecycle word a compiled frame opens with,
 // PACKED as the constructor builds it, and one owned member.
@@ -167,6 +169,10 @@ static uint32_t polled_inside_owner(void) {
 }
 
 static void poll_child(void);
+// The fail-fast member and its owner: coldTaskStandFailfast, appended after
+// this unit and before the driver.
+static void poll_member(void);
+static void poll_owner_failfast_cold(void);
 
 // Only the cold claim can poll the older child inline while it is still cold:
 // once the owner's await has published it, the base's local-tail claim may
@@ -425,6 +431,12 @@ void __surge_poll_call(uint64_t id) {
             return;
         case POLL_OWNER_AFFINE_HANDOFF:
             poll_owner_affine_handoff();
+            return;
+        case POLL_MEMBER:
+            poll_member();
+            return;
+        case POLL_OWNER_FAILFAST_COLD:
+            poll_owner_failfast_cold();
             return;
         default:
             fprintf(stderr, "stand: unknown poll id %llu\n", (unsigned long long)id);

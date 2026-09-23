@@ -30,7 +30,18 @@
 //     inline, never queued (rt_task_claim_cold_inline);
 //   - the drop of its last handle discards it (rt_task_release_cold_handle),
 //     unless a cancel reached its gate first, in which case the drop publishes
-//     it so the cancel is observed exactly as it is today.
+//     it so the cancel is answered.
+//
+// A publication that finds a cancel already in the gate -- the cancel's own
+// wake, a last drop, an await's inline claim or a join -- writes
+// RT_TASK_CANCELLED_COLD: that cancel linearized before anything could start
+// the task, so its first poll answers Cancelled() without entering the body
+// and gives the start frame back through mark_done
+// (rt_task_take_cancelled_start). A cold task runs only when it is spawned or
+// awaited (RUNTIME_MODEL_EXPLAINED 6.3), and a cancel is neither; RUNTIME_V2.md
+// (owner ruling 2026-08-29) answers a task cancelled after publication and
+// before it started the same way. A cancel that comes after the publication
+// is cooperative, as it always was: the body observes it at a suspension.
 //
 // While a task is cold its owner shard cannot change: a repin needs a WAITING
 // task and the placement adoption rewrites only a RUNNING task's own words, so
@@ -117,9 +128,34 @@ uint8_t rt_task_publication_take_locked(rt_executor* ex, rt_task* task) {
     if (publication != RT_TASK_COLD) {
         return publication;
     }
-    atomic_store_explicit(&task->publication, RT_TASK_PUBLISHED, memory_order_release);
+    // The gate is read under the owner lock that every publication holds: a
+    // cancel whose compare-and-swap came first linearized while the task was
+    // cold, and the word carries that to the first poll, which holds the task
+    // by a pop or a claim made under this same lock.
+    uint8_t published = RT_TASK_PUBLISHED;
+    if (task_cancelled_load(task) != 0) {
+        published = RT_TASK_CANCELLED_COLD;
+    }
+    atomic_store_explicit(&task->publication, published, memory_order_release);
     cold_publication_leaves_locked(ex, task);
     return RT_TASK_COLD;
+}
+
+int rt_task_take_cancelled_start(rt_task* task) {
+    if (task == NULL || rt_task_publication_load(task) != RT_TASK_CANCELLED_COLD) {
+        return 0;
+    }
+    // Release: a reader that sees PUBLISHED again also sees the RUNNING status
+    // the poller stored before this poll.
+    atomic_store_explicit(&task->publication, RT_TASK_PUBLISHED, memory_order_release);
+    // The start frame is still PACKED, as the constructor built it, and its
+    // descriptor is the one the cold constructor recorded: the pair mark_done
+    // releases exactly once, as it releases a frame a cancelled yield left.
+    // Unlike cold_discard this does not refuse a missing descriptor: only a
+    // cold constructor writes the word this answers, and it always records one.
+    task->reclaim_frame = task->state;
+    task->state = NULL;
+    return 1;
 }
 
 void rt_task_cold_settle_publication(rt_executor* ex) {
@@ -254,8 +290,9 @@ int rt_task_release_cold_handle(rt_executor* ex, rt_task* task) {
     if (cold) {
         // The commit of a task that never ran is the gate's single RMW, as any
         // commit is (rt_task_complete.c): sealing it here refuses a cancel that
-        // arrives later. A cancel that took the gate first is owed the run it
-        // has today, so the drop publishes the task instead of ending it.
+        // arrives later. A cancel that took the gate first is owed its answer,
+        // Cancelled(), so the drop publishes the task instead of ending it and
+        // its first poll answers without entering the body.
         uint8_t open = RT_TASK_CANCEL_OPEN;
         discard = atomic_compare_exchange_strong_explicit(&task->cancelled,
                                                           &open,

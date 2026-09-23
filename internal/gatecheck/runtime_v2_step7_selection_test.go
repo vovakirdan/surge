@@ -76,6 +76,9 @@ func step7GateRows() []step7GateRow {
 		"TestRuntimeV2ColdTaskUnderThreadSanitizer",
 		"TestRuntimeV2ColdTaskInlineClaimTakesOnlyTheLatest",
 		"TestRuntimeV2ColdTaskDropValgrindZero",
+		"TestRuntimeV2ColdTaskFailfastCancelsAColdMemberUnrun",
+		"TestRuntimeV2ColdTaskCancelledColdUnderThreadSanitizer",
+		"TestRuntimeV2ColdTaskCancelledColdValgrindZero",
 	}
 	return []step7GateRow{
 		{"cast_offer_ir", "runtime-v2-carrier-check", "./internal/backend/llvm", "", "llvm", []string{"TestEmitNumericCastTemporaryCleanup", "TestEmitNumericCastBorrowedAndFixedControls", "TestChannelSendOfferUsesDisposablePollStorage"}},

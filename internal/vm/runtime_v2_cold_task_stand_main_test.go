@@ -81,6 +81,19 @@ static void drain_ready(void) {
     }
 }
 
+// A frame released by mark_done is deferred until that lane holds no lock, and
+// the lane may be another worker's: wait for want releases, let a late extra
+// one land, and answer whether there were exactly want.
+static int frame_drops_settle(uint32_t want) {
+    for (int i = 0; i < 5000 && atomic_load(&g_frame_drops) < want; i++) {
+        struct timespec pause = {0, 1000000};
+        nanosleep(&pause, NULL);
+    }
+    struct timespec settle = {0, 10000000};
+    nanosleep(&settle, NULL);
+    return atomic_load(&g_frame_drops) == want;
+}
+
 static void* drop_one(void* handle) {
     rt_task_handle_drop(handle);
     return NULL;
@@ -140,12 +153,19 @@ int main(int argc, char** argv) {
         } else if (strcmp(mode, "cancel") == 0) {
             void* child = create_child(0);
             rt_task_cancel(child);
-            if (rt_task_publication_load((const rt_task*)child) != RT_TASK_PUBLISHED) {
-                return fail(mode, "cancel did not publish the task");
+            // Published by the cancel's own wake with the cancel recorded, or
+            // already answered by a worker, which writes PUBLISHED back (release)
+            // after it stored RUNNING.
+            uint8_t published_word = rt_task_publication_load((const rt_task*)child);
+            if (published_word != RT_TASK_CANCELLED_COLD &&
+                (published_word != RT_TASK_PUBLISHED || task_status_load((const rt_task*)child) == TASK_READY)) {
+                return fail(mode, "cancel did not publish the task as cancelled while cold");
             }
-            if (await_task(child, &out) != 2 || atomic_load(&g_child_polls) != 1 ||
-                atomic_load(&g_frame_drops) != 1) {
-                return fail(mode, "the cancelled task was not polled once to its cancellation");
+            if (await_task(child, &out) != 2 || atomic_load(&g_child_polls) != 0) {
+                return fail(mode, "the task cancelled while cold was not answered Cancelled() unrun");
+            }
+            if (!frame_drops_settle(1)) {
+                return fail(mode, "its start frame was not given back exactly once");
             }
         } else if (strcmp(mode, "scope-drop") == 0) {
             if (run_owner(POLL_OWNER_DROP) != 1 || atomic_load(&g_child_polls) != 0 ||
@@ -230,12 +250,20 @@ int main(int argc, char** argv) {
                 return fail(mode, "the cancel never reached its wake");
             }
             rt_task_handle_drop(child);
+            // Still inside the window: the cancel holds the control lane, and a
+            // task is freed only on that lane, so the word can be read. The drop
+            // must have published the task, not discarded it: CANCELLED_COLD, or
+            // PUBLISHED once a worker has already answered it.
+            uint8_t published_word = rt_task_publication_load((const rt_task*)child);
             rt_sync_point_open();
             pthread_join(other, NULL);
             rt_sync_point_disarm(RT_SYNC_POINT_SP_CANCEL_BEFORE_WAKE);
             drain_ready();
-            if (atomic_load(&g_child_polls) != 1 || atomic_load(&g_frame_drops) != 1) {
-                return fail(mode, "a cancelled cold task was not published by its last drop");
+            if (published_word != RT_TASK_CANCELLED_COLD && published_word != RT_TASK_PUBLISHED) {
+                return fail(mode, "the last drop discarded a task whose gate a cancel had taken");
+            }
+            if (atomic_load(&g_child_polls) != 0 || !frame_drops_settle(1)) {
+                return fail(mode, "a cancelled cold task was not published by its last drop and answered unrun");
             }
 #endif
 #ifdef RT_TEST_SYNC_POINTS
@@ -265,6 +293,32 @@ int main(int argc, char** argv) {
                             "the walk published a discarded member, or the join did not drain");
             }
 #endif
+        } else if (strcmp(mode, "failfast-cold-member") == 0) {
+            atomic_store(&g_member_polls, 0);
+            atomic_store(&g_member_after_release, 0);
+            atomic_store(&g_gate_seen, 0);
+            atomic_store(&g_member, NULL);
+            atomic_store(&g_sibling, NULL);
+            uint32_t verdict = run_owner(POLL_OWNER_FAILFAST_COLD);
+            if (verdict == 82) {
+                return fail(mode, "the fail-fast cancel-all never reached the cold member");
+            }
+            if (atomic_load(&g_gate_seen) != 1) {
+                return fail(mode, "the member's gate did not show the cancel before its drop");
+            }
+            int frames_once = frame_drops_settle(2);
+            if (atomic_load(&g_member_after_release) != 0) {
+                return fail(mode, "a member cancelled while cold ran after its owner released the local");
+            }
+            if (atomic_load(&g_member_polls) != 0 || atomic_load(&g_child_polls) != 0) {
+                return fail(mode, "a task cancelled while cold entered its body");
+            }
+            if (verdict != 1) {
+                return fail(mode, "the join did not drain, or drained without fail-fast");
+            }
+            if (!frames_once) {
+                return fail(mode, "a start frame was not given back exactly once");
+            }
         } else if (strcmp(mode, "inline-scope") == 0) {
             if (run_owner(POLL_OWNER_INLINE_SCOPE) != 1 || atomic_load(&g_child_polls) != 2 ||
                 atomic_load(&g_frame_drops) != 2) {
@@ -285,6 +339,16 @@ int main(int argc, char** argv) {
         } else {
             return fail(mode, "unknown mode");
         }
+    }
+    if (strcmp(mode, "failfast-cold-member") == 0) {
+        // Recorded, not required: which road published the member is the
+        // scheduler's.
+        printf("COLD_STAND_OK %s roads: drop=%u wake=%u answered=%u\n",
+               mode,
+               atomic_load(&g_road_drop),
+               atomic_load(&g_road_wake),
+               atomic_load(&g_road_answered));
+        return 0;
     }
     printf("COLD_STAND_OK %s\n", mode);
     return 0;

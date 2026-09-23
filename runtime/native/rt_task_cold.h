@@ -23,6 +23,13 @@ void rt_scope_note_cold_member_locked(rt_executor* ex, const rt_task* task);
 // critical section it holds leaves a notice for rt_task_cold_settle_publication.
 uint8_t rt_task_publication_take_locked(rt_executor* ex, rt_task* task);
 
+// The first poll of a task whose publication found a cancel already in its
+// gate (RT_TASK_CANCELLED_COLD). Nonzero means that cancel linearized while
+// the task was cold: the caller answers Cancelled() without entering the
+// body, and the start frame now sits in the task's reclaim pair, which
+// mark_done releases. Called once, by the poller that holds the task RUNNING.
+int rt_task_take_cancelled_start(rt_task* task);
+
 // Settles the notice this thread's last publication left, once it holds no
 // shard lock: the scope's owner lane applies it under its own lock, any other
 // lane sends it as a scope event (rt_scope_publish_cold_published). Every
@@ -41,7 +48,8 @@ int rt_task_claim_cold_inline(rt_executor* ex, rt_task* current, rt_task* task);
 // owes the free: this was the last handle, and the task was either discarded
 // here -- its gate sealed, its frame released, its membership retired with
 // outcome NONE, never polled -- or completed after something else published
-// it. A last drop that finds a cancel already in the gate publishes the task.
+// it. A last drop that finds a cancel already in the gate publishes the task,
+// and its first poll answers Cancelled() without entering the body.
 int rt_task_release_cold_handle(rt_executor* ex, rt_task* task);
 
 // The join's half: a scope whose hint says it may still have a cold member
