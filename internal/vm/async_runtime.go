@@ -17,6 +17,9 @@ type asyncExit struct {
 type userTaskState struct {
 	state Value
 	pins  taskStatePins
+	// home is the arena the state lives in from creation to release
+	// (task_state_home.go); nil for a state that is not an inline composite.
+	home *Arena
 }
 
 func (vm *VM) ensureExecutor() *asyncrt.Executor[asyncPayload] {

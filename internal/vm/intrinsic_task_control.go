@@ -97,7 +97,9 @@ func (vm *VM) handleTaskState(frame *Frame, call *mir.CallInstr, writes *[]Local
 	}
 	stateVal := state.state
 	state.state = Value{}
-	if vmErr := vm.writeLocal(frame, call.Dst.Local, stateVal); vmErr != nil {
+	// The poll names the state where it lives rather than taking a copy: a child
+	// may hold a location into it (task_state_home.go, RV2-DEBT-372).
+	if vmErr := vm.installTaskState(frame, call.Dst.Local, stateVal); vmErr != nil {
 		return vmErr
 	}
 	if writes != nil {

@@ -178,11 +178,19 @@ func (a *Arena) retire() bool {
 	if a == nil || a.pins != 0 {
 		return false
 	}
+	a.invalidate()
+	return true
+}
+
+// invalidate is retirement without the question of pins: the generation moves
+// on, so every reference formed before it fails its check, and the bytes go.
+// Only an owner that knows no pin is owed the bytes asks for it -- a task's
+// home once the task's state is released (task_state_home.go).
+func (a *Arena) invalidate() {
 	a.gen++
 	a.bytes = nil
 	a.refs = nil
 	a.refIndex = nil
-	return true
 }
 
 func (a *Arena) pin()   { a.pins++ }

@@ -195,6 +195,7 @@ func (vm *VM) releaseTaskState(task *asyncrt.Task[asyncPayload]) {
 		vm.releaseTaskStatePins(state.pins)
 		state.state = Value{}
 		state.pins = taskStatePins{}
+		state.retireHome()
 		task.State = nil
 		return
 	}

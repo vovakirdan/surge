@@ -175,8 +175,9 @@ func (vm *VM) execTermAsyncReturn(frame *Frame, term *mir.Terminator) *VMError {
 //
 // A yield hands the state on to the scheduler and pins the bytes it lives in,
 // so a later reader still finds them. These terminators have no later reader:
-// they leave the stack, and the activation they leave retires the arena the
-// state sits in. Releasing after that retirement reaches a stale reference and
+// they leave the stack, and once the poll has returned the release of the task's
+// state retires its home, the arena the state sits in (task_state_home.go).
+// Releasing after that retirement reaches a stale reference and
 // silently gives back nothing, which is how a resume counter kept its own heap
 // object alive past the end of every async program. Doing it here is the last
 // moment the bytes can still be read.

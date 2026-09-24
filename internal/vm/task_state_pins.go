@@ -265,6 +265,20 @@ func (c *taskStatePinCollector) visitStorage(ref StorageRef) *VMError {
 	if ref.Arena == nil {
 		return nil
 	}
+	// A location whose arena has moved on to a later generation names storage
+	// that is gone: a task's home retired when its state was released
+	// (task_state_home.go), or an activation that retired. Holding it is not a
+	// use of it. A child parked while its parent was cancelled wakes to the same
+	// cancel after the parent's state was released, and its yield collects these
+	// pins before it asks whether the task was cancelled. So the location is
+	// passed over: nothing is pinned, so nothing is owed back, and nothing it
+	// pointed at is retained, because those bytes are gone. A dereference still
+	// fails, in resolve: section 7's "stale locations fail deterministically".
+	// Keeping the home until this location is given back would let the child
+	// read zeros instead (RV2-DEBT-372).
+	if ref.Gen != ref.Arena.gen {
+		return nil
+	}
 	if _, ok := c.visitedArenas[ref.Arena]; !ok {
 		c.visitedArenas[ref.Arena] = struct{}{}
 		ref.Arena.pin()

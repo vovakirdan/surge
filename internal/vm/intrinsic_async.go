@@ -36,8 +36,14 @@ func (vm *VM) handleTaskCreate(frame *Frame, call *mir.CallInstr, writes *[]Loca
 	if vmErr != nil {
 		return vmErr
 	}
-	state := &userTaskState{}
-	if stateErr := vm.setUserTaskState(state, stateVal); stateErr != nil {
+	// The state moves once, here, into storage the task owns; every poll then
+	// names it where it lives (task_state_home.go, RV2-DEBT-372).
+	homed, home, vmErr := vm.homeTaskState(frame, stateVal)
+	if vmErr != nil {
+		return vmErr
+	}
+	state := &userTaskState{home: home}
+	if stateErr := vm.setUserTaskState(state, homed); stateErr != nil {
 		return stateErr
 	}
 	// Created cold (RV2-DEBT-370): a member and a child, runnable only once a

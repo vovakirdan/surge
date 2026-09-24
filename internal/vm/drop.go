@@ -118,6 +118,7 @@ func (vm *VM) dropAsyncTasks() {
 			vm.releaseTaskStatePins(state.pins)
 			state.state = Value{}
 			state.pins = taskStatePins{}
+			state.retireHome()
 			task.State = nil
 		} else if v, ok := task.State.(Value); ok {
 			vm.dropValue(v)
