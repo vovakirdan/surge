@@ -4,20 +4,20 @@ double_lock.sg (span: 3:1-23:1)
 │  ├─ Params: ()
 │  ├─ Return: nothing
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 3:38-9:2)
+│     └─ Stmt[0]: Block (span: 3:44-9:2)
 │        ├─ Stmt[0]: Let (span: 4:5-4:38)
 │        │  ├─ Name: mtx
 │        │  ├─ Mutable: true
 │        │  ├─ Type: Mutex
 │        │  └─ Value: expr#3: Mutex.new()
-│        ├─ Stmt[1]: Expr (span: 5:5-5:16)
-│        │  └─ Expr: expr#6: mtx.lock()
-│        ├─ Stmt[2]: Expr (span: 6:5-6:16)
-│        │  └─ Expr: expr#9: mtx.lock()
+│        ├─ Stmt[1]: Expr (span: 5:5-5:24)
+│        │  └─ Expr: expr#8: mtx.lock().await()
+│        ├─ Stmt[2]: Expr (span: 6:5-6:24)
+│        │  └─ Expr: expr#13: mtx.lock().await()
 │        ├─ Stmt[3]: Expr (span: 7:5-7:18)
-│        │  └─ Expr: expr#12: mtx.unlock()
+│        │  └─ Expr: expr#16: mtx.unlock()
 │        └─ Stmt[4]: Expr (span: 8:5-8:18)
-│           └─ Expr: expr#15: mtx.unlock()
+│           └─ Expr: expr#19: mtx.unlock()
 ├─ Item[1]: Type (span: 11:1-13:2)
 │  ├─ Name: Data
 │  ├─ Kind: Struct
@@ -31,12 +31,12 @@ double_lock.sg (span: 3:1-23:1)
    │     ├─ Params: (self: &mut Data)
    │     ├─ Return: nothing
    │     └─ Body:
-   │        Stmt[0]: Block (span: 16:56-21:6)
-   │        ├─ Stmt[0]: Expr (span: 17:9-17:26)
-   │        │  └─ Expr: expr#19: self.lock.lock()
-   │        ├─ Stmt[1]: Expr (span: 18:9-18:26)
-   │        │  └─ Expr: expr#23: self.lock.lock()
+   │        Stmt[0]: Block (span: 16:62-21:6)
+   │        ├─ Stmt[0]: Expr (span: 17:9-17:34)
+   │        │  └─ Expr: expr#25: self.lock.lock().await()
+   │        ├─ Stmt[1]: Expr (span: 18:9-18:34)
+   │        │  └─ Expr: expr#31: self.lock.lock().await()
    │        ├─ Stmt[2]: Expr (span: 19:9-19:28)
-   │        │  └─ Expr: expr#27: self.lock.unlock()
+   │        │  └─ Expr: expr#35: self.lock.unlock()
    │        └─ Stmt[3]: Expr (span: 20:9-20:28)
-   │           └─ Expr: expr#31: self.lock.unlock()
+   │           └─ Expr: expr#39: self.lock.unlock()

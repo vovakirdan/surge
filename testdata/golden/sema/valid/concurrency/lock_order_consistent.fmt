@@ -9,18 +9,18 @@ type SafeResource = {
 
 extern<SafeResource> {
     // Function that acquires A then B
-    fn operation1(self: &mut SafeResource) {
-        self.lock_a.lock();
-        self.lock_b.lock();  // Edge: lock_a -> lock_b
+    async fn operation1(self: &mut SafeResource) {
+        self.lock_a.lock().await();
+        self.lock_b.lock().await();  // Edge: lock_a -> lock_b
         self.data = 1;
         self.lock_b.unlock();
         self.lock_a.unlock();
     }
 
     // Another function also acquires A then B - consistent ordering!
-    fn operation2(self: &mut SafeResource) {
-        self.lock_a.lock();
-        self.lock_b.lock();  // Edge: lock_a -> lock_b (same direction)
+    async fn operation2(self: &mut SafeResource) {
+        self.lock_a.lock().await();
+        self.lock_b.lock().await();  // Edge: lock_a -> lock_b (same direction)
         self.data = 2;
         self.lock_b.unlock();
         self.lock_a.unlock();

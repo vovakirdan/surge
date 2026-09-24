@@ -3,13 +3,13 @@ type Resource = { lock: Mutex }
 
 extern<Resource> {
     @acquires_lock("lock")
-    fn acquire(self: &mut Resource) -> nothing {
-        self.lock.lock();
+    async fn acquire(self: &mut Resource) -> nothing {
+        self.lock.lock().await();
     }
 
-    pub fn double_acquire(self: &mut Resource) -> nothing {
-        self.lock.lock();
-        self.acquire();  // ERROR: lock already held
+    pub async fn double_acquire(self: &mut Resource) -> nothing {
+        self.lock.lock().await();
+        self.acquire().await();  // ERROR: lock already held
         self.lock.unlock();
     }
 }

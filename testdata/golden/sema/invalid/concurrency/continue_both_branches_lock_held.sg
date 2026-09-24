@@ -7,13 +7,13 @@ type ContinueBothResource = {
 }
 
 extern<ContinueBothResource> {
-    fn both_branches_continue(self: &mut ContinueBothResource) {
+    async fn both_branches_continue(self: &mut ContinueBothResource) {
         while self.value > 0 {
             if self.value > 10 {
-                self.lock.lock();  // Lock acquired in then branch
+                self.lock.lock().await();  // Lock acquired in then branch
                 continue;
             } else {
-                self.lock.lock();  // Lock acquired in else branch
+                self.lock.lock().await();  // Lock acquired in else branch
                 continue;
             }
             // Unreachable - but lock analysis continues from merged continue paths

@@ -4,6 +4,6 @@ nonblocking_calls_lock.sg (span: 2:1-6:1)
    ├─ Params: (mtx: &mut Mutex)
    ├─ Return: nothing
    └─ Body:
-      └─ Stmt[0]: Block (span: 3:45-5:2)
-         └─ Stmt[0]: Expr (span: 4:5-4:16)
-            └─ Expr: expr#3: mtx.lock()
+      └─ Stmt[0]: Block (span: 3:51-5:2)
+         └─ Stmt[0]: Expr (span: 4:5-4:24)
+            └─ Expr: expr#5: mtx.lock().await()

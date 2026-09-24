@@ -5,9 +5,9 @@ pub fn test_unlock_not_held() -> nothing {
     mtx.unlock();  // Error: lock not held
 }
 
-pub fn test_double_unlock() -> nothing {
+pub async fn test_double_unlock() -> nothing {
     let mut mtx: Mutex = Mutex.new();
-    mtx.lock();
+    mtx.lock().await();
     mtx.unlock();
     mtx.unlock();  // Error: lock not held (already unlocked)
 }

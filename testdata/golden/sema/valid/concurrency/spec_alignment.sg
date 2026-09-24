@@ -53,7 +53,7 @@ pub async fn test_async_block_with_spawn() {
         let t2: Task<int> = spawn simple_async_fn();
         let r1: TaskResult<int> = t1.await();
         let r2: TaskResult<int> = t2.await();
-    };
+    }.await();
 }
 
 // --- Section 6.3: Checkpoint ---
@@ -74,9 +74,9 @@ pub async fn test_checkpoint_in_loop() {
 
 // --- Mutex (from core/intrinsics.sg) ---
 
-pub fn test_mutex_operations() {
+pub async fn test_mutex_operations() {
     let mut m: Mutex = Mutex.new();
-    m.lock();
+    m.lock().await();
     m.unlock();
 }
 
@@ -115,9 +115,9 @@ pub fn test_condition_basic() {
 
 // --- Semaphore (from core/intrinsics.sg) ---
 
-pub fn test_semaphore_operations() {
+pub async fn test_semaphore_operations() {
     let mut sem: Semaphore = Semaphore.new(5:uint);
-    sem.acquire();
+    sem.acquire().await();
     sem.release();
 }
 
@@ -142,9 +142,9 @@ type GuardedStruct = {
     @guarded_by("lock") data: int,
 };
 
-pub fn test_guarded_access() {
+pub async fn test_guarded_access() {
     let mut s: GuardedStruct = GuardedStruct { lock: Mutex.new(), data: 0 };
-    s.lock.lock();
+    s.lock.lock().await();
     s.data = 42;
     let v: int = s.data;
     s.lock.unlock();
@@ -185,8 +185,8 @@ extern<ContractStruct> {
     }
 
     @acquires_lock("lock")
-    pub fn acquires_test(self: &mut ContractStruct) {
-        self.lock.lock();
+    pub async fn acquires_test(self: &mut ContractStruct) {
+        self.lock.lock().await();
     }
 
     @releases_lock("lock")
@@ -292,7 +292,7 @@ pub async fn test_structured_concurrency() {
         let t2: Task<int> = spawn simple_async_fn();
         let r1: TaskResult<int> = t1.await();
         let r2: TaskResult<int> = t2.await();
-    };
+    }.await();
 }
 
 // Returning Task from function transfers ownership

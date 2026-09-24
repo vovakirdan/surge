@@ -13,9 +13,9 @@ call_acquires_releases_valid.sg (span: 2:1-21:1)
    │  │  ├─ Return: nothing
    │  │  ├─ Attributes: @acquires_lock("lock")
    │  │  └─ Body:
-   │  │     Stmt[0]: Block (span: 6:48-8:6)
-   │  │     └─ Stmt[0]: Expr (span: 7:9-7:26)
-   │  │        └─ Expr: expr#5: self.lock.lock()
+   │  │     Stmt[0]: Block (span: 6:54-8:6)
+   │  │     └─ Stmt[0]: Expr (span: 7:9-7:34)
+   │  │        └─ Expr: expr#7: self.lock.lock().await()
    │  ├─ Fn[1]: release
    │  │  ├─ Params: (self: &mut Resource)
    │  │  ├─ Return: nothing
@@ -23,13 +23,13 @@ call_acquires_releases_valid.sg (span: 2:1-21:1)
    │  │  └─ Body:
    │  │     Stmt[0]: Block (span: 11:48-13:6)
    │  │     └─ Stmt[0]: Expr (span: 12:9-12:28)
-   │  │        └─ Expr: expr#10: self.lock.unlock()
+   │  │        └─ Expr: expr#12: self.lock.unlock()
    │  └─ Fn[2]: use_resource
    │     ├─ Params: (self: &mut Resource)
    │     ├─ Return: nothing
    │     └─ Body:
-   │        Stmt[0]: Block (span: 15:57-19:6)
-   │        ├─ Stmt[0]: Expr (span: 16:9-16:24)
-   │        │  └─ Expr: expr#13: self.acquire()
+   │        Stmt[0]: Block (span: 15:63-19:6)
+   │        ├─ Stmt[0]: Expr (span: 16:9-16:32)
+   │        │  └─ Expr: expr#17: self.acquire().await()
    │        └─ Stmt[1]: Expr (span: 18:9-18:24)
-   │           └─ Expr: expr#16: self.release()
+   │           └─ Expr: expr#20: self.release()

@@ -24,7 +24,7 @@ condition_basic.sg (span: 3:1-19:1)
    ├─ Params: ()
    ├─ Return: nothing
    └─ Body:
-      └─ Stmt[0]: Block (span: 11:41-18:2)
+      └─ Stmt[0]: Block (span: 11:47-18:2)
          ├─ Stmt[0]: Let (span: 12:5-12:43)
          │  ├─ Name: cond
          │  ├─ Mutable: false
@@ -35,9 +35,9 @@ condition_basic.sg (span: 3:1-19:1)
          │  ├─ Mutable: true
          │  ├─ Type: Mutex
          │  └─ Value: expr#18: Mutex.new()
-         ├─ Stmt[2]: Expr (span: 15:5-15:16)
-         │  └─ Expr: expr#21: mtx.lock()
-         ├─ Stmt[3]: Expr (span: 16:5-16:21)
-         │  └─ Expr: expr#26: cond.wait(&mtx)
+         ├─ Stmt[2]: Expr (span: 15:5-15:24)
+         │  └─ Expr: expr#23: mtx.lock().await()
+         ├─ Stmt[3]: Expr (span: 16:5-16:29)
+         │  └─ Expr: expr#30: cond.wait(&mtx).await()
          └─ Stmt[4]: Expr (span: 17:5-17:18)
-            └─ Expr: expr#29: mtx.unlock()
+            └─ Expr: expr#33: mtx.unlock()

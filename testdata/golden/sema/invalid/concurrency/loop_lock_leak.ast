@@ -13,17 +13,17 @@ loop_lock_leak.sg (span: 4:1-21:1)
    │     ├─ Params: (self: &mut LoopResource)
    │     ├─ Return: int
    │     └─ Body:
-   │        Stmt[0]: Block (span: 11:57-19:6)
-   │        ├─ Stmt[0]: Expr (span: 12:9-12:26)
-   │        │  └─ Expr: expr#4: self.lock.lock()
+   │        Stmt[0]: Block (span: 11:63-19:6)
+   │        ├─ Stmt[0]: Expr (span: 12:9-12:34)
+   │        │  └─ Expr: expr#6: self.lock.lock().await()
    │        ├─ Stmt[1]: If (span: 13:9-16:10)
-   │        │  ├─ Cond: expr#8: (self.items > 5)
+   │        │  ├─ Cond: expr#10: (self.items > 5)
    │        │  ├─ Then:
 Block (span: 13:27-16:10)
    │        │  │  └─ Stmt[0]: Return (span: 15:13-15:31)
-   │        │  │     └─ Expr: expr#10: self.items
+   │        │  │     └─ Expr: expr#12: self.items
    │        │  └─ Else: <none>
    │        ├─ Stmt[2]: Expr (span: 17:9-17:28)
-   │        │  └─ Expr: expr#14: self.lock.unlock()
+   │        │  └─ Expr: expr#16: self.lock.unlock()
    │        └─ Stmt[3]: Return (span: 18:9-18:18)
-   │           └─ Expr: expr#15: 0
+   │           └─ Expr: expr#17: 0

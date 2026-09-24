@@ -8,8 +8,8 @@ type LoopResource = {
 
 extern<LoopResource> {
     // Lock acquired inside condition, return without unlock
-    fn search_with_leak(self: &mut LoopResource) -> int {
-        self.lock.lock();
+    async fn search_with_leak(self: &mut LoopResource) -> int {
+        self.lock.lock().await();
         if self.items > 5 {
             // Found it, but forgot to unlock!
             return self.items;  // ERROR: lock held at return

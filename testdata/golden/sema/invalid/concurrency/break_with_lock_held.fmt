@@ -7,8 +7,8 @@ type BreakResource = {
 }
 
 extern<BreakResource> {
-    fn break_both_branches(self: &mut BreakResource) {
-        self.lock.lock();  // Lock acquired
+    async fn break_both_branches(self: &mut BreakResource) {
+        self.lock.lock().await();  // Lock acquired
         while self.value > 0 {
             if self.value > 10 {
                 break;  // Break with lock held
@@ -17,7 +17,7 @@ extern<BreakResource> {
             }
         }
         // Lock is still held here!
-        self.lock.lock();  // ERROR: double-lock
+        self.lock.lock().await();  // ERROR: double-lock
         self.lock.unlock();
         self.lock.unlock();
     }

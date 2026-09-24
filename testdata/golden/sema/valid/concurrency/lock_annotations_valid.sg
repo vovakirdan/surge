@@ -12,8 +12,8 @@ extern<SafeCounter> {
     }
 
     @acquires_lock("lock")
-    pub fn acquire(self: &mut SafeCounter) -> nothing {
-        self.lock.lock();
+    pub async fn acquire(self: &mut SafeCounter) -> nothing {
+        self.lock.lock().await();
     }
 
     @releases_lock("lock")

@@ -3,8 +3,8 @@ type Resource = { lock: Mutex }
 
 extern<Resource> {
     @acquires_lock("lock")
-    fn acquire(self: &mut Resource) -> nothing {
-        self.lock.lock();
+    async fn acquire(self: &mut Resource) -> nothing {
+        self.lock.lock().await();
     }
 
     @releases_lock("lock")
@@ -12,8 +12,8 @@ extern<Resource> {
         self.lock.unlock();
     }
 
-    pub fn use_resource(self: &mut Resource) -> nothing {
-        self.acquire();
+    pub async fn use_resource(self: &mut Resource) -> nothing {
+        self.acquire().await();
         // ... do something with the resource
         self.release();
     }

@@ -7,18 +7,18 @@ type ReturnBreakResource = {
 }
 
 extern<ReturnBreakResource> {
-    fn return_vs_break(self: &mut ReturnBreakResource) {
+    async fn return_vs_break(self: &mut ReturnBreakResource) {
         while self.value > 0 {
             if self.value > 10 {
                 return;  // Returns - exits function
             } else {
-                self.lock.lock();  // Lock acquired
+                self.lock.lock().await();  // Lock acquired
                 break;  // Breaks with lock held
             }
         }
         // After loop: only break path reaches here
         // Lock IS held (from break path)
-        self.lock.lock();  // ERROR: double-lock
+        self.lock.lock().await();  // ERROR: double-lock
         self.lock.unlock();
     }
 }

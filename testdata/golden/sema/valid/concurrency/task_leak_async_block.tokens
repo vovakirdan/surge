@@ -33,6 +33,10 @@
  33: Ident           "t" at 11:17-11:18 (leading: Space)
  34: Semicolon       ";" at 11:18-11:19
  35: RBrace          "}" at 12:5-12:6 (leading: Newline, Space)
- 36: Semicolon       ";" at 12:6-12:7
- 37: RBrace          "}" at 13:1-13:2 (leading: Newline)
- 38: EOF             at 14:1-14:1
+ 36: Dot             "." at 12:6-12:7
+ 37: Ident           "await" at 12:7-12:12
+ 38: LParen          "(" at 12:12-12:13
+ 39: RParen          ")" at 12:13-12:14
+ 40: Semicolon       ";" at 12:14-12:15
+ 41: RBrace          "}" at 13:1-13:2 (leading: Newline)
+ 42: EOF             at 14:1-14:1

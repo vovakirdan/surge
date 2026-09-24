@@ -13,7 +13,7 @@ break_mixed_lock_state.sg (span: 4:1-24:1)
    │     ├─ Params: (self: &mut BreakMixedResource)
    │     ├─ Return: nothing
    │     └─ Body:
-   │        Stmt[0]: Block (span: 10:58-22:6)
+   │        Stmt[0]: Block (span: 10:64-22:6)
    │        └─ Stmt[0]: While (span: 11:9-19:10)
    │           ├─ Cond: expr#4: (self.value > 0)
    │           └─ Body:
@@ -22,8 +22,8 @@ Block (span: 11:30-19:10)
    │                 ├─ Cond: expr#8: (self.value > 10)
    │                 ├─ Then:
 Block (span: 12:32-15:14)
-   │                 │  ├─ Stmt[0]: Expr (span: 13:17-13:34)
-   │                 │  │  └─ Expr: expr#12: self.lock.lock()
+   │                 │  ├─ Stmt[0]: Expr (span: 13:17-13:42)
+   │                 │  │  └─ Expr: expr#14: self.lock.lock().await()
    │                 │  └─ Stmt[1]: Break (span: 14:17-14:23)
    │                 │     └─ (no additional data)
    │                 └─ Else:

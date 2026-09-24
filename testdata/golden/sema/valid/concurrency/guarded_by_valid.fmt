@@ -10,9 +10,9 @@ type SharedData = {
     @guarded_by("rw") data: string,
 }
 
-pub fn test_counter() -> nothing {
+pub async fn test_counter() -> nothing {
     let mut c: Counter = Counter { lock: Mutex.new(), value: 0 };
-    c.lock.lock();
+    c.lock.lock().await();
     c.value = c.value + 1;
     c.lock.unlock();
 }

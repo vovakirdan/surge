@@ -13,5 +13,5 @@ task_leak_async_block.sg (span: 3:1-14:1)
    ├─ Return: nothing
    └─ Body:
       └─ Stmt[0]: Block (span: 7:38-13:2)
-         └─ Stmt[0]: Expr (span: 8:5-12:7)
-            └─ Expr: expr#6: async { 2 stmt(s) }
+         └─ Stmt[0]: Expr (span: 8:5-12:15)
+            └─ Expr: expr#8: async { 2 stmt(s) }.await()

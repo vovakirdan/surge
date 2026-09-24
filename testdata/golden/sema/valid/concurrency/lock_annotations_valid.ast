@@ -22,9 +22,9 @@ lock_annotations_valid.sg (span: 3:1-46:1)
 │  │  │  ├─ Return: nothing
 │  │  │  ├─ Attributes: @acquires_lock("lock")
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 15:55-17:6)
-│  │  │     └─ Stmt[0]: Expr (span: 16:9-16:26)
-│  │  │        └─ Expr: expr#8: self.lock.lock()
+│  │  │     Stmt[0]: Block (span: 15:61-17:6)
+│  │  │     └─ Stmt[0]: Expr (span: 16:9-16:34)
+│  │  │        └─ Expr: expr#10: self.lock.lock().await()
 │  │  └─ Fn[2]: release
 │  │     ├─ Params: (self: &mut SafeCounter)
 │  │     ├─ Return: nothing
@@ -32,7 +32,7 @@ lock_annotations_valid.sg (span: 3:1-46:1)
 │  │     └─ Body:
 │  │        Stmt[0]: Block (span: 20:55-22:6)
 │  │        └─ Stmt[0]: Expr (span: 21:9-21:28)
-│  │           └─ Expr: expr#13: self.lock.unlock()
+│  │           └─ Expr: expr#15: self.lock.unlock()
 ├─ Item[2]: Type (span: 25:1-28:2)
 │  ├─ Name: RwCounter
 │  ├─ Kind: Struct
@@ -50,7 +50,7 @@ lock_annotations_valid.sg (span: 3:1-46:1)
    │  │  └─ Body:
    │  │     Stmt[0]: Block (span: 32:51-34:6)
    │  │     └─ Stmt[0]: Return (span: 33:9-33:26)
-   │  │        └─ Expr: expr#16: self.data
+   │  │        └─ Expr: expr#18: self.data
    │  ├─ Fn[1]: acquire_read
    │  │  ├─ Params: (self: &mut RwCounter)
    │  │  ├─ Return: nothing
@@ -58,7 +58,7 @@ lock_annotations_valid.sg (span: 3:1-46:1)
    │  │  └─ Body:
    │  │     Stmt[0]: Block (span: 37:58-39:6)
    │  │     └─ Stmt[0]: Expr (span: 38:9-38:29)
-   │  │        └─ Expr: expr#21: self.rw.read_lock()
+   │  │        └─ Expr: expr#23: self.rw.read_lock()
    │  └─ Fn[2]: release_read
    │     ├─ Params: (self: &mut RwCounter)
    │     ├─ Return: nothing
@@ -66,4 +66,4 @@ lock_annotations_valid.sg (span: 3:1-46:1)
    │     └─ Body:
    │        Stmt[0]: Block (span: 42:58-44:6)
    │        └─ Stmt[0]: Expr (span: 43:9-43:31)
-   │           └─ Expr: expr#26: self.rw.read_unlock()
+   │           └─ Expr: expr#28: self.rw.read_unlock()

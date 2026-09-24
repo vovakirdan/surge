@@ -8,11 +8,11 @@ pub fn test_condition_notify() -> nothing {
     cond.notify_all();
 }
 
-pub fn test_condition_wait() -> nothing {
+pub async fn test_condition_wait() -> nothing {
     let cond: Condition = Condition.new();
     let mut mtx: Mutex = Mutex.new();
 
-    mtx.lock();
-    cond.wait(&mtx);
+    mtx.lock().await();
+    cond.wait(&mtx).await();
     mtx.unlock();
 }

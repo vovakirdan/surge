@@ -1,8 +1,8 @@
 // Basic Mutex usage patterns
 
-pub fn test_mutex_lock_unlock() -> nothing {
+pub async fn test_mutex_lock_unlock() -> nothing {
     let mut m: Mutex = Mutex.new();
-    m.lock();
+    m.lock().await();
     // critical section
     m.unlock();
 }

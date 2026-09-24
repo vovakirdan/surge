@@ -15,6 +15,6 @@ requires_lock_other_leak.sg (span: 3:1-18:1)
    │     ├─ Return: nothing
    │     ├─ Attributes: @requires_lock("required_lock")
    │     └─ Body:
-   │        Stmt[0]: Block (span: 13:62-16:6)
-   │        └─ Stmt[0]: Expr (span: 14:9-14:32)
-   │           └─ Expr: expr#5: self.other_lock.lock()
+   │        Stmt[0]: Block (span: 13:68-16:6)
+   │        └─ Stmt[0]: Expr (span: 14:9-14:40)
+   │           └─ Expr: expr#7: self.other_lock.lock().await()

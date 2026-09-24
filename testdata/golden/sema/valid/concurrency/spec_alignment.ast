@@ -85,8 +85,8 @@ spec_alignment.sg (span: 9:1-302:1)
 │  ├─ Return: nothing
 │  └─ Body:
 │     └─ Stmt[0]: Block (span: 50:44-57:2)
-│        └─ Stmt[0]: Expr (span: 51:5-56:7)
-│           └─ Expr: expr#49: async { 4 stmt(s) }
+│        └─ Stmt[0]: Expr (span: 51:5-56:15)
+│           └─ Expr: expr#51: async { 4 stmt(s) }.await()
 ├─ Item[8]: Fn (span: 61:1-63:2)
 │  ├─ Name: test_checkpoint
 │  ├─ Params: ()
@@ -94,7 +94,7 @@ spec_alignment.sg (span: 9:1-302:1)
 │  └─ Body:
 │     └─ Stmt[0]: Block (span: 61:32-63:2)
 │        └─ Stmt[0]: Expr (span: 62:5-62:26)
-│           └─ Expr: expr#53: checkpoint().await()
+│           └─ Expr: expr#55: checkpoint().await()
 ├─ Item[9]: Fn (span: 65:1-73:2)
 │  ├─ Name: test_checkpoint_in_loop
 │  ├─ Params: ()
@@ -105,35 +105,35 @@ spec_alignment.sg (span: 9:1-302:1)
 │        │  ├─ Name: i
 │        │  ├─ Mutable: true
 │        │  ├─ Type: int
-│        │  └─ Value: expr#54: 0
+│        │  └─ Value: expr#56: 0
 │        └─ Stmt[1]: While (span: 67:5-72:6)
-│           ├─ Cond: expr#57: (i < 100)
+│           ├─ Cond: expr#59: (i < 100)
 │           └─ Body:
 Block (span: 67:19-72:6)
 │              ├─ Stmt[0]: If (span: 68:9-70:10)
-│              │  ├─ Cond: expr#62: (((i % 10)) == 0)
+│              │  ├─ Cond: expr#64: (((i % 10)) == 0)
 │              │  ├─ Then:
 Block (span: 68:24-70:10)
 │              │  │  └─ Stmt[0]: Expr (span: 69:13-69:34)
-│              │  │     └─ Expr: expr#66: checkpoint().await()
+│              │  │     └─ Expr: expr#68: checkpoint().await()
 │              │  └─ Else: <none>
 │              └─ Stmt[1]: Expr (span: 71:9-71:19)
-│                 └─ Expr: expr#71: (i = ((i + 1)))
+│                 └─ Expr: expr#73: (i = ((i + 1)))
 ├─ Item[10]: Fn (span: 77:1-81:2)
 │  ├─ Name: test_mutex_operations
 │  ├─ Params: ()
 │  ├─ Return: nothing
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 77:32-81:2)
+│     └─ Stmt[0]: Block (span: 77:38-81:2)
 │        ├─ Stmt[0]: Let (span: 78:5-78:36)
 │        │  ├─ Name: m
 │        │  ├─ Mutable: true
 │        │  ├─ Type: Mutex
-│        │  └─ Value: expr#74: Mutex.new()
-│        ├─ Stmt[1]: Expr (span: 79:5-79:14)
-│        │  └─ Expr: expr#77: m.lock()
+│        │  └─ Value: expr#76: Mutex.new()
+│        ├─ Stmt[1]: Expr (span: 79:5-79:22)
+│        │  └─ Expr: expr#81: m.lock().await()
 │        └─ Stmt[2]: Expr (span: 80:5-80:16)
-│           └─ Expr: expr#80: m.unlock()
+│           └─ Expr: expr#84: m.unlock()
 ├─ Item[11]: Fn (span: 83:1-86:2)
 │  ├─ Name: test_mutex_try_lock
 │  ├─ Params: ()
@@ -144,9 +144,9 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: m
 │        │  ├─ Mutable: true
 │        │  ├─ Type: Mutex
-│        │  └─ Value: expr#83: Mutex.new()
+│        │  └─ Value: expr#87: Mutex.new()
 │        └─ Stmt[1]: Return (span: 85:5-85:25)
-│           └─ Expr: expr#86: m.try_lock()
+│           └─ Expr: expr#90: m.try_lock()
 ├─ Item[12]: Fn (span: 90:1-94:2)
 │  ├─ Name: test_rwlock_read
 │  ├─ Params: ()
@@ -157,11 +157,11 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: rw
 │        │  ├─ Mutable: true
 │        │  ├─ Type: RwLock
-│        │  └─ Value: expr#89: RwLock.new()
+│        │  └─ Value: expr#93: RwLock.new()
 │        ├─ Stmt[1]: Expr (span: 92:5-92:20)
-│        │  └─ Expr: expr#92: rw.read_lock()
+│        │  └─ Expr: expr#96: rw.read_lock()
 │        └─ Stmt[2]: Expr (span: 93:5-93:22)
-│           └─ Expr: expr#95: rw.read_unlock()
+│           └─ Expr: expr#99: rw.read_unlock()
 ├─ Item[13]: Fn (span: 96:1-100:2)
 │  ├─ Name: test_rwlock_write
 │  ├─ Params: ()
@@ -172,11 +172,11 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: rw
 │        │  ├─ Mutable: true
 │        │  ├─ Type: RwLock
-│        │  └─ Value: expr#98: RwLock.new()
+│        │  └─ Value: expr#102: RwLock.new()
 │        ├─ Stmt[1]: Expr (span: 98:5-98:21)
-│        │  └─ Expr: expr#101: rw.write_lock()
+│        │  └─ Expr: expr#105: rw.write_lock()
 │        └─ Stmt[2]: Expr (span: 99:5-99:23)
-│           └─ Expr: expr#104: rw.write_unlock()
+│           └─ Expr: expr#108: rw.write_unlock()
 ├─ Item[14]: Fn (span: 102:1-106:2)
 │  ├─ Name: test_rwlock_try_ops
 │  ├─ Params: ()
@@ -187,17 +187,17 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: rw
 │        │  ├─ Mutable: true
 │        │  ├─ Type: RwLock
-│        │  └─ Value: expr#107: RwLock.new()
+│        │  └─ Value: expr#111: RwLock.new()
 │        ├─ Stmt[1]: Let (span: 104:5-104:38)
 │        │  ├─ Name: r
 │        │  ├─ Mutable: false
 │        │  ├─ Type: bool
-│        │  └─ Value: expr#110: rw.try_read_lock()
+│        │  └─ Value: expr#114: rw.try_read_lock()
 │        └─ Stmt[2]: Let (span: 105:5-105:39)
 │           ├─ Name: w
 │           ├─ Mutable: false
 │           ├─ Type: bool
-│           └─ Value: expr#113: rw.try_write_lock()
+│           └─ Value: expr#117: rw.try_write_lock()
 ├─ Item[15]: Fn (span: 110:1-114:2)
 │  ├─ Name: test_condition_basic
 │  ├─ Params: ()
@@ -208,26 +208,26 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: cond
 │        │  ├─ Mutable: false
 │        │  ├─ Type: Condition
-│        │  └─ Value: expr#116: Condition.new()
+│        │  └─ Value: expr#120: Condition.new()
 │        ├─ Stmt[1]: Expr (span: 112:5-112:23)
-│        │  └─ Expr: expr#119: cond.notify_one()
+│        │  └─ Expr: expr#123: cond.notify_one()
 │        └─ Stmt[2]: Expr (span: 113:5-113:23)
-│           └─ Expr: expr#122: cond.notify_all()
+│           └─ Expr: expr#126: cond.notify_all()
 ├─ Item[16]: Fn (span: 118:1-122:2)
 │  ├─ Name: test_semaphore_operations
 │  ├─ Params: ()
 │  ├─ Return: nothing
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 118:36-122:2)
+│     └─ Stmt[0]: Block (span: 118:42-122:2)
 │        ├─ Stmt[0]: Let (span: 119:5-119:52)
 │        │  ├─ Name: sem
 │        │  ├─ Mutable: true
 │        │  ├─ Type: Semaphore
-│        │  └─ Value: expr#127: Semaphore.new(5 to uint)
-│        ├─ Stmt[1]: Expr (span: 120:5-120:19)
-│        │  └─ Expr: expr#130: sem.acquire()
+│        │  └─ Value: expr#131: Semaphore.new(5 to uint)
+│        ├─ Stmt[1]: Expr (span: 120:5-120:27)
+│        │  └─ Expr: expr#136: sem.acquire().await()
 │        └─ Stmt[2]: Expr (span: 121:5-121:19)
-│           └─ Expr: expr#133: sem.release()
+│           └─ Expr: expr#139: sem.release()
 ├─ Item[17]: Fn (span: 124:1-127:2)
 │  ├─ Name: test_semaphore_try
 │  ├─ Params: ()
@@ -238,9 +238,9 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: sem
 │        │  ├─ Mutable: true
 │        │  ├─ Type: Semaphore
-│        │  └─ Value: expr#138: Semaphore.new(1 to uint)
+│        │  └─ Value: expr#144: Semaphore.new(1 to uint)
 │        └─ Stmt[1]: Return (span: 126:5-126:30)
-│           └─ Expr: expr#141: sem.try_acquire()
+│           └─ Expr: expr#147: sem.try_acquire()
 ├─ Item[18]: Type (span: 140:1-143:3)
 │  ├─ Name: GuardedStruct
 │  ├─ Kind: Struct
@@ -253,23 +253,23 @@ Block (span: 68:24-70:10)
 │  ├─ Params: ()
 │  ├─ Return: nothing
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 145:30-151:2)
+│     └─ Stmt[0]: Block (span: 145:36-151:2)
 │        ├─ Stmt[0]: Let (span: 146:5-146:77)
 │        │  ├─ Name: s
 │        │  ├─ Mutable: true
 │        │  ├─ Type: GuardedStruct
-│        │  └─ Value: expr#149: <ExprKind(22)>
-│        ├─ Stmt[1]: Expr (span: 147:5-147:19)
-│        │  └─ Expr: expr#153: s.lock.lock()
+│        │  └─ Value: expr#155: <ExprKind(22)>
+│        ├─ Stmt[1]: Expr (span: 147:5-147:27)
+│        │  └─ Expr: expr#161: s.lock.lock().await()
 │        ├─ Stmt[2]: Expr (span: 148:5-148:17)
-│        │  └─ Expr: expr#157: (s.data = 42)
+│        │  └─ Expr: expr#165: (s.data = 42)
 │        ├─ Stmt[3]: Let (span: 149:5-149:25)
 │        │  ├─ Name: v
 │        │  ├─ Mutable: false
 │        │  ├─ Type: int
-│        │  └─ Value: expr#159: s.data
+│        │  └─ Value: expr#167: s.data
 │        └─ Stmt[4]: Expr (span: 150:5-150:21)
-│           └─ Expr: expr#163: s.lock.unlock()
+│           └─ Expr: expr#171: s.lock.unlock()
 ├─ Item[20]: Type (span: 155:1-158:3)
 │  ├─ Name: RwGuardedStruct
 │  ├─ Kind: Struct
@@ -287,16 +287,16 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: s
 │        │  ├─ Mutable: true
 │        │  ├─ Type: RwGuardedStruct
-│        │  └─ Value: expr#171: <ExprKind(22)>
+│        │  └─ Value: expr#179: <ExprKind(22)>
 │        ├─ Stmt[1]: Expr (span: 162:5-162:22)
-│        │  └─ Expr: expr#175: s.rw.read_lock()
+│        │  └─ Expr: expr#183: s.rw.read_lock()
 │        ├─ Stmt[2]: Let (span: 163:5-163:32)
 │        │  ├─ Name: v
 │        │  ├─ Mutable: false
 │        │  ├─ Type: string
-│        │  └─ Value: expr#178: own s.data
+│        │  └─ Value: expr#186: own s.data
 │        └─ Stmt[3]: Expr (span: 164:5-164:24)
-│           └─ Expr: expr#182: s.rw.read_unlock()
+│           └─ Expr: expr#190: s.rw.read_unlock()
 ├─ Item[22]: Fn (span: 167:1-172:2)
 │  ├─ Name: test_rwlock_guarded_write
 │  ├─ Params: ()
@@ -307,13 +307,13 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: s
 │        │  ├─ Mutable: true
 │        │  ├─ Type: RwGuardedStruct
-│        │  └─ Value: expr#189: <ExprKind(22)>
+│        │  └─ Value: expr#197: <ExprKind(22)>
 │        ├─ Stmt[1]: Expr (span: 169:5-169:23)
-│        │  └─ Expr: expr#193: s.rw.write_lock()
+│        │  └─ Expr: expr#201: s.rw.write_lock()
 │        ├─ Stmt[2]: Expr (span: 170:5-170:22)
-│        │  └─ Expr: expr#197: (s.data = "world")
+│        │  └─ Expr: expr#205: (s.data = "world")
 │        └─ Stmt[3]: Expr (span: 171:5-171:25)
-│           └─ Expr: expr#201: s.rw.write_unlock()
+│           └─ Expr: expr#209: s.rw.write_unlock()
 ├─ Item[23]: Type (span: 176:1-179:3)
 │  ├─ Name: ContractStruct
 │  ├─ Kind: Struct
@@ -331,15 +331,15 @@ Block (span: 68:24-70:10)
 │  │  │  └─ Body:
 │  │  │     Stmt[0]: Block (span: 183:56-185:6)
 │  │  │     └─ Stmt[0]: Return (span: 184:9-184:27)
-│  │  │        └─ Expr: expr#204: self.value
+│  │  │        └─ Expr: expr#212: self.value
 │  │  ├─ Fn[1]: acquires_test
 │  │  │  ├─ Params: (self: &mut ContractStruct)
 │  │  │  ├─ Return: nothing
 │  │  │  ├─ Attributes: @acquires_lock("lock")
 │  │  │  └─ Body:
-│  │  │     Stmt[0]: Block (span: 188:53-190:6)
-│  │  │     └─ Stmt[0]: Expr (span: 189:9-189:26)
-│  │  │        └─ Expr: expr#209: self.lock.lock()
+│  │  │     Stmt[0]: Block (span: 188:59-190:6)
+│  │  │     └─ Stmt[0]: Expr (span: 189:9-189:34)
+│  │  │        └─ Expr: expr#219: self.lock.lock().await()
 │  │  └─ Fn[2]: releases_test
 │  │     ├─ Params: (self: &mut ContractStruct)
 │  │     ├─ Return: nothing
@@ -347,7 +347,7 @@ Block (span: 68:24-70:10)
 │  │     └─ Body:
 │  │        Stmt[0]: Block (span: 193:53-195:6)
 │  │        └─ Stmt[0]: Expr (span: 194:9-194:28)
-│  │           └─ Expr: expr#214: self.lock.unlock()
+│  │           └─ Expr: expr#224: self.lock.unlock()
 ├─ Item[25]: Type (span: 200:1-204:3)
 │  ├─ Name: WaiterStruct
 │  ├─ Kind: Struct
@@ -372,7 +372,7 @@ Block (span: 68:24-70:10)
 │  └─ Body:
 │     └─ Stmt[0]: Block (span: 217:32-219:2)
 │        └─ Stmt[0]: Return (span: 218:5-218:15)
-│           └─ Expr: expr#216: 42
+│           └─ Expr: expr#226: 42
 ├─ Item[28]: Type (span: 229:1-233:3)
 │  ├─ Name: AtomicStruct
 │  ├─ Kind: Struct
@@ -391,9 +391,9 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: a
 │        │  ├─ Mutable: false
 │        │  ├─ Type: AtomicStruct
-│        │  └─ Value: expr#223: <ExprKind(22)>
+│        │  └─ Value: expr#233: <ExprKind(22)>
 │        └─ Stmt[1]: Return (span: 237:5-237:36)
-│           └─ Expr: expr#228: atomic_load(&a.counter)
+│           └─ Expr: expr#238: atomic_load(&a.counter)
 ├─ Item[30]: Fn (span: 240:1-243:2)
 │  ├─ Name: test_atomic_store
 │  ├─ Params: ()
@@ -404,9 +404,9 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: a
 │        │  ├─ Mutable: true
 │        │  ├─ Type: AtomicStruct
-│        │  └─ Value: expr#235: <ExprKind(22)>
+│        │  └─ Value: expr#245: <ExprKind(22)>
 │        └─ Stmt[1]: Expr (span: 242:5-242:39)
-│           └─ Expr: expr#241: atomic_store(&mut a.counter, 100)
+│           └─ Expr: expr#251: atomic_store(&mut a.counter, 100)
 ├─ Item[31]: Fn (span: 245:1-248:2)
 │  ├─ Name: test_atomic_exchange
 │  ├─ Params: ()
@@ -417,9 +417,9 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: a
 │        │  ├─ Mutable: true
 │        │  ├─ Type: AtomicStruct
-│        │  └─ Value: expr#248: <ExprKind(22)>
+│        │  └─ Value: expr#258: <ExprKind(22)>
 │        └─ Stmt[1]: Return (span: 247:5-247:48)
-│           └─ Expr: expr#254: atomic_exchange(&mut a.counter, 50)
+│           └─ Expr: expr#264: atomic_exchange(&mut a.counter, 50)
 ├─ Item[32]: Fn (span: 250:1-253:2)
 │  ├─ Name: test_atomic_compare_exchange
 │  ├─ Params: ()
@@ -430,9 +430,9 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: a
 │        │  ├─ Mutable: true
 │        │  ├─ Type: AtomicStruct
-│        │  └─ Value: expr#261: <ExprKind(22)>
+│        │  └─ Value: expr#271: <ExprKind(22)>
 │        └─ Stmt[1]: Return (span: 252:5-252:58)
-│           └─ Expr: expr#268: atomic_compare_exchange(&mut a.counter, 0, 1)
+│           └─ Expr: expr#278: atomic_compare_exchange(&mut a.counter, 0, 1)
 ├─ Item[33]: Fn (span: 255:1-258:2)
 │  ├─ Name: test_atomic_fetch_add
 │  ├─ Params: ()
@@ -443,9 +443,9 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: a
 │        │  ├─ Mutable: true
 │        │  ├─ Type: AtomicStruct
-│        │  └─ Value: expr#275: <ExprKind(22)>
+│        │  └─ Value: expr#285: <ExprKind(22)>
 │        └─ Stmt[1]: Return (span: 257:5-257:49)
-│           └─ Expr: expr#281: atomic_fetch_add(&mut a.counter, 10)
+│           └─ Expr: expr#291: atomic_fetch_add(&mut a.counter, 10)
 ├─ Item[34]: Fn (span: 260:1-263:2)
 │  ├─ Name: test_atomic_fetch_sub
 │  ├─ Params: ()
@@ -456,9 +456,9 @@ Block (span: 68:24-70:10)
 │        │  ├─ Name: a
 │        │  ├─ Mutable: true
 │        │  ├─ Type: AtomicStruct
-│        │  └─ Value: expr#288: <ExprKind(22)>
+│        │  └─ Value: expr#298: <ExprKind(22)>
 │        └─ Stmt[1]: Return (span: 262:5-262:48)
-│           └─ Expr: expr#294: atomic_fetch_sub(&mut a.counter, 5)
+│           └─ Expr: expr#304: atomic_fetch_sub(&mut a.counter, 5)
 ├─ Item[35]: Type (span: 267:1-272:3)
 │  ├─ Name: SendableData
 │  ├─ Kind: Struct
@@ -489,8 +489,8 @@ Block (span: 68:24-70:10)
 │  ├─ Return: nothing
 │  └─ Body:
 │     └─ Stmt[0]: Block (span: 289:44-296:2)
-│        └─ Stmt[0]: Expr (span: 290:5-295:7)
-│           └─ Expr: expr#307: async { 4 stmt(s) }
+│        └─ Stmt[0]: Expr (span: 290:5-295:15)
+│           └─ Expr: expr#319: async { 4 stmt(s) }.await()
 └─ Item[39]: Fn (span: 299:1-301:2)
    ├─ Name: transfer_task_ownership
    ├─ Params: ()
@@ -498,4 +498,4 @@ Block (span: 68:24-70:10)
    └─ Body:
       └─ Stmt[0]: Block (span: 299:47-301:2)
          └─ Stmt[0]: Return (span: 300:5-300:36)
-            └─ Expr: expr#310: spawn simple_async_fn()
+            └─ Expr: expr#322: spawn simple_async_fn()

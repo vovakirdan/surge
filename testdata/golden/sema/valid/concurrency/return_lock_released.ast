@@ -13,40 +13,40 @@ return_lock_released.sg (span: 4:1-30:1)
    │  │  ├─ Params: (self: &mut SafeCounter)
    │  │  ├─ Return: int
    │  │  └─ Body:
-   │  │     Stmt[0]: Block (span: 11:57-20:6)
-   │  │     ├─ Stmt[0]: Expr (span: 12:9-12:26)
-   │  │     │  └─ Expr: expr#4: self.lock.lock()
+   │  │     Stmt[0]: Block (span: 11:63-20:6)
+   │  │     ├─ Stmt[0]: Expr (span: 12:9-12:34)
+   │  │     │  └─ Expr: expr#6: self.lock.lock().await()
    │  │     ├─ Stmt[1]: If (span: 13:9-17:10)
-   │  │     │  ├─ Cond: expr#8: (self.value > 0)
+   │  │     │  ├─ Cond: expr#10: (self.value > 0)
    │  │     │  ├─ Then:
 Block (span: 13:27-17:10)
    │  │     │  │  ├─ Stmt[0]: Let (span: 14:13-14:42)
    │  │     │  │  │  ├─ Name: result
    │  │     │  │  │  ├─ Mutable: false
    │  │     │  │  │  ├─ Type: int
-   │  │     │  │  │  └─ Value: expr#10: self.value
+   │  │     │  │  │  └─ Value: expr#12: self.value
    │  │     │  │  ├─ Stmt[1]: Expr (span: 15:13-15:32)
-   │  │     │  │  │  └─ Expr: expr#14: self.lock.unlock()
+   │  │     │  │  │  └─ Expr: expr#16: self.lock.unlock()
    │  │     │  │  └─ Stmt[2]: Return (span: 16:13-16:27)
-   │  │     │  │     └─ Expr: expr#15: result
+   │  │     │  │     └─ Expr: expr#17: result
    │  │     │  └─ Else: <none>
    │  │     ├─ Stmt[2]: Expr (span: 18:9-18:28)
-   │  │     │  └─ Expr: expr#19: self.lock.unlock()
+   │  │     │  └─ Expr: expr#21: self.lock.unlock()
    │  │     └─ Stmt[3]: Return (span: 19:9-19:18)
-   │  │        └─ Expr: expr#20: 0
+   │  │        └─ Expr: expr#22: 0
    │  └─ Fn[1]: safe_single_path
    │     ├─ Params: (self: &mut SafeCounter)
    │     ├─ Return: int
    │     └─ Body:
-   │        Stmt[0]: Block (span: 23:56-28:6)
-   │        ├─ Stmt[0]: Expr (span: 24:9-24:26)
-   │        │  └─ Expr: expr#24: self.lock.lock()
+   │        Stmt[0]: Block (span: 23:62-28:6)
+   │        ├─ Stmt[0]: Expr (span: 24:9-24:34)
+   │        │  └─ Expr: expr#28: self.lock.lock().await()
    │        ├─ Stmt[1]: Let (span: 25:9-25:37)
    │        │  ├─ Name: v
    │        │  ├─ Mutable: false
    │        │  ├─ Type: int
-   │        │  └─ Value: expr#28: (self.value + 1)
+   │        │  └─ Value: expr#32: (self.value + 1)
    │        ├─ Stmt[2]: Expr (span: 26:9-26:28)
-   │        │  └─ Expr: expr#32: self.lock.unlock()
+   │        │  └─ Expr: expr#36: self.lock.unlock()
    │        └─ Stmt[3]: Return (span: 27:9-27:18)
-   │           └─ Expr: expr#33: v
+   │           └─ Expr: expr#37: v

@@ -8,8 +8,8 @@ type Counter = {
 
 extern<Counter> {
     // Lock acquired, early return without unlock - ERROR
-    fn bad_early_return(self: &mut Counter) -> int {
-        self.lock.lock();
+    async fn bad_early_return(self: &mut Counter) -> int {
+        self.lock.lock().await();
         if self.value > 0 {
             return self.value;  // Lock still held here!
         }

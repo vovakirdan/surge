@@ -7,8 +7,8 @@ extern<Counter> {
         return self.value;
     }
 
-    pub fn safe_get(self: &mut Counter) -> int {
-        self.lock.lock();
+    pub async fn safe_get(self: &mut Counter) -> int {
+        self.lock.lock().await();
         let v: int = self.get_value();
         self.lock.unlock();
         return v;

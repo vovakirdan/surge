@@ -7,10 +7,10 @@ type BreakMixedResource = {
 }
 
 extern<BreakMixedResource> {
-    fn break_mixed_states(self: &mut BreakMixedResource) {
+    async fn break_mixed_states(self: &mut BreakMixedResource) {
         while self.value > 0 {
             if self.value > 10 {
-                self.lock.lock();  // Lock acquired in then branch
+                self.lock.lock().await();  // Lock acquired in then branch
                 break;
             } else {
                 // No lock acquired in else branch

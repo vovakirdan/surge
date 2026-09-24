@@ -1,17 +1,17 @@
 // Invalid: lock acquired but not released before function exit
 
-pub fn test_lock_not_released() -> nothing {
+pub async fn test_lock_not_released() -> nothing {
     let mut mtx: Mutex = Mutex.new();
-    mtx.lock();
+    mtx.lock().await();
     // Error: lock not released before function exit
 }
 
-pub fn test_partial_release() -> nothing {
+pub async fn test_partial_release() -> nothing {
     let mut m1: Mutex = Mutex.new();
     let mut m2: Mutex = Mutex.new();
 
-    m1.lock();
-    m2.lock();
+    m1.lock().await();
+    m2.lock().await();
     m2.unlock();
     // Error: m1 not released before function exit
 }
@@ -21,8 +21,8 @@ type Resource = {
 }
 
 extern<Resource> {
-    pub fn bad_no_release(self: &mut Resource) -> nothing {
-        self.lock.lock();
+    pub async fn bad_no_release(self: &mut Resource) -> nothing {
+        self.lock.lock().await();
         // Error: lock not released before function exit
     }
 }

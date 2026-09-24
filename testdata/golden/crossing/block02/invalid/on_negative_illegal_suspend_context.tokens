@@ -22,26 +22,29 @@
  22: Ident           "int" at 7:11-7:14 (leading: Space)
  23: RParen          ")" at 7:14-7:15
  24: Arrow           "->" at 7:16-7:18 (leading: Space)
- 25: Ident           "TaskResult" at 7:19-7:29 (leading: Space)
- 26: Lt              "<" at 7:29-7:30
- 27: Ident           "int" at 7:30-7:33
- 28: Gt              ">" at 7:33-7:34
- 29: LBrace          "{" at 7:35-7:36 (leading: Space)
- 30: KwBlocking      "blocking" at 8:5-8:13 (leading: Newline, Space)
- 31: LBrace          "{" at 8:14-8:15 (leading: Space)
- 32: KwRet           "ret" at 9:9-9:12 (leading: Newline, Space)
- 33: Ident           "on" at 9:13-9:15 (leading: Space)
- 34: Ident           "pool" at 9:16-9:20 (leading: Space)
- 35: LBrace          "{" at 9:21-9:22 (leading: Space)
- 36: KwRet           "ret" at 10:13-10:16 (leading: Newline, Space)
- 37: Ident           "double" at 10:17-10:23 (leading: Space)
- 38: LParen          "(" at 10:23-10:24
- 39: Ident           "n" at 10:24-10:25
- 40: RParen          ")" at 10:25-10:26
- 41: Semicolon       ";" at 10:26-10:27
- 42: RBrace          "}" at 11:9-11:10 (leading: Newline, Space)
- 43: Semicolon       ";" at 11:10-11:11
- 44: RBrace          "}" at 12:5-12:6 (leading: Newline, Space)
- 45: Semicolon       ";" at 12:6-12:7
- 46: RBrace          "}" at 13:1-13:2 (leading: Newline)
- 47: EOF             at 14:1-14:1
+ 25: Ident           "Task" at 7:19-7:23 (leading: Space)
+ 26: Lt              "<" at 7:23-7:24
+ 27: Ident           "TaskResult" at 7:24-7:34
+ 28: Lt              "<" at 7:34-7:35
+ 29: Ident           "int" at 7:35-7:38
+ 30: Shr             ">>" at 7:38-7:40
+ 31: LBrace          "{" at 7:41-7:42 (leading: Space)
+ 32: KwReturn        "return" at 8:5-8:11 (leading: Newline, Space)
+ 33: KwBlocking      "blocking" at 8:12-8:20 (leading: Space)
+ 34: LBrace          "{" at 8:21-8:22 (leading: Space)
+ 35: KwRet           "ret" at 9:9-9:12 (leading: Newline, Space)
+ 36: Ident           "on" at 9:13-9:15 (leading: Space)
+ 37: Ident           "pool" at 9:16-9:20 (leading: Space)
+ 38: LBrace          "{" at 9:21-9:22 (leading: Space)
+ 39: KwRet           "ret" at 10:13-10:16 (leading: Newline, Space)
+ 40: Ident           "double" at 10:17-10:23 (leading: Space)
+ 41: LParen          "(" at 10:23-10:24
+ 42: Ident           "n" at 10:24-10:25
+ 43: RParen          ")" at 10:25-10:26
+ 44: Semicolon       ";" at 10:26-10:27
+ 45: RBrace          "}" at 11:9-11:10 (leading: Newline, Space)
+ 46: Semicolon       ";" at 11:10-11:11
+ 47: RBrace          "}" at 12:5-12:6 (leading: Newline, Space)
+ 48: Semicolon       ";" at 12:6-12:7
+ 49: RBrace          "}" at 13:1-13:2 (leading: Newline)
+ 50: EOF             at 14:1-14:1

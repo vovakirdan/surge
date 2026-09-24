@@ -10,8 +10,8 @@ extern<MultiLock> {
     // This function requires 'required_lock' to be held
     // But it acquires 'other_lock' and forgets to release it
     @requires_lock("required_lock")
-    pub fn leaks_other_lock(self: &mut MultiLock) -> nothing {
-        self.other_lock.lock();
+    pub async fn leaks_other_lock(self: &mut MultiLock) -> nothing {
+        self.other_lock.lock().await();
         // Error: other_lock not released (should NOT be exempted by @requires_lock)
     }
 }

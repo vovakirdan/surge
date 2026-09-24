@@ -4,36 +4,36 @@ lock_not_released.sg (span: 3:1-29:1)
 │  ├─ Params: ()
 │  ├─ Return: nothing
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 3:44-7:2)
+│     └─ Stmt[0]: Block (span: 3:50-7:2)
 │        ├─ Stmt[0]: Let (span: 4:5-4:38)
 │        │  ├─ Name: mtx
 │        │  ├─ Mutable: true
 │        │  ├─ Type: Mutex
 │        │  └─ Value: expr#3: Mutex.new()
-│        └─ Stmt[1]: Expr (span: 5:5-5:16)
-│           └─ Expr: expr#6: mtx.lock()
+│        └─ Stmt[1]: Expr (span: 5:5-5:24)
+│           └─ Expr: expr#8: mtx.lock().await()
 ├─ Item[1]: Fn (span: 9:1-17:2)
 │  ├─ Name: test_partial_release
 │  ├─ Params: ()
 │  ├─ Return: nothing
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 9:42-17:2)
+│     └─ Stmt[0]: Block (span: 9:48-17:2)
 │        ├─ Stmt[0]: Let (span: 10:5-10:37)
 │        │  ├─ Name: m1
 │        │  ├─ Mutable: true
 │        │  ├─ Type: Mutex
-│        │  └─ Value: expr#9: Mutex.new()
+│        │  └─ Value: expr#11: Mutex.new()
 │        ├─ Stmt[1]: Let (span: 11:5-11:37)
 │        │  ├─ Name: m2
 │        │  ├─ Mutable: true
 │        │  ├─ Type: Mutex
-│        │  └─ Value: expr#12: Mutex.new()
-│        ├─ Stmt[2]: Expr (span: 13:5-13:15)
-│        │  └─ Expr: expr#15: m1.lock()
-│        ├─ Stmt[3]: Expr (span: 14:5-14:15)
-│        │  └─ Expr: expr#18: m2.lock()
+│        │  └─ Value: expr#14: Mutex.new()
+│        ├─ Stmt[2]: Expr (span: 13:5-13:23)
+│        │  └─ Expr: expr#19: m1.lock().await()
+│        ├─ Stmt[3]: Expr (span: 14:5-14:23)
+│        │  └─ Expr: expr#24: m2.lock().await()
 │        └─ Stmt[4]: Expr (span: 15:5-15:17)
-│           └─ Expr: expr#21: m2.unlock()
+│           └─ Expr: expr#27: m2.unlock()
 ├─ Item[2]: Type (span: 19:1-21:2)
 │  ├─ Name: Resource
 │  ├─ Kind: Struct
@@ -47,6 +47,6 @@ lock_not_released.sg (span: 3:1-29:1)
    │     ├─ Params: (self: &mut Resource)
    │     ├─ Return: nothing
    │     └─ Body:
-   │        Stmt[0]: Block (span: 24:59-27:6)
-   │        └─ Stmt[0]: Expr (span: 25:9-25:26)
-   │           └─ Expr: expr#25: self.lock.lock()
+   │        Stmt[0]: Block (span: 24:65-27:6)
+   │        └─ Stmt[0]: Expr (span: 25:9-25:34)
+   │           └─ Expr: expr#33: self.lock.lock().await()

@@ -1,8 +1,8 @@
 // Basic Semaphore usage
 
-pub fn test_semaphore() -> nothing {
+pub async fn test_semaphore() -> nothing {
     let mut sem: Semaphore = Semaphore.new(3:uint);
-    sem.acquire();
+    sem.acquire().await();
     // critical section with resource
     sem.release();
 }

@@ -8,8 +8,8 @@ type SafeCounter = {
 
 extern<SafeCounter> {
     // Lock properly released on both paths
-    fn safe_early_return(self: &mut SafeCounter) -> int {
-        self.lock.lock();
+    async fn safe_early_return(self: &mut SafeCounter) -> int {
+        self.lock.lock().await();
         if self.value > 0 {
             let result: int = self.value;
             self.lock.unlock();  // Released before return
@@ -20,8 +20,8 @@ extern<SafeCounter> {
     }
 
     // Single path with proper cleanup
-    fn safe_single_path(self: &mut SafeCounter) -> int {
-        self.lock.lock();
+    async fn safe_single_path(self: &mut SafeCounter) -> int {
+        self.lock.lock().await();
         let v: int = self.value + 1;
         self.lock.unlock();
         return v;

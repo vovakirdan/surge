@@ -7,19 +7,19 @@ type BreakBothResource = {
 }
 
 extern<BreakBothResource> {
-    fn both_branches_break(self: &mut BreakBothResource) {
+    async fn both_branches_break(self: &mut BreakBothResource) {
         while self.value > 0 {
             if self.value > 10 {
-                self.lock.lock();  // Lock acquired in then branch
+                self.lock.lock().await();  // Lock acquired in then branch
                 break;
             } else {
-                self.lock.lock();  // Lock acquired in else branch
+                self.lock.lock().await();  // Lock acquired in else branch
                 break;
             }
         }
         // After loop: both branches broke with lock held
         // Merged state should have lock held
-        self.lock.lock();  // ERROR: double-lock (lock is held from break paths)
+        self.lock.lock().await();  // ERROR: double-lock (lock is held from break paths)
         self.lock.unlock();
     }
 }

@@ -10,10 +10,10 @@ type Database = {
 
 extern<Database> {
     // Table -> Index -> Cache (consistent order)
-    fn full_update(self: &mut Database) {
-        self.table_lock.lock();
-        self.index_lock.lock();
-        self.cache_lock.lock();
+    async fn full_update(self: &mut Database) {
+        self.table_lock.lock().await();
+        self.index_lock.lock().await();
+        self.cache_lock.lock().await();
 
         self.data = 100;
 
@@ -23,9 +23,9 @@ extern<Database> {
     }
 
     // Table -> Index (subset, same order)
-    fn partial_update(self: &mut Database) {
-        self.table_lock.lock();
-        self.index_lock.lock();
+    async fn partial_update(self: &mut Database) {
+        self.table_lock.lock().await();
+        self.index_lock.lock().await();
 
         self.data = 50;
 
@@ -34,9 +34,9 @@ extern<Database> {
     }
 
     // Index -> Cache (different subset, still consistent)
-    fn index_cache_update(self: &mut Database) {
-        self.index_lock.lock();
-        self.cache_lock.lock();
+    async fn index_cache_update(self: &mut Database) {
+        self.index_lock.lock().await();
+        self.cache_lock.lock().await();
 
         self.data = 25;
 

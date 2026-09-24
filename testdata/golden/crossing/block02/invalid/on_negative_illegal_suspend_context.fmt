@@ -4,8 +4,8 @@ fn double(x: int) -> int {
     return x * 2;
 }
 
-fn run(n: int) -> TaskResult<int> {
-    blocking {
+fn run(n: int) -> Task<TaskResult<int>> {
+    return blocking {
         ret on pool {
             ret double(n);
         };

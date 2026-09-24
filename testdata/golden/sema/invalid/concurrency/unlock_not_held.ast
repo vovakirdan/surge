@@ -17,18 +17,18 @@ unlock_not_held.sg (span: 3:1-24:1)
 │  ├─ Params: ()
 │  ├─ Return: nothing
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 8:40-13:2)
+│     └─ Stmt[0]: Block (span: 8:46-13:2)
 │        ├─ Stmt[0]: Let (span: 9:5-9:38)
 │        │  ├─ Name: mtx
 │        │  ├─ Mutable: true
 │        │  ├─ Type: Mutex
 │        │  └─ Value: expr#9: Mutex.new()
-│        ├─ Stmt[1]: Expr (span: 10:5-10:16)
-│        │  └─ Expr: expr#12: mtx.lock()
+│        ├─ Stmt[1]: Expr (span: 10:5-10:24)
+│        │  └─ Expr: expr#14: mtx.lock().await()
 │        ├─ Stmt[2]: Expr (span: 11:5-11:18)
-│        │  └─ Expr: expr#15: mtx.unlock()
+│        │  └─ Expr: expr#17: mtx.unlock()
 │        └─ Stmt[3]: Expr (span: 12:5-12:18)
-│           └─ Expr: expr#18: mtx.unlock()
+│           └─ Expr: expr#20: mtx.unlock()
 ├─ Item[2]: Type (span: 15:1-17:2)
 │  ├─ Name: Container
 │  ├─ Kind: Struct
@@ -44,4 +44,4 @@ unlock_not_held.sg (span: 3:1-24:1)
    │     └─ Body:
    │        Stmt[0]: Block (span: 20:56-22:6)
    │        └─ Stmt[0]: Expr (span: 21:9-21:28)
-   │           └─ Expr: expr#22: self.lock.unlock()
+   │           └─ Expr: expr#24: self.lock.unlock()
