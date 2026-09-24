@@ -150,6 +150,8 @@ func (b *returnOriginBody) exprCore(id ast.ExprID, env returnOriginEnv, targets 
 		return b.unknownExpr(env, node.Span, fmt.Sprintf("expression kind %d needs an origin transfer", node.Kind)), nil
 	case ast.ExprAsync, ast.ExprBlocking:
 		return b.taskBlockTransfer(id, node.Kind, env)
+	case ast.ExprSpawn:
+		return b.spawnTransfer(id, env, targets)
 	default:
 		return b.unknownExpr(env, node.Span, fmt.Sprintf("expression kind %d needs an origin transfer", node.Kind)), nil
 	}

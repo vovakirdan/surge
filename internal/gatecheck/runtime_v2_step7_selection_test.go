@@ -47,6 +47,8 @@ func step7GateRows() []step7GateRow {
 		"TestH2TripwireImportAddsCoreRowsG5b",
 		"TestH2TripwireImportDifferentialRejectsTheTwin",
 		"TestH2TripwireTaskCheckRefusesLeaks",
+		"TestH2TripwireTaskCheckRefusesSpawnLeaks",
+		"TestH2TripwireSpawnRunnerBuilds",
 	}
 	tripwireRuntime := []string{
 		"TestH2TripwireNotRunnableG1OwnBinding",
@@ -62,6 +64,8 @@ func step7GateRows() []step7GateRow {
 		"TestH2TripwireAwaitRunnerRuns",
 		"TestH2TripwireDroppedCallNeverRuns",
 		"TestRuntimeV2BorrowedLocalTaskJoinedInItsFrame",
+		"TestH2TripwireTaskCheckRefusesSpawnLeakedRuns",
+		"TestH2TripwireSpawnRunnerRuns",
 	}
 	coldTaskStand := []string{
 		"TestRuntimeV2ColdTaskDroppedNeverRuns",

@@ -208,7 +208,8 @@ func TestRuntimeV2BorrowedLocalTaskJoinedInItsFrame(t *testing.T) {
 // membership are all given back. This also exercises the compiler-generated start-frame
 // descriptor, which the C stand replaces with a hand-made one. The far Task leg of review F8
 // cannot be written yet: a far Task comes from `spawn on`, still refused on the D2 line
-// (RV2-DEBT-365, kind 16); rt_far_task_release_owned in cold_discard is covered by reading
+// (RV2-DEBT-365, kind 27, which N-TASK-27 kept for `spawn on`); rt_far_task_release_owned in
+// cold_discard is covered by reading
 // until then.
 func TestRuntimeV2ColdDroppedCallValgrindZero(t *testing.T) {
 	if testBackend(t) != backendLLVM {
