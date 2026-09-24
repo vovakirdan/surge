@@ -1,0 +1,10 @@
+# Two `sleep(10)` arms: the tie-break of docs/LANGUAGE.md l.1945-1946 ("the first ready
+# arm wins") is a tie only when both arms are ready at one poll. The VM's virtual time
+# fires both timers at one instant, so the tie is real there and arm 0 wins every time.
+# Native uses real time (LANGUAGE.md l.1939-1940), and each sleep arms its deadline at
+# its own first poll (runtime/native/rt_async_poll.c:39), so with more than one worker
+# equal timers are not a tie at one poll and arm 1 can be ready alone. Owner ruling
+# 2026-09-24 (N-TASK-20/21 OQ-1): this timer form is recorded on the VM only, and
+# t26_select_tie_break.sg tests the tie itself on both backends with two tasks already
+# finished before the select's first poll.
+vm
