@@ -281,7 +281,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 	case ast.StmtExpr:
 		if exprStmt := tc.builder.Stmts.Expr(id); exprStmt != nil {
 			tc.pushDiscardedExpr(exprStmt.Expr)
-			tc.typeExpr(exprStmt.Expr)
+			tc.typeDroppedExpr(exprStmt.Expr)
 			tc.popDiscardedExpr()
 		}
 	case ast.StmtReturn:
@@ -365,7 +365,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			}
 			beforeLoop := tc.snapshotFlow()
 			tc.ensureBoolContext(forStmt.Cond, tc.exprSpan(forStmt.Cond))
-			tc.typeExprMaybeSkipped(forStmt.Post)
+			tc.typeDroppedStep(forStmt.Post)
 			tc.enterLoopDropScope()
 			tc.walkStmt(forStmt.Body)
 			tc.closeLoopFlow(beforeLoop, "for loop")

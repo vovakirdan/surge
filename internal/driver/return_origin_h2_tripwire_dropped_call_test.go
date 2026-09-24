@@ -6,20 +6,18 @@ import (
 	"testing"
 )
 
-// RV2-DEBT-365/370 tripwire, compile line: the dropped-call form builds. The task check
-// exempts a Task-valued call whose value is dropped where it stands (TC-1d), and that
-// exemption is sound only because the runtime creates the task cold and ends it unrun
-// (RT-COLD); TestH2TripwireDroppedCallNeverRuns (vm) runs it on each backend. A change that
-// refuses the form here, or lets it build while the runtime publishes at creation again,
-// turns one of the two red.
-const h2TripwireDroppedCall = `async fn worker(x: &string) -> int {
-    rt_exit(len(x) to int + 40);
-    return len(x) to int;
+// RV2-DEBT-365/370 tripwire, compile line: a program that drops the last handle of a cold task
+// builds. A task dropped where it stands (`worker(&l);`) is refused since the dropped-task rule
+// (SEM3218), and a borrowing task bound and dropped is refused at the frame's exit, so the handle
+// dropped here is an unused binding on a task that borrows nothing; the runtime must end it unrun
+// (RT-COLD), and TestH2TripwireDroppedCallNeverRuns (vm) runs it on each backend.
+const h2TripwireDroppedCall = `async fn worker(n: int) -> int {
+    rt_exit(n + 40);
+    return n;
 }
 
 fn leak() -> int {
-    let l: string = "abcdef";
-    worker(&l);
+    let t = worker(6);
     return 0;
 }
 

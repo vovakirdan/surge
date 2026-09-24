@@ -543,6 +543,13 @@ const (
 	// callable's result may borrow from.
 	SemaReturnSourceIncompatible Code = 3217
 
+	// SemaTaskDropped refuses a task made and dropped where it stands: an expression statement
+	// or `let _ = ...` whose value is a Task that nothing awaits, spawns or keeps. A call of an
+	// `async fn` and an `async { }` block make their task without starting it, so the drop
+	// discards it unrun (`m.lock();` takes no lock); `checkpoint()`, `sleep(n)` and `blocking { }`
+	// are started, but nothing waits for them. Owner ruling 2026-09-23.
+	SemaTaskDropped Code = 3218
+
 	// Ошибки I/O
 
 	// IOLoadFileError indicates file load error.
@@ -815,6 +822,7 @@ var ( // todo расширить описания и использовать к
 		SemaReturnSourceOwnedParam:         "`@return_source` needs a parameter that carries a reference",
 		SemaReturnSourceOwnedResult:        "`@return_source` needs a result that carries a reference",
 		SemaReturnSourceIncompatible:       "the callable may return a borrow the destination's `@return_source` promise does not permit",
+		SemaTaskDropped:                    "a task is dropped where it is made; await it, keep its handle, or spawn it",
 		SemaPartialMoveNeedsOwn:            "taking a field out of a live value must be written `own`",
 		SemaPartialMoveFromTemporary:       "cannot take a field out of a value nothing holds",
 		SemaStoreThroughSharedRef:          "cannot write through a shared reference",

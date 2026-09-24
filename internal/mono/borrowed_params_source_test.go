@@ -180,7 +180,7 @@ func TestPrepareBorrowedParamConcreteCleanup(t *testing.T) {
 func TestPrepareBorrowedParamConcreteActivationBoundaries(t *testing.T) {
 	for _, tc := range []struct{ name, activation string }{{"host_async", "async"}, {"host_blocking", "blocking"}} {
 		t.Run(tc.name, func(t *testing.T) {
-			src := "type Task<T> = { __opaque: int };\nfn " + tc.name + "(p: int) -> Task<int> { return " + tc.activation + " { p = 2; ret p; }; }\nfn main() { let _ = " + tc.name + "(1); }\n"
+			src := "type Task<T> = { __opaque: int };\nfn " + tc.name + "(p: int) -> Task<int> { return " + tc.activation + " { p = 2; ret p; }; }\nfn main() { let t = " + tc.name + "(1); }\n"
 			mm, in, err := compileAndMonomorphize(t, src)
 			if err != nil {
 				t.Fatal(err)

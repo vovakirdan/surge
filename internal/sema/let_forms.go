@@ -27,6 +27,7 @@ func (tc *typeChecker) checkDiscardedLet(letStmt *ast.LetStmt, scope symbols.Sco
 	declaredType := tc.resolveTypeExprWithScope(letStmt.Type, scope)
 	tc.pushDiscardedExpr(letStmt.Value)
 	valueType := tc.typeExprWithExpected(letStmt.Value, declaredType)
+	tc.refuseDroppedTasks(letStmt.Value)
 	tc.popDiscardedExpr()
 	tc.ensureBindingTypeMatch(letStmt.Type, declaredType, valueType, letStmt.Value)
 }

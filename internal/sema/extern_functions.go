@@ -90,6 +90,11 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 
 	if fn.Body.IsValid() {
 		tc.pushReturnContext(returnCtxFunction, returnType, returnSpan, nil, nil)
+		// An async method's body may await, as an async function's does (type_checker_walk.go).
+		asyncBody := fn.Flags&ast.FnModifierAsync != 0
+		if asyncBody {
+			tc.awaitDepth++
+		}
 		pushed := tc.pushScope(scope)
 		tc.pushDropScope(true)
 		tc.registerDroppableParams(fn, scope)
@@ -109,6 +114,9 @@ func (tc *typeChecker) typecheckExternFn(memberID ast.ExternMemberID, fn *ast.Fn
 			tc.leaveScope()
 		}
 		tc.popReturnContext()
+		if asyncBody {
+			tc.awaitDepth--
+		}
 	}
 	// Validate function attributes
 	ownerTypeID := types.NoTypeID

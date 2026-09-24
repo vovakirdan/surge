@@ -24,8 +24,8 @@ async fn read_ref(x: &int) -> int {
 @entrypoint
 fn main() -> int {
     let value: int = 3;
-    one();
-    read_ref(&value);
+    let _ = one().await();
+    let _ = read_ref(&value).await();
     return 0;
 }
 `

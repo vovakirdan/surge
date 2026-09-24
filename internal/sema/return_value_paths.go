@@ -32,6 +32,9 @@ func (tc *typeChecker) recordBlockResultExprs(blockExpr ast.ExprID, results []co
 			continue
 		}
 		seen[expr] = struct{}{}
+		if result.abrupt {
+			tc.noteAbruptBlockResult(expr)
+		}
 		tc.blockResultExprs[blockExpr] = append(tc.blockResultExprs[blockExpr], expr)
 	}
 }

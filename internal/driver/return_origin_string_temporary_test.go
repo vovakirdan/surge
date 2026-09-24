@@ -74,9 +74,11 @@ func stringTemporaryRows() []stringTemporaryRow {
 		{name: "core_loan_carrier_result", text: "fn f(s: string, t: string) -> nothing { let _ = s.split(\",\" + t); return nothing; }\n", kept: []string{"\",\" + t"}},
 		{name: "core_loan_sink_effect", text: "fn f(out: &mut byte[], t: string) -> nothing { out.append_string(\"g\" + t); return nothing; }\n", kept: []string{"\"g\" + t"}},
 		{name: "core_handle_effect", text: "fn f(r: Range<int>, t: string) -> nothing { let _ = rt_string_slice(\"i\" + t, r); return nothing; }\n", kept: []string{"\"i\" + t"}},
-		// A user callee's signature cannot show a task started and dropped in its body, or below it.
-		{name: "user_callee_starts_task", text: stringTemporaryWorker + "fn fire(s: &string) -> nothing { let _ = worker(s); return nothing; }\n" +
-			"fn f(t: string) -> nothing { fire(\"q\" + t); return nothing; }\n", kept: []string{"\"q\" + t"}},
+		// A user callee's signature cannot show a task started in its body over its formal. The accepted form
+		// awaits that task (dropped where it stands it is SEM3218; handed to a callee that drops it, SEM3021 at
+		// the return), and the async callee's own result is a Task, which hides a borrow: the argument is kept.
+		{name: "user_callee_starts_task", text: stringTemporaryWorker + "async fn fire(s: &string) -> nothing { let _ = worker(s).await(); return nothing; }\n" +
+			"async fn f(t: string) -> nothing { let _ = fire(\"q\" + t).await(); return nothing; }\n", kept: []string{"\"q\" + t"}},
 		// The same refusal reaches a harmless user wrapper until the task check can speak for its formal.
 		{name: "user_callee_plain", text: "fn note(s: &string) -> nothing { return nothing; }\n" +
 			"fn f(t: string) -> nothing { note(\"w\" + t); return nothing; }\n", kept: []string{"\"w\" + t"}},

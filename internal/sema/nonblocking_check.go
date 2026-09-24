@@ -147,6 +147,8 @@ func (tc *typeChecker) walkExprForBlockingCalls(exprID ast.ExprID, fnSpan source
 		if ok && call != nil {
 			// Check if this is a blocking call
 			tc.checkBlockingCall(call, expr.Span, fnSpan)
+			// `X.await()` waits: refused in @nonblocking (nonblocking_await.go).
+			tc.checkNonblockingAwait(call, expr.Span, fnSpan)
 			// Walk arguments
 			for _, arg := range call.Args {
 				tc.walkExprForBlockingCalls(arg.Value, fnSpan)

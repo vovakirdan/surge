@@ -72,7 +72,7 @@ func TestImportedOwnershipFindingProvenanceDedupesAcrossRoots(t *testing.T) {
 	firstRoot := writeRoot("first.sg", `
 @entrypoint fn main() -> int {
     let m = Mutex.new();
-    let _ = m.lock();
+    let _ = m.lock().await();
     m.unlock();
     return 0;
 }
@@ -80,7 +80,7 @@ func TestImportedOwnershipFindingProvenanceDedupesAcrossRoots(t *testing.T) {
 	secondRoot := writeRoot("second.sg", `
 @entrypoint fn main() -> int {
     let m = Mutex.new();
-    let _ = m.lock();
+    let _ = m.lock().await();
     let marker = 1;
     let _ = marker;
     m.unlock();

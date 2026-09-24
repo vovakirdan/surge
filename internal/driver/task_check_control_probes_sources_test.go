@@ -20,21 +20,6 @@ fn main() -> int {
     return 0;
 }
 `},
-	{"ctl_a14_discarded_plain_call", "f9dca7a5141b888ecf83b476b6c5e86199a74a3f40befe6755646d342aac6c75", "", `async fn worker(x: &int64) -> int64 {
-    return *x;
-}
-
-fn ok() -> int64 {
-    let l: int64 = 5;
-    worker(&l);
-    return 0;
-}
-
-@entrypoint
-fn main() -> int {
-    return 0;
-}
-`},
 	{"ctl_a15_param_forwarding", "5854fe00ba19d838ed468437e5034f503c5cb7a506678fd717630083f589e1c1", "", `async fn worker(x: &int64) -> int64 {
     return *x;
 }
@@ -203,26 +188,6 @@ async fn accept_loop(listener: TcpListener, budget: uint) -> int {
         };
     }
     return served;
-}
-
-@entrypoint
-fn main() -> int {
-    return 0;
-}
-`},
-	{"ctl_lock_task_bound_and_dropped", "39bf752046bff03d0f07ce713efa8ba8d0ad5f4ea4344fc5514a0da690ed7091", "", `async fn cond_waiter(mtx: Mutex) -> int {
-    let m = mtx;
-    let lock_task = m.lock();
-    lock_task.await();
-    m.unlock();
-    return 0;
-}
-
-fn drop_the_lock_task() -> int {
-    let m = Mutex.new();
-    let _ = m.lock();
-    m.unlock();
-    return 0;
 }
 
 @entrypoint

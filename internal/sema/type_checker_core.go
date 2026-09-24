@@ -188,6 +188,11 @@ type typeChecker struct {
 	// fnTaskCold accumulates, over the returns of the callable being walked, whether each hands back
 	// directly a call that answers a sole, still-cold task (task_discarded_call.go).
 	fnTaskCold symbols.TaskColdFact
+	// droppedTasksRefused holds the dropped calls the task check refused as maybe running over a
+	// borrow (SEM3021), so the dropped-task rule does not report them again (task_dropped.go).
+	droppedTasksRefused map[ast.ExprID]struct{}
+	// abruptBlockResults holds the block results that are a `return` out of the function (task_dropped.go).
+	abruptBlockResults map[ast.ExprID]struct{}
 	// untracedArrays collects, over the callable being walked, the arrays of unknown
 	// provenance that reach a task (task_untraced_array.go).
 	untracedArrays *untracedArrays

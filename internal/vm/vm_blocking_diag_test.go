@@ -18,7 +18,7 @@ const blockingFixture = `fn make() -> Task<int> {
 }
 
 @entrypoint fn main() -> int {
-    let _ = make();
+    let _ = make().await();
     return 0;
 }
 `

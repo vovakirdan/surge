@@ -75,37 +75,37 @@ fn main() -> int { let r = leak(); let _ = checkpoint().await(); let _ = checkpo
 }
 
 var taskCheckDroppedColdTaskControls = []taskCheckProbe{
-	{"tc1d_ctl_direct_async_call", "ea70c571e5f85f0974074bd5d68c571b9d8f0b2b0d185ff8e253aa02d9796c59", "", `async fn worker(x: &string) -> int { rt_exit(len(x) to int + 40); return len(x) to int; }
+	{"tc1d_ctl_direct_async_call", "ea70c571e5f85f0974074bd5d68c571b9d8f0b2b0d185ff8e253aa02d9796c59", "SEM3218", `async fn worker(x: &string) -> int { rt_exit(len(x) to int + 40); return len(x) to int; }
 fn leak() -> int { let l: string = "abcdef"; worker(&l); return 0; }
 @entrypoint
 fn main() -> int { let r = leak(); let _ = checkpoint().await(); let _ = checkpoint().await(); return r; }
 `},
-	{"tc1d_ctl_forwarder", "870a598fee1ed9c6c61a409b0beb20523eb2f17a25ae0eb5b0758229c63dfbac", "", `async fn worker(x: &string) -> int { rt_exit(len(x) to int + 40); return len(x) to int; }
+	{"tc1d_ctl_forwarder", "870a598fee1ed9c6c61a409b0beb20523eb2f17a25ae0eb5b0758229c63dfbac", "SEM3218", `async fn worker(x: &string) -> int { rt_exit(len(x) to int + 40); return len(x) to int; }
 fn fwd(x: &string) -> Task<int> { return worker(x); }
 fn leak() -> int { let l: string = "abcdef"; fwd(&l); return 0; }
 @entrypoint
 fn main() -> int { let r = leak(); let _ = checkpoint().await(); let _ = checkpoint().await(); return r; }
 `},
-	{"tc1d_ctl_forwarder_member", "c0fc9168515340d671c9d2fcd0c7788e464fae8229543bb400232b5a62976e87", "", `async fn worker(x: &string) -> int { rt_exit(len(x) to int + 40); return len(x) to int; }
+	{"tc1d_ctl_forwarder_member", "c0fc9168515340d671c9d2fcd0c7788e464fae8229543bb400232b5a62976e87", "SEM3218", `async fn worker(x: &string) -> int { rt_exit(len(x) to int + 40); return len(x) to int; }
 fn fwd(x: &string) -> Task<int> { return worker(x); }
 async fn outer() -> int { let l: string = "abcdef"; fwd(&l); let _ = checkpoint().await(); return 0; }
 @entrypoint
 fn main() -> int { let r = compare outer().await() { Success(n) => n; Cancelled() => 41; }; let _ = checkpoint().await(); return r; }
 `},
-	{"tc1d_ctl_forwarder_ret_block", "35175be31713fa9ded0106d639a397981f062952a3c19e3d25458736082fcc26", "", `async fn worker(x: &string) -> int { rt_exit(len(x) to int + 40); return len(x) to int; }
+	{"tc1d_ctl_forwarder_ret_block", "35175be31713fa9ded0106d639a397981f062952a3c19e3d25458736082fcc26", "SEM3218", `async fn worker(x: &string) -> int { rt_exit(len(x) to int + 40); return len(x) to int; }
 fn fwdb(x: &string) -> Task<int> { return { ret worker(x); }; }
 fn leak() -> int { let l: string = "abcdef"; fwdb(&l); return 0; }
 @entrypoint
 fn main() -> int { let r = leak(); let _ = checkpoint().await(); let _ = checkpoint().await(); return r; }
 `},
-	{"tc1d_ctl_transitive_forwarder", "504e86c82fe625e2a503821ceecec05780f164b3e490b863c311ce09b529ab25", "", `async fn worker(x: &string) -> int { rt_exit(len(x) to int + 40); return len(x) to int; }
+	{"tc1d_ctl_transitive_forwarder", "504e86c82fe625e2a503821ceecec05780f164b3e490b863c311ce09b529ab25", "SEM3218", `async fn worker(x: &string) -> int { rt_exit(len(x) to int + 40); return len(x) to int; }
 fn fwd(x: &string) -> Task<int> { return worker(x); }
 fn fwd2(x: &string) -> Task<int> { return fwd(x); }
 fn leak() -> int { let l: string = "abcdef"; fwd2(&l); return 0; }
 @entrypoint
 fn main() -> int { let r = leak(); let _ = checkpoint().await(); let _ = checkpoint().await(); return r; }
 `},
-	{"tc1d_ctl_lock_dropped", "177af91fa3c6ed1472c13095113eb9dad2c02642d5a814c3e76d6a3e49484c03", "", `fn locked() -> int {
+	{"tc1d_ctl_lock_dropped", "177af91fa3c6ed1472c13095113eb9dad2c02642d5a814c3e76d6a3e49484c03", "SEM3218", `fn locked() -> int {
     let m = Mutex.new();
     m.lock();
     m.unlock();
@@ -130,12 +130,13 @@ func TestTaskCheckRefusesDroppedRunningTasks(t *testing.T) {
 	}
 }
 
-// 7 RUN: 1 parent, 6 leaves.
-func TestTaskCheckKeepsDroppedColdTasks(t *testing.T) {
+// 7 RUN: 1 parent, 6 leaves. A cold task dropped where it stands is not a borrow hazard (the runtime discards it
+// unrun), and it is still refused: by the dropped-task rule, SEM3218, not by the task check.
+func TestTaskCheckRefusesDroppedColdTasks(t *testing.T) {
 	for _, probe := range taskCheckDroppedColdTaskControls {
 		t.Run(probe.name, func(t *testing.T) {
 			if got, _ := taskCheckErrorCodes(t, probe); got != probe.want {
-				t.Fatalf("error codes %q, want none: a dropped cold task is refused", got)
+				t.Fatalf("error codes %q, want %q: a dropped cold task is not refused by the dropped-task rule alone", got, probe.want)
 			}
 		})
 	}
@@ -182,8 +183,8 @@ func TestTaskCheckDroppedRunningTaskSaysHowToKeepIt(t *testing.T) {
 			if row.async != strings.Contains(help, ".await()") || row.async == strings.Contains(help, "make it an `async fn`") {
 				t.Fatalf("help does not fit the context (async=%v): %q", row.async, help)
 			}
-			if !row.async && !strings.Contains(help, "have 'hot' return its `async fn` call directly") {
-				t.Fatalf("plain-fn help does not name the callee fix: %q", help)
+			if strings.Contains(help, "owned value") || strings.Contains(help, "return its `async fn` call directly") {
+				t.Fatalf("help offers a fix that still drops the task (SEM3218): %q", help)
 			}
 		})
 	}

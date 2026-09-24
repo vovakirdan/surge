@@ -15,18 +15,19 @@ import (
 // line. The runtime half (RT-COLD) is pinned before that by runtime_v2_cold_task_test.go
 // (native stand) and task_cold_internal_test.go / internal/asyncrt (VM).
 //
-// Each dropped program's worker ends the process with exit 46 (40 if it read freed storage
-// as empty) the moment it runs, and reads its borrow first, so the VM would stop with
-// VM3301: a dropped call that never runs is exit 0 with nothing printed, on both backends.
+// Each dropped program's worker ends the process with exit 46 the moment it runs: a dropped task
+// that never runs is exit 0 with nothing printed, on both backends. Since the dropped-task rule
+// (SEM3218) a task cannot be dropped where it stands, and a borrowing task dropped any other way is
+// refused at the frame's exit, so the handle goes as an unused binding or through a by-value
+// parameter, on a task that borrows nothing.
 
-const coldDroppedCallSource = `async fn worker(x: &string) -> int {
-    rt_exit(len(x) to int + 40);
-    return len(x) to int;
+const coldDroppedCallSource = `async fn worker(n: int) -> int {
+    rt_exit(n + 40);
+    return n;
 }
 
 fn leak() -> int {
-    let l: string = "abcdef";
-    worker(&l);
+    let t = worker(6);
     return 0;
 }
 
@@ -39,18 +40,17 @@ fn main() -> int {
 }
 `
 
-const coldForwardedCallSource = `async fn worker(x: &string) -> int {
-    rt_exit(len(x) to int + 40);
-    return len(x) to int;
+const coldForwardedCallSource = `async fn worker(n: int) -> int {
+    rt_exit(n + 40);
+    return n;
 }
 
-fn fwd(x: &string) -> Task<int> {
-    return worker(x);
+fn fwd(n: int) -> Task<int> {
+    return worker(n);
 }
 
 fn leak() -> int {
-    let l: string = "abcdef";
-    fwd(&l);
+    let t = fwd(6);
     return 0;
 }
 
@@ -65,14 +65,17 @@ fn main() -> int {
 
 // The member form: the dropped task is a member of outer's scope, so this is also the row
 // that a dropped member does not hold the join at the end of outer's body.
-const coldDroppedMemberSource = `async fn worker(x: &string) -> int {
-    rt_exit(len(x) to int + 40);
-    return len(x) to int;
+const coldDroppedMemberSource = `async fn worker(n: int) -> int {
+    rt_exit(n + 40);
+    return n;
+}
+
+fn sink(t: Task<int>) -> nothing {
+    return nothing;
 }
 
 async fn outer() -> int {
-    let l: string = "abcdef";
-    worker(&l);
+    sink(worker(6));
     let _ = checkpoint().await();
     return 0;
 }
@@ -224,15 +227,15 @@ func TestRuntimeV2ColdDroppedCallValgrindZero(t *testing.T) {
 
 func coldDroppedCallOutstanding(t *testing.T, calls int) int {
 	t.Helper()
-	source := strings.Replace(`async fn worker(x: &string, owned: string) -> int {
-    rt_exit(len(x) to int + len(owned) to int + 40);
-    return len(x) to int;
+	source := strings.Replace(`async fn worker2(owned: string) -> int {
+    rt_exit(len(owned) to int + 40);
+    return len(owned) to int;
 }
 
 fn leak() -> int {
     let l: string = "abcdef";
     let owned: string = "q" + l;
-    worker(&l, owned);
+    let t = worker2(owned);
     return 0;
 }
 

@@ -122,9 +122,10 @@ fn ping(x: &int, n: int) -> Task<int> { if n == 0 { return owned(1); } let l: in
 		// Controls: every one of these is a sound program and stays accepted.
 		{"ctl_awaited_in_place", `async fn f() -> int { let l: int = 5; let _ = worker(&l).await(); return 0; }`, ""},
 		{"ctl_bound_then_awaited", `async fn f() -> int { let l: int = 5; let t = worker(&l); let _ = t.await(); return 0; }`, ""},
-		{"ctl_dropped_where_it_stands", `fn f() -> int { let l: int = 5; worker(&l); return 0; }`, ""},
-		{"ctl_dropped_by_wildcard", `fn f() -> int { let l: int = 5; let _ = worker(&l); return 0; }`, ""},
-		{"ctl_dropped_receiver_call", `fn f() -> int { let c: Cell = { n = 5 }; c.size(); return 0; }`, ""},
+		// Dropped where it stands: no pin (the runtime discards a cold task unrun), refused by the dropped-task rule.
+		{"dropped_where_it_stands", `fn f() -> int { let l: int = 5; worker(&l); return 0; }`, "SEM3218"},
+		{"dropped_by_wildcard", `fn f() -> int { let l: int = 5; let _ = worker(&l); return 0; }`, "SEM3218"},
+		{"dropped_receiver_call", `fn f() -> int { let c: Cell = { n = 5 }; c.size(); return 0; }`, "SEM3218"},
 		{"ctl_parameter_forwarded", `fn f(p: &int) -> Task<int> { return worker(p); }`, ""},
 		{"ctl_callee_reads_before_the_task_exists", `async fn f() -> int { let l: int = 5; let t = detached(&l); consume(t); return 0; }`, ""},
 		{"ctl_callee_reads_before_returned", `fn f() -> Task<int> { let l: int = 5; let t = detached(&l); return t; }`, ""},

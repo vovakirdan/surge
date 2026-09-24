@@ -514,9 +514,9 @@ func (tc *typeChecker) walkExprForLockOps(la *lockAnalyzer, exprID ast.ExprID) {
 	case ast.ExprCall:
 		call, ok := tc.builder.Exprs.Call(exprID)
 		if ok && call != nil {
-			// Check inter-procedural lock contracts at call site
+			// Check inter-procedural lock contracts at call site; `m.lock().await()` locks where its task is made
 			tc.checkCallConcurrencyContract(la, call, expr.Span)
-			// Walk arguments
+			tc.checkExprForLockOps(la, tc.awaitedTaskExpr(call))
 			for _, arg := range call.Args {
 				tc.checkExprForLockOps(la, arg.Value)
 			}

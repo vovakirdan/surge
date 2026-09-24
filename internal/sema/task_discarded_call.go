@@ -71,6 +71,7 @@ func (tc *typeChecker) refuseDroppedRunningTask(call ast.ExprID, held []spawnBor
 	if tc.reporter == nil || len(held) == 0 {
 		return
 	}
+	tc.noteDroppedTaskRefused(call)
 	label := tc.placeLabel(held[0].Place)
 	span := tc.exprSpan(call)
 	builder := diag.ReportError(tc.reporter, diag.SemaBorrowThreadEscape, span,
@@ -93,25 +94,27 @@ func (tc *typeChecker) refuseDroppedRunningTask(call ast.ExprID, held []spawnBor
 			builder.WithNote(at, fmt.Sprintf("'%s' does not return a fresh `async fn` call directly, so it may start the task (a cancel, a clone handed on) before returning it", name))
 		}
 	}
-	builder.WithHelp(span, tc.droppedRunningTaskHelp(label, name))
+	builder.WithHelp(span, tc.droppedRunningTaskHelp(label))
 	builder.Emit()
 }
 
-// droppedRunningTaskHelp says what the enclosing function can write instead.
-func (tc *typeChecker) droppedRunningTaskHelp(label, callee string) string {
+// droppedRunningTaskHelp says what the enclosing function can write instead. Only an awaited handle
+// keeps the task: an owned argument, or a callee that returns its call directly, would still leave a
+// dropped task, which the dropped-task rule refuses (task_dropped.go).
+func (tc *typeChecker) droppedRunningTaskHelp(label string) string {
 	if tc.awaitAllowedHere() {
 		return fmt.Sprintf("await the task here (`.await()`), or keep the handle and await it before %s goes out of scope", label)
 	}
-	help := fmt.Sprintf("this plain function cannot await: make it an `async fn` and await the task, or pass an owned value instead of borrowing %s", label)
-	if callee != "" {
-		help += fmt.Sprintf(", or have '%s' return its `async fn` call directly", callee)
-	}
-	return help
+	return fmt.Sprintf("this plain function cannot await: make it an `async fn` and await the task before %s goes out of scope", label)
 }
 
 // awaitAllowedHere is the typing rule for `.await()` (type_expr_calling.go): inside an async body,
-// or anywhere in an `@entrypoint` function.
+// or anywhere in an `@entrypoint` function -- but not in a `blocking { }` body, where the model forbids
+// suspension (not yet refused for `.await()`: SEM3152 covers `on` only; see inBlockingBody).
 func (tc *typeChecker) awaitAllowedHere() bool {
+	if tc.inBlockingBody() {
+		return false
+	}
 	if tc.awaitDepth > 0 {
 		return true
 	}

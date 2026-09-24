@@ -199,6 +199,22 @@ func (tt *TaskTracker) IsTrackedExpr(expr ast.ExprID) bool {
 	return ok && taskID != 0 && int(taskID) < len(tt.tasks)
 }
 
+// IsScopedExpr reports that expr's task was filed under its scope by SpawnTask -- a spawn or a
+// clone -- so SEM3107 answers for it at the scope's end. A plain call's task (NoteCallTask) is
+// filed under no scope.
+func (tt *TaskTracker) IsScopedExpr(expr ast.ExprID) bool {
+	taskID, ok := tt.exprTasks[expr]
+	if !ok || taskID == 0 || int(taskID) >= len(tt.tasks) {
+		return false
+	}
+	for _, id := range tt.scopeTasks[tt.tasks[taskID].Scope] {
+		if id == taskID {
+			return true
+		}
+	}
+	return false
+}
+
 // EndScope checks for task leaks when leaving a scope.
 // Returns all tasks that were created in this scope but not awaited or returned.
 func (tt *TaskTracker) EndScope(scope symbols.ScopeID) []TaskInfo {
