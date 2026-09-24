@@ -1981,6 +1981,11 @@ fn foo() -> int {
 
 - Tasks created in a normal scope must be awaited or returned before leaving
   the scope (`SemaTaskNotAwaited`).
+- A task made and dropped where it stands is refused (`SemaTaskDropped`): `m.lock();`,
+  `worker(&x);`, `let _ = f();`, `async { ... };`, `checkpoint();`, `sleep(n);`, `blocking { ... };`.
+  A call of an `async fn` and an `async { }` block make their task without starting it, so the
+  dropped task never runs (`m.lock();` takes no lock); the others are started, but nothing waits
+  for them. Await it (`.await()`), keep the handle, or `spawn` it.
 - Returning or passing a `Task<T>` transfers responsibility for awaiting it.
 - `Task<T>` cannot be stored in module-level variables (`SemaTaskEscapesScope`).
 

@@ -211,6 +211,8 @@ May-wait methods checked today (they park tasks, not OS-block):
 - `Condition.wait`
 - `Semaphore.acquire`
 - `Channel.send` / `Channel.recv` / `Channel.close`
+- `.await()` of any task: it waits until the task ends (`m.lock().await()` is reported as
+  `Mutex.lock`, any other awaited task at the await)
 
 `@waits_on` requires a field name of type `Condition` or `Semaphore`.
 
