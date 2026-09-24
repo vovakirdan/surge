@@ -39,8 +39,8 @@ func taskCheckErrorCodes(t *testing.T, probe taskCheckProbe) (string, []*diag.Di
 	}
 	opts := DiagnoseOptions{Stage: DiagnoseStageSema, BaseDir: dir, MaxDiagnostics: 64, IgnoreWarnings: true}
 	res, err := DiagnoseWithOptions(t.Context(), path, &opts)
-	// A program the task check accepts can still come back unfinished: return-origin does not
-	// answer `spawn`, `select` or `race` yet (RV2-DEBT-365). That is
+	// A program the task check accepts can still come back unfinished: return origins leave named rows
+	// on some task forms (RV2-DEBT-365: `spawn on`, a capture or a payload that can hold a reference). That is
 	// not this row's question, and it is only ever asked of a program with a clean bag.
 	var unfinished *returnOriginUnfinishedError
 	if err != nil && !errors.As(err, &unfinished) {
