@@ -44,6 +44,9 @@ type lentValueState struct {
 	sources map[symbols.SymbolID][]ast.ExprID
 	// flowOnly are the pins openLentValuePins opened.
 	flowOnly map[taskBorrowPinKey]struct{}
+	// spawnLent are the flow-only pins the spawn being typed collects for its task
+	// (task_spawn_lent.go).
+	spawnLent []spawnBorrowCapture
 }
 
 // lentValueCarriesReference reports that a value of this type can carry a reference: a reference,

@@ -200,6 +200,7 @@ func (tc *typeChecker) typeSpawnExpr(exprID ast.ExprID, span source.Span, value 
 	// back, so an inner child's borrows are not attributed to the outer one.
 	prevSpawnCaptures := tc.spawnBorrowCaptures
 	prevSpawnReaching := tc.spawnReachingExprs
+	prevSpawnLent := tc.beginSpawnLent()
 	tc.spawnOperand = value
 	tc.spawnBorrowCaptures = nil
 	tc.spawnReachingExprs = tc.spawnReachingBorrowExprs(value)
@@ -232,11 +233,15 @@ func (tc *typeChecker) typeSpawnExpr(exprID ast.ExprID, span source.Span, value 
 		// borrow the operand carried is pinned to the child's completion rather
 		// than to its own lexical region. task_borrow_pin.go carries the rule.
 		tc.openTaskBorrowPins(taskID, tc.spawnBorrowCaptures)
+		// What the operand carries through a parameter or a `let` is pinned flow-only
+		// (task_spawn_lent.go).
+		tc.openLentValuePins(taskID, tc.lentValues.spawnLent)
 		// `spawn t` starts the task `t` already names: one task, two handles, so a join
 		// on either releases what that task borrowed when the call made it.
 		tc.taskTracker.NoteCloneOrigin(taskID, tc.taskIDForAwaitTarget(value, tc.symbolForExpr(tc.unwrapGroupExpr(value))))
 	}
 	tc.spawnBorrowCaptures = prevSpawnCaptures
+	tc.lentValues.spawnLent = prevSpawnLent
 
 	return ty
 }

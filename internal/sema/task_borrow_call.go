@@ -31,9 +31,11 @@ func (tc *typeChecker) typeTaskProducingCall(id ast.ExprID, span source.Span, ca
 	if tc.spawnOperand.IsValid() && tc.unwrapGroupExpr(tc.spawnOperand) == id {
 		ty := tc.typeExprCall(id, span, call)
 		// The spawn collects for itself. What no borrow record in its operand shows is
-		// handed to it here: a reference a call gave back, and a fixed-array window.
+		// handed to it here: a reference a call gave back, a fixed-array window, and what
+		// a parameter or a `let` carries (task_spawn_lent.go).
 		tc.noteReachingLoans(call)
 		tc.spawnBorrowCaptures = append(tc.spawnBorrowCaptures, tc.reachingFixedViews(id, call)...)
+		tc.noteSpawnLentValues(id, ty, call)
 		return ty
 	}
 	prevSpawnOperand := tc.spawnOperand
