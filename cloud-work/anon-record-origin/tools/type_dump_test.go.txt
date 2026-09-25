@@ -1,0 +1,54 @@
+// Scratch type dump used for PACKET.md section 1; not part of the suite.
+// To run: copy to internal/driver/zz_type_dump_test.go, then
+//   ZZ_SRC=$PWD/cloud-work/anon-record-origin/probes/p1_type_dump.sg \
+//     go test ./internal/driver/ -run TestZZTypeDump -v -count=1
+// It parses, resolves and type-checks the file (no stdlib, no return-origin
+// analysis) and prints every expression's kind, checked type and text.
+package driver
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"surge/internal/ast"
+	"surge/internal/diag"
+	"surge/internal/parser"
+	"surge/internal/source"
+	"surge/internal/types"
+)
+
+func TestZZTypeDump(t *testing.T) {
+	path := os.Getenv("ZZ_SRC")
+	if path == "" {
+		t.Skip()
+	}
+	text, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	files := source.NewFileSetWithBase(root)
+	file := files.Get(files.AddVirtual(filepath.Join(root, "origin.sg"), text))
+	bag := diag.NewBag(64)
+	builder, fileID := diagnoseParseWithStrings(t.Context(), files, file, bag, source.NewInterner(), parser.DirectiveModeOff)
+	resolved := diagnoseSymbols(builder, fileID, bag, "origin", file.Path, root, nil)
+	checked := diagnoseSema(t.Context(), builder, fileID, bag, nil, resolved, "origin", false, nil)
+	for i := uint32(1); i <= builder.Exprs.Arena.Len(); i++ {
+		id := ast.ExprID(i)
+		node := builder.Exprs.Get(id)
+		if node == nil {
+			continue
+		}
+		ty := checked.ExprTypes[id]
+		label := "<NONE>"
+		if ty != types.NoTypeID {
+			label = types.Label(checked.TypeInterner, ty)
+		}
+		_, selected := checked.MagicBinarySymbols[id]
+		t.Logf("expr %d kind=%d type=%d %s selected=%t text=%q", i, node.Kind, ty, label, selected, string(text[node.Span.Start:node.Span.End]))
+	}
+	for _, d := range bag.Items() {
+		t.Logf("diag %v %s %q", d.Code, string(text[d.Primary.Start:d.Primary.End]), d.Message)
+	}
+}

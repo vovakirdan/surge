@@ -1,0 +1,78 @@
+a0_min_let.sg	diag-base	1	Error: diagnosis failed: return origins: expression 5 is not typed in cloud-work/anon-record-origin/probes/a0_min_let.sg
+a0_min_let.sg	diag-after	0	
+b1_let_field.sg	diag-base	1	Error: diagnosis failed: return origins: expression 5 is not typed in cloud-work/anon-record-origin/probes/b1_let_field.sg
+b1_let_field.sg	diag-after	0	
+b1_let_field.sg	run-after-vm	1	Error: MIR validation failed: function main: local L0 (p): unknown type
+b1_let_field.sg	run-after-llvm	1	Error: MIR validation failed: function main: local L0 (p): unknown type
+b2_binary.sg	diag-base	1	Error: diagnosis failed: return origins: expression 25 is not typed in cloud-work/anon-record-origin/probes/b2_binary.sg
+b2_binary.sg	diag-after	0	
+b2_binary.sg	run-after-vm	1	Error: MIR validation failed: function main: local L2 (tmp_struct2): unknown type
+b2_binary.sg	run-after-llvm	1	Error: MIR validation failed: function main: local L2 (tmp_struct2): unknown type
+b3_task_field.sg	diag-base	1	error SEM3021 cloud-work/anon-record-origin/probes/b3_task_field.sg:6:25 a task still borrows 'l' at this return
+b3_task_field.sg	diag-after	1	error SEM3021 cloud-work/anon-record-origin/probes/b3_task_field.sg:6:25 a task still borrows 'l' at this return
+b3_task_field.sg	run-after-vm	1	error SEM3021 cloud-work/anon-record-origin/probes/b3_task_field.sg:6:25 a task still borrows 'l' at this return
+b3_task_field.sg	run-after-llvm	1	error SEM3021 cloud-work/anon-record-origin/probes/b3_task_field.sg:6:25 a task still borrows 'l' at this return
+b4_ref_return.sg	diag-base	1	Error: diagnosis failed: return origins: expression 3 is not typed in cloud-work/anon-record-origin/probes/b4_ref_return.sg
+b4_ref_return.sg	diag-after	0	
+b4_ref_return.sg	run-after-vm	1	Error: MIR validation failed: function probe: local L1 (p): unknown type
+b4_ref_return.sg	run-after-llvm	1	Error: MIR validation failed: function probe: local L1 (p): unknown type
+b5_discard.sg	diag-base	1	Error: diagnosis failed: return origins: expression 3 is not typed in cloud-work/anon-record-origin/probes/b5_discard.sg
+b5_discard.sg	diag-after	0	
+b5_discard.sg	run-after-vm	1	Error: MIR validation failed: function main: local L0 (tmp_struct1): unknown type
+b5_discard.sg	run-after-llvm	1	Error: MIR validation failed: function main: local L0 (tmp_struct1): unknown type
+c1_generic.sg	diag-base	1	error SEM3046 cloud-work/anon-record-origin/probes/c1_generic.sg:3:42 no matching overload for id
+c1_generic.sg	diag-after	1	error SEM3046 cloud-work/anon-record-origin/probes/c1_generic.sg:3:42 no matching overload for id
+c2_tag.sg	diag-base	1	error SEM3046 cloud-work/anon-record-origin/probes/c2_tag.sg:2:42 no matching overload for Some
+c2_tag.sg	diag-after	1	error SEM3046 cloud-work/anon-record-origin/probes/c2_tag.sg:2:42 no matching overload for Some
+c3_tuple.sg	diag-base	1	Error: diagnosis failed: return origins: expression 7 is not typed in cloud-work/anon-record-origin/probes/c3_tuple.sg
+c3_tuple.sg	diag-after	1	Error: diagnosis failed: return-origin analysis unfinished: [{SourceKey:cloud-work/anon-record-origin/probes/c3_tuple.sg Span:0:57-80 Reason:outgoing reference has unresolved or captured provenance} {SourceKey:cloud-work
+c4_array.sg	diag-base	1	Error: diagnosis failed: return origins: expression 6 is not typed in cloud-work/anon-record-origin/probes/c4_array.sg
+c4_array.sg	diag-after	1	Error: diagnosis failed: return-origin analysis unfinished: [{SourceKey:cloud-work/anon-record-origin/probes/c4_array.sg Span:0:57-77 Reason:outgoing reference has unresolved or captured provenance} {SourceKey:cloud-work
+c5_generic_bound.sg	diag-base	1	error SEM3046 cloud-work/anon-record-origin/probes/c5_generic_bound.sg:3:65 no matching overload for id
+c5_generic_bound.sg	diag-after	1	error SEM3046 cloud-work/anon-record-origin/probes/c5_generic_bound.sg:3:65 no matching overload for id
+c6_compare.sg	diag-base	1	Error: diagnosis failed: return origins: expression 5 is not typed in cloud-work/anon-record-origin/probes/c6_compare.sg
+c6_compare.sg	diag-after	1	Error: diagnosis failed: return origins: expression 11 is not typed in cloud-work/anon-record-origin/probes/c6_compare.sg
+c7_if_expr.sg	diag-base	1	Error: diagnosis failed: return origins: expression 5 is not typed in cloud-work/anon-record-origin/probes/c7_if_expr.sg
+c7_if_expr.sg	diag-after	1	Error: diagnosis failed: return-origin analysis unfinished: [{SourceKey:cloud-work/anon-record-origin/probes/c7_if_expr.sg Span:0:90-107 Reason:outgoing reference has unresolved or captured provenance} {SourceKey:cloud-w
+e1_empty_array.sg	diag-base	1	Error: diagnosis failed: return origins: expression 1 is not typed in cloud-work/anon-record-origin/probes/e1_empty_array.sg
+e1_empty_array.sg	diag-after	1	Error: diagnosis failed: return-origin analysis unfinished: [{SourceKey:cloud-work/anon-record-origin/probes/e1_empty_array.sg Span:0:43-45 Reason:untyped expression needs a checked type for its origins}]
+e1_empty_array.sg	run-after-vm	1	Error: return-origin analysis unfinished: [{SourceKey:cloud-work/anon-record-origin/probes/e1_empty_array.sg Span:0:43-45 Reason:untyped expression needs a checked type for its origins}]
+e1_empty_array.sg	run-after-llvm	1	Error: return-origin analysis unfinished: [{SourceKey:cloud-work/anon-record-origin/probes/e1_empty_array.sg Span:0:43-45 Reason:untyped expression needs a checked type for its origins}]
+p1_type_dump.sg	diag-base	1	error SEM3020 cloud-work/anon-record-origin/probes/p1_type_dump.sg:5:13 cannot move 'a'.r while it is shared-borrowed
+p1_type_dump.sg	diag-after	1	error SEM3020 cloud-work/anon-record-origin/probes/p1_type_dump.sg:5:13 cannot move 'a'.r while it is shared-borrowed
+p2_type_dump.sg	diag-base	1	Error: diagnosis failed: return origins: expression 1 is not typed in cloud-work/anon-record-origin/probes/p2_type_dump.sg
+p2_type_dump.sg	diag-after	1	Error: diagnosis failed: return-origin analysis unfinished: [{SourceKey:cloud-work/anon-record-origin/probes/p2_type_dump.sg Span:0:32-34 Reason:untyped expression needs a checked type for its origins}]
+r10_literal_returned.sg	diag-base	1	error SEM3015 cloud-work/anon-record-origin/probes/r10_literal_returned.sg:3:12 int is not a struct
+r10_literal_returned.sg	diag-after	1	error SEM3015 cloud-work/anon-record-origin/probes/r10_literal_returned.sg:3:12 int is not a struct
+r11_caller.sg	diag-base	1	Error: diagnosis failed: return origins: expression 3 is not typed in cloud-work/anon-record-origin/probes/r11_caller.sg
+r11_caller.sg	diag-after	1	error SEM3139 cloud-work/anon-record-origin/probes/r11_caller.sg:6:38 borrow of 'owned' outlives its owner when this scope exits
+r12_ref_return.sg	diag-base	1	Error: diagnosis failed: return origins: expression 5 is not typed in cloud-work/anon-record-origin/probes/r12_ref_return.sg
+r12_ref_return.sg	diag-after	1	error SEM3139 cloud-work/anon-record-origin/probes/r12_ref_return.sg:4:5 borrow of 'owned' outlives its owner when this scope exits
+r13_ref_return_param.sg	diag-base	1	Error: diagnosis failed: return origins: expression 3 is not typed in cloud-work/anon-record-origin/probes/r13_ref_return_param.sg
+r13_ref_return_param.sg	diag-after	0	
+r14_autoref_arg.sg	diag-base	1	error SEM3015 cloud-work/anon-record-origin/probes/r14_autoref_arg.sg:5:18 expected &Point, got unknown
+r14_autoref_arg.sg	diag-after	1	error SEM3015 cloud-work/anon-record-origin/probes/r14_autoref_arg.sg:5:18 expected &Point, got unknown
+r15_autoref_arg_block.sg	diag-base	1	error SEM3015 cloud-work/anon-record-origin/probes/r15_autoref_arg_block.sg:4:52 expected &Point, got unknown
+r15_autoref_arg_block.sg	diag-after	1	error SEM3015 cloud-work/anon-record-origin/probes/r15_autoref_arg_block.sg:4:52 expected &Point, got unknown
+r16_explicit_ref_arg.sg	diag-base	1	error SEM3015 cloud-work/anon-record-origin/probes/r16_explicit_ref_arg.sg:5:18 expected &Point, got unknown
+r16_explicit_ref_arg.sg	diag-after	1	error SEM3015 cloud-work/anon-record-origin/probes/r16_explicit_ref_arg.sg:5:18 expected &Point, got unknown
+r17_method_recv.sg	diag-base	1	error SEM3005 cloud-work/anon-record-origin/probes/r17_method_recv.sg:7:12 unknown has no method first
+r17_method_recv.sg	diag-after	1	error SEM3005 cloud-work/anon-record-origin/probes/r17_method_recv.sg:7:12 unknown has no method first
+r1_block_ret.sg	diag-base	1	Error: diagnosis failed: return origins: expression 5 is not typed in cloud-work/anon-record-origin/probes/r1_block_ret.sg
+r1_block_ret.sg	diag-after	1	error SEM3139 cloud-work/anon-record-origin/probes/r1_block_ret.sg:2:38 borrow of 'owned' outlives its owner when this scope exits
+r2_bound_then_ret.sg	diag-base	1	Error: diagnosis failed: return origins: expression 5 is not typed in cloud-work/anon-record-origin/probes/r2_bound_then_ret.sg
+r2_bound_then_ret.sg	diag-after	1	error SEM3139 cloud-work/anon-record-origin/probes/r2_bound_then_ret.sg:2:61 borrow of 'owned' outlives its owner when this scope exits
+r3_nested.sg	diag-base	1	Error: diagnosis failed: return origins: expression 7 is not typed in cloud-work/anon-record-origin/probes/r3_nested.sg
+r3_nested.sg	diag-after	1	error SEM3139 cloud-work/anon-record-origin/probes/r3_nested.sg:2:38 borrow of 'owned' outlives its owner when this scope exits
+r4_group.sg	diag-base	1	Error: diagnosis failed: return origins: expression 6 is not typed in cloud-work/anon-record-origin/probes/r4_group.sg
+r4_group.sg	diag-after	1	error SEM3139 cloud-work/anon-record-origin/probes/r4_group.sg:2:38 borrow of 'owned' outlives its owner when this scope exits
+r5_param_field.sg	diag-base	1	Error: diagnosis failed: return origins: expression 3 is not typed in cloud-work/anon-record-origin/probes/r5_param_field.sg
+r5_param_field.sg	diag-after	1	Error: diagnosis failed: return-origin analysis unfinished: [{SourceKey:cloud-work/anon-record-origin/probes/r5_param_field.sg Span:0:61-64 Reason:field of an untyped value that may carry a borrow needs a checked type}]
+r6_assign.sg	diag-base	1	Error: diagnosis failed: return origins: expression 3 is not typed in cloud-work/anon-record-origin/probes/r6_assign.sg
+r6_assign.sg	diag-after	1	Error: diagnosis failed: return-origin analysis unfinished: [{SourceKey:cloud-work/anon-record-origin/probes/r6_assign.sg Span:0:107-124 Reason:untyped expression needs a checked type for its origins}]
+r7_binary_ref.sg	diag-base	1	Error: diagnosis failed: return origins: expression 23 is not typed in cloud-work/anon-record-origin/probes/r7_binary_ref.sg
+r7_binary_ref.sg	diag-after	1	Error: diagnosis failed: return-origin analysis unfinished: [{SourceKey:cloud-work/anon-record-origin/probes/r7_binary_ref.sg Span:0:246-259 Reason:operator on an untyped value that may carry a borrow needs a checked typ
+r8_returned.sg	diag-base	1	Error: diagnosis failed: return origins: expression 3 is not typed in cloud-work/anon-record-origin/probes/r8_returned.sg
+r8_returned.sg	diag-after	0	
+r9_local_returned.sg	diag-base	1	Error: diagnosis failed: return origins: expression 5 is not typed in cloud-work/anon-record-origin/probes/r9_local_returned.sg
+r9_local_returned.sg	diag-after	1	error SEM3139 cloud-work/anon-record-origin/probes/r9_local_returned.sg:4:5 borrow of 'owned' outlives its owner when this scope exits

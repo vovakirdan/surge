@@ -1,0 +1,10 @@
+fn probe(x: &int) -> &int {
+    let p = { r: x };
+    return p;
+}
+@entrypoint
+fn main() -> int {
+    let l: int = 7;
+    let r: &int = probe(&l);
+    return 0;
+}

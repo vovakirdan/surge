@@ -1,0 +1,8 @@
+type Point = { x: int, y: int };
+extern<Point> {
+    fn first(self: &Point) -> &int { return &self.x; }
+}
+fn probe() -> &int {
+    let p = { x: 1, y: 2 };
+    return p.first();
+}

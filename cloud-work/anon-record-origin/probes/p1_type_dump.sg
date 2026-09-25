@@ -1,0 +1,11 @@
+fn probe(outside: &int) -> int {
+    let kept = { let owned: int = 1; ret { r: &owned }; };
+    let a = { r: outside };
+    let b = &a;
+    let c = b.r;
+    let d = &{ x: 1 };
+    let e = a.r;
+    let f = [a];
+    let g = (a, 1);
+    return 1;
+}

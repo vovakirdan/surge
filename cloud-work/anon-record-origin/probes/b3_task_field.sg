@@ -1,0 +1,12 @@
+async fn worker(x: &int) -> int {
+    return 1;
+}
+fn leak() -> int {
+    let l: int = 1;
+    let p = { t: worker(&l) };
+    return 0;
+}
+@entrypoint
+fn main() -> int {
+    return leak();
+}

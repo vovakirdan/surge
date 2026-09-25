@@ -1,0 +1,7 @@
+fn probe() -> int {
+    let a = [];
+    let m = { };
+    let t = ();
+    let s = { 1, 2 };
+    return 1;
+}

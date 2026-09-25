@@ -1,0 +1,4 @@
+fn probe() -> int {
+    let owned: int = 1;
+    return { r: &owned };
+}

@@ -1,0 +1,5 @@
+@entrypoint
+fn main() -> int {
+    let _ = { x: 1 };
+    return 0;
+}

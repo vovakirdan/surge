@@ -1,0 +1,4 @@
+fn probe() -> int {
+    let kept = { let owned: int = 1; ret ({ r: &owned }); };
+    return 1;
+}

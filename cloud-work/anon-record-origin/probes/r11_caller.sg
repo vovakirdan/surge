@@ -1,0 +1,8 @@
+fn probe(x: &int) -> int {
+    let p = { r: x };
+    return p;
+}
+fn caller() -> int {
+    let kept = { let owned: int = 1; ret probe(&owned); };
+    return kept;
+}

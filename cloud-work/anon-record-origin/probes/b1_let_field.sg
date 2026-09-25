@@ -1,0 +1,6 @@
+@entrypoint
+fn main() -> int {
+    let p = { x: 1, y: 2 };
+    let p_x: int = p.x;
+    return p_x;
+}

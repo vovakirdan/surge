@@ -1,0 +1,100 @@
+packages base: {'surge/internal/driver/diagnose': 'pass', 'surge/internal/sema': 'pass', 'surge/internal/driver': 'fail'}
+packages after: {'surge/internal/driver/diagnose': 'pass', 'surge/internal/sema': 'pass', 'surge/internal/driver': 'fail'}
+base: 34 failing top-level tests, 56 failing entries, 2638 passing entries
+after: 34 failing top-level tests, 56 failing entries, 2653 passing entries
+failing in base only: []
+failing after only: []
+passing after only (new or fixed): ['surge/internal/driver TestAnalyzeAnonymousRecordLostRecordStaysFatal', 'surge/internal/driver TestAnalyzeAnonymousRecordLostRecordStaysFatal/checked_field_value', 'surge/internal/driver TestAnalyzeAnonymousRecordLostRecordStaysFatal/checked_operator', 'surge/internal/driver TestDiagnoseAnonymousRecordReturnOrigins', 'surge/internal/driver TestDiagnoseAnonymousRecordReturnOrigins/add_operand_borrowed_self', 'surge/internal/driver TestDiagnoseAnonymousRecordReturnOrigins/add_operand_value_overload', 'surge/internal/driver TestDiagnoseAnonymousRecordReturnOrigins/borrowed_field_read_refused', 'surge/internal/driver TestDiagnoseAnonymousRecordReturnOrigins/borrowed_operand_refused', 'surge/internal/driver TestDiagnoseAnonymousRecordReturnOrigins/empty_array_refused', 'surge/internal/driver TestDiagnoseAnonymousRecordReturnOrigins/let_bound_literal', 'surge/internal/driver TestDiagnoseAnonymousRecordReturnOrigins/reference_field_block_exit', 'surge/internal/driver TestDiagnoseAnonymousRecordReturnOrigins/reference_field_bound_block_exit', 'surge/internal/driver TestDiagnoseAnonymousRecordReturnOrigins/reference_field_returned', 'surge/internal/driver TestDiagnoseAnonymousRecordReturnOrigins/reference_field_through_callee', 'surge/internal/driver TestDiagnoseAnonymousRecordReturnOrigins/untyped_assignment_refused']
+passing in base only (lost): []
+failing top-level tests (both runs):
+   surge/internal/driver TestAnalyzeTypedReturnOriginAliasPromises
+   surge/internal/driver TestAnalyzeTypedReturnOrigins
+   surge/internal/driver TestAnalyzeTypedReturnOriginsDefaultSlotDoesNotShift
+   surge/internal/driver TestAnalyzeTypedReturnOriginsNoReturnIsNotRefFree
+   surge/internal/driver TestAnalyzeTypedReturnOriginsOpaqueCallUsesAllInputs
+   surge/internal/driver TestAnalyzeTypedReturnOriginsRecursiveSummaries
+   surge/internal/driver TestAnalyzeTypedReturnOriginsUnusedCallbackCrossesBlock
+   surge/internal/driver TestBuiltinOperationIsIngestedOnce
+   surge/internal/driver TestCapabilityAuthorityIsSharedAcrossModules
+   surge/internal/driver TestCapabilityBuildAndDiagnoseAgree
+   surge/internal/driver TestCapabilityClassificationRunsAtTheBuildAuthority
+   surge/internal/driver TestCaptureReturnOriginStorageP0
+   surge/internal/driver TestCloneBindingsArePublishedForSingleFilePrograms
+   surge/internal/driver TestCloneDedupesImportAliasesOfOneDeclaration
+   surge/internal/driver TestCloneGenericInstantiationAgreesWithDirectUse
+   surge/internal/driver TestCloneInvisibleWinnerFixWritesPubAndCompilesClean
+   surge/internal/driver TestCloneUsesModulePrivateWinnerInsideItsOwnModule
+   surge/internal/driver TestCloneUsesPublicWinnerFromAnotherModule
+   surge/internal/driver TestCrossingReadinessFarTaskImportSignatureResolves
+   surge/internal/driver TestDeferredCloneDistinguishesBuiltinCopyAndUserMethod
+   surge/internal/driver TestDiagnoseDirWithOptions_ModuleDirectoryExportsToNonModuleFile
+   surge/internal/driver TestDiagnoseDirWithOptions_ModuleDirectoryNoCascadingSEM3005
+   surge/internal/driver TestDiagnoseDirWithOptions_RelativeDirDoesNotDoubleJoin
+   surge/internal/driver TestDiagnoseReportsWrongRelativeImportToExplicitModuleSameName
+   surge/internal/driver TestEntrypointParserHelpRequiresLocalExtensibilityProof
+   surge/internal/driver TestEntrypointPublicationStableAcrossSerialFileOrder
+   surge/internal/driver TestEntrypointPublicationSurvivesParallelAuthorityCopy
+   surge/internal/driver TestModuleQualifiedGenericFunctionValueUsesCanonicalClosure
+   surge/internal/driver TestMonoCanonicalizesSiblingStdlibCallableAliases
+   surge/internal/driver TestParallelPublicationSurvivesADriftedSourceFileID
+   surge/internal/driver TestPublicationRefusesAnUnknownOwningSourceIdentity
+   surge/internal/driver TestRequiredValueOperationsAgreeAcrossBuildAndDiagnose
+   surge/internal/driver TestReturnOriginUnitsUseOwnedArtifacts
+   surge/internal/driver TestUninstantiatedGenericTaskCloneStaysDeferred
+failing entries (all 56, identical in both runs): True
+   surge/internal/driver TestAnalyzeTypedReturnOriginAliasPromises
+   surge/internal/driver TestAnalyzeTypedReturnOriginAliasPromises/imported_alias_component_two_units
+   surge/internal/driver TestAnalyzeTypedReturnOriginAliasPromises/imported_alias_full_units
+   surge/internal/driver TestAnalyzeTypedReturnOrigins
+   surge/internal/driver TestAnalyzeTypedReturnOrigins/borrowed_parameter_content
+   surge/internal/driver TestAnalyzeTypedReturnOrigins/direct_outer_owner
+   surge/internal/driver TestAnalyzeTypedReturnOrigins/known_function_ignores_local_argument
+   surge/internal/driver TestAnalyzeTypedReturnOrigins/loop_backedge_outer_owners
+   surge/internal/driver TestAnalyzeTypedReturnOrigins/multi_root_alias_outer_owners
+   surge/internal/driver TestAnalyzeTypedReturnOrigins/multi_root_call_outer_owners
+   surge/internal/driver TestAnalyzeTypedReturnOrigins/outer_binding_outer_owner
+   surge/internal/driver TestAnalyzeTypedReturnOrigins/owned_parameter_storage
+   surge/internal/driver TestAnalyzeTypedReturnOrigins/sequential_rebind_outer_owners
+   surge/internal/driver TestAnalyzeTypedReturnOriginsDefaultSlotDoesNotShift
+   surge/internal/driver TestAnalyzeTypedReturnOriginsDefaultSlotDoesNotShift/outer_selected
+   surge/internal/driver TestAnalyzeTypedReturnOriginsNoReturnIsNotRefFree
+   surge/internal/driver TestAnalyzeTypedReturnOriginsOpaqueCallUsesAllInputs
+   surge/internal/driver TestAnalyzeTypedReturnOriginsRecursiveSummaries
+   surge/internal/driver TestAnalyzeTypedReturnOriginsUnusedCallbackCrossesBlock
+   surge/internal/driver TestBuiltinOperationIsIngestedOnce
+   surge/internal/driver TestBuiltinOperationIsIngestedOnce/core/intrinsics.sg
+   surge/internal/driver TestBuiltinOperationIsIngestedOnce/testdata/golden/core_stdlib/string.sg
+   surge/internal/driver TestCapabilityAuthorityIsSharedAcrossModules
+   surge/internal/driver TestCapabilityBuildAndDiagnoseAgree
+   surge/internal/driver TestCapabilityClassificationRunsAtTheBuildAuthority
+   surge/internal/driver TestCaptureReturnOriginStorageP0
+   surge/internal/driver TestCaptureReturnOriginStorageP0/p06_indexed_external
+   surge/internal/driver TestCaptureReturnOriginStorageP0/p06_indexed_local
+   surge/internal/driver TestCaptureReturnOriginStorageP0/p07_view_rebind
+   surge/internal/driver TestCaptureReturnOriginStorageP0/p11_external_key_local_value
+   surge/internal/driver TestCaptureReturnOriginStorageP0/p11_local_key_external_value
+   surge/internal/driver TestCloneBindingsArePublishedForSingleFilePrograms
+   surge/internal/driver TestCloneDedupesImportAliasesOfOneDeclaration
+   surge/internal/driver TestCloneGenericInstantiationAgreesWithDirectUse
+   surge/internal/driver TestCloneInvisibleWinnerFixWritesPubAndCompilesClean
+   surge/internal/driver TestCloneUsesModulePrivateWinnerInsideItsOwnModule
+   surge/internal/driver TestCloneUsesPublicWinnerFromAnotherModule
+   surge/internal/driver TestCrossingReadinessFarTaskImportSignatureResolves
+   surge/internal/driver TestDeferredCloneDistinguishesBuiltinCopyAndUserMethod
+   surge/internal/driver TestDiagnoseDirWithOptions_ModuleDirectoryExportsToNonModuleFile
+   surge/internal/driver TestDiagnoseDirWithOptions_ModuleDirectoryNoCascadingSEM3005
+   surge/internal/driver TestDiagnoseDirWithOptions_RelativeDirDoesNotDoubleJoin
+   surge/internal/driver TestDiagnoseReportsWrongRelativeImportToExplicitModuleSameName
+   surge/internal/driver TestEntrypointParserHelpRequiresLocalExtensibilityProof
+   surge/internal/driver TestEntrypointParserHelpRequiresLocalExtensibilityProof/imported
+   surge/internal/driver TestEntrypointPublicationStableAcrossSerialFileOrder
+   surge/internal/driver TestEntrypointPublicationSurvivesParallelAuthorityCopy
+   surge/internal/driver TestModuleQualifiedGenericFunctionValueUsesCanonicalClosure
+   surge/internal/driver TestMonoCanonicalizesSiblingStdlibCallableAliases
+   surge/internal/driver TestParallelPublicationSurvivesADriftedSourceFileID
+   surge/internal/driver TestPublicationRefusesAnUnknownOwningSourceIdentity
+   surge/internal/driver TestRequiredValueOperationsAgreeAcrossBuildAndDiagnose
+   surge/internal/driver TestReturnOriginUnitsUseOwnedArtifacts
+   surge/internal/driver TestReturnOriginUnitsUseOwnedArtifacts/import_alias
+   surge/internal/driver TestReturnOriginUnitsUseOwnedArtifacts/module
+   surge/internal/driver TestUninstantiatedGenericTaskCloneStaysDeferred

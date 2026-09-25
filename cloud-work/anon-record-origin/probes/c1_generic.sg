@@ -1,0 +1,5 @@
+fn id<T>(x: T) -> T { return x; }
+fn probe() -> int {
+    let kept = { let owned: int = 1; ret id({ r: &owned }); };
+    return 1;
+}

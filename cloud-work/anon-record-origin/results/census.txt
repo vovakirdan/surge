@@ -1,0 +1,20 @@
+commits: 1b122bfa1f -> 0dee33025b
+user_form: 1079 programs, totals base={'ok': 520, 'unfinished': 108, 'diagnostics': 448, 'other': 3} after={'ok': 523, 'unfinished': 108, 'diagnostics': 448, 'other': 0}
+user_form: verdict changes: 3
+  testdata/golden/sema/ownership_and_references/overload_autoref_temp_error.sg: other -> ok
+  testdata/golden/sema/ownership_and_references/overload_autoref_temp_move.sg: other -> ok
+  testdata/golden/sema/valid/user_record_type.sg: other -> ok
+harness_form: 1079 programs, totals base={'ok': 518, 'unfinished': 107, 'diagnostics': 451, 'other': 3} after={'ok': 521, 'unfinished': 107, 'diagnostics': 451, 'other': 0}
+harness_form: verdict changes: 3
+  testdata/golden/sema/ownership_and_references/overload_autoref_temp_error.sg: other -> ok
+  testdata/golden/sema/ownership_and_references/overload_autoref_temp_move.sg: other -> ok
+  testdata/golden/sema/valid/user_record_type.sg: other -> ok
+unfinished programs whose rows changed: 0
+user form: raw outputs that differ byte-for-byte: 3 of 1079
+   testdata_golden_sema_ownership_and_references_overload_autoref_temp_error.sg.txt
+   testdata_golden_sema_ownership_and_references_overload_autoref_temp_move.sg.txt
+   testdata_golden_sema_valid_user_record_type.sg.txt
+harness form: raw outputs that differ byte-for-byte: 3 of 1079
+   testdata_golden_sema_ownership_and_references_overload_autoref_temp_error.sg.txt
+   testdata_golden_sema_ownership_and_references_overload_autoref_temp_move.sg.txt
+   testdata_golden_sema_valid_user_record_type.sg.txt

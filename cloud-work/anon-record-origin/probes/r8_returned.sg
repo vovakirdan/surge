@@ -1,0 +1,4 @@
+fn probe(x: &int) -> int {
+    let p = { r: x };
+    return p;
+}

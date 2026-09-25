@@ -1,0 +1,8 @@
+fn probe(outside: &int) -> int {
+    let mut p = { r: outside };
+    {
+        let owned: int = 1;
+        p = { r: &owned };
+    }
+    return 1;
+}

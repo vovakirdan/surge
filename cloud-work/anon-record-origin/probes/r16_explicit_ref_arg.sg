@@ -1,0 +1,6 @@
+type Point = { x: int, y: int };
+fn first(p: &Point) -> &int { return &p.x; }
+fn probe() -> &int {
+    let p = { x: 1, y: 2 };
+    return first(&p);
+}
