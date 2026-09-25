@@ -56,6 +56,14 @@ func (vm *VM) defaultValue(typeID types.TypeID) (Value, *VMError) {
 	if vm.Types == nil {
 		return Value{}, vm.eb.makeError(PanicUnimplemented, "no type interner for default")
 	}
+	// A core runtime handle defaults to the NULL handle, as it does natively
+	// (runtime_handle_null.go). Asked before the kind switch, because the
+	// handle is a nominal struct and the struct case would build its private
+	// member -- a runtime object nobody created, in a member the layout
+	// registry gives no offset.
+	if vm.Types.IsRuntimeHandleType(typeID) {
+		return vm.nullRuntimeHandle(typeID), nil
+	}
 	tt, ok := vm.Types.Lookup(typeID)
 	if !ok {
 		return Value{}, vm.eb.makeError(PanicUnimplemented, fmt.Sprintf("missing type info for type#%d", typeID))
