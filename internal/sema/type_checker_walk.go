@@ -232,7 +232,11 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			default:
 				// Simple binding: let x = value
 				symID := tc.symbolForStmt(id)
+				checkpoint := tc.errorCheckpoint()
 				declaredType := tc.resolveTypeExprWithScope(letStmt.Type, scope)
+				if letStmt.Type.IsValid() && declaredType == types.NoTypeID && tc.hasErrorsSince(checkpoint) {
+					tc.coverUntypedLiteral(letStmt.Value) // the annotation's own error explains it
+				}
 				if declaredType != types.NoTypeID {
 					tc.setBindingType(symID, declaredType)
 				}

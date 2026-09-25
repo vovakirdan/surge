@@ -26,7 +26,8 @@ import (
 // untypedLiteralState is the typeChecker's record of those literals.
 type untypedLiteralState struct {
 	roots      map[ast.ExprID]struct{}
-	errorSpans []source.Span // primary spans of the errors the checker reported
+	covered    map[ast.ExprID]struct{} // literals an error elsewhere already explains
+	errorSpans []source.Span           // primary spans of the errors the checker reported
 }
 
 // noteUntypedLiteral records a literal its own typing left untyped.
@@ -35,6 +36,19 @@ func (tc *typeChecker) noteUntypedLiteral(id ast.ExprID) {
 		tc.untyped.roots = make(map[ast.ExprID]struct{})
 	}
 	tc.untyped.roots[id] = struct{}{}
+}
+
+// coverUntypedLiteral marks the literal expr is, if any, as explained by an
+// error reported for its context, such as a binding annotation that failed to
+// resolve.
+func (tc *typeChecker) coverUntypedLiteral(expr ast.ExprID) {
+	if !expr.IsValid() {
+		return
+	}
+	if tc.untyped.covered == nil {
+		tc.untyped.covered = make(map[ast.ExprID]struct{})
+	}
+	tc.untyped.covered[tc.unwrapGroupExpr(expr)] = struct{}{}
 }
 
 // errorSpanRecorder forwards every diagnostic and keeps the primary span of each error.
@@ -219,10 +233,14 @@ func (tc *typeChecker) reportUntypedLiterals() {
 }
 
 // reportUntypedLiteral refuses one literal unless an error already covers it:
-// one reported at, inside or around the literal, including its own. argument
+// one reported at, inside or around the literal, including its own, or one its
+// context was marked with (coverUntypedLiteral). argument
 // says the literal is itself an argument; expected is its parameter's type
 // when the call names one.
 func (tc *typeChecker) reportUntypedLiteral(root ast.ExprID, argument bool, expected types.TypeID) {
+	if _, covered := tc.untyped.covered[root]; covered {
+		return
+	}
 	span := tc.exprSpan(root)
 	for _, reported := range tc.untyped.errorSpans {
 		if reported.File == span.File && reported.Start < span.End && span.Start < reported.End {

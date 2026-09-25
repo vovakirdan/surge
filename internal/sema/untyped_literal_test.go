@@ -108,6 +108,8 @@ fn f() { let l = Line { a: { x: 1, y: 2 }, b: { x: 3, y: 4 } }; }`},
 		{name: "return_not_a_struct", src: `fn f() -> int { return { x: 1, y: 2 }; }`, other: "SEM3015"},
 		{name: "tuple_element_mismatch", src: `fn f() { let t: (Point, int) = ({ x: 1, y: 2 }, true); }`, other: "SEM3015"},
 		{name: "error_inside_literal", src: `fn f() { let p = { x: 1 + true }; }`, other: "SEM3016"},
+		{name: "annotation_that_does_not_resolve", src: `type Pair<T, U> = { first: T, second: U };
+fn f() { let bad: Pair<int> = { first: 1, second: 2 }; }`, other: "SEM3015"},
 	}
 }
 
