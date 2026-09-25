@@ -1,0 +1,10 @@
+type HolderCh = { ch: Channel<int>, n: int };
+@entrypoint
+fn main() -> int {
+    let mut h = default::<HolderCh>();
+    h.ch = Channel::<int>::new(1:uint);
+    h.ch.send(9);
+    let v = h.ch.recv();
+    compare v { Some(x) => print("ch-field-overwrite " + (x to string)); nothing => print("none"); };
+    return 0;
+}

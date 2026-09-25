@@ -1,0 +1,15 @@
+async fn take(c: Channel<int>) -> int {
+    checkpoint().await();
+    return 2;
+}
+
+@entrypoint
+fn main() -> int {
+    let c = default::<Channel<int>>();
+    let t = spawn take(c);
+    let d = spawn take(default::<Channel<int>>());
+    let a = compare t.await() { Success(v) => v; Cancelled() => 90; };
+    let b = compare d.await() { Success(v) => v; Cancelled() => 90; };
+    print("param-task " + ((a + b) to string));
+    return 0;
+}

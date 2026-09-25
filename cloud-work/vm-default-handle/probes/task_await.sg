@@ -1,0 +1,8 @@
+@entrypoint
+fn main() -> int {
+    let t = default::<Task<int>>();
+    print("before");
+    let r = t.await();
+    print("after");
+    return compare r { Success(v) => v; Cancelled() => 1; };
+}

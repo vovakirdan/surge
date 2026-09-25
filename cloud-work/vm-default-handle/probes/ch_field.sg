@@ -1,0 +1,7 @@
+type HolderCh = { ch: Channel<int>, n: int };
+@entrypoint
+fn main() -> int {
+    let h = default::<HolderCh>();
+    print("ch-field " + (h.n to string));
+    return 0;
+}

@@ -1,0 +1,9 @@
+@entrypoint
+fn main() -> int {
+    let s = "abcdef";
+    let r = default::<Range<int>>();
+    print("before");
+    let t = s[r];
+    print("after " + t);
+    return 0;
+}

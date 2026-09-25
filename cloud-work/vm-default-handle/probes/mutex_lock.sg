@@ -1,0 +1,14 @@
+async fn run() -> int {
+    let m = default::<Mutex>();
+    print("before");
+    m.lock().await();
+    print("locked");
+    m.unlock();
+    print("after");
+    return 0;
+}
+@entrypoint
+fn main() -> int {
+    let t = spawn run();
+    return compare t.await() { Success(v) => v; Cancelled() => 91; };
+}

@@ -150,7 +150,87 @@ Two things here are measurement-only and are **not** in the commit:
 
 The script is `probes/probe_matrix.py`.
 
-@@PROBE_SUMMARY@@
+To reproduce, build three compilers into one directory and run the script with the probes in `probes/`:
+
+```
+git worktree add --detach /tmp/base 1b122bfa
+(cd /tmp/base && go build -o $BIN/surge-base ./cmd/surge/ \
+   && git apply <this dir>/probes/gate-bypass.patch && go build -o $BIN/surge-bypass-base ./cmd/surge/)
+# on this branch:
+git apply cloud-work/vm-default-handle/probes/gate-bypass.patch && go build -o $BIN/surge-bypass-fix ./cmd/surge/ && git checkout -- internal/driver
+SURGE_BIN_DIR=$BIN SURGE_STDLIB=$PWD python3 cloud-work/vm-default-handle/probes/probe_matrix.py
+```
+
+- **Gate at base** is the verdict of the unpatched base build.
+- **VM before** uses the base build with the gate bypassed; **VM after** uses this branch with the gate bypassed.
+- **Native** is `surge run --backend llvm` of this branch with the gate bypassed. The fix does not touch the native path.
+- A **refusal** is shown by its words; the VM's panic code is kept.
+- `rc=255` is how `surge run` reports a native child killed by a signal. Run directly, `range_iter` exits 139 (SIGSEGV); under valgrind it is `Invalid read of size 1 … Address 0x13`.
+
+| probe | gate at base | VM before | VM after | native | after = native |
+|---|---|---|---|---|---|
+| `cancelled_select_null.sg` | accepted | rc=1  VM1999 storage: type#1510 has 1 members but 0 layout offsets | rc=90 | rc=90 | SAME |
+| `cancelled_select_null2.sg` | accepted | rc=1  VM1999 storage: type#1510 has 1 members but 0 layout offsets | rc=1 out=[child-start\|] VM1203 async: null channel handle | rc=1 out=[child-start\|] async: null channel handle | SAME |
+| `cancelled_timeout_null.sg` | refused | rc=1  VM1999 storage: type#1507 has 1 members but 0 layout offsets | rc=90 | rc=90 | SAME |
+| `cancelled_timeout_valid.sg` | accepted | rc=90 | rc=90 | rc=90 | SAME |
+| `ch_array.sg` | accepted | rc=1  VM1999 storage: type#1509 has 1 members but 0 layout offsets | rc=0 out=[ch-array 2\|] | rc=0 out=[ch-array 2\|] | SAME |
+| `ch_array_withlen.sg` | refused | rc=1  VM1999 storage: type#1509 has 1 members but 0 layout offsets | rc=0 out=[withlen 4\|] | rc=0 out=[withlen 4\|] | SAME |
+| `ch_array_withlen_send.sg` | refused | rc=1  VM1999 storage: type#1509 has 1 members but 0 layout offsets | rc=1 out=[before\|] VM1203 async: null channel handle | rc=1 out=[before\|] async: null channel handle | SAME |
+| `ch_async.sg` | accepted | rc=1  VM1999 storage: type#1510 has 1 members but 0 layout offsets | rc=4 out=[after-checkpoint\|] | rc=4 out=[after-checkpoint\|] | SAME |
+| `ch_async_send.sg` | accepted | rc=1  VM1999 storage: type#1510 has 1 members but 0 layout offsets | rc=1 out=[before\|] VM1203 async: null channel handle | rc=1 out=[before\|] async: null channel handle | SAME |
+| `ch_close.sg` | accepted | rc=1  VM1999 storage: type#1509 has 1 members but 0 layout offsets | rc=1 out=[before\|] VM1203 async: null channel handle | rc=1 out=[before\|] async: null channel handle | SAME |
+| `ch_copy.sg` | accepted | rc=1  VM1999 storage: type#1509 has 1 members but 0 layout offsets | rc=0 out=[ch-copy\|] | rc=0 out=[ch-copy\|] | SAME |
+| `ch_drop.sg` | accepted | rc=1  VM1999 storage: type#1509 has 1 members but 0 layout offsets | rc=0 out=[ch-drop\|] | rc=0 out=[ch-drop\|] | SAME |
+| `ch_field.sg` | accepted | rc=1  VM1999 storage: type#1509 has 1 members but 0 layout offsets | rc=0 out=[ch-field 0\|] | rc=0 out=[ch-field 0\|] | SAME |
+| `ch_field_overwrite.sg` | accepted | rc=1  VM1999 storage: type#1509 has 1 members but 0 layout offsets | rc=0 out=[ch-field-overwrite 9\|] | rc=0 out=[ch-field-overwrite 9\|] | SAME |
+| `ch_field_send.sg` | accepted | rc=1  VM1999 storage: type#1509 has 1 members but 0 layout offsets | rc=1 out=[before\|] VM1203 async: null channel handle | rc=1 out=[before\|] async: null channel handle | SAME |
+| `ch_letbind.sg` | refused | rc=1  VM1999 storage: type#1509 has 1 members but 0 layout offsets | rc=3 out=[ch-letbind\|] | rc=3 out=[ch-letbind\|] | SAME |
+| `ch_option.sg` | accepted | rc=1  VM1999 storage: type#1509 has 1 members but 0 layout offsets | rc=0 out=[some\|] | rc=0 out=[some\|] | SAME |
+| `ch_overwrite.sg` | accepted | rc=1  VM1999 storage: type#1509 has 1 members but 0 layout offsets | rc=0 out=[ch-overwrite 5\|] | rc=0 out=[ch-overwrite 5\|] | SAME |
+| `ch_param.sg` | accepted | rc=1  VM1999 storage: type#1508 has 1 members but 0 layout offsets | rc=0 out=[ch-param\|] | rc=0 out=[ch-param\|] | SAME |
+| `ch_param_task.sg` | accepted | rc=1  VM1999 storage: type#1508 has 1 members but 0 layout offsets | rc=0 out=[param-task 4\|] | rc=0 out=[param-task 4\|] | SAME |
+| `ch_param_task_send.sg` | accepted | rc=1  VM1999 storage: type#1508 has 1 members but 0 layout offsets | rc=1 out=[before\|] VM1203 async: null channel handle | rc=1 out=[before\|] async: null channel handle | SAME |
+| `ch_recv.sg` | accepted | rc=1  VM1999 storage: type#1509 has 1 members but 0 layout offsets | rc=1 out=[before\|] VM1203 async: null channel handle | rc=1 out=[before\|] async: null channel handle | SAME |
+| `ch_select.sg` | accepted | rc=1  VM1999 storage: type#1510 has 1 members but 0 layout offsets | rc=1 out=[before\|] VM1203 async: null channel handle | rc=1 out=[before\|] async: null channel handle | SAME |
+| `ch_send.sg` | accepted | rc=1  VM1999 storage: type#1509 has 1 members but 0 layout offsets | rc=1 out=[before\|] VM1203 async: null channel handle | rc=1 out=[before\|] async: null channel handle | SAME |
+| `ch_tryrecv.sg` | accepted | rc=1  VM1999 storage: type#1509 has 1 members but 0 layout offsets | rc=1 out=[before\|] VM1203 async: null channel handle | rc=1 out=[before\|] async: null channel handle | SAME |
+| `ch_trysend.sg` | accepted | rc=1  VM1999 storage: type#1509 has 1 members but 0 layout offsets | rc=1 out=[before\|] VM1203 async: null channel handle | rc=1 out=[before\|] async: null channel handle | SAME |
+| `mutex_default.sg` | accepted | rc=1  VM1999 storage: type#70 has 1 members but 0 layout offsets | rc=0 out=[mutex-default\|] | rc=0 out=[mutex-default\|] | SAME |
+| `mutex_lock.sg` | accepted | rc=1  VM1999 storage: type#70 has 1 members but 0 layout offsets | rc=1 out=[before\|] VM1203 async: null channel handle | rc=1 out=[before\|] async: null channel handle | SAME |
+| `range_drop.sg` | refused | rc=1  VM1999 storage: type#181 has 1 members but 0 layout offsets | rc=0 out=[range-drop\|] | rc=0 out=[range-drop\|] | SAME |
+| `range_iter.sg` | refused | rc=1  VM1999 storage: type#181 has 1 members but 0 layout offsets | rc=1 out=[before\|] VM1203 invalid handle 0 | rc=255 out=[before\|] | DIFF |
+| `range_next.sg` | refused | rc=1  VM1999 storage: type#181 has 1 members but 0 layout offsets | rc=1 out=[before\|] VM1203 invalid handle 0 | rc=255 out=[before\|] | DIFF |
+| `range_overwrite.sg` | refused | rc=1  VM1999 storage: type#181 has 1 members but 0 layout offsets | rc=0 out=[range-overwrite 3\|] | rc=0 out=[range-overwrite 3\|] | SAME |
+| `range_slice_arr.sg` | refused | rc=1  VM1999 storage: type#181 has 1 members but 0 layout offsets | rc=1 out=[before\|] VM1203 invalid handle 0 | rc=0 out=[before\|after 3\|] | DIFF |
+| `range_slice_str.sg` | refused | rc=1  VM1999 storage: type#181 has 1 members but 0 layout offsets | rc=1 out=[before\|] VM1203 invalid handle 0 | rc=0 out=[before\|after abcdef\|] | DIFF |
+| `sel_default_arm.sg` | accepted | rc=1  VM1999 storage: type#1510 has 1 members but 0 layout offsets | rc=1 out=[before\|] VM1203 async: null channel handle | rc=1 out=[before\|] async: null channel handle | SAME |
+| `sel_null_then_ready.sg` | accepted | rc=1  VM1999 storage: type#1510 has 1 members but 0 layout offsets | rc=1 out=[before\|] VM1203 async: null channel handle | rc=1 out=[before\|] async: null channel handle | SAME |
+| `sel_ready_then_null.sg` | accepted | rc=1  VM1999 storage: type#1510 has 1 members but 0 layout offsets | rc=10 out=[before\|after 10\|] | rc=10 out=[before\|after 10\|] | SAME |
+| `sel_task_ready_then_null.sg` | refused | rc=1  VM1999 storage: type#1507 has 1 members but 0 layout offsets | rc=10 out=[before\|after 10\|] | rc=10 out=[before\|after 10\|] | SAME |
+| `spawn_null.sg` | refused | rc=1  VM1999 storage: type#1507 has 1 members but 0 layout offsets | rc=1 out=[before\|] VM1203 invalid task handle | rc=1 out=[before\|] invalid task handle | SAME |
+| `task_array.sg` | refused | rc=1  VM1999 storage: type#1507 has 1 members but 0 layout offsets | rc=0 out=[task-array 7\|] | rc=0 out=[task-array 7\|] | SAME |
+| `task_async.sg` | refused | rc=1  VM1999 storage: type#1507 has 1 members but 0 layout offsets | rc=4 out=[after-checkpoint\|] | rc=4 out=[after-checkpoint\|] | SAME |
+| `task_async_await.sg` | refused | rc=1  VM1999 storage: type#1507 has 1 members but 0 layout offsets | rc=1 out=[before\|] VM1203 invalid task handle | rc=1 out=[before\|] invalid task handle | SAME |
+| `task_await.sg` | refused | rc=1  VM1999 storage: type#1508 has 1 members but 0 layout offsets | rc=1 out=[before\|] VM1203 invalid task handle | rc=1 out=[before\|] invalid task handle | SAME |
+| `task_cancel.sg` | refused | rc=1  VM1999 storage: type#1508 has 1 members but 0 layout offsets | rc=1 out=[before\|] VM1203 invalid task handle | rc=1 out=[before\|] invalid task handle | SAME |
+| `task_clone.sg` | refused | rc=1  VM1999 storage: type#1508 has 1 members but 0 layout offsets | rc=1 out=[before\|] VM1203 invalid task handle | rc=1 out=[before\|] invalid task handle | SAME |
+| `task_drop.sg` | refused | rc=1  VM1999 storage: type#1508 has 1 members but 0 layout offsets | rc=0 out=[task-drop\|] | rc=0 out=[task-drop\|] | SAME |
+| `task_field.sg` | refused | rc=1  VM1999 storage: type#1508 has 1 members but 0 layout offsets | rc=0 out=[task-field 0\|] | rc=0 out=[task-field 0\|] | SAME |
+| `task_letbind.sg` | refused | rc=1  VM1999 storage: type#1508 has 1 members but 0 layout offsets | rc=4 out=[task-letbind\|] | rc=4 out=[task-letbind\|] | SAME |
+| `task_overwrite.sg` | refused | rc=1  VM1999 storage: type#1507 has 1 members but 0 layout offsets | rc=7 | rc=7 | SAME |
+| `task_pop.sg` | refused | rc=1  VM1999 storage: type#1508 has 1 members but 0 layout offsets | rc=5 out=[task-pop\|] | rc=5 out=[task-pop\|] | SAME |
+| `task_scope_drop.sg` | refused | rc=1  VM1999 storage: type#1507 has 1 members but 0 layout offsets | rc=0 out=[scope-ok\|] | rc=0 out=[scope-ok\|] | SAME |
+| `task_select.sg` | refused | rc=1  VM1999 storage: type#1507 has 1 members but 0 layout offsets | rc=1 out=[before\|] VM1203 invalid task handle | rc=1 out=[before\|] invalid task handle | SAME |
+| `timeout_null.sg` | refused | rc=1  VM1999 storage: type#1507 has 1 members but 0 layout offsets | rc=1 out=[before\|] VM1203 invalid task handle | rc=1 out=[before\|] invalid task handle | SAME |
+| `timeout_valid.sg` | accepted | rc=5 out=[after-timeout\|] | rc=5 out=[after-timeout\|] | rc=5 out=[after-timeout\|] | SAME |
+| `to_after_checkpoint.sg` | accepted | rc=1 out=[after-checkpoint\|] VM1002 async payload owner capability mismatch | rc=90 out=[after-checkpoint\|] | rc=90 out=[after-checkpoint\|] | SAME |
+| `to_after_recv.sg` | accepted | rc=90 | rc=90 | rc=90 | SAME |
+
+56 probes; after = native on 52; differing: `range_iter.sg`, `range_next.sg`, `range_slice_arr.sg`, `range_slice_str.sg`
+
+- **Before the fix,** 52 of the 56 probes build a handle default, and every one dies on the VM at that default with `VM1999 … 0 layout offsets`. The other four never build one: `cancelled_timeout_valid`, `timeout_valid`, `to_after_recv` and `to_after_checkpoint`. Of those, `to_after_checkpoint` is a cancelled task at `timeout` with a live target, and it died on the VM with `VM1002` where native finishes the task cancelled.
+- **After the fix,** 52 of 56 agree with native. The four that differ are the `Range` uses (ledger row 2).
+- **The gated build accepts 30 probes, and all 30 agree after the fix.** The 26 it refuses are every `Task` and `Range` default, `let mut ch: Channel<int>;`, and `with_len`.
 
 ## 6. `internal/vm`, base vs after, both backends, plain and `runtime_v2_pending`
 

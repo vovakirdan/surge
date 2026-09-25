@@ -1,0 +1,16 @@
+async fn work(k: int) -> int {
+    return k;
+}
+@entrypoint
+fn main() -> int {
+    let mut a: Task<int>[] = Array::<Task<int>>::with_len(2:uint);
+    a[0] = spawn work(3);
+    a[1] = spawn work(4);
+    let mut total = 0;
+    while a.__len() > 0:uint {
+        let t = a.pop().safe();
+        total = total + compare t.await() { Success(v) => v; Cancelled() => 100; };
+    }
+    print("task-array " + (total to string));
+    return 0;
+}

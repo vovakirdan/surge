@@ -1,0 +1,7 @@
+@entrypoint
+fn main() -> int {
+    let mut q: Task<int>[] = [];
+    let t = q.pop().safe();
+    print("task-pop");
+    return 5;
+}

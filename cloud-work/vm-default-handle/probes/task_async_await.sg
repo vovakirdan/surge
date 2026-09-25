@@ -1,0 +1,14 @@
+async fn hold() -> int {
+    let t = default::<Task<int>>();
+    checkpoint().await();
+    print("before");
+    let r = t.await();
+    print("after");
+    return compare r { Success(v) => v; Cancelled() => 1; };
+}
+
+@entrypoint
+fn main() -> int {
+    let t = spawn hold();
+    return compare t.await() { Success(v) => v; Cancelled() => 90; };
+}

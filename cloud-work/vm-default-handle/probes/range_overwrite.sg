@@ -1,0 +1,9 @@
+@entrypoint
+fn main() -> int {
+    let mut r = default::<Range<int>>();
+    r = 0..3;
+    let mut s = 0;
+    for i in r { s = s + i; }
+    print("range-overwrite " + (s to string));
+    return 0;
+}

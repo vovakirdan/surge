@@ -1,0 +1,8 @@
+@entrypoint
+fn main() -> int {
+    let t = default::<Task<int>>();
+    print("before");
+    t.cancel();
+    print("after");
+    return 0;
+}

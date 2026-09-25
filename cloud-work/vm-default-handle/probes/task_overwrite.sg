@@ -1,0 +1,10 @@
+async fn work() -> int {
+    return 7;
+}
+
+@entrypoint
+fn main() -> int {
+    let mut t = default::<Task<int>>();
+    t = spawn work();
+    return compare t.await() { Success(v) => v; Cancelled() => 1; };
+}

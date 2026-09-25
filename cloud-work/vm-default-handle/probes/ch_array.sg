@@ -1,0 +1,9 @@
+@entrypoint
+fn main() -> int {
+    let mut a: Channel<int>[] = [];
+    a.push(default::<Channel<int>>());
+    a.push(Channel::<int>::new(1:uint));
+    a[0] = Channel::<int>::new(2:uint);
+    print("ch-array " + (a.__len() to string));
+    return 0;
+}

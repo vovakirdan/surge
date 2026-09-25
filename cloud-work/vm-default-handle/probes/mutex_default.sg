@@ -1,0 +1,6 @@
+@entrypoint
+fn main() -> int {
+    let m = default::<Mutex>();
+    print("mutex-default");
+    return 0;
+}

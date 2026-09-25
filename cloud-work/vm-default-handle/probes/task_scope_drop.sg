@@ -1,0 +1,11 @@
+async fn run() -> int {
+    let t = default::<Task<int>>();
+    print("scope-ok");
+    return 0;
+}
+
+@entrypoint
+fn main() -> int {
+    let t = spawn run();
+    return compare t.await() { Success(v) => v; Cancelled() => 91; };
+}

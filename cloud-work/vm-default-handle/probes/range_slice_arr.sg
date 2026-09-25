@@ -1,0 +1,9 @@
+@entrypoint
+fn main() -> int {
+    let a: int[] = [1, 2, 3];
+    let r = default::<Range<int>>();
+    print("before");
+    let v = a[r];
+    print("after " + (v.__len() to string));
+    return 0;
+}

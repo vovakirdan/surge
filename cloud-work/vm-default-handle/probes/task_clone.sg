@@ -1,0 +1,10 @@
+@entrypoint
+fn main() -> int {
+    let t = default::<Task<int>>();
+    print("before");
+    let u = t.clone();
+    print("after");
+    let a = compare u.await() { Success(v) => v; Cancelled() => 1; };
+    let b = compare t.await() { Success(v) => v; Cancelled() => 1; };
+    return a + b;
+}

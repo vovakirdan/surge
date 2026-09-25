@@ -1,0 +1,13 @@
+async fn pick() -> int {
+    let c = default::<Channel<int>>();
+    print("before");
+    let w: int = select { c.recv() => 20; default => 30; };
+    print("after " + (w to string));
+    return w;
+}
+
+@entrypoint
+fn main() -> int {
+    let t = spawn pick();
+    return compare t.await() { Success(v) => v; Cancelled() => 90; };
+}

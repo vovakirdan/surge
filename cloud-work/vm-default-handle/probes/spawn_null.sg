@@ -1,0 +1,12 @@
+async fn run() -> int {
+    let t = default::<Task<int>>();
+    print("before");
+    let u = spawn t;
+    print("after");
+    return compare u.await() { Success(v) => v; Cancelled() => 1; };
+}
+@entrypoint
+fn main() -> int {
+    let t = spawn run();
+    return compare t.await() { Success(v) => v; Cancelled() => 91; };
+}

@@ -1,0 +1,6 @@
+@entrypoint
+fn main() -> int {
+    let c = default::<Channel<int>>();
+    print("ch-drop");
+    return 0;
+}

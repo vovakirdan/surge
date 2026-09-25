@@ -1,0 +1,12 @@
+async fn hold() -> int {
+    let c = default::<Channel<int>>();
+    checkpoint().await();
+    print("after-checkpoint");
+    return 4;
+}
+
+@entrypoint
+fn main() -> int {
+    let t = spawn hold();
+    return compare t.await() { Success(v) => v; Cancelled() => 90; };
+}

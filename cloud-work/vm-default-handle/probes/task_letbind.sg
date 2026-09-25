@@ -1,0 +1,6 @@
+@entrypoint
+fn main() -> int {
+    let mut slot: Task<int>;
+    print("task-letbind");
+    return 4;
+}

@@ -1,0 +1,26 @@
+async fn work() -> int {
+    return 5;
+}
+async fn child(ch: Channel<int>) -> int {
+    let n = spawn work();
+    let got = ch.recv();
+    print("after-recv");
+    let r = timeout(n, 1000:uint);
+    print("after-timeout");
+    return compare r { Success(v) => v; Cancelled() => 1; };
+}
+
+async fn run() -> int {
+    let ch = Channel::<int>::new(1:uint);
+    let t = spawn child(ch);
+    checkpoint().await();
+    t.cancel();
+    ch.send(1);
+    return compare t.await() { Success(v) => v; Cancelled() => 90; };
+}
+
+@entrypoint
+fn main() -> int {
+    let t = spawn run();
+    return compare t.await() { Success(v) => v; Cancelled() => 91; };
+}

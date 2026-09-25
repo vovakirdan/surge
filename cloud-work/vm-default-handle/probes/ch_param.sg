@@ -1,0 +1,9 @@
+fn pass(c: Channel<int>) -> Channel<int> {
+    return c;
+}
+@entrypoint
+fn main() -> int {
+    let c = pass(default::<Channel<int>>());
+    print("ch-param");
+    return 0;
+}

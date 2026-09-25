@@ -1,0 +1,8 @@
+@entrypoint
+fn main() -> int {
+    let c = default::<Channel<int>>();
+    let d = c;
+    let e = d;
+    print("ch-copy");
+    return 0;
+}

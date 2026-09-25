@@ -1,0 +1,8 @@
+@entrypoint
+fn main() -> int {
+    let c = default::<Channel<int>>();
+    print("before");
+    let v = c.try_recv();
+    print("after");
+    return 0;
+}

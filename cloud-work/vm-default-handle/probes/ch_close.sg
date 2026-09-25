@@ -1,0 +1,8 @@
+@entrypoint
+fn main() -> int {
+    let c = default::<Channel<int>>();
+    print("before");
+    c.close();
+    print("after");
+    return 0;
+}

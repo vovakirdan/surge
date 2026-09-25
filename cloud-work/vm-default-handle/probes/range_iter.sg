@@ -1,0 +1,9 @@
+@entrypoint
+fn main() -> int {
+    let r = default::<Range<int>>();
+    print("before");
+    let mut s = 0;
+    for i in r { s = s + i; }
+    print("after");
+    return s;
+}

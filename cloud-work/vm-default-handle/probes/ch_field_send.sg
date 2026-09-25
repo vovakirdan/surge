@@ -1,0 +1,9 @@
+type HolderCh = { ch: Channel<int>, n: int };
+@entrypoint
+fn main() -> int {
+    let h = default::<HolderCh>();
+    print("before");
+    h.ch.send(1);
+    print("after");
+    return 0;
+}

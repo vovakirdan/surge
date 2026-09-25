@@ -1,0 +1,19 @@
+async fn work() -> int {
+    return 5;
+}
+async fn pick() -> int {
+    let done = spawn work();
+    checkpoint().await();
+    checkpoint().await();
+    let t = default::<Task<int>>();
+    print("before");
+    let w: int = select { done.await() => 10; t.await() => 20; };
+    print("after " + (w to string));
+    return w;
+}
+
+@entrypoint
+fn main() -> int {
+    let t = spawn pick();
+    return compare t.await() { Success(v) => v; Cancelled() => 90; };
+}

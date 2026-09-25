@@ -1,0 +1,15 @@
+async fn work() -> int {
+    return 5;
+}
+async fn child() -> int {
+    let n = spawn work();
+    let r = timeout(n, 1000:uint);
+    print("after-timeout");
+    return compare r { Success(v) => v; Cancelled() => 1; };
+}
+
+@entrypoint
+fn main() -> int {
+    let t = spawn child();
+    return compare t.await() { Success(v) => v; Cancelled() => 90; };
+}

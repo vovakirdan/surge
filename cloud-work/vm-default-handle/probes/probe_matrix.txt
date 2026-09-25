@@ -1,0 +1,280 @@
+cancelled_select_null.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#1510 has 1 members but 0 layout offsets
+    vm-after  : rc=90 out=[]
+    native    : rc=90 out=[]
+    parity    : SAME
+cancelled_select_null2.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#1510 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[child-start|] VM1203 async: null channel handle
+    native    : rc=1 out=[child-start|] async: null channel handle
+    parity    : SAME
+cancelled_timeout_null.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#1507 has 1 members but 0 layout offsets
+    vm-after  : rc=90 out=[]
+    native    : rc=90 out=[]
+    parity    : SAME
+cancelled_timeout_valid.sg	gate@base=accepted
+    vm-before : rc=90 out=[]
+    vm-after  : rc=90 out=[]
+    native    : rc=90 out=[]
+    parity    : SAME
+ch_array.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#1509 has 1 members but 0 layout offsets
+    vm-after  : rc=0 out=[ch-array 2|]
+    native    : rc=0 out=[ch-array 2|]
+    parity    : SAME
+ch_array_withlen.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#1509 has 1 members but 0 layout offsets
+    vm-after  : rc=0 out=[withlen 4|]
+    native    : rc=0 out=[withlen 4|]
+    parity    : SAME
+ch_array_withlen_send.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#1509 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[before|] VM1203 async: null channel handle
+    native    : rc=1 out=[before|] async: null channel handle
+    parity    : SAME
+ch_async.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#1510 has 1 members but 0 layout offsets
+    vm-after  : rc=4 out=[after-checkpoint|]
+    native    : rc=4 out=[after-checkpoint|]
+    parity    : SAME
+ch_async_send.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#1510 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[before|] VM1203 async: null channel handle
+    native    : rc=1 out=[before|] async: null channel handle
+    parity    : SAME
+ch_close.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#1509 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[before|] VM1203 async: null channel handle
+    native    : rc=1 out=[before|] async: null channel handle
+    parity    : SAME
+ch_copy.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#1509 has 1 members but 0 layout offsets
+    vm-after  : rc=0 out=[ch-copy|]
+    native    : rc=0 out=[ch-copy|]
+    parity    : SAME
+ch_drop.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#1509 has 1 members but 0 layout offsets
+    vm-after  : rc=0 out=[ch-drop|]
+    native    : rc=0 out=[ch-drop|]
+    parity    : SAME
+ch_field.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#1509 has 1 members but 0 layout offsets
+    vm-after  : rc=0 out=[ch-field 0|]
+    native    : rc=0 out=[ch-field 0|]
+    parity    : SAME
+ch_field_overwrite.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#1509 has 1 members but 0 layout offsets
+    vm-after  : rc=0 out=[ch-field-overwrite 9|]
+    native    : rc=0 out=[ch-field-overwrite 9|]
+    parity    : SAME
+ch_field_send.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#1509 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[before|] VM1203 async: null channel handle
+    native    : rc=1 out=[before|] async: null channel handle
+    parity    : SAME
+ch_letbind.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#1509 has 1 members but 0 layout offsets
+    vm-after  : rc=3 out=[ch-letbind|]
+    native    : rc=3 out=[ch-letbind|]
+    parity    : SAME
+ch_option.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#1509 has 1 members but 0 layout offsets
+    vm-after  : rc=0 out=[some|]
+    native    : rc=0 out=[some|]
+    parity    : SAME
+ch_overwrite.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#1509 has 1 members but 0 layout offsets
+    vm-after  : rc=0 out=[ch-overwrite 5|]
+    native    : rc=0 out=[ch-overwrite 5|]
+    parity    : SAME
+ch_param.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#1508 has 1 members but 0 layout offsets
+    vm-after  : rc=0 out=[ch-param|]
+    native    : rc=0 out=[ch-param|]
+    parity    : SAME
+ch_param_task.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#1508 has 1 members but 0 layout offsets
+    vm-after  : rc=0 out=[param-task 4|]
+    native    : rc=0 out=[param-task 4|]
+    parity    : SAME
+ch_param_task_send.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#1508 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[before|] VM1203 async: null channel handle
+    native    : rc=1 out=[before|] async: null channel handle
+    parity    : SAME
+ch_recv.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#1509 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[before|] VM1203 async: null channel handle
+    native    : rc=1 out=[before|] async: null channel handle
+    parity    : SAME
+ch_select.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#1510 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[before|] VM1203 async: null channel handle
+    native    : rc=1 out=[before|] async: null channel handle
+    parity    : SAME
+ch_send.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#1509 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[before|] VM1203 async: null channel handle
+    native    : rc=1 out=[before|] async: null channel handle
+    parity    : SAME
+ch_tryrecv.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#1509 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[before|] VM1203 async: null channel handle
+    native    : rc=1 out=[before|] async: null channel handle
+    parity    : SAME
+ch_trysend.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#1509 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[before|] VM1203 async: null channel handle
+    native    : rc=1 out=[before|] async: null channel handle
+    parity    : SAME
+mutex_default.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#70 has 1 members but 0 layout offsets
+    vm-after  : rc=0 out=[mutex-default|]
+    native    : rc=0 out=[mutex-default|]
+    parity    : SAME
+mutex_lock.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#70 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[before|] VM1203 async: null channel handle
+    native    : rc=1 out=[before|] async: null channel handle
+    parity    : SAME
+range_drop.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#181 has 1 members but 0 layout offsets
+    vm-after  : rc=0 out=[range-drop|]
+    native    : rc=0 out=[range-drop|]
+    parity    : SAME
+range_iter.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#181 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[before|] VM1203 invalid handle 0
+    native    : rc=255 out=[before|]
+    parity    : DIFF
+range_next.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#181 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[before|] VM1203 invalid handle 0
+    native    : rc=255 out=[before|]
+    parity    : DIFF
+range_overwrite.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#181 has 1 members but 0 layout offsets
+    vm-after  : rc=0 out=[range-overwrite 3|]
+    native    : rc=0 out=[range-overwrite 3|]
+    parity    : SAME
+range_slice_arr.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#181 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[before|] VM1203 invalid handle 0
+    native    : rc=0 out=[before|after 3|]
+    parity    : DIFF
+range_slice_str.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#181 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[before|] VM1203 invalid handle 0
+    native    : rc=0 out=[before|after abcdef|]
+    parity    : DIFF
+sel_default_arm.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#1510 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[before|] VM1203 async: null channel handle
+    native    : rc=1 out=[before|] async: null channel handle
+    parity    : SAME
+sel_null_then_ready.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#1510 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[before|] VM1203 async: null channel handle
+    native    : rc=1 out=[before|] async: null channel handle
+    parity    : SAME
+sel_ready_then_null.sg	gate@base=accepted
+    vm-before : rc=1 out=[] VM1999 storage: type#1510 has 1 members but 0 layout offsets
+    vm-after  : rc=10 out=[before|after 10|]
+    native    : rc=10 out=[before|after 10|]
+    parity    : SAME
+sel_task_ready_then_null.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#1507 has 1 members but 0 layout offsets
+    vm-after  : rc=10 out=[before|after 10|]
+    native    : rc=10 out=[before|after 10|]
+    parity    : SAME
+spawn_null.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#1507 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[before|] VM1203 invalid task handle
+    native    : rc=1 out=[before|] invalid task handle
+    parity    : SAME
+task_array.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#1507 has 1 members but 0 layout offsets
+    vm-after  : rc=0 out=[task-array 7|]
+    native    : rc=0 out=[task-array 7|]
+    parity    : SAME
+task_async.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#1507 has 1 members but 0 layout offsets
+    vm-after  : rc=4 out=[after-checkpoint|]
+    native    : rc=4 out=[after-checkpoint|]
+    parity    : SAME
+task_async_await.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#1507 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[before|] VM1203 invalid task handle
+    native    : rc=1 out=[before|] invalid task handle
+    parity    : SAME
+task_await.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#1508 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[before|] VM1203 invalid task handle
+    native    : rc=1 out=[before|] invalid task handle
+    parity    : SAME
+task_cancel.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#1508 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[before|] VM1203 invalid task handle
+    native    : rc=1 out=[before|] invalid task handle
+    parity    : SAME
+task_clone.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#1508 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[before|] VM1203 invalid task handle
+    native    : rc=1 out=[before|] invalid task handle
+    parity    : SAME
+task_drop.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#1508 has 1 members but 0 layout offsets
+    vm-after  : rc=0 out=[task-drop|]
+    native    : rc=0 out=[task-drop|]
+    parity    : SAME
+task_field.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#1508 has 1 members but 0 layout offsets
+    vm-after  : rc=0 out=[task-field 0|]
+    native    : rc=0 out=[task-field 0|]
+    parity    : SAME
+task_letbind.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#1508 has 1 members but 0 layout offsets
+    vm-after  : rc=4 out=[task-letbind|]
+    native    : rc=4 out=[task-letbind|]
+    parity    : SAME
+task_overwrite.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#1507 has 1 members but 0 layout offsets
+    vm-after  : rc=7 out=[]
+    native    : rc=7 out=[]
+    parity    : SAME
+task_pop.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#1508 has 1 members but 0 layout offsets
+    vm-after  : rc=5 out=[task-pop|]
+    native    : rc=5 out=[task-pop|]
+    parity    : SAME
+task_scope_drop.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#1507 has 1 members but 0 layout offsets
+    vm-after  : rc=0 out=[scope-ok|]
+    native    : rc=0 out=[scope-ok|]
+    parity    : SAME
+task_select.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#1507 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[before|] VM1203 invalid task handle
+    native    : rc=1 out=[before|] invalid task handle
+    parity    : SAME
+timeout_null.sg	gate@base=refused
+    vm-before : rc=1 out=[] VM1999 storage: type#1507 has 1 members but 0 layout offsets
+    vm-after  : rc=1 out=[before|] VM1203 invalid task handle
+    native    : rc=1 out=[before|] invalid task handle
+    parity    : SAME
+timeout_valid.sg	gate@base=accepted
+    vm-before : rc=5 out=[after-timeout|]
+    vm-after  : rc=5 out=[after-timeout|]
+    native    : rc=5 out=[after-timeout|]
+    parity    : SAME
+to_after_checkpoint.sg	gate@base=accepted
+    vm-before : rc=1 out=[after-checkpoint|] VM1002 async payload owner capability mismatch
+    vm-after  : rc=90 out=[after-checkpoint|]
+    native    : rc=90 out=[after-checkpoint|]
+    parity    : SAME
+to_after_recv.sg	gate@base=accepted
+    vm-before : rc=90 out=[]
+    vm-after  : rc=90 out=[]
+    native    : rc=90 out=[]
+    parity    : SAME

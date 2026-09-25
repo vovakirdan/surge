@@ -1,0 +1,8 @@
+@entrypoint
+fn main() -> int {
+    let mut r = default::<Range<int>>();
+    print("before");
+    let x = r.next();
+    print("after");
+    return 0;
+}

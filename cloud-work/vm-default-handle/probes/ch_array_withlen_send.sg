@@ -1,0 +1,8 @@
+@entrypoint
+fn main() -> int {
+    let mut a: Channel<int>[] = Array::<Channel<int>>::with_len(3:uint);
+    print("before");
+    a[2].send(4);
+    print("after");
+    return 0;
+}

@@ -1,0 +1,7 @@
+type HolderT = { t: Task<int>, n: int };
+@entrypoint
+fn main() -> int {
+    let h = default::<HolderT>();
+    print("task-field " + (h.n to string));
+    return 0;
+}

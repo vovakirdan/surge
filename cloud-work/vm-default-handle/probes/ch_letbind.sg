@@ -1,0 +1,7 @@
+@entrypoint
+fn main() -> int {
+    let mut ch: Channel<int>;
+    ch = Channel::<int>::new(1:uint);
+    print("ch-letbind");
+    return 3;
+}

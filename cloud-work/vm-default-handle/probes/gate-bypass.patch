@@ -1,0 +1,15 @@
+diff --git a/internal/driver/return_origin_finalization.go b/internal/driver/return_origin_finalization.go
+index 57d25540..6af7abc1 100644
+--- a/internal/driver/return_origin_finalization.go
++++ b/internal/driver/return_origin_finalization.go
+@@ -63,6 +63,10 @@ func returnOriginVerdict(analysis *sema.ReturnOriginAnalysis) (bool, error) {
+ 		return true, fmt.Errorf("return-origin analysis did not run")
+ 	}
+ 	if !analysis.Complete() {
++		// SCRATCH MEASUREMENT BUILD ONLY: never committed.
++		if true {
++			return false, nil
++		}
+ 		return true, &returnOriginUnfinishedError{Pending: append([]sema.ReturnOriginPending(nil), analysis.Pending...),
+ 			Diagnostics: append([]diag.Diagnostic(nil), analysis.Diagnostics...)}
+ 	}

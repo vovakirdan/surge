@@ -1,0 +1,6 @@
+@entrypoint
+fn main() -> int {
+    let r = default::<Range<int>>();
+    print("range-drop");
+    return 0;
+}

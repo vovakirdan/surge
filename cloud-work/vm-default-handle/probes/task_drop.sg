@@ -1,0 +1,6 @@
+@entrypoint
+fn main() -> int {
+    let t = default::<Task<int>>();
+    print("task-drop");
+    return 0;
+}

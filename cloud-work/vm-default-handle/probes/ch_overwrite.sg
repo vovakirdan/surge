@@ -1,0 +1,9 @@
+@entrypoint
+fn main() -> int {
+    let mut c = default::<Channel<int>>();
+    c = Channel::<int>::new(1:uint);
+    c.send(5);
+    let v = c.recv();
+    compare v { Some(x) => print("ch-overwrite " + (x to string)); nothing => print("none"); };
+    return 0;
+}

@@ -1,0 +1,13 @@
+async fn take(c: Channel<int>) -> int {
+    checkpoint().await();
+    print("before");
+    c.send(1);
+    print("after");
+    return 2;
+}
+
+@entrypoint
+fn main() -> int {
+    let t = spawn take(default::<Channel<int>>());
+    return compare t.await() { Success(v) => v; Cancelled() => 90; };
+}

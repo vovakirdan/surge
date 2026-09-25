@@ -1,0 +1,6 @@
+@entrypoint
+fn main() -> int {
+    let o: Option<Channel<int>> = Some(default::<Channel<int>>());
+    compare o { Some(c) => print("some"); nothing => print("nothing"); };
+    return 0;
+}
