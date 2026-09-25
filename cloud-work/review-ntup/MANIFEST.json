@@ -1,0 +1,1264 @@
+{
+ "after": {
+  "docs/LANGUAGE.md": {
+   "base_lines": 3087,
+   "lines": 3087,
+   "new": false,
+   "sha256": "10e811789514ba6386d9070000062e047cf729dbc0a8afb4d04121d9f8202de9"
+  },
+  "docs/LANGUAGE.ru.md": {
+   "base_lines": 2972,
+   "lines": 2972,
+   "new": false,
+   "sha256": "b69a232ddc46e761f6cd82668f8348c28bafa21b142945cef93b0569ca408f9f"
+  },
+  "internal/diag/codes.go": {
+   "base_lines": 981,
+   "ceiling": 624,
+   "effective": 624,
+   "effective_base": 622,
+   "lines": 987,
+   "new": false,
+   "sha256": "b7f5a56cf671a6d4fbd7120fec046176dd518e3e6b5bd1ea681444e68f7f7a75"
+  },
+  "internal/sema/let_forms.go": {
+   "base_lines": 33,
+   "ceiling": 500,
+   "effective": 57,
+   "effective_base": 18,
+   "lines": 82,
+   "new": false,
+   "sha256": "06187029b2ecbd59b85a4165adc3b7f920c3489776926056c25a73be936c8fed"
+  },
+  "internal/sema/return_origin_expr.go": {
+   "base_lines": 353,
+   "ceiling": 500,
+   "effective": 333,
+   "effective_base": 331,
+   "lines": 355,
+   "new": false,
+   "sha256": "978ebb8b762c38136a83913f9ef8f4673940e55535490331467bc88772783501"
+  },
+  "internal/sema/return_origin_tuples.go": {
+   "base_lines": 0,
+   "ceiling": 500,
+   "effective": 83,
+   "effective_base": 0,
+   "lines": 124,
+   "new": true,
+   "sha256": "0da1c6ded98091b7b20fceeb7554e8f429a1f10b27d4edd4649184c10c34442a"
+  },
+  "internal/sema/type_checker_bindings.go": {
+   "base_lines": 548,
+   "ceiling": 500,
+   "effective": 390,
+   "effective_base": 433,
+   "lines": 482,
+   "new": false,
+   "sha256": "09d5a742226c4e7cbd153efa356e0fa4cba77207d6d8636ca842560f7059abfa"
+  },
+  "showcases/21_bigint_stress/main.sg": {
+   "base_lines": 73,
+   "lines": 75,
+   "new": false,
+   "sha256": "1631ecd0e1200552086e04945d5ca96e7d360e9ef03d49f42c86087be5bd0f6b"
+  },
+  "testdata/golden/sema/invalid/concurrency/task_created_outside_scope.ast": {
+   "base_lines": 97,
+   "lines": 97,
+   "new": false,
+   "sha256": "80c347de1aab5c53e991fae3614928bd9792c2039083cf5b4e74fc8b642610ca"
+  },
+  "testdata/golden/sema/invalid/concurrency/task_created_outside_scope.fmt": {
+   "base_lines": 59,
+   "lines": 59,
+   "new": false,
+   "sha256": "2b4acf55c11b1e9a560d77613ce4adec36e950957267e060dade4f4b097c0894"
+  },
+  "testdata/golden/sema/invalid/concurrency/task_created_outside_scope.sg": {
+   "base_lines": 59,
+   "lines": 59,
+   "new": false,
+   "sha256": "2b4acf55c11b1e9a560d77613ce4adec36e950957267e060dade4f4b097c0894"
+  },
+  "testdata/golden/sema/invalid/concurrency/task_created_outside_scope.tokens": {
+   "base_lines": 293,
+   "lines": 288,
+   "new": false,
+   "sha256": "fdacfbdc3f388080150dbd1c45946aa491886dd76887609748fedad200f3a7a4"
+  },
+  "testdata/golden/sema/invalid/tuple_destruct_mismatch.diag": {
+   "base_lines": 1,
+   "lines": 1,
+   "new": false,
+   "sha256": "a0871b9b7576f43f5c214c25c6ec7be737b07da37f59828578b0e7a0a6d66eb4"
+  },
+  "testdata/golden/sema/invalid/tuple_destruct_mismatch.fmt": {
+   "base_lines": 5,
+   "lines": 5,
+   "new": false,
+   "sha256": "ef93b0d8581301c6c30145c8e31bdba46bf6b5210dab75047430344dd82d0ee5"
+  },
+  "testdata/golden/sema/invalid/tuple_destruct_mismatch.sg": {
+   "base_lines": 5,
+   "lines": 5,
+   "new": false,
+   "sha256": "ef93b0d8581301c6c30145c8e31bdba46bf6b5210dab75047430344dd82d0ee5"
+  },
+  "testdata/golden/sema/invalid/tuple_destructure.ast": {
+   "base_lines": 0,
+   "lines": 28,
+   "new": true,
+   "sha256": "6c08a1d028f894ef86e2d09f9b6c7aa2c7b271b8f2ac84adaad3161b61c1585b"
+  },
+  "testdata/golden/sema/invalid/tuple_destructure.diag": {
+   "base_lines": 0,
+   "lines": 2,
+   "new": true,
+   "sha256": "c39c47b85b32f5b0026f827f8d326b430fc0c2309c14427fc1db2a5bd082c03b"
+  },
+  "testdata/golden/sema/invalid/tuple_destructure.fmt": {
+   "base_lines": 0,
+   "lines": 9,
+   "new": true,
+   "sha256": "40db882619e7f119db2b3a9d14a1b090a3919046fdfed7b718803e8ca7478b44"
+  },
+  "testdata/golden/sema/invalid/tuple_destructure.sg": {
+   "base_lines": 0,
+   "lines": 9,
+   "new": true,
+   "sha256": "40db882619e7f119db2b3a9d14a1b090a3919046fdfed7b718803e8ca7478b44"
+  },
+  "testdata/golden/sema/invalid/tuple_destructure.tokens": {
+   "base_lines": 0,
+   "lines": 44,
+   "new": true,
+   "sha256": "df525b2a1c8dd8fe57e93a6968f97437975f555aa52e0d720a20b6808cf7a6c5"
+  },
+  "testdata/golden/sema/invalid/tuple_destructure_call.ast": {
+   "base_lines": 0,
+   "lines": 35,
+   "new": true,
+   "sha256": "817bdb8946935716ea1362ad94aebe7fdfd4730f351667bf43c582eee95401da"
+  },
+  "testdata/golden/sema/invalid/tuple_destructure_call.diag": {
+   "base_lines": 0,
+   "lines": 1,
+   "new": true,
+   "sha256": "e143071d9a79eba741814637da346a764dc8341e2d9bc6770ff2845d5fb08969"
+  },
+  "testdata/golden/sema/invalid/tuple_destructure_call.fmt": {
+   "base_lines": 0,
+   "lines": 11,
+   "new": true,
+   "sha256": "33bf64079fa801d627a71dc2b58362d660be98f16afbe20bedd77af6533ccbc7"
+  },
+  "testdata/golden/sema/invalid/tuple_destructure_call.sg": {
+   "base_lines": 0,
+   "lines": 11,
+   "new": true,
+   "sha256": "33bf64079fa801d627a71dc2b58362d660be98f16afbe20bedd77af6533ccbc7"
+  },
+  "testdata/golden/sema/invalid/tuple_destructure_call.tokens": {
+   "base_lines": 0,
+   "lines": 64,
+   "new": true,
+   "sha256": "065872faa2307999ad5a68161004abf6d0eb9d02b461b5586d0380d09aca9dfa"
+  },
+  "testdata/golden/spec_audit/s02_types_tuples.sg": {
+   "base_lines": 41,
+   "lines": 43,
+   "new": false,
+   "sha256": "2979f845c426c873c5206beb41357dc245944555f010dd1a9aad948bc72b4bf7"
+  },
+  "testdata/golden/vm_tuples/tuple_literals.ast": {
+   "base_lines": 116,
+   "lines": 126,
+   "new": false,
+   "sha256": "a9fcd270ac65b29da6ce2ec8eef6bf0c070b0de1d54c05c7dd9ca943076b0cd2"
+  },
+  "testdata/golden/vm_tuples/tuple_literals.fmt": {
+   "base_lines": 34,
+   "lines": 36,
+   "new": false,
+   "sha256": "01d3bba9b7200420fc9e8cd1811349370b3d8a42ee4abecd2c849466be8fe424"
+  },
+  "testdata/golden/vm_tuples/tuple_literals.sg": {
+   "base_lines": 34,
+   "lines": 36,
+   "new": false,
+   "sha256": "01d3bba9b7200420fc9e8cd1811349370b3d8a42ee4abecd2c849466be8fe424"
+  },
+  "testdata/golden/vm_tuples/tuple_literals.tokens": {
+   "base_lines": 250,
+   "lines": 265,
+   "new": false,
+   "sha256": "65e0254a5d0a614d701d71f1fe61e466fc0730d849cbff381796e3edeca4fdc3"
+  }
+ },
+ "base": "045c1135",
+ "base_files": {
+  "docs/LANGUAGE.md": "7a3a98896522db78a456c5e2fbb1a678872ba62158206f357d217856805ac6d4",
+  "docs/LANGUAGE.ru.md": "4560abb804e6472bd661e8073c96ad99800789b747ac4d711a352d3f9857f5d2",
+  "docs/runtime-v2-epics/DEBT.md": "3cd7d98690d20e4d37c0682458d1c48bf9e74b776113c81fc9ea8390d0d4e81d",
+  "internal/diag/codes.go": "e6fd43b30d5782fb0f2bc9bd7184db5f3aadba9fc8b31b22e44fe7f13d2b0fd1",
+  "internal/driver/task_check_let_carried_reference_probes_test.go": "caf6d875082e471ecb7f43c245c79c6d93b557f9cd4b21b93a5278380eb18356",
+  "internal/driver/task_check_spawn_carried_reference_probes_test.go": "f82a222d270427c045776a21e3b829d594288d68ca7a5223bdfeb98c5597061f",
+  "internal/mir/ownership_tuple_destructure_test.go": "ad874c1565267344a9369f681def9b6d50fcbae95007fe85d6abdb5c976b81d6",
+  "internal/sema/let_forms.go": "707e95c67e187e81c89ab6baf44e28f7d84f8e7fdafd7fed7ea53a3bc7e1f299",
+  "internal/sema/return_origin_constructors.go": "fb984674377aa1143737f1e89090825c27dbe2201778ae5ceb25a6a21e75f04c",
+  "internal/sema/return_origin_expr.go": "8de1b9cacc3a3409a60feb49e34b0044f49af25a30961eb43994ebd45c93e147",
+  "internal/sema/return_origin_place_store.go": "7bdbcc4d533cf4826cef0d297ce09fee7b7b15c057d98a4fbec32430e8d4c177",
+  "internal/sema/return_origin_stmt.go": "2b4bbc6e2dab6f22dc1346e7dc8d4717f7b2d8034109febad84e6e4bf347151d",
+  "internal/sema/type_checker_bindings.go": "8d6d68bc30f9f3e7cedc014976613e5fc87031dc6e0dc4cf44f740e19d848ca3",
+  "internal/vm/vm_term_intrinsics_test.go": "dc754bddbb4b7d6487f9b55f084354cfdde21b492cfe340928537bb44365e840",
+  "showcases/21_bigint_stress/main.sg": "b7aba89642363b9acf6382bb5884278a78947e98befeda81af8dfff6ea166e4b",
+  "testdata/golden/sema/invalid/concurrency/task_created_outside_scope.ast": "ce36d3b07fee580f98d46167b26e2ce58d3f151d05fc357f04cc955b41c31f51",
+  "testdata/golden/sema/invalid/concurrency/task_created_outside_scope.diag": "2bf96cb73c66c56053ebcb3af170ebbbffbdd2355ca75dd7955edf7ff6d23117",
+  "testdata/golden/sema/invalid/concurrency/task_created_outside_scope.fmt": "401215789764e2589fb17d95d14c4432f92d654e96d50f6f2bf0eead1c929675",
+  "testdata/golden/sema/invalid/concurrency/task_created_outside_scope.sg": "401215789764e2589fb17d95d14c4432f92d654e96d50f6f2bf0eead1c929675",
+  "testdata/golden/sema/invalid/concurrency/task_created_outside_scope.tokens": "f1289fa162fb3cc5a5734b9bace1ad5c56995beac9fe93a08b7d9751c58675cf",
+  "testdata/golden/sema/invalid/tuple_destruct_mismatch.ast": "1e7c9cecdc900031d6b3c8de4bd25b62a3bbd871103509f81a2de5ecbc337284",
+  "testdata/golden/sema/invalid/tuple_destruct_mismatch.diag": "9a5b8e8e9e07fc99ec2ef0a5f4beb8a607100ffbdc38c133dc975dd306aab277",
+  "testdata/golden/sema/invalid/tuple_destruct_mismatch.fmt": "5d45eeef8256de3a5ed0c7389809545340d9e29447c53903863989cd1f40e6a0",
+  "testdata/golden/sema/invalid/tuple_destruct_mismatch.sg": "5d45eeef8256de3a5ed0c7389809545340d9e29447c53903863989cd1f40e6a0",
+  "testdata/golden/sema/invalid/tuple_destruct_mismatch.tokens": "b738eb99b93053abb333bb219702e7be619bf94b6333f69ac2f48d1d349ae9e7",
+  "testdata/golden/sema/valid/tuple_destructure.ast": "6c08a1d028f894ef86e2d09f9b6c7aa2c7b271b8f2ac84adaad3161b61c1585b",
+  "testdata/golden/sema/valid/tuple_destructure.diag": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "testdata/golden/sema/valid/tuple_destructure.fmt": "c55d4651c2eae7615b836f91e263e76f10b1f2d58212f191107053cc32f564e6",
+  "testdata/golden/sema/valid/tuple_destructure.sg": "c55d4651c2eae7615b836f91e263e76f10b1f2d58212f191107053cc32f564e6",
+  "testdata/golden/sema/valid/tuple_destructure.tokens": "74c97887188b26b42bc53793ea84f218ade3c8cd21b9fc965239ebc029f97c86",
+  "testdata/golden/sema/valid/tuple_destructure_call.ast": "817bdb8946935716ea1362ad94aebe7fdfd4730f351667bf43c582eee95401da",
+  "testdata/golden/sema/valid/tuple_destructure_call.diag": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "testdata/golden/sema/valid/tuple_destructure_call.fmt": "76637dff837df7d4e4b2982e6952094cd2f9af328179b1d65742efb6133d2136",
+  "testdata/golden/sema/valid/tuple_destructure_call.sg": "76637dff837df7d4e4b2982e6952094cd2f9af328179b1d65742efb6133d2136",
+  "testdata/golden/sema/valid/tuple_destructure_call.tokens": "6d64901e16566717d9f79b8e330d698b9f47934b62cd8fe35e34a653e3981e05",
+  "testdata/golden/spec_audit/s02_types_tuples.sg": "36c8c2c43a04296c5b260e1863562aba74cde463eaf5bd87314b173740ec64e7",
+  "testdata/golden/vm_tuples/tuple_literals.ast": "e361d77504252e6640620854ce07458eba3ee581189c2efa00a42e24ba3a0791",
+  "testdata/golden/vm_tuples/tuple_literals.diag": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "testdata/golden/vm_tuples/tuple_literals.fmt": "03010a0301675f014d4bafe45520ef042d792a0640a5cd0fcbc7b8d32bbefd2c",
+  "testdata/golden/vm_tuples/tuple_literals.out": "f862d8aa6be00c127dae4506ce06afe7d39bf03f44959b1d5888922c6cb57648",
+  "testdata/golden/vm_tuples/tuple_literals.sg": "03010a0301675f014d4bafe45520ef042d792a0640a5cd0fcbc7b8d32bbefd2c",
+  "testdata/golden/vm_tuples/tuple_literals.tokens": "20d57d2d2b0c0316c0d9b8343b9a5027a6c3410642f469e4b6de3fe89cced39e"
+ },
+ "census": {
+  "added_codes": [
+   "SEM3220"
+  ],
+  "moved_rows_rule": {
+   "derived": [
+    "function result contains an unproved source",
+    "outgoing reference has unresolved or captured provenance",
+    "callee returned an unproved source",
+    "generic result contains an unproved source",
+    "implicit borrow needs its evaluated storage origin"
+   ],
+   "kinds": [
+    "expression kind 12 needs an origin transfer",
+    "destructuring needs projected origin facts"
+   ]
+  },
+  "predicted_added": {
+   "testdata/golden/sema/invalid/tuple_destructure.sg": "diagnostics",
+   "testdata/golden/sema/invalid/tuple_destructure_call.sg": "diagnostics"
+  },
+  "predicted_changed": {
+   "testdata/golden/sema/invalid/tuple_destruct_mismatch.sg": {
+    "after_codes": [
+     "SEM3220"
+    ],
+    "field": "stdout_head",
+    "kind": "diagnostics"
+   }
+  },
+  "predicted_moves": {
+   "testdata/golden/hir/tuples.sg": {
+    "after": "ok",
+    "base": "unfinished"
+   },
+   "testdata/golden/sema/valid/tuple_access.sg": {
+    "after": "ok",
+    "base": "unfinished"
+   },
+   "testdata/golden/vm_async_suite/t15_fairness_round_robin.sg": {
+    "after": "ok",
+    "base": "unfinished"
+   },
+   "testdata/golden/vm_tuples/tuple_literals.sg": {
+    "after": "ok",
+    "base": "unfinished"
+   }
+  },
+  "predicted_removed": {
+   "testdata/golden/sema/valid/tuple_destructure.sg": "unfinished",
+   "testdata/golden/sema/valid/tuple_destructure_call.sg": "unfinished"
+  },
+  "rule": "exactly these programs move (measured locally at 045c1135 over 1098 programs, NTUP_PACKET_R2.md §6); every other program keeps kind, rows, error, stdout_head and exit; an added or changed program diagnoses SEM3220 only",
+  "strict_fields": [
+   "kind",
+   "rows",
+   "error",
+   "stdout_head",
+   "exit",
+   "parsed",
+   "braces",
+   "group"
+  ]
+ },
+ "cf": {
+  "CF-NTUP-FRESH": {
+   "controls_green": [
+    "TestAnalyzeTupleRefusals",
+    "TestAnalyzeTupleRefusals/callable_element_keeps_its_row",
+    "TestAnalyzeTupleRefusals/index_through_a_reference_keeps_its_row",
+    "TestAnalyzeTupleRefusals/store_of_a_reference_into_an_element_keeps_its_row",
+    "TestAnalyzeTupleRefusals/store_through_a_mutable_element_borrow_keeps_its_row",
+    "TestAnalyzeTupleRefusals/tuple_field_of_a_struct_keeps_the_member_row",
+    "TestAnalyzeTupleRefusals/window_in_a_reference_free_tuple_keeps_g6",
+    "TestAnalyzeTupleRefusals/window_through_a_reference_keeps_its_row",
+    "TestAnalyzeTuples/borrow_of_an_element_through_a_reference",
+    "TestAnalyzeTuples/compare_built_pair",
+    "TestAnalyzeTuples/generic_use",
+    "TestAnalyzeTuples/index_of_a_parameter",
+    "TestAnalyzeTuples/nested_index",
+    "TestAnalyzeTuples/own_index_of_a_local",
+    "TestAnalyzeTuples/own_nested_and_single",
+    "TestAnalyzeTuples/store_into_a_scalar_element",
+    "TestAnalyzeTuples/swap_builds_a_tuple",
+    "TestLetTuplePatternIsRefused",
+    "TestLetTuplePatternIsRefused/arity_mismatch",
+    "TestLetTuplePatternIsRefused/binding_with_an_owning_element",
+    "TestLetTuplePatternIsRefused/call_result",
+    "TestLetTuplePatternIsRefused/compare_arm_pattern",
+    "TestLetTuplePatternIsRefused/discarded_let",
+    "TestLetTuplePatternIsRefused/in_a_value_block",
+    "TestLetTuplePatternIsRefused/index_is_the_way",
+    "TestLetTuplePatternIsRefused/literal",
+    "TestLetTuplePatternIsRefused/nested",
+    "TestLetTuplePatternIsRefused/non_identifier_element",
+    "TestLetTuplePatternIsRefused/owned_subject",
+    "TestLetTuplePatternIsRefused/single",
+    "TestLetTuplePatternIsRefused/through_a_reference",
+    "TestLetTuplePatternIsRefused/two_in_a_loop",
+    "TestLetTuplePatternIsRefused/wildcard",
+    "TestLetTuplePatternMessage",
+    "TestTaskCheckRefusesLetCarriedReferenceCalls",
+    "TestTaskCheckRefusesLetCarriedReferenceCalls/rd_tuple_pattern_binding_returned",
+    "TestTaskCheckRefusesLetCarriedReferenceSpawns",
+    "TestTaskCheckRefusesLetCarriedReferenceSpawns/rds_tuple_pattern_binding_returned"
+   ],
+   "direct": [
+    "w01_fresh_element_escape_run"
+   ],
+   "file": "internal/sema/return_origin_tuples.go",
+   "lines": "91-91",
+   "selector_driver": "^(TestAnalyzeTuples|TestAnalyzeTupleRefusals|TestTupleEscapeIsReported|TestTaskCheckRefusesLetCarriedReferenceCalls|TestTaskCheckRefusesLetCarriedReferenceSpawns)$",
+   "selector_sema": "^(TestLetTuplePatternIsRefused|TestLetTuplePatternMessage)$",
+   "tag": "replace",
+   "witnesses": [
+    "TestAnalyzeTuples",
+    "TestAnalyzeTuples/generic_element_keeps_its_tuple",
+    "TestAnalyzeTuples/index_keeps_the_reference_origin",
+    "TestAnalyzeTuples/index_of_a_reference_holding_parameter",
+    "TestAnalyzeTuples/index_of_an_owned_parameter",
+    "TestAnalyzeTuples/scalar_store_keeps_the_reference_origin",
+    "TestTupleEscapeIsReported",
+    "TestTupleEscapeIsReported/compare_join",
+    "TestTupleEscapeIsReported/generic_instantiation",
+    "TestTupleEscapeIsReported/index_of_a_call_result",
+    "TestTupleEscapeIsReported/index_of_a_reference_to_a_local",
+    "TestTupleEscapeIsReported/index_of_a_window_into_a_local",
+    "TestTupleEscapeIsReported/nested_index_of_a_reference_to_a_local",
+    "TestTupleEscapeIsReported/scalar_store_beside_the_reference",
+    "TestTupleEscapeIsReported/whole_reassignment"
+   ]
+  },
+  "CF-NTUP-IDX": {
+   "controls_green": [
+    "TestAnalyzeTuples/swap_builds_a_tuple",
+    "TestLetTuplePatternIsRefused",
+    "TestLetTuplePatternIsRefused/arity_mismatch",
+    "TestLetTuplePatternIsRefused/binding_with_an_owning_element",
+    "TestLetTuplePatternIsRefused/call_result",
+    "TestLetTuplePatternIsRefused/compare_arm_pattern",
+    "TestLetTuplePatternIsRefused/discarded_let",
+    "TestLetTuplePatternIsRefused/in_a_value_block",
+    "TestLetTuplePatternIsRefused/index_is_the_way",
+    "TestLetTuplePatternIsRefused/literal",
+    "TestLetTuplePatternIsRefused/nested",
+    "TestLetTuplePatternIsRefused/non_identifier_element",
+    "TestLetTuplePatternIsRefused/owned_subject",
+    "TestLetTuplePatternIsRefused/single",
+    "TestLetTuplePatternIsRefused/through_a_reference",
+    "TestLetTuplePatternIsRefused/two_in_a_loop",
+    "TestLetTuplePatternIsRefused/wildcard",
+    "TestLetTuplePatternMessage",
+    "TestTaskCheckRefusesLetCarriedReferenceCalls",
+    "TestTaskCheckRefusesLetCarriedReferenceCalls/rd_tuple_pattern_binding_returned",
+    "TestTaskCheckRefusesLetCarriedReferenceSpawns",
+    "TestTaskCheckRefusesLetCarriedReferenceSpawns/rds_tuple_pattern_binding_returned"
+   ],
+   "direct": [],
+   "file": "internal/sema/return_origin_expr.go",
+   "lines": "86-87",
+   "selector_driver": "^(TestAnalyzeTuples|TestAnalyzeTupleRefusals|TestTupleEscapeIsReported|TestTaskCheckRefusesLetCarriedReferenceCalls|TestTaskCheckRefusesLetCarriedReferenceSpawns)$",
+   "selector_sema": "^(TestLetTuplePatternIsRefused|TestLetTuplePatternMessage)$",
+   "tag": "delete",
+   "witnesses": [
+    "TestAnalyzeTupleRefusals",
+    "TestAnalyzeTupleRefusals/callable_element_keeps_its_row",
+    "TestAnalyzeTupleRefusals/index_through_a_reference_keeps_its_row",
+    "TestAnalyzeTupleRefusals/store_of_a_reference_into_an_element_keeps_its_row",
+    "TestAnalyzeTupleRefusals/store_through_a_mutable_element_borrow_keeps_its_row",
+    "TestAnalyzeTupleRefusals/tuple_field_of_a_struct_keeps_the_member_row",
+    "TestAnalyzeTupleRefusals/window_in_a_reference_free_tuple_keeps_g6",
+    "TestAnalyzeTupleRefusals/window_through_a_reference_keeps_its_row",
+    "TestAnalyzeTuples",
+    "TestAnalyzeTuples/borrow_of_an_element_through_a_reference",
+    "TestAnalyzeTuples/compare_built_pair",
+    "TestAnalyzeTuples/generic_element_keeps_its_tuple",
+    "TestAnalyzeTuples/generic_use",
+    "TestAnalyzeTuples/index_keeps_the_reference_origin",
+    "TestAnalyzeTuples/index_of_a_parameter",
+    "TestAnalyzeTuples/index_of_a_reference_holding_parameter",
+    "TestAnalyzeTuples/index_of_an_owned_parameter",
+    "TestAnalyzeTuples/nested_index",
+    "TestAnalyzeTuples/own_index_of_a_local",
+    "TestAnalyzeTuples/own_nested_and_single",
+    "TestAnalyzeTuples/scalar_store_keeps_the_reference_origin",
+    "TestAnalyzeTuples/store_into_a_scalar_element",
+    "TestTupleEscapeIsReported",
+    "TestTupleEscapeIsReported/compare_join",
+    "TestTupleEscapeIsReported/generic_instantiation",
+    "TestTupleEscapeIsReported/index_of_a_call_result",
+    "TestTupleEscapeIsReported/index_of_a_reference_to_a_local",
+    "TestTupleEscapeIsReported/index_of_a_window_into_a_local",
+    "TestTupleEscapeIsReported/nested_index_of_a_reference_to_a_local",
+    "TestTupleEscapeIsReported/scalar_store_beside_the_reference",
+    "TestTupleEscapeIsReported/whole_reassignment"
+   ]
+  },
+  "CF-NTUP-LETREFUSE": {
+   "controls_green": [
+    "TestAnalyzeTupleRefusals",
+    "TestAnalyzeTupleRefusals/callable_element_keeps_its_row",
+    "TestAnalyzeTupleRefusals/index_through_a_reference_keeps_its_row",
+    "TestAnalyzeTupleRefusals/store_of_a_reference_into_an_element_keeps_its_row",
+    "TestAnalyzeTupleRefusals/store_through_a_mutable_element_borrow_keeps_its_row",
+    "TestAnalyzeTupleRefusals/tuple_field_of_a_struct_keeps_the_member_row",
+    "TestAnalyzeTupleRefusals/window_in_a_reference_free_tuple_keeps_g6",
+    "TestAnalyzeTupleRefusals/window_through_a_reference_keeps_its_row",
+    "TestAnalyzeTuples",
+    "TestAnalyzeTuples/borrow_of_an_element_through_a_reference",
+    "TestAnalyzeTuples/compare_built_pair",
+    "TestAnalyzeTuples/generic_element_keeps_its_tuple",
+    "TestAnalyzeTuples/generic_use",
+    "TestAnalyzeTuples/index_keeps_the_reference_origin",
+    "TestAnalyzeTuples/index_of_a_parameter",
+    "TestAnalyzeTuples/index_of_a_reference_holding_parameter",
+    "TestAnalyzeTuples/index_of_an_owned_parameter",
+    "TestAnalyzeTuples/nested_index",
+    "TestAnalyzeTuples/own_index_of_a_local",
+    "TestAnalyzeTuples/own_nested_and_single",
+    "TestAnalyzeTuples/scalar_store_keeps_the_reference_origin",
+    "TestAnalyzeTuples/store_into_a_scalar_element",
+    "TestAnalyzeTuples/swap_builds_a_tuple",
+    "TestLetTuplePatternIsRefused/compare_arm_pattern",
+    "TestLetTuplePatternIsRefused/discarded_let",
+    "TestLetTuplePatternIsRefused/index_is_the_way",
+    "TestTupleEscapeIsReported",
+    "TestTupleEscapeIsReported/compare_join",
+    "TestTupleEscapeIsReported/generic_instantiation",
+    "TestTupleEscapeIsReported/index_of_a_call_result",
+    "TestTupleEscapeIsReported/index_of_a_reference_to_a_local",
+    "TestTupleEscapeIsReported/index_of_a_window_into_a_local",
+    "TestTupleEscapeIsReported/nested_index_of_a_reference_to_a_local",
+    "TestTupleEscapeIsReported/scalar_store_beside_the_reference",
+    "TestTupleEscapeIsReported/whole_reassignment"
+   ],
+   "direct": [
+    "f01_destructure_owning_element_leak_run"
+   ],
+   "file": "internal/sema/let_forms.go",
+   "lines": "26-26",
+   "selector_driver": "^(TestAnalyzeTuples|TestAnalyzeTupleRefusals|TestTupleEscapeIsReported|TestTaskCheckRefusesLetCarriedReferenceCalls|TestTaskCheckRefusesLetCarriedReferenceSpawns)$",
+   "selector_sema": "^(TestLetTuplePatternIsRefused|TestLetTuplePatternMessage)$",
+   "tag": "replace",
+   "witnesses": [
+    "TestLetTuplePatternIsRefused",
+    "TestLetTuplePatternIsRefused/arity_mismatch",
+    "TestLetTuplePatternIsRefused/binding_with_an_owning_element",
+    "TestLetTuplePatternIsRefused/call_result",
+    "TestLetTuplePatternIsRefused/in_a_value_block",
+    "TestLetTuplePatternIsRefused/literal",
+    "TestLetTuplePatternIsRefused/nested",
+    "TestLetTuplePatternIsRefused/non_identifier_element",
+    "TestLetTuplePatternIsRefused/owned_subject",
+    "TestLetTuplePatternIsRefused/single",
+    "TestLetTuplePatternIsRefused/through_a_reference",
+    "TestLetTuplePatternIsRefused/two_in_a_loop",
+    "TestLetTuplePatternIsRefused/wildcard",
+    "TestLetTuplePatternMessage",
+    "TestTaskCheckRefusesLetCarriedReferenceCalls",
+    "TestTaskCheckRefusesLetCarriedReferenceCalls/rd_tuple_pattern_binding_returned",
+    "TestTaskCheckRefusesLetCarriedReferenceSpawns",
+    "TestTaskCheckRefusesLetCarriedReferenceSpawns/rds_tuple_pattern_binding_returned"
+   ]
+  },
+  "CF-NTUP-LOAN": {
+   "controls_green": [
+    "TestAnalyzeTupleRefusals/callable_element_keeps_its_row",
+    "TestAnalyzeTupleRefusals/index_through_a_reference_keeps_its_row",
+    "TestAnalyzeTupleRefusals/store_of_a_reference_into_an_element_keeps_its_row",
+    "TestAnalyzeTupleRefusals/store_through_a_mutable_element_borrow_keeps_its_row",
+    "TestAnalyzeTupleRefusals/tuple_field_of_a_struct_keeps_the_member_row",
+    "TestAnalyzeTupleRefusals/window_in_a_reference_free_tuple_keeps_g6",
+    "TestAnalyzeTuples",
+    "TestAnalyzeTuples/borrow_of_an_element_through_a_reference",
+    "TestAnalyzeTuples/compare_built_pair",
+    "TestAnalyzeTuples/generic_element_keeps_its_tuple",
+    "TestAnalyzeTuples/generic_use",
+    "TestAnalyzeTuples/index_keeps_the_reference_origin",
+    "TestAnalyzeTuples/index_of_a_parameter",
+    "TestAnalyzeTuples/index_of_a_reference_holding_parameter",
+    "TestAnalyzeTuples/index_of_an_owned_parameter",
+    "TestAnalyzeTuples/nested_index",
+    "TestAnalyzeTuples/own_index_of_a_local",
+    "TestAnalyzeTuples/own_nested_and_single",
+    "TestAnalyzeTuples/scalar_store_keeps_the_reference_origin",
+    "TestAnalyzeTuples/store_into_a_scalar_element",
+    "TestAnalyzeTuples/swap_builds_a_tuple",
+    "TestLetTuplePatternIsRefused",
+    "TestLetTuplePatternIsRefused/arity_mismatch",
+    "TestLetTuplePatternIsRefused/binding_with_an_owning_element",
+    "TestLetTuplePatternIsRefused/call_result",
+    "TestLetTuplePatternIsRefused/compare_arm_pattern",
+    "TestLetTuplePatternIsRefused/discarded_let",
+    "TestLetTuplePatternIsRefused/in_a_value_block",
+    "TestLetTuplePatternIsRefused/index_is_the_way",
+    "TestLetTuplePatternIsRefused/literal",
+    "TestLetTuplePatternIsRefused/nested",
+    "TestLetTuplePatternIsRefused/non_identifier_element",
+    "TestLetTuplePatternIsRefused/owned_subject",
+    "TestLetTuplePatternIsRefused/single",
+    "TestLetTuplePatternIsRefused/through_a_reference",
+    "TestLetTuplePatternIsRefused/two_in_a_loop",
+    "TestLetTuplePatternIsRefused/wildcard",
+    "TestLetTuplePatternMessage",
+    "TestTaskCheckRefusesLetCarriedReferenceCalls",
+    "TestTaskCheckRefusesLetCarriedReferenceCalls/rd_tuple_pattern_binding_returned",
+    "TestTaskCheckRefusesLetCarriedReferenceSpawns",
+    "TestTaskCheckRefusesLetCarriedReferenceSpawns/rds_tuple_pattern_binding_returned",
+    "TestTupleEscapeIsReported/compare_join",
+    "TestTupleEscapeIsReported/generic_instantiation",
+    "TestTupleEscapeIsReported/index_of_a_call_result",
+    "TestTupleEscapeIsReported/index_of_a_reference_to_a_local",
+    "TestTupleEscapeIsReported/nested_index_of_a_reference_to_a_local",
+    "TestTupleEscapeIsReported/scalar_store_beside_the_reference",
+    "TestTupleEscapeIsReported/whole_reassignment"
+   ],
+   "direct": [
+    "w02_window_element_escape_run"
+   ],
+   "file": "internal/sema/return_origin_tuples.go",
+   "lines": "81-81",
+   "selector_driver": "^(TestAnalyzeTuples|TestAnalyzeTupleRefusals|TestTupleEscapeIsReported|TestTaskCheckRefusesLetCarriedReferenceCalls|TestTaskCheckRefusesLetCarriedReferenceSpawns)$",
+   "selector_sema": "^(TestLetTuplePatternIsRefused|TestLetTuplePatternMessage)$",
+   "tag": "replace",
+   "witnesses": [
+    "TestAnalyzeTupleRefusals",
+    "TestAnalyzeTupleRefusals/window_through_a_reference_keeps_its_row",
+    "TestTupleEscapeIsReported",
+    "TestTupleEscapeIsReported/index_of_a_window_into_a_local"
+   ]
+  },
+  "CF-NTUP-QUIET": {
+   "controls_green": [
+    "TestAnalyzeTupleRefusals",
+    "TestAnalyzeTupleRefusals/callable_element_keeps_its_row",
+    "TestAnalyzeTupleRefusals/index_through_a_reference_keeps_its_row",
+    "TestAnalyzeTupleRefusals/store_of_a_reference_into_an_element_keeps_its_row",
+    "TestAnalyzeTupleRefusals/store_through_a_mutable_element_borrow_keeps_its_row",
+    "TestAnalyzeTupleRefusals/tuple_field_of_a_struct_keeps_the_member_row",
+    "TestAnalyzeTupleRefusals/window_in_a_reference_free_tuple_keeps_g6",
+    "TestAnalyzeTupleRefusals/window_through_a_reference_keeps_its_row",
+    "TestAnalyzeTuples",
+    "TestAnalyzeTuples/borrow_of_an_element_through_a_reference",
+    "TestAnalyzeTuples/compare_built_pair",
+    "TestAnalyzeTuples/generic_element_keeps_its_tuple",
+    "TestAnalyzeTuples/generic_use",
+    "TestAnalyzeTuples/index_keeps_the_reference_origin",
+    "TestAnalyzeTuples/index_of_a_parameter",
+    "TestAnalyzeTuples/index_of_a_reference_holding_parameter",
+    "TestAnalyzeTuples/index_of_an_owned_parameter",
+    "TestAnalyzeTuples/nested_index",
+    "TestAnalyzeTuples/own_index_of_a_local",
+    "TestAnalyzeTuples/own_nested_and_single",
+    "TestAnalyzeTuples/scalar_store_keeps_the_reference_origin",
+    "TestAnalyzeTuples/store_into_a_scalar_element",
+    "TestAnalyzeTuples/swap_builds_a_tuple",
+    "TestLetTuplePatternIsRefused/arity_mismatch",
+    "TestLetTuplePatternIsRefused/binding_with_an_owning_element",
+    "TestLetTuplePatternIsRefused/call_result",
+    "TestLetTuplePatternIsRefused/compare_arm_pattern",
+    "TestLetTuplePatternIsRefused/discarded_let",
+    "TestLetTuplePatternIsRefused/index_is_the_way",
+    "TestLetTuplePatternIsRefused/literal",
+    "TestLetTuplePatternIsRefused/nested",
+    "TestLetTuplePatternIsRefused/non_identifier_element",
+    "TestLetTuplePatternIsRefused/owned_subject",
+    "TestLetTuplePatternIsRefused/single",
+    "TestLetTuplePatternIsRefused/through_a_reference",
+    "TestLetTuplePatternIsRefused/two_in_a_loop",
+    "TestLetTuplePatternIsRefused/wildcard",
+    "TestLetTuplePatternMessage",
+    "TestTupleEscapeIsReported",
+    "TestTupleEscapeIsReported/compare_join",
+    "TestTupleEscapeIsReported/generic_instantiation",
+    "TestTupleEscapeIsReported/index_of_a_call_result",
+    "TestTupleEscapeIsReported/index_of_a_reference_to_a_local",
+    "TestTupleEscapeIsReported/index_of_a_window_into_a_local",
+    "TestTupleEscapeIsReported/nested_index_of_a_reference_to_a_local",
+    "TestTupleEscapeIsReported/scalar_store_beside_the_reference",
+    "TestTupleEscapeIsReported/whole_reassignment"
+   ],
+   "direct": [],
+   "file": "internal/sema/let_forms.go",
+   "lines": "27-27",
+   "selector_driver": "^(TestAnalyzeTuples|TestAnalyzeTupleRefusals|TestTupleEscapeIsReported|TestTaskCheckRefusesLetCarriedReferenceCalls|TestTaskCheckRefusesLetCarriedReferenceSpawns)$",
+   "selector_sema": "^(TestLetTuplePatternIsRefused|TestLetTuplePatternMessage)$",
+   "tag": "replace",
+   "witnesses": [
+    "TestLetTuplePatternIsRefused",
+    "TestLetTuplePatternIsRefused/in_a_value_block",
+    "TestTaskCheckRefusesLetCarriedReferenceCalls",
+    "TestTaskCheckRefusesLetCarriedReferenceCalls/rd_tuple_pattern_binding_returned",
+    "TestTaskCheckRefusesLetCarriedReferenceSpawns",
+    "TestTaskCheckRefusesLetCarriedReferenceSpawns/rds_tuple_pattern_binding_returned"
+   ]
+  },
+  "CF-NTUP-REFERENT": {
+   "controls_green": [
+    "TestAnalyzeTupleRefusals/callable_element_keeps_its_row",
+    "TestAnalyzeTupleRefusals/store_of_a_reference_into_an_element_keeps_its_row",
+    "TestAnalyzeTupleRefusals/store_through_a_mutable_element_borrow_keeps_its_row",
+    "TestAnalyzeTupleRefusals/tuple_field_of_a_struct_keeps_the_member_row",
+    "TestAnalyzeTupleRefusals/window_in_a_reference_free_tuple_keeps_g6",
+    "TestAnalyzeTuples",
+    "TestAnalyzeTuples/borrow_of_an_element_through_a_reference",
+    "TestAnalyzeTuples/compare_built_pair",
+    "TestAnalyzeTuples/generic_element_keeps_its_tuple",
+    "TestAnalyzeTuples/generic_use",
+    "TestAnalyzeTuples/index_keeps_the_reference_origin",
+    "TestAnalyzeTuples/index_of_a_parameter",
+    "TestAnalyzeTuples/index_of_a_reference_holding_parameter",
+    "TestAnalyzeTuples/index_of_an_owned_parameter",
+    "TestAnalyzeTuples/nested_index",
+    "TestAnalyzeTuples/own_index_of_a_local",
+    "TestAnalyzeTuples/own_nested_and_single",
+    "TestAnalyzeTuples/scalar_store_keeps_the_reference_origin",
+    "TestAnalyzeTuples/store_into_a_scalar_element",
+    "TestAnalyzeTuples/swap_builds_a_tuple",
+    "TestLetTuplePatternIsRefused",
+    "TestLetTuplePatternIsRefused/arity_mismatch",
+    "TestLetTuplePatternIsRefused/binding_with_an_owning_element",
+    "TestLetTuplePatternIsRefused/call_result",
+    "TestLetTuplePatternIsRefused/compare_arm_pattern",
+    "TestLetTuplePatternIsRefused/discarded_let",
+    "TestLetTuplePatternIsRefused/in_a_value_block",
+    "TestLetTuplePatternIsRefused/index_is_the_way",
+    "TestLetTuplePatternIsRefused/literal",
+    "TestLetTuplePatternIsRefused/nested",
+    "TestLetTuplePatternIsRefused/non_identifier_element",
+    "TestLetTuplePatternIsRefused/owned_subject",
+    "TestLetTuplePatternIsRefused/single",
+    "TestLetTuplePatternIsRefused/through_a_reference",
+    "TestLetTuplePatternIsRefused/two_in_a_loop",
+    "TestLetTuplePatternIsRefused/wildcard",
+    "TestLetTuplePatternMessage",
+    "TestTaskCheckRefusesLetCarriedReferenceCalls",
+    "TestTaskCheckRefusesLetCarriedReferenceCalls/rd_tuple_pattern_binding_returned",
+    "TestTaskCheckRefusesLetCarriedReferenceSpawns",
+    "TestTaskCheckRefusesLetCarriedReferenceSpawns/rds_tuple_pattern_binding_returned",
+    "TestTupleEscapeIsReported",
+    "TestTupleEscapeIsReported/compare_join",
+    "TestTupleEscapeIsReported/generic_instantiation",
+    "TestTupleEscapeIsReported/index_of_a_call_result",
+    "TestTupleEscapeIsReported/index_of_a_reference_to_a_local",
+    "TestTupleEscapeIsReported/index_of_a_window_into_a_local",
+    "TestTupleEscapeIsReported/nested_index_of_a_reference_to_a_local",
+    "TestTupleEscapeIsReported/scalar_store_beside_the_reference",
+    "TestTupleEscapeIsReported/whole_reassignment"
+   ],
+   "direct": [],
+   "file": "internal/sema/return_origin_tuples.go",
+   "lines": "88-90",
+   "selector_driver": "^(TestAnalyzeTuples|TestAnalyzeTupleRefusals|TestTupleEscapeIsReported|TestTaskCheckRefusesLetCarriedReferenceCalls|TestTaskCheckRefusesLetCarriedReferenceSpawns)$",
+   "selector_sema": "^(TestLetTuplePatternIsRefused|TestLetTuplePatternMessage)$",
+   "tag": "delete",
+   "witnesses": [
+    "TestAnalyzeTupleRefusals",
+    "TestAnalyzeTupleRefusals/index_through_a_reference_keeps_its_row",
+    "TestAnalyzeTupleRefusals/window_through_a_reference_keeps_its_row"
+   ]
+  },
+  "CF-NTUP-STORAGE": {
+   "controls_green": [
+    "TestAnalyzeTupleRefusals",
+    "TestAnalyzeTupleRefusals/callable_element_keeps_its_row",
+    "TestAnalyzeTupleRefusals/index_through_a_reference_keeps_its_row",
+    "TestAnalyzeTupleRefusals/store_of_a_reference_into_an_element_keeps_its_row",
+    "TestAnalyzeTupleRefusals/store_through_a_mutable_element_borrow_keeps_its_row",
+    "TestAnalyzeTupleRefusals/tuple_field_of_a_struct_keeps_the_member_row",
+    "TestAnalyzeTupleRefusals/window_in_a_reference_free_tuple_keeps_g6",
+    "TestAnalyzeTupleRefusals/window_through_a_reference_keeps_its_row",
+    "TestAnalyzeTuples/compare_built_pair",
+    "TestAnalyzeTuples/generic_element_keeps_its_tuple",
+    "TestAnalyzeTuples/generic_use",
+    "TestAnalyzeTuples/index_keeps_the_reference_origin",
+    "TestAnalyzeTuples/index_of_a_parameter",
+    "TestAnalyzeTuples/index_of_a_reference_holding_parameter",
+    "TestAnalyzeTuples/index_of_an_owned_parameter",
+    "TestAnalyzeTuples/nested_index",
+    "TestAnalyzeTuples/own_index_of_a_local",
+    "TestAnalyzeTuples/own_nested_and_single",
+    "TestAnalyzeTuples/scalar_store_keeps_the_reference_origin",
+    "TestAnalyzeTuples/store_into_a_scalar_element",
+    "TestAnalyzeTuples/swap_builds_a_tuple",
+    "TestLetTuplePatternIsRefused",
+    "TestLetTuplePatternIsRefused/arity_mismatch",
+    "TestLetTuplePatternIsRefused/binding_with_an_owning_element",
+    "TestLetTuplePatternIsRefused/call_result",
+    "TestLetTuplePatternIsRefused/compare_arm_pattern",
+    "TestLetTuplePatternIsRefused/discarded_let",
+    "TestLetTuplePatternIsRefused/in_a_value_block",
+    "TestLetTuplePatternIsRefused/index_is_the_way",
+    "TestLetTuplePatternIsRefused/literal",
+    "TestLetTuplePatternIsRefused/nested",
+    "TestLetTuplePatternIsRefused/non_identifier_element",
+    "TestLetTuplePatternIsRefused/owned_subject",
+    "TestLetTuplePatternIsRefused/single",
+    "TestLetTuplePatternIsRefused/through_a_reference",
+    "TestLetTuplePatternIsRefused/two_in_a_loop",
+    "TestLetTuplePatternIsRefused/wildcard",
+    "TestLetTuplePatternMessage",
+    "TestTaskCheckRefusesLetCarriedReferenceCalls",
+    "TestTaskCheckRefusesLetCarriedReferenceCalls/rd_tuple_pattern_binding_returned",
+    "TestTaskCheckRefusesLetCarriedReferenceSpawns",
+    "TestTaskCheckRefusesLetCarriedReferenceSpawns/rds_tuple_pattern_binding_returned",
+    "TestTupleEscapeIsReported",
+    "TestTupleEscapeIsReported/compare_join",
+    "TestTupleEscapeIsReported/generic_instantiation",
+    "TestTupleEscapeIsReported/index_of_a_call_result",
+    "TestTupleEscapeIsReported/index_of_a_reference_to_a_local",
+    "TestTupleEscapeIsReported/index_of_a_window_into_a_local",
+    "TestTupleEscapeIsReported/nested_index_of_a_reference_to_a_local",
+    "TestTupleEscapeIsReported/scalar_store_beside_the_reference",
+    "TestTupleEscapeIsReported/whole_reassignment"
+   ],
+   "direct": [],
+   "file": "internal/sema/return_origin_tuples.go",
+   "lines": "113-116",
+   "selector_driver": "^(TestAnalyzeTuples|TestAnalyzeTupleRefusals|TestTupleEscapeIsReported|TestTaskCheckRefusesLetCarriedReferenceCalls|TestTaskCheckRefusesLetCarriedReferenceSpawns)$",
+   "selector_sema": "^(TestLetTuplePatternIsRefused|TestLetTuplePatternMessage)$",
+   "tag": "delete",
+   "witnesses": [
+    "TestAnalyzeTuples",
+    "TestAnalyzeTuples/borrow_of_an_element_through_a_reference"
+   ]
+  }
+ },
+ "cf_direct_rule": {
+  "escape": "CF-NTUP-FRESH and CF-NTUP-LOAN: through a surge binary REBUILT from the CF tree the witness diagnoses ok, builds natively, `surge run --backend=vm` stops with VM3301, and Valgrind reports an error natively",
+  "fence": "CF-NTUP-LETREFUSE: through the rebuilt binary f01 is NOT refused by SEM3220 but stays unfinished with the row \"destructuring needs projected origin facts\" (the second fence), and does not build"
+ },
+ "cloud": "7fbfaa08",
+ "cloud_base": "1b122bfa",
+ "cloud_tip": "a2d2742e",
+ "date": "2026-09-25",
+ "deleted": {
+  "internal/mir/ownership_tuple_destructure_test.go": "ad874c1565267344a9369f681def9b6d50fcbae95007fe85d6abdb5c976b81d6",
+  "testdata/golden/sema/valid/tuple_destructure.ast": "6c08a1d028f894ef86e2d09f9b6c7aa2c7b271b8f2ac84adaad3161b61c1585b",
+  "testdata/golden/sema/valid/tuple_destructure.diag": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "testdata/golden/sema/valid/tuple_destructure.fmt": "c55d4651c2eae7615b836f91e263e76f10b1f2d58212f191107053cc32f564e6",
+  "testdata/golden/sema/valid/tuple_destructure.sg": "c55d4651c2eae7615b836f91e263e76f10b1f2d58212f191107053cc32f564e6",
+  "testdata/golden/sema/valid/tuple_destructure.tokens": "74c97887188b26b42bc53793ea84f218ade3c8cd21b9fc965239ebc029f97c86",
+  "testdata/golden/sema/valid/tuple_destructure_call.ast": "817bdb8946935716ea1362ad94aebe7fdfd4730f351667bf43c582eee95401da",
+  "testdata/golden/sema/valid/tuple_destructure_call.diag": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "testdata/golden/sema/valid/tuple_destructure_call.fmt": "76637dff837df7d4e4b2982e6952094cd2f9af328179b1d65742efb6133d2136",
+  "testdata/golden/sema/valid/tuple_destructure_call.sg": "76637dff837df7d4e4b2982e6952094cd2f9af328179b1d65742efb6133d2136",
+  "testdata/golden/sema/valid/tuple_destructure_call.tokens": "6d64901e16566717d9f79b8e330d698b9f47934b62cd8fe35e34a653e3981e05"
+ },
+ "design": "NTUP_PACKET_R2.md",
+ "gen_base": "045c1135",
+ "golden_rewritten": [
+  "hir/tuples",
+  "sema/invalid/concurrency/task_created_outside_scope",
+  "sema/invalid/tuple_destruct_mismatch",
+  "sema/invalid/tuple_destructure",
+  "sema/invalid/tuple_destructure_call",
+  "sema/valid/tuple_access",
+  "vm_async_suite/t15_fairness_round_robin",
+  "vm_tuples/tuple_literals",
+  "sema/valid/tuple_destructure",
+  "sema/valid/tuple_destructure_call"
+ ],
+ "goldens": {
+  "check": [
+   "hir/tuples.sg",
+   "sema/invalid/concurrency/task_created_outside_scope.sg",
+   "sema/invalid/tuple_destruct_mismatch.sg",
+   "sema/invalid/tuple_destructure.sg",
+   "sema/invalid/tuple_destructure_call.sg",
+   "sema/valid/tuple_access.sg",
+   "vm_async_suite/t15_fairness_round_robin.sg",
+   "vm_tuples/tuple_literals.sg"
+  ],
+  "golden_check_vacuous_at_045c1135": "testdata/golden.expectations.json freezes entry_count 5487; the corpus has 5498 entries at 045c1135, so `make golden-check` stops at its preflight on the base and after (F-6)",
+  "rule": "each regenerated with the AFTER binary as scripts/golden_update.sh generate_outputs does (measure/golden_regen_ntup.sh) and byte-identical to the committed outputs; sema/invalid exit 1 with a non-empty .diag, every other exit 0"
+ },
+ "landing": {
+  "docs/runtime-v2-epics/DEBT.md": {
+   "base_lines": 458,
+   "lines": 459,
+   "new": false,
+   "sha256": "b240bbf7c667880b13b7e93d55b9a31ce1aca41ae543bce5e8d6d5573e2cabed"
+  }
+ },
+ "landing_guard": "commit L: no @@NTUP-MEASURED@@; the **NTUP ( paragraph once at the end of RV2-DEBT-365's description, naming every word of landing_measured_must_name and every READ/NOT-RUN/RECORDED/FAIL stop of the SAVED main summary as a whole token; row RV2-DEBT-<new_debt_id> once, Closed, right after the row with the highest id below it; nothing else changed (run-ntup.sh stage 13)",
+ "landing_measured_must_name": [
+  "census",
+  "golden",
+  "ST-RUNOUT",
+  "Valgrind",
+  "S-RUNNER",
+  "SEM3220",
+  "CF-NTUP-IDX",
+  "CF-NTUP-FRESH",
+  "CF-NTUP-LOAN",
+  "CF-NTUP-REFERENT",
+  "CF-NTUP-STORAGE",
+  "CF-NTUP-LETREFUSE",
+  "CF-NTUP-QUIET",
+  "S-OWNERSHIP",
+  "ryzen"
+ ],
+ "leaves": {
+  "TestAnalyzeTupleRefusals": 7,
+  "TestAnalyzeTuples": 14,
+  "TestLetTuplePatternIsRefused": 15,
+  "TestLetTuplePatternMessage": 0,
+  "TestTupleEscapeIsReported": 8
+ },
+ "measure_scripts": {
+  "census_judge_ntup.py": "0357cb627b8ba849a28c3333a0239cd2c44f110b5e47649fbe4fcee7a2eba729",
+  "fault_scan.py": "3688fc6a01ce37faa7afb41d7376dd3b68b9e6261c239d6496a49c8bb0972a9f",
+  "gate_lines.py": "b9b5ba9a81dcc25b878dfb22b08e3969e1cca39e1ceb992d92e747637bc45b4a",
+  "golden_regen_ntup.sh": "b44214cd5adfb7859465a8b365afe2b50c7e256c96a2032a616dcbecce422987",
+  "landing_guard_ntup.py": "b1a1bb923603e9ab8f03465b82ce92a9c5fc32d759ee1a38311eb313d6a5d612",
+  "leaf_judge_ntup.py": "c0618eca61e728770c29b97238845d697d076303775894b5b636b3756fb2a42c",
+  "matrix_judge_ntup.py": "8ecd12c678ddc651a7a27a94a7ae749ae62f9bb98535ae8d57918c616da0530e",
+  "roster_lines.py": "845052e18973806e22c3fdee47885668f1ce17ec174ac7c1d355b90d98f52ddd",
+  "run-ntup.sh": "870ff1956de183fc2e719a01afbfe5bcbbc93b4a57ae4fd6b65ee065088d14c2",
+  "runout_judge_ntup.py": "458c6e70ce65802c480fface6729d0b33f78e9f743524400ba9303ce14825fc6",
+  "widediag_judge_ntup.py": "47353db9e29d77d1e0d0fda44d67c49fa15f01447fa8dcd79070a2c0bcda8244"
+ },
+ "native": {
+  "crash_exits": [
+   134,
+   135,
+   136,
+   139,
+   255
+  ],
+  "hang_exit": 124,
+  "runs": 3,
+  "timeout": 20,
+  "valgrind_programs": [
+   "testdata/golden/vm_async_suite/t15_fairness_round_robin.sg",
+   "testdata/golden/vm_tuples/tuple_literals.sg",
+   "testdata/runtime-v2-ordinary-storage/ops/storage_construct.sg"
+  ]
+ },
+ "new_debt_id": 382,
+ "new_tests": {
+  "driver": [
+   "TestAnalyzeTuples",
+   "TestAnalyzeTupleRefusals",
+   "TestTupleEscapeIsReported"
+  ],
+  "repinned_driver": [
+   "TestTaskCheckRefusesLetCarriedReferenceCalls/rd_tuple_pattern_binding_returned",
+   "TestTaskCheckRefusesLetCarriedReferenceSpawns/rds_tuple_pattern_binding_returned"
+  ],
+  "sema": [
+   "TestLetTuplePatternIsRefused",
+   "TestLetTuplePatternMessage"
+  ]
+ },
+ "packet": "NTUP R2 bundle",
+ "predicted_stops": {
+  "S-GOLD": "NOT-RUN -- golden-check stops at its preflight on the base and after (F-6); S-GOLDFILES carries the goldens",
+  "S-VALGRIND": "PASS -- t15, tuple_literals (read by index now) and storage_construct Valgrind clean natively [local]",
+  "ST-FINDINGS": "RECORDED -- F-4 (Some::<&T> faults at the base too)"
+ },
+ "predictions": {
+  "expected_gone_rows": [
+   "TestOwnershipTupleDestructureReclaimsIgnoredFields",
+   "TestOwnershipTupleDestructureRecursesIntoNestedPatterns",
+   "TestOwnershipTupleDestructureTransfersFieldsAndReleasesEnvelope"
+  ],
+  "roster_flips": {
+   "fail_to_pass": [
+    "TestVMAsyncSuiteGolden/t15_fairness_round_robin/vm",
+    "TestVMTuplesGolden/tuple_literals/vm",
+    "TestVMTuplesGolden",
+    "TestBehaviourCorpusMT/t15_fairness_round_robin",
+    "TestRuntimeV2OrdinaryStorageCorpusOnVM/storage_construct",
+    "TestRuntimeV2OrdinaryStorageParity/storage_construct"
+   ],
+   "pass_to_fail": []
+  },
+  "stageA_to_stageB_fail_to_pass": [
+   "TestAnalyzeTupleRefusals",
+   "TestAnalyzeTupleRefusals/callable_element_keeps_its_row",
+   "TestAnalyzeTupleRefusals/index_through_a_reference_keeps_its_row",
+   "TestAnalyzeTupleRefusals/store_of_a_reference_into_an_element_keeps_its_row",
+   "TestAnalyzeTupleRefusals/store_through_a_mutable_element_borrow_keeps_its_row",
+   "TestAnalyzeTupleRefusals/tuple_field_of_a_struct_keeps_the_member_row",
+   "TestAnalyzeTupleRefusals/window_in_a_reference_free_tuple_keeps_g6",
+   "TestAnalyzeTupleRefusals/window_through_a_reference_keeps_its_row",
+   "TestAnalyzeTuples",
+   "TestAnalyzeTuples/borrow_of_an_element_through_a_reference",
+   "TestAnalyzeTuples/compare_built_pair",
+   "TestAnalyzeTuples/generic_element_keeps_its_tuple",
+   "TestAnalyzeTuples/generic_use",
+   "TestAnalyzeTuples/index_keeps_the_reference_origin",
+   "TestAnalyzeTuples/index_of_a_parameter",
+   "TestAnalyzeTuples/index_of_a_reference_holding_parameter",
+   "TestAnalyzeTuples/index_of_an_owned_parameter",
+   "TestAnalyzeTuples/nested_index",
+   "TestAnalyzeTuples/own_index_of_a_local",
+   "TestAnalyzeTuples/own_nested_and_single",
+   "TestAnalyzeTuples/scalar_store_keeps_the_reference_origin",
+   "TestAnalyzeTuples/store_into_a_scalar_element",
+   "TestTaskCheckRefusesLetCarriedReferenceCalls",
+   "TestTaskCheckRefusesLetCarriedReferenceCalls/rd_tuple_pattern_binding_returned",
+   "TestTaskCheckRefusesLetCarriedReferenceSpawns",
+   "TestTaskCheckRefusesLetCarriedReferenceSpawns/rds_tuple_pattern_binding_returned",
+   "TestTupleEscapeIsReported",
+   "TestTupleEscapeIsReported/compare_join",
+   "TestTupleEscapeIsReported/generic_instantiation",
+   "TestTupleEscapeIsReported/index_of_a_call_result",
+   "TestTupleEscapeIsReported/index_of_a_reference_to_a_local",
+   "TestTupleEscapeIsReported/index_of_a_window_into_a_local",
+   "TestTupleEscapeIsReported/nested_index_of_a_reference_to_a_local",
+   "TestTupleEscapeIsReported/scalar_store_beside_the_reference",
+   "TestTupleEscapeIsReported/whole_reassignment"
+  ],
+  "status_rows": {
+   "driver": {
+    "TestAnalyzeTupleRefusals": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestAnalyzeTupleRefusals/callable_element_keeps_its_row": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestAnalyzeTupleRefusals/index_through_a_reference_keeps_its_row": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestAnalyzeTupleRefusals/store_of_a_reference_into_an_element_keeps_its_row": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestAnalyzeTupleRefusals/store_through_a_mutable_element_borrow_keeps_its_row": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestAnalyzeTupleRefusals/tuple_field_of_a_struct_keeps_the_member_row": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestAnalyzeTupleRefusals/window_in_a_reference_free_tuple_keeps_g6": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestAnalyzeTupleRefusals/window_through_a_reference_keeps_its_row": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestAnalyzeTuples": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestAnalyzeTuples/borrow_of_an_element_through_a_reference": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestAnalyzeTuples/compare_built_pair": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestAnalyzeTuples/generic_element_keeps_its_tuple": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestAnalyzeTuples/generic_use": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestAnalyzeTuples/index_keeps_the_reference_origin": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestAnalyzeTuples/index_of_a_parameter": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestAnalyzeTuples/index_of_a_reference_holding_parameter": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestAnalyzeTuples/index_of_an_owned_parameter": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestAnalyzeTuples/nested_index": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestAnalyzeTuples/own_index_of_a_local": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestAnalyzeTuples/own_nested_and_single": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestAnalyzeTuples/scalar_store_keeps_the_reference_origin": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestAnalyzeTuples/store_into_a_scalar_element": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestAnalyzeTuples/swap_builds_a_tuple": {
+     "stageA": "PASS",
+     "stageB": "PASS"
+    },
+    "TestTaskCheckRefusesLetCarriedReferenceCalls": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestTaskCheckRefusesLetCarriedReferenceCalls/rd_tuple_pattern_binding_returned": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestTaskCheckRefusesLetCarriedReferenceSpawns": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestTaskCheckRefusesLetCarriedReferenceSpawns/rds_tuple_pattern_binding_returned": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestTupleEscapeIsReported": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestTupleEscapeIsReported/compare_join": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestTupleEscapeIsReported/generic_instantiation": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestTupleEscapeIsReported/index_of_a_call_result": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestTupleEscapeIsReported/index_of_a_reference_to_a_local": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestTupleEscapeIsReported/index_of_a_window_into_a_local": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestTupleEscapeIsReported/nested_index_of_a_reference_to_a_local": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestTupleEscapeIsReported/scalar_store_beside_the_reference": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    },
+    "TestTupleEscapeIsReported/whole_reassignment": {
+     "stageA": "FAIL",
+     "stageB": "PASS"
+    }
+   },
+   "sema": {
+    "TestLetTuplePatternIsRefused": {
+     "stageB": "PASS"
+    },
+    "TestLetTuplePatternIsRefused/arity_mismatch": {
+     "stageB": "PASS"
+    },
+    "TestLetTuplePatternIsRefused/binding_with_an_owning_element": {
+     "stageB": "PASS"
+    },
+    "TestLetTuplePatternIsRefused/call_result": {
+     "stageB": "PASS"
+    },
+    "TestLetTuplePatternIsRefused/compare_arm_pattern": {
+     "stageB": "PASS"
+    },
+    "TestLetTuplePatternIsRefused/discarded_let": {
+     "stageB": "PASS"
+    },
+    "TestLetTuplePatternIsRefused/in_a_value_block": {
+     "stageB": "PASS"
+    },
+    "TestLetTuplePatternIsRefused/index_is_the_way": {
+     "stageB": "PASS"
+    },
+    "TestLetTuplePatternIsRefused/literal": {
+     "stageB": "PASS"
+    },
+    "TestLetTuplePatternIsRefused/nested": {
+     "stageB": "PASS"
+    },
+    "TestLetTuplePatternIsRefused/non_identifier_element": {
+     "stageB": "PASS"
+    },
+    "TestLetTuplePatternIsRefused/owned_subject": {
+     "stageB": "PASS"
+    },
+    "TestLetTuplePatternIsRefused/single": {
+     "stageB": "PASS"
+    },
+    "TestLetTuplePatternIsRefused/through_a_reference": {
+     "stageB": "PASS"
+    },
+    "TestLetTuplePatternIsRefused/two_in_a_loop": {
+     "stageB": "PASS"
+    },
+    "TestLetTuplePatternIsRefused/wildcard": {
+     "stageB": "PASS"
+    },
+    "TestLetTuplePatternMessage": {
+     "stageB": "PASS"
+    }
+   }
+  }
+ },
+ "probes_roster_sha256": "8c8afc90f57dcb1d5544172c6ef89cf9cfbaed818d53c27bfc5265e7902562cf",
+ "runout": {
+  "backends": [
+   "vm",
+   "llvm"
+  ],
+  "cores": "0-7",
+  "direct": {
+   "vm_async_suite/t15_fairness_round_robin": {
+    "llvm": "multiset",
+    "vm": "bytes"
+   },
+   "vm_tuples/tuple_literals": {
+    "llvm": "bytes",
+    "vm": "bytes"
+   }
+  },
+  "extra_selector": "^(TestRuntimeV2OrdinaryStorageCorpusOnVM|TestRuntimeV2OrdinaryStorageParity)$/^storage_construct$",
+  "leaves": {
+   "llvm": [
+    "TestVMAsyncSuiteGolden/t15_fairness_round_robin/llvm",
+    "TestVMTuplesGolden/tuple_literals/llvm"
+   ],
+   "vm": [
+    "TestVMAsyncSuiteGolden/t15_fairness_round_robin/vm",
+    "TestVMTuplesGolden/tuple_literals/vm"
+   ]
+  },
+  "repeats": 20,
+  "selector": "^(TestVMAsyncSuiteGolden|TestVMTuplesGolden)$/^(t15_fairness_round_robin|tuple_literals)$"
+ },
+ "siblings": "/home/zov/.cache/surge-artifacts/step7-return-source",
+ "tests": {
+  "internal/driver/return_origin_tuples_test.go": {
+   "base_lines": 0,
+   "ceiling": 500,
+   "effective": 284,
+   "effective_base": 0,
+   "lines": 350,
+   "new": true,
+   "sha256": "23d14df1b150f21d8f39e5c484944c1e45da6e903763cd16246204762dd5b388"
+  },
+  "internal/driver/task_check_let_carried_reference_probes_test.go": {
+   "base_lines": 327,
+   "ceiling": 500,
+   "effective": 283,
+   "effective_base": 283,
+   "lines": 327,
+   "new": false,
+   "sha256": "fcf8e6830eac7da1e3158659f0e6eeb7bfb23cb4191d7a1bc5705adea983af14"
+  },
+  "internal/driver/task_check_spawn_carried_reference_probes_test.go": {
+   "base_lines": 386,
+   "ceiling": 500,
+   "effective": 333,
+   "effective_base": 333,
+   "lines": 386,
+   "new": false,
+   "sha256": "ec66e18000dc2614185d59bad7706b02e22af871126b4791e689880a9f557a8d"
+  },
+  "internal/sema/let_tuple_pattern_test.go": {
+   "base_lines": 0,
+   "ceiling": 500,
+   "effective": 146,
+   "effective_base": 0,
+   "lines": 161,
+   "new": true,
+   "sha256": "4df9fc0b0e2cfef1473d1f743688ebf7da19491fdb799ffeb433723610758708"
+  },
+  "internal/vm/vm_term_intrinsics_test.go": {
+   "base_lines": 138,
+   "ceiling": 500,
+   "effective": 132,
+   "effective_base": 130,
+   "lines": 140,
+   "new": false,
+   "sha256": "067a166eb0cbfdbe7a8033de47fcb9206d2724d10b6e3eb48327fcb742eccf50"
+  }
+ },
+ "tree": "/home/zov/projects/surge/surge",
+ "wide_diag": {
+  "count_at_045c1135": 245,
+  "moved_rows_only": [
+   "internal/vm/testdata/place_overwrite_leak.sg",
+   "showcases/21_bigint_stress/main.sg",
+   "testdata/runtime-v2-ordinary-storage/ops/storage_borrow.sg",
+   "testdata/runtime-v2-ordinary-storage/ops/storage_copy.sg",
+   "testdata/runtime-v2-ordinary-storage/ops/storage_direct_call.sg",
+   "testdata/runtime-v2-ordinary-storage/ops/storage_move.sg",
+   "testdata/runtime-v2-ordinary-storage/ops/storage_overwrite.sg",
+   "testdata/runtime-v2-ordinary-storage/ops/storage_partial_init.sg",
+   "testdata/runtime-v2-ordinary-storage/ops/storage_partial_move.sg",
+   "testdata/runtime-v2-ordinary-storage/ops/storage_return.sg"
+  ],
+  "newly_ok": [
+   "testdata/runtime-v2-ordinary-storage/ops/storage_construct.sg"
+  ],
+  "rewritten": [
+   "showcases/21_bigint_stress/main.sg"
+  ],
+  "rule": "byte-identical output and exit with the base and after binary (each on its own tree), except: moved_rows_only lose only kind-12, destructuring or derived rows and stay exit 1 (a rewritten source is compared by its reasons, not its spans); newly_ok goes from exit 1 to exit 0 with no output; any other difference is FAIL",
+  "scope": "git ls-files '*.sg' outside testdata/golden/, diagnosed in the file's directory, --directives=off"
+ }
+}
