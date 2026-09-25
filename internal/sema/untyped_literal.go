@@ -69,10 +69,12 @@ type errorSpanRecorder struct {
 	spans *[]source.Span
 }
 
+// Report forwards a diagnostic built from its parts, recording its span when it is an error.
 func (r *errorSpanRecorder) Report(code diag.Code, sev diag.Severity, primary source.Span, msg string, notes []diag.Note, fixes []*diag.Fix) {
 	r.ReportDiagnostic(&diag.Diagnostic{Severity: sev, Code: code, Message: msg, Primary: primary, Notes: notes, Fixes: fixes})
 }
 
+// ReportDiagnostic forwards d to the wrapped reporter and records its primary span when it is an error.
 func (r *errorSpanRecorder) ReportDiagnostic(d *diag.Diagnostic) {
 	if r == nil || d == nil {
 		return
@@ -167,11 +169,12 @@ func (tc *typeChecker) reportUntypedArguments(exprs []ast.ExprID, argTypes []typ
 			continue
 		}
 		if root, ok := tc.untypedLiteralRoot(expr); ok {
-			if tc.unwrapGroupExpr(expr) != root {
+			switch {
+			case tc.unwrapGroupExpr(expr) != root:
 				tc.reportUntypedLiteral(root, false, types.NoTypeID)
-			} else if expected != nil {
+			case expected != nil:
 				tc.reportUntypedLiteral(root, true, expected(i))
-			} else {
+			default:
 				tc.reportUntypedLiteral(root, true, types.NoTypeID)
 			}
 			found = true
