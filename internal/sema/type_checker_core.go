@@ -275,7 +275,7 @@ type returnContext struct {
 	// collects no result, and without this count the body would be read as
 	// one that never gives a value — a second diagnosis of the first error.
 	retSites int
-	// entryPins is the task-borrow pin state where a returnCtxTaskPayload body began.
+	// entryPins is the task-borrow pin state where a task or crossing body began.
 	// Those pins are the host's: the body's own exits must not answer for them.
 	entryPins map[taskBorrowPinKey]taskBorrowPin
 }

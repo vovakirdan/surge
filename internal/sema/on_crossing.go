@@ -85,13 +85,8 @@ func (tc *typeChecker) typeExprOn(id ast.ExprID, span source.Span) types.TypeID 
 	var bareRet []source.Span
 	tc.pushReturnContext(returnCtxOnCrossing, types.NoTypeID, span, &returns, &bareRet)
 	tc.onCrossingStack = append(tc.onCrossingStack, frame)
-	// The body's exits stop at this boundary rather than at the enclosing
-	// function, and the body owns what moved into it — the caller's binding is
-	// marked moved by checkOnCaptures, so nobody else will release it.
-	tc.pushDropScope(true)
-	tc.registerCrossingBodyOwnership(data.Body, frame.anchorSym)
-	tc.walkStmt(data.Body)
-	tc.popDropScope()
+	// The body is a frame of its own, for its drops and for task borrows.
+	tc.walkCrossingBody(data.Body, frame.anchorSym, "on body")
 	last := len(tc.onCrossingStack) - 1
 	frame = tc.onCrossingStack[last]
 	returnRejected := frame.returnRejected

@@ -59,11 +59,8 @@ func (tc *typeChecker) typeExprSpawnOn(id ast.ExprID, span source.Span) types.Ty
 	tc.onCrossingStack = append(tc.onCrossingStack, onAnchorFrame{isSpawn: true})
 	// The body's exits stop at this boundary rather than at the enclosing
 	// function: a `ret` frees what the BODY built and what MOVED into it,
-	// never the caller's bindings.
-	tc.pushDropScope(true)
-	tc.registerCrossingBodyOwnership(data.Body, symbols.NoSymbolID)
-	tc.walkStmt(data.Body)
-	tc.popDropScope()
+	// never the caller's bindings. It is a frame for task borrows too.
+	tc.walkCrossingBody(data.Body, symbols.NoSymbolID, "spawn on body")
 	last := len(tc.onCrossingStack) - 1
 	returnRejected := tc.onCrossingStack[last].returnRejected
 	tc.onCrossingStack = tc.onCrossingStack[:last]

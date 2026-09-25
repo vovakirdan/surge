@@ -357,7 +357,8 @@ func TestOnCrossingOwnReferenceCaptureStaysRefused(t *testing.T) {
 }
 
 // A task made in a crossing body over a body-local `let` and handed out by `ret` is refused by
-// the task check's block-end edge before return origins run (RV2-DEBT-365, R-h, probe P-ON).
+// the task check at the body's `ret`, which judges the task it hands out (SEM3139), before return
+// origins run (RV2-DEBT-365, probe P-ON; TC-XB, RV2-DEBT-378: the body is a frame for task borrows).
 // This row is a control: no line of the crossing's origin transfer can change it.
 //
 // 2 RUN: 1 parent, 1 leaf.
@@ -382,9 +383,9 @@ func TestOnCrossingTaskLeakStaysWithTheTaskCheck(t *testing.T) {
 				errs = append(errs, d.Code.ID()+" "+d.Message)
 			}
 		}
-		if len(errs) != 1 || !strings.HasPrefix(errs[0], "SEM3021 a task still borrows ") || !strings.Contains(errs[0], "bl") ||
-			!strings.HasSuffix(errs[0], "at the end of the block that declares it") {
-			t.Errorf("errors %q, want exactly one SEM3021 naming 'bl' at the end of the crossing body's block", errs)
+		want := "SEM3139 cannot return this task: it borrows 'bl', which is freed when the function returns while the task may still be running"
+		if len(errs) != 1 || errs[0] != want {
+			t.Errorf("errors %q, want exactly [%q]: the crossing body's `ret` hands out a task over its own local", errs, want)
 		}
 	})
 }

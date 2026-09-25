@@ -118,6 +118,10 @@ func (tc *typeChecker) recordRetExit(id ast.StmtID) {
 	}
 	if tc.insideOnCrossing() {
 		tc.recordEarlyExitDrops(id, false)
+		// A crossing body is a frame for task borrows as well (walkCrossingBody).
+		if ctx := tc.currentBlockReturnContext(); ctx != nil && ctx.kind == returnCtxOnCrossing && ctx.entryPins != nil {
+			tc.refuseTaskBorrowsAtRet(id, ctx.entryPins)
+		}
 	}
 }
 
