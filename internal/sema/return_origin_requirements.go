@@ -83,6 +83,16 @@ func (v returnOriginTypeView) requirement(kind returnOriginConditionKind, id typ
 			}
 			switch typ.Kind {
 			case types.KindStruct:
+				// The default of a core runtime handle (Task, Channel, Range) is the
+				// null handle: it names no runtime object and so holds no borrow,
+				// whatever its payload type (owner ruling 2026-09-25; LLVM emits null in
+				// emitDefaultValue, the VM follows with packet VMDH). The family is the
+				// one core marked by declaration identity (MarkRuntimeHandleType).
+				// Defaultable only: a handle obtained any other way still meets
+				// NoBorrowedState below, which is R-i's fence (RV2-DEBT-365).
+				if in.IsRuntimeHandleType(id) {
+					return returnOriginRequirements{}
+				}
 				info, found := in.StructInfo(id)
 				if !found || info == nil || !returnOriginPlainStruct(view.owner, info) {
 					return unknown
