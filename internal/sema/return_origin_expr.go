@@ -143,9 +143,10 @@ func (b *returnOriginBody) exprCore(id ast.ExprID, env returnOriginEnv, targets 
 		out.storage = returnOriginValue{}
 		return out, nil
 	case ast.ExprOn:
-		// `spawn on` shares this node and keeps the row below: its far task outlives this frame.
 		if data, ok := u.Builder.Exprs.On(id); ok && data != nil && !data.Spawn {
 			return b.onCrossing(id, data, env, targets)
+		} else if ok && data != nil {
+			return b.spawnOnTransfer(id, data, env, targets)
 		}
 		return b.unknownExpr(env, node.Span, fmt.Sprintf("expression kind %d needs an origin transfer", node.Kind)), nil
 	case ast.ExprAsync, ast.ExprBlocking:

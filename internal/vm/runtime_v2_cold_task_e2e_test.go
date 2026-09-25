@@ -207,10 +207,10 @@ func TestRuntimeV2BorrowedLocalTaskJoinedInItsFrame(t *testing.T) {
 // eight -- the start frame with an owned string it captured, the task and its scope
 // membership are all given back. This also exercises the compiler-generated start-frame
 // descriptor, which the C stand replaces with a hand-made one. The far Task leg of review F8
-// cannot be written yet: a far Task comes from `spawn on`, still refused on the D2 line
-// (RV2-DEBT-365, kind 27, which N-TASK-27 kept for `spawn on`); rt_far_task_release_owned in
-// cold_discard is covered by reading
-// until then.
+// is still not written. Since N-TASK-27S a far Task from `spawn on` passes return origins,
+// but the leg needs the far Task moved into a cold call that is then dropped, and the
+// lifecycle check refuses that move (SEM3107: the handle is neither awaited nor returned).
+// rt_far_task_release_owned in cold_discard is therefore covered only by reading.
 func TestRuntimeV2ColdDroppedCallValgrindZero(t *testing.T) {
 	if testBackend(t) != backendLLVM {
 		t.Skip("a native row: SURGE_BACKEND=llvm")

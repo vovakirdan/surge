@@ -5,8 +5,8 @@ import "testing"
 // `spawn X` (expression kind 16): X is walked by its own transfer and the spawned value is X's handle unchanged --
 // the runtime wakes the task the handle names and stores the same handle. What the running task borrows is the
 // task check's; what the operand carries keeps its own rows: an `async { }` block's payload and capture rows, a lent
-// temporary's RV2-DEBT-368 row (including a member left to an implicit join, which nothing pins), and `spawn on`
-// keeps kind 27. Every source is a ROOT program against the real core, and each row reads one body.
+// temporary's RV2-DEBT-368 row (including a member left to an implicit join, which nothing pins); `spawn on` is
+// N-TASK-27S's. Every source is a ROOT program against the real core, and each row reads one body.
 
 const originSpawnFinishSource = `async fn work(n: int) -> int {
     return n + 1;
@@ -149,8 +149,8 @@ func originSpawnRows() []originSpawnRow {
 			fn: originSpan{74, 288, originSpawnImplicitJoinTemporarySource[74:288]}, want: []originRefusal{{span: originSpan{165, 172, "\"a\" + b"}, reason: stringTemporaryReason}}, summary: false},
 		{name: "s_ij_capture", text: originSpawnImplicitJoinCaptureSource, digest: originSpawnImplicitJoinCaptureSourceDigest, body: "main",
 			fn: originSpan{105, 384, originSpawnImplicitJoinCaptureSource[105:384]}, want: []originRefusal{{span: originSpan{221, 269, "async {\n            ret len(r) to int;\n        }"}, reason: originTaskBlockCaptureRefusal}}, summary: false},
-		{name: "spawn_on_keeps_its_row", text: onCrossingWalkSource, digest: onCrossingWalkSourceDigest, body: "later",
-			fn: originSpan{306, 396, onCrossingWalkSource[306:396]}, want: []originRefusal{{span: originSpan{353, 393, "spawn on pool {\n        ret n + 1;\n    }"}, reason: onCrossingKind27}, {span: originSpan{346, 394, "return spawn on pool {\n        ret n + 1;\n    };"}, reason: originOutgoingRefusal}, {span: originSpan{323, 339, "-> far Task<int>"}, reason: originResultRefusal}}, summary: false},
+		{name: "spawn_on_finishes", text: onCrossingWalkSource, digest: onCrossingWalkSourceDigest, body: "later",
+			fn: originSpan{306, 396, onCrossingWalkSource[306:396]}, want: []originRefusal{}, summary: false},
 	}
 }
 

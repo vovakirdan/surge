@@ -136,7 +136,7 @@ func (tc *typeChecker) checkTaskBorrowEscapeOnReturn(expr ast.ExprID, ty types.T
 func (tc *typeChecker) reportTaskBorrowEscape(span source.Span, base symbols.SymbolID, lentAt, cloneSpan source.Span) {
 	name := tc.lookupName(tc.symbolFromID(base).Name)
 	freed := "when the function returns"
-	if tc.enclosingTaskBody() != nil {
+	if tc.enclosingTaskBody() != nil || tc.insideOnCrossing() {
 		freed = "when this body finishes"
 	}
 	msg := fmt.Sprintf("cannot return this task: it borrows '%s', which is freed %s while the task may still be running", name, freed)

@@ -34,7 +34,7 @@ func crossingFrameRefusals() []crossingFrameRow {
 		{name: "spawn_on_cold_task_over_parameter", text: crossingFrameSpawnOnColdTaskSource, digest: crossingFrameSpawnOnColdTaskSourceDigest, want: "SEM3021", edge: "a task still borrows 'n' at this ret"},
 		{name: "spawn_on_caller_awaits", text: crossingFrameSpawnOnCallerAwaitsSource, digest: crossingFrameSpawnOnCallerAwaitsSourceDigest, want: "SEM3021", edge: "a task still borrows 'k' at this ret"},
 		{name: "spawn_on_kept_task_awaited_in_body", text: crossingFrameSpawnOnKeptAwaitedSource, digest: crossingFrameSpawnOnKeptAwaitedSourceDigest, want: "SEM3021", edge: "a task still borrows 's' at this ret"},
-		{name: "spawn_on_task_payload_over_capture", text: crossingFrameSpawnOnTaskPayloadSource, digest: crossingFrameSpawnOnTaskPayloadSourceDigest, want: "SEM3139", edge: "cannot return this task: it borrows 'k', which is freed when the function returns while the task may still be running"},
+		{name: "spawn_on_task_payload_over_capture", text: crossingFrameSpawnOnTaskPayloadSource, digest: crossingFrameSpawnOnTaskPayloadSourceDigest, want: "SEM3139", edge: "cannot return this task: it borrows 'k', which is freed when this body finishes while the task may still be running"},
 	}
 }
 

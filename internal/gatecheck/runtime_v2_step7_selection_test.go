@@ -53,6 +53,10 @@ func step7GateRows() []step7GateRow {
 		"TestH2TripwireSelectRunnerBuilds",
 		"TestTaskCheckCrossingBodyIsAFrame",
 		"TestTaskCheckCrossingBodyKeepsSoundPrograms",
+		"TestH2TripwireTaskCheckRefusesSpawnOnLeaks",
+		"TestH2TripwireSpawnOnRunnerBuilds",
+		"TestTaskCheckSpawnOnBodyEdges",
+		"TestTaskCheckCrossingBodyPanicClosedFrame",
 	}
 	tripwireRuntime := []string{
 		"TestH2TripwireNotRunnableG1OwnBinding",
@@ -73,6 +77,10 @@ func step7GateRows() []step7GateRow {
 		"TestH2TripwireTaskCheckRefusesSelectLeakedRuns",
 		"TestH2TripwireSelectRunnerRuns",
 		"TestRuntimeV2CrossingBodyTaskOverItsCopy",
+		"TestH2TripwireTaskCheckRefusesSpawnOnLeakedRuns",
+		"TestH2TripwireSpawnOnRunnerRuns",
+		"TestH2TripwireSpawnOnBodySuspensionHangs",
+		"TestRuntimeV2SpawnOn",
 	}
 	coldTaskStand := []string{
 		"TestRuntimeV2ColdTaskDroppedNeverRuns",

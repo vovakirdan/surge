@@ -15,13 +15,12 @@ import (
 // frame, the body is a frame of its own whose `ret` is its only exit, and the value is the
 // reply, `TaskResult<T>`, made on the far side. A reply, or a value an anchored channel
 // operation moves through the ring, is admitted only when its type can hold no reference, no
-// storage loan and no task; `spawn on` keeps its row. Every source is a ROOT program against
+// storage loan and no task; `spawn on` is N-TASK-27S's. Every source is a ROOT program against
 // the real core, and each row reads one body of one source.
 
 const (
 	onCrossingReplyRefusal    = "an `on` crossing reply that can hold a reference, a storage loan or a task needs its reply origin"
 	onCrossingAnchoredRefusal = "an anchored channel operation that moves a reference, a storage loan or a task needs its channel crossing contract"
-	onCrossingKind27          = "expression kind 27 needs an origin transfer"
 	onCrossingCaptureRefusal  = "an `on` crossing capture that can hold a reference, a storage loan or a task needs its capture origin"
 )
 
@@ -265,8 +264,8 @@ func onCrossingRows() []onCrossingRow {
 			fn: originSpan{211, 305, onCrossingWalkSource[211:305]}, want: []originRefusal{{span: originSpan{269, 278, "\"c\" + \"d\""}, reason: stringTemporaryReason}}, summary: false},
 		{name: "continuation_after_a_body_that_never_finishes", text: onCrossingSpinSource, digest: onCrossingSpinSourceDigest, body: "after_spin",
 			fn: originSpan{52, 161, onCrossingSpinSource[52:161]}, want: []originRefusal{{span: originSpan{148, 157, "\"e\" + \"f\""}, reason: stringTemporaryReason}}, summary: false},
-		{name: "spawn_on_keeps_its_row", text: onCrossingWalkSource, digest: onCrossingWalkSourceDigest, body: "later",
-			fn: originSpan{306, 396, onCrossingWalkSource[306:396]}, want: []originRefusal{{span: originSpan{353, 393, "spawn on pool {\n        ret n + 1;\n    }"}, reason: onCrossingKind27}, {span: originSpan{346, 394, "return spawn on pool {\n        ret n + 1;\n    };"}, reason: originOutgoingRefusal}, {span: originSpan{323, 339, "-> far Task<int>"}, reason: originResultRefusal}}, summary: false},
+		{name: "spawn_on_finishes", text: onCrossingWalkSource, digest: onCrossingWalkSourceDigest, body: "later",
+			fn: originSpan{306, 396, onCrossingWalkSource[306:396]}, want: []originRefusal{}, summary: false},
 		{name: "fn_value_capture_stays_refused", text: onCrossingFnCaptureSource, digest: onCrossingFnCaptureSourceDigest, body: "apply",
 			fn: originSpan{47, 152, onCrossingFnCaptureSource[47:152]}, want: []originRefusal{{span: originSpan{138, 139, "f"}, reason: onCrossingCaptureRefusal}}, summary: false, allow: []string{onCrossingCallableIdent, onCrossingCallableValue, originCallRefusal, onCrossingCallableAuthority}},
 	}
@@ -383,7 +382,7 @@ func TestOnCrossingTaskLeakStaysWithTheTaskCheck(t *testing.T) {
 				errs = append(errs, d.Code.ID()+" "+d.Message)
 			}
 		}
-		want := "SEM3139 cannot return this task: it borrows 'bl', which is freed when the function returns while the task may still be running"
+		want := "SEM3139 cannot return this task: it borrows 'bl', which is freed when this body finishes while the task may still be running"
 		if len(errs) != 1 || errs[0] != want {
 			t.Errorf("errors %q, want exactly [%q]: the crossing body's `ret` hands out a task over its own local", errs, want)
 		}
