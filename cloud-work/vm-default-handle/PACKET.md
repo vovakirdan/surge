@@ -1,7 +1,7 @@
 # Packet: the VM's default for a core runtime handle
 
 - **Branch:** `cloud/vm-default-handle`, cut from `validation/step7-d2-on-d1` at `1b122bfa`.
-- **Commit:** a single commit, `cloud: VM default for runtime handles`.
+- **Commits:** three. Two work-in-progress commits were pushed while the suites ran; the final commit is `cloud: VM default for runtime handles`.
 - **Not done here, by instruction:** no PR, no push to any other branch, and `docs/runtime-v2-epics/DEBT.md` is untouched. The ledger text is in §8, ready to paste.
 - **Scope:** VM only (`internal/vm`). The native runtime and the LLVM backend are unchanged.
 
@@ -82,7 +82,7 @@ So the VM gets a native-like null without a new convention. A typed `nothing` wa
 | await (sync and in a task), cancel, clone, spawn of a value, select task arm | `panic_msg("invalid task handle")` via `task_from_handle` (`rt_async_state.c:516-522`; `rt_async_task.c:466-471`, `:249-254`, `:535-540`, `:551-552`, `:229-234`; `rt_async_select.c:260`) | VM1999 | `panic VM1203: invalid task handle` | internal refusal row; probes |
 | `timeout` of a null Task | panic, unless the current task is cancelled, which answers pending first (`rt_async_select.c:56-63`) | resolved the handle first | same order, same words | probes `timeout_null`, `cancelled_timeout_null`; e2e `cancelled_task_timeout` (live target) |
 | Range drop / overwrite | `rt_range_free` returns (`rt_range.c:92-95`) | never reached | no-op | probes `range_drop`, `range_overwrite` |
-| **Range slice, iterate** | slice: NULL read as the **whole range** (`range_bounds`, `rt_string.c:239`, `rt_array.c:211`); `for` / `next`: unchecked load through NULL in emitted IR, exit 255 | never reached | `panic VM1203: invalid handle 0` | **diverges**; §9, second ledger row |
+| **Range slice, iterate** | slice: NULL read as the **whole range** (`range_bounds`, `rt_string.c:239`, `rt_array.c:211`); `for` / `next`: unchecked load through NULL in emitted IR, SIGSEGV (139 run directly, 255 through `surge run`) | never reached | `panic VM1203: invalid handle 0` | **diverges**; §9, second ledger row |
 | `rt_scope_register_child` | returns unless the scope is the caller's active one (`rt_async_scope.c:184-186`) | never reached | refuses | not aligned; unreachable (non-`pub` in `core/intrinsics.sg`, no emitter) |
 
 The VM prints the native words inside its own frame. VM: `panic VM1203: <words>` plus location and backtrace. Native: `surge: fatal [PANIC]: <words>` (`rt_fatal.c:44-52`). Both exit 1: `cmd/surge/run.go`'s VM-error branch, and `_exit(1)` natively. The tests compare the words and the exit code.
@@ -133,14 +133,141 @@ These are pinned by the internal rows (§4.2) and measured end to end with the g
 
 ```
 $ SURGE_STDLIB=$PWD SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^(TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends|TestDefaultOfARuntimeHandleIsTheNullHandle|TestAnUnmarkedLookalikeIsNotANullHandle|TestNullRuntimeHandleIsInertOnEveryLifetimePath|TestNullRuntimeHandleIsRefusedWithTheNativeWords)$' -count=1 -v
-@@NEW_TESTS_AFTER@@
+--- PASS: TestDefaultOfARuntimeHandleIsTheNullHandle (0.00s)
+--- PASS: TestAnUnmarkedLookalikeIsNotANullHandle (0.00s)
+--- PASS: TestNullRuntimeHandleIsInertOnEveryLifetimePath (0.00s)
+--- PASS: TestNullRuntimeHandleIsRefusedWithTheNativeWords (0.00s)
+--- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends (132.45s)
+    --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/channel_binding (9.05s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/channel_binding/vm (0.65s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/channel_binding/llvm (8.39s)
+    --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/default_dropped_unused (9.34s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/default_dropped_unused/vm (0.74s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/default_dropped_unused/llvm (8.60s)
+    --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/default_overwritten (9.28s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/default_overwritten/vm (0.77s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/default_overwritten/llvm (8.51s)
+    --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_send (9.24s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_send/vm (0.77s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_send/llvm (8.47s)
+    --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_recv (9.56s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_recv/vm (0.78s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_recv/llvm (8.79s)
+    --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_close (9.43s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_close/vm (0.80s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_close/llvm (8.63s)
+    --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_try_send (9.27s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_try_send/vm (0.74s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_try_send/llvm (8.53s)
+    --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_try_recv (9.54s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_try_recv/vm (0.82s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_try_recv/llvm (8.72s)
+    --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_send_in_task (9.51s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_send_in_task/vm (0.80s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_send_in_task/llvm (8.72s)
+    --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_recv_in_task (9.74s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_recv_in_task/vm (0.77s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_recv_in_task/llvm (8.96s)
+    --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_select_arm (9.66s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_select_arm/vm (0.80s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_select_arm/llvm (8.86s)
+    --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_member_send (9.43s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_member_send/vm (0.75s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_member_send/llvm (8.68s)
+    --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_mutex_lock (9.76s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_mutex_lock/vm (0.76s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_mutex_lock/llvm (9.01s)
+    --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/cancelled_task_timeout (9.63s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/cancelled_task_timeout/vm (0.84s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/cancelled_task_timeout/llvm (8.79s)
+PASS
+ok  	surge/internal/vm	132.457s
+exit=0
 ```
 
 ### 5.2 Counterfactual: the fix reverted, the tests kept
 
+Run on the final code, with the three changed files put back to their base contents and the new file removed. The tests are unchanged; the tree was restored afterwards.
+
 ```
-@@COUNTERFACTUAL@@
+$ git checkout 1b122bfa -- internal/vm/async_runtime.go internal/vm/intrinsic_default.go internal/vm/vm_dispatch_async_timeout.go && rm internal/vm/runtime_handle_null.go
+$ SURGE_STDLIB=$PWD SURGE_SKIP_TIMEOUT_TESTS=0 go test ./internal/vm -run '^(TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends|TestDefaultOfARuntimeHandleIsTheNullHandle|TestAnUnmarkedLookalikeIsNotANullHandle|TestNullRuntimeHandleIsInertOnEveryLifetimePath|TestNullRuntimeHandleIsRefusedWithTheNativeWords)$' -count=1 -v
+--- FAIL: TestDefaultOfARuntimeHandleIsTheNullHandle (0.00s)
+--- PASS: TestAnUnmarkedLookalikeIsNotANullHandle (0.00s)
+--- FAIL: TestNullRuntimeHandleIsInertOnEveryLifetimePath (0.00s)
+--- FAIL: TestNullRuntimeHandleIsRefusedWithTheNativeWords (0.00s)
+--- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends (130.38s)
+    --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/channel_binding (9.19s)
+        --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/channel_binding/vm (0.79s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/channel_binding/llvm (8.41s)
+    --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/default_dropped_unused (9.36s)
+        --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/default_dropped_unused/vm (0.93s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/default_dropped_unused/llvm (8.43s)
+    --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/default_overwritten (9.33s)
+        --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/default_overwritten/vm (0.85s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/default_overwritten/llvm (8.47s)
+    --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_send (9.16s)
+        --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_send/vm (0.84s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_send/llvm (8.33s)
+    --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_recv (9.06s)
+        --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_recv/vm (0.79s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_recv/llvm (8.28s)
+    --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_close (9.22s)
+        --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_close/vm (0.82s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_close/llvm (8.40s)
+    --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_try_send (9.57s)
+        --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_try_send/vm (0.86s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_try_send/llvm (8.71s)
+    --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_try_recv (9.37s)
+        --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_try_recv/vm (0.84s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_try_recv/llvm (8.52s)
+    --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_send_in_task (9.27s)
+        --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_send_in_task/vm (0.88s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_send_in_task/llvm (8.39s)
+    --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_recv_in_task (9.25s)
+        --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_recv_in_task/vm (0.86s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_recv_in_task/llvm (8.38s)
+    --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_select_arm (9.28s)
+        --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_select_arm/vm (0.78s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_select_arm/llvm (8.50s)
+    --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_member_send (9.35s)
+        --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_member_send/vm (0.79s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_member_send/llvm (8.55s)
+    --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_mutex_lock (9.31s)
+        --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_mutex_lock/vm (0.80s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/null_mutex_lock/llvm (8.52s)
+    --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/cancelled_task_timeout (9.66s)
+        --- FAIL: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/cancelled_task_timeout/vm (0.85s)
+        --- PASS: TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends/cancelled_task_timeout/llvm (8.80s)
+FAIL
+FAIL	surge/internal/vm	130.395s
+FAIL
+exit=1
+
+# the failure each red leg reported:
+runtime_handle_null_internal_test.go:87: the default of Task must be the null handle, got an error: panic VM1999: storage: type#19 has 1 members but 0 layout offsets
+runtime_handle_null_internal_test.go:121: default of type#19: panic VM1999: storage: type#19 has 1 members but 0 layout offsets
+runtime_handle_null_internal_test.go:155: a null task (invalid) must be refused as the native runtime refuses it, got panic VM1003: expected Task, got invalid
+runtime_v2_default_runtime_handle_e2e_test.go:304: vm reported a runtime error for a clean row: panic VM1999: storage: type#1509 has 1 members but 0 layout offsets
+runtime_v2_default_runtime_handle_e2e_test.go:304: vm reported a runtime error for a clean row: panic VM1999: storage: type#1509 has 1 members but 0 layout offsets
+runtime_v2_default_runtime_handle_e2e_test.go:304: vm reported a runtime error for a clean row: panic VM1999: storage: type#1509 has 1 members but 0 layout offsets
+runtime_v2_default_runtime_handle_e2e_test.go:306: vm ran null_send as stdout="" exit=1 fault="storage: type#1509 has 1 members but 0 layout offsets", want stdout="before\n" exit=1 fault="async: null channel handle"
+runtime_v2_default_runtime_handle_e2e_test.go:306: vm ran null_recv as stdout="" exit=1 fault="storage: type#1509 has 1 members but 0 layout offsets", want stdout="before\n" exit=1 fault="async: null channel handle"
+runtime_v2_default_runtime_handle_e2e_test.go:306: vm ran null_close as stdout="" exit=1 fault="storage: type#1509 has 1 members but 0 layout offsets", want stdout="before\n" exit=1 fault="async: null channel handle"
+runtime_v2_default_runtime_handle_e2e_test.go:306: vm ran null_try_send as stdout="" exit=1 fault="storage: type#1509 has 1 members but 0 layout offsets", want stdout="before\n" exit=1 fault="async: null channel handle"
+runtime_v2_default_runtime_handle_e2e_test.go:306: vm ran null_try_recv as stdout="" exit=1 fault="storage: type#1509 has 1 members but 0 layout offsets", want stdout="before\n" exit=1 fault="async: null channel handle"
+runtime_v2_default_runtime_handle_e2e_test.go:306: vm ran null_send_in_task as stdout="" exit=1 fault="storage: type#1510 has 1 members but 0 layout offsets", want stdout="before\n" exit=1 fault="async: null channel handle"
+runtime_v2_default_runtime_handle_e2e_test.go:306: vm ran null_recv_in_task as stdout="" exit=1 fault="storage: type#1510 has 1 members but 0 layout offsets", want stdout="before\n" exit=1 fault="async: null channel handle"
+runtime_v2_default_runtime_handle_e2e_test.go:306: vm ran null_select_arm as stdout="" exit=1 fault="storage: type#1510 has 1 members but 0 layout offsets", want stdout="before\n" exit=1 fault="async: null channel handle"
+runtime_v2_default_runtime_handle_e2e_test.go:306: vm ran null_member_send as stdout="" exit=1 fault="storage: type#1509 has 1 members but 0 layout offsets", want stdout="before\n" exit=1 fault="async: null channel handle"
+runtime_v2_default_runtime_handle_e2e_test.go:306: vm ran null_mutex_lock as stdout="" exit=1 fault="storage: type#70 has 1 members but 0 layout offsets", want stdout="before\n" exit=1 fault="async: null channel handle"
+runtime_v2_default_runtime_handle_e2e_test.go:304: vm reported a runtime error for a clean row: panic VM1002: async payload owner capability mismatch
 ```
+
+**Result:**
+- **VM legs:** all 14 fail. Thirteen stop at the default with the original `VM1999 … 0 layout offsets`. `cancelled_task_timeout` fails with the base `VM1002`.
+- **Native legs:** all 14 pass. Native is untouched by the fix, so its expectation is independent of it.
+- **Internal rows:** 3 of the 4 fail. The lookalike control passes both ways, as a control should.
 
 ### 5.3 Probe matrix: 56 programs, gate bypassed for measurement only
 
@@ -240,15 +367,37 @@ For each tree, the command is the following, with `<backend>` ∈ {`vm`, `llvm`}
 SURGE_STDLIB=<tree> SURGE_SKIP_TIMEOUT_TESTS=1 SURGE_BACKEND=<backend> go test <tagflag> ./internal/vm -count=1 -json --timeout 3000s
 ```
 
-- The trees are the base (`1b122bfa`) and the after state, both as detached worktrees.
+- The trees are the base (`1b122bfa`) and the after state, both as detached worktrees. The after state is a local snapshot of this branch's code (`6a33c50f`, not pushed). The branch differs from it only in comment lines at the top of `runtime_v2_default_runtime_handle_e2e_test.go` (`git diff 6a33c50f HEAD -- internal/`). The counterfactual in §5.2 also ran on that snapshot.
 - `SURGE_SKIP_TIMEOUT_TESTS=1` is the Makefile's `test` default. It skips native e2e legs, so the native legs of the new rows are covered by §5.1, which runs with `=0`.
 - The failing-name sets are compared by `probes/failing_sets.py`.
 
-@@SUITE_RESULTS@@
+| leg | base failing | after failing | failing at base only | failing after only | new names after (all pass or skip) |
+|---|---|---|---|---|---|
+| `SURGE_BACKEND=vm`, no tag | 70 | 70 | none | none | 47 (33 pass, 14 skip) |
+| `SURGE_BACKEND=vm`, `-tags runtime_v2_pending` | 113 | 113 | none | none | 47 (33 pass, 14 skip) |
+| `SURGE_BACKEND=llvm`, no tag | 66 | 66 | none | none | 47 (33 pass, 14 skip) |
+| `SURGE_BACKEND=llvm`, `-tags runtime_v2_pending` | 109 | 109 | none | none | 47 (33 pass, 14 skip) |
+
+**The failing-name sets are identical at base and after, on all four legs.** The full lists are in `failing-sets.txt`; the counts include subtests. No test was left unfinished and no leg timed out. Each leg exits 1 at base as it does after, because of those same failures.
+
+**The only difference is the new tests,** which is the intended change. The 47 new names per leg are:
+- the 4 internal rows;
+- the e2e parent and its 14 row parents;
+- 14 `vm` legs, which pass;
+- 14 `llvm` legs, which skip under `SURGE_SKIP_TIMEOUT_TESTS=1` and are covered by §5.1.
+
+**No existing failure is fixed.** None of the base failures is this defect: every program that reaches a handle default is either refused by the D2 gate or new in this packet.
+
+Run times per leg, base → after: VM no tag 322 s → 367 s; VM pending 1575 s → 1601 s; LLVM no tag 245 s → 250 s; LLVM pending 1510 s → 1542 s.
+
+Also on this branch, with the probes present:
+- `go build ./...` and `go vet ./internal/vm` are clean, and `gofmt` reports nothing.
+- `EPIC_BASE=1b122bfa ./scripts/runtime_v2_file_size_check.sh --worktree` passes: 6 files, 0 violations.
+- `go test ./internal/gatecheck ./internal/goldencheck` passes.
 
 ## 7. Valgrind
 
-- In §5.1, every native leg ran under `valgrind --leak-check=full` (valgrind 3.x, `/usr/bin/valgrind`). There were no memcheck errors on any row, and zero bytes definitely lost on the four clean rows.
+- In §5.1, every native leg ran under `valgrind --leak-check=full` (valgrind 3.22.0). There were no memcheck errors on any row, and zero bytes definitely lost on the four clean rows.
 - The refusal rows exit through `_exit(1)`, so their leak totals are not asserted.
 
 ## 8. Ledger text for `docs/runtime-v2-epics/DEBT.md`
@@ -279,15 +428,15 @@ These are for the maintainer to paste into the Open Debt table. The ids are the 
    - Their two-backend parity is measured only with the scratch gate bypass (§5.3), which is not committed.
    - The bypass lets through programs whose return-origin analysis is unfinished. Those probe rows therefore say how each backend runs the program, not that the program is sound.
 3. **`Range` diverges when used.** See ledger row 2. The VM keeps its own loud refusal. It copies neither native behaviour: the silent whole-range read, nor the segfault.
-4. **`rt_scope_register_child` is not aligned.** Natively it returns silently when the scope is not the caller's active scope. The VM refuses a null there unconditionally. The function is non-`pub` in `core/intrinsics.sg`, and no emitter or lowering site calling it was found (by reading, not by text search). Left as is.
+4. **`rt_scope_register_child` is not aligned.** Natively it returns silently when the scope is not the caller's active scope. The VM refuses a null there unconditionally. The function is non-`pub` in `core/intrinsics.sg`, and no emitter or lowering site calling it was found. Left as is.
 5. **The root cause of `VM1002` was not investigated.** The `VM1002: async payload owner capability mismatch` that a cancelled task hit at `timeout` with a live target is gone because the VM no longer takes that path, which native never takes either. The fault inside the VM's timeout-task claim was not traced. Another route into that claim with a cancelled current task has not been ruled out.
 6. **The timeout row is pinned single-threaded.** With `SURGE_THREADS=4` the native run races the cancel against the target's completion: 12 runs gave rc=90 ten times and rc=5 twice. That is scheduling, not a backend difference, so the row runs with `SURGE_THREADS=1`, per RV2-DEBT-188.
 7. **Only the words and the exit code are compared.** The failure frames differ: the VM prints `panic VM1203: …` with a location and a backtrace, native prints `surge: fatal [PANIC]: …`.
 8. **A zeroed handle cell loses the null's type.** It decodes as an untyped `nothing` (`handleValue`), not as the typed null. The two task and channel resolvers accept both spellings. A future consumer that switches on `Value.Kind` must too.
-9. **`far` handles are out of scope and were not measured.**
+9. **`far` handles are out of scope and were not measured.** This is read from code:
    - `far T` is not a runtime handle type (`IsRuntimeHandleType` does not unwrap `KindFar`).
-   - Natively, the emitter has no default for it.
-   - On the VM, `defaultValue` answers "default not implemented for type kind far".
+   - Natively, the emitter has no default for it: `emitDefaultValue` has no `KindFar` case.
+   - On the VM, `defaultValue` has no `KindFar` case either, so it answers "default not implemented for type kind far".
 10. **Another path into the null was not reached.** `defaultValue` is also called when a value moves out of a projection (`internal/vm/eval.go:241`), and it now yields the null there too. No program the gate accepts reaches that path with a handle: partial moves lower to `field_move` plus residual drops.
 11. **N-DEFHANDLE forward check.** Of the plan's five N-DEFHANDLE programs, two have an entrypoint: `vm_async_suite/t14_loop_join.sg` and `sema/valid/ownership/for_in_reads_then_pop_drains.sg`. Neither executes a handle default at run time; the `safe()` default sits on the `nothing` path they never take. With the gate bypassed, both run the same on the unfixed VM, the fixed VM and native (`sum=6`, rc 0; rc 10). The other three are sema-only.
 12. **The base suite ran under load.** It ran while other measurements used the same 4 CPUs. Timing-sensitive tests are skipped under `SURGE_SKIP_TIMEOUT_TESTS=1`, so the effect should be run time only. It was not controlled.
