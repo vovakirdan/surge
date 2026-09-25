@@ -63,6 +63,10 @@ func (b *returnOriginBody) constructorChildren(id ast.ExprID, children []ast.Exp
 		returnOriginView(b.function).shape(b.function.unit.Sema.ExprTypes[id]) == returnOriginCarriesRef {
 		shape = returnOriginCarriesRef
 	}
+	// An untyped anonymous record holds exactly its field values, so it keeps them all.
+	if shape == returnOriginShapeUnknown && b.anonymousRecordLiteral(id) {
+		shape = returnOriginCarriesRef
+	}
 	switch shape {
 	case returnOriginRefFree:
 		out.value = returnOriginValueOf()

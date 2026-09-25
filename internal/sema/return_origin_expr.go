@@ -28,8 +28,11 @@ func (b *returnOriginBody) exprCore(id ast.ExprID, env returnOriginEnv, targets 
 		return returnOriginExprResult{}, fmt.Errorf("return origins: missing expression in %s", u.SourceKey)
 	}
 	node := u.Builder.Exprs.Get(id)
-	if node == nil || u.Sema.ExprTypes[id] == types.NoTypeID {
+	if node == nil {
 		return returnOriginExprResult{}, fmt.Errorf("return origins: expression %d is not typed in %s", id, u.SourceKey)
+	}
+	if u.Sema.ExprTypes[id] == types.NoTypeID {
+		return b.uncheckedExpr(id, node, env, targets)
 	}
 	switch node.Kind {
 	case ast.ExprIdent:
