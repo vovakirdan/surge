@@ -11,6 +11,16 @@ import (
 
 // These are transient alternatives of the already typed subject, not payload
 // projections. Opaque alternatives retain both matching continuations.
+//
+// Coverage is decided here, alternative by alternative, and only a pattern that
+// matches EVERY value of an alternative removes it: a pattern that is `all`
+// matches every alternative, a pattern that selects one alternative removes it
+// only when it is not `partial`, and a partial pattern (a constant compared at
+// run time, a tag whose payload patterns can miss, a tuple with a refutable
+// element) keeps its alternative on both continuations. The checker's own
+// consumption (type_expr_compare.go, matchedUnionMembers) is not used: it lets a
+// tag pattern consume its member whatever its payload patterns are, and ignores
+// guards, so `Success(nothing)` alone would read as covering `Success`.
 type returnOriginCompareChoice struct {
 	tag     source.StringID
 	arity   int
@@ -23,7 +33,10 @@ type returnOriginComparePattern struct {
 	runtime  []ast.ExprID
 	known    bool
 	all      bool
-	choice   returnOriginCompareChoice
+	// partial: the pattern is known and selects choice, but may miss some values
+	// of it, so the alternative stays on the unmatched continuation too.
+	partial bool
+	choice  returnOriginCompareChoice
 }
 
 func (b *returnOriginBody) compareChoices(id types.TypeID) []returnOriginCompareChoice {
@@ -72,7 +85,9 @@ func (p returnOriginComparePattern) split(choices []returnOriginCompareChoice) (
 		switch {
 		case p.known && p.all:
 			matched = append(matched, choice)
-		case !p.known || choice.opaque:
+		case !p.known || choice.opaque || p.choice.opaque:
+			matched, missed = append(matched, choice), append(missed, choice)
+		case p.choice == choice && p.partial:
 			matched, missed = append(matched, choice), append(missed, choice)
 		case p.choice == choice:
 			matched = append(matched, choice)
@@ -115,6 +130,19 @@ func (b *returnOriginBody) readComparePattern(id ast.ExprID, scope symbols.Scope
 			out.all, out.choice.literal = false, lit.Kind
 			return out, nil
 		}
+		return b.runtimeTestPattern(id), nil
+	case ast.ExprUnary:
+		// A negated numeric literal (`-1`) is a constant too.
+		if unary, ok := u.Builder.Exprs.Unary(id); ok && unary != nil && unary.Op == ast.ExprUnaryMinus {
+			if inner := u.Builder.Exprs.Get(unary.Operand); inner != nil && inner.Kind == ast.ExprLit {
+				return b.runtimeTestPattern(id), nil
+			}
+		}
+	case ast.ExprMember:
+		// An enum variant (`Color::Red`) is a constant the checker resolved.
+		if _, variant := u.Sema.EnumVariantUses[id]; variant {
+			return b.runtimeTestPattern(id), nil
+		}
 	case ast.ExprCall:
 		call, _ := u.Builder.Exprs.Call(id)
 		tag := u.Symbols.Table.Symbols.Get(u.Symbols.ExprSymbols[call.Target])
@@ -127,14 +155,17 @@ func (b *returnOriginBody) readComparePattern(id ast.ExprID, scope symbols.Scope
 				}
 				out.bindings = append(out.bindings, child.bindings...)
 				out.runtime = append(out.runtime, child.runtime...)
-				out.known = out.known && child.known && child.all
+				out.known = out.known && child.known
+				// A payload pattern that can miss leaves the tag's alternative partly unmatched.
+				out.partial = out.partial || !child.all
 			}
 			return out, nil
 		}
 	case ast.ExprTuple:
-		// Preserve original bindings/children; tuple matching is still pending.
+		// A tuple subject is one alternative; the pattern covers it only when every
+		// element pattern does, and is partial otherwise.
 		tuple, _ := u.Builder.Exprs.Tuple(id)
-		out.known, out.all = false, false
+		out.choice = returnOriginCompareChoice{opaque: true}
 		for _, elem := range tuple.Elements {
 			child, err := b.readComparePattern(elem, scope)
 			if err != nil {
@@ -142,7 +173,10 @@ func (b *returnOriginBody) readComparePattern(id ast.ExprID, scope symbols.Scope
 			}
 			out.bindings = append(out.bindings, child.bindings...)
 			out.runtime = append(out.runtime, child.runtime...)
+			out.known = out.known && child.known
+			out.all = out.all && child.all
 		}
+		out.partial = !out.all
 		return out, nil
 	}
 	if sym != nil && sym.Kind == symbols.SymbolTag {
@@ -152,6 +186,18 @@ func (b *returnOriginBody) readComparePattern(id ast.ExprID, scope symbols.Scope
 	// Unsupported runtime tests still use the ordinary typed-expression reader.
 	out.known, out.all, out.runtime = false, false, []ast.ExprID{id}
 	return out, nil
+}
+
+// runtimeTestPattern is a constant pattern: its operand is evaluated like any
+// typed expression, it binds nothing, and it may match or miss any value of any
+// alternative, so both continuations stay.
+// A constant the checker left untyped (a string literal pattern today) keeps the
+// compare-pattern row instead of being evaluated.
+func (b *returnOriginBody) runtimeTestPattern(id ast.ExprID) returnOriginComparePattern {
+	if b.function.unit.Sema.ExprTypes[id] == types.NoTypeID {
+		return returnOriginComparePattern{choice: returnOriginCompareChoice{opaque: true}}
+	}
+	return returnOriginComparePattern{known: true, partial: true, choice: returnOriginCompareChoice{opaque: true}, runtime: []ast.ExprID{id}}
 }
 
 func (b *returnOriginBody) bindCompareOrigins(bindings []symbols.SymbolID, subject returnOriginValue, env returnOriginEnv) returnOriginEnv {

@@ -275,19 +275,32 @@ func TestReturnOriginEnumVariantTargets(t *testing.T) {
 		selectorVariant(t, f, selectorEnumValueSource, 174, 182, "Token::L", builtins.String)
 		selectorClean(t, f, []uint32{0})
 	})
-	// A member is not a pattern the compare transfer knows, so the arm keeps its own row; what
-	// this packet removes is the abort at the pattern's untyped target.
+	// An enum variant in a pattern is a constant compared at run time (N-PATTERN,
+	// return_origin_compare_patterns.go runtimeTestPattern): it binds nothing and can miss, so
+	// the `_` arm stays reachable and the result is the join of both arms' parameters. It used
+	// to keep the compare-pattern row; the abort at the pattern's untyped target stays removed.
 	t.Run("enum_pattern", func(t *testing.T) {
 		f := selectorSyntaxFixture(t, selectorEnumSource, selectorEnumDigest)
-		id, _ := selectorVariant(t, f, selectorEnumSource, 259, 271, "Color::Green", f.checked.TypeInterner.Builtins().Int)
+		selectorVariant(t, f, selectorEnumSource, 259, 271, "Color::Green", f.checked.TypeInterner.Builtins().Int)
 		analysis, err := AnalyzeReturnOrigins(t.Context(), f.checked, []ReturnOriginUnit{f.unit})
 		if err != nil || analysis == nil {
 			t.Fatalf("origin analysis aborted: %v", err)
 		}
-		span := f.builder.Exprs.Get(id).Span
-		if analysis.Complete() || len(analysis.Pending) != 1 || analysis.Pending[0].Span != span ||
-			analysis.Pending[0].Reason != "compare pattern needs a precise matching transfer" {
-			t.Errorf("want exactly the compare-pattern row at 259:271; got %+v", analysis.Pending)
+		if !analysis.Complete() || len(analysis.Pending) != 0 || len(analysis.Diagnostics) != 0 {
+			t.Errorf("want a complete analysis with no row and no diagnostic; got %+v %+v", analysis.Pending, analysis.Diagnostics)
+		}
+		found := 0
+		for _, summary := range analysis.Summaries {
+			if summary.Name != "probe" {
+				continue
+			}
+			found++
+			if summary.NoNormalReturn || summary.Unknown || !slices.Equal(summary.ParamSlots, []uint32{1, 2}) {
+				t.Errorf("probe must return one of its reference parameters a or b: %+v", summary)
+			}
+		}
+		if found != 1 {
+			t.Fatalf("PRECONDITION: %d summaries for probe", found)
 		}
 	})
 }
