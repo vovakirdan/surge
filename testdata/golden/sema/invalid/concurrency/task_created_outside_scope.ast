@@ -73,11 +73,11 @@ task_created_outside_scope.sg (span: 5:1-60:1)
 │        └─ Stmt[1]: Return (span: 43:5-47:7)
 │           └─ Expr: expr#39: async { 3 stmt(s) }
 └─ Item[6]: Fn (span: 50:1-59:2)
-   ├─ Name: destructured_outside
+   ├─ Name: nested_element_outside
    ├─ Params: ()
    ├─ Return: Task<nothing>
    └─ Body:
-      └─ Stmt[0]: Block (span: 50:44-59:2)
+      └─ Stmt[0]: Block (span: 50:46-59:2)
          ├─ Stmt[0]: Let (span: 51:5-51:36)
          │  ├─ Name: earlier
          │  ├─ Mutable: false
@@ -88,10 +88,10 @@ task_created_outside_scope.sg (span: 5:1-60:1)
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
          │  └─ Value: expr#46: (0, (earlier, 1))
-         ├─ Stmt[2]: Let (span: 53:5-53:33)
-         │  ├─ Name: <anon>
+         ├─ Stmt[2]: Let (span: 53:5-53:31)
+         │  ├─ Name: same
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#52: nested
+         │  └─ Value: expr#50: own nested.1.0
          └─ Stmt[3]: Return (span: 54:5-58:7)
-            └─ Expr: expr#58: async { 3 stmt(s) }
+            └─ Expr: expr#56: async { 3 stmt(s) }

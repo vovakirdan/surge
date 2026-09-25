@@ -21,7 +21,7 @@
  21: Assign          "=" at 4:16-4:17 (leading: Space)
  22: Ident           "pair" at 4:18-4:22 (leading: Space)
  23: Semicolon       ";" at 4:22-4:23
- 24: RBrace          "}" at 5:1-5:2 (leading: Newline)
+ 24: RBrace          "}" at 5:1-5:2 (leading: Space, LineComment, Newline)
  25: KwFn            "fn" at 7:1-7:3 (leading: Newline)
  26: Ident           "destruct_inline" at 7:4-7:19 (leading: Space)
  27: LParen          "(" at 7:19-7:20
@@ -40,5 +40,5 @@
  40: IntLit          "20" at 8:23-8:25 (leading: Space)
  41: RParen          ")" at 8:25-8:26
  42: Semicolon       ";" at 8:26-8:27
- 43: RBrace          "}" at 9:1-9:2 (leading: Newline)
+ 43: RBrace          "}" at 9:1-9:2 (leading: Space, LineComment, Newline)
  44: EOF             at 10:1-10:1

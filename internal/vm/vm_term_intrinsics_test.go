@@ -118,7 +118,9 @@ func TestVMTermSizeOverride(t *testing.T) {
 
 @entrypoint
 fn main() -> int {
-    let (cols, rows) = term.term_size();
+    let size = term.term_size();
+    let cols = size.0;
+    let rows = size.1;
     if cols == 120 && rows == 30 {
         return 0;
     }

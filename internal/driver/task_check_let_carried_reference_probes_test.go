@@ -197,7 +197,7 @@ fn main() -> int {
     return 0;
 }
 `},
-	{"rd_tuple_pattern_binding_returned", "1a27c88b8e47c3310896186f4fcae8c11368da455fe5883bc223b6da1f2d1708", "SEM3139", `async fn peek(o: Option<&int>) -> int {
+	{"rd_tuple_pattern_binding_returned", "1a27c88b8e47c3310896186f4fcae8c11368da455fe5883bc223b6da1f2d1708", "SEM3139,SEM3220", `async fn peek(o: Option<&int>) -> int {
     return compare o {
         Some(r) => *r;
         nothing => 0;

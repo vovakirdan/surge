@@ -1,0 +1,11 @@
+// a tuple returned by a call cannot be taken apart by `let` either; nothing that reads its names is reported again
+fn produce() -> (int, string, bool) {
+    return (1, "hello", true);
+}
+
+fn main() {
+    let (a, b, c) = produce();  // error: a `let` binds one name
+    let a_val: int = a;
+    let b_val: string = b;
+    let c_val: bool = c;
+}

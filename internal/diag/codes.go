@@ -550,6 +550,11 @@ const (
 	// are started, but nothing waits for them. Owner ruling 2026-09-23.
 	SemaTaskDropped Code = 3218
 
+	// SemaLetTuplePattern refuses a tuple pattern in `let` (`let (a, b) = t;`).
+	// A `let` binds one name (LANGUAGE.md §2.10 and the grammar's `Let`); tuple
+	// patterns are written only in `compare` arms. Owner ruling 2026-09-25.
+	SemaLetTuplePattern Code = 3220
+
 	// Ошибки I/O
 
 	// IOLoadFileError indicates file load error.
@@ -823,6 +828,7 @@ var ( // todo расширить описания и использовать к
 		SemaReturnSourceOwnedResult:        "`@return_source` needs a result that carries a reference",
 		SemaReturnSourceIncompatible:       "the callable may return a borrow the destination's `@return_source` promise does not permit",
 		SemaTaskDropped:                    "a task is dropped where it is made; await it, keep its handle, or spawn it",
+		SemaLetTuplePattern:                "a `let` binds one name; a tuple pattern is written only in a `compare` arm",
 		SemaPartialMoveNeedsOwn:            "taking a field out of a live value must be written `own`",
 		SemaPartialMoveFromTemporary:       "cannot take a field out of a value nothing holds",
 		SemaStoreThroughSharedRef:          "cannot write through a shared reference",

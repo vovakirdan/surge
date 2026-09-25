@@ -560,10 +560,10 @@ let value = nested.0.1;  // int: 2
 ```
 
 **Destructuring:**
-Tuple destructuring in `let` bindings is not supported yet. Bind the tuple and access fields via `.0`, `.1`, etc.
+Tuple destructuring in `let` bindings is not supported: a `let` binds one name, so `let (a, b) = t;` is a compile error (`SemaLetTuplePattern`, SEM3220). Bind the tuple and access fields via `.0`, `.1`, etc.
 
 **Limitations:**
-- Tuple patterns are supported in `compare` arms, but not in `let` bindings.
+- Tuple patterns are supported in `compare` arms, but not in `let` bindings (a compile error, SEM3220).
 - Use tuples primarily for multiple return values and temporary groupings.
 
 **Example:**

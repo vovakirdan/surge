@@ -1,0 +1,1 @@
+error SEM3220 testdata/golden/sema/invalid/tuple_destructure_call.sg:7:9 a `let` binds one name; it cannot take a tuple apart

@@ -1,0 +1,9 @@
+// scenario: a `let` cannot take a tuple apart (LANGUAGE.md §2.10); read `.0`, `.1` instead
+fn destruct_pair() {
+    let pair = (1, "hello");
+    let (x, y) = pair;  // error: a `let` binds one name
+}
+
+fn destruct_inline() {
+    let (a, b) = (10, 20);  // error: a `let` binds one name
+}
