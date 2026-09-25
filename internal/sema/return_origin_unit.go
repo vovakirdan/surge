@@ -22,6 +22,8 @@ type ReturnOriginUnit struct {
 	Sema      *Result
 	Symbols   *symbols.Result
 	SourceKey string
+	// ModulePath is the normalized identity of the module that owns this file.
+	ModulePath string
 	// Publication preserves the existing canonical/local callable vocabulary
 	// before a merged authority replaces per-file callable candidates.
 	Publication FinalizationPublication
