@@ -26,6 +26,12 @@
       "invalidated_when": "The corpus learns the fixture's directory compilation context or the fixture becomes a valid standalone file target."
     },
     {
+      "id": "CF-007",
+      "disposition": "debt",
+      "reason": "Autoref overload materialization loses the resolved record type on its synthesized struct temporary.",
+      "debt": "RV2-DEBT-105"
+    },
+    {
       "id": "CF-008",
       "disposition": "debt",
       "reason": "A nothing alias is not canonicalized consistently at the MIR return boundary.",
@@ -36,6 +42,12 @@
       "disposition": "debt",
       "reason": "A public constant resolved through a relative glob import is not remapped into MIR lowering.",
       "debt": "RV2-DEBT-107"
+    },
+    {
+      "id": "CF-010",
+      "disposition": "debt",
+      "reason": "Anonymous-record locals and member reads still carry unresolved types into MIR validation.",
+      "debt": "RV2-DEBT-089"
     },
     {
       "id": "CF-011",
@@ -466,6 +478,16 @@
       "group": "CF-001"
     },
     {
+      "fixture": "testdata/golden/sema/ownership_and_references/overload_autoref_temp_error.sg",
+      "signature": "error:MIR validation failed: function main: local L2 (tmp_struct2): unknown type",
+      "group": "CF-007"
+    },
+    {
+      "fixture": "testdata/golden/sema/ownership_and_references/overload_autoref_temp_move.sg",
+      "signature": "error:MIR validation failed: function main: local L2 (tmp_struct2): unknown type",
+      "group": "CF-007"
+    },
+    {
       "fixture": "testdata/golden/sema/valid/alien_hints/python_none_alias.sg",
       "signature": "error:MIR validation failed: function foo: bb0: return without value in non-nothing function",
       "group": "CF-008"
@@ -479,6 +501,11 @@
       "fixture": "testdata/golden/sema/valid/module_multitest/main.sg",
       "signature": "diagnostics:PRJ5002@testdata/golden/sema/valid/module_multitest/main.sg:2:1-2:19,SEM3013@testdata/golden/sema/valid/module_multitest/main.sg:9:11-9:16,SEM3015@testdata/golden/sema/valid/module_multitest/main.sg:9:11-9:18,SEM3046@testdata/golden/sema/valid/module_multitest/main.sg:9:11-9:18",
       "group": "CF-004"
+    },
+    {
+      "fixture": "testdata/golden/sema/valid/user_record_type.sg",
+      "signature": "error:MIR validation failed: function anonymous_record: local L0 (p): unknown type\nlocal L1 (tmp_struct1): unknown type",
+      "group": "CF-010"
     },
     {
       "fixture": "testdata/golden/spec_audit/s02_types_contracts.sg",
