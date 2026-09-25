@@ -28,6 +28,13 @@ Counts are measured (user form, all files, `census.json`). Claims marked "(read 
 
 ## Unsoundness risk
 
+Six driver test leaves pin today's projection row, and all six change (measured): `drop_last`, `first_byte`, `view_field`, `pop_views` and `reserve_field` of `TestAnalyzeArrayPopGetMut`, and `loan_carrier_control` of `TestAnalyzeMemberProjectionOrigins`. The test file marks them "BEFORE-equality", which means they pin the pre-existing refusal rather than witness a leak.
+
+- **Four become clean.** `drop_last` pops a byte and drops it. `first_byte` returns `Option<byte>`. `reserve_field` reserves capacity. `read_items` returns `b.items` with `b`'s origin.
+- **Two stay unfinished on their other rows:** `view_field` and `pop_views`.
+
+The packet must update these rows.
+
 Canary `f06` returns an array field through a borrowed struct. It loses this row but keeps "container loans lack a proven base" (measured), so the second fence holds. A future change to `containerLoans` must re-run `f06`.
 
 ## DEBT-365 and DEBT-368

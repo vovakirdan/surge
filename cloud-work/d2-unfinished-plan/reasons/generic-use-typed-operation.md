@@ -28,7 +28,7 @@ The third carrier is the `core_stdlib/string.sg` copy.
 
 ## Unsoundness risk
 
-Low. The certificate is by identity.
+Low. The certificate is by identity. Two control leaves of `TestAnalyzeOperatorCarrierResult` flip: `concat_control` and `fixed_concat_control`. Their own precondition message says the leaf "must become a plain-absence assertion" once this row goes (measured).
 
 ## DEBT-365 and DEBT-368
 

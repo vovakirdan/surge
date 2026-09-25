@@ -34,6 +34,8 @@ Other non-core carriers:
 
 - **A body that returns a reference into `self` must keep `self`'s loans on the result.** Canary `f12` (an `__index` body that returns a reference into `self`) goes from unfinished to a precise SEM3139 under the prototype (measured). The refusal becomes named; it is not lost.
 - **For Map, returning a fresh value for `m[k]` would let a `&V` outlive the next insert.** The transfer must return the map's storage.
+- **The prototype trusts the checker's index selection, and that is a hole (measured).** `TestAnalyzeTypedStringRangeIndexAuthority` swaps the selected operation for the scalar overload through a detached mutation. The prototype accepts it and loses "selected string range index disagrees with its original signature". The real packet must check the selected `__index` against the original typed operation.
+- **One pinned row flips.** `TestAnalyzeTypedStringRangeOrigins/foreign_selected_range` pins today's refusal on a foreign `__index(self: &Foreign, index: Range<int>) -> string`. That body returns an owned string, so answering it is sound, but the row must be updated deliberately.
 
 ## DEBT-365 and DEBT-368
 

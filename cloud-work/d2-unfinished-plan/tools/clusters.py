@@ -79,8 +79,17 @@ def main() -> None:
         "reason_carry_after": sorted(Counter(r for s in after.values() for r in s).items(),
                                      key=lambda x: (-x[1], x[0])),
     }
-    json.dump(result, sys.stdout, indent=1)
-    print()
+    keys = list(result)
+    out = ["{"]
+    for i, key in enumerate(keys):
+        value, tail = result[key], ("," if i + 1 < len(keys) else "")
+        if isinstance(value, list) and value and isinstance(value[0], (dict, list)):
+            items = ",\n".join("  " + json.dumps(item) for item in value)
+            out.append(f" {json.dumps(key)}: [\n{items}\n ]{tail}")
+        else:
+            out.append(f" {json.dumps(key)}: {json.dumps(value)}{tail}")
+    out.append("}")
+    print("\n".join(out))
 
 
 if __name__ == "__main__":

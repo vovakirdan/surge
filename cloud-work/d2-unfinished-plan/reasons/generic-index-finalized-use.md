@@ -28,6 +28,8 @@ Counts are measured (user form, all files, `census.json`). Claims marked "(read 
 
 Low. The code is never emitted, and the original root names exactly the instance the source asks for. The risk is a caller that becomes live later with a different instance. That instance would then have its own finalized use, and the prototype path would no longer apply.
 
+Two driver leaves change: `leak_formal_inner` and `pop_inner_rt` of `TestAnalyzeArrayPopLoanFormals`. Both return a view of a local through a nested array, and they stay refused under the prototype. The refusal is now "cursor element that can hold storage loans needs its backing loan transfer" instead of the pinned "borrowed temporary" and "generic index" pair (measured). The packet must re-pin them.
+
 ## DEBT-365 and DEBT-368
 
 None named.

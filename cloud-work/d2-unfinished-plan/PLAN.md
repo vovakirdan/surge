@@ -9,7 +9,7 @@
 6. **Blocked on the owner.** 22 programs cannot reach zero without a decision: 10 `core_stdlib` copies (Q1), 4 Task programs (Q2), 7 lent temporaries (Q3) and 1 guard fallthrough (Q4).
 7. **The questions.** Q1: diagnose the copies as core? Q2: wait for R-i and D4b on Task values? Q3: core body summaries, wait, or rewrite call sites? Q4: what a compare yields when its guarded arm fails.
 8. **Found on the way.** The VM cannot build a default runtime handle (VM1999). 3 valid programs abort the analysis on an anonymous record. `t15` becomes a runtime result.
-9. **Tests.** The prototype flips 1 sema row and 1 driver row on purpose; N-CORE-TEMP flips 2 pinned rows (Q3a). All 27 tripwire tests and 44 task tests pass.
+9. **Tests.** 34 driver tests already fail at `7131fb2`. The prototype changes 16 more leaves: 13 flips of pinned or control rows (2 await Q3(a)), 2 leaks still refused under another row, and 1 forged-selection hole to close.
 10. **Confidence.** High for the census and the 48 measured programs. Medium that real packets match the prototype sizes. Low for the 16 estimates.
 
 Claims are measured unless marked "(read from code)". "Measured" means a run of the compiler at `7131fb2`, or of the scratch prototype built from it. The prototype is described in words only, and its code is not committed. Per-reason detail is in `reasons/`, the numbers in `census.md`, and the grouping in `clusters.md`.
@@ -49,7 +49,7 @@ Each step enables one more packet in the prototype and diagnoses all 84 programs
 | 13 | N-IMPORT-IDENTITY | selected-callable-authority | `sema/valid/import_all.sg`, `sema/valid/module_multitest/main.sg`, `stdlib/time_duration_conversions.sg` | use the resolver's export record; exclude `core` modules (G5 tripwire) | 16 | a name match can pick the wrong export |
 | 14 | N-TAGMEMBER-ARG | generic-argument-disagrees (union-member form) | `vm_compare/counted_payload_clone_and_borrow.sg`, `vm_compare/for_in_compare_reads_heap_free_union.sg` | re-measure P-STASH and P-VIEW2 before landing | 20 | canaries `f16` and `f17` keep only their G6 row |
 | 15 | N-MAPLIT | map-literal-kind-9 | `vm_maps/map_literal_order.sg` | none | 43 | low |
-| 16 | N-INDEX-CALL | index-non-scalar (user `__index`) | `hir/indexing_ranges.sg`, `sema/valid/range_literals.sg` | none | 65 | canary `f12` becomes SEM3139 |
+| 16 | N-INDEX-CALL | index-non-scalar (user `__index`) | `hir/indexing_ranges.sg`, `sema/valid/range_literals.sg` | must check the selected `__index` against the original operation | 65 | the prototype accepts a forged selection; canary `f12` becomes SEM3139 |
 | 17 | N-CONCAT-USE | generic-use-typed-operation | none alone | pairs with N-CORE-TEMP | 35 | low: an identity certificate |
 | 18 | N-CORE-TEMP | implicit-borrow-temporary, borrowed-temporary (core callees) | `vm_strings/strings_rope_std.sg`, `vm_strings/strings_std.sg` | owner question 3(a); flips 2 pinned rows | 76 | relies on core bodies starting no task |
 
@@ -58,13 +58,30 @@ What the real packets must do differently from the prototype, all measured on th
 - **N-CLONE-COPY** must skip a call that has a clone selection. Without that check, row `copy_result_control` loses its refusal.
 - **N-IMPORT-IDENTITY** must read the resolver's export record instead of matching by name and signature, and must exclude `core` modules. Without the exclusion, `TestH2TripwireRefusedG5ModuleTimeout` fails. DEBT.md:229 names that identity as a tripwire change.
 - **N-STDLIB-TIME** must be keyed by declaration identity. The prototype keyed it by source file.
+- **N-INDEX-CALL** must check the selected `__index` against the original typed operation. The prototype accepts a forged selection (`TestAnalyzeTypedStringRangeIndexAuthority`).
 
 Tests under all 18 packets with those two fixes:
 
-- **`internal/sema`, whole package.** Only `TestReturnOriginEnumVariantTargets/enum_pattern` fails. That is the documented row N-PATTERN flips.
-- **`internal/driver`, filtered** to the return-origin, tripwire, task-check, `on`, task-block, spawn, select and string-temporary tests. 9 top-level tests (28 entries with subtests) already fail on unmodified `7131fb2`, with or without `SURGE_STDLIB`. The prototype adds exactly three: `copy_number_control`, which is intended, and `core_loan_carrier_result` and `core_loan_sink_effect`, which are N-CORE-TEMP and Q3(a).
-- **Tripwire and task tests pass.** That covers all 10 `TestH2Tripwire*` driver tests, all 37 `TestTaskCheck*` tests, and the 7 task, async, channel and `on` tests. Among those are `TestAnalyzeTaskAwaits` (row `borrowing_task_payload_stays_refused`, R-i's tripwire) and `TestAnalyzeTaskBlocks` (row `reference_capture_stays_refused`).
-- **All 17 VM `TestH2Tripwire*` tests pass.**
+Full `internal/sema` and `internal/driver` suites, base against prototype, both with a 55-minute timeout:
+
+- **Base.** On unmodified `7131fb2`, `internal/sema` passes. `internal/driver` fails 34 top-level tests (56 entries with subtests). See section 6, item 7.
+- **Under the prototype**, 16 more leaves fail. The table attributes each one by switching single packets off.
+
+| Packet | Test leaves that change | What they mean |
+|---|---|---|
+| N-PATTERN | `TestReturnOriginEnumVariantTargets/enum_pattern` | documents today's refusal; an intended flip |
+| N-CLONE-COPY | `TestAnalyzeSelectedDirectCloneOrigins/copy_number_control` | an intended flip. The forged-selection row `copy_result_control` stays refused. |
+| N-FIELD-BORROW | `TestAnalyzeArrayPopGetMut`: `drop_last`, `first_byte`, `view_field`, `pop_views`, `reserve_field`; `TestAnalyzeMemberProjectionOrigins/loan_carrier_control` | These pin the pre-existing projection row ("BEFORE-equality" in the test). `drop_last`, `first_byte`, `reserve_field` and `read_items` become clean: they pop a byte, return `Option<byte>`, reserve capacity, or return `b.items` with `b`'s origin. `view_field` and `pop_views` stay unfinished on their other rows. The rows must be updated. |
+| N-DEAD-GENERIC-USE | `TestAnalyzeArrayPopLoanFormals`: `leak_formal_inner`, `pop_inner_rt` | These are real leaks of a view of a local. They stay refused, but now by "cursor element that can hold storage loans needs its backing loan transfer" instead of the pinned pair. The rows must be re-pinned. |
+| N-CONCAT-USE | `TestAnalyzeOperatorCarrierResult`: `concat_control`, `fixed_concat_control` | The test itself says the leaf "must become a plain-absence assertion"; an expected transition. |
+| N-CORE-TEMP | `TestAnalyzeStringTemporaryArguments`: `core_loan_carrier_result`, `core_loan_sink_effect` | owner question 3(a) |
+| N-INDEX-CALL | `TestAnalyzeTypedStringRangeOrigins/foreign_selected_range` | A pinned refusal. The foreign `__index` returns an owned string, so answering it is sound; the row must be updated. |
+| N-INDEX-CALL | `TestAnalyzeTypedStringRangeIndexAuthority` | **A hole in the prototype.** A detached mutation swaps the selected index operation, and the prototype accepts it. The real packet must check the selected `__index` against the original typed operation and keep "selected string range index disagrees with its original signature". |
+
+Other results:
+
+- **One base failure passes under the prototype.** N-IMPORT-IDENTITY fixes `TestDiagnoseReportsWrongRelativeImportToExplicitModuleSameName`. On the base it fails with "selected callable lacks its published callable authority".
+- **Tripwire and task tests pass.** That covers all 10 `TestH2Tripwire*` driver tests, all 37 `TestTaskCheck*` tests, and the 7 task, async, channel and `on` tests. Among those are `TestAnalyzeTaskAwaits` (row `borrowing_task_payload_stays_refused`, R-i's tripwire) and `TestAnalyzeTaskBlocks` (row `reference_capture_stays_refused`). All 17 VM `TestH2Tripwire*` tests pass.
 - **The 15 freed programs that have a golden `.out`** match it on both backends, as their sidecars require.
 
 ## 3. Packets not prototyped (estimated from code)
@@ -130,7 +147,12 @@ If Q3(a) is no, `strings_std`, `strings_rope_std` and `map_get_mut` stay too, wh
 4. **A compare whose guarded arm fails with no arm left yields `default()` silently** on both backends. The MIR lowers it as `L24 = call default()`. That is Q4.
 5. **The real `core/` diagnosed as the root program by absolute path is still unfinished**: 38 rows at 8 explicit tag-constructor sites. Diagnosed by relative path, it is refused as `core namespace reserved`.
 6. **`docs/RUNTIME_MODEL_EXPLAINED.md` does not exist at `7131fb2`.** Only `docs/RUNTIME_MODEL_EXPLAINED.ru.md` does. I read the Russian file.
-7. **The return-origin driver tests already fail at `7131fb2` in this container.** 9 top-level tests fail, for example `TestAnalyzeTypedReturnOrigins`, whose rows include "deferred clone lacks its original owning caller" in `core/array.sg`. They fail with or without `SURGE_STDLIB`. Every prototype test comparison above is against that baseline.
+7. **34 of the 292 `internal/driver` tests fail on unmodified `7131fb2`**, with or without `SURGE_STDLIB`.
+   - **21 fail because the return-origin analysis refuses the test's own fixture program.** In 15 it is reported as unfinished; the most common rows are the three call-family reasons on `clone(...)`. In 6 it is "return-origin refusal was not represented in the returned diagnostics".
+   - **6 are `TestAnalyzeTypedReturnOrigins*` tests** whose covered `core/array.sg` is not clean in their harness ("deferred clone lacks its original owning caller").
+   - **7 fail on other preconditions.**
+
+   The golden census does not count these fixtures, but they are programs the D2 gate refuses today. `internal/sema` passes.
 
 ## 7. How this was checked
 
