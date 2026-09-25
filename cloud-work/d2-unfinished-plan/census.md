@@ -14,7 +14,7 @@ Every claim on this page was measured by running the compiler unless it says "(r
 - **Classes.** `ok` means exit 0. `unfinished` means the output carries `return-origin analysis unfinished: [...]` (`internal/driver/return_origin_finalization.go:30-37`). `diagnostics` means exit 1 with at least one ERROR code. `other` is anything else.
 - **Derived reasons.** Three reasons only carry forward a source raised somewhere else, so they are never counted as root reasons: "function result contains an unproved source", "callee returned an unproved source" and "outgoing reference has unresolved or captured provenance".
 - **Row locations.** Each row's span is a byte range in its `SourceKey` file. `census.json` turns that into line and column.
-- **Determinism.** Two independent full runs gave the same class and the same root-reason set for all 1079 programs.
+- **Determinism.** Three independent full runs gave the same class and the same root-reason set for all 1079 programs. The third was the from-scratch rebuild in `VERIFY.md`.
 
 ## Findings
 

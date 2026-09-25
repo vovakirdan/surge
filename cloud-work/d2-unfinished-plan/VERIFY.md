@@ -44,7 +44,7 @@ print("programs that differ:", len(diff), diff[:10])
 PY
 ```
 
-Expected output: `programs that differ: 0 []`. Two independent runs at `7131fb2` gave that.
+Expected output: `programs that differ: 0 []`. The final check before committing ran exactly these commands from scratch at `7131fb2`, with `JOBS=6` on a machine that was also running the test suites. It took 20 minutes, printed `programs that differ: 0 []`, and produced a greedy cover identical to the committed `clusters.json`.
 
 To regenerate the tables in `census.md` and `clusters.md`:
 
