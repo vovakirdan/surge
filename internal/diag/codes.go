@@ -550,6 +550,14 @@ const (
 	// are started, but nothing waits for them. Owner ruling 2026-09-23.
 	SemaTaskDropped Code = 3218
 
+	// SemaNonexhaustiveGuardedMatch refuses a compare in which a union variant is named
+	// by at least one arm but every arm naming it can still miss: the arm has an `if`
+	// guard, or a payload sub-pattern that is refutable (a literal, a nested tag that
+	// does not cover its own type, an enum variant, ...). Values of that variant would
+	// fall through every arm, so a later irrefutable arm (`Some(_)`) or `finally` is
+	// required. Owner ruling 2026-09-25 (option B).
+	SemaNonexhaustiveGuardedMatch Code = 3219
+
 	// Ошибки I/O
 
 	// IOLoadFileError indicates file load error.
@@ -823,6 +831,7 @@ var ( // todo расширить описания и использовать к
 		SemaReturnSourceOwnedResult:        "`@return_source` needs a result that carries a reference",
 		SemaReturnSourceIncompatible:       "the callable may return a borrow the destination's `@return_source` promise does not permit",
 		SemaTaskDropped:                    "a task is dropped where it is made; await it, keep its handle, or spawn it",
+		SemaNonexhaustiveGuardedMatch:      "non-exhaustive pattern match: every arm for a variant can miss",
 		SemaPartialMoveNeedsOwn:            "taking a field out of a live value must be written `own`",
 		SemaPartialMoveFromTemporary:       "cannot take a field out of a value nothing holds",
 		SemaStoreThroughSharedRef:          "cannot write through a shared reference",

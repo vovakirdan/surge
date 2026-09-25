@@ -266,36 +266,39 @@ func (tc *typeChecker) checkCompareExhausiveness(cmp *ast.ExprCompareData, subje
 		return
 	}
 
-	// Track remaining members through all arms
+	// Track remaining members through all arms. `remaining` is the strict
+	// count (only irrefutable, unguarded arms consume, see
+	// consumeCompareMembers); `unmentioned` is the loose one, in which any arm
+	// naming a member consumes it. Their difference is the members that some arm
+	// names but every such arm can miss.
 	remaining := tc.unionMembers(subjectType)
+	unmentioned := tc.unionMembers(subjectType)
 	hasFinally := false
 
 	for _, arm := range cmp.Arms {
 		if arm.IsFinally {
 			hasFinally = true
-			remaining = nil
 			break
 		}
 		remaining = tc.consumeCompareMembers(remaining, arm)
+		unmentioned = tc.consumeMentionedCompareMembers(unmentioned, arm)
 	}
 
 	// Check for non-exhaustive match
-	if len(remaining) > 0 && !hasFinally {
-		tc.emitNonExhaustiveMatchForMembers(span, remaining)
+	if !hasFinally {
+		if len(unmentioned) > 0 {
+			tc.emitNonExhaustiveMatchForMembers(span, unmentioned)
+		}
+		if partial := tc.subtractUnionMembers(remaining, unmentioned); len(partial) > 0 {
+			tc.emitNonExhaustiveGuardedMatch(span, partial)
+		}
 	}
 
-	// Check for redundant finally (all members already matched before finally)
-	if hasFinally {
-		remainingWithoutFinally := tc.unionMembers(subjectType)
-		for _, arm := range cmp.Arms {
-			if arm.IsFinally {
-				break
-			}
-			remainingWithoutFinally = tc.consumeCompareMembers(remainingWithoutFinally, arm)
-		}
-		if len(remainingWithoutFinally) == 0 {
-			tc.emitRedundantFinally(span)
-		}
+	// Check for redundant finally (all members already matched before finally).
+	// Strict count: a finally after guarded or refutable arms is what makes the
+	// compare exhaustive, so it is not redundant.
+	if hasFinally && len(remaining) == 0 {
+		tc.emitRedundantFinally(span)
 	}
 }
 
@@ -613,7 +616,34 @@ func (tc *typeChecker) narrowUnionMembers(members []types.UnionMember) types.Typ
 	}
 }
 
+// consumeCompareMembers drops the members this arm is certain to catch. Owner
+// ruling 2026-09-25: only an IRREFUTABLE, UNGUARDED arm covers its variant. A
+// guarded arm consumes nothing, and a tag pattern consumes its member only when
+// every payload sub-pattern is irrefutable (see comparePatternIrrefutable).
 func (tc *typeChecker) consumeCompareMembers(remaining []types.UnionMember, arm ast.ExprCompareArm) []types.UnionMember {
+	if len(remaining) == 0 {
+		return remaining
+	}
+	if !arm.IsFinally && arm.Guard.IsValid() {
+		return remaining
+	}
+	matched := tc.matchedUnionMembers(arm.Pattern, remaining, arm.IsFinally)
+	if len(matched) == 0 {
+		return remaining
+	}
+	if !arm.IsFinally {
+		matched = tc.irrefutablyMatchedMembers(arm.Pattern, remaining, matched)
+		if len(matched) == 0 {
+			return remaining
+		}
+	}
+	return tc.dropUnionMembers(remaining, matched)
+}
+
+// consumeMentionedCompareMembers drops every member the arm's pattern names,
+// ignoring its guard and payload. It only decides which diagnostic a
+// non-exhaustive compare gets, never whether it is exhaustive.
+func (tc *typeChecker) consumeMentionedCompareMembers(remaining []types.UnionMember, arm ast.ExprCompareArm) []types.UnionMember {
 	if len(remaining) == 0 {
 		return remaining
 	}

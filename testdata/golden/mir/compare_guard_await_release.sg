@@ -11,6 +11,7 @@ async fn test() -> int {
     let b = spawn slow(1);
     return compare a.await() {
         Success(x) if compare b.await() { Success(v) => v; Cancelled() => false; } => x;
+        Success(_) => 0;
         Cancelled() => 0;
     };
 }
