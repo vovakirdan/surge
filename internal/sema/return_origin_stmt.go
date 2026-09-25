@@ -49,12 +49,10 @@ func (b *returnOriginBody) stmt(id ast.StmtID, env returnOriginEnv, targets retu
 	case ast.StmtLet, ast.StmtConst:
 		var value ast.ExprID
 		var annotation ast.TypeID
+		pattern := ast.NoExprID
 		if node.Kind == ast.StmtLet {
 			decl := u.Builder.Stmts.Let(id)
-			value, annotation = decl.Value, decl.Type
-			if decl.Pattern.IsValid() {
-				b.pending(node.Span, "destructuring needs projected origin facts")
-			}
+			value, annotation, pattern = decl.Value, decl.Type, decl.Pattern
 		} else {
 			decl := u.Builder.Stmts.Const(id)
 			value, annotation = decl.Value, decl.Type
@@ -72,6 +70,16 @@ func (b *returnOriginBody) stmt(id ast.StmtID, env returnOriginEnv, targets retu
 		} else {
 			b.pending(node.Span, "uninitialized binding has no proven reference contents")
 			out.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
+		}
+		if pattern.IsValid() {
+			// `let (a, b) = v` binds each name to its element (return_origin_tuples.go).
+			if !value.IsValid() {
+				b.pending(node.Span, returnOriginDestructureRefusal)
+				out.flow.normal = b.bindPatternUnknown(pattern, out.flow.normal)
+			} else if out.flow.normal.reachable {
+				out.flow.normal = b.destructure(node.Span, pattern, u.Sema.ExprTypes[value], out.value, out.flow.normal)
+			}
+			return out.flow, nil
 		}
 		id := u.stmtSymbols[id]
 		if id.IsValid() {
