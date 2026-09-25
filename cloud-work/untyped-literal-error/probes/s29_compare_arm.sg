@@ -1,0 +1,2 @@
+type P = { x: int };
+fn f(c: int) -> P { return compare c { 1 => { x: 1 }; _ => { x: 2 }; }; }

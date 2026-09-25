@@ -1,0 +1,130 @@
+== cf1_checker_reverted
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: <none>
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: [SEM3005] unknown has no method put; [SEM3015] expected [int], got unknown
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: <none>
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: <none>
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: [SEM3015] expected Point, got unknown
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: [SEM3015] expected [int], got unknown
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: [SEM3015] expected Point, got unknown; [SEM3015] expected Point, got unknown
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: [SEM3015] expected Point, got unknown
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: [SEM3005] unknown has no method put
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: [SEM3046] no matching overload for id
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: <none>
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: <none>
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: <none>
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: <none>
+    untyped_literal_test.go:132: got 0 SEM3219, want 2: <none>
+    untyped_literal_test.go:132: got 0 SEM3219, want 2: <none>
+    untyped_literal_test.go:146: other errors: <none>, want "SEM3015"
+--- FAIL: TestUntypedLiteralNeedsExpectedType (0.10s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/let_without_annotation (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/empty_array_let (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/operand_of_user_add (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/right_operand_of_user_add (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/argument (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/empty_array_argument (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/argument_through_binding (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/method_argument (0.01s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/method_receiver (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/generic_argument (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/array_elements (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/tuple_element (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/nested_reports_outermost (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/expression_statement (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/positional_and_empty (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/assignment_to_untyped_binding (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/tuple_element_mismatch (0.00s)
+    untyped_literal_test.go:159: diagnostics: [SEM3015] expected Point, got unknown
+--- FAIL: TestUntypedLiteralArgumentMessage (0.00s)
+FAIL	surge/internal/sema	0.109s
+== cf2_sweep_off
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: <none>
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: <none>
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: <none>
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: <none>
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: <none>
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: <none>
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: <none>
+    untyped_literal_test.go:132: got 0 SEM3219, want 2: <none>
+    untyped_literal_test.go:132: got 0 SEM3219, want 2: <none>
+--- FAIL: TestUntypedLiteralNeedsExpectedType (0.11s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/let_without_annotation (0.01s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/operand_of_user_add (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/right_operand_of_user_add (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/array_elements (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/tuple_element (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/nested_reports_outermost (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/expression_statement (0.01s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/positional_and_empty (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/assignment_to_untyped_binding (0.00s)
+FAIL	surge/internal/sema	0.119s
+== cf3_argument_interception_off
+    untyped_literal_test.go:146: other errors: [SEM3219] empty array literal gets no element type here; [SEM3015] expected [int], got unknown, want ""
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: [SEM3015] expected Point, got unknown
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: [SEM3015] expected [int], got unknown
+    untyped_literal_test.go:146: other errors: [SEM3015] expected Point, got unknown; [SEM3015] expected Point, got unknown; [SEM3219] struct literal without a type name gets no type here, want ""
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: [SEM3015] expected Point, got unknown
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: [SEM3046] no matching overload for id
+--- FAIL: TestUntypedLiteralNeedsExpectedType (0.08s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/empty_array_let (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/argument (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/empty_array_argument (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/argument_through_binding (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/method_argument (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/generic_argument (0.00s)
+    untyped_literal_test.go:159: diagnostics: [SEM3015] expected Point, got unknown
+--- FAIL: TestUntypedLiteralArgumentMessage (0.00s)
+FAIL	surge/internal/sema	0.087s
+== cf4_receiver_interception_off
+    untyped_literal_test.go:146: other errors: [SEM3005] unknown has no method put; [SEM3219] empty array literal gets no element type here, want ""
+    untyped_literal_test.go:132: got 0 SEM3219, want 1: [SEM3005] unknown has no method put
+--- FAIL: TestUntypedLiteralNeedsExpectedType (0.08s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/empty_array_let (0.01s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/method_receiver (0.00s)
+FAIL	surge/internal/sema	0.088s
+== cf5_covered_rule_off
+    untyped_literal_test.go:132: got 3 SEM3219, want 1: [SEM3219] empty array literal gets no element type here; [SEM3219] empty array literal gets no element type here; [SEM3219] empty array literal gets no element type here
+    untyped_literal_test.go:132: got 2 SEM3219, want 1: [SEM3219] struct literal without a type name gets no type here; [SEM3219] struct literal without a type name gets no type here
+    untyped_literal_test.go:132: got 2 SEM3219, want 1: [SEM3219] empty array literal gets no element type here; [SEM3219] empty array literal gets no element type here
+    untyped_literal_test.go:132: got 3 SEM3219, want 1: [SEM3219] struct literal without a type name gets no type here; [SEM3219] struct literal without a type name gets no type here; [SEM3219] struct literal without a type name gets 
+    untyped_literal_test.go:132: got 2 SEM3219, want 1: [SEM3219] struct literal without a type name gets no type here; [SEM3219] struct literal without a type name gets no type here
+    untyped_literal_test.go:132: got 2 SEM3219, want 1: [SEM3219] struct literal without a type name gets no type here; [SEM3219] struct literal without a type name gets no type here
+    untyped_literal_test.go:132: got 2 SEM3219, want 1: [SEM3219] struct literal without a type name gets no type here; [SEM3219] struct literal without a type name gets no type here
+    untyped_literal_test.go:132: got 2 SEM3219, want 1: [SEM3219] struct literal without a type name gets no type here; [SEM3219] struct literal without a type name gets no type here
+    untyped_literal_test.go:132: got 1 SEM3219, want 0: [SEM3015] struct literal requires explicit type when assigning to int; [SEM3219] struct literal without a type name gets no type here
+    untyped_literal_test.go:132: got 1 SEM3219, want 0: [SEM3015] int is not a struct; [SEM3219] struct literal without a type name gets no type here
+    untyped_literal_test.go:132: got 1 SEM3219, want 0: [SEM3016] operator + (__add) is not defined for int and bool; [SEM3219] struct literal without a type name gets no type here
+--- FAIL: TestUntypedLiteralNeedsExpectedType (0.10s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/empty_array_let (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/argument (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/empty_array_argument (0.01s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/argument_through_binding (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/method_argument (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/method_receiver (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/generic_argument (0.01s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/nested_reports_outermost (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/annotation_not_a_struct (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/return_not_a_struct (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/error_inside_literal (0.00s)
+    untyped_literal_test.go:159: diagnostics: [SEM3219] struct literal without a type name gets no type here; [SEM3219] struct literal without a type name gets no type here
+--- FAIL: TestUntypedLiteralArgumentMessage (0.00s)
+FAIL	surge/internal/sema	0.110s
+== cf6_return_in_block_off
+    untyped_literal_test.go:132: got 1 SEM3219, want 0: [SEM3219] empty array literal gets no element type here
+--- FAIL: TestUntypedLiteralNeedsExpectedType (0.09s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/typed_return_in_compare_arm (0.00s)
+FAIL	surge/internal/sema	0.134s
+== cf7_tuple_expected_off
+    untyped_literal_test.go:132: got 1 SEM3219, want 0: [SEM3219] struct literal without a type name gets no type here
+    untyped_literal_test.go:132: got 1 SEM3219, want 0: [SEM3219] struct literal without a type name gets no type here
+--- FAIL: TestUntypedLiteralNeedsExpectedType (0.10s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/typed_tuple_elements (0.00s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/tuple_element_mismatch (0.00s)
+FAIL	surge/internal/sema	0.106s
+== cf8_annotation_cover_off
+    untyped_literal_test.go:132: got 1 SEM3219, want 0: [SEM3015] Pair expects 2 type argument(s), got 1; [SEM3219] struct literal without a type name gets no type here
+--- FAIL: TestUntypedLiteralNeedsExpectedType (0.08s)
+    --- FAIL: TestUntypedLiteralNeedsExpectedType/annotation_that_does_not_resolve (0.00s)
+FAIL	surge/internal/sema	0.090s
+== control
+ok  	surge/internal/sema	0.077s

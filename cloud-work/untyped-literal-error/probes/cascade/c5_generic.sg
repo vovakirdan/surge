@@ -1,0 +1,2 @@
+fn id<T>(p: T) -> T { return p; }
+fn f() { let _ = id(nope); }

@@ -1,0 +1,2 @@
+fn g(xs: int[]) -> int { return 1; }
+fn f() -> int { return g([]); }

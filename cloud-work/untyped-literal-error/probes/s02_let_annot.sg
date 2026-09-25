@@ -1,0 +1,2 @@
+type Point = { x: int, y: int };
+fn f() { let p: Point = { x: 1, y: 2 }; }

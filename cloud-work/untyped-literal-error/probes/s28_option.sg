@@ -1,0 +1,2 @@
+type P = { x: int };
+fn f() { let p: P? = { x: 1 }; }

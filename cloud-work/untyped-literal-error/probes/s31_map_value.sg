@@ -1,0 +1,2 @@
+type P = { x: int };
+fn f() { let m: Map<string, P> = { "a" => { x: 1 } }; }

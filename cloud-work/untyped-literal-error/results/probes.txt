@@ -1,0 +1,123 @@
+== s01_let.sg	base=1	after=1
+  base:  Error: diagnosis failed: return origins: expression 5 is not typed in cloud-work/untyped-literal-error/probes/s01_let.sg
+  after: error SEM3219 cloud-work/untyped-literal-error/probes/s01_let.sg:1:18 struct literal without a type name gets no type here
+== s02_let_annot.sg	base=0	after=0
+== s03_let_annot_int.sg	base=1	after=1
+  base:  error SEM3015 cloud-work/untyped-literal-error/probes/s03_let_annot_int.sg:1:23 struct literal requires explicit type when assigning to int
+  after: error SEM3015 cloud-work/untyped-literal-error/probes/s03_let_annot_int.sg:1:23 struct literal requires explicit type when assigning to int
+== s04_return_struct.sg	base=0	after=0
+== s05_return_int.sg	base=1	after=1
+  base:  error SEM3015 cloud-work/untyped-literal-error/probes/s05_return_int.sg:1:24 int is not a struct
+  after: error SEM3015 cloud-work/untyped-literal-error/probes/s05_return_int.sg:1:24 int is not a struct
+== s06_return_nothing.sg	base=1	after=1
+  base:  error SEM3015 cloud-work/untyped-literal-error/probes/s06_return_nothing.sg:1:10 function returning nothing cannot return a value
+  after: error SEM3015 cloud-work/untyped-literal-error/probes/s06_return_nothing.sg:1:10 function returning nothing cannot return a value
+== s07_arg_struct.sg	base=1	after=1
+  base:  error SEM3015 cloud-work/untyped-literal-error/probes/s07_arg_struct.sg:3:26 expected Point, got unknown
+  after: error SEM3219 cloud-work/untyped-literal-error/probes/s07_arg_struct.sg:3:26 struct literal without a type name gets no type here
+== s08_arg_int.sg	base=1	after=1
+  base:  error SEM3015 cloud-work/untyped-literal-error/probes/s08_arg_int.sg:2:26 expected int, got unknown
+  after: error SEM3219 cloud-work/untyped-literal-error/probes/s08_arg_int.sg:2:26 struct literal without a type name gets no type here
+== s09_arg_generic.sg	base=1	after=1
+  base:  error SEM3046 cloud-work/untyped-literal-error/probes/s09_arg_generic.sg:2:18 no matching overload for id
+  after: error SEM3219 cloud-work/untyped-literal-error/probes/s09_arg_generic.sg:2:21 struct literal without a type name gets no type here
+== s10_add_left.sg	base=1	after=1
+  base:  Error: diagnosis failed: return origins: expression 25 is not typed in cloud-work/untyped-literal-error/probes/s10_add_left.sg
+  after: error SEM3219 cloud-work/untyped-literal-error/probes/s10_add_left.sg:5:50 struct literal without a type name gets no type here
+== s11_add_right.sg	base=1	after=1
+  base:  Error: diagnosis failed: return origins: expression 25 is not typed in cloud-work/untyped-literal-error/probes/s11_add_right.sg
+  after: error SEM3219 cloud-work/untyped-literal-error/probes/s11_add_right.sg:5:55 struct literal without a type name gets no type here
+== s12_array_elem.sg	base=1	after=1
+  base:  Error: diagnosis failed: return origins: expression 7 is not typed in cloud-work/untyped-literal-error/probes/s12_array_elem.sg
+  after: error SEM3219 cloud-work/untyped-literal-error/probes/s12_array_elem.sg:1:19 struct literal without a type name gets no type here
+  after: error SEM3219 cloud-work/untyped-literal-error/probes/s12_array_elem.sg:1:29 struct literal without a type name gets no type here
+== s13_array_elem_annot.sg	base=0	after=0
+== s14_tuple_elem.sg	base=1	after=1
+  base:  Error: diagnosis failed: return origins: expression 5 is not typed in cloud-work/untyped-literal-error/probes/s14_tuple_elem.sg
+  after: error SEM3219 cloud-work/untyped-literal-error/probes/s14_tuple_elem.sg:1:19 struct literal without a type name gets no type here
+== s15_tuple_elem_annot.sg	base=1	after=0
+  base:  Error: diagnosis failed: return origins: expression 5 is not typed in cloud-work/untyped-literal-error/probes/s15_tuple_elem_annot.sg
+== s16_assign_untyped.sg	base=0	after=0
+== s17_assign_to_int.sg	base=1	after=1
+  base:  error SEM3015 cloud-work/untyped-literal-error/probes/s17_assign_to_int.sg:1:34 struct literal requires explicit type when assigning to int
+  after: error SEM3015 cloud-work/untyped-literal-error/probes/s17_assign_to_int.sg:1:34 struct literal requires explicit type when assigning to int
+== s18_empty_array.sg	base=1	after=1
+  base:  Error: diagnosis failed: return origins: expression 1 is not typed in cloud-work/untyped-literal-error/probes/s18_empty_array.sg
+  after: error SEM3219 cloud-work/untyped-literal-error/probes/s18_empty_array.sg:1:18 empty array literal gets no element type here
+== s19_empty_array_annot.sg	base=0	after=0
+== s20_empty_array_arg.sg	base=1	after=1
+  base:  error SEM3015 cloud-work/untyped-literal-error/probes/s20_empty_array_arg.sg:2:26 expected [int], got unknown
+  after: error SEM3219 cloud-work/untyped-literal-error/probes/s20_empty_array_arg.sg:2:26 empty array literal gets no element type here
+== s21_empty_record_let.sg	base=1	after=1
+  base:  Error: diagnosis failed: return origins: expression 1 is not typed in cloud-work/untyped-literal-error/probes/s21_empty_record_let.sg
+  after: error SEM3219 cloud-work/untyped-literal-error/probes/s21_empty_record_let.sg:1:18 struct literal without a type name gets no type here
+== s22_positional.sg	base=1	after=1
+  base:  Error: diagnosis failed: return origins: expression 3 is not typed in cloud-work/untyped-literal-error/probes/s22_positional.sg
+  after: error SEM3219 cloud-work/untyped-literal-error/probes/s22_positional.sg:1:18 struct literal without a type name gets no type here
+== s23_nested.sg	base=0	after=0
+== s24_nested_untyped.sg	base=1	after=1
+  base:  Error: diagnosis failed: return origins: expression 5 is not typed in cloud-work/untyped-literal-error/probes/s24_nested_untyped.sg
+  after: error SEM3219 cloud-work/untyped-literal-error/probes/s24_nested_untyped.sg:1:18 struct literal without a type name gets no type here
+== s25_field_of_untyped.sg	base=1	after=1
+  base:  Error: diagnosis failed: return origins: expression 3 is not typed in cloud-work/untyped-literal-error/probes/s25_field_of_untyped.sg
+  after: error SEM3219 cloud-work/untyped-literal-error/probes/s25_field_of_untyped.sg:1:25 struct literal without a type name gets no type here
+== s26_stmt_expr.sg	base=1	after=1
+  base:  Error: diagnosis failed: return origins: expression 4 is not typed in cloud-work/untyped-literal-error/probes/s26_stmt_expr.sg
+  after: error SEM3219 cloud-work/untyped-literal-error/probes/s26_stmt_expr.sg:1:11 struct literal without a type name gets no type here
+== s27_ternary.sg	base=1	after=1
+  base:  Error: diagnosis failed: return origins: expression 8 is not typed in cloud-work/untyped-literal-error/probes/s27_ternary.sg
+  after: error SEM3219 cloud-work/untyped-literal-error/probes/s27_ternary.sg:2:32 struct literal without a type name gets no type here
+  after: error SEM3219 cloud-work/untyped-literal-error/probes/s27_ternary.sg:2:43 struct literal without a type name gets no type here
+== s28_option.sg	base=1	after=1
+  base:  error SEM3015 cloud-work/untyped-literal-error/probes/s28_option.sg:2:22 struct literal requires explicit type when assigning to Option<P>
+  after: error SEM3015 cloud-work/untyped-literal-error/probes/s28_option.sg:2:22 struct literal requires explicit type when assigning to Option<P>
+== s29_compare_arm.sg	base=1	after=1
+  base:  error SEM3015 cloud-work/untyped-literal-error/probes/s29_compare_arm.sg:2:45 cannot assign nothing to P
+  base:  error SYN2202 cloud-work/untyped-literal-error/probes/s29_compare_arm.sg:2:50 expected type after ':'
+  base:  error SEM3015 cloud-work/untyped-literal-error/probes/s29_compare_arm.sg:2:60 cannot assign nothing to P
+  base:  error SYN2202 cloud-work/untyped-literal-error/probes/s29_compare_arm.sg:2:65 expected type after ':'
+  after: error SEM3015 cloud-work/untyped-literal-error/probes/s29_compare_arm.sg:2:45 cannot assign nothing to P
+  after: error SYN2202 cloud-work/untyped-literal-error/probes/s29_compare_arm.sg:2:50 expected type after ':'
+  after: error SEM3015 cloud-work/untyped-literal-error/probes/s29_compare_arm.sg:2:60 cannot assign nothing to P
+  after: error SYN2202 cloud-work/untyped-literal-error/probes/s29_compare_arm.sg:2:65 expected type after ':'
+== s30_index_set.sg	base=0	after=0
+== s31_map_value.sg	base=1	after=1
+  base:  Error: diagnosis failed: return origins: expression 5 is not typed in cloud-work/untyped-literal-error/probes/s31_map_value.sg
+  after: error SEM3219 cloud-work/untyped-literal-error/probes/s31_map_value.sg:2:43 struct literal without a type name gets no type here
+== s32_field_init.sg	base=0	after=0
+== s33_push.sg	base=1	after=1
+  base:  error SEM3015 cloud-work/untyped-literal-error/probes/s33_push.sg:2:38 expected P, got unknown
+  after: error SEM3219 cloud-work/untyped-literal-error/probes/s33_push.sg:2:38 struct literal without a type name gets no type here
+== s34_empty_array_push.sg	base=1	after=1
+  base:  error SEM3005 cloud-work/untyped-literal-error/probes/s34_empty_array_push.sg:1:26 unknown has no method push
+  after: error SEM3219 cloud-work/untyped-literal-error/probes/s34_empty_array_push.sg:1:22 empty array literal gets no element type here
+== s35_tuple_mismatch.sg	base=1	after=1
+  base:  Error: diagnosis failed: return origins: expression 5 is not typed in cloud-work/untyped-literal-error/probes/s35_tuple_mismatch.sg
+  after: error SEM3015 cloud-work/untyped-literal-error/probes/s35_tuple_mismatch.sg:2:28 cannot assign (P, string) to (P, int)
+== s36_tuple_use.sg	base=1	after=1
+  base:  Error: diagnosis failed: return origins: expression 5 is not typed in cloud-work/untyped-literal-error/probes/s36_tuple_use.sg
+  after: Error: diagnosis failed: return-origin analysis unfinished: [{SourceKey:cloud-work/untyped-literal-error/probes/s36_tuple_use.sg Span:0:77-80 Reason:expression kind 12 needs an origin transfer} {SourceKey:cloud-work/untyped-literal-error/probes/s36_tuple_use.sg Span:0:85-88 Reason:expression kind 12 needs an origin transfer}]
+== s37_nested_array_arg.sg	base=1	after=1
+  base:  error SEM3015 cloud-work/untyped-literal-error/probes/s37_nested_array_arg.sg:2:26 expected [[int]], got unknown
+  after: error SEM3219 cloud-work/untyped-literal-error/probes/s37_nested_array_arg.sg:2:26 empty array literal gets no element type here
+== cascade/c1_arg.sg	base=1	after=1
+  base:  error SEM3005 cloud-work/untyped-literal-error/probes/cascade/c1_arg.sg:2:26 cannot resolve 'nope'
+  base:  error SEM3015 cloud-work/untyped-literal-error/probes/cascade/c1_arg.sg:2:26 expected int, got unknown
+  after: error SEM3005 cloud-work/untyped-literal-error/probes/cascade/c1_arg.sg:2:26 cannot resolve 'nope'
+  after: error SEM3015 cloud-work/untyped-literal-error/probes/cascade/c1_arg.sg:2:26 expected int, got unknown
+== cascade/c2_method.sg	base=1	after=1
+  base:  error SEM3005 cloud-work/untyped-literal-error/probes/cascade/c2_method.sg:1:22 cannot resolve 'nope'
+  base:  error SEM3005 cloud-work/untyped-literal-error/probes/cascade/c2_method.sg:1:28 unknown has no method push
+  after: error SEM3005 cloud-work/untyped-literal-error/probes/cascade/c2_method.sg:1:22 cannot resolve 'nope'
+  after: error SEM3005 cloud-work/untyped-literal-error/probes/cascade/c2_method.sg:1:28 unknown has no method push
+== cascade/c3_field.sg	base=1	after=1
+  base:  error SEM3005 cloud-work/untyped-literal-error/probes/cascade/c3_field.sg:1:25 cannot resolve 'nope'
+  after: error SEM3005 cloud-work/untyped-literal-error/probes/cascade/c3_field.sg:1:25 cannot resolve 'nope'
+== cascade/c4_add.sg	base=1	after=1
+  base:  error SEM3005 cloud-work/untyped-literal-error/probes/cascade/c4_add.sg:1:25 cannot resolve 'nope'
+  after: error SEM3005 cloud-work/untyped-literal-error/probes/cascade/c4_add.sg:1:25 cannot resolve 'nope'
+== cascade/c5_generic.sg	base=1	after=1
+  base:  error SEM3046 cloud-work/untyped-literal-error/probes/cascade/c5_generic.sg:2:18 no matching overload for id
+  base:  error SEM3005 cloud-work/untyped-literal-error/probes/cascade/c5_generic.sg:2:21 cannot resolve 'nope'
+  after: error SEM3046 cloud-work/untyped-literal-error/probes/cascade/c5_generic.sg:2:18 no matching overload for id
+  after: error SEM3005 cloud-work/untyped-literal-error/probes/cascade/c5_generic.sg:2:21 cannot resolve 'nope'

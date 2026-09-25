@@ -1,0 +1,45 @@
+packages base: {'surge/internal/driver/diagnose': 'pass', 'surge/internal/sema': 'pass', 'surge/internal/driver': 'fail', 'surge/internal/diag': 'pass', 'surge/internal/ownershipgate': 'fail'}
+packages after: {'surge/internal/diag': 'pass', 'surge/internal/driver/diagnose': 'pass', 'surge/internal/sema': 'pass', 'surge/internal/ownershipgate': 'fail', 'surge/internal/driver': 'fail'}
+base: 36 failing top-level tests, 66 failing entries, 2703 passing entries
+after: 36 failing top-level tests, 66 failing entries, 2733 passing entries
+failing in base only: []
+failing after only: []
+passing after only (new or fixed): ['surge/internal/sema TestUntypedLiteralArgumentMessage', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/annotation_not_a_struct', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/annotation_that_does_not_resolve', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/argument', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/argument_through_binding', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/array_elements', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/assignment_to_untyped_binding', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/empty_array_argument', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/empty_array_let', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/error_inside_literal', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/expression_statement', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/generic_argument', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/let_without_annotation', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/method_argument', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/method_receiver', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/nested_reports_outermost', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/operand_of_user_add', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/positional_and_empty', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/return_not_a_struct', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/right_operand_of_user_add', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/tuple_element', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/tuple_element_mismatch', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/typed_array_elements', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/typed_assignment', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/typed_field', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/typed_let_annotation', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/typed_return', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/typed_return_in_compare_arm', 'surge/internal/sema TestUntypedLiteralNeedsExpectedType/typed_tuple_elements']
+passing in base only (lost): []
+failing top-level tests (both runs):
+   surge/internal/driver TestAnalyzeTypedReturnOriginAliasPromises
+   surge/internal/driver TestAnalyzeTypedReturnOrigins
+   surge/internal/driver TestAnalyzeTypedReturnOriginsDefaultSlotDoesNotShift
+   surge/internal/driver TestAnalyzeTypedReturnOriginsNoReturnIsNotRefFree
+   surge/internal/driver TestAnalyzeTypedReturnOriginsOpaqueCallUsesAllInputs
+   surge/internal/driver TestAnalyzeTypedReturnOriginsRecursiveSummaries
+   surge/internal/driver TestAnalyzeTypedReturnOriginsUnusedCallbackCrossesBlock
+   surge/internal/driver TestBuiltinOperationIsIngestedOnce
+   surge/internal/driver TestCapabilityAuthorityIsSharedAcrossModules
+   surge/internal/driver TestCapabilityBuildAndDiagnoseAgree
+   surge/internal/driver TestCapabilityClassificationRunsAtTheBuildAuthority
+   surge/internal/driver TestCaptureReturnOriginStorageP0
+   surge/internal/driver TestCloneBindingsArePublishedForSingleFilePrograms
+   surge/internal/driver TestCloneDedupesImportAliasesOfOneDeclaration
+   surge/internal/driver TestCloneGenericInstantiationAgreesWithDirectUse
+   surge/internal/driver TestCloneInvisibleWinnerFixWritesPubAndCompilesClean
+   surge/internal/driver TestCloneUsesModulePrivateWinnerInsideItsOwnModule
+   surge/internal/driver TestCloneUsesPublicWinnerFromAnotherModule
+   surge/internal/driver TestCrossingReadinessFarTaskImportSignatureResolves
+   surge/internal/driver TestDeferredCloneDistinguishesBuiltinCopyAndUserMethod
+   surge/internal/driver TestDiagnoseDirWithOptions_ModuleDirectoryExportsToNonModuleFile
+   surge/internal/driver TestDiagnoseDirWithOptions_ModuleDirectoryNoCascadingSEM3005
+   surge/internal/driver TestDiagnoseDirWithOptions_RelativeDirDoesNotDoubleJoin
+   surge/internal/driver TestDiagnoseReportsWrongRelativeImportToExplicitModuleSameName
+   surge/internal/driver TestEntrypointParserHelpRequiresLocalExtensibilityProof
+   surge/internal/driver TestEntrypointPublicationStableAcrossSerialFileOrder
+   surge/internal/driver TestEntrypointPublicationSurvivesParallelAuthorityCopy
+   surge/internal/driver TestModuleQualifiedGenericFunctionValueUsesCanonicalClosure
+   surge/internal/driver TestMonoCanonicalizesSiblingStdlibCallableAliases
+   surge/internal/driver TestParallelPublicationSurvivesADriftedSourceFileID
+   surge/internal/driver TestPublicationRefusesAnUnknownOwningSourceIdentity
+   surge/internal/driver TestRequiredValueOperationsAgreeAcrossBuildAndDiagnose
+   surge/internal/driver TestReturnOriginUnitsUseOwnedArtifacts
+   surge/internal/driver TestUninstantiatedGenericTaskCloneStaysDeferred
+   surge/internal/ownershipgate TestOwnershipRepresentativeCorpusPassesDevGate
+   surge/internal/ownershipgate TestSyntheticSurgeStartInheritsRealEntrypointProvenance

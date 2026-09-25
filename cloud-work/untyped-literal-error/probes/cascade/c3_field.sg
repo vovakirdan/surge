@@ -1,0 +1,1 @@
+fn f() -> int { let p = nope; return p.x; }

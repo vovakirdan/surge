@@ -1,0 +1,22 @@
+commits: 1b122bfa1f -> 9792fef070
+user_form: only at the base: testdata/golden/sema/ownership_and_references/overload_autoref_temp_error.sg (other)
+user_form: only at the base: testdata/golden/sema/ownership_and_references/overload_autoref_temp_move.sg (other)
+user_form: only after: testdata/golden/sema/invalid/overload_autoref_temp_error.sg (diagnostics)
+user_form: only after: testdata/golden/sema/invalid/overload_autoref_temp_move.sg (diagnostics)
+user_form: only after: testdata/golden/sema/invalid/record_literal_without_type.sg (diagnostics)
+user_form: 1079 programs, totals base={'ok': 520, 'unfinished': 108, 'diagnostics': 448, 'other': 3} after={'ok': 521, 'unfinished': 108, 'diagnostics': 451, 'other': 0}
+user_form: verdict changes: 1
+  testdata/golden/sema/valid/user_record_type.sg: other -> ok
+harness_form: only at the base: testdata/golden/sema/ownership_and_references/overload_autoref_temp_error.sg (other)
+harness_form: only at the base: testdata/golden/sema/ownership_and_references/overload_autoref_temp_move.sg (other)
+harness_form: only after: testdata/golden/sema/invalid/overload_autoref_temp_error.sg (diagnostics)
+harness_form: only after: testdata/golden/sema/invalid/overload_autoref_temp_move.sg (diagnostics)
+harness_form: only after: testdata/golden/sema/invalid/record_literal_without_type.sg (diagnostics)
+harness_form: 1079 programs, totals base={'ok': 518, 'unfinished': 107, 'diagnostics': 451, 'other': 3} after={'ok': 519, 'unfinished': 107, 'diagnostics': 454, 'other': 0}
+harness_form: verdict changes: 1
+  testdata/golden/sema/valid/user_record_type.sg: other -> ok
+unfinished programs whose rows changed: 0
+user form: raw outputs that differ byte-for-byte: 1 of 1077
+   testdata_golden_sema_valid_user_record_type.sg.txt
+harness form: raw outputs that differ byte-for-byte: 1 of 1077
+   testdata_golden_sema_valid_user_record_type.sg.txt

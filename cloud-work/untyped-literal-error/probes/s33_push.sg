@@ -1,0 +1,2 @@
+type P = { x: int };
+fn f() { let mut a: P[] = []; a.push({ x: 1 }); }

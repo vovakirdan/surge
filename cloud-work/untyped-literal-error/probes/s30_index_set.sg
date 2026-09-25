@@ -1,0 +1,2 @@
+type P = { x: int };
+fn f() { let mut a: P[] = [{ x: 1 }]; a[0] = { x: 2 }; }

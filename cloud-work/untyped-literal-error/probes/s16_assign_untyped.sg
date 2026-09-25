@@ -1,0 +1,2 @@
+type P = { x: int };
+fn f() { let mut p: P = { x: 1 }; p = { x: 2 }; }
