@@ -129,8 +129,10 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 				if !receiverIsType {
 					tc.applyMethodReceiverOwnership(symID, member.Target, receiverType)
 					if sym := tc.symbolFromID(symID); sym != nil && sym.Signature != nil {
-						if len(sym.Signature.Params) > 0 {
+						if len(sym.Signature.Params) > 0 && !tc.viewedStringBorrowOutlivesCall(sym, sym.Signature.Params[0], resultType) {
 							tc.dropImplicitBorrowForRefParam(member.Target, sym.Signature.Params[0], receiverType, resultType, tc.exprSpan(member.Target))
+						}
+						if len(sym.Signature.Params) > 0 {
 							tc.dropImplicitBorrowForValueParam(member.Target, sym.Signature.Params[0], receiverType, tc.exprSpan(member.Target))
 						}
 						appliedArgsOwnership = tc.applyMethodArgsOwnership(sym, call.Args, argTypes)
