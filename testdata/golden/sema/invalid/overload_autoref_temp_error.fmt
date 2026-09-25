@@ -1,3 +1,4 @@
+// scenario: the only `__add` borrows `self`, and a temporary operand cannot be borrowed (autoref of a temporary)
 type Point = {
     x: int,
     y: int,
@@ -7,14 +8,9 @@ extern<Point> {
     fn __add(self: &Point, other: &Point) -> Point {
         return { x: self.x + other.x, y: self.y + other.y };
     }
-
-    @overload fn __add(self: Point, other: Point) -> Point {
-        return { x: self.x + other.x, y: self.y + other.y };
-    }
 }
 
 fn main() {
     let p2: Point = { x: 3, y: 4 };
-    let _ = { x: 1, y: 2 } + p2;
-    let _ = p2.x;
+    let _ = Point { x: 1, y: 2 } + p2;
 }

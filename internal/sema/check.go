@@ -302,7 +302,7 @@ func Check(ctx context.Context, builder *ast.Builder, fileID ast.FileID, opts Op
 	}
 	if opts.Reporter != nil {
 		checker.reporter = &diagnosticCountingReporter{
-			inner:      opts.Reporter,
+			inner:      &errorSpanRecorder{inner: opts.Reporter, spans: &checker.untyped.errorSpans},
 			errorCount: &checker.errorCount,
 		}
 	}

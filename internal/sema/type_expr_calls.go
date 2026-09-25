@@ -184,6 +184,9 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 		tc.checkArrayViewResizeCall(name, args, span)
 		return selGeneric.result
 	}
+	if tc.reportUntypedCallArguments(candidates, args) {
+		return types.NoTypeID
+	}
 
 	if selMono.matchInfo != nil && selMono.matchInfo.expr.IsValid() {
 		tc.reportBorrowFailure(selMono.matchInfo)

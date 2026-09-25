@@ -314,8 +314,14 @@ func TestRepositoryCompileFailureLedgerIsCompleteAndDebtLinked(t *testing.T) {
 	// Moved on 2026-08-28 from 15/81: CF-005 and CF-006 were retired because
 	// all seven of their fixtures compile again, and CF-016 was added for the
 	// fifteen stdlib files that only fail when compiled as their own root.
-	if len(ledger.CompileFailureGroups) != 14 || len(ledger.CompileFailures) != 89 {
-		t.Fatalf("repository compile ledger has groups=%d failures=%d, want 14/89",
+	// Moved on 2026-09-25 from 14/89: CF-007 (RV2-DEBT-105) and CF-010
+	// (RV2-DEBT-089) were retired with their three fixtures. A struct literal
+	// without a type name that nothing types is now refused by the checker
+	// (SEM3219, RV2-DEBT-384): user_record_type keeps its typed half and
+	// compiles, and the two overload_autoref_temp goldens name their struct
+	// and moved to sema/invalid, where they are refused before MIR.
+	if len(ledger.CompileFailureGroups) != 12 || len(ledger.CompileFailures) != 86 {
+		t.Fatalf("repository compile ledger has groups=%d failures=%d, want 12/86",
 			len(ledger.CompileFailureGroups), len(ledger.CompileFailures))
 	}
 	groups := make(map[string]CompileFailureDisposition, len(ledger.CompileFailureGroups))
@@ -327,8 +333,8 @@ func TestRepositoryCompileFailureLedgerIsCompleteAndDebtLinked(t *testing.T) {
 		counts[groups[failure.Group]]++
 	}
 	if counts[CompileFailureExpectedGuard] != 50 || counts[CompileFailureContextOnly] != 14 ||
-		counts[CompileFailureDebt] != 25 {
-		t.Fatalf("repository dispositions = %+v, want expected_guard=50 context_only=14 debt=25", counts)
+		counts[CompileFailureDebt] != 22 {
+		t.Fatalf("repository dispositions = %+v, want expected_guard=50 context_only=14 debt=22", counts)
 	}
 	debtMarkdown, err := os.ReadFile(filepath.Join(root, "docs", "runtime-v2-epics", "DEBT.md"))
 	if err != nil {

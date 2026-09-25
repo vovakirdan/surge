@@ -1,0 +1,1 @@
+error SEM3130 testdata/golden/sema/invalid/overload_autoref_temp_move.sg:20:13 use of moved value 'p2'

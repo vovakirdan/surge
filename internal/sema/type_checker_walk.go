@@ -232,7 +232,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 			default:
 				// Simple binding: let x = value
 				symID := tc.symbolForStmt(id)
-				declaredType := tc.resolveTypeExprWithScope(letStmt.Type, scope)
+				declaredType := tc.resolveLetAnnotation(letStmt, scope) // untyped_literal.go
 				if declaredType != types.NoTypeID {
 					tc.setBindingType(symID, declaredType)
 				}

@@ -23,7 +23,9 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 	}
 	actualRecvKey := tc.typeKeyForType(recv)
 	if actualRecvKey == "" {
-		tc.report(diag.SemaUnresolvedSymbol, span, "%s has no method %s", tc.typeLabel(recv), name)
+		if !tc.reportUntypedReceiver(recv, recvExpr) {
+			tc.report(diag.SemaUnresolvedSymbol, span, "%s has no method %s", tc.typeLabel(recv), name)
+		}
 		return types.NoTypeID
 	}
 	sig, recvCand, subst, borrowInfo, sawReceiverMatch := tc.matchMethodSignature(name, recv, recvExpr, args, argExprs, staticReceiver)
@@ -48,6 +50,9 @@ func (tc *typeChecker) methodResultType(member *ast.ExprMemberData, recv types.T
 	}
 	if borrowInfo.expr.IsValid() {
 		tc.reportBorrowFailure(&borrowInfo)
+		return types.NoTypeID
+	}
+	if sawReceiverMatch && tc.reportUntypedArguments(argExprs, args, nil) {
 		return types.NoTypeID
 	}
 	if sawReceiverMatch && tc.reportSingleMethodCandidateMismatch(name, recv, recvExpr, args, argExprs, span, staticReceiver) {

@@ -550,6 +550,13 @@ const (
 	// are started, but nothing waits for them. Owner ruling 2026-09-23.
 	SemaTaskDropped Code = 3218
 
+	// SemaLiteralNeedsType refuses a struct literal written without a type name
+	// (`{ x: 1 }`) and an empty array literal (`[]`) when nothing gives them a
+	// type: no binding annotation, return type or field type expects one.
+	// LANGUAGE.md §2.5 requires an unambiguous expected struct type; there is no
+	// anonymous record type. Owner ruling 2026-09-25.
+	SemaLiteralNeedsType Code = 3219
+
 	// Ошибки I/O
 
 	// IOLoadFileError indicates file load error.
@@ -823,6 +830,7 @@ var ( // todo расширить описания и использовать к
 		SemaReturnSourceOwnedResult:        "`@return_source` needs a result that carries a reference",
 		SemaReturnSourceIncompatible:       "the callable may return a borrow the destination's `@return_source` promise does not permit",
 		SemaTaskDropped:                    "a task is dropped where it is made; await it, keep its handle, or spawn it",
+		SemaLiteralNeedsType:               "a struct literal without a type name, or an empty array literal, needs an expected type",
 		SemaPartialMoveNeedsOwn:            "taking a field out of a live value must be written `own`",
 		SemaPartialMoveFromTemporary:       "cannot take a field out of a value nothing holds",
 		SemaStoreThroughSharedRef:          "cannot write through a shared reference",

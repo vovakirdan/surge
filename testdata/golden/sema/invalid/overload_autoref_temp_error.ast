@@ -1,33 +1,33 @@
-overload_autoref_temp_error.sg (span: 1:1-16:1)
-├─ Item[0]: Type (span: 1:1-4:3)
+testdata/golden/sema/invalid/overload_autoref_temp_error.sg (span: 2:1-17:1)
+├─ Item[0]: Type (span: 2:1-5:3)
 │  ├─ Name: Point
 │  ├─ Kind: Struct
 │  ├─ Visibility: private
 │  └─ Struct:
 │     ├─ Field[0]: x: int
 │     └─ Field[1]: y: int
-├─ Item[1]: Extern (span: 6:1-10:2)
+├─ Item[1]: Extern (span: 7:1-11:2)
 │  ├─ Target: Point
 │  ├─ Members:
 │  │  └─ Fn[0]: __add
 │  │     ├─ Params: (self: &Point, other: &Point)
 │  │     ├─ Return: Point
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 7:52-9:6)
-│  │        └─ Stmt[0]: Return (span: 8:9-8:61)
+│  │        Stmt[0]: Block (span: 8:52-10:6)
+│  │        └─ Stmt[0]: Return (span: 9:9-9:61)
 │  │           └─ Expr: expr#13: <ExprKind(22)>
-└─ Item[2]: Fn (span: 12:1-15:2)
+└─ Item[2]: Fn (span: 13:1-16:2)
    ├─ Name: main
    ├─ Params: ()
    ├─ Return: nothing
    └─ Body:
-      └─ Stmt[0]: Block (span: 12:11-15:2)
-         ├─ Stmt[0]: Let (span: 13:5-13:36)
+      └─ Stmt[0]: Block (span: 13:11-16:2)
+         ├─ Stmt[0]: Let (span: 14:5-14:36)
          │  ├─ Name: p2
          │  ├─ Mutable: false
          │  ├─ Type: Point
          │  └─ Value: expr#18: <ExprKind(22)>
-         └─ Stmt[1]: Let (span: 14:5-14:33)
+         └─ Stmt[1]: Let (span: 15:5-15:39)
             ├─ Name: _
             ├─ Mutable: false
             ├─ Type: <inferred>
