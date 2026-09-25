@@ -3,6 +3,7 @@ package driver
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,7 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/diag"
+	"surge/internal/sema"
 	"surge/internal/types"
 )
 
@@ -227,5 +229,45 @@ func requireUntypedAnonymousRecord(t *testing.T, tc anonymousRecordCase) {
 	operator := find(tc.operator, ast.ExprBinary)
 	if _, selected := res.Sema.MagicBinarySymbols[operator]; !operator.IsValid() || selected || res.Sema.ExprTypes[operator] != types.NoTypeID {
 		t.Fatalf("PRECONDITION: %q is not an untyped operator with no selection", tc.operator)
+	}
+}
+
+// Only an untyped literal explains a missing type. A record lost from a checked
+// expression still stops the analysis, beside such a literal and inside one.
+func TestAnalyzeAnonymousRecordLostRecordStaysFatal(t *testing.T) {
+	src := anonymousRecordCases()[0].src
+	for _, tc := range []struct {
+		name, text string
+		start      int
+	}{
+		{"checked_operator", "p_x + p_y", strings.Index(src, "p_x + p_y")},
+		{"checked_field_value", "1", strings.Index(src, "{ x: 1") + len("{ x: ")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			res := returnOriginTypedFixture(t, src)
+			inputs, err := collectReturnOriginUnits(res)
+			if err != nil || len(inputs.units) != 1 {
+				t.Fatalf("PRECONDITION: expected one real source unit: %v", err)
+			}
+			if analysis, err := sema.AnalyzeReturnOrigins(t.Context(), res.Sema, inputs.units); err != nil || analysis == nil || !analysis.Complete() {
+				t.Fatalf("PRECONDITION: the intact source is not answered: %+v %v", analysis, err)
+			}
+			var id ast.ExprID
+			for raw := uint32(1); raw <= res.Builder.Exprs.Arena.Len(); raw++ {
+				node := res.Builder.Exprs.Get(ast.ExprID(raw))
+				if node != nil && int(node.Span.Start) == tc.start && int(node.Span.End) == tc.start+len(tc.text) && res.Sema.ExprTypes[ast.ExprID(raw)] != types.NoTypeID {
+					id = ast.ExprID(raw)
+				}
+			}
+			if !id.IsValid() {
+				t.Fatalf("PRECONDITION: no checked expression %q", tc.text)
+			}
+			delete(res.Sema.ExprTypes, id)
+			analysis, err := sema.AnalyzeReturnOrigins(t.Context(), res.Sema, inputs.units)
+			want := fmt.Sprintf("return origins: expression %d is not typed in %s", id, inputs.units[0].SourceKey)
+			if err == nil || err.Error() != want || analysis != nil {
+				t.Fatalf("lost record of %q: analysis=%+v error=%v, want %q", tc.text, analysis, err, want)
+			}
+		})
 	}
 }
