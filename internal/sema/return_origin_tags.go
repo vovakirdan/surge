@@ -71,6 +71,8 @@ func (a *returnOriginAnalyzer) tagPayload(fn *returnOriginFunction, id ast.ExprI
 			locals = nil
 			if unit == u {
 				locals = []symbols.SymbolID{canonical}
+			} else if len(u.Publication.RootToLocalSymbols) == 0 {
+				locals = siblingDeclarationSymbols(u, unit, sym)
 			}
 		}
 		file := unit.Builder.Files.Get(unit.FileID)
@@ -218,4 +220,17 @@ func (a *returnOriginAnalyzer) checkTagUse(use ConcreteInstantiationUse) string 
 		return "generic tag use disagrees with its original bound arguments"
 	}
 	return ""
+}
+
+// siblingDeclarationSymbols finds, in another file of the same unpublished root
+// module (N-CORE-ROOT-TAGS), the local symbols of the one declaration `sym`
+// records: the unit shares the using unit's AST builder and IS the declaring file
+// (Decl.ASTFile), and the symbols are that file's own for the declaring item
+// (Decl.Item). Declaration identity only; no name is read here, and the caller
+// still requires the owner's name and signature to equal the selected symbol's.
+func siblingDeclarationSymbols(u, unit *returnOriginUnitIndex, sym *symbols.Symbol) []symbols.SymbolID {
+	if sym == nil || unit.Builder != u.Builder || unit.FileID != sym.Decl.ASTFile || !sym.Decl.Item.IsValid() {
+		return nil
+	}
+	return unit.Symbols.ItemSymbols[sym.Decl.Item]
 }
