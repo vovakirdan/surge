@@ -237,18 +237,18 @@ static int64_t range_index_from_value(void* v, int64_t length) {
 }
 
 static void range_bounds(const SurgeRange* r, int64_t length, int64_t* start, int64_t* end) {
+    // A null range is refused, never read as the whole range (rt_range_require).
+    rt_range_require(r);
     int64_t start64 = 0;
     int64_t end64 = length;
-    if (r != NULL) {
-        if (r->has_start) {
-            start64 = range_index_from_value(r->start, length);
-        }
-        if (r->has_end) {
-            end64 = range_index_from_value(r->end, length);
-        }
-        if (r->inclusive && r->has_end && end64 < INT64_MAX) {
-            end64++;
-        }
+    if (r->has_start) {
+        start64 = range_index_from_value(r->start, length);
+    }
+    if (r->has_end) {
+        end64 = range_index_from_value(r->end, length);
+    }
+    if (r->inclusive && r->has_end && end64 < INT64_MAX) {
+        end64++;
     }
     if (start64 < 0) {
         start64 = 0;

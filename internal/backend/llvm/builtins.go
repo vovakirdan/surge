@@ -272,6 +272,7 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_range_bounds_retain", ret: "void", params: []string{"ptr"}},
 		{name: "rt_range_unshare", ret: "void", params: []string{"ptr"}},
 		{name: "rt_range_free", ret: "void", params: []string{"ptr"}},
+		{name: "rt_range_require", ret: "void", params: []string{"ptr"}},
 	}
 	decls = append(decls, typedCarrierRuntimeDecls()...)
 	decls = append(decls, checkedArithDecls()...)

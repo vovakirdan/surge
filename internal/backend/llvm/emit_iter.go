@@ -111,6 +111,7 @@ func (fe *funcEmitter) emitRangeIterInit(op *mir.Operand, rangeType types.TypeID
 	// which fails when a constructor is reachable on a path with no test on it,
 	// and read back out of the emitted IR by
 	// TestAGuardedAllocationIsTestedAndReportsItsType over both spellings.
+	fe.emitRangeRequire(rangePtr)
 	size := fe.emitRangeObjectSize(rangePtr)
 	iterPtr := fe.emitCheckedAlloc(allocSiteRangeIter, rangeType, size, rangeAlign)
 	fmt.Fprintf(&fe.emitter.buf,
@@ -146,6 +147,15 @@ func (fe *funcEmitter) emitRangeObjectSize(rangePtr string) string {
 	size := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = select i1 %s, i64 %d, i64 %d\n", size, isArrayIter, arrayIterSize, rangeBoundsSize)
 	return size
+}
+
+// emitRangeRequire refuses a null Range before anything reads it. NULL is the
+// default of every runtime handle (emitDefaultValue), and the kind byte loaded
+// right after this is the first read a `for` over a range or a `.next()` makes:
+// without the call a null range is a load through NULL. The loop's own cursor
+// is never null -- emitRangeIterInit allocates it -- so iter_next needs no call.
+func (fe *funcEmitter) emitRangeRequire(rangePtr string) {
+	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_range_require(ptr %s)\n", rangePtr)
 }
 
 // emitRangeKind loads the byte that says which shape a Range object is.
@@ -212,6 +222,7 @@ func (fe *funcEmitter) emitRangeNextIntrinsic(call *mir.CallInstr) (bool, error)
 	if err != nil {
 		return true, err
 	}
+	fe.emitRangeRequire(rangePtr)
 	res, err := fe.emitRangeStep(rangePtr, elemType)
 	if err != nil {
 		return true, err

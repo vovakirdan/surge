@@ -22,6 +22,16 @@ func (vm *VM) execInstrTimeout(frame *Frame, instr *mir.Instr, writes []LocalWri
 	if currentTask == nil {
 		return res, vm.eb.makeError(PanicInvalidHandle, fmt.Sprintf("invalid task id %d", current))
 	}
+	// A cancelled task answers pending BEFORE its target is looked at, as the
+	// native rt_timeout_poll does (runtime/native/rt_async_select.c:56-60) and
+	// as execInstrSelect does here. The target is never resolved, so a NULL
+	// default `Task` (runtime_handle_null.go) is not refused in a task that is
+	// already on its way out, on either backend.
+	if currentTask.Cancelled {
+		res.doJump = true
+		res.jumpBB = instr.Timeout.PendBB
+		return res, nil
+	}
 
 	timeoutID := currentTask.TimeoutTaskID
 	if timeoutID == 0 {

@@ -327,6 +327,18 @@ void rt_range_unshare(void* range_slot);
 // ever removed.
 void rt_range_free(void* handle);
 
+// Refuses a NULL range handle, and returns when the handle names a range.
+//
+// NULL is the default of a `Range<T>` (the emitter's null sentinel for every
+// runtime handle), and a null range names no range at all: slicing by it or
+// stepping it is a runtime error, not "the whole range" and not a load through
+// NULL. Every entry point that reads a range calls this first -- the two slice
+// bounds readers in rt_array.c and rt_string.c, and the emitter before it loads
+// the kind byte of a range a `for` or a `.next()` is handed. The words and the
+// code are the VM's, so both backends report one failure: `panic VM1203: null
+// range handle`. Dropping, retaining or unsharing a null range is still nothing.
+void rt_range_require(const void* handle);
+
 void* rt_string_from_bytes(const uint8_t* ptr, uint64_t len);
 // Drop-emission reclamation: frees one owned string (unconditional; every
 // string value is a single heap allocation).

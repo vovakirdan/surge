@@ -86,6 +86,11 @@ func (vm *VM) evalIterInit(frame *Frame, init *mir.IterInit) (Value, *VMError) {
 		vm.Heap.Release(sliceHandle)
 		return MakeHandleRange(h, types.NoTypeID), nil
 	case VKHandleRange:
+		// A null range is refused here, where native refuses it too: before the
+		// loop's cursor is made (rt_range_require in emitRangeIterInit).
+		if vmErr := vm.refuseNullRange(target); vmErr != nil {
+			return Value{}, vmErr
+		}
 		if iterVal.Kind == VKHandleRange {
 			ownsIterVal = false
 			return iterVal, nil
@@ -95,6 +100,13 @@ func (vm *VM) evalIterInit(frame *Frame, init *mir.IterInit) (Value, *VMError) {
 			return Value{}, vmErr
 		}
 		return owned, nil
+	case VKNothing:
+		// A zeroed Range cell decodes as `nothing`; its static type says it is
+		// the null range rather than a value of no iterable kind.
+		if vm.isRangeRuntimeHandle(init.Iterable.Type) {
+			return Value{}, vm.refuseNullRange(target)
+		}
+		return Value{}, vm.eb.typeMismatch("iterable", target.Kind.String())
 	default:
 		return Value{}, vm.eb.typeMismatch("iterable", target.Kind.String())
 	}
@@ -117,6 +129,9 @@ func (vm *VM) evalIterNext(frame *Frame, next *mir.IterNext) (Value, *VMError) {
 			return Value{}, loadErr
 		}
 		target = v
+	}
+	if vmErr := vm.refuseNullRange(target); vmErr != nil {
+		return Value{}, vmErr
 	}
 	if target.Kind != VKHandleRange {
 		return Value{}, vm.eb.typeMismatch("range", target.Kind.String())

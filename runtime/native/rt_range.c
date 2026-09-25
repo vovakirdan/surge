@@ -87,6 +87,22 @@ static void range_panic_cannot_cross(const char* msg) {
                   0);
 }
 
+// See rt.h: a null range is refused under VM1203, the code the VM gives a
+// handle that names no object, in the words the VM uses.
+void rt_range_require(const void* handle) {
+    if (handle != NULL) {
+        return;
+    }
+    static const char code[] = "VM1203";
+    static const char msg[] = "null range handle";
+    rt_panic_code((const uint8_t*)code,
+                  (uint64_t)(sizeof(code) - 1),
+                  (const uint8_t*)msg,
+                  (uint64_t)(sizeof(msg) - 1),
+                  NULL,
+                  0);
+}
+
 // See rt.h for why each bound is released here, and for the four facts that had
 // to be true first.
 void rt_range_free(void* handle) {

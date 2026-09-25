@@ -110,7 +110,7 @@ func (vm *VM) evalArrayIndex(obj, idx Value) (Value, *VMError) {
 	if vmErr != nil {
 		return Value{}, vmErr
 	}
-	if idx.Kind == VKHandleRange {
+	if isRangeIndex(idx) {
 		r, rangeErr := vm.rangeFromValue(idx)
 		if rangeErr != nil {
 			return Value{}, rangeErr
@@ -171,7 +171,7 @@ func (vm *VM) evalStringIndex(obj, idx Value) (Value, *VMError) {
 	if strObj.Kind != OKString {
 		return Value{}, vm.eb.makeError(PanicTypeMismatch, fmt.Sprintf("expected string handle, got %v", strObj.Kind))
 	}
-	if idx.Kind == VKHandleRange {
+	if isRangeIndex(idx) {
 		r, vmErr := vm.rangeFromValue(idx)
 		if vmErr != nil {
 			return Value{}, vmErr
@@ -287,6 +287,9 @@ func (vm *VM) evalBytesViewIndex(obj, idx Value) (Value, bool, *VMError) {
 }
 
 func (vm *VM) rangeFromValue(v Value) (*RangeObject, *VMError) {
+	if vmErr := vm.refuseNullRange(v); vmErr != nil {
+		return nil, vmErr
+	}
 	if v.Kind != VKHandleRange {
 		return nil, vm.eb.typeMismatch("range", v.Kind.String())
 	}
@@ -511,7 +514,7 @@ func (vm *VM) evalStorageIndex(owner StorageRef, idx Value) (Value, *VMError) {
 	if err != nil {
 		return Value{}, vm.eb.makeError(PanicUnimplemented, err.Error())
 	}
-	if idx.Kind == VKHandleRange {
+	if isRangeIndex(idx) {
 		return vm.sliceStorageArray(owner, len(members), idx)
 	}
 	index, vmErr := vm.arrayIndexFromValue(idx, len(members))

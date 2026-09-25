@@ -1617,6 +1617,11 @@
       "group": "PG-ALLOC-FAILURE"
     },
     {
+      "site": "runtime/native/rt_range.c::rt_range_require#1",
+      "message": "null range handle",
+      "group": "PG-NULL-GUARD"
+    },
+    {
       "site": "runtime/native/rt_range.c::rt_range_unshare#1",
       "message": "array cursor cannot cross a shard boundary: it reads elements out of the buffer the origin shard keeps; cross the array itself and walk it on the other side",
       "group": "PG-CROSSING"

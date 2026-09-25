@@ -76,6 +76,13 @@ func (vm *VM) currentTaskCancelled() bool {
 }
 
 func (vm *VM) taskIDFromValue(val Value) (asyncrt.TaskID, *VMError) {
+	// A NULL handle names no task; the native runtime's handle lookup refuses
+	// it with these words (runtime_handle_null.go).
+	if null, vmErr := vm.isNullRuntimeHandle(val); vmErr != nil {
+		return 0, vmErr
+	} else if null {
+		return 0, vm.eb.makeError(PanicInvalidHandle, nullTaskHandleMessage)
+	}
 	word, vmErr := vm.resourceWord(val, "Task", "task id")
 	if vmErr != nil {
 		return 0, vmErr
@@ -87,6 +94,13 @@ func (vm *VM) taskIDFromValue(val Value) (asyncrt.TaskID, *VMError) {
 }
 
 func (vm *VM) channelIDFromValue(val Value) (asyncrt.ChannelID, *VMError) {
+	// A NULL handle names no channel; the native runtime refuses it with these
+	// words (runtime_handle_null.go).
+	if null, vmErr := vm.isNullRuntimeHandle(val); vmErr != nil {
+		return 0, vmErr
+	} else if null {
+		return 0, vm.eb.makeError(PanicInvalidHandle, nullChannelHandleMessage)
+	}
 	word, vmErr := vm.resourceWord(val, "Channel", "channel id")
 	if vmErr != nil {
 		return 0, vmErr

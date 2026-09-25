@@ -1634,6 +1634,31 @@ program can provoke.
 Composing an out-of-memory message must not allocate, which is why the type name
 in it is a static literal rather than a formatted one.
 
+## The Default Of A Runtime Handle
+
+**Owner ruling 2026-09-25.** A runtime handle -- `Task<T>`, `Channel<T>` and
+`Range<T>`, the three families the type checker marks as handles, and every
+type built on one, such as `Mutex` over `Channel<nothing>` -- names an object
+the runtime made. Its DEFAULT names none: the default of a runtime handle is
+the NULL handle, on both backends. It is not a struct built member by member,
+because a handle is one word and not an object graph.
+
+- Dropping, copying, moving or storing a null handle does nothing: no count
+  moves, no task is ended and no object is freed, because there is none.
+- ANY operation on a null handle is a runtime error, never a no-op and never a
+  result: awaiting, cancelling, cloning, spawning, selecting on or timing out on
+  a null `Task`; sending on, receiving from, closing or selecting on a null
+  `Channel` (and so locking a default `Mutex`); slicing by, iterating or
+  stepping a null `Range`. A null `Range` is not "the whole range" -- that range
+  is `..`, a real object.
+  A task that is already cancelled answers pending at a `timeout` or a `select`
+  before it looks at the target, on both backends, so there it never reaches
+  the handle to refuse it.
+- The error is identical on both backends: the same words and exit status 1.
+  They are `invalid task handle` for a `Task`, `async: null channel handle` for
+  a `Channel`, and `null range handle` for a `Range`, which both backends raise
+  under `VM1203` as `panic VM1203: null range handle`.
+
 ## Cost Model And Levers
 
 Runtime V2 treats cost visibility as part of the language contract. Legibility

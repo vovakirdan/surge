@@ -95,6 +95,9 @@ func (vm *VM) handleRangeNext(frame *Frame, call *mir.CallInstr, writes *[]Local
 		}
 		rangeVal = v
 	}
+	if vmErr := vm.refuseNullRange(rangeVal); vmErr != nil {
+		return vmErr
+	}
 	if rangeVal.Kind != VKHandleRange {
 		return vm.eb.typeMismatch("range", rangeVal.Kind.String())
 	}
