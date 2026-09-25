@@ -401,8 +401,33 @@ func (tc *typeChecker) applyExpectedType(expr ast.ExprID, expected types.TypeID)
 		}
 		tc.result.ExprTypes[expr] = expected
 		return true
+	case ast.ExprTuple:
+		return tc.applyExpectedTupleType(expr, expected)
 	}
 	return false
+}
+
+// applyExpectedTupleType gives each untyped element its expected element type,
+// then types the tuple from what its elements now are, so the consumer still
+// compares every element that already had a type of its own.
+func (tc *typeChecker) applyExpectedTupleType(expr ast.ExprID, expected types.TypeID) bool {
+	tuple, ok := tc.builder.Exprs.Tuple(expr)
+	info, found := tc.types.TupleInfo(tc.resolveAlias(expected))
+	if !ok || tuple == nil || !found || info == nil || len(info.Elems) != len(tuple.Elements) || len(tuple.Elements) == 0 {
+		return false
+	}
+	elems := make([]types.TypeID, len(tuple.Elements))
+	for i, elem := range tuple.Elements {
+		if tc.result.ExprTypes[elem] == types.NoTypeID {
+			tc.applyExpectedType(elem, info.Elems[i])
+		}
+		elems[i] = tc.result.ExprTypes[elem]
+		if elems[i] == types.NoTypeID || tc.isReferenceType(elems[i]) {
+			return false
+		}
+	}
+	tc.result.ExprTypes[expr] = tc.types.RegisterTuple(elems)
+	return true
 }
 
 func (tc *typeChecker) typeExprWithExpected(expr ast.ExprID, expected types.TypeID) types.TypeID {

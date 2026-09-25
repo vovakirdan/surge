@@ -321,7 +321,7 @@ Generic monomorphization and instantiation are described in §16.1.
 
   * Fields are immutable unless variable is `mut`. `@readonly` forbids writes even through `mut` bindings.
   * Struct literals may specify the type inline: `let p = Person { age = 25, name = "Alex" };`. Field assignment uses `=`; legacy `field: value` is still parsed but discouraged. The parser only treats `TypeName { ... }` as a typed literal when `TypeName` follows the CamelCase convention so that `while ready { ... }` still parses as a control-flow block.
-  * Struct literals without an inline type require an unambiguous expected struct type. For unions like `Erring<T, Error>`, write `Error { ... }` or add a binding annotation (e.g., `let e: Error = { message = "bad", code = 1:uint };`).
+  * Struct literals without an inline type require an unambiguous expected struct type. For unions like `Erring<T, Error>`, write `Error { ... }` or add a binding annotation (e.g., `let e: Error = { message = "bad", code = 1:uint };`). A literal with neither is a compile error (`SemaLiteralNeedsType`, SEM3219), and so is an empty array literal `[]` with no expected array type; there is no anonymous record type. A function argument does not supply the expected type: write `Point { ... }` there.
   * When the type is known (either via `TypeName { ... }` or an explicit annotation on the binding), the short `{expr1, expr2}` form is allowed; expressions are matched to fields in declaration order. Wrap identifier expressions in parentheses (`{(ageVar), computeName()}`) when using positional literals so they are not mistaken for field names.
 * **Enums:** `enum Name = { ... }` for integer enums (auto or explicit) and `enum Name: string = { ... }` for string enums.
 

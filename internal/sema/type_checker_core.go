@@ -34,6 +34,7 @@ type typeChecker struct {
 	fileID         ast.FileID
 	reporter       diag.Reporter
 	errorCount     int
+	untyped        untypedLiteralState // untyped_literal.go
 	symbols        *symbols.Result
 	result         *Result
 	types          *types.Interner
@@ -463,6 +464,9 @@ func (tc *typeChecker) run() {
 		tc.leaveScope()
 	}
 	tc.result.rebuildFunctionInstantiations()
+	done()
+	done = phase("check_untyped_literals")
+	tc.reportUntypedLiterals()
 	done()
 	done = phase("check_fixed_view_calls")
 	tc.resolveFixedViewReturnCalls()

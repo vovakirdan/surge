@@ -1,0 +1,27 @@
+testdata/golden/sema/invalid/record_literal_without_type.sg (span: 3:1-9:1)
+└─ Item[0]: Fn (span: 3:1-8:2)
+   ├─ Name: anonymous_record
+   ├─ Params: ()
+   ├─ Return: nothing
+   └─ Body:
+      └─ Stmt[0]: Block (span: 3:23-8:2)
+         ├─ Stmt[0]: Let (span: 4:5-4:28)
+         │  ├─ Name: p
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#5: <ExprKind(22)>
+         ├─ Stmt[1]: Let (span: 5:5-5:24)
+         │  ├─ Name: p_x
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#7: p.x
+         ├─ Stmt[2]: Let (span: 6:5-6:24)
+         │  ├─ Name: p_y
+         │  ├─ Mutable: false
+         │  ├─ Type: int
+         │  └─ Value: expr#9: p.y
+         └─ Stmt[3]: Let (span: 7:5-7:23)
+            ├─ Name: _
+            ├─ Mutable: false
+            ├─ Type: <inferred>
+            └─ Value: expr#12: (p_x + p_y)

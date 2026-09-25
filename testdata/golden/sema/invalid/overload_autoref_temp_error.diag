@@ -1,0 +1,1 @@
+error SEM3023 testdata/golden/sema/invalid/overload_autoref_temp_error.sg:15:13 cannot take reference to temporary value; bind it to a variable first

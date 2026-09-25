@@ -1,0 +1,21 @@
+// scenario: a temporary operand selects the by-value `__add`, which takes `p2` by value too, so `p2` is moved
+type Point = {
+    x: int,
+    y: int,
+};
+
+extern<Point> {
+    fn __add(self: &Point, other: &Point) -> Point {
+        return { x: self.x + other.x, y: self.y + other.y };
+    }
+
+    @overload fn __add(self: Point, other: Point) -> Point {
+        return { x: self.x + other.x, y: self.y + other.y };
+    }
+}
+
+fn main() {
+    let p2: Point = { x: 3, y: 4 };
+    let _ = Point { x: 1, y: 2 } + p2;
+    let _ = p2.x;
+}

@@ -1,0 +1,8 @@
+// scenario: a struct literal without a type name needs an expected struct type (LANGUAGE.md §2.5)
+// moved from valid/user_record_type.sg: nothing here gives `{ x: 1, y: 2 }` a type
+fn anonymous_record() {
+    let p = { x: 1, y: 2 };
+    let p_x: int = p.x;
+    let p_y: int = p.y;
+    let _ = p_x + p_y;
+}

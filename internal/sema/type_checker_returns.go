@@ -90,6 +90,20 @@ func (tc *typeChecker) enclosingTaskBody() *returnContext {
 	return nil
 }
 
+// enclosingFunctionReturnType answers the declared result of the function a
+// `return` leaves, past any block expression between them.
+func (tc *typeChecker) enclosingFunctionReturnType() types.TypeID {
+	for i := len(tc.returnStack) - 1; i >= 0; i-- {
+		switch tc.returnStack[i].kind {
+		case returnCtxFunction:
+			return tc.returnStack[i].expected
+		case returnCtxTaskPayload, returnCtxOnCrossing:
+			return types.NoTypeID
+		}
+	}
+	return types.NoTypeID
+}
+
 func (tc *typeChecker) appendCollectedResult(ctx *returnContext, span source.Span, expr ast.ExprID, typ types.TypeID) {
 	if tc == nil || ctx == nil || ctx.collect == nil || typ == types.NoTypeID {
 		return
@@ -145,7 +159,11 @@ func (tc *typeChecker) validateReturn(span source.Span, expr ast.ExprID, actual 
 		return
 	}
 	if ctx.collect != nil && ctx.kind != returnCtxFunction {
-		// Returns inside block expressions still return from the enclosing function.
+		// Returns inside block expressions still return from the enclosing function,
+		// so a literal that has no type of its own takes the function's result type.
+		if expr.IsValid() && actual == types.NoTypeID && tc.applyExpectedType(expr, tc.enclosingFunctionReturnType()) {
+			actual = tc.result.ExprTypes[expr]
+		}
 		// Apply implicit tag injection against the outer function return type when the
 		// top collecting context is a block expression.
 		if ctx.kind == returnCtxBlockExpr && expr.IsValid() && actual != types.NoTypeID && tc.types != nil {

@@ -1,0 +1,1 @@
+error SEM3219 testdata/golden/sema/invalid/record_literal_without_type.sg:4:13 struct literal without a type name gets no type here
