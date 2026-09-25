@@ -44,6 +44,22 @@ func (b *returnOriginBody) index(id ast.ExprID, env returnOriginEnv, targets ret
 			return out, nil
 		}
 	}
+	// A selected BytesView scalar read is the exact core intrinsic certified by
+	// returnOriginBytesViewReader. Its uint8 result can carry neither a reference
+	// nor the view's storage loan, so the evaluated container contributes no
+	// origin to the result. Do not recognize a spelling of __index here: the
+	// selected declaration is the certificate, and user implementations remain
+	// on the fail-closed path below.
+	if reason == "index requires its selected container transfer" && b.erasedType(u.Sema.ExprTypes[id]) {
+		selected, present := u.Sema.IndexSymbols[id]
+		if present && selected.IsValid() {
+			fn, selectedReason := b.analyzer.selectedCallableFunction(u, selected)
+			if selectedReason == "" && returnOriginBytesViewReader(fn) {
+				out.value = returnOriginValueOf()
+				return out, nil
+			}
+		}
+	}
 	if reason != "" {
 		b.pending(span, reason)
 		out.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
