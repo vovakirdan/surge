@@ -156,10 +156,14 @@ func collectReturnOriginUnits(res *DiagnoseResult) (returnOriginInputs, error) {
 			return err
 		}
 		seen[key] = struct{}{}
+		modulePath := ""
+		if rec != nil && rec.Meta != nil {
+			modulePath = rec.Meta.Path
+		}
 		inputs.bags[file.Span.File] = bag
 		inputs.units = append(inputs.units, sema.ReturnOriginUnit{
 			Builder: builder, FileID: fileID, Sema: checked, Symbols: resolved,
-			SourceKey: key, Publication: publication,
+			SourceKey: key, ModulePath: modulePath, Publication: publication,
 		})
 		return nil
 	}
