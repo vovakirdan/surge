@@ -177,17 +177,17 @@ func (a *returnOriginAnalyzer) checkTagUse(use ConcreteInstantiationUse) string 
 		use.Site.Start < caller.item.Span.Start || use.Site.End > caller.item.Span.End {
 		return "generic tag use disagrees with its owning caller"
 	}
-	reason := a.checkTagCallUse(caller, use)
+	reason := a.checkTagCallUse(caller, &use)
 	// An implicit Some/Success wrap the checker recorded at this exact
 	// site is a tag use with no call expression; certify its instance instead.
-	if conversion, found := a.checkTagConversionUse(caller, use); found && reason != "" {
+	if conversion, found := a.checkTagConversionUse(caller, &use); found && reason != "" {
 		return conversion
 	}
 	return reason
 }
 
 // checkTagCallUse certifies a tag use written as a typed call expression.
-func (a *returnOriginAnalyzer) checkTagCallUse(caller *returnOriginFunction, use ConcreteInstantiationUse) string {
+func (a *returnOriginAnalyzer) checkTagCallUse(caller *returnOriginFunction, use *ConcreteInstantiationUse) string {
 	var id ast.ExprID
 	for expr, typ := range caller.unit.Sema.ExprTypes {
 		if node := caller.unit.Builder.Exprs.Get(expr); node != nil && node.Span == use.Site {

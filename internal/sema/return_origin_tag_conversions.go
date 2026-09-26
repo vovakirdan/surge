@@ -10,8 +10,8 @@ import (
 // canonicalTagSymbol maps a unit-local tag symbol to the root symbol of its
 // declaration through the publication's root-to-local table: declaration
 // identity, never a name.
-func canonicalTagSymbol(u *returnOriginUnitIndex, selected symbols.SymbolID) (symbols.SymbolID, string) {
-	canonical := selected
+func canonicalTagSymbol(u *returnOriginUnitIndex, selected symbols.SymbolID) (canonical symbols.SymbolID, reason string) {
+	canonical = selected
 	if len(u.Publication.RootToLocalSymbols) != 0 {
 		canonical = symbols.NoSymbolID
 		for root, locals := range u.Publication.RootToLocalSymbols {
@@ -35,7 +35,7 @@ func canonicalTagSymbol(u *returnOriginUnitIndex, selected symbols.SymbolID) (sy
 // checker selected (ImplicitConversion.Callee, mapped to its declaration), and its
 // one type argument is the wrapped value's type. The value transfer stays expr's:
 // the wrapper holds the payload itself, with every root and loan it carries.
-func (a *returnOriginAnalyzer) checkTagConversionUse(caller *returnOriginFunction, use ConcreteInstantiationUse) (string, bool) {
+func (a *returnOriginAnalyzer) checkTagConversionUse(caller *returnOriginFunction, use *ConcreteInstantiationUse) (string, bool) {
 	u := caller.unit
 	var conversion ImplicitConversion
 	matches := 0
