@@ -29,8 +29,10 @@ fn main() {
     let inner: (int, int) = nested.0;
     print("Nested tuple works");
 
-    // Destructuring
-    let (x, y) = (10, 20);
+    // No destructuring: a `let` binds one name, so read the elements by index
+    let xy = (10, 20);
+    let x = xy.0;
+    let y = xy.1;
     print("Destructured: x=" + x to string + ", y=" + y to string);
 
     // Single-element tuple (trailing comma)

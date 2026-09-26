@@ -39,7 +39,7 @@
  39: LParen          "(" at 7:28-7:29
  40: RParen          ")" at 7:29-7:30
  41: Semicolon       ";" at 7:30-7:31
- 42: KwLet           "let" at 8:5-8:8 (leading: Newline, Space)
+ 42: KwLet           "let" at 8:5-8:8 (leading: Space, LineComment, Newline, Space)
  43: Ident           "a_val" at 8:9-8:14 (leading: Space)
  44: Colon           ":" at 8:14-8:15
  45: Ident           "int" at 8:16-8:19 (leading: Space)

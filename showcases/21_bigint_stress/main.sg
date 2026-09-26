@@ -36,7 +36,9 @@ fn fib_pair(n: int) -> (int, int) {
         return (0, 1);
     }
 
-    let (a, b) = fib_pair(n / 2); // a = F(k), b = F(k+1), where k = n/2
+    let half = fib_pair(n / 2);
+    let a: int = half.0; // F(k), where k = n/2
+    let b: int = half.1; // F(k+1)
 
     // c = F(2k) = F(k) * (2*F(k+1) - F(k))
     // d = F(2k+1) = F(k)^2 + F(k+1)^2
@@ -53,8 +55,8 @@ fn fib_pair(n: int) -> (int, int) {
 }
 
 fn fib_fast(n: int) -> int {
-    let (f, _) = fib_pair(n);
-    return f;
+    let pair = fib_pair(n);
+    return pair.0;
 }
 
 @entrypoint

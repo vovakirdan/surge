@@ -47,10 +47,10 @@ fn helper_spawn_outside() -> Task<nothing> {
     };
 }
 
-fn destructured_outside() -> Task<nothing> {
+fn nested_element_outside() -> Task<nothing> {
     let earlier = async { ret 5; };
     let nested = (0, (earlier, 1));
-    let (_, (same, _)) = nested;
+    let same = own nested.1.0;
     return async {
         let started = spawn same;
         let _ = started.await();

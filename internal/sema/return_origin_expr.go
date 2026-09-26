@@ -83,6 +83,8 @@ func (b *returnOriginBody) exprCore(id ast.ExprID, env returnOriginEnv, targets 
 		return b.rangeLiteral(id, env, targets)
 	case ast.ExprArray, ast.ExprTuple, ast.ExprStruct:
 		return b.constructor(id, env, targets)
+	case ast.ExprTupleIndex:
+		return b.tupleIndex(id, env, targets)
 	case ast.ExprMember:
 		data, _ := u.Builder.Exprs.Member(id)
 		// A module-qualified free function is a function value, not a projection:
