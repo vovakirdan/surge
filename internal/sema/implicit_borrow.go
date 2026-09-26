@@ -139,6 +139,35 @@ func (tc *typeChecker) dropImplicitBorrowForRefParam(expr ast.ExprID, param symb
 	tc.dropBorrowForExpr(expr, span, "temp_borrow")
 }
 
+// viewedStringBorrowOutlivesCall: a core BytesView borrows the string it views
+// (owner ruling 2026-09-15). An array window is made by the slice operation, whose
+// `__index` receiver borrow typeExprIndex takes and never releases at the call, so
+// the window's base stays borrowed for the rest of the enclosing block. A BytesView
+// is made by core's own producers (`string.bytes()`, `rt_string_bytes_view`): a
+// core-declared callee whose result is the core view struct (IsBorrowedView, marked by
+// declaration identity in type_decl_core.go). For those, and for the `&string` they
+// borrow, the borrow is kept exactly as the window's is -- no wider: a user function
+// that returns a BytesView keeps today's release, as a user function returning a
+// window does.
+func (tc *typeChecker) viewedStringBorrowOutlivesCall(sym *symbols.Symbol, param symbols.TypeKey, result types.TypeID) bool {
+	if sym == nil || !coreDeclaredSymbol(sym) || tc.types == nil || !tc.types.IsBorrowedView(result) {
+		return false
+	}
+	tt, ok := tc.types.Lookup(tc.resolveAlias(tc.typeFromKey(param)))
+	return ok && tt.Kind == types.KindReference && !tt.Mutable && tc.resolveAlias(tt.Elem) == tc.types.Builtins().String
+}
+
+// coreDeclaredSymbol: a symbol core declares, as seen inside core (builtin) or
+// imported from it. A module path `core` or `core/...` is admitted only for a file
+// inside the stdlib root (driver validateCoreModule), so a user module cannot claim it.
+func coreDeclaredSymbol(sym *symbols.Symbol) bool {
+	if sym.Flags&symbols.SymbolFlagBuiltin != 0 {
+		return true
+	}
+	path := strings.Trim(sym.ModulePath, "/")
+	return sym.Flags&symbols.SymbolFlagImported != 0 && (path == "core" || strings.HasPrefix(path, "core/"))
+}
+
 func (tc *typeChecker) isBorrowExpr(expr ast.ExprID) bool {
 	if !expr.IsValid() || tc.builder == nil {
 		return false
@@ -200,7 +229,9 @@ func (tc *typeChecker) dropImplicitBorrowsForCall(sym *symbols.Symbol, args []ca
 		if expectedType != types.NoTypeID {
 			tc.dropImplicitBorrow(arg.expr, expectedType, arg.ty, tc.exprSpan(arg.expr))
 		}
-		tc.dropImplicitBorrowForRefParam(arg.expr, sig.Params[paramIndex], arg.ty, result, tc.exprSpan(arg.expr))
+		if !tc.viewedStringBorrowOutlivesCall(sym, sig.Params[paramIndex], result) {
+			tc.dropImplicitBorrowForRefParam(arg.expr, sig.Params[paramIndex], arg.ty, result, tc.exprSpan(arg.expr))
+		}
 		tc.dropImplicitBorrowForValueParam(arg.expr, sig.Params[paramIndex], arg.ty, tc.exprSpan(arg.expr))
 	}
 }
