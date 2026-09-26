@@ -27,6 +27,33 @@ func returnOriginSignatureTypes(info *types.FnInfo, view ...*returnOriginSignatu
 // matchReturnOriginSourceType substitutes only exact original parameters while
 // comparing existing descriptors. It never interns missing wrapper instances.
 func matchReturnOriginSourceType(in *types.Interner, original, actual types.TypeID, params, args []types.TypeID) string {
+	return matchReturnOriginSourceTypeMode(in, original, actual, params, args, false)
+}
+
+// returnOriginAliasChainReaches follows `from`'s alias targets and reports whether
+// the chain reaches `to` itself. TypeIDs are interned per declaration (and type
+// arguments), so this compares declaration identity, never a spelled name.
+func returnOriginAliasChainReaches(in *types.Interner, from, to types.TypeID) bool {
+	seen := make(map[types.TypeID]bool)
+	for id := from; id != types.NoTypeID && !seen[id]; {
+		seen[id] = true
+		target, alias := in.AliasTarget(id)
+		if !alias {
+			return false
+		}
+		if target == to {
+			return true
+		}
+		id = target
+	}
+	return false
+}
+
+// matchReturnOriginSourceTypeMode is matchReturnOriginSourceType. With aliasArgs,
+// a bound template argument also matches an actual that one alias chain joins to
+// it, in either direction: `T := byte` against `uint8`, or
+// `T := Nodes` against `Node[]`. Nothing else is relaxed.
+func matchReturnOriginSourceTypeMode(in *types.Interner, original, actual types.TypeID, params, args []types.TypeID, aliasArgs bool) string {
 	if in == nil || len(params) != len(args) {
 		return "source signature has inconsistent original bindings"
 	}
@@ -45,6 +72,10 @@ func matchReturnOriginSourceType(in *types.Interner, original, actual types.Type
 		}
 		if bind {
 			if slot := slices.Index(params, left); slot >= 0 {
+				if aliasArgs && args[slot] != right && (returnOriginAliasChainReaches(in, args[slot], right) ||
+					returnOriginAliasChainReaches(in, right, args[slot])) {
+					return true
+				}
 				return match(args[slot], right, false, depth+1)
 			}
 		}
@@ -145,7 +176,11 @@ func (u *returnOriginUnitIndex) originalArgumentType(expr ast.ExprID, original t
 	if fok && f.Kind == types.KindReference {
 		originType = formal
 	}
-	if matchReturnOriginSourceType(in, original, actual, params, args) == "" {
+	// A template argument and the actual may differ only by an alias
+	// chain (matchReturnOriginSourceTypeMode); an alias carries exactly its target's
+	// references and loans, since every shape and requirement walk reads KindAlias
+	// through AliasTarget.
+	if matchReturnOriginSourceTypeMode(in, original, actual, params, args, true) == "" {
 		return originType, ""
 	}
 	if !fok || !aok {
@@ -155,7 +190,7 @@ func (u *returnOriginUnitIndex) originalArgumentType(expr ast.ExprID, original t
 		if slices.Contains(params, original) {
 			return matchReturnOriginSourceType(in, left, right, nil, nil) == ""
 		}
-		return matchReturnOriginSourceType(in, left, right, params, args) == ""
+		return matchReturnOriginSourceTypeMode(in, left, right, params, args, true) == ""
 	}
 	if f.Kind == types.KindReference {
 		if a.Kind == types.KindReference {
