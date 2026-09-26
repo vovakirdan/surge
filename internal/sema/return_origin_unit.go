@@ -22,6 +22,9 @@ type ReturnOriginUnit struct {
 	Sema      *Result
 	Symbols   *symbols.Result
 	SourceKey string
+	// ModulePath is the normalized identity of the module that owns this file;
+	// empty for a standard-library path whose file is outside the stdlib root.
+	ModulePath string
 	// Publication preserves the existing canonical/local callable vocabulary
 	// before a merged authority replaces per-file callable candidates.
 	Publication FinalizationPublication

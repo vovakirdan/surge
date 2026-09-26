@@ -133,6 +133,7 @@ func collectReturnOriginUnits(res *DiagnoseResult) (returnOriginInputs, error) {
 	}
 	resolveSource := canonicalInstantiationSourceResolver(res)
 	seen := make(map[string]struct{})
+	stdlibRoot := detectStdlibRootFrom(res.FileSet.BaseDir())
 	add := func(rec *moduleRecord, builder *ast.Builder, fileID ast.FileID, checked *sema.Result, resolved *symbols.Result, bag *diag.Bag) error {
 		if builder == nil || !fileID.IsValid() || checked == nil || checked.TypeInterner != res.Sema.TypeInterner || resolved == nil || bag == nil {
 			return fmt.Errorf("return origins: incomplete original per-file artifacts for AST file %d", fileID)
@@ -156,10 +157,22 @@ func collectReturnOriginUnits(res *DiagnoseResult) (returnOriginInputs, error) {
 			return err
 		}
 		seen[key] = struct{}{}
+		modulePath := ""
+		if rec != nil && rec.Meta != nil {
+			modulePath = rec.Meta.Path
+		}
+		// A standard-library module path is a directory layout relative to the
+		// base dir. It names the standard library only for a file inside the
+		// stdlib root, the physical rule that also admits core.
+		if isStdlibModulePath(modulePath) {
+			if src := res.FileSet.Get(file.Span.File); src == nil || !pathWithin(stdlibRoot, src.Path) {
+				modulePath = ""
+			}
+		}
 		inputs.bags[file.Span.File] = bag
 		inputs.units = append(inputs.units, sema.ReturnOriginUnit{
 			Builder: builder, FileID: fileID, Sema: checked, Symbols: resolved,
-			SourceKey: key, Publication: publication,
+			SourceKey: key, ModulePath: modulePath, Publication: publication,
 		})
 		return nil
 	}

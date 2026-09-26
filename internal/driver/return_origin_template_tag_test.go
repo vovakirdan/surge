@@ -3,6 +3,7 @@ package driver
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"surge/internal/diag"
@@ -20,8 +21,12 @@ func analyzeOriginRoot(t *testing.T, stage, text string, allowEscape bool, prepa
 		t.Fatalf("PRECONDITION: source closure failed: %v", err)
 	}
 	inputs, err := collectReturnOriginUnits(res)
-	if err != nil || len(inputs.units) != 11 {
-		t.Fatalf("PRECONDITION: full eleven-unit input missing: units=%d error=%v", len(inputs.units), err)
+	wantUnits := 11
+	if strings.Contains(text, "stdlib/time") {
+		wantUnits++
+	}
+	if err != nil || len(inputs.units) != wantUnits {
+		t.Fatalf("PRECONDITION: full input missing: units=%d want=%d error=%v", len(inputs.units), wantUnits, err)
 	}
 	checkReturnOriginStdlibBags(t, res, allowEscape)
 	f := originalGenericFixture{owner: res, authority: res.Sema, inputs: inputs}
