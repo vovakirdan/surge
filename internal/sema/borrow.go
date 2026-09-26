@@ -87,6 +87,11 @@ type BorrowInfo struct {
 	// like a shared borrow (blocks other muts, writes, and moves; coexists
 	// with shared reads), so a sibling argument may still read the place.
 	Reserved bool
+	// Parent is the loan this one was reborrowed through (`&mut *r` names r's
+	// loan), or NoBorrowID for a loan taken directly on a binding. A write
+	// through a reference walks it to tell the reference's own chain apart
+	// from a loan that conflicts with the write.
+	Parent BorrowID
 }
 
 type borrowState struct {
@@ -190,12 +195,12 @@ func (bt *BorrowTable) BeginBorrow(expr ast.ExprID, span source.Span, kind Borro
 	combined := bt.combinedState(place)
 	switch kind {
 	case BorrowShared:
-		if combined.mut != NoBorrowID && combined.mut != parent {
-			return NoBorrowID, BorrowIssue{Kind: BorrowIssueConflictMut, Borrow: combined.mut}
+		if held := bt.exclusiveOffChain(place, parent); held != NoBorrowID {
+			return NoBorrowID, BorrowIssue{Kind: BorrowIssueConflictMut, Borrow: held}
 		}
 	case BorrowMut:
-		if combined.mut != NoBorrowID && combined.mut != parent {
-			return NoBorrowID, BorrowIssue{Kind: BorrowIssueConflictMut, Borrow: combined.mut}
+		if held := bt.exclusiveOffChain(place, parent); held != NoBorrowID {
+			return NoBorrowID, BorrowIssue{Kind: BorrowIssueConflictMut, Borrow: held}
 		}
 		if len(combined.shared) > 0 {
 			return NoBorrowID, BorrowIssue{Kind: BorrowIssueConflictShared, Borrow: combined.shared[0]}
@@ -216,6 +221,7 @@ func (bt *BorrowTable) BeginBorrow(expr ast.ExprID, span source.Span, kind Borro
 			FromExpr: expr,
 			ToScope:  scope,
 		},
+		Parent: parent,
 	}
 	bt.infos = append(bt.infos, info)
 	switch kind {
@@ -241,8 +247,8 @@ func (bt *BorrowTable) BeginBorrowReserved(expr ast.ExprID, span source.Span, pl
 		return NoBorrowID, BorrowIssue{}
 	}
 	combined := bt.combinedState(place)
-	if combined.mut != NoBorrowID && combined.mut != parent {
-		return NoBorrowID, BorrowIssue{Kind: BorrowIssueConflictMut, Borrow: combined.mut}
+	if held := bt.exclusiveOffChain(place, parent); held != NoBorrowID {
+		return NoBorrowID, BorrowIssue{Kind: BorrowIssueConflictMut, Borrow: held}
 	}
 	for _, sid := range combined.shared {
 		if info := bt.Info(sid); info != nil && info.Reserved {
@@ -265,6 +271,7 @@ func (bt *BorrowTable) BeginBorrowReserved(expr ast.ExprID, span source.Span, pl
 			ToScope:  scope,
 		},
 		Reserved: true,
+		Parent:   parent,
 	}
 	bt.infos = append(bt.infos, info)
 	state.shared = append(state.shared, id)

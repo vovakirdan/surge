@@ -547,40 +547,27 @@ func (tc *typeChecker) handleAssignment(exprID ast.ExprID, op ast.ExprBinaryOp, 
 	}
 
 	// Check if this is a write through a mutable reference binding (*r = value).
-	// In this case, we should NOT expand through the borrow because writing
-	// through &mut is allowed - that's the whole point of exclusive borrows.
+	// The write event stays on the reference place because writing through
+	// &mut is allowed. Conflict detection separately expands to the referent:
+	// a child shared loan can freeze it even though the parent exclusive loan
+	// is the authority for this write.
 	writeThroughMutRef := tc.isWriteThroughMutRef(desc)
+	var mutRefParent BorrowID
+	var checkedMutRefPlace Place
 
-	if !writeThroughMutRef && !tc.isSharedReferenceRebind(op, desc) {
+	if writeThroughMutRef {
+		expanded, parent := tc.expandPlaceDescriptor(desc)
+		mutRefParent = parent
+		checkedMutRefPlace = tc.canonicalPlace(expanded)
+	} else if !tc.isSharedReferenceRebind(op, desc) {
 		desc, _ = tc.expandPlaceDescriptor(desc)
 	}
 	place := tc.canonicalPlace(desc)
 	if !place.IsValid() {
 		return
 	}
-	var issue BorrowIssue
-	if tc.borrow != nil && !writeThroughMutRef {
-		// Only check for mutation conflicts if not writing through a &mut reference.
-		// Writes through &mut references are allowed by design.
-		issue = tc.borrow.MutationAllowed(place)
-		tc.recordBorrowEvent(&BorrowEvent{
-			Kind:        BorrowEvWrite,
-			Place:       place,
-			Span:        span,
-			Scope:       tc.currentScope(),
-			Issue:       issue.Kind,
-			IssueBorrow: issue.Borrow,
-		})
-		tc.refuseWriteToHeldPlace(place, span, issue)
-	} else if tc.borrow != nil {
-		// Still record the write event for diagnostics/debugging
-		tc.recordBorrowEvent(&BorrowEvent{
-			Kind:  BorrowEvWrite,
-			Place: place,
-			Span:  span,
-			Scope: tc.currentScope(),
-			Note:  "write_through_mut_ref",
-		})
+	if tc.borrow != nil {
+		tc.checkAssignmentWrite(place, checkedMutRefPlace, writeThroughMutRef, mutRefParent, span)
 	}
 	if op == ast.ExprBinaryAssign {
 		tc.observeMove(right, tc.exprSpan(right))

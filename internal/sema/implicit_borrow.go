@@ -126,46 +126,47 @@ func (tc *typeChecker) dropImplicitBorrowForRefParam(expr ast.ExprID, param symb
 	}
 	expr = tc.unwrapGroupExpr(expr)
 	if tc.isReferenceType(actual) && !tc.isBorrowExpr(expr) {
+		// Passing an existing reference normally creates no new loan: the
+		// callee only reads through the loan already carried by that value.
+		// A non-reference borrowing result is different. It becomes another
+		// live reader of the referent, so record that child loan explicitly;
+		// otherwise a later write through the original `&mut` would see only
+		// its own exclusive permission and miss the returned BytesView.
+		//
+		// Only a reference that names a place can take that child loan. A
+		// reference produced by an expression -- `getr(&h)` in
+		// `getr(&h).bytes()` or `view(getr(&h))` -- has no place to borrow,
+		// and needs none: it was made by a call whose result carries a
+		// reference, so that call kept its own `&` arguments borrowed by the
+		// rule below, and `h` stays held for as long as the view's scope.
+		if returnOriginTypeShape(tc.types, result, nil) == returnOriginCarriesRef {
+			if _, carriesReference := tc.carriedReferenceType(result); !carriesReference {
+				if _, isPlace := tc.resolvePlace(expr); isPlace {
+					tc.handleBorrow(expr, span, ast.ExprUnaryRef, expr)
+				}
+			}
+		}
 		return
 	}
-	// The receiver's borrow outlives the call when the RESULT carries a
-	// reference back out of it — not merely when the result is spelled as one.
+	// The receiver's borrow outlives the call when the RESULT carries a borrow
+	// back out of it — not merely when the result is spelled as a reference.
 	// `Map::get_mut` hands out `Option<&mut V>`, so asking the spelling ended
 	// the borrow at the call and let the caller remove the entry its own live
 	// borrow pointed at.
-	if _, carries := tc.carriedReferenceType(result); carries {
+	// BytesView is marked as a borrowed view by declaration identity.  Asking
+	// the type-shape question here also finds a view nested in an aggregate and
+	// means that the next non-reference borrowing type needs only that mark.
+	// Array windows deliberately have no such mark: their runtime header retains
+	// the base allocation, so returning one does not extend an argument loan.
+	// The rule asks only the result's shape, not which argument it came from:
+	// `fn two(a: &string, b: &string) -> BytesView` keeps BOTH `a` and `b`
+	// borrowed, although the view reads one of them. That is conservative on
+	// purpose -- naming the source argument needs the return-origin fact at
+	// the call site, and a missed source would be a use-after-free.
+	if returnOriginTypeShape(tc.types, result, nil) == returnOriginCarriesRef {
 		return
 	}
 	tc.dropBorrowForExpr(expr, span, "temp_borrow")
-}
-
-// viewedStringBorrowOutlivesCall: a core BytesView borrows the string it views
-// (owner ruling 2026-09-15). An array window is made by the slice operation, whose
-// `__index` receiver borrow typeExprIndex takes and never releases at the call, so
-// the window's base stays borrowed for the rest of the enclosing block. A BytesView
-// is made by core's own producers (`string.bytes()`, `rt_string_bytes_view`): a
-// core-declared callee whose result is the core view struct (IsBorrowedView, marked by
-// declaration identity in type_decl_core.go). For those, and for the `&string` they
-// borrow, the borrow is kept exactly as the window's is -- no wider: a user function
-// that returns a BytesView keeps today's release, as a user function returning a
-// window does.
-func (tc *typeChecker) viewedStringBorrowOutlivesCall(sym *symbols.Symbol, param symbols.TypeKey, result types.TypeID) bool {
-	if sym == nil || !coreDeclaredSymbol(sym) || tc.types == nil || !tc.types.IsBorrowedView(result) {
-		return false
-	}
-	tt, ok := tc.types.Lookup(tc.resolveAlias(tc.typeFromKey(param)))
-	return ok && tt.Kind == types.KindReference && !tt.Mutable && tc.resolveAlias(tt.Elem) == tc.types.Builtins().String
-}
-
-// coreDeclaredSymbol: a symbol core declares, as seen inside core (builtin) or
-// imported from it. A module path `core` or `core/...` is admitted only for a file
-// inside the stdlib root (driver validateCoreModule), so a user module cannot claim it.
-func coreDeclaredSymbol(sym *symbols.Symbol) bool {
-	if sym.Flags&symbols.SymbolFlagBuiltin != 0 {
-		return true
-	}
-	path := strings.Trim(sym.ModulePath, "/")
-	return sym.Flags&symbols.SymbolFlagImported != 0 && (path == "core" || strings.HasPrefix(path, "core/"))
 }
 
 func (tc *typeChecker) isBorrowExpr(expr ast.ExprID) bool {
@@ -229,9 +230,7 @@ func (tc *typeChecker) dropImplicitBorrowsForCall(sym *symbols.Symbol, args []ca
 		if expectedType != types.NoTypeID {
 			tc.dropImplicitBorrow(arg.expr, expectedType, arg.ty, tc.exprSpan(arg.expr))
 		}
-		if !tc.viewedStringBorrowOutlivesCall(sym, sig.Params[paramIndex], result) {
-			tc.dropImplicitBorrowForRefParam(arg.expr, sig.Params[paramIndex], arg.ty, result, tc.exprSpan(arg.expr))
-		}
+		tc.dropImplicitBorrowForRefParam(arg.expr, sig.Params[paramIndex], arg.ty, result, tc.exprSpan(arg.expr))
 		tc.dropImplicitBorrowForValueParam(arg.expr, sig.Params[paramIndex], arg.ty, tc.exprSpan(arg.expr))
 	}
 }
