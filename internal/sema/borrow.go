@@ -2,6 +2,7 @@ package sema
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"fortio.org/safecast"
@@ -398,6 +399,26 @@ func (bt *BorrowTable) EndScope(scope symbols.ScopeID) {
 		}
 	}
 	delete(bt.scopeBorrows, scope)
+}
+
+// Rehome moves a live borrow's lexical end to scope. A loan stored into a
+// binding declared in an outer scope stays readable through that binding, so
+// its lifetime becomes the binding's scope rather than the block the borrow
+// was taken in.
+func (bt *BorrowTable) Rehome(id BorrowID, scope symbols.ScopeID) {
+	info := bt.Info(id)
+	if info == nil || !scope.IsValid() || info.Life.ToScope == scope {
+		return
+	}
+	// Only a borrow still registered at its scope is live: a dropped or
+	// expired one has left the list and must not be revived.
+	scopeList := bt.scopeBorrows[info.Life.ToScope]
+	if !slices.Contains(scopeList, id) {
+		return
+	}
+	bt.scopeBorrows[info.Life.ToScope] = dropBorrowID(scopeList, id)
+	info.Life.ToScope = scope
+	bt.scopeBorrows[scope] = append(bt.scopeBorrows[scope], id)
 }
 
 // ScopeBorrows returns borrows whose lexical lifetime ends at scope.

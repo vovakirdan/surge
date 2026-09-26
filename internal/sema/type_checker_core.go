@@ -64,6 +64,7 @@ type typeChecker struct {
 	stmtSymbols        map[ast.StmtID]symbols.SymbolID
 	externSymbols      map[ast.ExternMemberID]symbols.SymbolID
 	bindingBorrow      map[symbols.SymbolID]BorrowID
+	viewLoans          map[symbols.SymbolID][]BorrowID // loans a BytesView binding depends on
 	bindingTypes       map[symbols.SymbolID]types.TypeID
 	constState         map[symbols.SymbolID]constEvalState
 	typeItems          map[ast.ItemID]types.TypeID

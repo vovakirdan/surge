@@ -41,6 +41,8 @@ func (tc *typeChecker) updateBindingValue(symID symbols.SymbolID, expr ast.ExprI
 	}
 	bid := tc.bindingBorrowForExpr(symID, expr)
 	tc.bindingBorrow[symID] = bid
+	tc.holdLoanForBinding(symID, bid)
+	tc.holdViewLoansForBinding(symID, expr)
 	if bid != NoBorrowID && tc.borrowBindings != nil {
 		if _, exists := tc.borrowBindings[bid]; !exists {
 			tc.borrowBindings[bid] = symID

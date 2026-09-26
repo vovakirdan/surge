@@ -213,7 +213,7 @@ func (tc *typeChecker) releaseScopeBindings(scope symbols.ScopeID) {
 		if symID == symbols.NoSymbolID {
 			continue
 		}
-		if bid := tc.bindingBorrow[symID]; bid != NoBorrowID && tc.borrow != nil {
+		if bid := tc.bindingBorrow[symID]; bid != NoBorrowID && tc.borrow != nil && !tc.loanOutlivesScopeStack(bid) {
 			tc.borrow.DropBorrow(bid)
 		}
 		delete(tc.bindingBorrow, symID)
