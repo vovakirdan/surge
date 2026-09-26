@@ -211,7 +211,12 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		return returnOriginExprResult{flow: flow, value: returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})}, nil
 	}
 	var summary returnOriginValue
-	if callbackValue.normal {
+	if callbackValue.normal && b.inertFunctionValueCall(info) {
+		// A function-value call cannot transport or mutate borrowed state when
+		// every argument and the task payload/result are inert. Its compare arms
+		// therefore start with an owned value, without widening other callbacks.
+		summary = returnOriginValueOf()
+	} else if callbackValue.normal {
 		summary = b.callableValueSources(callbackValue, span)
 		if returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, effects) || loanSinks {
 			flow.normal = b.taintExternalCellEffects(flow.normal, span, "indirect call may change reference-bearing or callable contents")
@@ -239,7 +244,11 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		}
 		summary = b.opaqueReturnSources(callee, info, sources, valid, span, signature)
 		effects = b.opaqueCallEffects(signature, params, effects, span)
-		if !returnOriginBytesViewReader(callee) && (returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, effects) ||
+		_, taskClone := returnOriginTaskHandleResidual(callee, result)
+		if !taskClone && callee != nil && callee.info != nil {
+			_, taskClone = returnOriginTaskHandleResidual(callee, callee.info.Result)
+		}
+		if !taskClone && !returnOriginBytesViewReader(callee) && (returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, effects) ||
 			loanSinks && !certified && !mapCertified && !returnOriginCertifiedByteSink(callee)) {
 			flow.normal = b.taintExternalCellEffects(flow.normal, span, "opaque call may change reference-bearing or callable contents")
 		}
@@ -280,6 +289,23 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		value = value.join(actuals[root.param])
 	}
 	return returnOriginExprResult{flow: flow, value: value}, nil
+}
+
+func (b *returnOriginBody) inertFunctionValueCall(info *types.FnInfo) bool {
+	if info == nil {
+		return false
+	}
+	for _, param := range info.Params {
+		if !b.crossingInert(param) {
+			return false
+		}
+	}
+	result := info.Result
+	in := b.function.unit.Sema.TypeInterner
+	if payloads, handle := in.RuntimeHandlePayloads(result); handle && returnOriginIsTask(in, result, b.function) && len(payloads) == 1 {
+		result = payloads[0]
+	}
+	return b.crossingInert(result)
 }
 
 // Calls and function values share one reader, so a selection that one of them

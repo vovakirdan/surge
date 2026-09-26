@@ -2091,7 +2091,7 @@ Nesting follows the same rule at every level:
   `if failed { ret failure; }` — since a `ret` in an `if` body does leave the
   whole body. In an ordinary function `return` inside an arm still leaves the
   function, as it always did;
-- a body nested in a body has its own exit: `async { let t = async { ret 7; }; ret t; }`;
+- a body nested in a body has its own exit: `async { let n = async { ret 7; }.await(); ret n + 1; }`;
 - a body without any `ret` yields `Task<nothing>`. Where `Task<T>` is expected
   that is `SemaTaskBodyNoValue`, as is a body some path of which falls off the
   end; a body whose last statement computes a value and discards it (`async { 42; }`)
@@ -2107,6 +2107,7 @@ Nesting follows the same rule at every level:
   dropped task never runs (`m.lock();` takes no lock); the others are started, but nothing waits
   for them. Await it (`.await()`), keep the handle, or `spawn` it.
 - Returning or passing a `Task<T>` transfers responsibility for awaiting it.
+- A task's result may not contain a task (`SemaTaskPayloadIsTask`), directly or through an `Option`, tuple, array, or struct field. Instead of `async { let t = async { ret 7; }; ret t; }`, the caller awaits the outer work and then `spawn`s the inner work itself. This rule is checked once at the offending async block, `async fn` declaration, or `Task<...>` type. `Channel<Task<T>>` is not a task result and remains unaffected.
 - `Task<T>` cannot be stored in module-level variables (`SemaTaskEscapesScope`). Since a module holds only `const`, this is now reached only alongside `SemaModuleLevelLet`.
 
 #### `@failfast` Attribute

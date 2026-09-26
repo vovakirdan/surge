@@ -19,13 +19,6 @@ fn pick(c: bool) -> Task<int> {
     };
 }
 
-fn nested() -> Task<Task<int>> {
-    return async {
-        let inner: Task<int> = async { ret 7; };
-        ret inner;
-    };
-}
-
 fn quiet() -> Task<nothing> {
     return async {
         let x: int = 1;

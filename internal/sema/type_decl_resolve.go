@@ -216,6 +216,14 @@ func (tc *typeChecker) resolveNamedType(name source.StringID, args []types.TypeI
 	// Check for deprecated type usage (base type for generics)
 	tc.checkDeprecatedType(sym.Type, span)
 	instantiated := tc.instantiateType(symID, args, span, "type")
+	// One task handle represents one structured child. This common construction
+	// point covers source type expressions, async declarations and async blocks.
+	// The recursive query includes options/unions, tuples, arrays and fields;
+	// Channel<Task<T>> does not enter this Task-only branch.
+	if tc.isTaskType(instantiated) && len(args) == 1 && tc.containsTaskType(args[0]) {
+		tc.report(diag.SemaTaskPayloadIsTask, span,
+			"a task's result may not contain a task; await the outer work, then `spawn` the inner work in the caller")
+	}
 	// A channel payload crosses task boundaries; a borrow must not.
 	if payload := tc.channelPayloadType(instantiated); payload != types.NoTypeID {
 		payloadSpan := span

@@ -562,6 +562,10 @@ const (
 	// patterns are written only in `compare` arms. Owner ruling 2026-09-25.
 	SemaLetTuplePattern Code = 3220
 
+	// 3221 and 3222 are reserved by adjacent validation packets.
+	// SemaTaskPayloadIsTask rejects Task<T> when T contains another Task.
+	SemaTaskPayloadIsTask Code = 3223
+
 	// Ошибки I/O
 
 	// IOLoadFileError indicates file load error.
@@ -835,6 +839,7 @@ var ( // todo расширить описания и использовать к
 		SemaReturnSourceOwnedResult:        "`@return_source` needs a result that carries a reference",
 		SemaReturnSourceIncompatible:       "the callable may return a borrow the destination's `@return_source` promise does not permit",
 		SemaTaskDropped:                    "a task is dropped where it is made; await it, keep its handle, or spawn it",
+		SemaTaskPayloadIsTask:              "a task's result may not contain a task; await it, then `spawn` the inner work in the caller",
 		SemaLiteralNeedsType:               "a struct literal without a type name, or an empty array literal, needs an expected type",
 		SemaLetTuplePattern:                "a `let` binds one name; a tuple pattern is written only in a `compare` arm",
 		SemaPartialMoveNeedsOwn:            "taking a field out of a live value must be written `own`",

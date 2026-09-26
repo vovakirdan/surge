@@ -1,0 +1,7 @@
+// A task result may not itself contain a task.
+fn nested() -> Task<Task<int>> {
+    return async {
+        let inner: Task<int> = async { ret 7; };
+        ret inner;
+    };
+}
