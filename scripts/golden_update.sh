@@ -181,8 +181,22 @@ generate_outputs() {
 	name="${base%.sg}"
 	dir="$(dirname "${src}")"
 	diag_path="${dir}/${name}.diag"
+	# core_stdlib/ is core's compile check: its `.diag`
+	# is the diagnosis of the REAL core file, which the driver admits as core only
+	# because it lies inside the stdlib root (validateCoreModule). The copy itself is
+	# an ordinary user module and never receives core's identity; it still provides
+	# the tokens/ast/fmt outputs, and must be byte-identical to the file it stands for.
+	# It runs from ROOT_DIR, so core's source keys are `core/<file>.sg` as in any build.
+	local diag_src="${src}" diag_dir="${STAGED_ROOT}"
+	if [[ "${rel}" == core_stdlib/* ]]; then
+		diag_src="${ROOT_DIR}/core/${base}"
+		diag_dir="${ROOT_DIR}"
+		if [[ "${rel}" != "core_stdlib/${base}" ]] || ! cmp -s "${src}" "${diag_src}"; then
+			record_error "core_stdlib copy differs from core: ${rel}"
+		fi
+	fi
 
-	if "${SURGE_BIN}" diag --format short --directives="${directives_mode}" "${src}" > "${diag_path}" 2>/dev/null; then
+	if (cd "${diag_dir}" && "${SURGE_BIN}" diag --format short --directives="${directives_mode}" "${diag_src}") > "${diag_path}" 2>/dev/null; then
 		diag_status=0
 	else
 		diag_status=$?
