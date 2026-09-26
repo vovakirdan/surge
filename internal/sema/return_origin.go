@@ -130,8 +130,9 @@ func (v returnOriginValue) expire(scope symbols.ScopeID, within func(symbols.Sco
 }
 
 type returnOriginBinding struct {
-	scope symbols.ScopeID
-	value returnOriginValue
+	scope       symbols.ScopeID
+	value       returnOriginValue
+	defaultNull bool // declared without an initializer and never assigned on this path
 }
 
 // An unreachable environment is distinct from a reachable empty environment.
@@ -162,7 +163,7 @@ func (e returnOriginEnv) clone() returnOriginEnv {
 	}
 	out := newReturnOriginEnv()
 	for id, binding := range e.bindings {
-		out.bindings[id] = returnOriginBinding{scope: binding.scope, value: binding.value.clone()}
+		out.bindings[id] = returnOriginBinding{scope: binding.scope, value: binding.value.clone(), defaultNull: binding.defaultNull}
 	}
 	for slot, value := range e.cells {
 		out.cells[slot] = value.clone()
@@ -221,6 +222,15 @@ func (e returnOriginEnv) assign(id symbols.SymbolID, scope symbols.ScopeID, valu
 	return out
 }
 
+func (e returnOriginEnv) assignDefault(id symbols.SymbolID, scope symbols.ScopeID, value returnOriginValue) returnOriginEnv {
+	out := e.assign(id, scope, value)
+	if binding, ok := out.bindings[id]; ok {
+		binding.defaultNull = true
+		out.bindings[id] = binding
+	}
+	return out
+}
+
 func (e returnOriginEnv) equal(other returnOriginEnv) bool {
 	if e.reachable != other.reachable || len(e.bindings) != len(other.bindings) || len(e.cells) != len(other.cells) || len(e.backings) != len(other.backings) {
 		return false
@@ -232,7 +242,7 @@ func (e returnOriginEnv) equal(other returnOriginEnv) bool {
 	}
 	for id, binding := range e.bindings {
 		peer, ok := other.bindings[id]
-		if !ok || binding.scope != peer.scope || !binding.value.equal(peer.value) {
+		if !ok || binding.scope != peer.scope || binding.defaultNull != peer.defaultNull || !binding.value.equal(peer.value) {
 			return false
 		}
 	}
@@ -257,11 +267,13 @@ func (e returnOriginEnv) join(other returnOriginEnv) returnOriginEnv {
 		if peer, ok := other.bindings[id]; ok && peer.scope != binding.scope {
 			panic("return origins: joined binding scopes differ")
 		}
-		out.bindings[id] = returnOriginBinding{scope: binding.scope, value: binding.value.join(other.value(id))}
+		peer := other.bindings[id]
+		out.bindings[id] = returnOriginBinding{scope: binding.scope, value: binding.value.join(other.value(id)), defaultNull: binding.defaultNull && peer.defaultNull}
 	}
 	for id, binding := range other.bindings {
 		if _, exists := out.bindings[id]; !exists {
-			out.bindings[id] = returnOriginBinding{scope: binding.scope, value: e.value(id).join(binding.value)}
+			peer := e.bindings[id]
+			out.bindings[id] = returnOriginBinding{scope: binding.scope, value: e.value(id).join(binding.value), defaultNull: binding.defaultNull && peer.defaultNull}
 		}
 	}
 	// A cell one reachable arm never established is Unknown on the join, not

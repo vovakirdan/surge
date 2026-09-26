@@ -6,6 +6,15 @@ import (
 	"surge/internal/types"
 )
 
+func returnOriginIsTask(in *types.Interner, id types.TypeID, fn *returnOriginFunction) bool {
+	info, ok := in.StructInfo(id)
+	if !ok || info == nil || fn == nil || !in.IsRuntimeHandleType(id) || len(info.TypeArgs) != 1 {
+		return false
+	}
+	name, _ := fn.unit.Builder.StringsInterner.Lookup(info.Name)
+	return name == "Task"
+}
+
 // A core task constructor below returns a handle naming a runtime task, never an
 // address inside an input. checkpoint and sleep register a new task that captures
 // nothing but a copied delay (rt_async_task.c:509-569; vm/intrinsic_async.go:64-147).

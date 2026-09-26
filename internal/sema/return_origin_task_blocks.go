@@ -57,7 +57,14 @@ func (b *returnOriginBody) taskBlockTransfer(id ast.ExprID, kind ast.ExprKind, e
 		}
 	}
 	for _, capture := range captures[id] {
-		if sym := u.Symbols.Table.Symbols.Get(capture); sym == nil || !b.crossingInert(sym.Type) {
+		sym := u.Symbols.Table.Symbols.Get(capture)
+		binding, bound := env.bindings[capture]
+		// A declared-without-initializer Task is the canonical null handle until
+		// an assignment clears defaultNull. It names no runtime object and holds
+		// no borrow; every non-default Task remains behind NoBorrowedState.
+		nullTask := sym != nil && returnOriginIsTask(b.function.unit.Sema.TypeInterner, sym.Type, b.function) &&
+			bound && binding.defaultNull
+		if sym == nil || !b.crossingInert(sym.Type) && !nullTask {
 			b.pending(span, returnOriginTaskBlockCaptureRefusal)
 		}
 	}
