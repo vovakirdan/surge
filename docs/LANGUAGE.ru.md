@@ -951,6 +951,8 @@ Notes:
 - Arms are tried top-to-bottom; the first match wins.
 - `=>` separates pattern from result expression and is only valid within `compare` arms and parallel constructs.
 - Exhaustiveness for tagged unions is enforced: arms must cover all variants or include `finally`. Redundant `finally` emits `SemaRedundantFinally`. Untagged unions are not supported.
+- Only an **unguarded, irrefutable** arm covers its variant (owner ruling 2026-09-25). A pattern is irrefutable when it is `_`, a binding, a tuple of irrefutable patterns, or a tag (or `nothing`) that is the only member of its type's union with irrefutable payload patterns. A literal (`Some(1)`), an enum variant, or a nested tag of a union with more than one member (`Some(Some(x))` over `Option<Option<T>>`) is refutable, and an arm with an `if` guard never covers. A variant whose every arm is guarded or refutable is not covered: add a later irrefutable arm (`Some(_) => ...`) or `finally`, otherwise the compare is refused with `SemaNonexhaustiveGuardedMatch` (SEM3221). A variant no arm names at all is still `SemaNonexhaustiveMatch`. A `finally` after such arms is not redundant. Later arms are typed by the same count: a binding after an arm that can miss still holds that arm's variant, so it has the union's type (`Some(x) if x > 0 => x; y => ...` gives `y` the type `int?`, not `nothing`).
+- Compares over non-union subjects (`int`, `string`, `bool`, tuples) are not checked for exhaustiveness by the compiler; write `finally` (or a final binding / `_` arm) when a fallback is meant.
 - If both a tag constructor and a function named `Ident` are in scope, using `Ident(...)` emits `SemaAmbiguousCtorOrFn`.
 
 ---

@@ -562,6 +562,14 @@ const (
 	// patterns are written only in `compare` arms. Owner ruling 2026-09-25.
 	SemaLetTuplePattern Code = 3220
 
+	// SemaNonexhaustiveGuardedMatch refuses a compare in which a union variant is named
+	// by at least one arm but every arm naming it can still miss: the arm has an `if`
+	// guard, or a payload sub-pattern that is refutable (a literal, a nested tag that
+	// does not cover its own type, an enum variant, ...). Values of that variant would
+	// fall through every arm, so a later irrefutable arm (`Some(_)`) or `finally` is
+	// required. Owner ruling 2026-09-25 (option B).
+	SemaNonexhaustiveGuardedMatch Code = 3221
+
 	// Ошибки I/O
 
 	// IOLoadFileError indicates file load error.
@@ -837,6 +845,7 @@ var ( // todo расширить описания и использовать к
 		SemaTaskDropped:                    "a task is dropped where it is made; await it, keep its handle, or spawn it",
 		SemaLiteralNeedsType:               "a struct literal without a type name, or an empty array literal, needs an expected type",
 		SemaLetTuplePattern:                "a `let` binds one name; a tuple pattern is written only in a `compare` arm",
+		SemaNonexhaustiveGuardedMatch:      "non-exhaustive pattern match: every arm for a variant can miss",
 		SemaPartialMoveNeedsOwn:            "taking a field out of a live value must be written `own`",
 		SemaPartialMoveFromTemporary:       "cannot take a field out of a value nothing holds",
 		SemaStoreThroughSharedRef:          "cannot write through a shared reference",

@@ -95,13 +95,20 @@
  95: FatArrow        "=>" at 13:84-13:86 (leading: Space)
  96: Ident           "x" at 13:87-13:88 (leading: Space)
  97: Semicolon       ";" at 13:88-13:89
- 98: Ident           "Cancelled" at 14:9-14:18 (leading: Newline, Space)
- 99: LParen          "(" at 14:18-14:19
-100: RParen          ")" at 14:19-14:20
-101: FatArrow        "=>" at 14:21-14:23 (leading: Space)
-102: IntLit          "0" at 14:24-14:25 (leading: Space)
-103: Semicolon       ";" at 14:25-14:26
-104: RBrace          "}" at 15:5-15:6 (leading: Newline, Space)
-105: Semicolon       ";" at 15:6-15:7
-106: RBrace          "}" at 16:1-16:2 (leading: Newline)
-107: EOF             at 17:1-17:1
+ 98: Ident           "Success" at 14:9-14:16 (leading: Newline, Space)
+ 99: LParen          "(" at 14:16-14:17
+100: Underscore      "_" at 14:17-14:18
+101: RParen          ")" at 14:18-14:19
+102: FatArrow        "=>" at 14:20-14:22 (leading: Space)
+103: IntLit          "0" at 14:23-14:24 (leading: Space)
+104: Semicolon       ";" at 14:24-14:25
+105: Ident           "Cancelled" at 15:9-15:18 (leading: Newline, Space)
+106: LParen          "(" at 15:18-15:19
+107: RParen          ")" at 15:19-15:20
+108: FatArrow        "=>" at 15:21-15:23 (leading: Space)
+109: IntLit          "0" at 15:24-15:25 (leading: Space)
+110: Semicolon       ";" at 15:25-15:26
+111: RBrace          "}" at 16:5-16:6 (leading: Newline, Space)
+112: Semicolon       ";" at 16:6-16:7
+113: RBrace          "}" at 17:1-17:2 (leading: Newline)
+114: EOF             at 18:1-18:1
