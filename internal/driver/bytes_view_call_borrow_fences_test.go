@@ -22,7 +22,7 @@ func TestSiblingReborrowsAreRefusedOnEveryRun(t *testing.T) {
     return 0;
 }
 `
-	for i := 0; i < 16; i++ {
+	for range 16 {
 		bytesViewRefusal(t, text, diag.SemaBorrowConflict, "&mut *r;\n    *b")
 	}
 }
@@ -40,7 +40,7 @@ func TestThreeLinkReborrowChainIsAcceptedOnEveryRun(t *testing.T) {
     return 0;
 }
 `
-	for i := 0; i < 16; i++ {
+	for range 16 {
 		bytesViewAccepted(t, text)
 	}
 }
