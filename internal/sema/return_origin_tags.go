@@ -45,20 +45,9 @@ func (a *returnOriginAnalyzer) tagPayload(fn *returnOriginFunction, id ast.ExprI
 		u.Symbols.ExprSymbols[call.Target] != selected || u.Sema.ExprTypes[call.Target] == types.NoTypeID {
 		return 0, nil, "tag constructor lacks its original declaration target"
 	}
-	canonical := selected
-	if len(u.Publication.RootToLocalSymbols) != 0 {
-		canonical = symbols.NoSymbolID
-		for root, locals := range u.Publication.RootToLocalSymbols {
-			if slices.Contains(locals, selected) {
-				if canonical.IsValid() || !root.IsValid() {
-					return 0, nil, "tag constructor has ambiguous canonical declaration aliases"
-				}
-				canonical = root
-			}
-		}
-	}
-	if !canonical.IsValid() {
-		return 0, nil, "tag constructor lacks its canonical declaration alias"
+	canonical, reason := canonicalTagSymbol(u, selected)
+	if reason != "" {
+		return 0, nil, reason
 	}
 	var owner *returnOriginUnitIndex
 	var original *symbols.Symbol
@@ -188,6 +177,17 @@ func (a *returnOriginAnalyzer) checkTagUse(use ConcreteInstantiationUse) string 
 		use.Site.Start < caller.item.Span.Start || use.Site.End > caller.item.Span.End {
 		return "generic tag use disagrees with its owning caller"
 	}
+	reason := a.checkTagCallUse(caller, use)
+	// An implicit Some/Success wrap the checker recorded at this exact
+	// site is a tag use with no call expression; certify its instance instead.
+	if conversion, found := a.checkTagConversionUse(caller, use); found && reason != "" {
+		return conversion
+	}
+	return reason
+}
+
+// checkTagCallUse certifies a tag use written as a typed call expression.
+func (a *returnOriginAnalyzer) checkTagCallUse(caller *returnOriginFunction, use ConcreteInstantiationUse) string {
 	var id ast.ExprID
 	for expr, typ := range caller.unit.Sema.ExprTypes {
 		if node := caller.unit.Builder.Exprs.Get(expr); node != nil && node.Span == use.Site {
