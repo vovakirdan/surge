@@ -276,6 +276,14 @@ func (tc *typeChecker) holdScrutineeLoansForArmBindings(bindings []symbols.Symbo
 		return
 	}
 	var loans []BorrowID
+	for _, sym := range bindings {
+		// `compare r[0] { v => ... }` binds v into r's referent, as `let v =
+		// r[0]` does (borrowReferentsThroughReferences).
+		if tc.bindsSharedReference(sym, scrutinee) {
+			loans = tc.borrowReferentsThroughReferences(scrutinee, loans)
+			break
+		}
+	}
 	if bid := tc.borrow.ExprBorrow(tc.unwrapGroupExpr(scrutinee)); bid != NoBorrowID {
 		loans = append(loans, bid)
 	}

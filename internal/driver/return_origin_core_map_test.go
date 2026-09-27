@@ -75,7 +75,7 @@ func coreMapSources() []coreMapSource {
 		{name: "m10_map_remove_option_inner", fixture: "dependency", text: coreMapM10, digest: coreMapM10Digest, spans: []originSpan{{138, 171, "rt_map_remove(&mut outer[0], key)"}}, leaves: []coreMapLeaf{
 			{name: "remove_option", checks: []backingCheck{{function: "remove_option", pending: []backingPending{{138, 171, arrayPopLoanElement}}}}, absent: []coreMapRow{{"", 138, 171, rangeNextMutableEffect}, {"", 138, 171, rangeNextOpaqueEffect}, {"", 138, 171, originGenericOpaqueUse}}},
 		}},
-		{name: "p11_replace_effects", fixture: "backing", digest: "8ff2ffc0aa919dc996caeb44e31a3074e82ef8298a08500ab0bd9710d93e16e0", spans: []originSpan{{456, 470, "m.remove(&key)"}}, leaves: []coreMapLeaf{
+		{name: "p11_replace_effects", fixture: "backing", digest: "b5e9e6feb23cc94a0f8284a36d9b7a3b795aaf93a812cb4e05f9a61c765f3b33", spans: []originSpan{{543, 557, "m.remove(&key)"}}, leaves: []coreMapLeaf{
 			{name: "read_old", checks: []backingCheck{arrayPopClean("read_old", 0)}},
 			{name: "read_new", checks: []backingCheck{arrayPopClean("read_new", 0, 2)}},
 			{name: "safe_keys", checks: []backingCheck{arrayPopClean("safe_keys")}},

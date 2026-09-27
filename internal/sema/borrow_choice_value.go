@@ -15,6 +15,17 @@ import (
 // choiceValueLoans names the loans of every value a choice expression can
 // yield.
 func (tc *typeChecker) choiceValueLoans(expr ast.ExprID) []BorrowID {
+	values := tc.choiceValues(expr)
+	loans := make([]BorrowID, 0, len(values))
+	for _, value := range values {
+		loans = append(loans, tc.valueLoans(value)...)
+	}
+	return loans
+}
+
+// choiceValues names every value a compare, ternary or block expression can
+// yield; any other expression yields none.
+func (tc *typeChecker) choiceValues(expr ast.ExprID) []ast.ExprID {
 	var values []ast.ExprID
 	node := tc.builder.Exprs.Get(expr)
 	if node == nil {
@@ -36,11 +47,7 @@ func (tc *typeChecker) choiceValueLoans(expr ast.ExprID) []BorrowID {
 			tc.blockValueExprs(data.Stmts, true, &values)
 		}
 	}
-	var loans []BorrowID
-	for _, value := range values {
-		loans = append(loans, tc.valueLoans(value)...)
-	}
-	return loans
+	return values
 }
 
 // valueLoans: the loans a value depends on -- a borrow it takes, the loan a

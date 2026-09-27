@@ -189,7 +189,7 @@ func (tc *typeChecker) borrowedFrameLocalBase(argExpr ast.ExprID) symbols.Symbol
 			return symbols.NoSymbolID
 		}
 		info := tc.borrow.Info(bid)
-		if info == nil || !info.Place.Base.IsValid() {
+		if info == nil || !info.Place.Base.IsValid() || tc.loanNamesUnrootedReferent(bid) {
 			return symbols.NoSymbolID
 		}
 		if tc.isFrameLocalStorage(info.Place.Base) {
@@ -249,7 +249,7 @@ func (tc *typeChecker) loanRootBase(expr ast.ExprID) symbols.SymbolID {
 		return symbols.NoSymbolID
 	}
 	info := tc.borrow.Info(bid)
-	if info == nil || !info.Place.Base.IsValid() {
+	if info == nil || !info.Place.Base.IsValid() || tc.loanNamesUnrootedReferent(bid) {
 		return symbols.NoSymbolID
 	}
 	return info.Place.Base

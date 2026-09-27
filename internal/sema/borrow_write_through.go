@@ -41,6 +41,7 @@ func (tc *typeChecker) refuseMutRefHandOffOverView(expr ast.ExprID, exprType typ
 	case BorrowIssueNone:
 		if !tc.refuseBorrowOfPinnedPlace(place, span, BorrowMut) {
 			tc.noteRefArg(expr, true, span)
+			tc.noteExclusiveRefUse(place, span)
 		}
 		return
 	case BorrowIssueFrozen:
@@ -67,9 +68,14 @@ func (tc *typeChecker) checkAssignmentWrite(place, checkedMutRefPlace Place, wri
 	// returned from `view(s)` is such a child, and must keep `*s = ...`
 	// frozen while the view lives.
 	var issue BorrowIssue
-	if writeThroughMutRef {
+	switch {
+	case writeThroughMutRef:
 		issue = tc.borrow.WriteThroughAllowed(checkedPlace, mutRefParent)
-	} else {
+		tc.noteExclusiveRefUse(checkedPlace, span)
+	case tc.isReferenceType(tc.bindingType(place.Base)) && place == tc.canonicalPlace(placeDescriptor{Base: place.Base}):
+		// A store into the reference binding itself (rebindAllowed).
+		issue = tc.rebindAllowed(place)
+	default:
 		issue = tc.borrow.MutationAllowed(checkedPlace)
 	}
 	eventPlace := place

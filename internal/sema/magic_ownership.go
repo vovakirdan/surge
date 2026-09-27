@@ -67,12 +67,15 @@ func (tc *typeChecker) applyCallArgsOwnership(symID symbols.SymbolID, args []ast
 		return false
 	}
 	defer tc.endMutArgs(tc.beginMutArgs())
+	ordered := make([]argumentInOrder, 0, len(args))
 	for i, arg := range args {
 		if i >= len(sym.Signature.Params) || i >= len(argTypes) {
 			break
 		}
 		tc.applyParamOwnership(sym.Signature.Params[i], arg.Value, argTypes[i], tc.exprSpan(arg.Value))
+		ordered = append(ordered, argumentInOrder{expr: arg.Value, ty: argTypes[i], param: sym.Signature.Params[i]})
 	}
+	tc.refuseLaterArgumentOverEarlierElement(ordered)
 	return true
 }
 
@@ -85,12 +88,15 @@ func (tc *typeChecker) applyMethodArgsOwnership(sym *symbols.Symbol, args []ast.
 	if sig.HasSelf {
 		offset = 1
 	}
+	ordered := make([]argumentInOrder, 0, len(args))
 	for i, arg := range args {
 		paramIndex := i + offset
 		if i >= len(argTypes) || paramIndex >= len(sig.Params) {
 			break
 		}
 		tc.applyParamOwnership(sig.Params[paramIndex], arg.Value, argTypes[i], tc.exprSpan(arg.Value))
+		ordered = append(ordered, argumentInOrder{expr: arg.Value, ty: argTypes[i], param: sig.Params[paramIndex]})
 	}
+	tc.refuseLaterArgumentOverEarlierElement(ordered)
 	return true
 }

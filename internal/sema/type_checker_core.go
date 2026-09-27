@@ -68,6 +68,8 @@ type typeChecker struct {
 	externSymbols      map[ast.ExternMemberID]symbols.SymbolID
 	bindingBorrow      map[symbols.SymbolID]BorrowID
 	viewLoans          map[symbols.SymbolID][]BorrowID // loans a BytesView binding depends on
+	referentLoans      map[BorrowID]struct{}           // shared loans taken on a reference place's referent (borrow_referent_binding.go)
+	exclusiveRefUses   []exclusiveRefUse               // exclusive uses through a reference in the outermost statement (borrow_call_arg_order.go)
 	loanDropped        map[symbols.SymbolID]int        // bindings an `@drop` ended with their loan -> hold-scope stack index
 	loopScopeFloors    []int                           // scope-stack depth at each enclosing loop's entry
 	loopContinueMoved  []map[Place]source.Span         // moved state each enclosing loop's `continue` edges carry

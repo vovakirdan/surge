@@ -236,9 +236,12 @@ fn probe() -> Option<uint64> {
     let _ = m.contains(&key);
     let _ = m.length();
     let _ = m.get_ref(&key);
+    return old;
+}
+fn touch(m: &mut Map<string, &string>, key: string) -> nothing {
     let _ = m.get_mut(&key);
     let _ = m.remove(&key);
-    return old;
+    return nothing;
 }
 fn read_new(m: &mut Map<string, &string>, key: string, value: &string) -> Option<&string> {
     let _ = m.insert(clone(&key), value);

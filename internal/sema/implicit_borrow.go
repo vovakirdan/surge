@@ -280,6 +280,7 @@ func (tc *typeChecker) applyCallOwnership(sym *symbols.Symbol, args []callArg) {
 	}
 
 	defer tc.endMutArgs(tc.beginMutArgs())
+	inOrder := make([]argumentInOrder, 0, len(ordered))
 	for i, arg := range ordered {
 		paramIndex := i
 		if variadicIndex >= 0 && i >= variadicIndex {
@@ -289,7 +290,9 @@ func (tc *typeChecker) applyCallOwnership(sym *symbols.Symbol, args []callArg) {
 			continue
 		}
 		tc.applyParamOwnership(sig.Params[paramIndex], arg.expr, arg.ty, tc.exprSpan(arg.expr))
+		inOrder = append(inOrder, argumentInOrder{expr: arg.expr, ty: arg.ty, param: sig.Params[paramIndex]})
 	}
+	tc.refuseLaterArgumentOverEarlierElement(inOrder)
 }
 
 func (tc *typeChecker) applyParamOwnershipForType(expected types.TypeID, expr ast.ExprID, actual types.TypeID, span source.Span) {

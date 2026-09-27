@@ -27,6 +27,9 @@ type tempFrame struct {
 }
 
 func (tc *typeChecker) pushTempFrame() {
+	if len(tc.tempFrames) == 0 {
+		tc.exclusiveRefUses = tc.exclusiveRefUses[:0]
+	}
 	tc.tempFrames = append(tc.tempFrames, tempFrame{})
 }
 
