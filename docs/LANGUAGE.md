@@ -2093,7 +2093,7 @@ Nesting follows the same rule at every level:
   `if failed { ret failure; }` — since a `ret` in an `if` body does leave the
   whole body. In an ordinary function `return` inside an arm still leaves the
   function, as it always did;
-- a body nested in a body has its own exit: `async { let t = async { ret 7; }; ret t; }`;
+- a body nested in a body has its own exit: `async { let n = async { ret 7; }.await(); ret n + 1; }`;
 - a body without any `ret` yields `Task<nothing>`. Where `Task<T>` is expected
   that is `SemaTaskBodyNoValue`, as is a body some path of which falls off the
   end; a body whose last statement computes a value and discards it (`async { 42; }`)
@@ -2109,6 +2109,17 @@ Nesting follows the same rule at every level:
   dropped task never runs (`m.lock();` takes no lock); the others are started, but nothing waits
   for them. Await it (`.await()`), keep the handle, or `spawn` it.
 - Returning or passing a `Task<T>` transfers responsibility for awaiting it.
+- A task's result may not contain a task (`SemaTaskPayloadIsTask`, owner ruling 2026-09-26): not
+  directly (`Task<Task<int>>`), and not through an `Option` or other union, a tuple, an array, a map
+  or a struct field. One handle stands for one structured child. Instead of
+  `async { let t = async { ret 7; }; ret t; }`, the caller awaits the outer work and then `spawn`s
+  the inner work itself. The error is reported once where the offending type is written or made:
+  a `Task<...>` type, an `async fn` whose declared result is a task, an `async`/`blocking` block
+  whose `ret` gives a task, or a call of a generic function whose result becomes such a task only
+  through its type arguments (`fn g<T>(x: T) -> Task<T>` called with a `Task<int>`).
+  `Channel<Task<T>>` is not a task result and stays accepted. The rule concerns a local `Task<T>` only:
+  a `far Task<T>` (the handle `spawn on` returns) in a task's result is allowed
+  (`async fn start(dst: Placement) -> far Task<int>`; owner ruling 2026-09-26).
 - `Task<T>` cannot be stored in module-level variables (`SemaTaskEscapesScope`). Since a module holds only `const`, this is now reached only alongside `SemaModuleLevelLet`.
 
 #### `@failfast` Attribute

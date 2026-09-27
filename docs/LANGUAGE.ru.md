@@ -1972,7 +1972,7 @@ fn foo() -> int {
   через флаг, который ветка выставляет, а тело читает после `compare` —
   `if failed { ret failure; }`, потому что `ret` в теле `if` выходит из всего
   тела. В обычной функции `return` в ветке по-прежнему выходит из функции;
-- тело внутри тела имеет свой выход: `async { let t = async { ret 7; }; ret t; }`;
+- тело внутри тела имеет свой выход: `async { let n = async { ret 7; }.await(); ret n + 1; }`;
 - тело без единого `ret` даёт `Task<nothing>`. Там, где ожидается `Task<T>`, это
   `SemaTaskBodyNoValue`; так же диагностируется тело, часть путей которого
   доходит до конца без `ret`; тело, последний оператор которого вычисляет и
@@ -1989,6 +1989,17 @@ fn foo() -> int {
   dropped task never runs (`m.lock();` takes no lock); the others are started, but nothing waits
   for them. Await it (`.await()`), keep the handle, or `spawn` it.
 - Returning or passing a `Task<T>` transfers responsibility for awaiting it.
+- Результат задачи не может содержать задачу (`SemaTaskPayloadIsTask`, решение владельца от
+  2026-09-26): ни напрямую (`Task<Task<int>>`), ни через `Option` или другое объединение, кортеж,
+  массив, словарь или поле структуры. Один хэндл обозначает одного структурного потомка. Вместо
+  `async { let t = async { ret 7; }; ret t; }` вызывающий дожидается внешней работы и сам
+  запускает внутреннюю через `spawn`. Ошибка сообщается один раз там, где неверный тип записан
+  или создан: тип `Task<...>`, `async fn`, объявленный результат которой — задача, блок
+  `async`/`blocking`, чей `ret` отдаёт задачу, или вызов обобщённой функции, результат которой
+  становится такой задачей только через аргументы типа (`fn g<T>(x: T) -> Task<T>`, вызванная
+  с `Task<int>`). `Channel<Task<T>>` — не результат задачи и остаётся допустимым. Правило касается
+  только локальной `Task<T>`: `far Task<T>` (хэндл, который возвращает `spawn on`) в результате задачи
+  допустима (`async fn start(dst: Placement) -> far Task<int>`; решение владельца от 2026-09-26).
 - `Task<T>` cannot be stored in module-level variables (`SemaTaskEscapesScope`).
 
 #### `@failfast` Attribute
