@@ -64,8 +64,6 @@ const fieldBorrowDigest = "f5fe4e728f37b0044611f0ca9b0d7213f3c48fa915043535da87e
 
 const fieldBorrowDerefRefusal = "reference loaded through another reference needs content provenance"
 
-const fieldBorrowCalleeRefusal = "callee returned an unproved source"
-
 // 1 parent + 10 leaves = 11 RUN.
 func TestAnalyzeFieldBorrowOrigins(t *testing.T) {
 	f, analysis := analyzeOriginDependency(t, "field_borrow", fieldBorrowSource, nil)
