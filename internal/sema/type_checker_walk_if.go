@@ -21,6 +21,7 @@ func (tc *typeChecker) walkIfStmt(id ast.StmtID) {
 		return
 	}
 	tc.ensureBoolContext(ifStmt.Cond, tc.exprSpan(ifStmt.Cond))
+	tc.releaseConditionTemporaries()
 	before := tc.snapshotFlow()
 	tc.walkStmt(ifStmt.Then)
 	thenFlow := tc.snapshotFlow()

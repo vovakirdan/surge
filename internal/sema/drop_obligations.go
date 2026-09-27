@@ -370,6 +370,8 @@ func (tc *typeChecker) recordEarlyExitDrops(id ast.StmtID, toLoop bool) {
 
 func (tc *typeChecker) enterLoopDropScope() {
 	tc.loopDropMarks = append(tc.loopDropMarks, len(tc.dropScopes))
+	tc.loopScopeFloors = append(tc.loopScopeFloors, len(tc.scopeStack))
+	tc.loopContinueMoved = append(tc.loopContinueMoved, nil)
 }
 
 func (tc *typeChecker) leaveLoopDropScope() {
@@ -377,6 +379,40 @@ func (tc *typeChecker) leaveLoopDropScope() {
 		return
 	}
 	tc.loopDropMarks = tc.loopDropMarks[:len(tc.loopDropMarks)-1]
+	if len(tc.loopScopeFloors) > 0 {
+		tc.loopScopeFloors = tc.loopScopeFloors[:len(tc.loopScopeFloors)-1]
+	}
+	if len(tc.loopContinueMoved) > 0 {
+		tc.loopContinueMoved = tc.loopContinueMoved[:len(tc.loopContinueMoved)-1]
+	}
+}
+
+// walkContinue: a `continue` is an abrupt exit of the body (pins, early-exit
+// drops) and a back edge to the loop's head (noteContinueEdge).
+func (tc *typeChecker) walkContinue(id ast.StmtID) {
+	tc.refuseLivePinsAtAbruptExit(tc.currentLoopDepth(), "continue")
+	tc.noteContinueEdge()
+	tc.recordEarlyExitDrops(id, true)
+}
+
+// noteContinueEdge: a `continue` goes back to the loop's head with the moved
+// state it has here, which the walk then discards (the statements after it
+// in the block are walked from the state before). The back-edge check has to
+// see it: `@drop b; if c { continue; } b = &a;` re-enters with `b` dead.
+func (tc *typeChecker) noteContinueEdge() {
+	if n := len(tc.loopContinueMoved); n > 0 {
+		tc.loopContinueMoved[n-1] = mergeMovedPlaces(tc.loopContinueMoved[n-1], tc.movedPlaces)
+	}
+}
+
+// movedAtBackEdge is what reaches the loop's head again: the body's
+// fall-through state joined with every `continue` edge's.
+func (tc *typeChecker) movedAtBackEdge() map[Place]source.Span {
+	n := len(tc.loopContinueMoved)
+	if n == 0 || len(tc.loopContinueMoved[n-1]) == 0 {
+		return tc.movedPlaces
+	}
+	return mergeMovedPlaces(tc.movedPlaces, tc.loopContinueMoved[n-1])
 }
 
 // bindingDeclaredAtOrAbove reports whether the binding registered in a
@@ -415,7 +451,7 @@ func (tc *typeChecker) rejectLoopBackEdgeMoves(before map[Place]source.Span, loo
 		span  source.Span
 	}
 	firstMove := make(map[symbols.SymbolID]loopMove)
-	for place, span := range tc.movedPlaces {
+	for place, span := range tc.movedAtBackEdge() {
 		// A place already implied before the loop is not something the body
 		// did. Covered rather than equal: the set collapses a field into its
 		// container, so the entry seen now may be wider than the one recorded
@@ -437,13 +473,16 @@ func (tc *typeChecker) rejectLoopBackEdgeMoves(before map[Place]source.Span, loo
 	}
 	for symID, move := range firstMove {
 		span := move.span
-		if !tc.isDroppableBinding(symID) {
-			continue
-		}
 		// The body's scopes are already popped: a binding still present
 		// on the stack was declared OUTSIDE the loop and is the one the
-		// back-edge would re-use; body-locals are gone and stay valid.
-		if !tc.bindingDeclaredAtOrAbove(symID, 0) || tc.bindingDeclaredAtOrAbove(symID, floor) {
+		// back-edge would re-use; body-locals are gone and stay valid. A
+		// reference is not droppable, but one an `@drop` ended in the body is
+		// read dead on the next iteration all the same.
+		if tc.isDroppableBinding(symID) {
+			if !tc.bindingDeclaredAtOrAbove(symID, 0) || tc.bindingDeclaredAtOrAbove(symID, floor) {
+				continue
+			}
+		} else if !tc.loanDroppedOutsideLoop(symID) {
 			continue
 		}
 		name := tc.plainPlaceLabel(move.place)

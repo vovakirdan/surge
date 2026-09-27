@@ -232,6 +232,9 @@ func (tc *typeChecker) dropImplicitBorrowsForCall(sym *symbols.Symbol, args []ca
 		}
 		tc.dropImplicitBorrowForRefParam(arg.expr, sig.Params[paramIndex], arg.ty, result, tc.exprSpan(arg.expr))
 		tc.dropImplicitBorrowForValueParam(arg.expr, sig.Params[paramIndex], arg.ty, tc.exprSpan(arg.expr))
+		if paramIndex == i {
+			tc.noteIndexTemporaryArg(arg.expr, sig, paramIndex, result)
+		}
 	}
 }
 

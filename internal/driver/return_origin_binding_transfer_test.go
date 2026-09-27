@@ -35,14 +35,20 @@ type dropLeaf struct {
 	// eagerMustBeEmpty asserts the source bag carries no refusal at the escape
 	// span, so the analysis is measurably the only refusal there.
 	eagerMustBeEmpty bool
+	// eagerDropRefused: the eager checker refuses the `@drop` itself (SEM3020,
+	// the owner is still borrowed). The refusal is tolerated at the drop span
+	// only, and asserted there, so the analysis is still measured on the rest.
+	eagerDropRefused bool
 }
 
 // `drop_owner_then_alias_read` and `drop_owner_alias_outer_dead` read an alias of
-// a dropped heap owner. Stage A S-A5 measured that sema admits that read, that the
+// a dropped heap owner. Stage A S-A5 measured that sema admitted that drop, that the
 // analysis raises exactly one escape at the recorded span, and that the source bag
-// holds nothing there — so the expiry is the only refusal of that use-after-free,
-// and both leaves assert all three. They keep `allowEscape`, so the leaf still
-// states its own fact if the eager checker ever starts refusing at the same span.
+// holds nothing there. Sema now refuses the drop itself (SEM3020: the owner is
+// still borrowed), so both leaves tolerate and assert that refusal at the drop
+// span, and still assert the analysis's own escape and an empty bag at its span.
+// They keep `allowEscape`, so the leaf still states its own fact if the eager
+// checker ever starts refusing at the escape span too.
 func dropLeaves() []dropLeaf {
 	at := func(start, end uint32, text string) dropSpan { return dropSpan{start, end, text} }
 	return []dropLeaf{
@@ -89,14 +95,16 @@ func dropLeaves() []dropLeaf {
 			allowEscape:      true,
 			drops:            []dropSpan{at(74, 82, "@drop s;")},
 			escape:           &dropSpan{104, 105, "r"},
-			eagerMustBeEmpty: true},
+			eagerMustBeEmpty: true,
+			eagerDropRefused: true},
 		{name: "drop_owner_alias_outer_dead", digest: "0e8180bd976abe60022b08700d1e8197b624274eb8915f598c16b3b07f6c43a0",
 			text: "fn t(flag: bool) -> nothing {\n    let s: string = \"a\";\n    let r: &string = &s;\n    if flag {\n        @drop s;\n    }\n" +
 				"    return nothing;\n}\n",
 			allowEscape:      true,
 			drops:            []dropSpan{at(102, 110, "@drop s;")},
 			escape:           &dropSpan{92, 116, "{\n        @drop s;\n    }"},
-			eagerMustBeEmpty: true},
+			eagerMustBeEmpty: true,
+			eagerDropRefused: true},
 	}
 }
 
@@ -124,7 +132,29 @@ func checkDropLeaf(t *testing.T, leaf dropLeaf) {
 			t.Fatalf("PRECONDITION: span [%d,%d) does not hold %q", span.start, span.end, span.text)
 		}
 	}
-	res := returnOriginStdlibFixture(t, leaf.text, leaf.allowEscape)
+	dropRefusal := func(d *diag.Diagnostic) bool {
+		if !leaf.eagerDropRefused || d.Code != diag.SemaBorrowMove {
+			return false
+		}
+		for _, span := range leaf.drops {
+			if d.Primary.Start == span.start && d.Primary.End == span.end {
+				return true
+			}
+		}
+		return false
+	}
+	res := returnOriginStdlibFixtureAllowing(t, leaf.text, leaf.allowEscape, dropRefusal)
+	if leaf.eagerDropRefused {
+		refused := 0
+		for _, d := range res.Bag.Items() {
+			if d != nil && d.Primary.File == res.File.ID && dropRefusal(d) {
+				refused++
+			}
+		}
+		if refused != len(leaf.drops) {
+			t.Errorf("the eager checker refused %d of %d drops of a borrowed owner", refused, len(leaf.drops))
+		}
+	}
 	if err := FinalizeInstantiationClosure(t.Context(), res, 64); err != nil {
 		t.Fatalf("PRECONDITION: closure failed: %v", err)
 	}

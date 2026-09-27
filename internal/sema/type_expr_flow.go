@@ -81,6 +81,8 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		tc.pushDropScope(false)
 		tc.inferComparePatternTypes(arm.Pattern, armSubject, &armBindings)
 		tc.noteCarriedArmSources(armBindings, cmp.Value)
+		tc.holdScrutineeLoansForArmBindings(armBindings, cmp.Value)
+		tc.openArm(armBindings, true)
 		tupleElementsBorrowed := tc.compareTupleElementsAreBorrowed(cmp.Value, arm.Pattern, armSubject)
 		tc.registerComparePayloadDroppables(armBindings, subjectBorrowed, tupleElementsBorrowed)
 		if arm.Guard.IsValid() {
@@ -98,6 +100,7 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 			tc.pushDiscardedExpr(arm.Result)
 		}
 		armResult := tc.typeExprWithExpected(arm.Result, expectedCompare)
+		tc.openArm(armBindings, false)
 		// The other half of the shared-borrow rule. The scrutinee was allowed
 		// through because a compare only inspects its subject; an arm that
 		// ANSWERS with its own payload binding is where a borrowed value would

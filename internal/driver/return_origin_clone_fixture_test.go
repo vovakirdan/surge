@@ -19,6 +19,13 @@ import (
 // The real module graph, original bags and all owning units remain intact.
 func returnOriginStdlibFixture(t *testing.T, text string, allowEscape bool) *DiagnoseResult {
 	t.Helper()
+	return returnOriginStdlibFixtureAllowing(t, text, allowEscape, nil)
+}
+
+// returnOriginStdlibFixtureAllowing also tolerates the root-file refusals
+// `allowed` names: a fixture's own subject that the eager checker refuses too.
+func returnOriginStdlibFixtureAllowing(t *testing.T, text string, allowEscape bool, allowed func(*diag.Diagnostic) bool) *DiagnoseResult {
+	t.Helper()
 	stdlib := detectStdlibRootFrom(".")
 	if stdlib == "" {
 		t.Fatal("PRECONDITION: real stdlib unavailable")
@@ -50,7 +57,7 @@ func returnOriginStdlibFixture(t *testing.T, text string, allowEscape bool) *Dia
 	resolved, ok := rec.Symbols[fileID]
 	res := &DiagnoseResult{FileSet: files, File: file, FileID: fileID, Builder: rec.Builder, Bag: rec.Bag,
 		Symbols: &resolved, Sema: rec.Sema[fileID], rootRecord: rec, moduleRecords: records}
-	checkReturnOriginStdlibBags(t, res, allowEscape)
+	checkReturnOriginStdlibBagsAllowing(t, res, allowEscape, allowed)
 	if !ok || res.Sema == nil || res.Sema.TypeInterner == nil || len(res.Sema.ExprTypes) == 0 {
 		t.Fatal("PRECONDITION: real stdlib source did not retain original typed artifacts")
 	}
@@ -58,6 +65,11 @@ func returnOriginStdlibFixture(t *testing.T, text string, allowEscape bool) *Dia
 }
 
 func checkReturnOriginStdlibBags(t *testing.T, res *DiagnoseResult, allowEscape bool) {
+	t.Helper()
+	checkReturnOriginStdlibBagsAllowing(t, res, allowEscape, nil)
+}
+
+func checkReturnOriginStdlibBagsAllowing(t *testing.T, res *DiagnoseResult, allowEscape bool, allowed func(*diag.Diagnostic) bool) {
 	t.Helper()
 	bags := map[*diag.Bag][]string{res.Bag: {"root"}}
 	for path, rec := range res.moduleRecords {
@@ -78,6 +90,7 @@ func checkReturnOriginStdlibBags(t *testing.T, res *DiagnoseResult, allowEscape 
 			// in the ROOT file only, so an unrelated refusal still stops the run.
 			expected := d != nil && allowEscape && d.Primary.File == res.File.ID &&
 				(d.Code == diag.SemaBorrowEscapesReturn || d.Code == diag.SemaFixedArrayViewEscapes)
+			expected = expected || (d != nil && allowed != nil && d.Primary.File == res.File.ID && allowed(d))
 			if d != nil && d.Severity >= diag.SevError && !expected {
 				t.Fatalf("PRECONDITION: real stdlib fixture has an unrelated source refusal: %+v", *d)
 			}

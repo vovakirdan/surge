@@ -21,6 +21,9 @@ type tempFrame struct {
 	// suspension belong to the crossing vertical, so the whole frame is
 	// discarded (leak — the pre-epic status quo — never a free).
 	tainted bool
+	// loans are statement temporaries' loans, released at the statement's
+	// end unless a binding holds them (releaseStatementTemporaryLoans).
+	loans []BorrowID
 }
 
 func (tc *typeChecker) pushTempFrame() {
@@ -41,6 +44,9 @@ func (tc *typeChecker) popTempFrame() {
 	}
 	frame := tc.tempFrames[len(tc.tempFrames)-1]
 	tc.tempFrames = tc.tempFrames[:len(tc.tempFrames)-1]
+	if !frame.tainted {
+		tc.releaseStatementTemporaryLoans(frame.loans)
+	}
 	if frame.tainted || len(frame.flags) == 0 {
 		return
 	}

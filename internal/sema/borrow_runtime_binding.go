@@ -65,8 +65,30 @@ func (tc *typeChecker) bindingBorrowForExpr(symID symbols.SymbolID, expr ast.Exp
 	if !tc.isReferenceType(boundType) {
 		return NoBorrowID
 	}
+	if bid := tc.indexResultLoan(expr); bid != NoBorrowID {
+		return bid
+	}
 
 	return tc.inheritedBorrowForExpr(expr)
+}
+
+// indexResultLoan: `let b = a[0];` binds a reference into `a`, and the loan it
+// stands on is the borrow of `a` the index keeps past the statement. The
+// binding holds that loan, so `@drop b` can release it -- and until then
+// nothing may drop or move `a` under it.
+func (tc *typeChecker) indexResultLoan(expr ast.ExprID) BorrowID {
+	expr = tc.unwrapGroupExpr(expr)
+	if tc.builder == nil || !expr.IsValid() {
+		return NoBorrowID
+	}
+	data, ok := tc.builder.Exprs.Index(expr)
+	if !ok || data == nil {
+		return NoBorrowID
+	}
+	if bid := tc.borrow.ExprBorrow(tc.unwrapGroupExpr(data.Target)); bid != NoBorrowID {
+		return bid
+	}
+	return tc.inheritedBorrowForExpr(data.Target)
 }
 
 func (tc *typeChecker) inheritedBorrowForExpr(expr ast.ExprID) BorrowID {

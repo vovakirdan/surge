@@ -65,6 +65,10 @@ type typeChecker struct {
 	externSymbols      map[ast.ExternMemberID]symbols.SymbolID
 	bindingBorrow      map[symbols.SymbolID]BorrowID
 	viewLoans          map[symbols.SymbolID][]BorrowID // loans a BytesView binding depends on
+	loanDropped        map[symbols.SymbolID]int        // bindings an `@drop` ended with their loan -> hold-scope stack index
+	loopScopeFloors    []int                           // scope-stack depth at each enclosing loop's entry
+	loopContinueMoved  []map[Place]source.Span         // moved state each enclosing loop's `continue` edges carry
+	openArmBindings    map[symbols.SymbolID]int        // pattern bindings of the compare arms being typed
 	bindingTypes       map[symbols.SymbolID]types.TypeID
 	constState         map[symbols.SymbolID]constEvalState
 	typeItems          map[ast.ItemID]types.TypeID

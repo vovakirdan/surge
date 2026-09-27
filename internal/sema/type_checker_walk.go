@@ -339,6 +339,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 		if whileStmt := tc.builder.Stmts.While(id); whileStmt != nil {
 			beforeLoop := tc.snapshotFlow()
 			tc.ensureBoolContext(whileStmt.Cond, tc.exprSpan(whileStmt.Cond))
+			tc.releaseConditionTemporaries()
 			loopPlace, loopOK := tc.taskContainerDrainLoop(whileStmt.Cond)
 			tc.enterLoopDropScope()
 			if loopOK {
@@ -390,8 +391,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 		tc.noteTaskContainerLoopBreak(stmt.Span)
 		tc.recordEarlyExitDrops(id, true)
 	case ast.StmtContinue:
-		tc.refuseLivePinsAtAbruptExit(tc.currentLoopDepth(), "continue")
-		tc.recordEarlyExitDrops(id, true)
+		tc.walkContinue(id)
 	case ast.StmtDrop:
 		if drop := tc.builder.Stmts.Drop(id); drop != nil {
 			tc.handleDrop(drop.Expr, stmt.Span)

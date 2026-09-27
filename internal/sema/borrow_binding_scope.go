@@ -200,6 +200,8 @@ func (tc *typeChecker) viewLoansOfExpr(expr ast.ExprID) []BorrowID {
 		}
 	case ast.ExprCall:
 		return tc.viewLoansOfCall(expr)
+	case ast.ExprCompare, ast.ExprTernary, ast.ExprBlock:
+		return tc.choiceValueLoans(expr)
 	}
 	var loans []BorrowID
 	for _, operand := range operands {
