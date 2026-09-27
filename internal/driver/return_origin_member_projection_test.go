@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"strings"
 	"testing"
 
 	"surge/internal/ast"
@@ -11,7 +12,8 @@ import (
 
 // A field of a plain struct read through a named reference is a borrow of a
 // sub-place of the referent, so it keeps exactly the reference's sources. A
-// nested place, an attributed struct and a container field keep their refusal.
+// nested place and an attributed struct keep their refusal. A container field
+// is a sub-place too; its contents are checked by the container-loan transfer.
 // Only shared references appear: returning a `&mut` field is not admitted.
 const memberProjectionSource = `pragma module::dep;
 type Note = { text: string };
@@ -79,7 +81,7 @@ func TestAnalyzeMemberProjectionOrigins(t *testing.T) {
 		{name: "copy_text", body: "copy_text", function: originSpan{107, 172, "fn copy_text(n: &Note) -> string {\n    return n.text.__clone();\n}"}, clean: true},
 		{name: "nested_control", body: "read_nested", function: originSpan{202, 266, "fn read_nested(s: &Shelf) -> &string {\n    return s.note.text;\n}"}, stays: []originRefusal{{originSpan{252, 263, "s.note.text"}, originProjectionRefusal}, {originSpan{245, 264, "return s.note.text;"}, originOutgoingRefusal}, {originSpan{228, 238, "-> &string"}, originResultRefusal}}, cleared: []originRefusal{{originSpan{252, 258, "s.note"}, originProjectionRefusal}}},
 		{name: "sealed_control", body: "read_sealed", function: originSpan{307, 367, "fn read_sealed(s: &Sealed) -> &string {\n    return s.text;\n}"}, stays: []originRefusal{{originSpan{358, 364, "s.text"}, originProjectionRefusal}}},
-		{name: "loan_carrier_control", body: "read_items", function: originSpan{399, 458, "fn read_items(b: &Bag) -> &int64[] {\n    return b.items;\n}\n"}, stays: []originRefusal{{originSpan{447, 454, "b.items"}, originProjectionRefusal}}},
+		{name: "loan_carrier_control", body: "read_items", function: originSpan{399, 458, "fn read_items(b: &Bag) -> &int64[] {\n    return b.items;\n}\n"}, clean: true, slots: []uint32{0}},
 	})
 }
 
@@ -109,4 +111,70 @@ func TestAnalyzeMemberProjectionEscape(t *testing.T) {
 		t.Errorf("escaped projection pending = %+v, want none: the SEM3139 refusal completes the result at %q", local, result.snippet)
 	}
 	requireOriginSummary(t, analysis, f.owner.File.ID, "leak_text", true, nil)
+}
+
+// Clearing the conservative projection row must not clear the independent
+// fences around an unproved root, a dying local, or publication through a
+// mutable caller-owned container.
+func TestAnalyzeLoanCarrierProjectionRefusals(t *testing.T) {
+	t.Run("unknown_root", func(t *testing.T) {
+		// The inner projection has the formal's origin; the outer projection's
+		// root is deliberately not a named reference and remains unknown.
+		const text = `pragma no_std;
+type Inner = { items: int64[] };
+type Outer = { inner: Inner };
+fn project(o: &Outer) -> &int64[] {
+    return o.inner.items;
+}
+`
+		f := originalGenericSignatureFixture(t, text, true, false)
+		analysis, err := sema.AnalyzeReturnOrigins(t.Context(), f.authority, f.inputs.units)
+		if err != nil || analysis == nil {
+			t.Fatalf("return-origin analysis did not run: %v", err)
+		}
+		at := strings.Index(text, "o.inner.items")
+		pending := originPendingWithin(analysis, f.unit.SourceKey, at, at+len("o.inner.items"))
+		if len(pending) == 0 {
+			t.Fatal("projection of an unknown-origin place was accepted")
+		}
+	})
+
+	t.Run("view_field_of_dying_local", func(t *testing.T) {
+		const text = `pragma no_std;
+type Bag = { items: int64[] };
+fn leak() -> &int64[] {
+    let bag: Bag = Bag { items = [1:int64] };
+    let view: &Bag = &bag;
+    return view.items;
+}
+`
+		f := originalGenericSignatureFixture(t, text, true, false)
+		analysis, err := sema.AnalyzeReturnOrigins(t.Context(), f.authority, f.inputs.units)
+		if err != nil || analysis == nil {
+			t.Fatalf("return-origin analysis did not run: %v", err)
+		}
+		at := strings.Index(text, "return view.items;")
+		requireOriginEscape(t, analysis, f.owner.Symbols, f.owner.File.ID,
+			originSpan{at, at + len("return view.items;"), "return view.items;"}, "bag")
+	})
+
+	t.Run("mutable_projection_later_stored", func(t *testing.T) {
+		const text = `pragma module::dep;
+type Bag = { items: int64[] };
+fn stash(out: &mut int64[][], bag: &mut Bag) -> nothing {
+    out.push(bag.items[[0..1]]);
+    return nothing;
+}
+`
+		f := originalGenericSignatureFixture(t, text, false, true)
+		analysis, err := sema.AnalyzeReturnOrigins(t.Context(), f.authority, f.inputs.units)
+		if err != nil || analysis == nil {
+			t.Fatalf("return-origin analysis did not run: %v", err)
+		}
+		at := strings.Index(text, "out.push(bag.items[[0..1]])")
+		pending := originPendingWithin(analysis, f.unit.SourceKey, at, at+len("out.push(bag.items[[0..1]])"))
+		if len(pending) == 0 {
+			t.Fatal("projection published through &mut was accepted")
+		}
+	})
 }

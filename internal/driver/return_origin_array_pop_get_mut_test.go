@@ -245,22 +245,14 @@ func arrayPopGetMutSources() []arrayPopSource {
 				{408, 419, "-> uint64[]"}, {426, 445, "return sub(h.rows);"}, {476, 488, "-> Option<T>"},
 				{495, 516, "return h.items.pop();"}},
 			leaves: []backingLeaf{
-				// BEFORE-equality: the member-projection family is pre-existing and
-				// measured identical on e77ac017. Only the legacy-transfer rows at
-				// 433:444 and 502:515 are this packet's; drop_last and first_byte gain
-				// nothing, so for them AFTER is exactly BEFORE.
-				arrayPopLeaf("drop_last", arrayPopOnly("drop_last",
-					backingPending{202, 210, originProjectionRefusal})),
-				// Not BEFORE-equality: the certificate answers a payload-free `byte`
-				// element, so the result becomes proven and the two derived rows go
-				// away. Only the member projection itself is beyond this packet.
-				arrayPopLeaf("first_byte", arrayPopOnly("first_byte",
-					backingPending{308, 313, originProjectionRefusal})),
+				// A loan-carrying field is still a sub-place of its borrowed root.
+				// Popping the reference-free byte leaves no payload origin behind.
+				arrayPopLeaf("drop_last", arrayPopQuiet("drop_last")),
+				arrayPopLeaf("first_byte", arrayPopQuiet("first_byte")),
 				arrayPopLeaf("sub", arrayPopClean("sub", 0)),
 				arrayPopLeaf("view_field", arrayPopOnly("view_field",
 					backingPending{408, 419, originResultRefusal},
 					backingPending{426, 445, originOutgoingRefusal},
-					backingPending{437, 443, originProjectionRefusal},
 					backingPending{433, 444, arrayPopLegacyTransfer})),
 				// take<T>'s element is a template parameter, so elementsFree is false and
 				// refuseLegacyBackingSummary's post guard raises the mutable-argument row
@@ -285,12 +277,11 @@ func arrayPopGetMutSources() []arrayPopSource {
 					backingPending{552, 594, backingLoanDiscard}, backingPending{552, 594, arrayPopLoanElement})),
 				arrayPopLeaf("push_view_into_field", arrayPopOnly("push_view_into_field",
 					backingPending{744, 782, backingLoanDiscard})),
-				// BEFORE-equality: three rows are the pre-existing member-projection
-				// family, measured identical before and after; only 860:873 is P1n's.
+				// The field projection is proven, but the returned view still needs
+				// its result and element-backing transfers.
 				arrayPopLeaf("pop_views", arrayPopOnly("pop_views",
 					backingPending{827, 846, originResultRefusal},
 					backingPending{853, 874, originOutgoingRefusal},
-					backingPending{860, 867, originProjectionRefusal},
 					backingPending{860, 873, arrayPopLoanElement})),
 			}},
 		{name: "m_loan_element_pop", text: arrayPopSourceM, digest: arrayPopSourceMDigest,
@@ -305,9 +296,7 @@ func arrayPopGetMutSources() []arrayPopSource {
 				arrayPopLeaf("pop_view_rt", arrayPopLeakingRows("pop_view_rt",
 					[]backingPending{{536, 560, backingLoanDiscard}}, backingEscape{529, 561, "xs", 396, 457})),
 				arrayPopLeaf("reserve_views", arrayPopClean("reserve_views")),
-				// BEFORE-equality, as pop_views: the projection row is pre-existing.
-				arrayPopLeaf("reserve_field", arrayPopOnly("reserve_field",
-					backingPending{720, 727, originProjectionRefusal})),
+				arrayPopLeaf("reserve_field", arrayPopQuiet("reserve_field")),
 			}},
 	}
 }

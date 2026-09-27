@@ -8,7 +8,8 @@ import (
 // A field read through a reference to a plain struct is typed as a borrow of the
 // field, a sub-place of the referent, so it has exactly the reference's origins.
 // One level only: the target is a named reference, and the field is declared
-// reference-free and loan-free, so nothing is loaded from the referent.
+// not itself a stored reference. Loan-carrying field values remain sub-places:
+// their contents are accounted for separately by the container-loan transfer.
 func (b *returnOriginBody) memberBorrowsReferent(id ast.ExprID, data *ast.ExprMemberData) bool {
 	u := b.function.unit
 	in := u.Sema.TypeInterner
@@ -34,7 +35,7 @@ func (b *returnOriginBody) memberBorrowsReferent(id ast.ExprID, data *ast.ExprMe
 		}
 		matches++
 		if field.Type != result.Elem || returnOriginIsReference(in, field.Type) ||
-			returnOriginTypeShape(in, field.Type, nil) != returnOriginRefFree || b.analyzer.loanCarrier(field.Type) {
+			returnOriginTypeShape(in, field.Type, nil) != returnOriginRefFree {
 			return false
 		}
 	}
