@@ -10,8 +10,9 @@ import (
 )
 
 // A field of a plain struct read through a named reference is a borrow of a
-// sub-place of the referent, so it keeps exactly the reference's sources. A
-// nested place, an attributed struct and a container field keep their refusal.
+// sub-place of the referent, so it keeps exactly the reference's sources, a
+// container field included. A nested place and an attributed struct keep their
+// refusal.
 // Only shared references appear: returning a `&mut` field is not admitted.
 const memberProjectionSource = `pragma module::dep;
 type Note = { text: string };
@@ -79,7 +80,7 @@ func TestAnalyzeMemberProjectionOrigins(t *testing.T) {
 		{name: "copy_text", body: "copy_text", function: originSpan{107, 172, "fn copy_text(n: &Note) -> string {\n    return n.text.__clone();\n}"}, clean: true},
 		{name: "nested_control", body: "read_nested", function: originSpan{202, 266, "fn read_nested(s: &Shelf) -> &string {\n    return s.note.text;\n}"}, stays: []originRefusal{{originSpan{252, 263, "s.note.text"}, originProjectionRefusal}, {originSpan{245, 264, "return s.note.text;"}, originOutgoingRefusal}, {originSpan{228, 238, "-> &string"}, originResultRefusal}}, cleared: []originRefusal{{originSpan{252, 258, "s.note"}, originProjectionRefusal}}},
 		{name: "sealed_control", body: "read_sealed", function: originSpan{307, 367, "fn read_sealed(s: &Sealed) -> &string {\n    return s.text;\n}"}, stays: []originRefusal{{originSpan{358, 364, "s.text"}, originProjectionRefusal}}},
-		{name: "loan_carrier_control", body: "read_items", function: originSpan{399, 458, "fn read_items(b: &Bag) -> &int64[] {\n    return b.items;\n}\n"}, stays: []originRefusal{{originSpan{447, 454, "b.items"}, originProjectionRefusal}}},
+		{name: "loan_carrier_field", body: "read_items", function: originSpan{399, 458, "fn read_items(b: &Bag) -> &int64[] {\n    return b.items;\n}\n"}, clean: true, slots: []uint32{0}, cleared: []originRefusal{{originSpan{447, 454, "b.items"}, originProjectionRefusal}}},
 	})
 }
 
