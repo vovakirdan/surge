@@ -1,9 +1,55 @@
 package sema
 
 import (
+	"surge/internal/ast"
 	"surge/internal/source"
 	"surge/internal/symbols"
+	"surge/internal/types"
 )
+
+// refuseMutRefHandOffOverView answers handing an existing `&mut` reference to
+// a `&mut` parameter -- `app(r)`, `r.push(x)` through a `&mut self` receiver,
+// `app(h.xs)` for a field reached through `h: &mut H`.
+//
+// No new loan is taken for such an argument: the callee works through the loan
+// the reference already carries. It is still an exclusive use of the referent
+// through that reference, the same as `*r = x`: the callee may grow, replace
+// or free the storage that a range cursor, a `for` loop's cursor, a BytesView,
+// a window or an element reference taken through `r` still reads. So it is
+// checked as a write through the reference: a live shared loan of the referent
+// refuses it, the loans of the reference's own reborrow chain do not. Handing
+// `r` to a `&` parameter is a read and is not checked here.
+//
+// The whole referent is asked, not the path an element reference spells:
+// `&r[0]` is recorded under `r[..]` and the callee can reach every part.
+func (tc *typeChecker) refuseMutRefHandOffOverView(expr ast.ExprID, exprType types.TypeID, span source.Span) {
+	if tc.borrow == nil || !tc.isMutRefType(tc.resolveAlias(exprType)) {
+		return
+	}
+	expr = tc.unwrapGroupExpr(expr)
+	desc, ok := tc.resolvePlace(expr)
+	if tc.isBorrowExpr(expr) || !ok || !desc.Base.IsValid() {
+		tc.noteRefArg(expr, true, span)
+		return
+	}
+	place, parent := tc.loanPlace(desc)
+	if !place.IsValid() {
+		return
+	}
+	issue := tc.borrow.WriteThroughAllowed(place, parent)
+	switch issue.Kind {
+	case BorrowIssueNone:
+		if !tc.refuseBorrowOfPinnedPlace(place, span, BorrowMut) {
+			tc.noteRefArg(expr, true, span)
+		}
+		return
+	case BorrowIssueFrozen:
+		issue.Kind = BorrowIssueConflictShared
+	default:
+		issue.Kind = BorrowIssueConflictMut
+	}
+	tc.reportBorrowConflict(place, span, issue, BorrowMut)
+}
 
 // checkAssignmentWrite records an assignment's write event and refuses the
 // write when a live loan holds the place. A write through a `&mut`

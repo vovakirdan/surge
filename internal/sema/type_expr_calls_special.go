@@ -37,9 +37,11 @@ func (tc *typeChecker) callFunctionVariable(fnInfo *types.FnInfo, args []callArg
 			tc.typeLabel(expectedType), tc.typeLabel(arg.ty))
 		return types.NoTypeID
 	}
+	prevMutArgs := tc.beginMutArgs()
 	for i, arg := range args {
 		tc.applyParamOwnershipForType(fnInfo.Params[i], arg.expr, arg.ty, tc.exprSpan(arg.expr))
 	}
+	tc.endMutArgs(prevMutArgs)
 
 	return fnInfo.Result
 }

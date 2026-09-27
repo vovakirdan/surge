@@ -18,7 +18,38 @@ func (tc *typeChecker) canonicalPlace(desc placeDescriptor) Place {
 	return tc.borrow.CanonicalPlace(desc.Base, desc.Segments)
 }
 
+// loanPlace is the place a loan is taken on, or a borrow conflict is asked
+// about, for a place as written: expanded through the loans its reference
+// bindings stand on, with each reference's explicit `*` dropped. The
+// dereference of a reference is implicit at an index or a field -- `r[0]` IS
+// `(*r)[0]` -- and keeping the `*` named one element by two paths no prefix
+// relates (`r[..]` and `r.*[..]`), so the view held by one did not refuse the
+// exclusive borrow of the other.
+//
+// Only loans and their conflicts are asked in this spelling. A binding's own
+// move, drop and initialization state keeps canonicalPlace: `*r = v` stores
+// into r's referent and must not read as a store over the binding r, which
+// would revive a reference that was moved or dropped.
+func (tc *typeChecker) loanPlace(desc placeDescriptor) (Place, BorrowID) {
+	desc, parent := tc.expandPlaceDescriptorWith(desc, true)
+	desc.Segments = tc.referentSegments(desc.Base, desc.Segments)
+	return tc.canonicalPlace(desc), parent
+}
+
+func (tc *typeChecker) referentSegments(base symbols.SymbolID, segs []PlaceSegment) []PlaceSegment {
+	if len(segs) > 0 && segs[0].Kind == PlaceSegmentDeref && tc.isReferenceType(tc.bindingType(base)) {
+		return segs[1:]
+	}
+	return segs
+}
+
 func (tc *typeChecker) expandPlaceDescriptor(desc placeDescriptor) (placeDescriptor, BorrowID) {
+	return tc.expandPlaceDescriptorWith(desc, false)
+}
+
+// expandPlaceDescriptorWith follows the loans reference bindings stand on;
+// referent drops each reference's explicit `*` on the way (loanPlace).
+func (tc *typeChecker) expandPlaceDescriptorWith(desc placeDescriptor, referent bool) (placeDescriptor, BorrowID) {
 	if tc == nil || tc.borrow == nil {
 		return desc, NoBorrowID
 	}
@@ -46,10 +77,14 @@ func (tc *typeChecker) expandPlaceDescriptor(desc placeDescriptor) (placeDescrip
 		if parent == NoBorrowID {
 			parent = bid
 		}
+		segs := desc.Segments
+		if referent {
+			segs = tc.referentSegments(desc.Base, segs)
+		}
 		baseSegs := tc.borrow.placeSegments(info.Place)
 		desc = placeDescriptor{
 			Base:     info.Place.Base,
-			Segments: append(baseSegs, desc.Segments...),
+			Segments: append(baseSegs, segs...),
 		}
 	}
 }

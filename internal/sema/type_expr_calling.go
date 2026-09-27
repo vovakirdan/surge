@@ -127,6 +127,7 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 					tc.recordImplicitConversionsForMethodCall(sym, member.Target, receiverType, call.Args, argTypes)
 				}
 				if !receiverIsType {
+					prevMutArgs := tc.beginMutArgs()
 					tc.applyMethodReceiverOwnership(symID, member.Target, receiverType)
 					if sym := tc.symbolFromID(symID); sym != nil && sym.Signature != nil {
 						if len(sym.Signature.Params) > 0 {
@@ -153,6 +154,7 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 							}
 						}
 					}
+					tc.endMutArgs(prevMutArgs)
 				} else if methodName == "from_str" {
 					appliedArgsOwnership = tc.applyCallArgsOwnership(symID, call.Args, argTypes)
 					if appliedArgsOwnership {

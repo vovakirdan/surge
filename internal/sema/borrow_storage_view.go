@@ -189,13 +189,24 @@ func (tc *typeChecker) typeFinds(id types.TypeID, visit func(types.TypeID, types
 // loop makes for itself (hir normalizeIterFor), so the loop body is where that
 // cursor lives, and xs stays borrowed for the whole body exactly as it does in
 // `for x in &xs`. Without the loan `for x in xs { xs.push(x); }` compiled and
-// the cursor read the buffer the push had reallocated. A loop over a range, a
-// call's result or a reference binding takes no loan here. The loan is ended
-// by endForInIterable when the body has been walked.
+// the cursor read the buffer the push had reallocated. A `&mut` reference
+// place is walked the same way and takes the same loan, as a child of the
+// reference: `for x in r { r.push(x); }` with `r: &mut int[]` read the buffer
+// the push reallocated. An element `r[0]` is a shared reference whose own loan
+// ended with the loop's header, so it is walked the same way: `for v in r[0]
+// { app(&mut r[0]); }` read the row the call reallocated. A loop over a range,
+// a call's result or a shared reference binding takes no loan here -- nothing
+// can change a shared reference's referent while the binding lives. The loan
+// is ended by endForInIterable when the body has been walked.
 func (tc *typeChecker) borrowForInIterable(iterable ast.ExprID, iterableType types.TypeID) ast.ExprID {
 	expr := tc.unwrapGroupExpr(iterable)
-	if tc.borrow == nil || !expr.IsValid() || tc.isBorrowExpr(expr) ||
-		tc.isReferenceType(iterableType) || !tc.isArrayOrFixedType(iterableType) ||
+	if tc.borrow == nil || tc.builder == nil || !expr.IsValid() {
+		return ast.NoExprID
+	}
+	_, isElement := tc.builder.Exprs.Index(expr)
+	if tc.isBorrowExpr(expr) ||
+		(tc.isReferenceType(iterableType) && !tc.isMutRefType(tc.resolveAlias(iterableType)) && !isElement) ||
+		!tc.isArrayOrFixedType(iterableType) ||
 		tc.borrow.ExprBorrow(expr) != NoBorrowID {
 		return ast.NoExprID
 	}
@@ -262,6 +273,9 @@ func (tc *typeChecker) fixedWindowIndexLoan(data *ast.ExprIndexData) BorrowID {
 	if bid := tc.borrow.ExprBorrow(data.Target); bid != NoBorrowID {
 		return bid
 	}
+	if bid := tc.fixedWindowLoanThroughMutRef(data.Target); bid != NoBorrowID {
+		return bid
+	}
 	// A target that is itself a reference -- an element `xs[0]`, a reference
 	// binding -- took no loan of its own: the window reads through the one it
 	// stands on.
@@ -269,4 +283,33 @@ func (tc *typeChecker) fixedWindowIndexLoan(data *ast.ExprIndexData) BorrowID {
 		return bid
 	}
 	return tc.inheritedBorrowForExpr(data.Target)
+}
+
+// fixedWindowLoanThroughMutRef: a window of a fixed array reached through a
+// `&mut` reference place -- `r[[0..2]]`, `r[0][[0..2]]` with `r: &mut
+// Array<int[4]>` -- reads the referent's storage, and the reference itself is
+// no loan the window can stand on: its own exclusive loan is the authority for
+// `r.push(..)`, and a parameter carries none. The window takes a shared child
+// loan through the reference, so the push, a `&mut` hand-off of r or a store
+// through it is refused while the window lives.
+func (tc *typeChecker) fixedWindowLoanThroughMutRef(target ast.ExprID) BorrowID {
+	expr := tc.unwrapGroupExpr(target)
+	for expr.IsValid() {
+		index, ok := tc.builder.Exprs.Index(expr)
+		if !ok || index == nil {
+			break
+		}
+		expr = tc.unwrapGroupExpr(index.Target)
+	}
+	if !expr.IsValid() || !tc.isMutRefType(tc.resolveAlias(tc.result.ExprTypes[expr])) {
+		return NoBorrowID
+	}
+	if bid := tc.borrow.ExprBorrow(expr); bid != NoBorrowID {
+		return bid
+	}
+	if _, isPlace := tc.resolvePlace(expr); !isPlace {
+		return NoBorrowID
+	}
+	tc.handleBorrow(expr, tc.exprSpan(expr), ast.ExprUnaryRef, expr)
+	return tc.borrow.ExprBorrow(expr)
 }

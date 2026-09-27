@@ -438,8 +438,7 @@ func (tc *typeChecker) handleBorrow(exprID ast.ExprID, span source.Span, op ast.
 		tc.report(diag.SemaBorrowNonAddressable, span, "expression is not addressable")
 		return
 	}
-	desc, parent := tc.expandPlaceDescriptor(desc)
-	place := tc.canonicalPlace(desc)
+	place, parent := tc.loanPlace(desc)
 	if !place.IsValid() {
 		return
 	}
@@ -556,9 +555,7 @@ func (tc *typeChecker) handleAssignment(exprID ast.ExprID, op ast.ExprBinaryOp, 
 	var checkedMutRefPlace Place
 
 	if writeThroughMutRef {
-		expanded, parent := tc.expandPlaceDescriptor(desc)
-		mutRefParent = parent
-		checkedMutRefPlace = tc.canonicalPlace(expanded)
+		checkedMutRefPlace, mutRefParent = tc.loanPlace(desc)
 	} else if !tc.isSharedReferenceRebind(op, desc) {
 		desc, _ = tc.expandPlaceDescriptor(desc)
 	}

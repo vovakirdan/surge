@@ -50,8 +50,11 @@ type typeChecker struct {
 	// whose argument list is currently being checked; their borrows reserve
 	// instead of activating (see two_phase_borrow.go).
 	twoPhaseEligible map[ast.ExprID]*twoPhaseFrame
-	copyTypes        map[types.TypeID]struct{}
-	insts            InstantiationRecorder
+	// mutArgs collects the reference arguments of the call whose ownership
+	// is being applied (borrow_call_args.go); nil outside one.
+	mutArgs   *refArgFrame
+	copyTypes map[types.TypeID]struct{}
+	insts     InstantiationRecorder
 
 	tracer    trace.Tracer // трассировщик для отладки
 	exprDepth int          // глубина рекурсии для typeExpr

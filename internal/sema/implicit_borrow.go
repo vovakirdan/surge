@@ -279,6 +279,7 @@ func (tc *typeChecker) applyCallOwnership(sym *symbols.Symbol, args []callArg) {
 		}
 	}
 
+	defer tc.endMutArgs(tc.beginMutArgs())
 	for i, arg := range ordered {
 		paramIndex := i
 		if variadicIndex >= 0 && i >= variadicIndex {
@@ -303,6 +304,11 @@ func (tc *typeChecker) applyParamOwnershipForType(expected types.TypeID, expr as
 	}
 	if tt.Kind == types.KindReference {
 		if tc.isReferenceType(actual) {
+			if tt.Mutable {
+				tc.refuseMutRefHandOffOverView(expr, actual, span)
+			} else {
+				tc.noteSharedRefArg(expr, actual, span)
+			}
 			return
 		}
 		if !tt.Mutable && tc.canMaterializeForRefString(expr, expected) {

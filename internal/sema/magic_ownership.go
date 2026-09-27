@@ -21,11 +21,13 @@ func (tc *typeChecker) applyParamOwnership(param symbols.TypeKey, expr ast.ExprI
 	switch {
 	case strings.HasPrefix(paramStr, "&mut "):
 		if tc.isReferenceType(exprType) {
+			tc.refuseMutRefHandOffOverView(expr, exprType, span)
 			return
 		}
 		tc.handleBorrow(expr, span, ast.ExprUnaryRefMut, expr)
 	case strings.HasPrefix(paramStr, "&"):
 		if tc.isReferenceType(exprType) {
+			tc.noteSharedRefArg(expr, exprType, span)
 			return
 		}
 		if tc.canMaterializeForRefString(expr, tc.typeFromKey(param)) {
@@ -64,6 +66,7 @@ func (tc *typeChecker) applyCallArgsOwnership(symID symbols.SymbolID, args []ast
 	if sym == nil || sym.Signature == nil || len(sym.Signature.Params) == 0 {
 		return false
 	}
+	defer tc.endMutArgs(tc.beginMutArgs())
 	for i, arg := range args {
 		if i >= len(sym.Signature.Params) || i >= len(argTypes) {
 			break
