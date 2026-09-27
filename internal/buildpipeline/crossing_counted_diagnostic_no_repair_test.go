@@ -45,8 +45,8 @@ async fn probe(value: own Payload) -> bool {
     return compare job.await() { Success(v) => v; Cancelled() => false; };
 }`, diag.SemaCrossNotShardMovable, diag.SemaNosendInSpawn, "@nosend field"},
 		{"blocking_local_task", `
-fn relay(task: Task<Channel<$N>>) -> Task<Channel<$N>> { return task; }
-fn probe() -> Task<Task<Channel<$N>>> {
+fn relay(task: Task<Channel<$N>>) -> bool { let _ = task; return true; }
+fn probe() -> Task<bool> {
     let task: Task<Channel<$N>> = @local spawn async {
         ret Channel::<$N>::new(1:uint);
     };

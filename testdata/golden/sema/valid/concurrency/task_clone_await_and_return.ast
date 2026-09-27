@@ -1,32 +1,62 @@
-task_clone_await_and_return.sg (span: 4:1-14:1)
-├─ Item[0]: Fn (span: 4:1-6:2)
+task_clone_await_and_return.sg (span: 7:1-29:1)
+├─ Item[0]: Fn (span: 7:1-9:2)
 │  ├─ Name: work
 │  ├─ Params: ()
 │  ├─ Return: int
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 4:24-6:2)
-│        └─ Stmt[0]: Return (span: 5:5-5:15)
+│     └─ Stmt[0]: Block (span: 7:24-9:2)
+│        └─ Stmt[0]: Return (span: 8:5-8:15)
 │           └─ Expr: expr#1: 42
-└─ Item[1]: Fn (span: 8:1-13:2)
-   ├─ Name: await_one_return_other
+├─ Item[1]: Fn (span: 11:1-13:2)
+│  ├─ Name: hand_off
+│  ├─ Params: (t: Task<int>)
+│  ├─ Return: nothing
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 11:38-13:2)
+│        └─ Stmt[0]: Return (span: 12:5-12:20)
+│           └─ Expr: expr#2: nothing
+├─ Item[2]: Fn (span: 15:1-21:2)
+│  ├─ Name: await_one_hand_on_other
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 15:43-21:2)
+│        ├─ Stmt[0]: Let (span: 16:5-16:26)
+│        │  ├─ Name: t
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#5: spawn work()
+│        ├─ Stmt[1]: Let (span: 17:5-17:23)
+│        │  ├─ Name: s
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#8: t.clone()
+│        ├─ Stmt[2]: Let (span: 18:5-18:23)
+│        │  ├─ Name: _
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#11: t.await()
+│        ├─ Stmt[3]: Expr (span: 19:5-19:17)
+│        │  └─ Expr: expr#14: hand_off(s)
+│        └─ Stmt[4]: Return (span: 20:5-20:14)
+│           └─ Expr: expr#15: 0
+└─ Item[3]: Fn (span: 23:1-28:2)
+   ├─ Name: hand_on_one_return_other
    ├─ Params: ()
    ├─ Return: Task<int>
    └─ Body:
-      └─ Stmt[0]: Block (span: 8:48-13:2)
-         ├─ Stmt[0]: Let (span: 9:5-9:26)
+      └─ Stmt[0]: Block (span: 23:44-28:2)
+         ├─ Stmt[0]: Let (span: 24:5-24:26)
          │  ├─ Name: t
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#4: spawn work()
-         ├─ Stmt[1]: Let (span: 10:5-10:23)
+         │  └─ Value: expr#18: spawn work()
+         ├─ Stmt[1]: Let (span: 25:5-25:23)
          │  ├─ Name: s
          │  ├─ Mutable: false
          │  ├─ Type: <inferred>
-         │  └─ Value: expr#7: t.clone()
-         ├─ Stmt[2]: Let (span: 11:5-11:23)
-         │  ├─ Name: _
-         │  ├─ Mutable: false
-         │  ├─ Type: <inferred>
-         │  └─ Value: expr#10: t.await()
-         └─ Stmt[3]: Return (span: 12:5-12:14)
-            └─ Expr: expr#11: s
+         │  └─ Value: expr#21: t.clone()
+         ├─ Stmt[2]: Expr (span: 26:5-26:17)
+         │  └─ Expr: expr#24: hand_off(t)
+         └─ Stmt[3]: Return (span: 27:5-27:14)
+            └─ Expr: expr#25: s

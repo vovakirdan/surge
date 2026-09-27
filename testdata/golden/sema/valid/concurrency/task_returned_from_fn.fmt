@@ -1,13 +1,11 @@
-// Valid: Task returned from function (ownership transfer)
+// Valid: Task returned from function (ownership transfer). An `async fn` that
+// returns a task is a task whose result is a task (SEM3223):
+// sema/invalid/concurrency/task_returned_from_async_fn.sg.
 
 async fn work() -> int {
     return 42;
 }
 
 pub fn start_work() -> Task<int> {
-    return spawn work();
-}
-
-pub async fn start_nested() -> Task<int> {
     return spawn work();
 }

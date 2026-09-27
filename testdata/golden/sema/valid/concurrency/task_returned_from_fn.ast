@@ -1,25 +1,17 @@
-task_returned_from_fn.sg (span: 3:1-14:1)
-├─ Item[0]: Fn (span: 3:1-5:2)
+task_returned_from_fn.sg (span: 5:1-12:1)
+├─ Item[0]: Fn (span: 5:1-7:2)
 │  ├─ Name: work
 │  ├─ Params: ()
 │  ├─ Return: int
 │  └─ Body:
-│     └─ Stmt[0]: Block (span: 3:24-5:2)
-│        └─ Stmt[0]: Return (span: 4:5-4:15)
+│     └─ Stmt[0]: Block (span: 5:24-7:2)
+│        └─ Stmt[0]: Return (span: 6:5-6:15)
 │           └─ Expr: expr#1: 42
-├─ Item[1]: Fn (span: 7:1-9:2)
-│  ├─ Name: start_work
-│  ├─ Params: ()
-│  ├─ Return: Task<int>
-│  └─ Body:
-│     └─ Stmt[0]: Block (span: 7:34-9:2)
-│        └─ Stmt[0]: Return (span: 8:5-8:25)
-│           └─ Expr: expr#4: spawn work()
-└─ Item[2]: Fn (span: 11:1-13:2)
-   ├─ Name: start_nested
+└─ Item[1]: Fn (span: 9:1-11:2)
+   ├─ Name: start_work
    ├─ Params: ()
    ├─ Return: Task<int>
    └─ Body:
-      └─ Stmt[0]: Block (span: 11:42-13:2)
-         └─ Stmt[0]: Return (span: 12:5-12:25)
-            └─ Expr: expr#7: spawn work()
+      └─ Stmt[0]: Block (span: 9:34-11:2)
+         └─ Stmt[0]: Return (span: 10:5-10:25)
+            └─ Expr: expr#4: spawn work()

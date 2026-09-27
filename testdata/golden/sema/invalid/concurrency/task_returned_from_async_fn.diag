@@ -1,0 +1,1 @@
+error SEM3223 testdata/golden/sema/invalid/concurrency/task_returned_from_async_fn.sg:10:29 a task's result may not contain a task; await the outer work, then `spawn` the inner work in the caller

@@ -570,6 +570,11 @@ const (
 	// required. Owner ruling 2026-09-25 (option B).
 	SemaNonexhaustiveGuardedMatch Code = 3221
 
+	// 3222 is reserved by an adjacent validation packet.
+	// SemaTaskPayloadIsTask refuses a task whose result contains a task, directly or
+	// through a union, tuple, array, map or struct field. Owner ruling 2026-09-26.
+	SemaTaskPayloadIsTask Code = 3223
+
 	// Ошибки I/O
 
 	// IOLoadFileError indicates file load error.
@@ -846,6 +851,7 @@ var ( // todo расширить описания и использовать к
 		SemaLiteralNeedsType:               "a struct literal without a type name, or an empty array literal, needs an expected type",
 		SemaLetTuplePattern:                "a `let` binds one name; a tuple pattern is written only in a `compare` arm",
 		SemaNonexhaustiveGuardedMatch:      "non-exhaustive pattern match: every arm for a variant can miss",
+		SemaTaskPayloadIsTask:              "a task's result may not contain a task; await it, then `spawn` the inner work in the caller",
 		SemaPartialMoveNeedsOwn:            "taking a field out of a live value must be written `own`",
 		SemaPartialMoveFromTemporary:       "cannot take a field out of a value nothing holds",
 		SemaStoreThroughSharedRef:          "cannot write through a shared reference",

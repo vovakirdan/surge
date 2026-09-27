@@ -6,6 +6,45 @@ import (
 	"surge/internal/types"
 )
 
+// coreTaskType answers the core Task family by declaration identity: the result of
+// the one core `checkpoint` whose task certificate holds (returnOriginTaskLeaf pins
+// the declaration beside it, its single `__opaque` word and its runtime-handle mark),
+// as intRangeType answers the Range family from its core constructor. A type is then
+// a core Task by that declaration, never by its spelling.
+func (a *returnOriginAnalyzer) coreTaskType() types.TypeID {
+	var selected *returnOriginFunction
+	for _, fn := range a.declarations {
+		if fn.name != "checkpoint" || fn.canonicalSourceKey != "builtin" || fn.unit.SourceKey != "core/intrinsics.sg" {
+			continue
+		}
+		if selected != nil {
+			return types.NoTypeID
+		}
+		selected = fn
+	}
+	if selected == nil || selected.info == nil {
+		return types.NoTypeID
+	}
+	if _, certified := returnOriginTaskHandleResidual(selected, selected.info.Result); !certified {
+		return types.NoTypeID
+	}
+	return selected.info.Result
+}
+
+// isCoreTask reports that id is an instantiation of the core Task declaration:
+// the same nominal and declaration span as the certified family, one type
+// argument, and the runtime-handle mark. An alias or a same-named user type is
+// not one, and is left to the refusal it already has.
+func (a *returnOriginAnalyzer) isCoreTask(in *types.Interner, id types.TypeID) bool {
+	if a == nil || a.taskType == types.NoTypeID || id == types.NoTypeID {
+		return false
+	}
+	family, known := in.StructInfo(a.taskType)
+	info, ok := in.StructInfo(id)
+	return known && ok && family != nil && info != nil && info.Name == family.Name && info.Decl == family.Decl &&
+		len(info.TypeArgs) == 1 && in.IsRuntimeHandleType(id) && !in.IsRefCountedHandle(id)
+}
+
 // A core task constructor below returns a handle naming a runtime task, never an
 // address inside an input. checkpoint and sleep register a new task that captures
 // nothing but a copied delay (rt_async_task.c:509-569; vm/intrinsic_async.go:64-147).

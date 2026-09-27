@@ -30,8 +30,6 @@ func spawnOnRows() []spawnOnRow {
 			fn: originSpan{0, 125, "fn start(n: int) -> far Task<int> {\n    let k: int = n;\n    let t = spawn on pool {\n        ret k + 1;\n    };\n    return t;\n}"}, want: []originRefusal{}, summary: true},
 		{name: "awaited_in_frame_finishes", text: spawnOnSAwaitedSource, digest: spawnOnSAwaitedSourceDigest, body: "run",
 			fn: originSpan{0, 137, "fn run(dst: Placement) -> TaskResult<int> {\n    let task: far Task<int> = spawn on dst {\n        ret 3;\n    };\n    return task.await();\n}"}, want: []originRefusal{}, summary: true},
-		{name: "task_payload_refused", text: spawnOnR01PayloadTaskSource, digest: spawnOnR01PayloadTaskSourceDigest, body: "start",
-			fn: originSpan{49, 142, "fn start() -> far Task<Task<int>> {\n    return spawn on pool {\n        ret plain(1);\n    };\n}"}, want: []originRefusal{{span: originSpan{96, 139, "spawn on pool {\n        ret plain(1);\n    }"}, reason: spawnOnPayloadRefusal}, {span: originSpan{89, 140, "return spawn on pool {\n        ret plain(1);\n    };"}, reason: originOutgoingRefusal}, {span: originSpan{60, 82, "-> far Task<Task<int>>"}, reason: originResultRefusal}}, summary: false},
 		{name: "array_payload_refused", text: spawnOnR16PayloadArraySource, digest: spawnOnR16PayloadArraySourceDigest, body: "start",
 			fn: originSpan{0, 115, "fn start() -> far Task<int[]> {\n    return spawn on pool {\n        let xs: int[] = [1, 2];\n        ret xs;\n    };\n}"}, want: []originRefusal{{span: originSpan{43, 112, "spawn on pool {\n        let xs: int[] = [1, 2];\n        ret xs;\n    }"}, reason: spawnOnPayloadRefusal}, {span: originSpan{36, 113, "return spawn on pool {\n        let xs: int[] = [1, 2];\n        ret xs;\n    };"}, reason: originOutgoingRefusal}, {span: originSpan{11, 29, "-> far Task<int[]>"}, reason: originResultRefusal}}, summary: false},
 		{name: "channel_capture_refused", text: spawnOnC05CapChannel64Source, digest: spawnOnC05CapChannel64SourceDigest, body: "start",
@@ -49,10 +47,11 @@ func spawnOnRows() []spawnOnRow {
 	}
 }
 
-// 12 RUN: 1 parent, 11 leaves.
+// 11 RUN: 1 parent, 10 leaves. A `spawn on` whose reply is itself a task is no longer a row:
+// it is a compile error (SEM3223, task_payload_is_task_test.go).
 func TestAnalyzeSpawnOn(t *testing.T) {
 	rows := spawnOnRows()
-	if len(rows) != 11 {
+	if len(rows) != 10 {
 		t.Fatalf("PRECONDITION: frozen roster changed: rows=%d", len(rows))
 	}
 	for _, row := range rows {

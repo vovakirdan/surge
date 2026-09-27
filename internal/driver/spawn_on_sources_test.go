@@ -164,17 +164,6 @@ fn main() -> int {
 }
 `
 
-const spawnOnR01PayloadTaskSource = `async fn plain(x: int) -> int {
-    return x;
-}
-
-fn start() -> far Task<Task<int>> {
-    return spawn on pool {
-        ret plain(1);
-    };
-}
-`
-
 const spawnOnR06BodyTaskUnjoinedSource = `async fn worker(x: &string) -> int {
     checkpoint().await();
     return len(x) to int;
@@ -426,7 +415,6 @@ const (
 	spawnOnLeakSonSpawnSourceDigest                    = "e20a45fe60918c2a8cee385c95f5396795124f74e1995d7b1494458d88321bf3"
 	spawnOnP1RestorePanicSourceDigest                  = "896a7eff7773aea208152bf10b81ed1e9fd1340281e397dc59adf70ca867262e"
 	spawnOnP9AsyncPanicSourceDigest                    = "cdb4bb0b2176c495df771f206b8ab10f067d501033966be66a3f4b98fc1aca84"
-	spawnOnR01PayloadTaskSourceDigest                  = "d74f2b5f3bc22bf2fb7556eb16ee13a0dec5427ed82358ee50bb07e06a0f74aa"
 	spawnOnR06BodyTaskUnjoinedSourceDigest             = "b68cbff117332f0328f040f8f5ecfbf56030915079cc10ac2e5b6727ae55cdc7"
 	spawnOnR07BodyTaskReturnedSourceDigest             = "b1667d79ffa7b0cd95501969661fef19d21a982b001e42ad95914cf44503858f"
 	spawnOnR09BodyStringTempSourceDigest               = "41d169b88a5fe04d72d824b972081dc8f91dccd7f315b504a21a69a9129aa69b"

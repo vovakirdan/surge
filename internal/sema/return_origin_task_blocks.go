@@ -4,6 +4,9 @@ import (
 	"fmt"
 
 	"surge/internal/ast"
+	"surge/internal/source"
+	"surge/internal/symbols"
+	"surge/internal/types"
 )
 
 // The refusals the task-block transfer names. A capture or a payload whose type can carry a
@@ -57,7 +60,8 @@ func (b *returnOriginBody) taskBlockTransfer(id ast.ExprID, kind ast.ExprKind, e
 		}
 	}
 	for _, capture := range captures[id] {
-		if sym := u.Symbols.Table.Symbols.Get(capture); sym == nil || !b.crossingInert(sym.Type) {
+		sym := u.Symbols.Table.Symbols.Get(capture)
+		if sym == nil || !b.crossingInert(sym.Type) && !b.nullTaskCapture(capture, sym.Type, env) {
 			b.pending(span, returnOriginTaskBlockCaptureRefusal)
 		}
 	}
@@ -69,4 +73,76 @@ func (b *returnOriginBody) taskBlockTransfer(id ast.ExprID, kind ast.ExprKind, e
 		out.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 	}
 	return out, nil
+}
+
+// nullTaskCapture is the one Task capture this transfer certifies: a core Task binding
+// that is still its declared default here -- the null handle, which names no runtime
+// object and so holds no borrow (return_origin_requirements.go, the defaultable walk;
+// owner ruling 2026-09-26). The block takes it by a consuming read when it is made
+// (mir/lower_expr_misc.go, one read per capture), so only what happened before this
+// point matters.
+//
+// Two facts must both hold. The flow fact: the binding was declared without an
+// initializer and no `=` assignment reaches here on any path (defaultNull, cleared by
+// every assign and joined by AND). The syntax fact: outside task-block bodies, whose
+// captures are their own copies, the binding is never named except as the target of a
+// plain `=`. Every other way to write it -- `&mut`, an implicit borrow of a receiver or
+// argument, an operator -- names it somewhere else, and then nothing is certified. A
+// Task obtained any other way still meets NoBorrowedState (R-i's fence, RV2-DEBT-365).
+func (b *returnOriginBody) nullTaskCapture(capture symbols.SymbolID, typ types.TypeID, env returnOriginEnv) bool {
+	binding, bound := env.bindings[capture]
+	if !bound || !binding.defaultNull || !b.analyzer.isCoreTask(b.function.unit.Sema.TypeInterner, typ) {
+		return false
+	}
+	return b.namedOnlyAsAssignTarget(capture)
+}
+
+// namedOnlyAsAssignTarget scans the owning unit's expressions, not a tree walk that
+// could miss a kind: every expression resolved to the binding must be the left side of
+// a plain `=` or lie inside an `async`/`blocking` body. A mention inside an `on` or
+// `spawn on` body is refused whatever it is, since this walk does not claim to know
+// how that body shares the binding.
+func (b *returnOriginBody) namedOnlyAsAssignTarget(capture symbols.SymbolID) bool {
+	u := b.function.unit
+	targets := make(map[ast.ExprID]bool)
+	var blocks, crossings []source.Span
+	for raw := uint32(1); raw <= u.Builder.Exprs.Arena.Len(); raw++ {
+		id := ast.ExprID(raw)
+		node := u.Builder.Exprs.Get(id)
+		if node == nil {
+			continue
+		}
+		switch node.Kind {
+		case ast.ExprAsync, ast.ExprBlocking:
+			blocks = append(blocks, node.Span)
+		case ast.ExprOn:
+			crossings = append(crossings, node.Span)
+		case ast.ExprBinary:
+			if data, ok := u.Builder.Exprs.Binary(id); ok && data != nil && data.Op == ast.ExprBinaryAssign {
+				targets[data.Left] = true
+			}
+		}
+	}
+	for id, symID := range u.Symbols.ExprSymbols {
+		if symID != capture {
+			continue
+		}
+		node := u.Builder.Exprs.Get(id)
+		if node == nil || node.Span.Empty() {
+			return false
+		}
+		if returnOriginSpanWithin(node.Span, crossings) || !targets[id] && !returnOriginSpanWithin(node.Span, blocks) {
+			return false
+		}
+	}
+	return true
+}
+
+func returnOriginSpanWithin(span source.Span, regions []source.Span) bool {
+	for _, region := range regions {
+		if region.File == span.File && region.Start <= span.Start && span.End <= region.End {
+			return true
+		}
+	}
+	return false
 }

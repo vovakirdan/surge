@@ -113,62 +113,6 @@ fn main() -> int {
 }
 `
 
-const selectRiSource = `async fn worker(x: &string) -> int {
-    checkpoint().await();
-    checkpoint().await();
-    print("worker read " + x);
-    return len(x) to int;
-}
-
-async fn leak2(x: &string) -> Task<int> {
-    let t = worker(x);
-    return t;
-}
-
-@entrypoint
-fn main() -> int {
-    let r = (async {
-        let mut bl: string = "abc";
-        bl = bl + "def";
-        let v = select { leak2(&bl).await() => 46; };
-        ret v;
-    }).await();
-    print("after");
-    return compare r {
-        Success(n) => n;
-        Cancelled() => 100;
-    };
-}
-`
-
-const selectRiSpawnSource = `async fn worker(x: &string) -> int {
-    checkpoint().await();
-    checkpoint().await();
-    print("worker read " + x);
-    return len(x) to int;
-}
-
-async fn leak2(x: &string) -> Task<int> {
-    let t = spawn worker(x);
-    return t;
-}
-
-@entrypoint
-fn main() -> int {
-    let r = (async {
-        let mut bl: string = "abc";
-        bl = bl + "def";
-        let v = select { leak2(&bl).await() => 46; };
-        ret v;
-    }).await();
-    print("after");
-    return compare r {
-        Success(n) => n;
-        Cancelled() => 100;
-    };
-}
-`
-
 func selectRaceLines(out string) []string {
 	return strings.Split(strings.TrimSuffix(out, "\n"), "\n")
 }
@@ -220,17 +164,8 @@ func TestSelectRaceRuntime(t *testing.T) {
 			t.Fatalf("exit %d stdout %q stderr %q, want exit 7, 8 or 42 and nothing but `worker read abcdef`", res.exitCode, res.stdout, res.stderr)
 		}
 	})
-	// S-RI-SELECT (design review R7): the head never delivers leak2's payload; leak2's scope join runs the inner task first.
-	for _, row := range []struct{ name, source string }{
-		{"ri_select_head_over_a_borrowing_payload", selectRiSource},
-		{"ri_select_head_over_a_spawned_borrowing_payload", selectRiSpawnSource},
-	} {
-		t.Run(row.name, func(t *testing.T) {
-			skipTimeoutTests(t)
-			res := runProgramFromSource(t, row.source, runOptions{captureStdout: true})
-			if res.exitCode != 46 || res.stdout != "worker read abcdef\nafter\n" || res.stderr != "" {
-				t.Fatalf("exit %d stdout %q stderr %q, want exit 46 and `worker read abcdef` then `after`", res.exitCode, res.stdout, res.stderr)
-			}
-		})
-	}
+	// S-RI-SELECT's two rows ran a select head over `async fn leak2(x: &string) -> Task<int>`, a task whose result is a
+	// task: a compile error since SEM3223 (owner ruling 2026-09-26). Their programs are pinned byte for byte as SEM3223
+	// refusals, and the channel form of the same leak as the task check's SEM3021, in
+	// internal/driver/task_payload_is_task_fences_test.go (TestTaskPayloadIsTaskRetiredSelectPrograms).
 }

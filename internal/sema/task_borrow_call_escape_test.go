@@ -104,8 +104,10 @@ fn ping(x: &int, n: int) -> Task<int> { if n == 0 { return owned(1); } let l: in
 		{"b4p_handed_away_over_a_param", `fn f(l: int) -> Task<int> { let t = spawn worker(&l); consume(t); return spawn plain(1); }`, held},
 		{"c10_block_captures_handle", `fn f() -> Task<int> { let l: int = 5; let t = spawn worker(&l); return async { let _ = t.await(); ret 0; }; }`, held},
 		// A body is a frame (the c-forms).
-		{"c1_ret_hands_out_a_borrower", `fn f() -> Task<Task<int>> { return async { let bl: int = 5; let t = spawn worker(&bl); ret t; }; }`, leaked},
-		{"c2p_blocking_ret_plain_call", `fn f() -> Task<Task<int>> { return blocking { let bl: int = 5; let t = worker(&bl); ret t; }; }`, leaked},
+		// A body that returns its task makes a task whose result is a task: SEM3223 (owner ruling
+		// 2026-09-26) joins the task check's own refusal, which is still required.
+		{"c1_ret_hands_out_a_borrower", `fn f() -> Task<Task<int>> { return async { let bl: int = 5; let t = spawn worker(&bl); ret t; }; }`, leaked + ",SEM3223"},
+		{"c2p_blocking_ret_plain_call", `fn f() -> Task<Task<int>> { return blocking { let bl: int = 5; let t = worker(&bl); ret t; }; }`, leaked + ",SEM3223"},
 		{"c4_ret_with_a_borrower_handed_away", `fn f() -> Task<int> { return async { let bl: int = 5; let t = spawn worker(&bl); consume(t); ret 0; }; }`, held},
 		{"c4p_ret_with_a_captured_param_lent", `fn f(p: int) -> Task<int> { return async { let t = spawn worker(&p); consume(t); ret 0; }; }`, held},
 		{"c4e_body_falls_off_its_end", `fn f(p: int) -> Task<nothing> { return async { let t = spawn worker(&p); consume(t); }; }`, held},
@@ -132,7 +134,9 @@ fn ping(x: &int, n: int) -> Task<int> { if n == 0 { return owned(1); } let l: in
 		{"ctl_spawned_then_joined", `async fn f() -> int { let l: int = 5; let t = worker(&l); let s = spawn t; let _ = s.await(); return 0; }`, ""},
 		{"ctl_c5_block_owns_its_capture", `fn f() -> Task<int> { let l: int = 5; let t = spawn async { ret peek(&l); }; return t; }`, ""},
 		{"ctl_host_pin_survives_a_body", `async fn f() -> int { let l: int = 5; let t = spawn worker(&l); let b = async { ret 1; }; let _ = b.await(); let _ = t.await(); return 0; }`, ""},
-		{"ctl_joined_then_another_returned", `async fn f() -> Task<int> { let l: int = 5; let t = spawn worker(&l); let _ = t.await(); return spawn plain(1); }`, ""},
+		// An `async fn` returning a task is refused by SEM3223 alone (owner ruling 2026-09-26);
+		// the task check itself still accepts it.
+		{"ctl_joined_then_another_returned", `async fn f() -> Task<int> { let l: int = 5; let t = spawn worker(&l); let _ = t.await(); return spawn plain(1); }`, "SEM3223"},
 		{"ctl_ternary_of_borrows_awaited", `async fn f(c: bool) -> int { let l: int = 5; let k: int = 6; let t = worker(c ? &l : &k); let _ = t.await(); return 0; }`, ""},
 		{"ctl_ref_binding_awaited", `async fn f() -> int { let l: int = 5; let r = &l; let t = worker(r); let _ = t.await(); return 0; }`, ""},
 		// Red on the base: only a `let` bound an identity, so the second await joined the first task again (SEM3107).

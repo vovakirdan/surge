@@ -150,7 +150,9 @@ fn main() -> int {
     return 0;
 }
 `},
-	{"c1_async_body_ret_handle", "831a199683070b995a7bee97db4ce9baef680c672e48926ecf5d1cc55e450ff5", "SEM3139", `async fn worker(x: &int64) -> int64 {
+	// The body returns its task, so the outer task's result is a task: SEM3223 (owner ruling
+	// 2026-09-26) is reported beside the task check's own refusal.
+	{"c1_async_body_ret_handle", "831a199683070b995a7bee97db4ce9baef680c672e48926ecf5d1cc55e450ff5", "SEM3139,SEM3223", `async fn worker(x: &int64) -> int64 {
     return *x;
 }
 
@@ -330,7 +332,9 @@ fn main() -> int {
     return 0;
 }
 `},
-	{"c2p_blocking_body_plain_call", "ca502fcd8efe0bcc6f2abe5cf085467fad60d04fe97041b3209bcd14cca196ba", "SEM3139", `async fn worker(x: &int64) -> int64 {
+	// The body returns its task, so the outer task's result is a task: SEM3223 (owner ruling
+	// 2026-09-26) is reported beside the task check's own refusal.
+	{"c2p_blocking_body_plain_call", "ca502fcd8efe0bcc6f2abe5cf085467fad60d04fe97041b3209bcd14cca196ba", "SEM3139,SEM3223", `async fn worker(x: &int64) -> int64 {
     return *x;
 }
 

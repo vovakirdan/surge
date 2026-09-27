@@ -24,8 +24,11 @@ const (
 	handleDefaultLoanDiscarded = "storage loan would be discarded by a payload-free value"
 )
 
-// The shapes of the five golden programs this packet frees, and the declaration
-// and return forms of the same default.
+// The shapes of the golden programs this packet frees, and the declaration and
+// return forms of the same default. The joined-clone drain, an `async fn` whose
+// result is a task, is a compile error since SEM3223 (owner ruling 2026-09-26), as
+// is the Task<Task<int>> await canary below; R-i over an await stays covered by the
+// reference and array payload rows of TestAnalyzeTaskAwaits.
 var handleDefaultFinishRows = []struct{ name, text string }{
 	{"popped_task_drain", `async fn work() -> int {
     return 1;
@@ -44,23 +47,6 @@ pub async fn drain() -> int {
         };
     }
     return sum;
-}
-`},
-	{"joined_clone_drain", `async fn worker(x: &int64) -> int64 {
-    return *x;
-}
-
-async fn drained_then_clone_returned() -> Task<int64> {
-    let l: int64 = 5;
-    let t = spawn worker(&l);
-    let c = t.clone();
-    let mut tasks: Task<int64>[] = [];
-    tasks.push(t);
-    while tasks.__len() > 0:uint {
-        let x = tasks.pop().safe();
-        let _ = x.await();
-    }
-    return c;
 }
 `},
 	{"declared_defaults", `fn declared() -> int {
@@ -143,14 +129,6 @@ func TestReturnOriginHandleDefaultCanariesKeepTheirRows(t *testing.T) {
     return q.pop().safe();
 }
 `, want: []want{{"q.pop().safe()", handleDefaultLoanDiscarded}},
-		},
-		{
-			// R-i: NoBorrowedState on the result of await over a Task payload is untouched.
-			name: "task_payload_await_reaches_r_i", text: `async fn read_task(t: Task<Task<int>>) -> int {
-    let _ = t.await();
-    return 0;
-}
-`, want: []want{{"t.await()", handleDefaultUnsupported}, {"t.await()", originCalleeSourceRefusal}},
 		},
 		{
 			// @intrinsic but not a runtime handle: the rule is keyed by core's handle

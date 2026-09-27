@@ -8,13 +8,16 @@ import "testing"
 // the SEM3139 wording at a crossing `ret`: what the task borrows is freed when the BODY finishes (the `async` body's
 // sentence), not "when the function returns". Each row logs `CROSSING_FRAME codes <set> edge <messages>`.
 
+// A body that returns a task makes a `spawn on` reply that is a task: SEM3223 (owner ruling 2026-09-26) is
+// reported beside the task check's edge, which each such row still requires.
+//
 // 6 RUN: 1 parent, 5 leaves.
 func TestTaskCheckSpawnOnBodyEdges(t *testing.T) {
 	rows := []crossingFrameRow{
 		{name: "body_local_task_unjoined", text: spawnOnR06BodyTaskUnjoinedSource, digest: spawnOnR06BodyTaskUnjoinedSourceDigest, want: "SEM3021", edge: "a task still borrows 'bl' at this ret"},
-		{name: "body_local_task_returned", text: spawnOnR07BodyTaskReturnedSource, digest: spawnOnR07BodyTaskReturnedSourceDigest, want: "SEM3139", edge: "cannot return this task: it borrows 'bl', which is freed when this body finishes while the task may still be running"},
-		{name: "body_spawn_over_local_returned", text: spawnOnR20BodySpawnOverLocalReturnedSource, digest: spawnOnR20BodySpawnOverLocalReturnedSourceDigest, want: "SEM3107,SEM3139", edge: "cannot return this task: it borrows 'bl', which is freed when this body finishes while the task may still be running"},
-		{name: "body_spawn_over_capture_returned", text: spawnOnR21BodySpawnOverCaptureReturnedSource, digest: spawnOnR21BodySpawnOverCaptureReturnedSourceDigest, want: "SEM3107,SEM3139", edge: "cannot return this task: it borrows 'k', which is freed when this body finishes while the task may still be running"},
+		{name: "body_local_task_returned", text: spawnOnR07BodyTaskReturnedSource, digest: spawnOnR07BodyTaskReturnedSourceDigest, want: "SEM3139,SEM3223", edge: "cannot return this task: it borrows 'bl', which is freed when this body finishes while the task may still be running"},
+		{name: "body_spawn_over_local_returned", text: spawnOnR20BodySpawnOverLocalReturnedSource, digest: spawnOnR20BodySpawnOverLocalReturnedSourceDigest, want: "SEM3107,SEM3139,SEM3223", edge: "cannot return this task: it borrows 'bl', which is freed when this body finishes while the task may still be running"},
+		{name: "body_spawn_over_capture_returned", text: spawnOnR21BodySpawnOverCaptureReturnedSource, digest: spawnOnR21BodySpawnOverCaptureReturnedSourceDigest, want: "SEM3107,SEM3139,SEM3223", edge: "cannot return this task: it borrows 'k', which is freed when this body finishes while the task may still be running"},
 		{name: "detached_spawn_in_body", text: spawnOnSonDetachSource, digest: spawnOnSonDetachSourceDigest, want: "SEM3107", edge: ""},
 	}
 	for _, row := range rows {

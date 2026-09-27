@@ -1,0 +1,12 @@
+// ERROR: an `async fn` returning a task makes a task whose result is a task
+// (SEM3223, owner ruling 2026-09-26). The caller awaits the outer work and
+// spawns the inner work itself; a plain `fn` may still return the handle
+// (sema/valid/concurrency/task_returned_from_fn.sg).
+
+async fn work() -> int {
+    return 42;
+}
+
+pub async fn start_nested() -> Task<int> {
+    return spawn work();
+}

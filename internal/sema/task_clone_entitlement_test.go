@@ -40,7 +40,9 @@ func TestTaskCloneIsAnEntitlementOfItsOwn(t *testing.T) {
 		{"source_unobserved", `async fn f() -> int { let t = spawn work(); let s = t.clone(); let _ = s.await(); return 0; }`, "SEM3107"},
 		{"clone_unobserved", `async fn f() -> int { let t = spawn work(); let s = t.clone(); let _ = t.await(); return 0; }`, "SEM3107"},
 		{"both_awaited", `async fn f() -> int { let t = spawn work(); let s = t.clone(); let _ = t.await(); let _ = s.await(); return 0; }`, ""},
-		{"await_one_return_other", `async fn f() -> Task<int> { let t = spawn work(); let s = t.clone(); let _ = t.await(); return s; }`, ""},
+		// Returning the other from an `async fn` would make a task whose result is a task
+		// (SEM3223, owner ruling 2026-09-26), so the other is handed on through a call.
+		{"await_one_hand_on_other", `async fn f() -> int { let t = spawn work(); let s = t.clone(); let _ = t.await(); consume(s); return 0; }`, ""},
 		{"clone_returned_in_place", `fn f(t: &Task<int>) -> Task<int> { return t.clone(); }`, ""},
 		// A generic receiver: the clone's own type may still be deferred when the
 		// return is examined, so the tracker must recognise the expression it

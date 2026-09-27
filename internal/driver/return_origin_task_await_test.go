@@ -65,38 +65,11 @@ async fn read_array(t: Task<int[]>) -> int {
     let _ = t.await();
     return 0;
 }
-
-async fn read_task(t: Task<Task<int>>) -> int {
-    let _ = t.await();
-    return 0;
-}
-`
-
-const originTaskAwaitNestedSource = `async fn worker(x: &string) -> int {
-    return len(x) to int;
-}
-
-async fn plain(n: int) -> int {
-    return n;
-}
-
-async fn outer(x: &string) -> Task<int> {
-    return worker(x);
-}
-
-async fn leak() -> Task<int> {
-    let l: string = "abcdef";
-    return compare outer(&l).await() {
-        Success(inner) => inner;
-        Cancelled() => plain(0);
-    };
-}
 `
 
 const (
 	originTaskAwaitFinishSourceDigest  = "5f433fe494ca7f57dc443580df0977911c217f2f3f55c302b23073e2ac39de92"
-	originTaskAwaitPayloadSourceDigest = "b637c8f95aa3340047a6b401257d903ca06fb12f79a134f39739c2e3cc671c59"
-	originTaskAwaitNestedSourceDigest  = "6beb8a63984df9be83215d3b10b8698a6e9b3c8bf455be4105b7be29c9541f19"
+	originTaskAwaitPayloadSourceDigest = "d96c44b2d31900e90ba8f35c319363ccdd1aa9dde4b18b2347fe8d08ba29b197"
 )
 
 // originTaskAwaitRow is one t.Run leaf: the Pending rows inside fn must be exactly want -- for a
@@ -126,17 +99,15 @@ func originTaskAwaitRows() []originTaskAwaitRow {
 			fn: originSpan{0, 80, originTaskAwaitPayloadSource[0:80]}, want: []originRefusal{{span: originSpan{54, 63, "t.await()"}, reason: originTaskAwaitBorrowedState}, {span: originSpan{54, 63, "t.await()"}, reason: originCalleeSourceRefusal}, {span: originSpan{54, 63, "t.await()"}, reason: originTaskAwaitGenericUse}, {span: originSpan{54, 63, "t.await()"}, reason: originTaskAwaitEffect}}, summary: false},
 		{name: "array_payload_stays_refused", text: originTaskAwaitPayloadSource, digest: originTaskAwaitPayloadSourceDigest, body: "read_array",
 			fn: originSpan{82, 165, originTaskAwaitPayloadSource[82:165]}, want: []originRefusal{{span: originSpan{139, 148, "t.await()"}, reason: originTaskAwaitUnsupported}, {span: originSpan{139, 148, "t.await()"}, reason: originCalleeSourceRefusal}}, summary: false},
-		{name: "task_payload_stays_refused", text: originTaskAwaitPayloadSource, digest: originTaskAwaitPayloadSourceDigest, body: "read_task",
-			fn: originSpan{167, 253, originTaskAwaitPayloadSource[167:253]}, want: []originRefusal{{span: originSpan{227, 236, "t.await()"}, reason: originTaskAwaitUnsupported}, {span: originSpan{227, 236, "t.await()"}, reason: originCalleeSourceRefusal}}, summary: false},
-		{name: "borrowing_task_payload_stays_refused", text: originTaskAwaitNestedSource, digest: originTaskAwaitNestedSourceDigest, body: "leak",
-			fn: originSpan{182, 356, originTaskAwaitNestedSource[182:356]}, want: []originRefusal{{span: originSpan{262, 279, "outer(&l).await()"}, reason: originTaskAwaitUnsupported}, {span: originSpan{262, 279, "outer(&l).await()"}, reason: originCalleeSourceRefusal}}, summary: false},
 	}
 }
 
-// 10 RUN: 1 parent, 9 leaves.
+// 8 RUN: 1 parent, 7 leaves. A payload that is itself a task -- a Task<Task<int>> parameter,
+// an `async fn` whose result is a task -- is no longer a row: it is a compile error (SEM3223,
+// task_payload_is_task_test.go).
 func TestAnalyzeTaskAwaits(t *testing.T) {
 	rows := originTaskAwaitRows()
-	if len(rows) != 9 {
+	if len(rows) != 7 {
 		t.Fatalf("PRECONDITION: frozen roster changed: rows=%d", len(rows))
 	}
 	for _, row := range rows {

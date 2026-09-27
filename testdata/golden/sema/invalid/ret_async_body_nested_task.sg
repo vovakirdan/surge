@@ -1,0 +1,8 @@
+// A task's result may not contain a task (SEM3223, owner ruling 2026-09-26):
+// the result type and the block that makes such a task are each refused once.
+fn nested() -> Task<Task<int>> {
+    return async {
+        let inner: Task<int> = async { ret 7; };
+        ret inner;
+    };
+}

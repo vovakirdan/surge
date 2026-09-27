@@ -175,6 +175,10 @@ var (
 	borrowAt71 = taskCloneSpan{71, 73, "&l"}
 	borrowAt75 = taskCloneSpan{75, 77, "&l"}
 	oneSEM3139 = map[string]int{"SEM3139": 1}
+	// An `async fn` whose result is a task is itself refused since SEM3223 (owner ruling
+	// 2026-09-26), once, at its declared result. These rows keep their `async fn` form
+	// because they await, and the task check's own SEM3139 is still asserted exactly.
+	oneSEM3139NestedResult = map[string]int{"SEM3139": 1, "SEM3223": 1}
 )
 
 func TestTaskCloneCarriesItsOriginalsSpawnBorrows(t *testing.T) {
@@ -201,24 +205,24 @@ func TestTaskCloneCarriesItsOriginalsSpawnBorrows(t *testing.T) {
 			notes:   []taskCloneSpan{borrowAt59}},
 		{name: "U5_joined_on_one_branch_only",
 			body:    `async fn f(cond: bool) -> Task<int> { let l: int = 5; let t = spawn worker(&l); let c = t.clone(); if (cond) { let _ = t.await(); } else { consume(t); } return c; }`,
-			errors:  oneSEM3139,
+			errors:  oneSEM3139NestedResult,
 			primary: taskCloneSpan{160, 161, "c"},
 			notes:   []taskCloneSpan{borrowAt75, {88, 97, "t.clone()"}}},
 		// The arm's `ret` leaves before the join written after the `if`; the
 		// second `ret c` is judged at its own exit, after that join, and passes.
 		{name: "U6_handed_off_in_one_ret_arm",
 			body:    `async fn f(cond: bool) -> Task<int> { let l: int = 5; let t = spawn worker(&l); let c = t.clone(); return { if (cond) { consume(t); ret c; } let _ = t.await(); ret c; }; }`,
-			errors:  oneSEM3139,
+			errors:  oneSEM3139NestedResult,
 			primary: taskCloneSpan{136, 137, "c"},
 			notes:   []taskCloneSpan{borrowAt75, {88, 97, "t.clone()"}}},
 		{name: "U7_joined_only_in_and_right_operand",
 			body:    `async fn f(cond: bool) -> Task<int> { let l: int = 5; let t = spawn worker(&l); let c = t.clone(); let _ = cond && done(t.await()); return c; }`,
-			errors:  oneSEM3139,
+			errors:  oneSEM3139NestedResult,
 			primary: taskCloneSpan{139, 140, "c"},
 			notes:   []taskCloneSpan{borrowAt75, {88, 97, "t.clone()"}}},
 		{name: "U7b_joined_only_in_or_right_operand",
 			body:    `async fn f(cond: bool) -> Task<int> { let l: int = 5; let t = spawn worker(&l); let c = t.clone(); let _ = cond || done(t.await()); return c; }`,
-			errors:  oneSEM3139,
+			errors:  oneSEM3139NestedResult,
 			primary: taskCloneSpan{139, 140, "c"},
 			notes:   []taskCloneSpan{borrowAt75, {88, 97, "t.clone()"}}},
 		// The post clause has not run when the body first does. Moving `c` in
@@ -226,7 +230,7 @@ func TestTaskCloneCarriesItsOriginalsSpawnBorrows(t *testing.T) {
 		// value), so the body returns a clone of `c`, which is its own handle.
 		{name: "U8_joined_only_in_for_post",
 			body:    `async fn f(n: int) -> Task<int> { let l: int = 5; let t = spawn worker(&l); let c = t.clone(); for (let mut i: int = 0; i < n; i = step(i, t.clone().await())) { return c.clone(); } let _ = c.await(); let _ = t.await(); return spawn plain(1); }`,
-			errors:  oneSEM3139,
+			errors:  oneSEM3139NestedResult,
 			primary: taskCloneSpan{168, 177, "c.clone()"},
 			notes:   []taskCloneSpan{borrowAt71}},
 	}
@@ -248,12 +252,12 @@ func TestTaskCloneBorrowGuardsStayRefused(t *testing.T) {
 			notes:   []taskCloneSpan{borrowAt59}},
 		{name: "K5_original_returned_after_clone_joined",
 			body:    `async fn f() -> Task<int> { let l: int = 5; let t = spawn worker(&l); let c = t.clone(); let _ = c.await(); return t; }`,
-			errors:  oneSEM3139,
+			errors:  oneSEM3139NestedResult,
 			primary: taskCloneSpan{115, 116, "t"},
 			notes:   []taskCloneSpan{borrowAt65}},
 		{name: "K9_legacy_tail_fails_closed",
 			body:    `async fn f() -> Task<int> { let l: int = 5; let t = spawn worker(&l); let c = t.clone(); return { let _ = t.await(); c; }; }`,
-			errors:  oneSEM3139,
+			errors:  oneSEM3139NestedResult,
 			primary: taskCloneSpan{117, 118, "c"},
 			notes:   []taskCloneSpan{borrowAt65, {78, 87, "t.clone()"}},
 			warning: "SEM3135"},
@@ -281,8 +285,14 @@ func TestTaskCloneReturnedAfterJoinStaysLegal(t *testing.T) {
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
 			c := checkTaskCloneBorrow(t, row.body)
-			if got := c.errorCodes(); len(got) != 0 {
-				t.Fatalf("expected a clean program, got %v", got)
+			// An `async fn` returning a task is refused by SEM3223 alone (owner ruling
+			// 2026-09-26); the task check itself must still accept the program.
+			want := map[string]int{}
+			if strings.HasPrefix(row.body, "async fn ") {
+				want["SEM3223"] = 1
+			}
+			if got := c.errorCodes(); !equalCodeCounts(got, want) {
+				t.Fatalf("expected no task-check error, got %v, want %v", got, want)
 			}
 			if got := c.stable["f"]; strings.Join(got, ",") != strings.Join(row.stable, ",") {
 				t.Fatalf("stable places of f: got %v, want %v", got, row.stable)

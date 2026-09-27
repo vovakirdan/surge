@@ -1,1 +1,2 @@
+error SEM3223 testdata/golden/sema/invalid/concurrency/task_multiple_leaks.sg:7:36 a task's result may not contain a task; await the outer work, then `spawn` the inner work in the caller
 error SEM3107 testdata/golden/sema/invalid/concurrency/task_multiple_leaks.sg:9:14 task is neither awaited nor returned

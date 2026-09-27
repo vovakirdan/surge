@@ -215,7 +215,7 @@ func (tc *typeChecker) resolveNamedType(name source.StringID, args []types.TypeI
 	tc.enforceTypeArgBounds(sym, args, argSpans, span)
 	// Check for deprecated type usage (base type for generics)
 	tc.checkDeprecatedType(sym.Type, span)
-	instantiated := tc.instantiateType(symID, args, span, "type")
+	instantiated := tc.instantiateNamedType(symID, args, span)
 	// A channel payload crosses task boundaries; a borrow must not.
 	if payload := tc.channelPayloadType(instantiated); payload != types.NoTypeID {
 		payloadSpan := span

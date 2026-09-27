@@ -11,7 +11,8 @@ import (
 // A core task constructor is believed by its declaration: checkpoint and sleep start a
 // task that captures nothing, and a clone hands back the receiver's own task. Only the
 // payload is walked, so a clone whose payload is refused keeps a refusal at the call.
-// A function value and a generic helper stay refused.
+// A function value and a generic helper are answered by the narrow certificates of the
+// owner ruling of 2026-09-26 (return_origin_task_narrow_certificates_test.go).
 // What a running task borrows is the task check's question, not this certificate's.
 type taskCertificateSite struct {
 	span   handleCertificateSpan
@@ -30,7 +31,10 @@ type taskCertificateCase struct {
 	coreCloneClear bool
 }
 
-const taskCloneDeclaration = "@intrinsic pub fn clone(self: &Task<T>) -> Task<T>;"
+const (
+	taskCloneDeclaration        = "@intrinsic pub fn clone(self: &Task<T>) -> Task<T>;"
+	taskCertificateOpaqueEffect = "opaque call may change reference-bearing or callable contents"
+)
 
 func taskCertificateCases() []taskCertificateCase {
 	return []taskCertificateCase{
@@ -48,12 +52,18 @@ func taskCertificateCases() []taskCertificateCase {
 		{handle: handleCertificateCase{name: "task_clone_placement_control", digest: "2444026255ceb3273c9fa20b81746bc68f46df0a9042c76ce5ab08d25cc4f836",
 			text: "pragma module::dep;\nfn keep_place(t: &Task<Placement>) -> Task<Placement> {\n    return t.clone();\n}\n"},
 			kept: []taskCertificateSite{{handleCertificateSpan{87, 96, "t.clone()"}, genericConditionUnsupported}}},
-		// Inside a generic helper the clone is certified, but its use keeps another refusal.
+		// Inside a generic helper the clone is certified, and since the owner ruling of 2026-09-26
+		// (D3) so is what it writes: the core clone reads its shared receiver and writes through
+		// nothing, so the opaque-effect refusal the generic signature used to leave at it is gone.
+		// A clone that is not the core declaration keeps it (TestTaskNarrowCertificateIdentity).
 		{handle: handleCertificateCase{name: "task_clone_generic_control", digest: "f55e673bae8063941117f308dc1ab1bf993fa092d3ee00cb20e4c801ebda53bf",
 			text: "pragma module::dep;\nfn wrap<T>(p: &Task<T>) -> Task<T> {\n    return p.clone();\n}\nfn use_wrap(t: &Task<int>) -> Task<int> {\n    return wrap::<int>(t);\n}\n"},
-			refusedIn: &handleCertificateSpan{68, 77, "p.clone()"},
-			dropped:   []taskCertificateSite{{handleCertificateSpan{68, 77, "p.clone()"}, genericConditionUnsupported}}, coreCloneClear: true},
-		// A function value has no callee, so the certificate never reaches it.
+			dropped: []taskCertificateSite{{handleCertificateSpan{68, 77, "p.clone()"}, genericConditionUnsupported},
+				{handleCertificateSpan{68, 77, "p.clone()"}, taskCertificateOpaqueEffect}}, coreCloneClear: true},
+		// A function value has no callee, so the sleep certificate never reaches it. D1 (owner ruling
+		// of 2026-09-26) certifies a function-value call only when the value names declared functions
+		// with bodies: `sleep` is a body-less intrinsic, which neither backend can call through a value,
+		// so this stays refused (TestTaskNarrowCertificates/d1_intrinsic_sleep_value_stays_refused).
 		{handle: handleCertificateCase{name: "sleep_value_control", digest: "ea3942c8434d5062b3d39de8902af31d2e27e1afa37475a7374d242385526c68",
 			text: "pragma module::dep;\nfn nap_value(ms: uint) -> Task<nothing> {\n    let f = sleep;\n    return f(ms);\n}\n"},
 			refusedIn: &handleCertificateSpan{20, 100, "fn nap_value(ms: uint) -> Task<nothing> {\n    let f = sleep;\n    return f(ms);\n}"}},

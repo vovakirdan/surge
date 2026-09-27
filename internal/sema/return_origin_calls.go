@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"surge/internal/ast"
+	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
@@ -212,7 +213,11 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 	}
 	var summary returnOriginValue
 	if callbackValue.normal {
-		summary = b.callableValueSources(callbackValue, span)
+		if b.inertTaskFunctionValueCall(info) && b.callablesHaveBodies(callbackValue) {
+			summary = b.inertTaskCallableSources(callbackValue, span)
+		} else {
+			summary = b.callableValueSources(callbackValue, span)
+		}
 		if returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, effects) || loanSinks {
 			flow.normal = b.taintExternalCellEffects(flow.normal, span, "indirect call may change reference-bearing or callable contents")
 		}
@@ -239,7 +244,7 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		}
 		summary = b.opaqueReturnSources(callee, info, sources, valid, span, signature)
 		effects = b.opaqueCallEffects(signature, params, effects, span)
-		if !returnOriginBytesViewReader(callee) && (returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, effects) ||
+		if !b.coreTaskClone(callee) && !returnOriginBytesViewReader(callee) && (returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, effects) ||
 			loanSinks && !certified && !mapCertified && !returnOriginCertifiedByteSink(callee)) {
 			flow.normal = b.taintExternalCellEffects(flow.normal, span, "opaque call may change reference-bearing or callable contents")
 		}
@@ -280,6 +285,83 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		value = value.join(actuals[root.param])
 	}
 	return returnOriginExprResult{flow: flow, value: value}, nil
+}
+
+// coreTaskClone is the generic-clone certificate (owner ruling 2026-09-26): the core
+// `Task<T>.clone(self: &Task<T>)`, recognized by its declaration (returnOriginTaskHandleResidual
+// checks the core intrinsic, its receiver and its exact signature), writes through nothing:
+// it reads its shared receiver and hands back the same task with one more reference. So a
+// clone whose T is still a template parameter changes no reference-bearing contents, though
+// its effects cannot be proved from the generic signature. Its result is still read by the
+// ordinary opaque walk; what a clone shares with its original is the task check's question.
+func (b *returnOriginBody) coreTaskClone(callee *returnOriginFunction) bool {
+	if callee == nil || callee.info == nil || callee.name != "clone" {
+		return false
+	}
+	_, certified := returnOriginTaskHandleResidual(callee, callee.info.Result)
+	return certified
+}
+
+// inertTaskFunctionValueCall is the function-value certificate (owner ruling 2026-09-26):
+// a call through a function value whose result is a core Task, whose every parameter is
+// inert and whose Task payload is inert. The language has no closures -- a function
+// value names a declared function -- so such a call receives nothing that holds a
+// reference, a storage loan, a callable or a task, and its handle carries out nothing
+// borrowed. Any other function-value call keeps the callee's summary and its rows.
+func (b *returnOriginBody) inertTaskFunctionValueCall(info *types.FnInfo) bool {
+	in := b.function.unit.Sema.TypeInterner
+	if info == nil || !b.analyzer.isCoreTask(in, info.Result) {
+		return false
+	}
+	for _, param := range info.Params {
+		if returnOriginFnInfo(in, param) != nil || !b.crossingInert(param) {
+			return false
+		}
+	}
+	task, ok := in.StructInfo(info.Result)
+	return ok && task != nil && len(task.TypeArgs) == 1 && returnOriginFnInfo(in, task.TypeArgs[0]) == nil &&
+		b.crossingInert(task.TypeArgs[0])
+}
+
+// callablesHaveBodies keeps D1 to function values that name declared functions with bodies.
+// A body-less declaration -- a core intrinsic such as `sleep` -- is not lowered as a function
+// value on either backend (the call fails at run time), so D1 must not admit it. A value fixed
+// to a declared promise (`let f: Fn = add;`) keeps that fact in `bodied`; any other promise --
+// a function-typed parameter, whose caller may pass an intrinsic -- is not certified.
+func (b *returnOriginBody) callablesHaveBodies(value returnOriginValue) bool {
+	if len(value.callables) == 0 {
+		return false
+	}
+	for i := range value.callables {
+		alternative := &value.callables[i]
+		if alternative.bodyKey == "" {
+			if !alternative.bodied {
+				return false
+			}
+			continue
+		}
+		if fn := b.callableFunction(*alternative); fn == nil || !fn.item.Body.IsValid() {
+			return false
+		}
+	}
+	return true
+}
+
+// inertTaskCallableSources replaces only what the callee's body could return: an inert
+// Task names no argument and no capture. What the function value itself carries is
+// still read as callableValueSources reads it, so an unproved or expired incoming
+// content keeps its refusal.
+func (b *returnOriginBody) inertTaskCallableSources(value returnOriginValue, span source.Span) returnOriginValue {
+	out := returnOriginValueOf()
+	unknown := len(value.callables) == 0
+	for _, root := range value.roots {
+		unknown = unknown || root.kind != returnOriginParam || root.expired
+	}
+	if unknown {
+		b.pending(span, "callable contents have unresolved or captured provenance")
+		out = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
+	}
+	return out
 }
 
 // Calls and function values share one reader, so a selection that one of them

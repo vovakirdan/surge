@@ -95,11 +95,14 @@ type typeChecker struct {
 	// pendingCloneObligation labels the deferred edge rememberDeferredCallable
 	// is about to record. It is set only around that one call, because the edge
 	// builder is shared with the three deferred CALL kinds, which carry none.
-	pendingCloneObligation      CloneObligationOp
-	typeAttrs                   map[types.TypeID][]AttrInfo     // Type attribute storage
-	fieldAttrs                  map[fieldKey][]AttrInfo         // Field attribute storage
-	symbolAttrs                 map[symbols.SymbolID][]AttrInfo // Symbol attribute storage (functions, let, const)
-	awaitDepth                  int
+	pendingCloneObligation CloneObligationOp
+	typeAttrs              map[types.TypeID][]AttrInfo     // Type attribute storage
+	fieldAttrs             map[fieldKey][]AttrInfo         // Field attribute storage
+	symbolAttrs            map[symbols.SymbolID][]AttrInfo // Symbol attribute storage (functions, let, const)
+	awaitDepth             int
+	// nominalInstantiations counts the type instantiations in progress; a field type
+	// re-resolved inside one is not a source site of its own (task_payload_is_task.go).
+	nominalInstantiations       int
 	asyncBlockDepth             int // Track nesting level of async blocks for error differentiation
 	returnStack                 []returnContext
 	fnSymStack                  []symbols.SymbolID // current function (for instantiation use-sites)

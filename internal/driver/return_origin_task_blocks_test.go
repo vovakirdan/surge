@@ -70,13 +70,6 @@ fn gather() -> int {
     let _ = t;
     return 0;
 }
-
-fn nested() -> Task<Task<int>> {
-    return async {
-        let inner: Task<int> = async { ret 7; };
-        ret inner;
-    };
-}
 `
 
 const originTaskBlockCaptureSource = `fn read_through(r: &int) -> Task<int> {
@@ -130,7 +123,7 @@ const originTaskBlockChannelSource = `fn relay(ch: Channel<int64>) -> Task<nothi
 
 const (
 	originTaskBlockFinishSourceDigest  = "fb99996ed30855e326dcaa1c2b7cb87b4ec7bce2c7553fdf47ca25d27bfc9a23"
-	originTaskBlockPayloadSourceDigest = "75a5d3011831d2e43801490139dd27f822438e097ea22f5b4ae06cb614071cd4"
+	originTaskBlockPayloadSourceDigest = "8036fa704a081010bb6e9645d9fcb01085cfa9536673c04efd748e145e3fe612"
 	originTaskBlockCaptureSourceDigest = "2099c74e4200e9b4eaa225fac27a15030b67f1fa25b3a8334601d562ffc1048e"
 	originTaskBlockWalkSourceDigest    = "7d51a7fca41c0380ae19cb8c947c3a9454118398a108a91b26906fa114389036"
 	originTaskBlockChannelSourceDigest = "a70115b4aca7358d56a8af7fcb9f194c1d3b21a9846804241fb435650b46de70"
@@ -160,8 +153,6 @@ func originTaskBlockRows() []originTaskBlockRow {
 			fn: originSpan{0, 98, originTaskBlockPayloadSource[0:98]}, want: []originRefusal{{span: originSpan{37, 66, "async {\n        ret &n;\n    }"}, reason: originTaskBlockPayloadRefusal}, {span: originSpan{80, 81, "t"}, reason: originOutgoingRefusal}}, summary: false},
 		{name: "loan_carrier_payload_stays_refused", text: originTaskBlockPayloadSource, digest: originTaskBlockPayloadSourceDigest, body: "gather",
 			fn: originSpan{100, 224, originTaskBlockPayloadSource[100:224]}, want: []originRefusal{{span: originSpan{133, 192, "async {\n        let a: int[] = [1, 2];\n        ret a;\n    }"}, reason: originTaskBlockPayloadRefusal}}, summary: false},
-		{name: "task_payload_stays_refused", text: originTaskBlockPayloadSource, digest: originTaskBlockPayloadSourceDigest, body: "nested",
-			fn: originSpan{226, 354, originTaskBlockPayloadSource[226:354]}, want: []originRefusal{{span: originSpan{270, 351, "async {\n        let inner: Task<int> = async { ret 7; };\n        ret inner;\n    }"}, reason: originTaskBlockPayloadRefusal}, {span: originSpan{263, 352, "return async {\n        let inner: Task<int> = async { ret 7; };\n        ret inner;\n    };"}, reason: originOutgoingRefusal}, {span: originSpan{238, 256, "-> Task<Task<int>>"}, reason: originResultRefusal}}, summary: false},
 		{name: "reference_capture_stays_refused", text: originTaskBlockCaptureSource, digest: originTaskBlockCaptureSourceDigest, body: "read_through",
 			fn: originSpan{0, 83, originTaskBlockCaptureSource[0:83]}, want: []originRefusal{{span: originSpan{51, 80, "async {\n        ret *r;\n    }"}, reason: originTaskBlockCaptureRefusal}}, summary: false},
 		{name: "body_rows_are_reported", text: originTaskBlockWalkSource, digest: originTaskBlockWalkSourceDigest, body: "body_row",
@@ -173,10 +164,11 @@ func originTaskBlockRows() []originTaskBlockRow {
 	}
 }
 
-// 12 RUN: 1 parent, 11 leaves.
+// 11 RUN: 1 parent, 10 leaves. A block whose payload is itself a task is no longer a row
+// here: it is a compile error (SEM3223, task_payload_is_task_test.go).
 func TestAnalyzeTaskBlocks(t *testing.T) {
 	rows := originTaskBlockRows()
-	if len(rows) != 11 {
+	if len(rows) != 10 {
 		t.Fatalf("PRECONDITION: frozen roster changed: rows=%d", len(rows))
 	}
 	for _, row := range rows {

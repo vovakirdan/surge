@@ -1,0 +1,2 @@
+error SEM3223 testdata/golden/sema/invalid/ret_async_body_nested_task.sg:3:16 a task's result may not contain a task; await the outer work, then `spawn` the inner work in the caller
+error SEM3223 testdata/golden/sema/invalid/ret_async_body_nested_task.sg:4:12 a task's result may not contain a task; await the outer work, then `spawn` the inner work in the caller

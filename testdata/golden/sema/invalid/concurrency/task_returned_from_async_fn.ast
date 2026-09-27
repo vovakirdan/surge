@@ -1,0 +1,17 @@
+task_returned_from_async_fn.sg (span: 6:1-13:1)
+├─ Item[0]: Fn (span: 6:1-8:2)
+│  ├─ Name: work
+│  ├─ Params: ()
+│  ├─ Return: int
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 6:24-8:2)
+│        └─ Stmt[0]: Return (span: 7:5-7:15)
+│           └─ Expr: expr#1: 42
+└─ Item[1]: Fn (span: 10:1-12:2)
+   ├─ Name: start_nested
+   ├─ Params: ()
+   ├─ Return: Task<int>
+   └─ Body:
+      └─ Stmt[0]: Block (span: 10:42-12:2)
+         └─ Stmt[0]: Return (span: 11:5-11:25)
+            └─ Expr: expr#4: spawn work()

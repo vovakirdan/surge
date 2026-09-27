@@ -79,7 +79,11 @@ func (b *returnOriginBody) stmt(id ast.StmtID, env returnOriginEnv, targets retu
 			if value.IsValid() && out.flow.normal.reachable {
 				out.value = b.bindCallable(out.value, id, annotation, value, returnOriginValue{}, false)
 			}
-			out.flow.normal = out.flow.normal.assign(id, sym.Scope, out.value)
+			if node.Kind == ast.StmtLet && !value.IsValid() && annotation.IsValid() {
+				out.flow.normal = out.flow.normal.assignDefault(id, sym.Scope, out.value)
+			} else {
+				out.flow.normal = out.flow.normal.assign(id, sym.Scope, out.value)
+			}
 		}
 		return out.flow, nil
 	case ast.StmtExpr:

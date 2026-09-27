@@ -1,13 +1,28 @@
-// One entitlement awaited here, the other handed to the caller: returning a
-// clone transfers the obligation exactly as returning a spawn does.
+// One entitlement awaited here, the other handed on: handing a clone to a
+// callee transfers the obligation exactly as handing on a spawn does; and a
+// clone returned from a plain function transfers it to the caller exactly as
+// returning a spawn does. (An `async fn` that awaits one and returns the other
+// would make a task whose result is a task, SEM3223, owner ruling 2026-09-26.)
 
 async fn work() -> int {
     return 42;
 }
 
-async fn await_one_return_other() -> Task<int> {
+fn hand_off(t: Task<int>) -> nothing {
+    return nothing;
+}
+
+async fn await_one_hand_on_other() -> int {
     let t = spawn work();
     let s = t.clone();
     let _ = t.await();
+    hand_off(s);
+    return 0;
+}
+
+fn hand_on_one_return_other() -> Task<int> {
+    let t = spawn work();
+    let s = t.clone();
+    hand_off(t);
     return s;
 }

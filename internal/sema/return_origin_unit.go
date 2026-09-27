@@ -107,6 +107,9 @@ type returnOriginAnalyzer struct {
 	summaries    map[string]returnOriginSummaryFact
 	report       *ReturnOriginAnalysis
 	collect      bool
+	// taskType is the result of the certified core `checkpoint`, a Task<nothing>;
+	// its declaration names the core Task family. NoTypeID without core.
+	taskType types.TypeID
 }
 
 type returnOriginBody struct {
@@ -182,6 +185,7 @@ func AnalyzeReturnOrigins(ctx context.Context, authority *Result, units []Return
 		return 0
 	})
 	family, _ := a.intRangeType() // declarations are complete; a type view has no analyzer to ask
+	a.taskType = a.coreTaskType()
 	for _, index := range a.units {
 		index.peers, index.intRangeType = a.units, family
 	}

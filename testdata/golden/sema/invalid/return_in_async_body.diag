@@ -1,4 +1,6 @@
 error SEM3207 testdata/golden/sema/invalid/return_in_async_body.sg:7:9 cannot return from the enclosing function inside the async body: the body runs as its own task; write `ret <expr>;` to give the body its value
 error SEM3015 testdata/golden/sema/invalid/return_in_async_body.sg:13:22 cannot assign nothing to int
 error SEM3207 testdata/golden/sema/invalid/return_in_async_body.sg:14:13 cannot return from the enclosing function inside the async body: the body runs as its own task; write `ret <expr>;` to give the body its value
+error SEM3223 testdata/golden/sema/invalid/return_in_async_body.sg:20:20 a task's result may not contain a task; await the outer work, then `spawn` the inner work in the caller
+error SEM3223 testdata/golden/sema/invalid/return_in_async_body.sg:21:12 a task's result may not contain a task; await the outer work, then `spawn` the inner work in the caller
 error SEM3207 testdata/golden/sema/invalid/return_in_async_body.sg:22:40 cannot return from the enclosing function inside the async body: the body runs as its own task; write `ret <expr>;` to give the body its value

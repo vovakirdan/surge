@@ -44,14 +44,6 @@ fn spawn_wrapped(n: int) -> Option<Task<int>> {
 }
 `
 
-const originSpawnPayloadSource = `fn spawn_nested() -> Task<Task<int>> {
-    return spawn async {
-        let inner: Task<int> = async { ret 7; };
-        ret inner;
-    };
-}
-`
-
 const originSpawnCaptureSource = `fn spawn_read_through(r: &int) -> Task<int> {
     return spawn async {
         ret *r;
@@ -111,7 +103,6 @@ fn main() -> int {
 const (
 	originSpawnFinishSourceDigest                = "b308b0e83622cc6197cd137b849ed5b99fa2590c3ad937d0c889ccf6f04e02ce"
 	originSpawnWrappedSourceDigest               = "0cee108217de9546808715e8d56218016e616ce60d3c544d3089aee75317ffa0"
-	originSpawnPayloadSourceDigest               = "08ead9d94e4ed8ca4c83da89b9491818fbe915d8679700b9791d0887eff13276"
 	originSpawnCaptureSourceDigest               = "88bb7316c5ff53887871b2fcf2c3e5180d8b3018ee314e4b845542c2c7f9a384"
 	originSpawnTemporarySourceDigest             = "a5e8b75740732335f3c2805f62221ff5f8f1a8c6dfd44d56cb4696b4b0987146"
 	originSpawnImplicitJoinTemporarySourceDigest = "64359b706d5cc77c56cec3f323dc7ec3346f842d729958b60c8915631e593b9f"
@@ -139,8 +130,6 @@ func originSpawnRows() []originSpawnRow {
 			fn: originSpan{306, 398, originSpawnFinishSource[306:398]}, want: []originRefusal{}, summary: true},
 		{name: "spawn_wrapped_finishes", text: originSpawnWrappedSource, digest: originSpawnWrappedSourceDigest, body: "spawn_wrapped",
 			fn: originSpan{52, 133, originSpawnWrappedSource[52:133]}, want: []originRefusal{}, summary: true},
-		{name: "spawn_task_payload_keeps_its_derived_rows", text: originSpawnPayloadSource, digest: originSpawnPayloadSourceDigest, body: "spawn_nested",
-			fn: originSpan{0, 140, originSpawnPayloadSource[0:140]}, want: []originRefusal{{span: originSpan{56, 137, "async {\n        let inner: Task<int> = async { ret 7; };\n        ret inner;\n    }"}, reason: originTaskBlockPayloadRefusal}, {span: originSpan{43, 138, "return spawn async {\n        let inner: Task<int> = async { ret 7; };\n        ret inner;\n    };"}, reason: originOutgoingRefusal}, {span: originSpan{18, 36, "-> Task<Task<int>>"}, reason: originResultRefusal}}, summary: false},
 		{name: "spawn_async_capture_row_stands", text: originSpawnCaptureSource, digest: originSpawnCaptureSourceDigest, body: "spawn_read_through",
 			fn: originSpan{0, 95, originSpawnCaptureSource[0:95]}, want: []originRefusal{{span: originSpan{63, 92, "async {\n        ret *r;\n    }"}, reason: originTaskBlockCaptureRefusal}}, summary: false},
 		{name: "spawn_string_temporary_row_stands", text: originSpawnTemporarySource, digest: originSpawnTemporarySourceDigest, body: "spawn_temporary",
@@ -154,10 +143,11 @@ func originSpawnRows() []originSpawnRow {
 	}
 }
 
-// 12 RUN: 1 parent, 11 leaves.
+// 11 RUN: 1 parent, 10 leaves. A spawned block whose payload is itself a task is no longer a
+// row: it is a compile error (SEM3223, task_payload_is_task_test.go).
 func TestAnalyzeSpawn(t *testing.T) {
 	rows := originSpawnRows()
-	if len(rows) != 11 {
+	if len(rows) != 10 {
 		t.Fatalf("PRECONDITION: frozen roster changed: rows=%d", len(rows))
 	}
 	for _, row := range rows {

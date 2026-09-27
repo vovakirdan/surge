@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -287,7 +288,7 @@ func TestH2TripwireMatcherRejectsRecordedFaults(t *testing.T) {
 
 // h2TripwireTaskCheckVerdict answers "" when the frozen leaking program is refused by the task
 // check and by nothing else: exactly one error, with this code, whose primary span reads at.
-func h2TripwireTaskCheckVerdict(t *testing.T, name, text, digest, code, at string) string {
+func h2TripwireTaskCheckVerdict(t *testing.T, name, text, digest, code, at string, beside ...string) string {
 	t.Helper()
 	if got := fmt.Sprintf("%x", sha256.Sum256([]byte(text))); got != digest {
 		t.Fatalf("PRECONDITION: frozen probe changed: %s", got)
@@ -313,8 +314,14 @@ func h2TripwireTaskCheckVerdict(t *testing.T, name, text, digest, code, at strin
 		}
 		verdicts = append(verdicts, d.Code.ID()+"@"+got)
 	}
-	if want := code + "@" + at; len(verdicts) != 1 || verdicts[0] != want {
-		return fmt.Sprintf("the leaked task is not refused by the task check alone: errors %q, want exactly [%q]", verdicts, want)
+	// beside names the other errors a probe must also carry, each exactly once; the task
+	// check's verdict is still required to be the only one of its kind.
+	want := append([]string{code + "@" + at}, beside...)
+	slices.Sort(want)
+	got := slices.Clone(verdicts)
+	slices.Sort(got)
+	if !slices.Equal(got, want) {
+		return fmt.Sprintf("the leaked task is not refused by the task check alone: errors %q, want exactly %q", verdicts, want)
 	}
 	return ""
 }

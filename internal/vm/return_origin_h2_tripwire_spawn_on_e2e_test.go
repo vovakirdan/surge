@@ -257,13 +257,19 @@ const (
 )
 
 func TestH2TripwireTaskCheckRefusesSpawnOnLeakedRuns(t *testing.T) {
-	for _, row := range []struct{ name, text, digest string }{
-		{"son_await", spawnOnLeakSonAwaitSource, spawnOnLeakSonAwaitSourceDigest},
-		{"son_spawn", spawnOnLeakSonSpawnSource, spawnOnLeakSonSpawnSourceDigest},
-		{"son_ret", spawnOnLeakSonRetSource, spawnOnLeakSonRetSourceDigest},
+	// son_ret hands the leaked task out as the far result, a task whose result is a task:
+	// SEM3223 (owner ruling 2026-09-26) refuses its type and its body besides the task check.
+	for _, row := range []struct {
+		name, text, digest string
+		beside             []string
+	}{
+		{"son_await", spawnOnLeakSonAwaitSource, spawnOnLeakSonAwaitSourceDigest, nil},
+		{"son_spawn", spawnOnLeakSonSpawnSource, spawnOnLeakSonSpawnSourceDigest, nil},
+		{"son_ret", spawnOnLeakSonRetSource, spawnOnLeakSonRetSourceDigest,
+			[]string{"SEM3223@Task<Task<int>>", "SEM3223@spawn on distributed {\n        ret leak();\n    }"}},
 	} {
 		t.Run(row.name, func(t *testing.T) {
-			if verdict := h2TripwireTaskCheckVerdict(t, row.name, row.text, row.digest, "SEM3139", "t"); verdict != "" {
+			if verdict := h2TripwireTaskCheckVerdict(t, row.name, row.text, row.digest, "SEM3139", "t", row.beside...); verdict != "" {
 				t.Error(verdict)
 			}
 		})

@@ -17,6 +17,7 @@ import (
 type returnOriginCallable struct {
 	bodyKey  string
 	typ      types.TypeID
+	bodied   bool // a promise fixed from values that each name a function with a body (D1)
 	slots    []uint32
 	promise  source.Span
 	contract *returnOriginCallableType
@@ -44,6 +45,12 @@ func compareReturnOriginCallables(a, b returnOriginCallable) int {
 	}
 	if order := compareReturnOriginSpans(a.promise, b.promise); order != 0 {
 		return order
+	}
+	if a.bodied != b.bodied {
+		if a.bodied {
+			return 1
+		}
+		return -1
 	}
 	return compareReturnOriginView(a.view, b.view)
 }

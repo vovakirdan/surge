@@ -47,6 +47,7 @@ func (b *returnOriginBody) bindCallable(value returnOriginValue, binding symbols
 		return value.join(returnOriginValueOf(returnOrigin{kind: returnOriginUnknown}))
 	}
 	if fixed {
+		expected.bodied = b.callablesHaveBodies(value)
 		value = value.clone()
 		value.callables = []returnOriginCallable{expected}
 	}
