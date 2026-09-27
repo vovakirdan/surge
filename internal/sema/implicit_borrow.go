@@ -120,6 +120,13 @@ func (tc *typeChecker) dropImplicitBorrowForValueParam(expr ast.ExprID, param sy
 }
 
 func (tc *typeChecker) dropImplicitBorrowForRefParam(expr ast.ExprID, param symbols.TypeKey, actual, result types.TypeID, span source.Span) {
+	tc.dropImplicitBorrowForRefParamOf(nil, expr, param, actual, result, span)
+}
+
+// dropImplicitBorrowForRefParamOf is dropImplicitBorrowForRefParam for a call
+// whose callee is known, so a certified core copy (isCoreFixedArrayCopy) is
+// not read as a window of its fixed-array argument.
+func (tc *typeChecker) dropImplicitBorrowForRefParamOf(callee *symbols.Symbol, expr ast.ExprID, param symbols.TypeKey, actual, result types.TypeID, span source.Span) {
 	paramStr := strings.TrimSpace(string(param))
 	if paramStr == "" || !strings.HasPrefix(paramStr, "&") {
 		return
@@ -139,11 +146,13 @@ func (tc *typeChecker) dropImplicitBorrowForRefParam(expr ast.ExprID, param symb
 		// and needs none: it was made by a call whose result carries a
 		// reference, so that call kept its own `&` arguments borrowed by the
 		// rule below, and `h` stays held for as long as the view's scope.
-		if returnOriginTypeShape(tc.types, result, nil) == returnOriginCarriesRef {
+		if tc.callResultKeepsLoan(callee, actual, result) {
 			if _, carriesReference := tc.carriedReferenceType(result); !carriesReference {
 				if _, isPlace := tc.resolvePlace(expr); isPlace {
 					tc.handleBorrow(expr, span, ast.ExprUnaryRef, expr)
 				}
+			} else {
+				tc.borrowIndexThroughReference(expr, span)
 			}
 		}
 		return
@@ -156,14 +165,16 @@ func (tc *typeChecker) dropImplicitBorrowForRefParam(expr ast.ExprID, param symb
 	// BytesView is marked as a borrowed view by declaration identity.  Asking
 	// the type-shape question here also finds a view nested in an aggregate and
 	// means that the next non-reference borrowing type needs only that mark.
-	// Array windows deliberately have no such mark: their runtime header retains
-	// the base allocation, so returning one does not extend an argument loan.
+	// A DYNAMIC array's window has no such mark: its runtime header retains the
+	// base allocation, so returning one does not extend an argument loan. A
+	// range cursor, a raw pointer and a window of a FIXED array retain nothing
+	// and do extend it (borrow_storage_view.go).
 	// The rule asks only the result's shape, not which argument it came from:
 	// `fn two(a: &string, b: &string) -> BytesView` keeps BOTH `a` and `b`
 	// borrowed, although the view reads one of them. That is conservative on
 	// purpose -- naming the source argument needs the return-origin fact at
 	// the call site, and a missed source would be a use-after-free.
-	if returnOriginTypeShape(tc.types, result, nil) == returnOriginCarriesRef {
+	if tc.callResultKeepsLoan(callee, actual, result) {
 		return
 	}
 	tc.dropBorrowForExpr(expr, span, "temp_borrow")
@@ -230,7 +241,7 @@ func (tc *typeChecker) dropImplicitBorrowsForCall(sym *symbols.Symbol, args []ca
 		if expectedType != types.NoTypeID {
 			tc.dropImplicitBorrow(arg.expr, expectedType, arg.ty, tc.exprSpan(arg.expr))
 		}
-		tc.dropImplicitBorrowForRefParam(arg.expr, sig.Params[paramIndex], arg.ty, result, tc.exprSpan(arg.expr))
+		tc.dropImplicitBorrowForRefParamOf(sym, arg.expr, sig.Params[paramIndex], arg.ty, result, tc.exprSpan(arg.expr))
 		tc.dropImplicitBorrowForValueParam(arg.expr, sig.Params[paramIndex], arg.ty, tc.exprSpan(arg.expr))
 		if paramIndex == i {
 			tc.noteIndexTemporaryArg(arg.expr, sig, paramIndex, result)

@@ -130,7 +130,7 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 					tc.applyMethodReceiverOwnership(symID, member.Target, receiverType)
 					if sym := tc.symbolFromID(symID); sym != nil && sym.Signature != nil {
 						if len(sym.Signature.Params) > 0 {
-							tc.dropImplicitBorrowForRefParam(member.Target, sym.Signature.Params[0], receiverType, resultType, tc.exprSpan(member.Target))
+							tc.dropImplicitBorrowForRefParamOf(sym, member.Target, sym.Signature.Params[0], receiverType, resultType, tc.exprSpan(member.Target))
 							tc.noteIndexTemporaryArg(member.Target, sym.Signature, 0, resultType)
 						}
 						if len(sym.Signature.Params) > 0 {
@@ -147,7 +147,7 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 								if i >= len(argTypes) || paramIndex >= len(sym.Signature.Params) {
 									break
 								}
-								tc.dropImplicitBorrowForRefParam(arg.Value, sym.Signature.Params[paramIndex], argTypes[i], resultType, tc.exprSpan(arg.Value))
+								tc.dropImplicitBorrowForRefParamOf(sym, arg.Value, sym.Signature.Params[paramIndex], argTypes[i], resultType, tc.exprSpan(arg.Value))
 								tc.noteIndexTemporaryArg(arg.Value, sym.Signature, paramIndex, resultType)
 								tc.dropImplicitBorrowForValueParam(arg.Value, sym.Signature.Params[paramIndex], argTypes[i], tc.exprSpan(arg.Value))
 							}

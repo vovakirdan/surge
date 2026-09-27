@@ -3,6 +3,7 @@ package driver
 import (
 	"testing"
 
+	"surge/internal/diag"
 	"surge/internal/sema"
 )
 
@@ -12,9 +13,9 @@ import (
 // read at the projection: loading or passing the place on still asks
 // containerLoans or the backing-call targets, which refuse a base they cannot
 // prove. A fixed-array or cursor field keeps the projection refusal: its view or
-// cursor points into the referent itself, and the checker does not keep the
-// caller's argument borrowed while that result lives (grow_after_view reallocates
-// the element the view reads, overwrite_after_view writes the viewed storage).
+// cursor points into the referent itself. The callers that reallocate or
+// overwrite the viewed storage while the view lives are refused by the checker,
+// which keeps the argument borrowed (TestFieldBorrowWindowCallersAreRefused).
 const fieldBorrowSource = `pragma module::dep;
 type Bag = { items: int64[] };
 type Win = { cells: uint64[4] };
@@ -38,19 +39,6 @@ fn view_of_field(w: &Win) -> uint64[] {
 fn cursor_of_field(w: &Win) -> Range<uint64> {
     return w.cells.__range();
 }
-fn grow_after_view() -> uint64 {
-    let mut xs: Win[] = [];
-    xs.push(Win { cells = [11:uint64, 22:uint64, 33:uint64, 44:uint64] });
-    let v = view_of_field(&xs[0]);
-    xs.push(Win { cells = [1:uint64, 2:uint64, 3:uint64, 4:uint64] });
-    return clone(v[1]);
-}
-fn overwrite_after_view() -> uint64 {
-    let mut w: Win = Win { cells = [11:uint64, 22:uint64, 33:uint64, 44:uint64] };
-    let v = view_of_field(&w);
-    w = Win { cells = [1:uint64, 2:uint64, 3:uint64, 4:uint64] };
-    return clone(v[1]);
-}
 fn through(pp: &&Bag) -> &int64[] {
     let p: &Bag = *pp;
     return p.items;
@@ -72,13 +60,13 @@ fn stash_local_view(h: &mut Nest) -> nothing {
 }
 `
 
-const fieldBorrowDigest = "e3e6c6b61edfff00d0a4dca9a63b767835b74fcd878c3dbff9c1a13450d0bc35"
+const fieldBorrowDigest = "f5fe4e728f37b0044611f0ca9b0d7213f3c48fa915043535da87ed4cbd85d05c"
 
 const fieldBorrowDerefRefusal = "reference loaded through another reference needs content provenance"
 
 const fieldBorrowCalleeRefusal = "callee returned an unproved source"
 
-// 1 parent + 12 leaves = 13 RUN.
+// 1 parent + 10 leaves = 11 RUN.
 func TestAnalyzeFieldBorrowOrigins(t *testing.T) {
 	f, analysis := analyzeOriginDependency(t, "field_borrow", fieldBorrowSource, nil)
 	checkOriginBodyLeaves(t, analysis, f, fieldBorrowSource, fieldBorrowDigest, []originBodyLeaf{
@@ -88,30 +76,25 @@ func TestAnalyzeFieldBorrowOrigins(t *testing.T) {
 		{name: "push_byte", body: "push_byte", function: originSpan{275, 365, "fn push_byte(h: &mut Bytes, x: byte) -> nothing {\n    h.buf.push(x);\n    return nothing;\n}"}, clean: true},
 		{name: "count", body: "count", function: originSpan{366, 423, "fn count(h: &Bytes) -> uint {\n    return h.buf.__len();\n}"}, clean: true},
 		// Witnesses: a fixed-array field's view and cursor keep the projection
-		// refusal, so the callers that outlive or overwrite the viewed storage
-		// never finish on a proven source.
+		// refusal.
 		{name: "fixed_view_field", body: "view_of_field", function: originSpan{424, 493, "fn view_of_field(w: &Win) -> uint64[] {\n    return w.cells[[0..2]];\n}"},
 			stays: []originRefusal{{originSpan{475, 482, "w.cells"}, originProjectionRefusal}, {originSpan{450, 461, "-> uint64[]"}, originResultRefusal}}},
 		{name: "fixed_cursor_field", body: "cursor_of_field", function: originSpan{494, 572, "fn cursor_of_field(w: &Win) -> Range<uint64> {\n    return w.cells.__range();\n}"},
 			stays: []originRefusal{{originSpan{552, 559, "w.cells"}, originProjectionRefusal}, {originSpan{522, 538, "-> Range<uint64>"}, originResultRefusal}}},
-		{name: "grow_after_view", body: "grow_after_view", function: originSpan{573, 840, "fn grow_after_view() -> uint64 {\n    let mut xs: Win[] = [];\n    xs.push(Win { cells = [11:uint64, 22:uint64, 33:uint64, 44:uint64] });\n    let v = view_of_field(&xs[0]);\n    xs.push(Win { cells = [1:uint64, 2:uint64, 3:uint64, 4:uint64] });\n    return clone(v[1]);\n}"},
-			stays: []originRefusal{{originSpan{721, 742, "view_of_field(&xs[0])"}, fieldBorrowCalleeRefusal}}},
-		{name: "overwrite_after_view", body: "overwrite_after_view", function: originSpan{841, 1084, "fn overwrite_after_view() -> uint64 {\n    let mut w: Win = Win { cells = [11:uint64, 22:uint64, 33:uint64, 44:uint64] };\n    let v = view_of_field(&w);\n    w = Win { cells = [1:uint64, 2:uint64, 3:uint64, 4:uint64] };\n    return clone(v[1]);\n}"},
-			stays: []originRefusal{{originSpan{974, 991, "view_of_field(&w)"}, fieldBorrowCalleeRefusal}}},
 		// Witnesses: an unproved reference, a nested place, the loans of a
 		// container read through the projection, and a store of an element that
 		// can hold loans into the projected container all keep their refusal.
-		{name: "unknown_reference", body: "through", function: originSpan{1085, 1165, "fn through(pp: &&Bag) -> &int64[] {\n    let p: &Bag = *pp;\n    return p.items;\n}"},
-			stays: []originRefusal{{originSpan{1139, 1142, "*pp"}, fieldBorrowDerefRefusal}, {originSpan{1107, 1118, "-> &int64[]"}, originResultRefusal}}},
-		{name: "nested_place", body: "nested", function: originSpan{1166, 1228, "fn nested(s: &Shelf) -> &uint64[] {\n    return s.rows.cells;\n}"},
-			stays: []originRefusal{{originSpan{1213, 1225, "s.rows.cells"}, originProjectionRefusal}, {originSpan{1187, 1199, "-> &uint64[]"}, originResultRefusal}}},
-		{name: "dynamic_view_loans", body: "view_rows", function: originSpan{1229, 1295, "fn view_rows(w: &Rows) -> uint64[] {\n    return w.cells[[0..2]];\n}"},
-			stays:   []originRefusal{{originSpan{1277, 1292, "w.cells[[0..2]]"}, arrayPopContainerLoanBase}, {originSpan{1252, 1263, "-> uint64[]"}, originResultRefusal}},
-			cleared: []originRefusal{{originSpan{1277, 1284, "w.cells"}, originProjectionRefusal}}},
-		{name: "store_through_mut", body: "keep_view", function: originSpan{1296, 1391, "fn keep_view(h: &mut Nest, v: uint64[]) -> nothing {\n    h.items.push(v);\n    return nothing;\n}"},
-			stays: []originRefusal{{originSpan{1353, 1368, "h.items.push(v)"}, rangeNextLoanElement}}},
-		{name: "store_local_view", body: "stash_local_view", function: originSpan{1392, 1544, "fn stash_local_view(h: &mut Nest) -> nothing {\n    let a: uint64[3] = [1:uint64, 2:uint64, 3:uint64];\n    h.items.push(a[[0..2]]);\n    return nothing;\n}"},
-			stays: []originRefusal{{originSpan{1498, 1521, "h.items.push(a[[0..2]])"}, rangeNextLoanElement}, {originSpan{1498, 1521, "h.items.push(a[[0..2]])"}, backingLoanDiscard}}},
+		{name: "unknown_reference", body: "through", function: originSpan{573, 653, "fn through(pp: &&Bag) -> &int64[] {\n    let p: &Bag = *pp;\n    return p.items;\n}"},
+			stays: []originRefusal{{originSpan{627, 630, "*pp"}, fieldBorrowDerefRefusal}, {originSpan{595, 606, "-> &int64[]"}, originResultRefusal}}},
+		{name: "nested_place", body: "nested", function: originSpan{654, 716, "fn nested(s: &Shelf) -> &uint64[] {\n    return s.rows.cells;\n}"},
+			stays: []originRefusal{{originSpan{701, 713, "s.rows.cells"}, originProjectionRefusal}, {originSpan{675, 687, "-> &uint64[]"}, originResultRefusal}}},
+		{name: "dynamic_view_loans", body: "view_rows", function: originSpan{717, 783, "fn view_rows(w: &Rows) -> uint64[] {\n    return w.cells[[0..2]];\n}"},
+			stays:   []originRefusal{{originSpan{765, 780, "w.cells[[0..2]]"}, arrayPopContainerLoanBase}, {originSpan{740, 751, "-> uint64[]"}, originResultRefusal}},
+			cleared: []originRefusal{{originSpan{765, 772, "w.cells"}, originProjectionRefusal}}},
+		{name: "store_through_mut", body: "keep_view", function: originSpan{784, 879, "fn keep_view(h: &mut Nest, v: uint64[]) -> nothing {\n    h.items.push(v);\n    return nothing;\n}"},
+			stays: []originRefusal{{originSpan{841, 856, "h.items.push(v)"}, rangeNextLoanElement}}},
+		{name: "store_local_view", body: "stash_local_view", function: originSpan{880, 1032, "fn stash_local_view(h: &mut Nest) -> nothing {\n    let a: uint64[3] = [1:uint64, 2:uint64, 3:uint64];\n    h.items.push(a[[0..2]]);\n    return nothing;\n}"},
+			stays: []originRefusal{{originSpan{986, 1009, "h.items.push(a[[0..2]])"}, rangeNextLoanElement}, {originSpan{986, 1009, "h.items.push(a[[0..2]])"}, backingLoanDiscard}}},
 	})
 }
 
@@ -142,4 +125,45 @@ func TestAnalyzeFieldBorrowEscape(t *testing.T) {
 		t.Errorf("escaped container projection pending = %+v, want none: the SEM3139 refusal completes the result at %q", local, result.snippet)
 	}
 	requireOriginSummary(t, analysis, f.owner.File.ID, "leak_items", true, nil)
+}
+
+// A caller that reallocates or overwrites the storage a fixed-array field's
+// window reads, while the window lives, is refused by the checker: the call
+// keeps its `&` argument borrowed for as long as the window. grow_after_view
+// reallocates the element the view reads, overwrite_after_view writes the
+// viewed storage.
+const fieldBorrowWindowPrelude = `type Win = { cells: uint64[4] };
+
+fn view_of_field(w: &Win) -> uint64[] {
+    return w.cells[[0..2]];
+}
+
+`
+
+func TestFieldBorrowWindowCallersAreRefused(t *testing.T) {
+	rows := []struct {
+		name, body, snippet string
+		code                diag.Code
+	}{
+		{"grow_after_view", `fn grow_after_view() -> uint64 {
+    let mut xs: Win[] = [];
+    xs.push(Win { cells = [11:uint64, 22:uint64, 33:uint64, 44:uint64] });
+    let v = view_of_field(&xs[0]);
+    xs.push(Win { cells = [1:uint64, 2:uint64, 3:uint64, 4:uint64] });
+    return clone(v[1]);
+}
+`, "xs.push(Win { cells = [1:", diag.SemaBorrowConflict},
+		{"overwrite_after_view", `fn overwrite_after_view() -> uint64 {
+    let mut w: Win = Win { cells = [11:uint64, 22:uint64, 33:uint64, 44:uint64] };
+    let v = view_of_field(&w);
+    w = Win { cells = [1:uint64, 2:uint64, 3:uint64, 4:uint64] };
+    return clone(v[1]);
+}
+`, "w = Win { cells = [1:", diag.SemaBorrowMutation},
+	}
+	for _, row := range rows {
+		t.Run(row.name, func(t *testing.T) {
+			refOutwardRefusal(t, fieldBorrowWindowPrelude+row.body, row.code, row.snippet)
+		})
+	}
 }

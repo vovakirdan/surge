@@ -124,7 +124,7 @@ func (tc *typeChecker) holdViewLoansForBinding(symID symbols.SymbolID, expr ast.
 	if tc.borrow == nil || tc.types == nil || tc.result == nil || !symID.IsValid() || !expr.IsValid() {
 		return
 	}
-	if !tc.mayCarryView(tc.result.ExprTypes[expr]) && !tc.mayCarryView(tc.bindingType(symID)) {
+	if !tc.mayHoldStorageLoan(tc.result.ExprTypes[expr]) && !tc.mayHoldStorageLoan(tc.bindingType(symID)) {
 		return
 	}
 	loans := tc.viewLoansOfExpr(expr)
@@ -164,12 +164,16 @@ func (tc *typeChecker) viewLoansOfExpr(expr ast.ExprID) []BorrowID {
 		return nil
 	}
 	var operands []ast.ExprID
+	var loans []BorrowID
 	switch node.Kind {
 	case ast.ExprIdent:
 		return append([]BorrowID(nil), tc.viewLoans[tc.symbolForExpr(expr)]...)
 	case ast.ExprIndex:
 		if data, ok := tc.builder.Exprs.Index(expr); ok && data != nil {
 			operands = append(operands, data.Target)
+			if bid := tc.fixedWindowIndexLoan(data); bid != NoBorrowID {
+				loans = append(loans, bid)
+			}
 		}
 	case ast.ExprMember:
 		if data, ok := tc.builder.Exprs.Member(expr); ok && data != nil {
@@ -203,15 +207,14 @@ func (tc *typeChecker) viewLoansOfExpr(expr ast.ExprID) []BorrowID {
 	case ast.ExprCompare, ast.ExprTernary, ast.ExprBlock:
 		return tc.choiceValueLoans(expr)
 	}
-	var loans []BorrowID
 	for _, operand := range operands {
 		loans = append(loans, tc.viewLoansOfExpr(operand)...)
 	}
 	return loans
 }
 
-// viewLoansOfCall: a call whose result carries a borrow keeps the borrows of
-// its reference operands past the call (dropImplicitBorrowForRefParam), and
+// viewLoansOfCall: a call whose result can point into an operand keeps that
+// operand's borrow past the call (dropImplicitBorrowForRefParam), and
 // the result depends on them; any call (a tag constructor such as `Some(...)`,
 // a user function) may also pass a view operand through to its result, so the
 // loans of its operands are carried.
@@ -228,9 +231,10 @@ func (tc *typeChecker) viewLoansOfCall(expr ast.ExprID) []BorrowID {
 		operands = append(operands, arg.Value)
 	}
 	var loans []BorrowID
-	producer := returnOriginTypeShape(tc.types, tc.result.ExprTypes[expr], nil) == returnOriginCarriesRef
+	result := tc.result.ExprTypes[expr]
+	callee := tc.symbolFromID(tc.symbolForExpr(expr))
 	for _, operand := range operands {
-		if producer {
+		if tc.callResultKeepsLoan(callee, tc.result.ExprTypes[operand], result) {
 			bid := tc.borrow.ExprBorrow(tc.unwrapGroupExpr(operand))
 			if bid == NoBorrowID {
 				bid = tc.inheritedBorrowForExpr(operand)

@@ -85,6 +85,11 @@ func (tc *typeChecker) indexResultLoan(expr ast.ExprID) BorrowID {
 	if !ok || data == nil {
 		return NoBorrowID
 	}
+	// The index borrows its target as written: `(*p)[1]` keys the loan on the
+	// group, not on `*p` inside it.
+	if bid := tc.borrow.ExprBorrow(data.Target); bid != NoBorrowID {
+		return bid
+	}
 	if bid := tc.borrow.ExprBorrow(tc.unwrapGroupExpr(data.Target)); bid != NoBorrowID {
 		return bid
 	}
@@ -159,6 +164,14 @@ func (tc *typeChecker) inheritedBorrowForCall(expr ast.ExprID) BorrowID {
 			return
 		}
 		bid := tc.inheritedBorrowForExpr(argExpr)
+		if bid == NoBorrowID {
+			// An element reference handed through -- `r = ident(xs[1])` --
+			// stands on the loan the index keeps on its target, as `r = xs[1]`
+			// does. Without it the binding held nothing, and a store from an
+			// inner block let that loan expire at the block's end while `r`
+			// still pointed into `xs`.
+			bid = tc.indexResultLoan(argExpr)
+		}
 		if bid == NoBorrowID {
 			return
 		}

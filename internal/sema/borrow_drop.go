@@ -290,7 +290,7 @@ func (tc *typeChecker) holdScrutineeLoansForArmBindings(bindings []symbols.Symbo
 		tc.viewLoans = make(map[symbols.SymbolID][]BorrowID)
 	}
 	for _, sym := range bindings {
-		if !tc.mayCarryView(tc.bindingType(sym)) {
+		if !tc.mayHoldStorageLoan(tc.bindingType(sym)) {
 			continue
 		}
 		for _, bid := range loans {

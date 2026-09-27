@@ -61,6 +61,7 @@ func (tc *typeChecker) walkForInStmt(id ast.StmtID, stmt *ast.Stmt) {
 	}
 
 	elemType := tc.forInElementType(forIn, iterableType, scope, stmt.Span)
+	iterableLoan := tc.borrowForInIterable(forIn.Iterable, iterableType)
 
 	var loopSym symbols.SymbolID
 	if forIn.Pattern != source.NoStringID {
@@ -84,6 +85,7 @@ func (tc *typeChecker) walkForInStmt(id ast.StmtID, stmt *ast.Stmt) {
 	tc.walkStmt(forIn.Body)
 	tc.closeLoopFlow(beforeLoop, "for-in loop")
 	tc.leaveLoopDropScope()
+	tc.endForInIterable(iterableLoan)
 	if !consumingRequested {
 		tc.rejectMoveOutOfLoopBinding(forIn, loopSym)
 	}

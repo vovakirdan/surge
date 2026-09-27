@@ -223,6 +223,20 @@ func (tc *typeChecker) loanRootBase(expr ast.ExprID) symbols.SymbolID {
 	}
 	inner := tc.unwrapGroupExpr(expr)
 	bid := tc.borrow.ExprBorrow(inner)
+	if info := tc.borrow.Info(bid); info != nil && info.Place.Base == tc.symbolForExpr(inner) &&
+		tc.isReferenceType(tc.bindingType(info.Place.Base)) {
+		// A reference binding handed to a call whose result can point into its
+		// referent takes a child loan on the binding itself
+		// (dropImplicitBorrowForRefParam). That loan names the reference, not
+		// where it points, so only the binding's own loan is asked.
+		bid = NoBorrowID
+		if tc.bindingBorrow != nil {
+			bid = tc.bindingBorrow[info.Place.Base]
+		}
+		if bid == NoBorrowID {
+			return symbols.NoSymbolID
+		}
+	}
 	if bid == NoBorrowID {
 		if symID := tc.symbolForExpr(inner); symID.IsValid() && tc.bindingBorrow != nil {
 			bid = tc.bindingBorrow[symID]
