@@ -226,7 +226,9 @@ func (tc *typeChecker) inferStructLiteralType(data *ast.ExprStructData, scope sy
 
 	var resultType types.TypeID
 	if len(missing) == 0 {
-		resultType = tc.instantiateType(symID, args, span, "ctor")
+		resultType = tc.instantiateAtTaskInMapSite(args, span, func() types.TypeID {
+			return tc.instantiateType(symID, args, span, "ctor")
+		})
 	} else {
 		tc.reportStructInferenceFailure(sym.Name, missing, span)
 		resultType = structType

@@ -2120,6 +2120,27 @@ Nesting follows the same rule at every level:
   `Channel<Task<T>>` is not a task result and stays accepted. The rule concerns a local `Task<T>` only:
   a `far Task<T>` (the handle `spawn on` returns) in a task's result is allowed
   (`async fn start(dst: Placement) -> far Task<int>`; owner ruling 2026-09-26).
+- A `Map` may not hold a task in its key or its value (`SemaTaskInMap`, SEM3225, owner ruling
+  2026-09-28): not directly (`Map<int, Task<int>>`), and not through an `Option` or other union, a
+  tuple, an array or a struct field. The task container check drains arrays but does not see into a
+  map, and a map has no draining walk, so a task put into a map can be lost without being awaited.
+  The error is reported once where the map type is written or made: a `Map<...>` type, a turbofish
+  `Map::<K, V>::new()`, a map literal whose entries are tasks, a generic type instantiated with a
+  task (`Box<Task<int>>` over `type Box<T> = { m: Map<int, T> }`), or a call of a generic function
+  whose result becomes such a map only through its type arguments; a map nested in a map is reported
+  once, at the inner map. The rule concerns a local `Task<T>` held by value only: a `far Task<T>` (the
+  handle `spawn on` returns) and a reference to a task (`Map<int, &Task<int>>`) are not counted. Keep
+  the tasks in an array and drain it, or store the task results in the map instead:
+
+  ```sg
+  let mut q: Task<int>[] = [];     // not Map<int, Task<int>>
+  q.push(spawn work(1));
+  q.push(spawn work(2));
+  while q.__len() != 0:uint {
+      let t = q.pop().safe();
+      let _ = t.await();
+  }
+  ```
 - `Task<T>` cannot be stored in module-level variables (`SemaTaskEscapesScope`). Since a module holds only `const`, this is now reached only alongside `SemaModuleLevelLet`.
 
 #### `@failfast` Attribute

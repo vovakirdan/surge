@@ -25,7 +25,8 @@ const (
 	originMapLiteralTagRow      = "tag constructor lacks its original declaration target"
 )
 
-// Entries an insert refuses, and tag and task entries.
+// Entries an insert refuses, and tag entries. The task entry lives in task_in_map_test.go: a map
+// literal of tasks is refused by SEM3225 before return origins run.
 const originMapLiteralInsertRulesSource = `fn tag_value() -> uint {
     let m = { "a" => Some(1) };
     return m.length();
@@ -33,15 +34,6 @@ const originMapLiteralInsertRulesSource = `fn tag_value() -> uint {
 
 fn tag_values() -> uint {
     let m = { "a" => Some("x" * 40), "b" => Some("y" * 40) };
-    return m.length();
-}
-
-async fn work(v: int) -> int {
-    return v + 1;
-}
-
-fn task_values() -> uint {
-    let m = { 1 => work(1), 2 => work(2) };
     return m.length();
 }
 
@@ -154,7 +146,7 @@ fn through_ref(r: &(Option<&int>, int)) -> Map<int, Option<&int>> {
 const (
 	originMapLiteralFinishDigest      = "2ad20ba692bc6e9ed7fd059bf64b8bacc666d9b61655d97d9082d76668f2c97f"
 	originMapLiteralUnvisitedDigest   = "23b0e0141eb1cfd0eb013bd7f09bb81e4f0657f0c88be2a0614bd2d86d5df388"
-	originMapLiteralInsertRulesDigest = "13460bfb07480c83ecb109301bbae653c08268eabb3ee2a4984fa266c92eec2a"
+	originMapLiteralInsertRulesDigest = "febf0627f87d0dc28b820d6ea2e12533e9202ee5ed134c5c4b04de0a78d66b53"
 	originMapLiteralEntryDigest       = "1f352d6845400b8eb1f4e97106d455c153de566d47a7764e60c528d628f71c76"
 )
 
@@ -354,8 +346,8 @@ func TestAnalyzeMapLiteralTypedAuthority(t *testing.T) {
 	})
 }
 
-// 5 RUN: 1 parent, 4 leaves. A tag constructor the resolver never saw is refused before the tag transfer reads its
-// untyped target; a task value is left to the task check; a range value keeps the insert's loan row.
+// 4 RUN: 1 parent, 3 leaves. A tag constructor the resolver never saw is refused before the tag transfer reads its
+// untyped target; a range value keeps the insert's loan row.
 func TestAnalyzeMapLiteralInsertRules(t *testing.T) {
 	type w = struct{ snippet, reason string }
 	rows := []originMapLiteralRow{
@@ -364,8 +356,6 @@ func TestAnalyzeMapLiteralInsertRules(t *testing.T) {
 		{name: "tag_values_are_refused_before_evaluation", header: "fn tag_values(", body: "tag_values",
 			want:  []w{{`{ "a" => Some("x" * 40), "b" => Some("y" * 40) }`, originMapLiteralUnvisited}},
 			allow: []string{originMapLiteralTagRow}},
-		{name: "task_values_are_left_to_the_task_check", header: "fn task_values(", body: "task_values",
-			want: []w{{"{ 1 => work(1), 2 => work(2) }", originMapLiteralTask}}},
 		{name: "range_value_keeps_the_insert_loan_row", header: "fn range_values(", body: "range_values",
 			want: []w{{"{ 1 => 0..3 }", originMapLiteralLoanElement}}},
 	}

@@ -575,6 +575,13 @@ const (
 	// through a union, tuple, array, map or struct field. Owner ruling 2026-09-26.
 	SemaTaskPayloadIsTask Code = 3223
 
+	// 3224 is taken by an adjacent validation packet.
+	// SemaTaskInMap refuses a Map whose key or value type holds a task, directly or
+	// through a union, tuple, array, struct field or generic argument. The task
+	// container check does not see into a map, and a map has no draining walk, so
+	// a task put there can be lost without being awaited. Owner ruling 2026-09-28.
+	SemaTaskInMap Code = 3225
+
 	// Ошибки I/O
 
 	// IOLoadFileError indicates file load error.
@@ -852,6 +859,7 @@ var ( // todo расширить описания и использовать к
 		SemaLetTuplePattern:                "a `let` binds one name; a tuple pattern is written only in a `compare` arm",
 		SemaNonexhaustiveGuardedMatch:      "non-exhaustive pattern match: every arm for a variant can miss",
 		SemaTaskPayloadIsTask:              "a task's result may not contain a task; await it, then `spawn` the inner work in the caller",
+		SemaTaskInMap:                      "a Map cannot hold a task: tasks in a map can be lost without being awaited",
 		SemaPartialMoveNeedsOwn:            "taking a field out of a live value must be written `own`",
 		SemaPartialMoveFromTemporary:       "cannot take a field out of a value nothing holds",
 		SemaStoreThroughSharedRef:          "cannot write through a shared reference",

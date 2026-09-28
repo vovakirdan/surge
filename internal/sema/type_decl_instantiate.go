@@ -537,5 +537,5 @@ func (tc *typeChecker) instantiateGenericType(baseType types.TypeID, typeArgs []
 	}
 
 	// Instantiate the type with the given type args
-	return tc.instantiateTypeRejectingChannelPayloadRef(symID, typeArgs, site)
+	return tc.instantiateStaticReceiver(symID, typeArgs, site)
 }

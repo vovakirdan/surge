@@ -25,13 +25,15 @@ import (
 //     a generic declaration (instantiation builds the type with no source span).
 const taskPayloadIsTaskMessage = "a task's result may not contain a task; await the outer work, then `spawn` the inner work in the caller"
 
-// instantiateNamedType is resolveNamedType's instantiation, checked by the rule at its source
-// site. nominalInstantiations marks the field types re-resolved inside it, which are not sites.
+// instantiateNamedType is resolveNamedType's instantiation, checked by this rule and the
+// task-in-map rule (task_in_map.go) at its source site. nominalInstantiations marks the field
+// types re-resolved inside it, which are not sites.
 func (tc *typeChecker) instantiateNamedType(symID symbols.SymbolID, args []types.TypeID, span source.Span) types.TypeID {
 	tc.nominalInstantiations++
 	instantiated := tc.instantiateType(symID, args, span, "type")
 	tc.nominalInstantiations--
 	tc.reportTaskPayloadIsTask(instantiated, args, span)
+	tc.reportNominalTaskInMap(instantiated, args, span)
 	return instantiated
 }
 

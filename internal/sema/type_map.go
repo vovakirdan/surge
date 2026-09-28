@@ -60,7 +60,11 @@ func (tc *typeChecker) instantiateMapType(key, value types.TypeID, span source.S
 	if !tc.mapSymbol.IsValid() {
 		return types.NoTypeID
 	}
-	if !tc.isMapKeyType(key) {
+	refused := tc.reportTaskInMap(key, value, span)
+	// A task key is the task-in-map rule's error, here or at the site instantiating this map;
+	// the map keeps its type so its uses do not cascade.
+	answered := tc.holdsTask(key, make(map[types.TypeID]bool)) && (refused || tc.taskInMapAnsweredOutside())
+	if !answered && !tc.isMapKeyType(key) {
 		tc.report(diag.SemaTypeMismatch, span, "map key type must be hashable (string or integer)")
 		return types.NoTypeID
 	}

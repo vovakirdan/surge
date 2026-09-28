@@ -500,6 +500,12 @@ func sha256Hex(text string) string {
 // SEM3223 in the root file (at least one): the fixture, the closure and the analysis are the same.
 func analyzeOriginRootUnderTaskPayloadRule(t *testing.T, stage, text string) (originalGenericFixture, *sema.ReturnOriginAnalysis) {
 	t.Helper()
+	return analyzeOriginRootUnderRule(t, stage, text, diag.SemaTaskPayloadIsTask)
+}
+
+// analyzeOriginRootUnderRule is analyzeOriginRootUnderTaskPayloadRule for the one refusing rule named.
+func analyzeOriginRootUnderRule(t *testing.T, stage, text string, rule diag.Code) (originalGenericFixture, *sema.ReturnOriginAnalysis) {
+	t.Helper()
 	stdlib := detectStdlibRootFrom(".")
 	if stdlib == "" {
 		t.Fatal("PRECONDITION: real stdlib unavailable")
@@ -534,7 +540,7 @@ func analyzeOriginRootUnderTaskPayloadRule(t *testing.T, stage, text string) (or
 	if !ok || res.Sema == nil || res.Sema.TypeInterner == nil || len(res.Sema.ExprTypes) == 0 {
 		t.Fatal("PRECONDITION: real stdlib source did not retain original typed artifacts")
 	}
-	requireOnlyTaskPayloadRule(t, res)
+	requireOnlyRule(t, res, rule)
 	if closeErr := FinalizeInstantiationClosure(t.Context(), res, 64); closeErr != nil {
 		t.Fatalf("PRECONDITION: source closure failed: %v", closeErr)
 	}
@@ -542,7 +548,7 @@ func analyzeOriginRootUnderTaskPayloadRule(t *testing.T, stage, text string) (or
 	if err != nil || len(inputs.units) != 11 {
 		t.Fatalf("PRECONDITION: full eleven-unit input missing: units=%d error=%v", len(inputs.units), err)
 	}
-	requireOnlyTaskPayloadRule(t, res)
+	requireOnlyRule(t, res, rule)
 	f := originalGenericFixture{owner: res, authority: res.Sema, inputs: inputs}
 	owners := 0
 	for _, unit := range inputs.units {
@@ -562,8 +568,8 @@ func analyzeOriginRootUnderTaskPayloadRule(t *testing.T, stage, text string) (or
 	return f, analysis
 }
 
-// requireOnlyTaskPayloadRule: every error of every original bag is SEM3223 in the root file, and there is one.
-func requireOnlyTaskPayloadRule(t *testing.T, res *DiagnoseResult) {
+// requireOnlyRule: every error of every original bag is the rule's in the root file, and there is one.
+func requireOnlyRule(t *testing.T, res *DiagnoseResult, code diag.Code) {
 	t.Helper()
 	bags := []*diag.Bag{res.Bag}
 	for _, rec := range res.moduleRecords {
@@ -580,13 +586,13 @@ func requireOnlyTaskPayloadRule(t *testing.T, res *DiagnoseResult) {
 			if d == nil || d.Severity < diag.SevError {
 				continue
 			}
-			if d.Code != diag.SemaTaskPayloadIsTask || d.Primary.File != res.File.ID {
-				t.Fatalf("PRECONDITION: the retired program has an error besides SEM3223 in its own file: %+v", *d)
+			if d.Code != code || d.Primary.File != res.File.ID {
+				t.Fatalf("PRECONDITION: the retired program has an error besides %s in its own file: %+v", code.ID(), *d)
 			}
 			rule++
 		}
 	}
 	if rule == 0 {
-		t.Fatal("the retired program is no longer refused by SEM3223: the first line this row stands behind is gone")
+		t.Fatalf("the retired program is no longer refused by %s: the first line this row stands behind is gone", code.ID())
 	}
 }

@@ -109,7 +109,13 @@ type typeChecker struct {
 	awaitDepth             int
 	// nominalInstantiations counts the type instantiations in progress; a field type
 	// re-resolved inside one is not a source site of its own (task_payload_is_task.go).
-	nominalInstantiations       int
+	nominalInstantiations int
+	// taskInMapSiteInstantiations counts the instantiations whose own site the task-in-map rule
+	// answers once they are built: a generic struct literal and a static call's `Type::<Args>`.
+	// Field types re-resolved inside them are not sites (task_in_map.go).
+	taskInMapSiteInstantiations int
+	// taskMapCallAnswers caches holdsTaskMap by type for the call rule, which asks it of every call.
+	taskMapCallAnswers          map[types.TypeID]bool
 	asyncBlockDepth             int // Track nesting level of async blocks for error differentiation
 	returnStack                 []returnContext
 	fnSymStack                  []symbols.SymbolID // current function (for instantiation use-sites)
