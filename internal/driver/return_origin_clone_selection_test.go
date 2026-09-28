@@ -177,7 +177,8 @@ func checkOriginBodyLeaves(t *testing.T, analysis *sema.ReturnOriginAnalysis, f 
 // A direct clone of a concrete non-Copy value is the call to its program-wide
 // __clone. When that selection is the certified body-less core intrinsic, the
 // owned result keeps no source and the `clone` name is never read as a value.
-// A Copy clone, a __clone with a body and every broken selection keep refusing.
+// A Copy clone has no selection and is a copy of a reference-free value, so it
+// is fresh too. A __clone with a body and every broken selection keep refusing.
 const directCloneSource = `pragma module::dep;
 fn first_text(parts: string[]) -> string {
     return clone(parts[0]);
@@ -283,7 +284,7 @@ func TestAnalyzeSelectedDirectCloneOrigins(t *testing.T) {
 	numberCall := originSpan{273, 281, "clone(n)"}
 	for _, tc := range []directCloneLeaf{
 		{name: "copy_text", function: copyText, call: originSpan{144, 155, "clone(text)"}, cleared: true},
-		{name: "copy_number_control", function: copyNumber, call: numberCall},
+		{name: "copy_number", function: copyNumber, call: numberCall, cleared: true},
 		{name: "copy_note_control", function: copyNote, call: originSpan{465, 473, "clone(n)"}},
 		{name: "absent_selection_control", function: firstText, call: firstCall, mutate: func(f originalGenericFixture, calls map[string]ast.ExprID) {
 			delete(f.unit.Sema.CloneSymbols, calls["first"])
@@ -301,7 +302,8 @@ func TestAnalyzeSelectedDirectCloneOrigins(t *testing.T) {
 			}
 			f.unit.Sema.ImplicitConversions[calls["index"]] = sema.ImplicitConversion{Kind: sema.ImplicitConversionTo}
 		}},
-		// Synthetic: typing never selects a __clone for a Copy result.
+		// Synthetic: typing never selects a __clone for a Copy result, so a Copy
+		// clone that carries a selection is not the copy and keeps refusing.
 		{name: "copy_result_control", function: copyNumber, call: numberCall, mutate: func(f originalGenericFixture, calls map[string]ast.ExprID) {
 			f.unit.Sema.CloneSymbols[calls["number"]] = f.unit.Sema.CloneSymbols[calls["first"]]
 		}},
