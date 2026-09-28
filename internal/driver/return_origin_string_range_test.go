@@ -62,6 +62,8 @@ fn probe(value: &Foreign, bounds: Range<int>) -> string {
 
 // Exact component sites are reviewed while all eleven original units and
 // unrelated Pending remain visible. This does not assert public Complete.
+// foreign_selected_range finishes: a user __index over a non-string receiver
+// is answered as the call the checker selected.
 func TestAnalyzeTypedStringRangeOrigins(t *testing.T) {
 	for _, tc := range []struct{ name, src string }{
 		{"string_range_forms", stringRangeFormsSource}, {"bound_effect_order", stringRangeEffectSource},
@@ -109,7 +111,9 @@ func TestAnalyzeTypedStringRangeOrigins(t *testing.T) {
 				if equalities != 1 {
 					t.Fatal("PRECONDITION: foreign index lost its single nonconsuming equality use")
 				}
-				allowed = sema.ReturnOriginPending{SourceKey: root.SourceKey, Span: root.Builder.Exprs.Get(facts.indexes[0]).Span, Reason: "index requires a non-scalar index transfer"}
+				// The selected foreign __index is a source body with an owned
+				// string result, so the index is answered as that call and
+				// leaves no row; its borrowed operands reach nothing.
 			}
 			var owner, primary source.Span
 			if tc.name == "bound_inner_escape" {
@@ -192,15 +196,13 @@ func TestAnalyzeTypedStringRangeOrigins(t *testing.T) {
 			if slices.Contains(analysis.Pending, facts.array) {
 				t.Errorf("separate Array<T> range obligation is still unfinished: %+v", facts.array)
 			}
-			if tc.name != "foreign_selected_range" {
-				var slots []uint32
-				if tc.name == "bound_effect_order" || tc.name == "wrong_range_constructor" {
-					slots = []uint32{2}
-				}
-				summary := requireReturnOriginSummary(t, analysis, "probe")
-				if summary.Source.File != res.File.ID || summary.NoNormalReturn || summary.Unknown || !slices.Equal(summary.ParamSlots, slots) {
-					t.Errorf("range effects/result lost exact probe sources %v: %+v", slots, summary)
-				}
+			var slots []uint32
+			if tc.name == "bound_effect_order" || tc.name == "wrong_range_constructor" {
+				slots = []uint32{2}
+			}
+			summary := requireReturnOriginSummary(t, analysis, "probe")
+			if summary.Source.File != res.File.ID || summary.NoNormalReturn || summary.Unknown || !slices.Equal(summary.ParamSlots, slots) {
+				t.Errorf("range effects/result lost exact probe sources %v: %+v", slots, summary)
 			}
 			if tc.name == "string_range_forms" {
 				s := requireReturnOriginSummary(t, analysis, "local_slice")

@@ -43,6 +43,9 @@ func (b *returnOriginBody) index(id ast.ExprID, env returnOriginEnv, targets ret
 			out.value = view
 			return out, nil
 		}
+		if reason = b.selectedIndexCall(&out, id, data, target.value, out.value); reason == "" {
+			return out, nil
+		}
 	}
 	// A selected BytesView scalar read is the exact core intrinsic certified by
 	// returnOriginBytesViewReader. Its uint8 result can carry neither a reference
