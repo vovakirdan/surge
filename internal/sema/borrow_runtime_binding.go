@@ -45,6 +45,7 @@ func (tc *typeChecker) updateBindingValue(symID symbols.SymbolID, expr ast.ExprI
 	tc.holdLoanForBinding(symID, bid)
 	tc.holdViewLoansForBinding(symID, expr)
 	tc.holdLoansAsViewLoans(symID, throughReference, bid)
+	tc.holdLoansAsViewLoans(symID, tc.sourceLoansOfHeldLoans(symID, bid, tc.exprSpan(expr)), bid)
 	if bid != NoBorrowID && tc.borrowBindings != nil {
 		if _, exists := tc.borrowBindings[bid]; !exists {
 			tc.borrowBindings[bid] = symID
@@ -70,8 +71,13 @@ func (tc *typeChecker) bindingBorrowForExpr(symID symbols.SymbolID, expr ast.Exp
 	if bid := tc.indexResultLoan(expr); bid != NoBorrowID {
 		return bid
 	}
-
-	return tc.inheritedBorrowForExpr(expr)
+	if bid, projected := tc.projectedMutReborrow(symID, boundType, expr); projected {
+		return bid
+	}
+	if bid := tc.inheritedBorrowForExpr(expr); bid != NoBorrowID {
+		return bid
+	}
+	return tc.reborrowPassedOnMutReference(symID, boundType, expr)
 }
 
 // indexResultLoan: `let b = a[0];` binds a reference into `a`, and the loan it
@@ -161,6 +167,11 @@ func (tc *typeChecker) inheritedBorrowForCall(expr ast.ExprID) BorrowID {
 
 	candidates := make([]BorrowID, 0, 1)
 	seen := make(map[BorrowID]struct{}, 1)
+	// A reference the result may alias that stands on no loan of this
+	// function -- `pickm(r, a)` with r a parameter -- is reached through
+	// none of the other arguments' loans, so no one of them can stand for
+	// the result.
+	unrooted := false
 	addCandidate := func(param symbols.TypeKey, argExpr ast.ExprID) {
 		if !tc.refResultCanAliasParam(tc.result.ExprTypes[expr], param) {
 			return
@@ -175,6 +186,9 @@ func (tc *typeChecker) inheritedBorrowForCall(expr ast.ExprID) BorrowID {
 			bid = tc.indexResultLoan(argExpr)
 		}
 		if bid == NoBorrowID {
+			if len(tc.passedOnReferencePlaces(argExpr, 0)) > 0 {
+				unrooted = true
+			}
 			return
 		}
 		if _, exists := seen[bid]; exists {
@@ -199,7 +213,7 @@ func (tc *typeChecker) inheritedBorrowForCall(expr ast.ExprID) BorrowID {
 		addCandidate(sym.Signature.Params[paramIndex], arg.Value)
 	}
 
-	if len(candidates) == 1 {
+	if len(candidates) == 1 && !unrooted {
 		return candidates[0]
 	}
 	return NoBorrowID

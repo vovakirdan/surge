@@ -69,6 +69,8 @@ type typeChecker struct {
 	bindingBorrow      map[symbols.SymbolID]BorrowID
 	viewLoans          map[symbols.SymbolID][]BorrowID // loans a BytesView binding depends on
 	referentLoans      map[BorrowID]struct{}           // shared loans taken on a reference place's referent (borrow_referent_binding.go)
+	aliasSourceHolder  map[BorrowID]BorrowID           // exclusive loan on an alias's source -> the loan taken through the alias (borrow_passed_on_reborrow.go)
+	refusedAlias       map[symbols.SymbolID]struct{}   // `&mut` aliases whose reborrow was refused and reported (borrow_passed_on_reborrow.go)
 	exclusiveRefUses   []exclusiveRefUse               // exclusive uses through a reference in the outermost statement (borrow_call_arg_order.go)
 	loanDropped        map[symbols.SymbolID]int        // bindings an `@drop` ended with their loan -> hold-scope stack index
 	loopScopeFloors    []int                           // scope-stack depth at each enclosing loop's entry

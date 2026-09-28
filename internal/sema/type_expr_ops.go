@@ -169,8 +169,7 @@ func (tc *typeChecker) typeBinary(exprID ast.ExprID, span source.Span, data *ast
 			res = tc.magicResultFallback(sig.Result, lc, rc)
 		}
 		if res != types.NoTypeID {
-			tc.applyParamOwnership(sig.Params[0], data.Left, leftType, tc.exprSpan(data.Left))
-			tc.applyParamOwnership(sig.Params[1], data.Right, rightType, tc.exprSpan(data.Right))
+			tc.applyBinaryOperandsOwnership(sig.Params, data.Left, leftType, data.Right, rightType)
 			tc.dropImplicitBorrowForRefParam(data.Left, sig.Params[0], leftType, res, tc.exprSpan(data.Left))
 			tc.dropImplicitBorrowForRefParam(data.Right, sig.Params[1], rightType, res, tc.exprSpan(data.Right))
 			tc.dropImplicitBorrowForValueParam(data.Left, sig.Params[0], leftType, tc.exprSpan(data.Left))

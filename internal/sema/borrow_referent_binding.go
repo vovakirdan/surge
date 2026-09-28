@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"surge/internal/ast"
+	"surge/internal/source"
 	"surge/internal/symbols"
 	"surge/internal/types"
 )
@@ -181,23 +182,52 @@ func (w *referentWalk) place(target ast.ExprID) {
 // sources: a place spelled through a local reference that stands on no loan
 // of this function reaches whatever that reference was given.
 func (w *referentWalk) sources(placeExpr ast.ExprID) {
+	if desc, ok := w.tc.resolvePlace(w.tc.unwrapGroupExpr(placeExpr)); ok {
+		w.sourcesOf(desc.Base)
+	}
+}
+
+func (w *referentWalk) sourcesOf(base symbols.SymbolID) {
 	tc := w.tc
-	desc, ok := tc.resolvePlace(tc.unwrapGroupExpr(placeExpr))
-	if !ok || !desc.Base.IsValid() || w.seen[desc.Base] || tc.bindingBorrow[desc.Base] != NoBorrowID ||
-		!tc.isReferenceType(tc.bindingType(desc.Base)) {
+	if !base.IsValid() || w.seen[base] || tc.bindingBorrow[base] != NoBorrowID ||
+		!tc.isReferenceType(tc.bindingType(base)) {
 		return
 	}
-	sym := tc.symbolFromID(desc.Base)
+	sym := tc.symbolFromID(base)
 	if sym == nil || sym.Kind != symbols.SymbolLet {
 		return
 	}
 	if w.seen == nil {
 		w.seen = make(map[symbols.SymbolID]bool)
 	}
-	w.seen[desc.Base] = true
-	for _, src := range tc.lentValues.sources[desc.Base] {
+	w.seen[base] = true
+	for _, src := range tc.lentValues.sources[base] {
 		w.arg(src)
 	}
+}
+
+// sourceLoansOfHeldLoans: a loan the binding holds on a place spelled through
+// a local reference that stands on no loan of this function -- `let e = &mut
+// q[0]`, `let it = q.__range()` with `let q = id(r)` -- guards q's place
+// only, and a grow or a replace through r frees what it points into. The
+// binding also holds a shared loan on each referent q was given, as a shared
+// reference binding does (referentLoansForBinding); an exclusive loan is held
+// exclusively on each (exclusiveSourceLoans).
+func (tc *typeChecker) sourceLoansOfHeldLoans(symID symbols.SymbolID, own BorrowID, span source.Span) []BorrowID {
+	w := referentWalk{tc: tc}
+	var exclusive []BorrowID
+	for _, bid := range append([]BorrowID{own}, tc.viewLoans[symID]...) {
+		info := tc.borrow.Info(bid)
+		if info == nil {
+			continue
+		}
+		if info.Kind == BorrowMut {
+			exclusive = append(exclusive, tc.exclusiveSourceLoans(info, span)...)
+			continue
+		}
+		w.sourcesOf(info.Place.Base)
+	}
+	return append(w.out, exclusive...)
 }
 
 // holdLoansAsViewLoans: a loan the binding's own reference borrow is not (a

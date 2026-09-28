@@ -79,16 +79,23 @@ func (tc *typeChecker) applyCallArgsOwnership(symID symbols.SymbolID, args []ast
 	return true
 }
 
-func (tc *typeChecker) applyMethodArgsOwnership(sym *symbols.Symbol, args []ast.CallArg, argTypes []types.TypeID) bool {
+// applyMethodArgsOwnership applies a method's explicit arguments. The receiver
+// is evaluated first and handed to `self`, so it heads the evaluation order the
+// arguments are checked in: `r[0].foo(appr(r))` hands the callee an element
+// reference the later argument may free.
+func (tc *typeChecker) applyMethodArgsOwnership(sym *symbols.Symbol, recvExpr ast.ExprID, recvType types.TypeID, args []ast.CallArg, argTypes []types.TypeID) bool {
 	if sym == nil || sym.Signature == nil {
 		return false
 	}
 	sig := sym.Signature
 	offset := 0
+	ordered := make([]argumentInOrder, 0, len(args)+1)
 	if sig.HasSelf {
 		offset = 1
+		if recvExpr.IsValid() && len(sig.Params) > 0 {
+			ordered = append(ordered, argumentInOrder{expr: recvExpr, ty: recvType, param: sig.Params[0]})
+		}
 	}
-	ordered := make([]argumentInOrder, 0, len(args))
 	for i, arg := range args {
 		paramIndex := i + offset
 		if i >= len(argTypes) || paramIndex >= len(sig.Params) {

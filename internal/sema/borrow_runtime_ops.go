@@ -173,7 +173,7 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 	if !place.IsValid() {
 		return
 	}
-	issue := tc.borrow.MoveAllowed(place)
+	issue := tc.moveAllowedFor(place, base, direct)
 	evSpan := span
 	if evSpan == (source.Span{}) {
 		evSpan = tc.exprSpan(expr)
@@ -482,11 +482,15 @@ func (tc *typeChecker) handleBorrow(exprID ast.ExprID, span source.Span, op ast.
 			}
 			tc.noteSpawnOperandBorrow(exprID, bid, span)
 			frame.reserved = append(frame.reserved, bid)
+			tc.noteExclusiveBorrowThroughReference(desc, place, span, BorrowIssueNone)
 			return
 		}
 	}
 	bid, issue := tc.borrow.BeginBorrow(exprID, span, kind, place, scope, parent)
 	tc.noteSpawnOperandBorrow(exprID, bid, span)
+	if kind == BorrowMut {
+		tc.noteExclusiveBorrowThroughReference(desc, place, span, issue.Kind)
+	}
 	tc.recordBorrowEvent(&BorrowEvent{
 		Kind:        BorrowEvBorrowStart,
 		Borrow:      bid,

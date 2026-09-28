@@ -29,10 +29,47 @@ type exclusiveRefUse struct {
 // reference -- a `&mut` hand-off of a reference place, or a store through one
 // -- for the enclosing call's argument check. The list lives for one
 // outermost statement.
+//
+// A local reference that stands on no loan of this function reaches what it
+// was given (`let q = id(r)`), so the use is recorded on each of those places
+// too: `use2(r[0], appr(q))` grows the array r[0] points into.
 func (tc *typeChecker) noteExclusiveRefUse(place Place, span source.Span) {
-	if place.IsValid() && len(tc.tempFrames) > 0 {
-		tc.exclusiveRefUses = append(tc.exclusiveRefUses, exclusiveRefUse{place: place, span: span})
+	if !place.IsValid() || len(tc.tempFrames) == 0 {
+		return
 	}
+	tc.exclusiveRefUses = append(tc.exclusiveRefUses, exclusiveRefUse{place: place, span: span})
+	seen := map[symbols.SymbolID]bool{place.Base: true}
+	for _, src := range tc.lentValues.sources[place.Base] {
+		for _, at := range tc.referentReach(src, true, seen) {
+			tc.exclusiveRefUses = append(tc.exclusiveRefUses, exclusiveRefUse{place: at.place, span: span})
+		}
+	}
+}
+
+// noteExclusiveBorrowThroughReference: a new `&mut` borrow of a place spelled
+// through a reference -- `&mut r[0]`, `&mut (*k).items`, or `k.items` handed to
+// a `&mut` parameter -- is an exclusive use of the referent the same as
+// handing the reference on. An element read through the reference as an
+// earlier argument took no loan the borrow could conflict with, so the use is
+// recorded for the call's argument check (`use2(k.items[0], appr(&mut
+// (*k).items))`). A refused borrow records nothing.
+func (tc *typeChecker) noteExclusiveBorrowThroughReference(desc placeDescriptor, place Place, span source.Span, issue BorrowIssueKind) {
+	if issue == BorrowIssueNone && desc.Base.IsValid() && tc.isReferenceType(tc.bindingType(desc.Base)) {
+		tc.noteExclusiveRefUse(place, span)
+	}
+}
+
+// applyBinaryOperandsOwnership applies a binary operator's two operands in
+// evaluation order. The left operand is evaluated first: `xs[0] + grow(xs)` on
+// `xs: &mut string[]` hands the operator an element the right operand may free,
+// as a call's earlier argument would be.
+func (tc *typeChecker) applyBinaryOperandsOwnership(params []symbols.TypeKey, left ast.ExprID, leftType types.TypeID, right ast.ExprID, rightType types.TypeID) {
+	tc.applyParamOwnership(params[0], left, leftType, tc.exprSpan(left))
+	tc.applyParamOwnership(params[1], right, rightType, tc.exprSpan(right))
+	tc.refuseLaterArgumentOverEarlierElement([]argumentInOrder{
+		{expr: left, ty: leftType, param: params[0]},
+		{expr: right, ty: rightType, param: params[1]},
+	})
 }
 
 // argumentInOrder is one argument of a call in evaluation order, with the
@@ -81,9 +118,17 @@ func (tc *typeChecker) refuseLaterArgumentOverEarlierElement(args []argumentInOr
 // returned reference reaches through a reference (referentReach); a plain
 // reference place or an explicit borrow reaches none here -- the first is
 // checked with the call's other reference arguments (noteRefArg), the second
-// holds its own loan.
+// holds its own loan. A compare, ternary or block value reaches what each of
+// its values does.
 func (tc *typeChecker) elementArgumentReach(arg ast.ExprID) []reached {
 	arg = tc.unwrapGroupExpr(arg)
+	if values := tc.choiceValues(arg); len(values) > 0 {
+		out := make([]reached, 0, len(values))
+		for _, value := range values {
+			out = append(out, tc.elementArgumentReach(value)...)
+		}
+		return out
+	}
 	if index, ok := tc.builder.Exprs.Index(arg); ok && index != nil {
 		if _, isPlace := tc.resolvePlace(tc.unwrapGroupExpr(index.Target)); !isPlace {
 			return tc.referentReach(index.Target, true, make(map[symbols.SymbolID]bool))

@@ -137,7 +137,7 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 						if len(sym.Signature.Params) > 0 {
 							tc.dropImplicitBorrowForValueParam(member.Target, sym.Signature.Params[0], receiverType, tc.exprSpan(member.Target))
 						}
-						appliedArgsOwnership = tc.applyMethodArgsOwnership(sym, call.Args, argTypes)
+						appliedArgsOwnership = tc.applyMethodArgsOwnership(sym, member.Target, receiverType, call.Args, argTypes)
 						if appliedArgsOwnership {
 							offset := 0
 							if sym.Signature.HasSelf {

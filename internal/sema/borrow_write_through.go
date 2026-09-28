@@ -1,6 +1,8 @@
 package sema
 
 import (
+	"strings"
+
 	"surge/internal/ast"
 	"surge/internal/source"
 	"surge/internal/symbols"
@@ -39,7 +41,7 @@ func (tc *typeChecker) refuseMutRefHandOffOverView(expr ast.ExprID, exprType typ
 	issue := tc.borrow.WriteThroughAllowed(place, parent)
 	switch issue.Kind {
 	case BorrowIssueNone:
-		if !tc.refuseBorrowOfPinnedPlace(place, span, BorrowMut) {
+		if !tc.refuseBorrowOfPinnedPlace(place, span, BorrowMut) && !tc.refuseExclusiveUseOverAliasSources(place, parent, span) {
 			tc.noteRefArg(expr, true, span)
 			tc.noteExclusiveRefUse(place, span)
 		}
@@ -71,6 +73,9 @@ func (tc *typeChecker) checkAssignmentWrite(place, checkedMutRefPlace Place, wri
 	switch {
 	case writeThroughMutRef:
 		issue = tc.borrow.WriteThroughAllowed(checkedPlace, mutRefParent)
+		if issue.Kind == BorrowIssueNone && tc.refuseExclusiveUseOverAliasSources(checkedPlace, mutRefParent, span) {
+			return
+		}
 		tc.noteExclusiveRefUse(checkedPlace, span)
 	case tc.isReferenceType(tc.bindingType(place.Base)) && place == tc.canonicalPlace(placeDescriptor{Base: place.Base}):
 		// A store into the reference binding itself (rebindAllowed).
@@ -147,7 +152,19 @@ func (bt *BorrowTable) isAncestorOrSelf(loan, id BorrowID) bool {
 // Any live SHARED loan of the place still freezes it -- a BytesView or a
 // `&*r` read taken from the chain is exactly such a loan -- and so does an
 // exclusive loan off the chain.
+//
+// A live exclusive loan reborrowed from the chain onto an ELEMENT below the
+// place -- `let e = &mut r[0]` before `app(r)` or `*r = ..` -- is not excused:
+// the use may grow or replace the buffer e points into, and the write through
+// e that follows lands in freed memory. A whole reborrow (`&mut *r`) points at
+// the value itself, which such a use never frees.
 func (bt *BorrowTable) WriteThroughAllowed(place Place, holder BorrowID) BorrowIssue {
+	return bt.writeThroughAllowedExcept(place, holder, nil)
+}
+
+// writeThroughAllowedExcept is WriteThroughAllowed with the exclusive loans
+// skip names left out.
+func (bt *BorrowTable) writeThroughAllowedExcept(place Place, holder BorrowID, skip func(BorrowID) bool) BorrowIssue {
 	if bt == nil || !place.IsValid() {
 		return BorrowIssue{}
 	}
@@ -156,14 +173,21 @@ func (bt *BorrowTable) WriteThroughAllowed(place Place, holder BorrowID) BorrowI
 		return BorrowIssue{Kind: BorrowIssueFrozen, Borrow: state.shared[0]}
 	}
 	for p, st := range bt.placeState {
-		if st.mut == NoBorrowID || !bt.placesOverlap(place, p) {
+		if st.mut == NoBorrowID || !bt.placesOverlap(place, p) || (skip != nil && skip(st.mut)) {
 			continue
 		}
-		if !bt.onReborrowChain(st.mut, holder, place.Base) {
+		if !bt.onReborrowChain(st.mut, holder, place.Base) ||
+			(!bt.isAncestorOrSelf(st.mut, holder) && elementBelow(p, place)) {
 			return BorrowIssue{Kind: BorrowIssueTaken, Borrow: st.mut}
 		}
 	}
 	return BorrowIssue{}
+}
+
+// elementBelow: inner lies below outer through an array element.
+func elementBelow(inner, outer Place) bool {
+	rest, ok := strings.CutPrefix(string(inner.Path), string(outer.Path))
+	return ok && inner.Base == outer.Base && strings.Contains(rest, "i:;")
 }
 
 // onReborrowChain reports whether loan is holder, an ancestor of holder, or
@@ -196,4 +220,40 @@ func (bt *BorrowTable) parentOf(id BorrowID) BorrowID {
 		return NoBorrowID
 	}
 	return info.Parent
+}
+
+// moveAllowedFor is MoveAllowed for a move of place. Moving a reference binding
+// whole hands on the reborrow it stands on -- `let q = &mut *r; return q;`,
+// `let q = idam(r); return q;` -- and that loan, or one it was reborrowed
+// through, is not a conflict.
+func (tc *typeChecker) moveAllowedFor(place Place, base symbols.SymbolID, direct bool) BorrowIssue {
+	issue := tc.borrow.MoveAllowed(place)
+	if direct && issue.Kind == BorrowIssueTaken && tc.isReferenceType(tc.bindingType(base)) {
+		issue = tc.borrow.moveAllowedExcept(place, tc.bindingBorrow[base])
+	}
+	return issue
+}
+
+// moveAllowedExcept is MoveAllowed with the exclusive loan own and the loans
+// it was reborrowed through left out.
+func (bt *BorrowTable) moveAllowedExcept(place Place, own BorrowID) BorrowIssue {
+	if bt == nil || !place.IsValid() {
+		return BorrowIssue{}
+	}
+	if state := bt.combinedState(place); len(state.shared) > 0 {
+		return BorrowIssue{Kind: BorrowIssueFrozen, Borrow: state.shared[0]}
+	}
+	held := NoBorrowID
+	for p, st := range bt.placeState {
+		if st.mut == NoBorrowID || !bt.placesOverlap(place, p) || (own != NoBorrowID && bt.isAncestorOrSelf(st.mut, own)) {
+			continue
+		}
+		if held == NoBorrowID || st.mut < held {
+			held = st.mut
+		}
+	}
+	if held != NoBorrowID {
+		return BorrowIssue{Kind: BorrowIssueTaken, Borrow: held}
+	}
+	return BorrowIssue{}
 }
