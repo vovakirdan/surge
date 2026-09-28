@@ -13,7 +13,7 @@ import (
 
 func TestAnalyzeTypedReturnOriginNominalPayload(t *testing.T) {
 	const prefix = "tag Some<T>(T); type Option<T> = Some(T) | nothing;\n" +
-		"fn wrap(@return_source value: &string) -> Option<&string>;\n"
+		"@intrinsic fn wrap(@return_source value: &string) -> Option<&string>;\n"
 	for _, dynamic := range []bool{false, true} {
 		for _, local := range []bool{false, true} {
 			name, argument := "fixed_external", "outside"

@@ -49,9 +49,9 @@ func TestAnalyzeCopyCloneOrigins(t *testing.T) {
 	})
 }
 
-// A user overload of clone is not a core clone: typing still copies, but the
-// overload set the name sees is no longer core only, so the call keeps its
-// ordinary refusal.
+// A user overload of clone is not a core clone: typing selects the user
+// declaration for its own argument type, so the call is an ordinary call of a
+// body that returns a fresh int64 and the function is clean.
 const copyCloneOverloadSource = `@overload
 fn clone(value: &int64) -> int64 {
     return 42;
@@ -61,12 +61,12 @@ fn copy_number(n: &int64) -> int64 {
 }
 `
 
-func TestAnalyzeCopyCloneUserOverloadStaysRefused(t *testing.T) {
+func TestAnalyzeCopyCloneUserOverloadIsAnOrdinaryCall(t *testing.T) {
 	const digest = "473e4f3a37b5c698c51dda35954d6652285871157f114c1e1aa6260e69084d96"
 	f, analysis := analyzeOriginRoot(t, "copy_clone_overload", copyCloneOverloadSource, false, nil)
 	checkOriginBodyLeaves(t, analysis, f, copyCloneOverloadSource, digest, []originBodyLeaf{
-		{name: "user_overload_stays_refused", body: "copy_number", function: originSpan{62, 121, "fn copy_number(n: &int64) -> int64 {\n    return clone(n);\n}"},
-			stays: []originRefusal{{originSpan{110, 118, "clone(n)"}, originCallRefusal}}},
+		{name: "user_overload_is_its_own_call", body: "copy_number", function: originSpan{62, 121, "fn copy_number(n: &int64) -> int64 {\n    return clone(n);\n}"},
+			clean: true},
 	})
 }
 

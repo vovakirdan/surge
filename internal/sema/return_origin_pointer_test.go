@@ -19,7 +19,7 @@ func TestReturnOriginPointerDeclarationHasNoBorrowedResult(t *testing.T) {
 	}{
 		{"backend_pointer", "@intrinsic fn rt_alloc(size: uint, align: uint) -> *uint8;\n", types.KindPointer},
 		{"incoming_reference", "fn keep(value: &int64) -> &int64 { return value; }\n", types.KindReference},
-		{"unproved_reference", "fn opaque() -> &int64;\n", types.KindReference},
+		{"unproved_reference", "@intrinsic fn opaque() -> &int64;\n", types.KindReference},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("RETURN_ORIGIN_POINTER_SOURCE case=%s sha256=%x source=%q", tc.name, sha256.Sum256([]byte(tc.src)), tc.src)

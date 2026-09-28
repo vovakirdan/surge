@@ -14,6 +14,9 @@ func (fe *funcEmitter) emitCall(ins *mir.Instr) error {
 	if call.Callee.Kind == mir.CalleeValue && call.Callee.Value.Type != types.NoTypeID {
 		return fe.emitValueCall(call)
 	}
+	if err := fe.refuseBodilessCallee(call); err != nil {
+		return err
+	}
 	if handled, err := fe.emitTagConstructor(call); handled {
 		return err
 	}
@@ -164,4 +167,16 @@ func stripGenericSuffix(name string) string {
 		return name[:idx]
 	}
 	return name
+}
+
+// refuseBodilessCallee refuses a call of a function declared without a body
+// that is not `@intrinsic`: only an intrinsic is lowered to a builtin by name.
+func (fe *funcEmitter) refuseBodilessCallee(call *mir.CallInstr) error {
+	if call == nil || call.Callee.Kind != mir.CalleeSym || !call.Callee.Sym.IsValid() || fe.emitter == nil || fe.emitter.mod == nil {
+		return nil
+	}
+	if name, bodiless := fe.emitter.mod.BodilessDecls[call.Callee.Sym]; bodiless {
+		return fmt.Errorf("call of %s, which is declared without a body and is not @intrinsic", name)
+	}
+	return nil
 }

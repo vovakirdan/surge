@@ -296,12 +296,12 @@ type Foo<T> = {};
 
 extern<Foo<T>> {
     fn new() -> Foo<T>;                    // T from extern
-    fn map<U>(self: &Foo<T>, f: fn(T) -> U) -> Foo<U>;  // T from extern, U is method's own
+    fn wrap<U>(self: &Foo<T>, f: fn(T) -> U) -> Foo<U>;  // T from extern, U is method's own
 }
 
 // Calls:
 Foo::<int>.new()                           // T=int
-Foo::<int>.map::<string>(foo, transform)   // T=int, U=string
+Foo::<int>.wrap::<string>(foo, transform)  // T=int, U=string
 ```
 
 Method type parameters **cannot** shadow extern type parameters:
@@ -2730,6 +2730,15 @@ fn encode_frame(buf:&byte[], out:&mut byte[]) -> uint {
 }
 ```
 
+**A free function without a body must be completed.** A free function declared
+without a body is a forward declaration: it must be `@intrinsic`, or an
+`@override` with the same signature must implement it in the same module.
+Otherwise nothing supplies what a call would run, and the declaration is
+rejected with `SemaBodylessFunction` (SEM3224). Function declarations inside
+`extern<T>` blocks (§4.4.1) are exempt; calling one that nothing provides fails
+at run time (VM1007) or when building natively, naming the function — a
+backend never substitutes a builtin that happens to share the name.
+
 ```sg
 // core/intrinsics example (only in special module core)
 // core/intrinsics.sg
@@ -3078,7 +3087,7 @@ Diagnostics now follow the numeric `diag.Code` families defined in `internal/dia
 
 **Semantic (3000–):**
 - Naming: `SemaDuplicateSymbol`, `SemaShadowSymbol`, `SemaUnresolvedSymbol`, `SemaModuleMemberNotFound`, `SemaModuleMemberNotPublic`, style hints `SemaFnNameStyle`/`SemaTagNameStyle`.
-- Functions & intrinsics: `SemaFnOverride`, `SemaIntrinsicBadContext`, `SemaIntrinsicBadName`, `SemaIntrinsicHasBody`, `SemaAmbiguousCtorOrFn`.
+- Functions & intrinsics: `SemaFnOverride`, `SemaIntrinsicBadContext`, `SemaIntrinsicBadName`, `SemaIntrinsicHasBody`, `SemaBodylessFunction`, `SemaAmbiguousCtorOrFn`.
 - Types & expressions: `SemaTypeMismatch`, `SemaInvalidBinaryOperands`, `SemaInvalidUnaryOperand`, `SemaExpectTypeOperand`.
 - Borrow checker scaffolding: `SemaBorrowConflict`, `SemaBorrowMutation`, `SemaBorrowMove`, `SemaBorrowThreadEscape`, `SemaBorrowImmutable`, `SemaBorrowNonAddressable`, `SemaBorrowDropInvalid`.
 

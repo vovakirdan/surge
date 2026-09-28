@@ -199,6 +199,9 @@ type Result struct {
 	// clones the same way everywhere, and published back as CloneSymbols.
 	DirectCloneRequests []DirectCloneRequest
 	DirectCloneBindings []DirectCloneBinding
+	// BuiltinCloneCalls are the calls typed as the core `clone<T>(value: &T) -> T`;
+	// a call through any other callee spelled clone is an ordinary call.
+	BuiltinCloneCalls map[ast.ExprID]struct{}
 	// CloneObligations are operations that are valid exactly when a concrete
 	// subject type turns out to be clonable. A generic subject is not recorded
 	// here: it rides the instantiation graph so the question is asked once per

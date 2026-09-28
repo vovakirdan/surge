@@ -51,7 +51,7 @@ fn probe(value: &string) -> &string {
 `, nil},
 		{"opaque_no_inputs_not_ref_free", `fn probe(f: fn() -> &string) -> &string { return f(); }
 `, nil},
-		{"bodyless_explicit_first_external", `fn choose(@return_source a: &string, b: &string) -> &string;
+		{"bodyless_explicit_first_external", `@intrinsic fn choose(@return_source a: &string, b: &string) -> &string;
 fn probe(value: &string) -> &string {
     return { let owned: string = "local"; ret choose(value, &owned); };
 }

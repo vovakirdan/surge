@@ -39,7 +39,7 @@ extern<Holder> {
     fn dormant(self: &Holder, value: &string) -> &string { return identity::<&string>(value); }
 }
 `
-const returnOriginGenericOwnCopy = `fn sink<T>(value: own T) -> nothing;
+const returnOriginGenericOwnCopy = `@intrinsic fn sink<T>(value: own T) -> nothing;
 fn bridge<T>(value: int64, unused: T) -> nothing { sink::<int64>(value); }
 `
 
@@ -82,9 +82,15 @@ func TestAnalyzeOriginalGenericCallSignatures(t *testing.T) {
 					expression = id
 				}
 			}
+			// A body-less callee is an @intrinsic declaration, whose canonical
+			// identity is keyed as builtin rather than by its source file.
+			wantCalleeKey := unit.SourceKey
+			if !callee.HasBody {
+				wantCalleeKey = "builtin"
+			}
 			call, ok := res.Builder.Exprs.Call(expression)
 			if !ok || call == nil || res.Symbols.ExprSymbols[expression] != originalGenericSignatureLocal(t, unit, callee) ||
-				callee.SourceKey != unit.SourceKey || caller.SourceKey != callee.SourceKey || !caller.HasBody {
+				caller.SourceKey != unit.SourceKey || callee.SourceKey != wantCalleeKey || !caller.HasBody {
 				t.Fatal("PRECONDITION: call lost exact source-owned selected identity")
 			}
 			closure := authority.InstantiationClosure

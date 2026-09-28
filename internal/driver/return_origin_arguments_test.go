@@ -72,7 +72,7 @@ extern<Receiver> {
 }
 fn probe(r: &Receiver) -> int { let cb: Narrow = first; return r.take(cb); }
 `, "clean", "r.take(cb)", "take", "", 1, false, nil, nil},
-		{"opaque_bodyless_effect_pending", `fn opaque(cb: Narrow) -> int;
+		{"opaque_bodyless_effect_pending", `@intrinsic fn opaque(cb: Narrow) -> int;
 fn probe() -> int { return opaque(first); }
 `, "pending", "opaque(first)", "opaque", "", 0, false, nil, nil},
 		{"opaque_indirect_effect_pending", `fn probe(consumer: fn(Narrow) -> int) -> int { return consumer(first); }
@@ -198,6 +198,12 @@ func checkReturnOriginArgumentCall(t *testing.T, res *DiagnoseResult, unit sema.
 		if !ok || info == nil || sym.Signature.HasSelf != (tc.slot == 1) || syntax.Span().File != res.File.ID {
 			t.Fatal("PRECONDITION: selected function lost its physical signature")
 		}
+		// A body-less callee is an @intrinsic declaration, whose canonical
+		// identity is keyed as builtin rather than by its source file.
+		wantSourceKey := unit.SourceKey
+		if tc.callee == "opaque" {
+			wantSourceKey = "builtin"
+		}
 		matched := 0
 		for _, local := range unit.Publication.LocalCallables {
 			if local.Symbol != selected {
@@ -209,7 +215,7 @@ func checkReturnOriginArgumentCall(t *testing.T, res *DiagnoseResult, unit sema.
 				}
 				logReturnOriginCallEvidence(t, map[string]any{"stage": "selected_authority", "identity": local, "candidate": candidate})
 				if !slices.Equal(candidate.ParamTypes, info.Params) || candidate.ResultType != info.Result ||
-					!candidate.ReturnSources.Equal(info.ReturnSources()) || len(candidate.TemplateParams) != 0 || local.SourceKey != unit.SourceKey ||
+					!candidate.ReturnSources.Equal(info.ReturnSources()) || len(candidate.TemplateParams) != 0 || local.SourceKey != wantSourceKey ||
 					candidate.HasSelf != sym.Signature.HasSelf || candidate.HasBody != (tc.callee != "opaque") || candidate.Source != sym.Span ||
 					candidate.Source.File != syntax.Span().File || candidate.Source.Start < syntax.Span().Start || candidate.Source.End > syntax.Span().End {
 					t.Fatal("PRECONDITION: selected canonical body/declaration disagrees with its original signature")

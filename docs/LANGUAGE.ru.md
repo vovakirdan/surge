@@ -287,12 +287,12 @@ type Foo<T> = {};
 
 extern<Foo<T>> {
     fn new() -> Foo<T>;                    // T from extern
-    fn map<U>(self: &Foo<T>, f: fn(T) -> U) -> Foo<U>;  // T from extern, U is method's own
+    fn wrap<U>(self: &Foo<T>, f: fn(T) -> U) -> Foo<U>;  // T from extern, U is method's own
 }
 
 // Calls:
 Foo::<int>.new()                           // T=int
-Foo::<int>.map::<string>(foo, transform)   // T=int, U=string
+Foo::<int>.wrap::<string>(foo, transform)  // T=int, U=string
 ```
 
 Method type parameters **cannot** shadow extern type parameters:
@@ -2611,6 +2611,16 @@ fn encode_frame(buf:&byte[], out:&mut byte[]) -> uint {
 }
 ```
 
+**Свободная функция без тела должна быть реализована.** Свободная функция,
+объявленная без тела, — это предварительное объявление: она должна быть
+`@intrinsic`, либо в том же модуле её должна реализовать `@override` с той же
+сигнатурой. Иначе вызову нечего выполнить, и объявление отклоняется с
+`SemaBodylessFunction` (SEM3224). Объявления функций внутри блоков `extern<T>`
+(§4.4.1) не подпадают под это правило; вызов такого объявления, которое ничем
+не реализовано, завершается ошибкой во время выполнения (VM1007) или при
+нативной сборке с именем функции — бэкенд никогда не подставляет встроенную
+реализацию с тем же именем.
+
 ```sg
 // core/intrinsics example (only in special module core)
 // core/intrinsics.sg
@@ -2962,7 +2972,7 @@ Diagnostics now follow the numeric `diag.Code` families defined in `internal/dia
 
 **Semantic (3000–):**
 - Naming: `SemaDuplicateSymbol`, `SemaShadowSymbol`, `SemaUnresolvedSymbol`, `SemaModuleMemberNotFound`, `SemaModuleMemberNotPublic`, style hints `SemaFnNameStyle`/`SemaTagNameStyle`.
-- Functions & intrinsics: `SemaFnOverride`, `SemaIntrinsicBadContext`, `SemaIntrinsicBadName`, `SemaIntrinsicHasBody`, `SemaAmbiguousCtorOrFn`.
+- Functions & intrinsics: `SemaFnOverride`, `SemaIntrinsicBadContext`, `SemaIntrinsicBadName`, `SemaIntrinsicHasBody`, `SemaBodylessFunction`, `SemaAmbiguousCtorOrFn`.
 - Types & expressions: `SemaTypeMismatch`, `SemaInvalidBinaryOperands`, `SemaInvalidUnaryOperand`, `SemaExpectTypeOperand`.
 - Borrow checker scaffolding: `SemaBorrowConflict`, `SemaBorrowMutation`, `SemaBorrowMove`, `SemaBorrowThreadEscape`, `SemaBorrowImmutable`, `SemaBorrowNonAddressable`, `SemaBorrowDropInvalid`.
 

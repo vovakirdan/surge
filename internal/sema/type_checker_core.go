@@ -486,6 +486,9 @@ func (tc *typeChecker) run() {
 	}
 	tc.result.rebuildFunctionInstantiations()
 	done()
+	done = phase("check_bodyless_functions")
+	tc.checkBodylessFunctions(file)
+	done()
 	done = phase("check_untyped_literals")
 	tc.reportUntypedLiterals()
 	done()

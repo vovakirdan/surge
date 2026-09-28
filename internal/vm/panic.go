@@ -18,6 +18,7 @@ const (
 	PanicOutOfBounds          PanicCode = 1004 // VM1004: out of bounds
 	PanicUnsupportedIntrinsic PanicCode = 1005 // VM1005: unsupported intrinsic
 	PanicUnsupportedParseType PanicCode = 1006 // VM1006: unsupported parse type
+	PanicBodilessCallee       PanicCode = 1007 // VM1007: call of a function declared without a body
 
 	PanicIntOverflow        PanicCode = 1101 // VM1101: integer overflow
 	PanicMemoryLeakDetected PanicCode = 1201 // VM1201: memory leak detected

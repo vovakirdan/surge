@@ -487,7 +487,10 @@ func (tc *typeChecker) conversionCost(actual, expected types.TypeID, isLiteral, 
 			if aInfo.width != types.WidthAny && eInfo.width == types.WidthAny {
 				return 1, true
 			}
-			if aInfo.width < eInfo.width {
+			// A dynamic numeric never reaches a fixed width implicitly
+			// (LANGUAGE.md §2.1); WidthAny is zero, so it must not pass as
+			// the narrower side here.
+			if aInfo.width != types.WidthAny && aInfo.width < eInfo.width {
 				return 1, true
 			}
 		}

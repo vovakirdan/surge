@@ -39,6 +39,7 @@ func LowerModuleWithOptions(mm *mono.MonoModule, semaRes *sema.Result, opts Lowe
 	if mm == nil {
 		return out, nil
 	}
+	out.BodilessDecls = bodilessDeclarations(mm)
 
 	typesIn := (*types.Interner)(nil)
 	if semaRes != nil {

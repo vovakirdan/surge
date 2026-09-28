@@ -220,6 +220,9 @@ func (tc *typeChecker) typeExprIndex(id ast.ExprID, span source.Span) types.Type
 		return types.NoTypeID
 	case sig != nil:
 		resultType := tc.magicIndexResultFromSig(sig, sigCand, sigSubst, indexType)
+		if target, widens := tc.magicIndexWidening(substituteTypeKeyParams(sig.Params[1], sigSubst), indexType); widens {
+			tc.recordNumericWidening(idx.Index, indexType, target)
+		}
 		if symID := tc.ensureMagicMethodSymbol("__index", sig, span); symID.IsValid() {
 			tc.recordIndexSymbol(id, symID)
 			tc.recordMethodCallInstantiation(symID, container, nil, span)

@@ -70,12 +70,9 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 		tc.recordCallSymbol(callID, symID)
 		return tc.handleDefaultLikeCall(name, symID, call, span)
 	}
-	if name == "clone" {
-		if result := tc.handleCloneCall(callID, args, span); result != types.NoTypeID {
-			return result
-		}
-		// If handleCloneCall returns NoTypeID, fall through to normal resolution
-		// which will report "no matching overload" or similar error
+	isClone := name == "clone"
+	if isClone && tc.callsOnlyCoreClone(call.Target, ident.Name, args) {
+		return tc.builtinCloneCall(callID, args, span)
 	}
 	if symID := tc.symbolForExpr(call.Target); symID.IsValid() {
 		if sym := tc.symbolFromID(symID); sym != nil {
@@ -121,6 +118,9 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 	typeArgs := tc.resolveCallTypeArgs(call.TypeArgs)
 
 	selMono := tc.selectBestCandidate(candidates, args, typeArgs, false)
+	if isClone && tc.selectedCoreClone(selMono, args) {
+		return tc.builtinCloneCall(callID, args, span)
+	}
 	if selMono.ambiguous {
 		tc.report(diag.SemaAmbiguousOverload, span, "ambiguous overload for %s", displayName)
 		return types.NoTypeID
@@ -151,6 +151,9 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 	}
 
 	selGeneric := tc.selectBestCandidate(candidates, args, typeArgs, true)
+	if isClone && !selMono.ok && tc.selectedCoreClone(selGeneric, args) {
+		return tc.builtinCloneCall(callID, args, span)
+	}
 	if selGeneric.ambiguous {
 		tc.report(diag.SemaAmbiguousOverload, span, "ambiguous overload for %s", displayName)
 		return types.NoTypeID
@@ -321,6 +324,11 @@ func (tc *typeChecker) reportCallArgumentMismatch(sym *symbols.Symbol, args []ca
 }
 
 func (tc *typeChecker) reportCallArgumentTypeMismatch(expected, actual types.TypeID, expr ast.ExprID, allowImplicitTo bool) {
+	if actual == types.NoTypeID && tc.errorCount > 0 {
+		// The argument failed to type, and that failure is already reported;
+		// "got unknown" would only repeat it.
+		return
+	}
 	span := tc.exprSpan(expr)
 	expectedLabel := tc.typeLabel(expected)
 	actualLabel := tc.typeLabel(actual)
@@ -328,6 +336,9 @@ func (tc *typeChecker) reportCallArgumentTypeMismatch(expected, actual types.Typ
 		return
 	}
 	if tc.reportOwnedParamNeedsMarker(expected, actual, expr) {
+		return
+	}
+	if tc.reportDynamicToFixedNumeric(expected, actual, expr, span) {
 		return
 	}
 	if !allowImplicitTo {

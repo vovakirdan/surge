@@ -140,6 +140,11 @@ type Module struct {
 	// module, not on Meta, because Meta is built after the functions are
 	// lowered and this is written while they are.
 	CrossingLeaseFields map[types.TypeID][]int
+
+	// BodilessDecls names the functions declared without a body that are
+	// neither `@intrinsic` nor core. A backend dispatches to a builtin by name
+	// only for those; a call of one of these fails with its name instead.
+	BodilessDecls map[symbols.SymbolID]string
 }
 
 // SortedFuncIDs returns the module's function ids in ascending order.

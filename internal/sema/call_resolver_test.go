@@ -11,7 +11,11 @@ import (
 	"surge/internal/types"
 )
 
+// addSimpleFn declares a body-less callee. A function without a body is an
+// @intrinsic declaration: these tests only resolve calls against its
+// signature, and a body-less user function is refused.
 func addSimpleFn(builder *ast.Builder, file ast.FileID, name string, params []ast.FnParam, ret ast.TypeID, attrs []ast.Attr) {
+	attrs = append([]ast.Attr{{Name: intern(builder, "intrinsic")}}, attrs...)
 	item := builder.NewFn(
 		intern(builder, name),
 		source.Span{},
@@ -132,7 +136,7 @@ func TestCallResolverInfersGenericReturn(t *testing.T) {
 		param.Type,
 		ast.NoStmtID,
 		0,
-		nil,
+		[]ast.Attr{{Name: intern(builder, "intrinsic")}},
 		source.Span{},
 	))
 
@@ -271,7 +275,7 @@ func TestFunctionInstantiationsRecorded(t *testing.T) {
 		param.Type,
 		ast.NoStmtID,
 		0,
-		nil,
+		[]ast.Attr{{Name: intern(builder, "intrinsic")}},
 		source.Span{},
 	)
 	builder.PushItem(file, genericFn)

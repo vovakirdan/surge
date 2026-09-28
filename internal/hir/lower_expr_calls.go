@@ -68,46 +68,46 @@ func (l *lowerer) lowerCallExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Type
 		return nil
 	}
 
-	if l.semaRes != nil && l.semaRes.CloneSymbols != nil && len(callData.Args) == 1 {
-		if ident, ok := l.builder.Exprs.Ident(callData.Target); ok && ident != nil {
-			name := l.lookupString(ident.Name)
-			if name == "clone" {
-				arg := l.lowerExpr(callData.Args[0].Value)
-				if arg == nil {
-					return nil
+	// Only a call sema typed as the core clone lowers as the builtin; any other
+	// callee spelled clone -- a binding, a parameter, an import, a user
+	// overload -- is an ordinary call below.
+	if l.semaRes != nil && len(callData.Args) == 1 {
+		if _, builtin := l.semaRes.BuiltinCloneCalls[exprID]; builtin {
+			arg := l.lowerExpr(callData.Args[0].Value)
+			if arg == nil {
+				return nil
+			}
+			if l.semaRes.TypeInterner != nil && l.semaRes.TypeInterner.IsCopy(ty) {
+				if _, ok, _ := l.referenceInfo(arg.Type); ok {
+					return l.applyDeref(arg)
 				}
-				if l.semaRes.TypeInterner != nil && l.semaRes.TypeInterner.IsCopy(ty) {
-					if _, ok, _ := l.referenceInfo(arg.Type); ok {
-						return l.applyDeref(arg)
-					}
-					return arg
+				return arg
+			}
+			if symID := l.semaRes.CloneSymbols[exprID]; symID.IsValid() {
+				recv := l.applySelfBorrow(symID, arg)
+				callee := l.varRefForSymbol(symID, expr.Span)
+				return &Expr{
+					Kind: ExprCall,
+					Type: ty,
+					Span: expr.Span,
+					Data: CallData{
+						Callee:   callee,
+						Args:     []*Expr{recv},
+						SymbolID: symID,
+					},
 				}
-				if symID := l.semaRes.CloneSymbols[exprID]; symID.IsValid() {
-					recv := l.applySelfBorrow(symID, arg)
-					callee := l.varRefForSymbol(symID, expr.Span)
-					return &Expr{
-						Kind: ExprCall,
-						Type: ty,
-						Span: expr.Span,
-						Data: CallData{
-							Callee:   callee,
-							Args:     []*Expr{recv},
-							SymbolID: symID,
-						},
-					}
-				}
-				// Sema asked the finalization seam which body clones this type and
-				// nothing answered. Lowering on would emit an ordinary call to a
-				// function named `clone`, which is not what the program means; the
-				// missing publication has to surface here rather than downstream.
-				if _, requested := l.cloneRequests[directCloneUse{File: expr.Span.File, Use: exprID}]; requested {
-					l.setErrorf(
-						"internal compiler error: clone at %s has no published implementation; "+
-							"the finalization seam must answer every direct clone request",
-						expr.Span,
-					)
-					return nil
-				}
+			}
+			// Sema asked the finalization seam which body clones this type and
+			// nothing answered. Lowering on would emit an ordinary call to a
+			// function named `clone`, which is not what the program means; the
+			// missing publication has to surface here rather than downstream.
+			if _, requested := l.cloneRequests[directCloneUse{File: expr.Span.File, Use: exprID}]; requested {
+				l.setErrorf(
+					"internal compiler error: clone at %s has no published implementation; "+
+						"the finalization seam must answer every direct clone request",
+					expr.Span,
+				)
+				return nil
 			}
 		}
 	}

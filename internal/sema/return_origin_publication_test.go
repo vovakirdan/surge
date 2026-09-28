@@ -88,7 +88,7 @@ func TestReturnOriginPublicationRejectsMissingOrAmbiguousIdentity(t *testing.T) 
 }
 
 func TestReturnOriginBodylessDeclarationDoesNotInventBodyObligation(t *testing.T) {
-	result, unit := returnOriginPublicationFixture(t, `fn opaque(value: int) -> int;`, false)
+	result, unit := returnOriginPublicationFixture(t, `@intrinsic fn opaque(value: int) -> int;`, false)
 	analysis, err := AnalyzeReturnOrigins(t.Context(), result, []ReturnOriginUnit{unit})
 	if err != nil {
 		t.Fatal(err)
@@ -137,7 +137,7 @@ func TestReturnOriginUnresolvedReferenceEffectStaysPending(t *testing.T) {
 		src            string
 		allowOldEscape bool
 	}{
-		{"reference_content_write", `fn replace(dst: &mut &string, value: &string) -> nothing;
+		{"reference_content_write", `@intrinsic fn replace(dst: &mut &string, value: &string) -> nothing;
 fn probe(dst: &mut &string, value: &string) -> nothing { return replace(dst, value); }`, false},
 	} {
 		result, unit := returnOriginPublicationFixture(t, fixture.src, fixture.allowOldEscape)

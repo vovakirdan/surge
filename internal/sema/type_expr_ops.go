@@ -446,7 +446,7 @@ func (tc *typeChecker) ensureIndexAssignment(expr ast.ExprID, value types.TypeID
 		return
 	}
 	indexType := tc.typeExpr(index.Index)
-	if tc.hasIndexSetter(container, indexType, value) {
+	if tc.hasIndexSetterReportingTies(container, indexType, value, span) {
 		return
 	}
 	tc.report(diag.SemaTypeMismatch, span, "%s does not support indexed assignment", tc.typeLabel(container))
@@ -469,7 +469,7 @@ func (tc *typeChecker) applyIndexSetterOwnership(leftExpr, rightExpr ast.ExprID,
 		return
 	}
 	indexType := tc.typeExpr(index.Index)
-	sig := tc.magicSignatureForIndexSet(container, indexType, value)
+	sig := tc.selectIndexSetter(container, indexType, value, index.Index)
 	if sig == nil || len(sig.Params) < 3 {
 		return
 	}

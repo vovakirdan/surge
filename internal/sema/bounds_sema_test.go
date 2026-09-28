@@ -17,7 +17,7 @@ contract B<T>{
     fn use(self: T);
 }
 
-fn f<T: A + B<T>>(value: T);
+fn f<T: A + B<T>>(value: T) {}
 `
 	builder, fileID, bag := parseSource(t, src)
 	if bag.HasErrors() {
@@ -123,7 +123,7 @@ contract FooLike<T>{
     fn use(self: T);
 }
 
-fn f<T: FooLike>(value: T);
+fn f<T: FooLike>(value: T) {}
 `
 	builder, fileID, bag := parseSource(t, src)
 	if bag.HasErrors() {
@@ -170,7 +170,7 @@ contract Mix<A, B>{
     fn mix(self: A, other: B);
 }
 
-fn f<T: Mix<T, int>>(value: T);
+fn f<T: Mix<T, int>>(value: T) {}
 `
 	bag := runBoundsSema(t, src)
 	if bag.HasErrors() {

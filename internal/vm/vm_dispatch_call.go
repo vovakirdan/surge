@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"surge/internal/mir"
+	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
@@ -13,6 +14,9 @@ func (vm *VM) execCall(frame *Frame, call *mir.CallInstr, writes *[]LocalWrite) 
 	var targetFn *mir.Func
 	switch call.Callee.Kind {
 	case mir.CalleeSym:
+		if vmErr := vm.refuseBodilessCallee(call.Callee.Sym); vmErr != nil {
+			return nil, vmErr
+		}
 		targetFn = vm.resolveCallTarget(frame, call)
 		if targetFn == nil {
 			// Support selected intrinsics and extern calls that are not lowered into MIR.
@@ -78,4 +82,19 @@ func callResultDest(caller *Frame, call *mir.CallInstr) resultDest {
 		return resultDest{}
 	}
 	return resultDest{Frame: caller, Local: call.Dst.Local, Has: true}
+}
+
+// refuseBodilessCallee stops a call of a function declared without a body
+// that is not `@intrinsic`. Only an intrinsic is dispatched to a builtin by
+// name; running the builtin that happens to share a user declaration's name
+// would execute code the program never wrote.
+func (vm *VM) refuseBodilessCallee(sym symbols.SymbolID) *VMError {
+	if vm == nil || vm.M == nil || !sym.IsValid() {
+		return nil
+	}
+	name, bodiless := vm.M.BodilessDecls[sym]
+	if !bodiless {
+		return nil
+	}
+	return vm.eb.makeError(PanicBodilessCallee, fmt.Sprintf("function %s is declared without a body and is not @intrinsic", name))
 }

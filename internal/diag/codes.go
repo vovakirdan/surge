@@ -575,7 +575,12 @@ const (
 	// through a union, tuple, array, map or struct field. Owner ruling 2026-09-26.
 	SemaTaskPayloadIsTask Code = 3223
 
-	// 3224 is taken by an adjacent validation packet.
+	// SemaBodylessFunction refuses a free function (not an `extern<T>` member)
+	// declared without a body that is not `@intrinsic` and is not completed by an
+	// `@override` implementation in its module. A body-less declaration is a forward declaration; nothing else can
+	// supply what calling it would run.
+	SemaBodylessFunction Code = 3224
+
 	// SemaTaskInMap refuses a Map whose key or value type holds a task, directly or
 	// through a union, tuple, array, struct field or generic argument. The task
 	// container check does not see into a map, and a map has no draining walk, so
@@ -859,6 +864,7 @@ var ( // todo расширить описания и использовать к
 		SemaLetTuplePattern:                "a `let` binds one name; a tuple pattern is written only in a `compare` arm",
 		SemaNonexhaustiveGuardedMatch:      "non-exhaustive pattern match: every arm for a variant can miss",
 		SemaTaskPayloadIsTask:              "a task's result may not contain a task; await it, then `spawn` the inner work in the caller",
+		SemaBodylessFunction:               "a free function declared without a body needs a body, `@intrinsic`, or an `@override` implementation in its module",
 		SemaTaskInMap:                      "a Map cannot hold a task: tasks in a map can be lost without being awaited",
 		SemaPartialMoveNeedsOwn:            "taking a field out of a live value must be written `own`",
 		SemaPartialMoveFromTemporary:       "cannot take a field out of a value nothing holds",
