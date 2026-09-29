@@ -99,22 +99,12 @@ fn compare_value(o: Option<int>) -> uint {
 }
 `
 
-// Soundness canaries: a value that holds a reference to, or a view of, a dying local, beside forms that keep a
-// parameter's origin, a payload-free window, and an entry whose origin is unknown.
-const originMapLiteralEntrySource = `fn keep_param(p: &int) -> Map<int, Option<&int>> {
-    let o: Option<&int> = Some::<&int>(p);
-    return { 1 => o };
-}
-
-fn keep_view(s: &string) -> Map<int, BytesView> {
+// Soundness canaries: a value that holds a view of a dying local, beside forms that keep a parameter's origin, a
+// payload-free window, and an entry whose origin is unknown. A value that holds a reference is refused by SEM3138
+// (TestMapLiteralStoredReferenceIsRefused).
+const originMapLiteralEntrySource = `fn keep_view(s: &string) -> Map<int, BytesView> {
     let v = s.bytes();
     return { 1 => v };
-}
-
-fn leak_ref() -> Map<int, Option<&int>> {
-    let x: int = 1;
-    let o: Option<&int> = Some::<&int>(&x);
-    return { 1 => o };
 }
 
 fn leak_view() -> Map<int, BytesView> {
@@ -123,10 +113,10 @@ fn leak_view() -> Map<int, BytesView> {
     return { 1 => v };
 }
 
-fn leak_second(p: &int) -> Map<int, Option<&int>> {
-    let x: int = 1;
-    let a: Option<&int> = Some::<&int>(p);
-    let b: Option<&int> = Some::<&int>(&x);
+fn leak_second(p: &string) -> Map<int, BytesView> {
+    let s: string = "abc";
+    let a = p.bytes();
+    let b = s.bytes();
     let m = { 1 => a, 2 => b };
     return m;
 }
@@ -138,7 +128,7 @@ fn window_value() -> uint {
     return m.length();
 }
 
-fn through_ref(r: &(Option<&int>, int)) -> Map<int, Option<&int>> {
+fn through_ref(r: &(BytesView, int)) -> Map<int, BytesView> {
     return { 1 => r.0 };
 }
 `
@@ -147,7 +137,7 @@ const (
 	originMapLiteralFinishDigest      = "2ad20ba692bc6e9ed7fd059bf64b8bacc666d9b61655d97d9082d76668f2c97f"
 	originMapLiteralUnvisitedDigest   = "23b0e0141eb1cfd0eb013bd7f09bb81e4f0657f0c88be2a0614bd2d86d5df388"
 	originMapLiteralInsertRulesDigest = "febf0627f87d0dc28b820d6ea2e12533e9202ee5ed134c5c4b04de0a78d66b53"
-	originMapLiteralEntryDigest       = "1f352d6845400b8eb1f4e97106d455c153de566d47a7764e60c528d628f71c76"
+	originMapLiteralEntryDigest       = "df6c3f1e0182ab9cdd0b61cc13231b3a70332a2ffa7a4dd951c2e95cf817f606"
 )
 
 // originMapLiteralResolve records, for every identifier inside a map literal of the test source that the resolver
@@ -281,10 +271,10 @@ func TestAnalyzeMapLiteralUnvisitedEntries(t *testing.T) {
 // originMapLiteralDerived are the rows that only carry a refused source on to a result or an outgoing reference.
 var originMapLiteralDerived = []string{"function result contains an unproved source", "outgoing reference has unresolved or captured provenance"}
 
-// 8 RUN: 1 parent, 7 leaves. Without resolver facts no body is clean: each keeps the identifier row (the window body
+// 6 RUN: 1 parent, 5 leaves. Without resolver facts no body is clean: each keeps the identifier row (the window body
 // also the insert's loan row).
 func TestAnalyzeMapLiteralEntriesWithoutSymbols(t *testing.T) {
-	for _, header := range []string{"fn keep_param(", "fn keep_view(", "fn leak_ref(", "fn leak_view(", "fn leak_second(", "fn window_value(", "fn through_ref("} {
+	for _, header := range []string{"fn keep_view(", "fn leak_view(", "fn leak_second(", "fn window_value(", "fn through_ref("} {
 		t.Run(strings.TrimSuffix(strings.TrimPrefix(header, "fn "), "("), func(t *testing.T) {
 			fn := tupleFn(t, originMapLiteralEntrySource, header)
 			checkOriginSource(t, originMapLiteralEntrySource, originMapLiteralEntryDigest, fn)
@@ -307,21 +297,19 @@ func TestAnalyzeMapLiteralEntriesWithoutSymbols(t *testing.T) {
 	}
 }
 
-// 8 RUN: 1 parent, 7 leaves. With the symbols the resolver would record, each origin is kept.
+// 6 RUN: 1 parent, 5 leaves. With the symbols the resolver would record, each origin is kept.
 func TestAnalyzeMapLiteralResolvedEntries(t *testing.T) {
 	type w = struct{ snippet, reason string }
 	rows := []originMapLiteralRow{
-		{name: "value_keeps_a_parameter_reference", header: "fn keep_param(", body: "keep_param", slots: []uint32{0}},
 		{name: "view_value_keeps_its_parameter", header: "fn keep_view(", body: "keep_view", slots: []uint32{0}},
-		{name: "reference_to_a_dying_local_escapes", header: "fn leak_ref(", body: "leak_ref", escapes: "x"},
 		{name: "view_of_a_dying_local_escapes", header: "fn leak_view(", body: "leak_view", escapes: "s"},
-		{name: "second_entry_joins_its_origin", header: "fn leak_second(", body: "leak_second", escapes: "x"},
+		{name: "second_entry_joins_its_origin", header: "fn leak_second(", body: "leak_second", escapes: "s"},
 		{name: "window_in_a_payload_free_value_keeps_g6", header: "fn window_value(", body: "window_value",
 			want: []w{{"{ 1 => w }", "storage loan would be discarded by a payload-free value"}, {"{ 1 => w }", originMapLiteralLoanElement}}},
 		{name: "unknown_entry_keeps_its_row", header: "fn through_ref(", body: "through_ref",
 			want: []w{{"r.0", "tuple element read through a reference needs its referent's contents"}}, allow: originMapLiteralDerived},
 	}
-	runOriginMapLiteralRows(t, "map_literal_resolved", originMapLiteralEntrySource, originMapLiteralEntryDigest, 8, rows)
+	runOriginMapLiteralRows(t, "map_literal_resolved", originMapLiteralEntrySource, originMapLiteralEntryDigest, 6, rows)
 }
 
 // 2 RUN: 1 parent, 1 leaf. A literal whose recorded type is another map than its entries' is refused.
@@ -360,4 +348,19 @@ func TestAnalyzeMapLiteralInsertRules(t *testing.T) {
 			want: []w{{"{ 1 => 0..3 }", originMapLiteralLoanElement}}},
 	}
 	runOriginMapLiteralRows(t, "map_literal_insert_rules", originMapLiteralInsertRulesSource, originMapLiteralInsertRulesDigest, 0, rows)
+}
+
+// A map value holding a reference -- `Map<int, Option<&int>>` -- is refused by SEM3138 (the containment rule holds
+// at any depth), so these entry programs no longer reach return-origin analysis. keep_param and leak_ref have their
+// view twins above (keep_view, leak_view); leak_second and through_ref are read above over views. Each row keeps its
+// old name and pins the refusal.
+func TestMapLiteralStoredReferenceIsRefused(t *testing.T) {
+	runStoredReferenceRows(t, []storedReferenceRow{
+		{name: "value_keeps_a_parameter_reference", want: "SEM3138",
+			text: "fn keep_param(p: &int) -> Map<int, Option<&int>> {\n    let o: Option<&int> = Some::<&int>(p);\n    return { 1 => o };\n}\n"},
+		{name: "reference_to_a_dying_local_escapes", want: "SEM3138",
+			text: "fn leak_ref() -> Map<int, Option<&int>> {\n    let x: int = 1;\n    let o: Option<&int> = Some::<&int>(&x);\n    return { 1 => o };\n}\n"},
+		{name: "second_entry_joins_its_origin_over_references", want: "SEM3138",
+			text: "fn leak_second(p: &int) -> Map<int, Option<&int>> {\n    let x: int = 1;\n    let a: Option<&int> = Some::<&int>(p);\n    let b: Option<&int> = Some::<&int>(&x);\n    let m = { 1 => a, 2 => b };\n    return m;\n}\n"},
+	})
 }

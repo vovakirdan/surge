@@ -13,10 +13,10 @@ import (
 // M-1R witness: its pops read literal-built locals, so the loan-element load
 // answers an empty set and nothing new is refused.
 
-const arrayPopUseRoot = `fn last(xs: &mut Array<&string>) -> Option<&string> {
+const arrayPopUseRoot = `fn last(xs: &mut Array<BytesView>) -> Option<BytesView> {
     return xs.pop();
 }
-fn at(xs: &mut Array<&string>) -> &mut &string {
+fn at(xs: &mut Array<BytesView>) -> &mut BytesView {
     return xs.get_mut(0);
 }
 fn at_fixed(xs: &mut uint64[4]) -> &mut uint64 {
@@ -24,7 +24,7 @@ fn at_fixed(xs: &mut uint64[4]) -> &mut uint64 {
 }
 `
 
-const arrayPopUseRootDigest = "a02adc1c9e9162fd3b60a1668a0dec59f95d4a83495d09d9a0803414357f1128"
+const arrayPopUseRootDigest = "200bbe29437c323dd432a8e193a274316134660d4441568302110027a07a0556"
 
 const arrayPopGoldenPath = "../../testdata/golden/vm_compare/compare_arm_element_read.sg"
 
@@ -47,7 +47,7 @@ func arrayPopIntroducedReasons() []string {
 func TestAnalyzeArrayPopGetMutUses(t *testing.T) {
 	t.Run("u_root", func(t *testing.T) {
 		checkOriginSource(t, arrayPopUseRoot, arrayPopUseRootDigest,
-			originSpan{0, 76, "fn last(xs: &mut Array<&string>) -> Option<&string> {\n    return xs.pop();\n}"})
+			originSpan{0, 80, "fn last(xs: &mut Array<BytesView>) -> Option<BytesView> {\n    return xs.pop();\n}"})
 		f, analysis := analyzeOriginRoot(t, "array_pop_get_mut_uses", arrayPopUseRoot, false, nil)
 		// S-U1 reads the closure the certificate answers; the assertion below is
 		// the consequence, so the closure itself is evidence rather than a claim.

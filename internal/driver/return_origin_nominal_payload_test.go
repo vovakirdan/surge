@@ -2,15 +2,20 @@ package driver
 
 import (
 	"crypto/sha256"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
-	"surge/internal/ast"
 	"surge/internal/diag"
-	"surge/internal/sema"
-	"surge/internal/types"
+	"surge/internal/parser"
+	"surge/internal/source"
 )
 
+// An array of optional reference payloads was the nominal payload the analysis had to keep the local owner of. The
+// payload holds a reference, so the array is refused by SEM3138 (the containment rule holds at any depth) before any
+// analysis runs, whether it borrows an outside parameter or a local; the local owner cannot escape through it. Each
+// row pins that refusal as the bag's only error code, at each place it is written.
 func TestAnalyzeTypedReturnOriginNominalPayload(t *testing.T) {
 	const prefix = "tag Some<T>(T); type Option<T> = Some(T) | nothing;\n" +
 		"@intrinsic fn wrap(@return_source value: &string) -> Option<&string>;\n"
@@ -32,53 +37,31 @@ func TestAnalyzeTypedReturnOriginNominalPayload(t *testing.T) {
 					"    let escaped = { let owned: string = \"local\"; " + result + " };\n" +
 					"    return 1;\n}\n"
 				t.Logf("RETURN_ORIGIN_NOMINAL_SOURCE case=%s sha256=%x source=%q", name, sha256.Sum256([]byte(src)), src)
-				res := returnOriginTypedFixtureWithEscapeEvidence(t, src, true)
-				var arrays []map[string]any
-				for id, typ := range res.Sema.ExprTypes {
-					if node := res.Builder.Exprs.Get(id); node != nil && node.Kind == ast.ExprArray {
-						info, ok := res.Sema.TypeInterner.StructInfo(typ)
-						arrays = append(arrays, map[string]any{"expr": id, "type": typ, "struct": info, "is_struct": ok})
-					}
+				root := t.TempDir()
+				files := source.NewFileSetWithBase(root)
+				file := files.Get(files.AddVirtual(filepath.Join(root, "origin.sg"), []byte(src)))
+				bag := diag.NewBag(64)
+				builder, fileID := diagnoseParseWithStrings(t.Context(), files, file, bag, source.NewInterner(), parser.DirectiveModeOff)
+				resolved := diagnoseSymbols(builder, fileID, bag, "origin", file.Path, root, nil)
+				diagnoseSema(t.Context(), builder, fileID, bag, nil, resolved, "origin", false, nil)
+				// The dynamic case also spells the array type, which is refused where it is written.
+				want := []string{"wrap(" + argument + ")"}
+				if dynamic {
+					want = []string{"Option<&string>", "wrap(" + argument + ")"}
 				}
-				logReturnOriginCallEvidence(t, map[string]any{"case": name, "source": src, "arrays": arrays,
-					"diagnostics": res.Bag.Items(), "expr_types": res.Sema.ExprTypes,
-					"binding_types": res.Sema.BindingTypes, "declarations": res.Sema.ReturnSourceDeclarations})
-				if len(arrays) != 1 || len(res.Sema.ReturnSourceDeclarations) != 1 {
-					t.Fatal("PRECONDITION: source lost its array or original wrap promise")
-				}
-				info := arrays[0]["struct"].(*types.StructInfo)
-				if info == nil || len(info.TypeArgs) == 0 || len(info.Fields) != 0 {
-					t.Fatal("PRECONDITION: source lacks the logical nominal payload without physical fields")
-				}
-				inputs, err := collectReturnOriginUnits(res)
-				if err != nil || len(inputs.units) != 1 {
-					t.Fatalf("PRECONDITION: expected one real source unit: %v", err)
-				}
-				analysis, err := sema.AnalyzeReturnOrigins(t.Context(), res.Sema, inputs.units)
-				logReturnOriginCallEvidence(t, map[string]any{"case": name, "analysis": analysis,
-					"error": errorReturnOriginCallText(err), "publication": inputs.units[0].Publication})
-				if err != nil || analysis == nil || !analysis.Complete() {
-					t.Fatalf("nominal payload lacks a complete analysis: %+v error=%v", analysis, err)
-				}
-				if !local {
-					if len(analysis.Diagnostics) != 0 {
-						t.Fatalf("external optional payload acquired a local-owner refusal: %+v", analysis.Diagnostics)
-					}
-					return
-				}
-				owner := strings.Index(src, `let owned: string = "local";`)
-				for _, d := range analysis.Diagnostics {
-					if d.Code != diag.SemaBorrowEscapesReturn || d.Severity != diag.SevError || d.Primary.File != res.File.ID ||
-						d.Message != "borrow of 'owned' outlives its owner when this scope exits" || len(d.Help) == 0 {
+				var got []string
+				for _, d := range bag.Items() {
+					if d.Severity < diag.SevError {
 						continue
 					}
-					for _, note := range d.Notes {
-						if note.Span.File == res.File.ID && int(note.Span.Start) == owner && int(note.Span.End) == owner+len(`let owned: string = "local";`) {
-							return
-						}
+					if d.Code != diag.SemaRefInAggregate {
+						t.Fatalf("error %s besides SEM3138: %+v", d.Code.ID(), *d)
 					}
+					got = append(got, src[d.Primary.Start:d.Primary.End])
 				}
-				t.Fatal("nominal array erased the optional payload's local owner")
+				if !slices.Equal(got, want) {
+					t.Fatalf("SEM3138 at %q, want exactly %q", got, want)
+				}
 			})
 		}
 	}

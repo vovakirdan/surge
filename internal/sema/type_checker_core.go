@@ -116,6 +116,7 @@ type typeChecker struct {
 	// answers once they are built: a generic struct literal and a static call's `Type::<Args>`.
 	// Field types re-resolved inside them are not sites (task_in_map.go).
 	taskInMapSiteInstantiations int
+	refInAggregate              refInAggregateState // SEM3138 bookkeeping (reference_containment_deep.go)
 	// taskMapCallAnswers caches holdsTaskMap by type for the call rule, which asks it of every call.
 	taskMapCallAnswers          map[types.TypeID]bool
 	asyncBlockDepth             int // Track nesting level of async blocks for error differentiation

@@ -124,8 +124,7 @@ func (tc *typeChecker) resolveTypePath(path *ast.TypePath, span source.Span, sco
 			typeParams = sym.TypeParamSymbols
 		}
 	}
-	args, argSpans := tc.resolveTypeArgsWithParams(seg.Generics, typeParams, scope)
-	return tc.resolveNamedType(seg.Name, args, argSpans, span, scope)
+	return tc.resolveNamedTypeOverRefusedArgs(&seg, typeParams, span, scope)
 }
 
 func (tc *typeChecker) resolveNamedType(name source.StringID, args []types.TypeID, argSpans []source.Span, span source.Span, scope symbols.ScopeID) types.TypeID {

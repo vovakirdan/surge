@@ -17,17 +17,18 @@ import (
 // outlive the borrowed value and dangle. Until aggregates can carry loans,
 // aggregates hold owned values only.
 //
-// rejectRefInAggregate reports the violation and returns true when t is a
-// reference type; container names the aggregate position for the message.
+// rejectRefInAggregate reports the violation and returns true when a value of
+// t holds a reference at any depth (reference_containment_deep.go); container
+// names the aggregate position for the message.
 func (tc *typeChecker) rejectRefInAggregate(t types.TypeID, span source.Span, container string) bool {
 	if t == types.NoTypeID || tc.types == nil {
 		return false
 	}
-	tt, ok := tc.types.Lookup(tc.resolveAlias(t))
-	if !ok || tt.Kind != types.KindReference {
+	ref := tc.heldReference(t, make(map[types.TypeID]bool))
+	if ref == types.NoTypeID {
 		return false
 	}
-	tc.reportRefInAggregate(tc.typeLabel(t), tt.Elem, span, container)
+	tc.reportRefInAggregate(tc.refInAggregateLabel(t, ref), ref, span, container)
 	return true
 }
 
@@ -292,7 +293,15 @@ func (tc *typeChecker) isFrameLocalStorage(base symbols.SymbolID) bool {
 	return ok
 }
 
-func (tc *typeChecker) reportRefInAggregate(label string, elem types.TypeID, span source.Span, container string) {
+// reportRefInAggregate reports SEM3138; ref is the reference the stored type holds.
+func (tc *typeChecker) reportRefInAggregate(label string, ref types.TypeID, span source.Span, container string) {
+	if !tc.refInAggregate.record(span) {
+		return // a declaration re-resolved for an instantiation is reported once
+	}
+	elem := types.NoTypeID
+	if tt, ok := tc.types.Lookup(ref); ok {
+		elem = tt.Elem
+	}
 	article := "a"
 	if container != "" {
 		switch container[0] {
@@ -315,7 +324,7 @@ func (tc *typeChecker) reportRefInAggregate(label string, elem types.TypeID, spa
 	if advice := tc.cloneAdviceFor(adviceReferenceInAggregate, elem, ""); advice.Help != "" {
 		b.WithHelp(span, advice.Help)
 	}
-	b.WithHelp(span, fmt.Sprintf("to lend a value to a function, pass %s as a parameter", label))
+	b.WithHelp(span, fmt.Sprintf("to lend a value to a function, pass %s as a parameter", tc.typeLabel(ref)))
 	b.Emit()
 }
 

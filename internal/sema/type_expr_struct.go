@@ -229,6 +229,10 @@ func (tc *typeChecker) inferStructLiteralType(data *ast.ExprStructData, scope sy
 		resultType = tc.instantiateAtTaskInMapSite(args, span, func() types.TypeID {
 			return tc.instantiateType(symID, args, span, "ctor")
 		})
+		// The literal keeps its type once refused, so its uses do not cascade.
+		if tc.rejectNominalHoldingRef(symID, resultType, span) {
+			return resultType, true
+		}
 	} else {
 		tc.reportStructInferenceFailure(sym.Name, missing, span)
 		resultType = structType

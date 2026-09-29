@@ -69,6 +69,7 @@ func (tc *typeChecker) instantiateMapType(key, value types.TypeID, span source.S
 		return types.NoTypeID
 	}
 	inst := tc.instantiateType(tc.mapSymbol, []types.TypeID{key, value}, span, "type")
+	tc.rejectNominalHoldingRef(tc.mapSymbol, inst, span)
 	if inst != types.NoTypeID {
 		return inst
 	}

@@ -8,9 +8,14 @@ import (
 )
 
 // A Map is a backing kind: its formal is a roster slot, returnOriginBackingContainer answers
-// it, and a weak store through one Map formal unions into the other Map formals only.
-const returnOriginMapBackingRosterSource = `fn roster(m: &mut Map<string, &string>, n: &Map<int, uint64>, owned: Map<string, string>, a: &uint64[], s: &string) -> nothing {
+// it, and a weak store through one Map formal unions into the other Map formals only. The Map formal's
+// value is a type parameter, which can hold a loan as a reference could, since a map value may not
+// hold a reference at any depth (SEM3138); root is the ordinary body the fixture's finalization seeds.
+const returnOriginMapBackingRosterSource = `fn roster<V>(m: &mut Map<string, V>, n: &Map<int, uint64>, owned: Map<string, string>, a: &uint64[], s: V) -> nothing {
     let local: string = "local";
+    return nothing;
+}
+fn root() -> nothing {
     return nothing;
 }
 `
@@ -26,7 +31,7 @@ func TestReturnOriginMapBackingFacts(t *testing.T) {
 	}
 	t.Run("map_container_identity", func(t *testing.T) {
 		if c, ok := returnOriginBackingContainer(in, fn.info.Params[0]); !ok || c.family != in.MapNominalType() || !c.reference || c.element != fn.info.Params[4] {
-			t.Errorf("&mut Map<string, &string> = %+v, %v", c, ok)
+			t.Errorf("&mut Map<string, V> = %+v, %v", c, ok)
 		}
 		if mutable, ok := returnOriginBackingDescriptor(in, fn.info.Params[0]); !ok || !mutable {
 			t.Errorf("&mut Map descriptor = %v, %v", mutable, ok)

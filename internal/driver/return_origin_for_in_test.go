@@ -76,8 +76,8 @@ fn each<T>(xs: &Array<T>) -> nothing {
     }
     return nothing;
 }
-fn use_ref(xs: &Array<&string>) -> nothing {
-    each::<&string>(xs);
+fn use_ref(xs: &Array<BytesView>) -> nothing {
+    each::<BytesView>(xs);
     return nothing;
 }
 fn use_view(xs: &Array<uint64[]>) -> nothing {
@@ -90,7 +90,7 @@ fn use_cursor(xs: &Array<Cur>) -> nothing {
 }
 `
 
-const forInRefElementsSource = `fn refs(xs: &Array<&string>) -> nothing {
+const forInRefElementsSource = `fn refs(xs: &Array<BytesView>) -> nothing {
     for s in xs {
         continue;
     }
@@ -147,7 +147,7 @@ func forInRefused(name, text string, start, end int, reason string, absent ...st
 
 func forInSources() []coreRangeSource {
 	keepLoop, keepReturn, keepOwner := originSpan{59, 97, forInKeepSource[59:97]}, originSpan{102, 117, "return nothing;"}, originSpan{63, 64, "s"}
-	refCall, viewCall, cursorCall := originSpan{178, 197, "each::<&string>(xs)"}, originSpan{272, 292, "each::<uint64[]>(xs)"}, originSpan{364, 379, "each::<Cur>(xs)"}
+	refCall, viewCall, cursorCall := originSpan{180, 201, "each::<BytesView>(xs)"}, originSpan{276, 296, "each::<uint64[]>(xs)"}, originSpan{368, 383, "each::<Cur>(xs)"}
 	return []coreRangeSource{
 		{name: "int_loops", text: forInIntLoopsSource, digest: "584da0c84a916502cfd0d680848abc37a0cb72335b101f7d216e931ad883e6f3",
 			spans:  []originSpan{{68, 81, "for x in xs {"}, {149, 161, "for i in r {"}, {199, 219, "for j: int in 0..3 {"}},
@@ -178,16 +178,16 @@ func forInSources() []coreRangeSource {
 				coreRangeClean(forInTemplateSource, "use_int", 103, 186, nil),
 			}},
 		// A separate analysis: an instance over a borrowing element also pends inside `each` itself.
-		{name: "template_each_refusal", text: forInTemplateRefusalSource, digest: "308c9fe7a8629bd988edc4fabed48e7ea375f21ba044fee4efae63d68818fb2e",
+		{name: "template_each_refusal", text: forInTemplateRefusalSource, digest: "3217360f153b808464142c3b4d0bf2c4864c08cf75ddba62e2ba2213f2900bec",
 			spans: []originSpan{{69, 82, "for x in xs {"}, refCall, viewCall, cursorCall},
 			leaves: []coreRangeLeaf{
 				coreRangeRefusal("use_ref", refCall, []string{genericConditionRefuted}, []string{genericConditionUnsupported}),
 				coreRangeRefusal("use_view", viewCall, []string{genericConditionUnsupported}, []string{genericConditionRefuted}),
 				coreRangeRefusal("use_cursor", cursorCall, []string{genericConditionUnsupported}, []string{genericConditionRefuted}),
 			}},
-		{name: "ref_elements", text: forInRefElementsSource, digest: "1d8b4723249adb0fdc4acc5a8d2dd048b6a88c48818d9435972cb201132882b9",
-			spans:  []originSpan{{46, 59, "for s in xs {"}},
-			leaves: []coreRangeLeaf{forInRefused("refs", forInRefElementsSource, 46, 83, forInBorrowElement, rangeNextLoanElement)}},
+		{name: "ref_elements", text: forInRefElementsSource, digest: "7335ed88949490aa4d6deb3c0f798f2894595d1d88d74ef72f019dea660cee65",
+			spans:  []originSpan{{48, 61, "for s in xs {"}},
+			leaves: []coreRangeLeaf{forInRefused("refs", forInRefElementsSource, 48, 85, forInBorrowElement, rangeNextLoanElement)}},
 		{name: "bag_range", text: forInBagSource, digest: "c22b1e3e153166eec52e475cfaa09272407e45879811f72db707a79c8c048839",
 			spans: []originSpan{{188, 200, "for v in b {"}},
 			leaves: []coreRangeLeaf{{name: "total", check: func(t *testing.T, key string, f originalGenericFixture, analysis *sema.ReturnOriginAnalysis) {

@@ -77,7 +77,7 @@ fn wrap<T>(x: T) -> Array<T> {
     out.push(x);
     return out;
 }
-fn last(xs: &mut Array<&string>) -> Option<&string> {
+fn last(xs: &mut Array<BytesView>) -> Option<BytesView> {
     return xs.pop();
 }
 fn last_rt(xs: &mut uint64[]) -> Option<uint64> {
@@ -99,10 +99,10 @@ fn leak() -> Option<&string> {
 }
 `
 
-const arrayPopSourcePDigest = "6af4b1176f2d9bd654cec0a5a7e75179d9652000b0f09ede6d5efdbf22619555"
+const arrayPopSourcePDigest = "6c4f8ab27e0e62ed7a3795da5d370d4f96885d245a868b821a057016fca15079"
 
 const arrayPopSourceG = `pragma module::dep;
-fn at(xs: &mut Array<&string>) -> &mut &string {
+fn at(xs: &mut Array<BytesView>) -> &mut BytesView {
     return xs.get_mut(0);
 }
 fn at_rt(xs: &mut uint64[]) -> &mut uint64 {
@@ -121,7 +121,7 @@ fn leak_fixed() -> Option<&mut uint64> {
 }
 `
 
-const arrayPopSourceGDigest = "c9ea6f15f0c27a61dc99c5e3e4faaf6d2c8f32e2b217b70bfc83721cd0f6c4e4"
+const arrayPopSourceGDigest = "caf1ba758e920b76fd5caf8691bd3982e77599c7266c985c9b9a7a944d9a0ebe"
 
 const arrayPopSourceL2 = `pragma module::dep;
 type Bytes = { buf: byte[] };
@@ -215,8 +215,8 @@ const arrayPopSourceMDigest = "b3472eeb00534fdd6d95d10ae728b0c94330c7c3ea3c0a871
 func arrayPopGetMutSources() []arrayPopSource {
 	return []arrayPopSource{
 		{name: "p_array_pop_contents", text: arrayPopSourceP, digest: arrayPopSourcePDigest,
-			spans: []originSpan{{256, 272, "rt_array_pop(xs)"}, {628, 643, "return b.pop();"},
-				{562, 586, `let s: string = "local";`}},
+			spans: []originSpan{{260, 276, "rt_array_pop(xs)"}, {632, 647, "return b.pop();"},
+				{566, 590, `let s: string = "local";`}},
 			leaves: []backingLeaf{
 				arrayPopLeaf("last", arrayPopClean("last", 0)),
 				// Subject change: the direct form pops a uint64, so its summary is the
@@ -224,19 +224,19 @@ func arrayPopGetMutSources() []arrayPopSource {
 				arrayPopLeaf("last_rt", arrayPopClean("last_rt")),
 				arrayPopLeaf("keep", arrayPopClean("keep", 0)),
 				arrayPopLeaf("both", arrayPopClean("both", 0, 1)),
-				arrayPopLeaf("leak", arrayPopEscape("leak", backingEscape{628, 643, "s", 562, 586})),
+				arrayPopLeaf("leak", arrayPopEscape("leak", backingEscape{632, 647, "s", 566, 590})),
 			}},
 		{name: "g_array_get_mut_slot", text: arrayPopSourceG, digest: arrayPopSourceGDigest,
-			spans: []originSpan{{153, 176, "rt_array_get_mut(xs, 0)"}, {341, 383, "return Some::<&mut uint64>(xs.get_mut(0));"},
-				{302, 336, "let mut xs: uint64[] = [1:uint64];"}, {481, 523, "return Some::<&mut uint64>(ys.get_mut(1));"},
-				{431, 476, "let mut ys: uint64[2] = [1:uint64, 2:uint64];"}},
+			spans: []originSpan{{157, 180, "rt_array_get_mut(xs, 0)"}, {345, 387, "return Some::<&mut uint64>(xs.get_mut(0));"},
+				{306, 340, "let mut xs: uint64[] = [1:uint64];"}, {485, 527, "return Some::<&mut uint64>(ys.get_mut(1));"},
+				{435, 480, "let mut ys: uint64[2] = [1:uint64, 2:uint64];"}},
 			leaves: []backingLeaf{
 				arrayPopLeaf("at", arrayPopClean("at", 0)),
 				// get_mut borrows slot 0 whatever the element is, so [0] is intact.
 				arrayPopLeaf("at_rt", arrayPopClean("at_rt", 0)),
 				arrayPopLeaf("at_fixed", arrayPopClean("at_fixed", 0)),
-				arrayPopLeaf("leak_local", arrayPopEscape("leak_local", backingEscape{341, 383, "xs", 302, 336})),
-				arrayPopLeaf("leak_fixed", arrayPopEscape("leak_fixed", backingEscape{481, 523, "ys", 431, 476})),
+				arrayPopLeaf("leak_local", arrayPopEscape("leak_local", backingEscape{345, 387, "xs", 306, 340})),
+				arrayPopLeaf("leak_fixed", arrayPopEscape("leak_fixed", backingEscape{485, 527, "ys", 435, 480})),
 			}},
 		{name: "l2_legacy_pop", text: arrayPopSourceL2, digest: arrayPopSourceL2Digest,
 			spans: []originSpan{{202, 216, "self.buf.pop()"}, {308, 319, "h.buf.pop()"}, {433, 444, "sub(h.rows)"},
@@ -391,7 +391,7 @@ func arrayPopMutatePromise(t *testing.T, f originalGenericFixture, name string, 
 // Breaking the identity a certificate rests on must bring the refusals back.
 // 1 parent + 3 leaves = 4 RUN.
 func TestReturnOriginArrayPopGetMutIdentityMutation(t *testing.T) {
-	getSite := originSpan{153, 176, "rt_array_get_mut(xs, 0)"}
+	getSite := originSpan{157, 180, "rt_array_get_mut(xs, 0)"}
 	core := arrayPopCoreUseSites()
 	for _, row := range []struct {
 		name    string

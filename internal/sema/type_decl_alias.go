@@ -40,7 +40,11 @@ func (tc *typeChecker) populateAliasType(itemID ast.ItemID, typeItem *ast.TypeIt
 		}
 		tc.attachTypeParamSymbols(symID, typeParamSyms)
 	}
+	refusals := tc.refInAggregate.refusals
 	target := tc.resolveTypeExprWithScope(aliasDecl.Target, tc.fileScope())
+	if target == types.NoTypeID && tc.refInAggregate.refusals != refusals {
+		return // the target holds a reference and was refused where it is written
+	}
 	if target == types.NoTypeID {
 		span := typeItem.Span
 		name := tc.lookupName(typeItem.Name)
@@ -70,7 +74,11 @@ func (tc *typeChecker) instantiateAlias(typeItem *ast.TypeItem, symID symbols.Sy
 			tc.popTypeParams()
 		}
 	}()
+	refusals := tc.refInAggregate.refusals
 	target := tc.resolveTypeExprWithScope(aliasDecl.Target, tc.fileScope())
+	if target == types.NoTypeID && tc.refInAggregate.refusals != refusals {
+		return types.NoTypeID // the target holds a reference and was refused where it is written
+	}
 	if target == types.NoTypeID {
 		span := typeItem.Span
 		name := tc.lookupName(typeItem.Name)

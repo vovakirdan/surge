@@ -133,9 +133,9 @@ func TestStatementTemporaryLoanKeptWhenTheCallCanKeepIt(t *testing.T) {
     put(&mut u, xs[1]);
     let z = own xs;
     return 0:uint;`, "own xs;", diag.SemaBorrowMove},
-		{"mut_array_parameter_behind_an_alias", "type MA = &mut Array<&string>;\nfn put(v: MA, x: &string) -> nothing { return nothing; }\n", `    let xs: string[] = [a + "x", a + "y"];
-    let mut rs: Array<&string> = [];
-    put(&mut rs, xs[1]);
+		{"mut_array_parameter_behind_an_alias", "type MA = &mut Array<BytesView>;\nfn put(v: MA, x: BytesView) -> nothing { return nothing; }\n", `    let xs: string[] = [a + "x", a + "y"];
+    let mut rs: Array<BytesView> = [];
+    put(&mut rs, xs[1].bytes());
     let z = own xs;
     return 0:uint;`, "own xs;", diag.SemaBorrowMove},
 		{"reference_through_two_calls_then_reassign", "", `    let mut xs: string[] = [a + "x", a + "y"];

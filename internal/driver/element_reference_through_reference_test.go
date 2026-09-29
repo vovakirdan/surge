@@ -309,8 +309,8 @@ func TestElementValueThroughAReferenceStaysAccepted(t *testing.T) {
 // `let mut m = Map...; let old = m.insert(..); m.get_mut(..)` already refused.
 func TestMapReferenceThroughAReferenceHoldsTheMap(t *testing.T) {
 	rows := []struct{ name, text, snippet string }{
-		{"inserted_old_value_held_across_get_mut", `fn read_old(m: &mut Map<string, &string>, key: string, value: &string) -> Option<&string> {
-    let old: Option<&string> = m.insert(clone(&key), value);
+		{"inserted_old_value_held_across_get_mut", `fn read_old(m: &mut Map<string, BytesView>, key: string, value: BytesView) -> Option<BytesView> {
+    let old: Option<BytesView> = m.insert(clone(&key), value);
     let _ = m.contains(&key);
     let _ = m.length();
     let _ = m.get_ref(&key);

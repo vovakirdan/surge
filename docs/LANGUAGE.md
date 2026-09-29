@@ -148,6 +148,21 @@ Borrowing rules:
 * While any `&T` borrows exist, mutation of the underlying value is forbidden (the value is frozen).
 * Lifetimes are lexical; the compiler emits diagnostics for aliasing violations. When you need to end a borrow early, use `@drop binding;` — it marks the specific expression statement as a drop point and releases the corresponding borrow before the end of the enclosing block.
 
+**References are not stored in aggregates** (`SemaRefInAggregate`, SEM3138). The borrow checker tracks a loan only in a local binding, so an aggregate holds owned values only: a reference may not be stored, at any depth of the stored type, in a struct field, a tuple element, an array element (dynamic or fixed), a map key or value, a channel payload, or the payload of a user-declared tag. `&T`, `Option<&T>`, `(Option<&mut T>, int)`, `Option<Option<&T>>[]`, `Map<string, Option<&T>>`, and `Array<&T>` or `Map<K, &V>` spelled by name are all refused there, whether the type is written, reached through an alias, or inferred from a tuple, array, map or struct literal; so is a generic user type instantiated with an argument that holds a reference (`Box<&int>` or `Box<Option<&int>>` over `type Box<T> = { v: T }`), wherever it is written. The error is reported once, at the innermost place the offending type is written. A reference held directly by a local, a parameter, a function result or a `compare` subject is not stored in an aggregate: `Option<&V>` stays legal there (it is what `Map.get_ref` returns). The `@intrinsic` core views (`BytesView`) are exempt: the runtime pins their storage; so is the `(&T)[]` a variadic `...args: &T` parameter desugars to, which the compiler builds for the call.
+
+```sg
+type Box<T> = { v: T };
+type Bad = { a: Option<&int> };   // error: a struct field cannot hold a reference (Option<&int> holds &int)
+fn f(b: Box<&int>) -> int {       // error: a struct field cannot hold a reference (Box<&int> holds &int)
+    return 0;
+}
+fn look(m: &Map<string, int>, k: &string) -> Option<&int> {   // ok: a result, not an aggregate
+    return m.get_ref(k);
+}
+```
+
+*Direction, not a promise:* references cannot be stored in containers today because the borrow checker tracks a loan only in a local binding. Non-escaping view types — aggregates that, like a local, can never outlive the scope they borrow from — are a possible future way to relax this without lifetime syntax.
+
 **Moves & Copies:**
 
 * Copy types include `bool`, `int`/`uint`/`float` (all widths), `unit`, `nothing`, raw pointers (`*T`), and shared references (`&T`). `string`, arrays, tuples, structs, unions, and `&mut T` are not Copy unless marked `@copy`.
@@ -2129,7 +2144,8 @@ Nesting follows the same rule at every level:
   task (`Box<Task<int>>` over `type Box<T> = { m: Map<int, T> }`), or a call of a generic function
   whose result becomes such a map only through its type arguments; a map nested in a map is reported
   once, at the inner map. The rule concerns a local `Task<T>` held by value only: a `far Task<T>` (the
-  handle `spawn on` returns) and a reference to a task (`Map<int, &Task<int>>`) are not counted. Keep
+  handle `spawn on` returns) is not counted, and a reference to a task (`Map<int, &Task<int>>`) is not
+  this rule's to refuse: no map value may hold a reference (SEM3138, §2.3). Keep
   the tasks in an array and drain it, or store the task results in the map instead:
 
   ```sg

@@ -3,51 +3,51 @@ package driver
 // The frozen witness sources of TestAnalyzeCoreMapOrigins and the owning-unit census rows
 // P1c-1 removes (23) and leaves (24), as captured at the D2 tip ed57f3ec.
 
-const coreMapM1 = `fn fill(m: &mut Map<string, &string>, value: &string) -> nothing {
+const coreMapM1 = `fn fill(m: &mut Map<string, BytesView>, value: BytesView) -> nothing {
     let _ = m.insert("k", value);
     return nothing;
 }
 fn outer(value: &string) -> nothing {
-    let mut m: Map<string, &string> = Map::<string, &string>.new();
+    let mut m: Map<string, BytesView> = Map::<string, BytesView>.new();
     {
         let s: string = "local";
-        fill(&mut m, &s);
+        fill(&mut m, s.bytes());
     }
     return nothing;
 }
 `
 
-const coreMapM1Digest = "6a3f5777cefddd421b7a0d5c54070744a69ce0ad62e15769ff92d3032177309e"
+const coreMapM1Digest = "1bede49e0db01ae92945939738f9e16159a91e61313ffc9460e8882efe3dc54c"
 
 const coreMapM2 = `pragma module::dep;
-fn after_remove(m: &mut Map<string, &string>, key: &string, value: &string) -> Option<&string> {
+fn after_remove(m: &mut Map<string, uint64[]>, key: &string, value: uint64[]) -> Option<uint64[]> {
     let _ = m.insert("k", value);
     let _ = m.remove(key);
     return m.remove(key);
 }
 `
 
-const coreMapM2Digest = "c3b923fff33f4fc38f8e0466eb77e56355e3881faf4d5b17746c77b54d04c5c9"
+const coreMapM2Digest = "d428b8d58c564a5e4e3336e89d1f7da7eebd46711a2c34f0a8971f8d42cd2a20"
 
 const coreMapM3 = `pragma module::dep;
 fn names<V>(m: &Map<string, V>) -> string[] {
     return m.keys();
 }
-fn use_names(m: &Map<string, &string>) -> string[] {
-    return names::<&string>(m);
+fn use_names(m: &Map<string, BytesView>) -> string[] {
+    return names::<BytesView>(m);
 }
 `
 
-const coreMapM3Digest = "d6f291fe42bdb1f1c11159194911e7bd79ced7bdac4c8882fb5c5aa4273577bc"
+const coreMapM3Digest = "446cc081f5a9e5508ca40738be50f3585bd18eacd79622fff62c56e6536832b4"
 
 const coreMapM4 = `pragma module::dep, no_std;
 @intrinsic fn rt_map_len<K, V>(m: &Map<K, V>) -> uint;
-fn size(m: &Map<string, &string>) -> uint {
-    return rt_map_len::<string, &string>(m);
+fn size(m: &Map<string, fn(int) -> int>) -> uint {
+    return rt_map_len::<string, fn(int) -> int>(m);
 }
 `
 
-const coreMapM4Digest = "499379507fa5e4a989181acfcebf16c0b3ee47c60b117c8db04dfa4223cb045c"
+const coreMapM4Digest = "ee1aeade4afb39f2974c597d9fb89c346631a5685450c0a373db64bc4910177f"
 
 const coreMapM5 = `fn wrapm<V>(v: V) -> Map<string, V> {
     let mut m: Map<string, V> = rt_map_new::<string, V>();

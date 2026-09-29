@@ -115,13 +115,6 @@ fn nested_payload_keeps_origin(a: &int) -> &int {
     };
 }
 
-fn tuple_binding_keeps_origin(t: (Option<&int>, int)) -> Option<&int> {
-    return compare t {
-        (o, 0) => o;
-        (o, n) => o;
-    };
-}
-
 fn later_arm_after_partial_tag(v: int?, a: &int, b: &int) -> &int {
     return compare v {
         Some(1) => a;
@@ -207,21 +200,12 @@ fn later_nested_arm_local(v: Option<Option<int>>, a: &int) -> &int {
         _ => &local;
     };
 }
-
-fn tuple_binding_local() -> Option<&int> {
-    let x: int = 1;
-    let t = (Some::<&int>(&x), 1);
-    return compare t {
-        (o, 0) => o;
-        (o, n) => o;
-    };
-}
 `
 
 const (
-	originComparePatternFinishSourceDigest  = "dc620f55a4d3cee05db8ea32b10206a0b39383e7ba5fc7f393eea72e316d7a86"
+	originComparePatternFinishSourceDigest  = "9b833d204e7c63f415977001e30f1e5eff6868d223f9f2f7202317be98d92657"
 	originComparePatternRefusedSourceDigest = "c81906a5a42fe87280eb458c5f4e4431493e2f7112d85e9ec44b6d54711a00bf"
-	originComparePatternEscapeSourceDigest  = "5259e0cfbe1bdd8693c55b5da2fbb2545d0c86d4228fcadeac3d46a4ac5a8d2a"
+	originComparePatternEscapeSourceDigest  = "dd676e6c2dd53ae631b012f85a024bcc733187593b74d54e94ab67d4ddb52977"
 )
 
 // originPatternDerived are the rows that only carry a refused source on to a result or an outgoing reference.
@@ -296,7 +280,6 @@ func originComparePatternFinishRows() []originPatternRow {
 		{name: "literal_arm_keeps_both_results", header: "fn literal_keeps_both(", body: "literal_keeps_both", slots: []uint32{1, 2}},
 		{name: "enum_arm_keeps_both_results", header: "fn enum_keeps_both(", body: "enum_keeps_both", slots: []uint32{1, 2}},
 		{name: "nested_payload_binding_keeps_its_origin", header: "fn nested_payload_keeps_origin(", body: "nested_payload_keeps_origin", slots: []uint32{0}},
-		{name: "tuple_binding_keeps_its_origin", header: "fn tuple_binding_keeps_origin(", body: "tuple_binding_keeps_origin", slots: []uint32{0}},
 		// A partial tag pattern must not consume its tag: the later arm for the same tag is reached.
 		{name: "later_arm_after_a_partial_tag_is_reached", header: "fn later_arm_after_partial_tag(", body: "later_arm_after_partial_tag", slots: []uint32{1, 2}},
 		{name: "later_arm_after_a_partial_nested_tag_is_reached", header: "fn later_arm_after_partial_nested(", body: "later_arm_after_partial_nested", slots: []uint32{1, 2}},
@@ -318,10 +301,10 @@ func originComparePatternRefusedRows() []originPatternRow {
 	}
 }
 
-// 14 RUN: 1 parent, 13 leaves.
+// 13 RUN: 1 parent, 12 leaves.
 func TestAnalyzeComparePatterns(t *testing.T) {
 	rows := originComparePatternFinishRows()
-	if len(rows) != 13 {
+	if len(rows) != 12 {
 		t.Fatalf("PRECONDITION: frozen roster changed: rows=%d", len(rows))
 	}
 	runOriginPatternRows(t, "compare_pattern", originComparePatternFinishSource, originComparePatternFinishSourceDigest, rows)
@@ -336,14 +319,13 @@ func TestAnalyzeComparePatternContinuations(t *testing.T) {
 	runOriginPatternRows(t, "compare_pattern_refused", originComparePatternRefusedSource, originComparePatternRefusedSourceDigest, rows)
 }
 
-// 6 RUN: 1 parent, 5 leaves. Each leak is SEM3139 for its local, never a clean body.
+// 5 RUN: 1 parent, 4 leaves. Each leak is SEM3139 for its local, never a clean body.
 func TestComparePatternEscapeIsReported(t *testing.T) {
 	rows := []struct{ name, header, owner string }{
 		{"literal_arm_returns_a_local", "fn literal_arm_local(", "local"},
 		{"nested_payload_binding_of_a_local", "fn nested_payload_local(", "x"},
 		{"later_arm_after_a_partial_tag_returns_a_local", "fn later_arm_local(", "local"},
 		{"later_arm_after_a_partial_nested_tag_returns_a_local", "fn later_nested_arm_local(", "local"},
-		{"tuple_pattern_binding_of_a_local", "fn tuple_binding_local(", "x"},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
@@ -353,4 +335,17 @@ func TestComparePatternEscapeIsReported(t *testing.T) {
 			requireSelectEscape(t, analysis, f.owner.File.ID, fn, row.owner)
 		})
 	}
+}
+
+// A tuple element holding a reference is refused by SEM3138 (the containment rule holds at any depth), so the two
+// tuple-pattern programs that bound a reference out of a tuple no longer reach return-origin analysis. No tuple can
+// hold a reference now, so there is no allowed form of them; the escape canary's point, that a reference to a dying
+// local never leaves through the pattern, still holds, now by the refusal.
+func TestComparePatternStoredReferenceIsRefused(t *testing.T) {
+	runStoredReferenceRows(t, []storedReferenceRow{
+		{name: "tuple_binding_keeps_its_origin", want: "SEM3138",
+			text: "fn tuple_binding_keeps_origin(t: (Option<&int>, int)) -> Option<&int> {\n    return compare t {\n        (o, 0) => o;\n        (o, n) => o;\n    };\n}\n"},
+		{name: "tuple_pattern_binding_of_a_local", want: "SEM3138",
+			text: "fn tuple_binding_local() -> Option<&int> {\n    let x: int = 1;\n    let t = (Some::<&int>(&x), 1);\n    return compare t {\n        (o, 0) => o;\n        (o, n) => o;\n    };\n}\n"},
+	})
 }

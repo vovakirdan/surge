@@ -58,15 +58,6 @@ fn ref_elem(r: &(int, int)) -> &int {
     return &r.0;
 }
 
-fn keep_index(a: &int) -> Option<&int> {
-    let t = (Some::<&int>(a), 2);
-    return own t.0;
-}
-
-fn keep_param(t: (Option<&int>, int)) -> Option<&int> {
-    return own t.0;
-}
-
 fn first<T>(t: (T, int)) -> T {
     return own t.0;
 }
@@ -80,24 +71,10 @@ fn store_scalar() -> int {
     t.0 = 5;
     return t.0 + t.1;
 }
-
-fn index_own(t: own (Option<&int>, int)) -> Option<&int> {
-    return own t.0;
-}
-
-fn keep_after_store(p: &int) -> Option<&int> {
-    let mut t = (Some::<&int>(p), 1);
-    t.1 = 5;
-    return own t.0;
-}
 `
 
 // Forms that keep a named row.
-const originTupleRefusedSource = `fn through_ref_index(r: &(Option<&int>, int)) -> Option<&int> {
-    return own r.0;
-}
-
-fn callable_elem(t: (fn(int) -> int, int)) -> int {
+const originTupleRefusedSource = `fn callable_elem(t: (fn(int) -> int, int)) -> int {
     let h = t.0;
     return t.1;
 }
@@ -108,104 +85,20 @@ fn window_plain() -> int {
     return t.1;
 }
 
-fn store_reference(a: &int) -> Option<&int> {
-    let x: int = 1;
-    let mut t = (Some::<&int>(a), 1);
-    t.0 = Some::<&int>(&x);
-    return own t.0;
-}
-
-fn set(o: &mut Option<&int>, a: &int) {
-    *o = Some::<&int>(a);
-}
-
-fn store_through_element(p: &int) -> Option<&int> {
-    let x: int = 7;
-    let mut t = (Some::<&int>(p), 1);
-    set(&mut t.0, &x);
-    return own t.0;
-}
-
-fn window_through_ref(r: &(Option<&int>, int[])) -> int[] {
+fn window_through_ref(r: &(int, int[])) -> int[] {
     return own r.1;
 }
 
-type Holder = { t: (Option<&int>, int) };
-
-fn field_tuple(p: &int) -> Option<&int> {
-    let h: Holder = { t = (Some::<&int>(p), 1) };
-    return own h.t.0;
-}
-`
-
-// Soundness canaries: an element that holds a reference to, or a window into, a dying local leaves its frame by every
-// road a tuple can take.
-const originTupleEscapeSource = `fn leak_index() -> Option<&int> {
-    let x: int = 1;
-    let t = (Some::<&int>(&x), 2);
-    return own t.0;
-}
-
-fn leak_nested_index() -> Option<&int> {
-    let x: int = 1;
-    let t = ((Some::<&int>(&x), 1), 2);
-    return own t.0.0;
-}
-
-fn leak_window(p: &int) -> int[] {
+fn leak_window() -> int[] {
     let a: int[4] = [1, 2, 3, 4];
-    let t = (Some::<&int>(p), a[[0..2]]);
+    let t = (1, a[[0..2]]);
     return own t.1;
-}
-
-fn mk(a: &int) -> (Option<&int>, int) {
-    return (Some::<&int>(a), 1);
-}
-
-fn leak_call_index() -> Option<&int> {
-    let x: int = 7;
-    let t = mk(&x);
-    return own t.0;
-}
-
-fn first<T>(t: (T, int)) -> T {
-    return own t.0;
-}
-
-fn leak_generic() -> Option<&int> {
-    let x: int = 7;
-    let o: Option<&int> = Some::<&int>(&x);
-    return first::<Option<&int>>((o, 1));
-}
-
-fn leak_reassign(p: &int) -> Option<&int> {
-    let x: int = 7;
-    let mut t = (Some::<&int>(p), 1);
-    t = (Some::<&int>(&x), 2);
-    return own t.0;
-}
-
-fn leak_join(p: &int, c: bool) -> Option<&int> {
-    let x: int = 7;
-    let t = compare c {
-        true => (Some::<&int>(p), 1);
-        false => (Some::<&int>(&x), 2);
-    };
-    return own t.0;
-}
-
-fn leak_after_store() -> Option<&int> {
-    let x: int = 7;
-    let mut t = (Some::<&int>(&x), 1);
-    t.1 = 5;
-    return own t.0;
 }
 `
 
 const (
-	originTupleFinishSourceDigest  = "cc071d7536bb10a31963718af08540bd46d961aee35ffb19f06350d8e6639f48"
-	originTupleRefusedSourceDigest = "fc7a3d45eaa35c7218c2eb4081461cc1903ccca0e344b269c44b024355f67cf8"
-	originTupleEscapeSourceDigest  = "b198f860f2374420cc3fad5509d0342c91ad931f0230d40467d15ad272bde216"
+	originTupleFinishSourceDigest  = "e33c016cc576c1c754b0c6e0c34a6dc0dbce6cd21573a987dbaaf3cfa1531618"
+	originTupleRefusedSourceDigest = "a32ed85f1a1b7447fcc4d81c9197455d8e16108bf905588cd8c5169b5bbda493"
 )
 
 // tupleFn is the frozen span of the function whose text starts with header and runs to its closing brace.
@@ -250,13 +143,9 @@ func originTupleFinishRows() []originTupleRow {
 		{name: "own_nested_and_single", header: "fn own_nested(", body: "own_nested", slots: []uint32{}},
 		{name: "compare_built_pair", header: "fn compare_pair(", body: "compare_pair", slots: []uint32{}},
 		{name: "borrow_of_an_element_through_a_reference", header: "fn ref_elem(", body: "ref_elem", slots: []uint32{0}},
-		{name: "index_keeps_the_reference_origin", header: "fn keep_index(", body: "keep_index", slots: []uint32{0}},
-		{name: "index_of_a_reference_holding_parameter", header: "fn keep_param(", body: "keep_param", slots: []uint32{0}},
 		{name: "generic_element_keeps_its_tuple", header: "fn first<T>(", body: "first", slots: []uint32{0}},
 		{name: "generic_use", header: "fn use_first(", body: "use_first", slots: []uint32{}},
 		{name: "store_into_a_scalar_element", header: "fn store_scalar(", body: "store_scalar", slots: []uint32{}},
-		{name: "index_of_an_owned_parameter", header: "fn index_own(", body: "index_own", slots: []uint32{0}},
-		{name: "scalar_store_keeps_the_reference_origin", header: "fn keep_after_store(", body: "keep_after_store", slots: []uint32{0}},
 	}
 }
 
@@ -266,24 +155,18 @@ var originTupleDerived = []string{"function result contains an unproved source",
 func originTupleRefusedRows() []originTupleRow {
 	type w = struct{ snippet, reason string }
 	return []originTupleRow{
-		{name: "index_through_a_reference_keeps_its_row", header: "fn through_ref_index(", body: "through_ref_index",
-			want: []w{{"r.0", originTupleReferentRefusal}}, allow: originTupleDerived},
 		{name: "callable_element_keeps_its_row", header: "fn callable_elem(", body: "callable_elem",
 			// The parameter row is the pre-existing refusal of a function-typed parameter slot (return_origin_summary.go).
 			want:  []w{{"t.0", originTupleCallableRefusal}},
 			allow: append([]string{"parameter requires concrete type or callable provenance"}, originTupleDerived...)},
 		{name: "window_in_a_reference_free_tuple_keeps_g6", header: "fn window_plain(", body: "window_plain",
 			want: []w{{"(a[[0..2]], 1)", "storage loan would be discarded by a payload-free value"}}},
-		// A store of a reference into an element keeps the store row; the read after it is not clean.
-		{name: "store_of_a_reference_into_an_element_keeps_its_row", header: "fn store_reference(", body: "store_reference",
-			want: []w{{"t.0 = Some::<&int>(&x)", "store through a place needs reference-content transfer"}}, allow: originTupleDerived},
-		// `set` may write a reference into the element it is lent; the call keeps the mutable-argument row.
-		{name: "store_through_a_mutable_element_borrow_keeps_its_row", header: "fn store_through_element(", body: "store_through_element",
-			want: []w{{"set(&mut t.0, &x)", "mutable argument may replace reference-bearing contents"}}, allow: originTupleDerived},
 		{name: "window_through_a_reference_keeps_its_row", header: "fn window_through_ref(", body: "window_through_ref",
 			want: []w{{"r.1", originTupleReferentRefusal}}, allow: originTupleDerived},
-		{name: "tuple_field_of_a_struct_keeps_the_member_row", header: "fn field_tuple(", body: "field_tuple",
-			want: []w{{"h.t", "projected borrowed payload needs precise origin facts"}}, allow: originTupleDerived},
+		// Was an escape canary beside a reference element; with no reference beside it the window keeps the G6 row,
+		// so the body is still never clean.
+		{name: "index_of_a_window_into_a_local_keeps_g6", header: "fn leak_window(", body: "leak_window",
+			want: []w{{"(1, a[[0..2]])", "storage loan would be discarded by a payload-free value"}}, allow: originTupleDerived},
 	}
 }
 
@@ -309,42 +192,61 @@ func runOriginTupleRows(t *testing.T, stage, text, digest string, rows []originT
 	}
 }
 
-// 15 RUN: 1 parent, 14 leaves.
+// 11 RUN: 1 parent, 10 leaves.
 func TestAnalyzeTuples(t *testing.T) {
 	rows := originTupleFinishRows()
-	if len(rows) != 14 {
+	if len(rows) != 10 {
 		t.Fatalf("PRECONDITION: frozen roster changed: rows=%d", len(rows))
 	}
 	runOriginTupleRows(t, "tuple", originTupleFinishSource, originTupleFinishSourceDigest, rows)
 }
 
-// 8 RUN: 1 parent, 7 leaves.
+// 5 RUN: 1 parent, 4 leaves.
 func TestAnalyzeTupleRefusals(t *testing.T) {
 	rows := originTupleRefusedRows()
-	if len(rows) != 7 {
+	if len(rows) != 4 {
 		t.Fatalf("PRECONDITION: frozen roster changed: rows=%d", len(rows))
 	}
 	runOriginTupleRows(t, "tuple_refused", originTupleRefusedSource, originTupleRefusedSourceDigest, rows)
 }
 
-// 9 RUN: 1 parent, 8 leaves. Each leak is SEM3139 for its local, never a clean body.
-func TestTupleEscapeIsReported(t *testing.T) {
-	rows := []struct{ name, header, owner string }{
-		{"index_of_a_reference_to_a_local", "fn leak_index(", "x"},
-		{"nested_index_of_a_reference_to_a_local", "fn leak_nested_index(", "x"},
-		{"index_of_a_window_into_a_local", "fn leak_window(", "a"},
-		{"index_of_a_call_result", "fn leak_call_index(", "x"},
-		{"generic_instantiation", "fn leak_generic(", "x"},
-		{"whole_reassignment", "fn leak_reassign(", "x"},
-		{"compare_join", "fn leak_join(", "x"},
-		{"scalar_store_beside_the_reference", "fn leak_after_store(", "x"},
-	}
-	for _, row := range rows {
-		t.Run(row.name, func(t *testing.T) {
-			fn := tupleFn(t, originTupleEscapeSource, row.header)
-			checkOriginSource(t, originTupleEscapeSource, originTupleEscapeSourceDigest, fn)
-			f, analysis := analyzeOriginRoot(t, "tuple_escape_"+row.name, originTupleEscapeSource, true, nil)
-			requireSelectEscape(t, analysis, f.owner.File.ID, fn, row.owner)
-		})
-	}
+// An element holding a reference -- `Option<&int>` in a tuple type or literal -- is refused by SEM3138 (the
+// containment rule holds at any depth), so these programs, which the index, refusal and escape rows above used to
+// read, never reach return-origin analysis. Each row keeps its old name and pins the refusal; the escape rows' point,
+// that a reference to a dying local never leaves through a tuple, still holds, now by the refusal. A refused tuple
+// type or literal has no type, so three rows also carry what that leaves behind: the checker's SEM3020 for the moved
+// element, a result type of nothing (SEM3015), and no overload of `first` for an untyped argument (SEM3046).
+func TestTupleStoredReferenceIsRefused(t *testing.T) {
+	runStoredReferenceRows(t, []storedReferenceRow{
+		{name: "index_keeps_the_reference_origin", want: "SEM3138",
+			text: "fn keep_index(a: &int) -> Option<&int> {\n    let t = (Some::<&int>(a), 2);\n    return own t.0;\n}\n"},
+		{name: "index_of_a_reference_holding_parameter", want: "SEM3138",
+			text: "fn keep_param(t: (Option<&int>, int)) -> Option<&int> {\n    return own t.0;\n}\n"},
+		{name: "index_of_an_owned_parameter", want: "SEM3138",
+			text: "fn index_own(t: own (Option<&int>, int)) -> Option<&int> {\n    return own t.0;\n}\n"},
+		{name: "scalar_store_keeps_the_reference_origin", want: "SEM3138",
+			text: "fn keep_after_store(p: &int) -> Option<&int> {\n    let mut t = (Some::<&int>(p), 1);\n    t.1 = 5;\n    return own t.0;\n}\n"},
+		{name: "index_through_a_reference_keeps_its_row", want: "SEM3138",
+			text: "fn through_ref_index(r: &(Option<&int>, int)) -> Option<&int> {\n    return own r.0;\n}\n"},
+		{name: "store_of_a_reference_into_an_element_keeps_its_row", want: "SEM3138",
+			text: "fn store_reference(a: &int) -> Option<&int> {\n    let x: int = 1;\n    let mut t = (Some::<&int>(a), 1);\n    t.0 = Some::<&int>(&x);\n    return own t.0;\n}\n"},
+		{name: "store_through_a_mutable_element_borrow_keeps_its_row", want: "SEM3020,SEM3138",
+			text: "fn set(o: &mut Option<&int>, a: &int) {\n    *o = Some::<&int>(a);\n}\n\nfn store_through_element(p: &int) -> Option<&int> {\n    let x: int = 7;\n    let mut t = (Some::<&int>(p), 1);\n    set(&mut t.0, &x);\n    return own t.0;\n}\n"},
+		{name: "tuple_field_of_a_struct_keeps_the_member_row", want: "SEM3138",
+			text: "type Holder = { t: (Option<&int>, int) };\n\nfn field_tuple(p: &int) -> Option<&int> {\n    let h: Holder = { t = (Some::<&int>(p), 1) };\n    return own h.t.0;\n}\n"},
+		{name: "index_of_a_reference_to_a_local", want: "SEM3138",
+			text: "fn leak_index() -> Option<&int> {\n    let x: int = 1;\n    let t = (Some::<&int>(&x), 2);\n    return own t.0;\n}\n"},
+		{name: "nested_index_of_a_reference_to_a_local", want: "SEM3138",
+			text: "fn leak_nested_index() -> Option<&int> {\n    let x: int = 1;\n    let t = ((Some::<&int>(&x), 1), 2);\n    return own t.0.0;\n}\n"},
+		{name: "index_of_a_call_result", want: "SEM3015,SEM3138",
+			text: "fn mk(a: &int) -> (Option<&int>, int) {\n    return (Some::<&int>(a), 1);\n}\n\nfn leak_call_index() -> Option<&int> {\n    let x: int = 7;\n    let t = mk(&x);\n    return own t.0;\n}\n"},
+		{name: "generic_instantiation", want: "SEM3046,SEM3138",
+			text: "fn first<T>(t: (T, int)) -> T {\n    return own t.0;\n}\n\nfn leak_generic() -> Option<&int> {\n    let x: int = 7;\n    let o: Option<&int> = Some::<&int>(&x);\n    return first::<Option<&int>>((o, 1));\n}\n"},
+		{name: "whole_reassignment", want: "SEM3138",
+			text: "fn leak_reassign(p: &int) -> Option<&int> {\n    let x: int = 7;\n    let mut t = (Some::<&int>(p), 1);\n    t = (Some::<&int>(&x), 2);\n    return own t.0;\n}\n"},
+		{name: "compare_join", want: "SEM3138",
+			text: "fn leak_join(p: &int, c: bool) -> Option<&int> {\n    let x: int = 7;\n    let t = compare c {\n        true => (Some::<&int>(p), 1);\n        false => (Some::<&int>(&x), 2);\n    };\n    return own t.0;\n}\n"},
+		{name: "scalar_store_beside_the_reference", want: "SEM3138",
+			text: "fn leak_after_store() -> Option<&int> {\n    let x: int = 7;\n    let mut t = (Some::<&int>(&x), 1);\n    t.1 = 5;\n    return own t.0;\n}\n"},
+	})
 }

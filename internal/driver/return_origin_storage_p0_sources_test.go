@@ -20,26 +20,26 @@ type storageP0Target struct {
 var storageP0Cases = []storageP0Case{
 	{
 		name: "p05_default_writes",
-		source: `fn empty() -> Array<Option<&string>> { return []; }
-fn zero() -> Option<&string>[0] { return default::<Option<&string>[0]>(); }
-fn partial(value: &string, write: bool) -> Option<&string>[2] {
-    let mut out: Option<&string>[2] = default::<Option<&string>[2]>();
-    if write { out[0] = Some::<&string>(value); }
+		source: `fn empty() -> Array<Option<BytesView>> { return []; }
+fn zero() -> Option<BytesView>[0] { return default::<Option<BytesView>[0]>(); }
+fn partial(value: &string, write: bool) -> Option<BytesView>[2] {
+    let mut out: Option<BytesView>[2] = default::<Option<BytesView>[2]>();
+    if write { out[0] = Some::<BytesView>(value.bytes()); }
     return out;
 }
-fn full(value: &string) -> Option<&string>[2] {
-    let mut out: Option<&string>[2] = default::<Option<&string>[2]>();
+fn full(value: &string) -> Option<BytesView>[2] {
+    let mut out: Option<BytesView>[2] = default::<Option<BytesView>[2]>();
     let mut i: int = 0;
-    while i < 2 { out[i] = Some::<&string>(value); i = i + 1; }
+    while i < 2 { out[i] = Some::<BytesView>(value.bytes()); i = i + 1; }
     return out;
 }
 `,
 		targets: []storageP0Target{
 			{"", "[]", ast.ExprArray, 1, ""},
-			{"", "default::<Option<&string>[0]>()", ast.ExprCall, 1, "default"},
-			{"", "default::<Option<&string>[2]>()", ast.ExprCall, 2, "default"},
-			{"", "out[0] = Some::<&string>(value)", ast.ExprBinary, 1, ""},
-			{"", "out[i] = Some::<&string>(value)", ast.ExprBinary, 1, ""},
+			{"", "default::<Option<BytesView>[0]>()", ast.ExprCall, 1, "default"},
+			{"", "default::<Option<BytesView>[2]>()", ast.ExprCall, 2, "default"},
+			{"", "out[0] = Some::<BytesView>(value.bytes())", ast.ExprBinary, 1, ""},
+			{"", "out[i] = Some::<BytesView>(value.bytes())", ast.ExprBinary, 1, ""},
 		},
 	},
 	{
@@ -231,19 +231,19 @@ fn probe() -> Option<uint64> {
 	},
 	{
 		name: "p11_replace_effects",
-		source: `fn read_old(m: &mut Map<string, &string>, key: string, value: &string) -> Option<&string> {
-    let old: Option<&string> = m.insert(clone(&key), value);
+		source: `fn read_old(m: &mut Map<string, BytesView>, key: string, value: BytesView) -> Option<BytesView> {
+    let old: Option<BytesView> = m.insert(clone(&key), value);
     let _ = m.contains(&key);
     let _ = m.length();
     let _ = m.get_ref(&key);
     return old;
 }
-fn touch(m: &mut Map<string, &string>, key: string) -> nothing {
+fn touch(m: &mut Map<string, BytesView>, key: string) -> nothing {
     let _ = m.get_mut(&key);
     let _ = m.remove(&key);
     return nothing;
 }
-fn read_new(m: &mut Map<string, &string>, key: string, value: &string) -> Option<&string> {
+fn read_new(m: &mut Map<string, uint64[]>, key: string, value: uint64[]) -> Option<uint64[]> {
     let _ = m.insert(clone(&key), value);
     return m.remove(&key);
 }

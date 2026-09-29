@@ -54,19 +54,19 @@ var rangeNextCoreStep = rangeNextSpan{2130, 2141, "iter.next()"}
 
 func rangeNextSources() []rangeNextSource {
 	return []rangeNextSource{
-		{name: "template_uses", digest: "914d19911a3abf19d09ef6986edb18bdeb9a2a6db51d1f5e8f5890944246dc21", text: `pragma module::dep;
+		{name: "template_uses", digest: "7538995c5b0a0fa8e2506dbdcd6411cbe25401f522ba6bb0c0dd01aa92b9bbdf", text: `pragma module::dep;
 fn use_int(xs: &uint64[]) -> uint64[] {
     return Array::<uint64>::from_range(xs.__range());
 }
-fn use_ref(r: Range<&string>) -> nothing {
-    let _ = Array::<&string>::from_range(r);
+fn use_ref(r: Range<BytesView>) -> nothing {
+    let _ = Array::<BytesView>::from_range(r);
     return nothing;
 }
 `, leaves: []rangeNextLeaf{
 			{name: "use_int", function: "use_int", body: rangeNextSpan{20, 115, ""}, clean: true, quiet: true, summary: true},
 			// The template body's recorded condition refuses a borrowing element at its call.
-			{name: "use_ref", function: "use_ref", body: rangeNextSpan{116, 225, ""},
-				present: []rangeNextPending{{"", rangeNextSpan{171, 202, "Array::<&string>::from_range(r)"}, rangeNextRefuted}}},
+			{name: "use_ref", function: "use_ref", body: rangeNextSpan{116, 229, ""},
+				present: []rangeNextPending{{"", rangeNextSpan{173, 206, "Array::<BytesView>::from_range(r)"}, rangeNextRefuted}}},
 		}},
 		// The step's finalized use from from_range<uint64[]> is refused at the core step itself.
 		{name: "root_view", root: true, digest: "47bb42883810bd0b23fdc5a88f1be87948130ec87c0905bf06710257c5410e78", text: `fn use_view(r: Range<uint64[]>) -> nothing {

@@ -34,6 +34,7 @@ func (tc *typeChecker) instantiateNamedType(symID symbols.SymbolID, args []types
 	tc.nominalInstantiations--
 	tc.reportTaskPayloadIsTask(instantiated, args, span)
 	tc.reportNominalTaskInMap(instantiated, args, span)
+	tc.rejectNominalHoldingRef(symID, instantiated, span)
 	return instantiated
 }
 

@@ -74,7 +74,8 @@ fn main() -> int {
     return 0;
 }
 `},
-	{"rd_struct_carrying_a_reference_returned", "2dca09d035ac1c2a80ade96ae6fdecd038acd124799a1d7c7e9717d9f34b1042", "SEM3139", `type Holder = { o: Option<&int> };
+	// Holder stores an Option<&int>, which SEM3138 refuses; the task check still refuses the leak (SEM3139).
+	{"rd_struct_carrying_a_reference_returned", "2dca09d035ac1c2a80ade96ae6fdecd038acd124799a1d7c7e9717d9f34b1042", "SEM3138,SEM3139", `type Holder = { o: Option<&int> };
 
 fn read_opt(o: Option<&int>) -> int {
     return compare o {
@@ -100,7 +101,8 @@ fn main() -> int {
     return 0;
 }
 `},
-	{"rd_field_of_a_carrier_let_returned", "61433e183aea5f4971672c36e87c576f98d60f51f98ad212142e9330ce65c3c4", "SEM3139", `type Holder = { o: Option<&int> };
+	// Holder stores an Option<&int>, which SEM3138 refuses; the task check still refuses the leak (SEM3139).
+	{"rd_field_of_a_carrier_let_returned", "61433e183aea5f4971672c36e87c576f98d60f51f98ad212142e9330ce65c3c4", "SEM3138,SEM3139", `type Holder = { o: Option<&int> };
 
 async fn peek(o: Option<&int>) -> int {
     return compare o {
@@ -197,7 +199,9 @@ fn main() -> int {
     return 0;
 }
 `},
-	{"rd_tuple_pattern_binding_returned", "1a27c88b8e47c3310896186f4fcae8c11368da455fe5883bc223b6da1f2d1708", "SEM3139,SEM3220", `async fn peek(o: Option<&int>) -> int {
+	// The tuple holds an Option<&int>, which SEM3138 refuses before the task check can name the leak; the
+	// destructuring stays SEM3220. The program is still refused.
+	{"rd_tuple_pattern_binding_returned", "1a27c88b8e47c3310896186f4fcae8c11368da455fe5883bc223b6da1f2d1708", "SEM3138,SEM3220", `async fn peek(o: Option<&int>) -> int {
     return compare o {
         Some(r) => *r;
         nothing => 0;

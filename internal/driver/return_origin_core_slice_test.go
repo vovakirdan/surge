@@ -30,7 +30,7 @@ fn inner() -> nothing {
 }
 `
 
-const coreSliceRefusalSource = `fn firsts(xs: &Array<&string>) -> Array<&string> {
+const coreSliceRefusalSource = `fn firsts(xs: &Array<BytesView>) -> Array<BytesView> {
     return xs.slice(0..1);
 }
 fn nested(xs: &Array<uint64[]>) -> Array<uint64[]> {
@@ -54,7 +54,7 @@ func coreSliceEscape(name string, start, end int, primary, owner originSpan, unk
 func coreSliceSources() []coreRangeSource {
 	leakReturn := originSpan{139, 160, "return v.slice(1..3);"}
 	innerBlock := originSpan{221, 369, coreSliceEscapeSource[221:369]}
-	firstsCall, nestedCall := originSpan{62, 76, "xs.slice(0..1)"}, originSpan{144, 158, "xs.slice(0..1)"}
+	firstsCall, nestedCall := originSpan{66, 80, "xs.slice(0..1)"}, originSpan{148, 162, "xs.slice(0..1)"}
 	return []coreRangeSource{
 		{name: "slice_payload_free", text: coreSlicePayloadFreeSource, digest: "d2b8f702913a9c1d6395041f721a8d142ec013f9e4e6cba3c9e4615c46bab0a3",
 			spans:  []originSpan{{50, 64, "xs.slice(1..3)"}},
@@ -65,7 +65,7 @@ func coreSliceSources() []coreRangeSource {
 				coreSliceEscape("leak_view", 0, 162, leakReturn, originSpan{37, 42, "fixed"}, true),
 				coreSliceEscape("inner", 163, 391, innerBlock, originSpan{235, 240, "fixed"}, false),
 			}},
-		{name: "slice_reference_refusal", text: coreSliceRefusalSource, digest: "94ff79651d33e65541153128c7f2444c2573441bc9b6d45275efb8f17e9f2dc4",
+		{name: "slice_reference_refusal", text: coreSliceRefusalSource, digest: "ef627f19728fdd102fff35a8dfeb5fc8a8e8bf252f9150b607596aa4f7218eba",
 			spans: []originSpan{firstsCall, nestedCall},
 			leaves: []coreRangeLeaf{
 				coreRangeRefusal("firsts", firstsCall, []string{genericConditionRefuted}, nil),

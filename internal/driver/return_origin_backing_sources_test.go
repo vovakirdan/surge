@@ -13,18 +13,18 @@ type backingSource struct {
 // bytes, used only if ordinary admission refuses inner_rebind.
 const backingW6RDigest = "516cb778cde56438026940310a6ea5dd8b542156ea2dbc8005894e84f30a67cc"
 
-const backingW1 = `fn both(first: &string, second: &string) -> Option<&string>[2] {
-    let mut out: Option<&string>[2] = default::<Option<&string>[2]>();
-    out[0] = Some::<&string>(first);
-    out[1] = Some::<&string>(second);
+const backingW1 = `fn both(first: &string, second: &string) -> Option<BytesView>[2] {
+    let mut out: Option<BytesView>[2] = default::<Option<BytesView>[2]>();
+    out[0] = Some::<BytesView>(first.bytes());
+    out[1] = Some::<BytesView>(second.bytes());
     return out;
 }
-fn looped(first: &string, second: &string) -> Option<&string>[2] {
-    let mut out: Option<&string>[2] = default::<Option<&string>[2]>();
+fn looped(first: &string, second: &string) -> Option<BytesView>[2] {
+    let mut out: Option<BytesView>[2] = default::<Option<BytesView>[2]>();
     let mut i: int = 0;
     while i < 1 {
-        out[0] = Some::<&string>(first);
-        out[1] = Some::<&string>(second);
+        out[0] = Some::<BytesView>(first.bytes());
+        out[1] = Some::<BytesView>(second.bytes());
         i = i + 1;
     }
     return out;
@@ -184,11 +184,11 @@ const backingW16S = `fn store_load(xs: &uint64[4]) -> uint64[] {
 
 func backingSources() []backingSource {
 	return []backingSource{
-		{name: "p05_default_writes", fixture: "p05_default_writes", digest: "44421c2bb1a528625fe8cbf28a006dafb5d4ef7eab9a66c44a19df4c6a3d1877"},
+		{name: "p05_default_writes", fixture: "p05_default_writes", digest: "f27bfcfef0f066d0ec7881b1f0610a43fd61e24d7dbc0d2f4a76acd4eaea06b7"},
 		{name: "p06_core_array_paths", fixture: "p06_core_array_paths", digest: "c0f229fc5a4d0b7a7c1c314675944f3d824f6db6739c315acd5fe37f2f9f5dbf"},
 		{name: "p07_repeated_site", fixture: "p07_repeated_site", digest: "16e35ae5e78700bac37e5ca2e6cafb513e5bbe08b2c5ae6121aceb5ce8e17097"},
 		{name: "p10_view_cursor_lifetime", fixture: "p10_view_cursor_lifetime", digest: "9a4a59d9a9786bf43583c06cd42daa8e5ddc04053693d1ca3aebab8166a628e7"},
-		{name: "w1_weak_sites", text: backingW1, digest: "93192d518be5656886c93f7c1a19937a69bbec4871a4617088dac06f270a1de9"},
+		{name: "w1_weak_sites", text: backingW1, digest: "9ea09fe45aac05a92343a6d7dcd202ea3a5ea3b32a36a3e0fa87a6aa4bc18a27"},
 		{name: "w2_to_array_contents", text: backingW2, digest: "29d8b9e1ee692c765b63ae3a1cecd81b35f64476605bedd87c40060c65b3f3ad", escape: true},
 		{name: "w4_view_binding", text: backingW4, digest: "743268cb08367181e8e7cb7d9f67c5879f66de0364c1faa05c81ec870bc7548a"},
 		{name: "w5_loan_discard", text: backingW5, digest: "218fbcbab2fd8d219610c48cc31291c5a6e8ecf1a54eb79d50fd5d2d7c7865a2"},

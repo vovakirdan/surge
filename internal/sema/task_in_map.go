@@ -48,9 +48,12 @@ func (tc *typeChecker) instantiateAtTaskInMapSite(args []types.TypeID, span sour
 
 // instantiateStaticReceiver is the `Type::<Args>` of a static call, a site of its own.
 func (tc *typeChecker) instantiateStaticReceiver(symID symbols.SymbolID, args []types.TypeID, site source.Span) types.TypeID {
-	return tc.instantiateAtTaskInMapSite(args, site, func() types.TypeID {
+	instantiated := tc.instantiateAtTaskInMapSite(args, site, func() types.TypeID {
 		return tc.instantiateTypeRejectingChannelPayloadRef(symID, args, site)
 	})
+	// The receiver keeps its type once refused, so the call does not cascade.
+	tc.rejectNominalHoldingRef(symID, instantiated, site)
+	return instantiated
 }
 
 // reportTaskInMap refuses the Map<key, value> made at span; it answers whether it reported.

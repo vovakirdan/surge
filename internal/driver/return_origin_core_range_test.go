@@ -101,27 +101,27 @@ fn leak_cursor() -> Range<uint64> {
 const coreRangeCursorRefusalSource = `fn cursor<T>(xs: &Array<T>) -> Range<T> {
     return xs.__range();
 }
-fn refs(xs: &Array<&string>) -> Range<&string> {
-    return cursor::<&string>(xs);
+fn refs(xs: &Array<BytesView>) -> Range<BytesView> {
+    return cursor::<BytesView>(xs);
 }
 fn nested(xs: &Array<uint64[]>) -> Range<uint64[]> {
     return cursor::<uint64[]>(xs);
 }
 `
 
-const coreRangeDeclarationsSource = `fn walk(xs: &Option<&string>[2]) -> Range<Option<&string>> {
+const coreRangeDeclarationsSource = `fn walk(xs: &Option<BytesView>[2]) -> Range<Option<BytesView>> {
     return xs.__range();
 }
-fn walk_dyn(xs: &Array<&string>) -> Range<&string> {
+fn walk_dyn(xs: &Array<BytesView>) -> Range<BytesView> {
     return xs.__range();
 }
 `
 
 func coreRangeSources() []coreRangeSource {
 	leakReturn := originSpan{215, 243, "return cursor::<uint64>(&v);"}
-	refsCall := originSpan{129, 150, "cursor::<&string>(xs)"}
-	nestedCall := originSpan{218, 240, "cursor::<uint64[]>(xs)"}
-	walkCall, walkDynCall := originSpan{72, 84, "xs.__range()"}, originSpan{152, 164, "xs.__range()"}
+	refsCall := originSpan{133, 156, "cursor::<BytesView>(xs)"}
+	nestedCall := originSpan{224, 246, "cursor::<uint64[]>(xs)"}
+	walkCall, walkDynCall := originSpan{76, 88, "xs.__range()"}, originSpan{160, 172, "xs.__range()"}
 	return []coreRangeSource{
 		{name: "range_bounds_call", text: coreRangeBoundsSource, digest: "6b3dc3e073f6408a940b5eaad7e315bbcec642615cab8215905139a701afcb61",
 			spans:  []originSpan{{46, 75, "rt_range_int_new(0, n, false)"}},
@@ -150,14 +150,14 @@ func coreRangeSources() []coreRangeSource {
 				}},
 			}},
 		// A separate analysis: an instance over a borrowing element also pends inside `cursor` itself.
-		{name: "template_cursor_refusal", text: coreRangeCursorRefusalSource, digest: "b358d1dacb4c3926d3160f982a4a8d1e5970f825175f9569433398ff1b0837de",
+		{name: "template_cursor_refusal", text: coreRangeCursorRefusalSource, digest: "2b7130fe3ba0f2a8198e456e2011b8cf4a04d94ef6770991f0308174bc200cb7",
 			spans: []originSpan{{53, 65, "xs.__range()"}, refsCall, nestedCall},
 			leaves: []coreRangeLeaf{
 				coreRangeRefusal("refs", refsCall, []string{genericConditionRefuted}, nil),
 				// Status control: an array element is a loan carrier, refused before and after.
 				coreRangeRefusal("nested", nestedCall, []string{genericConditionUnsupported}, nil),
 			}},
-		{name: "cursor_declarations", text: coreRangeDeclarationsSource, digest: "d99e7edbcd3cbd7ec58cb5cd41a96c69864de4f3431f59d87c0d15f955fcc7e0",
+		{name: "cursor_declarations", text: coreRangeDeclarationsSource, digest: "fa89a877ce951df56ab25f806e5c15e9ff240c43594ba32b0e731df7eaf08a61",
 			spans: []originSpan{walkCall, walkDynCall},
 			leaves: []coreRangeLeaf{
 				coreRangeRefusal("walk", walkCall, []string{genericConditionRefuted}, []string{genericConditionUnsupported, arrayPopLegacyTransfer}),

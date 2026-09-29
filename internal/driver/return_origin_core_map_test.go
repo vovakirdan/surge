@@ -38,20 +38,22 @@ type coreMapSource struct {
 
 func coreMapSources() []coreMapSource {
 	return []coreMapSource{
-		{name: "m1_map_post_escape", fixture: "root_escape", text: coreMapM1, digest: coreMapM1Digest, spans: []originSpan{{79, 99, "m.insert(\"k\", value)"}, {243, 267, "let s: string = \"local\";"}, {276, 292, "fill(&mut m, &s)"}}, leaves: []coreMapLeaf{
+		{name: "m1_map_post_escape", fixture: "root_escape", text: coreMapM1, digest: coreMapM1Digest, spans: []originSpan{{83, 103, "m.insert(\"k\", value)"}, {251, 275, "let s: string = \"local\";"}, {284, 307, "fill(&mut m, s.bytes())"}}, leaves: []coreMapLeaf{
 			{name: "fill", checks: []backingCheck{arrayPopClean("fill")}},
-			{name: "outer", checks: []backingCheck{arrayPopEscape("outer", backingEscape{233, 299, "s", 243, 267})}},
+			{name: "outer", checks: []backingCheck{arrayPopEscape("outer", backingEscape{241, 314, "s", 251, 275})}},
 		}},
-		{name: "m2_map_remove_keeps", fixture: "dependency", text: coreMapM2, digest: coreMapM2Digest, spans: []originSpan{{129, 149, "m.insert(\"k\", value)"}}, leaves: []coreMapLeaf{
-			{name: "after_remove", checks: []backingCheck{arrayPopClean("after_remove", 0, 2)}},
+		{name: "m2_map_remove_keeps", fixture: "dependency", text: coreMapM2, digest: coreMapM2Digest, spans: []originSpan{{132, 152, "m.insert(\"k\", value)"}}, leaves: []coreMapLeaf{
+			// The values are windows: an insert that hands back a view would keep m borrowed across the removes,
+			// and an owned window parameter is no source, so the removed value keeps m's elements only.
+			{name: "after_remove", checks: []backingCheck{arrayPopClean("after_remove", 0)}},
 		}},
-		{name: "m3_map_generic_keys", fixture: "dependency", text: coreMapM3, digest: coreMapM3Digest, spans: []originSpan{{77, 85, "m.keys()"}, {153, 172, "names::<&string>(m)"}}, leaves: []coreMapLeaf{
+		{name: "m3_map_generic_keys", fixture: "dependency", text: coreMapM3, digest: coreMapM3Digest, spans: []originSpan{{77, 85, "m.keys()"}, {155, 176, "names::<BytesView>(m)"}}, leaves: []coreMapLeaf{
 			{name: "names", checks: []backingCheck{arrayPopClean("names")}},
 			{name: "use_names", checks: []backingCheck{arrayPopClean("use_names")}},
 			{name: "closure_complete", extra: checkCoreMapClosure},
 		}},
-		{name: "m4_map_name_control", fixture: "dependency", text: coreMapM4, digest: coreMapM4Digest, spans: []originSpan{{138, 170, "rt_map_len::<string, &string>(m)"}}, leaves: []coreMapLeaf{
-			{name: "size", checks: []backingCheck{{function: "size", pending: []backingPending{{138, 170, rangeNextOpaqueEffect}}}}},
+		{name: "m4_map_name_control", fixture: "dependency", text: coreMapM4, digest: coreMapM4Digest, spans: []originSpan{{145, 184, "rt_map_len::<string, fn(int) -> int>(m)"}}, leaves: []coreMapLeaf{
+			{name: "size", checks: []backingCheck{{function: "size", pending: []backingPending{{145, 184, rangeNextOpaqueEffect}}}}},
 		}},
 		{name: "m5_map_loan_value", fixture: "root_escape", text: coreMapM5, digest: coreMapM5Digest, spans: []originSpan{{109, 138, "rt_map_insert(&mut m, \"k\", v)"}, {336, 364, "rt_map_remove(&mut mm, &\"k\")"}, {760, 788, "rt_map_remove(&mut mm, &\"k\")"}, {556, 571, "mm.remove(&\"k\")"}, {192, 253, "let xs: uint64[4] = [1:uint64, 2:uint64, 3:uint64, 4:uint64];"}, {412, 473, "let xs: uint64[4] = [1:uint64, 2:uint64, 3:uint64, 4:uint64];"}}, leaves: []coreMapLeaf{
 			{name: "wrapm", checks: []backingCheck{{function: "wrapm", slots: []uint32{0}, summary: true, pending: []backingPending{{109, 138, arrayPopLoanElement}}}}},
@@ -75,9 +77,10 @@ func coreMapSources() []coreMapSource {
 		{name: "m10_map_remove_option_inner", fixture: "dependency", text: coreMapM10, digest: coreMapM10Digest, spans: []originSpan{{138, 171, "rt_map_remove(&mut outer[0], key)"}}, leaves: []coreMapLeaf{
 			{name: "remove_option", checks: []backingCheck{{function: "remove_option", pending: []backingPending{{138, 171, arrayPopLoanElement}}}}, absent: []coreMapRow{{"", 138, 171, rangeNextMutableEffect}, {"", 138, 171, rangeNextOpaqueEffect}, {"", 138, 171, originGenericOpaqueUse}}},
 		}},
-		{name: "p11_replace_effects", fixture: "backing", digest: "b5e9e6feb23cc94a0f8284a36d9b7a3b795aaf93a812cb4e05f9a61c765f3b33", spans: []originSpan{{543, 557, "m.remove(&key)"}}, leaves: []coreMapLeaf{
+		{name: "p11_replace_effects", fixture: "backing", digest: "44ab2f58ebffc0b387546a92e7bc350ab61d8dc7480b580f4fdf6d2931b5331b", spans: []originSpan{{556, 570, "m.remove(&key)"}}, leaves: []coreMapLeaf{
 			{name: "read_old", checks: []backingCheck{arrayPopClean("read_old", 0)}},
-			{name: "read_new", checks: []backingCheck{arrayPopClean("read_new", 0, 2)}},
+			// read_new's values are windows, as m2's are: its owned window parameter is no source.
+			{name: "read_new", checks: []backingCheck{arrayPopClean("read_new", 0)}},
 			{name: "safe_keys", checks: []backingCheck{arrayPopClean("safe_keys")}},
 		}},
 		{name: "container_loan_twin", fixture: "root", text: containerLoanTwinSource, digest: containerLoanTwinDigest, spans: []originSpan{{420, 446, "mm.insert(\"k\", xs[[1..3]])"}, {460, 477, "take_map(&mut mm)"}}, leaves: []coreMapLeaf{

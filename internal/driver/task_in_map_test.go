@@ -15,8 +15,10 @@ import (
 // Each program is a ROOT program over the real core. A refused row names every span that
 // must carry the error, exactly once, and the one other error code it may also carry; a
 // control row carries no error at all. Tasks kept in an array and drained, the tasks'
-// results kept in a map, a far task handle, a reference to a task, a Channel<Task<T>> in a
-// map and generic maps of ints stay accepted.
+// results kept in a map, a far task handle, a Channel<Task<T>> in a map and generic maps of
+// ints stay accepted. A reference to a task is not held by the map's value either, so this
+// rule stays silent on it; the map is refused by SEM3138 instead, since no map value holds a
+// reference (ref_in_aggregate_deep_test.go).
 //
 // residual_generic_body is a named residual, not a control: a generic body that builds
 // Map<int, T> is checked once over T, so its instantiation with a task is not a site the
@@ -92,7 +94,7 @@ func taskInMapRows() []taskInMapRow {
 		{probe: taskCheckProbe{name: "control_far_task", digest: "1d9192a01eb204df3c4699b5eed30bbf177e5f9e2d21278b1a753dd1eeef378d",
 			text: "fn f(m: Map<int, far Task<int>>) -> int {\n    return 0;\n}\n"}, spans: nil},
 		{probe: taskCheckProbe{name: "control_reference_to_task", digest: "46ff11bde9917e47be40abc66a99c086abc3db3e5d76571250cccacd629fa060",
-			text: "fn f(m: Map<int, &Task<int>>) -> int {\n    return 0;\n}\n"}, spans: nil},
+			text: "fn f(m: Map<int, &Task<int>>) -> int {\n    return 0;\n}\n"}, spans: []string{}, also: semaRefInAggregate},
 		{probe: taskCheckProbe{name: "residual_generic_body", digest: "4838ff47596c1958e0c209aed0750e2fef0a90645e7a01e169526194436841d0",
 			text: "async fn work(n: int) -> int {\n    return n * 2;\n}\n\nfn keep<T>(x: T) -> uint {\n    let mut m = Map::<int, T>::new();\n    m.insert(1, x);\n    return m.length();\n}\n\nfn f() -> uint {\n    return keep(work(1));\n}\n"}, spans: nil},
 	}

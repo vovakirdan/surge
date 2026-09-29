@@ -18,13 +18,18 @@ const returnOriginBackingRosterSource = `fn roster(dst: &mut uint64[], src: &uin
 }
 `
 
-// merge keeps R4's descriptors; its two locals are the real Local targets B5/B6 need.
+// merge keeps R4's descriptors; its two locals are the real Local targets B5/B6 need. Its element is
+// a type parameter, which can hold a loan as a reference could, since an array may not hold a
+// reference at any depth (SEM3138); root is the ordinary body the fixture's finalization seeds.
 const returnOriginBackingMergeSource = `pragma no_std;
 tag Has<T>(T);
 type Opt<T> = Has(T) | nothing;
-fn merge(a: &mut Opt<&string>[], b: &Opt<&string>[], v: &string) -> nothing {
-    let mut first: Opt<&string>[] = [];
-    let second: Opt<&string>[] = [];
+fn merge<T>(a: &mut Opt<T>[], b: &Opt<T>[], v: T) -> nothing {
+    let mut first: Opt<T>[] = [];
+    let second: Opt<T>[] = [];
+    return nothing;
+}
+fn root() -> nothing {
     return nothing;
 }
 `
@@ -199,7 +204,7 @@ func TestReturnOriginBackingFacts(t *testing.T) {
 		a, fn := backingFactFunction(t, returnOriginBackingMergeSource, "merge")
 		b := &returnOriginBody{analyzer: a, function: fn}
 		if b.elementsFree(backingFactContainer(t, fn, fn.info.Params[0])) {
-			t.Fatal("PRECONDITION: Opt<&string> elements were read as payload-free")
+			t.Fatal("PRECONDITION: Opt<T> elements were read as payload-free")
 		}
 		firstID, first := backingFactLocal(t, fn, "first")
 		secondID, second := backingFactLocal(t, fn, "second")

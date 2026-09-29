@@ -80,7 +80,7 @@ func backingLeaves() map[string][]backingLeaf {
 	core := func(decl, name string, slots ...uint32) backingCheck {
 		return backingCheck{function: name, unit: "core/array.sg", decl: decl, slots: slots, summary: true, clean: true}
 	}
-	invalidStore := backingLeaf{name: "invalid_set_selection", mutate: backingInvalidate(278, 284, true),
+	invalidStore := backingLeaf{name: "invalid_set_selection", mutate: backingInvalidate(290, 296, true),
 		checks: []backingCheck{{function: "partial", pending: []backingPending{{-1, -1, backingInvalidStore}}}}}
 	invalidRange := backingLeaf{name: "invalid_range_selection", mutate: backingInvalidate(52, 62, false),
 		checks: []backingCheck{{function: "through_ref", unknown: true, pending: []backingPending{{52, 62, backingInvalidIndex}}}}}
