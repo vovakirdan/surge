@@ -11,9 +11,8 @@ import (
 //
 // The two concat controls are the exemption: core's `Array<T> + Array<T>` and
 // `ArrayFixed<T, N> + ArrayFixed<T, N>` are certified by identity, so they stay on the
-// fast path. They are asserted BY REASON, because both already carry an unrelated
-// refusal at this tip ("generic use disagrees with its original typed operation"),
-// which this packet neither adds nor removes.
+// fast path, and their finalized generic uses are answered by the same certificate:
+// neither site keeps "generic use disagrees with its original typed operation".
 const operatorCarrierSource = `type Arr = { items: uint64[4] };
 extern<Arr> {
     fn __add(self: &Arr, other: &Arr) -> uint64[] {
@@ -75,16 +74,15 @@ func TestAnalyzeOperatorCarrierResult(t *testing.T) {
 		site    originSpan
 		reason  string
 		refused bool
-		// concat sites carry an unrelated row at this tip; it is a PRECONDITION, not
-		// an assertion about this packet, and S-Y2''' fires when it is gone.
-		unrelated bool
+		// a concat site's finalized generic use is answered by the concat certificate.
+		concat bool
 	}{
 		{name: "stash", site: originSpan{583, 588, "a + b"}, reason: carrierBinaryRefusal, refused: true},
 		{name: "stash_unary", site: originSpan{751, 753, "-a"}, reason: carrierUnaryRefusal, refused: true},
 		{name: "stash_opaque", site: originSpan{992, 997, "a * b"}, reason: carrierBinaryRefusal, refused: true},
 		{name: "erased_control", site: originSpan{1215, 1220, "a - b"}, reason: carrierBinaryRefusal, refused: false},
-		{name: "concat_control", site: originSpan{1359, 1366, "xs + ys"}, reason: carrierBinaryRefusal, refused: false, unrelated: true},
-		{name: "fixed_concat_control", site: originSpan{1552, 1557, "p + q"}, reason: carrierBinaryRefusal, refused: false, unrelated: true},
+		{name: "concat_control", site: originSpan{1359, 1366, "xs + ys"}, reason: carrierBinaryRefusal, refused: false, concat: true},
+		{name: "fixed_concat_control", site: originSpan{1552, 1557, "p + q"}, reason: carrierBinaryRefusal, refused: false, concat: true},
 	}
 	spans := make([]originSpan, 0, len(leaves))
 	for _, leaf := range leaves {
@@ -96,9 +94,8 @@ func TestAnalyzeOperatorCarrierResult(t *testing.T) {
 		"pending": originPendingWithin(analysis, f.unit.SourceKey, 0, len(operatorCarrierSource))})
 	for _, leaf := range leaves {
 		t.Run(leaf.name, func(t *testing.T) {
-			if leaf.unrelated && !originPendingAt(analysis, f.unit.SourceKey, leaf.site, carrierGenericUseRefusal) {
-				t.Fatalf("PRECONDITION: %q no longer carries %q; the leaf must become a plain-absence assertion (S-Y2''')",
-					leaf.site.snippet, carrierGenericUseRefusal)
+			if leaf.concat && originPendingAt(analysis, f.unit.SourceKey, leaf.site, carrierGenericUseRefusal) {
+				t.Errorf("%q still carries %q", leaf.site.snippet, carrierGenericUseRefusal)
 			}
 			got := originPendingAt(analysis, f.unit.SourceKey, leaf.site, leaf.reason)
 			if got != leaf.refused {

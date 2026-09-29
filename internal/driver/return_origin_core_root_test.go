@@ -40,9 +40,9 @@ func coreRootHasErrors(result *DiagnoseResult) bool {
 }
 
 // The harness path: every core file, diagnosed as the root program with core's
-// identity. Nine finish clean. string.sg, as the entry, also finalizes its generic
-// array concatenations (`prev + one`), whose finalized generic use sits on a binary
-// operator and keeps its row: pinned here.
+// identity, finishes clean. string.sg, as the entry, also finalizes its generic
+// array concatenations (`prev + one`, `curr + first`, `curr + one`), whose finalized
+// uses sit on binary operators and are answered by the core concatenation certificate.
 func TestCoreRootDiagnosesCoreAsCore(t *testing.T) {
 	repo := repoRootFromDriverTest(t)
 	files, err := filepath.Glob(filepath.Join(repo, "core", "*.sg"))
@@ -53,34 +53,22 @@ func TestCoreRootDiagnosesCoreAsCore(t *testing.T) {
 		name := filepath.Base(path)
 		t.Run(name, func(t *testing.T) {
 			result, err := coreRootDiagnose(t, path, repo)
-			if name != "string.sg" {
-				if err != nil || coreRootHasErrors(result) {
-					t.Fatalf("core as core is not clean: err=%v", err)
-				}
-				return
-			}
 			var unfinished *returnOriginUnfinishedError
-			if !errors.As(err, &unfinished) {
-				t.Fatalf("string.sg as core: want the pinned unfinished rows, got err=%v", err)
-			}
-			text, readErr := os.ReadFile(path)
-			if readErr != nil {
-				t.Fatal(readErr)
-			}
-			want := map[string]bool{"prev + one": false, "curr + first": false, "curr + one": false}
-			for _, row := range unfinished.Pending {
-				snippet := string(text[row.Span.Start:row.Span.End])
-				if _, known := want[snippet]; !known || row.SourceKey != "core/string.sg" ||
-					row.Reason != "generic use disagrees with its original typed operation" {
-					t.Errorf("unexpected row %q at %s %q", row.Reason, row.SourceKey, snippet)
-					continue
+			if errors.As(err, &unfinished) {
+				text, readErr := os.ReadFile(path)
+				if readErr != nil {
+					t.Fatal(readErr)
 				}
-				want[snippet] = true
-			}
-			for snippet, seen := range want {
-				if !seen {
-					t.Errorf("missing the pinned row at %q", snippet)
+				for _, row := range unfinished.Pending {
+					snippet := ""
+					if row.SourceKey == "core/"+name && int(row.Span.End) <= len(text) {
+						snippet = string(text[row.Span.Start:row.Span.End])
+					}
+					t.Errorf("unfinished row %q at %s %d:%d %q", row.Reason, row.SourceKey, row.Span.Start, row.Span.End, snippet)
 				}
+			}
+			if err != nil || coreRootHasErrors(result) {
+				t.Fatalf("core as core is not clean: err=%v", err)
 			}
 		})
 	}

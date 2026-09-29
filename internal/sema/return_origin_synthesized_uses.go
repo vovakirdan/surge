@@ -5,6 +5,7 @@ import (
 
 	"surge/internal/ast"
 	"surge/internal/source"
+	"surge/internal/types"
 )
 
 // The two reasons a finalized use has no ordinary typed operation behind it.
@@ -56,7 +57,8 @@ func (a *returnOriginAnalyzer) useWitnessReason(use ConcreteInstantiationUse) st
 // does not: SEMA's own `default::<T>()` for a value-less `let` and for a
 // conversion's target argument (internal/sema/type_checker_walk.go:472-489,
 // implicit_conversion.go:266-275), and the entrypoint's exit conversion
-// (entrypoint_validation.go:82-97). Identity is already proven by the caller.
+// (entrypoint_validation.go:82-97), and a magic method selected for an operator
+// (type_expr_ops.go:160-166). Identity is already proven by the caller.
 func (a *returnOriginAnalyzer) checkSynthesizedUse(fn, caller *returnOriginFunction, use ConcreteInstantiationUse, reason string) (bool, string) {
 	if fn == nil || caller == nil || (reason != returnOriginUseWithoutOperation && reason != returnOriginUseOtherOperation) {
 		return false, ""
@@ -69,6 +71,8 @@ func (a *returnOriginAnalyzer) checkSynthesizedUse(fn, caller *returnOriginFunct
 	case "conversion-target":
 	case "entrypoint callable":
 		return a.checkEntrypointExitUse(fn, caller, use, reason)
+	case "magic-op":
+		return a.checkOperatorUse(fn, caller, use.Site, use.TemplateArgs, reason)
 	default:
 		return false, ""
 	}
@@ -97,4 +101,46 @@ func (a *returnOriginAnalyzer) checkEntrypointExitUse(fn, caller *returnOriginFu
 	view := returnOriginBoundView(fn, nil, use.TemplateArgs)
 	return true, a.checkGenericPromise(fn, &returnOriginSignature{params: fn.info.Params, effects: fn.info.Params,
 		result: fn.info.Result, binding: &view}, use)
+}
+
+// checkOperatorUse answers the finalized use of a generic magic method SEMA
+// selected for a binary operator. The use's site is the operator expression, not a
+// call, so the use is that typed operation only when the expression is the one typed
+// node there and its own recorded selection resolves to exactly the finalized callee.
+// Only the core concatenation, certified by identity, is answered, and only for an
+// instance whose result is borrow-free: the caller's own operator walk answers the
+// expression itself (return_origin_expr.go binary), on its borrow-free path or with
+// its own refusal, and a body-less callee has no body for the use to check. A user overload,
+// even one declared on the same receiver, is a different declaration and stays refused.
+func (a *returnOriginAnalyzer) checkOperatorUse(fn, caller *returnOriginFunction, site source.Span, args []types.TypeID, reason string) (handled bool, refusal string) {
+	if reason != returnOriginUseOtherOperation {
+		return false, ""
+	}
+	u := caller.unit
+	expression := ast.NoExprID
+	for id, typ := range u.Sema.ExprTypes {
+		if node := u.Builder.Exprs.Get(id); node != nil && node.Span == site {
+			if expression.IsValid() || typ == types.NoTypeID {
+				return false, ""
+			}
+			expression = id
+		}
+	}
+	data, binary := u.Builder.Exprs.Binary(expression)
+	selected, present := u.Sema.MagicBinarySymbols[expression]
+	if !expression.IsValid() || !binary || data == nil || !present || magicNameForBinaryOp(data.Op) != fn.name {
+		return false, ""
+	}
+	for _, operand := range []ast.ExprID{data.Left, data.Right} {
+		if _, converted := u.Sema.ImplicitConversions[operand]; converted {
+			return false, ""
+		}
+	}
+	if chosen, why := a.selectedCallableFunction(u, selected); why != "" || chosen != fn || !a.coreArrayConcat(fn) {
+		return false, ""
+	}
+	if returnOriginBoundView(fn, nil, args).shape(fn.info.Result) != returnOriginRefFree {
+		return true, "generic opaque use requires its type-dependent effect transfer"
+	}
+	return true, ""
 }
