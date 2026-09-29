@@ -29,7 +29,7 @@ func (tc *typeChecker) isBoolLiteralTrue(expr ast.ExprID) bool {
 }
 
 func (tc *typeChecker) pushReturnContext(kind returnContextKind, expected types.TypeID, span source.Span, collect *[]collectedResult, bareRet *[]source.Span) {
-	ctx := returnContext{kind: kind, expected: expected, span: span, collect: collect, bareRet: bareRet}
+	ctx := returnContext{kind: kind, expected: expected, span: span, collect: collect, bareRet: bareRet, tempFrames: len(tc.tempFrames), scope: tc.currentScope()}
 	tc.returnStack = append(tc.returnStack, ctx)
 }
 

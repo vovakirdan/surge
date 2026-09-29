@@ -71,6 +71,8 @@ type typeChecker struct {
 	referentLoans      map[BorrowID]struct{}           // shared loans taken on a reference place's referent (borrow_referent_binding.go)
 	aliasSourceHolder  map[BorrowID]BorrowID           // exclusive loan on an alias's source -> the loan taken through the alias (borrow_passed_on_reborrow.go)
 	refusedAlias       map[symbols.SymbolID]struct{}   // `&mut` aliases whose reborrow was refused and reported (borrow_passed_on_reborrow.go)
+	sideLoanVia        map[BorrowID]BorrowID           // a statement loan taken beside the one a holder finds -> that one (borrow_projection_loans.go)
+	projectionSiblings map[BorrowID][]BorrowID         // a projection's own loan -> its loans on the other candidates (borrow_projection_paths.go)
 	exclusiveRefUses   []exclusiveRefUse               // exclusive uses through a reference in the outermost statement (borrow_call_arg_order.go)
 	loanDropped        map[symbols.SymbolID]int        // bindings an `@drop` ended with their loan -> hold-scope stack index
 	loopScopeFloors    []int                           // scope-stack depth at each enclosing loop's entry
@@ -292,6 +294,12 @@ type returnContext struct {
 	// stays quiet — the refusal already names the edit.
 	bodyLabel      string
 	returnRejected bool
+	// tempFrames is the statement-temporary depth outside a block
+	// expression: the frame its value's loans belong to (borrow_block_value.go).
+	tempFrames int
+	// scope is the checker scope the block expression is typed in: the
+	// loans its value depends on must last to it (borrow_block_value.go).
+	scope symbols.ScopeID
 	// retSites counts the `ret` statements that named this context, whether
 	// or not their expression typed. A `ret` whose expression is broken
 	// collects no result, and without this count the body would be read as

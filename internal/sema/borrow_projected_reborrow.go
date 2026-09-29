@@ -18,69 +18,68 @@ import (
 
 // projectedMutReborrow takes that loan for a `let` binding and reports whether
 // the value is such a projection. A refused loan is reported, and the binding
-// then holds none.
+// then holds none. A value chosen by a compare, a ternary or a block is walked
+// to each call it chooses among.
 func (tc *typeChecker) projectedMutReborrow(symID symbols.SymbolID, boundType types.TypeID, expr ast.ExprID) (BorrowID, bool) {
 	sym := tc.symbolFromID(symID)
 	if sym == nil || sym.Kind != symbols.SymbolLet || !tc.isMutRefType(tc.resolveAlias(boundType)) {
-		return NoBorrowID, false
-	}
-	expr = tc.unwrapGroupExpr(expr)
-	arg := tc.singleAliasedArgument(expr)
-	if !arg.IsValid() || !tc.projectsIntoBuffer(tc.result.ExprTypes[expr], tc.result.ExprTypes[arg]) {
-		return NoBorrowID, false
-	}
-	refs := tc.passedOnReferencePlaces(arg, 0)
-	if len(refs) == 0 {
 		return NoBorrowID, false
 	}
 	scope := tc.currentScope()
 	if !scope.IsValid() {
 		return NoBorrowID, false
 	}
-	// An argument that may alias several references (`firstm(pickm(r, s))`)
-	// points into one of them: the binding holds an element loan on each.
-	span := tc.exprSpan(expr)
 	var loans []BorrowID
-	for i, ref := range refs {
-		desc, ok := tc.resolvePlace(ref)
-		if !ok {
-			continue
+	refused := tc.projectionLoans(tc.unwrapGroupExpr(expr), scope, &loans)
+	if refused {
+		if tc.refusedAlias == nil {
+			tc.refusedAlias = make(map[symbols.SymbolID]struct{})
 		}
-		at, parent := tc.loanPlace(desc)
-		if !at.IsValid() {
-			continue
-		}
-		place := tc.borrow.CanonicalPlace(at.Base, append(tc.borrow.placeSegments(at), PlaceSegment{Kind: PlaceSegmentIndex}))
-		key := expr
-		if i > 0 {
-			key = ref
-		}
-		bid, issue := tc.borrow.BeginBorrow(key, span, BorrowMut, place, scope, parent)
-		tc.recordBorrowEvent(&BorrowEvent{
-			Kind:        BorrowEvBorrowStart,
-			Borrow:      bid,
-			BorrowKind:  BorrowMut,
-			Place:       place,
-			Span:        span,
-			Scope:       scope,
-			Issue:       issue.Kind,
-			IssueBorrow: issue.Borrow,
-		})
-		if issue.Kind != BorrowIssueNone {
-			tc.reportBorrowConflict(place, span, issue, BorrowMut)
-			if tc.refusedAlias == nil {
-				tc.refusedAlias = make(map[symbols.SymbolID]struct{})
-			}
-			tc.refusedAlias[symID] = struct{}{}
-			return NoBorrowID, true
-		}
-		loans = append(loans, bid)
+		tc.refusedAlias[symID] = struct{}{}
+		return NoBorrowID, true
 	}
 	if len(loans) == 0 {
 		return NoBorrowID, false
 	}
+	if len(loans) > 1 {
+		if tc.projectionSiblings == nil {
+			tc.projectionSiblings = make(map[BorrowID][]BorrowID)
+		}
+		tc.projectionSiblings[loans[0]] = append([]BorrowID(nil), loans[1:]...)
+	}
 	tc.holdLoansAsViewLoans(symID, loans[1:], loans[0])
 	return loans[0], true
+}
+
+// projectionLoans takes the loans of a projected value: for a call, on each
+// candidate place inside each reference its argument passes on; for a choice,
+// those of each value it chooses among. It reports a refused loan (already
+// reported) and takes no more after it. The values of a choice are
+// alternatives: a place two of them point at holds one loan, not two that
+// conflict. The walk follows sub-expressions only, so it ends without a depth
+// bound; a bound would drop the loan of a deeper value.
+func (tc *typeChecker) projectionLoans(expr ast.ExprID, scope symbols.ScopeID, loans *[]BorrowID) bool {
+	expr = tc.unwrapGroupExpr(expr)
+	if !expr.IsValid() {
+		return false
+	}
+	if values := tc.choiceValues(expr); len(values) > 0 {
+		for _, value := range values {
+			if tc.projectionLoans(value, scope, loans) {
+				return true
+			}
+		}
+		return false
+	}
+	result, ok := tc.types.Lookup(tc.resolveAlias(tc.result.ExprTypes[expr]))
+	if !ok || result.Kind != types.KindReference || !result.Mutable {
+		return false
+	}
+	arg := tc.singleAliasedArgument(expr)
+	if !arg.IsValid() {
+		return false
+	}
+	return tc.takeProjectionLoans(expr, arg, result.Elem, scope, loans)
 }
 
 // singleAliasedArgument: the one argument (or receiver) of a call that its
@@ -115,25 +114,4 @@ func (tc *typeChecker) singleAliasedArgument(expr ast.ExprID) ast.ExprID {
 		return ast.NoExprID
 	}
 	return found
-}
-
-// projectsIntoBuffer: the result references something other than what the
-// argument references, and the argument's referent is an array or a string.
-func (tc *typeChecker) projectsIntoBuffer(result, arg types.TypeID) bool {
-	res, ok := tc.types.Lookup(tc.resolveAlias(result))
-	if !ok || res.Kind != types.KindReference || !res.Mutable {
-		return false
-	}
-	given, ok := tc.types.Lookup(tc.resolveAlias(arg))
-	if !ok || given.Kind != types.KindReference || tc.resolveAlias(res.Elem) == tc.resolveAlias(given.Elem) {
-		return false
-	}
-	if _, _, fixed := tc.arrayFixedInfo(given.Elem); fixed {
-		return false
-	}
-	if tc.isArrayType(given.Elem) {
-		return true
-	}
-	inner, ok := tc.types.Lookup(tc.resolveAlias(given.Elem))
-	return ok && inner.Kind == types.KindString
 }

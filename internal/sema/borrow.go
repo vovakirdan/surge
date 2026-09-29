@@ -93,6 +93,11 @@ type BorrowInfo struct {
 	// through a reference walks it to tell the reference's own chain apart
 	// from a loan that conflicts with the write.
 	Parent BorrowID
+	// Interior marks an exclusive loan held on a whole referent for a
+	// reference that points somewhere unknown INSIDE it (too many candidate
+	// places to name). A grow or a replace through the referent's own chain
+	// is refused by it as by an element loan below the written place.
+	Interior bool
 }
 
 type borrowState struct {

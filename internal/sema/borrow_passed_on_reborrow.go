@@ -1,6 +1,8 @@
 package sema
 
 import (
+	"slices"
+
 	"surge/internal/ast"
 	"surge/internal/source"
 	"surge/internal/symbols"
@@ -186,6 +188,12 @@ func (tc *typeChecker) refuseExclusiveUseOverAliasSources(place Place, holder Bo
 			}
 			at, parent := tc.loanPlace(desc)
 			issue := tc.borrow.writeThroughAllowedExcept(at, parent, func(bid BorrowID) bool {
+				// An exclusive loan the alias itself holds on its source
+				// -- a map entry an arm binding of `m.get_mut(&k)` holds --
+				// is the authority it writes by.
+				if slices.Contains(tc.viewLoans[place.Base], bid) {
+					return true
+				}
 				owner, ok := tc.aliasSourceHolder[bid]
 				return ok && tc.borrow.isAncestorOrSelf(owner, holder)
 			})
@@ -233,10 +241,11 @@ func (tc *typeChecker) aliasCallSources(base symbols.SymbolID) []ast.ExprID {
 
 // passedOnReferencePlaces names every reference place a value passes on: the
 // place itself, or through a call whose result can alias them, each argument
-// (and receiver) the result may alias.
+// (and receiver) the result may alias. It follows sub-expressions only, so it
+// ends without a depth bound (depth is kept for its callers' spelling).
 func (tc *typeChecker) passedOnReferencePlaces(expr ast.ExprID, depth int) []ast.ExprID {
 	expr = tc.unwrapGroupExpr(expr)
-	if !expr.IsValid() || depth > 8 || tc.isBorrowExpr(expr) {
+	if !expr.IsValid() || tc.isBorrowExpr(expr) {
 		return nil
 	}
 	if _, ok := tc.resolvePlace(expr); ok {

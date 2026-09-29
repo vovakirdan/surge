@@ -331,7 +331,7 @@ func (tc *typeChecker) walkStmt(id ast.StmtID) {
 				tc.observeMove(ret.Expr, tc.exprSpan(ret.Expr))
 			}
 			tc.validateRet(stmt.Span, ret.Expr, valueType)
-			tc.recordRetExit(id)
+			tc.leaveBlockByRet(id, ret.Expr)
 		}
 	case ast.StmtIf:
 		tc.walkIfStmt(id)

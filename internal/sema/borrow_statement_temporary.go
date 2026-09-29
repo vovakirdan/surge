@@ -173,7 +173,14 @@ func (tc *typeChecker) releaseStatementTemporaryLoans(loans []BorrowID) {
 	}
 	for _, bid := range loans {
 		info := tc.borrow.Info(bid)
-		if info == nil || tc.borrow.exprBorrow[info.Life.FromExpr] != bid || tc.statementLoanHeld(bid) {
+		if info == nil || tc.statementLoanHeld(bid) {
+			continue
+		}
+		if via, side := tc.sideLoanVia[bid]; side {
+			if tc.loanBound(via) {
+				continue
+			}
+		} else if tc.borrow.exprBorrow[info.Life.FromExpr] != bid {
 			continue
 		}
 		place, span := info.Place, info.Span
@@ -201,6 +208,26 @@ func (tc *typeChecker) releaseConditionTemporaries() {
 	}
 	tc.releaseStatementTemporaryLoans(frame.loans)
 	frame.loans = nil
+}
+
+// loanBound: a binding holds the loan as its reference borrow or as a loan
+// its value depends on. A binding records a loan only when it is bound, which
+// is after the loan is taken; a binding whose scope has already ended was
+// bound before this statement's loans existed, so it cannot name one of them,
+// and no liveness filter is needed. The scan is the one statementLoanHeld
+// makes for every statement loan, asked only of a loan taken beside another.
+func (tc *typeChecker) loanBound(bid BorrowID) bool {
+	for _, held := range tc.bindingBorrow {
+		if held == bid {
+			return true
+		}
+	}
+	for _, loans := range tc.viewLoans {
+		if slices.Contains(loans, bid) {
+			return true
+		}
+	}
+	return false
 }
 
 // statementLoanHeld: a binding holds the loan (its reference borrow, or a

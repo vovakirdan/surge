@@ -153,6 +153,7 @@ func (tc *typeChecker) dropImplicitBorrowForRefParamOf(callee *symbols.Symbol, e
 				}
 			} else {
 				tc.borrowIndexThroughReference(expr, span)
+				tc.borrowCarriedProjection(expr, param, result)
 			}
 		}
 		return
@@ -175,6 +176,9 @@ func (tc *typeChecker) dropImplicitBorrowForRefParamOf(callee *symbols.Symbol, e
 	// purpose -- naming the source argument needs the return-origin fact at
 	// the call site, and a missed source would be a use-after-free.
 	if tc.callResultKeepsLoan(callee, actual, result) {
+		if tc.isBorrowExpr(expr) {
+			tc.borrowCarriedProjection(expr, param, result)
+		}
 		return
 	}
 	tc.dropBorrowForExpr(expr, span, "temp_borrow")

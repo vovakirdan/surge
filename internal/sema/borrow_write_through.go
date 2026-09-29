@@ -177,11 +177,17 @@ func (bt *BorrowTable) writeThroughAllowedExcept(place Place, holder BorrowID, s
 			continue
 		}
 		if !bt.onReborrowChain(st.mut, holder, place.Base) ||
-			(!bt.isAncestorOrSelf(st.mut, holder) && elementBelow(p, place)) {
+			(!bt.isAncestorOrSelf(st.mut, holder) && (elementBelow(p, place) || bt.interiorLoan(st.mut))) {
 			return BorrowIssue{Kind: BorrowIssueTaken, Borrow: st.mut}
 		}
 	}
 	return BorrowIssue{}
+}
+
+// interiorLoan: the loan points somewhere unknown inside its place.
+func (bt *BorrowTable) interiorLoan(id BorrowID) bool {
+	info := bt.Info(id)
+	return info != nil && info.Interior
 }
 
 // elementBelow: inner lies below outer through an array element.
