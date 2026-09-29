@@ -56,6 +56,7 @@ func (p *Parser) enterBlock() string {
 
 func (p *Parser) leaveBlock(saved string) {
 	p.taskBody.owner = saved
+	p.recovery.quiet = false // a broken statement does not outlive its block
 }
 
 // parseTaskBody parses the `{ ... }` body of an `async`/`blocking` block;

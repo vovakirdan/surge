@@ -77,6 +77,7 @@ type Parser struct {
 	pragmaParsed bool
 	tracer       trace.Tracer // трассировщик для отладки зависаний
 	exprDepth    int          // глубина рекурсии для выражений
+	recovery     exprRecovery // no failed expression is dropped silently (missing_expr.go)
 }
 
 // DirectiveMode specifies how directives are handled during parsing.
@@ -123,10 +124,7 @@ func ParseFile(
 	if br, ok := opts.Reporter.(*diag.BagReporter); ok {
 		bag = br.Bag
 	}
-	return Result{
-		File: p.file,
-		Bag:  bag,
-	}
+	return Result{File: p.file, Bag: bag}
 }
 
 func (p *Parser) at(k token.Kind) bool {
@@ -170,7 +168,7 @@ func (p *Parser) parseItems() {
 		// прокрутить, иначе можно зациклиться на повреждённом вводе.
 		before := p.lx.Peek()
 
-		itemID, ok := p.parseItem()
+		itemID, ok := p.parseItemReported()
 		if !ok {
 			p.resyncTop()
 		} else {

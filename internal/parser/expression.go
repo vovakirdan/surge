@@ -527,8 +527,8 @@ func (p *Parser) parsePrimaryExpr() (ast.ExprID, bool) {
 		return p.parseBraceExpr()
 
 	default:
-		// договоримся, что обрабатываем все ошибки до этого момента
-		// p.err(diag.SynExpectExpression, "expected expression")
-		return ast.NoExprID, false
+		// The caller reports the failure: it knows the context. A recovery that
+		// does not report it says "expected expression" here (missing_expr.go).
+		return p.missingExpr()
 	}
 }

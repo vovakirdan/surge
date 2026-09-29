@@ -90,12 +90,14 @@ func (p *Parser) emitDiagnostic(code diag.Code, sev diag.Severity, sp source.Spa
 	}
 	if sev == diag.SevError {
 		p.opts.CurrentErrors++
+		p.recovery.lastErrorSpan = sp
 	}
 }
 
 // resyncUntil — consume tokens until Peek() matches any stop token or EOF.
 // Stop token остаётся на входе (не съедаем).
 func (p *Parser) resyncUntil(stop ...token.Kind) {
+	p.reportMissingExpr()
 	for !p.at(token.EOF) {
 		peek := p.lx.Peek().Kind
 		if slices.Contains(stop, peek) {
@@ -225,7 +227,10 @@ func isBlockStatementStarter(kind token.Kind) bool {
 // Пропускаем токены до тех пор, пока не встретим ';', начало нового statement, '}'
 // (закрытие текущего блока) или EOF. Для корректной работы игнорируем закрывающие
 // скобки внутри вложенных конструкций.
-func (p *Parser) resyncStatement() {
+// It reports true when it stopped by consuming a stray ')' or ']': the tokens
+// that follow are the rest of the broken statement.
+func (p *Parser) resyncStatement() (midStatement bool) {
+	p.reportMissingExpr()
 	braceDepth := 0
 	parenDepth := 0
 	bracketDepth := 0
@@ -236,7 +241,7 @@ func (p *Parser) resyncStatement() {
 		switch tok.Kind {
 		case token.Semicolon:
 			if braceDepth == 0 && parenDepth == 0 && bracketDepth == 0 {
-				return
+				return false
 			}
 		case token.LBrace:
 			braceDepth++
@@ -246,7 +251,7 @@ func (p *Parser) resyncStatement() {
 				break
 			}
 			if parenDepth == 0 && bracketDepth == 0 {
-				return
+				return false
 			}
 		case token.LParen:
 			parenDepth++
@@ -259,7 +264,7 @@ func (p *Parser) resyncStatement() {
 				if !p.at(token.EOF) {
 					p.advance()
 				}
-				return
+				return true
 			}
 		case token.LBracket:
 			bracketDepth++
@@ -272,16 +277,17 @@ func (p *Parser) resyncStatement() {
 				if !p.at(token.EOF) {
 					p.advance()
 				}
-				return
+				return true
 			}
 		default:
 			if braceDepth == 0 && parenDepth == 0 && bracketDepth == 0 && isBlockStatementStarter(tok.Kind) {
-				return
+				return false
 			}
 		}
 
 		p.advance()
 	}
+	return false
 }
 
 // attrsContainName reports whether attrs includes an attribute whose interned

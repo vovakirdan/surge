@@ -39,7 +39,7 @@ func (p *Parser) parseBlock() (ast.StmtID, bool) {
 		// Защита от бесконечного цикла: запоминаем позицию до парсинга
 		before := p.lx.Peek()
 
-		stmtID, ok := p.parseStmt()
+		stmtID, ok := p.parseStmtReported()
 		if ok {
 			stmtIDs = append(stmtIDs, stmtID)
 			stmtCount++
@@ -47,7 +47,7 @@ func (p *Parser) parseBlock() (ast.StmtID, bool) {
 		}
 
 		// ошибка при парсинге statement — восстанавливаемся до следующего statement
-		p.resyncStatement()
+		p.resyncBrokenStmt()
 		if p.at(token.Semicolon) {
 			p.advance()
 		}
@@ -235,7 +235,8 @@ func (p *Parser) parseAttributedStmt() (ast.StmtID, bool) {
 		return ast.NoStmtID, false
 	}
 	if stmtID, handled := p.tryParseDropStmt(attrs, attrSpan); handled {
-		return stmtID, true
+		// A handled '@drop' that failed to parse has no statement.
+		return stmtID, stmtID.IsValid()
 	}
 	if p.at(token.KwAsync) {
 		exprID, ok := p.parseAsyncExprWithAttrs(attrs, attrSpan)

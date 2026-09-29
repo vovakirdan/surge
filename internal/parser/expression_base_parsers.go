@@ -320,6 +320,7 @@ func (p *Parser) parseArrayExpr() (ast.ExprID, bool) {
 	}
 
 	if p.rangeLiteralPending {
+		p.forgetMissingExpr() // `[a..]`: the end bound is optional here
 		start := p.rangeLiteralStart
 		inclusive := p.rangeLiteralInclusive
 		opSpan := p.rangeLiteralSpan

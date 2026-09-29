@@ -66,9 +66,9 @@ func (p *Parser) parseBlockExprBody(openTok token.Token) (ast.ExprID, bool) {
 		// Защита от бесконечного цикла: запоминаем позицию до парсинга
 		before := p.lx.Peek()
 
-		stmtID, ok := p.parseStmt()
+		stmtID, ok := p.parseStmtReported()
 		if !ok {
-			p.resyncStatement()
+			p.resyncBrokenStmt()
 
 			// Гарантируем прогресс: если токен не сдвинулся, принудительно продвигаемся
 			if !p.at(token.EOF) && !p.at(token.RBrace) {
