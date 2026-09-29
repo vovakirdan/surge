@@ -60,7 +60,9 @@ func (b *returnOriginBody) stmt(id ast.StmtID, env returnOriginEnv, targets retu
 			value, annotation = decl.Value, decl.Type
 		}
 		out := originExprValue(env, returnOriginValueOf())
+		bound := u.stmtSymbols[id]
 		if value.IsValid() {
+			b.markLoadedResult(value, b.bindingType(bound))
 			var err error
 			out, err = b.expr(value, env, targets)
 			if err != nil {
@@ -79,6 +81,7 @@ func (b *returnOriginBody) stmt(id ast.StmtID, env returnOriginEnv, targets retu
 			if value.IsValid() && out.flow.normal.reachable {
 				out.value = b.bindCallable(out.value, id, annotation, value, returnOriginValue{}, false)
 			}
+			out.value = b.loadedBinding(id, out.value)
 			if node.Kind == ast.StmtLet && !value.IsValid() && annotation.IsValid() {
 				out.flow.normal = out.flow.normal.assignDefault(id, sym.Scope, out.value)
 			} else {
@@ -107,6 +110,9 @@ func (b *returnOriginBody) stmt(id ast.StmtID, env returnOriginEnv, targets retu
 		}
 		out := originExprValue(env, returnOriginValueOf())
 		if value.IsValid() {
+			if function && b.function.item.Flags&ast.FnModifierAsync == 0 {
+				b.markLoadedResult(value, b.function.info.Result)
+			}
 			var err error
 			out, err = b.expr(value, env, targets)
 			if err != nil {

@@ -50,13 +50,47 @@ func (tc *typeChecker) armFreesPayloadBinding(
 	if tupleElementsBorrowed {
 		return false
 	}
-	if subjectBorrowed && !tc.payloadTakesItsOwnReference(symID) {
+	if tc.payloadStaysWithBorrowedOwner(symID, subjectBorrowed, tupleElementsBorrowed) {
 		return false
 	}
 	// A binding with nothing to release frees nothing. Asking here rather than
 	// only inside registerDroppableBinding leaves that caller unchanged - it
 	// re-asks the same question - and makes the predicate answerable on its own.
 	return tc.isDroppableBinding(symID)
+}
+
+// payloadStaysWithBorrowedOwner is the borrowed-subject half of
+// armFreesPayloadBinding: the compare only reads a union somebody else owns
+// and the extraction takes no reference of its own, so what the binding
+// reaches through its payload belongs to that owner and outlives the arm.
+func (tc *typeChecker) payloadStaysWithBorrowedOwner(
+	symID symbols.SymbolID,
+	subjectBorrowed bool,
+	tupleElementsBorrowed bool,
+) bool {
+	return !tupleElementsBorrowed && subjectBorrowed && !tc.payloadTakesItsOwnReference(symID)
+}
+
+// publishBorrowedPayloadBindings records the bindings payloadStaysWithBorrowedOwner
+// answers for, so the return-origin pass traces an element read through one of
+// them to the subject's owner rather than to the arm-local binding.
+func (tc *typeChecker) publishBorrowedPayloadBindings(
+	bindings []symbols.SymbolID,
+	subjectBorrowed bool,
+	tupleElementsBorrowed bool,
+) {
+	if tc.result == nil {
+		return
+	}
+	for _, symID := range bindings {
+		if !tc.payloadStaysWithBorrowedOwner(symID, subjectBorrowed, tupleElementsBorrowed) {
+			continue
+		}
+		if tc.result.BorrowedPayloadBindings == nil {
+			tc.result.BorrowedPayloadBindings = make(map[symbols.SymbolID]struct{})
+		}
+		tc.result.BorrowedPayloadBindings[symID] = struct{}{}
+	}
 }
 
 // rejectArmReferenceIntoFreedPayload refuses an arm whose result is a reference
@@ -108,4 +142,20 @@ func (tc *typeChecker) rejectArmReferenceIntoFreedPayload(
 		"hint: answer with the value instead of a reference to it, or match on a borrow of the subject so `%s` outlives the compare",
 		name))
 	b.Emit()
+}
+
+// borrowedPayloadLoans answers the loans a published borrowed-payload binding
+// stands on: the scrutinee's, held for it by holdScrutineeLoansForArmBindings.
+// What such a binding reaches through its payload is the subject owner's
+// storage, so a loan taken through it -- `&inner[0]` -- depends on the owner
+// exactly as `&p[0]` through `let p = &row` does, and a binding that keeps it
+// past the arm keeps these loans with it.
+func (tc *typeChecker) borrowedPayloadLoans(base symbols.SymbolID) []BorrowID {
+	if tc.result == nil || !base.IsValid() {
+		return nil
+	}
+	if _, published := tc.result.BorrowedPayloadBindings[base]; !published {
+		return nil
+	}
+	return append([]BorrowID(nil), tc.viewLoans[base]...)
 }

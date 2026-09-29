@@ -105,8 +105,8 @@ func (tc *typeChecker) observeMove(expr ast.ExprID, span source.Span) {
 	// A projection whose base is a TEMPORARY never reaches `resolvePlace` — a
 	// call is not a place — so the gate below cannot see it. It is the same
 	// partial move against a value identified differently: see
-	// handleTemporaryProjectionMove.
-	if tc.handleTemporaryProjectionMove(expr, exprType, span) {
+	// handleTemporaryProjectionMove. An index answered by value is a call too.
+	if tc.handleTemporaryProjectionMove(expr, exprType, span) || tc.indexYieldsFreshValue(expr) {
 		return
 	}
 

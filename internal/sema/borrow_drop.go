@@ -205,6 +205,10 @@ func (tc *typeChecker) bindingInScopeAt(symID symbols.SymbolID, at source.Span) 
 // says the value is being disposed of, and the read cannot be mistaken for a
 // borrow or a copy.
 func (tc *typeChecker) handleProjectionDrop(expr ast.ExprID, exprType types.TypeID, span source.Span) bool {
+	// An index answered by value names no place of its target to release.
+	if tc.indexYieldsFreshValue(expr) {
+		return false
+	}
 	desc, ok := tc.resolvePlace(expr)
 	if !ok || !desc.Base.IsValid() || len(desc.Segments) == 0 {
 		return false

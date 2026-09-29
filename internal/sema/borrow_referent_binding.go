@@ -221,6 +221,7 @@ func (tc *typeChecker) sourceLoansOfHeldLoans(symID symbols.SymbolID, own Borrow
 		if info == nil {
 			continue
 		}
+		w.out = append(w.out, tc.borrowedPayloadLoans(info.Place.Base)...)
 		if info.Kind == BorrowMut {
 			exclusive = append(exclusive, tc.exclusiveSourceLoans(info, span)...)
 			continue

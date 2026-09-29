@@ -85,6 +85,7 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		tc.openArm(armBindings, true)
 		tupleElementsBorrowed := tc.compareTupleElementsAreBorrowed(cmp.Value, arm.Pattern, armSubject)
 		tc.registerComparePayloadDroppables(armBindings, subjectBorrowed, tupleElementsBorrowed)
+		tc.publishBorrowedPayloadBindings(armBindings, subjectBorrowed, tupleElementsBorrowed)
 		if arm.Guard.IsValid() {
 			// A guard runs BEFORE this arm commits (payload extraction
 			// already ran, but a failed guard falls through to the next

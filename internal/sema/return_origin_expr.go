@@ -231,6 +231,10 @@ func (b *returnOriginBody) binary(id ast.ExprID, env returnOriginEnv, targets re
 		left.value, left.storage = returnOriginValueOf(), returnOriginValue{}
 		return left, nil
 	}
+	assigned := u.Symbols.ExprSymbols[data.Left]
+	if data.Op == ast.ExprBinaryAssign && assigned.IsValid() && u.Builder.Exprs.Get(data.Left).Kind == ast.ExprIdent {
+		b.markLoadedResult(data.Right, b.bindingType(assigned))
+	}
 	right, err := b.expr(data.Right, left.flow.normal, targets)
 	if err != nil {
 		return returnOriginExprResult{}, err
@@ -262,6 +266,7 @@ func (b *returnOriginBody) binary(id ast.ExprID, env returnOriginEnv, targets re
 				annotation = u.Builder.Stmts.Let(sym.Decl.Stmt).Type
 			}
 			right.value = b.bindCallable(right.value, symID, annotation, data.Right, right.flow.normal.value(symID), true)
+			right.value = b.loadedBinding(symID, right.value)
 			right.flow.normal = right.flow.normal.assign(symID, sym.Scope, right.value)
 		}
 		right.storage = returnOriginValue{}
@@ -312,6 +317,15 @@ func (b *returnOriginBody) blockExpr(id ast.ExprID, env returnOriginEnv, targets
 	}
 	if err != nil {
 		return returnOriginExprResult{}, err
+	}
+	if loaded := b.loadedBlockTail(id, data.Stmts); loaded.IsValid() {
+		site := u.Builder.Stmts.Get(loaded).Span
+		for key, outcome := range flow.exits {
+			if key.kind == returnOriginBlockResult && key.target == scope && key.site == site {
+				outcome.value = loadedRoots(outcome.value)
+				flow.exits[key] = outcome
+			}
+		}
 	}
 	flow = b.closeFlow(flow, scope, u.Builder.Exprs.Get(id).Span)
 	value := returnOriginValue{}

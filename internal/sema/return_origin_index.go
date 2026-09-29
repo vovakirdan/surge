@@ -77,6 +77,8 @@ func (b *returnOriginBody) index(id ast.ExprID, env returnOriginEnv, targets ret
 	owner := target.storage
 	if primitive.reference {
 		owner = target.value
+	} else if borrowed, ok := b.payloadElementOwner(data.Target, primitive); ok {
+		owner = borrowed
 	}
 	if !owner.normal || len(owner.roots) == 0 {
 		b.pending(span, "indexed element lacks its evaluated storage owner")

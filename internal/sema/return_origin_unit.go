@@ -120,6 +120,12 @@ type returnOriginBody struct {
 	postCells  map[uint32]returnOriginValue
 	// postBackings is the joined backing of each mutable container formal at exits.
 	postBackings map[uint32]returnOriginValue
+	// loadedResults maps an expression a consumer loads as a scalar to that
+	// scalar's type; see return_origin_loaded_results.go.
+	loadedResults map[ast.ExprID]types.TypeID
+	// payloadOwners maps a compare binding whose payload stays with a borrowed
+	// subject to the storage owner of that subject.
+	payloadOwners map[symbols.SymbolID]returnOriginValue
 }
 
 type returnOriginTargets struct {

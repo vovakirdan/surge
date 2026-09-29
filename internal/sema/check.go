@@ -113,6 +113,12 @@ type Result struct {
 	// value after the join stays a use-of-moved error (the binding is in
 	// the union moved-set), so no maybe-dropped value is ever readable.
 	ArmDropsExpr map[ast.ExprID][]symbols.SymbolID
+	// BorrowedPayloadBindings: compare pattern bindings that read a payload
+	// out of a subject the compare only borrows, so the payload stays the
+	// subject owner's and the arm frees nothing of it. The set is the
+	// borrowed-subject half of armFreesPayloadBinding's answer, published so
+	// later passes ask that decision instead of restating it.
+	BorrowedPayloadBindings map[symbols.SymbolID]struct{}
 	// ArmDropsStmt: same, for if-STATEMENT branch blocks (keyed by the
 	// branch block statement).
 	ArmDropsStmt map[ast.StmtID][]symbols.SymbolID

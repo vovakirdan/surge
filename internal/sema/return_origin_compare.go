@@ -65,6 +65,7 @@ func (b *returnOriginBody) compareExpr(id ast.ExprID, env returnOriginEnv, targe
 			continue
 		}
 		entry := b.bindCompareOrigins(pattern.bindings, subject.value, remaining)
+		b.notePayloadOwners(pattern.bindings, b.compareSubjectOwner(cmp.Value, &subject))
 		nextArm := returnOriginEnv{}
 		if len(missed) != 0 {
 			// A pattern mismatch bypasses the guard and all its effects.
@@ -90,6 +91,7 @@ func (b *returnOriginBody) compareExpr(id ast.ExprID, env returnOriginEnv, targe
 		if resultErr != nil {
 			return returnOriginExprResult{}, resultErr
 		}
+		result.value = b.loadedArmResult(id, arm.Result, result.value)
 		// closeFlow's normal edge has no result; close the actual value first.
 		closed := b.closeOutcome(returnOriginOutcome{env: result.flow.normal, value: result.value}, scope, u.Builder.Exprs.Get(arm.Result).Span)
 		result.flow.normal = returnOriginEnv{}
