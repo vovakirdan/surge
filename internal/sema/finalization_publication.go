@@ -47,6 +47,11 @@ type FinalizationPublication struct {
 	SourceKey          string
 	RootToLocalSymbols map[symbols.SymbolID][]symbols.SymbolID
 	LocalCallables     []FinalizationCallableIdentity
+	// ImportedCallables ties each imported callable copy in this file's
+	// vocabulary to the one declaration body it copies; a copy whose facts
+	// named two bodies maps to the empty identity. Only return-origin
+	// analysis reads it; decision publication never projects through it.
+	ImportedCallables map[symbols.SymbolID]FinalizationCallableIdentity
 }
 
 // FinalizationCallableIdentity preserves allocation-independent callable

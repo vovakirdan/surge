@@ -112,7 +112,7 @@ func publishFinalizationDecisions(res *DiagnoseResult) error {
 			}
 			if err := sema.PublishFinalizationDecisions(target, authority, sema.FinalizationPublication{
 				SourceKey: sourceKey, RootToLocalSymbols: rootToLocal,
-				LocalCallables: res.finalizationIndex[rec],
+				LocalCallables: res.finalizationIndex[rec].local,
 			}); err != nil {
 				return fmt.Errorf("finalization publication for %s: %w", sourceKey, err)
 			}

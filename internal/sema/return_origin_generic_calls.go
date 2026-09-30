@@ -57,6 +57,9 @@ func (fn *returnOriginFunction) originalInstantiation(id ast.ExprID, kind Instan
 		}
 		mapped = mapped && matches == 1
 	}
+	if !mapped && local.IsValid() {
+		mapped = u.importedCopyOf(local, callee)
+	}
 	if !local.IsValid() || selected == nil || !mapped ||
 		(kind == InstantiationFunction && selected.Kind != symbols.SymbolFunction) ||
 		(kind == InstantiationTag && selected.Kind != symbols.SymbolTag) {
@@ -97,12 +100,12 @@ func (fn *returnOriginFunction) originalInstantiation(id ast.ExprID, kind Instan
 	var args []types.TypeID
 	var witness InstantiationWitness
 	if len(caller.TemplateParams) == 0 {
-		if root == nil || edge != nil || root.Kind != kind || root.Template != callee || root.Witness.Caller != caller.Symbol {
+		if root == nil || edge != nil || root.Kind != kind || !u.templateNames(root.Template, callee) || root.Witness.Caller != caller.Symbol {
 			return nil, "generic original call lacks its unique nongeneric-caller root"
 		}
 		args, witness = root.TemplateArgs, root.Witness
 	} else {
-		if edge == nil || root != nil || edge.Kind != kind || edge.Caller != caller.Symbol || edge.Callee != callee ||
+		if edge == nil || root != nil || edge.Kind != kind || edge.Caller != caller.Symbol || !u.templateNames(edge.Callee, callee) ||
 			edge.Witness.Caller != caller.Symbol || int(edge.CallerTemplateArity) != len(caller.TemplateParams) || validateInstantiationBindings(edge) != nil {
 			return nil, "generic original call lacks its unique template-caller edge"
 		}

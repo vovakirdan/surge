@@ -138,7 +138,7 @@ func (a *returnOriginAnalyzer) checkIndexUse(fn, caller *returnOriginFunction, i
 	if reason != "" {
 		return reason
 	}
-	if selected != fn || use.CalleeTemplate != fn.candidate.Symbol {
+	if selected != fn || !u.templateNames(use.CalleeTemplate, fn.candidate.Symbol) {
 		return "generic index differs from its current selected declaration"
 	}
 	if reason = a.indexDeclaration(fn, actual, use.Site); reason != "" {

@@ -133,7 +133,7 @@ func captureSelectedOwner(t *testing.T, res *DiagnoseResult, u sema.ReturnOrigin
 					before := selectedCallableDigest(t, mapping)
 					identityCount, candidateCount := 0, 0
 					var identity sema.FinalizationCallableIdentity
-					for _, original := range res.finalizationIndex[rec] {
+					for _, original := range res.finalizationIndex[rec].local {
 						if original.Symbol == local {
 							identity, identityCount = original, identityCount+1
 						}

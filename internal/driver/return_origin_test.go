@@ -176,7 +176,7 @@ func analyzeTypedReturnOriginSource(t *testing.T, src string, allowOldEscape boo
 	}
 	analysis, err := sema.AnalyzeReturnOrigins(t.Context(), res.Sema, []sema.ReturnOriginUnit{{
 		Builder: res.Builder, FileID: res.FileID, Sema: res.Sema, Symbols: res.Symbols, SourceKey: key,
-		Publication: sema.FinalizationPublication{SourceKey: key, LocalCallables: local},
+		Publication: sema.FinalizationPublication{SourceKey: key, LocalCallables: local.local, ImportedCallables: local.imported},
 	}})
 	if err != nil {
 		t.Fatal(err)

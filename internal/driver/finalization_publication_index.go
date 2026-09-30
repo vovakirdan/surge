@@ -6,9 +6,17 @@ import (
 
 	"surge/internal/sema"
 	"surge/internal/source"
+	"surge/internal/symbols"
 )
 
-type finalizationPublicationIndex map[*moduleRecord][]sema.FinalizationCallableIdentity
+// finalizationPublicationIndex holds, per owning record, the callables its
+// files declare and the imported callable copies its vocabulary selects.
+type finalizationPublicationIndex map[*moduleRecord]finalizationRecordCallables
+
+type finalizationRecordCallables struct {
+	local    []sema.FinalizationCallableIdentity
+	imported map[symbols.SymbolID]sema.FinalizationCallableIdentity
+}
 
 func buildFinalizationPublicationIndex(res *DiagnoseResult) (finalizationPublicationIndex, error) {
 	index := make(finalizationPublicationIndex)
@@ -16,6 +24,7 @@ func buildFinalizationPublicationIndex(res *DiagnoseResult) (finalizationPublica
 		return index, nil
 	}
 	resolveSource := canonicalInstantiationSourceResolver(res)
+	declarations := make([]*sema.Result, 0, len(res.moduleRecords)+1)
 	for _, rec := range finalizationPublicationRecords(res) {
 		results := make([]*sema.Result, 0, len(rec.FileIDs))
 		for _, fileID := range rec.FileIDs {
@@ -25,14 +34,21 @@ func buildFinalizationPublicationIndex(res *DiagnoseResult) (finalizationPublica
 		if err != nil {
 			return nil, err
 		}
-		index[rec] = callables
+		index[rec] = finalizationRecordCallables{local: callables}
+		declarations = append(declarations, results...)
 	}
 	if res.rootRecord == nil && res.Sema != nil {
 		callables, err := captureFinalizationCallables([]*sema.Result{res.Sema}, resolveSource)
 		if err != nil {
 			return nil, err
 		}
-		index[nil] = callables
+		index[nil] = finalizationRecordCallables{local: callables}
+		declarations = append(declarations, res.Sema)
+	}
+	imports := newImportedCallableIndex(declarations, resolveSource)
+	for rec, callables := range index {
+		callables.imported = imports.capture(finalizationRecordTables(res, rec))
+		index[rec] = callables
 	}
 	return index, nil
 }

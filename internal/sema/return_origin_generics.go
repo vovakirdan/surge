@@ -44,7 +44,7 @@ func (a *returnOriginAnalyzer) genericInstanceKind(key InstanceKey, template sym
 		return "generic use lacks its finalized callee instance"
 	}
 	want, err := NewInstanceKey(*authority.InstantiationIdentity, template, args)
-	if err != nil || want != key || instance.Template != template || instance.Kind != kind || !slices.Equal(instance.TemplateArgs, args) {
+	if err != nil || want != key || !a.sameTemplateBody(instance.Template, template) || instance.Kind != kind || !slices.Equal(instance.TemplateArgs, args) {
 		return "generic use disagrees with its finalized callee instance"
 	}
 	return ""
@@ -58,6 +58,9 @@ func (a *returnOriginAnalyzer) genericUseContext(use ConcreteInstantiationUse) (
 	}
 	fn := a.functionForTemplate(use.CalleeTemplate)
 	caller := a.functionForTemplate(use.CallerTemplate)
+	if fn == nil && caller != nil {
+		fn = a.importedTemplateFunction(caller.unit, use.CalleeTemplate)
+	}
 	if fn == nil || caller == nil || len(fn.candidate.TemplateParams) != len(use.TemplateArgs) || len(use.TemplateArgs) == 0 {
 		return nil, nil, ast.NoExprID, "generic use lacks its exact original callable declarations"
 	}

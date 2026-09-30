@@ -11,7 +11,9 @@ import (
 // declaration only through the one canonical candidate its unit published for
 // it, and only while the two still describe the same typed callable. Missing,
 // rebound or ambiguous publication refuses: once a non-empty publication has
-// missed, nothing falls back to comparing raw symbol IDs.
+// missed, nothing falls back to comparing raw symbol IDs. An imported copy
+// the merge left behind in this vocabulary reaches its declaration through
+// the body identity the unit published for that copy.
 func (u *returnOriginUnitIndex) selectedCallableCandidate(selected symbols.SymbolID) (*CallableCandidate, string) {
 	var candidate *CallableCandidate
 	for i := range u.authority.CallableCandidates {
@@ -20,7 +22,7 @@ func (u *returnOriginUnitIndex) selectedCallableCandidate(selected symbols.Symbo
 		if len(u.Publication.RootToLocalSymbols) != 0 {
 			mapped = slices.Contains(u.Publication.RootToLocalSymbols[c.Symbol], selected)
 		}
-		if !mapped {
+		if !mapped && !u.importedCallableNames(selected, c) {
 			continue
 		}
 		if candidate != nil {

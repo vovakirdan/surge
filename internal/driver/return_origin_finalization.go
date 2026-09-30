@@ -3,6 +3,7 @@ package driver
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sort"
 
 	"surge/internal/ast"
@@ -205,7 +206,8 @@ func returnOriginPublication(res *DiagnoseResult, rec *moduleRecord, key string)
 		return sema.FinalizationPublication{}, fmt.Errorf("return origins: no original callable identity snapshot for %q", key)
 	}
 	publication := sema.FinalizationPublication{
-		SourceKey: key, LocalCallables: append([]sema.FinalizationCallableIdentity(nil), callables...),
+		SourceKey: key, LocalCallables: append([]sema.FinalizationCallableIdentity(nil), callables.local...),
+		ImportedCallables: maps.Clone(callables.imported),
 	}
 	if rec == nil || rec == res.rootRecord {
 		return publication, nil

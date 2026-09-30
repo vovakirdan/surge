@@ -97,7 +97,7 @@ func (a *returnOriginAnalyzer) checkIndexStoreUse(fn, caller *returnOriginFuncti
 		return reason
 	}
 	selected, present := u.Sema.IndexSetSymbols[id]
-	if chosen, _ := a.selectedCallableFunction(u, selected); !present || chosen != fn || use.CalleeTemplate != fn.candidate.Symbol {
+	if chosen, _ := a.selectedCallableFunction(u, selected); !present || chosen != fn || !u.templateNames(use.CalleeTemplate, fn.candidate.Symbol) {
 		return "generic index store differs from its current selected declaration"
 	}
 	return returnOriginContainerUseArgs(in, caller, fn, container, use)
@@ -184,7 +184,7 @@ func (a *returnOriginAnalyzer) checkArrayRangeIndexUse(fn, caller *returnOriginF
 	if reason != "" {
 		return true, reason
 	}
-	if chosen, _ := a.selectedCallableFunction(u, u.Sema.IndexSymbols[id]); chosen != fn || use.CalleeTemplate != fn.candidate.Symbol {
+	if chosen, _ := a.selectedCallableFunction(u, u.Sema.IndexSymbols[id]); chosen != fn || !u.templateNames(use.CalleeTemplate, fn.candidate.Symbol) {
 		return true, "generic array range index differs from its current selected declaration"
 	}
 	return true, returnOriginContainerUseArgs(in, caller, fn, container, use)
