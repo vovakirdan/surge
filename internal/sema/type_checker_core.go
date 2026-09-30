@@ -73,6 +73,7 @@ type typeChecker struct {
 	refusedAlias       map[symbols.SymbolID]struct{}   // `&mut` aliases whose reborrow was refused and reported (borrow_passed_on_reborrow.go)
 	sideLoanVia        map[BorrowID]BorrowID           // a statement loan taken beside the one a holder finds -> that one (borrow_projection_loans.go)
 	projectionSiblings map[BorrowID][]BorrowID         // a projection's own loan -> its loans on the other candidates (borrow_projection_paths.go)
+	heldProjections    *[]BorrowID                     // projection loans a holder's value walk has taken, nil outside one (borrow_wrapped_projection.go)
 	exclusiveRefUses   []exclusiveRefUse               // exclusive uses through a reference in the outermost statement (borrow_call_arg_order.go)
 	loanDropped        map[symbols.SymbolID]int        // bindings an `@drop` ended with their loan -> hold-scope stack index
 	loopScopeFloors    []int                           // scope-stack depth at each enclosing loop's entry

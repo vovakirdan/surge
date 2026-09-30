@@ -127,6 +127,7 @@ func (l *lowerer) lowerCallExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Type
 	args := make([]*Expr, len(callData.Args))
 	for i, arg := range callData.Args {
 		args[i] = l.lowerExpr(arg.Value)
+		l.noteReferenceValueArg(arg.Value, args[i])
 	}
 
 	var symID symbols.SymbolID

@@ -294,7 +294,7 @@ func (tc *typeChecker) holdScrutineeLoansForArmBindings(bindings []symbols.Symbo
 	if bid := tc.inheritedBorrowForExpr(scrutinee); bid != NoBorrowID {
 		loans = append(loans, bid)
 	}
-	loans = append(loans, tc.viewLoansOfExpr(scrutinee)...)
+	loans = append(loans, tc.holdWrappedProjections(func() []BorrowID { return tc.viewLoansOfExpr(scrutinee) })...)
 	if len(loans) == 0 {
 		return
 	}

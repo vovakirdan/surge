@@ -354,7 +354,10 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (tagLa
 					}
 					payload := make([]types.TypeID, len(member.TagArgs))
 					for i := range member.TagArgs {
-						payload[i] = canonicalType(typesIn, member.TagArgs[i])
+						// A reference payload stays a reference, as in the
+						// union's membership (buildUnionCases): the constructor
+						// stores the address, not the referent's bytes.
+						payload[i] = resolveAliasAndOwn(typesIn, member.TagArgs[i])
 					}
 					addCase(TagCaseMeta{
 						TagName:      tagName,

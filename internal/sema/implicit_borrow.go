@@ -328,5 +328,6 @@ func (tc *typeChecker) applyParamOwnershipForType(expected types.TypeID, expr as
 		tc.handleBorrow(expr, span, op, expr)
 		return
 	}
+	tc.noteWrappedRefArg(expr, actual)
 	tc.observeMove(expr, span)
 }

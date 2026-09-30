@@ -246,7 +246,7 @@ func (tc *typeChecker) typeExprTernary(id ast.ExprID, span source.Span) types.Ty
 		tc.recordBranchOneSidedDrops(tern.TrueExpr, movedTrue, movedFalse)
 		tc.recordBranchOneSidedDrops(tern.FalseExpr, movedFalse, movedTrue)
 		tc.restoreMovedPlaces(mergeMovedPlaces(movedTrue, movedFalse))
-		return tc.unifyTernaryBranches(trueType, falseType, span)
+		return tc.ternaryNothingJoin(id, tern, trueType, falseType, tc.unifyTernaryBranches(trueType, falseType, span), span)
 	}
 
 	tc.noteChoiceOwnsItsValue(id, []ast.ExprID{tern.TrueExpr, tern.FalseExpr})
@@ -256,7 +256,7 @@ func (tc *typeChecker) typeExprTernary(id ast.ExprID, span source.Span) types.Ty
 	tc.recordBranchOneSidedDrops(tern.TrueExpr, movedTrue, movedFalse)
 	tc.recordBranchOneSidedDrops(tern.FalseExpr, movedFalse, movedTrue)
 	tc.restoreMovedPlaces(mergeMovedPlaces(movedTrue, movedFalse))
-	resultType := tc.unifyTernaryBranches(trueType, falseType, span)
+	resultType := tc.ternaryNothingJoin(id, tern, trueType, falseType, tc.unifyTernaryBranches(trueType, falseType, span), span)
 	if resultType != types.NoTypeID {
 		tc.recordNumericWidening(tern.TrueExpr, trueType, resultType)
 		tc.recordNumericWidening(tern.FalseExpr, falseType, resultType)

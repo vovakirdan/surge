@@ -127,7 +127,7 @@ func (tc *typeChecker) holdViewLoansForBinding(symID symbols.SymbolID, expr ast.
 	if !tc.mayHoldStorageLoan(tc.result.ExprTypes[expr]) && !tc.mayHoldStorageLoan(tc.bindingType(symID)) {
 		return
 	}
-	loans := tc.viewLoansOfExpr(expr)
+	loans := tc.holdWrappedProjections(func() []BorrowID { return tc.viewLoansOfExpr(expr) })
 	if len(loans) == 0 {
 		return
 	}
@@ -203,6 +203,9 @@ func (tc *typeChecker) viewLoansOfExpr(expr ast.ExprID) []BorrowID {
 			}
 		}
 	case ast.ExprCall:
+		if projected, ok := tc.wrappedProjectionLoans(expr); ok {
+			return append(projected, tc.viewLoansOfCall(expr)...)
+		}
 		return tc.viewLoansOfCall(expr)
 	case ast.ExprCompare, ast.ExprTernary, ast.ExprBlock:
 		return tc.choiceValueLoans(expr)

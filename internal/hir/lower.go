@@ -104,7 +104,10 @@ type lowerer struct {
 	stmtSymbols    map[ast.StmtID]symbols.SymbolID
 	crossingByExpr map[ast.ExprID]*sema.CrossingLoweringInfo
 	cloneRequests  map[directCloneUse]struct{}
-	err            error
+	// referenceValueArgs holds the lowered call arguments that stay references
+	// although their parameter is declared by value (sema's ReferenceValueArgs).
+	referenceValueArgs map[*Expr]struct{}
+	err                error
 }
 
 func (l *lowerer) setErrorf(format string, args ...any) {

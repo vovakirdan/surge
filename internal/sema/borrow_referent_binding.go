@@ -133,7 +133,7 @@ func (w *referentWalk) value(expr ast.ExprID) {
 		if i+offset >= len(params) {
 			break
 		}
-		if tc.refResultCanAliasParam(result, params[i+offset]) {
+		if tc.refResultCanAliasParam(result, params[i+offset]) || tc.passesCarriedSharedReference(params[i+offset], arg.Value) {
 			w.arg(arg.Value)
 		}
 	}

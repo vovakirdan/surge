@@ -243,6 +243,7 @@ func Compile(ctx context.Context, req *CompileRequest) (CompileResult, error) {
 
 	if err := mir.ValidateWithOptions(mirMod, diagRes.Sema.TypeInterner, mir.ValidateOptions{
 		CrossingForms: crossingForms,
+		Files:         diagRes.FileSet,
 	}); err != nil {
 		err = fmt.Errorf("MIR validation failed: %w", err)
 		emitStage(req.Progress, req.Files, StageLower, StatusError, err, 0)

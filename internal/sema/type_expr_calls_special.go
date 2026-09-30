@@ -189,6 +189,7 @@ func (tc *typeChecker) materializeCallArguments(sym *symbols.Symbol, args []call
 		}
 		tc.materializeNumericLiteral(arg.expr, expectedType)
 		tc.materializeArrayLiteral(arg.expr, expectedType)
+		tc.recordReferenceValueArg(sig.Params[paramIndex], expectedType, arg)
 	}
 
 	for i := range args {
@@ -196,6 +197,25 @@ func (tc *typeChecker) materializeCallArguments(sym *symbols.Symbol, args []call
 			args[i].ty = ty
 		}
 	}
+}
+
+// recordReferenceValueArg notes an argument that stays a reference because the
+// by-value parameter it binds was instantiated with a reference type. See
+// Result.ReferenceValueArgs.
+func (tc *typeChecker) recordReferenceValueArg(declared symbols.TypeKey, instantiated types.TypeID, arg callArg) {
+	if tc.result == nil || !arg.expr.IsValid() {
+		return
+	}
+	if strings.HasPrefix(strings.TrimSpace(string(declared)), "&") {
+		return
+	}
+	if !tc.isReferenceType(instantiated) || !tc.isReferenceType(arg.ty) {
+		return
+	}
+	if tc.result.ReferenceValueArgs == nil {
+		tc.result.ReferenceValueArgs = make(map[ast.ExprID]struct{})
+	}
+	tc.result.ReferenceValueArgs[arg.expr] = struct{}{}
 }
 
 func (tc *typeChecker) callAllowsImplicitTo(sym *symbols.Symbol, paramIndex int) bool {

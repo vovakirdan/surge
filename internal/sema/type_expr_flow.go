@@ -2,6 +2,7 @@ package sema
 
 import (
 	"fmt"
+	"slices"
 
 	"surge/internal/ast"
 	"surge/internal/diag"
@@ -202,6 +203,13 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		}
 	}
 
+	joinedSome := false
+	if expectedCompare == types.NoTypeID && nothingType != types.NoTypeID && slices.Contains(armTypes, nothingType) &&
+		resultType != nothingType {
+		if joined, ok := tc.choiceNothingJoin(resultType, span); ok && joined != resultType {
+			resultType, joinedSome = joined, true
+		}
+	}
 	targetCompare := resultType
 	if expectedCompare != types.NoTypeID {
 		targetCompare = expectedCompare
@@ -285,6 +293,9 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 	if expectedCompare == types.NoTypeID && resultType != types.NoTypeID {
 		for i, arm := range cmp.Arms {
 			tc.recordNumericWidening(arm.Result, armTypes[i], resultType)
+			if joinedSome && !armClosed[i] && armTypes[i] != nothingType {
+				tc.recordTagUnionUpcast(arm.Result, armTypes[i], resultType)
+			}
 		}
 	}
 	tc.checkCompareExhausiveness(cmp, valueType, span)

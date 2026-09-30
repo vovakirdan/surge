@@ -35,6 +35,7 @@ func (tc *typeChecker) applyParamOwnership(param symbols.TypeKey, expr ast.ExprI
 		}
 		tc.handleBorrow(expr, span, ast.ExprUnaryRef, expr)
 	default:
+		tc.noteWrappedRefArg(expr, exprType)
 		tc.observeMove(expr, span)
 	}
 }

@@ -193,12 +193,39 @@ func (l *lowerer) applyParamBorrow(symID symbols.SymbolID, args []*Expr) []*Expr
 			}
 			args[i] = l.applyBorrow(arg, false)
 		default:
-			if argIsRef {
+			if argIsRef && !l.passesReferenceAsValue(arg) {
 				args[i] = l.applyDeref(arg)
 			}
 		}
 	}
 	return args
+}
+
+// noteReferenceValueArg remembers a lowered argument that sema matched, as a
+// reference, against a by-value parameter instantiated with a reference type.
+func (l *lowerer) noteReferenceValueArg(exprID ast.ExprID, lowered *Expr) {
+	if l == nil || lowered == nil || l.semaRes == nil || !exprID.IsValid() {
+		return
+	}
+	if _, ok := l.semaRes.ReferenceValueArgs[exprID]; !ok {
+		return
+	}
+	if l.referenceValueArgs == nil {
+		l.referenceValueArgs = make(map[*Expr]struct{})
+	}
+	l.referenceValueArgs[lowered] = struct{}{}
+}
+
+// passesReferenceAsValue reports whether a reference argument IS the value its
+// by-value parameter takes, as in `Some::<&mut int>(&mut r[0])`. Reading
+// through it there would hand the callee the referent's bits where it expects
+// an address.
+func (l *lowerer) passesReferenceAsValue(arg *Expr) bool {
+	if l == nil || arg == nil {
+		return false
+	}
+	_, ok := l.referenceValueArgs[arg]
+	return ok
 }
 
 func isBorrowExpr(e *Expr) bool {

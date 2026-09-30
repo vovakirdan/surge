@@ -84,7 +84,7 @@ func (l *funcLowerer) lowerIfExpr(e *hir.Expr, data hir.IfData, consume bool) (O
 				Kind: InstrAssign,
 				Assign: AssignInstr{
 					Dst: Place{Local: resultLocal},
-					Src: RValue{Kind: RValueUse, Use: op},
+					Src: RValue{Kind: RValueUse, Use: nothingOfResult(&op, e.Type)},
 				},
 			})
 		} else {
@@ -115,7 +115,7 @@ func (l *funcLowerer) lowerIfExpr(e *hir.Expr, data hir.IfData, consume bool) (O
 				Kind: InstrAssign,
 				Assign: AssignInstr{
 					Dst: Place{Local: resultLocal},
-					Src: RValue{Kind: RValueUse, Use: op},
+					Src: RValue{Kind: RValueUse, Use: nothingOfResult(&op, e.Type)},
 				},
 			})
 		} else {
@@ -286,4 +286,18 @@ func (l *funcLowerer) lowerBlockExpr(e *hir.Expr, data hir.BlockExprData, consum
 		return Operand{Kind: OperandMove, Type: e.Type, Place: Place{Local: resultLocal}}, nil
 	}
 	return l.placeOperand(Place{Local: resultLocal}, e.Type, consume), nil
+}
+
+// nothingOfResult types a `nothing` constant a branch yields as the value of
+// the choice it lands in: `c ? Some(1) : nothing` stores it into an `Option`,
+// where it is an owned value of that union like any other, not a value of type
+// `nothing`.
+func nothingOfResult(op *Operand, result types.TypeID) Operand {
+	out := *op
+	if out.Kind != OperandConst || out.Const.Kind != ConstNothing || result == types.NoTypeID {
+		return out
+	}
+	out.Type = result
+	out.Const.Type = result
+	return out
 }

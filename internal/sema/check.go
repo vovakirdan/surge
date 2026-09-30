@@ -103,6 +103,13 @@ type Result struct {
 	// the second holder, and a read that took the value must not, because the
 	// container's own drop no longer releases what left it.
 	PartialMoveReads map[ast.ExprID]struct{}
+	// ReferenceValueArgs flags the call arguments that are references handed
+	// AS references to a parameter declared by value: `x: T` instantiated with
+	// `T = &mut int`, as `Some::<&mut int>(&mut r[0])` or `id::<&int>(p)` do.
+	// A by-value parameter otherwise reads a reference argument through it (the
+	// Copy referent is the value), and the declared parameter alone cannot tell
+	// the two apart, so the instantiation's answer has to be carried.
+	ReferenceValueArgs map[ast.ExprID]struct{}
 	// BlockExprEndDrops: block-expression locals live at the block's
 	// normal end (keyed by the block expression).
 	BlockExprEndDrops map[ast.ExprID][]symbols.SymbolID

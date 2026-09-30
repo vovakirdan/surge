@@ -56,7 +56,10 @@ func buildUnionCases(
 				meta.TagSym = tagSymByName[member.TagName]
 				meta.PayloadTypes = make([]types.TypeID, len(member.TagArgs))
 				for i := range member.TagArgs {
-					meta.PayloadTypes[i] = canonicalType(typesIn, member.TagArgs[i])
+					// A reference payload stays a reference: `Some<&mut string>`
+					// carries an address it does not own, and a drop that read
+					// it as the string freed the caller's element.
+					meta.PayloadTypes[i] = resolveAliasAndOwn(typesIn, member.TagArgs[i])
 				}
 			case types.UnionMemberNothing:
 				meta.Kind = UnionCaseNothing

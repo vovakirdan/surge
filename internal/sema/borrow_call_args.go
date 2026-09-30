@@ -11,6 +11,9 @@ import (
 // reach, and whether it is `&mut`.
 type refArgFrame struct {
 	args []refArg
+	// refused: a conflict between two of this call's reference arguments was
+	// reported, so the argument-order check does not report the same pair.
+	refused bool
 }
 
 type refArg struct {
@@ -72,6 +75,7 @@ func (tc *typeChecker) noteRefArg(expr ast.ExprID, mutable bool, span source.Spa
 			for _, b := range prev.reach {
 				if (a.passedOn || b.passedOn) && placesOverlap(a.place, b.place) {
 					tc.reportBorrowConflict(a.place, span, BorrowIssue{Kind: BorrowIssueConflictMut}, BorrowMut)
+					frame.refused = true
 					return
 				}
 			}
@@ -104,6 +108,15 @@ func (tc *typeChecker) referentReach(expr ast.ExprID, passedOn bool, seen map[sy
 			for _, src := range tc.lentValues.sources[desc.Base] {
 				out = append(out, tc.referentReach(src, passedOn, seen)...)
 			}
+		}
+		return out
+	}
+	if values := tc.choiceValues(expr); len(values) > 0 {
+		// A ternary, compare or block value hands on whichever value it
+		// chooses: it reaches what each of them does.
+		var out []reached
+		for _, value := range values {
+			out = append(out, tc.referentReach(value, passedOn, seen)...)
 		}
 		return out
 	}

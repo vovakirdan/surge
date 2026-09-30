@@ -83,12 +83,16 @@ type argumentInOrder struct {
 // refuseLaterArgumentOverEarlierElement checks one call's arguments in
 // evaluation order.
 func (tc *typeChecker) refuseLaterArgumentOverEarlierElement(args []argumentInOrder) {
-	if tc.borrow == nil || len(tc.exclusiveRefUses) == 0 || len(args) < 2 {
+	if tc.borrow == nil || len(tc.exclusiveRefUses) == 0 || len(args) < 2 || (tc.mutArgs != nil && tc.mutArgs.refused) {
 		return
 	}
 	for i := 0; i+1 < len(args); i++ {
 		param := strings.TrimSpace(string(args[i].param))
-		if !strings.HasPrefix(param, "&") || strings.HasPrefix(param, "&mut ") || !tc.isReferenceType(args[i].ty) {
+		if strings.HasPrefix(param, "&") {
+			if !tc.isReferenceType(args[i].ty) {
+				continue
+			}
+		} else if carries, _ := tc.carriesAnyReference(args[i].ty); !carries {
 			continue
 		}
 		reach := tc.elementArgumentReach(args[i].expr)

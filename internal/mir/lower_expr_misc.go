@@ -17,12 +17,18 @@ func (l *funcLowerer) lowerTagTestExpr(e *hir.Expr, consume bool) (Operand, erro
 		return Operand{}, err
 	}
 	tmp := l.newTemp(e.Type, "tagtest", e.Span)
+	src := RValue{Kind: RValueTagTest, TagTest: TagTest{Value: val, TagName: data.TagName}}
+	if tagTestNeverMatches(l.types, val.Type, data.TagName) {
+		// `nothing` against a `Some<T>`: no value of this type holds the case.
+		src = RValue{Kind: RValueUse, Use: Operand{
+			Kind:  OperandConst,
+			Type:  e.Type,
+			Const: Const{Kind: ConstBool, Type: e.Type, BoolValue: false},
+		}}
+	}
 	l.emit(&Instr{
-		Kind: InstrAssign,
-		Assign: AssignInstr{
-			Dst: Place{Local: tmp},
-			Src: RValue{Kind: RValueTagTest, TagTest: TagTest{Value: val, TagName: data.TagName}},
-		},
+		Kind:   InstrAssign,
+		Assign: AssignInstr{Dst: Place{Local: tmp}, Src: src},
 	})
 	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil
 }

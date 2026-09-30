@@ -5,12 +5,15 @@ import (
 	"fmt"
 
 	"surge/internal/sema"
+	"surge/internal/source"
 	"surge/internal/types"
 )
 
 // ValidateOptions configures optional MIR validation capabilities.
 type ValidateOptions struct {
 	CrossingForms map[sema.CrossingLoweringKind]bool
+	// Files, when set, lets a refusal name the source line it is about.
+	Files *source.FileSet
 }
 
 func (opts ValidateOptions) crossingEnabled(kind sema.CrossingLoweringKind) bool {
@@ -85,6 +88,11 @@ func validateFunc(f *Func, typesIn *types.Interner, globals []Global, opts Valid
 
 	// 4 & 5. Check types (no TypeParam, no NoTypeID)
 	if err := validateTypes(f, typesIn); err != nil {
+		errs = append(errs, err)
+	}
+
+	// 5b. A tag test or switch names only cases its value's union has.
+	if err := validateTagCaseMembership(f, typesIn, opts.Files); err != nil {
 		errs = append(errs, err)
 	}
 
