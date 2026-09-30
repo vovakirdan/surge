@@ -222,13 +222,14 @@ func (tc *typeChecker) typeExprTernary(id ast.ExprID, span source.Span) types.Ty
 	// before each one for exactly this reason.
 	before := tc.snapshotMovedPlaces()
 	pinsBefore := tc.snapshotTaskBorrowPins()
-	trueType := tc.typeExpr(tern.TrueExpr)
+	expected := tc.expectedTypeForExpr(id)
+	trueType := tc.typeTagCallUnder(tern.TrueExpr, expected)
 	movedTrue := tc.snapshotMovedPlaces()
 	pinsTrue := tc.snapshotTaskBorrowPins()
 
 	tc.restoreMovedPlaces(before)
 	tc.restoreTaskBorrowPins(pinsBefore)
-	falseType := tc.typeExpr(tern.FalseExpr)
+	falseType := tc.typeTagCallUnder(tern.FalseExpr, expected)
 	movedFalse := tc.snapshotMovedPlaces()
 	tc.restoreTaskBorrowPins(mergeTaskBorrowPins(pinsTrue, tc.snapshotTaskBorrowPins()))
 

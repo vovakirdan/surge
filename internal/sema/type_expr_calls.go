@@ -40,8 +40,14 @@ func (tc *typeChecker) callResultType(callID ast.ExprID, call *ast.ExprCallData,
 	tc.callTargetDepth--
 	twoPhase := tc.beginTwoPhaseArgs(call.Args)
 	args := make([]callArg, 0, len(call.Args))
-	for _, arg := range call.Args {
-		argTy := tc.typeExpr(arg.Value)
+	payloads := tc.tagCallPayloadTypes(callID, call)
+	for i, arg := range call.Args {
+		var argTy types.TypeID
+		if payloads != nil {
+			argTy = tc.typeTagPayloadArg(arg.Value, payloads[i])
+		} else {
+			argTy = tc.typeExpr(arg.Value)
+		}
 		args = append(args, callArg{
 			name:      arg.Name,
 			ty:        argTy,
