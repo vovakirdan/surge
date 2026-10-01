@@ -112,6 +112,16 @@ The type checker currently recognises built-in `int`, `uint`, `float`, `bool`, `
 
 `T[]` is a growable, indexable sequence of `T` with zero-based indexing. Fixed-length arrays use `T[N]` where `N` is a constant integer literal; sema rejects non-constant lengths.
 
+**Массив фиксированной длины никогда не превращается в динамический неявно** (решение владельца от 2026-09-30). `T[N]` хранит элементы на месте, `T[]` — хэндл растущего буфера; раскладки разные, и неявного преобразования между ними нет. Где бы значение типа `T[N]` ни попадало туда, где ожидается `T[]`, — типизированный `let`, присваивание, `return`, поле структуры, полезная нагрузка тега (`Some(a)` как `Option<T[]>`), кортеж, элемент словаря или массива, аргумент вызова, конкретизация обобщения, — это ошибка типа (SEM3015 «expected [T], got [T; N]»); копия пишется явно: `ArrayFixed<T, N>.to_array() -> Array<T>`. Обратное направление (`T[]` в `T[N]`) и другая длина (`T[N]` в `T[M]`) тоже отвергаются. **Литерал** массива — не преобразование: записанный там, где ожидается `T[]` (напрямую, внутри другого литерала массива или литерала кортежа), он типизируется как этот `T[]` и строит его сразу.
+
+```sg
+let a: int[2] = [6, 7];
+let b: int[] = a;              // ошибка SEM3015: expected [int], got [int; 2]
+let c: int[] = a.to_array();   // можно: явная копия
+let d: int[] = [6, 7];         // можно: литерал типизирован как int[]
+let e: int[2] = a;             // можно: тот же фиксированный тип
+```
+
 Type binding: postfix `[]`/`[N]` binds tighter than prefix `&/own/*`.
 So `&T[]` means `&(T[])` (reference to array), while `(&T)[]` means an array of references.
 You can also be explicit: `Array<&T>` and `&Array<T>` are both allowed.
@@ -1608,7 +1618,7 @@ The core prelude defines array helpers as methods on `Array<T>`:
 
 Top-level helpers `array_push/array_pop/array_reserve` mirror the intrinsic operations.
 
-For fixed-size arrays, `ArrayFixed<T, N>` provides `with_len`, `with_len_value`, and `to_array() -> Array<T>`.
+For fixed-size arrays, `ArrayFixed<T, N>` provides `with_len`, `with_len_value`, and `to_array() -> Array<T>`. `to_array` — единственный путь из `T[N]` в `T[]` (§2.2): неявно массив фиксированной длины не преобразуется.
 
 ABI: layout and view rules are defined in `docs/ABI_LAYOUT.ru.md` (Array ABI, Array Slice View ABI, ArrayFixed).
 

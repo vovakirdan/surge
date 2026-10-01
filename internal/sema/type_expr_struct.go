@@ -403,6 +403,9 @@ func (tc *typeChecker) ensureStructFieldType(name source.StringID, value ast.Exp
 			fieldName, tc.typeLabel(actual), tc.typeLabel(expected))
 		return
 	}
+	if tc.reportFixedArrayToDynamic(expected, actual, value, tc.exprSpan(value)) {
+		return
+	}
 	fieldName := tc.lookupName(name)
 	tc.report(diag.SemaTypeMismatch, tc.exprSpan(value), "field %s expects %s, got %s", fieldName, tc.typeLabel(expected), tc.typeLabel(actual))
 }

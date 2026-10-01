@@ -126,8 +126,11 @@ func (tc *typeChecker) ensureBindingTypeMatch(typeExpr ast.TypeID, declared, act
 							}
 						}
 					}
-				} else {
-					// Dynamic array: only element type compatibility matters
+				} else if !actFixed {
+					// Dynamic array: only element type compatibility matters.
+					// A fixed array is not one (fixed_array_to_dynamic.go); a
+					// literal written here was already typed as the dynamic
+					// array by materializeArrayLiteral.
 					if elemConvertible && !elemAssignable {
 						// Element types need conversion - only allowed for array literals
 						if valueExpr.IsValid() {
@@ -202,6 +205,9 @@ func (tc *typeChecker) reportBindingTypeMismatch(typeExpr ast.TypeID, expected, 
 		primary = tc.typeSpan(typeExpr)
 	}
 
+	if tc.reportFixedArrayToDynamic(expected, actual, valueExpr, primary) {
+		return
+	}
 	msg := fmt.Sprintf("cannot assign %s to %s", actualLabel, expectedLabel)
 	b := diag.ReportError(tc.reporter, diag.SemaTypeMismatch, primary, msg)
 	if b == nil {

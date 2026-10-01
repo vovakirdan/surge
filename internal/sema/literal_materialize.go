@@ -251,9 +251,14 @@ func (tc *typeChecker) materializeNumericLiteral(expr ast.ExprID, expected types
 	}
 }
 
+// materializeArrayLiteral types an array literal, and the array literals inside
+// a tuple literal, by the array type they land in.
 func (tc *typeChecker) materializeArrayLiteral(expr ast.ExprID, expected types.TypeID) (applied, ok bool) {
 	if expected == types.NoTypeID || !expr.IsValid() || tc.types == nil {
 		return false, false
+	}
+	if tupleApplied, tupleOK := tc.materializeTupleArrayLiterals(expr, expected); tupleApplied {
+		return true, tupleOK
 	}
 	info, ok := tc.arrayLiteralInfo(expr)
 	if !ok || info.data == nil {
@@ -283,6 +288,13 @@ func (tc *typeChecker) materializeArrayLiteral(expr ast.ExprID, expected types.T
 			okAll = false
 			reported = true
 		}
+		// A nested literal is typed by the element it lands in, so `[[6, 7]]`
+		// written as an `int[][]` holds `int[]`s, not `int[2]`s.
+		if applied, ok := tc.materializeArrayLiteral(elem, expElem); applied && !ok {
+			okAll = false
+			reported = true
+			continue
+		}
 		elemType := tc.result.ExprTypes[elem]
 		if elemType == types.NoTypeID {
 			elemType = tc.typeExpr(elem)
@@ -307,6 +319,9 @@ func (tc *typeChecker) materializeArrayLiteral(expr ast.ExprID, expected types.T
 			okAll = false
 			reported = true
 			continue
+		}
+		if tc.reportFixedArrayToDynamic(expElem, elemType, elem, tc.exprSpan(elem)) {
+			reported = true
 		}
 		okAll = false
 	}

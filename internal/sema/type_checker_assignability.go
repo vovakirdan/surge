@@ -84,15 +84,16 @@ func (tc *typeChecker) typesAssignable(expected, actual types.TypeID, allowAlias
 		return true
 	}
 
-	// Array compatibility: check element types and lengths
+	// Array compatibility: element types must match and so must the kind. A
+	// fixed array `T[N]` is never a dynamic `T[]`, nor the reverse, nor a
+	// `T[M]`: the layouts differ and no backend converts one into the other
+	// in place, so the copy has to be written (`x.to_array()`).
 	if expElem, expLen, expFixed, okExp := tc.arrayInfo(expected); okExp {
 		if actElem, actLen, actFixed, okAct := tc.arrayInfo(actual); okAct && tc.typesAssignable(expElem, actElem, true) {
 			if expFixed {
-				// Fixed-size arrays must have matching lengths
 				return actFixed && expLen == actLen
 			}
-			// Dynamic arrays are compatible if element types match
-			return true
+			return !actFixed
 		}
 	}
 

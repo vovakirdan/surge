@@ -344,7 +344,7 @@ func (tc *typeChecker) reportCallArgumentTypeMismatch(expected, actual types.Typ
 	if tc.reportOwnedParamNeedsMarker(expected, actual, expr) {
 		return
 	}
-	if tc.reportDynamicToFixedNumeric(expected, actual, expr, span) {
+	if tc.reportDynamicToFixedNumeric(expected, actual, expr, span) || tc.reportFixedArrayToDynamic(expected, actual, expr, span) {
 		return
 	}
 	if !allowImplicitTo {

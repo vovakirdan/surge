@@ -111,8 +111,10 @@ func (tc *typeChecker) typeTagPayloadArg(arg ast.ExprID, payload types.TypeID) t
 	// Only a literal the payload already accepted is retyped: its elements
 	// must be assignable as they stand. A tag constructor is a call, and a call
 	// argument takes no implicit `__to` without `@allow_to` (LANGUAGE §6.6.1),
-	// so `Some(["a"])` as an `Option<int[]>` stays the mismatch it was.
-	if ty != types.NoTypeID && !tc.typesAssignable(payload, ty, true) {
+	// so `Some(["a"])` as an `Option<int[]>` stays the mismatch it was. The
+	// literal on its own is a fixed array, which no dynamic payload accepts as
+	// a value (fixed_array_to_dynamic.go), so its elements are what is asked.
+	if ty != types.NoTypeID && !tc.typesAssignable(payload, ty, true) && !tc.fixedArrayWhereDynamic(payload, ty) {
 		return ty
 	}
 	if applied, ok := tc.materializeArrayLiteral(arg, payload); applied && ok {

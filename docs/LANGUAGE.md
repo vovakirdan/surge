@@ -110,6 +110,16 @@ The type checker currently recognises built-in `int`, `uint`, `float`, `bool`, `
 
 `T[]` is a growable, indexable sequence of `T` with zero-based indexing. Fixed-length arrays use `T[N]` where `N` is a constant integer literal; sema rejects non-constant lengths.
 
+**A fixed array never becomes a dynamic array implicitly** (owner's ruling 2026-09-30). `T[N]` stores its elements inline, `T[]` is a handle to a growable buffer; the two layouts differ and no conversion between them is implicit. Wherever a value of type `T[N]` lands where a `T[]` is expected — a typed `let`, an assignment, a `return`, a struct field, a tag payload (`Some(a)` as an `Option<T[]>`), a tuple, a map or array element, a call argument, a generic instantiation — it is a type error (SEM3015 "expected [T], got [T; N]"); the copy is written explicitly with `ArrayFixed<T, N>.to_array() -> Array<T>`. The reverse (`T[]` to `T[N]`) and a different length (`T[N]` to `T[M]`) are refused too. An array **literal** is not a conversion: written where a `T[]` is expected (directly, nested in another array literal, or in a tuple literal) it is typed as that `T[]` and builds it directly.
+
+```sg
+let a: int[2] = [6, 7];
+let b: int[] = a;              // error SEM3015: expected [int], got [int; 2]
+let c: int[] = a.to_array();   // ok: an explicit copy
+let d: int[] = [6, 7];         // ok: the literal is typed as int[]
+let e: int[2] = a;             // ok: same fixed type
+```
+
 Type binding: postfix `[]`/`[N]` binds tighter than prefix `&/own/*`.
 So `&T[]` means `&(T[])` (reference to array), while `(&T)[]` means an array of references.
 You can also be explicit: `Array<&T>` and `&Array<T>` are both allowed.
@@ -1669,7 +1679,7 @@ The core prelude defines array helpers as methods on `Array<T>`:
 
 Top-level helpers `array_push/array_pop/array_reserve` mirror the intrinsic operations.
 
-For fixed-size arrays, `ArrayFixed<T, N>` provides `with_len`, `with_len_value`, and `to_array() -> Array<T>`.
+For fixed-size arrays, `ArrayFixed<T, N>` provides `with_len`, `with_len_value`, and `to_array() -> Array<T>`. `to_array` is the only way from `T[N]` to `T[]` (§2.2): a fixed array is never converted implicitly.
 
 ABI: layout and view rules are defined in `docs/ABI_LAYOUT.md` (Array ABI, Array Slice View ABI, ArrayFixed).
 
