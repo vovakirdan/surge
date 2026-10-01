@@ -179,40 +179,36 @@
 179: RBrace          "}" at 35:5-35:6 (leading: Newline, Space)
 180: KwPub           "pub" at 38:5-38:8 (leading: Newline, Space, LineComment, Newline, Space)
 181: KwFn            "fn" at 38:9-38:11 (leading: Space)
-182: Ident           "__to" at 38:12-38:16 (leading: Space)
-183: LParen          "(" at 38:16-38:17
-184: Ident           "self" at 38:17-38:21
-185: Colon           ":" at 38:21-38:22
-186: Amp             "&" at 38:23-38:24 (leading: Space)
-187: Ident           "Option" at 38:24-38:30
-188: Lt              "<" at 38:30-38:31
-189: Ident           "T" at 38:31-38:32
-190: Gt              ">" at 38:32-38:33
-191: Comma           "," at 38:33-38:34
-192: Ident           "target" at 38:35-38:41 (leading: Space)
-193: Colon           ":" at 38:41-38:42
-194: Ident           "int" at 38:43-38:46 (leading: Space)
-195: RParen          ")" at 38:46-38:47
-196: Arrow           "->" at 38:48-38:50 (leading: Space)
-197: Ident           "int" at 38:51-38:54 (leading: Space)
-198: LBrace          "{" at 38:55-38:56 (leading: Space)
-199: KwReturn        "return" at 39:9-39:15 (leading: Newline, Space)
-200: KwCompare       "compare" at 39:16-39:23 (leading: Space)
-201: Ident           "self" at 39:24-39:28 (leading: Space)
-202: LBrace          "{" at 39:29-39:30 (leading: Space)
-203: Ident           "Some" at 40:13-40:17 (leading: Newline, Space)
-204: LParen          "(" at 40:17-40:18
-205: Underscore      "_" at 40:18-40:19
-206: RParen          ")" at 40:19-40:20
-207: FatArrow        "=>" at 40:21-40:23 (leading: Space)
-208: IntLit          "0" at 40:24-40:25 (leading: Space)
-209: Semicolon       ";" at 40:25-40:26
-210: Underscore      "_" at 41:13-41:14 (leading: Newline, Space)
-211: FatArrow        "=>" at 41:15-41:17 (leading: Space)
-212: IntLit          "1" at 41:18-41:19 (leading: Space)
-213: Semicolon       ";" at 41:19-41:20
-214: RBrace          "}" at 42:9-42:10 (leading: Newline, Space)
-215: Semicolon       ";" at 42:10-42:11
-216: RBrace          "}" at 43:5-43:6 (leading: Newline, Space)
-217: RBrace          "}" at 44:1-44:2 (leading: Newline)
-218: EOF             at 45:1-45:1
+182: Ident           "__exit_code" at 38:12-38:23 (leading: Space)
+183: LParen          "(" at 38:23-38:24
+184: Ident           "self" at 38:24-38:28
+185: Colon           ":" at 38:28-38:29
+186: Amp             "&" at 38:30-38:31 (leading: Space)
+187: Ident           "Option" at 38:31-38:37
+188: Lt              "<" at 38:37-38:38
+189: Ident           "T" at 38:38-38:39
+190: Gt              ">" at 38:39-38:40
+191: RParen          ")" at 38:40-38:41
+192: Arrow           "->" at 38:42-38:44 (leading: Space)
+193: Ident           "int" at 38:45-38:48 (leading: Space)
+194: LBrace          "{" at 38:49-38:50 (leading: Space)
+195: KwReturn        "return" at 39:9-39:15 (leading: Newline, Space)
+196: KwCompare       "compare" at 39:16-39:23 (leading: Space)
+197: Ident           "self" at 39:24-39:28 (leading: Space)
+198: LBrace          "{" at 39:29-39:30 (leading: Space)
+199: Ident           "Some" at 40:13-40:17 (leading: Newline, Space)
+200: LParen          "(" at 40:17-40:18
+201: Underscore      "_" at 40:18-40:19
+202: RParen          ")" at 40:19-40:20
+203: FatArrow        "=>" at 40:21-40:23 (leading: Space)
+204: IntLit          "0" at 40:24-40:25 (leading: Space)
+205: Semicolon       ";" at 40:25-40:26
+206: Underscore      "_" at 41:13-41:14 (leading: Newline, Space)
+207: FatArrow        "=>" at 41:15-41:17 (leading: Space)
+208: IntLit          "1" at 41:18-41:19 (leading: Space)
+209: Semicolon       ";" at 41:19-41:20
+210: RBrace          "}" at 42:9-42:10 (leading: Newline, Space)
+211: Semicolon       ";" at 42:10-42:11
+212: RBrace          "}" at 43:5-43:6 (leading: Newline, Space)
+213: RBrace          "}" at 44:1-44:2 (leading: Newline)
+214: EOF             at 45:1-45:1

@@ -8,11 +8,11 @@ vm_struct_lit_and_to.sg (span: 1:1-16:1)
 ├─ Item[1]: Extern (span: 5:1-9:2)
 │  ├─ Target: MyExitCode
 │  ├─ Members:
-│  │  └─ Fn[0]: __to
-│  │     ├─ Params: (self: MyExitCode, _target: int)
+│  │  └─ Fn[0]: __exit_code
+│  │     ├─ Params: (self: &MyExitCode)
 │  │     ├─ Return: int
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 6:52-8:6)
+│  │        Stmt[0]: Block (span: 6:46-8:6)
 │  │        └─ Stmt[0]: Return (span: 7:9-7:26)
 │  │           └─ Expr: expr#2: self.code
 └─ Item[2]: Fn (span: 11:1-14:2)

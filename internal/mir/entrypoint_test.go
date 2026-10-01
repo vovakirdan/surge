@@ -175,10 +175,10 @@ func TestBuildSurgeStartFailsClosedWhenSelectedCallableIsMissing(t *testing.T) {
 	}
 	semaRes := &sema.Result{EntrypointCallableBindings: []sema.EntrypointCallableBinding{{
 		Entrypoint: entrypointSym,
-		Role:       sema.EntrypointReturnToInt,
+		Role:       sema.EntrypointReturnExitCode,
 		Outcome:    sema.EntrypointCallableUser,
 		Callee:     selectedSym,
-		CalleeKey:  "app/main.sg:1:2|__to",
+		CalleeKey:  "app/main.sg:1:2|__exit_code",
 	}}}
 
 	_, err := mir.BuildSurgeStart(mm, semaRes, typeInterner, 1, nil, nil, nil, nil)

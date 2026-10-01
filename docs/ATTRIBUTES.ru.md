@@ -159,8 +159,15 @@ fn encode(buf: &byte[]) -> uint { return 0:uint; }
 - `"env"` и `"config"` зарезервированы (`FutEntrypointModeEnv` / `FutEntrypointModeConfig`).
 
 Тип возврата:
-- `nothing` или `int`, или любой тип, реализующий `ExitCode<T>` (`__to(self, int) -> int`).
-- `Option<T>` и `Erring<T, E>` реализуют это преобразование по умолчанию.
+- `nothing` (код выхода 0) или `int` (само значение), или любой тип, реализующий
+  `ExitCode<T>` (`fn __exit_code(self: &T) -> int`); сгенерированный вход
+  заимствует результат, вызывает `__exit_code()`, освобождает результат и
+  завершается с полученным кодом. Иначе SEM3123.
+- core реализует `ExitCode` для `Option<T>` (`Some => 0`, `nothing => 1`),
+  `Erring<T, E>` (`Success => 0`, ошибка => её `code`) и `uint`, `int8`,
+  `int16`, `int32`, `int64`.
+- Преобразование `__to(self, int) -> int` не является кодом выхода;
+  у `Option`/`Erring` нет преобразования в `int`.
 
 Парсинг параметров:
 - `"argv"` требует точную функцию `FromArgv<T>` для каждого параметра, включая

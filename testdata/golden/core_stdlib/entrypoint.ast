@@ -1,164 +1,199 @@
-entrypoint.sg (span: 1:1-86:1)
+entrypoint.sg (span: 1:1-100:1)
 ├─ Item[0]: Contract (span: 7:1-9:2)
 ├─ Item[1]: Contract (span: 13:1-15:2)
-├─ Item[2]: Contract (span: 19:1-21:2)
-├─ Item[3]: Extern (span: 23:1-25:2)
+├─ Item[2]: Contract (span: 23:1-25:2)
+├─ Item[3]: Extern (span: 27:1-29:2)
 │  ├─ Target: int
 │  ├─ Members:
 │  │  └─ Fn[0]: from_stdin
 │  │     ├─ Params: (text: string)
 │  │     ├─ Return: Erring<int, Error>
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 24:59-24:90)
-│  │        └─ Stmt[0]: Return (span: 24:61-24:88)
+│  │        Stmt[0]: Block (span: 28:59-28:90)
+│  │        └─ Stmt[0]: Return (span: 28:61-28:88)
 │  │           └─ Expr: expr#5: int.from_str(&text)
-├─ Item[4]: Extern (span: 27:1-29:2)
+├─ Item[4]: Extern (span: 31:1-35:2)
 │  ├─ Target: uint
 │  ├─ Members:
-│  │  └─ Fn[0]: from_stdin
-│  │     ├─ Params: (text: string)
-│  │     ├─ Return: Erring<uint, Error>
+│  │  ├─ Fn[0]: from_stdin
+│  │  │  ├─ Params: (text: string)
+│  │  │  ├─ Return: Erring<uint, Error>
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 32:60-32:92)
+│  │  │     └─ Stmt[0]: Return (span: 32:62-32:90)
+│  │  │        └─ Expr: expr#10: uint.from_str(&text)
+│  │  └─ Fn[1]: __exit_code
+│  │     ├─ Params: (self: &uint)
+│  │     ├─ Return: int
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 28:60-28:92)
-│  │        └─ Stmt[0]: Return (span: 28:62-28:90)
-│  │           └─ Expr: expr#10: uint.from_str(&text)
-├─ Item[5]: Extern (span: 31:1-33:2)
+│  │        Stmt[0]: Block (span: 34:44-34:70)
+│  │        └─ Stmt[0]: Return (span: 34:46-34:68)
+│  │           └─ Expr: expr#14: (*self) to int
+├─ Item[5]: Extern (span: 37:1-41:2)
 │  ├─ Target: int8
 │  ├─ Members:
-│  │  └─ Fn[0]: from_stdin
-│  │     ├─ Params: (text: string)
-│  │     ├─ Return: Erring<int8, Error>
+│  │  ├─ Fn[0]: from_stdin
+│  │  │  ├─ Params: (text: string)
+│  │  │  ├─ Return: Erring<int8, Error>
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 38:60-38:92)
+│  │  │     └─ Stmt[0]: Return (span: 38:62-38:90)
+│  │  │        └─ Expr: expr#19: int8.from_str(&text)
+│  │  └─ Fn[1]: __exit_code
+│  │     ├─ Params: (self: &int8)
+│  │     ├─ Return: int
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 32:60-32:92)
-│  │        └─ Stmt[0]: Return (span: 32:62-32:90)
-│  │           └─ Expr: expr#15: int8.from_str(&text)
-├─ Item[6]: Extern (span: 35:1-37:2)
+│  │        Stmt[0]: Block (span: 40:44-40:70)
+│  │        └─ Stmt[0]: Return (span: 40:46-40:68)
+│  │           └─ Expr: expr#23: (*self) to int
+├─ Item[6]: Extern (span: 43:1-47:2)
 │  ├─ Target: int16
 │  ├─ Members:
-│  │  └─ Fn[0]: from_stdin
-│  │     ├─ Params: (text: string)
-│  │     ├─ Return: Erring<int16, Error>
+│  │  ├─ Fn[0]: from_stdin
+│  │  │  ├─ Params: (text: string)
+│  │  │  ├─ Return: Erring<int16, Error>
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 44:61-44:94)
+│  │  │     └─ Stmt[0]: Return (span: 44:63-44:92)
+│  │  │        └─ Expr: expr#28: int16.from_str(&text)
+│  │  └─ Fn[1]: __exit_code
+│  │     ├─ Params: (self: &int16)
+│  │     ├─ Return: int
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 36:61-36:94)
-│  │        └─ Stmt[0]: Return (span: 36:63-36:92)
-│  │           └─ Expr: expr#20: int16.from_str(&text)
-├─ Item[7]: Extern (span: 39:1-41:2)
+│  │        Stmt[0]: Block (span: 46:45-46:71)
+│  │        └─ Stmt[0]: Return (span: 46:47-46:69)
+│  │           └─ Expr: expr#32: (*self) to int
+├─ Item[7]: Extern (span: 49:1-53:2)
 │  ├─ Target: int32
 │  ├─ Members:
-│  │  └─ Fn[0]: from_stdin
-│  │     ├─ Params: (text: string)
-│  │     ├─ Return: Erring<int32, Error>
+│  │  ├─ Fn[0]: from_stdin
+│  │  │  ├─ Params: (text: string)
+│  │  │  ├─ Return: Erring<int32, Error>
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 50:61-50:94)
+│  │  │     └─ Stmt[0]: Return (span: 50:63-50:92)
+│  │  │        └─ Expr: expr#37: int32.from_str(&text)
+│  │  └─ Fn[1]: __exit_code
+│  │     ├─ Params: (self: &int32)
+│  │     ├─ Return: int
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 40:61-40:94)
-│  │        └─ Stmt[0]: Return (span: 40:63-40:92)
-│  │           └─ Expr: expr#25: int32.from_str(&text)
-├─ Item[8]: Extern (span: 43:1-45:2)
+│  │        Stmt[0]: Block (span: 52:45-52:71)
+│  │        └─ Stmt[0]: Return (span: 52:47-52:69)
+│  │           └─ Expr: expr#41: (*self) to int
+├─ Item[8]: Extern (span: 55:1-59:2)
 │  ├─ Target: int64
 │  ├─ Members:
-│  │  └─ Fn[0]: from_stdin
-│  │     ├─ Params: (text: string)
-│  │     ├─ Return: Erring<int64, Error>
+│  │  ├─ Fn[0]: from_stdin
+│  │  │  ├─ Params: (text: string)
+│  │  │  ├─ Return: Erring<int64, Error>
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 56:61-56:94)
+│  │  │     └─ Stmt[0]: Return (span: 56:63-56:92)
+│  │  │        └─ Expr: expr#46: int64.from_str(&text)
+│  │  └─ Fn[1]: __exit_code
+│  │     ├─ Params: (self: &int64)
+│  │     ├─ Return: int
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 44:61-44:94)
-│  │        └─ Stmt[0]: Return (span: 44:63-44:92)
-│  │           └─ Expr: expr#30: int64.from_str(&text)
-├─ Item[9]: Extern (span: 47:1-49:2)
+│  │        Stmt[0]: Block (span: 58:45-58:71)
+│  │        └─ Stmt[0]: Return (span: 58:47-58:69)
+│  │           └─ Expr: expr#50: (*self) to int
+├─ Item[9]: Extern (span: 61:1-63:2)
 │  ├─ Target: uint8
 │  ├─ Members:
 │  │  └─ Fn[0]: from_stdin
 │  │     ├─ Params: (text: string)
 │  │     ├─ Return: Erring<uint8, Error>
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 48:61-48:94)
-│  │        └─ Stmt[0]: Return (span: 48:63-48:92)
-│  │           └─ Expr: expr#35: uint8.from_str(&text)
-├─ Item[10]: Extern (span: 51:1-53:2)
+│  │        Stmt[0]: Block (span: 62:61-62:94)
+│  │        └─ Stmt[0]: Return (span: 62:63-62:92)
+│  │           └─ Expr: expr#55: uint8.from_str(&text)
+├─ Item[10]: Extern (span: 65:1-67:2)
 │  ├─ Target: uint16
 │  ├─ Members:
 │  │  └─ Fn[0]: from_stdin
 │  │     ├─ Params: (text: string)
 │  │     ├─ Return: Erring<uint16, Error>
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 52:62-52:96)
-│  │        └─ Stmt[0]: Return (span: 52:64-52:94)
-│  │           └─ Expr: expr#40: uint16.from_str(&text)
-├─ Item[11]: Extern (span: 55:1-57:2)
+│  │        Stmt[0]: Block (span: 66:62-66:96)
+│  │        └─ Stmt[0]: Return (span: 66:64-66:94)
+│  │           └─ Expr: expr#60: uint16.from_str(&text)
+├─ Item[11]: Extern (span: 69:1-71:2)
 │  ├─ Target: uint32
 │  ├─ Members:
 │  │  └─ Fn[0]: from_stdin
 │  │     ├─ Params: (text: string)
 │  │     ├─ Return: Erring<uint32, Error>
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 56:62-56:96)
-│  │        └─ Stmt[0]: Return (span: 56:64-56:94)
-│  │           └─ Expr: expr#45: uint32.from_str(&text)
-├─ Item[12]: Extern (span: 59:1-61:2)
+│  │        Stmt[0]: Block (span: 70:62-70:96)
+│  │        └─ Stmt[0]: Return (span: 70:64-70:94)
+│  │           └─ Expr: expr#65: uint32.from_str(&text)
+├─ Item[12]: Extern (span: 73:1-75:2)
 │  ├─ Target: uint64
 │  ├─ Members:
 │  │  └─ Fn[0]: from_stdin
 │  │     ├─ Params: (text: string)
 │  │     ├─ Return: Erring<uint64, Error>
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 60:62-60:96)
-│  │        └─ Stmt[0]: Return (span: 60:64-60:94)
-│  │           └─ Expr: expr#50: uint64.from_str(&text)
-├─ Item[13]: Extern (span: 63:1-65:2)
+│  │        Stmt[0]: Block (span: 74:62-74:96)
+│  │        └─ Stmt[0]: Return (span: 74:64-74:94)
+│  │           └─ Expr: expr#70: uint64.from_str(&text)
+├─ Item[13]: Extern (span: 77:1-79:2)
 │  ├─ Target: float16
 │  ├─ Members:
 │  │  └─ Fn[0]: from_stdin
 │  │     ├─ Params: (text: string)
 │  │     ├─ Return: Erring<float16, Error>
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 64:63-64:98)
-│  │        └─ Stmt[0]: Return (span: 64:65-64:96)
-│  │           └─ Expr: expr#55: float16.from_str(&text)
-├─ Item[14]: Extern (span: 67:1-69:2)
+│  │        Stmt[0]: Block (span: 78:63-78:98)
+│  │        └─ Stmt[0]: Return (span: 78:65-78:96)
+│  │           └─ Expr: expr#75: float16.from_str(&text)
+├─ Item[14]: Extern (span: 81:1-83:2)
 │  ├─ Target: float32
 │  ├─ Members:
 │  │  └─ Fn[0]: from_stdin
 │  │     ├─ Params: (text: string)
 │  │     ├─ Return: Erring<float32, Error>
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 68:63-68:98)
-│  │        └─ Stmt[0]: Return (span: 68:65-68:96)
-│  │           └─ Expr: expr#60: float32.from_str(&text)
-├─ Item[15]: Extern (span: 71:1-73:2)
+│  │        Stmt[0]: Block (span: 82:63-82:98)
+│  │        └─ Stmt[0]: Return (span: 82:65-82:96)
+│  │           └─ Expr: expr#80: float32.from_str(&text)
+├─ Item[15]: Extern (span: 85:1-87:2)
 │  ├─ Target: float64
 │  ├─ Members:
 │  │  └─ Fn[0]: from_stdin
 │  │     ├─ Params: (text: string)
 │  │     ├─ Return: Erring<float64, Error>
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 72:63-72:98)
-│  │        └─ Stmt[0]: Return (span: 72:65-72:96)
-│  │           └─ Expr: expr#65: float64.from_str(&text)
-├─ Item[16]: Extern (span: 75:1-77:2)
+│  │        Stmt[0]: Block (span: 86:63-86:98)
+│  │        └─ Stmt[0]: Return (span: 86:65-86:96)
+│  │           └─ Expr: expr#85: float64.from_str(&text)
+├─ Item[16]: Extern (span: 89:1-91:2)
 │  ├─ Target: float
 │  ├─ Members:
 │  │  └─ Fn[0]: from_stdin
 │  │     ├─ Params: (text: string)
 │  │     ├─ Return: Erring<float, Error>
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 76:61-76:94)
-│  │        └─ Stmt[0]: Return (span: 76:63-76:92)
-│  │           └─ Expr: expr#70: float.from_str(&text)
-├─ Item[17]: Extern (span: 79:1-81:2)
+│  │        Stmt[0]: Block (span: 90:61-90:94)
+│  │        └─ Stmt[0]: Return (span: 90:63-90:92)
+│  │           └─ Expr: expr#90: float.from_str(&text)
+├─ Item[17]: Extern (span: 93:1-95:2)
 │  ├─ Target: bool
 │  ├─ Members:
 │  │  └─ Fn[0]: from_stdin
 │  │     ├─ Params: (text: string)
 │  │     ├─ Return: Erring<bool, Error>
 │  │     └─ Body:
-│  │        Stmt[0]: Block (span: 80:60-80:92)
-│  │        └─ Stmt[0]: Return (span: 80:62-80:90)
-│  │           └─ Expr: expr#75: bool.from_str(&text)
-└─ Item[18]: Extern (span: 83:1-85:2)
+│  │        Stmt[0]: Block (span: 94:60-94:92)
+│  │        └─ Stmt[0]: Return (span: 94:62-94:90)
+│  │           └─ Expr: expr#95: bool.from_str(&text)
+└─ Item[18]: Extern (span: 97:1-99:2)
    ├─ Target: string
    ├─ Members:
    │  └─ Fn[0]: from_stdin
    │     ├─ Params: (text: string)
    │     ├─ Return: Erring<string, Error>
    │     └─ Body:
-   │        Stmt[0]: Block (span: 84:62-84:87)
-   │        └─ Stmt[0]: Return (span: 84:64-84:85)
-   │           └─ Expr: expr#78: Success(text)
+   │        Stmt[0]: Block (span: 98:62-98:87)
+   │        └─ Stmt[0]: Return (span: 98:64-98:85)
+   │           └─ Expr: expr#98: Success(text)

@@ -114,7 +114,7 @@ type surgeStartBuilder struct {
 	entryMF             *mono.MonoFunc
 	mode                symbols.EntrypointMode
 	typesIn             *types.Interner
-	mm                  *mono.MonoModule // for __to method lookup via mm.Source.Symbols
+	mm                  *mono.MonoModule // for retained callable instances (mm.Callables)
 	sema                *sema.Result
 	globals             []Global
 	symToGlobal         map[symbols.SymbolID]GlobalID
@@ -125,7 +125,7 @@ type surgeStartBuilder struct {
 	cur BlockID
 
 	paramLocals map[symbols.SymbolID]LocalID
-	returnToInt *entrypointCallableTarget
+	exitCode    *entrypointCallableTarget
 	fromArgv    map[uint32]entrypointCallableTarget
 	fromStdin   *entrypointCallableTarget
 	err         error
@@ -210,28 +210,22 @@ func (b *surgeStartBuilder) build() error {
 			},
 		})
 	default:
-		// Sema selected this exact startup conversion before mono. A builtin
-		// conversion is an intrinsic with one runtime operand; a user method
-		// receives its declared self plus the compile-time target marker.
-		target := *b.returnToInt
-		if target.outcome == sema.EntrypointCallableBuiltin {
-			b.emitCallIntrinsic(codeLocal, "__to", []Operand{
-				{Kind: OperandMove, Type: entryReturnType, Place: Place{Local: retLocal}},
-			}, []ArgContract{byValueArgContract(b.typesIn, b.sema, entryReturnType, false)})
-		} else {
-			if len(target.paramTypes) != 2 {
-				return fmt.Errorf("entrypoint startup: selected __to has %d parameters, want 2", len(target.paramTypes))
-			}
-			receiver := b.entrypointReceiverOperand(retLocal, target.paramTypes[0], entryReturnType)
-			targetMarker := Operand{
-				Kind:  OperandConst,
-				Type:  target.paramTypes[1],
-				Const: Const{Kind: ConstInt, Type: target.paramTypes[1], IntValue: 0},
-			}
-			b.emitCall(codeLocal, target.instance, "__to", []Operand{receiver, targetMarker}, []ArgContract{
-				byValueArgContract(b.typesIn, b.sema, target.paramTypes[0], false),
-				byValueArgContract(b.typesIn, b.sema, target.paramTypes[1], false),
-			})
+		// Sema selected this exact ExitCode implementation before mono: a
+		// `__exit_code(self: &T) -> int` with a body, which borrows the result.
+		target := *b.exitCode
+		if target.outcome != sema.EntrypointCallableUser || len(target.paramTypes) != 1 {
+			return fmt.Errorf("entrypoint startup: selected __exit_code is not a one-parameter method with a body")
+		}
+		receiver := b.entrypointReceiverOperand(retLocal, target.paramTypes[0], entryReturnType)
+		b.emitCall(codeLocal, target.instance, "__exit_code", []Operand{receiver}, []ArgContract{
+			byValueArgContract(b.typesIn, b.sema, target.paramTypes[0], false),
+		})
+		// The call only borrowed the result; the entry still owns it and
+		// releases it before exiting, as any caller would at scope end.
+		// Copy values can still own resources (for example heap-backed
+		// integers inside a Copy record); references own no such obligation.
+		if receiver.Kind != OperandMove && sema.OwnsHeapIn(b.typesIn, entryReturnType) {
+			b.emit(&Instr{Kind: InstrDrop, Drop: DropInstr{Place: Place{Local: retLocal}}})
 		}
 	}
 

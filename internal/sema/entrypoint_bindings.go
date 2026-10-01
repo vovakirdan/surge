@@ -1,6 +1,7 @@
 package sema
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -11,15 +12,20 @@ import (
 )
 
 // EntrypointCallableRole names which synthetic startup call a request stands
-// for: the return conversion, or one parameter's argv/stdin parse.
+// for: the result's exit code, or one parameter's argv/stdin parse.
 type EntrypointCallableRole uint8
 
 // Roles a synthetic startup call can play in the generated entry.
 const (
-	EntrypointReturnToInt EntrypointCallableRole = iota + 1
+	// EntrypointReturnExitCode is the ExitCode contract's `__exit_code(self: &T) -> int`
+	// on a result that is neither `nothing` nor `int`.
+	EntrypointReturnExitCode EntrypointCallableRole = iota + 1
 	EntrypointParamFromArgv
 	EntrypointParamFromStdin
 )
+
+// entrypointExitCodeMethod is the single member of core's ExitCode contract.
+const entrypointExitCodeMethod = "__exit_code"
 
 // EntrypointCallableOutcome says whether a resolved startup call landed on a
 // user-written callable or on a builtin/intrinsic one.
@@ -143,20 +149,23 @@ func (r *Result) FinalizeEntrypointCallables() error {
 			StaticReceiver: request.Role == EntrypointParamFromArgv || request.Role == EntrypointParamFromStdin,
 			AccessModule:   request.AccessModule, SourceKey: request.SourceKey, Site: request.Site,
 		}
-		if request.Role == EntrypointParamFromArgv || request.Role == EntrypointParamFromStdin {
+		switch request.Role {
+		case EntrypointParamFromArgv, EntrypointParamFromStdin:
 			callRequest.Requirement = DeferredCallableRequirement{
 				Name: request.Method, Params: slices.Clone(request.Args), Result: request.ExpectedResult, Public: true,
 			}
+		case EntrypointReturnExitCode:
+			callRequest.Requirement = DeferredCallableRequirement{Name: request.Method, Result: request.ExpectedResult}
 		}
 		resolution, err := resolveDeferredCallable(useID, &callRequest, r.CallableCandidates, r.TypeInterner, nil)
 		if err != nil {
-			if request.Role == EntrypointParamFromArgv || request.Role == EntrypointParamFromStdin {
-				return newEntrypointCallableError(request, err, r.CallableCandidates, r.TypeInterner)
-			}
-			return fmt.Errorf("entrypoint callable: %w", err)
+			return newEntrypointCallableError(request, err, r.CallableCandidates, r.TypeInterner)
 		}
 		if resolution.Outcome != DeferredCallableResolved || !resolution.Callee.IsValid() {
 			return fmt.Errorf("entrypoint callable %s did not resolve to a callable", useID)
+		}
+		if request.Role == EntrypointReturnExitCode && !exitCodeSelfIsSharedBorrow(r.TypeInterner, resolution.ParamTypes) {
+			return newEntrypointCallableError(request, errExitCodeSelfByValue, r.CallableCandidates, r.TypeInterner)
 		}
 		candidate, ok := resolvedEntrypointCandidate(&resolution, r.CallableCandidates)
 		if !ok {
@@ -183,6 +192,18 @@ func (r *Result) FinalizeEntrypointCallables() error {
 	}
 	r.EntrypointCallableBindings = bindings
 	return nil
+}
+
+// errExitCodeSelfByValue is the cause recorded when the only `__exit_code` found
+// does not take `self: &T`, the ExitCode contract's receiver.
+var errExitCodeSelfByValue = errors.New("__exit_code does not take self: &T")
+
+func exitCodeSelfIsSharedBorrow(typesIn *types.Interner, params []types.TypeID) bool {
+	if typesIn == nil || len(params) != 1 {
+		return false
+	}
+	self, ok := typesIn.Lookup(params[0])
+	return ok && self.Kind == types.KindReference && !self.Mutable
 }
 
 func resolvedEntrypointCandidate(resolution *DeferredCallableResolution, candidates []CallableCandidate) (*CallableCandidate, bool) {

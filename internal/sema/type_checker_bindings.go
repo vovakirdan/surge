@@ -226,8 +226,13 @@ func (tc *typeChecker) reportBindingTypeMismatch(typeExpr ast.TypeID, expected, 
 		b.WithFixSuggestion(changeType)
 	}
 
-	// Fix suggestion 2: Cast the value expression to expected type
-	if insertSpan := tc.exprSpan(valueExpr); insertSpan != (source.Span{}) {
+	// Fix suggestion 2: Cast the value expression to expected type. An
+	// Option/Erring has no int conversion to cast with; explain instead.
+	help, exitCodeLike := tc.exitCodeConversionHelp(actual, expected)
+	if exitCodeLike {
+		b.WithHelp(primary, help)
+	}
+	if insertSpan := tc.exprSpan(valueExpr); insertSpan != (source.Span{}) && !exitCodeLike {
 		cast := fix.InsertText(
 			fmt.Sprintf("cast expression to %s", expectedLabel),
 			insertSpan.ZeroideToEnd(),

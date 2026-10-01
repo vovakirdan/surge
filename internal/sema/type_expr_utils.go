@@ -268,7 +268,7 @@ func (tc *typeChecker) reportMissingUnaryMethod(op ast.ExprUnaryOp, operand type
 }
 
 func (tc *typeChecker) reportMissingCastMethod(from, target types.TypeID, span source.Span) {
-	tc.report(diag.SemaTypeMismatch, span, "operator to (__to) is not defined for %s and %s", tc.typeLabel(from), tc.typeLabel(target))
+	tc.reportMismatchToInt(span, from, target, "operator to (__to) is not defined for %s and %s", tc.typeLabel(from), tc.typeLabel(target))
 }
 
 func (tc *typeChecker) sameType(a, b types.TypeID) bool {

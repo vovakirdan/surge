@@ -52,12 +52,12 @@ func (b *surgeStartBuilder) loadEntrypointCallables() error {
 				return fmt.Errorf("entrypoint startup: callable binding has unknown outcome %d", binding.Outcome)
 			}
 			switch binding.Role {
-			case sema.EntrypointReturnToInt:
-				if b.returnToInt != nil && !entrypointCallableTargetsEqual(*b.returnToInt, target) {
-					return fmt.Errorf("entrypoint startup: conflicting __to bindings")
+			case sema.EntrypointReturnExitCode:
+				if b.exitCode != nil && !entrypointCallableTargetsEqual(*b.exitCode, target) {
+					return fmt.Errorf("entrypoint startup: conflicting __exit_code bindings")
 				}
 				returnTarget := target
-				b.returnToInt = &returnTarget
+				b.exitCode = &returnTarget
 			case sema.EntrypointParamFromArgv:
 				if previous, ok := b.fromArgv[binding.ParamIndex]; ok && !entrypointCallableTargetsEqual(previous, target) {
 					return fmt.Errorf("entrypoint startup: conflicting from_str bindings for parameter %d", binding.ParamIndex)
@@ -79,8 +79,8 @@ func (b *surgeStartBuilder) loadEntrypointCallables() error {
 	}
 
 	result := b.entryMF.Func.Result
-	if result != types.NoTypeID && !b.isNothingType(result) && !b.isIntType(result) && b.returnToInt == nil {
-		return fmt.Errorf("entrypoint startup: non-int return type has no sema-resolved __to binding")
+	if result != types.NoTypeID && !b.isNothingType(result) && !b.isIntType(result) && b.exitCode == nil {
+		return fmt.Errorf("entrypoint startup: non-int return type has no sema-resolved __exit_code binding")
 	}
 	if b.mode == symbols.EntrypointModeArgv {
 		for i, param := range b.entryMF.Func.Params {

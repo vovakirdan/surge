@@ -52,6 +52,9 @@ func newEntrypointCallableError(
 	if request == nil {
 		return cause
 	}
+	if request.Role == EntrypointReturnExitCode {
+		return newEntrypointExitCodeError(request, cause, candidates, typesIn)
+	}
 	code := diag.SemaEntrypointParamNoFromArgv
 	contract := "FromArgv"
 	argument := "value: &string"

@@ -43,10 +43,10 @@ option.sg (span: 1:1-45:1)
    │  │     Stmt[0]: Block (span: 30:49-35:6)
    │  │     └─ Stmt[0]: Return (span: 31:9-34:11)
    │  │        └─ Expr: expr#36: compare self { 2 arms }
-   │  └─ Fn[4]: __to
-   │     ├─ Params: (self: &Option<T>, target: int)
+   │  └─ Fn[4]: __exit_code
+   │     ├─ Params: (self: &Option<T>)
    │     ├─ Return: int
    │     └─ Body:
-   │        Stmt[0]: Block (span: 38:55-43:6)
+   │        Stmt[0]: Block (span: 38:49-43:6)
    │        └─ Stmt[0]: Return (span: 39:9-42:11)
    │           └─ Expr: expr#44: compare self { 2 arms }

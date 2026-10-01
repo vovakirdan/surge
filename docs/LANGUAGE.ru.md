@@ -528,6 +528,7 @@ Rules:
 - `T?` is sugar for `Option<T>`; `T!` is sugar for `Erring<T, Error>` (type sugar only; no `expr?` propagation operator).
 - `nothing` remains the shared absence literal for both Option and other contexts (§2.6). Exhaustiveness checking for tagged unions is enforced.
 - `panic(msg)` materialises `Error { message = msg, code = 1:uint }` and calls intrinsic `exit(Error)`.
+- Neither `Option<T>` nor `Erring<T, E>` converts to `int`: `let x: int = o` and `o to int` are type errors (SEM3015). Read the payload with `compare` (or `.safe()`). Their process exit code is the `ExitCode` contract's `__exit_code()` (§4.2): `Some => 0`, `nothing => 1`; `Success => 0`, an error => its `code`.
 
 ### 2.10. Tuple Types
 
@@ -1024,6 +1025,34 @@ Current parsing rules:
 Enforced highlights (v1):
 - `@overload` and `@override` control redeclarations and require matching signatures.
 - `@intrinsic` is declaration-only; `@entrypoint` validates mode and signature.
+- `@entrypoint` result and exit code: `nothing` exits 0 and `int` exits with the value itself.
+  Any other result type must implement core's `ExitCode` contract
+  (`core/entrypoint.sg`):
+
+  ```sg
+  pub contract ExitCode<T> {
+      pub fn __exit_code(self: &T) -> int;
+  }
+  ```
+
+  The generated entry calls `__exit_code()` on the returned value (a borrow),
+  releases the value, and exits with the result. Core implements it for
+  `Option<T>` (`Some => 0`, `nothing => 1`), `Erring<T, E>` (`Success => 0`,
+  an error => its `code`) and `uint`, `int8`, `int16`, `int32`, `int64` (the
+  value). A result without exactly one `__exit_code(self: &T) -> int` is
+  rejected with SEM3123. The exit code is deliberately a contract and not a
+  `__to(self, int)` conversion: a conversion would also let the value become
+  an `int` silently in a binding or a return (§6.6).
+
+  ```sg
+  type Status = { code: int };
+  extern<Status> {
+      pub fn __exit_code(self: &Status) -> int { return self.code; }
+  }
+
+  @entrypoint
+  fn main() -> Status { return Status { code = 3 }; }   // exits 3
+  ```
 - Layout: `@packed`, `@align`.
 - Concurrency: `@guarded_by`, `@requires_lock`, `@acquires_lock`, `@releases_lock`,
   `@waits_on`, `@nonblocking`, `@send`, `@nosend`.
@@ -1447,6 +1476,7 @@ The prelude provides `@intrinsic __to` methods for common conversions:
 * Numeric: `string -> int/uint/float`, `int -> string/float`, `uint -> string/int/float`, `float -> string/int/uint`, plus fixed-width conversions
 * Boolean: `bool -> string/int`
 * Within numeric families: `intN -> int`, `uintN -> uint`, `floatN -> float` (lossless widening)
+* `Option<T>` and `Erring<T, E>` provide no `__to`: there is no implicit or explicit conversion to `int` (their exit code is `__exit_code()`, §4.2)
 
 **Examples:**
 ```sg
@@ -2178,6 +2208,14 @@ extern<Erring<T, E>> {
         compare self {
             Success(_) => return nothing;
             err => exit(err);
+        };
+    }
+
+    // ExitCode contract: process exit code of an @entrypoint result
+    pub fn __exit_code(self: &Erring<T, E>) -> int {
+        return compare self {
+            Success(_) => 0;
+            err => err.code to int;
         };
     }
 }

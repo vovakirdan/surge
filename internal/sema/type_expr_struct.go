@@ -407,7 +407,7 @@ func (tc *typeChecker) ensureStructFieldType(name source.StringID, value ast.Exp
 		return
 	}
 	fieldName := tc.lookupName(name)
-	tc.report(diag.SemaTypeMismatch, tc.exprSpan(value), "field %s expects %s, got %s", fieldName, tc.typeLabel(expected), tc.typeLabel(actual))
+	tc.reportMismatchToInt(tc.exprSpan(value), actual, expected, "field %s expects %s, got %s", fieldName, tc.typeLabel(expected), tc.typeLabel(actual))
 }
 
 func (tc *typeChecker) structInfoForType(id types.TypeID) (*types.StructInfo, types.TypeID) {

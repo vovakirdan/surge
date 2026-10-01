@@ -14,10 +14,14 @@ pub contract FromStdin<T> {
     pub fn from_stdin(text: string) -> Erring<T, Error>;
 }
 
-// Contract for types that can be converted to an exit code (int).
-// Types implementing this contract can be returned from @entrypoint functions.
+// Contract for types that report a process exit code.
+// An @entrypoint may return `nothing` (exit code 0), `int` (the code itself),
+// or any type implementing this contract: the generated entry calls
+// `__exit_code()` on the returned value and exits with its result.
+// Exit codes are deliberately not a conversion: `__to(self, int)` would also
+// let such a value silently become an `int` in a binding or a return.
 pub contract ExitCode<T> {
-    pub fn __to(self: T, target: int) -> int;
+    pub fn __exit_code(self: &T) -> int;
 }
 
 extern<int> {
@@ -26,22 +30,32 @@ extern<int> {
 
 extern<uint> {
     pub fn from_stdin(text: string) -> Erring<uint, Error> { return uint.from_str(&text); }
+
+    pub fn __exit_code(self: &uint) -> int { return (*self) to int; }
 }
 
 extern<int8> {
     pub fn from_stdin(text: string) -> Erring<int8, Error> { return int8.from_str(&text); }
+
+    pub fn __exit_code(self: &int8) -> int { return (*self) to int; }
 }
 
 extern<int16> {
     pub fn from_stdin(text: string) -> Erring<int16, Error> { return int16.from_str(&text); }
+
+    pub fn __exit_code(self: &int16) -> int { return (*self) to int; }
 }
 
 extern<int32> {
     pub fn from_stdin(text: string) -> Erring<int32, Error> { return int32.from_str(&text); }
+
+    pub fn __exit_code(self: &int32) -> int { return (*self) to int; }
 }
 
 extern<int64> {
     pub fn from_stdin(text: string) -> Erring<int64, Error> { return int64.from_str(&text); }
+
+    pub fn __exit_code(self: &int64) -> int { return (*self) to int; }
 }
 
 extern<uint8> {

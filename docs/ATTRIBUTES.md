@@ -158,8 +158,15 @@ Modes:
 - `"env"` and `"config"` are reserved (`FutEntrypointModeEnv` / `FutEntrypointModeConfig`).
 
 Return type:
-- `nothing` or `int`, or any type that implements `ExitCode<T>` (`__to(self, int) -> int`).
-- `Option<T>` and `Erring<T, E>` implement this conversion by default.
+- `nothing` (exit code 0) or `int` (the value), or any type that implements
+  `ExitCode<T>` (`fn __exit_code(self: &T) -> int`); the generated entry
+  borrows the result, calls `__exit_code()`, releases the result and exits with
+  the returned code. Otherwise SEM3123.
+- core implements `ExitCode` for `Option<T>` (`Some => 0`, `nothing => 1`),
+  `Erring<T, E>` (`Success => 0`, an error => its `code`) and `uint`, `int8`,
+  `int16`, `int32`, `int64`.
+- A `__to(self, int) -> int` conversion is not an exit code; `Option`/`Erring`
+  have no conversion to `int`.
 
 Parameter parsing:
 - `"argv"` requires the exact `FromArgv<T>` callable for every parameter,

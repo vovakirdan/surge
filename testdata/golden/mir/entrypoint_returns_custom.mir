@@ -2,33 +2,34 @@
 == MIR ==
 funcs=3
 
-fn __surge_start:
+fn __exit_code:
   locals:
-    L0: type#1507 name=entry_ret
-    L1: int [copy,owns_heap] name=code
+    L0: &type#1519 [copy,ref] name=self
+    L1: type#1519 [owns_heap] name=tmp_un1
+    L2: int [copy,owns_heap] name=tmp_field2
+    L3: int [copy,owns_heap] name=tmp_retval3
   bb0:
-    L0 = call main()
-    L1 = call __to(move L0, const 0)
-    call rt_exit(copy L1)
-    return
-
-fn __to:
-  locals:
-    L0: type#1507 [owns_heap] name=self
-    L1: int [copy,owns_heap] name=_target
-    L2: int [copy,owns_heap] name=tmp_field1
-    L3: int [copy,owns_heap] name=tmp_retval2
-  bb0:
-    L2 = field copy L0.code
+    L1 = (* copy L0)
+    L2 = field copy L1.code
     L2 = retain L2
     L3 = retain L2
     drop L2
-    drop L0
     return move L3
+
+fn __surge_start:
+  locals:
+    L0: type#1519 name=entry_ret
+    L1: int [copy,owns_heap] name=code
+  bb0:
+    L0 = call main()
+    L1 = call __exit_code(addr_of L0)
+    drop L0
+    call rt_exit(copy L1)
+    return
 
 fn main:
   locals:
-    L0: type#1507 [owns_heap] name=tmp_struct1
+    L0: type#1519 [owns_heap] name=tmp_struct1
   bb0:
-    L0 = struct_lit type#1507 {code=const 42}
+    L0 = struct_lit type#1519 {code=const 42}
     return move L0

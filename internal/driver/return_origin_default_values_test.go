@@ -89,8 +89,8 @@ func TestAnalyzeDefaultValues(t *testing.T) {
 	}
 }
 
-// An `@entrypoint` whose result implements the exit conversion has its synthetic
-// `main().__to(int)` checked by the callee's own generic promise.
+// An `@entrypoint` whose result implements the ExitCode contract has its synthetic
+// `main().__exit_code()` checked by the callee's own generic promise.
 const entrypointExitSource = `@entrypoint
 fn main() -> int? {
     return nothing;

@@ -259,7 +259,7 @@ func (tc *typeChecker) validateReturn(span source.Span, expr ast.ExprID, actual 
 	if tc.reportFixedArrayToDynamic(expected, actual, expr, tc.exprSpan(expr)) {
 		return
 	}
-	tc.report(diag.SemaTypeMismatch, span, "return type mismatch: expected %s, got %s", tc.typeLabel(expected), tc.typeLabel(actual))
+	tc.reportMismatchToInt(span, actual, expected, "return type mismatch: expected %s, got %s", tc.typeLabel(expected), tc.typeLabel(actual))
 }
 
 func (tc *typeChecker) validateRet(span source.Span, expr ast.ExprID, actual types.TypeID) {

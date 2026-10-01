@@ -67,10 +67,10 @@ result.sg (span: 1:1-60:1)
    │  │     Stmt[0]: Block (span: 45:50-50:6)
    │  │     └─ Stmt[0]: Return (span: 46:9-49:11)
    │  │        └─ Expr: expr#54: compare self { 2 arms }
-   │  └─ Fn[5]: __to
-   │     ├─ Params: (self: Erring<T, E>, target: int)
+   │  └─ Fn[5]: __exit_code
+   │     ├─ Params: (self: &Erring<T, E>)
    │     ├─ Return: int
    │     └─ Body:
-   │        Stmt[0]: Block (span: 53:57-58:6)
+   │        Stmt[0]: Block (span: 53:52-58:6)
    │        └─ Stmt[0]: Return (span: 54:9-57:11)
    │           └─ Expr: expr#64: compare self { 2 arms }

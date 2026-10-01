@@ -3,7 +3,7 @@ type MyExitCode = {
 }
 
 extern<MyExitCode> {
-    fn __to(self: MyExitCode, _target: int) -> int {
+    fn __exit_code(self: &MyExitCode) -> int {
         return self.code;
     }
 }

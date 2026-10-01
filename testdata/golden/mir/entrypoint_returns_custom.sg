@@ -1,10 +1,10 @@
-// Test: __surge_start for entrypoint returning custom type with __to conversion
+// Test: __surge_start for entrypoint returning a custom type implementing ExitCode (__exit_code)
 type MyExitCode = {
     code: int,
 }
 
 extern<MyExitCode> {
-    fn __to(self: MyExitCode, _target: int) -> int {
+    fn __exit_code(self: &MyExitCode) -> int {
         return self.code;
     }
 }

@@ -359,7 +359,7 @@ func (tc *typeChecker) reportCallArgumentTypeMismatch(expected, actual types.Typ
 		return
 	}
 
-	tc.report(diag.SemaTypeMismatch, span,
+	tc.reportMismatchToInt(span, actual, expected,
 		"expected %s, got %s; no implicit __to(%s, %s) -> %s",
 		expectedLabel, actualLabel, actualLabel, expectedLabel, expectedLabel)
 }

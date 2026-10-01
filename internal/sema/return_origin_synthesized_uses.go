@@ -56,8 +56,8 @@ func (a *returnOriginAnalyzer) useWitnessReason(use ConcreteInstantiationUse) st
 // checkSynthesizedUse answers a finalized use whose call HIR spells and the AST
 // does not: SEMA's own `default::<T>()` for a value-less `let` and for a
 // conversion's target argument (internal/sema/type_checker_walk.go:472-489,
-// implicit_conversion.go:266-275), and the entrypoint's exit conversion
-// (entrypoint_validation.go:82-97), and a magic method selected for an operator
+// implicit_conversion.go:266-275), and the entrypoint's ExitCode call
+// (entrypoint_validation.go validateEntrypointReturn), and a magic method selected for an operator
 // (type_expr_ops.go:160-166). Identity is already proven by the caller.
 func (a *returnOriginAnalyzer) checkSynthesizedUse(fn, caller *returnOriginFunction, use ConcreteInstantiationUse, reason string) (bool, string) {
 	if fn == nil || caller == nil || (reason != returnOriginUseWithoutOperation && reason != returnOriginUseOtherOperation) {
@@ -82,14 +82,14 @@ func (a *returnOriginAnalyzer) checkSynthesizedUse(fn, caller *returnOriginFunct
 	return a.checkBackingIntrinsicUse(fn, use)
 }
 
-// checkEntrypointExitUse answers the startup `main().__to(int)` SEMA bound for an
-// `@entrypoint` whose result implements the exit conversion. The runtime receives
+// checkEntrypointExitUse answers the startup `main().__exit_code()` SEMA bound for an
+// `@entrypoint` whose result implements the ExitCode contract. The runtime receives
 // an int, and the callee is checked by its own generic promise.
 func (a *returnOriginAnalyzer) checkEntrypointExitUse(fn, caller *returnOriginFunction, use ConcreteInstantiationUse, reason string) (bool, string) {
 	authority := caller.unit.authority
 	matches := 0
 	for _, binding := range authority.EntrypointCallableBindings {
-		if binding.Role == EntrypointReturnToInt && binding.Entrypoint == use.CallerTemplate && binding.Callee == use.CalleeTemplate &&
+		if binding.Role == EntrypointReturnExitCode && binding.Entrypoint == use.CallerTemplate && binding.Callee == use.CalleeTemplate &&
 			binding.Site == use.Site && slices.Equal(binding.TemplateArgs, use.TemplateArgs) &&
 			binding.ExpectedResult == authority.TypeInterner.Builtins().Int {
 			matches++

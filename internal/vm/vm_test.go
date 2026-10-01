@@ -237,7 +237,7 @@ extern<Wrapped> {
 	}
 }
 
-func TestVMEntrypointOptionUsesResolvedGenericTo(t *testing.T) {
+func TestVMEntrypointOptionUsesResolvedGenericExitCode(t *testing.T) {
 	sourceCode := `@entrypoint fn main() -> Option<int> { return Some(7); }
 `
 	result := runProgramFromSource(t, sourceCode, runOptions{})
@@ -246,7 +246,7 @@ func TestVMEntrypointOptionUsesResolvedGenericTo(t *testing.T) {
 	}
 }
 
-func TestVMEntrypointErringUsesResolvedGenericTo(t *testing.T) {
+func TestVMEntrypointErringUsesResolvedGenericExitCode(t *testing.T) {
 	sourceCode := `@entrypoint fn main() -> Erring<int, Error> {
     return Error { message = "failed", code = 17:uint };
 }

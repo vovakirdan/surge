@@ -1,4 +1,4 @@
-// Test: @entrypoint returning custom type without __to(int) is invalid
+// Test: @entrypoint returning custom type without ExitCode (__exit_code) is invalid
 // Expected: SEM3123
 
 type MyType = {

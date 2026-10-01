@@ -49,8 +49,8 @@ extern<Erring<T, E>> {
         };
     }
 
-    // Convert Erring to exit code: Success => 0, error => error.code
-    pub fn __to(self: Erring<T, E>, target: int) -> int {
+    // ExitCode: Success => 0, error => error.code
+    pub fn __exit_code(self: &Erring<T, E>) -> int {
         return compare self {
             Success(_) => 0;
             err => err.code to int;

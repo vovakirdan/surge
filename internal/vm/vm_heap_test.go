@@ -30,13 +30,13 @@ fn main() -> int {
 	}
 }
 
-func TestVMHeapStructLitAndTo(t *testing.T) {
+func TestVMHeapStructLitAndExitCode(t *testing.T) {
 	sourceCode := `type MyExitCode = {
     code: int,
 }
 
 extern<MyExitCode> {
-    fn __to(self: MyExitCode, _target: int) -> int {
+    fn __exit_code(self: &MyExitCode) -> int {
         return self.code;
     }
 }
