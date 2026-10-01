@@ -184,7 +184,9 @@ func (b *returnOriginBody) unary(id ast.ExprID, env returnOriginEnv, targets ret
 	switch data.Op {
 	case ast.ExprUnaryRef, ast.ExprUnaryRefMut:
 		out.value = out.storage.clone()
-		if !out.value.normal {
+		if !out.value.normal && b.statementTemporaryBorrow(id, data) {
+			out.value = returnOriginValueOf(returnOrigin{kind: returnOriginTemporary, temp: id})
+		} else if !out.value.normal {
 			b.pending(span, "borrowed temporary has no proven storage owner")
 			out.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 		}

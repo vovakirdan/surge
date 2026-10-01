@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"slices"
 
+	"surge/internal/ast"
 	"surge/internal/symbols"
 )
 
@@ -14,6 +15,10 @@ const (
 	returnOriginParam
 	returnOriginLocal
 	returnOriginCapture
+	// A Temporary root is storage the evaluating statement owns and nothing
+	// names: `temp` is the expression that borrowed it. It never outlives that
+	// statement (return_origin_statement_temporaries.go).
+	returnOriginTemporary
 )
 
 // A Param root names one formal slot; the selector says WHICH of that slot's
@@ -44,6 +49,7 @@ type returnOrigin struct {
 	scope    symbols.ScopeID
 	param    uint32
 	selector returnOriginInputSelector
+	temp     ast.ExprID
 	expired  bool
 }
 
@@ -75,6 +81,9 @@ func compareReturnOrigins(a, b returnOrigin) int {
 		return order
 	}
 	if order := cmp.Compare(a.selector, b.selector); order != 0 {
+		return order
+	}
+	if order := cmp.Compare(a.temp, b.temp); order != 0 {
 		return order
 	}
 	if a.expired == b.expired {

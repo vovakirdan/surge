@@ -184,6 +184,7 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 			}
 		}
 	}
+	b.refuseRetainedTemporaries(u.Sema.ExprTypes[id], effects, actuals)
 	// A checked source-body cell call transfers its exact cell formals below;
 	// every other mutable formal keeps its unproved-effect obligation.
 	cellCall, cellChecked := b.cellCallTargets(callee, signature != nil || callback || deferred != nil, slots, actuals)

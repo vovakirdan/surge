@@ -22,7 +22,7 @@ func (b *returnOriginBody) sequence(stmts []ast.StmtID, env returnOriginEnv, tar
 	return flow, nil
 }
 
-func (b *returnOriginBody) stmt(id ast.StmtID, env returnOriginEnv, targets returnOriginTargets) (returnOriginFlow, error) {
+func (b *returnOriginBody) stmtKind(id ast.StmtID, env returnOriginEnv, targets returnOriginTargets) (returnOriginFlow, error) {
 	if !env.reachable {
 		return returnOriginFlow{}, nil
 	}
