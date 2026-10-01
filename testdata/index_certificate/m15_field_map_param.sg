@@ -1,0 +1,10 @@
+type Holder = { m: Map<string, int> };
+fn f(h: &Holder) -> &int {
+    return h.m["x"];
+}
+@entrypoint
+fn main() -> int {
+    let h = Holder { m = { "x" => 8 } };
+    print((*f(&h)) to string);
+    return 0;
+}

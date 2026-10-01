@@ -1,0 +1,10 @@
+fn f(m: &mut Map<string, int>, k: string) -> &int {
+    m[k] = 1;
+    return m["x"];
+}
+@entrypoint
+fn main() -> int {
+    let mut m = { "x" => 1 };
+    print((*f(&mut m, "y")) to string);
+    return 0;
+}

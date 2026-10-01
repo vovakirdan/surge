@@ -36,6 +36,9 @@ func (b *returnOriginBody) index(id ast.ExprID, env returnOriginEnv, targets ret
 		return out, nil
 	}
 	span := u.Builder.Exprs.Get(id).Span
+	if b.mapIndex(id, &target, &out, span) {
+		return out, nil
+	}
 	primitive, reason := b.analyzer.indexOperation(b.function, id)
 	out.storage = returnOriginValue{}
 	if reason == "index requires a non-scalar index transfer" {
@@ -46,6 +49,12 @@ func (b *returnOriginBody) index(id ast.ExprID, env returnOriginEnv, targets ret
 		if reason = b.selectedIndexCall(&out, id, data, target.value, out.value); reason == "" {
 			return out, nil
 		}
+	}
+	// A selected `__index` over a nominal target with an int index is the same
+	// call selectedIndexCall answers for any other index type. Whatever it cannot
+	// answer keeps the container refusal by its existing name.
+	if reason == "index requires its selected container transfer" && b.selectedIndexCall(&out, id, data, target.value, out.value) == "" {
+		return out, nil
 	}
 	// A selected BytesView scalar read is the exact core intrinsic certified by
 	// returnOriginBytesViewReader. Its uint8 result can carry neither a reference
@@ -161,6 +170,9 @@ func returnOriginTypedIndex(u *returnOriginUnitIndex, id ast.ExprID) (returnOrig
 	}
 	primitive, valid := returnOriginIndexContainer(in, u.Sema.ExprTypes[data.Target])
 	if !valid {
+		primitive, valid = returnOriginOwnedIndexContainer(in, u.Sema.ExprTypes[data.Target])
+	}
+	if !valid {
 		return empty, "index requires its selected container transfer"
 	}
 	resultID, result, valid := returnOriginIndexResolve(in, u.Sema.ExprTypes[id])
@@ -172,4 +184,16 @@ func returnOriginTypedIndex(u *returnOriginUnitIndex, id ast.ExprID) (returnOrig
 		return empty, "scalar array index has an inconsistent borrowed element type"
 	}
 	return primitive, ""
+}
+
+// returnOriginOwnedIndexContainer answers an `own` container binding, such as a
+// parameter `xs: own int[]`: the binding owns the container exactly as a by-value
+// one does, so its element is a borrow of the binding's own storage.
+func returnOriginOwnedIndexContainer(in *types.Interner, id types.TypeID) (returnOriginIndexType, bool) {
+	_, typ, ok := returnOriginIndexResolve(in, id)
+	if !ok || typ.Kind != types.KindOwn {
+		return returnOriginIndexType{}, false
+	}
+	c, valid := returnOriginIndexContainer(in, typ.Elem)
+	return c, valid && !c.reference
 }

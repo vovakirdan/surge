@@ -1,0 +1,6 @@
+@entrypoint
+fn main() -> int {
+    let m = { "x" => 1 };
+    print((m["nope"]) to string);
+    return 0;
+}

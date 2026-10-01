@@ -1,0 +1,9 @@
+fn f(pm: &Map<string, int>) -> &int {
+    return (*pm)["x"];
+}
+@entrypoint
+fn main() -> int {
+    let m = { "x" => 2 };
+    print((*f(&m)) to string);
+    return 0;
+}

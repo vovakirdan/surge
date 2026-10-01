@@ -1,0 +1,8 @@
+fn f(s: &string) -> uint32 {
+    return s[1];
+}
+@entrypoint
+fn main() -> int {
+    print((f(&"abc")) to string);
+    return 0;
+}

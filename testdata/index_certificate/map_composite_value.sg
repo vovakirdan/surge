@@ -1,0 +1,21 @@
+type Pair = { a: int, b: int };
+
+@entrypoint
+fn main() -> int {
+    // A value wider than a machine word lives in the map's own value run. The
+    // interesting rows are the two that hand one back: a replacement, which
+    // gives up the entry it displaced, and a removal, which gives up the entry
+    // it took out.
+    let mut m = Map::<int, Pair>.new();
+    let _ = m.insert(1, Pair { a = 10, b = 11 });
+    let _ = m.insert(2, Pair { a = 20, b = 21 });
+    let replaced = m.insert(1, Pair { a = 30, b = 31 });
+    print(compare replaced { Some(p) => p.a; nothing => 0 - 1; } to string);
+    let two = 2;
+    let removed = m.remove(&two);
+    print(compare removed { Some(p) => p.b; nothing => 0 - 1; } to string);
+    print((m.length()) to string);
+    let one = 1;
+    print((m[one].a) to string);
+    return 0;
+}

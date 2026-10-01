@@ -1,0 +1,10 @@
+fn f(v: &BytesView) -> uint8 {
+    return v[0];
+}
+@entrypoint
+fn main() -> int {
+    let s = "abc";
+    let v = s.bytes();
+    print((f(&v)) to string);
+    return 0;
+}

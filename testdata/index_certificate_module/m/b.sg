@@ -1,0 +1,9 @@
+pragma module;
+
+pub fn keep(xs: &byte[]) -> &byte {
+    return xs[1];
+}
+
+pub fn read(xs: &int[], i: int) -> int {
+    return xs[i] + 1;
+}

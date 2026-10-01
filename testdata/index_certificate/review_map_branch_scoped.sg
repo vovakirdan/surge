@@ -1,0 +1,12 @@
+fn pick(a: &Map<string, string>, b: &Map<string, string>, yes: bool) -> &string {
+    return yes ? a["x"] : b["x"];
+}
+@entrypoint
+fn main() -> int {
+    let mut a = { "x" => "old" };
+    let b = { "x" => "other" };
+    { let r = pick(&a, &b, false); print(*r); }
+    a["x"] = "new";
+    print(a["x"] + "!");
+    return 0;
+}

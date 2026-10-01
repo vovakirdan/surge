@@ -5,12 +5,8 @@ import (
 	"testing"
 )
 
-// Reasons this packet does not emit, carried here because the leaves below are
-// asserted as BEFORE-equality against them.
-const arrayPopTemporaryOwner = "borrowed temporary has no proven storage owner"
-
-const arrayPopGenericIndex = "generic index lacks its finalized concrete use"
-
+// A reason this packet does not emit, carried here because the leaves below are
+// asserted as BEFORE-equality against it.
 const arrayPopContainerLoanBase = "container loans lack a proven base"
 
 // A payload-free element that is itself an array or a cursor still keeps the
@@ -283,18 +279,15 @@ func arrayPopLoanFormalSource() arrayPopSource {
 			arrayPopLeaf("leak_take", arrayPopOnly("leak_take", backingPending{680, 696, backingLoanDiscard})),
 			arrayPopLeaf("take_rt", arrayPopQuiet("take_rt")),
 			arrayPopLeaf("leak_take_rt", arrayPopOnly("leak_take_rt", backingPending{985, 1004, backingLoanDiscard})),
-			// BEFORE-equality: the temporary-owner row (return_origin_expr.go:168) and
-			// the generic-index row (index_primitive.go:104/:117, the A1.2 gap) are both
-			// pre-existing and emitted by files this packet does not ship. Only 1244:1269
-			// is P1n's. Keeping the leaf rather than dropping it preserves CF-T5/CF-B1.
+			// Only 1244:1269 is P1n's. The generic-index row at `outer[0]` (the A1.2 gap:
+			// an index in a function the closure never reaches) and the temporary-owner
+			// row it caused at `&mut outer[0]` were closed by N-INDEXCERT, which answers
+			// that index by its original request; the P1n row stays. Keeping the leaf
+			// preserves CF-T5/CF-B1.
 			arrayPopLeaf("leak_formal_inner", arrayPopOnly("leak_formal_inner",
-				backingPending{1255, 1268, arrayPopTemporaryOwner},
-				backingPending{1260, 1268, arrayPopGenericIndex},
 				backingPending{1244, 1269, arrayPopLoanElement})),
-			// The twin of leak_formal_inner: same pre-existing pair, same reasoning.
+			// The twin of leak_formal_inner: same closed pair, same reasoning.
 			arrayPopLeaf("pop_inner_rt", arrayPopOnly("pop_inner_rt",
-				backingPending{1517, 1530, arrayPopTemporaryOwner},
-				backingPending{1522, 1530, arrayPopGenericIndex},
 				backingPending{1504, 1531, arrayPopLoanElement})),
 			arrayPopLeaf("count_views", arrayPopClean("count_views")),
 			arrayPopLeaf("count_local", arrayPopClean("count_local")),

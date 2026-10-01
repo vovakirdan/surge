@@ -1,0 +1,11 @@
+async fn get(m: &Map<string, int>) -> int {
+    let r: &int = m["x"];
+    return *r;
+}
+@entrypoint
+fn main() -> int {
+    let m = { "x" => 5 };
+    let v = compare get(&m).await() { Success(x) => x; Cancelled() => 0; };
+    print(v to string);
+    return 0;
+}

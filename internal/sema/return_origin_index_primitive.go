@@ -99,31 +99,11 @@ func (a *returnOriginAnalyzer) indexOperation(caller *returnOriginFunction, id a
 	if len(fn.candidate.TemplateParams) == 0 {
 		return primitive, ""
 	}
-	closure := u.authority.InstantiationClosure
-	if closure == nil {
-		return primitive, "generic index lacks its finalized concrete use"
-	}
-	var found *ConcreteInstantiationUse
-	for i := range closure.UseSites {
-		use := &closure.UseSites[i]
-		if use.SourceKey == u.SourceKey && use.Site == span {
-			if found != nil {
-				return primitive, "generic index has ambiguous finalized concrete uses"
-			}
-			found = use
-		}
-	}
-	if found == nil {
-		return primitive, "generic index lacks its finalized concrete use"
-	}
-	callee, owner, expr, reason := a.genericUseContext(*found)
+	use, reason := a.indexUse(fn, caller, id, span)
 	if reason != "" {
 		return primitive, reason
 	}
-	if callee != fn || owner != caller || expr != id {
-		return primitive, "generic index disagrees with its selected caller and expression"
-	}
-	return primitive, a.checkIndexUse(fn, caller, id, *found)
+	return primitive, a.checkIndexUse(fn, caller, id, use)
 }
 
 // This certifies the existing scalar primitive, including its effect and

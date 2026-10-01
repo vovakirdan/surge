@@ -1,0 +1,13 @@
+type Holder = { m: Map<string, int> };
+fn get(m: &Map<string, int>) -> &int { return m["x"]; }
+fn deref(pm: &Map<string, int>) -> &int { return (*pm)["x"]; }
+fn member(h: &Holder) -> &int { return h.m["x"]; }
+@entrypoint
+fn main() -> int {
+    let m = { "x" => 41 };
+    let h = Holder { m = { "x" => 7 } };
+    print((*get(&m) + 1) to string);
+    print((*deref(&m)) to string);
+    print((*member(&h)) to string);
+    return 0;
+}

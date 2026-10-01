@@ -1,0 +1,10 @@
+fn get(m: &Map<string, int>) -> &int {
+    return m["x"];
+}
+@entrypoint
+fn main() -> int {
+    let m = { "x" => 41 };
+    let r = get(&m);
+    print((*r + 1) to string);
+    return 0;
+}

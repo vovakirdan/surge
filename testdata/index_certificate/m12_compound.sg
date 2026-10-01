@@ -1,0 +1,7 @@
+@entrypoint
+fn main() -> int {
+    let mut m = { "x" => 1 };
+    m["x"] = m["x"] + 1;
+    print((m["x"]) to string);
+    return 0;
+}

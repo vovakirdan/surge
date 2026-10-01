@@ -1,0 +1,15 @@
+type P = { a: int, b: int };
+fn pick(m: &Map<int, P>, k: int) -> &P { return m[k]; }
+@entrypoint
+fn main() -> int {
+    let mut m = Map::<int, P>.new();
+    m[1] = P { a = 10, b = 11 };
+    m[2] = P { a = 20, b = 21 };
+    m[1] = P { a = 30, b = 31 };
+    let one = 1;
+    let two = 2;
+    let p: &P = pick(&m, one);
+    let q: &P = m[two];
+    print((p.a + q.b) to string);
+    return 0;
+}

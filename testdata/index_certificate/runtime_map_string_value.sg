@@ -1,0 +1,13 @@
+fn name(m: &Map<int, string>, k: int) -> &string { return m[k]; }
+@entrypoint
+fn main() -> int {
+    let mut m = Map::<int, string>.new();
+    m[1] = "one";
+    m[1] = "uno";
+    let k = 1;
+    let s: &string = name(&m, k);
+    print(s.__len() to string);
+    let t: string = m[k] + "!";
+    print(t);
+    return 0;
+}

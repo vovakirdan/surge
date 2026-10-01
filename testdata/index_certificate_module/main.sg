@@ -1,0 +1,7 @@
+import m;
+
+@entrypoint
+fn main() -> int {
+    print((m.used()) to string);
+    return 0;
+}

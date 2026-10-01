@@ -1,0 +1,12 @@
+fn f(m: &mut Map<string, int>) -> nothing {
+    let v = 3;
+    m["x"] = v;
+    return nothing;
+}
+@entrypoint
+fn main() -> int {
+    let mut m = { "x" => 1 };
+    f(&mut m);
+    print((m["x"]) to string);
+    return 0;
+}

@@ -1,0 +1,12 @@
+fn pick(m: &Map<string, string>) -> Option<&string> {
+    let r: &string = m["x"];
+    return Some::<&string>(r);
+}
+@entrypoint
+fn main() -> int {
+    let mut m = { "x" => "old" };
+    { let r = pick(&m); compare r { Some(s) => print(*s); nothing => {} }; }
+    m["x"] = "new";
+    print(m["x"] + "!");
+    return 0;
+}

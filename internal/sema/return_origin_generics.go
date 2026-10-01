@@ -182,7 +182,11 @@ func (a *returnOriginAnalyzer) checkGenericUses() error {
 			}
 			continue
 		}
-		if reason == "" {
+		mapIndexed := false
+		if reason == "" && caller.unit.Builder.Exprs.Get(expression).Kind == ast.ExprIndex {
+			mapIndexed, reason = a.checkMapIndexSiteUse(fn, caller, expression)
+		}
+		if reason == "" && !mapIndexed {
 			if _, store := caller.unit.Sema.IndexSetSymbols[expression]; store && caller.unit.Builder.Exprs.Get(expression).Kind == ast.ExprIndex {
 				reason = a.checkIndexStoreUse(fn, caller, expression, use)
 			} else if caller.unit.Builder.Exprs.Get(expression).Kind == ast.ExprIndex {

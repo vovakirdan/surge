@@ -14,6 +14,9 @@ func (b *returnOriginBody) indexStore(lhs ast.ExprID, owner, rhs returnOriginVal
 	if !env.reachable || !rhs.normal {
 		return env, false
 	}
+	if next, handled := b.mapIndexStore(lhs, owner, rhs, rhsExpr, env, span); handled {
+		return next, true
+	}
 	container, reason := b.analyzer.indexStoreOperation(b.function, lhs)
 	if reason != "" {
 		return env, false

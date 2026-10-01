@@ -1,0 +1,10 @@
+type ByteBox = { values: uint8[] };
+extern<ByteBox> {
+    fn __index(self: &ByteBox, index: int) -> uint8 { return self.values[index]; }
+}
+@entrypoint
+fn main() -> int {
+    let b = ByteBox { values = [7:uint8, 11:uint8] };
+    print((b[1]) to string);
+    return 0;
+}

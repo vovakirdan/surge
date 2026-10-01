@@ -1,0 +1,10 @@
+type Bag = { values: int[] };
+extern<Bag> {
+    fn __index(self: &Bag, index: int) -> int { return self.values[index]; }
+}
+@entrypoint
+fn main() -> int {
+    let b = Bag { values = [4, 5, 6] };
+    print((b[1] + b[2]) to string);
+    return 0;
+}

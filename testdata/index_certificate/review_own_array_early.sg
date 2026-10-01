@@ -1,0 +1,12 @@
+fn sum(xs: own int[], first: bool) -> int {
+    if first { return xs[0]; }
+    return xs[0] + xs[1];
+}
+@entrypoint
+fn main() -> int {
+    let a: int[] = [10, 20];
+    let b: int[] = [30, 40];
+    print((sum(own a, true)) to string);
+    print((sum(own b, false)) to string);
+    return 0;
+}

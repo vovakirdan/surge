@@ -10,22 +10,27 @@ import (
 )
 
 // The byte read of a BytesView is certified by the selected declaration, not by
-// the result type: a user indexer that returns a byte keeps its named refusal.
+// the result type: a user indexer that returns a byte keeps its named refusal
+// unless the call rule answers it. Since N-INDEXCERT an int-indexed user
+// `__index` is the call selectedIndexCall answers for any index type (a shared
+// receiver, a checked body, an erased result), so this indexer takes a `&mut`
+// receiver, which that rule refuses: only the BytesView certificate could
+// answer it, and it must not.
 func TestReturnOriginSelectedContainerIndexIsKeyedByDeclaration(t *testing.T) {
 	const text = `type ByteBox = { values: uint8[] };
 extern<ByteBox> {
-    fn __index(self: &ByteBox, index: int) -> uint8 {
+    fn __index(self: &mut ByteBox, index: int) -> uint8 {
         return self.values[index];
     }
 }
 
-fn user_index_byte(box: &ByteBox) -> uint8 {
+fn user_index_byte(box: &mut ByteBox) -> uint8 {
     return box[0];
 }
 `
 	f, analysis := analyzeOriginRoot(t, "selected_container_index_user_byte", text, false, nil)
-	start := len(text) - len("fn user_index_byte(box: &ByteBox) -> uint8 {\n    return box[0];\n}\n")
-	at := start + len("fn user_index_byte(box: &ByteBox) -> uint8 {\n    return ")
+	start := len(text) - len("fn user_index_byte(box: &mut ByteBox) -> uint8 {\n    return box[0];\n}\n")
+	at := start + len("fn user_index_byte(box: &mut ByteBox) -> uint8 {\n    return ")
 	if !originPendingAt(analysis, f.unit.SourceKey, originSpan{at, at + len("box[0]"), "box[0]"}, "index requires its selected container transfer") {
 		t.Errorf("a user byte indexer lost its named refusal: %+v", originPendingWithin(analysis, f.unit.SourceKey, start, len(text)))
 	}

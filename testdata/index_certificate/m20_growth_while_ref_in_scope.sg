@@ -1,0 +1,18 @@
+fn sum(m: &Map<int, int>, n: int) -> int {
+    let mut s = 0;
+    for i in 0..n {
+        let k = i;
+        s = s + m[k];
+    }
+    return s;
+}
+@entrypoint
+fn main() -> int {
+    let mut m = Map::<int, int>.new();
+    for i in 0..40 {
+        let k = i;
+        m[k] = i * 2;
+    }
+    print((sum(&m, 40)) to string);
+    return 0;
+}

@@ -1,0 +1,14 @@
+fn put(m: &mut Map<string, int>, v: int) -> nothing {
+    m["y"] = v;
+    return nothing;
+}
+@entrypoint
+fn main() -> int {
+    let mut m = Map::<string, int>.new();
+    m["x"] = 10;
+    m["x"] = 11;
+    put(&mut m, 5);
+    print((m["x"] + m["y"]) to string);
+    print((m.length()) to string);
+    return 0;
+}
