@@ -269,7 +269,14 @@ func (fr *fileResolver) tryResolveImportSymbol(exprID ast.ExprID, span source.Sp
 		if cand == nil {
 			continue
 		}
-		synth := fr.syntheticSymbolForExport(modulePath, nameStr, cand, span)
+		importPath := modulePath
+		// Builtin functions keep their declared import spelling: the aggregate
+		// core export container does not name each builtin's callable owner.
+		// The selected-callable checks must still prove that exact identity.
+		if cand.Kind != SymbolFunction || cand.Flags&SymbolFlagBuiltin == 0 {
+			importPath = ExportSymbolPath(modulePath, exports, cand)
+		}
+		synth := fr.syntheticSymbolForExport(importPath, nameStr, cand, span)
 		if !synth.IsValid() {
 			continue
 		}

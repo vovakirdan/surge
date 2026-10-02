@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -147,35 +146,6 @@ func TestReturnOriginImportedCallableAuthority(t *testing.T) {
 				if escapes[i] != tc.escapes[i] {
 					t.Fatalf("escapes at lines %v, want %v", escapes, tc.escapes)
 				}
-			}
-		})
-	}
-}
-
-// A copy the merge keyed differently from its declaration was never bound to
-// that body, and the backends do not reach it either (an unknown external
-// function, a receiver passed by value). Its selection stays refused.
-func TestReturnOriginUnboundImportedCopyStaysRefused(t *testing.T) {
-	leakFirst := "fn pick(a: &string, b: &string) -> &string {\n    return %s(a, b);\n}\n\nfn leak() -> &string {\n    let s: string = \"x\";\n    return %s(&s, &s);\n}\n"
-	for name, files := range map[string]map[string]string{
-		// The module is the directory; the import names the file.
-		"module_imported_by_its_file": {
-			"app/lib/util.sg": importedCallableFirst,
-			"app/main.sg":     "import ./lib/util::*;\n\n" + strings.ReplaceAll(leakFirst, "%s", "first"),
-		},
-		"aliased_import": {
-			"app/lib/util.sg": importedCallableFirst,
-			"app/main.sg":     "import ./lib/util::{first as pick_first};\n\n" + strings.ReplaceAll(leakFirst, "%s", "pick_first"),
-		},
-		// Methods of an intrinsic stdlib type, keyed without their module path.
-		"stdlib_intrinsic_methods": {
-			"app/main.sg": "import stdlib/time as time;\n\nfn span(a: time.Duration, b: time.Duration) -> int64 {\n    let d = a.sub(b);\n    return d.as_micros();\n}\n",
-		},
-	} {
-		t.Run(name, func(t *testing.T) {
-			escapes, pending := importedCallableOutcome(t, files, "app/main.sg")
-			if !slices.Contains(pending, "app/main.sg "+importedCallableRefusal) {
-				t.Fatalf("an unbound copy lost its refusal: escapes=%v pending=%v", escapes, pending)
 			}
 		})
 	}

@@ -1,0 +1,36 @@
+// An importer's copy of a callable, a const and a type reaches its declaration
+// whatever path the import spelled: a directory module imported by one of its
+// files, a module named apart from its directory, and the extern methods of the
+// intrinsic stdlib/time Duration, called through references to it.
+import ./lib/util::*;
+import bar::greet;
+import stdlib/time as time;
+
+fn seconds(d: &time.Duration) -> int64 {
+    return d.as_seconds();
+}
+
+fn gap(a: &time.Duration, b: &time.Duration) -> int64 {
+    let d = a.sub(*b);
+    return d.as_millis();
+}
+
+@entrypoint
+fn main() -> int {
+    let x: string = "left";
+    let y: string = "right";
+    let picked: &string = first(&x, &y);
+    print(picked.__len() to string);
+    let p: Pair = Pair { left = BASE, right = 2 };
+    print(sum(&p) to string);
+    print(greet());
+    let d = time.Duration.new(1_500_250_999:int64);
+    let later = time.Duration.new(2_000_000_000:int64);
+    print(seconds(&d) to string);
+    print(gap(&later, &d) to string);
+    let r: &time.Duration = &d;
+    print(r.as_micros() to string);
+    let rest = later.sub(d);
+    print(rest.as_nanos() to string);
+    return 0;
+}

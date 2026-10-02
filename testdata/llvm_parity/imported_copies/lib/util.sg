@@ -1,0 +1,16 @@
+pragma module;
+
+pub const BASE: int = 40;
+
+pub type Pair = {
+    left: int,
+    right: int,
+};
+
+pub fn first(a: &string, b: &string) -> &string {
+    return a;
+}
+
+pub fn sum(p: &Pair) -> int {
+    return p.left + p.right;
+}

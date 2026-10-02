@@ -80,16 +80,31 @@ func receiverBoundExport(exp *ExportedSymbol) bool {
 }
 
 // ExportSymbolPath names the module a selected export's symbol belongs to. A
-// free function reached through an import alias takes the path of the module
-// that actually exports it, so every alias of one module selects one owner and
-// two modules never share one. Everything else keeps the requested path, and so
-// does an export whose container resolved no path: nothing proves an owner there.
+// free function, a const or a type reached through an import - by an alias, by
+// one of a directory module's files, or by a name the module's pragma gives it
+// apart from its directory - takes the path of the module that actually exports
+// it, so every spelling of one module selects one owner and two modules never
+// share one. A method keeps the requested path (its receiver's type names its
+// owner), and so does any export whose container resolved no path: nothing
+// proves an owner there.
 func ExportSymbolPath(requested string, exports *ModuleExports, exp *ExportedSymbol) string {
-	if exports == nil || exports.Path == "" || exp == nil || exp.Kind != SymbolFunction ||
-		exp.Signature == nil || exp.Signature.HasSelf || receiverBoundExport(exp) {
+	if exports == nil || exports.Path == "" || exp == nil || !ownerNamedExport(exp) {
 		return requested
 	}
 	return exports.Path
+}
+
+// ownerNamedExport is an export whose symbol is named by its module alone: a
+// free function, a const or a type.
+func ownerNamedExport(exp *ExportedSymbol) bool {
+	switch exp.Kind {
+	case SymbolFunction:
+		return exp.Signature != nil && !exp.Signature.HasSelf && !receiverBoundExport(exp)
+	case SymbolConst, SymbolType:
+		return true
+	default:
+		return false
+	}
 }
 
 func publicModuleValueExports(exported []ExportedSymbol) []*ExportedSymbol {

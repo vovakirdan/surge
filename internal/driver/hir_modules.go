@@ -287,6 +287,7 @@ func buildModuleSymbolRemap(rootSyms *symbols.Result, rec *moduleRecord) map[sym
 	}
 
 	rootTable := rootSyms.Table
+	owner := newModuleSymbolOwner(rec)
 	rootMap := make(map[string]symbols.SymbolID)
 	rootLen := rootTable.Symbols.Len()
 	for i := 1; i <= rootLen; i++ {
@@ -330,10 +331,7 @@ func buildModuleSymbolRemap(rootSyms *symbols.Result, rec *moduleRecord) map[sym
 			continue
 		}
 		isLocal := isLocalSymbol(sym, modTable)
-		modulePath := normalizeExportsKey(sym.ModulePath)
-		if modulePath == "" && rec.Meta != nil && !isPreludeSymbol(sym) {
-			modulePath = normalizeExportsKey(rec.Meta.Path)
-		}
+		modulePath := owner.declarationPath(sym, rec)
 		key := ""
 		if !isLocal {
 			key = moduleSymbolKey(modulePath, sym, modTable.Strings)

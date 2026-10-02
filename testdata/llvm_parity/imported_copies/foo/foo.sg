@@ -1,0 +1,5 @@
+pragma module::bar;
+
+pub fn greet() -> string {
+    return "bar";
+}

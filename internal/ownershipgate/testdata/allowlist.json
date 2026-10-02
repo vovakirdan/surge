@@ -32,12 +32,6 @@
       "debt": "RV2-DEBT-106"
     },
     {
-      "id": "CF-009",
-      "disposition": "debt",
-      "reason": "A public constant resolved through a relative glob import is not remapped into MIR lowering.",
-      "debt": "RV2-DEBT-107"
-    },
-    {
       "id": "CF-011",
       "disposition": "debt",
       "reason": "The generic-contract audit currently reports a duplicate-symbol diagnostic under the canonical profile.",
@@ -469,11 +463,6 @@
       "fixture": "testdata/golden/sema/valid/alien_hints/python_none_alias.sg",
       "signature": "error:MIR validation failed: function foo: bb0: return without value in non-nothing function",
       "group": "CF-008"
-    },
-    {
-      "fixture": "testdata/golden/sema/valid/import_all.sg",
-      "signature": "error:MIR lowering failed: mir: unknown local symbol 46 (MODULE_CONST) in main",
-      "group": "CF-009"
     },
     {
       "fixture": "testdata/golden/sema/valid/module_multitest/main.sg",

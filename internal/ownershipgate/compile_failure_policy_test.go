@@ -320,8 +320,12 @@ func TestRepositoryCompileFailureLedgerIsCompleteAndDebtLinked(t *testing.T) {
 	// (SEM3219, RV2-DEBT-384): user_record_type keeps its typed half and
 	// compiles, and the two overload_autoref_temp goldens name their struct
 	// and moved to sema/invalid, where they are refused before MIR.
-	if len(ledger.CompileFailureGroups) != 12 || len(ledger.CompileFailures) != 86 {
-		t.Fatalf("repository compile ledger has groups=%d failures=%d, want 12/86",
+	// Moved on 2026-09-30 from 12/86: CF-009 was retired with its fixture.
+	// An imported const now names the module that exports it, so the merge
+	// binds import_all.sg's MODULE_CONST to its declaration and the program
+	// lowers to MIR and runs.
+	if len(ledger.CompileFailureGroups) != 11 || len(ledger.CompileFailures) != 85 {
+		t.Fatalf("repository compile ledger has groups=%d failures=%d, want 11/85",
 			len(ledger.CompileFailureGroups), len(ledger.CompileFailures))
 	}
 	groups := make(map[string]CompileFailureDisposition, len(ledger.CompileFailureGroups))
@@ -333,8 +337,8 @@ func TestRepositoryCompileFailureLedgerIsCompleteAndDebtLinked(t *testing.T) {
 		counts[groups[failure.Group]]++
 	}
 	if counts[CompileFailureExpectedGuard] != 50 || counts[CompileFailureContextOnly] != 14 ||
-		counts[CompileFailureDebt] != 22 {
-		t.Fatalf("repository dispositions = %+v, want expected_guard=50 context_only=14 debt=22", counts)
+		counts[CompileFailureDebt] != 21 {
+		t.Fatalf("repository dispositions = %+v, want expected_guard=50 context_only=14 debt=21", counts)
 	}
 	debtMarkdown, err := os.ReadFile(filepath.Join(root, "docs", "runtime-v2-epics", "DEBT.md"))
 	if err != nil {

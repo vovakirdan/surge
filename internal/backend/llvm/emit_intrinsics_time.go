@@ -117,13 +117,11 @@ func (fe *funcEmitter) emitDurationNanosOperand(op *mir.Operand) (nanos string, 
 	if err != nil {
 		return "", true, err
 	}
+	// The operand already names the Duration's storage, whether it is the
+	// value itself or a borrow of it: a borrow of a value that lives inline
+	// points at that value, not at a slot holding its address.
 	if ty != "ptr" {
 		return "", true, fmt.Errorf("duration value must be ptr, got %s", ty)
-	}
-	if isRefType(fe.emitter.types, op.Type) {
-		loaded := fe.nextTemp()
-		fmt.Fprintf(&fe.emitter.buf, "  %s = load ptr, ptr %s\n", loaded, value)
-		value = loaded
 	}
 	opaquePtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = getelementptr inbounds i8, ptr %s, i64 %d\n", opaquePtr, value, opaqueOffset)
