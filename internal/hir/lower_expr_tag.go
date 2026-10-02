@@ -170,6 +170,12 @@ func (l *lowerer) applyParamBorrow(symID symbols.SymbolID, args []*Expr) []*Expr
 		if arg == nil || i >= len(sym.Signature.Params) {
 			continue
 		}
+		// A variadic parameter's spelling names its element (`...args: &int`),
+		// but its argument here is the packed array, which the parameter owns
+		// (`args: (&int)[]`); borrowing the array would pass `&(&int)[]`.
+		if i < len(sym.Signature.Variadic) && sym.Signature.Variadic[i] {
+			continue
+		}
 		_, argIsRef, argIsMut := l.referenceInfo(arg.Type)
 		param := strings.TrimSpace(string(sym.Signature.Params[i]))
 		switch {
@@ -252,18 +258,18 @@ func (l *lowerer) referenceInfo(id types.TypeID) (elem types.TypeID, ok, mut boo
 
 // wrapInSome wraps an expression in a Some() tag constructor call.
 // This is used for implicit tag injection: let x: int? = 1 becomes Some(1).
-func (l *lowerer) wrapInSome(inner *Expr, targetType types.TypeID, callee symbols.SymbolID) *Expr {
-	return l.wrapInTagConstructor(inner, targetType, "Some", callee)
+func (l *lowerer) wrapInSome(inner *Expr, targetType types.TypeID, callee symbols.SymbolID, span source.Span) *Expr {
+	return l.wrapInTagConstructor(inner, targetType, "Some", callee, span)
 }
 
 // wrapInSuccess wraps an expression in a Success() tag constructor call.
 // This is used for implicit tag injection: let x: int! = 1 becomes Success(1).
-func (l *lowerer) wrapInSuccess(inner *Expr, targetType types.TypeID, callee symbols.SymbolID) *Expr {
-	return l.wrapInTagConstructor(inner, targetType, "Success", callee)
+func (l *lowerer) wrapInSuccess(inner *Expr, targetType types.TypeID, callee symbols.SymbolID, span source.Span) *Expr {
+	return l.wrapInTagConstructor(inner, targetType, "Success", callee, span)
 }
 
 // wrapInTagConstructor creates a call to a tag constructor wrapping the inner expression.
-func (l *lowerer) wrapInTagConstructor(inner *Expr, targetType types.TypeID, tagName string, tagSymID symbols.SymbolID) *Expr {
+func (l *lowerer) wrapInTagConstructor(inner *Expr, targetType types.TypeID, tagName string, tagSymID symbols.SymbolID, span source.Span) *Expr {
 	if inner == nil {
 		return nil
 	}
@@ -288,16 +294,18 @@ func (l *lowerer) wrapInTagConstructor(inner *Expr, targetType types.TypeID, tag
 		}
 	}
 
-	// Create a call expression that wraps the inner expression
+	// Sema registered this synthetic call at the conversion site. Lowering
+	// can erase groups or Copy clones, so the payload may have a different
+	// span. Preserve both identities for authoritative monomorphization.
 	return &Expr{
 		Kind: ExprCall,
 		Type: targetType,
-		Span: inner.Span,
+		Span: span,
 		Data: CallData{
 			Callee: &Expr{
 				Kind: ExprVarRef,
 				Type: types.NoTypeID, // Callee type doesn't matter for dispatch
-				Span: inner.Span,
+				Span: span,
 				Data: VarRefData{
 					Name:     tagName,
 					SymbolID: tagSymID,

@@ -379,16 +379,7 @@ func (tc *typeChecker) typeExprWithExpected(expr ast.ExprID, expected types.Type
 	if expected == types.NoTypeID || !expr.IsValid() {
 		return tc.typeExpr(expr)
 	}
-	target := expr
-	if tc.builder != nil {
-		if node := tc.builder.Exprs.Get(expr); node != nil && node.Kind == ast.ExprGroup {
-			if group, ok := tc.builder.Exprs.Group(expr); ok && group != nil {
-				if group.Inner.IsValid() {
-					target = group.Inner
-				}
-			}
-		}
-	}
+	target := tc.unwrapGroupExpr(expr)
 	prevExpr, prevType := tc.expectedExpr, tc.expectedType
 	tc.expectedExpr, tc.expectedType = target, expected
 	ty := tc.typeExpr(expr)

@@ -101,7 +101,13 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		if compareDiscarded {
 			tc.pushDiscardedExpr(arm.Result)
 		}
-		armResult := tc.typeExprWithExpected(arm.Result, expectedCompare)
+		armExpected := expectedCompare
+		if id == tc.callChoiceExpr {
+			// Infer the arm first: binding context could otherwise insert an
+			// implicit __to inside a nested choice or block before call checking.
+			armExpected = types.NoTypeID
+		}
+		armResult := tc.typeExprWithExpected(arm.Result, armExpected)
 		tc.openArm(armBindings, false)
 		// The other half of the shared-borrow rule. The scrutinee was allowed
 		// through because a compare only inspects its subject; an arm that
@@ -137,9 +143,9 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 			}
 		}
 		armTypes[i] = armResult
-		if !armAbrupt && armResult != types.NoTypeID {
+		if !armAbrupt && (armResult != types.NoTypeID || id == tc.callChoiceExpr) {
 			if expectedCompare != types.NoTypeID {
-				tc.ensureBindingTypeMatch(ast.NoTypeID, expectedCompare, armResult, arm.Result)
+				tc.ensureChoiceTarget(id, expectedCompare, armResult, arm.Result)
 			} else {
 				switch {
 				case resultType == types.NoTypeID:
@@ -151,6 +157,10 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 				case tc.typesAssignable(armResult, resultType, true):
 					resultType = armResult
 				default:
+					if joined, ok := tc.compareArmOptionJoin(id, resultType, armResult, span); ok {
+						resultType = joined
+						break
+					}
 					tc.report(diag.SemaTypeMismatch, tc.exprSpan(arm.Result), "compare arm type mismatch: expected %s, got %s", tc.typeLabel(resultType), tc.typeLabel(armResult))
 				}
 			}
@@ -190,6 +200,9 @@ func (tc *typeChecker) typeExprCompare(id ast.ExprID, span source.Span) types.Ty
 		tc.refusePinsOfEndedArm(id, i, subjectBorrowed, tupleElementsBorrowed)
 		movedArms[i] = tc.snapshotMovedPlaces()
 		pinsArms[i] = tc.snapshotTaskBorrowPins()
+	}
+	if expectedCompare == types.NoTypeID {
+		resultType = tc.comparePlainOptionJoin(id, cmp, armTypes, armClosed, resultType, span)
 	}
 
 	if owned := len(mintingArms) + sometimesMintingArms; owned > 0 {

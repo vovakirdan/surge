@@ -525,6 +525,7 @@ compare parse("x") {
 Rules:
 
 - Construction is explicit in expressions: use `Some(...)` or `Success(...)`. In function returns, a bare `T` is accepted as `Some(T)`/`Success(T)` and `nothing` is accepted for `Option<T>`.
+- A choice that joins a plain value with `nothing` is an Option (owner ruling 2026-09-29): `c ? 5 : nothing`, `c ? nothing : 5`, `c ? 4 : d ? 5 : nothing` and `compare k { 1 => 5; _ => nothing; }` have type `Option<int>`, each plain value wrapped in `Some`. An annotated Option target gives the Option (`let x: Option<int> = c ? 5 : nothing;`); a target that is not an Option refuses the join (`let x: int = c ? 5 : nothing;` is `SemaTypeMismatch`).
 - `T?` is sugar for `Option<T>`; `T!` is sugar for `Erring<T, Error>` (type sugar only; no `expr?` propagation operator).
 - `nothing` remains the shared absence literal for both Option and other contexts (§2.6). Exhaustiveness checking for tagged unions is enforced.
 - `panic(msg)` materialises `Error { message = msg, code = 1:uint }` and calls intrinsic `exit(Error)`.
@@ -1201,7 +1202,7 @@ Each file is a module. Folder hierarchy maps to module paths.
   * `expr: Type` is shorthand for `expr to Type`. It's especially handy for literal annotations such as `1:int8`.
 * Range: `for in` → `__range() -> Range<T>` where `Range<T>` yields `T` via `next()`.
 * Compound assignment: `+= -= *= /= %= &= |= ^= <<= >>=` → corresponding operation + assign.
-* Ternary: `condition ? true_expr : false_expr` → conditional expression.
+* Ternary: `condition ? true_expr : false_expr` → conditional expression. A plain value joined with `nothing` gives `Option<T>` (§2.7).
 * Range creation: `start..end`, `start..=end` (binary operators) and range literals
   `[start..end]`, `[start..=end]`, `[start..]`, `[..end]`, `[..=end]`, `[..]`.
 * String operators: `string * count` → string repetition, `string + string` → concatenation.
@@ -1699,7 +1700,7 @@ In other words, if at least one monomorphic overload is applicable, generic over
 
 ### Option conversions
 
-Implicit `Some(...)`/`Success(...)` injection happens only in specific contexts (bindings, returns, struct fields, array elements). Overload resolution never inserts tags, so `Option<T>` and `T` remain distinct during call selection (§2.9).
+Implicit `Some(...)`/`Success(...)` injection happens only in specific contexts (bindings, returns, struct fields, array elements, and a ternary or compare joining a plain value with `nothing`, §2.7). Overload resolution never inserts tags, so `Option<T>` and `T` remain distinct during call selection (§2.9).
 
 ---
 

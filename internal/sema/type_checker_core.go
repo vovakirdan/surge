@@ -137,6 +137,7 @@ type typeChecker struct {
 	typeParamStack              []types.TypeID
 	typeParamMarks              []int
 	expectedExpr                ast.ExprID
+	callChoiceExpr              ast.ExprID
 	expectedType                types.TypeID
 	discardedExprs              []ast.ExprID
 	compareGuardBindings        [][]symbols.SymbolID

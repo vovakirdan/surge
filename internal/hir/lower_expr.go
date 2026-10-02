@@ -19,9 +19,9 @@ func (l *lowerer) lowerExpr(exprID ast.ExprID) *Expr {
 		if conv, ok := l.semaRes.ImplicitConversions[exprID]; ok {
 			switch conv.Kind {
 			case sema.ImplicitConversionSome:
-				result = l.wrapInSome(result, conv.Target, conv.Callee)
+				result = l.wrapInSome(result, conv.Target, conv.Callee, conv.Span)
 			case sema.ImplicitConversionSuccess:
-				result = l.wrapInSuccess(result, conv.Target, conv.Callee)
+				result = l.wrapInSuccess(result, conv.Target, conv.Callee, conv.Span)
 			case sema.ImplicitConversionTagUnion:
 				result = l.tagUnionUpcast(result, conv.Target)
 			case sema.ImplicitConversionTo:

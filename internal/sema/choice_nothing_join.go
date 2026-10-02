@@ -17,9 +17,11 @@ import (
 // that cannot hold `nothing` and has no Option to widen to is refused.
 
 // choiceNothingJoin is the type a choice yields when one value is `nothing`
-// and another has type other: other itself when it can hold `nothing` or is
-// no union, `Option<T>` for `Some<T>`. ok is false when other is a union
-// with neither.
+// and another has type other: other itself when it can hold `nothing`,
+// `Option<T>` for `Some<T>`. ok is false when other is a union with neither.
+// A plain other is joined into `Option<T>` before this runs
+// (choice_plain_option_join.go); it reaches here only from a discarded choice
+// or beside a branch that leaves, and stays itself.
 func (tc *typeChecker) choiceNothingJoin(other types.TypeID, span source.Span) (types.TypeID, bool) {
 	if other == types.NoTypeID || tc.types == nil {
 		return other, true
