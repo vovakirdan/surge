@@ -16,6 +16,7 @@ type step7GateRow struct {
 // with a narrower --expect must not remove a Step 7 proof from its home.
 func step7GateRows() []step7GateRow {
 	nativeOffer := []string{
+		"TestChannelSendTrackedReportsActualTransfer",
 		"TestRuntimeV2ChannelSendOfferTakeOrDrop",
 		"TestRuntimeV2ChannelSendOfferOldAPINegativeControl",
 		"TestRuntimeV2ChannelSendOfferRepeatedParkedCancellation",
@@ -103,12 +104,12 @@ func step7GateRows() []step7GateRow {
 		"TestRuntimeV2ColdTaskCancelledColdValgrindZero",
 	}
 	return []step7GateRow{
-		{"cast_offer_ir", "runtime-v2-carrier-check", "./internal/backend/llvm", "", "llvm", []string{"TestEmitNumericCastTemporaryCleanup", "TestEmitNumericCastBorrowedAndFixedControls", "TestChannelSendOfferUsesDisposablePollStorage"}},
+		{"cast_offer_ir", "runtime-v2-carrier-check", "./internal/backend/llvm", "", "llvm", []string{"TestEmitNumericCastTemporaryCleanup", "TestEmitNumericCastBorrowedAndFixedControls", "TestChannelSendOfferUsesDisposablePollStorage", "TestChannelSendConsumingPollTracksSourceTransfer", "TestChannelSendPendingFrameHasOnlyItsActualOwner"}},
 		{"uint_offer_mir", "runtime-v2-carrier-check", "./internal/mir", "", "llvm", []string{"TestLowerUintLiteralPreservesKindAndText", "TestChannelSendPollPreservesTheCountedCopyOwner"}},
 		{"argv_cfg", "runtime-v2-carrier-check", "./internal/vm", "runtime_v2_pending", "llvm", []string{"TestRuntimeV2EntrypointArgvBorrowsAndReleasesStorage"}},
 		{"allocation_xml", "runtime-v2-carrier-check", "./internal/vm", "", "llvm", []string{"TestRuntimeV2AsyncAllocationXMLRejectsMalformedReports", "TestRuntimeV2AsyncAllocationXMLExactMultiset", "TestRuntimeV2AsyncAllocationBaselineOrigins"}},
-		{"offer_vm", "runtime-v2-heap-check", "./internal/vm", "", "vm", []string{"TestRuntimeV2ChannelSendOfferPreservesOriginal"}},
-		{"offer_llvm", "runtime-v2-heap-check", "./internal/vm", "", "llvm", []string{"TestRuntimeV2ChannelSendOfferPreservesOriginal", "TestRuntimeV2ChannelSendOfferValgrindBaseline"}},
+		{"offer_vm", "runtime-v2-heap-check", "./internal/vm", "", "vm", []string{"TestRuntimeV2ChannelSendOfferPreservesOriginal", "TestChannelSendMovedStringCancellation", "TestChannelSendOwnedLifecycle"}},
+		{"offer_llvm", "runtime-v2-heap-check", "./internal/vm", "", "llvm", []string{"TestRuntimeV2ChannelSendOfferPreservesOriginal", "TestRuntimeV2ChannelSendOfferValgrindBaseline", "TestChannelSendMovedStringCancellation", "TestChannelSendOwnedLifecycle", "TestChannelSendOwnedLifecycleValgrindBaseline"}},
 		{"offer_native", "runtime-v2-heap-check", "./internal/vm", "runtime_v2_pending", "llvm", nativeOffer},
 		{"numeric_heap", "runtime-v2-heap-check", "./internal/vm", "runtime_v2_pending", "llvm", numericHeap},
 		{"failfast_return", "runtime-v2-heap-check", "./internal/vm", "runtime_v2_pending", "llvm", []string{"TestRuntimeV2FailfastReturnReleasesPreparedValue", "TestRuntimeV2FailfastReturnReleasesPreparedComposite"}},
@@ -121,7 +122,7 @@ func step7GateRows() []step7GateRow {
 		{"diagnostics_sema", "runtime-v2-crossing-check", "./internal/sema", "", "llvm", []string{"TestCountedBlockRefusalPaths", "TestCountedBlockRefusalPlainAndReachable", "TestCountedBlockRefusalIncomplete"}},
 		{"diagnostics_compile", "runtime-v2-crossing-check", "./internal/buildpipeline", "", "llvm", []string{"TestCountedBlockDiagnosticRepairsAtAllSites", "TestCountedBlockDiagnosticRecursiveRepairs", "TestCountedBlockDiagnosticValidDeclarationsRepair", "TestCountedBlockDiagnosticDoesNotOfferFalseRepair"}},
 		{"sweep_offer_native", "runtime-v2-carrier-sanitizer-check", "./internal/vm", "runtime_v2_pending", "llvm", nativeOffer},
-		{"sweep_allocation", "runtime-v2-carrier-sanitizer-check", "./internal/vm", "", "llvm", []string{"TestRuntimeV2ChannelSendOfferValgrindBaseline", "TestRuntimeV2AsyncAllocationBaselineRejectsRetainedChannel"}},
+		{"sweep_allocation", "runtime-v2-carrier-sanitizer-check", "./internal/vm", "", "llvm", []string{"TestRuntimeV2ChannelSendOfferValgrindBaseline", "TestRuntimeV2AsyncAllocationBaselineRejectsRetainedChannel", "TestChannelSendOwnedLifecycleValgrindBaseline"}},
 		{"sweep_numeric_heap", "runtime-v2-carrier-sanitizer-check", "./internal/vm", "runtime_v2_pending", "llvm", numericHeap},
 		{"sweep_native_storage", "runtime-v2-carrier-sanitizer-check", "./internal/vm", "runtime_v2_pending", "llvm", nativeStorage},
 		{"h2_tripwire_compile", "runtime-v2-h2-tripwire-check", "./internal/driver", "", "llvm", tripwireCompile},

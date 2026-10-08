@@ -14,9 +14,12 @@ func (fe *funcEmitter) emitInstrChanSend(ins *mir.Instr) error {
 	if err != nil {
 		return err
 	}
-	srcPtr, err := fe.emitChannelSendPollSource(&ins.ChanSend.Value)
-	if err != nil {
-		return err
+	srcPtr := "null"
+	if !ins.ChanSend.Resume {
+		srcPtr, err = fe.emitChannelSendPollSource(&ins.ChanSend.Value)
+		if err != nil {
+			return err
+		}
 	}
 	callee := "rt_channel_send"
 	if ins.ChanSend.YieldAfterHandoff {
@@ -26,7 +29,20 @@ func (fe *funcEmitter) emitInstrChanSend(ins *mir.Instr) error {
 		callee += "_offer"
 	}
 	okVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @%s(ptr %s, ptr %s)\n", okVal, callee, chVal, srcPtr)
+	if ins.ChanSend.TrackConsumed {
+		consumedPtr, _, _, err := fe.emitPlaceStorage(ins.ChanSend.Consumed)
+		if err != nil {
+			return err
+		}
+		yield := 0
+		if ins.ChanSend.YieldAfterHandoff {
+			yield = 1
+		}
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @rt_channel_send_tracked(ptr %s, ptr %s, i32 %d, ptr %s)\n",
+			okVal, chVal, srcPtr, yield, consumedPtr)
+	} else {
+		fmt.Fprintf(&fe.emitter.buf, "  %s = call i1 @%s(ptr %s, ptr %s)\n", okVal, callee, chVal, srcPtr)
+	}
 	fmt.Fprintf(&fe.emitter.buf, "  br i1 %s, label %%bb%d, label %%bb%d\n", okVal, ins.ChanSend.ReadyBB, ins.ChanSend.PendBB)
 	fe.blockTerminated = true
 	return nil

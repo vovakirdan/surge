@@ -234,6 +234,9 @@ func instrPlaces(instr *Instr, visit func(*Place)) error { //nolint:gocyclo
 		visit(&instr.JoinAll.Dst)
 		return operandPlace(&instr.JoinAll.Scope, visit)
 	case InstrChanSend:
+		if instr.ChanSend.TrackConsumed {
+			visit(&instr.ChanSend.Consumed)
+		}
 		if err := operandPlace(&instr.ChanSend.Channel, visit); err != nil {
 			return err
 		}

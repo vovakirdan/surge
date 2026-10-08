@@ -93,6 +93,13 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
         // husk `src` has become.
         rt_park_token staged = task->resume_slot;
         int staged_live = rt_park_pool_token_is_live(&ch->parks, &staged);
+        if (src == NULL && !staged_live) {
+            rt_shard_unlock(ch_shard);
+            // A peer may retire the slot after the mailbox check above and
+            // publish its ack next. Retry control only; src was already moved.
+            pending_key = waker_none();
+            return 0;
+        }
         waiter cand;
         // A rendezvous jumps the queue by construction, so it is legal only
         // when there is no queue: a value handed to a parked receiver while
@@ -345,10 +352,14 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
 // per window would have to be paired down each of the loop's dozen early
 // returns, and the first one missed is either a channel that leaks forever or
 // exactly the free this is here to stop.
-static bool channel_send_pinned(void* channel, void* src, int yield_after_handoff, bool offer) {
+static bool
+channel_send_pinned(void* channel, void* src, int yield_after_handoff, bool offer, bool* consumed) {
     rt_channel_pin(channel);
     bool took = false;
     bool done = rt_channel_send_inner(channel, src, yield_after_handoff, &took);
+    if (consumed != NULL) {
+        *consumed = took;
+    }
     if (offer && !took) {
         // The offer API requires a live typed channel. All normal returns from
         // inner released their locks; the pin keeps its descriptor alive even
@@ -361,17 +372,21 @@ static bool channel_send_pinned(void* channel, void* src, int yield_after_handof
 }
 
 bool rt_channel_send(void* channel, void* src) {
-    return channel_send_pinned(channel, src, 0, false);
+    return channel_send_pinned(channel, src, 0, false, NULL);
+}
+
+bool rt_channel_send_tracked(void* channel, void* src, int yield_after_handoff, bool* consumed) {
+    return channel_send_pinned(channel, src, yield_after_handoff, false, consumed);
 }
 
 bool rt_channel_send_yield(void* channel, void* src) {
-    return channel_send_pinned(channel, src, 1, false);
+    return channel_send_pinned(channel, src, 1, false, NULL);
 }
 
 bool rt_channel_send_offer(void* channel, void* src) {
-    return channel_send_pinned(channel, src, 0, true);
+    return channel_send_pinned(channel, src, 0, true, NULL);
 }
 
 bool rt_channel_send_yield_offer(void* channel, void* src) {
-    return channel_send_pinned(channel, src, 1, true);
+    return channel_send_pinned(channel, src, 1, true, NULL);
 }

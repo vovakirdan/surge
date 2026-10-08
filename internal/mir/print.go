@@ -178,12 +178,7 @@ func formatInstr(typesIn *types.Interner, ins *Instr) string {
 			ins.JoinAll.PendBB,
 		)
 	case InstrChanSend:
-		return fmt.Sprintf("chan_send %s, %s ? bb%d : bb%d",
-			formatOperand(&ins.ChanSend.Channel),
-			formatOperand(&ins.ChanSend.Value),
-			ins.ChanSend.ReadyBB,
-			ins.ChanSend.PendBB,
-		)
+		return formatChanSend(&ins.ChanSend)
 	case InstrChanRecv:
 		return fmt.Sprintf("%s = chan_recv %s ? bb%d : bb%d",
 			formatPlace(ins.ChanRecv.Dst),

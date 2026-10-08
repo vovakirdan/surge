@@ -96,6 +96,7 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 		insertScopeJoins(pollFn, pollFn.ScopeLocal, joinResultLocal, resultFlags)
 	}
 
+	consumingSends := prepareAsyncConsumingSends(pollFn, typesIn, semaRes)
 	sites := collectSuspendSites(pollFn)
 	live := computeLiveness(pollFn)
 
@@ -231,6 +232,7 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 	if err := buildAsyncPendingBlocks(pollFn, stateLocal, payloadLocal, sites, variants, typesIn.Builtins().Int); err != nil {
 		return err
 	}
+	finishAsyncConsumingSends(pollFn, sites, consumingSends)
 	rewriteAsyncReturns(pollFn, stateLocal, typesIn.Builtins().Int)
 
 	if err := buildAsyncConstructorState(f, typesIn, semaRes, taskType, stateType, payloadType, pollFnID, variants[0], typesIn.Builtins().Int, residents, startResidents); err != nil {

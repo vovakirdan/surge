@@ -615,6 +615,9 @@ const rt_value_ops* rt_channel_opaque_word_ops(void);
 // through Ready or the cancelled rt_async_yield boundary. Compiled code keeps
 // that hold in its suspension frame or a structurally held owning activation.
 bool rt_channel_send(void* channel, void* src);
+// Reports source transfer independently of readiness. Pending can mean either
+// the caller still owns src or channel storage already owns the value.
+bool rt_channel_send_tracked(void* channel, void* src, int yield_after_handoff, bool* consumed);
 bool rt_channel_send_yield(void* channel, void* src);
 // Requires a live typed channel and writable disposable storage of its element
 // type. Every normal return transfers or drops one offered reference; the bool

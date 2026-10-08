@@ -416,6 +416,13 @@ type ChanSendInstr struct {
 	ReadyBB           BlockID
 	PendBB            BlockID
 	YieldAfterHandoff bool
+	// TrackConsumed records whether this poll transferred Value into channel
+	// storage. A pending poll can also leave Value owned by the caller.
+	TrackConsumed bool
+	Consumed      Place
+	// Resume retries a send whose value already belongs to the channel.
+	// Value is unused; neither backend may evaluate a moved source again.
+	Resume bool
 }
 
 // ChanRecvInstr represents a channel receive instruction.

@@ -22,6 +22,12 @@ func (vm *VM) execInstrChanSend(frame *Frame, instr *mir.Instr, writes []LocalWr
 	if task == nil {
 		return res, vm.eb.makeError(PanicInvalidHandle, fmt.Sprintf("invalid task id %d", current))
 	}
+	if instr.ChanSend.TrackConsumed {
+		if err := vm.writeLocal(frame, instr.ChanSend.Consumed.Local,
+			MakeBool(false, vm.Types.Builtins().Bool)); err != nil {
+			return res, err
+		}
+	}
 
 	if task.Cancelled {
 		// A resume value on a cancelled task is a handover that will not
@@ -58,6 +64,15 @@ func (vm *VM) execInstrChanSend(frame *Frame, instr *mir.Instr, writes []LocalWr
 	if vmErr != nil {
 		return res, vmErr
 	}
+	if instr.ChanSend.Resume {
+		// The initial poll already moved the value into channel storage.
+		// Until an ack or cancellation arrives, keep that operation parked;
+		// reserving and evaluating a source again would duplicate the send.
+		vm.asyncPendingParkKey = asyncrt.ChannelSendKey(chID)
+		res.doJump = true
+		res.jumpBB = instr.ChanSend.PendBB
+		return res, nil
+	}
 
 	reservation, ready := exec.ChanReserveSendOrPark(chID)
 	if !ready {
@@ -73,6 +88,14 @@ func (vm *VM) execInstrChanSend(frame *Frame, instr *mir.Instr, writes []LocalWr
 	if vmErr != nil {
 		reservation.Abort()
 		return res, vmErr
+	}
+	if instr.ChanSend.TrackConsumed {
+		if err := vm.writeLocal(frame, instr.ChanSend.Consumed.Local,
+			MakeBool(true, vm.Types.Builtins().Bool)); err != nil {
+			reservation.Abort()
+			vm.dropValue(val)
+			return res, err
+		}
 	}
 	payload, vmErr := vm.stageReservedChannelSend(reservation, val)
 	if vmErr != nil {

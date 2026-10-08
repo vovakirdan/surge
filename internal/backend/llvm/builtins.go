@@ -237,6 +237,7 @@ func runtimeDecls() []builtinDecl {
 		{name: "rt_async_return_cancelled", ret: "void", params: []string{"ptr", "i64"}},
 		{name: "rt_channel_new", ret: "ptr", params: []string{"i64", "ptr", "i64"}},
 		{name: "rt_channel_send", ret: "i1", params: []string{"ptr", "ptr"}},
+		{name: "rt_channel_send_tracked", ret: "i1", params: []string{"ptr", "ptr", "i32", "ptr"}},
 		{name: "rt_channel_send_yield", ret: "i1", params: []string{"ptr", "ptr"}},
 		{name: "rt_channel_send_offer", ret: "i1", params: []string{"ptr", "ptr"}},
 		{name: "rt_channel_send_yield_offer", ret: "i1", params: []string{"ptr", "ptr"}},

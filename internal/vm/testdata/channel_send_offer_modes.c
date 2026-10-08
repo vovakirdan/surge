@@ -13,6 +13,7 @@ static unsigned offer_moves;
 static unsigned offer_drops;
 static unsigned offer_refs;
 static int offer_clear;
+static int offer_tracked;
 static rt_task* offer_receiver_to_kill;
 
 static void offer_move(void* dst, void* src) {
@@ -78,16 +79,33 @@ static int call_offer(retry_fixture* f, uint64_t original, int yield, unsigned t
     offer_fixture = f;
     offer_moves = 0;
     offer_drops = 0;
+    int done;
+    unsigned caller_drops = 0;
+    if (offer_tracked) {
+        bool consumed = take == 0; // Must be written even when no move runs.
+        done = rt_channel_send_tracked(f->handle, &disposable, yield, &consumed);
+        if (consumed != (take != 0) || offer_drops != 0) {
+            stand_fail("tracked send confused readiness with source transfer");
+        }
+        // Unlike an offer, an unconsumed source remains the caller's owner.
+        if (!consumed) {
+            // The runtime pin has already ended; this is caller cleanup.
+            offer_address = NULL;
+            offer_drop(&disposable);
+            caller_drops++;
+        }
+    } else {
 #ifdef RV2_SEND_OFFER_OLD_API_NEGATIVE_CONTROL
-    int done = yield ? rt_channel_send_yield(f->handle, &disposable)
+        done = yield ? rt_channel_send_yield(f->handle, &disposable)
                      : rt_channel_send(f->handle, &disposable);
 #else
-    int done = yield ? rt_channel_send_yield_offer(f->handle, &disposable)
+        done = yield ? rt_channel_send_yield_offer(f->handle, &disposable)
                      : rt_channel_send_offer(f->handle, &disposable);
 #endif
+    }
     offer_address = NULL;
     offer_fixture = NULL;
-    if (offer_moves != take || offer_drops != 1 - take) {
+    if (offer_moves != take || offer_drops + caller_drops != 1 - take) {
         fprintf(
             stderr, "offer census: take=%u moves=%u drops=%u\n", take, offer_moves, offer_drops);
         stand_fail("offer must transfer or drop exactly one reference");
@@ -155,9 +173,45 @@ static void offer_pool_full(retry_fixture* f, uint64_t original, int yield) {
     free(tokens);
 }
 
+static void tracked_retry_source(retry_fixture* f, int yield) {
+    uint64_t source = 1;
+    offer_refs++;
+    offer_address = &source;
+    offer_fixture = f;
+    offer_moves = offer_drops = 0;
+    for (unsigned i = 0; i < RT_CHANNEL_RETRY_BUDGET; i++) {
+        bool consumed = true;
+        if (rt_channel_send_tracked(f->handle, &source, yield, &consumed) || consumed ||
+            source != 1 || offer_moves != 0 || offer_drops != 0) {
+            stand_fail("refused tracked send did not preserve its original source");
+        }
+    }
+    clear_prepared_waiter(f);
+    release_held_claim(f);
+    bool consumed = false;
+    if (!rt_channel_send_tracked(f->handle, &source, yield, &consumed) || !consumed ||
+        offer_moves != 1 || offer_drops != 0 || (offer_clear && source != 0)) {
+        stand_fail("tracked retry did not transfer the same source exactly once");
+    }
+    offer_address = NULL;
+    offer_fixture = NULL;
+}
+
+static void tracked_resume(retry_fixture* f, int yield, int ready) {
+    unsigned refs = offer_refs;
+    int done = yield ? rt_channel_send_yield(f->handle, NULL) : rt_channel_send(f->handle, NULL);
+    if (done != ready || offer_refs != refs) {
+        stand_fail("source-free resume changed ownership or readiness");
+    }
+}
+
 void run_send_offer_mode(const char* mode) {
     // Prefixes are consumed in order so every branch runs against both APIs
     // and against both move/drop behaviors without duplicating its setup.
+    offer_tracked = strncmp(mode, "tracked-", 8) == 0;
+    if (offer_tracked) {
+        mode += 8;
+    }
     int yield = strncmp(mode, "yield-", 6) == 0;
     if (yield) {
         mode += 6;
@@ -170,7 +224,21 @@ void run_send_offer_mode(const char* mode) {
     offer_refs = 1; // The separate original binding's reference.
     retry_fixture f = make_fixture_with_ops(&offer_ops);
     rt_task* receiver = NULL;
-    if (strcmp(mode, "ack") == 0) {
+    if (strcmp(mode, "retry-source") == 0 && offer_tracked) {
+        tracked_retry_source(&f, yield);
+    } else if (strcmp(mode, "resume-without-source") == 0 && offer_tracked) {
+        seed_offer_ring(&f);
+        (void)call_offer(&f, original, yield, 1, 0);
+        clear_prepared_waiter(&f);
+        tracked_resume(&f, yield, 0);
+        clear_prepared_waiter(&f);
+    } else if (strcmp(mode, "ack-window") == 0 && offer_tracked) {
+        // A peer retired the slot but has not yet published the acknowledgement.
+        release_held_claim(&f);
+        tracked_resume(&f, yield, 0);
+        f.task->resume_kind = RESUME_CHAN_SEND_ACK;
+        tracked_resume(&f, yield, 1);
+    } else if (strcmp(mode, "ack") == 0) {
         f.task->resume_kind = RESUME_CHAN_SEND_ACK;
         (void)call_offer(&f, original, yield, 0, 1);
         release_held_claim(&f);

@@ -101,7 +101,7 @@ fn main() -> int {
 	}
 }
 
-func TestChannelSendConsumingPollKeepsItsAPI(t *testing.T) {
+func TestChannelSendConsumingPollTracksSourceTransfer(t *testing.T) {
 	for _, row := range []struct{ name, typ, param, initial, declaration string }{
 		{"plain", "int32", "int32", "17:int32", ""},
 		{"owning", "string", "own string", `own "owned"`, ""},
@@ -129,13 +129,16 @@ fn main() -> int {
 							if ins.Kind != mir.InstrChanSend {
 								continue
 							}
+							ins.ChanSend.YieldAfterHandoff = yield
+							if ins.ChanSend.Value.Kind == mir.OperandConst && ins.ChanSend.Value.Const.Kind == mir.ConstNothing {
+								continue
+							}
 							if sender != nil {
 								t.Fatal("fixture must contain exactly one send")
 							}
 							if ins.ChanSend.Value.Kind == mir.OperandRetain {
 								t.Fatal("consuming control became an offer")
 							}
-							ins.ChanSend.YieldAfterHandoff = yield
 							sender = fn
 						}
 					}
@@ -151,6 +154,14 @@ fn main() -> int {
 				callee := "rt_channel_send"
 				if yield {
 					callee += "_yield"
+				}
+				if row.name != "plain" {
+					// One submission reports consumption, one source-free retry
+					// consumes the eventual acknowledgement.
+					if strings.Count(body, "call i1 @rt_channel_send_tracked(") != 1 ||
+						!strings.Contains(body, "ptr null)") {
+						t.Fatalf("consuming send lost its transfer state:\n%s", body)
+					}
 				}
 				if strings.Count(body, "call i1 @"+callee+"(") != 1 ||
 					strings.Contains(body, "call i1 @rt_channel_send_offer(") ||

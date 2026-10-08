@@ -415,6 +415,9 @@ func validateLocalIDs(f *Func, globals []Global) error {
 				checkPlace(ins.JoinAll.Dst, ctx)
 				checkOperand(ins.JoinAll.Scope, ctx)
 			case InstrChanSend:
+				if ins.ChanSend.TrackConsumed {
+					checkPlace(ins.ChanSend.Consumed, ctx)
+				}
 				checkOperand(ins.ChanSend.Channel, ctx)
 				checkOperand(ins.ChanSend.Value, ctx)
 			case InstrChanRecv:
