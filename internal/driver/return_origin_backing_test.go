@@ -118,7 +118,7 @@ func backingLeaves() map[string][]backingLeaf {
 		// Recorded gap (amendment A1.2): an uninstantiated template's selected index has no finalized use.
 		"w8_alias_formals": {one("alias_formals", backingCheck{function: "alias_formals",
 			pending: []backingPending{{103, 109, "generic index lacks its finalized concrete use"}}})},
-		"w9_constructor_discard": {one("boxed", discard("boxed", 110, 138))},
+		"w9_constructor_discard": {one("boxed", escapes("boxed", backingEscape{103, 139, "xs", 37, 98}))},
 		"w10_push_discard":       {one("stash", discard("stash", 132, 151))},
 		"w11_callable_launder":   {one("launder", discard("launder", 173, 186))},
 		"w12_extend_union": {one("wrap", clean("wrap", 0)),

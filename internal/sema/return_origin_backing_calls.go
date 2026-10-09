@@ -127,8 +127,9 @@ func returnOriginTargetLoans(env returnOriginEnv, t returnOriginBackingTargets) 
 }
 
 // loanGuardFormal is the G6-ii qualification: a by-value formal whose type holds
-// no borrow would silently erase a loan its actual carries. Only a source body's
-// original generic formal is exempt; its template seeding keeps the loan.
+// no borrow would silently erase a loan its actual carries. A concrete source
+// body may consume a loan-carrier formal only when its result cannot carry that
+// loan onward; otherwise a pass-through body could launder the loan.
 func (b *returnOriginBody) loanGuardFormal(callee *returnOriginFunction, signature *returnOriginSignature, info *types.FnInfo, callback bool, i int) bool {
 	in := b.function.unit.Sema.TypeInterner
 	free := func(params []types.TypeID) bool {
@@ -138,7 +139,8 @@ func (b *returnOriginBody) loanGuardFormal(callee *returnOriginFunction, signatu
 	case callback || callee == nil:
 		return info != nil && free(info.Params)
 	case callee.item.Body.IsValid():
-		return !callee.directTemplateParam(callee.info.Params[i]) && !types.ContainsGenericParam(in, callee.info.Params[i]) && free(callee.info.Params)
+		return !callee.directTemplateParam(callee.info.Params[i]) && !types.ContainsGenericParam(in, callee.info.Params[i]) &&
+			free(callee.info.Params) && (!b.holdsLoan(callee.info.Params[i]) || b.holdsLoan(callee.info.Result))
 	case signature != nil:
 		return free(signature.params)
 	default:

@@ -204,9 +204,9 @@ func TestAnalyzeTemplateCallerResultLoans(t *testing.T) {
 	})
 }
 
-// A Map value and an erased element with its own __clone can hold a loan only
-// after a producer refused it, so the caller-side container guard has nothing
-// left to refuse. Each twin pins the producer row it depends on.
+// A Map value still refuses a view at its opaque table boundary. A plain Box
+// now preserves its nested array loan through construction; its selected
+// __clone returns an empty Box, so the producer itself is no longer refused.
 const containerLoanTwinSource = `type Box = { v: uint64[] };
 extern<Box> {
     pub fn __clone(self: &Box) -> Box {
@@ -265,8 +265,8 @@ func TestAnalyzeContainerLoanTwins(t *testing.T) {
 			"caller": originPendingWithin(analysis, key, leakTakeMap.start, leakTakeMap.end)})
 	})
 	t.Run("clone_twin", func(t *testing.T) {
-		if !originPendingAt(analysis, key, literal.span, backingLoanDiscard) {
-			t.Errorf("the producer lost its refusal at %q", literal.span.snippet)
+		if originPendingAt(analysis, key, literal.span, backingLoanDiscard) {
+			t.Errorf("the nested-loan constructor still discarded its child at %q", literal.span.snippet)
 		}
 		if originPendingAt(analysis, key, arrayLiteral, backingLoanDiscard) {
 			t.Errorf("the array literal refused an already emptied child at %q", arrayLiteral.snippet)
