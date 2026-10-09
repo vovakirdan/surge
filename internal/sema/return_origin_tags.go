@@ -56,12 +56,14 @@ func (a *returnOriginAnalyzer) tagPayload(fn *returnOriginFunction, id ast.ExprI
 	// declaration is found in each owner's own vocabulary, over every unit.
 	for _, unit := range a.units {
 		locals := unit.Publication.RootToLocalSymbols[canonical]
-		if len(unit.Publication.RootToLocalSymbols) == 0 {
-			locals = nil
+		if len(locals) == 0 && len(u.Publication.RootToLocalSymbols) == 0 {
 			if unit == u {
 				locals = []symbols.SymbolID{canonical}
-			} else if len(u.Publication.RootToLocalSymbols) == 0 {
+			} else {
 				locals = siblingDeclarationSymbols(u, unit, sym)
+				if len(locals) == 0 {
+					locals = importedTagDeclarationSymbols(u, unit, sym)
+				}
 			}
 		}
 		file := unit.Builder.Files.Get(unit.FileID)
@@ -233,4 +235,32 @@ func siblingDeclarationSymbols(u, unit *returnOriginUnitIndex, sym *symbols.Symb
 		return nil
 	}
 	return unit.Symbols.ItemSymbols[sym.Decl.Item]
+}
+
+// A standalone module root has no root-to-local remap of its own. An imported
+// tag copy still retains the declaration's physical source span and module,
+// even though its Decl points into the importing root. Use those two identities
+// to find candidates in the owning module; tagPayload then validates the exact
+// AST item, name, signature, generic slots and payload before accepting one.
+func importedTagDeclarationSymbols(u, unit *returnOriginUnitIndex, sym *symbols.Symbol) []symbols.SymbolID {
+	if u == nil || unit == nil || unit == u || sym == nil || sym.Kind != symbols.SymbolTag ||
+		sym.ModulePath == "" || unit.ModulePath != sym.ModulePath || sym.Span.Start >= sym.Span.End {
+		return nil
+	}
+	file := unit.Builder.Files.Get(unit.FileID)
+	if file == nil || file.Span.File != sym.Span.File {
+		return nil
+	}
+	var out []symbols.SymbolID
+	for item, locals := range unit.Symbols.ItemSymbols {
+		for _, local := range locals {
+			candidate := unit.Symbols.Table.Symbols.Get(local)
+			if candidate != nil && candidate.Kind == symbols.SymbolTag && candidate.Span == sym.Span &&
+				candidate.Decl.ASTFile == unit.FileID && candidate.Decl.Item == item {
+				out = append(out, local)
+			}
+		}
+	}
+	slices.Sort(out)
+	return slices.Compact(out)
 }
