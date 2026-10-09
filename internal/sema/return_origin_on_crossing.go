@@ -62,8 +62,12 @@ func (b *returnOriginBody) onCrossing(id ast.ExprID, data *ast.ExprOnData, env r
 	}
 	out.value, out.storage = returnOriginValueOf(), returnOriginValue{}
 	if !b.crossingInert(u.Sema.ExprTypes[id]) {
-		b.pending(span, returnOriginOnReplyRefusal)
-		out.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
+		generic := b.function.candidate != nil && b.function.item.Body.IsValid() &&
+			len(b.function.candidate.TemplateParams) != 0 && types.ContainsGenericParam(u.Sema.TypeInterner, u.Sema.ExprTypes[id])
+		if !generic || len(b.requireOpaqueState(returnOriginView(b.function), u.Sema.ExprTypes[id], span).roots) != 0 {
+			b.pending(span, returnOriginOnReplyRefusal)
+			out.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
+		}
 	}
 	return out, nil
 }
