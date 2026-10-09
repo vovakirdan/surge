@@ -152,9 +152,11 @@ func (u *returnOriginUnitIndex) canonicalParameterOwner(local symbols.SymbolID) 
 	return canonical, canonical.IsValid()
 }
 
-// Ordinary & evaluation keeps the address in argument and the binding's
+// Ordinary & evaluation keeps the address in argument and a local binding's
 // current contents in env. Read those contents after evaluation, without
-// reviving an expired owner or evaluating the operand a second time.
+// reviving an expired owner or evaluating the operand a second time. A direct
+// shared-reference formal has no local cell to read; its Param root is already
+// the caller-owned referent and is the conservative content source.
 func (b *returnOriginBody) cloneBindingContents(argument returnOriginValue, env returnOriginEnv, receiver types.TypeID) (returnOriginValue, string) {
 	unknown := returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 	if !argument.normal || len(argument.roots) == 0 || len(argument.callables) != 0 {
@@ -162,6 +164,13 @@ func (b *returnOriginBody) cloneBindingContents(argument returnOriginValue, env 
 	}
 	value := returnOriginValueOf()
 	for _, root := range argument.roots {
+		if root.kind == returnOriginParam && !root.expired && int64(root.param) < int64(len(b.function.info.Params)) {
+			formal, ok := b.function.unit.Sema.TypeInterner.Lookup(b.function.info.Params[root.param])
+			if ok && formal.Kind == types.KindReference && !formal.Mutable && formal.Elem == receiver {
+				value = value.join(returnOriginValueOf(root))
+				continue
+			}
+		}
 		if root.kind != returnOriginLocal || root.expired {
 			return argument.join(unknown), "deferred clone requires a live local storage referent"
 		}
