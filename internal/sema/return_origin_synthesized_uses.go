@@ -63,7 +63,8 @@ func (a *returnOriginAnalyzer) checkSynthesizedUse(fn, caller *returnOriginFunct
 	if fn == nil || caller == nil || (reason != returnOriginUseWithoutOperation && reason != returnOriginUseOtherOperation) {
 		return false, ""
 	}
-	switch a.useWitnessReason(use) {
+	witness := a.useWitnessReason(use)
+	switch witness {
 	case "default-init":
 		if reason != returnOriginUseWithoutOperation {
 			return false, ""
@@ -73,13 +74,67 @@ func (a *returnOriginAnalyzer) checkSynthesizedUse(fn, caller *returnOriginFunct
 		return a.checkEntrypointExitUse(fn, caller, use, reason)
 	case "magic-op":
 		return a.checkOperatorUse(fn, caller, use.Site, use.TemplateArgs, reason)
+	case "call":
+		return a.checkConversionUse(fn, caller, use, reason)
 	default:
 		return false, ""
 	}
 	if op, certified := a.coreArrayIntrinsic(fn); !certified || op != returnOriginArrayDefault {
 		return false, ""
 	}
+	if witness == "conversion-target" && len(use.TemplateArgs) == 1 && use.TemplateArgs[0] == fn.unit.Sema.TypeInterner.Builtins().String {
+		return true, ""
+	}
 	return a.checkBackingIntrinsicUse(fn, use)
+}
+
+func (a *returnOriginAnalyzer) checkConversionUse(fn, caller *returnOriginFunction, use ConcreteInstantiationUse,
+	reason string,
+) (bool, string) {
+	if reason != returnOriginUseOtherOperation || fn == nil || caller == nil {
+		return false, ""
+	}
+	if fn.candidate == nil || fn.info == nil || fn.name != "__to" || !fn.item.Body.IsValid() {
+		return false, ""
+	}
+	if !fn.candidate.HasBody || !fn.candidate.HasSelf || fn.candidate.Async {
+		return false, ""
+	}
+	if len(fn.info.Params) != 2 || len(fn.candidate.TemplateParams) != len(use.TemplateArgs) {
+		return false, ""
+	}
+	u := caller.unit
+	var expression ast.ExprID
+	for id := range u.Sema.ExprTypes {
+		node := u.Builder.Exprs.Get(id)
+		if node != nil && node.Span == use.Site && node.Kind == ast.ExprCast {
+			if expression.IsValid() {
+				return false, ""
+			}
+			expression = id
+		}
+	}
+	data, cast := u.Builder.Exprs.Cast(expression)
+	if !expression.IsValid() || !cast || data == nil {
+		return false, ""
+	}
+	selected, present := u.Sema.ToSymbols[expression]
+	chosen, selectedReason := a.selectedCallableFunction(u, selected)
+	in := u.Sema.TypeInterner
+	formal, formalOK := in.Lookup(returnOriginResolveAlias(in, fn.info.Params[0]))
+	if !present || selectedReason != "" || chosen != fn {
+		return false, ""
+	}
+	if !formalOK || formal.Kind != types.KindReference || formal.Mutable {
+		return false, ""
+	}
+	if fn.info.Params[1] != u.Sema.ExprTypes[expression] || fn.info.Result != u.Sema.ExprTypes[expression] {
+		return false, ""
+	}
+	if matchReturnOriginSourceTypeMode(in, formal.Elem, u.Sema.ExprTypes[data.Value], fn.candidate.TemplateParams, use.TemplateArgs, true) != "" {
+		return false, ""
+	}
+	return true, ""
 }
 
 // checkEntrypointExitUse answers the startup `main().__exit_code()` SEMA bound for an

@@ -161,7 +161,8 @@ func (a *returnOriginAnalyzer) checkGenericUses() error {
 		}
 		duplicates := 0
 		for _, other := range closure.UseSites {
-			if other.Caller == use.Caller && other.CallerTemplate == use.CallerTemplate && other.SourceKey == use.SourceKey && other.Site == use.Site {
+			if other.Kind == use.Kind && other.CalleeTemplate == use.CalleeTemplate && other.Caller == use.Caller &&
+				other.CallerTemplate == use.CallerTemplate && other.SourceKey == use.SourceKey && other.Site == use.Site {
 				duplicates++
 			}
 		}
