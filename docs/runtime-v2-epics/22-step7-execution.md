@@ -342,9 +342,11 @@ work, not part of the decision. The N-PROJ gap is closed for a certified scalar
 index on 2026-10-09: `*names[i]` loads the exact backing contents, and the
 compiler-built variadic reference pack has source, escape, VM/LLVM and strict
 Valgrind witnesses. Source-written arrays of references remain SEM3138, and a
-view, slice or `for` walk over reference elements remains this boundary. A store
-through a nested index place, `grid[1][0] = 88` (`store through a place needs
-reference-content transfer`; the N-STORE gap), is still open. The third gap
+view, slice or `for` walk over reference elements remains this boundary. The
+no-content N-STORE case closed on 2026-10-09: `grid[1][0] = 88` and a typed
+member/index chain into a reference-free, non-loan-carrier final element change
+no origin fact. Reference-bearing and loan-carrying final elements remain
+refused and still require backing or the deferred alias model. The third gap
 recorded here on 2026-09-16 is closed: `for … in` has
 its origin transfer, so a walk over elements that hold no borrow and can keep no
 storage loan (`int[]`, `Array<string>`, a plain struct of them) leaves no
