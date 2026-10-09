@@ -163,11 +163,12 @@ func (a *returnOriginAnalyzer) methodOutcome(fn *returnOriginFunction, edge *Def
 		(edge.StaticReceiver && len(found.CalleeParamTypes) != len(found.Args)) || (!edge.StaticReceiver && len(found.CalleeParamTypes) != len(found.Args)+1) {
 		return "deferred method needs its resolved implementation signature"
 	}
-	if returnOriginCallHasUnprovedEffects(in, found.CalleeParamTypes) {
+	callee := a.functionForTemplate(found.Callee)
+	if returnOriginCallHasUnprovedEffects(in, found.CalleeParamTypes) && !returnOriginBytesViewReader(callee) {
 		return "deferred method may change reference-bearing or callable contents"
 	}
 	// A body-less implementation has no body that refuses a loan written through a `&mut` formal.
-	if callee := a.functionForTemplate(found.Callee); (callee == nil || !callee.item.Body.IsValid()) &&
+	if (callee == nil || !callee.item.Body.IsValid()) &&
 		(&returnOriginBody{analyzer: a, function: fn}).loanSinkEffects(found.CalleeParamTypes, found.CalleeParamTypes) {
 		return "deferred method may change reference-bearing or callable contents"
 	}

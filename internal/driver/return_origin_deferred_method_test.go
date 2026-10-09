@@ -270,6 +270,16 @@ func TestAnalyzeDeferredMethodInstances(t *testing.T) {
 				deferredCleared(t, analysis, f.unit.SourceKey, originSpan{42, 49, "len(xs)"})
 				rootClean(t, f, analysis)
 			}},
+		{name: "i6_len_bytes_view", digest: "d07c260d6df800f548b5b2c9d2e48ac20936aad955e20e7e3aef01fd7cb24424",
+			text: "fn probe(s: &string) -> uint {\n    let view = s.bytes();\n    return len(&view);\n}\n", spans: []originSpan{{46, 55, "s.bytes()"}, {68, 78, "len(&view)"}},
+			prepare: func(t *testing.T, f originalGenericFixture) {
+				deferredMethodOutcomes(t, f, "core/base.sg", baseLen(t, f))
+			},
+			check: func(t *testing.T, f originalGenericFixture, analysis *sema.ReturnOriginAnalysis) {
+				deferredCleared(t, analysis, "core/base.sg", baseLen(t, f))
+				deferredCleared(t, analysis, f.unit.SourceKey, originSpan{46, 55, "s.bytes()"}, originSpan{68, 78, "len(&view)"})
+				rootClean(t, f, analysis)
+			}},
 	} {
 		t.Run(leaf.name, func(t *testing.T) {
 			checkOriginSource(t, leaf.text, leaf.digest, leaf.spans...)
