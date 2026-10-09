@@ -149,9 +149,14 @@ func (l *lowerer) lowerCallExpr(exprID ast.ExprID, expr *ast.Expr, ty types.Type
 	if isMember && member != nil {
 		if symID.IsValid() {
 			if !l.isModuleExpr(member.Target) {
-				recv := l.lowerExpr(member.Target)
+				recv := l.mutableIndexedSelfBorrow(symID, member.Target)
+				if recv == nil {
+					recv = l.lowerExpr(member.Target)
+				}
 				if recv != nil && recv.Type != types.NoTypeID {
-					recv = l.applySelfBorrow(symID, recv)
+					if !isBorrowExpr(recv) {
+						recv = l.applySelfBorrow(symID, recv)
+					}
 					args = append([]*Expr{recv}, args...)
 				}
 			}

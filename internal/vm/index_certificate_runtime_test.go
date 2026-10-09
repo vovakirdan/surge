@@ -111,6 +111,22 @@ fn main() -> int {
     return 0;
 }
 `, "11\n"},
+	{"mutable_method_on_indexed_array_element", `fn grow(xs: &mut int[][]) -> nothing {
+    xs[1].push(9);
+    return nothing;
+}
+@entrypoint
+fn main() -> int {
+    let base: int[] = [1, 2, 3, 4];
+    let win: int[] = base[[1..3]];
+    let owned: int[] = [7, 8];
+    let mut xs: int[][] = [win, owned];
+    grow(&mut xs);
+    print((xs[1].__len() to int) to string);
+    print(base[1] to string);
+    return 0;
+}
+`, "3\n2\n"},
 }
 
 func TestIndexCertificateRunsVM(t *testing.T) {

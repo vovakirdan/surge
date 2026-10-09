@@ -71,6 +71,11 @@ fn put(out: &mut byte[], v: uint8) -> nothing {
     return nothing;
 }
 `},
+	{"indexed_mutable_receiver", `fn grow(xs: &mut int[][]) -> nothing {
+    xs[1].push(9);
+    return nothing;
+}
+`},
 }
 
 // aliasArgAt names the one occurrence of snippet in text.
@@ -163,17 +168,15 @@ fn stash(ch: Channel<Win>) -> nothing {
     return nothing;
 }
 `, want: []want{{"opts.push(Some(a[[1..3]]))", aliasArgDisagrees}}},
-		{name: "index_receiver_form_keeps_row", text: `fn grow(xs: &mut int[][]) -> nothing {
-    xs[1].push(9);
-    return nothing;
-}
-`, want: []want{{"xs[1].push(9)", aliasArgDisagrees}}},
-		{name: "index_receiver_window_keeps_row", text: `fn stash_elem(xs: &mut int[][][]) -> nothing {
+		{name: "index_receiver_window_keeps_rows", text: `fn stash_elem(xs: &mut int[][][]) -> nothing {
     let a: int[4] = [1, 2, 3, 4];
     xs[0].push(a[[1..3]]);
     return nothing;
 }
-`, want: []want{{"xs[0].push(a[[1..3]])", aliasArgDisagrees}}},
+`, want: []want{
+			{"xs[0].push(a[[1..3]])", "cursor element that can hold storage loans needs its backing loan transfer"},
+			{"xs[0].push(a[[1..3]])", aliasArgLoanDiscarded},
+		}},
 		{
 			// Two aliases of one target: neither chain reaches the other, so the
 			// relation (declaration identity along ONE chain) does not hold.

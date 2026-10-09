@@ -91,6 +91,51 @@ func (l *lowerer) applySelfBorrow(symID symbols.SymbolID, recv *Expr) *Expr {
 	return l.applyBorrow(recv, mut)
 }
 
+// mutableIndexedSelfBorrow preserves the physical element place for a mutable
+// method receiver. Sema has already proved that only built-in Array/ArrayFixed
+// indexing may reborrow mutably; a custom shared __index never reaches this
+// path. Lowering the index as a value first would turn it into `&T` and lose the
+// place before applySelfBorrow can form `&mut T`.
+func (l *lowerer) mutableIndexedSelfBorrow(symID symbols.SymbolID, exprID ast.ExprID) *Expr {
+	if !symID.IsValid() || l.symRes == nil || l.symRes.Table == nil || l.symRes.Table.Symbols == nil || l.semaRes == nil {
+		return nil
+	}
+	sym := l.symRes.Table.Symbols.Get(symID)
+	if sym == nil || sym.Signature == nil || !sym.Signature.HasSelf || len(sym.Signature.Params) == 0 ||
+		!strings.HasPrefix(strings.TrimSpace(string(sym.Signature.Params[0])), "&mut ") {
+		return nil
+	}
+	original := exprID
+	for {
+		node := l.builder.Exprs.Get(exprID)
+		if node == nil {
+			return nil
+		}
+		if node.Kind != ast.ExprGroup {
+			break
+		}
+		group, _ := l.builder.Exprs.Group(exprID)
+		if group == nil {
+			return nil
+		}
+		exprID = group.Inner
+	}
+	index, ok := l.builder.Exprs.Index(exprID)
+	if !ok || index == nil || !l.indexUsesPhysicalArrayPlace(exprID, index.Target) {
+		return nil
+	}
+	elem, reference, _ := l.referenceInfo(l.semaRes.ExprTypes[exprID])
+	if !reference {
+		return nil
+	}
+	place := l.lowerPlaceExpr(original)
+	if place == nil {
+		return nil
+	}
+	return &Expr{Kind: ExprUnaryOp, Type: l.referenceType(elem, true), Span: place.Span,
+		Data: UnaryOpData{Op: ast.ExprUnaryRefMut, Operand: place}}
+}
+
 func (l *lowerer) applyBorrow(value *Expr, mut bool) *Expr {
 	if value == nil {
 		return nil

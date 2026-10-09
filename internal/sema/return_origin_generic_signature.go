@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"surge/internal/ast"
+	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
@@ -266,6 +267,9 @@ func (u *returnOriginUnitIndex) originalArgumentType(expr ast.ExprID, original t
 			if !f.Mutable && a.Mutable && match(f.Elem, a.Elem) {
 				return formal, ""
 			}
+			if f.Mutable && !a.Mutable && match(f.Elem, a.Elem) && u.mutablePhysicalIndexReceiver(expr, a.Elem) {
+				return formal, ""
+			}
 		} else if match(f.Elem, resolvedActual) || a.Kind == types.KindOwn && match(f.Elem, a.Elem) { // G2: an own binding is autoborrowed as a place
 			kind, _ := returnOriginFormalBorrowKind(in, formal)
 			var evidence *BorrowInfo
@@ -291,4 +295,20 @@ func (u *returnOriginUnitIndex) originalArgumentType(expr ast.ExprID, original t
 		return a.Elem, ""
 	}
 	return types.NoTypeID, "generic original call argument disagrees with its substituted source signature"
+}
+
+func (u *returnOriginUnitIndex) mutablePhysicalIndexReceiver(id ast.ExprID, elem types.TypeID) bool {
+	data, indexed := u.Builder.Exprs.Index(id)
+	primitive, reason := returnOriginTypedIndex(u, id)
+	if !indexed || data == nil || reason != "" || primitive.element != elem {
+		return false
+	}
+	selected, present := u.Sema.IndexSymbols[id]
+	sym := u.Symbols.Table.Symbols.Get(selected)
+	if !present || !selected.IsValid() || sym == nil || sym.Kind != symbols.SymbolFunction || sym.Flags&symbols.SymbolFlagBuiltin == 0 ||
+		sym.Signature == nil || !sym.Signature.HasSelf || sym.Signature.HasBody {
+		return false
+	}
+	name, _ := u.Symbols.Table.Strings.Lookup(sym.Name)
+	return name == "__index"
 }
