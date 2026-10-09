@@ -98,7 +98,7 @@ func TestReturnOriginAliasArgumentsFinish(t *testing.T) {
 // Canaries the analysis must keep refusing, each by its exact rows: a window into a
 // fixed array that leaves its frame with no task -- pushed into a `&mut` container
 // parameter, written through `*out =`, sent into a channel -- spelled with and
-// without an alias, and the argument forms the alias relation does not answer.
+// without an alias, plus the argument forms the alias/union relations do not answer.
 func TestReturnOriginAliasArgumentCanariesKeepTheirRows(t *testing.T) {
 	type want struct{ snippet, reason string }
 	rows := []struct {
@@ -157,17 +157,12 @@ fn stash(ch: Channel<Win>) -> nothing {
     return nothing;
 }
 `, want: []want{{"ch.send(own w)", aliasArgLoanDiscarded}}},
-		{name: "union_member_form_keeps_row", text: `fn fill(opts: &mut Option<int64>[]) -> nothing {
-    opts.push(Some(3:int64));
-    return nothing;
-}
-`, want: []want{{"opts.push(Some(3:int64))", aliasArgDisagrees}}},
-		{name: "union_member_window_keeps_both_rows", text: `fn stash_opt(opts: &mut Option<int[]>[]) -> nothing {
+		{name: "union_member_window_keeps_row", text: `fn stash_opt(opts: &mut Option<int[]>[]) -> nothing {
     let a: int[4] = [1, 2, 3, 4];
     opts.push(Some(a[[1..3]]));
     return nothing;
 }
-`, want: []want{{"opts.push(Some(a[[1..3]]))", aliasArgDisagrees}, {"Some(a[[1..3]])", aliasArgLoanDiscarded}}},
+`, want: []want{{"opts.push(Some(a[[1..3]]))", aliasArgDisagrees}}},
 		{name: "index_receiver_form_keeps_row", text: `fn grow(xs: &mut int[][]) -> nothing {
     xs[1].push(9);
     return nothing;

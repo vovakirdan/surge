@@ -198,21 +198,16 @@ func TestReturnOriginTagConversionEscapeIsRefused(t *testing.T) {
 	t.Fatalf("expected %s, got:\n%s", diag.SemaBorrowEscapesReturn.ID(), diag.FormatGoldenDiagnostics(result.Bag.Items(), result.FileSet, false))
 }
 
-// The other "disagrees" forms are not tag conversions and keep their rows: an
-// element place as a `&mut` receiver, and an explicit union member passed where the
-// formal names its union.
-func TestReturnOriginTagConversionOtherFormsKeepTheirRows(t *testing.T) {
+// An element place as a `&mut` receiver is not a tag conversion and keeps its
+// row. An explicit tag or nothing passed to the exact union formal uses the
+// checker's already selected union-member relation.
+func TestReturnOriginTagConversionArgumentForms(t *testing.T) {
 	rows := []struct{ name, text, snippet, reason string }{
 		{"element_receiver_argument", `fn grow(xs: &mut int[][]) -> nothing {
     xs[1].push(9);
     return nothing;
 }
 `, "xs[1].push(9)", "generic original call argument disagrees with its substituted source signature"},
-		{"union_member_argument", `fn fill(opts: &mut Option<int64>[]) -> nothing {
-    opts.push(Some(3:int64));
-    return nothing;
-}
-`, "opts.push(Some(3:int64))", "generic original call argument disagrees with its substituted source signature"},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
@@ -221,4 +216,28 @@ func TestReturnOriginTagConversionOtherFormsKeepTheirRows(t *testing.T) {
 				[]originRefusal{{span: tagConvAt(t, row.text, row.snippet), reason: row.reason}})
 		})
 	}
+
+	const clean = `fn fill(opts: &mut Option<int64>[]) -> nothing {
+    opts.push(Some(3:int64));
+    opts.push(nothing);
+    return nothing;
+}
+`
+	t.Run("union_member_arguments", func(t *testing.T) {
+		f, analysis := analyzeOriginRoot(t, "tag_conv_union_members", clean, false, nil)
+		originExactPending(t, analysis, f.unit.SourceKey, originSpan{0, len(clean), clean}, nil)
+	})
+
+	const loan = `fn stash(out: &mut Option<int[]>[]) -> nothing {
+    let xs: int[4] = [1, 2, 3, 4];
+    out.push(Some(xs[[1..3]]));
+    return nothing;
+}
+`
+	t.Run("union_member_with_loan_payload_stays_refused", func(t *testing.T) {
+		f, analysis := analyzeOriginRoot(t, "tag_conv_union_loan", loan, false, nil)
+		originExactPending(t, analysis, f.unit.SourceKey, originSpan{0, len(loan), loan}, []originRefusal{{
+			span: tagConvAt(t, loan, "out.push(Some(xs[[1..3]]))"), reason: aliasArgDisagrees,
+		}})
+	})
 }

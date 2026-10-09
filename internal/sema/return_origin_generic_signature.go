@@ -161,6 +161,72 @@ func returnOriginBoundType(id types.TypeID, params, args []types.TypeID) types.T
 	return id
 }
 
+func returnOriginPlainTagPayload(in *types.Interner, id types.TypeID) bool {
+	typ, present := in.Lookup(returnOriginResolveAlias(in, id))
+	if !present {
+		return false
+	}
+	switch typ.Kind {
+	case types.KindUnit, types.KindNothing, types.KindBool, types.KindString, types.KindInt, types.KindUint, types.KindFloat, types.KindEnum:
+		return true
+	default:
+		return false
+	}
+}
+
+func returnOriginExactTypeList(in *types.Interner, left, right []types.TypeID) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if matchReturnOriginSourceType(in, left[i], right[i], nil, nil) != "" {
+			return false
+		}
+	}
+	return true
+}
+
+func returnOriginMatchingUnionTags(in *types.Interner, members []types.UnionMember, tag types.UnionMember) int {
+	matches := 0
+	for _, candidate := range members {
+		if candidate.Kind == types.UnionMemberTag && candidate.TagName == tag.TagName &&
+			returnOriginExactTypeList(in, candidate.TagArgs, tag.TagArgs) {
+			matches++
+		}
+	}
+	return matches
+}
+
+// returnOriginExactUnionMember admits only a scalar/string tag (or nothing)
+// into the already bound union formal. The actual tag is itself a single-member
+// union; exact declaration and payload identities keep sibling tags, aggregates
+// which can hide loans, and unrelated unions distinct.
+func returnOriginExactUnionMember(in *types.Interner, formal, actual types.TypeID) bool {
+	formal = returnOriginResolveAlias(in, formal)
+	actual = returnOriginResolveAlias(in, actual)
+	target, ok := in.UnionInfo(formal)
+	if !ok || target == nil {
+		return false
+	}
+	if actual == in.Builtins().Nothing {
+		return len(target.Members) != 0 && slices.ContainsFunc(target.Members, func(member types.UnionMember) bool {
+			return member.Kind == types.UnionMemberNothing
+		})
+	}
+	tag, ok := in.UnionInfo(actual)
+	if !ok || tag == nil || len(tag.Members) != 1 {
+		return false
+	}
+	member := tag.Members[0]
+	if member.Kind != types.UnionMemberTag || member.TagName != tag.Name || !slices.Equal(member.TagArgs, tag.TypeArgs) {
+		return false
+	}
+	if slices.ContainsFunc(member.TagArgs, func(id types.TypeID) bool { return !returnOriginPlainTagPayload(in, id) }) {
+		return false
+	}
+	return returnOriginMatchingUnionTags(in, target.Members, member) == 1
+}
+
 // Outer conversions follow admitted checker rules. A stored reference borrow
 // still needs the FromExpr certificate; the flow reader supplies current storage.
 func (u *returnOriginUnitIndex) originalArgumentType(expr ast.ExprID, original types.TypeID, params, args []types.TypeID) (types.TypeID, string) {
@@ -185,6 +251,9 @@ func (u *returnOriginUnitIndex) originalArgumentType(expr ast.ExprID, original t
 	}
 	if !fok || !aok {
 		return types.NoTypeID, "generic original call argument lacks its typed descriptor"
+	}
+	if returnOriginExactUnionMember(in, formal, actual) {
+		return formal, ""
 	}
 	match := func(left, right types.TypeID) bool {
 		if slices.Contains(params, original) {
