@@ -561,23 +561,15 @@ func (tc *typeChecker) checkAnchorLeaseUses(body ast.StmtID, frame *onAnchorFram
 	return ok
 }
 
-// registerAsyncBodyOwnership is registerCrossingBodyOwnership for a local async
-// block, and differs in exactly one predicate: there is no `own` requirement.
-//
-// A crossing capture must be an owned move because it travels to another shard.
-// A local async block's capture is a by-value PARAMETER of the synthetic function
-// the block becomes, so the question is the one a parameter already answers —
-// does passing it transfer ownership — and that is paramTransfersOwnership, the
-// same predicate registerDroppableParams uses.
-//
-// This is one half of a pair and is useless alone. The caller's binding is marked
-// moved in typeExprAsync; registering here without that marking makes both sides
-// drop, and marking there without registering here makes neither. RV2-DEBT-079
-// and RV2-DEBT-081 record the crossing's first attempt at this pairing turning
-// into an invalid read plus an invalid free for exactly that reason.
+// registerAsyncBodyOwnership releases captures owned by the synthetic async body.
+// Moved captures pair with typeExprAsync's caller-side move. Counted copies stay
+// usable by the caller: the synchronous constructor retains a separate frame copy,
+// which the body consumes when entered. Cold/cancelled frames use state cleanup.
 func (tc *typeChecker) registerAsyncBodyOwnership(body ast.StmtID) {
 	for _, cap := range tc.collectBlockingCaptures(body) {
-		if !tc.paramTransfersOwnership(tc.bindingType(cap.symID)) {
+		ty := tc.bindingType(cap.symID)
+		retainedCopy := tc.types != nil && tc.types.IsRefCounted(ty)
+		if !tc.paramTransfersOwnership(ty) && !retainedCopy {
 			continue
 		}
 		tc.registerDroppableBinding(cap.symID)
@@ -628,10 +620,9 @@ func (tc *typeChecker) registerBlockingBodyOwnership(body ast.StmtID) {
 // Either way the body owes the field's one reference back, and this
 // registration is what makes it pay.
 //
-// Deliberately not shared with registerAsyncBodyOwnership above, which still
-// asks only the transfer predicate. A local `async` block's frame is reclaimed
-// on its own protocol, so whether it abandons a retained capture the same way is
-// a separate derivation, on its own evidence, which this change does not make.
+// Kept separate from registerAsyncBodyOwnership: blocking makes scalar copies
+// private before publication to a pool thread. Local async uses its own
+// constructor/state cleanup, verified independently.
 func (tc *typeChecker) captureIsRetainedIntoBlockingFrame(id types.TypeID) bool {
 	if tc.types == nil {
 		return false

@@ -20,18 +20,18 @@ const (
 
 // taskBlockTransfer is the transfer of `async { ... }` and `blocking { ... }`.
 //
-// The value is a Task handle made here; the body runs later, as a function of its own
-// (mir/lower_expr_misc.go:170-229) or as a job on a pool thread (mir/lower_blocking.go), and
-// each takes its captures, the checker's record of the node, into its own state by a consuming
-// read before it starts (hir/lower_expr_control.go:186-190, 214-218). Nothing of the body runs
-// before this frame goes on, so this frame continues with the environment it had, whenever
-// the expression is reached, and nothing the body writes reaches its bindings.
+// The value is a Task handle made here. A local async body starts from a cold
+// frame (mir/lower_expr_misc.go); a blocking body is published to a pool thread
+// (mir/lower_blocking.go). Both receive their own captured values. Walking the
+// body therefore uses a separate environment; its writes do not replace the
+// caller's bindings. Captures that could reach borrowed storage remain refused.
 //
 // The body is a frame of its own: `return` cannot leave it (SEM3207), so it is walked as a
 // block whose `ret` is its only exit and whose locals end where it ends, and every row it
-// raises is reported. Two things are asked of types alone. Every recorded capture must be
-// inert, so the body can reach nothing of this frame that holds a reference, a loan or a task,
-// and what it writes cannot be this frame's. The payload T of the Task<T> must be inert, so
+// raises is reported. Captures must be inert, except that a local async block may take
+// its own counted Channel with an inert payload: the runtime retains that object for
+// the task, and no payload can carry a borrow of this frame. Blocking captures do not
+// use this certificate. The payload T of the Task<T> must still be inert, so
 // the handle carries out nothing borrowed. What a running task borrows is the task check's
 // (owner ruling 2026-09-15); a payload that is itself a task is refused here, as an `on`
 // reply is.
@@ -61,6 +61,13 @@ func (b *returnOriginBody) taskBlockTransfer(id ast.ExprID, kind ast.ExprKind, e
 	}
 	for _, capture := range captures[id] {
 		sym := u.Symbols.Table.Symbols.Get(capture)
+		// A counted handle owns its object; its payload must hide no borrowed state.
+		if sym != nil && kind == ast.ExprAsync && u.Sema.TypeInterner.IsRefCountedHandle(sym.Type) {
+			payloads, handle := u.Sema.TypeInterner.RuntimeHandlePayloads(sym.Type)
+			if handle && len(payloads) == 1 && b.crossingInert(payloads[0]) {
+				continue
+			}
+		}
 		if sym == nil || !b.crossingInert(sym.Type) && !b.nullTaskCapture(capture, sym.Type, env) {
 			b.pending(span, returnOriginTaskBlockCaptureRefusal)
 		}

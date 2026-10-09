@@ -1,0 +1,15 @@
+@entrypoint
+fn main() -> int {
+    let ch = Channel::<int>::new(1:uint);
+    ch.send(7);
+    let child = async {
+        let value = ch.recv();
+        ret compare value { Some(v) => v; nothing => 0; };
+    };
+    @drop ch;
+    compare child.await() {
+        Success(v) => print(v to string);
+        Cancelled() => print("cancelled");
+    };
+    return 0;
+}

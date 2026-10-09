@@ -1,0 +1,9 @@
+@entrypoint
+fn main() -> int {
+    let ch = Channel::<float>::new(1:uint);
+    let value: float = 1.5;
+    let child = async { ch.send(value); ret 0; };
+    compare child.await() { Success(_) => {} Cancelled() => { return 1; } };
+    compare ch.recv() { Some(v) => print(v to string); nothing => { return 2; } };
+    return 0;
+}

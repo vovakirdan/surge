@@ -105,6 +105,11 @@ func step7GateRows() []step7GateRow {
 	}
 	return []step7GateRow{
 		{"cast_offer_ir", "runtime-v2-carrier-check", "./internal/backend/llvm", "", "llvm", []string{"TestEmitNumericCastTemporaryCleanup", "TestEmitNumericCastBorrowedAndFixedControls", "TestChannelSendOfferUsesDisposablePollStorage", "TestChannelSendConsumingPollTracksSourceTransfer", "TestChannelSendPendingFrameHasOnlyItsActualOwner"}},
+		{"async_capture_heap_vm", "runtime-v2-heap-check", "./internal/vm", "", "vm", []string{"TestAsyncChannelCaptureLifecycle"}},
+		{"async_capture_heap_llvm", "runtime-v2-heap-check", "./internal/vm", "", "llvm", []string{"TestAsyncChannelCaptureLifecycle"}},
+		{"async_capture_origin", "runtime-v2-carrier-check", "./internal/driver", "", "llvm", []string{"TestAsyncChannelCaptureHasIndependentOrigin", "TestAsyncChannelCaptureOwnsOneFrameReference", "TestAsyncChannelCaptureMultipleFrameReferences", "TestAsyncChannelCaptureKeepsOriginFences", "TestAsyncChannelCaptureRejectsNonCanonicalOwners", "TestAsyncChannelCaptureRejectsInvalidPayloadTypes"}},
+		{"async_capture_lifecycle_vm", "runtime-v2-carrier-sanitizer-check", "./internal/vm", "", "vm", []string{"TestAsyncChannelCaptureLifecycle"}},
+		{"async_capture_lifecycle_llvm", "runtime-v2-carrier-sanitizer-check", "./internal/vm", "", "llvm", []string{"TestAsyncChannelCaptureLifecycle"}},
 		{"uint_offer_mir", "runtime-v2-carrier-check", "./internal/mir", "", "llvm", []string{"TestLowerUintLiteralPreservesKindAndText", "TestChannelSendPollPreservesTheCountedCopyOwner"}},
 		{"argv_cfg", "runtime-v2-carrier-check", "./internal/vm", "runtime_v2_pending", "llvm", []string{"TestRuntimeV2EntrypointArgvBorrowsAndReleasesStorage"}},
 		{"allocation_xml", "runtime-v2-carrier-check", "./internal/vm", "", "llvm", []string{"TestRuntimeV2AsyncAllocationXMLRejectsMalformedReports", "TestRuntimeV2AsyncAllocationXMLExactMultiset", "TestRuntimeV2AsyncAllocationBaselineOrigins"}},

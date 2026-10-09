@@ -203,16 +203,19 @@ func (l *funcLowerer) lowerAsyncExpr(e *hir.Expr, consume bool) (Operand, error)
 		l.out.Funcs[asyncID] = fn
 	}
 
-	// One consuming read per capture, which is what the caller giving up
-	// ownership looks like here. The contract is STORE and not transfer-owned
-	// because the constructor keeps each capture in the state's start variant for
-	// the task's whole life, and STORE is the category that stays a sink for a
-	// refcounted scalar.
+	// Captures enter the cold task state. Counted copies borrow the caller's
+	// copy during the synchronous constructor, which retains its own frame copy.
+	// Other captures keep their consuming STORE contract.
 	args := make([]Operand, 0, len(captures))
-	for _, cap := range captures {
+	contracts := storeArgContracts(len(captures))
+	for i, cap := range captures {
 		arg, argErr := l.captureOperand(cap)
 		if argErr != nil {
 			return Operand{}, argErr
+		}
+		if arg.Kind == OperandRetain && l.types != nil && l.types.IsRefCounted(arg.Type) {
+			arg.Kind = OperandCopy
+			contracts[i] = ArgContractBorrow
 		}
 		args = append(args, arg)
 	}
@@ -228,7 +231,7 @@ func (l *funcLowerer) lowerAsyncExpr(e *hir.Expr, consume bool) (Operand, error)
 				Name: name,
 			},
 			Args:         args,
-			ArgContracts: storeArgContracts(len(args)),
+			ArgContracts: contracts,
 		},
 	})
 	return l.placeOperand(Place{Local: tmp}, e.Type, consume), nil

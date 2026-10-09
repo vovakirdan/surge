@@ -1,0 +1,10 @@
+@entrypoint
+fn main() -> int {
+    let ch = Channel::<int64>::new(2:uint);
+    let alias = ch;
+    let child = async { ch.send(7:int64); alias.send(8:int64); ret 0; };
+    compare child.await() { Success(_) => {} Cancelled() => { return 1; } };
+    compare ch.recv() { Some(v) => print(v to string); nothing => { return 2; } };
+    compare alias.recv() { Some(v) => print(v to string); nothing => { return 3; } };
+    return 0;
+}

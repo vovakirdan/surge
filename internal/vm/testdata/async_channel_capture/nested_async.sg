@@ -1,0 +1,12 @@
+@entrypoint
+fn main() -> int {
+    let ch = Channel::<int64>::new(1:uint);
+    let outer = async {
+        let inner = async { ch.send(7:int64); ret 0; };
+        compare inner.await() { Success(_) => {} Cancelled() => { ret 1; } };
+        ret 0;
+    };
+    compare outer.await() { Success(_) => {} Cancelled() => { return 1; } };
+    compare ch.recv() { Some(v) => print(v to string); nothing => { return 2; } };
+    return 0;
+}

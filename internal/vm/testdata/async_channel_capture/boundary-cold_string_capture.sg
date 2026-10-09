@@ -1,0 +1,9 @@
+@entrypoint
+fn main() -> int {
+    let ch = Channel::<string>::new(1:uint);
+    let value = "buffered payload";
+    ch.send(own value);
+    { let pending = async { let _ = ch; print("body"); ret 0; }; }
+    print("end");
+    return 0;
+}

@@ -1,0 +1,22 @@
+@entrypoint
+fn main() -> int {
+    let result = (async {
+        let ch = Channel::<int>::new(0:uint);
+        let ready = Channel::<int>::new(0:uint);
+        let child = spawn async {
+            ready.send(1);
+            let value = ch.recv();
+            ret compare value { Some(v) => v; nothing => 0; };
+        };
+        let _ = ready.recv();
+        checkpoint().await();
+        child.cancel();
+        compare child.await() {
+            Cancelled() => print("cancelled");
+            Success(v) => print("unexpected=" + (v to string));
+        };
+        ch.close();
+        ret 0;
+    }).await();
+    compare result { Success(v) => { return v; } Cancelled() => { return 1; } };
+}

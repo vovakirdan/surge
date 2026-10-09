@@ -1,0 +1,9 @@
+@entrypoint
+fn main() -> int {
+    let ch = Channel::<int>::new(1:uint);
+    {
+        let pending = async { ch.send(7); print("body"); ret 0; };
+    }
+    print("end");
+    return 0;
+}

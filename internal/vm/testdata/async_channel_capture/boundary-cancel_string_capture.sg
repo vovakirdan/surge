@@ -1,0 +1,20 @@
+@entrypoint
+fn main() -> int {
+    let result = (async {
+        let ch = Channel::<string>::new(1:uint);
+        let ready = Channel::<int>::new(0:uint);
+        let value = "buffered payload";
+        ch.send(own value);
+        let child = spawn async { ready.send(1); let value = "parked payload"; ch.send(own value); ret 0; };
+        let _ = ready.recv();
+        checkpoint().await();
+        child.cancel();
+        compare child.await() {
+            Cancelled() => print("cancelled");
+            Success(_) => print("unexpected");
+        };
+        ch.close();
+        ret 0;
+    }).await();
+    compare result { Success(v) => { return v; } Cancelled() => { return 1; } };
+}

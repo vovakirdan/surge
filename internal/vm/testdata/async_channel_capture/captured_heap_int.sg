@@ -1,0 +1,9 @@
+@entrypoint
+fn main() -> int {
+    let ch = Channel::<int>::new(1:uint);
+    let large: int = 9223372036854775808;
+    let child = async { ch.send(large); ret 0; };
+    compare child.await() { Success(_) => {} Cancelled() => { return 1; } };
+    compare ch.recv() { Some(v) => print(v to string); nothing => { return 2; } };
+    return 0;
+}
