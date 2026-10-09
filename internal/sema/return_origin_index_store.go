@@ -23,6 +23,9 @@ func (b *returnOriginBody) indexStore(lhs ast.ExprID, owner, rhs returnOriginVal
 	}
 	targets, proven := b.backingTargets(container, owner, env, true)
 	if !proven {
+		if b.nestedRefFreeIndexStore(lhs, container, rhs, rhsExpr, span) {
+			return env, true
+		}
 		return env, false
 	}
 	return b.storeBackingContents(env, container, targets, rhs, []ast.ExprID{rhsExpr}, span), true
