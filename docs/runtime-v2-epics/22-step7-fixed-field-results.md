@@ -40,11 +40,11 @@ captured owners stay fail-closed. Loading the contents of a container field
 still needs a proven backing; this packet certifies the field place and the
 window/cursor source, not arbitrary contents.
 
-`self_mut_field_reborrow` remains unfinished on three rows after the projection
-clears. Its local `cells` is a double mutable reference to the fixed field, and
-the first `cells[r]` step has no selected container transfer; the outer store
-therefore remains unproved. No `A(b)` buffer alias or general referent graph is
-introduced.
+At this commit `self_mut_field_reborrow` remained unfinished on three rows after
+the projection cleared: its local `cells` is a double mutable reference to the
+fixed field. RV2-DEBT-465 later closes that exact local-reborrow shape while an
+arbitrary double-reference parameter remains refused. No `A(b)` buffer alias or
+general referent graph is introduced.
 
 No runtime or backend code changed. The result agrees with Runtime V2's
 returned-source rule and with the current checker/runtime behavior: the caller

@@ -39,11 +39,11 @@ slices and cursors do not acquire the deferred `A(b)` buffer-alias model.
 Implicit conversions and non-index/member targets remain outside the
 certificate.
 
-`self_mut_field_reborrow` retains its N-STORE row because `cells[r]` first reads
-through a double mutable reference and already stops at `index requires its
-selected container transfer`; the outer store therefore has no certified index
-chain. That is a projected-place/reference-load gap, not evidence that this
-no-content store transfer changed a backing.
+At this commit `self_mut_field_reborrow` retained its N-STORE row because
+`cells[r]` first read through a double mutable reference. RV2-DEBT-465 later
+closes the exact local field-reborrow initializer; an arbitrary double-reference
+parameter stays refused. That was a projected-place/reference-load gap, not
+evidence that this no-content store transfer changed a backing.
 
 No runtime or backend code changed. Runtime V2's ownership model is unaffected:
 the accepted store writes only data that cannot carry a borrow or storage loan,
