@@ -2,17 +2,18 @@ package sema
 
 import "surge/internal/types"
 
-// A core reader below returns a fresh array: native code allocates the header and
+// A certified runtime reader below returns a fresh array: native code allocates the header and
 // the element storage itself and fills them with bytes it read or strings it just
 // built (rt_fs.c:307–434, 654–737; rt_net.c:494–523; rt_io.c:99–138), and the VM
 // builds a new heap array the same way. Nothing in the array points into an input.
-// Only the retained core declaration with exactly this signature and result shape
+// Only the retained declaration with exactly this source, signature and result shape
 // is believed; the element and the error member are still walked.
 
 type returnOriginFreshContainerRow struct {
-	params  []returnOriginFreshParam
-	element string // "string", "uint8", or the name of a core struct
-	wrapped bool
+	params    []returnOriginFreshParam
+	element   string // "string", "uint8", or the name of a core struct
+	wrapped   bool
+	sourceKey string // empty means the retained core/intrinsics declaration
 }
 
 var returnOriginFreshContainerRows = map[string]returnOriginFreshContainerRow{
@@ -20,6 +21,8 @@ var returnOriginFreshContainerRows = map[string]returnOriginFreshContainerRow{
 	"rt_fs_read_file":   {params: []returnOriginFreshParam{freshRefString}, element: "uint8", wrapped: true},
 	"rt_net_read_bytes": {params: []returnOriginFreshParam{freshRefConn, freshUint}, element: "uint8", wrapped: true},
 	"rt_argv":           {element: "string"},
+	"rt_entropy_bytes": {params: []returnOriginFreshParam{freshUint}, element: "uint8", wrapped: true,
+		sourceKey: "stdlib/entropy/entropy.sg"},
 }
 
 // returnOriginFreshContainerResidual answers which parts of a certified reader's
@@ -29,7 +32,11 @@ func returnOriginFreshContainerResidual(fn *returnOriginFunction, result types.T
 		return nil, false
 	}
 	row, known := returnOriginFreshContainerRows[fn.name]
-	if !known || !returnOriginCoreIntrinsic(fn, 0, 0) || fn.candidate.HasSelf || fn.candidate.ReceiverType != types.NoTypeID ||
+	certified := returnOriginCoreIntrinsic(fn, 0, 0)
+	if row.sourceKey != "" {
+		certified = fn.info.ReturnSources().IsAllInputs() && returnOriginStdlibIntrinsicDeclaration(fn, row.sourceKey)
+	}
+	if !known || !certified || fn.candidate.HasSelf || fn.candidate.ReceiverType != types.NoTypeID ||
 		result != fn.info.Result || !returnOriginFreshParamsMatch(fn, row.params) {
 		return nil, false
 	}

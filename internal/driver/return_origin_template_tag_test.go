@@ -22,7 +22,7 @@ func analyzeOriginRoot(t *testing.T, stage, text string, allowEscape bool, prepa
 	}
 	inputs, err := collectReturnOriginUnits(res)
 	wantUnits := 11
-	if strings.Contains(text, "stdlib/time") {
+	if strings.Contains(text, "stdlib/time") || strings.Contains(text, "stdlib/entropy") {
 		wantUnits++
 	}
 	if err != nil || len(inputs.units) != wantUnits {
