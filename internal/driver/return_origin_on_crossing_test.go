@@ -209,6 +209,37 @@ fn first_own(o: own &int[]) -> TaskResult<int> {
 }
 `
 
+const onCrossingOwnedArraySource = `fn total(xs: own int[]) -> int {
+    return xs[0] + xs[1];
+}
+
+async fn run() -> int {
+    let xs: int[] = [1, 2];
+    let r: TaskResult<int> = on pool {
+        ret total(own xs);
+    };
+    return compare r {
+        Success(v) => v;
+        Cancelled() => 0;
+    };
+}
+`
+
+const onCrossingArrayParamSource = `fn total(xs: own int[]) -> int {
+    return xs[0] + xs[1];
+}
+
+async fn run(xs: int[]) -> int {
+    let r: TaskResult<int> = on pool {
+        ret total(own xs);
+    };
+    return compare r {
+        Success(v) => v;
+        Cancelled() => 0;
+    };
+}
+`
+
 const (
 	onCrossingPlacementSourceDigest   = "654966b3e8684aa418bd0572b12ac283b98cb716b04f8425279813d6bf71f624"
 	onCrossingAnchoredSourceDigest    = "af8f6a4e4e6a06d1f039f9187297ded22e3584ba5f8ea5d4f7b8a335379ef959"
@@ -221,6 +252,8 @@ const (
 	onCrossingFnCaptureSourceDigest   = "36bf93b1fdc66dcf9f846cf6b1ba41ef9808a8ee17d763913f96d08b84424def"
 	onCrossingOwnMutRefSourceDigest   = "a9774ab9c361d29be4c8e614de676eb36246525595bd17287bf8147db3636344"
 	onCrossingOwnRefArraySourceDigest = "1ee3eebb1549e436ec37aad62de82188928bc0c6787ab75c405d5ce130c74f96"
+	onCrossingOwnedArraySourceDigest  = "b5e2e04b5f75069aabab66a4284755dae6b4b373cc9a41743a4c3f87389121f9"
+	onCrossingArrayParamSourceDigest  = "4cef221bd4674d549bbdab39e29d3b403af9857d46cfa0a6f3a9875b3dc61121"
 )
 
 // onCrossingRow is one t.Run leaf: the Pending rows inside fn must be exactly want, no
@@ -268,13 +301,17 @@ func onCrossingRows() []onCrossingRow {
 			fn: originSpan{306, 396, onCrossingWalkSource[306:396]}, want: []originRefusal{}, summary: false},
 		{name: "fn_value_capture_stays_refused", text: onCrossingFnCaptureSource, digest: onCrossingFnCaptureSourceDigest, body: "apply",
 			fn: originSpan{47, 152, onCrossingFnCaptureSource[47:152]}, want: []originRefusal{{span: originSpan{138, 139, "f"}, reason: onCrossingCaptureRefusal}}, summary: false, allow: []string{onCrossingCallableIdent, onCrossingCallableValue, originCallRefusal, onCrossingCallableAuthority}},
+		{name: "owned_dynamic_array_capture_finishes", text: onCrossingOwnedArraySource, digest: onCrossingOwnedArraySourceDigest, body: "run",
+			fn: originSpan{62, 270, onCrossingOwnedArraySource[62:270]}, want: []originRefusal{}, summary: false},
+		{name: "array_parameter_capture_keeps_source_fence", text: onCrossingArrayParamSource, digest: onCrossingArrayParamSourceDigest, body: "run",
+			fn: originSpan{62, 251, onCrossingArrayParamSource[62:251]}, want: []originRefusal{{span: originSpan{156, 158, "xs"}, reason: onCrossingCaptureRefusal}}, summary: false},
 	}
 }
 
-// 17 RUN: 1 parent, 16 leaves.
+// 19 RUN: 1 parent, 18 leaves.
 func TestAnalyzeOnCrossing(t *testing.T) {
 	rows := onCrossingRows()
-	if len(rows) != 16 {
+	if len(rows) != 18 {
 		t.Fatalf("PRECONDITION: frozen roster changed: rows=%d", len(rows))
 	}
 	for _, row := range rows {

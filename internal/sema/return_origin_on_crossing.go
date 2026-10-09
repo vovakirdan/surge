@@ -57,7 +57,7 @@ func (b *returnOriginBody) onCrossing(id ast.ExprID, data *ast.ExprOnData, env r
 			return returnOriginExprResult{}, fmt.Errorf("return origins: on crossing body at %v leaves by an exit its frame does not have", span)
 		}
 	}
-	if err := b.onCrossingCaptures(id, span); err != nil {
+	if err := b.onCrossingCaptures(id, span, out.flow.normal); err != nil {
 		return returnOriginExprResult{}, err
 	}
 	out.value, out.storage = returnOriginValueOf(), returnOriginValue{}
@@ -76,7 +76,7 @@ func (b *returnOriginBody) onCrossing(id ast.ExprID, data *ast.ExprOnData, env r
 // must be inert (crossingInert), as the reply must; one that is not keeps a named row at the
 // capture. This refuses some programs the runtime would carry safely, such as a dynamic array
 // that moves in: its loans are not modelled here.
-func (b *returnOriginBody) onCrossingCaptures(id ast.ExprID, span source.Span) error {
+func (b *returnOriginBody) onCrossingCaptures(id ast.ExprID, span source.Span, env returnOriginEnv) error {
 	u := b.function.unit
 	var record *CrossingLoweringInfo
 	for i := range u.Sema.CrossingLowering {
@@ -97,11 +97,42 @@ func (b *returnOriginBody) onCrossingCaptures(id ast.ExprID, span source.Span) e
 		if capture.Mode == CrossingCaptureAnchorLease {
 			continue
 		}
-		if !b.crossingInert(capture.Type) {
+		if !b.crossingInert(capture.Type) && !b.sourceFreeMovedArrayCapture(record, capture, env) {
 			b.pending(capture.Span, returnOriginOnCaptureRefusal)
 		}
 	}
 	return nil
+}
+
+// The checker admits an owned dynamic array for the mobility of its elements
+// and records that exact verdict. The crossing consumes the binding, so a base
+// array whose current value carries no origin or callable becomes the remote
+// frame's owner. A view or any array holding a loan retains roots and fails.
+func (b *returnOriginBody) sourceFreeMovedArrayCapture(record *CrossingLoweringInfo, capture *CrossingCaptureInfo, env returnOriginEnv) bool {
+	if record == nil || record.Kind != CrossingLoweringOnPlacement || capture == nil ||
+		capture.Mode != CrossingCaptureMoveOwned || capture.Verdict != CrossingCaptureOwnedMovableElements ||
+		!capture.Symbol.IsValid() || !capture.Expr.IsValid() {
+		return false
+	}
+	u := b.function.unit
+	node := u.Builder.Exprs.Get(capture.Expr)
+	sym := u.Symbols.Table.Symbols.Get(capture.Symbol)
+	if node == nil || node.Span != capture.Span || u.Symbols.ExprSymbols[capture.Expr] != capture.Symbol ||
+		sym == nil || sym.Type != capture.Type || !returnOriginDynamicArray(u.Sema.TypeInterner, capture.Type) {
+		return false
+	}
+	declNode := u.Builder.Stmts.Get(sym.Decl.Stmt)
+	decl := u.Builder.Stmts.Let(sym.Decl.Stmt)
+	if declNode == nil || declNode.Kind != ast.StmtLet || decl == nil || !decl.Value.IsValid() ||
+		u.stmtSymbols[sym.Decl.Stmt] != capture.Symbol || u.Sema.ExprTypes[decl.Value] != capture.Type {
+		return false
+	}
+	initializer := u.Builder.Exprs.Get(decl.Value)
+	if initializer == nil || initializer.Kind != ast.ExprArray {
+		return false
+	}
+	value := env.value(capture.Symbol)
+	return value.normal && len(value.roots) == 0 && len(value.callables) == 0
 }
 
 // anchoredOperation is the transfer of a channel operation, or `close()`, through the anchor
