@@ -116,7 +116,7 @@ func (b *returnOriginBody) exprCore(id ast.ExprID, env returnOriginEnv, targets 
 		}
 		if b.shape(id) == returnOriginRefFree {
 			out.value = returnOriginValueOf()
-		} else if b.memberBorrowsReferent(id, data) {
+		} else if b.memberBorrowsReferent(id, data, out.storage) {
 			out.value = out.storage.clone() // the referent's origins cover its field
 		} else {
 			b.pending(node.Span, "projected borrowed payload needs precise origin facts")

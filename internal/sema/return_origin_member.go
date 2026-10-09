@@ -7,18 +7,35 @@ import (
 
 // A field read through a reference to a plain struct is typed as a borrow of the
 // field, a sub-place of the referent, so it has exactly the reference's origins.
-// One level only: the target is a named reference, and the field is declared
-// reference-free, so nothing is loaded from the referent. A dynamic array field
+// The target is either a named reference or a member/index projection whose
+// evaluated owner is already exact. The field is declared reference-free, so
+// nothing is loaded from the referent. A dynamic array field
 // is admitted too: the borrow names the field's place, never its heap contents,
 // and the loans those contents keep are read only where the place is loaded or
 // passed on, by containerLoans or the backing-call targets, which refuse a base
 // they cannot prove. Any other loan carrier keeps the refusal: a fixed array's
 // view or a cursor over it points into the referent's own storage, and the
 // checker does not keep a caller's argument borrowed while such a result lives.
-func (b *returnOriginBody) memberBorrowsReferent(id ast.ExprID, data *ast.ExprMemberData) bool {
+func (b *returnOriginBody) memberBorrowsReferent(id ast.ExprID, data *ast.ExprMemberData, owner returnOriginValue) bool {
 	u := b.function.unit
 	in := u.Sema.TypeInterner
-	if node := u.Builder.Exprs.Get(data.Target); node == nil || node.Kind != ast.ExprIdent {
+	targetID := b.ungroup(data.Target)
+	node := u.Builder.Exprs.Get(targetID)
+	if node == nil {
+		return false
+	}
+	switch node.Kind {
+	case ast.ExprIdent:
+		// Keep the established one-level certificate unchanged.
+	case ast.ExprMember:
+		if !returnOriginExactProjectionOwner(owner) {
+			return false
+		}
+	case ast.ExprIndex:
+		if _, reason := b.analyzer.indexOperation(b.function, targetID); reason != "" || !returnOriginExactProjectionOwner(owner) {
+			return false
+		}
+	default:
 		return false
 	}
 	target, ok := in.Lookup(returnOriginResolveAlias(in, u.Sema.ExprTypes[data.Target]))
@@ -45,6 +62,30 @@ func (b *returnOriginBody) memberBorrowsReferent(id ast.ExprID, data *ast.ExprMe
 		}
 	}
 	return matches == 1
+}
+
+// A composed projection may reuse only a complete storage owner produced by
+// the preceding certified projection. Calls, captures, external-cell contents
+// and backing-content selectors keep their own transfer obligations.
+func returnOriginExactProjectionOwner(owner returnOriginValue) bool {
+	if !owner.normal || len(owner.roots) == 0 || len(owner.callables) != 0 {
+		return false
+	}
+	for _, root := range owner.roots {
+		if root.expired {
+			return false
+		}
+		switch root.kind {
+		case returnOriginLocal:
+		case returnOriginParam:
+			if root.selector != returnOriginInputValue {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // returnOriginDynamicArray says whether a type is an owned `T[]`/`Array<T>`,

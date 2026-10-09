@@ -11,8 +11,8 @@ import (
 
 // A field of a plain struct read through a named reference is a borrow of a
 // sub-place of the referent, so it keeps exactly the reference's sources, a
-// container field included. A nested place and an attributed struct keep their
-// refusal.
+// container field included. A nested plain-field projection composes the same
+// exact owner; an attributed struct keeps its refusal.
 // Only shared references appear: returning a `&mut` field is not admitted.
 const memberProjectionSource = `pragma module::dep;
 type Note = { text: string };
@@ -34,9 +34,16 @@ type Bag = { items: int64[] };
 fn read_items(b: &Bag) -> &int64[] {
     return b.items;
 }
+fn read_indexed(xs: &Note[], i: int) -> &string {
+    return xs[i].text;
+}
+fn through_nested(pp: &&Shelf) -> &string {
+    let p: &Shelf = *pp;
+    return p.note.text;
+}
 `
 
-const memberProjectionDigest = "80b5ed0ae6d3904edb07626a82ead71415519ff424784d005ddc9272222028b5"
+const memberProjectionDigest = "c892961f95c292822fb3b975f8af1d024639d8726f90af125e908908e805371d"
 
 // checkMemberProjectionTypes proves each member is typed as a borrow of its
 // declared field, read through a reference to a struct.
@@ -70,7 +77,7 @@ func checkMemberProjectionTypes(t *testing.T, unit sema.ReturnOriginUnit, file s
 
 func TestAnalyzeMemberProjectionOrigins(t *testing.T) {
 	members := []originSpan{{97, 103, "n.text"}, {153, 159, "n.text"}, {252, 258, "s.note"}, {252, 263, "s.note.text"},
-		{358, 364, "s.text"}, {447, 454, "b.items"}}
+		{358, 364, "s.text"}, {447, 454, "b.items"}, {519, 529, "xs[i].text"}, {613, 619, "p.note"}, {613, 624, "p.note.text"}}
 	checkOriginSource(t, memberProjectionSource, memberProjectionDigest, members...)
 	f, analysis := analyzeOriginDependency(t, "member_projection", memberProjectionSource, func(f originalGenericFixture) {
 		checkMemberProjectionTypes(t, f.unit, f.owner.File.ID, members)
@@ -78,9 +85,13 @@ func TestAnalyzeMemberProjectionOrigins(t *testing.T) {
 	checkOriginBodyLeaves(t, analysis, f, memberProjectionSource, memberProjectionDigest, []originBodyLeaf{
 		{name: "read_text", body: "read_text", function: originSpan{50, 106, "fn read_text(n: &Note) -> &string {\n    return n.text;\n}"}, clean: true, slots: []uint32{0}},
 		{name: "copy_text", body: "copy_text", function: originSpan{107, 172, "fn copy_text(n: &Note) -> string {\n    return n.text.__clone();\n}"}, clean: true},
-		{name: "nested_control", body: "read_nested", function: originSpan{202, 266, "fn read_nested(s: &Shelf) -> &string {\n    return s.note.text;\n}"}, stays: []originRefusal{{originSpan{252, 263, "s.note.text"}, originProjectionRefusal}, {originSpan{245, 264, "return s.note.text;"}, originOutgoingRefusal}, {originSpan{228, 238, "-> &string"}, originResultRefusal}}, cleared: []originRefusal{{originSpan{252, 258, "s.note"}, originProjectionRefusal}}},
+		{name: "nested_control", body: "read_nested", function: originSpan{202, 266, "fn read_nested(s: &Shelf) -> &string {\n    return s.note.text;\n}"}, clean: true, slots: []uint32{0}, cleared: []originRefusal{{originSpan{252, 258, "s.note"}, originProjectionRefusal}, {originSpan{252, 263, "s.note.text"}, originProjectionRefusal}}},
 		{name: "sealed_control", body: "read_sealed", function: originSpan{307, 367, "fn read_sealed(s: &Sealed) -> &string {\n    return s.text;\n}"}, stays: []originRefusal{{originSpan{358, 364, "s.text"}, originProjectionRefusal}}},
 		{name: "loan_carrier_field", body: "read_items", function: originSpan{399, 458, "fn read_items(b: &Bag) -> &int64[] {\n    return b.items;\n}\n"}, clean: true, slots: []uint32{0}, cleared: []originRefusal{{originSpan{447, 454, "b.items"}, originProjectionRefusal}}},
+		{name: "indexed_owner", body: "read_indexed", function: originSpan{458, 533, "fn read_indexed(xs: &Note[], i: int) -> &string {\n    return xs[i].text;\n}\n"}, clean: true, slots: []uint32{0}, cleared: []originRefusal{{originSpan{519, 529, "xs[i].text"}, originProjectionRefusal}}},
+		{name: "unproved_composed_owner", body: "through_nested", function: originSpan{533, 628, "fn through_nested(pp: &&Shelf) -> &string {\n    let p: &Shelf = *pp;\n    return p.note.text;\n}\n"},
+			stays:   []originRefusal{{originSpan{597, 600, "*pp"}, fieldBorrowDerefRefusal}, {originSpan{613, 624, "p.note.text"}, originProjectionRefusal}, {originSpan{606, 625, "return p.note.text;"}, originOutgoingRefusal}, {originSpan{564, 574, "-> &string"}, originResultRefusal}},
+			cleared: []originRefusal{{originSpan{613, 619, "p.note"}, originProjectionRefusal}}},
 	})
 }
 

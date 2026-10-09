@@ -12,7 +12,8 @@ import (
 // any other reference-free field. The loans the field's contents keep are not
 // read at the projection: loading or passing the place on still asks
 // containerLoans or the backing-call targets, which refuse a base they cannot
-// prove. A fixed-array or cursor field keeps the projection refusal: its view or
+// prove. The same owner composes through a nested plain-struct field. A
+// fixed-array or cursor field keeps the projection refusal: its view or
 // cursor points into the referent itself. The callers that reallocate or
 // overwrite the viewed storage while the view lives are refused by the checker,
 // which keeps the argument borrowed (TestFieldBorrowWindowCallersAreRefused).
@@ -79,13 +80,14 @@ func TestAnalyzeFieldBorrowOrigins(t *testing.T) {
 			stays: []originRefusal{{originSpan{475, 482, "w.cells"}, originProjectionRefusal}, {originSpan{450, 461, "-> uint64[]"}, originResultRefusal}}},
 		{name: "fixed_cursor_field", body: "cursor_of_field", function: originSpan{494, 572, "fn cursor_of_field(w: &Win) -> Range<uint64> {\n    return w.cells.__range();\n}"},
 			stays: []originRefusal{{originSpan{552, 559, "w.cells"}, originProjectionRefusal}, {originSpan{522, 538, "-> Range<uint64>"}, originResultRefusal}}},
-		// Witnesses: an unproved reference, a nested place, the loans of a
-		// container read through the projection, and a store of an element that
-		// can hold loans into the projected container all keep their refusal.
+		// Witnesses: an unproved reference, the loans of a container read through
+		// the projection, and a store of an element that can hold loans into the
+		// projected container keep their refusal. The nested plain-field place
+		// composes the same parameter owner.
 		{name: "unknown_reference", body: "through", function: originSpan{573, 653, "fn through(pp: &&Bag) -> &int64[] {\n    let p: &Bag = *pp;\n    return p.items;\n}"},
 			stays: []originRefusal{{originSpan{627, 630, "*pp"}, fieldBorrowDerefRefusal}, {originSpan{595, 606, "-> &int64[]"}, originResultRefusal}}},
-		{name: "nested_place", body: "nested", function: originSpan{654, 716, "fn nested(s: &Shelf) -> &uint64[] {\n    return s.rows.cells;\n}"},
-			stays: []originRefusal{{originSpan{701, 713, "s.rows.cells"}, originProjectionRefusal}, {originSpan{675, 687, "-> &uint64[]"}, originResultRefusal}}},
+		{name: "nested_place", body: "nested", function: originSpan{654, 716, "fn nested(s: &Shelf) -> &uint64[] {\n    return s.rows.cells;\n}"}, clean: true, slots: []uint32{0},
+			cleared: []originRefusal{{originSpan{701, 713, "s.rows.cells"}, originProjectionRefusal}}},
 		{name: "dynamic_view_loans", body: "view_rows", function: originSpan{717, 783, "fn view_rows(w: &Rows) -> uint64[] {\n    return w.cells[[0..2]];\n}"},
 			stays:   []originRefusal{{originSpan{765, 780, "w.cells[[0..2]]"}, arrayPopContainerLoanBase}, {originSpan{740, 751, "-> uint64[]"}, originResultRefusal}},
 			cleared: []originRefusal{{originSpan{765, 772, "w.cells"}, originProjectionRefusal}}},
