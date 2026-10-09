@@ -8,7 +8,6 @@ import (
 
 	"surge/internal/diag"
 	"surge/internal/parser"
-	"surge/internal/sema"
 )
 
 const durationIdentitySource = `import stdlib/time as time;
@@ -119,10 +118,11 @@ func TestReturnOriginStdlibTimeDurationIdentityCanaries(t *testing.T) {
 	}
 }
 
-func TestReturnOriginStdlibTimeDurationHolderKeepsLoanRow(t *testing.T) {
+func TestReturnOriginStdlibTimeDurationHolderReportsEscape(t *testing.T) {
 	f, analysis := analyzeOriginRoot(t, "stdlib_time_duration_holder", durationHolderCanarySource, false, nil)
 	ret := durationCallSpan(t, durationHolderCanarySource, "return Holder { duration = time.monotonic_now(), value = local.__range() };")
-	if !slices.ContainsFunc(originPendingWithin(analysis, f.unit.SourceKey, ret.start, ret.end), func(p sema.ReturnOriginPending) bool { return p.Reason == backingLoanDiscard }) {
-		t.Fatalf("Duration holder lost its dying-local storage-loan row: %+v", originPendingWithin(analysis, f.unit.SourceKey, ret.start, ret.end))
+	requireOriginEscape(t, analysis, f.owner.Symbols, f.owner.File.ID, ret, "local")
+	if pending := originPendingWithin(analysis, f.unit.SourceKey, ret.start, ret.end); len(pending) != 0 {
+		t.Fatalf("Duration holder escape stayed Pending: %+v", pending)
 	}
 }

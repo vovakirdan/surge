@@ -26,7 +26,8 @@ func (b *returnOriginBody) constructorChildren(id ast.ExprID, children []ast.Exp
 	node := b.function.unit.Builder.Exprs.Get(id)
 	out := originExprValue(env, returnOriginValueOf())
 	contents := returnOriginValueOf()
-	erased := b.shape(id) == returnOriginRefFree
+	holdsLoan := b.holdsLoan(b.function.unit.Sema.ExprTypes[id])
+	erased := b.shape(id) == returnOriginRefFree && !holdsLoan
 	for _, child := range children {
 		next, err := b.expr(child, out.flow.normal, targets)
 		if err != nil {
@@ -65,7 +66,11 @@ func (b *returnOriginBody) constructorChildren(id ast.ExprID, children []ast.Exp
 	}
 	switch shape {
 	case returnOriginRefFree:
-		out.value = returnOriginValueOf()
+		if holdsLoan {
+			out.value = contents
+		} else {
+			out.value = returnOriginValueOf()
+		}
 	case returnOriginCarriesRef:
 		out.value = contents
 	default:
