@@ -197,7 +197,7 @@ func (b *returnOriginBody) unary(id ast.ExprID, env returnOriginEnv, targets ret
 			out.value = b.containerLoans(out.storage, out.flow.normal, span)
 		} else if b.shape(id) == returnOriginRefFree {
 			out.value = returnOriginValueOf()
-		} else if loaded, handled := b.loadExternalCells(u.Sema.ExprTypes[data.Operand], out.storage, out.flow.normal, span); handled {
+		} else if loaded, handled := b.projectedLoad(data.Operand, id, out.storage, out.flow.normal, span); handled {
 			out.value = loaded
 		} else {
 			b.pending(span, "reference loaded through another reference needs content provenance")

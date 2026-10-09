@@ -8,14 +8,15 @@ import (
 // A field read through a reference to a plain struct is typed as a borrow of the
 // field, a sub-place of the referent, so it has exactly the reference's origins.
 // The target is either a named reference or a member/index projection whose
-// evaluated owner is already exact. The field is declared reference-free, so
-// nothing is loaded from the referent. A dynamic array field
+// evaluated owner is already exact. The field is declared reference-free, or
+// is the exact marked BytesView whose by-value load has a separate transfer, so
+// the projection itself loads nothing from the referent. A dynamic array field
 // is admitted too: the borrow names the field's place, never its heap contents,
 // and the loans those contents keep are read only where the place is loaded or
 // passed on, by containerLoans or the backing-call targets, which refuse a base
-// they cannot prove. Any other loan carrier keeps the refusal: a fixed array's
-// view or a cursor over it points into the referent's own storage, and the
-// checker does not keep a caller's argument borrowed while such a result lives.
+// they cannot prove. Other loan carriers keep the refusal: a fixed array's view
+// or a cursor over it points into the referent's own storage, and the checker
+// does not keep a caller's argument borrowed while such a result lives.
 func (b *returnOriginBody) memberBorrowsReferent(id ast.ExprID, data *ast.ExprMemberData, owner returnOriginValue) bool {
 	u := b.function.unit
 	in := u.Sema.TypeInterner
@@ -56,8 +57,12 @@ func (b *returnOriginBody) memberBorrowsReferent(id ast.ExprID, data *ast.ExprMe
 			continue
 		}
 		matches++
-		if field.Type != result.Elem || returnOriginIsReference(in, field.Type) ||
-			returnOriginTypeShape(in, field.Type, nil) != returnOriginRefFree || b.analyzer.loanCarrier(field.Type) && !returnOriginDynamicArray(in, field.Type) {
+		if field.Type != result.Elem || returnOriginIsReference(in, field.Type) {
+			return false
+		}
+		if !in.IsBorrowedView(returnOriginResolveAlias(in, field.Type)) &&
+			(returnOriginTypeShape(in, field.Type, nil) != returnOriginRefFree ||
+				b.analyzer.loanCarrier(field.Type) && !returnOriginDynamicArray(in, field.Type)) {
 			return false
 		}
 	}

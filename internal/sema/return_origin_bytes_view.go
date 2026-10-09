@@ -61,3 +61,12 @@ func returnOriginBytesViewType(fn *returnOriginFunction, id types.TypeID) bool {
 	}
 	return true
 }
+
+// returnOriginBorrowedViewLoad recognizes a by-value load through a reference
+// to the exact core borrowed-view type. The loaded view keeps the reference's
+// source; it does not expose or claim ownership of the raw pointer fields.
+func returnOriginBorrowedViewLoad(in *types.Interner, operand, result types.TypeID) bool {
+	result = returnOriginResolveAlias(in, result)
+	outer, _ := in.Lookup(returnOriginResolveAlias(in, operand))
+	return outer.Kind == types.KindReference && returnOriginResolveAlias(in, outer.Elem) == result && in.IsBorrowedView(result)
+}

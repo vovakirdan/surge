@@ -193,9 +193,10 @@ func (a *returnOriginAnalyzer) checkArrayRangeIndexUse(fn, caller *returnOriginF
 	return true, returnOriginContainerUseArgs(in, caller, fn, container, use)
 }
 
-// cloneElementContents is G3: clone(x[i]) over a certified scalar index loads
-// the container's contents; a payload-free element clones to nothing borrowed.
-func (b *returnOriginBody) cloneElementContents(arg ast.ExprID, argument returnOriginValue, env returnOriginEnv) (returnOriginValue, bool) {
+// indexElementContents is G3: reading x[i] through a certified scalar index
+// loads the container's contents; a payload-free element yields nothing
+// borrowed. Clone and explicit dereference share this exact backing transfer.
+func (b *returnOriginBody) indexElementContents(arg ast.ExprID, argument returnOriginValue, env returnOriginEnv) (returnOriginValue, bool) {
 	u := b.function.unit
 	for {
 		group, ok := u.Builder.Exprs.Group(arg)
