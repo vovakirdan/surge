@@ -41,8 +41,17 @@ func (a *returnOriginAnalyzer) tagPayload(fn *returnOriginFunction, id ast.ExprI
 	selected := u.Symbols.ExprSymbols[id]
 	sym := u.Symbols.Table.Symbols.Get(selected)
 	target := u.Builder.Exprs.Get(call.Target)
-	if sym == nil || sym.Kind != symbols.SymbolTag || target == nil || target.Kind != ast.ExprIdent ||
-		u.Symbols.ExprSymbols[call.Target] != selected || u.Sema.ExprTypes[call.Target] == types.NoTypeID {
+	targetValid := target != nil && target.Kind == ast.ExprIdent && u.Symbols.ExprSymbols[call.Target] == selected
+	if target != nil && target.Kind == ast.ExprMember && sym != nil {
+		member, _ := u.Builder.Exprs.Member(call.Target)
+		var module *symbols.Symbol
+		if member != nil {
+			module = u.Symbols.Table.Symbols.Get(u.Symbols.ExprSymbols[member.Target])
+		}
+		targetValid = member != nil && member.Field == sym.Name && module != nil && module.Kind == symbols.SymbolModule &&
+			u.Symbols.ExprSymbols[call.Target] == selected
+	}
+	if sym == nil || sym.Kind != symbols.SymbolTag || !targetValid || u.Sema.ExprTypes[call.Target] == types.NoTypeID {
 		return 0, nil, "tag constructor lacks its original declaration target"
 	}
 	canonical, reason := canonicalTagSymbol(u, selected)
