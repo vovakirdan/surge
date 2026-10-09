@@ -22,11 +22,16 @@ func (b *returnOriginBody) bodyOperation(out *returnOriginExprResult, selections
 ) bool {
 	u := b.function.unit
 	selected, present := selections[id]
-	// Erased: every reader drops the roots of such a value, because it holds no
-	// borrow and is no loan carrier (return_origin_expr.go:44-47). Written out
-	// rather than shared, so this file owns no name another packet also declares.
-	if !present || !selected.IsValid() ||
-		returnOriginTypeShape(u.Sema.TypeInterner, result, nil) != returnOriginRefFree || b.analyzer.loanCarrier(result) {
+	// An erased result carries no origin. A concrete dynamic array is also
+	// admitted when its checked body returns no source and its element can hold
+	// neither a borrow nor a storage loan: that proves fresh owning storage.
+	resultFree := b.erasedType(result)
+	if !resultFree {
+		container, canonical := returnOriginContainer(u.Sema.TypeInterner, result)
+		resultFree = canonical && !container.reference && container.family == u.Sema.TypeInterner.ArrayNominalType() &&
+			returnOriginTypeShape(u.Sema.TypeInterner, container.element, nil) == returnOriginRefFree && !b.holdsLoan(container.element)
+	}
+	if !present || !selected.IsValid() || !resultFree {
 		return false
 	}
 	for _, operand := range operands {
@@ -39,8 +44,14 @@ func (b *returnOriginBody) bodyOperation(out *returnOriginExprResult, selections
 		return false
 	}
 	c, in := fn.candidate, u.Sema.TypeInterner
+	effectParams := fn.info.Params
+	if name == "__to" && arity == 2 && len(operands) == 1 && len(effectParams) == 2 && effectParams[1] == result {
+		// A cast's second `__to` formal is its type marker, not an evaluated
+		// source operand. It may have the same container type as the result.
+		effectParams = effectParams[:1]
+	}
 	if c.Name != name || len(fn.info.Params) != arity || !c.HasBody || !fn.item.Body.IsValid() || c.Async || len(c.TemplateParams) != 0 ||
-		returnOriginContainerFormal(in, fn.info.Params) || returnOriginCallHasUnprovedEffects(in, fn.info.Params) {
+		returnOriginContainerFormal(in, effectParams) || returnOriginCallHasUnprovedEffects(in, effectParams) {
 		return false
 	}
 	summary := b.analyzer.summaries[fn.key].value

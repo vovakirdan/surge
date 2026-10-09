@@ -62,7 +62,7 @@ func (b *returnOriginBody) taskBlockTransfer(id ast.ExprID, kind ast.ExprKind, e
 	for _, capture := range captures[id] {
 		sym := u.Symbols.Table.Symbols.Get(capture)
 		// A counted handle owns its object; its payload must hide no borrowed state.
-		if sym != nil && kind == ast.ExprAsync && u.Sema.TypeInterner.IsRefCountedHandle(sym.Type) {
+		if sym != nil && u.Sema.TypeInterner.IsRefCountedHandle(sym.Type) {
 			payloads, handle := u.Sema.TypeInterner.RuntimeHandlePayloads(sym.Type)
 			if handle && len(payloads) == 1 && b.crossingInert(payloads[0]) {
 				continue

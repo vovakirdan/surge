@@ -1,9 +1,6 @@
 package driver
 
-import (
-	"strings"
-	"testing"
-)
+import "testing"
 
 // `async { ... }` and `blocking { ... }`: the value is a Task handle made in this frame, the body
 // is a frame of its own whose `ret` is its only exit, and the frame that makes the task goes on
@@ -190,30 +187,13 @@ func TestAnalyzeTaskBlocks(t *testing.T) {
 
 // originTaskBlockCaptureRow is a blocking body that captures a channel, the shape of
 // stdlib/term's read_event_async, in a source of its own so a checker refusal of it cannot
-// stop another leaf. `Channel<int>` is SEM3168 into `blocking` (an arbitrary-precision payload,
-// coordinator's measurement of 2026-09-22), so the payload is `int64`. The capture row must
-// stand at the block; the rows the body's own `send` raises are logged and not judged.
-type originTaskBlockCaptureRow struct {
-	name        string
-	fn, capture originSpan
-}
-
-// 2 RUN: 1 parent, 1 leaf.
-func TestTaskBlockCapturesAreChecked(t *testing.T) {
-	for _, row := range []originTaskBlockCaptureRow{
-		{name: "blocking_channel_capture_stays_refused", fn: originSpan{0, 125, originTaskBlockChannelSource[0:125]}, capture: originSpan{59, 122, "blocking {\n        ch.send(1:int64);\n        ret nothing;\n    }"}},
-	} {
-		t.Run(row.name, func(t *testing.T) {
-			checkOriginSource(t, originTaskBlockChannelSource, originTaskBlockChannelSourceDigest, row.fn, row.capture)
-			f, analysis := analyzeOriginRoot(t, "task_block_"+row.name, originTaskBlockChannelSource, false, nil)
-			for _, p := range originPendingWithin(analysis, f.unit.SourceKey, row.fn.start, row.fn.end) {
-				t.Logf("TASK_BLOCK_CAPTURE %s pending %q at %d:%d", row.name, p.Reason, p.Span.Start, p.Span.End)
-			}
-			if !originPendingAt(analysis, f.unit.SourceKey, row.capture, originTaskBlockCaptureRefusal) {
-				t.Errorf("no capture row at %q: a channel captured by the block is refused by nothing that names it",
-					strings.SplitN(row.capture.snippet, "\n", 2)[0])
-			}
-			originNoEscape(t, analysis, f.owner.File.ID, row.fn)
-		})
-	}
+// A counted channel handle with an inert payload owns one retained frame
+// reference in a blocking job, as it does in an async body.
+func TestTaskBlockCountedCaptureIsCertified(t *testing.T) {
+	fn := originSpan{0, 125, originTaskBlockChannelSource[0:125]}
+	checkOriginSource(t, originTaskBlockChannelSource, originTaskBlockChannelSourceDigest, fn)
+	f, analysis := analyzeOriginRoot(t, "task_block_counted_capture", originTaskBlockChannelSource, false, nil)
+	originExactPending(t, analysis, f.unit.SourceKey, fn, nil)
+	originNoEscape(t, analysis, f.owner.File.ID, fn)
+	requireOriginSummary(t, analysis, f.owner.File.ID, "relay", false, []uint32{})
 }
