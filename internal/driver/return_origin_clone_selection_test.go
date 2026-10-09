@@ -285,7 +285,7 @@ func TestAnalyzeSelectedDirectCloneOrigins(t *testing.T) {
 	for _, tc := range []directCloneLeaf{
 		{name: "copy_text", function: copyText, call: originSpan{144, 155, "clone(text)"}, cleared: true},
 		{name: "copy_number", function: copyNumber, call: numberCall, cleared: true},
-		{name: "copy_note_control", function: copyNote, call: originSpan{465, 473, "clone(n)"}},
+		{name: "copy_note", function: copyNote, call: originSpan{465, 473, "clone(n)"}, cleared: true},
 		{name: "absent_selection_control", function: firstText, call: firstCall, mutate: func(f originalGenericFixture, calls map[string]ast.ExprID) {
 			delete(f.unit.Sema.CloneSymbols, calls["first"])
 		}},

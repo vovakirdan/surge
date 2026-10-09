@@ -34,15 +34,21 @@ const returnOriginIndexUnanswered = "index requires a non-scalar index transfer"
 func (b *returnOriginBody) selectedIndexCall(out *returnOriginExprResult, id ast.ExprID, data *ast.ExprIndexData, target, index returnOriginValue) string {
 	u := b.function.unit
 	in := u.Sema.TypeInterner
-	if _, present := u.Sema.IndexSymbols[id]; !present {
-		return returnOriginIndexUnanswered
-	}
 	if _, builtin := returnOriginIndexContainer(in, u.Sema.ExprTypes[data.Target]); builtin {
 		return returnOriginIndexUnanswered
 	}
-	fn, reason := b.analyzer.selectedIndexFunction(u, id)
-	if reason != "" {
-		return reason
+	var fn *returnOriginFunction
+	if _, present := u.Sema.IndexSymbols[id]; present {
+		var reason string
+		fn, reason = b.analyzer.selectedIndexFunction(u, id)
+		if reason != "" {
+			return reason
+		}
+	} else {
+		fn = b.uniqueImportedIndexFunction(id, data)
+		if fn == nil {
+			return returnOriginIndexUnanswered
+		}
 	}
 	if c := fn.candidate; c.Async || len(c.TemplateParams) != 0 || c.ReceiverTemplateArity != 0 {
 		return returnOriginIndexUnanswered // a generic body needs its finalized concrete use
@@ -89,6 +95,23 @@ func (b *returnOriginBody) selectedIndexCall(out *returnOriginExprResult, id ast
 		out.value, out.flow.normal = returnOriginValue{}, returnOriginEnv{}
 	}
 	return ""
+}
+
+// Some imported non-generic magic index calls reach HIR with their exact call
+// but without a root-file IndexSymbols entry. Recover only a unique source body
+// whose existing declaration/type agreement names this exact operation.
+func (b *returnOriginBody) uniqueImportedIndexFunction(id ast.ExprID, data *ast.ExprIndexData) *returnOriginFunction {
+	var found *returnOriginFunction
+	for _, fn := range b.analyzer.functions {
+		if fn == nil || fn.unit == b.function.unit || !fn.item.Body.IsValid() || !b.indexCallAgrees(fn, id, data) {
+			continue
+		}
+		if found != nil {
+			return nil
+		}
+		found = fn
+	}
+	return found
 }
 
 // guardIndexActuals is the loan-discard guard of an ordinary call's by-value

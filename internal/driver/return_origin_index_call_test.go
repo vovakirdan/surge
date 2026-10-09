@@ -168,6 +168,7 @@ func TestAnalyzeSelectedIndexCall(t *testing.T) {
 		{"opaque_owned_result_finishes", "fn opaque_owned("},
 		{"body_owned_result_finishes", "fn body_owned("},
 		{"implicitly_borrowed_local_receiver_finishes", "fn borrowed_local_receiver("},
+		{"loan_carrier_consumer_finishes", "fn cursor_call("},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			fn := patternFn(t, indexCallSource, row.header)
@@ -188,7 +189,6 @@ func TestAnalyzeSelectedIndexCall(t *testing.T) {
 		{"generic_receiver_refused_by_template_check", "fn tag_index(", "t[[0..1]]", indexCallUnanswered},
 		{"effect_rule_refuses_function_index", "fn fn_index(", "b[add1]", indexCallUnanswered},
 		{"loan_carrying_cursor_stays_refused", "fn cursor_index(", "b[r]", backingLoanDiscard},
-		{"loan_carrying_cursor_call_control", "fn cursor_call(", "take(r)", backingLoanDiscard},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			fn := patternFn(t, indexCallSource, row.header)
