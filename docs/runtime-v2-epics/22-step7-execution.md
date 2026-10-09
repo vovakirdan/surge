@@ -338,13 +338,14 @@ refused until the core census itself reaches zero.
 | `outer_view[1][0] = 88` over `int[][]` | `grid[1] = row;`, or a flat `int[]` with a computed index | clean |
 
 **Gaps seen on the way that are not this boundary.** They are ordinary D2
-work, not part of the decision: a reference read out of an `Array<&string>` by
-index and dereferenced, `*names[i]` (`reference loaded through another reference
-needs content provenance`; the N-PROJ gap); and a store through a nested index
-place, `grid[1][0] = 88` (`store through a place needs reference-content
-transfer`; the N-STORE gap). When they close, an index walk over
-`Array<&string>` should join the rewrites above; that is to be re-measured then,
-not assumed. The third gap recorded here on 2026-09-16 is closed: `for … in` has
+work, not part of the decision. The N-PROJ gap is closed for a certified scalar
+index on 2026-10-09: `*names[i]` loads the exact backing contents, and the
+compiler-built variadic reference pack has source, escape, VM/LLVM and strict
+Valgrind witnesses. Source-written arrays of references remain SEM3138, and a
+view, slice or `for` walk over reference elements remains this boundary. A store
+through a nested index place, `grid[1][0] = 88` (`store through a place needs
+reference-content transfer`; the N-STORE gap), is still open. The third gap
+recorded here on 2026-09-16 is closed: `for … in` has
 its origin transfer, so a walk over elements that hold no borrow and can keep no
 storage loan (`int[]`, `Array<string>`, a plain struct of them) leaves no
 unfinished row of its own, while `for x in xs` over `Array<&string>`, over
