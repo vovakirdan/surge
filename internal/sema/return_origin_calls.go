@@ -430,11 +430,14 @@ func (b *returnOriginBody) callArgumentOrigin(expr ast.ExprID, formal types.Type
 		}
 		evidence = borrow
 	}
+	if evidence == nil && reference && b.stringTemporary(expr, formal) {
+		if confined {
+			return returnOriginValueOf()
+		}
+		return returnOriginValueOf(returnOrigin{kind: returnOriginTemporary, temp: expr})
+	}
 	if !reference || evidence == nil || evidence.ID == NoBorrowID || evidence.Kind != kind ||
 		evidence.Reserved || !evidence.Place.IsValid() {
-		if evidence == nil && confined && b.stringTemporary(expr, formal) {
-			return unknown // a statement temporary this call cannot keep
-		}
 		b.pending(span, "implicit borrow lacks an admitted borrow for this expression")
 		return unknown
 	}

@@ -259,7 +259,7 @@ func originSelectRows() []originSelectRow {
 		{name: "head_effect_control", text: originSelectFinishSource, digest: originSelectFinishSourceDigest, body: "head_effect_control",
 			fn: originSpan{1771, 2075, originSelectFinishSource[1771:2075]}, want: []originRefusal{}, summary: true, slots: []uint32{0}},
 		{name: "select_head_string_temporary_row_stands", text: originSelectTemporarySource, digest: originSelectTemporarySourceDigest, body: "head_temp",
-			fn: originSpan{62, 163, originSelectTemporarySource[62:163]}, want: []originRefusal{{span: originSpan{132, 139, "\"a\" + b"}, reason: stringTemporaryReason}}, summary: false, slots: nil},
+			fn: originSpan{62, 163, originSelectTemporarySource[62:163]}, want: []originRefusal{{span: originSpan{132, 139, "\"a\" + b"}, reason: statementTemporaryKept}}, summary: false, slots: nil},
 		{name: "select_head_capture_row_stands", text: originSelectCaptureSource, digest: originSelectCaptureSourceDigest, body: "head_capture",
 			fn: originSpan{0, 132, originSelectCaptureSource[0:132]}, want: []originRefusal{{span: originSpan{69, 86, "async { ret *r; }"}, reason: originTaskBlockCaptureRefusal}}, summary: false, slots: nil},
 		{name: "select_send_task_payload_refused", text: originSelectSendTaskSource, digest: originSelectSendTaskSourceDigest, body: "send_task",

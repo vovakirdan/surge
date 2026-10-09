@@ -156,9 +156,9 @@ func originTaskBlockRows() []originTaskBlockRow {
 		{name: "reference_capture_stays_refused", text: originTaskBlockCaptureSource, digest: originTaskBlockCaptureSourceDigest, body: "read_through",
 			fn: originSpan{0, 83, originTaskBlockCaptureSource[0:83]}, want: []originRefusal{{span: originSpan{51, 80, "async {\n        ret *r;\n    }"}, reason: originTaskBlockCaptureRefusal}}, summary: false},
 		{name: "body_rows_are_reported", text: originTaskBlockWalkSource, digest: originTaskBlockWalkSourceDigest, body: "body_row",
-			fn: originSpan{53, 141, originTaskBlockWalkSource[53:141]}, want: []originRefusal{{span: originSpan{121, 130, "\"a\" + \"b\""}, reason: stringTemporaryReason}}, summary: false},
+			fn: originSpan{53, 141, originTaskBlockWalkSource[53:141]}, want: []originRefusal{}, summary: false},
 		{name: "continuation_after_a_body_that_never_finishes", text: originTaskBlockWalkSource, digest: originTaskBlockWalkSourceDigest, body: "after_spin",
-			fn: originSpan{143, 280, originTaskBlockWalkSource[143:280]}, want: []originRefusal{{span: originSpan{267, 276, "\"e\" + \"f\""}, reason: stringTemporaryReason}}, summary: false},
+			fn: originSpan{143, 280, originTaskBlockWalkSource[143:280]}, want: []originRefusal{}, summary: false},
 		{name: "joined_block_task_finishes", text: originTaskBlockWalkSource, digest: originTaskBlockWalkSourceDigest, body: "joined",
 			fn: originSpan{368, 536, originTaskBlockWalkSource[368:536]}, want: []originRefusal{}, summary: true},
 	}

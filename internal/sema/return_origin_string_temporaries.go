@@ -104,6 +104,9 @@ func (b *returnOriginBody) stringTemporary(expr ast.ExprID, formal types.TypeID)
 	switch node.Kind {
 	case ast.ExprLit, ast.ExprCast, ast.ExprCall:
 		return true
+	case ast.ExprIndex:
+		indexed, reason := b.analyzer.stringRangeIndex(b.function, expr)
+		return reason == "" && indexed.family == text
 	case ast.ExprBinary:
 		data, found := u.Builder.Exprs.Binary(expr)
 		return found && data != nil && data.Op == ast.ExprBinaryAdd

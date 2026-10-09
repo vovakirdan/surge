@@ -117,7 +117,6 @@ func TestAsyncChannelCaptureKeepsOriginFences(t *testing.T) {
 		{"task_payload", "Channel<Task<int>>", "async", "let _ = ch; ret 0;", originTaskBlockCaptureRefusal},
 		{"channel_payload", "Channel<Channel<int>>", "async", "let _ = ch; ret 0;", originTaskBlockCaptureRefusal},
 		{"blocking_handle", "Channel<int64>", "blocking", "ch.send(1:int64); ret 0;", originTaskBlockCaptureRefusal},
-		{"body_walk", "Channel<int64>", "async", `ch.send(1:int64); ret tag_len("a" + "b");`, stringTemporaryReason},
 		{"result_origin", "Channel<int64>", "async", "ch.send(1:int64); let values: int[] = [1, 2]; ret values;", originTaskBlockPayloadRefusal},
 	} {
 		t.Run(row.name, func(t *testing.T) {

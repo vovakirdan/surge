@@ -39,11 +39,11 @@ func spawnOnRows() []spawnOnRow {
 		{name: "far_task_capture_refused", text: spawnOnR14CapFarTaskSource, digest: spawnOnR14CapFarTaskSourceDigest, body: "start",
 			fn: originSpan{0, 225, "fn start() -> far Task<int> {\n    let inner = spawn on pool {\n        ret 1;\n    };\n    return spawn on pool {\n        ret compare inner.await() {\n            Success(n) => n;\n            Cancelled() => 0;\n        };\n    };\n}"}, want: []originRefusal{{span: originSpan{131, 136, "inner"}, reason: spawnOnCaptureRefusal}}, summary: false},
 		{name: "body_rows_are_reported", text: spawnOnR09BodyStringTempSource, digest: spawnOnR09BodyStringTempSourceDigest, body: "start",
-			fn: originSpan{62, 243, "async fn start() -> far Task<int> {\n    return spawn on pool {\n        ret compare wk(\"abc\").await() {\n            Success(n) => n;\n            Cancelled() => 0;\n        };\n    };\n}"}, want: []originRefusal{{span: originSpan{148, 153, "\"abc\""}, reason: stringTemporaryReason}}, summary: false},
+			fn: originSpan{62, 243, "async fn start() -> far Task<int> {\n    return spawn on pool {\n        ret compare wk(\"abc\").await() {\n            Success(n) => n;\n            Cancelled() => 0;\n        };\n    };\n}"}, want: []originRefusal{{span: originSpan{148, 153, "\"abc\""}, reason: statementTemporaryKept}}, summary: false},
 		{name: "destination_rows_are_reported", text: spawnOnR18DestStringTempSource, digest: spawnOnR18DestStringTempSourceDigest, body: "start",
-			fn: originSpan{63, 151, "fn start() -> far Task<int> {\n    return spawn on route(\"abc\") {\n        ret 1;\n    };\n}"}, want: []originRefusal{{span: originSpan{119, 124, "\"abc\""}, reason: stringTemporaryReason}}, summary: false},
+			fn: originSpan{63, 151, "fn start() -> far Task<int> {\n    return spawn on route(\"abc\") {\n        ret 1;\n    };\n}"}, want: []originRefusal{}, summary: false},
 		{name: "continuation_rows_are_reported", text: spawnOnR17AfterRowSource, digest: spawnOnR17AfterRowSourceDigest, body: "start",
-			fn: originSpan{47, 175, "fn start() -> int {\n    let ft = spawn on distributed {\n        ret 1;\n    };\n    let _ = ft.await();\n    return route(\"abc\");\n}"}, want: []originRefusal{{span: originSpan{166, 171, "\"abc\""}, reason: stringTemporaryReason}}, summary: false},
+			fn: originSpan{47, 175, "fn start() -> int {\n    let ft = spawn on distributed {\n        ret 1;\n    };\n    let _ = ft.await();\n    return route(\"abc\");\n}"}, want: []originRefusal{}, summary: false},
 	}
 }
 
