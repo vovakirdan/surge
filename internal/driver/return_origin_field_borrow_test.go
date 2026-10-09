@@ -13,10 +13,9 @@ import (
 // read at the projection: loading or passing the place on still asks
 // containerLoans or the backing-call targets, which refuse a base they cannot
 // prove. The same owner composes through a nested plain-struct field. A
-// fixed-array or cursor field keeps the projection refusal: its view or
-// cursor points into the referent itself. The callers that reallocate or
-// overwrite the viewed storage while the view lives are refused by the checker,
-// which keeps the argument borrowed (TestFieldBorrowWindowCallersAreRefused).
+// fixed-array field keeps that owner too: the checker keeps the argument
+// borrowed while its window or cursor lives, and the return summary names the
+// same referent (TestFieldBorrowWindowCallersAreRefused).
 const fieldBorrowSource = `pragma module::dep;
 type Bag = { items: int64[] };
 type Win = { cells: uint64[4] };
@@ -74,12 +73,12 @@ func TestAnalyzeFieldBorrowOrigins(t *testing.T) {
 			cleared: []originRefusal{{originSpan{264, 271, "b.items"}, originProjectionRefusal}}},
 		{name: "push_byte", body: "push_byte", function: originSpan{275, 365, "fn push_byte(h: &mut Bytes, x: byte) -> nothing {\n    h.buf.push(x);\n    return nothing;\n}"}, clean: true},
 		{name: "count", body: "count", function: originSpan{366, 423, "fn count(h: &Bytes) -> uint {\n    return h.buf.__len();\n}"}, clean: true},
-		// Witnesses: a fixed-array field's view and cursor keep the projection
-		// refusal.
+		// Witnesses: the fixed-array field's view and cursor keep the parameter
+		// owner the checker already holds borrowed.
 		{name: "fixed_view_field", body: "view_of_field", function: originSpan{424, 493, "fn view_of_field(w: &Win) -> uint64[] {\n    return w.cells[[0..2]];\n}"},
-			stays: []originRefusal{{originSpan{475, 482, "w.cells"}, originProjectionRefusal}, {originSpan{450, 461, "-> uint64[]"}, originResultRefusal}}},
+			clean: true, slots: []uint32{0}, cleared: []originRefusal{{originSpan{475, 482, "w.cells"}, originProjectionRefusal}, {originSpan{450, 461, "-> uint64[]"}, originResultRefusal}}},
 		{name: "fixed_cursor_field", body: "cursor_of_field", function: originSpan{494, 572, "fn cursor_of_field(w: &Win) -> Range<uint64> {\n    return w.cells.__range();\n}"},
-			stays: []originRefusal{{originSpan{552, 559, "w.cells"}, originProjectionRefusal}, {originSpan{522, 538, "-> Range<uint64>"}, originResultRefusal}}},
+			clean: true, slots: []uint32{0}, cleared: []originRefusal{{originSpan{552, 559, "w.cells"}, originProjectionRefusal}, {originSpan{522, 538, "-> Range<uint64>"}, originResultRefusal}}},
 		// Witnesses: an unproved reference, the loans of a container read through
 		// the projection, and a store of an element that can hold loans into the
 		// projected container keep their refusal. The nested plain-field place

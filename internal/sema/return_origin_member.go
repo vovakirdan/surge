@@ -10,13 +10,12 @@ import (
 // The target is either a named reference or a member/index projection whose
 // evaluated owner is already exact. The field is declared reference-free, or
 // is the exact marked BytesView whose by-value load has a separate transfer, so
-// the projection itself loads nothing from the referent. A dynamic array field
-// is admitted too: the borrow names the field's place, never its heap contents,
-// and the loans those contents keep are read only where the place is loaded or
-// passed on, by containerLoans or the backing-call targets, which refuse a base
-// they cannot prove. Other loan carriers keep the refusal: a fixed array's view
-// or a cursor over it points into the referent's own storage, and the checker
-// does not keep a caller's argument borrowed while such a result lives.
+// the projection itself loads nothing from the referent. A loan-carrier field
+// is admitted when its borrowed-content shape is otherwise reference-free: the
+// borrow names the field's place, never its contents, and the checker keeps the
+// referent borrowed while a fixed-array window or cursor result lives. Contents
+// are read only by containerLoans/backing transfers, which still refuse a base
+// they cannot prove.
 func (b *returnOriginBody) memberBorrowsReferent(id ast.ExprID, data *ast.ExprMemberData, owner returnOriginValue) bool {
 	u := b.function.unit
 	in := u.Sema.TypeInterner
@@ -61,8 +60,7 @@ func (b *returnOriginBody) memberBorrowsReferent(id ast.ExprID, data *ast.ExprMe
 			return false
 		}
 		if !in.IsBorrowedView(returnOriginResolveAlias(in, field.Type)) &&
-			(returnOriginTypeShape(in, field.Type, nil) != returnOriginRefFree ||
-				b.analyzer.loanCarrier(field.Type) && !returnOriginDynamicArray(in, field.Type)) {
+			returnOriginTypeShape(in, field.Type, nil) != returnOriginRefFree {
 			return false
 		}
 	}
