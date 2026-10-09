@@ -62,6 +62,10 @@ func (b *returnOriginBody) deferredClone(id ast.ExprID, call *ast.ExprCallData, 
 		} else {
 			value, reason = b.cloneBindingContents(argument, flow.normal, edges[0].Receiver)
 		}
+		if reason != "" && fn.directTemplateParam(edges[0].Receiver) &&
+			len(b.requireOpaqueState(returnOriginView(fn), edges[0].Receiver, span).roots) == 0 {
+			value, reason = returnOriginValueOf(), ""
+		}
 	}
 	if reason != "" {
 		b.pending(span, reason)
@@ -104,8 +108,29 @@ func (fn *returnOriginFunction) originalClone(edge *DeferredCallableEdge) (ast.E
 		edge.StaticReceiver || edge.Method != "__clone" || edge.ExpectedResult != edge.Receiver || u.Sema.ExprTypes[id] != edge.ExpectedResult {
 		return id, "deferred clone disagrees with its original typed call"
 	}
-	arg, ok := u.Sema.TypeInterner.Lookup(u.Sema.ExprTypes[call.Args[0].Value])
-	if !ok || arg.Kind != types.KindReference || arg.Mutable || arg.Elem != edge.Receiver {
+	argExpr := call.Args[0].Value
+	argID := u.Sema.ExprTypes[argExpr]
+	arg, ok := u.Sema.TypeInterner.Lookup(argID)
+	shared := ok && arg.Kind == types.KindReference && !arg.Mutable && arg.Elem == edge.Receiver
+	if !shared && ok && argID == edge.Receiver {
+		var evidence *BorrowInfo
+		for i := range u.Sema.Borrows {
+			borrow := &u.Sema.Borrows[i]
+			if borrow.Life.FromExpr == argExpr {
+				if evidence != nil {
+					return id, "deferred clone has ambiguous implicit shared-receiver evidence"
+				}
+				evidence = borrow
+			}
+		}
+		shared = evidence != nil && evidence.ID != NoBorrowID && evidence.Kind == BorrowShared && !evidence.Reserved && evidence.Place.IsValid()
+		if !shared && fn.directTemplateParam(edge.Receiver) && u.Builder.Exprs.Get(argExpr).Kind == ast.ExprIdent {
+			sym := u.Symbols.Table.Symbols.Get(u.Symbols.ExprSymbols[argExpr])
+			shared = sym != nil && (sym.Kind == symbols.SymbolLet || sym.Kind == symbols.SymbolParam) &&
+				sym.Span.File == fn.item.Span.File && sym.Span.Start >= fn.item.Span.Start && sym.Span.End <= fn.item.Span.End
+		}
+	}
+	if !shared {
 		return id, "deferred clone requires its direct template shared receiver"
 	}
 	if int(edge.CallerTemplateArity) != len(fn.candidate.TemplateParams) || validateInstantiationBindings(&InstantiationEdge{

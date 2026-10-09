@@ -253,6 +253,11 @@ func (a *returnOriginAnalyzer) checkGenericPromise(fn *returnOriginFunction, vie
 	}
 	a.useRequirements(fn, use)
 	value := a.summaries[fn.key].value.clone()
+	bound := returnOriginView(fn)
+	if view.binding != nil {
+		bound = *view.binding
+	}
+	value, _ = a.freshGenericArraySummary(fn, bound, value)
 	for _, root := range value.roots {
 		if root.kind != returnOriginParam || root.expired || int64(root.param) >= int64(len(view.params)) {
 			return "generic result contains an unproved source"

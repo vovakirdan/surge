@@ -213,7 +213,10 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		return returnOriginExprResult{flow: flow, value: returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})}, nil
 	}
 	var summary returnOriginValue
-	if callbackValue.normal {
+	confinedCallback := callback && b.genericCallbackConfined(info, call.Target, span)
+	if confinedCallback {
+		summary = returnOriginValueOf()
+	} else if callbackValue.normal {
 		if b.inertTaskFunctionValueCall(info) && b.callablesHaveBodies(callbackValue) {
 			summary = b.inertTaskCallableSources(callbackValue, span)
 		} else {
@@ -231,6 +234,7 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		}
 		required := b.inheritRequirements(callee, view, span)
 		summary = b.analyzer.summaries[callee.key].value
+		summary, _ = b.analyzer.freshGenericArraySummary(callee, view, summary)
 		if required.failed() && summary.normal {
 			summary = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 		}
