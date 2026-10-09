@@ -40,6 +40,11 @@ func (b *returnOriginBody) index(id ast.ExprID, env returnOriginEnv, targets ret
 		return out, nil
 	}
 	primitive, reason := b.analyzer.indexOperation(b.function, id)
+	if reason != "" {
+		if reborrowed, ok := b.localFieldReborrowIndex(id, target.value); ok {
+			primitive, reason = reborrowed, ""
+		}
+	}
 	out.storage = returnOriginValue{}
 	if reason == "index requires a non-scalar index transfer" {
 		if view, handled := b.arrayRangeView(id, target, flow.normal, span); handled {

@@ -11,7 +11,7 @@ import (
 // the element is not itself a storage-loan carrier. The evaluated store still
 // runs through indexStoreOperation before this helper; only backing identity is
 // waived because storeBackingContents would have no origin fact to update.
-func (b *returnOriginBody) nestedRefFreeIndexStore(lhs ast.ExprID, container returnOriginIndexType, rhs returnOriginValue,
+func (b *returnOriginBody) nestedRefFreeIndexStore(lhs ast.ExprID, container returnOriginIndexType, owner, rhs returnOriginValue,
 	rhsExpr ast.ExprID, span source.Span,
 ) bool {
 	u := b.function.unit
@@ -31,7 +31,8 @@ func (b *returnOriginBody) nestedRefFreeIndexStore(lhs ast.ExprID, container ret
 	}
 	switch node.Kind {
 	case ast.ExprIndex:
-		if _, reason := b.analyzer.indexOperation(b.function, target); !container.reference || reason != "" {
+		_, reason := b.analyzer.indexOperation(b.function, target)
+		if _, reborrowed := b.localFieldReborrowIndex(target, owner); !container.reference || reason != "" && !reborrowed {
 			return false
 		}
 	case ast.ExprMember:
