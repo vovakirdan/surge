@@ -315,6 +315,21 @@ by it.
 | RV2-DEBT-451 | **A COUNTED SCALAR CAPTURED BY A LOCAL ASYNC FRAME LEAKED ITS CONSTRUCTOR/BODY OWNER.** The old constructor consumed a retained operand into the cold state while the async body recorded no drop for that captured owner. G5 separates the caller and frame copies: the synchronous constructor borrows the caller copy and retains exactly one frame owner; the body releases that owner, while cold/cancelled state cleanup handles a body that never starts. Counterfactuals for the constructor and body each leak 744 B definite plus 20 B indirect in three physical repetitions; restored controls lose 0 B definite/indirect. The change does not certify scalar captures in return-origin: G5 admission is only a canonical local counted `Channel<T>` with inert `T`. Full VM/LLVM/MT inventories retain all baseline failures, all 38 sanitizer jobs pass, and the census moves only t22/t23. [G5 verification](22-step7-g5-results.md) records the evidence and limits. | Closed (2026-10-09, G5) | Local async capture lowering and ownership | Constructor and body counterfactuals each reproduce the measured loss; restored normal/cold/cancelled captures are balanced on VM and native; admission remains bounded to the reviewed Channel certificate. |
 | RV2-DEBT-452 | **A HEAP `int` SHARED BY TWO LOCAL TASKS RACES ITS NON-ATOMIC REFERENCE COUNT ACROSS CARRIERS AND SEGFAULTS.** A parent and spawned local async child repeatedly copy and compare the same `9223372036854775808`. On the exact pre-G5 base `13873c62` and G5 measurement tree `94475e91`, both binaries pass 10/10 with `SURGE_THREADS=1`, fail 9/10 with SIGSEGV 139 at `SURGE_THREADS=8`, and pass on the VM. GDB stops at `trim_len -> bi_is_zero -> bi_cmp -> rt_bigint_cmp` with the freed block's `len` read as 32760. TSan on the exact base generated program exits 66 and names a read/write race between two carrier threads in `rt_bigint_release` lines 81/84 on the same 20-byte block allocated by `rt_bigint_from_literal`. Generated retains are also plain `load i32` / `add` / `store i32`. Epic 22's owner ruling made numeric counts non-atomic and its proof obligation separates blocks only at shard crossings; the current `1 shard x N carriers` topology executes local tasks concurrently outside the shard lane, so the model, code and run disagree. G5 does not introduce the class: the direct scalar-sharing program already builds and fails at its base; G5's new return-origin certificate is for a Channel handle whose own count is atomic. | Open; owner ruling required | Runtime model plus compiler/runtime numeric ownership across carrier publication | Choose and document one model: either keep non-atomic counts and prove every boundary that can publish a counted block to another carrier deep-clones it or preserves an enforceable single-carrier affinity, including local channels/task results; or revise counts to atomic and re-measure the recorded cost decision. Then the exact probe is 0/100 at workers 8 on native, TSan-clean with actual instrumented execution, still 10/10 at workers 1 and on VM, and a negative control recreates the race without the repair. |
 
+### SC-C reconciliation (2026-10-09)
+
+RV2-DEBT-436 part (2), the stale `core_stdlib` mirrors, is closed. A fresh
+inventory at `eaf1864a` found nine of ten source mirrors byte-equal to `core`;
+only `intrinsics.sg` lacked the six `@return_source` annotations already present
+in `core/intrinsics.sg`. The mirror and its token/AST/fmt sidecars are
+synchronized and deterministic on repeat; its empty `.diag` is produced from
+the real core file. All ten mirrors are now byte-equal. The EXITCODE sidecars
+assigned to SC-C were already landed in `59906d4e` and are not duplicated.
+Full `golden-update` still stops on the exact 22 known generator failures and
+the frozen manifest remains RV2-DEBT-421; SC-C does not call that gate green.
+[SC-C verification](22-step7-sc-c-results.md) records the generation contract
+and limit. RV2-DEBT-436 remains Open for part (3), index uses outside the
+instantiation closure.
+
 ### Epic 23b Owner Overrides (2026-08-04)
 
 To preserve the causal text of long-lived rows, the original Owner cells above

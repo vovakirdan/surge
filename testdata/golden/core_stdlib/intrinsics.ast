@@ -1,4 +1,4 @@
-intrinsics.sg (span: 1:1-900:1)
+testdata/golden/core_stdlib/intrinsics.sg (span: 1:1-900:1)
 ├─ Item[0]: Type (span: 3:1-3:23)
 │  ├─ Name: byte
 │  ├─ Kind: Alias
@@ -356,16 +356,16 @@ intrinsics.sg (span: 1:1-900:1)
 │  ├─ Params: (a: &mut Array<T>)
 │  ├─ Return: Option<T>
 │  └─ Body: <none>
-├─ Item[67]: Fn (span: 129:1-129:75)
+├─ Item[67]: Fn (span: 129:1-129:90)
 │  ├─ Name: rt_array_get_mut
 │  ├─ Generics: <T>
-│  ├─ Params: (a: &mut Array<T>, index: int)
+│  ├─ Params: (@return_source a: &mut Array<T>, index: int)
 │  ├─ Return: &mut T
 │  └─ Body: <none>
-├─ Item[68]: Fn (span: 130:1-130:106)
+├─ Item[68]: Fn (span: 130:1-130:121)
 │  ├─ Name: rt_array_get_mut
 │  ├─ Generics: <T, N>
-│  ├─ Params: (a: &mut ArrayFixed<T, N>, index: int)
+│  ├─ Params: (@return_source a: &mut ArrayFixed<T, N>, index: int)
 │  ├─ Return: &mut T
 │  └─ Body: <none>
 ├─ Item[69]: Fn (span: 131:1-131:96)
@@ -406,16 +406,16 @@ intrinsics.sg (span: 1:1-900:1)
 │  ├─ Params: (m: &Map<K, V>, key: &K)
 │  ├─ Return: bool
 │  └─ Body: <none>
-├─ Item[76]: Fn (span: 140:1-140:74)
+├─ Item[76]: Fn (span: 140:1-140:89)
 │  ├─ Name: rt_map_get_ref
 │  ├─ Generics: <K, V>
-│  ├─ Params: (m: &Map<K, V>, key: &K)
+│  ├─ Params: (@return_source m: &Map<K, V>, key: &K)
 │  ├─ Return: Option<&V>
 │  └─ Body: <none>
-├─ Item[77]: Fn (span: 141:1-141:82)
+├─ Item[77]: Fn (span: 141:1-141:97)
 │  ├─ Name: rt_map_get_mut
 │  ├─ Generics: <K, V>
-│  ├─ Params: (m: &mut Map<K, V>, key: &K)
+│  ├─ Params: (@return_source m: &mut Map<K, V>, key: &K)
 │  ├─ Return: Option<&mut V>
 │  └─ Body: <none>
 ├─ Item[78]: Fn (span: 142:1-142:85)
@@ -2381,7 +2381,7 @@ intrinsics.sg (span: 1:1-900:1)
 │  │  │  ├─ Return: Array<T>
 │  │  │  └─ Attributes: @intrinsic
 │  │  ├─ Fn[1]: __index
-│  │  │  ├─ Params: (self: &Array<T>, index: int)
+│  │  │  ├─ Params: (@return_source self: &Array<T>, index: int)
 │  │  │  ├─ Return: &T
 │  │  │  └─ Attributes: @intrinsic
 │  │  ├─ Fn[2]: __index
@@ -2408,7 +2408,7 @@ intrinsics.sg (span: 1:1-900:1)
 │  │  │  ├─ Return: ArrayFixed<T, N>
 │  │  │  └─ Attributes: @intrinsic
 │  │  ├─ Fn[1]: __index
-│  │  │  ├─ Params: (self: &ArrayFixed<T, N>, index: int)
+│  │  │  ├─ Params: (@return_source self: &ArrayFixed<T, N>, index: int)
 │  │  │  ├─ Return: &T
 │  │  │  └─ Attributes: @intrinsic
 │  │  ├─ Fn[2]: __index
