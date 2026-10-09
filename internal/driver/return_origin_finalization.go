@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"path/filepath"
 	"sort"
 
 	"surge/internal/ast"
@@ -166,7 +167,15 @@ func collectReturnOriginUnits(res *DiagnoseResult) (returnOriginInputs, error) {
 		// base dir. It names the standard library only for a file inside the
 		// stdlib root, the physical rule that also admits core.
 		if isStdlibModulePath(modulePath) {
-			if src := res.FileSet.Get(file.Span.File); src == nil || !pathWithin(stdlibRoot, src.Path) {
+			src := res.FileSet.Get(file.Span.File)
+			physicalPath := ""
+			if src != nil {
+				physicalPath = src.Path
+				if !filepath.IsAbs(physicalPath) {
+					physicalPath = filepath.Join(res.FileSet.BaseDir(), physicalPath)
+				}
+			}
+			if src == nil || !pathWithin(stdlibRoot, physicalPath) {
 				modulePath = ""
 			}
 		}

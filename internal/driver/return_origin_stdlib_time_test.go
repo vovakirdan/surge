@@ -65,6 +65,18 @@ func TestReturnOriginStdlibTimeDurationIdentityCertificate(t *testing.T) {
 	}
 }
 
+func TestReturnOriginStdlibTimeStandaloneRelativeRoot(t *testing.T) {
+	repo := repoRootFromDriverTest(t)
+	t.Chdir(repo)
+	t.Setenv("SURGE_STDLIB", repo)
+	result, err := DiagnoseWithOptions(t.Context(), filepath.Join("stdlib", "time", "time.sg"), &DiagnoseOptions{
+		Stage: DiagnoseStageAll, BaseDir: repo, MaxDiagnostics: 64,
+	})
+	if err != nil || result == nil || result.Bag.HasErrors() {
+		t.Fatalf("relative standalone stdlib/time lost its physical module identity: result=%v err=%v", result != nil, err)
+	}
+}
+
 func TestReturnOriginStdlibTimeGoldenRowsFinish(t *testing.T) {
 	paths := []string{
 		"sema/invalid/directives/time_not_directive_module/main.sg",
