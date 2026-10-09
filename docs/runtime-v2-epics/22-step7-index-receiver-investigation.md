@@ -1,5 +1,8 @@
 # D2 mutable index-receiver investigation
 
+Superseded by the landed fix and final evidence in
+`22-step7-index-receiver-results.md` (2026-10-09).
+
 Investigated 2026-10-09. Published base: `145b0c8b7535f4eb2eb9970cf72392b84512ccfc`.
 Rejected local candidate: `72f1c5f17b1da289b1827bfb45ba3cf456c9a43d`.
 
