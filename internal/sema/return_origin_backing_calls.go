@@ -80,6 +80,11 @@ func (b *returnOriginBody) instantiateBackingCall(call returnOriginBackingCall, 
 func (b *returnOriginBody) substituteBackingCall(call returnOriginBackingCall, payload returnOriginValue, actuals []returnOriginValue, pre returnOriginEnv,
 	span source.Span, self int,
 ) returnOriginValue {
+	if self >= 0 && b.erasedType(call.containers[self].element) {
+		// The concrete element can retain neither a borrow nor a storage loan.
+		// Generic-body roots are analysis imprecision, not stored contents.
+		return returnOriginValueOf()
+	}
 	unknown := returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 	out := returnOriginValueOf()
 	if len(payload.callables) != 0 {
