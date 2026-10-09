@@ -55,13 +55,45 @@ func (b *returnOriginBody) statementTemporaryBorrow(id ast.ExprID, data *ast.Exp
 // call can keep them with no root to show for it: its value or a formal it may
 // write through hides a borrow (hidesBorrow), as a Task holds its async callee's
 // borrowed formals and a raw pointer the bytes it was handed.
-func (b *returnOriginBody) refuseRetainedTemporaries(value types.TypeID, effects []types.TypeID, actuals []returnOriginValue) {
+func (b *returnOriginBody) refuseRetainedTemporaries(callee *returnOriginFunction, value types.TypeID, effects []types.TypeID,
+	actuals []returnOriginValue,
+) {
 	if !b.hidesBorrow(value) && !slices.ContainsFunc(effects, b.hidesBorrow) {
 		return
 	}
 	for i := range actuals {
+		if b.sourceBodyConfinesTemporary(callee, i, effects) {
+			continue
+		}
 		actuals[i] = b.closeTemporaries(actuals[i])
 	}
+}
+
+func (b *returnOriginBody) sourceBodyConfinesTemporary(callee *returnOriginFunction, slot int, effects []types.TypeID) bool {
+	if callee == nil || callee.info == nil || !callee.item.Body.IsValid() || slot < 0 || slot >= len(callee.info.Params) {
+		return false
+	}
+	in := callee.unit.Sema.TypeInterner
+	formal, ok := in.Lookup(returnOriginResolveAlias(in, callee.info.Params[slot]))
+	if !ok || formal.Kind != types.KindReference || formal.Mutable {
+		return false
+	}
+	fact, present := b.analyzer.summaries[callee.key]
+	if !present || len(fact.value.callables) != 0 {
+		return false
+	}
+	for _, root := range fact.value.roots {
+		if root.kind != returnOriginParam || root.param == uint32(slot) || root.expired {
+			return false
+		}
+	}
+	for i, effect := range effects {
+		kind, reference := returnOriginFormalBorrowKind(in, effect)
+		if reference && kind == BorrowMut && b.hidesBorrow(effect) && !b.analyzer.preservesBorrowedStructSlot(callee, i) {
+			return false
+		}
+	}
+	return true
 }
 
 // stmt analyzes one statement and then closes the temporaries it owns.

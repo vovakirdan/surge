@@ -184,7 +184,7 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 			}
 		}
 	}
-	b.refuseRetainedTemporaries(u.Sema.ExprTypes[id], effects, actuals)
+	b.refuseRetainedTemporaries(callee, u.Sema.ExprTypes[id], effects, actuals)
 	// A checked source-body cell call transfers its exact cell formals below;
 	// every other mutable formal keeps its unproved-effect obligation.
 	cellCall, cellChecked := b.cellCallTargets(callee, signature != nil || callback || deferred != nil, slots, actuals)
@@ -204,7 +204,8 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 	for _, i := range mutableEffects {
 		_, cellTransferred := cellCall.targets[i]
 		_, backingTransferred := backingCall.targets[i]
-		if (!cellChecked || !cellTransferred) && (!backingChecked || !backingTransferred) {
+		structPreserved := callee != nil && b.analyzer.preservesBorrowedStructSlot(callee, i)
+		if !structPreserved && (!cellChecked || !cellTransferred) && (!backingChecked || !backingTransferred) {
 			flow.normal = b.taintExternalCellEffects(flow.normal, span, "mutable argument may replace reference-bearing contents")
 		}
 	}
