@@ -132,7 +132,8 @@ func (b *returnOriginBody) exprCore(id ast.ExprID, env returnOriginEnv, targets 
 		// A body `__to` selected on this node is a call whose checked summary names
 		// nothing; an implicit `To` here would overwrite that selection (operators.go:48-50).
 		if _, implicit := u.Sema.ImplicitConversions[id]; !implicit &&
-			b.bodyOperation(&out, u.Sema.ToSymbols, id, u.Sema.ExprTypes[id], "__to", 2, data.Value) {
+			b.bodyOperation(&out, u.Sema.ToSymbols, id, u.Sema.ExprTypes[id], "__to", 2,
+				[]returnOriginCallValue{{value: out.value, storage: out.storage}}, data.Value) {
 			return out, nil
 		}
 		// A present entry is a __to call even when invalid: HIR lowers it as one.
@@ -279,8 +280,9 @@ func (b *returnOriginBody) binary(id ast.ExprID, env returnOriginEnv, targets re
 	// A certified operation drops operand origins; the borrow-free path needs no proof.
 	if !borrowFree && (b.shape(id) != returnOriginRefFree ||
 		!b.selectedOperation(u.Sema.MagicBinarySymbols, id, magicNameForBinaryOp(data.Op), 2, data.Left, data.Right)) {
-		if b.bodyOperation(&right, u.Sema.MagicBinarySymbols, id, u.Sema.ExprTypes[id],
-			magicNameForBinaryOp(data.Op), 2, data.Left, data.Right) {
+		if b.bodyOperation(&right, u.Sema.MagicBinarySymbols, id, u.Sema.ExprTypes[id], magicNameForBinaryOp(data.Op), 2,
+			[]returnOriginCallValue{{value: left.value, storage: left.storage}, {value: right.value, storage: right.storage}},
+			data.Left, data.Right) {
 			return right, nil
 		}
 		b.pending(u.Builder.Exprs.Get(id).Span, "binary callable needs an exact origin contract")

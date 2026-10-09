@@ -72,7 +72,7 @@ func returnOriginOperationEffectsReadOnly(in *types.Interner, view returnOriginT
 }
 
 func (b *returnOriginBody) bodyOperation(out *returnOriginExprResult, selections map[ast.ExprID]symbols.SymbolID, id ast.ExprID,
-	result types.TypeID, name string, arity int, operands ...ast.ExprID,
+	result types.TypeID, name string, arity int, values []returnOriginCallValue, operands ...ast.ExprID,
 ) bool {
 	u := b.function.unit
 	selected, present := selections[id]
@@ -85,11 +85,12 @@ func (b *returnOriginBody) bodyOperation(out *returnOriginExprResult, selections
 		resultFree = canonical && !container.reference && container.family == u.Sema.TypeInterner.ArrayNominalType() &&
 			returnOriginTypeShape(u.Sema.TypeInterner, container.element, nil) == returnOriginRefFree && !b.holdsLoan(container.element)
 	}
-	if !present || !selected.IsValid() || !resultFree {
+	if !present || !selected.IsValid() || len(values) != len(operands) {
 		return false
 	}
 	for _, operand := range operands {
-		if _, converted := u.Sema.ImplicitConversions[operand]; converted {
+		if conversion, converted := u.Sema.ImplicitConversions[operand]; converted &&
+			!(operand == id && conversion.Kind == ImplicitConversionTo) {
 			return false
 		}
 	}
@@ -110,9 +111,6 @@ func (b *returnOriginBody) bodyOperation(out *returnOriginExprResult, selections
 		return false
 	}
 	summary := b.analyzer.summaries[fn.key].value
-	if summary.normal && (len(summary.roots) != 0 || len(summary.callables) != 0) {
-		return false
-	}
 	span := u.Builder.Exprs.Get(id).Span
 	if b.inheritRequirements(fn, view, span).failed() {
 		return false
@@ -122,6 +120,24 @@ func (b *returnOriginBody) bodyOperation(out *returnOriginExprResult, selections
 		out.value, out.flow.normal = returnOriginValue{}, returnOriginEnv{}
 		return true
 	}
-	out.value = returnOriginValueOf()
+	if len(summary.roots) == 0 && len(summary.callables) == 0 {
+		if !resultFree {
+			return false
+		}
+		out.value = returnOriginValueOf()
+		return true
+	}
+	if len(summary.callables) != 0 || (b.shape(id) == returnOriginRefFree && !b.holdsLoan(result)) {
+		return false
+	}
+	value := returnOriginValueOf()
+	for _, root := range summary.roots {
+		i := int(root.param)
+		if root.kind != returnOriginParam || root.expired || root.selector != returnOriginInputValue || i >= len(operands) {
+			return false
+		}
+		value = value.join(b.callArgumentOrigin(operands[i], fn.info.Params[i], values[i], false))
+	}
+	out.value = value
 	return true
 }

@@ -28,7 +28,8 @@ func (b *returnOriginBody) selectedClone(id ast.ExprID, call *ast.ExprCallData, 
 	if err != nil || !out.flow.normal.reachable {
 		return out, true, err
 	}
-	if body && !b.bodyOperation(&out, u.Sema.CloneSymbols, id, u.Sema.ExprTypes[id], "__clone", 1, call.Args[0].Value) {
+	if body && !b.bodyOperation(&out, u.Sema.CloneSymbols, id, u.Sema.ExprTypes[id], "__clone", 1,
+		[]returnOriginCallValue{{value: out.value, storage: out.storage}}, call.Args[0].Value) {
 		b.pending(u.Builder.Exprs.Get(id).Span, "selected clone source body lacks its exact origin transfer")
 		out.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 		out.storage = returnOriginValue{}
