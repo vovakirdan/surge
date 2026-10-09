@@ -102,7 +102,8 @@ func (a *returnOriginAnalyzer) tagPayload(fn *returnOriginFunction, id ast.ExprI
 	}
 	payload := info.Members[0].TagArgs
 	for i, sourceType := range tag.Payload {
-		if typeKeyForTypeExpr(owner.Builder, sourceType) != sig.Params[i] || payload[i] == types.NoTypeID || u.Sema.ExprTypes[call.Args[i].Value] != payload[i] {
+		if typeKeyForTypeExpr(owner.Builder, sourceType) != sig.Params[i] || payload[i] == types.NoTypeID ||
+			!a.tagPayloadArgumentMatches(u, call.Args[i].Value, payload[i]) {
 			return 0, nil, "tag constructor disagrees with its source payload slots"
 		}
 		if _, present := in.Lookup(payload[i]); !present {
@@ -168,6 +169,25 @@ func (a *returnOriginAnalyzer) tagPayload(fn *returnOriginFunction, id ast.ExprI
 		}
 	}
 	return canonical, args, ""
+}
+
+// A by-value call parameter reads through a shared-reference argument unless
+// sema recorded that the instantiated value itself is a reference. HIR applies
+// that dereference in applyParamBorrow. Admit the same existing typed fact only
+// for a Copy scalar whose value can retain neither a reference nor a loan.
+func (a *returnOriginAnalyzer) tagPayloadArgumentMatches(u *returnOriginUnitIndex, expr ast.ExprID, payload types.TypeID) bool {
+	actual := u.Sema.ExprTypes[expr]
+	if actual == payload {
+		return true
+	}
+	if _, referenceValue := u.Sema.ReferenceValueArgs[expr]; referenceValue {
+		return false
+	}
+	in := u.Sema.TypeInterner
+	ref, ok := in.Lookup(returnOriginResolveAlias(in, actual))
+	return ok && ref.Kind == types.KindReference && !ref.Mutable &&
+		returnOriginResolveAlias(in, ref.Elem) == returnOriginResolveAlias(in, payload) &&
+		in.IsCopy(payload) && returnOriginTypeShape(in, payload, nil) == returnOriginRefFree && !a.loanCarrier(payload)
 }
 
 // Retained calls after an abrupt exit are checked here even when body flow
