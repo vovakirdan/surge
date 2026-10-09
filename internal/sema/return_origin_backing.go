@@ -230,13 +230,23 @@ func (b *returnOriginBody) containerLoans(owner returnOriginValue, env returnOri
 	for _, root := range owner.roots {
 		if root.kind == returnOriginLocal && !root.expired {
 			sym := fn.unit.Symbols.Table.Symbols.Get(root.binding)
-			if _, live := env.bindings[root.binding]; sym != nil && live && b.analyzer.loanCarrier(sym.Type) {
+			if _, live := env.bindings[root.binding]; sym != nil && live && b.holdsLoan(sym.Type) {
 				out = out.join(env.value(root.binding))
 				continue
 			}
 		}
 		if root.kind == returnOriginParam && root.selector == returnOriginInputValue && !root.expired && slices.Contains(fn.backingSlots, root.param) {
 			if c, _ := returnOriginContainer(in, fn.info.Params[root.param]); b.elementsFreeAt(c, span) {
+				out = out.join(returnOriginValueOf(returnOrigin{kind: returnOriginParam, param: root.param, selector: returnOriginInputLoans}))
+				continue
+			}
+		}
+		if root.kind == returnOriginParam && root.selector == returnOriginInputValue && !root.expired && int(root.param) < len(fn.info.Params) {
+			id := fn.info.Params[root.param]
+			if typ, present := in.Lookup(returnOriginResolveAlias(in, id)); present && typ.Kind == types.KindReference {
+				id = typ.Elem
+			}
+			if b.holdsLoan(id) {
 				out = out.join(returnOriginValueOf(returnOrigin{kind: returnOriginParam, param: root.param, selector: returnOriginInputLoans}))
 				continue
 			}
@@ -262,7 +272,9 @@ func (b *returnOriginBody) discardLoans(value returnOriginValue, span source.Spa
 // the actual, and E(i) is empty where argument i's element is payload-free and
 // keeps no storage loan, or where i is the written slot itself (self). Any other
 // root has no transfer, and the answer names the refusal.
-func (b *returnOriginBody) legacyBackingValue(payload returnOriginValue, slots []returnOriginArgument, actuals []returnOriginValue, self int) (returnOriginValue, string) {
+func (b *returnOriginBody) legacyBackingValue(callee *returnOriginFunction, payload returnOriginValue, slots []returnOriginArgument,
+	actuals []returnOriginValue, self int,
+) (returnOriginValue, string) {
 	out := returnOriginValueOf()
 	for _, root := range payload.roots {
 		i := int(root.param)
@@ -270,6 +282,15 @@ func (b *returnOriginBody) legacyBackingValue(payload returnOriginValue, slots [
 		live := root.kind == returnOriginParam && !root.expired
 		switch {
 		case live && root.selector == returnOriginInputValue && i < len(actuals):
+			out = out.join(actuals[i])
+		case live && root.selector == returnOriginInputLoans && i < len(actuals) && callee != nil && i < len(callee.info.Params):
+			id := callee.info.Params[i]
+			if typ, present := callee.unit.Sema.TypeInterner.Lookup(returnOriginResolveAlias(callee.unit.Sema.TypeInterner, id)); present && typ.Kind == types.KindReference {
+				id = typ.Elem
+			}
+			if _, canonical := returnOriginContainer(callee.unit.Sema.TypeInterner, id); canonical || !b.holdsLoan(id) {
+				return returnOriginValue{}, "container-content result lacks its checked backing call transfer"
+			}
 			out = out.join(actuals[i])
 		case !live || root.selector != returnOriginInputElements || !canonical || !b.elementsFree(c):
 			return returnOriginValue{}, "container-content result lacks its checked backing call transfer"

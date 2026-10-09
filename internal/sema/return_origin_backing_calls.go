@@ -159,7 +159,7 @@ func (b *returnOriginBody) refuseLegacyBackingSummary(callee *returnOriginFuncti
 		b.guardLoanResult(callee, slots, nil, env, result, span)
 		for _, slot := range callee.mutableBackingSlots {
 			post, present := b.analyzer.summaries[callee.key].postBackings[slot]
-			stored, reason := b.legacyBackingValue(post, slots, actuals, int(slot))
+			stored, reason := b.legacyBackingValue(callee, post, slots, actuals, int(slot))
 			if c, canonical := b.callSiteContainer(slots, int(slot)); !canonical || !b.elementsFree(c) {
 				b.pending(span, "mutable argument may replace reference-bearing contents")
 			} else if !present || reason != "" {
@@ -174,7 +174,7 @@ func (b *returnOriginBody) refuseLegacyBackingSummary(callee *returnOriginFuncti
 	}) {
 		return returnOriginValue{}, env, false
 	}
-	value, reason := b.legacyBackingValue(summary, slots, actuals, -1)
+	value, reason := b.legacyBackingValue(callee, summary, slots, actuals, -1)
 	if reason == "" {
 		return value, env, true
 	}
