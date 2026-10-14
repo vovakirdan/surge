@@ -64,7 +64,7 @@ func checkReturnOriginCompare(t *testing.T, fixture returnOriginCompareFixture) 
 		publication.LocalCallables = append(publication.LocalCallables, FinalizationCallableIdentity{Symbol: candidate.Symbol, BodyKey: candidate.BodyKey, SourceKey: candidate.SourceKey})
 	}
 	unit := ReturnOriginUnit{Builder: b, FileID: file, Sema: &checked, Symbols: &resolved, SourceKey: key, Publication: publication}
-	index, err := indexReturnOriginUnit(unit, &checked)
+	index, err := indexReturnOriginUnit(&unit, &checked)
 	if err != nil {
 		t.Fatalf("PRECONDITION: original unit index: %v", err)
 	}
@@ -287,9 +287,10 @@ func checkReturnOriginCompareEscape(t *testing.T, fixture returnOriginCompareFix
 		t.Fatal("PRECONDITION: escape owner lacks its original function scope")
 	}
 	needle := "ret &owned;"
-	if fixture.name == "binding_storage_escape" {
+	switch fixture.name {
+	case "binding_storage_escape":
 		needle = "&value"
-	} else if fixture.name == "guard_local_escape" {
+	case "guard_local_escape":
 		needle = "ret flag;"
 	}
 	start := strings.Index(fixture.text, needle)

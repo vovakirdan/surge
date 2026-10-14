@@ -18,15 +18,6 @@ fn build_note(prefix: string) -> string {
     return s;
 }
 
-async fn spin(count: int) -> int {
-    let mut i = 0;
-    while i < count {
-        checkpoint().await();
-        i = i + 1;
-    }
-    return count;
-}
-
 fn describe(j: own Job) -> int {
     if j.note != "n-xxxx" { return 0 - 1; }
     return j.id * 100 + 6;
@@ -35,7 +26,8 @@ fn describe(j: own Job) -> int {
 async fn caller_body() -> int {
     let j: own Job = own Job{ id: 4, note: build_note("n-") };
     let t: far Task<int> = spawn on distributed {
-        let _ = spin(64).await();
+		let mut i = 0;
+		while i < 64 { i = i + 1; }
         ret describe(own j);
     };
     let got: TaskResult<int> = t.await();

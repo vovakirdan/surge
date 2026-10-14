@@ -40,7 +40,7 @@ func (fe *funcEmitter) emitInstrJoinAll(ins *mir.Instr) error {
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", readyBB)
 	failfastVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i1, ptr %s\n", failfastVal, failfastPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load i1, ptr %s, align 1\n", failfastVal, failfastPtr)
 	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(ins.JoinAll.Dst)
 	if err != nil {
 		return err

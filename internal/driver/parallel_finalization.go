@@ -21,10 +21,33 @@ func prepareParallelFileResults(
 	if err != nil {
 		return err
 	}
+	if diagnoseResultsHaveErrors(results) {
+		return nil
+	}
+	if opts.SkipReturnOriginFinalization {
+		return nil
+	}
 	return finalizeParallelFileResults(ctx, fileSet, results, pass)
 }
 
+func diagnoseResultsHaveErrors(results []DiagnoseDirResult) bool {
+	for i := range results {
+		if results[i].Bag != nil && results[i].Bag.HasErrors() {
+			return true
+		}
+	}
+	return false
+}
+
 func finalizeParallelFileResults(ctx context.Context, fileSet *source.FileSet, results []DiagnoseDirResult, passes ...returnOriginPass) error {
+	return finalizeParallelFileResultsMode(ctx, fileSet, results, false, passes...)
+}
+
+func finalizeParallelFileResultsWithoutReturnOrigins(ctx context.Context, fileSet *source.FileSet, results []DiagnoseDirResult) error {
+	return finalizeParallelFileResultsMode(ctx, fileSet, results, true)
+}
+
+func finalizeParallelFileResultsMode(ctx context.Context, fileSet *source.FileSet, results []DiagnoseDirResult, skipReturnOrigins bool, passes ...returnOriginPass) error {
 	var pass returnOriginPass
 	if len(passes) > 0 {
 		pass = passes[0]
@@ -68,8 +91,14 @@ func finalizeParallelFileResults(ctx context.Context, fileSet *source.FileSet, r
 			Symbols: result.Symbols,
 			Sema:    result.Sema,
 		}
-		if _, err := finalizeDiagnoseResult(ctx, diagnosed); err != nil {
-			return fmt.Errorf("%s finalization: %w", result.Path, err)
+		var finalizeErr error
+		if skipReturnOrigins {
+			_, finalizeErr = finalizeDiagnoseWithoutReturnOrigins(ctx, diagnosed)
+		} else {
+			_, finalizeErr = finalizeDiagnoseResult(ctx, diagnosed)
+		}
+		if finalizeErr != nil {
+			return fmt.Errorf("%s finalization: %w", result.Path, finalizeErr)
 		}
 	}
 	return nil
@@ -109,7 +138,9 @@ func finalizeParallelModuleRecords(
 	fileSet *source.FileSet,
 	paths []string,
 	records map[string]*moduleRecord,
+	skipReturnOrigins ...bool,
 ) (returnOriginPass, error) {
+	skipOrigins := len(skipReturnOrigins) != 0 && skipReturnOrigins[0]
 	pass := make(returnOriginPass)
 	reporters := make(returnOriginReporters)
 	for _, modulePath := range paths {
@@ -118,6 +149,9 @@ func finalizeParallelModuleRecords(
 			return nil, fmt.Errorf("%s return origins: missing module or diagnostic bag", modulePath)
 		}
 		if rec.Bag.HasErrors() {
+			if skipOrigins {
+				continue
+			}
 			return nil, returnOriginBagRefusal(modulePath, rec.Bag)
 		}
 		aggregate, aggregateSymbols, _ := parallelModuleAuthority(rec)
@@ -141,6 +175,9 @@ func finalizeParallelModuleRecords(
 	finalized := make(map[*moduleRecord]struct{}, len(records))
 	for _, modulePath := range paths {
 		rec := records[modulePath]
+		if rec == nil || rec.Bag == nil || rec.Bag.HasErrors() && skipOrigins {
+			continue
+		}
 		if _, done := finalized[rec]; done {
 			continue
 		}
@@ -172,6 +209,9 @@ func finalizeParallelModuleRecords(
 		}
 		if err := publishFinalizationDecisions(diagnosed); err != nil {
 			return nil, fmt.Errorf("%s finalization publication: %w", modulePath, err)
+		}
+		if skipOrigins {
+			continue
 		}
 		outcome, err := analyzeReturnOriginResult(ctx, diagnosed, nil, reporters)
 		if err != nil {

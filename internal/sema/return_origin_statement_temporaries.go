@@ -3,6 +3,8 @@ package sema
 import (
 	"slices"
 
+	"fortio.org/safecast"
+
 	"surge/internal/ast"
 	"surge/internal/types"
 )
@@ -70,7 +72,9 @@ func (b *returnOriginBody) refuseRetainedTemporaries(callee *returnOriginFunctio
 }
 
 func (b *returnOriginBody) sourceBodyConfinesTemporary(callee *returnOriginFunction, slot int, effects []types.TypeID) bool {
-	if callee == nil || callee.info == nil || !callee.item.Body.IsValid() || slot < 0 || slot >= len(callee.info.Params) {
+	if callee == nil || callee.info == nil || callee.candidate == nil || callee.candidate.Async ||
+		callee.item.Flags&ast.FnModifierAsync != 0 ||
+		!callee.item.Body.IsValid() || slot < 0 || slot >= len(callee.info.Params) {
 		return false
 	}
 	in := callee.unit.Sema.TypeInterner
@@ -82,8 +86,12 @@ func (b *returnOriginBody) sourceBodyConfinesTemporary(callee *returnOriginFunct
 	if !present || len(fact.value.callables) != 0 {
 		return false
 	}
+	slotID, err := safecast.Conv[uint32](slot)
+	if err != nil {
+		return false
+	}
 	for _, root := range fact.value.roots {
-		if root.kind != returnOriginParam || root.param == uint32(slot) || root.expired {
+		if root.kind != returnOriginParam || root.param == slotID || root.expired {
 			return false
 		}
 	}

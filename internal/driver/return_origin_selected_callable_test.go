@@ -84,6 +84,7 @@ func TestAnalyzeTypedSelectedCallableAuthority(t *testing.T) {
 					}
 				}
 			}
+			root.LiveOnly = false
 			for _, key := range []string{"array", "base", "entrypoint", "format", "intrinsics", "map", "option", "result", "string", "sync"} {
 				if !seen["core/"+key+".sg"] {
 					t.Fatal("PRECONDITION: original core owner was filtered out")

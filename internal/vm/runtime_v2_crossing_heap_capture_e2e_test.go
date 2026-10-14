@@ -73,10 +73,10 @@ fn main() -> int {
 // checked independently rather than merely equal to each other, a
 // strictly stronger claim than the original cross-comparison (that form
 // would still pass if both sides leaked the SAME nonzero amount per
-// iteration). Measured with RV2-DEBT-052 fixed: d(1)=d(8)=1,
-// b(1)=b(8)=3 — both flat (not growing with n), but not literally zero;
-// each is a fixed, n-independent window-edge/setup cost (unrelated to
-// this row, and NOT re-introduced by this fix), left unpinned here.
+// iteration). The topology cutover makes the first far operation allocate
+// the shard's persistent waiter-store capacity: the parent/child cold path no
+// longer parks before this point. Warm that runtime-owned capacity before the
+// measured windows, then compare the per-operation windows themselves.
 const runtimeV2CrossingHeapCaptureCensusSource = `
 @shard_movable
 type Job = { id: int, note: string };
@@ -97,6 +97,13 @@ fn describe(j: own Job) -> int {
 }
 
 async fn local_make(v: int) -> int { return v; }
+
+async fn warm_far() -> int {
+    let j: own Job = own Job{ id: 4, note: build_note("n-") };
+    let t: far Task<int> = spawn on distributed { ret describe(own j); };
+    let got: TaskResult<int> = t.await();
+    return compare got { Success(x) => x; Cancelled() => 0 - 1; };
+}
 
 async fn far_window(n: int) -> uint {
     let c0: HeapStats = rt_heap_stats();
@@ -130,6 +137,12 @@ async fn local_window(n: int) -> uint {
 }
 
 async fn run() -> int {
+    let warm: TaskResult<int> = warm_far().await();
+    let warm_value: int = compare warm { Success(x) => x; Cancelled() => 0 - 1; };
+    if warm_value != 406 {
+        print("FAIL warmup");
+        return 4;
+    }
     let rd1: TaskResult<uint> = far_window(1).await();
     let rd8: TaskResult<uint> = far_window(8).await();
     let rb1: TaskResult<uint> = local_window(1).await();
@@ -177,7 +190,7 @@ func TestRuntimeV2CrossingHeapCaptureArrivesIntact(t *testing.T) {
 		t.Run(fmt.Sprintf("shards_%d", shardCount), func(t *testing.T) {
 			value := strconv.Itoa(shardCount)
 			env := overrideEnvVar(baseEnv, "SURGE_SHARDS", value)
-			env = overrideEnvVar(env, "SURGE_THREADS", value)
+			env = overrideEnvVar(env, "SURGE_SHARDS", value)
 			duration, result := runBinaryWithTimeout(t, outputPath, env, 30*time.Second)
 			if result.exitCode != 0 {
 				t.Fatalf(
@@ -201,7 +214,7 @@ func TestRuntimeV2CrossingHeapCaptureCensusBalanced(t *testing.T) {
 	// request/ack payloads on other lanes, so those frees race the c1
 	// snapshot and the window comparison stops being deterministic.
 	env := overrideEnvVar(envWithStdlib(repoRoot(t)), "SURGE_SHARDS", "1")
-	env = overrideEnvVar(env, "SURGE_THREADS", "1")
+	env = overrideEnvVar(env, "SURGE_SHARDS", "1")
 	duration, result := runBinaryWithTimeout(t, outputPath, env, 30*time.Second)
 	if result.exitCode != 0 {
 		t.Fatalf(

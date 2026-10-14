@@ -6,6 +6,8 @@
 
 #include <limits.h>
 #include <stdatomic.h>
+#include <stdlib.h>
+#include <string.h>
 
 static rt_remote_spawn_status remote_spawn_transport_status(rt_transport_status status) {
     if (status == RT_TRANSPORT_STATUS_OK) {
@@ -41,8 +43,8 @@ static void remote_spawn_release_msg_payload(const rt_transport_msg* msg) {
 }
 
 static uint32_t remote_spawn_current_source_shard(const rt_task* current) {
-    if (current != NULL && current->owner_shard_valid != 0) {
-        return current->owner_shard_id;
+    if (current != NULL) {
+        return rt_task_owner_shard_id(ensure_exec(), current);
     }
     uint32_t worker_shard = rt_debug_current_worker_shard_id();
     return worker_shard != UINT32_MAX ? worker_shard : 0;
@@ -444,6 +446,13 @@ size_t rt_remote_spawn_drain_inbound_locked(rt_executor* ex, rt_shard* shard, si
     if (ex == NULL || shard == NULL || !rt_lane_holds_shard(shard->shard_id)) {
         return 0;
     }
+#ifdef RT_TEST_SYNC_POINTS
+    const char* hold_drain = getenv("SURGE_TEST_HOLD_TRANSPORT_DRAIN");
+    if (atomic_load_explicit(&ex->shutdown, memory_order_acquire) == 0 && hold_drain != NULL &&
+        strcmp(hold_drain, "1") == 0) {
+        return 0;
+    }
+#endif
     size_t drained = 0;
     while (limit == 0 || drained < limit) {
         rt_transport_msg msg = {0};
@@ -523,8 +532,14 @@ void rt_remote_spawn_fail_all_pending(rt_executor* ex, rt_remote_spawn_status st
                 default:
                     panic_msg("remote spawn: unknown transport message kind during shutdown");
             }
+            // The queue pop and scope event application belong to this shard
+            // lane. Message references may own generated values; their final
+            // release can dispatch drop glue and therefore runs detached from
+            // every runtime lock.
+            rt_shard_unlock(shard);
             remote_spawn_release_msg_payload(&msg);
             rt_remote_task_release_msg_payload(&msg);
+            rt_shard_lock(shard);
         }
         rt_shard_unlock(shard);
     }

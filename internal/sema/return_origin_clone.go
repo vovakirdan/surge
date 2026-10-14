@@ -14,8 +14,10 @@ func (b *returnOriginBody) deferredClone(id ast.ExprID, call *ast.ExprCallData, 
 	fn, u := b.function, b.function.unit
 	span := u.Builder.Exprs.Get(id).Span
 	use := u.Sema.DeferredCallableUses[DeferredUseRef{Expr: id, Kind: DeferredCloneCall}]
-	var edges []DeferredCallableEdge
-	for _, edge := range u.authority.InstantiationGraph.DeferredCallables() {
+	deferred := u.deferredEdges()
+	var edges []*DeferredCallableEdge
+	for i := range deferred {
+		edge := &deferred[i]
 		if edge.Kind == DeferredCloneCall && ((use != "" && edge.UseID == use) ||
 			(fn.candidate != nil && edge.Caller == fn.candidate.Symbol && edge.Witness.SourceKey == u.SourceKey && edge.Witness.Site == span)) {
 			edges = append(edges, edge)
@@ -27,7 +29,7 @@ func (b *returnOriginBody) deferredClone(id ast.ExprID, call *ast.ExprCallData, 
 	reason := "deferred clone lacks its unique original typed edge"
 	if len(edges) == 1 {
 		var original ast.ExprID
-		original, reason = fn.originalClone(&edges[0])
+		original, reason = fn.originalClone(edges[0])
 		if reason == "" && original != id {
 			reason = "deferred clone disagrees with its original typed call"
 		}
@@ -37,12 +39,12 @@ func (b *returnOriginBody) deferredClone(id ast.ExprID, call *ast.ExprCallData, 
 	for _, arg := range call.Args {
 		var err error
 		flow, err = flow.then(func(next returnOriginEnv) (returnOriginFlow, error) {
-			out, err := b.expr(arg.Value, next, targets)
+			out, evalErr := b.expr(arg.Value, next, targets)
 			argument = out.value.clone()
 			if _, implicit := u.Sema.ImplicitConversions[arg.Value]; implicit && reason == "" {
 				reason = "deferred clone argument needs its resolved conversion transfer"
 			}
-			return out.flow, err
+			return out.flow, evalErr
 		})
 		if err != nil {
 			return returnOriginExprResult{}, true, err
@@ -52,7 +54,7 @@ func (b *returnOriginBody) deferredClone(id ast.ExprID, call *ast.ExprCallData, 
 		return returnOriginExprResult{flow: flow}, true, nil
 	}
 	if reason == "" {
-		reason = b.analyzer.cloneInstances(fn, &edges[0])
+		reason = b.analyzer.cloneInstances(fn, edges[0])
 	}
 	value := returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 	if reason == "" {
@@ -76,7 +78,7 @@ func (b *returnOriginBody) deferredClone(id ast.ExprID, call *ast.ExprCallData, 
 
 // ExprID belongs to this original unit; edge.Caller belongs to the published
 // canonical vocabulary. Neither can be recovered from another unit's raw IDs.
-func (fn *returnOriginFunction) originalClone(edge *DeferredCallableEdge) (ast.ExprID, string) {
+func (fn *returnOriginFunction) originalClone(edge *DeferredCallableEdge) (expr ast.ExprID, reason string) {
 	u := fn.unit
 	var id ast.ExprID
 	for ref, use := range u.Sema.DeferredCallableUses {
@@ -91,7 +93,9 @@ func (fn *returnOriginFunction) originalClone(edge *DeferredCallableEdge) (ast.E
 		return id, "deferred clone lacks its original typed use"
 	}
 	matches := 0
-	for _, original := range u.authority.InstantiationGraph.DeferredCallables() {
+	deferred := u.deferredEdges()
+	for i := range deferred {
+		original := &deferred[i]
 		if original.Kind == DeferredCloneCall && original.UseID == edge.UseID {
 			matches++
 		}
@@ -182,7 +186,7 @@ func (u *returnOriginUnitIndex) canonicalParameterOwner(local symbols.SymbolID) 
 // reviving an expired owner or evaluating the operand a second time. A direct
 // shared-reference formal has no local cell to read; its Param root is already
 // the caller-owned referent and is the conservative content source.
-func (b *returnOriginBody) cloneBindingContents(argument returnOriginValue, env returnOriginEnv, receiver types.TypeID) (returnOriginValue, string) {
+func (b *returnOriginBody) cloneBindingContents(argument returnOriginValue, env returnOriginEnv, receiver types.TypeID) (contents returnOriginValue, reason string) {
 	unknown := returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 	if !argument.normal || len(argument.roots) == 0 || len(argument.callables) != 0 {
 		return unknown, "deferred clone lacks its live whole-binding referent"

@@ -1,4 +1,4 @@
-testdata/golden/sema/valid/user_record_type.sg (span: 2:1-19:1)
+user_record_type.sg (span: 2:1-19:1)
 ├─ Item[0]: Type (span: 2:1-5:3)
 │  ├─ Name: Point
 │  ├─ Kind: Struct

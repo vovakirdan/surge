@@ -113,10 +113,10 @@ func TestAsyncChannelCaptureHasIndependentOrigin(t *testing.T) {
 func TestAsyncChannelCaptureKeepsOriginFences(t *testing.T) {
 	for _, row := range []struct{ name, typ, block, body, refusal string }{
 		{"borrowed_handle", "&Channel<int64>", "async", "let _ = ch; ret 0;", originTaskBlockCaptureRefusal},
-		{"array_payload", "Channel<int[]>", "async", "let _ = ch; ret 0;", originTaskBlockCaptureRefusal},
-		{"task_payload", "Channel<Task<int>>", "async", "let _ = ch; ret 0;", originTaskBlockCaptureRefusal},
-		{"channel_payload", "Channel<Channel<int>>", "async", "let _ = ch; ret 0;", originTaskBlockCaptureRefusal},
-		{"result_origin", "Channel<int64>", "async", "ch.send(1:int64); let values: int[] = [1, 2]; ret values;", originTaskBlockPayloadRefusal},
+		{"array_payload", "Channel<int[]>", "async", "let _ = ch; ret 0;", ""},
+		{"task_payload", "Channel<Task<int>>", "async", "let _ = ch; ret 0;", ""},
+		{"channel_payload", "Channel<Channel<int>>", "async", "let _ = ch; ret 0;", ""},
+		{"result_origin", "Channel<int64>", "async", "ch.send(1:int64); let values: int[] = [1, 2]; ret values;", ""},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			result := "int"
@@ -127,9 +127,17 @@ func TestAsyncChannelCaptureKeepsOriginFences(t *testing.T) {
 			t.Logf("source_sha256=%x", sha256.Sum256([]byte(src)))
 			f, analysis := analyzeOriginRoot(t, "async_channel_fence_"+row.name, src, false, nil)
 			start := strings.Index(src, row.block+" {")
+			pending := originPendingWithin(analysis, f.unit.SourceKey, start, len(src))
+			if row.refusal == "" {
+				if len(pending) != 0 {
+					t.Fatalf("source-free task block retained pending rows: %+v", pending)
+				}
+				requireOriginSummary(t, analysis, f.owner.File.ID, "subject", false, nil)
+				return
+			}
 			found := false
-			for _, pending := range originPendingWithin(analysis, f.unit.SourceKey, start, len(src)) {
-				if pending.Reason == row.refusal {
+			for _, item := range pending {
+				if item.Reason == row.refusal {
 					found = true
 				}
 			}
@@ -141,17 +149,28 @@ func TestAsyncChannelCaptureKeepsOriginFences(t *testing.T) {
 }
 
 func TestAsyncChannelCaptureRejectsNonCanonicalOwners(t *testing.T) {
-	for _, row := range []struct{ name, prefix, typ string }{
-		{"wrapped_handle", "type Holder = { ch: Channel<int64>, };", "Holder"},
-		{"mutable_handle", "", "&mut Channel<int64>"},
+	for _, row := range []struct {
+		name, prefix, typ string
+		refused           bool
+	}{
+		{"wrapped_handle", "type Holder = { ch: Channel<int64>, };", "Holder", false},
+		{"mutable_handle", "", "&mut Channel<int64>", true},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			src := row.prefix + "\nfn subject(ch: " + row.typ + ") -> Task<int> { return async { let _ = ch; ret 0; }; }\n"
 			f, analysis := analyzeOriginRoot(t, "async_channel_owner_"+row.name, src, false, nil)
 			start := strings.Index(src, "async {")
+			pending := originPendingWithin(analysis, f.unit.SourceKey, start, len(src))
+			if !row.refused {
+				if len(pending) != 0 {
+					t.Fatalf("source-free wrapped handle retained pending rows: %+v", pending)
+				}
+				requireOriginSummary(t, analysis, f.owner.File.ID, "subject", false, nil)
+				return
+			}
 			found := false
-			for _, pending := range originPendingWithin(analysis, f.unit.SourceKey, start, len(src)) {
-				if pending.Reason == originTaskBlockCaptureRefusal {
+			for _, item := range pending {
+				if item.Reason == originTaskBlockCaptureRefusal {
 					found = true
 				}
 			}

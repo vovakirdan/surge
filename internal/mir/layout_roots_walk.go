@@ -49,6 +49,9 @@ func (c *layoutRootCollector) walkInstr(instr *Instr) error { //nolint:gocyclo
 			if err := c.addType(capture.Type, RootValue); err != nil {
 				return err
 			}
+			if instr.Crossing.CapturesPacked {
+				continue
+			}
 			if err := c.walkOperand(&capture.Value); err != nil {
 				return err
 			}

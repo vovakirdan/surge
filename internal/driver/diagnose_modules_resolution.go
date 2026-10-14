@@ -79,7 +79,7 @@ func isStdlibModulePath(modulePath string) bool {
 var explicitModuleDirCache struct {
 	mu      sync.Mutex
 	byBase  map[string]map[string][]string // baseDir -> name -> dirs
-	scanned map[string]bool                // baseDir -> scanned
+	scanned map[string]bool                // baseDir/readFile/name -> scanned
 }
 
 // findExplicitModuleDir searches for a module directory by scanning for
@@ -95,6 +95,7 @@ func findExplicitModuleDir(baseDir, modulePath, name string, readFile func(strin
 	if readFile != nil {
 		cacheKey = fmt.Sprintf("%s|%p", baseDir, readFile)
 	}
+	scanKey := cacheKey + "\x00" + name
 	explicitModuleDirCache.mu.Lock()
 	if explicitModuleDirCache.byBase != nil {
 		if m := explicitModuleDirCache.byBase[cacheKey]; m != nil {
@@ -103,7 +104,7 @@ func findExplicitModuleDir(baseDir, modulePath, name string, readFile func(strin
 				return bestExplicitModuleDir(baseDir, modulePath, dirs)
 			}
 		}
-		if explicitModuleDirCache.scanned != nil && explicitModuleDirCache.scanned[cacheKey] {
+		if explicitModuleDirCache.scanned != nil && explicitModuleDirCache.scanned[scanKey] {
 			explicitModuleDirCache.mu.Unlock()
 			return ""
 		}
@@ -157,7 +158,7 @@ func findExplicitModuleDir(baseDir, modulePath, name string, readFile func(strin
 	for k, v := range found {
 		target[k] = append(target[k], v...)
 	}
-	explicitModuleDirCache.scanned[cacheKey] = true
+	explicitModuleDirCache.scanned[scanKey] = true
 	dirs := target[name]
 	explicitModuleDirCache.mu.Unlock()
 	return bestExplicitModuleDir(baseDir, modulePath, dirs)

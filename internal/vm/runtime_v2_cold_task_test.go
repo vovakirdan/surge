@@ -19,47 +19,35 @@ import (
 // frame was given back", each exactly once or not at all.
 
 func TestRuntimeV2ColdTaskDroppedNeverRuns(t *testing.T) {
-	runColdTaskStand(t, "drop", "1", "SURGE_THREADS=1")
+	runColdTaskStand(t, "drop", "1", "SURGE_SHARDS=1")
 }
 
 func TestRuntimeV2ColdTaskSpawnedRuns(t *testing.T) {
-	runColdTaskStand(t, "spawn", "1", "SURGE_THREADS=1")
+	runColdTaskStand(t, "spawn", "1", "SURGE_SHARDS=1")
 }
 
 func TestRuntimeV2ColdTaskAwaitedRuns(t *testing.T) {
-	runColdTaskStand(t, "await", "1", "SURGE_THREADS=1")
+	runColdTaskStand(t, "await", "1", "SURGE_SHARDS=1")
 }
 
 func TestRuntimeV2ColdTaskCloneKeepsItAlive(t *testing.T) {
-	runColdTaskStand(t, "clone", "1", "SURGE_THREADS=1")
+	runColdTaskStand(t, "clone", "1", "SURGE_SHARDS=1")
 }
 
 func TestRuntimeV2ColdTaskCancelPublishesIt(t *testing.T) {
-	runColdTaskStand(t, "cancel", "1", "SURGE_THREADS=1")
+	runColdTaskStand(t, "cancel", "1", "SURGE_SHARDS=1")
 }
 
 // A member dropped cold leaves its fail-fast scope drained and not fail-fast, and the join
 // that follows does not wait.
 func TestRuntimeV2ColdTaskDroppedMemberDoesNotHoldTheJoin(t *testing.T) {
-	runColdTaskStand(t, "scope-drop", "1", "SURGE_THREADS=1")
+	runColdTaskStand(t, "scope-drop", "1", "SURGE_SHARDS=1")
 }
 
 // A member whose handle outlives the body is published by the join and joined, as it was
 // when every task was published at creation.
 func TestRuntimeV2ColdTaskJoinPublishesAnEscapedMember(t *testing.T) {
-	runColdTaskStand(t, "scope-escape", "1", "SURGE_THREADS=1")
-}
-
-// The carrier pin is written at creation, before any publication, and holds whether the
-// task is claimed inline by its creator or published later from a thread that is no worker.
-func TestRuntimeV2ColdTaskAffinePinHolds(t *testing.T) {
-	for _, mode := range []string{"affine-inline", "affine-handoff"} {
-		for _, threads := range []string{"2", "4"} {
-			t.Run(mode+"/threads-"+threads, func(t *testing.T) {
-				runColdTaskStand(t, mode, "1", "SURGE_SHARDS=1", "SURGE_THREADS="+threads)
-			})
-		}
-	}
+	runColdTaskStand(t, "scope-escape", "1", "SURGE_SHARDS=1")
 }
 
 // A publication and a discard made on a lane that is not the scope's owner lane reach the
@@ -68,7 +56,7 @@ func TestRuntimeV2ColdTaskAffinePinHolds(t *testing.T) {
 func TestRuntimeV2ColdTaskForeignLaneReachesTheScopeByEvent(t *testing.T) {
 	for _, mode := range []string{"scope-foreign-publish", "scope-foreign-drop"} {
 		t.Run(mode, func(t *testing.T) {
-			runColdTaskStand(t, mode, "1", "SURGE_THREADS=1")
+			runColdTaskStand(t, mode, "1", "SURGE_SHARDS=1")
 		})
 	}
 }
@@ -78,15 +66,15 @@ func TestRuntimeV2ColdTaskForeignLaneReachesTheScopeByEvent(t *testing.T) {
 // its first poll answers Cancelled() without entering the body; the row reads the publication
 // word inside the window, so a discard cannot pass for that publication.
 func TestRuntimeV2ColdTaskDiscardAndCancelRace(t *testing.T) {
-	runColdTaskStand(t, "drop-then-cancel", "1", "SURGE_THREADS=1")
+	runColdTaskStand(t, "drop-then-cancel", "1", "SURGE_SHARDS=1")
 	bin := buildColdTaskStandWithFlags(t, "-DRT_TEST_SYNC_POINTS")
-	runColdTaskBinary(t, bin, "cancel-race", "1", "SURGE_THREADS=1")
+	runColdTaskBinary(t, bin, "cancel-race", "1", "SURGE_SHARDS=1")
 }
 
 // The inline claim keeps the base's scope (review F1): only the awaiter's most recent creation
 // is polled inline on the awaiting thread; an older child goes through the queue.
 func TestRuntimeV2ColdTaskInlineClaimTakesOnlyTheLatest(t *testing.T) {
-	runColdTaskStand(t, "inline-scope", "1", "SURGE_SHARDS=1", "SURGE_THREADS=2")
+	runColdTaskStand(t, "inline-scope", "1", "SURGE_SHARDS=2")
 }
 
 // The join's walk holds the control lane between get_task and the member's publication word;
@@ -98,13 +86,13 @@ func TestRuntimeV2ColdTaskInlineClaimTakesOnlyTheLatest(t *testing.T) {
 func TestRuntimeV2ColdTaskJoinWalkRacesALastDrop(t *testing.T) {
 	t.Run("plain", func(t *testing.T) {
 		bin := buildColdTaskStandWithFlags(t, "-DRT_TEST_SYNC_POINTS")
-		runColdTaskBinary(t, bin, "join-walk-drop", "1", "SURGE_THREADS=1")
+		runColdTaskBinary(t, bin, "join-walk-drop", "1", "SURGE_SHARDS=1")
 	})
 	t.Run("asan", func(t *testing.T) {
 		requireUnlimitedAddressSpace(t) // AddressSanitizer reserves its shadow up front, as TSan does
 		bin := buildColdTaskStandWithFlags(t, "-DRT_TEST_SYNC_POINTS", "-fsanitize=address,undefined",
 			"-fno-sanitize-recover=all", "-fno-omit-frame-pointer", "-O1")
-		runColdTaskBinary(t, bin, "join-walk-drop", "1", "SURGE_THREADS=1",
+		runColdTaskBinary(t, bin, "join-walk-drop", "1", "SURGE_SHARDS=1",
 			"ASAN_OPTIONS=abort_on_error=1:detect_leaks=0")
 	})
 }
@@ -123,7 +111,7 @@ func TestRuntimeV2ColdTaskUnderThreadSanitizer(t *testing.T) {
 	} {
 		t.Run(row.mode, func(t *testing.T) {
 			cmd := exec.Command(bin, row.mode, row.rounds)
-			cmd.Env = append(os.Environ(), "SURGE_BLOCKING_THREADS=1", "SURGE_THREADS="+row.threads)
+			cmd.Env = append(os.Environ(), "SURGE_BLOCKING_THREADS=1", "SURGE_SHARDS="+row.threads)
 			stdout, stderr, code := runCommand(t, cmd, "")
 			if strings.Contains(stderr, "ThreadSanitizer") || code != 0 ||
 				!strings.Contains(stdout, "COLD_STAND_OK "+row.mode) {
@@ -147,7 +135,7 @@ func TestRuntimeV2ColdTaskFailfastCancelsAColdMemberUnrun(t *testing.T) {
 	for _, threads := range []string{"2", "4"} {
 		t.Run("threads-"+threads, func(t *testing.T) {
 			cmd := exec.Command(bin, "failfast-cold-member", "50")
-			cmd.Env = append(os.Environ(), "SURGE_BLOCKING_THREADS=1", "SURGE_SHARDS=1", "SURGE_THREADS="+threads)
+			cmd.Env = append(os.Environ(), "SURGE_BLOCKING_THREADS=1", "SURGE_SHARDS="+threads)
 			stdout, stderr, code := runCommand(t, cmd, "")
 			if code != 0 || !strings.Contains(stdout, "COLD_STAND_OK failfast-cold-member") {
 				t.Fatalf("cold task stand failfast-cold-member failed (code=%d)\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
@@ -169,7 +157,7 @@ func TestRuntimeV2ColdTaskCancelledColdUnderThreadSanitizer(t *testing.T) {
 	} {
 		t.Run(row.mode, func(t *testing.T) {
 			cmd := exec.Command(bin, row.mode, row.rounds)
-			cmd.Env = append(os.Environ(), "SURGE_BLOCKING_THREADS=1", "SURGE_SHARDS=1", "SURGE_THREADS=4")
+			cmd.Env = append(os.Environ(), "SURGE_BLOCKING_THREADS=1", "SURGE_SHARDS=4")
 			stdout, stderr, code := runCommand(t, cmd, "")
 			if strings.Contains(stderr, "ThreadSanitizer") || code != 0 ||
 				!strings.Contains(stdout, "COLD_STAND_OK "+row.mode) {
@@ -197,7 +185,7 @@ func TestRuntimeV2ColdTaskCancelledColdValgrindZero(t *testing.T) {
 // Two handles of one cold task dropped at the same time from two threads: exactly one
 // discard, no leak, no double free.
 func TestRuntimeV2ColdTaskConcurrentLastDrops(t *testing.T) {
-	runColdTaskStand(t, "race-drop", "2000", "SURGE_THREADS=1")
+	runColdTaskStand(t, "race-drop", "2000", "SURGE_SHARDS=1")
 }
 
 // The drop row and the discarding scope row under Valgrind: no error, and no allocation per
@@ -270,7 +258,7 @@ func coldTaskValgrind(t *testing.T, bin, mode, rounds string) int {
 	// slope between one and eight rounds below, neither of which that flag relaxes.
 	cmd := exec.Command("valgrind", "--error-exitcode=99", "--leak-check=full",
 		"--errors-for-leak-kinds=definite,indirect", bin, mode, rounds)
-	cmd.Env = append(os.Environ(), "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1")
+	cmd.Env = append(os.Environ(), "SURGE_SHARDS=1", "SURGE_BLOCKING_THREADS=1")
 	stdout, stderr, code := runCommand(t, cmd, "")
 	if code != 0 || !strings.Contains(stderr, "ERROR SUMMARY: 0 errors") {
 		t.Fatalf("valgrind %s %s (code=%d)\nstdout:\n%s\nstderr:\n%s", mode, rounds, code, stdout, stderr)

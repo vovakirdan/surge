@@ -9,18 +9,16 @@ import (
 // One scheduler-pop record, as its owner published it. The owner is named on
 // the record because the cell behind it has exactly one: a carrier, or the
 // runtime's control lane. Everything here is something that owner did inside
-// its own pop -- where it took the task from, a steal it was refused, and
-// whether the connection task it ran belonged to the shard it ran on.
+// its own pop -- where it took the task from and whether the connection task
+// it ran belonged to the shard it ran on.
 type schedTraceOwner struct {
 	owner             string
 	id                uint64
 	shard             string
 	local             uint64
 	inject            uint64
-	steal             uint64
 	events            uint64
 	popMix            uint64
-	tier1StealDenied  uint64
 	connOwnerLocal    uint64
 	connOwnerMismatch uint64
 }
@@ -30,8 +28,6 @@ type schedTrace struct {
 	seed              uint64
 	local             uint64
 	inject            uint64
-	steal             uint64
-	tier1StealDenied  uint64
 	connOwnerPlaced   uint64
 	connOwnerLocal    uint64
 	connOwnerMismatch uint64
@@ -42,13 +38,6 @@ type schedTrace struct {
 	declaredOwners    uint64
 	unownedPops       uint64
 	droppedRecords    uint64
-	// Carrier affinity, the runtime's four: tasks pinned at creation, wakes
-	// credited to a carrier by another thread, pops refused by worker, and
-	// pinned tasks an exiting carrier cancelled at shutdown.
-	carrierPinned            uint64
-	carrierAddressedWakes    uint64
-	carrierStealDenied       uint64
-	carrierShutdownCancelled uint64
 }
 
 type execTrace map[string]uint64
@@ -75,31 +64,6 @@ func parseExecTrace(t *testing.T, stderr string) execTrace {
 		return out
 	}
 	t.Fatalf("missing TRACE_EXEC in stderr:\n%s", stderr)
-	return nil
-}
-
-func parseExecSnapshot(t *testing.T, stderr string) execTrace {
-	t.Helper()
-	for _, line := range strings.Split(stderr, "\n") {
-		if !strings.HasPrefix(line, "TRACE_EXEC_SNAPSHOT ") {
-			continue
-		}
-		out := execTrace{}
-		fields := strings.Fields(line)
-		for _, field := range fields[1:] {
-			kv := strings.SplitN(field, "=", 2)
-			if len(kv) != 2 || kv[0] == "reason" {
-				continue
-			}
-			v, err := strconv.ParseUint(kv[1], 10, 64)
-			if err != nil {
-				t.Fatalf("parse TRACE_EXEC_SNAPSHOT %s: %v", kv[0], err)
-			}
-			out[kv[0]] = v
-		}
-		return out
-	}
-	t.Fatalf("missing TRACE_EXEC_SNAPSHOT in stderr:\n%s", stderr)
 	return nil
 }
 
@@ -149,10 +113,6 @@ func parseSchedTrace(t *testing.T, stderr string) schedTrace {
 			out.connOwnerPlaced = schedTraceU64(t, fields, "conn_owner_placed")
 			out.unownedPops = schedTraceU64(t, fields, "unowned_pops")
 			out.droppedRecords = schedTraceU64(t, fields, "dropped_records")
-			out.carrierPinned = schedTraceU64(t, fields, "carrier_pinned")
-			out.carrierAddressedWakes = schedTraceU64(t, fields, "carrier_addressed_wakes")
-			out.carrierStealDenied = schedTraceU64(t, fields, "carrier_steal_denied")
-			out.carrierShutdownCancelled = schedTraceU64(t, fields, "carrier_shutdown_cancelled")
 		case "carrier", "control":
 			owner := schedTraceOwner{
 				owner:             fields["owner"],
@@ -160,22 +120,18 @@ func parseSchedTrace(t *testing.T, stderr string) schedTrace {
 				shard:             fields["shard"],
 				local:             schedTraceU64(t, fields, "local"),
 				inject:            schedTraceU64(t, fields, "inject"),
-				steal:             schedTraceU64(t, fields, "steal"),
 				events:            schedTraceU64(t, fields, "events"),
 				popMix:            schedTraceU64(t, fields, "pop_mix"),
-				tier1StealDenied:  schedTraceU64(t, fields, "tier1_steal_denied"),
 				connOwnerLocal:    schedTraceU64(t, fields, "conn_owner_local"),
 				connOwnerMismatch: schedTraceU64(t, fields, "conn_owner_mismatch"),
 			}
 			out.owners = append(out.owners, owner)
 			out.local += owner.local
 			out.inject += owner.inject
-			out.steal += owner.steal
 			out.events += owner.events
-			// Refused steals and connection runs are the popper's own, so they
-			// arrive per owner and are added up over the owner set the runtime
-			// record names, exactly as the pops are.
-			out.tier1StealDenied += owner.tier1StealDenied
+			// Connection runs are the popper's own, so they arrive per owner
+			// and are added up over the owner set the runtime record names,
+			// exactly as the pops are.
 			out.connOwnerLocal += owner.connOwnerLocal
 			out.connOwnerMismatch += owner.connOwnerMismatch
 			// Composed over the owner set the runtime record names, not read

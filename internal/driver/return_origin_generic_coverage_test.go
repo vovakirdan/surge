@@ -37,9 +37,10 @@ func TestAnalyzeTypedGenericReturnOriginCoverage(t *testing.T) {
 			var choose, probe sema.CallableCandidate
 			for _, candidate := range res.Sema.CallableCandidates {
 				if candidate.Source.File == res.File.ID && candidate.SourceKey == inputs.units[0].SourceKey {
-					if candidate.Name == "choose" {
+					switch candidate.Name {
+					case "choose":
 						choose = candidate
-					} else if candidate.Name == "probe" {
+					case "probe":
 						probe = candidate
 					}
 				}
@@ -57,7 +58,7 @@ func TestAnalyzeTypedGenericReturnOriginCoverage(t *testing.T) {
 			if request.Owner != choose.Symbol || !slices.Equal(request.Params(), []types.TypeID{param, param}) || request.Result() != param ||
 				!slices.Equal(choose.ParamTypes, request.Params()) || choose.ResultType != param || !request.Syntax.Sources().Equal(choose.ReturnSources) ||
 				!slices.Equal(request.Syntax.Sources().Slots(), []uint32{0}) || len(request.Syntax.Markers()) != 1 || request.Syntax.Markers()[0].Span != marker ||
-				sema.ValidateDeclaredReturnSources(res.Sema.TypeInterner, request).Status != sema.ReturnSourcesDeferred {
+				sema.ValidateDeclaredReturnSources(res.Sema.TypeInterner, &request).Status != sema.ReturnSourcesDeferred {
 				t.Fatal("PRECONDITION: original T roots, marked slot, marker or deferred eligibility changed")
 			}
 			var primary source.Span
@@ -107,7 +108,7 @@ func TestAnalyzeTypedGenericReturnOriginCoverage(t *testing.T) {
 					!slices.Equal(probe.ParamTypes, []types.TypeID{arg, arg}) || probe.ResultType != arg {
 					t.Fatal("PRECONDITION: recorded call lacks its actual typed expressions")
 				}
-				validation := sema.ValidateInstantiatedReturnSources(res.Sema.TypeInterner, request, []types.TypeID{arg, arg}, arg)
+				validation := sema.ValidateInstantiatedReturnSources(res.Sema.TypeInterner, &request, []types.TypeID{arg, arg}, arg)
 				logReturnOriginCallEvidence(t, map[string]any{"case": tc.name, "original": request, "concrete_eligibility": validation, "typed_call": callID})
 				if validation.Status != sema.ReturnSourcesValid {
 					t.Fatal("PRECONDITION: relation witness instead failed conditional input/result eligibility")
@@ -140,9 +141,10 @@ func TestAnalyzeTypedGenericReturnOriginCoverage(t *testing.T) {
 			}
 			if tc.tail != "" {
 				var want []uint32
-				if tc.name == "borrowed_rejected" {
+				switch tc.name {
+				case "borrowed_rejected":
 					want = []uint32{1}
-				} else if tc.name == "unvisited_borrowed_rejected" {
+				case "unvisited_borrowed_rejected":
 					want = []uint32{0}
 				}
 				value := requireReturnOriginSummary(t, analysis, "probe")

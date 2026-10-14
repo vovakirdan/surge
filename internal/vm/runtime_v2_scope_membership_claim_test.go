@@ -12,23 +12,24 @@ import (
 // The owner observes the empty scope drained before the foreign task is allowed
 // to complete Cancelled. The fixed runtime keeps the answer unchanged and both
 // defect counters at zero. The negative-control build restores only the two
-// historical mistakes: wake rewrites provenance and an unregistered task may
-// raise fail-fast. The same synchronization then produces both non-zero
-// counters and a Cancelled owner, without relying on scheduler timing.
+// historical provenance mistake: wake rewrites a non-member's creation key.
+// Under one carrier per shard the already-drained owner completes before the
+// foreign shard's completion event can be applied, so the negative control is
+// expected to expose the rewritten identity without retroactively changing
+// the completed owner's answer.
 func TestRuntimeV2LifecycleScopeCreationProvenanceRejectsLateAdoption(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarnessScopeMembership(t, false)
-	for _, threads := range []string{"2", "4", "8"} {
-		t.Run("threads-"+threads, func(t *testing.T) {
+	for _, shards := range []string{"2", "4", "8"} {
+		t.Run("shards-"+shards, func(t *testing.T) {
 			env := lifecycleEnv(
 				"SURGE_TRACE_EXEC=1",
-				"SURGE_SHARDS=1",
-				"SURGE_THREADS="+threads,
+				"SURGE_SHARDS="+shards,
 				"SURGE_BLOCKING_THREADS=1")
 			stdout, stderr, exitCode := runLifecycleHarness(
 				t, binPath, "scope-membership-claim", env)
 			if exitCode != 0 {
-				t.Fatalf("scope-provenance proof failed at SURGE_THREADS=%s (code=%d)\nstdout:\n%s\nstderr:\n%s",
-					threads, exitCode, stdout, stderr)
+				t.Fatalf("scope-provenance proof failed at SURGE_SHARDS=%s (code=%d)\nstdout:\n%s\nstderr:\n%s",
+					shards, exitCode, stdout, stderr)
 			}
 			for _, want := range []string{
 				"scope-provenance before: drained=1 failfast=0",
@@ -36,8 +37,8 @@ func TestRuntimeV2LifecycleScopeCreationProvenanceRejectsLateAdoption(t *testing
 				"scope_identity_rewritten=0 scope_failfast_after_drained_answer=0",
 			} {
 				if !strings.Contains(stderr, want) {
-					t.Fatalf("scope-provenance proof missing %q at SURGE_THREADS=%s\nstdout:\n%s\nstderr:\n%s",
-						want, threads, stdout, stderr)
+					t.Fatalf("scope-provenance proof missing %q at SURGE_SHARDS=%s\nstdout:\n%s\nstderr:\n%s",
+						want, shards, stdout, stderr)
 				}
 			}
 		})
@@ -47,7 +48,7 @@ func TestRuntimeV2LifecycleScopeCreationProvenanceRejectsLateAdoption(t *testing
 func TestRuntimeV2LifecycleScopeCreationProvenanceNegativeControl(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarnessScopeMembership(t, true)
 	env := lifecycleEnv(
-		"SURGE_TRACE_EXEC=1", "SURGE_SHARDS=1", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1")
+		"SURGE_TRACE_EXEC=1", "SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1")
 	stdout, stderr, exitCode := runLifecycleHarness(
 		t, binPath, "scope-membership-claim", env)
 	if exitCode == 0 {
@@ -56,8 +57,8 @@ func TestRuntimeV2LifecycleScopeCreationProvenanceNegativeControl(t *testing.T) 
 	}
 	for _, want := range []string{
 		"scope-provenance before: drained=1 failfast=0",
-		"scope-provenance after: owner_kind=2 failfast=1 registered=0",
-		"scope_identity_rewritten=1 scope_failfast_after_drained_answer=1",
+		"scope-provenance after: owner_kind=1 failfast=0 registered=0 creation_scope=1",
+		"scope_identity_rewritten=1 scope_failfast_after_drained_answer=0",
 		"foreign task changed an already-drained scope",
 	} {
 		if !strings.Contains(stderr, want) {
@@ -150,7 +151,10 @@ static int mode_scope_membership_claim(rt_executor* ex) {
     atomic_store_explicit(&g_scope_provenance_last_failfast, 0, memory_order_release);
     rt_scope_provenance_trace_reset();
 
-    rt_task* foreign = spawn_child_for_stand(ex, POLL_SCOPE_MEMBERSHIP_CHILD, 0);
+    // The foreign task occupies shard 1 while the scope owner runs on shard
+    // 0. This keeps the proof concurrent under the one-carrier-per-shard
+    // topology without giving either shard a peer carrier.
+    rt_task* foreign = spawn_child_for_stand(ex, POLL_SCOPE_MEMBERSHIP_CHILD, 1);
     if (foreign == NULL) {
         return fail("scope-provenance stand: foreign allocation failed");
     }

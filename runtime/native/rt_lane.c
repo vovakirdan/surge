@@ -117,6 +117,7 @@ void rt_control_lock(rt_executor* ex) {
 // nothing of it.
 extern void rt_channel_reclaim_drain(void) __attribute__((weak));
 extern void rt_task_reclaim_drain(void) __attribute__((weak));
+extern void rt_remote_task_reclaim_drain(void) __attribute__((weak));
 
 static void lane_run_deferred(void) {
     if (rt_channel_reclaim_drain != NULL) {
@@ -124,6 +125,9 @@ static void lane_run_deferred(void) {
     }
     if (rt_task_reclaim_drain != NULL) {
         rt_task_reclaim_drain();
+    }
+    if (rt_remote_task_reclaim_drain != NULL) {
+        rt_remote_task_reclaim_drain();
     }
 }
 

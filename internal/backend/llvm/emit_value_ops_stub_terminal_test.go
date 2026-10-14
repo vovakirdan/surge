@@ -175,8 +175,17 @@ func dispatchPlanCross(t *testing.T, defect descriptorDefect, crossCapable bool,
 	var probeID uint64
 	found := false
 	for id, descriptor := range emitted {
+		// This stand supplies an all-zero value. A fixed-width scalar admits
+		// it; a coroutine frame requires a real lifecycle tag and cannot be
+		// selected merely because its descriptor has a crossing capability.
+		if crossCapable && id != result.Sema.TypeInterner.Builtins().Uint64 {
+			continue
+		}
 		if (descriptor.flags&crossBits != 0) != crossCapable {
 			continue
+		}
+		if crossCapable && descriptor.flags&crossBits != crossBits {
+			t.Fatal("the uint64 control must support both move and clone")
 		}
 		if len(descriptor.operands) > 2 && descriptor.operands[2] != "ptr null" {
 			continue

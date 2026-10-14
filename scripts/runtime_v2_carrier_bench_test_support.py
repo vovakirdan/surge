@@ -149,7 +149,7 @@ def make_manifest() -> Manifest:
         invariants=(),
     )
     return Manifest(
-        schema_version=2,
+        schema_version=3,
         epic_base="0" * 40,
         reference=ReferenceHost("Linux", "x86_64", "kernel", "cpu", 4, "0,2", "go", "clang"),
         protocol=Protocol(
@@ -168,7 +168,6 @@ def make_manifest() -> Manifest:
         backend="llvm",
         profile="release",
         shards=2,
-        threads=2,
         blocking_threads=1,
         metrics=(
             metric("allocation_count", "sum", "fixture"),
@@ -383,7 +382,7 @@ def deferred_liveness() -> LivenessRecord:
 
 def manifest_json() -> dict[str, object]:
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "epic_base": "0" * 40,
         "reference_host": {
             "system": "Linux",
@@ -411,7 +410,6 @@ def manifest_json() -> dict[str, object]:
         "backend": "llvm",
         "profile": "release",
         "shards": 2,
-        "threads": 2,
         "blocking_threads": 1,
         "allocation_control": {
             "fixture": "fixture.sg",

@@ -18,6 +18,12 @@ var entrypointArgvStorageCases = []struct {
 	name, source, want string
 	argv               []string
 }{
+	{"heap-number", `@entrypoint("argv") fn main(value: uint) {
+    print(value to string);
+}`, "18446744073709551616\n", []string{"18446744073709551616"}},
+	{"heap-default", `@entrypoint("argv") fn main(value: uint = 18446744073709551616:uint) {
+    print(value to string);
+}`, "18446744073709551616\n", nil},
 	{"number", `@entrypoint("argv") fn main(value: uint) {
     if value != 42:uint { panic("argv number changed"); }
     print("argv-number-ok");
@@ -49,7 +55,7 @@ func TestRuntimeV2EntrypointArgvBorrowsAndReleasesStorage(t *testing.T) {
 			module, _, _ := compileToMIRFromSource(t, row.source)
 			var start *mir.Func
 			for _, function := range module.Funcs {
-				if function.Name == "__surge_start" {
+				if function.Name == "__surge_root$startup$poll" {
 					start = function
 				}
 			}

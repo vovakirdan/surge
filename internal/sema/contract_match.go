@@ -46,8 +46,8 @@ type bindingInfo struct {
 	sym  symbols.SymbolID
 }
 
-func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symbols.BoundInstance, hintSpan source.Span, typeName string) bool {
-	return tc.checkContractSatisfactionWithOrigin(target, bound, bound, hintSpan, typeName)
+func (tc *typeChecker) checkContractSatisfaction(target types.TypeID, bound symbols.BoundInstance, hintSpan source.Span) bool {
+	return tc.checkContractSatisfactionWithOrigin(target, bound, bound, hintSpan, "")
 }
 
 func (tc *typeChecker) checkContractSatisfactionWithOrigin(target types.TypeID, bound, original symbols.BoundInstance, hintSpan source.Span, typeName string) bool {
@@ -160,7 +160,7 @@ func (tc *typeChecker) checkContractSatisfactionWithOrigin(target types.TypeID, 
 			status, match := tc.ensureMethodSatisfies(target, name, req, reportSpan, tc.lookupName(contractSym.Name))
 			switch status {
 			case 1:
-				conformances = append(conformances, tc.returnSourceConformance(target, bound, original, reportSpan, match.requirement, match.actual))
+				conformances = append(conformances, tc.returnSourceConformance(target, bound, original, reportSpan, &match.requirement, &match.actual))
 			case -1:
 				missingMethods = append(missingMethods, tc.lookupName(name))
 				ok = false
@@ -305,7 +305,8 @@ func requirementsFromSpec(spec *symbols.ContractSpec) contractRequirements {
 		reqs.fieldAttrs[name] = append([]source.StringID(nil), attrs...)
 	}
 	for name, methods := range spec.Methods {
-		for _, m := range methods {
+		for i := range methods {
+			m := &methods[i]
 			reqs.methods[name] = append(reqs.methods[name], methodRequirement{
 				name:              m.Name,
 				params:            append([]types.TypeID(nil), m.Params...),
@@ -330,15 +331,16 @@ func (tc *typeChecker) instantiateContractRequirements(sym *symbols.Symbol, spec
 	if len(args) == 0 || len(sym.TypeParams) == 0 {
 		return reqs
 	}
-	bindings := make(map[source.StringID]bindingInfo, len(sym.TypeParams))
-	for idx, name := range sym.TypeParams {
-		if idx >= len(args) {
-			break
-		}
-		if name == source.NoStringID || args[idx] == types.NoTypeID {
+	limit := min(len(sym.TypeParams), len(args))
+	bindings := make(map[source.StringID]bindingInfo, limit)
+	names, boundArgs := sym.TypeParams[:limit], args[:limit]
+	for len(names) != 0 {
+		name, arg := names[0], boundArgs[0]
+		names, boundArgs = names[1:], boundArgs[1:]
+		if name == source.NoStringID || arg == types.NoTypeID {
 			continue
 		}
-		bindings[name] = bindingInfo{typ: args[idx]}
+		bindings[name] = bindingInfo{typ: arg}
 	}
 	if len(bindings) == 0 {
 		return reqs

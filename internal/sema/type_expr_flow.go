@@ -389,6 +389,7 @@ func (tc *typeChecker) typeExprAsync(id ast.ExprID, span source.Span) types.Type
 }
 
 func (tc *typeChecker) typeExprBlocking(id ast.ExprID, span source.Span) types.TypeID {
+	tc.refuseCrossingBodySuspension(span, "blocking body")
 	blockingData, ok := tc.builder.Exprs.Blocking(id)
 	if !ok || blockingData == nil {
 		return types.NoTypeID
@@ -410,6 +411,11 @@ func (tc *typeChecker) typeExprBlocking(id ast.ExprID, span source.Span) types.T
 		if tc.isReferenceType(tc.ownStripped(capType)) {
 			tc.report(diag.SemaBlockingBorrowCapture, cap.span,
 				"blocking captures must be by value; cannot capture reference %s", tc.typeLabel(capType))
+			continue
+		}
+		if _, ok := tc.rangeCursorBindingBase[cap.symID]; ok {
+			tc.report(diag.SemaBlockingBorrowCapture, cap.span,
+				"blocking cannot capture a range cursor because it borrows its backing array on the owner shard")
 			continue
 		}
 		if tc.refuseFixedViewCapture(cap.symID, cap.span, "blocking body") {

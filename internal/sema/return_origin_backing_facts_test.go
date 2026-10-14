@@ -140,7 +140,8 @@ func TestReturnOriginBackingFacts(t *testing.T) {
 		b := &returnOriginBody{analyzer: a, function: fn}
 		env := backingFactEnv(fn).withBacking(0, returnOriginValueOf(backingFactLocalRoot(localID, local)))
 		a.report.Diagnostics = nil
-		closed := b.closeOutcome(returnOriginOutcome{env: env, value: returnOriginValueOf()}, local.Scope, fn.item.Span)
+		outcome := returnOriginOutcome{env: env, value: returnOriginValueOf()}
+		closed := b.closeOutcome(&outcome, local.Scope, fn.item.Span)
 		if backing, kept := closed.env.backings[0]; !kept || len(backing.roots) != 1 || backing.roots[0].kind != returnOriginLocal || !backing.roots[0].expired {
 			t.Errorf("scope exit lost B0 or left its local loan live: %+v", closed.env.backings)
 		}
@@ -148,7 +149,8 @@ func TestReturnOriginBackingFacts(t *testing.T) {
 			len(a.report.Diagnostics[0].Notes) != 1 || a.report.Diagnostics[0].Notes[0].Span != local.Span {
 			t.Errorf("a local loan in B0 escaped without its owner diagnostic: %+v", a.report.Diagnostics)
 		}
-		whole := b.closeOutcome(returnOriginOutcome{env: env, value: returnOriginValueOf()}, fn.scope, fn.item.Span)
+		wholeOutcome := returnOriginOutcome{env: env, value: returnOriginValueOf()}
+		whole := b.closeOutcome(&wholeOutcome, fn.scope, fn.item.Span)
 		if _, kept := whole.env.backings[0]; !kept {
 			t.Errorf("closing the function dropped B0: %+v", whole.env.backings)
 		}
@@ -162,12 +164,17 @@ func TestReturnOriginBackingFacts(t *testing.T) {
 		}
 		checkCell(t, "untouched post B0", fact.postBackings[0], e(0))
 		bottom := returnOriginSummaryFact{}
-		for i, joined := range []returnOriginSummaryFact{fact.join(bottom), bottom.join(fact), fact.join(bottom).join(fact).join(bottom)} {
-			if !joined.equal(fact) {
+		first := (&fact).join(&bottom)
+		second := (&bottom).join(&fact)
+		chain := (&fact).join(&bottom)
+		chain = (&chain).join(&fact)
+		chain = (&chain).join(&bottom)
+		for i, joined := range []returnOriginSummaryFact{first, second, chain} {
+			if !joined.equal(&fact) {
 				t.Errorf("join %d with bottom changed the normal fact: %+v", i, joined)
 			}
 		}
-		if twice := bottom.join(bottom); twice.value.normal || len(twice.postBackings) != 0 {
+		if twice := (&bottom).join(&bottom); twice.value.normal || len(twice.postBackings) != 0 {
 			t.Errorf("bottom gained a normal continuation or backing posts: %+v", twice)
 		}
 		if fmt.Sprintf("%+v", fact) != digest {

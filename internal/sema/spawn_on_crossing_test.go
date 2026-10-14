@@ -32,6 +32,9 @@ func TestSpawnOnDiagnostics(t *testing.T) {
 		{"body_return_inside", `fn f() -> far Task<int> { return spawn on pool { return 1; }; }`, "SEM3159"},
 		{"body_missing_ret", `fn f() -> far Task<int> { return spawn on pool { let x: int = 1; let _ = x; }; }`, "SEM3160"},
 		{"body_unreachable_ret", `fn f() -> far Task<int> { return spawn on pool { ret 1; ret 2; }; }`, "SEM3161"},
+		{"body_await", `async fn f() -> far Task<int> { return spawn on pool { let _ = checkpoint().await(); ret 1; }; }`, ""},
+		{"body_select", `async fn f() -> far Task<int> { return spawn on pool { let x: int = select { checkpoint().await() => 1; }; ret x; }; }`, ""},
+		{"body_has_own_async_context", `fn f() -> far Task<int> { return spawn on pool { let _ = checkpoint().await(); ret 1; }; }`, ""},
 
 		// Type identity (T02, T04, T11, T12) — `far Task<T>` is distinct from `Task<T>`.
 		{"type_local_task_annotation", `fn f() -> nothing { let t: Task<int> = spawn on distributed { ret 1; }; let _ = t.await(); return nothing; }`, "SEM3015"},

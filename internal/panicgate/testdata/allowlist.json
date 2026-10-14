@@ -63,6 +63,41 @@
       "disposition": "other_lane",
       "reason": "The int/uint to float64 checked conversions are exercised by TestVMNumericCastFailureContract/int_f64_overflow and /uint_f64_overflow in internal/vm/runtime_v2_numeric_cast_e2e_test.go (runtime_v2_pending). Each passes a runtime parameter holding 10^310, requires the entered marker, exactly one VM3202 float-overflow report and the backend-specific exit contract. runtime-v2-panic-surface-check explicitly runs that test on VM and LLVM, and gatecheck pins both selections. These calls previously reached the same checked narrowing through emitCheckedBigFloatToF64; they now call emitCheckedNumericToFixed directly so their temporary is released before either continuation. TestRuntimeV2NumericCastTemporariesValgrindZero separately covers successful answers, live caller inputs and native reclamation. This is explicit Go-lane coverage, not a claim that a behavioural golden records either site.",
       "invalidated_when": "Either named overflow case, its runtime-parameter construction, panic assertion or VM/LLVM gate selection is removed or skipped; the checked conversion stops sharing the same failure condition; or a two-backend behavioural golden covers the message, making these rows redundant."
+    },
+    {
+      "id": "PG-PLACEMENT-OWNER-FAILURE",
+      "owner": "runtime/scheduler",
+      "disposition": "other_lane",
+      "reason": "Every Runtime V2 task must have a valid owner shard before publication. TestRuntimeV2SchedulerPlacementInvalidOwnerFailsClosed and TestRuntimeV2SchedulerPlacementMissingOwnerFailsClosed run native harness modes that publish an out-of-range or unplaced task and require the exact fail-closed reports. The accept gate selects both tests; these are native runtime invariants rather than two-backend language errors.",
+      "invalidated_when": "Either named harness mode, exact message assertion or accept-gate selection is removed; task publication without a valid owner becomes legal; or two-backend behavioural fixtures cover these reports and make the rows redundant."
+    },
+    {
+      "id": "PG-SCOPE-OWNER-FAILURE",
+      "owner": "runtime/scheduler",
+      "disposition": "other_lane",
+      "reason": "Every Runtime V2 scope is pinned to an existing owner shard at entry. TestRuntimeV2SchedulerPlacementMissingScopeOwnerFailsClosed and TestRuntimeV2SchedulerPlacementInvalidScopeOwnerFailsClosed execute native harness modes for a missing scope and an out-of-range owner and require the exact reports. TestRuntimeV2LifecycleStaticScopeOwnerLane also forbids any shard-0 fallback; the accept gate selects all three proofs.",
+      "invalidated_when": "Either named harness mode, exact message assertion, static no-fallback assertion or accept/lifecycle gate selection is removed; an ownerless scope becomes legal; or two-backend behavioural fixtures cover these reports and make the rows redundant."
+    },
+    {
+      "id": "PG-SYNC-CHANNEL-ASYNC-ONLY",
+      "owner": "runtime/compiler",
+      "disposition": "other_lane",
+      "reason": "Synchronous channel helpers are forbidden from a running task after the Runtime V2 one-carrier-per-shard cutover. TestRuntimeV2SyncChannelHelpersRequireAsyncLowering executes both send and recv through the VM and LLVM/native backends and requires the same stable refusal text. The panic surface gate records the native sites here because the coverage is a Go two-backend contract rather than a golden fixture.",
+      "invalidated_when": "The named test, either backend arm, or either exact message assertion is removed; synchronous channel calls from a task become supported again; or a behavioural golden covers both messages and makes these rows redundant."
+    },
+    {
+      "id": "PG-TASK-AWAIT-ASYNC-ONLY",
+      "owner": "runtime/compiler",
+      "disposition": "other_lane",
+      "reason": "The compiler lowers await in a running async task to the suspendable poll ABI. The synchronous rt_task_await ABI is only for external callers, because letting a task enter a nested scheduler loop would add a second executor to its shard. TestRuntimeV2TaskContextAwaitRequiresAsyncLowering executes a native C stand with a current task and requires the stable fail-closed report; the panic surface gate runs that named test explicitly.",
+      "invalidated_when": "The named stand, its task-context setup, its exact message assertion or its panic-surface gate selection is removed; task-context synchronous await becomes part of the Runtime V2 model; or a behavioural golden covers the report and makes this row redundant."
+    },
+    {
+      "id": "PG-REMOTE-REQUEST-RETIREMENT",
+      "owner": "runtime/transport",
+      "disposition": "other_lane",
+      "reason": "A remote request must leave its registry before the final reference destroys it. TestRuntimeV2ReplyCancellationLifetime/listed-final-release-is-refused directly violates that internal ownership invariant in a native C stand and requires the exact report. The lifecycle gate explicitly selects the test. Its other rows prove both reply/cancel orderings, shutdown message retirement, create/share lease cleanup and detached final destruction; negative controls restore the original defects. This is native bookkeeping, not a source-language error shared with VM.",
+      "invalidated_when": "The named C stand, exact message assertion or lifecycle-gate selection is removed; a linked final release becomes valid; or a two-backend language fixture can legitimately exercise the condition."
     }
   ],
   "sites": [
@@ -892,26 +927,6 @@
       "group": "PG-INVARIANT"
     },
     {
-      "site": "runtime/native/rt_async_compat.c::maybe_start_compensation_worker_locked#1",
-      "message": "async: compensation worker context allocation failed",
-      "group": "PG-ALLOC-FAILURE"
-    },
-    {
-      "site": "runtime/native/rt_async_compat.c::maybe_start_compensation_worker_locked#2",
-      "message": "async: compensation worker start failed",
-      "group": "PG-ALLOC-FAILURE"
-    },
-    {
-      "site": "runtime/native/rt_async_compat.c::move_current_local_to_inject_locked#1",
-      "message": "async: inject queue overflow",
-      "group": "PG-INVARIANT"
-    },
-    {
-      "site": "runtime/native/rt_async_compat.c::move_current_local_to_inject_locked#2",
-      "message": "async: inject queue allocation failed",
-      "group": "PG-ALLOC-FAILURE"
-    },
-    {
       "site": "runtime/native/rt_async_deque.c::deque_prepare#1",
       "message": "async: ready queue capacity overflow at scheduler init",
       "group": "PG-INVARIANT"
@@ -930,11 +945,6 @@
       "site": "runtime/native/rt_async_poll.c::poll_sleep_task#1",
       "message": "async: sleep store allocation failed",
       "group": "PG-ALLOC-FAILURE"
-    },
-    {
-      "site": "runtime/native/rt_async_poll.c::poll_task#1",
-      "message": "async: a carrier-affine task polled off its carrier",
-      "group": "PG-INVARIANT"
     },
     {
       "site": "runtime/native/rt_async_poll.c::poll_user_task#1",
@@ -967,26 +977,6 @@
       "group": "PG-INVARIANT"
     },
     {
-      "site": "runtime/native/rt_async_poll.c::run_ready_one#1",
-      "message": "invalid task id",
-      "group": "PG-INVARIANT"
-    },
-    {
-      "site": "runtime/native/rt_async_poll.c::run_until_done#1",
-      "message": "invalid task handle",
-      "group": "PG-INVARIANT"
-    },
-    {
-      "site": "runtime/native/rt_async_poll.c::run_until_done#2",
-      "message": "invalid task id",
-      "group": "PG-INVARIANT"
-    },
-    {
-      "site": "runtime/native/rt_async_poll.c::run_until_done#3",
-      "message": "async deadlock",
-      "group": "PG-INVARIANT"
-    },
-    {
       "site": "runtime/native/rt_async_scope.c::rt_scope_enter#1",
       "message": "rt_scope_enter without current task",
       "group": "PG-INVARIANT"
@@ -1002,9 +992,14 @@
       "group": "PG-INVARIANT"
     },
     {
-      "site": "runtime/native/rt_async_scope.c::rt_scope_register_child#1",
-      "message": "async: a task registered with a scope that did not create it",
-      "group": "PG-INVARIANT"
+      "site": "runtime/native/rt_async_scope.c::rt_scope_owner_shard#1",
+      "message": "async: scope has no owner shard",
+      "group": "PG-SCOPE-OWNER-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_async_scope.c::rt_scope_owner_shard#2",
+      "message": "async: invalid scope owner shard",
+      "group": "PG-SCOPE-OWNER-FAILURE"
     },
     {
       "site": "runtime/native/rt_async_scope.c::scope_cancel_children_controlled#1",
@@ -1097,11 +1092,6 @@
       "group": "PG-ALLOC-FAILURE"
     },
     {
-      "site": "runtime/native/rt_async_state.c::rt_config_total_worker_threads#1",
-      "message": "async: worker count overflow",
-      "group": "PG-INVARIANT"
-    },
-    {
       "site": "runtime/native/rt_async_state.c::rt_scope_slot_store#1",
       "message": "<computed>",
       "group": "PG-COMPUTED"
@@ -1158,8 +1148,8 @@
     },
     {
       "site": "runtime/native/rt_async_task.c::rt_task_await#1",
-      "message": "async: a single-threaded await found a clone reader out",
-      "group": "PG-INVARIANT"
+      "message": "task await requires async lowering",
+      "group": "PG-TASK-AWAIT-ASYNC-ONLY"
     },
     {
       "site": "runtime/native/rt_async_task.c::rt_task_poll#1",
@@ -1392,7 +1382,17 @@
       "group": "PG-INVARIANT"
     },
     {
+      "site": "runtime/native/rt_channel_sync.c::rt_channel_recv_blocking#1",
+      "message": "channel recv requires async lowering",
+      "group": "PG-SYNC-CHANNEL-ASYNC-ONLY"
+    },
+    {
       "site": "runtime/native/rt_channel_sync.c::rt_channel_send_blocking#1",
+      "message": "channel send requires async lowering",
+      "group": "PG-SYNC-CHANNEL-ASYNC-ONLY"
+    },
+    {
+      "site": "runtime/native/rt_channel_sync.c::rt_channel_send_blocking#2",
       "message": "send on closed channel",
       "group": "PG-UNFIXTURED"
     },
@@ -1627,54 +1627,9 @@
       "group": "PG-CROSSING"
     },
     {
-      "site": "runtime/native/rt_ready_queue.c::pop_task_from_deque#1",
-      "message": "async: local queue overflow",
-      "group": "PG-INVARIANT"
-    },
-    {
-      "site": "runtime/native/rt_ready_queue.c::pop_task_from_deque#2",
-      "message": "async: local queue allocation failed",
-      "group": "PG-ALLOC-FAILURE"
-    },
-    {
-      "site": "runtime/native/rt_ready_queue.c::pop_task_from_deque#3",
-      "message": "async: local queue overflow",
-      "group": "PG-INVARIANT"
-    },
-    {
-      "site": "runtime/native/rt_ready_queue.c::pop_task_from_deque#4",
-      "message": "async: local queue allocation failed",
-      "group": "PG-ALLOC-FAILURE"
-    },
-    {
-      "site": "runtime/native/rt_ready_queue.c::pop_task_from_deque#5",
-      "message": "async: local queue overflow",
-      "group": "PG-INVARIANT"
-    },
-    {
-      "site": "runtime/native/rt_ready_queue.c::pop_task_from_deque#6",
-      "message": "async: local queue allocation failed",
-      "group": "PG-ALLOC-FAILURE"
-    },
-    {
-      "site": "runtime/native/rt_ready_queue.c::pop_task_from_deque#7",
-      "message": "async: local queue overflow",
-      "group": "PG-INVARIANT"
-    },
-    {
-      "site": "runtime/native/rt_ready_queue.c::pop_task_from_deque#8",
-      "message": "async: local queue allocation failed",
-      "group": "PG-ALLOC-FAILURE"
-    },
-    {
       "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#1",
       "message": "async: local queue overflow",
       "group": "PG-INVARIANT"
-    },
-    {
-      "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#10",
-      "message": "async: inject queue allocation failed",
-      "group": "PG-ALLOC-FAILURE"
     },
     {
       "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#2",
@@ -1683,38 +1638,23 @@
     },
     {
       "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#3",
-      "message": "async: local queue overflow",
+      "message": "async: inject queue overflow",
       "group": "PG-INVARIANT"
     },
     {
       "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#4",
-      "message": "async: local queue allocation failed",
-      "group": "PG-ALLOC-FAILURE"
-    },
-    {
-      "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#5",
-      "message": "async: local queue overflow",
-      "group": "PG-INVARIANT"
-    },
-    {
-      "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#6",
-      "message": "async: local queue allocation failed",
-      "group": "PG-ALLOC-FAILURE"
-    },
-    {
-      "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#7",
-      "message": "async: inject queue overflow",
-      "group": "PG-INVARIANT"
-    },
-    {
-      "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#8",
       "message": "async: inject queue allocation failed",
       "group": "PG-ALLOC-FAILURE"
     },
     {
-      "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#9",
+      "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#5",
       "message": "async: inject queue overflow",
       "group": "PG-INVARIANT"
+    },
+    {
+      "site": "runtime/native/rt_ready_queue.c::ready_push_task_locked#6",
+      "message": "async: inject queue allocation failed",
+      "group": "PG-ALLOC-FAILURE"
     },
     {
       "site": "runtime/native/rt_remote_admit.c::rt_transport_release_reply_slot#1",
@@ -1742,6 +1682,11 @@
       "group": "PG-COMPUTED"
     },
     {
+      "site": "runtime/native/rt_remote_task_reclaim.c::rt_remote_task_pending_reclaim#1",
+      "message": "remote request: final reference released before registry retirement",
+      "group": "PG-REMOTE-REQUEST-RETIREMENT"
+    },
+    {
       "site": "runtime/native/rt_remote_task_result.c::rt_far_task_take_result#1",
       "message": "async: a cloned task handle cannot be served a result that cannot be duplicated",
       "group": "PG-INVARIANT"
@@ -1754,7 +1699,12 @@
     {
       "site": "runtime/native/rt_scheduler_placement.c::rt_task_owner_shard#1",
       "message": "async: invalid task owner shard",
-      "group": "PG-INVARIANT"
+      "group": "PG-PLACEMENT-OWNER-FAILURE"
+    },
+    {
+      "site": "runtime/native/rt_scheduler_placement.c::rt_task_owner_shard#2",
+      "message": "async: task has no owner shard",
+      "group": "PG-PLACEMENT-OWNER-FAILURE"
     },
     {
       "site": "runtime/native/rt_scope_event.c::rt_scope_apply_child_done_at_shutdown_locked#1",
@@ -1962,12 +1912,12 @@
       "group": "PG-ALLOC-FAILURE"
     },
     {
-      "site": "runtime/native/rt_worker_turn.c::worker_drain_pinned_on_exit#1",
+      "site": "runtime/native/rt_worker_turn.c::worker_drain_local_on_exit#1",
       "message": "async: local queue overflow",
       "group": "PG-INVARIANT"
     },
     {
-      "site": "runtime/native/rt_worker_turn.c::worker_drain_pinned_on_exit#2",
+      "site": "runtime/native/rt_worker_turn.c::worker_drain_local_on_exit#2",
       "message": "async: local queue allocation failed",
       "group": "PG-ALLOC-FAILURE"
     }

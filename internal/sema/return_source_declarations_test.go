@@ -71,11 +71,9 @@ func TestReturnSourceDeclarationValidation(t *testing.T) {
 			data := syms.Table.Symbols.Data()
 			for i := range data {
 				sym := &data[i]
-				if sym != nil {
-					name := builder.StringsInterner.MustLookup(sym.Name)
-					if name == "subject" || name == "Subject" {
-						subject = sym
-					}
+				name := builder.StringsInterner.MustLookup(sym.Name)
+				if name == "subject" || name == "Subject" {
+					subject = sym
 				}
 			}
 			if subject == nil {
@@ -105,7 +103,7 @@ func TestReturnSourceDeclarationValidation(t *testing.T) {
 			if test.name == "generic_deferred" {
 				want = ReturnSourcesDeferred
 			}
-			if state := ValidateDeclaredReturnSources(result.TypeInterner, request).Status; state != want {
+			if state := ValidateDeclaredReturnSources(result.TypeInterner, &request).Status; state != want {
 				t.Fatalf("original eligibility = %v, want %v", state, want)
 			}
 			if test.name == "generic_deferred" {
@@ -138,7 +136,7 @@ func checkReturnSourceAliasSpecializations(t *testing.T) {
 			t.Fatalf("original alias requests = %d, want 1", len(result.ReturnSourceDeclarations))
 		}
 		original := result.ReturnSourceDeclarations[0]
-		if !original.TypeExpr.IsValid() || ValidateDeclaredReturnSources(result.TypeInterner, original).Status != ReturnSourcesDeferred ||
+		if !original.TypeExpr.IsValid() || ValidateDeclaredReturnSources(result.TypeInterner, &original).Status != ReturnSourcesDeferred ||
 			!types.ContainsGenericParam(result.TypeInterner, original.Result()) {
 			t.Fatal("alias lost original AST identity or generic result")
 		}
@@ -147,7 +145,7 @@ func checkReturnSourceAliasSpecializations(t *testing.T) {
 			if use.Result() == result.TypeInterner.Builtins().Int {
 				foundOwned = true
 				if use.Declaration.TypeExpr != original.TypeExpr || use.Declaration.Result() != original.Result() ||
-					ValidateInstantiatedReturnSources(result.TypeInterner, use.Declaration, use.Params(), use.Result()).Status != ReturnSourcesValid {
+					ValidateInstantiatedReturnSources(result.TypeInterner, &use.Declaration, use.Params(), use.Result()).Status != ReturnSourcesValid {
 					t.Fatal("owned alias specialization lost its conditional original promise")
 				}
 			}
@@ -173,12 +171,12 @@ func checkConditionalReturnSource(t *testing.T, in *types.Interner, original Ret
 		{[]types.TypeID{owned}, borrowed, ReturnSourcesInvalid},
 		{original.Params(), original.Result(), ReturnSourcesDeferred},
 	} {
-		if got := ValidateInstantiatedReturnSources(in, original, test.params, test.result); got.Status != test.want {
+		if got := ValidateInstantiatedReturnSources(in, &original, test.params, test.result); got.Status != test.want {
 			t.Fatalf("conditional eligibility = %+v, want %v", got, test.want)
 		}
 	}
 	directOwned := NewReturnSourceDeclarationRequest(original.Syntax, []types.TypeID{owned}, owned)
-	if ValidateInstantiatedReturnSources(in, directOwned, []types.TypeID{owned}, owned).Status != ReturnSourcesInvalid {
+	if ValidateInstantiatedReturnSources(in, &directOwned, []types.TypeID{owned}, owned).Status != ReturnSourcesInvalid {
 		t.Fatal("owned specialization erased an invalid original concrete declaration")
 	}
 	params := original.Params()
@@ -188,7 +186,8 @@ func checkConditionalReturnSource(t *testing.T, in *types.Interner, original Ret
 	}
 	union := in.RegisterUnion(in.Strings.Intern("ReturnSourceTestPayload"), original.Syntax.Span())
 	in.SetUnionMembers(union, []types.UnionMember{{Kind: types.UnionMemberTag, TagArgs: []types.TypeID{borrowed}}})
-	if got := ValidateDeclaredReturnSources(in, NewReturnSourceDeclarationRequest(original.Syntax, []types.TypeID{borrowed}, union)); got.Status != ReturnSourcesValid {
+	concrete := NewReturnSourceDeclarationRequest(original.Syntax, []types.TypeID{borrowed}, union)
+	if got := ValidateDeclaredReturnSources(in, &concrete); got.Status != ReturnSourcesValid {
 		t.Fatalf("tag payload borrow lost: %+v", got)
 	}
 }

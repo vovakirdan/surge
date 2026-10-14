@@ -31,7 +31,9 @@ func (tc *typeChecker) walkCrossingBody(body ast.StmtID, anchor symbols.SymbolID
 	tc.returnStack[len(tc.returnStack)-1].entryPins = pinsOutsideBody
 	tc.pushDropScope(true)
 	tc.registerCrossingBodyOwnership(body, anchor)
+	tc.crossingBodyAsyncDepth = append(tc.crossingBodyAsyncDepth, tc.asyncBlockDepth)
 	tc.walkStmt(body)
+	tc.crossingBodyAsyncDepth = tc.crossingBodyAsyncDepth[:len(tc.crossingBodyAsyncDepth)-1]
 	tc.popDropScope()
 	if tc.returnStatus(body) != returnClosed {
 		tc.refuseLivePinsAtExit(ast.NoExprID, pinsOutsideBody, label+" end")

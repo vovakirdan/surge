@@ -76,19 +76,19 @@ func ownedElementRows() []ownedElementRow {
 		{
 			name: "buffered-shards-1",
 			mode: "owned-element",
-			env:  []string{"SURGE_SHARDS=1", "SURGE_THREADS=2"},
+			env:  []string{"SURGE_SHARDS=2"},
 			want: fullCensus,
 		},
 		{
 			name: "buffered-shards-3",
 			mode: "owned-element",
-			env:  []string{"SURGE_SHARDS=3", "SURGE_THREADS=3"},
+			env:  []string{"SURGE_SHARDS=3"},
 			want: fullCensus,
 		},
 		{
 			name: "unbuffered-shards-3",
 			mode: "owned-unbuffered",
-			env:  []string{"SURGE_SHARDS=3", "SURGE_THREADS=3"},
+			env:  []string{"SURGE_SHARDS=3"},
 			want: fullCensus,
 		},
 		{
@@ -99,7 +99,7 @@ func ownedElementRows() []ownedElementRow {
 			// summary cannot do (RV2-DEBT-245).
 			name: "cancelled-sender-keeps-one-drop",
 			mode: "owned-cancelled-sender",
-			env:  []string{"SURGE_SHARDS=3", "SURGE_THREADS=3"},
+			env:  []string{"SURGE_SHARDS=3"},
 			want: "cancelled sender: drops=1 received=0",
 		},
 	}

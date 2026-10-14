@@ -231,7 +231,6 @@ def render_report(
         "backend": manifest.backend,
         "profile": manifest.profile,
         "shards": manifest.shards,
-        "threads": manifest.threads,
         "blocking_threads": manifest.blocking_threads,
         "reference_host": {
             "system": manifest.reference.system,

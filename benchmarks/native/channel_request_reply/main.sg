@@ -133,16 +133,6 @@ async fn echo_loop(requests: Channel<Message>) -> nothing {
     return nothing;
 }
 
-fn apply_sync_new_reply(requests: &Channel<Message>, value: int) -> int {
-    let reply = Channel::<int>::new(1:uint);
-    let request: Message = Apply(value, reply);
-    requests.send(own request);
-    return compare reply.recv() {
-        Some(v) => v;
-        nothing => -1;
-    };
-}
-
 async fn bench_channel_ping_pong(iterations: int) -> nothing {
     let ping_ch = Channel::<int>::new(0:uint);
     let pong_ch = Channel::<int>::new(0:uint);
@@ -230,38 +220,15 @@ async fn bench_channel_new_reply(iterations: int) -> nothing {
     return nothing;
 }
 
-async fn bench_channel_sync_new_reply(iterations: int) -> nothing {
-    let requests = Channel::<Message>::new(64:uint);
-    let task = spawn echo_loop(requests);
-    let start = time.monotonic_now();
-    let mut total = 0;
-    let mut i: int = 0;
-    while i < iterations {
-        total = total + apply_sync_new_reply(&requests, i);
-        i = i + 1;
-    }
-    let total_us = elapsed_us(start);
-    let stop: Message = Stop();
-    requests.send(own stop);
-    let _ = task.await();
-    if total < 0 {
-        print("impossible");
-    }
-    print_row("channel_sync_new_reply", iterations, total_us);
-    return nothing;
-}
-
 @entrypoint("argv")
 fn main(probe: string = "all") -> int {
     let iterations: int = 20000;
-    let sync_iterations: int = iterations / 4;
     if probe == "all" {
         bench_empty_loop(iterations);
         bench_response_bytes(iterations);
         let _ = bench_channel_ping_pong(iterations).await();
         let _ = bench_channel_reused_reply(iterations).await();
         let _ = bench_channel_new_reply(iterations).await();
-        let _ = bench_channel_sync_new_reply(sync_iterations).await();
         return 0;
     }
     if probe == "empty_loop" {
@@ -282,10 +249,6 @@ fn main(probe: string = "all") -> int {
     }
     if probe == "channel_new_reply" {
         let _ = bench_channel_new_reply(iterations).await();
-        return 0;
-    }
-    if probe == "channel_sync_new_reply" {
-        let _ = bench_channel_sync_new_reply(sync_iterations).await();
         return 0;
     }
     print("unknown probe: " + probe);

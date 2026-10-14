@@ -18,7 +18,7 @@ type returnOriginSignature struct {
 	binding *returnOriginTypeView
 }
 
-func returnOriginSignatureTypes(info *types.FnInfo, view ...*returnOriginSignature) ([]types.TypeID, types.TypeID) {
+func returnOriginSignatureTypes(info *types.FnInfo, view ...*returnOriginSignature) (params []types.TypeID, result types.TypeID) {
 	if len(view) != 0 && view[0] != nil {
 		return view[0].params, view[0].result
 	}
@@ -230,7 +230,7 @@ func returnOriginExactUnionMember(in *types.Interner, formal, actual types.TypeI
 
 // Outer conversions follow admitted checker rules. A stored reference borrow
 // still needs the FromExpr certificate; the flow reader supplies current storage.
-func (u *returnOriginUnitIndex) originalArgumentType(expr ast.ExprID, original types.TypeID, params, args []types.TypeID) (types.TypeID, string) {
+func (u *returnOriginUnitIndex) originalArgumentType(expr ast.ExprID, original types.TypeID, params, args []types.TypeID) (typ types.TypeID, reason string) {
 	in := u.Sema.TypeInterner
 	actual := u.Sema.ExprTypes[expr]
 	// G3: a non-generic alias denotes its target for the match only. `a` below stays
@@ -257,13 +257,27 @@ func (u *returnOriginUnitIndex) originalArgumentType(expr ast.ExprID, original t
 		return formal, ""
 	}
 	match := func(left, right types.TypeID) bool {
+		if !types.ContainsGenericParam(in, left) && !types.ContainsGenericParam(in, right) {
+			return matchReturnOriginSourceType(in, left, right, nil, nil) == ""
+		}
 		if slices.Contains(params, original) {
 			return matchReturnOriginSourceType(in, left, right, nil, nil) == ""
 		}
 		return matchReturnOriginSourceTypeMode(in, left, right, params, args, true) == ""
 	}
+	// A built-in index expression is typed as a reference to its element, but
+	// a by-value call argument lowers as a load of that element. Accept only
+	// the exact typed built-in __index selection; arbitrary references cannot
+	// erase their outer reference here.
+	if f.Kind != types.KindReference && a.Kind == types.KindReference &&
+		match(formal, a.Elem) && u.mutablePhysicalIndexReceiver(expr, a.Elem) {
+		return formal, ""
+	}
 	if f.Kind == types.KindReference {
 		if a.Kind == types.KindReference {
+			if f.Mutable == a.Mutable && match(f.Elem, a.Elem) {
+				return formal, ""
+			}
 			if !f.Mutable && a.Mutable && match(f.Elem, a.Elem) {
 				return formal, ""
 			}

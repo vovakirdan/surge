@@ -179,7 +179,7 @@ func runUnshareProgram(t *testing.T, outputPath string, shards int) (map[string]
 	t.Helper()
 	env := envWithStdlib(repoRoot(t))
 	env = overrideEnvVar(env, "SURGE_SHARDS", strconv.Itoa(shards))
-	env = overrideEnvVar(env, "SURGE_THREADS", strconv.Itoa(shards))
+	env = overrideEnvVar(env, "SURGE_SHARDS", strconv.Itoa(shards))
 	env = overrideEnvVar(env, "SURGE_TRACE_EXEC", "1")
 	duration, result := runBinaryWithTimeout(t, outputPath, env, 30*time.Second)
 	if result.exitCode != 0 || !strings.Contains(result.stdout, "unshare-ok") {
@@ -249,7 +249,7 @@ func TestRuntimeV2UnshareCapturesLeakNothing(t *testing.T) {
 	requireOwnershipValgrind(t, exec.LookPath)
 	env := envWithStdlib(repoRoot(t))
 	env = overrideEnvVar(env, "SURGE_SHARDS", "2")
-	env = overrideEnvVar(env, "SURGE_THREADS", "2")
+	env = overrideEnvVar(env, "SURGE_SHARDS", "2")
 	stdout, stderr, exitCode := runBinaryUnderValgrind(t, outputPath, env, 180*time.Second)
 	if exitCode != 0 || !strings.Contains(stdout, "unshare-ok") {
 		t.Fatalf("program failed under valgrind (exit=%d)\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)

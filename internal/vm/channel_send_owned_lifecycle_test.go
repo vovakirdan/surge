@@ -66,7 +66,7 @@ func TestChannelSendOwnedLifecycle(t *testing.T) {
 		for _, cancel := range []bool{false, true} {
 			source, marker := channelSendOwnedLifecycleSource(aggregate, cancel, "4:uint", false)
 			t.Run(marker, func(t *testing.T) {
-				t.Setenv("SURGE_THREADS", "1")
+				t.Setenv("SURGE_SHARDS", "1")
 				got := runProgramFromSource(t, source, runOptions{captureStdout: true})
 				if got.exitCode != 0 || got.stderr != "" || strings.TrimSpace(got.stdout) != marker+" rounds=4" {
 					t.Fatalf("owning send lifecycle: exit=%d stdout=%q stderr=%s", got.exitCode, got.stdout, got.stderr)

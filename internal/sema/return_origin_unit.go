@@ -3,6 +3,7 @@ package sema
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"slices"
 
 	"fortio.org/safecast"
@@ -28,6 +29,10 @@ type ReturnOriginUnit struct {
 	// Publication preserves the existing canonical/local callable vocabulary
 	// before a merged authority replaces per-file callable candidates.
 	Publication FinalizationPublication
+	// LiveOnly asks the driver-facing analysis to publish evidence only for the
+	// finalized reachable closure. Direct analyzer clients leave this false and
+	// receive exhaustive evidence for every body in their supplied units.
+	LiveOnly bool
 }
 
 // ReturnOriginPending is an obligation the analysis could not answer. The
@@ -73,10 +78,16 @@ type returnOriginUnitIndex struct {
 	itemScopes   map[ast.ItemID]symbols.ScopeID
 	externScopes map[ast.ExternMemberID]symbols.ScopeID
 	functions    map[symbols.SymbolID]*returnOriginFunction
-	pending      []ReturnOriginPending
-	declarations int
-	peers        []*returnOriginUnitIndex // every owning unit, to prove a nominal where it is declared
-	intRangeType types.TypeID             // a.intRangeType(), cached for type views; NoTypeID without core
+	// Deferred-callable graphs are finalized before this analysis starts. Keep
+	// one immutable snapshot instead of deep-cloning every edge at every call.
+	localDeferred       []DeferredCallableEdge
+	localDeferredLoaded bool
+	authorityDeferred   []DeferredCallableEdge
+	deferredLoaded      bool
+	pending             []ReturnOriginPending
+	declarations        int
+	peers               []*returnOriginUnitIndex // every owning unit, to prove a nominal where it is declared
+	intRangeType        types.TypeID             // a.intRangeType(), cached for type views; NoTypeID without core
 }
 
 type returnOriginFunction struct {
@@ -99,14 +110,16 @@ type returnOriginFunction struct {
 }
 
 type returnOriginAnalyzer struct {
-	ctx          context.Context
-	functions    []*returnOriginFunction
-	units        []*returnOriginUnitIndex
-	bodies       map[string]*returnOriginFunction
-	declarations map[string]*returnOriginFunction
-	summaries    map[string]returnOriginSummaryFact
-	report       *ReturnOriginAnalysis
-	collect      bool
+	ctx            context.Context
+	functions      []*returnOriginFunction
+	units          []*returnOriginUnitIndex
+	bodies         map[string]*returnOriginFunction
+	declarations   map[string]*returnOriginFunction
+	summaries      map[string]returnOriginSummaryFact
+	report         *ReturnOriginAnalysis
+	collect        bool
+	deferred       []DeferredCallableEdge
+	deferredLoaded bool
 	// taskType is the result of the certified core `checkpoint`, a Task<nothing>;
 	// its declaration names the core Task family. NoTypeID without core.
 	taskType types.TypeID
@@ -115,7 +128,7 @@ type returnOriginAnalyzer struct {
 type returnOriginBody struct {
 	analyzer   *returnOriginAnalyzer
 	function   *returnOriginFunction
-	conditions []returnOriginCondition
+	conditions []*returnOriginCondition
 	required   returnOriginRequirements
 	postCells  map[uint32]returnOriginValue
 	// postBackings is the joined backing of each mutable container formal at exits.
@@ -154,7 +167,8 @@ func AnalyzeReturnOrigins(ctx context.Context, authority *Result, units []Return
 		summaries:    make(map[string]returnOriginSummaryFact), report: &ReturnOriginAnalysis{}}
 	seen := make(map[string]struct{}, len(units))
 	declarations := 0
-	for _, unit := range units {
+	for i := range units {
+		unit := &units[i]
 		if _, exists := seen[unit.SourceKey]; exists {
 			return nil, fmt.Errorf("return origins: duplicate source unit %q", unit.SourceKey)
 		}
@@ -181,6 +195,11 @@ func AnalyzeReturnOrigins(ctx context.Context, authority *Result, units []Return
 	if declarations == 0 {
 		return nil, fmt.Errorf("return origins: supplied units contain no typed declarations")
 	}
+	a.deferred = dedupeReturnOriginDeferredEdges(authority.InstantiationGraph.DeferredCallables(), a.units)
+	a.deferredLoaded = true
+	for _, index := range a.units {
+		index.authorityDeferred, index.deferredLoaded = a.deferred, true
+	}
 	slices.SortFunc(a.functions, func(a, b *returnOriginFunction) int {
 		if a.key < b.key {
 			return -1
@@ -202,7 +221,103 @@ func AnalyzeReturnOrigins(ctx context.Context, authority *Result, units []Return
 	return a.report, nil
 }
 
-func indexReturnOriginUnit(unit ReturnOriginUnit, authority *Result) (*returnOriginUnitIndex, error) {
+func (a *returnOriginAnalyzer) deferredEdges() []DeferredCallableEdge {
+	if a == nil {
+		return nil
+	}
+	if !a.deferredLoaded {
+		if len(a.units) != 0 && a.units[0] != nil && a.units[0].authority != nil {
+			a.deferred = dedupeReturnOriginDeferredEdges(a.units[0].authority.InstantiationGraph.DeferredCallables(), a.units)
+		}
+		a.deferredLoaded = true
+	}
+	return a.deferred
+}
+
+func (u *returnOriginUnitIndex) deferredEdges() []DeferredCallableEdge {
+	if u == nil {
+		return nil
+	}
+	if !u.deferredLoaded {
+		if u.authority != nil {
+			u.authorityDeferred = dedupeReturnOriginDeferredEdges(u.authority.InstantiationGraph.DeferredCallables(), []*returnOriginUnitIndex{u})
+		}
+		u.deferredLoaded = true
+	}
+	return u.authorityDeferred
+}
+
+func (u *returnOriginUnitIndex) localDeferredEdges() []DeferredCallableEdge {
+	if u == nil {
+		return nil
+	}
+	if !u.localDeferredLoaded {
+		u.localDeferred = dedupeReturnOriginDeferredEdges(u.Sema.InstantiationGraph.DeferredCallables(), []*returnOriginUnitIndex{u})
+		u.localDeferredLoaded = true
+	}
+	return u.localDeferred
+}
+
+func dedupeReturnOriginDeferredEdges(edges []DeferredCallableEdge, units []*returnOriginUnitIndex) []DeferredCallableEdge {
+	out := make([]DeferredCallableEdge, 0, len(edges))
+	for i := range edges {
+		edge := edges[i]
+		duplicate := -1
+		for j := range out {
+			existing := out[j]
+			if existing.UseID != edge.UseID || existing.Kind != edge.Kind {
+				continue
+			}
+			left, right := existing, edge
+			left.CallerBindings = slices.Clone(left.CallerBindings)
+			right.CallerBindings = slices.Clone(right.CallerBindings)
+			if left.Kind == DeferredMethodCall {
+				left.Requirement.Contracts = nil
+				right.Requirement.Contracts = nil
+			}
+			left.Witness.Root, right.Witness.Root = InstanceKey{}, InstanceKey{}
+			left.Witness.CallerKey, right.Witness.CallerKey = "", ""
+			left.Witness.Steps, right.Witness.Steps = nil, nil
+			for k := range left.CallerBindings {
+				left.CallerBindings[k].Owner = 0
+			}
+			for k := range right.CallerBindings {
+				right.CallerBindings[k].Owner = 0
+			}
+			if reflect.DeepEqual(left, right) {
+				duplicate = j
+				break
+			}
+		}
+		if duplicate < 0 {
+			out = append(out, edge)
+		} else if deferredCanonicalOwnerScore(&edge, units) > deferredCanonicalOwnerScore(&out[duplicate], units) {
+			out[duplicate] = edge
+		}
+	}
+	return out
+}
+
+func deferredCanonicalOwnerScore(edge *DeferredCallableEdge, units []*returnOriginUnitIndex) int {
+	if edge == nil {
+		return 0
+	}
+	score := 0
+	for _, binding := range edge.CallerBindings {
+		for _, unit := range units {
+			if unit != nil && len(unit.Publication.RootToLocalSymbols[binding.Owner]) != 0 {
+				score++
+				break
+			}
+		}
+	}
+	return score
+}
+
+func indexReturnOriginUnit(unit *ReturnOriginUnit, authority *Result) (*returnOriginUnitIndex, error) {
+	if unit == nil {
+		return nil, fmt.Errorf("return origins: missing owning unit")
+	}
 	if unit.Builder == nil || !unit.FileID.IsValid() || unit.SourceKey == "" ||
 		unit.Sema == nil || unit.Sema.TypeInterner != authority.TypeInterner || unit.Symbols == nil ||
 		unit.Symbols.Table == nil || unit.Symbols.Table.Scopes == nil || unit.Symbols.Table.Symbols == nil {
@@ -215,7 +330,7 @@ func indexReturnOriginUnit(unit ReturnOriginUnit, authority *Result) (*returnOri
 	if unit.Publication.SourceKey != unit.SourceKey {
 		return nil, fmt.Errorf("return origins: missing owning publication for %q", unit.SourceKey)
 	}
-	u := &returnOriginUnitIndex{ReturnOriginUnit: unit, authority: authority,
+	u := &returnOriginUnitIndex{ReturnOriginUnit: *unit, authority: authority,
 		stmtSymbols: make(map[ast.StmtID]symbols.SymbolID), stmtScopes: make(map[ast.StmtID]symbols.ScopeID),
 		exprScopes: make(map[ast.ExprID]symbols.ScopeID), itemScopes: make(map[ast.ItemID]symbols.ScopeID),
 		externScopes: make(map[ast.ExternMemberID]symbols.ScopeID),
@@ -242,7 +357,9 @@ func indexReturnOriginUnit(unit ReturnOriginUnit, authority *Result) (*returnOri
 			u.exprScopes[scope.Owner.Expr] = id
 		}
 	}
-	for i, sym := range unit.Symbols.Table.Symbols.Data() {
+	symbolData := unit.Symbols.Table.Symbols.Data()
+	for i := range symbolData {
+		sym := &symbolData[i]
 		if sym.Decl.ASTFile != unit.FileID || !sym.Decl.Stmt.IsValid() {
 			continue
 		}

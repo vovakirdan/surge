@@ -214,7 +214,9 @@ const genericResultLoanControlDigest = "9e1013683f6e3dce3b43d5b26058a1e9fc822f53
 func TestAnalyzeGenericCallResultLoanControls(t *testing.T) {
 	text := genericResultLoanControlSource
 	checkOriginSource(t, text, genericResultLoanControlDigest)
-	f, analysis := analyzeOriginRoot(t, "generic_result_loan_controls", text, false, nil)
+	f, analysis := analyzeOriginRoot(t, "generic_result_loan_controls", text, false, func(f originalGenericFixture) {
+		exhaustiveReturnOriginUnits(t, f.inputs.units, "core/map.sg")
+	})
 	key, file := f.unit.SourceKey, f.owner.File.ID
 	number := originSpan{292, 376, text[292:376]}
 	firstView := originSpan{377, 476, text[377:476]}

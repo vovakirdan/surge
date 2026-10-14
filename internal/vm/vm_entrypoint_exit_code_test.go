@@ -90,12 +90,12 @@ fn main() -> Status { return Status { label = "done", code = 42 }; }
 `)
 	var start *mir.Func
 	for _, fn := range mirMod.Funcs {
-		if fn.Name == "__surge_start" {
+		if fn.Name == "__surge_root$startup$poll" {
 			start = fn
 		}
 	}
 	if start == nil {
-		t.Fatal("no __surge_start")
+		t.Fatal("no root startup poll")
 	}
 	receiver, called, dropped := mir.NoLocalID, false, false
 	for _, block := range start.Blocks {

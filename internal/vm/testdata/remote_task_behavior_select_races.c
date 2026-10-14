@@ -303,13 +303,20 @@ int rtb_mode_select_owner_teardown(void) {
     if (rtb_select_park2(ex, &chan_a.handle, &chan_b.handle, &state, &caller) != 0) {
         return 1;
     }
-    const rt_remote_task_pending* pending =
+    rt_remote_task_pending* pending =
         atomic_load_explicit(&state.visible_pending, memory_order_acquire);
+    // visible_pending is only a borrowed observation. Shutdown resolves the
+    // caller and may consume its last ordinary reference before this driver
+    // reads the deterministic terminal status, so retain the observation
+    // across the shutdown edge exactly as the teardown/immediate fixtures do.
+    rt_remote_task_pending_add_ref(pending);
     if (rt_executor_request_shutdown(ex) != RT_RUNTIME_STATUS_OK) {
+        rt_remote_task_pending_release(pending);
         return rtb_fail("owner-teardown shutdown failed");
     }
-    if (rt_remote_task_pending_snapshot(pending, NULL) !=
-        RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN) {
+    rt_remote_task_status status = rt_remote_task_pending_snapshot(pending, NULL);
+    rt_remote_task_pending_release(pending);
+    if (status != RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN) {
         return rtb_fail("owner-teardown left the caller without a deterministic failure");
     }
     return 0;

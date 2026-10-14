@@ -137,7 +137,9 @@ func genericP0Graph(t *testing.T, tc genericP0Case, fixture originalGenericFixtu
 func genericP0Evidence(t *testing.T, tc genericP0Case, fixture originalGenericFixture) {
 	t.Helper()
 	res := fixture.owner
-	var units, expressions, statements, descriptors, requests []map[string]any
+	units := make([]map[string]any, 0, len(fixture.inputs.units))
+	requests := make([]map[string]any, 0, len(res.Sema.ReturnSourceDeclarations))
+	var expressions, statements, descriptors []map[string]any
 	for _, unit := range fixture.inputs.units {
 		file := res.FileSet.Get(unit.Builder.Files.Get(unit.FileID).Span.File)
 		bag := fixture.inputs.bags[file.ID]
@@ -180,7 +182,7 @@ func genericP0Evidence(t *testing.T, tc genericP0Case, fixture originalGenericFi
 	}
 	for _, request := range res.Sema.ReturnSourceDeclarations {
 		requests = append(requests, map[string]any{"request": request, "params": request.Params(), "result": request.Result(),
-			"validation": sema.ValidateDeclaredReturnSources(res.Sema.TypeInterner, request)})
+			"validation": sema.ValidateDeclaredReturnSources(res.Sema.TypeInterner, &request)})
 	}
 	queue := make([]types.TypeID, 0, len(wanted))
 	for id, present := range wanted {
@@ -249,8 +251,8 @@ func genericP0InnerAuthority(t *testing.T, fixture originalGenericFixture) {
 	}
 	for _, name := range []string{"missing_inner_use", "rebound_inner_caller"} {
 		var closure sema.InstantiationClosure
-		if err := json.Unmarshal(raw, &closure); err != nil {
-			t.Fatal(err)
+		if decodeErr := json.Unmarshal(raw, &closure); decodeErr != nil {
+			t.Fatal(decodeErr)
 		}
 		if name == "missing_inner_use" {
 			closure.UseSites = slices.Delete(closure.UseSites, index, index+1)
@@ -266,13 +268,13 @@ func genericP0InnerAuthority(t *testing.T, fixture originalGenericFixture) {
 		changed.InstantiationClosure = &closure
 		units := slices.Clone(fixture.inputs.units)
 		units[0].Sema = &changed
-		analysis, err := sema.AnalyzeReturnOrigins(t.Context(), &changed, units)
+		analysis, analyzeErr := sema.AnalyzeReturnOrigins(t.Context(), &changed, units)
 		logReturnOriginCallEvidence(t, map[string]any{"stage": "generic_p0_inner_observation", "case": name,
 			"original_use": original.UseSites[index], "changed_closure": closure, "analysis": analysis,
-			"error": errorReturnOriginCallText(err), "semantic_complete": analysis != nil && err == nil && analysis.Complete()})
+			"error": errorReturnOriginCallText(analyzeErr), "semantic_complete": analysis != nil && analyzeErr == nil && analysis.Complete()})
 	}
-	after, err := json.Marshal(original)
-	if err != nil || !slices.Equal(raw, after) {
+	after, marshalErr := json.Marshal(original)
+	if marshalErr != nil || !slices.Equal(raw, after) {
 		t.Fatal("original authority mutated during detached observations")
 	}
 }

@@ -163,7 +163,7 @@ func runUnshareProgramExpectingRefusal(t *testing.T, outputPath string, shards i
 	t.Helper()
 	env := envWithStdlib(repoRoot(t))
 	env = overrideEnvVar(env, "SURGE_SHARDS", strconv.Itoa(shards))
-	env = overrideEnvVar(env, "SURGE_THREADS", strconv.Itoa(shards))
+	env = overrideEnvVar(env, "SURGE_SHARDS", strconv.Itoa(shards))
 	env = overrideEnvVar(env, "SURGE_TRACE_EXEC", "1")
 	_, result := runBinaryWithTimeout(t, outputPath, env, 30*time.Second)
 	return result.exitCode, result.stdout, result.stderr

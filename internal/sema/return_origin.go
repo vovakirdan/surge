@@ -58,7 +58,7 @@ type returnOrigin struct {
 type returnOriginValue struct {
 	normal    bool
 	roots     []returnOrigin
-	callables []returnOriginCallable
+	callables []*returnOriginCallable
 }
 
 func returnOriginValueOf(roots ...returnOrigin) returnOriginValue {
@@ -101,7 +101,7 @@ func (v returnOriginValue) clone() returnOriginValue {
 
 func (v returnOriginValue) equal(other returnOriginValue) bool {
 	return v.normal == other.normal && slices.Equal(v.roots, other.roots) &&
-		slices.EqualFunc(v.callables, other.callables, func(a, b returnOriginCallable) bool { return compareReturnOriginCallables(a, b) == 0 })
+		slices.EqualFunc(v.callables, other.callables, func(a, b *returnOriginCallable) bool { return compareReturnOriginCallables(a, b) == 0 })
 }
 
 func (v returnOriginValue) join(other returnOriginValue) returnOriginValue {
@@ -114,7 +114,7 @@ func (v returnOriginValue) join(other returnOriginValue) returnOriginValue {
 	out := returnOriginValueOf(append(slices.Clone(v.roots), other.roots...)...)
 	out.callables = append(cloneReturnOriginCallables(v.callables), cloneReturnOriginCallables(other.callables)...)
 	slices.SortFunc(out.callables, compareReturnOriginCallables)
-	out.callables = slices.CompactFunc(out.callables, func(a, b returnOriginCallable) bool { return compareReturnOriginCallables(a, b) == 0 })
+	out.callables = slices.CompactFunc(out.callables, func(a, b *returnOriginCallable) bool { return compareReturnOriginCallables(a, b) == 0 })
 	return out
 }
 

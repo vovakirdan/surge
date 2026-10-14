@@ -2,13 +2,13 @@
 == HIR ==
 module 
 
-fn make_ranges() -> nothing (id=1, sym=1451) {
-  let a: type#189 = rt_range_int_new(owned_temp(1), owned_temp(3), false): type#189
-  let b: type#189 = rt_range_int_new(owned_temp(1), owned_temp(3), true): type#189
-  let c: type#189 = rt_range_int_from_start(owned_temp(1), false): type#189
-  let d: type#189 = rt_range_int_to_end(owned_temp(3), false): type#189
-  let e: type#189 = rt_range_int_to_end(owned_temp(3), true): type#189
-  let f: type#189 = rt_range_int_full(false): type#189
+fn make_ranges() -> nothing (id=1, sym=1461) {
+  let a: type#181 = rt_range_int_new(owned_temp(1), owned_temp(3), false): type#181
+  let b: type#181 = rt_range_int_new(owned_temp(1), owned_temp(3), true): type#181
+  let c: type#181 = rt_range_int_from_start(owned_temp(1), false): type#181
+  let d: type#181 = rt_range_int_to_end(owned_temp(3), false): type#181
+  let e: type#181 = rt_range_int_to_end(owned_temp(3), true): type#181
+  let f: type#181 = rt_range_int_full(false): type#181
   drop f
   drop e
   drop d

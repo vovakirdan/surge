@@ -21,10 +21,6 @@ static NetListener* net_listener_from_borrowed_mut_group(const void* listener) {
     return rt_net_listener_canonical((const NetListener*)listener);
 }
 
-int rt_net_register_open_fd_on_owner(rt_executor* ex, uint32_t owner_shard_id, int fd) {
-    return rt_net_register_open_fd_on_owner_generation(ex, owner_shard_id, fd, NULL);
-}
-
 int rt_net_register_open_fd_on_owner_generation(rt_executor* ex,
                                                 uint32_t owner_shard_id,
                                                 int fd,

@@ -26,8 +26,13 @@ func (tc *typeChecker) typeSelectExpr(id ast.ExprID, isRace bool, span source.Sp
 	if data == nil {
 		return types.NoTypeID
 	}
+	operation := "select"
+	if isRace {
+		operation = "race"
+	}
+	tc.refuseCrossingBodySuspension(span, operation)
 
-	if tc.awaitDepth == 0 {
+	if !tc.awaitAllowedHere() {
 		keyword := "select"
 		if isRace {
 			keyword = "race"
@@ -282,7 +287,7 @@ func (tc *typeChecker) checkSelectFarArms(id ast.ExprID, data *ast.ExprSelectDat
 		Expr:           id,
 		Span:           span,
 		Function:       tc.currentFnSym(),
-		SuspendCapable: tc.awaitDepth > 0,
+		SuspendCapable: tc.awaitAllowedHere(),
 		RemoteOps:      farOps,
 		PayloadType:    indexType,
 		ResultType:     indexType,

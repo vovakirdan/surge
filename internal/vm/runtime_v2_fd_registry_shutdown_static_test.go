@@ -53,15 +53,11 @@ waker_key net_write_key(int fd) {
     return (waker_key){WAKER_NET_WRITE, (uint64_t)fd, 0};
 }
 
-const rt_fd_registry* rt_executor_fd_registry_const(const rt_executor* ex) {
-    (void)ex;
-    return NULL;
-}
-
 const rt_fd_registry* rt_executor_fd_registry_const_for_shard(const rt_executor* ex,
                                                               size_t shard_index) {
+	(void)ex;
     (void)shard_index;
-    return rt_executor_fd_registry_const(ex);
+    return NULL;
 }
 
 rt_waiter_completion rt_executor_wake_net_waiters_for_key(rt_executor* ex, waker_key key) {
@@ -260,19 +256,9 @@ waker_key net_write_key(int fd) {
     return (waker_key){WAKER_NET_WRITE, (uint64_t)fd, 0};
 }
 
-rt_fd_registry* rt_executor_fd_registry(rt_executor* ex) {
-    (void)ex;
-    return &registries[0];
-}
-
 rt_fd_registry* rt_executor_fd_registry_for_shard(rt_executor* ex, size_t shard_index) {
     (void)ex;
     return shard_index < 3 ? &registries[shard_index] : NULL;
-}
-
-const rt_fd_registry* rt_executor_fd_registry_const(const rt_executor* ex) {
-    (void)ex;
-    return &registries[0];
 }
 
 const rt_fd_registry* rt_executor_fd_registry_const_for_shard(const rt_executor* ex,
@@ -429,6 +415,14 @@ int main(void) {
     err = require_int(rt_fd_registry_init(&registries[1]) == RT_RUNTIME_STATUS_OK, 16);
     if (err != 0) return err;
     err = require_int(rt_fd_registry_init(&registries[2]) == RT_RUNTIME_STATUS_OK, 17);
+    if (err != 0) return err;
+    err = require_int(rt_fd_registry_register_open_fd(&registries[1], 10) ==
+                          RT_RUNTIME_STATUS_OK,
+                      19);
+    if (err != 0) return err;
+    err = require_int(rt_fd_registry_register_open_fd(&registries[2], 11) ==
+                          RT_RUNTIME_STATUS_OK,
+                      20);
     if (err != 0) return err;
     err = require_int(rt_fd_registry_attach_net_interest(&registries[1], read_key) ==
                           RT_RUNTIME_STATUS_OK,

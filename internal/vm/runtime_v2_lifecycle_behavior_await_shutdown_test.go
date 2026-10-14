@@ -9,13 +9,13 @@ import (
 // TestRuntimeV2LifecycleWorkerAwaitVsExternalAwait proves worker-side join
 // (rt_task_poll, the owner-lane path rule 2 describes) and external
 // multi-worker rt_task_await (rt_async_task.c:183-217, the done_cv
-// compatibility path rule 5 names) both observe correct results when driven
+// external-await path rule 5 names) both observe correct results when driven
 // concurrently: a non-worker thread (this harness's main()) calls
 // rt_task_await directly while a separately spawned worker-side joiner task
 // uses rt_task_poll on its own target. Guards rule 5 for the await path.
 func TestRuntimeV2LifecycleWorkerAwaitVsExternalAwait(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarness(t)
-	env := lifecycleEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1")
+	env := lifecycleEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1")
 	stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "external-await", env)
 	if exitCode != 0 {
 		t.Fatalf("worker-await vs external-await failed (code=%d)\nstdout:\n%s\nstderr:\n%s",
@@ -39,7 +39,7 @@ func TestRuntimeV2LifecycleWorkerAwaitVsExternalAwait(t *testing.T) {
 // scope does not need.
 func TestRuntimeV2LifecycleShutdownWithParkedTasks(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarness(t)
-	env := lifecycleEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1")
+	env := lifecycleEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1")
 	stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "shutdown-parked", env)
 	if exitCode != 0 {
 		t.Fatalf("shutdown-with-parked-tasks failed (code=%d)\nstdout:\n%s\nstderr:\n%s",
@@ -126,53 +126,25 @@ static int mode_scope_cancelled_poll_teardown(rt_executor* ex) {
         return fail("scope teardown did not reach pre-register window");
     }
     rt_task_cancel(child);
-    size_t active = SIZE_MAX;
-    rt_shard* scope_owner = rt_waiter_key_shard(ex, scope_wait_key);
-    for (uint32_t i = 0; i < 4000 && active != 0; i++) {
-        rt_shard_lock(scope_owner);
-        rt_scope* live_scope = rt_scope_resolve_key_locked(ex, scope_wait_key);
-        active = live_scope != NULL ? live_scope->active_children : 0;
-        rt_shard_unlock(scope_owner);
-        if (active != 0) {
-            sleep_us(1000);
-        }
-    }
-    if (active != 0) {
+    if (!wait_task_status(child, TASK_DONE, 4000)) {
         rt_sync_point_open();
         (void)rt_executor_request_shutdown(ex);
-        fprintf(stderr,
-                "scope child did not drain inside teardown gap: active=%zu child=%u registered=%u creation_scope=%llu\n",
-                active,
-                (unsigned)task_status_load(child),
-                (unsigned)child->scope_registered,
-                (unsigned long long)child->creation_scope_key.id);
-        return 1;
+        return fail("scope child did not complete on its owner shard");
+    }
+    size_t active = SIZE_MAX;
+    rt_shard* scope_owner = rt_waiter_key_shard(ex, scope_wait_key);
+    rt_shard_lock(scope_owner);
+    rt_scope* live_scope = rt_scope_resolve_key_locked(ex, scope_wait_key);
+    active = live_scope != NULL ? live_scope->active_children : 0;
+    rt_shard_unlock(scope_owner);
+    fprintf(stderr, "scope teardown serialized: active=%zu child=%u\n", active,
+            (unsigned)task_status_load(child));
+    if (active != 1) {
+        rt_sync_point_open();
+        (void)rt_executor_request_shutdown(ex);
+        return fail("cross-shard child completion mutated the held scope owner lane");
     }
     rt_sync_point_open();
-#ifdef RV2_DEBT_281_NEGATIVE_CONTROL
-    if (!wait_task_status(owner, TASK_WAITING, 4000)) {
-        (void)rt_executor_request_shutdown(ex);
-        return fail("negative-control owner did not strand in WAITING");
-    }
-    size_t waiters = 0;
-    rt_shard_lock(scope_owner);
-    rt_waiter_store* store = rt_waiter_store_for_key(ex, scope_wait_key);
-    for (size_t i = 0; store != NULL && i < store->len; i++) {
-        waiter w = store->entries[i];
-        if (w.key.kind == scope_wait_key.kind && w.key.id == scope_wait_key.id &&
-            w.task_id == owner->id) {
-            waiters++;
-        }
-    }
-    rt_shard_unlock(scope_owner);
-    fprintf(stderr,
-            "scope teardown stranded: owner=%u active=%zu waiters=%zu\n",
-            (unsigned)task_status_load(owner),
-            active,
-            waiters);
-    (void)rt_executor_request_shutdown(ex);
-    return 1;
-#endif
 #else
     rt_task_cancel(owner);
 #endif
@@ -315,7 +287,7 @@ static int mode_shutdown_parked(rt_executor* ex) {
     rt_control_lock(ex);
     size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
     for (size_t i = 0; i < shard_count; i++) {
-        rt_debug_assert_no_parked_with_work(ex, (uint32_t)i, UINT32_MAX);
+        rt_debug_assert_no_parked_with_work(ex, (uint32_t)i);
     }
     rt_control_unlock(ex);
 
@@ -325,7 +297,7 @@ static int mode_shutdown_parked(rt_executor* ex) {
     return 0;
 }
 
-int main(int argc, char** argv) {
+static int lifecycle_main(int argc, char** argv) {
     if (argc != 2) {
         return fail("usage: lifecycle_harness <mode>");
     }
@@ -363,6 +335,9 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "completion-pin-stress") == 0) {
         return mode_completion_pin_stress(ex);
     }
+    if (strcmp(argv[1], "task-ref-one-observation") == 0) {
+        return mode_task_ref_one_observation(ex);
+    }
     if (strcmp(argv[1], "scope-basic") == 0) {
         return mode_scope_basic(ex);
     }
@@ -391,9 +366,6 @@ int main(int argc, char** argv) {
         return mode_debt038_token_lock_refuses_dispatch(ex);
     }
 	#ifdef RT_TEST_SYNC_POINTS
-    if (strcmp(argv[1], "local-peer-wake") == 0) {
-        return mode_local_peer_wake(ex);
-    }
     if (strcmp(argv[1], "debt020-migrate-gap-proof") == 0) {
         return mode_debt020_migrate_gap_proof(ex);
     }
@@ -423,9 +395,6 @@ int main(int argc, char** argv) {
     }
     if (strcmp(argv[1], "debt248-second-token-abort") == 0) {
         return mode_debt248_second_token_abort(ex);
-    }
-    if (strcmp(argv[1], "ready-requeue-wake-race") == 0) {
-        return mode_ready_requeue_wake_race(ex);
     }
     if (strcmp(argv[1], "sleep-fired-idle-sample") == 0) {
         return mode_sleep_fired_idle_sample(ex);
@@ -457,9 +426,6 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "debt080-release-refuses-under-lock") == 0) {
         return mode_debt080_release_refuses_under_lock(ex);
     }
-    if (strcmp(argv[1], "inline-claim-off-queue") == 0) {
-        return mode_inline_claim_off_queue(ex);
-    }
     if (strcmp(argv[1], "scope-membership-claim") == 0) {
         return mode_scope_membership_claim(ex);
     }
@@ -481,16 +447,13 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "entitlement-alloc-null-fatal") == 0) {
         return mode_entitlement_alloc_null_fatal(ex);
     }
-    if (strcmp(argv[1], "debt291-poll-outcome-pin") == 0) {
-        return mode_debt291_poll_outcome_pin(ex);
-    }
 #endif
-    if (strcmp(argv[1], "carrier-affine-publish") == 0) {
-        return mode_carrier_affine_publish(ex);
-    }
-    if (strcmp(argv[1], "carrier-affine-shutdown") == 0) {
-        return mode_carrier_affine_shutdown(ex);
-    }
     return fail("unknown mode");
+}
+
+int main(int argc, char** argv) {
+    int result = lifecycle_main(argc, argv);
+    rt_runtime_shutdown_for_exit();
+    return result;
 }
 `

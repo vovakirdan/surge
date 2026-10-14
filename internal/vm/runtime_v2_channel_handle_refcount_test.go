@@ -145,7 +145,7 @@ func channelHandleEnv(mode string, extra []string) []string {
 	// the channel rather than about the executor's teardown.
 	env := overrideEnvVar(os.Environ(), "SURGE_CHANNEL_HANDLE_MODE", mode)
 	env = overrideEnvVar(env, "SURGE_SHARDS", "1")
-	env = overrideEnvVar(env, "SURGE_THREADS", "1")
+	env = overrideEnvVar(env, "SURGE_SHARDS", "1")
 	for _, value := range extra {
 		parts := strings.SplitN(value, "=", 2)
 		env = overrideEnvVar(env, parts[0], parts[1])

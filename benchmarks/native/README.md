@@ -49,13 +49,10 @@ rg 'TRACE_EXEC|TRACE_NET|TRACE_EXEC_SNAPSHOT|SCHED_TRACE' trace.log
 
 Read the counters this way:
 
-- `channel_blocking_wait`, `channel_task_blocking_send`, and
-  `channel_task_blocking_recv`: sync channel fallback from task context.
 - `channel_handoff_yield`: direct async channel handoffs.
-- `compensation_started` and `compensation_high_water`: worker-pinning fallback.
-- `SCHED_TRACE local`, `inject`, `steal`, and `events`: scheduler source mix.
-  High `steal` or high `worker_sleep`/`worker_wake` on sequential request/reply
-  paths usually means worker-pool wake churn, not net poll rebuild cost.
+- `SCHED_TRACE local`, `inject`, and `events`: per-shard scheduler source mix.
+  High `worker_sleep`/`worker_wake` on sequential request/reply paths usually
+  means shard wake churn, not net poll rebuild cost.
 - `io_poll_timeouts`, `io_poll_wake_fd`, and `io_poll_net_ready`: net poll
   progress and timeout-driven tails.
 - `io_waiter_scan_entries`, `io_poll_rebuilds`, and
@@ -66,7 +63,6 @@ The fixture also prints scheduler-shape rows:
 - `channel_ping_pong`: direct async send/recv handoff between two tasks.
 - `channel_reused_reply`: request/reply over one reused reply channel.
 - `channel_new_reply`: request/reply with a new reply channel per request.
-- `channel_sync_new_reply`: sync wrapper fallback called from an async task.
 
 `bench_native_channels.sh` runs runtime trace one probe at a time so counters
 show the selected scheduler shape instead of an aggregate from the whole fixture.

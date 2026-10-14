@@ -74,6 +74,9 @@ func (tc *typeChecker) typeUnary(exprID ast.ExprID, span source.Span, data *ast.
 		}
 		return elem
 	case ast.ExprUnaryAwait:
+		if !tc.awaitAllowedHere() {
+			tc.report(diag.SemaIntrinsicBadContext, span, "await can only be used in async context")
+		}
 		payload := tc.taskPayloadType(operandType)
 		if payload == types.NoTypeID {
 			return operandType

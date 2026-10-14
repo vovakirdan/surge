@@ -117,17 +117,17 @@ func TestVMNumericIteratorSuspendLifecycle(t *testing.T) {
 
 func TestRuntimeV2NumericIteratorSuspendValgrindBaseline(t *testing.T) {
 	for _, row := range []struct {
-		name, workers, marker string
-		cancel                bool
+		name, shards, marker string
+		cancel               bool
 	}{
-		{"workers_1_resume", "1", "numeric-iterator-resumed-witness", false},
-		{"workers_1_cancel", "1", "numeric-iterator-cancelled-witness", true},
-		{"workers_8_resume", "8", "numeric-iterator-resumed-witness", false},
-		{"workers_8_cancel", "8", "numeric-iterator-cancelled-witness", true},
+		{"shards_1_resume", "1", "numeric-iterator-resumed-witness", false},
+		{"shards_1_cancel", "1", "numeric-iterator-cancelled-witness", true},
+		{"shards_8_resume", "8", "numeric-iterator-resumed-witness", false},
+		{"shards_8_cancel", "8", "numeric-iterator-cancelled-witness", true},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			output := buildAsyncAllocationProgram(t, numericIteratorAsyncProgram(row.cancel, true))
-			runAsyncAllocationBaseline(t, output, row.marker, asyncAllocationEnvironment(t, row.workers))
+			runAsyncAllocationBaseline(t, output, row.marker, asyncAllocationEnvironment(t, row.shards))
 		})
 	}
 }

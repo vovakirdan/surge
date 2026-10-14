@@ -147,8 +147,8 @@ fn cancel_remote(t: far Task<int>) -> TaskResult<nothing> {
 					t.Fatalf("spawn_on state fields = %d, want %d", len(ins.State.Fields), wantFields)
 				}
 				pollFn := compiled.mod.Funcs[ins.BodyFuncID]
-				if pollFn == nil || !strings.HasPrefix(pollFn.Name, "__spawn_on_block$") || !strings.HasSuffix(pollFn.Name, "$poll") {
-					t.Fatalf("spawn_on synthetic poll function name = %v", pollFn)
+				if pollFn == nil || !strings.HasPrefix(pollFn.Name, "__spawn_on_block$") || !pollFn.IsAsync || !pollFn.CapturesArriveOwned || !pollFn.ResultCrossesThreads {
+					t.Fatalf("spawn_on requires a transferred-capture async body, got %v", pollFn)
 				}
 			}
 			if tc.kind == sema.CrossingLoweringFarTaskAwait || tc.kind == sema.CrossingLoweringFarTaskCancel {

@@ -274,7 +274,7 @@ func (b *returnOriginBody) discardLoans(value returnOriginValue, span source.Spa
 // root has no transfer, and the answer names the refusal.
 func (b *returnOriginBody) legacyBackingValue(callee *returnOriginFunction, payload returnOriginValue, slots []returnOriginArgument,
 	actuals []returnOriginValue, self int,
-) (returnOriginValue, string) {
+) (value returnOriginValue, reason string) {
 	out := returnOriginValueOf()
 	for _, root := range payload.roots {
 		i := int(root.param)
@@ -288,7 +288,7 @@ func (b *returnOriginBody) legacyBackingValue(callee *returnOriginFunction, payl
 			if typ, present := callee.unit.Sema.TypeInterner.Lookup(returnOriginResolveAlias(callee.unit.Sema.TypeInterner, id)); present && typ.Kind == types.KindReference {
 				id = typ.Elem
 			}
-			if _, canonical := returnOriginContainer(callee.unit.Sema.TypeInterner, id); canonical || !b.holdsLoan(id) {
+			if _, currentCanonical := returnOriginContainer(callee.unit.Sema.TypeInterner, id); currentCanonical || !b.holdsLoan(id) {
 				return returnOriginValue{}, "container-content result lacks its checked backing call transfer"
 			}
 			out = out.join(actuals[i])

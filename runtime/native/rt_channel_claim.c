@@ -123,7 +123,6 @@ void channel_recv_claim_close_locked(rt_executor* ex, rt_shard* ch_shard, rt_cha
             ex, ch_shard, &cand, RESUME_CHAN_RECV_CLOSED, (rt_park_token){0}, 1, &pushed);
         if (live && !pushed) {
             rt_shard_unlock(ch_shard);
-            channel_compat_broadcast_if_needed(ex, 0);
             rt_shard_lock(ch_shard);
         }
     } else {

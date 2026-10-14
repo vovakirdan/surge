@@ -266,7 +266,6 @@ rt_runtime_status rt_fd_registry_register_open_fd_generation(rt_fd_registry* reg
     if (entry->close_state != RT_FD_CLOSE_STATE_OPEN) {
         return RT_RUNTIME_STATUS_INVALID_ARGUMENT;
     }
-    entry->registered_open = 1;
     if (out_generation != NULL) {
         *out_generation = entry->generation;
     }
@@ -277,24 +276,17 @@ rt_runtime_status rt_fd_registry_register_open_fd_generation(rt_fd_registry* reg
 // the owner shard lock, so this read cannot race register/mark_closed: a
 // handle whose fd was closed finds no row (mark_closed swap-removes it), and
 // a handle whose fd number was reused finds a row with a newer generation.
-// Interest-only compatibility rows (registered_open == 0) never validate a
-// public handle.
 int rt_fd_registry_handle_open(const rt_fd_registry* registry, int fd, uint64_t generation) {
     const rt_fd_entry* entry = rt_fd_registry_find_const(registry, fd);
-    if (entry == NULL || entry->registered_open == 0 ||
-        entry->close_state != RT_FD_CLOSE_STATE_OPEN) {
+    if (entry == NULL || entry->close_state != RT_FD_CLOSE_STATE_OPEN) {
         return 0;
     }
     return entry->generation == generation;
 }
 
-// Registration-side attach: find or create the owning fd row and set the
+// Registration-side attach: require the owning live-fd row and set the
 // interest flag for the key's kind. Idempotent for duplicate same-key waiters
 // (flags, not counts: the waiter store decides when the last waiter leaves).
-// Creation assigns a monotonic generation from the registry. Allocation can
-// fail only when a new row is needed; generation exhaustion is reported as
-// allocation failure because the generation space is a finite registry
-// resource and rt_runtime_status has no narrower code today.
 rt_runtime_status rt_fd_registry_attach_net_interest(rt_fd_registry* registry, waker_key key) {
     if (registry == NULL || !waker_valid(key) || !waker_is_net(key)) {
         return RT_RUNTIME_STATUS_INVALID_ARGUMENT;
@@ -304,14 +296,8 @@ rt_runtime_status rt_fd_registry_attach_net_interest(rt_fd_registry* registry, w
         return RT_RUNTIME_STATUS_INVALID_ARGUMENT;
     }
     rt_fd_entry* entry = fd_registry_find_mut(registry, fd);
-    if (entry == NULL) {
-        rt_runtime_status status = fd_registry_create_row(registry, fd, &entry);
-        if (status != RT_RUNTIME_STATUS_OK) {
-            return status;
-        }
-    }
-    if (entry->close_state != RT_FD_CLOSE_STATE_OPEN) {
-        return RT_RUNTIME_STATUS_OK;
+    if (entry == NULL || entry->close_state != RT_FD_CLOSE_STATE_OPEN) {
+        return RT_RUNTIME_STATUS_INVALID_ARGUMENT;
     }
     uint8_t* slot = fd_entry_interest_slot(entry, key.kind);
     if (slot == NULL) {
@@ -322,10 +308,8 @@ rt_runtime_status rt_fd_registry_attach_net_interest(rt_fd_registry* registry, w
 }
 
 // Detach after the waiter store proved no waiter of this key remains. A
-// missing row is a legal no-op (fd-registry-attach-miss bridge). Clearing the
-// last interest flag swap-removes the row. Recreate uses the registry's
-// monotonic generation, so stale snapshots from a removed row cannot match the
-// next row that reuses the same numeric fd.
+// A missing row is a legal no-op for cleanup racing close. Clearing the last
+// interest flag leaves the live-fd row in place; close owns row removal.
 void rt_fd_registry_detach_net_interest(rt_fd_registry* registry, waker_key key) {
     if (registry == NULL || !waker_valid(key) || !waker_is_net(key)) {
         return;
@@ -339,15 +323,6 @@ void rt_fd_registry_detach_net_interest(rt_fd_registry* registry, waker_key key)
         return;
     }
     *slot = 0;
-    if (entry->registered_open == 0 && entry->want_accept == 0 && entry->want_read == 0 &&
-        entry->want_write == 0) {
-        for (size_t i = 0; i < registry->len; i++) {
-            if (&registry->entries[i] == entry) {
-                fd_registry_remove_at(registry, i);
-                break;
-            }
-        }
-    }
 }
 
 rt_runtime_status

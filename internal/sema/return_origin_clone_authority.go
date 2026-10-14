@@ -13,9 +13,10 @@ func (a *returnOriginAnalyzer) cloneInstances(fn *returnOriginFunction, edge *De
 	if closure == nil || fn.unit.authority.InstantiationIdentity == nil {
 		return "deferred clone lacks finalized instance authority"
 	}
-	for _, instance := range closure.Instances {
+	for i := range closure.Instances {
+		instance := &closure.Instances[i]
 		if instance.Template == edge.Caller {
-			if reason := a.cloneOutcome(fn, edge, &instance); reason != "" {
+			if reason := a.cloneOutcome(fn, edge, instance); reason != "" {
 				return reason
 			}
 		}
@@ -41,13 +42,13 @@ func (a *returnOriginAnalyzer) cloneOutcome(fn *returnOriginFunction, edge *Defe
 		return "deferred clone needs its exact concrete receiver binding"
 	}
 	var found *ResolvedDeferredCall
-	for _, call := range fn.unit.authority.InstantiationClosure.ResolvedDeferredCalls {
+	for i := range fn.unit.authority.InstantiationClosure.ResolvedDeferredCalls {
+		call := &fn.unit.authority.InstantiationClosure.ResolvedDeferredCalls[i]
 		if call.Caller == instance.Key && call.UseID == edge.UseID {
 			if found != nil {
 				return "deferred clone has duplicate finalized outcomes"
 			}
-			copy := call
-			found = &copy
+			found = call
 		}
 	}
 	if found == nil {
@@ -134,10 +135,13 @@ func (a *returnOriginAnalyzer) checkDeferredClones() error {
 			a.report.Pending = append(a.report.Pending, item)
 		}
 	}
-	edges := authority.InstantiationGraph.DeferredCallables()
+	edges := a.deferredEdges()
 	// A retained local use must not disappear with a missing graph edge, even
 	// when its original body has no current instance or stops before the call.
 	for _, unit := range a.units {
+		if !a.unitHasSelectedCallable(unit) {
+			continue
+		}
 		for ref, use := range unit.Sema.DeferredCallableUses {
 			if ref.Kind != DeferredCloneCall {
 				continue
@@ -151,7 +155,8 @@ func (a *returnOriginAnalyzer) checkDeferredClones() error {
 				span = node.Span
 			}
 			matches := 0
-			for _, edge := range edges {
+			for i := range edges {
+				edge := &edges[i]
 				if node != nil && edge.Kind == DeferredCloneCall && edge.UseID == use && edge.Witness.SourceKey == unit.SourceKey && edge.Witness.Site == span {
 					matches++
 				}
@@ -165,6 +170,9 @@ func (a *returnOriginAnalyzer) checkDeferredClones() error {
 	for i := range edges {
 		edge := &edges[i]
 		if edge.Kind != DeferredCloneCall {
+			continue
+		}
+		if a.hasSourceUnit(edge.Witness.SourceKey) && !a.templateSelectedForAnalysis(edge.Caller) {
 			continue
 		}
 		if err := a.ctx.Err(); err != nil {
@@ -184,9 +192,10 @@ func (a *returnOriginAnalyzer) checkDeferredClones() error {
 			pending(edge, "deferred clone lacks finalized instance authority")
 			continue
 		}
-		for _, instance := range authority.InstantiationClosure.Instances {
+		for i := range authority.InstantiationClosure.Instances {
+			instance := &authority.InstantiationClosure.Instances[i]
 			if instance.Template == edge.Caller {
-				pending(edge, a.cloneOutcome(fn, edge, &instance))
+				pending(edge, a.cloneOutcome(fn, edge, instance))
 			}
 		}
 	}
@@ -194,7 +203,8 @@ func (a *returnOriginAnalyzer) checkDeferredClones() error {
 	if closure == nil {
 		return nil
 	}
-	for _, call := range closure.ResolvedDeferredCalls {
+	for i := range closure.ResolvedDeferredCalls {
+		call := &closure.ResolvedDeferredCalls[i]
 		if call.Kind != DeferredCloneCall {
 			continue
 		}

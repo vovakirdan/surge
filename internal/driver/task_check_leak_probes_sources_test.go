@@ -54,14 +54,14 @@ fn main() -> int {
     return 0;
 }
 `},
-	{"a7_plain_call_into_channel", "adfd7dbc04e1f020cb261292eeff1af04fa906d4d43bf52882a634e04c6b0f32", "SEM3021", `async fn worker(x: &int64) -> int64 {
+	{"a7_plain_call_into_channel", "8938e8f8edd2e321dc237491064f190c313ed6c7c10928f445fb4d34b6a99f3d", "SEM3021", `async fn worker(x: &int64) -> int64 {
     return *x;
 }
 
 fn leak(ch: Channel<Task<int64>>) -> int {
     let l: int64 = 5;
     let t = worker(&l);
-    ch.send(own t);
+    let _ = ch.try_send(own t);
     return 0;
 }
 
@@ -130,7 +130,7 @@ fn main() -> int {
     return 0;
 }
 `},
-	{"b4_channel_then_task_return", "7a73a8b667b76736c626a4899dbf84efb6a45c43c1f272e9131aa16df6ea6dae", "SEM3021", `async fn worker(x: &int64) -> int64 {
+	{"b4_channel_then_task_return", "112b9362b1b29e4429baae52ed7b47387654decca5f424fab8e29070cdf08077", "SEM3021", `async fn worker(x: &int64) -> int64 {
     return *x;
 }
 
@@ -141,7 +141,7 @@ async fn plain(x: int64) -> int64 {
 fn leak(ch: Channel<Task<int64>>) -> Task<int64> {
     let l: int64 = 5;
     let t = spawn worker(&l);
-    ch.send(own t);
+    let _ = ch.try_send(own t);
     return spawn plain(1);
 }
 

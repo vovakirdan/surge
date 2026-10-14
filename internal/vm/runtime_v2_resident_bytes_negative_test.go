@@ -20,7 +20,7 @@ func TestRuntimeV2RemoteTaskResidentBytesNegativeControl(t *testing.T) {
 	bin := buildRemoteTaskBehaviorHarnessWithFlags(t,
 		"remote_task_behavior_resident_negative",
 		[]string{"-DRV2_E5_RESIDENT_NEGATIVE_CONTROL"})
-	env := remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2")
+	env := remotePublicationEnv("SURGE_SHARDS=2")
 	stdout, stderr, code := runRemotePublicationHarness(t, bin, "resident-handoff-balance", env)
 	if code == 0 {
 		t.Fatalf("negative control unexpectedly passed: the row cannot see a payload the handoff kept charged\nstdout:\n%s\nstderr:\n%s", stdout, stderr)

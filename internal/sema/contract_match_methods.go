@@ -67,7 +67,8 @@ func (tc *typeChecker) ensureMethodSatisfies(target types.TypeID, name source.St
 	}
 
 	attrMismatch := false
-	for _, cand := range actual {
+	for i := range actual {
+		cand := &actual[i]
 		aligned, ok := alignContractMethodRequirement(req, target, len(cand.params))
 		if !ok {
 			continue
@@ -76,7 +77,7 @@ func (tc *typeChecker) ensureMethodSatisfies(target types.TypeID, name source.St
 			continue
 		}
 		if match, attrBad := tc.contractSignatureMatches(&aligned, cand); match {
-			return 1, &contractMethodMatch{requirement: aligned, actual: cand}
+			return 1, &contractMethodMatch{requirement: aligned, actual: *cand}
 		} else if attrBad {
 			attrMismatch = true
 		}
@@ -195,7 +196,10 @@ func (tc *typeChecker) signatureToTypes(sig *symbols.FunctionSignature) (methodS
 	return ms, ok
 }
 
-func (tc *typeChecker) contractSignatureMatches(expected *methodRequirement, actual methodSignature) (match, attrMismatch bool) {
+func (tc *typeChecker) contractSignatureMatches(expected *methodRequirement, actual *methodSignature) (match, attrMismatch bool) {
+	if actual == nil {
+		return false, false
+	}
 	if expected == nil {
 		return false, false
 	}

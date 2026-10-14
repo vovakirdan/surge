@@ -51,6 +51,12 @@ func returnOriginFreshHandleResidual(fn *returnOriginFunction, result types.Type
 	if subjects, fresh := returnOriginTaskHandleResidual(fn, result); fresh {
 		return subjects, true
 	}
+	if returnOriginFreshRemoteChannel(fn, result) {
+		return nil, true
+	}
+	if returnOriginFreshChannel(fn, result) {
+		return nil, true
+	}
 	row, known := returnOriginFreshHandleRows[fn.name]
 	if !known || !returnOriginCoreIntrinsic(fn, 0, 0) || fn.candidate.HasSelf || result != fn.info.Result || !returnOriginFreshParamsMatch(fn, row.params) {
 		return nil, false
@@ -82,6 +88,54 @@ func returnOriginFreshHandleResidual(fn *returnOriginFunction, result types.Type
 		}
 	}
 	return residual, tagged && residual != nil
+}
+
+func returnOriginFreshChannel(fn *returnOriginFunction, result types.TypeID) bool {
+	if fn == nil || fn.info == nil || fn.candidate == nil || fn.name != "new" ||
+		!returnOriginCoreIntrinsic(fn, 1, 1) || fn.candidate.HasSelf || len(fn.info.Params) != 1 ||
+		fn.info.Params[0] != fn.unit.Sema.TypeInterner.Builtins().Uint {
+		return false
+	}
+	in := fn.unit.Sema.TypeInterner
+	own, ok := in.Lookup(returnOriginResolveAlias(in, result))
+	return ok && own.Kind == types.KindOwn && own.Elem == fn.candidate.ReceiverType &&
+		returnOriginChannelLeaf(fn, own.Elem)
+}
+
+// channel_on allocates a channel on the destination shard and returns only a
+// counted remote lease. The handle word never contains the payload or a caller
+// borrow; payload mobility is checked before the CrossingLoweringChannelCreate
+// record is published.
+func returnOriginFreshRemoteChannel(fn *returnOriginFunction, result types.TypeID) bool {
+	if fn == nil || fn.info == nil || fn.candidate == nil || fn.name != "channel_on" ||
+		!returnOriginCoreIntrinsic(fn, 1, 0) || fn.candidate.HasSelf ||
+		fn.candidate.ReceiverType != types.NoTypeID || len(fn.info.Params) != 2 ||
+		fn.info.Params[1] != fn.unit.Sema.TypeInterner.Builtins().Uint || result != fn.info.Result {
+		return false
+	}
+	in := fn.unit.Sema.TypeInterner
+	if !returnOriginFreshHandleLeaf(fn, fn.info.Params[0], "Placement", false) {
+		return false
+	}
+	far, ok := in.Lookup(returnOriginResolveAlias(in, result))
+	if !ok || far.Kind != types.KindFar {
+		return false
+	}
+	return returnOriginChannelLeaf(fn, far.Elem)
+}
+
+func returnOriginChannelLeaf(fn *returnOriginFunction, id types.TypeID) bool {
+	in := fn.unit.Sema.TypeInterner
+	channel, found := in.StructInfo(id)
+	if !found || channel == nil || channel.Decl.File != fn.item.NameSpan.File ||
+		len(channel.TypeArgs) != 1 || channel.TypeArgs[0] != fn.candidate.TemplateParams[0] ||
+		len(channel.Fields) != 1 || !in.IsRuntimeHandleType(id) || !in.IsRefCountedHandle(id) {
+		return false
+	}
+	name, _ := fn.unit.Builder.StringsInterner.Lookup(channel.Name)
+	field, _ := fn.unit.Builder.StringsInterner.Lookup(channel.Fields[0].Name)
+	fieldType, typed := in.Lookup(channel.Fields[0].Type)
+	return name == "Channel" && field == "__opaque" && typed && fieldType.Kind == types.KindPointer
 }
 
 // returnOriginFreshParamsMatch answers whether the formals are exactly these kinds, in order.

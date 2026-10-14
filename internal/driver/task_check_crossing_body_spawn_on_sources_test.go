@@ -65,23 +65,6 @@ async fn run(n: int) -> int {
 }
 `
 
-const crossingFrameSpawnOnCaptureJoinedSource = `async fn peek(x: &int) -> int {
-    checkpoint().await();
-    return *x;
-}
-
-async fn start(n: int) -> far Task<int> {
-    let k: int = n;
-    return spawn on distributed {
-        let t = spawn peek(&k);
-        ret compare t.await() {
-            Success(v) => v;
-            Cancelled() => 0;
-        };
-    };
-}
-`
-
 const crossingFrameSpawnOnColdTaskSource = `async fn peek(x: &int) -> int {
     checkpoint().await();
     return *x;
@@ -186,22 +169,6 @@ fn main() -> int {
 }
 `
 
-const crossingFrameSpawnOnLocalJoinedSource = `async fn worker(x: &string) -> int {
-    return len(x) to int;
-}
-
-async fn start() -> far Task<int> {
-    return spawn on pool {
-        let bl: string = "abc";
-        let t = worker(&bl);
-        ret compare t.await() {
-            Success(n) => n;
-            Cancelled() => 0;
-        };
-    };
-}
-`
-
 const crossingFrameSpawnOnTaskPayloadSource = `async fn peek(x: &int) -> int {
     checkpoint().await();
     return *x;
@@ -216,12 +183,10 @@ fn start(n: int) -> far Task<Task<int>> {
 `
 
 const (
-	crossingFrameSpawnOnByValueSourceDigest       = "5cfee14909589d7fe6a95bbd3331f631a359ec7421039d305662795c3ff1684d"
-	crossingFrameSpawnOnCallerAwaitsSourceDigest  = "6aa71104e33ef4b999c1e56266fd61460d3b2eafa35c895ce144846117e03e7c"
-	crossingFrameSpawnOnCaptureJoinedSourceDigest = "a1644723c40ba0733b09c466e3953d374fe2fc1c7b53e569dcd776c7b695b3e3"
-	crossingFrameSpawnOnColdTaskSourceDigest      = "dce2c9957be0e9d4bd7e886debf24b5eb76a0fde994208083d1176c3fc62fea5"
-	crossingFrameSpawnOnHotTaskSourceDigest       = "ecb4539359e8324973ef1eab5e4aa886b3d5f95c99fcf2f24cb9c22d695614ec"
-	crossingFrameSpawnOnKeptAwaitedSourceDigest   = "7c9537200bc3d1e8304699308d5f3942428b9efe5743724a6ca3319f91280a7a"
-	crossingFrameSpawnOnLocalJoinedSourceDigest   = "09536a147117fffba1bb016f33ffe41379e40f70442454606fb3f72742522efc"
-	crossingFrameSpawnOnTaskPayloadSourceDigest   = "52ac9c76124edc2e5f790e4b6f1266c7e69420a1fa8bf194e16849df8aa6955c"
+	crossingFrameSpawnOnByValueSourceDigest      = "5cfee14909589d7fe6a95bbd3331f631a359ec7421039d305662795c3ff1684d"
+	crossingFrameSpawnOnCallerAwaitsSourceDigest = "6aa71104e33ef4b999c1e56266fd61460d3b2eafa35c895ce144846117e03e7c"
+	crossingFrameSpawnOnColdTaskSourceDigest     = "dce2c9957be0e9d4bd7e886debf24b5eb76a0fde994208083d1176c3fc62fea5"
+	crossingFrameSpawnOnHotTaskSourceDigest      = "ecb4539359e8324973ef1eab5e4aa886b3d5f95c99fcf2f24cb9c22d695614ec"
+	crossingFrameSpawnOnKeptAwaitedSourceDigest  = "7c9537200bc3d1e8304699308d5f3942428b9efe5743724a6ca3319f91280a7a"
+	crossingFrameSpawnOnTaskPayloadSourceDigest  = "52ac9c76124edc2e5f790e4b6f1266c7e69420a1fa8bf194e16849df8aa6955c"
 )

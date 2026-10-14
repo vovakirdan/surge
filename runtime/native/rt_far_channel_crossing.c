@@ -9,6 +9,14 @@
 // through the transport lives here. Nothing private crosses the seam: both
 // dispatchers mint through the registry's public entry points.
 
+static void take_channel_reply(rt_remote_task_pending* pending, rt_far_task_handle* out) {
+    rt_remote_task_state* state = rt_remote_task_state_get(pending->executor);
+    rt_token_lock(&state->lock);
+    *out = pending->handle;
+    pending->channel_handle_owned = 0;
+    rt_token_unlock(&state->lock);
+}
+
 // Caller-side create: execute/reply discipline with a caller-allocated
 // handle out-param, mirroring `spawn on` publication. The destination
 // creates the channel with owner-side heap accounting, mints the registry
@@ -39,7 +47,7 @@ rt_remote_task_status rt_far_channel_create(uint64_t placement,
             status = rt_remote_task_pending_snapshot(*pending, out_kind);
         }
         if (status == RT_REMOTE_TASK_STATUS_OK) {
-            *out_handle = (*pending)->handle;
+            take_channel_reply(*pending, out_handle);
         }
         rt_remote_task_pending_consume(*pending);
         *pending = NULL;
@@ -47,7 +55,7 @@ rt_remote_task_status rt_far_channel_create(uint64_t placement,
     }
 
     rt_runtime* runtime = rt_executor_runtime(ex);
-    uint32_t source_shard = current->owner_shard_valid != 0 ? current->owner_shard_id : 0;
+    uint32_t source_shard = rt_task_owner_shard_id(ex, current);
     rt_placement_resolution resolved = rt_placement_resolve(runtime, placement, source_shard);
     if (resolved.status == RT_PLACEMENT_STATUS_UNSUPPORTED) {
         return RT_REMOTE_TASK_STATUS_UNSUPPORTED_PLACEMENT;
@@ -147,6 +155,7 @@ void rt_far_channel_dispatch_create(rt_executor* ex, const rt_transport_msg* msg
     rt_far_task_handle minted = {0};
     if (rt_far_channel_mint(ex, channel, msg->target_shard_id, &minted) !=
         RT_REMOTE_TASK_STATUS_OK) {
+        rt_channel_handle_drop(channel);
         rt_remote_task_reply_or_finish(ex,
                                        pending,
                                        RT_REMOTE_TASK_STATUS_REFUSED,
@@ -158,6 +167,7 @@ void rt_far_channel_dispatch_create(rt_executor* ex, const rt_transport_msg* msg
     // the caller-side copy after the terminal snapshot reads a full token.
     rt_token_lock(&tokens->lock);
     pending->handle = minted;
+    pending->channel_handle_owned = 1;
     rt_token_unlock(&tokens->lock);
     rt_remote_task_reply_or_finish(
         ex, pending, RT_REMOTE_TASK_STATUS_OK, 1, RT_TRANSPORT_MSG_FAR_CHANNEL_CREATE_REPLY);
@@ -190,7 +200,7 @@ rt_remote_task_status rt_far_channel_share(const rt_far_task_handle* source,
             status = rt_remote_task_pending_snapshot(*pending, out_kind);
         }
         if (status == RT_REMOTE_TASK_STATUS_OK) {
-            *out_handle = (*pending)->handle;
+            take_channel_reply(*pending, out_handle);
         }
         rt_remote_task_pending_consume(*pending);
         *pending = NULL;
@@ -209,7 +219,7 @@ rt_remote_task_status rt_far_channel_share(const rt_far_task_handle* source,
             RT_TRANSPORT_SHARD_SHUTDOWN) {
         return RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN;
     }
-    uint32_t source_shard = current->owner_shard_valid != 0 ? current->owner_shard_id : 0;
+    uint32_t source_shard = rt_task_owner_shard_id(ex, current);
     rt_far_task_handle route = {.task_id = 0,
                                 .generation = 0,
                                 .owner_shard_id = source->owner_shard_id,
@@ -276,6 +286,7 @@ void rt_far_channel_dispatch_share(rt_executor* ex, const rt_transport_msg* msg)
     }
     rt_token_lock(&tokens->lock);
     pending->handle = sibling;
+    pending->channel_handle_owned = 1;
     rt_token_unlock(&tokens->lock);
     rt_remote_task_reply_or_finish(
         ex, pending, RT_REMOTE_TASK_STATUS_OK, 1, RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY);

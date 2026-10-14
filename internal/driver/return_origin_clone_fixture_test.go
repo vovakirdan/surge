@@ -44,8 +44,8 @@ func returnOriginStdlibFixtureAllowing(t *testing.T, text string, allowEscape bo
 	file, bag := files.Get(id), diag.NewBag(64)
 	strs, interner := source.NewInterner(), types.NewInterner()
 	opts := &DiagnoseOptions{Stage: DiagnoseStageAll, BaseDir: root, MaxDiagnostics: 64, KeepArtifacts: true}
-	if err := ensureModuleMapping(opts, root); err != nil {
-		t.Fatal(err)
+	if mapErr := ensureModuleMapping(opts, root); mapErr != nil {
+		t.Fatal(mapErr)
 	}
 	diagnoseTokenize(file, bag)
 	builder, fileID := diagnoseParseWithStrings(t.Context(), files, file, bag, strs, parser.DirectiveModeOff)

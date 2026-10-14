@@ -143,12 +143,8 @@ static inline uint8_t task_wake_token_exchange(rt_task* task, uint8_t value) {
 // aborting. Codes are nonzero; zero means "not polling".
 typedef enum rt_poll_entry_site {
     POLL_SITE_NONE = 0,
-    POLL_SITE_WORKER_LOOP = 1,           // rt_worker_main turn
-    POLL_SITE_CONTROL_RUNNER_SYSTEM = 2, // run_ready_one, non-user task
-    POLL_SITE_CONTROL_RUNNER_USER = 3,   // run_ready_one, user task
-    POLL_SITE_NOWAIT_RUNNER_SYSTEM = 4,  // rt_run_ready_one_nowait_locked, non-user
-    POLL_SITE_NOWAIT_RUNNER_USER = 5,    // rt_run_ready_one_nowait_locked, user
-    POLL_SITE_INLINE_CHILD = 6,          // poll_ready_child_inline (rt_task_poll)
+    POLL_SITE_WORKER_LOOP = 1,  // rt_worker_main turn
+    POLL_SITE_INLINE_CHILD = 2, // poll_ready_child_inline (rt_task_poll)
 } rt_poll_entry_site;
 
 void rt_double_poll_panic(const rt_task* task, uint8_t holder_site, uint8_t entrant_site);

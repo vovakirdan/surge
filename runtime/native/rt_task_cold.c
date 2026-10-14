@@ -184,16 +184,12 @@ int rt_task_claim_cold_inline(rt_executor* ex, rt_task* current, rt_task* task) 
     // The awaiter's own most recent creation, and nothing else: the base's
     // "top of my local queue". It is spent whether or not the claim succeeds.
     current->last_cold_child = 0;
-    // The inline poll's premise (poll_ready_child_inline): this worker belongs
-    // to the task's owner shard, and a carrier-affine task is polled only by
-    // its carrier. Anything else publishes through the wake instead.
+    // The inline poll's premise (poll_ready_child_inline): this carrier belongs
+    // to the task's owner shard. Anything else publishes through the wake.
     rt_shard* owner_shard = rt_task_owner_shard(ex, task);
     const rt_scheduler* scheduler = rt_shard_scheduler(owner_shard);
     if (owner_shard == NULL || scheduler == NULL || tls_worker_ctx == NULL ||
         current_worker_scheduler(ex) != scheduler) {
-        return 0;
-    }
-    if (task->carrier_valid != 0 && tls_worker_ctx->worker_id != task->carrier_worker_id) {
         return 0;
     }
     rt_shard_lock(owner_shard);
@@ -286,7 +282,6 @@ int rt_task_release_cold_handle(rt_executor* ex, rt_task* task) {
     int cold = count == 1 && (refs & RT_TASK_REFS_COMPLETED) == 0 &&
                rt_task_publication_load(task) == RT_TASK_COLD;
     int discard = 0;
-    int pushed = 0;
     if (cold) {
         // The commit of a task that never ran is the gate's single RMW, as any
         // commit is (rt_task_complete.c): sealing it here refuses a cancel that
@@ -302,14 +297,11 @@ int rt_task_release_cold_handle(rt_executor* ex, rt_task* task) {
         if (discard) {
             atomic_store_explicit(&task->publication, RT_TASK_DISCARDED, memory_order_release);
         } else if (rt_task_publication_take_locked(ex, task) == RT_TASK_COLD) {
-            pushed = ready_push_task_locked(ex, owner_shard, task, 0, 0, 1);
+            (void)ready_push_task_locked(ex, owner_shard, task, 0, 0, 1);
         }
     }
     rt_shard_unlock(owner_shard);
     rt_task_cold_settle_publication(ex);
-    if (pushed) {
-        rt_compensation_check_after_push(ex);
-    }
     if (!discard) {
         // Published after all, or by this very drop: the rule of
         // task_drop_ref_owes_free, which a running task's own completion

@@ -164,12 +164,9 @@ int rt_net_listener_registry_add(NetListener* listener) {
         pthread_mutex_unlock(&net_listener_registry_lock);
         return 0;
     }
-    net_listener_registry_add_fd_locked(listener, listener->fd);
-    if (listener->members != NULL) {
-        for (size_t i = 0; i < listener->member_count; i++) {
-            if (!listener->members[i].closed) {
-                net_listener_registry_add_fd_locked(listener, listener->members[i].fd);
-            }
+    for (size_t i = 0; listener->members != NULL && i < listener->member_count; i++) {
+        if (!listener->members[i].closed) {
+            net_listener_registry_add_fd_locked(listener, listener->members[i].fd);
         }
     }
     pthread_mutex_unlock(&net_listener_registry_lock);
@@ -207,8 +204,7 @@ const NetListener* rt_net_listener_canonical_const(const NetListener* listener) 
     return (const NetListener*)net_handle_registry_lookup(listener->handle_id, NET_HANDLE_LISTENER);
 }
 
-NetListener*
-rt_net_listener_alloc(NetListenerKind kind, size_t member_count, uint32_t owner_shard_id) {
+NetListener* rt_net_listener_alloc(NetListenerKind kind, size_t member_count) {
     if (member_count == 0) {
         return NULL;
     }
@@ -224,10 +220,8 @@ rt_net_listener_alloc(NetListenerKind kind, size_t member_count, uint32_t owner_
             (uint8_t*)listener, (uint64_t)sizeof(NetListener), (uint64_t) _Alignof(NetListener));
         return NULL;
     }
-    listener->fd = -1;
     listener->closed = true;
     listener->kind = (uint8_t)kind;
-    listener->owner_shard_id = owner_shard_id;
     listener->member_count = member_count;
     listener->members =
         (NetListenerMember*)rt_alloc((uint64_t)(member_count * sizeof(NetListenerMember)),
@@ -255,7 +249,6 @@ void rt_net_listener_release_members(NetListener* listener) {
             (uint64_t) _Alignof(NetListenerMember));
     listener->members = NULL;
     listener->member_count = 0;
-    listener->fd = -1;
     listener->closed = true;
 }
 
@@ -287,11 +280,7 @@ int rt_net_listener_set_member(NetListener* listener,
     listener->members[index].fd = fd;
     listener->members[index].owner_shard_id = owner_shard_id;
     listener->members[index].closed = false;
-    if (index == 0) {
-        listener->fd = fd;
-        listener->closed = false;
-        listener->owner_shard_id = owner_shard_id;
-    }
+    listener->closed = false;
     return 1;
 }
 
@@ -330,13 +319,7 @@ int rt_net_listener_selected_member_const(const NetListener* listener, NetListen
         *out = *member;
         return 1;
     }
-    if (listener->fd < 0) {
-        return 0;
-    }
-    out->fd = listener->fd;
-    out->owner_shard_id = listener->owner_shard_id;
-    out->closed = false;
-    return 1;
+    return 0;
 }
 
 NetConn* rt_net_conn_alloc(int fd, uint32_t owner_shard_id, uint64_t generation) {

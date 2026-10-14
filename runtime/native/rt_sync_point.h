@@ -131,6 +131,10 @@ typedef enum rt_sync_point_id {
     // re-validation must then refuse the duplicate push, or its READY store
     // overwrites RUNNING under a live poll and a second worker double-polls.
     RT_SYNC_POINT_SP_READY_REQUEUE_BEFORE_LOCK,
+    // task_drop_ref_owes_free: the last reference reached zero before completion.
+    // The packed decision uses its saved RMW; the negative control re-reads the
+    // task after the carrier can complete and reclaim it inside this window.
+    RT_SYNC_POINT_SP_TASK_RELEASE_AFTER_ZERO_BEFORE_STATUS,
     // wake_task_with_policy: reached after the owner lock is released with a
     // captured stale park key, before the deferred waiter removal. The woken
     // task can re-poll and re-park on the SAME key in this window; an
@@ -250,14 +254,9 @@ typedef enum rt_sync_point_id {
     // poll. Holding a worker here and waking the task is what shows whether the
     // take and the claim are one observation.
     RT_SYNC_POINT_SP_INLINE_CHILD_TAKEN_OFF_QUEUE,
-    // rt_scope_register_child (rt_async_scope.c): reached once this child's
-    // membership has been DECIDED -- the claim has run and answered -- and
-    // before the scope's accounting is published for it. A driver that lands a
-    // completion in this gap is asking the one question the two racers have to
-    // agree on: a child that completes here is either a member the scope will
-    // retire, or a non-member whose completion the registration must report
-    // itself. Holding the registration here is what makes "both sides decided
-    // the other was not there" reproducible instead of one run in hundreds.
+    // publish_created_task (rt_async_task.c): reached after creation has
+    // decided and recorded scope membership, before slot/ready publication. A
+    // completion cannot precede this point because no poller can see the task.
     RT_SYNC_POINT_SP_SCOPE_MEMBERSHIP_DECIDED_BEFORE_PUBLISH,
     // scope_on_child_done (rt_async_scope.c): reached by EVERY completing task
     // immediately after it has taken its own membership answer out of the claim
@@ -292,7 +291,7 @@ typedef enum rt_sync_point_id {
     // rt_select_poll (rt_async_select.c): reached once a channel arm's claim
     // has been REFUSED for the eighth time -- the retry budget is exhausted --
     // and before the select registers on the refusing channels' retry keys.
-    // The compatibility claim helper released the channel owner lane with the
+    // The detached claim helper released the channel owner lane with the
     // refusal, so a release or a close can cross the still-empty retry key
     // inside this gap. Holding the select here and releasing the claim is what
     // shows whether the register-then-verify under the owner lane sees it
@@ -557,12 +556,6 @@ void rt_sync_point_disarm(rt_sync_point_id id);
 // before it. Defining the negative control drops the flag from the verify (the
 // pre-fix shape), which the deterministic proof MUST observe as a @failfast
 // scope resolving Success after its child was cancelled.
-#ifdef RV2_DEBT_261_NEGATIVE_CONTROL
-#define RT_DEBT261_VERIFY_FAILFAST_OUT(failfast) ((void)(failfast), (bool*)NULL)
-#else
-#define RT_DEBT261_VERIFY_FAILFAST_OUT(failfast) (failfast)
-#endif
-
 // RV2-DEBT-263 negative-control toggle, in two halves because the defect had
 // two sides that could both believe they won.
 //

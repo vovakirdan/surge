@@ -33,7 +33,7 @@ func TestRuntimeV2WhileBodyLocalReclaimed(t *testing.T) {
 	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2WhileBodyLocalReclaimSource, nil)
 	env := envWithStdlib(repoRoot(t))
 	env = overrideEnvVar(env, "SURGE_SHARDS", "1")
-	env = overrideEnvVar(env, "SURGE_THREADS", "1")
+	env = overrideEnvVar(env, "SURGE_SHARDS", "1")
 	stdout, stderr, exitCode := runBinaryUnderValgrind(t, outputPath, env, 120*time.Second)
 	if hasValgrindMemcheckError(stderr) {
 		t.Fatalf("valgrind reported a memcheck error\nstdout:\n%s\nstderr:\n%s", stdout, stderr)

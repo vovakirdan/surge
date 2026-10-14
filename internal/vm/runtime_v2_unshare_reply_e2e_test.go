@@ -209,7 +209,7 @@ func TestRuntimeV2UnshareReplyLeaksNothing(t *testing.T) {
 			outputPath := buildRuntimeV2CrossingSource(t, src, nil)
 			env := envWithStdlib(repoRoot(t))
 			env = overrideEnvVar(env, "SURGE_SHARDS", "2")
-			env = overrideEnvVar(env, "SURGE_THREADS", "2")
+			env = overrideEnvVar(env, "SURGE_SHARDS", "2")
 			stdout, stderr, exitCode := runBinaryUnderValgrind(t, outputPath, env, 180*time.Second)
 			if exitCode != 0 || !strings.Contains(stdout, "unshare-ok") {
 				t.Fatalf("program failed under valgrind (exit=%d)\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)

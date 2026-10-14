@@ -16,66 +16,6 @@
 // lock (D3). Lane-aware helpers take their own locks, so the lock is
 // released around them and around every poll.
 
-int rt_run_ready_one_nowait_locked(rt_executor* ex) {
-    if (ex == NULL) {
-        return 0;
-    }
-    uint64_t id = 0;
-    if (!ready_pop(ex, &id)) {
-        return 0;
-    }
-    rt_task* task = get_task(ex, id);
-    if (task == NULL || task_status_load(task) == TASK_DONE) {
-        return 1;
-    }
-    rt_shard* owner_shard = rt_task_owner_shard(ex, task);
-    rt_scheduler* scheduler = rt_shard_scheduler(owner_shard);
-    if (owner_shard == NULL || scheduler == NULL) {
-        return 1;
-    }
-    task_status_store(task, TASK_RUNNING);
-    (void)task_wake_token_exchange(task, 0);
-    rt_shard_lock(owner_shard);
-    scheduler->running_count++;
-    rt_shard_unlock(owner_shard);
-    rt_set_current_task(task);
-
-    uint8_t kind = task->kind;
-    if (kind != TASK_KIND_USER) {
-        task_polling_enter(task, POLL_SITE_NOWAIT_RUNNER_SYSTEM);
-        poll_outcome outcome = poll_task(ex, task);
-        task_polling_exit(task);
-        // running_count stays up across apply_poll_outcome: that call is what
-        // PUBLISHES this turn's successor work (mark_done -> join drain ->
-        // ready_push). Dropping the count first leaves a window in which the
-        // finished task is in no queue, its successor is not yet enqueued, and
-        // rt_sched_idle_sample_locked therefore reads the executor as idle -
-        // which is the predicate advance_time_to_next_timer uses to jump the
-        // virtual clock straight to the next deadline.
-        apply_poll_outcome(ex, task, outcome);
-        rt_shard_lock(owner_shard);
-        scheduler->running_count--;
-        rt_shard_unlock(owner_shard);
-        rt_set_current_task(NULL);
-        return 1;
-    }
-
-    rt_control_unlock(ex);
-    task_polling_enter(task, POLL_SITE_NOWAIT_RUNNER_USER);
-    poll_outcome outcome = poll_task(ex, task);
-    task_polling_exit(task);
-    RT_SYNC_POINT_IF(outcome.kind == POLL_PARKED, SP_PARK_BEFORE_WAITING);
-    rt_control_lock(ex);
-
-    // Publish before dropping the count (see the system-task branch above).
-    apply_poll_outcome(ex, task, outcome);
-    rt_shard_lock(owner_shard);
-    scheduler->running_count--;
-    rt_shard_unlock(owner_shard);
-    rt_set_current_task(NULL);
-    return 1;
-}
-
 void rt_io_wait_slice(rt_executor* ex) {
     // Self-refreshing wait (peel B4): the io thread sleeps on shard 0's
     // poller_cv — its predicates (net waiters, timers, idleness) are
@@ -121,16 +61,15 @@ void rt_io_wait_slice(rt_executor* ex) {
 // first and cancelled with the shard released; the wake a cancel issues to an
 // already-queued target changes nothing (rt_task_park.c: not parked, nothing
 // enqueued), so no entry is duplicated.
-static int worker_drain_pinned_on_exit(rt_worker_ctx* ctx,
-                                       rt_shard* shard,
-                                       rt_scheduler* scheduler,
-                                       uint64_t* out_id) {
+static int worker_drain_local_on_exit(rt_worker_ctx* ctx,
+                                      rt_shard* shard,
+                                      rt_scheduler* scheduler,
+                                      uint64_t* out_id) {
     rt_executor* ex = ctx != NULL ? ctx->ex : NULL;
-    if (ex == NULL || shard == NULL || scheduler == NULL || scheduler->local_queues == NULL ||
-        ctx->worker_id >= scheduler->worker_count) {
+    if (ex == NULL || shard == NULL || scheduler == NULL) {
         return 0;
     }
-    rt_deque* dq = &scheduler->local_queues[ctx->worker_id];
+    rt_deque* dq = &scheduler->local_queue;
     size_t len = dq->len;
     if (len == 0) {
         return 0;
@@ -156,8 +95,7 @@ static int worker_drain_pinned_on_exit(rt_worker_ctx* ctx,
             break;
         }
         rt_task* task = get_task(ex, id);
-        int mine = task != NULL && task_status_load(task) != TASK_DONE &&
-                   task->carrier_valid != 0 && task->carrier_worker_id == ctx->worker_id;
+        int mine = task != NULL && task_status_load(task) != TASK_DONE;
         if (mine && pinned_len == 0) {
             // The one this turn will poll: off the deque for good.
             task_enqueued_store(task, 0);
@@ -187,7 +125,6 @@ static int worker_drain_pinned_on_exit(rt_worker_ctx* ctx,
         const rt_task* task = get_task(ex, pinned[i]);
         if (task != NULL && task_cancelled_load(task) == 0) {
             cancel_task(ex, pinned[i]);
-            rt_trace_sched_carrier_shutdown_cancelled();
         }
     }
     rt_control_unlock(ex);
@@ -214,7 +151,7 @@ void* rt_worker_main(void* arg) {
     }
     rt_heap_accounting_set_current_cell(ctx->heap_cell);
     tls_worker_ctx = ctx;
-    tls_worker_id = ctx->worker_id <= (uint32_t)INT_MAX ? (int)ctx->worker_id : -1;
+    tls_worker_id = ctx->worker_index <= (uint32_t)INT_MAX ? (int)ctx->worker_index : -1;
     rt_set_current_task(NULL);
     // Peel B1b: the worker turn owns only its shard lock. Popped ids come
     // from this shard's queues, so the task's owner is this shard and the
@@ -229,7 +166,8 @@ void* rt_worker_main(void* arg) {
         rt_shard_lock(shard);
         uint64_t id = 0;
         (void)rt_remote_spawn_drain_inbound_locked(ex, shard, RT_TRANSPORT_DRAIN_TURN_LIMIT);
-        while (!ex->shutdown && !worker_next_ready(ctx, &id)) {
+        while (atomic_load_explicit(&ex->shutdown_ready, memory_order_acquire) == 0 &&
+               !worker_next_ready(ctx, &id)) {
             if (rt_remote_spawn_drain_inbound_locked(ex, shard, 0) > 0) {
                 continue;
             }
@@ -249,7 +187,8 @@ void* rt_worker_main(void* arg) {
                 if (woke_net) {
                     continue;
                 }
-                if (ex->shutdown || worker_next_ready(ctx, &id)) {
+                if (atomic_load_explicit(&ex->shutdown_ready, memory_order_acquire) != 0 ||
+                    worker_next_ready(ctx, &id)) {
                     break;
                 }
                 if (rt_net_has_waiters_on_shard(ex, ctx->shard_id)) {
@@ -257,17 +196,18 @@ void* rt_worker_main(void* arg) {
                 }
             } else {
                 rt_shard_lock(shard);
-                if (ex->shutdown || worker_next_ready(ctx, &id)) {
+                if (atomic_load_explicit(&ex->shutdown_ready, memory_order_acquire) != 0 ||
+                    worker_next_ready(ctx, &id)) {
                     break;
                 }
             }
-            // Sleep only after local, inject, and steal queues have been
+            // Sleep only after local and inject queues have been
             // checked under the shard lock. Transport then publishes PARKED
             // under the same lock and re-checks inbound before worker_cv wait.
             if (rt_transport_prepare_shard_park(shard) == RT_TRANSPORT_STATUS_UNAVAILABLE) {
                 continue;
             }
-            rt_debug_assert_no_parked_with_work(ex, ctx->shard_id, ctx->worker_id);
+            rt_debug_assert_no_parked_with_work(ex, ctx->shard_id);
             // The deadlock scan takes every shard's lock one at a time, so
             // it runs with this shard's lock released; a wake landing in
             // the gap bumps wake_pending under the lock and the sleep
@@ -276,43 +216,24 @@ void* rt_worker_main(void* arg) {
             rt_remote_task_deadlock_check(ex);
             rt_shard_lock(shard);
             rt_trace_worker_sleep();
-            // Two credits can name this worker: the shard's, which any worker
-            // may consume, and its own, which a carrier-affine publication
-            // addressed to it and nobody else can take. A broadcast on the
-            // shard condvar wakes every sleeper; the ones with neither credit
-            // re-check and sleep on, so an addressed wake never lands on the
-            // wrong worker and the shard credit is never spent on its behalf.
-            uint32_t* own_credit =
-                scheduler->worker_wake_pending != NULL && ctx->worker_id < scheduler->worker_count
-                    ? &scheduler->worker_wake_pending[ctx->worker_id]
-                    : NULL;
-            while (scheduler->wake_pending == 0 && (own_credit == NULL || *own_credit == 0) &&
-                   !ex->shutdown) {
+            // The shard has one carrier and one durable wake credit.
+            while (scheduler->wake_pending == 0 &&
+                   atomic_load_explicit(&ex->shutdown_ready, memory_order_acquire) == 0) {
                 RT_SYNC_POINT(SP_WORKER_BEFORE_CREDIT_WAIT);
                 pthread_cond_wait(&shard->worker_cv, &shard->lock);
             }
-            if (own_credit != NULL && *own_credit > 0) {
-                (*own_credit)--;
-            } else if (scheduler->wake_pending > 0) {
+            if (scheduler->wake_pending > 0) {
                 scheduler->wake_pending--;
             }
             rt_transport_mark_shard_running(shard);
             rt_trace_worker_wake();
         }
-        if (ex->shutdown) {
-            // An exiting carrier runs its cancelled pinned tasks to completion
-            // first (worker_drain_pinned_on_exit). RV2_D46_SHUTDOWN_NEGATIVE_
-            // CONTROL leaves them in the deque, which the carrier-affine
-            // shutdown stand must catch.
-#ifndef RV2_D46_SHUTDOWN_NEGATIVE_CONTROL
-            if (!worker_drain_pinned_on_exit(ctx, shard, scheduler, &id)) {
+        if (atomic_load_explicit(&ex->shutdown_ready, memory_order_acquire) != 0) {
+            // The shard's one carrier settles queued local tasks before exit.
+            if (!worker_drain_local_on_exit(ctx, shard, scheduler, &id)) {
                 rt_shard_unlock(shard);
                 break;
             }
-#else
-            rt_shard_unlock(shard);
-            break;
-#endif
         }
         rt_task* task = get_task(ex, id);
         if (task == NULL || task_status_load(task) == TASK_DONE) {
@@ -362,7 +283,6 @@ void* rt_io_main(void* arg) {
     rt_heap_accounting_set_current_cell(
         rt_heap_accounting_io_cell(rt_executor_heap_accounting(ex)));
     const int poll_slice_ms = 50;
-    const int net_ready_drain_limit = 16;
     rt_control_lock(ex);
     for (;;) {
         if (rt_trace_dump_requested()) {
@@ -415,11 +335,6 @@ void* rt_io_main(void* arg) {
             continue;
         }
         if (rt_net_poll_waiters_owned_on_shard(ex, 0, timeout_ms)) {
-            for (int i = 0; i < net_ready_drain_limit && !ex->shutdown; i++) {
-                if (!rt_run_ready_one_nowait_locked(ex)) {
-                    break;
-                }
-            }
             continue;
         }
         if (idle && have_timer) {

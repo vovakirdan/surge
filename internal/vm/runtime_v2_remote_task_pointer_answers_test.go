@@ -17,7 +17,7 @@ import (
 // (rt_argv) and one for the tagged path (an FsResult error block).
 func TestRuntimeV2RemoteTaskPointerAnswersReport(t *testing.T) {
 	bin := buildRemoteTaskBehaviorHarness(t)
-	env := remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1")
+	env := remotePublicationEnv("SURGE_SHARDS=1")
 	for _, row := range []struct {
 		mode string
 		want string
@@ -52,7 +52,7 @@ func TestRuntimeV2RemoteTaskPointerAnswersNegativeControl(t *testing.T) {
 	bin := buildRemoteTaskBehaviorHarnessWithFlags(t,
 		"remote_task_behavior_pointer_answers_negative",
 		[]string{"-DRV2_DEBT_309_NEGATIVE_CONTROL"})
-	env := remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1")
+	env := remotePublicationEnv("SURGE_SHARDS=1")
 	for _, mode := range []string{"pointer-answer-alloc", "pointer-answer-tag"} {
 		mode := mode
 		t.Run(mode, func(t *testing.T) {

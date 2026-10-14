@@ -82,7 +82,7 @@ func importedCallableOutcome(t *testing.T, files map[string]string, target strin
 		}
 	}
 	res, err := DiagnoseWithOptions(context.Background(), filepath.Join(project, target),
-		&DiagnoseOptions{Stage: DiagnoseStageAll, BaseDir: project, MaxDiagnostics: 64})
+		&DiagnoseOptions{Stage: DiagnoseStageAll, BaseDir: project, MaxDiagnostics: 64, FullModuleGraph: true})
 	var unfinished *returnOriginUnfinishedError
 	switch {
 	case errors.As(err, &unfinished):
@@ -152,8 +152,8 @@ func TestReturnOriginImportedCallableAuthority(t *testing.T) {
 }
 
 // A user type's own `__index` is its declaration, not the core container
-// operation: an index through it stays refused whether or not the element
-// reference outlives its owner.
+// operation. Its exact body forwards the parameter owner, while a local owner
+// still escapes through SEM3139.
 func TestReturnOriginImportedMagicMethodStaysRefused(t *testing.T) {
 	bag := "pragma module;\n\npub type Bag = {\n    items: int[],\n};\n\nextern<Bag> {\n    pub fn __index(self: &Bag, i: int) -> &int {\n        return &self.items[i];\n    }\n}\n"
 	for name, body := range map[string]string{
@@ -165,8 +165,11 @@ func TestReturnOriginImportedMagicMethodStaysRefused(t *testing.T) {
 				"app/lib/bag.sg": bag,
 				"app/main.sg":    "import ./lib/bag as bag;\n\n" + body,
 			}, "app/main.sg")
-			if len(pending) == 0 && len(escapes) == 0 {
-				t.Fatal("an index through a user `__index` was accepted")
+			if name == "forwarded" && (len(pending) != 0 || len(escapes) != 0) {
+				t.Fatalf("forwarded parameter borrow did not finish cleanly: pending=%v escapes=%v", pending, escapes)
+			}
+			if name == "leaked" && len(escapes) == 0 {
+				t.Fatalf("local index owner escaped without SEM3139: pending=%v", pending)
 			}
 			for _, row := range pending {
 				if strings.HasSuffix(row, importedCallableRefusal) {

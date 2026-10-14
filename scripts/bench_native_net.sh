@@ -5,7 +5,6 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fixture="$root/benchmarks/native/net_request_reply"
 report="${SURGE_NET_BENCH_REPORT:-$root/build/benchmarks/native-net-request-reply.md}"
 shards="${SURGE_NET_BENCH_SHARDS:-1}"
-threads="${SURGE_NET_BENCH_THREADS:-}"
 connections="${SURGE_NET_BENCH_CONNECTIONS:-1}"
 modes="${SURGE_NET_BENCH_MODES:-echo direct manager}"
 patterns="${SURGE_NET_BENCH_PATTERNS:-seq pipe}"
@@ -41,8 +40,8 @@ trace_value() {
 }
 
 # The scheduler prints no row that sums across owners: each SCHED_TRACE count of
-# something a thread did -- where it took its next task from, a steal it was
-# refused, a connection task it ran -- belongs to one owner, a carrier or the
+# something a carrier did -- where it took its next task from or a connection
+# task it ran -- belongs to one owner, a carrier or the
 # runtime's control lane, and a row summing owners has writers that share
 # neither a lock nor an owner, so the runtime refuses to print one. The reader
 # adds the owner records up here, over the owner set the runtime record names.
@@ -304,7 +303,6 @@ mkdir -p "$(dirname "$report")"
 	echo "- checkout commit: $current_commit"
 	echo "- fixture: ${fixture#$root/}"
 	echo "- shards: $shards"
-	echo "- threads: ${threads:-same as SURGE_SHARDS per row}"
 	echo "- connections: $connections"
 	echo "- modes: $modes"
 	echo "- patterns: $patterns"
@@ -316,38 +314,26 @@ mkdir -p "$(dirname "$report")"
 	echo
 	echo "## Results"
 	echo
-	echo "| shards | threads | connections | mode | pattern | requests/conn | total requests | total us | avg us/op | p50 us | p95 us |"
-	echo "| ---: | ---: | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |"
+	echo "| shards | connections | mode | pattern | requests/conn | total requests | total us | avg us/op | p50 us | p95 us |"
+	echo "| ---: | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |"
 } >"$report"
 
 for shard_count in $shards; do
-	thread_values="$threads"
-	if [[ -z "$thread_values" ]]; then
-		if [[ "$shards" == "1" ]]; then
-			thread_values="1 2 4 8"
-		else
-			thread_values="$shard_count"
-		fi
-	fi
-	for worker_count in $thread_values; do
-		if (( shard_count > 1 )) && (( worker_count != shard_count )); then
-			fail "SURGE_SHARDS=$shard_count requires SURGE_THREADS=$shard_count, got $worker_count"
-		fi
-		for connection_count in $connections; do
+	for connection_count in $connections; do
 			skip_reason="$(row_skip_reason "$connection_count" || true)"
 			for mode in $modes; do
 				for pattern in $patterns; do
 					if [[ -n "$skip_reason" ]]; then
-						printf '| %s | %s | %s | %s | %s | %s | skipped | skipped | skipped | skipped | skipped |\n' \
-							"$shard_count" "$worker_count" "$connection_count" "$mode" "$pattern" "$requests" >>"$report"
-						printf -- '- shards=%s threads=%s connections=%s mode=%s pattern=%s: %s\n' \
-							"$shard_count" "$worker_count" "$connection_count" "$mode" "$pattern" "$skip_reason" >>"$skip_rows"
+						printf '| %s | %s | %s | %s | %s | skipped | skipped | skipped | skipped | skipped |\n' \
+							"$shard_count" "$connection_count" "$mode" "$pattern" "$requests" >>"$report"
+						printf -- '- shards=%s connections=%s mode=%s pattern=%s: %s\n' \
+							"$shard_count" "$connection_count" "$mode" "$pattern" "$skip_reason" >>"$skip_rows"
 						continue
 					fi
 					port="$(pick_port)"
 					server_out="$(mktemp)"
 					trace_log="$(mktemp)"
-					env SURGE_TRACE_EXEC=1 SURGE_SCHED_TRACE=1 SURGE_SHARDS="$shard_count" SURGE_THREADS="$worker_count" \
+					env SURGE_TRACE_EXEC=1 SURGE_SCHED_TRACE=1 SURGE_SHARDS="$shard_count" \
 						timeout "$run_timeout" "$bench_bin" "$port" "$mode" "$connection_count" >"$server_out" 2>"$trace_log" &
 					server_pid="$!"
 					if ! result="$(run_client "$port" "$mode" "$pattern" "$connection_count")"; then
@@ -355,22 +341,20 @@ for shard_count in $shards; do
 						cat "$trace_log" >&2 || true
 						kill "$server_pid" 2>/dev/null || true
 						wait "$server_pid" 2>/dev/null || true
-						fail "client failed for shards=$shard_count threads=$worker_count connections=$connection_count mode=$mode pattern=$pattern"
+						fail "client failed for shards=$shard_count connections=$connection_count mode=$mode pattern=$pattern"
 					fi
 					if ! wait_for_pid "$server_pid"; then
 						cat "$server_out" >&2 || true
 						cat "$trace_log" >&2 || true
-						fail "server did not exit for shards=$shard_count threads=$worker_count connections=$connection_count mode=$mode pattern=$pattern"
+						fail "server did not exit for shards=$shard_count connections=$connection_count mode=$mode pattern=$pattern"
 					fi
 					read -r got_requests total_us avg_us p50_us p95_us <<<"$result"
-					printf '| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n' \
-						"$shard_count" "$worker_count" "$connection_count" "$mode" "$pattern" \
+					printf '| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n' \
+						"$shard_count" "$connection_count" "$mode" "$pattern" \
 						"$requests" "$got_requests" "$total_us" "$avg_us" "$p50_us" "$p95_us" >>"$report"
-					printf '| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n' \
-						"$shard_count" "$worker_count" "$connection_count" "$mode" "$pattern" \
+					printf '| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n' \
+						"$shard_count" "$connection_count" "$mode" "$pattern" \
 						"$(trace_value "$trace_log" TRACE_NET runtime_shards)" \
-						"$(trace_owner_sum "$trace_log" steal)" \
-						"$(trace_owner_sum "$trace_log" tier1_steal_denied)" \
 						"$(trace_value "$trace_log" SCHED_TRACE conn_owner_placed)" \
 						"$(trace_owner_sum "$trace_log" conn_owner_local)" \
 						"$(trace_owner_sum "$trace_log" conn_owner_mismatch)" \
@@ -398,7 +382,6 @@ for shard_count in $shards; do
 					rm -f "$server_out" "$trace_log"
 				done
 			done
-		done
 	done
 done
 
@@ -406,8 +389,8 @@ cat >>"$report" <<'EOF'
 
 ## Runtime Trace
 
-| shards | threads | connections | mode | pattern | runtime shards | sched steal | Tier 1 denied steals | conn owner placed | conn owner local | conn owner mismatch | accept total | active accept shards | accept imbalance | global fallbacks | fd batches | fd batch fds | fd batch max | control lock acq | ctrl create | ctrl join_poll | ctrl completion | ctrl scope | ctrl await_compat | ctrl handle | cross-shard wakes | spurious absorbed | collect batches | owner replacements | per-shard accepts | per-shard fd batches | per-shard fd fds |
-| ---: | ---: | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |
+| shards | connections | mode | pattern | runtime shards | conn owner placed | conn owner local | conn owner mismatch | accept total | active accept shards | accept imbalance | global fallbacks | fd batches | fd batch fds | fd batch max | control lock acq | ctrl create | ctrl join_poll | ctrl completion | ctrl scope | ctrl await_compat | ctrl handle | cross-shard wakes | spurious absorbed | collect batches | owner replacements | per-shard accepts | per-shard fd batches | per-shard fd fds |
+| ---: | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |
 EOF
 cat "$trace_rows" >>"$report"
 
@@ -424,8 +407,7 @@ cat >>"$report" <<'EOF'
 
 ## Notes
 
-- Defaults preserve the legacy single-connection benchmark matrix. Use `SURGE_NET_BENCH_SHARDS`, `SURGE_NET_BENCH_THREADS`, and `SURGE_NET_BENCH_CONNECTIONS` to request Task 12 evidence rows.
-- `SURGE_SHARDS>1` requires `SURGE_THREADS` to match the shard count.
+- Defaults preserve the single-connection benchmark row. Use `SURGE_NET_BENCH_SHARDS` and `SURGE_NET_BENCH_CONNECTIONS` to request Task 12 evidence rows.
 - 10k-connection rows are skipped unless `SURGE_NET_BENCH_TRY_10K=1` is set and local fd/timeout checks are safe.
 - Low-count `SO_REUSEPORT` distribution skew is expected; judge distribution from the higher-connection rows.
 - Multi-shard throughput is still bounded by the preserved global executor lock.

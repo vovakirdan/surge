@@ -121,6 +121,7 @@ type typeChecker struct {
 	// taskMapCallAnswers caches holdsTaskMap by type for the call rule, which asks it of every call.
 	taskMapCallAnswers          map[types.TypeID]bool
 	asyncBlockDepth             int // Track nesting level of async blocks for error differentiation
+	crossingBodyAsyncDepth      []int
 	returnStack                 []returnContext
 	fnSymStack                  []symbols.SymbolID // current function (for instantiation use-sites)
 	fnParamsStack               [][]symbols.SymbolID

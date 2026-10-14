@@ -75,12 +75,6 @@ static void* walk_opener(void* arg) {
 }
 #endif
 
-static void drain_ready(void) {
-    rt_executor* ex = ensure_exec();
-    while (run_ready_one(ex)) {
-    }
-}
-
 // A frame released by mark_done is deferred until that lane holds no lock, and
 // the lane may be another worker's: wait for want releases, let a late extra
 // one land, and answer whether there were exactly want.
@@ -109,11 +103,12 @@ int main(int argc, char** argv) {
         atomic_store(&g_frame_drops, 0);
         atomic_store(&g_child_polls, 0);
         atomic_store(&g_owner_phase, 0);
+        atomic_store(&g_foreign_action_done, 0);
         atomic_store(&g_escaped, NULL);
         atomic_store(&g_owner_verdict, 0);
         uint64_t out = 0;
         if (strcmp(mode, "drop") == 0) {
-            void* child = create_child(0);
+            void* child = create_child();
             if (!is_cold(child)) {
                 return fail(mode, "a created task is published");
             }
@@ -122,7 +117,7 @@ int main(int argc, char** argv) {
                 return fail(mode, "the dropped task ran or kept its frame");
             }
         } else if (strcmp(mode, "spawn") == 0) {
-            void* child = create_child(0);
+            void* child = create_child();
             rt_task_wake(child);
             const rt_task* task = (const rt_task*)child;
             if (rt_task_publication_load(task) != RT_TASK_PUBLISHED ||
@@ -134,13 +129,13 @@ int main(int argc, char** argv) {
                 return fail(mode, "the spawned task did not run once");
             }
         } else if (strcmp(mode, "await") == 0) {
-            void* child = create_child(0);
+            void* child = create_child();
             if (await_task(child, &out) != 1 || out != 7 || atomic_load(&g_child_polls) != 1 ||
                 atomic_load(&g_frame_drops) != 1) {
                 return fail(mode, "the awaited task did not run once");
             }
         } else if (strcmp(mode, "clone") == 0) {
-            void* child = create_child(0);
+            void* child = create_child();
             void* sibling = rt_task_clone(child, NULL);
             rt_task_handle_drop(child);
             if (!is_cold(sibling) || atomic_load(&g_frame_drops) != 0) {
@@ -151,7 +146,7 @@ int main(int argc, char** argv) {
                 return fail(mode, "the last handle did not end the cold task");
             }
         } else if (strcmp(mode, "cancel") == 0) {
-            void* child = create_child(0);
+            void* child = create_child();
             rt_task_cancel(child);
             // Published by the cancel's own wake with the cancel recorded, or
             // already answered by a worker, which writes PUBLISHED back (release)
@@ -180,35 +175,29 @@ int main(int argc, char** argv) {
             if (await_task(child, &out) != 1 || out != 7 || atomic_load(&g_frame_drops) != 1) {
                 return fail(mode, "the escaped member's answer was lost");
             }
-        } else if (strcmp(mode, "affine-inline") == 0) {
-            if (run_owner(POLL_OWNER_AFFINE_INLINE) != 1 ||
-                atomic_load(&g_child_worker) != atomic_load(&g_carrier)) {
-                return fail(mode, "the affine child did not run inline on its carrier");
-            }
-        } else if (strcmp(mode, "affine-handoff") == 0) {
-            if (run_owner(POLL_OWNER_AFFINE_HANDOFF) != 1) {
-                return fail(mode, "the creator did not pin the child before publication");
-            }
-            void* child = atomic_load(&g_escaped);
-            rt_task_wake(child);
-            if (await_task(child, &out) != 1 || out != 7 ||
-                atomic_load(&g_child_worker) != atomic_load(&g_carrier)) {
-                return fail(mode, "the affine child ran off its carrier");
-            }
         } else if (strcmp(mode, "scope-foreign-publish") == 0 ||
                    strcmp(mode, "scope-foreign-drop") == 0) {
             int publish = strcmp(mode, "scope-foreign-publish") == 0;
             uint64_t before = scope_events();
             void* owner = __task_create(POLL_OWNER_FOREIGN, NULL, rt_channel_opaque_word_ops());
-            if (!run_ready_one(ensure_exec())) {
+            void* child = NULL;
+            for (int i = 0; i < 5000 && child == NULL; i++) {
+                child = atomic_load_explicit(&g_escaped, memory_order_acquire);
+                if (child == NULL) {
+                    struct timespec pause = {0, 1000000};
+                    nanosleep(&pause, NULL);
+                }
+            }
+            if (child == NULL) {
                 return fail(mode, "the owner did not take its first turn");
             }
-            void* child = atomic_load(&g_escaped);
             if (publish) {
                 rt_task_wake(child);
             } else {
                 rt_task_handle_drop(child);
             }
+            atomic_store_explicit(&g_foreign_action_done, 1, memory_order_release);
+            rt_task_wake(owner);
             if (await_task(owner, &out) != 1 || out != 1) {
                 return fail(mode, "the owner's second turn found the hint or the count wrong");
             }
@@ -223,22 +212,21 @@ int main(int argc, char** argv) {
                 rt_task_handle_drop(child);
             }
         } else if (strcmp(mode, "drop-then-cancel") == 0) {
-            void* child = create_child(0);
+            void* child = create_child();
             uint64_t id = ((rt_task*)child)->id;
             rt_task_handle_drop(child);
             rt_executor* ex = ensure_exec();
             rt_control_lock(ex);
             cancel_task(ex, id);
             rt_control_unlock(ex);
-            drain_ready();
-            if (atomic_load(&g_frame_drops) != 1 || atomic_load(&g_child_polls) != 0) {
+            if (!frame_drops_settle(1) || atomic_load(&g_child_polls) != 0) {
                 return fail(mode, "a cancel after the discard revived the task");
             }
 #ifdef RT_TEST_SYNC_POINTS
         } else if (strcmp(mode, "cancel-race") == 0) {
             // The cancel holds after its gate CAS, before its wake; the last
             // drop lands in that window, finds the gate taken, and publishes.
-            void* child = create_child(0);
+            void* child = create_child();
             uint64_t id = ((rt_task*)child)->id;
             unsigned reached = rt_sync_point_reached_count(RT_SYNC_POINT_SP_CANCEL_BEFORE_WAKE);
             rt_sync_point_arm_block(RT_SYNC_POINT_SP_CANCEL_BEFORE_WAKE);
@@ -258,7 +246,6 @@ int main(int argc, char** argv) {
             rt_sync_point_open();
             pthread_join(other, NULL);
             rt_sync_point_disarm(RT_SYNC_POINT_SP_CANCEL_BEFORE_WAKE);
-            drain_ready();
             if (published_word != RT_TASK_CANCELLED_COLD && published_word != RT_TASK_PUBLISHED) {
                 return fail(mode, "the last drop discarded a task whose gate a cancel had taken");
             }
@@ -325,7 +312,7 @@ int main(int argc, char** argv) {
                 return fail(mode, "the inline claim took a child that was not the latest creation");
             }
         } else if (strcmp(mode, "race-drop") == 0) {
-            void* child = create_child(0);
+            void* child = create_child();
             void* sibling = rt_task_clone(child, NULL);
             pthread_t other;
             if (pthread_create(&other, NULL, drop_one, sibling) != 0) {

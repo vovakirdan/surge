@@ -1163,7 +1163,7 @@ fn main(port: uint) -> int {
 	port := pickFreePort(t)
 	cmd := exec.Command(outputPath, strconv.Itoa(port))
 	env := envWithStdlib(repoRoot(t))
-	env = overrideEnvVar(env, "SURGE_THREADS", "1")
+	env = overrideEnvVar(env, "SURGE_SHARDS", "1")
 	env = overrideEnvVar(env, "SURGE_BLOCKING_THREADS", "1")
 	cmd.Env = env
 	var outBuf, errBuf bytes.Buffer

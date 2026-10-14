@@ -284,10 +284,8 @@ func (tc *typeChecker) droppedTaskHelp() (string, bool) {
 }
 
 // inBlockingBody reports that the innermost task body around this point is a `blocking { }` body
-// (an `async { }` nested in one is its own task and may await). The model forbids suspension on
-// the blocking pool; `.await()` there is not refused yet -- SEM3152 covers `on` only, and the typing
-// rule of `.await()` reads awaitDepth alone (type_expr_calling.go) -- a pre-existing gap this help
-// does not widen.
+// (an `async { }` nested in one is its own task and may await). The same answer
+// governs suspension diagnostics and the help offered for discarded tasks.
 func (tc *typeChecker) inBlockingBody() bool {
 	for i := len(tc.returnStack) - 1; i >= 0; i-- {
 		switch tc.returnStack[i].kind {

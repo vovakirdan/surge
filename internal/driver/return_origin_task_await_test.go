@@ -10,8 +10,6 @@ import "testing"
 // row reads one body.
 
 const (
-	originTaskAwaitBorrowedState = "opaque result type may carry borrowed state"
-	originTaskAwaitUnsupported   = "opaque result borrowed-state classification is unsupported"
 	// A reference-bearing payload also fails the finalized use and taints through the receiver's effect.
 	originTaskAwaitGenericUse = "generic opaque use requires its type-dependent effect transfer"
 	originTaskAwaitEffect     = "opaque call may change reference-bearing or callable contents"
@@ -96,9 +94,9 @@ func originTaskAwaitRows() []originTaskAwaitRow {
 		{name: "checkpoint_awaited_finishes", text: originTaskAwaitFinishSource, digest: originTaskAwaitFinishSourceDigest, body: "checkpoint_awaited",
 			fn: originSpan{610, 690, originTaskAwaitFinishSource[610:690]}, want: []originRefusal{}, summary: true},
 		{name: "reference_payload_stays_refused", text: originTaskAwaitPayloadSource, digest: originTaskAwaitPayloadSourceDigest, body: "read_ref",
-			fn: originSpan{0, 80, originTaskAwaitPayloadSource[0:80]}, want: []originRefusal{{span: originSpan{54, 63, "t.await()"}, reason: originTaskAwaitBorrowedState}, {span: originSpan{54, 63, "t.await()"}, reason: originCalleeSourceRefusal}, {span: originSpan{54, 63, "t.await()"}, reason: originTaskAwaitGenericUse}, {span: originSpan{54, 63, "t.await()"}, reason: originTaskAwaitEffect}}, summary: false},
-		{name: "array_payload_stays_refused", text: originTaskAwaitPayloadSource, digest: originTaskAwaitPayloadSourceDigest, body: "read_array",
-			fn: originSpan{82, 165, originTaskAwaitPayloadSource[82:165]}, want: []originRefusal{{span: originSpan{139, 148, "t.await()"}, reason: originTaskAwaitUnsupported}, {span: originSpan{139, 148, "t.await()"}, reason: originCalleeSourceRefusal}}, summary: false},
+			fn: originSpan{0, 80, originTaskAwaitPayloadSource[0:80]}, want: []originRefusal{{span: originSpan{54, 63, "t.await()"}, reason: originTaskAwaitGenericUse}, {span: originSpan{54, 63, "t.await()"}, reason: originTaskAwaitEffect}}, summary: false},
+		{name: "array_payload_uses_exact_handle_origins", text: originTaskAwaitPayloadSource, digest: originTaskAwaitPayloadSourceDigest, body: "read_array",
+			fn: originSpan{82, 165, originTaskAwaitPayloadSource[82:165]}, want: []originRefusal{}, summary: true},
 	}
 }
 

@@ -148,7 +148,6 @@ static int init_shard(rt_shard* shard, rt_runtime* runtime, rt_executor* ex, uin
     shard->shard_id = id;
     if (rt_shard_sync_init(shard) != RT_RUNTIME_STATUS_OK) return 1;
     if (rt_transport_state_init(&shard->transport) != RT_RUNTIME_STATUS_OK) return 2;
-    shard->scheduler.worker_count = 1;
     return 0;
 }
 
@@ -260,7 +259,6 @@ func TestRuntimeV2TransportSyncPointAllowlistShape(t *testing.T) {
 	// E1 split; rt_transport.c keeps the queues and the wake pipe.
 	transportSource := readTransportContractFile(t, root, "runtime/native/rt_transport_park.c")
 	workerTurn := readTransportContractFile(t, root, "runtime/native/rt_worker_turn.c")
-	asyncPoll := readTransportContractFile(t, root, "runtime/native/rt_async_poll.c")
 
 	names := []string{
 		"SP_TRANSPORT_AFTER_DRAIN_BEFORE_PARK",
@@ -290,13 +288,9 @@ func TestRuntimeV2TransportSyncPointAllowlistShape(t *testing.T) {
 	}
 	workerDrain := strings.Index(workerTurn,
 		"(void)rt_remote_spawn_drain_inbound_locked(ex, shard, RT_TRANSPORT_DRAIN_TURN_LIMIT);")
-	workerReady := strings.Index(workerTurn, "while (!ex->shutdown && !worker_next_ready")
+	workerReady := strings.Index(workerTurn, "worker_next_ready(ctx, &id)")
 	if workerDrain < 0 || workerReady < 0 || workerDrain > workerReady {
 		t.Fatal("worker loop must drain a bounded transport slice before ready-work selection")
-	}
-	if !strings.Contains(asyncPoll,
-		"(void)rt_remote_spawn_drain_inbound_locked(ex, shard0, RT_TRANSPORT_DRAIN_TURN_LIMIT);") {
-		t.Fatal("single-runner run_ready_one path must drain transport before ready-pop")
 	}
 }
 

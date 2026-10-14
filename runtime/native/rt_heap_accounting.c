@@ -68,13 +68,8 @@ rt_heap_accounting_status rt_heap_accounting_prepare_cells(rt_heap_accounting* a
     if (accounting == NULL || accounting->initialized == 0) {
         return RT_HEAP_ACCOUNTING_INVALID_ARGUMENT;
     }
-    if (workers > UINT32_MAX / 32U) {
-        return RT_HEAP_ACCOUNTING_CAPACITY_OVERFLOW;
-    }
-    uint32_t compensation_workers = workers * 32U;
     rt_heap_accounting_cell* worker_cells = NULL;
     rt_heap_accounting_cell* blocking_cells = NULL;
-    rt_heap_accounting_cell* compensation_cells = NULL;
     rt_heap_accounting_status status = allocate_cells(workers, &worker_cells);
     if (status != RT_HEAP_ACCOUNTING_OK) {
         return status;
@@ -84,18 +79,10 @@ rt_heap_accounting_status rt_heap_accounting_prepare_cells(rt_heap_accounting* a
         free(worker_cells);
         return status;
     }
-    status = allocate_cells(compensation_workers, &compensation_cells);
-    if (status != RT_HEAP_ACCOUNTING_OK) {
-        free(blocking_cells);
-        free(worker_cells);
-        return status;
-    }
     accounting->worker_cells = worker_cells;
     accounting->blocking_cells = blocking_cells;
-    accounting->compensation_cells = compensation_cells;
     accounting->worker_cell_count = workers;
     accounting->blocking_cell_count = blocking_workers;
-    accounting->compensation_cell_count = compensation_workers;
     return RT_HEAP_ACCOUNTING_OK;
 }
 
@@ -103,15 +90,12 @@ void rt_heap_accounting_destroy(rt_heap_accounting* accounting) {
     if (accounting == NULL) {
         return;
     }
-    free(accounting->compensation_cells);
     free(accounting->blocking_cells);
     free(accounting->worker_cells);
-    accounting->compensation_cells = NULL;
     accounting->blocking_cells = NULL;
     accounting->worker_cells = NULL;
     accounting->worker_cell_count = 0;
     accounting->blocking_cell_count = 0;
-    accounting->compensation_cell_count = 0;
 }
 
 rt_heap_accounting_cell* rt_heap_accounting_cold_cell(void) {
@@ -140,14 +124,6 @@ rt_heap_accounting_cell* rt_heap_accounting_blocking_cell(rt_heap_accounting* ac
         return &cold_cell;
     }
     return &accounting->blocking_cells[worker_id];
-}
-
-rt_heap_accounting_cell* rt_heap_accounting_compensation_cell(rt_heap_accounting* accounting,
-                                                              uint32_t compensation_id) {
-    if (accounting == NULL || compensation_id >= accounting->compensation_cell_count) {
-        return &cold_cell;
-    }
-    return &accounting->compensation_cells[compensation_id];
 }
 
 void rt_heap_accounting_set_current_cell(rt_heap_accounting_cell* cell) {
@@ -202,12 +178,6 @@ rt_heap_accounting_status rt_heap_accounting_snapshot(rt_heap_accounting* accoun
                                 &free_bytes);
         add_cell_range_snapshot(accounting->blocking_cells,
                                 accounting->blocking_cell_count,
-                                &alloc_count,
-                                &free_count,
-                                &alloc_bytes,
-                                &free_bytes);
-        add_cell_range_snapshot(accounting->compensation_cells,
-                                accounting->compensation_cell_count,
                                 &alloc_count,
                                 &free_count,
                                 &alloc_bytes,

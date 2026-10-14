@@ -19,10 +19,10 @@ import (
 // rt_far_task_release_owned -> rt_far_task_lease_release_route ->
 // rt_remote_spawn_abandon_handle — the composed path the direct-abandon
 // C-harness rows in TestRuntimeV2RemoteTaskBehavior fake by calling abandon
-// directly. The far body still runs regardless of caller cancellation
-// (in-flight semantics pinned by Task 5); describe() prints a witness so
-// completion is observable even though nothing polls the far task's own
-// result after the caller is gone.
+// directly. The far body may run or may be withdrawn before its first poll,
+// depending on whether its publication wins the cancellation race. describe()
+// prints a witness so a run is observable without making that race an
+// ordering requirement.
 const runtimeV2FarTaskCallerCancelSource = `
 @shard_movable
 type Job = { id: int, note: string };
@@ -77,17 +77,14 @@ fn main() -> int {
 // The phase-sweep twin: the same caller-cancel shape, but the parent gives
 // the child a varying number of checkpoint yields before cancelling, and
 // repeats each phase a few times. This has NO sync points and does not try
-// to pin an exact publication/first-poll boundary (the empirical behavior,
-// discovered while building this row, is that at SURGE_SHARDS=1 the
-// boundary is narrower than one checkpoint yield: 0 yields never lets the
-// child start at all, and 1 yield already resolves the whole round trip —
-// there is no stable Surge-level lever that lands strictly between them at
-// one shard). Instead this sweeps yield counts (0, 1, 6) x 3 shard counts x
-// 3 iterations per phase and asserts the invariant that must hold
-// regardless of which side of the race a given run lands on: no crash, the
-// far body always runs (one witness print per iteration, whichever side of
-// the cancel race it's on), and every outcome is a legal TaskResult arm
-// (never the sentinel "unexpected" branch).
+// to pin an exact publication/first-poll boundary: there is no stable
+// Surge-level lever that lands strictly between them. Instead this sweeps
+// yield counts (0, 1, 6) x 3 shard counts x 3 iterations per phase and
+// asserts the invariant that must hold
+// regardless of which side of the race a given run lands on: no crash, every
+// far body runs at most once, and every outcome is a legal TaskResult arm
+// (never the sentinel "unexpected" branch). Publication does not promise the
+// far body a first poll.
 const runtimeV2FarTaskCallerCancelPhaseSweepSource = `
 @shard_movable
 type Job = { id: int, note: string };
@@ -193,7 +190,6 @@ func TestRuntimeV2FarTaskCallerCancel(t *testing.T) {
 			t.Run(fmt.Sprintf("shards_%d", shardCount), func(t *testing.T) {
 				value := strconv.Itoa(shardCount)
 				env := overrideEnvVar(baseEnv, "SURGE_SHARDS", value)
-				env = overrideEnvVar(env, "SURGE_THREADS", value)
 				duration, result := runBinaryWithTimeout(t, outputPath, env, 30*time.Second)
 				if result.exitCode != 0 {
 					t.Fatalf(
@@ -207,33 +203,12 @@ func TestRuntimeV2FarTaskCallerCancel(t *testing.T) {
 				if !strings.Contains(result.stdout, "far-task-caller-cancel-e2e1-ok") {
 					t.Fatalf("far-task caller-cancel e2e1 missing completion marker; stdout=%q", result.stdout)
 				}
-				// WHETHER THE BODY RUNS IS NOT THIS ROW'S TO ASSERT, and
-				// requiring it was asserting a guarantee the model
-				// withholds. Publication promises that the task EXISTS and
-				// can be cancelled; it does not promise a first poll. A
-				// cancellation that linearizes while the task is PUBLISHED
-				// and before STARTED withdraws the record and answers
-				// Cancelled with the body never entered; a cancellation
-				// that loses to STARTED becomes an ordinary cooperative one
-				// and the body observes it. Both are legal outcomes of the
-				// same program, and which one a machine picks is its
-				// scheduler's business.
-				//
-				// The old form demanded the witness at 2+ shards on the
-				// reasoning that the child "reliably" wins there. Measured,
-				// it does not: 81 red of 100 on a 16-core host against 0 of
-				// 3 on a 32-core one, red at every commit back to
-				// 2026-08-26. The row was reporting the host.
-				//
-				// What survives is the shards=1 direction, which is not a
-				// guarantee about the body either — it is this program's
-				// own arrangement, and a witness appearing there means the
-				// arrangement stopped holding and the row no longer
-				// exercises what it was written for.
-				hasWitness := strings.Contains(result.stdout, "e2e1-far-body-ran")
-				if shardCount == 1 && hasWitness {
-					t.Fatalf("unexpected far-body witness at shards=1 (race assumption changed); stdout=%q", result.stdout)
-				}
+				// The body witness is deliberately not asserted. The old
+				// shards=1 expectation described an arrangement of the
+				// inline-main / multi-carrier topology, not a Runtime V2
+				// guarantee. Under N shards x 1 carrier the local caller may
+				// reach its first suspension and publish the far body before
+				// its cooperative cancellation is observed.
 			})
 		}
 		t.Run("valgrind", func(t *testing.T) {
@@ -248,7 +223,6 @@ func TestRuntimeV2FarTaskCallerCancel(t *testing.T) {
 			t.Run(fmt.Sprintf("shards_%d", shardCount), func(t *testing.T) {
 				value := strconv.Itoa(shardCount)
 				env := overrideEnvVar(baseEnv, "SURGE_SHARDS", value)
-				env = overrideEnvVar(env, "SURGE_THREADS", value)
 				duration, result := runBinaryWithTimeout(t, outputPath, env, 30*time.Second)
 				if result.exitCode != 0 {
 					t.Fatalf(
@@ -262,13 +236,13 @@ func TestRuntimeV2FarTaskCallerCancel(t *testing.T) {
 				if !strings.Contains(result.stdout, "far-task-caller-cancel-e2e2-ok") {
 					t.Fatalf("far-task caller-cancel e2e2 missing completion marker; stdout=%q", result.stdout)
 				}
-				// 3 phases x 3 iterations = 9 far-task invocations; every
-				// one must run to completion regardless of which side of
-				// the cancel race it landed on.
-				const wantWitnesses = 9
+				// There are at most 3 phases x 3 far-task invocations. A
+				// cancellation may withdraw one before its first poll, but
+				// no invocation may execute its body more than once.
+				const maxWitnesses = 9
 				gotWitnesses := strings.Count(result.stdout, "e2e2-far-body-ran")
-				if gotWitnesses != wantWitnesses {
-					t.Fatalf("far-body witness count = %d, want %d; stdout=%q", gotWitnesses, wantWitnesses, result.stdout)
+				if gotWitnesses > maxWitnesses {
+					t.Fatalf("far-body witness count = %d, max %d; stdout=%q", gotWitnesses, maxWitnesses, result.stdout)
 				}
 			})
 		}
@@ -283,22 +257,14 @@ var (
 	valgrindIndirectLeakRE = regexp.MustCompile(`(?:^|\n)\s*==\d+==\s*indirectly lost:\s*([0-9,]+)\s*bytes in\s*([0-9,]+)\s*blocks`)
 	// These memcheck error classes indicate an actual crash-class bug
 	// (use-after-free, buffer overrun, uninitialised control-flow use) —
-	// distinct from, and always more serious than, the leak-accounting
-	// residual this row documents. Any of these is a hard failure.
+	// distinct from an ordinary leak report. Any of these is a hard failure.
 	valgrindCorruptionRE = regexp.MustCompile(`Invalid (?:free|read|write)|Mismatched free|Source and destination overlap|Conditional jump or move depends on uninitialised value`)
 )
 
 // runFarTaskCallerCancelValgrindCensus runs the already-built e2e binary
 // under valgrind at 1 shard (and 2 shards, once proven stable) and reports
-// the leak census. It intentionally does NOT hard-assert
-// definitely-lost==0: this row's own investigation found that a LOCAL
-// (non-far) Task whose body parks on an internal .await() leaks its own
-// compiled async frame when its PARENT cancels it before the body has run
-// a single instruction — see the KNOWN RESIDUAL note below. That defect
-// pre-exists this row (it reproduces with no far/distributed task
-// involved at all) and is reported, not fixed, per the
-// dodge-don't-fix constraint; only genuine crash-class errors
-// (valgrindCorruptionRE) are treated as hard failures here.
+// the leak census. The abandoned-frame defect this row originally tolerated
+// was closed by RV2-DEBT-059; any definite or indirect loss is now a failure.
 func runFarTaskCallerCancelValgrindCensus(t *testing.T, bin string, baseEnv []string, wantMarker, witnessMarker string) {
 	t.Helper()
 	vg, err := exec.LookPath("valgrind")
@@ -310,7 +276,6 @@ func runFarTaskCallerCancelValgrindCensus(t *testing.T, bin string, baseEnv []st
 		t.Run(fmt.Sprintf("shards_%d", shardCount), func(t *testing.T) {
 			value := strconv.Itoa(shardCount)
 			env := overrideEnvVar(baseEnv, "SURGE_SHARDS", value)
-			env = overrideEnvVar(env, "SURGE_THREADS", value)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 			defer cancel()
@@ -332,7 +297,7 @@ func runFarTaskCallerCancelValgrindCensus(t *testing.T, bin string, baseEnv []st
 				t.Fatalf("missing completion marker %q under valgrind; stdout=%q\nstderr:\n%s", wantMarker, stdout, stderr)
 			}
 			if m := valgrindCorruptionRE.FindString(stderr); m != "" {
-				t.Fatalf("valgrind reports a crash-class error (%q), not just the known leak residual\nstderr:\n%s", m, stderr)
+				t.Fatalf("valgrind reports a crash-class error (%q)\nstderr:\n%s", m, stderr)
 			}
 			definiteBytes, definiteBlocks := parseValgrindLeakMatch(valgrindDefiniteLeakRE, stderr)
 			indirectBytes, indirectBlocks := parseValgrindLeakMatch(valgrindIndirectLeakRE, stderr)
@@ -341,34 +306,11 @@ func runFarTaskCallerCancelValgrindCensus(t *testing.T, bin string, baseEnv []st
 				"valgrind census (shards=%d): definitely_lost=%dB/%dblk indirectly_lost=%dB/%dblk far_body_witnesses=%d exit=%d",
 				shardCount, definiteBytes, definiteBlocks, indirectBytes, indirectBlocks, witnessCount, exitCode,
 			)
-			// KNOWN RESIDUAL, UPDATED after the abandoned-suspend-state fix
-			// (rt_async_yield/rt_async_return_cancelled now stash and drop
-			// the state box a cancellation abandons before compiled code
-			// ever resumes it — see TestRuntimeV2CancelledSuspendStateReclaimed).
-			// That fix reclaims the state box itself: this row's own
-			// minimal, far-task-free repro went from 32B direct + 24B
-			// indirect to 24B direct + 0 indirect (the remaining 24B is a
-			// separate, pre-existing gap — handle-shaped locals like
-			// Task<T>/Channel<T> packed live into an abandoned suspend
-			// payload aren't reclaimed by the generic recursive drop glue,
-			// which needs their own dedicated release call, not a raw
-			// rt_free; see that test's KNOWN RESIDUAL note). The far-task
-			// shape here measures differently again (indirect now 0, direct
-			// a clean 32B/occurrence) because `t.await()`'s crossing
-			// consumes the far-task handle before suspending, so no
-			// Task<T>-shaped local survives into ITS payload — what remains
-			// here is plausibly RV2-DEBT-061 (the pending free-path race
-			// this row's own multi-shard traffic exercises), not diagnosed
-			// further per that debt row's own "do not tighten to strict
-			// zero" guidance: assert only that the loss is a clean multiple
-			// of the smallest observed per-occurrence direct-leak unit
-			// (32B for this far-task shape) rather than growing unboundedly
-			// or including corruption-class errors.
-			const perOccurrenceDirectBytes = 32
-			if definiteBytes%perOccurrenceDirectBytes != 0 {
+			if exitCode != 0 || definiteBytes != 0 || definiteBlocks != 0 ||
+				indirectBytes != 0 || indirectBlocks != 0 {
 				t.Fatalf(
-					"definitely-lost bytes (%d) is not a multiple of the known per-cancelled-caller unit (%d); this looks like a NEW leak shape, not the documented residual",
-					definiteBytes, perOccurrenceDirectBytes,
+					"valgrind found a leak (exit=%d, definite=%dB/%dblk, indirect=%dB/%dblk)\nstderr:\n%s",
+					exitCode, definiteBytes, definiteBlocks, indirectBytes, indirectBlocks, stderr,
 				)
 			}
 		})

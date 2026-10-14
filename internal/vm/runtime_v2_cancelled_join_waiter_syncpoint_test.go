@@ -70,7 +70,6 @@ func runRuntimeV2CancelledJoinWaiterMode(
 	cmd := exec.Command(binPath, mode)
 	cmd.Env = lifecycleEnv(
 		"SURGE_SHARDS=2",
-		"SURGE_THREADS=2",
 		"SURGE_BLOCKING_THREADS=1",
 		"SURGE_SYNC_POINT="+cancelledJoinWaiterSyncPoint+":block",
 	)
@@ -267,7 +266,7 @@ static void poll_target(void) {
     if (atomic_load_explicit(&g_target_open, memory_order_acquire) == 0) {
         rt_executor* ex = ensure_exec();
         rt_task* current = rt_current_task();
-        waker_key key = blocking_key(current->id);
+        waker_key key = blocking_key(current->id, current->owner_shard_id);
         prepare_park(ex, current, key, 0);
         pending_key = key;
         rt_async_yield(NULL, 0);

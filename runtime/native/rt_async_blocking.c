@@ -84,7 +84,7 @@ static void blocking_job_settle_unrun(rt_executor* ex, rt_blocking_job* job) {
                                                 memory_order_acquire)) {
         (void)atomic_fetch_add_explicit(&ex->blocking_cancel_requested, 1, memory_order_relaxed);
         rt_control_lock(ex);
-        wake_key_all(ex, blocking_key(job->task_id));
+        wake_key_all(ex, job->completion_key);
         rt_control_unlock(ex);
     }
     rt_async_debug_printf("async blocking cancelled task=%llu fn=%llu\n",
@@ -189,7 +189,7 @@ static void* rt_blocking_worker_main(void* arg) {
                                                     memory_order_acq_rel,
                                                     memory_order_acquire)) {
             rt_control_lock(ex);
-            wake_key_all(ex, blocking_key(job->task_id));
+            wake_key_all(ex, job->completion_key);
             rt_control_unlock(ex);
         }
         // The running counter drops only after the completion wake is
@@ -235,6 +235,7 @@ void rt_blocking_init(rt_executor* ex) {
     }
     ex->blocking_worker_ctxs = ctxs;
     ex->blocking_workers = threads;
+    ex->blocking_threads_started = 0;
     for (uint32_t i = 0; i < count; i++) {
         ctxs[i].ex = ex;
         ctxs[i].worker_id = i;
@@ -242,7 +243,7 @@ void rt_blocking_init(rt_executor* ex) {
             panic_msg("async: blocking worker start failed");
             return;
         }
-        (void)pthread_detach(threads[i]);
+        ex->blocking_threads_started++;
     }
     ex->blocking_started = 1;
 }
@@ -271,7 +272,7 @@ void rt_blocking_request_cancel(rt_executor* ex, rt_task* task) {
         // never nests two shard lanes, so no lock release or extra task pin is
         // needed around this drain.
 #ifndef RV2_SEQ0_TERMINAL_RETIRE_NEGATIVE_CONTROL
-        wake_key_all(ex, blocking_key(task->id));
+        wake_key_all(ex, job->completion_key);
 #endif
     }
 }
@@ -320,7 +321,7 @@ observe_terminal:
         task->state = NULL;
         return out;
     }
-    waker_key key = blocking_key(task->id);
+    waker_key key = job->completion_key;
     RT_SYNC_POINT(SP_BLOCKING_POLL_BEFORE_WAIT_REGISTER);
     prepare_park(ex, task, key, 0);
     // Register-then-verify: the blocking worker publishes the terminal job
@@ -429,6 +430,7 @@ void* rt_blocking_submit(uint64_t fn_id,
     }
     job->task_id = id;
     job->fn_id = fn_id;
+    job->completion_key = blocking_key(id, task->owner_shard_id);
     atomic_store_explicit(&job->status, BLOCKING_JOB_PENDING, memory_order_relaxed);
     atomic_store_explicit(&job->cancel_requested, 0, memory_order_relaxed);
     atomic_store_explicit(&job->refs, 2, memory_order_relaxed);

@@ -529,13 +529,6 @@ void* rt_bigfloat_to_biguint(const void* a);
 // how an independent copy of one is made -- the descriptor already knows.
 // NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 void* __task_create(uint64_t poll_fn_id, void* state, const rt_value_ops* result_ops);
-// The same constructor for a task that BORROWS its creator's frame: the task
-// is pinned to the worker carrying the creator before it is published, so it
-// only ever runs where the borrowed frame is. Creation is the only point that
-// knows the carrier, because creation is a synchronous action of the running
-// parent -- a pin at the spawn's wake would come from whatever thread spawns.
-// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
-void* __task_create_affine(uint64_t poll_fn_id, void* state, const rt_value_ops* result_ops);
 // The two above publish the task at once: they are a stand driver's "create
 // and spawn". Compiled code creates every task COLD (RV2-DEBT-370): recorded
 // exactly as the constructors above record it -- membership, owning shard,
@@ -549,11 +542,6 @@ void* __task_create_cold(uint64_t poll_fn_id,
                          void* state,
                          const rt_value_ops* result_ops,
                          const rt_value_ops* frame_ops);
-// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
-void* __task_create_cold_affine(uint64_t poll_fn_id,
-                                void* state,
-                                const rt_value_ops* result_ops,
-                                const rt_value_ops* frame_ops);
 // NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 void* __task_state(void);
 void rt_task_wake(void* task);
@@ -683,7 +671,6 @@ void* rt_map_keys(const void* map,
 void rt_map_free(void* map);
 
 uint64_t rt_scope_enter(bool failfast);
-void rt_scope_register_child(uint64_t scope_id, void* task);
 void rt_scope_cancel_all(uint64_t scope_id);
 bool rt_scope_join_all(uint64_t scope_id, uint64_t* pending, bool* failfast);
 void rt_scope_exit(uint64_t scope_id);

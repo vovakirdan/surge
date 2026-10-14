@@ -32,6 +32,9 @@ func (l *funcLowerer) lowerSpawnOnPollFunc(id FuncID, name string, body *hir.Blo
 	if l == nil {
 		return nil, nil
 	}
+	if !l.anchoredBody {
+		return l.lowerPlacedBodyFunc(id, name, body, result, captures, span)
+	}
 	l.f = &Func{
 		ID:       id,
 		Sym:      symbols.NoSymbolID,

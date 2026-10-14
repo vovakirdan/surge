@@ -173,7 +173,7 @@ fn main() -> int {
     return 0;
 }
 `},
-	{"re_traced_cursor_captured_by_blocking_returned", "c52c8a95608b8988ad4c39c9264e8829690b757ff58c8656965d4fa2d1ab2cf7", "SEM3139", `fn leak() -> Task<int64> {
+	{"re_traced_cursor_captured_by_blocking_returned", "c52c8a95608b8988ad4c39c9264e8829690b757ff58c8656965d4fa2d1ab2cf7", "SEM3133", `fn leak() -> Task<int64> {
     let mut xs: int64[] = [];
     xs.push(1:int64);
     let c = xs.__range();
@@ -362,11 +362,11 @@ fn main() -> int {
     return 0;
 }
 `},
-	{"ctl_re_traced_cursor_captured_by_blocking_awaited", "9868073a9a3de713dd2052d81013143948cb28ceb56fee7e3cfc02d5c1279e71", "", `async fn sound() -> int64 {
+	{"ctl_re_traced_cursor_captured_by_async_awaited", "4968c078fb9b04bee118bef6775e46553b4b7162130bc61eb107e151e90db354", "", `async fn sound() -> int64 {
     let mut xs: int64[] = [];
     xs.push(1:int64);
     let c = xs.__range();
-    let job: Task<int64> = blocking {
+    let job: Task<int64> = async {
         let mut n: int64 = 0:int64;
         for v: int64 in c { n = n + v; }
         ret n;

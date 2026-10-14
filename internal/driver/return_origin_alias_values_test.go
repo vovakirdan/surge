@@ -2,6 +2,7 @@ package driver
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -259,7 +260,8 @@ func requireReturnOriginAliasMissingOwners(t *testing.T, res *DiagnoseResult, in
 		want = append(want, sema.ReturnOriginPending{SourceKey: site.key, Span: found[0].Witness.Site, Reason: "deferred method lacks its original owning caller"})
 	}
 	block, err := returnOriginVerdict(analysis)
-	unfinished, ok := err.(*returnOriginUnfinishedError)
+	unfinished := &returnOriginUnfinishedError{}
+	ok := errors.As(err, &unfinished)
 	logReturnOriginCallEvidence(t, map[string]any{"expected_missing_owners": want, "partial_input_blocked": block, "verdict_error": errorReturnOriginCallText(err)})
 	if analysis.Complete() || !slices.Equal(analysis.Pending, want) || !block || !ok || !slices.Equal(unfinished.Pending, want) {
 		t.Fatalf("partial alias input lost its exact nine missing-owner refusals: analysis=%+v block=%t error=%v", analysis, block, err)

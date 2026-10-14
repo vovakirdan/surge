@@ -56,7 +56,7 @@ func TestRuntimeV2FarHandleFieldDropReleasesTheLease(t *testing.T) {
 	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2FarHandleFieldDropSource, nil)
 	baseEnv := envWithStdlib(repoRoot(t))
 	env := overrideEnvVar(baseEnv, "SURGE_SHARDS", "1")
-	env = overrideEnvVar(env, "SURGE_THREADS", "1")
+	env = overrideEnvVar(env, "SURGE_SHARDS", "1")
 
 	t.Run("correctness", func(t *testing.T) {
 		duration, result := runBinaryWithTimeout(t, outputPath, env, 30*time.Second)

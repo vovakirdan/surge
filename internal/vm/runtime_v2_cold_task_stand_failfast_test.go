@@ -49,7 +49,7 @@ static uint64_t monotonic_ns(void) {
 
 // A fail-fast scope with two cold members. The owner cancels the sibling, which
 // ends Cancelled and so cancels every member of the scope -- landing on the
-// affine member while it is still cold and its handle still held. Only after
+// member while it is still cold and its handle still held. Only after
 // the member's gate shows that cancel does the owner drop the handle, release
 // the local the member borrows (the order compiled code has: a return's drops,
 // then the scope's join) and join. Which road publishes the member -- the
@@ -63,8 +63,8 @@ static void poll_owner_failfast_cold(void) {
     if (phase == 0) {
         uint64_t scope = rt_scope_enter(true);
         atomic_store_explicit(&g_scope_id, scope, memory_order_release);
-        void* sibling = create_child(0);
-        void* member = __task_create_cold_affine(
+        void* sibling = create_child();
+        void* member = __task_create_cold(
             POLL_MEMBER, new_frame(), rt_channel_opaque_word_ops(), &cold_frame_ops);
         atomic_store_explicit(&g_sibling, sibling, memory_order_release);
         atomic_store_explicit(&g_member, member, memory_order_release);

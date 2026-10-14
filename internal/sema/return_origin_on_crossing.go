@@ -52,16 +52,19 @@ func (b *returnOriginBody) onCrossing(id ast.ExprID, data *ast.ExprOnData, env r
 	if err != nil {
 		return returnOriginExprResult{}, err
 	}
-	for key := range body.exits {
+	payload := returnOriginValueOf()
+	for key, exit := range body.exits {
 		if key.kind != returnOriginBlockResult || key.target != scope {
 			return returnOriginExprResult{}, fmt.Errorf("return origins: on crossing body at %v leaves by an exit its frame does not have", span)
 		}
+		payload = payload.join(exit.value)
 	}
 	if err := b.onCrossingCaptures(id, span, out.flow.normal); err != nil {
 		return returnOriginExprResult{}, err
 	}
 	out.value, out.storage = returnOriginValueOf(), returnOriginValue{}
-	if !b.crossingInert(u.Sema.ExprTypes[id]) {
+	if !b.crossingInert(u.Sema.ExprTypes[id]) &&
+		!b.sourceFreeUnshareTransfer(u.Sema.ExprTypes[id], payload) {
 		generic := b.function.candidate != nil && b.function.item.Body.IsValid() &&
 			len(b.function.candidate.TemplateParams) != 0 && types.ContainsGenericParam(u.Sema.TypeInterner, u.Sema.ExprTypes[id])
 		if !generic || len(b.requireOpaqueState(returnOriginView(b.function), u.Sema.ExprTypes[id], span).roots) != 0 {
@@ -78,8 +81,9 @@ func (b *returnOriginBody) onCrossing(id ast.ExprID, data *ast.ExprOnData, env r
 // checker's gate is not relied on for this: it read only a capture's surface type, and `own &T`
 // passed it as an owned Copy value (N-TASK-27 review, B1). Every capture but the anchor's lease
 // must be inert (crossingInert), as the reply must; one that is not keeps a named row at the
-// capture. This refuses some programs the runtime would carry safely, such as a dynamic array
-// that moves in: its loans are not modelled here.
+// capture. A checker-recorded Copy or owned capture whose current binding is
+// source-free is also admitted: lowering recursively un-shares it before
+// publication. Views and captured loans retain roots and stay refused.
 func (b *returnOriginBody) onCrossingCaptures(id ast.ExprID, span source.Span, env returnOriginEnv) error {
 	u := b.function.unit
 	var record *CrossingLoweringInfo
@@ -101,20 +105,21 @@ func (b *returnOriginBody) onCrossingCaptures(id ast.ExprID, span source.Span, e
 		if capture.Mode == CrossingCaptureAnchorLease {
 			continue
 		}
-		if !b.crossingInert(capture.Type) && !b.sourceFreeMovedArrayCapture(record, capture, env) {
+		if !b.crossingInert(capture.Type) && !b.sourceFreeRecordedCapture(record, capture, env) {
 			b.pending(capture.Span, returnOriginOnCaptureRefusal)
 		}
 	}
 	return nil
 }
 
-// The checker admits an owned dynamic array for the mobility of its elements
-// and records that exact verdict. The crossing consumes the binding, so a base
-// array whose current value carries no origin or callable becomes the remote
-// frame's owner. A view or any array holding a loan retains roots and fails.
-func (b *returnOriginBody) sourceFreeMovedArrayCapture(record *CrossingLoweringInfo, capture *CrossingCaptureInfo, env returnOriginEnv) bool {
-	if record == nil || record.Kind != CrossingLoweringOnPlacement || capture == nil ||
-		capture.Mode != CrossingCaptureMoveOwned || capture.Verdict != CrossingCaptureOwnedMovableElements ||
+// The checker records the exact accepted capture and the lowering emits the
+// retain/move plus recursive un-share walk for Copy and owned captures. The
+// current binding must still be source-free: a view or captured loan retains
+// roots and fails here even when its surface type passed the mobility gate.
+func (b *returnOriginBody) sourceFreeRecordedCapture(record *CrossingLoweringInfo, capture *CrossingCaptureInfo, env returnOriginEnv) bool {
+	if record == nil || capture == nil ||
+		(record.Kind != CrossingLoweringOnPlacement && record.Kind != CrossingLoweringOnFarHandle &&
+			record.Kind != CrossingLoweringSpawnOn) ||
 		!capture.Symbol.IsValid() || !capture.Expr.IsValid() {
 		return false
 	}
@@ -122,21 +127,17 @@ func (b *returnOriginBody) sourceFreeMovedArrayCapture(record *CrossingLoweringI
 	node := u.Builder.Exprs.Get(capture.Expr)
 	sym := u.Symbols.Table.Symbols.Get(capture.Symbol)
 	if node == nil || node.Span != capture.Span || u.Symbols.ExprSymbols[capture.Expr] != capture.Symbol ||
-		sym == nil || sym.Type != capture.Type || !returnOriginDynamicArray(u.Sema.TypeInterner, capture.Type) {
+		sym == nil || sym.Type != capture.Type {
 		return false
 	}
-	declNode := u.Builder.Stmts.Get(sym.Decl.Stmt)
-	decl := u.Builder.Stmts.Let(sym.Decl.Stmt)
-	if declNode == nil || declNode.Kind != ast.StmtLet || decl == nil || !decl.Value.IsValid() ||
-		u.stmtSymbols[sym.Decl.Stmt] != capture.Symbol || u.Sema.ExprTypes[decl.Value] != capture.Type {
+	if capture.Mode == CrossingCaptureMoveFarHandle && capture.Verdict == CrossingCaptureFarHandle {
+		far, ok := u.Sema.TypeInterner.Lookup(returnOriginResolveAlias(u.Sema.TypeInterner, capture.Type))
+		return ok && far.Kind == types.KindFar && u.Sema.TypeInterner.IsRuntimeHandleType(far.Elem)
+	}
+	if capture.Mode != CrossingCaptureCopy && capture.Mode != CrossingCaptureMoveOwned {
 		return false
 	}
-	initializer := u.Builder.Exprs.Get(decl.Value)
-	if initializer == nil || initializer.Kind != ast.ExprArray {
-		return false
-	}
-	value := env.value(capture.Symbol)
-	return value.normal && len(value.roots) == 0 && len(value.callables) == 0
+	return b.sourceFreeUnshareTransfer(capture.Type, env.value(capture.Symbol))
 }
 
 // anchoredOperation is the transfer of a channel operation, or `close()`, through the anchor
@@ -148,25 +149,32 @@ func (b *returnOriginBody) sourceFreeMovedArrayCapture(record *CrossingLoweringI
 // inert; anything else stays a named refusal.
 func (b *returnOriginBody) anchoredOperation(id ast.ExprID, call *ast.ExprCallData, env returnOriginEnv, targets returnOriginTargets) (returnOriginExprResult, bool, error) {
 	u := b.function.unit
-	if _, dispatched := u.Sema.CrossingDispatchCalls[id]; !dispatched {
+	_, dispatched := u.Sema.CrossingDispatchCalls[id]
+	if !dispatched {
 		return returnOriginExprResult{}, false, nil
 	}
 	member, ok := u.Builder.Exprs.Member(call.Target)
 	if !ok || member == nil {
 		return returnOriginExprResult{}, true, fmt.Errorf("return origins: anchored operation %d has no receiver in %s", id, u.SourceKey)
 	}
-	inert := b.crossingInert(u.Sema.ExprTypes[id])
+	method, _ := u.Builder.StringsInterner.Lookup(member.Field)
+	inert := b.crossingInert(u.Sema.ExprTypes[id]) ||
+		method == "recv" && b.unshareTransferType(u.Sema.ExprTypes[id])
 	exprs := make([]ast.ExprID, 0, len(call.Args)+1)
 	exprs = append(exprs, member.Target)
 	for _, arg := range call.Args {
 		exprs = append(exprs, arg.Value)
-		inert = inert && b.crossingInert(u.Sema.ExprTypes[arg.Value])
 	}
 	flow := returnOriginFlow{normal: env}
 	for _, expr := range exprs {
 		var err error
 		flow, err = flow.then(func(next returnOriginEnv) (returnOriginFlow, error) {
 			evaluated, evalErr := b.expr(expr, next, targets)
+			proven := expr == member.Target || b.crossingInert(u.Sema.ExprTypes[expr])
+			if method == "send" && len(call.Args) == 1 && expr == call.Args[0].Value {
+				proven = proven || b.sourceFreeUnshareTransfer(u.Sema.ExprTypes[expr], evaluated.value)
+			}
+			inert = inert && proven
 			return evaluated.flow, evalErr
 		})
 		if err != nil {
@@ -197,4 +205,56 @@ func (b *returnOriginBody) crossingInert(id types.TypeID) bool {
 		return false
 	}
 	return !b.hidesBorrow(id)
+}
+
+// sourceFreeUnshareTransfer certifies a value whose type may carry a storage
+// loan, but whose current value carries no origin or callable. The checker has
+// already admitted the boundary and the lowering emits the recursive un-share
+// walk before publication. References, tasks, handles and other hidden-borrow
+// carriers remain refused by the type-shape and hidesBorrow checks.
+func (b *returnOriginBody) sourceFreeUnshareTransfer(id types.TypeID, value returnOriginValue) bool {
+	return b.unshareTransferType(id) && value.normal && len(value.roots) == 0 && len(value.callables) == 0
+}
+
+func (b *returnOriginBody) unshareTransferType(id types.TypeID) bool {
+	in := b.function.unit.Sema.TypeInterner
+	seen := make(map[types.TypeID]bool)
+	var walk func(types.TypeID) bool
+	walk = func(id types.TypeID) bool {
+		id = returnOriginResolveAlias(in, id)
+		if returnOriginTypeShape(in, id, nil) != returnOriginRefFree {
+			return false
+		}
+		if in.IsRuntimeHandleType(id) {
+			// The word names runtime-owned state. Current value roots decide
+			// whether a Task/Range carries a borrow; payload mobility is a
+			// separate checker gate.
+			return true
+		}
+		if seen[id] {
+			return true
+		}
+		seen[id] = true
+		typ, ok := in.Lookup(id)
+		if !ok || typ.Kind == types.KindPointer {
+			return false
+		}
+		if typ.Kind == types.KindOwn || typ.Kind == types.KindFar {
+			return walk(typ.Elem)
+		}
+		if c, canonical := returnOriginContainer(in, id); canonical && !walk(c.element) {
+			return false
+		}
+		children, valid := returnOriginTypeChildren(b.function, id)
+		if !valid {
+			return true
+		}
+		for _, child := range children {
+			if !walk(child) {
+				return false
+			}
+		}
+		return true
+	}
+	return walk(id)
 }

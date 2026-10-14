@@ -77,7 +77,7 @@ func TestAnalyzeOperatorCarrierResult(t *testing.T) {
 		// a concat site's finalized generic use is answered by the concat certificate.
 		concat bool
 	}{
-		{name: "stash", site: originSpan{583, 588, "a + b"}, reason: carrierBinaryRefusal, refused: true},
+		{name: "stash", site: originSpan{583, 588, "a + b"}, reason: carrierBinaryRefusal, refused: false},
 		{name: "stash_unary", site: originSpan{751, 753, "-a"}, reason: carrierUnaryRefusal, refused: true},
 		{name: "stash_opaque", site: originSpan{992, 997, "a * b"}, reason: carrierBinaryRefusal, refused: true},
 		{name: "erased_control", site: originSpan{1215, 1220, "a - b"}, reason: carrierBinaryRefusal, refused: false},
@@ -102,5 +102,8 @@ func TestAnalyzeOperatorCarrierResult(t *testing.T) {
 				t.Errorf("%q carries %q = %v, want %v", leaf.site.snippet, leaf.reason, got, leaf.refused)
 			}
 		})
+	}
+	if at := (originSpan{574, 589, "out.push(a + b)"}); !originPendingAt(analysis, f.unit.SourceKey, at, backingLoanDiscard) {
+		t.Errorf("the exact body result lost its loan-sink refusal at %q", at.snippet)
 	}
 }

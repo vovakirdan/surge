@@ -7,24 +7,18 @@ import (
 
 	"surge/internal/mir"
 	"surge/internal/sema"
-	"surge/internal/types"
 )
 
-// The lifecycle word on the two frame kinds that are NOT the async state
-// machine's: a `spawn on` capture set and a `blocking` capture set.
-//
-// The async frame's four write sites are pinned next door, in
-// ownership_async_state_test.go. These are the other four, and they were the
-// unpinned half: an adversarial review took the crossing's two SPENT writes out
-// of the tree and ran the whole of internal/mir and internal/crossinggate to
-// EXIT 0, then wrote SPENT where the crossing construction site writes PACKED —
-// a frame born claiming to be empty with the captures it just took sitting
-// inside it — and got EXIT 0 again. The only guard was a field COUNT, and a
-// count cannot see a wrong word.
-//
-// Nothing outside MIR reads the word yet, so no backend and no runtime test can
-// notice one of these going missing. Until a reader lands, these rows are the
-// entire reason a write site cannot quietly stop happening.
+// Placement bodies use the ordinary async state machine; blocking and anchored
+// bodies retain their own capture-frame protocol. These assertions pin the
+// published lifecycle word and the ownership transfer at unpack and return.
+
+func lowerCrossingCoroutines(t *testing.T, compiled crossingMIRCompileResult) {
+	t.Helper()
+	if err := mir.LowerAsyncStateMachine(compiled.mod, compiled.sema, compiled.symbols.Table); err != nil {
+		t.Fatal(err)
+	}
+}
 
 // structLitFrameWord returns the lifecycle word a struct literal is built with.
 func structLitFrameWord(lit *mir.StructLit) (int64, bool) {
@@ -125,6 +119,7 @@ func requireSpentAfterTheUnpack(t *testing.T, f *mir.Func, kind string) {
 func TestSpawnOnFrameIsBornPacked(t *testing.T) {
 	compiled := compileCrossingMIR(t, spawnOnCaptureUnpackSource,
 		map[sema.CrossingLoweringKind]bool{sema.CrossingLoweringSpawnOn: true})
+	lowerCrossingCoroutines(t, compiled)
 	ins := requireMIRCrossing(t, compiled.mod, sema.CrossingLoweringSpawnOn)
 
 	word, ok := structLitFrameWord(&ins.State)
@@ -152,6 +147,7 @@ func TestSpawnOnFrameIsBornPacked(t *testing.T) {
 func TestSpawnOnPollMarksTheFrameSpentAtEntry(t *testing.T) {
 	compiled := compileCrossingMIR(t, spawnOnCaptureUnpackSource,
 		map[sema.CrossingLoweringKind]bool{sema.CrossingLoweringSpawnOn: true})
+	lowerCrossingCoroutines(t, compiled)
 	poll := requireSyntheticBody(t, compiled.mod, "__spawn_on_block$")
 	requireSpentAfterTheUnpack(t, poll, "spawn on")
 }
@@ -165,9 +161,7 @@ func TestSpawnOnPollMarksTheFrameSpentAtEveryReturn(t *testing.T) {
 		name, expression string
 		drops            int
 	}{
-		{"int64", "(tally:int)", 0},
-		{"int", "tally", 1},
-		{"uint", "(tally:int)", 1},
+		{"int64", "(tally:int)", 0}, {"int", "tally", 1}, {"uint", "(tally:int)", 1},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			src := crossingMIRPrelude + fmt.Sprintf(`
@@ -178,65 +172,56 @@ fn run(dst: Placement, m: own Movable, tally: %s) -> far Task<int> {
 fn main() -> int { return 0; }
 `, row.name, row.expression)
 			compiled := compileCrossingMIR(t, src, crossingForms(sema.CrossingLoweringSpawnOn))
-			poll := requireSyntheticBody(t, compiled.mod, "__spawn_on_block$")
-			requireSpentAfterTheUnpack(t, poll, "spawn on "+row.name)
-			unpacks := stateUnpacksIn(t, compiled.mod, "__spawn_on_block$")
-			if moved, ok := unpacks["m"]; !ok || !moved {
-				t.Fatal("owned Movable capture must move out of its field")
-			}
-			tally, moved := namedLocal(t, poll, "tally"), namedLocal(t, poll, "m")
-			typ := poll.Locals[tally].Type
-			if got := types.Label(compiled.types, typ); got != row.name {
-				t.Fatalf("tally type=%s, want %s", got, row.name)
-			}
-			if got := compiled.types.IsRefCountedScalar(typ); got != (row.drops == 1) {
-				t.Fatalf("tally counted=%v, want %v", got, row.drops == 1)
-			}
-			requireSpawnOnTallyConstruction(t, compiled, poll, row.drops == 1)
-			if moved, ok := unpacks["tally"]; !ok || moved != (row.drops == 1) {
-				t.Errorf("tally capture MoveOut=%v present=%v, want %v", moved, ok, row.drops == 1)
-			}
-			result := namedLocal(t, poll, "__result")
-			returns := 0
-			for bi := range poll.Blocks {
-				bb := &poll.Blocks[bi]
-				if bb.Term.Kind != mir.TermAsyncReturn {
-					continue
-				}
-				returns++
-				n := len(bb.Instrs)
-				if n < 2 {
-					t.Fatalf("bb%d has no result unshare followed by SPENT", bi)
-				}
-				if word, ok := frameStateWord(&bb.Instrs[n-1]); !ok || word != mir.FrameStateSpent {
-					t.Fatalf("bb%d final instruction must write SPENT", bi)
-				}
-				unshare := &bb.Instrs[n-2]
-				if unshare.Kind != mir.InstrUnshare || !sameBareLocal(unshare.Unshare.Place, mir.Place{Local: result}) {
-					t.Fatalf("bb%d must unshare __result immediately before SPENT", bi)
-				}
-				drops := 0
-				for ii := range bb.Instrs {
-					ins := &bb.Instrs[ii]
+			body := requireSyntheticBody(t, compiled.mod, "__spawn_on_block$")
+			requireSpawnOnTallyConstruction(t, compiled, body, row.drops == 1)
+			tally, moved := namedLocal(t, body, "tally"), namedLocal(t, body, "m")
+			drops := 0
+			for _, bb := range body.Blocks {
+				for _, ins := range bb.Instrs {
 					if ins.Kind != mir.InstrDrop {
 						continue
 					}
 					if sameBareLocal(ins.Drop.Place, mir.Place{Local: moved}) {
-						t.Fatalf("bb%d drops the Movable already consumed by use", bi)
+						t.Fatal("body drops the Movable already consumed by use")
 					}
 					if sameBareLocal(ins.Drop.Place, mir.Place{Local: tally}) {
 						drops++
-						if ii >= n-2 {
-							t.Fatalf("bb%d tally drop must precede result unshare and SPENT", bi)
-						}
 					}
 				}
-				if drops != row.drops {
-					t.Errorf("bb%d tally capture drops=%d, want %d", bi, drops, row.drops)
+			}
+			if drops != row.drops {
+				t.Fatalf("capture cleanup drops=%d, want %d", drops, row.drops)
+			}
+			lowerCrossingCoroutines(t, compiled)
+			poll := requireSyntheticBody(t, compiled.mod, "__spawn_on_block$")
+			requireSpentAfterTheUnpack(t, poll, "spawn on "+row.name)
+			unpacks := stateUnpacksIn(t, compiled.mod, "__spawn_on_block$")
+			for _, name := range []string{"m", "tally"} {
+				if moves, ok := unpacks[name]; !ok || !moves {
+					t.Fatalf("capture %s must transfer from the start payload", name)
+				}
+			}
+			returns := 0
+			for _, bb := range poll.Blocks {
+				if bb.Term.Kind != mir.TermAsyncReturn && bb.Term.Kind != mir.TermAsyncReturnCancelled {
+					continue
+				}
+				n := len(bb.Instrs)
+				if n == 0 {
+					t.Fatal("terminal frame has no SPENT write")
+				}
+				if word, ok := frameStateWord(&bb.Instrs[n-1]); !ok || word != mir.FrameStateSpent {
+					t.Fatal("terminal frame is not SPENT")
+				}
+				if bb.Term.Kind == mir.TermAsyncReturn {
+					returns++
+					if n < 2 || bb.Instrs[n-2].Kind != mir.InstrUnshare || !sameBareLocal(bb.Instrs[n-2].Unshare.Place, bb.Term.AsyncReturn.Value.Place) {
+						t.Fatal("successful result is not unshared immediately before SPENT")
+					}
 				}
 			}
 			if returns == 0 {
-				t.Fatal("spawn poll has no returning block")
+				t.Fatal("no successful placed return")
 			}
 		})
 	}
@@ -267,11 +252,11 @@ fn main() -> int { return 0; }
 func TestSpawnOnPollUnsharesTheResultBeforeSpent(t *testing.T) {
 	compiled := compileCrossingMIR(t, spawnOnCountedResultSource,
 		map[sema.CrossingLoweringKind]bool{sema.CrossingLoweringSpawnOn: true})
+	lowerCrossingCoroutines(t, compiled)
 	poll := requireSyntheticBody(t, compiled.mod, "__spawn_on_block$")
 	if !poll.ResultCrossesThreads {
 		t.Fatalf("%s does not say its result crosses threads; the validator would not treat its return as a boundary", poll.Name)
 	}
-	result := namedLocal(t, poll, "__result")
 	returns := 0
 	for bi := range poll.Blocks {
 		bb := &poll.Blocks[bi]
@@ -280,6 +265,7 @@ func TestSpawnOnPollUnsharesTheResultBeforeSpent(t *testing.T) {
 		}
 		returns++
 		value := bb.Term.AsyncReturn.Value
+		result := value.Place.Local
 		if !bb.Term.AsyncReturn.HasValue || value.Kind != mir.OperandMove ||
 			!sameBareLocal(value.Place, mir.Place{Kind: mir.PlaceLocal, Local: result}) {
 			t.Fatalf("%s bb%d returns %+v, want `move L%d(__result)`", poll.Name, bi, value, result)

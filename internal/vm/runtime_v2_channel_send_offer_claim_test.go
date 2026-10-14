@@ -24,7 +24,7 @@ func TestRuntimeV2ChannelSendOfferClaimKeepsSenderAlive(t *testing.T) {
 	for _, workers := range []string{"1", "8"} {
 		for _, route := range []string{"async-direct", "async-refill", "sync-refill"} {
 			t.Run("workers-"+workers+"/"+route, func(t *testing.T) {
-				env := lifecycleEnv("SURGE_SHARDS=1", "SURGE_THREADS="+workers,
+				env := lifecycleEnv("SURGE_SHARDS="+workers,
 					"SURGE_BLOCKING_THREADS=1", "SURGE_OFFER_CLAIM_ROUTE="+route)
 				stdout, stderr, code := runLifecycleHarness(t, bin, "send-offer-claim", env)
 				want := "OK_OFFER_CLAIM: route=" + route + " workers=" + workers +

@@ -56,11 +56,8 @@ func statementTemporaryRows() []statementTemporaryRow {
 			"fn f(out: &mut &string) -> nothing { put(out, &\"m\"); return nothing; }\n", kept: []string{"&\"m\""}},
 		// A block result leaves the inner statement that computed it.
 		{name: "block_result", text: "fn f() -> uint { return size({ let t = 1; ret &\"k\"; }); }\n", kept: []string{"&\"k\""}},
-		// A value that hides a borrow keeps the temporary with no root to show for it.
-		{name: "task_result", text: "fn f() -> Task<int> { return worker(&\"g\"); }\n", kept: []string{"&\"g\""}},
-		{name: "task_awaited", text: "async fn f() -> nothing { let _ = worker(&\"h\").await(); return nothing; }\n", kept: []string{"&\"h\""}},
-		{name: "spawned", text: "async fn f() -> nothing { let t = spawn worker(&\"i\"); let _ = t.await(); return nothing; }\n",
-			kept: []string{"&\"i\""}},
+		// Task-held temporaries are rejected earlier by the task checker; see
+		// task_statement_temporary_test.go. They no longer reach this analysis.
 		// `arm` is a declaration: a formal it writes through can hold a Task, and a Task hides a borrow.
 		{name: "task_effect", text: "@intrinsic fn arm(out: &mut Task<int>, s: &string) -> nothing;\n" +
 			"fn f(out: &mut Task<int>) -> nothing { arm(out, &\"n\"); return nothing; }\n", kept: []string{"&\"n\""}},
@@ -70,7 +67,7 @@ func statementTemporaryRows() []statementTemporaryRow {
 
 func TestAnalyzeStatementTemporaryBorrows(t *testing.T) {
 	rows := statementTemporaryRows()
-	if len(rows) != 20 {
+	if len(rows) != 17 {
 		t.Fatalf("PRECONDITION: frozen roster changed: rows=%d", len(rows))
 	}
 	for _, row := range rows {

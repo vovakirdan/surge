@@ -37,7 +37,7 @@ func (a *returnOriginAnalyzer) indexUse(fn, caller *returnOriginFunction, id ast
 		}
 	}
 	if found != nil {
-		callee, owner, expr, context := a.genericUseContext(*found)
+		callee, owner, expr, context := a.genericUseContext(found)
 		if context != "" {
 			return ConcreteInstantiationUse{}, context
 		}

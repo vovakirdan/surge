@@ -1,22 +1,19 @@
 @entrypoint
 fn main() -> int {
+    let gate = Channel::<int>::new(0:uint);
+    let started = Channel::<int>::new(1:uint);
     let parent = spawn async {
         let child = spawn async {
-            checkpoint().await();
+            let _ = gate.recv();
             ret 123;
         };
 
-        let r = child.await();
-        compare r {
-            Success(v) => print("child=" + (v to string));
-            Cancelled() => print("child=cancelled");
-        };
-
-        checkpoint().await();
+        started.send(1);
+        let _ = child.await();
         ret 0;
     };
 
-    let _ = checkpoint().await();
+    let _ = started.recv();
     parent.cancel();
 
     let pr = parent.await();

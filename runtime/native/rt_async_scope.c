@@ -38,10 +38,14 @@
 rt_shard* rt_scope_owner_shard(rt_executor* ex, const rt_scope* scope) {
     rt_runtime* runtime = rt_executor_runtime(ex);
     if (scope == NULL) {
-        return rt_runtime_shard0(runtime);
+        panic_msg("async: scope has no owner shard");
+        return NULL;
     }
     rt_shard* shard = rt_runtime_shard(runtime, scope->owner_shard_id);
-    return shard != NULL ? shard : rt_runtime_shard0(runtime);
+    if (shard == NULL) {
+        panic_msg("async: invalid scope owner shard");
+    }
+    return shard;
 }
 
 // Caller holds the shard carried by key. Re-resolving after that acquisition
@@ -171,36 +175,11 @@ uint64_t rt_scope_enter(bool failfast) {
     scope->id = id;
     scope->owner = owner->id;
     // Pin the scope to the entering task's owner shard for its whole life.
-    scope->owner_shard_id = owner->owner_shard_valid != 0 ? owner->owner_shard_id : 0;
+    scope->owner_shard_id = rt_task_owner_shard_id(ex, owner);
     scope->failfast = failfast ? 1 : 0;
     rt_scope_slot_store(ex, id, scope);
     owner->active_scope_key = scope_key(id, scope->owner_shard_id);
     return id;
-}
-
-void rt_scope_register_child(uint64_t scope_id, void* task) {
-    rt_executor* ex = NULL;
-    waker_key key = waker_none();
-    if (!scope_entry_key(scope_id, &ex, &key)) {
-        return;
-    }
-    uint64_t child_id = task_id_from_handle(task);
-    const rt_task* child = get_task(ex, child_id);
-    if (child == NULL) {
-        return;
-    }
-    // Creation is the sole writer of a task's scope identity, so this call
-    // adopts nothing and rewrites nothing. What it does is REFUSE: a task that
-    // was not created in this scope is not this scope's child, and saying so
-    // here is the whole reason the entry point still exists. It used to compute
-    // the comparison and discard it, which is a check that checks nothing --
-    // the stands that once relied on it to adopt a driver's child then ran
-    // with a scope that counted nobody, and their fail-fast joins resolved
-    // against an empty scope.
-    if (!rt_scope_key_equal(child->creation_scope_key, key)) {
-        panic_msg("async: a task registered with a scope that did not create it");
-        return;
-    }
 }
 
 void rt_scope_cancel_all(uint64_t scope_id) {
@@ -274,8 +253,7 @@ bool rt_scope_join_all(uint64_t scope_id, uint64_t* pending, bool* failfast) {
     prepare_park(ex, current, key, 0);
     pending_key = key;
     RT_SYNC_POINT(SP_SCOPE_FAILFAST_JOIN_BEFORE_VERIFY);
-    size_t active_after =
-        scope_join_snapshot(ex, key, RT_DEBT261_VERIFY_FAILFAST_OUT(failfast), NULL);
+    size_t active_after = scope_join_snapshot(ex, key, failfast, NULL);
     if (active_after == 0) {
         remove_waiter(ex, key, current->id);
         current->park_prepared = 0;

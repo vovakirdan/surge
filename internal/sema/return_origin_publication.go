@@ -28,7 +28,8 @@ func (u *returnOriginUnitIndex) callableIdentity(id symbols.SymbolID, owner stri
 	if found.BodyKey == "" {
 		return found, fmt.Errorf("return origins: no local callable identity for %d in %s", id, u.SourceKey)
 	}
-	for _, candidate := range u.authority.CallableCandidates {
+	for i := range u.authority.CallableCandidates {
+		candidate := &u.authority.CallableCandidates[i]
 		if candidate.BodyKey != found.BodyKey || candidate.SourceKey != found.SourceKey {
 			continue
 		}
@@ -77,11 +78,22 @@ func (u *returnOriginUnitIndex) deferredMethod(id ast.ExprID, call *ast.ExprCall
 		return nil, fmt.Errorf("return origins: deferred method %s has no member target", use)
 	}
 	var found *DeferredCallableEdge
-	for _, edge := range u.Sema.InstantiationGraph.DeferredCallables() {
+	deferred := u.localDeferredEdges()
+	foundUse := slices.ContainsFunc(deferred, func(edge DeferredCallableEdge) bool {
+		return edge.UseID == use && edge.Kind == DeferredMethodCall
+	})
+	if !foundUse {
+		deferred = u.deferredEdges()
+	}
+	for i := range deferred {
+		edge := &deferred[i]
 		if edge.UseID != use || edge.Kind != DeferredMethodCall {
 			continue
 		}
-		if found != nil || edge.Witness.SourceKey != u.SourceKey ||
+		if found != nil {
+			return nil, fmt.Errorf("return origins: contradictory deferred method evidence for %s", use)
+		}
+		if edge.Witness.SourceKey != u.SourceKey ||
 			edge.Witness.Site != u.Builder.Exprs.Get(id).Span ||
 			edge.ExpectedResult != u.Sema.ExprTypes[id] || len(edge.Args) != len(call.Args) {
 			return nil, fmt.Errorf("return origins: inconsistent deferred method evidence for %s", use)
@@ -89,8 +101,7 @@ func (u *returnOriginUnitIndex) deferredMethod(id ast.ExprID, call *ast.ExprCall
 		if actual := u.Sema.ExprTypes[member.Target]; !edge.StaticReceiver && actual != types.NoTypeID && actual != edge.Receiver {
 			return nil, fmt.Errorf("return origins: inconsistent deferred receiver for %s", use)
 		}
-		copy := edge
-		found = &copy
+		found = edge
 	}
 	if found == nil {
 		return nil, fmt.Errorf("return origins: missing deferred method evidence for %s", use)

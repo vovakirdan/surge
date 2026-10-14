@@ -141,8 +141,10 @@ static int net_conn_owner_local(rt_executor* ex, const NetConn* c) {
         return 1;
     }
     const rt_task* task = rt_current_task();
-    if (task != NULL && task->owner_shard_valid != 0 && task->owner_shard_id == c->owner_shard_id) {
-        return 1;
+    if (task != NULL) {
+        if (rt_task_owner_shard_id(ex, task) == c->owner_shard_id) {
+            return 1;
+        }
     }
     rt_net_trace_non_owner_conn_denied();
     return 0;
@@ -218,7 +220,7 @@ void* rt_net_listen(void* addr, uint64_t port) {
     }
     size_t member_count = shard_count;
     NetListenerKind kind = member_count > 1 ? NET_LISTENER_REUSEPORT_GROUP : NET_LISTENER_SINGLE;
-    NetListener* listener = rt_net_listener_alloc(kind, member_count, 0);
+    NetListener* listener = rt_net_listener_alloc(kind, member_count);
     if (listener == NULL) {
         return net_make_error(NET_ERR_IO);
     }
@@ -291,11 +293,10 @@ void* rt_net_connect(void* addr, uint64_t port) {
         return net_make_error(err_code == 0 ? NET_ERR_IO : err_code);
     }
 
-    uint32_t owner_shard_id =
-        rt_net_owner_shard_or_compat(&exec_state, rt_debug_current_worker_shard_id());
     rt_executor* ex = ensure_exec();
+    uint32_t owner_shard_id = rt_net_resolve_owner_shard(ex, rt_debug_current_worker_shard_id());
     uint64_t generation = 0;
-    if (ex == NULL ||
+    if (ex == NULL || owner_shard_id == UINT32_MAX ||
         !rt_net_register_open_fd_on_owner_generation(ex, owner_shard_id, fd, &generation)) {
         close(fd);
         return net_make_error(NET_ERR_IO);
@@ -592,8 +593,8 @@ static bool net_wait_current_task(int fd, RtNetWaitKind kind) {
     }
     rt_net_trace_direct_wait();
     prepare_park(ex, task, key, 0);
-    uint32_t verify_owner = rt_net_owner_shard_probe_locked(
-        ex, fd, task->owner_shard_valid != 0 ? task->owner_shard_id : 0);
+    uint32_t verify_owner =
+        rt_net_owner_shard_probe_locked(ex, fd, rt_task_owner_shard_id(ex, task));
     int interest_present = 0;
     if (verify_owner != UINT32_MAX) {
         rt_shard* owner_shard = rt_runtime_shard(rt_executor_runtime(ex), verify_owner);

@@ -32,7 +32,7 @@ func runChannelCloseCancelStand(t *testing.T, sanitize bool) {
 			t.Run(route+"-shard-workers-"+workers, func(t *testing.T) {
 				// Multishard configuration requires THREADS == SHARDS. Each
 				// shard has one background worker; main never polls tasks.
-				env := lifecycleEnv("SURGE_SHARDS="+workers, "SURGE_THREADS="+workers,
+				env := lifecycleEnv("SURGE_SHARDS="+workers,
 					"SURGE_BLOCKING_THREADS=1")
 				if sanitize {
 					// This lane proves access safety, not process-wide zero leaks.

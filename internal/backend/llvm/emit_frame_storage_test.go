@@ -42,13 +42,15 @@ func TestAFrameIsReservedAndReleasedThroughOneDescriptor(t *testing.T) {
 		t.Fatalf("emit LLVM IR: %v", err)
 	}
 
-	allocs := frameAllocRe.FindAllStringSubmatch(ir, -1)
+	constructor := functionBody(t, ir, findMIRFunc(t, mirMod, "add").ID)
+	poll := functionBody(t, ir, findMIRFunc(t, mirMod, "add$poll").ID)
+	allocs := frameAllocRe.FindAllStringSubmatch(constructor, -1)
 	if len(allocs) != 1 {
-		t.Fatalf("the module reserves %d frames through rt_frame_alloc, want 1", len(allocs))
+		t.Fatalf("add reserves %d frames through rt_frame_alloc, want 1", len(allocs))
 	}
 	descriptor := allocs[0][1]
 
-	releases := frameReleaseRe.FindAllStringSubmatch(ir, -1)
+	releases := frameReleaseRe.FindAllStringSubmatch(poll, -1)
 	if len(releases) == 0 {
 		t.Fatal("the cancelled return gives its frame back through nothing at all")
 	}

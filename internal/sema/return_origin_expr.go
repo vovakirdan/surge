@@ -28,8 +28,11 @@ func (b *returnOriginBody) exprCore(id ast.ExprID, env returnOriginEnv, targets 
 		return returnOriginExprResult{}, fmt.Errorf("return origins: missing expression in %s", u.SourceKey)
 	}
 	node := u.Builder.Exprs.Get(id)
-	if node == nil || u.Sema.ExprTypes[id] == types.NoTypeID {
-		return returnOriginExprResult{}, fmt.Errorf("return origins: expression %d is not typed in %s", id, u.SourceKey)
+	if node == nil {
+		return returnOriginExprResult{}, fmt.Errorf("return origins: expression %d is absent in %s", id, u.SourceKey)
+	}
+	if u.Sema.ExprTypes[id] == types.NoTypeID && node.Kind != ast.ExprCompare {
+		return returnOriginExprResult{}, fmt.Errorf("return origins: expression %d kind=%d span=%v is not typed in %s", id, node.Kind, node.Span, u.SourceKey)
 	}
 	switch node.Kind {
 	case ast.ExprIdent:
@@ -42,7 +45,11 @@ func (b *returnOriginBody) exprCore(id ast.ExprID, env returnOriginEnv, targets 
 			return b.callableIdent(id, env), nil
 		}
 		value := env.value(symID)
-		if b.shape(id) == returnOriginRefFree && !b.analyzer.loanCarrier(sym.Type) {
+		keepsLoan := b.analyzer.loanCarrier(sym.Type)
+		if typ, ok := u.Sema.TypeInterner.Lookup(returnOriginResolveAlias(u.Sema.TypeInterner, sym.Type)); ok && typ.Kind == types.KindTuple {
+			keepsLoan = b.holdsLoan(sym.Type)
+		}
+		if b.shape(id) == returnOriginRefFree && !keepsLoan {
 			value = returnOriginValueOf()
 		}
 		if !b.within(sym.Scope, b.function.scope) {
@@ -94,7 +101,8 @@ func (b *returnOriginBody) exprCore(id ast.ExprID, env returnOriginEnv, targets 
 		if target := u.Symbols.Table.Symbols.Get(u.Symbols.ExprSymbols[data.Target]); target != nil && target.Kind == symbols.SymbolModule {
 			selected := u.Symbols.Table.Symbols.Get(u.Symbols.ExprSymbols[id])
 			if selected != nil && selected.Kind == symbols.SymbolFunction && selected.Signature != nil && !selected.Signature.HasSelf &&
-				selected.ReceiverKey == "" && selected.Flags&symbols.SymbolFlagMethod == 0 && selected.Type == u.Sema.ExprTypes[id] {
+				selected.ReceiverKey == "" && selected.Flags&symbols.SymbolFlagMethod == 0 &&
+				returnOriginFnInfo(u.Sema.TypeInterner, selected.Type) != nil && returnOriginFnInfo(u.Sema.TypeInterner, u.Sema.ExprTypes[id]) != nil {
 				return b.callableIdent(id, env), nil
 			}
 			// A module-qualified const is the same fresh evaluation as a local one.
@@ -111,14 +119,23 @@ func (b *returnOriginBody) exprCore(id ast.ExprID, env returnOriginEnv, targets 
 		if err != nil || !out.flow.normal.reachable {
 			return out, err
 		}
-		if b.shape(data.Target) == returnOriginCarriesRef {
+		switch {
+		case b.shape(data.Target) == returnOriginCarriesRef:
 			out.storage = out.value.clone()
-		}
-		if b.shape(id) == returnOriginRefFree {
+			switch {
+			case b.shape(id) == returnOriginRefFree:
+				out.value = returnOriginValueOf()
+			case b.memberBorrowsReferent(id, data, out.storage):
+				out.value = out.storage.clone()
+			default:
+				b.pending(node.Span, "projected borrowed payload needs precise origin facts")
+				out.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
+			}
+		case b.shape(id) == returnOriginRefFree:
 			out.value = returnOriginValueOf()
-		} else if b.memberBorrowsReferent(id, data, out.storage) {
+		case b.memberBorrowsReferent(id, data, out.storage):
 			out.value = out.storage.clone() // the referent's origins cover its field
-		} else {
+		default:
 			b.pending(node.Span, "projected borrowed payload needs precise origin facts")
 			out.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 		}
@@ -278,8 +295,9 @@ func (b *returnOriginBody) binary(id ast.ExprID, env returnOriginEnv, targets re
 	borrowFree := b.shape(id) == returnOriginRefFree && b.shape(data.Left) == returnOriginRefFree && b.shape(data.Right) == returnOriginRefFree &&
 		!b.selectedCarrierResult(u.Sema.MagicBinarySymbols, id)
 	// A certified operation drops operand origins; the borrow-free path needs no proof.
-	if !borrowFree && (b.shape(id) != returnOriginRefFree ||
-		!b.selectedOperation(u.Sema.MagicBinarySymbols, id, magicNameForBinaryOp(data.Op), 2, data.Left, data.Right)) {
+	switch {
+	case !borrowFree && (b.shape(id) != returnOriginRefFree ||
+		!b.selectedOperation(u.Sema.MagicBinarySymbols, id, magicNameForBinaryOp(data.Op), 2, data.Left, data.Right)):
 		if b.bodyOperation(&right, u.Sema.MagicBinarySymbols, id, u.Sema.ExprTypes[id], magicNameForBinaryOp(data.Op), 2,
 			[]returnOriginCallValue{{value: left.value, storage: left.storage}, {value: right.value, storage: right.storage}},
 			data.Left, data.Right) {
@@ -287,11 +305,11 @@ func (b *returnOriginBody) binary(id ast.ExprID, env returnOriginEnv, targets re
 		}
 		b.pending(u.Builder.Exprs.Get(id).Span, "binary callable needs an exact origin contract")
 		right.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
-	} else if borrowFree {
+	case borrowFree:
 		// No certification was computed: every operand is ref-free typed (G6-iv).
 		b.discardLoans(left.value, u.Builder.Exprs.Get(id).Span)
 		right.value = b.discardLoans(right.value, u.Builder.Exprs.Get(id).Span)
-	} else {
+	default:
 		right.value = returnOriginValueOf() // certified operation: no loan-discard refusal
 	}
 	right.storage = returnOriginValue{}

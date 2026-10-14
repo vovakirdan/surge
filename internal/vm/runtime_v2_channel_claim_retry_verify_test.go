@@ -21,7 +21,7 @@ func runChannelClaimRetryVerifyStand(t *testing.T, bin, mode string) (string, st
 	t.Helper()
 	cmd := exec.Command(bin)
 	env := overrideEnvVar(os.Environ(), "SURGE_SHARDS", "1")
-	env = overrideEnvVar(env, "SURGE_THREADS", "1")
+	env = overrideEnvVar(env, "SURGE_TEST_MANUAL_SHARD_LANE", "1")
 	env = overrideEnvVar(env, "SURGE_CHANNEL_RETRY_MODE", mode)
 	env = overrideEnvVar(env, "SURGE_SYNC_POINT", channelClaimRetryVerifyPoint)
 	cmd.Env = env

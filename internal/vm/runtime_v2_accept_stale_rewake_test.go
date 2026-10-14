@@ -65,7 +65,7 @@ func buildRuntimeV2AcceptStaleRewakeStand(t *testing.T, negativeControl bool) st
 func runRuntimeV2AcceptStaleRewakeStand(t *testing.T, binPath string) (string, string, int) {
 	t.Helper()
 	cmd := exec.Command(binPath)
-	cmd.Env = append(os.Environ(), "SURGE_SHARDS=2", "SURGE_THREADS=2")
+	cmd.Env = append(os.Environ(), "SURGE_SHARDS=2")
 	return runCommand(t, cmd, "")
 }
 

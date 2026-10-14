@@ -51,10 +51,10 @@ func TestAnalyzeTypedDeferredCloneAuthority(t *testing.T) {
 			want := sema.ReturnOriginPending{SourceKey: rootKey, Span: edge.Witness.Site, Reason: tc.reason}
 			original, originalUses := res.Sema.InstantiationClosure, res.Sema.DeferredCallableUses
 			snapshot := func(closure *sema.InstantiationClosure, uses map[sema.DeferredUseRef]sema.DeferredUseID) []byte {
-				var entries []struct {
+				entries := make([]struct {
 					Ref sema.DeferredUseRef
 					Use sema.DeferredUseID
-				}
+				}, 0, len(uses))
 				for key, use := range uses {
 					entries = append(entries, struct {
 						Ref sema.DeferredUseRef

@@ -1,4 +1,4 @@
-testdata/golden/sema/invalid/overload_autoref_temp_move.sg (span: 2:1-22:1)
+overload_autoref_temp_move.sg (span: 2:1-22:1)
 ├─ Item[0]: Type (span: 2:1-5:3)
 │  ├─ Name: Point
 │  ├─ Kind: Struct

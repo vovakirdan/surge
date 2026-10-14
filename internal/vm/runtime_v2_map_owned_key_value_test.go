@@ -174,7 +174,7 @@ func TestRuntimeV2MapOwnedEntriesValgrindZero(t *testing.T) {
 	for _, shardCount := range []string{"1", "4"} {
 		t.Run("shards_"+shardCount, func(t *testing.T) {
 			env := overrideEnvVar(baseEnv, "SURGE_SHARDS", shardCount)
-			env = overrideEnvVar(env, "SURGE_THREADS", shardCount)
+			env = overrideEnvVar(env, "SURGE_SHARDS", shardCount)
 			stdout, stderr, exitCode := runBinaryUnderValgrind(t, outputPath, env, 180*time.Second)
 			if hasValgrindMemcheckError(stderr) {
 				t.Fatalf("valgrind reported a real memcheck error (invalid free / use-after-free / uninitialized read)\nstdout:\n%s\nstderr:\n%s",

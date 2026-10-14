@@ -74,7 +74,12 @@ func TestAFunctionEndingInAStatementThatNeverCompletesEndsInUnreachable(t *testi
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			mirMod, result := lowerMIRFromSource(t, tc.program)
-			fn := findFuncByName(t, mirMod, tc.fn)
+			var fn *mir.Func
+			if tc.fn == "main" {
+				fn = findMIRRootBody(t, mirMod)
+			} else {
+				fn = findFuncByName(t, mirMod, tc.fn)
+			}
 			assertNoReturnOfNothing(t, fn, result.Sema.TypeInterner)
 
 			ir, err := EmitModule(mirMod, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
@@ -102,10 +107,15 @@ func assertNoReturnOfNothing(t *testing.T, fn *mir.Func, typesIn *types.Interner
 	}
 	for i := range fn.Blocks {
 		term := fn.Blocks[i].Term
-		if term.Kind != mir.TermReturn || !term.Return.HasValue {
+		var op mir.Operand
+		switch {
+		case term.Kind == mir.TermReturn && term.Return.HasValue:
+			op = term.Return.Value
+		case term.Kind == mir.TermAsyncReturn && term.AsyncReturn.HasValue:
+			op = term.AsyncReturn.Value
+		default:
 			continue
 		}
-		op := term.Return.Value
 		if op.Kind == mir.OperandConst && op.Const.Kind == mir.ConstNothing && isNothingTypeID(typesIn, op.Type) {
 			t.Errorf("RETURN-OF-NOTHING: %s block %d returns `nothing` from a function with a result", fn.Name, i)
 		}

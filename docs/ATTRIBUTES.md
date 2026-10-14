@@ -149,6 +149,11 @@ Rules:
 
 Marks the program entrypoint.
 
+Only the runtime may invoke a synchronous `@entrypoint`. Calling it from source
+(including recursion) or using it as a function value is SEM3226. Put reusable
+logic in a separate function or `async fn`; the entrypoint itself still uses its
+ordinary source signature when the program starts.
+
 Modes:
 - No mode: `@entrypoint` requires all parameters to have defaults.
 - `@entrypoint("argv")`: parse positional arguments via an exact public static

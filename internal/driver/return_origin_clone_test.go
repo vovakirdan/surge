@@ -50,9 +50,10 @@ func TestAnalyzeTypedDeferredCloneOrigins(t *testing.T) {
 				if candidate.Source.File != res.File.ID || candidate.SourceKey != rootKey {
 					continue
 				}
-				if candidate.Name == "duplicate" {
+				switch candidate.Name {
+				case "duplicate":
 					duplicate = candidate
-				} else if candidate.Name == "probe" {
+				case "probe":
 					probe = candidate
 				}
 			}

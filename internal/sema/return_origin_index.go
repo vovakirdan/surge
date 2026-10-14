@@ -47,18 +47,18 @@ func (b *returnOriginBody) index(id ast.ExprID, env returnOriginEnv, targets ret
 	}
 	out.storage = returnOriginValue{}
 	if reason == "index requires a non-scalar index transfer" {
-		if view, handled := b.arrayRangeView(id, target, flow.normal, span); handled {
+		if view, handled := b.arrayRangeView(id, &target, flow.normal, span); handled {
 			out.value = view
 			return out, nil
 		}
-		if reason = b.selectedIndexCall(&out, id, data, target.value, out.value); reason == "" {
+		if reason = b.selectedIndexCall(&out, id, data, &target, &out); reason == "" {
 			return out, nil
 		}
 	}
 	// A selected `__index` over a nominal target with an int index is the same
 	// call selectedIndexCall answers for any other index type. Whatever it cannot
 	// answer keeps the container refusal by its existing name.
-	if reason == "index requires its selected container transfer" && b.selectedIndexCall(&out, id, data, target.value, out.value) == "" {
+	if reason == "index requires its selected container transfer" && b.selectedIndexCall(&out, id, data, &target, &out) == "" {
 		return out, nil
 	}
 	// A selected BytesView scalar read is the exact core intrinsic certified by
@@ -155,7 +155,7 @@ func returnOriginIndexContainer(in *types.Interner, id types.TypeID) (returnOrig
 	return out, false
 }
 
-func returnOriginTypedIndex(u *returnOriginUnitIndex, id ast.ExprID) (returnOriginIndexType, string) {
+func returnOriginTypedIndex(u *returnOriginUnitIndex, id ast.ExprID) (index returnOriginIndexType, reason string) {
 	var empty returnOriginIndexType
 	data, ok := u.Builder.Exprs.Index(id)
 	if !ok || data == nil {

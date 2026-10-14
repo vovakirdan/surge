@@ -43,9 +43,9 @@ func buildChannelCancelFrame(t *testing.T, sanitize bool) string {
 
 func runChannelCancelFrame(t *testing.T, bin string, sanitize bool) {
 	t.Helper()
-	for _, workers := range []string{"1", "8"} {
-		t.Run("workers-"+workers, func(t *testing.T) {
-			env := asyncAllocationEnvironment(t, workers)
+	for _, shards := range []string{"1", "8"} {
+		t.Run("shards-"+shards, func(t *testing.T) {
+			env := asyncAllocationEnvironment(t, shards)
 			if sanitize {
 				// This lane checks invalid accesses and UB. The separate exact
 				// Valgrind differential checks leaks against process bootstrap.
@@ -76,9 +76,9 @@ func TestRuntimeV2ChannelCancelFrameValgrindBaseline(t *testing.T) {
 		t.Fatalf("channel frame allocation proof requires valgrind: %v", err)
 	}
 	bin := buildChannelCancelFrame(t, false)
-	for _, workers := range []string{"1", "8"} {
-		t.Run("workers-"+workers, func(t *testing.T) {
-			runAsyncAllocationBaseline(t, bin, channelCancelFrameMarker, asyncAllocationEnvironment(t, workers))
+	for _, shards := range []string{"1", "8"} {
+		t.Run("shards-"+shards, func(t *testing.T) {
+			runAsyncAllocationBaseline(t, bin, channelCancelFrameMarker, asyncAllocationEnvironment(t, shards))
 		})
 	}
 }

@@ -19,13 +19,8 @@ import (
 // anything -- and rt_scope_enter allocates one rt_scope
 // (runtime/native/rt_async_scope.c). The block is handed back by
 // scope_exit_locked, which the cancelled arm of apply_poll_outcome calls
-// (runtime/native/rt_task_complete.c). The single-worker control runner used
-// to carry its own copy of that switch (run_ready_one, runtime/native/
-// rt_async_poll.c), and the copy had drifted: its cancelled arm went straight
-// to mark_done with no scope teardown at all, so the scope the poll opened
-// outlived the task that owned it. The copy is gone -- that runner now applies
-// its outcome through the same apply_poll_outcome as every other poll site --
-// and this row is what notices if a second copy is ever written.
+// (runtime/native/rt_task_complete.c). Every carrier uses that one path; this
+// row notices if a cancellation path bypasses it.
 //
 // The task IS polled here, whatever "cancelled before it ran" would suggest:
 // the cancel is requested before the await, and the body takes it at its first
@@ -42,7 +37,7 @@ import (
 // reclaimed scope makes that count flat, and an abandoned one makes it grow
 // one block per round.
 //
-// MEASURED, SURGE_SHARDS=1 SURGE_THREADS=1, `in use at exit`, before the fix
+// MEASURED, SURGE_SHARDS=1, `in use at exit`, before the fix
 // and after it:
 //
 //	                          10 rounds     200 rounds
@@ -55,24 +50,13 @@ import (
 // "12,800 bytes in 200 blocks are still reachable ... by rt_scope_enter
 // (rt_async_scope.c:114) ... by run_ready_one (rt_async_poll.c)".
 //
-// WHY ONE WORKER, and what the wide configuration does instead. The arm this
-// row is about only runs when no worker thread takes the turn: with more than
-// one worker rt_task_await waits on done_cv and never enters this runner at
-// all (rt_worker_count(), runtime/native/rt_async_task.c), so a width sweep
-// cannot reach the code under test. The wide configuration is also NOT a flat
-// control to compare against -- it has a second, unrelated intermittent
-// retention on this very program, 200 blocks of 368 bytes allocated by
-// spawn_internal_task_locked for the checkpoint task. Measured at
-// SURGE_SHARDS=4 SURGE_THREADS=4 over 200 cancelled rounds, 25 interleaved
-// samples of each build: 15/25 runs at 26 blocks and 10/25 between 63 and 226
-// with the scope fix, 13/25 at 26 blocks and 12/25 between 180 and 228
-// without it -- the same distribution on both sides, because this fix cannot
-// execute there. That retention is a separate open question and is NOT what
-// this row measures. One block of it is visible even here: the fixed cancelled
-// figure sits one block and 368 bytes above the uncancelled twin (68,248 vs
-// 67,880) at BOTH round counts. Constant, not per-round, so this row's two-count
-// difference is blind to it by construction -- which is exactly why the row
-// subtracts two counts instead of asserting an absolute total.
+// WHY ONE SHARD. The topology under test is one carrier for one owner shard.
+// Before the measured loop, 256 cancelled rounds warm the persistent local
+// and injection queue capacities to the same high-water mark in every process.
+// Without that warmup, a 200-round process retains larger queue buffers than a
+// 10-round process: the block count stays flat while bytes grow, which is
+// allocator capacity, not an abandoned scope. The measured delta therefore
+// remains about per-task scope retention rather than scheduler setup.
 //
 // The uncancelled twin is not decoration. Without it this row could pass on a
 // tree that never ran the loop at all, or that failed to cancel anything: a
@@ -101,7 +85,24 @@ async fn child(payload: string) -> int {
     return 42;
 }
 
+async fn warm_scheduler() -> int {
+    let mut i: int = 0;
+    let mut cancelled: int = 0;
+    while i < 256 {
+        let t: Task<int> = spawn child("warm-owner-shard-queues");
+        t.cancel();
+        cancelled = cancelled + compare t.await() { Success(_) => 0; Cancelled() => 1; };
+        i = i + 1;
+    }
+    return cancelled;
+}
+
 async fn run() -> int {
+    let warmed: int = compare warm_scheduler().await() {
+        Success(v) => v;
+        Cancelled() => 0 - 1;
+    };
+    if warmed != 256 { return 92; }
     let mut i: int = 0;
     let mut cancelled: int = 0;
     while i < %d {
@@ -152,7 +153,7 @@ func runtimeV2CancelledScopeCensus(t *testing.T, rounds int, cancel bool) (bytes
 	// One worker on one shard: the control runner is the applier that drops the
 	// scope, and it is the applier only when no worker thread takes the turn.
 	env = overrideEnvVar(env, "SURGE_SHARDS", "1")
-	env = overrideEnvVar(env, "SURGE_THREADS", "1")
+	env = overrideEnvVar(env, "SURGE_SHARDS", "1")
 	stdout, stderr, exitCode := runBinaryUnderValgrind(t, outputPath, env, 300*time.Second)
 	if hasValgrindMemcheckError(stderr) {
 		t.Fatalf("valgrind reported a real memcheck error at rounds=%d cancel=%v\nstdout:\n%s\nstderr:\n%s",
@@ -177,8 +178,7 @@ func runtimeV2CancelledScopeCensus(t *testing.T, rounds int, cancel bool) (bytes
 }
 
 // TestRuntimeV2CancelledTaskReclaimsItsScope reports 0 blocks and 0 bytes of
-// growth over 190 extra cancelled rounds. Restore the control runner's own
-// copy of the outcome switch and it reports 190 blocks / 12,160 bytes.
+// growth over 190 extra cancelled rounds after equal scheduler warmup.
 func TestRuntimeV2CancelledTaskReclaimsItsScope(t *testing.T) {
 	const (
 		fewRounds  = 10
@@ -214,7 +214,7 @@ func TestRuntimeV2CancelledTaskReclaimsItsScope(t *testing.T) {
 	// check is an invitation to read it as checked.
 	if grownBlocks != 0 || grownBytes != 0 {
 		t.Fatalf(
-			"a task cancelled at its first suspension point does not give back the scope its poll opened: %d blocks / %d bytes still live at exit over %d extra cancelled rounds (%.2f blocks and %.1f bytes per cancelled task), while the same program with nothing cancelled is flat at %d blocks. The block is rt_scope: rt_scope_enter allocates it, and a completion path that reaches mark_done without scope_exit_locked abandons it -- which is what the single-worker control runner did while it applied poll outcomes through a copy of apply_poll_outcome's switch instead of through apply_poll_outcome",
+			"a task cancelled at its first suspension point does not give back the scope its poll opened: %d blocks / %d bytes still live at exit over %d extra cancelled rounds (%.2f blocks and %.1f bytes per cancelled task), while the same program with nothing cancelled is flat at %d blocks after the same owner-shard queue warmup. The block is rt_scope: rt_scope_enter allocates it, and a completion path that reaches mark_done without scope_exit_locked abandons it",
 			grownBlocks, grownBytes, extraRounds,
 			float64(grownBlocks)/float64(extraRounds), float64(grownBytes)/float64(extraRounds),
 			keptFewBlocks,

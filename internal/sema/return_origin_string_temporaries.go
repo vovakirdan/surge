@@ -77,10 +77,10 @@ func (b *returnOriginBody) hidesBorrow(id types.TypeID) bool {
 	return walk(id)
 }
 
-// stringTemporary says whether expr is a string rvalue under a shared `&string` formal:
-// a literal, a concatenation, a conversion or a call result, under parentheses. None of
-// the four resolves to a place (borrow_runtime.go:68–156, default arm), so each is one
-// the checker materialized. Every other expression kind keeps its obligation.
+// stringTemporary says whether expr is the non-addressable string rvalue that
+// canMaterializeForRefString admitted under a shared `&string` formal. Mirror
+// resolvePlace rather than enumerating rvalue kinds: compare, block and later
+// expression forms are temporaries for exactly the same reason as a call.
 func (b *returnOriginBody) stringTemporary(expr ast.ExprID, formal types.TypeID) bool {
 	u := b.function.unit
 	in := u.Sema.TypeInterner
@@ -90,26 +90,35 @@ func (b *returnOriginBody) stringTemporary(expr ast.ExprID, formal types.TypeID)
 		returnOriginResolveAlias(in, u.Sema.ExprTypes[expr]) != text {
 		return false
 	}
-	for {
-		group, grouped := u.Builder.Exprs.Group(expr)
-		if !grouped || group == nil {
-			break
-		}
-		expr = group.Inner
-	}
+	return !b.addressableExpr(expr)
+}
+
+func (b *returnOriginBody) addressableExpr(expr ast.ExprID) bool {
+	u := b.function.unit
+	expr = b.ungroup(expr)
 	node := u.Builder.Exprs.Get(expr)
 	if node == nil {
 		return false
 	}
 	switch node.Kind {
-	case ast.ExprLit, ast.ExprCast, ast.ExprCall:
-		return true
+	case ast.ExprIdent:
+		sym := u.Symbols.Table.Symbols.Get(u.Symbols.ExprSymbols[expr])
+		return sym != nil && (sym.Kind == symbols.SymbolLet || sym.Kind == symbols.SymbolParam)
+	case ast.ExprMember:
+		member, ok := u.Builder.Exprs.Member(expr)
+		return ok && member != nil && b.addressableExpr(member.Target)
+	case ast.ExprTupleIndex:
+		tuple, ok := u.Builder.Exprs.TupleIndex(expr)
+		return ok && tuple != nil && b.addressableExpr(tuple.Target)
 	case ast.ExprIndex:
-		indexed, reason := b.analyzer.stringRangeIndex(b.function, expr)
-		return reason == "" && indexed.family == text
-	case ast.ExprBinary:
-		data, found := u.Builder.Exprs.Binary(expr)
-		return found && data != nil && data.Op == ast.ExprBinaryAdd
+		if !returnOriginIsReference(u.Sema.TypeInterner, u.Sema.ExprTypes[expr]) {
+			return false
+		}
+		index, ok := u.Builder.Exprs.Index(expr)
+		return ok && index != nil && b.addressableExpr(index.Target)
+	case ast.ExprUnary:
+		unary, ok := u.Builder.Exprs.Unary(expr)
+		return ok && unary != nil && (unary.Op == ast.ExprUnaryOwn || unary.Op == ast.ExprUnaryDeref) && b.addressableExpr(unary.Operand)
 	}
 	return false
 }

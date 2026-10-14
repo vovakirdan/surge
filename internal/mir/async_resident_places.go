@@ -15,7 +15,7 @@ import (
 // FRESH slots, so a child task that kept a pointer to one is left pointing at
 // storage the parent no longer uses -- even when both run on the same carrier.
 // `docs/RUNTIME_V2.md` section 9 and section 7 of the storage model say what has
-// to be true instead: a place borrowed by a live carrier-affine child has ONE
+// to be true instead: a place borrowed by a live owner-shard child has ONE
 // stable storage identity from the child's publication until its completion.
 //
 // A resident is that identity. It is a fixed-offset field of the activation's

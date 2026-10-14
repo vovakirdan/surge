@@ -260,11 +260,11 @@ func assertFailfastJoinRun(t *testing.T, lane, threads string, exitCode int, dur
 		if reason == "" {
 			reason = "the program did not run to its verdict"
 		}
-		t.Fatalf("%s SURGE_THREADS=%s: exit=%d -- %s (dur=%s)\nstdout:\n%s\nstderr:\n%s",
+		t.Fatalf("%s SURGE_SHARDS=%s: exit=%d -- %s (dur=%s)\nstdout:\n%s\nstderr:\n%s",
 			lane, threads, exitCode, reason, dur, stdout, stderr)
 	}
 	if !strings.Contains(stdout, "failfast-join-ok") {
-		t.Fatalf("%s SURGE_THREADS=%s: missing completion marker\nstdout:\n%s\nstderr:\n%s",
+		t.Fatalf("%s SURGE_SHARDS=%s: missing completion marker\nstdout:\n%s\nstderr:\n%s",
 			lane, threads, stdout, stderr)
 	}
 }

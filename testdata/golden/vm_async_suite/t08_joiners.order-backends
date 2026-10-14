@@ -1,0 +1,4 @@
+# Both joiners must receive the shared result exactly once. Their relative
+# print order is scheduler selection, not a Runtime V2 language guarantee.
+# Keep the deterministic VM order strict and compare native as a multiset.
+vm

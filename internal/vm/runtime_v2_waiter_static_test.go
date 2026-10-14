@@ -41,7 +41,7 @@ waker_key (*runtime_v2_check_channel_recv_key)(const rt_channel*) = channel_recv
 waker_key (*runtime_v2_check_net_accept_key)(int) = net_accept_key;
 waker_key (*runtime_v2_check_net_read_key)(int) = net_read_key;
 waker_key (*runtime_v2_check_net_write_key)(int) = net_write_key;
-waker_key (*runtime_v2_check_blocking_key)(uint64_t) = blocking_key;
+waker_key (*runtime_v2_check_blocking_key)(uint64_t, uint32_t) = blocking_key;
 
 rt_runtime_status (*runtime_v2_check_waiter_store_ensure_cap)(rt_waiter_store*) = rt_waiter_store_ensure_cap;
 rt_waiter_completion (*runtime_v2_check_executor_wake_net_waiters_for_key_on_owner)(
@@ -53,9 +53,6 @@ void (*runtime_v2_check_add_wait_key)(rt_executor*, rt_task*, waker_key) = add_w
 void (*runtime_v2_check_prepare_park)(rt_executor*, rt_task*, waker_key, int) = prepare_park;
 rt_waiter_store* (*runtime_v2_check_shard_waiter_store)(rt_shard*) = rt_shard_waiter_store;
 const rt_waiter_store* (*runtime_v2_check_shard_waiter_store_const)(const rt_shard*) = rt_shard_waiter_store_const;
-rt_waiter_store* (*runtime_v2_check_executor_waiter_store)(rt_executor*) = rt_executor_waiter_store;
-const rt_waiter_store* (*runtime_v2_check_executor_waiter_store_const)(const rt_executor*) = rt_executor_waiter_store_const;
-
 _Static_assert(sizeof(((waker_key*)0)->kind) == sizeof(uint8_t), "waker_key.kind must stay byte-sized");
 _Static_assert(sizeof(((waker_key*)0)->id) == sizeof(uint64_t), "waker_key.id must stay uint64_t");
 _Static_assert(sizeof(((waiter*)0)->key) == sizeof(waker_key), "waiter.key must store a waker_key");
@@ -75,6 +72,7 @@ _Static_assert(sizeof(((rt_task*)0)->wait_keys_len) == sizeof(size_t), "rt_task.
 _Static_assert(sizeof(((rt_task*)0)->wait_keys_cap) == sizeof(size_t), "rt_task.wait_keys_cap must stay size_t");
 _Static_assert(sizeof(((rt_task*)0)->park_key) == sizeof(waker_key), "rt_task.park_key must stay a waker_key");
 _Static_assert(sizeof(((rt_task*)0)->park_prepared) == sizeof(uint8_t), "rt_task.park_prepared must stay byte-sized");
+_Static_assert(sizeof(((rt_blocking_job*)0)->completion_key) == sizeof(waker_key), "blocking jobs must retain their completion route");
 `
 
 	cmd := exec.Command(

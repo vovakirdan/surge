@@ -102,7 +102,6 @@ func runFreedChannelWaiterHarness(t *testing.T, bin string) (string, string, int
 	// one reach it holds -- see rt_sync_point_arm_block.
 	cmd.Env = lifecycleEnv(
 		"SURGE_SHARDS=2",
-		"SURGE_THREADS=2",
 		"SURGE_REMOTE_DEADLOCK_DETECT=0",
 	)
 	return runCommand(t, cmd, "")

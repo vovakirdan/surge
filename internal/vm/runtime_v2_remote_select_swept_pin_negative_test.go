@@ -20,7 +20,7 @@ import (
 // either way would be a row nobody had measured.
 func TestRuntimeV2RemoteSelectSweptPinNegativeControl(t *testing.T) {
 	bin := buildRemotePublicationHarnessWithFlags(t, []string{"-DRV2_DEBT_322_NEGATIVE_CONTROL"})
-	env := remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+	env := remotePublicationEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1",
 		"SURGE_SYNC_POINT=SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY:block")
 	stdout, stderr, code := runRemotePublicationHarness(t, bin, "far-select-commit-vs-shutdown-sweep", env)
 	if code == 0 {

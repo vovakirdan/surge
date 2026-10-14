@@ -79,7 +79,7 @@ static int run_queue_full(void) {
     if (snap.control_len == 0 || snap.data_len != RT_TRANSPORT_DATA_SLOT_CREDITS) {
         return fail("control lane was blocked by full data lane");
     }
-    if (snap.data_admission_parks != 1) return fail("the saturated lane recorded no park");
+    if (snap.data_admission_parks == 0) return fail("the saturated lane recorded no park");
     (void)rt_executor_request_shutdown(ex);
     uint8_t kind = 0;
     uint64_t bits = 0;

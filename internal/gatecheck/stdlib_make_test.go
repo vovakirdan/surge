@@ -12,10 +12,11 @@ import (
 )
 
 var (
-	makeAssignment = `(?:[A-Za-z_][A-Za-z0-9_]*=(?:"(?:\\.|[^"\\])*"|'[^']*'|[^[:space:]]+)[[:space:]]+)`
-	realGoTestAll  = regexp.MustCompile(`^(` + makeAssignment + `*)go[[:space:]]+test[[:space:]]+\./\.\.\.(?:[[:space:]]|$)`)
-	anyGoTestAll   = regexp.MustCompile(`(?:^|[[:space:]])go[[:space:]]+test[[:space:]]+\./\.\.\.(?:[[:space:]]|$)`)
-	stdlibAssign   = regexp.MustCompile(`(?:^|[[:space:]])SURGE_STDLIB=`)
+	makeAssignment  = `(?:[A-Za-z_][A-Za-z0-9_]*=(?:"(?:\\.|[^"\\])*"|'[^']*'|[^[:space:]]+)[[:space:]]+)`
+	fullTestCommand = `(?:go[[:space:]]+test[[:space:]]+\./\.\.\.|\./scripts/go_test_full\.sh[[:space:]]+"?go"?)`
+	realFullTest    = regexp.MustCompile(`^(` + makeAssignment + `*)` + fullTestCommand + `(?:[[:space:]]|$)`)
+	anyFullTest     = regexp.MustCompile(`(?:^|[[:space:]])` + fullTestCommand + `(?:[[:space:]]|$)`)
+	stdlibAssign    = regexp.MustCompile(`(?:^|[[:space:]])SURGE_STDLIB=`)
 )
 
 func TestMakeTestPinsStdlibToRepository(t *testing.T) {
@@ -30,19 +31,19 @@ func TestMakeTestPinsStdlibToRepository(t *testing.T) {
 func TestStdlibMakeDryRunValidatorNegativeControls(t *testing.T) {
 	root := filepath.Join(string(filepath.Separator), "repo with space")
 	pinned := "SURGE_STDLIB=" + strconv.Quote(root)
-	valid := "echo \"go test ./... is next\"\n" + pinned + " SURGE_SKIP_TIMEOUT_TESTS=1 go test ./... --timeout 300s\n"
+	valid := "echo \"full tests are next\"\n" + pinned + " SURGE_SKIP_TIMEOUT_TESTS=1 ./scripts/go_test_full.sh \"go\"\n"
 	if err := validateStdlibMakeDryRun(valid, root); err != nil {
 		t.Fatalf("non-vacuous positive control: %v", err)
 	}
 
 	mutants := map[string]string{
-		"missing command":      "echo \"go test ./...\"\n# go test ./...\n",
-		"missing assignment":   "go test ./... --timeout 300s\n",
-		"stale assignment":     "SURGE_STDLIB=\"/stale\" go test ./... --timeout 300s\n",
-		"late assignment":      "go test ./... SURGE_STDLIB=" + strconv.Quote(root) + "\n",
-		"duplicate assignment": pinned + " SURGE_STDLIB=\"/stale\" go test ./... --timeout 300s\n",
-		"duplicate command":    valid + pinned + " go test ./... --timeout 300s\n",
-		"false prefix":         "false && " + pinned + " go test ./... --timeout 300s\n",
+		"missing command":      "echo \"./scripts/go_test_full.sh go\"\n# full tests\n",
+		"missing assignment":   "./scripts/go_test_full.sh \"go\"\n",
+		"stale assignment":     "SURGE_STDLIB=\"/stale\" ./scripts/go_test_full.sh \"go\"\n",
+		"late assignment":      "./scripts/go_test_full.sh \"go\" SURGE_STDLIB=" + strconv.Quote(root) + "\n",
+		"duplicate assignment": pinned + " SURGE_STDLIB=\"/stale\" ./scripts/go_test_full.sh \"go\"\n",
+		"duplicate command":    valid + pinned + " ./scripts/go_test_full.sh \"go\"\n",
+		"false prefix":         "false && " + pinned + " ./scripts/go_test_full.sh \"go\"\n",
 	}
 	for name, output := range mutants {
 		t.Run(name, func(t *testing.T) {
@@ -89,27 +90,27 @@ func validateStdlibMakeDryRun(output, root string) error {
 	commandPrefix := ""
 	for _, line := range strings.Split(output, "\n") {
 		line = strings.TrimSpace(line)
-		match := realGoTestAll.FindStringSubmatch(line)
+		match := realFullTest.FindStringSubmatch(line)
 		if match == nil {
 			continue
 		}
-		invocations := len(anyGoTestAll.FindAllStringIndex(line, -1))
+		invocations := len(anyFullTest.FindAllStringIndex(line, -1))
 		commandCount += invocations
 		if invocations == 1 {
 			commandPrefix = match[1]
 		}
 	}
 	if commandCount != 1 {
-		return fmt.Errorf("real go test ./... command count = %d, want 1", commandCount)
+		return fmt.Errorf("real full-test command count = %d, want 1", commandCount)
 	}
 
 	assignmentCount := len(stdlibAssign.FindAllStringIndex(commandPrefix, -1))
 	if assignmentCount != 1 {
-		return fmt.Errorf("SURGE_STDLIB assignments before go test ./... = %d, want 1", assignmentCount)
+		return fmt.Errorf("SURGE_STDLIB assignments before full-test command = %d, want 1", assignmentCount)
 	}
 	expected := "SURGE_STDLIB=" + strconv.Quote(filepath.Clean(root)) + " "
 	if !strings.Contains(commandPrefix, expected) {
-		return fmt.Errorf("go test ./... is not preceded by %s", strings.TrimSpace(expected))
+		return fmt.Errorf("full-test command is not preceded by %s", strings.TrimSpace(expected))
 	}
 	return nil
 }

@@ -20,7 +20,7 @@ import (
 // generic-placed and the joiner's placement must be unchanged.
 func TestRuntimeV2LifecycleJoinConsumePlacementAdoption(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarness(t)
-	env := lifecycleEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1")
+	env := lifecycleEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1")
 	t.Run("positive-connection-placed", func(t *testing.T) {
 		stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "placement-adopt-positive", env)
 		if exitCode != 0 {
@@ -203,7 +203,6 @@ static void poll_xowner_owner(void) {
         // consumes the grandchild (which it reads from g_xowner_grandchild).
         void* child = __task_create(POLL_XOWNER_SCOPE_CHILD, NULL, rt_channel_opaque_word_ops());
         atomic_store_explicit(&g_scope_child_a, child, memory_order_release);
-        rt_scope_register_child(handle, child);
         atomic_store_explicit(&g_xowner_registered, 1, memory_order_release);
         atomic_store_explicit(&g_scope_owner_phase, 1, memory_order_release);
         rt_async_yield(NULL, 0);

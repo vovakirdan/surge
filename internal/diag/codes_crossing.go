@@ -178,4 +178,7 @@ const (
 	FutChannelShareBackendUnavailable Code = 7021
 	// FutChannelSelectBackendUnavailable marks a remote select as unavailable in this backend/configuration.
 	FutChannelSelectBackendUnavailable Code = 7022
+	// FutCrossingBodySuspendUnsupported marks a suspension inside an on/spawn-on
+	// body until those transported bodies have their own state-machine frame.
+	FutCrossingBodySuspendUnsupported Code = 7023
 )

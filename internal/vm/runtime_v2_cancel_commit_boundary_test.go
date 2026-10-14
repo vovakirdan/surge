@@ -35,14 +35,13 @@ func TestRuntimeV2LifecycleDebt263CancelCommitBoundaryProof(t *testing.T) {
 	for _, threads := range []string{"2", "4", "8"} {
 		t.Run("threads-"+threads, func(t *testing.T) {
 			env := lifecycleEnv(
-				"SURGE_SHARDS=1",
-				"SURGE_THREADS="+threads,
+				"SURGE_SHARDS="+threads,
 				"SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_ASYNC_RETURN_BEFORE_SUCCESS_COMMIT:block")
 			stdout, stderr, exitCode := runLifecycleHarness(
 				t, binPath, "debt263-cancel-commit-boundary", env)
 			if exitCode != 0 {
-				t.Fatalf("DEBT-263 positive proof failed at SURGE_THREADS=%s (code=%d)\nstdout:\n%s\nstderr:\n%s",
+				t.Fatalf("DEBT-263 positive proof failed at SURGE_SHARDS=%s (code=%d)\nstdout:\n%s\nstderr:\n%s",
 					threads, exitCode, stdout, stderr)
 			}
 			// Non-vacuity: the cancel landed while the task was held INSIDE the
@@ -59,8 +58,7 @@ func TestRuntimeV2LifecycleDebt263CancelCommitBoundaryProof(t *testing.T) {
 func TestRuntimeV2LifecycleDebt263CancelCommitBoundaryNegativeControl(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarnessDebt263(t, true)
 	env := lifecycleEnv(
-		"SURGE_SHARDS=1",
-		"SURGE_THREADS=2",
+		"SURGE_SHARDS=2",
 		"SURGE_BLOCKING_THREADS=1",
 		"SURGE_SYNC_POINT=SP_ASYNC_RETURN_BEFORE_SUCCESS_COMMIT:block")
 	stdout, stderr, exitCode := runLifecycleHarness(

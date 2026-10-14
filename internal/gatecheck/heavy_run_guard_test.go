@@ -10,11 +10,10 @@ import (
 	"testing"
 )
 
-// scripts/heavy_run_guard.sh refuses a heavy repo-owned entry point (the
-// runtime-v2-* sub-gates, the aggregate, behaviour-check*) BEFORE anything
-// compiles unless the tree is a clean, detached, SHA-pinned worktree on the
-// dedicated measurement host with SURGE_STDLIB pointed at itself, or the
-// GITHUB_ACTIONS CI lane. See docs/runtime-v2-epics/RULES.md, Global Rule 19.
+// scripts/heavy_run_guard.sh refuses a heavy repo-owned entry point before
+// compilation unless CI owns the run or the local worktree has explicit opt-in,
+// an absolute matching SURGE_STDLIB, and a clean SHA or opted-in dirty content
+// fingerprint. See docs/runtime-v2-epics/RULES.md, Global Rule 19.
 //
 // R1-R8 drive the script directly against a hermetic temp git repository, so
 // none of them can be satisfied by anything on the machine actually running
@@ -115,13 +114,13 @@ func TestHermeticRepoIgnoresCallerGitEnvironment(t *testing.T) {
 	}
 }
 
-// baseEnv strips GITHUB_ACTIONS and SURGE_STDLIB from the ambient environment
-// so a test's assertion about either cannot pass by inheriting the value the
-// test process itself happens to run under.
+// baseEnv strips every guard control from the ambient environment so no test
+// can pass by inheriting the caller's opt-in or stdlib.
 func baseEnv(extra ...string) []string {
 	var env []string
 	for _, kv := range os.Environ() {
-		if strings.HasPrefix(kv, "GITHUB_ACTIONS=") || strings.HasPrefix(kv, "SURGE_STDLIB=") {
+		if strings.HasPrefix(kv, "GITHUB_ACTIONS=") || strings.HasPrefix(kv, "SURGE_STDLIB=") ||
+			strings.HasPrefix(kv, "SURGE_LOCAL_HEAVY=") || strings.HasPrefix(kv, "SURGE_LOCAL_HEAVY_ALLOW_DIRTY=") {
 			continue
 		}
 		env = append(env, kv)
@@ -129,154 +128,88 @@ func baseEnv(extra ...string) []string {
 	return append(env, extra...)
 }
 
-func TestHeavyRunGuardRefusesTheSharedCheckout(t *testing.T) {
+func TestHeavyRunGuardRequiresExplicitLocalOptIn(t *testing.T) {
+	root := hermeticRepo(t)
+	output, status := runHeavyRunGuard(t, baseEnv("SURGE_STDLIB="+root), "--root", root, "--label", "runtime-v2-waiter-check")
+	if status != 3 || !strings.Contains(output, "SURGE_LOCAL_HEAVY=1") {
+		t.Fatalf("missing local opt-in: status=%d\n%s", status, output)
+	}
+}
+
+func TestHeavyRunGuardAcceptsCleanNamedBranchWithMatchingStdlib(t *testing.T) {
+	root := hermeticRepo(t)
+	sha := runGit(t, root, "rev-parse", "HEAD")
+	output, status := runHeavyRunGuard(t, baseEnv("SURGE_LOCAL_HEAVY=1", "SURGE_STDLIB="+root), "--root", root, "--label", "runtime-v2-waiter-check")
+	if status != 0 || !strings.Contains(output, "state=clean") || !strings.Contains(output, "evidence=sha:"+sha) {
+		t.Fatalf("clean local worktree was not accepted with its SHA: status=%d\n%s", status, output)
+	}
+}
+
+func TestHeavyRunGuardRequiresAbsoluteMatchingStdlib(t *testing.T) {
+	root := hermeticRepo(t)
+	for _, tc := range []struct{ name, stdlib string }{
+		{"relative", "."},
+		{"other-tree", t.TempDir()},
+		{"unset", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env := baseEnv("SURGE_LOCAL_HEAVY=1")
+			if tc.stdlib != "" {
+				env = append(env, "SURGE_STDLIB="+tc.stdlib)
+			}
+			output, status := runHeavyRunGuard(t, env, "--root", root, "--label", "runtime-v2-waiter-check")
+			if status != 3 || !strings.Contains(output, "SURGE_STDLIB") {
+				t.Fatalf("invalid stdlib was not refused: status=%d\n%s", status, output)
+			}
+		})
+	}
+}
+
+func TestHeavyRunGuardDirtyTreeNeedsSecondOptIn(t *testing.T) {
 	root := hermeticRepo(t)
 	if err := os.WriteFile(filepath.Join(root, "f.txt"), []byte("dirty\n"), 0o600); err != nil {
-		t.Fatalf("dirty the tree: %v", err)
+		t.Fatal(err)
 	}
-	noMarker := filepath.Join(t.TempDir(), "no-such-marker")
-
-	output, status := runHeavyRunGuard(t, baseEnv(), "--root", root, "--marker", noMarker, "--label", "runtime-v2-waiter-check")
-
-	if status != 3 {
-		t.Fatalf("a named-branch, dirty, unmarked tree exited %d, want 3\n%s", status, output)
-	}
-	if !strings.Contains(output, "212.108.83.42") {
-		t.Errorf("refusal did not name the dedicated host\n%s", output)
-	}
-	if !strings.Contains(output, "worktree add --detach") {
-		t.Errorf("refusal did not give the worktree instruction\n%s", output)
+	output, status := runHeavyRunGuard(t, baseEnv("SURGE_LOCAL_HEAVY=1", "SURGE_STDLIB="+root), "--root", root, "--label", "runtime-v2-waiter-check")
+	if status != 3 || !strings.Contains(output, "SURGE_LOCAL_HEAVY_ALLOW_DIRTY=1") {
+		t.Fatalf("dirty tree was not refused without its opt-in: status=%d\n%s", status, output)
 	}
 }
 
-func TestHeavyRunGuardAcceptsADetachedPinnedWorktreeOnTheDedicatedHost(t *testing.T) {
+func TestHeavyRunGuardDirtyFingerprintCoversTrackedAndUntrackedContent(t *testing.T) {
 	root := hermeticRepo(t)
-	sha := detachHead(t, root)
-	marker := filepath.Join(t.TempDir(), "marker")
-	if err := os.WriteFile(marker, nil, 0o600); err != nil {
-		t.Fatalf("seed marker: %v", err)
+	tracked := filepath.Join(root, "f.txt")
+	untracked := filepath.Join(root, "extra.go")
+	if err := os.WriteFile(tracked, []byte("dirty\n"), 0o600); err != nil {
+		t.Fatal(err)
 	}
-
-	output, status := runHeavyRunGuard(t, baseEnv("SURGE_STDLIB="+root), "--root", root, "--marker", marker, "--label", "runtime-v2-waiter-check")
-
-	if status != 0 {
-		t.Fatalf("a clean, detached, marked, self-pointed tree exited %d, want 0\n%s", status, output)
+	if err := os.WriteFile(untracked, []byte("package extra\n"), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(output, sha) {
-		t.Errorf("acceptance did not print the pinned SHA %s\n%s", sha, output)
+	env := baseEnv("SURGE_LOCAL_HEAVY=1", "SURGE_LOCAL_HEAVY_ALLOW_DIRTY=1", "SURGE_STDLIB="+root)
+	first, status := runHeavyRunGuard(t, env, "--root", root, "--label", "runtime-v2-waiter-check")
+	if status != 0 || !strings.Contains(first, "state=dirty-opt-in") || !strings.Contains(first, "evidence=worktree:") {
+		t.Fatalf("dirty opted-in tree was not fingerprinted: status=%d\n%s", status, first)
 	}
-}
-
-func TestHeavyRunGuardRefusesADetachedWorktreeOffTheDedicatedHost(t *testing.T) {
-	root := hermeticRepo(t)
-	detachHead(t, root)
-	noMarker := filepath.Join(t.TempDir(), "no-such-marker")
-
-	output, status := runHeavyRunGuard(t, baseEnv("SURGE_STDLIB="+root), "--root", root, "--marker", noMarker, "--label", "runtime-v2-waiter-check")
-
-	if status != 3 {
-		t.Fatalf("a detached, clean tree with no marker exited %d, want 3\n%s", status, output)
+	second, status := runHeavyRunGuard(t, env, "--root", root, "--label", "runtime-v2-waiter-check")
+	if status != 0 || first != second {
+		t.Fatalf("unchanged dirty tree fingerprint is unstable:\nfirst=%s\nsecond=%s", first, second)
 	}
-	if !strings.Contains(output, "не выделенный хост") {
-		t.Errorf("refusal did not name the missing dedicated host\n%s", output)
+	if err := os.WriteFile(untracked, []byte("package changed\n"), 0o600); err != nil {
+		t.Fatal(err)
 	}
-}
-
-func TestHeavyRunGuardRefusesADirtyWorktreeOnTheDedicatedHost(t *testing.T) {
-	root := hermeticRepo(t)
-	detachHead(t, root)
-	marker := filepath.Join(t.TempDir(), "marker")
-	if err := os.WriteFile(marker, nil, 0o600); err != nil {
-		t.Fatalf("seed marker: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "f.txt"), []byte("dirty\n"), 0o600); err != nil {
-		t.Fatalf("dirty a tracked file: %v", err)
-	}
-
-	output, status := runHeavyRunGuard(t, baseEnv("SURGE_STDLIB="+root), "--root", root, "--marker", marker, "--label", "runtime-v2-waiter-check")
-
-	if status != 3 {
-		t.Fatalf("a detached, marked, dirty tree exited %d, want 3\n%s", status, output)
-	}
-	if !strings.Contains(output, "дерево грязное") {
-		t.Errorf("refusal did not name the dirty tree\n%s", output)
-	}
-}
-
-func TestHeavyRunGuardRefusesAnUntrackedSourceFile(t *testing.T) {
-	root := hermeticRepo(t)
-	detachHead(t, root)
-	marker := filepath.Join(t.TempDir(), "marker")
-	if err := os.WriteFile(marker, nil, 0o600); err != nil {
-		t.Fatalf("seed marker: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "extra.go"), []byte("package extra\n"), 0o600); err != nil {
-		t.Fatalf("add an untracked file: %v", err)
-	}
-
-	output, status := runHeavyRunGuard(t, baseEnv("SURGE_STDLIB="+root), "--root", root, "--marker", marker, "--label", "runtime-v2-waiter-check")
-
-	if status != 3 {
-		t.Fatalf("a detached, marked tree with an untracked file exited %d, want 3\n%s", status, output)
-	}
-}
-
-func TestHeavyRunGuardRefusesAStdlibFromAnotherTree(t *testing.T) {
-	root := hermeticRepo(t)
-	detachHead(t, root)
-	marker := filepath.Join(t.TempDir(), "marker")
-	if err := os.WriteFile(marker, nil, 0o600); err != nil {
-		t.Fatalf("seed marker: %v", err)
-	}
-	elsewhere := t.TempDir()
-
-	output, status := runHeavyRunGuard(t, baseEnv("SURGE_STDLIB="+elsewhere), "--root", root, "--marker", marker, "--label", "runtime-v2-waiter-check")
-
-	if status != 3 {
-		t.Fatalf("SURGE_STDLIB pointed outside the worktree exited %d, want 3\n%s", status, output)
-	}
-	if !strings.Contains(output, "SURGE_STDLIB") {
-		t.Errorf("refusal did not name SURGE_STDLIB\n%s", output)
-	}
-}
-
-func TestHeavyRunGuardRefusesAnUnsetStdlib(t *testing.T) {
-	root := hermeticRepo(t)
-	detachHead(t, root)
-	marker := filepath.Join(t.TempDir(), "marker")
-	if err := os.WriteFile(marker, nil, 0o600); err != nil {
-		t.Fatalf("seed marker: %v", err)
-	}
-
-	output, status := runHeavyRunGuard(t, baseEnv(), "--root", root, "--marker", marker, "--label", "runtime-v2-waiter-check")
-
-	if status != 3 {
-		t.Fatalf("an unset SURGE_STDLIB exited %d, want 3\n%s", status, output)
-	}
-	if !strings.Contains(output, "SURGE_STDLIB") {
-		t.Errorf("refusal did not name SURGE_STDLIB\n%s", output)
+	third, status := runHeavyRunGuard(t, env, "--root", root, "--label", "runtime-v2-waiter-check")
+	if status != 0 || third == first {
+		t.Fatalf("untracked content did not change the fingerprint:\nfirst=%s\nthird=%s", first, third)
 	}
 }
 
 func TestHeavyRunGuardTheCILaneIsAllowed(t *testing.T) {
-	root := hermeticRepo(t) // stays on its named default branch, uncleaned on purpose
-	noMarker := filepath.Join(t.TempDir(), "no-such-marker")
-
-	output, status := runHeavyRunGuard(t, baseEnv("GITHUB_ACTIONS=true"), "--root", root, "--marker", noMarker, "--label", "runtime-v2-check")
-
-	if status != 0 {
-		t.Fatalf("GITHUB_ACTIONS=true on a named-branch tree exited %d, want 0\n%s", status, output)
+	root := hermeticRepo(t)
+	output, status := runHeavyRunGuard(t, baseEnv("GITHUB_ACTIONS=true"), "--root", root, "--label", "runtime-v2-check")
+	if status != 0 || !strings.Contains(output, "CI") {
+		t.Fatalf("CI lane was not accepted: status=%d\n%s", status, output)
 	}
-	if !strings.Contains(output, "CI") {
-		t.Errorf("acceptance did not name the CI lane\n%s", output)
-	}
-}
-
-func detachHead(t *testing.T, root string) string {
-	t.Helper()
-	sha := runGit(t, root, "rev-parse", "HEAD")
-	runGitNoOutput(t, root, "checkout", "-q", "--detach", sha)
-	return sha
 }
 
 func runGit(t *testing.T, dir string, args ...string) string {
@@ -288,15 +221,6 @@ func runGit(t *testing.T, dir string, args ...string) string {
 		t.Fatalf("git %v: %v", args, err)
 	}
 	return strings.TrimSpace(string(out))
-}
-
-func runGitNoOutput(t *testing.T, dir string, args ...string) {
-	t.Helper()
-	cmd := exec.Command("git", args...) // #nosec G204 -- fixed executable, test-owned fixed argv.
-	cmd.Dir = dir
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git %v: %v\n%s", args, err, out)
-	}
 }
 
 // ===== R9-R11: the Makefile's own wiring =====

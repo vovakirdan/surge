@@ -11,9 +11,9 @@ import (
 // exactly as a mutable one always was. The constructor used to copy the
 // referent into a heap box here (RV2-DEBT-303, "rt_alloc(i64 8, i64 8)" in
 // this prologue, freed by nothing); the box is gone because the borrowed place
-// is promoted to the creator's frame and the child is pinned to the creator's
-// carrier, and this row is what keeps it gone. It is built through the affine
-// constructor, which is the other half of the same fact.
+// is promoted to the creator's frame and the child keeps the creator's owner
+// shard. Runtime V2 has one carrier on that shard, so no separate carrier ABI
+// is needed.
 func TestEmitAsyncSharedRefParamKeepsCallerAlias(t *testing.T) {
 	sourceCode := `async fn read_ref(x: &int) -> int {
     checkpoint().await();
@@ -49,8 +49,8 @@ fn main() -> int {
 	if !strings.Contains(body, "store ptr %p0, ptr %l0") {
 		t.Fatalf("async shared ref constructor should store the original pointer alias:\n%s", body)
 	}
-	if !strings.Contains(body, "call ptr @__task_create_cold_affine(") {
-		t.Fatalf("a constructor holding a borrow must build its task through __task_create_cold_affine:\n%s", body)
+	if !strings.Contains(body, "call ptr @__task_create_cold(") {
+		t.Fatalf("a constructor holding a borrow must use the shard-owned cold task path:\n%s", body)
 	}
 }
 

@@ -64,26 +64,26 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 	flow := returnOriginFlow{normal: env}
 	values := make(map[ast.ExprID]returnOriginCallValue, len(call.Args)+1)
 	evaluate := func(expr ast.ExprID) error {
-		var err error
-		flow, err = flow.then(func(next returnOriginEnv) (returnOriginFlow, error) {
+		var flowErr error
+		flow, flowErr = flow.then(func(next returnOriginEnv) (returnOriginFlow, error) {
 			out, evalErr := b.expr(expr, next, targets)
 			values[expr] = returnOriginCallValue{value: out.value.clone(), storage: out.storage.clone()}
 			return out.flow, evalErr
 		})
-		return err
+		return flowErr
 	}
 	if receiver.IsValid() {
-		if err := evaluate(receiver); err != nil {
-			return returnOriginExprResult{}, err
+		if evalErr := evaluate(receiver); evalErr != nil {
+			return returnOriginExprResult{}, evalErr
 		}
 	} else if !callback && deferred == nil && (sym == nil || sym.Kind != symbols.SymbolFunction) {
-		if err := evaluate(call.Target); err != nil {
-			return returnOriginExprResult{}, err
+		if evalErr := evaluate(call.Target); evalErr != nil {
+			return returnOriginExprResult{}, evalErr
 		}
 	}
 	for _, arg := range call.Args {
-		if err := evaluate(arg.Value); err != nil {
-			return returnOriginExprResult{}, err
+		if evalErr := evaluate(arg.Value); evalErr != nil {
+			return returnOriginExprResult{}, evalErr
 		}
 	}
 	if !flow.normal.reachable {
@@ -153,20 +153,21 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		guarded := b.loanGuardFormal(callee, signature, info, callback, i) && (!certified || op != returnOriginArrayPush || i != 1) && (!mapCertified || mapOp != returnOriginMapInsert || i != 2)
 		actuals[i] = returnOriginValueOf()
 		if slot.defaulted {
-			params := callee.unit.Builder.Items.GetFnParamIDs(callee.item)
-			if i >= len(params) {
+			paramIDs := callee.unit.Builder.Items.GetFnParamIDs(callee.item)
+			if i >= len(paramIDs) {
 				return returnOriginExprResult{}, fmt.Errorf("return origins: default at %v has no original parameter", span)
 			}
-			param := callee.unit.Builder.Items.FnParam(params[i])
+			param := callee.unit.Builder.Items.FnParam(paramIDs[i])
 			// Other defaults need their owning expression's transfer, not the
 			// importing caller's AST or a reconstructed expected binding type.
-			if literal, ok := callee.unit.Builder.Exprs.Literal(param.Default); !ok || literal == nil {
+			if !b.sourceFreeDefaultExpression(callee, param.Default, params[i]) {
 				b.pending(span, "nonliteral default argument needs its owning expression transfer")
 				actuals[i] = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 			}
 		}
 		for _, expr := range slot.exprs {
-			value := b.callArgumentOrigin(expr, params[i], values[expr], confined)
+			actual := values[expr]
+			value := b.callArgumentOrigin(expr, params[i], &actual, confined)
 			if returnOriginFnInfo(u.Sema.TypeInterner, params[i]) != nil || len(values[expr].value.callables) != 0 {
 				value = b.convertCallableArgument(callee, i, slot, expr, params[i], value, signature)
 			}
@@ -215,18 +216,25 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 	}
 	var summary returnOriginValue
 	confinedCallback := callback && b.genericCallbackConfined(info, call.Target, span)
-	if confinedCallback {
+	in := b.function.unit.Sema.TypeInterner
+	taskFunctionValue := callback && b.analyzer.isCoreTask(in, info.Result)
+	inertTaskCall := b.inertTaskFunctionValueCall(info)
+	bodiedCallables := callbackValue.normal && b.callablesHaveBodies(callbackValue)
+	certifiedTaskFunctionValue := taskFunctionValue && inertTaskCall && bodiedCallables
+	switch {
+	case certifiedTaskFunctionValue:
 		summary = returnOriginValueOf()
-	} else if callbackValue.normal {
-		if b.inertTaskFunctionValueCall(info) && b.callablesHaveBodies(callbackValue) {
+		if callbackValue.normal {
 			summary = b.inertTaskCallableSources(callbackValue, span)
-		} else {
-			summary = b.callableValueSources(callbackValue, span)
 		}
+	case confinedCallback:
+		summary = returnOriginValueOf()
+	case callbackValue.normal:
+		summary = b.callableValueSources(callbackValue, span)
 		if returnOriginCallHasUnprovedEffects(u.Sema.TypeInterner, effects) || loanSinks {
 			flow.normal = b.taintExternalCellEffects(flow.normal, span, "indirect call may change reference-bearing or callable contents")
 		}
-	} else if callee != nil && callee.item.Body.IsValid() {
+	case callee != nil && callee.item.Body.IsValid():
 		// A recursive body legitimately starts at NoNormalReturn. Its private
 		// fixed point, not the declared upper bound, supplies actual precision.
 		view := returnOriginView(callee)
@@ -235,16 +243,20 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 		}
 		required := b.inheritRequirements(callee, view, span)
 		summary = b.analyzer.summaries[callee.key].value
-		summary, _ = b.analyzer.freshGenericArraySummary(callee, view, summary)
+		summary = b.analyzer.freshGenericArraySummary(callee, view, summary)
 		if required.failed() && summary.normal {
 			summary = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 		}
-	} else {
+	default:
 		var sources []uint32
 		var valid bool
 		if callback {
 			declared, complete := b.declaredCallable(u.Sema.ExprTypes[call.Target], callbackType, span)
 			sources, valid = declared.slots, complete
+			if valid && b.analyzer.isCoreTask(u.Sema.TypeInterner, info.Result) && !declared.bodied {
+				b.pending(span, "task function value may name a body-less intrinsic")
+				valid = false
+			}
 		} else {
 			sources, valid = b.declaredFunctionSources(callee, span, signature)
 		}
@@ -293,6 +305,33 @@ func (b *returnOriginBody) call(id ast.ExprID, env returnOriginEnv, targets retu
 	return returnOriginExprResult{flow: flow, value: value}, nil
 }
 
+func (b *returnOriginBody) sourceFreeDefaultExpression(callee *returnOriginFunction, id ast.ExprID, expected types.TypeID) bool {
+	if callee == nil || callee.unit == nil || !id.IsValid() {
+		return false
+	}
+	u := callee.unit
+	if expected == types.NoTypeID || returnOriginTypeShape(u.Sema.TypeInterner, expected, nil) != returnOriginRefFree ||
+		b.analyzer.loanCarrier(expected) || b.hidesBorrow(expected) {
+		return false
+	}
+	node := u.Builder.Exprs.Get(id)
+	if node == nil {
+		return false
+	}
+	switch node.Kind {
+	case ast.ExprLit:
+		return true
+	case ast.ExprGroup:
+		group, ok := u.Builder.Exprs.Group(id)
+		return ok && group != nil && b.sourceFreeDefaultExpression(callee, group.Inner, expected)
+	case ast.ExprCast:
+		cast, ok := u.Builder.Exprs.Cast(id)
+		return ok && cast != nil && cast.Value.IsValid() && b.sourceFreeDefaultExpression(callee, cast.Value, expected)
+	default:
+		return false
+	}
+}
+
 // coreTaskClone is the generic-clone certificate (owner ruling 2026-09-26): the core
 // `Task<T>.clone(self: &Task<T>)`, recognized by its declaration (returnOriginTaskHandleResidual
 // checks the core intrinsic, its receiver and its exact signature), writes through nothing:
@@ -320,13 +359,16 @@ func (b *returnOriginBody) inertTaskFunctionValueCall(info *types.FnInfo) bool {
 		return false
 	}
 	for _, param := range info.Params {
-		if returnOriginFnInfo(in, param) != nil || !b.crossingInert(param) {
+		if returnOriginFnInfo(in, param) != nil ||
+			returnOriginTypeShape(in, param, nil) != returnOriginRefFree ||
+			b.analyzer.loanCarrier(param) || b.hidesBorrow(param) {
 			return false
 		}
 	}
 	task, ok := in.StructInfo(info.Result)
 	return ok && task != nil && len(task.TypeArgs) == 1 && returnOriginFnInfo(in, task.TypeArgs[0]) == nil &&
-		b.crossingInert(task.TypeArgs[0])
+		returnOriginTypeShape(in, task.TypeArgs[0], nil) == returnOriginRefFree &&
+		!b.analyzer.loanCarrier(task.TypeArgs[0]) && !b.hidesBorrow(task.TypeArgs[0])
 }
 
 // callablesHaveBodies keeps D1 to function values that name declared functions with bodies.
@@ -339,14 +381,17 @@ func (b *returnOriginBody) callablesHaveBodies(value returnOriginValue) bool {
 		return false
 	}
 	for i := range value.callables {
-		alternative := &value.callables[i]
+		alternative := value.callables[i]
+		if alternative == nil {
+			return false
+		}
 		if alternative.bodyKey == "" {
 			if !alternative.bodied {
 				return false
 			}
 			continue
 		}
-		if fn := b.callableFunction(*alternative); fn == nil || !fn.item.Body.IsValid() {
+		if fn := b.callableFunction(alternative); fn == nil || !fn.item.Body.IsValid() {
 			return false
 		}
 	}
@@ -372,7 +417,7 @@ func (b *returnOriginBody) inertTaskCallableSources(value returnOriginValue, spa
 
 // Calls and function values share one reader, so a selection that one of them
 // could certify can never be refused by the other.
-func (b *returnOriginBody) resolveCallDeclaration(id symbols.SymbolID) (*returnOriginFunction, string) {
+func (b *returnOriginBody) resolveCallDeclaration(id symbols.SymbolID) (fn *returnOriginFunction, reason string) {
 	return b.analyzer.selectedCallableFunction(b.function.unit, id)
 }
 
@@ -409,9 +454,12 @@ type returnOriginCallValue struct {
 	storage returnOriginValue
 }
 
-func (b *returnOriginBody) callArgumentOrigin(expr ast.ExprID, formal types.TypeID, actual returnOriginCallValue, confined bool) returnOriginValue {
+func (b *returnOriginBody) callArgumentOrigin(expr ast.ExprID, formal types.TypeID, actual *returnOriginCallValue, confined bool) returnOriginValue {
 	u := b.function.unit
 	in := u.Sema.TypeInterner
+	if actual == nil {
+		return returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
+	}
 	if !returnOriginIsReference(in, formal) || returnOriginIsReference(in, u.Sema.ExprTypes[expr]) {
 		return actual.value.clone()
 	}
@@ -447,6 +495,13 @@ func (b *returnOriginBody) callArgumentOrigin(expr ast.ExprID, formal types.Type
 		return unknown
 	}
 	if !actual.storage.normal || len(actual.storage.roots) == 0 {
+		// A certified core call whose result and effects cannot retain this
+		// borrow needs the checker-admitted borrow itself, but no storage root
+		// has to escape into the call summary. Moved projections such as
+		// `print(own model.label)` deliberately have no post-move storage root.
+		if confined {
+			return returnOriginValueOf()
+		}
 		b.pending(span, "implicit borrow needs its evaluated storage origin")
 		return unknown
 	}
@@ -477,7 +532,7 @@ func returnOriginFormalBorrowKind(in *types.Interner, id types.TypeID) (BorrowKi
 	return BorrowShared, false
 }
 
-func (b *returnOriginBody) genericCallInfo(id ast.ExprID, callee *returnOriginFunction) (*returnOriginSignature, string) {
+func (b *returnOriginBody) genericCallInfo(id ast.ExprID, callee *returnOriginFunction) (resultSignature *returnOriginSignature, failure string) {
 	args, reason := b.function.originalInstantiation(id, InstantiationFunction, callee.candidate.Symbol)
 	if reason != "" {
 		return nil, reason

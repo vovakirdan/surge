@@ -87,7 +87,7 @@ fn main() -> int {
 	// The assertions are about how `main` READS the nested union, so they look
 	// at `main` alone. `demo` builds one, and a module-wide search would let
 	// the construction satisfy assertions written about the destructuring.
-	body := functionBody(t, ir, findMIRFunc(t, mirMod, "main").ID)
+	body := functionBody(t, ir, findMIRRootBody(t, mirMod).ID)
 
 	// A union nested inside a union is one run of bytes, and the pipeline walks
 	// into it by offset. This used to assert only that SOMETHING was heap

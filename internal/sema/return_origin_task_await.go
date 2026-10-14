@@ -18,9 +18,9 @@ import (
 //   - the payload's origins travel in the handle's value (a call to an async fn yields its body's
 //     summary), and the by-value formal holds no borrow, so a loan the handle carries meets the
 //     loan-discard refusal at the receiver (loanGuardFormal);
-//   - TaskResult<T> is fresh only under NoBorrowedState of T: a reference is refuted, and an
-//     array, a map, a range, a task or a function value is unsupported, so a payload that can hold
-//     a reference, a storage loan or a task keeps a named row at the call.
+//   - TaskResult<T> receives exactly the origins carried by the consumed task
+//     handle. An owning array result is therefore distinct from a view; an
+//     opaque or borrowed task payload keeps its roots and remains refused.
 // An `own` receiver matched exactly before and still does; a reference, a pointer, a `far` handle
 // (read from the crossing record instead) or an alias of Task keeps the refusal.
 
@@ -49,4 +49,20 @@ func returnOriginTaskAwait(fn *returnOriginFunction) bool {
 	info, found := in.StructInfo(receiver)
 	return typed && found && info != nil && self.Kind == types.KindOwn && self.Elem == receiver &&
 		returnOriginTaskLeaf(fn, receiver) && slices.Equal(info.TypeArgs, fn.candidate.TemplateParams)
+}
+
+// returnOriginTaskTimeout says fn is the exact core timeout intrinsic. Like
+// Task.await, it exposes only the payload already owned by its task argument;
+// the delay contributes no borrowed state.
+func returnOriginTaskTimeout(fn *returnOriginFunction) bool {
+	if fn == nil || fn.name != "timeout" || !returnOriginCoreIntrinsic(fn, 1, 0) ||
+		fn.candidate.HasSelf || fn.candidate.ReceiverType != types.NoTypeID || len(fn.info.Params) != 2 {
+		return false
+	}
+	in := fn.unit.Sema.TypeInterner
+	task := fn.info.Params[0]
+	taskInfo, found := in.StructInfo(task)
+	delay, typed := in.Lookup(fn.info.Params[1])
+	return found && taskInfo != nil && typed && delay.Kind == types.KindUint && delay.Width == 0 &&
+		returnOriginTaskLeaf(fn, task) && slices.Equal(taskInfo.TypeArgs, fn.candidate.TemplateParams)
 }

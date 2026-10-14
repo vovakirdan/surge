@@ -40,7 +40,7 @@ extern<Foo> {
 		Span:        contractSym.Span,
 	}
 
-	if !tc.checkContractSatisfaction(fooSym.Type, bound, fooSym.Span, "") {
+	if !tc.checkContractSatisfaction(fooSym.Type, bound, fooSym.Span) {
 		t.Fatalf("expected contract to be satisfied")
 	}
 	if bag.HasErrors() {
@@ -129,7 +129,7 @@ extern<Foo> { fn touch(self: Foo) -> int; }
 				GenericArgs: args,
 				Span:        contractSym.Span,
 			}
-			tc.checkContractSatisfaction(fooSym.Type, bound, contractSym.Span, "")
+			tc.checkContractSatisfaction(fooSym.Type, bound, contractSym.Span)
 			if !hasCodeContract(bag, tt.code) {
 				t.Fatalf("expected diagnostic %v, got %s", tt.code, diagnosticsSummary(bag))
 			}

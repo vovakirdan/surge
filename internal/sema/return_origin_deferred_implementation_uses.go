@@ -12,7 +12,7 @@ import (
 // request once it agrees with the implementation's own declaration under the use's
 // template arguments, and that declaration accepts the receiver and arguments the
 // method certificate already tied to the edge.
-func (a *returnOriginAnalyzer) deferredImplementationUse(fn, caller *returnOriginFunction, expression ast.ExprID, use ConcreteInstantiationUse) (*returnOriginSignature, string, bool) {
+func (a *returnOriginAnalyzer) deferredImplementationUse(fn, caller *returnOriginFunction, expression ast.ExprID, use *ConcreteInstantiationUse) (*returnOriginSignature, string, bool) {
 	useID := caller.unit.Sema.DeferredCallableUses[DeferredUseRef{Expr: expression, Kind: DeferredMethodCall}]
 	if useID == "" {
 		return nil, "", false
@@ -20,13 +20,14 @@ func (a *returnOriginAnalyzer) deferredImplementationUse(fn, caller *returnOrigi
 	authority := caller.unit.authority
 	closure := authority.InstantiationClosure
 	var edge *DeferredCallableEdge
-	for _, candidate := range authority.InstantiationGraph.DeferredCallables() {
+	deferred := a.deferredEdges()
+	for i := range deferred {
+		candidate := &deferred[i]
 		if candidate.Kind == DeferredMethodCall && candidate.UseID == useID {
 			if edge != nil {
 				return nil, "deferred implementation use lacks its unique original edge", true
 			}
-			copy := candidate
-			edge = &copy
+			edge = candidate
 		}
 	}
 	if edge == nil || closure == nil || use.Caller == (InstanceKey{}) || edge.Caller != use.CallerTemplate ||

@@ -430,7 +430,7 @@ entry:
                     "SURGE_CARRIER_BENCH_NONCE": nonce,
                     "SURGE_CARRIER_BENCH_PROTOCOL_SHA256": protocol_sha256,
                     "SURGE_SHARDS": "1",
-                    "SURGE_THREADS": "1",
+                    "SURGE_SHARDS": "1",
                     "SURGE_BLOCKING_THREADS": "1",
                 },
             )

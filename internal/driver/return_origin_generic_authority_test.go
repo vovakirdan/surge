@@ -59,8 +59,8 @@ func TestAnalyzeTypedGenericReturnOriginAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			var mutated sema.InstantiationClosure
-			if err := json.Unmarshal(raw, &mutated); err != nil {
-				t.Fatal(err)
+			if decodeErr := json.Unmarshal(raw, &mutated); decodeErr != nil {
+				t.Fatal(decodeErr)
 			}
 			borrowed, owned := -1, -1
 			for i, use := range original.UseSites {

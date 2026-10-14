@@ -313,9 +313,9 @@ func TestReturnOriginTransfersPropagateFailureAndCancellation(t *testing.T) {
 
 func TestReturnOriginMissingCallbacksAreNotSafeDefaults(t *testing.T) {
 	cases := map[string]func(){
-		"scope": func() { newReturnOriginEnv().leaveScope(1, returnOriginValueOf(), nil) },
+		"scope":    func() { newReturnOriginEnv().leaveScope(1, returnOriginValueOf(), nil) },
 		"sequence": func() { _, _ = (returnOriginFlow{}).then(nil) },
-		"loop": func() { _, _ = solveReturnOriginLoop(context.Background(), returnOriginEnv{}, 1, nil) },
+		"loop":     func() { _, _ = solveReturnOriginLoop(context.Background(), returnOriginEnv{}, 1, nil) },
 	}
 	for name, run := range cases {
 		t.Run(name, func(t *testing.T) {

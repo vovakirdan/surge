@@ -52,7 +52,7 @@ func TestRuntimeV2TaskHandleArrayDrainedByPopTearsDownClean(t *testing.T) {
 	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2TaskHandleArrayDrainedSource, nil)
 	baseEnv := envWithStdlib(repoRoot(t))
 	for _, threads := range []string{"1", "4"} {
-		env := overrideEnvVar(baseEnv, "SURGE_THREADS", threads)
+		env := overrideEnvVar(baseEnv, "SURGE_SHARDS", threads)
 		_, result := runBinaryWithTimeout(t, outputPath, env, 30*time.Second)
 		if result.exitCode != 0 || result.stderr != "" {
 			t.Fatalf("threads=%s: exit=%d stderr=%q stdout=%q", threads, result.exitCode, result.stderr, result.stdout)

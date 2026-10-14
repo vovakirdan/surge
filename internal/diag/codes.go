@@ -908,6 +908,7 @@ var ( // todo расширить описания и использовать к
 		FutCrossingPayloadNotShippable:     "this crossing's payload cannot cross shards yet",
 		FutChannelShareBackendUnavailable:  "`share()` is not available in this backend/configuration yet",
 		FutChannelSelectBackendUnavailable: "remote `select` is not available in this backend/configuration yet",
+		FutCrossingBodySuspendUnsupported:  "crossing bodies cannot suspend until their transported state-machine frame is implemented",
 		SemaFarNested:                      "nested `far` handles are not allowed",
 		SemaFarRemoteOwn:                   "`far own T` is invalid; move `own T` through `on` or `spawn on`",
 		SemaFarRemoteBorrow:                "`far &T` and `far &mut T` are invalid remote lifetimes",
@@ -976,6 +977,7 @@ var ( // todo расширить описания и использовать к
 		// entrypoint diagnostics (codes_entrypoint.go)
 		SemaEntrypointStdinArity:   "@entrypoint('stdin') requires exactly one parameter",
 		SemaEntrypointStdinDefault: "@entrypoint('stdin') parameter cannot have a default",
+		SemaEntrypointValue:        "a synchronous @entrypoint can only be invoked by the runtime",
 
 		// alias magic-method diagnostics (codes_alias_magic.go)
 		SemaAliasMagicRedeclared: "an alias cannot declare a magic method its target declares",

@@ -42,12 +42,8 @@ func crossingFrameRefusals() []crossingFrameRow {
 func crossingFrameControls() []crossingFrameRow {
 	return []crossingFrameRow{
 		{name: "on_by_value_twin", text: crossingFrameOnByValueSource, digest: crossingFrameOnByValueSourceDigest},
-		{name: "on_task_joined_in_body", text: crossingFrameOnJoinedSource, digest: crossingFrameOnJoinedSourceDigest},
 		{name: "on_discarded_by_value", text: crossingFrameOnDiscardedByValueSource, digest: crossingFrameOnDiscardedByValueSourceDigest},
-		{name: "on_await_in_body", text: crossingFrameOnAwaitInBodySource, digest: crossingFrameOnAwaitInBodySourceDigest},
 		{name: "spawn_on_by_value_twin", text: crossingFrameSpawnOnByValueSource, digest: crossingFrameSpawnOnByValueSourceDigest},
-		{name: "spawn_on_body_local_joined", text: crossingFrameSpawnOnLocalJoinedSource, digest: crossingFrameSpawnOnLocalJoinedSourceDigest},
-		{name: "spawn_on_capture_spawn_joined", text: crossingFrameSpawnOnCaptureJoinedSource, digest: crossingFrameSpawnOnCaptureJoinedSourceDigest},
 	}
 }
 
@@ -82,10 +78,11 @@ func TestTaskCheckCrossingBodyIsAFrame(t *testing.T) {
 	}
 }
 
-// 8 RUN: 1 parent, 7 leaves. The twins by value, a task joined in the body, and the review's controls.
+// These controls isolate by-value capture handling. Suspendable placed-body
+// execution has its own native tests, alongside the lifetime refusals above.
 func TestTaskCheckCrossingBodyKeepsSoundPrograms(t *testing.T) {
 	rows := crossingFrameControls()
-	if len(rows) != 7 {
+	if len(rows) != 3 {
 		t.Fatalf("PRECONDITION: frozen roster changed: rows=%d", len(rows))
 	}
 	for _, row := range rows {

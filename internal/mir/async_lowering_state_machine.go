@@ -25,39 +25,33 @@ func LowerAsyncStateMachine(m *Module, semaRes *sema.Result, symTable *symbols.T
 	// and it is a fold over every activation sema recorded.
 	constrained := constrainedBindings(semaRes)
 
-	for _, __id := range m.SortedFuncIDs() {
-
-		f := m.Funcs[__id]
-		if f == nil || !f.IsAsync {
-			continue
-		}
-		if err := lowerAsyncStateMachineFunc(m, f, typesIn, semaRes, symTable, constrained); err != nil {
-			return err
-		}
-	}
-	return nil
+	return lowerAsyncFunctions(m, typesIn, semaRes, symTable, constrained)
 }
 
-func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, semaRes *sema.Result, symTable *symbols.Table, constrained map[symbols.SymbolID]struct{}) error {
+func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, semaRes *sema.Result, symTable *symbols.Table, constrained map[symbols.SymbolID]struct{}) (*placedFramePlan, error) {
 	if f == nil {
-		return nil
+		return nil, nil
 	}
 	if f.AsyncLoweredV2 {
-		return nil
+		return nil, nil
 	}
 	payload := f.Result
 	if payload == types.NoTypeID {
 		payload = typesIn.Builtins().Nothing
 	}
 
-	taskType, err := taskTypeFor(typesIn, payload)
-	if err != nil {
-		return err
+	taskType := f.AsyncTaskType
+	if taskType == types.NoTypeID && !f.ResultCrossesThreads {
+		var err error
+		taskType, err = taskTypeFor(typesIn, payload)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	pollFnID, err := allocAsyncPollFunc(m)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	origLocals := cloneLocals(f.Locals)
@@ -65,17 +59,19 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 	origEntry := f.Entry
 
 	pollFn := &Func{
-		ID:         pollFnID,
-		Sym:        symbols.NoSymbolID,
-		Name:       f.Name + "$poll",
-		Span:       f.Span,
-		Result:     payload,
-		IsAsync:    false,
-		Failfast:   f.Failfast,
-		Locals:     origLocals,
-		Blocks:     origBlocks,
-		Entry:      origEntry,
-		ScopeLocal: f.ScopeLocal,
+		ID:                   pollFnID,
+		Sym:                  symbols.NoSymbolID,
+		Name:                 f.Name + "$poll",
+		Span:                 f.Span,
+		Result:               payload,
+		IsAsync:              false,
+		Failfast:             f.Failfast,
+		Locals:               origLocals,
+		Blocks:               origBlocks,
+		Entry:                origEntry,
+		ScopeLocal:           f.ScopeLocal,
+		CapturesArriveOwned:  f.CapturesArriveOwned,
+		ResultCrossesThreads: f.ResultCrossesThreads,
 	}
 
 	if m.Funcs == nil {
@@ -88,7 +84,7 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 	f.Entry = NoBlockID
 
 	if _, err = splitAsyncAwaits(pollFn); err != nil {
-		return err
+		return nil, err
 	}
 	if pollFn.ScopeLocal != NoLocalID {
 		joinResultLocal := addLocal(pollFn, "__scope_join_failed", typesIn.Builtins().Bool, localFlagsFor(typesIn, semaRes, typesIn.Builtins().Bool))
@@ -100,7 +96,10 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 	sites := collectSuspendSites(pollFn)
 	live := computeLiveness(pollFn)
 
-	paramLocals := paramLocalSet(pollFn, symTable)
+	// Parameters belong to the original callable, not the zero-argument poll
+	// function. In particular, synthetic async blocks have only ParamCount
+	// metadata: their captured symbols are locals of the enclosing function.
+	paramLocals := paramLocalSet(f, symTable)
 	variants := make([]stateVariant, 0, len(sites)+1)
 	variantByResume := make(map[BlockID]int, len(sites)+1)
 	variants = append(variants, stateVariant{
@@ -209,11 +208,11 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 
 	payloadType, err := buildAsyncPayloadUnion(m, typesIn, symTable, f, pollFn, variants)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	stateType, err := buildAsyncStateStruct(typesIn, f, pollFn, payloadType, residents)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	stateLocal := addLocal(pollFn, "__state", stateType, localFlagsFor(typesIn, semaRes, stateType))
@@ -222,7 +221,7 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 	// dispatch and the pending blocks address the frame directly and must not be
 	// walked as though they held ordinary locals.
 	if err := residents.rewritePlaces(pollFn, stateLocal); err != nil {
-		return err
+		return nil, err
 	}
 	pcLocal := addLocal(pollFn, "__pc", typesIn.Builtins().Int, localFlagsFor(typesIn, semaRes, typesIn.Builtins().Int))
 	payloadLocal := addLocal(pollFn, "__payload", payloadType, localFlagsFor(typesIn, semaRes, payloadType))
@@ -230,18 +229,23 @@ func lowerAsyncStateMachineFunc(m *Module, f *Func, typesIn *types.Interner, sem
 	pollFn.Entry = entryBB
 
 	if err := buildAsyncPendingBlocks(pollFn, stateLocal, payloadLocal, sites, variants, typesIn.Builtins().Int); err != nil {
-		return err
+		return nil, err
 	}
 	finishAsyncConsumingSends(pollFn, sites, consumingSends)
 	rewriteAsyncReturns(pollFn, stateLocal, typesIn.Builtins().Int)
 
-	if err := buildAsyncConstructorState(f, typesIn, semaRes, taskType, stateType, payloadType, pollFnID, variants[0], typesIn.Builtins().Int, residents, startResidents); err != nil {
-		return err
+	if f.ResultCrossesThreads {
+		f.IsAsync = false
+		f.AsyncLoweredV2 = true
+		return &placedFramePlan{stateType: stateType, payloadType: payloadType,
+			poll: pollFnID, start: variants[0], residents: residents, startResidents: startResidents}, nil
 	}
+
+	buildAsyncConstructorState(f, typesIn, semaRes, taskType, stateType, payloadType, pollFnID, variants[0], residents, startResidents)
 	f.IsAsync = false
 	f.Result = taskType
 	f.AsyncLoweredV2 = true
-	return nil
+	return nil, nil
 }
 
 func pcVariantName(bb BlockID) string {
@@ -260,6 +264,17 @@ func insertScopeJoins(f *Func, scopeLocal, joinResultLocal LocalID, resultFlags 
 			continue
 		}
 		term := f.Blocks[bi].Term.Return
+		var returnUnshare *Instr
+		if f.ResultCrossesThreads && term.HasValue && !term.Cancelled {
+			instructions := f.Blocks[bi].Instrs
+			if len(instructions) > 0 {
+				last := instructions[len(instructions)-1]
+				if last.Kind == InstrUnshare && placesEqual(last.Unshare.Place, term.Value.Place) {
+					returnUnshare = &last
+					f.Blocks[bi].Instrs = instructions[:len(instructions)-1]
+				}
+			}
+		}
 		joinBB := newBlock(f)
 		doneBB := newBlock(f)
 		successBB := newBlock(f)
@@ -297,6 +312,9 @@ func insertScopeJoins(f *Func, scopeLocal, joinResultLocal LocalID, resultFlags 
 			Else: successBB,
 		}})
 
+		if returnUnshare != nil {
+			appendInstr(f, successBB, *returnUnshare)
+		}
 		setBlockTerm(f, successBB, Terminator{Kind: TermReturn, Return: ReturnTerm{
 			HasValue: term.HasValue,
 			Value:    term.Value,

@@ -50,7 +50,7 @@ func returnOriginConditionAnalyzer(t *testing.T, text string, prepare ...func(*R
 	for _, mutate := range prepare {
 		mutate(result, unit)
 	}
-	index, err := indexReturnOriginUnit(unit, result)
+	index, err := indexReturnOriginUnit(&unit, result)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +219,7 @@ fn probe() -> nothing { keep_callback::<string>(text); keep_callback::<int64>(nu
 	if callee == nil || caller == nil || len(callee.candidate.TemplateParams) != 1 {
 		t.Fatal("PRECONDITION: real generic source missing")
 	}
-	var alternatives []returnOriginCallable
+	var alternatives []*returnOriginCallable
 	for id := range caller.unit.Sema.ExprTypes {
 		node := caller.unit.Builder.Exprs.Get(id)
 		if node == nil || node.Kind != ast.ExprCall || node.Span.Start < caller.item.Span.Start || node.Span.End > caller.item.Span.End {
@@ -232,7 +232,7 @@ fn probe() -> nothing { keep_callback::<string>(text); keep_callback::<int64>(nu
 		if _, reason = callee.originalSignature(caller, id, args); reason != "" {
 			t.Fatal(reason)
 		}
-		alternatives = append(alternatives, returnOriginCallable{typ: callee.info.Params[0], promise: callee.item.ParamsSpan,
+		alternatives = append(alternatives, &returnOriginCallable{typ: callee.info.Params[0], promise: callee.item.ParamsSpan,
 			view: returnOriginBoundView(callee, caller, args)})
 	}
 	if len(alternatives) != 2 || slices.Equal(alternatives[0].view.args, alternatives[1].view.args) {
@@ -244,10 +244,10 @@ fn probe() -> nothing { keep_callback::<string>(text); keep_callback::<int64>(nu
 	if len(joined.callables) != 2 || !joined.equal(right.join(left)) || !joined.equal(joined.join(joined)) {
 		t.Fatal("binding views collapsed at callable join")
 	}
-	copy := joined.clone()
-	copy.callables[0].view.args[0] = types.NoTypeID
-	copy.callables[0].view.params[0] = types.NoTypeID
-	if joined.equal(copy) || joined.callables[0].view.args[0] == types.NoTypeID || joined.callables[0].view.params[0] == types.NoTypeID {
+	copied := joined.clone()
+	copied.callables[0].view.args[0] = types.NoTypeID
+	copied.callables[0].view.params[0] = types.NoTypeID
+	if joined.equal(copied) || joined.callables[0].view.args[0] == types.NoTypeID || joined.callables[0].view.params[0] == types.NoTypeID {
 		t.Fatal("callable view identity/clone shares or ignores its immutable vectors")
 	}
 }

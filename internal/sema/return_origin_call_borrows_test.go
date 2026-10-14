@@ -44,7 +44,7 @@ func TestReturnOriginCallBorrowEvidence(t *testing.T) {
 			}
 			t.Logf("RETURN_ORIGIN_CALL_SOURCE case=%s sha256=%x source=%q", name, sha256.Sum256([]byte(src)), src)
 			result, unit := returnOriginPublicationFixture(t, src, false)
-			index, err := indexReturnOriginUnit(unit, result)
+			index, err := indexReturnOriginUnit(&unit, result)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -116,8 +116,8 @@ func TestReturnOriginCallBorrowEvidence(t *testing.T) {
 			a := &returnOriginAnalyzer{ctx: t.Context(), functions: []*returnOriginFunction{callee},
 				units:  []*returnOriginUnitIndex{index},
 				bodies: map[string]*returnOriginFunction{callee.key: callee}, summaries: make(map[string]returnOriginSummaryFact), report: &ReturnOriginAnalysis{}}
-			if err := a.solveBodies(); err != nil {
-				t.Fatal(err)
+			if solveErr := a.solveBodies(); solveErr != nil {
+				t.Fatal(solveErr)
 			}
 			if len(a.report.Pending) != 0 || len(a.report.Diagnostics) != 0 || !a.summaries[callee.key].value.equal(returnOriginValueOf(returnOrigin{kind: returnOriginParam, param: 0})) {
 				t.Fatal("PRECONDITION: actual same body did not infer exactly formal source 0")

@@ -111,7 +111,8 @@ func (b *returnOriginBody) buildCallableType(u *returnOriginUnitIndex, owner sym
 	// The immutable original request remains authoritative under a read view;
 	// a substituted descriptor never impersonates its source declaration.
 	if !syntax.Sources().IsAllInputs() {
-		for _, request := range u.Sema.ReturnSourceDeclarations {
+		for i := range u.Sema.ReturnSourceDeclarations {
+			request := &u.Sema.ReturnSourceDeclarations[i]
 			if request.Owner == owner && request.TypeExpr == expr && request.Syntax.Span() == syntax.Span() &&
 				(!slices.Equal(request.Params(), info.Params) || request.Result() != info.Result) {
 				b.pending(span, "callable promise needs its original concrete typed request")

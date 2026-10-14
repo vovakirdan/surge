@@ -52,27 +52,29 @@ func TestReturnOriginSelectedContainerIndex(t *testing.T) {
 	}
 	f, analysis := analyzeOriginRoot(t, "selected_container_index", originIndexViewSource, true, nil)
 	rows := []struct {
-		name string
-		fn   originSpan
+		name  string
+		fn    originSpan
+		body  string
+		slots []uint32
 	}{
-		{"borrowed_view_byte_finishes", originSpan{0, 88, originIndexViewSource[0:88]}},
-		{"owned_view_byte_finishes", originSpan{90, 163, originIndexViewSource[90:163]}},
+		{"borrowed_view_byte_finishes", originSpan{0, 88, originIndexViewSource[0:88]}, "byte_from_view", nil},
+		{"owned_view_byte_finishes", originSpan{90, 163, originIndexViewSource[90:163]}, "byte_from_owned_view", nil},
+		{"user_index_reference_names_self", originSpan{311, 373, originIndexViewSource[311:373]}, "user_index_ref", []uint32{0}},
 	}
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
 			originExactPending(t, analysis, f.unit.SourceKey, row.fn, nil)
 			originNoEscape(t, analysis, f.owner.File.ID, row.fn)
+			requireOriginSummary(t, analysis, f.owner.File.ID, row.body, false, row.slots)
 		})
 	}
 
 	canaries := []struct {
-		name          string
-		fn            originSpan
-		selectedIndex bool
+		name string
+		fn   originSpan
 	}{
-		{"user_index_returning_reference", originSpan{311, 373, originIndexViewSource[311:373]}, true},
-		{"local_reference_through_index", originSpan{375, 473, originIndexViewSource[375:473]}, true},
-		{"local_bytes_view", originSpan{475, 566, originIndexViewSource[475:566]}, false},
+		{"local_reference_through_index", originSpan{375, 473, originIndexViewSource[375:473]}},
+		{"local_bytes_view", originSpan{475, 566, originIndexViewSource[475:566]}},
 	}
 	for _, row := range canaries {
 		t.Run(row.name, func(t *testing.T) {
@@ -80,18 +82,12 @@ func TestReturnOriginSelectedContainerIndex(t *testing.T) {
 			refused := slices.ContainsFunc(pending, func(p sema.ReturnOriginPending) bool {
 				return p.Reason != ""
 			})
-			selectedRefusal := slices.ContainsFunc(pending, func(p sema.ReturnOriginPending) bool {
-				return p.Reason == "index requires its selected container transfer"
-			})
 			refused = refused || slices.ContainsFunc(analysis.Diagnostics, func(d diag.Diagnostic) bool {
 				return d.Code == diag.SemaBorrowEscapesReturn && d.Primary.File == f.owner.File.ID &&
 					int(d.Primary.Start) >= row.fn.start && int(d.Primary.End) <= row.fn.end
 			})
 			if !refused {
 				t.Errorf("canary diagnosed clean; pending=%+v diagnostics=%+v", pending, analysis.Diagnostics)
-			}
-			if row.selectedIndex && !selectedRefusal {
-				t.Errorf("reference-bearing selected index lost its named refusal: %+v", pending)
 			}
 		})
 	}

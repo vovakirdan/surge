@@ -62,7 +62,7 @@ func TestRuntimeV2Task9Matrix(t *testing.T) {
 			for _, shards := range []string{"1", "2", "8"} {
 				t.Run("shards-"+shards, func(t *testing.T) {
 					env := overrideEnvVar(baseEnv, "SURGE_SHARDS", shards)
-					env = overrideEnvVar(env, "SURGE_THREADS", shards)
+					env = overrideEnvVar(env, "SURGE_SHARDS", shards)
 					duration, result := runBinaryWithTimeout(t, outputPath, env, 60*time.Second)
 					if result.exitCode != 0 || strings.Contains(result.stdout, "FAIL") ||
 						!strings.Contains(result.stdout, cell.marker) {

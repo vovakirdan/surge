@@ -30,7 +30,7 @@ import (
 //
 // Measured on this lane at 24 rounds, before and after the fix (SURGE_STDLIB
 // set, `surge build --backend=llvm`): unfixed, exit 20 in 9 of 10 runs -- 5 of
-// 5 at SURGE_THREADS=1, 4 of 5 at 4; fixed, exit 0 with "timeout-cancel-ok" in
+// 5 at SURGE_SHARDS=1, 4 of 5 at 4; fixed, exit 0 with "timeout-cancel-ok" in
 // 10 of 10. The VM lane is green either way and cannot witness this defect: its
 // executor is single-threaded and deterministic, and in this program the target
 // is always re-polled while its child is still live, so the suspension carries
@@ -133,11 +133,11 @@ func assertTimeoutCancelRun(t *testing.T, lane, threads string, exitCode int, du
 		if reason == "" {
 			reason = "the program did not run to its verdict"
 		}
-		t.Fatalf("%s SURGE_THREADS=%s: exit=%d -- %s (dur=%s)\nstdout:\n%s\nstderr:\n%s",
+		t.Fatalf("%s SURGE_SHARDS=%s: exit=%d -- %s (dur=%s)\nstdout:\n%s\nstderr:\n%s",
 			lane, threads, exitCode, reason, dur, stdout, stderr)
 	}
 	if !strings.Contains(stdout, "timeout-cancel-ok") {
-		t.Fatalf("%s SURGE_THREADS=%s: missing completion marker\nstdout:\n%s\nstderr:\n%s",
+		t.Fatalf("%s SURGE_SHARDS=%s: missing completion marker\nstdout:\n%s\nstderr:\n%s",
 			lane, threads, stdout, stderr)
 	}
 }

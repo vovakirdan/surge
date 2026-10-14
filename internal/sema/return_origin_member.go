@@ -90,10 +90,3 @@ func returnOriginExactProjectionOwner(owner returnOriginValue) bool {
 	}
 	return true
 }
-
-// returnOriginDynamicArray says whether a type is an owned `T[]`/`Array<T>`,
-// whose elements live in a heap buffer rather than inline in the holder.
-func returnOriginDynamicArray(in *types.Interner, id types.TypeID) bool {
-	c, canonical := returnOriginContainer(in, id)
-	return canonical && !c.reference && c.family == in.ArrayNominalType()
-}

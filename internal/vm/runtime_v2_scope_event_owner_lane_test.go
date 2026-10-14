@@ -34,14 +34,12 @@ import (
 func TestRuntimeV2LifecycleDebt280ScopeEventOwnerLaneProof(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarnessDebt280(t, false)
 	// Cross-owner needs SURGE_SHARDS>=2 (at one shard the grandchild clamps to
-	// shard 0 and the completion is same-owner); SURGE_THREADS must equal
-	// SURGE_SHARDS whenever SURGE_SHARDS>1.
+	// shard 0 and the completion is same-owner).
 	for _, shards := range []int{2, 8} {
 		shards := shards
 		t.Run(fmt.Sprintf("shards-%d", shards), func(t *testing.T) {
 			env := lifecycleEnv(
 				fmt.Sprintf("SURGE_SHARDS=%d", shards),
-				fmt.Sprintf("SURGE_THREADS=%d", shards),
 				"SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_SCOPE_FAILFAST_JOIN_BEFORE_VERIFY:block")
 			stdout, stderr, exitCode := runLifecycleHarness(
@@ -67,7 +65,6 @@ func TestRuntimeV2LifecycleDebt280ScopeEventOwnerLaneNegativeControl(t *testing.
 	binPath := buildRuntimeV2LifecycleHarnessDebt280(t, true)
 	env := lifecycleEnv(
 		"SURGE_SHARDS=2",
-		"SURGE_THREADS=2",
 		"SURGE_BLOCKING_THREADS=1",
 		"SURGE_SYNC_POINT=SP_SCOPE_FAILFAST_JOIN_BEFORE_VERIFY:block")
 	stdout, stderr, exitCode := runLifecycleHarness(
@@ -157,7 +154,6 @@ static void poll_debt280_scope_owner(void) {
     if (atomic_load_explicit(&g_debt280_owner_entered, memory_order_acquire) == 0) {
         uint64_t handle = rt_scope_enter(true);
         void* child = __task_create(POLL_DEBT280_SCOPE_CHILD, NULL, rt_channel_opaque_word_ops());
-        rt_scope_register_child(handle, child);
         atomic_store_explicit(&g_debt280_child, child, memory_order_release);
         atomic_store_explicit(&g_debt280_scope_handle, handle, memory_order_release);
         atomic_store_explicit(&g_debt280_owner_entered, 1, memory_order_release);

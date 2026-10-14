@@ -271,7 +271,7 @@ func TestOwnershipCorpusCensusReportContract(t *testing.T) {
 		t.Fatalf("report schema keys = %s, want %s", strings.Join(keys, ","), wantKeys)
 	}
 	if got := jsonObjectKeys(t, schema["compile_profile"]); got !=
-		"allow_diagnostics_error,analysis,backend,base_dir_policy,crossing_forms_override,dir_info_enabled,max_diagnostics,root_kind,standard_library_path_policy" {
+		"allow_diagnostics_error,analysis,backend,base_dir_policy,core_mirror_target_policy,crossing_forms_override,dir_info_enabled,max_diagnostics,root_kind,standard_library_path_policy" {
 		t.Fatalf("compile profile schema keys = %s", got)
 	}
 	if got := jsonObjectKeys(t, schema["corpus_inventory"]); got !=

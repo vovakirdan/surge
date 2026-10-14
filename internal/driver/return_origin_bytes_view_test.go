@@ -97,6 +97,7 @@ func analyzeBytesView(t *testing.T, stage string, tc bytesViewCase, mutate func(
 	if mutate != nil {
 		mutate(f)
 	}
+	exhaustiveReturnOriginUnits(t, f.inputs.units, "core/array.sg", "core/intrinsics.sg", "core/string.sg")
 	analysis, err := sema.AnalyzeReturnOrigins(t.Context(), f.authority, f.inputs.units)
 	if err != nil || analysis == nil {
 		t.Fatalf("return-origin analysis did not run: %v", err)

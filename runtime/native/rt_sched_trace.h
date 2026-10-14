@@ -5,19 +5,16 @@
 #include <stdint.h>
 
 // Where a thread took its OWN next task from is a record of what that thread
-// did, so it belongs to that thread and to nobody else. A steal that thread
-// attempted and had refused, and the connection task it ran, are records of the
-// same kind and are taken on the same path -- inside the pop -- so they live on
+// did, so it belongs to that thread and to nobody else. The connection task it
+// ran is a record of the same kind and is taken inside the pop, so both live on
 // the same cell rather than in a word shared by everyone.
 //
 // There are exactly three owners here, and each of them has a cell:
 //
 //   * a carrier, which pops for itself and writes only the cell at its own flat
 //     carrier index -- one writer, no lock, and none is invented here;
-//   * the runtime's control lane, which is every non-carrier thread that drains
-//     shard 0 (the single-runner main loop, the io thread, a compensation
-//     worker at its limit). They reach the record inside `ready_pop`, which
-//     holds shard 0's lock across the pop, so they share a lock.
+//   * the runtime's control lane, for non-carrier records that have no task-poll
+//     owner. Task queue pops and task polls are carrier-only;
 //   * the runtime, which owns exactly the events that no carrier and no lane
 //     performed: a placement made by whichever thread created the task, a
 //     pop-path record whose owner cannot be named, and a record the dump itself
@@ -30,8 +27,8 @@
 //
 // That last clause is the whole of the exemption, and it is narrow on purpose:
 // a quantity is the runtime's only when no single owner performed the event. A
-// pop is performed by whoever popped it; so is a steal it was refused. Neither
-// can ever be the runtime's, which is why one shared word for pops had to go
+// pop is performed by whoever popped it and can never be the runtime's, which
+// is why one shared word for pops had to go
 // and why no new one may appear. A single shared word -- even an atomic one --
 // would report a number belonging to nobody: it would not tear, and it still
 // could not be attributed, which is what makes it inadmissible as evidence
@@ -50,13 +47,11 @@
 typedef enum {
     RT_TRACE_SCHED_SRC_LOCAL = 0,
     RT_TRACE_SCHED_SRC_INJECT = 1,
-    RT_TRACE_SCHED_SRC_STEAL = 2,
 } rt_trace_sched_source;
 
 typedef struct rt_sched_trace_cell {
     _Alignas(RT_SCHED_TRACE_CELL_BYTES) _Atomic uint64_t local_pops;
     _Atomic uint64_t inject_pops;
-    _Atomic uint64_t steal_pops;
     // A fingerprint of WHICH pops this owner made, as a wrapping sum of a
     // finalized mix per pop. Summed rather than chained on purpose: addition
     // composes, so a reader can add the owners' fingerprints over the owner set
@@ -65,11 +60,6 @@ typedef struct rt_sched_trace_cell {
     // that order is not a property of the schedule, it is a property of how the
     // carriers divided it, which varies from run to run even under a seed.
     _Atomic uint64_t pop_mix;
-    // A steal this owner attempted and the placement policy refused. A refused
-    // steal is a record of what this owner tried to do, and it is taken inside
-    // the same pop as the counts above, by the same thread, under the same lock
-    // discipline -- so it needs no ownership argument of its own.
-    _Atomic uint64_t steal_denied;
     // A connection task this owner ran, split by whether the shard it was
     // running on is the shard that owns the connection. Also taken inside the
     // pop, by the thread that popped it.
@@ -81,7 +71,7 @@ typedef struct rt_sched_trace_cell {
     // Two owners never share a cache line. Without this an owner's pop would
     // pay for its neighbour's, so the cost of tracing would depend on which
     // owners sit next to each other in the array rather than on what each did.
-    unsigned char pad[RT_SCHED_TRACE_CELL_BYTES - 7U * sizeof(uint64_t) - sizeof(uint32_t)];
+    unsigned char pad[RT_SCHED_TRACE_CELL_BYTES - 5U * sizeof(uint64_t) - sizeof(uint32_t)];
 } rt_sched_trace_cell;
 
 // The runtime's own cell. It is a cell and not a handful of file-scope words
@@ -103,24 +93,9 @@ typedef struct rt_sched_trace_runtime_cell {
     // discarded: a reader summing the owner records has to know its sum is
     // short.
     _Atomic uint64_t dropped_records;
-    // Carrier affinity, four records. A task pinned to the worker creating it;
-    // a publication of a pinned task credited to its carrier by another
-    // thread; a pop that met a pinned task and was not the carrier; a pinned
-    // task an exiting carrier cancelled unpolled at shutdown. The pin and the
-    // shutdown cancel are made by threads that may own no cell; the addressed
-    // wake by whichever thread published. The refusal IS a popper's own
-    // action, and it still lives here rather than on the owner's cell: that
-    // cell's line is full, and widening every owner's line to make room for a
-    // defence counter would double the footprint of tracing for a number the
-    // publication route is meant to keep at zero. It is bumped with an atomic
-    // read-modify-write, like the rest of this cell.
-    _Atomic uint64_t carrier_pinned;
-    _Atomic uint64_t carrier_addressed_wakes;
-    _Atomic uint64_t carrier_steal_denied;
-    _Atomic uint64_t carrier_shutdown_cancelled;
     // The runtime does not share a line with the owners it is reporting on
     // either.
-    unsigned char pad[RT_SCHED_TRACE_CELL_BYTES - 7U * sizeof(uint64_t)];
+    unsigned char pad[RT_SCHED_TRACE_CELL_BYTES - 3U * sizeof(uint64_t)];
 } rt_sched_trace_runtime_cell;
 
 _Static_assert(sizeof(rt_sched_trace_cell) == RT_SCHED_TRACE_CELL_BYTES,
@@ -137,12 +112,7 @@ _Static_assert(_Alignof(rt_sched_trace_runtime_cell) >= RT_SCHED_TRACE_CELL_BYTE
 void rt_sched_trace_init(uint32_t carriers);
 void rt_sched_trace_dump(void);
 void rt_trace_sched_record(rt_trace_sched_source source, uint64_t id);
-void rt_trace_sched_tier1_steal_denied(void);
 void rt_trace_sched_connection_owner_placed(void);
 void rt_trace_sched_connection_owner_run(uint32_t owner_shard_id, uint32_t worker_shard_id);
-void rt_trace_sched_carrier_pinned(void);
-void rt_trace_sched_carrier_addressed_wake(void);
-void rt_trace_sched_carrier_steal_denied(void);
-void rt_trace_sched_carrier_shutdown_cancelled(void);
 
 #endif // SURGE_RUNTIME_NATIVE_RT_SCHED_TRACE_H

@@ -54,20 +54,21 @@ func (tc *typeChecker) checkReturnSourceDeclaration(syntax symbols.ReturnSourceS
 	}
 	if original := tc.returnSourceDeclaration(typeExpr, scope); original != nil {
 		if slices.Equal(params, original.params) && result == original.result {
-			return ValidateDeclaredReturnSources(tc.types, *original).Status != ReturnSourcesInvalid
+			return ValidateDeclaredReturnSources(tc.types, original).Status != ReturnSourcesInvalid
 		}
-		for _, use := range tc.result.ReturnSourceInstantiations {
+		for i := range tc.result.ReturnSourceInstantiations {
+			use := &tc.result.ReturnSourceInstantiations[i]
 			if use.Declaration.TypeExpr == typeExpr && use.Scope == scope && slices.Equal(use.params, params) && use.result == result {
-				return ValidateInstantiatedReturnSources(tc.types, use.Declaration, params, result).Status != ReturnSourcesInvalid
+				return ValidateInstantiatedReturnSources(tc.types, &use.Declaration, params, result).Status != ReturnSourcesInvalid
 			}
 		}
 		use := ReturnSourceInstantiationRequest{Declaration: *original, Scope: scope, TypeParamEnv: tc.currentTypeParamEnv(), params: slices.Clone(params), result: result}
 		tc.result.ReturnSourceInstantiations = append(tc.result.ReturnSourceInstantiations, use)
 		// An invalid original already has its declaration diagnostic.
-		if ValidateDeclaredReturnSources(tc.types, *original).Status == ReturnSourcesInvalid {
+		if ValidateDeclaredReturnSources(tc.types, original).Status == ReturnSourcesInvalid {
 			return false
 		}
-		validation := ValidateInstantiatedReturnSources(tc.types, *original, params, result)
+		validation := ValidateInstantiatedReturnSources(tc.types, original, params, result)
 		if validation.Status == ReturnSourcesInvalid {
 			tc.reportInvalidReturnSource(validation)
 			return false
@@ -85,7 +86,7 @@ func (tc *typeChecker) checkReturnSourceDeclaration(syntax symbols.ReturnSourceS
 	if tc.result != nil {
 		tc.result.ReturnSourceDeclarations = append(tc.result.ReturnSourceDeclarations, request)
 	}
-	validation := ValidateDeclaredReturnSources(tc.types, request)
+	validation := ValidateDeclaredReturnSources(tc.types, &request)
 	if validation.Status == ReturnSourcesInvalid {
 		tc.reportInvalidReturnSource(validation)
 		return false

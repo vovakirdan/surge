@@ -15,6 +15,7 @@ void rt_immediate_on_release_owned(rt_executor* ex, const rt_task* caller) {
     for (;;) {
         rt_remote_task_pending* pending = NULL;
         int bound = 0;
+        int in_flight = 0;
         rt_token_lock(&state->lock);
         for (rt_remote_task_pending* it = state->pending_head; it != NULL; it = it->next) {
             if ((it->op == RT_REMOTE_TASK_OP_EXECUTE ||
@@ -23,6 +24,7 @@ void rt_immediate_on_release_owned(rt_executor* ex, const rt_task* caller) {
                 it->caller_task_id == caller->id) {
                 pending = it;
                 bound = it->handle.task_id != 0;
+                in_flight = it->status == RT_REMOTE_TASK_STATUS_PENDING;
                 it->caller_task_id = 0;
                 break;
             }
@@ -31,9 +33,9 @@ void rt_immediate_on_release_owned(rt_executor* ex, const rt_task* caller) {
         if (pending == NULL) {
             return;
         }
-        if (bound) {
-            // Keep the pending listed: the destination owner registration
-            // still routes the orphaned reply through it exactly once.
+        if (bound && in_flight) {
+            // Keep the orphan visible to shutdown until its terminal
+            // transport edge retires it. The body registration owns a ref.
             rt_immediate_on_cancel_inflight(ex, pending);
             rt_remote_task_pending_release(pending);
         } else {

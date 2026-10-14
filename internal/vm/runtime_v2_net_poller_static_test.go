@@ -149,17 +149,6 @@ int waker_is_net(waker_key key) {
            key.kind == WAKER_NET_WRITE;
 }
 
-uint32_t rt_net_owner_shard_for_key(rt_executor* ex, waker_key key, uint32_t fallback_shard_id) {
-    (void)ex;
-    if (key.id == 10) {
-        return 0;
-    }
-    if (key.id == 11) {
-        return 1;
-    }
-    return fallback_shard_id;
-}
-
 _Thread_local rt_worker_ctx* tls_worker_ctx;
 
 uint32_t rt_net_owner_shard_probe_locked(rt_executor* ex, int fd, uint32_t hint_shard_id) {
@@ -229,8 +218,8 @@ int main(void) {
         runtime.shards[i].net_poll_wake.read_fd = -1;
         runtime.shards[i].net_poll_wake.write_fd = -1;
     }
-    shard0_entries[0] = (rt_fd_entry){10, 1, RT_FD_CLOSE_STATE_OPEN, 1, 0, 0, 0};
-    shard1_entries[0] = (rt_fd_entry){11, 1, RT_FD_CLOSE_STATE_OPEN, 1, 0, 1, 0};
+    shard0_entries[0] = (rt_fd_entry){10, 1, RT_FD_CLOSE_STATE_OPEN, 0, 0, 0};
+    shard1_entries[0] = (rt_fd_entry){11, 1, RT_FD_CLOSE_STATE_OPEN, 0, 1, 0};
     runtime.shards[0].fd_registry.entries = shard0_entries;
     runtime.shards[0].fd_registry.len = 1;
     runtime.shards[0].fd_registry.cap = 1;
@@ -295,18 +284,23 @@ int main(void) {
 	runFDRegistryBehaviorCheck(t, "Runtime V2 net poller per-shard wake behavior", source)
 }
 
-func TestRuntimeV2NetPollerGlobalIOThreadDoesNotOwnMultiShardNetPolling(t *testing.T) {
+func TestRuntimeV2NetPollerIOServiceNeverPollsTasks(t *testing.T) {
 	root := repoRoot(t)
 	sourceBytes, err := os.ReadFile(filepath.Join(root, "runtime", "native", "rt_worker_turn.c"))
 	if err != nil {
 		t.Fatalf("read rt_worker_turn.c: %v", err)
 	}
-	source := string(sourceBytes)
-	if !strings.Contains(source, "void* rt_io_main(void* arg) {") {
+	body, ok := cFunctionBody(string(sourceBytes), "rt_io_main")
+	if !ok {
 		t.Fatal("rt_io_main definition not found")
 	}
-	if !strings.Contains(source, "shard_count <= 1 && rt_net_has_waiters_on_shard(ex, 0)") {
-		t.Fatalf("rt_io_main must gate net polling to single-shard compatibility")
+	if !strings.Contains(body, "shard_count <= 1 && rt_net_has_waiters_on_shard(ex, 0)") {
+		t.Fatal("the I/O service must only poll the owner shard it serves")
+	}
+	for _, forbidden := range []string{"poll_task", "ready_pop", "run_ready_one", "rt_set_current_task"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("the I/O service may publish readiness but must never execute tasks; found %q", forbidden)
+		}
 	}
 }
 
@@ -320,14 +314,11 @@ func TestRuntimeV2NetPollerShutdownWakesEveryShard(t *testing.T) {
 	if !ok {
 		t.Fatal("rt_executor_request_shutdown not found")
 	}
-	// Since worker sleep is per-shard: shutdown must sweep every
-	// shard's worker_cv (rt_sched_wake_broadcast_all) and the control-lane
-	// compat_cv, and nudge the io thread's shard-0 poller wait (the global
-	// ready_cv and io_cv are retired).
+	// Since carrier sleep is per-shard, shutdown must sweep every shard's
+	// worker_cv and nudge the I/O service thread's shard-0 poller wait.
 	for _, required := range []string{
 		"rt_net_wake_poll_all_shards(ex)",
 		"rt_sched_wake_broadcast_all(ex)",
-		"pthread_cond_broadcast(&ex->compat_cv)",
 		"rt_io_poll_nudge(ex)",
 	} {
 		if !strings.Contains(requestBody, required) {

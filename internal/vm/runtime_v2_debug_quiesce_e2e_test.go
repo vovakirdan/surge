@@ -49,7 +49,7 @@ func TestRuntimeV2DebugQuiesceAnswers(t *testing.T) {
 	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2DebugQuiesceSource, nil)
 	for _, shards := range []int{1, 2} {
 		env := append(envWithStdlib(repoRoot(t)),
-			"SURGE_SHARDS="+strconv.Itoa(shards), "SURGE_THREADS="+strconv.Itoa(shards), "SURGE_BLOCKING_THREADS=1")
+			"SURGE_SHARDS="+strconv.Itoa(shards), "SURGE_BLOCKING_THREADS=1")
 		_, result := runBinaryWithTimeout(t, outputPath, env, 30*time.Second)
 		if result.exitCode != 0 || !strings.Contains(result.stdout, "quiesced") {
 			t.Fatalf("shards=%d: exit=%d\nstdout:\n%s\nstderr:\n%s", shards, result.exitCode, result.stdout, result.stderr)

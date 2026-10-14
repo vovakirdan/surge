@@ -3,8 +3,10 @@
 package ownershipgate_test
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -19,6 +21,7 @@ const (
 	corpusRepositoryRoot      = "repository_root"
 	corpusRootKindUnknown     = "unknown"
 	corpusInventoryDigestV1   = "sha256:path-lines-v1"
+	corpusCanonicalCoreMirror = "byte_identical_canonical_core"
 )
 
 type corpusRootSpec struct {
@@ -122,8 +125,15 @@ type corpusRootSpec struct {
 // vm_compare/counted_payload_clone_and_borrow, the clone/borrow positive.
 // The existing heap-free controls switched to int64 in that same commit;
 // their paths did not change. No .sg was removed; discovery is unchanged.
+// Raised 1074 -> 1082 on 2026-10-13 after reviewing the complete delta since
+// the previous pin: ten fixtures were added and two obsolete positive tuple
+// fixtures were replaced. The additions are the task-clone borrow pair, the
+// returned/nested async-task refusals, the fixed-array operator pair, three
+// parser/tuple invalids, and the t26b select/timer tie. The removed tuple
+// positives now have explicit invalid replacements; no discovered path is
+// unaccounted for.
 var corpusRoots = []corpusRootSpec{
-	{Path: "testdata/golden", PinnedCount: 1074},
+	{Path: "testdata/golden", PinnedCount: 1082},
 	{Path: "showcases", PinnedCount: 38},
 	{Path: "core", PinnedCount: 10},
 	{Path: "stdlib", PinnedCount: 32},
@@ -142,6 +152,7 @@ type corpusCompileProfile struct {
 	CrossingFormsOverride     bool                  `json:"crossing_forms_override"`
 	BaseDirPolicy             string                `json:"base_dir_policy"`
 	StandardLibraryPathPolicy string                `json:"standard_library_path_policy"`
+	CoreMirrorTargetPolicy    string                `json:"core_mirror_target_policy"`
 }
 
 var ownershipCorpusCompileProfile = corpusCompileProfile{
@@ -154,6 +165,7 @@ var ownershipCorpusCompileProfile = corpusCompileProfile{
 	CrossingFormsOverride:     false,
 	BaseDirPolicy:             corpusRepositoryRoot,
 	StandardLibraryPathPolicy: corpusRepositoryRoot,
+	CoreMirrorTargetPolicy:    corpusCanonicalCoreMirror,
 }
 
 func (p corpusCompileProfile) request(root, fixture string) (*buildpipeline.CompileRequest, error) {
@@ -165,6 +177,9 @@ func (p corpusCompileProfile) request(root, fixture string) (*buildpipeline.Comp
 	}
 	if p.StandardLibraryPathPolicy != corpusRepositoryRoot {
 		return nil, fmt.Errorf("unsupported ownership corpus stdlib policy %q", p.StandardLibraryPathPolicy)
+	}
+	if p.CoreMirrorTargetPolicy != corpusCanonicalCoreMirror {
+		return nil, fmt.Errorf("unsupported ownership corpus core-mirror policy %q", p.CoreMirrorTargetPolicy)
 	}
 	if p.DirInfoEnabled {
 		return nil, fmt.Errorf("ownership corpus profile cannot enable directory targets")
@@ -181,6 +196,27 @@ func (p corpusCompileProfile) request(root, fixture string) (*buildpipeline.Comp
 		Analysis:              p.Analysis,
 		Backend:               p.Backend,
 	}, nil
+}
+
+func ownershipCorpusCompileTarget(root, fixture, relative string) (string, error) {
+	const mirrorPrefix = "testdata/golden/core_stdlib/"
+	if !strings.HasPrefix(relative, mirrorPrefix) ||
+		strings.Contains(strings.TrimPrefix(relative, mirrorPrefix), "/") {
+		return fixture, nil
+	}
+	canonical := filepath.Join(root, "core", filepath.Base(relative))
+	mirrorBytes, err := os.ReadFile(fixture)
+	if err != nil {
+		return "", fmt.Errorf("read core mirror %q: %w", relative, err)
+	}
+	canonicalBytes, err := os.ReadFile(canonical)
+	if err != nil {
+		return "", fmt.Errorf("read canonical core target for %q: %w", relative, err)
+	}
+	if !bytes.Equal(mirrorBytes, canonicalBytes) {
+		return "", fmt.Errorf("core mirror %q differs from canonical %q", relative, filepath.ToSlash(filepath.Join("core", filepath.Base(relative))))
+	}
+	return canonical, nil
 }
 
 func corpusCompileRequest(root, fixture string) *buildpipeline.CompileRequest {
@@ -270,6 +306,40 @@ func TestOwnershipCorpusCompileProfileContract(t *testing.T) {
 	invalid.CrossingFormsOverride = true
 	if _, err := invalid.request(root, fixture); err == nil || !strings.Contains(err.Error(), "cannot override crossing forms") {
 		t.Fatalf("invalid profile error = %v", err)
+	}
+	invalid = ownershipCorpusCompileProfile
+	invalid.CoreMirrorTargetPolicy = "mirror_as_user_module"
+	if _, err := invalid.request(root, fixture); err == nil || !strings.Contains(err.Error(), "core-mirror policy") {
+		t.Fatalf("invalid core-mirror policy error = %v", err)
+	}
+}
+
+func TestOwnershipCorpusCanonicalCoreMirrorTarget(t *testing.T) {
+	root := t.TempDir()
+	mirror := filepath.Join(root, "testdata", "golden", "core_stdlib", "base.sg")
+	canonical := filepath.Join(root, "core", "base.sg")
+	for _, path := range []string{mirror, canonical} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("pragma module, no_std;\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := ownershipCorpusCompileTarget(root, mirror, "testdata/golden/core_stdlib/base.sg")
+	if err != nil || got != canonical {
+		t.Fatalf("canonical target = %q, %v; want %q", got, err, canonical)
+	}
+	if err := os.WriteFile(mirror, []byte("pragma module;\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ownershipCorpusCompileTarget(root, mirror, "testdata/golden/core_stdlib/base.sg"); err == nil ||
+		!strings.Contains(err.Error(), "differs from canonical") {
+		t.Fatalf("stale mirror error = %v", err)
+	}
+	ordinary := filepath.Join(root, "testdata", "golden", "sema", "valid", "probe.sg")
+	if got, err := ownershipCorpusCompileTarget(root, ordinary, "testdata/golden/sema/valid/probe.sg"); err != nil || got != ordinary {
+		t.Fatalf("ordinary target = %q, %v; want %q", got, err, ordinary)
 	}
 }
 

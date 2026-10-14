@@ -63,7 +63,7 @@ func buildRuntimeV2LockSplitHarness(t *testing.T) string {
 }
 
 // The harness pins tasks with modulo of the live shard count, so every mode
-// is valid for SURGE_SHARDS=1 compatibility runs and for multi-shard runs.
+// is valid for SURGE_SHARDS=1 single-shard runs and for multi-shard runs.
 // Every wait is attempt-bounded: a lost wakeup fails fast instead of hanging.
 const lockSplitHarnessPrologue = `
 #define _POSIX_C_SOURCE 199309L

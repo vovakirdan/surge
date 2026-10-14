@@ -105,7 +105,11 @@ func TestStep7NumericHeapGuardPostBaselineCensus(t *testing.T) {
 		t.Fatalf("live Step 7 census: %v\n%s", err, report)
 	}
 	difference := Compare(&manifest, actual)
-	if !difference.Empty() || difference.PostBaselineAllowed != 3 {
+	expectedAllowed := 0
+	for _, category := range manifest.Categories {
+		expectedAllowed += len(category.PostBaselineAllow)
+	}
+	if !difference.Empty() || difference.PostBaselineAllowed != expectedAllowed {
 		t.Fatalf("live Step 7 allowance: %+v\n%s", difference, FormatDifference(&difference))
 	}
 	t.Logf("live Step 7 census:\n%s", report)

@@ -3,7 +3,7 @@ package vm_test
 import "testing"
 
 func TestChannelSendMovedStringCancellation(t *testing.T) {
-	t.Setenv("SURGE_THREADS", "1")
+	t.Setenv("SURGE_SHARDS", "1")
 	src := `
 async fn sender(ch: Channel<string>, ready: Channel<int>) -> int {
     ready.send(1);

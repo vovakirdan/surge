@@ -30,8 +30,6 @@ type stringTemporaryRow struct {
 	record     string
 }
 
-const stringTemporaryWorker = "async fn worker(x: &string) -> int { return 6; }\n"
-
 const stringTemporaryHelpers = `fn id_ref(s: &string) -> &string { return s; }
 fn size(s: &string) -> uint { return 1:uint; }
 fn label(n: int) -> string { return n to string; }
@@ -62,9 +60,8 @@ func stringTemporaryRows() []stringTemporaryRow {
 		// A `&mut` array is a loan sink even though its referent reads reference-free.
 		{name: "loan_sink_effect", text: "@intrinsic fn swap_in(dst: &mut uint64[], s: &string) -> nothing;\n" +
 			"fn f(dst: &mut uint64[], t: string) -> nothing { swap_in(dst, \"d\" + t); return nothing; }\n", allowOther: true},
-		// A Task holds its callee's borrowed formals; its type names only the result.
-		{name: "task_result", text: stringTemporaryWorker + "fn f(t: string) -> Task<int> { let k = worker(\"abc\" + t); return k; }\n",
-			kept: []string{"\"abc\" + t"}, reason: statementTemporaryKept},
+		// Task-held temporaries are rejected earlier by the task checker; see
+		// task_statement_temporary_test.go. They no longer reach this analysis.
 		// `arm` is a declaration: a body that parks the task, as it would have to, is refused by the task
 		// check itself (RV2-DEBT-365, R-b(call)), and this row asks only what the signature says.
 		{name: "task_effect", text: "@intrinsic fn arm(out: &mut Task<int>, s: &string) -> nothing;\n" +
@@ -75,11 +72,7 @@ func stringTemporaryRows() []stringTemporaryRow {
 		{name: "core_loan_carrier_result", text: "fn f(s: string, t: string) -> nothing { let _ = s.split(\",\" + t); return nothing; }\n"},
 		{name: "core_loan_sink_effect", text: "fn f(out: &mut byte[], t: string) -> nothing { out.append_string(\"g\" + t); return nothing; }\n"},
 		{name: "core_handle_effect", text: "fn f(r: Range<int>, t: string) -> nothing { let _ = rt_string_slice(\"i\" + t, r); return nothing; }\n", kept: []string{"\"i\" + t"}, reason: statementTemporaryKept},
-		// A user callee's signature cannot show a task started in its body over its formal. The accepted form
-		// awaits that task (dropped where it stands it is SEM3218; handed to a callee that drops it, SEM3021 at
-		// the return), and the async callee's own result is a Task, which hides a borrow: the argument is kept.
-		{name: "user_callee_starts_task", text: stringTemporaryWorker + "async fn fire(s: &string) -> nothing { let _ = worker(s).await(); return nothing; }\n" +
-			"async fn f(t: string) -> nothing { let _ = fire(\"q\" + t).await(); return nothing; }\n", kept: []string{"\"q\" + t"}, reason: statementTemporaryKept},
+		// The nested async-callee form is owned by the same task-checker regression.
 		// The same refusal reaches a harmless user wrapper until the task check can speak for its formal.
 		{name: "user_callee_plain", text: "fn note(s: &string) -> nothing { return nothing; }\n" +
 			"fn f(t: string) -> nothing { note(\"w\" + t); return nothing; }\n"},
@@ -90,7 +83,7 @@ func stringTemporaryRows() []stringTemporaryRow {
 
 func TestAnalyzeStringTemporaryArguments(t *testing.T) {
 	rows := stringTemporaryRows()
-	if len(rows) != 24 {
+	if len(rows) != 22 {
 		t.Fatalf("PRECONDITION: frozen roster changed: rows=%d", len(rows))
 	}
 	for _, row := range rows {

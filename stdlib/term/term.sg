@@ -57,19 +57,22 @@ pub fn write_str(s: &string) -> nothing {
     return nothing;
 }
 
-pub fn read_event_async(ch: Channel<TermEvent>) -> Task<nothing> {
-    return blocking {
-        while true {
-            let ev = term_read_event();
-            let done = compare ev {
-                Eof() => true;
-                _ => false;
-            };
-            ch.send(ev);
-            if done {
-                ret nothing;
-            }
+// Spawn this cold task when the caller consumes the event channel concurrently.
+pub async fn read_event_async(ch: Channel<TermEvent>) -> nothing {
+    while true {
+        let read = blocking { ret term_read_event(); };
+        let ev = compare read.await() {
+            Success(event) => event;
+            Cancelled() => { return nothing; }
+        };
+        let done = compare ev {
+            Eof() => true;
+            _ => false;
+        };
+        ch.send(ev);
+        if done {
+            return nothing;
         }
-        ret nothing;
-    };
+    }
+    return nothing;
 }

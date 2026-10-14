@@ -69,7 +69,6 @@ func runSeq0RetryStand(t *testing.T, bin string) (string, string, int) {
 	t.Helper()
 	env := remotePublicationEnv(
 		"SURGE_SHARDS=2",
-		"SURGE_THREADS=2",
 		"SURGE_REMOTE_DEADLOCK_DETECT=0")
 	return runRemotePublicationHarness(t, bin, "select-seq0-retry-terminal-drain", env)
 }

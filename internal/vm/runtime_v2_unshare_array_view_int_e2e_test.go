@@ -129,7 +129,7 @@ func runUnshareArrayProgramForItsAlias(t *testing.T, outputPath string, shards i
 	t.Helper()
 	env := envWithStdlib(repoRoot(t))
 	env = overrideEnvVar(env, "SURGE_SHARDS", strconv.Itoa(shards))
-	env = overrideEnvVar(env, "SURGE_THREADS", strconv.Itoa(shards))
+	env = overrideEnvVar(env, "SURGE_SHARDS", strconv.Itoa(shards))
 	duration, result := runBinaryWithTimeout(t, outputPath, env, 30*time.Second)
 	if result.exitCode != 0 {
 		t.Fatalf("the control build must run to completion (shards=%d exit=%d duration=%s)\nstdout:\n%s\nstderr:\n%s",

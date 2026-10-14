@@ -154,8 +154,9 @@ func TestH2TripwireRefusedG5ModuleTimeout(t *testing.T) {
 	}, false)
 }
 
-// RV2-DEBT-365: an explicit `import core/intrinsics` re-adds core rows, so an aliased
-// `timeout` called from a sync main does not build. The twin is the same leak without the import.
+// RV2-DEBT-365: an explicit `import core/intrinsics` no longer analyzes dead
+// core bodies. The aliased timeout and its import-free twin therefore carry
+// only the task-check contract; this borrow-free twin builds in both forms.
 func TestH2TripwireImportAddsCoreRowsG5b(t *testing.T) {
 	twinOwn, twinCore, _ := h2TripwirePending(t, h2TripwireG4dTwinTwin, h2TripwireG4dTwinTwinDigest)
 	if len(twinOwn) != 0 {
@@ -165,18 +166,9 @@ func TestH2TripwireImportAddsCoreRowsG5b(t *testing.T) {
 		t.Fatalf("PRECONDITION: %s", verdict)
 	}
 	own, core, built := h2TripwirePending(t, h2TripwireG5bAliasTimeoutTwin, h2TripwireG5bAliasTimeoutTwinDigest)
-	if built {
-		t.Fatal("the importing program builds: its barrier is gone (RV2-DEBT-365)")
+	if !built || len(own) != 0 || len(core) != 0 {
+		t.Fatalf("the borrow-free importing twin did not build cleanly: built=%t own=%+v core=%+v", built, own, core)
 	}
-	extra, verdict := h2TripwireImportDifferential(own, core, twinCore)
-	if verdict != "" {
-		t.Fatal(verdict)
-	}
-	units := make(map[string]int)
-	for _, p := range extra {
-		units[p.SourceKey]++
-	}
-	t.Logf("H2_TRIPWIRE import-induced core rows=%d by unit=%v", len(extra), units)
 }
 
 // The differential must refuse an importing program that has become its own twin.

@@ -47,8 +47,6 @@ void __surge_blocking_call(uint64_t id, void* state, void* out_dst) {
 #define POLL_CHILD 7001
 #define POLL_OWNER_DROP 7002
 #define POLL_OWNER_ESCAPE 7003
-#define POLL_OWNER_AFFINE_INLINE 7004
-#define POLL_OWNER_AFFINE_HANDOFF 7005
 #define POLL_OWNER_FOREIGN 7006
 #define POLL_OWNER_WALK_DROP 7007
 #define POLL_OWNER_INLINE_SCOPE 7008
@@ -67,8 +65,8 @@ static _Atomic uint32_t g_frame_drops;
 static _Atomic uint32_t g_child_polls;
 static _Atomic uint32_t g_child_worker;
 static _Atomic uint32_t g_owner_phase;
+static _Atomic uint32_t g_foreign_action_done;
 static _Atomic(void*) g_escaped;
-static _Atomic uint32_t g_carrier;
 static _Atomic uint64_t g_scope_id;
 #ifdef RT_TEST_SYNC_POINTS
 // The join-walk mode's state: that mode exists only in the armed build.
@@ -143,12 +141,9 @@ static cold_frame* new_frame(void) {
     return frame;
 }
 
-static void* create_child(int affine) {
+static void* create_child(void) {
     cold_frame* frame = new_frame();
-    return affine ? __task_create_cold_affine(
-                        POLL_CHILD, frame, rt_channel_opaque_word_ops(), &cold_frame_ops)
-                  : __task_create_cold(
-                        POLL_CHILD, frame, rt_channel_opaque_word_ops(), &cold_frame_ops);
+    return __task_create_cold(POLL_CHILD, frame, rt_channel_opaque_word_ops(), &cold_frame_ops);
 }
 
 static int is_cold(const void* handle) {
@@ -187,7 +182,8 @@ static void poll_child_older(void) {
 static void poll_child(void) {
     atomic_fetch_add_explicit(&g_child_polls, 1, memory_order_acq_rel);
     if (tls_worker_ctx != NULL) {
-        atomic_store_explicit(&g_child_worker, tls_worker_ctx->worker_id + 1, memory_order_release);
+        atomic_store_explicit(
+            &g_child_worker, tls_worker_ctx->worker_index + 1, memory_order_release);
     }
     cold_frame* frame = (cold_frame*)__task_state();
     if (frame != NULL) {
@@ -210,7 +206,7 @@ static void finish(uint32_t verdict) {
 // wait, the scope is not fail-fast, and the member never ran.
 static void poll_owner_drop(void) {
     uint64_t scope = rt_scope_enter(true);
-    void* child = create_child(0);
+    void* child = create_child();
     const rt_scope* record = get_scope(ensure_exec(), scope);
     if (record == NULL || record->active_children != 1 || record->cold_children != 1 ||
         !is_cold(child)) {
@@ -236,7 +232,7 @@ static void poll_owner_drop(void) {
 // member before the owner yields. With more, the join's publication may be
 // taken by another worker at once, and "not run yet" is no longer a promise.
 static int single_worker(void) {
-    const char* threads = getenv("SURGE_THREADS");
+    const char* threads = getenv("SURGE_SHARDS");
     return threads != NULL && strcmp(threads, "1") == 0;
 }
 
@@ -246,7 +242,7 @@ static void poll_owner_escape(void) {
     bool failfast = false;
     if (atomic_load_explicit(&g_owner_phase, memory_order_acquire) == 0) {
         uint64_t scope = rt_scope_enter(false);
-        void* child = create_child(0);
+        void* child = create_child();
         atomic_store_explicit(&g_escaped, child, memory_order_release);
         atomic_store_explicit(&g_owner_phase, (uint32_t)scope, memory_order_release);
         if (rt_scope_join_all(scope, &pending, &failfast)) {
@@ -270,39 +266,6 @@ static void poll_owner_escape(void) {
     finish(atomic_load_explicit(&g_child_polls, memory_order_acquire) == 1 ? 1 : 23);
 }
 
-// The creator's own await claims an affine child inline, on its carrier.
-static void poll_owner_affine_inline(void) {
-    void* child = create_child(1);
-    const rt_task* task = (const rt_task*)child;
-    if (!is_cold(child) || task->carrier_valid == 0 || tls_worker_ctx == NULL ||
-        task->carrier_worker_id != tls_worker_ctx->worker_id) {
-        finish(31);
-        return;
-    }
-    atomic_store_explicit(&g_carrier, task->carrier_worker_id + 1, memory_order_release);
-    uint64_t out = 0;
-    if (rt_task_poll(child, &out) != 1 || out != 7) {
-        finish(32);
-        return;
-    }
-    finish(1);
-}
-
-// The creator records the pin and hands the handle out; a thread that is no
-// worker publishes it later.
-static void poll_owner_affine_handoff(void) {
-    void* child = create_child(1);
-    const rt_task* task = (const rt_task*)child;
-    if (!is_cold(child) || task->carrier_valid == 0 || tls_worker_ctx == NULL ||
-        task->carrier_worker_id != tls_worker_ctx->worker_id) {
-        finish(41);
-        return;
-    }
-    atomic_store_explicit(&g_carrier, task->carrier_worker_id + 1, memory_order_release);
-    atomic_store_explicit(&g_escaped, child, memory_order_release);
-    finish(1);
-}
-
 // How many scope events shard 0's transport has carried: the only road a lane
 // that is not the scope's owner lane has to the scope's hint and count (Р6).
 static uint64_t scope_events(void) {
@@ -323,13 +286,17 @@ static void poll_owner_foreign(void) {
     if (phase == 0) {
         uint64_t scope = rt_scope_enter(false);
         atomic_store_explicit(&g_scope_id, scope, memory_order_release);
-        atomic_store_explicit(&g_escaped, create_child(0), memory_order_release);
+        atomic_store_explicit(&g_escaped, create_child(), memory_order_release);
         atomic_store_explicit(&g_owner_phase, 1, memory_order_release);
         rt_async_yield(NULL, 0);
         return;
     }
     uint64_t scope = atomic_load_explicit(&g_scope_id, memory_order_acquire);
     if (phase == 1) {
+        if (atomic_load_explicit(&g_foreign_action_done, memory_order_acquire) == 0) {
+            rt_async_yield(NULL, 0);
+            return;
+        }
         atomic_store_explicit(&g_owner_phase, 2, memory_order_release);
         const rt_scope* record = get_scope(ensure_exec(), scope);
         if (record == NULL || record->cold_children != 0) {
@@ -357,7 +324,7 @@ static void poll_owner_inline_scope(void) {
         g_owner_thread = pthread_self();
         void* older = __task_create_cold(
             POLL_CHILD_OLDER, new_frame(), rt_channel_opaque_word_ops(), &cold_frame_ops);
-        void* latest = create_child(0);
+        void* latest = create_child();
         atomic_store_explicit(&g_older, older, memory_order_release);
         atomic_store_explicit(&g_owner_phase, 1, memory_order_release);
         atomic_store_explicit(&g_owner_awaiting, 1, memory_order_release);
@@ -390,7 +357,7 @@ static void poll_owner_walk_drop(void) {
     if (atomic_load_explicit(&g_owner_phase, memory_order_acquire) == 0) {
         uint64_t scope = rt_scope_enter(false);
         atomic_store_explicit(&g_scope_id, scope, memory_order_release);
-        atomic_store_explicit(&g_escaped, create_child(0), memory_order_release);
+        atomic_store_explicit(&g_escaped, create_child(), memory_order_release);
         atomic_store_explicit(&g_owner_phase, 1, memory_order_release);
     }
     uint64_t scope = atomic_load_explicit(&g_scope_id, memory_order_acquire);
@@ -420,17 +387,11 @@ void __surge_poll_call(uint64_t id) {
         case POLL_OWNER_ESCAPE:
             poll_owner_escape();
             return;
-        case POLL_OWNER_AFFINE_INLINE:
-            poll_owner_affine_inline();
-            return;
         case POLL_OWNER_WALK_DROP:
             poll_owner_walk_drop();
             return;
         case POLL_OWNER_FOREIGN:
             poll_owner_foreign();
-            return;
-        case POLL_OWNER_AFFINE_HANDOFF:
-            poll_owner_affine_handoff();
             return;
         case POLL_MEMBER:
             poll_member();

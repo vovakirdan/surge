@@ -12,10 +12,8 @@ func TestRuntimeV2LifecycleDebt023CancelParkWakeTokenProof(t *testing.T) {
 	for _, shards := range []string{"1", "2", "8"} {
 		shards := shards
 		t.Run("positive-shards-"+shards, func(t *testing.T) {
-			threads := map[string]string{"1": "4", "2": "2", "8": "8"}[shards]
 			env := lifecycleEnv(
 				"SURGE_SHARDS="+shards,
-				"SURGE_THREADS="+threads,
 				"SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_PARK_BEFORE_WAITING:block")
 			stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "debt023-cancel-park-proof", env)
@@ -31,7 +29,6 @@ func TestRuntimeV2LifecycleDebt023CancelParkWakeTokenNegativeControl(t *testing.
 	binPath := buildRuntimeV2LifecycleHarnessSyncPoints(t, true)
 	env := lifecycleEnv(
 		"SURGE_SHARDS=2",
-		"SURGE_THREADS=2",
 		"SURGE_BLOCKING_THREADS=1",
 		"SURGE_SYNC_POINT=SP_PARK_BEFORE_WAITING:block")
 	stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "debt023-cancel-park-proof", env)
@@ -50,10 +47,8 @@ func TestRuntimeV2LifecycleDebt020MigrateGapProof(t *testing.T) {
 	for _, shards := range []string{"2", "8"} {
 		shards := shards
 		t.Run("positive-shards-"+shards, func(t *testing.T) {
-			threads := map[string]string{"2": "2", "8": "8"}[shards]
 			env := lifecycleEnv(
 				"SURGE_SHARDS="+shards,
-				"SURGE_THREADS="+threads,
 				"SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_MIGRATE_GAP:block")
 			stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "debt020-migrate-gap-proof", env)
@@ -69,7 +64,6 @@ func TestRuntimeV2LifecycleDebt020MigrateGapNegativeControl(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarnessDebt020(t, true)
 	env := lifecycleEnv(
 		"SURGE_SHARDS=2",
-		"SURGE_THREADS=2",
 		"SURGE_BLOCKING_THREADS=1",
 		"SURGE_SYNC_POINT=SP_MIGRATE_GAP:block")
 	stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "debt020-migrate-gap-proof", env)
@@ -88,10 +82,8 @@ func TestRuntimeV2LifecycleDebt022DoneCVStoreLoadProof(t *testing.T) {
 	for _, shards := range []string{"1", "2", "8"} {
 		shards := shards
 		t.Run("positive-shards-"+shards, func(t *testing.T) {
-			threads := map[string]string{"1": "4", "2": "2", "8": "8"}[shards]
 			env := lifecycleEnv(
 				"SURGE_SHARDS="+shards,
-				"SURGE_THREADS="+threads,
 				"SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_AWAIT_BEFORE_DONECV_WAIT:block")
 			stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "debt022-donecv-storeload-proof", env)
@@ -107,7 +99,6 @@ func TestRuntimeV2LifecycleDebt022DoneCVStoreLoadNegativeControl(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarnessDebt022(t, true)
 	env := lifecycleEnv(
 		"SURGE_SHARDS=2",
-		"SURGE_THREADS=2",
 		"SURGE_BLOCKING_THREADS=1",
 		"SURGE_SYNC_POINT=SP_AWAIT_BEFORE_DONECV_WAIT:block")
 	stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "debt022-donecv-storeload-proof", env)
@@ -133,7 +124,6 @@ func TestRuntimeV2LifecycleDebt022ExternalAwaitMatrix(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			env := lifecycleEnv(
 				"SURGE_SHARDS=2",
-				"SURGE_THREADS=2",
 				"SURGE_BLOCKING_THREADS=1")
 			stdout, stderr, exitCode := runLifecycleHarness(t, binPath, mode, env)
 			if exitCode != 0 {
@@ -149,10 +139,8 @@ func TestRuntimeV2LifecycleDebt046JoinStaleRemovalProof(t *testing.T) {
 	for _, shards := range []string{"1", "2", "8"} {
 		shards := shards
 		t.Run("positive-shards-"+shards, func(t *testing.T) {
-			threads := map[string]string{"1": "4", "2": "2", "8": "8"}[shards]
 			env := lifecycleEnv(
 				"SURGE_SHARDS="+shards,
-				"SURGE_THREADS="+threads,
 				"SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_WAKE_BEFORE_STALE_REMOVAL:block")
 			stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "debt046-join-stale-removal-proof", env)
@@ -167,8 +155,7 @@ func TestRuntimeV2LifecycleDebt046JoinStaleRemovalProof(t *testing.T) {
 func TestRuntimeV2LifecycleDebt046JoinStaleRemovalNegativeControl(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarnessDebt046(t, true)
 	env := lifecycleEnv(
-		"SURGE_SHARDS=1",
-		"SURGE_THREADS=4",
+		"SURGE_SHARDS=4",
 		"SURGE_BLOCKING_THREADS=1",
 		"SURGE_SYNC_POINT=SP_WAKE_BEFORE_STALE_REMOVAL:block")
 	stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "debt046-join-stale-removal-proof", env)

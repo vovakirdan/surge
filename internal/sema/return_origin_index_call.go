@@ -3,6 +3,7 @@ package sema
 import (
 	"surge/internal/ast"
 	"surge/internal/source"
+	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
@@ -21,8 +22,9 @@ const returnOriginIndexUnanswered = "index requires a non-scalar index transfer"
 //     never re-selected here.
 //   - No operand and no result is implicitly converted: returnOriginTypedIndex
 //     refuses a conversion on the node or either operand before this runs.
-//   - The result is erased: its type holds no borrow and is no loan carrier, so no
-//     operand origin or storage loan can reach the value.
+//   - An erased result carries no origin. A borrowed result substitutes the
+//     checked body's exact parameter roots through the already evaluated target
+//     and index operands, just as an ordinary call does.
 //   - No formal is `&mut`, and every formal passes the opaque-call effect rule, so
 //     the call writes through nothing the caller can see.
 //   - A by-value formal whose type holds no borrow erases whatever loan its actual
@@ -31,18 +33,25 @@ const returnOriginIndexUnanswered = "index requires a non-scalar index transfer"
 //     declaration its declared promise, which for an erased result names nothing.
 //
 // Anything else keeps the unanswered refusal.
-func (b *returnOriginBody) selectedIndexCall(out *returnOriginExprResult, id ast.ExprID, data *ast.ExprIndexData, target, index returnOriginValue) string {
+func (b *returnOriginBody) selectedIndexCall(out *returnOriginExprResult, id ast.ExprID, data *ast.ExprIndexData, target, index *returnOriginExprResult) string {
 	u := b.function.unit
 	in := u.Sema.TypeInterner
 	if _, builtin := returnOriginIndexContainer(in, u.Sema.ExprTypes[data.Target]); builtin {
 		return returnOriginIndexUnanswered
 	}
 	var fn *returnOriginFunction
-	if _, present := u.Sema.IndexSymbols[id]; present {
+	if selected, present := u.Sema.IndexSymbols[id]; present {
 		var reason string
 		fn, reason = b.analyzer.selectedIndexFunction(u, id)
 		if reason != "" {
-			return reason
+			sym := u.Symbols.Table.Symbols.Get(selected)
+			if sym == nil || sym.Flags&symbols.SymbolFlagImported == 0 {
+				return reason
+			}
+			fn = b.uniqueImportedIndexFunction(id, data)
+			if fn == nil {
+				return reason
+			}
 		}
 	} else {
 		fn = b.uniqueImportedIndexFunction(id, data)
@@ -69,32 +78,70 @@ func (b *returnOriginBody) selectedIndexCall(out *returnOriginExprResult, id ast
 	if returnOriginCallHasUnprovedEffects(in, fn.info.Params) {
 		return returnOriginIndexUnanswered
 	}
-	// An erased result: its type holds no borrow and is no loan carrier, and the
-	// declaration's view of it requires no borrowed state.
-	result, required := u.Sema.ExprTypes[id], returnOriginView(fn).requirement(returnOriginNoBorrowedState, fn.info.Result)
-	if returnOriginTypeShape(in, result, nil) != returnOriginRefFree || b.analyzer.loanCarrier(result) ||
-		required.failed() || len(required.atoms) != 0 {
-		return returnOriginIndexUnanswered
-	}
 	span := u.Builder.Exprs.Get(id).Span
-	b.guardIndexActuals(fn, span, target, index)
-	out.storage = returnOriginValue{}
-	out.value = returnOriginValueOf()
-	if !fn.item.Body.IsValid() {
-		return ""
+	actualValues := [...]returnOriginCallValue{
+		{value: target.value, storage: target.storage},
+		{value: index.value, storage: index.storage},
 	}
-	summary := b.analyzer.summaries[fn.key].value
-	if summary.normal && (len(summary.roots) != 0 || len(summary.callables) != 0) {
-		return returnOriginIndexUnanswered
+	actualExprs := [...]ast.ExprID{data.Target, data.Index}
+	actuals := make([]returnOriginValue, len(actualValues))
+	for i := range actualValues {
+		if i == 0 && selectedIndexImplicitReceiver(in, u.Sema.ExprTypes[data.Target], fn.info.Params[0]) &&
+			actualValues[i].storage.normal && len(actualValues[i].storage.roots) != 0 {
+			actuals[i] = actualValues[i].storage.clone()
+		} else {
+			actuals[i] = b.callArgumentOrigin(actualExprs[i], fn.info.Params[i], &actualValues[i], false)
+		}
 	}
-	if b.inheritRequirements(fn, returnOriginView(fn), span).failed() {
-		return returnOriginIndexUnanswered
+	b.guardIndexActuals(fn, span, actuals...)
+
+	var summary returnOriginValue
+	if fn.item.Body.IsValid() {
+		summary = b.analyzer.summaries[fn.key].value
+		if b.inheritRequirements(fn, returnOriginView(fn), span).failed() && summary.normal {
+			return returnOriginIndexUnanswered
+		}
+	} else {
+		slots, valid := b.declaredFunctionSources(fn, span)
+		summary = b.opaqueReturnSources(fn, fn.info, slots, valid, span)
 	}
 	if !summary.normal {
-		// A body that never returns leaves the index unreachable, as a call does.
-		out.value, out.flow.normal = returnOriginValue{}, returnOriginEnv{}
+		out.value, out.storage, out.flow.normal = returnOriginValue{}, returnOriginValue{}, returnOriginEnv{}
+		return ""
+	}
+	if len(summary.callables) != 0 {
+		return returnOriginIndexUnanswered
+	}
+	value := returnOriginValueOf()
+	for _, root := range summary.roots {
+		if root.kind != returnOriginParam || int64(root.param) >= int64(len(actuals)) {
+			return returnOriginIndexUnanswered
+		}
+		value = value.join(actuals[root.param])
+	}
+	result := u.Sema.ExprTypes[id]
+	if returnOriginTypeShape(in, result, nil) == returnOriginRefFree && !b.analyzer.loanCarrier(result) {
+		if len(summary.roots) != 0 {
+			return returnOriginIndexUnanswered
+		}
+		value = returnOriginValueOf()
+	}
+	b.checkExpired(value, span)
+	out.value = value
+	out.storage = returnOriginValue{}
+	if returnOriginIsReference(in, result) {
+		out.storage = value.clone()
 	}
 	return ""
+}
+
+func selectedIndexImplicitReceiver(in *types.Interner, actual, formal types.TypeID) bool {
+	if returnOriginIsReference(in, actual) {
+		return false
+	}
+	formal = returnOriginResolveAlias(in, formal)
+	ref, ok := in.Lookup(formal)
+	return ok && ref.Kind == types.KindReference && !ref.Mutable && returnOriginResolveAlias(in, ref.Elem) == returnOriginResolveAlias(in, actual)
 }
 
 // Some imported non-generic magic index calls reach HIR with their exact call
@@ -103,10 +150,15 @@ func (b *returnOriginBody) selectedIndexCall(out *returnOriginExprResult, id ast
 func (b *returnOriginBody) uniqueImportedIndexFunction(id ast.ExprID, data *ast.ExprIndexData) *returnOriginFunction {
 	var found *returnOriginFunction
 	for _, fn := range b.analyzer.functions {
-		if fn == nil || fn.unit == b.function.unit || !fn.item.Body.IsValid() || !b.indexCallAgrees(fn, id, data) {
+		agrees := fn != nil && fn.unit != b.function.unit && fn.item.Body.IsValid() && b.indexCallAgrees(fn, id, data)
+		if !agrees {
 			continue
 		}
 		if found != nil {
+			if found.key == fn.key && found.canonicalSourceKey == fn.canonicalSourceKey ||
+				b.analyzer.sameTemplateBody(found.candidate.Symbol, fn.candidate.Symbol) {
+				continue
+			}
 			return nil
 		}
 		found = fn
@@ -134,26 +186,62 @@ func (b *returnOriginBody) guardIndexActuals(fn *returnOriginFunction, span sour
 // takes implicitly; either way it names the declaring receiver type. Whether a
 // `&mut` receiver can be answered is the caller's question, not agreement's.
 func (b *returnOriginBody) indexCallAgrees(fn *returnOriginFunction, id ast.ExprID, data *ast.ExprIndexData) bool {
+	return b.indexSignatureAgrees(fn.candidate, fn.info.Params, fn.info.Result, id, data)
+}
+
+func (b *returnOriginBody) indexSignatureAgrees(c *CallableCandidate, params []types.TypeID, result types.TypeID, id ast.ExprID, data *ast.ExprIndexData) bool {
 	u := b.function.unit
 	in := u.Sema.TypeInterner
-	c := fn.candidate
-	if c.Name != "__index" || fn.name != "__index" || !c.HasSelf || len(fn.info.Params) != 2 {
+	if c == nil || c.Name != "__index" || !c.HasSelf || len(params) != 2 {
 		return false
 	}
-	if fn.info.Result != u.Sema.ExprTypes[id] || fn.info.Params[1] != u.Sema.ExprTypes[data.Index] {
+	if !returnOriginIndexTypeEquivalent(in, result, u.Sema.ExprTypes[id]) ||
+		!returnOriginIndexTypeEquivalent(in, params[1], u.Sema.ExprTypes[data.Index]) {
 		return false
 	}
-	target, receiver := u.Sema.ExprTypes[data.Target], fn.info.Params[0]
+	target, receiver := u.Sema.ExprTypes[data.Target], params[0]
 	self, typed := in.Lookup(receiver)
 	if !typed {
 		return false
 	}
 	switch {
-	case receiver == target && self.Kind == types.KindReference:
-		return c.ReceiverType == self.Elem
-	case receiver == target:
-		return c.ReceiverType == receiver
+	case returnOriginIndexTypeEquivalent(in, receiver, target) && self.Kind == types.KindReference:
+		return returnOriginIndexTypeEquivalent(in, c.ReceiverType, self.Elem)
+	case returnOriginIndexTypeEquivalent(in, receiver, target):
+		return returnOriginIndexTypeEquivalent(in, c.ReceiverType, receiver)
 	default:
-		return self.Kind == types.KindReference && self.Elem == target && c.ReceiverType == target
+		return self.Kind == types.KindReference && returnOriginIndexTypeEquivalent(in, self.Elem, target) &&
+			returnOriginIndexTypeEquivalent(in, c.ReceiverType, target)
 	}
+}
+
+func returnOriginIndexTypeEquivalent(in *types.Interner, left, right types.TypeID) bool {
+	left, right = returnOriginResolveAlias(in, left), returnOriginResolveAlias(in, right)
+	if left == right {
+		return true
+	}
+	lt, lok := in.Lookup(left)
+	rt, rok := in.Lookup(right)
+	if !lok || !rok || lt.Kind != rt.Kind || lt.Mutable != rt.Mutable || lt.Width != rt.Width || lt.Count != rt.Count {
+		return false
+	}
+	switch lt.Kind {
+	case types.KindReference, types.KindOwn, types.KindPointer, types.KindFar, types.KindArray:
+		return returnOriginIndexTypeEquivalent(in, lt.Elem, rt.Elem)
+	case types.KindBool, types.KindInt, types.KindUint, types.KindFloat, types.KindString,
+		types.KindNothing, types.KindUnit, types.KindConst:
+		return true
+	}
+	l, lok := in.StructInfo(left)
+	r, rok := in.StructInfo(right)
+	if !lok || !rok || l == nil || r == nil || l.Name != r.Name || l.Decl.Start != r.Decl.Start || l.Decl.End != r.Decl.End ||
+		len(l.TypeArgs) != len(r.TypeArgs) {
+		return false
+	}
+	for i := range l.TypeArgs {
+		if !returnOriginIndexTypeEquivalent(in, l.TypeArgs[i], r.TypeArgs[i]) {
+			return false
+		}
+	}
+	return true
 }

@@ -56,7 +56,6 @@ void rt_channel_close(void* channel) {
                     ex, ch_shard, &cand, resumes[k], (rt_park_token){0}, 1, &pushed);
                 if (live && !pushed) {
                     rt_shard_unlock(ch_shard);
-                    channel_compat_broadcast_if_needed(ex, 0);
                     rt_shard_lock(ch_shard);
                 }
                 continue;

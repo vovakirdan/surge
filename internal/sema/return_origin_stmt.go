@@ -110,8 +110,8 @@ func (b *returnOriginBody) stmtKind(id ast.StmtID, env returnOriginEnv, targets 
 		}
 		out := originExprValue(env, returnOriginValueOf())
 		if value.IsValid() {
-			if function && b.function.item.Flags&ast.FnModifierAsync == 0 {
-				b.markLoadedResult(value, b.function.info.Result)
+			if function {
+				b.markLoadedResult(value, returnOriginFallthroughResult(b.function))
 			}
 			var err error
 			out, err = b.expr(value, env, targets)
@@ -179,7 +179,7 @@ func (b *returnOriginBody) canLoadScalarReturn(expr ast.ExprID, value returnOrig
 	if !expr.IsValid() || !env.reachable || !value.normal || len(value.roots) == 0 || len(value.callables) != 0 {
 		return false
 	}
-	expected := resolveAlias(in, fn.info.Result)
+	expected := resolveAlias(in, returnOriginFallthroughResult(fn))
 	actual, ok := in.Lookup(resolveAlias(in, u.Sema.ExprTypes[expr]))
 	if !ok || actual.Kind != types.KindReference || resolveAlias(in, actual.Elem) != expected || !u.Sema.IsCopyType(expected) {
 		return false

@@ -64,12 +64,12 @@ func TestRuntimeV2HeapAccountingStaticShardCellSkeletonShape(t *testing.T) {
 	}
 	if !runtimeV2HeapAccountingHasLaneSelection(nativeSources) {
 		failures = append(failures,
-			"missing lane-local heap accounting selection for worker, I/O, blocking, or synchronous-runner contexts",
+			"missing lane-local heap accounting selection for carrier, I/O, blocking, or external-main contexts",
 		)
 	}
 	if !runtimeV2HeapAccountingHasLaneInstallSites(nativeSources) {
 		failures = append(failures,
-			"missing installed heap accounting cells for main, worker, I/O, blocking, and compensation lanes",
+			"missing installed heap accounting cells for external-main, carrier, I/O, and blocking lanes",
 		)
 	}
 
@@ -208,8 +208,6 @@ func runtimeV2HeapAccountingHasLaneInstallSites(source string) bool {
 		"rt_heap_accounting_main_cell",
 		"rt_heap_accounting_io_cell",
 		"rt_heap_accounting_blocking_cell",
-		"rt_heap_accounting_compensation_cell",
-		"rt_heap_accounting_set_current_cell(saved_cell)",
 		"rt_heap_accounting_set_current_cell(NULL)",
 	}
 	for _, needle := range required {

@@ -10,8 +10,6 @@ import (
 // implementation has no original typed request, so it is believed only through its pinned
 // finalized outcome. Every leaf freezes its source and each span it reads.
 
-const implementationUseRefusal = "generic original call disagrees with its selected canonical template"
-
 // `len(x)` used to leave "generic original method call lacks its receiver expression"
 // here, pinned as pre-existing by P1p-G. P1x-B certifies the free-form `self` call,
 // so those spans are clean and the `cleared` lists below carry them instead.

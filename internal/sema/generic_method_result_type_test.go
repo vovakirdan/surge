@@ -201,9 +201,10 @@ func TestGenericMethodResultPreservesNestedTypeMetadata(t *testing.T) {
 			f := newGenericMethodFixture()
 			actual := f.in.RegisterTypeParam(f.name, 11, 0, false, types.NoTypeID)
 			sources := types.ReturnSources{}
-			if name == "explicit_empty" {
+			switch name {
+			case "explicit_empty":
 				sources = types.ExplicitReturnSources()
-			} else if name == "slot_zero" {
+			case "slot_zero":
 				sources = types.ExplicitReturnSources(0)
 			}
 			ref := f.in.Intern(types.MakeReference(f.formal, false))

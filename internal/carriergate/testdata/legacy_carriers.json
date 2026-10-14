@@ -5892,6 +5892,21 @@
           "retired_by": "wave-f-frame-locals-typed-owner",
           "tracked_as": "RV2-DEBT-318"
         }
+      ],
+      "post_baseline_allow": [
+        {
+          "id": "vm-task-state-stable-home",
+          "finding": {
+            "category": "vm-universal-owner",
+            "path": "internal/vm/async_runtime.go",
+            "token": "userTaskState.home-\u003eArena.refs-\u003eLocation.FrameRef-\u003eFrame.Locals-\u003eLocalSlot.V-\u003eValue",
+            "evidence": "structural owner field userTaskState.home",
+            "ordinal": 1
+          },
+          "reason": "A VM task whose inline composite state borrows promoted frame storage retains the exact Arena that owns that state until the task state is released. This implements the Runtime V2 address-stable task activation rule; it is unrelated to the retired native multi-carrier scheduler.",
+          "safe_because": "home is set only by homeTaskState for the task's own inline composite, is never used as a generic value carrier, and retireHome invalidates and clears it exactly when the task state is destroyed. The task-state pin and home release tests cover replacement, suspension, cold cancellation and final release.",
+          "invalidated_when": "home may name an arena other than the task state's promoted owner; a state replacement or terminal path can omit retireHome or call it twice; task state stops being address-stable; or the finding's category/path/token/evidence/ordinal changes."
+        }
       ]
     }
   ]

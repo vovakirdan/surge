@@ -135,6 +135,29 @@ fn use_game() -> int {
 	}
 }
 
+func TestExplicitModuleDirectoryCacheIsScopedByModuleName(t *testing.T) {
+	root := t.TempDir()
+	alphaDir := filepath.Join(root, "one")
+	betaDir := filepath.Join(root, "two")
+	writeTestFile(t, filepath.Join(alphaDir, "alpha.sg"), `
+pragma module::alpha;
+
+pub fn value() -> int { return 1; }
+`)
+	writeTestFile(t, filepath.Join(betaDir, "beta.sg"), `
+pragma module::beta;
+
+pub fn value() -> int { return 2; }
+`)
+	resetExplicitModuleDirCacheForTest()
+	if got := findExplicitModuleDir(root, "alpha", "alpha", os.ReadFile); got != alphaDir {
+		t.Fatalf("alpha directory = %q, want %q", got, alphaDir)
+	}
+	if got := findExplicitModuleDir(root, "beta", "beta", os.ReadFile); got != betaDir {
+		t.Fatalf("beta directory after alpha scan = %q, want %q", got, betaDir)
+	}
+}
+
 func writeTestFile(t *testing.T, path, src string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

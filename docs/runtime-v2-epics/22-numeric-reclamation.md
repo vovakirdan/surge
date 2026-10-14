@@ -1046,6 +1046,15 @@ shipped — the six barriers under "Phase 1 remainder" are unbuilt, and
 `RV2-DEBT-038`'s 2026-09-04 note). What upholds it today is the fourth thing:
 every crossing that would share such a block is REFUSED.
 
+**Topology cutover 2026-10-12.** The additional local-sharing premise is now
+explicit: Tier 1 has one carrier per shard. The retired `1 shard x N carriers`
+mode violated that premise and produced RV2-DEBT-452. The repair is the Runtime
+V2 topology cutover, not atomic RC: `SURGE_THREADS`, same-shard peer stealing
+and carrier-affine constructor variants are removed, while explicit cross-shard
+boundaries retain the clone/refusal obligations in this epic. Candidate stress
+is 100/100 at shards 1, 2 and 8 and TSan-clean at all three widths; final closure
+still requires the exact-SHA landing packet.
+
 That refusal is affordable for `float` because a program that needs to cross
 can spell `float64`. **It is not affordable for `int`.** So Phase 2 cannot
 simply widen `IsRefCountedScalar` and inherit Phase 1's narrowing with it.

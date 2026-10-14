@@ -35,6 +35,11 @@ void __surge_drop_abandoned_state_call(uint64_t id, void* state) {
 
 void __surge_poll_call(uint64_t id) {
     switch (id) {
+#ifdef RT_TEST_SYNC_POINTS
+        case POLL_TASK_REF_OBSERVATION:
+            poll_task_ref_observation();
+            break;
+#endif
         case POLL_SEND_OFFER_CLAIM:
             poll_send_offer_claim();
             break;
@@ -107,18 +112,6 @@ void __surge_poll_call(uint64_t id) {
         case POLL_PARK_FOREVER:
             poll_park_forever();
             break;
-        case POLL_CARRIER_OWNER:
-            poll_carrier_owner();
-            break;
-        case POLL_CARRIER_CHILD:
-            poll_carrier_child();
-            break;
-        case POLL_CARRIER_SPINNER:
-            poll_carrier_spinner();
-            break;
-        case POLL_CARRIER_SHUTDOWN_OWNER:
-            poll_carrier_shutdown_owner();
-            break;
         case POLL_MAKE_PARK_FOREVER_CHAN:
             poll_make_park_forever_chan();
             break;
@@ -141,12 +134,6 @@ void __surge_poll_call(uint64_t id) {
             poll_xowner_owner();
             break;
 	#ifdef RT_TEST_SYNC_POINTS
-        case POLL_LOCAL_PEER_RECEIVER:
-            poll_local_peer_receiver();
-            break;
-        case POLL_LOCAL_PEER_PRODUCER:
-            poll_local_peer_producer();
-            break;
         case POLL_DEBT020_ADOPT_JOINER:
             poll_debt020_adopt_joiner();
             break;
@@ -189,18 +176,6 @@ void __surge_poll_call(uint64_t id) {
         case POLL_DEBT248_JOINER:
             poll_debt248_joiner();
             break;
-        case POLL_READY_REQUEUE_PROBE:
-            poll_ready_requeue_probe();
-            break;
-        case POLL_INLINE_CLAIM_OWNER:
-            poll_inline_claim_owner();
-            break;
-        case POLL_INLINE_CLAIM_CHILD:
-            poll_inline_claim_child();
-            break;
-        case POLL_INLINE_CLAIM_PEER_HOLD:
-            poll_inline_claim_peer_hold();
-            break;
         case POLL_SCOPE_MEMBERSHIP_OWNER:
             poll_scope_membership_owner();
             break;
@@ -208,9 +183,6 @@ void __surge_poll_call(uint64_t id) {
             poll_scope_membership_child();
         case POLL_ENTITLEMENT_OWNING_RESULT:
             poll_entitlement_owning_result();
-            break;
-        case POLL_DEBT291_PIN_PROBE:
-            poll_debt291_pin_probe();
             break;
 #endif
         default:

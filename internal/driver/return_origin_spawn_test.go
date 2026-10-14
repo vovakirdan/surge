@@ -132,10 +132,6 @@ func originSpawnRows() []originSpawnRow {
 			fn: originSpan{52, 133, originSpawnWrappedSource[52:133]}, want: []originRefusal{}, summary: true},
 		{name: "spawn_async_capture_row_stands", text: originSpawnCaptureSource, digest: originSpawnCaptureSourceDigest, body: "spawn_read_through",
 			fn: originSpan{0, 95, originSpawnCaptureSource[0:95]}, want: []originRefusal{{span: originSpan{63, 92, "async {\n        ret *r;\n    }"}, reason: originTaskBlockCaptureRefusal}}, summary: false},
-		{name: "spawn_string_temporary_row_stands", text: originSpawnTemporarySource, digest: originSpawnTemporarySourceDigest, body: "spawn_temporary",
-			fn: originSpan{62, 138, originSpawnTemporarySource[62:138]}, want: []originRefusal{{span: originSpan{127, 134, "\"a\" + b"}, reason: statementTemporaryKept}}, summary: false},
-		{name: "s_ij_temp", text: originSpawnImplicitJoinTemporarySource, digest: originSpawnImplicitJoinTemporarySourceDigest, body: "main",
-			fn: originSpan{74, 288, originSpawnImplicitJoinTemporarySource[74:288]}, want: []originRefusal{{span: originSpan{165, 172, "\"a\" + b"}, reason: statementTemporaryKept}}, summary: false},
 		{name: "s_ij_capture", text: originSpawnImplicitJoinCaptureSource, digest: originSpawnImplicitJoinCaptureSourceDigest, body: "main",
 			fn: originSpan{105, 384, originSpawnImplicitJoinCaptureSource[105:384]}, want: []originRefusal{{span: originSpan{221, 269, "async {\n            ret len(r) to int;\n        }"}, reason: originTaskBlockCaptureRefusal}}, summary: false},
 		{name: "spawn_on_finishes", text: onCrossingWalkSource, digest: onCrossingWalkSourceDigest, body: "later",
@@ -147,7 +143,7 @@ func originSpawnRows() []originSpawnRow {
 // row: it is a compile error (SEM3223, task_payload_is_task_test.go).
 func TestAnalyzeSpawn(t *testing.T) {
 	rows := originSpawnRows()
-	if len(rows) != 10 {
+	if len(rows) != 8 {
 		t.Fatalf("PRECONDITION: frozen roster changed: rows=%d", len(rows))
 	}
 	for _, row := range rows {

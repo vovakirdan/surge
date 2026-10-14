@@ -22,6 +22,7 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 			}
 			if !receiverIsType && tc.isFarTaskType(receiverType) {
 				if method := tc.lookupName(member.Field); method == "await" || method == "cancel" {
+					tc.refuseCrossingBodySuspension(span, "far Task."+method+"()")
 					return tc.typeFarTaskCall(id, member, receiverType, call, span, method, receiverCheckpoint)
 				}
 			}
@@ -33,14 +34,10 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 				return tc.typeFarHandleCall(id, member, receiverType, call, span)
 			}
 			if !receiverIsType && tc.lookupName(member.Field) == "await" {
-				allowAwait := tc.awaitDepth > 0
+				tc.refuseCrossingBodySuspension(span, "Task.await()")
+				allowAwait := tc.awaitAllowedHere()
 				if !allowAwait {
-					sym := tc.symbolFromID(tc.currentFnSym())
-					if sym == nil || sym.Flags&symbols.SymbolFlagEntrypoint == 0 {
-						tc.report(diag.SemaIntrinsicBadContext, span, "await can only be used in async context")
-					} else {
-						allowAwait = true
-					}
+					tc.report(diag.SemaIntrinsicBadContext, span, "await can only be used in async context")
 				}
 				if receiverType != types.NoTypeID && !tc.isTaskType(receiverType) {
 					tc.report(diag.SemaTypeMismatch, span, "await expects Task<T>, got %s", tc.typeLabel(receiverType))
@@ -53,6 +50,14 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 				}
 			}
 			methodName := tc.lookupName(member.Field)
+			if tc.isChannelType(receiverType) &&
+				(methodName == "send" || methodName == "recv") {
+				tc.refuseCrossingBodySuspension(span, "Channel."+methodName+"()")
+				if !tc.awaitAllowedHere() {
+					tc.report(diag.SemaIntrinsicBadContext, span,
+						"Channel.%s() requires async context; use an async function and await it, or use try_send/try_recv for a nonblocking operation", methodName)
+				}
+			}
 			twoPhase := tc.beginTwoPhaseArgs(call.Args)
 			argTypes := make([]types.TypeID, 0, len(call.Args))
 			argExprs := make([]ast.ExprID, 0, len(call.Args))
@@ -186,8 +191,11 @@ func (tc *typeChecker) typeExprCall(id ast.ExprID, span source.Span, call *ast.E
 		}
 	}
 	if ident, okIdent := tc.builder.Exprs.Ident(call.Target); okIdent && ident != nil {
-		if tc.lookupName(ident.Name) == "timeout" && tc.awaitDepth == 0 {
-			tc.report(diag.SemaIntrinsicBadContext, span, "timeout(...) is only available in async/task context; call it inside async/task and await it via x.await()")
+		if tc.lookupName(ident.Name) == "timeout" {
+			tc.refuseCrossingBodySuspension(span, "timeout(...)")
+			if !tc.awaitAllowedHere() {
+				tc.report(diag.SemaIntrinsicBadContext, span, "timeout(...) is only available in async/task context; call it inside async/task and await it via x.await()")
+			}
 		}
 	}
 	resultType := tc.callResultType(id, call, span)
@@ -252,6 +260,7 @@ func (tc *typeChecker) typeExprIndex(id ast.ExprID, span source.Span) types.Type
 }
 
 func (tc *typeChecker) typeExprAwait(id ast.ExprID, span source.Span) types.TypeID {
+	tc.refuseCrossingBodySuspension(span, "await")
 	awaitData, ok := tc.builder.Exprs.Await(id)
 	if !ok || awaitData == nil {
 		return types.NoTypeID
@@ -262,12 +271,9 @@ func (tc *typeChecker) typeExprAwait(id ast.ExprID, span source.Span) types.Type
 	if payload != types.NoTypeID {
 		resultType = tc.taskResultType(payload, span)
 	}
-	allowAwait := tc.awaitDepth > 0
+	allowAwait := tc.awaitAllowedHere()
 	if !allowAwait {
-		sym := tc.symbolFromID(tc.currentFnSym())
-		if sym != nil && sym.Flags&symbols.SymbolFlagEntrypoint != 0 {
-			allowAwait = true
-		}
+		tc.report(diag.SemaIntrinsicBadContext, span, "await can only be used in async context")
 	}
 	if allowAwait {
 		tc.checkTaskContainersLiveAcrossAwait(span)

@@ -260,7 +260,7 @@ func runBinaryWithWorkers(t *testing.T, binary, workers string) (stdout, stderr 
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, binary)
-	cmd.Env = append(os.Environ(), "SURGE_THREADS="+workers)
+	cmd.Env = append(os.Environ(), "SURGE_SHARDS="+workers)
 	var outBuf, errBuf bytes.Buffer
 	cmd.Stdout = &outBuf
 	cmd.Stderr = &errBuf

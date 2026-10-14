@@ -27,10 +27,8 @@ typedef struct {
 
 typedef struct NetListener {
     uint64_t handle_id;
-    int fd;
     bool closed;
     uint8_t kind;
-    uint32_t owner_shard_id;
     size_t member_count;
     size_t next_accept_index;
     NetListenerMember* members;
@@ -52,8 +50,7 @@ typedef struct NetConn {
     uint64_t generation;
 } NetConn;
 
-NetListener*
-rt_net_listener_alloc(NetListenerKind kind, size_t member_count, uint32_t owner_shard_id);
+NetListener* rt_net_listener_alloc(NetListenerKind kind, size_t member_count);
 // Roll back a listener that has never escaped to Surge code. This closes any
 // live member fds and frees the canonical object. Published canonicals are not
 // reclaimed here because handle-table lookup readers do not retain them yet.

@@ -272,8 +272,16 @@ func TestPackedWideElementWriteStoresAtAlignOne(t *testing.T) {
 	wideStride := map[string]bool{}
 	elemAddr := map[string]bool{}
 	claims := map[string]string{}
+	function := ""
+	elements := 0
 
 	for _, line := range strings.Split(ir, "\n") {
+		if m := irDefine.FindStringSubmatch(line); m != nil {
+			function = m[1]
+			clear(packedMember)
+			clear(wideStride)
+			clear(elemAddr)
+		}
 		if m := irGepConst.FindStringSubmatch(line); m != nil {
 			if m[3] == "1" {
 				// The array sits one byte into the container, which is the
@@ -291,21 +299,22 @@ func TestPackedWideElementWriteStoresAtAlignOne(t *testing.T) {
 		if m := irGepStrided.FindStringSubmatch(line); m != nil {
 			if packedMember[m[2]] && wideStride[m[3]] {
 				elemAddr[m[1]] = true
+				elements++
 			}
 			continue
 		}
 		if m := irStore.FindStringSubmatch(line); m != nil && m[1] == "i64" {
 			if elemAddr[m[2]] {
-				claims[m[2]] = m[3]
+				claims[function+":"+m[2]] = m[3]
 			}
 		}
 	}
 
-	if len(elemAddr) == 0 {
+	if elements == 0 {
 		t.Fatalf("no wide element address off a member at offset 1: the fixture no longer reaches one\n%s", ir)
 	}
 	if len(claims) == 0 {
-		t.Fatalf("found %d element address(es) but no i64 store through any: the fixture no longer writes one", len(elemAddr))
+		t.Fatalf("found %d element address(es) but no i64 store through any: the fixture no longer writes one", elements)
 	}
 	for addr, claim := range claims {
 		if claim != "1" {

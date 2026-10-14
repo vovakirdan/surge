@@ -1,0 +1,131 @@
+fixed_array_view_operator_stays_in_frame.sg (span: 9:1-54:1)
+├─ Item[0]: Type (span: 9:1-9:33)
+│  ├─ Name: Arr
+│  ├─ Kind: Struct
+│  ├─ Visibility: private
+│  └─ Struct:
+│     └─ Field[0]: items: uint64[4]
+├─ Item[1]: Extern (span: 11:1-20:2)
+│  ├─ Target: Arr
+│  ├─ Members:
+│  │  ├─ Fn[0]: __add
+│  │  │  ├─ Params: (self: &Arr, other: &Arr)
+│  │  │  ├─ Return: uint64[]
+│  │  │  └─ Body:
+│  │  │     Stmt[0]: Block (span: 12:51-14:6)
+│  │  │     └─ Stmt[0]: Return (span: 13:9-13:35)
+│  │  │        └─ Expr: expr#7: self.items[[0..2]]
+│  │  └─ Fn[1]: __mul
+│  │     ├─ Params: (self: &Arr, other: &Arr)
+│  │     ├─ Return: uint64[]
+│  │     └─ Body:
+│  │        Stmt[0]: Block (span: 15:51-19:6)
+│  │        ├─ Stmt[0]: Let (span: 16:9-16:36)
+│  │        │  ├─ Name: out
+│  │        │  ├─ Mutable: true
+│  │        │  ├─ Type: uint64[]
+│  │        │  └─ Value: expr#8: <ExprKind(8)>
+│  │        ├─ Stmt[1]: Expr (span: 17:9-17:50)
+│  │        │  └─ Expr: expr#20: out.push((self.items[0] + other.items[0]))
+│  │        └─ Stmt[2]: Return (span: 18:9-18:20)
+│  │           └─ Expr: expr#21: out
+├─ Item[2]: Fn (span: 22:1-24:2)
+│  ├─ Name: through_ref
+│  ├─ Params: (a: &Arr, b: &Arr)
+│  ├─ Return: uint64[]
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 22:46-24:2)
+│        └─ Stmt[0]: Return (span: 23:5-23:18)
+│           └─ Expr: expr#24: (a + b)
+├─ Item[3]: Fn (span: 26:1-29:2)
+│  ├─ Name: via_ref
+│  ├─ Params: (p: &Arr)
+│  ├─ Return: uint64[]
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 26:33-29:2)
+│        ├─ Stmt[0]: Let (span: 27:5-27:21)
+│        │  ├─ Name: r
+│        │  ├─ Mutable: false
+│        │  ├─ Type: &Arr
+│        │  └─ Value: expr#25: p
+│        └─ Stmt[1]: Return (span: 28:5-28:18)
+│           └─ Expr: expr#28: (r + r)
+├─ Item[4]: Fn (span: 31:1-35:2)
+│  ├─ Name: fresh
+│  ├─ Params: ()
+│  ├─ Return: uint64[]
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 31:24-35:2)
+│        ├─ Stmt[0]: Let (span: 32:5-32:79)
+│        │  ├─ Name: a
+│        │  ├─ Mutable: false
+│        │  ├─ Type: Arr
+│        │  └─ Value: expr#39: <ExprKind(22)>
+│        ├─ Stmt[1]: Let (span: 33:5-33:79)
+│        │  ├─ Name: b
+│        │  ├─ Mutable: false
+│        │  ├─ Type: Arr
+│        │  └─ Value: expr#50: <ExprKind(22)>
+│        └─ Stmt[2]: Return (span: 34:5-34:18)
+│           └─ Expr: expr#53: (a * b)
+├─ Item[5]: Fn (span: 37:1-42:2)
+│  ├─ Name: in_frame
+│  ├─ Params: ()
+│  ├─ Return: uint64
+│  └─ Body:
+│     └─ Stmt[0]: Block (span: 37:25-42:2)
+│        ├─ Stmt[0]: Let (span: 38:5-38:79)
+│        │  ├─ Name: a
+│        │  ├─ Mutable: false
+│        │  ├─ Type: Arr
+│        │  └─ Value: expr#64: <ExprKind(22)>
+│        ├─ Stmt[1]: Let (span: 39:5-39:79)
+│        │  ├─ Name: b
+│        │  ├─ Mutable: false
+│        │  ├─ Type: Arr
+│        │  └─ Value: expr#75: <ExprKind(22)>
+│        ├─ Stmt[2]: Let (span: 40:5-40:19)
+│        │  ├─ Name: v
+│        │  ├─ Mutable: false
+│        │  ├─ Type: <inferred>
+│        │  └─ Value: expr#78: (a + b)
+│        └─ Stmt[3]: Return (span: 41:5-41:17)
+│           └─ Expr: expr#81: v[0]
+└─ Item[6]: Fn (span: 44:1-53:2)
+   ├─ Name: main
+   ├─ Params: ()
+   ├─ Return: int
+   └─ Body:
+      └─ Stmt[0]: Block (span: 45:18-53:2)
+         ├─ Stmt[0]: Let (span: 46:5-46:79)
+         │  ├─ Name: a
+         │  ├─ Mutable: false
+         │  ├─ Type: Arr
+         │  └─ Value: expr#92: <ExprKind(22)>
+         ├─ Stmt[1]: Let (span: 47:5-47:79)
+         │  ├─ Name: b
+         │  ├─ Mutable: false
+         │  ├─ Type: Arr
+         │  └─ Value: expr#103: <ExprKind(22)>
+         ├─ Stmt[2]: Let (span: 48:5-48:40)
+         │  ├─ Name: borrowed
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#109: through_ref(&a, &b)
+         ├─ Stmt[3]: Let (span: 49:5-49:31)
+         │  ├─ Name: aliased
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#113: via_ref(&a)
+         ├─ Stmt[4]: Let (span: 50:5-50:25)
+         │  ├─ Name: owned
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#115: fresh()
+         ├─ Stmt[5]: Let (span: 51:5-51:29)
+         │  ├─ Name: scalar
+         │  ├─ Mutable: false
+         │  ├─ Type: <inferred>
+         │  └─ Value: expr#117: in_frame()
+         └─ Stmt[6]: Return (span: 52:5-52:98)
+            └─ Expr: expr#140: ((((((((borrowed[0] to int) + (aliased[0] to int))) + (owned[0] to int))) + (scalar to int))) - 99)

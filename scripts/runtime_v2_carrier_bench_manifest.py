@@ -65,7 +65,6 @@ def load_manifest(path: Path) -> Manifest:
             "backend",
             "profile",
             "shards",
-            "threads",
             "blocking_threads",
             "metrics",
             "allocation_control",
@@ -84,7 +83,6 @@ def load_manifest(path: Path) -> Manifest:
         backend=_choice(root["backend"], "backend", {"llvm"}),
         profile=_choice(root["profile"], "profile", {"release"}),
         shards=_integer(root["shards"], "shards", 1),
-        threads=_integer(root["threads"], "threads", 1),
         blocking_threads=_integer(
             root["blocking_threads"], "blocking_threads", 1
         ),

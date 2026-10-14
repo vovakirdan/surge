@@ -137,9 +137,11 @@ func crossingPlaces(c *CrossingInstr, visit func(*Place)) error {
 	if err := structLitPlaces(&c.State, visit); err != nil {
 		return err
 	}
-	for i := range c.Captures {
-		if err := operandPlace(&c.Captures[i].Value, visit); err != nil {
-			return err
+	if !c.CapturesPacked {
+		for i := range c.Captures {
+			if err := operandPlace(&c.Captures[i].Value, visit); err != nil {
+				return err
+			}
 		}
 	}
 	for i := range c.RemoteOps {

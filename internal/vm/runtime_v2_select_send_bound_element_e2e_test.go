@@ -88,7 +88,7 @@ func TestRuntimeV2SelectSendOfABoundElementDeliversTheWholeStruct(t *testing.T) 
 	for _, shards := range []int{2, 8} {
 		env := envWithStdlib(repoRoot(t))
 		env = overrideEnvVar(env, "SURGE_SHARDS", strconv.Itoa(shards))
-		env = overrideEnvVar(env, "SURGE_THREADS", strconv.Itoa(shards))
+		env = overrideEnvVar(env, "SURGE_SHARDS", strconv.Itoa(shards))
 		_, result := runBinaryWithTimeout(t, outputPath, env, 60*time.Second)
 		t.Logf("shards=%d exit=%d stdout=%q", shards, result.exitCode, result.stdout)
 		if result.exitCode != 0 || !strings.Contains(result.stdout, "select-send-bound-element-ok") {

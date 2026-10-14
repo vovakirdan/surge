@@ -21,15 +21,10 @@ static void rt_shard_scheduler_destroy(rt_scheduler* scheduler) {
     if (scheduler == NULL) {
         return;
     }
-    if (scheduler->local_queues != NULL && scheduler->worker_count > 0) {
-        rt_free((uint8_t*)scheduler->local_queues,
-                (uint64_t)scheduler->worker_count * (uint64_t)sizeof(rt_deque),
-                _Alignof(rt_deque));
-    }
-    if (scheduler->worker_wake_pending != NULL && scheduler->worker_count > 0) {
-        rt_free((uint8_t*)scheduler->worker_wake_pending,
-                (uint64_t)scheduler->worker_count * (uint64_t)sizeof(uint32_t),
-                _Alignof(uint32_t));
+    deque_destroy(&scheduler->local_queue);
+    deque_destroy(&scheduler->inject);
+    if (scheduler->carrier_ctx != NULL) {
+        rt_free((uint8_t*)scheduler->carrier_ctx, sizeof(rt_worker_ctx), _Alignof(rt_worker_ctx));
     }
     memset(scheduler, 0, sizeof(*scheduler));
 }
@@ -61,6 +56,11 @@ static void rt_shard_destroy(rt_shard* shard) {
     rt_transport_state_destroy(&shard->transport);
     rt_fd_registry_free(rt_shard_fd_registry(shard));
     rt_sleep_store_destroy(&shard->sleep_store);
+    if (shard->waiter_store.entries != NULL) {
+        rt_free((uint8_t*)shard->waiter_store.entries,
+                (uint64_t)shard->waiter_store.cap * sizeof(waiter),
+                _Alignof(waiter));
+    }
     rt_heap_accounting_destroy(&shard->heap_accounting);
     rt_shard_sync_destroy(shard);
     memset(shard, 0, sizeof(*shard));
@@ -152,7 +152,6 @@ rt_runtime_status rt_runtime_init_global(rt_executor* ex, size_t shard_count) {
 }
 
 rt_runtime_status rt_runtime_init_shard_schedulers(rt_runtime* runtime,
-                                                   uint32_t worker_count,
                                                    uint8_t sched_mode_value,
                                                    uint64_t sched_seed) {
     if (runtime == NULL || runtime->shard_count < 1 ||
@@ -160,8 +159,8 @@ rt_runtime_status rt_runtime_init_shard_schedulers(rt_runtime* runtime,
         return RT_RUNTIME_STATUS_INVALID_ARGUMENT;
     }
     for (size_t i = 0; i < runtime->shard_count; i++) {
-        rt_runtime_status status = rt_shard_scheduler_init(
-            &runtime->shards[i], worker_count, sched_mode_value, sched_seed);
+        rt_runtime_status status =
+            rt_shard_scheduler_init(&runtime->shards[i], sched_mode_value, sched_seed);
         if (status != RT_RUNTIME_STATUS_OK) {
             for (size_t j = 0; j < i; j++) {
                 rt_shard_scheduler_destroy(rt_shard_scheduler(&runtime->shards[j]));
@@ -218,46 +217,13 @@ const rt_scheduler* rt_shard_scheduler_const(const rt_shard* shard) {
     return shard != NULL ? &shard->scheduler : NULL;
 }
 
-rt_scheduler* rt_executor_scheduler(rt_executor* ex) {
-    rt_runtime* runtime = rt_executor_runtime(ex);
-    rt_shard* shard = rt_runtime_shard0(runtime);
-    return rt_shard_scheduler(shard);
-}
-
-const rt_scheduler* rt_executor_scheduler_const(const rt_executor* ex) {
-    return rt_shard_scheduler_const(rt_runtime_shard_const(ex != NULL ? ex->runtime : NULL, 0));
-}
-
 rt_net_poll_scratch* rt_shard_net_poll_scratch(rt_shard* shard) {
     return shard != NULL ? &shard->net_poll_scratch : NULL;
-}
-
-rt_net_poll_scratch* rt_executor_net_poll_scratch(rt_executor* ex) {
-    return rt_executor_net_poll_scratch_for_shard(ex, 0);
 }
 
 rt_net_poll_scratch* rt_executor_net_poll_scratch_for_shard(rt_executor* ex, size_t shard_index) {
     rt_shard* shard = rt_runtime_shard(rt_executor_runtime(ex), shard_index);
     return rt_shard_net_poll_scratch(shard);
-}
-
-rt_channel_blocking_compat* rt_shard_channel_blocking_compat(rt_shard* shard) {
-    return shard != NULL ? &shard->channel_blocking_compat : NULL;
-}
-
-const rt_channel_blocking_compat* rt_shard_channel_blocking_compat_const(const rt_shard* shard) {
-    return shard != NULL ? &shard->channel_blocking_compat : NULL;
-}
-
-rt_channel_blocking_compat* rt_executor_channel_blocking_compat(rt_executor* ex) {
-    rt_runtime* runtime = rt_executor_runtime(ex);
-    rt_shard* shard = rt_runtime_shard0(runtime);
-    return rt_shard_channel_blocking_compat(shard);
-}
-
-const rt_channel_blocking_compat* rt_executor_channel_blocking_compat_const(const rt_executor* ex) {
-    return rt_shard_channel_blocking_compat_const(
-        rt_runtime_shard_const(ex != NULL ? ex->runtime : NULL, 0));
 }
 
 rt_waiter_store* rt_shard_waiter_store(rt_shard* shard) {
@@ -266,14 +232,6 @@ rt_waiter_store* rt_shard_waiter_store(rt_shard* shard) {
 
 const rt_waiter_store* rt_shard_waiter_store_const(const rt_shard* shard) {
     return shard != NULL ? &shard->waiter_store : NULL;
-}
-
-rt_waiter_store* rt_executor_waiter_store(rt_executor* ex) {
-    return rt_executor_waiter_store_for_shard(ex, 0);
-}
-
-const rt_waiter_store* rt_executor_waiter_store_const(const rt_executor* ex) {
-    return rt_executor_waiter_store_const_for_shard(ex, 0);
 }
 
 rt_waiter_store* rt_executor_waiter_store_for_shard(rt_executor* ex, size_t shard_index) {
@@ -295,17 +253,9 @@ const rt_fd_registry* rt_shard_fd_registry_const(const rt_shard* shard) {
     return shard != NULL ? &shard->fd_registry : NULL;
 }
 
-rt_fd_registry* rt_executor_fd_registry(rt_executor* ex) {
-    return rt_executor_fd_registry_for_shard(ex, 0);
-}
-
 rt_fd_registry* rt_executor_fd_registry_for_shard(rt_executor* ex, size_t shard_index) {
     rt_shard* shard = rt_runtime_shard(rt_executor_runtime(ex), shard_index);
     return rt_shard_fd_registry(shard);
-}
-
-const rt_fd_registry* rt_executor_fd_registry_const(const rt_executor* ex) {
-    return rt_executor_fd_registry_const_for_shard(ex, 0);
 }
 
 const rt_fd_registry* rt_executor_fd_registry_const_for_shard(const rt_executor* ex,
@@ -314,27 +264,15 @@ const rt_fd_registry* rt_executor_fd_registry_const_for_shard(const rt_executor*
         rt_runtime_shard_const(ex != NULL ? ex->runtime : NULL, shard_index));
 }
 
-rt_runtime_status rt_shard_scheduler_init(rt_shard* shard,
-                                          uint32_t worker_count,
-                                          uint8_t sched_mode_value,
-                                          uint64_t sched_seed) {
+rt_runtime_status
+rt_shard_scheduler_init(rt_shard* shard, uint8_t sched_mode_value, uint64_t sched_seed) {
     rt_scheduler* scheduler = rt_shard_scheduler(shard);
     if (scheduler == NULL) {
         return RT_RUNTIME_STATUS_INVALID_ARGUMENT;
     }
     memset(scheduler, 0, sizeof(*scheduler));
-    scheduler->worker_count = worker_count;
     scheduler->sched_mode = sched_mode_value;
     scheduler->sched_seed = sched_seed;
-    if (worker_count == 0) {
-        return RT_RUNTIME_STATUS_OK;
-    }
-    scheduler->local_queues = (rt_deque*)rt_alloc(
-        (uint64_t)worker_count * (uint64_t)sizeof(rt_deque), _Alignof(rt_deque));
-    if (scheduler->local_queues == NULL) {
-        return RT_RUNTIME_STATUS_ALLOCATION_FAILED;
-    }
-    memset(scheduler->local_queues, 0, (size_t)worker_count * sizeof(rt_deque));
     // Every ready deque gets its first sixteen slots here, with the
     // scheduler. Left to the first push, that allocation landed wherever the
     // schedule put the first task on each queue, and a batch's allocation
@@ -343,24 +281,16 @@ rt_runtime_status rt_shard_scheduler_init(rt_shard* shard,
     if (!deque_prepare(&scheduler->inject, 16)) {
         return RT_RUNTIME_STATUS_ALLOCATION_FAILED;
     }
-    for (uint32_t i = 0; i < worker_count; i++) {
-        if (!deque_prepare(&scheduler->local_queues[i], 16)) {
-            return RT_RUNTIME_STATUS_ALLOCATION_FAILED;
-        }
-    }
-    scheduler->worker_wake_pending = (uint32_t*)rt_alloc(
-        (uint64_t)worker_count * (uint64_t)sizeof(uint32_t), _Alignof(uint32_t));
-    if (scheduler->worker_wake_pending == NULL) {
+    if (!deque_prepare(&scheduler->local_queue, 16)) {
         return RT_RUNTIME_STATUS_ALLOCATION_FAILED;
     }
-    memset(scheduler->worker_wake_pending, 0, (size_t)worker_count * sizeof(uint32_t));
     return RT_RUNTIME_STATUS_OK;
 }
 
-uint32_t rt_runtime_default_worker_count(void) {
+uint32_t rt_runtime_default_shard_count(void) {
     uint32_t cpus = rt_runtime_detect_cpu_count();
-    if (cpus < 2) {
-        return 2;
+    if (cpus > RT_RUNTIME_MAX_SHARDS) {
+        return RT_RUNTIME_MAX_SHARDS;
     }
     return cpus;
 }

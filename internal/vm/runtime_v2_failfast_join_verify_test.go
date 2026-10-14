@@ -27,71 +27,35 @@ import (
 // the negative control drops the flag from the verify and MUST observe Success
 // at that same point, which is what shows the window this drive builds is the
 // window the fix closes.
-func TestRuntimeV2LifecycleDebt261FailfastJoinVerifyProof(t *testing.T) {
-	binPath := buildRuntimeV2LifecycleHarnessDebt261(t, false)
-	// SURGE_SHARDS=1 with two workers and up: the held owner is a RUNNING task
-	// blocked inside its poll, so the child it registered needs ANOTHER worker
-	// on the SAME shard to complete -- one worker deadlocks in the window, and
-	// a child on another shard would not be this scope's same-owner path.
-	for _, threads := range []string{"2", "4", "8"} {
-		t.Run("threads-"+threads, func(t *testing.T) {
+func TestRuntimeV2LifecycleDebt261OwnerLaneSerializesFailfastJoin(t *testing.T) {
+	binPath := buildRuntimeV2LifecycleHarnessDebt261(t)
+	// The owner is held inside its shard-0 poll. Its scope member runs on
+	// shard 1, so that shard's carrier can complete it and deliver the scope
+	// event while shard 0 is stopped at the verify window.
+	for _, shards := range []string{"2", "4", "8"} {
+		t.Run("shards-"+shards, func(t *testing.T) {
 			env := lifecycleEnv(
-				"SURGE_SHARDS=1",
-				"SURGE_THREADS="+threads,
+				"SURGE_SHARDS="+shards,
 				"SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_SCOPE_FAILFAST_JOIN_BEFORE_VERIFY:block")
 			stdout, stderr, exitCode := runLifecycleHarness(
 				t, binPath, "debt261-failfast-join-verify", env)
 			if exitCode != 0 {
-				t.Fatalf("DEBT-261 positive proof failed at SURGE_THREADS=%s (code=%d)\nstdout:\n%s\nstderr:\n%s",
-					threads, exitCode, stdout, stderr)
+				t.Fatalf("DEBT-261 positive proof failed at SURGE_SHARDS=%s (code=%d)\nstdout:\n%s\nstderr:\n%s",
+					shards, exitCode, stdout, stderr)
 			}
-			// Non-vacuity: the completion landed INSIDE the held window with
-			// both answers changed, or the verify had nothing to re-read and
-			// the run proves nothing about it.
-			if !strings.Contains(stderr, "debt261 landed: active=0 failfast_triggered=1") {
-				t.Fatalf("DEBT-261 positive proof did not land the cancelled completion inside the window\nstdout:\n%s\nstderr:\n%s",
+			if !strings.Contains(stderr, "debt261 serialized: active=1 failfast_triggered=0") {
+				t.Fatalf("DEBT-261 proof did not preserve owner-lane state while the carrier was held\nstdout:\n%s\nstderr:\n%s",
 					stdout, stderr)
 			}
 		})
 	}
 }
 
-func TestRuntimeV2LifecycleDebt261FailfastJoinVerifyNegativeControl(t *testing.T) {
-	binPath := buildRuntimeV2LifecycleHarnessDebt261(t, true)
-	env := lifecycleEnv(
-		"SURGE_SHARDS=1",
-		"SURGE_THREADS=2",
-		"SURGE_BLOCKING_THREADS=1",
-		"SURGE_SYNC_POINT=SP_SCOPE_FAILFAST_JOIN_BEFORE_VERIFY:block")
-	stdout, stderr, exitCode := runLifecycleHarness(
-		t, binPath, "debt261-failfast-join-verify", env)
-	if exitCode == 0 {
-		t.Fatalf("DEBT-261 negative control unexpectedly passed\nstdout:\n%s\nstderr:\n%s",
-			stdout, stderr)
-	}
-	// The strand must be AT the verify, on a window built the same way: the
-	// completion landed, both answers changed, and the join still said Success.
-	if !strings.Contains(stderr, "debt261 landed: active=0 failfast_triggered=1") {
-		t.Fatalf("DEBT-261 negative control did not build the window (code=%d)\nstdout:\n%s\nstderr:\n%s",
-			exitCode, stdout, stderr)
-	}
-	const want = "debt261 failfast scope answered Success after a cancelled child"
-	if !strings.Contains(stderr, want) {
-		t.Fatalf("DEBT-261 negative control failed for the wrong reason (code=%d)\nstdout:\n%s\nstderr:\n%s",
-			exitCode, stdout, stderr)
-	}
-}
-
-func buildRuntimeV2LifecycleHarnessDebt261(t *testing.T, negativeControl bool) string {
+func buildRuntimeV2LifecycleHarnessDebt261(t *testing.T) string {
 	t.Helper()
-	name := "lifecycle_harness_debt261"
-	flags := []string{"-DRT_TEST_SYNC_POINTS"}
-	if negativeControl {
-		name += "_negative"
-		flags = append(flags, "-DRV2_DEBT_261_NEGATIVE_CONTROL")
-	}
-	return buildRuntimeV2LifecycleHarnessWithFlags(t, name, flags)
+	return buildRuntimeV2LifecycleHarnessWithFlags(
+		t, "lifecycle_harness_debt261", []string{"-DRT_TEST_SYNC_POINTS"})
 }
 
 // lifecycleHarnessFailfastJoinModes is concatenated into the shared lifecycle
@@ -113,17 +77,13 @@ static _Atomic(void*) g_debt261_child;
 //
 // The child is created by the OWNER, inside its scope: creation is the sole
 // writer of membership, and a child spawned by the driver and handed over
-// afterwards is refused rather than counted. What the driver's spawn used to
-// buy is kept by spawn_pinned_in_scope forcing the push onto the inject queue
-// with the workers signalled -- a worker's own spawn lands on its local tail
-// and a single local entry signals nobody (ready_push_task_locked,
-// rt_ready_queue.c), so a child pushed locally by an owner that is then held
-// at the sync point inside this same poll would never be popped, the pusher
-// being the held worker, and its cancellation could never be observed.
+// afterwards is refused rather than counted. The child is placed on shard 1,
+// whose carrier remains runnable while the owner shard's carrier is held at
+// the verify sync point.
 static void poll_debt261_scope_owner(void) {
     if (atomic_load_explicit(&g_debt261_owner_entered, memory_order_acquire) == 0) {
         uint64_t handle = rt_scope_enter(true);
-        rt_task* child = spawn_pinned_in_scope(ensure_exec(), POLL_SPIN_FOREVER, 0);
+        rt_task* child = spawn_pinned_in_scope(ensure_exec(), POLL_SPIN_FOREVER, 1);
         atomic_store_explicit(&g_debt261_child, child, memory_order_release);
         atomic_store_explicit(&g_debt261_scope_handle, handle, memory_order_release);
         atomic_store_explicit(&g_debt261_owner_entered, 1, memory_order_release);
@@ -203,21 +163,14 @@ static int mode_debt261_failfast_join_verify(rt_executor* ex) {
         (void)rt_executor_request_shutdown(ex);
         return fail("debt261 cancelled child never completed");
     }
-    // DONE is stored before the scope takes the completion (mark_done ->
-    // scope_on_child_done, which needs the control lane for a fail-fast
-    // completion), so wait for the accounting itself, not for the status.
-    for (uint32_t i = 0; i < 4000; i++) {
-        active = debt261_scope_snapshot(ex, scope_id, &triggered);
-        if (active == 0 && triggered != 0) {
-            break;
-        }
-        sleep_us(1000);
-    }
-    fprintf(stderr, "debt261 landed: active=%zu failfast_triggered=%u\n", active, triggered);
-    if (active != 0 || triggered == 0) {
+    // A cross-shard completion is an event for the scope owner. While that
+    // owner's sole carrier is held here, the event cannot mutate scope state.
+    active = debt261_scope_snapshot(ex, scope_id, &triggered);
+    fprintf(stderr, "debt261 serialized: active=%zu failfast_triggered=%u\n", active, triggered);
+    if (active != 1 || triggered != 0) {
         rt_sync_point_open();
         (void)rt_executor_request_shutdown(ex);
-        return fail("debt261 child completion was not taken by the scope while the join was held");
+        return fail("debt261 cross-shard completion mutated a held owner lane");
     }
     rt_sync_point_open();
     if (!wait_task_status(owner, TASK_DONE, 4000)) {

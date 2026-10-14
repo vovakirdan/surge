@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Per-thread CPU split of the net fixture server under sustained 1024-conn
+# Per-carrier CPU split of the net fixture server under sustained 1024-conn
 # load probe: proves whether task execution is
 # distributed across shard workers or funneled onto one.
 #
@@ -22,7 +22,7 @@ fi
 
 port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')"
 echo "=== $tag port=$port shards=$shards host: $(uptime)"
-env SURGE_TRACE_EXEC=1 SURGE_SCHED_TRACE=1 SURGE_SHARDS="$shards" SURGE_THREADS="$shards" \
+env SURGE_TRACE_EXEC=1 SURGE_SCHED_TRACE=1 SURGE_SHARDS="$shards" \
 	"$bin" "$port" direct "$conns" >"$out/$tag.server.out" 2>"$out/$tag.server.trace" &
 spid=$!
 sleep 1

@@ -135,8 +135,6 @@ int main(int argc, char** argv) {
         return rtb_mode_drop_invalid_placement();
     if (strcmp(argv[1], "drop-stale-anchor") == 0)
         return rtb_mode_drop_stale_anchor();
-    if (strcmp(argv[1], "drop-queue-full") == 0)
-        return rtb_mode_drop_queue_full();
     if (strcmp(argv[1], "drop-select-mixed-owners") == 0)
         return rtb_mode_drop_select_mixed_owners();
     if (strcmp(argv[1], "drop-handoff-not-dropped") == 0)
@@ -167,5 +165,17 @@ int main(int argc, char** argv) {
         return rtb_mode_caller_abandon_filters_by_op_and_caller();
     if (strcmp(argv[1], "caller-abandon-in-flight-survives") == 0)
         return rtb_mode_caller_abandon_in_flight_survives();
+    if (strcmp(argv[1], "reply-before-caller-abandon") == 0)
+        return rtb_mode_reply_caller_abandon(1);
+    if (strcmp(argv[1], "reply-after-caller-abandon") == 0)
+        return rtb_mode_reply_caller_abandon(0);
+    if (strcmp(argv[1], "reply-shutdown-after-caller-abandon") == 0)
+        return rtb_mode_reply_caller_abandon(2);
+    if (strcmp(argv[1], "channel-reply-abandon") == 0)
+        return rtb_mode_channel_reply_abandon();
+    if (strcmp(argv[1], "pending-reclaim-detached") == 0)
+        return rtb_mode_pending_reclaim_detached();
+    if (strcmp(argv[1], "pending-listed-final-refused") == 0)
+        return rtb_mode_pending_listed_final_refused();
     return rtb_fail("unknown mode");
 }

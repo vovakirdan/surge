@@ -24,7 +24,8 @@ const (
 // locals end where it ends, and what it writes never reaches this frame. Unlike `on`, this frame
 // does not wait for the body: the body is published on the destination as a task of its own and
 // the value is a `far Task<T>` handle that names it. The task lives past this frame by design,
-// so what it holds must be nothing of this frame: every capture is checked inert, and so is its
+// so what it holds must be nothing of this frame: every capture is checked inert
+// or proven source-free under the recorded un-share transfer, and so is its
 // result `T`, which comes back only through `far Task<T>.await()`. A handle over such a task
 // carries no origin at all, so the value is fresh.
 func (b *returnOriginBody) spawnOnTransfer(id ast.ExprID, data *ast.ExprOnData, env returnOriginEnv, targets returnOriginTargets) (returnOriginExprResult, error) {
@@ -38,19 +39,21 @@ func (b *returnOriginBody) spawnOnTransfer(id ast.ExprID, data *ast.ExprOnData, 
 		}
 		out = dest
 	}
-	if err := b.crossingBody(data.Body, out.flow.normal.clone(), span); err != nil {
+	payload, err := b.crossingBody(data.Body, out.flow.normal.clone(), span)
+	if err != nil {
 		return returnOriginExprResult{}, err
 	}
 	record, err := b.crossingRecord(id, span, CrossingLoweringSpawnOn)
 	if err != nil {
 		return returnOriginExprResult{}, err
 	}
-	b.crossingCaptures(record, returnOriginSpawnOnCaptureRefusal)
+	b.crossingCaptures(record, returnOriginSpawnOnCaptureRefusal, out.flow.normal)
 	out.value, out.storage = returnOriginValueOf(), returnOriginValue{}
 	if !b.farTaskOf(u.Sema.ExprTypes[id], record.PayloadType) {
 		b.pending(span, returnOriginSpawnOnHandleRefusal)
 		out.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
-	} else if !b.crossingInert(record.PayloadType) {
+	} else if !b.crossingInert(record.PayloadType) &&
+		!b.sourceFreeUnshareTransfer(record.PayloadType, payload) {
 		b.pending(span, returnOriginSpawnOnPayloadRefusal)
 		out.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
 	}
@@ -58,22 +61,24 @@ func (b *returnOriginBody) spawnOnTransfer(id ast.ExprID, data *ast.ExprOnData, 
 }
 
 // crossingBody walks a crossing body as a frame of its own whose `ret` is its only exit.
-func (b *returnOriginBody) crossingBody(body ast.StmtID, env returnOriginEnv, span source.Span) error {
+func (b *returnOriginBody) crossingBody(body ast.StmtID, env returnOriginEnv, span source.Span) (returnOriginValue, error) {
 	u := b.function.unit
 	scope := u.stmtScopes[body]
 	if !scope.IsValid() {
-		return fmt.Errorf("return origins: crossing body at %v has no owning scope", span)
+		return returnOriginValue{}, fmt.Errorf("return origins: crossing body at %v has no owning scope", span)
 	}
 	walked, err := b.stmt(body, env, returnOriginTargets{scope: scope, block: scope})
 	if err != nil {
-		return err
+		return returnOriginValue{}, err
 	}
-	for key := range walked.exits {
+	payload := returnOriginValueOf()
+	for key, exit := range walked.exits {
 		if key.kind != returnOriginBlockResult || key.target != scope {
-			return fmt.Errorf("return origins: crossing body at %v leaves by an exit its frame does not have", span)
+			return returnOriginValue{}, fmt.Errorf("return origins: crossing body at %v leaves by an exit its frame does not have", span)
 		}
+		payload = payload.join(exit.value)
 	}
-	return nil
+	return payload, nil
 }
 
 // crossingRecord returns the checker's one record of kind for the crossing node id.
@@ -100,14 +105,15 @@ func (b *returnOriginBody) crossingRecord(id ast.ExprID, span source.Span, kinds
 	return record, nil
 }
 
-// crossingCaptures keeps a named row at every capture but an anchor's lease that is not inert.
-func (b *returnOriginBody) crossingCaptures(record *CrossingLoweringInfo, refusal string) {
+// crossingCaptures keeps a named row at every capture but an anchor's lease
+// that is neither inert nor covered by the source-free un-share transfer.
+func (b *returnOriginBody) crossingCaptures(record *CrossingLoweringInfo, refusal string, env returnOriginEnv) {
 	for i := range record.Captures {
 		capture := &record.Captures[i]
 		if capture.Mode == CrossingCaptureAnchorLease {
 			continue
 		}
-		if !b.crossingInert(capture.Type) {
+		if !b.crossingInert(capture.Type) && !b.sourceFreeRecordedCapture(record, capture, env) {
 			b.pending(capture.Span, refusal)
 		}
 	}

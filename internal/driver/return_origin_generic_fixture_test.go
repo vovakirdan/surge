@@ -18,6 +18,23 @@ type originalGenericFixture struct {
 	unit      sema.ReturnOriginUnit
 }
 
+func exhaustiveReturnOriginUnits(t *testing.T, units []sema.ReturnOriginUnit, keys ...string) {
+	t.Helper()
+	want := make(map[string]bool, len(keys))
+	for _, key := range keys {
+		want[key] = true
+	}
+	for i := range units {
+		if want[units[i].SourceKey] {
+			units[i].LiveOnly = false
+			delete(want, units[i].SourceKey)
+		}
+	}
+	if len(want) != 0 {
+		t.Fatalf("PRECONDITION: exhaustive return-origin units are missing: %v", want)
+	}
+}
+
 // A checked dependency retains its original roots without becoming a driver
 // execution seed. The standalone sema fixture intentionally seeds its bodies.
 func originalGenericSignatureFixture(t *testing.T, text string, escape, dependency bool) originalGenericFixture {
@@ -68,7 +85,8 @@ func originalGenericSignatureFixture(t *testing.T, text string, escape, dependen
 		ownerPath = filepath.Join(filepath.Dir(filepath.Dir(ownerPath)), "dep", "main.sg")
 	}
 	out := originalGenericFixture{authority: program.Sema, inputs: inputs}
-	for _, unit := range inputs.units {
+	for i := range inputs.units {
+		unit := inputs.units[i]
 		file := program.FileSet.Get(unit.Builder.Files.Get(unit.FileID).Span.File)
 		bag := inputs.bags[file.ID]
 		if dependency {
@@ -93,6 +111,9 @@ func originalGenericSignatureFixture(t *testing.T, text string, escape, dependen
 		}
 		out.owner = &DiagnoseResult{FileSet: program.FileSet, File: file, FileID: unit.FileID, Builder: unit.Builder,
 			Bag: bag, Symbols: unit.Symbols, Sema: unit.Sema}
+		unit.LiveOnly = false
+		inputs.units[i].LiveOnly = false
+		out.inputs = inputs
 		out.unit = unit
 	}
 	if out.owner == nil {

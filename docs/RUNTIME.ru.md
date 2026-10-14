@@ -8,6 +8,9 @@
 См. также: `docs/IR.ru.md`, `docs/CONCURRENCY.ru.md`, `docs/TRACING.ru.md`,
 `docs/ABI_LAYOUT.ru.md`.
 
+Срез топологии 2026-10-12: Tier 1 поддерживает только `N шардов × 1 carrier`.
+`SURGE_THREADS`, peer stealing и compensation workers удалены.
+
 ---
 
 ## 1. Карта рантайма
@@ -17,8 +20,8 @@
 - **VM-бэкенд:** Go-интерпретатор MIR в `internal/vm`, нужен для корректности,
   golden-тестов, диагностики, детерминированного планирования и record/replay.
 - **Native/LLVM-бэкенд:** LLVM создает бинарь, связанный с C-рантаймом из
-  `runtime/native`. Это production async-рантайм с несколькими worker'ами,
-  native sockets, blocking pool и счетчиками native heap.
+  `runtime/native`. Это production async-рантайм с `N` шардами, одним carrier
+  на шард, native sockets, blocking pool и счетчиками native heap.
 
 ```mermaid
 flowchart TD
@@ -32,7 +35,7 @@ flowchart TD
     Binary --> CRT[C runtime]
 
     VMRT --> VMAsync[internal/asyncrt]
-    CRT --> NativeAsync[MT executor]
+    CRT --> NativeAsync[sharded executor]
     CRT --> NativeNet[Native net runtime]
     CRT --> NativeHeap[Native heap and debug intrinsics]
 ```
@@ -102,6 +105,18 @@ Native async state глобален на процесс и лениво иниц
 использовании рантайма. Центральная структура - `rt_executor` в
 `rt_async_internal.h`.
 
+Сгенерированная `__surge_start` — внешний адаптер: она дожидается synthetic
+root task и получает только exit code типа `int64`. Подготовка аргументов,
+глобальная инициализация, исполнение entrypoint и преобразование `ExitCode`
+проходят на root carrier через обычные coroutine frames. Это относится и к
+синхронному `fn main()`, и к `no_std`: внутренние типы root ABI не становятся
+объявлениями, доступными исходной программе.
+
+После join потоков при штатном shutdown освобождается пустая ёмкость таблиц и
+очередей. Живые task/scope объекты эта очистка не уничтожает. Уже допущенная
+блокирующая работа может остаться detached по модели V2; нужное ей состояние
+сохраняется до завершения процесса.
+
 ```mermaid
 flowchart LR
     subgraph Binary[Native Surge process]
@@ -127,14 +142,10 @@ flowchart LR
 
 Важное состояние, которым владеет executor:
 
-- `tasks[]`: записи задач, status, state pointer, result bits, cancellation и
-  handle refs.
-- `scopes[]`: владение structured concurrency и failfast propagation.
-- `waiters`: FIFO-регистрации по ключам join, timer, channel, net, scope или
-  blocking wait.
-- `inject`: глобальная ready queue для non-worker threads и yielded tasks.
-- `local_queues`: worker-local queues для cache-friendly wakeups.
-- `ready_cv`, `io_cv`, `done_cv`: координация workers, I/O и join.
+- segmented tables задач и областей;
+- per-shard waiter stores;
+- по одной `local_queue` и `inject` queue на шард;
+- `worker_cv` и poller state каждого шарда; `done_cv` только для внешнего await;
 - `blocking_*`: отдельный pool для `blocking { ... }`.
 
 ### 3.1 Жизненный цикл задачи
@@ -153,56 +164,44 @@ stateDiagram-v2
 
 Базовые инварианты:
 
-- Задача никогда не poll'ится одновременно несколькими worker'ами.
-- `ex->lock` владеет переходами задач, которые трогают queues, waiters, scopes,
-  timers и shutdown state.
+- Задача никогда не poll'ится одновременно несколькими carriers.
+- Переходы READY/WAITING сериализует owner-shard lane; состояние области пишет
+  только её owner shard, а foreign completion приходит событием.
 - Ready queues хранят task IDs с установленным флагом `enqueued`; дубли в
   очередях отбрасываются.
 - `wake_token` закрывает wake-before-park race, когда wake приходит во время
   подготовки задачи к park.
-- User poll functions выполняются вне `ex->lock`; переход в `TASK_RUNNING` и
-  выход из него защищены.
+- User poll functions выполняются вне runtime locks; переход в `TASK_RUNNING`
+  и выход из него защищает owner-shard lane.
 
 ### 3.2 Планирование
 
-Native scheduling использует worker-local queues, глобальную inject queue и
-stealing.
+Native runtime создаёт `N` шардов и ровно один carrier на каждый. У шарда есть
+одна локальная LIFO queue и одна injection FIFO. Peer stealing в Tier 1 нет.
 
 ```mermaid
 flowchart TD
-    Worker[worker loop] --> Local{local queue has work?}
-    Local -->|yes| Poll[poll task]
-    Local -->|no| Inject{inject queue has work?}
-    Inject -->|yes| Poll
-    Inject -->|no| Steal{other worker queue has work?}
-    Steal -->|yes| Poll
-    Steal -->|no| Sleep[wait on ready_cv]
-
-    Poll --> Outcome{poll outcome}
-    Outcome -->|yielded| Requeue[inject queue]
-    Outcome -->|parked| Waiter[waiter list]
-    Outcome -->|done| Complete[mark done and wake joiners]
-    Requeue --> Worker
+    Carrier[carrier шарда] --> Local{есть local work?}
+    Local -->|да| Poll[poll задачи]
+    Local -->|нет| Inject{есть inject work?}
+    Inject -->|да| Poll
+    Inject -->|нет| Service{timer, transport или net ready?}
+    Service -->|да| Publish[опубликовать owner shard]
+    Service -->|нет| Sleep[wait на worker_cv шарда]
+    Publish --> Carrier
 ```
 
-Режим по умолчанию - `parallel`. `SURGE_SCHED=seeded` делает решения
-планировщика детерминированными при том же seed и том же порядке внешних
-событий. Он не контролирует OS scheduling, порядок socket readiness, FFI или
-timing blocking pool.
+`SURGE_SCHED=seeded` воспроизводимо выбирает между одновременно непустыми local
+и inject queues при том же seed и порядке внешних событий. OS scheduling, socket
+readiness, FFI и blocking pool он не контролирует.
 
-Worker-local push остается local-first, но не всегда будит другие worker'ы.
-Если в local queue текущего worker'а добавлен один ready task, этот worker
-заберет его на следующем обороте планировщика. Когда в local queue уже больше
-одной ready task, runtime сигналит `ready_cv`, чтобы idle workers могли украсть
-лишнюю работу. Global inject pushes и внешние wakes по-прежнему сигналят сразу.
-Перед входом worker'а в sync channel compatibility wait path его local ready
-work переносится в inject и будится broadcast'ом, чтобы сохранить progress.
+- `SURGE_SHARDS=<n>` задаёт число шардов и carriers Tier 1.
+- Без override используется число online CPU, максимум 64.
+- `rt_worker_count()` равен числу шардов.
+- `SURGE_THREADS` удалён и не читается.
 
-Количество worker'ов:
-
-- `SURGE_THREADS=<n>` переопределяет число executor workers.
-- Без override рантайм использует число CPU, но минимум 2.
-- `rt_worker_count()` возвращает native worker count в Surge-код.
+`wake_pending` — один durable wake token шарда, закрывающий гонку публикации со
+сном. Это не per-task credit и не выбор среди peer workers.
 
 ### 3.3 Каналы
 
@@ -239,23 +238,13 @@ sequenceDiagram
     end
 ```
 
-Direct async channel handoff - быстрый путь. Он должен парковать задачи, а не
-worker threads, и не должен требовать compensation workers.
-
-Синхронные helper-функции работают иначе. Если async-задача вызывает sync helper,
-который делает `Channel.send`, `Channel.recv` или `Channel.close`, native runtime
-не может приостановить C-stack этого helper'а как async state machine. Поэтому
-используется blocking compatibility path:
-
-- worker временно паркуется внутри sync helper;
-- `channel_blocked_workers` считает pinned workers;
-- ready work выносится из текущей local queue, чтобы другие workers могли его
-  увидеть;
-- compensation workers могут стартовать для сохранения progress.
-
-Этот путь нужен для совместимости, не для скорости. Горячие request/reply paths
-должны держать channel ops прямо в async-коде или использовать async helper
-functions.
+Direct async channel operations паркуют задачу и возвращают carrier
+планировщику. Компилятор обязан понизить `send` и `recv` внутри async task в
+suspendable path. Попадание в blocking channel ABI из работающей задачи
+fail-closed с `channel send requires async lowering` или
+`channel recv requires async lowering`; VM держит ту же границу. Внешний
+синхронный caller может использовать blocking helper, потому что он не держит
+carrier Tier 1. Compensation workers и task-context compatibility path удалены.
 
 ### 3.4 Network I/O
 
@@ -320,16 +309,12 @@ Runtime tracing отделен от compiler tracing в `docs/TRACING.ru.md`.
 
 - `wake_called`, `wake_enqueued`, `park_attempt`, `park_committed`: активность
   wake/park.
-- `channel_blocking_wait`, `channel_task_blocking_send`,
-  `channel_task_blocking_recv`: sync channel fallback из task context.
 - `channel_handoff_yield`: direct async channel handoff yields.
-- `compensation_started`, `compensation_high_water`: fallback для pinned workers.
 - `waiters_*`, `tasks_*`, `local_total`, `inject_len`: форма scheduler snapshot.
 
 Полезные поля `SCHED_TRACE`:
 
-- `local`, `inject`, `steal`: сколько задач взято из worker-local queues,
-  global inject queue или local queue другого worker'а.
+- `local`, `inject`: сколько задач взято из local или injection queue шарда.
 - `events`: общее число scheduler pops в summary line.
 
 Полезные поля `TRACE_NET`:
@@ -345,10 +330,8 @@ Runtime tracing отделен от compiler tracing в `docs/TRACING.ru.md`.
 - `io_waiter_complete_calls`, `io_waiter_completed`: wake/remove активность
   для net readiness.
 
-Для здорового прямого async channel request/reply path ожидаются
-`channel_task_blocking_send=0`, `channel_task_blocking_recv=0` и
-`compensation_high_water=0`. Ненулевые значения не всегда ошибка, но они
-означают, что workload использовал sync compatibility path или pinned workers.
+Синхронный channel ABI из работающей задачи не имеет trace-only fallback и
+немедленно отказывается: нужен async lowering.
 
 ---
 
@@ -359,15 +342,15 @@ Runtime tracing отделен от compiler tracing в `docs/TRACING.ru.md`.
 1. **Backend check:** запустите программу на VM и native/LLVM, если возможно.
    VM-only failure обычно указывает на MIR/semantics; native-only failure - на
    C runtime, LLVM lowering или real I/O.
-2. **Worker count:** сначала `SURGE_THREADS=1`, затем маленькое multi-worker
-   значение вроде `SURGE_THREADS=2` или `4`.
+2. **Shard count:** сравните `SURGE_SHARDS=1`, `2` и `8`; в каждой строке один
+   carrier на shard.
 3. **Trace counters:** запустите с `SURGE_TRACE_EXEC=1` и проверьте channel,
-   compensation, waiter и net counters.
+   waiter, queue, transport и net counters.
 4. **Scheduler mode:** используйте
    `SURGE_SCHED=seeded SURGE_SCHED_SEED=<n>` для воспроизводимых scheduler
    choices. Не ждите полной воспроизводимости внешнего I/O.
-5. **Channel path:** если `channel_task_blocking_*` или `compensation_*` ненулевые
-   на горячем async path, ищите sync helper functions, скрывающие channel ops.
+5. **Channel path:** panic `requires async lowering` означает, что sync helper
+   скрыл channel operation от suspension lowering.
 6. **Network path:** если net latency остается после чистых channel counters,
    сравните с маленькой native echo/accept программой до обвинения application
    logic.
@@ -377,11 +360,11 @@ Runtime tracing отделен от compiler tracing в `docs/TRACING.ru.md`.
 ## 6. Текущие ограничения
 
 - VM остается single-worker по дизайну.
-- Native/LLVM parallel scheduling не является глобально детерминированным.
+- Native/LLVM scheduling между шардами не является глобально детерминированным.
 - Seeded scheduling best-effort и зависит от порядка внешних событий.
-- Native waiter list пока общая FIFO registration list; замену на keyed queues
-  нужно делать только по измерениям.
-- Sync channel compatibility всё еще может pin workers. Это fallback, а не
-  рекомендуемая форма горячего async-кода.
+- Waiter stores принадлежат шардам; порядок foreign completions зависит от
+  порядка transport delivery.
+- Синхронные channel send/recv из task context не поддерживаются и отказываются;
+  требуется async lowering.
 - `parallel map/reduce` и `signal` остаются зарезервированными возможностями
   языка.

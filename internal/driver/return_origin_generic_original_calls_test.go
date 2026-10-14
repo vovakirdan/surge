@@ -39,9 +39,10 @@ func TestAnalyzeOriginalGenericCallsWithoutInstances(t *testing.T) {
 			closure := res.Sema.InstantiationClosure
 			var callee, caller sema.CallableCandidate
 			for _, c := range res.Sema.CallableCandidates {
-				if c.Name == "identity" {
+				switch c.Name {
+				case "identity":
 					callee = c
-				} else if c.Name == "bridge" {
+				case "bridge":
 					caller = c
 				}
 			}

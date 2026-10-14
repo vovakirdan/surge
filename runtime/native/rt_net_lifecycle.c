@@ -5,22 +5,27 @@
 #include <errno.h>
 #include <unistd.h>
 
-uint32_t rt_net_owner_shard_or_compat(rt_executor* ex, uint32_t requested) {
+uint32_t rt_net_resolve_owner_shard(rt_executor* ex, uint32_t requested) {
     if (ex == NULL || rt_executor_runtime(ex) == NULL) {
-        return 0;
+        return UINT32_MAX;
     }
     size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
     if (requested < shard_count) {
         return requested;
     }
+    // External synchronous callers have no carrier owner. Shard 0 is their
+    // explicit runtime root, not a fallback for an invalid task placement.
+    if (requested == UINT32_MAX && shard_count > 0) {
+        return 0;
+    }
     if (shard_count > 1) {
         rt_net_trace_global_path_fallback();
     }
-    return 0;
+    return UINT32_MAX;
 }
 
 uint32_t rt_net_current_owner_shard(rt_executor* ex) {
-    return rt_net_owner_shard_or_compat(ex, rt_debug_current_worker_shard_id());
+    return rt_net_resolve_owner_shard(ex, rt_debug_current_worker_shard_id());
 }
 
 rt_net_lifecycle_status rt_net_close_fd_on_owner(rt_executor* ex,
@@ -32,7 +37,8 @@ rt_net_lifecycle_status rt_net_close_fd_on_owner(rt_executor* ex,
     if (out_errno != NULL) {
         *out_errno = 0;
     }
-    if (ex == NULL || fd_slot == NULL || closed_slot == NULL || *closed_slot || *fd_slot < 0) {
+    if (ex == NULL || fd_slot == NULL || closed_slot == NULL || *closed_slot || *fd_slot < 0 ||
+        generation == 0) {
         return RT_NET_LIFECYCLE_INVALID;
     }
     int fd = *fd_slot;
@@ -52,7 +58,7 @@ rt_net_lifecycle_status rt_net_close_fd_on_owner(rt_executor* ex,
     // pass the unsynchronized *closed_slot check, but only the first finds
     // the row; the loser is rejected here and never issues a second close(2)
     // on a possibly-reused fd number.
-    int stale = generation != 0 && !rt_fd_registry_handle_open(registry, fd, generation);
+    int stale = !rt_fd_registry_handle_open(registry, fd, generation);
     if (stale) {
         if (owner_shard != NULL) {
             rt_shard_unlock(owner_shard);

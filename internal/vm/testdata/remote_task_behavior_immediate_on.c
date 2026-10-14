@@ -246,7 +246,7 @@ int rtb_mode_shutdown(void) {
     memset(&child, 0, sizeof(child));
     rtb_execute_state state;
     void* task = rtb_start_exec(&state, rt_placement_shard(1), &child);
-    const rt_remote_task_pending* pending = NULL;
+    rt_remote_task_pending* pending = NULL;
     for (uint32_t i = 0; i < 5000 && pending == NULL; i++) {
         pending = atomic_load_explicit(&state.visible_pending, memory_order_acquire);
         rtb_sleep_us(1000);
@@ -254,13 +254,18 @@ int rtb_mode_shutdown(void) {
     if (pending == NULL) {
         return rtb_fail("shutdown execute did not become pending");
     }
+    // visible_pending is only a borrowed observation. Keep the pending alive
+    // while shutdown wakes the caller and that caller releases its reference.
+    rt_remote_task_pending_add_ref(pending);
     (void)task;
+    const char* failure = NULL;
     if (rt_executor_request_shutdown(ex) != RT_RUNTIME_STATUS_OK) {
-        return rtb_fail("executor shutdown failed");
+        failure = "executor shutdown failed";
     }
-    if (rt_remote_task_pending_snapshot(pending, NULL) !=
-        RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN) {
-        return rtb_fail("shutdown did not fail the execute reply waiter");
+    if (failure == NULL && rt_remote_task_pending_snapshot(pending, NULL) !=
+                               RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN) {
+        failure = "shutdown did not fail the execute reply waiter";
     }
-    return 0;
+    rt_remote_task_pending_release(pending);
+    return failure != NULL ? rtb_fail(failure) : 0;
 }

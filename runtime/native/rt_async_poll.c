@@ -1,5 +1,4 @@
 #include "rt_async_internal.h"
-#include "rt_remote_spawn.h"
 #include "rt_sync_point.h"
 #include "rt_task_cold.h"
 #include "rt_value_ops.h"
@@ -130,14 +129,6 @@ poll_outcome poll_task(rt_executor* ex, rt_task* task) {
         out.kind = POLL_DONE_CANCELLED;
         return out;
     }
-    // A carrier-affine task borrows a frame that lives with one worker; a poll
-    // anywhere else reads that frame from a thread that may be writing it.
-    // The route and the refusal are meant to make this unreachable; it is
-    // asserted here, at the one place every poll passes, rather than trusted.
-    if (task->carrier_valid != 0 && (tls_worker_ctx == NULL || tls_worker_ctx->ex != ex ||
-                                     tls_worker_ctx->worker_id != task->carrier_worker_id)) {
-        panic_msg("async: a carrier-affine task polled off its carrier");
-    }
     switch (task->kind) {
         case TASK_KIND_CHECKPOINT:
             return poll_checkpoint_task(ex, task);
@@ -157,113 +148,6 @@ poll_outcome poll_task(rt_executor* ex, rt_task* task) {
                 return out;
             }
             return poll_user_task(ex, task);
-    }
-}
-
-int run_ready_one(rt_executor* ex) {
-    if (ex == NULL) {
-        return 0;
-    }
-    rt_trace_drain_signal_dump();
-    rt_control_lock(ex);
-    rt_shard* shard0 = rt_runtime_shard0(rt_executor_runtime(ex));
-    if (shard0 != NULL) {
-        rt_shard_lock(shard0);
-        (void)rt_remote_spawn_drain_inbound_locked(ex, shard0, RT_TRANSPORT_DRAIN_TURN_LIMIT);
-        rt_shard_unlock(shard0);
-    }
-    uint64_t id = 0;
-    if (!next_ready(ex, &id)) {
-        rt_control_unlock(ex);
-        return 0;
-    }
-    rt_task* task = get_task(ex, id);
-    if (task == NULL) {
-        rt_control_unlock(ex);
-        panic_msg("invalid task id");
-        return 1;
-    }
-    task_status_store(task, TASK_RUNNING);
-    (void)task_wake_token_exchange(task, 0);
-    rt_set_current_task(task);
-
-    // Both arms below end their turn through apply_poll_outcome, the same
-    // applier the shard-lane worker turn and the inline child poll use
-    // (rt_worker_turn.c, rt_async_task.c). This runner used to carry its own
-    // copy of that switch, and the copy drifted: its cancelled arm went
-    // straight to mark_done, while the shared applier exits the task's scope
-    // first. Every async body opens a scope at the top of its own poll, so a
-    // cancelled task completed by the copy abandoned one rt_scope block -- 64
-    // bytes per cancelled task, visible only when no worker thread takes the
-    // turn. One applier is the only thing that keeps the two answers equal.
-    //
-    // apply_poll_outcome is lane-aware and takes the control lock only when
-    // its caller does not already hold it; both call sites below hold it.
-    if (task->kind != TASK_KIND_USER) {
-        task_polling_enter(task, POLL_SITE_CONTROL_RUNNER_SYSTEM);
-        poll_outcome outcome = poll_task(ex, task);
-        task_polling_exit(task);
-        apply_poll_outcome(ex, task, outcome);
-        rt_set_current_task(NULL);
-        rt_control_unlock(ex);
-        return 1;
-    }
-
-    rt_control_unlock(ex);
-    task_polling_enter(task, POLL_SITE_CONTROL_RUNNER_USER);
-    poll_outcome outcome = poll_task(ex, task);
-    task_polling_exit(task);
-    // RV2-DEBT-023 proof window: user poll has already passed its
-    // cancellation check and returned PARKED, but this worker has not
-    // re-entered the control lane to commit TASK_WAITING in park_current.
-    // A real external rt_task_cancel can run here and must set the wake
-    // token even though the target still reads as TASK_RUNNING.
-    RT_SYNC_POINT_IF(outcome.kind == POLL_PARKED, SP_PARK_BEFORE_WAITING);
-    rt_control_lock(ex);
-    apply_poll_outcome(ex, task, outcome);
-    rt_set_current_task(NULL);
-    rt_control_unlock(ex);
-    return 1;
-}
-
-void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind) {
-    if (ex == NULL || task == NULL) {
-        panic_msg("invalid task handle");
-        return;
-    }
-    rt_heap_accounting_cell* saved_cell = rt_heap_accounting_current_cell();
-    rt_heap_accounting* accounting = rt_executor_heap_accounting(ex);
-    rt_heap_accounting_set_current_cell(rt_heap_accounting_main_cell(accounting));
-    uint64_t id = task->id;
-    rt_control_lock(ex);
-    if (task_status_load(task) != TASK_WAITING && task_status_load(task) != TASK_DONE) {
-        wake_task(ex, id, 1);
-    }
-    rt_control_unlock(ex);
-    for (;;) {
-        rt_trace_drain_signal_dump();
-        rt_control_lock(ex);
-        const rt_task* current = get_task(ex, id);
-        if (current == NULL) {
-            rt_control_unlock(ex);
-            rt_heap_accounting_set_current_cell(saved_cell);
-            panic_msg("invalid task id");
-            return;
-        }
-        if (task_status_load(current) == TASK_DONE) {
-            if (out_kind != NULL) {
-                *out_kind = current->result_kind == TASK_RESULT_CANCELLED ? 2 : 1;
-            }
-            rt_control_unlock(ex);
-            rt_heap_accounting_set_current_cell(saved_cell);
-            return;
-        }
-        rt_control_unlock(ex);
-        if (!run_ready_one(ex)) {
-            rt_heap_accounting_set_current_cell(saved_cell);
-            panic_msg("async deadlock");
-            return;
-        }
     }
 }
 

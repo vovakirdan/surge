@@ -87,7 +87,7 @@ class CanonicalManifestTests(unittest.TestCase):
         # batches each, eighteen figures per row -- both answer 4, eighteen
         # times out of eighteen. The wobble was the runtime TOPOLOGY going
         # unpinned, not the row: an unpinned binary reads 343 then 350 where a
-        # binary given the manifest's own shards, threads and blocking threads
+        # binary given the manifest's own shards and blocking threads
         # reads one number and repeats it.
         #
         # RE-CAPTURED 2026-09-03 (RV2-DEBT-329). The first paired run since the
@@ -97,7 +97,7 @@ class CanonicalManifestTests(unittest.TestCase):
         # every row whose task also joins a scope, 0 on the rows that never
         # spawn. The three are one-time allocations of the executor's lazy
         # initialisation, which lands inside warmup batch 0: the two
-        # worker_wake_pending arrays (one per shard scheduler, D4.6, 1ba55ecd)
+        # then-current per-shard wake-credit allocations (D4.6, 1ba55ecd)
         # and the first growth of the scope's children array (a connection
         # child is counted by its scope since c9c083e2). Structure, not per-op
         # cost; named by an rt_alloc site census under gdb on 8b12beb3,

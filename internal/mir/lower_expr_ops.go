@@ -276,6 +276,13 @@ func (l *funcLowerer) lowerCastExpr(e *hir.Expr, consume bool) (Operand, error) 
 		clone := *valueExpr
 		clone.Type = targetTy
 		valueExpr = &clone
+		// A numeric default literal can reach this synthetic path without an
+		// operand type. It is materialized directly at the target type above;
+		// another owning cast temporary would alias that same allocation.
+		if literal, ok := clone.Data.(hir.LiteralData); ok &&
+			(literal.Kind == hir.LiteralInt || literal.Kind == hir.LiteralFloat) && targetTy == resultTy {
+			return l.lowerExpr(valueExpr, consume)
+		}
 	}
 	if identity {
 		return l.lowerCastAsAlias(valueExpr, resultTy, consume)

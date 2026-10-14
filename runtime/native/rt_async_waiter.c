@@ -131,21 +131,6 @@ static size_t remove_waiter_from_store_seq(rt_waiter_store* store,
 // parked waiter: net_wait_current_task re-verifies the row after
 // prepare_park and undoes the park on a miss (fd-registry-attach-miss
 // resolution); the debug print below records the miss itself.
-uint32_t rt_net_owner_shard_for_key(rt_executor* ex, waker_key key, uint32_t fallback_shard_id) {
-    if (ex == NULL || !waker_is_net(key) || key.id > (uint64_t)INT_MAX) {
-        return fallback_shard_id;
-    }
-    size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
-    for (size_t i = 0; i < shard_count; i++) {
-        const rt_fd_registry* registry = rt_executor_fd_registry_const_for_shard(ex, i);
-        const rt_fd_entry* entry = rt_fd_registry_find_const(registry, (int)key.id);
-        if (entry != NULL && entry->close_state == RT_FD_CLOSE_STATE_OPEN) {
-            return (uint32_t)i;
-        }
-    }
-    return fallback_shard_id;
-}
-
 static int fd_registry_bridge_net_detach_if_last_on_owner(rt_executor* ex,
                                                           waker_key key,
                                                           uint32_t owner_shard_id,
@@ -441,10 +426,9 @@ void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
     }
     uint32_t owner_shard_id = rt_net_owner_shard_probe_locked(
         ex, (int)key.id, tls_worker_ctx != NULL ? tls_worker_ctx->shard_id : 0);
-    if (owner_shard_id == UINT32_MAX) {
-        owner_shard_id = 0;
-    }
-    rt_waiter_store* owner_store = rt_executor_waiter_store_for_shard(ex, owner_shard_id);
+    rt_waiter_store* owner_store = owner_shard_id != UINT32_MAX
+                                       ? rt_executor_waiter_store_for_shard(ex, owner_shard_id)
+                                       : NULL;
     size_t owner_kept_same_key = 0;
     size_t owner_removed = 0;
     size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
@@ -465,16 +449,23 @@ void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
             rt_shard_unlock(shard);
         }
     }
-    rt_shard* owner_shard = rt_runtime_shard(rt_executor_runtime(ex), owner_shard_id);
+    rt_shard* owner_shard = owner_shard_id != UINT32_MAX
+                                ? rt_runtime_shard(rt_executor_runtime(ex), owner_shard_id)
+                                : NULL;
     if (owner_shard != NULL) {
         rt_shard_lock(owner_shard);
     }
-    int removed_open_interest = fd_registry_bridge_net_detach_if_last_on_owner(
-        ex, key, owner_shard_id, owner_removed, owner_kept_same_key);
+    int removed_open_interest =
+        owner_shard_id != UINT32_MAX
+            ? fd_registry_bridge_net_detach_if_last_on_owner(
+                  ex, key, owner_shard_id, owner_removed, owner_kept_same_key)
+            : 0;
     if (owner_shard != NULL) {
         rt_shard_unlock(owner_shard);
     }
-    fd_registry_bridge_notify_removed_interest(ex, key, removed_open_interest, owner_shard_id);
+    if (owner_shard_id != UINT32_MAX) {
+        fd_registry_bridge_notify_removed_interest(ex, key, removed_open_interest, owner_shard_id);
+    }
 }
 
 void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
@@ -488,7 +479,7 @@ void add_waiter(rt_executor* ex, waker_key key, uint64_t task_id) {
         return;
     }
     const rt_task* task = get_task(ex, task_id);
-    uint32_t owner_hint = task != NULL && task->owner_shard_valid != 0 ? task->owner_shard_id : 0;
+    uint32_t owner_hint = rt_task_owner_shard_id(ex, task);
     rt_runtime_status status = RT_RUNTIME_STATUS_OK;
     if (key.kind == WAKER_JOIN) {
         status = rt_waiter_add_join_waiter(ex, key, task_id, owner_hint);

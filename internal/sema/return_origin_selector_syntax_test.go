@@ -112,7 +112,7 @@ func selectorSyntaxFixture(t *testing.T, text, digest string) selectorSyntaxUnit
 		publication.LocalCallables = append(publication.LocalCallables, FinalizationCallableIdentity{Symbol: candidate.Symbol, BodyKey: candidate.BodyKey, SourceKey: candidate.SourceKey})
 	}
 	unit := ReturnOriginUnit{Builder: b, FileID: file, Sema: &checked, Symbols: &resolved, SourceKey: selectorSyntaxKey, Publication: publication}
-	index, err := indexReturnOriginUnit(unit, &checked)
+	index, err := indexReturnOriginUnit(&unit, &checked)
 	if err != nil {
 		t.Fatalf("PRECONDITION: original unit index: %v", err)
 	}
@@ -169,7 +169,11 @@ func selectorClean(t *testing.T, f selectorSyntaxUnit, slots []uint32) {
 // selectorAbort requires the exact untyped-expression abort naming one expression.
 func selectorAbort(t *testing.T, f selectorSyntaxUnit, id ast.ExprID) {
 	t.Helper()
-	want := fmt.Sprintf("return origins: expression %d is not typed in %s", id, selectorSyntaxKey)
+	node := f.builder.Exprs.Get(id)
+	if node == nil {
+		t.Fatalf("PRECONDITION: expression %d is absent", id)
+	}
+	want := fmt.Sprintf("return origins: expression %d kind=%d span=%v is not typed in %s", id, node.Kind, node.Span, selectorSyntaxKey)
 	analysis, err := AnalyzeReturnOrigins(t.Context(), f.checked, []ReturnOriginUnit{f.unit})
 	if err == nil || err.Error() != want || analysis != nil {
 		t.Errorf("want exact refusal %q and nil analysis; got %v, %+v", want, err, analysis)

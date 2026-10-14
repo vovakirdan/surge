@@ -176,7 +176,7 @@ func (l *funcLowerer) prepareSpawnOnCrossing(ins *CrossingInstr, body *hir.Block
 	if pollID == NoFuncID {
 		return fmt.Errorf("mir: spawn_on: failed to allocate poll function id")
 	}
-	name := fmt.Sprintf("__spawn_on_block$%d$poll", pollID)
+	name := fmt.Sprintf("__spawn_on_block$%d", pollID)
 	captures := l.spawnOnCaptureInfo(ins.Captures)
 	stateType, err := buildSpawnOnStateStruct(l.types, name, captures)
 	if err != nil {
@@ -257,7 +257,7 @@ func (l *funcLowerer) prepareImmediateBodyCrossing(ins *CrossingInstr, body *hir
 	if pollID == NoFuncID {
 		return fmt.Errorf("mir: on: failed to allocate poll function id")
 	}
-	name := fmt.Sprintf("__on_block$%d$poll", pollID)
+	name := fmt.Sprintf("__on_block$%d", pollID)
 	if anchored {
 		name = fmt.Sprintf("__on_anchored_block$%d$poll", pollID)
 	}

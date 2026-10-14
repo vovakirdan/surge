@@ -51,7 +51,7 @@ func ParseFunctionTypeKey(key TypeKey) (params []TypeKey, result TypeKey, source
 			return nil, "", types.ReturnSources{}, false
 		}
 	}
-	if len(s) == 0 || s[0] != '(' {
+	if s == "" || s[0] != '(' {
 		return nil, "", sources, false
 	}
 	stack := []byte{')'}
@@ -119,16 +119,16 @@ func parseReturnSourceKey(s string) (types.ReturnSources, string, bool) {
 }
 
 func keyDelimiter(s string, i int, stack *[]byte) bool {
-	var close byte
+	var closing byte
 	switch s[i] {
 	case '(':
-		close = ')'
+		closing = ')'
 	case '[':
-		close = ']'
+		closing = ']'
 	case '<':
-		close = '>'
+		closing = '>'
 	case '{':
-		close = '}'
+		closing = '}'
 	case ')', ']', '>', '}':
 		if s[i] == '>' && i > 0 && s[i-1] == '-' {
 			return true
@@ -138,8 +138,8 @@ func keyDelimiter(s string, i int, stack *[]byte) bool {
 		}
 		*stack = (*stack)[:len(*stack)-1]
 	}
-	if close != 0 {
-		*stack = append(*stack, close)
+	if closing != 0 {
+		*stack = append(*stack, closing)
 	}
 	return true
 }

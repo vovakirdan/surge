@@ -75,7 +75,7 @@ func (tc *typeChecker) maybeRecordChannelCreateCrossing(
 		// The producer suspends on its reply like every crossing; the
 		// synchronous-context cause gets its own sema diagnostic in the
 		// crossing-family precision pass.
-		SuspendCapable: tc.awaitDepth > 0,
+		SuspendCapable: tc.awaitAllowedHere(),
 		Destination: CrossingDestinationInfo{
 			Expr: dest,
 			Kind: CrossingDestinationPlacement,
@@ -143,7 +143,7 @@ func (tc *typeChecker) typeFarChannelShareCall(id ast.ExprID,
 			Expr:           id,
 			Span:           span,
 			Function:       tc.currentFnSym(),
-			SuspendCapable: tc.awaitDepth > 0,
+			SuspendCapable: tc.awaitAllowedHere(),
 			ReceiverExpr:   member.Target,
 			ReceiverSymbol: tc.symbolForExpr(member.Target),
 			ReceiverType:   receiverType,

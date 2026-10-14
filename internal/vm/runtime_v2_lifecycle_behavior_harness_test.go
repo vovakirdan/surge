@@ -100,13 +100,13 @@ func buildRuntimeV2LifecycleHarnessWithFlags(t *testing.T, name string, extraFla
 	binPath := filepath.Join(tmpDir, name)
 	source := lifecycleHarnessCommon + lifecycleHarnessScopeSpawn + lifecycleHarnessCreateJoinModes + lifecycleHarnessHandleLifetimeModes +
 		lifecycleHarnessScopeAndShutdown + lifecycleHarnessPlacementAdoption + lifecycleHarnessScopeCrossOwner +
-		lifecycleHarnessSyncPointModes + lifecycleHarnessReadyRequeueModes +
+		lifecycleHarnessSyncPointModes +
 		lifecycleHarnessSleepPublishModes + lifecycleHarnessParkAbortModes +
 		lifecycleHarnessFailfastJoinModes + lifecycleHarnessScopeEventModes + lifecycleHarnessCancelCommitModes +
 		lifecycleHarnessCancelSealModes + lifecycleHarnessBlockingCancelModes +
-		lifecycleHarnessStandHelpers + lifecycleHarnessInlineClaimModes +
+		lifecycleHarnessStandHelpers +
 		lifecycleHarnessScopeMembershipModes + lifecycleHarnessTaskEntitlementModes + lifecycleHarnessTaskEntitlementTerminalModes +
-		lifecycleHarnessPollOutcomePinModes + lifecycleHarnessCarrierModes + lifecycleHarnessPeerWakeModes + lifecycleHarnessSendOfferCancelModes + lifecycleHarnessSendOfferClaimModes +
+		lifecycleHarnessSendOfferCancelModes + lifecycleHarnessSendOfferClaimModes + lifecycleHarnessTaskRefObservationModes +
 		lifecycleHarnessPollDispatch + lifecycleHarnessMain
 	if writeErr := os.WriteFile(harnessPath, []byte(source), 0o600); writeErr != nil {
 		t.Fatalf("write harness: %v", writeErr)
@@ -172,14 +172,9 @@ func lifecycleEnv(values ...string) []string {
 // observation across SURGE_SHARDS=1, 2, and 8").
 func runLifecycleModeAcrossShards(t *testing.T, binPath string, mode string) {
 	t.Helper()
-	// SURGE_THREADS must equal SURGE_SHARDS whenever SURGE_SHARDS>1 (the
-	// runtime enforces this at startup); SURGE_SHARDS=1 tolerates extra
-	// worker threads, matching the convention already used by
-	// runtime_v2_lock_split_behavior_test.go (shards=1,threads=2).
-	shardThreads := map[string]string{"1": "4", "2": "2", "8": "8"}
 	for _, shards := range []string{"1", "2", "8"} {
 		t.Run("shards-"+shards, func(t *testing.T) {
-			env := lifecycleEnv("SURGE_SHARDS="+shards, "SURGE_THREADS="+shardThreads[shards], "SURGE_BLOCKING_THREADS=1")
+			env := lifecycleEnv("SURGE_SHARDS="+shards, "SURGE_BLOCKING_THREADS=1")
 			stdout, stderr, exitCode := runLifecycleHarness(t, binPath, mode, env)
 			if exitCode != 0 {
 				t.Fatalf("lifecycle mode %q failed at SURGE_SHARDS=%s (code=%d)\nstdout:\n%s\nstderr:\n%s",
@@ -246,7 +241,6 @@ enum {
     POLL_DEBT020_ADOPT_JOINER = 4029,
     POLL_DEBT020_GAP_JOINER = 4030,
     POLL_DEBT022_GATED_TARGET = 4032,
-    // 4033 is POLL_READY_REQUEUE_PROBE (defined in the ready-requeue modes).
     POLL_DEBT046_JOINER = 4034
 	};
 
@@ -490,7 +484,7 @@ static void poll_clone_target(void) {
 }
 
 // Repeatedly clones and joins (via rt_task_poll, the actual worker join
-// lane -- not rt_task_await's external/done_cv compat path, rule 5) a shared
+// lane -- not rt_task_await's external/done_cv external-await path, rule 5) a shared
 // target handle while it may be completing concurrently on another
 // shard/worker; rt_task_clone (rt_async_task.c:234-247) only bumps the
 // atomic handle_refs, and task_release (rt_async_state.c:1414-1427) only

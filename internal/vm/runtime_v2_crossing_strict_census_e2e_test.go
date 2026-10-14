@@ -309,7 +309,7 @@ func TestRuntimeV2CrossingStrictCensusBalanced(t *testing.T) {
 	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2CrossingStrictCensusSource, nil)
 	baseEnv := envWithStdlib(repoRoot(t))
 	env := overrideEnvVar(baseEnv, "SURGE_SHARDS", "1")
-	env = overrideEnvVar(env, "SURGE_THREADS", "1")
+	env = overrideEnvVar(env, "SURGE_SHARDS", "1")
 	duration, result := runBinaryWithTimeout(t, outputPath, env, 60*time.Second)
 	if result.exitCode != 0 {
 		t.Fatalf(
@@ -368,15 +368,16 @@ func parseValgrindDefinitelyLost(stderr string) (bytesLost, blocksLost int, err 
 // memcheck errors should scan stderr with hasValgrindMemcheckError instead,
 // which matches only Memcheck's own error-report headers, never its leak
 // summary lines.
-func runBinaryUnderValgrind(t *testing.T, outputPath string, env []string, timeout time.Duration) (stdout, stderr string, exitCode int) {
+//
+//nolint:unparam // runtime_v2_pending tests pass native harness mode arguments.
+func runBinaryUnderValgrind(t *testing.T, outputPath string, env []string, timeout time.Duration, programArgs ...string) (stdout, stderr string, exitCode int) {
 	t.Helper()
 	skipTimeoutTests(t)
 	root := repoRoot(t)
 	timeout = mtScaledTimeout(t, timeout)
-	args := []string{
-		"--leak-check=full",
-		outputPath,
-	}
+	args := make([]string, 0, 2+len(programArgs))
+	args = append(args, "--leak-check=full", outputPath)
+	args = append(args, programArgs...)
 	// #nosec G204 -- fixed valgrind invocation over a test-built binary
 	cmd := exec.Command("valgrind", args...)
 	cmd.Dir = root
@@ -465,7 +466,7 @@ func TestRuntimeV2CrossingStrictCensusValgrindZero(t *testing.T) {
 		t.Run(fmt.Sprintf("shards_%d", shardCount), func(t *testing.T) {
 			value := strconv.Itoa(shardCount)
 			env := overrideEnvVar(baseEnv, "SURGE_SHARDS", value)
-			env = overrideEnvVar(env, "SURGE_THREADS", value)
+			env = overrideEnvVar(env, "SURGE_SHARDS", value)
 			stdout, stderr, exitCode := runBinaryUnderValgrind(t, outputPath, env, 180*time.Second)
 			if hasValgrindMemcheckError(stderr) {
 				t.Fatalf("valgrind reported a real memcheck error (invalid free / use-after-free / uninitialized read)\nstdout:\n%s\nstderr:\n%s", stdout, stderr)

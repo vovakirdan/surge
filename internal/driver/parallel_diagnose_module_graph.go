@@ -342,13 +342,29 @@ func resolveDirModuleGraph(ctx context.Context, fileSet *source.FileSet, results
 		*opts.ExportsOut = exports
 	}
 
-	pass, err := finalizeParallelModuleRecords(ctx, fileSet, paths, records)
+	if parallelModuleRecordsHaveErrors(records) {
+		publishParallelModuleResults(fileSet, baseDir, results, opts, pathToIndex, fileIDToIndex, records, normalizePathForIndex)
+		return nil, nil
+	}
+	pass, err := finalizeParallelModuleRecords(ctx, fileSet, paths, records, opts.SkipReturnOriginFinalization)
 	if err != nil {
 		return nil, err
 	}
 
 	publishParallelModuleResults(fileSet, baseDir, results, opts, pathToIndex, fileIDToIndex, records, normalizePathForIndex)
+	if opts.SkipReturnOriginFinalization {
+		return pass, nil
+	}
 	return pass, requireParallelReturnOriginPublication(pass, results)
+}
+
+func parallelModuleRecordsHaveErrors(records map[string]*moduleRecord) bool {
+	for _, rec := range records {
+		if rec != nil && rec.Bag != nil && rec.Bag.HasErrors() {
+			return true
+		}
+	}
+	return false
 }
 
 // moduleIdentityForFiles keys a module record by its physical location, so

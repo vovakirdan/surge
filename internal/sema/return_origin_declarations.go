@@ -42,7 +42,8 @@ func (u *returnOriginUnitIndex) owningCallableIdentity(fn *ast.FnItem, id symbol
 		sym.Span != fn.NameSpan || sym.Signature == nil || sym.Signature.HasBody != fn.Body.IsValid() {
 		return identity, fmt.Errorf("return origins: callable %d lacks its original source declaration in %s", id, u.SourceKey)
 	}
-	for _, candidate := range u.authority.CallableCandidates {
+	for i := range u.authority.CallableCandidates {
+		candidate := &u.authority.CallableCandidates[i]
 		if candidate.BodyKey != identity.BodyKey || candidate.SourceKey != identity.SourceKey {
 			continue
 		}
@@ -117,7 +118,7 @@ func (b *returnOriginBody) declaredSources(u *returnOriginUnitIndex, owner symbo
 			b.pending(span, "return-source promise lost its original typed roots")
 			return nil, false
 		}
-		validation := binding.validatePromise(*original)
+		validation := binding.validatePromise(original)
 		if validation.Status != ReturnSourcesValid {
 			if validation.Status == ReturnSourcesInvalid {
 				b.returnSourceDiagnostic(validation.Span, validation.Reason, syntax.Markers())
@@ -164,6 +165,41 @@ func (b *returnOriginBody) opaqueReturnSources(callee *returnOriginFunction, inf
 	binding := returnOriginView(b.function)
 	if len(view) != 0 && view[0] != nil && view[0].binding != nil {
 		binding, result = *view[0].binding, info.Result
+	}
+	// The core Task await consumes one task handle and exposes exactly the
+	// payload origins already carried by that handle. The surface handle word
+	// is not reference-bearing, so declaration-source filtering would otherwise
+	// erase slot 0 and fall back to a type-only opaque walk (which cannot
+	// distinguish an owning array result from a view).
+	if returnOriginTaskAwait(callee) || returnOriginTaskTimeout(callee) {
+		return returnOriginValueOf(returnOrigin{kind: returnOriginParam, param: 0})
+	}
+	// An incoming function value with a validated source promise creates a
+	// language Task<T>. Its handle carries exactly the declared payload sources
+	// through await; the task checker separately owns borrows held while it is
+	// running. A direct body-less constructor still needs its own exact core
+	// certificate below: arbitrary intrinsics do not gain this promise.
+	in := b.function.unit.Sema.TypeInterner
+	if b.analyzer.isCoreTask(in, result) {
+		task, found := in.StructInfo(result)
+		if !found || task == nil || len(task.TypeArgs) != 1 || binding.shape(task.TypeArgs[0]) == returnOriginShapeUnknown {
+			b.pending(span, "opaque task payload needs original borrowed-content authority")
+			return unknown
+		}
+		if callee == nil {
+			value := returnOriginValueOf()
+			for _, slot := range slots {
+				value = value.join(returnOriginValueOf(returnOrigin{kind: returnOriginParam, param: slot}))
+			}
+			return value
+		}
+		if binding.shape(task.TypeArgs[0]) == returnOriginRefFree {
+			if _, certified := returnOriginTaskHandleResidual(callee, result); certified {
+				return returnOriginValueOf()
+			}
+			b.pending(span, "opaque result borrowed-state classification is unsupported")
+			return unknown
+		}
 	}
 	if len(slots) == 0 {
 		// A certified core handle constructor keeps only what its handle word cannot hold.
@@ -237,7 +273,7 @@ func (b *returnOriginBody) returnSourceDiagnostic(span source.Span, message stri
 	b.analyzer.report.Diagnostics = append(b.analyzer.report.Diagnostics, d)
 }
 
-func (a *returnOriginAnalyzer) checkGenericPromise(fn *returnOriginFunction, view *returnOriginSignature, use ConcreteInstantiationUse) string {
+func (a *returnOriginAnalyzer) checkGenericPromise(fn *returnOriginFunction, view *returnOriginSignature, use *ConcreteInstantiationUse) string {
 	body := &returnOriginBody{analyzer: a, function: fn}
 	allowed, valid := body.declaredFunctionSources(fn, fn.item.NameSpan, view)
 	if !valid {
@@ -257,7 +293,7 @@ func (a *returnOriginAnalyzer) checkGenericPromise(fn *returnOriginFunction, vie
 	if view.binding != nil {
 		bound = *view.binding
 	}
-	value, _ = a.freshGenericArraySummary(fn, bound, value)
+	value = a.freshGenericArraySummary(fn, bound, value)
 	for _, root := range value.roots {
 		if root.kind != returnOriginParam || root.expired || int64(root.param) >= int64(len(view.params)) {
 			return "generic result contains an unproved source"

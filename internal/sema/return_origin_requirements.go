@@ -77,6 +77,11 @@ func (v returnOriginTypeView) requirement(kind returnOriginConditionKind, id typ
 		if typ.Kind == types.KindStruct && in.IsBorrowedView(id) {
 			return returnOriginRequirements{refuted: true}
 		}
+		if kind == returnOriginNoBorrowedState {
+			if elem, _, fixed := in.ArrayFixedInfo(id); fixed {
+				return walk(view, elem, active)
+			}
+		}
 		if kind == returnOriginNoBorrowedState && typ.Kind == types.KindStruct && returnOriginStdlibTimeDuration(view.owner, id) {
 			return returnOriginRequirements{}
 		}
@@ -183,7 +188,8 @@ func (r returnOriginRequirements) rebase(view returnOriginTypeView) returnOrigin
 // a nominal certificate. A struct declared in another analyzed unit is proven in
 // that unit, found by its exact file among the peers; a unit that is missing or
 // ambiguous proves nothing. Inherited and opaque forms, and every attribute
-// except a bare `@copy` or `@shard_movable`, stay unsupported.
+// except a bare capability marker or `@packed`, stay unsupported. Packing
+// changes physical layout but neither hides nor adds a logical field.
 func returnOriginPlainStruct(fn *returnOriginFunction, info *types.StructInfo) bool {
 	u := fn.unit
 	if f := u.Builder.Files.Get(u.FileID); f == nil || f.Span.File != info.Decl.File {
@@ -247,7 +253,7 @@ func returnOriginCapabilityOnlyAttributes(u *returnOriginUnitIndex, item *ast.Ty
 	}
 	for _, attr := range attrs {
 		spec, known := ast.LookupAttrID(u.Builder.StringsInterner, attr.Name)
-		if !known || (spec.Name != "copy" && spec.Name != "shard_movable") || len(attr.Args) != 0 {
+		if !known || (spec.Name != "copy" && spec.Name != "shard_movable" && spec.Name != "packed") || len(attr.Args) != 0 {
 			return false
 		}
 	}

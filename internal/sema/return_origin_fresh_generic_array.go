@@ -11,62 +11,62 @@ import (
 // erases those content roots without erasing a possible view/header loan.
 func (a *returnOriginAnalyzer) freshGenericArraySummary(fn *returnOriginFunction, view returnOriginTypeView,
 	value returnOriginValue,
-) (returnOriginValue, bool) {
+) returnOriginValue {
 	if fn == nil || fn.candidate == nil || len(fn.candidate.TemplateParams) == 0 || !fn.item.Body.IsValid() ||
 		!value.normal || len(value.roots) != 1 || value.roots[0].kind != returnOriginUnknown || len(value.callables) != 0 {
-		return value, false
+		return value
 	}
 	in := fn.unit.Sema.TypeInterner
 	result, canonical := returnOriginContainer(in, fn.info.Result)
 	if !canonical || result.reference || result.family != in.ArrayNominalType() {
-		return value, false
+		return value
 	}
 	bound, _, resolved := view.resolve(result.element)
 	required := view.requirement(returnOriginNoBorrowedState, result.element)
 	if !resolved || required.failed() || len(required.atoms) != 0 || returnOriginTypeShape(in, bound, nil) != returnOriginRefFree ||
 		a.loanCarrier(bound) {
-		return value, false
+		return value
 	}
 	block := fn.unit.Builder.Stmts.Block(fn.item.Body)
 	if block == nil || len(block.Stmts) == 0 {
-		return value, false
+		return value
 	}
 	var returned ast.ExprID
 	for _, stmtID := range block.Stmts {
 		stmt := fn.unit.Builder.Stmts.Get(stmtID)
 		if stmt != nil && stmt.Kind == ast.StmtReturn {
 			if returned.IsValid() {
-				return value, false
+				return value
 			}
 			returned = fn.unit.Builder.Stmts.Return(stmtID).Expr
 		}
 	}
 	if !returned.IsValid() || fn.unit.Builder.Exprs.Get(returned).Kind != ast.ExprIdent {
-		return value, false
+		return value
 	}
 	symID := fn.unit.Symbols.ExprSymbols[returned]
 	sym := fn.unit.Symbols.Table.Symbols.Get(symID)
 	if sym == nil || sym.Kind != symbols.SymbolLet || sym.Type != fn.info.Result || !bWithinFunction(fn, sym) {
-		return value, false
+		return value
 	}
 	decl := fn.unit.Builder.Stmts.Let(sym.Decl.Stmt)
 	if decl == nil {
-		return value, false
+		return value
 	}
 	array, literal := fn.unit.Builder.Exprs.Array(decl.Value)
 	if !literal || array == nil || len(array.Elements) != 0 || fn.unit.stmtSymbols[sym.Decl.Stmt] != symID {
-		return value, false
+		return value
 	}
 	for id := range fn.unit.Sema.ExprTypes {
 		node := fn.unit.Builder.Exprs.Get(id)
 		data, binary := fn.unit.Builder.Exprs.Binary(id)
 		if node != nil && node.Span.File == fn.item.Span.File && node.Span.Start >= fn.item.Span.Start && node.Span.End <= fn.item.Span.End &&
 			binary && data != nil && data.Op == ast.ExprBinaryAssign && fn.unit.Symbols.ExprSymbols[data.Left] == symID {
-			return value, false
+			return value
 		}
 	}
 	value.roots = nil
-	return value, true
+	return value
 }
 
 func bWithinFunction(fn *returnOriginFunction, sym *symbols.Symbol) bool {

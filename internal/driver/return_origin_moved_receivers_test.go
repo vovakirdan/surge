@@ -21,7 +21,7 @@ async fn await_ident() -> int {
     let r: TaskResult<int> = t.await();
     return 0;
 }
-fn channel_own() -> nothing {
+async fn channel_own() -> nothing {
     let ch: own Channel<int> = Channel::<int>::new(1:uint);
     ch.send(1);
     let v: int? = ch.recv();
@@ -35,7 +35,7 @@ fn alias_receiver() -> nothing {
 }
 `
 
-const movedReceiverDigest = "3a9c69f371113c9c5220a30c74a2a765f2bd79689c8bae2197d406b95c7066d6"
+const movedReceiverDigest = "ee69321c43a824dc09eebc50de518be32bc6c4de81300bdd93b81f62dcbec75e"
 
 const originSubstitutedRefusal = "generic original call argument disagrees with its substituted source signature"
 
@@ -44,15 +44,15 @@ func TestAnalyzeMovedReceivers(t *testing.T) {
 	f, analysis := analyzeOriginRoot(t, "moved_receivers", movedReceiverSource, false, nil)
 	checkOriginBodyLeaves(t, analysis, f, movedReceiverSource, movedReceiverDigest, []originBodyLeaf{
 		{name: "own_channel_receiver", body: "channel_own",
-			function: originSpan{268, 440, "fn channel_own() -> nothing {\n    let ch: own Channel<int> = Channel::<int>::new(1:uint);\n    ch.send(1);\n    let v: int? = ch.recv();\n    ch.close();\n    return nothing;\n}"},
+			function: originSpan{268, 446, "async fn channel_own() -> nothing {\n    let ch: own Channel<int> = Channel::<int>::new(1:uint);\n    ch.send(1);\n    let v: int? = ch.recv();\n    ch.close();\n    return nothing;\n}"},
 			cleared: []originRefusal{
-				{originSpan{362, 372, "ch.send(1)"}, originSubstitutedRefusal},
-				{originSpan{392, 401, "ch.recv()"}, originSubstitutedRefusal},
-				{originSpan{407, 417, "ch.close()"}, originSubstitutedRefusal},
+				{originSpan{368, 378, "ch.send(1)"}, originSubstitutedRefusal},
+				{originSpan{398, 407, "ch.recv()"}, originSubstitutedRefusal},
+				{originSpan{413, 423, "ch.close()"}, originSubstitutedRefusal},
 			}},
 		{name: "alias_receiver", body: "alias_receiver",
-			function: originSpan{441, 538, "fn alias_receiver() -> nothing {\n    let mut xs: Ints = [];\n    xs.push(1);\n    return nothing;\n}"},
-			cleared:  []originRefusal{{originSpan{505, 515, "xs.push(1)"}, originSubstitutedRefusal}}},
+			function: originSpan{447, 544, "fn alias_receiver() -> nothing {\n    let mut xs: Ints = [];\n    xs.push(1);\n    return nothing;\n}"},
+			cleared:  []originRefusal{{originSpan{511, 521, "xs.push(1)"}, originSubstitutedRefusal}}},
 		// A non-own `.await()` receiver moves its handle into the call: both forms lose the row.
 		{name: "await_call", body: "await_call", clean: true,
 			function: originSpan{59, 149, "async fn await_call() -> int {\n    let r: TaskResult<int> = one().await();\n    return 0;\n}"},

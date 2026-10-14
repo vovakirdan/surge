@@ -12,8 +12,9 @@ import (
 type ReturnSourceConformanceKind uint8
 
 const (
+	// ReturnSourceConformanceSelected records an exact selected declaration.
 	ReturnSourceConformanceSelected ReturnSourceConformanceKind = iota
-	// Entailed is pending until the generic assumption has a concrete witness.
+	// ReturnSourceConformanceEntailed is pending until a generic assumption has a concrete witness.
 	ReturnSourceConformanceEntailed
 )
 
@@ -60,21 +61,31 @@ func (r *Result) ReturnSourceConformances() []ReturnSourceConformance {
 		return nil
 	}
 	out := make([]ReturnSourceConformance, len(r.returnSourceConformances))
-	for i, fact := range r.returnSourceConformances {
-		out[i] = cloneReturnSourceConformance(fact)
+	for i := range r.returnSourceConformances {
+		out[i] = cloneReturnSourceConformance(&r.returnSourceConformances[i])
 	}
 	return out
 }
 
-func cloneReturnSourceConformance(fact ReturnSourceConformance) ReturnSourceConformance {
-	fact.Bound.GenericArgs = slices.Clone(fact.Bound.GenericArgs)
-	fact.ConcreteBound.GenericArgs = slices.Clone(fact.ConcreteBound.GenericArgs)
-	fact.Params = slices.Clone(fact.Params)
-	fact.CallerBindings = slices.Clone(fact.CallerBindings)
-	return fact
+func cloneReturnSourceConformance(fact *ReturnSourceConformance) ReturnSourceConformance {
+	if fact == nil {
+		return ReturnSourceConformance{}
+	}
+	out := *fact
+	out.Bound.GenericArgs = slices.Clone(fact.Bound.GenericArgs)
+	out.ConcreteBound.GenericArgs = slices.Clone(fact.ConcreteBound.GenericArgs)
+	out.Params = slices.Clone(fact.Params)
+	out.CallerBindings = slices.Clone(fact.CallerBindings)
+	return out
 }
 
-func (tc *typeChecker) returnSourceConformance(target types.TypeID, bound, original symbols.BoundInstance, use source.Span, req methodRequirement, actual methodSignature) ReturnSourceConformance {
+func (tc *typeChecker) returnSourceConformance(target types.TypeID, bound, original symbols.BoundInstance, use source.Span, req *methodRequirement, actual *methodSignature) ReturnSourceConformance {
+	if req == nil {
+		req = &methodRequirement{}
+	}
+	if actual == nil {
+		actual = &methodSignature{}
+	}
 	fact := ReturnSourceConformance{
 		Kind: ReturnSourceConformanceSelected,
 		Requirement: ReturnSourceRequirement{Contract: req.returnSourceOwner, Member: req.span,
@@ -89,7 +100,7 @@ func (tc *typeChecker) returnSourceConformance(target types.TypeID, bound, origi
 		fact.GenericParamOwner = symbols.SymbolID(info.Owner)
 		fact.GenericParamIndex = info.Index
 	}
-	return cloneReturnSourceConformance(fact)
+	return cloneReturnSourceConformance(&fact)
 }
 
 func (tc *typeChecker) retainReturnSourceEntailment(target types.TypeID, bound, original symbols.BoundInstance, use source.Span) {
@@ -97,15 +108,15 @@ func (tc *typeChecker) retainReturnSourceEntailment(target types.TypeID, bound, 
 	if !ok {
 		// Keep an unresolved assumption even when its member descriptor is
 		// unavailable. Finalization must not mistake missing metadata for safety.
-		fact := tc.returnSourceConformance(target, bound, original, use, methodRequirement{}, methodSignature{})
+		fact := tc.returnSourceConformance(target, bound, original, use, nil, nil)
 		fact.Kind = ReturnSourceConformanceEntailed
 		tc.retainReturnSourceConformances([]ReturnSourceConformance{fact})
 		return
 	}
 	var pending []ReturnSourceConformance
 	for _, methods := range reqs.methods {
-		for _, req := range methods {
-			fact := tc.returnSourceConformance(target, bound, original, use, req, methodSignature{})
+		for i := range methods {
+			fact := tc.returnSourceConformance(target, bound, original, use, &methods[i], nil)
 			fact.Kind = ReturnSourceConformanceEntailed
 			pending = append(pending, fact)
 		}
@@ -117,16 +128,25 @@ func (tc *typeChecker) retainReturnSourceConformances(facts []ReturnSourceConfor
 	if tc.result == nil {
 		return
 	}
-	for _, fact := range facts {
-		if !slices.ContainsFunc(tc.result.returnSourceConformances, func(old ReturnSourceConformance) bool {
-			return returnSourceConformancesEqual(old, fact)
-		}) {
+	for i := range facts {
+		fact := &facts[i]
+		found := false
+		for j := range tc.result.returnSourceConformances {
+			if returnSourceConformancesEqual(&tc.result.returnSourceConformances[j], fact) {
+				found = true
+				break
+			}
+		}
+		if !found {
 			tc.result.returnSourceConformances = append(tc.result.returnSourceConformances, cloneReturnSourceConformance(fact))
 		}
 	}
 }
 
-func returnSourceConformancesEqual(a, b ReturnSourceConformance) bool {
+func returnSourceConformancesEqual(a, b *ReturnSourceConformance) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
 	return a.Kind == b.Kind && returnSourceRequirementsEqual(a.Requirement, b.Requirement) &&
 		a.Actual.Symbol == b.Actual.Symbol && a.Actual.Declaration == b.Actual.Declaration && a.Actual.Sources.Equal(b.Actual.Sources) &&
 		a.Bound.Contract == b.Bound.Contract && a.Bound.Span == b.Bound.Span && slices.Equal(a.Bound.GenericArgs, b.Bound.GenericArgs) &&

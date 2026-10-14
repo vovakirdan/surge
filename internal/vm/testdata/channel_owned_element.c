@@ -424,16 +424,16 @@ static int mode_owned_element(rt_executor* ex) {
     for (uint32_t i = 0; i < OWNED_SENDERS; i++) {
         if (!owned_wait_status(senders[i], TASK_DONE, 20000)) {
             owned_report_stall(ex, senders, receiver, i);
-            (void)rt_executor_request_shutdown(ex);
+            rt_runtime_shutdown_for_exit();
             return owned_fail("a sender never finished");
         }
     }
     rt_channel_close(atomic_load_explicit(&g_owned_chan, memory_order_acquire));
     if (!owned_wait_status(receiver, TASK_DONE, 20000)) {
-        (void)rt_executor_request_shutdown(ex);
+        rt_runtime_shutdown_for_exit();
         return owned_fail("the receiver never finished");
     }
-    (void)rt_executor_request_shutdown(ex);
+    rt_runtime_shutdown_for_exit();
     // Every task that could touch it has finished, so the stand gives back the
     // one handle rt_channel_new minted for it, and that last release is the
     // reclaim. The census is taken AFTER that drain: a value stranded in a cell
@@ -496,15 +496,15 @@ static int mode_owned_cancelled_sender(rt_executor* ex) {
         return owned_fail("sender allocation failed");
     }
     if (!owned_wait_status(sender, TASK_WAITING, 8000)) {
-        (void)rt_executor_request_shutdown(ex);
+        rt_runtime_shutdown_for_exit();
         return owned_fail("the sender never parked on the channel");
     }
     rt_task_cancel(sender);
     if (!owned_wait_status(sender, TASK_DONE, 8000)) {
-        (void)rt_executor_request_shutdown(ex);
+        rt_runtime_shutdown_for_exit();
         return owned_fail("the cancelled sender never finished");
     }
-    (void)rt_executor_request_shutdown(ex);
+    rt_runtime_shutdown_for_exit();
     // The channel outlives every park on it, so the last release is what ends
     // the value.
     rt_channel_handle_drop(channel);

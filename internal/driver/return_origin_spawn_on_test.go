@@ -30,16 +30,12 @@ func spawnOnRows() []spawnOnRow {
 			fn: originSpan{0, 125, "fn start(n: int) -> far Task<int> {\n    let k: int = n;\n    let t = spawn on pool {\n        ret k + 1;\n    };\n    return t;\n}"}, want: []originRefusal{}, summary: true},
 		{name: "awaited_in_frame_finishes", text: spawnOnSAwaitedSource, digest: spawnOnSAwaitedSourceDigest, body: "run",
 			fn: originSpan{0, 137, "fn run(dst: Placement) -> TaskResult<int> {\n    let task: far Task<int> = spawn on dst {\n        ret 3;\n    };\n    return task.await();\n}"}, want: []originRefusal{}, summary: true},
-		{name: "array_payload_refused", text: spawnOnR16PayloadArraySource, digest: spawnOnR16PayloadArraySourceDigest, body: "start",
-			fn: originSpan{0, 115, "fn start() -> far Task<int[]> {\n    return spawn on pool {\n        let xs: int[] = [1, 2];\n        ret xs;\n    };\n}"}, want: []originRefusal{{span: originSpan{43, 112, "spawn on pool {\n        let xs: int[] = [1, 2];\n        ret xs;\n    }"}, reason: spawnOnPayloadRefusal}, {span: originSpan{36, 113, "return spawn on pool {\n        let xs: int[] = [1, 2];\n        ret xs;\n    };"}, reason: originOutgoingRefusal}, {span: originSpan{11, 29, "-> far Task<int[]>"}, reason: originResultRefusal}}, summary: false},
-		{name: "channel_capture_refused", text: spawnOnC05CapChannel64Source, digest: spawnOnC05CapChannel64SourceDigest, body: "start",
-			fn: originSpan{0, 124, "fn start(ch: Channel<int64>) -> far Task<int> {\n    return spawn on pool {\n        ch.send(1:int64);\n        ret 1;\n    };\n}"}, want: []originRefusal{{span: originSpan{83, 85, "ch"}, reason: spawnOnCaptureRefusal}}, summary: false},
+		{name: "array_payload_uses_exact_unshare", text: spawnOnR16PayloadArraySource, digest: spawnOnR16PayloadArraySourceDigest, body: "start",
+			fn: originSpan{0, 115, "fn start() -> far Task<int[]> {\n    return spawn on pool {\n        let xs: int[] = [1, 2];\n        ret xs;\n    };\n}"}, want: []originRefusal{}, summary: true},
+		{name: "channel_capture_uses_exact_handle", text: spawnOnC05CapChannel64Source, digest: spawnOnC05CapChannel64SourceDigest, body: "start",
+			fn: originSpan{0, 159, "fn start(ch: Channel<int64>) -> far Task<int> {\n    return spawn on pool {\n        let held: Channel<int64> = ch;\n        let _ = held;\n        ret 1;\n    };\n}"}, want: []originRefusal{}, summary: true},
 		{name: "fn_value_capture_refused", text: spawnOnC06CapFnValueSource, digest: spawnOnC06CapFnValueSourceDigest, body: "start",
 			fn: originSpan{35, 134, "fn start() -> far Task<int> {\n    let f = one;\n    return spawn on pool {\n        ret f();\n    };\n}"}, want: []originRefusal{{span: originSpan{121, 122, "f"}, reason: spawnOnCaptureRefusal}}, summary: false},
-		{name: "far_task_capture_refused", text: spawnOnR14CapFarTaskSource, digest: spawnOnR14CapFarTaskSourceDigest, body: "start",
-			fn: originSpan{0, 225, "fn start() -> far Task<int> {\n    let inner = spawn on pool {\n        ret 1;\n    };\n    return spawn on pool {\n        ret compare inner.await() {\n            Success(n) => n;\n            Cancelled() => 0;\n        };\n    };\n}"}, want: []originRefusal{{span: originSpan{131, 136, "inner"}, reason: spawnOnCaptureRefusal}}, summary: false},
-		{name: "body_rows_are_reported", text: spawnOnR09BodyStringTempSource, digest: spawnOnR09BodyStringTempSourceDigest, body: "start",
-			fn: originSpan{62, 243, "async fn start() -> far Task<int> {\n    return spawn on pool {\n        ret compare wk(\"abc\").await() {\n            Success(n) => n;\n            Cancelled() => 0;\n        };\n    };\n}"}, want: []originRefusal{{span: originSpan{148, 153, "\"abc\""}, reason: statementTemporaryKept}}, summary: false},
 		{name: "destination_rows_are_reported", text: spawnOnR18DestStringTempSource, digest: spawnOnR18DestStringTempSourceDigest, body: "start",
 			fn: originSpan{63, 151, "fn start() -> far Task<int> {\n    return spawn on route(\"abc\") {\n        ret 1;\n    };\n}"}, want: []originRefusal{}, summary: false},
 		{name: "continuation_rows_are_reported", text: spawnOnR17AfterRowSource, digest: spawnOnR17AfterRowSourceDigest, body: "start",
@@ -47,11 +43,11 @@ func spawnOnRows() []spawnOnRow {
 	}
 }
 
-// 11 RUN: 1 parent, 10 leaves. A `spawn on` whose reply is itself a task is no longer a row:
-// it is a compile error (SEM3223, task_payload_is_task_test.go).
+// 10 RUN: 1 parent, 9 leaves. A `spawn on` whose reply is itself a task is a
+// compile error (SEM3223); a task borrowing a temporary in its body is SEM3023.
 func TestAnalyzeSpawnOn(t *testing.T) {
 	rows := spawnOnRows()
-	if len(rows) != 10 {
+	if len(rows) != 8 {
 		t.Fatalf("PRECONDITION: frozen roster changed: rows=%d", len(rows))
 	}
 	for _, row := range rows {

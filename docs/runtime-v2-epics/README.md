@@ -214,6 +214,12 @@ Every epic should move the runtime toward these goals:
 | 24 | `24-partial-moves.md` | **Complete 2026-07-29** (steps 0-9), residuals closed 2026-07-31. Full partial-move tracking: the moved-set is keyed by PLACE, use-after-move answers per place, a partially-moved value drops only what it still holds, a reinitialized place comes back, and a capture takes a projection. `RV2-DEBT-077` closed, with nine defects found and closed on the way. Step 8 covers STRUCT FIELDS only (array elements and union payloads stay rejected, settled with the owner) — that residual stands. Step 0's tail — converting the compiler-generated field reads to the explicit transfer mode — is CLOSED: it was one real site (the crossing capture unpack, not three), asserted at the MIR level in `internal/crossinggate`; the single-suspend async lowering the other two sites were attributed to had no caller and was deleted. |
 | 25 | `25-ownership-verifier-and-tooling.md` | **Complete 2026-08-02.** MIR ownership verification is live behind `build --dev`, with a fast `make check` sample, the exact 1046-fixture corpus gate, opt-in annotated MIR, and a typed four-axis VM+LLVM/Valgrind harness. Steps 0-5 shipped; the optional highest-risk/lowest-priority heap-site census is intentionally deferred as RV2-DEBT-120. This epic remains outside and does not block the 22→23→24 detour chain. |
 
+The active D2 runtime topology packet is
+`22-step7-d2-runtime-topology-cutover.md`. It records the `N shards x 1
+carrier` cutover, RV2-DEBT-452 counterfactual, current validation, and remaining
+all-green work. Its candidate status does not close Epic 22 before the exact-SHA
+landing packet.
+
 
 ## Detour Chain — what is parked, and why
 

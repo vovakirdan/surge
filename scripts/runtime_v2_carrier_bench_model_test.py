@@ -668,8 +668,8 @@ class ManifestTests(unittest.TestCase):
             path = Path(temporary) / "manifest.json"
             encoded = json.dumps(manifest_json())
             encoded = encoded.replace(
-                '"schema_version": 2',
-                '"schema_version": 2, "schema_version": 2',
+                '"schema_version": 3',
+                '"schema_version": 3, "schema_version": 3',
                 1,
             )
             path.write_text(encoded, encoding="utf-8")

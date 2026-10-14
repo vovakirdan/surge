@@ -8,7 +8,7 @@ void rt_done_cv_broadcast_after_done(rt_executor* ex) {
     int locked_here = 0;
     if (!rt_lane_holds_control()) {
         rt_control_lock(ex);
-        rt_trace_control_lock_site(RT_CTRL_SITE_AWAIT_COMPAT);
+        rt_trace_control_lock_site(RT_CTRL_SITE_EXTERNAL_AWAIT);
         locked_here = 1;
     }
 #endif

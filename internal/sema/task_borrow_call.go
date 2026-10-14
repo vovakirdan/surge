@@ -2,6 +2,7 @@ package sema
 
 import (
 	"surge/internal/ast"
+	"surge/internal/diag"
 	"surge/internal/source"
 	"surge/internal/types"
 )
@@ -30,6 +31,9 @@ import (
 func (tc *typeChecker) typeTaskProducingCall(id ast.ExprID, span source.Span, call *ast.ExprCallData) types.TypeID {
 	if tc.spawnOperand.IsValid() && tc.unwrapGroupExpr(tc.spawnOperand) == id {
 		ty := tc.typeExprCall(id, span, call)
+		if ty != types.NoTypeID && tc.isTaskType(ty) {
+			tc.refuseTaskStatementTemporaries(id, call)
+		}
 		// The spawn collects for itself. What no borrow record in its operand shows is
 		// handed to it here: a reference a call gave back, a fixed-array window, and what
 		// a parameter or a `let` carries (task_spawn_lent.go).
@@ -57,6 +61,7 @@ func (tc *typeChecker) typeTaskProducingCall(id ast.ExprID, span source.Span, ca
 	if ty == types.NoTypeID || !tc.isTaskType(ty) {
 		return ty
 	}
+	tc.refuseTaskStatementTemporaries(id, call)
 	// A borrow OF a task handle -- `t.clone()`, the entitlement intrinsics --
 	// is not a frame borrow a child reads through: the task tracker already
 	// owns that handle's story (clone entitlement, join), and a pin here would
@@ -111,6 +116,69 @@ func (tc *typeChecker) typeTaskProducingCall(id ast.ExprID, span source.Span, ca
 	tc.openTaskBorrowPins(taskID, captures)
 	tc.openLentValuePins(taskID, lent)
 	return ty
+}
+
+// refuseTaskStatementTemporaries closes the hole left by implicit string
+// materialization: the ordinary borrow table has no place to pin for an rvalue,
+// but a Task keeps a reference formal until the task completes. A callee proven
+// to build its returned task from owned values only is the sole exception.
+func (tc *typeChecker) refuseTaskStatementTemporaries(id ast.ExprID, call *ast.ExprCallData) {
+	if tc == nil || call == nil || tc.types == nil || tc.calleeTaskBorrowsNothing(id) {
+		return
+	}
+	callee := tc.calleeFunctionSymbol(id)
+	if callee == nil || callee.Signature == nil {
+		return
+	}
+	info, ok := tc.types.FnInfo(callee.Type)
+	if !ok || info == nil {
+		return
+	}
+	receiver := ast.NoExprID
+	if member, found := tc.builder.Exprs.Member(tc.unwrapGroupExpr(call.Target)); found && member != nil {
+		receiver = member.Target
+	}
+	slots, err := mapReturnOriginArguments(callee.Signature, call, receiver)
+	if err != nil || len(slots) != len(info.Params) {
+		return
+	}
+	reported := make(map[ast.ExprID]struct{})
+	for i, slot := range slots {
+		if tc.referenceReferent(info.Params[i]) == types.NoTypeID {
+			continue
+		}
+		for _, expr := range slot.exprs {
+			temp, found := tc.taskArgumentStatementTemporary(expr, info.Params[i])
+			if !found {
+				continue
+			}
+			if _, duplicate := reported[temp]; duplicate {
+				continue
+			}
+			reported[temp] = struct{}{}
+			tc.reportStatementTemporary(diag.SemaBorrowNonAddressable,
+				"a task cannot borrow a temporary value; bind it to a variable first",
+				tc.exprSpan(expr), temp)
+		}
+	}
+}
+
+func (tc *typeChecker) taskArgumentStatementTemporary(expr ast.ExprID, formal types.TypeID) (ast.ExprID, bool) {
+	if temp, found := tc.temporaryUnderTransparentWrappers(expr, formal); found {
+		return temp, true
+	}
+	unwrapped := tc.unwrapGroupExpr(expr)
+	unary, ok := tc.builder.Exprs.Unary(unwrapped)
+	if !ok || unary == nil || (unary.Op != ast.ExprUnaryRef && unary.Op != ast.ExprUnaryRefMut) {
+		return ast.NoExprID, false
+	}
+	if temp, found := tc.temporaryUnderTransparentWrappers(unary.Operand, formal); found {
+		return temp, true
+	}
+	operand := tc.unwrapGroupExpr(unary.Operand)
+	lit, literal := tc.builder.Exprs.Literal(operand)
+	return operand, literal && lit != nil && lit.Kind == ast.ExprLitString &&
+		tc.resolveAlias(tc.referenceReferent(formal)) == tc.types.Builtins().String
 }
 
 // reachingPositions lists, in source order, the expressions of a call whose value is handed to

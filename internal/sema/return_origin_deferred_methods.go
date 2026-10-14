@@ -19,13 +19,14 @@ func (b *returnOriginBody) deferredMethodCall(id ast.ExprID, local *DeferredCall
 	in := u.Sema.TypeInterner
 	// The unit's edge names its own symbols; only the published edge names the canonical caller.
 	var edge *DeferredCallableEdge
-	for _, published := range u.authority.InstantiationGraph.DeferredCallables() {
+	deferred := u.deferredEdges()
+	for i := range deferred {
+		published := &deferred[i]
 		if local != nil && published.Kind == DeferredMethodCall && published.UseID == local.UseID {
 			if edge != nil {
 				return returnOriginValue{}, false
 			}
-			copy := published
-			edge = &copy
+			edge = published
 		}
 	}
 	if edge == nil || call.HasNamedArgs() || len(edge.ExplicitTypeArgs) != 0 || !fn.originalDeferredMethod(edge) ||

@@ -8,7 +8,12 @@ import (
 
 // Body inference governs the top-level actual result. Nested callable slots
 // describe promises made to a caller, so their original declared types apply.
-func (b *returnOriginBody) checkCallableNestedPromises(actual returnOriginValue, expected returnOriginCallable, span source.Span) (bool, bool) {
+
+func (b *returnOriginBody) checkCallableNestedPromises(actual returnOriginValue, expected *returnOriginCallable, span source.Span) (compatible, exact bool) {
+	if expected == nil {
+		b.pending(span, "callable destination lost its original nested promises")
+		return false, false
+	}
 	if expected.contract == nil {
 		b.pending(span, "callable destination lost its original nested promises")
 		return false, false
@@ -34,7 +39,7 @@ func (b *returnOriginBody) checkCallableNestedPromises(actual returnOriginValue,
 	return valid, mismatch
 }
 
-func (b *returnOriginBody) callablePromiseRelation(actual, expected *returnOriginCallableType, span source.Span) (bool, bool) {
+func (b *returnOriginBody) callablePromiseRelation(actual, expected *returnOriginCallableType, span source.Span) (compatible, exact bool) {
 	if actual == nil || expected == nil {
 		if actual == expected {
 			return true, true // Neither ordinary type carries a callable promise.
@@ -49,7 +54,7 @@ func (b *returnOriginBody) callablePromiseRelation(actual, expected *returnOrigi
 	return complete, compatible
 }
 
-func (b *returnOriginBody) callableNestedRelation(actual, expected *returnOriginCallableType, span source.Span) (bool, bool) {
+func (b *returnOriginBody) callableNestedRelation(actual, expected *returnOriginCallableType, span source.Span) (compatible, exact bool) {
 	if len(actual.params) != len(expected.params) {
 		b.pending(span, "callable conversion has inconsistent original parameter arity")
 		return false, false

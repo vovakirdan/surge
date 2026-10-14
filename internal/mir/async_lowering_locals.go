@@ -35,12 +35,6 @@ func paramLocalSet(f *Func, symTable *symbols.Table) localSet {
 	if f.ParamCount > paramCount {
 		paramCount = f.ParamCount
 	}
-	if f.ScopeLocal != NoLocalID {
-		scopeCount := int(f.ScopeLocal)
-		if scopeCount > paramCount {
-			paramCount = scopeCount
-		}
-	}
 	for id, loc := range f.Locals {
 		include := false
 		if loc.Sym.IsValid() {

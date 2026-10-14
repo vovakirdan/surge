@@ -5,7 +5,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fixture="$root/benchmarks/native/channel_request_reply"
 report="${SURGE_CHANNEL_BENCH_REPORT:-$root/build/benchmarks/native-channel-request-reply.md}"
 modes="${SURGE_CHANNEL_BENCH_MODES:-1 2 4 8 default}"
-trace_probes="${SURGE_CHANNEL_TRACE_PROBES:-channel_ping_pong channel_reused_reply channel_new_reply channel_sync_new_reply}"
+trace_probes="${SURGE_CHANNEL_TRACE_PROBES:-channel_ping_pong channel_reused_reply channel_new_reply}"
 surge="${SURGE:-$root/surge}"
 channel_wake_policy="handoff-inject"
 if [[ -n "${SURGE_CHANNEL_WAKE_INJECT:-}" && "${SURGE_CHANNEL_WAKE_INJECT:-}" != "0" ]]; then
@@ -89,9 +89,9 @@ mkdir -p "$(dirname "$report")"
 
 for mode in $modes; do
 	if [[ "$mode" == "default" ]]; then
-		output="$(env -u SURGE_THREADS "$bench_bin")"
+		output="$(env -u SURGE_SHARDS "$bench_bin")"
 	else
-		output="$(SURGE_THREADS="$mode" "$bench_bin")"
+		output="$(SURGE_SHARDS="$mode" "$bench_bin")"
 	fi
 	while IFS= read -r line; do
 		[[ "$line" == \|* ]] || continue
@@ -100,19 +100,14 @@ for mode in $modes; do
 	for probe in $trace_probes; do
 		trace_log="$(mktemp)"
 		if [[ "$mode" == "default" ]]; then
-			env -u SURGE_THREADS SURGE_TRACE_EXEC=1 "$bench_bin" "$probe" >/dev/null 2>"$trace_log"
+			env -u SURGE_SHARDS SURGE_TRACE_EXEC=1 "$bench_bin" "$probe" >/dev/null 2>"$trace_log"
 		else
-			SURGE_TRACE_EXEC=1 SURGE_THREADS="$mode" "$bench_bin" "$probe" >/dev/null 2>"$trace_log"
+			SURGE_TRACE_EXEC=1 SURGE_SHARDS="$mode" "$bench_bin" "$probe" >/dev/null 2>"$trace_log"
 		fi
-		printf '| %s | %s | %s | %s | %s | %s | %s | %s |\n' \
+		printf '| %s | %s | %s |\n' \
 			"$mode" \
 			"$probe" \
-			"$(trace_value "$trace_log" TRACE_EXEC channel_blocking_wait)" \
-			"$(trace_value "$trace_log" TRACE_EXEC channel_task_blocking_send)" \
-			"$(trace_value "$trace_log" TRACE_EXEC channel_task_blocking_recv)" \
-			"$(trace_value "$trace_log" TRACE_EXEC channel_handoff_yield)" \
-			"$(trace_value "$trace_log" TRACE_EXEC compensation_started)" \
-			"$(trace_value "$trace_log" TRACE_EXEC_SNAPSHOT compensation_high_water)" >>"$trace_rows"
+			"$(trace_value "$trace_log" TRACE_EXEC channel_handoff_yield)" >>"$trace_rows"
 		rm -f "$trace_log"
 	done
 done
@@ -121,8 +116,8 @@ cat >>"$report" <<'EOF'
 
 ## Runtime Trace
 
-| mode | probe | channel blocking waits | task-context blocking sends | task-context blocking recvs | handoff yields | compensation started | compensation high-water |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| mode | probe | handoff yields |
+| --- | --- | ---: |
 EOF
 cat "$trace_rows" >>"$report"
 
@@ -133,8 +128,7 @@ cat >>"$report" <<'EOF'
 - `channel_reused_reply` approximates the state-manager request/reply hop used by surgekv.
 - `channel_new_reply` keeps the older per-request reply-channel shape visible.
 - `channel_ping_pong` measures direct async send/recv handoff between two tasks.
-- `channel_sync_new_reply` measures the sync-wrapper fallback from async task context.
-- Runtime trace rows run one probe at a time so sync-wrapper fallback counters do not pollute async probe counters.
+- Runtime trace rows run one probe at a time so each handoff count has one source.
 - This is a manual benchmark. Do not wire it into `make check`; use it for before/after runtime PRs.
 EOF
 

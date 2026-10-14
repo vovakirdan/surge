@@ -127,7 +127,7 @@ func TestRuntimeV2UnshareOfAnIntArrayLeaksNothing(t *testing.T) {
 	for _, shards := range []string{"2", "8"} {
 		env := envWithStdlib(repoRoot(t))
 		env = overrideEnvVar(env, "SURGE_SHARDS", shards)
-		env = overrideEnvVar(env, "SURGE_THREADS", shards)
+		env = overrideEnvVar(env, "SURGE_SHARDS", shards)
 		stdout, stderr, exitCode := runBinaryUnderValgrind(t, outputPath, env, 180*time.Second)
 		if exitCode != 0 || !strings.Contains(stdout, "array-unshare-ok") {
 			t.Fatalf("program failed under valgrind (shards=%s exit=%d)\nstdout:\n%s\nstderr:\n%s",

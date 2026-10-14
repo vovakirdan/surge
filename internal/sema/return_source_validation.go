@@ -31,10 +31,10 @@ func NewReturnSourceDeclarationRequest(syntax symbols.ReturnSourceSyntax, params
 }
 
 // Params returns a detached copy of the original, possibly generic inputs.
-func (r ReturnSourceDeclarationRequest) Params() []types.TypeID { return slices.Clone(r.params) }
+func (r *ReturnSourceDeclarationRequest) Params() []types.TypeID { return slices.Clone(r.params) }
 
 // Result returns the original, possibly generic result.
-func (r ReturnSourceDeclarationRequest) Result() types.TypeID { return r.result }
+func (r *ReturnSourceDeclarationRequest) Result() types.TypeID { return r.result }
 
 // ReturnSourceInstantiationRequest pairs concrete types with their source promise.
 type ReturnSourceInstantiationRequest struct {
@@ -46,10 +46,10 @@ type ReturnSourceInstantiationRequest struct {
 }
 
 // Params returns a detached copy of the concrete inputs.
-func (r ReturnSourceInstantiationRequest) Params() []types.TypeID { return slices.Clone(r.params) }
+func (r *ReturnSourceInstantiationRequest) Params() []types.TypeID { return slices.Clone(r.params) }
 
 // Result returns the concrete result.
-func (r ReturnSourceInstantiationRequest) Result() types.TypeID { return r.result }
+func (r *ReturnSourceInstantiationRequest) Result() types.TypeID { return r.result }
 
 // ReturnSourceValidationStatus separates a proved promise from an open one.
 type ReturnSourceValidationStatus uint8
@@ -75,7 +75,10 @@ type ReturnSourceValidation struct {
 
 // ValidateDeclaredReturnSources checks the declaration before substitution.
 // It does not infer body origins or compare function-value conversions.
-func ValidateDeclaredReturnSources(in *types.Interner, request ReturnSourceDeclarationRequest) ReturnSourceValidation {
+func ValidateDeclaredReturnSources(in *types.Interner, request *ReturnSourceDeclarationRequest) ReturnSourceValidation {
+	if request == nil {
+		return ReturnSourceValidation{Status: ReturnSourcesInvalid, Reason: "missing return-source declaration", Code: diag.SemaError}
+	}
 	markers := request.Syntax.Markers()
 	if len(markers) == 0 {
 		return ReturnSourceValidation{Status: ReturnSourcesValid}
@@ -110,7 +113,7 @@ func ValidateDeclaredReturnSources(in *types.Interner, request ReturnSourceDecla
 // ValidateInstantiatedReturnSources applies a conditional generic promise.
 // A ref-free specialization of a valid generic declaration has no borrowed
 // result to constrain. A directly invalid owned declaration stays invalid.
-func ValidateInstantiatedReturnSources(in *types.Interner, request ReturnSourceDeclarationRequest, params []types.TypeID, result types.TypeID) ReturnSourceValidation {
+func ValidateInstantiatedReturnSources(in *types.Interner, request *ReturnSourceDeclarationRequest, params []types.TypeID, result types.TypeID) ReturnSourceValidation {
 	original := ValidateDeclaredReturnSources(in, request)
 	if original.Status == ReturnSourcesInvalid || request.Syntax.Sources().IsAllInputs() {
 		return original
@@ -125,7 +128,7 @@ func ValidateInstantiatedReturnSources(in *types.Interner, request ReturnSourceD
 		return invalidReturnSource(request.Syntax.Markers()[0], diag.SemaReturnSourceOwnedResult, "@return_source requires a reference-bearing result")
 	}
 	concrete := NewReturnSourceDeclarationRequest(request.Syntax, params, result)
-	return ValidateDeclaredReturnSources(in, concrete)
+	return ValidateDeclaredReturnSources(in, &concrete)
 }
 
 func invalidReturnSource(marker symbols.ReturnSourceMarker, code diag.Code, reason string) ReturnSourceValidation {

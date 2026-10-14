@@ -43,13 +43,13 @@ func (b *returnOriginBody) bindCallable(value returnOriginValue, binding symbols
 		}
 		expected, valid = b.assignmentCallablePromise(typ, previous, u.Symbols.Table.Symbols.Get(binding).Span)
 	}
-	if !valid || !b.checkCallableDestination(value, expected, span) {
+	if !valid || !b.checkCallableDestination(value, &expected, span) {
 		return value.join(returnOriginValueOf(returnOrigin{kind: returnOriginUnknown}))
 	}
 	if fixed {
 		expected.bodied = b.callablesHaveBodies(value)
 		value = value.clone()
-		value.callables = []returnOriginCallable{expected}
+		value.callables = []*returnOriginCallable{&expected}
 	}
 	return value
 }
@@ -63,7 +63,7 @@ func (b *returnOriginBody) assignmentCallablePromise(typ types.TypeID, previous 
 			continue
 		}
 		if old.bodyKey == "" {
-			return cloneReturnOriginCallables([]returnOriginCallable{old})[0], true
+			return *cloneReturnOriginCallables([]*returnOriginCallable{old})[0], true
 		}
 		if fn := b.callableFunction(old); fn != nil {
 			contract := b.functionCallableType(fn, span)
@@ -78,7 +78,10 @@ func (b *returnOriginBody) assignmentCallablePromise(typ types.TypeID, previous 
 
 // A provisional recursive bottom remains private. Only the final collection
 // walk emits diagnostics, after every actual body summary has stabilized.
-func (b *returnOriginBody) checkCallableDestination(actual returnOriginValue, expected returnOriginCallable, span source.Span) bool {
+func (b *returnOriginBody) checkCallableDestination(actual returnOriginValue, expected *returnOriginCallable, span source.Span) bool {
+	if expected == nil {
+		return false
+	}
 	possible := b.callableValueSources(actual, span, false)
 	valid := true
 	mismatch := false

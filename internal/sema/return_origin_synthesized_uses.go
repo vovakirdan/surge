@@ -29,18 +29,22 @@ func (b *returnOriginBody) defaultInitValue(id ast.StmtID, span source.Span) ret
 
 // useWitnessReason is the reason recorded by the unique producing root (for a
 // nongeneric caller) or edge (for a template caller) of this use, or "".
-func (a *returnOriginAnalyzer) useWitnessReason(use ConcreteInstantiationUse) string {
+func (a *returnOriginAnalyzer) useWitnessReason(use *ConcreteInstantiationUse) string {
 	authority := a.units[0].authority
 	reason, matched := "", 0
 	if use.Caller == (InstanceKey{}) {
-		for _, root := range authority.InstantiationGraph.Roots() {
+		roots := authority.InstantiationGraph.Roots()
+		for i := range roots {
+			root := &roots[i]
 			if root.Kind == use.Kind && root.Template == use.CalleeTemplate && root.Witness.Caller == use.CallerTemplate &&
 				root.Witness.Site == use.Site {
 				reason, matched = root.Witness.Reason, matched+1
 			}
 		}
 	} else {
-		for _, edge := range authority.InstantiationGraph.Edges() {
+		edges := authority.InstantiationGraph.Edges()
+		for i := range edges {
+			edge := &edges[i]
 			if edge.Kind == use.Kind && edge.Caller == use.CallerTemplate && edge.Callee == use.CalleeTemplate &&
 				edge.Witness.Site == use.Site {
 				reason, matched = edge.Witness.Reason, matched+1
@@ -59,7 +63,7 @@ func (a *returnOriginAnalyzer) useWitnessReason(use ConcreteInstantiationUse) st
 // implicit_conversion.go:266-275), and the entrypoint's ExitCode call
 // (entrypoint_validation.go validateEntrypointReturn), and a magic method selected for an operator
 // (type_expr_ops.go:160-166). Identity is already proven by the caller.
-func (a *returnOriginAnalyzer) checkSynthesizedUse(fn, caller *returnOriginFunction, use ConcreteInstantiationUse, reason string) (bool, string) {
+func (a *returnOriginAnalyzer) checkSynthesizedUse(fn, caller *returnOriginFunction, use *ConcreteInstantiationUse, reason string) (handled bool, failure string) {
 	if fn == nil || caller == nil || (reason != returnOriginUseWithoutOperation && reason != returnOriginUseOtherOperation) {
 		return false, ""
 	}
@@ -88,9 +92,9 @@ func (a *returnOriginAnalyzer) checkSynthesizedUse(fn, caller *returnOriginFunct
 	return a.checkBackingIntrinsicUse(fn, use)
 }
 
-func (a *returnOriginAnalyzer) checkConversionUse(fn, caller *returnOriginFunction, use ConcreteInstantiationUse,
+func (a *returnOriginAnalyzer) checkConversionUse(fn, caller *returnOriginFunction, use *ConcreteInstantiationUse,
 	reason string,
-) (bool, string) {
+) (handled bool, failure string) {
 	if reason != returnOriginUseOtherOperation || fn == nil || caller == nil {
 		return false, ""
 	}
@@ -140,10 +144,11 @@ func (a *returnOriginAnalyzer) checkConversionUse(fn, caller *returnOriginFuncti
 // checkEntrypointExitUse answers the startup `main().__exit_code()` SEMA bound for an
 // `@entrypoint` whose result implements the ExitCode contract. The runtime receives
 // an int, and the callee is checked by its own generic promise.
-func (a *returnOriginAnalyzer) checkEntrypointExitUse(fn, caller *returnOriginFunction, use ConcreteInstantiationUse, reason string) (bool, string) {
+func (a *returnOriginAnalyzer) checkEntrypointExitUse(fn, caller *returnOriginFunction, use *ConcreteInstantiationUse, reason string) (handled bool, failure string) {
 	authority := caller.unit.authority
 	matches := 0
-	for _, binding := range authority.EntrypointCallableBindings {
+	for i := range authority.EntrypointCallableBindings {
+		binding := &authority.EntrypointCallableBindings[i]
 		if binding.Role == EntrypointReturnExitCode && binding.Entrypoint == use.CallerTemplate && binding.Callee == use.CalleeTemplate &&
 			binding.Site == use.Site && slices.Equal(binding.TemplateArgs, use.TemplateArgs) &&
 			binding.ExpectedResult == authority.TypeInterner.Builtins().Int {

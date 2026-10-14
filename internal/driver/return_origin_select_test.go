@@ -9,12 +9,9 @@ import (
 )
 
 // `select` and `race` (expression kinds 20 and 21): every head's operands are walked in arm order by their own
-// transfers, a head's result is never delivered, a sent value is admitted only when it and the channel's element
-// are inert, and the value is the join of the arms' values from the state every head left. Every source is a ROOT
+// transfers, a head's result is never delivered, and an exact source-free payload is admitted through the same
+// recursive unshare contract as ordinary channel send. The value is the join of the arms' values from the state every head left. Every source is a ROOT
 // program against the real core, and each row reads one body.
-
-// originSelectSendRefusal is return_origin_select.go's send row, spelled out so this file compiles without it.
-const originSelectSendRefusal = "a `select` or `race` send whose payload can hold a reference, a storage loan or a task needs its payload origin"
 
 const originSelectFinishSource = `async fn work(n: int) -> int {
     return n + 1;
@@ -258,21 +255,20 @@ func originSelectRows() []originSelectRow {
 			fn: originSpan{1601, 1769, originSelectFinishSource[1601:1769]}, want: []originRefusal{}, summary: true, slots: []uint32{}},
 		{name: "head_effect_control", text: originSelectFinishSource, digest: originSelectFinishSourceDigest, body: "head_effect_control",
 			fn: originSpan{1771, 2075, originSelectFinishSource[1771:2075]}, want: []originRefusal{}, summary: true, slots: []uint32{0}},
-		{name: "select_head_string_temporary_row_stands", text: originSelectTemporarySource, digest: originSelectTemporarySourceDigest, body: "head_temp",
-			fn: originSpan{62, 163, originSelectTemporarySource[62:163]}, want: []originRefusal{{span: originSpan{132, 139, "\"a\" + b"}, reason: statementTemporaryKept}}, summary: false, slots: nil},
 		{name: "select_head_capture_row_stands", text: originSelectCaptureSource, digest: originSelectCaptureSourceDigest, body: "head_capture",
 			fn: originSpan{0, 132, originSelectCaptureSource[0:132]}, want: []originRefusal{{span: originSpan{69, 86, "async { ret *r; }"}, reason: originTaskBlockCaptureRefusal}}, summary: false, slots: nil},
-		{name: "select_send_task_payload_refused", text: originSelectSendTaskSource, digest: originSelectSendTaskSourceDigest, body: "send_task",
-			fn: originSpan{52, 204, originSelectSendTaskSource[52:204]}, want: []originRefusal{{span: originSpan{161, 166, "own t"}, reason: originSelectSendRefusal}}, summary: false, slots: nil},
-		{name: "select_send_array_payload_refused", text: originSelectSendArraySource, digest: originSelectSendArraySourceDigest, body: "send_array",
-			fn: originSpan{0, 160, originSelectSendArraySource[0:160]}, want: []originRefusal{{span: originSpan{116, 122, "own xs"}, reason: originSelectSendRefusal}}, summary: false, slots: nil},
+		{name: "select_send_task_payload_exact", text: originSelectSendTaskSource, digest: originSelectSendTaskSourceDigest, body: "send_task",
+			fn: originSpan{52, 204, originSelectSendTaskSource[52:204]}, want: []originRefusal{}, summary: true, slots: []uint32{}},
+		{name: "select_send_array_payload_exact", text: originSelectSendArraySource, digest: originSelectSendArraySourceDigest, body: "send_array",
+			fn: originSpan{0, 160, originSelectSendArraySource[0:160]}, want: []originRefusal{}, summary: true, slots: []uint32{}},
 	}
 }
 
-// 17 RUN: 1 parent, 16 leaves.
+// 16 RUN: 1 parent, 15 leaves. Task-held statement temporaries are rejected
+// earlier by the task checker and covered in task_statement_temporary_test.go.
 func TestAnalyzeSelect(t *testing.T) {
 	rows := originSelectRows()
-	if len(rows) != 16 {
+	if len(rows) != 15 {
 		t.Fatalf("PRECONDITION: frozen roster changed: rows=%d", len(rows))
 	}
 	for _, row := range rows {

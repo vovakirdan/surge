@@ -57,7 +57,7 @@ func (b *returnOriginBody) castProven(id, value ast.ExprID) bool {
 // loan that the effect rule reads as ref-free by its payload.
 func returnOriginContainerFormal(in *types.Interner, params []types.TypeID) bool {
 	for _, param := range params {
-		for layer := 0; layer < 2; layer++ {
+		for layer := range 2 {
 			if target, ok := in.AliasTarget(param); ok {
 				param = target
 			}
@@ -163,5 +163,5 @@ func (a *returnOriginAnalyzer) coreArrayConcat(fn *returnOriginFunction) bool {
 	left, _ := returnOriginContainer(in, fn.info.Params[0])
 	right, _ := returnOriginContainer(in, fn.info.Params[1])
 	out, _ := returnOriginContainer(in, fn.info.Result)
-	return left.family == right.family && left.family == out.family
+	return left.family == right.family && right.family == out.family
 }

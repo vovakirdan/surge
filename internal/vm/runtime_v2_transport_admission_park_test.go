@@ -26,7 +26,7 @@ func TestRuntimeV2TransportSaturationParkNegativeControl(t *testing.T) {
 		"remote_task_behavior_admission_park_negative",
 		[]string{"-DRV2_DEBT_031_NEGATIVE_CONTROL"})
 	env := remotePublicationEnv(
-		"SURGE_SHARDS=2", "SURGE_THREADS=2",
+		"SURGE_SHARDS=2",
 		"SURGE_REMOTE_DEADLOCK_DETECT=0",
 	)
 	stdout, stderr, code := runRemotePublicationHarness(t, bin, "anchored-saturation-parks", env)

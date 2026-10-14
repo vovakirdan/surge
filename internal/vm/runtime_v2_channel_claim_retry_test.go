@@ -32,6 +32,7 @@ func buildChannelClaimRetryStand(t *testing.T, name string, extraFlags ...string
 	sort.Strings(sources)
 	args := []string{
 		"-std=c11", "-Wall", "-Wextra", "-Werror", "-pthread",
+		"-DRT_TEST_SYNC_POINTS",
 		"-I" + filepath.Join(root, "runtime", "native"),
 	}
 	args = append(args, extraFlags...)
@@ -60,7 +61,7 @@ func runChannelClaimRetryStand(t *testing.T, bin, mode string) (string, string, 
 	t.Helper()
 	cmd := exec.Command(bin)
 	env := overrideEnvVar(os.Environ(), "SURGE_SHARDS", "1")
-	env = overrideEnvVar(env, "SURGE_THREADS", "1")
+	env = overrideEnvVar(env, "SURGE_TEST_MANUAL_SHARD_LANE", "1")
 	env = overrideEnvVar(env, "SURGE_TRACE_EXEC", "1")
 	if mode != "" {
 		env = overrideEnvVar(env, "SURGE_CHANNEL_RETRY_MODE", mode)

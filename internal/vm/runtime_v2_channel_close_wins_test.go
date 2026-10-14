@@ -33,6 +33,7 @@ func buildChannelCloseWinsStand(t *testing.T, name string, extraFlags ...string)
 	sort.Strings(sources)
 	args := []string{
 		"-std=c11", "-Wall", "-Wextra", "-Werror", "-pthread",
+		"-DRT_TEST_SYNC_POINTS",
 		"-I" + filepath.Join(root, "runtime", "native"),
 	}
 	args = append(args, extraFlags...)
@@ -59,7 +60,7 @@ func runChannelCloseWinsStand(t *testing.T, bin, mode string) (string, string, i
 	t.Helper()
 	cmd := exec.Command(bin)
 	env := overrideEnvVar(os.Environ(), "SURGE_SHARDS", "1")
-	env = overrideEnvVar(env, "SURGE_THREADS", "1")
+	env = overrideEnvVar(env, "SURGE_TEST_MANUAL_SHARD_LANE", "1")
 	env = overrideEnvVar(env, "SURGE_TRACE_EXEC", "1")
 	env = overrideEnvVar(env, "SURGE_CLOSE_WINS_MODE", mode)
 	cmd.Env = env
@@ -159,7 +160,7 @@ func runChannelCloseWinsWindowStand(t *testing.T, bin string) (string, string, i
 	t.Helper()
 	cmd := exec.Command(bin)
 	env := overrideEnvVar(os.Environ(), "SURGE_SHARDS", "1")
-	env = overrideEnvVar(env, "SURGE_THREADS", "1")
+	env = overrideEnvVar(env, "SURGE_TEST_MANUAL_SHARD_LANE", "1")
 	env = overrideEnvVar(env, "SURGE_CLOSE_WINS_MODE", "claim-window-close")
 	env = overrideEnvVar(env, "SURGE_SYNC_POINT", channelCloseWinsWindowPoint)
 	cmd.Env = env
@@ -168,7 +169,7 @@ func runChannelCloseWinsWindowStand(t *testing.T, bin string) (string, string, i
 
 func TestRuntimeV2ChannelCloseWinsClaimWindow(t *testing.T) {
 	t.Run("pop-and-open-are-one-hold", func(t *testing.T) {
-		bin := buildChannelCloseWinsStand(t, "channel_close_wins_window", "-DRT_TEST_SYNC_POINTS")
+		bin := buildChannelCloseWinsStand(t, "channel_close_wins_window")
 		stdout, stderr, code := runChannelCloseWinsWindowStand(t, bin)
 		if code == 0 {
 			t.Fatalf("the sender returned from a rendezvous close had won\nstdout:\n%s\nstderr:\n%s",
@@ -186,7 +187,6 @@ func TestRuntimeV2ChannelCloseWinsClaimWindow(t *testing.T) {
 	t.Run("open-after-the-stage-leaves-the-receiver-in-no-store", func(t *testing.T) {
 		bin := buildChannelCloseWinsStand(t,
 			"channel_close_wins_window_negative",
-			"-DRT_TEST_SYNC_POINTS",
 			"-DRV2_CLAIM_OPEN_AFTER_STAGE_NEGATIVE_CONTROL")
 		stdout, stderr, code := runChannelCloseWinsWindowStand(t, bin)
 		if code == 0 {

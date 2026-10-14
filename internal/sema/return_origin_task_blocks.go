@@ -28,10 +28,10 @@ const (
 //
 // The body is a frame of its own: `return` cannot leave it (SEM3207), so it is walked as a
 // block whose `ret` is its only exit and whose locals end where it ends, and every row it
-// raises is reported. Captures must be inert, except that a local async block may take
-// its own counted Channel with an inert payload: the runtime retains that object for
-// the task, and no payload can carry a borrow of this frame. Blocking captures do not
-// use this certificate. The payload T of the Task<T> must still be inert, so
+// raises is reported. Captures must be inert, a counted handle with an inert
+// payload, or a currently source-free value whose lowering emits the recursive
+// un-share walk before publication. A view or captured storage loan retains its
+// roots and stays refused. The payload T of the Task<T> must still be inert, so
 // the handle carries out nothing borrowed. What a running task borrows is the task check's
 // (owner ruling 2026-09-15); a payload that is itself a task is refused here, as an `on`
 // reply is.
@@ -54,10 +54,12 @@ func (b *returnOriginBody) taskBlockTransfer(id ast.ExprID, kind ast.ExprKind, e
 	if err != nil {
 		return returnOriginExprResult{}, err
 	}
-	for key := range walked.exits {
+	payload := returnOriginValueOf()
+	for key, exit := range walked.exits {
 		if key.kind != returnOriginBlockResult || key.target != scope {
 			return returnOriginExprResult{}, fmt.Errorf("return origins: task block at %v leaves by an exit its frame does not have", span)
 		}
+		payload = payload.join(exit.value)
 	}
 	for _, capture := range captures[id] {
 		sym := u.Symbols.Table.Symbols.Get(capture)
@@ -68,6 +70,9 @@ func (b *returnOriginBody) taskBlockTransfer(id ast.ExprID, kind ast.ExprKind, e
 				continue
 			}
 		}
+		if sym != nil && b.sourceFreeUnshareTransfer(sym.Type, env.value(capture)) {
+			continue
+		}
 		if sym == nil || !b.crossingInert(sym.Type) && !b.nullTaskCapture(capture, sym.Type, env) {
 			b.pending(span, returnOriginTaskBlockCaptureRefusal)
 		}
@@ -75,9 +80,12 @@ func (b *returnOriginBody) taskBlockTransfer(id ast.ExprID, kind ast.ExprKind, e
 	out := originExprValue(env, returnOriginValueOf())
 	in := u.Sema.TypeInterner
 	payloads, handle := in.RuntimeHandlePayloads(u.Sema.ExprTypes[id])
-	if !handle || !in.IsRuntimeHandleType(u.Sema.ExprTypes[id]) || len(payloads) != 1 || !b.crossingInert(payloads[0]) {
+	if !handle || !in.IsRuntimeHandleType(u.Sema.ExprTypes[id]) || len(payloads) != 1 ||
+		!b.crossingInert(payloads[0]) && !b.sourceFreeUnshareTransfer(payloads[0], payload) {
 		b.pending(span, returnOriginTaskBlockPayloadRefusal)
 		out.value = returnOriginValueOf(returnOrigin{kind: returnOriginUnknown})
+	} else {
+		out.value = payload
 	}
 	return out, nil
 }

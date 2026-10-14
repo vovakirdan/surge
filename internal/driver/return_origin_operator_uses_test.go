@@ -9,8 +9,9 @@ import (
 // A generic magic method SEMA selects for a binary operator is finalized at the
 // operator expression, not at a call. The use is that typed operation when the
 // expression's own selection is the finalized callee; core's `Array<T> + Array<T>`
-// then answers it by identity for a borrow-free instance. A reference-bearing
-// instance, and a user operator on the same receiver, keep a refusal.
+// then answers it by identity for a borrow-free instance. Reference-bearing
+// array elements are rejected earlier by the aggregate type rule; a user
+// operator on the same receiver keeps a refusal.
 const operatorUseSource = `fn joined(a: uint[], b: uint[]) -> uint[] {
     return a + b;
 }
@@ -19,9 +20,6 @@ fn join_all<T>(a: T[], b: T[]) -> T[] {
 }
 fn joined_generic(a: uint[], b: uint[]) -> uint[] {
     return join_all::<uint>(a, b);
-}
-fn joined_refs(a: Array<&int>, b: Array<&int>) -> Array<&int> {
-    return a + b;
 }
 extern<Array<T>> {
     fn __sub(self: &Array<T>, other: &Array<T>) -> Array<T> {
@@ -34,7 +32,7 @@ fn removed(a: uint[], b: uint[]) -> uint[] {
 }
 `
 
-const operatorUseDigest = "ad99230119487b4e72bbde270502c2aabe6d98b87b74ee5044e5d5b0ba902098"
+const operatorUseDigest = "b3ccf8729d3d731e5521a40884ebbd4aeda8bfc1ebec978f3d45b786fb12aa65"
 
 const (
 	operatorUseOther     = "generic use disagrees with its original typed operation"
@@ -46,7 +44,7 @@ const (
 
 var (
 	operatorUseJoined  = originSpan{55, 60, "a + b"}
-	operatorUseRemoved = originSpan{494, 499, "a - b"}
+	operatorUseRemoved = originSpan{410, 415, "a - b"}
 )
 
 func TestAnalyzeOperatorGenericUses(t *testing.T) {
@@ -64,18 +62,9 @@ func TestAnalyzeOperatorGenericUses(t *testing.T) {
 			function: originSpan{64, 123, "fn join_all<T>(a: T[], b: T[]) -> T[] {\n    return a + b;\n}"},
 			stays:    []originRefusal{{originSpan{115, 120, "a + b"}, operatorUseCallable}},
 			cleared:  []originRefusal{{originSpan{115, 120, "a + b"}, operatorUseOther}}},
-		// The same operation over reference elements is recognized, and refused
-		// for the element transfer it would need.
-		{name: "reference_elements", body: "joined_refs",
-			function: originSpan{213, 296, "fn joined_refs(a: Array<&int>, b: Array<&int>) -> Array<&int> {\n    return a + b;\n}"},
-			stays: []originRefusal{
-				{originSpan{288, 293, "a + b"}, operatorUseCallable},
-				{originSpan{288, 293, "a + b"}, operatorUseTransfer},
-			},
-			cleared: []originRefusal{{originSpan{288, 293, "a + b"}, operatorUseOther}}},
 		// A user operator declared on the same receiver is not the core intrinsic.
 		{name: "user_operator", body: "removed",
-			function: originSpan{438, 502, operatorUseRemovedFn},
+			function: originSpan{354, 418, operatorUseRemovedFn},
 			stays: []originRefusal{
 				{operatorUseRemoved, operatorUseCallable},
 				{operatorUseRemoved, operatorUseOther},

@@ -13,18 +13,7 @@ static int scheduler_runnable_is_empty(const rt_scheduler* scheduler) {
     if (scheduler == NULL) {
         return 1;
     }
-    if (scheduler->inject.len > 0) {
-        return 0;
-    }
-    if (scheduler->local_queues == NULL || scheduler->worker_count == 0) {
-        return 1;
-    }
-    for (uint32_t i = 0; i < scheduler->worker_count; i++) {
-        if (scheduler->local_queues[i].len > 0) {
-            return 0;
-        }
-    }
-    return 1;
+    return scheduler->inject.len == 0 && scheduler->local_queue.len == 0;
 }
 
 // Claim `count` items as in flight. Called with the shard lock already held —
@@ -109,16 +98,13 @@ rt_scheduler* current_worker_scheduler(const rt_executor* ex) {
 }
 
 static rt_deque* current_local_queue(const rt_executor* ex, rt_scheduler* scheduler) {
-    if (scheduler == NULL || scheduler->local_queues == NULL || scheduler->worker_count == 0) {
+    if (scheduler == NULL) {
         return NULL;
     }
     if (current_worker_scheduler(ex) != scheduler || tls_worker_ctx == NULL) {
         return NULL;
     }
-    if (tls_worker_ctx->worker_id >= scheduler->worker_count) {
-        return NULL;
-    }
-    return &scheduler->local_queues[tls_worker_ctx->worker_id];
+    return &scheduler->local_queue;
 }
 
 static int pop_task_from_deque(rt_executor* ex,
@@ -126,26 +112,11 @@ static int pop_task_from_deque(rt_executor* ex,
                                int lifo,
                                uint64_t* out_id,
                                rt_trace_sched_source source,
-                               uint32_t stealer_shard_id) {
+                               uint32_t carrier_shard_id) {
     if (ex == NULL || dq == NULL) {
         return 0;
     }
-    // The popper is whoever runs this pop -- a worker of this executor by its
-    // id, or no worker at all (the control-lane runner), which admits nothing
-    // pinned.
-    uint32_t popper_worker_id =
-        tls_worker_ctx != NULL && tls_worker_ctx->ex == ex ? tls_worker_ctx->worker_id : UINT32_MAX;
-    // A carrier-affine task met by a worker that is not its carrier is put
-    // back and looked PAST, not stopped at: it goes to the far end of the
-    // deque and the scan goes on, bounded by the length it started with. A
-    // scan that stopped at the first pinned entry left every stealable task
-    // behind it unreachable, and the sleeper then parked beside work that
-    // admitted it -- the parked-with-work invariant, fired by a deque that
-    // read [pinned, unpinned]. Moving the pinned entry to the far end costs
-    // its carrier nothing it can notice: the carrier pops its deque from the
-    // tail, and a steal scans from the head.
-    size_t looked_past = 0;
-    size_t started_with = dq->len;
+    // Stale entries are discarded before the one live task is returned.
     while (dq->len > 0) {
         uint64_t id = 0;
         if (lifo) {
@@ -166,37 +137,9 @@ static int pop_task_from_deque(rt_executor* ex,
             }
             continue;
         }
-        if (!rt_task_carrier_admits_worker_or_trace_denied(task, popper_worker_id)) {
-            int ok = lifo ? deque_push_head(dq,
-                                            id,
-                                            "async: local queue overflow",
-                                            "async: local queue allocation failed")
-                          : deque_push_tail(dq,
-                                            id,
-                                            "async: local queue overflow",
-                                            "async: local queue allocation failed");
-            (void)ok;
-            if (++looked_past >= started_with) {
-                return 0;
-            }
-            continue;
-        }
-        if (source == RT_TRACE_SCHED_SRC_STEAL &&
-            !rt_task_can_steal_from_shard_or_trace_denied(task, stealer_shard_id)) {
-            int ok = lifo ? deque_push_tail(dq,
-                                            id,
-                                            "async: local queue overflow",
-                                            "async: local queue allocation failed")
-                          : deque_push_head(dq,
-                                            id,
-                                            "async: local queue overflow",
-                                            "async: local queue allocation failed");
-            (void)ok;
-            return 0;
-        }
         task_enqueued_store(task, 0);
         if (task->owner_shard_valid != 0 && task->placement_class == TASK_PLACEMENT_CONNECTION) {
-            rt_trace_sched_connection_owner_run(task->owner_shard_id, stealer_shard_id);
+            rt_trace_sched_connection_owner_run(task->owner_shard_id, carrier_shard_id);
         }
         rt_trace_sched_record(source, id);
         if (out_id != NULL) {
@@ -220,73 +163,21 @@ int ready_push_task_locked(const rt_executor* ex,
     if (ex == NULL || task == NULL || scheduler == NULL) {
         return 0;
     }
-    // Unpinned wake/spawn follows the current worker's local deque; other
+    // A local wake/spawn follows the shard carrier's local deque; other
     // threads and force-inject requests use the injection queue.
     rt_deque* local = NULL;
     if (!force_inject) {
         local = current_local_queue(ex, scheduler);
+        if (local == NULL && atomic_load_explicit(&ex->shutdown, memory_order_acquire) != 0) {
+            // Shutdown closes the normal fairness distinction: this shard's
+            // sole carrier drains its local queue before exit, while the
+            // ordinary inject loop is already closed by shutdown_ready. A
+            // foreign routed wake that resolves a parked producer must land
+            // on the queue the exiting carrier is still obligated to run.
+            local = &scheduler->local_queue;
+        }
     }
     int signal_ready_now = signal_ready;
-    // A carrier-affine task is ADDRESSED: it goes to its carrier's deque, never
-    // the pusher's and never the inject queue, and the credit goes to that one
-    // worker on the shard's condvar. A generic shard credit here is the P0 the
-    // model names (RUNTIME_V2.md, "The ROUTING half of affinity"): an
-    // ineligible sleeper would consume the only credit, refuse the task on
-    // pop, and the carrier would sleep on. The pusher being the carrier itself
-    // needs no credit: it is awake and re-scans its deque before it sleeps.
-    // RV2_D46_ROUTE_NEGATIVE_CONTROL keeps the pusher's route (the task lands
-    // where it cannot run); RV2_D46_NEGATIVE_CONTROL keeps the address but
-    // credits the shard (the wake can land on the wrong worker).
-#ifndef RV2_D46_ROUTE_NEGATIVE_CONTROL
-    if (task->carrier_valid != 0 && scheduler->local_queues != NULL &&
-        task->carrier_worker_id < scheduler->worker_count) {
-        rt_deque* carrier_dq = &scheduler->local_queues[task->carrier_worker_id];
-        // The carrier pops its deque from the tail. A wake or a spawn goes to
-        // the tail, as a local push would; a yield or a net wake -- what asks
-        // for the inject queue, and asks for it so that a task re-entering
-        // every turn cannot starve the ones behind it -- goes to the HEAD
-        // instead, since the inject queue is exactly where a pinned task may
-        // not go. Round-robin among the carrier's pinned tasks follows.
-        int ok = force_inject || front ? deque_push_head(carrier_dq,
-                                                         task->id,
-                                                         "async: local queue overflow",
-                                                         "async: local queue allocation failed")
-                                       : deque_push_tail(carrier_dq,
-                                                         task->id,
-                                                         "async: local queue overflow",
-                                                         "async: local queue allocation failed");
-        if (!ok) {
-            return 0;
-        }
-        task_enqueued_store(task, 1);
-        task_status_store(task, TASK_READY);
-        RT_SYNC_POINT(SP_CARRIER_PUBLISH_BEFORE_CREDIT);
-        // The credit is decided by WHO pushes, not by what the caller asked:
-        // signal_ready == 0 means "the pusher will run this on its next turn",
-        // which is true only when the pusher is the carrier. A yield or a
-        // handoff wake issued by another worker for a pinned task would
-        // otherwise leave the carrier asleep beside its own work.
-        int pusher_is_carrier = tls_worker_ctx != NULL && tls_worker_ctx->ex == ex &&
-                                tls_worker_ctx->scheduler == scheduler &&
-                                tls_worker_ctx->worker_id == task->carrier_worker_id;
-        if (!pusher_is_carrier) {
-            rt_trace_sched_carrier_addressed_wake();
-#ifndef RV2_D46_NEGATIVE_CONTROL
-            if (scheduler->worker_wake_pending != NULL &&
-                scheduler->worker_wake_pending[task->carrier_worker_id] < UINT32_MAX) {
-                scheduler->worker_wake_pending[task->carrier_worker_id]++;
-            }
-            pthread_cond_broadcast(&owner_shard->worker_cv);
-#else
-            if (scheduler->wake_pending < UINT32_MAX) {
-                scheduler->wake_pending++;
-            }
-            pthread_cond_signal(&owner_shard->worker_cv);
-#endif
-        }
-        return 1;
-    }
-#endif
     if (local != NULL) {
         // Local queues are popped from the tail, so tail insertion is the local priority path.
         int ok = deque_push_tail(
@@ -294,12 +185,9 @@ int ready_push_task_locked(const rt_executor* ex,
         if (!ok) {
             return 0;
         }
-        // A requested peer wake must not depend on the local queue length.
-#ifdef RV2_LOCAL_PEER_WAKE_NEGATIVE_CONTROL
+        // The only carrier is already running this shard. It needs a wake
+        // credit only when another local entry remains after its current turn.
         signal_ready_now = signal_ready && local->len > 1;
-#else
-        signal_ready_now = signal_ready && (scheduler->worker_count > 1 || local->len > 1);
-#endif
     } else {
         int ok = front ? deque_push_head(&scheduler->inject,
                                          task->id,
@@ -369,10 +257,6 @@ static int ready_push_with_policy(
     if (!pushed) {
         return 0;
     }
-    const rt_channel_blocking_compat* compat = rt_executor_channel_blocking_compat_const(ex);
-    if (compat != NULL && compat->channel_blocked_workers > 0) {
-        maybe_start_compensation_worker_locked(ex);
-    }
     return 1;
 }
 
@@ -400,8 +284,8 @@ static void claim_task_off_queue(rt_task* task) {
 int ready_claim_current_local_tail(rt_executor* ex, uint64_t id) {
     // Serialized by the owner shard lock taken below, NOT the control lock:
     // rt_task_poll (the sole caller, rt_async_task.c) reaches here control-free.
-    // The take here, the worker's own next_ready pop, and any steal all run
-    // under this shard's rt_shard_lock (rt_worker_turn.c), so that lock is the
+    // The take here and the carrier's own worker_next_ready pop both run under
+    // this shard's rt_shard_lock (rt_worker_turn.c), so that lock is the
     // local queue's serializer. Intentionally narrow: it only removes the fresh
     // child __task_create just pushed onto the current worker, so the queue is
     // this shard's own and its lock nests here.
@@ -458,159 +342,31 @@ int ready_push_yielded_task(rt_executor* ex, uint64_t id) {
     return ready_push_with_policy(ex, id, 1, 0, 0);
 }
 
-int ready_pop(rt_executor* ex, uint64_t* out_id) {
-    // Control-lane single-runner pop (N=1 runner and io drain): the queue is
-    // shard 0 state, so the pop nests shard 0's lock under the control lock.
-    rt_shard* shard0 = rt_runtime_shard0(rt_executor_runtime(ex));
-    rt_scheduler* scheduler = rt_shard_scheduler(shard0);
-    if (shard0 == NULL || scheduler == NULL) {
-        return 0;
-    }
-    rt_shard_lock(shard0);
-    int popped =
-        pop_task_from_deque(ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT, 0);
-    rt_shard_unlock(shard0);
-    return popped;
-}
-
 int worker_next_ready(rt_worker_ctx* ctx, uint64_t* out_id) {
     rt_executor* ex = ctx != NULL ? ctx->ex : NULL;
     rt_scheduler* scheduler = ctx != NULL ? ctx->scheduler : NULL;
-    uint32_t worker_id = ctx != NULL ? ctx->worker_id : 0;
     uint32_t shard_id = ctx != NULL ? ctx->shard_id : 0;
     if (ex == NULL || scheduler == NULL) {
         return 0;
     }
-    if (scheduler->sched_mode == SCHED_SEEDED) {
-        rt_deque* local = scheduler->local_queues != NULL && worker_id < scheduler->worker_count
-                              ? &scheduler->local_queues[worker_id]
-                              : NULL;
-        int local_has = local != NULL && local->len > 0;
-        int inject_has = scheduler->inject.len > 0;
-        int others_have = 0;
-        if (scheduler->local_queues != NULL && scheduler->worker_count > 1) {
-            for (uint32_t i = 0; i < scheduler->worker_count; i++) {
-                if (i == worker_id) {
-                    continue;
-                }
-                if (scheduler->local_queues[i].len > 0) {
-                    others_have = 1;
-                    break;
-                }
-            }
+    rt_deque* local = &scheduler->local_queue;
+    int local_has = local->len > 0;
+    int inject_has = scheduler->inject.len > 0;
+    if (scheduler->sched_mode == SCHED_SEEDED && local_has && inject_has &&
+        (sched_next_u64(ctx) & 1U) != 0U) {
+        if (pop_task_from_deque(
+                ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT, shard_id)) {
+            return 1;
         }
-        if (local_has && inject_has) {
-            if ((sched_next_u64(ctx) & 1U) == 0U) {
-                if (pop_task_from_deque(ex, local, 1, out_id, RT_TRACE_SCHED_SRC_LOCAL, shard_id)) {
-                    return 1;
-                }
-                if (pop_task_from_deque(
-                        ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT, shard_id)) {
-                    return 1;
-                }
-            } else {
-                if (pop_task_from_deque(
-                        ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT, shard_id)) {
-                    return 1;
-                }
-                if (pop_task_from_deque(ex, local, 1, out_id, RT_TRACE_SCHED_SRC_LOCAL, shard_id)) {
-                    return 1;
-                }
-            }
-        } else if (local_has) {
-            if (pop_task_from_deque(ex, local, 1, out_id, RT_TRACE_SCHED_SRC_LOCAL, shard_id)) {
-                return 1;
-            }
-        } else if (inject_has) {
-            if (others_have && (sched_next_u64(ctx) & 1U) != 0U) {
-                if (scheduler->worker_count > 1) {
-                    uint32_t span = scheduler->worker_count - 1;
-                    uint32_t start = (worker_id + 1 + (uint32_t)(sched_next_u64(ctx) % span)) %
-                                     scheduler->worker_count;
-                    for (uint32_t offset = 0; offset < span; offset++) {
-                        uint32_t victim = start + offset;
-                        if (victim >= scheduler->worker_count) {
-                            victim -= scheduler->worker_count;
-                        }
-                        if (victim == worker_id) {
-                            continue;
-                        }
-                        if (pop_task_from_deque(ex,
-                                                &scheduler->local_queues[victim],
-                                                0,
-                                                out_id,
-                                                RT_TRACE_SCHED_SRC_STEAL,
-                                                shard_id)) {
-                            return 1;
-                        }
-                    }
-                }
-            }
-            if (pop_task_from_deque(
-                    ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT, shard_id)) {
-                return 1;
-            }
-        }
-        if (scheduler->local_queues == NULL || scheduler->worker_count <= 1) {
-            return 0;
-        }
-        uint32_t span = scheduler->worker_count - 1;
-        uint32_t start =
-            (worker_id + 1 + (uint32_t)(sched_next_u64(ctx) % span)) % scheduler->worker_count;
-        for (uint32_t offset = 0; offset < span; offset++) {
-            uint32_t victim = start + offset;
-            if (victim >= scheduler->worker_count) {
-                victim -= scheduler->worker_count;
-            }
-            if (victim == worker_id) {
-                continue;
-            }
-            if (pop_task_from_deque(ex,
-                                    &scheduler->local_queues[victim],
-                                    0,
-                                    out_id,
-                                    RT_TRACE_SCHED_SRC_STEAL,
-                                    shard_id)) {
-                return 1;
-            }
-        }
-        return 0;
     }
     if (ctx != NULL && ++ctx->pop_tick % 61U == 0U &&
         pop_task_from_deque(
             ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT, shard_id)) {
         return 1;
     }
-    if (scheduler->local_queues != NULL && worker_id < scheduler->worker_count) {
-        if (pop_task_from_deque(ex,
-                                &scheduler->local_queues[worker_id],
-                                1,
-                                out_id,
-                                RT_TRACE_SCHED_SRC_LOCAL,
-                                shard_id)) {
-            return 1;
-        }
-    }
-    if (pop_task_from_deque(
-            ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT, shard_id)) {
+    if (pop_task_from_deque(ex, local, 1, out_id, RT_TRACE_SCHED_SRC_LOCAL, shard_id)) {
         return 1;
     }
-    if (scheduler->local_queues == NULL || scheduler->worker_count <= 1) {
-        return 0;
-    }
-    for (uint32_t offset = 1; offset < scheduler->worker_count; offset++) {
-        uint32_t victim = (worker_id + offset) % scheduler->worker_count;
-        if (victim == worker_id) {
-            continue;
-        }
-        if (pop_task_from_deque(ex,
-                                &scheduler->local_queues[victim],
-                                0,
-                                out_id,
-                                RT_TRACE_SCHED_SRC_STEAL,
-                                shard_id)) {
-            return 1;
-        }
-    }
-    return 0;
+    return pop_task_from_deque(
+        ex, &scheduler->inject, 0, out_id, RT_TRACE_SCHED_SRC_INJECT, shard_id);
 }

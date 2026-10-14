@@ -198,7 +198,7 @@ func localSlotType(local mir.Local) types.TypeID {
 // a child borrows is promoted to the creator's frame, which does not move
 // under it (StableActivationPlaces, the resident fields), and the child is
 // pinned to the creator's carrier and joined before the place is written
-// again (task_borrow_pin.go; __task_create_affine). A borrow is now a borrow.
+// again (task_borrow_pin.go). A borrow is now a borrow.
 func (fe *funcEmitter) emitParamStores() error {
 	for i, localID := range fe.paramLocals {
 		local := fe.f.Locals[localID]

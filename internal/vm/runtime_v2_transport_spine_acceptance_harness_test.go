@@ -127,7 +127,6 @@ static int init_shard(rt_shard* shard, rt_runtime* runtime, rt_executor* ex, uin
     shard->shard_id = id;
     if (rt_shard_sync_init(shard) != RT_RUNTIME_STATUS_OK) return 1;
     if (rt_transport_state_init(&shard->transport) != RT_RUNTIME_STATUS_OK) return 2;
-    shard->scheduler.worker_count = 1;
     return 0;
 }
 

@@ -1,6 +1,9 @@
 #ifndef SURGE_RUNTIME_NATIVE_RT_FD_REGISTRY_H
 #define SURGE_RUNTIME_NATIVE_RT_FD_REGISTRY_H
 
+#include "rt_runtime_config.h"
+#include "rt_waiter.h"
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -12,22 +15,16 @@
 //   writes through the waiter-store bridge in rt_async_waiter.c; makes
 //   the registry the only poll input: poll_net_waiters snapshots rows into the
 //   shard poll scratch under ex->lock and never scans the waiter store.
-// - A row exists while the runtime owns a live registered net fd, or while an
-//   interest-only compatibility row has at least one open net-key waiter parked
-//   in the waiter store. After prepare_park, net_wait_current_task verifies its
-//   interest row exists and otherwise undoes the park, so a parked open net
-//   waiter always has a row and every interested fd is polled. Detaching the
-//   last interest flag removes only non-registered compatibility rows; row
-//   order is not meaningful and find is a linear scan.
+// - A row exists only while the runtime owns a live registered net fd. Waiter
+//   interest may attach only to that row; a missing row is an invalid lifetime
+//   transition and the caller undoes the park. Detaching the last interest
+//   flag leaves the live fd row in place; close owns row removal.
 // - generation guards fd-reuse stale wakes; close_state guards post-close
 //   interest. Remove-plus-recreate preserves stale-wake safety because new rows
 //   take a monotonic generation from next_generation instead of resetting to 0.
 // - rt_fd_registry_free releases entry storage. No caller exists today because
 //   the process has no executor shutdown path (see the dependency map);
 //   create that path and wire the free.
-// This header is included from rt_async_internal.h after rt_runtime_status,
-// waker_key, and the rt_shard/rt_executor forward typedefs; translation units
-// include rt_async_internal.h, not this header directly.
 
 typedef enum {
     RT_FD_CLOSE_STATE_OPEN = 0,
@@ -38,7 +35,6 @@ typedef struct {
     int fd;
     uint64_t generation;
     uint8_t close_state; // holds rt_fd_close_state values (rt_task.status pattern)
-    uint8_t registered_open;
     uint8_t want_accept;
     uint8_t want_read;
     uint8_t want_write;
@@ -95,9 +91,6 @@ const rt_fd_registry* rt_shard_fd_registry_const(const rt_shard* shard);
 rt_fd_registry* rt_executor_fd_registry_for_shard(rt_executor* ex, size_t shard_index);
 const rt_fd_registry* rt_executor_fd_registry_const_for_shard(const rt_executor* ex,
                                                               size_t shard_index);
-rt_fd_registry* rt_executor_fd_registry(rt_executor* ex);
-const rt_fd_registry* rt_executor_fd_registry_const(const rt_executor* ex);
-
 rt_runtime_status rt_fd_registry_init(rt_fd_registry* registry);
 void rt_fd_registry_free(rt_fd_registry* registry);
 rt_runtime_status rt_fd_registry_ensure_cap(rt_fd_registry* registry);
@@ -110,9 +103,8 @@ rt_runtime_status rt_fd_registry_register_open_fd_generation(rt_fd_registry* reg
                                                              int fd,
                                                              uint64_t* out_generation);
 // Owner-locked fd-lifetime guard predicate. Returns 1 only when fd has an
-// OPEN, registered_open row whose full generation matches the canonical
-// runtime handle; 0 for missing rows, closed rows, interest-only rows, and
-// generation mismatches.
+// OPEN row whose full generation matches the canonical runtime handle; 0 for
+// missing rows, closed rows, and generation mismatches.
 int rt_fd_registry_handle_open(const rt_fd_registry* registry, int fd, uint64_t generation);
 rt_runtime_status rt_fd_registry_attach_net_interest(rt_fd_registry* registry, waker_key key);
 void rt_fd_registry_detach_net_interest(rt_fd_registry* registry, waker_key key);

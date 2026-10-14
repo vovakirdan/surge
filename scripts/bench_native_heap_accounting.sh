@@ -3,7 +3,7 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 report="${SURGE_HEAP_BENCH_REPORT:-$root/build/benchmarks/runtime-v2-task08-native-heap-current.md}"
-modes="${SURGE_HEAP_BENCH_THREADS:-1 2 4 8}"
+shard_modes="${SURGE_HEAP_BENCH_SHARDS:-1 2 4 8}"
 probes="${SURGE_HEAP_BENCH_PROBES:-empty_loop serial_alloc_free serial_realloc heap_stats_poll concurrent_alloc_free}"
 serial_iterations="${SURGE_HEAP_BENCH_SERIAL_ITERATIONS:-100000}"
 realloc_iterations="${SURGE_HEAP_BENCH_REALLOC_ITERATIONS:-50000}"
@@ -48,8 +48,8 @@ validate_positive_int "SURGE_HEAP_BENCH_STATS_ITERATIONS" "$stats_iterations"
 validate_positive_int "SURGE_HEAP_BENCH_CONCURRENT_ROUNDS" "$concurrent_rounds"
 validate_positive_int "SURGE_HEAP_BENCH_PROBE_TIMEOUT_SECONDS" "$probe_timeout_seconds"
 
-for mode in $modes; do
-	validate_positive_int "SURGE_HEAP_BENCH_THREADS item" "$mode"
+for mode in $shard_modes; do
+	validate_positive_int "SURGE_HEAP_BENCH_SHARDS item" "$mode"
 done
 for probe in $probes; do
 	validate_probe "$probe"
@@ -284,7 +284,7 @@ mkdir -p "$(dirname "$report")"
 	echo
 	echo "- surge: $("$surge" version --full | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
 	echo "- fixture: generated temporary native heap accounting probe"
-	echo "- threads: $modes"
+	echo "- shards: $shard_modes"
 	echo "- probes: $probes"
 	echo "- serial alloc/free iterations: $serial_iterations"
 	echo "- serial realloc iterations: $realloc_iterations"
@@ -294,18 +294,18 @@ mkdir -p "$(dirname "$report")"
 	echo
 	echo "## Results"
 	echo
-	echo "| threads | probe | iterations | total us | ns/op | alloc delta | free delta | live block delta | live byte delta |"
+	echo "| shards | probe | iterations | total us | ns/op | alloc delta | free delta | live block delta | live byte delta |"
 	echo "| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
 } >"$report"
 
-for mode in $modes; do
+for mode in $shard_modes; do
 	for probe in $probes; do
-		if output="$(timeout "${probe_timeout_seconds}s" env SURGE_THREADS="$mode" "$bench_bin" "$probe" 2>&1)"; then
+		if output="$(timeout "${probe_timeout_seconds}s" env SURGE_SHARDS="$mode" "$bench_bin" "$probe" 2>&1)"; then
 			:
 		else
 			status=$?
 			printf '%s\n' "$output" >&2
-			fail "probe failed: threads=$mode probe=$probe status=$status timeout=${probe_timeout_seconds}s"
+			fail "probe failed: shards=$mode probe=$probe status=$status timeout=${probe_timeout_seconds}s"
 		fi
 		while IFS= read -r line; do
 			[[ "$line" == \|* ]] || continue

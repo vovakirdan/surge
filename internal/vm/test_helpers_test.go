@@ -90,7 +90,7 @@ func envWithStdlib(root string) []string {
 }
 
 func envForParity(root string) []string {
-	const key = "SURGE_THREADS"
+	const key = "SURGE_SHARDS"
 	prefix := key + "="
 	env := envWithStdlib(root)
 	out := make([]string, 0, len(env)+1)

@@ -55,7 +55,7 @@ fn main() -> int {
 	outputPath := buildLLVMProgramFromSource(t, source)
 	cmd := exec.Command(outputPath)
 	cmd.Dir = root
-	cmd.Env = overrideEnvVar(os.Environ(), "SURGE_THREADS", "4")
+	cmd.Env = overrideEnvVar(os.Environ(), "SURGE_SHARDS", "4")
 	stdout, stderr, exitCode := runCommand(t, cmd, "")
 	if exitCode != 0 {
 		t.Fatalf("cloned task handle did not serve both awaiters: exit %d\nstdout:\n%s\nstderr:\n%s",

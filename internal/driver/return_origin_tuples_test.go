@@ -132,6 +132,7 @@ type originTupleRow struct {
 	want               []struct{ snippet, reason string }
 	allow              []string
 	slots              []uint32 // a normal summary with these parameter sources, when non-nil
+	escapeOwner        string
 }
 
 func originTupleFinishRows() []originTupleRow {
@@ -159,14 +160,14 @@ func originTupleRefusedRows() []originTupleRow {
 			// The parameter row is the pre-existing refusal of a function-typed parameter slot (return_origin_summary.go).
 			want:  []w{{"t.0", originTupleCallableRefusal}},
 			allow: append([]string{"parameter requires concrete type or callable provenance"}, originTupleDerived...)},
-		{name: "window_in_a_reference_free_tuple_keeps_g6", header: "fn window_plain(", body: "window_plain",
-			want: []w{{"(a[[0..2]], 1)", "storage loan would be discarded by a payload-free value"}}},
+		{name: "window_in_a_reference_free_tuple_stays_local", header: "fn window_plain(", body: "window_plain",
+			slots: []uint32{}},
 		{name: "window_through_a_reference_keeps_its_row", header: "fn window_through_ref(", body: "window_through_ref",
 			want: []w{{"r.1", originTupleReferentRefusal}}, allow: originTupleDerived},
 		// Was an escape canary beside a reference element; with no reference beside it the window keeps the G6 row,
 		// so the body is still never clean.
-		{name: "index_of_a_window_into_a_local_keeps_g6", header: "fn leak_window(", body: "leak_window",
-			want: []w{{"(1, a[[0..2]])", "storage loan would be discarded by a payload-free value"}}, allow: originTupleDerived},
+		{name: "index_of_a_window_into_a_local_reports_owner", header: "fn leak_window(", body: "leak_window",
+			escapeOwner: "a"},
 	}
 }
 
@@ -184,7 +185,11 @@ func runOriginTupleRows(t *testing.T, stage, text, digest string, rows []originT
 			checkOriginSource(t, text, digest, spans...)
 			f, analysis := analyzeOriginRoot(t, stage+"_"+row.name, text, false, nil)
 			originExactPending(t, analysis, f.unit.SourceKey, fn, want, row.allow...)
-			originNoEscape(t, analysis, f.owner.File.ID, fn)
+			if row.escapeOwner == "" {
+				originNoEscape(t, analysis, f.owner.File.ID, fn)
+			} else {
+				requireSelectEscape(t, analysis, f.owner.File.ID, fn, row.escapeOwner)
+			}
 			if row.slots != nil {
 				requireOriginSummary(t, analysis, f.owner.File.ID, row.body, false, row.slots)
 			}

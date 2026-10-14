@@ -57,7 +57,7 @@ fn main() -> int {
 			if err != nil {
 				t.Fatalf("emit LLVM IR: %v", err)
 			}
-			body := functionBody(t, ir, findMIRFunc(t, module, "main").ID)
+			body := functionBody(t, ir, findMIRRootBody(t, module).ID)
 			assertBareErrorMemberLayout(t, body, arm)
 		})
 	}

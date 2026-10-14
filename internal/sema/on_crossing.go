@@ -145,7 +145,7 @@ func (tc *typeChecker) typeExprOn(id ast.ExprID, span source.Span) types.TypeID 
 				RemoteOps:      cloneCrossingRemoteOps(frame.remoteOps),
 				PayloadType:    payload,
 				ResultType:     resultType,
-				SuspendCapable: tc.awaitDepth > 0,
+				SuspendCapable: tc.awaitAllowedHere(),
 			})
 		}
 		return resultType
@@ -176,7 +176,7 @@ func (tc *typeChecker) typeExprOn(id ast.ExprID, span source.Span) types.TypeID 
 			RemoteOps:      cloneCrossingRemoteOps(frame.remoteOps),
 			PayloadType:    payload,
 			ResultType:     resultType,
-			SuspendCapable: tc.awaitDepth > 0,
+			SuspendCapable: tc.awaitAllowedHere(),
 		})
 	}
 	return resultType

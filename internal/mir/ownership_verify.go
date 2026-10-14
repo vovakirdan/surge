@@ -303,9 +303,11 @@ func (v *ownershipFuncVerifier) checkAggregateFields(
 
 func (v *ownershipFuncVerifier) checkCrossing(cr *CrossingInstr, at ownershipPoint) []OwnershipFinding {
 	var out []OwnershipFinding
-	for i := range cr.Captures {
-		out = append(out, v.checkOperandSink(&cr.Captures[i].Value, at, OwnershipSinkCrossingCapture,
-			indexedOwnershipPosition("capture", i))...)
+	if !cr.CapturesPacked {
+		for i := range cr.Captures {
+			out = append(out, v.checkOperandSink(&cr.Captures[i].Value, at, OwnershipSinkCrossingCapture,
+				indexedOwnershipPosition("capture", i))...)
+		}
 	}
 	out = append(out, v.checkAggregateFields(cr.State.Fields, nil, "state", at)...)
 	if cr.ConsumesHandle {

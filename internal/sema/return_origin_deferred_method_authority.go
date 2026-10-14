@@ -18,8 +18,11 @@ func (a *returnOriginAnalyzer) checkDeferredMethods() error {
 			a.report.Pending = append(a.report.Pending, item)
 		}
 	}
-	edges := authority.InstantiationGraph.DeferredCallables()
+	edges := a.deferredEdges()
 	for _, unit := range a.units {
+		if !a.unitHasSelectedCallable(unit) {
+			continue
+		}
 		for ref, use := range unit.Sema.DeferredCallableUses {
 			if ref.Kind != DeferredMethodCall {
 				continue
@@ -33,7 +36,8 @@ func (a *returnOriginAnalyzer) checkDeferredMethods() error {
 				span = node.Span
 			}
 			matches := 0
-			for _, edge := range edges {
+			for i := range edges {
+				edge := &edges[i]
 				if node != nil && edge.Kind == DeferredMethodCall && edge.UseID == use && edge.Witness.SourceKey == unit.SourceKey && edge.Witness.Site == span {
 					matches++
 				}
@@ -49,6 +53,9 @@ func (a *returnOriginAnalyzer) checkDeferredMethods() error {
 		if edge.Kind != DeferredMethodCall {
 			continue
 		}
+		if a.hasSourceUnit(edge.Witness.SourceKey) && !a.templateSelectedForAnalysis(edge.Caller) {
+			continue
+		}
 		if err := a.ctx.Err(); err != nil {
 			return err
 		}
@@ -61,9 +68,10 @@ func (a *returnOriginAnalyzer) checkDeferredMethods() error {
 		case closure == nil || authority.InstantiationIdentity == nil:
 			pending(edge.Witness.SourceKey, edge.Witness.Site, "deferred method lacks finalized instance authority")
 		default:
-			for _, instance := range closure.Instances {
+			for i := range closure.Instances {
+				instance := &closure.Instances[i]
 				if instance.Template == edge.Caller {
-					pending(edge.Witness.SourceKey, edge.Witness.Site, a.methodOutcome(fn, edge, &instance))
+					pending(edge.Witness.SourceKey, edge.Witness.Site, a.methodOutcome(fn, edge, instance))
 				}
 			}
 		}
@@ -71,7 +79,8 @@ func (a *returnOriginAnalyzer) checkDeferredMethods() error {
 	if closure == nil {
 		return nil
 	}
-	for _, call := range closure.ResolvedDeferredCalls {
+	for i := range closure.ResolvedDeferredCalls {
+		call := &closure.ResolvedDeferredCalls[i]
 		if call.Kind != DeferredMethodCall {
 			continue
 		}
@@ -138,13 +147,13 @@ func (a *returnOriginAnalyzer) methodOutcome(fn *returnOriginFunction, edge *Def
 		return disagrees
 	}
 	var found *ResolvedDeferredCall
-	for _, call := range fn.unit.authority.InstantiationClosure.ResolvedDeferredCalls {
+	for i := range fn.unit.authority.InstantiationClosure.ResolvedDeferredCalls {
+		call := &fn.unit.authority.InstantiationClosure.ResolvedDeferredCalls[i]
 		if call.Caller == instance.Key && call.UseID == edge.UseID {
 			if found != nil {
 				return "deferred method has duplicate finalized outcomes"
 			}
-			copy := call
-			found = &copy
+			found = call
 		}
 	}
 	if found == nil {

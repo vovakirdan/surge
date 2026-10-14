@@ -54,6 +54,16 @@ int deque_prepare(rt_deque* dq, size_t capacity) {
                          "async: ready queue allocation failed at scheduler init");
 }
 
+void deque_destroy(rt_deque* dq) {
+    if (dq == NULL) {
+        return;
+    }
+    if (dq->task_ids != NULL && dq->cap > 0) {
+        rt_free((uint8_t*)dq->task_ids, (uint64_t)(dq->cap * sizeof(uint64_t)), _Alignof(uint64_t));
+    }
+    memset(dq, 0, sizeof(*dq));
+}
+
 static int
 deque_ensure_space(rt_deque* dq, size_t extra, const char* overflow_msg, const char* alloc_msg) {
     if (dq == NULL) {

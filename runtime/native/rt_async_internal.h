@@ -98,9 +98,8 @@ typedef struct rt_worker_ctx rt_worker_ctx;
 
 typedef struct {
     rt_deque inject;
-    rt_deque* local_queues;
-    rt_worker_ctx* worker_ctxs;
-    uint32_t worker_count;
+    rt_deque local_queue;
+    rt_worker_ctx* carrier_ctx;
     uint32_t running_count;
     // Work this shard has taken OUT of one structure and not yet put into
     // another (shard-lock-guarded, like running_count).
@@ -123,11 +122,6 @@ typedef struct {
     // bump before signaling, sleepers consume before waiting, so wakes that
     // race the control-to-shard sleep transition are never lost.
     uint32_t wake_pending;
-    // Addressed wake tokens, one per worker (shard-lock-guarded, same condvar):
-    // a carrier-affine task's publication credits its carrier and nobody
-    // else, so an ineligible sleeper cannot consume the only credit and leave
-    // the carrier asleep. worker_count entries; NULL when there are none.
-    uint32_t* worker_wake_pending;
     uint8_t sched_mode;
     uint64_t sched_seed;
 } rt_scheduler;
@@ -138,7 +132,6 @@ struct rt_worker_ctx {
     rt_scheduler* scheduler;
     rt_heap_accounting_cell* heap_cell;
     uint32_t shard_id;
-    uint32_t worker_id;
     uint32_t worker_index;
     uint64_t sched_rng;
     // Fairness tick: every 61st pop drains the inject queue first so
@@ -179,13 +172,6 @@ typedef struct {
 } rt_sleep_store;
 
 typedef struct {
-    // Atomic so control-free wake paths may read it; writes stay control-lane.
-    atomic_u32 channel_blocked_workers;
-    uint32_t compensation_count;
-    uint32_t compensation_high_water;
-} rt_channel_blocking_compat;
-
-typedef struct {
     _Atomic uint64_t resolve_attempts;
     _Atomic uint64_t exact_shard_resolutions;
     _Atomic uint64_t distributed_resolutions;
@@ -209,7 +195,6 @@ struct rt_shard {
     rt_net_poll_wake net_poll_wake;
     rt_transport_state transport;
     rt_fd_registry fd_registry;
-    rt_channel_blocking_compat channel_blocking_compat;
     rt_waiter_store waiter_store;
     rt_sleep_store sleep_store;
     uint32_t shard_id;
@@ -314,12 +299,6 @@ typedef struct rt_task {
     // clang-tidy reads that floor (optin.performance.Padding). A new narrow
     // field joins this run rather than sitting beside the field it relates to.
     uint32_t owner_shard_id;
-    // Carrier affinity: a task that borrows its creator's frame runs only on
-    // the worker carrying the creator when it was made. Publication addresses
-    // that worker's deque and token; every other worker refuses it on pop.
-    // Written once, at creation, before the task is published (carrier_valid
-    // says whether it was).
-    uint32_t carrier_worker_id;
     atomic_u32 join_owner_shard_id;
     // Handle count in the low 31 bits, "this task has completed" in the top
     // one: one word, because whether a drop may free the task is one question.
@@ -339,7 +318,6 @@ typedef struct rt_task {
     uint8_t resume_kind;
     uint8_t placement_class;
     uint8_t owner_shard_valid;
-    uint8_t carrier_valid;
     atomic_u8 cancelled;
     atomic_u8 enqueued;
     atomic_u8 wake_token;
@@ -348,7 +326,7 @@ typedef struct rt_task {
     atomic_u8 far_task_result_state;
     // Whether anything has made this task runnable (RV2-DEBT-370): zero, the
     // zero-filled value, is RT_TASK_PUBLISHED; a task built by
-    // __task_create_cold[_affine] is RT_TASK_COLD until its first publication
+    // __task_create_cold is RT_TASK_COLD until its first publication
     // or RT_TASK_DISCARDED once its last handle ended it (rt_task_cold.c); a
     // publication that found a cancel in the gate writes RT_TASK_CANCELLED_COLD,
     // which the task's first poll turns into Cancelled() and PUBLISHED.
@@ -462,15 +440,16 @@ struct rt_executor {
     // slot, fixed-directory shape as tasks_table; get_scope acquire-loads it.
     rt_scope_table scopes_table;
     pthread_mutex_t lock;
-    // compat_cv sleeps sync-channel compatibility waiters under the control
-    // lock; worker sleep lives on each shard's worker_cv since .
-    pthread_cond_t compat_cv;
     pthread_cond_t done_cv;
     pthread_t* workers;
+    uint32_t worker_threads_started;
     uint8_t initialized;
     uint8_t io_started;
     // Written on the control lane; read by shard-side wait predicates.
     _Atomic uint8_t shutdown;
+    // Admission closes at shutdown above. Carriers may leave only after the
+    // control lane has published every pending/far/net/transport resolution.
+    _Atomic uint8_t shutdown_ready;
     struct rt_remote_task_state* remote_tasks;
     struct rt_far_channel_state* far_channels;
     pthread_mutex_t blocking_lock;
@@ -478,6 +457,7 @@ struct rt_executor {
     pthread_t* blocking_workers;
     struct rt_blocking_worker_ctx* blocking_worker_ctxs;
     uint32_t blocking_count;
+    uint32_t blocking_threads_started;
     uint8_t blocking_started;
     uint8_t blocking_shutdown;
     atomic_u32 blocking_running;
@@ -486,11 +466,6 @@ struct rt_executor {
     atomic_u32 blocking_cancel_requested;
     struct rt_blocking_job* blocking_head;
     struct rt_blocking_job* blocking_tail;
-    // Control-lane waiter store. Scope keys remain here for compatibility;
-    // (S5-Q10) moved scope keys to the scope owner shard store, so this now
-    // only backs the rt_waiter_store_for_key default (unknown waker kind) and
-    // the diagnostic waiter dump. Everything else is owner-resolved.
-    rt_waiter_store control_waiters;
     // Main-thread awaiters parked on done_cv (D10): completions broadcast
     // only when this is nonzero, so plain task exits skip the control cv.
     atomic_u32 done_waiters;
@@ -499,20 +474,18 @@ struct rt_executor {
 // Executor lane invariants (post-Epic-7 lane split, post-Epic-8 lifecycle):
 // there is no single executor lock; every mutation belongs to one lane:
 // - Control lane (ex->lock): task/scope TABLE GROWTH only (segment alloc); the
-//   external/main-thread await compatibility path (done_cv broadcast, gated on
-//   done_waiters, and compat_cv for the sync-channel lane); the cancel walks
+//   external/main-thread await path (done_cv broadcast, gated on
+//   done_waiters); the cancel walks
 //   that route children by an owner word F2 self-replace writes under control
 //   (failfast scope_cancel_children_controlled and the cancel_task sibling
 //   walk -- a cancellation being carried out, never scope accounting: a
 //   cross-owner child-done is a scope EVENT on the owner shard's inbound
 //   control lane, rt_scope_event.c);
-//   checkpoint/sleep/blocking submit; and compensation-worker bookkeeping.
-//   control_waiters now backs only the unknown-waker-kind default and the
-//   diagnostic waiter dump.
+//   checkpoint/sleep/blocking submit.
 // - Shard lane (rt_shard.lock): the owning shard's scheduler ready queues
 //   (local + inject), running_count, wake_pending, waiter_store (join, net, and
 //   channel keys plus the scope owner's scope_key all route here), sleep_store,
-//   net poll state / fd registry, per-shard channel_blocking_compat, and the
+//   net poll state / fd registry, and the
 //   steady-state task/scope lifecycle: slot publish/read, park/wake
 //   (rt_task_park.c), and scope-object bookkeeping on the scope's pinned owner
 //   shard.
@@ -521,11 +494,11 @@ struct rt_executor {
 //   enqueued/cancelled/wake_token/polling/handle_refs, next_id/next_scope_id/
 //   remote_handle_state, now_ms/shutdown, the task and scope table slots (acquire-loaded by
 //   get_task/get_scope), the sleep_store min_deadline mirror, done_waiters, and
-//   channel_blocked_workers.
+//   task publication state.
 // Carried wake races: waiter_store is FIFO-by-key; prepare_park may pre-register
 // before TASK_WAITING and the wake_token closes the wake-before-park window
-// (D5). Workers pop local, then inject, then steal; non-worker threads inject
-// globally. The I/O thread is signaled on idle, net waiter registration, and
+// (D5). A shard carrier pops local then inject; non-carrier threads inject on
+// the owning shard. The I/O thread is signaled on idle, net waiter registration, and
 // shutdown.
 
 typedef struct rt_channel rt_channel;
@@ -539,6 +512,9 @@ typedef struct {
 typedef struct rt_blocking_job {
     uint64_t task_id;
     uint64_t fn_id;
+    // Stable waiter routing captured while the task is live. A blocking
+    // worker may finish after the task table no longer names the task.
+    waker_key completion_key;
     // The captures the submission packed, at their own type. The job owns the
     // block compiled code reserved for them and destroys it through the
     // descriptor, which is what a pointer and two integers could not do: two
@@ -574,11 +550,7 @@ void rt_trace_park_attempt(void);
 void rt_trace_park_committed(void);
 void rt_trace_worker_sleep(void);
 void rt_trace_worker_wake(void);
-void rt_trace_channel_blocking_wait(void);
-void rt_trace_channel_task_blocking_send(void);
-void rt_trace_channel_task_blocking_recv(void);
 void rt_trace_channel_handoff_yield(void);
-void rt_trace_compensation_started(void);
 void rt_trace_parked_with_work(void);
 // Lock-split counters: steady-path serialization evidence.
 void rt_trace_control_lock_acquired(void);
@@ -603,7 +575,7 @@ typedef enum {
     RT_CTRL_SITE_JOIN_POLL,
     RT_CTRL_SITE_COMPLETION,
     RT_CTRL_SITE_SCOPE,
-    RT_CTRL_SITE_AWAIT_COMPAT,
+    RT_CTRL_SITE_EXTERNAL_AWAIT,
     RT_CTRL_SITE_HANDLE,
     RT_CTRL_SITE_COUNT
 } rt_ctrl_site;
@@ -649,7 +621,6 @@ extern _Thread_local int tls_worker_id;
 rt_executor* ensure_exec(void);
 rt_runtime_status rt_runtime_init_global(rt_executor* ex, size_t shard_count);
 rt_runtime_status rt_runtime_init_shard_schedulers(rt_runtime* runtime,
-                                                   uint32_t worker_count,
                                                    uint8_t sched_mode_value,
                                                    uint64_t sched_seed);
 void rt_runtime_destroy_global(void);
@@ -662,28 +633,17 @@ uint64_t rt_runtime_total_worker_count(const rt_runtime* runtime);
 rt_heap_accounting* rt_executor_heap_accounting(rt_executor* ex);
 rt_scheduler* rt_shard_scheduler(rt_shard* shard);
 const rt_scheduler* rt_shard_scheduler_const(const rt_shard* shard);
-rt_scheduler* rt_executor_scheduler(rt_executor* ex);
-const rt_scheduler* rt_executor_scheduler_const(const rt_executor* ex);
 rt_scheduler* rt_task_scheduler(rt_executor* ex, const rt_task* task);
 rt_net_poll_scratch* rt_shard_net_poll_scratch(rt_shard* shard);
 rt_net_poll_scratch* rt_executor_net_poll_scratch_for_shard(rt_executor* ex, size_t shard_index);
-rt_net_poll_scratch* rt_executor_net_poll_scratch(rt_executor* ex);
-rt_channel_blocking_compat* rt_shard_channel_blocking_compat(rt_shard* shard);
-const rt_channel_blocking_compat* rt_shard_channel_blocking_compat_const(const rt_shard* shard);
-rt_channel_blocking_compat* rt_executor_channel_blocking_compat(rt_executor* ex);
-const rt_channel_blocking_compat* rt_executor_channel_blocking_compat_const(const rt_executor* ex);
 rt_waiter_store* rt_shard_waiter_store(rt_shard* shard);
 const rt_waiter_store* rt_shard_waiter_store_const(const rt_shard* shard);
 rt_waiter_store* rt_executor_waiter_store_for_shard(rt_executor* ex, size_t shard_index);
 const rt_waiter_store* rt_executor_waiter_store_const_for_shard(const rt_executor* ex,
                                                                 size_t shard_index);
-rt_waiter_store* rt_executor_waiter_store(rt_executor* ex);
-const rt_waiter_store* rt_executor_waiter_store_const(const rt_executor* ex);
-rt_runtime_status rt_shard_scheduler_init(rt_shard* shard,
-                                          uint32_t worker_count,
-                                          uint8_t sched_mode_value,
-                                          uint64_t sched_seed);
-uint32_t rt_runtime_default_worker_count(void);
+rt_runtime_status
+rt_shard_scheduler_init(rt_shard* shard, uint8_t sched_mode_value, uint64_t sched_seed);
+uint32_t rt_runtime_default_shard_count(void);
 uint32_t rt_runtime_default_blocking_count(uint32_t workers);
 uint64_t rt_current_task_id(void);
 rt_task* rt_current_task(void);
@@ -718,6 +678,7 @@ rt_scope* get_scope(rt_executor* ex, uint64_t id);
 // which made a batch's allocation count depend on which shard's queue was
 // touched first (RV2-DEBT-330). Idempotent below the reserved capacity.
 int deque_prepare(rt_deque* dq, size_t capacity);
+void deque_destroy(rt_deque* dq);
 int deque_push_tail(rt_deque* dq, uint64_t id, const char* overflow_msg, const char* alloc_msg);
 int deque_push_head(rt_deque* dq, uint64_t id, const char* overflow_msg, const char* alloc_msg);
 int deque_pop_head(rt_deque* dq, uint64_t* out_id);
@@ -774,7 +735,6 @@ int ready_claim_current_local_tail(rt_executor* ex, uint64_t id);
 // apply_poll_outcome (rt_task_complete.c) re-pushes yielded tasks across the
 // module boundary.
 int ready_push_yielded_task(rt_executor* ex, uint64_t id);
-int ready_pop(rt_executor* ex, uint64_t* out_id);
 void wake_task(rt_executor* ex, uint64_t id, int remove_waiter_flag);
 void wake_net_task(rt_executor* ex, uint64_t id);
 int channel_wake_force_inject_enabled(void);
@@ -787,8 +747,6 @@ size_t wake_key_all_with_policy(rt_executor* ex, waker_key key, int front);
 void park_current(rt_executor* ex, waker_key key);
 void tick_virtual(rt_executor* ex);
 int advance_time_to_next_timer(rt_executor* ex);
-int next_ready(rt_executor* ex, uint64_t* out_id);
-
 rt_task* task_from_handle(void* handle);
 rt_task* rt_spawn_sleep_task_locked(rt_executor* ex, uint64_t delay);
 uint64_t task_id_from_handle(void* handle);
@@ -798,8 +756,6 @@ void rt_task_replace_owner(rt_executor* ex,
                            uint32_t shard_id,
                            uint8_t placement_class);
 void rt_task_inherit_placement(rt_task* task, const rt_task* parent);
-void rt_task_pin_carrier_current(rt_task* task);
-int rt_task_carrier_admits_worker_or_trace_denied(const rt_task* task, uint32_t worker_id);
 void rt_task_assign_spawn_owner(rt_task* task);
 rt_shard* rt_task_owner_shard(rt_executor* ex, const rt_task* task);
 uint32_t rt_task_owner_shard_id(rt_executor* ex, const rt_task* task);
@@ -823,13 +779,8 @@ int rt_clock_advance_to(rt_executor* ex, uint64_t target);
 uint64_t rt_clock_deadline_base(rt_executor* ex);
 int rt_clock_advance_to_next_deadline(rt_executor* ex);
 size_t rt_sleep_fire_due_on_shard(rt_executor* ex, rt_shard* shard, uint64_t now);
-int rt_task_can_steal_from_shard(const rt_task* task, uint32_t shard_id);
-int rt_task_can_steal_from_shard_or_trace_denied(const rt_task* task, uint32_t shard_id);
-void rt_debug_assert_no_parked_with_work(rt_executor* ex, uint32_t shard_id, uint32_t worker_id);
-int rt_debug_validate_worker_ctx(rt_executor* ex,
-                                 uint32_t shard_id,
-                                 uint32_t worker_id,
-                                 uint32_t worker_index);
+void rt_debug_assert_no_parked_with_work(rt_executor* ex, uint32_t shard_id);
+int rt_debug_validate_carrier_ctx(rt_executor* ex, uint32_t shard_id, uint32_t worker_index);
 uint32_t rt_debug_current_worker_shard_id(void);
 
 void task_add_child(rt_task* parent, uint64_t child_id);
@@ -866,6 +817,8 @@ void cancel_task(rt_executor* ex, uint64_t id);
 void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind);
 void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outcome);
 rt_runtime_status rt_executor_request_shutdown(rt_executor* ex);
+void rt_runtime_shutdown_for_exit(void);
+void rt_executor_release_empty_storage(rt_executor* ex);
 rt_runtime_status rt_executor_drain_shutdown_net_waiters(rt_executor* ex);
 
 poll_outcome poll_task(rt_executor* ex, rt_task* task);
@@ -874,18 +827,12 @@ void rt_net_poll_wake_close(rt_net_poll_wake* wake);
 uint64_t
 rt_net_wake_poll_for_task_wait_keys(rt_executor* ex, const rt_task* task, waker_key fallback_key);
 #include "rt_async_net_poll.h"
-int run_ready_one(rt_executor* ex);
-int rt_run_ready_one_nowait_locked(rt_executor* ex);
 void* rt_worker_main(void* arg);
 void* rt_io_main(void* arg);
 void rt_io_wait_slice(rt_executor* ex);
 void rt_io_poll_nudge(rt_executor* ex);
 int worker_next_ready(rt_worker_ctx* ctx, uint64_t* out_id);
 int rt_next_sleep_deadline(const rt_executor* ex, uint64_t* out_deadline);
-void run_until_done(rt_executor* ex, const rt_task* task, uint8_t* out_kind);
-int rt_wait_current_worker_wakeup(rt_executor* ex, rt_task* task);
 rt_scheduler* current_worker_scheduler(const rt_executor* ex);
-void maybe_start_compensation_worker_locked(rt_executor* ex);
-void rt_compensation_check_after_push(rt_executor* ex);
 
 #endif

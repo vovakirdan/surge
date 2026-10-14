@@ -470,7 +470,6 @@ def _run_liveness_probe(
             # probes that waited on it (owner ruling 2026-09-04). A probe that
             # needs a thread held at a window names the window itself.
             "SURGE_SHARDS": str(manifest.shards),
-            "SURGE_THREADS": str(manifest.threads),
             "SURGE_BLOCKING_THREADS": str(manifest.blocking_threads),
         },
     )
@@ -802,7 +801,6 @@ def _run_batch(
     ]
     environment = {
         "SURGE_SHARDS": str(manifest.shards),
-        "SURGE_THREADS": str(manifest.threads),
         "SURGE_BLOCKING_THREADS": str(manifest.blocking_threads),
     }
     if capture_kind == "resource":

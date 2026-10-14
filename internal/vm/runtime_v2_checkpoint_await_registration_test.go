@@ -74,7 +74,6 @@ func runRuntimeV2CheckpointAwaitRegistrationHarness(t *testing.T, binPath string
 	cmd := exec.Command(binPath)
 	cmd.Env = lifecycleEnv(
 		"SURGE_SHARDS=2",
-		"SURGE_THREADS=2",
 		"SURGE_BLOCKING_THREADS=1",
 		"SURGE_SYNC_POINT="+checkpointAwaitRegistrationSyncPoint+":block",
 	)

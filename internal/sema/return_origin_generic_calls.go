@@ -13,7 +13,7 @@ import (
 // An unused original body still owns its root/edge; current instance reachability
 // is a separate obligation. Function and tag readers validate their own callee
 // declarations and signatures before using the returned detached argument list.
-func (fn *returnOriginFunction) originalInstantiation(id ast.ExprID, kind InstantiationTemplateKind, callee symbols.SymbolID) ([]types.TypeID, string) {
+func (fn *returnOriginFunction) originalInstantiation(id ast.ExprID, kind InstantiationTemplateKind, callee symbols.SymbolID) (typeArgs []types.TypeID, reason string) {
 	if fn == nil || fn.unit == nil || fn.item == nil || !fn.item.Body.IsValid() || fn.candidate == nil ||
 		!callee.IsValid() || (kind != InstantiationFunction && kind != InstantiationTag) {
 		return nil, "generic original call lacks its owning body or template kind"
@@ -79,22 +79,31 @@ func (fn *returnOriginFunction) originalInstantiation(id ast.ExprID, kind Instan
 	}
 	var root *InstantiationRoot
 	var edge *InstantiationEdge
-	for _, original := range authority.InstantiationGraph.Roots() {
-		if original.Witness.Site == node.Span {
-			if root != nil {
+	roots := authority.InstantiationGraph.Roots()
+	for i := range roots {
+		original := &roots[i]
+		if original.Witness.Site == node.Span && original.Kind == kind && u.templateNames(original.Template, callee) &&
+			original.Witness.Caller == caller.Symbol {
+			if root != nil && !slices.Equal(root.TemplateArgs, original.TemplateArgs) {
 				return nil, "generic original call has ambiguous source requests"
 			}
-			copy := original
-			root = &copy
+			if root == nil {
+				root = original
+			}
 		}
 	}
-	for _, original := range authority.InstantiationGraph.Edges() {
-		if original.Witness.Site == node.Span {
-			if edge != nil || root != nil {
+	edges := authority.InstantiationGraph.Edges()
+	for i := range edges {
+		original := &edges[i]
+		if original.Witness.Site == node.Span && original.Kind == kind && original.Caller == caller.Symbol &&
+			u.templateNames(original.Callee, callee) && original.Witness.Caller == caller.Symbol {
+			if root != nil || edge != nil && (!slices.Equal(edge.CalleeTemplateArgs, original.CalleeTemplateArgs) ||
+				!slices.Equal(edge.CallerBindings, original.CallerBindings)) {
 				return nil, "generic original call has ambiguous source requests"
 			}
-			copy := original
-			edge = &copy
+			if edge == nil {
+				edge = original
+			}
 		}
 	}
 	var args []types.TypeID
@@ -145,7 +154,7 @@ func (fn *returnOriginFunction) originalInstantiation(id ast.ExprID, kind Instan
 // originalSignature checks one source request against the exact selected
 // declaration. The view describes admitted operands; original FnInfo and its
 // promise remain immutable and authoritative throughout validation.
-func (fn *returnOriginFunction) originalSignature(caller *returnOriginFunction, id ast.ExprID, args []types.TypeID) (*returnOriginSignature, string) {
+func (fn *returnOriginFunction) originalSignature(caller *returnOriginFunction, id ast.ExprID, args []types.TypeID) (signature *returnOriginSignature, reason string) {
 	u := caller.unit
 	in := u.Sema.TypeInterner
 	params := fn.candidate.TemplateParams
@@ -189,6 +198,20 @@ func (fn *returnOriginFunction) originalSignature(caller *returnOriginFunction, 
 		}
 		var reason string
 		view.params[i], reason = u.originalArgumentType(expr, fn.info.Params[i], params, args)
+		if reason != "" && i == 0 && returnOriginCoreFreeClone(fn) {
+			actual := u.Sema.ExprTypes[expr]
+			if typ, found := in.Lookup(actual); found && (typ.Kind == types.KindReference || typ.Kind == types.KindOwn) {
+				actual = typ.Elem
+			}
+			refFree := returnOriginView(caller).shape(actual) == returnOriginRefFree &&
+				returnOriginView(caller).shape(view.result) == returnOriginRefFree
+			if actual == view.result || returnOriginSameNominalType(in, actual, view.result) || refFree {
+				view.params[i], reason = fn.info.Params[i], ""
+			}
+		}
+		if reason != "" && expr == receiver && returnOriginCoreArrayLenReceiver(fn, in, u.Sema.ExprTypes[expr]) {
+			view.params[i], reason = fn.info.Params[i], ""
+		}
 		if reason != "" && expr == receiver && fn.awaitMovesTask(u, expr, params, args) {
 			view.params[i], reason = u.Sema.ExprTypes[expr], "" // a Task written without `own` moves into await
 		}
@@ -224,6 +247,54 @@ func (fn *returnOriginFunction) originalSignature(caller *returnOriginFunction, 
 		}
 	}
 	return view, ""
+}
+
+func returnOriginCoreFreeClone(fn *returnOriginFunction) bool {
+	if fn == nil || fn.name != "clone" || !returnOriginCoreIntrinsic(fn, 1, 0) ||
+		fn.candidate.HasSelf || fn.candidate.ReceiverType != types.NoTypeID || len(fn.info.Params) != 1 {
+		return false
+	}
+	formal, found := fn.unit.Sema.TypeInterner.Lookup(fn.info.Params[0])
+	return found && formal.Kind == types.KindReference && !formal.Mutable
+}
+
+func returnOriginCoreArrayLenReceiver(fn *returnOriginFunction, in *types.Interner, actual types.TypeID) bool {
+	if fn == nil || fn.name != "__len" || !returnOriginCoreIntrinsic(fn, 1, 1) ||
+		!fn.candidate.HasSelf || len(fn.info.Params) != 1 || in == nil ||
+		fn.info.Result != fn.unit.Sema.TypeInterner.Builtins().Uint {
+		return false
+	}
+	formalInterner := fn.unit.Sema.TypeInterner
+	formal, canonical := returnOriginContainer(formalInterner, fn.info.Params[0])
+	mutable, reference := returnOriginBackingDescriptor(formalInterner, fn.info.Params[0])
+	if !canonical || !reference || mutable || formal.family != formalInterner.ArrayNominalType() ||
+		formal.element != fn.candidate.TemplateParams[0] {
+		return false
+	}
+	container, ok := returnOriginContainer(in, actual)
+	if !ok {
+		container, ok = returnOriginOwnedIndexContainer(in, actual)
+	}
+	return ok && container.family == in.ArrayNominalType()
+}
+
+func returnOriginSameNominalType(in *types.Interner, left, right types.TypeID) bool {
+	if in == nil {
+		return false
+	}
+	l, lok := in.StructInfo(returnOriginResolveAlias(in, left))
+	r, rok := in.StructInfo(returnOriginResolveAlias(in, right))
+	if !lok || !rok || l == nil || r == nil || l.Name != r.Name || l.Decl != r.Decl ||
+		len(l.TypeArgs) != len(r.TypeArgs) {
+		return false
+	}
+	for i := range l.TypeArgs {
+		if l.TypeArgs[i] != r.TypeArgs[i] &&
+			matchReturnOriginSourceType(in, l.TypeArgs[i], r.TypeArgs[i], nil, nil) != "" {
+			return false
+		}
+	}
+	return true
 }
 
 // returnOriginFreeSelfFunction answers whether a HasSelf declaration is a

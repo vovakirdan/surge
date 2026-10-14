@@ -253,10 +253,10 @@ void cancel_task(rt_executor* ex, uint64_t id) {
 // gone in - scope completion bookkeeping runs on the scope owner shard
 // lane (scope_on_child_done) and the scope_key waiter store moved to the scope
 // owner shard, so both are owner-local. mark_done_needs_control's final form is
-// net-key + done_waiters (plus the select/multi-key compat residual).
+// net-key + done_waiters (plus the select/multi-key control residual).
 // completion_reason_out reports whether a genuine completion reason (net key /
 // wait_keys / select timers) forced control, as the exact complement of the
-// done_waiters-only case: the AWAIT_COMPAT tag in mark_done keys off it, so the
+// done_waiters-only case: the EXTERNAL_AWAIT tag in mark_done keys off it, so the
 // tag split cannot drift from the control decision (they share this one
 // evaluation; review finding).
 static int mark_done_needs_control(const rt_executor* ex,
@@ -324,7 +324,7 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind) {
     // Attribute honestly (rule 5): a completion forced onto
     // the control lane SOLELY because a non-worker awaiter is parked on
     // done_cv (done_waiters>0, with no net park_key and no residual
-    // multi-key work) is external-await compatibility, counted separately
+    // multi-key work) is an external await, counted separately
     // from worker steady-state completion. Net-key / wait_keys / select-
     // timer removals are genuine completion control work and stay COMPLETION.
     // completion_reason comes out of the same evaluation that decides
@@ -337,7 +337,7 @@ void mark_done(rt_executor* ex, rt_task* task, uint8_t result_kind) {
         if (completion_reason) {
             rt_trace_control_lock_site(RT_CTRL_SITE_COMPLETION);
         } else {
-            rt_trace_control_lock_site(RT_CTRL_SITE_AWAIT_COMPAT);
+            rt_trace_control_lock_site(RT_CTRL_SITE_EXTERNAL_AWAIT);
         }
     }
     if (task->wait_keys_len > 0) {
@@ -423,28 +423,9 @@ void apply_poll_outcome(rt_executor* ex, rt_task* task, poll_outcome outcome) {
     if (ex == NULL || task == NULL) {
         return;
     }
-    // What keeps a polled task addressable during its own turn is its RUNNING
-    // status, not a reference: a release frees only a task that has completed,
-    // so a RUNNING one cannot be reclaimed under its poller. Every arm below
-    // ends that protection -- it publishes READY, WAITING or DONE -- and then
-    // goes on using the pointer.
-    //
-    // The yielded arm is the one AddressSanitizer caught. It publishes
-    // TASK_READY and re-pushes, and ready_push_with_policy resolves the owner
-    // shard, BLOCKS on that shard's lock, and re-reads the task's status on the
-    // far side of the acquisition. A task that is READY and not yet enqueued
-    // can be woken by an awaiting poll in that window, popped by another
-    // worker, run to completion, and freed by the last handle drop, all while
-    // this thread waits for the lock; the re-read then reads freed memory.
-    //
-    // A reference held across the whole function is what makes the pointer
-    // outlive the turn -- the same pin mark_done takes, one level down. The
-    // release is the last statement, so a turn that held the final reference
-    // frees here, with no lock held.
-    //
-    // RT_POLL_OUTCOME_PIN_NEGATIVE_CONTROL removes the pin, which MUST make the
-    // yielded re-push read a freed task under AddressSanitizer; that build is
-    // how the row proves it is asking a real question.
+    // Keep the task alive until the publishing turn has stopped using it.
+    // One carrier per shard does not discharge this reference: owner adoption
+    // can route the next poll to another shard before this turn has returned.
 #ifndef RT_POLL_OUTCOME_PIN_NEGATIVE_CONTROL
     task_add_ref(task);
 #endif

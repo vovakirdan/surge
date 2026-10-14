@@ -26,9 +26,9 @@ func TestRuntimeV2FailfastReturnReleasesPreparedValue(t *testing.T) {
 				"RESULT_VALUE", variant.result,
 			).Replace(failfastReturnAllocationSource)
 			bin := buildAsyncAllocationProgram(t, source)
-			for _, workers := range []string{"1", "8"} {
-				t.Run("workers-"+workers, func(t *testing.T) {
-					env := asyncAllocationEnvironment(t, workers)
+			for _, shards := range []string{"1", "8"} {
+				t.Run("shards-"+shards, func(t *testing.T) {
+					env := asyncAllocationEnvironment(t, shards)
 					baseline := runAsyncAllocationXML(t, bin, env, "control", "1", "")
 					if err := validateAsyncAllocationBaseline(baseline); err != nil {
 						t.Fatalf("unapproved allocation baseline: %v", err)

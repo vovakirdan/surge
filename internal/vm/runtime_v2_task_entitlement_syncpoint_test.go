@@ -22,8 +22,7 @@ import (
 
 func entitlementEnv(threads string, points string) []string {
 	return lifecycleEnv(
-		"SURGE_SHARDS=1",
-		"SURGE_THREADS="+threads,
+		"SURGE_SHARDS="+threads,
 		"SURGE_BLOCKING_THREADS=1",
 		"SURGE_SYNC_POINT="+points)
 }
@@ -47,7 +46,7 @@ func TestRuntimeV2TaskEntitlementShutdownDoesNotDropAClaimedCanonical(t *testing
 				t, binPath, "entitlement-shutdown-vs-claimed-clone",
 				entitlementEnv(threads, entitlementCloneReaderPoint))
 			if exitCode != 0 {
-				t.Fatalf("shutdown-vs-claimed-clone proof failed at SURGE_THREADS=%s (code=%d)\nstdout:\n%s\nstderr:\n%s",
+				t.Fatalf("shutdown-vs-claimed-clone proof failed at SURGE_SHARDS=%s (code=%d)\nstdout:\n%s\nstderr:\n%s",
 					threads, exitCode, stdout, stderr)
 			}
 			// Non-vacuity: the window was reached (only a take decided CLONE
@@ -107,7 +106,7 @@ func TestRuntimeV2TaskEntitlementCancelDoesNotRevokeACommittedResult(t *testing.
 				t, binPath, "entitlement-cancel-vs-committed-result",
 				entitlementEnv(threads, entitlementCloneReaderPoint))
 			if exitCode != 0 {
-				t.Fatalf("cancel-vs-committed-result proof failed at SURGE_THREADS=%s (code=%d)\nstdout:\n%s\nstderr:\n%s",
+				t.Fatalf("cancel-vs-committed-result proof failed at SURGE_SHARDS=%s (code=%d)\nstdout:\n%s\nstderr:\n%s",
 					threads, exitCode, stdout, stderr)
 			}
 			if !strings.Contains(stderr,
@@ -164,7 +163,7 @@ func TestRuntimeV2TaskEntitlementStaleCapabilityCannotReachReusedStorage(t *test
 				t, binPath, "entitlement-stale-result-capability",
 				entitlementEnv(threads, "SP_RESULT_CAPABILITY_BEFORE_MATCH:block"))
 			if exitCode != 0 {
-				t.Fatalf("stale-capability proof failed at SURGE_THREADS=%s (code=%d)\nstdout:\n%s\nstderr:\n%s",
+				t.Fatalf("stale-capability proof failed at SURGE_SHARDS=%s (code=%d)\nstdout:\n%s\nstderr:\n%s",
 					threads, exitCode, stdout, stderr)
 			}
 			// Non-vacuity: the slot really did move on under the held holder --

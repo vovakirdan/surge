@@ -18,6 +18,9 @@ type Func struct {
 	Failfast       bool
 	AsyncLoweredV2 bool
 	ParamCount     int
+	// Root activations use a compiler-owned task handle even with no_std;
+	// zero leaves ordinary async functions governed by the source Task type.
+	AsyncTaskType types.TypeID
 
 	// CapturesArriveOwned says this function's parameters are a frame's
 	// captures rather than a caller's arguments, and that the frame took a

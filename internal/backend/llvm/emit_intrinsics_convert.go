@@ -342,7 +342,14 @@ func (fe *funcEmitter) emitParseErrorMessage(strVal, kind string) (string, error
 	if err != nil {
 		return "", err
 	}
-	return fe.emitStringConcatAll(prefixVal, strVal, middleVal, strVal, suffixVal)
+	message, err := fe.emitStringConcatAll(prefixVal, strVal, middleVal, strVal, suffixVal)
+	if err != nil {
+		return "", err
+	}
+	for _, temporary := range []string{prefixVal, middleVal, suffixVal} {
+		fmt.Fprintf(&fe.emitter.buf, "  call void @rt_string_free(ptr %s)\n", temporary)
+	}
+	return message, nil
 }
 
 func (fe *funcEmitter) emitToSource(op *mir.Operand) (val, llvmTy string, typeID types.TypeID, err error) {

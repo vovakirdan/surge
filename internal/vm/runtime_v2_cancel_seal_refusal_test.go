@@ -38,14 +38,13 @@ func TestRuntimeV2LifecycleDebt263CancelAfterSealIsRefusedProof(t *testing.T) {
 	for _, threads := range []string{"2", "4", "8"} {
 		t.Run("threads-"+threads, func(t *testing.T) {
 			env := lifecycleEnv(
-				"SURGE_SHARDS=1",
-				"SURGE_THREADS="+threads,
+				"SURGE_SHARDS="+threads,
 				"SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_MARKDONE_AFTER_SEAL_BEFORE_DONE:block")
 			stdout, stderr, exitCode := runLifecycleHarness(
 				t, binPath, "debt263-cancel-after-seal", env)
 			if exitCode != 0 {
-				t.Fatalf("DEBT-263 seal-refusal proof failed at SURGE_THREADS=%s (code=%d)\nstdout:\n%s\nstderr:\n%s",
+				t.Fatalf("DEBT-263 seal-refusal proof failed at SURGE_SHARDS=%s (code=%d)\nstdout:\n%s\nstderr:\n%s",
 					threads, exitCode, stdout, stderr)
 			}
 			// Non-vacuity: the cancel really did land inside the residual
@@ -62,8 +61,7 @@ func TestRuntimeV2LifecycleDebt263CancelAfterSealIsRefusedProof(t *testing.T) {
 func TestRuntimeV2LifecycleDebt263CancelAfterSealNegativeControl(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarnessDebt263(t, true)
 	env := lifecycleEnv(
-		"SURGE_SHARDS=1",
-		"SURGE_THREADS=2",
+		"SURGE_SHARDS=2",
 		"SURGE_BLOCKING_THREADS=1",
 		"SURGE_SYNC_POINT=SP_MARKDONE_AFTER_SEAL_BEFORE_DONE:block")
 	stdout, stderr, exitCode := runLifecycleHarness(

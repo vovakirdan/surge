@@ -10,7 +10,7 @@
 #include "rt_value_ops.h"
 
 // Private channel-lane header shared by rt_async_channel.c (async fast
-// lanes) and rt_channel_sync.c (try/compat/blocking/close lanes). The
+// lanes) and rt_channel_sync.c (try/claim/blocking/close lanes). The
 // struct and helpers are static inline so each lane compiles the exact
 // same owner-lock protocol without exporting channel internals.
 
@@ -145,29 +145,6 @@ RT_CHANNEL_FAST_PATH int channel_recv_claim_blocks(const rt_channel* ch) {
 // woken to retry instead of having their value read remotely, so buffered
 // refill never strands a value between locks.
 
-// Sync-channel compat fallback: a peer that was RUNNING inside a blocking
-// helper is not enqueued by the leaf wake; its OS worker sleeps on compat_cv
-// under the control lock, so that broadcast is its only wake (the token is
-// already set). Called with no shard lock held.
-static inline void channel_compat_broadcast_if_needed(rt_executor* ex, int pushed) {
-    if (pushed) {
-        return;
-    }
-    const rt_channel_blocking_compat* compat = rt_executor_channel_blocking_compat_const(ex);
-    if (compat == NULL ||
-        atomic_load_explicit(&compat->channel_blocked_workers, memory_order_acquire) == 0) {
-        return;
-    }
-    int need_control = !rt_lane_holds_control();
-    if (need_control) {
-        rt_control_lock(ex);
-    }
-    pthread_cond_broadcast(&ex->compat_cv);
-    if (need_control) {
-        rt_control_unlock(ex);
-    }
-}
-
 static inline rt_shard* channel_owner_shard(rt_executor* ex, const rt_channel* ch) {
     return rt_runtime_shard(rt_executor_runtime(ex), ch->owner_shard_id);
 }
@@ -297,16 +274,12 @@ static inline int channel_deliver_foreign(rt_executor* ex,
     if (channel_candidate_valid(peer, w)) {
         rt_shard* peer_shard = rt_task_owner_shard(ex, peer);
         rt_shard_lock(peer_shard);
-        int pushed = 0;
         if (channel_candidate_valid(peer, w)) {
             channel_set_resume_locked(peer, resume_kind_value, resume_slot);
-            pushed = wake_task_on_shard_locked(ex, peer_shard, peer, 1, 0, 1, NULL);
+            (void)wake_task_on_shard_locked(ex, peer_shard, peer, 1, 0, 1, NULL);
             live = 1;
         }
         rt_shard_unlock(peer_shard);
-        if (live) {
-            channel_compat_broadcast_if_needed(ex, pushed);
-        }
     }
     if (need_control) {
         rt_control_unlock(ex);
@@ -343,10 +316,7 @@ static inline int channel_claim_foreign_sender_locked(
     if (channel_candidate_valid(sender, w)) {
         rt_shard* sender_shard = rt_task_owner_shard(ex, sender);
         rt_shard_lock(sender_shard);
-        int live = 0;
-        int pushed = 0;
         if (channel_candidate_valid(sender, w)) {
-            live = 1;
             rt_park_token slot = sender->resume_slot;
             // Nobody else can be taking this sender's value: the waiter entry
             // that names it was popped by this caller, and a take starts from
@@ -357,12 +327,9 @@ static inline int channel_claim_foreign_sender_locked(
                 sender->resume_kind = RESUME_CHAN_SEND_ACK;
                 claimed = 1;
             }
-            pushed = wake_task_on_shard_locked(ex, sender_shard, sender, 1, 0, 1, NULL);
+            (void)wake_task_on_shard_locked(ex, sender_shard, sender, 1, 0, 1, NULL);
         }
         rt_shard_unlock(sender_shard);
-        if (live) {
-            channel_compat_broadcast_if_needed(ex, pushed);
-        }
     }
     if (need_control) {
         rt_control_unlock(ex);
@@ -377,7 +344,7 @@ static inline int channel_claim_foreign_sender_locked(
 static inline void
 channel_park_prepare_locked(rt_shard* owner_shard, rt_task* task, waker_key key) {
     rt_waiter_store* store = &owner_shard->waiter_store;
-    // Dedupe against the store itself: absorbed wakes and compat_cv wakeups
+    // Dedupe against the store itself: absorbed wakes
     // re-enter this path without their entry having been popped; appending
     // again would strand a duplicate that outlives this park and, once the
     // guest reuses the channel address, misdelivers into an unrelated park.
@@ -403,7 +370,7 @@ channel_park_prepare_locked(rt_shard* owner_shard, rt_task* task, waker_key key)
         fatal_oom_msg("async: waiter allocation failed");
         return;
     }
-    uint32_t owner_hint = task->owner_shard_valid != 0 ? task->owner_shard_id : 0;
+    uint32_t owner_hint = rt_task_owner_shard_id(owner_shard->executor, task);
     task->park_seq++;
     if (task->park_seq == 0) {
         task->park_seq = 1;

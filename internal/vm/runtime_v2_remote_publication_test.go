@@ -98,37 +98,38 @@ func TestRuntimeV2RemotePublicationBehavior(t *testing.T) {
 		{
 			name: "publish-other-shard-2",
 			mode: "publish-other",
-			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1"),
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1"),
 		},
 		{
 			name: "publish-other-shard-8",
 			mode: "publish-other",
-			env:  remotePublicationEnv("SURGE_SHARDS=8", "SURGE_THREADS=8", "SURGE_BLOCKING_THREADS=1"),
+			env:  remotePublicationEnv("SURGE_SHARDS=8", "SURGE_BLOCKING_THREADS=1"),
 		},
 		{
 			name: "self-crossing",
 			mode: "self-crossing",
-			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1"),
+			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_BLOCKING_THREADS=1"),
 		},
 		{
 			name: "queue-full",
 			mode: "queue-full",
-			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1"),
+			env: remotePublicationEnv("SURGE_SHARDS=1", "SURGE_BLOCKING_THREADS=1",
+				"SURGE_TEST_HOLD_TRANSPORT_DRAIN=1"),
 		},
 		{
 			name: "shutdown",
 			mode: "shutdown",
-			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1"),
+			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_BLOCKING_THREADS=1"),
 		},
 		{
 			name: "shutdown-queued-kinds",
 			mode: "shutdown-queued-kinds",
-			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1"),
+			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_BLOCKING_THREADS=1"),
 		},
 		{
 			name: "stale-token",
 			mode: "stale-token",
-			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1"),
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1"),
 		},
 	}
 	for _, row := range rows {
@@ -164,24 +165,24 @@ func TestRuntimeV2RemoteSpawnAbandonEdges(t *testing.T) {
 			// queue-full row.
 			name: "refusal-shutdown-drops-once",
 			mode: "refusal-drop-shutdown",
-			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1"),
+			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_BLOCKING_THREADS=1"),
 		},
 		{
 			name: "abandon-before-dispatch",
 			mode: "abandon-before-dispatch",
-			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_REMOTE_SPAWN_BEFORE_DISPATCH:block"),
 		},
 		{
 			name: "abandon-before-body-publish",
 			mode: "abandon-before-body-publish",
-			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_REMOTE_SPAWN_BEFORE_BODY_PUBLISH:block"),
 		},
 		{
 			name: "abandon-before-ack",
 			mode: "abandon-before-ack",
-			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_REMOTE_SPAWN_BEFORE_ACK:block"),
 		},
 		{
@@ -190,7 +191,7 @@ func TestRuntimeV2RemoteSpawnAbandonEdges(t *testing.T) {
 			// full lane can never orphan the handle or the shipped state.
 			name: "ack-rescue-drain-after-handoff",
 			mode: "ack-rescue-drain",
-			env: remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1",
+			env: remotePublicationEnv("SURGE_SHARDS=1", "SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_REMOTE_SPAWN_BEFORE_ACK:block"),
 		},
 	}
@@ -220,12 +221,14 @@ func TestRuntimeV2ImmediateOnAbandonEdges(t *testing.T) {
 		{
 			name: "refusal-queue-full-drops-once",
 			mode: "immediate-refusal-queue-full",
-			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1"),
+			env: remotePublicationEnv("SURGE_SHARDS=1", "SURGE_BLOCKING_THREADS=1",
+				"SURGE_TEST_HOLD_TRANSPORT_DRAIN=1",
+				"SURGE_SYNC_POINT=SP_TRANSPORT_DATA_SLOT_TASK_PARKED:block"),
 		},
 		{
 			name: "refusal-shutdown-drops-once",
 			mode: "immediate-refusal-shutdown",
-			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1"),
+			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_BLOCKING_THREADS=1"),
 		},
 		{
 			// Caller cancelled while the request is UNBOUND: the teardown
@@ -234,7 +237,7 @@ func TestRuntimeV2ImmediateOnAbandonEdges(t *testing.T) {
 			// exactly once.
 			name: "cancel-unbound-refuses-body",
 			mode: "immediate-cancel-unbound",
-			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_IMMEDIATE_ON_BEFORE_DISPATCH:block"),
 		},
 		{
@@ -244,7 +247,7 @@ func TestRuntimeV2ImmediateOnAbandonEdges(t *testing.T) {
 			// with the publication never drops through the pending.
 			name: "cancel-bound-reply-resolves-once",
 			mode: "immediate-cancel-bound",
-			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_IMMEDIATE_ON_BEFORE_PUBLISH:block"),
 		},
 		{
@@ -255,7 +258,7 @@ func TestRuntimeV2ImmediateOnAbandonEdges(t *testing.T) {
 			// released — no drop, no second body.
 			name: "duplicate-request-fails-token-match",
 			mode: "immediate-duplicate-request",
-			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_IMMEDIATE_ON_BEFORE_PUBLISH:block"),
 		},
 		{
@@ -264,7 +267,7 @@ func TestRuntimeV2ImmediateOnAbandonEdges(t *testing.T) {
 			// released.
 			name: "stale-reply-releases-reference-only",
 			mode: "immediate-stale-reply",
-			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_IMMEDIATE_ON_BEFORE_PUBLISH:block"),
 		},
 		{
@@ -275,7 +278,7 @@ func TestRuntimeV2ImmediateOnAbandonEdges(t *testing.T) {
 			// registry's own reclaim rule).
 			name: "anchored-stale-anchor-refuses",
 			mode: "anchored-stale-anchor",
-			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1"),
+			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_BLOCKING_THREADS=1"),
 		},
 		{
 			// Happy path: the anchored execute completes, the reply carries
@@ -284,7 +287,7 @@ func TestRuntimeV2ImmediateOnAbandonEdges(t *testing.T) {
 			// afterward and observing immediate reclaim).
 			name: "anchored-happy-path-pin-balance",
 			mode: "anchored-happy-path",
-			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1"),
+			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_BLOCKING_THREADS=1"),
 		},
 		{
 			// The anchored twin of the unbound teardown row: the sweep must
@@ -292,7 +295,7 @@ func TestRuntimeV2ImmediateOnAbandonEdges(t *testing.T) {
 			// the snapshot check before the pin, no body, one drop.
 			name: "anchored-cancel-unbound-refuses-body",
 			mode: "anchored-cancel-unbound",
-			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_IMMEDIATE_ON_BEFORE_DISPATCH:block"),
 		},
 		{
@@ -303,7 +306,7 @@ func TestRuntimeV2ImmediateOnAbandonEdges(t *testing.T) {
 			// once at that same reply edge.
 			name: "anchored-cancel-bound-reply-resolves-once",
 			mode: "anchored-cancel-bound",
-			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_IMMEDIATE_ON_BEFORE_PUBLISH:block"),
 		},
 	}
@@ -337,7 +340,7 @@ func TestRuntimeV2RemoteSelectAbandonEdges(t *testing.T) {
 		{
 			name: "cancel-vs-commit-ships-winner",
 			mode: "far-select-cancel-vs-commit",
-			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY:block"),
 		},
 		{
@@ -346,50 +349,50 @@ func TestRuntimeV2RemoteSelectAbandonEdges(t *testing.T) {
 			// and the winner's payload both survive it.
 			name: "commit-vs-shutdown-sweep-keeps-the-record",
 			mode: "far-select-commit-vs-shutdown-sweep",
-			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY:block"),
 		},
 		{
 			name: "cancel-before-dispatch-refuses-body",
 			mode: "far-select-cancel-before-dispatch",
-			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_FAR_SELECT_BEFORE_DISPATCH:block"),
 		},
 		{
 			name: "double-cancel-is-idempotent",
 			mode: "far-select-double-cancel",
-			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY:block"),
 		},
 		{
 			name: "refusal-after-shipped-unpins-prefix",
 			mode: "far-select-refusal-after-shipped",
-			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1"),
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1"),
 		},
 		{
 			name: "initial-owner-mismatch-drops-payloads",
 			mode: "far-select-initial-owner-mismatch",
-			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1"),
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1"),
 		},
 		{
 			name: "initial-null-anchor-array-drops-payload",
 			mode: "far-select-initial-null-anchors",
-			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1"),
+			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_BLOCKING_THREADS=1"),
 		},
 		{
 			name: "initial-enqueue-refusal-drops-payload-once",
 			mode: "far-select-enqueue-refusal",
-			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_THREADS=1", "SURGE_BLOCKING_THREADS=1"),
+			env:  remotePublicationEnv("SURGE_SHARDS=1", "SURGE_BLOCKING_THREADS=1"),
 		},
 		{
 			name: "recv-winner-returns-losing-payload",
 			mode: "far-select-recv-winner-handback",
-			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1"),
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1"),
 		},
 		{
 			name: "send-arm-carries-a-payload-wider-than-a-word",
 			mode: "far-select-wide-payload",
-			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1"),
+			env:  remotePublicationEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1"),
 		},
 	}
 	for _, row := range rows {
@@ -419,19 +422,19 @@ func TestRuntimeV2RemoteSpawnStaleGenerationRows(t *testing.T) {
 		{
 			name: "stale-request-before-body",
 			mode: "stale-request-before-body",
-			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_REMOTE_SPAWN_BEFORE_DISPATCH:block"),
 		},
 		{
 			name: "duplicate-request-after-handoff",
 			mode: "duplicate-request-after-handoff",
-			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_REMOTE_SPAWN_BEFORE_ACK:block"),
 		},
 		{
 			name: "stale-ack-after-resolution",
 			mode: "stale-ack-after-resolution",
-			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1",
+			env: remotePublicationEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_REMOTE_SPAWN_BEFORE_ACK:block"),
 		},
 	}

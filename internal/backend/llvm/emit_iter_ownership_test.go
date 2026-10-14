@@ -29,7 +29,7 @@ fn main() -> int {
 			if err != nil {
 				t.Fatal(err)
 			}
-			body := functionBody(t, ir, findMIRFunc(t, module, "main").ID)
+			body := functionBody(t, ir, findMIRRootBody(t, module).ID)
 			// A cursor addresses its element by a runtime stride. Constant
 			// offsets in literal initialization and bound descriptors cannot
 			// satisfy this shape, so this selects the actual yielded load.

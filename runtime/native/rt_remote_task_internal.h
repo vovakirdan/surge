@@ -110,6 +110,8 @@ struct rt_remote_task_pending {
     // single drop site while owned.
     uint64_t state_type_id;
     uint8_t state_owned;
+    // A create/share reply owns its minted lease until the caller takes it.
+    uint8_t channel_handle_owned;
     rt_far_task_handle anchor;
     // Anchored blocks only: the local channel resolved atomically with the
     // dispatch-time pin; valid until the reply-edge unpin.
@@ -194,7 +196,10 @@ rt_remote_task_pending* rt_remote_task_pending_new(rt_executor* ex,
                                                    int listed);
 void rt_remote_task_pending_add_ref(rt_remote_task_pending* pending);
 void rt_remote_task_pending_release(rt_remote_task_pending* pending);
+void rt_remote_task_pending_reclaim(rt_remote_task_pending* pending);
+void rt_remote_task_reclaim_drain(void);
 void rt_remote_task_pending_consume(rt_remote_task_pending* pending);
+void rt_remote_task_pending_release_reply(rt_remote_task_pending* pending);
 rt_remote_task_status rt_remote_task_pending_snapshot(const rt_remote_task_pending* pending,
                                                       uint8_t* out_kind);
 // The capability this reply carries, if any. Copied out under the state lock,

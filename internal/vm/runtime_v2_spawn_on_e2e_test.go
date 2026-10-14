@@ -97,7 +97,7 @@ func TestRuntimeV2SpawnOn(t *testing.T) {
 		}
 		skipTimeoutTests(t)
 		outputPath := buildRuntimeV2CrossingSource(t, spawnOnA3PlainBodySource, nil)
-		env := overrideEnvVar(overrideEnvVar(envWithStdlib(repoRoot(t)), "SURGE_SHARDS", "2"), "SURGE_THREADS", "2")
+		env := overrideEnvVar(envWithStdlib(repoRoot(t)), "SURGE_SHARDS", "2")
 		_, res := runBinaryWithTimeout(t, outputPath, env, 60*time.Second)
 		if res.exitCode != 46 {
 			t.Fatalf("exit %d stdout %q stderr %q, want 46: the far body computed 6 + 40 from its copy", res.exitCode, res.stdout, res.stderr)

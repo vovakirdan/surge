@@ -25,7 +25,7 @@ async fn f(ch: far Channel<int>, task: far Task<int>) -> TaskResult<nothing> {
     let value: int = 1;
     return on ch {
         ch.send(own value);
-        let _cancelled: TaskResult<nothing> = task.cancel();
+        let _held: far Task<int> = task;
         ret nothing;
     };
 }
@@ -50,7 +50,7 @@ async fn wait(t: far Task<string>) -> TaskResult<string> {
 			src: `
 async fn start(dst: Placement, task: far Task<int>) -> far Task<int> {
     return spawn on dst {
-        let _cancelled: TaskResult<nothing> = task.cancel();
+        let _held: far Task<int> = task;
         ret 1;
     };
 }
@@ -72,9 +72,24 @@ async fn take(ch: far Channel<int>) -> TaskResult<Option<int>> {
 async fn f(ch: far Channel<int64>, task: far Task<int>) -> TaskResult<nothing> {
     return on ch {
         ch.send(1:int64);
-        let _cancelled: TaskResult<nothing> = task.cancel();
+        let _held: far Task<int> = task;
         ret nothing;
     };
+}
+`,
+			codes: []diag.Code{diag.FutCrossingPayloadNotShippable},
+		},
+		{
+			name: "local task cannot ride an on reply",
+			src: `
+async fn worker(x: int64) -> int64 { return x; }
+async fn hand_off() -> int {
+    let reply = on pool {
+        let local = worker(5:int64);
+        ret local;
+    };
+    let _ = reply;
+    return 0;
 }
 `,
 			codes: []diag.Code{diag.FutCrossingPayloadNotShippable},
@@ -144,7 +159,7 @@ func TestCrossingPayloadDiagnosticNamesTheField(t *testing.T) {
 			src: `
 async fn f(ch: far Channel<int>, task: far Task<int>) -> TaskResult<nothing> {
     let value: int = 1;
-    return on ch { ch.send(own value); let _c: TaskResult<nothing> = task.cancel(); ret nothing; };
+    return on ch { ch.send(own value); let _held: far Task<int> = task; ret nothing; };
 }
 `,
 			contains: []string{"capture `task`", "carries a `far Task` lease"},
@@ -174,7 +189,7 @@ async fn take(ch: far Channel<int>) -> TaskResult<Option<int>> {
 			name: "far task capture names the binding",
 			src: `
 async fn f(ch: far Channel<int64>, task: far Task<int>) -> TaskResult<nothing> {
-    return on ch { ch.send(1:int64); let _c: TaskResult<nothing> = task.cancel(); ret nothing; };
+    return on ch { ch.send(1:int64); let _held: far Task<int> = task; ret nothing; };
 }
 `,
 			contains: []string{"capture `task`", "carries a `far Task` lease"},

@@ -52,7 +52,7 @@ func (a *returnOriginAnalyzer) genericInstanceKind(key InstanceKey, template sym
 
 // Both calls and selected index operations must retain the same exact current
 // instance, original producing root and owning typed expression.
-func (a *returnOriginAnalyzer) genericUseContext(use ConcreteInstantiationUse) (*returnOriginFunction, *returnOriginFunction, ast.ExprID, string) {
+func (a *returnOriginAnalyzer) genericUseContext(use *ConcreteInstantiationUse) (selected, owner *returnOriginFunction, expr ast.ExprID, failure string) {
 	if reason := a.genericInstance(use.Callee, use.CalleeTemplate, use.TemplateArgs); reason != "" {
 		return nil, nil, ast.NoExprID, reason
 	}
@@ -81,7 +81,9 @@ func (a *returnOriginAnalyzer) genericUseContext(use ConcreteInstantiationUse) (
 		return nil, nil, ast.NoExprID, "generic use disagrees with its owning caller"
 	}
 	matched := 0
-	for _, root := range authority.InstantiationGraph.Roots() {
+	roots := authority.InstantiationGraph.Roots()
+	for i := range roots {
+		root := &roots[i]
 		witness, err := canonicalInstantiationWitness(&root.Witness, *authority.InstantiationIdentity)
 		if err == nil && root.Kind == use.Kind && root.Template == use.CalleeTemplate && root.Witness.Caller == use.CallerTemplate &&
 			witness.SourceKey == use.SourceKey && root.Witness.Site == use.Site && slices.Equal(root.TemplateArgs, use.TemplateArgs) {
@@ -94,8 +96,11 @@ func (a *returnOriginAnalyzer) genericUseContext(use ConcreteInstantiationUse) (
 	var expression ast.ExprID
 	for id, typ := range caller.unit.Sema.ExprTypes {
 		if node := caller.unit.Builder.Exprs.Get(id); node != nil && node.Span == use.Site {
-			if expression.IsValid() || typ == types.NoTypeID || (node.Kind != ast.ExprCall && node.Kind != ast.ExprIndex) {
+			if expression.IsValid() || typ == types.NoTypeID {
 				return fn, caller, ast.NoExprID, returnOriginUseOtherOperation
+			}
+			if node.Kind != ast.ExprCall && node.Kind != ast.ExprIndex {
+				return fn, caller, id, returnOriginUseOtherOperation
 			}
 			expression = id
 		}
@@ -109,7 +114,7 @@ func (a *returnOriginAnalyzer) genericUseContext(use ConcreteInstantiationUse) (
 // Current uses reuse the original signature reader after their independent
 // instance/root/caller checks. An original-body proof cannot supply a missing
 // finalized use, and a concrete use cannot replace the source request.
-func (a *returnOriginAnalyzer) genericCallUseInfo(fn, caller *returnOriginFunction, expression ast.ExprID, use ConcreteInstantiationUse) (*returnOriginSignature, string) {
+func (a *returnOriginAnalyzer) genericCallUseInfo(fn, caller *returnOriginFunction, expression ast.ExprID, use *ConcreteInstantiationUse) (resultSignature *returnOriginSignature, failure string) {
 	if view, reason, deferred := a.deferredImplementationUse(fn, caller, expression, use); deferred {
 		return view, reason
 	}
@@ -151,37 +156,47 @@ func (a *returnOriginAnalyzer) checkGenericUses() error {
 		}
 		return nil
 	}
-	for _, use := range closure.UseSites {
+	for i := range closure.UseSites {
+		use := &closure.UseSites[i]
 		if err := a.ctx.Err(); err != nil {
 			return err
 		}
 		if use.Kind != InstantiationFunction && use.Kind != InstantiationTag {
-			pending(use, "generic use has an unknown template kind")
+			pending(*use, "generic use has an unknown template kind")
 			continue
 		}
 		duplicates := 0
-		for _, other := range closure.UseSites {
+		for j := range closure.UseSites {
+			other := &closure.UseSites[j]
 			if other.Kind == use.Kind && other.CalleeTemplate == use.CalleeTemplate && other.Caller == use.Caller &&
 				other.CallerTemplate == use.CallerTemplate && other.SourceKey == use.SourceKey && other.Site == use.Site {
 				duplicates++
 			}
 		}
 		if duplicates != 1 {
-			pending(use, "generic use has duplicate or contradictory finalized authority")
+			pending(*use, "generic use has duplicate or contradictory finalized authority")
 			continue
 		}
 		if use.Kind == InstantiationTag {
 			if reason := a.checkTagUse(use); reason != "" {
-				pending(use, reason)
+				pending(*use, reason)
 			}
 			continue
 		}
 		fn, caller, expression, reason := a.genericUseContext(use)
 		if handled, synthesized := a.checkSynthesizedUse(fn, caller, use, reason); handled {
 			if synthesized != "" {
-				pending(use, synthesized)
+				pending(*use, synthesized)
 			}
 			continue
+		}
+		if reason == returnOriginUseOtherOperation && expression.IsValid() {
+			if _, handled, functionValueReason := a.genericFunctionValueAt(fn, caller, expression, use.Site); handled {
+				if functionValueReason != "" {
+					pending(*use, functionValueReason)
+				}
+				continue
+			}
 		}
 		mapIndexed := false
 		if reason == "" && caller.unit.Builder.Exprs.Get(expression).Kind == ast.ExprIndex {
@@ -208,10 +223,12 @@ func (a *returnOriginAnalyzer) checkGenericUses() error {
 			}
 		}
 		if reason != "" {
-			pending(use, reason)
+			pending(*use, reason)
 		}
 	}
-	for _, root := range authority.InstantiationGraph.Roots() {
+	roots := authority.InstantiationGraph.Roots()
+	for rootIndex := range roots {
+		root := &roots[rootIndex]
 		if root.Kind != InstantiationFunction && root.Kind != InstantiationTag {
 			pending(ConcreteInstantiationUse{SourceKey: root.Witness.SourceKey, Site: root.Witness.Site}, "generic root has an unknown template kind")
 			continue
@@ -224,9 +241,15 @@ func (a *returnOriginAnalyzer) checkGenericUses() error {
 			return err
 		}
 		use := ConcreteInstantiationUse{CallerTemplate: root.Witness.Caller, CalleeTemplate: root.Template, SourceKey: witness.SourceKey, Site: root.Witness.Site}
+		rootKey, keyErr := NewInstanceKey(*authority.InstantiationIdentity, root.Template, root.TemplateArgs)
+		if keyErr != nil {
+			pending(use, "generic root lacks its canonical instance key")
+			continue
+		}
 		matched := 0
-		for _, actual := range closure.UseSites {
-			if actual.Caller == (InstanceKey{}) && actual.CallerTemplate == use.CallerTemplate && actual.CalleeTemplate == use.CalleeTemplate &&
+		for i := range closure.UseSites {
+			actual := &closure.UseSites[i]
+			if actual.Caller == (InstanceKey{}) && actual.CallerTemplate == use.CallerTemplate && actual.Callee == rootKey &&
 				actual.Kind == root.Kind && actual.SourceKey == use.SourceKey && actual.Site == use.Site &&
 				(root.Kind != InstantiationTag || slices.Equal(actual.TemplateArgs, root.TemplateArgs)) {
 				matched++
@@ -239,7 +262,8 @@ func (a *returnOriginAnalyzer) checkGenericUses() error {
 	if err := a.checkCurrentConditionEdges(pending); err != nil {
 		return err
 	}
-	for i, instance := range closure.Instances {
+	for i := range closure.Instances {
+		instance := &closure.Instances[i]
 		if instance.Kind != InstantiationFunction && instance.Kind != InstantiationTag {
 			pending(ConcreteInstantiationUse{SourceKey: instance.Witness.SourceKey, Site: instance.Witness.Site}, "generic instance has an unknown template kind")
 			continue

@@ -21,9 +21,9 @@ import (
 // program, byte for byte, is refused by TestTaskDroppedRefusesTheBorrowedOriginals/failfast_member --
 // so it borrows nothing and 40 (a read after the block released `l`) cannot occur. Before the
 // runtime answered such a task unrun, the borrowed form exited 40 natively in 31 of 300 runs at
-// SURGE_THREADS=4 and 38 of 300 at 8 (measured at 0aa69629); the VM, which runs tasks on one
-// thread, cannot open the window (0 of 20). The borrow-free member is not carrier-affine, so its
-// window rate is its own: K below is re-derived from DROPTASK's stage S-FAILFAST-K.
+// SURGE_SHARDS=4 and 38 of 300 at 8 (measured at 0aa69629); the VM, which runs tasks on one
+// carrier, cannot open the window (0 of 20). The borrow-free member's window
+// rate is its own: K below is re-derived from DROPTASK's stage S-FAILFAST-K.
 //
 // A statistical detector, not a witness: nothing in the program can show the window opened.
 // It runs where SURGE_SKIP_TIMEOUT_TESTS=0 (the nightly llvm suite) unless a gate names it.
@@ -65,9 +65,9 @@ fn main() -> int {
 }
 `
 
-// coldFailfastMemberRuns is K per thread count on the native backend. The rates above were the
-// borrowed, carrier-affine member's; the borrow-free member's rate p is re-measured with RT-COLD-2's
-// CF1 composed (DROPTASK S-FAILFAST-K, 300 runs at 4 and at 8 threads), and K must satisfy
+// coldFailfastMemberRuns is K per shard count on the native backend. The
+// borrow-free member's rate p is re-measured with RT-COLD-2's CF1 composed
+// (DROPTASK S-FAILFAST-K, 300 runs at 4 and at 8 shards), and K must satisfy
 // (1-p)^K <= 1e-2 per cell: K = 50 holds for p >= 0.088; below that rate this constant is raised
 // to ceil(ln(0.01)/ln(1-p)) with p stated here.
 const coldFailfastMemberRuns = 50
@@ -85,22 +85,22 @@ func TestRuntimeV2ColdCancelledMemberNeverRuns(t *testing.T) {
 		t.Fatalf("first run: exit %d stdout %q stderr %q, want exit 0 and no output", res.exitCode, res.stdout, res.stderr)
 	}
 	if testBackend(t) != backendLLVM {
-		return // one thread runs every task: the first run is the whole answer
+		return // the VM runs every task on one executor: the first run is the whole answer
 	}
 	bin := llvmOutputPath(root, src)
-	for _, threads := range []string{"4", "8"} {
+	for _, shards := range []string{"4", "8"} {
 		bad := map[string]int{}
 		for range coldFailfastMemberRuns {
 			cmd := exec.Command(bin)
-			cmd.Env = append(os.Environ(), "SURGE_THREADS="+threads)
+			cmd.Env = append(os.Environ(), "SURGE_SHARDS="+shards)
 			stdout, stderr, code := runCommand(t, cmd, "")
 			if code != 0 || stdout != "" || stderr != "" {
 				bad[fmt.Sprintf("exit=%d stdout=%q stderr=%.200q", code, stdout, strings.TrimSpace(stderr))]++
 			}
 		}
 		if len(bad) > 0 {
-			t.Errorf("SURGE_THREADS=%s: runs that were not a clean exit 0 out of %d (46: a member cancelled while cold ran): %v",
-				threads, coldFailfastMemberRuns, bad)
+			t.Errorf("SURGE_SHARDS=%s: runs that were not a clean exit 0 out of %d (46: a member cancelled while cold ran): %v",
+				shards, coldFailfastMemberRuns, bad)
 		}
 	}
 }

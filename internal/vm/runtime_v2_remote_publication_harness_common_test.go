@@ -7,7 +7,7 @@ package vm_test
 // One program with a mode switch rather than one per case, because every case
 // needs the same runtime brought up the same way and copies would drift.
 const remotePublicationHarnessCommon = `
-#define _POSIX_C_SOURCE 199309L
+#define _POSIX_C_SOURCE 200809L
 #include "rt_async_internal.h"
 #include "rt_channel_refcount.h"
 #include "rt_far_channel.h"
@@ -238,6 +238,18 @@ static int fill_data_lane(rt_executor* ex, uint32_t dst) {
     return rt_transport_enqueue(shard, &data) == RT_TRANSPORT_STATUS_OK;
 }
 
+static void clear_synthetic_data_lane_without_wake(rt_executor* ex, uint32_t dst) {
+    rt_shard* shard = rt_runtime_shard(rt_executor_runtime(ex), dst);
+    if (shard == NULL) {
+        return;
+    }
+    rt_shard_lock(shard);
+    memset(shard->transport.data, 0, sizeof(shard->transport.data));
+    shard->transport.data_head = 0;
+    shard->transport.data_len = 0;
+    rt_shard_unlock(shard);
+}
+
 // The exactly-once census for the shipped-state ownership contract. The
 // abandon/refusal rows publish a droppable state and the runtime destroys it
 // through that state type's DESCRIPTOR -- the drop below, then the block --
@@ -282,9 +294,8 @@ static int wait_admission_parks(rt_executor* ex, uint32_t shard_id, uint64_t wan
         if (rt_transport_debug_snapshot(shard).data_admission_parks >= want) {
             return 1;
         }
-        // Under one carrier the driver is the pump: the caller parks from a
-        // poll only this loop gives it.
-        (void)run_ready_one(ex);
+        // The shard's sole carrier owns every poll. The external harness only
+        // observes; it must not become a second inline scheduler.
         sleep_us(1000);
     }
     return 0;

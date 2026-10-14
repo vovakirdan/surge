@@ -152,7 +152,7 @@ func TestRuntimeV2HTTPOwnerLocalBehavior(t *testing.T) {
 			port := pickFreePort(t)
 			env := runtimeV2AcceptEnv(t)
 			env = overrideEnvVar(env, "SURGE_SHARDS", strconv.Itoa(shards))
-			env = overrideEnvVar(env, "SURGE_THREADS", strconv.Itoa(shards))
+			env = overrideEnvVar(env, "SURGE_SHARDS", strconv.Itoa(shards))
 			env = overrideEnvVar(env, "SURGE_TRACE_EXEC", "1")
 			srv := startRuntimeV2AcceptServer(
 				t,

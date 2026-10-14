@@ -34,7 +34,7 @@ func (b *returnOriginBody) indexStore(lhs ast.ExprID, owner, rhs returnOriginVal
 // indexStoreOperation certifies the store's typed operands and, when SEMA
 // recorded one, its selected `__index_set`. An invalid present entry never falls
 // back to the native store, and a place that also records a read is refused.
-func (a *returnOriginAnalyzer) indexStoreOperation(caller *returnOriginFunction, lhs ast.ExprID) (returnOriginIndexType, string) {
+func (a *returnOriginAnalyzer) indexStoreOperation(caller *returnOriginFunction, lhs ast.ExprID) (index returnOriginIndexType, reason string) {
 	u := caller.unit
 	in := u.Sema.TypeInterner
 	data, ok := u.Builder.Exprs.Index(lhs)
@@ -95,7 +95,7 @@ func (a *returnOriginAnalyzer) indexSetDeclaration(fn *returnOriginFunction, act
 
 // checkIndexStoreUse answers a finalized `__index_set` use at a store place: the
 // same certificate, and element and length arguments bound from its caller.
-func (a *returnOriginAnalyzer) checkIndexStoreUse(fn, caller *returnOriginFunction, id ast.ExprID, use ConcreteInstantiationUse) string {
+func (a *returnOriginAnalyzer) checkIndexStoreUse(fn, caller *returnOriginFunction, id ast.ExprID, use *ConcreteInstantiationUse) string {
 	u := caller.unit
 	in := u.Sema.TypeInterner
 	container, reason := a.indexStoreOperation(caller, id)
@@ -111,7 +111,10 @@ func (a *returnOriginAnalyzer) checkIndexStoreUse(fn, caller *returnOriginFuncti
 
 // arrayRangeView is G4 for `x[r]` over payload-free elements: a fixed base's
 // view borrows its storage, a dynamic one carries the base value's loans.
-func (b *returnOriginBody) arrayRangeView(id ast.ExprID, target returnOriginExprResult, env returnOriginEnv, span source.Span) (returnOriginValue, bool) {
+func (b *returnOriginBody) arrayRangeView(id ast.ExprID, target *returnOriginExprResult, env returnOriginEnv, span source.Span) (returnOriginValue, bool) {
+	if target == nil {
+		return returnOriginValue{}, false
+	}
 	container, reason := b.analyzer.arrayRangeIndex(b.function, id)
 	if reason != "" || !b.elementsFreeAt(container, span) {
 		return returnOriginValue{}, false
@@ -132,7 +135,7 @@ func (b *returnOriginBody) arrayRangeView(id ast.ExprID, target returnOriginExpr
 
 // arrayRangeIndex certifies `x[r]` with an int Range over a canonical container,
 // natively or through its selected builtin `__index(Range)`.
-func (a *returnOriginAnalyzer) arrayRangeIndex(caller *returnOriginFunction, id ast.ExprID) (returnOriginIndexType, string) {
+func (a *returnOriginAnalyzer) arrayRangeIndex(caller *returnOriginFunction, id ast.ExprID) (index returnOriginIndexType, reason string) {
 	u := caller.unit
 	in := u.Sema.TypeInterner
 	data, ok := u.Builder.Exprs.Index(id)
@@ -180,7 +183,7 @@ func (a *returnOriginAnalyzer) arrayRangeIndex(caller *returnOriginFunction, id 
 
 // checkArrayRangeIndexUse answers a finalized `__index(Range)` use over
 // payload-free elements; any other use keeps its scalar index reason.
-func (a *returnOriginAnalyzer) checkArrayRangeIndexUse(fn, caller *returnOriginFunction, id ast.ExprID, use ConcreteInstantiationUse) (handled bool, reason string) {
+func (a *returnOriginAnalyzer) checkArrayRangeIndexUse(fn, caller *returnOriginFunction, id ast.ExprID, use *ConcreteInstantiationUse) (handled bool, reason string) {
 	u := caller.unit
 	in := u.Sema.TypeInterner
 	container, reason := a.arrayRangeIndex(caller, id)

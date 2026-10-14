@@ -80,7 +80,10 @@ func (b *returnOriginBody) compareChoices(id types.TypeID) []returnOriginCompare
 	return []returnOriginCompareChoice{{opaque: true}}
 }
 
-func (p returnOriginComparePattern) split(choices []returnOriginCompareChoice) (matched, missed []returnOriginCompareChoice) {
+func (p *returnOriginComparePattern) split(choices []returnOriginCompareChoice) (matched, missed []returnOriginCompareChoice) {
+	if p == nil {
+		return nil, choices
+	}
 	for _, choice := range choices {
 		switch {
 		case p.known && p.all:

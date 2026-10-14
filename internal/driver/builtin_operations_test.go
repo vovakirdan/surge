@@ -19,10 +19,13 @@ func TestBuiltinOperationIsIngestedOnce(t *testing.T) {
 	} {
 		t.Run(filepath.ToSlash(source), func(t *testing.T) {
 			t.Setenv("SURGE_STDLIB", repo)
+			// These are library source files used as catalog fixtures, not executable
+			// roots. The test reads the pre-HIR authority; whole-program return-origin
+			// finalization is covered by the executable root suites.
 			result, err := DiagnoseWithOptions(
 				context.Background(),
 				filepath.Join(repo, source),
-				&DiagnoseOptions{Stage: DiagnoseStageAll, MaxDiagnostics: 64},
+				&DiagnoseOptions{Stage: DiagnoseStageAll, MaxDiagnostics: 64, SkipReturnOriginFinalization: true},
 			)
 			if err != nil {
 				t.Fatalf("diagnose %s: %v", source, err)

@@ -1,8 +1,8 @@
 #include "remote_task_behavior.h"
+
 #include "rt_far_channel.h"
 #include "rt_placement.h"
 #include "rt_resident_bytes.h"
-
 #include <string.h>
 
 // Exactly-once-drop rows for shipped crossing states (the no-remote-owner
@@ -29,11 +29,6 @@ typedef struct rtb_drop_state {
     rt_remote_task_pending* pending;
     _Atomic(rt_remote_task_pending*) visible_pending;
     uint64_t placement;
-    uint32_t flood_destination;
-    // Request the executor's shutdown from inside the caller's own poll, the
-    // moment its submission parks: the poll then observes the resolution on
-    // its next turn, whatever carrier it lands on.
-    uint32_t shutdown_after_park;
     rt_far_task_handle anchor;
     rt_far_task_handle anchor_slots[2];
     const rt_far_task_handle* anchors[2];
@@ -90,15 +85,6 @@ static void poll_rtb_drop_anchored_recv(rtb_drop_state* state) {
 }
 
 static void poll_rtb_drop_anchored(rtb_drop_state* state) {
-    if (state->flood_destination != 0 && state->pending == NULL) {
-        rt_executor* ex = ensure_exec();
-        rt_shard* owner = rt_runtime_shard(rt_executor_runtime(ex), state->anchor.owner_shard_id);
-        rt_shard_lock(owner);
-        memset(owner->transport.data, 0, sizeof(owner->transport.data));
-        owner->transport.data_head = 0;
-        owner->transport.data_len = RT_TRANSPORT_DATA_SLOT_CREDITS;
-        rt_shard_unlock(owner);
-    }
     uint8_t kind = 0;
     uint64_t bits = 0;
     state->status = rt_immediate_on_execute_anchored(&state->anchor,
@@ -110,10 +96,6 @@ static void poll_rtb_drop_anchored(rtb_drop_state* state) {
                                                      &kind,
                                                      &bits);
     if (state->status == RT_REMOTE_TASK_STATUS_PENDING) {
-        if (state->shutdown_after_park != 0 && state->flood_destination != 0) {
-            state->shutdown_after_park = 0;
-            (void)rt_executor_request_shutdown(ensure_exec());
-        }
         rt_async_yield(state, 0);
     }
     state->result_kind = kind;
@@ -240,42 +222,6 @@ int rtb_mode_drop_stale_anchor(void) {
     int rc = rtb_drop_expect_exactly_once(&state, "drop-stale-anchor");
     (void)rt_executor_request_shutdown(ex);
     return rc;
-}
-
-// Row: a saturated destination data lane parks the caller with its shipped
-// state still owned by the pending (no rollback, no drop while parked). The
-// caller requests shutdown from inside its own poll the moment it parks, so
-// the resolution reaches it on its next turn whatever carrier runs it: the
-// request finishes DESTINATION_SHUTDOWN, no body ever ran, and the pending's
-// terminal cleanup owns the one drop.
-int rtb_mode_drop_queue_full(void) {
-    rt_executor* ex = ensure_exec();
-    rtb_drop_reset();
-    rtb_create_state minted;
-    // Shard 0, one carrier: the driver's await pumps the caller itself, so
-    // the poll that observes the shutdown runs whether or not a worker is
-    // still there to run it.
-    if (!rtb_mint_channel(&minted, rt_placement_shard(0), 1)) {
-        return rtb_fail("drop queue-full mint failed");
-    }
-    static rtb_drop_state state;
-    memset(&state, 0, sizeof(state));
-    state.shipped_mark = rtb_shipped_state_new(RTB_DROP_MARK_ID);
-    state.anchor = minted.handle;
-    state.flood_destination = 1;
-    state.shutdown_after_park = 1;
-    void* caller = __task_create(POLL_RTB_DROP_ANCHORED, &state, rt_channel_opaque_word_ops());
-    uint8_t kind = 0;
-    uint64_t bits = 0;
-    rt_task_await(caller, &kind, &bits);
-    rt_shard* owner = rt_runtime_shard(rt_executor_runtime(ex), minted.handle.owner_shard_id);
-    if (rt_transport_debug_snapshot(owner).data_admission_parks != 1) {
-        return rtb_fail("saturated destination did not park the caller exactly once");
-    }
-    if (state.status != RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN) {
-        return rtb_fail("shutdown did not resolve the parked request as destination-shutdown");
-    }
-    return rtb_drop_expect_exactly_once(&state, "drop-queue-full");
 }
 
 // Row: mixed-owner select arms refuse synchronously at the call site,

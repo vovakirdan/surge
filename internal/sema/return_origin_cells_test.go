@@ -112,7 +112,7 @@ func checkReturnOriginCellAuthority(t *testing.T, a *returnOriginAnalyzer) map[s
 		t.Fatal("PRECONDITION: this original source has no generic instantiations")
 	}
 	bodies := make(map[string]*returnOriginFunction, 4)
-	var seeds []symbols.SymbolID
+	seeds := make([]symbols.SymbolID, 0, len(a.functions))
 	for _, fn := range a.functions {
 		if fn.candidate == nil || !fn.candidate.HasBody || !fn.item.Body.IsValid() ||
 			fn.candidate.Symbol != fn.symbol || len(fn.candidate.TemplateParams) != 0 || len(fn.candidate.TypeParams) != 0 ||

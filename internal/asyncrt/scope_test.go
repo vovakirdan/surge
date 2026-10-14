@@ -11,7 +11,6 @@ func TestScopeExitPanicsOnLiveChildren(t *testing.T) {
 	scopeID := exec.EnterScope(owner, false)
 	exec.SetCurrent(owner)
 	child := exec.Spawn(2, nil)
-	exec.RegisterChild(scopeID, child)
 
 	defer func() {
 		r := recover()
@@ -54,7 +53,6 @@ func TestScopeDropsCompletedChildrenImmediately(t *testing.T) {
 	}
 
 	active := exec.Spawn(2, nil)
-	exec.RegisterChild(scopeID, active)
 	activeTask := exec.tasks[active]
 	if activeTask == nil {
 		t.Fatal("expected active task to exist")
@@ -76,7 +74,6 @@ func TestScopeDropsCompletedChildrenImmediately(t *testing.T) {
 
 	completed := exec.Spawn(3, nil)
 	exec.MarkDone(completed, TaskResultSuccess, "")
-	exec.RegisterChild(scopeID, completed)
 	completedTask := exec.tasks[completed]
 	if completedTask == nil {
 		t.Fatal("expected completed task to exist")
@@ -101,11 +98,9 @@ func TestScopeMemberCancellationTriggersFailfastAtCompletion(t *testing.T) {
 	exec.SetCurrent(owner)
 
 	active := exec.Spawn(2, nil)
-	exec.RegisterChild(scopeID, active)
 
 	cancelled := exec.Spawn(3, nil)
 	exec.MarkDone(cancelled, TaskResultCancelled, "")
-	exec.RegisterChild(scopeID, cancelled)
 
 	scope := exec.scopes[scopeID]
 	if scope == nil {
@@ -123,14 +118,13 @@ func TestScopeMemberCancellationTriggersFailfastAtCompletion(t *testing.T) {
 	}
 }
 
-func TestScopeRegistrationDoesNotAdoptTaskCreatedOutside(t *testing.T) {
+func TestScopeDoesNotAdoptTaskCreatedOutside(t *testing.T) {
 	exec := NewExecutor[string](Config{Deterministic: true})
 	foreign := exec.Spawn(2, nil)
 	owner := exec.Spawn(1, nil)
 	scopeID := exec.EnterScope(owner, true)
 	exec.SetCurrent(owner)
 
-	exec.RegisterChild(scopeID, foreign)
 	exec.MarkDone(foreign, TaskResultCancelled, "")
 
 	scope := exec.scopes[scopeID]

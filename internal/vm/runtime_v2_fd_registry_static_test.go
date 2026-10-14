@@ -101,8 +101,9 @@ func runFDRegistryBehaviorCheck(t *testing.T, label, source string) {
 //	// rt_shard gains a by-value field: rt_fd_registry fd_registry;
 //	rt_fd_registry* rt_shard_fd_registry(rt_shard* shard);
 //	const rt_fd_registry* rt_shard_fd_registry_const(const rt_shard* shard);
-//	rt_fd_registry* rt_executor_fd_registry(rt_executor* ex);
-//	const rt_fd_registry* rt_executor_fd_registry_const(const rt_executor* ex);
+//	rt_fd_registry* rt_executor_fd_registry_for_shard(rt_executor* ex, size_t shard_index);
+//	const rt_fd_registry* rt_executor_fd_registry_const_for_shard(
+//	    const rt_executor* ex, size_t shard_index);
 //	rt_runtime_status rt_fd_registry_init(rt_fd_registry* registry);
 //	void rt_fd_registry_free(rt_fd_registry* registry);
 //	rt_runtime_status rt_fd_registry_ensure_cap(rt_fd_registry* registry);
@@ -137,12 +138,11 @@ func TestRuntimeV2FDRegistryStaticShape(t *testing.T) {
 	source := `
 #include "rt_async_internal.h"
 
-// Owner accessors: shard-first ownership with shard0-routing executor
-// compatibility adapters, mirroring rt_shard_waiter_store / rt_executor_waiter_store.
+// Owner accessors: every executor lookup names an explicit shard.
 rt_fd_registry* (*runtime_v2_check_shard_fd_registry)(rt_shard*) = rt_shard_fd_registry;
 const rt_fd_registry* (*runtime_v2_check_shard_fd_registry_const)(const rt_shard*) = rt_shard_fd_registry_const;
-rt_fd_registry* (*runtime_v2_check_executor_fd_registry)(rt_executor*) = rt_executor_fd_registry;
-const rt_fd_registry* (*runtime_v2_check_executor_fd_registry_const)(const rt_executor*) = rt_executor_fd_registry_const;
+rt_fd_registry* (*runtime_v2_check_executor_fd_registry_for_shard)(rt_executor*, size_t) = rt_executor_fd_registry_for_shard;
+const rt_fd_registry* (*runtime_v2_check_executor_fd_registry_const_for_shard)(const rt_executor*, size_t) = rt_executor_fd_registry_const_for_shard;
 
 // Owner-first lifecycle and queries with explicit status codes for
 // recoverable failures (Global Rule 8: no plain bool, no panic_msg).
@@ -153,10 +153,9 @@ size_t (*runtime_v2_check_fd_registry_len)(const rt_fd_registry*) = rt_fd_regist
 const rt_fd_entry* (*runtime_v2_check_fd_registry_find_const)(const rt_fd_registry*, int) = rt_fd_registry_find_const;
 rt_runtime_status (*runtime_v2_check_fd_registry_register_open_fd)(rt_fd_registry*, int) = rt_fd_registry_register_open_fd;
 
-// registration-side interest mutators, driven by the waiter-store
-// bridge in rt_async_waiter.c under ex->lock. Attach returns explicit status
-// (allocation can fail on row creation); detach is the caller-proved
-// last-waiter path and cannot fail in a way callers act on.
+// registration-side interest mutators, driven by the waiter-store bridge in
+// rt_async_waiter.c. Attach requires a live registered row; detach is the
+// caller-proved last-waiter path and leaves that live row for close to remove.
 rt_runtime_status (*runtime_v2_check_fd_registry_attach_net_interest)(rt_fd_registry*, waker_key) = rt_fd_registry_attach_net_interest;
 void (*runtime_v2_check_fd_registry_detach_net_interest)(rt_fd_registry*, waker_key) = rt_fd_registry_detach_net_interest;
 
@@ -279,15 +278,11 @@ waker_key net_write_key(int fd) {
     return (waker_key){WAKER_NET_WRITE, (uint64_t)fd, 0};
 }
 
-const rt_fd_registry* rt_executor_fd_registry_const(const rt_executor* ex) {
-    (void)ex;
-    return NULL;
-}
-
 const rt_fd_registry* rt_executor_fd_registry_const_for_shard(const rt_executor* ex,
                                                               size_t shard_index) {
+	(void)ex;
     (void)shard_index;
-    return rt_executor_fd_registry_const(ex);
+    return NULL;
 }
 
 rt_waiter_completion rt_executor_wake_net_waiters_for_key(rt_executor* ex, waker_key key) {
@@ -362,71 +357,85 @@ int main(void) {
     int err = require_int(rt_fd_registry_init(&registry) == RT_RUNTIME_STATUS_OK, 1);
     if (err != 0) return err;
     err = require_int(rt_fd_registry_attach_net_interest(&registry, read_key) ==
-                          RT_RUNTIME_STATUS_OK,
+                          RT_RUNTIME_STATUS_INVALID_ARGUMENT,
                       2);
     if (err != 0) return err;
-    err = require_int(rt_fd_registry_snapshot_poll_interest(&registry, first, 1) == 1, 3);
+    err = require_int(rt_fd_registry_register_open_fd(&registry, 42) == RT_RUNTIME_STATUS_OK, 3);
+    if (err != 0) return err;
+    err = require_int(rt_fd_registry_attach_net_interest(&registry, read_key) ==
+                          RT_RUNTIME_STATUS_OK,
+                      4);
+    if (err != 0) return err;
+    err = require_int(rt_fd_registry_snapshot_poll_interest(&registry, first, 1) == 1, 5);
     if (err != 0) return err;
     err = require_int(first[0].fd == 42 && first[0].generation == 1 &&
                           first[0].want_read == 1,
-                      4);
+                      6);
     if (err != 0) return err;
     err = require_int(rt_fd_registry_completion_state(&registry, &first[0], read_key) ==
                           RT_FD_COMPLETION_CURRENT,
-                      5);
+                      7);
     if (err != 0) return err;
     err = require_int(rt_fd_registry_mark_closed(&registry, 42, &closed) ==
                           RT_RUNTIME_STATUS_OK,
-                      6);
+                      8);
     if (err != 0) return err;
-    err = require_int(closed.fd == 42 && closed.generation == 1 && closed.want_read == 1, 7);
+    err = require_int(closed.fd == 42 && closed.generation == 1 && closed.want_read == 1, 9);
     if (err != 0) return err;
     err = require_int(rt_fd_registry_completion_state(&registry, &first[0], read_key) ==
                           RT_FD_COMPLETION_STALE,
-                      8);
+                      10);
     if (err != 0) return err;
-    err = require_int(rt_fd_registry_snapshot_poll_interest(&registry, second, 1) == 0, 9);
+    err = require_int(rt_fd_registry_snapshot_poll_interest(&registry, second, 1) == 0, 11);
     if (err != 0) return err;
 
     rt_fd_registry_detach_net_interest(&registry, read_key);
-    err = require_int(rt_fd_registry_len(&registry) == 0, 10);
+    err = require_int(rt_fd_registry_len(&registry) == 0, 12);
+    if (err != 0) return err;
+    err = require_int(rt_fd_registry_register_open_fd(&registry, 42) == RT_RUNTIME_STATUS_OK, 13);
     if (err != 0) return err;
     err = require_int(rt_fd_registry_attach_net_interest(&registry, read_key) ==
                           RT_RUNTIME_STATUS_OK,
-                      11);
+                      14);
     if (err != 0) return err;
-    err = require_int(rt_fd_registry_snapshot_poll_interest(&registry, second, 1) == 1, 12);
+    err = require_int(rt_fd_registry_snapshot_poll_interest(&registry, second, 1) == 1, 15);
     if (err != 0) return err;
     err = require_int(second[0].fd == 42 && second[0].generation == 2 &&
                           second[0].want_read == 1,
-                      13);
+                      16);
     if (err != 0) return err;
     err = require_int(rt_fd_registry_completion_state(&registry, &first[0], read_key) ==
                           RT_FD_COMPLETION_STALE,
-                      14);
+                      17);
     if (err != 0) return err;
     err = require_int(rt_fd_registry_completion_state(&registry, &second[0], read_key) ==
                           RT_FD_COMPLETION_CURRENT,
-                      15);
+                      18);
     if (err != 0) return err;
 
     rt_fd_registry_detach_net_interest(&registry, read_key);
-    err = require_int(rt_fd_registry_register_open_fd(&registry, 77) == RT_RUNTIME_STATUS_OK, 16);
+    err = require_int(rt_fd_registry_len(&registry) == 1 &&
+                          rt_fd_registry_snapshot_poll_interest(&registry, second, 1) == 0,
+                      19);
     if (err != 0) return err;
-    err = require_int(rt_fd_registry_len(&registry) == 1, 17);
+    err = require_int(rt_fd_registry_mark_closed(&registry, 42, &closed) ==
+                          RT_RUNTIME_STATUS_OK,
+                      20);
     if (err != 0) return err;
-    err = require_int(rt_fd_registry_snapshot_poll_interest(&registry, second, 1) == 0, 18);
+    err = require_int(rt_fd_registry_register_open_fd(&registry, 77) == RT_RUNTIME_STATUS_OK, 21);
+    if (err != 0) return err;
+    err = require_int(rt_fd_registry_len(&registry) == 1, 22);
     if (err != 0) return err;
     err = require_int(rt_fd_registry_mark_closed(&registry, 77, &closed) ==
                           RT_RUNTIME_STATUS_OK,
-                      19);
+                      23);
     if (err != 0) return err;
-    err = require_int(rt_fd_registry_len(&registry) == 0, 20);
+    err = require_int(rt_fd_registry_len(&registry) == 0, 24);
     if (err != 0) return err;
     registry.next_generation = UINT64_MAX;
-    err = require_int(rt_fd_registry_attach_net_interest(&registry, read_key) ==
+    err = require_int(rt_fd_registry_register_open_fd(&registry, 88) ==
                           RT_RUNTIME_STATUS_ALLOCATION_FAILED,
-                      21);
+                      25);
     if (err != 0) return err;
     rt_fd_registry_free(&registry);
     return 0;
@@ -461,7 +470,7 @@ func TestRuntimeV2FDRegistryStaticBoundary(t *testing.T) {
 // Poll scratch stays reachable through the shard-first owner path; the FD
 // Registry Contract keeps it alive as registry-derived scratch.
 rt_net_poll_scratch* (*runtime_v2_check_shard_net_poll_scratch)(rt_shard*) = rt_shard_net_poll_scratch;
-rt_net_poll_scratch* (*runtime_v2_check_executor_net_poll_scratch)(rt_executor*) = rt_executor_net_poll_scratch;
+rt_net_poll_scratch* (*runtime_v2_check_executor_net_poll_scratch_for_shard)(rt_executor*, size_t) = rt_executor_net_poll_scratch_for_shard;
 
 // Shard-owned poller and wake-fd surfaces. The owner shard is an
 // explicit argument so production net paths do not target a process-global pipe.

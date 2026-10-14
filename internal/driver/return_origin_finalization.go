@@ -95,6 +95,12 @@ func requireReturnOriginPublication(outcome returnOriginOutcome, bag *diag.Bag) 
 
 func requireParallelReturnOriginPublication(pass returnOriginPass, results []DiagnoseDirResult) error {
 	for _, result := range results {
+		// Ordinary semantic diagnostics are already the public refusal for this
+		// file. Return-origin finalization must not replace that bag with an
+		// internal prerequisite error.
+		if result.Bag != nil && result.Bag.HasErrors() {
+			continue
+		}
 		outcome, ok := pass[result.Sema]
 		if !ok {
 			if result.Bag != nil && result.Bag.HasErrors() {
@@ -183,6 +189,7 @@ func collectReturnOriginUnits(res *DiagnoseResult) (returnOriginInputs, error) {
 		inputs.units = append(inputs.units, sema.ReturnOriginUnit{
 			Builder: builder, FileID: fileID, Sema: checked, Symbols: resolved,
 			SourceKey: key, ModulePath: modulePath, Publication: publication,
+			LiveOnly: rec != nil && rec != res.rootRecord,
 		})
 		return nil
 	}
@@ -283,12 +290,16 @@ func analyzeReturnOriginResult(ctx context.Context, res *DiagnoseResult, rootBag
 	// Module finalization checks its input bags before any pass publishes errors.
 	// The single-file route must also retain errors in imported owning bags.
 	if rootBag != nil {
-		for _, unit := range inputs.units {
+		for i := range inputs.units {
+			unit := &inputs.units[i]
 			file := unit.Builder.Files.Get(unit.FileID)
 			if bag := inputs.bags[file.Span.File]; bag.HasErrors() {
 				return returnOriginOutcome{}, returnOriginBagRefusal(unit.SourceKey, bag)
 			}
 		}
+	}
+	for i := range inputs.units {
+		inputs.units[i].LiveOnly = true
 	}
 	analysis, err := sema.AnalyzeReturnOrigins(ctx, res.Sema, inputs.units)
 	if err != nil {
@@ -298,8 +309,8 @@ func analyzeReturnOriginResult(ctx context.Context, res *DiagnoseResult, rootBag
 		return returnOriginOutcome{}, fmt.Errorf("return-origin analysis did not run")
 	}
 	outcome := returnOriginOutcome{analysis: analysis, identity: res.Sema.InstantiationIdentity, closure: res.Sema.InstantiationClosure}
-	if err := publishReturnOriginDiagnostics(analysis, inputs, rootBag, reporters); err != nil {
-		return outcome, err
+	if publishErr := publishReturnOriginDiagnostics(analysis, inputs, rootBag, reporters); publishErr != nil {
+		return outcome, publishErr
 	}
 	_, err = returnOriginVerdict(analysis)
 	return outcome, err

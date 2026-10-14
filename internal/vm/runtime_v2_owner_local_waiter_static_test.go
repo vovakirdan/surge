@@ -24,9 +24,6 @@ func TestRuntimeV2OwnerLocalWaiterSkeletonStaticShape(t *testing.T) {
 	const rt_waiter_store* (*runtime_v2_check_shard_waiter_store_const)(const rt_shard*) = rt_shard_waiter_store_const;
 	rt_waiter_store* (*runtime_v2_check_executor_waiter_store_for_shard)(rt_executor*, size_t) = rt_executor_waiter_store_for_shard;
 	const rt_waiter_store* (*runtime_v2_check_executor_waiter_store_const_for_shard)(const rt_executor*, size_t) = rt_executor_waiter_store_const_for_shard;
-	rt_waiter_store* (*runtime_v2_check_executor_waiter_store)(rt_executor*) = rt_executor_waiter_store;
-	const rt_waiter_store* (*runtime_v2_check_executor_waiter_store_const)(const rt_executor*) = rt_executor_waiter_store_const;
-
 	_Static_assert(sizeof(rt_waiter_store) > 0, "rt_waiter_store must be complete");
 	_Static_assert(sizeof(((rt_waiter_store*)0)->entries) == sizeof(waiter*), "rt_waiter_store.entries must store waiter entries");
 	_Static_assert(sizeof(((rt_waiter_store*)0)->len) == sizeof(size_t), "rt_waiter_store.len must stay size_t");
@@ -176,14 +173,6 @@ const rt_waiter_store* rt_executor_waiter_store_const_for_shard(const rt_executo
         rt_runtime_shard_const(ex != NULL ? ex->runtime : NULL, shard_index));
 }
 
-rt_waiter_store* rt_executor_waiter_store(rt_executor* ex) {
-    return rt_executor_waiter_store_for_shard(ex, 0);
-}
-
-const rt_waiter_store* rt_executor_waiter_store_const(const rt_executor* ex) {
-    return rt_executor_waiter_store_const_for_shard(ex, 0);
-}
-
 rt_fd_registry* rt_executor_fd_registry_for_shard(rt_executor* ex, size_t shard_index) {
     rt_shard* shard = rt_runtime_shard(rt_executor_runtime(ex), shard_index);
     return shard != NULL ? &shard->fd_registry : NULL;
@@ -194,14 +183,6 @@ const rt_fd_registry* rt_executor_fd_registry_const_for_shard(const rt_executor*
     const rt_shard* shard =
         rt_runtime_shard_const(ex != NULL ? ex->runtime : NULL, shard_index);
     return shard != NULL ? &shard->fd_registry : NULL;
-}
-
-rt_fd_registry* rt_executor_fd_registry(rt_executor* ex) {
-    return rt_executor_fd_registry_for_shard(ex, 0);
-}
-
-const rt_fd_registry* rt_executor_fd_registry_const(const rt_executor* ex) {
-    return rt_executor_fd_registry_const_for_shard(ex, 0);
 }
 
 int rt_lane_holds_control(void) {
@@ -271,7 +252,13 @@ rt_shard* rt_task_owner_shard(rt_executor* ex, const rt_task* task) {
     if (runtime != NULL && task != NULL && task->owner_shard_valid != 0) {
         return rt_runtime_shard(runtime, task->owner_shard_id);
     }
-    return rt_runtime_shard(runtime, 0);
+    panic_msg("async: task has no owner shard");
+    return NULL;
+}
+
+uint32_t rt_task_owner_shard_id(rt_executor* ex, const rt_task* task) {
+    const rt_shard* shard = rt_task_owner_shard(ex, task);
+    return shard != NULL ? shard->shard_id : UINT32_MAX;
 }
 
 // Scope stubs: rt_waiter_route.c's WAKER_SCOPE case now resolves
@@ -373,6 +360,7 @@ static void reset_task(rt_task* task, uint64_t id) {
     // never publish one, and it links the waiter files alone.
     task->id = id;
     task_status_store(task, TASK_WAITING);
+    rt_task_set_placement(task, 0, TASK_PLACEMENT_GENERIC);
 }
 
 int main(void) {

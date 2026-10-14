@@ -30,20 +30,20 @@ import (
 //   - The tagged per-site lifecycle counters (ctrl_create/join_poll/completion/
 //     scope/handle) are bit-stable across runs and across client patterns (
 //     evidence, re-confirmed at HEAD: ctrl_scope/ctrl_handle/
-//     ctrl_await_compat are identical to the count across five gate-workload runs).
+//     ctrl_external_await are identical to the count across five gate-workload runs).
 //     The untagged RT_CTRL_SITE_OTHER residual (net/accept/io-drain/shutdown, not
 //     migration surface) jitters with scheduling, so the precise gate is
 //     the tagged lifecycle sum, with the contract-literal steady-state metric as a
 //     generous backstop.
 //
 // Metric definitions for the recorded gate inputs:
-//   - ctrl_await_compat is a HARNESS-STRUCTURAL artifact: every multi-worker Surge
+//   - ctrl_external_await is a HARNESS-STRUCTURAL artifact: every multi-worker Surge
 //     program parks a root external awaiter (@entrypoint main awaiting serve_many)
 //     for its whole lifetime, so ~1 completion per net-wrapper child serializes on
-//     control as external-await compat (done_waiters>0), NOT worker steady-state
+//     control as external await (done_waiters>0), NOT worker steady-state
 //     completion cost. It is reported as its own column and EXCLUDED from the
 //     steady-state metric.
-//   - steady-state-control = control_lock_acquired - ctrl_await_compat (
+//   - steady-state-control = control_lock_acquired - ctrl_external_await (
 //     primary control-per-request metric).
 //   - lifecycle-control = ctrl_create + ctrl_join_poll + ctrl_completion +
 //     ctrl_scope + ctrl_handle (the tagged, bit-stable steady-path lifecycle
@@ -78,7 +78,7 @@ const (
 	maxLifecycleControlPerReq = 9.0
 
 	// Ceiling on the contract-literal steady-state control per request
-	// (control_lock_acquired - ctrl_await_compat; measured ~12.0/req under this
+	// (control_lock_acquired - ctrl_external_await; measured ~12.0/req under this
 	// gate's client). Generous headroom absorbs the untagged OTHER residual's
 	// scheduling/core-count jitter while still failing on a regression toward the
 	// 26.4/req baseline.
@@ -91,7 +91,7 @@ const (
 // drives the same control-lane sites as the net benchmark: the per-connection
 // serve_conn scope (ctrl_scope), the net-wrapper child completions/frees
 // (ctrl_handle), the join-consume placement adoption (placement_adoptions), and
-// the @entrypoint main external await of serve_many (ctrl_await_compat).
+// the @entrypoint main external await of serve_many (ctrl_external_await).
 const perfGateServerSource = `import stdlib/net as net;
 
 fn append_string_bytes(out: &mut byte[], s: &string) -> nothing {
@@ -246,7 +246,7 @@ func TestRuntimeV2PerfControlLaneGate(t *testing.T) {
 	port := pickFreePort(t)
 	env := runtimeV2AcceptEnv(t)
 	env = overrideEnvVar(env, "SURGE_SHARDS", strconv.Itoa(perfGateShards))
-	env = overrideEnvVar(env, "SURGE_THREADS", strconv.Itoa(perfGateShards))
+	env = overrideEnvVar(env, "SURGE_SHARDS", strconv.Itoa(perfGateShards))
 	env = overrideEnvVar(env, "SURGE_TRACE_EXEC", "1")
 	env = overrideEnvVar(env, "SURGE_SCHED_TRACE", "1")
 
@@ -279,7 +279,7 @@ func TestRuntimeV2PerfControlLaneGate(t *testing.T) {
 	}
 
 	control := requireField(values, "control_lock_acquired", "TRACE_EXEC", line)
-	awaitCompat := requireField(values, "ctrl_await_compat", "TRACE_EXEC", line)
+	externalAwait := requireField(values, "ctrl_external_await", "TRACE_EXEC", line)
 	create := requireField(values, "ctrl_create", "TRACE_EXEC", line)
 	joinPoll := requireField(values, "ctrl_join_poll", "TRACE_EXEC", line)
 	completion := requireField(values, "ctrl_completion", "TRACE_EXEC", line)
@@ -290,22 +290,22 @@ func TestRuntimeV2PerfControlLaneGate(t *testing.T) {
 
 	reqs := float64(perfGateTotalRequest)
 
-	// Attribution invariant: ctrl_await_compat cannot exceed the total; the tagged
+	// Attribution invariant: ctrl_external_await cannot exceed the total; the tagged
 	// sites partition a subset of control_lock_acquired.
-	if awaitCompat > control {
-		t.Fatalf("ctrl_await_compat %d exceeds control_lock_acquired %d:\n%s", awaitCompat, control, line)
+	if externalAwait > control {
+		t.Fatalf("ctrl_external_await %d exceeds control_lock_acquired %d:\n%s", externalAwait, control, line)
 	}
 
 	lifecycleControl := create + joinPoll + completion + scope + handle
 	lifecyclePerReq := float64(lifecycleControl) / reqs
-	steadyStatePerReq := float64(control-awaitCompat) / reqs
+	steadyStatePerReq := float64(control-externalAwait) / reqs
 
 	t.Logf("Performance gate (8 shards x %d conns x %d req = %d requests):",
 		perfGateConnections, perfGateRequests, perfGateTotalRequest)
-	t.Logf("  control_lock_acquired=%d (%.3f/req) ctrl_await_compat=%d (%.3f/req)",
-		control, float64(control)/reqs, awaitCompat, float64(awaitCompat)/reqs)
+	t.Logf("  control_lock_acquired=%d (%.3f/req) ctrl_external_await=%d (%.3f/req)",
+		control, float64(control)/reqs, externalAwait, float64(externalAwait)/reqs)
 	t.Logf("  steady-state-control=%d (%.3f/req, ceiling %.1f)",
-		control-awaitCompat, steadyStatePerReq, maxSteadyStateControlPerReq)
+		control-externalAwait, steadyStatePerReq, maxSteadyStateControlPerReq)
 	t.Logf("  lifecycle-control=%d (%.3f/req, ceiling %.1f) [create=%d join_poll=%d completion=%d scope=%d handle=%d]",
 		lifecycleControl, lifecyclePerReq, maxLifecycleControlPerReq,
 		create, joinPoll, completion, scope, handle)
@@ -325,8 +325,8 @@ func TestRuntimeV2PerfControlLaneGate(t *testing.T) {
 	// materially below the closeout baseline of ~26.4/req.
 	if steadyStatePerReq > maxSteadyStateControlPerReq {
 		t.Fatalf("steady-state control per request %.3f exceeds ceiling %.1f "+
-			"(control_lock_acquired=%d - ctrl_await_compat=%d; baseline was ~26.4/req)\n%s",
-			steadyStatePerReq, maxSteadyStateControlPerReq, control, awaitCompat, line)
+			"(control_lock_acquired=%d - ctrl_external_await=%d; baseline was ~26.4/req)\n%s",
+			steadyStatePerReq, maxSteadyStateControlPerReq, control, externalAwait, line)
 	}
 
 	// (3) Fairness (RV2-DEBT-015 / F2): join-consume placement adoption must be

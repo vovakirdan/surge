@@ -217,7 +217,7 @@ rt_result_source rt_remote_task_pin_result(rt_task* task) {
     source.task_id = task->id;
     source.task_generation = task->generation;
     source.result_generation = rt_value_cell_generation(&task->result);
-    source.owner_shard_id = task->owner_shard_valid != 0 ? task->owner_shard_id : 0;
+    source.owner_shard_id = rt_task_owner_shard_id(ensure_exec(), task);
     return source;
 }
 

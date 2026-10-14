@@ -245,7 +245,7 @@ func externHeaderAssertCall(t *testing.T, b *ast.Builder, res *Result, syms *sym
 		}
 		for _, callee := range syms.Table.Symbols.Data() {
 			if callee.Signature == selected {
-				if fn, ok := res.TypeInterner.FnInfo(callee.Type); ok && len(fn.Params) > 0 {
+				if fn, found := res.TypeInterner.FnInfo(callee.Type); found && len(fn.Params) > 0 {
 					formal, _ := res.TypeInterner.StructInfo(tc.valueType(fn.Params[0]))
 					if formal == nil || len(formal.TypeArgs) != 1 || formal.TypeArgs[0] == want {
 						t.Error("original declaration formal was replaced by the caller descriptor")

@@ -392,8 +392,10 @@ func validateLocalIDs(f *Func, globals []Global) error {
 				for i := range ins.Crossing.State.Fields {
 					checkOperand(ins.Crossing.State.Fields[i].Value, ctx)
 				}
-				for i := range ins.Crossing.Captures {
-					checkOperand(ins.Crossing.Captures[i].Value, ctx)
+				if !ins.Crossing.CapturesPacked {
+					for i := range ins.Crossing.Captures {
+						checkOperand(ins.Crossing.Captures[i].Value, ctx)
+					}
 				}
 				for i := range ins.Crossing.RemoteOps {
 					checkOperand(ins.Crossing.RemoteOps[i].Receiver, ctx)

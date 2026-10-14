@@ -108,7 +108,12 @@ async fn take(ch: far Channel<int[]>) -> int {
     let seen: TaskResult<int> = on ch {
         let got: Option<int[]> = ch.recv();
         ret compare got {
-            Some(ys) => { let mut zs: int[] = own ys; zs[0] = 777; ret zs[0]; };
+            Some(ys) => {
+                let mut zs: int[] = own ys;
+                zs[0] = 777;
+                let value: int = zs[0];
+                ret value;
+            };
             nothing => 0;
         };
     };

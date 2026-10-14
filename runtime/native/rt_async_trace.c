@@ -15,11 +15,7 @@ static _Atomic uint64_t trace_park_committed_total;
 static _Atomic uint64_t trace_worker_sleep_total;
 static _Atomic uint64_t trace_worker_wake_total;
 static _Atomic uint64_t trace_parked_with_work_total;
-static _Atomic uint64_t trace_channel_blocking_wait_total;
-static _Atomic uint64_t trace_channel_task_blocking_send_total;
-static _Atomic uint64_t trace_channel_task_blocking_recv_total;
 static _Atomic uint64_t trace_channel_handoff_yield_total;
-static _Atomic uint64_t trace_compensation_started_total;
 static _Atomic uint64_t trace_control_lock_acquired_total;
 static _Atomic uint64_t trace_cross_shard_wake_total;
 static _Atomic uint64_t trace_spurious_wake_absorbed_total;
@@ -68,24 +64,8 @@ void rt_trace_parked_with_work(void) {
     trace_inc_atomic(&trace_parked_with_work_total);
 }
 
-void rt_trace_channel_blocking_wait(void) {
-    trace_inc_atomic(&trace_channel_blocking_wait_total);
-}
-
-void rt_trace_channel_task_blocking_send(void) {
-    trace_inc_atomic(&trace_channel_task_blocking_send_total);
-}
-
-void rt_trace_channel_task_blocking_recv(void) {
-    trace_inc_atomic(&trace_channel_task_blocking_recv_total);
-}
-
 void rt_trace_channel_handoff_yield(void) {
     trace_inc_atomic(&trace_channel_handoff_yield_total);
-}
-
-void rt_trace_compensation_started(void) {
-    trace_inc_atomic(&trace_compensation_started_total);
 }
 
 void rt_trace_control_lock_acquired(void) {
@@ -177,18 +157,13 @@ static void trace_collect_scheduler_snapshot(const rt_runtime* runtime,
         if (scheduler == NULL) {
             continue;
         }
-        *worker_count += scheduler->worker_count;
+        (*worker_count)++;
         *running += scheduler->running_count;
         *inject_len += scheduler->inject.len;
-        if (scheduler->local_queues == NULL) {
-            continue;
-        }
-        for (uint32_t worker = 0; worker < scheduler->worker_count; worker++) {
-            uint64_t len = (uint64_t)scheduler->local_queues[worker].len;
-            *local_total += len;
-            if (len > *local_max) {
-                *local_max = len;
-            }
+        uint64_t len = (uint64_t)scheduler->local_queue.len;
+        *local_total += len;
+        if (len > *local_max) {
+            *local_max = len;
         }
     }
 }
@@ -250,36 +225,12 @@ static void trace_exec_dump(const char* reason) {
                          pos,
                          sizeof(buf),
                          atomic_load_explicit(&trace_parked_with_work_total, memory_order_relaxed));
-    pos = trace_append_literal(buf, pos, sizeof(buf), " channel_blocking_wait=");
-    pos = trace_append_u64(
-        buf,
-        pos,
-        sizeof(buf),
-        atomic_load_explicit(&trace_channel_blocking_wait_total, memory_order_relaxed));
-    pos = trace_append_literal(buf, pos, sizeof(buf), " channel_task_blocking_send=");
-    pos = trace_append_u64(
-        buf,
-        pos,
-        sizeof(buf),
-        atomic_load_explicit(&trace_channel_task_blocking_send_total, memory_order_relaxed));
-    pos = trace_append_literal(buf, pos, sizeof(buf), " channel_task_blocking_recv=");
-    pos = trace_append_u64(
-        buf,
-        pos,
-        sizeof(buf),
-        atomic_load_explicit(&trace_channel_task_blocking_recv_total, memory_order_relaxed));
     pos = trace_append_literal(buf, pos, sizeof(buf), " channel_handoff_yield=");
     pos = trace_append_u64(
         buf,
         pos,
         sizeof(buf),
         atomic_load_explicit(&trace_channel_handoff_yield_total, memory_order_relaxed));
-    pos = trace_append_literal(buf, pos, sizeof(buf), " compensation_started=");
-    pos = trace_append_u64(
-        buf,
-        pos,
-        sizeof(buf),
-        atomic_load_explicit(&trace_compensation_started_total, memory_order_relaxed));
     // The channel claim-retry budget's seven records (rt_channel_retry.c).
     (void)rt_channel_trace_append(buf, &pos, sizeof(buf));
     pos = trace_append_literal(buf, pos, sizeof(buf), " control_lock_acquired=");
@@ -327,7 +278,7 @@ static void trace_exec_dump(const char* reason) {
                                                                     "ctrl_join_poll",
                                                                     "ctrl_completion",
                                                                     "ctrl_scope",
-                                                                    "ctrl_await_compat",
+                                                                    "ctrl_external_await",
                                                                     "ctrl_handle"};
     for (size_t s = RT_CTRL_SITE_CREATE; s < RT_CTRL_SITE_COUNT; s++) {
         trace_append_kv_u64(
@@ -452,8 +403,6 @@ static void trace_exec_snapshot_dump(const char* reason) {
             // Carrier affinity: a pinned task's only eligible worker, so a
             // READY task left in a deque names the worker whose credit was
             // lost.
-            trace_append_kv_u64(tbuf, &tpos, sizeof(tbuf), "pinned", task->carrier_valid);
-            trace_append_kv_u64(tbuf, &tpos, sizeof(tbuf), "carrier", task->carrier_worker_id);
             if (tpos + 1 < sizeof(tbuf)) {
                 tbuf[tpos++] = '\n';
             }
@@ -484,53 +433,31 @@ static void trace_exec_snapshot_dump(const char* reason) {
         }
     }
     {
-        // One line per worker deque: its length, the entry at its tail (the
-        // one the worker pops next) with that entry's carrier pin, and the
-        // worker's own addressed credit. A READY pinned task in a deque whose
-        // worker sleeps on a zero credit is a lost addressed wake; one in
-        // another worker's deque is a mispublication.
+        // One line per shard-local deque: its length, the entry the shard's
+        // sole carrier will pop next, and the shard's durable wake credit.
         rt_runtime* rt = rt_executor_runtime(ex);
         size_t shard_count = rt_runtime_shard_count(rt);
         for (size_t si = 0; si < shard_count; si++) {
             const rt_scheduler* scheduler = rt_shard_scheduler_const(rt_runtime_shard(rt, si));
-            if (scheduler == NULL || scheduler->local_queues == NULL) {
+            if (scheduler == NULL) {
                 continue;
             }
-            for (uint32_t w = 0; w < scheduler->worker_count; w++) {
-                const rt_deque* dq = &scheduler->local_queues[w];
-                char dbuf[224];
-                size_t dpos = 0;
-                dpos = trace_append_literal(dbuf, dpos, sizeof(dbuf), "TRACE_DEQUE");
-                trace_append_kv_u64(dbuf, &dpos, sizeof(dbuf), "shard", si);
-                trace_append_kv_u64(dbuf, &dpos, sizeof(dbuf), "worker", w);
-                trace_append_kv_u64(dbuf, &dpos, sizeof(dbuf), "len", dq->len);
-                uint64_t tail_id = 0;
-                uint64_t tail_pinned = 0;
-                uint64_t tail_carrier = 0;
-                if (dq->len > 0 && dq->task_ids != NULL) {
-                    tail_id = dq->task_ids[dq->head + dq->len - 1];
-                    const rt_task* tail = get_task(ex, tail_id);
-                    if (tail != NULL) {
-                        tail_pinned = tail->carrier_valid;
-                        tail_carrier = tail->carrier_worker_id;
-                    }
-                }
-                trace_append_kv_u64(dbuf, &dpos, sizeof(dbuf), "tail_task", tail_id);
-                trace_append_kv_u64(dbuf, &dpos, sizeof(dbuf), "tail_pinned", tail_pinned);
-                trace_append_kv_u64(dbuf, &dpos, sizeof(dbuf), "tail_carrier", tail_carrier);
-                trace_append_kv_u64(
-                    dbuf,
-                    &dpos,
-                    sizeof(dbuf),
-                    "credit",
-                    scheduler->worker_wake_pending != NULL ? scheduler->worker_wake_pending[w] : 0);
-                trace_append_kv_u64(
-                    dbuf, &dpos, sizeof(dbuf), "shard_credit", scheduler->wake_pending);
-                if (dpos + 1 < sizeof(dbuf)) {
-                    dbuf[dpos++] = '\n';
-                }
-                (void)write(STDERR_FILENO, dbuf, dpos);
+            const rt_deque* dq = &scheduler->local_queue;
+            char dbuf[224];
+            size_t dpos = 0;
+            dpos = trace_append_literal(dbuf, dpos, sizeof(dbuf), "TRACE_DEQUE");
+            trace_append_kv_u64(dbuf, &dpos, sizeof(dbuf), "shard", si);
+            trace_append_kv_u64(dbuf, &dpos, sizeof(dbuf), "len", dq->len);
+            uint64_t tail_id = 0;
+            if (dq->len > 0 && dq->task_ids != NULL) {
+                tail_id = dq->task_ids[(dq->head + dq->len - 1) % dq->cap];
             }
+            trace_append_kv_u64(dbuf, &dpos, sizeof(dbuf), "tail_task", tail_id);
+            trace_append_kv_u64(dbuf, &dpos, sizeof(dbuf), "wake_credit", scheduler->wake_pending);
+            if (dpos + 1 < sizeof(dbuf)) {
+                dbuf[dpos++] = '\n';
+            }
+            (void)write(STDERR_FILENO, dbuf, dpos);
         }
     }
     rt_trace_collect_waiter_counts(ex, &waiters);
@@ -560,7 +487,6 @@ static void trace_exec_snapshot_dump(const char* reason) {
 
     char buf[1800];
     size_t pos = 0;
-    const rt_channel_blocking_compat* compat = rt_executor_channel_blocking_compat_const(ex);
     pos = trace_append_literal(buf, pos, sizeof(buf), "TRACE_EXEC_SNAPSHOT");
     if (reason != NULL) {
         pos = trace_append_literal(buf, pos, sizeof(buf), " reason=");
@@ -568,18 +494,6 @@ static void trace_exec_snapshot_dump(const char* reason) {
     }
     trace_append_kv_u64(buf, &pos, sizeof(buf), "worker_count", worker_count);
     trace_append_kv_u64(buf, &pos, sizeof(buf), "running", running);
-    trace_append_kv_u64(buf,
-                        &pos,
-                        sizeof(buf),
-                        "channel_blocked",
-                        compat != NULL ? compat->channel_blocked_workers : 0);
-    trace_append_kv_u64(
-        buf, &pos, sizeof(buf), "compensation", compat != NULL ? compat->compensation_count : 0);
-    trace_append_kv_u64(buf,
-                        &pos,
-                        sizeof(buf),
-                        "compensation_high_water",
-                        compat != NULL ? compat->compensation_high_water : 0);
     trace_append_kv_u64(buf, &pos, sizeof(buf), "inject_len", inject_len);
     trace_append_kv_u64(buf, &pos, sizeof(buf), "local_total", local_total);
     trace_append_kv_u64(buf, &pos, sizeof(buf), "local_max", local_max);

@@ -35,8 +35,8 @@ static int trace_sched_enabled(void) {
 // no owner the dump could name.
 static rt_sched_trace_cell* sched_trace_owner_cell(void) {
     if (tls_worker_ctx == NULL) {
-        // Not a carrier: this is the control lane draining shard 0 from inside
-        // ready_pop, which holds shard 0's lock across the record.
+        // Runtime-owned records that have no carrier attribution use the
+        // control cell; task queue pops themselves are carrier-only.
         return &sched_trace_control_cell;
     }
     if (sched_trace_carrier_cells == NULL ||
@@ -92,9 +92,7 @@ void rt_sched_trace_init(uint32_t carriers) {
         for (uint32_t i = 0; i < carriers; i++) {
             atomic_store_explicit(&cells[i].local_pops, 0, memory_order_relaxed);
             atomic_store_explicit(&cells[i].inject_pops, 0, memory_order_relaxed);
-            atomic_store_explicit(&cells[i].steal_pops, 0, memory_order_relaxed);
             atomic_store_explicit(&cells[i].pop_mix, 0, memory_order_relaxed);
-            atomic_store_explicit(&cells[i].steal_denied, 0, memory_order_relaxed);
             atomic_store_explicit(&cells[i].conn_run_local, 0, memory_order_relaxed);
             atomic_store_explicit(&cells[i].conn_run_mismatch, 0, memory_order_relaxed);
             atomic_store_explicit(
@@ -155,28 +153,12 @@ void rt_trace_sched_record(rt_trace_sched_source source, uint64_t id) {
         bucket = &cell->local_pops;
     } else if (source == RT_TRACE_SCHED_SRC_INJECT) {
         bucket = &cell->inject_pops;
-    } else if (source == RT_TRACE_SCHED_SRC_STEAL) {
-        bucket = &cell->steal_pops;
     }
     sched_trace_publish(&cell->pop_mix,
                         sched_trace_own(&cell->pop_mix) + sched_trace_mix(id, source));
     if (bucket != NULL) {
         sched_trace_bump_owned(bucket);
     }
-}
-
-// A steal this thread attempted and had refused. Its own action, on its own
-// cell -- the same cell, the same path and the same lock discipline as the pop
-// the refusal happened inside.
-void rt_trace_sched_tier1_steal_denied(void) {
-    if (!trace_sched_enabled()) {
-        return;
-    }
-    rt_sched_trace_cell* cell = sched_trace_pop_path_cell();
-    if (cell == NULL) {
-        return;
-    }
-    sched_trace_bump_owned(&cell->steal_denied);
 }
 
 // The placement, unlike the run below, is made by whoever created the task --
@@ -204,36 +186,6 @@ void rt_trace_sched_connection_owner_run(uint32_t owner_shard_id, uint32_t worke
     sched_trace_bump_owned(&cell->conn_run_mismatch);
 }
 
-// Carrier affinity's four records, all on the runtime's cell (the header says
-// why the refusal is not on the popper's own).
-void rt_trace_sched_carrier_pinned(void) {
-    if (!trace_sched_enabled()) {
-        return;
-    }
-    sched_trace_bump_runtime(&sched_trace_runtime_cell.carrier_pinned);
-}
-
-void rt_trace_sched_carrier_addressed_wake(void) {
-    if (!trace_sched_enabled()) {
-        return;
-    }
-    sched_trace_bump_runtime(&sched_trace_runtime_cell.carrier_addressed_wakes);
-}
-
-void rt_trace_sched_carrier_steal_denied(void) {
-    if (!trace_sched_enabled()) {
-        return;
-    }
-    sched_trace_bump_runtime(&sched_trace_runtime_cell.carrier_steal_denied);
-}
-
-void rt_trace_sched_carrier_shutdown_cancelled(void) {
-    if (!trace_sched_enabled()) {
-        return;
-    }
-    sched_trace_bump_runtime(&sched_trace_runtime_cell.carrier_shutdown_cancelled);
-}
-
 // One record, one write, and a short or refused write is counted rather than
 // dropped on the floor: a reader that summed four owner records out of five has
 // to be told, or it will report the sum as the whole.
@@ -250,9 +202,7 @@ static void sched_trace_emit(const char* buf, size_t pos) {
 static void sched_trace_emit_cell(const rt_sched_trace_cell* cell, const char* owner, uint32_t id) {
     uint64_t local = sched_trace_read(&cell->local_pops);
     uint64_t inject = sched_trace_read(&cell->inject_pops);
-    uint64_t steal = sched_trace_read(&cell->steal_pops);
     uint64_t pop_mix = sched_trace_read(&cell->pop_mix);
-    uint64_t steal_denied = sched_trace_read(&cell->steal_denied);
     uint64_t conn_run_local = sched_trace_read(&cell->conn_run_local);
     uint64_t conn_run_mismatch = sched_trace_read(&cell->conn_run_mismatch);
     uint32_t shard_id = atomic_load_explicit(&cell->shard_id, memory_order_acquire);
@@ -271,12 +221,10 @@ static void sched_trace_emit_cell(const rt_sched_trace_cell* cell, const char* o
     }
     trace_append_kv_u64(buf, &pos, sizeof(buf), "local", local);
     trace_append_kv_u64(buf, &pos, sizeof(buf), "inject", inject);
-    trace_append_kv_u64(buf, &pos, sizeof(buf), "steal", steal);
     // Derived here rather than kept as a sixth word, so this owner's total can
     // never disagree with the three buckets that make it up.
-    trace_append_kv_u64(buf, &pos, sizeof(buf), "events", local + inject + steal);
+    trace_append_kv_u64(buf, &pos, sizeof(buf), "events", local + inject);
     trace_append_kv_u64(buf, &pos, sizeof(buf), "pop_mix", pop_mix);
-    trace_append_kv_u64(buf, &pos, sizeof(buf), "tier1_steal_denied", steal_denied);
     trace_append_kv_u64(buf, &pos, sizeof(buf), "conn_owner_local", conn_run_local);
     trace_append_kv_u64(buf, &pos, sizeof(buf), "conn_owner_mismatch", conn_run_mismatch);
     if (pos + 1 < sizeof(buf)) {
@@ -311,23 +259,6 @@ static void sched_trace_emit_runtime(const rt_sched_trace_runtime_cell* runtime,
         buf, &pos, sizeof(buf), "unowned_pops", sched_trace_read(&runtime->unowned_pops));
     trace_append_kv_u64(
         buf, &pos, sizeof(buf), "dropped_records", sched_trace_read(&runtime->dropped_records));
-    trace_append_kv_u64(
-        buf, &pos, sizeof(buf), "carrier_pinned", sched_trace_read(&runtime->carrier_pinned));
-    trace_append_kv_u64(buf,
-                        &pos,
-                        sizeof(buf),
-                        "carrier_addressed_wakes",
-                        sched_trace_read(&runtime->carrier_addressed_wakes));
-    trace_append_kv_u64(buf,
-                        &pos,
-                        sizeof(buf),
-                        "carrier_steal_denied",
-                        sched_trace_read(&runtime->carrier_steal_denied));
-    trace_append_kv_u64(buf,
-                        &pos,
-                        sizeof(buf),
-                        "carrier_shutdown_cancelled",
-                        sched_trace_read(&runtime->carrier_shutdown_cancelled));
     if (pos + 1 < sizeof(buf)) {
         buf[pos++] = '\n';
     }
@@ -345,7 +276,8 @@ void rt_sched_trace_dump(void) {
     uint8_t mode = SCHED_PARALLEL;
     if (exec_state.initialized) {
         rt_control_lock(&exec_state);
-        const rt_scheduler* scheduler = rt_executor_scheduler_const(&exec_state);
+        const rt_scheduler* scheduler =
+            rt_shard_scheduler_const(rt_runtime_shard_const(rt_executor_runtime(&exec_state), 0));
         seed = scheduler != NULL ? scheduler->sched_seed : 0;
         mode = scheduler != NULL ? scheduler->sched_mode : SCHED_PARALLEL;
         rt_control_unlock(&exec_state);

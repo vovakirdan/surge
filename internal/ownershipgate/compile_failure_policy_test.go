@@ -324,8 +324,12 @@ func TestRepositoryCompileFailureLedgerIsCompleteAndDebtLinked(t *testing.T) {
 	// An imported const now names the module that exports it, so the merge
 	// binds import_all.sg's MODULE_CONST to its declaration and the program
 	// lowers to MIR and runs.
-	if len(ledger.CompileFailureGroups) != 11 || len(ledger.CompileFailures) != 85 {
-		t.Fatalf("repository compile ledger has groups=%d failures=%d, want 11/85",
+	// Moved on 2026-10-13 from 11/85: CF-004 was retired with
+	// module_multitest/main.sg after the explicit-module directory cache was
+	// keyed by module name. The fixture now compiles in the full sorted corpus,
+	// as it did in isolation, instead of inheriting the first name scanned.
+	if len(ledger.CompileFailureGroups) != 10 || len(ledger.CompileFailures) != 84 {
+		t.Fatalf("repository compile ledger has groups=%d failures=%d, want 10/84",
 			len(ledger.CompileFailureGroups), len(ledger.CompileFailures))
 	}
 	groups := make(map[string]CompileFailureDisposition, len(ledger.CompileFailureGroups))
@@ -336,9 +340,9 @@ func TestRepositoryCompileFailureLedgerIsCompleteAndDebtLinked(t *testing.T) {
 	for _, failure := range ledger.CompileFailures {
 		counts[groups[failure.Group]]++
 	}
-	if counts[CompileFailureExpectedGuard] != 50 || counts[CompileFailureContextOnly] != 14 ||
+	if counts[CompileFailureExpectedGuard] != 50 || counts[CompileFailureContextOnly] != 13 ||
 		counts[CompileFailureDebt] != 21 {
-		t.Fatalf("repository dispositions = %+v, want expected_guard=50 context_only=14 debt=21", counts)
+		t.Fatalf("repository dispositions = %+v, want expected_guard=50 context_only=13 debt=21", counts)
 	}
 	debtMarkdown, err := os.ReadFile(filepath.Join(root, "docs", "runtime-v2-epics", "DEBT.md"))
 	if err != nil {

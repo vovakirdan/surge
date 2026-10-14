@@ -14,7 +14,7 @@
 // rt_waiter.h.
 
 int waker_valid(waker_key key) {
-    return key.kind != WAKER_NONE && key.id != 0;
+    return key.kind > WAKER_NONE && key.kind <= WAKER_TRANSPORT_SLOT && key.id != 0;
 }
 
 waker_key waker_none(void) {
@@ -51,8 +51,8 @@ waker_key scope_key(uint64_t id, uint32_t owner_shard_id) {
     return key;
 }
 
-waker_key blocking_key(uint64_t id) {
-    waker_key key = {WAKER_BLOCKING, id, 0};
+waker_key blocking_key(uint64_t id, uint32_t owner_shard_id) {
+    waker_key key = {WAKER_BLOCKING, id, owner_shard_id};
     return key;
 }
 
@@ -62,7 +62,10 @@ waker_key remote_spawn_reply_key(uint64_t id, uint32_t owner_shard_id) {
 }
 
 waker_key transport_slot_key(uint32_t shard_id) {
-    waker_key key = {WAKER_TRANSPORT_SLOT, shard_id, shard_id};
+    // Key id zero is the universal invalid sentinel. Shard zero is valid, so
+    // encode the shard identity one-based while keeping the actual routing id
+    // in owner_shard_id. No consumer decodes id back into a shard.
+    waker_key key = {WAKER_TRANSPORT_SLOT, (uint64_t)shard_id + 1, shard_id};
     return key;
 }
 

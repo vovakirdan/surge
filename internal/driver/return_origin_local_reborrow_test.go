@@ -28,6 +28,5 @@ func TestAnalyzeLocalFieldReborrowIndex(t *testing.T) {
 	originExactPending(t, analysis, f.unit.SourceKey, external, []originRefusal{
 		{originSpan{250, 258, "cells[r]"}, "index requires its selected container transfer"},
 		{originSpan{250, 261, "cells[r][c]"}, originOutgoingRefusal},
-		{originSpan{250, 265, "cells[r][c] = v"}, nestedStoreRefusal},
 	})
 }

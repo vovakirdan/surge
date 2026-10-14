@@ -2,12 +2,10 @@ package driver
 
 import "testing"
 
-const nestedStoreRefusal = "store through a place needs reference-content transfer"
-
 // A nested store into a reference-free final element changes no origin fact.
 // The chain still has to be a typed member/index path and its outer store has
 // to be the certified canonical index-set operation. A final dynamic-array
-// element keeps the refusal because it can carry a storage loan.
+// element transfers its exact post-state into the destination backing.
 const nestedStoreSource = `pragma module::dep;
 type Box = { values: int[] };
 fn member_store(p: &mut Box, i: int, v: int) -> nothing {
@@ -42,6 +40,7 @@ func TestAnalyzeNestedReferenceFreeIndexStores(t *testing.T) {
 		requireOriginSummary(t, analysis, f.owner.File.ID, row.name, false, []uint32{})
 	}
 	loan := patternFn(t, nestedStoreSource, "fn loan_store(")
-	at := patternIn(t, nestedStoreSource, loan, "dst[0][0] = value")
-	originExactPending(t, analysis, f.unit.SourceKey, loan, []originRefusal{{at, nestedStoreRefusal}})
+	originExactPending(t, analysis, f.unit.SourceKey, loan, nil)
+	originNoEscape(t, analysis, f.owner.File.ID, loan)
+	requireOriginSummary(t, analysis, f.owner.File.ID, "loan_store", false, nil)
 }

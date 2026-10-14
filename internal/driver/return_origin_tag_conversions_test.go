@@ -198,24 +198,20 @@ func TestReturnOriginTagConversionEscapeIsRefused(t *testing.T) {
 	t.Fatalf("expected %s, got:\n%s", diag.SemaBorrowEscapesReturn.ID(), diag.FormatGoldenDiagnostics(result.Bag.Items(), result.FileSet, false))
 }
 
-// An element place as a `&mut` receiver is not a tag conversion and keeps its
-// row. An explicit tag or nothing passed to the exact union formal uses the
-// checker's already selected union-member relation.
+// An element place as a `&mut` receiver uses the exact selected index/store
+// transfer. An explicit tag or nothing passed to the exact union formal uses
+// the checker's already selected union-member relation.
 func TestReturnOriginTagConversionArgumentForms(t *testing.T) {
-	rows := []struct{ name, text, snippet, reason string }{
-		{"element_receiver_argument", `fn grow(xs: &mut int[][]) -> nothing {
+	element := `fn grow(xs: &mut int[][]) -> nothing {
     xs[1].push(9);
     return nothing;
 }
-`, "xs[1].push(9)", "generic original call argument disagrees with its substituted source signature"},
-	}
-	for _, row := range rows {
-		t.Run(row.name, func(t *testing.T) {
-			f, analysis := analyzeOriginRoot(t, "tag_conv_other_"+row.name, row.text, false, nil)
-			originExactPending(t, analysis, f.unit.SourceKey, originSpan{0, len(row.text), row.name},
-				[]originRefusal{{span: tagConvAt(t, row.text, row.snippet), reason: row.reason}})
-		})
-	}
+`
+	t.Run("element_receiver_argument", func(t *testing.T) {
+		f, analysis := analyzeOriginRoot(t, "tag_conv_other_element_receiver_argument", element, false, nil)
+		originExactPending(t, analysis, f.unit.SourceKey, originSpan{0, len(element), element}, nil)
+		requireOriginSummary(t, analysis, f.owner.File.ID, "grow", false, nil)
+	})
 
 	const clean = `fn fill(opts: &mut Option<int64>[]) -> nothing {
     opts.push(Some(3:int64));

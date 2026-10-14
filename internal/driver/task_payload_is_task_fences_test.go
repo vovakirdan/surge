@@ -15,36 +15,21 @@ import (
 	"surge/internal/types"
 )
 
-// What the task-payload rule (SEM3223, owner ruling 2026-09-26) took out of the return-origin
-// rosters, and what it left there. Seven rows were retired because their programs make a task
-// whose result is a task; they were R-i's tripwire (RV2-DEBT-365): NoBorrowedState, the fence on
-// a Task handed out of a join, is unsupported for a Task. A fence must not disappear silently, so
-// each retired program is kept byte for byte (its old digest) and pinned twice:
-//   - first line: the program is refused by SEM3223, at exactly the named spans, and by no
-//     other error besides the ones named;
-//   - second line: the return-origin analysis, run on the same program with SEM3223 tolerated in
-//     the root file only, still leaves the retired row's exact Pending rows. If Task became a
-//     counted handle (Wave D4b), whose payload NoBorrowedState would then walk, these go red even
-//     though SEM3223 still holds.
-// The rule does not reach a task held behind a channel: `Task<Channel<Task<int>>>` is a legal
-// type, so R-i keeps a legal form and NoBorrowedState keeps its first-line rows there
-// (TestTaskPayloadFenceThroughAChannel), and so does a Task<T> made in a generic body whose T is a task
-// (TestTaskPayloadFenceInAGenericBody). The joined-clone drain, retired with its `async fn`
-// result, finishes in its legal form, the clone handed on (TestTaskPayloadRetiredDrainHandedOn).
+// SEM3223 (owner ruling 2026-09-26) retires every direct Task<Task<T>>
+// form before return-origin analysis. Each retired program stays frozen byte
+// for byte and pins the complete diagnostic set and exact primary spans.
+//
+// Channel<Task<T>> remains legal. A newly created empty channel is source-free
+// and may cross in a task result; a channel handed a task that still borrows its
+// frame is refused by the task checker in
+// TestTaskPayloadIsTaskRetiredSelectPrograms. A generic body over an unknown T
+// keeps its body-local capture and payload obligations.
 
 type taskPayloadRetiredRow struct {
 	name, text, digest string
 	codes              string   // every error code of the program, sorted and comma-joined
 	sem3223            []string // the text of every SEM3223 primary span, in order
-	fn                 originSpan
-	want               []originRefusal // the retired row's Pending rows inside fn, exactly
-	// legalFormOnly names the legal-form row that carries the fence when the analysis cannot
-	// run on the refused program itself.
-	legalFormOnly string
 }
-
-// taskPayloadNoBorrowedState is the row NoBorrowedState leaves where it meets a Task.
-const taskPayloadNoBorrowedState = "opaque result borrowed-state classification is unsupported"
 
 const taskPayloadRetiredAwaitSource = `async fn read_ref(t: Task<&int>) -> int {
     let _ = t.await();
@@ -154,41 +139,24 @@ async fn drained_then_clone_returned() -> Task<int64> {
 func taskPayloadRetiredRows() []taskPayloadRetiredRow {
 	nestedBlock := "async {\n        let inner: Task<int> = async { ret 7; };\n        ret inner;\n    }"
 	return []taskPayloadRetiredRow{
-		// TestAnalyzeTaskAwaits/task_payload_stays_refused
 		{name: "await_task_payload", text: taskPayloadRetiredAwaitSource, digest: "b637c8f95aa3340047a6b401257d903ca06fb12f79a134f39739c2e3cc671c59",
-			codes: "SEM3223", sem3223: []string{"Task<Task<int>>"},
-			fn: originSpan{167, 253, taskPayloadRetiredAwaitSource[167:253]}, want: []originRefusal{{span: originSpan{227, 236, "t.await()"}, reason: originTaskAwaitUnsupported}, {span: originSpan{227, 236, "t.await()"}, reason: originCalleeSourceRefusal}}},
-		// TestAnalyzeTaskAwaits/borrowing_task_payload_stays_refused, R-i's own program
+			codes: "SEM3223", sem3223: []string{"Task<Task<int>>"}},
 		{name: "await_borrowing_task_payload", text: taskPayloadRetiredNestedAwaitSource, digest: "6beb8a63984df9be83215d3b10b8698a6e9b3c8bf455be4105b7be29c9541f19",
-			codes: "SEM3223", sem3223: []string{"-> Task<int>", "-> Task<int>"},
-			fn: originSpan{182, 356, taskPayloadRetiredNestedAwaitSource[182:356]}, want: []originRefusal{{span: originSpan{262, 279, "outer(&l).await()"}, reason: originTaskAwaitUnsupported}, {span: originSpan{262, 279, "outer(&l).await()"}, reason: originCalleeSourceRefusal}}},
-		// TestAnalyzeTaskBlocks/task_payload_stays_refused
+			codes: "SEM3223", sem3223: []string{"-> Task<int>", "-> Task<int>"}},
 		{name: "block_task_payload", text: taskPayloadRetiredBlockSource, digest: "75a5d3011831d2e43801490139dd27f822438e097ea22f5b4ae06cb614071cd4",
-			codes: "SEM3223", sem3223: []string{"Task<Task<int>>", nestedBlock},
-			fn: originSpan{226, 354, taskPayloadRetiredBlockSource[226:354]}, want: []originRefusal{{span: originSpan{270, 351, nestedBlock}, reason: originTaskBlockPayloadRefusal}, {span: originSpan{263, 352, "return " + nestedBlock + ";"}, reason: originOutgoingRefusal}, {span: originSpan{238, 256, "-> Task<Task<int>>"}, reason: originResultRefusal}}},
-		// TestAnalyzeSpawn/spawn_task_payload_keeps_its_derived_rows
+			codes: "SEM3223", sem3223: []string{"Task<Task<int>>", nestedBlock}},
 		{name: "spawn_task_payload", text: taskPayloadRetiredSpawnSource, digest: "08ead9d94e4ed8ca4c83da89b9491818fbe915d8679700b9791d0887eff13276",
-			codes: "SEM3223", sem3223: []string{"Task<Task<int>>", nestedBlock},
-			fn: originSpan{0, 140, taskPayloadRetiredSpawnSource[0:140]}, want: []originRefusal{{span: originSpan{56, 137, nestedBlock}, reason: originTaskBlockPayloadRefusal}, {span: originSpan{43, 138, "return spawn " + nestedBlock + ";"}, reason: originOutgoingRefusal}, {span: originSpan{18, 36, "-> Task<Task<int>>"}, reason: originResultRefusal}}},
-		// TestAnalyzeSpawnOn/task_payload_refused
+			codes: "SEM3223", sem3223: []string{"Task<Task<int>>", nestedBlock}},
 		{name: "spawn_on_task_payload", text: taskPayloadRetiredSpawnOnSource, digest: "d74f2b5f3bc22bf2fb7556eb16ee13a0dec5427ed82358ee50bb07e06a0f74aa",
-			codes: "SEM3223", sem3223: []string{"Task<Task<int>>", "spawn on pool {\n        ret plain(1);\n    }"},
-			fn: originSpan{49, 142, taskPayloadRetiredSpawnOnSource[49:142]}, want: []originRefusal{{span: originSpan{96, 139, "spawn on pool {\n        ret plain(1);\n    }"}, reason: spawnOnPayloadRefusal}, {span: originSpan{89, 140, "return spawn on pool {\n        ret plain(1);\n    };"}, reason: originOutgoingRefusal}, {span: originSpan{60, 82, "-> far Task<Task<int>>"}, reason: originResultRefusal}},
-			// The checker records no crossing for a `spawn on` it refused (the analysis stops with "crossing
-			// ... has no checker record"), so this fence is read in its legal form.
-			legalFormOnly: "TestTaskPayloadFenceThroughAChannel/spawn_on_channel_of_tasks"},
-		// TestReturnOriginHandleDefaultCanariesKeepTheirRows/task_payload_await_reaches_r_i
+			codes: "SEM3223", sem3223: []string{"Task<Task<int>>", "spawn on pool {\n        ret plain(1);\n    }"}},
 		{name: "canary_task_payload_await", text: taskPayloadRetiredCanarySource, digest: "852847d285ebaf8548c59371898a104d02f693bc6cb6447e6aa81d4aa9cc9a94",
-			codes: "SEM3223", sem3223: []string{"Task<Task<int>>"},
-			fn: originSpan{0, len(taskPayloadRetiredCanarySource) - 1, taskPayloadRetiredCanarySource[:len(taskPayloadRetiredCanarySource)-1]}, want: []originRefusal{{span: originSpan{60, 69, "t.await()"}, reason: handleDefaultUnsupported}, {span: originSpan{60, 69, "t.await()"}, reason: originCalleeSourceRefusal}}},
-		// TestReturnOriginHandleDefaultsFinish/joined_clone_drain: it finished, so its retired row is no Pending at all
+			codes: "SEM3223", sem3223: []string{"Task<Task<int>>"}},
 		{name: "joined_clone_drain", text: taskPayloadRetiredDrainSource, digest: "c0ec17f1c547f8cae8274746ab9cfb95160c47991a80e770d629e655bfce2985",
-			codes: "SEM3223", sem3223: []string{"-> Task<int64>"},
-			fn: originSpan{0, len(taskPayloadRetiredDrainSource) - 1, taskPayloadRetiredDrainSource[:len(taskPayloadRetiredDrainSource)-1]}, want: []originRefusal{}},
+			codes: "SEM3223", sem3223: []string{"-> Task<int64>"}},
 	}
 }
 
-// First line: each retired program is refused by SEM3223 at exactly its named spans.
+// Each retired program is refused by SEM3223 at exactly its named spans.
 func TestTaskPayloadIsTaskRetiredPrograms(t *testing.T) {
 	for _, row := range taskPayloadRetiredRows() {
 		t.Run(row.name, func(t *testing.T) {
@@ -206,64 +174,40 @@ func TestTaskPayloadIsTaskRetiredPrograms(t *testing.T) {
 	}
 }
 
-// Second line: under SEM3223 the analysis still leaves each retired row's Pending rows.
-func TestTaskPayloadIsTaskRetiredFenceRows(t *testing.T) {
-	for _, row := range taskPayloadRetiredRows() {
-		if row.legalFormOnly != "" {
-			continue
-		}
-		t.Run(row.name, func(t *testing.T) {
-			spans := []originSpan{row.fn}
-			for _, want := range row.want {
-				spans = append(spans, want.span)
-			}
-			checkOriginSource(t, row.text, row.digest, spans...)
-			f, analysis := analyzeOriginRootUnderTaskPayloadRule(t, "task_payload_retired_"+row.name, row.text)
-			originExactPending(t, analysis, f.unit.SourceKey, row.fn, row.want)
-			originNoEscape(t, analysis, f.owner.File.ID, row.fn)
-		})
-	}
-}
-
-// R-i's legal form: a task behind a channel in an awaited, block or `spawn on` payload. SEM3223
-// does not walk a channel's payload, so these programs build as far as the checker is concerned,
-// and NoBorrowedState (or the payload row) is their first and only fence.
-func TestTaskPayloadFenceThroughAChannel(t *testing.T) {
+// A fresh empty Channel<Task<T>> carries no borrowed task. Exact handle
+// provenance therefore finishes each legal task result instead of applying a
+// blanket NoBorrowedState refusal to the channel's element type.
+func TestTaskPayloadSourceFreeChannelOfTasks(t *testing.T) {
 	for _, row := range []struct {
 		name, text string
 		fn         string
-		want       []struct{ snippet, reason string }
 	}{
-		{name: "await_channel_of_tasks", fn: "read_channel", want: []struct{ snippet, reason string }{{"t.await()", taskPayloadNoBorrowedState}, {"t.await()", originCalleeSourceRefusal}},
+		{name: "await_channel_of_tasks", fn: "read_channel",
 			text: "async fn read_channel(t: Task<Channel<Task<int>>>) -> int {\n    let _ = t.await();\n    return 0;\n}\n"},
-		{name: "block_channel_of_tasks", fn: "relay", want: []struct{ snippet, reason string }{{"async {\n        let ch = Channel::<Task<int>>::new(1:uint);\n        ret ch;\n    }", originTaskBlockPayloadRefusal}, {"Channel::<Task<int>>::new(1:uint)", taskPayloadNoBorrowedState}, {"Channel::<Task<int>>::new(1:uint)", originCalleeSourceRefusal}},
+		{name: "block_channel_of_tasks", fn: "relay",
 			text: "fn relay() -> int {\n    let t = async {\n        let ch = Channel::<Task<int>>::new(1:uint);\n        ret ch;\n    };\n    let _ = t;\n    return 0;\n}\n"},
-		{name: "spawn_channel_of_tasks", fn: "spawn_relay", want: []struct{ snippet, reason string }{{"-> Task<Channel<Task<int>>>", originResultRefusal}, {"return spawn async {\n        let ch = Channel::<Task<int>>::new(1:uint);\n        ret ch;\n    };", originOutgoingRefusal}, {"async {\n        let ch = Channel::<Task<int>>::new(1:uint);\n        ret ch;\n    }", originTaskBlockPayloadRefusal}, {"Channel::<Task<int>>::new(1:uint)", taskPayloadNoBorrowedState}, {"Channel::<Task<int>>::new(1:uint)", originCalleeSourceRefusal}},
+		{name: "spawn_channel_of_tasks", fn: "spawn_relay",
 			text: "fn spawn_relay() -> Task<Channel<Task<int>>> {\n    return spawn async {\n        let ch = Channel::<Task<int>>::new(1:uint);\n        ret ch;\n    };\n}\n"},
-		{name: "spawn_on_channel_of_tasks", fn: "start", want: []struct{ snippet, reason string }{{"-> far Task<Channel<Task<int>>>", originResultRefusal}, {"return spawn on pool {\n        let ch = Channel::<Task<int>>::new(1:uint);\n        ret ch;\n    };", originOutgoingRefusal}, {"spawn on pool {\n        let ch = Channel::<Task<int>>::new(1:uint);\n        ret ch;\n    }", spawnOnPayloadRefusal}, {"Channel::<Task<int>>::new(1:uint)", taskPayloadNoBorrowedState}, {"Channel::<Task<int>>::new(1:uint)", originCalleeSourceRefusal}},
+		{name: "spawn_on_channel_of_tasks", fn: "start",
 			text: "fn start() -> far Task<Channel<Task<int>>> {\n    return spawn on pool {\n        let ch = Channel::<Task<int>>::new(1:uint);\n        ret ch;\n    };\n}\n"},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			start, end := taskNarrowFunction(t, row.text, row.fn)
 			fn := originSpan{start, end, row.text[start:end]}
-			var want []originRefusal
-			for _, w := range row.want {
-				want = append(want, originRefusal{span: handleDefaultAt(t, row.text, w.snippet), reason: w.reason})
-			}
 			if _, errs := taskCheckErrorCodes(t, taskCheckProbe{name: row.name, digest: sha256Hex(row.text), text: row.text}); len(errs) != 0 {
 				t.Fatalf("PRECONDITION: the legal form has errors %+v", errs)
 			}
 			f, analysis := analyzeOriginRoot(t, "task_payload_channel_"+row.name, row.text, false, nil)
-			originExactPending(t, analysis, f.unit.SourceKey, fn, want)
+			originExactPending(t, analysis, f.unit.SourceKey, fn, nil)
 			originNoEscape(t, analysis, f.owner.File.ID, fn)
+			requireOriginSummary(t, analysis, f.owner.File.ID, row.fn, false, nil)
 		})
 	}
 }
 
-// R-i's other remaining form: a Task<T> made inside a generic body whose T is instantiated with a
-// task. SEM3223 does not reach it -- the declaration sees only T, and the call's result holds no
-// task -- so the checker accepts the program, and return origins keep it unfinished: the block's
-// capture and payload rows inside the generic body, and NoBorrowedState at the instantiating call.
+// A Task<T> made inside a generic body whose T is instantiated with a task keeps
+// the body's capture and payload obligations. Exact handle provenance removes
+// the old blanket NoBorrowedState row at the instantiating call.
 func TestTaskPayloadFenceInAGenericBody(t *testing.T) {
 	text := `async fn relay<T>(x: T) -> int {
     let t = async { ret x; };
@@ -289,7 +233,6 @@ async fn use_relay() -> int {
 	for _, want := range []struct{ snippet, reason string }{
 		{"async { ret x; }", originTaskBlockCaptureRefusal},
 		{"async { ret x; }", originTaskBlockPayloadRefusal},
-		{"relay(work())", taskPayloadNoBorrowedState},
 	} {
 		if span := handleDefaultAt(t, text, want.snippet); !originPendingAt(analysis, f.unit.SourceKey, span, want.reason) {
 			t.Errorf("missing %q at %q: %+v", want.reason, want.snippet, originPendingWithin(analysis, f.unit.SourceKey, 0, len(text)))
@@ -496,14 +439,8 @@ func sha256Hex(text string) string {
 	return fmt.Sprintf("%x", sha256.Sum256([]byte(text)))
 }
 
-// analyzeOriginRootUnderTaskPayloadRule is analyzeOriginRoot over a program whose only errors are
-// SEM3223 in the root file (at least one): the fixture, the closure and the analysis are the same.
-func analyzeOriginRootUnderTaskPayloadRule(t *testing.T, stage, text string) (originalGenericFixture, *sema.ReturnOriginAnalysis) {
-	t.Helper()
-	return analyzeOriginRootUnderRule(t, stage, text, diag.SemaTaskPayloadIsTask)
-}
-
-// analyzeOriginRootUnderRule is analyzeOriginRootUnderTaskPayloadRule for the one refusing rule named.
+// analyzeOriginRootUnderRule runs return origins while tolerating exactly one
+// earlier semantic rule in the root file.
 func analyzeOriginRootUnderRule(t *testing.T, stage, text string, rule diag.Code) (originalGenericFixture, *sema.ReturnOriginAnalysis) {
 	t.Helper()
 	stdlib := detectStdlibRootFrom(".")

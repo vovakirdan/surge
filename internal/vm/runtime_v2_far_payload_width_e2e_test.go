@@ -119,7 +119,7 @@ func runRuntimeV2FarPayloadWidth(t *testing.T, source string) {
 	for _, shardCount := range []int{1, 2} {
 		value := fmt.Sprintf("%d", shardCount)
 		env := overrideEnvVar(baseEnv, "SURGE_SHARDS", value)
-		env = overrideEnvVar(env, "SURGE_THREADS", value)
+		env = overrideEnvVar(env, "SURGE_SHARDS", value)
 		t.Run(fmt.Sprintf("correctness/shards_%d", shardCount), func(t *testing.T) {
 			duration, result := runBinaryWithTimeout(t, outputPath, env, 30*time.Second)
 			if result.exitCode != 0 || strings.Contains(result.stdout, "FAIL") {
@@ -136,7 +136,7 @@ func runRuntimeV2FarPayloadWidth(t *testing.T, source string) {
 
 	t.Run("valgrind_strict_zero", func(t *testing.T) {
 		env := overrideEnvVar(baseEnv, "SURGE_SHARDS", "1")
-		env = overrideEnvVar(env, "SURGE_THREADS", "1")
+		env = overrideEnvVar(env, "SURGE_SHARDS", "1")
 		stdout, stderr, exitCode := runBinaryUnderValgrind(t, outputPath, env, 90*time.Second)
 		if hasValgrindMemcheckError(stderr) {
 			t.Fatalf("valgrind reported a memcheck error\nstdout:\n%s\nstderr:\n%s", stdout, stderr)

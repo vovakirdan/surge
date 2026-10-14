@@ -120,7 +120,7 @@ func (fe *funcEmitter) emitInstrAwait(ins *mir.Instr) error {
 	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_task_await(ptr %s, ptr %s, ptr %s)\n",
 		val, kindPtr, payloadPtr)
 	kindVal := fe.nextTemp()
-	fmt.Fprintf(&fe.emitter.buf, "  %s = load i8, ptr %s\n", kindVal, kindPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  %s = load i8, ptr %s, align 1\n", kindVal, kindPtr)
 	resultPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = alloca ptr, align %d\n", resultPtr, alignPtr)
 	successBB := fe.nextInlineBlock()

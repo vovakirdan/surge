@@ -77,8 +77,27 @@ func TestGateSelectionsAreLiveAndComplete(t *testing.T) {
 	// invariant was written against. The pre-commit root is still held to
 	// running SOME test lane, so a hook that quietly ran no tests would be
 	// refused here rather than discovered by the next red CI.
-	if !strings.Contains(makefile, "$(GO) test ./...") {
-		t.Fatal("the test target no longer runs `go test ./...`; the integrity check would be unreachable")
+	if !strings.Contains(makefile, `./scripts/go_test_full.sh "$(GO)"`) {
+		t.Fatal("the test target no longer runs the full-test runner; the integrity check would be unreachable")
+	}
+	runnerBytes, err := os.ReadFile(filepath.Join(root, "scripts", "go_test_full.sh"))
+	if err != nil {
+		t.Fatalf("read full-test runner: %v", err)
+	}
+	runner := string(runnerBytes)
+	for _, required := range []string{
+		`go_bin=${1:-go}`,
+		`"${go_bin}" list ./...`,
+		`grep -Ev '/internal/(driver|vm)$'`,
+		`"${go_bin}" test "${ordinary_packages[@]}"`,
+		`-list '^(Test|Example|Fuzz)'`,
+		`run_sharded_package ./internal/driver`,
+		`run_sharded_package ./internal/vm`,
+		`selected != ${#tests[@]}`,
+	} {
+		if !strings.Contains(runner, required) {
+			t.Errorf("full-test runner lost coverage invariant %q", required)
+		}
 	}
 	reachable := ReachableTargets(makefile, "check", "check-full", "runtime-v2-check")
 	if !reachable["test"] {

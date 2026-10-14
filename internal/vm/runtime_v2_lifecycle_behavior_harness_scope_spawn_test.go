@@ -10,9 +10,8 @@ package vm_test
 const lifecycleHarnessScopeSpawn = `
 // spawn_pinned_in_scope creates a child AS A MEMBER of the scope the calling
 // poll has entered. Creation is the sole writer of a task's scope identity: a
-// task spawned by the driver and handed to a scope afterwards is never that
-// scope's child, and rt_scope_register_child refuses it. So a stand whose scope
-// must count a child creates that child from inside the owner's poll, exactly
+// task spawned by the driver outside the scope is never that scope's child. A
+// stand whose scope must count a child creates it from inside the owner's poll, exactly
 // as publish_created_task does for compiled code -- provenance sealed and
 // membership published on the scope's lane before the task is published on
 // its own, one shard lock at a time, never two.

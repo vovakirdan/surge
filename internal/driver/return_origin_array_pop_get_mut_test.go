@@ -40,6 +40,7 @@ func analyzeArrayPopSource(t *testing.T, stage string, src arrayPopSource,
 	if prepare != nil {
 		prepare(f)
 	}
+	exhaustiveReturnOriginUnits(t, f.inputs.units, "core/array.sg")
 	analysis, err := sema.AnalyzeReturnOrigins(t.Context(), f.authority, f.inputs.units)
 	if err != nil || analysis == nil {
 		t.Fatalf("return-origin analysis did not run: %v", err)
@@ -374,8 +375,11 @@ func arrayPopMutatePromise(t *testing.T, f originalGenericFixture, name string, 
 				continue
 			}
 			sym := unit.Symbols.Table.Symbols.Get(originalGenericSignatureLocal(t, unit, *c))
+			if sym == nil {
+				t.Fatal("PRECONDITION: core declaration lost its symbol")
+			}
 			info, ok := f.authority.TypeInterner.FnInfo(sym.Type)
-			if sym == nil || !ok || info == nil {
+			if !ok || info == nil {
 				t.Fatal("PRECONDITION: core declaration lost its typed signature")
 			}
 			sym.Type = f.authority.TypeInterner.RegisterFnWithReturnSources(info.Params, info.Result, want)

@@ -220,7 +220,6 @@ class Manifest:
     backend: str
     profile: str
     shards: int
-    threads: int
     blocking_threads: int
     metrics: tuple[Metric, ...]
     allocation_control: AllocationControl

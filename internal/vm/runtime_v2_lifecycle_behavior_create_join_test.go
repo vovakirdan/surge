@@ -57,7 +57,7 @@ func TestRuntimeV2LifecycleJoinPollResultObservation(t *testing.T) {
 //     per the epic's probe list rather than only incidentally.
 func TestRuntimeV2LifecycleJoinWaiterCleanupRegisterThenVerify(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarness(t)
-	env := lifecycleEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1")
+	env := lifecycleEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1")
 
 	t.Run("pre-done", func(t *testing.T) {
 		stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "join-cleanup-pre-done", env)

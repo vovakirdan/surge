@@ -53,7 +53,7 @@ func TestReturnSourceDirectConformanceTransport(t *testing.T) {
 			if len(facts) != 1 || len(tc.result.InstantiationGraph.DeferredCallables()) != 0 {
 				t.Fatalf("direct bound lost its independent obligation: facts=%d deferred=%d", len(facts), len(tc.result.InstantiationGraph.DeferredCallables()))
 			}
-			fact := cloneReturnSourceConformance(facts[0])
+			fact := cloneReturnSourceConformance(&facts[0])
 			require := lookupSymbolByName(syms, tc.builder.StringsInterner.Intern("require"))
 			if name != "generic_entailment" && !slices.ContainsFunc(tc.result.InstantiationGraph.Roots(), func(root InstantiationRoot) bool { return root.Template == require }) {
 				t.Fatal("zero deferred count did not accompany an actual concrete require instantiation")
@@ -95,9 +95,10 @@ func TestReturnSourceDirectConformanceTransport(t *testing.T) {
 				t.Fatalf("recorder selected another overload/body: %s", body)
 			}
 			want := types.ExplicitReturnSources(1)
-			if name == "wider_declared" {
+			switch name {
+			case "wider_declared":
 				want = types.ExplicitReturnSources(1, 2)
-			} else if name == "inferred_body_identity" {
+			case "inferred_body_identity":
 				want = types.ReturnSources{}
 			}
 			if !fact.Actual.Sources.Equal(want) {
@@ -116,7 +117,8 @@ func TestReturnSourceDirectConformanceTransport(t *testing.T) {
 				}
 				facts[0].Params[0], facts[0].Bound.GenericArgs[0], facts[0].ConcreteBound.GenericArgs[0] = types.NoTypeID, types.NoTypeID, types.NoTypeID
 				facts[0].Actual.Symbol = symbols.NoSymbolID
-				if !returnSourceConformancesEqual(tc.result.ReturnSourceConformances()[0], fact) {
+				retained := tc.result.ReturnSourceConformances()[0]
+				if !returnSourceConformancesEqual(&retained, &fact) {
 					t.Fatal("detached getter exposed retained conformance slices")
 				}
 			}
@@ -155,7 +157,7 @@ extern<Foo> { fn choose(self: &Foo, @return_source other: &Foo) -> &Foo; }`
 	foo := syms.Table.Symbols.Get(lookupSymbolByName(syms, tc.builder.StringsInterner.Intern("Foo")))
 	ref := tc.types.Intern(types.MakeReference(foo.Type, false))
 	bound := symbols.BoundInstance{Contract: owner, GenericArgs: []types.TypeID{ref}, Span: contract.Span}
-	if !tc.checkContractSatisfaction(ref, bound, contract.Span, "") || bag.HasErrors() {
+	if !tc.checkContractSatisfaction(ref, bound, contract.Span) || bag.HasErrors() {
 		t.Fatalf("receiver source contract failed: %s", diagnosticsSummary(bag))
 	}
 	facts := tc.result.ReturnSourceConformances()

@@ -15,9 +15,10 @@ import (
 
 // An index over a user type that SEMA resolved to an `__index` declaration is
 // answered as the call HIR lowers it to when the declaration agrees with the
-// typed operation and its result is erased. A result that can hold a reference
-// or a loan, a converted result, a generic or `&mut` receiver, a formal the
-// effect rule refuses, and a loan-carrying cursor argument stay refused.
+// typed operation. An erased result carries nothing; a borrowed result
+// substitutes the exact body or declaration promise through its operands. A
+// converted result, a generic or `&mut` receiver, a formal the effect rule
+// refuses, and a loan-carrying cursor argument stay refused.
 const indexCallSource = `type Box = { value: int };
 extern<Box> {
     fn __index(self: Box, r: Range<int>) -> int;
@@ -164,25 +165,28 @@ const (
 func TestAnalyzeSelectedIndexCall(t *testing.T) {
 	f, analysis := analyzeOriginRoot(t, "selected_index_call", indexCallSource, true, nil)
 	key, file := f.unit.SourceKey, f.owner.File.ID
-	for _, row := range []struct{ name, header string }{
-		{"opaque_owned_result_finishes", "fn opaque_owned("},
-		{"body_owned_result_finishes", "fn body_owned("},
-		{"implicitly_borrowed_local_receiver_finishes", "fn borrowed_local_receiver("},
-		{"loan_carrier_consumer_finishes", "fn cursor_call("},
+	for _, row := range []struct {
+		name, header string
+		slots        []uint32
+	}{
+		{"opaque_owned_result_finishes", "fn opaque_owned(", nil},
+		{"body_owned_result_finishes", "fn body_owned(", nil},
+		{"implicitly_borrowed_local_receiver_finishes", "fn borrowed_local_receiver(", nil},
+		{"loan_carrier_consumer_finishes", "fn cursor_call(", nil},
+		{"reference_into_self_uses_self", "fn self_reference(", []uint32{0}},
+		{"opaque_reference_uses_its_declared_inputs", "fn opaque_reference(", []uint32{0}},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			fn := patternFn(t, indexCallSource, row.header)
 			originExactPending(t, analysis, key, fn, nil)
 			originNoEscape(t, analysis, file, fn)
 			name := strings.TrimSuffix(strings.TrimPrefix(row.header, "fn "), "(")
-			requireOriginSummary(t, analysis, file, name, false, nil)
+			requireOriginSummary(t, analysis, file, name, false, row.slots)
 		})
 	}
 	for _, row := range []struct{ name, header, index, reason string }{
 		{"generic_index_stays_refused", "fn generic_index(", "g[[0..1]]", indexCallUnanswered},
-		{"reference_into_self_stays_refused", "fn self_reference(", "s[[0..1]]", indexCallUnanswered},
 		{"reference_into_local_stays_refused", "fn local_reference(", "l[[0..1]]", indexCallUnanswered},
-		{"opaque_reference_result_stays_refused", "fn opaque_reference(", "o[[0..1]]", indexCallUnanswered},
 		{"mutable_receiver_stays_refused", "fn mut_receiver(", "b[[1..2]]", indexCallUnanswered},
 		{"loan_carrier_result_stays_refused", "fn loan_result(", "b[[0..1]]", indexCallUnanswered},
 		{"converted_index_result_stays_refused", "fn converted(", "b[[1..2]]", "index requires its implicit conversion effect transfer"},

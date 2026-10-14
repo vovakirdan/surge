@@ -17,6 +17,14 @@ func (fe *funcEmitter) emitCall(ins *mir.Instr) error {
 	if err := fe.refuseBodilessCallee(call); err != nil {
 		return err
 	}
+	// An exact source-body symbol wins over name-based intrinsic fallbacks.
+	// Otherwise a user function named send/recv/clone can be emitted as an
+	// unrelated runtime operation despite successful semantic resolution.
+	if call.Callee.Kind == mir.CalleeSym && call.Callee.Sym.IsValid() {
+		if id, ok := fe.emitter.mod.FuncBySym[call.Callee.Sym]; ok && fe.emitter.mod.Funcs[id] != nil {
+			return fe.emitDirectCall(call)
+		}
+	}
 	if handled, err := fe.emitTagConstructor(call); handled {
 		return err
 	}

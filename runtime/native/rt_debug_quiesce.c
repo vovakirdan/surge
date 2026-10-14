@@ -52,12 +52,8 @@ static int debug_quiesce_shard_at_rest_locked(const rt_shard* shard, uint32_t ow
     if (scheduler->inject.len != 0) {
         return 0;
     }
-    if (scheduler->local_queues != NULL) {
-        for (uint32_t i = 0; i < scheduler->worker_count; i++) {
-            if (scheduler->local_queues[i].len != 0) {
-                return 0;
-            }
-        }
+    if (scheduler->local_queue.len != 0) {
+        return 0;
     }
     if (rt_transport_inbound_len_locked(shard) != 0) {
         return 0;

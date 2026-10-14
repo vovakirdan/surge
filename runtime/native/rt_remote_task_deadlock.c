@@ -26,12 +26,6 @@
 // at the second look. The blocking pool's dec-before-wake window is
 // absorbed the same way: the wake makes some shard non-quiescent.
 //
-// Coverage note: the single-shard single-worker configuration starts no
-// worker threads — the awaiting driver thread polls tasks itself — so this
-// park-edge check never runs there. That mode is covered by the driver-side
-// "async deadlock" panic (rt_async_poll.c) which fires when an external
-// await finds nothing runnable.
-//
 // Blind spot (shared with the driver-side panic): a non-runtime thread that
 // touches a channel through FFI is invisible to the quiescence scan.
 // Embedders whose external threads legitimately feed or drain channels can
@@ -63,12 +57,8 @@ static int shard_quiescent_locked(const rt_executor* ex, rt_shard* shard) {
     if (scheduler == NULL || scheduler->running_count != 0 || scheduler->inject.len != 0) {
         return 0;
     }
-    if (scheduler->local_queues != NULL) {
-        for (uint32_t i = 0; i < scheduler->worker_count; i++) {
-            if (scheduler->local_queues[i].len != 0) {
-                return 0;
-            }
-        }
+    if (scheduler->local_queue.len != 0) {
+        return 0;
     }
     if (rt_transport_inbound_len_locked(shard) != 0) {
         return 0;

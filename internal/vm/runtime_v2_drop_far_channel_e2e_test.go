@@ -75,7 +75,7 @@ func TestRuntimeV2DropFarChannelHandleAndObjectValgrindZero(t *testing.T) {
 	for _, shardCount := range []string{"1", "2", "8"} {
 		t.Run(fmt.Sprintf("shards_%s", shardCount), func(t *testing.T) {
 			env := overrideEnvVar(baseEnv, "SURGE_SHARDS", shardCount)
-			env = overrideEnvVar(env, "SURGE_THREADS", shardCount)
+			env = overrideEnvVar(env, "SURGE_SHARDS", shardCount)
 			stdout, stderr, exitCode := runBinaryUnderValgrind(t, outputPath, env, 60*time.Second)
 			if hasValgrindMemcheckError(stderr) {
 				t.Fatalf("valgrind reported a real memcheck error (invalid free / use-after-free / uninitialized read)\nstdout:\n%s\nstderr:\n%s", stdout, stderr)

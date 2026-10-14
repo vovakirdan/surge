@@ -256,7 +256,7 @@ func TestRuntimeV2AcceptFixtureAnswersALiveTraceRequest(t *testing.T) {
 	<-srv.waitCh
 }
 
-func TestRuntimeV2AcceptShardOneNativeNetCompatibility(t *testing.T) {
+func TestRuntimeV2AcceptShardOneNativeNet(t *testing.T) {
 	ensureLLVMToolchain(t)
 
 	port := pickFreePort(t)
@@ -272,7 +272,7 @@ func TestRuntimeV2AcceptShardOneNativeNetCompatibility(t *testing.T) {
 	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
 	conn, err := dialWithRetry(addr, time.Now().Add(10*time.Second))
 	if err != nil {
-		srv.fail("dial accept compatibility fixture: %v", err)
+		srv.fail("dial single-shard accept fixture: %v", err)
 	}
 	if err = conn.SetDeadline(time.Now().Add(10 * time.Second)); err != nil {
 		_ = conn.Close()

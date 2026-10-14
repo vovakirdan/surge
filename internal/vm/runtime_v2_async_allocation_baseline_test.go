@@ -60,7 +60,7 @@ func buildAsyncAllocationProgram(t *testing.T, source string) string {
 	return bin
 }
 
-func asyncAllocationEnvironment(t *testing.T, workers string) []string {
+func asyncAllocationEnvironment(t *testing.T, shards string) []string {
 	t.Helper()
 	var env []string
 	for _, entry := range os.Environ() {
@@ -68,8 +68,8 @@ func asyncAllocationEnvironment(t *testing.T, workers string) []string {
 			env = append(env, entry)
 		}
 	}
-	return append(env, "SURGE_STDLIB="+repoRoot(t), "SURGE_SHARDS=1", "SURGE_THREADS="+workers,
-		"SURGE_BLOCKING_THREADS="+workers)
+	return append(env, "SURGE_STDLIB="+repoRoot(t), "SURGE_SHARDS="+shards,
+		"SURGE_BLOCKING_THREADS="+shards)
 }
 
 func runAsyncAllocationXML(t *testing.T, bin string, env []string, mode, rounds, marker string) []asyncAllocationRecord {
@@ -171,9 +171,9 @@ fn main(rounds: uint) -> int {
 
 func TestRuntimeV2AsyncAllocationBaselineRejectsRetainedChannel(t *testing.T) {
 	bin := buildAsyncAllocationProgram(t, asyncAllocationNegativeSource)
-	for _, workers := range []string{"1", "8"} {
-		t.Run("workers-"+workers, func(t *testing.T) {
-			env := asyncAllocationEnvironment(t, workers)
+	for _, shards := range []string{"1", "8"} {
+		t.Run("shards-"+shards, func(t *testing.T) {
+			env := asyncAllocationEnvironment(t, shards)
 			const marker = "async-allocation-negative-witness"
 			baseline := runAsyncAllocationXML(t, bin, env, "control", "1", marker)
 			if err := validateAsyncAllocationBaseline(baseline); err != nil {

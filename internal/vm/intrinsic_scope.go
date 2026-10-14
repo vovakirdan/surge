@@ -51,49 +51,6 @@ func (vm *VM) handleScopeEnter(frame *Frame, call *mir.CallInstr, writes *[]Loca
 	return nil
 }
 
-func (vm *VM) handleScopeRegisterChild(frame *Frame, call *mir.CallInstr) *VMError {
-	if call == nil {
-		return vm.eb.makeError(PanicTypeMismatch, "rt_scope_register_child requires a call")
-	}
-	if len(call.Args) != 2 {
-		return vm.eb.makeError(PanicTypeMismatch, "rt_scope_register_child expects 2 arguments")
-	}
-	scopeVal, vmErr := vm.evalOperand(frame, &call.Args[0])
-	if vmErr != nil {
-		return vmErr
-	}
-	ownsScope := scopeVal.IsHeap()
-	defer func() {
-		if ownsScope {
-			vm.dropValue(scopeVal)
-		}
-	}()
-	scopeID, vmErr := vm.scopeIDFromValue(scopeVal)
-	if vmErr != nil {
-		return vmErr
-	}
-	taskVal, vmErr := vm.evalOperand(frame, &call.Args[1])
-	if vmErr != nil {
-		return vmErr
-	}
-	ownsTask := taskVal.IsHeap()
-	defer func() {
-		if ownsTask {
-			vm.dropValue(taskVal)
-		}
-	}()
-	taskID, vmErr := vm.taskIDFromValue(taskVal)
-	if vmErr != nil {
-		return vmErr
-	}
-	exec := vm.ensureExecutor()
-	if exec == nil {
-		return vm.eb.makeError(PanicUnimplemented, "async executor missing")
-	}
-	exec.RegisterChild(scopeID, taskID)
-	return nil
-}
-
 func (vm *VM) handleScopeCancelAll(frame *Frame, call *mir.CallInstr) *VMError {
 	if call == nil {
 		return vm.eb.makeError(PanicTypeMismatch, "rt_scope_cancel_all requires a call")

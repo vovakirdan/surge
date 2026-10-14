@@ -188,7 +188,7 @@ func (b *returnOriginBody) applyCoreMapIntrinsic(op returnOriginMapOp, id ast.Ex
 // identity. A use has no targets, so a value or key that is a loan carrier Pends
 // first, as defence in depth: every route that stores a loan into a Map value is
 // refused where it enters. A stored or copied key must then be NoBorrowedState.
-func (a *returnOriginAnalyzer) checkMapIntrinsicUse(fn *returnOriginFunction, use ConcreteInstantiationUse) (handled bool, reason string) {
+func (a *returnOriginAnalyzer) checkMapIntrinsicUse(fn *returnOriginFunction, use *ConcreteInstantiationUse) (handled bool, reason string) {
 	op, certified := returnOriginMapIntrinsic(fn)
 	if !certified || len(use.TemplateArgs) != 2 {
 		return false, ""

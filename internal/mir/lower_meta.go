@@ -264,7 +264,9 @@ func buildTagLayouts(m *Module, src *hir.Module, typesIn *types.Interner) (tagLa
 					}
 					for ci := range ins.Crossing.Captures {
 						visitType(ins.Crossing.Captures[ci].Type)
-						visitOperand(&ins.Crossing.Captures[ci].Value)
+						if !ins.Crossing.CapturesPacked {
+							visitOperand(&ins.Crossing.Captures[ci].Value)
+						}
 					}
 					for ri := range ins.Crossing.RemoteOps {
 						visitType(ins.Crossing.RemoteOps[ri].ReceiverType)

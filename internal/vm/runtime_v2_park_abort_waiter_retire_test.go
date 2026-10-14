@@ -34,10 +34,8 @@ func TestRuntimeV2LifecycleDebt201AbortedParkRetiresChannelEntry(t *testing.T) {
 	for _, shards := range []string{"1", "2", "8"} {
 		shards := shards
 		t.Run("positive-shards-"+shards, func(t *testing.T) {
-			threads := map[string]string{"1": "4", "2": "2", "8": "8"}[shards]
 			env := lifecycleEnv(
 				"SURGE_SHARDS="+shards,
-				"SURGE_THREADS="+threads,
 				"SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_PARK_BEFORE_WAITING:block")
 			stdout, stderr, exitCode := runLifecycleHarness(
@@ -64,7 +62,6 @@ func TestRuntimeV2LifecycleDebt201AbortedParkRetiresChannelEntryNegativeControl(
 	binPath := buildRuntimeV2LifecycleHarnessDebt201(t, true)
 	env := lifecycleEnv(
 		"SURGE_SHARDS=2",
-		"SURGE_THREADS=2",
 		"SURGE_BLOCKING_THREADS=1",
 		"SURGE_SYNC_POINT=SP_PARK_BEFORE_WAITING:block")
 	stdout, stderr, exitCode := runLifecycleHarness(
@@ -125,21 +122,16 @@ func TestRuntimeV2LifecycleDebt201AbortRetirementStaticShape(t *testing.T) {
 
 const debt248SyncPoints = "SP_PARK_AFTER_INITIAL_TOKEN_CHECK:block,SP_PARK_ABORT_AFTER_REQUEUE:block"
 
-func buildRuntimeV2LifecycleHarnessDebt248(t *testing.T, negativeControl bool) string {
+func buildRuntimeV2LifecycleHarnessDebt248(t *testing.T) string {
 	t.Helper()
-	name := "lifecycle_harness_debt248"
-	flags := []string{"-DRT_TEST_SYNC_POINTS"}
-	if negativeControl {
-		name += "_negative"
-		flags = append(flags, "-DRV2_DEBT_248_NEGATIVE_CONTROL")
-	}
-	return buildRuntimeV2LifecycleHarnessWithFlags(t, name, flags)
+	return buildRuntimeV2LifecycleHarnessWithFlags(
+		t, "lifecycle_harness_debt248", []string{"-DRT_TEST_SYNC_POINTS"})
 }
 
-func TestRuntimeV2LifecycleDebt248SecondTokenAbortKeepsFreshJoinWaiter(t *testing.T) {
-	binPath := buildRuntimeV2LifecycleHarnessDebt248(t, false)
+func TestRuntimeV2LifecycleDebt248SingleCarrierRetiresStaleJoinWaiter(t *testing.T) {
+	binPath := buildRuntimeV2LifecycleHarnessDebt248(t)
 	env := lifecycleEnv(
-		"SURGE_SHARDS=1", "SURGE_THREADS=4", "SURGE_BLOCKING_THREADS=1",
+		"SURGE_SHARDS=4", "SURGE_BLOCKING_THREADS=1",
 		"SURGE_SYNC_POINT="+debt248SyncPoints)
 	stdout, stderr, exitCode := runLifecycleHarness(
 		t, binPath, "debt248-second-token-abort", env)
@@ -148,34 +140,12 @@ func TestRuntimeV2LifecycleDebt248SecondTokenAbortKeepsFreshJoinWaiter(t *testin
 			exitCode, stdout, stderr)
 	}
 	for _, want := range []string{
-		"debt248 windows: initial=2 abort=1 entries_before=2 entries_parked=2 attempts=2",
+		"debt248 windows: initial=2 abort=1 entries_before=1 entries_parked=1 attempts=2",
 		"debt248 complete: kind=1 bits=42 attempts=2",
 	} {
 		if !strings.Contains(stderr, want) {
 			t.Fatalf("DEBT-248 positive proof missed %q\nstdout:\n%s\nstderr:\n%s",
 				want, stdout, stderr)
-		}
-	}
-}
-
-func TestRuntimeV2LifecycleDebt248SecondTokenAbortNegativeControl(t *testing.T) {
-	binPath := buildRuntimeV2LifecycleHarnessDebt248(t, true)
-	env := lifecycleEnv(
-		"SURGE_SHARDS=1", "SURGE_THREADS=4", "SURGE_BLOCKING_THREADS=1",
-		"SURGE_SYNC_POINT="+debt248SyncPoints)
-	stdout, stderr, exitCode := runLifecycleHarness(
-		t, binPath, "debt248-second-token-abort", env)
-	if exitCode == 0 {
-		t.Fatalf("DEBT-248 negative control unexpectedly passed\nstdout:\n%s\nstderr:\n%s",
-			stdout, stderr)
-	}
-	for _, want := range []string{
-		"debt248 stranded: target=done joiner=waiting entries=0 attempts=2",
-		"debt248 negative control swept the fresh join registration",
-	} {
-		if !strings.Contains(stderr, want) {
-			t.Fatalf("DEBT-248 negative control failed for the wrong reason (code=%d, want %q)\nstdout:\n%s\nstderr:\n%s",
-				exitCode, want, stdout, stderr)
 		}
 	}
 }
@@ -224,20 +194,6 @@ static int debt248_fail(rt_executor* ex, const char* message) {
     (void)rt_executor_request_shutdown(ex);
     return fail(message);
 }
-
-#ifdef RV2_DEBT_248_NEGATIVE_CONTROL
-static int debt248_wait_entries(rt_executor* ex, waker_key key, uint64_t task_id, size_t want) {
-    // The bound is only a deadlock guard. Success is the exact structural
-    // waiter-store observation, never elapsed time.
-    for (uint32_t i = 0; i < 8000; i++) {
-        if (park_abort_entries_for(ex, key, task_id) == want) {
-            return 1;
-        }
-        sleep_us(1000);
-    }
-    return 0;
-}
-#endif
 
 static void poll_debt248_target(void) {
     atomic_store_explicit(&g_debt248_target_started, 1, memory_order_release);
@@ -378,8 +334,12 @@ static int mode_debt248_second_token_abort(rt_executor* ex) {
         return debt248_fail(ex, "debt248 target did not enter its gate");
     }
     void* join_handle = target != NULL ? rt_task_clone(target, NULL) : NULL;
+    // The target deliberately occupies shard 0's only carrier until the
+    // harness releases it. The joiner belongs to shard 1, whose carrier can
+    // drive the register/abort windows concurrently without reviving the old
+    // multi-carrier-per-shard topology.
     rt_task* joiner = join_handle != NULL
-                          ? spawn_pinned_with_state(ex, POLL_DEBT248_JOINER, 0, join_handle)
+                          ? spawn_pinned_with_state(ex, POLL_DEBT248_JOINER, 1, join_handle)
                           : NULL;
     if (target == NULL || join_handle == NULL || joiner == NULL) {
         return debt248_fail(ex, "debt248 task allocation failed");
@@ -410,28 +370,19 @@ static int mode_debt248_second_token_abort(rt_executor* ex) {
                 atomic_load_explicit(&g_debt248_poll_attempts, memory_order_acquire));
         return debt248_fail(ex, "debt248 did not reach the second token-abort window");
     }
-    // This READY entry belongs to the blocked poller's local deque. A
-    // one-element local push intentionally does not signal siblings, so wake
-    // the shard without injecting competing work: a sibling must steal this
-    // exact joiner and publish the fresh registration.
-    rt_control_lock(ex);
-    rt_sched_wake_signal_shard_n(rt_task_owner_shard(ex, joiner), 2);
-    rt_control_unlock(ex);
+    // Release the shard's only carrier. It retires the aborted registration,
+    // returns from the old poll, then takes the requeued joiner and publishes
+    // one fresh registration on its second poll.
+    rt_sync_point_open();
     if (!wait_u32_at_least(&g_debt248_second_poll_registered, 1, 4000)) {
         return debt248_fail(ex, "debt248 requeued joiner was not polled a second time");
     }
 
     size_t entries_before = park_abort_entries_for(ex, key, joiner->id);
     uint32_t attempts = atomic_load_explicit(&g_debt248_poll_attempts, memory_order_acquire);
-    if (task_status_load(joiner) != TASK_RUNNING || entries_before != 2 || attempts != 2) {
+    if (task_status_load(joiner) != TASK_RUNNING || entries_before != 1 || attempts != 2) {
         return debt248_fail(ex, "debt248 fresh join registration was not published");
     }
-    rt_sync_point_open();
-#ifdef RV2_DEBT_248_NEGATIVE_CONTROL
-    if (!debt248_wait_entries(ex, key, joiner->id, 0)) {
-        return debt248_fail(ex, "debt248 negative control did not sweep both registrations");
-    }
-#endif
     atomic_store_explicit(&g_debt248_second_poll_release, 1, memory_order_release);
     if (!wait_sync_point_count(
             RT_SYNC_POINT_SP_PARK_AFTER_INITIAL_TOKEN_CHECK, initial_before + 1, 4000)) {
@@ -452,29 +403,14 @@ static int mode_debt248_second_token_abort(rt_executor* ex) {
     fprintf(stderr,
             "debt248 windows: initial=%u abort=%u entries_before=%zu entries_parked=%zu attempts=%u\n",
             initial, aborts, entries_before, entries_parked, attempts);
-#ifdef RV2_DEBT_248_NEGATIVE_CONTROL
-    if (initial != 2 || aborts != 1 || entries_parked != 0 || attempts != 2) {
-        return debt248_fail(ex, "debt248 negative control reached the wrong structural window");
-    }
-#else
-    if (initial != 2 || aborts != 1 || entries_parked != 2 || attempts != 2) {
+    if (initial != 2 || aborts != 1 || entries_parked != 1 || attempts != 2) {
         return debt248_fail(ex, "debt248 positive proof reached the wrong structural window");
     }
-#endif
 
     atomic_store_explicit(&g_debt248_target_release, 1, memory_order_release);
     if (!wait_task_status(target, TASK_DONE, 4000)) {
         return debt248_fail(ex, "debt248 target did not complete");
     }
-#ifdef RV2_DEBT_248_NEGATIVE_CONTROL
-    size_t stranded_entries = park_abort_entries_for(ex, key, joiner->id);
-    attempts = atomic_load_explicit(&g_debt248_poll_attempts, memory_order_acquire);
-    if (task_status_load(joiner) != TASK_WAITING || stranded_entries != 0 || attempts != 2) {
-        return debt248_fail(ex, "debt248 negative control produced the wrong strand");
-    }
-    fprintf(stderr, "debt248 stranded: target=done joiner=waiting entries=0 attempts=2\n");
-    return debt248_fail(ex, "debt248 negative control swept the fresh join registration");
-#else
     if (!wait_task_status(joiner, TASK_DONE, 4000)) {
         return debt248_fail(ex, "debt248 joiner stranded after target completion");
     }
@@ -489,7 +425,6 @@ static int mode_debt248_second_token_abort(rt_executor* ex) {
             (unsigned long long)bits, attempts);
     (void)rt_executor_request_shutdown(ex);
     return 0;
-#endif
 }
 #endif
 `

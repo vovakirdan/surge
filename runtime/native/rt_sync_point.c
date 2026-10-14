@@ -135,6 +135,8 @@ static const char* rt_sp_name(rt_sync_point_id id) {
             return "SP_IMMEDIATE_ON_AFTER_PUBLISH";
         case RT_SYNC_POINT_SP_READY_REQUEUE_BEFORE_LOCK:
             return "SP_READY_REQUEUE_BEFORE_LOCK";
+        case RT_SYNC_POINT_SP_TASK_RELEASE_AFTER_ZERO_BEFORE_STATUS:
+            return "SP_TASK_RELEASE_AFTER_ZERO_BEFORE_STATUS";
         case RT_SYNC_POINT_SP_WAKE_BEFORE_STALE_REMOVAL:
             return "SP_WAKE_BEFORE_STALE_REMOVAL";
         case RT_SYNC_POINT_SP_FAR_SELECT_AFTER_COMMIT_BEFORE_REPLY:

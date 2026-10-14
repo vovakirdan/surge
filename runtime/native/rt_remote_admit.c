@@ -73,7 +73,6 @@ static void slot_register(rt_executor* ex, rt_task* current, rt_shard* shard) {
     // yield is a plain requeue and the "park" is a spin against the lane.
     pending_key = key;
     rt_transport_record_admission_park(shard);
-    RT_SYNC_POINT(SP_TRANSPORT_DATA_SLOT_TASK_PARKED);
 }
 #endif
 
@@ -250,6 +249,18 @@ int rt_remote_admission_abandon(rt_executor* ex, uint64_t task_id, rt_remote_adm
         rt_remote_admission_release_reservation(ex, adm);
     }
     return ended_park;
+}
+
+int rt_remote_admission_abandon_and_wake(rt_executor* ex,
+                                         uint64_t task_id,
+                                         rt_remote_admission* adm) {
+    if (!rt_remote_admission_abandon(ex, task_id, adm)) {
+        return 0;
+    }
+    // abandon removed the slot waiter. Wake by task id, not by that now-empty
+    // key: the producer must run once more to consume the terminal pending.
+    wake_task(ex, task_id, 0);
+    return 1;
 }
 
 // The remote-task family's two entry points into the admission: the first

@@ -131,8 +131,13 @@ func TestARangeStepWalksItsBoundsWithTheirOwnArithmetic(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			ir := emitAllocGuardProgram(t, "@entrypoint\nfn main() -> int {\n    let mut n: int = 0;\n    "+
-				tc.source+"\n    return n;\n}\n")
+			module, result := lowerMIRFromSource(t, "fn walk() -> int {\n    let mut n: int = 0;\n    "+
+				tc.source+"\n    return n;\n}\n@entrypoint fn main() -> int { return walk(); }\n")
+			moduleIR, err := EmitModule(module, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ir := functionBody(t, moduleIR, findMIRFunc(t, module, "walk").ID)
 			for _, want := range tc.wants {
 				if !strings.Contains(ir, want) {
 					t.Fatalf("the step never calls %s, so this bound kind is walked with somebody "+

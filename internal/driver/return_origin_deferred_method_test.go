@@ -98,9 +98,9 @@ func TestAnalyzeDeferredContractMethodBodies(t *testing.T) {
 		{name: "ec2_wrapped_actual", digest: "739592e32a77dbd80489c70628b343484976f025e7afad6e71ba902bd779178c",
 			stays: []originRefusal{{originSpan{94, 107, "keep(Some(v))"}, deferredOpaqueRefusal}},
 			text:  "pragma module::dep;\n@intrinsic fn keep<X>(x: X) -> nothing;\nfn wrap<T>(v: T) -> nothing {\n    keep(Some(v));\n}\n"},
-		{name: "ec3_callback", digest: "6aed24ed221f5b692c45a1c43f2db65ac26feaa03828558cbf27824799757f37",
-			stays: []originRefusal{{originSpan{80, 84, "f(v)"}, deferredOpaqueRefusal}},
-			text:  "pragma module::dep;\nfn call_with<T>(f: fn(T) -> nothing, v: T) -> nothing {\n    f(v);\n}\n"},
+		{name: "ec3_callback", body: "call_with", digest: "6aed24ed221f5b692c45a1c43f2db65ac26feaa03828558cbf27824799757f37",
+			gone: []originRefusal{{originSpan{80, 84, "f(v)"}, deferredOpaqueRefusal}},
+			text: "pragma module::dep;\nfn call_with<T>(f: fn(T) -> nothing, v: T) -> nothing {\n    f(v);\n}\n"},
 	} {
 		t.Run(leaf.name, func(t *testing.T) {
 			var spans []originSpan
@@ -355,15 +355,18 @@ func TestAnalyzeDeferredMethodEscapes(t *testing.T) {
 func TestReturnOriginLoanCarrierClassification(t *testing.T) {
 	t.Run("carriers", func(t *testing.T) {
 		const text = "pragma module::dep;\n@intrinsic fn mk_dyn() -> uint64[];\n@intrinsic fn mk_fixed() -> uint64[4];\n@intrinsic fn mk_range() -> Range<int>;\n@intrinsic fn mk_view() -> BytesView;\n@intrinsic fn mk_count() -> uint;\n"
-		want := []originRefusal{{originSpan{34, 40, "mk_dyn"}, genericConditionUnsupported}, {originSpan{70, 78, "mk_fixed"}, genericConditionUnsupported},
+		want := []originRefusal{{originSpan{34, 40, "mk_dyn"}, genericConditionUnsupported},
 			{originSpan{109, 117, "mk_range"}, genericConditionUnsupported}, {originSpan{149, 156, "mk_view"}, deferredTypeRefused}}
+		fixed := originSpan{70, 78, "mk_fixed"}
 		control := originSpan{187, 195, "mk_count"}
-		spans := []originSpan{control}
+		spans := make([]originSpan, 2, 2+len(want))
+		spans[0], spans[1] = fixed, control
 		for _, refusal := range want {
 			spans = append(spans, refusal.span)
 		}
 		checkOriginSource(t, text, "f1f00be1957470d1b64d4c5b9fb9d454d2ac26357c5d192e27df9cc2fde0c978", spans...)
 		f, analysis := analyzeOriginDependency(t, "loan_carrier_classification", text, nil)
-		checkDeferredMethodLeaf(t, analysis, f, deferredMethodLeaf{name: "carriers", stays: want, only: true, gone: []originRefusal{{control, ""}}})
+		checkDeferredMethodLeaf(t, analysis, f, deferredMethodLeaf{name: "carriers", stays: want, only: true,
+			gone: []originRefusal{{fixed, ""}, {control, ""}}})
 	})
 }

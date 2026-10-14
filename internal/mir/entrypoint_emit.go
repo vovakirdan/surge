@@ -230,10 +230,17 @@ func (b *surgeStartBuilder) lowerDefaultExpr(expr *hir.Expr, expected types.Type
 	for sym, local := range b.paramLocals {
 		lowerer.symToLocal[sym] = local
 	}
+	lowerer.pushTempDropFrame()
 	op, err := lowerer.lowerExprForType(expr, expected)
 	if err != nil {
 		return Operand{}, err
 	}
+	// The default owns its result after expression temporaries are released.
+	result := addLocal(b.f, "entry_default", expected, b.localFlags(expected))
+	lowerer.emit(&Instr{Kind: InstrAssign, Assign: AssignInstr{
+		Dst: Place{Local: result}, Src: RValue{Kind: RValueUse, Use: op},
+	}})
+	lowerer.flushTempDropFrame()
 	b.cur = lowerer.cur
-	return op, nil
+	return Operand{Kind: OperandMove, Type: expected, Place: Place{Local: result}}, nil
 }

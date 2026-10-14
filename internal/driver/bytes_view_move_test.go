@@ -32,7 +32,9 @@ func bytesViewDiagnose(t *testing.T, text string) (*DiagnoseResult, error) {
 	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	return DiagnoseWithOptions(context.Background(), path, &DiagnoseOptions{Stage: DiagnoseStageAll, BaseDir: root, MaxDiagnostics: 64})
+	return DiagnoseWithOptions(context.Background(), path, &DiagnoseOptions{
+		Stage: DiagnoseStageAll, BaseDir: root, MaxDiagnostics: 64,
+	})
 }
 
 // bytesViewRefusal requires exactly one error with code at the one occurrence of snippet.

@@ -60,7 +60,7 @@ func TestRuntimeV2InRangeLiteralsFoldToFixnum(t *testing.T) {
 	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2LiteralFoldSource, nil)
 	env := envWithStdlib(repoRoot(t))
 	env = overrideEnvVar(env, "SURGE_SHARDS", "1")
-	env = overrideEnvVar(env, "SURGE_THREADS", "1")
+	env = overrideEnvVar(env, "SURGE_SHARDS", "1")
 	_, result := runBinaryWithTimeout(t, outputPath, env, 30*time.Second)
 	if result.exitCode != 0 {
 		t.Fatalf("literal-fold witness failed (exit=%d)\nstdout:\n%s\nstderr:\n%s",

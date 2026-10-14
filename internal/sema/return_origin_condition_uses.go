@@ -3,6 +3,8 @@ package sema
 import (
 	"slices"
 
+	"fortio.org/safecast"
+
 	"surge/internal/ast"
 	"surge/internal/diag"
 	"surge/internal/symbols"
@@ -11,8 +13,11 @@ import (
 
 // Original Invalid never becomes legal through substitution. A deferred
 // declaration may have a ref-free result; that instance's promise is vacuous.
-func (v returnOriginTypeView) validatePromise(request ReturnSourceDeclarationRequest) ReturnSourceValidation {
+func (v returnOriginTypeView) validatePromise(request *ReturnSourceDeclarationRequest) ReturnSourceValidation {
 	original := ValidateDeclaredReturnSources(v.owner.unit.Sema.TypeInterner, request)
+	if request == nil {
+		return original
+	}
 	if original.Status == ReturnSourcesInvalid || request.Syntax.Sources().IsAllInputs() {
 		return original
 	}
@@ -43,7 +48,7 @@ func (v returnOriginTypeView) validatePromise(request ReturnSourceDeclarationReq
 	return ReturnSourceValidation{Status: ReturnSourcesValid}
 }
 
-func (a *returnOriginAnalyzer) useRequirements(fn *returnOriginFunction, use ConcreteInstantiationUse) returnOriginRequirements {
+func (a *returnOriginAnalyzer) useRequirements(fn *returnOriginFunction, use *ConcreteInstantiationUse) returnOriginRequirements {
 	view := returnOriginBoundView(fn, nil, use.TemplateArgs)
 	required := a.summaries[fn.key].required.rebase(view)
 	for _, reason := range []struct {
@@ -67,7 +72,8 @@ func (a *returnOriginAnalyzer) useRequirements(fn *returnOriginFunction, use Con
 func (a *returnOriginAnalyzer) checkCurrentConditionEdges(pending func(ConcreteInstantiationUse, string)) error {
 	authority := a.units[0].authority
 	closure := authority.InstantiationClosure
-	for _, instance := range closure.Instances {
+	for i := range closure.Instances {
+		instance := &closure.Instances[i]
 		if err := a.ctx.Err(); err != nil {
 			return err
 		}
@@ -78,7 +84,9 @@ func (a *returnOriginAnalyzer) checkCurrentConditionEdges(pending func(ConcreteI
 		if caller == nil || len(caller.candidate.TemplateParams) != len(instance.TemplateArgs) {
 			continue
 		}
-		for _, edge := range authority.InstantiationGraph.Edges() {
+		edges := authority.InstantiationGraph.Edges()
+		for j := range edges {
+			edge := &edges[j]
 			if edge.Caller != instance.Template {
 				continue
 			}
@@ -89,7 +97,8 @@ func (a *returnOriginAnalyzer) checkCurrentConditionEdges(pending func(ConcreteI
 			want := ConcreteInstantiationUse{Caller: instance.Key, CallerTemplate: instance.Template,
 				CalleeTemplate: edge.Callee, Kind: edge.Kind, SourceKey: witness.SourceKey, Site: edge.Witness.Site}
 			matched := 0
-			for _, use := range closure.UseSites {
+			for k := range closure.UseSites {
+				use := &closure.UseSites[k]
 				if use.Caller != want.Caller || use.CallerTemplate != want.CallerTemplate || use.CalleeTemplate != want.CalleeTemplate ||
 					use.Kind != want.Kind || use.SourceKey != want.SourceKey || use.Site != want.Site {
 					continue
@@ -104,7 +113,7 @@ func (a *returnOriginAnalyzer) checkCurrentConditionEdges(pending func(ConcreteI
 	return nil
 }
 
-func (a *returnOriginAnalyzer) currentCallBinding(fn, caller *returnOriginFunction, expression ast.ExprID, use ConcreteInstantiationUse) (*returnOriginSignature, string) {
+func (a *returnOriginAnalyzer) currentCallBinding(fn, caller *returnOriginFunction, expression ast.ExprID, use *ConcreteInstantiationUse) (resultSignature *returnOriginSignature, failure string) {
 	args, reason := caller.originalInstantiation(expression, InstantiationFunction, fn.candidate.Symbol)
 	if reason != "" {
 		return nil, reason
@@ -138,6 +147,13 @@ func returnOriginConcreteArgs(in *types.Interner, args []types.TypeID) bool {
 
 func (fn *returnOriginFunction) templateParameterAuthority(slot int, id types.TypeID, info *types.TypeParamInfo) bool {
 	u, candidate := fn.unit, fn.candidate
+	if slot < 0 || slot >= len(candidate.TemplateParams) {
+		return false
+	}
+	slotID, err := safecast.Conv[uint32](slot)
+	if err != nil {
+		return false
+	}
 	selected := u.Symbols.Table.Symbols.Get(fn.symbol)
 	if !slices.Equal(u.authority.InstantiationTemplateParams[candidate.Symbol], candidate.TemplateParams) ||
 		slices.Index(candidate.TemplateParams, id) != slot || slices.Contains(candidate.TemplateParams[slot+1:], id) ||
@@ -154,7 +170,8 @@ func (fn *returnOriginFunction) templateParameterAuthority(slot int, id types.Ty
 		return false
 	}
 	if slot >= prefix {
-		return canonical == candidate.Symbol && local == fn.symbol && uint64(info.Index) == uint64(slot-prefix)
+		offset, convErr := safecast.Conv[uint32](slot - prefix)
+		return convErr == nil && canonical == candidate.Symbol && local == fn.symbol && info.Index == offset
 	}
 	// pushTypeParams uses the selected receiver symbol in the method's scope;
 	// a prelude/import binding may have no Decl.Item. Its exact nominal target
@@ -169,11 +186,19 @@ func (fn *returnOriginFunction) templateParameterAuthority(slot int, id types.Ty
 	original, found := u.Sema.TypeInterner.StructInfo(owner.Type)
 	receiver, hasReceiver := u.Sema.TypeInterner.StructInfo(candidate.ReceiverType)
 	if !found || original == nil || !hasReceiver || receiver == nil || original.Name != receiver.Name || original.Decl != receiver.Decl ||
-		!slices.Equal(receiver.TypeArgs, candidate.TemplateParams[:prefix]) || int64(info.Index) >= int64(len(original.TypeParams)) {
+		!slices.Equal(receiver.TypeArgs, candidate.TemplateParams[:prefix]) {
 		return false
 	}
-	declared, hasDeclared := u.Sema.TypeInterner.TypeParamInfo(original.TypeParams[info.Index])
-	return hasDeclared && declared != nil && uint64(info.Index) == uint64(slot) &&
+	paramCount, countErr := safecast.Conv[uint32](len(original.TypeParams))
+	if countErr != nil || info.Index >= paramCount {
+		return false
+	}
+	index, indexErr := safecast.Conv[int](info.Index)
+	if indexErr != nil {
+		return false
+	}
+	declared, hasDeclared := u.Sema.TypeInterner.TypeParamInfo(original.TypeParams[index])
+	return hasDeclared && declared != nil && info.Index == slotID &&
 		info.IsConst == declared.IsConst && info.ConstType == declared.ConstType
 }
 
@@ -187,12 +212,18 @@ func returnOriginUnionReceiverParameter(u *returnOriginUnitIndex, owner *symbols
 		return false, false
 	}
 	ru, hasRU := u.Sema.TypeInterner.UnionInfo(candidate.ReceiverType)
+	paramCount, countErr := safecast.Conv[uint32](len(owner.TypeParamSymbols))
 	if !hasRU || ru == nil || ou.Name != ru.Name || ou.Decl != ru.Decl ||
 		!slices.Equal(ru.TypeArgs, candidate.TemplateParams[:prefix]) ||
-		int64(info.Index) >= int64(len(owner.TypeParamSymbols)) {
+		countErr != nil || info.Index >= paramCount {
 		return true, false
 	}
-	declared := owner.TypeParamSymbols[info.Index]
-	return true, uint64(info.Index) == uint64(slot) &&
+	index, indexErr := safecast.Conv[int](info.Index)
+	slotID, slotErr := safecast.Conv[uint32](slot)
+	if indexErr != nil || slotErr != nil {
+		return true, false
+	}
+	declared := owner.TypeParamSymbols[index]
+	return true, info.Index == slotID &&
 		info.IsConst == declared.IsConst && info.ConstType == declared.ConstType
 }

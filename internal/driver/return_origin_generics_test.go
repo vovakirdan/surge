@@ -64,7 +64,7 @@ func TestAnalyzeTypedGenericReturnOrigins(t *testing.T) {
 			var declarations []map[string]any
 			for _, request := range res.Sema.ReturnSourceDeclarations {
 				declarations = append(declarations, map[string]any{"request": request, "params": request.Params(), "result": request.Result(),
-					"slots": request.Syntax.Sources().Slots(), "validation": sema.ValidateDeclaredReturnSources(res.Sema.TypeInterner, request)})
+					"slots": request.Syntax.Sources().Slots(), "validation": sema.ValidateDeclaredReturnSources(res.Sema.TypeInterner, &request)})
 			}
 			logReturnOriginCallEvidence(t, map[string]any{"case": tc.name, "body_symbols": bodySymbols, "candidates": candidates,
 				"identity_present": res.Sema.InstantiationIdentity != nil, "closure": res.Sema.InstantiationClosure,
@@ -200,7 +200,7 @@ func checkReturnOriginGenericPromise(t *testing.T, res *DiagnoseResult, identity
 	original := res.Sema.ReturnSourceDeclarations[0]
 	if original.Owner != identity.Symbol || !slices.Equal(original.Params(), identity.TemplateParams) || original.Result() != identity.TemplateParams[0] ||
 		!slices.Equal(original.Syntax.Sources().Slots(), []uint32{0}) || !identity.ReturnSources.Equal(original.Syntax.Sources()) || len(original.Syntax.Markers()) != 1 ||
-		sema.ValidateDeclaredReturnSources(res.Sema.TypeInterner, original).Status != sema.ReturnSourcesDeferred {
+		sema.ValidateDeclaredReturnSources(res.Sema.TypeInterner, &original).Status != sema.ReturnSourcesDeferred {
 		t.Fatal("PRECONDITION: marked identity lost its original generic roots, source slot or deferred eligibility")
 	}
 	marker := original.Syntax.Markers()[0]
@@ -212,7 +212,7 @@ func checkReturnOriginGenericPromise(t *testing.T, res *DiagnoseResult, identity
 			continue
 		}
 		arg := instance.TemplateArgs[0]
-		validation := sema.ValidateInstantiatedReturnSources(res.Sema.TypeInterner, original, []types.TypeID{arg}, arg)
+		validation := sema.ValidateInstantiatedReturnSources(res.Sema.TypeInterner, &original, []types.TypeID{arg}, arg)
 		typ, _ := res.Sema.TypeInterner.Lookup(arg)
 		logReturnOriginCallEvidence(t, map[string]any{"instance": instance.Key, "actual_type": typ, "original": original, "validation": validation})
 		if validation.Status != sema.ReturnSourcesValid {

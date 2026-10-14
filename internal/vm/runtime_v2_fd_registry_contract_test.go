@@ -289,7 +289,7 @@ func TestRuntimeV2FDRegistryReadWriteInterestSharesFDRow(t *testing.T) {
 	port := pickFreePort(t)
 	const payloadLen = 32 << 20
 	source := fdRegistryPrelude + fdRegistryReadWriteBody + fdRegistryMain
-	env := overrideEnvVar(mtEnv(t), "SURGE_THREADS", "1")
+	env := overrideEnvVar(mtEnv(t), "SURGE_SHARDS", "1")
 	srv := startFDRegistryServer(t, source, env, strconv.Itoa(port), strconv.Itoa(payloadLen))
 
 	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
@@ -376,7 +376,7 @@ func TestRuntimeV2FDRegistryDuplicateReadWaitersBothComplete(t *testing.T) {
 	ensureLLVMToolchain(t)
 	port := pickFreePort(t)
 	source := fdRegistryPrelude + fdRegistryDuplicateReadersBody + fdRegistryMain
-	env := overrideEnvVar(mtEnv(t), "SURGE_THREADS", "1")
+	env := overrideEnvVar(mtEnv(t), "SURGE_SHARDS", "1")
 	srv := startFDRegistryServer(t, source, env, strconv.Itoa(port), "0")
 
 	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
@@ -428,8 +428,7 @@ fn probe() -> byte[] {
     return out;
 }
 
-@entrypoint
-fn main() -> int {
+async fn run() -> int {
     let listen_res = net.listen("127.0.0.1", %[1]d:uint);
     compare listen_res {
         Success(listener) => {
@@ -476,6 +475,14 @@ fn main() -> int {
         _ => return 18;
     };
     return 19;
+}
+
+@entrypoint
+fn main() -> int {
+    return compare run().await() {
+        Success(code) => code;
+        Cancelled() => 99;
+    };
 }
 `
 

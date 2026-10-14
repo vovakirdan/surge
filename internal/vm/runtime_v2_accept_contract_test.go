@@ -130,7 +130,7 @@ func runRuntimeV2AcceptBurst(t *testing.T, shards int, clients int) string {
 	port := pickFreePort(t)
 	env := runtimeV2AcceptEnv(t)
 	env = overrideEnvVar(env, "SURGE_SHARDS", strconv.Itoa(shards))
-	env = overrideEnvVar(env, "SURGE_THREADS", strconv.Itoa(shards))
+	env = overrideEnvVar(env, "SURGE_SHARDS", strconv.Itoa(shards))
 	env = overrideEnvVar(env, "SURGE_TRACE_EXEC", "1")
 	srv := startRuntimeV2AcceptServer(
 		t,
@@ -324,22 +324,6 @@ func TestRuntimeV2AcceptRejectsInvalidShardConfig(t *testing.T) {
 					value, res.stderr)
 			}
 		})
-	}
-}
-
-func TestRuntimeV2AcceptRejectsConflictingThreadCount(t *testing.T) {
-	ensureLLVMToolchain(t)
-
-	env := runtimeV2AcceptEnv(t)
-	env = overrideEnvVar(env, "SURGE_SHARDS", "4")
-	env = overrideEnvVar(env, "SURGE_THREADS", "2")
-	res := runRuntimeV2AcceptConfigProbe(t, env)
-	if res.exitCode == 0 {
-		t.Fatalf("expected SURGE_SHARDS/SURGE_THREADS conflict rejection; shard/thread configuration owns this boundary\nstdout:\n%s\nstderr:\n%s",
-			res.stdout, res.stderr)
-	}
-	if !strings.Contains(res.stderr, "SURGE_SHARDS") || !strings.Contains(res.stderr, "SURGE_THREADS") {
-		t.Fatalf("expected both env names in conflict diagnostic\nstderr:\n%s", res.stderr)
 	}
 }
 

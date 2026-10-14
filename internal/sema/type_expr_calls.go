@@ -487,6 +487,7 @@ func (tc *typeChecker) recordCallSymbol(callID ast.ExprID, symID symbols.SymbolI
 		if sym.Kind != symbols.SymbolFunction && sym.Kind != symbols.SymbolTag {
 			return
 		}
+		tc.refuseEntrypointValue(sym, tc.exprSpan(callID))
 	}
 	tc.recordFunctionCall(symID)
 	if tc.symbols == nil || tc.symbols.ExprSymbols == nil {

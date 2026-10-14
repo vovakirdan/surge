@@ -24,10 +24,11 @@ static int run_immediate_refusal_drop(int shutdown_first) {
     st.shutdown_first = shutdown_first ? 1 : 0;
     st.droppable = 1;
     drop_expected_state = box;
+    void* caller = NULL;
     if (shutdown_first) {
         if (!await_immediate(&st)) return fail("immediate refusal await failed");
     } else {
-        void* caller = __task_create(POLL_IMMEDIATE_CALLER, &st, rt_channel_opaque_word_ops());
+        caller = __task_create(POLL_IMMEDIATE_CALLER, &st, rt_channel_opaque_word_ops());
         if (caller == NULL) return fail("immediate caller create failed");
         if (!wait_admission_parks(ex, 0, 1, 5000)) {
             return fail("saturated data lane did not park the immediate caller");
@@ -35,7 +36,11 @@ static int run_immediate_refusal_drop(int shutdown_first) {
         if (atomic_load_explicit(&drop_calls, memory_order_acquire) != 0) {
             return fail("a parked immediate execute must keep its state, not drop it");
         }
+        if (!wait_reached(RT_SYNC_POINT_SP_TRANSPORT_DATA_SLOT_TASK_PARKED, 5000)) {
+            return fail("immediate caller did not commit its transport park");
+        }
         (void)rt_executor_request_shutdown(ex);
+        rt_sync_point_open();
         uint8_t kind = 0;
         uint64_t bits = 0;
         rt_task_await(caller, &kind, &bits);

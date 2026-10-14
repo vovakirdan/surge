@@ -1,4 +1,4 @@
-testdata/golden/sema/invalid/record_literal_without_type.sg (span: 3:1-9:1)
+record_literal_without_type.sg (span: 3:1-9:1)
 └─ Item[0]: Fn (span: 3:1-8:2)
    ├─ Name: anonymous_record
    ├─ Params: ()

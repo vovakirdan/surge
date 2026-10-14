@@ -2,7 +2,7 @@
 #define _POSIX_C_SOURCE 200809L // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 #endif
 
-#include "rt.h"
+#include "rt_async_internal.h"
 #include "rt_carrier_bench.h"
 
 #include <ctype.h>
@@ -180,6 +180,7 @@ void rt_exit(int64_t code) {
     if (rt_carrier_bench_finish() != 0) {
         exit(1);
     }
+    rt_runtime_shutdown_for_exit();
     exit((int)code);
 }
 

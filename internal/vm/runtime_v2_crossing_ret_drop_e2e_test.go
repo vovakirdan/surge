@@ -91,7 +91,7 @@ func TestRuntimeV2CrossingRetDischargesBodyDrops(t *testing.T) {
 	// with more shards the transport releases request/ack payloads on other
 	// lanes and those frees race the c1 snapshot.
 	env := overrideEnvVar(envWithStdlib(repoRoot(t)), "SURGE_SHARDS", "1")
-	env = overrideEnvVar(env, "SURGE_THREADS", "1")
+	env = overrideEnvVar(env, "SURGE_SHARDS", "1")
 	duration, result := runBinaryWithTimeout(t, outputPath, env, 30*time.Second)
 	if result.exitCode != 0 {
 		t.Fatalf(
@@ -193,7 +193,7 @@ fn main() -> int {
 func TestRuntimeV2CrossingRetDropsDoNotStealMovedValues(t *testing.T) {
 	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2CrossingRetDropControlSource, nil)
 	env := overrideEnvVar(envWithStdlib(repoRoot(t)), "SURGE_SHARDS", "1")
-	env = overrideEnvVar(env, "SURGE_THREADS", "1")
+	env = overrideEnvVar(env, "SURGE_SHARDS", "1")
 	duration, result := runBinaryWithTimeout(t, outputPath, env, 30*time.Second)
 	if result.exitCode != 0 {
 		t.Fatalf(

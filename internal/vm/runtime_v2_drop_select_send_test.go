@@ -128,7 +128,7 @@ func TestRuntimeV2DropSelectSendArm(t *testing.T) {
 	baseEnv := envWithStdlib(repoRoot(t))
 	for _, threads := range []string{"1", "2"} {
 		t.Run(fmt.Sprintf("threads_%s", threads), func(t *testing.T) {
-			env := overrideEnvVar(baseEnv, "SURGE_THREADS", threads)
+			env := overrideEnvVar(baseEnv, "SURGE_SHARDS", threads)
 			var result runResult
 			for attempt := 1; attempt <= 3; attempt++ {
 				_, result = runBinaryWithTimeout(t, outputPath, env, 30*time.Second)

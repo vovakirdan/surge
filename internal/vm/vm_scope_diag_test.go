@@ -49,7 +49,9 @@ func TestVMScopeExitInvariantBecomesVMError(t *testing.T) {
 	}
 	exec.SetCurrent(owner)
 	child := exec.Spawn(2, nil)
-	exec.RegisterChild(actualScopeID, child)
+	if child != 2 {
+		t.Fatalf("expected child id 2, got %d", child)
+	}
 
 	vmErr := vmInstance.Step()
 	if vmErr == nil {

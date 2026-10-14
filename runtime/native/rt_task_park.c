@@ -130,47 +130,8 @@ static void wake_task_with_policy(rt_executor* ex,
             remove_waiter_generation(ex, stale_key, id, stale_seq);
         }
     }
-    const rt_channel_blocking_compat* compat = rt_executor_channel_blocking_compat_const(ex);
-    int compat_active = compat != NULL && atomic_load_explicit(&compat->channel_blocked_workers,
-                                                               memory_order_acquire) > 0;
     if (pushed) {
         rt_trace_wake_enqueued();
-        rt_compensation_check_after_push(ex);
-    } else if (compat_active) {
-        // The woken task is RUNNING inside a sync-channel compat wait: the
-        // OS worker sleeps on compat_cv under the control lock, so this
-        // broadcast is its only wake path (the wake_token is already set).
-        // It must hold the control lock or it can land in the waiter's
-        // check-to-wait window and be lost.
-        int need_control = !rt_lane_holds_control();
-        if (need_control) {
-            rt_control_lock(ex);
-        }
-        pthread_cond_broadcast(&ex->compat_cv);
-        if (need_control) {
-            rt_control_unlock(ex);
-        }
-    }
-}
-
-// The compensation-worker check that follows a push: compensation bookkeeping
-// is control-lane state, and a control-free (worker) caller takes the lane only
-// when compat workers are actually parked, so the common case is one atomic
-// load. One helper for every push that needs it (wake_task_with_policy, the
-// cold task's cancel-won push in rt_task_cold.c).
-void rt_compensation_check_after_push(rt_executor* ex) {
-    const rt_channel_blocking_compat* compat = rt_executor_channel_blocking_compat_const(ex);
-    if (compat == NULL ||
-        atomic_load_explicit(&compat->channel_blocked_workers, memory_order_acquire) == 0) {
-        return;
-    }
-    int need_control = !rt_lane_holds_control();
-    if (need_control) {
-        rt_control_lock(ex);
-    }
-    maybe_start_compensation_worker_locked(ex);
-    if (need_control) {
-        rt_control_unlock(ex);
     }
 }
 
@@ -347,39 +308,30 @@ void park_current(rt_executor* ex, waker_key key) {
     if (task_wake_token_exchange(task, 0) != 0) {
         park_requeue_locked(ex, owner_shard, task, key);
         rt_shard_unlock(owner_shard);
-        // The task is READY and may already be re-polling on another carrier.
-        // Hold the old poller here so the proof can publish a fresh join entry
-        // before this branch decides whether to remove anything.
+        // The task is READY, but the shard's only carrier cannot re-poll it
+        // until this poll returns. The sync point lets the proof observe that
+        // exact post-requeue/pre-retirement state.
         RT_SYNC_POINT_IF(key.kind == WAKER_JOIN, SP_PARK_ABORT_AFTER_REQUEUE);
-        // Abort removal happens after the owner lock is released (never two
-        // shard locks); a concurrent pop of this entry is absorbed as one
-        // spurious wake by the token it re-sets. The removal is qualified by
-        // this park's generation: the requeued task can re-register the same
-        // channel key on another worker before this lands, and an
-        // unqualified removal would eat that fresh registration.
-        //
-        // And for a key with NO generation it is not attempted at all, for
-        // the same reason the first abort branch above refuses it: a join,
-        // scope or remote-reply registration sits at seq 0, so the removal
-        // would be the unqualified sweep, and the requeued task can already be
-        // polling on another worker and have registered the same join key
-        // again. Sweeping that fresh entry strands the joiner for good -- its
-        // target completes once, the completion drain finds nothing, and no
-        // wake ever comes (measured: one hang in ~15 runs of a four-asker
-        // cohort on four workers). The stale entry is self-cleaning instead:
-        // the drain pops it and the token absorbs the spurious wake.
-#ifdef RV2_DEBT_248_NEGATIVE_CONTROL
-        // Rule 13: restore only the old seq-0 sweep in this second branch.
-        remove_waiter_generation(ex, key, task->id, abort_seq);
-#else
+        // Retire the aborted registration after releasing the owner lock.
+        // Channel entries retain their generation-qualified removal. Join,
+        // scope and remote-reply entries use seq 0, where remove_waiter is an
+        // intentionally unqualified sweep; it is safe here because the sole
+        // carrier has not returned from the old poll and therefore no fresh
+        // registration by this task can exist yet.
         if (abort_seq != 0) {
             remove_waiter_generation(ex, key, task->id, abort_seq);
+        } else {
+            remove_waiter(ex, key, task->id);
         }
-#endif
         return;
     }
     rt_shard_unlock(owner_shard);
     rt_trace_park_committed();
+    // This seam names a committed task park, not the earlier admission
+    // attempt: TASK_WAITING is visible, the waiter is registered, and no
+    // shard lock is held. Shutdown from another thread can now exercise the
+    // routed wake before this shard's sole carrier exits.
+    RT_SYNC_POINT_IF(key.kind == WAKER_TRANSPORT_SLOT, SP_TRANSPORT_DATA_SLOT_TASK_PARKED);
     if (waker_is_net(key)) {
         (void)rt_net_wake_poll_for_task_wait_keys(ex, task, key);
     }

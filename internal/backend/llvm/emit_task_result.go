@@ -51,10 +51,7 @@ func (fe *funcEmitter) taskResultType(taskType types.TypeID) (types.TypeID, erro
 	return taskPayloadType(fe.emitter.types, taskType)
 }
 
-// emitTaskCreateIntrinsic adds the result descriptor to __task_create, and to
-// __task_create_affine, the same constructor for a task that borrows its
-// creator's frame (the lowering chose between them; see
-// mir.asyncTaskConstructorName).
+// emitTaskCreateIntrinsic adds the result descriptor to __task_create.
 //
 // The lowering builds the call with the two arguments it can name from MIR --
 // the poll id and the state box -- and the descriptor is the emitter's to add,
@@ -68,7 +65,7 @@ func (fe *funcEmitter) emitTaskCreateIntrinsic(call *mir.CallInstr) (bool, error
 		return false, nil
 	}
 	ctor := stripGenericSuffix(call.Callee.Name)
-	if ctor != "__task_create" && ctor != "__task_create_affine" {
+	if ctor != "__task_create" {
 		return false, nil
 	}
 	if len(call.Args) != 2 {
@@ -104,7 +101,7 @@ func (fe *funcEmitter) emitTaskCreateIntrinsic(call *mir.CallInstr) (bool, error
 	}
 	tmp := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @%s(i64 %s, ptr %s, %s, ptr @%s)\n",
-		tmp, coldTaskConstructor(ctor), pollID, state, operand, frameOps)
+		tmp, "__task_create_cold", pollID, state, operand, frameOps)
 	ptr, dstTy, dstAlign, err := fe.emitPlaceStorage(call.Dst)
 	if err != nil {
 		return true, err
@@ -117,16 +114,7 @@ func (fe *funcEmitter) emitTaskCreateIntrinsic(call *mir.CallInstr) (bool, error
 }
 
 // coldTaskConstructor names the runtime entry point that creates the task cold.
-// The MIR constructor says whether the task borrows its creator's frame; the
-// runtime keeps __task_create and __task_create_affine, which publish at once,
-// for its own stand drivers.
-func coldTaskConstructor(ctor string) string {
-	if ctor == "__task_create_affine" {
-		return "__task_create_cold_affine"
-	}
-	return "__task_create_cold"
-}
-
+// The runtime keeps __task_create, which publishes at once, for stand drivers.
 // emitTaskPayloadSlot reserves storage for the value an await or a poll is about
 // to receive, sized and aligned for the payload itself.
 //

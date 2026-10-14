@@ -34,7 +34,7 @@ func (a *returnOriginAnalyzer) coreArrayIntrinsic(fn *returnOriginFunction) (ret
 	if !c.Builtin || !c.Intrinsic || c.HasBody || c.Async || fn.item.Body.IsValid() || c.Name != fn.name ||
 		c.SourceKey != "builtin" || c.ModulePath != "core/intrinsics" || u.SourceKey != "core/intrinsics.sg" ||
 		len(c.TemplateParams) == 0 || len(c.Defaults) != len(fn.info.Params) || len(c.Variadic) != len(fn.info.Params) ||
-		slices.Contains(c.Defaults, true) || slices.Contains(c.Variadic, true) || !(fn.info.ReturnSources().IsAllInputs() || fn.name == "rt_array_get_mut") {
+		slices.Contains(c.Defaults, true) || slices.Contains(c.Variadic, true) || (!fn.info.ReturnSources().IsAllInputs() && fn.name != "rt_array_get_mut") {
 		return 0, false
 	}
 	if identity, err := u.owningCallableIdentity(fn.item, fn.symbol, fn.info); err != nil || identity.BodyKey != fn.key || identity.SourceKey != fn.canonicalSourceKey {
@@ -208,7 +208,7 @@ func (b *returnOriginBody) applyCoreArrayIntrinsic(op returnOriginArrayOp, id as
 
 // returnOriginContainerUseArgs binds a container operation's element and length
 // arguments from its caller and requires them concrete.
-func returnOriginContainerUseArgs(in *types.Interner, caller, fn *returnOriginFunction, container returnOriginIndexType, use ConcreteInstantiationUse) string {
+func returnOriginContainerUseArgs(in *types.Interner, caller, fn *returnOriginFunction, container returnOriginIndexType, use *ConcreteInstantiationUse) string {
 	info, _ := in.StructInfo(container.container)
 	bound := func(arg types.TypeID) types.TypeID {
 		if use.Caller == (InstanceKey{}) {
@@ -231,7 +231,7 @@ func returnOriginContainerUseArgs(in *types.Interner, caller, fn *returnOriginFu
 // requireDefaultable records a Defaultable condition for a canonical container
 // default; a failure at the flow site keeps its value Unknown.
 func (b *returnOriginBody) requireDefaultable(view returnOriginTypeView, result types.TypeID, span source.Span) returnOriginValue {
-	condition := returnOriginCondition{body: b.function.key, site: span, kind: returnOriginDefaultable, subject: result, view: view.clone()}
+	condition := &returnOriginCondition{body: b.function.key, site: span, kind: returnOriginDefaultable, subject: result, view: view.clone()}
 	b.conditions = append(b.conditions, condition)
 	required := view.requirement(condition.kind, result)
 	b.required = b.required.join(required)
@@ -244,7 +244,7 @@ func (b *returnOriginBody) requireDefaultable(view returnOriginTypeView, result 
 
 // checkBackingIntrinsicUse answers a finalized use of a certified intrinsic by
 // its identity; only a container default checks its concrete Defaultable.
-func (a *returnOriginAnalyzer) checkBackingIntrinsicUse(fn *returnOriginFunction, use ConcreteInstantiationUse) (handled bool, reason string) {
+func (a *returnOriginAnalyzer) checkBackingIntrinsicUse(fn *returnOriginFunction, use *ConcreteInstantiationUse) (handled bool, reason string) {
 	op, certified := a.coreArrayIntrinsic(fn)
 	if !certified {
 		return false, ""

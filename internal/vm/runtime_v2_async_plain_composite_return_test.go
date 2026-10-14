@@ -28,7 +28,7 @@ fn main() -> int {
 `
 
 func TestRuntimeV2AsyncPlainCompositeReturn(t *testing.T) {
-	t.Setenv("SURGE_THREADS", "1")
+	t.Setenv("SURGE_SHARDS", "1")
 	t.Setenv("SURGE_SHARDS", "1")
 	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2AsyncPlainCompositeReturnSource, nil)
 	duration, result := runBinaryWithTimeout(t, outputPath, envWithStdlib(repoRoot(t)), 30*time.Second)

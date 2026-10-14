@@ -89,11 +89,10 @@ static void* stand_carrier_main(void* arg) {
     rt_worker_ctx ctx;
     memset(&ctx, 0, sizeof(ctx));
     ctx.worker_index = (uint32_t)(uintptr_t)arg;
-    ctx.worker_id = ctx.worker_index;
     ctx.shard_id = 0;
     tls_worker_ctx = &ctx;
     for (uint64_t i = 0; i < SCHED_TRACE_STAND_POPS; i++) {
-        rt_trace_sched_record((rt_trace_sched_source)(i % 3u), i);
+        rt_trace_sched_record((rt_trace_sched_source)(i % 2u), i);
     }
     // The ctx is this frame's, so it must stop being reachable before the frame
     // goes away.

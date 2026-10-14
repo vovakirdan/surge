@@ -54,7 +54,6 @@ fn main() -> int {
 	// Only the child argument and the two join out-parameters are pointers.
 	for _, declaration := range []string{
 		"declare i64 @rt_scope_enter(i1)",
-		"declare void @rt_scope_register_child(i64, ptr)",
 		"declare void @rt_scope_cancel_all(i64)",
 		"declare i1 @rt_scope_join_all(i64, ptr, ptr)",
 		"declare void @rt_scope_exit(i64)",
@@ -62,6 +61,9 @@ fn main() -> int {
 		if !strings.Contains(ir, declaration) {
 			t.Errorf("numeric scope ABI is missing %q", declaration)
 		}
+	}
+	if strings.Contains(ir, "declare void @rt_scope_register_child") {
+		t.Fatal("removed late scope-registration ABI is still declared")
 	}
 	if !strings.Contains(ir, "call i64 @rt_scope_enter(i1") {
 		t.Fatal("the program emitted no numeric scope-enter call")

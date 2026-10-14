@@ -203,6 +203,7 @@ func analyzeBackingSource(t *testing.T, src backingSource, text string, mutate f
 	if mutate != nil {
 		mutate(t, f)
 	}
+	exhaustiveReturnOriginUnits(t, inputs.units, "core/array.sg")
 	analysis, analysisErr := sema.AnalyzeReturnOrigins(t.Context(), res.Sema, inputs.units)
 	logReturnOriginCallEvidence(t, map[string]any{"backing_source": src.name, "stage": "analysis", "mutated": mutate != nil, "analysis": analysis, "analysis_error": errorReturnOriginCallText(analysisErr), "analysis_complete": analysis.Complete()})
 	if analysisErr != nil || analysis == nil {
@@ -359,7 +360,8 @@ func checkBackingFunction(t *testing.T, f backingFixture, check backingCheck) {
 			pending = append(pending, p)
 		}
 	}
-	var got, want []string
+	got := make([]string, 0, len(f.analysis.Diagnostics))
+	want := make([]string, 0, len(check.escapes))
 	for _, d := range f.analysis.Diagnostics {
 		if d.Primary.File == file.ID && d.Primary.Start >= item.Span.Start && d.Primary.End <= item.Span.End {
 			note := "without exactly one note"

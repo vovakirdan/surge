@@ -12,7 +12,7 @@
 // Creation is the sole writer of a task's scope identity. The creator already
 // owns the scope's pinned shard lane, so count, child-list insertion and task
 // publication are one critical section. A task with WAKER_NONE is forever a
-// non-member; wake and the legacy registration intrinsic cannot adopt it.
+// non-member; no later operation can adopt it.
 static inline int rt_scope_key_equal(waker_key left, waker_key right) {
     return left.kind == right.kind && left.id == right.id &&
            left.owner_shard_id == right.owner_shard_id;

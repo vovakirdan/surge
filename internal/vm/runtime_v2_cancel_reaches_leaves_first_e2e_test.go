@@ -78,7 +78,7 @@ func TestRuntimeV2CancelReachesLeavesBeforeItWakesTheTarget(t *testing.T) {
 	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2CancelReachesLeavesFirstSource, nil)
 	env := envWithStdlib(repoRoot(t))
 	env = overrideEnvVar(env, "SURGE_SHARDS", "1")
-	env = overrideEnvVar(env, "SURGE_THREADS", "1")
+	env = overrideEnvVar(env, "SURGE_SHARDS", "1")
 
 	_, result := runBinaryWithTimeout(t, outputPath, env, 60*time.Second)
 	if result.exitCode != 0 {

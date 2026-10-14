@@ -363,7 +363,7 @@ func TestRuntimeV2BlockingRetainedCaptureCensusBalanced(t *testing.T) {
 	// asserts is exactly zero; see the table above. The default is the host's,
 	// and pinning a number against it would pin the host.
 	env := overrideEnvVar(envWithStdlib(repoRoot(t)), "SURGE_SHARDS", "2")
-	env = overrideEnvVar(env, "SURGE_THREADS", "2")
+	env = overrideEnvVar(env, "SURGE_SHARDS", "2")
 	duration, result := runBinaryWithTimeout(t, outputPath, env, 120*time.Second)
 	if result.exitCode != 0 {
 		t.Fatalf("blocking retained-capture census failed (exit=%d, duration=%s)\nstdout:\n%s\nstderr:\n%s",

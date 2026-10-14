@@ -55,6 +55,7 @@ func (tc *typeChecker) typeExprIdent(id ast.ExprID, span source.Span) types.Type
 		return types.NoTypeID
 	default:
 		if sym.Kind == symbols.SymbolFunction && tc.callTargetDepth == 0 {
+			tc.refuseEntrypointValue(sym, span)
 			tc.recordFunctionCall(symID)
 		}
 		if sym.Kind == symbols.SymbolFunction && len(sym.TypeParams) > 0 {
@@ -436,6 +437,7 @@ func (tc *typeChecker) typeExprMember(id ast.ExprID, span source.Span) types.Typ
 		if tc.callTargetDepth == 0 {
 			if symID := tc.symbolForExpr(id); symID.IsValid() {
 				if sym := tc.symbolFromID(symID); sym != nil && sym.Kind == symbols.SymbolFunction {
+					tc.refuseEntrypointValue(sym, span)
 					if len(sym.TypeParams) == 0 {
 						tc.recordFunctionCall(symID)
 					} else if expected := tc.expectedTypeForExpr(id); expected != types.NoTypeID && tc.tryBindGenericFnValue(id, expected) {

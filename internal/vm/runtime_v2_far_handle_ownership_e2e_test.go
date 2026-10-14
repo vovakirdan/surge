@@ -100,7 +100,7 @@ func TestRuntimeV2FarHandleHasOneOwnerAcrossACrossing(t *testing.T) {
 			for _, shardCount := range program.shards {
 				value := fmt.Sprintf("%d", shardCount)
 				env := overrideEnvVar(baseEnv, "SURGE_SHARDS", value)
-				env = overrideEnvVar(env, "SURGE_THREADS", value)
+				env = overrideEnvVar(env, "SURGE_SHARDS", value)
 				t.Run(fmt.Sprintf("correctness/shards_%d", shardCount), func(t *testing.T) {
 					duration, result := runBinaryWithTimeout(t, outputPath, env, 30*time.Second)
 					if result.exitCode != 0 || !strings.Contains(result.stdout, program.marker) {

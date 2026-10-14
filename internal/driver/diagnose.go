@@ -67,7 +67,11 @@ type DiagnoseOptions struct {
 	EmitInstantiations bool                 // Capture generic instantiation map (sema artefact)
 	KeepArtifacts      bool                 // Retain AST/symbol/semantic data (for analysis snapshots)
 	FullModuleGraph    bool                 // Canonical module-directory strategy is full graph resolution. In directory diagnostics, this keeps module scopes coherent and avoids cascading SEM3005-style errors; non-module files follow the initial per-file pass.
-	ExportsOut         *map[string]*symbols.ModuleExports
+	// SkipReturnOriginFinalization keeps editor/workspace analysis usable while
+	// a buffer is syntactically or semantically incomplete. Build and CLI
+	// diagnose paths leave this false and retain the whole-program safety gate.
+	SkipReturnOriginFinalization bool
+	ExportsOut                   *map[string]*symbols.ModuleExports
 }
 
 // Diagnose запускает диагностику файла до указанного уровня
@@ -328,9 +332,14 @@ func DiagnoseWithOptions(ctx context.Context, filePath string, opts *DiagnoseOpt
 		rootRecord:        rootRec,
 		moduleRecords:     moduleRecords,
 	}
-	blockHIR, finalizeErr := finalizeDiagnoseStage(ctx, result, opts.Stage)
+	blockHIR, finalizeErr := false, error(nil)
+	if opts.SkipReturnOriginFinalization {
+		blockHIR, finalizeErr = finalizeDiagnoseWithoutReturnOrigins(ctx, result)
+	} else {
+		blockHIR, finalizeErr = finalizeDiagnoseStage(ctx, result, opts.Stage)
+	}
 	if finalizeErr != nil {
-		return nil, finalizeErr
+		return result, finalizeErr
 	}
 
 	// Build HIR if requested and sema succeeded

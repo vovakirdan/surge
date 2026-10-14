@@ -144,7 +144,7 @@ extern<Foo> { fn choose(self: &Foo, @return_source other: &Foo) -> &Foo; }`
 	foo := syms.Table.Symbols.Get(lookupSymbolByName(syms, tc.builder.StringsInterner.Intern("Foo")))
 	ref := tc.types.Intern(types.MakeReference(foo.Type, false))
 	bound := symbols.BoundInstance{Contract: owner, GenericArgs: []types.TypeID{ref}, Span: contract.Span}
-	if !tc.checkContractSatisfaction(ref, bound, contract.Span, "") || bag.HasErrors() {
+	if !tc.checkContractSatisfaction(ref, bound, contract.Span) || bag.HasErrors() {
 		t.Fatalf("source receiver contract did not match: %s", diagnosticsSummary(bag))
 	}
 	name := tc.builder.StringsInterner.Intern("choose")
@@ -164,7 +164,7 @@ extern<Foo> { fn choose(self: &Foo, @return_source other: &Foo) -> &Foo; }`
 	}
 	matched := false
 	for _, candidate := range tc.methodsForType(ref, name) {
-		if match, _ := tc.contractSignatureMatches(&aligned, candidate); !match {
+		if match, _ := tc.contractSignatureMatches(&aligned, &candidate); !match {
 			continue
 		}
 		if !slices.Equal(candidate.returnSources.Slots(), []uint32{uint32(wantPrefix)}) {
@@ -179,8 +179,8 @@ extern<Foo> { fn choose(self: &Foo, @return_source other: &Foo) -> &Foo; }`
 	for _, original := range tc.result.ReturnSourceDeclarations {
 		if original.Owner == owner {
 			found = true
-			if original.Syntax.Span() != req.span || ValidateDeclaredReturnSources(tc.types, original).Status != ReturnSourcesDeferred ||
-				ValidateInstantiatedReturnSources(tc.types, original, req.params, req.result).Status != ReturnSourcesValid {
+			if original.Syntax.Span() != req.span || ValidateDeclaredReturnSources(tc.types, &original).Status != ReturnSourcesDeferred ||
+				ValidateInstantiatedReturnSources(tc.types, &original, req.params, req.result).Status != ReturnSourcesValid {
 				t.Fatal("receiver specialization invented a new concrete declaration")
 			}
 		}

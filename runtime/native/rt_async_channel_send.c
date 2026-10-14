@@ -204,7 +204,6 @@ static bool rt_channel_send_inner(void* channel, void* src, int yield_after_hand
                     continue;
                 }
                 rt_shard_unlock(ch_shard);
-                channel_compat_broadcast_if_needed(ex, pushed);
                 rt_channel_retry_reset(task);
                 if (yield_after_handoff && prepare_channel_send_yield(task)) {
                     return 0;

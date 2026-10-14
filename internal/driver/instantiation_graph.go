@@ -38,7 +38,7 @@ func FinalizeInstantiationClosure(ctx context.Context, res *DiagnoseResult, maxD
 		return err
 	}
 	sema.AddInstantiationCallableSeeds(res.Sema, rootInstantiationCallableSeeds(res))
-	if err := mergeInstantiationResult(res, res.Sema, nil); err != nil {
+	if _, err := mergeInstantiationResult(res, res.Sema, nil); err != nil {
 		return fmt.Errorf("root instantiation graph: %w", err)
 	}
 	if root := res.rootRecord; root != nil {
@@ -47,7 +47,7 @@ func FinalizeInstantiationClosure(ctx context.Context, res *DiagnoseResult, maxD
 			if semaResult == nil || semaResult == res.Sema {
 				continue
 			}
-			if err := mergeInstantiationResult(res, semaResult, nil); err != nil {
+			if _, err := mergeInstantiationResult(res, semaResult, nil); err != nil {
 				return fmt.Errorf("root file instantiation graph: %w", err)
 			}
 		}
@@ -80,12 +80,14 @@ func FinalizeInstantiationClosure(ctx context.Context, res *DiagnoseResult, maxD
 				mapping = coreMapping
 			}
 		}
-		cacheInstantiationSymbolRemap(entry.rec, res.Symbols.Table, mapping)
 		for _, fileID := range entry.rec.FileIDs {
-			if err := mergeInstantiationResult(res, entry.rec.Sema[fileID], mapping); err != nil {
+			var err error
+			mapping, err = mergeInstantiationResult(res, entry.rec.Sema[fileID], mapping)
+			if err != nil {
 				return fmt.Errorf("%s instantiation graph: %w", entry.path, err)
 			}
 		}
+		cacheInstantiationSymbolRemap(entry.rec, res.Symbols.Table, mapping)
 	}
 	return finalizeInstantiationResult(res, maxDepth)
 }
@@ -318,25 +320,22 @@ func mergeInstantiationResult(
 	res *DiagnoseResult,
 	src *sema.Result,
 	mapping map[symbols.SymbolID]symbols.SymbolID,
-) error {
+) (map[symbols.SymbolID]symbols.SymbolID, error) {
 	if res == nil || res.Sema == nil || src == nil {
-		return nil
+		return mapping, nil
 	}
 	if src.TypeInterner != res.Sema.TypeInterner {
-		return fmt.Errorf("instantiation graph uses a different type interner; note: module graphs must share one semantic type arena before merge")
-	}
-	if err := sema.CanonicalizeInstantiationGraphSources(src, canonicalInstantiationSourceResolver(res)); err != nil {
-		return err
+		return mapping, fmt.Errorf("instantiation graph uses a different type interner; note: module graphs must share one semantic type arena before merge")
 	}
 	if src != res.Sema {
 		mapping = sema.CanonicalizeInstantiationCallableAliases(res.Sema, src, mapping)
 		sema.MergeInstantiationGraphs(res.Sema, src, mapping)
 		sema.MergeFunctionCallEdges(res.Sema, src, mapping)
 		if err := sema.MergeInstantiationTemplateParams(res.Sema, src, mapping); err != nil {
-			return err
+			return mapping, err
 		}
 	}
-	return nil
+	return mapping, nil
 }
 
 func cacheInstantiationSymbolRemap(

@@ -25,6 +25,10 @@ type Channel<T> = { __opaque: int };
 @shard_pinned
 type TcpConn = { __opaque: int };
 type Task<T> = { __opaque: int64 };
+extern<Task<T>> {
+    @intrinsic pub fn await(self: own Task<T>) -> TaskResult<T>;
+}
+@intrinsic fn checkpoint() -> Task<nothing>;
 @shard_movable
 type Movable = { id: int };
 @nosend
@@ -115,6 +119,7 @@ func TestOnCrossingDiagnostics(t *testing.T) {
 		{"unwrapped_result", `fn f() -> int { return on pool { ret 1; }; }`, "SEM3149"},
 		{"return_in_body", `fn f() -> TaskResult<int> { return on pool { return 1; }; }`, "SEM3147"},
 		{"missing_ret", `fn f() -> TaskResult<int> { return on pool { let x: int = 1; let _ = x; }; }`, "SEM3148"},
+		{"suspending_body", `async fn f() -> TaskResult<int> { return on pool { let _ = checkpoint().await(); ret 1; }; }`, ""},
 
 		// Captures (ON-CAP).
 		{"copy_capture_ok", `fn dbl(x: int) -> int { return x; } fn f(n: int) -> TaskResult<int> { return on pool { ret dbl(n); }; }`, ""},

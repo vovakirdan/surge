@@ -15,7 +15,8 @@ import (
 // frame, the body is a frame of its own whose `ret` is its only exit, and the value is the
 // reply, `TaskResult<T>`, made on the far side. A reply, or a value an anchored channel
 // operation moves through the ring, is admitted only when its type can hold no reference, no
-// storage loan and no task; `spawn on` is N-TASK-27S's. Every source is a ROOT program against
+// storage loan and no task, or when the exact clone/unshare contract proves its transfer;
+// `spawn on` is N-TASK-27S's. Every source is a ROOT program against
 // the real core, and each row reads one body of one source.
 
 const (
@@ -283,14 +284,14 @@ func onCrossingRows() []onCrossingRow {
 			fn: originSpan{318, 450, onCrossingAnchoredSource[318:450]}, want: []originRefusal{}, summary: true},
 		{name: "reference_reply_stays_refused", text: onCrossingReferenceSource, digest: onCrossingReferenceSourceDigest, body: "peek",
 			fn: originSpan{0, 100, onCrossingReferenceSource[0:100]}, want: []originRefusal{{span: originSpan{37, 68, "on pool {\n        ret &n;\n    }"}, reason: onCrossingReplyRefusal}, {span: originSpan{82, 83, "r"}, reason: originOutgoingRefusal}}, summary: false},
-		{name: "loan_carrier_reply_stays_refused", text: onCrossingLoanSource, digest: onCrossingLoanSourceDigest, body: "gather",
-			fn: originSpan{0, 126, onCrossingLoanSource[0:126]}, want: []originRefusal{{span: originSpan{33, 94, "on pool {\n        let a: int[] = [1, 2];\n        ret a;\n    }"}, reason: onCrossingReplyRefusal}}, summary: false},
-		{name: "task_reply_stays_refused", text: onCrossingTaskSource, digest: onCrossingTaskSourceDigest, body: "hand_off",
-			fn: originSpan{53, 183, onCrossingTaskSource[53:183]}, want: []originRefusal{{span: originSpan{88, 151, "on pool {\n        let t = worker(5:int64);\n        ret t;\n    }"}, reason: onCrossingReplyRefusal}}, summary: false},
-		{name: "anchored_loan_carrier_send_stays_refused", text: onCrossingLoanSource, digest: onCrossingLoanSourceDigest, body: "push_all",
-			fn: originSpan{127, 272, onCrossingLoanSource[127:272]}, want: []originRefusal{{span: originSpan{226, 241, "ch.send(own xs)"}, reason: onCrossingAnchoredRefusal}, {span: originSpan{238, 240, "xs"}, reason: onCrossingCaptureRefusal}}, summary: false},
-		{name: "anchored_loan_carrier_recv_stays_refused", text: onCrossingLoanSource, digest: onCrossingLoanSourceDigest, body: "pull",
-			fn: originSpan{273, 412, onCrossingLoanSource[273:412]}, want: []originRefusal{{span: originSpan{378, 387, "ch.recv()"}, reason: onCrossingAnchoredRefusal}}, summary: false},
+		{name: "loan_carrier_reply_uses_exact_unshare", text: onCrossingLoanSource, digest: onCrossingLoanSourceDigest, body: "gather",
+			fn: originSpan{0, 126, onCrossingLoanSource[0:126]}, want: []originRefusal{}, summary: true},
+		{name: "task_reply_uses_exact_handle_transfer", text: onCrossingTaskSource, digest: onCrossingTaskSourceDigest, body: "hand_off",
+			fn: originSpan{53, 183, onCrossingTaskSource[53:183]}, want: []originRefusal{}, summary: true},
+		{name: "anchored_loan_carrier_send_uses_exact_unshare", text: onCrossingLoanSource, digest: onCrossingLoanSourceDigest, body: "push_all",
+			fn: originSpan{127, 272, onCrossingLoanSource[127:272]}, want: []originRefusal{}, summary: true},
+		{name: "anchored_loan_carrier_recv_uses_exact_transfer", text: onCrossingLoanSource, digest: onCrossingLoanSourceDigest, body: "pull",
+			fn: originSpan{273, 412, onCrossingLoanSource[273:412]}, want: []originRefusal{}, summary: true},
 		{name: "body_rows_are_reported", text: onCrossingWalkSource, digest: onCrossingWalkSourceDigest, body: "body_row",
 			fn: originSpan{114, 210, onCrossingWalkSource[114:210]}, want: []originRefusal{}, summary: false},
 		{name: "destination_rows_are_reported", text: onCrossingWalkSource, digest: onCrossingWalkSourceDigest, body: "dest_row",
@@ -303,8 +304,8 @@ func onCrossingRows() []onCrossingRow {
 			fn: originSpan{47, 152, onCrossingFnCaptureSource[47:152]}, want: []originRefusal{{span: originSpan{138, 139, "f"}, reason: onCrossingCaptureRefusal}}, summary: false, allow: []string{onCrossingCallableIdent, onCrossingCallableValue, originCallRefusal, onCrossingCallableAuthority}},
 		{name: "owned_dynamic_array_capture_finishes", text: onCrossingOwnedArraySource, digest: onCrossingOwnedArraySourceDigest, body: "run",
 			fn: originSpan{62, 270, onCrossingOwnedArraySource[62:270]}, want: []originRefusal{}, summary: false},
-		{name: "array_parameter_capture_keeps_source_fence", text: onCrossingArrayParamSource, digest: onCrossingArrayParamSourceDigest, body: "run",
-			fn: originSpan{62, 251, onCrossingArrayParamSource[62:251]}, want: []originRefusal{{span: originSpan{156, 158, "xs"}, reason: onCrossingCaptureRefusal}}, summary: false},
+		{name: "array_parameter_capture_uses_exact_unshare", text: onCrossingArrayParamSource, digest: onCrossingArrayParamSourceDigest, body: "run",
+			fn: originSpan{62, 251, onCrossingArrayParamSource[62:251]}, want: []originRefusal{}, summary: true},
 	}
 }
 

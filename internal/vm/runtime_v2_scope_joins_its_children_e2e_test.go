@@ -54,7 +54,7 @@ func TestRuntimeV2ScopeAnswersAfterItsChildren(t *testing.T) {
 	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2ScopeJoinsItsChildrenSource, nil)
 	baseEnv := envWithStdlib(repoRoot(t))
 	env := overrideEnvVar(baseEnv, "SURGE_SHARDS", "1")
-	env = overrideEnvVar(env, "SURGE_THREADS", "1")
+	env = overrideEnvVar(env, "SURGE_SHARDS", "1")
 	duration, result := runBinaryWithTimeout(t, outputPath, env, 60*time.Second)
 	if result.exitCode != 0 {
 		t.Fatalf("scope join program failed (exit=%d, duration=%s)\nstdout:\n%s\nstderr:\n%s",

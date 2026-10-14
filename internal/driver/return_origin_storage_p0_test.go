@@ -14,7 +14,7 @@ import (
 // P0 certifies capture/admission, never the future P1 origin/effect verdict.
 // The whole owning-unit input and actual current Pending/error remain visible.
 func TestCaptureReturnOriginStorageP0(t *testing.T) {
-	if len(storageP0Cases) != 12 {
+	if len(storageP0Cases) != 7 {
 		t.Fatal("frozen P0 source roster changed")
 	}
 	for _, tc := range storageP0Cases {

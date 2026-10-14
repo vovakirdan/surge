@@ -148,7 +148,7 @@ func TestRuntimeV2NetHandleStaleCopyReusedFD(t *testing.T) {
 	outputPath := buildLLVMProgramFromSource(t, source)
 	for _, shards := range []string{"1", "2", "8"} {
 		t.Run("shards-"+shards, func(t *testing.T) {
-			env := append(mtEnv(t), "SURGE_SHARDS="+shards, "SURGE_THREADS="+shards)
+			env := append(mtEnv(t), "SURGE_SHARDS="+shards)
 			dur, res := runBinaryWithTimeout(t, outputPath, env, 15*time.Second)
 			if res.exitCode != 0 {
 				t.Fatalf("stale-reuse fixture failed (exit=%d, dur=%s)\nstdout:\n%s\nstderr:\n%s",
@@ -383,7 +383,7 @@ int main(void) {
     rt_net_conn_free_unpublished(conn);
     if (rt_net_conn_canonical(&conn_copy) != NULL || free_calls != 2) return 6;
 
-    NetListener* listener = rt_net_listener_alloc(NET_LISTENER_SINGLE, 1, 0);
+    NetListener* listener = rt_net_listener_alloc(NET_LISTENER_SINGLE, 1);
     if (listener == NULL) return 7;
     int listener_pipe[2];
     if (pipe(listener_pipe) != 0) return 8;

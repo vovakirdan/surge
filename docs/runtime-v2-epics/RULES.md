@@ -457,40 +457,31 @@ chosen over both.
 
 ## Global Rule 19: A Heavy Row Refuses To Start Outside Its Stand
 
-Global Rule 17 said a lane is a worktree and a count comes from one pinned to a
-SHA. That was prose. On 2026-08-31 three agents ran `internal/vm`, `make
-runtime-*` and valgrind directly inside the shared dev checkout in the same
-hour, and local load average reached 47.28 — nothing in the tree had refused
-them, because nothing in the tree checked.
+Every repo-owned heavy entry point calls `scripts/heavy_run_guard.sh` before
+compilation. The retired dedicated Ryzen host and hosted CI are not part of the
+landing proof. Heavy evidence is produced locally in a separate worktree with an
+absolute `SURGE_STDLIB` resolving to that same checkout.
 
-Every repo-owned heavy entry point — the `runtime-v2-*` sub-gates, the
-aggregate `runtime-v2-check`, and `behaviour-check`/`behaviour-check-all`/
-`behaviour-check-mt` — now calls `scripts/heavy_run_guard.sh` as the first line
-of its recipe, before anything compiles. The guard refuses, with exit 3 and an
-instruction naming the dedicated host and the `git worktree add --detach`
-command, unless: the tree is on the dedicated measurement host (a marker file
-at `/etc/surge-dedicated-runner`), the tree is a detached worktree pinned to a
-SHA rather than a named branch, the tree is clean (`git status --porcelain` is
-empty), and `SURGE_STDLIB` points at that same worktree rather than an
-installed or unrelated copy. `GITHUB_ACTIONS=true` is not a bypass; it names an
-ephemeral `actions/checkout` tree, which both `ci.yml` and `ci-selfhosted.yml`
-put a named branch under, so a detached-HEAD-only rule would close all of CI.
+A local heavy run requires `SURGE_LOCAL_HEAVY=1`. A clean worktree is identified
+by its exact HEAD SHA. During development a dirty worktree may run only with the
+second explicit opt-in `SURGE_LOCAL_HEAVY_ALLOW_DIRTY=1`; the guard prints a
+content fingerprint over HEAD, the binary tracked diff and every untracked file.
+That fingerprint makes an intermediate run reproducible enough to compare while
+the patch is still reviewable, but it is not final landing evidence. The final
+all-green packet is repeated on one clean exact SHA after commit authorization.
 
-Excluded, each for a reason recorded next to the exemption in the Makefile: the
-three `runtime-v2-carrier-bench*` targets already carry their own fail-closed
-host guard (`scripts/runtime_v2_carrier_bench_host.py`); `test` and `check` are
-the pre-commit hook, and closing them would make a local commit impossible
-(tracked separately, not solved by this rule). The cheap lane —
-`runtime-v2-file-size-check`, `runtime-v2-syncpoint-check`, `cfmt-check`,
-`lint`, `c-check` — carries no guard and stays runnable from any checkout.
+`SURGE_STDLIB` is mandatory, absolute and must resolve to the guarded worktree.
+A named branch is allowed: branch state does not weaken content identity once the
+SHA or dirty-tree fingerprint is recorded. `GITHUB_ACTIONS=true` remains an
+allowed CI lane, but CI is supplementary and its absence does not weaken or
+block the local gate roster.
 
-A guard in the tree is not unbypassable — `export GITHUB_ACTIONS=true` defeats
-it — and this rule does not claim otherwise. What it removes is the silent
-default: running a heavy row in the wrong place now takes a deliberate action
-instead of being what happens when nobody thinks about it, and the guard always
-names which lane it let through.
+The carrier benchmark targets retain their own manifest and host checks. `test`
+and `check` stay unguarded because the pre-commit hook must be able to run them;
+cheap file-size, sync-point, format, lint and C checks also stay directly
+runnable. The guard's purpose is the explicit opt-in, correct stdlib and evidence
+identity, while serialized execution of heavy jobs remains an operator rule.
 
-This is the owner's ruling of 2026-08-31, requested because a threshold on load
-average cannot be the mechanism — a shared checkout is invalid at load 0.05 too,
-because the tree mutates under a neighbouring agent regardless of load. See
-SUR-180, SUR-181, SUR-186.
+This revision supersedes the 2026-08-31 dedicated-host marker requirement after
+that host was permanently retired. It preserves the same fail-closed property
+without waiting for infrastructure that no longer exists.

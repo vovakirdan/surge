@@ -33,11 +33,9 @@ void rt_sched_wake_broadcast_all(rt_executor* ex) {
     size_t count = rt_runtime_shard_count(runtime);
     for (size_t i = 0; i < count; i++) {
         rt_shard* shard = rt_runtime_shard(runtime, i);
-        rt_scheduler* scheduler = rt_shard_scheduler(shard);
-        uint32_t sleepers = scheduler != NULL ? scheduler->worker_count : 1U;
-        // Give every potential sleeper a token so none re-sleeps on a stale
-        // zero after a shutdown or compat broadcast.
-        rt_sched_wake_signal_shard_n(shard, sleepers > 0 ? sleepers : 1U);
+        // Each shard has exactly one carrier and therefore one potential
+        // sleeper and one durable wake credit.
+        rt_sched_wake_signal_shard_n(shard, 1U);
     }
 }
 

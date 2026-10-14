@@ -18,12 +18,16 @@ func TestRuntimeV2SchedulerPlacementWorkerShape(t *testing.T) {
 		env  []string
 	}{
 		{
-			name: "threads-equal-shards",
-			env:  schedulerPlacementEnv("SURGE_SHARDS=4", "SURGE_THREADS=4", "SURGE_BLOCKING_THREADS=1"),
+			name: "single-shard-has-one-carrier",
+			env:  schedulerPlacementEnv("SURGE_SHARDS=1", "SURGE_BLOCKING_THREADS=1"),
 		},
 		{
-			name: "threads-unset",
-			env:  schedulerPlacementEnv("SURGE_SHARDS=4", "SURGE_THREADS=", "SURGE_BLOCKING_THREADS=1"),
+			name: "one-carrier-per-shard",
+			env:  schedulerPlacementEnv("SURGE_SHARDS=4", "SURGE_BLOCKING_THREADS=1"),
+		},
+		{
+			name: "default-is-one-carrier-per-detected-shard",
+			env:  schedulerPlacementEnv("SURGE_SHARDS=", "SURGE_BLOCKING_THREADS=1"),
 		},
 	}
 	for _, tc := range cases {
@@ -37,54 +41,9 @@ func TestRuntimeV2SchedulerPlacementWorkerShape(t *testing.T) {
 	}
 }
 
-func TestRuntimeV2SchedulerPlacementNoStealPolicy(t *testing.T) {
-	binPath := buildRuntimeV2SchedulerPlacementHarness(t)
-	env := schedulerPlacementEnv("SURGE_SCHED_TRACE=1")
-	stdout, stderr, exitCode := runSchedulerPlacementHarness(t, binPath, "no-steal", env)
-	if exitCode != 0 {
-		t.Fatalf("no-steal harness failed (code=%d)\nstdout:\n%s\nstderr:\n%s",
-			exitCode, stdout, stderr)
-	}
-	trace := parseSchedTrace(t, stderr)
-	if trace.steal != 0 {
-		t.Fatalf("denied no-steal decision must not be reported as a successful steal; steal=%d\nstderr:\n%s",
-			trace.steal, stderr)
-	}
-	if trace.tier1StealDenied == 0 {
-		t.Fatalf("expected denied Tier 1 steal evidence in SCHED_TRACE\nstderr:\n%s", stderr)
-	}
-}
-
-func TestRuntimeV2SchedulerPlacementNoStealWorkerPath(t *testing.T) {
-	binPath := buildRuntimeV2SchedulerPlacementHarness(t)
-	env := schedulerPlacementEnv(
-		"SURGE_SHARDS=2",
-		"SURGE_THREADS=2",
-		"SURGE_BLOCKING_THREADS=1",
-		"SURGE_SCHED_TRACE=1",
-	)
-	stdout, stderr, exitCode := runSchedulerPlacementHarness(t, binPath, "no-steal-worker-path", env)
-	if exitCode != 0 {
-		t.Fatalf("no-steal worker-path harness failed (code=%d)\nstdout:\n%s\nstderr:\n%s",
-			exitCode, stdout, stderr)
-	}
-	trace := parseSchedTrace(t, stderr)
-	if trace.steal != 0 {
-		t.Fatalf("connection-owned shard task was stolen across shard boundary; SCHED_TRACE steal=%d\nstderr:\n%s",
-			trace.steal, stderr)
-	}
-	if trace.connOwnerLocal == 0 {
-		t.Fatalf("expected connection-owned task to run on its owner shard in SCHED_TRACE\nstderr:\n%s", stderr)
-	}
-	if trace.connOwnerMismatch != 0 {
-		t.Fatalf("connection-owned task ran on a non-owner shard; conn_owner_mismatch=%d\nstderr:\n%s",
-			trace.connOwnerMismatch, stderr)
-	}
-}
-
 func TestRuntimeV2SchedulerPlacementInvalidOwnerFailsClosed(t *testing.T) {
 	binPath := buildRuntimeV2SchedulerPlacementHarness(t)
-	env := schedulerPlacementEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1")
+	env := schedulerPlacementEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1")
 	stdout, stderr, exitCode := runSchedulerPlacementHarness(t, binPath, "invalid-owner", env)
 	if exitCode == 0 {
 		t.Fatalf("invalid-owner harness unexpectedly passed\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
@@ -94,9 +53,45 @@ func TestRuntimeV2SchedulerPlacementInvalidOwnerFailsClosed(t *testing.T) {
 	}
 }
 
+func TestRuntimeV2SchedulerPlacementMissingOwnerFailsClosed(t *testing.T) {
+	binPath := buildRuntimeV2SchedulerPlacementHarness(t)
+	env := schedulerPlacementEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1")
+	stdout, stderr, exitCode := runSchedulerPlacementHarness(t, binPath, "missing-owner", env)
+	if exitCode == 0 {
+		t.Fatalf("missing-owner harness unexpectedly passed\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+	if !strings.Contains(stderr, "task has no owner shard") {
+		t.Fatalf("missing unplaced task panic\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+}
+
+func TestRuntimeV2SchedulerPlacementMissingScopeOwnerFailsClosed(t *testing.T) {
+	binPath := buildRuntimeV2SchedulerPlacementHarness(t)
+	env := schedulerPlacementEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1")
+	stdout, stderr, exitCode := runSchedulerPlacementHarness(t, binPath, "missing-scope-owner", env)
+	if exitCode == 0 {
+		t.Fatalf("missing-scope-owner harness unexpectedly passed\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+	if !strings.Contains(stderr, "scope has no owner shard") {
+		t.Fatalf("missing scope owner panic not reported\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+}
+
+func TestRuntimeV2SchedulerPlacementInvalidScopeOwnerFailsClosed(t *testing.T) {
+	binPath := buildRuntimeV2SchedulerPlacementHarness(t)
+	env := schedulerPlacementEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1")
+	stdout, stderr, exitCode := runSchedulerPlacementHarness(t, binPath, "invalid-scope-owner", env)
+	if exitCode == 0 {
+		t.Fatalf("invalid-scope-owner harness unexpectedly passed\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+	if !strings.Contains(stderr, "invalid scope owner shard") {
+		t.Fatalf("invalid scope owner panic not reported\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+}
+
 func TestRuntimeV2SchedulerPlacementParkedWithWorkInvariant(t *testing.T) {
 	binPath := buildRuntimeV2SchedulerPlacementHarness(t)
-	env := schedulerPlacementEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1")
+	env := schedulerPlacementEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1")
 	stdout, stderr, exitCode := runSchedulerPlacementHarness(t, binPath, "parked-clean", env)
 	if exitCode != 0 {
 		t.Fatalf("parked-clean harness failed (code=%d)\nstdout:\n%s\nstderr:\n%s",
@@ -190,33 +185,14 @@ const schedulerPlacementHarness = `
 #define _POSIX_C_SOURCE 199309L
 #include "rt_async_internal.h"
 
-#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 	int rt_argc = 0;
 	char** rt_argv_raw = NULL;
 
-	enum {
-	    POLL_KIND_GENERIC = 0,
-	    POLL_KIND_GATE = 1001,
-	    POLL_KIND_TARGET = 1002
-	};
-
-	static _Atomic uint32_t gate_started;
-	static _Atomic uint32_t release_gate;
-	static _Atomic uint32_t target_polled;
-	static _Atomic uint32_t wrong_shard_poll;
-
-	static void sleep_us(unsigned long micros) {
-	    struct timespec ts;
-	    ts.tv_sec = (time_t)(micros / 1000000UL);
-	    ts.tv_nsec = (long)((micros % 1000000UL) * 1000UL);
-	    while (nanosleep(&ts, &ts) != 0) {
-	    }
-	}
+	enum { POLL_KIND_GENERIC = 0 };
 
 	// Drop-dispatch stub: no harness state struct carries a drop obligation
 // (drop-fn id 0 never dispatches), so reaching this is a test bug.
@@ -236,22 +212,7 @@ void __surge_drop_abandoned_state_call(uint64_t id, void* state) {
 }
 
 void __surge_poll_call(uint64_t id) {
-	    if (id == POLL_KIND_GATE) {
-	        atomic_store_explicit(&gate_started, 1, memory_order_release);
-	        while (atomic_load_explicit(&release_gate, memory_order_acquire) == 0) {
-	            sleep_us(1000);
-	        }
-	        rt_async_return(NULL, &(uint64_t){0});
-	    }
-	    if (id == POLL_KIND_TARGET) {
-	        const rt_task* task = rt_current_task();
-	        uint32_t worker_shard = rt_debug_current_worker_shard_id();
-	        if (task == NULL || worker_shard != task->owner_shard_id) {
-	            atomic_store_explicit(&wrong_shard_poll, 1, memory_order_release);
-	        }
-	        atomic_fetch_add_explicit(&target_polled, 1, memory_order_acq_rel);
-	        rt_async_return(NULL, &(uint64_t){0});
-	    }
+	    (void)id;
 	    rt_async_return(NULL, &(uint64_t){0});
 	}
 
@@ -271,16 +232,6 @@ static int fail(const char* msg) {
     }
     return 1;
 }
-
-	static int wait_for_u32(_Atomic uint32_t* value, uint32_t want, uint32_t attempts) {
-	    for (uint32_t i = 0; i < attempts; i++) {
-	        if (atomic_load_explicit(value, memory_order_acquire) >= want) {
-	            return 1;
-	        }
-	        sleep_us(1000);
-	    }
-	    return 0;
-	}
 
 	static rt_task* alloc_ready_task(rt_executor* ex, int64_t poll_fn_id) {
 	    uint64_t id = ex->next_id++;
@@ -313,119 +264,40 @@ static int worker_shape(void) {
     }
     rt_control_lock(ex);
     rt_runtime* runtime = rt_executor_runtime(ex);
-    if (rt_runtime_shard_count(runtime) != 4) {
+    size_t shard_count = rt_runtime_shard_count(runtime);
+    if (shard_count == 0 || shard_count > RT_RUNTIME_MAX_SHARDS) {
         rt_control_unlock(ex);
         return fail("runtime shard count mismatch");
     }
-    if (rt_worker_count() != 4) {
+    if (rt_worker_count() != shard_count) {
         rt_control_unlock(ex);
         return fail("total worker count mismatch");
     }
     rt_heap_accounting* accounting = rt_executor_heap_accounting(ex);
-    if (accounting == NULL || accounting->worker_cell_count != 4) {
+    if (accounting == NULL || accounting->worker_cell_count != shard_count) {
         rt_control_unlock(ex);
         return fail("worker heap cell count mismatch");
     }
-    for (size_t i = 0; i < 4; i++) {
+    for (size_t i = 0; i < shard_count; i++) {
         rt_shard* shard = rt_runtime_shard(runtime, i);
         rt_scheduler* scheduler = rt_shard_scheduler(shard);
-        if (shard == NULL || scheduler == NULL || scheduler->worker_count != 1 ||
-            scheduler->worker_ctxs == NULL) {
+        if (shard == NULL || scheduler == NULL) {
             rt_control_unlock(ex);
             return fail("missing shard worker context");
         }
-        if (!rt_debug_validate_worker_ctx(ex, (uint32_t)i, 0, (uint32_t)i)) {
+        if (scheduler->carrier_ctx == NULL) {
             rt_control_unlock(ex);
-            return fail("worker context metadata mismatch");
+            return fail("missing shard worker context");
+        }
+        if (!rt_debug_validate_carrier_ctx(ex, (uint32_t)i, (uint32_t)i)) {
+            rt_control_unlock(ex);
+            return fail("carrier context metadata mismatch");
         }
     }
     rt_control_unlock(ex);
     (void)rt_executor_request_shutdown(ex);
     return 0;
 }
-
-static int no_steal(void) {
-    rt_executor* ex = ensure_exec();
-    if (ex == NULL) {
-        return fail("missing executor");
-    }
-    rt_task task;
-    memset(&task, 0, sizeof(task));
-    task.kind = TASK_KIND_USER;
-    if (!rt_task_can_steal_from_shard(&task, 0)) {
-        return fail("generic unowned task should be stealable");
-    }
-    rt_task_set_placement(&task, 1, TASK_PLACEMENT_CONNECTION);
-    if (rt_task_can_steal_from_shard_or_trace_denied(&task, 0)) {
-        return fail("connection-owned task escaped owner shard");
-    }
-    if (!rt_task_can_steal_from_shard(&task, 1)) {
-        return fail("connection-owned task should be stealable by owner shard");
-    }
-    rt_task_set_placement(&task, 1, TASK_PLACEMENT_GENERIC);
-    if (!rt_task_can_steal_from_shard(&task, 0)) {
-        return fail("generic owned task should preserve compatibility stealing");
-    }
-    rt_sched_trace_dump();
-    (void)rt_executor_request_shutdown(ex);
-    return 0;
-}
-
-	static int no_steal_worker_path(void) {
-	    rt_executor* ex = ensure_exec();
-	    if (ex == NULL) {
-	        return fail("missing executor");
-	    }
-	    atomic_store_explicit(&gate_started, 0, memory_order_relaxed);
-	    atomic_store_explicit(&release_gate, 0, memory_order_relaxed);
-	    atomic_store_explicit(&target_polled, 0, memory_order_relaxed);
-	    atomic_store_explicit(&wrong_shard_poll, 0, memory_order_relaxed);
-
-	    rt_control_lock(ex);
-	    rt_task* gate = alloc_ready_task(ex, POLL_KIND_GATE);
-	    if (gate == NULL) {
-	        rt_control_unlock(ex);
-	        return fail("gate task allocation failed");
-	    }
-	    rt_task_set_placement(gate, 1, TASK_PLACEMENT_CONNECTION);
-	    ready_push(ex, gate->id);
-	    rt_control_unlock(ex);
-
-	    if (!wait_for_u32(&gate_started, 1, 1000)) {
-	        (void)rt_executor_request_shutdown(ex);
-	        return fail("gate task did not start");
-	    }
-
-	    rt_control_lock(ex);
-	    rt_task* target = alloc_ready_task(ex, POLL_KIND_TARGET);
-	    if (target == NULL) {
-	        rt_control_unlock(ex);
-	        (void)rt_executor_request_shutdown(ex);
-	        return fail("target task allocation failed");
-	    }
-	    rt_task_set_placement(target, 1, TASK_PLACEMENT_CONNECTION);
-	    ready_push(ex, target->id);
-	    rt_control_unlock(ex);
-
-	    sleep_us(100000);
-	    if (atomic_load_explicit(&target_polled, memory_order_acquire) != 0) {
-	        (void)rt_executor_request_shutdown(ex);
-	        return fail("target ran while owner shard worker was still busy");
-	    }
-
-	    atomic_store_explicit(&release_gate, 1, memory_order_release);
-	    if (!wait_for_u32(&target_polled, 1, 1000)) {
-	        (void)rt_executor_request_shutdown(ex);
-	        return fail("target task did not run after owner shard was released");
-	    }
-	    if (atomic_load_explicit(&wrong_shard_poll, memory_order_acquire) != 0) {
-	        (void)rt_executor_request_shutdown(ex);
-	        return fail("connection-owned task ran on a non-owner shard");
-	    }
-	    rt_sched_trace_dump();
-	    (void)rt_executor_request_shutdown(ex);
-	    return 0;
-	}
 
 	static int invalid_owner(void) {
 	    rt_executor* ex = ensure_exec();
@@ -444,13 +316,50 @@ static int no_steal(void) {
 	    return fail("invalid owner placement did not fail closed");
 	}
 
+	static int missing_owner(void) {
+	    rt_executor* ex = ensure_exec();
+	    if (ex == NULL) {
+	        return fail("missing executor");
+	    }
+	    rt_control_lock(ex);
+	    rt_task* task = alloc_ready_task(ex, POLL_KIND_GENERIC);
+	    if (task == NULL) {
+	        rt_control_unlock(ex);
+	        return fail("task allocation failed");
+	    }
+	    ready_push(ex, task->id);
+	    rt_control_unlock(ex);
+	    return fail("missing owner placement did not fail closed");
+	}
+
+	static int missing_scope_owner(void) {
+	    rt_executor* ex = ensure_exec();
+	    if (ex == NULL) {
+	        return fail("missing executor");
+	    }
+	    (void)rt_scope_owner_shard(ex, NULL);
+	    return fail("missing scope owner did not fail closed");
+	}
+
+	static int invalid_scope_owner(void) {
+	    rt_executor* ex = ensure_exec();
+	    if (ex == NULL) {
+	        return fail("missing executor");
+	    }
+	    rt_scope scope;
+	    memset(&scope, 0, sizeof(scope));
+	    scope.owner_shard_id = 99;
+	    (void)rt_scope_owner_shard(ex, &scope);
+	    return fail("invalid scope owner did not fail closed");
+	}
+
 	static int parked_clean(void) {
 	    rt_executor* ex = ensure_exec();
     if (ex == NULL) {
         return fail("missing executor");
     }
     rt_control_lock(ex);
-    rt_debug_assert_no_parked_with_work(ex, 1, UINT32_MAX);
+    rt_debug_assert_no_parked_with_work(ex, 1);
     rt_control_unlock(ex);
     (void)rt_executor_request_shutdown(ex);
     return 0;
@@ -469,7 +378,7 @@ static int parked_violation(void) {
     }
     rt_task_set_placement(task, 1, TASK_PLACEMENT_CONNECTION);
     ready_push(ex, task->id);
-    rt_debug_assert_no_parked_with_work(ex, 1, UINT32_MAX);
+    rt_debug_assert_no_parked_with_work(ex, 1);
     rt_control_unlock(ex);
     return fail("parked-with-work assertion did not fire");
 }
@@ -481,14 +390,17 @@ int main(int argc, char** argv) {
     if (strcmp(argv[1], "worker-shape") == 0) {
         return worker_shape();
     }
-	    if (strcmp(argv[1], "no-steal") == 0) {
-	        return no_steal();
-	    }
-	    if (strcmp(argv[1], "no-steal-worker-path") == 0) {
-	        return no_steal_worker_path();
-	    }
 	    if (strcmp(argv[1], "invalid-owner") == 0) {
 	        return invalid_owner();
+	    }
+	    if (strcmp(argv[1], "missing-owner") == 0) {
+	        return missing_owner();
+	    }
+	    if (strcmp(argv[1], "missing-scope-owner") == 0) {
+	        return missing_scope_owner();
+	    }
+	    if (strcmp(argv[1], "invalid-scope-owner") == 0) {
+	        return invalid_scope_owner();
 	    }
 	    if (strcmp(argv[1], "parked-clean") == 0) {
 	        return parked_clean();

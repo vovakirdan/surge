@@ -122,7 +122,7 @@ fn main() -> int {
 func TestRuntimeV2TaskContentionCohortCostsExactlyOneFewerDuplication(t *testing.T) {
 	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2TaskContentionCensusSource, nil)
 	baseEnv := envWithStdlib(repoRoot(t))
-	env := overrideEnvVar(baseEnv, "SURGE_THREADS", "4")
+	env := overrideEnvVar(baseEnv, "SURGE_SHARDS", "4")
 	env = overrideEnvVar(env, "SURGE_SHARDS", "1")
 	for round := range 3 {
 		duration, result := runBinaryWithTimeout(t, outputPath, env, 60*time.Second)

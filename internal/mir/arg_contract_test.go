@@ -234,26 +234,25 @@ extern<Channel<T>> {
     @intrinsic fn send(self: &Channel<T>, value: T) -> nothing;
 }
 
-fn main(ch: &Channel<float>) -> int {
+async fn main(ch: &Channel<float>) -> int {
     let kept = 1.5;
     ch.send(kept);
     return 0;
 }`, nil)
 
-	call := findCall(t, compiled.mod, "send")
-	if len(call.Args) != 2 || len(call.ArgContracts) != 2 {
-		t.Fatalf("send has %d args / %d contracts, want 2 / 2", len(call.Args), len(call.ArgContracts))
+	for _, fn := range compiled.mod.Funcs {
+		for _, block := range fn.Blocks {
+			for _, instruction := range block.Instrs {
+				if instruction.Kind == mir.InstrChanSend {
+					if instruction.ChanSend.Value.Kind != mir.OperandRetain {
+						t.Fatalf("channel stores %v without retaining the caller's float", instruction.ChanSend.Value)
+					}
+					return
+				}
+			}
+		}
 	}
-	if call.ArgContracts[1] != mir.ArgContractStore {
-		t.Fatalf("send contracts = %s, want the value position to be a store", contractNames(call.ArgContracts))
-	}
-	if call.Args[1].Kind != mir.OperandRetain {
-		t.Fatalf(
-			"the stored float is passed as %v, so nothing bumps its count: the channel and the "+
-				"caller's binding would each release the same block",
-			call.Args[1].Kind,
-		)
-	}
+	t.Fatal("async channel publication was not lowered")
 }
 
 // TestABorrowedRefCountedScalarIsNotRetained is the other half, and it is what

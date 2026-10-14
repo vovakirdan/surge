@@ -130,7 +130,7 @@ typedef struct {
 //
 // RE-ARM — rewrite an entry in place, no length change:
 //   rt_channel_lane.h  channel_park_prepare_locked, dedupe arm: an absorbed
-//       wake or compat_cv wakeup re-enters the park with its entry never
+//       wake re-enters the park with its entry never
 //       popped. This bumps task->park_seq and writes w->seq through the
 //       existing entry INSTEAD of appending. Reading this as an append is
 //       what would double-retain the registration on every absorbed wake.
@@ -229,7 +229,7 @@ waker_key net_accept_key(int fd);
 waker_key net_read_key(int fd);
 waker_key net_write_key(int fd);
 int waker_is_net(waker_key key);
-waker_key blocking_key(uint64_t id);
+waker_key blocking_key(uint64_t id, uint32_t owner_shard_id);
 waker_key remote_spawn_reply_key(uint64_t id, uint32_t owner_shard_id);
 waker_key transport_slot_key(uint32_t shard_id);
 uint32_t rt_channel_owner_shard_id(const rt_channel* ch);
@@ -274,7 +274,6 @@ size_t rt_waiter_collect_join_waiters(rt_executor* ex,
 rt_waiter_completion rt_executor_wake_net_waiters_for_key_on_owner(rt_executor* ex,
                                                                    waker_key key,
                                                                    uint32_t owner_shard_id);
-uint32_t rt_net_owner_shard_for_key(rt_executor* ex, waker_key key, uint32_t fallback_shard_id);
 uint32_t rt_net_owner_shard_probe_locked(rt_executor* ex, int fd, uint32_t hint_shard_id);
 void remove_waiter(rt_executor* ex, waker_key key, uint64_t task_id);
 void remove_waiter_generation(rt_executor* ex, waker_key key, uint64_t task_id, uint32_t seq);

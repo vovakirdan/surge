@@ -16,8 +16,6 @@ typedef enum {
 
 typedef struct {
     size_t shard_count;
-    uint32_t legacy_worker_threads;
-    uint32_t shard_worker_count;
     uint32_t blocking_threads;
 } rt_runtime_start_config;
 

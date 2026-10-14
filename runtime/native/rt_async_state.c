@@ -7,13 +7,12 @@
 #include "rt_remote_task.h"
 
 #include <errno.h>
-#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-// Like the other executor locks and condition variables, this singleton lives
-// until process exit. rt_executor_request_shutdown quiesces it; it is not a
-// general reusable executor destructor.
+// This process singleton is not reusable. Normal exit joins its threads and
+// reclaims empty storage; admitted blocking jobs retain the storage they need
+// until process exit. pthread_once deliberately does not permit a restart.
 rt_executor exec_state;
 _Thread_local jmp_buf* poll_env;
 _Thread_local int poll_active = 0;
@@ -88,18 +87,10 @@ static uint8_t rt_env_channel_wake_force_inject(void) {
 static void rt_start_workers(rt_executor* ex);
 
 static uint32_t rt_config_total_worker_threads(const rt_runtime_start_config* config) {
-    if (config == NULL) {
+    if (config == NULL || config->shard_count < 1 || config->shard_count > UINT32_MAX) {
         return 0;
     }
-    if (config->shard_count <= 1) {
-        return config->legacy_worker_threads;
-    }
-    if (config->shard_worker_count == 0 ||
-        config->shard_count > (size_t)(UINT32_MAX / config->shard_worker_count)) {
-        panic_msg("async: worker count overflow");
-        return 0;
-    }
-    return (uint32_t)config->shard_count * config->shard_worker_count;
+    return (uint32_t)config->shard_count;
 }
 
 static void exec_init_once(void) {
@@ -116,10 +107,8 @@ static void exec_init_once(void) {
     ex->next_id = 1;
     ex->next_scope_id = 1;
     pthread_mutex_init(&ex->lock, NULL);
-    pthread_cond_init(&ex->compat_cv, NULL);
     pthread_cond_init(&ex->done_cv, NULL);
     rt_exec_trace_init();
-    uint32_t threads = config.legacy_worker_threads;
     uint32_t total_worker_threads = rt_config_total_worker_threads(&config);
     rt_sched_trace_init(total_worker_threads);
     uint32_t blocking_threads = config.blocking_threads;
@@ -140,10 +129,8 @@ static void exec_init_once(void) {
         rt_runtime_destroy_global();
         panic_msg("async: far channel state initialization failed");
     }
-    rt_runtime_status scheduler_status = rt_runtime_init_shard_schedulers(rt_executor_runtime(ex),
-                                                                          config.shard_worker_count,
-                                                                          rt_env_sched_mode(),
-                                                                          rt_env_sched_seed());
+    rt_runtime_status scheduler_status = rt_runtime_init_shard_schedulers(
+        rt_executor_runtime(ex), rt_env_sched_mode(), rt_env_sched_seed());
     if (scheduler_status == RT_RUNTIME_STATUS_ALLOCATION_FAILED) {
         rt_far_channel_release_all(ex);
         (void)rt_far_channel_state_destroy(ex);
@@ -165,9 +152,7 @@ static void exec_init_once(void) {
     // primitives have to be initialized before the worker threads start
     // (pthread_create publishes the initialization).
     rt_blocking_init(ex);
-    if (threads > 1 || rt_runtime_shard_count(rt_executor_runtime(ex)) > 1) {
-        rt_start_workers(ex);
-    }
+    rt_start_workers(ex);
     ex->initialized = 1;
 }
 
@@ -183,15 +168,18 @@ uint64_t rt_worker_count(void) {
 }
 
 static void rt_start_workers(rt_executor* ex) {
+#ifdef RT_TEST_SYNC_POINTS
+    const char* manual_lane = getenv("SURGE_TEST_MANUAL_SHARD_LANE");
+    if (manual_lane != NULL && strcmp(manual_lane, "1") == 0) {
+        return;
+    }
+#endif
     rt_runtime* runtime = rt_executor_runtime(ex);
     if (ex == NULL || runtime == NULL || runtime->shard_count < 1 ||
         runtime->shard_count > RT_RUNTIME_MAX_SHARDS) {
         return;
     }
     uint64_t total_workers64 = rt_runtime_total_worker_count(runtime);
-    if (runtime->shard_count <= 1 && total_workers64 <= 1) {
-        return;
-    }
     if (total_workers64 == 0 || total_workers64 > UINT32_MAX) {
         panic_msg("async: worker count overflow");
         return;
@@ -205,65 +193,87 @@ static void rt_start_workers(rt_executor* ex) {
         return;
     }
     ex->workers = threads;
+    ex->worker_threads_started = 0;
     rt_heap_accounting* accounting = rt_executor_heap_accounting(ex);
     if (pthread_create(&threads[0], NULL, rt_io_main, ex) != 0) {
         panic_msg("async: io worker start failed");
         return;
     }
-    (void)pthread_detach(threads[0]);
+    ex->worker_threads_started = 1;
     ex->io_started = 1;
     uint32_t flat_index = 0;
     for (size_t shard_index = 0; shard_index < runtime->shard_count; shard_index++) {
         rt_shard* shard = rt_runtime_shard(runtime, shard_index);
         rt_scheduler* scheduler = rt_shard_scheduler(shard);
-        if (shard == NULL || scheduler == NULL || scheduler->worker_count == 0) {
+        if (shard == NULL || scheduler == NULL) {
             continue;
         }
-        uint32_t count = scheduler->worker_count;
-        rt_worker_ctx* ctxs = (rt_worker_ctx*)rt_alloc(
-            (uint64_t)count * (uint64_t)sizeof(rt_worker_ctx), _Alignof(rt_worker_ctx));
-        if (ctxs == NULL) {
+        rt_worker_ctx* ctx =
+            (rt_worker_ctx*)rt_alloc(sizeof(rt_worker_ctx), _Alignof(rt_worker_ctx));
+        if (ctx == NULL) {
             fatal_oom_msg("async: worker context allocation failed");
             return;
         }
-        memset(ctxs, 0, (size_t)count * sizeof(rt_worker_ctx));
-        scheduler->worker_ctxs = ctxs;
-        for (uint32_t i = 0; i < count; i++) {
-            ctxs[i].ex = ex;
-            ctxs[i].shard = shard;
-            ctxs[i].scheduler = scheduler;
-            ctxs[i].heap_cell = rt_heap_accounting_worker_cell(accounting, flat_index);
-            ctxs[i].shard_id = shard->shard_id;
-            ctxs[i].worker_id = i;
-            ctxs[i].worker_index = flat_index;
-            ctxs[i].sched_rng =
-                scheduler->sched_seed + UINT64_C(0x9e3779b97f4a7c15) * (uint64_t)(flat_index + 1U);
-            if (pthread_create(&threads[(size_t)flat_index + 1], NULL, rt_worker_main, &ctxs[i]) !=
-                0) {
-                panic_msg("async: worker start failed");
-                return;
-            }
-            (void)pthread_detach(threads[(size_t)flat_index + 1]);
-            flat_index++;
+        memset(ctx, 0, sizeof(*ctx));
+        scheduler->carrier_ctx = ctx;
+        ctx->ex = ex;
+        ctx->shard = shard;
+        ctx->scheduler = scheduler;
+        ctx->heap_cell = rt_heap_accounting_worker_cell(accounting, flat_index);
+        ctx->shard_id = shard->shard_id;
+        ctx->worker_index = flat_index;
+        ctx->sched_rng =
+            scheduler->sched_seed + UINT64_C(0x9e3779b97f4a7c15) * (uint64_t)(flat_index + 1U);
+        if (pthread_create(&threads[(size_t)flat_index + 1], NULL, rt_worker_main, ctx) != 0) {
+            panic_msg("async: worker start failed");
+            return;
         }
+        ex->worker_threads_started++;
+        flat_index++;
     }
 }
 
-int rt_debug_validate_worker_ctx(rt_executor* ex,
-                                 uint32_t shard_id,
-                                 uint32_t worker_id,
-                                 uint32_t worker_index) {
+void rt_runtime_shutdown_for_exit(void) {
+    rt_executor* ex = &exec_state;
+    if (!ex->initialized || rt_current_task() != NULL || tls_worker_ctx != NULL) {
+        return;
+    }
+    (void)rt_executor_request_shutdown(ex);
+
+    for (uint32_t i = 0; i < ex->worker_threads_started; i++) {
+        (void)pthread_join(ex->workers[i], NULL);
+    }
+    ex->worker_threads_started = 0;
+    ex->io_started = 0;
+
+    // An admitted blocking syscall is deliberately allowed to outlive runtime
+    // shutdown (RUNTIME_V2.md section 10). Idle workers, and workers that only
+    // have queued jobs to cancel, are joinable and must retire here so normal
+    // process exit does not abandon their TLS and stacks.
+    if (atomic_load_explicit(&ex->blocking_running, memory_order_acquire) == 0) {
+        for (uint32_t i = 0; i < ex->blocking_threads_started; i++) {
+            (void)pthread_join(ex->blocking_workers[i], NULL);
+        }
+        ex->blocking_threads_started = 0;
+        rt_executor_release_empty_storage(ex);
+    } else {
+        for (uint32_t i = 0; i < ex->blocking_threads_started; i++) {
+            (void)pthread_detach(ex->blocking_workers[i]);
+        }
+    }
+    ex->blocking_threads_started = 0;
+}
+
+int rt_debug_validate_carrier_ctx(rt_executor* ex, uint32_t shard_id, uint32_t worker_index) {
     rt_shard* shard = rt_runtime_shard(rt_executor_runtime(ex), shard_id);
     rt_scheduler* scheduler = rt_shard_scheduler(shard);
-    if (shard == NULL || scheduler == NULL || scheduler->worker_ctxs == NULL ||
-        worker_id >= scheduler->worker_count) {
+    if (shard == NULL || scheduler == NULL || scheduler->carrier_ctx == NULL) {
         return 0;
     }
-    rt_worker_ctx* ctx = &scheduler->worker_ctxs[worker_id];
+    rt_worker_ctx* ctx = scheduler->carrier_ctx;
     rt_heap_accounting* accounting = rt_executor_heap_accounting(ex);
     return ctx->ex == ex && ctx->shard == shard && ctx->scheduler == scheduler &&
-           ctx->shard_id == shard_id && ctx->worker_id == worker_id &&
-           ctx->worker_index == worker_index &&
+           ctx->shard_id == shard_id && ctx->worker_index == worker_index &&
            ctx->heap_cell == rt_heap_accounting_worker_cell(accounting, worker_index);
 }
 
@@ -456,62 +466,12 @@ void ensure_scope_child_cap(rt_scope* scope, size_t want) {
 
 // Ready-queue cluster (scheduler_runnable_is_empty,
 // rt_sched_idle_sample_locked, sched_next_u64, current_worker_scheduler,
-// current_local_queue, pop_task_from_deque, ready_push*, ready_pop,
+// current_local_queue, pop_task_from_deque, ready_push*,
 // worker_next_ready) moved to rt_ready_queue.c: shard
 // ready-queue mutation and the worker pop policy are one owner surface.
 // Yield tick (D7): tick_virtual, rt_next_sleep_deadline, and
 // advance_time_to_next_timer moved to rt_virtual_clock.c: the shard-sleep-store
-// clock advance is one owner surface, separate from next_ready's poll/park
-// scheduling below.
-
-int next_ready(rt_executor* ex, uint64_t* out_id) {
-    if (ex == NULL) {
-        return 0;
-    }
-    while (!ready_pop(ex, out_id)) {
-        if (rt_net_begin_poll_on_shard(ex, 0) && rt_net_poll_waiters_owned_on_shard(ex, 0, 0)) {
-            continue;
-        }
-        uint64_t next_deadline = 0;
-        int have_timer = rt_next_sleep_deadline(ex, &next_deadline);
-        if (have_timer) {
-            if (rt_net_has_waiters_on_shard(ex, 0)) {
-                uint64_t now = ex->now_ms;
-                uint64_t diff = next_deadline > now ? next_deadline - now : 0;
-                int timeout_ms = diff > (uint64_t)INT_MAX ? INT_MAX : (int)diff;
-                if (timeout_ms > 0) {
-                    if (rt_net_begin_poll_on_shard(ex, 0) &&
-                        rt_net_poll_waiters_owned_on_shard(ex, 0, timeout_ms)) {
-                        continue;
-                    }
-                    const rt_shard* shard = rt_runtime_shard_const(rt_executor_runtime(ex), 0);
-                    if (shard != NULL && shard->net_polling && !ex->shutdown) {
-                        rt_io_wait_slice(ex);
-                        continue;
-                    }
-                }
-                if (advance_time_to_next_timer(ex)) {
-                    continue;
-                }
-            } else if (advance_time_to_next_timer(ex)) {
-                continue;
-            }
-        } else {
-            if (rt_net_begin_poll_on_shard(ex, 0) &&
-                rt_net_poll_waiters_owned_on_shard(ex, 0, -1)) {
-                continue;
-            }
-            const rt_shard* shard = rt_runtime_shard_const(rt_executor_runtime(ex), 0);
-            if (shard != NULL && shard->net_polling && rt_net_has_waiters_on_shard(ex, 0) &&
-                !ex->shutdown) {
-                rt_io_wait_slice(ex);
-                continue;
-            }
-            return 0;
-        }
-    }
-    return 1;
-}
+// clock advance is one owner surface.
 
 rt_task* task_from_handle(void* handle) {
     if (handle == NULL) {

@@ -166,18 +166,16 @@ func analyzeTypedReturnOriginSource(t *testing.T, src string, allowOldEscape boo
 			t.Fatalf("unrelated existing refusal invalidates source proof: %+v", *d)
 		}
 	}
-	key, err := canonicalInstantiationSourceResolver(res)(res.File.ID)
+	if res.Sema.InstantiationIdentity == nil || res.Sema.InstantiationClosure == nil {
+		if closureErr := FinalizeInstantiationClosure(t.Context(), res, 64); closureErr != nil {
+			t.Fatalf("finalize escape fixture closure: %v", closureErr)
+		}
+	}
+	inputs, err := collectReturnOriginUnits(res)
 	if err != nil {
 		t.Fatal(err)
 	}
-	local, captured := res.finalizationIndex[res.rootRecord]
-	if !captured {
-		t.Fatal("public finalization did not retain the pre-merge callable vocabulary")
-	}
-	analysis, err := sema.AnalyzeReturnOrigins(t.Context(), res.Sema, []sema.ReturnOriginUnit{{
-		Builder: res.Builder, FileID: res.FileID, Sema: res.Sema, Symbols: res.Symbols, SourceKey: key,
-		Publication: sema.FinalizationPublication{SourceKey: key, LocalCallables: local.local, ImportedCallables: local.imported},
-	}})
+	analysis, err := sema.AnalyzeReturnOrigins(t.Context(), res.Sema, inputs.units)
 	if err != nil {
 		t.Fatal(err)
 	}

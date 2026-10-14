@@ -114,7 +114,7 @@ func TestRuntimeV2FarSelectNonCopySendArm(t *testing.T) {
 		t.Run(fmt.Sprintf("shards_%d", shardCount), func(t *testing.T) {
 			value := strconv.Itoa(shardCount)
 			env := overrideEnvVar(baseEnv, "SURGE_SHARDS", value)
-			env = overrideEnvVar(env, "SURGE_THREADS", value)
+			env = overrideEnvVar(env, "SURGE_SHARDS", value)
 			duration, result := runBinaryWithTimeout(t, outputPath, env, 30*time.Second)
 			if result.exitCode != 0 {
 				t.Fatalf(
@@ -138,7 +138,7 @@ func TestRuntimeV2FarSelectNonCopySendArm(t *testing.T) {
 	// silently discarded).
 	t.Run("valgrind", func(t *testing.T) {
 		env := overrideEnvVar(baseEnv, "SURGE_SHARDS", "1")
-		env = overrideEnvVar(env, "SURGE_THREADS", "1")
+		env = overrideEnvVar(env, "SURGE_SHARDS", "1")
 		stdout, stderr, exitCode := runBinaryUnderValgrind(t, outputPath, env, 90*time.Second)
 		if hasValgrindMemcheckError(stderr) {
 			t.Fatalf("valgrind reported a memcheck error — the RV2-DEBT-064 signature is a double free of a SEND arm payload\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
@@ -210,7 +210,7 @@ func TestRuntimeV2FarSelectHeapLiteralIsReclaimed(t *testing.T) {
 	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2FarSelectConstArmSource, nil)
 	baseEnv := envWithStdlib(repoRoot(t))
 	env := overrideEnvVar(baseEnv, "SURGE_SHARDS", "1")
-	env = overrideEnvVar(env, "SURGE_THREADS", "1")
+	env = overrideEnvVar(env, "SURGE_SHARDS", "1")
 
 	stdout, stderr, exitCode := runBinaryUnderValgrind(t, outputPath, env, 90*time.Second)
 	if hasValgrindMemcheckError(stderr) {

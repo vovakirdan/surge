@@ -284,7 +284,7 @@ void __surge_poll_call(uint64_t id) {
     rt_async_yield(frame, CANCEL_FRAME_TYPE);
 }
 
-static void wait_parked(cancel_frame* frame) {
+static void wait_parked(const cancel_frame* frame) {
     time_t began = frame_now();
     for (;;) {
         frame_census observed = frame_snapshot(frame);
@@ -294,8 +294,6 @@ static void wait_parked(cancel_frame* frame) {
                 frame_fail("initial parked ownership census differs");
             return;
         }
-        if (rt_worker_count() == 1)
-            (void)run_ready_one(frame->witness->ex);
         frame_pause(began);
     }
 }

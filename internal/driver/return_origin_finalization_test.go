@@ -306,12 +306,17 @@ func TestReturnOriginPublicationUsesOwningBag(t *testing.T) {
 					t.Fatal("full diagnostic capacity silently erased the refusal")
 				}
 				project := returnOriginModuleFixture(t, true, returnOriginEscapeSource)
-				if err := FinalizeInstantiationClosure(t.Context(), project, 64); err != nil {
-					t.Fatal(err)
+				if finalizeErr := FinalizeInstantiationClosure(t.Context(), project, 64); finalizeErr != nil {
+					t.Fatal(finalizeErr)
 				}
 				all, err := collectReturnOriginUnits(project)
 				if err != nil {
 					t.Fatal(err)
+				}
+				for i := range all.units {
+					if all.units[i].SourceKey == "dep/main.sg" {
+						all.units[i].LiveOnly = false
+					}
 				}
 				whole, err := sema.AnalyzeReturnOrigins(t.Context(), project.Sema, all.units)
 				if err != nil || !whole.Complete() || len(whole.Diagnostics) == 0 {
@@ -322,8 +327,8 @@ func TestReturnOriginPublicationUsesOwningBag(t *testing.T) {
 						t.Fatal("fixture must refuse only a real imported owner")
 					}
 				}
-				if err := publishReturnOriginDiagnostics(whole, all, nil, make(returnOriginReporters)); err != nil || project.Bag.HasErrors() {
-					t.Fatalf("owning-bag publication changed the clean requested file: %v", err)
+				if publishErr := publishReturnOriginDiagnostics(whole, all, nil, make(returnOriginReporters)); publishErr != nil || project.Bag.HasErrors() {
+					t.Fatalf("owning-bag publication changed the clean requested file: %v", publishErr)
 				}
 				outcome := returnOriginOutcome{analysis: whole, identity: project.Sema.InstantiationIdentity, closure: project.Sema.InstantiationClosure}
 				requested := []DiagnoseDirResult{{Path: project.File.Path, FileID: project.File.ID, Sema: project.Sema, Bag: project.Bag}}

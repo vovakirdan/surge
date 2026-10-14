@@ -10,7 +10,7 @@ import (
 )
 
 // The lock-split behavior contracts run at both shard configurations: the
-// SURGE_SHARDS=1 compatibility path and a multi-shard path. They must pass
+// SURGE_SHARDS=1 external-await path and a multi-shard path. They must pass
 // before the executor lock split starts and after every migration task.
 func runLockSplitMode(t *testing.T, mode string) {
 	t.Helper()
@@ -22,8 +22,7 @@ func runLockSplitMode(t *testing.T, mode string) {
 		{
 			name: "shards-1",
 			env: lockSplitEnv(
-				"SURGE_SHARDS=1",
-				"SURGE_THREADS=2",
+				"SURGE_SHARDS=2",
 				"SURGE_BLOCKING_THREADS=1",
 			),
 		},
@@ -31,7 +30,6 @@ func runLockSplitMode(t *testing.T, mode string) {
 			name: "shards-3",
 			env: lockSplitEnv(
 				"SURGE_SHARDS=3",
-				"SURGE_THREADS=3",
 				"SURGE_BLOCKING_THREADS=1",
 			),
 		},

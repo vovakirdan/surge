@@ -4,7 +4,8 @@ package driver
 
 const spawnOnC05CapChannel64Source = `fn start(ch: Channel<int64>) -> far Task<int> {
     return spawn on pool {
-        ch.send(1:int64);
+        let held: Channel<int64> = ch;
+        let _ = held;
         ret 1;
     };
 }
@@ -219,19 +220,6 @@ const spawnOnR10BodyLocalEscapeSource = `fn start() -> far Task<int> {
 }
 `
 
-const spawnOnR14CapFarTaskSource = `fn start() -> far Task<int> {
-    let inner = spawn on pool {
-        ret 1;
-    };
-    return spawn on pool {
-        ret compare inner.await() {
-            Success(n) => n;
-            Cancelled() => 0;
-        };
-    };
-}
-`
-
 const spawnOnR16PayloadArraySource = `fn start() -> far Task<int[]> {
     return spawn on pool {
         let xs: int[] = [1, 2];
@@ -408,7 +396,7 @@ fn main() -> int {
 `
 
 const (
-	spawnOnC05CapChannel64SourceDigest                 = "d0875dc60b59cdc0a0f7c00cbac5fe9b038e27bd05c6898e921621e37f38e5a9"
+	spawnOnC05CapChannel64SourceDigest                 = "89d52294a42b204a00024425118c1451b6e750321aead19d8e2456c64fdf68c4"
 	spawnOnC06CapFnValueSourceDigest                   = "02dd8f531ad99ead5a151698fe0ff7ffcb9b07a63a5c34f98f31568c72c6e147"
 	spawnOnLeakSonAwaitSourceDigest                    = "4eab26811973c93b1276eea7b3559026ff367c7bbe37c7c2d95b0f01fca976e1"
 	spawnOnLeakSonRetSourceDigest                      = "bf0d226e9b3f4529c30ce8ca12fcd0ca2a5e8628cd8f9aef7d7b658c181484bd"
@@ -419,7 +407,6 @@ const (
 	spawnOnR07BodyTaskReturnedSourceDigest             = "b1667d79ffa7b0cd95501969661fef19d21a982b001e42ad95914cf44503858f"
 	spawnOnR09BodyStringTempSourceDigest               = "41d169b88a5fe04d72d824b972081dc8f91dccd7f315b504a21a69a9129aa69b"
 	spawnOnR10BodyLocalEscapeSourceDigest              = "1fad3841283e1e3e35b07d72c780c3da86c31c21e54a355ed8b8963d03885292"
-	spawnOnR14CapFarTaskSourceDigest                   = "91dccff93fbd884dae34cbc0b39028ac8a2521b6c263bc77cadd044c7ac4a686"
 	spawnOnR16PayloadArraySourceDigest                 = "40efc29859aa8c3bdb61bcfbcee61863eb44f3cb8a44d915c5261636aad9c079"
 	spawnOnR17AfterRowSourceDigest                     = "a917f9751133fe82c6415cafa8fa36e36e2959cf66942ef815dcd1fc9ed7b0ab"
 	spawnOnR18DestStringTempSourceDigest               = "85c77eca9102ed78ce806f394e415d4bcb46bec0671d21c2a10a6ca5049574a7"

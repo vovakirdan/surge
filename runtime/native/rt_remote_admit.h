@@ -54,6 +54,12 @@ rt_transport_status rt_remote_admit(rt_executor* ex, rt_task* current, rt_remote
 // Answers 1 when it ended a park -- the caller then releases the message
 // reference the submission took for an envelope nothing will enqueue.
 int rt_remote_admission_abandon(rt_executor* ex, uint64_t task_id, rt_remote_admission* adm);
+// Shutdown owns both halves of an unsent parked request: retire its slot
+// registration and route a wake to the producer's owner shard so its sole
+// carrier can observe the terminal pending before exit.
+int rt_remote_admission_abandon_and_wake(rt_executor* ex,
+                                         uint64_t task_id,
+                                         rt_remote_admission* adm);
 
 // Claims the reservation for spending or releasing; 1 for the one caller
 // that now owns that step, 0 for everyone after it.

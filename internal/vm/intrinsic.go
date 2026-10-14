@@ -143,9 +143,7 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 	case "rt_map_keys":
 		return vm.handleMapKeys(frame, call, writes)
 
-	// The VM has no carriers to be affine to: the constructor for a task that
-	// borrows its creator's frame is the plain one here.
-	case "__task_create", "__task_create_affine":
+	case "__task_create":
 		return vm.handleTaskCreate(frame, call, writes)
 	case "__task_state":
 		return vm.handleTaskState(frame, call, writes)
@@ -157,8 +155,6 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 		return vm.handleTimeout(frame, call, writes)
 	case "rt_scope_enter":
 		return vm.handleScopeEnter(frame, call, writes)
-	case "rt_scope_register_child":
-		return vm.handleScopeRegisterChild(frame, call)
 	case "rt_scope_cancel_all":
 		return vm.handleScopeCancelAll(frame, call)
 	case "rt_scope_join_all":
@@ -263,7 +259,7 @@ func (vm *VM) callIntrinsic(frame *Frame, call *mir.CallInstr, writes *[]LocalWr
 	case "rt_panic_bounds":
 		return vm.handleRtPanicBounds(frame, call)
 
-	case "exit":
+	case "exit", "__entry_error_code":
 		return vm.handleExit(frame, call)
 
 	case "from_str":

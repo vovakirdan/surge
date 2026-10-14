@@ -101,7 +101,7 @@ func TestRuntimeV2RemoteStateHandoffStaticContract(t *testing.T) {
 	// Pre-handoff drops stay gated on the owned flag at the final release.
 	for path, guard := range map[string]string{
 		"runtime/native/rt_remote_spawn_pending.c": "pending->state_owned != 0",
-		"runtime/native/rt_remote_task_pending.c":  "pending->state_owned != 0",
+		"runtime/native/rt_remote_task_reclaim.c":  "pending->state_owned != 0",
 	} {
 		if !strings.Contains(readTransportContractFile(t, root, path), guard) {
 			t.Fatalf("%s final release must drop only while the pending still owns the state", path)

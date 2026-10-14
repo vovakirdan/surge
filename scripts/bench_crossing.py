@@ -252,7 +252,6 @@ def run_probe(root: pathlib.Path, name: str, binary: pathlib.Path, shards: int,
         os.environ,
         SURGE_STDLIB=str(root),
         SURGE_SHARDS=str(shards),
-        SURGE_THREADS=str(shards),
     )
     started = time.monotonic()
     try:

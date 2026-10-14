@@ -189,8 +189,8 @@ fn generic_probe<U>(ignored: U, value: &string) -> Held<&string> {
 				t.Fatal(err)
 			}
 			var changed sema.InstantiationClosure
-			if err := json.Unmarshal(raw, &changed); err != nil {
-				t.Fatal(err)
+			if decodeErr := json.Unmarshal(raw, &changed); decodeErr != nil {
+				t.Fatal(decodeErr)
 			}
 			use := original.UseSites[0]
 			want := sema.ReturnOriginPending{SourceKey: use.SourceKey, Span: use.Site, Reason: tc.reason}

@@ -25,7 +25,7 @@ import (
 // so a sample landing in that gap jumps time past the very deadline that fired.
 func TestRuntimeV2LifecycleSleepFiredBatchIsNotIdleProof(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarnessSleepPublish(t, false)
-	// Two workers and up. At SURGE_THREADS=1 the window cannot be built at all
+	// Two workers and up. At SURGE_SHARDS=1 the window cannot be built at all
 	// — the harness reports that no sleeper ever reached it — because the
 	// single-runner path fires the batch on the same thread that would sample,
 	// so there is no concurrent observer to catch in the gap. That agrees with
@@ -35,13 +35,12 @@ func TestRuntimeV2LifecycleSleepFiredBatchIsNotIdleProof(t *testing.T) {
 		threads := threads
 		t.Run("threads-"+threads, func(t *testing.T) {
 			env := lifecycleEnv(
-				"SURGE_SHARDS=1",
-				"SURGE_THREADS="+threads,
+				"SURGE_SHARDS="+threads,
 				"SURGE_BLOCKING_THREADS=1",
 				"SURGE_SYNC_POINT=SP_SLEEP_FIRED_BEFORE_WAKE:block")
 			stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "sleep-fired-idle-sample", env)
 			if exitCode != 0 {
-				t.Fatalf("sleep-publish positive proof failed at SURGE_THREADS=%s (code=%d)\nstdout:\n%s\nstderr:\n%s",
+				t.Fatalf("sleep-publish positive proof failed at SURGE_SHARDS=%s (code=%d)\nstdout:\n%s\nstderr:\n%s",
 					threads, exitCode, stdout, stderr)
 			}
 		})
@@ -54,8 +53,7 @@ func TestRuntimeV2LifecycleSleepFiredBatchIsNotIdleProof(t *testing.T) {
 func TestRuntimeV2LifecycleSleepFiredBatchIsNotIdleNegativeControl(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarnessSleepPublish(t, true)
 	env := lifecycleEnv(
-		"SURGE_SHARDS=1",
-		"SURGE_THREADS=2",
+		"SURGE_SHARDS=2",
 		"SURGE_BLOCKING_THREADS=1",
 		"SURGE_SYNC_POINT=SP_SLEEP_FIRED_BEFORE_WAKE:block")
 	stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "sleep-fired-idle-sample", env)

@@ -92,7 +92,7 @@ func TestRuntimeV2ResidentBytesTelemetry(t *testing.T) {
 	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2ResidentBytesSource, nil)
 	env := envWithStdlib(repoRoot(t))
 	env = overrideEnvVar(env, "SURGE_SHARDS", "2")
-	env = overrideEnvVar(env, "SURGE_THREADS", "2")
+	env = overrideEnvVar(env, "SURGE_SHARDS", "2")
 	env = overrideEnvVar(env, "SURGE_TRACE_EXEC", "1")
 
 	duration, result := runBinaryWithTimeout(t, outputPath, env, 30*time.Second)

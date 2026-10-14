@@ -140,6 +140,12 @@ func logReturnOriginCallEvidence(t *testing.T, value any) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	const maxEvidenceBytes = 16 * 1024
+	if len(data) > maxEvidenceBytes {
+		digest := sha256.Sum256(data)
+		t.Logf("RETURN_ORIGIN_CALL_EVIDENCE size=%d sha256=%x prefix=%s", len(data), digest, data[:maxEvidenceBytes])
+		return
+	}
 	t.Logf("RETURN_ORIGIN_CALL_EVIDENCE=%s", data)
 }
 

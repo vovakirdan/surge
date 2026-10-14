@@ -21,10 +21,12 @@ type externMethodHeader struct {
 
 type externHeaderReporter struct{ diagnostics []*diag.Diagnostic }
 
+// Report implements diag.Reporter for the isolated extern-header pass.
 func (r *externHeaderReporter) Report(code diag.Code, severity diag.Severity, span source.Span, message string, notes []diag.Note, fixes []*diag.Fix) {
 	r.ReportDiagnostic(&diag.Diagnostic{Code: code, Severity: severity, Primary: span, Message: message, Notes: notes, Fixes: fixes})
 }
 
+// ReportDiagnostic records one diagnostic from the isolated extern-header pass.
 func (r *externHeaderReporter) ReportDiagnostic(d *diag.Diagnostic) {
 	r.diagnostics = append(r.diagnostics, d)
 }
@@ -161,8 +163,8 @@ func (tc *typeChecker) earlyExternMethod(sym *symbols.Symbol) (*ast.FnItem, *ast
 		return nil, nil
 	}
 	for i, arg := range args {
-		param, ok := tc.builder.Types.Path(arg)
-		if !ok || param == nil || len(param.Segments) != 1 || len(param.Segments[0].Generics) != 0 || specs[i].kind != paramKindType || param.Segments[0].Name != specs[i].name {
+		param, found := tc.builder.Types.Path(arg)
+		if !found || param == nil || len(param.Segments) != 1 || len(param.Segments[0].Generics) != 0 || specs[i].kind != paramKindType || param.Segments[0].Name != specs[i].name {
 			return nil, nil
 		}
 	}
@@ -175,7 +177,7 @@ func (tc *typeChecker) earlyExternMethod(sym *symbols.Symbol) (*ast.FnItem, *ast
 		return nil, nil
 	}
 	selfType := self.Type
-	if unary, ok := tc.builder.Types.UnaryType(selfType); ok && unary != nil {
+	if unary, found := tc.builder.Types.UnaryType(selfType); found && unary != nil {
 		if unary.Op != ast.TypeUnaryRef && unary.Op != ast.TypeUnaryRefMut && unary.Op != ast.TypeUnaryOwn {
 			return nil, nil
 		}
@@ -186,8 +188,8 @@ func (tc *typeChecker) earlyExternMethod(sym *symbols.Symbol) (*ast.FnItem, *ast
 		return nil, nil
 	}
 	for i, arg := range selfPath.Segments[0].Generics {
-		param, ok := tc.builder.Types.Path(arg)
-		if !ok || param == nil || len(param.Segments) != 1 || len(param.Segments[0].Generics) != 0 || param.Segments[0].Name != specs[i].name {
+		param, found := tc.builder.Types.Path(arg)
+		if !found || param == nil || len(param.Segments) != 1 || len(param.Segments[0].Generics) != 0 || param.Segments[0].Name != specs[i].name {
 			return nil, nil
 		}
 	}

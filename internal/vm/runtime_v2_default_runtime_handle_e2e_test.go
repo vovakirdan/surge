@@ -231,18 +231,22 @@ async fn work() -> int {
     return 5;
 }
 
-async fn child() -> int {
+async fn child(ready: Channel<int>, hold: Channel<int>) -> int {
     let n = spawn work();
     checkpoint().await();
     print("after-checkpoint");
+    ready.send(1);
+    let _ = hold.recv();
     let r = timeout(n, 1000:uint);
     print("after-timeout");
     return compare r { Success(v) => v; Cancelled() => 1; };
 }
 
 async fn run() -> int {
-    let t = spawn child();
-    checkpoint().await();
+    let ready = Channel::<int>::new(0:uint);
+    let hold = Channel::<int>::new(0:uint);
+    let t = spawn child(ready, hold);
+    let _ = ready.recv();
     t.cancel();
     return compare t.await() { Success(v) => v; Cancelled() => 90; };
 }
@@ -327,7 +331,7 @@ func TestRuntimeV2DefaultRuntimeHandleIsNullOnBothBackends(t *testing.T) {
 func runDefaultHandleNative(t *testing.T, row defaultHandleRow) (defaultHandleRun, string) {
 	t.Helper()
 	outputPath := buildRuntimeV2CrossingSource(t, row.source, nil)
-	env := overrideEnvVar(envWithStdlib(repoRoot(t)), "SURGE_THREADS", "1")
+	env := overrideEnvVar(envWithStdlib(repoRoot(t)), "SURGE_SHARDS", "1")
 	if _, err := exec.LookPath("valgrind"); err != nil {
 		t.Logf("valgrind not installed; running %s natively without it", row.name)
 		_, result := runBinaryWithTimeout(t, outputPath, env, 60*time.Second)

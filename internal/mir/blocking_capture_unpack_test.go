@@ -79,22 +79,30 @@ func stateUnpacksIn(t *testing.T, mod *mir.Module, prefix string) map[string]boo
 		for bi := range f.Blocks {
 			for ii := range f.Blocks[bi].Instrs {
 				ins := &f.Blocks[bi].Instrs[ii]
-				if ins.Kind != mir.InstrAssign || ins.Assign.Src.Kind != mir.RValueField {
+				if ins.Kind != mir.InstrAssign {
 					continue
 				}
-				src := ins.Assign.Src.Field
-				obj := src.Object.Place
+				var obj mir.Place
+				var moves bool
+				switch ins.Assign.Src.Kind {
+				case mir.RValueField:
+					obj, moves = ins.Assign.Src.Field.Object.Place, ins.Assign.Src.Field.MoveOut
+				case mir.RValueTagPayload:
+					obj, moves = ins.Assign.Src.TagPayload.Value.Place, ins.Assign.Src.TagPayload.MoveOut
+				default:
+					continue
+				}
 				if obj.Kind != mir.PlaceLocal || int(obj.Local) >= len(f.Locals) {
 					continue
 				}
-				if f.Locals[obj.Local].Name != "__state" {
+				if f.Locals[obj.Local].Name != "__state" && f.Locals[obj.Local].Name != "__payload" {
 					continue
 				}
 				dst := ins.Assign.Dst
 				if dst.Kind != mir.PlaceLocal || int(dst.Local) >= len(f.Locals) {
 					continue
 				}
-				out[f.Locals[dst.Local].Name] = src.MoveOut
+				out[f.Locals[dst.Local].Name] = moves
 			}
 		}
 	}
@@ -197,6 +205,7 @@ fn main() -> int { return 0; }
 func TestSpawnOnCaptureUnpackDeclaresTheTransfer(t *testing.T) {
 	compiled := compileCrossingMIR(t, spawnOnCaptureUnpackSource,
 		map[sema.CrossingLoweringKind]bool{sema.CrossingLoweringSpawnOn: true})
+	lowerCrossingCoroutines(t, compiled)
 	unpacks := stateUnpacksIn(t, compiled.mod, "__spawn_on_block$")
 
 	cases := []struct {

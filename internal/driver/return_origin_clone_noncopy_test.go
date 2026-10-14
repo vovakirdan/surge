@@ -90,8 +90,8 @@ fn probe(value: Model) -> Model { return duplicate(&value); }
 		t.Fatal(err)
 	}
 	var changed sema.InstantiationClosure
-	if err := json.Unmarshal(raw, &changed); err != nil {
-		t.Fatal(err)
+	if decodeErr := json.Unmarshal(raw, &changed); decodeErr != nil {
+		t.Fatal(decodeErr)
 	}
 	for i := range changed.ResolvedDeferredCalls {
 		if changed.ResolvedDeferredCalls[i].UseID == edge.UseID {

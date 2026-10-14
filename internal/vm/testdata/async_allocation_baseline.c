@@ -62,13 +62,11 @@ static int allocation_baseline_tables_empty(const rt_executor* ex) {
 
 static int allocation_baseline_empty(const rt_executor* ex, const rt_shard* shard) {
     const rt_scheduler* scheduler = &shard->scheduler;
-    if (atomic_load_explicit(&ex->shutdown, memory_order_acquire) != 0 ||
-        atomic_load_explicit(&ex->blocking_submitted, memory_order_acquire) != 0) {
-        observation_fail("shutdown or blocking work is outside this proof");
+    if (atomic_load_explicit(&ex->blocking_submitted, memory_order_acquire) != 0) {
+        observation_fail("blocking work is outside this proof");
     }
     if (scheduler->running_count != 0 || scheduler->publishing_count != 0 ||
-        scheduler->inject.len != 0 || ex->control_waiters.len != 0 ||
-        shard->waiter_store.len != 0 || shard->sleep_store.len != 0 ||
+        scheduler->inject.len != 0 || shard->waiter_store.len != 0 || shard->sleep_store.len != 0 ||
         shard->transport.data_len != 0 || shard->transport.control_len != 0 ||
         shard->transport.reply_reserved != 0 ||
         atomic_load_explicit(&ex->done_waiters, memory_order_acquire) != 0 ||
@@ -76,13 +74,11 @@ static int allocation_baseline_empty(const rt_executor* ex, const rt_shard* shar
         return 0;
     }
     if (shard->waiter_store.cap != 16 || shard->waiter_store.entries == NULL ||
-        scheduler->local_queues == NULL || scheduler->worker_count == 0) {
+        scheduler->local_queue.task_ids == NULL || scheduler->local_queue.cap != 16) {
         observation_fail("prewarmed waiter/scheduler capacity changed");
     }
-    for (uint32_t i = 0; i < scheduler->worker_count; i++) {
-        if (scheduler->local_queues[i].len != 0) {
-            return 0;
-        }
+    if (scheduler->local_queue.len != 0) {
+        return 0;
     }
     return allocation_baseline_tables_empty(ex);
 }
@@ -90,10 +86,10 @@ static int allocation_baseline_empty(const rt_executor* ex, const rt_shard* shar
 static void allocation_baseline_observe(void) {
     rt_executor* ex = observed_executor;
     if (rt_current_task_id() != 0 || rt_lane_holds_control() || rt_lane_holds_any_shard() ||
-        rt_lane_holds_token_lock() || ex == NULL || ex->runtime->shard_count != 1) {
-        observation_fail("observer needs task-free, unlocked, single-shard main lane");
+        rt_lane_holds_token_lock() || ex == NULL || ex->runtime == NULL ||
+        ex->runtime->shard_count == 0) {
+        observation_fail("observer needs a task-free, unlocked external lane");
     }
-    rt_shard* shard = &ex->runtime->shards[0];
     struct timespec began;
     if (clock_gettime(CLOCK_MONOTONIC, &began) != 0) {
         observation_fail("cannot start the observation deadline");
@@ -101,18 +97,24 @@ static void allocation_baseline_observe(void) {
     for (;;) {
         // Raw locks are deliberate: rt_*_unlock drains deferred reclamation.
         // An observer must never repair the lifetime it is trying to measure.
-        // The production ordering is still control -> sole owner shard.
+        // The production ordering is still control -> one owner shard. The
+        // observer never holds two shard lanes together.
         int control_status = pthread_mutex_trylock(&ex->lock);
         if (control_status != 0 && control_status != EBUSY) {
             observation_fail("control trylock failed");
         }
-        int empty = 0;
+        int empty = control_status == 0;
         if (control_status == 0) {
-            int shard_status = pthread_mutex_trylock(&shard->lock);
-            if (shard_status != 0 && shard_status != EBUSY) {
-                observation_fail("shard trylock failed");
-            }
-            if (shard_status == 0) {
+            for (size_t i = 0; i < ex->runtime->shard_count && empty; i++) {
+                rt_shard* shard = &ex->runtime->shards[i];
+                int shard_status = pthread_mutex_trylock(&shard->lock);
+                if (shard_status != 0 && shard_status != EBUSY) {
+                    observation_fail("shard trylock failed");
+                }
+                if (shard_status != 0) {
+                    empty = 0;
+                    break;
+                }
                 empty = allocation_baseline_empty(ex, shard);
                 if (pthread_mutex_unlock(&shard->lock) != 0) {
                     observation_fail("shard unlock failed");
@@ -145,16 +147,22 @@ static void allocation_baseline_observe(void) {
 
 static void allocation_baseline_bootstrap(void) {
     rt_executor* ex = ensure_exec();
-    if (ex == NULL || ex->runtime == NULL || ex->runtime->shard_count != 1) {
-        observation_fail("bootstrap requires exactly one shard");
+    if (ex == NULL || ex->runtime == NULL || ex->runtime->shard_count == 0) {
+        observation_fail("bootstrap requires at least one shard");
     }
     rt_control_lock(ex);
     ensure_task_cap(ex, 1);
     ensure_scope_cap(ex, 1);
-    rt_shard* shard = &ex->runtime->shards[0];
-    rt_shard_lock(shard);
-    rt_runtime_status status = rt_waiter_store_ensure_cap(&shard->waiter_store);
-    rt_shard_unlock(shard);
+    rt_runtime_status status = RT_RUNTIME_STATUS_OK;
+    for (size_t i = 0; i < ex->runtime->shard_count; i++) {
+        rt_shard* shard = &ex->runtime->shards[i];
+        rt_shard_lock(shard);
+        status = rt_waiter_store_ensure_cap(&shard->waiter_store);
+        rt_shard_unlock(shard);
+        if (status != RT_RUNTIME_STATUS_OK) {
+            break;
+        }
+    }
     rt_control_unlock(ex);
     if (status != RT_RUNTIME_STATUS_OK) {
         observation_fail("bootstrap waiter capacity failed");
@@ -190,6 +198,7 @@ int main(int argc, char** argv) {
     rt_argc = 2;
     rt_argv_raw = argv;
     if (strcmp(mode, "control") == 0) {
+        rt_runtime_shutdown_for_exit();
         return 0;
     }
     if (strcmp(mode, "retained-channel") == 0) {
@@ -210,5 +219,6 @@ int main(int argc, char** argv) {
         observation_fail("unknown driver mode");
     }
     __surge_start();
+    rt_runtime_shutdown_for_exit();
     return 0;
 }

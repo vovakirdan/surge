@@ -60,7 +60,7 @@ func (b *returnOriginBody) compareExpr(id ast.ExprID, env returnOriginEnv, targe
 		remaining = attempt.normal
 		attempt.normal = returnOriginEnv{}
 		out.flow = out.flow.join(b.closeFlow(attempt, scope, arm.PatternSpan))
-		matched, missed := pattern.split(choices)
+		matched, missed := (&pattern).split(choices)
 		if len(matched) == 0 || !remaining.reachable {
 			continue
 		}
@@ -80,7 +80,8 @@ func (b *returnOriginBody) compareExpr(id ast.ExprID, env returnOriginEnv, targe
 			guard.flow.normal = returnOriginEnv{}
 			out.flow = out.flow.join(b.closeFlow(guard.flow, scope, u.Builder.Exprs.Get(arm.Guard).Span))
 			if !b.literalBool(arm.Guard, true) {
-				closed := b.closeOutcome(returnOriginOutcome{env: entry, value: returnOriginValueOf()}, scope, u.Builder.Exprs.Get(arm.Guard).Span)
+				guardOutcome := returnOriginOutcome{env: entry, value: returnOriginValueOf()}
+				closed := b.closeOutcome(&guardOutcome, scope, u.Builder.Exprs.Get(arm.Guard).Span)
 				nextArm = nextArm.join(closed.env)
 			}
 			if b.literalBool(arm.Guard, false) {
@@ -93,7 +94,8 @@ func (b *returnOriginBody) compareExpr(id ast.ExprID, env returnOriginEnv, targe
 		}
 		result.value = b.loadedArmResult(id, arm.Result, result.value)
 		// closeFlow's normal edge has no result; close the actual value first.
-		closed := b.closeOutcome(returnOriginOutcome{env: result.flow.normal, value: result.value}, scope, u.Builder.Exprs.Get(arm.Result).Span)
+		resultOutcome := returnOriginOutcome{env: result.flow.normal, value: result.value}
+		closed := b.closeOutcome(&resultOutcome, scope, u.Builder.Exprs.Get(arm.Result).Span)
 		result.flow.normal = returnOriginEnv{}
 		result.flow = b.closeFlow(result.flow, scope, arm.PatternSpan)
 		result.flow.normal = closed.env

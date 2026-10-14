@@ -228,7 +228,9 @@ var coreRangeFromRangeRows = []coreRangeRow{
 func coreRangeRowsFixture(t *testing.T, rows ...[]coreRangeRow) (originalGenericFixture, *sema.ReturnOriginAnalysis) {
 	t.Helper()
 	checkOriginSource(t, coreRangeAnchorText, coreRangeAnchorSum)
-	f, analysis := analyzeOriginRoot(t, "core_rows", coreRangeAnchorText, false, nil)
+	f, analysis := analyzeOriginRoot(t, "core_rows", coreRangeAnchorText, false, func(f originalGenericFixture) {
+		exhaustiveReturnOriginUnits(t, f.inputs.units, "core/array.sg", "core/intrinsics.sg")
+	})
 	content := map[string]string{"core/array.sg": rangeNextUnitText(t, f, "core/array.sg", ""), "core/intrinsics.sg": rangeNextUnitText(t, f, "core/intrinsics.sg", "")}
 	checkOriginSource(t, content["core/array.sg"], coreArrayUnitDigest)
 	checkOriginSource(t, content["core/intrinsics.sg"], coreIntrinsicsUnitDigest)

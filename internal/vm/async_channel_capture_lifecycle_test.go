@@ -22,7 +22,7 @@ func TestAsyncChannelCaptureLifecycle(t *testing.T) {
 			}
 			for _, workers := range []string{"1", "8"} {
 				t.Run("workers-"+workers, func(t *testing.T) {
-					t.Setenv("SURGE_THREADS", workers)
+					t.Setenv("SURGE_SHARDS", workers)
 					got := runProgramFromSource(t, string(source), runOptions{captureStdout: true})
 					if got.exitCode != 0 || got.stdout != row.stdout || got.stderr != "" {
 						t.Fatalf("async capture lifecycle: exit=%d stdout=%q stderr=%s", got.exitCode, got.stdout, got.stderr)

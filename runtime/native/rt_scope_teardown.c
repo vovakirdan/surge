@@ -51,27 +51,14 @@ rt_scope_cancel_teardown(rt_executor* ex, rt_task* task, int cancel_children, wa
         }
     }
 
-    // A last child may drain after the first observation and before this
-    // registration. Publishing the waiter first and verifying under the same
-    // serializer closes that window.
+    // A cross-shard child completion is applied only by this scope owner's
+    // carrier. Publish the waiter before returning the poll; a queued owner
+    // event is then drained on a later turn and wakes this task.
     RT_SYNC_POINT(SP_SCOPE_TEARDOWN_BEFORE_REGISTER);
     prepare_park(ex, task, key, 0);
     if (park_key != NULL) {
         *park_key = key;
     }
 
-#ifndef RV2_DEBT_281_NEGATIVE_CONTROL
-    if (scope_teardown_finish_if_drained(ex, task, key)) {
-        remove_waiter(ex, key, task->id);
-        task->park_prepared = 0;
-        task->park_key = waker_none();
-        pending_key = waker_none();
-        task->cancel_pending = 0;
-        if (park_key != NULL) {
-            *park_key = waker_none();
-        }
-        return RT_SCOPE_TEARDOWN_DONE;
-    }
-#endif
     return RT_SCOPE_TEARDOWN_PARKED;
 }

@@ -16,7 +16,6 @@ void rt_remote_task_release_msg_payload(const rt_transport_msg* msg) {
             // reference. Normal dispatch does not call this helper.
             rt_remote_task_pending_retire_reply_wait(
                 ((rt_remote_task_pending*)msg->payload)->executor, msg->payload);
-            rt_remote_task_pending_release(msg->payload);
             break;
         case RT_TRANSPORT_MSG_REMOTE_TASK_RELEASE_REQUEST:
         case RT_TRANSPORT_MSG_IMMEDIATE_ON_EXECUTE_REQUEST:
@@ -27,14 +26,18 @@ void rt_remote_task_release_msg_payload(const rt_transport_msg* msg) {
         case RT_TRANSPORT_MSG_FAR_CHANNEL_SHARE_REPLY:
         case RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REQUEST:
         case RT_TRANSPORT_MSG_FAR_CHANNEL_SELECT_REPLY:
-            rt_remote_task_pending_release(msg->payload);
             break;
         default:
             // SCOPE_CHILD_DONE lands here: it carries no payload, and its
             // accounting is applied by the shutdown drain itself before this
             // release helper runs.
-            break;
+            return;
     }
+#ifdef RV2_REPLY_UNLINK_NEGATIVE_CONTROL
+    rt_remote_task_pending_release(msg->payload);
+#else
+    rt_remote_task_pending_release_reply(msg->payload);
+#endif
 }
 
 // Answers a registered owner-side pending once the owner task is DONE and

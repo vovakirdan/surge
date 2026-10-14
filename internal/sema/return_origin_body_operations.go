@@ -52,7 +52,7 @@ func (b *returnOriginBody) genericOperationView(fn *returnOriginFunction, id ast
 	if b.analyzer.genericInstance(found.Callee, found.CalleeTemplate, found.TemplateArgs) != "" {
 		return returnOriginTypeView{}, false
 	}
-	if b.analyzer.useWitnessReason(*found) != "call" {
+	if b.analyzer.useWitnessReason(found) != "call" {
 		return returnOriginTypeView{}, false
 	}
 	return returnOriginBoundView(fn, b.function, found.TemplateArgs), true
@@ -90,7 +90,7 @@ func (b *returnOriginBody) bodyOperation(out *returnOriginExprResult, selections
 	}
 	for _, operand := range operands {
 		if conversion, converted := u.Sema.ImplicitConversions[operand]; converted &&
-			!(operand == id && conversion.Kind == ImplicitConversionTo) {
+			(operand != id || conversion.Kind != ImplicitConversionTo) {
 			return false
 		}
 	}
@@ -136,7 +136,8 @@ func (b *returnOriginBody) bodyOperation(out *returnOriginExprResult, selections
 		if root.kind != returnOriginParam || root.expired || root.selector != returnOriginInputValue || i >= len(operands) {
 			return false
 		}
-		value = value.join(b.callArgumentOrigin(operands[i], fn.info.Params[i], values[i], false))
+		actual := values[i]
+		value = value.join(b.callArgumentOrigin(operands[i], fn.info.Params[i], &actual, false))
 	}
 	out.value = value
 	return true

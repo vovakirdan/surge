@@ -108,14 +108,17 @@ func (tc *typeChecker) droppedRunningTaskHelp(label string) string {
 	return fmt.Sprintf("this plain function cannot await: make it an `async fn` and await the task before %s goes out of scope", label)
 }
 
-// awaitAllowedHere is the typing rule for `.await()` (type_expr_calling.go): inside an async body,
-// or anywhere in an `@entrypoint` function -- but not in a `blocking { }` body, where the model forbids
-// suspension (not yet refused for `.await()`: SEM3152 covers `on` only; see inBlockingBody).
+// Await is legal in an async/root activation or a placed body's activation.
+// A nested blocking body cannot inherit any of those suspension permissions.
 func (tc *typeChecker) awaitAllowedHere() bool {
 	if tc.inBlockingBody() {
 		return false
 	}
 	if tc.awaitDepth > 0 {
+		return true
+	}
+	if tc.crossingBodyOwnsCurrentExpression() && len(tc.onCrossingStack) > 0 &&
+		!tc.onCrossingStack[len(tc.onCrossingStack)-1].isFar {
 		return true
 	}
 	sym := tc.symbolFromID(tc.currentFnSym())

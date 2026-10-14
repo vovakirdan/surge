@@ -15,7 +15,7 @@ import (
 // refcount + live-handle rule) ahead of the next implementation step.
 func TestRuntimeV2LifecycleCloneReleaseLastReferenceFree(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarness(t)
-	env := lifecycleEnv("SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1")
+	env := lifecycleEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1")
 	stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "clone-release-stress", env)
 	if exitCode != 0 {
 		t.Fatalf("clone/release stress failed (code=%d)\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
@@ -48,10 +48,9 @@ func TestRuntimeV2LifecycleCloneReleaseLastReferenceFree(t *testing.T) {
 // TSan is the oracle. Wired into runtime-v2-lifecycle-check.
 func TestRuntimeV2LifecycleCompletionPinInterleavingTSan(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarnessTSan(t)
-	shardThreads := map[string]string{"1": "2", "2": "2", "8": "8"}
 	for _, shards := range []string{"1", "2", "8"} {
 		t.Run("shards-"+shards, func(t *testing.T) {
-			env := lifecycleEnv("SURGE_SHARDS="+shards, "SURGE_THREADS="+shardThreads[shards],
+			env := lifecycleEnv("SURGE_SHARDS="+shards,
 				"SURGE_BLOCKING_THREADS=1", "LIFECYCLE_PIN_STRESS_NO_KEEPALIVE=1")
 			stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "completion-pin-stress", env)
 			if strings.Contains(stderr, "ThreadSanitizer") {

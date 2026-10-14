@@ -30,10 +30,8 @@ typedef struct rt_heap_accounting {
     rt_heap_accounting_cell io_cell;
     rt_heap_accounting_cell* worker_cells;
     rt_heap_accounting_cell* blocking_cells;
-    rt_heap_accounting_cell* compensation_cells;
     uint32_t worker_cell_count;
     uint32_t blocking_cell_count;
-    uint32_t compensation_cell_count;
     uint8_t initialized;
 } rt_heap_accounting;
 
@@ -50,8 +48,6 @@ rt_heap_accounting_cell* rt_heap_accounting_worker_cell(rt_heap_accounting* acco
                                                         uint32_t worker_id);
 rt_heap_accounting_cell* rt_heap_accounting_blocking_cell(rt_heap_accounting* accounting,
                                                           uint32_t worker_id);
-rt_heap_accounting_cell* rt_heap_accounting_compensation_cell(rt_heap_accounting* accounting,
-                                                              uint32_t compensation_id);
 
 void rt_heap_accounting_set_current_cell(rt_heap_accounting_cell* cell);
 rt_heap_accounting_cell* rt_heap_accounting_current_cell(void);

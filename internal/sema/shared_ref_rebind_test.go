@@ -38,7 +38,7 @@ func TestSharedReferenceRebind(t *testing.T) {
 			check: func(a *sharedRebindAnalysis) {
 				a.write("alias = &b", "alias", BorrowIssueNone)
 				a.borrow("&*alias", "b")
-				a.drop("alias", a.borrow("&b", "b").Borrow)
+				a.drop(a.borrow("&b", "b").Borrow)
 			},
 		},
 		{
@@ -50,7 +50,7 @@ func TestSharedReferenceRebind(t *testing.T) {
 }`,
 			check: func(a *sharedRebindAnalysis) {
 				a.write("alias = alias", "alias", BorrowIssueNone)
-				a.drop("alias", a.borrow("&a", "a").Borrow)
+				a.drop(a.borrow("&a", "a").Borrow)
 			},
 		},
 		{
@@ -66,7 +66,7 @@ func TestSharedReferenceRebind(t *testing.T) {
 			check: func(a *sharedRebindAnalysis) {
 				a.reference("keep", false)
 				a.write("alias = &b", "alias", BorrowIssueNone)
-				a.drop("alias", a.borrow("&b", "b").Borrow)
+				a.drop(a.borrow("&b", "b").Borrow)
 				a.borrow("&*keep", "a")
 			},
 		},
@@ -84,7 +84,7 @@ func TestSharedReferenceRebind(t *testing.T) {
 			check: func(a *sharedRebindAnalysis) {
 				a.reference("keep", false)
 				a.write("alias = &b", "alias", BorrowIssueNone)
-				a.drop("alias", a.borrow("&b", "b").Borrow)
+				a.drop(a.borrow("&b", "b").Borrow)
 				write := a.write("a.value = 3", "a", BorrowIssueFrozen)
 				a.sameLoan(write.IssueBorrow, a.borrow("&a", "a").Borrow)
 			},
@@ -271,17 +271,17 @@ func (a *sharedRebindAnalysis) borrow(text, base string) BorrowEvent {
 	return BorrowEvent{}
 }
 
-func (a *sharedRebindAnalysis) drop(name string, loan BorrowID) {
+func (a *sharedRebindAnalysis) drop(loan BorrowID) {
 	a.t.Helper()
 	count := 0
 	for _, event := range a.result.BorrowEvents {
-		if event.Kind == BorrowEvDrop && event.Binding == a.binding(name) {
+		if event.Kind == BorrowEvDrop && event.Binding == a.binding("alias") {
 			count++
 			a.sameLoan(event.Borrow, loan)
 		}
 	}
 	if count != 1 {
-		a.t.Fatalf("want one explicit drop of %s, got %d", name, count)
+		a.t.Fatalf("want one explicit drop of alias, got %d", count)
 	}
 }
 

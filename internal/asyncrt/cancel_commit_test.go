@@ -22,7 +22,6 @@ func TestMarkDoneCommitsCancelledForACancelledTask(t *testing.T) {
 	scopeID := exec.EnterScope(owner, true)
 	exec.SetCurrent(owner)
 	child := exec.Spawn(2, nil)
-	exec.RegisterChild(scopeID, child)
 
 	exec.Cancel(child)
 	childTask := exec.tasks[child]
@@ -63,7 +62,6 @@ func TestMarkDoneKeepsSuccessForATaskNobodyCancelled(t *testing.T) {
 	scopeID := exec.EnterScope(owner, true)
 	exec.SetCurrent(owner)
 	child := exec.Spawn(2, nil)
-	exec.RegisterChild(scopeID, child)
 
 	refused, givenBack := exec.MarkDone(child, TaskResultSuccess, "the body's value")
 	if givenBack || refused != "" {

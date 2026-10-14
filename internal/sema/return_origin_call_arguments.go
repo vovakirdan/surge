@@ -57,7 +57,7 @@ func (b *returnOriginBody) convertCallableArgument(callee *returnOriginFunction,
 		return unknown
 	}
 	expected := returnOriginCallable{typ: formal, slots: slices.Clone(contract.slots), promise: contract.promise, contract: contract, view: view}
-	if !b.checkCallableDestination(actual, expected, span) {
+	if !b.checkCallableDestination(actual, &expected, span) {
 		return unknown
 	}
 	// Conversion fixes the destination promise without narrowing the caller's
@@ -65,6 +65,6 @@ func (b *returnOriginBody) convertCallableArgument(callee *returnOriginFunction,
 	// result sources merely because this value is callable. Callee bodies still
 	// infer against their declared parameter promises, not actual body precision.
 	out := actual.clone()
-	out.callables = []returnOriginCallable{expected}
+	out.callables = []*returnOriginCallable{&expected}
 	return out
 }

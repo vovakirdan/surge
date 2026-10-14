@@ -336,7 +336,7 @@ func assertCrossingStillArrives(t *testing.T, source string, wantCode int) {
 	for _, shards := range []int{2, 8} {
 		env := envWithStdlib(repoRoot(t))
 		env = overrideEnvVar(env, "SURGE_SHARDS", strconv.Itoa(shards))
-		env = overrideEnvVar(env, "SURGE_THREADS", strconv.Itoa(shards))
+		env = overrideEnvVar(env, "SURGE_SHARDS", strconv.Itoa(shards))
 		duration, result := runBinaryWithTimeout(t, outputPath, env, 30*time.Second)
 		if result.exitCode != 0 {
 			t.Fatalf("shards=%d: exit = %d, want 0 -- the widening refused a crossing that carries no view (duration=%s)\nstdout:\n%s\nstderr:\n%s",

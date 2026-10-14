@@ -3,320 +3,124 @@
 package vm_test
 
 import (
-	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"regexp"
-	"runtime"
-	"sort"
 	"strings"
-	"sync"
 	"testing"
 )
 
-// Freeing a task is two decisions and they are not independent.
-//
-// FIRST, a polled task must outlive the application of its own poll outcome.
-// What keeps it addressable during its turn is its RUNNING status, not a
-// reference: a release frees only a task that has completed, so nothing can
-// reclaim a RUNNING one under its poller. apply_poll_outcome ENDS that
-// protection in every arm -- it publishes READY, WAITING or DONE -- and then
-// goes on using the pointer. The yielded arm is where it bites: it publishes
-// TASK_READY and re-pushes, and ready_push_with_policy (rt_ready_queue.c)
-// resolves the owner shard, BLOCKS on that shard's lock, and re-reads the
-// task's status on the far side. A task that is READY and not yet enqueued can
-// be woken by an awaiting poll in that window, popped by another worker, run to
-// completion and freed by the last handle drop, all while this thread waits for
-// the lock.
-//
-// SECOND, the release that frees must decide from ONE observation. "This drop
-// emptied the count" and "the task has completed" used to be a fetch_sub and a
-// separate load of task->status, and a poller can resurrect a task between
-// them: it holds the raw pointer rather than a reference and takes one of its
-// own, so a count that reached zero goes back to one, completes, and is freed
-// by that reference's drop. The first thread's late status load then reads
-// freed memory, sees TASK_DONE in the bytes and frees a second time -- and the
-// second free reads task->id out of reused memory, which is how the task
-// table's store came to panic with a heap pointer for an id.
-//
-// The two are one row because the first fix makes the second defect reachable:
-// pinning across apply_poll_outcome adds exactly the resurrect-from-zero that
-// the split decision cannot see. Landed apart, the pin makes the panic worse.
-//
-// The row is two arms and never a single green run. A green positive arm on its
-// own would prove nothing about races that only sometimes run, so the negative
-// control removes the release decision's half of the fix and must be caught by
-// AddressSanitizer doing what that half prevents.
-//
-// THE PIN'S HALF IS NO LONGER PROVED HERE. It was: a third arm built with
-// -DRT_POLL_OUTCOME_PIN_NEGATIVE_CONTROL, required to report a freed read in
-// the re-push somewhere in 96 oversubscribed processes. That arm asks for an
-// interleaving -- an awaiting poll meeting a task that is mid-yield-re-push --
-// which the cancel-ordering fix makes rarer (a cancel now reaches the leaves
-// before it makes anyone runnable again, rt_task_complete.c: a cancelled awaiter
-// is re-polled after its children are DONE, so its poll no longer finds one of
-// them in that window). It went from 10 aggregates of 10 reporting to 4 of 10
-// reporting nothing, and a control that reports nothing says "the row proved
-// nothing" -- correctly. A schedule is not the rule. The pin's half is now
-// proved deterministically, by holding the re-push at
-// SP_READY_REQUEUE_BEFORE_LOCK and doing the awaiting poll's two actions from a
-// driver: TestRuntimeV2LifecyclePollOutcomePin{Proof,NegativeControl}
-// (runtime_v2_poll_outcome_pin_test.go). What remains here is the campaign the
-// release decision's window still needs, plus the positive arm as a stress over
-// the whole program.
-//
-// Measured on this lane at SURGE_THREADS=4 with 24 concurrent processes
-// (32 cores): trunk before either fix, 3 of 48 runs; no-pin control, 6 of 48;
-// split-release control, 3 of 48; both fixes in place, 0 of 96 and 0 of 80.
-const taskFreeObservationRuns = 96
-
-// Where the freed read lands for each half. Asserting the SIGNATURE rather than
-// "some sanitizer report" is deliberate: this row pins two defects, and a
-// different use-after-free surfacing here should be read as its own finding
-// rather than silently satisfying or failing this one. Any other report is
-// logged in full.
-//
-// The pin's half has one frame, and since its negative control moved to the
-// deterministic stand it is watched here only by the POSITIVE arm -- this
-// program is still the widest exercise of that window the tree has, so a report
-// landing in it must fail the row rather than pass unread. The release
-// decision's half has several frames and is
-// pinned by its FILE: the losing thread can be caught reading the freed refs
-// word as it decides (task_drop_ref_owes_free), or one step later inside the
-// second free itself (free_task reading task->id, which is the shape that
-// reaches the task table and panics with a heap pointer for an id). Both are
-// the same defect and both are in rt_task_lifetime.c; naming one function would
-// make the row pass or fail on which of them the scheduler happened to reach.
-var (
-	pollOutcomePinSignature  = regexp.MustCompile(`#[0-9]+ 0x[0-9a-f]+ in ready_push_with_policy\b`)
-	releaseDecisionSignature = regexp.MustCompile(`#[0-9]+ 0x[0-9a-f]+ in \w+ \S*rt_task_lifetime\.c:`)
-)
-
-// The same program as the timeout-cancel row: a target that awaits a long chain
-// of checkpoints, a timeout that cancels it, and a second handle that awaits it
-// afterwards. The checkpoint tasks are what yield, and the second handle is what
-// supplies a last-reference drop concurrent with a completion.
+// The carrier can complete a running task after its external last-handle drop
+// reaches zero. A delayed release must decide from its own RMW, without reading
+// the task after the carrier has reclaimed it (RV2-DEBT-291).
 func TestRuntimeV2LifecycleTaskFreeIsOneObservation(t *testing.T) {
-	// One compile of the program, two instrumented links of the runtime it was
-	// compiled against: the arms differ only in a -D, so the .sg build and its
-	// out.o are shared.
-	kept := keepTaskFreeObservationBuild(t)
-	positive := buildTaskFreeObservationProgram(t, kept, "task_free_observation")
-	splitRelease := buildTaskFreeObservationProgram(t, kept,
-		"task_free_observation_split_release", "-DRT_TASK_RELEASE_SPLIT_NEGATIVE_CONTROL")
-
-	// The negative control runs FIRST. If the race does not run on this machine
-	// the row asked nothing, and saying so is more useful than a positive arm
-	// that was green because nothing happened.
-	splitReports := runTaskFreeObservationStand(t, splitRelease)
-	if len(reportsMatching(splitReports, releaseDecisionSignature)) == 0 {
-		t.Fatalf("the control restored the split release decision and %d runs reported "+
-			"no use-after-free in the release path; the row proved nothing, because the "+
-			"double free it claims to pin did not run\nreports:\n%s",
-			taskFreeObservationRuns, strings.Join(splitReports, "\n---\n"))
-	}
-
-	positiveReports := runTaskFreeObservationStand(t, positive)
-	for _, signature := range []*regexp.Regexp{pollOutcomePinSignature, releaseDecisionSignature} {
-		matched := reportsMatching(positiveReports, signature)
-		if len(matched) != 0 {
-			t.Fatalf("both fixes are in place and %d of %d runs still read a freed task "+
-				"(%s):\n%s",
-				len(matched), taskFreeObservationRuns, signature,
-				strings.Join(matched, "\n---\n"))
+	// All asserted frames are in the locally built runtime; do not wait for
+	// network debug-info downloads while symbolizing the negative control.
+	t.Setenv("DEBUGINFOD_URLS", "")
+	for _, negative := range []bool{false, true} {
+		name := "packed"
+		flags := []string{"-DRT_TEST_SYNC_POINTS", "-fsanitize=address", "-g", "-O1", "-fno-omit-frame-pointer"}
+		if negative {
+			name = "split_negative"
+			flags = append(flags, "-DRT_TASK_RELEASE_SPLIT_NEGATIVE_CONTROL")
 		}
-	}
-	for _, report := range positiveReports {
-		t.Logf("a sanitizer report NOT pinned by this row (a separate, open defect -- "+
-			"do not fold it into this one):\n%s", report)
-	}
-}
-
-// The sources and the program object a --keep-tmp build left behind.
-type taskFreeObservationBuild struct {
-	sources    []string
-	programObj string
-}
-
-// keepTaskFreeObservationBuild builds the program and collects what the
-// instrumented links need. The driver has no hook for extra runtime cflags, and
-// inventing one would put a sanitizer switch on the production build path;
-// --keep-tmp already leaves the exact sources and the program's own object
-// behind, so the instrumented builds are assembled from those instead.
-func keepTaskFreeObservationBuild(t *testing.T) taskFreeObservationBuild {
-	t.Helper()
-	if _, err := exec.LookPath("clang"); err != nil {
-		t.Skip("clang not installed; skipping the task-free observation proof")
-	}
-	root := repoRoot(t)
-	outputPath := buildLLVMProgramFromSource(t, runtimeV2TimeoutCancelSource)
-	tmpDir := llvmTmpDir(root, outputPath)
-	runtimeDir := filepath.Join(tmpDir, "native_runtime")
-
-	sources, err := filepath.Glob(filepath.Join(runtimeDir, "*.c"))
-	if err != nil {
-		t.Fatalf("glob the kept runtime sources: %v", err)
-	}
-	if len(sources) == 0 {
-		t.Fatalf("no runtime sources under %s; --keep-tmp stopped keeping them", runtimeDir)
-	}
-	sort.Strings(sources)
-	return taskFreeObservationBuild{sources: sources, programObj: filepath.Join(tmpDir, "out.o")}
-}
-
-// buildTaskFreeObservationProgram compiles the kept runtime sources with
-// AddressSanitizer under the given -D flags and links them against the
-// program's own object.
-func buildTaskFreeObservationProgram(
-	t *testing.T, kept taskFreeObservationBuild, name string, extraFlags ...string) string {
-	t.Helper()
-	clang, err := exec.LookPath("clang")
-	if err != nil {
-		t.Skip("clang not installed; skipping the task-free observation proof")
-	}
-	root := repoRoot(t)
-	sources := kept.sources
-
-	objDir := filepath.Join(t.TempDir(), name)
-	if err := os.MkdirAll(objDir, 0o700); err != nil {
-		t.Fatalf("create object dir: %v", err)
-	}
-
-	objects := make([]string, 0, len(sources))
-	var mu sync.Mutex
-	var group sync.WaitGroup
-	var failures []string
-	gate := make(chan struct{}, runtime.NumCPU())
-	for _, source := range sources {
-		object := filepath.Join(objDir, filepath.Base(source)+".o")
-		objects = append(objects, object)
-		group.Add(1)
-		go func(source, object string) {
-			defer group.Done()
-			gate <- struct{}{}
-			defer func() { <-gate }()
-			args := []string{
-				"-c", "-std=c11", "-g", "-O1", "-fno-omit-frame-pointer",
-				"-fsanitize=address", "-pthread",
-			}
-			args = append(args, extraFlags...)
-			args = append(args, source, "-o", object)
-			cmd := exec.Command(clang, args...)
-			cmd.Dir = root
-			// Not runCommand: it reports a spawn failure with t.Fatalf, which
-			// may not be called from a goroutine.
-			out, err := cmd.CombinedOutput()
-			if err != nil {
-				mu.Lock()
-				failures = append(failures,
-					fmt.Sprintf("%s: %v\noutput:\n%s", filepath.Base(source), err, out))
-				mu.Unlock()
-			}
-		}(source, object)
-	}
-	group.Wait()
-	if len(failures) != 0 {
-		if strings.Contains(strings.Join(failures, "\n"), "unsupported option") {
-			t.Skip("clang here cannot build with -fsanitize=address; skipping")
-		}
-		t.Fatalf("instrumented runtime build failed:\n%s", strings.Join(failures, "\n---\n"))
-	}
-
-	bin := filepath.Join(objDir, name)
-	linkArgs := append([]string{"-fsanitize=address", "-g", kept.programObj}, objects...)
-	linkArgs = append(linkArgs, "-o", bin, "-pthread")
-	cmd := exec.Command(clang, linkArgs...)
-	cmd.Dir = root
-	stdout, stderr, code := runCommand(t, cmd, "")
-	if code != 0 {
-		t.Fatalf("link the instrumented program failed (code=%d)\nstdout:\n%s\nstderr:\n%s",
-			code, stdout, stderr)
-	}
-	return bin
-}
-
-// runTaskFreeObservationStand runs the binary taskFreeObservationRuns times and
-// returns every sanitizer report it produced.
-//
-// The processes OVERSUBSCRIBE the machine on purpose. Both races are lost-lock
-// and lost-window races, and at one process per core neither was seen in 40
-// runs; at three worker threads per core trunk reported in 3 of 48.
-func runTaskFreeObservationStand(t *testing.T, bin string) []string {
-	t.Helper()
-	root := repoRoot(t)
-	env := overrideEnv(envWithStdlib(root), "4")
-	env = append(env, "ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:abort_on_error=0")
-
-	concurrency := runtime.NumCPU() * 3 / 4
-	if concurrency < 8 {
-		concurrency = 8
-	}
-	if concurrency > 32 {
-		concurrency = 32
-	}
-	jobs := make(chan int)
-	var mu sync.Mutex
-	var reports []string
-	var group sync.WaitGroup
-	for worker := 0; worker < concurrency; worker++ {
-		group.Add(1)
-		go func() {
-			defer group.Done()
-			for range jobs {
-				cmd := exec.Command(bin)
-				cmd.Dir = root
-				cmd.Env = env
-				out, err := cmd.CombinedOutput()
-				if err == nil {
-					continue
+		t.Run(name, func(t *testing.T) {
+			bin := buildRuntimeV2LifecycleHarnessWithFlags(t, "task_ref_"+name, flags)
+			stdout, stderr, code := runLifecycleHarness(t, bin, "task-ref-one-observation", lifecycleEnv(
+				"SURGE_SHARDS=1", "SURGE_BLOCKING_THREADS=1",
+				"SURGE_SYNC_POINT=SP_TASK_RELEASE_AFTER_ZERO_BEFORE_STATUS:block",
+				"ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:abort_on_error=0"))
+			for _, want := range []string{
+				"task-release window: refs=0 completed=0",
+				"task-release carrier completion: freed=1",
+			} {
+				if !strings.Contains(stderr, want) {
+					t.Fatalf("release window missing %q (code=%d)\nstdout:\n%s\nstderr:\n%s", want, code, stdout, stderr)
 				}
-				text := string(out)
-				if !strings.Contains(text, "AddressSanitizer") {
-					continue
-				}
-				mu.Lock()
-				reports = append(reports, text)
-				mu.Unlock()
 			}
-		}()
+			if !negative {
+				if code != 0 || strings.Contains(stderr, "AddressSanitizer") {
+					t.Fatalf("packed release failed (code=%d)\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+				}
+				t.Log("last external handle dropped; carrier reclaimed the task before release resumed; no ASan error")
+				return
+			}
+			fault, _, _ := strings.Cut(stderr, " is located ")
+			if code == 0 || !strings.Contains(fault, "heap-use-after-free") ||
+				!strings.Contains(fault, "task_drop_ref_owes_free") {
+				t.Fatalf("split release did not fail at its stale status read (code=%d)\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+			}
+			t.Log("same window: split decision reported heap-use-after-free in task_drop_ref_owes_free")
+		})
 	}
-	for i := 0; i < taskFreeObservationRuns; i++ {
-		jobs <- i
-	}
-	close(jobs)
-	group.Wait()
-	return reports
 }
 
-var asanRegionLine = regexp.MustCompile(`(?m)^0x[0-9a-f]+ is located `)
+const lifecycleHarnessTaskRefObservationModes = `
+#ifdef RT_TEST_SYNC_POINTS
+#include "rt_task_refs.h"
+#define POLL_TASK_REF_OBSERVATION 4055
 
-// faultingStackOf keeps the part of a sanitizer report that names where the bad
-// access happened, dropping the allocation and free stacks that follow it.
-func faultingStackOf(report string) string {
-	if loc := asanRegionLine.FindStringIndex(report); loc != nil {
-		return report[:loc[0]]
-	}
-	return report
+static _Atomic uint32_t g_task_ref_running;
+static _Atomic uint32_t g_task_ref_complete;
+
+static void poll_task_ref_observation(void) {
+    atomic_store_explicit(&g_task_ref_running, 1, memory_order_release);
+    if (!wait_u32_at_least(&g_task_ref_complete, 1, 4000)) {
+        panic_msg("task-ref carrier was never allowed to complete");
+    }
+    rt_async_return(NULL, NULL);
 }
 
-func reportsMatching(reports []string, signature *regexp.Regexp) []string {
-	var out []string
-	for _, report := range reports {
-		// Only the FAULTING stack, which is everything before the "is located
-		// ... freed by / previously allocated by" stacks. The free path appears
-		// in the freeing stack of every report about a task, so matching the
-		// whole text would let any of them satisfy this signature.
-		if !signature.MatchString(faultingStackOf(report)) {
-			continue
-		}
-		// Both shapes of the same defect: the second free reads the freed task
-		// on its way in, and if the allocator got there first it is reported as
-		// the double free itself.
-		if strings.Contains(report, "heap-use-after-free") ||
-			strings.Contains(report, "attempting double-free") {
-			out = append(out, report)
-		}
-	}
-	return out
+typedef struct {
+    rt_task* task;
+} task_ref_release_args;
+
+static void* task_ref_release_thread(void* raw) {
+    task_ref_release_args* args = (task_ref_release_args*)raw;
+    rt_task_handle_drop(args->task);
+    return NULL;
 }
+
+static int mode_task_ref_one_observation(rt_executor* ex) {
+    rt_task* task = spawn_pinned(ex, POLL_TASK_REF_OBSERVATION, 0);
+    if (task == NULL || !wait_u32_at_least(&g_task_ref_running, 1, 4000)) {
+        return fail("task-ref owner carrier did not start its poll");
+    }
+    uint64_t id = task->id;
+    task_ref_release_args args = {task};
+    pthread_t release_thread;
+    unsigned before = rt_sync_point_reached_count(
+        RT_SYNC_POINT_SP_TASK_RELEASE_AFTER_ZERO_BEFORE_STATUS);
+    if (pthread_create(&release_thread, NULL, task_ref_release_thread, &args) != 0) {
+        return fail("task-ref release thread failed to start");
+    }
+    if (!wait_sync_point_count(
+            RT_SYNC_POINT_SP_TASK_RELEASE_AFTER_ZERO_BEFORE_STATUS, before, 4000)) {
+        rt_sync_point_open();
+        atomic_store_explicit(&g_task_ref_complete, 1, memory_order_release);
+        pthread_join(release_thread, NULL);
+        return fail("release did not reach its zero-ref window");
+    }
+    uint32_t refs = atomic_load_explicit(&task->handle_refs, memory_order_acquire);
+    fprintf(stderr, "task-release window: refs=%u completed=%u\n",
+            refs & RT_TASK_REFS_COUNT_MASK, (refs & RT_TASK_REFS_COMPLETED) != 0);
+    atomic_store_explicit(&g_task_ref_complete, 1, memory_order_release);
+    int freed = 0;
+    for (unsigned i = 0; i < 4000 && !freed; i++) {
+        rt_control_lock(ex);
+        freed = get_task(ex, id) == NULL;
+        rt_control_unlock(ex);
+        if (!freed) {
+            sleep_us(1000);
+        }
+    }
+    fprintf(stderr, "task-release carrier completion: freed=%d\n", freed);
+    rt_sync_point_open();
+    pthread_join(release_thread, NULL);
+    (void)rt_executor_request_shutdown(ex);
+    return freed ? 0 : fail("carrier did not reclaim its completed zero-ref task");
+}
+#else
+static int mode_task_ref_one_observation(rt_executor* ex) {
+    (void)ex;
+    return fail("task-ref proof requires sync points");
+}
+#endif
+`

@@ -14,12 +14,17 @@ import (
 // catalog record keeps the same facts beside its canonical body identity.
 // Captured before any graph merge, so neither side has been renumbered.
 type importedCallableIndex struct {
-	bySource      map[source.Span][]*sema.CallableCandidate
+	bySource      map[importedCallableSource][]*sema.CallableCandidate
 	resolveSource func(source.FileID) (string, error)
 }
 
+type importedCallableSource struct {
+	key        string
+	start, end uint32
+}
+
 func newImportedCallableIndex(results []*sema.Result, resolveSource func(source.FileID) (string, error)) importedCallableIndex {
-	index := importedCallableIndex{bySource: make(map[source.Span][]*sema.CallableCandidate), resolveSource: resolveSource}
+	index := importedCallableIndex{bySource: make(map[importedCallableSource][]*sema.CallableCandidate), resolveSource: resolveSource}
 	for _, result := range results {
 		if result == nil {
 			continue
@@ -27,7 +32,18 @@ func newImportedCallableIndex(results []*sema.Result, resolveSource func(source.
 		for i := range result.CallableCandidates {
 			candidate := &result.CallableCandidates[i]
 			if candidate.BodyKey != "" && candidate.SourceKey != "" {
-				index.bySource[candidate.Source] = append(index.bySource[candidate.Source], candidate)
+				key := candidate.SourceKey
+				if key == "builtin" {
+					resolved, err := resolveSource(candidate.Source.File)
+					if err != nil {
+						continue
+					}
+					key = resolved
+				}
+				if key != "" {
+					location := importedCallableSource{key: key, start: candidate.Source.Start, end: candidate.Source.End}
+					index.bySource[location] = append(index.bySource[location], candidate)
+				}
 			}
 		}
 	}
@@ -95,7 +111,8 @@ func (index importedCallableIndex) identity(table *symbols.Table, id symbols.Sym
 		return none, false
 	}
 	found := none
-	for _, candidate := range index.bySource[sym.Span] {
+	span := importedCallableSource{key: sourceKey, start: sym.Span.Start, end: sym.Span.End}
+	for _, candidate := range index.bySource[span] {
 		// A builtin declaration's record names its source "builtin"; the span,
 		// whose file is part of it, still pins the one declaration.
 		builtin := candidate.Builtin && candidate.SourceKey == "builtin" && sym.Flags&symbols.SymbolFlagBuiltin != 0

@@ -65,7 +65,7 @@ void lifecycle_ctrl_site_api_shape(void) {
     rt_ctrl_site census[] = {
         RT_CTRL_SITE_CREATE,       RT_CTRL_SITE_JOIN_POLL,
         RT_CTRL_SITE_COMPLETION,   RT_CTRL_SITE_SCOPE,
-        RT_CTRL_SITE_AWAIT_COMPAT, RT_CTRL_SITE_HANDLE,
+        RT_CTRL_SITE_EXTERNAL_AWAIT, RT_CTRL_SITE_HANDLE,
     };
     (void)site;
     (void)census;
@@ -151,8 +151,8 @@ func TestRuntimeV2LifecycleStaticJoinScopeWaitersUnqualified(t *testing.T) {
 // the control lane and tags it CREATE; this counter's 8x1024 per-request value
 // decides the segmented-table escalation (>= 2.0/request).
 func TestRuntimeV2LifecycleStaticCreateSiteCounterWired(t *testing.T) {
-	// The constructor's body is task_create, shared by __task_create and
-	// __task_create_affine (the two are one-line wrappers over it).
+	// The constructor's body is task_create, reached by the sole public
+	// __task_create entry point.
 	body := lifecycleFindFunctionBody(t, "task_create")
 	if !strings.Contains(body, "rt_trace_control_lock_site(RT_CTRL_SITE_CREATE)") {
 		t.Fatalf("task_create must tag its control acquisition RT_CTRL_SITE_CREATE:\n%s", body)
@@ -179,7 +179,7 @@ func TestRuntimeV2LifecycleStaticCensusSitesTagged(t *testing.T) {
 		// removed: the site is still real and still tagged, just under a
 		// different function name.
 		{"rt_task_poll_adopt_placement", "RT_CTRL_SITE_JOIN_POLL"},
-		{"rt_task_await", "RT_CTRL_SITE_AWAIT_COMPAT"},
+		{"rt_task_await", "RT_CTRL_SITE_EXTERNAL_AWAIT"},
 		// rt_task_clone and rt_task_wake are control-free. Wake is scheduling
 		// only now that creation seals scope provenance; it has no adoption
 		// fallback left to tag.
@@ -321,6 +321,12 @@ func TestRuntimeV2LifecycleStaticScopeOwnerLane(t *testing.T) {
 	if !strings.Contains(body, "scopes_table") {
 		t.Fatalf("get_scope must read the atomic scopes_table snapshot:\n%s", body)
 	}
+	ownerBody := lifecycleFindFunctionBody(t, "rt_scope_owner_shard")
+	if strings.Contains(ownerBody, "rt_runtime_shard0") ||
+		!strings.Contains(ownerBody, `panic_msg("async: scope has no owner shard")`) ||
+		!strings.Contains(ownerBody, `panic_msg("async: invalid scope owner shard")`) {
+		t.Fatalf("scope owner resolution must fail closed without a shard-0 fallback:\n%s", ownerBody)
+	}
 	state := lifecycleReadNativeFile(t, "rt_async_state.c")
 	if !strings.Contains(state, "rt_scope_slot_store") {
 		t.Fatal("scope-table atomic-snapshot protocol requires rt_scope_slot_store in rt_async_state.c")
@@ -366,12 +372,12 @@ func TestRuntimeV2LifecycleStaticScopeOwnerLane(t *testing.T) {
 	}
 }
 
-// P10 (await/runner/blocking compat): done_cv and compat_cv stay
-// external/main-thread only and are counted separately from the worker-lane
+// P10 (external await): done_cv stays external/main-thread only and is
+// counted separately from the worker-lane
 // join path (rule 5). Activation: when the implementation lands; delete the Skip and assert
-// the worker-side join path never references done_cv and the await-compat
+// the worker-side join path never references done_cv and the external-await
 // counter accounts only for the non-worker (workers>1) await entries.
-func TestRuntimeV2LifecycleStaticAwaitCompatCountedSeparately(t *testing.T) {
+func TestRuntimeV2LifecycleStaticExternalAwaitCountedSeparately(t *testing.T) {
 	// (i) rule 5: the worker-lane join path never touches done_cv. Worker-side
 	// join is the owner-lane path (rt_task_poll, P7); done_cv is external-only.
 	poll := lifecycleFindFunctionBody(t, "rt_task_poll")
@@ -379,14 +385,14 @@ func TestRuntimeV2LifecycleStaticAwaitCompatCountedSeparately(t *testing.T) {
 		t.Fatalf("worker-lane join (rt_task_poll) must not reference done_cv:\n%s", poll)
 	}
 	// (ii) the only done_cv waiter is rt_task_await's non-worker (workers>1)
-	// branch, and it tags its control acquisition AWAIT_COMPAT so external await
+	// branch, and it tags its control acquisition EXTERNAL_AWAIT so external await
 	// is counted separately from worker steady state.
 	await := lifecycleFindFunctionBody(t, "rt_task_await")
 	if !strings.Contains(await, "pthread_cond_wait(&ex->done_cv") {
 		t.Fatalf("rt_task_await (workers>1) must be the done_cv external-await waiter:\n%s", await)
 	}
-	if !strings.Contains(await, "rt_trace_control_lock_site(RT_CTRL_SITE_AWAIT_COMPAT)") {
-		t.Fatalf("rt_task_await must tag its control acquisition AWAIT_COMPAT (rule 5):\n%s", await)
+	if !strings.Contains(await, "rt_trace_control_lock_site(RT_CTRL_SITE_EXTERNAL_AWAIT)") {
+		t.Fatalf("rt_task_await must tag its control acquisition EXTERNAL_AWAIT (rule 5):\n%s", await)
 	}
 	for _, needle := range []string{
 		"rt_done_waiters_increment_for_external_await(ex)",
@@ -425,7 +431,7 @@ func TestRuntimeV2LifecycleStaticAwaitCompatCountedSeparately(t *testing.T) {
 	}
 	for _, needle := range []string{
 		"rt_control_lock(ex)",
-		"rt_trace_control_lock_site(RT_CTRL_SITE_AWAIT_COMPAT)",
+		"rt_trace_control_lock_site(RT_CTRL_SITE_EXTERNAL_AWAIT)",
 	} {
 		if !strings.Contains(doneCV, needle) {
 			t.Fatalf("done_cv helper must take/tag the control lane for late external awaiters; missing %q:\n%s",

@@ -9,7 +9,7 @@ import (
 )
 
 // The shared selected-callable reader certifies an index; it adds a receiver.
-func (a *returnOriginAnalyzer) selectedIndexFunction(u *returnOriginUnitIndex, id ast.ExprID) (*returnOriginFunction, string) {
+func (a *returnOriginAnalyzer) selectedIndexFunction(u *returnOriginUnitIndex, id ast.ExprID) (selectedFn *returnOriginFunction, reason string) {
 	selected, present := u.Sema.IndexSymbols[id]
 	if !present || !selected.IsValid() {
 		return nil, "selected index lacks a valid original symbol"
@@ -74,7 +74,7 @@ func (a *returnOriginAnalyzer) indexDeclaration(fn *returnOriginFunction, actual
 	return ""
 }
 
-func (a *returnOriginAnalyzer) indexOperation(caller *returnOriginFunction, id ast.ExprID) (returnOriginIndexType, string) {
+func (a *returnOriginAnalyzer) indexOperation(caller *returnOriginFunction, id ast.ExprID) (index returnOriginIndexType, reason string) {
 	u := caller.unit
 	primitive, reason := returnOriginTypedIndex(u, id)
 	if reason == "index requires a non-scalar index transfer" {
@@ -103,12 +103,12 @@ func (a *returnOriginAnalyzer) indexOperation(caller *returnOriginFunction, id a
 	if reason != "" {
 		return primitive, reason
 	}
-	return primitive, a.checkIndexUse(fn, caller, id, use)
+	return primitive, a.checkIndexUse(fn, caller, id, &use)
 }
 
 // This certifies the existing scalar primitive, including its effect and
 // borrowed result. It does not discharge arbitrary bodyless generic calls.
-func (a *returnOriginAnalyzer) checkIndexUse(fn, caller *returnOriginFunction, id ast.ExprID, use ConcreteInstantiationUse) string {
+func (a *returnOriginAnalyzer) checkIndexUse(fn, caller *returnOriginFunction, id ast.ExprID, use *ConcreteInstantiationUse) string {
 	u := caller.unit
 	actual, reason := returnOriginTypedIndex(u, id)
 	if reason != "" {

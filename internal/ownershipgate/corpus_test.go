@@ -195,7 +195,11 @@ func TestRuntimeV2OwnershipCorpus(t *testing.T) {
 
 	for _, fixture := range fixtures {
 		rel := relativeFixture(t, root, fixture)
-		result, compileErr := buildpipeline.Compile(context.Background(), corpusCompileRequest(root, fixture))
+		compileTarget, targetErr := ownershipCorpusCompileTarget(root, fixture, rel)
+		if targetErr != nil {
+			t.Fatalf("resolve ownership corpus compile target: %v", targetErr)
+		}
+		result, compileErr := buildpipeline.Compile(context.Background(), corpusCompileRequest(root, compileTarget))
 		if compileErr != nil || result.MIR == nil {
 			failure := ownershipgate.CompileFailureKey{
 				Fixture:   rel,

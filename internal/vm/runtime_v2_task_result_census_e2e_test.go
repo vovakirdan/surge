@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-// One worker fixes the await order for exact narrow/wide allocation equality.
-// With multiple workers, a JOIN waiter store can first grow inside either
+// One shard fixes the await order for exact narrow/wide allocation equality.
+// With multiple shards, a JOIN waiter store can first grow inside either
 // window even when both result types stay inline. That run checks values.
 // Both modes execute the same producers, awaits and value guards; only the
 // final allocation assertions differ. No absolute count or tolerance is used.
@@ -177,16 +177,15 @@ func TestRuntimeV2TaskResultCensusBalanced(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		name        string
-		workers     string
+		shards      string
 		checkCensus bool
 		marker      string
 	}{
-		{"allocation_census/workers-1-shards-1", "1", true, "task-result-census-ok"},
-		{"fixed_values/workers-8-shards-8", "8", false, "task-result-fixed-values-ok"},
+		{"allocation_census/shards-1", "1", true, "task-result-census-ok"},
+		{"fixed_values/shards-8", "8", false, "task-result-fixed-values-ok"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv("SURGE_THREADS", tc.workers)
-			t.Setenv("SURGE_SHARDS", tc.workers)
+			t.Setenv("SURGE_SHARDS", tc.shards)
 			source := fmt.Sprintf(runtimeV2TaskResultCensusSourceTemplate, tc.checkCensus)
 			outputPath := buildRuntimeV2CrossingSource(t, source, nil)
 			baseEnv := envWithStdlib(repoRoot(t))

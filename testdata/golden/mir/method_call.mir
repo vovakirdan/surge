@@ -4,20 +4,20 @@ funcs=2
 
 fn add:
   locals:
-    L0: &type#1507 [copy,ref] name=self
-    L1: &type#1507 [copy,ref] name=other
-    L2: type#1507 [owns_heap] name=tmp_un1
+    L0: &type#1519 [copy,ref] name=self
+    L1: &type#1519 [copy,ref] name=other
+    L2: type#1519 [owns_heap] name=tmp_un1
     L3: int [copy,owns_heap] name=tmp_field2
-    L4: type#1507 [owns_heap] name=tmp_un3
+    L4: type#1519 [owns_heap] name=tmp_un3
     L5: int [copy,owns_heap] name=tmp_field4
     L6: int [copy,owns_heap] name=tmp_call5
-    L7: type#1507 [owns_heap] name=tmp_un6
+    L7: type#1519 [owns_heap] name=tmp_un6
     L8: int [copy,owns_heap] name=tmp_field7
-    L9: type#1507 [owns_heap] name=tmp_un8
+    L9: type#1519 [owns_heap] name=tmp_un8
     L10: int [copy,owns_heap] name=tmp_field9
     L11: int [copy,owns_heap] name=tmp_call10
-    L12: type#1507 [owns_heap] name=tmp_struct11
-    L13: type#1507 [owns_heap] name=tmp_retval12
+    L12: type#1519 [owns_heap] name=tmp_struct11
+    L13: type#1519 [owns_heap] name=tmp_retval12
   bb0:
     L2 = (* copy L0)
     L3 = field copy L2.x
@@ -33,7 +33,7 @@ fn add:
     L10 = field copy L9.y
     L10 = retain L10
     L11 = call __add(copy L8, copy L10)
-    L12 = struct_lit type#1507 {x=retain L6, y=retain L11}
+    L12 = struct_lit type#1519 {x=retain L6, y=retain L11}
     L13 = move L12
     drop L11
     drop L10
@@ -45,20 +45,20 @@ fn add:
 
 fn main:
   locals:
-    L0: type#1507 [owns_heap] name=p1
-    L1: type#1507 [owns_heap] name=tmp_struct1
-    L2: type#1507 [owns_heap] name=p2
-    L3: type#1507 [owns_heap] name=tmp_struct2
-    L4: type#1507 [owns_heap] name=p3
-    L5: type#1507 [owns_heap] name=tmp_call3
+    L0: type#1519 [owns_heap] name=p1
+    L1: type#1519 [owns_heap] name=tmp_struct1
+    L2: type#1519 [owns_heap] name=p2
+    L3: type#1519 [owns_heap] name=tmp_struct2
+    L4: type#1519 [owns_heap] name=p3
+    L5: type#1519 [owns_heap] name=tmp_call3
     L6: int [copy,owns_heap] name=tmp_field4
     L7: int [copy,owns_heap] name=tmp_field5
     L8: int [copy,owns_heap] name=tmp_call6
     L9: int [copy,owns_heap] name=tmp_retval7
   bb0:
-    L1 = struct_lit type#1507 {x=const 1, y=const 2}
+    L1 = struct_lit type#1519 {x=const 1, y=const 2}
     L0 = move L1
-    L3 = struct_lit type#1507 {x=const 3, y=const 4}
+    L3 = struct_lit type#1519 {x=const 3, y=const 4}
     L2 = move L3
     L5 = call add(addr_of L0, addr_of L2)
     L4 = move L5

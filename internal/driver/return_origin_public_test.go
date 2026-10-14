@@ -85,7 +85,7 @@ type returnOriginPublicCase struct {
 }
 
 func returnOriginPublicCases() []returnOriginPublicCase {
-	var cases []returnOriginPublicCase
+	cases := make([]returnOriginPublicCase, 0, 15)
 	for _, family := range []string{"multi_root_alias", "multi_root_call", "sequential_rebind", "loop_backedge"} {
 		for _, local := range []bool{true, false} {
 			owner, suffix := "outside_b", "outer_owners"

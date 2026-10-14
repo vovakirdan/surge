@@ -31,7 +31,7 @@ func TestRuntimeV2SkeletonStaticShape(t *testing.T) {
 #error "Runtime V2 static shard storage limit must be positive"
 #endif
 
-static void runtime_v2_skeleton_compat_shape(rt_executor* ex) {
+static void runtime_v2_skeleton_shape(rt_executor* ex) {
     rt_runtime* runtime = rt_executor_runtime(ex);
     rt_shard* shard0 = rt_runtime_shard0(runtime);
     size_t shard_count = rt_runtime_shard_count(runtime);

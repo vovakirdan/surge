@@ -47,11 +47,12 @@ func taskCertificateCases() []taskCertificateCase {
 		{handle: handleCertificateCase{name: "task_clone_int", clean: true, digest: "4e95adce54464f0b667ee298562ff59a08e01da2503548d06c5967b1b4f51c86",
 			summaries: []string{"keep_int"}, cleared: []handleCertificateSpan{{73, 82, "t.clone()"}},
 			text: "pragma module::dep;\nfn keep_int(t: &Task<int>) -> Task<int> {\n    return t.clone();\n}\n"}, coreCloneClear: true},
-		// A payload the walk cannot classify keeps its refusal at the call. (A generic use would also
-		// bring the core clone row back, but only a root program has finalized uses; a dependency has none.)
-		{handle: handleCertificateCase{name: "task_clone_placement_control", digest: "2444026255ceb3273c9fa20b81746bc68f46df0a9042c76ce5ab08d25cc4f836",
-			text: "pragma module::dep;\nfn keep_place(t: &Task<Placement>) -> Task<Placement> {\n    return t.clone();\n}\n"},
-			kept: []taskCertificateSite{{handleCertificateSpan{87, 96, "t.clone()"}, genericConditionUnsupported}}},
+		// Placement is inert, so cloning Task<Placement> carries no borrowed
+		// payload state and uses the same exact core Task clone certificate as
+		// the scalar case.
+		{handle: handleCertificateCase{name: "task_clone_placement_control", clean: true, digest: "2444026255ceb3273c9fa20b81746bc68f46df0a9042c76ce5ab08d25cc4f836",
+			text:    "pragma module::dep;\nfn keep_place(t: &Task<Placement>) -> Task<Placement> {\n    return t.clone();\n}\n",
+			cleared: []handleCertificateSpan{{87, 96, "t.clone()"}}}, coreCloneClear: true},
 		// Inside a generic helper the clone is certified, and since the owner ruling of 2026-09-26
 		// (D3) so is what it writes: the core clone reads its shared receiver and writes through
 		// nothing, so the opaque-effect refusal the generic signature used to leave at it is gone.

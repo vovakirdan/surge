@@ -456,6 +456,9 @@ static int run_far_select_enqueue_refusal(void) {
     st.send_type_ids[0] = DROP_SELECT_PAYLOAD;
     st.count = 1;
     st.fill_queue = 1;
+    if (setenv("SURGE_TEST_HOLD_TRANSPORT_DRAIN", "1", 1) != 0) {
+        return fail("enqueue-refusal could not hold the synthetic lane");
+    }
 
     void* caller = __task_create(POLL_SELECT_CALLER, &st, rt_channel_opaque_word_ops());
     if (caller == NULL) return fail("enqueue-refusal caller create failed");
@@ -470,6 +473,7 @@ static int run_far_select_enqueue_refusal(void) {
     if (!channel_is_empty(ex, channel)) {
         return fail("a parked select must not touch the channel");
     }
+    clear_synthetic_data_lane_without_wake(ex, dst);
     (void)rt_executor_request_shutdown(ex);
     uint8_t kind = 0;
     uint64_t bits = 0;

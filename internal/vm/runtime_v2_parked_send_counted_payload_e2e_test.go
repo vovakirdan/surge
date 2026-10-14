@@ -92,7 +92,7 @@ func TestRuntimeV2ChannelSendOfferPreservesOriginal(t *testing.T) {
 			for _, workers := range []string{"1", "8"} {
 				t.Run(marker+"/workers-"+workers, func(t *testing.T) {
 					t.Setenv("SURGE_SHARDS", "1")
-					t.Setenv("SURGE_THREADS", workers)
+					t.Setenv("SURGE_SHARDS", workers)
 					result := runProgramFromSource(t, src, runOptions{captureStdout: true})
 					if result.exitCode != 0 || result.stderr != "" ||
 						strings.TrimSpace(result.stdout) != marker {

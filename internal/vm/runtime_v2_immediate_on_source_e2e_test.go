@@ -88,7 +88,7 @@ func runRuntimeV2ImmediateOnSourceMatrix(t *testing.T, outputPath string) {
 		t.Run(fmt.Sprintf("shards_%d", shardCount), func(t *testing.T) {
 			value := strconv.Itoa(shardCount)
 			env := overrideEnvVar(baseEnv, "SURGE_SHARDS", value)
-			env = overrideEnvVar(env, "SURGE_THREADS", value)
+			env = overrideEnvVar(env, "SURGE_SHARDS", value)
 			duration, result := runBinaryWithTimeout(t, outputPath, env, 20*time.Second)
 			if result.exitCode != 0 {
 				t.Fatalf(
@@ -132,7 +132,7 @@ fn main() -> int {
 	outputPath := buildRuntimeV2CrossingSource(t, source, nil)
 	baseEnv := envWithStdlib(repoRoot(t))
 	env := overrideEnvVar(baseEnv, "SURGE_SHARDS", "2")
-	env = overrideEnvVar(env, "SURGE_THREADS", "2")
+	env = overrideEnvVar(env, "SURGE_SHARDS", "2")
 	duration, result := runBinaryWithTimeout(t, outputPath, env, 20*time.Second)
 	if result.exitCode == 0 {
 		t.Fatalf(

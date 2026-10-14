@@ -141,6 +141,7 @@ func TestAnalyzeIndexCertificate(t *testing.T) {
 		{"map_store_through_a_mutable_formal", "fn store_param(", nil},
 		{"own_container_read", "fn own_read(", nil},
 		{"nominal_int_index_with_an_erased_result", "fn nominal_read(", nil},
+		{"nominal_reference_result_names_self", "fn nominal_ref(", []uint32{0}},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			fn := patternFn(t, indexCertSource, row.header)
@@ -154,7 +155,6 @@ func TestAnalyzeIndexCertificate(t *testing.T) {
 		{"map_read_of_a_loan_carrying_value_stays_refused", "fn loan_value(", `m["a"]`, indexCertMapElement},
 		{"map_store_of_a_loan_carrying_value_stays_refused", "fn loan_store(", `m["a"] = xs`, indexCertMapElement},
 		{"nominal_mutable_receiver_stays_refused", "fn nominal_mut(", "b[1]", indexCertContainer},
-		{"nominal_reference_result_stays_refused", "fn nominal_ref(", "b[1]", indexCertContainer},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			fn := patternFn(t, indexCertSource, row.header)

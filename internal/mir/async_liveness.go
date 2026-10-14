@@ -197,8 +197,10 @@ func addUsesFromCrossing(ins *CrossingInstr, addUse, addDef func(LocalID)) {
 	for i := range ins.State.Fields {
 		addUsesFromOperand(&ins.State.Fields[i].Value, addUse, addDef)
 	}
-	for i := range ins.Captures {
-		addUsesFromOperand(&ins.Captures[i].Value, addUse, addDef)
+	if !ins.CapturesPacked {
+		for i := range ins.Captures {
+			addUsesFromOperand(&ins.Captures[i].Value, addUse, addDef)
+		}
 	}
 	for i := range ins.RemoteOps {
 		addUsesFromOperand(&ins.RemoteOps[i].Receiver, addUse, addDef)

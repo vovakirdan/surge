@@ -23,7 +23,7 @@ FROZEN_METRIC_CONTRACT: dict[
 
 
 def validate_manifest(manifest: Manifest) -> None:
-    if manifest.schema_version != 2:
+    if manifest.schema_version != 3:
         raise ManifestError(f"unsupported schema_version {manifest.schema_version}")
     protocol = manifest.protocol
     # Owner rulings 2026-09-04 (the file effect): twenty-four physically
@@ -69,8 +69,8 @@ def validate_manifest(manifest: Manifest) -> None:
     # on throughput CV alone. The number is the ruling's, not a tunable.
     if protocol.p95_cv_floor_ns != 1000:
         raise ManifestError("protocol.p95_cv_floor_ns must be exactly 1000 (owner ruling 2026-09-04)")
-    if manifest.shards != 2 or manifest.threads != 2:
-        raise ManifestError("benchmark topology must freeze shards=2 threads=2")
+    if manifest.shards != 2:
+        raise ManifestError("benchmark topology must freeze shards=2")
     if manifest.blocking_threads != 1:
         raise ManifestError("benchmark topology must freeze blocking_threads=1")
     # Two distinct cores, whichever host the manifest names: the fixture and

@@ -22,8 +22,8 @@ static void immediate_on_answer(rt_executor* ex,
 }
 
 uint32_t rt_immediate_on_source_shard(const rt_task* current) {
-    if (current != NULL && current->owner_shard_valid != 0) {
-        return current->owner_shard_id;
+    if (current != NULL) {
+        return rt_task_owner_shard_id(ensure_exec(), current);
     }
     uint32_t worker_shard = rt_debug_current_worker_shard_id();
     return worker_shard != UINT32_MAX ? worker_shard : 0;

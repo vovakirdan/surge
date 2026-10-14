@@ -364,7 +364,11 @@ type CrossingInstr struct {
 
 	Destination CrossingDestination
 	Captures    []CrossingCapture
-	RemoteOps   []CrossingRemoteOp
+	// CapturesPacked marks the post-async shape. Capture records then contain
+	// provenance/type metadata only; State and its tag construction own all
+	// executable operands.
+	CapturesPacked bool
+	RemoteOps      []CrossingRemoteOp
 
 	// Spawn-on executable lowering uses BodyFuncID as the destination poll
 	// function and State as the once-published payload. Pending is a persisted

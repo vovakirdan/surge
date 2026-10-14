@@ -1,7 +1,7 @@
 #include "rt_channel_lane.h"
 #include "rt_channel_refill.h"
 
-// Channel sync lanes (peel B2): try/compat wrappers, the blocking helper
+// Channel sync lanes (peel B2): try/claim wrappers, the blocking helper
 // loops, and close. Same owner-lock protocol as the async fast lanes; the
 // control-era wrappers keep the select slow lane's lock order (control ->
 // channel shard) until select migrates.
@@ -353,13 +353,12 @@ void rt_channel_finish_put_owner_locked(rt_executor* ex,
     }
     if (!pushed) {
         rt_shard_unlock(ch_shard);
-        channel_compat_broadcast_if_needed(ex, 0);
         rt_shard_lock(ch_shard);
     }
 }
 
-// Control-era compatibility wrappers for the select slow lane: callers hold
-// the control lock and no shard lock; the channel lock nests here.
+// Detached claim wrappers for select and external blocking callers: callers
+// hold no shard lock; the channel owner lock nests here.
 // These two are called with the CONTROL lock already held, so they cannot run
 // the element's move themselves: they claim, and the caller -- which is the
 // only one that can release control -- moves and then finishes. That is the
@@ -428,11 +427,6 @@ void rt_channel_finish_send_locked(rt_executor* ex, void* channel, rt_channel_pu
 }
 
 static void channel_blocking_yield(void) {
-    rt_executor* ex = ensure_exec();
-    rt_task* current = rt_current_task();
-    if (rt_wait_current_worker_wakeup(ex, current)) {
-        return;
-    }
     void* task = checkpoint();
     if (task == NULL) {
         return;
@@ -453,18 +447,8 @@ void rt_channel_send_blocking(void* channel, void* src) {
     // between.
     rt_channel_pin(ch);
     if (rt_current_task() != NULL) {
-        rt_trace_channel_task_blocking_send();
-        while (!rt_channel_send(channel, src)) {
-            if (current_task_cancelled(ex)) {
-                pending_key = waker_none();
-                rt_channel_unpin(ch);
-                return;
-            }
-            channel_blocking_yield();
-        }
-        pending_key = waker_none();
-        rt_async_debug_printf("async chan send ok ch=%p\n", (void*)ch);
         rt_channel_unpin(ch);
+        panic_msg("channel send requires async lowering");
         return;
     }
     for (;;) {
@@ -503,26 +487,9 @@ uint8_t rt_channel_recv_blocking(void* channel, void* dst) {
     // below releases control across the element's move.
     rt_channel_pin(ch);
     if (rt_current_task() != NULL) {
-        rt_trace_channel_task_blocking_recv();
-        for (;;) {
-            uint8_t status = rt_channel_recv(channel, dst);
-            if (status != 0) {
-                pending_key = waker_none();
-                if (status == 1) {
-                    rt_async_debug_printf("async chan recv ok ch=%p\n", (void*)ch);
-                } else if (status == 2) {
-                    rt_async_debug_printf("async chan recv closed ch=%p\n", (void*)ch);
-                }
-                rt_channel_unpin(ch);
-                return status;
-            }
-            if (current_task_cancelled(ex)) {
-                pending_key = waker_none();
-                rt_channel_unpin(ch);
-                return 2;
-            }
-            channel_blocking_yield();
-        }
+        rt_channel_unpin(ch);
+        panic_msg("channel recv requires async lowering");
+        return 2;
     }
     for (;;) {
         rt_control_lock(ex);

@@ -16,7 +16,11 @@ func (fe *funcEmitter) emitStringConcatAll(parts ...string) (string, error) {
 	}
 	out := parts[0]
 	for i := 1; i < len(parts); i++ {
+		previous := out
 		out = fe.emitStringConcat(out, parts[i])
+		if i > 1 {
+			fmt.Fprintf(&fe.emitter.buf, "  call void @rt_string_free(ptr %s)\n", previous)
+		}
 	}
 	return out, nil
 }

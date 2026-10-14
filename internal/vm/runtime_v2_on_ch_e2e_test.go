@@ -69,7 +69,7 @@ func TestRuntimeV2OnChAnchoredOpsAcrossShards(t *testing.T) {
 		t.Run(fmt.Sprintf("shards_%d", shardCount), func(t *testing.T) {
 			value := strconv.Itoa(shardCount)
 			env := overrideEnvVar(baseEnv, "SURGE_SHARDS", value)
-			env = overrideEnvVar(env, "SURGE_THREADS", value)
+			env = overrideEnvVar(env, "SURGE_SHARDS", value)
 			duration, result := runBinaryWithTimeout(t, outputPath, env, 20*time.Second)
 			if result.exitCode != 0 {
 				t.Fatalf(

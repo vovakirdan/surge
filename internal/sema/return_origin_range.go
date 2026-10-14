@@ -145,7 +145,7 @@ func returnOriginRangeConstructor(fn *returnOriginFunction) bool {
 
 // Parameter bounds have no literal ExprSymbol. Their accepted TypeID comes
 // from the same original zero-bound constructor, never a nominal name lookup.
-func (a *returnOriginAnalyzer) intRangeType() (types.TypeID, string) {
+func (a *returnOriginAnalyzer) intRangeType() (id types.TypeID, reason string) {
 	var selected *returnOriginFunction
 	for _, fn := range a.declarations {
 		if fn.name != "rt_range_int_full" || fn.canonicalSourceKey != "builtin" || fn.unit.SourceKey != "core/intrinsics.sg" {
@@ -164,7 +164,7 @@ func (a *returnOriginAnalyzer) intRangeType() (types.TypeID, string) {
 
 // The scalar reader already checked operand presence/types and conversions.
 // Only its non-scalar refusal enters here; Array ranges remain a separate view.
-func (a *returnOriginAnalyzer) stringRangeIndex(caller *returnOriginFunction, id ast.ExprID) (returnOriginIndexType, string) {
+func (a *returnOriginAnalyzer) stringRangeIndex(caller *returnOriginFunction, id ast.ExprID) (index returnOriginIndexType, reason string) {
 	u := caller.unit
 	data, _ := u.Builder.Exprs.Index(id)
 	in := u.Sema.TypeInterner

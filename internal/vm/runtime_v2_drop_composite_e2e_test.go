@@ -236,7 +236,7 @@ func TestRuntimeV2DropComposite(t *testing.T) {
 	baseEnv := envWithStdlib(repoRoot(t))
 	for _, threads := range []string{"1", "2"} {
 		t.Run(fmt.Sprintf("threads_%s", threads), func(t *testing.T) {
-			env := overrideEnvVar(baseEnv, "SURGE_THREADS", threads)
+			env := overrideEnvVar(baseEnv, "SURGE_SHARDS", threads)
 			_, result := runBinaryWithTimeout(t, outputPath, env, 30*time.Second)
 			if result.exitCode != 0 {
 				t.Fatalf("composite-drop e2e failed (exit=%d)\nstdout:\n%s\nstderr:\n%s",

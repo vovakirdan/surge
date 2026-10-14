@@ -12,9 +12,9 @@ static rt_shard* rt_task_join_waiter_shard(rt_executor* ex, uint64_t task_id) {
 // task's id and use its scheduler owner shard. Timer keys USED to do the same
 // and no longer do: like a channel key, a timer key outlives the object it
 // names, so it carries its shard instead (see timer_key, rt_async_waiter.c).
-// A blocking key can be reached the same way -- wake_key_all mints one from a
-// job's task id in rt_async_blocking.c -- and still resolves by dereference
-// here; that arm is the same hazard, unproven and unfixed. Join add/remove and
+// Blocking keys now do the same: the job keeps the key minted while its task
+// is live, so a late blocking-worker completion never resolves through a task
+// table slot the task may already have cleared. Join add/remove and
 // collect-all wake operations must not call this helper as a split "store
 // now, lock later" sequence: rt_async_waiter.c / rt_task_park.c delegate to the
 // join-route helpers, which resolve the join route, lock that shard, and
@@ -36,29 +36,23 @@ rt_waiter_store* rt_waiter_store_for_key(rt_executor* ex, waker_key key) {
         return NULL;
     }
     if (waker_is_net(key)) {
-        // Defensive arm: the add/remove and on-owner wake paths resolve net
-        // keys through the fd-registry-aware helper in rt_async_waiter.c;
-        // only generic wake paths land here, and they never carry net keys
-        // today.
-        return rt_executor_waiter_store_for_shard(ex, rt_net_owner_shard_for_key(ex, key, 0));
+        // Net mutations use the owner-aware branches in rt_async_waiter.c.
+        // Reaching the generic route must not invent a shard.
+        return NULL;
     }
     switch ((waker_kind)key.kind) {
         case WAKER_JOIN:
             return rt_shard_waiter_store(rt_task_join_waiter_shard(ex, key.id));
-        case WAKER_TIMER:
-            // On the shard the key carries, never on the task it names: a timer
-            // key outlives its task, so looking the id up here and reading its
-            // placement reads freed memory.
-            return rt_executor_waiter_store_for_shard(ex, key.owner_shard_id);
-        case WAKER_BLOCKING:
-            return rt_shard_waiter_store(rt_task_owner_shard(ex, get_task(ex, key.id)));
         case WAKER_SCOPE:
 #ifdef RV2_DEBT_283_NEGATIVE_CONTROL
             return rt_shard_waiter_store(rt_scope_owner_shard(ex, get_scope(ex, key.id)));
 #endif
+        case WAKER_TIMER:
+        case WAKER_BLOCKING:
         case WAKER_REMOTE_SPAWN_REPLY:
         case WAKER_REMOTE_TASK_REPLY:
         case WAKER_TRANSPORT_SLOT:
+            // The key outlives its object and carries its stable owner.
             return rt_executor_waiter_store_for_shard(ex, key.owner_shard_id);
         case WAKER_CHAN_SEND:
         case WAKER_CHAN_RECV:
@@ -66,7 +60,7 @@ rt_waiter_store* rt_waiter_store_for_key(rt_executor* ex, waker_key key) {
         case WAKER_CHAN_RECV_RETRY:
             return rt_executor_waiter_store_for_shard(ex, RT_DEBT199_CHANNEL_OWNER_SHARD(key));
         default:
-            return rt_executor_waiter_store(ex);
+            return NULL;
     }
 }
 
@@ -77,22 +71,17 @@ rt_shard* rt_waiter_key_shard(rt_executor* ex, waker_key key) {
         return NULL;
     }
     if (waker_is_net(key)) {
-        uint32_t owner_shard_id = rt_net_owner_shard_probe_locked(
-            ex, (int)key.id, tls_worker_ctx != NULL ? tls_worker_ctx->shard_id : 0);
-        return rt_runtime_shard(rt_executor_runtime(ex),
-                                owner_shard_id != UINT32_MAX ? owner_shard_id : 0);
+        return NULL;
     }
     switch ((waker_kind)key.kind) {
         case WAKER_JOIN:
             return rt_task_join_waiter_shard(ex, key.id);
-        case WAKER_TIMER:
-            return rt_runtime_shard(rt_executor_runtime(ex), key.owner_shard_id);
-        case WAKER_BLOCKING:
-            return rt_task_owner_shard(ex, get_task(ex, key.id));
         case WAKER_SCOPE:
 #ifdef RV2_DEBT_283_NEGATIVE_CONTROL
             return rt_scope_owner_shard(ex, get_scope(ex, key.id));
 #endif
+        case WAKER_TIMER:
+        case WAKER_BLOCKING:
         case WAKER_REMOTE_SPAWN_REPLY:
         case WAKER_REMOTE_TASK_REPLY:
         case WAKER_TRANSPORT_SLOT:
@@ -103,7 +92,7 @@ rt_shard* rt_waiter_key_shard(rt_executor* ex, waker_key key) {
         case WAKER_CHAN_RECV_RETRY:
             return rt_runtime_shard(rt_executor_runtime(ex), RT_DEBT199_CHANNEL_OWNER_SHARD(key));
         default:
-            return rt_runtime_shard0(rt_executor_runtime(ex));
+            return NULL;
     }
 }
 

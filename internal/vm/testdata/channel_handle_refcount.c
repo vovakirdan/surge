@@ -259,8 +259,7 @@ static int mode_two_handles(void) {
         }
     }
     rt_channel_handle_drop(channel);
-    unsigned after_first =
-        (unsigned)atomic_load_explicit(&g_reclaimed_drops, memory_order_acquire);
+    unsigned after_first = (unsigned)atomic_load_explicit(&g_reclaimed_drops, memory_order_acquire);
     // Everything below this line reaches the object through the surviving
     // copy. On a tree with no retain the release above already freed it, and
     // these three lines are the use-after-free that says so.
@@ -280,13 +279,6 @@ static int mode_two_handles(void) {
            (unsigned)atomic_load_explicit(&g_bad_markers, memory_order_acquire));
     return 0;
 }
-
-// The task id the subscription below is registered for. Nothing has to exist
-// behind it: add_waiter reads the id only to stamp an owner hint, and a store
-// entry is what holds the pin -- not the task the entry names. Registering
-// through the runtime's own entry point is the point of the row; a hand-built
-// entry would prove something about this file instead.
-#define HANDLE_SUBSCRIBER_TASK 4242u
 
 // A REGISTRATION refuses the reclaim a handle no longer can.
 //
@@ -318,14 +310,25 @@ static int mode_waiter_pin(void) {
             return handle_fail("a send the buffer had room for was refused");
         }
     }
+    rt_task subscriber;
+    memset(&subscriber, 0, sizeof(subscriber));
+    subscriber.id = atomic_fetch_add_explicit(&ex->next_id, 1, memory_order_relaxed);
+    rt_control_lock(ex);
+    ensure_task_cap(ex, subscriber.id);
+    rt_task_set_placement(&subscriber, 0, TASK_PLACEMENT_GENERIC);
+    rt_task_slot_store(ex, subscriber.id, &subscriber);
+    rt_control_unlock(ex);
     waker_key key = channel_recv_key((const rt_channel*)channel);
-    add_waiter(ex, key, HANDLE_SUBSCRIBER_TASK);
+    add_waiter(ex, key, subscriber.id);
     rt_channel_handle_drop(channel);
     unsigned while_registered =
         (unsigned)atomic_load_explicit(&g_reclaimed_drops, memory_order_acquire);
     // Retiring the entry retires the pin it held, and that release is the last
     // one: the reclaim happens here, three values later than it would have.
-    remove_waiter(ex, key, HANDLE_SUBSCRIBER_TASK);
+    remove_waiter(ex, key, subscriber.id);
+    rt_control_lock(ex);
+    rt_task_slot_store(ex, subscriber.id, NULL);
+    rt_control_unlock(ex);
     printf("waiter pin: sent=%u drops_while_registered=%u reclaimed_drops=%u bad=%u\n",
            (unsigned)atomic_load_explicit(&g_sent, memory_order_acquire),
            while_registered,
@@ -501,7 +504,7 @@ int main(void) {
     if (mode == NULL) {
         return handle_fail("SURGE_CHANNEL_HANDLE_MODE names the row to run");
     }
-    rt_executor* ex = ensure_exec();
+    const rt_executor* ex = ensure_exec();
     if (ex == NULL) {
         return handle_fail("missing executor");
     }
@@ -520,7 +523,7 @@ int main(void) {
         return handle_fail("unknown mode");
     }
     atomic_store_explicit(&g_channel, NULL, memory_order_release);
-    (void)rt_executor_request_shutdown(ex);
+    rt_runtime_shutdown_for_exit();
     if (atomic_load_explicit(&g_bad_markers, memory_order_acquire) != 0) {
         return handle_fail("a value arrived out of storage that had been moved from");
     }

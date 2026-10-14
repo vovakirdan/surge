@@ -24,7 +24,8 @@ const returnOriginSelectSendRefusal = "a `select` or `race` send whose payload c
 // own transfer. A head's result is never delivered: the select writes only the winner's index, a received value is
 // destroyed in a sink, and a joined task's result stays in its record, where a later `.await()` of that task meets
 // the ordinary await transfer. A sent value goes into the channel's ring only if its type and the channel's element
-// type are inert, as an anchored operation's (anchoredOperation). Exactly one arm's result then runs, from the state
+// type are inert or the checker-admitted owned payload is source-free and
+// recursively un-shared, as an anchored operation's (anchoredOperation). Exactly one arm's result then runs, from the state
 // every head left: the value is the join of the arms' values and the flow the join of their flows, as a ternary's.
 // What a task named in a head borrows while it runs is the task check's (owner ruling 2026-09-15): a head's join
 // releases pins only in its own arm, and neither a race's cancel nor a timeout releases any (task_select_arm_joins.go).
@@ -52,17 +53,21 @@ func (b *returnOriginBody) selectTransfer(id ast.ExprID, kind ast.ExprKind, env 
 		if !known {
 			b.pending(arm.Span, returnOriginSelectHeadRefusal)
 		}
+		payload := returnOriginValue{}
 		for _, operand := range head.operands {
 			var err error
 			flow, err = flow.then(func(next returnOriginEnv) (returnOriginFlow, error) {
 				out, headErr := b.expr(operand, next, targets)
+				if operand == head.payload {
+					payload = out.value.clone()
+				}
 				return out.flow, headErr
 			})
 			if err != nil {
 				return returnOriginExprResult{}, err
 			}
 		}
-		if head.payload.IsValid() && flow.normal.reachable && !b.selectSendInert(head) {
+		if head.payload.IsValid() && flow.normal.reachable && !b.selectSendTransferProven(head, payload) {
 			b.pending(u.Builder.Exprs.Get(head.payload).Span, returnOriginSelectSendRefusal)
 		}
 	}
@@ -173,14 +178,14 @@ func (b *returnOriginBody) selectCallHead(id ast.ExprID) (returnOriginSelectHead
 	return returnOriginSelectHead{}, false
 }
 
-// selectSendInert says the sent value and the element of the channel it enters can carry nothing of this frame. The
-// channel is read through a `far` or a reference wrapper; a channel whose element cannot be read is not inert.
-func (b *returnOriginBody) selectSendInert(head returnOriginSelectHead) bool {
+// selectSendTransferProven says the sent value and the element of the channel
+// either carry nothing of this frame or use the source-free un-share transfer.
+// The channel is read through a `far` or reference wrapper.
+func (b *returnOriginBody) selectSendTransferProven(head returnOriginSelectHead, payload returnOriginValue) bool {
 	u := b.function.unit
 	in := u.Sema.TypeInterner
-	if !b.crossingInert(u.Sema.ExprTypes[head.payload]) {
-		return false
-	}
+	payloadType := u.Sema.ExprTypes[head.payload]
+	payloadProven := b.crossingInert(payloadType) || b.sourceFreeUnshareTransfer(payloadType, payload)
 	channel := u.Sema.ExprTypes[head.channel]
 	for range 4 {
 		t, ok := in.Lookup(channel)
@@ -190,5 +195,9 @@ func (b *returnOriginBody) selectSendInert(head returnOriginSelectHead) bool {
 		channel = t.Elem
 	}
 	payloads, handle := in.RuntimeHandlePayloads(channel)
-	return handle && in.IsRuntimeHandleType(channel) && len(payloads) == 1 && b.crossingInert(payloads[0])
+	if !payloadProven || !handle || !in.IsRuntimeHandleType(channel) || len(payloads) != 1 {
+		return false
+	}
+	element := payloads[0]
+	return b.crossingInert(element) || b.unshareTransferType(element)
 }

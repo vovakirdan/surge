@@ -88,22 +88,6 @@ func (e *Executor[P]) ExitScope(scopeID ScopeID) {
 	}
 }
 
-// RegisterChild validates the legacy lowering call. Creation already recorded
-// membership before enqueue; a task created elsewhere is never adopted here.
-func (e *Executor[P]) RegisterChild(scopeID ScopeID, child TaskID) {
-	if e == nil || scopeID == 0 {
-		return
-	}
-	scope := e.scopes[scopeID]
-	if scope == nil {
-		return
-	}
-	task := e.tasks[child]
-	if task == nil || task.CreationScopeID != scope.ID {
-		return
-	}
-}
-
 // CancelAllChildren cancels all children in task order.
 func (e *Executor[P]) CancelAllChildren(scopeID ScopeID) {
 	if e == nil || scopeID == 0 {

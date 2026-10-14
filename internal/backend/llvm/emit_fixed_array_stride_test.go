@@ -178,7 +178,7 @@ func TestArrayIterStrideHandlesDegenerateFixedArrayStride(t *testing.T) {
 func TestFixedArrayElementStoreBoundsChecksStaticLength(t *testing.T) {
 	withRepoStdlib(t)
 
-	ir := emitLLVMFromSource(t, `
+	module, result := lowerMIRFromSource(t, `
 @entrypoint
 fn main() -> int {
     let mut samples: int64[7] = default::<int64[7]>();
@@ -187,13 +187,14 @@ fn main() -> int {
     return 0;
 }
 `)
+	ir, err := EmitModule(module, result.Sema.TypeInterner, result.Symbols.Table, result.FileSet)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	// Located by the array's own storage. A defaulted fixed array used to be a
-	// heap box, so this named `@rt_alloc(i64 56, i64 8)`; it now occupies inline
-	// storage like every other value composite, and that reservation is what
-	// identifies the function holding it. The assertion below is unchanged —
-	// what the test proves is the bounds check, not where the bytes live.
-	body := llvmFunctionContaining(t, ir, "alloca [56 x i8], align 8")
+	// The root poll executes the array accesses. A frame can coincidentally
+	// reserve the same byte count, so allocation size cannot identify this body.
+	body := functionBody(t, ir, findMIRRootBody(t, module).ID)
 	// The length is the third argument, and the report carries a source location
 	// after it, so the capture stops at the argument separator rather than at the
 	// end of the call.

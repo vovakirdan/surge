@@ -69,18 +69,11 @@ func buildRuntimeV2CancelSpawnRaceHarness(t *testing.T, name string, extraFlags 
 	return binPath
 }
 
-// cancelSpawnRaceShardThreads mirrors runLifecycleModeAcrossShards'
-// convention (runtime_v2_lifecycle_behavior_harness_test.go): SURGE_THREADS
-// must equal SURGE_SHARDS whenever SURGE_SHARDS>1 (the runtime enforces
-// this at startup); SURGE_SHARDS=1 tolerates extra worker threads.
-var cancelSpawnRaceShardThreads = map[string]string{"1": "4", "2": "2", "8": "8"}
-
 func runCancelSpawnRaceAcrossShards(t *testing.T, binPath string) {
 	t.Helper()
 	for _, shards := range []string{"1", "2", "8"} {
 		t.Run("shards-"+shards, func(t *testing.T) {
 			env := overrideEnvVar(os.Environ(), "SURGE_SHARDS", shards)
-			env = overrideEnvVar(env, "SURGE_THREADS", cancelSpawnRaceShardThreads[shards])
 			env = overrideEnvVar(env, "SURGE_BLOCKING_THREADS", "1")
 			cmd := exec.Command(binPath)
 			cmd.Env = env
@@ -347,6 +340,8 @@ int main(int argc, char** argv) {
     if (ex == NULL) {
         return fail("missing executor");
     }
-    return mode_cancel_spawn_race(ex);
+    int result = mode_cancel_spawn_race(ex);
+    rt_runtime_shutdown_for_exit();
+    return result;
 }
 `

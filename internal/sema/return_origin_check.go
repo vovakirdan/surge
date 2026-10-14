@@ -172,9 +172,12 @@ func (b *returnOriginBody) checkExpired(value returnOriginValue, span source.Spa
 	}
 }
 
-func (b *returnOriginBody) closeOutcome(outcome returnOriginOutcome, scope symbols.ScopeID, span source.Span) returnOriginOutcome {
+func (b *returnOriginBody) closeOutcome(outcome *returnOriginOutcome, scope symbols.ScopeID, span source.Span) returnOriginOutcome {
+	if outcome == nil {
+		return returnOriginOutcome{}
+	}
 	if !outcome.env.reachable {
-		return outcome
+		return *outcome
 	}
 	closed := outcome.env.leaveScope(scope, outcome.value, b.within)
 	b.checkExpired(closed.value, span)
@@ -193,10 +196,11 @@ func (b *returnOriginBody) closeOutcome(outcome returnOriginOutcome, scope symbo
 }
 
 func (b *returnOriginBody) closeFlow(flow returnOriginFlow, scope symbols.ScopeID, span source.Span) returnOriginFlow {
-	closed := b.closeOutcome(returnOriginOutcome{env: flow.normal, value: returnOriginValueOf()}, scope, span)
+	normal := returnOriginOutcome{env: flow.normal, value: returnOriginValueOf()}
+	closed := b.closeOutcome(&normal, scope, span)
 	out := returnOriginFlow{normal: closed.env, exits: make(map[returnOriginExit]returnOriginOutcome, len(flow.exits))}
 	for key, outcome := range flow.exits {
-		out.exits[key] = b.closeOutcome(outcome, scope, key.site)
+		out.exits[key] = b.closeOutcome(&outcome, scope, key.site)
 	}
 	return out
 }

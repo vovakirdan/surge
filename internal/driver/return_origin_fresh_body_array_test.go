@@ -4,8 +4,8 @@ import "testing"
 
 // A checked non-generic conversion body may return a fresh dynamic array when
 // its element can retain no borrow or storage loan and its summary names no
-// source. A body returning a fixed-field window keeps its source and therefore
-// stays on the ordinary conversion refusal.
+// source. A body returning a fixed-field window keeps its exact source; a
+// caller that consumes that view while the owner is live is safe as well.
 const freshBodyArraySource = `type Win = { cells: uint64[4] };
 extern<Win> {
     fn __to(self: &Win, _: uint64[]) -> uint64[] {
@@ -32,8 +32,6 @@ func TestAnalyzeFreshBodyArrayResult(t *testing.T) {
 	requireOriginSummary(t, analysis, f.owner.File.ID, "fresh", false, []uint32{})
 
 	borrowed := patternFn(t, freshBodyArraySource, "fn borrowed(")
-	originExactPending(t, analysis, f.unit.SourceKey, borrowed, []originRefusal{
-		{originSpan{255, 268, "w to uint64[]"}, originCastRetainRefusal},
-		{originSpan{281, 282, "v"}, originOutgoingRefusal},
-	})
+	originExactPending(t, analysis, f.unit.SourceKey, borrowed, nil)
+	requireOriginSummary(t, analysis, f.owner.File.ID, "borrowed", false, nil)
 }

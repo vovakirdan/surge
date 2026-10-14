@@ -58,7 +58,7 @@ void rt_remote_task_reply_or_finish_with_result(rt_executor* ex,
     // The reply never reached its caller. Finishing with the capability still
     // set keeps the pin accounted for: whoever releases the pending releases it.
     rt_remote_task_pending_finish(ex, pending, status, result_kind, result_source);
-    rt_remote_task_pending_release(pending);
+    rt_remote_task_pending_release_reply(pending);
 }
 
 void rt_remote_task_reply_or_finish(rt_executor* ex,
@@ -266,10 +266,11 @@ static void dispatch_reply(rt_executor* ex, const rt_transport_msg* msg) {
                                   (rt_remote_task_status)pending->reply_status,
                                   pending->result_kind,
                                   &pending->result_source);
-    // Consume (unlink + release): an orphaned reply — the caller already
-    // resumed through the cancel path and dropped its reference — must not
-    // leave a freed pending linked in the list.
+#ifdef RV2_REPLY_UNLINK_NEGATIVE_CONTROL
     rt_remote_task_pending_consume(pending);
+#else
+    rt_remote_task_pending_release_reply(pending);
+#endif
 }
 
 int rt_remote_task_dispatch_message(rt_executor* ex, const rt_transport_msg* msg) {

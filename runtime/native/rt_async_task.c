@@ -11,12 +11,6 @@ static void poll_ready_child_inline(rt_executor* ex, rt_task* current, rt_task* 
 static void publish_created_task(rt_executor* ex, rt_task* task, rt_task* parent);
 static void rt_task_poll_adopt_placement(rt_executor* ex, rt_task* current, const rt_task* target);
 
-// The one constructor behind the four entry points. `affine` pins the task to
-// the creating worker before anything can publish it: the task borrows the
-// creator's frame, and the frame is wherever the creator's carrier is.
-// Creation is the only point that knows that carrier, so the pin is written
-// here whether publication follows at once or not.
-//
 // `cold` is what a call of an `async fn` and an `async { }` block ask for
 // (RV2-DEBT-370; docs/RUNTIME_MODEL_EXPLAINED.ru.md 6.3): the task is recorded
 // exactly as a published one is -- provenance, owning shard, membership and
@@ -29,7 +23,6 @@ static void* task_create(uint64_t poll_fn_id,
                          void* state,
                          const rt_value_ops* result_ops,
                          const rt_value_ops* frame_ops,
-                         int affine,
                          int cold) {
     rt_executor* ex = ensure_exec();
     if (ex == NULL) {
@@ -76,9 +69,6 @@ static void* task_create(uint64_t poll_fn_id,
     }
 
     rt_task* parent = rt_current_task();
-    if (affine) {
-        rt_task_pin_carrier_current(task);
-    }
     publish_created_task(ex, task, parent);
     if (cold) {
         // The creator's own await may poll this one inline, and no other: it
@@ -92,22 +82,6 @@ static void* task_create(uint64_t poll_fn_id,
         return task;
     }
 
-    // Lane-aware compensation-worker check, mirroring wake_task's identical
-    // pattern (rt_async_state.c): only sync-channel-blocked-worker scenarios
-    // need this, so the common case (no compat workers parked) costs one
-    // atomic load and no lock.
-    const rt_channel_blocking_compat* compat = rt_executor_channel_blocking_compat_const(ex);
-    if (compat != NULL &&
-        atomic_load_explicit(&compat->channel_blocked_workers, memory_order_acquire) > 0) {
-        int need_control = !rt_lane_holds_control();
-        if (need_control) {
-            rt_control_lock(ex);
-        }
-        maybe_start_compensation_worker_locked(ex);
-        if (need_control) {
-            rt_control_unlock(ex);
-        }
-    }
     return task;
 }
 
@@ -115,14 +89,7 @@ void* __task_create( // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dc
     uint64_t poll_fn_id,
     void* state,
     const rt_value_ops* result_ops) {
-    return task_create(poll_fn_id, state, result_ops, NULL, 0, 0);
-}
-
-void* __task_create_affine( // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
-    uint64_t poll_fn_id,
-    void* state,
-    const rt_value_ops* result_ops) {
-    return task_create(poll_fn_id, state, result_ops, NULL, 1, 0);
+    return task_create(poll_fn_id, state, result_ops, NULL, 0);
 }
 
 void* __task_create_cold( // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
@@ -130,15 +97,7 @@ void* __task_create_cold( // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,ce
     void* state,
     const rt_value_ops* result_ops,
     const rt_value_ops* frame_ops) {
-    return task_create(poll_fn_id, state, result_ops, frame_ops, 0, 1);
-}
-
-void* __task_create_cold_affine( // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
-    uint64_t poll_fn_id,
-    void* state,
-    const rt_value_ops* result_ops,
-    const rt_value_ops* frame_ops) {
-    return task_create(poll_fn_id, state, result_ops, frame_ops, 1, 1);
+    return task_create(poll_fn_id, state, result_ops, frame_ops, 1);
 }
 
 static void publish_created_task(rt_executor* ex, rt_task* task, rt_task* parent) {
@@ -420,7 +379,7 @@ static void rt_task_poll_adopt_placement(rt_executor* ex, rt_task* current, cons
 // the CURRENT WORKER'S OWN local queue tail (ready_claim_current_local_tail,
 // guarded at the call site above), or a child created cold, in no queue at
 // all, claimed under its owner lock by a worker of its owner shard and, when
-// it is carrier-affine, by its carrier (rt_task_claim_cold_inline,
+// by the one carrier of its owner shard (rt_task_claim_cold_inline,
 // RV2-DEBT-370); by construction (rt_task_inherit_placement
 // copies the parent's owner shard before publish, ) that child's owner
 // shard equals this worker's shard, and it is reachable from no other
@@ -472,9 +431,9 @@ void rt_task_await(void* task, uint8_t* out_kind, void* out_dst) {
     if (target == NULL) {
         return;
     }
-    if (rt_worker_count() > 1) {
+    if (rt_current_task() == NULL) {
         rt_control_lock(ex);
-        rt_trace_control_lock_site(RT_CTRL_SITE_AWAIT_COMPAT);
+        rt_trace_control_lock_site(RT_CTRL_SITE_EXTERNAL_AWAIT);
         if (task_status_load(target) != TASK_WAITING && task_status_load(target) != TASK_DONE) {
             wake_task(ex, target->id, 1);
         }
@@ -514,22 +473,7 @@ void rt_task_await(void* task, uint8_t* out_kind, void* out_dst) {
         rt_control_unlock(ex);
         return;
     }
-    rt_task* current = rt_current_task();
-    run_until_done(ex, target, out_kind);
-    rt_set_current_task(current);
-    uint8_t kind = rt_far_task_take_result(target, current, out_dst);
-    if (kind == 0) {
-        // One thread polls every task to completion here, and a reader
-        // duplicates without yielding, so a reader cannot be out.
-        panic_msg("async: a single-threaded await found a clone reader out");
-        return;
-    }
-    if (out_kind != NULL) {
-        *out_kind = kind;
-    }
-    rt_control_lock(ex);
-    task_release(ex, target);
-    rt_control_unlock(ex);
+    panic_msg("task await requires async lowering");
 }
 
 void rt_task_cancel(void* task) {

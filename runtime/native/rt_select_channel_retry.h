@@ -6,7 +6,7 @@
 // Select's side of the claim-retry budget (rt_channel_retry.h, RV2-DEBT-277).
 //
 // Select first learns that a claim was refused under the channel owner lane,
-// but the compatibility claim helper releases that lane before returning. A
+// but the detached claim helper releases that lane before returning. A
 // release or close may therefore cross the empty retry key before select can
 // subscribe. So an exhausted select installs the exact refused arm, then
 // verifies its exact predicate while holding the same owner lane: still BUSY
@@ -96,7 +96,7 @@ static inline int select_retry_register_then_verify(rt_executor* ex,
             fatal_oom_msg("async: select retry waiter allocation failed");
             return 0;
         }
-        uint32_t owner_hint = task->owner_shard_valid != 0 ? task->owner_shard_id : 0;
+        uint32_t owner_hint = rt_task_owner_shard_id(ex, task);
         task->wait_keys[task->wait_keys_len++] = key;
         // seq == 0: a select subscription, drained whole by a release rather
         // than popped as the channel's oldest waiter (rt_channel_retry.c).

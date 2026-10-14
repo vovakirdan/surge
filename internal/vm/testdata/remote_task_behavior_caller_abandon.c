@@ -197,7 +197,7 @@ int rtb_mode_caller_abandon_filters_by_op_and_caller(void) {
     if (caller_a == NULL || caller_b == NULL) {
         return rtb_fail("caller-abandon-filter: caller task creation failed");
     }
-    const rt_remote_task_pending* target =
+    rt_remote_task_pending* target =
         rtb_caller_abandon_new_pending(ex, RT_REMOTE_TASK_OP_AWAIT, caller_a->id);
     rt_remote_task_pending* other_caller =
         rtb_caller_abandon_new_pending(ex, RT_REMOTE_TASK_OP_AWAIT, caller_b->id);
@@ -206,6 +206,8 @@ int rtb_mode_caller_abandon_filters_by_op_and_caller(void) {
     if (target == NULL || other_caller == NULL || other_op == NULL) {
         return rtb_fail("caller-abandon-filter: pending creation failed");
     }
+    // Keep the target alive while observing its completed teardown.
+    rt_remote_task_pending_add_ref(target);
     // Give the two untouched pendings a second ref each so a wrongful
     // release would leave refs at 1 (observable) rather than freeing them
     // outright (unobservable through this handle alone).
@@ -217,6 +219,7 @@ int rtb_mode_caller_abandon_filters_by_op_and_caller(void) {
     if (target->caller_task_id != 0) {
         return rtb_fail("caller-abandon-filter: target pending's caller_task_id was not cleared");
     }
+    rt_remote_task_pending_release(target);
     if (other_caller->caller_task_id != caller_b->id) {
         return rtb_fail("caller-abandon-filter: a different caller's pending was touched");
     }

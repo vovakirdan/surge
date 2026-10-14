@@ -6,6 +6,7 @@ import (
 	"fortio.org/safecast"
 
 	"surge/internal/ast"
+	"surge/internal/sema"
 	"surge/internal/types"
 )
 
@@ -41,6 +42,7 @@ func (b *surgeStartBuilder) prepareArgsArgv() []Operand {
 	if len(params) == 0 {
 		return nil
 	}
+	args := make([]Operand, 0, len(params))
 
 	// L_argv = call rt_argv()
 	argvType := b.stringArrayType()
@@ -50,6 +52,7 @@ func (b *surgeStartBuilder) prepareArgsArgv() []Operand {
 		b.emit(&Instr{Kind: InstrDrop, Drop: DropInstr{Place: Place{Local: argvLocal}}})
 	}
 	fail := func(message string) {
+		b.dropPreparedArgs(args)
 		dropArgv()
 		b.emitExitWithMessage(message)
 	}
@@ -59,7 +62,6 @@ func (b *surgeStartBuilder) prepareArgsArgv() []Operand {
 		{Kind: OperandCopy, Place: Place{Local: argvLocal}},
 	}, borrowArgContracts(1))
 
-	args := make([]Operand, 0, len(params))
 	for i, param := range params {
 		argIdx, err := safecast.Conv[uint64](i)
 		if err != nil {
@@ -138,6 +140,7 @@ func (b *surgeStartBuilder) prepareArgsArgv() []Operand {
 		b.setTerm(&Terminator{Kind: TermGoto, Goto: GotoTerm{Target: nextBB}})
 
 		b.startBlock(errBB)
+		b.dropPreparedArgs(args)
 		dropArgv()
 		b.emitCallIntrinsic(NoLocalID, "exit", []Operand{{Kind: OperandMove, Place: Place{Local: parseLocal}}},
 			[]ArgContract{ArgContractTransferOwned})
@@ -166,6 +169,16 @@ func (b *surgeStartBuilder) prepareArgsArgv() []Operand {
 	// text. No code after argument preparation needs the source array.
 	dropArgv()
 	return args
+}
+
+func (b *surgeStartBuilder) dropPreparedArgs(args []Operand) {
+	for i := len(args) - 1; i >= 0; i-- {
+		arg := args[i]
+		if arg.Place.Kind == PlaceLocal && arg.Place.Local >= 0 &&
+			int(arg.Place.Local) < len(b.f.Locals) && sema.OwnsHeapIn(b.typesIn, b.f.Locals[arg.Place.Local].Type) {
+			b.emit(&Instr{Kind: InstrDrop, Drop: DropInstr{Place: arg.Place}})
+		}
+	}
 }
 
 func (b *surgeStartBuilder) prepareArgsStdin() []Operand {

@@ -75,7 +75,7 @@ int rtb_mode_seq0_blocking_cancel_drain(void) {
     if (task == NULL) {
         return rtb_fail("seq0 blocking submit failed");
     }
-    waker_key key = blocking_key(task->id);
+    waker_key key = blocking_key(task->id, task->owner_shard_id);
     for (uint32_t i = 0; i < 4000; i++) {
         if (rt_sync_point_reached_count(RT_SYNC_POINT_SP_BLOCKING_POP_BEFORE_STATUS) > before &&
             task_status_load(task) == TASK_WAITING && seq0_entries(ex, key, task->id) == 1) {

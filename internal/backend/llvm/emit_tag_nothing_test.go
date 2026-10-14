@@ -141,7 +141,7 @@ fn main() -> int {
 	if err != nil {
 		t.Fatalf("emit LLVM IR: %v", err)
 	}
-	body := findLLVMFuncBody(t, ir, fmt.Sprintf("fn.%d", findMIRFunc(t, mirMod, "main").ID))
+	body := findLLVMFuncBody(t, ir, fmt.Sprintf("fn.%d", findMIRRootBody(t, mirMod).ID))
 	if !strings.Contains(body, "store ptr null") {
 		t.Fatalf("default Task<int> must store the null runtime-handle sentinel:\n%s", body)
 	}

@@ -20,9 +20,9 @@ func TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut(t *testing.T) {
 
 	source := string(sourceBytes)
 	netOwnedAccessors := []string{
-		"rt_executor_net_poll_scratch",
-		"rt_executor_fd_registry",
-		"rt_executor_fd_registry_const",
+		"rt_executor_net_poll_scratch_for_shard",
+		"rt_executor_fd_registry_for_shard",
+		"rt_executor_fd_registry_const_for_shard",
 	}
 	var offenders []string
 	for _, name := range netOwnedAccessors {
@@ -70,7 +70,7 @@ func TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut(t *testing.T) {
 		{
 			path: "runtime/native/rt_net_accept_group.c",
 			names: []string{
-				"rt_net_register_open_fd_on_owner",
+				"rt_net_register_open_fd_on_owner_generation",
 				"rt_net_interest_present_for_key",
 				"rt_net_fd_ready_now",
 				"rt_net_wait_accept",
@@ -79,7 +79,7 @@ func TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut(t *testing.T) {
 		{
 			path: "runtime/native/rt_net_lifecycle.c",
 			names: []string{
-				"rt_net_owner_shard_or_compat",
+				"rt_net_resolve_owner_shard",
 				"rt_net_close_fd_on_owner",
 				"rt_net_close_listener_members",
 			},
@@ -104,10 +104,6 @@ func TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut(t *testing.T) {
 				"rt_net_owner_shard_probe_locked",
 				"fd_registry_bridge_net_detach_if_last_on_owner",
 			},
-		},
-		{
-			path:  "runtime/native/rt_async_state.c",
-			names: []string{"next_ready"},
 		},
 		{
 			// park_current extracted to rt_task_park.c.
@@ -139,21 +135,17 @@ func TestRuntimeV2AcceptNetOwnershipNoShard0Shortcut(t *testing.T) {
 		t.Fatalf("net-owned paths still route through shard 0: %s; pass explicit owner shards", strings.Join(offenders, ", "))
 	}
 
-	// Stays-global compatibility exemptions:
-	// channel blocking compat, generic waiter-store compat, and scheduler
-	// compatibility until owner placement is defined. These paths may keep
-	// explicit shard-0/global accessors while net ownership migrates.
-	staysGlobal := []string{
+	// The one-carrier-per-shard runtime has no implicit shard-0 scheduler or
+	// waiter-store view. Every live caller resolves an explicit owner shard.
+	forbiddenGlobal := []string{
 		"rt_executor_scheduler",
 		"rt_executor_scheduler_const",
-		"rt_executor_channel_blocking_compat",
-		"rt_executor_channel_blocking_compat_const",
 		"rt_executor_waiter_store",
 		"rt_executor_waiter_store_const",
 	}
-	for _, name := range staysGlobal {
-		if _, ok := cFunctionBody(source, name); !ok {
-			t.Fatalf("documented stays-global accessor %s not found in rt_runtime.c", name)
+	for _, name := range forbiddenGlobal {
+		if _, ok := cFunctionBody(source, name); ok {
+			t.Fatalf("implicit shard-0 accessor %s must be removed", name)
 		}
 	}
 }

@@ -123,8 +123,11 @@ func TestAnalyzeFarSelectors(t *testing.T) {
 			f.unit.Sema.CrossingLowering = nil
 		})
 		// Whichever body is solved first stops the analysis at its own untyped selector.
-		wants := []string{fmt.Sprintf("return origins: expression %d is not typed in %s", selectors[0], f.unit.SourceKey),
-			fmt.Sprintf("return origins: expression %d is not typed in %s", selectors[1], f.unit.SourceKey)}
+		wants := make([]string, 0, len(selectors))
+		for _, selector := range selectors {
+			node := f.unit.Builder.Exprs.Get(selector)
+			wants = append(wants, fmt.Sprintf("return origins: expression %d kind=%d span=%v is not typed in %s", selector, node.Kind, node.Span, f.unit.SourceKey))
+		}
 		if err == nil || analysis != nil || !slices.Contains(wants, err.Error()) {
 			t.Errorf("want one of %q and nil analysis; got %v, %+v", wants, err, analysis)
 		}

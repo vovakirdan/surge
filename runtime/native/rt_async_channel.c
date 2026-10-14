@@ -67,8 +67,10 @@ void* rt_channel_new(uint64_t capacity, const rt_value_ops* ops, uint64_t elemen
     ch->ops = ops;
     ch->element_type_id = element_type_id;
     const rt_task* creator = rt_current_task();
-    ch->owner_shard_id =
-        creator != NULL && creator->owner_shard_valid != 0 ? creator->owner_shard_id : 0;
+    // A channel created outside task context is explicitly rooted on shard 0.
+    // A task-context creator must already have the owner assigned at task
+    // publication; the resolver fails closed if it does not.
+    ch->owner_shard_id = creator != NULL ? rt_task_owner_shard_id(ensure_exec(), creator) : 0;
 
     uint8_t* base = (uint8_t*)ch;
     uint64_t offset = channel_align_up(channel_ring_offset(), (uint64_t)align);
@@ -304,7 +306,7 @@ static uint8_t rt_channel_recv_inner(void* channel, void* dst) {
                     }
                     // A retry leaves the next candidate to be tried; a refused
                     // or staged transfer ends this refill. Compat senders never
-                    // park entries while RUNNING, so no compat fallback exists.
+                    // park entries while RUNNING, so no fallback exists.
                     if (channel_refill_from_parked_sender_locked(ex, ch_shard, ch, sender, 0) ==
                         RT_CHANNEL_REFILL_RETRY) {
                         continue;
@@ -361,12 +363,11 @@ static uint8_t rt_channel_recv_inner(void* channel, void* dst) {
                 (void)rt_park_pool_commit_take_locked(&ch->parks, &sender_slot);
                 // The commit released the sender's slot, BUSY while we took.
                 rt_channel_claim_released_locked(ex, ch_shard, ch);
-                int pushed = wake_task_on_shard_locked(
+                (void)wake_task_on_shard_locked(
                     ex, ch_shard, sender, channel_wake_force_inject_enabled(), 0, 1, NULL);
                 task_release_lane_aware(ex, sender);
                 channel_end_park_locked(ex, ch_shard, ch, &sender_slot);
                 rt_shard_unlock(ch_shard);
-                channel_compat_broadcast_if_needed(ex, pushed);
                 rt_channel_retry_reset(task);
                 return 1;
             }

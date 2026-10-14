@@ -70,7 +70,7 @@ func TestReturnSourceContractDeclarations(t *testing.T) {
 				!slices.Equal(method.ReturnSourceSyntax.Sources().Slots(), []uint32{test.slot}) {
 				t.Fatal("contract request lost its original owner, physical slots or typed roots")
 			}
-			state := ValidateDeclaredReturnSources(result.TypeInterner, request).Status
+			state := ValidateDeclaredReturnSources(result.TypeInterner, &request).Status
 			if test.name == "generic_deferred" || test.name == "original_owner" {
 				if state != ReturnSourcesDeferred || !types.ContainsGenericParam(result.TypeInterner, request.Result()) {
 					t.Fatal("generic contract was replaced by a concrete declaration")

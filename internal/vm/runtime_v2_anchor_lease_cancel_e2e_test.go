@@ -72,7 +72,7 @@ fn main() -> int {
 func TestRuntimeV2AnchoredCancelInFlightKeepsOneHandleOwner(t *testing.T) {
 	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2AnchorLeaseCancelSource, nil)
 	env := append(envWithStdlib(repoRoot(t)),
-		"SURGE_SHARDS=2", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1")
+		"SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1")
 	// Six rounds: the double drop showed in three of six before the fix, so
 	// one green run would say nothing.
 	for round := range 6 {

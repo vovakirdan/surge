@@ -110,7 +110,7 @@ func runtimePointerAnswers() map[string]runtimeAnswer {
 			"panic_msg on a refused task, job or channel block (runtime/native/rt_async_task.c, "+
 				"rt_async_blocking.c, rt_async_channel.c); the NULL beside it answers an "+
 				"executor that ensure_exec returns a static for and never fails to give",
-			"__task_create", "__task_create_affine", "__task_create_cold", "__task_create_cold_affine",
+			"__task_create", "__task_create_cold",
 			"__task_state", "checkpoint", "rt_sleep",
 			"rt_blocking_submit", "rt_channel_new"),
 		classified(refusalIsReported,

@@ -49,6 +49,9 @@ func (e *Emitter) collectStringConsts() {
 						e.collectOperand(&ins.Crossing.State.Fields[k].Value)
 					}
 					for k := range ins.Crossing.Captures {
+						if ins.Crossing.CapturesPacked {
+							break
+						}
 						e.collectOperand(&ins.Crossing.Captures[k].Value)
 					}
 					for k := range ins.Crossing.RemoteOps {

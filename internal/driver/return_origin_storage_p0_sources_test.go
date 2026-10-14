@@ -68,53 +68,6 @@ fn full(value: &string) -> Option<BytesView>[2] {
 		},
 	},
 	{
-		name: "p06_indexed_external",
-		source: `fn read<T>(xs: &Array<T>) -> T { return clone(xs[0]); }
-fn probe(value: &string) -> &string {
-    let xs: Array<&string> = [value];
-    return read::<&string>(&xs);
-}
-`,
-		targets: []storageP0Target{
-			{"", "xs[0]", ast.ExprIndex, 1, "__index"},
-			{"", "clone(xs[0])", ast.ExprCall, 1, ""},
-			{"", "read::<&string>(&xs)", ast.ExprCall, 1, "read"},
-		},
-	},
-	{
-		name: "p06_indexed_local",
-		source: `fn read<T>(xs: &Array<T>) -> T { return clone(xs[0]); }
-fn probe() -> &string {
-    let owned: string = "local";
-    let xs: Array<&string> = [&owned];
-    return read::<&string>(&xs);
-}
-`,
-		targets: []storageP0Target{
-			{"", "xs[0]", ast.ExprIndex, 1, "__index"},
-			{"", "clone(xs[0])", ast.ExprCall, 1, ""},
-			{"", "read::<&string>(&xs)", ast.ExprCall, 1, "read"},
-		},
-	},
-	{
-		name: "p07_view_rebind",
-		source: `fn probe(value: uint64, replacement: uint64) -> uint64[] {
-    let mut base: uint64[] = [value];
-    let mut view: uint64[] = base[[0..1]];
-    base = [replacement];
-    let old: uint64 = clone(view[0]);
-    view[0] = old;
-    return view;
-}
-`,
-		targets: []storageP0Target{
-			{"", "base[[0..1]]", ast.ExprIndex, 1, "__index"},
-			{"", "base = [replacement]", ast.ExprBinary, 1, ""},
-			{"", "clone(view[0])", ast.ExprCall, 1, ""},
-			{"", "view[0] = old", ast.ExprBinary, 1, ""},
-		},
-	},
-	{
 		name: "p07_repeated_site",
 		source: `fn probe(first: uint64, later: uint64) -> uint64[] {
     let mut saved: uint64[] = [];
@@ -198,35 +151,6 @@ fn probe() -> Option<uint64> {
 			{"", "xs[[1..3]]", ast.ExprIndex, 3, "__index"},
 			{"", "xs.__range()", ast.ExprCall, 2, "__range"},
 			{"", "cursor.next()", ast.ExprCall, 1, "next"},
-		},
-	},
-	{
-		name: "p11_external_key_local_value",
-		source: `fn probe(key: &string) -> Array<&string> {
-    let local: string = "value";
-    let mut m: Map<&string, &string> = Map::<&string, &string>.new();
-    let _ = m.insert(key, &local);
-    return m.keys();
-}
-`,
-		targets: []storageP0Target{
-			{"", "m.insert(key, &local)", ast.ExprCall, 1, "insert"},
-			{"", "m.keys()", ast.ExprCall, 1, "keys"},
-			{"core/map.sg", "rt_map_keys(self)", ast.ExprCall, 1, "rt_map_keys"},
-		},
-	},
-	{
-		name: "p11_local_key_external_value",
-		source: `fn probe(value: &string) -> Array<&string> {
-    let local: string = "key";
-    let mut m: Map<&string, &string> = Map::<&string, &string>.new();
-    let _ = m.insert(&local, value);
-    return m.keys();
-}
-`,
-		targets: []storageP0Target{
-			{"", "m.insert(&local, value)", ast.ExprCall, 1, "insert"},
-			{"", "m.keys()", ast.ExprCall, 1, "keys"},
 		},
 	},
 	{

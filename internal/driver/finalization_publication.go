@@ -46,6 +46,22 @@ func finalizeDiagnoseResult(ctx context.Context, res *DiagnoseResult) (bool, err
 	return returnOriginVerdict(outcome.analysis)
 }
 
+func finalizeDiagnoseWithoutReturnOrigins(ctx context.Context, res *DiagnoseResult) (bool, error) {
+	if res == nil || res.Bag == nil {
+		return true, fmt.Errorf("finalization: missing diagnosed result or diagnostic bag")
+	}
+	if res.Bag.HasErrors() {
+		return true, nil
+	}
+	if res.Sema == nil || res.Symbols == nil || res.Builder == nil || !res.FileID.IsValid() {
+		return true, fmt.Errorf("finalization: missing original typed source artifacts")
+	}
+	if err := FinalizeInstantiationClosure(ctx, res, 64); err != nil {
+		return true, fmt.Errorf("instantiation closure: %w", err)
+	}
+	return res.Bag.HasErrors(), nil
+}
+
 // ErrDiagnosticsReported is what the merge seam answers when the whole-program
 // finalization refused something: the refusal is in the bag, and lowering on
 // past it would only report the decision it never published as an internal

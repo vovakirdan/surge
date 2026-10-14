@@ -201,7 +201,7 @@ func (a *returnOriginAnalyzer) tagPayloadArgumentMatches(u *returnOriginUnitInde
 
 // Retained calls after an abrupt exit are checked here even when body flow
 // never visits them. The source proof cannot substitute for current authority.
-func (a *returnOriginAnalyzer) checkTagUse(use ConcreteInstantiationUse) string {
+func (a *returnOriginAnalyzer) checkTagUse(use *ConcreteInstantiationUse) string {
 	if reason := a.genericInstanceKind(use.Callee, use.CalleeTemplate, use.TemplateArgs, InstantiationTag); reason != "" {
 		return reason
 	}
@@ -210,10 +210,10 @@ func (a *returnOriginAnalyzer) checkTagUse(use ConcreteInstantiationUse) string 
 		use.Site.Start < caller.item.Span.Start || use.Site.End > caller.item.Span.End {
 		return "generic tag use disagrees with its owning caller"
 	}
-	reason := a.checkTagCallUse(caller, &use)
+	reason := a.checkTagCallUse(caller, use)
 	// An implicit Some/Success wrap the checker recorded at this exact
 	// site is a tag use with no call expression; certify its instance instead.
-	if conversion, found := a.checkTagConversionUse(caller, &use); found && reason != "" {
+	if conversion, found := a.checkTagConversionUse(caller, use); found && reason != "" {
 		return conversion
 	}
 	return reason
@@ -237,7 +237,48 @@ func (a *returnOriginAnalyzer) checkTagCallUse(caller *returnOriginFunction, use
 	if reason != "" {
 		return reason
 	}
-	if tag != use.CalleeTemplate {
+	selected := caller.unit.Symbols.ExprSymbols[id]
+	remap := caller.unit.Publication.RootToLocalSymbols
+	sameTag := tag == use.CalleeTemplate || slices.Contains(remap[tag], use.CalleeTemplate) ||
+		slices.Contains(remap[use.CalleeTemplate], selected)
+	if !sameTag && caller.unit.authority.InstantiationIdentity != nil {
+		identity := caller.unit.authority.InstantiationIdentity
+		tagKey, tagErr := identity.ResolveTemplate(tag)
+		useKey, useErr := identity.ResolveTemplate(use.CalleeTemplate)
+		sameTag = tagErr == nil && useErr == nil && tagKey != "" && tagKey == useKey
+	}
+	if !sameTag {
+		left := caller.unit.Symbols.Table.Symbols.Get(selected)
+		right := caller.unit.Symbols.Table.Symbols.Get(use.CalleeTemplate)
+		sameTag = left != nil && right != nil && left.Kind == symbols.SymbolTag && right.Kind == symbols.SymbolTag &&
+			left.Name == right.Name && left.Span == right.Span && left.ModulePath == right.ModulePath &&
+			left.Signature != nil && right.Signature != nil &&
+			canonicalSignatureIdentity(left.Signature) == canonicalSignatureIdentity(right.Signature)
+	}
+	if !sameTag {
+		graph := caller.unit.authority.InstantiationGraph
+		roots := graph.Roots()
+		for i := range roots {
+			root := &roots[i]
+			if root.Kind == InstantiationTag && root.Template == tag && root.Witness.Site == use.Site &&
+				root.Witness.SourceKey == use.SourceKey {
+				sameTag = true
+				break
+			}
+		}
+		if !sameTag {
+			edges := graph.Edges()
+			for i := range edges {
+				edge := &edges[i]
+				if edge.Kind == InstantiationTag && edge.Callee == tag && edge.Witness.Site == use.Site &&
+					edge.Witness.SourceKey == use.SourceKey && edge.Caller == caller.candidate.Symbol {
+					sameTag = true
+					break
+				}
+			}
+		}
+	}
+	if !sameTag {
 		return "generic tag use disagrees with its selected source declaration"
 	}
 	if use.Caller != (InstanceKey{}) {

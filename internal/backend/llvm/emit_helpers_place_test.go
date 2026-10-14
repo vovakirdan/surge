@@ -34,7 +34,7 @@ fn main() -> int {
 `
 
 	mirMod, result := lowerMIRFromSource(t, sourceCode)
-	mainFn := findMIRFunc(t, mirMod, "main")
+	mainFn := findMIRRootBody(t, mirMod)
 	docLocal := findMIRLocal(t, mainFn, "doc")
 	entryLocal := findMIRLocal(t, mainFn, "entry")
 	keyLocal := findMIRLocal(t, mainFn, "key")
@@ -108,6 +108,12 @@ func findMIRFunc(t *testing.T, mod *mir.Module, name string) *mir.Func {
 	}
 	t.Fatalf("missing MIR function %q", name)
 	return nil
+}
+
+// The synchronous source entrypoint has only this executable activation.
+func findMIRRootBody(t *testing.T, mod *mir.Module) *mir.Func {
+	t.Helper()
+	return findMIRFunc(t, mod, "__surge_root$entry$poll")
 }
 
 func findMIRLocal(t *testing.T, fn *mir.Func, name string) mir.LocalID {

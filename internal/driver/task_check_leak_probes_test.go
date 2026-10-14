@@ -55,7 +55,7 @@ func taskCheckErrorCodes(t *testing.T, probe taskCheckProbe) (string, []*diag.Di
 		if d.Severity >= diag.SevError {
 			seen[d.Code.ID()] = true
 			errs = append(errs, d)
-			t.Logf("TASK_CHECK %s %s: %s", probe.name, d.Code.ID(), d.Message)
+			t.Logf("TASK_CHECK %s %s at %v: %s notes=%+v", probe.name, d.Code.ID(), d.Primary, d.Message, d.Notes)
 		}
 	}
 	codes := make([]string, 0, len(seen))

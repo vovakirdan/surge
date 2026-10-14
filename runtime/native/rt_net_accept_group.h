@@ -14,7 +14,6 @@ typedef enum {
     RT_NET_WAIT_WRITE = 2,
 } RtNetWaitKind;
 
-int rt_net_register_open_fd_on_owner(rt_executor* ex, uint32_t owner_shard_id, int fd);
 // (RV2-DEBT-010): register and report the fd-registry row
 // generation so the caller can stamp it into the public handle.
 int rt_net_register_open_fd_on_owner_generation(rt_executor* ex,

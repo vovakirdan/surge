@@ -10,7 +10,7 @@ import (
 // TestRuntimeV2LifecycleScopeEnterRegisterJoinExit exercises the normal
 // same-owner scope lifecycle directly at the C level: two children (one
 // completing immediately, one yielding a few times first) acquire membership
-// at creation, the compatibility register calls validate it, join_all parks the
+// at creation, the owner-routed register calls validate it, join_all parks the
 // owner until both drain, and the owner exits cleanly.
 // This gives file:line-precise coverage of the park/wake path itself ahead
 // of the scope-owner-lane migration (S5-Q7/Q8/Q10), complementing the
@@ -18,7 +18,7 @@ import (
 // runtime_v2_task_scope_blocking_waiter_contract_test.go.
 func TestRuntimeV2LifecycleScopeEnterRegisterJoinExit(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarness(t)
-	env := lifecycleEnv("SURGE_SHARDS=1", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1")
+	env := lifecycleEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1")
 	stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "scope-basic", env)
 	if exitCode != 0 {
 		t.Fatalf("scope enter/register/join/exit failed (code=%d)\nstdout:\n%s\nstderr:\n%s",
@@ -30,7 +30,7 @@ func TestRuntimeV2LifecycleScopeEnterRegisterJoinExit(t *testing.T) {
 // completion branch directly at the C level. Both children acquire membership
 // at creation before becoming runnable. Cancelling one child must atomically
 // retire that member, set `failfast_triggered`, cancel the still-live sibling,
-// and wake the owner. The final compatibility register call is deliberately a
+// and wake the owner. The final owner-routed register call is deliberately a
 // no-op validator: it proves an already-completed task is not adopted or
 // counted again. The answer is observed through `rt_scope_join_all`'s failfast
 // out parameter. This complements, rather than
@@ -43,7 +43,7 @@ func TestRuntimeV2LifecycleScopeEnterRegisterJoinExit(t *testing.T) {
 // raw C harness. Guards S5-Q8/S5-Q9 (rule 3).
 func TestRuntimeV2LifecycleScopeFailfastCancellation(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarness(t)
-	env := lifecycleEnv("SURGE_SHARDS=1", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1")
+	env := lifecycleEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1")
 	stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "scope-failfast", env)
 	if exitCode != 0 {
 		t.Fatalf("scope failfast cancellation failed (code=%d)\nstdout:\n%s\nstderr:\n%s",
@@ -62,7 +62,7 @@ func TestRuntimeV2LifecycleScopeFailfastCancellation(t *testing.T) {
 // pending children. Guards S5-Q14 ahead of the next implementation step.
 func TestRuntimeV2LifecycleScopeCancelledPollTeardown(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarness(t)
-	env := lifecycleEnv("SURGE_SHARDS=1", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1")
+	env := lifecycleEnv("SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1")
 	stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "scope-cancelled-poll-teardown", env)
 	if exitCode != 0 {
 		t.Fatalf("cancelled-poll scope teardown failed (code=%d)\nstdout:\n%s\nstderr:\n%s",
@@ -120,14 +120,11 @@ func TestRuntimeV2LifecycleScopeCancelledPollTeardownAcrossShards(t *testing.T) 
 // same-owner and never take this path (see their comment above).
 func TestRuntimeV2LifecycleScopeCrossOwnerChildDone(t *testing.T) {
 	binPath := buildRuntimeV2LifecycleHarness(t)
-	// SURGE_THREADS must equal SURGE_SHARDS whenever SURGE_SHARDS>1 (runtime
-	// startup requirement, matching runLifecycleModeAcrossShards).
 	for _, shards := range []int{2, 8} {
 		shards := shards
 		t.Run(fmt.Sprintf("shards-%d", shards), func(t *testing.T) {
 			env := lifecycleEnv(
 				fmt.Sprintf("SURGE_SHARDS=%d", shards),
-				fmt.Sprintf("SURGE_THREADS=%d", shards),
 				"SURGE_BLOCKING_THREADS=1")
 			stdout, stderr, exitCode := runLifecycleHarness(t, binPath, "scope-cross-owner", env)
 			if exitCode != 0 {
@@ -182,8 +179,6 @@ static void poll_scope_owner(void) {
         void* child_b = __task_create(POLL_SCOPE_CHILD_SPIN, NULL, rt_channel_opaque_word_ops());
         atomic_store_explicit(&g_scope_child_a, child_a, memory_order_release);
         atomic_store_explicit(&g_scope_child_b, child_b, memory_order_release);
-        rt_scope_register_child(handle, child_a);
-        rt_scope_register_child(handle, child_b);
         atomic_store_explicit(&g_scope_owner_phase, 1, memory_order_release);
         rt_async_yield(NULL, 0);
         return;
@@ -209,9 +204,8 @@ static void poll_scope_cancel_owner(void) {
     if (phase == 0) {
         uint64_t handle = rt_scope_enter(false);
         atomic_store_explicit(&g_cancel_scope_handle, handle, memory_order_release);
-        void* child = __task_create(POLL_PARK_FOREVER, NULL, rt_channel_opaque_word_ops());
+        void* child = spawn_pinned_in_scope(ensure_exec(), POLL_PARK_FOREVER, 0);
         atomic_store_explicit(&g_cancel_child, child, memory_order_release);
-        rt_scope_register_child(handle, child);
         atomic_store_explicit(&g_cancel_owner_phase, 1, memory_order_release);
 #ifdef RT_TEST_SYNC_POINTS
         // Proving builds enter the retry teardown directly, with no carried
@@ -234,9 +228,8 @@ static _Atomic(void*) g_failfast_sibling;
 // Creates two members before either becomes runnable, then waits (by direct
 // status peek -- no separate handle, no extra ref) for a harness-cancelled
 // victim to reach TASK_DONE+TASK_RESULT_CANCELLED. That member completion must
-// fire failfast, cancel the sibling, and wake the owner. The register call made
-// after completion is an ABI-validator no-op and must not reincarnate the task.
-// Phase 2 confirms the failfast answer once the sibling drains.
+// fire failfast, cancel the sibling, and wake the owner. Phase 2 confirms the
+// failfast answer once the sibling drains.
 static void poll_scope_owner_failfast(void) {
     uint32_t phase = atomic_load_explicit(&g_failfast_owner_phase, memory_order_acquire);
     if (phase == 0) {
@@ -246,7 +239,6 @@ static void poll_scope_owner_failfast(void) {
         void* victim = __task_create(POLL_SPIN_FOREVER, NULL, rt_channel_opaque_word_ops());
         atomic_store_explicit(&g_failfast_sibling, sibling, memory_order_release);
         atomic_store_explicit(&g_failfast_victim, victim, memory_order_release);
-        rt_scope_register_child(handle, sibling);
         atomic_store_explicit(&g_failfast_owner_phase, 1, memory_order_release);
         rt_async_yield(NULL, 0);
         return;
@@ -257,8 +249,6 @@ static void poll_scope_owner_failfast(void) {
             rt_async_yield(NULL, 0);
             return;
         }
-        uint64_t handle = atomic_load_explicit(&g_failfast_scope_handle, memory_order_acquire);
-        rt_scope_register_child(handle, victim);
         atomic_store_explicit(&g_failfast_owner_phase, 2, memory_order_release);
         rt_async_yield(NULL, 0);
         return;
@@ -290,7 +280,6 @@ static void poll_scope_owner_forever(void) {
         atomic_store_explicit(&g_scope_forever_handle, handle, memory_order_release);
         void* child = __task_create(POLL_PARK_FOREVER, NULL, rt_channel_opaque_word_ops());
         atomic_store_explicit(&g_scope_forever_child, child, memory_order_release);
-        rt_scope_register_child(handle, child);
         atomic_store_explicit(&g_scope_forever_phase, 1, memory_order_release);
     }
     uint64_t handle = atomic_load_explicit(&g_scope_forever_handle, memory_order_acquire);

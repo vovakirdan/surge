@@ -1,7 +1,6 @@
 package vm_test
 
 import (
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -231,32 +230,9 @@ func TestRuntimeV2RangeWithCountedBoundsCrossesIntoBlocking(t *testing.T) {
 	}
 }
 
-// The cursor, refused by name at run time.
-//
-// `arr.__range()` and a `for` over an array both build a Range object of the
-// OTHER shape: its two slots hold the element data pointer and the stride, an
-// interior pointer into a buffer the origin shard keeps reading. Sema cannot
-// see the difference -- both shapes are `Range<T>` -- so the refusal is the
-// runtime's, taken on the object's own shape byte, the way rt_array_unshare_walk
-// refuses a view.
-//
-// This row guards an opening rather than closing an old hole, and the
-// distinction is worth stating because the two look alike from here. The
-// program below did not compile before this lane: a cursor over a `float[]` is
-// a `Range<float>`, and EVERY `Range<float>` was refused at the crossing gate
-// for its bounds. Lifting that refusal is what let this shape reach a worker at
-// all, so the runtime refusal is not an improvement on the old behaviour -- it
-// is the thing that keeps the lifting from being a regression, and cutting it
-// would hand a worker an interior pointer into a buffer this thread is reading.
-//
-// The hole that IS old is the same program over an `int[]`: a `Range<int>`
-// carries no counted block, so no crossing gate arms a walk for it, no call is
-// made, and this refusal is never reached. Measured on the tree before this
-// lane and after it, unchanged: the worker returns 11+22+33 = 66, read out of
-// the origin shard's live buffer. Closing it means arming the walk for every
-// range whatever its bounds hold -- the argument the array walk already makes
-// about its own view check, that the runtime is asked a question no type can
-// answer -- and the refusal it would then reach is the one this row runs.
+// An array cursor is a borrow of the array buffer. A blocking body executes on
+// another thread, so the capture is rejected before MIR and before any payload
+// can cross.
 const runtimeV2RangeCursorCrossingSource = `
 async fn run() -> int {
     let xs: float[] = [1.5, 2.5, 3.5];
@@ -280,28 +256,14 @@ fn main() -> int {
 }
 `
 
-const runtimeV2RangeCursorRefusalText = "panic VM1003: array cursor cannot cross a shard boundary: " +
-	"it reads elements out of the buffer the origin shard keeps; cross the array itself and walk it " +
-	"on the other side"
-
 func TestRuntimeV2ArrayCursorCannotCrossIntoBlocking(t *testing.T) {
-	outputPath := buildRuntimeV2CrossingSource(t, runtimeV2RangeCursorCrossingSource, nil)
-	env := envWithStdlib(repoRoot(t))
-	for _, shards := range []int{2, 8} {
-		shardEnv := overrideEnvVar(env, "SURGE_SHARDS", strconv.Itoa(shards))
-		shardEnv = overrideEnvVar(shardEnv, "SURGE_THREADS", strconv.Itoa(shards))
-		_, result := runBinaryWithTimeout(t, outputPath, shardEnv, 60*time.Second)
-		if result.exitCode == 0 {
-			t.Fatalf("shards=%d: the cursor crossed and the program completed; the worker read the "+
-				"origin shard's buffer\nstdout:\n%s\nstderr:\n%s", shards, result.stdout, result.stderr)
-		}
-		if strings.Contains(result.stdout, "range-cursor-crossed") {
-			t.Fatalf("shards=%d: the blocking body ran, so the crossing already happened\nstdout:\n%s",
-				shards, result.stdout)
-		}
-		if !strings.Contains(result.stderr, runtimeV2RangeCursorRefusalText) {
-			t.Fatalf("shards=%d: stderr does not carry the refusal by name\nwant substring:\n%s\ngot:\n%s",
-				shards, runtimeV2RangeCursorRefusalText, result.stderr)
+	t.Setenv("SURGE_STDLIB", repoRoot(t))
+	bag := diagnoseSource(t, runtimeV2RangeCursorCrossingSource)
+	for _, item := range bag.Items() {
+		if item.Code.ID() == "SEM3133" && strings.Contains(item.Message, "range cursor") &&
+			strings.Contains(item.Message, "owner shard") {
+			return
 		}
 	}
+	t.Fatalf("missing compile-time range-cursor crossing refusal: %+v", bag.Items())
 }

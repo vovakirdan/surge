@@ -1,5 +1,12 @@
+#ifndef _POSIX_C_SOURCE
+// setenv is a POSIX interface; this feature-test macro uses its standard name.
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include "remote_task_behavior.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 static int lease_registry_empty(rt_executor* ex) {
@@ -23,7 +30,6 @@ static int wait_release(rt_executor* ex, rtb_child_state* child, uint32_t owner,
             return 1;
         }
         rtb_drain(ex, owner);
-        (void)run_ready_one(ex);
         rtb_sleep_us(1000);
     }
     return 0;
@@ -107,6 +113,8 @@ int rtb_mode_queue_failure(void) {
     rt_far_task_handle* handle = rtb_publish_handle(&child, 0);
     if (handle == NULL)
         return rtb_fail("queue-failure publication failed");
+    if (setenv("SURGE_TEST_HOLD_TRANSPORT_DRAIN", "1", 1) != 0)
+        return rtb_fail("queue-failure drain hold setup failed");
     uint64_t child_task_id = handle->task_id;
     rtb_lifecycle_state state;
     memset(&state, 0, sizeof(state));
@@ -127,37 +135,44 @@ int rtb_mode_queue_failure(void) {
     if (parked == NULL) {
         return rtb_fail("parked caller published no pending");
     }
+    // visible_pending is only a borrowed observation. Shutdown can let the
+    // caller consume its own reference before this thread inspects the
+    // terminal status, so hold one explicit test reference across shutdown.
+    rt_remote_task_pending_add_ref(parked);
     (void)caller;
-    (void)rt_executor_request_shutdown(ex);
+    const char* failure = NULL;
+    if (rt_executor_request_shutdown(ex) != RT_RUNTIME_STATUS_OK) {
+        failure = "executor shutdown failed";
+    }
     int resolved = 0;
-    for (uint32_t i = 0; i < 5000 && !resolved; i++) {
+    for (uint32_t i = 0; failure == NULL && i < 5000 && !resolved; i++) {
         resolved = rt_remote_task_pending_snapshot(parked, NULL) ==
                    RT_REMOTE_TASK_STATUS_DESTINATION_SHUTDOWN;
         if (!resolved) {
             rtb_sleep_us(1000);
         }
     }
-    if (!resolved) {
-        return rtb_fail("shutdown did not resolve the parked await as destination-shutdown");
+    if (failure == NULL && !resolved) {
+        failure = "shutdown did not resolve the parked await as destination-shutdown";
     }
-    if (rt_transport_debug_snapshot(owner).reply_reserved != 0 ||
-        rt_remote_admission_orphan_count() != 0) {
-        return rtb_fail("the parked await's reply slot was not given back at shutdown");
+    if (failure == NULL && (rt_transport_debug_snapshot(owner).reply_reserved != 0 ||
+                            rt_remote_admission_orphan_count() != 0)) {
+        failure = "the parked await's reply slot was not given back at shutdown";
     }
     int leases_gone = 0;
-    for (uint32_t i = 0; i < 5000 && !leases_gone; i++) {
+    for (uint32_t i = 0; failure == NULL && i < 5000 && !leases_gone; i++) {
         leases_gone = lease_registry_empty(ex);
         if (!leases_gone) {
             rtb_drain(ex, 0);
-            (void)run_ready_one(ex);
             rtb_sleep_us(1000);
         }
     }
-    if (!leases_gone) {
-        return rtb_fail("teardown did not release the lease the parked await consumed");
+    if (failure == NULL && !leases_gone) {
+        failure = "teardown did not release the lease the parked await consumed";
     }
     (void)child_task_id;
-    return 0;
+    rt_remote_task_pending_release(parked);
+    return failure != NULL ? rtb_fail(failure) : 0;
 }
 
 int rtb_mode_shutdown_waiters(void) {

@@ -462,6 +462,7 @@ func (tc *typeChecker) classifyOnCapture(capType types.TypeID, capture blockingC
 // is a pure syntactic scan, and moving the classification earlier would reorder
 // its diagnostics.
 func (tc *typeChecker) registerCrossingBodyOwnership(body ast.StmtID, anchorSym symbols.SymbolID) {
+	placed := len(tc.onCrossingStack) > 0 && !tc.onCrossingStack[len(tc.onCrossingStack)-1].isFar
 	for _, cap := range tc.collectBlockingCaptures(body) {
 		if anchorSym.IsValid() && cap.symID == anchorSym {
 			// The anchor is leased to the body, not moved into it; the caller
@@ -469,6 +470,13 @@ func (tc *typeChecker) registerCrossingBodyOwnership(body ast.StmtID, anchorSym 
 			continue
 		}
 		capType := tc.bindingType(cap.symID)
+		// Placement bodies receive a private holder even for heap-owning Copy
+		// captures. Their ordinary coroutine cleanup owns that holder. Anchored
+		// bodies retain their one-operation replay/lease protocol.
+		if placed && tc.isCopyType(capType) && tc.ownsHeap(capType) {
+			tc.registerDroppableBinding(cap.symID)
+			continue
+		}
 		// A far handle moves in like an owned value: the body is the one
 		// holder of the lease from here on, and its scope exit gives it back.
 		if tc.isFarType(capType) {

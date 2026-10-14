@@ -16,7 +16,7 @@ func TestRuntimeV2ChannelSendOfferRepeatedParkedCancellation(t *testing.T) {
 				if mode == "late" {
 					late = "1"
 				}
-				env := lifecycleEnv("SURGE_SHARDS=1", "SURGE_THREADS="+workers,
+				env := lifecycleEnv("SURGE_SHARDS="+workers,
 					"SURGE_BLOCKING_THREADS=1", "SURGE_OFFER_CANCEL_LATE="+late)
 				stdout, stderr, code := runLifecycleHarness(t, bin, "send-offer-cancel", env)
 				marker := "OK_OFFER_CANCEL: mode=" + mode + " rounds=32 cancelled=32 original=32 final_refs=0"
@@ -135,18 +135,14 @@ static void poll_send_offer_cancel(void) {
 }
 
 static int offer_cancel_wait(rt_executor* ex, rt_task* task, uint8_t status) {
+    (void)ex;
     for (unsigned i = 0; i < 4000; i++) {
         if (task_status_load(task) == status) {
             return 1;
         }
-        // The one-worker configuration intentionally has no background worker:
-        // this is the runtime's ordinary single-thread scheduler, not a fake
-        // TASK_WAITING publication by the stand.
-        if (rt_worker_count() == 1) {
-            (void)run_ready_one(ex);
-        } else {
-            sleep_us(1000);
-        }
+        // The owner shard's carrier is the only task poller. This external
+        // observer waits for the carrier to publish the requested state.
+        sleep_us(1000);
     }
     return task_status_load(task) == status;
 }

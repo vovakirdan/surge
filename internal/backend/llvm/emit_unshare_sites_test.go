@@ -383,7 +383,7 @@ func TestUnshareWalkOfABareCountedScalar(t *testing.T) {
 func unshareOfLocalInMain(t *testing.T, src, local string) (string, string, error) {
 	t.Helper()
 	mirMod, result := lowerMIRFromSource(t, src)
-	main := findMIRFunc(t, mirMod, "main")
+	main := findMIRRootBody(t, mirMod)
 	xs := findMIRLocal(t, main, local)
 	main.Blocks[0].Instrs = append([]mir.Instr{{
 		Kind:    mir.InstrUnshare,

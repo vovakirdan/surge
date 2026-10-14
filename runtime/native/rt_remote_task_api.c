@@ -13,8 +13,8 @@ rt_remote_task_status rt_remote_task_transport_status(rt_transport_status status
 }
 
 static uint32_t current_source_shard(const rt_task* current) {
-    if (current != NULL && current->owner_shard_valid != 0) {
-        return current->owner_shard_id;
+    if (current != NULL) {
+        return rt_task_owner_shard_id(ensure_exec(), current);
     }
     uint32_t worker_shard = rt_debug_current_worker_shard_id();
     return worker_shard != UINT32_MAX ? worker_shard : 0;
@@ -185,30 +185,12 @@ rt_remote_task_status rt_far_task_release(const rt_far_task_handle* handle) {
     return status;
 }
 
-// Caller-teardown sweep for AWAIT/CANCEL pendings. Unlike
-// rt_immediate_on_release_owned's EXECUTE-family sweep, this does NOT route
-// a cancel to the owner: consume_handle (rt_remote_task_dispatch.c) is a
-// one-shot OPEN->state CAS that the original .await()/.cancel() already
-// consumed, so a second, routed cancel request would fail that CAS and
-// produce a bogus CONSUMED reply while leaking the far task's own
-// reference -- confirmed by direct trace, not assumed. The correct
-// teardown is simpler: this caller's own reference (one of exactly two
-// refs a pending carries -- the other is the in-flight-request ref
-// dispatch_reply or shutdown-drain releases) is simply given up via
-// consume (unlink, then release): unlinking is safe regardless of
-// whether this ends up being the last reference, because nothing else
-// ever finds a pending through the registry scan by caller_task_id
-// once that field is cleared here, and dispatch_reply finds its
-// pending through the pointer the message itself carries, never
-// through the registry list. If the reply already landed, this may be
-// the ref that drops the pending to zero, freeing it right here
-// through the normal free path (which now drops an unconsumed heap
-// result via result_type_id) -- correctly unlinked first, so a
-// later shutdown-time registry walk never dereferences the freed
-// block. If the reply hasn't landed yet, the pending stays alive on
-// its remaining ref and resolves exactly as it would have otherwise,
-// just no longer discoverable by caller_task_id (nothing needs it to
-// be).
+// AWAIT/CANCEL already consumed their one-shot owner handle, so caller
+// teardown must not route a second cancel. Create/share have no body task
+// to cancel. Each gives up the caller's reference and registry route; an
+// in-flight message keeps its own reference and finds the pending directly.
+// Final reclamation releases any untaken typed result or minted channel lease,
+// including one that arrives after the caller has gone.
 void rt_remote_task_release_owned(rt_executor* ex, const rt_task* caller) {
     rt_remote_task_state* state = rt_remote_task_state_get(ex);
     if (state == NULL || caller == NULL) {
@@ -218,7 +200,9 @@ void rt_remote_task_release_owned(rt_executor* ex, const rt_task* caller) {
         rt_remote_task_pending* pending = NULL;
         rt_token_lock(&state->lock);
         for (rt_remote_task_pending* it = state->pending_head; it != NULL; it = it->next) {
-            if ((it->op == RT_REMOTE_TASK_OP_AWAIT || it->op == RT_REMOTE_TASK_OP_CANCEL) &&
+            if ((it->op == RT_REMOTE_TASK_OP_AWAIT || it->op == RT_REMOTE_TASK_OP_CANCEL ||
+                 it->op == RT_REMOTE_TASK_OP_CHANNEL_CREATE ||
+                 it->op == RT_REMOTE_TASK_OP_CHANNEL_SHARE) &&
                 it->caller_task_id == caller->id) {
                 pending = it;
                 it->caller_task_id = 0;

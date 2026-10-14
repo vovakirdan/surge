@@ -30,7 +30,7 @@ port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); p
 
 echo "=== $tag start $(date -u '+%H:%M:%S') port=$port conns=$conns shards=$shards host: $(uptime)" | tee "$out/$tag.meta"
 
-env SURGE_TRACE_EXEC=1 SURGE_SCHED_TRACE=1 SURGE_SHARDS="$shards" SURGE_THREADS="$shards" \
+env SURGE_TRACE_EXEC=1 SURGE_SCHED_TRACE=1 SURGE_SHARDS="$shards" \
 	"$bin" "$port" "$mode" "$conns" >"$out/$tag.server.out" 2>"$out/$tag.server.trace" &
 server_pid=$!
 

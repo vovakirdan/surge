@@ -97,6 +97,8 @@ func LowerModuleWithOptions(mm *mono.MonoModule, semaRes *sema.Result, opts Lowe
 	consts := buildConstMap(mm.Source)
 
 	nextID := FuncID(1)
+	entryMF := findEntrypoint(mm)
+	var rootEntry *Func
 	for _, mf := range monoFuncs {
 		if mf == nil || mf.Func == nil {
 			continue
@@ -128,11 +130,31 @@ func LowerModuleWithOptions(mm *mono.MonoModule, semaRes *sema.Result, opts Lowe
 		if mm.Source != nil {
 			fl.symbols = mm.Source.Symbols
 		}
+		if mf == entryMF && !mf.Func.IsAsync() {
+			// Sema forbids source references to a synchronous entrypoint. Its
+			// only executable activation is the root coroutine; retaining a
+			// second plain body would leave raw select/await instructions in
+			// MIR even though that body can never be called.
+			var err error
+			rootEntry, err = fl.lowerRootEntrypoint(mf.Func)
+			if err != nil {
+				return nil, err
+			}
+			out.Funcs[rootEntry.ID] = rootEntry
+			continue
+		}
 		f, err := fl.lowerFunc(id, mf.Func)
 		if err != nil {
 			return nil, err
 		}
 		out.Funcs[id] = f
+		if mf == entryMF {
+			rootEntry, err = fl.lowerRootEntrypoint(mf.Func)
+			if err != nil {
+				return nil, err
+			}
+			out.Funcs[rootEntry.ID] = rootEntry
+		}
 		if f != nil && f.Sym.IsValid() {
 			out.FuncBySym[f.Sym] = id
 			if mf.OrigSym.IsValid() && len(mf.TypeArgs) == 0 {
@@ -149,7 +171,15 @@ func LowerModuleWithOptions(mm *mono.MonoModule, semaRes *sema.Result, opts Lowe
 		return nil, fmt.Errorf("building __surge_start: %w", err)
 	}
 	if surgeStart != nil {
+		if err := routeEntrypointToRoot(surgeStart, rootEntry, entryMF.Func.SymbolID, typesIn, semaRes); err != nil {
+			return nil, err
+		}
 		out.Funcs[surgeStart.ID] = surgeStart
+		adapter, err := wrapRootStartup(out, surgeStart, typesIn, semaRes)
+		if err != nil {
+			return nil, err
+		}
+		out.Funcs[adapter.ID] = adapter
 		// __surge_start has no symbol, so don't add to FuncBySym
 	}
 
@@ -185,6 +215,13 @@ func LowerModuleWithOptions(mm *mono.MonoModule, semaRes *sema.Result, opts Lowe
 		}
 	}
 
+	var symbolTable *symbols.Table
+	if mm.Source != nil && mm.Source.Symbols != nil {
+		symbolTable = mm.Source.Symbols.Table
+	}
+	if err := registerRootResultLayouts(out, typesIn, symbolTable); err != nil {
+		return nil, err
+	}
 	return out, nil
 }
 

@@ -49,9 +49,11 @@ type implicitConversionLeaf struct {
 	role               implicitConversionRole
 	cleanRoot          bool
 	// eagerEscape: the leaf's program is a leak, and the eager checker now refuses it too.
-	eagerEscape bool
-	summary     string
-	slots       []uint32
+	eagerEscape   bool
+	originEscape  bool
+	pendingEscape bool
+	summary       string
+	slots         []uint32
 }
 
 func implicitConversionLeaves() []implicitConversionLeaf {
@@ -61,27 +63,27 @@ func implicitConversionLeaves() []implicitConversionLeaf {
 	return []implicitConversionLeaf{
 		// Holes: each form returns a view of src. The eager checker admitted them until the
 		// fixed-array view rule landed; the two that return the value are refused there now.
-		{name: "return_converted_view", digest: "b332b5728d0adc172897d842ab488c34a66ff566f833d84cf54d2a1e0ede6f71",
+		{name: "return_converted_view", digest: "b332b5728d0adc172897d842ab488c34a66ff566f833d84cf54d2a1e0ede6f71", role: implicitConversionCertified,
 			text:        implicitConversionPrefix + "fn leak() -> uint64[] {\n" + implicitConversionLocal + "    return src;\n}\n",
 			operands:    []implicitConversionOperand{to(253, 256, "src")},
-			eagerEscape: true},
-		{name: "let_converted_view", digest: "aeb33b940523f0f9a8127c701e3b731652f1ec21de2f401141ea3da93284b4c1",
+			eagerEscape: true, pendingEscape: true},
+		{name: "let_converted_view", digest: "aeb33b940523f0f9a8127c701e3b731652f1ec21de2f401141ea3da93284b4c1", role: implicitConversionCertified,
 			text:        implicitConversionPrefix + "fn leak() -> uint64[] {\n" + implicitConversionLocal + "    let v: uint64[] = src;\n    return v;\n}\n",
 			operands:    []implicitConversionOperand{to(264, 267, "src")},
-			eagerEscape: true},
-		{name: "struct_child_converted_view", digest: "c45a69c7aff4bf6a1eac37c31d1d1f272ff3456baabbc4c4558ff17aca05841a",
+			eagerEscape: true, originEscape: true},
+		{name: "struct_child_converted_view", digest: "c45a69c7aff4bf6a1eac37c31d1d1f272ff3456baabbc4c4558ff17aca05841a", role: implicitConversionCertified, pendingEscape: true,
 			text: "type Holder = { view: uint64[] };\n" + implicitConversionPrefix + "fn leak() -> Holder {\n" + implicitConversionLocal +
 				"    return Holder { view = src };\n}\n",
 			operands: []implicitConversionOperand{to(301, 304, "src")}},
-		{name: "array_element_converted_view", digest: "61826ac55400726bb5ae49e8d2992bf104a8586cd9325fea64cc2d67579661cc",
+		{name: "array_element_converted_view", digest: "61826ac55400726bb5ae49e8d2992bf104a8586cd9325fea64cc2d67579661cc", role: implicitConversionCertified, pendingEscape: true,
 			text: implicitConversionPrefix + "fn leak() -> uint64[][] {\n" + implicitConversionLocal + "    let out: uint64[][] = [src];\n    return out;\n}\n" +
 				"fn leak_direct() -> uint64[][] {\n" + implicitConversionLocal + "    return [src];\n}\n",
 			operands: []implicitConversionOperand{to(271, 274, "src"), to(417, 420, "src")}},
 		// Precision pins: the converted value stays local, and the obligation is its cost.
-		{name: "let_converted_local", digest: "839c16874fcdeb06d69471d36721f8dc2f0cafe3a75209a93d464a89f8014c73",
+		{name: "let_converted_local", digest: "839c16874fcdeb06d69471d36721f8dc2f0cafe3a75209a93d464a89f8014c73", role: implicitConversionCertified,
 			text:     implicitConversionPrefix + "fn keep() -> nothing {\n" + implicitConversionLocal + "    let v: uint64[] = src;\n    return nothing;\n}\n",
 			operands: []implicitConversionOperand{to(263, 266, "src")}},
-		{name: "assign_converted_local", digest: "baccf715a62b718d8343136e3de450a745be7f1403895c4f466588f39462b876",
+		{name: "assign_converted_local", digest: "baccf715a62b718d8343136e3de450a745be7f1403895c4f466588f39462b876", role: implicitConversionCertified,
 			text:     implicitConversionPrefix + "fn keep() -> nothing {\n" + implicitConversionLocal + "    let mut v: uint64[] = [];\n    v = src;\n    return nothing;\n}\n",
 			operands: []implicitConversionOperand{to(279, 282, "src")}},
 		// Pins for the certified and tag branches.
@@ -170,6 +172,19 @@ func checkImplicitConversionLeaf(t *testing.T, leaf implicitConversionLeaf) {
 	}
 	if leaf.cleanRoot && len(root) != 0 {
 		t.Errorf("root unit gained obligations: %+v", root)
+	}
+	originEscape := slices.ContainsFunc(analysis.Diagnostics, func(d diag.Diagnostic) bool {
+		return d.Code == diag.SemaBorrowEscapesReturn && d.Severity >= diag.SevError && d.Primary.File == res.File.ID
+	}) || slices.ContainsFunc(res.Bag.Items(), func(d *diag.Diagnostic) bool {
+		return d != nil && d.Code == diag.SemaFixedArrayViewEscapes && d.Severity >= diag.SevError && d.Primary.File == res.File.ID
+	})
+	if leaf.originEscape && !originEscape {
+		t.Errorf("converted view escape produced neither SEM3139 nor SEM3198: analysis=%+v typed=%+v", analysis.Diagnostics, res.Bag.Items())
+	}
+	if leaf.pendingEscape && !slices.ContainsFunc(root, func(p sema.ReturnOriginPending) bool {
+		return p.Reason == originOutgoingRefusal || p.Reason == originResultRefusal
+	}) {
+		t.Errorf("nested converted view escape produced no fail-closed pending row: %+v", root)
 	}
 	if leaf.summary != "" {
 		summary := requireReturnOriginSummary(t, analysis, leaf.summary)

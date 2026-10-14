@@ -63,7 +63,8 @@ func captureFinalizationCallables(results []*sema.Result, resolveSource func(sou
 		if err := sema.CanonicalizeInstantiationGraphSources(fileResult, resolveSource); err != nil {
 			return nil, fmt.Errorf("finalization publication index: %w", err)
 		}
-		for _, candidate := range fileResult.CallableCandidates {
+		for i := range fileResult.CallableCandidates {
+			candidate := &fileResult.CallableCandidates[i]
 			identity := sema.FinalizationCallableIdentity{Symbol: candidate.Symbol, BodyKey: candidate.BodyKey, SourceKey: candidate.SourceKey}
 			if identity.Symbol.IsValid() && identity.BodyKey != "" {
 				seen[identity] = struct{}{}

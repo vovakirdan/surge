@@ -30,7 +30,7 @@ func TestRuntimeV2Task9AnchoredStateReleaseNegativeControl(t *testing.T) {
 	// Two shards: the cancel reaches a body parked on another shard's lane,
 	// which is where the matrix read the sixteen bytes.
 	env := overrideEnvVar(envWithStdlib(repoRoot(t)), "SURGE_SHARDS", "2")
-	env = overrideEnvVar(env, "SURGE_THREADS", "2")
+	env = overrideEnvVar(env, "SURGE_SHARDS", "2")
 
 	stdout, stderr, exitCode := runBinaryUnderValgrind(t, outputPath, env, 240*time.Second)
 	if exitCode != 0 {

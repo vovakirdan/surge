@@ -1,0 +1,5 @@
+# Two joiners become runnable from the same task completion. Runtime V2
+# promises that both receive the result exactly once, not which ready task the
+# shard's sole carrier selects first. Keep the recorded VM order strict and
+# compare the native output as a multiset.
+vm

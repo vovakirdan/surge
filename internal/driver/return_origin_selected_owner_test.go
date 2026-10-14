@@ -71,7 +71,7 @@ func TestSelectedModuleOwnerAssociation(t *testing.T) {
 			if !slices.Equal(keys, wantKeys) || root.Builder == nil {
 				t.Fatalf("PRECONDITION: full source owners: got=%v want=%v", keys, wantKeys)
 			}
-			var facts []selectedOwnerFact
+			facts := make([]selectedOwnerFact, 0, len(calls))
 			for _, callText := range calls {
 				callID := selectedCallableSite(t, res, root, callText, ast.ExprCall)
 				call, _ := root.Builder.Exprs.Call(callID)

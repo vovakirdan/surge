@@ -54,8 +54,8 @@ void rt_remote_task_fail_all_pending(rt_executor* ex, rt_remote_task_status stat
             // select -- gives them back on its own completion, and that
             // completion finds this pending through the owner registration.
             // The registration and the reference it holds stay with such a
-            // body: the sweep runs under the control lock while the body may
-            // be mid-turn on another carrier, holding the channel the pin
+            // body: the sweep may race a body mid-turn on another carrier,
+            // holding the channel the pin
             // keeps alive, so the pin cannot be given back here, and a
             // severed registration would leave nobody to give it back at
             // all (RV2-DEBT-322). Every other body's completion has nothing
@@ -99,12 +99,13 @@ void rt_remote_task_fail_all_pending(rt_executor* ex, rt_remote_task_status stat
         // its request reserved goes back to the lane now; and a request still
         // parked on a slot key never left, so its registration goes too, with
         // the message reference nothing will ever enqueue.
-        if (rt_remote_admission_abandon(ex, pending->caller_task_id, &pending->admission)) {
+        if (rt_remote_admission_abandon_and_wake(
+                ex, pending->caller_task_id, &pending->admission)) {
             rt_remote_task_pending_release(pending);
         }
         if (release_owner_ref) {
             rt_remote_task_pending_release(pending);
         }
-        rt_remote_task_pending_release(pending);
+        rt_remote_task_pending_release_reply(pending);
     }
 }

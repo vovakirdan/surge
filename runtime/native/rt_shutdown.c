@@ -44,9 +44,19 @@ rt_runtime_status rt_executor_request_shutdown(rt_executor* ex) {
         return RT_RUNTIME_STATUS_INVALID_ARGUMENT;
     }
     rt_control_lock(ex);
+    if (atomic_load_explicit(&ex->shutdown, memory_order_acquire) != 0) {
+        rt_control_unlock(ex);
+        return RT_RUNTIME_STATUS_OK;
+    }
     ex->shutdown = 1;
+    rt_control_unlock(ex);
+
+    // Pending state may own user values whose generated drop code must run
+    // with no runtime lane held. Admission is already closed by shutdown.
     rt_remote_spawn_fail_all_pending(ex, RT_REMOTE_SPAWN_STATUS_DESTINATION_SHUTDOWN);
     rt_shutdown_release_far_tasks(ex);
+
+    rt_control_lock(ex);
     size_t shard_count = rt_runtime_shard_count(rt_executor_runtime(ex));
     for (size_t i = 0; i < shard_count; i++) {
         (void)rt_fd_registry_drain_shutdown_net_waiters_locked_on_owner(
@@ -56,8 +66,8 @@ rt_runtime_status rt_executor_request_shutdown(rt_executor* ex) {
     rt_net_trace_shutdown_poller_wakeups(pollers_woken);
     (void)rt_transport_shutdown_wake_all(ex);
     rt_io_poll_nudge(ex);
+    atomic_store_explicit(&ex->shutdown_ready, 1, memory_order_release);
     rt_sched_wake_broadcast_all(ex);
-    pthread_cond_broadcast(&ex->compat_cv);
     pthread_cond_broadcast(&ex->done_cv);
     rt_control_unlock(ex);
 

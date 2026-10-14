@@ -55,14 +55,10 @@ _Static_assert(sizeof(((NetListenerMember*)0)->fd) == sizeof(int),
 	               "listener public handle word must be a stable runtime handle id");
 	_Static_assert(sizeof(((NetListener*)0)->handle_id) == sizeof(uint64_t),
 	               "listener handle id must fill the public opaque word");
-	_Static_assert(sizeof(((NetListener*)0)->fd) == sizeof(int),
-	               "listener must carry compatibility fd");
 _Static_assert(sizeof(((NetListener*)0)->kind) == sizeof(uint8_t),
                "listener must carry discriminator");
 _Static_assert(sizeof(((NetListener*)0)->closed) == sizeof(bool),
                "listener must carry logical closed state");
-_Static_assert(sizeof(((NetListener*)0)->owner_shard_id) == sizeof(uint32_t),
-               "listener must carry compatibility owner shard");
 _Static_assert(sizeof(((NetListener*)0)->member_count) == sizeof(size_t),
                "listener must carry member count");
 	_Static_assert(sizeof(((NetListener*)0)->members) == sizeof(NetListenerMember*),
@@ -124,7 +120,7 @@ func TestRuntimeV2NetMetadataMultiShardListenClose(t *testing.T) {
 	port := pickFreePort(t)
 	env := runtimeV2AcceptEnv(t)
 	env = overrideEnvVar(env, "SURGE_SHARDS", "4")
-	env = overrideEnvVar(env, "SURGE_THREADS", "4")
+	env = overrideEnvVar(env, "SURGE_SHARDS", "4")
 	srv := startRuntimeV2AcceptServer(t, runtimeV2NetListenCloseSource, env, strconv.Itoa(port))
 	srv.waitExitZero(15 * time.Second)
 }

@@ -114,30 +114,7 @@ void rt_remote_task_pending_release(rt_remote_task_pending* pending) {
     }
     uint32_t refs = atomic_fetch_sub_explicit(&pending->refs, 1, memory_order_acq_rel);
     if (refs == 1) {
-        // A reservation nobody spent or released: every terminal path does
-        // one of the two, so this is the belt, and it says so when it has to
-        // act with a lock held that forbids the wake.
-        if (rt_remote_admission_take_reservation(&pending->admission)) {
-            rt_remote_admission_release_reservation_belt(pending->executor, &pending->admission);
-        }
-        if (pending->state_owned != 0 && pending->state_type_id != 0 &&
-            pending->body_state != NULL) {
-            const rt_value_ops* operations = rt_channel_element_ops_for(pending->state_type_id);
-            rt_resident_payload_release(operations);
-            rt_value_release_owned_block(operations, pending->body_state);
-            pending->body_state = NULL;
-        }
-        // A landed reply whose capability nobody spent: the caller tore down
-        // before its next poll, or resolved through another path. Release the
-        // pin so the producer can be freed; what its slot still holds is
-        // destroyed by the producer's own dispose, exactly once, there.
-        if (pending->result_source.task_id != 0) {
-            rt_remote_task_release_result_source(pending->executor, &pending->result_source);
-            pending->result_source = (rt_result_source){0, 0, 0, 0};
-        }
-        rt_remote_task_select_arms_free(pending->select_arms, pending->select_count);
-        rt_resident_bytes_release(RT_RESIDENT_RECORD, sizeof(*pending));
-        rt_free((uint8_t*)pending, sizeof(*pending), _Alignof(rt_remote_task_pending));
+        rt_remote_task_pending_reclaim(pending);
     }
 }
 
@@ -173,10 +150,26 @@ void rt_remote_task_pending_consume(rt_remote_task_pending* pending) {
         return;
     }
     rt_token_lock(&state->lock);
+    pending->caller_task_id = 0;
     if (pending->listed != 0) {
         pending_unlink_locked(state, pending);
     }
     rt_token_unlock(&state->lock);
+    rt_remote_task_pending_release(pending);
+}
+
+void rt_remote_task_pending_release_reply(rt_remote_task_pending* pending) {
+    rt_remote_task_state* state =
+        pending != NULL ? rt_remote_task_state_get(pending->executor) : NULL;
+    if (state != NULL) {
+        rt_token_lock(&state->lock);
+        // A landed reply must remain discoverable by caller teardown until
+        // that caller consumes it. An orphan has only the reply edge left.
+        if (pending->caller_task_id == 0 && pending->listed != 0) {
+            pending_unlink_locked(state, pending);
+        }
+        rt_token_unlock(&state->lock);
+    }
     rt_remote_task_pending_release(pending);
 }
 

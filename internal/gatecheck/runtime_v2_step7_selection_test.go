@@ -55,7 +55,7 @@ func step7GateRows() []step7GateRow {
 		"TestTaskCheckCrossingBodyIsAFrame",
 		"TestTaskCheckCrossingBodyKeepsSoundPrograms",
 		"TestH2TripwireTaskCheckRefusesSpawnOnLeaks",
-		"TestH2TripwireSpawnOnRunnerBuilds",
+		"TestH2TripwireSpawnOnSuspensionAccepted",
 		"TestTaskCheckSpawnOnBodyEdges",
 		"TestTaskCheckCrossingBodyPanicClosedFrame",
 	}
@@ -79,8 +79,7 @@ func step7GateRows() []step7GateRow {
 		"TestH2TripwireSelectRunnerRuns",
 		"TestRuntimeV2CrossingBodyTaskOverItsCopy",
 		"TestH2TripwireTaskCheckRefusesSpawnOnLeakedRuns",
-		"TestH2TripwireSpawnOnRunnerRuns",
-		"TestH2TripwireSpawnOnBodySuspensionHangs",
+		"TestH2TripwireSpawnOnSuspensionBackendContract",
 		"TestRuntimeV2SpawnOn",
 	}
 	coldTaskStand := []string{
@@ -91,7 +90,6 @@ func step7GateRows() []step7GateRow {
 		"TestRuntimeV2ColdTaskCancelPublishesIt",
 		"TestRuntimeV2ColdTaskDroppedMemberDoesNotHoldTheJoin",
 		"TestRuntimeV2ColdTaskJoinPublishesAnEscapedMember",
-		"TestRuntimeV2ColdTaskAffinePinHolds",
 		"TestRuntimeV2ColdTaskForeignLaneReachesTheScopeByEvent",
 		"TestRuntimeV2ColdTaskDiscardAndCancelRace",
 		"TestRuntimeV2ColdTaskConcurrentLastDrops",

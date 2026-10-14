@@ -16,7 +16,10 @@ func (fe *funcEmitter) emitExitIntrinsic(call *mir.CallInstr) (bool, error) {
 		name = fe.symbolName(call.Callee.Sym)
 	}
 	name = stripGenericSuffix(name)
-	if name != "exit" {
+	if name != "exit" && name != "__entry_error_code" {
+		return false, nil
+	}
+	if name == "__entry_error_code" && call.Callee.Sym.IsValid() {
 		return false, nil
 	}
 	if len(call.Args) != 1 {
@@ -26,6 +29,7 @@ func (fe *funcEmitter) emitExitIntrinsic(call *mir.CallInstr) (bool, error) {
 	if err != nil {
 		return true, err
 	}
+	argStorage := argVal
 	errType := argType
 	if fe.emitter != nil && fe.emitter.types != nil {
 		if tt, ok := fe.emitter.types.Lookup(resolveAliasAndOwn(fe.emitter.types, argType)); ok && tt.Kind == types.KindUnion {
@@ -164,9 +168,22 @@ func (fe *funcEmitter) emitExitIntrinsic(call *mir.CallInstr) (bool, error) {
 	nlPtr := fe.nextTemp()
 	fmt.Fprintf(&fe.emitter.buf, "  %s = call ptr @rt_string_ptr(ptr %s)\n", nlPtr, nlAddr)
 	fmt.Fprintf(&fe.emitter.buf, "  call i64 @rt_write_stderr(ptr %s, i64 1)\n", nlPtr)
+	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_string_free(ptr %s)\n", nlHandle)
 	fmt.Fprintf(&fe.emitter.buf, "  br label %%%s\n", skip)
 
 	fmt.Fprintf(&fe.emitter.buf, "%s:\n", skip)
+	if name == "__entry_error_code" {
+		if !call.HasDst {
+			return true, fmt.Errorf("entry error reporting requires a result")
+		}
+		fe.emitter.emitDropStorage(argStorage, argType)
+		ptr, llvmTy, align, storeErr := fe.emitPlaceStorage(call.Dst)
+		if storeErr != nil {
+			return true, storeErr
+		}
+		fe.emitValueStore(llvmTy, code64, ptr, align)
+		return true, nil
+	}
 	fmt.Fprintf(&fe.emitter.buf, "  call void @rt_exit(i64 %s)\n", code64)
 	return true, nil
 }

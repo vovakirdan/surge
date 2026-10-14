@@ -283,21 +283,22 @@ func rewriteAsyncReturns(f *Func, stateLocal LocalID, intType types.TypeID) {
 }
 
 // buildAsyncConstructorState builds the constructor function that creates the initial task.
-func buildAsyncConstructorState(f *Func, typesIn *types.Interner, semaRes *sema.Result, taskType, stateType, payloadType types.TypeID, pollFnID FuncID, startVariant stateVariant, intType types.TypeID, residents residentSet, startResidents []LocalID) error {
+func buildAsyncConstructorState(f *Func, typesIn *types.Interner, semaRes *sema.Result, taskType, stateType, payloadType types.TypeID, pollFnID FuncID, startVariant stateVariant, residents residentSet, startResidents []LocalID) {
 	if f == nil {
-		return nil
+		return
 	}
 	entry := newBlock(f)
 	f.Entry = entry
 
 	stateTmp := addLocal(f, "__state_init", stateType, localFlagsFor(typesIn, semaRes, stateType))
-	payloadTmp := addLocal(f, "__payload_init", payloadType, localFlagsFor(typesIn, semaRes, payloadType))
+	payloadInit, state := buildAsyncInitialFrame(f, typesIn, semaRes, stateType, payloadType,
+		startVariant, residents, startResidents, func(id LocalID) Operand {
+			return operandForAsyncInitialStateStore(f, id, typesIn)
+		})
 	taskTmp := addLocal(f, "__task", taskType, localFlagsFor(typesIn, semaRes, taskType))
 
-	args := make([]Operand, 0, len(startVariant.locals))
 	farTaskParams := make([]LocalID, 0, len(startVariant.locals))
 	for _, localID := range startVariant.locals {
-		args = append(args, operandForAsyncInitialStateStore(f, localID, typesIn))
 		if int(localID) >= 0 && int(localID) < len(f.Locals) &&
 			IsDirectFarTaskType(typesIn, f.Locals[localID].Type) {
 			farTaskParams = append(farTaskParams, localID)
@@ -312,65 +313,16 @@ func buildAsyncConstructorState(f *Func, typesIn *types.Interner, semaRes *sema.
 		}})
 	}
 
-	appendInstr(f, entry, Instr{Kind: InstrCall, Call: CallInstr{
-		HasDst: true,
-		Dst:    Place{Local: payloadTmp},
-		Callee: Callee{Kind: CalleeSym, Sym: startVariant.tagSym, Name: startVariant.name},
-		Args:   args,
-		// A tag constructor: the start payload union keeps the captured
-		// locals for the task's whole life.
-		ArgContracts: storeArgContracts(len(args)),
-	}})
-	stateFields := []StructLitField{
-		{
-			// Built PACKED: the start payload below carries the
-			// captured locals, and the task is handed this frame before
-			// anything polls it. The word is true from the frame's first
-			// instant, so a frame the scheduler drops before its first
-			// poll is still reclaimable by what it says.
-			Name:  FrameStateField,
-			Value: Operand{Kind: OperandConst, Type: intType, Const: Const{Kind: ConstInt, Type: intType, IntValue: FrameStatePacked}},
-		},
-		{
-			Name:  asyncStatePcField,
-			Value: Operand{Kind: OperandConst, Type: intType, Const: Const{Kind: ConstInt, Type: intType, IntValue: int64(startVariant.resumeBB)}},
-		},
-		{
-			Name:  asyncStatePayloadField,
-			Value: operandForLocal(f, payloadTmp),
-		},
-	}
-	// A promoted PARAMETER used to arrive in the start payload and be unpacked
-	// into a fresh slot at every poll. It now goes straight to its resident field,
-	// which is the same value delivered to storage that does not move.
-	//
-	// A promoted BODY local gets no entry here on purpose, and the omission is
-	// meaningful rather than an oversight: it has no value yet. Its field's bytes
-	// are zero, because buildComposite zeroes an extent precisely so that a
-	// literal naming only some members leaves the rest reading as uninitialized
-	// instead of as the corpse of an earlier temporary. The body's own assignment,
-	// redirected onto the field, is its first write, and the frame never drops a
-	// resident generically -- a drop reaches it only through the ordinary
-	// obligation of the place it already is, which the body emits only where the
-	// place is live. A frame discarded before that assignment therefore drops
-	// nothing.
-	for _, localID := range startResidents {
-		stateFields = append(stateFields, StructLitField{
-			Name:  residents.fields[localID],
-			Value: operandForAsyncInitialStateStore(f, localID, typesIn),
-		})
-	}
+	appendInstr(f, entry, payloadInit)
+
 	appendInstr(f, entry, Instr{Kind: InstrAssign, Assign: AssignInstr{
 		Dst: Place{Local: stateTmp},
-		Src: RValue{Kind: RValueStructLit, StructLit: StructLit{
-			TypeID: stateType,
-			Fields: stateFields,
-		}},
+		Src: RValue{Kind: RValueStructLit, StructLit: state},
 	}})
 	appendInstr(f, entry, Instr{Kind: InstrCall, Call: CallInstr{
 		HasDst: true,
 		Dst:    Place{Local: taskTmp},
-		Callee: Callee{Kind: CalleeValue, Name: asyncTaskConstructorName(f, typesIn, startVariant.locals)},
+		Callee: Callee{Kind: CalleeValue, Name: "__task_create"},
 		Args: []Operand{{
 			Kind:  OperandConst,
 			Type:  typesIn.Builtins().Int64,
@@ -395,34 +347,4 @@ func buildAsyncConstructorState(f *Func, typesIn *types.Interner, semaRes *sema.
 		}})
 	}
 	setBlockTerm(f, entry, Terminator{Kind: TermReturn, Return: ReturnTerm{HasValue: true, Value: Operand{Kind: OperandMove, Place: Place{Local: taskTmp}}}})
-	return nil
-}
-
-// asyncTaskConstructorName picks the runtime constructor for an activation's
-// task. An activation that receives a REFERENCE in its start payload -- an
-// `async fn` with a `&T` parameter, or a block capturing a borrow -- reads
-// storage owned by its creator's frame until it completes, so it is
-// carrier-affine: it must run where that frame is, on the worker carrying the
-// creator, and the runtime pins it there at creation (__task_create_affine),
-// before the task is first published. Everything else owns what it holds and
-// may run anywhere.
-//
-// This is the same fact the checker records as StableActivationPlaces on the
-// creator's side: the borrow pins a place in the parent and pins the child to
-// the parent's carrier. Here it is read off the callee's own start locals,
-// which is the one place both an `async fn` and a block name their inputs.
-func asyncTaskConstructorName(f *Func, typesIn *types.Interner, startLocals []LocalID) string {
-	if f == nil || typesIn == nil {
-		return "__task_create"
-	}
-	for _, localID := range startLocals {
-		if int(localID) < 0 || int(localID) >= len(f.Locals) {
-			continue
-		}
-		tt, ok := typesIn.Lookup(resolveAlias(typesIn, f.Locals[localID].Type))
-		if ok && tt.Kind == types.KindReference {
-			return "__task_create_affine"
-		}
-	}
-	return "__task_create"
 }

@@ -14,7 +14,7 @@ import (
 // missed, nothing falls back to comparing raw symbol IDs. An imported copy
 // the merge left behind in this vocabulary reaches its declaration through
 // the body identity the unit published for that copy.
-func (u *returnOriginUnitIndex) selectedCallableCandidate(selected symbols.SymbolID) (*CallableCandidate, string) {
+func (u *returnOriginUnitIndex) selectedCallableCandidate(selected symbols.SymbolID) (resultCandidate *CallableCandidate, reason string) {
 	var candidate *CallableCandidate
 	for i := range u.authority.CallableCandidates {
 		c := &u.authority.CallableCandidates[i]
@@ -45,7 +45,7 @@ func (u *returnOriginUnitIndex) selectedCallableCandidate(selected symbols.Symbo
 // function owning the candidate's symbol, body and source, still admitted by
 // its own unit's declaration certificate, whose original signature the
 // selection agrees with. Named and default slots come from that original.
-func (a *returnOriginAnalyzer) selectedCallableFunction(u *returnOriginUnitIndex, selected symbols.SymbolID) (*returnOriginFunction, string) {
+func (a *returnOriginAnalyzer) selectedCallableFunction(u *returnOriginUnitIndex, selected symbols.SymbolID) (resultFn *returnOriginFunction, reason string) {
 	candidate, reason := u.selectedCallableCandidate(selected)
 	if reason != "" {
 		return nil, reason

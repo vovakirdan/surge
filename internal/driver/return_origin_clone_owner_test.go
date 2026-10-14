@@ -31,6 +31,7 @@ func TestAnalyzeTypedDeferredCloneOwnerPublication(t *testing.T) {
 			}
 			checkReturnOriginStdlibBags(t, res, false)
 			checkReturnOriginCloneUnits(t, res, inputs.units)
+			exhaustiveReturnOriginUnits(t, inputs.units, "core/array.sg")
 			coreIndex, edges, owners := checkReturnOriginCloneOwners(t, res, inputs.units)
 			original := returnOriginCloneOwnerSnapshot(t, res, inputs.units, coreIndex, edges)
 			changed := slices.Clone(inputs.units)

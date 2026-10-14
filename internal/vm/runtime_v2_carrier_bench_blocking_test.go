@@ -27,7 +27,6 @@ func TestRuntimeV2CarrierBenchBlockingRegisterThenVerify(t *testing.T) {
 			command.Env = os.Environ()
 			for key, value := range map[string]string{
 				"SURGE_SHARDS":           "2",
-				"SURGE_THREADS":          "2",
 				"SURGE_BLOCKING_THREADS": "1",
 				"SURGE_SYNC_POINT":       carrierBenchBlockingSyncPoint + ":block",
 			} {

@@ -1,27 +1,14 @@
 package vm_test
 
 import (
-	"context"
-	"crypto/sha256"
-	"errors"
-	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
-
-	"surge/internal/buildpipeline"
 )
 
 // RV2-DEBT-365 tripwire, runtime rows for the `spawn on` runner (N-TASK-27S). The leaking programs are refused by the
-// task check on either backend. Their twins borrow nothing: natively, at one shard (`distributed` resolves to the only
-// shard), the far body joins the task and the program exits 46; the VM has no cross-shard transport and refuses the
-// build (FUT7015 at the `spawn on`, FUT7016 at the far await). A body that suspends hangs when it lands on another
-// shard (RV2-DEBT-344 (a)), and a select in a body fails in the lowering (344 (b)): TestH2TripwireSpawnOnBodySuspension-
-// Hangs pins both as incidental barriers, so a fix turns a leaf red and must re-run the runner matrix at two shards.
+// task check on either backend. Sound placed runners execute through the shared
+// coroutine machinery on LLVM; VM retains its explicit transport diagnostics.
 
 const spawnOnF8bBodyMadeChannelSource = `async fn run() -> int {
     let ft: far Task<int> = spawn on shard(1:ShardId) {
@@ -276,135 +263,53 @@ func TestH2TripwireTaskCheckRefusesSpawnOnLeakedRuns(t *testing.T) {
 	}
 }
 
-func TestH2TripwireSpawnOnRunnerRuns(t *testing.T) {
-	for _, row := range []struct{ name, text, digest string }{
-		{"son_await", spawnOnTwinSonAwaitSource, spawnOnTwinSonAwaitSourceDigest},
-		{"son_spawn", spawnOnTwinSonSpawnSource, spawnOnTwinSonSpawnSourceDigest},
+func TestH2TripwireSpawnOnSuspensionBackendContract(t *testing.T) {
+	for _, row := range []struct {
+		name, text, digest string
+		exit               int
+		singleShard        bool
+	}{
+		{"runner_await", spawnOnTwinSonAwaitSource, spawnOnTwinSonAwaitSourceDigest, 46, true},
+		{"runner_spawn_then_await", spawnOnTwinSonSpawnSource, spawnOnTwinSonSpawnSourceDigest, 46, true},
+		{"await_at_two_shards", spawnOnHangSonAwaitSource, spawnOnHangSonAwaitSourceDigest, 46, false},
+		{"far_select", spawnOnF8bBodyMadeChannelSource, spawnOnF8bBodyMadeChannelSourceDigest, 1, false},
+		{"local_select", spawnOnF8cLocalSelectSource, spawnOnF8cLocalSelectSourceDigest, 1, false},
 	} {
 		t.Run(row.name, func(t *testing.T) {
-			codes, _ := crossingFrameCompile(t, "spawn_on_runner_"+row.name, row.text, row.digest)
+			codes, _ := crossingFrameCompile(t, "spawn_on_suspend_"+row.name, row.text, row.digest)
 			if testBackend(t) != backendLLVM {
-				if codes != "FUT7015,FUT7016" {
-					t.Fatalf("codes %q, want exactly FUT7015,FUT7016: the VM has no cross-shard transport", codes)
+				want := "FUT7015,FUT7016"
+				if row.name == "far_select" {
+					// This row additionally creates a remote channel and selects
+					// over it, both unsupported by the VM transport capability.
+					want = "FUT7015,FUT7016,FUT7018,FUT7022"
+				}
+				if codes != want {
+					t.Fatalf("VM codes %q, want %s", codes, want)
 				}
 				return
 			}
 			if codes != "" {
-				t.Fatalf("codes %q, want none: the runner twin is a sound program", codes)
+				t.Fatalf("sound placed runner refused: %s", codes)
 			}
 			skipTimeoutTests(t)
-			outputPath := buildRuntimeV2CrossingSource(t, row.text, nil)
-			env := overrideEnvVar(overrideEnvVar(envWithStdlib(repoRoot(t)), "SURGE_SHARDS", "1"), "SURGE_THREADS", "1")
-			_, res := runBinaryWithTimeout(t, outputPath, env, 60*time.Second)
-			if res.exitCode != 46 {
-				t.Fatalf("exit %d stdout %q stderr %q, want 46: the far body did not run the task it joined", res.exitCode, res.stdout, res.stderr)
+			binary := buildLLVMProgramFromSource(t, row.text)
+			shards := []string{"2", "8"}
+			if row.singleShard {
+				shards = append(shards, "1")
 			}
-		})
-	}
-}
-
-// spawnOnBuild builds text natively and answers the executable, or the build's error.
-func spawnOnBuild(t *testing.T, name, text, digest string) (string, error) {
-	t.Helper()
-	if got := fmt.Sprintf("%x", sha256.Sum256([]byte(text))); got != digest {
-		t.Fatalf("PRECONDITION: frozen probe changed: %s", got)
-	}
-	ensureLLVMToolchain(t)
-	root := repoRoot(t)
-	t.Setenv("SURGE_STDLIB", root)
-	dir := t.TempDir()
-	path := filepath.Join(dir, name+".sg")
-	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	res, err := buildpipeline.Build(t.Context(), &buildpipeline.BuildRequest{
-		CompileRequest: buildpipeline.CompileRequest{TargetPath: path, BaseDir: dir, MaxDiagnostics: 64},
-		OutputName:     name,
-		OutputRoot:     dir,
-		Profile:        "debug",
-		Backend:        buildpipeline.BackendLLVM,
-	})
-	if err != nil {
-		return "", err
-	}
-	return res.OutputPath, nil
-}
-
-// spawnOnGroupSurvivors answers the pids still in process group pgid, read from /proc (field 5 of stat is the pgrp).
-func spawnOnGroupSurvivors(pgid int) []string {
-	var out []string
-	entries, _ := os.ReadDir("/proc")
-	for _, e := range entries {
-		if _, err := strconv.Atoi(e.Name()); err != nil {
-			continue
-		}
-		raw, err := os.ReadFile(filepath.Join("/proc", e.Name(), "stat"))
-		if err != nil {
-			continue
-		}
-		s := string(raw)
-		if i := strings.LastIndexByte(s, ')'); i >= 0 {
-			if f := strings.Fields(s[i+1:]); len(f) > 3 && f[2] == strconv.Itoa(pgid) {
-				out = append(out, e.Name())
-			}
-		}
-	}
-	return out
-}
-
-// Every leaf logs `SPAWN_ON_344 <leaf> verdict=<hang|completed|build-failed|built|vm-refused>` before it asserts, so the
-// measurement tells a hang from a build failure by the row's own words.
-func TestH2TripwireSpawnOnBodySuspensionHangs(t *testing.T) {
-	for _, row := range []struct{ name, text, digest, want string }{
-		{"await_in_body_at_two_shards", spawnOnHangSonAwaitSource, spawnOnHangSonAwaitSourceDigest, "hang"},
-		{"far_select_in_body_fails_emission", spawnOnF8bBodyMadeChannelSource, spawnOnF8bBodyMadeChannelSourceDigest, "build:must be lowered inside an async suspend context"},
-		{"local_select_in_body_fails_validation", spawnOnF8cLocalSelectSource, spawnOnF8cLocalSelectSourceDigest, "build:select ready target"},
-	} {
-		t.Run(row.name, func(t *testing.T) {
-			if testBackend(t) != backendLLVM {
-				codes, _ := crossingFrameCompile(t, "spawn_on_344_"+row.name, row.text, row.digest)
-				t.Logf("SPAWN_ON_344 %s verdict=vm-refused codes=%s", row.name, codes)
-				if !strings.HasPrefix(codes, "FUT7015,") {
-					t.Fatalf("codes %q, want FUT7015 first: the VM has no cross-shard transport", codes)
+			for _, count := range shards {
+				env := overrideEnvVar(envWithStdlib(repoRoot(t)), "SURGE_SHARDS", count)
+				_, result := runBinaryWithTimeout(t, binary, env, 30*time.Second)
+				if result.exitCode != row.exit || result.stdout != "" || result.stderr != "" {
+					t.Fatalf("shards=%s exit=%d want=%d stdout=%q stderr=%q", count, result.exitCode, row.exit, result.stdout, result.stderr)
 				}
-				return
 			}
-			skipTimeoutTests(t)
-			exe, err := spawnOnBuild(t, "spawn_on_344_"+row.name, row.text, row.digest)
-			if msg, ok := strings.CutPrefix(row.want, "build:"); ok {
-				if err == nil {
-					t.Logf("SPAWN_ON_344 %s verdict=built", row.name)
-					t.Fatalf("the program built: RV2-DEBT-344 (b) seems fixed -- flip this leaf into a runner row and re-run the matrix")
-				}
-				t.Logf("SPAWN_ON_344 %s verdict=build-failed %v", row.name, err)
-				if !strings.Contains(err.Error(), msg) {
-					t.Fatalf("build error %q, want it to name %q (RV2-DEBT-344 (b))", err, msg)
-				}
-				return
+			env := overrideEnvVar(envWithStdlib(repoRoot(t)), "SURGE_SHARDS", "2")
+			stdout, stderr, code := runBinaryUnderValgrind(t, binary, env, 120*time.Second)
+			if code != row.exit || stdout != "" || hasValgrindMemcheckError(stderr) || !strings.Contains(stderr, "All heap blocks were freed") {
+				t.Fatalf("placed runner lifetime: exit=%d want=%d stdout=%q\n%s", code, row.exit, stdout, stderr)
 			}
-			if err != nil {
-				t.Logf("SPAWN_ON_344 %s verdict=build-failed %v", row.name, err)
-				t.Fatalf("PRECONDITION: the hang program does not build: %v", err)
-			}
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			cmd := exec.Command(exe)
-			cmd.Env = overrideEnvVar(overrideEnvVar(envWithStdlib(repoRoot(t)), "SURGE_SHARDS", "2"), "SURGE_THREADS", "2")
-			res := runCommandWithCancellation(ctx, cmd, subprocessTerminationGrace)
-			pgid := 0
-			if cmd.Process != nil {
-				pgid = cmd.Process.Pid
-			}
-			if left := spawnOnGroupSurvivors(pgid); pgid != 0 && len(left) > 0 {
-				t.Errorf("process group %d survived the kill: %v", pgid, left)
-			}
-			if errors.Is(res.contextErr, context.DeadlineExceeded) {
-				t.Logf("SPAWN_ON_344 %s verdict=hang", row.name)
-				return
-			}
-			t.Logf("SPAWN_ON_344 %s verdict=completed exit=%d", row.name, res.exitCode)
-			t.Fatalf("exit %d stdout %q stderr %q within 10 s: RV2-DEBT-344 (a) seems fixed -- flip this leaf into a runner row at two shards and re-run the matrix",
-				res.exitCode, res.stdout, res.stderr)
 		})
 	}
 }

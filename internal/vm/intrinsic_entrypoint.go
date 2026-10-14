@@ -46,6 +46,12 @@ func (vm *VM) handleExit(frame *Frame, call *mir.CallInstr) *VMError {
 		}
 	}
 
+	if call.Callee.Name == "__entry_error_code" {
+		if !call.HasDst {
+			return vm.eb.makeError(PanicTypeMismatch, "entry error reporting requires a result")
+		}
+		return vm.writeLocal(frame, call.Dst.Local, Value{Kind: VKInt, Int: int64(code), TypeID: frame.Locals[call.Dst.Local].TypeID})
+	}
 	vm.ExitCode = code
 	vm.RT.Exit(code)
 	vm.requestShutdown(true)

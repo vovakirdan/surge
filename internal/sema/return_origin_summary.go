@@ -8,6 +8,7 @@ import (
 
 	"surge/internal/diag"
 	"surge/internal/source"
+	"surge/internal/symbols"
 	"surge/internal/types"
 )
 
@@ -23,6 +24,15 @@ func (a *returnOriginAnalyzer) solveBodies() error {
 		a.summaries[fn.key] = returnOriginSummaryFact{value: projectReturnOriginSummary(value),
 			conditions: body.conditions, required: body.required}
 	}
+	// Every source body starts at NoNormalReturn, including callees visited
+	// after their callers in declaration order. A missing entry is not a
+	// semantic fact: treating it as an unresolved body permanently raises a
+	// caller to Unknown before the fixed point has examined that callee.
+	for _, fn := range a.functions {
+		if _, present := a.summaries[fn.key]; !present {
+			a.summaries[fn.key] = returnOriginSummaryFact{}
+		}
+	}
 	for {
 		changed := false
 		for _, fn := range a.functions {
@@ -34,10 +44,12 @@ func (a *returnOriginAnalyzer) solveBodies() error {
 			if err != nil {
 				return err
 			}
-			next := a.summaries[fn.key].join(returnOriginSummaryFact{value: projectReturnOriginSummary(value),
+			current := a.summaries[fn.key]
+			incoming := returnOriginSummaryFact{value: projectReturnOriginSummary(value),
 				conditions: body.conditions, required: body.required, postCells: projectReturnOriginCellPosts(body.postCells),
-				postBackings: projectReturnOriginCellPosts(body.postBackings)})
-			if !next.equal(a.summaries[fn.key]) {
+				postBackings: projectReturnOriginCellPosts(body.postBackings)}
+			next := current.join(&incoming)
+			if !next.equal(&current) {
 				a.summaries[fn.key] = next
 				changed = true
 			}
@@ -48,11 +60,17 @@ func (a *returnOriginAnalyzer) solveBodies() error {
 	}
 	a.collect = true
 	for _, fn := range a.declarations {
+		if !a.liveFunction(fn) {
+			continue
+		}
 		body := &returnOriginBody{analyzer: a, function: fn}
 		sources, valid := body.declaredFunctionSources(fn, fn.item.NameSpan)
 		body.opaqueReturnSources(fn, fn.info, sources, valid, fn.item.NameSpan)
 	}
 	for _, fn := range a.functions {
+		if !a.liveFunction(fn) {
+			continue
+		}
 		body := &returnOriginBody{analyzer: a, function: fn}
 		result, err := body.analyze()
 		if err != nil {
@@ -98,6 +116,64 @@ func (a *returnOriginAnalyzer) solveBodies() error {
 		return cmp.Compare(a.Reason, b.Reason)
 	})
 	return nil
+}
+
+func (a *returnOriginAnalyzer) liveFunction(fn *returnOriginFunction) bool {
+	if a == nil || fn == nil || fn.unit == nil || !fn.unit.LiveOnly {
+		return true
+	}
+	if fn.candidate == nil || len(a.units) == 0 || a.units[0].authority == nil ||
+		a.units[0].authority.InstantiationClosure == nil {
+		return true
+	}
+	return slices.Contains(a.units[0].authority.InstantiationClosure.LiveCallables, fn.candidate.Symbol)
+}
+
+func (a *returnOriginAnalyzer) templateSelectedForAnalysis(template symbols.SymbolID) bool {
+	if a == nil {
+		return false
+	}
+	for _, fn := range a.functions {
+		if fn != nil && fn.candidate != nil && !fn.unit.LiveOnly && a.sameTemplateBody(fn.candidate.Symbol, template) {
+			return true
+		}
+	}
+	if len(a.units) == 0 || a.units[0].authority == nil || a.units[0].authority.InstantiationClosure == nil {
+		return false
+	}
+	closure := a.units[0].authority.InstantiationClosure
+	for _, callable := range closure.LiveCallables {
+		if a.sameTemplateBody(callable, template) {
+			return true
+		}
+	}
+	for i := range closure.Instances {
+		if a.sameTemplateBody(closure.Instances[i].Template, template) {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *returnOriginAnalyzer) unitHasSelectedCallable(unit *returnOriginUnitIndex) bool {
+	if unit == nil || !unit.LiveOnly {
+		return true
+	}
+	for _, fn := range unit.functions {
+		if fn != nil && fn.candidate != nil && a.templateSelectedForAnalysis(fn.candidate.Symbol) {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *returnOriginAnalyzer) hasSourceUnit(sourceKey string) bool {
+	for _, unit := range a.units {
+		if unit != nil && unit.SourceKey == sourceKey {
+			return true
+		}
+	}
+	return false
 }
 
 func projectReturnOriginSummary(value returnOriginValue) returnOriginValue {

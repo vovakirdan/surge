@@ -49,7 +49,7 @@ func TestParallelPublicationSurvivesADriftedSourceFileID(t *testing.T) {
 		results[i].FileID = absent
 	}
 
-	if err := finalizeParallelFileResults(context.Background(), fileSet, results); err != nil {
+	if err := finalizeParallelFileResultsWithoutReturnOrigins(context.Background(), fileSet, results); err != nil {
 		t.Fatalf("finalize parallel file results: %v", err)
 	}
 

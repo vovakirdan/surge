@@ -112,12 +112,17 @@ func TestReturnOriginExternalCellFacts(t *testing.T) {
 			t.Fatalf("PRECONDITION: read_old lacks its complete normal post vector: %s", digest)
 		}
 		bottom := returnOriginSummaryFact{}
-		for i, joined := range []returnOriginSummaryFact{fact.join(bottom), bottom.join(fact), fact.join(bottom).join(fact).join(bottom)} {
-			if !joined.equal(fact) {
+		first := (&fact).join(&bottom)
+		second := (&bottom).join(&fact)
+		chain := (&fact).join(&bottom)
+		chain = (&chain).join(&fact)
+		chain = (&chain).join(&bottom)
+		for i, joined := range []returnOriginSummaryFact{first, second, chain} {
+			if !joined.equal(&fact) {
 				t.Errorf("join %d with bottom changed the normal fact: %+v", i, joined)
 			}
 		}
-		if twice := bottom.join(bottom); twice.value.normal || len(twice.postCells) != 0 {
+		if twice := (&bottom).join(&bottom); twice.value.normal || len(twice.postCells) != 0 {
 			t.Errorf("bottom gained a normal continuation or post entries: %+v", twice)
 		}
 		if fmt.Sprintf("%+v", fact) != digest {
@@ -168,7 +173,8 @@ func TestReturnOriginExternalCellFacts(t *testing.T) {
 		// Detached abstract input: a loan of `local` stored in the caller's C0.
 		env := cellBodyEnv(two).withCell(0, returnOriginValueOf(returnOrigin{kind: returnOriginLocal, binding: localID, scope: local.Scope}))
 		a.report.Diagnostics = nil
-		closed := b.closeOutcome(returnOriginOutcome{env: env, value: returnOriginValueOf()}, local.Scope, two.item.Span)
+		outcome := returnOriginOutcome{env: env, value: returnOriginValueOf()}
+		closed := b.closeOutcome(&outcome, local.Scope, two.item.Span)
 		if cell, kept := closed.env.cells[0]; !kept || len(cell.roots) != 1 || cell.roots[0].kind != returnOriginLocal || !cell.roots[0].expired {
 			t.Errorf("scope exit lost C0 or left its local loan live: %+v", closed.env.cells)
 		}
@@ -176,7 +182,8 @@ func TestReturnOriginExternalCellFacts(t *testing.T) {
 			len(a.report.Diagnostics[0].Notes) != 1 || a.report.Diagnostics[0].Notes[0].Span != local.Span {
 			t.Errorf("a local loan in C0 escaped without its owner diagnostic: %+v", a.report.Diagnostics)
 		}
-		whole := b.closeOutcome(returnOriginOutcome{env: env, value: returnOriginValueOf()}, two.scope, two.item.Span)
+		wholeOutcome := returnOriginOutcome{env: env, value: returnOriginValueOf()}
+		whole := b.closeOutcome(&wholeOutcome, two.scope, two.item.Span)
 		if _, kept := whole.env.cells[0]; !kept || len(whole.env.bindings) != 0 {
 			t.Errorf("closing the function dropped C0 or kept a formal binding: cells=%+v bindings=%d", whole.env.cells, len(whole.env.bindings))
 		}
@@ -187,7 +194,8 @@ func TestReturnOriginExternalCellFacts(t *testing.T) {
 		probe, callee := bodies["probe"], bodies["returned_alias"]
 		original := a.summaries[callee.key]
 		digest := fmt.Sprintf("%+v", original)
-		detached := original.join(returnOriginSummaryFact{})
+		bottom := returnOriginSummaryFact{}
+		detached := (&original).join(&bottom)
 		delete(detached.postCells, 0)
 		callID := cellExprsAt(t, probe, ast.ExprCall, "returned_alias(dst, replacement)")[0]
 		span := probe.unit.Builder.Exprs.Get(callID).Span

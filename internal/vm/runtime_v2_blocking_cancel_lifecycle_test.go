@@ -39,7 +39,7 @@ func buildRuntimeV2LifecycleHarnessDebt080(t *testing.T, control string) string 
 }
 
 func debt080Env(syncPoint string) []string {
-	values := []string{"SURGE_SHARDS=1", "SURGE_THREADS=2", "SURGE_BLOCKING_THREADS=1"}
+	values := []string{"SURGE_SHARDS=2", "SURGE_BLOCKING_THREADS=1"}
 	if syncPoint != "" {
 		values = append(values, "SURGE_SYNC_POINT="+syncPoint+":block")
 	}

@@ -139,7 +139,8 @@ void remote_spawn_pending_fail_all(rt_executor* ex, rt_remote_spawn_status statu
         // registration goes, and so does the message reference nothing will
         // ever enqueue -- once, between this sweep and the caller's own
         // retry, whichever ends the park.
-        if (rt_remote_admission_abandon(ex, pending->caller_task_id, &pending->admission)) {
+        if (rt_remote_admission_abandon_and_wake(
+                ex, pending->caller_task_id, &pending->admission)) {
             remote_spawn_pending_release(pending);
         }
         remote_spawn_pending_release(pending);

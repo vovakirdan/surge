@@ -287,7 +287,8 @@ func (tc *typeChecker) resolveFixedViewReturnCalls() {
 	}
 	for changed := true; changed; {
 		changed = false
-		for _, obligation := range tc.fixedViewReturnCalls {
+		for i := range tc.fixedViewReturnCalls {
+			obligation := &tc.fixedViewReturnCalls[i]
 			for slot := range tc.fixedViewReturnParams[obligation.call.callee] {
 				base, known := obligation.call.bases[slot]
 				if known && tc.propagateFixedViewReturnParam(obligation, base) {
@@ -296,7 +297,8 @@ func (tc *typeChecker) resolveFixedViewReturnCalls() {
 			}
 		}
 	}
-	for _, obligation := range tc.fixedViewReturnCalls {
+	for i := range tc.fixedViewReturnCalls {
+		obligation := &tc.fixedViewReturnCalls[i]
 		tc.reportFixedViewReturnCall(obligation)
 	}
 }
@@ -304,7 +306,10 @@ func (tc *typeChecker) resolveFixedViewReturnCalls() {
 // propagateFixedViewReturnParam is the transitive step: a function that hands on a
 // window into what its OWN reference parameter points at proves about itself exactly
 // what its callee proved.
-func (tc *typeChecker) propagateFixedViewReturnParam(obligation fixedViewReturn, base symbols.SymbolID) bool {
+func (tc *typeChecker) propagateFixedViewReturnParam(obligation *fixedViewReturn, base symbols.SymbolID) bool {
+	if obligation == nil {
+		return false
+	}
 	sym := tc.symbolFromID(base)
 	if sym == nil || sym.Kind != symbols.SymbolParam || !tc.isReferenceType(tc.bindingType(base)) {
 		return false
@@ -320,7 +325,10 @@ func (tc *typeChecker) propagateFixedViewReturnParam(obligation fixedViewReturn,
 // reportFixedViewReturnCall refuses one returned call whose callee gives back a
 // window into storage this frame owns. Slots are walked in order so the refusal a
 // program gets does not depend on map iteration, and one call reports once.
-func (tc *typeChecker) reportFixedViewReturnCall(obligation fixedViewReturn) {
+func (tc *typeChecker) reportFixedViewReturnCall(obligation *fixedViewReturn) {
+	if obligation == nil {
+		return
+	}
 	formals := tc.fixedViewReturnParams[obligation.call.callee]
 	if len(formals) == 0 {
 		return

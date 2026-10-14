@@ -172,15 +172,23 @@ func (b *surgeStartBuilder) build() error {
 	// The entrypoint's parameters are ordinary by-value parameters, so they are
 	// owed exactly what any other call's are.
 	entryContracts := make([]ArgContract, 0, len(argOperands))
+	var borrowedOwners []Operand
 	entryParams := b.entryMF.Func.Params
 	for i := range argOperands {
 		paramType := types.NoTypeID
 		if i < len(entryParams) {
 			paramType = entryParams[i].Type
 		}
-		entryContracts = append(entryContracts, byValueArgContract(b.typesIn, b.sema, paramType, false))
+		contract := byValueArgContract(b.typesIn, b.sema, paramType, false)
+		entryContracts = append(entryContracts, contract)
+		if contract == ArgContractBorrow && sema.OwnsHeapIn(b.typesIn, paramType) {
+			argOperands[i].Kind = OperandCopy
+			argOperands[i].Type = paramType
+			borrowedOwners = append(borrowedOwners, argOperands[i])
+		}
 	}
 	b.emitCall(retLocal, b.entryMF.Func.SymbolID, b.entryMF.Func.Name, argOperands, entryContracts)
+	b.dropPreparedArgs(borrowedOwners)
 
 	// Convert return to exit code
 	codeLocal := b.newLocal("code", b.intType(), b.localFlags(b.intType()))
@@ -201,11 +209,11 @@ func (b *surgeStartBuilder) build() error {
 			},
 		})
 	case b.isIntType(entryReturnType):
-		// int -> code = copy retLocal
+		// The result has one remaining consumer: the process exit code.
 		b.emitAssign(codeLocal, &RValue{
 			Kind: RValueUse,
 			Use: Operand{
-				Kind:  OperandCopy,
+				Kind:  OperandMove,
 				Place: Place{Local: retLocal},
 			},
 		})
